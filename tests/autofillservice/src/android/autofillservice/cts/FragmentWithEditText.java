@@ -25,7 +25,7 @@ import android.view.ViewGroup;
 import android.widget.EditText;
 
 /**
- * A fragment with containing a single {@link EditText}
+ * A fragment with containing {@link EditText}s
  */
 public class FragmentWithEditText extends Fragment {
     @Override

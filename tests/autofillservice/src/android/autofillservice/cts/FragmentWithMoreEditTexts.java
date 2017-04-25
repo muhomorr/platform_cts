@@ -14,26 +14,23 @@
  * limitations under the License.
  */
 
-package com.android.cts.devicepolicy.autofillapp;
+package android.autofillservice.cts;
 
+import android.app.Fragment;
 import android.os.Bundle;
-import android.os.CancellationSignal;
-import android.service.autofill.AutofillService;
-import android.service.autofill.FillCallback;
-import android.service.autofill.FillRequest;
-import android.service.autofill.SaveCallback;
-import android.service.autofill.SaveRequest;
+import android.support.annotation.Nullable;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.EditText;
 
-public class SimpleAutofillService extends AutofillService {
-
+/**
+ * A fragment with containing more {@link EditText}s
+ */
+public class FragmentWithMoreEditTexts extends Fragment {
     @Override
-    public void onFillRequest(FillRequest request, CancellationSignal cancellationSignal,
-            FillCallback callback) {
-        callback.onSuccess(null);
-    }
-
-    @Override
-    public void onSaveRequest(SaveRequest request, SaveCallback callback) {
-        callback.onSuccess();
+    @Nullable public View onCreateView(LayoutInflater inflater, @Nullable ViewGroup container,
+            Bundle savedInstanceState) {
+        return inflater.inflate(R.layout.fragment_with_more_edittexts, null);
     }
 }
