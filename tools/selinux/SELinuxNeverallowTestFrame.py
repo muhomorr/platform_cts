@@ -68,10 +68,7 @@ public class SELinuxNeverallowRulesTest extends DeviceTestCase implements IBuild
         sepolicyAnalyze = buildHelper.getTestFile("sepolicy-analyze");
         sepolicyAnalyze.setExecutable(true);
 
-        /* obtain sepolicy file from running device */
-        devicePolicyFile = File.createTempFile("sepolicy", ".tmp");
-        devicePolicyFile.deleteOnExit();
-        mDevice.pullFile("/sys/fs/selinux/policy", devicePolicyFile);
+        devicePolicyFile = android.security.cts.SELinuxHostTest.getDevicePolicyFile(mDevice);
     }
 
     private boolean isFullTrebleDevice() throws Exception {
@@ -95,7 +92,7 @@ src_method = """
 
         /* run sepolicy-analyze neverallow check on policy file using given neverallow rules */
         ProcessBuilder pb = new ProcessBuilder(sepolicyAnalyze.getAbsolutePath(),
-                devicePolicyFile.getAbsolutePath(), "neverallow", "-n",
+                devicePolicyFile.getAbsolutePath(), "neverallow", "-w", "-n",
                 neverallowRule);
         pb.redirectOutput(ProcessBuilder.Redirect.PIPE);
         pb.redirectErrorStream(true);
