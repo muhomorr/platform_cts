@@ -73,6 +73,10 @@ public class StagefrightTest extends InstrumentationTestCase {
      before any existing test methods
      ***********************************************************/
 
+    public void testStagefright_bug_34360591() throws Exception {
+        doStagefrightTest(R.raw.bug_34360591);
+    }
+
     public void testStagefright_bug_35763994() throws Exception {
         doStagefrightTest(R.raw.bug_35763994);
     }
@@ -181,6 +185,11 @@ public class StagefrightTest extends InstrumentationTestCase {
      to prevent merge conflicts, add M tests below this comment,
      before any existing test methods
      ***********************************************************/
+
+    @SecurityTest
+    public void testStagefright_bug_34097672() throws Exception {
+        doStagefrightTest(R.raw.bug_34097672);
+    }
 
     @SecurityTest
     public void testStagefright_bug_33818508() throws Exception {
