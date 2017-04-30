@@ -37,7 +37,6 @@
     <protected-broadcast android:name="android.intent.action.BOOT_COMPLETED" />
     <protected-broadcast android:name="android.intent.action.PACKAGE_INSTALL" />
     <protected-broadcast android:name="android.intent.action.PACKAGE_ADDED" />
-    <protected-broadcast android:name="android.intent.action.PACKAGE_FIRST_ADDED" />
     <protected-broadcast android:name="android.intent.action.PACKAGE_REPLACED" />
     <protected-broadcast android:name="android.intent.action.MY_PACKAGE_REPLACED" />
     <protected-broadcast android:name="android.intent.action.PACKAGE_REMOVED" />
@@ -127,6 +126,7 @@
     <protected-broadcast android:name="android.bluetooth.adapter.action.DISCOVERY_STARTED" />
     <protected-broadcast android:name="android.bluetooth.adapter.action.DISCOVERY_FINISHED" />
     <protected-broadcast android:name="android.bluetooth.adapter.action.LOCAL_NAME_CHANGED" />
+    <protected-broadcast android:name="android.bluetooth.adapter.action.BLUETOOTH_ADDRESS_CHANGED" />
     <protected-broadcast android:name="android.bluetooth.adapter.action.CONNECTION_STATE_CHANGED" />
     <protected-broadcast android:name="android.bluetooth.device.action.UUID" />
     <protected-broadcast android:name="android.bluetooth.device.action.MAS_INSTANCE" />
@@ -2506,13 +2506,11 @@
          to ensure that only the system can bind to it.
          <p>Protection level: signature
     -->
-    <permission android:name="android.permission.BIND_AUTOFILL"
+    <permission android:name="android.permission.BIND_AUTOFILL_SERVICE"
         android:protectionLevel="signature" />
 
-    <!--  TODO(b/35956626): temporary until clients change to BIND_AUTOFILL
-         <p>Protection level: signature
-    -->
-    <permission android:name="android.permission.BIND_AUTO_FILL"
+    <!-- @hide TODO(b/37563972): remove once clients use BIND_AUTOFILL_SERVICE -->
+    <permission android:name="android.permission.BIND_AUTOFILL"
         android:protectionLevel="signature" />
 
     <!-- Must be required by hotword enrollment application,
@@ -3182,6 +3180,14 @@
     <permission android:name="android.permission.BIND_CHOOSER_TARGET_SERVICE"
         android:protectionLevel="signature" />
 
+    <!-- @SystemApi Must be held by services that extend
+         {@link android.service.resolver.ResolverRankerService}.
+         <p>Protection level: signature|privileged
+         @hide
+    -->
+    <permission android:name="android.permission.PROVIDE_RESOLVER_RANKER_SERVICE"
+                android:protectionLevel="signature|privileged" />
+
     <!-- @SystemApi Must be required by services that extend
          {@link android.service.resolver.ResolverRankerService}, to ensure that only the system can
          bind to them.
@@ -3190,14 +3196,6 @@
     -->
     <permission android:name="android.permission.BIND_RESOLVER_RANKER_SERVICE"
                 android:protectionLevel="signature" />
-
-    <!-- @SystemApi Must be held by services that extend
-         {@link android.service.resolver.ResolverRankerService}.
-         <p>Protection level: signature|privileged
-         @hide
-    -->
-    <permission android:name="android.permission.PROVIDE_RESOLVER_RANKER_SERVICE"
-                android:protectionLevel="signature|privileged" />
 
     <!-- Must be required by a {@link
          android.service.notification.ConditionProviderService},
@@ -3653,6 +3651,22 @@
             </intent-filter>
         </receiver>
 
+        <receiver android:name="com.android.server.updates.LangIdInstallReceiver"
+                  android:permission="android.permission.UPDATE_CONFIG">
+            <intent-filter>
+                <action android:name="android.intent.action.UPDATE_LANG_ID" />
+                <data android:scheme="content" android:host="*" android:mimeType="*/*" />
+            </intent-filter>
+        </receiver>
+
+        <receiver android:name="com.android.server.updates.SmartSelectionInstallReceiver"
+                  android:permission="android.permission.UPDATE_CONFIG">
+            <intent-filter>
+                <action android:name="android.intent.action.UPDATE_SMART_SELECTION" />
+                <data android:scheme="content" android:host="*" android:mimeType="*/*" />
+            </intent-filter>
+        </receiver>
+
         <receiver android:name="com.android.server.MasterClearReceiver"
             android:permission="android.permission.MASTER_CLEAR">
             <intent-filter
@@ -3715,7 +3729,6 @@
         <service android:name="com.android.server.PreloadsFileCacheExpirationJobService"
                  android:permission="android.permission.BIND_JOB_SERVICE" >
         </service>
-
     </application>
 
 </manifest>
