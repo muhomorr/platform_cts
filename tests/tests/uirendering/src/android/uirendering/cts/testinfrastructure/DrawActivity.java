@@ -15,18 +15,27 @@
  */
 package android.uirendering.cts.testinfrastructure;
 
+import static org.junit.Assert.fail;
+
 import android.app.Activity;
 import android.content.res.Configuration;
 import android.graphics.Point;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.HandlerThread;
 import android.os.Message;
 import android.support.annotation.Nullable;
 import android.uirendering.cts.R;
+import android.util.Log;
+import android.view.FrameMetrics;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewStub;
 import android.view.ViewTreeObserver;
+import android.view.Window;
+
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 /**
  * A generic activity that uses a view specified by the user.
@@ -47,6 +56,33 @@ public class DrawActivity extends Activity {
         mHandler = new RenderSpecHandler();
         int uiMode = getResources().getConfiguration().uiMode;
         mOnTv = (uiMode & Configuration.UI_MODE_TYPE_MASK) == Configuration.UI_MODE_TYPE_TELEVISION;
+
+        // log frame metrics
+        HandlerThread handlerThread = new HandlerThread("FrameMetrics");
+        handlerThread.start();
+        getWindow().addOnFrameMetricsAvailableListener(
+                new Window.OnFrameMetricsAvailableListener() {
+                    int mRtFrameCount = 0;
+                    @Override
+                    public void onFrameMetricsAvailable(Window window, FrameMetrics frameMetrics,
+                            int dropCountSinceLastInvocation) {
+                        Log.d("UiRendering", "Window frame count " + mRtFrameCount
+                                + ", frame drops " + dropCountSinceLastInvocation);
+                        mRtFrameCount++;
+                    }
+                }, new Handler(handlerThread.getLooper()));
+
+        // log draw metrics
+        View view = new View(this);
+        setContentView(view);
+        view.getViewTreeObserver().addOnDrawListener(new ViewTreeObserver.OnDrawListener() {
+            int mFrameCount;
+            @Override
+            public void onDraw() {
+                Log.d("UiRendering", "View tree frame count " + mFrameCount);
+                mFrameCount++;
+            }
+        });
     }
 
     public boolean getOnTv() {
@@ -57,15 +93,15 @@ public class DrawActivity extends Activity {
             @Nullable ViewInitializer viewInitializer, boolean useHardware, boolean usePicture) {
         ((RenderSpecHandler) mHandler).setViewInitializer(viewInitializer);
         int arg2 = (useHardware ? View.LAYER_TYPE_NONE : View.LAYER_TYPE_SOFTWARE);
-        if (canvasClient != null) {
-            mHandler.obtainMessage(RenderSpecHandler.CANVAS_MSG, usePicture ? 1 : 0,
-                    arg2, canvasClient).sendToTarget();
-        } else {
-            mHandler.obtainMessage(RenderSpecHandler.LAYOUT_MSG, layoutId, arg2).sendToTarget();
-        }
-
         Point point = new Point();
         synchronized (mLock) {
+            if (canvasClient != null) {
+                mHandler.obtainMessage(RenderSpecHandler.CANVAS_MSG, usePicture ? 1 : 0,
+                        arg2, canvasClient).sendToTarget();
+            } else {
+                mHandler.obtainMessage(RenderSpecHandler.LAYOUT_MSG, layoutId, arg2).sendToTarget();
+            }
+
             try {
                 mLock.wait(TIME_OUT_MS);
                 point.set(mLock.x, mLock.y);
@@ -77,13 +113,14 @@ public class DrawActivity extends Activity {
     }
 
     public void reset() {
-        mHandler.sendEmptyMessage(RenderSpecHandler.RESET_MSG);
-        synchronized (mLock) {
-            try {
-                mLock.wait(TIME_OUT_MS);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
+        CountDownLatch fence = new CountDownLatch(1);
+        mHandler.obtainMessage(RenderSpecHandler.RESET_MSG, fence).sendToTarget();
+        try {
+            if (!fence.await(10, TimeUnit.SECONDS)) {
+                fail("Timeout exception");
             }
+        } catch (InterruptedException ex) {
+            fail(ex.getMessage());
         }
     }
 
@@ -106,12 +143,10 @@ public class DrawActivity extends Activity {
         }
 
         public void handleMessage(Message message) {
+            Log.d("UiRendering", "message of type " + message.what);
             if (message.what == RESET_MSG) {
                 ((ViewGroup)findViewById(android.R.id.content)).removeAllViews();
-                synchronized (mLock) {
-                    mLock.set(-1, -1);
-                    mLock.notify();
-                }
+                ((CountDownLatch)message.obj).countDown();
                 return;
             }
             setContentView(R.layout.test_container);
