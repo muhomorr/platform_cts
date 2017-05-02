@@ -22,7 +22,7 @@ LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE_PATH := $(TARGET_OUT_DATA_APPS)
 
 # Tag this module as a cts test artifact
-LOCAL_COMPATIBILITY_SUITE := cts
+LOCAL_COMPATIBILITY_SUITE := cts general-tests
 
 LOCAL_JAVA_LIBRARIES := android.test.runner
 
@@ -37,7 +37,7 @@ LOCAL_SRC_FILES := $(call all-java-files-under, src) $(call all-renderscript-fil
 
 LOCAL_PACKAGE_NAME := CtsUiRenderingTestCases
 
-# uncomment when dalvik.annotation.Test* are removed or part of SDK
-#LOCAL_SDK_VERSION := test_current
+# Enforce public / test api only
+LOCAL_SDK_VERSION := test_current
 
 include $(BUILD_CTS_PACKAGE)

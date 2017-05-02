@@ -30,10 +30,10 @@ import android.graphics.Region;
 import android.graphics.Region.Op;
 import android.graphics.drawable.AdaptiveIconDrawable;
 import android.graphics.drawable.ColorDrawable;
+import android.support.test.InstrumentationRegistry;
 import android.support.test.filters.SmallTest;
 import android.support.test.runner.AndroidJUnit4;
 import android.util.Log;
-import android.util.PathParser;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -53,6 +53,8 @@ public class AdaptiveIconMaskTest {
     private ColorDrawable mBlueDrawable;
     private ColorDrawable mRedDrawable;
     private AdaptiveIconDrawable mDrawable;
+    private static final float sMaskSize = AdaptiveIconDrawable.MASK_SIZE;
+    private boolean mUseRoundIcon;
 
     @Before
     public void setup() {
@@ -60,12 +62,15 @@ public class AdaptiveIconMaskTest {
         mRedDrawable = new ColorDrawable(Color.RED);
         mDrawable = new AdaptiveIconDrawable( mBlueDrawable, mRedDrawable);
 
-        String path = Resources.getSystem().getString(com.android.internal.R.string.config_icon_mask);
-        L("config_icon_mask: " + path);
-        mMask = PathParser.createPathFromPathData(path);
+        mMask = mDrawable.getIconMask();
+
         int sInset = (int) (SAFEZONE_INSET * AdaptiveIconDrawable.MASK_SIZE);
         mSafeZone.addCircle(AdaptiveIconDrawable.MASK_SIZE/2, AdaptiveIconDrawable.MASK_SIZE/2,
             AdaptiveIconDrawable.MASK_SIZE/2/2 - sInset, Direction.CW);
+        mUseRoundIcon =  Resources.getSystem().getBoolean(
+            InstrumentationRegistry.getTargetContext().getResources().getIdentifier(
+                "config_useRoundIcon", "bool", "android"));
+        L("config_useRoundIcon:" + mUseRoundIcon);
     }
 
     @Test
@@ -75,7 +80,6 @@ public class AdaptiveIconMaskTest {
         // Bounds should be [100 x 100]
         RectF bounds = new RectF();
         mMask.computeBounds(bounds, true);
-        System.out.println("MERONG:" + bounds.toShortString());
         assertTrue("Mask top should be larger than or equal to 0", -DELTA <= bounds.top);
         assertTrue("Mask left should be larger than or equal to 0", -DELTA <= bounds.left);
         assertTrue("Mask bottom should be smaller than or equal to" +
@@ -112,7 +116,6 @@ public class AdaptiveIconMaskTest {
     @Test
     public void testDeviceConfigMask_isConvex() {
         assertNotNull(mMask);
-
         assertTrue("Mask is not convex", mMask.isConvex());
     }
 
@@ -122,5 +125,29 @@ public class AdaptiveIconMaskTest {
             mBlueDrawable, mDrawable.getBackground());
         assertEquals("Foreground layer is not the same.",
             mRedDrawable, mDrawable.getForeground());
+    }
+
+    @Test
+    public void testDeviceConfig_iconMask_useRoundIcon() {
+        assertNotNull(mMask);
+
+        boolean circleMask = isCircle(mMask);
+        // If mask shape is circle, then mUseRoundIcon should be defined and should be true.
+        // If mask shape is not a circle
+        //           mUseRoundIcon doesn't have to be defined.
+        //           if mUseRoundIcon is defined, then should be false
+        assertEquals(mUseRoundIcon, circleMask);
+    }
+
+    private boolean isCircle(Path maskPath) {
+        Path circle101 = new Path();
+        circle101.addCircle(50, 50, 50.5f, Direction.CCW);
+        Path circle99 = new Path();
+        circle99.addCircle(50, 50, 49.5f, Direction.CCW);
+        circle99.op(maskPath, Path.Op.DIFFERENCE);
+        boolean fullyEnclosesSmallerCircle = circle99.isEmpty();
+        maskPath.op(circle101, Path.Op.DIFFERENCE);
+        boolean fullyEnclosedByLargerCircle = maskPath.isEmpty();
+        return fullyEnclosedByLargerCircle && fullyEnclosesSmallerCircle;
     }
 }

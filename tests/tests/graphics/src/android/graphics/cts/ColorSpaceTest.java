@@ -15,16 +15,6 @@
  */
 package android.graphics.cts;
 
-import android.graphics.Bitmap;
-import android.graphics.ColorSpace;
-import android.support.test.filters.SmallTest;
-import android.support.test.runner.AndroidJUnit4;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-
-import java.util.Arrays;
-import java.util.function.DoubleUnaryOperator;
-
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -32,6 +22,16 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
+
+import android.graphics.ColorSpace;
+import android.support.test.filters.SmallTest;
+import android.support.test.runner.AndroidJUnit4;
+
+import org.junit.Test;
+import org.junit.runner.RunWith;
+
+import java.util.Arrays;
+import java.util.function.DoubleUnaryOperator;
 
 @SmallTest
 @RunWith(AndroidJUnit4.class)
@@ -76,6 +76,8 @@ public class ColorSpaceTest {
             assertNotNull(colorSpace.getName());
             assertNotNull(colorSpace);
             assertEquals(named.ordinal(), colorSpace.getId());
+            assertTrue(colorSpace.getComponentCount() >= 1);
+            assertTrue(colorSpace.getComponentCount() <= 4);
         }
     }
 
@@ -296,6 +298,17 @@ public class ColorSpaceTest {
         for (int i = 0; i < 9; i++) {
             assertEquals(XYZ_TO_SRGB[i], xyzToRGB[i], 1e-5f);
         }
+    }
+
+    @Test
+    public void testGetComponentCount() {
+        assertEquals(3, ColorSpace.get(ColorSpace.Named.SRGB).getComponentCount());
+        assertEquals(3, ColorSpace.get(ColorSpace.Named.LINEAR_SRGB).getComponentCount());
+        assertEquals(3, ColorSpace.get(ColorSpace.Named.EXTENDED_SRGB).getComponentCount());
+        assertEquals(3, ColorSpace.get(ColorSpace.Named.LINEAR_EXTENDED_SRGB).getComponentCount());
+        assertEquals(3, ColorSpace.get(ColorSpace.Named.DISPLAY_P3).getComponentCount());
+        assertEquals(3, ColorSpace.get(ColorSpace.Named.CIE_LAB).getComponentCount());
+        assertEquals(3, ColorSpace.get(ColorSpace.Named.CIE_XYZ).getComponentCount());
     }
 
     @Test
@@ -588,6 +601,12 @@ public class ColorSpaceTest {
         };
 
         assertArrayEquals(sRGBD50, ((ColorSpace.Rgb) adapted).getTransform(), 1e-7f);
+
+        adapted = ColorSpace.adapt(
+                ColorSpace.get(ColorSpace.Named.SRGB),
+                ColorSpace.ILLUMINANT_D50,
+                ColorSpace.Adaptation.BRADFORD);
+        assertArrayEquals(sRGBD50, ((ColorSpace.Rgb) adapted).getTransform(), 1e-7f);
     }
 
     @Test
@@ -764,49 +783,6 @@ public class ColorSpaceTest {
                         1 / 1.055, 0.055 / 1.055, 1 / 12.92, 0.04045, 2.4)));
     }
 
-    @Test
-    public void testRendererSize() {
-        Bitmap b = ColorSpace.createRenderer()
-                .size(0)
-                .render();
-        assertEquals(128, b.getWidth());
-        assertEquals(128, b.getHeight());
-
-        b = ColorSpace.createRenderer()
-                .size(768)
-                .render();
-        assertEquals(768, b.getWidth());
-        assertEquals(768, b.getHeight());
-    }
-
-    @Test
-    public void testRenderer() {
-        Bitmap b = ColorSpace.createRenderer()
-                .size(1024)
-                .clip(true)
-                .showWhitePoint(false)
-                .add(ColorSpace.get(ColorSpace.Named.SRGB), 0xffffffff)
-                .add(ColorSpace.get(ColorSpace.Named.DCI_P3), 0xffffffff)
-                .add(ColorSpace.get(ColorSpace.Named.PRO_PHOTO_RGB), 0.1f, 0.5f, 0.1f, 0xff000000)
-                .add(ColorSpace.get(ColorSpace.Named.ADOBE_RGB), 0.1f, 0.5f, 0.1f, 0xff000000)
-                .render();
-        assertNotNull(b);
-    }
-
-    @Test
-    public void testUcsRenderer() {
-        Bitmap b = ColorSpace.createRenderer()
-                .size(1024)
-                .clip(true)
-                .showWhitePoint(false)
-                .uniformChromaticityScale(true)
-                .add(ColorSpace.get(ColorSpace.Named.SRGB), 0xffffffff)
-                .add(ColorSpace.get(ColorSpace.Named.DCI_P3), 0xffffffff)
-                .add(ColorSpace.get(ColorSpace.Named.PRO_PHOTO_RGB), 0.1f, 0.5f, 0.1f, 0xff000000)
-                .add(ColorSpace.get(ColorSpace.Named.ADOBE_RGB), 0.1f, 0.5f, 0.1f, 0xff000000)
-                .render();
-        assertNotNull(b);
-    }
 
     @SuppressWarnings("SameParameterValue")
     private static void assertArrayNotEquals(float[] a, float[] b, float eps) {
