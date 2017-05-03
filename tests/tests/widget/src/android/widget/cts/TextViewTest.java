@@ -162,7 +162,6 @@ import org.xmlpull.v1.XmlPullParserException;
 
 import java.io.IOException;
 import java.lang.annotation.Retention;
-import java.util.Arrays;
 import java.util.Locale;
 
 /**
@@ -3537,6 +3536,7 @@ public class TextViewTest {
     public void testGetOffsetForPositionSingleLineLtr() throws Throwable {
         // asserts getOffsetPosition returns correct values for a single line LTR text
         final String text = "aaaaa";
+
         mActivityRule.runOnUiThread(() -> {
             mTextView = new TextView(mActivity);
             mTextView.setText(text);
@@ -3560,17 +3560,21 @@ public class TextViewTest {
         mActivityRule.runOnUiThread(() -> mActivity.setContentView(layout));
         mInstrumentation.waitForIdleSync();
 
+        final float halfCharWidth = (float) Math.ceil(mTextView.getPaint().measureText("a") / 2f);
+        final int paddingTop = mTextView.getTotalPaddingTop();
+        final int paddingLeft = mTextView.getTotalPaddingLeft();
+
         final int firstOffset = 0;
         final int lastOffset = text.length() - 1;
         final int midOffset = text.length() / 2;
 
         // left edge of view
         float x = 0f;
-        float y = mTextView.getHeight() / 2f;
+        float y = mTextView.getHeight() / 2f + paddingTop;
         assertEquals(firstOffset, mTextView.getOffsetForPosition(x, y));
 
         // right edge of text
-        x = mTextView.getLayout().getLineWidth(0) - 1f;
+        x = mTextView.getLayout().getLineWidth(0) + paddingLeft - halfCharWidth;
         assertEquals(lastOffset, mTextView.getOffsetForPosition(x, y));
 
         // right edge of view
@@ -3582,7 +3586,7 @@ public class TextViewTest {
         assertEquals(firstOffset, mTextView.getOffsetForPosition(x, y));
 
         // horizontal center of text
-        x = (float) Math.floor(mTextView.getLayout().getLineWidth(0) / 2f + 0.5f);
+        x = mTextView.getLayout().getLineWidth(0) / 2f + paddingLeft - halfCharWidth;
         assertEquals(midOffset, mTextView.getOffsetForPosition(x, y));
     }
 
@@ -3616,9 +3620,13 @@ public class TextViewTest {
         final Rect lineBounds = new Rect();
         mTextView.getLayout().getLineBounds(0, lineBounds);
 
+        final float halfCharWidth = (float) Math.ceil(mTextView.getPaint().measureText("a") / 2f);
+        final int paddingTop = mTextView.getTotalPaddingTop();
+        final int paddingLeft = mTextView.getTotalPaddingLeft();
+
         // left edge of view at first line
         float x = 0f;
-        float y = lineBounds.height() / 2f;
+        float y = lineBounds.height() / 2f + paddingTop;
         assertEquals(0, mTextView.getOffsetForPosition(x, y));
 
         // right edge of view at first line
@@ -3627,14 +3635,14 @@ public class TextViewTest {
 
         // update lineBounds to be the second line
         mTextView.getLayout().getLineBounds(1, lineBounds);
-        y = lineBounds.top + lineBounds.height() / 2;
+        y = lineBounds.top + lineBounds.height() / 2f + paddingTop;
 
         // left edge of view at second line
         x = 0f;
         assertEquals(line.length(), mTextView.getOffsetForPosition(x, y));
 
         // right edge of text at second line
-        x = mTextView.getLayout().getLineWidth(1) - 1f;
+        x = mTextView.getLayout().getLineWidth(1) + paddingLeft - halfCharWidth;
         assertEquals(line.length() + line.length() - 1, mTextView.getOffsetForPosition(x, y));
 
         // right edge of view at second line
@@ -3642,7 +3650,7 @@ public class TextViewTest {
         assertEquals(line.length() + line.length() - 1, mTextView.getOffsetForPosition(x, y));
 
         // horizontal center of text at second line
-        x = (float) Math.floor(mTextView.getLayout().getLineWidth(1) / 2f + 0.5f);
+        x = mTextView.getLayout().getLineWidth(1) / 2f + paddingLeft - halfCharWidth;
         // second line mid offset should not include next line, therefore subtract one
         assertEquals(line.length() + (line.length() - 1) / 2, mTextView.getOffsetForPosition(x, y));
     }
@@ -3677,9 +3685,14 @@ public class TextViewTest {
         final Rect lineBounds = new Rect();
         mTextView.getLayout().getLineBounds(0, lineBounds);
 
+        final float halfCharWidth = (float) Math.ceil(
+                mTextView.getPaint().measureText("\u0635") / 2f);
+        final int paddingTop = mTextView.getTotalPaddingTop();
+        final int paddingRight = mTextView.getTotalPaddingRight();
+
         // right edge of view at first line
         float x = mTextView.getWidth() - 1f;
-        float y = lineBounds.height() / 2f;
+        float y = lineBounds.height() / 2f + paddingTop;
         assertEquals(0, mTextView.getOffsetForPosition(x, y));
 
         // left edge of view at first line
@@ -3688,7 +3701,7 @@ public class TextViewTest {
 
         // update lineBounds to be the second line
         mTextView.getLayout().getLineBounds(1, lineBounds);
-        y = lineBounds.top + lineBounds.height() / 2f;
+        y = lineBounds.top + lineBounds.height() / 2f + paddingTop;
 
         // right edge of view at second line
         x = mTextView.getWidth() - 1f;
@@ -3698,13 +3711,14 @@ public class TextViewTest {
         x = 0f;
         assertEquals(line.length() + line.length() - 1, mTextView.getOffsetForPosition(x, y));
 
-        // right edge of text at second line
-        x = mTextView.getWidth() - mTextView.getLayout().getLineWidth(1) + 1f;
+        // left edge of text at second line
+        x = mTextView.getWidth() - (mTextView.getLayout().getLineWidth(1) + paddingRight
+                - halfCharWidth);
         assertEquals(line.length() + line.length() - 1, mTextView.getOffsetForPosition(x, y));
 
         // horizontal center of text at second line
-        x = mTextView.getWidth() - (float) Math.floor(
-                mTextView.getLayout().getLineWidth(1) / 2f + 0.5f);
+        x = mTextView.getWidth() - (mTextView.getLayout().getLineWidth(1) / 2f + paddingRight
+                - halfCharWidth);
         // second line mid offset should not include next line, therefore subtract one
         assertEquals(line.length() + (line.length() - 1) / 2, mTextView.getOffsetForPosition(x, y));
     }
@@ -6988,13 +7002,6 @@ public class TextViewTest {
                 (int) (0.5f + TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_PT, 10f, m)),
                 (int) (0.5f + TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_IN, 10f, m)),
                 (int) (0.5f + TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_MM, 10f, m))};
-        expectedSizesInPx = Arrays.stream(expectedSizesInPx)
-                .filter(x -> x > 0)
-                .distinct()
-                .sorted()
-                .toArray();
-        assertArrayEquals(expectedSizesInPx,
-                autoSizeTextViewUniform.getAutoSizeTextAvailableSizes());
 
         boolean containsValueFromExpectedSizes = false;
         int textSize = (int) autoSizeTextViewUniform.getTextSize();
@@ -7317,12 +7324,17 @@ public class TextViewTest {
         PollingCheck.waitFor(() -> mTextView.getSelectionStart() == SMARTSELECT_START
                 && mTextView.getSelectionEnd() == SMARTSELECT_END);
 
-        // Click to reset selection. Expect selection of original selection.
+        // Tap to reset selection. Expect tapped word to be selected.
+        startIndex = text.indexOf("Filip");
+        endIndex = startIndex + "Filip".length();
+        offset = getCenterPositionOfTextAt(mTextView, startIndex, endIndex);
         emulateClickOnView(mTextView, offset.x, offset.y);
-        PollingCheck.waitFor(() -> mTextView.getSelectionStart() == startIndex
-                && mTextView.getSelectionEnd() == endIndex);
+        final int selStart = startIndex;
+        final int selEnd = endIndex;
+        PollingCheck.waitFor(() -> mTextView.getSelectionStart() == selStart
+                && mTextView.getSelectionEnd() == selEnd);
 
-        // Click one more time to dismiss the selection.
+        // Tap one more time to dismiss the selection.
         emulateClickOnView(mTextView, offset.x, offset.y);
         assertFalse(mTextView.hasSelection());
     }
