@@ -23,6 +23,7 @@ import static android.autofillservice.cts.Helper.ID_USERNAME;
 import static android.autofillservice.cts.Helper.assertNumberOfChildren;
 import static android.autofillservice.cts.Helper.assertTextAndValue;
 import static android.autofillservice.cts.Helper.assertTextIsSanitized;
+import static android.autofillservice.cts.Helper.assertValue;
 import static android.autofillservice.cts.Helper.eventually;
 import static android.autofillservice.cts.Helper.findNodeByResourceId;
 import static android.autofillservice.cts.Helper.runShellCommand;
@@ -45,6 +46,7 @@ import static android.service.autofill.SaveInfo.SAVE_DATA_TYPE_PASSWORD;
 import static android.service.autofill.SaveInfo.SAVE_DATA_TYPE_USERNAME;
 import static android.text.InputType.TYPE_NULL;
 import static android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD;
+import static android.view.View.IMPORTANT_FOR_AUTOFILL_NO;
 import static android.view.WindowManager.LayoutParams.FLAG_SECURE;
 
 import static com.google.common.truth.Truth.assertThat;
@@ -355,6 +357,10 @@ public class LoginActivityTest extends AutoFillServiceTestCase {
 
         // Trigger auto-fill.
         mActivity.onUsername(View::requestFocus);
+
+        // Since this is a Presubmit test, wait for connection to avoid flakiness.
+        waitUntilConnected();
+
         sReplier.getNextFillRequest();
 
         // Auto-fill it.
@@ -1287,21 +1293,13 @@ public class LoginActivityTest extends AutoFillServiceTestCase {
         assertThat(usernameContainer.getChildCount()).isEqualTo(2);
     }
 
-    private static final boolean BUG_36171235_FIXED = false;
-
     @Test
     public void testAutofillManuallyOneDataset() throws Exception {
         // Set service.
         enableService();
 
-        if (BUG_36171235_FIXED)
         // And activity.
-        mActivity.onUsername((v) -> {
-            v.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS);
-            // TODO: setting an empty text, otherwise longPress() does not
-            // display the AUTOFILL context menu. Need to fix it, but it's a test case issue...
-            v.setText("");
-        });
+        mActivity.onUsername((v) -> v.setImportantForAutofill(IMPORTANT_FOR_AUTOFILL_NO));
 
         // Set expectations.
         sReplier.addResponse(new CannedDataset.Builder()
@@ -1311,12 +1309,7 @@ public class LoginActivityTest extends AutoFillServiceTestCase {
                 .build());
         mActivity.expectAutoFill("dude", "sweet");
 
-        // Long-press field to trigger AUTOFILL menu.
-        if (BUG_36171235_FIXED) {
-            sUiBot.getAutofillMenuOption(ID_USERNAME).click();
-        } else {
-            mActivity.onUsername((v) -> mActivity.getAutofillManager().requestAutofill(v));
-        }
+        sUiBot.getAutofillMenuOption(ID_USERNAME).click();
 
         final FillRequest fillRequest = sReplier.getNextFillRequest();
         assertThat(fillRequest.flags).isEqualTo(FLAG_MANUAL_REQUEST);
@@ -1342,14 +1335,8 @@ public class LoginActivityTest extends AutoFillServiceTestCase {
         // Set service.
         enableService();
 
-        if (BUG_36171235_FIXED)
         // And activity.
-        mActivity.onUsername((v) -> {
-            v.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS);
-            // TODO: setting an empty text, otherwise longPress() does not display the AUTOFILL
-            // context menu. Need to fix it, but it's a test case issue...
-            v.setText("");
-        });
+        mActivity.onUsername((v) -> v.setImportantForAutofill(IMPORTANT_FOR_AUTOFILL_NO));
 
         // Set expectations.
         sReplier.addResponse(new CannedFillResponse.Builder()
@@ -1372,11 +1359,7 @@ public class LoginActivityTest extends AutoFillServiceTestCase {
         }
 
         // Long-press field to trigger AUTOFILL menu.
-        if (BUG_36171235_FIXED) {
-            sUiBot.getAutofillMenuOption(ID_USERNAME).click();
-        } else {
-            mActivity.onUsername((v) -> mActivity.getAutofillManager().requestAutofill(v));
-        }
+        sUiBot.getAutofillMenuOption(ID_USERNAME).click();
 
         final FillRequest fillRequest = sReplier.getNextFillRequest();
         assertThat(fillRequest.flags).isEqualTo(FLAG_MANUAL_REQUEST);
@@ -1384,6 +1367,164 @@ public class LoginActivityTest extends AutoFillServiceTestCase {
         // Auto-fill it.
         final UiObject2 picker = sUiBot.assertDatasets("The Dude", "Jenny");
         sUiBot.selectDataset(picker, pickFirst ? "The Dude" : "Jenny");
+
+        // Check the results.
+        mActivity.assertAutoFilled();
+    }
+
+    @Test
+    public void testAutofillManuallyPartialField() throws Exception {
+        // Set service.
+        enableService();
+
+        // And activity.
+        mActivity.onUsername((v) -> {
+            v.setText("dud");
+            v.setImportantForAutofill(IMPORTANT_FOR_AUTOFILL_NO);
+        });
+        mActivity.onPassword((v) -> v.setText("IamSecretMan"));
+
+        // Set expectations.
+        sReplier.addResponse(new CannedDataset.Builder()
+                .setField(ID_USERNAME, "dude")
+                .setField(ID_PASSWORD, "sweet")
+                .setPresentation(createPresentation("The Dude"))
+                .build());
+        mActivity.expectAutoFill("dude", "sweet");
+
+        sUiBot.getAutofillMenuOption(ID_USERNAME).click();
+
+        final FillRequest fillRequest = sReplier.getNextFillRequest();
+        assertThat(fillRequest.flags).isEqualTo(FLAG_MANUAL_REQUEST);
+        // Username value should be available because it triggered the manual request...
+        assertValue(fillRequest.structure, ID_USERNAME, "dud");
+        // ... but password didn't
+        assertTextIsSanitized(fillRequest.structure, ID_PASSWORD);
+
+        // Should have been automatically filled.
+        sUiBot.assertNoDatasets();
+
+        // Check the results.
+        mActivity.assertAutoFilled();
+    }
+
+    @Test
+    public void testAutofillManuallyAgainAfterAutomaticallyAutofilledBefore() throws Exception {
+        // Set service.
+        enableService();
+
+        /*
+         * 1st fill (automatic).
+         */
+        // Set expectations.
+        sReplier.addResponse(new CannedDataset.Builder()
+                .setField(ID_USERNAME, "dude")
+                .setField(ID_PASSWORD, "sweet")
+                .setPresentation(createPresentation("The Dude"))
+                .build());
+        mActivity.expectAutoFill("dude", "sweet");
+
+        // Trigger auto-fill.
+        mActivity.onUsername(View::requestFocus);
+
+        // Assert request.
+        final FillRequest fillRequest1 = sReplier.getNextFillRequest();
+        assertThat(fillRequest1.flags).isEqualTo(0);
+        assertTextIsSanitized(fillRequest1.structure, ID_USERNAME);
+        assertTextIsSanitized(fillRequest1.structure, ID_PASSWORD);
+
+        // Select it.
+        sUiBot.selectDataset("The Dude");
+
+        // Check the results.
+        mActivity.assertAutoFilled();
+
+        /*
+         * 2nd fill (manual).
+         */
+        // Set expectations.
+        sReplier.addResponse(new CannedDataset.Builder()
+                .setField(ID_USERNAME, "DUDE")
+                .setField(ID_PASSWORD, "SWEET")
+                .setPresentation(createPresentation("THE DUDE"))
+                .build());
+        mActivity.expectAutoFill("DUDE", "SWEET");
+        // Change password to make sure it's not sent to the service.
+        mActivity.onPassword((v) -> v.setText("IamSecretMan"));
+
+        // Trigger auto-fill.
+        sUiBot.getAutofillMenuOption(ID_USERNAME).click();
+
+        // Assert request.
+        final FillRequest fillRequest2 = sReplier.getNextFillRequest();
+        assertThat(fillRequest2.flags).isEqualTo(FLAG_MANUAL_REQUEST);
+        assertValue(fillRequest2.structure, ID_USERNAME, "dude");
+        assertTextIsSanitized(fillRequest2.structure, ID_PASSWORD);
+
+        // Should have been automatically filled.
+        sUiBot.assertNoDatasets();
+
+        // Check the results.
+        mActivity.assertAutoFilled();
+    }
+
+    @Test
+    public void testAutofillManuallyAgainAfterManuallyAutofilledBefore() throws Exception {
+        // Set service.
+        enableService();
+        // And activity
+        mActivity.onUsername((v) -> v.setImportantForAutofill(IMPORTANT_FOR_AUTOFILL_NO));
+
+        /*
+         * 1st fill (manual).
+         */
+        // Set expectations.
+        sReplier.addResponse(new CannedDataset.Builder()
+                .setField(ID_USERNAME, "dude")
+                .setField(ID_PASSWORD, "sweet")
+                .setPresentation(createPresentation("The Dude"))
+                .build());
+        mActivity.expectAutoFill("dude", "sweet");
+
+        // Trigger auto-fill.
+        sUiBot.getAutofillMenuOption(ID_USERNAME).click();
+
+        // Assert request.
+        final FillRequest fillRequest1 = sReplier.getNextFillRequest();
+        assertThat(fillRequest1.flags).isEqualTo(FLAG_MANUAL_REQUEST);
+        assertValue(fillRequest1.structure, ID_USERNAME, "");
+        assertTextIsSanitized(fillRequest1.structure, ID_PASSWORD);
+
+        // Should have been automatically filled.
+        sUiBot.assertNoDatasets();
+
+        // Check the results.
+        mActivity.assertAutoFilled();
+
+        /*
+         * 2nd fill (manual).
+         */
+        // Set expectations.
+        sReplier.addResponse(new CannedDataset.Builder()
+                .setField(ID_USERNAME, "DUDE")
+                .setField(ID_PASSWORD, "SWEET")
+                .setPresentation(createPresentation("THE DUDE"))
+                .build());
+        mActivity.expectAutoFill("DUDE", "SWEET");
+        // Change password to make sure it's not sent to the service.
+        mActivity.onPassword((v) -> v.setText("IamSecretMan"));
+
+        // Trigger auto-fill.
+        sUiBot.getAutofillMenuOption(ID_USERNAME).click();
+
+        // Assert request.
+        final FillRequest fillRequest2 = sReplier.getNextFillRequest();
+        assertThat(fillRequest2.flags).isEqualTo(FLAG_MANUAL_REQUEST);
+        assertValue(fillRequest2.structure, ID_USERNAME, "dude");
+        assertTextIsSanitized(fillRequest2.structure, ID_PASSWORD);
+
+        // Should have been automatically filled.
+        sUiBot.assertNoDatasets();
 
         // Check the results.
         mActivity.assertAutoFilled();

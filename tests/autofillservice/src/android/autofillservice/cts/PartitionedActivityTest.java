@@ -240,7 +240,11 @@ public class PartitionedActivityTest extends AutoFillServiceTestCase {
         final FillRequest fillRequest1 = sReplier.getNextFillRequest();
         assertThat(fillRequest1.flags).isEqualTo(expectedFlag);
 
-        assertTextIsSanitized(fillRequest1.structure, ID_L1C1);
+        if (manually) {
+            assertValue(fillRequest1.structure, ID_L1C1, "");
+        } else {
+            assertTextIsSanitized(fillRequest1.structure, ID_L1C1);
+        }
         assertTextIsSanitized(fillRequest1.structure, ID_L1C2);
 
         // Auto-fill it.
@@ -272,7 +276,11 @@ public class PartitionedActivityTest extends AutoFillServiceTestCase {
 
         assertValue(fillRequest2.structure, ID_L1C1, "l1c1");
         assertValue(fillRequest2.structure, ID_L1C2, "l1c2");
-        assertTextIsSanitized(fillRequest2.structure, ID_L2C1);
+        if (manually) {
+            assertValue(fillRequest2.structure, ID_L2C1, "");
+        } else {
+            assertTextIsSanitized(fillRequest2.structure, ID_L2C1);
+        }
         assertTextIsSanitized(fillRequest2.structure, ID_L2C2);
 
         // Auto-fill it.
@@ -306,7 +314,11 @@ public class PartitionedActivityTest extends AutoFillServiceTestCase {
         assertValue(fillRequest3.structure, ID_L1C2, "l1c2");
         assertValue(fillRequest3.structure, ID_L2C1, "l2c1");
         assertValue(fillRequest3.structure, ID_L2C2, "l2c2");
-        assertTextIsSanitized(fillRequest3.structure, ID_L3C1);
+        if (manually) {
+            assertValue(fillRequest3.structure, ID_L3C1, "");
+        } else {
+            assertTextIsSanitized(fillRequest3.structure, ID_L3C1);
+        }
         assertTextIsSanitized(fillRequest3.structure, ID_L3C2);
 
         // Auto-fill it.
@@ -342,7 +354,11 @@ public class PartitionedActivityTest extends AutoFillServiceTestCase {
         assertValue(fillRequest4.structure, ID_L2C2, "l2c2");
         assertValue(fillRequest4.structure, ID_L3C1, "l3c1");
         assertValue(fillRequest4.structure, ID_L3C2, "l3c2");
-        assertTextIsSanitized(fillRequest4.structure, ID_L4C1);
+        if (manually) {
+            assertValue(fillRequest4.structure, ID_L4C1, "");
+        } else {
+            assertTextIsSanitized(fillRequest4.structure, ID_L4C1);
+        }
         assertTextIsSanitized(fillRequest4.structure, ID_L4C2);
 
         // Auto-fill it.
@@ -389,6 +405,7 @@ public class PartitionedActivityTest extends AutoFillServiceTestCase {
 
         // 2nd partition - manual
         // Prepare.
+        mActivity.setText(2, 1, "L2.."); // Must set before creating expectation.
         final CannedFillResponse response2 = new CannedFillResponse.Builder()
                 .addDataset(new CannedDataset.Builder()
                         .setPresentation(createPresentation("Partition 2"))
@@ -408,7 +425,7 @@ public class PartitionedActivityTest extends AutoFillServiceTestCase {
 
         assertValue(fillRequest2.structure, ID_L1C1, "l1c1");
         assertValue(fillRequest2.structure, ID_L1C2, "l1c2");
-        assertTextIsSanitized(fillRequest2.structure, ID_L2C1);
+        assertValue(fillRequest2.structure, ID_L2C1, "L2..");
         assertTextIsSanitized(fillRequest2.structure, ID_L2C2);
 
         // Check the results.
@@ -448,6 +465,7 @@ public class PartitionedActivityTest extends AutoFillServiceTestCase {
 
         // 4th partition - manual
         // Prepare.
+        mActivity.setText(4, 1, "L4.."); // Must set before creating expectation.
         final CannedFillResponse response4 = new CannedFillResponse.Builder()
                 .addDataset(new CannedDataset.Builder()
                         .setPresentation(createPresentation("Partition 4"))
@@ -471,7 +489,7 @@ public class PartitionedActivityTest extends AutoFillServiceTestCase {
         assertValue(fillRequest4.structure, ID_L2C2, "l2c2");
         assertValue(fillRequest4.structure, ID_L3C1, "l3c1");
         assertValue(fillRequest4.structure, ID_L3C2, "l3c2");
-        assertTextIsSanitized(fillRequest4.structure, ID_L4C1);
+        assertValue(fillRequest4.structure, ID_L4C1, "L4..");
         assertTextIsSanitized(fillRequest4.structure, ID_L4C2);
 
         // Check the results.
