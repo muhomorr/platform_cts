@@ -29,9 +29,11 @@ import android.graphics.Bitmap.Config;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.ColorSpace;
 import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.os.Parcel;
+import android.os.StrictMode;
 import android.support.test.InstrumentationRegistry;
 import android.support.test.filters.SmallTest;
 import android.support.test.runner.AndroidJUnit4;
@@ -389,12 +391,78 @@ public class BitmapTest {
     }
 
     @Test
+    public void testCreateBitmap_displayMetrics_mutable() {
+        DisplayMetrics metrics =
+                InstrumentationRegistry.getTargetContext().getResources().getDisplayMetrics();
+
+        Bitmap bitmap;
+        bitmap = Bitmap.createBitmap(metrics, 10, 10, Config.ARGB_8888);
+        assertTrue(bitmap.isMutable());
+        assertEquals(metrics.densityDpi, bitmap.getDensity());
+
+        bitmap = Bitmap.createBitmap(metrics, 10, 10, Config.ARGB_8888);
+        assertTrue(bitmap.isMutable());
+        assertEquals(metrics.densityDpi, bitmap.getDensity());
+
+        bitmap = Bitmap.createBitmap(metrics, 10, 10, Config.ARGB_8888, true);
+        assertTrue(bitmap.isMutable());
+        assertEquals(metrics.densityDpi, bitmap.getDensity());
+
+        bitmap = Bitmap.createBitmap(metrics, 10, 10, Config.ARGB_8888, true, ColorSpace.get(
+                ColorSpace.Named.SRGB));
+
+        assertTrue(bitmap.isMutable());
+        assertEquals(metrics.densityDpi, bitmap.getDensity());
+
+        int[] colors = createColors(100);
+        assertNotNull(Bitmap.createBitmap(metrics, colors, 0, 10, 10, 10, Config.ARGB_8888));
+        assertNotNull(Bitmap.createBitmap(metrics, colors, 10, 10, Config.ARGB_8888));
+    }
+
+    @Test
+    public void testCreateBitmap_displayMetrics_immutable() {
+        DisplayMetrics metrics =
+                InstrumentationRegistry.getTargetContext().getResources().getDisplayMetrics();
+        int[] colors = createColors(100);
+
+        Bitmap bitmap;
+        bitmap = Bitmap.createBitmap(metrics, colors, 0, 10, 10, 10, Config.ARGB_8888);
+        assertFalse(bitmap.isMutable());
+        assertEquals(metrics.densityDpi, bitmap.getDensity());
+
+        bitmap = Bitmap.createBitmap(metrics, colors, 10, 10, Config.ARGB_8888);
+        assertFalse(bitmap.isMutable());
+        assertEquals(metrics.densityDpi, bitmap.getDensity());
+    }
+
+    @Test
     public void testCreateScaledBitmap() {
         mBitmap = Bitmap.createBitmap(100, 200, Config.RGB_565);
         Bitmap ret = Bitmap.createScaledBitmap(mBitmap, 50, 100, false);
         assertNotNull(ret);
         assertEquals(50, ret.getWidth());
         assertEquals(100, ret.getHeight());
+    }
+
+    @Test
+    public void testGenerationId() {
+        Bitmap bitmap = Bitmap.createBitmap(10, 10, Config.ARGB_8888);
+        int genId = bitmap.getGenerationId();
+        assertEquals("not expected to change", genId, bitmap.getGenerationId());
+        bitmap.setDensity(bitmap.getDensity() + 4);
+        assertEquals("not expected to change", genId, bitmap.getGenerationId());
+        bitmap.getPixel(0, 0);
+        assertEquals("not expected to change", genId, bitmap.getGenerationId());
+
+        int beforeGenId = bitmap.getGenerationId();
+        bitmap.eraseColor(Color.WHITE);
+        int afterGenId = bitmap.getGenerationId();
+        assertTrue("expected to increase", afterGenId > beforeGenId);
+
+        beforeGenId = bitmap.getGenerationId();
+        bitmap.setPixel(4, 4, Color.BLUE);
+        afterGenId = bitmap.getGenerationId();
+        assertTrue("expected to increase again", afterGenId > beforeGenId);
     }
 
     @Test
@@ -1333,12 +1401,88 @@ public class BitmapTest {
     }
 
     @Test
+    public void testCopyHWBitmapInStrictMode() {
+        strictModeTest(()->{
+            Bitmap bitmap = Bitmap.createBitmap(100, 100, Config.ARGB_8888);
+            Bitmap hwBitmap = bitmap.copy(Config.HARDWARE, false);
+            hwBitmap.copy(Config.ARGB_8888, false);
+        });
+    }
+
+    @Test
+    public void testCreateScaledFromHWInStrictMode() {
+        strictModeTest(()->{
+            Bitmap bitmap = Bitmap.createBitmap(100, 100, Config.ARGB_8888);
+            Bitmap hwBitmap = bitmap.copy(Config.HARDWARE, false);
+            Bitmap.createScaledBitmap(hwBitmap, 200, 200, false);
+        });
+    }
+
+    @Test
+    public void testExtractAlphaFromHWInStrictMode() {
+        strictModeTest(()->{
+            Bitmap bitmap = Bitmap.createBitmap(100, 100, Config.ARGB_8888);
+            Bitmap hwBitmap = bitmap.copy(Config.HARDWARE, false);
+            hwBitmap.extractAlpha();
+        });
+    }
+
+    @Test
+    public void testCompressInStrictMode() {
+        strictModeTest(()->{
+            Bitmap bitmap = Bitmap.createBitmap(100, 100, Config.ARGB_8888);
+            bitmap.compress(CompressFormat.JPEG, 90, new ByteArrayOutputStream());
+        });
+    }
+
+    @Test
+    public void testParcelHWInStrictMode() {
+        strictModeTest(()->{
+            mBitmap = Bitmap.createBitmap(100, 100, Config.ARGB_8888);
+            Bitmap hwBitmap = mBitmap.copy(Config.HARDWARE, false);
+            hwBitmap.writeToParcel(Parcel.obtain(), 0);
+        });
+    }
+
+    @Test
+    public void testSameAsFirstHWInStrictMode() {
+        strictModeTest(()->{
+            Bitmap bitmap = Bitmap.createBitmap(100, 100, Config.ARGB_8888);
+            Bitmap hwBitmap = bitmap.copy(Config.HARDWARE, false);
+            hwBitmap.sameAs(bitmap);
+        });
+    }
+
+    @Test
+    public void testSameAsSecondHWInStrictMode() {
+        strictModeTest(()->{
+            Bitmap bitmap = Bitmap.createBitmap(100, 100, Config.ARGB_8888);
+            Bitmap hwBitmap = bitmap.copy(Config.HARDWARE, false);
+            bitmap.sameAs(hwBitmap);
+        });
+    }
+
+    @Test
     public void testNdkAccessAfterRecycle() {
         Bitmap bitmap = Bitmap.createBitmap(10, 20, Config.RGB_565);
         nValidateBitmapInfo(bitmap, 10, 20, true);
         bitmap.recycle();
         nValidateBitmapInfo(bitmap, 10, 20, true);
         nValidateNdkAccessAfterRecycle(bitmap);
+    }
+
+    private void strictModeTest(Runnable runnable) {
+        StrictMode.ThreadPolicy originalPolicy = StrictMode.getThreadPolicy();
+        StrictMode.setThreadPolicy(new StrictMode.ThreadPolicy.Builder()
+                .detectCustomSlowCalls().penaltyDeath().build());
+        try {
+            runnable.run();
+            fail("Shouldn't reach it");
+        } catch (RuntimeException expected){
+            // expect to receive StrictModeViolation
+        } finally {
+            StrictMode.setThreadPolicy(originalPolicy);
+        }
     }
 
     private static native void nValidateBitmapInfo(Bitmap bitmap, int width, int height,

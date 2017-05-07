@@ -380,6 +380,7 @@ public class ResultReporter implements ILogSaverListener, ITestInvocationListene
             // Forward module results to the master.
             mMasterResultReporter.mergeModuleResult(mCurrentModuleResult);
             mCurrentModuleResult.resetTestRuns();
+            mCurrentModuleResult.resetRuntime();
         }
     }
 
@@ -595,9 +596,11 @@ public class ResultReporter implements ILogSaverListener, ITestInvocationListene
         }
 
         FileInputStream fis = null;
+        LogFile logFile = null;
         try {
             fis = new FileInputStream(resultFile);
-            mLogSaver.saveLogData("log-result", LogDataType.XML, fis);
+            logFile = mLogSaver.saveLogData("log-result", LogDataType.XML, fis);
+            debug("Result XML URL: %s", logFile.getUrl());
         } catch (IOException ioe) {
             CLog.e("[%s] error saving XML with log saver", mDeviceSerial);
             CLog.e(ioe);
@@ -609,7 +612,8 @@ public class ResultReporter implements ILogSaverListener, ITestInvocationListene
             FileInputStream zipResultStream = null;
             try {
                 zipResultStream = new FileInputStream(zippedResults);
-                mLogSaver.saveLogData("results", LogDataType.ZIP, zipResultStream);
+                logFile = mLogSaver.saveLogData("results", LogDataType.ZIP, zipResultStream);
+                debug("Result zip URL: %s", logFile.getUrl());
             } finally {
                 StreamUtil.close(zipResultStream);
             }
@@ -790,7 +794,7 @@ public class ResultReporter implements ILogSaverListener, ITestInvocationListene
      *  Log debug to the console.
      */
     private static void debug(String format, Object... args) {
-        CLog.d(format, args);
+        log(LogLevel.DEBUG, format, args);
     }
 
     /**
