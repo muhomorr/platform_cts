@@ -1163,11 +1163,47 @@ public class LoginActivityTest extends AutoFillServiceTestCase {
 
         // Check the results.
         mActivity.assertAutoFilled();
-
         final Bundle data = AuthenticationActivity.getData();
         assertThat(data).isNotNull();
         final String extraValue = data.getString("numbers");
         assertThat(extraValue).isEqualTo("4815162342");
+    }
+
+    @Test
+    public void testFillResponseAuthServiceHasNoData() throws Exception {
+        // Set service.
+        enableService();
+        final MyAutofillCallback callback = mActivity.registerCallback();
+
+        // Prepare the authenticated response
+        AuthenticationActivity.setResponse(
+                new CannedFillResponse.Builder()
+                        .setRequiredSavableIds(SAVE_DATA_TYPE_PASSWORD, ID_USERNAME, ID_PASSWORD)
+                        .build());
+
+        // Create the authentication intent
+        final IntentSender authentication = PendingIntent.getActivity(getContext(), 0,
+                new Intent(getContext(), AuthenticationActivity.class), 0).getIntentSender();
+
+        // Configure the service behavior
+        sReplier.addResponse(new CannedFillResponse.Builder()
+                .setAuthentication(authentication, ID_USERNAME, ID_PASSWORD)
+                .setPresentation(createPresentation("Tap to auth response"))
+                .build());
+
+        // Trigger auto-fill.
+        mActivity.onUsername(View::requestFocus);
+
+        // Wait for onFill() before proceeding.
+        sReplier.getNextFillRequest();
+        final View username = mActivity.getUsername();
+        callback.assertUiShownEvent(username);
+
+        // Select the authentication dialog.
+        sUiBot.selectByText("Tap to auth response");
+        callback.assertUiHiddenEvent(username);
+        sUiBot.assertNotShownByText("Tap to auth response");
+        sUiBot.assertNoDatasets();
     }
 
     @Test
@@ -1489,7 +1525,7 @@ public class LoginActivityTest extends AutoFillServiceTestCase {
 
         final FillRequest fillRequest = sReplier.getNextFillRequest();
 
-        // Assert it only has 1 root view with 9 "leaf" nodes:
+        // Assert it only has 1 root view with 10 "leaf" nodes:
         // 1.text view for app title
         // 2.username text label
         // 3.username text field
@@ -1499,11 +1535,12 @@ public class LoginActivityTest extends AutoFillServiceTestCase {
         // 7.clear button
         // 8.save button
         // 9.login button
+        // 10.cancel button
         //
         // But it also has an intermediate container (for username) that should be included because
         // it has a resource id.
 
-        assertNumberOfChildren(fillRequest.structure, 11);
+        assertNumberOfChildren(fillRequest.structure, 12);
 
         // Make sure container with a resource id was included:
         final ViewNode usernameContainer = findNodeByResourceId(fillRequest.structure,

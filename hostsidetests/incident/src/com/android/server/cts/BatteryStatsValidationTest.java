@@ -115,8 +115,8 @@ public class BatteryStatsValidationTest extends ProtoDumpTestCase {
         runDeviceTests(DEVICE_SIDE_TEST_PACKAGE, ".BatteryStatsWakeLockTests",
                 "testHoldLongWakeLock");
 
-        assertValueRange("wl", "BSShortWakeLock", 14, (long) (500 * 0.9), 500 * 2);
-        assertValueRange("wl", "BSLongWakeLock", 14, (long) (3000 * 0.9), 3000 * 2);
+        assertValueRange("wl", "BSShortWakeLock", 15, (long) (500 * 0.9), 500 * 2); // partial max duration
+        assertValueRange("wl", "BSLongWakeLock", 15, (long) (3000 * 0.9), 3000 * 2);  // partial max duration
 
         batteryOffScreenOn();
     }
@@ -190,16 +190,23 @@ public class BatteryStatsValidationTest extends ProtoDumpTestCase {
     public void testWifiScans() throws Exception {
         batteryOnScreenOff();
         installPackage(DEVICE_SIDE_TEST_APK, true);
+        // Whitelist this app against background wifi scan throttling
+        getDevice().executeShellCommand(String.format(
+                "settings put global wifi_scan_background_throttle_package_whitelist %s",
+                DEVICE_SIDE_TEST_PACKAGE));
 
         // Foreground count test.
-        executeForeground(ACTION_WIFI_SCAN, 60_000);
-        assertValueRange("wfl", "", 7, 1, 1); // scan_count
+        executeForeground(ACTION_WIFI_SCAN, 120_000);
+        // Allow one or two scans because we try scanning twice and because we allow for the
+        // possibility that, when the test is started, a scan from a different uid was already being
+        // performed (causing the test to 'miss' a scan).
+        assertValueRange("wfl", "", 7, 1, 2); // scan_count
         assertValueRange("wfl", "", 11, 0, 0); // scan_count_bg
 
         // Background count test.
-        executeBackground(ACTION_WIFI_SCAN, 60_000);
-        assertValueRange("wfl", "", 7, 2, 2); // scan_count
-        assertValueRange("wfl", "", 11, 1, 1); // scan_count_bg
+        executeBackground(ACTION_WIFI_SCAN, 120_000);
+        assertValueRange("wfl", "", 7, 2, 4); // scan_count
+        assertValueRange("wfl", "", 11, 1, 2); // scan_count_bg
 
         batteryOffScreenOn();
     }
