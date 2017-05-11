@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
- * Copyright (C) 2012 The Android Open Source Project
+ * Copyright (C) 2017 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,23 +16,22 @@
  -->
 
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="android.display.cts">
+    package="android.camera.cts.api25test">
 
-    <!-- For special presentation windows when testing mode switches. -->
-    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-sdk android:targetSdkVersion="25" />
 
-    <application>
+    <application android:largeHeap="true">
         <uses-library android:name="android.test.runner" />
-        <activity android:name=".ScreenOnActivity" />
-        <activity android:name=".DisplayTestActivity" />
+        <activity android:name="android.camera.cts.api25test.EnableZslTestActivity"
+            android:label="EnableZslTestActivity">
+        </activity>
     </application>
 
     <!--  self-instrumenting test package. -->
     <instrumentation
         android:name="android.support.test.runner.AndroidJUnitRunner"
-        android:targetPackage="android.display.cts"
-        android:label="CTS tests of android.display">
+        android:label="Camera API25 Test"
+        android:targetPackage="android.camera.cts.api25test" >
     </instrumentation>
-
 </manifest>
-

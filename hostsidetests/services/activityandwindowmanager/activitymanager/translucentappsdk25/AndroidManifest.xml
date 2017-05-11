@@ -16,25 +16,18 @@
   -->
 
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="android.backup.cts.backuprestoreapp">
-
-    <application
-        android:backupAgent="CtsBackupRestoreBackupAgent">
-        <uses-library android:name="android.test.runner" />
-
-        <activity
-            android:name=".KeyValueBackupRandomDataActivity"
-            android:launchMode="singleInstance">
+          xmlns:androidprv="http://schemas.android.com/apk/prv/res/android"
+          package="android.server.translucentapp25">
+    <application android:label="CtsTranslucentApp25">
+        <activity android:name="android.server.translucentapp.TranslucentLandscapeActivity"
+                  android:theme="@android:style/Theme.Translucent.NoTitleBar"
+                android:exported="true"
+                android:screenOrientation="landscape">
             <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.DEFAULT" />
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
-
     </application>
-
-    <instrumentation
-        android:name="android.support.test.runner.AndroidJUnitRunner"
-        android:targetPackage="android.backup.cts.backuprestoreapp" />
-
 </manifest>
+

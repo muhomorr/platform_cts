@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 The Android Open Source Project
+ * Copyright (C) 2017 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,18 +14,12 @@
  * limitations under the License
  */
 
-package android.server.cts;
+package android.display.cts;
 
 import android.app.Activity;
-import android.app.KeyguardManager;
-import android.os.Bundle;
 
-public class DismissKeyguardMethodActivity extends Activity {
-
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        getSystemService(KeyguardManager.class).requestDismissKeyguard(this,
-                new KeyguardDismissLoggerCallback(this));
-    }
+/**
+ * Test activity to exercise getting metrics for displays.
+ */
+public class DisplayTestActivity extends Activity {
 }
