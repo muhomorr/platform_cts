@@ -23,21 +23,18 @@ LOCAL_MULTILIB := both
 LOCAL_MODULE_STEM_32 := $(LOCAL_MODULE)32
 LOCAL_MODULE_STEM_64 := $(LOCAL_MODULE)64
 
-LOCAL_C_INCLUDES := \
-    frameworks/av/media/libaaudio/include
-
 LOCAL_SRC_FILES := \
     src/test_aaudio.cpp \
     src/test_aaudio_misc.cpp \
-    src/test_aaudio_callback.cpp
+    src/test_aaudio_callback.cpp \
+    src/utils.cpp \
 
 LOCAL_SHARED_LIBRARIES := \
     libaaudio \
     liblog \
-    libutils
 
 LOCAL_STATIC_LIBRARIES := \
-    libgtest
+    libgtest_ndk_c++ \
 
 LOCAL_CTS_TEST_PACKAGE := android.nativemedia.aaudio
 
@@ -45,5 +42,8 @@ LOCAL_CTS_TEST_PACKAGE := android.nativemedia.aaudio
 LOCAL_COMPATIBILITY_SUITE := cts
 
 LOCAL_CFLAGS := -Werror -Wall
+
+LOCAL_SDK_VERSION := current
+LOCAL_NDK_STL_VARIANT := c++_static
 
 include $(BUILD_CTS_EXECUTABLE)
