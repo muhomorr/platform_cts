@@ -16,11 +16,13 @@
 
 package android.autofillservice.cts;
 
+import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
 
 import android.app.assist.AssistStructure;
 import android.app.assist.AssistStructure.ViewNode;
 import android.app.assist.AssistStructure.WindowNode;
+import android.content.pm.PackageManager;
 import android.icu.util.Calendar;
 import android.os.UserManager;
 import android.service.autofill.FillContext;
@@ -620,6 +622,25 @@ final class Helper {
         }
 
         throw new IllegalStateException("process not found");
+    }
+
+    /**
+     * Gets the maximum number of partitions per session.
+     */
+    public static int getMaxPartitions() {
+        return Integer.parseInt(runShellCommand("cmd autofill get max_partitions"));
+    }
+
+    /**
+     * Sets the maximum number of partitions per session.
+     */
+    public static void setMaxPartitions(int value) {
+        runShellCommand("cmd autofill set max_partitions %d", value);
+        assertThat(getMaxPartitions()).isEqualTo(value);
+    }
+
+    public static boolean hasAutofillFeature() {
+        return RequiredFeatureRule.hasFeature(PackageManager.FEATURE_AUTOFILL);
     }
 
     private Helper() {

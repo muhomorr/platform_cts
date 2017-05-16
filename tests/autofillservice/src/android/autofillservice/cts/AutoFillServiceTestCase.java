@@ -16,7 +16,7 @@
 
 package android.autofillservice.cts;
 
-import static android.autofillservice.cts.Helper.UI_TIMEOUT_MS;
+import static android.autofillservice.cts.Helper.hasAutofillFeature;
 import static android.autofillservice.cts.Helper.runShellCommand;
 import static android.provider.Settings.Secure.AUTOFILL_SERVICE;
 
@@ -24,6 +24,7 @@ import static com.google.common.truth.Truth.assertWithMessage;
 
 import android.autofillservice.cts.InstrumentedAutoFillService.Replier;
 import android.content.Context;
+import android.content.pm.PackageManager;
 import android.support.test.InstrumentationRegistry;
 import android.support.test.runner.AndroidJUnit4;
 import android.widget.RemoteViews;
@@ -52,20 +53,30 @@ abstract class AutoFillServiceTestCase {
     @Rule
     public final RetryRule mRetryRule = new RetryRule(2);
 
+    @Rule
+    public final RequiredFeatureRule mRequiredFeatureRule =
+            new RequiredFeatureRule(PackageManager.FEATURE_AUTOFILL);
+
     @BeforeClass
     public static void removeLockScreen() {
+        if (!hasAutofillFeature()) return;
+
         runShellCommand("input keyevent KEYCODE_WAKEUP");
         runShellCommand("wm dismiss-keyguard");
     }
 
     @BeforeClass
     public static void setUiBot() throws Exception {
+        if (!hasAutofillFeature()) return;
+
         sUiBot = new UiBot(InstrumentationRegistry.getInstrumentation());
     }
 
     @BeforeClass
     @AfterClass
     public static void disableService() {
+        if (!hasAutofillFeature()) return;
+
         if (!isServiceEnabled()) return;
 
         final OneTimeSettingsListener observer = new OneTimeSettingsListener(getContext(),
@@ -83,6 +94,9 @@ abstract class AutoFillServiceTestCase {
         AuthenticationActivity.resetStaticState();
     }
 
+    // TODO: we shouldn't throw exceptions on @After / @AfterClass because if the test failed, these
+    // exceptions would mask the real cause. A better approach might be using a @Rule or some other
+    // visitor pattern.
     @After
     public void assertNoPendingRequests() {
         sReplier.assertNumberUnhandledFillRequests(0);

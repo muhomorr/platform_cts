@@ -1738,7 +1738,7 @@ You should be prompted to select credentials; choose the ones you just installed
         This test verifies keystore cryptographic keys can be bound to device lockscreen challenge or fingerprints (if available).
         These keys should only be available if there was a recent enough authentication. \n
 
-        1. Press "Set up" to open Security settings. Create a lockscreen password and if available, enroll a fingerprint.\n
+        1. Press "Set up" to open Security settings. Create a lockscreen password and if available, enroll a fingerprint under "Work profile security".\n
         2. Go through the list of tests.\n
         3. Mark the overall test pass or fail.\n
         4. Once the set of tests are completed, remove the lockscreen challenge.
@@ -1759,6 +1759,8 @@ You should be prompted to select credentials; choose the ones you just installed
         This test verifies that work lock is shown when opening a work app,
         the work lock was set correctly and it is customized according to
         the policies set. You can only do this test after you have done the previous test.\n
+        Before running this test press the power button to turn the screen off and then back on and
+        swipe to unlock.\n
 
         1. Open a work app.\n
         2. Verify that a screen asking you for your work credentials is shown.\n
@@ -3243,6 +3245,9 @@ You should be prompted to select credentials; choose the ones you just installed
     Verify that the bundled TV app launches via Intent and calls the proper API to discover
     3rd-party TV inputs.
     </string>
+    <string name="tv_input_discover_test_third_party_tif_input_support">
+    Does the bundled TV app support third-party TV inputs?
+    </string>
     <string name="tv_input_discover_test_go_to_setup">
     Select the \"Launch TV app\" button and set up the newly installed TV input:
     \"CTS Verifier\".
@@ -3311,8 +3316,8 @@ You should be prompted to select credentials; choose the ones you just installed
     Try to unblock the screen by entering PIN; verify that it\'s unblocked.
     </string>
 
-    <string name="tv_parental_control_turn_off_disabled">No</string>
-    <string name="tv_parental_control_turn_off_enabled">Yes</string>
+    <string name="tv_yes">Yes</string>
+    <string name="tv_no">No</string>
     <string name="tv_launch_tv_app">Launch TV app</string>
     <string name="tv_launch_epg">Launch EPG</string>
     <string name="tv_launch_setup">Launch setup</string>

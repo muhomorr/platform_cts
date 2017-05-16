@@ -53,6 +53,7 @@ public class BatteryStatsValidationTest extends ProtoDumpTestCase {
     // Constants from BatteryStatsBgVsFgActions.java (not directly accessible here).
     public static final String KEY_ACTION = "action";
     public static final String ACTION_BLE_SCAN = "action.ble_scan";
+    public static final String ACTION_GPS = "action.gps";
     public static final String ACTION_JOB_SCHEDULE = "action.jobs";
     public static final String ACTION_SYNC = "action.sync";
     public static final String ACTION_WIFI_SCAN = "action.wifi_scan";
@@ -136,6 +137,9 @@ public class BatteryStatsValidationTest extends ProtoDumpTestCase {
     }
 
     public void testBleScans() throws Exception {
+        if (isTV()) {
+            return;
+        }
         batteryOnScreenOff();
         installPackage(DEVICE_SIDE_TEST_APK, true);
 
@@ -152,7 +156,36 @@ public class BatteryStatsValidationTest extends ProtoDumpTestCase {
         batteryOffScreenOn();
     }
 
+    public void testGpsUpdates() throws Exception {
+        final String gpsSensorNumber = "-10000";
+
+        if (isTV()) {
+            return;
+        }
+        batteryOnScreenOff();
+        installPackage(DEVICE_SIDE_TEST_APK, true);
+        // Whitelist this app against background location request throttling
+        getDevice().executeShellCommand(String.format(
+                "settings put global location_background_throttle_package_whitelist %s",
+                DEVICE_SIDE_TEST_PACKAGE));
+
+        // Foreground test.
+        executeForeground(ACTION_GPS, 60_000);
+        assertValueRange("sr", gpsSensorNumber, 6, 1, 1); // count
+        assertValueRange("sr", gpsSensorNumber, 7, 0, 0); // background_count
+
+        // Background test.
+        executeBackground(ACTION_GPS, 60_000);
+        assertValueRange("sr", gpsSensorNumber, 6, 2, 2); // count
+        assertValueRange("sr", gpsSensorNumber, 7, 1, 1); // background_count
+
+        batteryOffScreenOn();
+    }
+
     public void testJobBgVsFg() throws Exception {
+        if (isTV()) {
+            return;
+        }
         batteryOnScreenOff();
         installPackage(DEVICE_SIDE_TEST_APK, true);
 
@@ -170,6 +203,9 @@ public class BatteryStatsValidationTest extends ProtoDumpTestCase {
     }
 
     public void testSyncBgVsFg() throws Exception {
+        if (isTV()) {
+            return;
+        }
         batteryOnScreenOff();
         installPackage(DEVICE_SIDE_TEST_APK, true);
 
@@ -188,6 +224,9 @@ public class BatteryStatsValidationTest extends ProtoDumpTestCase {
     }
 
     public void testWifiScans() throws Exception {
+        if (isTV()) {
+            return;
+        }
         batteryOnScreenOff();
         installPackage(DEVICE_SIDE_TEST_APK, true);
         // Whitelist this app against background wifi scan throttling
@@ -277,6 +316,9 @@ public class BatteryStatsValidationTest extends ProtoDumpTestCase {
      * Tests the total bytes reported for downloading over wifi.
      */
     public void testWifiDownload() throws Exception {
+        if (isTV()) {
+            return;
+        }
         batteryOnScreenOff();
         installPackage(DEVICE_SIDE_TEST_APK, true);
 
@@ -315,6 +357,9 @@ public class BatteryStatsValidationTest extends ProtoDumpTestCase {
      * Tests the total bytes reported for uploading over wifi.
      */
     public void testWifiUpload() throws Exception {
+        if (isTV()) {
+            return;
+        }
         batteryOnScreenOff();
         installPackage(DEVICE_SIDE_TEST_APK, true);
 
@@ -538,5 +583,17 @@ public class BatteryStatsValidationTest extends ProtoDumpTestCase {
             }
         }
         return size;
+    }
+
+    /** Determine if device is just a TV and is not expected to have proper batterystats. */
+    private boolean isTV() throws Exception {
+        // Less noisy version of getDevice().hasFeature("android.software.leanback_only")
+        String tvFeature = "android.software.leanback_only";
+        final String features = getDevice().executeShellCommand("pm list features");
+        if (features.contains(tvFeature)) {
+            LogUtil.CLog.w("Device has feature " + tvFeature);
+            return true;
+        }
+        return false;
     }
 }
