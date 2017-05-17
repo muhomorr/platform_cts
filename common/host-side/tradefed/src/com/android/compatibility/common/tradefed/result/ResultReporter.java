@@ -18,6 +18,7 @@ package com.android.compatibility.common.tradefed.result;
 import com.android.compatibility.common.tradefed.build.CompatibilityBuildHelper;
 import com.android.compatibility.common.tradefed.testtype.CompatibilityTest;
 import com.android.compatibility.common.tradefed.util.RetryType;
+import com.android.compatibility.common.util.ChecksumReporter;
 import com.android.compatibility.common.util.ICaseResult;
 import com.android.compatibility.common.util.IInvocationResult;
 import com.android.compatibility.common.util.IModuleResult;
@@ -61,6 +62,7 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -80,6 +82,11 @@ public class ResultReporter implements ILogSaverListener, ITestInvocationListene
     private static final String RESULT_KEY = "COMPATIBILITY_TEST_RESULT";
     private static final String CTS_PREFIX = "cts:";
     private static final String BUILD_INFO = CTS_PREFIX + "build_";
+
+    private static final List<String> NOT_RETRY_FILES = Arrays.asList(
+            ChecksumReporter.NAME,
+            ChecksumReporter.PREV_NAME,
+            ResultHandler.FAILURE_REPORT_NAME);
 
     @Option(name = CompatibilityTest.RETRY_OPTION,
             shortName = 'r',
@@ -380,6 +387,7 @@ public class ResultReporter implements ILogSaverListener, ITestInvocationListene
             // Forward module results to the master.
             mMasterResultReporter.mergeModuleResult(mCurrentModuleResult);
             mCurrentModuleResult.resetTestRuns();
+            mCurrentModuleResult.resetRuntime();
         }
     }
 
@@ -595,9 +603,11 @@ public class ResultReporter implements ILogSaverListener, ITestInvocationListene
         }
 
         FileInputStream fis = null;
+        LogFile logFile = null;
         try {
             fis = new FileInputStream(resultFile);
-            mLogSaver.saveLogData("log-result", LogDataType.XML, fis);
+            logFile = mLogSaver.saveLogData("log-result", LogDataType.XML, fis);
+            debug("Result XML URL: %s", logFile.getUrl());
         } catch (IOException ioe) {
             CLog.e("[%s] error saving XML with log saver", mDeviceSerial);
             CLog.e(ioe);
@@ -609,7 +619,8 @@ public class ResultReporter implements ILogSaverListener, ITestInvocationListene
             FileInputStream zipResultStream = null;
             try {
                 zipResultStream = new FileInputStream(zippedResults);
-                mLogSaver.saveLogData("results", LogDataType.ZIP, zipResultStream);
+                logFile = mLogSaver.saveLogData("results", LogDataType.ZIP, zipResultStream);
+                debug("Result zip URL: %s", logFile.getUrl());
             } finally {
                 StreamUtil.close(zipResultStream);
             }
@@ -741,6 +752,9 @@ public class ResultReporter implements ILogSaverListener, ITestInvocationListene
     static void copyRetryFiles(File oldDir, File newDir) {
         File[] oldChildren = oldDir.listFiles();
         for (File oldChild : oldChildren) {
+            if (NOT_RETRY_FILES.contains(oldChild.getName())) {
+                continue; // do not copy this file/directory or its children
+            }
             File newChild = new File(newDir, oldChild.getName());
             if (!newChild.exists()) {
                 // If this old file or directory doesn't exist in new dir, simply copy it
@@ -790,7 +804,7 @@ public class ResultReporter implements ILogSaverListener, ITestInvocationListene
      *  Log debug to the console.
      */
     private static void debug(String format, Object... args) {
-        CLog.d(format, args);
+        log(LogLevel.DEBUG, format, args);
     }
 
     /**

@@ -19,13 +19,16 @@ include $(CLEAR_VARS)
 # Don't include this package in any target.
 LOCAL_MODULE_TAGS := tests
 
+LOCAL_STATIC_JAVA_LIBRARIES := \
+    android-support-v4 \
+
 LOCAL_SRC_FILES := $(call all-java-files-under, src) \
                    ../../../../../apps/CtsVerifier/src/com/android/cts/verifier/vr/MockVrListenerService.java
 
 LOCAL_SDK_VERSION := test_current
 
 # Tag this module as a cts test artifact
-LOCAL_COMPATIBILITY_SUITE := cts
+LOCAL_COMPATIBILITY_SUITE := cts general-tests
 
 LOCAL_PACKAGE_NAME := CtsDeviceServicesTestApp
 

@@ -78,6 +78,10 @@ public abstract class AbstractLifecycleLogActivity extends Activity {
 
     protected abstract String getTag();
 
+    protected void dumpConfiguration(Configuration config) {
+        Log.i(getTag(), "Configuration: " + config);
+    }
+
     protected void dumpDisplaySize(Configuration config) {
         // Dump the display size as seen by this Activity.
         final WindowManager wm = getSystemService(WindowManager.class);
@@ -86,12 +90,13 @@ public abstract class AbstractLifecycleLogActivity extends Activity {
         display.getSize(point);
         final DisplayMetrics metrics = getResources().getDisplayMetrics();
 
-        final String line = "config" +
-                " size=" + buildCoordString(config.screenWidthDp, config.screenHeightDp) +
-                " displaySize=" + buildCoordString(point.x, point.y) +
-                " metricsSize=" + buildCoordString(metrics.widthPixels, metrics.heightPixels) +
-                " smallestScreenWidth=" + config.smallestScreenWidthDp +
-                " densityDpi=" + config.densityDpi;
+        final String line = "config"
+                + " size=" + buildCoordString(config.screenWidthDp, config.screenHeightDp)
+                + " displaySize=" + buildCoordString(point.x, point.y)
+                + " metricsSize=" + buildCoordString(metrics.widthPixels, metrics.heightPixels)
+                + " smallestScreenWidth=" + config.smallestScreenWidthDp
+                + " densityDpi=" + config.densityDpi
+                + " orientation=" + config.orientation;
 
         Log.i(getTag(), line);
     }

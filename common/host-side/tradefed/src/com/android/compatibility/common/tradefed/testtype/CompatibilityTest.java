@@ -273,6 +273,7 @@ public class CompatibilityTest implements IDeviceTest, IShardableTest, IBuildRec
     // variables used for local sharding scenario
     private static CountDownLatch sPreparedLatch;
     private boolean mIsLocalSharding = false;
+    private boolean mIsSharded = false;
 
     /**
      * Create a new {@link CompatibilityTest} that will run the default list of
@@ -676,10 +677,10 @@ public class CompatibilityTest implements IDeviceTest, IShardableTest, IBuildRec
     void setupFilters() throws DeviceNotAvailableException {
         if (mRetrySessionId != null) {
             // Load the invocation result
-            IInvocationResult result = null;
-            RetryFilterHelper helper = new RetryFilterHelper(mBuildHelper, mRetrySessionId);
+            RetryFilterHelper helper = new RetryFilterHelper(mBuildHelper, mRetrySessionId,
+                    mSubPlan, mIncludeFilters, mExcludeFilters, mAbiName, mModuleName, mTestName,
+                    mRetryType);
             helper.validateBuildFingerprint(mDevice);
-            helper.setAllOptionsFrom(this);
             helper.setCommandLineOptionsFor(this);
             helper.populateRetryFilters();
             mIncludeFilters = helper.getIncludeFilters();
@@ -754,6 +755,24 @@ public class CompatibilityTest implements IDeviceTest, IShardableTest, IBuildRec
      * {@inheritDoc}
      */
     @Override
+    public Collection<IRemoteTest> split(int shardCount) {
+        if (shardCount <= 1 || mIsSharded) {
+            return null;
+        }
+        mIsSharded = true;
+        List<IRemoteTest> shardQueue = new LinkedList<>();
+        for (int i = 0; i < shardCount; i++) {
+            CompatibilityTest test = (CompatibilityTest) getTestShard(shardCount, i);
+            shardQueue.add(test);
+            test.mIsSharded = true;
+        }
+        return shardQueue;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     public IRemoteTest getTestShard(int shardCount, int shardIndex) {
         CompatibilityTest test = new CompatibilityTest(shardCount, mModuleRepo, shardIndex);
         OptionCopier.copyOptionsNoThrow(this, test);
@@ -774,5 +793,19 @@ public class CompatibilityTest implements IDeviceTest, IShardableTest, IBuildRec
     @Override
     public void setCollectTestsOnly(boolean collectTestsOnly) {
         mCollectTestsOnly = collectTestsOnly;
+    }
+
+    /**
+     * Sets include-filters for the compatibility test
+     */
+    public void setIncludeFilter(Set<String> includeFilters) {
+        mIncludeFilters.addAll(includeFilters);
+    }
+
+    /**
+     * Sets exclude-filters for the compatibility test
+     */
+    public void setExcludeFilter(Set<String> excludeFilters) {
+        mExcludeFilters.addAll(excludeFilters);
     }
 }

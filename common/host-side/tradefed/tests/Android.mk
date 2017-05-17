@@ -19,6 +19,7 @@ include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES := $(call all-java-files-under, ../src)
 LOCAL_JAVA_RESOURCE_DIRS := ../res
+include cts/error_prone_rules.mk
 
 LOCAL_SUITE_BUILD_NUMBER := 2
 LOCAL_SUITE_TARGET_ARCH := $(TARGET_ARCH)
@@ -27,7 +28,7 @@ LOCAL_SUITE_FULLNAME := "Compatibility Tests"
 LOCAL_SUITE_VERSION := 1
 
 LOCAL_MODULE := compatibility-mock-tradefed
-
+include cts/error_prone_rules.mk
 include $(BUILD_COMPATIBILITY_SUITE)
 
 # Make the tests
@@ -36,6 +37,7 @@ include $(CLEAR_VARS)
 LOCAL_SRC_FILES := $(call all-java-files-under, src)
 LOCAL_JAVA_RESOURCE_DIRS := res
 
+include cts/error_prone_rules.mk
 LOCAL_MODULE := compatibility-tradefed-tests
 
 LOCAL_MODULE_TAGS := optional

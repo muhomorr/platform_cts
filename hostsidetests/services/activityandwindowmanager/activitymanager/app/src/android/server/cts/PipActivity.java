@@ -22,6 +22,7 @@ import static android.content.Intent.FLAG_ACTIVITY_NEW_TASK;
 import android.app.Activity;
 import android.app.ActivityOptions;
 import android.app.PictureInPictureParams;
+import android.content.res.Configuration;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
@@ -213,6 +214,11 @@ public class PipActivity extends AbstractLifecycleLogActivity {
         filter.addAction(ACTION_SET_REQUESTED_ORIENTATION);
         filter.addAction(ACTION_FINISH);
         registerReceiver(mReceiver, filter);
+
+        // Dump applied display metrics.
+        Configuration config = getResources().getConfiguration();
+        dumpDisplaySize(config);
+        dumpConfiguration(config);
     }
 
     @Override
@@ -284,6 +290,13 @@ public class PipActivity extends AbstractLifecycleLogActivity {
         }
     }
 
+    @Override
+    public void onConfigurationChanged(Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        dumpDisplaySize(newConfig);
+        dumpConfiguration(newConfig);
+    }
+
     /**
      * Launches a new instance of the PipActivity directly into the pinned stack.
      */
@@ -299,11 +312,11 @@ public class PipActivity extends AbstractLifecycleLogActivity {
     }
 
     /**
-     * Launches a new instance of the PipActivity that will automatically enter PiP.
+     * Launches a new instance of the PipActivity in the same task that will automatically enter
+     * PiP.
      */
     static void launchEnterPipActivity(Activity caller) {
         final Intent intent = new Intent(caller, PipActivity.class);
-        intent.setFlags(FLAG_ACTIVITY_CLEAR_TASK | FLAG_ACTIVITY_NEW_TASK);
         intent.putExtra(EXTRA_ENTER_PIP, "true");
         intent.putExtra(EXTRA_ASSERT_NO_ON_STOP_BEFORE_PIP, "true");
         caller.startActivity(intent);

@@ -25,7 +25,7 @@ LOCAL_MODULE := cts-tf-dalvik-lib
 LOCAL_MODULE_CLASS := JAVA_LIBRARIES
 LOCAL_MODULE_TAGS := optional
 LOCAL_JAVA_LIBRARIES := junit
-
+-include cts/error_prone_rules_tests.mk
 include $(BUILD_JAVA_LIBRARY)
 
 cts-tf-dalvik-lib.jack := $(full_classes_jack)
@@ -68,7 +68,7 @@ LOCAL_INSTALLED_MODULE_STEM := android.core.vm-tests-tf.jar
 LOCAL_MODULE_PATH := $(intermediates)
 
 # Tag this module as a cts test artifact
-LOCAL_COMPATIBILITY_SUITE := cts
+LOCAL_COMPATIBILITY_SUITE := cts general-tests
 
 include $(BUILD_SYSTEM)/base_rules.mk
 

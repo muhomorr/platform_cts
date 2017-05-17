@@ -16,34 +16,28 @@
 
 package android.autofillservice.cts;
 
-import static android.autofillservice.cts.Helper.dumpStructure;
-
+import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
 
 import android.app.assist.AssistStructure;
 import android.app.assist.AssistStructure.ViewNode;
 import android.app.assist.AssistStructure.WindowNode;
+import android.content.pm.PackageManager;
 import android.icu.util.Calendar;
-import android.os.Bundle;
 import android.os.UserManager;
-import android.service.autofill.Dataset;
 import android.service.autofill.FillContext;
-import android.service.autofill.FillResponse;
 import android.support.annotation.NonNull;
 import android.support.test.InstrumentationRegistry;
 import android.text.TextUtils;
-import android.text.format.DateUtils;
 import android.util.Log;
-import android.view.autofill.AutofillId;
-import android.view.autofill.AutofillValue;
 import android.view.View;
 import android.view.ViewStructure.HtmlInfo;
+import android.view.autofill.AutofillId;
+import android.view.autofill.AutofillValue;
 
 import com.android.compatibility.common.util.SystemUtil;
 
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Function;
 
 /**
@@ -87,6 +81,11 @@ final class Helper {
      * Timeout (in milliseconds) for expected save requests.
      */
     static final long SAVE_TIMEOUT_MS = 5000;
+
+    /**
+     * Time to wait if a UI change is not expected
+     */
+    static final long NOT_SHOWING_TIMEOUT_MS = 500;
 
     /**
      * Timeout (in milliseconds) for UI operations. Typically used by {@link UiBot}.
@@ -239,7 +238,7 @@ final class Helper {
     /**
      * Gets a node given its Android resource id, or {@code null} if not found.
      */
-    static ViewNode findNodeByResourceId(ArrayList<FillContext> contexts, String resourceId) {
+    static ViewNode findNodeByResourceId(List<FillContext> contexts, String resourceId) {
         for (FillContext context : contexts) {
             ViewNode node = findNodeByResourceId(context.getStructure(), resourceId);
             if (node != null) {
@@ -311,14 +310,17 @@ final class Helper {
       final CharSequence text = node.getText();
       final String resourceId = node.getIdEntry();
       if (!TextUtils.isEmpty(text)) {
-        throw new AssertionError("text on sanitized field " + resourceId + ": " + text);
+          throw new AssertionError("text on sanitized field " + resourceId + ": " + text);
       }
       assertNodeHasNoAutofillValue(node);
     }
 
     static void assertNodeHasNoAutofillValue(ViewNode node) {
         final AutofillValue value = node.getAutofillValue();
-        assertWithMessage("node.getAutofillValue()").that(value).isNull();
+        if (value != null) {
+            final String text = value.isText() ? value.getTextValue().toString() : "N/A";
+            throw new AssertionError("node has value: " + value + " text=" + text);
+        }
     }
 
     /**
@@ -620,6 +622,25 @@ final class Helper {
         }
 
         throw new IllegalStateException("process not found");
+    }
+
+    /**
+     * Gets the maximum number of partitions per session.
+     */
+    public static int getMaxPartitions() {
+        return Integer.parseInt(runShellCommand("cmd autofill get max_partitions"));
+    }
+
+    /**
+     * Sets the maximum number of partitions per session.
+     */
+    public static void setMaxPartitions(int value) {
+        runShellCommand("cmd autofill set max_partitions %d", value);
+        assertThat(getMaxPartitions()).isEqualTo(value);
+    }
+
+    public static boolean hasAutofillFeature() {
+        return RequiredFeatureRule.hasFeature(PackageManager.FEATURE_AUTOFILL);
     }
 
     private Helper() {

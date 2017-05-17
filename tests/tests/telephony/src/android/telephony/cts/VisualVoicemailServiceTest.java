@@ -30,7 +30,6 @@ import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.ParcelFileDescriptor;
-import android.provider.Settings;
 import android.provider.Telephony.Sms;
 import android.provider.Telephony.Sms.Intents;
 import android.support.annotation.Nullable;
@@ -40,7 +39,6 @@ import android.telecom.TelecomManager;
 import android.telephony.SmsManager;
 import android.telephony.SmsMessage;
 import android.telephony.TelephonyManager;
-import android.telephony.VisualVoicemailService;
 import android.telephony.VisualVoicemailSms;
 import android.telephony.VisualVoicemailSmsFilterSettings;
 import android.test.InstrumentationTestCase;
@@ -459,36 +457,6 @@ public class VisualVoicemailServiceTest extends InstrumentationTestCase {
         assertEquals(PACKAGE, mTelephonyManager.getVisualVoicemailPackageName());
     }
 
-    public void testVoicemailRingtoneSettings() {
-        if (!hasTelephony(mContext)) {
-            Log.d(TAG, "skipping test that requires telephony feature");
-            return;
-        }
-        TelecomManager telecomManager = mContext.getSystemService(TelecomManager.class);
-
-        PhoneAccountHandle defaultAccount = telecomManager
-                .getDefaultOutgoingPhoneAccount(PhoneAccount.SCHEME_TEL);
-
-        Uri uri = Settings.System.DEFAULT_NOTIFICATION_URI;
-        mTelephonyManager.setVoicemailRingtoneUri(defaultAccount, uri);
-        assertEquals(uri, mTelephonyManager.getVoicemailRingtoneUri(defaultAccount));
-    }
-
-    public void testVoicemailVibrationSettings() {
-        if (!hasTelephony(mContext)) {
-            Log.d(TAG, "skipping test that requires telephony feature");
-            return;
-        }
-        TelecomManager telecomManager = mContext.getSystemService(TelecomManager.class);
-
-        PhoneAccountHandle defaultAccount = telecomManager
-                .getDefaultOutgoingPhoneAccount(PhoneAccount.SCHEME_TEL);
-        mTelephonyManager.setVoicemailVibrationEnabled(defaultAccount, true);
-        assertTrue(mTelephonyManager.isVoicemailVibrationEnabled(defaultAccount));
-        mTelephonyManager.setVoicemailVibrationEnabled(defaultAccount, false);
-        assertFalse(mTelephonyManager.isVoicemailVibrationEnabled(defaultAccount));
-    }
-
     private VisualVoicemailSms getSmsFromText(String clientPrefix, String text) {
         return getSmsFromText(clientPrefix, text, true);
     }
@@ -527,7 +495,7 @@ public class VisualVoicemailServiceTest extends InstrumentationTestCase {
         MockVisualVoicemailService.setSmsFuture(future);
 
         setupSmsReceiver(text);
-        try (SentSmsObserver observer = new SentSmsObserver(mContext)) {
+        try (SentSmsObserver observer = new SentSmsObserver(mContext, text)) {
             mTelephonyManager
                     .sendVisualVoicemailSms(mPhoneNumber,0, text, null);
 
@@ -654,12 +622,14 @@ public class VisualVoicemailServiceTest extends InstrumentationTestCase {
     private static class SentSmsObserver extends ContentObserver implements AutoCloseable {
 
         private final Context mContext;
+        private final String mText;
 
         public CompletableFuture<Boolean> mFuture = new CompletableFuture<>();
 
-        public SentSmsObserver(Context context) {
+        public SentSmsObserver(Context context, String text) {
             super(new Handler(Looper.getMainLooper()));
             mContext = context;
+            mText = text;
             mContext.getContentResolver().registerContentObserver(Sms.CONTENT_URI, true, this);
         }
 
@@ -678,14 +648,15 @@ public class VisualVoicemailServiceTest extends InstrumentationTestCase {
         @Override
         public void onChange(boolean selfChange, Uri uri) {
             try (Cursor cursor = mContext.getContentResolver()
-                    .query(uri, new String[] {Sms.TYPE}, null, null, null)) {
+                    .query(uri, new String[] {Sms.TYPE, Sms.BODY}, null, null, null)) {
                 if (cursor == null){
                     return;
                 }
                 if (!cursor.moveToFirst()){
                     return;
                 }
-                if (cursor.getInt(0) == Sms.MESSAGE_TYPE_SENT) {
+                if (cursor.getInt(0) == Sms.MESSAGE_TYPE_SENT && TextUtils
+                        .equals(cursor.getString(1), mText)) {
                     mFuture.complete(true);
                 }
             } catch (SQLiteException e) {

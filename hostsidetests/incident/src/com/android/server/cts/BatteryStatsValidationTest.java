@@ -15,7 +15,15 @@
  */
 package com.android.server.cts;
 
+import com.android.ddmlib.IShellOutputReceiver;
 import com.android.tradefed.log.LogUtil;
+
+import com.google.common.base.Charsets;
+
+import java.util.Arrays;
+import java.util.Random;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Test for "dumpsys batterystats -c
@@ -46,11 +54,15 @@ public class BatteryStatsValidationTest extends ProtoDumpTestCase {
     // Constants from BatteryStatsBgVsFgActions.java (not directly accessible here).
     public static final String KEY_ACTION = "action";
     public static final String ACTION_BLE_SCAN = "action.ble_scan";
+    public static final String ACTION_GPS = "action.gps";
     public static final String ACTION_JOB_SCHEDULE = "action.jobs";
     public static final String ACTION_SYNC = "action.sync";
     public static final String ACTION_WIFI_SCAN = "action.wifi_scan";
     public static final String ACTION_WIFI_DOWNLOAD = "action.wifi_download";
     public static final String ACTION_WIFI_UPLOAD = "action.wifi_upload";
+
+    public static final String KEY_REQUEST_CODE = "request_code";
+    public static final String BG_VS_FG_TAG = "BatteryStatsBgVsFgActions";
 
     @Override
     protected void setUp() throws Exception {
@@ -71,6 +83,23 @@ public class BatteryStatsValidationTest extends ProtoDumpTestCase {
         super.tearDown();
     }
 
+    protected void screenOff() throws Exception {
+        getDevice().executeShellCommand("dumpsys batterystats enable pretend-screen-off");
+    }
+
+    /**
+     * This will turn the screen on for real, not just disabling pretend-screen-off
+     */
+    protected void turnScreenOnForReal() throws Exception {
+        getDevice().executeShellCommand("input keyevent KEYCODE_WAKEUP");
+        getDevice().executeShellCommand("wm dismiss-keyguard");
+    }
+
+    protected void batteryOnScreenOn() throws Exception {
+        getDevice().executeShellCommand("dumpsys battery unplug");
+        getDevice().executeShellCommand("dumpsys batterystats disable pretend-screen-off");
+    }
+
     protected void batteryOnScreenOff() throws Exception {
         getDevice().executeShellCommand("dumpsys battery unplug");
         getDevice().executeShellCommand("dumpsys batterystats enable pretend-screen-off");
@@ -79,6 +108,14 @@ public class BatteryStatsValidationTest extends ProtoDumpTestCase {
     protected void batteryOffScreenOn() throws Exception {
         getDevice().executeShellCommand("dumpsys battery reset");
         getDevice().executeShellCommand("dumpsys batterystats disable pretend-screen-off");
+    }
+
+    private void forceStop() throws Exception {
+        getDevice().executeShellCommand("am force-stop " + DEVICE_SIDE_TEST_PACKAGE);
+    }
+
+    private void resetBatteryStats() throws Exception {
+        getDevice().executeShellCommand("dumpsys batterystats --reset");
     }
 
     public void testAlarms() throws Exception {
@@ -105,8 +142,8 @@ public class BatteryStatsValidationTest extends ProtoDumpTestCase {
         runDeviceTests(DEVICE_SIDE_TEST_PACKAGE, ".BatteryStatsWakeLockTests",
                 "testHoldLongWakeLock");
 
-        assertValueRange("wl", "BSShortWakeLock", 14, (long) (500 * 0.9), 500 * 2);
-        assertValueRange("wl", "BSLongWakeLock", 14, (long) (3000 * 0.9), 3000 * 2);
+        assertValueRange("wl", "BSShortWakeLock", 15, (long) (500 * 0.9), 500 * 2); // partial max duration
+        assertValueRange("wl", "BSLongWakeLock", 15, (long) (3000 * 0.9), 3000 * 2);  // partial max duration
 
         batteryOffScreenOn();
     }
@@ -126,37 +163,65 @@ public class BatteryStatsValidationTest extends ProtoDumpTestCase {
     }
 
     public void testBleScans() throws Exception {
+        if (isTV()) {
+            return;
+        }
         batteryOnScreenOff();
         installPackage(DEVICE_SIDE_TEST_APK, true);
 
         // Foreground test.
-        executeForeground(ACTION_BLE_SCAN);
-        Thread.sleep(2_500);
+        executeForeground(ACTION_BLE_SCAN, 30_000);
         assertValueRange("blem", "", 5, 1, 1); // ble_scan_count
         assertValueRange("blem", "", 6, 0, 0); // ble_scan_count_bg
 
         // Background test.
-        executeBackground(ACTION_BLE_SCAN);
-        Thread.sleep(2_500);
+        executeBackground(ACTION_BLE_SCAN, 30_000);
         assertValueRange("blem", "", 5, 2, 2); // ble_scan_count
         assertValueRange("blem", "", 6, 1, 1); // ble_scan_count_bg
 
         batteryOffScreenOn();
     }
 
+    public void testGpsUpdates() throws Exception {
+        final String gpsSensorNumber = "-10000";
+
+        if (isTV()) {
+            return;
+        }
+        batteryOnScreenOff();
+        installPackage(DEVICE_SIDE_TEST_APK, true);
+        // Whitelist this app against background location request throttling
+        getDevice().executeShellCommand(String.format(
+                "settings put global location_background_throttle_package_whitelist %s",
+                DEVICE_SIDE_TEST_PACKAGE));
+
+        // Foreground test.
+        executeForeground(ACTION_GPS, 60_000);
+        assertValueRange("sr", gpsSensorNumber, 6, 1, 1); // count
+        assertValueRange("sr", gpsSensorNumber, 7, 0, 0); // background_count
+
+        // Background test.
+        executeBackground(ACTION_GPS, 60_000);
+        assertValueRange("sr", gpsSensorNumber, 6, 2, 2); // count
+        assertValueRange("sr", gpsSensorNumber, 7, 1, 1); // background_count
+
+        batteryOffScreenOn();
+    }
+
     public void testJobBgVsFg() throws Exception {
+        if (isTV()) {
+            return;
+        }
         batteryOnScreenOff();
         installPackage(DEVICE_SIDE_TEST_APK, true);
 
         // Foreground test.
-        executeForeground(ACTION_JOB_SCHEDULE);
-        Thread.sleep(4_000);
+        executeForeground(ACTION_JOB_SCHEDULE, 60_000);
         assertValueRange("jb", "", 6, 1, 1); // count
         assertValueRange("jb", "", 8, 0, 0); // background_count
 
         // Background test.
-        executeBackground(ACTION_JOB_SCHEDULE);
-        Thread.sleep(4_000);
+        executeBackground(ACTION_JOB_SCHEDULE, 60_000);
         assertValueRange("jb", "", 6, 2, 2); // count
         assertValueRange("jb", "", 8, 1, 1); // background_count
 
@@ -164,19 +229,20 @@ public class BatteryStatsValidationTest extends ProtoDumpTestCase {
     }
 
     public void testSyncBgVsFg() throws Exception {
+        if (isTV()) {
+            return;
+        }
         batteryOnScreenOff();
         installPackage(DEVICE_SIDE_TEST_APK, true);
 
         // Foreground test.
-        executeForeground(ACTION_SYNC);
-        Thread.sleep(3_000);
+        executeForeground(ACTION_SYNC, 60_000);
         // Allow one or two syncs in this time frame (not just one) due to unpredictable syncs.
         assertValueRange("sy", DEVICE_SIDE_SYNC_COMPONENT, 6, 1, 2); // count
         assertValueRange("sy", DEVICE_SIDE_SYNC_COMPONENT, 8, 0, 0); // background_count
 
         // Background test.
-        executeBackground(ACTION_SYNC);
-        Thread.sleep(3_000);
+        executeBackground(ACTION_SYNC, 60_000);
         assertValueRange("sy", DEVICE_SIDE_SYNC_COMPONENT, 6, 2, 4); // count
         assertValueRange("sy", DEVICE_SIDE_SYNC_COMPONENT, 8, 1, 2); // background_count
 
@@ -184,20 +250,28 @@ public class BatteryStatsValidationTest extends ProtoDumpTestCase {
     }
 
     public void testWifiScans() throws Exception {
+        if (isTV()) {
+            return;
+        }
         batteryOnScreenOff();
         installPackage(DEVICE_SIDE_TEST_APK, true);
+        // Whitelist this app against background wifi scan throttling
+        getDevice().executeShellCommand(String.format(
+                "settings put global wifi_scan_background_throttle_package_whitelist %s",
+                DEVICE_SIDE_TEST_PACKAGE));
 
         // Foreground count test.
-        executeForeground(ACTION_WIFI_SCAN);
-        Thread.sleep(4_000);
-        assertValueRange("wfl", "", 7, 1, 1); // scan_count
+        executeForeground(ACTION_WIFI_SCAN, 120_000);
+        // Allow one or two scans because we try scanning twice and because we allow for the
+        // possibility that, when the test is started, a scan from a different uid was already being
+        // performed (causing the test to 'miss' a scan).
+        assertValueRange("wfl", "", 7, 1, 2); // scan_count
         assertValueRange("wfl", "", 11, 0, 0); // scan_count_bg
 
         // Background count test.
-        executeBackground(ACTION_WIFI_SCAN);
-        Thread.sleep(6_000);
-        assertValueRange("wfl", "", 7, 2, 2); // scan_count
-        assertValueRange("wfl", "", 11, 1, 1); // scan_count_bg
+        executeBackground(ACTION_WIFI_SCAN, 120_000);
+        assertValueRange("wfl", "", 7, 2, 4); // scan_count
+        assertValueRange("wfl", "", 11, 1, 2); // scan_count_bg
 
         batteryOffScreenOn();
     }
@@ -268,6 +342,9 @@ public class BatteryStatsValidationTest extends ProtoDumpTestCase {
      * Tests the total bytes reported for downloading over wifi.
      */
     public void testWifiDownload() throws Exception {
+        if (isTV()) {
+            return;
+        }
         batteryOnScreenOff();
         installPackage(DEVICE_SIDE_TEST_APK, true);
 
@@ -275,8 +352,8 @@ public class BatteryStatsValidationTest extends ProtoDumpTestCase {
 
         long prevBytes = getLongValue(getUid(), "nt", "", 6);
 
-        executeForeground(ACTION_WIFI_DOWNLOAD);
-        long downloadedBytes = getDownloadedBytes();
+        String requestCode = executeForeground(ACTION_WIFI_DOWNLOAD, 60_000);
+        long downloadedBytes = getDownloadedBytes(requestCode);
         assertTrue(downloadedBytes > 0);
         long min = prevBytes + downloadedBytes + MIN_HTTP_HEADER_BYTES;
         long max = prevBytes + downloadedBytes + FUZZ; // Add some fuzzing.
@@ -285,9 +362,8 @@ public class BatteryStatsValidationTest extends ProtoDumpTestCase {
 
         // Do the background download
         long prevBgBytes = getLongValue(getUid(), "nt", "", 20);
-        executeBackground(ACTION_WIFI_DOWNLOAD);
-        Thread.sleep(4000);
-        downloadedBytes = getDownloadedBytes();
+        requestCode = executeBackground(ACTION_WIFI_DOWNLOAD, 60_000);
+        downloadedBytes = getDownloadedBytes(requestCode);
 
         long minBg = prevBgBytes + downloadedBytes + MIN_HTTP_HEADER_BYTES;
         long maxBg = prevBgBytes + downloadedBytes + FUZZ;
@@ -303,21 +379,134 @@ public class BatteryStatsValidationTest extends ProtoDumpTestCase {
         batteryOffScreenOn();
     }
 
+    public void testCpuFreqData() throws Exception {
+        batteryOnScreenOff();
+        final long[] actualCpuFreqs = CpuFreqDataHelper.getCpuFreqFromCheckinDump(getDevice());
+        final long[] expectedCpuFreqs = CpuFreqDataHelper.getCpuFreqFromProcFile(getDevice());
+        assertTrue("Unexpected cpu freqs, actual: " + Arrays.toString(actualCpuFreqs)
+                + ", expected: " + Arrays.toString(expectedCpuFreqs),
+                        Arrays.equals(actualCpuFreqs, expectedCpuFreqs));
+        batteryOffScreenOn();
+    }
+
+    public void testUidCpuFreqTimesData() throws Exception {
+        batteryOnScreenOn();
+        // Previous call will only disable the pretend-screen-off. Since we are interested in
+        // checking the uid times while the screen is on, turn it on for real.
+        turnScreenOnForReal();
+        installPackage(DEVICE_SIDE_TEST_APK, true);
+        final int uid = getUid();
+        final long[] initialSnapshot = CpuFreqDataHelper.getUidCpuFreqTimesFromProcFile(
+                getDevice(), uid);
+        forceStop();
+        resetBatteryStats();
+        assertNull(CpuFreqDataHelper.getUidCpuFreqTimesFromCheckinDump(getDevice(), uid));
+
+        // Do some work with screen on
+        runDeviceTests(DEVICE_SIDE_TEST_PACKAGE, ".BatteryStatsAlarmTest", "testAlarms");
+        // Now do some work with screen off
+        screenOff();
+        runDeviceTests(DEVICE_SIDE_TEST_PACKAGE, ".BatteryStatsJobDurationTests",
+                "testJobDuration");
+        forceStop();
+
+        final long[] uidTimesFromDump = CpuFreqDataHelper.getUidCpuFreqTimesFromCheckinDump(
+                getDevice(), uid);
+        final long[] finalSnapshot = CpuFreqDataHelper.getUidCpuFreqTimesFromProcFile(
+                getDevice(), uid);
+        final long[] uidTimesFromProcFile =
+                CpuFreqDataHelper.subtract(finalSnapshot, initialSnapshot);
+        final long[] totalUidTimesFromDump = CpuFreqDataHelper.getTotalCpuTimes(uidTimesFromDump);
+        assertTrue("Unexcepted total uid times, from dump: " + Arrays.toString(uidTimesFromDump)
+                        + ", from procFile: " + Arrays.toString(uidTimesFromProcFile),
+                Arrays.equals(totalUidTimesFromDump, uidTimesFromProcFile));
+        batteryOffScreenOn();
+    }
+
+    public void testUidCpuFreqTimesDataWithOnlyScreenOn() throws Exception {
+        batteryOnScreenOn();
+        // Previous call will only disable the pretend-screen-off. Since we are interested in
+        // checking the uid times while the screen is on, turn it on for real.
+        turnScreenOnForReal();
+        installPackage(DEVICE_SIDE_TEST_APK, true);
+        final int uid = getUid();
+        final long[] initialSnapshot = CpuFreqDataHelper.getUidCpuFreqTimesFromProcFile(
+                getDevice(), uid);
+        forceStop();
+        resetBatteryStats();
+        assertNull(CpuFreqDataHelper.getUidCpuFreqTimesFromCheckinDump(getDevice(), uid));
+
+        // Do some work
+        runDeviceTests(DEVICE_SIDE_TEST_PACKAGE, ".BatteryStatsAlarmTest", "testAlarms");
+        forceStop();
+
+        final long[] uidTimesFromDump = CpuFreqDataHelper.getUidCpuFreqTimesFromCheckinDump(
+                getDevice(), uid);
+        final long[] finalSnapshot = CpuFreqDataHelper.getUidCpuFreqTimesFromProcFile(
+                getDevice(), uid);
+        final long[] uidTimesFromProcFile =
+                CpuFreqDataHelper.subtract(finalSnapshot, initialSnapshot);
+        final long[] totalUidTimesFromDump = CpuFreqDataHelper.getTotalCpuTimes(uidTimesFromDump);
+        final long[] screenOnUidTimesFromDump = CpuFreqDataHelper.getScreenOnCpuTimes(
+                uidTimesFromDump);
+        assertTrue("Unexcepted total uid times, from dump: " + Arrays.toString(uidTimesFromDump)
+                + ", from procFile: " + Arrays.toString(uidTimesFromProcFile),
+                        Arrays.equals(totalUidTimesFromDump, uidTimesFromProcFile));
+        assertTrue("Unexcepted screen-on uid times, from dump: " + Arrays.toString(uidTimesFromDump)
+                + ", from procFile: " + Arrays.toString(uidTimesFromProcFile),
+                        Arrays.equals(screenOnUidTimesFromDump, uidTimesFromProcFile));
+        batteryOffScreenOn();
+    }
+
+    public void testUidCpuFreqTimesDataWithOnlyScreenOff() throws Exception {
+        batteryOnScreenOff();
+        installPackage(DEVICE_SIDE_TEST_APK, true);
+        final int uid = getUid();
+        final long[] initialSnapshot = CpuFreqDataHelper.getUidCpuFreqTimesFromProcFile(
+                getDevice(), uid);
+        forceStop();
+        resetBatteryStats();
+        assertNull(CpuFreqDataHelper.getUidCpuFreqTimesFromCheckinDump(getDevice(), uid));
+
+        // Do some work
+        runDeviceTests(DEVICE_SIDE_TEST_PACKAGE, ".BatteryStatsAlarmTest", "testAlarms");
+        forceStop();
+
+        final long[] uidTimesFromDump = CpuFreqDataHelper.getUidCpuFreqTimesFromCheckinDump(
+                getDevice(), uid);
+        final long[] finalSnapshot = CpuFreqDataHelper.getUidCpuFreqTimesFromProcFile(
+                getDevice(), uid);
+        final long[] uidTimesFromProcFile =
+                CpuFreqDataHelper.subtract(finalSnapshot, initialSnapshot);
+        final long[] totalUidTimesFromDump = CpuFreqDataHelper.getTotalCpuTimes(uidTimesFromDump);
+        final long[] screenOffUidTimesFromDump = CpuFreqDataHelper.getScreenOffCpuTimes(
+                uidTimesFromDump);
+        assertTrue("Unexcepted total uid times, from dump: " + Arrays.toString(uidTimesFromDump)
+                        + ", from procFile: " + Arrays.toString(uidTimesFromProcFile),
+                Arrays.equals(totalUidTimesFromDump, uidTimesFromProcFile));
+        assertTrue("Unexcepted screen-off uid times, from dump: "
+                + Arrays.toString(uidTimesFromDump) + ", from procFile: "
+                + Arrays.toString(uidTimesFromProcFile),
+                        Arrays.equals(screenOffUidTimesFromDump, uidTimesFromProcFile));
+        batteryOffScreenOn();
+    }
+
     /**
      * Tests the total bytes reported for uploading over wifi.
      */
     public void testWifiUpload() throws Exception {
+        if (isTV()) {
+            return;
+        }
         batteryOnScreenOff();
         installPackage(DEVICE_SIDE_TEST_APK, true);
 
-        executeForeground(ACTION_WIFI_UPLOAD);
-        Thread.sleep(2000);
+        executeForeground(ACTION_WIFI_UPLOAD, 60_000);
         int min = MIN_HTTP_HEADER_BYTES + (2 * 1024);
         int max = min + (6 * 1024); // Add some fuzzing.
         assertValueRange("nt", "", 7, min, max); // wifi_bytes_tx
 
-        executeBackground(ACTION_WIFI_UPLOAD);
-        Thread.sleep(4000);
+        executeBackground(ACTION_WIFI_UPLOAD, 60_000);
         assertValueRange("nt", "", 21, min * 2, max * 2); // wifi_bytes_bg_tx
 
         batteryOffScreenOn();
@@ -371,15 +560,39 @@ public class BatteryStatsValidationTest extends ProtoDumpTestCase {
     }
 
     /**
+     * Runs a (background) service to perform the given action, and waits for
+     * the device to report that the action has finished (via a logcat message) before returning.
+     * @param actionValue one of the constants in BatteryStatsBgVsFgActions indicating the desired
+     *                    action to perform.
+     * @param maxTimeMs max time to wait (in ms) for action to report that it has completed.
+     * @return A string, representing a random integer, assigned to this particular request for the
+     *                     device to perform the given action. This value can be used to receive
+     *                     communications via logcat from the device about this action.
+     */
+    private String executeBackground(String actionValue, int maxTimeMs) throws Exception {
+        String requestCode = executeBackground(actionValue);
+        String searchString = getCompletedActionString(actionValue, requestCode);
+        checkLogcatForText(BG_VS_FG_TAG, searchString, maxTimeMs);
+        return requestCode;
+    }
+
+    /**
      * Runs a (background) service to perform the given action.
      * @param actionValue one of the constants in BatteryStatsBgVsFgActions indicating the desired
      *                    action to perform.
+     * @return A string, representing a random integer, assigned to this particular request for the
+      *                     device to perform the given action. This value can be used to receive
+      *                     communications via logcat from the device about this action.
      */
-    private void executeBackground(String actionValue) throws Exception {
+    private String executeBackground(String actionValue) throws Exception {
         allowBackgroundServices();
+        String requestCode = Integer.toString(new Random().nextInt());
         getDevice().executeShellCommand(String.format(
-                "am startservice -n '%s' -e %s %s",
-                DEVICE_SIDE_BG_SERVICE_COMPONENT, KEY_ACTION, actionValue));
+                "am startservice -n '%s' -e %s %s -e %s %s",
+                DEVICE_SIDE_BG_SERVICE_COMPONENT,
+                KEY_ACTION, actionValue,
+                KEY_REQUEST_CODE, requestCode));
+        return requestCode;
     }
 
     /** Required to successfully start a background service from adb in O. */
@@ -389,31 +602,136 @@ public class BatteryStatsValidationTest extends ProtoDumpTestCase {
     }
 
     /**
+     * Runs an activity (in the foreground) to perform the given action, and waits
+     * for the device to report that the action has finished (via a logcat message) before returning.
+     * @param actionValue one of the constants in BatteryStatsBgVsFgActions indicating the desired
+     *                    action to perform.
+     * @param maxTimeMs max time to wait (in ms) for action to report that it has completed.
+     * @return A string, representing a random integer, assigned to this particular request for the
+     *                     device to perform the given action. This value can be used to receive
+     *                     communications via logcat from the device about this action.
+     */
+    private String executeForeground(String actionValue, int maxTimeMs) throws Exception {
+        String requestCode = executeForeground(actionValue);
+        String searchString = getCompletedActionString(actionValue, requestCode);
+        checkLogcatForText(BG_VS_FG_TAG, searchString, maxTimeMs);
+        return requestCode;
+    }
+
+    /**
      * Runs an activity (in the foreground) to perform the given action.
      * @param actionValue one of the constants in BatteryStatsBgVsFgActions indicating the desired
      *                    action to perform.
+     * @return A string, representing a random integer, assigned to this particular request for the
+     *                     device to perform the given action. This value can be used to receive
+     *                     communications via logcat from the device about this action.
      */
-    private void executeForeground(String actionValue) throws Exception {
+    private String executeForeground(String actionValue) throws Exception {
+        String requestCode = Integer.toString(new Random().nextInt());
         getDevice().executeShellCommand(String.format(
-                "am start -n '%s' -e %s %s",
-                DEVICE_SIDE_FG_ACTIVITY_COMPONENT, KEY_ACTION, actionValue));
+                "am start -n '%s' -e %s %s -e %s %s",
+                DEVICE_SIDE_FG_ACTIVITY_COMPONENT,
+                KEY_ACTION, actionValue,
+                KEY_REQUEST_CODE, requestCode));
+        return requestCode;
+    }
+
+    /**
+     * The string that will be printed in the logcat when the action completes. This needs to be
+     * identical to {@link com.android.server.cts.device.batterystats.BatteryStatsBgVsFgActions#tellHostActionFinished}.
+     */
+    private String getCompletedActionString(String actionValue, String requestCode) {
+        return String.format("Completed performing %s for request %s", actionValue, requestCode);
+    }
+
+    /**
+    * Runs logcat and waits (for a maximumum of maxTimeMs) until the desired text is displayed with
+    * the given tag.
+    * Logcat is not cleared, so make sure that text is unique (won't get false hits from old data).
+    * Note that, in practice, the actual max wait time seems to be about 10s longer than maxTimeMs.
+    */
+    private void checkLogcatForText(String logcatTag, String text, int maxTimeMs) {
+        IShellOutputReceiver receiver = new IShellOutputReceiver() {
+            private final StringBuilder mOutputBuffer = new StringBuilder();
+            private final AtomicBoolean mIsCanceled = new AtomicBoolean(false);
+
+            @Override
+            public void addOutput(byte[] data, int offset, int length) {
+                if (!isCancelled()) {
+                    synchronized (mOutputBuffer) {
+                        String s = new String(data, offset, length, Charsets.UTF_8);
+                        mOutputBuffer.append(s);
+                        if (checkBufferForText()) {
+                            mIsCanceled.set(true);
+                        }
+                    }
+                }
+            }
+
+            private boolean checkBufferForText() {
+                if (mOutputBuffer.indexOf(text) > -1) {
+                    return true;
+                } else {
+                    // delete all old data (except the last few chars) since they don't contain text
+                    // (presumably large chunks of data will be added at a time, so this is
+                    // sufficiently efficient.)
+                    int newStart = mOutputBuffer.length() - text.length();
+                    if (newStart > 0) {
+                        mOutputBuffer.delete(0, newStart);
+                    }
+                    return false;
+                }
+            }
+
+            @Override
+            public boolean isCancelled() {
+                return mIsCanceled.get();
+            }
+
+            @Override
+            public void flush() {
+            }
+        };
+
+        try {
+            // Wait for at most maxTimeMs for logcat to display the desired text.
+            getDevice().executeShellCommand(String.format("logcat -s %s -e '%s'", logcatTag, text),
+                    receiver, maxTimeMs, TimeUnit.MILLISECONDS, 0);
+        } catch (com.android.tradefed.device.DeviceNotAvailableException e) {
+            System.err.println(e);
+        }
     }
 
     /**
      * Returns the bytes downloaded for the wifi transfer download tests.
+     * @param requestCode the output of executeForeground() or executeBackground() to identify in
+     *                    the logcat the line associated with the desired download information
      */
-    private long getDownloadedBytes() throws Exception {
+    private long getDownloadedBytes(String requestCode) throws Exception {
         String log = getDevice().executeShellCommand(
-                "logcat -d -s BatteryStatsWifiTransferTests -e '\\d+'");
+                String.format("logcat -d -s BatteryStatsWifiTransferTests -e 'request %s d=\\d+'",
+                        requestCode));
         String[] lines = log.split("\n");
         long size = 0;
         for (int i = lines.length - 1; i >= 0; i--) {
-            String[] parts = lines[i].split(":");
+            String[] parts = lines[i].split("d=");
             String num = parts[parts.length - 1].trim();
             if (num.matches("\\d+")) {
                 size = Integer.parseInt(num);
             }
         }
         return size;
+    }
+
+    /** Determine if device is just a TV and is not expected to have proper batterystats. */
+    private boolean isTV() throws Exception {
+        // Less noisy version of getDevice().hasFeature("android.software.leanback_only")
+        String tvFeature = "android.software.leanback_only";
+        final String features = getDevice().executeShellCommand("pm list features");
+        if (features.contains(tvFeature)) {
+            LogUtil.CLog.w("Device has feature " + tvFeature);
+            return true;
+        }
+        return false;
     }
 }

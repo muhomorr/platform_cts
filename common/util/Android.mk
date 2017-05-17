@@ -26,7 +26,7 @@ LOCAL_MODULE_TAGS := optional
 
 LOCAL_MODULE := compatibility-common-util-devicesidelib
 
-LOCAL_STATIC_JAVA_LIBRARIES :=  guava
+LOCAL_STATIC_JAVA_LIBRARIES := guava junit
 
 LOCAL_SDK_VERSION := current
 
@@ -48,7 +48,7 @@ LOCAL_STATIC_JAVA_LIBRARIES :=  guavalib \
                                 junit-host \
                                 kxml2-2.3.0 \
                                 platform-test-annotations-host
-
+include cts/error_prone_rules.mk
 include $(BUILD_HOST_JAVA_LIBRARY)
 
 include $(call all-makefiles-under,$(LOCAL_PATH))

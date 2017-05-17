@@ -48,9 +48,9 @@ public class ValidateTestsAbi {
      *  This particular module is shipping all it's dependencies in all abis with prebuilt stuff.
      *  Excluding it for now to have the test setup.
      */
-    private String MODULE_EXCEPTION = "CtsSplitApp";
+    private static final String MODULE_EXCEPTION = "CtsSplitApp";
 
-    private static Set<String> BINARY_EXCEPTIONS = new HashSet<>();
+    private static final Set<String> BINARY_EXCEPTIONS = new HashSet<>();
     static {
         /**
          * This binary is a host side helper, so we do not need to check it.
@@ -89,6 +89,20 @@ public class ValidateTestsAbi {
 
         for (File testApk : listApks) {
             AaptParser result = AaptParser.parse(testApk);
+            // Retry as we have seen flake with aapt sometimes.
+            if (result == null) {
+                for (int i = 0; i < 2; i++) {
+                    result = AaptParser.parse(testApk);
+                    if (result != null) {
+                        break;
+                    }
+                }
+                // If still couldn't parse the apk
+                if (result == null) {
+                    fail(String.format("Fail to run 'aapt dump badging %s'",
+                            testApk.getAbsolutePath()));
+                }
+            }
             // We only check the apk that have native code
             if (!result.getNativeCode().isEmpty()) {
                 List<String> supportedAbiApk = result.getNativeCode();

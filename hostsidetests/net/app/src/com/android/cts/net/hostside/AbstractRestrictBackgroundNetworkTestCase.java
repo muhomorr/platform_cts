@@ -695,6 +695,31 @@ abstract class AbstractRestrictBackgroundNetworkTestCase extends Instrumentation
         assertPowerSaveModeWhitelist(packageName, false); // Sanity check
     }
 
+    protected void assertPowerSaveModeExceptIdleWhitelist(String packageName, boolean expected)
+            throws Exception {
+        // TODO: currently the power-save mode is behaving like idle, but once it changes, we'll
+        // need to use netpolicy for whitelisting
+        assertDelayedShellCommand("dumpsys deviceidle except-idle-whitelist =" + packageName,
+                Boolean.toString(expected));
+    }
+
+    protected void addPowerSaveModeExceptIdleWhitelist(String packageName) throws Exception {
+        Log.i(TAG, "Adding package " + packageName + " to power-save-mode-except-idle whitelist");
+        // TODO: currently the power-save mode is behaving like idle, but once it changes, we'll
+        // need to use netpolicy for whitelisting
+        executeShellCommand("dumpsys deviceidle except-idle-whitelist +" + packageName);
+        assertPowerSaveModeExceptIdleWhitelist(packageName, true); // Sanity check
+    }
+
+    protected void removePowerSaveModeExceptIdleWhitelist(String packageName) throws Exception {
+        Log.i(TAG, "Removing package " + packageName
+                + " from power-save-mode-except-idle whitelist");
+        // TODO: currently the power-save mode is behaving like idle, but once it changes, we'll
+        // need to use netpolicy for whitelisting
+        executeShellCommand("dumpsys deviceidle except-idle-whitelist reset");
+        assertPowerSaveModeExceptIdleWhitelist(packageName, false); // Sanity check
+    }
+
     protected void turnBatteryOff() throws Exception {
         executeSilentShellCommand("cmd battery unplug");
     }
@@ -817,27 +842,35 @@ abstract class AbstractRestrictBackgroundNetworkTestCase extends Instrumentation
     }
 
     protected void launchComponentAndAssertNetworkAccess(int type) throws Exception {
-        if (type == TYPE_COMPONENT_ACTIVTIY) {
+        if (type == TYPE_COMPONENT_FOREGROUND_SERVICE) {
+            startForegroundService();
+            assertForegroundServiceNetworkAccess();
+            return;
+        } else if (type == TYPE_COMPONENT_ACTIVTIY) {
             turnScreenOn();
-        }
-        final CountDownLatch latch = new CountDownLatch(1);
-        final Intent launchIntent = getIntentForComponent(type);
-        final Bundle extras = new Bundle();
-        final String[] errors = new String[] {null};
-        extras.putBinder(KEY_NETWORK_STATE_OBSERVER, getNewNetworkStateObserver(latch, errors));
-        launchIntent.putExtras(extras);
-        if (type == TYPE_COMPONENT_ACTIVTIY) {
+            final CountDownLatch latch = new CountDownLatch(1);
+            final Intent launchIntent = getIntentForComponent(type);
+            final Bundle extras = new Bundle();
+            final String[] errors = new String[]{null};
+            extras.putBinder(KEY_NETWORK_STATE_OBSERVER, getNewNetworkStateObserver(latch, errors));
+            launchIntent.putExtras(extras);
             mContext.startActivity(launchIntent);
-        } else if (type == TYPE_COMPONENT_FOREGROUND_SERVICE) {
-            mContext.startService(launchIntent);
-        }
-        if (latch.await(FOREGROUND_PROC_NETWORK_TIMEOUT_MS, TimeUnit.MILLISECONDS)) {
-            if (!errors[0].isEmpty()) {
-                fail("Network is not available for app2 (" + mUid + "): " + errors[0]);
+            if (latch.await(FOREGROUND_PROC_NETWORK_TIMEOUT_MS, TimeUnit.MILLISECONDS)) {
+                if (!errors[0].isEmpty()) {
+                    fail("Network is not available for app2 (" + mUid + "): " + errors[0]);
+                }
+            } else {
+                fail("Timed out waiting for network availability status from app2 (" + mUid + ")");
             }
         } else {
-            fail("Timed out waiting for network availability status from app2 (" + mUid + ")");
+            throw new IllegalArgumentException("Unknown type: " + type);
         }
+    }
+
+    private void startForegroundService() throws Exception {
+        final Intent launchIntent = getIntentForComponent(TYPE_COMPONENT_FOREGROUND_SERVICE);
+        mContext.startForegroundService(launchIntent);
+        assertForegroundServiceState();
     }
 
     private Intent getIntentForComponent(int type) {

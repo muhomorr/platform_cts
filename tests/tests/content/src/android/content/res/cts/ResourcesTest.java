@@ -814,6 +814,30 @@ public class ResourcesTest extends AndroidTestCase {
         } catch (RuntimeException e) {
             // pass
         }
+
+        try {
+            mResources.getFont(R.font.invalid_xmlfont_nosource);
+            fail();
+        } catch (RuntimeException e) {
+            // pass
+        }
+
+    }
+
+    public void testGetFont_brokenFontFiles() {
+        try {
+            mResources.getFont(R.font.brokenfont);
+            fail();
+        } catch (RuntimeException e) {
+            // pass
+        }
+
+        try {
+            mResources.getFont(R.font.broken_xmlfont);
+            fail();
+        } catch (RuntimeException e) {
+            // pass
+        }
     }
 
     public void testGetFont_fontFileIsCached() {
@@ -828,5 +852,19 @@ public class ResourcesTest extends AndroidTestCase {
         Typeface font2 = mResources.getFont(R.font.samplexmlfont);
 
         assertEquals(font, font2);
+    }
+
+    public void testGetFont_resolveByFontTable() {
+        assertEquals(Typeface.NORMAL, mResources.getFont(R.font.sample_regular_font).getStyle());
+        assertEquals(Typeface.BOLD, mResources.getFont(R.font.sample_bold_font).getStyle());
+        assertEquals(Typeface.ITALIC, mResources.getFont(R.font.sample_italic_font).getStyle());
+        assertEquals(Typeface.BOLD_ITALIC,
+                mResources.getFont(R.font.sample_bolditalic_font).getStyle());
+
+        assertEquals(Typeface.NORMAL, mResources.getFont(R.font.sample_regular_family).getStyle());
+        assertEquals(Typeface.BOLD, mResources.getFont(R.font.sample_bold_family).getStyle());
+        assertEquals(Typeface.ITALIC, mResources.getFont(R.font.sample_italic_family).getStyle());
+        assertEquals(Typeface.BOLD_ITALIC,
+                mResources.getFont(R.font.sample_bolditalic_family).getStyle());
     }
 }

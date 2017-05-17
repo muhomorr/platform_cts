@@ -22,12 +22,14 @@ LOCAL_MODULE_TAGS := tests
 
 LOCAL_SRC_FILES := $(call all-java-files-under, src)
 
-LOCAL_STATIC_JAVA_LIBRARIES := android-support-test
+LOCAL_STATIC_JAVA_LIBRARIES := \
+    android-support-test \
+    compatibility-device-util
 
 LOCAL_RES_LIBRARIES := CtsStaticSharedLibProviderApp1
 
 LOCAL_PACKAGE_NAME := CtsStaticSharedLibConsumerApp1
 
-LOCAL_COMPATIBILITY_SUITE := cts
+LOCAL_COMPATIBILITY_SUITE := cts general-tests
 
 include $(BUILD_CTS_SUPPORT_PACKAGE)

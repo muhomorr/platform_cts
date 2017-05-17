@@ -30,6 +30,12 @@
                 android:supportsPictureInPicture="true"
                 android:exported="true"
         />
+        <activity android:name=".TestActivityWithSameAffinity"
+                android:resizeableActivity="true"
+                android:supportsPictureInPicture="true"
+                android:exported="true"
+                android:taskAffinity="nobody.but.PipActivitySameAffinity"
+        />
         <activity android:name=".TranslucentTestActivity"
                 android:resizeableActivity="true"
                 android:supportsPictureInPicture="true"
@@ -103,7 +109,20 @@
                   android:exported="true"
                   android:taskAffinity="nobody.but.PipActivity2"
         />
-
+        <activity android:name=".PipOnStopActivity"
+                  android:resizeableActivity="false"
+                  android:supportsPictureInPicture="true"
+                  android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout"
+                  android:exported="true"
+                  android:taskAffinity="nobody.but.PipOnStopActivity"
+        />
+        <activity android:name=".PipActivityWithSameAffinity"
+                  android:resizeableActivity="false"
+                  android:supportsPictureInPicture="true"
+                  android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout"
+                  android:exported="true"
+                  android:taskAffinity="nobody.but.PipActivitySameAffinity"
+        />
         <activity android:name=".AlwaysFocusablePipActivity"
                   android:theme="@style/Theme.Transparent"
                   android:resizeableActivity="false"
@@ -132,21 +151,6 @@
                   androidprv:alwaysFocusable="true"
                   android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout"
                   android:exported="true"
-        />
-        <activity android:name=".LaunchImeWithPipActivity"
-            android:resizeableActivity="false"
-            android:supportsPictureInPicture="true"
-            androidprv:alwaysFocusable="true"
-            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout"
-            android:exported="true"
-            android:windowSoftInputMode="stateAlwaysVisible"
-        />
-        <activity android:name=".PipOnStopActivity"
-            android:resizeableActivity="false"
-            android:supportsPictureInPicture="true"
-            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout"
-            android:exported="true"
-            android:taskAffinity="nobody.but.PipOnStopActivity"
         />
         <activity android:name=".FreeformActivity"
                   android:resizeableActivity="true"
@@ -344,6 +348,14 @@
             android:taskAffinity="nobody.but.SplashscreenActivity"
             android:theme="@style/SplashscreenTheme"
             android:exported="true" />
+
+
+        <activity android:name=".SwipeRefreshActivity"
+                  android:exported="true" />
+
+        <activity android:name=".NoHistoryActivity"
+                  android:noHistory="true"
+                  android:exported="true" />
 
         <service android:name="com.android.cts.verifier.vr.MockVrListenerService"
                  android:exported="true"

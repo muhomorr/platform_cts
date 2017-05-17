@@ -20,13 +20,17 @@ include $(CLEAR_VARS)
 
 LOCAL_MODULE_TAGS := tests
 
-LOCAL_STATIC_JAVA_LIBRARIES := android-support-test ctstestrunner
+LOCAL_STATIC_JAVA_LIBRARIES := \
+    android-support-test \
+    ctstestrunner \
+    ub-uiautomator \
+    compatibility-device-util
 
 LOCAL_SRC_FILES := $(call all-java-files-under, src)
 
 LOCAL_PACKAGE_NAME := CtsSyncAccountAccessSameCertTestCases
 
-LOCAL_COMPATIBILITY_SUITE := cts
+LOCAL_COMPATIBILITY_SUITE := cts general-tests
 
 LOCAL_PROGUARD_ENABLED := disabled
 

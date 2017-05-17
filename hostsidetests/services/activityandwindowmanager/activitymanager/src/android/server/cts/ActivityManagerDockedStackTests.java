@@ -38,6 +38,17 @@ public class ActivityManagerDockedStackTests extends ActivityManagerTestBase {
     private static final int TASK_SIZE = 600;
     private static final int STACK_SIZE = 300;
 
+    public void testMinimumDeviceSize() throws Exception {
+        if (!supportsSplitScreenMultiWindow()) {
+            CLog.logAndDisplay(LogLevel.INFO, "Skipping test: no split multi-window support");
+            return;
+        }
+
+        mAmWmState.assertDeviceDefaultDisplaySize(mDevice,
+                "Devices supporting multi-window must be larger than the default minimum"
+                        + " task size");
+    }
+
     public void testStackList() throws Exception {
         if (!supportsSplitScreenMultiWindow()) {
             CLog.logAndDisplay(LogLevel.INFO, "Skipping test: no split multi-window support");
@@ -92,6 +103,33 @@ public class ActivityManagerDockedStackTests extends ActivityManagerTestBase {
         mAmWmState.assertContainsStack(
                 "Must contain fullscreen stack.", FULLSCREEN_WORKSPACE_STACK_ID);
         mAmWmState.assertContainsStack("Must contain docked stack.", DOCKED_STACK_ID);
+    }
+
+    public void testLaunchToSideMultiWindowCallbacks() throws Exception {
+        if (!supportsSplitScreenMultiWindow()) {
+            CLog.logAndDisplay(LogLevel.INFO, "Skipping test: no split multi-window support");
+            return;
+        }
+
+        // Launch two activities, one docked, one adjacent
+        launchActivityInDockStack(LAUNCHING_ACTIVITY);
+        mAmWmState.computeState(mDevice, new String[] {LAUNCHING_ACTIVITY});
+        getLaunchActivityBuilder().setToSide(true).execute();
+        mAmWmState.computeState(mDevice, new String[] {TEST_ACTIVITY_NAME});
+        mAmWmState.assertContainsStack(
+                "Must contain fullscreen stack.", FULLSCREEN_WORKSPACE_STACK_ID);
+        mAmWmState.assertContainsStack("Must contain docked stack.", DOCKED_STACK_ID);
+
+        // Remove the docked stack, and ensure that
+        final String logSeparator = clearLogcat();
+        removeStacks(DOCKED_STACK_ID);
+        final ActivityLifecycleCounts lifecycleCounts = new ActivityLifecycleCounts(
+                TEST_ACTIVITY_NAME, logSeparator);
+        if (lifecycleCounts.mMultiWindowModeChangedCount != 1) {
+            fail(TEST_ACTIVITY_NAME + " has received "
+                    + lifecycleCounts.mMultiWindowModeChangedCount
+                    + " onMultiWindowModeChanged() calls, expecting 1");
+        }
     }
 
     public void testLaunchToSideAndBringToFront() throws Exception {

@@ -66,71 +66,6 @@
     <string name="bu_generate_error">Error occurred while generating test data...</string>
     <string name="bu_settings">Settings</string>
 
-    <!-- Strings for BackupTestActivity -->
-    <string name="backup_test">Data Backup Test</string>
-    <string name="backup_info">This test checks that data backup and automatic restore works
-        properly. The test activity lists some preferences and files that are backed up and
-        restored by the CTS Verifier. If backup and restore is working properly, these values
-        should be restored after running the backup manager, uninstalling the app, and reinstalling
-        the CTS Verifier.
-        \n\nPress the \"Generate Test Data\" to populate these values
-        and then follow the on screen instructions to finish the test.
-    </string>
-    <string name="bu_generate">Generate Test Data</string>
-    <string name="bu_preferences">Preferences</string>
-    <string name="bu_files">Files</string>
-    <string name="bu_instructions">Random values for the preferences and files have been saved.
-        \n\nFollow the instructions below to check that the data backup and restore works:
-        \n\n1. Make sure backup and automatic restore are enabled in settings. Depending on the
-        backup transport supported by the device you may need to do additional steps. For instance
-        you may need to set a Google account as the backup account for the device. If you cannot
-        find the corresponding setting options on your device, run \"adb shell bmgr enable true\"
-        to enable the backup manager. You can check its status by executing \"adb shell bmgr
-        enabled\".
-        \n\n2. Run the backup manager: adb shell bmgr run
-        \n\n3. Uninstall the program: adb uninstall com.android.cts.verifier
-        \n\n4. Reinstall the CTS Verifier and verify that the values are still the same.
-    </string>
-
-    <!-- Strings for BackupAccessibilityTestActivity -->
-    <string name="backup_accessibility_test">Backup Accessibility Settings Test</string>
-    <string name="backup_accessibility_info">This test checks that data backup and automatic restore
-        of Accessibility-related settings works properly. If backup and restore is working properly,
-        these values should be restored after running the backup manager, removing your Google
-        account, changing the accessibility settings values, and re-adding your Google account.
-        \n\nPress \"Generate Test Data\" to generate test values for accessibility settings and then
-        follow the on screen instructions to finish the test.
-    </string>
-    <string name="bua_settings">General Accessibility Settings</string>
-    <string name="bua_settings_color_correction">Color Correction Settings</string>
-    <string name="bua_settings_accessibility_services">Accessibility Service Settings</string>
-    <string name="bua_settings_captions">Captions Settings</string>
-    <string name="bua_settings_tts">TTS Settings</string>
-    <string name="bua_settings_system">Other System Settings</string>
-    <string name="bua_instructions">You will need two devices for this test.
-        \n\nFollow the instructions below to check that the data backup and restore of
-        accessibility-related settings works properly:
-        \n\n1. Make sure backup and automatic restore are enabled in settings. If you cannot find
-        the corresponding setting options on your device, run \"adb shell bmgr enable true\" to
-        enable the backup manager. You can check its status by executing \"adb shell bmgr enabled\".
-        You will also need to set a Google account as the backup account for the device.
-        \n\n2. Press \"Read Current Values\" and note the default values for the listed settings.
-        Values that are either \"0\" or \"null\" will appear in green. Note: Some default values are
-        neither \"0\", nor \"null\", so you still need to pay attention to the default setting
-        values that are not highlighted.
-        \n\n3. Change the values of the listed settings to something other than their default value.
-        \n\n4. Return to the CtsVerifier and press \"Read Current Values\". Make sure that you have
-        changed all of the settings.
-        \n\n5. Run the backup manager: adb shell bmgr run
-        \n\n6. Factory reset data on the second device. While going through the Setup Wizard,
-        restore all data from the account on your first device. When prompted, choose to restore all
-        settings from your first device.
-        \n\n7. Install CtsVerifier on your new device and make sure that the values read on the
-        second device match the values on your first device.
-    </string>
-    <string name="bua_show_instructions">Show Instructions</string>
-    <string name="bua_read_settings">Read Current Values</string>
-
     <!-- Strings for Device Administration tests -->
     <string name="da_policy_serialization_test">Policy Serialization Test</string>
     <string name="da_policy_serialization_info">This test checks that a device policy is properly
@@ -143,6 +78,10 @@
     <string name="da_uninstall_test_info">This test checks that an active device administrator
         can be easily uninstalled from the application details screen in a way similar to other
         apps.
+    </string>
+    <string name="da_tapjacking_test">Device Admin Tapjacking Test</string>
+    <string name="da_tapjacking_test_info">This test checks that an activity cannot tapjack the
+        user by obscuring the device admin details while prompting the user to activate the admin.
     </string>
     <string name="car_dock_test">Car Dock Test</string>
     <string name="car_dock_test_desc">This test ensures that car mode opens the app associated with
@@ -198,6 +137,18 @@
         Wait till the app is uninstalled before returning to this page.
     </string>
     <string name="da_uninstall_admin_button_text">Launch settings</string>
+
+    <string name="da_tapjacking_overlay_app_description">This activity attempts to tapjack the activity below.\n
+        Any security sensitive controls below should not respond to taps as long as this activity is visible.</string>
+    <string name="da_tapjacking_instructions">
+        1. Launch the device admin add screen by pressing the button below.\n
+        2. Wait for an overlaying transparent activity to show up obscuring the device admin details window.\n
+        3. Attempt to activate the admin with the transparent activity still obscuring the window.
+        The button should discard any taps while showing a toast warning to the user.\n
+        4. Return to this screen and pass the test if the device admin could not be activated while the details
+        window was being obscured.
+    </string>
+    <string name="da_tapjacking_button_text">Enable device admin</string>
 
     <!-- Strings for lock bound keys test -->
     <string name="sec_lock_bound_key_test">Lock Bound Keys Test</string>
@@ -604,6 +555,7 @@
     <string name="location_gnss_measure_no_location_test">GNSS Measurement Before Location Test</string>
     <string name="location_gnss_reg_test">GNSS Measurement Registration Test</string>
     <string name="location_gnss_value_test">GNSS Measurement Values Test</string>
+    <string name="location_gnss_ttff_test">GNSS TTFF Test</string>
     <string name="location_gnss_nav_msg_test">GNSS Navigation Message Test</string>
     <string name="location_gnss_status_test">GNSS Status Test</string>
     <string name="location_gnss_test_info">This test verifies basic GNSS behavior.
@@ -1786,7 +1738,7 @@ You should be prompted to select credentials; choose the ones you just installed
         This test verifies keystore cryptographic keys can be bound to device lockscreen challenge or fingerprints (if available).
         These keys should only be available if there was a recent enough authentication. \n
 
-        1. Press "Set up" to open Security settings. Create a lockscreen password and if available, enroll a fingerprint.\n
+        1. Press "Set up" to open Security settings. Create a lockscreen password and if available, enroll a fingerprint under "Work profile security".\n
         2. Go through the list of tests.\n
         3. Mark the overall test pass or fail.\n
         4. Once the set of tests are completed, remove the lockscreen challenge.
@@ -1807,6 +1759,8 @@ You should be prompted to select credentials; choose the ones you just installed
         This test verifies that work lock is shown when opening a work app,
         the work lock was set correctly and it is customized according to
         the policies set. You can only do this test after you have done the previous test.\n
+        Before running this test press the power button to turn the screen off and then back on and
+        swipe to unlock.\n
 
         1. Open a work app.\n
         2. Verify that a screen asking you for your work credentials is shown.\n
@@ -3291,6 +3245,9 @@ You should be prompted to select credentials; choose the ones you just installed
     Verify that the bundled TV app launches via Intent and calls the proper API to discover
     3rd-party TV inputs.
     </string>
+    <string name="tv_input_discover_test_third_party_tif_input_support">
+    Does the bundled TV app support third-party TV inputs?
+    </string>
     <string name="tv_input_discover_test_go_to_setup">
     Select the \"Launch TV app\" button and set up the newly installed TV input:
     \"CTS Verifier\".
@@ -3359,8 +3316,8 @@ You should be prompted to select credentials; choose the ones you just installed
     Try to unblock the screen by entering PIN; verify that it\'s unblocked.
     </string>
 
-    <string name="tv_parental_control_turn_off_disabled">No</string>
-    <string name="tv_parental_control_turn_off_enabled">Yes</string>
+    <string name="tv_yes">Yes</string>
+    <string name="tv_no">No</string>
     <string name="tv_launch_tv_app">Launch TV app</string>
     <string name="tv_launch_epg">Launch EPG</string>
     <string name="tv_launch_setup">Launch setup</string>
@@ -3839,6 +3796,14 @@ You should be prompted to select credentials; choose the ones you just installed
     <string name="voicemail_hidden">\"Voicemail\" does not exist</string>
     <string name="voicemail_not_hidden">\"Voicemail\" exists</string>
 
+    <!-- Strings for DialerIncomingCall test -->
+    <string name="dialer_incoming_call_test">Dialer Receives Incoming Call</string>
+    <string name="dialer_incoming_call_test_instructions">This test verifies that the default dialer
+      can receive incoming calls after it has been set.
+    </string>
+    <string name="dialer_incoming_call_detected">Detected the incoming call. Activity passed.</string>
+    <string name="dialer_check_incoming_call_explanation">Call the device.</string>
+    <string name="dialer_check_incoming_call">Verify Call Received</string>
 
     <!-- Strings for VoicemailSettingsCheck test -->
     <string name="ringtone_settings_check_test">Hide settings in voicemail test</string>

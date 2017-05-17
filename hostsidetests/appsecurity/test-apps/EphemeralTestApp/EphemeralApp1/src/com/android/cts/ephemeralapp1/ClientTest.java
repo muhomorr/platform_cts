@@ -97,9 +97,6 @@ public class ClientTest {
                 ContactsContract.CommonDataKinds.Email.CONTENT_TYPE, null),
         makeIntent(Intent.ACTION_PICK, null,
                 ContactsContract.CommonDataKinds.StructuredPostal.CONTENT_TYPE, null),
-        makeIntent(Intent.ACTION_INSERT, null, ContactsContract.Contacts.CONTENT_TYPE, null),
-        // Email
-        makeIntent(Intent.ACTION_SEND, null, "text/plain", Uri.parse("mailto:")),
         // File Storage
         makeIntent(Intent.ACTION_OPEN_DOCUMENT, Intent.CATEGORY_OPENABLE, "*/*", null),
         makeIntent(Intent.ACTION_OPEN_DOCUMENT, null, "*/*", null),
@@ -108,13 +105,8 @@ public class ClientTest {
         makeIntent(Intent.ACTION_OPEN_DOCUMENT_TREE, null, null, null),
         makeIntent(Intent.ACTION_CREATE_DOCUMENT, Intent.CATEGORY_OPENABLE, "text/plain", null),
         makeIntent(Intent.ACTION_CREATE_DOCUMENT, null, "text/plain", null),
-        // Phone call
-        makeIntent(Intent.ACTION_DIAL, null, null, Uri.parse("tel:")),
-        // SMS
-        makeIntent(Intent.ACTION_SEND, null, "text/plain", Uri.parse("sms:")),
-        makeIntent(Intent.ACTION_SEND, null, "text/plain", Uri.parse("smsto:")),
-        // Web
-        makeIntent(Intent.ACTION_VIEW, null, "text/html", Uri.parse("https://example.com")),
+        // Framework
+        makeIntent(Intent.ACTION_CHOOSER, null, null, null),
     };
 
     private BroadcastReceiver mReceiver;
@@ -150,13 +142,13 @@ public class ClientTest {
                     is("com.android.cts.ephemeralapp1"));
             assertThat(resolveInfo.get(0).activityInfo.name,
                     is("com.android.cts.ephemeralapp1.EphemeralActivity"));
-            assertThat(resolveInfo.get(0).instantAppAvailable,
+            assertThat(resolveInfo.get(0).isInstantAppAvailable,
                     is(true));
             assertThat(resolveInfo.get(1).activityInfo.packageName,
                     is("com.android.cts.normalapp"));
             assertThat(resolveInfo.get(1).activityInfo.name,
                     is("com.android.cts.normalapp.ExposedActivity"));
-            assertThat(resolveInfo.get(1).instantAppAvailable,
+            assertThat(resolveInfo.get(1).isInstantAppAvailable,
                     is(false));
         }
 
@@ -173,13 +165,13 @@ public class ClientTest {
                     is("com.android.cts.ephemeralapp1"));
             assertThat(resolveInfo.get(0).activityInfo.name,
                     is("com.android.cts.ephemeralapp1.EphemeralActivity"));
-            assertThat(resolveInfo.get(0).instantAppAvailable,
+            assertThat(resolveInfo.get(0).isInstantAppAvailable,
                     is(true));
             assertThat(resolveInfo.get(1).activityInfo.packageName,
                     is("com.android.cts.normalapp"));
             assertThat(resolveInfo.get(1).activityInfo.name,
                     is("com.android.cts.normalapp.ExposedActivity"));
-            assertThat(resolveInfo.get(1).instantAppAvailable,
+            assertThat(resolveInfo.get(1).isInstantAppAvailable,
                     is(false));
         }
 
@@ -196,13 +188,13 @@ public class ClientTest {
                     is("com.android.cts.ephemeralapp1"));
             assertThat(resolveInfo.get(0).activityInfo.name,
                     is("com.android.cts.ephemeralapp1.EphemeralActivity"));
-            assertThat(resolveInfo.get(0).instantAppAvailable,
+            assertThat(resolveInfo.get(0).isInstantAppAvailable,
                     is(true));
             assertThat(resolveInfo.get(1).activityInfo.packageName,
                     is("com.android.cts.normalapp"));
             assertThat(resolveInfo.get(1).activityInfo.name,
                     is("com.android.cts.normalapp.ExposedActivity"));
-            assertThat(resolveInfo.get(1).instantAppAvailable,
+            assertThat(resolveInfo.get(1).isInstantAppAvailable,
                     is(false));
         }
 
@@ -222,7 +214,7 @@ public class ClientTest {
                     is("com.android.cts.normalapp"));
             assertThat(resolveInfo.get(1).serviceInfo.name,
                     is("com.android.cts.normalapp.ExposedService"));
-            assertThat(resolveInfo.get(1).instantAppAvailable,
+            assertThat(resolveInfo.get(1).isInstantAppAvailable,
                     is(false));
         }
 
@@ -276,7 +268,7 @@ public class ClientTest {
                     is("com.android.cts.normalapp"));
             assertThat(resolveInfo.get(1).providerInfo.name,
                     is("com.android.cts.normalapp.ExposedProvider"));
-            assertThat(resolveInfo.get(1).instantAppAvailable,
+            assertThat(resolveInfo.get(1).isInstantAppAvailable,
                     is(false));
         }
 
@@ -454,214 +446,221 @@ public class ClientTest {
     }
 
     @Test
-    public void testStartExposed() throws Exception {
+    public void testStartExposed01() throws Exception {
         // start the explicitly exposed activity
-        {
-            final Intent startExposedIntent = new Intent(ACTION_START_EXPOSED);
-            InstrumentationRegistry
-                    .getContext().startActivity(startExposedIntent, null /*options*/);
-            final TestResult testResult = getResult();
-            assertThat(testResult.getPackageName(),
-                    is("com.android.cts.normalapp"));
-            assertThat(testResult.getComponentName(),
-                    is("ExposedActivity"));
-            assertThat(testResult.getStatus(),
-                    is("PASS"));
-            assertThat(testResult.getEphemeralPackageInfoExposed(),
-                    is(true));
-            assertThat(testResult.getException(),
-                    is(nullValue()));
-        }
+        final Intent startExposedIntent = new Intent(ACTION_START_EXPOSED);
+        InstrumentationRegistry
+                .getContext().startActivity(startExposedIntent, null /*options*/);
+        final TestResult testResult = getResult();
+        assertThat(testResult.getPackageName(),
+                is("com.android.cts.normalapp"));
+        assertThat(testResult.getComponentName(),
+                is("ExposedActivity"));
+        assertThat(testResult.getStatus(),
+                is("PASS"));
+        assertThat(testResult.getEphemeralPackageInfoExposed(),
+                is(true));
+        assertThat(testResult.getException(),
+                is(nullValue()));
+    }
 
+    @Test
+    public void testStartExposed02() throws Exception {
         // start the explicitly exposed activity; directed package
-        {
-            final Intent startExposedIntent = new Intent(ACTION_START_EXPOSED);
-            startExposedIntent.setPackage("com.android.cts.normalapp");
-            InstrumentationRegistry
-                    .getContext().startActivity(startExposedIntent, null /*options*/);
-            final TestResult testResult = getResult();
-            assertThat(testResult.getPackageName(),
-                    is("com.android.cts.normalapp"));
-            assertThat(testResult.getComponentName(),
-                    is("ExposedActivity"));
-            assertThat(testResult.getStatus(),
-                    is("PASS"));
-            assertThat(testResult.getEphemeralPackageInfoExposed(),
-                    is(true));
-            assertThat(testResult.getException(),
-                    is(nullValue()));
-        }
+        final Intent startExposedIntent = new Intent(ACTION_START_EXPOSED);
+        startExposedIntent.setPackage("com.android.cts.normalapp");
+        InstrumentationRegistry
+                .getContext().startActivity(startExposedIntent, null /*options*/);
+        final TestResult testResult = getResult();
+        assertThat(testResult.getPackageName(),
+                is("com.android.cts.normalapp"));
+        assertThat(testResult.getComponentName(),
+                is("ExposedActivity"));
+        assertThat(testResult.getStatus(),
+                is("PASS"));
+        assertThat(testResult.getEphemeralPackageInfoExposed(),
+                is(true));
+        assertThat(testResult.getException(),
+                is(nullValue()));
+    }
 
+    @Test
+    public void testStartExposed03() throws Exception {
         // start the explicitly exposed activity; directed component
-        {
-            final Intent startExposedIntent = new Intent(ACTION_START_EXPOSED);
-            startExposedIntent.setComponent(new ComponentName(
-                    "com.android.cts.normalapp", "com.android.cts.normalapp.ExposedActivity"));
+        final Intent startExposedIntent = new Intent(ACTION_START_EXPOSED);
+        startExposedIntent.setComponent(new ComponentName(
+                "com.android.cts.normalapp", "com.android.cts.normalapp.ExposedActivity"));
+        InstrumentationRegistry
+                .getContext().startActivity(startExposedIntent, null /*options*/);
+        final TestResult testResult = getResult();
+        assertThat(testResult.getPackageName(),
+                is("com.android.cts.normalapp"));
+        assertThat(testResult.getComponentName(),
+                is("ExposedActivity"));
+        assertThat(testResult.getStatus(),
+                is("PASS"));
+        assertThat(testResult.getEphemeralPackageInfoExposed(),
+                is(true));
+        assertThat(testResult.getException(),
+                is(nullValue()));
+    }
+
+    @Test
+    public void testStartExposed04() throws Exception {
+        // start the implicitly exposed activity; directed package
+        try {
+            final Intent startExposedIntent = new Intent(Intent.ACTION_VIEW);
+            startExposedIntent.setPackage("com.android.cts.implicitapp");
+            startExposedIntent.addCategory(Intent.CATEGORY_BROWSABLE);
+            startExposedIntent.setData(Uri.parse("https://cts.google.com/implicit"));
             InstrumentationRegistry
                     .getContext().startActivity(startExposedIntent, null /*options*/);
-            final TestResult testResult = getResult();
-            assertThat(testResult.getPackageName(),
-                    is("com.android.cts.normalapp"));
-            assertThat(testResult.getComponentName(),
-                    is("ExposedActivity"));
-            assertThat(testResult.getStatus(),
-                    is("PASS"));
-            assertThat(testResult.getEphemeralPackageInfoExposed(),
-                    is(true));
-            assertThat(testResult.getException(),
-                    is(nullValue()));
-        }
+            fail("activity started");
+        } catch (ActivityNotFoundException expected) { }
+    }
 
-        // start the implicitly exposed activity; directed package
-        {
-            try {
-                final Intent startExposedIntent = new Intent(Intent.ACTION_VIEW);
-                startExposedIntent.setPackage("com.android.cts.implicitapp");
-                startExposedIntent.addCategory(Intent.CATEGORY_BROWSABLE);
-                startExposedIntent.setData(Uri.parse("https://cts.google.com/implicit"));
-                InstrumentationRegistry
-                        .getContext().startActivity(startExposedIntent, null /*options*/);
-                fail("activity started");
-            } catch (ActivityNotFoundException expected) { }
-        }
-
+    @Test
+    public void testStartExposed05() throws Exception {
         // start the implicitly exposed activity; directed component
-        {
-            try {
-                final Intent startExposedIntent = new Intent(Intent.ACTION_VIEW);
-                startExposedIntent.setComponent(new ComponentName(
-                        "com.android.cts.implicitapp",
-                        "com.android.cts.implicitapp.ImplicitActivity"));
-                startExposedIntent.addCategory(Intent.CATEGORY_BROWSABLE);
-                startExposedIntent.setData(Uri.parse("https://cts.google.com/implicit"));
-                InstrumentationRegistry
-                        .getContext().startActivity(startExposedIntent, null /*options*/);
-                fail("activity started");
-            } catch (ActivityNotFoundException expected) { }
-        }
-
-        // start the exposed service; directed package
-        {
-            final Intent startExposedIntent = new Intent(ACTION_START_EXPOSED);
-            startExposedIntent.setPackage("com.android.cts.normalapp");
-            InstrumentationRegistry.getContext().startService(startExposedIntent);
-            final TestResult testResult = getResult();
-            assertThat(testResult.getPackageName(),
-                    is("com.android.cts.normalapp"));
-            assertThat(testResult.getComponentName(),
-                    is("ExposedService"));
-            assertThat(testResult.getStatus(),
-                    is("PASS"));
-            assertThat(testResult.getEphemeralPackageInfoExposed(),
-                    is(true));
-            assertThat(testResult.getException(),
-                    is(nullValue()));
-        }
-
-        // start the exposed service; directed component
-        {
-            final Intent startExposedIntent = new Intent(ACTION_START_EXPOSED);
+        try {
+            final Intent startExposedIntent = new Intent(Intent.ACTION_VIEW);
             startExposedIntent.setComponent(new ComponentName(
-                    "com.android.cts.normalapp", "com.android.cts.normalapp.ExposedService"));
-            InstrumentationRegistry.getContext().startService(startExposedIntent);
+                    "com.android.cts.implicitapp",
+                    "com.android.cts.implicitapp.ImplicitActivity"));
+            startExposedIntent.addCategory(Intent.CATEGORY_BROWSABLE);
+            startExposedIntent.setData(Uri.parse("https://cts.google.com/implicit"));
+            InstrumentationRegistry
+                    .getContext().startActivity(startExposedIntent, null /*options*/);
+            fail("activity started");
+        } catch (ActivityNotFoundException expected) { }
+    }
+
+    @Test
+    public void testStartExposed06() throws Exception {
+        // start the exposed service; directed package
+        final Intent startExposedIntent = new Intent(ACTION_START_EXPOSED);
+        startExposedIntent.setPackage("com.android.cts.normalapp");
+        InstrumentationRegistry.getContext().startForegroundService(startExposedIntent);
+        final TestResult testResult = getResult();
+        assertThat(testResult.getPackageName(),
+                is("com.android.cts.normalapp"));
+        assertThat(testResult.getComponentName(),
+                is("ExposedService"));
+        assertThat(testResult.getStatus(),
+                is("PASS"));
+        assertThat(testResult.getEphemeralPackageInfoExposed(),
+                is(true));
+        assertThat(testResult.getException(),
+                is(nullValue()));
+    }
+
+    @Test
+    public void testStartExposed07() throws Exception {
+        // start the exposed service; directed component
+        final Intent startExposedIntent = new Intent(ACTION_START_EXPOSED);
+        startExposedIntent.setComponent(new ComponentName(
+                "com.android.cts.normalapp", "com.android.cts.normalapp.ExposedService"));
+        InstrumentationRegistry.getContext().startForegroundService(startExposedIntent);
+        final TestResult testResult = getResult();
+        assertThat(testResult.getPackageName(),
+                is("com.android.cts.normalapp"));
+        assertThat(testResult.getComponentName(),
+                is("ExposedService"));
+        assertThat(testResult.getMethodName(),
+                is("onStartCommand"));
+        assertThat(testResult.getStatus(),
+                is("PASS"));
+        assertThat(testResult.getEphemeralPackageInfoExposed(),
+                is(true));
+        assertThat(testResult.getException(),
+                is(nullValue()));
+    }
+
+    @Test
+    public void testStartExposed08() throws Exception {
+        // bind to the exposed service; directed package
+        final Intent startExposedIntent = new Intent(ACTION_START_EXPOSED);
+        startExposedIntent.setPackage("com.android.cts.normalapp");
+        final TestServiceConnection connection = new TestServiceConnection();
+        try {
+            assertThat(InstrumentationRegistry.getContext().bindService(
+                    startExposedIntent, connection, Context.BIND_AUTO_CREATE /*flags*/),
+                    is(true));
             final TestResult testResult = getResult();
             assertThat(testResult.getPackageName(),
                     is("com.android.cts.normalapp"));
             assertThat(testResult.getComponentName(),
                     is("ExposedService"));
             assertThat(testResult.getMethodName(),
-                    is("onStartCommand"));
+                    is("onBind"));
             assertThat(testResult.getStatus(),
                     is("PASS"));
             assertThat(testResult.getEphemeralPackageInfoExposed(),
                     is(true));
             assertThat(testResult.getException(),
                     is(nullValue()));
+        } finally {
+            InstrumentationRegistry.getContext().unbindService(connection);
         }
+    }
 
-        // bind to the exposed service; directed package
-        {
-            final Intent startExposedIntent = new Intent(ACTION_START_EXPOSED);
-            startExposedIntent.setPackage("com.android.cts.normalapp");
-            final TestServiceConnection connection = new TestServiceConnection();
-            try {
-                assertThat(InstrumentationRegistry.getContext().bindService(
-                        startExposedIntent, connection, Context.BIND_AUTO_CREATE /*flags*/),
-                        is(true));
-                final TestResult testResult = getResult();
-                assertThat(testResult.getPackageName(),
-                        is("com.android.cts.normalapp"));
-                assertThat(testResult.getComponentName(),
-                        is("ExposedService"));
-                assertThat(testResult.getMethodName(),
-                        is("onBind"));
-                assertThat(testResult.getStatus(),
-                        is("PASS"));
-                assertThat(testResult.getEphemeralPackageInfoExposed(),
-                        is(true));
-                assertThat(testResult.getException(),
-                        is(nullValue()));
-            } finally {
-                InstrumentationRegistry.getContext().unbindService(connection);
-            }
-        }
-
+    @Test
+    public void testStartExposed09() throws Exception {
         // bind to the exposed service; directed component
-        {
-            final Intent startExposedIntent = new Intent(ACTION_START_EXPOSED);
-            startExposedIntent.setComponent(new ComponentName(
-                    "com.android.cts.normalapp", "com.android.cts.normalapp.ExposedService"));
-            final TestServiceConnection connection = new TestServiceConnection();
-            try {
-                assertThat(InstrumentationRegistry.getContext().bindService(
-                        startExposedIntent, connection, Context.BIND_AUTO_CREATE /*flags*/),
-                        is(true));
-                final TestResult testResult = getResult();
-                assertThat(testResult.getPackageName(),
-                        is("com.android.cts.normalapp"));
-                assertThat(testResult.getComponentName(),
-                        is("ExposedService"));
-                assertThat(testResult.getMethodName(),
-                        is("onBind"));
-                assertThat(testResult.getStatus(),
-                        is("PASS"));
-                assertThat(testResult.getEphemeralPackageInfoExposed(),
-                        is(true));
-                assertThat(testResult.getException(),
-                        is(nullValue()));
-            } finally {
-                InstrumentationRegistry.getContext().unbindService(connection);
-            }
-        }
-
-        // connect to exposed provider
-        {
-            final String provider = "content://com.android.cts.normalapp.exposed.provider/table";
-            final Cursor testCursor = InstrumentationRegistry
-                    .getContext().getContentResolver().query(
-                            Uri.parse(provider),
-                            null /*projection*/,
-                            null /*selection*/,
-                            null /*selectionArgs*/,
-                            null /*sortOrder*/);
-            assertThat(testCursor, is(notNullValue()));
-            assertThat(testCursor.getCount(), is(1));
-            assertThat(testCursor.getColumnCount(), is(2));
-            assertThat(testCursor.moveToFirst(), is(true));
-            assertThat(testCursor.getInt(0), is(1));
-            assertThat(testCursor.getString(1), is("ExposedProvider"));
+        final Intent startExposedIntent = new Intent(ACTION_START_EXPOSED);
+        startExposedIntent.setComponent(new ComponentName(
+                "com.android.cts.normalapp", "com.android.cts.normalapp.ExposedService"));
+        final TestServiceConnection connection = new TestServiceConnection();
+        try {
+            assertThat(InstrumentationRegistry.getContext().bindService(
+                    startExposedIntent, connection, Context.BIND_AUTO_CREATE /*flags*/),
+                    is(true));
             final TestResult testResult = getResult();
             assertThat(testResult.getPackageName(),
                     is("com.android.cts.normalapp"));
             assertThat(testResult.getComponentName(),
-                    is("ExposedProvider"));
+                    is("ExposedService"));
+            assertThat(testResult.getMethodName(),
+                    is("onBind"));
             assertThat(testResult.getStatus(),
                     is("PASS"));
             assertThat(testResult.getEphemeralPackageInfoExposed(),
                     is(true));
             assertThat(testResult.getException(),
                     is(nullValue()));
+        } finally {
+            InstrumentationRegistry.getContext().unbindService(connection);
         }
+    }
+
+    @Test
+    public void testStartExposed10() throws Exception {
+        // connect to exposed provider
+        final String provider = "content://com.android.cts.normalapp.exposed.provider/table";
+        final Cursor testCursor = InstrumentationRegistry
+                .getContext().getContentResolver().query(
+                        Uri.parse(provider),
+                        null /*projection*/,
+                        null /*selection*/,
+                        null /*selectionArgs*/,
+                        null /*sortOrder*/);
+        assertThat(testCursor, is(notNullValue()));
+        assertThat(testCursor.getCount(), is(1));
+        assertThat(testCursor.getColumnCount(), is(2));
+        assertThat(testCursor.moveToFirst(), is(true));
+        assertThat(testCursor.getInt(0), is(1));
+        assertThat(testCursor.getString(1), is("ExposedProvider"));
+        final TestResult testResult = getResult();
+        assertThat(testResult.getPackageName(),
+                is("com.android.cts.normalapp"));
+        assertThat(testResult.getComponentName(),
+                is("ExposedProvider"));
+        assertThat(testResult.getStatus(),
+                is("PASS"));
+        assertThat(testResult.getEphemeralPackageInfoExposed(),
+                is(true));
+        assertThat(testResult.getException(),
+                is(nullValue()));
     }
 
     @Test

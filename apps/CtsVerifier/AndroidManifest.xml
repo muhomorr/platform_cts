@@ -18,9 +18,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
       package="com.android.cts.verifier"
       android:versionCode="5"
-      android:versionName="7.1_r1">
+      android:versionName="8.0_r1">
 
-    <uses-sdk android:minSdkVersion="19" android:targetSdkVersion="25"/>
+    <uses-sdk android:minSdkVersion="19" android:targetSdkVersion="26"/>
 
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_LOCATION_EXTRA_COMMANDS"/>
@@ -75,15 +75,12 @@
 
     <application android:label="@string/app_name"
             android:icon="@drawable/icon"
-            android:backupAgent="VerifierBackupAgent"
             android:debuggable="true"
             android:largeHeap="true"
             android:theme="@android:style/Theme.DeviceDefault">
 
         <meta-data android:name="SuiteName" android:value="CTS_VERIFIER" />
 
-        <meta-data android:name="com.google.android.backup.api_key"
-                android:value="AEdPqrEAAAAIbK6ldcOzoeRtQ1u1dFVJ1A7KetRhit-a1Xa82Q" />
         <meta-data android:name="android.telephony.HIDE_VOICEMAIL_SETTINGS_MENU"
             android:value="true"/>
         <uses-library android:name="android.test.runner"/>
@@ -120,6 +117,32 @@
             <meta-data android:name="test_required_features"
                        android:value="android.software.device_admin" />
         </activity>
+
+        <activity android:name=".admin.tapjacking.DeviceAdminTapjackingTestActivity"
+                  android:label="@string/da_tapjacking_test"
+                  android:configChanges="keyboardHidden|orientation|screenSize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.cts.intent.category.MANUAL_TEST" />
+            </intent-filter>
+            <meta-data android:name="test_category" android:value="@string/test_category_device_admin" />
+            <meta-data android:name="test_required_features"
+                       android:value="android.software.device_admin" />
+        </activity>
+
+        <receiver android:name=".admin.tapjacking.EmptyDeviceAdminReceiver"
+                  android:permission="android.permission.BIND_DEVICE_ADMIN">
+            <meta-data android:name="android.app.device_admin"
+                       android:resource="@xml/tapjacking_device_admin" />
+            <intent-filter>
+                <action android:name="android.app.action.DEVICE_ADMIN_ENABLED"/>
+            </intent-filter>
+        </receiver>
+
+        <activity
+            android:name=".admin.tapjacking.OverlayingActivity"
+            android:theme="@style/OverlayTheme"
+            android:label="Overlaying Activity"/>
 
         <activity android:name=".companion.CompanionDeviceTestActivity"
                   android:label="@string/companion_test"
@@ -173,25 +196,6 @@
             <meta-data android:name="test_required_features"
                     android:value="android.software.device_admin" />
         </activity>
-
-        <activity android:name=".backup.BackupTestActivity" android:label="@string/backup_test">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.cts.intent.category.MANUAL_TEST" />
-            </intent-filter>
-            <meta-data android:name="test_required_features"
-                    android:value="android.software.backup" />
-        </activity>
-
-	<!-- Further work is required for this test, b/32798562  -->
-        <!-- activity android:name=".backup.BackupAccessibilityTestActivity" android:label="@string/backup_accessibility_test">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.cts.intent.category.MANUAL_TEST" />
-            </intent-filter>
-            <meta-data android:name="test_required_features"
-                    android:value="android.software.backup" />
-        </activity -->
 
 <!--            CTS Verifier Bluetooth Test Top Screen -->
         <activity
@@ -1053,6 +1057,17 @@
 
         <activity android:name=".location.GnssMeasurementValuesTestsActivity"
             android:label="@string/location_gnss_value_test"
+            android:screenOrientation="locked">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.cts.intent.category.MANUAL_TEST"/>
+            </intent-filter>
+            <meta-data android:name="test_category" android:value="@string/test_category_hardware"/>
+            <meta-data android:name="test_required_features" android:value="android.hardware.location.gps" />
+        </activity>
+
+        <activity android:name=".location.GnssTtffTestsActivity"
+            android:label="@string/location_gnss_ttff_test"
             android:screenOrientation="locked">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
@@ -3002,6 +3017,30 @@
                 android:name="test_required_features"
                 android:value="android.hardware.telephony"/>
         </activity>
+
+        <activity
+            android:name=".dialer.DialerIncomingCallTestActivity"
+            android:label="@string/dialer_incoming_call_test">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.cts.intent.category.MANUAL_TEST"/>
+            </intent-filter>
+
+            <meta-data
+                android:name="test_category"
+                android:value="@string/test_category_telephony"/>
+            <meta-data
+                android:name="test_required_features"
+                android:value="android.hardware.telephony"/>
+        </activity>
+
+        <service android:name=".dialer.DialerCallTestService"
+            android:permission="android.permission.BIND_INCALL_SERVICE">
+            <meta-data android:name="android.telecom.IN_CALL_SERVICE_UI" android:value="true" />
+            <intent-filter>
+                <action android:name="android.telecom.InCallService"/>
+            </intent-filter>
+        </service>
 
         <activity
             android:name=".voicemail.CallSettingsCheckActivity"

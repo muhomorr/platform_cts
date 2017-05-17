@@ -58,6 +58,7 @@ public class LoginActivity extends AbstractAutoFillActivity {
     private TextView mOutput;
     private Button mLoginButton;
     private Button mSaveButton;
+    private Button mCancelButton;
     private Button mClearButton;
     private FillExpectation mExpectation;
 
@@ -81,6 +82,7 @@ public class LoginActivity extends AbstractAutoFillActivity {
         mLoginButton = (Button) findViewById(R.id.login);
         mSaveButton = (Button) findViewById(R.id.save);
         mClearButton = (Button) findViewById(R.id.clear);
+        mCancelButton = (Button) findViewById(R.id.cancel);
         mUsernameLabel = (TextView) findViewById(R.id.username_label);
         mUsernameEditText = (EditText) findViewById(R.id.username);
         mPasswordLabel = (TextView) findViewById(R.id.password_label);
@@ -108,6 +110,7 @@ public class LoginActivity extends AbstractAutoFillActivity {
                 getAutofillManager().cancel();
             }
         });
+        mCancelButton.setOnClickListener((OnClickListener) v -> finish());
     }
 
     protected int getContentView() {
@@ -120,7 +123,7 @@ public class LoginActivity extends AbstractAutoFillActivity {
     private void login() {
         final String username = mUsernameEditText.getText().toString();
         final String password = mPasswordEditText.getText().toString();
-        final boolean valid = username.equals(password);
+        final boolean valid = username.equals(password) || password.contains("pass");
 
         if (valid) {
             Log.d(TAG, "login ok: " + username);
@@ -156,7 +159,7 @@ public class LoginActivity extends AbstractAutoFillActivity {
     }
 
     /**
-     * Sets the expectation for an auto-fill request, so it can be asserted through
+     * Sets the expectation for an autofill request (for all fields), so it can be asserted through
      * {@link #assertAutoFilled()} later.
      */
     void expectAutoFill(String username, String password) {
@@ -166,31 +169,42 @@ public class LoginActivity extends AbstractAutoFillActivity {
     }
 
     /**
+     * Sets the expectation for an autofill request (for username only), so it can be asserted
+     * through {@link #assertAutoFilled()} later.
+     */
+    void expectAutoFill(String username) {
+        mExpectation = new FillExpectation(username);
+        mUsernameEditText.addTextChangedListener(mExpectation.ccUsernameWatcher);
+    }
+
+    /**
      * Asserts the activity was auto-filled with the values passed to
      * {@link #expectAutoFill(String, String)}.
      */
     void assertAutoFilled() throws Exception {
         assertWithMessage("expectAutoFill() not called").that(mExpectation).isNotNull();
         mExpectation.ccUsernameWatcher.assertAutoFilled();
-        mExpectation.ccPasswordWatcher.assertAutoFilled();
+        if (mExpectation.ccPasswordWatcher != null) {
+            mExpectation.ccPasswordWatcher.assertAutoFilled();
+        }
+    }
+
+    void forceAutofillOnUsername() {
+        syncRunOnUiThread(() -> getAutofillManager().requestAutofill(mUsernameEditText));
     }
 
     /**
      * Visits the {@code username_label} in the UiThread.
      */
     void onUsernameLabel(Visitor<TextView> v) {
-        syncRunOnUiThread(() -> {
-            v.visit(mUsernameLabel);
-        });
+        syncRunOnUiThread(() -> v.visit(mUsernameLabel));
     }
 
     /**
      * Visits the {@code username} in the UiThread.
      */
     void onUsername(Visitor<EditText> v) {
-        syncRunOnUiThread(() -> {
-            v.visit(mUsernameEditText);
-        });
+        syncRunOnUiThread(() -> v.visit(mUsernameEditText));
     }
 
     /**
@@ -204,18 +218,14 @@ public class LoginActivity extends AbstractAutoFillActivity {
      * Visits the {@code password_label} in the UiThread.
      */
     void onPasswordLabel(Visitor<TextView> v) {
-        syncRunOnUiThread(() -> {
-            v.visit(mPasswordLabel);
-        });
+        syncRunOnUiThread(() -> v.visit(mPasswordLabel));
     }
 
     /**
      * Visits the {@code password} in the UiThread.
      */
     void onPassword(Visitor<EditText> v) {
-        syncRunOnUiThread(() -> {
-            v.visit(mPasswordEditText);
-        });
+        syncRunOnUiThread(() -> v.visit(mPasswordEditText));
     }
 
     /**
@@ -230,9 +240,7 @@ public class LoginActivity extends AbstractAutoFillActivity {
      */
     String tapLogin() throws Exception {
         mLoginLatch = new CountDownLatch(1);
-        syncRunOnUiThread(() -> {
-            mLoginButton.performClick();
-        });
+        syncRunOnUiThread(() -> mLoginButton.performClick());
         boolean called = mLoginLatch.await(LOGIN_TIMEOUT_MS, TimeUnit.MILLISECONDS);
         assertWithMessage("Timeout (%s ms) waiting for login", LOGIN_TIMEOUT_MS)
                 .that(called).isTrue();
@@ -243,18 +251,14 @@ public class LoginActivity extends AbstractAutoFillActivity {
      * Taps the save button in the UI thread.
      */
     void tapSave() throws Exception {
-        syncRunOnUiThread(() -> {
-            mSaveButton.performClick();
-        });
+        syncRunOnUiThread(() -> mSaveButton.performClick());
     }
 
     /**
      * Taps the clear button in the UI thread.
      */
     public void tapClear() {
-        syncRunOnUiThread(() -> {
-            mClearButton.performClick();
-        });
+        syncRunOnUiThread(() -> mClearButton.performClick());
     }
 
     /**
@@ -262,9 +266,7 @@ public class LoginActivity extends AbstractAutoFillActivity {
      */
     void setFlags(int flags) {
         Log.d(TAG, "setFlags():" + flags);
-        syncRunOnUiThread(() -> {
-            getWindow().setFlags(flags, flags);
-        });
+        syncRunOnUiThread(() -> getWindow().setFlags(flags, flags));
     }
 
     /**
@@ -277,6 +279,11 @@ public class LoginActivity extends AbstractAutoFillActivity {
         private FillExpectation(String username, String password) {
             ccUsernameWatcher = new OneTimeTextWatcher("username", mUsernameEditText, username);
             ccPasswordWatcher = new OneTimeTextWatcher("password", mPasswordEditText, password);
+        }
+
+        private FillExpectation(String username) {
+            ccUsernameWatcher = new OneTimeTextWatcher("username", mUsernameEditText, username);
+            ccPasswordWatcher = null;
         }
     }
 }

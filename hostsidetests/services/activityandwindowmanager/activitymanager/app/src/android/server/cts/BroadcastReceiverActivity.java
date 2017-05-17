@@ -27,7 +27,6 @@ import android.content.IntentFilter;
 import android.os.Bundle;
 import android.server.cts.tools.ActivityLauncher;
 import android.util.Log;
-import android.view.WindowManager;
 
 /**
  * Activity that registers broadcast receiver .
@@ -77,8 +76,8 @@ public class BroadcastReceiverActivity extends Activity {
                 getWindow().addFlags(FLAG_DISMISS_KEYGUARD);
             }
             if (extras.getBoolean("dismissKeyguardMethod")) {
-                getSystemService(KeyguardManager.class).dismissKeyguard(
-                        BroadcastReceiverActivity.this, new KeyguardDismissLoggerCallback(), null);
+                getSystemService(KeyguardManager.class).requestDismissKeyguard(
+                        BroadcastReceiverActivity.this, new KeyguardDismissLoggerCallback(context));
             }
 
             ActivityLauncher.launchActivityFromExtras(BroadcastReceiverActivity.this, extras);
