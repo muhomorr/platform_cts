@@ -493,10 +493,26 @@ public class KeyAttestationTest extends AndroidTestCase {
     private void checkAttestationApplicationId(Attestation attestation)
             throws NoSuchAlgorithmException, NameNotFoundException {
         AttestationApplicationId aaid = null;
-        assertNull(attestation.getTeeEnforced().getAttestationApplicationId());
-        aaid = attestation.getSoftwareEnforced().getAttestationApplicationId();
-        assertNotNull(aaid);
-        assertEquals(new AttestationApplicationId(getContext()), aaid);
+        int kmVersion = attestation.getKeymasterVersion();
+        aaid = attestation.getTeeEnforced().getAttestationApplicationId();
+        if (kmVersion >= 3) {
+            // must be TEE enforced and correct
+            assertNotNull(aaid);
+            assertNull(attestation.getSoftwareEnforced().getAttestationApplicationId());
+            assertEquals(new AttestationApplicationId(getContext()), aaid);
+        } else {
+            // may be TEE or SW enforced
+            if (aaid == null) {
+                aaid = attestation.getSoftwareEnforced().getAttestationApplicationId();
+            } else {
+                // if AAID is present in TEE it must not be present in SW.
+                assertNull(attestation.getSoftwareEnforced().getAttestationApplicationId());
+            }
+            // must be correct if present
+            if (aaid != null) {
+                assertEquals(new AttestationApplicationId(getContext()), aaid);
+            }
+        }
     }
 
     private void checkKeyIndependentAttestationInfo(byte[] challenge, int purposes, Date startTime,
@@ -675,6 +691,7 @@ public class KeyAttestationTest extends AndroidTestCase {
                     break;
 
                 case 2:
+                case 3:
                     assertThat(teeEnforcedDigests, is(expectedDigests));
                     break;
 
@@ -703,7 +720,8 @@ public class KeyAttestationTest extends AndroidTestCase {
 
     @SuppressWarnings("unchecked")
     private void checkAttestationSecurityLevelDependentParams(Attestation attestation) {
-        assertEquals("Attestation version must be 1", 1, attestation.getAttestationVersion());
+        assertThat("Attestation version must be 1 or 2", attestation.getAttestationVersion(),
+                either(is(1)).or(is(2)));
 
         AuthorizationList teeEnforced = attestation.getTeeEnforced();
         AuthorizationList softwareEnforced = attestation.getSoftwareEnforced();
@@ -716,7 +734,7 @@ public class KeyAttestationTest extends AndroidTestCase {
                 assertThat("TEE attestation can only come from TEE keymaster",
                         attestation.getKeymasterSecurityLevel(),
                         is(KM_SECURITY_LEVEL_TRUSTED_ENVIRONMENT));
-                assertThat(attestation.getKeymasterVersion(), is(2));
+                assertThat(attestation.getKeymasterVersion(), either(is(2)).or(is(3)));
 
                 checkRootOfTrust(attestation);
                 assertThat(teeEnforced.getOsVersion(), is(systemOsVersion));
@@ -729,8 +747,8 @@ public class KeyAttestationTest extends AndroidTestCase {
                     assertThat("TEE KM version must be 0 or 1 with software attestation",
                             attestation.getKeymasterVersion(), either(is(0)).or(is(1)));
                 } else {
-                    assertThat("Software KM is version 2", attestation.getKeymasterVersion(),
-                            is(2));
+                    assertThat("Software KM is version 3", attestation.getKeymasterVersion(),
+                            is(3));
                     assertThat(softwareEnforced.getOsVersion(), is(systemOsVersion));
                     assertThat(softwareEnforced.getOsPatchLevel(), is(systemPatchLevel));
                 }
