@@ -188,6 +188,7 @@ public class WifiManagerTest extends AndroidTestCase {
     private void startScan() throws Exception {
         synchronized (mMySync) {
             mMySync.expectedState = STATE_SCANNING;
+            mScanResults = null;
             assertTrue(mWifiManager.startScan());
             long timeout = System.currentTimeMillis() + TIMEOUT_MSEC;
             while (System.currentTimeMillis() < timeout && mMySync.expectedState == STATE_SCANNING)
@@ -239,10 +240,17 @@ public class WifiManagerTest extends AndroidTestCase {
         assertTrue(mWifiManager.reconnect());
         assertTrue(mWifiManager.reassociate());
         assertTrue(mWifiManager.disconnect());
-        startScan();
         setWifiEnabled(false);
+        startScan();
         Thread.sleep(DURATION);
-        assertTrue(mWifiManager.isScanAlwaysAvailable());
+        if (mWifiManager.isScanAlwaysAvailable()) {
+            // Make sure at least one AP is found.
+            assertNotNull("mScanResult should not be null!", mScanResults);
+            assertFalse("empty scan results!", mScanResults.isEmpty());
+        } else {
+            // Make sure no scan results are available.
+            assertNull("mScanResult should be null!", mScanResults);
+        }
         final String TAG = "Test";
         assertNotNull(mWifiManager.createWifiLock(TAG));
         assertNotNull(mWifiManager.createWifiLock(WifiManager.WIFI_MODE_FULL, TAG));
@@ -586,15 +594,12 @@ public class WifiManagerTest extends AndroidTestCase {
     private PasspointConfiguration generatePasspointConfig(Credential credential) {
         PasspointConfiguration config = new PasspointConfiguration();
         config.setCredential(credential);
-        // Setting update identifier to indicate R2 configuration, to avoid CA
-        // certificate being verified, since we're using a fake CA certificate
-        // for testing.
-        config.setUpdateIdentifier(1);
 
         // Setup HomeSp.
         HomeSp homeSp = new HomeSp();
         homeSp.setFqdn("Test.com");
         homeSp.setFriendlyName("Test Provider");
+        homeSp.setRoamingConsortiumOis(new long[] {0x11223344});
         config.setHomeSp(homeSp);
 
         return config;
@@ -614,7 +619,7 @@ public class WifiManagerTest extends AndroidTestCase {
         userCred.setPassword("password");
         userCred.setNonEapInnerMethod("PAP");
         credential.setUserCredential(userCred);
-        credential.setCaCertificate(FakeKeys.CA_CERT0);
+        credential.setCaCertificate(FakeKeys.CA_PUBLIC_CERT);
         return credential;
     }
 
@@ -631,7 +636,7 @@ public class WifiManagerTest extends AndroidTestCase {
         certCredential.setCertSha256Fingerprint(
                 MessageDigest.getInstance("SHA-256").digest(FakeKeys.CLIENT_CERT.getEncoded()));
         credential.setCertCredential(certCredential);
-        credential.setCaCertificate(FakeKeys.CA_CERT0);
+        credential.setCaCertificate(FakeKeys.CA_PUBLIC_CERT);
         credential.setClientCertificateChain(new X509Certificate[] {FakeKeys.CLIENT_CERT});
         credential.setClientPrivateKey(FakeKeys.RSA_KEY1);
         return credential;
