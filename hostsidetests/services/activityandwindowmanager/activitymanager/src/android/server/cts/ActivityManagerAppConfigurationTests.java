@@ -40,8 +40,8 @@ public class ActivityManagerAppConfigurationTests extends ActivityManagerTestBas
     private static final String NIGHT_MODE_ACTIVITY = "NightModeActivity";
     private static final String DIALOG_WHEN_LARGE_ACTIVITY = "DialogWhenLargeActivity";
 
-    private static final String TRANSLUCENT_ACTIVITY =
-            "android.server.translucentapp.TranslucentLandscapeActivity";
+    private static final String TRANSLUCENT_ACTIVITY = "TranslucentLandscapeActivity";
+
     private static final String TRANSLUCENT_CURRENT_PACKAGE = "android.server.translucentapp";
 
     private static final String EXTRA_LAUNCH_NEW_TASK = "launch_new_task";
@@ -117,7 +117,7 @@ public class ActivityManagerAppConfigurationTests extends ActivityManagerTestBas
      * Same as {@link #testConfigurationUpdatesWhenRotatingWhileFullscreen()} but when the Activity
      * is in the docked stack.
      */
-    @Presubmit
+    //@Presubmit TODO: Add back to presubmit once b/38445524 is fixed.
     public void testConfigurationUpdatesWhenRotatingWhileDocked() throws Exception {
         if (!supportsSplitScreenMultiWindow()) {
             CLog.logAndDisplay(LogLevel.INFO, "Skipping test: no multi-window support");
@@ -197,7 +197,7 @@ public class ActivityManagerAppConfigurationTests extends ActivityManagerTestBas
     /**
      * Same as {@link #testSameConfigurationFullSplitFullRelaunch} but without relaunch.
      */
-    @Presubmit
+    //@Presubmit TODO: Add back to presubmit once b/38445524 is fixed.
     public void testSameConfigurationFullSplitFullNoRelaunch() throws Exception {
         moveActivityFullSplitFull(RESIZEABLE_ACTIVITY_NAME);
     }
@@ -266,7 +266,7 @@ public class ActivityManagerAppConfigurationTests extends ActivityManagerTestBas
      * Tests that an activity with the DialogWhenLarge theme can transform properly when in split
      * screen.
      */
-    @Presubmit
+    //@Presubmit TODO: Add back to presubmit once b/38445524 is fixed.
     public void testDialogWhenLargeSplitSmall() throws Exception {
         launchActivityInStack(DIALOG_WHEN_LARGE_ACTIVITY, DOCKED_STACK_ID);
         final ActivityManagerState.ActivityStack stack = mAmWmState.getAmState()
@@ -285,7 +285,7 @@ public class ActivityManagerAppConfigurationTests extends ActivityManagerTestBas
     /**
      * Test that device handles consequent requested orientations and displays the activities.
      */
-    @Presubmit
+    //@Presubmit TODO: Add back to presubmit once b/38445524 is fixed.
     public void testFullscreenAppOrientationRequests() throws Exception {
         launchActivity(PORTRAIT_ACTIVITY_NAME);
         mAmWmState.assertVisibility(PORTRAIT_ACTIVITY_NAME, true /* visible */);
@@ -333,15 +333,17 @@ public class ActivityManagerAppConfigurationTests extends ActivityManagerTestBas
 //                TRANSLUCENT_ACTIVITY);
 //    }
 
-    public void testLegacyNonFullscreenActivityPermitted() throws Exception {
+    // TODO(b/38225467): rename to testLegacyNonFullscreenActivityPermitted
+    public void testNonFullscreenActivityPermitted() throws Exception {
         // TODO(b/38225467): Target SDK 26 specific package when SDK 27 released.
         setComponentName(TRANSLUCENT_CURRENT_PACKAGE);
         setDeviceRotation(0);
+
         launchActivity(TRANSLUCENT_ACTIVITY);
         mAmWmState.assertResumedActivity(
-                "target SDK <= 26 non-fullscreen activitiy should be allowed to launch",
+                "target SDK <= 26 non-fullscreen activity should be allowed to launch",
                 TRANSLUCENT_ACTIVITY);
-        assertEquals("non-fullscreen activitiy requested landscape orientation",
+        assertEquals("non-fullscreen activity requested landscape orientation",
                 0 /* landscape */, mAmWmState.getWmState().getLastOrientation());
     }
 
