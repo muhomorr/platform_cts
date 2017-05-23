@@ -18,6 +18,7 @@ package com.android.compatibility.common.tradefed;
 import com.android.compatibility.common.tradefed.build.CompatibilityBuildHelperTest;
 import com.android.compatibility.common.tradefed.command.CompatibilityConsoleTest;
 import com.android.compatibility.common.tradefed.config.ConfigurationFactoryTest;
+import com.android.compatibility.common.tradefed.presubmit.ApkPackageNameCheck;
 import com.android.compatibility.common.tradefed.presubmit.CtsConfigLoadingTest;
 import com.android.compatibility.common.tradefed.presubmit.IntegrationTest;
 import com.android.compatibility.common.tradefed.presubmit.PresubmitSetupValidation;
@@ -36,6 +37,7 @@ import com.android.compatibility.common.tradefed.testtype.ModuleDefTest;
 import com.android.compatibility.common.tradefed.testtype.ModuleRepoTest;
 import com.android.compatibility.common.tradefed.testtype.SubPlanTest;
 import com.android.compatibility.common.tradefed.testtype.retry.RetryFactoryTestTest;
+import com.android.compatibility.common.tradefed.testtype.suite.CompatibilityTestSuiteTest;
 import com.android.compatibility.common.tradefed.util.CollectorUtilTest;
 import com.android.compatibility.common.tradefed.util.OptionHelperTest;
 import com.android.compatibility.common.tradefed.util.RetryFilterHelperTest;
@@ -62,6 +64,7 @@ import org.junit.runners.Suite.SuiteClasses;
     ConfigurationFactoryTest.class,
 
     // presubmit
+    ApkPackageNameCheck.class,
     CtsConfigLoadingTest.class,
     IntegrationTest.class,
     PresubmitSetupValidation.class,
@@ -88,6 +91,9 @@ import org.junit.runners.Suite.SuiteClasses;
 
     // testtype.retry
     RetryFactoryTestTest.class,
+
+    // testype.suite
+    CompatibilityTestSuiteTest.class,
 
     // util
     CollectorUtilTest.class,
