@@ -18,39 +18,38 @@ package android.security.cts;
 
 import android.platform.test.annotations.SecurityTest;
 
-@SecurityTest
-public class Poc17_06 extends SecurityTestCase {
+public class Poc17_04 extends SecurityTestCase {
 
     /**
-     *  b/34328139
+     *  b/33842951
      */
     @SecurityTest
-    public void testPocBug_34328139() throws Exception {
+    public void testPocCVE_2017_0577() throws Exception {
 	enableAdbRoot(getDevice());
-        if(containsDriver(getDevice(), "/dev/mdss_rotator")) {
-            AdbUtils.runPoc("Bug-34328139", getDevice(), 60);
-        }
-    }
-
-    /**
-     *  b/33452365
-     */
-    @SecurityTest
-    public void testPocBug_33452365() throws Exception {
-	enableAdbRoot(getDevice());
-        if(containsDriver(getDevice(), "/dev/snd/pcmC0D16c")) {
-            AdbUtils.runPoc("Bug-33452365", getDevice(), 60);
+        if(containsDriver(getDevice(), "/dev/touch_fwu")) {
+            AdbUtils.runPoc("CVE-2017-0577", getDevice(), 60);
 	}
     }
 
     /**
-     *  b/34125463
+     *  b/34325986
      */
     @SecurityTest
-    public void testPocCVE_2017_0579() throws Exception {
+    public void testPocCVE_2017_0580() throws Exception {
 	enableAdbRoot(getDevice());
-        if(containsDriver(getDevice(), "/dev/graphics/fb0")) {
-            AdbUtils.runPoc("CVE-2017-0579", getDevice(), 60);
+        if(containsDriver(getDevice(), "/dev/touch_fwu")) {
+            AdbUtils.runPoc("CVE-2017-0580", getDevice(), 60);
         }
+    }
+
+    /**
+     *  b/33353601
+     */
+    @SecurityTest
+    public void testPocCVE_2017_0462() throws Exception {
+	enableAdbRoot(getDevice());
+        if(containsDriver(getDevice(), "/dev/seemplog")) {
+            AdbUtils.runPoc("CVE-2017-0462", getDevice(), 60);
+	}
     }
 }
