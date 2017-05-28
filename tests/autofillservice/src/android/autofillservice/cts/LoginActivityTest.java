@@ -66,7 +66,6 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.IntentSender;
 import android.os.Bundle;
-import android.platform.test.annotations.Presubmit;
 import android.service.autofill.FillEventHistory;
 import android.service.autofill.SaveInfo;
 import android.support.test.rule.ActivityTestRule;
@@ -498,7 +497,6 @@ public class LoginActivityTest extends AutoFillServiceTestCase {
     }
 
     @Test
-    @Presubmit
     public void testAutoFillOneDatasetAndSave() throws Exception {
         // Set service.
         enableService();
@@ -1460,6 +1458,19 @@ public class LoginActivityTest extends AutoFillServiceTestCase {
 
     @Test
     public void testDatasetAuthTwoFields() throws Exception {
+        datasetAuthTwoFields(false);
+    }
+
+    @Test
+    public void testDatasetAuthTwoFieldsUserCancelsFirstAttempt() throws Exception {
+        datasetAuthTwoFields(true);
+    }
+
+    private void datasetAuthTwoFields(boolean cancelFirstAttempt) throws Exception {
+        // TODO: current API requires these fields...
+        final RemoteViews bogusPresentation = createPresentation("Whatever man, I'm not used...");
+        final String bogusValue = "Y U REQUIRE IT?";
+
         // Set service.
         enableService();
         final MyAutofillCallback callback = mActivity.registerCallback();
@@ -1469,14 +1480,14 @@ public class LoginActivityTest extends AutoFillServiceTestCase {
                 new CannedDataset.Builder()
                         .setField(ID_USERNAME, "dude")
                         .setField(ID_PASSWORD, "sweet")
-                        .setPresentation(createPresentation("Dataset"))
+                        .setPresentation(bogusPresentation)
                         .build());
 
         // Configure the service behavior
         sReplier.addResponse(new CannedFillResponse.Builder()
                 .addDataset(new CannedDataset.Builder()
-                        .setField(ID_USERNAME, "dude")
-                        .setField(ID_PASSWORD, "sweet")
+                        .setField(ID_USERNAME, bogusValue)
+                        .setField(ID_PASSWORD, bogusValue)
                         .setPresentation(createPresentation("Tap to auth dataset"))
                         .setAuthentication(authentication)
                         .build())
@@ -1506,6 +1517,26 @@ public class LoginActivityTest extends AutoFillServiceTestCase {
         callback.assertUiHiddenEvent(password);
         callback.assertUiShownEvent(username);
         sUiBot.assertDatasets("Tap to auth dataset");
+
+        if (cancelFirstAttempt) {
+            // Trigger the auth dialog, but emulate cancel.
+            AuthenticationActivity.setResultCode(RESULT_CANCELED);
+            sUiBot.selectDataset("Tap to auth dataset");
+            callback.assertUiHiddenEvent(username);
+            callback.assertUiShownEvent(username);
+            sUiBot.assertDatasets("Tap to auth dataset");
+
+            // Make sure it's still shown on other fields...
+            mActivity.onPassword(View::requestFocus);
+            callback.assertUiHiddenEvent(username);
+            callback.assertUiShownEvent(password);
+            sUiBot.assertDatasets("Tap to auth dataset");
+
+            // Tap on 1st field to show it again...
+            mActivity.onUsername(View::requestFocus);
+            callback.assertUiHiddenEvent(password);
+            callback.assertUiShownEvent(username);
+        }
 
         // ...and select it this time
         AuthenticationActivity.setResultCode(RESULT_OK);

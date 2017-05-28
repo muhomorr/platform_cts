@@ -70,6 +70,7 @@ public class EphemeralTest extends DeviceTestCase
     public void setUp() throws Exception {
         super.setUp();
 
+        Utils.prepareSingleUser(getDevice());
         assertNotNull(mAbi);
         assertNotNull(mBuildInfo);
 
@@ -154,6 +155,14 @@ public class EphemeralTest extends DeviceTestCase
 
     public void testWebViewLoads() throws Exception {
         runDeviceTests(EPHEMERAL_1_PKG, WEBVIEW_TEST_CLASS, "testWebViewLoads");
+    }
+
+    public void testInstallPermissionNotGranted() throws Exception {
+        runDeviceTests(EPHEMERAL_1_PKG, TEST_CLASS, "testInstallPermissionNotGranted");
+    }
+
+    public void testInstallPermissionGranted() throws Exception {
+        runDeviceTests(EPHEMERAL_1_PKG, TEST_CLASS, "testInstallPermissionGranted");
     }
 
     private void runDeviceTests(String packageName, String testClassName, String testMethodName)
