@@ -14,20 +14,13 @@
  * limitations under the License.
  */
 
-package com.android.cts.verifier.admin.tapjacking;
+package android.provider.cts.contacts;
 
-import android.app.admin.DeviceAdminReceiver;
-import android.app.admin.DevicePolicyManager;
-import android.content.ComponentName;
-import android.content.Context;
-import android.content.Intent;
+import android.telecom.InCallService;
 
-public class EmptyDeviceAdminReceiver extends DeviceAdminReceiver {
+/**
+ * An in-call service that does nothing except allowing CTS provider to be set as a default dialer.
+ */
+public class StubInCallService extends InCallService {
 
-    @Override
-    public void onEnabled(Context context, Intent intent) {
-        DevicePolicyManager dpm =
-                (DevicePolicyManager) context.getSystemService(Context.DEVICE_POLICY_SERVICE);
-        dpm.removeActiveAdmin(new ComponentName(context, this.getClass()));
-    }
 }
