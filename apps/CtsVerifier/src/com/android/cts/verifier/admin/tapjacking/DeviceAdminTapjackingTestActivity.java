@@ -61,7 +61,8 @@ public class DeviceAdminTapjackingTestActivity extends PassFailButtons.Activity 
 
         if (savedInstanceState != null) {
             mAdminActivated = savedInstanceState.getBoolean(ADMIN_ACTIVATED_BUNDLE_KEY, false);
-            mActivitiesFinishedInOrder = savedInstanceState.getBoolean(ACTIVITIES_FINISHED_IN_ORDER_KEY, false);
+            mActivitiesFinishedInOrder = savedInstanceState.getBoolean(
+                    ACTIVITIES_FINISHED_IN_ORDER_KEY, false);
         } else if (isActiveAdminAfterTimeout()) {
             Log.e(TAG, "Could not remove active admin. Cannot proceed with test");
             finish();
@@ -71,9 +72,9 @@ public class DeviceAdminTapjackingTestActivity extends PassFailButtons.Activity 
     }
 
     private boolean isActiveAdminAfterTimeout() {
-        final long startTime = SystemClock.uptimeMillis();
+        final long timeOut = SystemClock.uptimeMillis() + REMOVE_ADMIN_TIMEOUT;
         while (mDevicePolicyManager.isAdminActive(mAdmin)
-                && SystemClock.uptimeMillis() < startTime + REMOVE_ADMIN_TIMEOUT) {
+                && SystemClock.uptimeMillis() < timeOut ) {
             try {
                 Thread.sleep(1000);
             } catch(InterruptedException exc) {
@@ -92,7 +93,8 @@ public class DeviceAdminTapjackingTestActivity extends PassFailButtons.Activity 
                 Thread.sleep(2000);
             } catch (InterruptedException exc) {
             }
-            startActivityForResult(new Intent(this, OverlayingActivity.class), REQUEST_OVERLAY_ACTIVITY);
+            startActivityForResult(new Intent(this, OverlayingActivity.class),
+                    REQUEST_OVERLAY_ACTIVITY);
         }
     }
 

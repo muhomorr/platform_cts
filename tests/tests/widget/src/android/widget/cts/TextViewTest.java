@@ -45,6 +45,7 @@ import static org.mockito.Mockito.when;
 import static java.lang.annotation.RetentionPolicy.SOURCE;
 
 import android.annotation.IntDef;
+import android.annotation.Nullable;
 import android.app.Activity;
 import android.app.Instrumentation;
 import android.app.Instrumentation.ActivityMonitor;
@@ -112,6 +113,7 @@ import android.text.style.ImageSpan;
 import android.text.style.URLSpan;
 import android.text.style.UnderlineSpan;
 import android.text.util.Linkify;
+import android.util.AttributeSet;
 import android.util.DisplayMetrics;
 import android.util.SparseArray;
 import android.util.TypedValue;
@@ -6612,6 +6614,46 @@ public class TextViewTest {
     }
 
     @Test
+    public void testAutosizeWithMaxLines_shouldNotThrowException() throws Throwable {
+        // the layout contains an instance of CustomTextViewWithTransformationMethod
+        final TextView textView = (TextView) mActivity.getLayoutInflater()
+                .inflate(R.layout.textview_autosize_maxlines, null);
+        assertTrue(textView instanceof CustomTextViewWithTransformationMethod);
+        assertEquals(1, textView.getMaxLines());
+        assertEquals(TextView.AUTO_SIZE_TEXT_TYPE_UNIFORM, textView.getAutoSizeTextType());
+        assertTrue(textView.getTransformationMethod() instanceof SingleLineTransformationMethod);
+    }
+
+    public static class CustomTextViewWithTransformationMethod extends TextView {
+        public CustomTextViewWithTransformationMethod(Context context) {
+            super(context);
+            init();
+        }
+
+        public CustomTextViewWithTransformationMethod(Context context,
+                @Nullable AttributeSet attrs) {
+            super(context, attrs);
+            init();
+        }
+
+        public CustomTextViewWithTransformationMethod(Context context,
+                @Nullable AttributeSet attrs, int defStyleAttr) {
+            super(context, attrs, defStyleAttr);
+            init();
+        }
+
+        public CustomTextViewWithTransformationMethod(Context context,
+                @Nullable AttributeSet attrs, int defStyleAttr, int defStyleRes) {
+            super(context, attrs, defStyleAttr, defStyleRes);
+            init();
+        }
+
+        private void init() {
+            setTransformationMethod(new SingleLineTransformationMethod());
+        }
+    }
+
+    @Test
     public void testAutoSize_setEllipsize() throws Throwable {
         final TextView textView = (TextView) mActivity.findViewById(
                 R.id.textview_autosize_uniform_predef_sizes);
@@ -7238,6 +7280,70 @@ public class TextViewTest {
     }
 
     @Test
+    public void testAutoSizeUniform_equivalentConfigurations() throws Throwable {
+        final DisplayMetrics dm = mActivity.getResources().getDisplayMetrics();
+        final int minTextSize = 10;
+        final int maxTextSize = 20;
+        final int granularity = 2;
+        final int unit = TypedValue.COMPLEX_UNIT_SP;
+
+        final TextView granularityTextView = new TextView(mActivity);
+        granularityTextView.setAutoSizeTextTypeUniformWithConfiguration(
+                minTextSize, maxTextSize, granularity, unit);
+
+        final TextView presetTextView = new TextView(mActivity);
+        presetTextView.setAutoSizeTextTypeUniformWithPresetSizes(
+                new int[] {minTextSize, 12, 14, 16, 18, maxTextSize}, unit);
+
+        // The TextViews have been configured differently but the end result should be nearly
+        // identical.
+        final int expectedAutoSizeType = TextView.AUTO_SIZE_TEXT_TYPE_UNIFORM;
+        assertEquals(expectedAutoSizeType, granularityTextView.getAutoSizeTextType());
+        assertEquals(expectedAutoSizeType, presetTextView.getAutoSizeTextType());
+
+        final int expectedMinTextSizeInPx = Math.round(
+                TypedValue.applyDimension(unit, minTextSize, dm));
+        assertEquals(expectedMinTextSizeInPx, granularityTextView.getAutoSizeMinTextSize());
+        assertEquals(expectedMinTextSizeInPx, presetTextView.getAutoSizeMinTextSize());
+
+        final int expectedMaxTextSizeInPx = Math.round(
+                TypedValue.applyDimension(unit, maxTextSize, dm));
+        assertEquals(expectedMaxTextSizeInPx, granularityTextView.getAutoSizeMaxTextSize());
+        assertEquals(expectedMaxTextSizeInPx, presetTextView.getAutoSizeMaxTextSize());
+
+        // Configured with granularity.
+        assertEquals(Math.round(TypedValue.applyDimension(unit, granularity, dm)),
+                granularityTextView.getAutoSizeStepGranularity());
+        // Configured with preset values, there is no granularity.
+        assertEquals(-1, presetTextView.getAutoSizeStepGranularity());
+
+        // Both TextViews generate exactly the same sizes in pixels to choose from when auto-sizing.
+        assertArrayEquals(
+                granularityTextView.getAutoSizeTextAvailableSizes(),
+                presetTextView.getAutoSizeTextAvailableSizes());
+
+        final String someText = "This is a string";
+        final int widthHeight = 600;
+        // Configure identically and attach to layout.
+        mActivityRule.runOnUiThread(() -> {
+            LinearLayout ll = mActivity.findViewById(R.id.layout_textviewtest);
+            ll.addView(granularityTextView);
+            ll.addView(presetTextView);
+
+            granularityTextView.setWidth(widthHeight);
+            granularityTextView.setHeight(widthHeight);
+            granularityTextView.setText(someText);
+
+            presetTextView.setWidth(widthHeight);
+            presetTextView.setHeight(widthHeight);
+            presetTextView.setText(someText);
+        });
+        mInstrumentation.waitForIdleSync();
+
+        assertEquals(granularityTextView.getTextSize(), presetTextView.getTextSize(), 0f);
+    }
+
+    @Test
     public void testAutoSizeUniform_getSetAutoSizeMaxTextSize() {
         final TextView textView = new TextView(mActivity);
         textView.setAutoSizeTextTypeWithDefaults(TextView.AUTO_SIZE_TEXT_TYPE_UNIFORM);
@@ -7264,8 +7370,8 @@ public class TextViewTest {
                 TypedValue.COMPLEX_UNIT_SP);
         // It does not matter which unit has been used to set the max size, the getter always
         // returns it in pixels.
-        assertEquals((int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, newMaxSize,
-                mActivity.getResources().getDisplayMetrics()), textView.getAutoSizeMaxTextSize());
+        assertEquals(Math.round(TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, newMaxSize,
+                mActivity.getResources().getDisplayMetrics())), textView.getAutoSizeMaxTextSize());
     }
 
     @Test

@@ -143,9 +143,10 @@
     <string name="da_tapjacking_instructions">
         1. Launch the device admin add screen by pressing the button below.\n
         2. Wait for an overlaying transparent activity to show up obscuring the device admin details window.\n
-        3. Attempt to activate the admin with the transparent activity still obscuring the window.
-        The button should discard any taps while showing a toast warning to the user.\n
-        4. Return to this screen and pass the test if the device admin could not be activated while the details
+        3. The button to activate the admin should be disabled and should not register any taps.\n
+        4. Press \'back\' to exit the overlaying transparent activity.\n
+        5. Press \'back\' to exit the device admin details and return to this screen.\n
+        Pass the test if the device admin could not be activated while the details
         window was being obscured.
     </string>
     <string name="da_tapjacking_button_text">Enable device admin</string>
@@ -1904,7 +1905,7 @@ You should be prompted to select credentials; choose the ones you just installed
     <string name="pca_info">This tests whether or not OpenGL projection works.\n
         You should see two "tumbling cubes." Tapping the screen should cause the cubes to explode.</string>
     <string name="pca_test">Projection Cube Test</string>
-    <string name="pwa_info">This tests whether or displaying widets and keyfocus navigation works.\n
+    <string name="pwa_info">This tests whether or displaying widgets and keyfocus navigation works.\n
         You should see four buttons on the bottom of the screen.\n
         Pressing the "up" and "down" buttons should highlight different buttons.\n
         Furthermore, the highlight should disappear when any button is touched, and the touched button should behave as usual.\n</string>
