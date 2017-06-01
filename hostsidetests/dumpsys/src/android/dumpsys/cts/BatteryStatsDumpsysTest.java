@@ -275,7 +275,7 @@ public class BatteryStatsDumpsysTest extends BaseDumpsysTest {
     }
 
     private void checkWakelock(String[] parts) {
-        assertEquals(23, parts.length);
+        assertEquals(29, parts.length);
         assertNotNull(parts[4]);      // wakelock
 
         assertInteger(parts[5]);      // full totalTime
@@ -292,16 +292,24 @@ public class BatteryStatsDumpsysTest extends BaseDumpsysTest {
         assertInteger(parts[15]);      // max duration
         assertInteger(parts[16]);      // total duration
 
-        assertInteger(parts[17]);     // window totalTime
-        assertEquals("w", parts[18]); // window
-        long window_count = assertInteger(parts[19]);     // window count
+        assertInteger(parts[17]);      // background partial totalTime
+        assertEquals("bp", parts[18]); // background partial
+        long bg_partial_count = assertInteger(parts[19]);     // background partial count
         assertInteger(parts[20]);      // current duration
-        assertInteger(parts[21]);     // max duration
-        assertInteger(parts[22]);     // total duration
+        assertInteger(parts[21]);      // max duration
+        assertInteger(parts[22]);      // total duration
+
+        assertInteger(parts[23]);      // window totalTime
+        assertEquals("w", parts[24]);  // window
+        long window_count = assertInteger(parts[25]);     // window count
+        assertInteger(parts[26]);      // current duration
+        assertInteger(parts[27]);      // max duration
+        assertInteger(parts[28]);      // total duration
 
         // Sanity checks.
         assertTrue("full wakelock count must be >= 0", full_count >= 0);
         assertTrue("partial wakelock count must be >= 0", partial_count >= 0);
+        assertTrue("background partial wakelock count must be >= 0", bg_partial_count >= 0);
         assertTrue("window wakelock count must be >= 0", window_count >= 0);
     }
 
@@ -627,13 +635,18 @@ public class BatteryStatsDumpsysTest extends BaseDumpsysTest {
     }
 
     private void checkBluetoothMisc(String[] parts) {
-        assertEquals(10, parts.length);
+        assertEquals(15, parts.length);
         assertInteger(parts[4]); // totalTime
         assertInteger(parts[5]); // count
         assertInteger(parts[6]); // countBg
         assertInteger(parts[7]); // actualTime
         assertInteger(parts[8]); // actualTimeBg
         assertInteger(parts[9]); // resultsCount
+        assertInteger(parts[10]); // resultsCountBg
+        assertInteger(parts[11]); // unoptimizedScanTotalTime
+        assertInteger(parts[12]); // unoptimizedScanTotalTimeBg
+        assertInteger(parts[13]); // unoptimizedScanMaxTime
+        assertInteger(parts[14]); // unoptimizedScanMaxTimeBg
     }
 
     /**
