@@ -1011,6 +1011,62 @@ public class LoginActivityTest extends AutoFillServiceTestCase {
     }
 
     @Test
+    public void filterTextDifferentPrefixes() throws Exception {
+        final String A = "aaa";
+        final String B = "bra";
+        final String C = "cadabra";
+
+        enableService();
+
+        // Set expectations.
+        sReplier.addResponse(new CannedFillResponse.Builder()
+                .addDataset(new CannedDataset.Builder()
+                        .setField(ID_USERNAME, A)
+                        .setPresentation(createPresentation(A))
+                        .build())
+                .addDataset(new CannedDataset.Builder()
+                        .setField(ID_USERNAME, B)
+                        .setPresentation(createPresentation(B))
+                        .build())
+                .addDataset(new CannedDataset.Builder()
+                        .setField(ID_USERNAME, C)
+                        .setPresentation(createPresentation(C))
+                        .build())
+                .build());
+
+        // Trigger auto-fill.
+        mActivity.onUsername(View::requestFocus);
+        sReplier.getNextFillRequest();
+
+        // With no filter text all datasets should be shown
+        eventually(() -> {
+            assertThat(sUiBot.hasViewWithText(A)).isTrue();
+            assertThat(sUiBot.hasViewWithText(B)).isTrue();
+            assertThat(sUiBot.hasViewWithText(C)).isTrue();
+        });
+
+        mActivity.onUsername((v) -> v.setText("a"));
+        eventually(() -> {
+            assertThat(sUiBot.hasViewWithText(A)).isTrue();
+            assertThat(sUiBot.hasViewWithText(B)).isFalse();
+            assertThat(sUiBot.hasViewWithText(C)).isFalse();
+        });
+
+        mActivity.onUsername((v) -> v.setText("b"));
+        eventually(() -> {
+            assertThat(sUiBot.hasViewWithText(A)).isFalse();
+            assertThat(sUiBot.hasViewWithText(B)).isTrue();
+            assertThat(sUiBot.hasViewWithText(C)).isFalse();
+        });
+
+        mActivity.onUsername((v) -> v.setText("c"));
+        eventually(() -> {
+            assertThat(sUiBot.hasViewWithText(A)).isFalse();
+            assertThat(sUiBot.hasViewWithText(B)).isFalse();
+            assertThat(sUiBot.hasViewWithText(C)).isTrue();
+        });
+    }
+    @Test
     public void testSaveOnly() throws Exception {
         saveOnlyTest(false);
     }
@@ -1129,6 +1185,55 @@ public class LoginActivityTest extends AutoFillServiceTestCase {
             assertTextAndValue(username, "user_after");
             final ViewNode password = findNodeByResourceId(saveRequest.structure, ID_PASSWORD);
             assertTextAndValue(password, "pass_after");
+        } catch (AssertionError | RuntimeException e) {
+            dumpStructure("saveOnlyTest() failed", saveRequest.structure);
+            throw e;
+        }
+
+        // Sanity check: once saved, the session should be finsihed.
+        assertNoDanglingSessions();
+    }
+
+    @Test
+    public void testSaveOnlyTwoRequiredFieldsOnePrefilled() throws Exception {
+        enableService();
+
+        // Set expectations.
+        sReplier.addResponse(new CannedFillResponse.Builder()
+                .setRequiredSavableIds(SAVE_DATA_TYPE_PASSWORD, ID_USERNAME, ID_PASSWORD)
+                .build());
+
+        // Set activity
+        mActivity.onUsername((v) -> v.setText("I_AM_USER"));
+
+        // Trigger auto-fill.
+        mActivity.onPassword(View::requestFocus);
+
+        // Wait for onFill() before changing value, otherwise the fields might be changed before
+        // the session started
+        sReplier.getNextFillRequest();
+        sUiBot.assertNoDatasets();
+
+        // Set credentials...
+        mActivity.onPassword((v) -> v.setText("thou should pass")); // contains pass
+
+        // ...and login
+        final String expectedMessage = getWelcomeMessage("I_AM_USER"); // contains pass
+        final String actualMessage = mActivity.tapLogin();
+        assertWithMessage("Wrong welcome msg").that(actualMessage).isEqualTo(expectedMessage);
+
+        // Assert the snack bar is shown and tap "Save".
+        sUiBot.saveForAutofill(true, SAVE_DATA_TYPE_PASSWORD);
+
+        final SaveRequest saveRequest = sReplier.getNextSaveRequest();
+        sReplier.assertNumberUnhandledSaveRequests(0);
+
+        // Assert value of expected fields - should not be sanitized.
+        try {
+            final ViewNode username = findNodeByResourceId(saveRequest.structure, ID_USERNAME);
+            assertTextAndValue(username, "I_AM_USER");
+            final ViewNode password = findNodeByResourceId(saveRequest.structure, ID_PASSWORD);
+            assertTextAndValue(password, "thou should pass");
         } catch (AssertionError | RuntimeException e) {
             dumpStructure("saveOnlyTest() failed", saveRequest.structure);
             throw e;
