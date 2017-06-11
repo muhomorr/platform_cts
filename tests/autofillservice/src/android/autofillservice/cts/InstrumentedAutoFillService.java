@@ -28,6 +28,7 @@ import static com.google.common.truth.Truth.assertWithMessage;
 
 import android.app.assist.AssistStructure;
 import android.autofillservice.cts.CannedFillResponse.CannedDataset;
+import android.content.ComponentName;
 import android.os.Bundle;
 import android.os.CancellationSignal;
 import android.service.autofill.AutofillService;
@@ -62,6 +63,8 @@ public class InstrumentedAutoFillService extends AutofillService {
     private static final Replier sReplier = new Replier();
     private static final BlockingQueue<String> sConnectionStates = new LinkedBlockingQueue<>();
 
+    private static boolean sIgnoreUnexpectedRequests = false;
+
     public InstrumentedAutoFillService() {
         sInstance.set(this);
     }
@@ -85,8 +88,11 @@ public class InstrumentedAutoFillService extends AutofillService {
     @Override
     public void onFillRequest(android.service.autofill.FillRequest request,
             CancellationSignal cancellationSignal, FillCallback callback) {
+        if (sIgnoreUnexpectedRequests || !fromSamePackage(request.getFillContexts()))  {
+            Log.w(TAG, "Ignoring onFillRequest()");
+            return;
+        }
         if (DUMP_FILL_REQUESTS) dumpStructure("onFillRequest()", request.getFillContexts());
-
         sReplier.onFillRequest(request.getFillContexts(), request.getClientState(),
                 cancellationSignal, callback, request.getFlags());
     }
@@ -94,8 +100,32 @@ public class InstrumentedAutoFillService extends AutofillService {
     @Override
     public void onSaveRequest(android.service.autofill.SaveRequest request,
             SaveCallback callback) {
+        if (sIgnoreUnexpectedRequests || !fromSamePackage(request.getFillContexts())) {
+            Log.w(TAG, "Ignoring onSaveRequest()");
+            return;
+        }
         if (DUMP_SAVE_REQUESTS) dumpStructure("onSaveRequest()", request.getFillContexts());
         sReplier.onSaveRequest(request.getFillContexts(), request.getClientState(), callback);
+    }
+
+    private boolean fromSamePackage(List<FillContext> contexts) {
+        final ComponentName component = contexts.get(contexts.size() - 1).getStructure()
+                .getActivityComponent();
+        final String actualPackage = component.getPackageName();
+        if (!actualPackage.equals(getPackageName())) {
+            Log.w(TAG, "Got request from package " + actualPackage);
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * Sets whether unexpected calls to
+     * {@link #onFillRequest(android.service.autofill.FillRequest, CancellationSignal, FillCallback)}
+     * should throw an exception.
+     */
+    public static void setIgnoreUnexpectedRequests(boolean ignore) {
+        sIgnoreUnexpectedRequests = ignore;
     }
 
     /**
@@ -290,6 +320,7 @@ public class InstrumentedAutoFillService extends AutofillService {
                 } catch (InterruptedException e) {
                     Log.w(TAG, "Interrupted getting CannedResponse: " + e);
                     Thread.currentThread().interrupt();
+                    return;
                 }
                 if (response == null) {
                     dumpStructure("onFillRequest() without response", contexts);

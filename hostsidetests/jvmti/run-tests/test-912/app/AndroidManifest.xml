@@ -15,16 +15,12 @@
  * limitations under the License.
  -->
 
-<!--
- * This is a sample of how to create an app for a run-test-based JVMTI
- * test.
- -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="android.jvmti.cts.run_test_{NR}">
+    package="android.jvmti.cts.run_test_912">
 
     <application android:debuggable="true">
         <uses-library android:name="android.test.runner" />
-        <meta-data android:name="android.jvmti.cts.run_test_nr" android:value="{NR}" />
+        <meta-data android:name="android.jvmti.cts.run_test_nr" android:value="912" />
         <activity android:name="android.jvmti.JvmtiActivity" >
         </activity>
     </application>
@@ -33,7 +29,7 @@
     <instrumentation
         android:name="android.support.test.runner.AndroidJUnitRunner"
         android:label="CTS tests for JVMTI"
-        android:targetPackage="android.jvmti.cts.run_test_{NR}" >
+        android:targetPackage="android.jvmti.cts.run_test_912" >
     </instrumentation>
 </manifest>
 
