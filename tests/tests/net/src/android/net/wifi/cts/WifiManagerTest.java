@@ -583,6 +583,10 @@ public class WifiManagerTest extends AndroidTestCase {
      * @throws Exception
      */
     public void testAddPasspointConfigWithUserCredential() throws Exception {
+        if (!WifiFeature.isWifiSupported(getContext())) {
+            // skip the test if WiFi is not supported
+            return;
+        }
         testAddPasspointConfig(generatePasspointConfig(generateUserCredential()));
     }
 
@@ -593,6 +597,10 @@ public class WifiManagerTest extends AndroidTestCase {
      * @throws Exception
      */
     public void testAddPasspointConfigWithCertCredential() throws Exception {
+        if (!WifiFeature.isWifiSupported(getContext())) {
+            // skip the test if WiFi is not supported
+            return;
+        }
         testAddPasspointConfig(generatePasspointConfig(generateCertCredential()));
     }
 
@@ -603,6 +611,10 @@ public class WifiManagerTest extends AndroidTestCase {
      * @throws Exception
      */
     public void testAddPasspointConfigWithSimCredential() throws Exception {
+        if (!WifiFeature.isWifiSupported(getContext())) {
+            // skip the test if WiFi is not supported
+            return;
+        }
         testAddPasspointConfig(generatePasspointConfig(generateSimCredential()));
     }
 
@@ -789,6 +801,11 @@ public class WifiManagerTest extends AndroidTestCase {
      * Note: Location mode must be enabled for this test.
      */
     public void testStartLocalOnlyHotspotSuccess() {
+        // first check that softap mode is supported by the device
+        if (!mWifiManager.isPortableHotspotSupported()) {
+            return;
+        }
+
         boolean wifiEnabled = mWifiManager.isWifiEnabled();
 
         TestLocalOnlyHotspotCallback callback = startLocalOnlyHotspot();
@@ -809,6 +826,11 @@ public class WifiManagerTest extends AndroidTestCase {
      * Note: Location mode must be enabled for this test.
      */
     public void testSetWifiEnabledByAppDoesNotStopHotspot() {
+        // first check that softap mode is supported by the device
+        if (!mWifiManager.isPortableHotspotSupported()) {
+            return;
+        }
+
         boolean wifiEnabled = mWifiManager.isWifiEnabled();
 
         TestLocalOnlyHotspotCallback callback = startLocalOnlyHotspot();
@@ -828,6 +850,11 @@ public class WifiManagerTest extends AndroidTestCase {
      * Note: Location mode must be enabled for this test.
      */
     public void testStartLocalOnlyHotspotSingleRequestByApps() {
+        // first check that softap mode is supported by the device
+        if (!mWifiManager.isPortableHotspotSupported()) {
+            return;
+        }
+
         boolean caughtException = false;
 
         boolean wifiEnabled = mWifiManager.isWifiEnabled();
