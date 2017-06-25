@@ -27,6 +27,7 @@ import static android.autofillservice.cts.Helper.ID_USERNAME;
 import static android.autofillservice.cts.Helper.assertNumberOfChildren;
 import static android.autofillservice.cts.Helper.assertTextAndValue;
 import static android.autofillservice.cts.Helper.assertTextIsSanitized;
+import static android.autofillservice.cts.Helper.assertNoDanglingSessions;
 import static android.autofillservice.cts.Helper.assertValue;
 import static android.autofillservice.cts.Helper.dumpStructure;
 import static android.autofillservice.cts.Helper.eventually;
@@ -70,7 +71,6 @@ import android.content.IntentSender;
 import android.graphics.Color;
 import android.os.Bundle;
 import android.service.autofill.FillEventHistory;
-import android.service.autofill.FillResponse;
 import android.service.autofill.SaveInfo;
 import android.support.test.rule.ActivityTestRule;
 import android.support.test.uiautomator.UiObject2;
@@ -99,8 +99,8 @@ import java.util.concurrent.TimeUnit;
 public class LoginActivityTest extends AutoFillServiceTestCase {
 
     @Rule
-    public final ActivityTestRule<LoginActivity> mActivityRule = new ActivityTestRule<LoginActivity>(
-            LoginActivity.class);
+    public final ActivityTestRule<LoginActivity> mActivityRule =
+        new ActivityTestRule<LoginActivity>(LoginActivity.class);
 
     private LoginActivity mActivity;
 
@@ -2960,5 +2960,30 @@ public class LoginActivityTest extends AutoFillServiceTestCase {
         } finally {
             setUserComplete(getContext(), true);
         }
+    }
+
+    @Test
+    public void testPopupGoesAwayWhenServiceIsChanged() throws Exception {
+        // Set service.
+        enableService();
+
+        // Set expectations.
+        sReplier.addResponse(new CannedDataset.Builder()
+                .setField(ID_USERNAME, "dude")
+                .setField(ID_PASSWORD, "sweet")
+                .setPresentation(createPresentation("The Dude"))
+                .build());
+        mActivity.expectAutoFill("dude", "sweet");
+
+        // Trigger auto-fill.
+        mActivity.onUsername(View::requestFocus);
+        sReplier.getNextFillRequest();
+        sUiBot.assertDatasets("The Dude");
+
+        // Now disable service by setting another service
+        Helper.enableAutofillService(getContext(), NoOpAutofillService.SERVICE_NAME);
+
+        // ...and make sure popup's gone
+        sUiBot.assertNoDatasets();
     }
 }
