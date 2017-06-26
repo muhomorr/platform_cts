@@ -42,4 +42,37 @@ public class Poc17_07 extends SecurityTestCase {
           AdbUtils.runCommandLine("cat /dev/port", getDevice());
         }
     }
+
+    /**
+     *  b/34973477
+     */
+    @SecurityTest
+    public void testPocCVE_2017_0705() throws Exception {
+        enableAdbRoot(getDevice());
+        if(containsDriver(getDevice(), "/proc/net/psched")) {
+            AdbUtils.runPoc("CVE-2017-0705", getDevice(), 60);
+        }
+    }
+
+    /**
+     *  b/34126808
+     */
+    @SecurityTest
+    public void testPocCVE_2017_8263() throws Exception {
+        enableAdbRoot(getDevice());
+        if(containsDriver(getDevice(), "/dev/ashmem")) {
+            AdbUtils.runPoc("CVE-2017-8263", getDevice(), 60);
+        }
+    }
+
+    /**
+     *  b/32341313
+     */
+    @SecurityTest
+    public void testPocCVE_2017_8265() throws Exception {
+        enableAdbRoot(getDevice());
+        if(containsDriver(getDevice(), "/dev/video33")) {
+            AdbUtils.runPoc("CVE-2017-8265", getDevice(), 60);
+        }
+    }
 }
