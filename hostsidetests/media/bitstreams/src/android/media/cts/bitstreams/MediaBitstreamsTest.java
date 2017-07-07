@@ -192,8 +192,7 @@ public class MediaBitstreamsTest implements IDeviceTest, IBuildReceiver, IAbiRec
         @Override
         void process(ITestDevice device, String reportPath)
                 throws DeviceNotAvailableException, IOException {
-            File testDir = mBuildHelper.getTestsDir();
-            File dynamicConfigFile = new File(testDir, MediaBitstreams.K_MODULE + ".dynamic");
+            File dynamicConfigFile = mBuildHelper.getTestFile(MediaBitstreams.K_MODULE + ".dynamic");
             device.pullFile(reportPath, dynamicConfigFile);
             CLog.i("Pulled bitstreams formats to %s", dynamicConfigFile.getPath());
         }
@@ -346,8 +345,8 @@ public class MediaBitstreamsTest implements IDeviceTest, IBuildReceiver, IAbiRec
         ReportProcessor processor = new ProcessBitstreamsFormats();
         processor.processDeviceReport(
                 getDevice(),
-                mBuildHelper.getTestsDir(),
-                getCurrentMethod(), MediaBitstreams.KEY_BITSTREAMS_FORMATS_XML);
+                getCurrentMethod(),
+                MediaBitstreams.KEY_BITSTREAMS_FORMATS_XML);
     }
 
     @Test
@@ -364,7 +363,6 @@ public class MediaBitstreamsTest implements IDeviceTest, IBuildReceiver, IAbiRec
         preparer = new SupportedBitstreamsProcessor(prefix, mDebugTargetDevice);
         preparer.processDeviceReport(
                 device,
-                mBuildHelper.getTestsDir(),
                 MediaBitstreams.K_TEST_GET_SUPPORTED_BITSTREAMS,
                 MediaBitstreams.KEY_SUPPORTED_BITSTREAMS_TXT);
         Set<String> supportedBitstreams = preparer.getSupportedBitstreams();
@@ -400,8 +398,8 @@ public class MediaBitstreamsTest implements IDeviceTest, IBuildReceiver, IAbiRec
                 processor = new ProcessBitstreamsValidation(bitstreams, currentMethod);
                 processor.processDeviceReport(
                         device,
-                        mBuildHelper.getTestsDir(),
-                        currentMethod, MediaBitstreams.KEY_BITSTREAMS_VALIDATION_TXT);
+                        currentMethod,
+                        MediaBitstreams.KEY_BITSTREAMS_VALIDATION_TXT);
                 bitstreams.clear();
                 size = 0;
                 n++;
