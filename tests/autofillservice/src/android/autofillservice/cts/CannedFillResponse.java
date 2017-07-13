@@ -22,10 +22,12 @@ import android.app.assist.AssistStructure;
 import android.app.assist.AssistStructure.ViewNode;
 import android.content.IntentSender;
 import android.os.Bundle;
+import android.service.autofill.CustomDescription;
 import android.service.autofill.Dataset;
 import android.service.autofill.FillCallback;
 import android.service.autofill.FillResponse;
 import android.service.autofill.SaveInfo;
+import android.service.autofill.Validator;
 import android.view.autofill.AutofillId;
 import android.view.autofill.AutofillValue;
 import android.widget.RemoteViews;
@@ -58,9 +60,11 @@ final class CannedFillResponse {
     private final List<CannedDataset> mDatasets;
     private final String mFailureMessage;
     private final int mSaveType;
+    private final Validator mValidator;
     private final String[] mRequiredSavableIds;
     private final String[] mOptionalSavableIds;
     private final String mSaveDescription;
+    private final CustomDescription mCustomDescription;
     private final Bundle mExtras;
     private final RemoteViews mPresentation;
     private final IntentSender mAuthentication;
@@ -74,9 +78,11 @@ final class CannedFillResponse {
         mResponseType = builder.mResponseType;
         mDatasets = builder.mDatasets;
         mFailureMessage = builder.mFailureMessage;
+        mValidator = builder.mValidator;
         mRequiredSavableIds = builder.mRequiredSavableIds;
         mOptionalSavableIds = builder.mOptionalSavableIds;
         mSaveDescription = builder.mSaveDescription;
+        mCustomDescription = builder.mCustomDescription;
         mSaveType = builder.mSaveType;
         mExtras = builder.mExtras;
         mPresentation = builder.mPresentation;
@@ -129,6 +135,9 @@ final class CannedFillResponse {
 
             saveInfo.setFlags(mFlags);
 
+            if (mValidator != null) {
+                saveInfo.setValidator(mValidator);
+            }
             if (mOptionalSavableIds != null) {
                 saveInfo.setOptionalIds(getAutofillIds(nodeResolver, mOptionalSavableIds));
             }
@@ -136,6 +145,10 @@ final class CannedFillResponse {
                 saveInfo.setDescription(mSaveDescription);
             }
             saveInfo.setNegativeAction(mNegativeActionStyle, mNegativeActionListener);
+
+            if (mCustomDescription != null) {
+                saveInfo.setCustomDescription(mCustomDescription);
+            }
             builder.setSaveInfo(saveInfo.build());
         }
         if (mIgnoredIds != null) {
@@ -159,6 +172,7 @@ final class CannedFillResponse {
                 + ", flags=" + mFlags
                 + ", failureMessage=" + mFailureMessage
                 + ", saveDescription=" + mSaveDescription
+                + ", mCustomDescription=" + mCustomDescription
                 + ", hasPresentation=" + (mPresentation != null)
                 + ", hasAuthentication=" + (mAuthentication != null)
                 + ", authenticationIds=" + Arrays.toString(mAuthenticationIds)
@@ -176,9 +190,11 @@ final class CannedFillResponse {
         private final List<CannedDataset> mDatasets = new ArrayList<>();
         private final ResponseType mResponseType;
         private String mFailureMessage;
+        private Validator mValidator;
         private String[] mRequiredSavableIds;
         private String[] mOptionalSavableIds;
         private String mSaveDescription;
+        public CustomDescription mCustomDescription;
         public int mSaveType = -1;
         private Bundle mExtras;
         private RemoteViews mPresentation;
@@ -200,6 +216,14 @@ final class CannedFillResponse {
         public Builder addDataset(CannedDataset dataset) {
             assertWithMessage("already set failure").that(mFailureMessage).isNull();
             mDatasets.add(dataset);
+            return this;
+        }
+
+        /**
+         * Sets the validator for this request
+         */
+        public Builder setValidator(Validator validator) {
+            mValidator = validator;
             return this;
         }
 
@@ -230,6 +254,14 @@ final class CannedFillResponse {
          */
         public Builder setSaveDescription(String description) {
             mSaveDescription = description;
+            return this;
+        }
+
+        /**
+         * Sets the description passed to the {@link SaveInfo}.
+         */
+        public Builder setCustomDescription(CustomDescription description) {
+            mCustomDescription = description;
             return this;
         }
 
