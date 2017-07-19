@@ -1,4 +1,4 @@
-# Copyright (C) 2017 The Android Open Source Project
+# Copyright (C) 2016 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,27 +16,19 @@ LOCAL_PATH:= $(call my-dir)
 
 include $(CLEAR_VARS)
 
-# Don't include this package in any target.
+LOCAL_PACKAGE_NAME := CtsVpnFirewallApp
+
 LOCAL_MODULE_TAGS := optional
 
-# When built, explicitly put it in the data partition.
 LOCAL_MODULE_PATH := $(TARGET_OUT_DATA_APPS)
 
-LOCAL_STATIC_JAVA_LIBRARIES := \
-    android-support-annotations \
-    compatibility-device-util \
-    ctstestrunner \
-    truth-prebuilt \
-    ub-uiautomator \
-    testng # TODO: remove once Android migrates to JUnit 4.12, which provide assertThrows
+LOCAL_SRC_FILES := $(call all-java-files-under, ../src)
 
-LOCAL_SRC_FILES := $(call all-java-files-under, src)
+LOCAL_RESOURCE_DIR := $(LOCAL_PATH)/../res
 
-# Tag this module as a cts test artifact
+LOCAL_SDK_VERSION := current
+
+# tag this module as a cts test artifact
 LOCAL_COMPATIBILITY_SUITE := cts vts general-tests
-
-LOCAL_PACKAGE_NAME := CtsAutoFillServiceTestCases
-
-LOCAL_SDK_VERSION := test_current
 
 include $(BUILD_CTS_PACKAGE)
