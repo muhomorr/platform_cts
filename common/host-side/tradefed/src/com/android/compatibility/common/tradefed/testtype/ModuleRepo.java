@@ -243,44 +243,11 @@ public class ModuleRepo implements IModuleRepo {
                     if (mModuleArgs.containsKey(id)) {
                         args.putAll(mModuleArgs.get(id));
                     }
-                    for (Entry<String, List<String>> entry : args.entrySet()) {
-                        for (String entryValue : entry.getValue()) {
-                            // Collection-type options can be injected with multiple values
-                            String entryName = entry.getKey();
-                            if (entryValue.contains(":")) {
-                                // entryValue is key-value pair
-                                String key = entryValue.split(":")[0];
-                                String value = entryValue.split(":")[1];
-                                config.injectOptionValue(entryName, key, value);
-                            } else {
-                                // entryValue is just the argument value
-                                config.injectOptionValue(entryName, entryValue);
-                            }
-                        }
-                    }
+                    injectOptionsToConfig(args, config);
 
                     List<IRemoteTest> tests = config.getTests();
                     for (IRemoteTest test : tests) {
-                        String className = test.getClass().getName();
-                        Map<String, List<String>> testArgsMap = new HashMap<>();
-                        if (mTestArgs.containsKey(className)) {
-                            testArgsMap.putAll(mTestArgs.get(className));
-                        }
-                        for (Entry<String, List<String>> entry : testArgsMap.entrySet()) {
-                            for (String entryValue : entry.getValue()) {
-                                String entryName = entry.getKey();
-                                if (entryValue.contains(":")) {
-                                    // entryValue is key-value pair
-                                    String key = entryValue.split(":")[0];
-                                    String value = entryValue.split(":")[1];
-                                    config.injectOptionValue(entryName, key, value);
-                                } else {
-                                    // entryValue is just the argument value
-                                    config.injectOptionValue(entryName, entryValue);
-                                }
-                            }
-                        }
-                        addFiltersToTest(test, abi, name);
+                        prepareTestClass(name, abi, config, test);
                     }
                     List<IRemoteTest> shardedTests = tests;
                     if (mTotalShards > 1) {
@@ -300,6 +267,48 @@ public class ModuleRepo implements IModuleRepo {
         }
         mExcludeFilters.clear();
         TestRunHandler.setTestRuns(new CompatibilityBuildHelper(buildInfo), shardedTestCounts);
+    }
+
+    /**
+     * Prepare to run test classes.
+     *
+     * @param name module name
+     * @param abi IAbi object that contains abi information
+     * @param config IConfiguration object created from config file
+     * @param test test class
+     * @throws ConfigurationException
+     */
+    protected void prepareTestClass(final String name, IAbi abi, IConfiguration config,
+            IRemoteTest test) throws ConfigurationException {
+        String className = test.getClass().getName();
+        Map<String, List<String>> testArgsMap = new HashMap<>();
+        if (mTestArgs.containsKey(className)) {
+            testArgsMap.putAll(mTestArgs.get(className));
+        }
+        injectOptionsToConfig(testArgsMap, config);
+        addFiltersToTest(test, abi, name);
+    }
+
+    /**
+     * Helper to inject options to a config.
+     */
+    @VisibleForTesting
+    void injectOptionsToConfig(Map<String, List<String>> optionMap, IConfiguration config)
+            throws ConfigurationException{
+        for (Entry<String, List<String>> entry : optionMap.entrySet()) {
+            for (String entryValue : entry.getValue()) {
+                String entryName = entry.getKey();
+                if (entryValue.contains(":=")) {
+                    // entryValue is key-value pair
+                    String key = entryValue.substring(0, entryValue.indexOf(":="));
+                    String value = entryValue.substring(entryValue.indexOf(":=") + 2);
+                    config.injectOptionValue(entryName, key, value);
+                } else {
+                    // entryValue is just the argument value
+                    config.injectOptionValue(entryName, entryValue);
+                }
+            }
+        }
     }
 
     private List<IRemoteTest> splitShardableTests(List<IRemoteTest> tests, IBuildInfo buildInfo) {
@@ -348,15 +357,15 @@ public class ModuleRepo implements IModuleRepo {
         return fs;
     }
 
-    private void addModuleDef(String name, IAbi abi, IRemoteTest test,
-            String[] configPaths) throws ConfigurationException {
+    protected void addModuleDef(String name, IAbi abi, IRemoteTest test, String[] configPaths)
+            throws ConfigurationException {
         // Invokes parser to process the test module config file
         IConfiguration config = mConfigFactory.createConfigurationFromArgs(configPaths);
         addModuleDef(new ModuleDef(name, abi, test, config.getTargetPreparers(),
                 config.getConfigurationDescription()));
     }
 
-    private void addModuleDef(IModuleDef moduleDef) {
+    protected void addModuleDef(IModuleDef moduleDef) {
         Set<String> tokens = moduleDef.getTokens();
         if (tokens != null && !tokens.isEmpty()) {
             mTokenModules.add(moduleDef);
@@ -664,5 +673,12 @@ public class ModuleRepo implements IModuleRepo {
         mExcludeFilters.clear();
         mTestArgs.clear();
         mModuleArgs.clear();
+    }
+
+    /**
+     * @return the mConfigFactory
+     */
+    protected IConfigurationFactory getConfigFactory() {
+        return mConfigFactory;
     }
 }
