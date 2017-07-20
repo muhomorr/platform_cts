@@ -33,7 +33,7 @@ import android.widget.RemoteViews;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import java.util.regex.PatternSyntaxException;
+import java.util.regex.Pattern;
 
 @RunWith(AndroidJUnit4.class)
 public class ImageTransformationTest {
@@ -47,7 +47,7 @@ public class ImageTransformationTest {
     @Test
     public void testNullAutofillIdBuilder() {
         assertThrows(NullPointerException.class,
-                () ->  new ImageTransformation.Builder(null, "", 1));
+                () ->  new ImageTransformation.Builder(null, Pattern.compile(""), 1));
     }
 
     @Test
@@ -59,20 +59,16 @@ public class ImageTransformationTest {
     @Test
     public void testNullSubstBuilder() {
         assertThrows(IllegalArgumentException.class,
-                () ->  new ImageTransformation.Builder(new AutofillId(1), "", 0));
+                () ->  new ImageTransformation.Builder(new AutofillId(1), Pattern.compile(""), 0));
     }
 
     @Test
-    public void testBadRegexBuilder() {
-        assertThrows(PatternSyntaxException.class,
-                () ->  new ImageTransformation.Builder(new AutofillId(1), "(", 1));
-    }
-
-    @Test
-    public void fieldCannotBeFound() {
+    public void fieldCannotBeFound() throws Exception {
         AutofillId unknownId = new AutofillId(42);
 
-        ImageTransformation trans = new ImageTransformation.Builder(unknownId, "val", 1).build();
+        ImageTransformation trans = new ImageTransformation
+                .Builder(unknownId, Pattern.compile("val"), 1)
+                .build();
 
         ValueFinder finder = mock(ValueFinder.class);
         RemoteViews template = mock(RemoteViews.class);
@@ -86,9 +82,11 @@ public class ImageTransformationTest {
     }
 
     @Test
-    public void theOneOptionsMatches() {
+    public void theOneOptionsMatches() throws Exception {
         AutofillId id = new AutofillId(1);
-        ImageTransformation trans = new ImageTransformation.Builder(id, ".*", 42).build();
+        ImageTransformation trans = new ImageTransformation
+                .Builder(id, Pattern.compile(".*"), 42)
+                .build();
 
         ValueFinder finder = mock(ValueFinder.class);
         RemoteViews template = mock(RemoteViews.class);
@@ -101,9 +99,11 @@ public class ImageTransformationTest {
     }
 
     @Test
-    public void noOptionsMatches() {
+    public void noOptionsMatches() throws Exception {
         AutofillId id = new AutofillId(1);
-        ImageTransformation trans = new ImageTransformation.Builder(id, "val", 42).build();
+        ImageTransformation trans = new ImageTransformation
+                .Builder(id, Pattern.compile("val"), 42)
+                .build();
 
         ValueFinder finder = mock(ValueFinder.class);
         RemoteViews template = mock(RemoteViews.class);
@@ -116,10 +116,12 @@ public class ImageTransformationTest {
     }
 
     @Test
-    public void multipleOptionsOneMatches() {
+    public void multipleOptionsOneMatches() throws Exception {
         AutofillId id = new AutofillId(1);
-        ImageTransformation trans = new ImageTransformation.Builder(id, ".*1", 1).addOption(
-                ".*2", 2).build();
+        ImageTransformation trans = new ImageTransformation
+                .Builder(id, Pattern.compile(".*1"), 1)
+                .addOption(Pattern.compile(".*2"), 2)
+                .build();
 
         ValueFinder finder = mock(ValueFinder.class);
         RemoteViews template = mock(RemoteViews.class);
@@ -132,10 +134,12 @@ public class ImageTransformationTest {
     }
 
     @Test
-    public void twoOptionsMatch() {
+    public void twoOptionsMatch() throws Exception {
         AutofillId id = new AutofillId(1);
-        ImageTransformation trans = new ImageTransformation.Builder(id, ".*a.*", 1).addOption(
-                ".*b.*", 2).build();
+        ImageTransformation trans = new ImageTransformation
+                .Builder(id, Pattern.compile(".*a.*"), 1)
+                .addOption(Pattern.compile(".*b.*"), 2)
+                .build();
 
         ValueFinder finder = mock(ValueFinder.class);
         RemoteViews template = mock(RemoteViews.class);

@@ -35,7 +35,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentMatcher;
 
-import java.util.regex.PatternSyntaxException;
+import java.util.regex.Pattern;
 
 @RunWith(AndroidJUnit4.class)
 public class CharSequenceTransformationTest {
@@ -49,7 +49,7 @@ public class CharSequenceTransformationTest {
     @Test
     public void testNullAutofillIdBuilder() {
         assertThrows(NullPointerException.class,
-                () -> new CharSequenceTransformation.Builder(null, "", ""));
+                () -> new CharSequenceTransformation.Builder(null, Pattern.compile(""), ""));
     }
 
     @Test
@@ -61,13 +61,8 @@ public class CharSequenceTransformationTest {
     @Test
     public void testNullSubstBuilder() {
         assertThrows(NullPointerException.class,
-                () -> new CharSequenceTransformation.Builder(new AutofillId(1), "", null));
-    }
-
-    @Test
-    public void testBadRegexBuilder() {
-        assertThrows(PatternSyntaxException.class,
-                () -> new CharSequenceTransformation.Builder(new AutofillId(1), "(", ""));
+                () -> new CharSequenceTransformation.Builder(new AutofillId(1), Pattern.compile(""),
+                        null));
     }
 
     @Test
@@ -77,16 +72,16 @@ public class CharSequenceTransformationTest {
         AutofillId id3 = new AutofillId(3);
         AutofillId id4 = new AutofillId(4);
 
-        CharSequenceTransformation.Builder b = new CharSequenceTransformation.Builder(id1, "(.)",
-                "1=$1");
+        CharSequenceTransformation.Builder b = new CharSequenceTransformation.Builder(id1,
+                Pattern.compile("(.)"), "1=$1");
 
         // bad subst: The regex has no capture groups
-        b.addField(id2, ".", "2=$1");
+        b.addField(id2, Pattern.compile("."), "2=$1");
 
         // bad subst: The regex does not have enough capture groups
-        b.addField(id3, "(.)", "3=$2");
+        b.addField(id3, Pattern.compile("(.)"), "3=$2");
 
-        b.addField(id4, "(.)", "4=$1");
+        b.addField(id4, Pattern.compile("(.)"), "4=$1");
 
         CharSequenceTransformation trans = b.build();
 
@@ -98,25 +93,25 @@ public class CharSequenceTransformationTest {
         when(finder.findByAutofillId(id3)).thenReturn("c");
         when(finder.findByAutofillId(id4)).thenReturn("d");
 
-        trans.apply(finder, template, 0);
+        assertThrows(ArrayIndexOutOfBoundsException.class, () -> trans.apply(finder, template, 0));
 
-        // bad subst are ignored
-        verify(template).setCharSequence(eq(0), any(), argThat(new CharSequenceMatcher("1=a4=d")));
+        // fail one, fail all
+        verify(template, never()).setCharSequence(eq(0), any(), any());
     }
 
     @Test
-    public void testUnknownField() {
+    public void testUnknownField() throws Exception {
         AutofillId id1 = new AutofillId(1);
         AutofillId id2 = new AutofillId(2);
         AutofillId unknownId = new AutofillId(42);
 
-        CharSequenceTransformation.Builder b = new CharSequenceTransformation.Builder(id1, ".*",
-                "1");
+        CharSequenceTransformation.Builder b = new CharSequenceTransformation.Builder(id1,
+                Pattern.compile(".*"), "1");
 
         // bad subst: The field will not be found
-        b.addField(unknownId, ".*", "unknown");
+        b.addField(unknownId, Pattern.compile(".*"), "unknown");
 
-        b.addField(id2, ".*", "2");
+        b.addField(id2, Pattern.compile(".*"), "2");
 
         CharSequenceTransformation trans = b.build();
 
@@ -134,10 +129,13 @@ public class CharSequenceTransformationTest {
     }
 
     @Test
-    public void testCreditCardObfuscator() {
+    public void testCreditCardObfuscator() throws Exception {
         AutofillId creditCardFieldId = new AutofillId(1);
-        CharSequenceTransformation trans = new CharSequenceTransformation.Builder(creditCardFieldId,
-                "^\\s*\\d{4}[\\s-]?\\d{4}[\\s-]?\\d{4}[\\s-]?(\\d{4})\\s*$", "...$1").build();
+        CharSequenceTransformation trans = new CharSequenceTransformation
+                .Builder(creditCardFieldId,
+                        Pattern.compile("^\\s*\\d{4}[\\s-]?\\d{4}[\\s-]?\\d{4}[\\s-]?(\\d{4})\\s*$"),
+                        "...$1")
+                .build();
 
         ValueFinder finder = mock(ValueFinder.class);
         RemoteViews template = mock(RemoteViews.class);
@@ -150,11 +148,13 @@ public class CharSequenceTransformationTest {
     }
 
     @Test
-    public void userNameObfuscator() {
+    public void userNameObfuscator() throws Exception {
         AutofillId userNameFieldId = new AutofillId(1);
         AutofillId passwordFieldId = new AutofillId(2);
-        CharSequenceTransformation trans = new CharSequenceTransformation.Builder(userNameFieldId,
-                "(.*)", "$1").addField(passwordFieldId, ".*(..)$", "/..$1").build();
+        CharSequenceTransformation trans = new CharSequenceTransformation
+                .Builder(userNameFieldId, Pattern.compile("(.*)"), "$1")
+                .addField(passwordFieldId, Pattern.compile(".*(..)$"), "/..$1")
+                .build();
 
         ValueFinder finder = mock(ValueFinder.class);
         RemoteViews template = mock(RemoteViews.class);

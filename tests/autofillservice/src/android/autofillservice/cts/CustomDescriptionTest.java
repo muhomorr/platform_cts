@@ -21,12 +21,17 @@ import static android.autofillservice.cts.Helper.ID_USERNAME;
 import static android.autofillservice.cts.Helper.assertNoDanglingSessions;
 import static android.autofillservice.cts.Helper.getContext;
 import static android.service.autofill.SaveInfo.SAVE_DATA_TYPE_GENERIC;
+import static com.google.common.truth.Truth.assertThat;
+import static com.google.common.truth.Truth.assertWithMessage;
 
 import android.service.autofill.CharSequenceTransformation;
 import android.service.autofill.CustomDescription;
 import android.service.autofill.ImageTransformation;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
+import android.support.test.InstrumentationRegistry;
+import android.support.test.uiautomator.By;
+import android.support.test.uiautomator.UiObject2;
 import android.view.View;
 import android.view.autofill.AutofillId;
 import android.widget.RemoteViews;
@@ -37,6 +42,7 @@ import org.junit.Rule;
 import org.junit.Test;
 
 import java.util.function.BiFunction;
+import java.util.regex.Pattern;
 
 public class CustomDescriptionTest extends AutoFillServiceTestCase {
     @Rule
@@ -44,10 +50,12 @@ public class CustomDescriptionTest extends AutoFillServiceTestCase {
         new AutofillActivityTestRule<>(LoginActivity.class);
 
     private LoginActivity mActivity;
+    private String mPackageName;
 
     @Before
     public void setActivity() {
         mActivity = mActivityRule.getActivity();
+        mPackageName = InstrumentationRegistry.getInstrumentation().getContext().getPackageName();
     }
 
     @After
@@ -102,14 +110,19 @@ public class CustomDescriptionTest extends AutoFillServiceTestCase {
             RemoteViews presentation = new RemoteViews(getContext().getPackageName(),
                     R.layout.two_horizontal_text_fields);
 
-            CharSequenceTransformation trans1 = new CharSequenceTransformation.Builder(usernameId,
-                    "(.*)", "$1").addField(passwordId, ".*(..)", "..$1").build();
-            ImageTransformation trans2 = new ImageTransformation.Builder(usernameId, ".*",
+            CharSequenceTransformation trans1 = new CharSequenceTransformation
+                    .Builder(usernameId, Pattern.compile("(.*)"), "$1")
+                    .addField(passwordId, Pattern.compile(".*(..)"), "..$1")
+                    .build();
+            ImageTransformation trans2 = new ImageTransformation
+                    .Builder(usernameId, Pattern.compile(".*"),
                     R.drawable.android).build();
 
-            return new CustomDescription.Builder(presentation).addChild(R.id.first,
-                    trans1).addChild(R.id.img, trans2).build();
-        }, () -> sUiBot.assertShownByText("usernm..wd"));
+            return new CustomDescription.Builder(presentation)
+                    .addChild(R.id.first, trans1)
+                    .addChild(R.id.img, trans2)
+                    .build();
+        }, () -> assertSaveUiWithCustomDescriptionIsShown("usernm..wd"));
     }
 
     @Test
@@ -118,11 +131,14 @@ public class CustomDescriptionTest extends AutoFillServiceTestCase {
             RemoteViews presentation = new RemoteViews(getContext().getPackageName(),
                     R.layout.two_horizontal_text_fields);
 
-            ImageTransformation trans = new ImageTransformation.Builder(usernameId, ".*",
-                    1).build();
+            ImageTransformation trans = new ImageTransformation
+                    .Builder(usernameId, Pattern.compile(".*"), 1)
+                    .build();
 
-            return new CustomDescription.Builder(presentation).addChild(R.id.img, trans).build();
-        }, null);
+            return new CustomDescription.Builder(presentation)
+                    .addChild(R.id.img, trans)
+                    .build();
+        }, () -> assertSaveUiWithCustomDescriptionIsShown() );
     }
 
     @Test
@@ -131,11 +147,14 @@ public class CustomDescriptionTest extends AutoFillServiceTestCase {
             RemoteViews presentation = new RemoteViews(getContext().getPackageName(),
                     R.layout.two_horizontal_text_fields);
 
-            ImageTransformation trans = new ImageTransformation.Builder(usernameId, "invalid",
-                    R.drawable.android).build();
+            ImageTransformation trans = new ImageTransformation
+                    .Builder(usernameId, Pattern.compile("invalid"), R.drawable.android)
+                    .build();
 
-            return new CustomDescription.Builder(presentation).addChild(R.id.img, trans).build();
-        }, null /* Just check that we don't crash */);
+            return new CustomDescription.Builder(presentation)
+                    .addChild(R.id.img, trans)
+                    .build();
+        }, () -> assertSaveUiWithCustomDescriptionIsShown());
     }
 
     @Test
@@ -144,24 +163,48 @@ public class CustomDescriptionTest extends AutoFillServiceTestCase {
             RemoteViews presentation = new RemoteViews(getContext().getPackageName(),
                     R.layout.two_horizontal_text_fields);
 
-            ImageTransformation trans = new ImageTransformation.Builder(usernameId, ".*",
-                    R.drawable.android).build();
+            ImageTransformation trans = new ImageTransformation
+                    .Builder(usernameId, Pattern.compile(".*"), R.drawable.android)
+                    .build();
 
-            return new CustomDescription.Builder(presentation).addChild(R.id.first, trans).build();
-        }, null /* Just check that we don't crash */);
+            return new CustomDescription.Builder(presentation)
+                    .addChild(R.id.first, trans)
+                    .build();
+        }, () -> assertSaveUiWithoutCustomDescriptionIsShown());
     }
 
     @Test
-    public void badCharSequenceTransformation() throws Exception {
+    public void failFirstFailAll() throws Exception {
         testCustomDescription((usernameId, passwordId) -> {
             RemoteViews presentation = new RemoteViews(getContext().getPackageName(),
                     R.layout.two_horizontal_text_fields);
 
-            CharSequenceTransformation trans = new CharSequenceTransformation.Builder(
-                    usernameId, "(.*)", "$1").addField(passwordId, ".*", "..$1").build();
+            CharSequenceTransformation trans = new CharSequenceTransformation
+                    .Builder(usernameId, Pattern.compile("(.*)"), "$42")
+                    .addField(passwordId, Pattern.compile(".*(..)"), "..$1")
+                    .build();
 
-            return new CustomDescription.Builder(presentation).addChild(R.id.first, trans).build();
-        }, () -> sUiBot.assertShownByText("usernm"));
+            return new CustomDescription.Builder(presentation)
+                    .addChild(R.id.first, trans)
+                    .build();
+        }, () -> assertSaveUiWithoutCustomDescriptionIsShown());
+    }
+
+    @Test
+    public void failSecondFailAll() throws Exception {
+        testCustomDescription((usernameId, passwordId) -> {
+            RemoteViews presentation = new RemoteViews(getContext().getPackageName(),
+                    R.layout.two_horizontal_text_fields);
+
+            CharSequenceTransformation trans = new CharSequenceTransformation
+                    .Builder(usernameId, Pattern.compile("(.*)"), "$1")
+                    .addField(passwordId, Pattern.compile(".*(..)"), "..$42")
+                    .build();
+
+            return new CustomDescription.Builder(presentation)
+                    .addChild(R.id.first, trans)
+                    .build();
+        }, () -> assertSaveUiWithoutCustomDescriptionIsShown());
     }
 
     @Test
@@ -170,10 +213,41 @@ public class CustomDescriptionTest extends AutoFillServiceTestCase {
             RemoteViews presentation = new RemoteViews(getContext().getPackageName(),
                     R.layout.two_horizontal_text_fields);
 
-            CharSequenceTransformation trans = new CharSequenceTransformation.Builder(
-                    usernameId, "(.*)", "$1").build();
+            CharSequenceTransformation trans = new CharSequenceTransformation
+                    .Builder(usernameId, Pattern.compile("(.*)"), "$1")
+                    .build();
 
-            return new CustomDescription.Builder(presentation).addChild(R.id.img, trans).build();
-        }, null /* Just check that we don't crash */);
+            return new CustomDescription.Builder(presentation)
+                    .addChild(R.id.img, trans)
+                    .build();
+        }, () -> assertSaveUiWithoutCustomDescriptionIsShown());
+    }
+
+    private void assertSaveUiWithoutCustomDescriptionIsShown() {
+        // First make sure the UI is shown...
+        final UiObject2 saveUi = sUiBot.assertSaveShowing(SAVE_DATA_TYPE_GENERIC);
+
+        // Then make sure it does not have the custom view on it.
+        assertWithMessage("found static_text on SaveUI (%s)", sUiBot.getChildrenAsText(saveUi))
+            .that(saveUi.findObject(By.res(mPackageName, "static_text"))).isNull();
+    }
+
+    private UiObject2 assertSaveUiWithCustomDescriptionIsShown() {
+        // First make sure the UI is shown...
+        final UiObject2 saveUi = sUiBot.assertSaveShowing(SAVE_DATA_TYPE_GENERIC);
+
+        // Then make sure it does have the custom view on it...
+        final UiObject2 staticText = saveUi.findObject(By.res(mPackageName, "static_text"));
+        assertThat(staticText).isNotNull();
+        assertThat(staticText.getText()).isEqualTo("YO:");
+
+        return saveUi;
+    }
+
+    private void assertSaveUiWithCustomDescriptionIsShown(String expectedText) {
+        final UiObject2 saveUi = assertSaveUiWithCustomDescriptionIsShown();
+        assertWithMessage("didn't find '%s' on SaveUI (%s)", expectedText,
+                sUiBot.getChildrenAsText(saveUi))
+                        .that(saveUi.findObject(By.text(expectedText))).isNotNull();
     }
 }
