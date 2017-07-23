@@ -97,6 +97,8 @@
         <option name="push" value="Bug-35950388->/data/local/tmp/Bug-35950388" />
         <option name="push" value="Bug-34624155->/data/local/tmp/Bug-34624155" />
         <option name="push" value="Bug-33299365->/data/local/tmp/Bug-33299365" />
+        <option name="push" value="Bug-35950805->/data/local/tmp/Bug-35950805" />
+        <option name="push" value="Bug-35139833->/data/local/tmp/Bug-35139833" />
 
         <!--__________________-->
         <!-- Bulletin 2017-08 -->
@@ -107,6 +109,7 @@
         <option name="push" value="CVE-2017-9678->/data/local/tmp/CVE-2017-9678" />
         <option name="push" value="CVE-2017-9692->/data/local/tmp/CVE-2017-9692" />
         <option name="push" value="Bug-35764875->/data/local/tmp/Bug-35764875" />
+        <option name="push" value="Bug-35644510->/data/local/tmp/Bug-35644510" />
 
         <option name="append-bitness" value="true" />
     </target_preparer>
