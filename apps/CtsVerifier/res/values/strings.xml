@@ -2421,6 +2421,9 @@ You should be prompted to select credentials; choose the ones you just installed
         5. Verify that the background color of the resulting dialog is as set by you.\n
         6. Verify that the header text has organization name as set by you.\n
     </string>
+
+    <string name="provisioning_byod_no_secure_lockscreen">No work lockscreen password set. Please run \"Select work lock test\" and rerun this test</string>
+
     <string name="provisioning_byod_parent_profile_password">Personal password test</string>
     <string name="provisioning_byod_parent_profile_password_description">
         This test verifies that the password on the personal side can be chosen from within a managed profile.\n
@@ -2550,7 +2553,7 @@ You should be prompted to select credentials; choose the ones you just installed
     <string name="device_owner_reenable_statusbar_button">Reenable status bar</string>
     <string name="device_owner_disable_keyguard_test">Disable keyguard</string>
     <string name="device_owner_disable_keyguard_test_info">
-            Note that any device passwords that you might have set will be deleted during this test.\n
+            Before running this test, please make sure you have not set any device lockscreen password.\n
             Please press the below button to disable the keyguard. Press the power button on your device to
             switch off the screen. Then press the power button to switch the screen back on and verify that
             no keyguard was shown.\n
@@ -2560,6 +2563,7 @@ You should be prompted to select credentials; choose the ones you just installed
     </string>
     <string name="device_owner_disable_keyguard_button">Disable keyguard</string>
     <string name="device_owner_reenable_keyguard_button">Reenable keyguard</string>
+    <string name="device_owner_lockscreen_secure">Please remove lockscreen password</string>
     <string name="device_profile_owner_permission_lockdown_test">Permissions lockdown</string>
     <string name="device_profile_owner_permission_lockdown_test_instructions">
             Select each of the three grant states for the permission shown below in turn.\n
