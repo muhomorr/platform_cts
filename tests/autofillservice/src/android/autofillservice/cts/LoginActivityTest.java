@@ -92,6 +92,7 @@ import org.junit.Test;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * This is the test case covering most scenarios - other test cases will cover characteristics
@@ -1730,6 +1731,54 @@ public class LoginActivityTest extends AutoFillServiceTestCase {
     }
 
     @Test
+    public void testFillResponseAuthWhenAppCallsCancel() throws Exception {
+        // Set service.
+        enableService();
+        final MyAutofillCallback callback = mActivity.registerCallback();
+
+        // Prepare the authenticated response
+        final IntentSender authentication = AuthenticationActivity.createSender(getContext(), 1,
+                new CannedFillResponse.Builder().addDataset(
+                        new CannedDataset.Builder()
+                                .setField(ID_USERNAME, "dude")
+                                .setField(ID_PASSWORD, "sweet")
+                                .setId("name")
+                                .setPresentation(createPresentation("Dataset"))
+                                .build())
+                        .build());
+
+        // Configure the service behavior
+        sReplier.addResponse(new CannedFillResponse.Builder()
+                .setAuthentication(authentication, ID_USERNAME, ID_PASSWORD)
+                .setPresentation(createPresentation("Tap to auth response"))
+                .build());
+
+        // Trigger auto-fill.
+        mActivity.onUsername(View::requestFocus);
+
+        // Wait for onFill() before proceeding.
+        sReplier.getNextFillRequest();
+        final View username = mActivity.getUsername();
+        callback.assertUiShownEvent(username);
+        sUiBot.assertDatasets("Tap to auth response");
+
+        // Auto fill it.
+        final CountDownLatch latch = new CountDownLatch(1);
+        AuthenticationActivity.setResultCode(latch, RESULT_OK);
+
+        sUiBot.selectDataset("Tap to auth response");
+        callback.assertUiHiddenEvent(username);
+
+        // Cancel session...
+        mActivity.getAutofillManager().cancel();
+
+        // ...before finishing the Auth UI.
+        latch.countDown();
+
+        sUiBot.assertNoDatasets();
+    }
+
+    @Test
     public void testFillResponseAuthServiceHasNoData() throws Exception {
         // Set service.
         enableService();
@@ -3068,5 +3117,40 @@ public class LoginActivityTest extends AutoFillServiceTestCase {
 
         // ...and make sure popup's gone
         sUiBot.assertNoDatasets();
+    }
+
+    @Test
+    public void testAutofillMovesCursorToTheEnd() throws Exception {
+        // Set service.
+        enableService();
+
+        // Set expectations.
+        sReplier.addResponse(new CannedDataset.Builder()
+                .setField(ID_USERNAME, "dude")
+                .setField(ID_PASSWORD, "sweet")
+                .setPresentation(createPresentation("The Dude"))
+                .build());
+        mActivity.expectAutoFill("dude", "sweet");
+
+        // Trigger auto-fill.
+        mActivity.onUsername(View::requestFocus);
+        sReplier.getNextFillRequest();
+
+        // Auto-fill it.
+        sUiBot.selectDataset("The Dude");
+
+        // Check the results.
+        mActivity.assertAutoFilled();
+
+        // NOTE: need to call getSelectionEnd() inside the UI thread, otherwise it returns 0
+        final AtomicInteger atomicBombToKillASmallInsect = new AtomicInteger();
+
+        mActivity.onUsername((v) -> atomicBombToKillASmallInsect.set(v.getSelectionEnd()));
+        assertWithMessage("Wrong position on username").that(atomicBombToKillASmallInsect.get())
+                .isEqualTo(4);
+
+        mActivity.onPassword((v) -> atomicBombToKillASmallInsect.set(v.getSelectionEnd()));
+        assertWithMessage("Wrong position on password").that(atomicBombToKillASmallInsect.get())
+                .isEqualTo(5);
     }
 }
