@@ -165,6 +165,9 @@
     <!-- b/31803630 -->
     <option name="compatibility:exclude-filter" value="CtsSecurityTestCases android.security.cts.ListeningPortsTest" />
 
+    <!-- b/63115400 -->
+    <option name="compatibility:exclude-filter" value="CtsSecurityTestCases android.security.cts.SELinuxHostTest#testAospFileContexts" />
+
     <!-- b/36686383 -->
     <option name="compatibility:exclude-filter" value="CtsIncidentHostTestCases com.android.server.cts.ErrorsTest#testANR" />
 
@@ -229,5 +232,11 @@
 
     <!-- b/38280830 -->
     <option name="compatibility:exclude-filter" value="CtsMediaTestCases android.media.cts.VideoDecoderPerfTest#testVp8Goog0Perf1280x0720" />
+
+    <!-- b/63010438 -->
+    <option name="compatibility:exclude-filter" value="CtsUiRenderingTestCases android.media.cts.android.uirendering.cts.testclasses.EdgeEffectTests#testOnPullWithDisplacement" />
+    <option name="compatibility:exclude-filter" value="CtsUiRenderingTestCases android.media.cts.android.uirendering.cts.testclasses.EdgeEffectTests#testSetSize" />
+    <option name="compatibility:exclude-filter" value="CtsUiRenderingTestCases android.media.cts.android.uirendering.cts.testclasses.EdgeEffectTests#testOnPull" />
+    <option name="compatibility:exclude-filter" value="CtsUiRenderingTestCases android.media.cts.android.uirendering.cts.testclasses.EdgeEffectTests#testSetColor" />
 
 </configuration>
