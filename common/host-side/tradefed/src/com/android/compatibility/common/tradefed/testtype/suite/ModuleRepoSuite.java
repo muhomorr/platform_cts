@@ -38,7 +38,9 @@ import java.io.FilenameFilter;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -88,7 +90,10 @@ public class ModuleRepoSuite {
             throw new IllegalArgumentException(
                     String.format("No config files found in %s", testsDir.getAbsolutePath()));
         }
-        for (File configFile : configFiles) {
+        // Ensure stable initial order of configurations.
+        List<File> listConfigFiles = Arrays.asList(configFiles);
+        Collections.sort(listConfigFiles);
+        for (File configFile : listConfigFiles) {
             final String name = configFile.getName().replace(CONFIG_EXT, "");
             final String[] pathArg = new String[] { configFile.getAbsolutePath() };
             try {
@@ -116,12 +121,7 @@ public class ModuleRepoSuite {
                     if (mModuleArgs.containsKey(id)) {
                         args.putAll(mModuleArgs.get(id));
                     }
-                    for (Entry<String, List<String>> entry : args.entrySet()) {
-                        for (String value : entry.getValue()) {
-                            // Collection-type options can be injected with multiple values
-                            config.injectOptionValue(entry.getKey(), value);
-                        }
-                    }
+                    injectOptionsToConfig(args, config);
 
                     List<IRemoteTest> tests = config.getTests();
                     for (IRemoteTest test : tests) {
@@ -130,11 +130,7 @@ public class ModuleRepoSuite {
                         if (mTestArgs.containsKey(className)) {
                             testArgsMap.putAll(mTestArgs.get(className));
                         }
-                        for (Entry<String, List<String>> entry : testArgsMap.entrySet()) {
-                            for (String value : entry.getValue()) {
-                                config.injectOptionValue(entry.getKey(), value);
-                            }
-                        }
+                        injectOptionsToConfig(testArgsMap, config);
                         addFiltersToTest(test, abi, name);
                         if (test instanceof IAbiReceiver) {
                             ((IAbiReceiver)test).setAbi(abi);
@@ -156,6 +152,28 @@ public class ModuleRepoSuite {
             }
         }
         return toRun;
+    }
+
+    /**
+     * Helper to inject options to a config.
+     */
+    @VisibleForTesting
+    void injectOptionsToConfig(Map<String, List<String>> optionMap, IConfiguration config)
+            throws ConfigurationException{
+        for (Entry<String, List<String>> entry : optionMap.entrySet()) {
+            for (String entryValue : entry.getValue()) {
+                String entryName = entry.getKey();
+                if (entryValue.contains(":=")) {
+                    // entryValue is key-value pair
+                    String key = entryValue.substring(0, entryValue.indexOf(":="));
+                    String value = entryValue.substring(entryValue.indexOf(":=") + 2);
+                    config.injectOptionValue(entryName, key, value);
+                } else {
+                    // entryValue is just the argument value
+                    config.injectOptionValue(entryName, entryValue);
+                }
+            }
+        }
     }
 
     @VisibleForTesting
@@ -325,7 +343,6 @@ public class ModuleRepoSuite {
          */
         @Override
         public boolean accept(File dir, String name) {
-            CLog.d("%s/%s", dir.getAbsolutePath(), name);
             return name.endsWith(CONFIG_EXT);
         }
     }
