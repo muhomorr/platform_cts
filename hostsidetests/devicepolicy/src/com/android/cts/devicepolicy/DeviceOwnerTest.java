@@ -32,6 +32,8 @@ public class DeviceOwnerTest extends BaseDevicePolicyTest {
     private static final String MANAGED_PROFILE_ADMIN =
             MANAGED_PROFILE_PKG + ".BaseManagedProfileTest$BasicAdminReceiver";
 
+    private static final String FEATURE_BACKUP = "android.software.backup";
+
     private static final String INTENT_RECEIVER_PKG = "com.android.cts.intent.receiver";
     private static final String INTENT_RECEIVER_APK = "CtsIntentReceiverApp.apk";
 
@@ -521,9 +523,18 @@ public class DeviceOwnerTest extends BaseDevicePolicyTest {
         // This case runs when DO is provisioned
         // mHasFeature == true and provisioned, can't provision DO again.
         executeDeviceTestMethod(".PreDeviceOwnerTest", "testIsProvisioningAllowedFalse");
-        // Can provision Managed Profile when DO is on
-        // STOPSHIP: Only allow creating a managed profile if allowed by the device owner.
-        // b/31952368
+    }
+
+    /**
+     * Can provision Managed Profile when DO is set by default if they are the same admin.
+     */
+    public void testIsManagedProfileProvisioningAllowed_deviceOwnerIsSet() throws Exception {
+        if (!mHasFeature) {
+            return;
+        }
+        if (!hasDeviceFeature("android.software.managed_users")) {
+            return;
+        }
         executeDeviceTestMethod(".PreDeviceOwnerTest",
                 "testIsProvisioningAllowedTrueForManagedProfileAction");
     }
@@ -573,7 +584,9 @@ public class DeviceOwnerTest extends BaseDevicePolicyTest {
     }
 
     public void testBackupServiceEnabling() throws Exception {
-        if (!mHasFeature) {
+        final boolean hasBackupService = getDevice().hasFeature(FEATURE_BACKUP);
+        // The backup service cannot be enabled if the backup feature is not supported.
+        if (!mHasFeature || !hasBackupService) {
             return;
         }
         executeDeviceOwnerTest("BackupServiceEnabledTest");
