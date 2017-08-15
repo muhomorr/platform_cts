@@ -11,21 +11,17 @@
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
- * limitations under the License
+ * limitations under the License.
  */
-
-package com.android.cts.verifier.location;
-
-import com.android.cts.verifier.location.base.GnssCtsTestActivity;
-import android.location.cts.GnssTtffTests;
+package android.autofillservice.cts;
 
 /**
- * Activity to execute CTS GnssStatusTest.
- * It is a wrapper for {@link GnssTtffTests} running with AndroidJUnitRunner.
+ * A simple enum for test cases where the Save UI is dismissed.
  */
-
-public class GnssTtffTestsActivity extends GnssCtsTestActivity {
-  public GnssTtffTestsActivity() {
-    super(GnssTtffTests.class);
-  }
+enum DismissType {
+    BACK_BUTTON,
+    HOME_BUTTON,
+    RECENTS_BUTTON,
+    TOUCH_OUTSIDE,
+    FOCUS_OUTSIDE
 }
