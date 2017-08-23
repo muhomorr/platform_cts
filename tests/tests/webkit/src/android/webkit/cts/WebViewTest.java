@@ -88,6 +88,9 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 
+import java.net.MalformedURLException;
+import java.net.URL;
+
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 
@@ -2752,10 +2755,10 @@ public class WebViewTest extends ActivityInstrumentationTestCase2<WebViewCtsActi
         }
     }
 
-    public void testInitSafeBrowsingUseApplicationContext() throws Exception {
+    public void testStartSafeBrowsingUseApplicationContext() throws Exception {
         final MockContext ctx = new MockContext(getActivity());
         final CountDownLatch resultLatch = new CountDownLatch(1);
-        WebView.initSafeBrowsing(ctx, new ValueCallback<Boolean>() {
+        WebView.startSafeBrowsing(ctx, new ValueCallback<Boolean>() {
             @Override
             public void onReceiveValue(Boolean value) {
                 assertTrue(ctx.wasGetApplicationContextCalled());
@@ -2766,21 +2769,21 @@ public class WebViewTest extends ActivityInstrumentationTestCase2<WebViewCtsActi
         assertTrue(resultLatch.await(TEST_TIMEOUT, TimeUnit.MILLISECONDS));
     }
 
-    public void testInitSafeBrowsingWithNullCallbackDoesntCrash() throws Exception {
+    public void testStartSafeBrowsingWithNullCallbackDoesntCrash() throws Exception {
         if (!NullWebViewUtils.isWebViewAvailable()) {
             return;
         }
 
-        WebView.initSafeBrowsing(getActivity().getApplicationContext(), null);
+        WebView.startSafeBrowsing(getActivity().getApplicationContext(), null);
     }
 
-    public void testInitSafeBrowsingInvokesCallback() throws Exception {
+    public void testStartSafeBrowsingInvokesCallback() throws Exception {
         if (!NullWebViewUtils.isWebViewAvailable()) {
             return;
         }
 
         final CountDownLatch resultLatch = new CountDownLatch(1);
-        WebView.initSafeBrowsing(getActivity().getApplicationContext(),
+        WebView.startSafeBrowsing(getActivity().getApplicationContext(),
                 new ValueCallback<Boolean>() {
             @Override
             public void onReceiveValue(Boolean value) {
@@ -2790,14 +2793,6 @@ public class WebViewTest extends ActivityInstrumentationTestCase2<WebViewCtsActi
             }
         });
         assertTrue(resultLatch.await(TEST_TIMEOUT, TimeUnit.MILLISECONDS));
-    }
-
-    public void testShutdownSafeBrowsingDoesntCrash() throws Exception {
-        if (!NullWebViewUtils.isWebViewAvailable()) {
-            return;
-        }
-
-        WebView.shutdownSafeBrowsing();
     }
 
     private void savePrintedPage(final PrintDocumentAdapter adapter,
@@ -2994,6 +2989,19 @@ public class WebViewTest extends ActivityInstrumentationTestCase2<WebViewCtsActi
 
         public synchronized boolean onScaleChangedCalled() {
             return mOnScaleChangedCalled;
+        }
+    }
+
+    public void testGetSafeBrowsingPrivacyPolicyUrl() throws Exception {
+        if (!NullWebViewUtils.isWebViewAvailable()) {
+            return;
+        }
+
+        assertNotNull(WebView.getSafeBrowsingPrivacyPolicyUrl());
+        try {
+            new URL(WebView.getSafeBrowsingPrivacyPolicyUrl().toString());
+        } catch (MalformedURLException e) {
+            Assert.fail("The privacy policy URL should be a well-formed URL");
         }
     }
 }
