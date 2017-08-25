@@ -28,7 +28,6 @@ import com.android.tradefed.log.LogUtil;
 import com.android.tradefed.targetprep.BuildError;
 import com.android.tradefed.targetprep.ITargetCleaner;
 import com.android.tradefed.targetprep.TargetSetupError;
-import com.android.tradefed.util.FileUtil;
 import com.android.tradefed.util.StreamUtil;
 
 import org.json.JSONException;
@@ -67,8 +66,7 @@ public class DynamicConfigPusher implements ITargetCleaner {
             "from the server, e.g. \"1.0\". Defaults to suite version string.")
     private static String mVersion;
 
-
-    private String mFilePushed;
+    private String mDeviceFilePushed;
 
     void setModuleName(String moduleName) {
         mModuleName = moduleName;
@@ -114,43 +112,26 @@ public class DynamicConfigPusher implements ITargetCleaner {
                     "Dynamic config override URL is not set, using local configuration values");
         }
 
-        File src = null;
+        // Use DynamicConfigHandler to merge local and service configuration into one file
+        File hostFile = null;
         try {
-            src = DynamicConfigHandler.getMergedDynamicConfigFile(
+            hostFile = DynamicConfigHandler.getMergedDynamicConfigFile(
                     localConfigFile, apfeConfigInJson, mModuleName);
         } catch (IOException | XmlPullParserException | JSONException e) {
             throw new TargetSetupError("Cannot get merged dynamic config file", e);
         }
 
-        switch (mTarget) {
-            case DEVICE:
-                String deviceDest = DynamicConfig.CONFIG_FOLDER_ON_DEVICE + src.getName();
-                if (!device.pushFile(src, deviceDest)) {
-                    throw new TargetSetupError(String.format(
-                            "Failed to push local '%s' to remote '%s'",
-                            src.getAbsolutePath(), deviceDest));
-                } else {
-                    mFilePushed = deviceDest;
-                    buildHelper.addDynamicConfigFile(mModuleName, src);
-                }
-                break;
-
-            case HOST:
-                File storageDir = new File(DynamicConfig.CONFIG_FOLDER_ON_HOST);
-                if (!storageDir.exists()) {
-                    storageDir.mkdir();
-                }
-                File hostDest = new File(DynamicConfig.CONFIG_FOLDER_ON_HOST + src.getName());
-                try {
-                    FileUtil.copyFile(src, hostDest);
-                } catch (IOException e) {
-                    throw new TargetSetupError(String.format("Failed to copy file from %s to %s",
-                            src.getAbsolutePath(), hostDest.getAbsolutePath()), e);
-                }
-                mFilePushed = hostDest.getAbsolutePath();
-                buildHelper.addDynamicConfigFile(mModuleName, src);
-                break;
+        if (TestTarget.DEVICE.equals(mTarget)) {
+            String deviceDest = DynamicConfig.CONFIG_FOLDER_ON_DEVICE + hostFile.getName();
+            if (!device.pushFile(hostFile, deviceDest)) {
+                throw new TargetSetupError(String.format(
+                        "Failed to push local '%s' to remote '%s'", hostFile.getAbsolutePath(),
+                        deviceDest));
+            }
+            mDeviceFilePushed = deviceDest;
         }
+        // add host file to build
+        buildHelper.addDynamicConfigFile(mModuleName, hostFile);
     }
 
     /**
@@ -159,17 +140,10 @@ public class DynamicConfigPusher implements ITargetCleaner {
     @Override
     public void tearDown(ITestDevice device, IBuildInfo buildInfo, Throwable e)
             throws DeviceNotAvailableException {
-        switch (mTarget) {
-            case DEVICE:
-                if (!(e instanceof DeviceNotAvailableException)
-                        && mCleanup && mFilePushed != null) {
-                    device.executeShellCommand("rm -r " + mFilePushed);
-                }
-                break;
-            case HOST:
-                if (mFilePushed != null) {
-                    FileUtil.deleteFile(new File(mFilePushed));
-                }
+        // Remove any file we have pushed to the device, host file will be moved to the result
+        // directory by ResultReporter upon invocation completion.
+        if (mDeviceFilePushed != null && !(e instanceof DeviceNotAvailableException) && mCleanup) {
+            device.executeShellCommand("rm -r " + mDeviceFilePushed);
         }
     }
 }
