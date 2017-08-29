@@ -16,9 +16,6 @@
 
 package com.android.compatibility.common.util;
 
-import com.android.tradefed.util.FileUtil;
-import com.android.tradefed.util.StreamUtil;
-
 import junit.framework.TestCase;
 
 import java.io.File;
@@ -95,31 +92,26 @@ public class DynamicConfigHandlerTest extends TestCase {
     public void testDynamicConfigHandler() throws Exception {
         String module = "test1";
         File localConfigFile = createFileFromStr(localConfig, module);
-        File mergedFile = null;
-        try {
-            mergedFile = DynamicConfigHandler
-                    .getMergedDynamicConfigFile(localConfigFile, overrideJson, module);
 
-            Map<String, List<String>> configMap = DynamicConfig.createConfigMap(mergedFile);
+        File mergedFile = DynamicConfigHandler
+                .getMergedDynamicConfigFile(localConfigFile, overrideJson, module);
 
-            assertEquals("override-config-val-1", configMap.get("override-config-1").get(0));
-            assertTrue(configMap.get("override-config-list-1")
-                    .contains("override-config-list-val-1-1"));
-            assertTrue(configMap.get("override-config-list-1")
-                    .contains("override-config-list-val-1-2"));
-            assertTrue(configMap.get("override-config-list-3").size() == 0);
+        Map<String, List<String>> configMap = DynamicConfig.createConfigMap(mergedFile);
 
-            assertEquals("test config 1", configMap.get("test-config-1").get(0));
-            assertTrue(configMap.get("config-list").contains("config2"));
+        assertEquals("override-config-val-1", configMap.get("override-config-1").get(0));
+        assertTrue(configMap.get("override-config-list-1")
+                .contains("override-config-list-val-1-1"));
+        assertTrue(configMap.get("override-config-list-1")
+                .contains("override-config-list-val-1-2"));
+        assertTrue(configMap.get("override-config-list-3").size() == 0);
 
-            assertEquals("override-config-val-2", configMap.get("override-config-2").get(0));
-            assertEquals(1, configMap.get("override-config-list-2").size());
-            assertTrue(configMap.get("override-config-list-2")
-                    .contains("override-config-list-val-2-1"));
-        } finally {
-            FileUtil.deleteFile(localConfigFile);
-            FileUtil.recursiveDelete(mergedFile);
-        }
+        assertEquals("test config 1", configMap.get("test-config-1").get(0));
+        assertTrue(configMap.get("config-list").contains("config2"));
+
+        assertEquals("override-config-val-2", configMap.get("override-config-2").get(0));
+        assertEquals(1, configMap.get("override-config-list-2").size());
+        assertTrue(configMap.get("override-config-list-2")
+                .contains("override-config-list-val-2-1"));
     }
 
 
@@ -131,7 +123,9 @@ public class DynamicConfigHandlerTest extends TestCase {
             stream.write(configStr.getBytes());
             stream.flush();
         } finally {
-            StreamUtil.close(stream);
+            if (stream != null) {
+                stream.close();
+            }
         }
         return file;
     }
