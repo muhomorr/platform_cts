@@ -30,7 +30,6 @@ import static android.autofillservice.cts.Helper.assertTextAndValue;
 import static android.autofillservice.cts.Helper.assertTextIsSanitized;
 import static android.autofillservice.cts.Helper.assertValue;
 import static android.autofillservice.cts.Helper.dumpStructure;
-import static android.autofillservice.cts.Helper.eventually;
 import static android.autofillservice.cts.Helper.findNodeByResourceId;
 import static android.autofillservice.cts.Helper.runShellCommand;
 import static android.autofillservice.cts.Helper.setUserComplete;
@@ -1845,6 +1844,75 @@ public class LoginActivityTest extends AutoFillServiceTestCase {
     }
 
     @Test
+    public void testFillResponseFiltering() throws Exception {
+        // Set service.
+        enableService();
+        final MyAutofillCallback callback = mActivity.registerCallback();
+
+        // Prepare the authenticated response
+        final Bundle clientState = new Bundle();
+        clientState.putString("numbers", "4815162342");
+        final IntentSender authentication = AuthenticationActivity.createSender(mContext, 1,
+                new CannedFillResponse.Builder().addDataset(
+                        new CannedDataset.Builder()
+                                .setField(ID_USERNAME, "dude")
+                                .setField(ID_PASSWORD, "sweet")
+                                .setId("name")
+                                .setPresentation(createPresentation("Dataset"))
+                                .build())
+                        .setExtras(clientState).build());
+
+        // Configure the service behavior
+        sReplier.addResponse(new CannedFillResponse.Builder()
+                .setAuthentication(authentication, ID_USERNAME, ID_PASSWORD)
+                .setPresentation(createPresentation("Tap to auth response"))
+                .setExtras(clientState)
+                .build());
+
+        // Set expectation for the activity
+        mActivity.expectAutoFill("dude", "sweet");
+
+        // Trigger auto-fill.
+        mActivity.onUsername(View::requestFocus);
+
+        // Wait for onFill() before proceeding.
+        sReplier.getNextFillRequest();
+        final View username = mActivity.getUsername();
+
+        // Make sure it's showing initially...
+        callback.assertUiShownEvent(username);
+        sUiBot.assertDatasets("Tap to auth response");
+
+        // ..then type something to hide it.
+        runShellCommand("input keyevent KEYCODE_A");
+        callback.assertUiHiddenEvent(username);
+        sUiBot.assertNoDatasets();
+
+        // Now delete the char and assert it's shown again...
+        runShellCommand("input keyevent KEYCODE_DEL");
+        callback.assertUiShownEvent(username);
+        sUiBot.assertDatasets("Tap to auth response");
+
+        // ...and select it this time
+        AuthenticationActivity.setResultCode(RESULT_OK);
+        sUiBot.selectDataset("Tap to auth response");
+        callback.assertUiHiddenEvent(username);
+        callback.assertUiShownEvent(username);
+        final UiObject2 picker = sUiBot.assertDatasets("Dataset");
+        sUiBot.selectDataset(picker, "Dataset");
+        callback.assertUiHiddenEvent(username);
+        sUiBot.assertNoDatasets();
+
+        // Check the results.
+        mActivity.assertAutoFilled();
+
+        final Bundle data = AuthenticationActivity.getData();
+        assertThat(data).isNotNull();
+        final String extraValue = data.getString("numbers");
+        assertThat(extraValue).isEqualTo("4815162342");
+    }
+
+    @Test
     public void testDatasetAuthTwoFields() throws Exception {
         datasetAuthTwoFields(false);
     }
@@ -2156,6 +2224,157 @@ public class LoginActivityTest extends AutoFillServiceTestCase {
         callback.assertUiShownEvent(username);
         sUiBot.assertDatasets("Tap to auth dataset", "What, me auth?");
 
+        final String chosenOne = selectAuth ? "Tap to auth dataset" : "What, me auth?";
+        sUiBot.selectDataset(chosenOne);
+        callback.assertUiHiddenEvent(username);
+        sUiBot.assertNoDatasets();
+
+        // Check the results.
+        mActivity.assertAutoFilled();
+    }
+
+    @Test
+    public void testDatasetAuthFiltering() throws Exception {
+        // TODO: current API requires these fields...
+        final RemoteViews bogusPresentation = createPresentation("Whatever man, I'm not used...");
+        final String bogusValue = "Y U REQUIRE IT?";
+
+        // Set service.
+        enableService();
+        final MyAutofillCallback callback = mActivity.registerCallback();
+
+        // Create the authentication intents
+        final CannedDataset unlockedDataset = new CannedDataset.Builder()
+                .setField(ID_USERNAME, "dude")
+                .setField(ID_PASSWORD, "sweet")
+                .setPresentation(bogusPresentation)
+                .build();
+        final IntentSender authentication = AuthenticationActivity.createSender(mContext, 1,
+                unlockedDataset);
+
+        // Configure the service behavior
+        sReplier.addResponse(new CannedFillResponse.Builder()
+                .addDataset(new CannedDataset.Builder()
+                        .setField(ID_USERNAME, bogusValue)
+                        .setField(ID_PASSWORD, bogusValue)
+                        .setPresentation(createPresentation("Tap to auth dataset"))
+                        .setAuthentication(authentication)
+                        .build())
+                .build());
+
+        // Set expectation for the activity
+        mActivity.expectAutoFill("dude", "sweet");
+
+        // Trigger auto-fill.
+        mActivity.onUsername(View::requestFocus);
+
+        // Wait for onFill() before proceeding.
+        sReplier.getNextFillRequest();
+        final View username = mActivity.getUsername();
+
+        // Make sure it's showing initially...
+        callback.assertUiShownEvent(username);
+        sUiBot.assertDatasets("Tap to auth dataset");
+
+        // ..then type something to hide it.
+        runShellCommand("input keyevent KEYCODE_A");
+        callback.assertUiHiddenEvent(username);
+        sUiBot.assertNoDatasets();
+
+        // Now delete the char and assert it's shown again...
+        runShellCommand("input keyevent KEYCODE_DEL");
+        callback.assertUiShownEvent(username);
+        sUiBot.assertDatasets("Tap to auth dataset");
+
+        // ...and select it this time
+        sUiBot.selectDataset("Tap to auth dataset");
+        callback.assertUiHiddenEvent(username);
+        sUiBot.assertNoDatasets();
+
+        // Check the results.
+        mActivity.assertAutoFilled();
+    }
+
+    @Test
+    public void testDatasetAuthMixedFilteringSelectAuth() throws Exception {
+        datasetAuthMixedFilteringTest(true);
+    }
+
+    @Test
+    public void testDatasetAuthMixedFilteringSelectNonAuth() throws Exception {
+        datasetAuthMixedFilteringTest(false);
+    }
+
+    private void datasetAuthMixedFilteringTest(boolean selectAuth) throws Exception {
+        // TODO: current API requires these fields...
+        final RemoteViews bogusPresentation = createPresentation("Whatever man, I'm not used...");
+        final String bogusValue = "Y U REQUIRE IT?";
+
+        // Set service.
+        enableService();
+        final MyAutofillCallback callback = mActivity.registerCallback();
+
+        // Create the authentication intents
+        final CannedDataset unlockedDataset = new CannedDataset.Builder()
+                .setField(ID_USERNAME, "DUDE")
+                .setField(ID_PASSWORD, "SWEET")
+                .setPresentation(bogusPresentation)
+                .build();
+        final IntentSender authentication = AuthenticationActivity.createSender(mContext, 1,
+                unlockedDataset);
+
+        // Configure the service behavior
+        sReplier.addResponse(new CannedFillResponse.Builder()
+                .addDataset(new CannedDataset.Builder()
+                        .setField(ID_USERNAME, bogusValue)
+                        .setField(ID_PASSWORD, bogusValue)
+                        .setPresentation(createPresentation("Tap to auth dataset"))
+                        .setAuthentication(authentication)
+                        .build())
+                .addDataset(new CannedDataset.Builder()
+                        .setField(ID_USERNAME, "dude")
+                        .setField(ID_PASSWORD, "sweet")
+                        .setPresentation(createPresentation("What, me auth?"))
+                        .build())
+                .build());
+
+        // Set expectation for the activity
+        if (selectAuth) {
+            mActivity.expectAutoFill("DUDE", "SWEET");
+        } else {
+            mActivity.expectAutoFill("dude", "sweet");
+        }
+
+        // Trigger auto-fill.
+        mActivity.onUsername(View::requestFocus);
+
+        // Wait for onFill() before proceeding.
+        sReplier.getNextFillRequest();
+        final View username = mActivity.getUsername();
+
+        // Make sure it's showing initially...
+        callback.assertUiShownEvent(username);
+        sUiBot.assertDatasets("Tap to auth dataset", "What, me auth?");
+
+        // Filter the auth dataset.
+        runShellCommand("input keyevent KEYCODE_D");
+        sUiBot.assertDatasets("What, me auth?");
+
+        // Filter all.
+        runShellCommand("input keyevent KEYCODE_W");
+        callback.assertUiHiddenEvent(username);
+        sUiBot.assertNoDatasets();
+
+        // Now delete the char and assert the non-auth is shown again.
+        runShellCommand("input keyevent KEYCODE_DEL");
+        callback.assertUiShownEvent(username);
+        sUiBot.assertDatasets("What, me auth?");
+
+        // Delete again and assert all dataset are shown.
+        runShellCommand("input keyevent KEYCODE_DEL");
+        sUiBot.assertDatasets("Tap to auth dataset", "What, me auth?");
+
+        // ...and select it this time
         final String chosenOne = selectAuth ? "Tap to auth dataset" : "What, me auth?";
         sUiBot.selectDataset(chosenOne);
         callback.assertUiHiddenEvent(username);
@@ -2738,6 +2957,7 @@ public class LoginActivityTest extends AutoFillServiceTestCase {
                         .setAuthentication(authentication)
                         .build())
                 .setExtras(clientState).build());
+        mActivity.expectAutoFill("dude", "sweet");
 
         // Trigger autofill.
         mActivity.onUsername(View::requestFocus);
@@ -2745,19 +2965,18 @@ public class LoginActivityTest extends AutoFillServiceTestCase {
         // Authenticate
         sUiBot.selectDataset("authentication");
         sReplier.getNextFillRequest();
+        mActivity.assertAutoFilled();
 
-        eventually(() -> {
-            // Verify fill selection
-            FillEventHistory selection = InstrumentedAutoFillService.peekInstance()
-                    .getFillEventHistory();
-            assertThat(selection.getClientState().getCharSequence("clientStateKey")).isEqualTo(
-                    "clientStateValue");
+        // Verify fill selection
+        FillEventHistory selection = InstrumentedAutoFillService.peekInstance()
+                .getFillEventHistory();
+        assertThat(selection.getClientState().getCharSequence("clientStateKey")).isEqualTo(
+                "clientStateValue");
 
-            assertThat(selection.getEvents().size()).isEqualTo(1);
-            FillEventHistory.Event event = selection.getEvents().get(0);
-            assertThat(event.getType()).isEqualTo(TYPE_DATASET_AUTHENTICATION_SELECTED);
-            assertThat(event.getDatasetId()).isEqualTo("name");
-        });
+        assertThat(selection.getEvents().size()).isEqualTo(1);
+        FillEventHistory.Event event = selection.getEvents().get(0);
+        assertThat(event.getType()).isEqualTo(TYPE_DATASET_AUTHENTICATION_SELECTED);
+        assertThat(event.getDatasetId()).isEqualTo("name");
     }
 
     @Test
@@ -2789,19 +3008,18 @@ public class LoginActivityTest extends AutoFillServiceTestCase {
         // Authenticate
         sUiBot.selectDataset("authentication");
         sReplier.getNextFillRequest();
+        sUiBot.assertDatasets("dataset");
 
-        eventually(() -> {
-            // Verify fill selection
-            FillEventHistory selection = InstrumentedAutoFillService.peekInstance()
-                    .getFillEventHistory();
-            assertThat(selection.getClientState().getCharSequence("clientStateKey")).isEqualTo(
-                    "clientStateValue");
+        // Verify fill selection
+        FillEventHistory selection = InstrumentedAutoFillService.peekInstance()
+                .getFillEventHistory();
+        assertThat(selection.getClientState().getCharSequence("clientStateKey")).isEqualTo(
+                "clientStateValue");
 
-            assertThat(selection.getEvents().size()).isEqualTo(1);
-            FillEventHistory.Event event = selection.getEvents().get(0);
-            assertThat(event.getType()).isEqualTo(TYPE_AUTHENTICATION_SELECTED);
-            assertThat(event.getDatasetId()).isNull();
-        });
+        assertThat(selection.getEvents().size()).isEqualTo(1);
+        FillEventHistory.Event event = selection.getEvents().get(0);
+        assertThat(event.getType()).isEqualTo(TYPE_AUTHENTICATION_SELECTED);
+        assertThat(event.getDatasetId()).isNull();
     }
 
     @Test
@@ -2815,13 +3033,16 @@ public class LoginActivityTest extends AutoFillServiceTestCase {
                         .setPresentation(createPresentation("dataset1"))
                         .build())
                 .build());
+        mActivity.expectAutoFill("username");
 
         // Trigger autofill on username
         mActivity.onUsername(View::requestFocus);
+        waitUntilConnected();
         sUiBot.selectDataset("dataset1");
         sReplier.getNextFillRequest();
+        mActivity.assertAutoFilled();
 
-        eventually(() -> {
+        {
             // Verify fill selection
             FillEventHistory selection = InstrumentedAutoFillService.peekInstance()
                     .getFillEventHistory();
@@ -2831,7 +3052,7 @@ public class LoginActivityTest extends AutoFillServiceTestCase {
             FillEventHistory.Event event = selection.getEvents().get(0);
             assertThat(event.getType()).isEqualTo(TYPE_DATASET_SELECTED);
             assertThat(event.getDatasetId()).isNull();
-        });
+        }
 
         // Set up second partition with a named dataset
         Bundle clientState = new Bundle();
@@ -2852,13 +3073,15 @@ public class LoginActivityTest extends AutoFillServiceTestCase {
                                 .build())
                 .setExtras(clientState)
                 .setRequiredSavableIds(SAVE_DATA_TYPE_GENERIC, ID_PASSWORD).build());
+        mActivity.expectPasswordAutoFill("password3");
 
         // Trigger autofill on password
         mActivity.onPassword(View::requestFocus);
         sUiBot.selectDataset("dataset3");
         sReplier.getNextFillRequest();
+        mActivity.assertAutoFilled();
 
-        eventually(() -> {
+        {
             // Verify fill selection
             FillEventHistory selection = InstrumentedAutoFillService.peekInstance()
                     .getFillEventHistory();
@@ -2869,12 +3092,13 @@ public class LoginActivityTest extends AutoFillServiceTestCase {
             FillEventHistory.Event event = selection.getEvents().get(0);
             assertThat(event.getType()).isEqualTo(TYPE_DATASET_SELECTED);
             assertThat(event.getDatasetId()).isEqualTo("name3");
-        });
+        }
 
         mActivity.onPassword((v) -> v.setText("new password"));
         mActivity.syncRunOnUiThread(() -> mActivity.finish());
+        waitUntilDisconnected();
 
-        eventually(() -> {
+        {
             // Verify fill selection
             FillEventHistory selection = InstrumentedAutoFillService.peekInstance()
                     .getFillEventHistory();
@@ -2889,7 +3113,7 @@ public class LoginActivityTest extends AutoFillServiceTestCase {
             FillEventHistory.Event event2 = selection.getEvents().get(1);
             assertThat(event2.getType()).isEqualTo(TYPE_SAVE_SHOWN);
             assertThat(event2.getDatasetId()).isNull();
-        });
+        }
     }
 
     @Test
@@ -2903,11 +3127,15 @@ public class LoginActivityTest extends AutoFillServiceTestCase {
                         .setPresentation(createPresentation("dataset1"))
                         .build())
                 .build());
+        mActivity.expectAutoFill("username");
+
         mActivity.onUsername(View::requestFocus);
+        waitUntilConnected();
         sReplier.getNextFillRequest();
         sUiBot.selectDataset("dataset1");
+        mActivity.assertAutoFilled();
 
-        eventually(() -> {
+        {
             // Verify fill selection
             FillEventHistory selection = InstrumentedAutoFillService.peekInstance()
                     .getFillEventHistory();
@@ -2917,20 +3145,21 @@ public class LoginActivityTest extends AutoFillServiceTestCase {
             FillEventHistory.Event event = selection.getEvents().get(0);
             assertThat(event.getType()).isEqualTo(TYPE_DATASET_SELECTED);
             assertThat(event.getDatasetId()).isNull();
-        });
+        }
 
         // Second request
         sReplier.addResponse(NO_RESPONSE);
         mActivity.onPassword(View::requestFocus);
         sReplier.getNextFillRequest();
         sUiBot.assertNoDatasets();
+        waitUntilDisconnected();
 
-        eventually(() -> {
+        {
             // Verify fill selection
             FillEventHistory selection = InstrumentedAutoFillService.peekInstance()
                     .getFillEventHistory();
             assertThat(selection).isNull();
-        });
+        }
     }
 
     @Test
@@ -2944,12 +3173,15 @@ public class LoginActivityTest extends AutoFillServiceTestCase {
                         .setPresentation(createPresentation("dataset1"))
                         .build())
                 .build());
+        mActivity.expectAutoFill("username");
+
         mActivity.onUsername(View::requestFocus);
         waitUntilConnected();
         sReplier.getNextFillRequest();
         sUiBot.selectDataset("dataset1");
+        mActivity.assertAutoFilled();
 
-        eventually(() -> {
+        {
             // Verify fill selection
             FillEventHistory selection = InstrumentedAutoFillService.peekInstance()
                     .getFillEventHistory();
@@ -2959,20 +3191,21 @@ public class LoginActivityTest extends AutoFillServiceTestCase {
             FillEventHistory.Event event = selection.getEvents().get(0);
             assertThat(event.getType()).isEqualTo(TYPE_DATASET_SELECTED);
             assertThat(event.getDatasetId()).isNull();
-        });
+        }
 
         // Second request
         sReplier.addResponse(new CannedFillResponse.Builder().returnFailure("D'OH!").build());
         mActivity.onPassword(View::requestFocus);
         sReplier.getNextFillRequest();
         sUiBot.assertNoDatasets();
+        waitUntilDisconnected();
 
-        eventually(() -> {
+        {
             // Verify fill selection
             FillEventHistory selection = InstrumentedAutoFillService.peekInstance()
                     .getFillEventHistory();
             assertThat(selection).isNull();
-        });
+        }
     }
 
     @Test
@@ -2986,12 +3219,15 @@ public class LoginActivityTest extends AutoFillServiceTestCase {
                         .setPresentation(createPresentation("dataset1"))
                         .build())
                 .build());
+        mActivity.expectAutoFill("username");
+
         mActivity.onUsername(View::requestFocus);
         waitUntilConnected();
         sReplier.getNextFillRequest();
         sUiBot.selectDataset("dataset1");
+        mActivity.assertAutoFilled();
 
-        eventually(() -> {
+        {
             // Verify fill selection
             FillEventHistory selection = InstrumentedAutoFillService.peekInstance()
                     .getFillEventHistory();
@@ -3001,7 +3237,7 @@ public class LoginActivityTest extends AutoFillServiceTestCase {
             FillEventHistory.Event event = selection.getEvents().get(0);
             assertThat(event.getType()).isEqualTo(TYPE_DATASET_SELECTED);
             assertThat(event.getDatasetId()).isNull();
-        });
+        }
 
         // Second request
         sReplier.addResponse(DO_NOT_REPLY_RESPONSE);
@@ -3009,12 +3245,12 @@ public class LoginActivityTest extends AutoFillServiceTestCase {
         sReplier.getNextFillRequest();
         waitUntilDisconnected();
 
-        eventually(() -> {
+        {
             // Verify fill selection
             FillEventHistory selection = InstrumentedAutoFillService.peekInstance()
                     .getFillEventHistory();
             assertThat(selection).isNull();
-        });
+        }
     }
 
     private Bundle getBundle(String key, String value) {
