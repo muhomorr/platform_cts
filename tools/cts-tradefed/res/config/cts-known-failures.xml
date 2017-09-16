@@ -165,6 +165,13 @@
     <!-- b/31803630 -->
     <option name="compatibility:exclude-filter" value="CtsSecurityTestCases android.security.cts.ListeningPortsTest" />
 
+    <!-- b/63115400 -->
+    <option name="compatibility:exclude-filter" value="CtsSecurityTestCases android.security.cts.SELinuxHostTest#testAospFileContexts" />
+    <!-- b/64221494 -->
+    <option name="compatibility:exclude-filter" value="CtsSecurityTestCases android.security.cts.SELinuxHostTest#testAospPropertyContexts" />
+    <!-- b/63378294 b/64382381 -->
+    <option name="compatibility:exclude-filter" value="CtsSecurityTestCases android.security.cts.SELinuxNeverallowRulesTest#testNeverallowRules440" />
+
     <!-- b/36686383 -->
     <option name="compatibility:exclude-filter" value="CtsIncidentHostTestCases com.android.server.cts.ErrorsTest#testANR" />
 
@@ -221,5 +228,40 @@
     <option name="compatibility:exclude-filter" value="CtsWidgetTestCases android.widget.cts.TextViewTest#testGetOffsetForPositionSingleLineLtr" />
     <option name="compatibility:exclude-filter" value="CtsWidgetTestCases android.widget.cts.TextViewTest#testGetOffsetForPositionMultiLineLtr" />
     <option name="compatibility:exclude-filter" value="CtsWidgetTestCases android.widget.cts.TextViewTest#testGetOffsetForPositionMultiLineRtl" />
+
+    <!-- b/62976713 -->
+    <option name="compatibility:exclude-filter" value="arm64-v8a CtsMediaBitstreamsTestCases" />
+    <option name="compatibility:exclude-filter" value="x86_64 CtsMediaBitstreamsTestCases" />
+    <option name="compatibility:exclude-filter" value="mips64 CtsMediaBitstreamsTestCases" />
+
+    <!-- b/38280830 -->
+    <option name="compatibility:exclude-filter" value="CtsMediaTestCases android.media.cts.VideoDecoderPerfTest#testVp8Goog0Perf1280x0720" />
+
+    <!-- b/63566721 -->
+    <option name="compatibility:exclude-filter" value="CtsWrapWrapDebugTestCases android.wrap.cts.WrapTest" />
+
+    <!-- b/38420898 -->
+    <option name="compatibility:exclude-filter" value="CtsSensorTestCases android.hardware.cts.SensorDirectReportTest#testRateIndependencyAccelMultiChannel" />
+    <option name="compatibility:exclude-filter" value="CtsSensorTestCases android.hardware.cts.SensorDirectReportTest#testRateIndependencyGyroMultiChannel" />
+    <option name="compatibility:exclude-filter" value="CtsSensorTestCases android.hardware.cts.SensorDirectReportTest#testRateIndependencyMagMultiChannel" />
+    <option name="compatibility:exclude-filter" value="CtsSensorTestCases android.hardware.cts.SensorDirectReportTest#testRateIndependencyAccelMultiMode" />
+    <option name="compatibility:exclude-filter" value="CtsSensorTestCases android.hardware.cts.SensorDirectReportTest#testRateIndependencyGyroMultiMode" />
+    <option name="compatibility:exclude-filter" value="CtsSensorTestCases android.hardware.cts.SensorDirectReportTest#testRateIndependencyMagMultiMode" />
+    <option name="compatibility:exclude-filter" value="CtsSensorTestCases android.hardware.cts.SensorDirectReportTest#testRegisterMultipleChannelsUsingSameMemory" />
+    <option name="compatibility:exclude-filter" value="CtsSensorTestCases android.hardware.cts.SensorDirectReportTest#testCloseWithoutConfigStop" />
+    <option name="compatibility:exclude-filter" value="CtsSensorTestCases android.hardware.cts.SensorDirectReportTest#testRateIndependencyAccelGyroSingleChannel" />
+    <option name="compatibility:exclude-filter" value="CtsSensorTestCases android.hardware.cts.SensorDirectReportTest#testRateIndependencyAccelMagSingleChannel" />
+    <option name="compatibility:exclude-filter" value="CtsSensorTestCases android.hardware.cts.SensorDirectReportTest#testRateIndependencyGyroMagSingleChannel" />
+    <option name="compatibility:exclude-filter" value="CtsSensorTestCases android.hardware.cts.SensorDirectReportTest#testRateIndependencyAccelUncalAccelSingleChannel" />
+    <option name="compatibility:exclude-filter" value="CtsSensorTestCases android.hardware.cts.SensorDirectReportTest#testRateIndependencyGyroUncalGyroSingleChannel" />
+    <option name="compatibility:exclude-filter" value="CtsSensorTestCases android.hardware.cts.SensorDirectReportTest#testRateIndependencyMagUncalMagSingleChannel" />
+    <option name="compatibility:exclude-filter" value="CtsSensorTestCases android.hardware.cts.SensorDirectReportTest#testTimestampAccel" />
+    <option name="compatibility:exclude-filter" value="CtsSensorTestCases android.hardware.cts.SensorDirectReportTest#testTimestampGyro" />
+    <option name="compatibility:exclude-filter" value="CtsSensorTestCases android.hardware.cts.SensorDirectReportTest#testTimestampMag" />
+    <option name="compatibility:exclude-filter" value="CtsSensorTestCases android.hardware.cts.SensorDirectReportTest#testAtomicCounterAccel" />
+    <option name="compatibility:exclude-filter" value="CtsSensorTestCases android.hardware.cts.SensorDirectReportTest#testAtomicCounterGyro" />
+    <option name="compatibility:exclude-filter" value="CtsSensorTestCases android.hardware.cts.SensorDirectReportTest#testAtomicCounterMag" />
+    <option name="compatibility:exclude-filter" value="CtsSensorTestCases android.hardware.cts.SensorDirectReportTest#testRegisterMultipleChannels" />
+    <option name="compatibility:exclude-filter" value="CtsSensorTestCases android.hardware.cts.SensorDirectReportTest#testReconfigure" />
 
 </configuration>

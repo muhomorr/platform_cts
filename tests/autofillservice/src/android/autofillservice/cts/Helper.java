@@ -17,6 +17,8 @@
 package android.autofillservice.cts;
 
 import static android.autofillservice.cts.Helper.runShellCommand;
+import static android.autofillservice.cts.InstrumentedAutoFillService.SERVICE_NAME;
+import static android.autofillservice.cts.UiBot.PORTRAIT;
 import static android.provider.Settings.Secure.AUTOFILL_SERVICE;
 
 import static com.google.common.truth.Truth.assertThat;
@@ -63,12 +65,6 @@ final class Helper {
     static final String ID_LOGIN = "login";
     static final String ID_OUTPUT = "output";
 
-    /** Pass to {@link #setOrientation(int)} to change the display to portrait mode */
-    public static int PORTRAIT = 0;
-
-    /** Pass to {@link #setOrientation(int)} to change the display to landscape mode */
-    public static int LANDSCAPE = 1;
-
     /**
      * Timeout (in milliseconds) until framework binds / unbinds from service.
      */
@@ -100,6 +96,11 @@ final class Helper {
     static final int UI_TIMEOUT_MS = 2000;
 
     /**
+     * Timeout (in milliseconds) for changing the screen orientation.
+     */
+    static final int UI_SCREEN_ORIENTATION_TIMEOUT_MS = 5000;
+
+    /**
      * Time to wait in between retries
      */
     static final int RETRY_MS = 100;
@@ -107,10 +108,6 @@ final class Helper {
     private final static String ACCELLEROMETER_CHANGE =
             "content insert --uri content://settings/system --bind name:s:accelerometer_rotation "
                     + "--bind value:i:%d";
-    private final static String ORIENTATION_CHANGE =
-            "content insert --uri content://settings/system --bind name:s:user_rotation --bind "
-                    + "value:i:%d";
-
     /**
      * Runs a {@code r}, ignoring all {@link RuntimeException} and {@link Error} until the
      * {@link #UI_TIMEOUT_MS} is reached.
@@ -613,9 +610,9 @@ final class Helper {
     /**
      * Prevents the screen to rotate by itself
      */
-    public static void disableAutoRotation() {
+    public static void disableAutoRotation(UiBot uiBot) {
         runShellCommand(ACCELLEROMETER_CHANGE, 0);
-        setOrientation(PORTRAIT);
+        uiBot.setScreenOrientation(PORTRAIT);
     }
 
     /**
@@ -626,24 +623,14 @@ final class Helper {
     }
 
     /**
-     * Changes the screen orientation. This triggers a activity lifecycle (destroy -> create) for
-     * activities that do not handle this config change such as {@link OutOfProcessLoginActivity}.
-     *
-     * @param value {@link #PORTRAIT} or {@link #LANDSCAPE};
-     */
-    public static void setOrientation(int value) {
-        runShellCommand(ORIENTATION_CHANGE, value);
-    }
-
-    /**
      * Wait until a process starts and returns the process ID of the process.
      *
      * @return The pid of the process
      */
-    public static int getOutOfProcessPid(@NonNull String processName) throws InterruptedException {
+    public static int getOutOfProcessPid(@NonNull String processName) {
         long startTime = System.currentTimeMillis();
 
-        while (System.currentTimeMillis() - startTime < UI_TIMEOUT_MS) {
+        while (System.currentTimeMillis() - startTime <= UI_TIMEOUT_MS) {
             String[] allProcessDescs = runShellCommand("ps -eo PID,ARGS=CMD").split("\n");
 
             for (String processDesc : allProcessDescs) {
@@ -654,7 +641,11 @@ final class Helper {
                 }
             }
 
-            Thread.sleep(RETRY_MS);
+            try {
+                Thread.sleep(RETRY_MS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
         }
 
         throw new IllegalStateException("process not found");
@@ -694,6 +685,92 @@ final class Helper {
      */
     public static void setLoggingLevel(String level) {
         runShellCommand("cmd autofill set log_level %s", level);
+    }
+
+    /**
+     * Uses Settings to enable the given autofill service for the default user, and checks the
+     * value was properly check, throwing an exception if it was not.
+     */
+    public static void enableAutofillService(Context context, String serviceName) {
+        if (isAutofillServiceEnabled(serviceName)) return;
+
+        final OneTimeSettingsListener observer = new OneTimeSettingsListener(context,
+                AUTOFILL_SERVICE);
+        runShellCommand("settings put secure %s %s default", AUTOFILL_SERVICE, serviceName);
+        observer.assertCalled();
+        assertAutofillServiceStatus(serviceName, true);
+    }
+
+    /**
+     * Uses Settings to disable the given autofill service for the default user, and checks the
+     * value was properly check, throwing an exception if it was not.
+     */
+    public static void disableAutofillService(Context context, String serviceName) {
+        if (!isAutofillServiceEnabled(serviceName)) return;
+
+        final OneTimeSettingsListener observer = new OneTimeSettingsListener(context,
+                AUTOFILL_SERVICE);
+        runShellCommand("settings delete secure %s", AUTOFILL_SERVICE);
+        observer.assertCalled();
+        assertAutofillServiceStatus(serviceName, false);
+    }
+
+    /**
+     * Checks whether the given service is set as the autofill service for the default user.
+     */
+    public static boolean isAutofillServiceEnabled(String serviceName) {
+        final String actualName = runShellCommand("settings get secure %s", AUTOFILL_SERVICE);
+        return serviceName.equals(actualName);
+    }
+
+    /**
+     * Asserts whether the given service is enabled as the autofill service for the default user.
+     */
+    public static void assertAutofillServiceStatus(String serviceName, boolean enabled) {
+        final String actual = runShellCommand("settings get secure %s", AUTOFILL_SERVICE);
+        final String expected = enabled ? serviceName : "null";
+        assertWithMessage("Invalid value for secure setting %s", AUTOFILL_SERVICE)
+                .that(actual).isEqualTo(expected);
+    }
+
+    /**
+     * Asserts that there is no session left in the service.
+     */
+    public static void assertNoDanglingSessions() {
+        final String command = "cmd autofill list sessions";
+        final String result = runShellCommand(command);
+        assertWithMessage("Dangling sessions ('%s'): %s'", command, result).that(result).isEmpty();
+    }
+
+    /**
+     * Destroys all sessions.
+     */
+    public static void destroyAllSessions() {
+        runShellCommand("cmd autofill destroy sessions");
+        assertNoDanglingSessions();
+    }
+
+    /**
+     * Gets the instrumentation context.
+     */
+    public static Context getContext() {
+        return InstrumentationRegistry.getInstrumentation().getContext();
+    }
+
+    /**
+     * Cleans up the autofill state; should be called before pretty much any test.
+     */
+    public static void preTestCleanup() {
+        if (!hasAutofillFeature()) return;
+
+        Log.d(TAG, "preTestCleanup()");
+
+        disableAutofillService(getContext(), SERVICE_NAME);
+        InstrumentedAutoFillService.setIgnoreUnexpectedRequests(true);
+
+        destroyAllSessions();
+        InstrumentedAutoFillService.resetStaticState();
+        AuthenticationActivity.resetStaticState();
     }
 
     private Helper() {

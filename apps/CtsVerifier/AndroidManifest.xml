@@ -18,7 +18,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
       package="com.android.cts.verifier"
       android:versionCode="5"
-      android:versionName="8.0_r1">
+      android:versionName="8.0_r2">
 
     <uses-sdk android:minSdkVersion="19" android:targetSdkVersion="26"/>
 
@@ -2409,7 +2409,8 @@
             </intent-filter>
         </service>
 
-        <activity android:name=".managedprovisioning.AuthenticationBoundKeyTestActivity">
+        <activity android:name=".managedprovisioning.AuthenticationBoundKeyTestActivity"
+                android:configChanges="keyboardHidden|orientation|screenSize">
             <intent-filter>
                 <action android:name="com.android.cts.verifier.managedprovisioning.action.AUTH_BOUND_KEY_TEST" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -2494,15 +2495,6 @@
             <meta-data
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/filepaths" />
-        </provider>
-
-        <provider
-            android:name="com.android.cts.verifier.admin.DeviceAdminUninstallTestActivity$DeviceAdminApkFileProvider"
-            android:authorities="com.android.cts.verifier.admin.fileprovider"
-            android:grantUriPermissions="true">
-            <meta-data
-                android:name="android.support.FILE_PROVIDER_PATHS"
-                android:resource="@xml/filepaths_admin" />
         </provider>
 
         <activity android:name=".managedprovisioning.ByodIconSamplerActivity">

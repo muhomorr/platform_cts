@@ -537,6 +537,10 @@ public abstract class DeviceAndProfileOwnerTest extends BaseDevicePolicyTest {
         if (!mHasFeature) {
             return;
         }
+        boolean mHasAutofill = hasDeviceFeature("android.software.autofill");
+        if (!mHasAutofill) {
+          return;
+        }
         installAppAsUser(AUTOFILL_APP_APK, mUserId);
 
         executeDeviceTestMethod(".AutofillRestrictionsTest",
@@ -701,7 +705,14 @@ public abstract class DeviceAndProfileOwnerTest extends BaseDevicePolicyTest {
         if (!mHasFeature) {
             return;
         }
-        executeDeviceTestMethod(".ResetPasswordWithTokenTest", "testResetPasswordWithToken");
+        // If ResetPasswordWithTokenTest for managed profile is executed before device owner and
+        // primary user profile owner tests, password reset token would have been disabled for
+        // the primary user, so executing ResetPasswordWithTokenTest on user 0 would fail. We allow
+        // this and do not fail the test in this case.
+        // This is the default test for MixedDeviceOwnerTest and MixedProfileOwnerTest,
+        // MixedManagedProfileOwnerTest overrides this method to execute the same test more strictly
+        // without allowing failures.
+        executeDeviceTestMethod(".ResetPasswordWithTokenTest", "testResetPasswordWithTokenMayFail");
     }
 
     protected void executeDeviceTestClass(String className) throws Exception {
