@@ -18,7 +18,6 @@ package com.android.compatibility.common.tradefed.testtype.suite;
 import com.android.compatibility.SuiteInfo;
 import com.android.compatibility.common.tradefed.build.CompatibilityBuildHelper;
 import com.android.compatibility.common.tradefed.testtype.ISubPlan;
-import com.android.compatibility.common.tradefed.testtype.ModuleRepo;
 import com.android.compatibility.common.tradefed.testtype.SubPlan;
 import com.android.compatibility.common.util.TestFilter;
 import com.android.tradefed.build.IBuildInfo;
@@ -35,6 +34,7 @@ import com.android.tradefed.testtype.suite.ITestSuite;
 import com.android.tradefed.util.AbiFormatter;
 import com.android.tradefed.util.AbiUtils;
 import com.android.tradefed.util.ArrayUtil;
+import com.android.tradefed.util.MultiMap;
 import com.android.tradefed.util.xml.AbstractXmlParser.ParseException;
 
 import java.io.File;
@@ -95,14 +95,14 @@ public class CompatibilityTestSuite extends ITestSuite {
     private String mTestName = null;
 
     @Option(name = MODULE_ARG_OPTION,
-            description = "the arguments to pass to a module. The expected format is "
-                    + "\"<module-name>:<arg-name>:<arg-value>\"",
+            description = "the arguments to pass to a module. The expected format is"
+                    + "\"<module-name>:<arg-name>:[<arg-key>:=]<arg-value>\"",
             importance = Importance.ALWAYS)
     private List<String> mModuleArgs = new ArrayList<>();
 
     @Option(name = TEST_ARG_OPTION,
-            description = "the arguments to pass to a test. The expected format is "
-                    + "\"<test-class>:<arg-name>:<arg-value>\"",
+            description = "the arguments to pass to a test. The expected format is"
+                    + "\"<test-class>:<arg-name>:[<arg-key>:=]<arg-value>\"",
             importance = Importance.ALWAYS)
     private List<String> mTestArgs = new ArrayList<>();
 
@@ -121,6 +121,23 @@ public class CompatibilityTestSuite extends ITestSuite {
                     + "This override the --abi option.")
     private boolean mPrimaryAbiRun = false;
 
+    @Option(name = "module-metadata-include-filter",
+            description = "Include modules for execution based on matching of metadata fields: "
+                    + "for any of the specified filter name and value, if a module has a metadata "
+                    + "field with the same name and value, it will be included. When both module "
+                    + "inclusion and exclusion rules are applied, inclusion rules will be "
+                    + "evaluated first. Using this together with test filter inclusion rules may "
+                    + "result in no tests to execute if the rules don't overlap.")
+    private MultiMap<String, String> mModuleMetadataIncludeFilter = new MultiMap<>();
+
+    @Option(name = "module-metadata-exclude-filter",
+            description = "Exclude modules for execution based on matching of metadata fields: "
+                    + "for any of the specified filter name and value, if a module has a metadata "
+                    + "field with the same name and value, it will be excluded. When both module "
+                    + "inclusion and exclusion rules are applied, inclusion rules will be "
+                    + "evaluated first.")
+    private MultiMap<String, String> mModuleMetadataExcludeFilter = new MultiMap<>();
+
     private ModuleRepoSuite mModuleRepo = new ModuleRepoSuite();
     private CompatibilityBuildHelper mBuildHelper;
 
@@ -136,7 +153,7 @@ public class CompatibilityTestSuite extends ITestSuite {
             // throw a {@link FileNotFoundException}
             return mModuleRepo.loadConfigs(mBuildHelper.getTestsDir(),
                     abis, mTestArgs, mModuleArgs, mIncludeFilters,
-                    mExcludeFilters);
+                    mExcludeFilters, mModuleMetadataIncludeFilter, mModuleMetadataExcludeFilter);
         } catch (DeviceNotAvailableException | FileNotFoundException e) {
             throw new RuntimeException(e);
         }
@@ -232,7 +249,7 @@ public class CompatibilityTestSuite extends ITestSuite {
             }
         }
         if (mModuleName != null) {
-            List<String> modules = ModuleRepo.getModuleNamesMatching(
+            List<String> modules = ModuleRepoSuite.getModuleNamesMatching(
                     mBuildHelper.getTestsDir(), mModuleName);
             if (modules.size() == 0) {
                 throw new IllegalArgumentException(
