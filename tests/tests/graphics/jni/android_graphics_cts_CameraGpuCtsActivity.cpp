@@ -60,7 +60,7 @@ static const char kVertShader[] = R"(
 
   void main() {
     texCoords =  aTextureCoords;
-    gl_Position = vec4(aPosition, 0.0f, 1.0f);
+    gl_Position = vec4(aPosition, 0.0, 1.0);
   }
 )";
 
@@ -288,6 +288,7 @@ class ImageReaderHelper {
         : mWidth(width), mHeight(height), mFormat(format), mUsage(usage), mMaxImages(maxImages) {}
 
     ~ImageReaderHelper() {
+        mAcquiredImage.reset();
         if (mImgReaderAnw) {
             AImageReader_delete(mImgReader);
             // No need to call ANativeWindow_release on imageReaderAnw
@@ -508,6 +509,10 @@ class CameraFrameRenderer {
 
         // Render with EGLImage.
         EGLClientBuffer eglBuffer = eglGetNativeClientBufferANDROID(buffer);
+        if (!eglBuffer) {
+          ALOGE("Failed to create EGLClientBuffer");
+          return -EINVAL;
+        }
 
         if (mEglImage != EGL_NO_IMAGE_KHR) {
             eglDestroyImageKHR(mEglDisplay, mEglImage);
@@ -515,10 +520,6 @@ class CameraFrameRenderer {
         }
 
         EGLint attrs[] = {
-            EGL_WIDTH,
-            static_cast<EGLint>(outDesc.width),
-            EGL_HEIGHT,
-            static_cast<EGLint>(outDesc.height),
             EGL_IMAGE_PRESERVED_KHR,
             EGL_TRUE,
             EGL_NONE,
