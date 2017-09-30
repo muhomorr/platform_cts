@@ -400,6 +400,11 @@ public class StagefrightTest extends InstrumentationTestCase {
     }
 
 
+    @SecurityTest
+    public void testStagefright_bug_65484460() throws Exception {
+        doStagefrightTest(R.raw.bug_65484460);
+    }
+
     private void doStagefrightTest(final int rid) throws Exception {
         doStagefrightTestMediaPlayer(rid);
         doStagefrightTestMediaCodec(rid);
