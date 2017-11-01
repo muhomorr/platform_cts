@@ -38,9 +38,11 @@ LOCAL_SHARED_LIBRARIES := \
 LOCAL_STATIC_LIBRARIES := \
   libgtest \
 
+LOCAL_CFLAGS := -Wall -Werror
+
 LOCAL_CTS_TEST_PACKAGE := android.nativemedia.xa
 
 # Tag this module as a cts test artifact
-LOCAL_COMPATIBILITY_SUITE := cts
+LOCAL_COMPATIBILITY_SUITE := cts general-tests
 
 include $(BUILD_CTS_EXECUTABLE)

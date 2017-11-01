@@ -25,8 +25,14 @@ LOCAL_SRC_FILES := $(call all-java-files-under, src)
 LOCAL_PACKAGE_NAME := CtsJankDeviceTestCases
 
 # Tag this module as a cts test artifact
-LOCAL_COMPATIBILITY_SUITE := cts
+LOCAL_COMPATIBILITY_SUITE := cts general-tests
 
-LOCAL_STATIC_JAVA_LIBRARIES := ctsdeviceutil compatibility-device-util ctstestrunner ub-uiautomator ub-janktesthelper
+LOCAL_STATIC_JAVA_LIBRARIES := \
+    compatibility-device-util \
+    ctstestrunner \
+    ub-uiautomator \
+    ub-janktesthelper \
+    junit \
+    legacy-android-test
 
 include $(BUILD_CTS_PACKAGE)

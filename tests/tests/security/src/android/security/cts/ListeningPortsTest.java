@@ -17,6 +17,7 @@
 package android.security.cts;
 
 import android.content.pm.PackageManager;
+import android.platform.test.annotations.SecurityTest;
 import android.test.AndroidTestCase;
 import android.util.Log;
 import junit.framework.AssertionFailedError;
@@ -39,6 +40,7 @@ import java.util.regex.Pattern;
  * into computer systems remotely, and minimizing the number of open ports
  * is considered a security best practice.
  */
+@SecurityTest
 public class ListeningPortsTest extends AndroidTestCase {
     private static final String TAG = "ListeningPortsTest";
 
@@ -330,7 +332,8 @@ public class ListeningPortsTest extends AndroidTestCase {
                     String[] fields = line.split("\\s+");
                     final int expectedNumColumns = 12;
                     assertTrue(procFilePath + " should have at least " + expectedNumColumns
-                            + " columns of output " + fields, fields.length >= expectedNumColumns);
+                            + " columns of output " + Arrays.toString(fields),
+                            fields.length >= expectedNumColumns);
 
                     String state = fields[3];
                     int uid = Integer.parseInt(fields[7]);

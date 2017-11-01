@@ -26,19 +26,24 @@ import android.content.ContentResolver;
 import android.content.Context;
 import android.content.SyncAdapterType;
 import android.os.Bundle;
+import android.os.SystemClock;
 import android.test.AndroidTestCase;
+import android.util.Log;
 
 import java.io.IOException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 public class ContentResolverSyncTestCase extends AndroidTestCase {
+    private static final String TAG = "SyncTest";
 
     private static final String AUTHORITY = "android.content.cts.authority";
 
     private static final Account ACCOUNT = new Account(MockAccountAuthenticator.ACCOUNT_NAME,
             MockAccountAuthenticator.ACCOUNT_TYPE);
 
+    private static final int INITIAL_SYNC_TIMEOUT_MS = 60 * 1000;
+    private static final int CANCEL_TIMEOUT_MS = 60 * 1000;
     private static final int LATCH_TIMEOUT_MS = 5000;
 
     private static AccountManager sAccountManager;
@@ -96,7 +101,7 @@ public class ContentResolverSyncTestCase extends AndroidTestCase {
     }
 
     private void addAccountAndVerifyInitSync(Account account, String password,
-            String authority, int latchTimeoutMs, int accountIndex) {
+            String authority, int accountIndex) {
 
         CountDownLatch latch = setNewLatch(new CountDownLatch(1));
 
@@ -104,7 +109,7 @@ public class ContentResolverSyncTestCase extends AndroidTestCase {
 
         // Wait with timeout for the callback to do its work
         try {
-            if (!latch.await(latchTimeoutMs, TimeUnit.MILLISECONDS)) {
+            if (!latch.await(INITIAL_SYNC_TIMEOUT_MS, TimeUnit.MILLISECONDS)) {
                 fail("should not time out waiting on latch");
             }
         } catch (InterruptedException e) {
@@ -131,6 +136,20 @@ public class ContentResolverSyncTestCase extends AndroidTestCase {
             latch.await(latchTimeoutMillis, TimeUnit.MILLISECONDS);
         } catch (InterruptedException e) {
             fail("should not throw an InterruptedException");
+        }
+        // Make sure the sync manager thinks the sync finished.
+
+        final long timeout = SystemClock.uptimeMillis() + CANCEL_TIMEOUT_MS;
+        while (SystemClock.uptimeMillis() < timeout) {
+            if (!ContentResolver.isSyncActive(ACCOUNT, AUTHORITY)
+                && !ContentResolver.isSyncPending(ACCOUNT, AUTHORITY)) {
+                break;
+            }
+            Log.i(TAG, "Waiting for sync to finish...");
+            try {
+                Thread.sleep(500);
+            } catch (InterruptedException e) {
+            }
         }
     }
 
@@ -167,7 +186,6 @@ public class ContentResolverSyncTestCase extends AndroidTestCase {
         addAccountAndVerifyInitSync(ACCOUNT,
                 MockAccountAuthenticator.ACCOUNT_PASSWORD,
                 AUTHORITY,
-                LATCH_TIMEOUT_MS,
                 0);
 
         getMockSyncAdapter().clearData();
@@ -199,7 +217,6 @@ public class ContentResolverSyncTestCase extends AndroidTestCase {
         addAccountAndVerifyInitSync(ACCOUNT,
                 MockAccountAuthenticator.ACCOUNT_PASSWORD,
                 AUTHORITY,
-                LATCH_TIMEOUT_MS,
                 0);
 
         getMockSyncAdapter().clearData();
@@ -343,7 +360,6 @@ public class ContentResolverSyncTestCase extends AndroidTestCase {
         addAccountAndVerifyInitSync(ACCOUNT,
                 MockAccountAuthenticator.ACCOUNT_PASSWORD,
                 AUTHORITY,
-                LATCH_TIMEOUT_MS,
                 0);
 
         getMockSyncAdapter().clearData();

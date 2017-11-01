@@ -30,6 +30,13 @@ LOCAL_SRC_FILES := \
 		android_os_cts_NoExecutePermissionTest.cpp \
 		android_os_cts_SeccompTest.cpp
 
+LOCAL_C_INCLUDES := $(JNI_H_INCLUDE)
+
+LOCAL_SHARED_LIBRARIES := libnativehelper_compat_libc++ liblog libdl
+LOCAL_CXX_STL := none
+
+LOCAL_STATIC_LIBRARIES := libc++_static libminijail
+
 # Select the architectures on which seccomp-bpf are supported. This is used to
 # include extra test files that will not compile on architectures where it is
 # not supported.
@@ -42,19 +49,22 @@ ifeq ($(strip $(TARGET_ARCH)),mips64)
 endif
 
 ifeq ($(ARCH_SUPPORTS_SECCOMP),1)
-	LOCAL_SRC_FILES += seccomp-tests/tests/seccomp_bpf_tests.c
+	LOCAL_STATIC_LIBRARIES += external_seccomp_tests
 
 	# This define controls the behavior of OSFeatures.needsSeccompSupport().
 	LOCAL_CFLAGS += -DARCH_SUPPORTS_SECCOMP
 endif
 
-LOCAL_C_INCLUDES := $(JNI_H_INCLUDE)
+LOCAL_CFLAGS := -Wall -Werror -Wno-unused-parameter
+LOCAL_CFLAGS += -Wno-inline-asm -Wno-unused-const-variable
 
-LOCAL_SHARED_LIBRARIES := libnativehelper_compat_libc++ liblog libdl
-LOCAL_CXX_STL := none
+# Let's overwrite -mcpu in case it's set to some ARMv8 core by
+# TARGET_2ND_CPU_VARIANT and causes clang to ignore the -march below.
+LOCAL_CPPFLAGS_arm := -mcpu=generic
 
-LOCAL_SRC_FILES += android_os_cts_CpuFeatures.cpp
-LOCAL_C_INCLUDES += ndk/sources/cpufeatures
-LOCAL_STATIC_LIBRARIES := cpufeatures libc++_static libminijail
+# The ARM version of this library must be built using ARMv7 ISA (even if it
+# can be run on armv8 cores) since one of the tested instruction, swp, is
+# only supported in ARMv7 (and older) cores, and obsolete in ARMv8.
+LOCAL_CPPFLAGS_arm += -march=armv7-a
 
 include $(BUILD_SHARED_LIBRARY)

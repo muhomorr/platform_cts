@@ -16,7 +16,6 @@
 
 package com.android.cts.deviceowner;
 
-import android.app.admin.DevicePolicyManager;
 import android.bluetooth.BluetoothAdapter;
 import android.content.ComponentName;
 import android.content.pm.PackageManager;
@@ -33,7 +32,7 @@ public class BluetoothRestrictionTest extends BaseDeviceOwnerTest {
     private static final int ENABLE_TIMEOUT_MS = 10000; // ms timeout for BT enable
     private static final int POLL_TIME_MS = 400;           // ms to poll BT state
     private static final int CHECK_WAIT_TIME_MS = 1000;    // ms to wait before enable/disable
-    private static final int COMPONENT_STATE_TIMEOUT_MS = 2000;
+    private static final int COMPONENT_STATE_TIMEOUT_MS = 10000;
     private static final ComponentName OPP_LAUNCHER_COMPONENT = new ComponentName(
             "com.android.bluetooth", "com.android.bluetooth.opp.BluetoothOppLauncherActivity");
 
@@ -51,6 +50,7 @@ public class BluetoothRestrictionTest extends BaseDeviceOwnerTest {
     protected void tearDown() throws Exception {
         super.tearDown();
         mDevicePolicyManager.clearUserRestriction(getWho(), UserManager.DISALLOW_BLUETOOTH);
+        enable();
     }
 
     public void testEnableBluetoothFailsWhenDisallowed() throws Exception {
@@ -103,7 +103,8 @@ public class BluetoothRestrictionTest extends BaseDeviceOwnerTest {
     }
 
     /**
-     * Tests that BluetoothOppLauncherActivity gets disabled when Bluetooth is disallowed.
+     * Tests that BluetoothOppLauncherActivity gets disabled when Bluetooth itself or Bluetooth
+     * sharing is disallowed.
      *
      * <p> It also checks the state of the activity is set back to default if Bluetooth is not
      * disallowed anymore.
@@ -113,15 +114,24 @@ public class BluetoothRestrictionTest extends BaseDeviceOwnerTest {
             return;
         }
 
+        // First verify DISALLOW_BLUETOOTH.
+        testOppDisabledWhenRestrictionSet(UserManager.DISALLOW_BLUETOOTH);
+        // Verify DISALLOW_BLUETOOTH_SHARING which leaves bluetooth workable but the sharing
+        // component should be disabled.
+        testOppDisabledWhenRestrictionSet(UserManager.DISALLOW_BLUETOOTH_SHARING);
+    }
+
+    /** Verifies that a given restriction disables the bluetooth sharing component. */
+    private void testOppDisabledWhenRestrictionSet(String restriction) {
         // Add the user restriction.
-        mDevicePolicyManager.addUserRestriction(getWho(), UserManager.DISALLOW_BLUETOOTH);
+        mDevicePolicyManager.addUserRestriction(getWho(), restriction);
 
         // The BluetoothOppLauncherActivity's component should be disabled.
         assertComponentStateAfterTimeout(
                 OPP_LAUNCHER_COMPONENT, PackageManager.COMPONENT_ENABLED_STATE_DISABLED);
 
         // Remove the user restriction.
-        mDevicePolicyManager.clearUserRestriction(getWho(), UserManager.DISALLOW_BLUETOOTH);
+        mDevicePolicyManager.clearUserRestriction(getWho(), restriction);
 
         // The BluetoothOppLauncherActivity's component should be in the default state.
         assertComponentStateAfterTimeout(
@@ -133,6 +143,10 @@ public class BluetoothRestrictionTest extends BaseDeviceOwnerTest {
      * Behavior of getState() and isEnabled() are validated along the way.
      */
     private void disable() {
+        // Can't disable a bluetooth adapter that does not exist.
+        if (mBluetoothAdapter == null)
+            return;
+
         sleep(CHECK_WAIT_TIME_MS);
         if (mBluetoothAdapter.getState() == BluetoothAdapter.STATE_OFF) {
             assertFalse(mBluetoothAdapter.isEnabled());
@@ -190,6 +204,10 @@ public class BluetoothRestrictionTest extends BaseDeviceOwnerTest {
      * Behavior of getState() and isEnabled() are validated along the way.
      */
     private void enable() {
+        // Can't enable a bluetooth adapter that does not exist.
+        if (mBluetoothAdapter == null)
+            return;
+
         sleep(CHECK_WAIT_TIME_MS);
         if (mBluetoothAdapter.getState() == BluetoothAdapter.STATE_ON) {
             assertTrue(mBluetoothAdapter.isEnabled());

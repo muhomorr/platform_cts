@@ -16,20 +16,34 @@
 
 package android.text.format.cts;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
-import android.content.ContentResolver;
+import android.app.UiAutomation;
 import android.content.Context;
-import android.cts.util.SystemUtil;
 import android.os.ParcelFileDescriptor;
 import android.provider.Settings;
-import android.test.InstrumentationTestCase;
+import android.support.annotation.NonNull;
+import android.support.test.InstrumentationRegistry;
+import android.support.test.filters.LargeTest;
+import android.support.test.runner.AndroidJUnit4;
 import android.text.format.DateFormat;
 
+import com.android.compatibility.common.util.SystemUtil;
+
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.io.FileInputStream;
-import java.io.InputStream;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Date;
@@ -38,12 +52,11 @@ import java.util.Locale;
 import java.util.Scanner;
 import java.util.TimeZone;
 
-public class DateFormatTest extends InstrumentationTestCase {
+@LargeTest
+@RunWith(AndroidJUnit4.class)
+public class DateFormatTest {
     private static final String TIME_FORMAT_12 = "12";
     private static final String TIME_FORMAT_24 = "24";
-
-    private Context mContext;
-    private ContentResolver mContentResolver;
 
     // Date: 2008-12-18 05:30
     private static final int YEAR_FROM_1900 = 108;
@@ -53,36 +66,48 @@ public class DateFormatTest extends InstrumentationTestCase {
     private static final int HOUR = 5;
     private static final int MINUTE = 30;
 
-    private boolean mIs24HourFormat;
+    private Context mContext;
+
+    private String mDefaultTimeFormat;
     private Locale mDefaultLocale;
 
-    @Override
-    protected void setUp() throws Exception {
-        super.setUp();
-        enableAppOps();
-        mContext = getInstrumentation().getContext();
-        mContentResolver = mContext.getContentResolver();
-        mIs24HourFormat = DateFormat.is24HourFormat(mContext);
+    @Before
+    public void setup() throws Exception {
+        mContext = InstrumentationRegistry.getTargetContext();
+        mDefaultTimeFormat = getTimeFormat();
         mDefaultLocale = Locale.getDefault();
+
+        enableAppOps();
+    }
+
+    @After
+    public void teardown() throws Exception {
+        if (!getTimeFormat().equals(mDefaultTimeFormat)) {
+            setTimeFormat(mDefaultTimeFormat);
+        }
+        if ((mDefaultLocale != null) && !Locale.getDefault().equals(mDefaultLocale)) {
+            Locale.setDefault(mDefaultLocale);
+        }
     }
 
     private void enableAppOps() {
+        UiAutomation uiAutomation = InstrumentationRegistry.getInstrumentation().getUiAutomation();
+
         StringBuilder cmd = new StringBuilder();
         cmd.append("appops set ");
-        cmd.append(getInstrumentation().getContext().getPackageName());
+        cmd.append(mContext.getPackageName());
         cmd.append(" android:write_settings allow");
-        getInstrumentation().getUiAutomation().executeShellCommand(cmd.toString());
+        uiAutomation.executeShellCommand(cmd.toString());
 
         StringBuilder query = new StringBuilder();
         query.append("appops get ");
-        query.append(getInstrumentation().getContext().getPackageName());
+        query.append(mContext.getPackageName());
         query.append(" android:write_settings");
         String queryStr = query.toString();
 
         String result = "No operations.";
         while (result.contains("No operations")) {
-            ParcelFileDescriptor pfd = getInstrumentation().getUiAutomation().executeShellCommand(
-                                        queryStr);
+            ParcelFileDescriptor pfd = uiAutomation.executeShellCommand(queryStr);
             InputStream inputStream = new FileInputStream(pfd.getFileDescriptor());
             result = convertStreamToString(inputStream);
         }
@@ -94,18 +119,7 @@ public class DateFormatTest extends InstrumentationTestCase {
         }
     }
 
-    @Override
-    protected void tearDown() throws Exception {
-        if (!mIs24HourFormat) {
-            setTimeFormat(TIME_FORMAT_12);
-        }
-        if (!Locale.getDefault().equals(mDefaultLocale)) {
-            Locale.setDefault(mDefaultLocale);
-        }
-
-        super.tearDown();
-    }
-
+    @Test
     public void test_is24HourFormat() throws Exception {
         setTimeFormat(TIME_FORMAT_24);
         assertTrue(DateFormat.is24HourFormat(mContext));
@@ -113,6 +127,7 @@ public class DateFormatTest extends InstrumentationTestCase {
         assertFalse(DateFormat.is24HourFormat(mContext));
     }
 
+    @Test
     public void test_format_M() {
         Calendar c = new GregorianCalendar(2008, Calendar.DECEMBER, 18);
         assertEquals("D", DateFormat.format("MMMMM", c));
@@ -122,6 +137,7 @@ public class DateFormatTest extends InstrumentationTestCase {
         assertEquals("12", DateFormat.format("M", c));
     }
 
+    @Test
     public void test_format_L() {
         // TODO: we can't test other locales with this API so we can't test 'L' properly!
         Calendar c = new GregorianCalendar(2008, Calendar.DECEMBER, 18);
@@ -132,6 +148,7 @@ public class DateFormatTest extends InstrumentationTestCase {
         assertEquals("12", DateFormat.format("L", c));
     }
 
+    @Test
     public void test_format_E() {
         Calendar c = new GregorianCalendar(2008, Calendar.DECEMBER, 18);
         assertEquals("T", DateFormat.format("EEEEE", c));
@@ -141,6 +158,7 @@ public class DateFormatTest extends InstrumentationTestCase {
         assertEquals("Thu", DateFormat.format("E", c));
     }
 
+    @Test
     public void test_format_c() {
         // TODO: we can't test other locales with this API, so we can't test 'c' properly!
         Calendar c = new GregorianCalendar(2008, Calendar.DECEMBER, 18);
@@ -152,6 +170,7 @@ public class DateFormatTest extends InstrumentationTestCase {
     }
 
     @SuppressWarnings("deprecation")
+    @Test
     public void testFormatMethods() throws ParseException {
         if (!mDefaultLocale.equals(Locale.US)) {
             Locale.setDefault(Locale.US);
@@ -192,6 +211,7 @@ public class DateFormatTest extends InstrumentationTestCase {
         assertEquals(expectedString, actual.toString());
     }
 
+    @Test
     public void test2038() {
         Calendar calendar = new GregorianCalendar(TimeZone.getTimeZone("GMT+00:00"));
 
@@ -235,6 +255,7 @@ public class DateFormatTest extends InstrumentationTestCase {
         assertEquals(expected, sdf.format(c.getTime()));
     }
 
+    @Test
     public void test_bug_8359981() {
         checkFormat("24", "k", 00);
         checkFormat( "0", "K", 00);
@@ -262,6 +283,7 @@ public class DateFormatTest extends InstrumentationTestCase {
         checkFormat( "0", "H", 24);
     }
 
+    @Test
     public void test_bug_82144() {
         for (Locale locale : Locale.getAvailableLocales()) {
             Locale.setDefault(locale);
@@ -290,8 +312,19 @@ public class DateFormatTest extends InstrumentationTestCase {
         }
     }
 
-    private void setTimeFormat(String timeFormat) throws IOException {
-        SystemUtil.runShellCommand(getInstrumentation(), "settings put system "
-                + Settings.System.TIME_12_24 + " " + timeFormat);
+    @NonNull
+    private String getTimeFormat() throws IOException {
+        return SystemUtil.runShellCommand(InstrumentationRegistry.getInstrumentation(),
+                "settings get system " + Settings.System.TIME_12_24).trim();
+    }
+
+    private void setTimeFormat(@NonNull String timeFormat) throws IOException {
+        if ("null".equals(timeFormat)) {
+            SystemUtil.runShellCommand(InstrumentationRegistry.getInstrumentation(),
+                    "settings delete system " + Settings.System.TIME_12_24);
+        } else {
+            SystemUtil.runShellCommand(InstrumentationRegistry.getInstrumentation(),
+                    "settings put system " + Settings.System.TIME_12_24 + " " + timeFormat);
+        }
     }
 }

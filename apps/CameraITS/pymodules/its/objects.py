@@ -99,7 +99,6 @@ def manual_capture_request(
         "android.control.awbMode": 0,
         "android.control.afMode": 0,
         "android.control.effectMode": 0,
-        "android.sensor.frameDuration": 0,
         "android.sensor.sensitivity": sensitivity,
         "android.sensor.exposureTime": exp_time,
         "android.colorCorrection.mode": 0,
@@ -108,7 +107,8 @@ def manual_capture_request(
         "android.colorCorrection.gains": [1,1,1,1],
         "android.lens.focusDistance" : f_distance,
         "android.tonemap.mode": 1,
-        "android.shading.mode": 1
+        "android.shading.mode": 1,
+        "android.lens.opticalStabilizationMode": 0
         }
     if linear_tonemap:
         assert(props is not None)
@@ -137,6 +137,7 @@ def auto_capture_request():
         "android.control.afMode": 1,
         "android.colorCorrection.mode": 1,
         "android.tonemap.mode": 1,
+        "android.lens.opticalStabilizationMode": 0
         }
 
 def fastest_auto_capture_request(props):
@@ -263,6 +264,39 @@ def get_fastest_manual_capture_settings(props):
     turn_slow_filters_off(props, req)
 
     return req, out_spec
+
+
+def get_smallest_yuv_format(props, match_ar=None):
+    """Return a capture request and format spec for the smallest yuv size.
+
+    Args:
+        props: the object returned from its.device.get_camera_properties().
+
+    Returns:
+        fmt:    an output format specification, for the smallest possible yuv
+        format for this device.
+    """
+    size = get_available_output_sizes("yuv", props, match_ar_size=match_ar)[-1]
+    fmt = {"format":"yuv", "width":size[0], "height":size[1]}
+
+    return fmt
+
+
+def get_largest_yuv_format(props):
+    """Return a capture request and format spec for the smallest yuv size.
+
+    Args:
+        props: the object returned from its.device.get_camera_properties().
+
+    Returns:
+        fmt:    an output format specification, for the smallest possible yuv
+        format for this device.
+    """
+    size = get_available_output_sizes("yuv", props)[0]
+    fmt = {"format":"yuv", "width":size[0], "height":size[1]}
+
+    return fmt
+
 
 def get_max_digital_zoom(props):
     """Returns the maximum amount of zooming possible by the camera device.

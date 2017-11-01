@@ -16,6 +16,8 @@
 
 package com.android.compatibility.common.tradefed.util;
 
+import com.android.compatibility.common.tradefed.targetprep.DeviceInfoCollector;
+import com.android.compatibility.common.tradefed.targetprep.ReportLogCollector;
 import com.android.tradefed.device.DeviceNotAvailableException;
 import com.android.tradefed.device.ITestDevice;
 import com.android.tradefed.log.LogUtil.CLog;
@@ -34,7 +36,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Util class for {@link ReportLogCollector} and {@link DeviceInfoCollector}.
+ * Utility class for {@link ReportLogCollector} and {@link DeviceInfoCollector}.
  */
 public class CollectorUtil {
 
@@ -137,7 +139,7 @@ public class CollectorUtil {
      * Helper function to reformat JSON string.
      *
      * @param jsonString
-     * @return
+     * @return the reformatted JSON string.
      */
     public static String reformatJsonString(String jsonString) {
         StringBuilder newJsonBuilder = new StringBuilder();
@@ -145,14 +147,17 @@ public class CollectorUtil {
         HashMap<String, List<String>> jsonMap = new HashMap<>();
         Pattern p = Pattern.compile(TEST_METRICS_PATTERN);
         Matcher m = p.matcher(jsonString);
-        while (m.find()) {
+        if (!m.find()) {
+            return jsonString;
+        }
+        do {
             String key = m.group(1);
             String value = m.group(2);
             if (!jsonMap.containsKey(key)) {
                 jsonMap.put(key, new ArrayList<String>());
             }
             jsonMap.get(key).add(value);
-        }
+        } while (m.find());
         // Rewrite json string as arrays.
         newJsonBuilder.append("{");
         boolean firstLine = true;

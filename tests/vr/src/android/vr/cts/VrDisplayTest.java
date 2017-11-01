@@ -52,18 +52,20 @@ public class VrDisplayTest extends ActivityInstrumentationTestCase2<OpenGLESActi
      */
     public void testRefreshRateIsAtLeast60Hz() throws Throwable {
         final int NUM_FRAMES = 200;
-        mActivity = getGlEsActivity(NUM_FRAMES, 3);
+        // Add an extra frame to allow the activity to start up.
+        mActivity = getGlEsActivity(NUM_FRAMES + 1, OpenGLESActivity.RENDERER_REFRESHRATE);
         if (!mActivity.supportsVrHighPerformance())
             return;
 
-        long startNanos = System.nanoTime();
+        // Skip the first frame to allow for startup time.
+        mActivity.waitForFrameDrawn();
 
         // Render a few hundred frames.
-        int error;
+        long startNanos = System.nanoTime();
         while (!mActivity.waitForFrameDrawn());
-        error = mActivity.glGetError();
-        assertEquals(GLES32.GL_NO_ERROR, error);
         long endNanos = System.nanoTime();
+        int error = mActivity.glGetError();
+        assertEquals(GLES32.GL_NO_ERROR, error);
 
         double fps = NUM_FRAMES / (double)(endNanos - startNanos) * 1e9;
         assertTrue(fps >= 59.);
@@ -73,7 +75,7 @@ public class VrDisplayTest extends ActivityInstrumentationTestCase2<OpenGLESActi
      * Tests that the display resolution is at least 1080p.
      */
     public void testDisplayResolution() {
-        mActivity = getGlEsActivity(1, 1);
+        mActivity = getGlEsActivity(1, OpenGLESActivity.RENDERER_BASIC);
         if (!mActivity.supportsVrHighPerformance())
             return;
 
@@ -100,7 +102,7 @@ public class VrDisplayTest extends ActivityInstrumentationTestCase2<OpenGLESActi
      * Tests that the display dimensions are between 4.7" and 6".
      */
     public void testDisplayDimensions() {
-        mActivity = getGlEsActivity(1, 1);
+        mActivity = getGlEsActivity(1, OpenGLESActivity.RENDERER_BASIC);
         if (!mActivity.supportsVrHighPerformance())
             return;
 
@@ -114,6 +116,6 @@ public class VrDisplayTest extends ActivityInstrumentationTestCase2<OpenGLESActi
         double diagonalLength = Math.sqrt(width * width + height * height);
 
         assertTrue(diagonalLength >= 4.7);
-        assertTrue(diagonalLength <= 6.);
+        assertTrue(diagonalLength <= 6.3);
     }
 }

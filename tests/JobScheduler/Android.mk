@@ -22,12 +22,12 @@ LOCAL_MODULE_TAGS := optional
 # When built, explicitly put it in the data partition.
 LOCAL_MODULE_PATH := $(TARGET_OUT_DATA_APPS)
 
-LOCAL_STATIC_JAVA_LIBRARIES := ctsdeviceutil ctstestrunner
+LOCAL_STATIC_JAVA_LIBRARIES := compatibility-device-util ctstestrunner
 
 LOCAL_SRC_FILES := $(call all-java-files-under, src)
 
 # Tag this module as a cts test artifact
-LOCAL_COMPATIBILITY_SUITE := cts
+LOCAL_COMPATIBILITY_SUITE := cts general-tests
 
 # Must match the package name in CtsTestCaseList.mk
 LOCAL_PACKAGE_NAME := CtsJobSchedulerTestCases
@@ -35,3 +35,5 @@ LOCAL_PACKAGE_NAME := CtsJobSchedulerTestCases
 LOCAL_SDK_VERSION := current
 
 include $(BUILD_CTS_PACKAGE)
+
+include $(call all-makefiles-under,$(LOCAL_PATH))

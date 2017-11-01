@@ -18,12 +18,12 @@ import its.objects
 import its.caps
 import time
 import math
-import pylab
+from matplotlib import pylab
 import os.path
 import matplotlib
 import matplotlib.pyplot
 import json
-import Image
+from PIL import Image
 import numpy
 import cv2
 import bisect
@@ -58,23 +58,28 @@ LK_PARAMS = dict( winSize  = (15, 15),
                   criteria = (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT,
                         10, 0.03))
 
-# Constants to convert between different time units (for clarity).
+# Constants to convert between different units (for clarity).
 SEC_TO_NSEC = 1000*1000*1000.0
 SEC_TO_MSEC = 1000.0
 MSEC_TO_NSEC = 1000*1000.0
 MSEC_TO_SEC = 1/1000.0
 NSEC_TO_SEC = 1/(1000*1000*1000.0)
 NSEC_TO_MSEC = 1/(1000*1000.0)
+CM_TO_M = 1/100.0
 
-# Pass/fail thresholds.
+# PASS/FAIL thresholds.
 THRESH_MAX_CORR_DIST = 0.005
-THRESH_MAX_SHIFT_MS = 2
+THRESH_MAX_SHIFT_MS = 1
 THRESH_MIN_ROT = 0.001
 
 # lens facing
 FACING_FRONT = 0
 FACING_BACK = 1
 FACING_EXTERNAL = 2
+
+# Chart distance
+CHART_DISTANCE = 25  # cm
+
 
 def main():
     """Test if image and motion sensor events are well synchronized.
@@ -296,14 +301,17 @@ def get_cam_rotations(frames, facing):
         # p0's shape is N * 1 * 2
         mask = (p0[:,0,1] >= ymin) & (p0[:,0,1] <= ymax)
         p0_filtered = p0[mask]
-        if len(p0_filtered) < MIN_FEATURE_PTS:
+        num_features = len(p0_filtered)
+        if num_features < MIN_FEATURE_PTS:
             print "Not enough feature points in frame", i
             print "Need at least %d features, got %d" % (
-                    MIN_FEATURE_PTS, len(p0_filtered))
-            assert(0)
-        p1,st,_ = cv2.calcOpticalFlowPyrLK(gframe0, gframe1, p0_filtered, None,
-                **LK_PARAMS)
-        tform = procrustes_rotation(p0_filtered[st==1], p1[st==1])
+                    MIN_FEATURE_PTS, num_features)
+            assert 0
+        else:
+            print "Number of features in frame %d is %d" % (i, num_features)
+        p1, st, _ = cv2.calcOpticalFlowPyrLK(gframe0, gframe1, p0_filtered,
+                                             None, **LK_PARAMS)
+        tform = procrustes_rotation(p0_filtered[st == 1], p1[st == 1])
         if facing == FACING_BACK:
             rot = -math.atan2(tform[0, 1], tform[0, 0])
         elif facing == FACING_FRONT:
@@ -379,9 +387,7 @@ def collect_data():
         # Sleep a while for gyro events to stabilize.
         time.sleep(0.5)
 
-        # TODO: Ensure that OIS is disabled; set to DISABLE and wait some time.
-
-        # Capture the frames.
+        # Capture the frames. OIS is disabled for manual captures.
         facing = props['android.lens.facing']
         if facing != FACING_FRONT and facing != FACING_BACK:
             print "Unknown lens facing", facing
@@ -390,6 +396,10 @@ def collect_data():
         fmt = {"format":"yuv", "width":W, "height":H}
         s,e,_,_,_ = cam.do_3a(get_results=True, do_af=False)
         req = its.objects.manual_capture_request(s, e)
+        fps = 30
+        req["android.lens.focusDistance"] = 1 / (CHART_DISTANCE * CM_TO_M)
+        req["android.control.aeTargetFpsRange"] = [fps, fps]
+        req["android.sensor.frameDuration"] = int(1000.0/fps * MSEC_TO_NSEC)
         print "Capturing %dx%d with sens. %d, exp. time %.1fms" % (
                 W, H, s, e*NSEC_TO_MSEC)
         caps = cam.do_capture([req]*N, fmt)

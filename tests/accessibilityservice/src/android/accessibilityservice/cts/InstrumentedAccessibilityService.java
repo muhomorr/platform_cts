@@ -2,10 +2,12 @@ package android.accessibilityservice.cts;
 
 import android.accessibilityservice.AccessibilityService;
 import android.accessibilityservice.AccessibilityServiceInfo;
+import android.app.Instrumentation;
 import android.content.Context;
 import android.os.Handler;
 import android.os.SystemClock;
 import android.provider.Settings;
+import android.support.annotation.CallSuper;
 import android.test.InstrumentationTestCase;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityManager;
@@ -30,8 +32,12 @@ public class InstrumentedAccessibilityService extends AccessibilityService {
             sInstances = new HashMap<>();
 
     private final Handler mHandler = new Handler();
+    final Object mInterruptWaitObject = new Object();
+    public boolean mOnInterruptCalled;
+
 
     @Override
+    @CallSuper
     protected void onServiceConnected() {
         synchronized (sInstances) {
             sInstances.put(getClass(), new WeakReference<>(this));
@@ -53,7 +59,10 @@ public class InstrumentedAccessibilityService extends AccessibilityService {
 
     @Override
     public void onInterrupt() {
-        // Stub method.
+        synchronized (mInterruptWaitObject) {
+            mOnInterruptCalled = true;
+            mInterruptWaitObject.notifyAll();
+        }
     }
 
     public void disableSelfAndRemove() {
@@ -68,6 +77,16 @@ public class InstrumentedAccessibilityService extends AccessibilityService {
         final SyncRunnable sr = new SyncRunnable(runner, TIMEOUT_SERVICE_PERFORM_SYNC);
         mHandler.post(sr);
         assertTrue("Timed out waiting for runOnServiceSync()", sr.waitForComplete());
+    }
+
+    public boolean wasOnInterruptCalled() {
+        synchronized (mInterruptWaitObject) {
+            return mOnInterruptCalled;
+        }
+    }
+
+    public Object getInterruptWaitObject() {
+        return mInterruptWaitObject;
     }
 
     private static final class SyncRunnable implements Runnable {
@@ -95,9 +114,9 @@ public class InstrumentedAccessibilityService extends AccessibilityService {
     }
 
     protected static <T extends InstrumentedAccessibilityService> T enableService(
-            InstrumentationTestCase testCase, Class<T> clazz) {
+            Instrumentation instrumentation, Class<T> clazz) {
         final String serviceName = clazz.getSimpleName();
-        final Context context = testCase.getInstrumentation().getContext();
+        final Context context = instrumentation.getContext();
         final String enabledServices = Settings.Secure.getString(
                 context.getContentResolver(),
                 Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
@@ -112,7 +131,7 @@ public class InstrumentedAccessibilityService extends AccessibilityService {
         for (AccessibilityServiceInfo serviceInfo : serviceInfos) {
             final String serviceId = serviceInfo.getId();
             if (serviceId.endsWith(serviceName)) {
-                ShellCommandBuilder.create(testCase)
+                ShellCommandBuilder.create(instrumentation)
                         .putSecureSetting(Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
                                 enabledServices + COMPONENT_NAME_SEPARATOR + serviceId)
                         .putSecureSetting(Settings.Secure.ACCESSIBILITY_ENABLED, "1")
@@ -120,7 +139,7 @@ public class InstrumentedAccessibilityService extends AccessibilityService {
 
                 final T instance = getInstanceForClass(clazz, TIMEOUT_SERVICE_ENABLE);
                 if (instance == null) {
-                    ShellCommandBuilder.create(testCase)
+                    ShellCommandBuilder.create(instrumentation)
                             .putSecureSetting(Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
                                     enabledServices)
                             .run();
@@ -157,9 +176,9 @@ public class InstrumentedAccessibilityService extends AccessibilityService {
         return null;
     }
 
-    public static void disableAllServices(InstrumentationTestCase testCase) {
+    public static void disableAllServices(Instrumentation instrumentation) {
         final Object waitLockForA11yOff = new Object();
-        final Context context = testCase.getInstrumentation().getContext();
+        final Context context = instrumentation.getContext();
         final AccessibilityManager manager =
                 (AccessibilityManager) context.getSystemService(Context.ACCESSIBILITY_SERVICE);
         manager.addAccessibilityStateChangeListener(b -> {
@@ -168,7 +187,7 @@ public class InstrumentedAccessibilityService extends AccessibilityService {
             }
         });
 
-        ShellCommandBuilder.create(testCase)
+        ShellCommandBuilder.create(instrumentation)
                 .deleteSecureSetting(Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES)
                 .deleteSecureSetting(Settings.Secure.ACCESSIBILITY_ENABLED)
                 .run();

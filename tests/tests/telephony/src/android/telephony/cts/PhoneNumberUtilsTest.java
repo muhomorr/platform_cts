@@ -305,31 +305,6 @@ public class PhoneNumberUtilsTest extends AndroidTestCase {
         assertFalse(PhoneNumberUtils.isWellFormedSmsAddress("android"));
     }
 
-    public void testIsUriNumber() {
-        assertTrue(PhoneNumberUtils.isUriNumber("foo@google.com"));
-        assertTrue(PhoneNumberUtils.isUriNumber("xyz@zzz.org"));
-        assertFalse(PhoneNumberUtils.isUriNumber("+15103331245"));
-        assertFalse(PhoneNumberUtils.isUriNumber("+659231235"));
-    }
-
-    public void testGetUsernameFromUriNumber() {
-        assertEquals("john", PhoneNumberUtils.getUsernameFromUriNumber("john@myorg.com"));
-        assertEquals("tim_123", PhoneNumberUtils.getUsernameFromUriNumber("tim_123@zzz.org"));
-        assertEquals("5103331245", PhoneNumberUtils.getUsernameFromUriNumber("5103331245"));
-    }
-
-    public void testConvertAndStrip() {
-        // Untouched number.
-        assertEquals("123456789", PhoneNumberUtils.convertAndStrip("123456789"));
-        // Dashes should be stripped, legal separators (i.e. wild character remain untouched)
-        assertEquals("+15103331245*123", PhoneNumberUtils.convertAndStrip("+1-510-333-1245*123"));
-        // Arabic digits should be converted
-        assertEquals("5567861616", PhoneNumberUtils.convertAndStrip("٥‎٥‎٦‎٧‎٨‎٦‎١‎٦‎١‎٦‎"));
-        // Arabic digits converted and spaces stripped
-        assertEquals("5567861616", PhoneNumberUtils.convertAndStrip("٥‎ ٥‎٦‎ ٧‎ ٨‎ ٦‎ ١‎ ٦‎ ١‎ ٦‎"));
-
-    }
-
     public void testGetPhoneTtsSpan() {
         // Setup: phone number without a country code. Lets keep coverage minimal to avoid
         // exercising the underlying PhoneNumberUtil or constraining localization changes.
@@ -362,5 +337,50 @@ public class PhoneNumberUtilsTest extends AndroidTestCase {
         TtsSpan[] ttsSpans = spannable.getSpans(0, spannable.length() - 1, TtsSpan.class);
         assertEquals(1, ttsSpans.length);
         assertEquals("6512223333", ttsSpans[0].getArgs().get(TtsSpan.ARG_NUMBER_PARTS));
+    }
+
+    public void testCompare() {
+        assertFalse(PhoneNumberUtils.compare("", ""));
+
+        assertTrue(PhoneNumberUtils.compare("911", "911"));
+        assertFalse(PhoneNumberUtils.compare("911", "18005550911"));
+        assertTrue(PhoneNumberUtils.compare("5555", "5555"));
+        assertFalse(PhoneNumberUtils.compare("5555", "180055555555"));
+
+        assertTrue(PhoneNumberUtils.compare("+17005554141", "+17005554141"));
+        assertTrue(PhoneNumberUtils.compare("+17005554141", "+1 (700).555-4141"));
+        assertTrue(PhoneNumberUtils.compare("+17005554141", "+1 (700).555-4141,1234"));
+        assertTrue(PhoneNumberUtils.compare("+17005554141", "17005554141"));
+        assertTrue(PhoneNumberUtils.compare("+17005554141", "7005554141"));
+        assertTrue(PhoneNumberUtils.compare("+17005554141", "5554141"));
+        assertTrue(PhoneNumberUtils.compare("17005554141", "5554141"));
+        assertTrue(PhoneNumberUtils.compare("+17005554141", "01117005554141"));
+        assertTrue(PhoneNumberUtils.compare("+17005554141", "0017005554141"));
+        assertTrue(PhoneNumberUtils.compare("17005554141", "0017005554141"));
+
+
+        assertTrue(PhoneNumberUtils.compare("+17005554141", "**31#+17005554141"));
+
+        assertFalse(PhoneNumberUtils.compare("+1 999 7005554141", "+1 7005554141"));
+        assertTrue(PhoneNumberUtils.compare("011 1 7005554141", "7005554141"));
+
+        assertFalse(PhoneNumberUtils.compare("011 11 7005554141", "+17005554141"));
+
+        assertFalse(PhoneNumberUtils.compare("+17005554141", "7085882300"));
+
+        assertTrue(PhoneNumberUtils.compare("+44 207 792 3490", "0 207 792 3490"));
+
+        assertFalse(PhoneNumberUtils.compare("+44 207 792 3490", "00 207 792 3490"));
+        assertFalse(PhoneNumberUtils.compare("+44 207 792 3490", "011 207 792 3490"));
+    }
+
+    public void testFormatNumberToE164() {
+        assertNull(PhoneNumberUtils.formatNumber("invalid#", "US"));
+        assertNull(PhoneNumberUtils.formatNumberToE164("1234567", "US"));
+
+        assertEquals("+18004664114", PhoneNumberUtils.formatNumberToE164("800-GOOG-114", "US"));
+        assertEquals("+16502910000", PhoneNumberUtils.formatNumberToE164("650 2910000", "US"));
+        assertEquals("+12023458246", PhoneNumberUtils.formatNumberToE164("(202)345-8246", "US"));
+        assertEquals("+812023458246", PhoneNumberUtils.formatNumberToE164("202-345-8246", "JP"));
     }
 }

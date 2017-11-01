@@ -15,13 +15,13 @@
 package android.leanbackjank.app.ui;
 
 import android.content.Intent;
+import android.content.res.Resources;
 import android.content.res.Resources.Theme;
 import android.leanbackjank.app.IntentKeys;
 import android.leanbackjank.app.R;
 import android.leanbackjank.app.data.VideoProvider;
 import android.leanbackjank.app.model.Movie;
 import android.leanbackjank.app.presenter.CardPresenter;
-import android.leanbackjank.app.presenter.GridItemPresenter;
 import android.leanbackjank.app.presenter.IconHeaderItemPresenter;
 import android.os.Bundle;
 import android.os.Handler;
@@ -33,6 +33,7 @@ import android.support.v17.leanback.widget.ListRow;
 import android.support.v17.leanback.widget.ListRowPresenter;
 import android.support.v17.leanback.widget.Presenter;
 import android.support.v17.leanback.widget.PresenterSelector;
+import android.support.v17.leanback.widget.ShadowOverlayHelper;
 import android.util.DisplayMetrics;
 import android.view.View;
 
@@ -167,7 +168,17 @@ public class MainFragment extends BrowseFragment {
     }
 
     public void buildRowAdapterItems(HashMap<String, List<Movie>> data) {
-        mRowsAdapter = new ArrayObjectAdapter(new ListRowPresenter());
+        ListRowPresenter listRowPresenter = new ListRowPresenter() {
+            @Override
+            protected ShadowOverlayHelper.Options createShadowOverlayOptions() {
+                Resources res = getResources();
+                ShadowOverlayHelper.Options options = new ShadowOverlayHelper.Options();
+                options.dynamicShadowZ(res.getDimension(R.dimen.shadow_unfocused_z),
+                        res.getDimension(R.dimen.shadow_focused_z));
+                return options;
+            }
+        };
+        mRowsAdapter = new ArrayObjectAdapter(listRowPresenter);
         CardPresenter cardPresenter = new CardPresenter();
 
         int i = 0;
@@ -183,15 +194,6 @@ public class MainFragment extends BrowseFragment {
             i++;
             mRowsAdapter.add(new ListRow(header, listRowAdapter));
         }
-
-        HeaderItem gridHeader = new HeaderItem(i, getString(R.string.settings));
-
-        GridItemPresenter gridPresenter = new GridItemPresenter(this);
-        ArrayObjectAdapter gridRowAdapter = new ArrayObjectAdapter(gridPresenter);
-        for (int j = 0; j < 10; j++) {
-            gridRowAdapter.add(getString(R.string.grid_item_template, j));
-        }
-        mRowsAdapter.add(new ListRow(gridHeader, gridRowAdapter));
 
         setAdapter(mRowsAdapter);
     }

@@ -31,6 +31,7 @@ import android.telephony.TelephonyManager;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import java.util.Collections;
 
 /**
  * Test the non-location-related functionality of TelephonyManager.
@@ -214,7 +215,7 @@ public class TelephonyManagerPermissionTest {
             fail("SecurityException expected!");
         } catch (SecurityException e) {}
         try {
-            Intent intent = new Intent("android.intent.action.ACTION_DEFAULT_SUBSCRIPTION_CHANGED");
+            Intent intent = new Intent("android.telephony.action.DEFAULT_SUBSCRIPTION_CHANGED");
             getContext().sendBroadcast(intent);
             fail("SecurityException expected!");
         } catch (SecurityException e) {}
@@ -226,7 +227,7 @@ public class TelephonyManagerPermissionTest {
         } catch (SecurityException e) {}
         try {
             Intent intent = new Intent(
-                    "android.intent.action.ACTION_DEFAULT_SMS_SUBSCRIPTION_CHANGED");
+                    "android.telephony.action.DEFAULT_SMS_SUBSCRIPTION_CHANGED");
             getContext().sendBroadcast(intent);
             fail("SecurityException expected!");
         } catch (SecurityException e) {}
@@ -241,7 +242,79 @@ public class TelephonyManagerPermissionTest {
             getContext().sendBroadcast(intent);
             fail("SecurityException expected!");
         } catch (SecurityException e) {}
+        try {
+            Intent intent = new Intent("android.provider.Telephony.SECRET_CODE");
+            getContext().sendBroadcast(intent);
+            fail("SecurityException expected!");
+        } catch (SecurityException e) {}
+    }
 
+    /**
+     * Verify that TelephonyManager.getImei requires Permission.
+     * <p>
+     * Requires Permission:
+     * {@link android.Manifest.permission#READ_PHONE_STATE}.
+     */
+    @Test
+    public void testGetImei() {
+        if (!mHasTelephony) {
+            return;
+        }
+
+        try {
+            String imei = mTelephonyManager.getImei();
+            fail("Got IMEI: " + imei);
+        } catch (SecurityException e) {
+            // expected
+        }
+        try {
+            String imei = mTelephonyManager.getImei(0);
+            fail("Got IMEI: " + imei);
+        } catch (SecurityException e) {
+            // expected
+        }
+    }
+
+    /**
+     * Verify that TelephonyManager.setAllowedCarriers requires Permission.
+     * <p>
+     * Requires Permission:
+     * {@link android.Manifest.permission#MODIFY_PHONE_STATE}.
+     */
+    @Test
+    public void testSetAllowedCarriers() {
+        if (!mHasTelephony
+                || !getContext().getPackageManager().hasSystemFeature(
+                        PackageManager.FEATURE_TELEPHONY_CARRIERLOCK)) {
+            return;
+        }
+        try {
+            mTelephonyManager.setAllowedCarriers(0, Collections.emptyList());
+            fail("Able to set allowed carriers");
+        } catch (SecurityException e) {
+            // expected
+        }
+    }
+
+    /**
+     * Verify that TelephonyManager.getAllowedCarriers requires Permission.
+     * <p>
+     * Requires Permission:
+     * {@link android.Manifest.permission#READ_PRIVILEGED_PHONE_STATE}.
+     */
+    @Test
+    public void testGetAllowedCarriers() {
+        if (!mHasTelephony
+                || !getContext().getPackageManager().hasSystemFeature(
+                        PackageManager.FEATURE_TELEPHONY_CARRIERLOCK)) {
+            return;
+        }
+        try {
+            mTelephonyManager.getAllowedCarriers(0);
+            fail("Able to get allowed carriers");
+        } catch (SecurityException e) {
+            // expected
+        }
     }
 
     private static Context getContext() {

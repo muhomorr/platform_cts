@@ -19,8 +19,7 @@ package com.android.cts.apicoverage;
 import com.android.compatibility.common.util.CddTest;
 
 import org.jf.dexlib2.DexFileFactory;
-import org.jf.dexlib2.DexFileFactory.DexFileNotFound;
-import org.jf.dexlib2.DexFileFactory.MultipleDexFilesException;
+import org.jf.dexlib2.DexFileFactory.DexFileNotFoundException;
 import org.jf.dexlib2.Opcodes;
 import org.jf.dexlib2.iface.Annotation;
 import org.jf.dexlib2.iface.AnnotationElement;
@@ -44,6 +43,7 @@ import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 
 import javax.xml.transform.TransformerException;
@@ -104,6 +104,8 @@ public class CtsApiCoverage {
         String reportTitle = "CTS API Coverage";
         int apiLevel = Integer.MAX_VALUE;
 
+        List<File> notFoundTestApks = new ArrayList<File>();
+        int numTestApkArgs = 0;
         for (int i = 0; i < args.length; i++) {
             if (args[i].startsWith("-")) {
                 if ("-o".equals(args[i])) {
@@ -134,12 +136,21 @@ public class CtsApiCoverage {
                 }
             } else {
                 File file = new File(args[i]);
+                numTestApkArgs++;
                 if (file.isDirectory()) {
                     testApks.addAll(Arrays.asList(file.listFiles(SUPPORTED_FILE_NAME_FILTER)));
-                } else {
+                } else if (file.isFile()) {
                     testApks.add(file);
+                } else {
+                    notFoundTestApks.add(file);
                 }
             }
+        }
+
+        if (!notFoundTestApks.isEmpty()) {
+            String msg = String.format(Locale.US, "%d/%d testApks not found: %s",
+                    notFoundTestApks.size(), numTestApkArgs, notFoundTestApks);
+            throw new IllegalArgumentException(msg);
         }
 
         /*
@@ -264,9 +275,8 @@ public class CtsApiCoverage {
 
         DexFile dexFile = null;
         try {
-            dexFile = DexFileFactory.loadDexFile(
-                testSource, null /*dexEntry*/, Opcodes.forApi(api));
-        } catch (IOException | DexFileFactory.DexFileNotFound e) {
+            dexFile = DexFileFactory.loadDexFile(testSource, Opcodes.forApi(api));
+        } catch (IOException | DexFileFactory.DexFileNotFoundException e) {
             System.err.println("Unable to load dex file: " + testSource.getPath());
             return;
         }

@@ -18,7 +18,8 @@ package android.security.cts;
 
 import android.platform.test.annotations.RestrictedBuildTest;
 
-import com.android.cts.migration.MigrationHelper;
+import com.android.compatibility.common.tradefed.build.CompatibilityBuildHelper;
+import com.android.compatibility.common.util.PropertyUtil;
 import com.android.tradefed.build.IBuildInfo;
 import com.android.tradefed.device.CollectingOutputReceiver;
 import com.android.tradefed.device.DeviceNotAvailableException;
@@ -30,8 +31,10 @@ import com.android.tradefed.testtype.IDeviceTest;
 import com.android.compatibility.common.util.CddTest;
 
 import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileReader;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -39,9 +42,11 @@ import java.io.InputStreamReader;
 import java.lang.String;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.Scanner;
@@ -56,6 +61,10 @@ import java.util.Set;
  */
 public class SELinuxHostTest extends DeviceTestCase implements IBuildReceiver, IDeviceTest {
 
+    private static final Map<ITestDevice, File> cachedDevicePolicyFiles = new HashMap<>(1);
+    private static final Map<ITestDevice, File> cachedDevicePlatFcFiles = new HashMap<>(1);
+    private static final Map<ITestDevice, File> cachedDeviceNonplatFcFiles = new HashMap<>(1);
+
     private File sepolicyAnalyze;
     private File checkSeapp;
     private File checkFc;
@@ -64,11 +73,16 @@ public class SELinuxHostTest extends DeviceTestCase implements IBuildReceiver, I
     private File aospPcFile;
     private File aospSvcFile;
     private File devicePolicyFile;
-    private File deviceSeappFile;
-    private File deviceFcFile;
+    private File devicePlatSeappFile;
+    private File deviceNonplatSeappFile;
+    private File devicePlatFcFile;
+    private File deviceNonplatFcFile;
     private File devicePcFile;
     private File deviceSvcFile;
     private File seappNeverAllowFile;
+    private File libsepolwrap;
+    private File libcpp;
+    private File sepolicyTests;
 
     private IBuildInfo mBuild;
 
@@ -98,9 +112,11 @@ public class SELinuxHostTest extends DeviceTestCase implements IBuildReceiver, I
         InputStream is = this.getClass().getResourceAsStream(resName);
         File tempFile = File.createTempFile("SELinuxHostTest", ".tmp");
         FileOutputStream os = new FileOutputStream(tempFile);
-        int rByte = 0;
-        while ((rByte = is.read()) != -1) {
-            os.write(rByte);
+        byte[] buf = new byte[1024];
+        int len;
+
+        while ((len = is.read(buf)) != -1) {
+            os.write(buf, 0, len);
         }
         os.flush();
         os.close();
@@ -108,16 +124,71 @@ public class SELinuxHostTest extends DeviceTestCase implements IBuildReceiver, I
         return tempFile;
     }
 
+    private static void appendTo(String dest, String src) throws IOException {
+        try (FileInputStream is = new FileInputStream(new File(src));
+             FileOutputStream os = new FileOutputStream(new File(dest))) {
+            byte[] buf = new byte[1024];
+            int len;
+
+            while ((len = is.read(buf)) != -1) {
+                os.write(buf, 0, len);
+            }
+        }
+    }
+
     @Override
     protected void setUp() throws Exception {
         super.setUp();
-        sepolicyAnalyze = MigrationHelper.getTestFile(mBuild, "sepolicy-analyze");
+        CompatibilityBuildHelper buildHelper = new CompatibilityBuildHelper(mBuild);
+        sepolicyAnalyze = buildHelper.getTestFile("sepolicy-analyze");
         sepolicyAnalyze.setExecutable(true);
 
-        /* obtain sepolicy file from running device */
-        devicePolicyFile = File.createTempFile("sepolicy", ".tmp");
-        devicePolicyFile.deleteOnExit();
-        mDevice.pullFile("/sys/fs/selinux/policy", devicePolicyFile);
+        devicePolicyFile = getDevicePolicyFile(mDevice);
+        if (mDevice.doesFileExist("/system/etc/selinux/plat_file_contexts")) {
+            devicePlatFcFile = getDeviceFile(mDevice, cachedDevicePlatFcFiles,
+                    "/system/etc/selinux/plat_file_contexts", "plat_file_contexts");
+            deviceNonplatFcFile = getDeviceFile(mDevice, cachedDeviceNonplatFcFiles,
+                    "/vendor/etc/selinux/nonplat_file_contexts", "nonplat_file_contexts");
+        } else {
+            devicePlatFcFile = getDeviceFile(mDevice, cachedDevicePlatFcFiles,
+                    "/plat_file_contexts", "plat_file_contexts");
+            deviceNonplatFcFile = getDeviceFile(mDevice, cachedDeviceNonplatFcFiles,
+                    "/nonplat_file_contexts", "nonplat_file_contexts");
+        }
+    }
+
+    /*
+     * IMPLEMENTATION DETAILS: We cache some host-side policy files on per-device basis (in case
+     * CTS supports running against multiple devices at the same time). HashMap is used instead
+     * of WeakHashMap because in the grand scheme of things, keeping ITestDevice and
+     * corresponding File objects from being garbage-collected is not a big deal in CTS. If this
+     * becomes a big deal, this can be switched to WeakHashMap.
+     */
+    private static File getDeviceFile(ITestDevice device,
+            Map<ITestDevice, File> cache, String deviceFilePath,
+            String tmpFileName) throws Exception {
+        File file;
+        synchronized (cache) {
+            file = cache.get(device);
+        }
+        if (file != null) {
+            return file;
+        }
+        file = File.createTempFile(tmpFileName, ".tmp");
+        file.deleteOnExit();
+        device.pullFile(deviceFilePath, file);
+        synchronized (cache) {
+            cache.put(device, file);
+        }
+        return file;
+    }
+
+    // NOTE: cts/tools/selinux depends on this method. Rename/change with caution.
+    /**
+     * Returns the host-side file containing the SELinux policy of the device under test.
+     */
+    public static File getDevicePolicyFile(ITestDevice device) throws Exception {
+        return getDeviceFile(device, cachedDevicePolicyFiles, "/sys/fs/selinux/policy", "sepolicy");
     }
 
     /**
@@ -169,18 +240,129 @@ public class SELinuxHostTest extends DeviceTestCase implements IBuildReceiver, I
      *  The type name.
      */
     private void assertNotInAttribute(String attribute, String badtype) throws Exception {
-        /* run sepolicy-analyze attribute check on policy file */
-        ProcessBuilder pb = new ProcessBuilder(sepolicyAnalyze.getAbsolutePath(),
-                devicePolicyFile.getAbsolutePath(), "attribute", attribute);
+        Set<String> actualTypes = sepolicyAnalyzeGetTypesAssociatedWithAttribute(attribute);
+        if (actualTypes.contains(badtype)) {
+            fail("Attribute " + attribute + " includes " + badtype);
+        }
+    }
+
+    private static final byte[] readFully(InputStream in) throws IOException {
+        ByteArrayOutputStream result = new ByteArrayOutputStream();
+        byte[] buf = new byte[65536];
+        int chunkSize;
+        while ((chunkSize = in.read(buf)) != -1) {
+            result.write(buf, 0, chunkSize);
+        }
+        return result.toByteArray();
+    }
+
+    /**
+     * Runs sepolicy-analyze against the device's SELinux policy and returns the set of types
+     * associated with the provided attribute.
+     */
+    private Set<String> sepolicyAnalyzeGetTypesAssociatedWithAttribute(
+            String attribute) throws Exception {
+        ProcessBuilder pb =
+                new ProcessBuilder(
+                        sepolicyAnalyze.getAbsolutePath(),
+                        devicePolicyFile.getAbsolutePath(),
+                        "attribute",
+                        attribute);
         pb.redirectOutput(ProcessBuilder.Redirect.PIPE);
         pb.redirectErrorStream(true);
         Process p = pb.start();
-        p.waitFor();
-        BufferedReader result = new BufferedReader(new InputStreamReader(p.getInputStream()));
-        String type;
-        while ((type = result.readLine()) != null) {
-            assertFalse("Attribute " + attribute + " includes " + type + "\n",
-                        type.equals(badtype));
+        int errorCode = p.waitFor();
+        if (errorCode != 0) {
+            fail("sepolicy-analyze attribute " + attribute + " failed with error code " + errorCode
+                    + ": " + new String(readFully(p.getInputStream())));
+        }
+        try (BufferedReader in =
+                new BufferedReader(new InputStreamReader(p.getInputStream()))) {
+            Set<String> types = new HashSet<>();
+            String type;
+            while ((type = in.readLine()) != null) {
+                types.add(type.trim());
+            }
+            return types;
+        }
+    }
+
+    // NOTE: cts/tools/selinux depends on this method. Rename/change with caution.
+    /**
+     * Returns {@code true} if this device is required to be a full Treble device.
+     */
+    public static boolean isFullTrebleDevice(ITestDevice device)
+            throws DeviceNotAvailableException {
+        return PropertyUtil.getFirstApiLevel(device) > 25;
+    }
+
+    private boolean isFullTrebleDevice() throws DeviceNotAvailableException {
+        return isFullTrebleDevice(mDevice);
+    }
+
+    /**
+     * Asserts that no vendor domains are exempted from the prohibition on Binder use.
+     *
+     * <p>NOTE: binder_in_vendor_violators attribute is only there to help bring up Treble devices.
+     * It offers a convenient way to temporarily bypass the prohibition on Binder use in vendor
+     * domains. This attribute must not be used on production Treble devices.
+     */
+    public void testNoExemptionsForBinderInVendorBan() throws Exception {
+        if (!isFullTrebleDevice()) {
+            return;
+        }
+
+        Set<String> types =
+            sepolicyAnalyzeGetTypesAssociatedWithAttribute("binder_in_vendor_violators");
+        if (!types.isEmpty()) {
+            List<String> sortedTypes = new ArrayList<>(types);
+            Collections.sort(sortedTypes);
+            fail("Policy exempts vendor domains from ban on Binder: " + sortedTypes);
+        }
+    }
+
+    /**
+     * Asserts that no domains are exempted from the prohibition on initiating socket communications
+     * between core and vendor domains.
+     *
+     * <p>NOTE: socket_between_core_and_vendor_violators attribute is only there to help bring up
+     * Treble devices. It offers a convenient way to temporarily bypass the prohibition on
+     * initiating socket communications between core and vendor domains. This attribute must not be
+     * used on production Treble devices.
+     */
+    public void testNoExemptionsForSocketsBetweenCoreAndVendorBan() throws Exception {
+        if (!isFullTrebleDevice()) {
+            return;
+        }
+
+        Set<String> types =
+                sepolicyAnalyzeGetTypesAssociatedWithAttribute(
+                        "socket_between_core_and_vendor_violators");
+        if (!types.isEmpty()) {
+            List<String> sortedTypes = new ArrayList<>(types);
+            Collections.sort(sortedTypes);
+            fail("Policy exempts domains from ban on socket communications between core and"
+                    + " vendor: " + sortedTypes);
+        }
+    }
+
+    /**
+     * Asserts that no vendor domains are exempted from the prohibition on directly
+     * executing binaries from /system.
+     * */
+    public void testNoExemptionsForVendorExecutingCore() throws Exception {
+        if (!isFullTrebleDevice()) {
+            return;
+        }
+
+        Set<String> types =
+                sepolicyAnalyzeGetTypesAssociatedWithAttribute(
+                        "vendor_executes_system_violators");
+        if (!types.isEmpty()) {
+            List<String> sortedTypes = new ArrayList<>(types);
+            Collections.sort(sortedTypes);
+            fail("Policy exempts vendor domains from ban on executing files in /system: "
+                    + sortedTypes);
         }
     }
 
@@ -207,9 +389,16 @@ public class SELinuxHostTest extends DeviceTestCase implements IBuildReceiver, I
     public void testValidSeappContexts() throws Exception {
 
         /* obtain seapp_contexts file from running device */
-        deviceSeappFile = File.createTempFile("seapp_contexts", ".tmp");
-        deviceSeappFile.deleteOnExit();
-        mDevice.pullFile("/seapp_contexts", deviceSeappFile);
+        devicePlatSeappFile = File.createTempFile("plat_seapp_contexts", ".tmp");
+        devicePlatSeappFile.deleteOnExit();
+        deviceNonplatSeappFile = File.createTempFile("nonplat_seapp_contexts", ".tmp");
+        deviceNonplatSeappFile.deleteOnExit();
+        if (mDevice.pullFile("/system/etc/selinux/plat_seapp_contexts", devicePlatSeappFile)) {
+            mDevice.pullFile("/vendor/etc/selinux/nonplat_seapp_contexts", deviceNonplatSeappFile);
+        }else {
+            mDevice.pullFile("/plat_seapp_contexts", devicePlatSeappFile);
+            mDevice.pullFile("/nonplat_seapp_contexts", deviceNonplatSeappFile);
+	}
 
         /* retrieve the checkseapp executable from jar */
         checkSeapp = copyResourceToTempFile("/checkseapp");
@@ -222,7 +411,8 @@ public class SELinuxHostTest extends DeviceTestCase implements IBuildReceiver, I
         ProcessBuilder pb = new ProcessBuilder(checkSeapp.getAbsolutePath(),
                 "-p", devicePolicyFile.getAbsolutePath(),
                 seappNeverAllowFile.getAbsolutePath(),
-                deviceSeappFile.getAbsolutePath());
+                devicePlatSeappFile.getAbsolutePath(),
+                deviceNonplatSeappFile.getAbsolutePath());
         pb.redirectOutput(ProcessBuilder.Redirect.PIPE);
         pb.redirectErrorStream(true);
         Process p = pb.start();
@@ -267,14 +457,15 @@ public class SELinuxHostTest extends DeviceTestCase implements IBuildReceiver, I
     public void testAospSeappContexts() throws Exception {
 
         /* obtain seapp_contexts file from running device */
-        deviceSeappFile = File.createTempFile("seapp_contexts", ".tmp");
-        deviceSeappFile.deleteOnExit();
-        mDevice.pullFile("/seapp_contexts", deviceSeappFile);
-
+        devicePlatSeappFile = File.createTempFile("seapp_contexts", ".tmp");
+        devicePlatSeappFile.deleteOnExit();
+        if (!mDevice.pullFile("/system/etc/selinux/plat_seapp_contexts", devicePlatSeappFile)) {
+            mDevice.pullFile("/plat_seapp_contexts", devicePlatSeappFile);
+        }
         /* retrieve the AOSP seapp_contexts file from jar */
         aospSeappFile = copyResourceToTempFile("/plat_seapp_contexts");
 
-        assertFileStartsWith(aospSeappFile, deviceSeappFile);
+        assertFileStartsWith(aospSeappFile, devicePlatSeappFile);
     }
 
     /**
@@ -290,25 +481,20 @@ public class SELinuxHostTest extends DeviceTestCase implements IBuildReceiver, I
         checkFc = copyResourceToTempFile("/checkfc");
         checkFc.setExecutable(true);
 
-        /* obtain file_contexts.bin file from running device */
-        deviceFcFile = File.createTempFile("file_contexts", ".bin");
-        deviceFcFile.deleteOnExit();
-        mDevice.pullFile("/file_contexts.bin", deviceFcFile);
-
         /* retrieve the AOSP file_contexts file from jar */
         aospFcFile = copyResourceToTempFile("/plat_file_contexts");
 
         /* run checkfc -c plat_file_contexts file_contexts.bin */
         ProcessBuilder pb = new ProcessBuilder(checkFc.getAbsolutePath(),
                 "-c", aospFcFile.getAbsolutePath(),
-                deviceFcFile.getAbsolutePath());
+                devicePlatFcFile.getAbsolutePath());
         pb.redirectOutput(ProcessBuilder.Redirect.PIPE);
         pb.redirectErrorStream(true);
         Process p = pb.start();
         p.waitFor();
         BufferedReader result = new BufferedReader(new InputStreamReader(p.getInputStream()));
         String line = result.readLine();
-        assertTrue("The file_contexts.bin file did not include the AOSP entries:\n"
+        assertTrue("The file_contexts file did not include the AOSP entries:\n"
                    + line + "\n",
                    line.equals("equal") || line.equals("subset"));
     }
@@ -323,12 +509,17 @@ public class SELinuxHostTest extends DeviceTestCase implements IBuildReceiver, I
     public void testAospPropertyContexts() throws Exception {
 
         /* obtain property_contexts file from running device */
-        devicePcFile = File.createTempFile("property_contexts", ".tmp");
+        devicePcFile = File.createTempFile("plat_property_contexts", ".tmp");
         devicePcFile.deleteOnExit();
-        mDevice.pullFile("/property_contexts", devicePcFile);
+        // plat_property_contexts may be either in /system/etc/sepolicy or in /
+        if (!mDevice.pullFile("/system/etc/selinux/plat_property_contexts", devicePcFile)) {
+            mDevice.pullFile("/plat_property_contexts", devicePcFile);
+        }
 
-        /* retrieve the AOSP property_contexts file from jar */
-        aospPcFile = copyResourceToTempFile("/general_property_contexts");
+        // Retrieve the AOSP property_contexts file from JAR.
+        // The location of this file in the JAR has nothing to do with the location of this file on
+        // Android devices. See build script of this CTS module.
+        aospPcFile = copyResourceToTempFile("/plat_property_contexts");
 
         assertFileStartsWith(aospPcFile, devicePcFile);
     }
@@ -345,16 +536,18 @@ public class SELinuxHostTest extends DeviceTestCase implements IBuildReceiver, I
         /* obtain service_contexts file from running device */
         deviceSvcFile = File.createTempFile("service_contexts", ".tmp");
         deviceSvcFile.deleteOnExit();
-        mDevice.pullFile("/service_contexts", deviceSvcFile);
+        if (!mDevice.pullFile("/system/etc/selinux/plat_service_contexts", deviceSvcFile)) {
+            mDevice.pullFile("/plat_service_contexts", deviceSvcFile);
+        }
 
         /* retrieve the AOSP service_contexts file from jar */
-        aospSvcFile = copyResourceToTempFile("/general_service_contexts");
+        aospSvcFile = copyResourceToTempFile("/plat_service_contexts");
 
         assertFileStartsWith(aospSvcFile, deviceSvcFile);
     }
 
     /**
-     * Tests that the file_contexts.bin file on the device is valid.
+     * Tests that the file_contexts file(s) on the device is valid.
      *
      * @throws Exception
      */
@@ -365,15 +558,16 @@ public class SELinuxHostTest extends DeviceTestCase implements IBuildReceiver, I
         checkFc = copyResourceToTempFile("/checkfc");
         checkFc.setExecutable(true);
 
-        /* obtain file_contexts.bin file from running device */
-        deviceFcFile = File.createTempFile("file_contexts", ".bin");
-        deviceFcFile.deleteOnExit();
-        mDevice.pullFile("/file_contexts.bin", deviceFcFile);
+        /* combine plat and nonplat policies for testing */
+        File combinedFcFile = File.createTempFile("combined_file_context", ".tmp");
+        combinedFcFile.deleteOnExit();
+        appendTo(combinedFcFile.getAbsolutePath(), devicePlatFcFile.getAbsolutePath());
+        appendTo(combinedFcFile.getAbsolutePath(), deviceNonplatFcFile.getAbsolutePath());
 
-        /* run checkfc sepolicy file_contexts.bin */
+        /* run checkfc sepolicy file_contexts */
         ProcessBuilder pb = new ProcessBuilder(checkFc.getAbsolutePath(),
                 devicePolicyFile.getAbsolutePath(),
-                deviceFcFile.getAbsolutePath());
+                combinedFcFile.getAbsolutePath());
         pb.redirectOutput(ProcessBuilder.Redirect.PIPE);
         pb.redirectErrorStream(true);
         Process p = pb.start();
@@ -385,7 +579,7 @@ public class SELinuxHostTest extends DeviceTestCase implements IBuildReceiver, I
             errorString.append(line);
             errorString.append("\n");
         }
-        assertTrue("The file_contexts.bin file was invalid:\n"
+        assertTrue("file_contexts was invalid:\n"
                    + errorString, errorString.length() == 0);
     }
 
@@ -459,6 +653,67 @@ public class SELinuxHostTest extends DeviceTestCase implements IBuildReceiver, I
         }
         assertTrue("The service_contexts file was invalid:\n"
                    + errorString, errorString.length() == 0);
+    }
+
+    private boolean isMac() {
+        String os = System.getProperty("os.name").toLowerCase();
+        return (os.startsWith("mac") || os.startsWith("darwin"));
+    }
+
+    private void setupLibraries() throws Exception {
+        // The host side binary tests are host OS specific. Use Linux
+        // libraries on Linux and Mac libraries on Mac.
+        if (isMac()) {
+            libsepolwrap = copyResourceToTempFile("/libsepolwrap.dylib");
+            libcpp = copyResourceToTempFile("/libc++.dylib");
+            libcpp.renameTo(new File(System.getProperty("java.io.tmpdir") + "/libc++.dylib"));
+        } else {
+            libsepolwrap = copyResourceToTempFile("/libsepolwrap.so");
+            libcpp = copyResourceToTempFile("/libc++.so");
+            libcpp.renameTo(new File(System.getProperty("java.io.tmpdir") + "/libc++.so"));
+        }
+        libsepolwrap.deleteOnExit();
+        libcpp.deleteOnExit();
+    }
+
+    private void assertSepolicyTests(String Test) throws Exception {
+        setupLibraries();
+        sepolicyTests = copyResourceToTempFile("/sepolicy_tests");
+        sepolicyTests.setExecutable(true);
+        ProcessBuilder pb = new ProcessBuilder(
+                sepolicyTests.getAbsolutePath(),
+                "-l", libsepolwrap.getAbsolutePath(),
+                "-f", devicePlatFcFile.getAbsolutePath(),
+                "-f", deviceNonplatFcFile.getAbsolutePath(),
+                "-p", devicePolicyFile.getAbsolutePath(),
+                "--test", Test);
+        Map<String, String> env = pb.environment();
+        if (isMac()) {
+            env.put("DYLD_LIBRARY_PATH", System.getProperty("java.io.tmpdir"));
+        } else {
+            env.put("LD_LIBRARY_PATH", System.getProperty("java.io.tmpdir"));
+        }
+        pb.redirectOutput(ProcessBuilder.Redirect.PIPE);
+        pb.redirectErrorStream(true);
+        Process p = pb.start();
+        p.waitFor();
+        BufferedReader result = new BufferedReader(new InputStreamReader(p.getInputStream()));
+        String line;
+        StringBuilder errorString = new StringBuilder();
+        while ((line = result.readLine()) != null) {
+            errorString.append(line);
+            errorString.append("\n");
+        }
+        assertTrue(errorString.toString(), errorString.length() == 0);
+    }
+
+    /**
+     * Tests that all types on /data have the data_file_type attribute.
+     *
+     * @throws Exception
+     */
+    public void testDataTypeViolators() throws Exception {
+        assertSepolicyTests("TestDataTypeViolations");
     }
 
    /**
@@ -657,7 +912,7 @@ public class SELinuxHostTest extends DeviceTestCase implements IBuildReceiver, I
     /* Devices always have healthd */
     @CddTest(requirement="9.7")
     public void testHealthdDomain() throws DeviceNotAvailableException {
-        assertDomainOne("u:r:healthd:s0", "/sbin/healthd");
+        assertDomainOne("u:r:healthd:s0", "/system/bin/healthd");
     }
 
     /* Servicemanager is always there */
@@ -675,14 +930,7 @@ public class SELinuxHostTest extends DeviceTestCase implements IBuildReceiver, I
     /* netd is always there */
     @CddTest(requirement="9.7")
     public void testNetdDomain() throws DeviceNotAvailableException {
-        assertDomainOne("u:r:netd:s0", "/system/bin/netd");
-    }
-
-    /* Debuggerd is always there */
-    @CddTest(requirement="9.7")
-    public void testDebuggerdDomain() throws DeviceNotAvailableException {
-        assertDomainN("u:r:debuggerd:s0", "/system/bin/debuggerd", "/system/bin/debuggerd64",
-                "debuggerd:signaller", "debuggerd64:signaller");
+        assertDomainN("u:r:netd:s0", "/system/bin/netd", "/system/bin/iptables-restore", "/system/bin/ip6tables-restore");
     }
 
     /* Surface flinger is always there */
@@ -719,15 +967,6 @@ public class SELinuxHostTest extends DeviceTestCase implements IBuildReceiver, I
     @CddTest(requirement="9.7")
     public void testSystemServerDomain() throws DeviceNotAvailableException {
         assertDomainOne("u:r:system_server:s0", "system_server");
-    }
-
-    /*
-     * Some OEMs do not use sdcardd so transient. Other OEMs have multiple sdcards
-     * so they run the daemon multiple times.
-     */
-    @CddTest(requirement="9.7")
-    public void testSdcarddDomain() throws DeviceNotAvailableException {
-        assertDomainHasExecutable("u:r:sdcardd:s0", "/system/bin/sdcard");
     }
 
     /* Watchdogd may or may not be there */

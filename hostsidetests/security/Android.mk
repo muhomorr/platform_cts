@@ -18,40 +18,49 @@ include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES := $(call all-java-files-under, src)
 
+LOCAL_JAVA_RESOURCE_DIRS := res
+
 LOCAL_MODULE_TAGS := optional
 
 # tag this module as a cts test artifact
-LOCAL_COMPATIBILITY_SUITE := cts
+LOCAL_COMPATIBILITY_SUITE := cts general-tests
 
 # Must match the package name in CtsTestCaseList.mk
 LOCAL_MODULE := CtsSecurityHostTestCases
 
 LOCAL_MODULE_CLASS := JAVA_LIBRARIES
 
-LOCAL_JAVA_LIBRARIES := cts-tradefed tradefed-prebuilt compatibility-host-util
-
-LOCAL_STATIC_JAVA_LIBRARIES := cts-migration-lib
+LOCAL_JAVA_LIBRARIES := cts-tradefed tradefed compatibility-host-util
 
 LOCAL_CTS_TEST_PACKAGE := android.host.security
 
-selinux_general_seapp_contexts := $(call intermediates-dir-for,ETC,plat_seapp_contexts)/plat_seapp_contexts
+ifeq ($(HOST_OS),darwin)
+SHAREDLIB_EXT=dylib
+else
+SHAREDLIB_EXT=so
+endif
 
-selinux_general_seapp_neverallows := $(call intermediates-dir-for,ETC,plat_seapp_neverallows)/plat_seapp_neverallows
+selinux_plat_seapp_contexts := $(call intermediates-dir-for,ETC,plat_seapp_contexts)/plat_seapp_contexts
+
+selinux_plat_seapp_neverallows := $(call intermediates-dir-for,ETC,plat_seapp_neverallows)/plat_seapp_neverallows
 
 selinux_plat_file_contexts := $(call intermediates-dir-for,ETC,plat_file_contexts)/plat_file_contexts
 
-selinux_general_property_contexts := $(call intermediates-dir-for,ETC,general_property_contexts)/general_property_contexts
+selinux_plat_property_contexts := $(call intermediates-dir-for,ETC,plat_property_contexts)/plat_property_contexts
 
-selinux_general_service_contexts := $(call intermediates-dir-for,ETC,general_service_contexts)/general_service_contexts
+selinux_plat_service_contexts := $(call intermediates-dir-for,ETC,plat_service_contexts)/plat_service_contexts
 
 LOCAL_JAVA_RESOURCE_FILES := \
     $(HOST_OUT_EXECUTABLES)/checkseapp \
     $(HOST_OUT_EXECUTABLES)/checkfc \
-    $(selinux_general_seapp_contexts) \
-    $(selinux_general_seapp_neverallows) \
-    $(selinux_general_file_contexts) \
-    $(selinux_general_property_contexts) \
-    $(selinux_general_service_contexts)
+    $(HOST_OUT_EXECUTABLES)/sepolicy_tests \
+    $(HOST_OUT)/lib64/libsepolwrap.$(SHAREDLIB_EXT) \
+    $(HOST_OUT)/lib64/libc++.$(SHAREDLIB_EXT) \
+    $(selinux_plat_seapp_contexts) \
+    $(selinux_plat_seapp_neverallows) \
+    $(selinux_plat_file_contexts) \
+    $(selinux_plat_property_contexts) \
+    $(selinux_plat_service_contexts)
 
 selinux_general_policy := $(call intermediates-dir-for,ETC,general_sepolicy.conf)/general_sepolicy.conf
 

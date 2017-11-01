@@ -19,17 +19,18 @@ package android.telecom.cts;
 import static android.telecom.cts.TestUtils.*;
 
 import android.content.ComponentName;
+import android.content.Context;
+import android.media.AudioManager;
 import android.telecom.Call;
 import android.telecom.Connection;
 import android.telecom.ConnectionService;
 import android.telecom.PhoneAccountHandle;
-import android.util.Log;
 
 import java.util.Collection;
-import java.util.concurrent.TimeUnit;
 
 /**
- * Test some additional {@link ConnectionService} APIs not already covered by other tests.
+ * Test some additional {@link ConnectionService} and {@link Connection} APIs not already covered
+ * by other tests.
  */
 public class ConnectionServiceTest extends BaseTelecomTestWithMockServices {
 
@@ -104,6 +105,23 @@ public class ConnectionServiceTest extends BaseTelecomTestWithMockServices {
         mInCallCallbacks.lock.drainPermits();
         final Call call = mInCallCallbacks.getService().getLastCall();
         assertCallState(call, Call.STATE_DIALING);
+    }
+
+    public void testVoipAudioModePropagation() throws Exception {
+        if (!mShouldTestTelecom) {
+            return;
+        }
+
+        placeAndVerifyCall();
+        MockConnection connection = verifyConnectionForOutgoingCall();
+        connection.setAudioModeIsVoip(true);
+        waitOnAllHandlers(getInstrumentation());
+
+        AudioManager audioManager = (AudioManager) mContext.getSystemService(Context.AUDIO_SERVICE);
+        assertEquals(AudioManager.MODE_IN_COMMUNICATION, audioManager.getMode());
+        connection.setAudioModeIsVoip(false);
+        waitOnAllHandlers(getInstrumentation());
+        assertEquals(AudioManager.MODE_IN_CALL, audioManager.getMode());
     }
 
     public void testGetAllConnections() {

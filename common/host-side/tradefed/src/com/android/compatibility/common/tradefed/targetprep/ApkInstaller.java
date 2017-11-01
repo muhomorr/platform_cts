@@ -18,6 +18,7 @@ package com.android.compatibility.common.tradefed.targetprep;
 import com.android.compatibility.common.tradefed.build.CompatibilityBuildHelper;
 import com.android.tradefed.build.IBuildInfo;
 import com.android.tradefed.config.OptionClass;
+import com.android.tradefed.device.ITestDevice;
 import com.android.tradefed.targetprep.TargetSetupError;
 import com.android.tradefed.targetprep.TestAppInstallSetup;
 
@@ -32,27 +33,37 @@ public class ApkInstaller extends TestAppInstallSetup {
 
     private CompatibilityBuildHelper mBuildHelper = null;
 
-    protected File getTestsDir(IBuildInfo buildInfo) throws FileNotFoundException {
+    private void setBuildHelper(IBuildInfo buildInfo) {
         if (mBuildHelper == null) {
             mBuildHelper = new CompatibilityBuildHelper(buildInfo);
         }
+    }
+
+    protected File getTestsDir(IBuildInfo buildInfo) throws FileNotFoundException {
+        setBuildHelper(buildInfo);
         return mBuildHelper.getTestsDir();
+    }
+
+    protected File getTestFile(IBuildInfo buildInfo, String filename) throws FileNotFoundException {
+        setBuildHelper(buildInfo);
+        return mBuildHelper.getTestFile(filename);
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    protected File getLocalPathForFilename(IBuildInfo buildInfo, String apkFileName)
-            throws TargetSetupError {
+    protected File getLocalPathForFilename(IBuildInfo buildInfo, String apkFileName,
+            ITestDevice device) throws TargetSetupError {
         File apkFile = null;
         try {
-            apkFile = new File(getTestsDir(buildInfo), apkFileName);
+            apkFile = getTestFile(buildInfo, apkFileName);
             if (!apkFile.isFile()) {
                 throw new FileNotFoundException();
             }
         } catch (FileNotFoundException e) {
-            throw new TargetSetupError(String.format("%s not found", apkFileName), e);
+            throw new TargetSetupError(String.format("%s not found", apkFileName), e,
+                    device.getDeviceDescriptor());
         }
         return apkFile;
     }

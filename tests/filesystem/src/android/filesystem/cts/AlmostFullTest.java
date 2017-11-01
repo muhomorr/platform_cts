@@ -18,10 +18,10 @@ package android.filesystem.cts;
 
 import android.util.Log;
 
-import android.cts.util.CtsAndroidTestCase;
-import android.cts.util.SystemUtil;
+import com.android.compatibility.common.util.CtsAndroidTestCase;
 
 import com.android.compatibility.common.util.DeviceReportLog;
+import com.android.compatibility.common.util.SystemUtil;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -63,7 +63,9 @@ public class AlmostFullTest extends CtsAndroidTestCase {
                 Log.i(TAG, "free disk " + freeDisk + " too small, needs " + FREE_SPACE_FINAL);
                 return;
             }
-            final long MAX_FILE_SIZE_TO_FILL = 1024L * 1024L * 1024L;
+            // Ensure MAX_SIZE_TO_FILL is an integral multiple of FileUtil.BUFFER_SIZE to avoid
+            // rounding errors caused by FileUtil.createNewFilledFile. See b/63535343.
+            final long MAX_FILE_SIZE_TO_FILL = FileUtil.BUFFER_SIZE * 100L;
             long filled = 0;
             while (filled < diskToFill) {
                 long toFill = diskToFill - filled;

@@ -150,6 +150,7 @@ public class ItsService extends Service implements SensorEventListener {
     private volatile ServerSocket mSocket = null;
     private volatile SocketRunnable mSocketRunnableObj = null;
     private Semaphore mSocketQueueQuota = null;
+    private int mMemoryQuota = -1;
     private LinkedList<Integer> mInflightImageSizes = new LinkedList<>();
     private volatile BlockingQueue<ByteBuffer> mSocketWriteQueue =
             new LinkedBlockingDeque<ByteBuffer>();
@@ -322,6 +323,18 @@ public class ItsService extends Service implements SensorEventListener {
             if (devices == null || devices.length == 0) {
                 throw new ItsException("No camera devices");
             }
+            if (mMemoryQuota == -1) {
+                // Initialize memory quota on this device
+                for (String camId : devices) {
+                    CameraCharacteristics chars =  mCameraManager.getCameraCharacteristics(camId);
+                    Size maxYuvSize = ItsUtils.getYuvOutputSizes(chars)[0];
+                    // 4 bytes per pixel for RGBA8888 Bitmap and at least 3 Bitmaps per CDD
+                    int quota = maxYuvSize.getWidth() * maxYuvSize.getHeight() * 4 * 3;
+                    if (quota > mMemoryQuota) {
+                        mMemoryQuota = quota;
+                    }
+                }
+            }
         } catch (CameraAccessException e) {
             throw new ItsException("Failed to get device ID list", e);
         }
@@ -331,10 +344,7 @@ public class ItsService extends Service implements SensorEventListener {
                     mCameraListener, mCameraHandler);
             mCameraCharacteristics = mCameraManager.getCameraCharacteristics(
                     devices[cameraId]);
-            Size maxYuvSize = ItsUtils.getYuvOutputSizes(mCameraCharacteristics)[0];
-            // 2 bytes per pixel for RGBA Bitmap and at least 3 Bitmaps per CDD
-            int quota = maxYuvSize.getWidth() * maxYuvSize.getHeight() * 2 * 3;
-            mSocketQueueQuota = new Semaphore(quota, true);
+            mSocketQueueQuota = new Semaphore(mMemoryQuota, true);
         } catch (CameraAccessException e) {
             throw new ItsException("Failed to open camera", e);
         } catch (BlockingOpenException e) {
@@ -726,10 +736,13 @@ public class ItsService extends Service implements SensorEventListener {
                     int format = readers[i].getImageFormat();
                     if (format == ImageFormat.RAW_SENSOR) {
                         if (mCaptureRawIsStats) {
+                            int aaw = ItsUtils.getActiveArrayCropRegion(mCameraCharacteristics)
+                                              .width();
+                            int aah = ItsUtils.getActiveArrayCropRegion(mCameraCharacteristics)
+                                              .height();
                             jsonSurface.put("format", "rawStats");
-                            jsonSurface.put("width", readers[i].getWidth()/mCaptureStatsGridWidth);
-                            jsonSurface.put("height",
-                                    readers[i].getHeight()/mCaptureStatsGridHeight);
+                            jsonSurface.put("width", aaw/mCaptureStatsGridWidth);
+                            jsonSurface.put("height", aah/mCaptureStatsGridHeight);
                         } else if (mCaptureRawIsDng) {
                             jsonSurface.put("format", "dng");
                         } else {
@@ -1026,6 +1039,9 @@ public class ItsService extends Service implements SensorEventListener {
                             CaptureRequest.CONTROL_AWB_MODE_AUTO);
                     req.set(CaptureRequest.CONTROL_AWB_LOCK, false);
                     req.set(CaptureRequest.CONTROL_AWB_REGIONS, regionAWB);
+                    // ITS only turns OIS on when it's explicitly requested
+                    req.set(CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE,
+                            CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE_OFF);
 
                     if (evComp != 0) {
                         req.set(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION, evComp);
@@ -1170,14 +1186,16 @@ public class ItsService extends Service implements SensorEventListener {
                     if (height <= 0) {
                         height = ItsUtils.getMaxSize(sizes).getHeight();
                     }
-                    if (mCaptureStatsGridWidth <= 0) {
-                        mCaptureStatsGridWidth = width;
-                    }
-                    if (mCaptureStatsGridHeight <= 0) {
-                        mCaptureStatsGridHeight = height;
-                    }
 
-                    // TODO: Crop to the active array in the stats image analysis.
+                    // The stats computation only applies to the active array region.
+                    int aaw = ItsUtils.getActiveArrayCropRegion(mCameraCharacteristics).width();
+                    int aah = ItsUtils.getActiveArrayCropRegion(mCameraCharacteristics).height();
+                    if (mCaptureStatsGridWidth <= 0 || mCaptureStatsGridWidth > aaw) {
+                        mCaptureStatsGridWidth = aaw;
+                    }
+                    if (mCaptureStatsGridHeight <= 0 || mCaptureStatsGridHeight > aah) {
+                        mCaptureStatsGridHeight = aah;
+                    }
 
                     outputSizes[i] = new Size(width, height);
                 }
@@ -1569,9 +1587,18 @@ public class ItsService extends Service implements SensorEventListener {
                             long startTimeMs = SystemClock.elapsedRealtime();
                             int w = capture.getWidth();
                             int h = capture.getHeight();
+                            int aaw = ItsUtils.getActiveArrayCropRegion(mCameraCharacteristics)
+                                              .width();
+                            int aah = ItsUtils.getActiveArrayCropRegion(mCameraCharacteristics)
+                                              .height();
+                            int aax = ItsUtils.getActiveArrayCropRegion(mCameraCharacteristics)
+                                              .left;
+                            int aay = ItsUtils.getActiveArrayCropRegion(mCameraCharacteristics)
+                                              .top;
                             int gw = mCaptureStatsGridWidth;
                             int gh = mCaptureStatsGridHeight;
-                            float[] stats = StatsImage.computeStatsImage(img, w, h, gw, gh);
+                            float[] stats = StatsImage.computeStatsImage(
+                                                             img, w, h, aax, aay, aaw, aah, gw, gh);
                             long endTimeMs = SystemClock.elapsedRealtime();
                             Log.e(TAG, "Raw stats computation takes " + (endTimeMs - startTimeMs) + " ms");
                             int statsImgSize = stats.length * 4;
@@ -1579,7 +1606,7 @@ public class ItsService extends Service implements SensorEventListener {
                                 mSocketQueueQuota.release(img.length);
                                 mSocketQueueQuota.acquire(statsImgSize);
                             }
-                            ByteBuffer bBuf = ByteBuffer.allocateDirect(statsImgSize);
+                            ByteBuffer bBuf = ByteBuffer.allocate(statsImgSize);
                             bBuf.order(ByteOrder.nativeOrder());
                             FloatBuffer fBuf = bBuf.asFloatBuffer();
                             fBuf.put(stats);

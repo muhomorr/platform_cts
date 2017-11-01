@@ -21,7 +21,7 @@ LOCAL_MODULE_TAGS := tests
 # Include both the 32 and 64 bit versions
 LOCAL_MULTILIB := both
 
-LOCAL_STATIC_JAVA_LIBRARIES := ctsdeviceutil compatibility-device-util ctstestrunner
+LOCAL_STATIC_JAVA_LIBRARIES := compatibility-device-util ctstestrunner
 
 LOCAL_JNI_SHARED_LIBRARIES := libctsopengl_jni
 
@@ -30,7 +30,7 @@ LOCAL_SRC_FILES := $(call all-java-files-under, src)
 LOCAL_PACKAGE_NAME := CtsOpenGlPerf2TestCases
 
 # Tag this module as a cts test artifact
-LOCAL_COMPATIBILITY_SUITE := cts
+LOCAL_COMPATIBILITY_SUITE := cts general-tests
 
 LOCAL_SDK_VERSION := 16
 

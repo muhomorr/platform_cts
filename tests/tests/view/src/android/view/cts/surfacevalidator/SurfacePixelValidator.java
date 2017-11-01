@@ -28,11 +28,6 @@ import android.renderscript.Type;
 import android.util.Log;
 import android.util.SparseArray;
 import android.view.Surface;
-import android.view.cts.surfacevalidator.PixelChecker;
-
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
-import java.util.ArrayList;
 
 public class SurfacePixelValidator {
     private static final String TAG = "SurfacePixelValidator";
@@ -83,6 +78,7 @@ public class SurfacePixelValidator {
             synchronized (mResultLock) {
                 if (numSkipped < NUM_FIRST_FRAMES_SKIPPED) {
                     numSkipped++;
+                    Log.d(TAG, "skipped frame nr " + numSkipped + ", success = " + success);
                 } else {
                     if (success) {
                         mResultSuccessFrames++;

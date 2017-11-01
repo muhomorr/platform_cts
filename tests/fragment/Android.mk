@@ -28,12 +28,19 @@ LOCAL_DEX_PREOPT := false
 
 LOCAL_PROGUARD_ENABLED := disabled
 
-LOCAL_STATIC_JAVA_LIBRARIES := compatibility-device-util android-support-test
+LOCAL_STATIC_JAVA_LIBRARIES += \
+    android-support-test \
+    mockito-target-minus-junit4 \
+    android-common \
+    compatibility-device-util \
+    ctstestrunner \
+    legacy-android-test
+#LOCAL_STATIC_JAVA_LIBRARIES := compatibility-device-util android-support-test
 
 LOCAL_SRC_FILES := $(call all-java-files-under, src)
 
 # Tag this module as a cts test artifact
-LOCAL_COMPATIBILITY_SUITE := cts
+LOCAL_COMPATIBILITY_SUITE := cts general-tests
 
 LOCAL_SDK_VERSION := current
 

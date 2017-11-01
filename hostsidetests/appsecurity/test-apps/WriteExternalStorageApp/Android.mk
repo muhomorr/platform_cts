@@ -18,13 +18,16 @@ include $(CLEAR_VARS)
 
 LOCAL_MODULE_TAGS := tests
 LOCAL_SDK_VERSION := current
-LOCAL_STATIC_JAVA_LIBRARIES := android-support-test
+LOCAL_STATIC_JAVA_LIBRARIES := \
+	android-support-test \
+	compatibility-device-util \
+	legacy-android-test
 
 LOCAL_SRC_FILES := $(call all-java-files-under, src) \
     ../ExternalStorageApp/src/com/android/cts/externalstorageapp/CommonExternalStorageTest.java
 
 # tag this module as a cts test artifact
-LOCAL_COMPATIBILITY_SUITE := cts
+LOCAL_COMPATIBILITY_SUITE := cts general-tests
 
 LOCAL_PACKAGE_NAME := CtsWriteExternalStorageApp
 

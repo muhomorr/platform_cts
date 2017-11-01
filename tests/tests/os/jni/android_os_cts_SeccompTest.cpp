@@ -21,14 +21,8 @@
 
 #if defined(ARCH_SUPPORTS_SECCOMP)
 #include <libminijail.h>
+#include <seccomp_bpf_tests.h>
 #endif
-
-#include "seccomp-tests/tests/test_harness.h"
-
-// Forward declare from seccomp_bpf_tests.c.
-extern "C" {
-struct __test_metadata* get_seccomp_test_list();
-}
 
 static const char TAG[] = "SeccompBpfTest-Native";
 
@@ -57,6 +51,7 @@ jboolean android_security_cts_SeccompBpfTest_nativeInstallTestFilter(
     return false;
 #else
     minijail* j = minijail_new();
+    minijail_no_new_privs(j);
     minijail_use_seccomp_filter(j);
     minijail_set_seccomp_filter_tsync(j);
     minijail_parse_seccomp_filters_from_fd(j, policyFd);

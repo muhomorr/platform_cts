@@ -22,12 +22,22 @@ LOCAL_MODULE_TAGS := optional
 
 LOCAL_MODULE_PATH := $(TARGET_OUT_DATA_APPS)
 
-LOCAL_SRC_FILES := $(call all-java-files-under, ../src)
+LOCAL_SRC_FILES := $(call all-java-files-under, ../src) \
+        $(call all-java-files-under, ../../common/src)
+
+LOCAL_STATIC_JAVA_LIBRARIES := \
+    android-support-test \
+    android-support-v4 \
+    mockito-target-minus-junit4 \
+    compatibility-device-util \
+    ctstestrunner \
+    ub-uiautomator \
+    ShortcutManagerTestUtils
 
 LOCAL_SDK_VERSION := current
 
 # tag this module as a cts test artifact
-LOCAL_COMPATIBILITY_SUITE := cts
+LOCAL_COMPATIBILITY_SUITE := cts general-tests
 
 LOCAL_AAPT_FLAGS += --rename-manifest-package android.content.pm.cts.shortcutmanager.packages.package4
 

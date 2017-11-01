@@ -13,8 +13,6 @@
      See the License for the specific language governing permissions and
      limitations under the License.
 -->
-
 <resources>
-    <integer name="date_picker_mode">1</integer>
-    <integer name="time_picker_mode">1</integer>
+    <integer name="view_flipper_interval">1000</integer>
 </resources>

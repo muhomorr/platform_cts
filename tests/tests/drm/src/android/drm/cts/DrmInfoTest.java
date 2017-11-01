@@ -16,6 +16,7 @@
 
 package android.drm.cts;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Collection;
@@ -33,6 +34,8 @@ public class DrmInfoTest extends AndroidTestCase {
 
     public static void testInvalidInfoTypes() throws Exception {
         checkInvalidInfoType(DrmInfoRequest.TYPE_REGISTRATION_INFO - 1);
+        checkInvalidInfoType(
+                DrmInfoRequest.TYPE_RIGHTS_ACQUISITION_PROGRESS_INFO + 1);
     }
 
     public static void testValidInfoTypes() throws Exception {
@@ -109,7 +112,7 @@ public class DrmInfoTest extends AndroidTestCase {
     private static void checkInvalidData(byte[] data) throws Exception {
         try {
             DrmInfo info = new DrmInfo(DEFAULT_TYPE, data, DEFAULT_MIME);
-            fail("Data " + data + " was accepted for DrmInfo");
+            fail("Data " + Arrays.toString(data) + " was accepted for DrmInfo");
         } catch(IllegalArgumentException e) {
             // Expected and thus intentionally ignored.
         }

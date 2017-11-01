@@ -10,11 +10,16 @@ endif
 
 # TODO(dimitry): Can this list be constructed dynamically?
 my_bionic_testlib_files := \
+  cfi_test_helper/cfi_test_helper \
+  cfi_test_helper2/cfi_test_helper2 \
   dt_runpath_a/libtest_dt_runpath_a.so \
   dt_runpath_b_c_x/libtest_dt_runpath_b.so \
   dt_runpath_b_c_x/libtest_dt_runpath_c.so \
   dt_runpath_b_c_x/libtest_dt_runpath_x.so \
+  inaccessible_libs/libtestshared.so \
   libatest_simple_zip/libatest_simple_zip.so \
+  libcfi-test.so \
+  libcfi-test-bad.so \
   libdlext_test_different_soname.so \
   libdlext_test_fd/libdlext_test_fd.so \
   libdlext_test_norelro.so \
@@ -50,8 +55,9 @@ my_bionic_testlib_files := \
   libtest_check_order_reloc_siblings_f.so \
   libtest_check_order_reloc_siblings.so \
   libtest_check_rtld_next_from_library.so \
-  libtest_dlopen_from_ctor_main.so \
+  libtest_dlopen_df_1_global.so \
   libtest_dlopen_from_ctor.so \
+  libtest_dlopen_from_ctor_main.so \
   libtest_dlopen_weak_undefined_func.so \
   libtest_dlsym_df_1_global.so \
   libtest_dlsym_from_this_child.so \
@@ -60,6 +66,10 @@ my_bionic_testlib_files := \
   libtest_dlsym_weak_func.so \
   libtest_dt_runpath_d.so \
   libtest_empty.so \
+  libtest_init_fini_order_child.so \
+  libtest_init_fini_order_grand_child.so \
+  libtest_init_fini_order_root2.so \
+  libtest_init_fini_order_root.so \
   libtest_nodelete_1.so \
   libtest_nodelete_2.so \
   libtest_nodelete_dt_flags_1.so \
@@ -95,17 +105,29 @@ my_bionic_testlib_files := \
   prebuilt-elf-files/libtest_invalid-zero_shstrndx.so \
   prebuilt-elf-files/libtest_invalid-textrels.so \
   prebuilt-elf-files/libtest_invalid-textrels2.so \
+  preinit_getauxval_test_helper/preinit_getauxval_test_helper \
+  preinit_syscall_test_helper/preinit_syscall_test_helper \
   private_namespace_libs_external/libnstest_private_external.so \
   private_namespace_libs/libnstest_dlopened.so \
   private_namespace_libs/libnstest_private.so \
   private_namespace_libs/libnstest_root_not_isolated.so \
   private_namespace_libs/libnstest_root.so \
   public_namespace_libs/libnstest_public.so \
+  public_namespace_libs/libnstest_public_internal.so \
+  ld_preload_test_helper/ld_preload_test_helper \
+  ld_preload_test_helper_lib1.so \
+  ld_preload_test_helper_lib2.so \
+  ld_config_test_helper/ld_config_test_helper \
+  ns2/ld_config_test_helper_lib1.so \
+  ns2/ld_config_test_helper_lib2.so \
+  ld_config_test_helper_lib3.so \
 
 # These libraries are not built for mips.
 my_bionic_testlib_files_non_mips := \
   libgnu-hash-table-library.so \
   libtest_ifunc.so \
+  libtest_ifunc_variable.so \
+  libtest_ifunc_variable_impl.so \
 
 my_bionic_testlibs_src_dir := \
   $($(cts_bionic_tests_2nd_arch_prefix)TARGET_OUT_DATA_NATIVE_TESTS)/bionic-loader-test-libs
@@ -115,7 +137,7 @@ LOCAL_COMPATIBILITY_SUPPORT_FILES += \
   $(foreach lib, $(my_bionic_testlib_files), \
     $(my_bionic_testlibs_src_dir)/$(lib):$(my_bionic_testlibs_out_dir)/$(lib))
 
-ifneq ($(TARGET_ARCH),mips)
+ifneq ($(TARGET_ARCH),$(filter $(TARGET_ARCH),mips mips64))
 LOCAL_COMPATIBILITY_SUPPORT_FILES += \
   $(foreach lib, $(my_bionic_testlib_files_non_mips), \
     $(my_bionic_testlibs_src_dir)/$(lib):$(my_bionic_testlibs_out_dir)/$(lib))

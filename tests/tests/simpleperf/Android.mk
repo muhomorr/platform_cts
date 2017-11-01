@@ -19,6 +19,7 @@ LOCAL_STATIC_LIBRARIES += \
   libbacktrace_offline \
   libbacktrace \
   libunwind \
+  libunwindstack \
   libziparchive \
   libz \
   libgtest \
@@ -44,9 +45,12 @@ LOCAL_POST_LINK_CMD =  \
   $($(LOCAL_2ND_ARCH_VAR_PREFIX)TARGET_OBJCOPY) --add-section .testzipdata=$$TMP_FILE $(linked_module) && \
   rm -f $$TMP_FILE
 
-LOCAL_COMPATIBILITY_SUITE := cts
+LOCAL_COMPATIBILITY_SUITE := cts general-tests
 
 LOCAL_CTS_TEST_PACKAGE := android.simpleperf
 LOCAL_FORCE_STATIC_EXECUTABLE := true
 include $(LLVM_DEVICE_BUILD_MK)
 include $(BUILD_CTS_EXECUTABLE)
+
+# Build the test APKs using their own makefiles
+include $(call all-makefiles-under,$(LOCAL_PATH))

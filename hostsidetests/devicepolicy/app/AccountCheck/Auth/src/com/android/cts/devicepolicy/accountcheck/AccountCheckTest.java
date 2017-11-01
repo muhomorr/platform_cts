@@ -29,9 +29,9 @@ public class AccountCheckTest extends AndroidTestCase {
 
     private static final String ACCOUNT_TYPE = "com.android.cts.devicepolicy.accountcheck";
     private static final String ACCOUNT_FEATURE_ALLOWED =
-            "android.account.DEVICE_OR_PROFILE_OWNER_ALLOWED";
+            DevicePolicyManager.ACCOUNT_FEATURE_DEVICE_OR_PROFILE_OWNER_ALLOWED;
     private static final String ACCOUNT_FEATURE_DISALLOWED =
-            "android.account.DEVICE_OR_PROFILE_OWNER_DISALLOWED";
+            DevicePolicyManager.ACCOUNT_FEATURE_DEVICE_OR_PROFILE_OWNER_DISALLOWED;
 
     private DevicePolicyManager mDevicePolicyManager;
     private AccountManager mAccountManager;
@@ -68,21 +68,21 @@ public class AccountCheckTest extends AndroidTestCase {
     }
 
     /**
-     * Add an incompatible account, type A.
+     * Add an incompatible account, type A, no features.
      */
     public void testAddIncompatibleA() throws Exception {
         addAccount();
     }
 
     /**
-     * Add an incompatible account, type B.
+     * Add an incompatible account, type B.  Disallow feature only.
      */
     public void testAddIncompatibleB() throws Exception {
         addAccount(ACCOUNT_FEATURE_DISALLOWED);
     }
 
     /**
-     * Add an incompatible account, type C.
+     * Add an incompatible account, type C.  Has the disallow feature.
      */
     public void testAddIncompatibleC() throws Exception {
         addAccount(ACCOUNT_FEATURE_ALLOWED, ACCOUNT_FEATURE_DISALLOWED);

@@ -26,4 +26,6 @@ LOCAL_C_INCLUDES := $(JNI_H_INCLUDE)
 
 LOCAL_SDK_VERSION := 14
 
+LOCAL_CFLAGS := -Wall -Werror -Wno-unused-parameter
+
 include $(BUILD_SHARED_LIBRARY)

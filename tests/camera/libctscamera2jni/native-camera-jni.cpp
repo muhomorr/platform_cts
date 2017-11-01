@@ -29,12 +29,12 @@
 
 #include <android/native_window_jni.h>
 
-#include "NdkCameraError.h"
-#include "NdkCameraManager.h"
-#include "NdkCameraDevice.h"
-#include "NdkCameraCaptureSession.h"
-#include "NdkImage.h"
-#include "NdkImageReader.h"
+#include "camera/NdkCameraError.h"
+#include "camera/NdkCameraManager.h"
+#include "camera/NdkCameraDevice.h"
+#include "camera/NdkCameraCaptureSession.h"
+#include "media/NdkImage.h"
+#include "media/NdkImageReader.h"
 
 #define LOG_ERROR(buf, ...) sprintf(buf, __VA_ARGS__); \
                             ALOGE("%s", buf);
@@ -345,7 +345,7 @@ class ImageReaderListener {
 
 class StaticInfo {
   public:
-    StaticInfo(ACameraMetadata* chars) : mChars(chars) {}
+    explicit StaticInfo(ACameraMetadata* chars) : mChars(chars) {}
 
     bool isColorOutputSupported() {
         return isCapabilitySupported(ACAMERA_REQUEST_AVAILABLE_CAPABILITIES_BACKWARD_COMPATIBLE);
@@ -1079,7 +1079,7 @@ testCameraManagerCharacteristicsNative(
 
         // Check get unknown value fails
         uint32_t badTag = (uint32_t) ACAMERA_VENDOR_START - 1;
-        ret = ACameraMetadata_getConstEntry(chars, ACAMERA_VENDOR_START, &entry);
+        ret = ACameraMetadata_getConstEntry(chars, badTag, &entry);
         if (ret == ACAMERA_OK) {
             LOG_ERROR(errorString, "Error: get unknown tag should fail!");
             goto cleanup;

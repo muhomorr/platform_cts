@@ -25,6 +25,5 @@
             android:dither="?attr/themeBoolean"
             android:src="?attr/themeNinePatch" />
     </item>
-    <item android:drawable="?attr/themeDrawable" />
 
 </layer-list>

@@ -42,9 +42,10 @@ LOCAL_MODULE := cts-core-test-runner
 LOCAL_STATIC_JAVA_LIBRARIES := \
     compatibility-device-util \
     android-support-test \
-    android.test.runner \
     vogarexpect \
     testng
+
+LOCAL_JAVA_LIBRARIES := android.test.runner
 
 include $(BUILD_STATIC_JAVA_LIBRARY)
 
@@ -59,5 +60,6 @@ LOCAL_MODULE_TAGS := optional
 LOCAL_SRC_FILES := $(call all-java-files-under,src/com/android/cts/runner)
 LOCAL_MODULE := cts-test-runner
 LOCAL_STATIC_JAVA_LIBRARIES := android-support-test
+LOCAL_SDK_VERSION := current
 
 include $(BUILD_STATIC_JAVA_LIBRARY)

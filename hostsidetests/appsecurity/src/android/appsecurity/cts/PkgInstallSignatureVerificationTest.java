@@ -16,6 +16,11 @@
 
 package android.appsecurity.cts;
 
+import com.android.tradefed.build.IBuildInfo;
+import com.android.tradefed.device.DeviceNotAvailableException;
+import com.android.tradefed.testtype.DeviceTestCase;
+import com.android.tradefed.testtype.IBuildReceiver;
+
 import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
@@ -23,12 +28,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Locale;
-
-import com.android.tradefed.build.IBuildInfo;
-import com.android.tradefed.device.DeviceNotAvailableException;
-import com.android.tradefed.device.ITestDevice;
-import com.android.tradefed.testtype.DeviceTestCase;
-import com.android.tradefed.testtype.IBuildReceiver;
 
 /**
  * Tests for APK signature verification during installation.
@@ -44,10 +43,6 @@ public class PkgInstallSignatureVerificationTest extends DeviceTestCase implemen
     private static final String[] RSA_KEY_NAMES_2048_AND_LARGER =
             {"2048", "3072", "4096", "8192", "16384"};
 
-
-    /** Device under test. */
-    private ITestDevice mDevice;
-
     private IBuildInfo mCtsBuild;
 
     @Override
@@ -58,7 +53,8 @@ public class PkgInstallSignatureVerificationTest extends DeviceTestCase implemen
     @Override
     protected void setUp() throws Exception {
         super.setUp();
-        mDevice = getDevice();
+
+        Utils.prepareSingleUser(getDevice());
         assertNotNull(mCtsBuild);
         uninstallPackage();
     }
@@ -471,6 +467,14 @@ public class PkgInstallSignatureVerificationTest extends DeviceTestCase implemen
         assertInstallSucceeds("v2-only-max-sized-eocd-comment.apk");
     }
 
+    public void testInstallEphemeralRequiresV2Signature() throws Exception {
+        String expectedNoSigError = "No APK Signature Scheme v2 signature in ephemeral package";
+        assertInstallEphemeralFailsWithError("unsigned-ephemeral.apk", expectedNoSigError);
+        assertInstallEphemeralFailsWithError("v1-only-ephemeral.apk", expectedNoSigError);
+        assertInstallEphemeralSucceeds("v2-only-ephemeral.apk");
+        assertInstallEphemeralSucceeds("v1-v2-ephemeral.apk"); // signed with both schemes
+    }
+
     public void testInstallEmpty() throws Exception {
         assertInstallFailsWithError("empty-unsigned.apk", "Unknown failure");
         assertInstallFailsWithError("v1-only-empty.apk", "Unknown failure");
@@ -479,6 +483,13 @@ public class PkgInstallSignatureVerificationTest extends DeviceTestCase implemen
 
     private void assertInstallSucceeds(String apkFilenameInResources) throws Exception {
         String installResult = installPackageFromResource(apkFilenameInResources);
+        if (installResult != null) {
+            fail("Failed to install " + apkFilenameInResources + ": " + installResult);
+        }
+    }
+
+    private void assertInstallEphemeralSucceeds(String apkFilenameInResources) throws Exception {
+        String installResult = installEphemeralPackageFromResource(apkFilenameInResources);
         if (installResult != null) {
             fail("Failed to install " + apkFilenameInResources + ": " + installResult);
         }
@@ -515,6 +526,19 @@ public class PkgInstallSignatureVerificationTest extends DeviceTestCase implemen
                 installResult);
     }
 
+    private void assertInstallEphemeralFailsWithError(
+            String apkFilenameInResources, String errorSubstring) throws Exception {
+        String installResult = installEphemeralPackageFromResource(apkFilenameInResources);
+        if (installResult == null) {
+            fail("Install of " + apkFilenameInResources + " succeeded but was expected to fail"
+                    + " with \"" + errorSubstring + "\"");
+        }
+        assertContains(
+                "Install failure message of " + apkFilenameInResources,
+                errorSubstring,
+                installResult);
+    }
+
     private void assertInstallFails(String apkFilenameInResources) throws Exception {
         String installResult = installPackageFromResource(apkFilenameInResources);
         if (installResult == null) {
@@ -533,7 +557,7 @@ public class PkgInstallSignatureVerificationTest extends DeviceTestCase implemen
         }
     }
 
-    private String installPackageFromResource(String apkFilenameInResources)
+    private String installPackageFromResource(String apkFilenameInResources, boolean ephemeral)
             throws IOException, DeviceNotAvailableException {
         // ITestDevice.installPackage API requires the APK to be install to be a File. We thus
         // copy the requested resource into a temporary file, attempt to install it, and delete the
@@ -553,13 +577,27 @@ public class PkgInstallSignatureVerificationTest extends DeviceTestCase implemen
                     out.write(buf, 0, chunkSize);
                 }
             }
-            return mDevice.installPackage(apkFile, true);
+            if (ephemeral) {
+                return getDevice().installPackage(apkFile, true, "--ephemeral");
+            } else {
+                return getDevice().installPackage(apkFile, true);
+            }
         } finally {
             apkFile.delete();
         }
     }
 
+    private String installPackageFromResource(String apkFilenameInResources)
+            throws IOException, DeviceNotAvailableException {
+        return installPackageFromResource(apkFilenameInResources, false);
+    }
+
+    private String installEphemeralPackageFromResource(String apkFilenameInResources)
+            throws IOException, DeviceNotAvailableException {
+        return installPackageFromResource(apkFilenameInResources, true);
+    }
+
     private String uninstallPackage() throws DeviceNotAvailableException {
-        return mDevice.uninstallPackage(TEST_PKG);
+        return getDevice().uninstallPackage(TEST_PKG);
     }
 }

@@ -26,7 +26,6 @@ DEVICE_INFO_ACTIVITIES += \
   $(DEVICE_INFO_PACKAGE).GenericDeviceInfo \
   $(DEVICE_INFO_PACKAGE).GlesStubActivity \
   $(DEVICE_INFO_PACKAGE).GraphicsDeviceInfo \
-  $(DEVICE_INFO_PACKAGE).LibraryDeviceInfo \
   $(DEVICE_INFO_PACKAGE).LocaleDeviceInfo \
   $(DEVICE_INFO_PACKAGE).MediaDeviceInfo \
   $(DEVICE_INFO_PACKAGE).MemoryDeviceInfo \
@@ -34,7 +33,8 @@ DEVICE_INFO_ACTIVITIES += \
   $(DEVICE_INFO_PACKAGE).PropertyDeviceInfo \
   $(DEVICE_INFO_PACKAGE).ScreenDeviceInfo \
   $(DEVICE_INFO_PACKAGE).StorageDeviceInfo \
-  $(DEVICE_INFO_PACKAGE).UserDeviceInfo
+  $(DEVICE_INFO_PACKAGE).UserDeviceInfo \
+  $(DEVICE_INFO_PACKAGE).VintfDeviceInfo
 
 ifeq ($(DEVICE_INFO_MIN_SDK),)
 DEVICE_INFO_MIN_SDK := 8
@@ -49,7 +49,7 @@ LOCAL_STATIC_JAVA_LIBRARIES += compatibility-device-info compatibility-device-ut
 
 # Generator of APK manifests.
 MANIFEST_GENERATOR_JAR := $(HOST_OUT_JAVA_LIBRARIES)/compatibility-manifest-generator.jar
-MANIFEST_GENERATOR := java -jar $(MANIFEST_GENERATOR_JAR)
+MANIFEST_GENERATOR := $(JAVA) -jar $(MANIFEST_GENERATOR_JAR)
 
 # Generate the manifest
 manifest_xml := $(call intermediates-dir-for,APPS,$(LOCAL_PACKAGE_NAME))/AndroidManifest.xml

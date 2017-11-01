@@ -18,11 +18,10 @@ package com.android.compatibility.common.tradefed.command;
 import com.android.compatibility.SuiteInfo;
 import com.android.compatibility.common.tradefed.build.CompatibilityBuildHelper;
 import com.android.compatibility.common.tradefed.build.CompatibilityBuildProvider;
-import com.android.compatibility.common.tradefed.result.IInvocationResultRepo;
-import com.android.compatibility.common.tradefed.result.InvocationResultRepo;
-import com.android.compatibility.common.tradefed.result.SubPlanCreator;
+import com.android.compatibility.common.tradefed.result.SubPlanHelper;
 import com.android.compatibility.common.tradefed.testtype.ModuleRepo;
 import com.android.compatibility.common.util.IInvocationResult;
+import com.android.compatibility.common.util.ResultHandler;
 import com.android.compatibility.common.util.TestStatus;
 import com.android.tradefed.command.Console;
 import com.android.tradefed.config.ArgsOptionParser;
@@ -66,6 +65,7 @@ public class CompatibilityConsole extends Console {
     static {
         MODULE_SPLIT_EXCLUSIONS.add("CtsDeqpTestCases");
     }
+    private final static String ADD_PATTERN = "a(?:dd)?";
     private CompatibilityBuildHelper mBuildHelper;
 
     /**
@@ -75,6 +75,7 @@ public class CompatibilityConsole extends Console {
     public void run() {
         printLine(String.format("Android %s %s (%s)", SuiteInfo.FULLNAME, SuiteInfo.VERSION,
                 SuiteInfo.BUILD_NUMBER));
+        printLine("Use \"help\" or \"help all\" to get more information on running commands.");
         super.run();
     }
 
@@ -84,6 +85,13 @@ public class CompatibilityConsole extends Console {
     @Override
     protected void setCustomCommands(RegexTrie<Runnable> trie, List<String> genericHelp,
             Map<String, String> commandHelp) {
+
+        genericHelp.add("Enter 'help add'        for help with 'add subplan' commands");
+        genericHelp.add("\t----- " + SuiteInfo.FULLNAME + " usage ----- ");
+        genericHelp.add("Usage: run <plan> [--module <module name>] [ options ]");
+        genericHelp.add("Example: run cts --module CtsGestureTestCases --bugreport-on-failure");
+        genericHelp.add("");
+
         trie.put(new Runnable() {
             @Override
             public void run() {
@@ -131,7 +139,13 @@ public class CompatibilityConsole extends Console {
                 }
                 addSubPlan(flatArgs);
             }
-        }, "a(?:dd)?", "s(?:ubplan)?", null);
+        }, ADD_PATTERN, "s(?:ubplan)?", null);
+        trie.put(new ArgRunnable<CaptureList>() {
+            @Override
+            public void run(CaptureList args) {
+                printLine("'add subplan' requires parameters, use 'help add' to get more details");
+            }
+        }, ADD_PATTERN, "s(?:ubplan)?");
         trie.put(new Runnable() {
             @Override
             public void run() {
@@ -147,10 +161,48 @@ public class CompatibilityConsole extends Console {
             listHelp = new String();
         }
         String combinedHelp = listHelp +
-                "\tp[lans]\tList all plans" + LINE_SEPARATOR +
-                "\tm[odules]\tList all modules" + LINE_SEPARATOR +
-                "\tr[esults]\tList all results" + LINE_SEPARATOR;
+                LINE_SEPARATOR +
+                "\t----- " + SuiteInfo.FULLNAME + " specific options ----- " + LINE_SEPARATOR +
+                "\tp[lans]               List all plans available" + LINE_SEPARATOR +
+                "\tm[odules]             List all modules available" + LINE_SEPARATOR +
+                "\tr[esults]             List all results" + LINE_SEPARATOR;
         commandHelp.put(LIST_PATTERN, combinedHelp);
+
+        // Update existing RUN_PATTERN with CTS specific extra run possibilities.
+        String runHelp = commandHelp.get(RUN_PATTERN);
+        if (runHelp == null) {
+            runHelp = new String();
+        }
+        String combinedRunHelp = runHelp +
+                LINE_SEPARATOR +
+                "\t----- " + SuiteInfo.FULLNAME + " specific options ----- " + LINE_SEPARATOR +
+                "\t<plan> --module/-m <module>       Run a test module" + LINE_SEPARATOR +
+                "\t<plan> --module/-m <module> --test/-t <test_name>    Run a specific test from" +
+                " the module. Test name can be <package>.<class>, <package>.<class>#<method> or "
+                + "<native_binary_name>" + LINE_SEPARATOR +
+                "\t\tAvailable Options:" + LINE_SEPARATOR +
+                "\t\t\t--serial/-s <device_id>: The device to run the test on" + LINE_SEPARATOR +
+                "\t\t\t--abi/-a <abi>         : The ABI to run the test against" + LINE_SEPARATOR +
+                "\t\t\t--logcat-on-failure    : Capture logcat when a test fails"
+                + LINE_SEPARATOR +
+                "\t\t\t--bugreport-on-failure : Capture a bugreport when a test fails"
+                + LINE_SEPARATOR +
+                "\t\t\t--screenshot-on-failure: Capture a screenshot when a test fails"
+                + LINE_SEPARATOR +
+                "\t\t\t--shard-count <shards>: Shards a run into the given number of independent " +
+                "chunks, to run on multiple devices in parallel." + LINE_SEPARATOR;
+        commandHelp.put(RUN_PATTERN, combinedRunHelp);
+
+        commandHelp.put(ADD_PATTERN, String.format(
+                "%s help:" + LINE_SEPARATOR +
+                "\tadd s[ubplan]: create a subplan from a previous session" + LINE_SEPARATOR +
+                "\t\tAvailable Options:" + LINE_SEPARATOR +
+                "\t\t\t--session <session_id>: The session used to create a subplan"
+                + LINE_SEPARATOR +
+                "\t\t\t--name/-n <subplan_name>: The name of the new subplan" + LINE_SEPARATOR +
+                "\t\t\t--result-type <status>: Which results to include in the subplan. "
+                + "One of passed, failed, not_executed. Repeatable" + LINE_SEPARATOR,
+                ADD_PATTERN));
     }
 
     /**
@@ -159,67 +211,6 @@ public class CompatibilityConsole extends Console {
     @Override
     protected String getConsolePrompt() {
         return String.format("%s-tf > ", SuiteInfo.NAME.toLowerCase());
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    protected String getGenericHelpString(List<String> genericHelp) {
-        StringBuilder helpBuilder = new StringBuilder();
-        helpBuilder.append(SuiteInfo.FULLNAME);
-        helpBuilder.append("\n\n");
-        helpBuilder.append(SuiteInfo.NAME);
-        helpBuilder.append(" is the test harness for running the Android Compatibility Suite, ");
-        helpBuilder.append("built on top of Trade Federation.\n\n");
-        helpBuilder.append("Available commands and options\n");
-        helpBuilder.append("Host:\n");
-        helpBuilder.append("  help: show this message.\n");
-        helpBuilder.append("  help all: show the complete tradefed help.\n");
-        helpBuilder.append("  version: show the version.\n");
-        helpBuilder.append("  exit: gracefully exit the compatibiltiy console, waiting until all ");
-        helpBuilder.append("invocations have completed.\n");
-        helpBuilder.append("Run:\n");
-        final String runPrompt = "  run <plan> ";
-        helpBuilder.append(runPrompt);
-        helpBuilder.append("--module/-m <module>: run a test module.\n");
-        helpBuilder.append(runPrompt);
-        helpBuilder.append("--module/-m <module> --test/-t <test_name>: run a specific test from");
-        helpBuilder.append(" the module. Test name can be <package>.<class>, ");
-        helpBuilder.append("<package>.<class>#<method> or <native_name>.\n");
-        helpBuilder.append(runPrompt);
-        helpBuilder.append("--retry <session_id>: run all failed tests from a previous session.\n");
-        helpBuilder.append(runPrompt);
-        helpBuilder.append("--help/--help-all: get help for ");
-        helpBuilder.append(SuiteInfo.FULLNAME);
-        helpBuilder.append(".\n");
-        helpBuilder.append("Options:\n");
-        helpBuilder.append("  --serial/-s <device_id>: The device to run the test on.\n");
-        helpBuilder.append("  --abi/-a <abi>: The ABI to run the test against.\n");
-        helpBuilder.append("  --shards <shards>: Shards a run into the given number of independent");
-        helpBuilder.append(" chunks, to run on multiple devices in parallel.\n");
-        helpBuilder.append("  --logcat-on-failure: Capture logcat when a test fails.\n");
-        helpBuilder.append("  --bugreport-on-failure: Capture a bugreport when a test fails.\n");
-        helpBuilder.append("  --screenshot-on-failure: Capture a screenshot when a test fails.\n");
-        helpBuilder.append("List:\n");
-        helpBuilder.append("  l/list d/devices: list connected devices and their state\n");
-        helpBuilder.append("  l/list m/modules: list test modules\n");
-        helpBuilder.append("  l/list i/invocations: list invocations aka test runs currently in ");
-        helpBuilder.append("progress\n");
-        helpBuilder.append("  l/list c/commands: list commands aka test run commands currently");
-        helpBuilder.append(" in the queue waiting to be allocated devices\n");
-        helpBuilder.append("  l/list r/results: list results currently in the repository\n");
-        helpBuilder.append("Dump:\n");
-        helpBuilder.append("  d/dump l/logs: dump the tradefed logs for all running invocations\n");
-        helpBuilder.append("Add:\n");
-        helpBuilder.append("  a/add s/subplan: create a subplan from a previous session\n");
-        helpBuilder.append("Options:\n");
-        helpBuilder.append("  --session/-s <session_id>: The session used to create a subplan.\n");
-        helpBuilder.append("  --name/-n <subplan_name>: The name of the new subplan.\n");
-        helpBuilder.append("  --result-type/-r <status>: Which results to include in the");
-        helpBuilder.append(" subplan. One of passed, failed, not_executed. Repeatable.\n");
-
-        return helpBuilder.toString();
     }
 
     private void listModules() {
@@ -344,16 +335,13 @@ public class CompatibilityConsole extends Console {
     private void listResults() {
         TableFormatter tableFormatter = new TableFormatter();
         List<List<String>> table = new ArrayList<>();
-        IInvocationResultRepo testResultRepo = null;
         List<IInvocationResult> results = null;
         try {
-            testResultRepo = new InvocationResultRepo(getBuildHelper().getResultsDir());
-            results = testResultRepo.getResults();
+            results = ResultHandler.getLightResults(getBuildHelper().getResultsDir());
         } catch (FileNotFoundException e) {
-            printLine(e.getMessage());
-            e.printStackTrace();
+            throw new RuntimeException("Error while parsing results directory", e);
         }
-        if (testResultRepo != null && results.size() > 0) {
+        if (results.size() > 0) {
             for (int i = 0; i < results.size(); i++) {
                 IInvocationResult result = results.get(i);
                 Map<String, String> invocationInfo = result.getInvocationInfo();
@@ -373,7 +361,6 @@ public class CompatibilityConsole extends Console {
                         Integer.toString(i),
                         Integer.toString(result.countResults(TestStatus.PASS)),
                         Integer.toString(result.countResults(TestStatus.FAIL)),
-                        Integer.toString(result.getNotExecuted()),
                         moduleProgress,
                         CompatibilityBuildHelper.getDirSuffix(result.getStartTime()),
                         result.getTestPlan(),
@@ -383,11 +370,9 @@ public class CompatibilityConsole extends Console {
                         ));
             }
 
-
             // add the table header to the beginning of the list
-            table.add(0, Arrays.asList("Session", "Pass", "Fail", "Not Executed",
-                    "Modules Complete", "Result Directory", "Test Plan", "Device serial(s)",
-                    "Build ID", "Product"));
+            table.add(0, Arrays.asList("Session", "Pass", "Fail", "Modules Complete",
+                "Result Directory", "Test Plan", "Device serial(s)", "Build ID", "Product"));
             tableFormatter.displayTable(table, new PrintWriter(System.out, true));
         } else {
             printLine(String.format("No results found"));
@@ -417,7 +402,7 @@ public class CompatibilityConsole extends Console {
     }
 
     private void addSubPlan(String[] flatArgs) {
-        SubPlanCreator creator = new SubPlanCreator();
+        SubPlanHelper creator = new SubPlanHelper();
         try {
             ArgsOptionParser optionParser = new ArgsOptionParser(creator);
             optionParser.parse(Arrays.asList(flatArgs));
@@ -433,8 +418,6 @@ public class CompatibilityConsole extends Console {
         if (mBuildHelper == null) {
             CompatibilityBuildProvider buildProvider = new CompatibilityBuildProvider();
             mBuildHelper = new CompatibilityBuildHelper(buildProvider.getBuild());
-            mBuildHelper.init(
-                "" /* suite plan */, "" /* dynamic config url */, -1 /*startTimeMs*/);
         }
         return mBuildHelper;
     }

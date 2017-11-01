@@ -23,11 +23,14 @@ LOCAL_SRC_FILES := $(call all-java-files-under, src)
 LOCAL_PACKAGE_NAME := CtsSignatureTestCases
 
 # Tag this module as a cts test artifact
-LOCAL_COMPATIBILITY_SUITE := cts
+LOCAL_COMPATIBILITY_SUITE := cts general-tests
 
 LOCAL_SDK_VERSION := current
 
-LOCAL_STATIC_JAVA_LIBRARIES := ctstestrunner android-support-test
+LOCAL_STATIC_JAVA_LIBRARIES := ctstestrunner \
+    compatibility-device-util \
+    android-support-test \
+    legacy-android-test
 
 include $(BUILD_CTS_PACKAGE)
 
