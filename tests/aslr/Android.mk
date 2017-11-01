@@ -24,6 +24,8 @@ LOCAL_MODULE_STEM_64 := $(LOCAL_MODULE)64
 LOCAL_SRC_FILES := \
     src/AslrMallocTest.cpp
 
+LOCAL_CFLAGS := -Wall -Werror
+
 LOCAL_SHARED_LIBRARIES := \
     libbase \
     libutils \
@@ -33,6 +35,6 @@ LOCAL_STATIC_LIBRARIES := \
     libgtest
 
 # Tag this module as a cts test artifact
-LOCAL_COMPATIBILITY_SUITE := cts
+LOCAL_COMPATIBILITY_SUITE := cts general-tests
 
 include $(BUILD_CTS_EXECUTABLE)

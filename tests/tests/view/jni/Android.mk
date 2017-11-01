@@ -18,6 +18,8 @@ include $(CLEAR_VARS)
 
 LOCAL_MODULE := libctsview_jni
 
+LOCAL_CFLAGS += -Werror
+
 LOCAL_MODULE_TAGS := tests
 
 LOCAL_SRC_FILES := \
@@ -29,7 +31,5 @@ LOCAL_C_INCLUDES := $(JNI_H_INCLUDE)
 LOCAL_SHARED_LIBRARIES := libandroid libnativehelper_compat_libc++ liblog
 
 LOCAL_CXX_STL := libc++_static
-
-LOCAL_CLANG := true
 
 include $(BUILD_SHARED_LIBRARY)

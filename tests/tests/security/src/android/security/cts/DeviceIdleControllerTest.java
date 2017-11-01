@@ -26,6 +26,7 @@ import android.os.ServiceManager;
 import android.test.AndroidTestCase;
 
 import java.io.FileDescriptor;
+import java.util.concurrent.Semaphore;
 
 /**
  * Check past exploits of DeviceIdleController.
@@ -38,26 +39,23 @@ public class DeviceIdleControllerTest extends AndroidTestCase {
      */
     public void testAddWhiteList() {
         final IBinder service = ServiceManager.getService("deviceidle");
-        final Object mSync = new Object();
+        final Semaphore mSemaphore = new Semaphore(0);
         mResult = 0;
         try {
             service.shellCommand(FileDescriptor.in, FileDescriptor.out, FileDescriptor.err,
                     new String[]{"whitelist", "+" + mContext.getPackageName()},
+                    null,
                     new ResultReceiver(null) {
                         @Override
                         protected void onReceiveResult(int resultCode, Bundle resultData) {
                             mResult = resultCode;
-                            synchronized (mSync) {
-                                mSync.notifyAll();
-                            }
+                            mSemaphore.release();
                         }
                     });
         } catch (RemoteException e) {
         }
         try {
-            synchronized (mSync) {
-                mSync.wait();
-            }
+            mSemaphore.acquire();
         } catch (InterruptedException e) {
         }
         assertEquals(-1, mResult);
@@ -65,4 +63,3 @@ public class DeviceIdleControllerTest extends AndroidTestCase {
         assertFalse(pm.isIgnoringBatteryOptimizations(mContext.getPackageName()));
     }
 }
-

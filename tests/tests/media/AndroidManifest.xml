@@ -27,6 +27,8 @@
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.WRITE_SETTINGS" />
+    <uses-permission android:name="android.permission.SET_VOLUME_KEY_LONG_PRESS_LISTENER" />
+    <uses-permission android:name="android.permission.SET_MEDIA_KEY_LISTENER" />
 
     <application>
         <uses-library android:name="android.test.runner" />
@@ -37,7 +39,9 @@
         <activity android:name="android.media.cts.AudioManagerStubHelper"
             android:label="AudioManagerStubHelper"/>
         <activity android:name="android.media.cts.DecodeAccuracyTestActivity"
-            android:label="DecodeAccuracyTestActivity">
+            android:label="DecodeAccuracyTestActivity"
+            android:screenOrientation="locked"
+            android:configChanges="mcc|mnc|keyboard|keyboardHidden|orientation|screenSize|navigation">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.FRAMEWORK_INSTRUMENTATION_TEST" />
@@ -101,6 +105,11 @@
                      android:label="CTS tests of android.media">
         <meta-data android:name="listener"
             android:value="com.android.cts.runner.CtsTestRunListener" />
+    </instrumentation>
+
+    <instrumentation android:name="android.test.InstrumentationTestRunner"
+                     android:targetPackage="android.media.cts"
+                     android:label="MediaPlayer Streaming tests InstrumentationRunner">
     </instrumentation>
 
 </manifest>

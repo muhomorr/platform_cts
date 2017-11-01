@@ -23,13 +23,11 @@ LOCAL_MODULE := CtsAbiOverrideHostTestCases
 LOCAL_MODULE_TAGS := tests
 
 # tag this module as a cts test artifact
-LOCAL_COMPATIBILITY_SUITE := cts
+LOCAL_COMPATIBILITY_SUITE := cts general-tests
 
 LOCAL_CTS_TEST_PACKAGE := android.host.abioverride
 
-LOCAL_STATIC_JAVA_LIBRARIES := cts-migration-lib
-
-LOCAL_JAVA_LIBRARIES := compatibility-host-util cts-tradefed tradefed-prebuilt
+LOCAL_JAVA_LIBRARIES := compatibility-host-util cts-tradefed tradefed
 
 include $(BUILD_CTS_HOST_JAVA_LIBRARY)
 

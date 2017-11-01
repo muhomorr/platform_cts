@@ -15,9 +15,10 @@
  */
 package com.android.compatibility.common.tradefed.build;
 
-import com.android.compatibility.SuiteInfo;
+import com.android.compatibility.common.util.DynamicConfigHostSide;
 import com.android.tradefed.build.IBuildInfo;
 import com.android.tradefed.build.IFolderBuildInfo;
+import com.android.tradefed.util.FileUtil;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -32,75 +33,27 @@ import java.util.Map;
 public class CompatibilityBuildHelper {
 
     public static final String MODULE_IDS = "MODULE_IDS";
+    public static final String ROOT_DIR = "ROOT_DIR";
+    public static final String SUITE_BUILD = "SUITE_BUILD";
+    public static final String SUITE_NAME = "SUITE_NAME";
+    public static final String SUITE_FULL_NAME = "SUITE_FULL_NAME";
+    public static final String SUITE_VERSION = "SUITE_VERSION";
+    public static final String SUITE_PLAN = "SUITE_PLAN";
+    public static final String START_TIME_MS = "START_TIME_MS";
+    public static final String COMMAND_LINE_ARGS = "command_line_args";
 
-    private static final String ROOT_DIR = "ROOT_DIR";
     private static final String ROOT_DIR2 = "ROOT_DIR2";
-    private static final String SUITE_BUILD = "SUITE_BUILD";
-    private static final String SUITE_NAME = "SUITE_NAME";
-    private static final String SUITE_FULL_NAME = "SUITE_FULL_NAME";
-    private static final String SUITE_VERSION = "SUITE_VERSION";
-    private static final String SUITE_PLAN = "SUITE_PLAN";
-    private static final String RESULT_DIR = "RESULT_DIR";
-    private static final String START_TIME_MS = "START_TIME_MS";
-    private static final String CONFIG_PATH_PREFIX = "DYNAMIC_CONFIG_FILE:";
     private static final String DYNAMIC_CONFIG_OVERRIDE_URL = "DYNAMIC_CONFIG_OVERRIDE_URL";
-    private static final String COMMAND_LINE_ARGS = "command_line_args";
     private static final String RETRY_COMMAND_LINE_ARGS = "retry_command_line_args";
+    private static final String ALT_HOST_TESTCASE_DIR = "ANDROID_HOST_OUT_TESTCASES";
+    private static final String ALT_TARGET_TESTCASE_DIR = "ANDROID_TARGET_OUT_TESTCASES";
     private final IBuildInfo mBuildInfo;
-    private boolean mInitialized = false;
 
     /**
      * Creates a {@link CompatibilityBuildHelper} wrapping the given {@link IBuildInfo}.
      */
     public CompatibilityBuildHelper(IBuildInfo buildInfo) {
         mBuildInfo = buildInfo;
-    }
-
-    /**
-     * Initializes the {@link IBuildInfo} from the manifest with the current time
-     * as the start time.
-     */
-    public void init(String suitePlan, String dynamicConfigUrl) {
-        init(suitePlan, dynamicConfigUrl, System.currentTimeMillis());
-    }
-
-    /**
-     * Initializes the {@link IBuildInfo} from the manifest.
-     */
-    public void init(String suitePlan, String dynamicConfigUrl, long startTimeMs) {
-        if (mInitialized) {
-            return;
-        }
-        mInitialized = true;
-        mBuildInfo.addBuildAttribute(SUITE_BUILD, SuiteInfo.BUILD_NUMBER);
-        mBuildInfo.addBuildAttribute(SUITE_NAME, SuiteInfo.NAME);
-        mBuildInfo.addBuildAttribute(SUITE_FULL_NAME, SuiteInfo.FULLNAME);
-        mBuildInfo.addBuildAttribute(SUITE_VERSION, SuiteInfo.VERSION);
-        mBuildInfo.addBuildAttribute(SUITE_PLAN, suitePlan);
-        mBuildInfo.addBuildAttribute(START_TIME_MS, Long.toString(startTimeMs));
-        mBuildInfo.addBuildAttribute(RESULT_DIR, getDirSuffix(startTimeMs));
-        String rootDirPath = null;
-        if (mBuildInfo instanceof IFolderBuildInfo) {
-            File rootDir = ((IFolderBuildInfo) mBuildInfo).getRootDir();
-            if (rootDir != null) {
-                rootDirPath = rootDir.getAbsolutePath();
-            }
-        }
-        rootDirPath = System.getProperty(String.format("%s_ROOT", SuiteInfo.NAME), rootDirPath);
-        if (rootDirPath == null || rootDirPath.trim().equals("")) {
-            throw new IllegalArgumentException(
-                    String.format("Missing install path property %s_ROOT", SuiteInfo.NAME));
-        }
-        File rootDir = new File(rootDirPath);
-        if (!rootDir.exists()) {
-            throw new IllegalArgumentException(
-                    String.format("Root directory doesn't exist %s", rootDir.getAbsolutePath()));
-        }
-        mBuildInfo.addBuildAttribute(ROOT_DIR, rootDir.getAbsolutePath());
-        if (dynamicConfigUrl != null && !dynamicConfigUrl.isEmpty()) {
-            mBuildInfo.addBuildAttribute(DYNAMIC_CONFIG_OVERRIDE_URL,
-                    dynamicConfigUrl.replace("{suite-name}", getSuiteName()));
-        }
     }
 
     public IBuildInfo getBuildInfo() {
@@ -119,6 +72,10 @@ public class CompatibilityBuildHelper {
             // This will be moved to a separate method in a new invocation metadata class.
             return mBuildInfo.getBuildAttributes().get(COMMAND_LINE_ARGS);
         }
+    }
+
+    public String getRecentCommandLineArgs() {
+        return mBuildInfo.getBuildAttributes().get(COMMAND_LINE_ARGS);
     }
 
     public String getSuiteBuild() {
@@ -150,7 +107,8 @@ public class CompatibilityBuildHelper {
     }
 
     public void addDynamicConfigFile(String moduleName, File configFile) {
-        mBuildInfo.addBuildAttribute(CONFIG_PATH_PREFIX + moduleName, configFile.getAbsolutePath());
+        mBuildInfo.addBuildAttribute(DynamicConfigHostSide.CONFIG_PATH_PREFIX + moduleName,
+                configFile.getAbsolutePath());
     }
 
     public void setModuleIds(String[] moduleIds) {
@@ -160,8 +118,8 @@ public class CompatibilityBuildHelper {
     public Map<String, File> getDynamicConfigFiles() {
         Map<String, File> configMap = new HashMap<>();
         for (String key : mBuildInfo.getBuildAttributes().keySet()) {
-            if (key.startsWith(CONFIG_PATH_PREFIX)) {
-                configMap.put(key.substring(CONFIG_PATH_PREFIX.length()),
+            if (key.startsWith(DynamicConfigHostSide.CONFIG_PATH_PREFIX)) {
+                configMap.put(key.substring(DynamicConfigHostSide.CONFIG_PATH_PREFIX.length()),
                         new File(mBuildInfo.getBuildAttributes().get(key)));
             }
         }
@@ -248,13 +206,94 @@ public class CompatibilityBuildHelper {
      * @throws FileNotFoundException if the directory structure is not valid.
      */
     public File getTestsDir() throws FileNotFoundException {
-        File testsDir = new File(getDir(), "testcases");
+        // We have 3 options that can be the test modules dir (and we're going
+        // look for them in the following order):
+        //   1. ../android-*ts/testcases/
+        //   2. ALT_HOST_TESTCASE_DIR
+        //   3. ALT_TARGET_TESTCASE_DIR (we'll skip this since if #2 fails, this
+        //      will inevitably fail as well.)
+
+        File testsDir = null;
+        try {
+            testsDir = new File(getDir(), "testcases");
+        } catch (FileNotFoundException | NullPointerException e) {
+            // Ok, no root dir for us to get, moving on to the next option.
+            testsDir = null;
+        }
+
+        if (testsDir == null) {
+            String altTestsDir = System.getenv().get(ALT_HOST_TESTCASE_DIR);
+            if (altTestsDir != null) {
+                testsDir = new File(altTestsDir);
+            }
+        }
+
+        // This just means we have no signs of where to check for the test dir.
+        if (testsDir == null) {
+            throw new FileNotFoundException(
+                String.format("No Compatibility tests folder set, did you run lunch?"));
+        }
+
         if (!testsDir.exists()) {
             throw new FileNotFoundException(String.format(
                     "Compatibility tests folder %s does not exist",
                     testsDir.getAbsolutePath()));
         }
+
         return testsDir;
+    }
+
+    /**
+     * @return a {@link File} representing the test file in the test modules directory.
+     * @throws FileNotFoundException if the test file cannot be found
+     */
+    public File getTestFile(String filename) throws FileNotFoundException {
+        // We have a lot of places to check for the test file.
+        //   1. ../android-*ts/testcases/
+        //   2. ALT_HOST_TESTCASE_DIR/
+        //   3. ALT_TARGET_TESTCASE_DIR/
+
+        // Our search depends on our run env, if we're in *ts, then we only want
+        // to check #1.  If we're in gen tf, then we only want to check #2/3.
+        // In *ts mode, getTestsDir will return #1, in gen tf mode, it'll return
+        // #2.  In the event we're in *ts mode and the file isn't in #1, #2 or
+        // #3, then the user probably needs to run lunch to setup the env.
+        String altTargetTestDir = System.getenv().get(ALT_TARGET_TESTCASE_DIR);
+        if (altTargetTestDir == null) {
+            altTargetTestDir = "";
+        }
+        String[] testDirs = {getTestsDir().toString(), altTargetTestDir};
+
+        File testFile;
+        for (String testDir: testDirs) {
+            testFile = new File(getTestsDir(), filename);
+            if (testFile.exists()) {
+                return testFile;
+            }
+            // The file may be in a subdirectory so do a more through search
+            // if it did not exist.
+            testFile = FileUtil.findFile(new File(testDir), filename);
+            if (testFile != null) {
+                return testFile;
+            }
+        }
+
+        throw new FileNotFoundException(String.format(
+                "Compatibility test file %s does not exist", filename));
+    }
+
+    /**
+     * @return a {@link File} in the resultDir for logging invocation failures
+     */
+    public File getInvocationFailureFile() throws FileNotFoundException {
+        return new File(getResultDir(), "invocation_failure.txt");
+    }
+
+    /**
+     * @return a {@link File} in the resultDir for counting expected test runs
+     */
+    public File getTestRunsFile() throws FileNotFoundException {
+        return new File(getResultDir(), "test_runs.txt");
     }
 
     /**

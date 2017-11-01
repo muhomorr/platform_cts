@@ -24,6 +24,10 @@ import socket
 import subprocess
 import hashlib
 import numpy
+import string
+
+CMD_DELAY = 1  # seconds
+
 
 class ItsSession(object):
     """Controls a device over adb to run ITS scripts.
@@ -71,6 +75,7 @@ class ItsSession(object):
     CURRENT_ITS_VERSION = '1.0' # version number to sync with CtsVerifier
     EXTRA_CAMERA_ID = 'camera.its.extra.CAMERA_ID'
     EXTRA_RESULTS = 'camera.its.extra.RESULTS'
+    ITS_TEST_ACTIVITY = 'com.android.cts.verifier/.camera.its.ItsTestActivity'
 
     RESULT_PASS = 'PASS'
     RESULT_FAIL = 'FAIL'
@@ -198,6 +203,10 @@ class ItsSession(object):
 
         # TODO: Figure out why "--user 0" is needed, and fix the problem.
         _run('%s shell am force-stop --user 0 %s' % (self.adb, self.PACKAGE))
+        _run(('%s shell am start --user 0 '
+              'com.android.cts.verifier/.camera.its.ItsTestActivity '
+              '--activity-brought-to-front') % self.adb)
+        time.sleep(CMD_DELAY)
         _run(('%s shell am startservice --user 0 -t text/plain '
               '-a %s') % (self.adb, self.INTENT_START))
 
@@ -387,6 +396,7 @@ class ItsSession(object):
 
         Triggers some or all of AE, AWB, and AF, and returns once they have
         converged. Uses the vendor 3A that is implemented inside the HAL.
+        Note: do_awb is always enabled regardless of do_awb flag
 
         Throws an assertion if 3A fails to converge.
 
@@ -414,8 +424,8 @@ class ItsSession(object):
             Five values are returned if get_results is true::
             * AE sensitivity; None if do_ae is False
             * AE exposure time; None if do_ae is False
-            * AWB gains (list); None if do_awb is False
-            * AWB transform (list); None if do_awb is false
+            * AWB gains (list);
+            * AWB transform (list);
             * AF focus position; None if do_af is false
             Otherwise, it returns five None values.
         """
@@ -445,9 +455,11 @@ class ItsSession(object):
             data,_ = self.__read_response_from_socket()
             vals = data['strValue'].split()
             if data['tag'] == 'aeResult':
-                ae_sens, ae_exp = [int(i) for i in vals]
+                if do_ae:
+                    ae_sens, ae_exp = [int(i) for i in vals]
             elif data['tag'] == 'afResult':
-                af_dist = float(vals[0])
+                if do_af:
+                    af_dist = float(vals[0])
             elif data['tag'] == 'awbResult':
                 awb_gains = [float(f) for f in vals[:4]]
                 awb_transform = [float(f) for f in vals[4:]]
@@ -577,7 +589,10 @@ class ItsSession(object):
         channel is computed, and the do_capture call returns two 4-element float
         images of dimensions (rawWidth / gridWidth, rawHeight / gridHeight),
         concatenated back-to-back, where the first iamge contains the 4-channel
-        means and the second contains the 4-channel variances.
+        means and the second contains the 4-channel variances. Note that only
+        pixels in the active array crop region are used; pixels outside this
+        region (for example optical black rows) are cropped out before the
+        gridding and statistics computation is performed.
 
         For the rawStats format, if the gridWidth is not provided then the raw
         image width is used as the default, and similarly for gridHeight. With
@@ -811,6 +826,11 @@ def report_result(device_id, camera_id, results):
         Nothing.
     """
     adb = "adb -s " + device_id
+
+    # Start ItsTestActivity to prevent flaky
+    cmd = "%s shell am start %s --activity-brought-to-front" % (adb, ItsSession.ITS_TEST_ACTIVITY)
+    _run(cmd)
+
     # Validate/process results argument
     for scene in results:
         result_key = ItsSession.RESULT_KEY
@@ -826,6 +846,7 @@ def report_result(device_id, camera_id, results):
             _run("%s push %s %s" % (
                     adb, results[scene][summary_key], device_summary_path))
             results[scene][summary_key] = device_summary_path
+
     json_results = json.dumps(results)
     cmd = "%s shell am broadcast -a %s --es %s %s --es %s %s --es %s \'%s\'" % (
             adb, ItsSession.ACTION_ITS_RESULT,
@@ -835,6 +856,33 @@ def report_result(device_id, camera_id, results):
     if len(cmd) > 4095:
         print "ITS command string might be too long! len:", len(cmd)
     _run(cmd)
+
+def get_device_fingerprint(device_id):
+    """ Return the Build FingerPrint of the device that the test is running on.
+
+    Returns:
+        Device Build Fingerprint string.
+    """
+    device_bfp = None
+
+    # Get a list of connected devices
+
+    com = ('adb -s %s shell getprop | grep ro.build.fingerprint' % device_id)
+    proc = subprocess.Popen(com.split(), stdout=subprocess.PIPE)
+    output, error = proc.communicate()
+    assert error is None
+
+    lst = string.split( \
+            string.replace( \
+            string.replace( \
+            string.replace(output,
+            '\n', ''), '[', ''), ']', ''), \
+            ' ')
+
+    if lst[0].find('ro.build.fingerprint') != -1:
+        device_bfp = lst[1]
+
+    return device_bfp
 
 def _run(cmd):
     """Replacement for os.system, with hiding of stdout+stderr messages.

@@ -24,10 +24,10 @@ LOCAL_SRC_FILES := $(call all-java-files-under, src)
 
 LOCAL_PACKAGE_NAME := CtsAccessibilityTestCases
 
-LOCAL_STATIC_JAVA_LIBRARIES := ctsdeviceutil ctstestrunner
+LOCAL_STATIC_JAVA_LIBRARIES := compatibility-device-util ctstestrunner
 
 # Tag this module as a cts test artifact
-LOCAL_COMPATIBILITY_SUITE := cts
+LOCAL_COMPATIBILITY_SUITE := cts general-tests
 
 LOCAL_SDK_VERSION := test_current
 

@@ -22,7 +22,6 @@ import android.content.Context;
 import android.content.pm.PackageManager;
 import android.content.res.AssetFileDescriptor;
 import android.content.res.Resources;
-import android.cts.util.MediaUtils;
 import android.graphics.ImageFormat;
 import android.media.cts.CodecUtils;
 import android.media.Image;
@@ -39,6 +38,7 @@ import android.net.Uri;
 
 import com.android.compatibility.common.util.DeviceReportLog;
 import com.android.compatibility.common.util.DynamicConfigDeviceSide;
+import com.android.compatibility.common.util.MediaUtils;
 import com.android.compatibility.common.util.ResultType;
 import com.android.compatibility.common.util.ResultUnit;
 
@@ -501,9 +501,9 @@ public class DecoderTest extends MediaPlayerTestBase {
 
     private void testTrackSelection(int resid) throws Exception {
         AssetFileDescriptor fd1 = null;
+        MediaExtractor ex1 = new MediaExtractor();
         try {
             fd1 = mResources.openRawResourceFd(resid);
-            MediaExtractor ex1 = new MediaExtractor();
             ex1.setDataSource(fd1.getFileDescriptor(), fd1.getStartOffset(), fd1.getLength());
 
             ByteBuffer buf1 = ByteBuffer.allocate(1024*1024);
@@ -664,6 +664,9 @@ public class DecoderTest extends MediaPlayerTestBase {
             }
 
         } finally {
+            if (ex1 != null) {
+                ex1.release();
+            }
             if (fd1 != null) {
                 fd1.close();
             }
@@ -954,13 +957,12 @@ public class DecoderTest extends MediaPlayerTestBase {
      * @param decParams the audio parameters of the given audio samples (decSamples)
      * @param encNch the encoded number of audio channels (number of channels of the original
      *               input)
+     * @param nrgRatioThresh threshold to classify the energy ratios ]0.0, 1.0[
      * @throws RuntimeException
      */
-    private void checkEnergy(short[] decSamples, AudioParameter decParams, int encNch)
-            throws RuntimeException
+    protected void checkEnergy(short[] decSamples, AudioParameter decParams, int encNch,
+                             float nrgRatioThresh) throws RuntimeException
     {
-        String localTag = TAG + "#checkEnergy";
-
         final int nSegPerBlk = 4;                          // the number of segments per block
         final int nCh = decParams.getNumChannels();        // the number of input channels
         final int nBlkSmp = decParams.getSamplingRate();   // length of one (LB/HB) block [samples]
@@ -1069,7 +1071,6 @@ public class DecoderTest extends MediaPlayerTestBase {
         }
 
         // go over all segment energies in all channels and check them
-        final double nrgRatioThresh = 0.50f;               // threshold to classify energy ratios
         double refMinNrg = zeroNrgThresh;                  // reference min energy for the 1st ch;
                                                            // others will be compared against 1st
         for (int ch = 0; ch < procNch; ch++) {
@@ -1129,6 +1130,11 @@ public class DecoderTest extends MediaPlayerTestBase {
         for (int seg = 0; seg < totSeg; seg++) {
             assertTrue(String.format("no channel has energy in segment %d", seg), sigSeg[seg]);
         }
+    }
+
+    private void checkEnergy(short[] decSamples, AudioParameter decParams, int encNch)
+            throws RuntimeException {
+        checkEnergy(decSamples, decParams, encNch, 0.50f);  // default energy ratio threshold: 0.50
     }
 
     /**
@@ -1265,7 +1271,7 @@ public class DecoderTest extends MediaPlayerTestBase {
     }
 
     // Class handling all audio parameters relevant for testing
-    private class AudioParameter {
+    protected static class AudioParameter {
 
         public AudioParameter() {
             this.reset();
@@ -1850,7 +1856,7 @@ public class DecoderTest extends MediaPlayerTestBase {
         if (checkTv()) {
             assertTrue(MediaUtils.canDecodeVideo(
                     MediaFormat.MIMETYPE_VIDEO_HEVC, 1920, 1080, 30,
-                    HEVCProfileMain, HEVCMainTierLevel41, 10000000));
+                    HEVCProfileMain, HEVCMainTierLevel41, 5000000));
         }
     }
 

@@ -22,9 +22,7 @@ LOCAL_MODULE_TAGS := optional
 
 LOCAL_MODULE := CtsUiHostTestCases
 
-LOCAL_JAVA_LIBRARIES := cts-tradefed tradefed-prebuilt compatibility-host-util
-
-LOCAL_STATIC_JAVA_LIBRARIES := cts-migration-lib
+LOCAL_JAVA_LIBRARIES := cts-tradefed tradefed compatibility-host-util
 
 LOCAL_ADDITIONAL_DEPENDENCIES := $(LOCAL_PATH)/Android.mk
 
@@ -33,7 +31,7 @@ $(COMPATIBILITY_TESTCASES_OUT_cts)/CtsUiHostTestCases.jar : $(COMPATIBILITY_TEST
 LOCAL_CTS_TEST_PACKAGE := android.ui.cts
 
 # Tag this module as a cts test artifact
-LOCAL_COMPATIBILITY_SUITE := cts
+LOCAL_COMPATIBILITY_SUITE := cts general-tests
 
 include $(BUILD_CTS_HOST_JAVA_LIBRARY)
 

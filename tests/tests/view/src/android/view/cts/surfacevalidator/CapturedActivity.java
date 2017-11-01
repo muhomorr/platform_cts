@@ -15,6 +15,8 @@
  */
 package android.view.cts.surfacevalidator;
 
+import static org.junit.Assert.assertTrue;
+
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
@@ -29,18 +31,22 @@ import android.media.projection.MediaProjectionManager;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.support.test.InstrumentationRegistry;
+import android.support.test.uiautomator.UiDevice;
+import android.support.test.uiautomator.UiObject;
+import android.support.test.uiautomator.UiObjectNotFoundException;
+import android.support.test.uiautomator.UiSelector;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.util.SparseArray;
 import android.view.Display;
+import android.view.PointerIcon;
 import android.view.View;
-import android.widget.FrameLayout;
-
 import android.view.cts.R;
+import android.widget.FrameLayout;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import static org.junit.Assert.*;
 
 
 public class CapturedActivity extends Activity {
@@ -58,9 +64,10 @@ public class CapturedActivity extends Activity {
     private VirtualDisplay mVirtualDisplay;
 
     private SurfacePixelValidator mSurfacePixelValidator;
-    private final Object mLock = new Object();
 
     public static final long CAPTURE_DURATION_MS = 10000;
+    private static final int PERMISSION_DIALOG_WAIT_MS = 1000;
+    private static final int RETRY_COUNT = 2;
 
     private static final long START_CAPTURE_DELAY_MS = 4000;
     private static final long END_CAPTURE_DELAY_MS = START_CAPTURE_DELAY_MS + CAPTURE_DURATION_MS;
@@ -83,6 +90,9 @@ public class CapturedActivity extends Activity {
 
         getWindow().getDecorView().setSystemUiVisibility(
                 View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_FULLSCREEN);
+        // Set the NULL pointer icon so that it won't obstruct the captured image.
+        getWindow().getDecorView().setPointerIcon(
+                PointerIcon.getSystemIcon(this, PointerIcon.TYPE_NULL));
 
         mProjectionManager =
                 (MediaProjectionManager) getSystemService(Context.MEDIA_PROJECTION_SERVICE);
@@ -92,6 +102,17 @@ public class CapturedActivity extends Activity {
 
         mMediaPlayer = MediaPlayer.create(this, R.raw.colors_video);
         mMediaPlayer.setLooping(true);
+    }
+
+    public void dismissPermissionDialog() throws UiObjectNotFoundException {
+        // The permission dialog will be auto-opened by the activity - find it and accept
+        UiDevice uiDevice = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation());
+        UiSelector acceptButtonSelector = new UiSelector().resourceId("android:id/button1");
+        UiObject acceptButton = uiDevice.findObject(acceptButtonSelector);
+            if (acceptButton.waitForExists(PERMISSION_DIALOG_WAIT_MS)) {
+            boolean success = acceptButton.click();
+            Log.d(TAG, "found permission dialog, click attempt success = " + success);
+        }
     }
 
     /**
@@ -129,7 +150,7 @@ public class CapturedActivity extends Activity {
         mCountDownLatch.countDown();
     }
 
-    public TestResult runTest(AnimationTestCase animationTestCase) throws InterruptedException {
+    public TestResult runTest(AnimationTestCase animationTestCase) throws Throwable {
         TestResult testResult = new TestResult();
         if (mOnWatch) {
             /**
@@ -144,8 +165,17 @@ public class CapturedActivity extends Activity {
             return testResult;
         }
 
-        assertTrue("Can't initialize mediaProjection",
-                mCountDownLatch.await(TIME_OUT_MS, TimeUnit.MILLISECONDS));
+        int count = 0;
+        // Sometimes system decides to rotate the permission activity to another orientation
+        // right after showing it. This results in: uiautomation thinks that accept button appears,
+        // we successfully click it in terms of uiautomation, but nothing happens,
+        // because permission activity is already recreated.
+        // Thus, we try to click that button multiple times.
+        do {
+            assertTrue("Can't get the permission", count <= RETRY_COUNT);
+            dismissPermissionDialog();
+            count++;
+        } while (!mCountDownLatch.await(TIME_OUT_MS, TimeUnit.MILLISECONDS));
 
         mHandler.post(() -> {
             Log.d(TAG, "Setting up test case");
@@ -187,18 +217,19 @@ public class CapturedActivity extends Activity {
             mVirtualDisplay = null;
         }, END_CAPTURE_DELAY_MS);
 
+        final CountDownLatch latch = new CountDownLatch(1);
         mHandler.postDelayed(() -> {
             Log.d(TAG, "Ending test case");
             animationTestCase.end();
-            synchronized (mLock) {
-                mSurfacePixelValidator.finish(testResult);
-                mLock.notify();
-            }
+            mSurfacePixelValidator.finish(testResult);
+            latch.countDown();
             mSurfacePixelValidator = null;
         }, END_DELAY_MS);
 
-        synchronized (mLock) {
-            mLock.wait(TIME_OUT_MS);
+        boolean latchResult = latch.await(TIME_OUT_MS, TimeUnit.MILLISECONDS);
+        if (!latchResult) {
+            testResult.passFrames = 0;
+            testResult.failFrames = 1000;
         }
         Log.d(TAG, "Test finished, passFrames " + testResult.passFrames
                 + ", failFrames " + testResult.failFrames);

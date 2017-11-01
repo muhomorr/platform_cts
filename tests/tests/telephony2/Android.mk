@@ -22,14 +22,17 @@ LOCAL_MODULE_TAGS := optional
 # and when built explicitly put it in the data partition
 LOCAL_MODULE_PATH := $(TARGET_OUT_DATA_APPS)
 
-LOCAL_STATIC_JAVA_LIBRARIES := ctstestrunner ctsdeviceutil
+LOCAL_STATIC_JAVA_LIBRARIES := \
+    ctstestrunner \
+    compatibility-device-util \
+    legacy-android-test
 
 LOCAL_SRC_FILES := $(call all-java-files-under, src)
 
 LOCAL_PACKAGE_NAME := CtsTelephony2TestCases
 
 # Tag this module as a cts test artifact
-LOCAL_COMPATIBILITY_SUITE := cts
+LOCAL_COMPATIBILITY_SUITE := cts general-tests
 
 LOCAL_JAVA_LIBRARIES += android.test.runner
 

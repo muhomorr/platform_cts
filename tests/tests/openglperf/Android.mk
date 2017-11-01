@@ -24,7 +24,7 @@ LOCAL_MODULE_PATH := $(TARGET_OUT_DATA_APPS)
 # Include both the 32 and 64 bit versions
 LOCAL_MULTILIB := both
 
-LOCAL_STATIC_JAVA_LIBRARIES := ctstestrunner ctsdeviceutil
+LOCAL_STATIC_JAVA_LIBRARIES := ctstestrunner compatibility-device-util
 
 LOCAL_JNI_SHARED_LIBRARIES := libctsopenglperf_jni libnativehelper_compat_libc++
 
@@ -37,7 +37,7 @@ LOCAL_INSTRUMENTATION_FOR := com.replica.replicaisland
 LOCAL_SDK_VERSION := current
 
 # Tag this module as a cts test artifact
-LOCAL_COMPATIBILITY_SUITE := cts
+LOCAL_COMPATIBILITY_SUITE := cts general-tests
 
 include $(BUILD_CTS_PACKAGE)
 

@@ -23,9 +23,9 @@ LOCAL_STATIC_JAVA_LIBRARIES := \
     conscrypt-tests \
     core-tests \
     cts-core-test-runner \
-    mockito-target \
-    tzdata_update2-tests \
-    tzdata_update-tests
+    mockito-target-minus-junit4 \
+    time_zone_distro-tests \
+    time_zone_distro_installer-tests
 
 # Don't include this package in any target
 LOCAL_MODULE_TAGS := tests
@@ -35,9 +35,11 @@ LOCAL_MODULE_PATH := $(TARGET_OUT_DATA_APPS)
 
 LOCAL_DEX_PREOPT := false
 LOCAL_JACK_FLAGS := --multi-dex native
+LOCAL_DX_FLAGS := --multi-dex
 
 LOCAL_PROGUARD_ENABLED := disabled
-
+# Keep META-INF/ resources from LOCAL_STATIC_JAVA_LIBRARIES. http://b/62341677
+LOCAL_DONT_DELETE_JAR_META_INF := true
 LOCAL_JNI_SHARED_LIBRARIES := libjavacoretests libsqlite_jni libnativehelper_compat_libc++ libc++
 
 # Include both the 32 and 64 bit versions of libjavacoretests,
@@ -45,15 +47,12 @@ LOCAL_JNI_SHARED_LIBRARIES := libjavacoretests libsqlite_jni libnativehelper_com
 LOCAL_MULTILIB := both
 
 # Tag this module as a cts test artifact
-LOCAL_COMPATIBILITY_SUITE := cts
+LOCAL_COMPATIBILITY_SUITE := cts general-tests
 
-LOCAL_JAVA_RESOURCE_DIRS := resources
-
+# NOTE: virtualdeviceknownfailures.txt is only used for simulated/cloud-based
+# continuous build configurations, so it's not referenced in AndroidTest.xml
 LOCAL_JAVA_RESOURCE_FILES := \
-    libcore/expectations/brokentests.txt \
-    libcore/expectations/icebox.txt \
     libcore/expectations/knownfailures.txt \
-    libcore/expectations/taggedtests.txt \
     libcore/expectations/virtualdeviceknownfailures.txt
 
 include $(BUILD_CTS_SUPPORT_PACKAGE)

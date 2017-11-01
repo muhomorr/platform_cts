@@ -15,22 +15,32 @@
  */
 
 package android.hardware.input.cts.tests;
-
-import android.util.Log;
+import android.support.test.filters.SmallTest;
+import android.support.test.runner.AndroidJUnit4;
 import android.view.KeyEvent;
 
-import java.io.Writer;
-import java.util.List;
+import org.junit.Test;
+import org.junit.runner.RunWith;
 
 import android.hardware.cts.R;
 
+@SmallTest
+@RunWith(AndroidJUnit4.class)
 public class GamepadTestCase extends InputTestCase {
     private static final String TAG = "GamepadTests";
 
+    @Test
     public void testButtonA() throws Exception {
-        sendHidCommands(R.raw.gamepad_press_a);
+        registerInputDevice(R.raw.gamepad_register_device);
+
+        sendHidCommands(R.raw.gamepad_button_a_down);
+        sendHidCommands(R.raw.gamepad_delay);
         assertReceivedKeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_BUTTON_A);
+
+        sendHidCommands(R.raw.gamepad_button_a_up);
         assertReceivedKeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_BUTTON_A);
+
         assertNoMoreEvents();
     }
 }
+

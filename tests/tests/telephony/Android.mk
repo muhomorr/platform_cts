@@ -24,17 +24,27 @@ LOCAL_MODULE_PATH := $(TARGET_OUT_DATA_APPS)
 
 LOCAL_JAVA_LIBRARIES := telephony-common
 
-LOCAL_STATIC_JAVA_LIBRARIES := ctstestrunner ctsdeviceutil
+LOCAL_STATIC_JAVA_LIBRARIES := \
+    ctstestrunner \
+    compatibility-device-util \
+    legacy-android-test
 
-LOCAL_SRC_FILES := $(call all-java-files-under, src)
+LOCAL_HOST_SHARED_LIBRARIES := compatibility-device-telephony-preconditions
+
+LOCAL_SRC_FILES := $(call all-java-files-under, src) \
+                   $(call all-java-files-under, EmbmsMiddlewareTestApp) \
+                   $(call all-Iaidl-files-under, EmbmsMiddlewareTestApp)
+
+LOCAL_AIDL_INCLUDES := EmbmsMiddlewareTestApp/aidl/
 
 LOCAL_PACKAGE_NAME := CtsTelephonyTestCases
 
 # Tag this module as a cts test artifact
-LOCAL_COMPATIBILITY_SUITE := cts
+LOCAL_COMPATIBILITY_SUITE := cts general-tests
 
 # uncomment when b/13250611 is fixed
 #LOCAL_SDK_VERSION := current
 LOCAL_JAVA_LIBRARIES += android.test.runner
 
 include $(BUILD_CTS_PACKAGE)
+include $(call all-makefiles-under,$(LOCAL_PATH))

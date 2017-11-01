@@ -49,7 +49,6 @@ def main():
     check('props.has_key("android.info.supportedHardwareLevel")')
     check('props["android.info.supportedHardwareLevel"] is not None')
     check('props["android.info.supportedHardwareLevel"] in [0,1,2,3]')
-    full = getval('props["android.info.supportedHardwareLevel"]') == 1
     manual_sensor = its.caps.manual_sensor(props)
 
     # Test: rollingShutterSkew, and frameDuration tags must all be present,
@@ -61,8 +60,8 @@ def main():
     check('md.has_key("android.sensor.rollingShutterSkew")')
     check('md["android.sensor.rollingShutterSkew"] is not None')
     if manual_sensor:
-        check('md["android.sensor.frameDuration"] > '
-              'md["android.sensor.rollingShutterSkew"] > 0')
+        check('md["android.sensor.rollingShutterSkew"] > 0')
+        check('md["android.sensor.frameDuration"] > 0')
 
     # Test: timestampSource must be a valid value.
     check('props.has_key("android.sensor.info.timestampSource")')
@@ -75,7 +74,12 @@ def main():
     check('props["android.scaler.croppingType"] is not None')
     check('props["android.scaler.croppingType"] in [0,1]')
 
-    assert(not failed)
+    # Test: android.sensor.blackLevelPattern exists for RAW and is not None
+    if its.caps.raw(props):
+        check('props.has_key("android.sensor.blackLevelPattern")')
+        check('props["android.sensor.blackLevelPattern"] is not None')
+
+    assert not failed
 
     if not its.caps.legacy(props):
         # Test: pixel_pitch, FOV, and hyperfocal distance are reasonable

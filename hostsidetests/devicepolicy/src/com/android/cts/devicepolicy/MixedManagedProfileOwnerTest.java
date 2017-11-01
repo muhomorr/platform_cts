@@ -16,10 +16,6 @@
 
 package com.android.cts.devicepolicy;
 
-import com.android.tradefed.log.LogUtil.CLog;
-
-import java.lang.AssertionError;
-
 /**
  * Set of tests for managed profile owner use cases that also apply to device owners.
  * Tests that should be run identically in both cases are added in DeviceAndProfileOwnerTest.
@@ -78,20 +74,37 @@ public class MixedManagedProfileOwnerTest extends DeviceAndProfileOwnerTest {
 
         // start the ScreenCaptureDisabledActivity in the parent
         installAppAsUser(DEVICE_ADMIN_APK, mParentUserId);
-        startScreenCaptureDisabledActivity(mParentUserId);
+        startSimpleActivityAsUser(mParentUserId);
         executeDeviceTestMethod(".ScreenCaptureDisabledTest", "testScreenCapturePossible");
     }
 
-    @Override
-    public void testResetPassword() {
-        // Managed profile owner can't call resetPassword().
-    }
+    public void testScreenCaptureDisabled_assist_allowedPrimaryUser() throws Exception {
+        if (!mHasFeature) {
+            return;
+        }
+        // disable screen capture in profile
+        executeDeviceTestMethod(".ScreenCaptureDisabledTest", "testSetScreenCaptureDisabled_true");
+        try {
+            // Install and enable assistant in personal side.
+            installAppAsUser(ASSIST_APP_APK, mParentUserId);
+            setVoiceInteractionService(ASSIST_INTERACTION_SERVICE);
 
-    public void testCannotClearProfileOwner() throws Exception {
-        if (mHasFeature) {
-            assertTrue("Managed profile owner shouldn't be removed",
-                    runDeviceTestsAsUser(DEVICE_ADMIN_PKG, CLEAR_PROFILE_OWNER_NEGATIVE_TEST_CLASS,
-                            mUserId));
+            // Start an activity in parent user.
+            installAppAsUser(DEVICE_ADMIN_APK, mParentUserId);
+            startSimpleActivityAsUser(mParentUserId);
+
+            // Verify assistant app can't take a screenshot.
+            runDeviceTestsAsUser(
+                    DEVICE_ADMIN_PKG,
+                    ".AssistScreenCaptureDisabledTest",
+                    "testScreenCapturePossible_assist",
+                    mPrimaryUserId);
+        } finally {
+            // enable screen capture in profile
+            executeDeviceTestMethod(
+                    ".ScreenCaptureDisabledTest",
+                    "testSetScreenCaptureDisabled_false");
+            clearVoiceInteractionService();
         }
     }
 
@@ -106,19 +119,32 @@ public class MixedManagedProfileOwnerTest extends DeviceAndProfileOwnerTest {
         // and profile owners on the primary user.
     }
 
+    /**
+     * Don't require a device for tests that use the network stack on secondary users.
+     */
     @Override
-    public void testDelegatedCertInstaller() throws Exception {
+    public void testAlwaysOnVpn() throws Exception {
+        super.testAlwaysOnVpn();
+    }
+
+    @Override
+    public void testAlwaysOnVpnLockDown() throws Exception {
+        super.testAlwaysOnVpnLockDown();
+    }
+
+    @Override
+    public void testAlwaysOnVpnPackageUninstalled() throws Exception {
+        super.testAlwaysOnVpnPackageUninstalled();
+    }
+
+    @Override
+    public void testResetPasswordWithToken() throws Exception {
         if (!mHasFeature) {
             return;
         }
-
-        try {
-            super.testDelegatedCertInstaller();
-        } finally {
-            // In managed profile, clearing password through dpm is not allowed. Recreate user to
-            // clear password instead.
-            removeUser(mUserId);
-            createManagedProfile();
-        }
+        // Execute the test method that's guaranteed to succeed. See also test in base class
+        // which are tolerant to failure and executed by MixedDeviceOwnerTest and
+        // MixedProfileOwnerTest
+        executeDeviceTestMethod(".ResetPasswordWithTokenTest", "testResetPasswordWithToken");
     }
 }

@@ -15,14 +15,22 @@
  */
 package android.util.cts;
 
+import static org.junit.Assert.assertEquals;
+
+import android.support.test.filters.SmallTest;
+import android.support.test.runner.AndroidJUnit4;
 import android.util.TimeUtils;
+
+import org.junit.Test;
+import org.junit.runner.RunWith;
 
 import java.util.Calendar;
 import java.util.TimeZone;
 
-import junit.framework.TestCase;
-
-public class TimeUtilsTest extends TestCase {
+@SmallTest
+@RunWith(AndroidJUnit4.class)
+public class TimeUtilsTest {
+    @Test
     public void testUnitedStates() throws Exception {
         String[] mainstream = new String[] {
             "America/New_York", // Eastern
@@ -48,6 +56,7 @@ public class TimeUtilsTest extends TestCase {
         }
     }
 
+    @Test
     public void testWeirdUnitedStates() throws Exception {
         String[] weird = new String[] {
             "America/Phoenix", // Mountain, no DST
@@ -65,6 +74,7 @@ public class TimeUtilsTest extends TestCase {
         }
     }
 
+    @Test
     public void testOld() throws Exception {
         String[] old = new String[] {
             "America/Indiana/Indianapolis", // Eastern, formerly no DST
@@ -81,6 +91,7 @@ public class TimeUtilsTest extends TestCase {
         }
     }
 
+    @Test
     public void testWorldWeird() throws Exception {
         String[] world = new String[] {
             // Distinguisable from Sydney only when DST not in effect
@@ -108,6 +119,7 @@ public class TimeUtilsTest extends TestCase {
                                      country);
     }
 
+    @Test
     public void testFormatDuration() {
         assertFormatDuration("0", 0);
         assertFormatDuration("-1ms", -1);
@@ -124,6 +136,7 @@ public class TimeUtilsTest extends TestCase {
         assertFormatDuration("+1d0h0m0s30ms", 86400030);
     }
 
+    @Test
     public void testFormatHugeDuration() {
         assertFormatDuration("+15542d1h11m11s555ms", 1342833071555L);
         assertFormatDuration("-15542d1h11m11s555ms", -1342833071555L);

@@ -34,6 +34,7 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -81,7 +82,6 @@ public class BuildDalvikSuite {
 
     private int testClassCnt = 0;
     private int testMethodsCnt = 0;
-    private boolean useJack;
 
     /*
      * using a linked hashmap to keep the insertion order for iterators.
@@ -111,7 +111,7 @@ public class BuildDalvikSuite {
         }
 
         long start = System.currentTimeMillis();
-        BuildDalvikSuite cat = new BuildDalvikSuite(false);
+        BuildDalvikSuite cat = new BuildDalvikSuite();
         cat.compose();
         long end = System.currentTimeMillis();
 
@@ -146,10 +146,6 @@ public class BuildDalvikSuite {
         System.out.println("usage: java-src-folder output-folder classpath " +
                            "generated-main-files compiled_output generated-main-files " +
                            "[restrict-to-opcode]");
-    }
-
-    public BuildDalvikSuite(boolean useJack) {
-      this.useJack = useJack;
     }
 
     public void compose() throws IOException {
@@ -261,7 +257,7 @@ public class BuildDalvikSuite {
     }
 
     private void addCTSHostMethod(String pName, String method, MethodData md,
-            Set<String> dependentTestClassNames) {
+            Collection<String> dependentTestClassNames) {
         curJunitFileData += "public void " + method + "() throws Exception {\n";
         final String targetCoreJarPath = String.format("%s/dot/junit/dexcore.jar",
                 TARGET_JAR_ROOT_PATH);
@@ -295,12 +291,7 @@ public class BuildDalvikSuite {
             HOSTJUNIT_CLASSES_OUTPUT_FOLDER, CLASS_PATH);
 
         String mainsJar = OUTPUT_FOLDER + File.separator + TARGET_MAIN_FILE;
-        if (useJack) {
-            srcBuildStep = new JackBuildStep(mainsJar,
-            CLASS_PATH);
-        } else {
-            srcBuildStep = new JavacBuildStep(CLASSES_OUTPUT_FOLDER, CLASS_PATH);
-        }
+        srcBuildStep = new JavacBuildStep(CLASSES_OUTPUT_FOLDER, CLASS_PATH);
 
         for (Entry<String, List<String>> entry : map.entrySet()) {
 
@@ -344,7 +335,7 @@ public class BuildDalvikSuite {
                 MethodData md = parseTestMethod(pName, classOnlyName, method);
                 String methodContent = md.methodBody;
 
-                Set<String> dependentTestClassNames = parseTestClassName(pName,
+                List<String> dependentTestClassNames = parseTestClassName(pName,
                         classOnlyName, methodContent);
 
                 addCTSHostMethod(pName, method, md, dependentTestClassNames);
@@ -454,14 +445,12 @@ public class BuildDalvikSuite {
 
         }
 
-        if (!useJack) {
-          DxBuildStep dexBuildStep = new DxBuildStep(
-              new BuildStep.BuildFile(new File(CLASSES_OUTPUT_FOLDER)),
-              new BuildStep.BuildFile(new File(mainsJar)),
-              false);
+        DxBuildStep dexBuildStep = new DxBuildStep(
+            new BuildStep.BuildFile(new File(CLASSES_OUTPUT_FOLDER)),
+            new BuildStep.BuildFile(new File(mainsJar)),
+            false);
 
-          targets.add(dexBuildStep);
-        }
+        targets.add(dexBuildStep);
 
         // write latest HOSTJUNIT generated file.
         flushHostJunitFile();
@@ -490,7 +479,7 @@ public class BuildDalvikSuite {
     }
 
     private void generateBuildStepFor(String pName, String method,
-            Set<String> dependentTestClassNames, Set<BuildStep> targets) {
+            Collection<String> dependentTestClassNames, Set<BuildStep> targets) {
 
 
         for (String dependentTestClassName : dependentTestClassNames) {
@@ -545,36 +534,16 @@ public class BuildDalvikSuite {
         File srcFile = new File(sourceFolder, fileName + ".java");
         if (srcFile.exists()) {
             BuildStep dexBuildStep;
-            if (useJack) {
-                JackBuildStep jackBuildStep = new JackBuildStep(
-                    OUTPUT_FOLDER + File.separator + fileName + ".jar",
-                        CLASS_PATH);
-                jackBuildStep.addSourceFile(srcFile.getAbsolutePath());
-                dexBuildStep = jackBuildStep;
-            } else {
-              dexBuildStep = generateDexBuildStep(
-                COMPILED_CLASSES_FOLDER, fileName, null);
-            }
+            dexBuildStep = generateDexBuildStep(
+              COMPILED_CLASSES_FOLDER, fileName);
             targets.add(dexBuildStep);
             return;
         }
 
         try {
             if (Class.forName(dependentTestClassName) != null) {
-                JillBuildStep jillBuildStep = null;
-                if (useJack) {
-                    BuildStep.BuildFile classFile = new BuildStep.BuildFile(
-                        COMPILED_CLASSES_FOLDER, fileName + ".class");
-
-                    BuildStep.BuildFile jackFile = new BuildStep.BuildFile(
-                        COMPILED_CLASSES_FOLDER,
-                        fileName + ".jack");
-
-                    jillBuildStep = new JillBuildStep(classFile,
-                        jackFile);
-                }
                 BuildStep dexBuildStep = generateDexBuildStep(
-                    COMPILED_CLASSES_FOLDER, fileName, jillBuildStep);
+                    COMPILED_CLASSES_FOLDER, fileName);
                 targets.add(dexBuildStep);
                 return;
             }
@@ -587,51 +556,27 @@ public class BuildDalvikSuite {
     }
 
     private BuildStep generateDexBuildStep(String classFileFolder,
-            String classFileName, BuildStep dependency) {
-        if (!useJack) {
-            BuildStep.BuildFile classFile = new BuildStep.BuildFile(
-                    classFileFolder, classFileName + ".class");
+            String classFileName) {
+        BuildStep.BuildFile classFile = new BuildStep.BuildFile(
+                classFileFolder, classFileName + ".class");
 
-            BuildStep.BuildFile tmpJarFile = new BuildStep.BuildFile(
-                    OUTPUT_FOLDER,
-                    classFileName + "_tmp.jar");
+        BuildStep.BuildFile tmpJarFile = new BuildStep.BuildFile(
+                OUTPUT_FOLDER,
+                classFileName + "_tmp.jar");
 
-            JarBuildStep jarBuildStep = new JarBuildStep(classFile,
-                    classFileName + ".class", tmpJarFile, false);
+        JarBuildStep jarBuildStep = new JarBuildStep(classFile,
+                classFileName + ".class", tmpJarFile, false);
 
-            if (dependency != null) {
-                jarBuildStep.addChild(dependency);
-            }
+        BuildStep.BuildFile outputFile = new BuildStep.BuildFile(
+                OUTPUT_FOLDER,
+                classFileName + ".jar");
 
-            BuildStep.BuildFile outputFile = new BuildStep.BuildFile(
-                    OUTPUT_FOLDER,
-                    classFileName + ".jar");
+        DxBuildStep dexBuildStep = new DxBuildStep(tmpJarFile,
+                outputFile,
+                true);
 
-            DxBuildStep dexBuildStep = new DxBuildStep(tmpJarFile,
-                    outputFile,
-                    true);
-
-            dexBuildStep.addChild(jarBuildStep);
-            return dexBuildStep;
-        } else {
-          BuildStep.BuildFile jackFile = new BuildStep.BuildFile(
-              classFileFolder, classFileName + ".jack");
-
-          BuildStep.BuildFile outputFile = new BuildStep.BuildFile(
-                  OUTPUT_FOLDER,
-                  classFileName + ".jar");
-
-          JackDexBuildStep dexBuildStep = new JackDexBuildStep(jackFile,
-                  outputFile,
-                  true);
-
-          if (dependency != null) {
-              dexBuildStep.addChild(dependency);
-          }
-          return dexBuildStep;
-
-        }
-
+        dexBuildStep.addChild(jarBuildStep);
+        return dexBuildStep;
     }
 
     /**
@@ -640,9 +585,9 @@ public class BuildDalvikSuite {
      * @param methodSource
      * @return testclass names
      */
-    private Set<String> parseTestClassName(String pName, String classOnlyName,
+    private List<String> parseTestClassName(String pName, String classOnlyName,
             String methodSource) {
-        Set<String> entries = new HashSet<String>();
+        List<String> entries = new ArrayList<String>(2);
         String opcodeName = classOnlyName.substring(5);
 
         Scanner scanner = new Scanner(methodSource);
@@ -673,7 +618,7 @@ public class BuildDalvikSuite {
         Matcher m = p.matcher(methodSource);
         while (m.find()) {
             String res = m.group(1);
-            entries.add(res.trim());
+            entries.add(0, res.trim());
         }
 
         // search for " load(\"...\" " and add as dependency

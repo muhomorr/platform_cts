@@ -19,9 +19,6 @@ package android.webkit.cts;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.res.AssetManager;
-import android.cts.util.EvaluateJsResultPollingCheck;
-import android.cts.util.NullWebViewUtils;
-import android.cts.util.PollingCheck;
 import android.graphics.Bitmap;
 import android.graphics.Bitmap.Config;
 import android.graphics.BitmapFactory;
@@ -71,6 +68,10 @@ import android.webkit.WebViewDatabase;
 import android.webkit.cts.WebViewOnUiThread.WaitForLoadedClient;
 import android.webkit.cts.WebViewOnUiThread.WaitForProgressClient;
 import android.widget.LinearLayout;
+
+import com.android.compatibility.common.util.EvaluateJsResultPollingCheck;
+import com.android.compatibility.common.util.NullWebViewUtils;
+import com.android.compatibility.common.util.PollingCheck;
 
 import junit.framework.Assert;
 
@@ -1174,40 +1175,6 @@ public class WebViewTest extends ActivityInstrumentationTestCase2<WebViewCtsActi
         }.run();
     }
 
-    public void testClearFormData() throws Throwable {
-        if (!NullWebViewUtils.isWebViewAvailable()) {
-            return;
-        }
-        try {
-            startWebServer(false);
-            WebSettings settings = mOnUiThread.getSettings();
-            settings.setDatabaseEnabled(true);
-            settings.setJavaScriptEnabled(true);
-            WebViewDatabase webViewDatabase = WebViewDatabase.getInstance(getActivity());
-            webViewDatabase.clearFormData();
-            final String url = mWebServer.getAssetUrl(TestHtmlConstants.LOGIN_FORM_URL);
-            mOnUiThread.loadUrlAndWaitForCompletion(url);
-            new PollingCheck(TEST_TIMEOUT) {
-                @Override
-                public boolean check() {
-                    return !WebViewDatabase.getInstance(getActivity()).hasFormData();
-                }
-            }.run();
-
-            // Click submit (using JS, rather than simulated key presses, to avoid IME
-            // inconsistencies).
-            mOnUiThread.evaluateJavascript("document.getElementsByName('submit')[0].click()", null);
-            new PollingCheck(TEST_TIMEOUT) {
-                @Override
-                public boolean check() {
-                    return WebViewDatabase.getInstance(getActivity()).hasFormData();
-                }
-            }.run();
-        } finally {
-            WebViewDatabase.getInstance(getActivity()).clearFormData();
-        }
-    }
-
     @UiThreadTest
     public void testAccessHttpAuthUsernamePassword() {
         if (!NullWebViewUtils.isWebViewAvailable()) {
@@ -1270,6 +1237,74 @@ public class WebViewTest extends ActivityInstrumentationTestCase2<WebViewCtsActi
             assertEquals(newPassword, result[1]);
         } finally {
             WebViewDatabase.getInstance(getActivity()).clearHttpAuthUsernamePassword();
+        }
+    }
+
+    @UiThreadTest
+    public void testWebViewDatabaseAccessHttpAuthUsernamePassword() {
+        if (!NullWebViewUtils.isWebViewAvailable()) {
+            return;
+        }
+        WebViewDatabase webViewDb = WebViewDatabase.getInstance(getActivity());
+        try {
+            webViewDb.clearHttpAuthUsernamePassword();
+
+            String host = "http://localhost:8080";
+            String realm = "testrealm";
+            String userName = "user";
+            String password = "password";
+
+            String[] result =
+                    mWebView.getHttpAuthUsernamePassword(host,
+                            realm);
+            assertNull(result);
+
+            webViewDb.setHttpAuthUsernamePassword(host, realm, userName, password);
+            result = webViewDb.getHttpAuthUsernamePassword(host, realm);
+            assertNotNull(result);
+            assertEquals(userName, result[0]);
+            assertEquals(password, result[1]);
+
+            String newPassword = "newpassword";
+            webViewDb.setHttpAuthUsernamePassword(host, realm, userName, newPassword);
+            result = webViewDb.getHttpAuthUsernamePassword(host, realm);
+            assertNotNull(result);
+            assertEquals(userName, result[0]);
+            assertEquals(newPassword, result[1]);
+
+            String newUserName = "newuser";
+            webViewDb.setHttpAuthUsernamePassword(host, realm, newUserName, newPassword);
+            result = webViewDb.getHttpAuthUsernamePassword(host, realm);
+            assertNotNull(result);
+            assertEquals(newUserName, result[0]);
+            assertEquals(newPassword, result[1]);
+
+            // the user is set to null, can not change any thing in the future
+            webViewDb.setHttpAuthUsernamePassword(host, realm, null, password);
+            result = webViewDb.getHttpAuthUsernamePassword(host, realm);
+            assertNotNull(result);
+            assertNull(result[0]);
+            assertEquals(password, result[1]);
+
+            webViewDb.setHttpAuthUsernamePassword(host, realm, userName, null);
+            result = webViewDb.getHttpAuthUsernamePassword(host, realm);
+            assertNotNull(result);
+            assertEquals(userName, result[0]);
+            assertEquals(null, result[1]);
+
+            webViewDb.setHttpAuthUsernamePassword(host, realm, null, null);
+            result = webViewDb.getHttpAuthUsernamePassword(host, realm);
+            assertNotNull(result);
+            assertNull(result[0]);
+            assertNull(result[1]);
+
+            webViewDb.setHttpAuthUsernamePassword(host, realm, newUserName, newPassword);
+            result = webViewDb.getHttpAuthUsernamePassword(host, realm);
+            assertNotNull(result);
+            assertEquals(newUserName, result[0]);
+            assertEquals(newPassword, result[1]);
+        } finally {
+            webViewDb.clearHttpAuthUsernamePassword();
         }
     }
 
@@ -2572,6 +2607,43 @@ public class WebViewTest extends ActivityInstrumentationTestCase2<WebViewCtsActi
 
         mOnUiThread.loadUrl("about:blank");
         assertTrue(callbackLatch.await(TEST_TIMEOUT, TimeUnit.MILLISECONDS));
+    }
+
+    @UiThreadTest
+    public void testGetWebViewClient() throws Exception {
+        if (!NullWebViewUtils.isWebViewAvailable()) {
+            return;
+        }
+
+        // getWebViewClient should return a default WebViewClient if it hasn't been set yet
+        WebView webView = new WebView(getActivity());
+        WebViewClient client = webView.getWebViewClient();
+        assertNotNull(client);
+        assertTrue(client instanceof WebViewClient);
+
+        // getWebViewClient should return the client after it has been set
+        WebViewClient client2 = new WebViewClient();
+        assertNotSame(client, client2);
+        webView.setWebViewClient(client2);
+        assertSame(client2, webView.getWebViewClient());
+    }
+
+    @UiThreadTest
+    public void testGetWebChromeClient() throws Exception {
+        if (!NullWebViewUtils.isWebViewAvailable()) {
+            return;
+        }
+
+        // getWebChromeClient should return null if the client hasn't been set yet
+        WebView webView = new WebView(getActivity());
+        WebChromeClient client = webView.getWebChromeClient();
+        assertNull(client);
+
+        // getWebChromeClient should return the client after it has been set
+        WebChromeClient client2 = new WebChromeClient();
+        assertNotSame(client, client2);
+        webView.setWebChromeClient(client2);
+        assertSame(client2, webView.getWebChromeClient());
     }
 
     private void savePrintedPage(final PrintDocumentAdapter adapter,

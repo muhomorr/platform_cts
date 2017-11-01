@@ -16,11 +16,6 @@
 
 package com.android.cts.verifier.tv;
 
-import com.android.cts.verifier.PassFailButtons;
-import com.android.cts.verifier.R;
-
-import android.content.Intent;
-import android.media.tv.TvContract;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -28,6 +23,9 @@ import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.TextView;
+
+import com.android.cts.verifier.PassFailButtons;
+import com.android.cts.verifier.R;
 
 /**
  * Base class for TV app tests.
@@ -84,6 +82,22 @@ public abstract class TvAppVerifierActivity extends PassFailButtons.Activity {
         View item = mInflater.inflate(R.layout.tv_item, mItemList, false);
         TextView instructions = (TextView) item.findViewById(R.id.instructions);
         instructions.setText(instructionTextId);
+        Button button = (Button) item.findViewById(R.id.user_action_button);
+        button.setVisibility(View.VISIBLE);
+        button.setText(buttonTextId);
+        button.setOnClickListener(l);
+        mItemList.addView(item);
+        return item;
+    }
+
+    /**
+     * Call this to create a test step where the user must perform some action.
+     */
+    protected View createUserItem(CharSequence instructionCharSequence,
+                                  int buttonTextId, View.OnClickListener l) {
+        View item = mInflater.inflate(R.layout.tv_item, mItemList, false);
+        TextView instructions = (TextView) item.findViewById(R.id.instructions);
+        instructions.setText(instructionCharSequence);
         Button button = (Button) item.findViewById(R.id.user_action_button);
         button.setVisibility(View.VISIBLE);
         button.setText(buttonTextId);

@@ -31,8 +31,8 @@ abstract class AbstractAppIdleTestCase extends AbstractRestrictBackgroundNetwork
         if (!isSupported()) return;
 
         // Set initial state.
-        setUpMeteredNetwork();
         removePowerSaveModeWhitelist(TEST_APP2_PKG);
+        removePowerSaveModeExceptIdleWhitelist(TEST_APP2_PKG);
         setAppIdle(false);
         turnBatteryOff();
 
@@ -64,14 +64,6 @@ abstract class AbstractAppIdleTestCase extends AbstractRestrictBackgroundNetwork
     }
 
     /**
-     * Sets the initial (non) metered network state.
-     *
-     * <p>By default is empty - it's up to subclasses to override.
-     */
-    protected void setUpMeteredNetwork() throws Exception {
-    }
-
-    /**
      * Resets the (non) metered network state.
      *
      * <p>By default is empty - it's up to subclasses to override.
@@ -91,9 +83,7 @@ abstract class AbstractAppIdleTestCase extends AbstractRestrictBackgroundNetwork
 
         // Make sure foreground app doesn't lose access upon enabling it.
         setAppIdle(true);
-        launchActivity();
-        assertAppIdle(false); // Sanity check - not idle anymore, since activity was launched...
-        assertForegroundNetworkAccess();
+        launchComponentAndAssertNetworkAccess(TYPE_COMPONENT_ACTIVTIY);
         finishActivity();
         assertAppIdle(false); // Sanity check - not idle anymore, since activity was launched...
         assertBackgroundNetworkAccess(true);
@@ -102,9 +92,7 @@ abstract class AbstractAppIdleTestCase extends AbstractRestrictBackgroundNetwork
 
         // Same for foreground service.
         setAppIdle(true);
-        startForegroundService();
-        assertAppIdle(true); // Sanity check - still idle
-        assertForegroundServiceNetworkAccess();
+        launchComponentAndAssertNetworkAccess(TYPE_COMPONENT_FOREGROUND_SERVICE);
         stopForegroundService();
         assertAppIdle(true);
         assertBackgroundNetworkAccess(false);
@@ -121,6 +109,14 @@ abstract class AbstractAppIdleTestCase extends AbstractRestrictBackgroundNetwork
         assertBackgroundNetworkAccess(true);
 
         removePowerSaveModeWhitelist(TEST_APP2_PKG);
+        assertAppIdle(true); // Sanity check - idle again, once whitelisted was removed
+        assertBackgroundNetworkAccess(false);
+
+        addPowerSaveModeExceptIdleWhitelist(TEST_APP2_PKG);
+        assertAppIdle(false); // Sanity check - not idle anymore, since whitelisted
+        assertBackgroundNetworkAccess(true);
+
+        removePowerSaveModeExceptIdleWhitelist(TEST_APP2_PKG);
         assertAppIdle(true); // Sanity check - idle again, once whitelisted was removed
         assertBackgroundNetworkAccess(false);
 
@@ -156,6 +152,8 @@ abstract class AbstractAppIdleTestCase extends AbstractRestrictBackgroundNetwork
         assertBackgroundNetworkAccess(true);
         setBatterySaverMode(true);
         assertBackgroundNetworkAccess(false);
+        // Use setBatterySaverMode API to leave power-save mode instead of plugging in charger
+        setBatterySaverMode(false);
         turnBatteryOn();
         assertBackgroundNetworkAccess(true);
 

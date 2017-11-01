@@ -20,7 +20,6 @@ import android.media.cts.R;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.content.res.AssetFileDescriptor;
-import android.cts.util.MediaUtils;
 import android.graphics.Rect;
 import android.hardware.Camera;
 import android.media.AudioManager;
@@ -31,6 +30,8 @@ import android.media.MediaFormat;
 import android.media.MediaMetadataRetriever;
 import android.media.MediaPlayer;
 import android.media.MediaPlayer.OnErrorListener;
+import android.media.MediaPlayer.OnSeekCompleteListener;
+import android.media.MediaPlayer.OnTimedTextListener;
 import android.media.MediaRecorder;
 import android.media.MediaTimestamp;
 import android.media.PlaybackParams;
@@ -40,12 +41,18 @@ import android.media.TimedText;
 import android.media.audiofx.AudioEffect;
 import android.media.audiofx.Visualizer;
 import android.net.Uri;
+import android.os.Bundle;
 import android.os.Environment;
 import android.os.IBinder;
 import android.os.PowerManager;
 import android.os.ServiceManager;
 import android.os.SystemClock;
+import android.support.test.InstrumentationRegistry;
+import android.support.test.filters.SmallTest;
+import android.platform.test.annotations.RequiresDevice;
 import android.util.Log;
+
+import com.android.compatibility.common.util.MediaUtils;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -55,8 +62,11 @@ import java.util.List;
 import java.util.StringTokenizer;
 import java.util.UUID;
 import java.util.Vector;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
-
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import junit.framework.AssertionFailedError;
 
 /**
@@ -66,6 +76,8 @@ import junit.framework.AssertionFailedError;
  * Blender Foundation / www.bigbuckbunny.org, and are licensed under the Creative Commons
  * Attribution 3.0 License at http://creativecommons.org/licenses/by/3.0/us/.
  */
+@SmallTest
+@RequiresDevice
 public class MediaPlayerTest extends MediaPlayerTestBase {
 
     private String RECORDED_FILE;
@@ -102,10 +114,6 @@ public class MediaPlayerTest extends MediaPlayerTestBase {
         if (mOutFile != null && mOutFile.exists()) {
             mOutFile.delete();
         }
-    }
-
-    public void testonInputBufferFilledSigsegv() throws Exception {
-        testIfMediaServerDied(R.raw.on_input_buffer_filled_sigsegv);
     }
 
     public void testFlacHeapOverflow() throws Exception {
@@ -301,6 +309,42 @@ public class MediaPlayerTest extends MediaPlayerTestBase {
         }
     }
 
+    public void testConcurentPlayAudio() throws Exception {
+        final int resid = R.raw.test1m1s; // MP3 longer than 1m are usualy offloaded
+        final int tolerance = 70;
+
+        List<MediaPlayer> mps = Stream.generate(() -> MediaPlayer.create(mContext, resid))
+                                      .limit(5).collect(Collectors.toList());
+
+        try {
+            for (MediaPlayer mp : mps) {
+                mp.setAudioStreamType(AudioManager.STREAM_MUSIC);
+                mp.setWakeMode(mContext, PowerManager.PARTIAL_WAKE_LOCK);
+
+                assertFalse(mp.isPlaying());
+                mp.start();
+                assertTrue(mp.isPlaying());
+
+                assertFalse(mp.isLooping());
+                mp.setLooping(true);
+                assertTrue(mp.isLooping());
+
+                int pos = mp.getCurrentPosition();
+                assertTrue(pos >= 0);
+
+                Thread.sleep(SLEEP_TIME); // Delay each track to be able to ear them
+            }
+            // Check that all mp3 are playing concurrently here
+            for (MediaPlayer mp : mps) {
+                int pos = mp.getCurrentPosition();
+                Thread.sleep(SLEEP_TIME);
+                assertEquals(pos + SLEEP_TIME, mp.getCurrentPosition(), tolerance);
+            }
+        } finally {
+            mps.forEach(MediaPlayer::release);
+        }
+    }
+
     public void testPlayAudioLooping() throws Exception {
         final int resid = R.raw.testmp3;
 
@@ -376,6 +420,68 @@ public class MediaPlayerTest extends MediaPlayerTestBase {
         } finally {
             mp.release();
         }
+    }
+
+    private final class VerifyAndSignalTimedText implements MediaPlayer.OnTimedTextListener {
+
+        final boolean mCheckStartTimeIncrease;
+        final int mTargetSignalCount;
+        int mPrevStartMs = -1;
+
+        VerifyAndSignalTimedText() {
+            this(Integer.MAX_VALUE, false);
+        }
+
+        VerifyAndSignalTimedText(int targetSignalCount, boolean checkStartTimeIncrease) {
+            mTargetSignalCount = targetSignalCount;
+            mCheckStartTimeIncrease = checkStartTimeIncrease;
+        }
+
+        void reset() {
+            mPrevStartMs = -1;
+        }
+
+        @Override
+        public void onTimedText(MediaPlayer mp, TimedText text) {
+            final int toleranceMs = 500;
+            final int durationMs = 500;
+            int posMs = mMediaPlayer.getCurrentPosition();
+            if (text != null) {
+                text.getText();
+                String plainText = text.getText();
+                if (plainText != null) {
+                    StringTokenizer tokens = new StringTokenizer(plainText.trim(), ":");
+                    int subtitleTrackIndex = Integer.parseInt(tokens.nextToken());
+                    int startMs = Integer.parseInt(tokens.nextToken());
+                    Log.d(LOG_TAG, "text: " + plainText.trim() +
+                          ", trackId: " + subtitleTrackIndex + ", posMs: " + posMs);
+                    assertTrue("The diff between subtitle's start time " + startMs +
+                               " and current time " + posMs +
+                               " is over tolerance " + toleranceMs,
+                               (posMs >= startMs - toleranceMs) &&
+                               (posMs < startMs + durationMs + toleranceMs) );
+                    assertEquals("Expected track: " + mSelectedTimedTextIndex +
+                                 ", actual track: " + subtitleTrackIndex,
+                                 mSelectedTimedTextIndex, subtitleTrackIndex);
+                    assertTrue("timed text start time did not increase; current: " + startMs +
+                               ", previous: " + mPrevStartMs,
+                               !mCheckStartTimeIncrease || startMs > mPrevStartMs);
+                    mPrevStartMs = startMs;
+                    mOnTimedTextCalled.signal();
+                    if (mTargetSignalCount >= mOnTimedTextCalled.getNumSignal()) {
+                        reset();
+                    }
+                }
+                Rect bounds = text.getBounds();
+                if (bounds != null) {
+                    Log.d(LOG_TAG, "bounds: " + bounds);
+                    mBoundsCount++;
+                    Rect expected = new Rect(0, 0, 352, 288);
+                    assertEquals("wrong bounds", expected, bounds);
+                }
+            }
+        }
+
     }
 
     static class OutputListener {
@@ -1117,6 +1223,80 @@ public class MediaPlayerTest extends MediaPlayerTestBase {
         mMediaPlayer.stop();
     }
 
+    public void testSeekModes() throws Exception {
+        // This clip has 2 I frames at 66687us and 4299687us.
+        if (!checkLoadResource(
+                R.raw.bbb_s1_320x240_mp4_h264_mp2_800kbps_30fps_aac_lc_5ch_240kbps_44100hz)) {
+            return; // skip
+        }
+
+        mMediaPlayer.setOnSeekCompleteListener(new MediaPlayer.OnSeekCompleteListener() {
+            @Override
+            public void onSeekComplete(MediaPlayer mp) {
+                mOnSeekCompleteCalled.signal();
+            }
+        });
+        mMediaPlayer.setDisplay(mActivity.getSurfaceHolder());
+        mMediaPlayer.prepare();
+        mOnSeekCompleteCalled.reset();
+        mMediaPlayer.start();
+
+        final int seekPosMs = 3000;
+        final int timeToleranceMs = 100;
+        final int syncTime1Ms = 67;
+        final int syncTime2Ms = 4300;
+
+        // TODO: tighten checking range. For now, ensure mediaplayer doesn't
+        // seek to previous sync or next sync.
+        int cp = runSeekMode(MediaPlayer.SEEK_CLOSEST, seekPosMs);
+        assertTrue("MediaPlayer did not seek to closest position",
+                cp > seekPosMs && cp < syncTime2Ms);
+
+        // TODO: tighten checking range. For now, ensure mediaplayer doesn't
+        // seek to closest position or next sync.
+        cp = runSeekMode(MediaPlayer.SEEK_PREVIOUS_SYNC, seekPosMs);
+        assertTrue("MediaPlayer did not seek to preivous sync position",
+                cp < seekPosMs - timeToleranceMs);
+
+        // TODO: tighten checking range. For now, ensure mediaplayer doesn't
+        // seek to closest position or previous sync.
+        cp = runSeekMode(MediaPlayer.SEEK_NEXT_SYNC, seekPosMs);
+        assertTrue("MediaPlayer did not seek to next sync position",
+                cp > syncTime2Ms - timeToleranceMs);
+
+        // TODO: tighten checking range. For now, ensure mediaplayer doesn't
+        // seek to closest position or previous sync.
+        cp = runSeekMode(MediaPlayer.SEEK_CLOSEST_SYNC, seekPosMs);
+        assertTrue("MediaPlayer did not seek to closest sync position",
+                cp > syncTime2Ms - timeToleranceMs);
+
+        mMediaPlayer.stop();
+    }
+
+    private int runSeekMode(int seekMode, int seekPosMs) throws Exception {
+        final int sleepIntervalMs = 100;
+        int timeRemainedMs = 10000;  // total time for testing
+        final int timeToleranceMs = 100;
+
+        mMediaPlayer.seekTo(seekPosMs, seekMode);
+        mOnSeekCompleteCalled.waitForSignal();
+        mOnSeekCompleteCalled.reset();
+        int cp = -seekPosMs;
+        while (timeRemainedMs > 0) {
+            cp = mMediaPlayer.getCurrentPosition();
+            // Wait till MediaPlayer starts rendering since MediaPlayer caches
+            // seek position as current position.
+            if (cp < seekPosMs - timeToleranceMs || cp > seekPosMs + timeToleranceMs) {
+                break;
+            }
+            timeRemainedMs -= sleepIntervalMs;
+            Thread.sleep(sleepIntervalMs);
+        }
+        assertTrue("MediaPlayer did not finish seeking in time for mode " + seekMode,
+                timeRemainedMs > 0);
+        return cp;
+    }
+
     public void testGetTimestamp() throws Exception {
         final int toleranceUs = 100000;
         final float playbackRate = 1.0f;
@@ -1163,6 +1343,11 @@ public class MediaPlayerTest extends MediaPlayerTestBase {
         mMediaPlayer.stop();
     }
 
+    public void testLocalVideo_MKV_H265_1280x720_500kbps_25fps_AAC_Stereo_128kbps_44100Hz()
+            throws Exception {
+        playVideoTest(
+                R.raw.video_1280x720_mkv_h265_500kbps_25fps_aac_stereo_128kbps_44100hz, 1280, 720);
+    }
     public void testLocalVideo_MP4_H264_480x360_500kbps_25fps_AAC_Stereo_128kbps_44110Hz()
             throws Exception {
         playVideoTest(
@@ -1433,10 +1618,10 @@ public class MediaPlayerTest extends MediaPlayerTestBase {
 
         // Run twice to check if repeated selection-deselection on the same track works well.
         for (int i = 0; i < 2; i++) {
-            // Waits until at least one subtitle is fired. Timeout is 2 seconds.
+            // Waits until at least one subtitle is fired. Timeout is 2.5 seconds.
             selectSubtitleTrack(i);
             mOnSubtitleDataCalled.reset();
-            assertTrue(mOnSubtitleDataCalled.waitForSignal(2000));
+            assertTrue(mOnSubtitleDataCalled.waitForSignal(2500));
 
             // Try deselecting track.
             deselectSubtitleTrack(i);
@@ -1661,48 +1846,95 @@ public class MediaPlayerTest extends MediaPlayerTestBase {
     }
 
     public void testChangeTimedTextTrack() throws Throwable {
-        if (!checkLoadResource(R.raw.testvideo_with_2_timedtext_tracks)) {
+        testTimedText(R.raw.testvideo_with_2_timedtext_tracks, 2,
+                new int[] {R.raw.test_subtitle1_srt, R.raw.test_subtitle2_srt},
+                new VerifyAndSignalTimedText(),
+                new Callable<Void>() {
+                    @Override
+                    public Void call() throws Exception {
+                        selectTimedTextTrack(0);
+                        mOnTimedTextCalled.reset();
+
+                        mMediaPlayer.start();
+                        assertTrue(mMediaPlayer.isPlaying());
+
+                        // Waits until at least two subtitles are fired. Timeout is 2.5 sec.
+                        // Please refer the test srt files:
+                        // test_subtitle1_srt.3gp and test_subtitle2_srt.3gp
+                        assertTrue(mOnTimedTextCalled.waitForCountedSignals(2, 2500) >= 2);
+
+                        selectTimedTextTrack(1);
+                        mOnTimedTextCalled.reset();
+                        assertTrue(mOnTimedTextCalled.waitForCountedSignals(2, 2500) >= 2);
+
+                        selectTimedTextTrack(2);
+                        mOnTimedTextCalled.reset();
+                        assertTrue(mOnTimedTextCalled.waitForCountedSignals(2, 2500) >= 2);
+
+                        selectTimedTextTrack(3);
+                        mOnTimedTextCalled.reset();
+                        assertTrue(mOnTimedTextCalled.waitForCountedSignals(2, 2500) >= 2);
+                        mMediaPlayer.stop();
+
+                        assertEquals("Wrong bounds count", 2, mBoundsCount);
+                        return null;
+                    }
+                });
+    }
+
+    public void testSeekWithTimedText() throws Throwable {
+        AtomicInteger iteration = new AtomicInteger(5);
+        AtomicInteger num = new AtomicInteger(10);
+        try {
+            Bundle args = InstrumentationRegistry.getArguments();
+            num.set(Integer.parseInt(args.getString("num", "10")));
+            iteration.set(Integer.parseInt(args.getString("iteration", "5")));
+        } catch (Exception e) {
+            Log.w(LOG_TAG, "bad num/iteration arguments, using default", e);
+        }
+        testTimedText(R.raw.testvideo_with_2_timedtext_tracks, 2, new int[] {},
+                new VerifyAndSignalTimedText(num.get(), true),
+                new Callable<Void>() {
+                    @Override
+                    public Void call() throws Exception {
+                        selectTimedTextTrack(0);
+                        mOnSeekCompleteCalled.reset();
+                        mOnTimedTextCalled.reset();
+                        OnSeekCompleteListener seekListener = new OnSeekCompleteListener() {
+                            @Override
+                            public void onSeekComplete(MediaPlayer mp) {
+                                mOnSeekCompleteCalled.signal();
+                            }
+                        };
+                        mMediaPlayer.setOnSeekCompleteListener(seekListener);
+                        mMediaPlayer.start();
+                        assertTrue(mMediaPlayer.isPlaying());
+                        int n = num.get();
+                        for (int i = 0; i < iteration.get(); ++i) {
+                            assertTrue(mOnTimedTextCalled.waitForCountedSignals(n, 15000) == n);
+                            mOnTimedTextCalled.reset();
+                            mMediaPlayer.seekTo(0);
+                            mOnSeekCompleteCalled.waitForSignal();
+                            mOnSeekCompleteCalled.reset();
+                        }
+                        mMediaPlayer.stop();
+                        return null;
+                    }
+                });
+    }
+
+    private void testTimedText(
+            int resource, int numInternalTracks, int[] subtitleResources,
+            OnTimedTextListener onTimedTextListener, Callable<?> testBody) throws Throwable {
+        if (!checkLoadResource(resource)) {
             return; // skip;
         }
 
         mMediaPlayer.setDisplay(getActivity().getSurfaceHolder());
         mMediaPlayer.setScreenOnWhilePlaying(true);
         mMediaPlayer.setWakeMode(mContext, PowerManager.PARTIAL_WAKE_LOCK);
+        mMediaPlayer.setOnTimedTextListener(onTimedTextListener);
         mBoundsCount = 0;
-        mMediaPlayer.setOnTimedTextListener(new MediaPlayer.OnTimedTextListener() {
-            @Override
-            public void onTimedText(MediaPlayer mp, TimedText text) {
-                final int toleranceMs = 500;
-                final int durationMs = 500;
-                int posMs = mMediaPlayer.getCurrentPosition();
-                if (text != null) {
-                    String plainText = text.getText();
-                    if (plainText != null) {
-                        StringTokenizer tokens = new StringTokenizer(plainText.trim(), ":");
-                        int subtitleTrackIndex = Integer.parseInt(tokens.nextToken());
-                        int startMs = Integer.parseInt(tokens.nextToken());
-                        Log.d(LOG_TAG, "text: " + plainText.trim() +
-                              ", trackId: " + subtitleTrackIndex + ", posMs: " + posMs);
-                        assertTrue("The diff between subtitle's start time " + startMs +
-                                   " and current time " + posMs +
-                                   " is over tolerance " + toleranceMs,
-                                   (posMs >= startMs - toleranceMs) &&
-                                   (posMs < startMs + durationMs + toleranceMs) );
-                        assertEquals("Expected track: " + mSelectedTimedTextIndex +
-                                     ", actual track: " + subtitleTrackIndex,
-                                     mSelectedTimedTextIndex, subtitleTrackIndex);
-                        mOnTimedTextCalled.signal();
-                    }
-                    Rect bounds = text.getBounds();
-                    if (bounds != null) {
-                        Log.d(LOG_TAG, "bounds: " + bounds);
-                        mBoundsCount++;
-                        Rect expected = new Rect(0, 0, 352, 288);
-                        assertEquals("wrong bounds", expected, bounds);
-                    }
-                }
-            }
-        });
 
         mMediaPlayer.prepare();
         assertFalse(mMediaPlayer.isPlaying());
@@ -1716,14 +1948,15 @@ public class MediaPlayerTest extends MediaPlayerTestBase {
             }
         });
         getInstrumentation().waitForIdleSync();
-        assertEquals(getTimedTextTrackCount(), 2);
+        assertEquals(getTimedTextTrackCount(), numInternalTracks);
 
         runTestOnUiThread(new Runnable() {
             public void run() {
                 try {
                     // Adds two more external subtitle files.
-                    loadSubtitleSource(R.raw.test_subtitle1_srt);
-                    loadSubtitleSource(R.raw.test_subtitle2_srt);
+                    for (int subRes : subtitleResources) {
+                        loadSubtitleSource(subRes);
+                    }
                     readTimedTextTracks();
                 } catch (Exception e) {
                     throw new AssertionFailedError(e.getMessage());
@@ -1731,33 +1964,9 @@ public class MediaPlayerTest extends MediaPlayerTestBase {
             }
         });
         getInstrumentation().waitForIdleSync();
-        assertEquals(getTimedTextTrackCount(), 4);
+        assertEquals(getTimedTextTrackCount(), numInternalTracks + subtitleResources.length);
 
-        selectTimedTextTrack(0);
-        mOnTimedTextCalled.reset();
-
-        mMediaPlayer.start();
-        assertTrue(mMediaPlayer.isPlaying());
-
-        // Waits until at least two subtitles are fired. Timeout is 2.5 sec.
-        // Please refer the test srt files:
-        // test_subtitle1_srt.3gp and test_subtitle2_srt.3gp
-        assertTrue(mOnTimedTextCalled.waitForCountedSignals(2, 2500) >= 2);
-
-        selectTimedTextTrack(1);
-        mOnTimedTextCalled.reset();
-        assertTrue(mOnTimedTextCalled.waitForCountedSignals(2, 2500) >= 2);
-
-        selectTimedTextTrack(2);
-        mOnTimedTextCalled.reset();
-        assertTrue(mOnTimedTextCalled.waitForCountedSignals(2, 2500) >= 2);
-
-        selectTimedTextTrack(3);
-        mOnTimedTextCalled.reset();
-        assertTrue(mOnTimedTextCalled.waitForCountedSignals(2, 2500) >= 2);
-        mMediaPlayer.stop();
-
-        assertEquals("Wrong bounds count", 2, mBoundsCount);
+        testBody.call();
     }
 
     public void testGetTrackInfoForVideoWithTimedText() throws Throwable {

@@ -34,14 +34,20 @@ LOCAL_SRC_FILES := $(call all-java-files-under, src)
 
 LOCAL_PACKAGE_NAME := CtsNetTestCases
 
-LOCAL_STATIC_JAVA_LIBRARIES := core-tests-support  ctsdeviceutil \
-                               ctstestrunner ctstestserver mockwebserver
+LOCAL_STATIC_JAVA_LIBRARIES := \
+    core-tests-support \
+    compatibility-device-util \
+    ctstestrunner \
+    ctstestserver \
+    mockwebserver \
+    junit \
+    legacy-android-test
 
 # uncomment when b/13249961 is fixed
 #LOCAL_SDK_VERSION := current
 
 # Tag this module as a cts test artifact
-LOCAL_COMPATIBILITY_SUITE := cts
+LOCAL_COMPATIBILITY_SUITE := cts general-tests
 
 include $(BUILD_CTS_PACKAGE)
 

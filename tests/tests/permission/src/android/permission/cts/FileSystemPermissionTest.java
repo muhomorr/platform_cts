@@ -19,6 +19,8 @@ package android.permission.cts;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.os.Environment;
+import android.system.ErrnoException;
+import android.util.Pair;
 import android.system.Os;
 import android.system.OsConstants;
 import android.system.StructStatVfs;
@@ -28,6 +30,7 @@ import android.test.suitebuilder.annotation.LargeTest;
 
 import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileDescriptor;
 import java.io.FileFilter;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -36,6 +39,9 @@ import java.io.FileReader;
 import java.io.InputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.math.BigInteger;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
@@ -43,9 +49,12 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 
@@ -160,6 +169,24 @@ public class FileSystemPermissionTest extends AndroidTestCase {
         assertFalse(f.canExecute());
     }
 
+    /* b/26813932 */
+    @MediumTest
+    public void testProcInterruptsNotReadable() throws Exception {
+        File f = new File("/proc/interrupts");
+        assertFalse(f.canRead());
+        assertFalse(f.canWrite());
+        assertFalse(f.canExecute());
+    }
+
+    /* b/26813932 */
+    @MediumTest
+    public void testProcStatNotReadable() throws Exception {
+        File f = new File("/proc/stat");
+        assertFalse(f.canRead());
+        assertFalse(f.canWrite());
+        assertFalse(f.canExecute());
+    }
+
     @MediumTest
     public void testDevMemSane() throws Exception {
         File f = new File("/dev/mem");
@@ -258,17 +285,78 @@ public class FileSystemPermissionTest extends AndroidTestCase {
         assertFalse(f.canExecute());
     }
 
-    @MediumTest
-    public void testProcSelfPagemapNotAccessible() {
-        // Note: can't use f.canRead() here, since the security check is done
-        // during the open() process. access(R_OK) return OK even through
-        // open() eventually fails.
+    private static List<Pair<Long, Long>> mappedPageRanges() throws IOException {
+        final BigInteger PAGE_SIZE = new BigInteger("4096");
+
+        final Pattern mapsPattern = Pattern.compile("^(\\p{XDigit}+)-(\\p{XDigit}+)");
+        List<Pair<Long, Long>> ret = new LinkedList<>();
+
+        BufferedReader reader = new BufferedReader(new FileReader("/proc/self/maps"));
+        String line;
         try {
-            new FileInputStream("/proc/self/pagemap");
-            fail("Device is missing the following kernel security patch: "
-                 + "https://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/commit/?id=ab676b7d6fbf4b294bf198fb27ade5b0e865c7ce");
-        } catch (FileNotFoundException e) {
-            // expected
+            while ((line = reader.readLine()) != null) {
+                Matcher m = mapsPattern.matcher(line);
+                m.find();
+
+                long start = new BigInteger(m.group(1), 16).divide(PAGE_SIZE).longValue();
+                long end = new BigInteger(m.group(2), 16).divide(PAGE_SIZE).longValue();
+
+                ret.add(new Pair<>(start, end));
+            }
+
+            return ret;
+        } finally {
+            reader.close();
+        }
+    }
+
+    private static boolean pfnIsZero(FileDescriptor pagemap, long start, long end) throws ErrnoException, IOException {
+        // Note: reads from /proc/self/pagemap *must* be 64-bit aligned.  Use low-level android.system.Os routines to
+        // ensure this.
+        final int SIZEOF_U64 = 8;
+        final long PAGE_PRESENT = 1L << 63;
+        final long PFN_MASK = (1L << 55) - 1;
+
+        for (long page = start; page < end; page++) {
+            long offset = page * SIZEOF_U64;
+            long seek = Os.lseek(pagemap, offset, OsConstants.SEEK_SET);
+            if (offset != seek)
+                throw new IOException("lseek(" + offset + ") returned " + seek);
+
+            byte bytes[] = new byte[SIZEOF_U64];
+            ByteBuffer buf = ByteBuffer.wrap(bytes).order(ByteOrder.nativeOrder());
+            int read = Os.read(pagemap, buf);
+            if (read != bytes.length)
+                throw new IOException("read(" + bytes.length + ") returned " + read);
+
+            buf.position(0);
+            long entry = buf.getLong();
+            if ((entry & PAGE_PRESENT) == PAGE_PRESENT && (entry & PFN_MASK) != 0)
+                return false;
+        }
+
+        return true;
+    }
+
+    @MediumTest
+    public void testProcSelfPagemapSane() throws ErrnoException, IOException {
+        FileDescriptor pagemap = null;
+        try {
+            pagemap = Os.open("/proc/self/pagemap", OsConstants.O_RDONLY, 0);
+
+            for (Pair<Long, Long> range : mappedPageRanges())
+                if (!pfnIsZero(pagemap, range.first, range.second))
+                    fail("Device is missing the following kernel security patch: "
+                         + "https://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/commit/?id=ab676b7d6fbf4b294bf198fb27ade5b0e865c7ce");
+        } catch (ErrnoException e) {
+            if (e.errno == OsConstants.EPERM)
+                // expected before 4.2
+                return;
+
+            throw e;
+        } finally {
+            if (pagemap != null)
+                Os.close(pagemap);
         }
     }
 
@@ -313,8 +401,6 @@ public class FileSystemPermissionTest extends AndroidTestCase {
             assertFalse(f.canRead());
             assertFalse(f.canWrite());
             assertFalse(f.canExecute());
-            assertFileOwnedBy(f, "root");
-            assertFileOwnedByGroup(f, "root");
         }
 
         if (supported_64 || supported) {
@@ -323,8 +409,6 @@ public class FileSystemPermissionTest extends AndroidTestCase {
             assertFalse(f.canRead());
             assertFalse(f.canWrite());
             assertFalse(f.canExecute());
-            assertFileOwnedBy(f, "root");
-            assertFileOwnedByGroup(f, "root");
         }
     }
 
@@ -785,6 +869,12 @@ public class FileSystemPermissionTest extends AndroidTestCase {
         assertTrue("/data is not mounted NODEV", (vfs.f_flag & OsConstants.ST_NODEV) != 0);
     }
 
+    public void testAllBlockDevicesAreSecure() throws Exception {
+        Set<File> insecure = getAllInsecureDevicesInDirAndSubdir(new File("/dev"), FileUtils.S_IFBLK);
+        assertTrue("Found insecure block devices: " + insecure.toString(),
+                insecure.isEmpty());
+    }
+
     public void testDevRandomWorldReadableAndWritable() throws Exception {
         File f = new File("/dev/random");
 
@@ -896,6 +986,67 @@ public class FileSystemPermissionTest extends AndroidTestCase {
                 .add(OsConstants.CAP_SETUID)
                 .add(OsConstants.CAP_SETGID)
                 .fileHasOnly("/system/bin/run-as"));
+    }
+
+    private static Set<File>
+    getAllInsecureDevicesInDirAndSubdir(File dir, int type) throws Exception {
+        assertTrue(dir.isDirectory());
+        Set<File> retval = new HashSet<File>();
+
+        if (isSymbolicLink(dir)) {
+            // don't examine symbolic links.
+            return retval;
+        }
+
+        File[] subDirectories = dir.listFiles(new FileFilter() {
+            @Override public boolean accept(File pathname) {
+                return pathname.isDirectory();
+            }
+        });
+
+
+        /* recurse into subdirectories */
+        if (subDirectories != null) {
+            for (File f : subDirectories) {
+                retval.addAll(getAllInsecureDevicesInDirAndSubdir(f, type));
+            }
+        }
+
+        File[] filesInThisDirectory = dir.listFiles();
+        if (filesInThisDirectory == null) {
+            return retval;
+        }
+
+        for (File f: filesInThisDirectory) {
+            FileUtils.FileStatus status = new FileUtils.FileStatus();
+            FileUtils.getFileStatus(f.getAbsolutePath(), status, false);
+            if (status.isOfType(type)) {
+                if (f.canRead() || f.canWrite() || f.canExecute()) {
+                    retval.add(f);
+                }
+                if (status.uid == 2000) {
+                    // The shell user should not own any devices
+                    retval.add(f);
+                }
+
+                // Don't allow devices owned by GIDs
+                // accessible to non-privileged applications.
+                if ((status.gid == 1007)           // AID_LOG
+                          || (status.gid == 1015)  // AID_SDCARD_RW
+                          || (status.gid == 1023)  // AID_MEDIA_RW
+                          || (status.gid == 1028)  // AID_SDCARD_R
+                          || (status.gid == 2000)) // AID_SHELL
+                {
+                    if (status.hasModeFlag(FileUtils.S_IRGRP)
+                            || status.hasModeFlag(FileUtils.S_IWGRP)
+                            || status.hasModeFlag(FileUtils.S_IXGRP))
+                    {
+                        retval.add(f);
+                    }
+                }
+            }
+        }
+        return retval;
     }
 
     private Set<File> getWritableDirectoriesAndSubdirectoriesOf(File dir) throws Exception {

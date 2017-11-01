@@ -25,10 +25,10 @@ LOCAL_SRC_FILES := $(call all-java-files-under, src)
 LOCAL_PACKAGE_NAME := CtsBackupApp
 
 # Tag this module as a cts test artifact
-LOCAL_COMPATIBILITY_SUITE := cts
+LOCAL_COMPATIBILITY_SUITE := cts general-tests
 
 LOCAL_STATIC_JAVA_LIBRARIES := \
-    ctsdeviceutil \
+    compatibility-device-util \
     ctstestrunner
 
 include $(BUILD_CTS_SUPPORT_PACKAGE)

@@ -23,11 +23,11 @@ LOCAL_JAVA_RESOURCE_DIRS := assets/
 LOCAL_MODULE_TAGS := tests
 
 # tag this module as a cts test artifact
-LOCAL_COMPATIBILITY_SUITE := cts
+LOCAL_COMPATIBILITY_SUITE := cts general-tests
 
 LOCAL_MODULE := CtsCompilationTestCases
 
-LOCAL_JAVA_LIBRARIES := cts-tradefed tradefed-prebuilt compatibility-host-util
+LOCAL_JAVA_LIBRARIES := cts-tradefed tradefed compatibility-host-util
 
 LOCAL_STATIC_JAVA_LIBRARIES := guavalib
 

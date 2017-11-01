@@ -17,7 +17,7 @@ LOCAL_PATH:= $(call my-dir)
 include $(CLEAR_VARS)
 
 # Tag this module as a cts test artifact
-LOCAL_COMPATIBILITY_SUITE := cts
+LOCAL_COMPATIBILITY_SUITE := cts general-tests
 
 LOCAL_PACKAGE_NAME := CtsShortcutBackupLauncher3
 
@@ -32,7 +32,7 @@ LOCAL_STATIC_JAVA_LIBRARIES := \
     android-support-test \
     android-support-v4 \
     mockito-target-minus-junit4 \
-    ctsdeviceutil \
+    compatibility-device-util \
     ctstestrunner \
     ub-uiautomator \
     ShortcutManagerTestUtils

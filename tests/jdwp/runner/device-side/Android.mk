@@ -24,12 +24,12 @@ LOCAL_DEX_PREOPT := false
 
 LOCAL_PROGUARD_ENABLED := disabled
 
-LOCAL_STATIC_JAVA_LIBRARIES := compatibility-device-util
+LOCAL_STATIC_JAVA_LIBRARIES := compatibility-device-util junit
 
 # don't include these packages in any target
 LOCAL_MODULE_TAGS := optional
 
 # Tag this module as a cts test artifact
-LOCAL_COMPATIBILITY_SUITE := cts
+LOCAL_COMPATIBILITY_SUITE := cts general-tests
 
 include $(BUILD_JAVA_LIBRARY)

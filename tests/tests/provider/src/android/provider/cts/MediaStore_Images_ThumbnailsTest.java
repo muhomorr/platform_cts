@@ -22,7 +22,6 @@ import android.content.ContentResolver;
 import android.content.ContentUris;
 import android.content.ContentValues;
 import android.content.Context;
-import android.cts.util.FileCopyHelper;
 import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -33,6 +32,8 @@ import android.provider.MediaStore.Images.Media;
 import android.provider.MediaStore.Images.Thumbnails;
 import android.provider.MediaStore.MediaColumns;
 import android.test.InstrumentationTestCase;
+
+import com.android.compatibility.common.util.FileCopyHelper;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -124,10 +125,11 @@ public class MediaStore_Images_ThumbnailsTest extends InstrumentationTestCase {
             fail("There is no sdcard attached! " + e.getMessage());
         }
         assertNotNull(stringUrl);
-        mRowsAdded.add(Uri.parse(stringUrl));
+        Uri stringUri = Uri.parse(stringUrl);
+        mRowsAdded.add(stringUri);
 
         // get the original image id and path
-        Cursor c = mContentResolver.query(Uri.parse(stringUrl),
+        Cursor c = mContentResolver.query(stringUri,
                 new String[]{ Media._ID, Media.DATA }, null, null, null);
         c.moveToFirst();
         long imageId = c.getLong(c.getColumnIndex(Media._ID));
@@ -164,8 +166,8 @@ public class MediaStore_Images_ThumbnailsTest extends InstrumentationTestCase {
         // deleting the image from the database also deletes the image file, and the
         // corresponding entry in the thumbnail table, which in turn triggers deletion
         // of the thumbnail file on disk
-        mContentResolver.delete(Uri.parse(stringUrl), null, null);
-        mRowsAdded.remove(stringUrl);
+        mContentResolver.delete(stringUri, null, null);
+        mRowsAdded.remove(stringUri);
 
         assertFalse("image file should no longer exist", new File(imagePath).exists());
 

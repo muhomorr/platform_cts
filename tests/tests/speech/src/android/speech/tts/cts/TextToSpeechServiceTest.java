@@ -15,6 +15,7 @@
  */
 package android.speech.tts.cts;
 
+import android.os.ConditionVariable;
 import android.os.Environment;
 import android.speech.tts.TextToSpeech;
 import android.test.AndroidTestCase;
@@ -22,6 +23,8 @@ import android.test.AndroidTestCase;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.util.HashMap;
+import java.util.Map;
+import java.util.List;
 
 /**
  * Tests for {@link android.speech.tts.TextToSpeechService} using StubTextToSpeechService.
@@ -55,28 +58,45 @@ public class TextToSpeechServiceTest extends AndroidTestCase {
         try {
             assertFalse(sampleFile.exists());
 
-            int result = getTts().synthesizeToFile(UTTERANCE, createParams("tofile"), sampleFile.getPath());
+            int result =
+                    getTts().synthesizeToFile(
+                                    UTTERANCE, createParams("mocktofile"), sampleFile.getPath());
             assertEquals("synthesizeToFile() failed", TextToSpeech.SUCCESS, result);
 
-            assertTrue("synthesizeToFile() completion timeout", mTts.waitForComplete("tofile"));
+            assertTrue("synthesizeToFile() completion timeout", mTts.waitForComplete("mocktofile"));
             assertTrue("synthesizeToFile() didn't produce a file", sampleFile.exists());
             assertTrue("synthesizeToFile() produced a non-sound file",
                     TextToSpeechWrapper.isSoundFile(sampleFile.getPath()));
         } finally {
             sampleFile.delete();
         }
-        mTts.verify("tofile");
+        mTts.verify("mocktofile");
+
+        final Map<String, Integer> chunksReceived = mTts.chunksReceived();
+        final Map<String, List<Integer>> timePointsStart = mTts.timePointsStart();
+        final Map<String, List<Integer>> timePointsEnd = mTts.timePointsEnd();
+        final Map<String, List<Integer>> timePointsFrame = mTts.timePointsFrame();
+        assertEquals(Integer.valueOf(10), chunksReceived.get("mocktofile"));
+        // In the mock we set the start, end and frame to exactly these values for the time points.
+        for (int i = 0; i < 10; i++) {
+            assertEquals(Integer.valueOf(i * 5), timePointsStart.get("mocktofile").get(i));
+            assertEquals(Integer.valueOf(i * 5 + 5), timePointsEnd.get("mocktofile").get(i));
+            assertEquals(Integer.valueOf(i * 10), timePointsFrame.get("mocktofile").get(i));
+        }
     }
 
     public void testSpeak() throws Exception {
-        int result = getTts().speak(UTTERANCE, TextToSpeech.QUEUE_FLUSH, createParams("speak"));
+        int result = getTts().speak(UTTERANCE, TextToSpeech.QUEUE_FLUSH, createParams("mockspeak"));
         assertEquals("speak() failed", TextToSpeech.SUCCESS, result);
-        assertTrue("speak() completion timeout", waitForUtterance("speak"));
-        mTts.verify("speak");
+        assertTrue("speak() completion timeout", waitForUtterance("mockspeak"));
+        mTts.verify("mockspeak");
+
+        final Map<String, Integer> chunksReceived = mTts.chunksReceived();
+        assertEquals(Integer.valueOf(10), chunksReceived.get("mockspeak"));
     }
 
     public void testSpeakStop() throws Exception {
-        final Object synthesizeTextWait = new Object();
+        final ConditionVariable synthesizeTextWait = new ConditionVariable();
         StubTextToSpeechService.sSynthesizeTextWait = synthesizeTextWait;
 
         getTts().stop();
@@ -89,9 +109,7 @@ public class TextToSpeechServiceTest extends AndroidTestCase {
         getTts().stop();
 
         // Wake up the Stubs #onSynthesizeSpeech (one that will be stopped in-progress)
-        synchronized (synthesizeTextWait) {
-          synthesizeTextWait.notify();
-        }
+        synthesizeTextWait.open();
 
         for (int i = 0; i < iterations; i++) {
             assertTrue("speak() stop callback timeout", mTts.waitForStop(

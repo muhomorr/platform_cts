@@ -23,16 +23,21 @@ LOCAL_MODULE_PATH := $(TARGET_OUT_DATA_APPS)
 
 LOCAL_JAVA_LIBRARIES := android.test.runner
 
-LOCAL_STATIC_JAVA_LIBRARIES := ctsdeviceutil ctsdeviceutillegacy ctstestrunner
+LOCAL_STATIC_JAVA_LIBRARIES += \
+    compatibility-device-util \
+    ctsdeviceutillegacy \
+    ctstestrunner \
+    android-support-test \
+    mockito-target-minus-junit4 \
 
 LOCAL_SRC_FILES := $(call all-java-files-under, src)
 
 LOCAL_PACKAGE_NAME := CtsTextTestCases
 
 # Tag this module as a cts test artifact
-LOCAL_COMPATIBILITY_SUITE := cts
+LOCAL_COMPATIBILITY_SUITE := cts general-tests
 
-# uncomment when dalvik.annotation.Test* are removed or part of SDK
-#LOCAL_SDK_VERSION := current
+# Enforce public / test api only
+LOCAL_SDK_VERSION := test_current
 
 include $(BUILD_CTS_PACKAGE)

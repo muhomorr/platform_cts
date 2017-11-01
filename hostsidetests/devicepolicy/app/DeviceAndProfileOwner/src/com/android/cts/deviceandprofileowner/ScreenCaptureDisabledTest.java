@@ -16,6 +16,7 @@
 package com.android.cts.deviceandprofileowner;
 
 import android.app.admin.DevicePolicyManager;
+import android.support.v4.content.LocalBroadcastManager;
 import android.util.Log;
 
 /**
@@ -23,8 +24,15 @@ import android.util.Log;
  * {@link DevicePolicyManager#getScreenCaptureDisabled} APIs.
  */
 public class ScreenCaptureDisabledTest extends BaseDeviceAdminTest {
+    private final int MAX_ATTEMPTS_COUNT = 20;
+    private final int WAIT_IN_MILLISECOND = 500;
 
     private static final String TAG = "ScreenCaptureDisabledTest";
+
+    @Override
+    protected void setUp() throws Exception {
+        super.setUp();
+    }
 
     public void testSetScreenCaptureDisabled_false() throws Exception {
         mDevicePolicyManager.setScreenCaptureDisabled(ADMIN_RECEIVER_COMPONENT, false);
@@ -39,10 +47,24 @@ public class ScreenCaptureDisabledTest extends BaseDeviceAdminTest {
     }
 
     public void testScreenCaptureImpossible() throws Exception {
+        for (int i = 0; i < MAX_ATTEMPTS_COUNT; i++) {
+            Log.d(TAG, "testScreenCaptureImpossible: " + i + " trials");
+            Thread.sleep(WAIT_IN_MILLISECOND);
+            if (getInstrumentation().getUiAutomation().takeScreenshot() == null) {
+                break;
+            }
+        }
         assertNull(getInstrumentation().getUiAutomation().takeScreenshot());
     }
 
     public void testScreenCapturePossible() throws Exception {
+        for (int i = 0; i < MAX_ATTEMPTS_COUNT; i++) {
+            Log.d(TAG, "testScreenCapturePossible: " + i + " trials");
+            Thread.sleep(WAIT_IN_MILLISECOND);
+            if (getInstrumentation().getUiAutomation().takeScreenshot() != null) {
+                break;
+            }
+        }
         assertNotNull(getInstrumentation().getUiAutomation().takeScreenshot());
     }
 }

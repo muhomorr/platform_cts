@@ -21,16 +21,18 @@ LOCAL_MODULE_TAGS := tests
 LOCAL_MODULE_PATH := $(TARGET_OUT_DATA_APPS)
 
 # Tag this module as a cts test artifact
-LOCAL_COMPATIBILITY_SUITE := cts
+LOCAL_COMPATIBILITY_SUITE := cts general-tests
 
 LOCAL_JAVA_LIBRARIES := bouncycastle
 
 LOCAL_STATIC_JAVA_LIBRARIES := \
         android-support-test \
         core-tests-support \
-        ctsdeviceutil \
+        compatibility-device-util \
         ctstestrunner \
-        guava
+        guava \
+        junit \
+        legacy-android-test
 
 LOCAL_SRC_FILES := $(call all-java-files-under, src)
 
