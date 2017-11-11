@@ -189,7 +189,7 @@ public class CtsStreamingService extends Service {
         }
     };
 
-    private final IBinder mControlInterface = new ICtsMiddlewareControl.Stub() {
+    private final IBinder mControlInterface = new ICtsStreamingMiddlewareControl.Stub() {
         @Override
         public void reset() {
             mReceivedCalls.clear();
