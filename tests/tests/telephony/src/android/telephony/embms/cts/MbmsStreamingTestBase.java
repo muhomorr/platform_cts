@@ -11,17 +11,13 @@ import android.os.IBinder;
 import android.os.RemoteException;
 import android.telephony.MbmsStreamingSession;
 import android.telephony.cts.embmstestapp.CtsStreamingService;
-import android.telephony.cts.embmstestapp.ICtsMiddlewareControl;
-import android.telephony.mbms.MbmsErrors;
+import android.telephony.cts.embmstestapp.ICtsStreamingMiddlewareControl;
 import android.telephony.mbms.MbmsStreamingSessionCallback;
-import android.telephony.mbms.ServiceInfo;
 import android.telephony.mbms.StreamingServiceInfo;
 import android.test.InstrumentationTestCase;
 
 import com.android.internal.os.SomeArgs;
 
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
@@ -38,11 +34,10 @@ public class MbmsStreamingTestBase extends InstrumentationTestCase {
                 new LinkedBlockingQueue<>();
         private final BlockingQueue<SomeArgs> mMiddlewareReadyCalls = new LinkedBlockingQueue<>();
         private int mNumErrorCalls = 0;
-        private int mNumStreamingServicesUpdatedCalls = 0;
-        private int mNumMiddlwareReadyCalls = 0;
 
         @Override
         public void onError(int errorCode, @Nullable String message) {
+            mNumErrorCalls += 1;
             SomeArgs args = SomeArgs.obtain();
             args.arg1 = errorCode;
             args.arg2 = message;
@@ -93,7 +88,7 @@ public class MbmsStreamingTestBase extends InstrumentationTestCase {
     Context mContext;
     HandlerThread mHandlerThread;
     Handler mCallbackHandler;
-    ICtsMiddlewareControl mMiddlewareControl;
+    ICtsStreamingMiddlewareControl mMiddlewareControl;
     MbmsStreamingSession mStreamingSession;
     TestCallback mCallback = new TestCallback();
 
@@ -132,7 +127,7 @@ public class MbmsStreamingTestBase extends InstrumentationTestCase {
         boolean success = mContext.bindService(bindIntent, new ServiceConnection() {
             @Override
             public void onServiceConnected(ComponentName name, IBinder service) {
-                mMiddlewareControl = ICtsMiddlewareControl.Stub.asInterface(service);
+                mMiddlewareControl = ICtsStreamingMiddlewareControl.Stub.asInterface(service);
                 bindLatch.countDown();
             }
 
