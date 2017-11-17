@@ -248,7 +248,8 @@ public abstract class MediaBitstreamsTest implements IDeviceTest, IBuildReceiver
         MetricsReportLog report = new MetricsReportLog(
                 mBuildHelper.getBuildInfo(), mAbi.getName(),
                 String.format("%s#%s", className, methodName),
-                MediaBitstreams.K_MODULE, "media_bitstreams_conformance");
+                MediaBitstreams.K_MODULE + "." + this.getClass().getSimpleName(),
+                "media_bitstreams_conformance", true);
         return report;
     }
 
@@ -427,7 +428,8 @@ public abstract class MediaBitstreamsTest implements IDeviceTest, IBuildReceiver
                 device.pushString(getBitstreamsListString(), mBitstreamsListTxt);
                 return true;
             } catch (RuntimeException e) {
-                CLog.e("Error parsing report; saving report to %s", device.pullFile(reportPath));
+                File hostFile = reportPath == null ? null : device.pullFile(reportPath);
+                CLog.e("Error parsing report; saving report to %s", hostFile);
                 CLog.e(e);
                 return false;
             }

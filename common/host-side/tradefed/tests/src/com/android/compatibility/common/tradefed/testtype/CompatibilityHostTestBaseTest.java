@@ -19,7 +19,6 @@ package com.android.compatibility.common.tradefed.testtype;
 import com.android.ddmlib.IDevice;
 import com.android.ddmlib.testrunner.RemoteAndroidTestRunner;
 import com.android.ddmlib.testrunner.TestIdentifier;
-import com.android.ddmlib.testrunner.TestRunResult;
 import com.android.tradefed.build.IBuildInfo;
 import com.android.tradefed.device.ITestDevice;
 import com.android.tradefed.result.CollectingTestListener;
@@ -34,11 +33,12 @@ import com.android.tradefed.testtype.IDeviceTest;
 import junit.framework.TestCase;
 
 import org.easymock.EasyMock;
-import org.junit.Test;
+
 import org.junit.runner.JUnitCore;
 import org.junit.runner.Request;
-import org.junit.runner.RunWith;
 import org.junit.runner.Runner;
+import org.junit.runner.RunWith;
+import org.junit.Test;
 
 import java.util.Collections;
 
@@ -57,27 +57,13 @@ public class CompatibilityHostTestBaseTest extends TestCase {
             runDeviceTests(DEVICE_TEST_PKG, null, null);
         }
 
-        @Override
-        protected CollectingTestListener createCollectingListener() {
-            return new CollectingTestListener() {
-                @Override
-                public TestRunResult getCurrentRunResults() {
-                    TestRunResult result = new TestRunResult();
-                    TestIdentifier t1 = new TestIdentifier("class1", "test1");
-                    result.testStarted(t1);
-                    result.testEnded(t1, Collections.emptyMap());
-                    return result;
-                }
-            };
-        }
-
     }
 
     public void testRunMockDeviceTests() throws Exception {
         final TestIdentifier testRunDeviceTests =
                 new TestIdentifier(MockTest.class.getName(), "testRunDeviceTests");
 
-        ITestInvocationListener listener = EasyMock.createStrictMock(ITestInvocationListener.class);
+        ITestInvocationListener listener = EasyMock.createMock(ITestInvocationListener.class);
         ITestDevice device = EasyMock.createMock(ITestDevice.class);
 
         listener.testStarted(testRunDeviceTests);

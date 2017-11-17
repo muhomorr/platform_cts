@@ -86,7 +86,7 @@ public class DynamicConfigPusher implements ITargetCleaner {
 
         File localConfigFile = null;
         try {
-            localConfigFile = buildHelper.getTestFile(mModuleName + ".dynamic");
+            localConfigFile = DynamicConfig.getConfigFile(buildHelper.getTestsDir(), mModuleName);
         } catch (FileNotFoundException e) {
             throw new TargetSetupError("Cannot get local dynamic config file from test directory",
                     e, device.getDeviceDescriptor());

@@ -27,6 +27,7 @@ public class ActivityManagerAssistantStackTests extends ActivityManagerTestBase 
     private static final String VOICE_INTERACTION_SERVICE = "AssistantVoiceInteractionService";
 
     private static final String TEST_ACTIVITY = "TestActivity";
+    private static final String ANIMATION_TEST_ACTIVITY = "AnimationTestActivity";
     private static final String DOCKED_ACTIVITY = "DockedActivity";
     private static final String ASSISTANT_ACTIVITY = "AssistantActivity";
     private static final String LAUNCH_ASSISTANT_ACTIVITY_FROM_SESSION =
@@ -58,6 +59,7 @@ public class ActivityManagerAssistantStackTests extends ActivityManagerTestBase 
     }
 
     public void testAssistantStackZOrder() throws Exception {
+        if (!supportsPip() || !supportsSplitScreenMultiWindow()) return;
         // Launch a pinned stack task
         launchActivity(PIP_ACTIVITY, EXTRA_ENTER_PIP, "true");
         mAmWmState.waitForValidState(mDevice, PIP_ACTIVITY, PINNED_STACK_ID);
@@ -89,6 +91,7 @@ public class ActivityManagerAssistantStackTests extends ActivityManagerTestBase 
     }
 
     public void testAssistantStackLaunchNewTaskWithDockedStack() throws Exception {
+        if (!supportsSplitScreenMultiWindow()) return;
         // Dock a task
         launchActivity(TEST_ACTIVITY);
         launchActivityInDockStack(DOCKED_ACTIVITY);
@@ -172,16 +175,18 @@ public class ActivityManagerAssistantStackTests extends ActivityManagerTestBase 
 
         // Launch a fullscreen and docked app and then launch the assistant and check to see that it
         // is also visible
-        removeStacks(ASSISTANT_STACK_ID);
-        launchActivityInDockStack(DOCKED_ACTIVITY);
-        launchActivity(TEST_ACTIVITY);
-        mAmWmState.assertContainsStack("Must contain docked stack.", DOCKED_STACK_ID);
-        launchActivity(LAUNCH_ASSISTANT_ACTIVITY_INTO_STACK,
-                EXTRA_IS_TRANSLUCENT, String.valueOf(true));
-        mAmWmState.waitForValidState(mDevice, ASSISTANT_ACTIVITY, ASSISTANT_STACK_ID);
-        assertAssistantStackExists();
-        mAmWmState.assertVisibility(DOCKED_ACTIVITY, true);
-        mAmWmState.assertVisibility(TEST_ACTIVITY, true);
+        if (supportsSplitScreenMultiWindow()) {
+            removeStacks(ASSISTANT_STACK_ID);
+            launchActivityInDockStack(DOCKED_ACTIVITY);
+            launchActivity(TEST_ACTIVITY);
+            mAmWmState.assertContainsStack("Must contain docked stack.", DOCKED_STACK_ID);
+            launchActivity(LAUNCH_ASSISTANT_ACTIVITY_INTO_STACK,
+                    EXTRA_IS_TRANSLUCENT, String.valueOf(true));
+            mAmWmState.waitForValidState(mDevice, ASSISTANT_ACTIVITY, ASSISTANT_STACK_ID);
+            assertAssistantStackExists();
+            mAmWmState.assertVisibility(DOCKED_ACTIVITY, true);
+            mAmWmState.assertVisibility(TEST_ACTIVITY, true);
+        }
         disableAssistant();
     }
 
@@ -198,7 +203,8 @@ public class ActivityManagerAssistantStackTests extends ActivityManagerTestBase 
                 .mTaskId;
 
         // Launch a new fullscreen activity
-        launchActivity(TEST_ACTIVITY);
+        // Using Animation Test Activity because it is opaque on all devices.
+        launchActivity(ANIMATION_TEST_ACTIVITY);
         mAmWmState.assertVisibility(ASSISTANT_ACTIVITY, false);
 
         // Launch the assistant again and ensure that it goes into the same task

@@ -18,7 +18,6 @@ package android.keystore.cts;
 
 import android.app.KeyguardManager;
 import android.content.Context;
-import android.content.pm.PackageManager;
 import android.security.KeyPairGeneratorSpec;
 import android.security.KeyStoreParameter;
 import android.security.keystore.KeyProperties;
@@ -77,8 +76,6 @@ public class AndroidKeyStoreTest extends AndroidTestCase {
     private static final String TEST_ALIAS_2 = "test2";
 
     private static final String TEST_ALIAS_3 = "test3";
-
-    private long mMaxTestDurationMillis;
 
     /*
      * The keys and certificates below are generated with:
@@ -734,12 +731,6 @@ public class AndroidKeyStoreTest extends AndroidTestCase {
 
         // Get a new instance because some tests need it uninitialized
         mKeyStore = KeyStore.getInstance("AndroidKeyStore");
-
-        // Use a longer timeout on watches, which are generally less performant.
-        mMaxTestDurationMillis =
-                getContext().getPackageManager().hasSystemFeature(PackageManager.FEATURE_WATCH)
-                        ? LARGE_NUMBER_OF_KEYS_TEST_MAX_DURATION_WATCH_MILLIS
-                        : LARGE_NUMBER_OF_KEYS_TEST_MAX_DURATION_MILLIS;
     }
 
     @Override
@@ -2036,7 +2027,6 @@ public class AndroidKeyStoreTest extends AndroidTestCase {
     private static final int MIN_SUPPORTED_KEY_COUNT = 1500;
     private static final long MINUTE_IN_MILLIS = 1000 * 60;
     private static final long LARGE_NUMBER_OF_KEYS_TEST_MAX_DURATION_MILLIS = 2 * MINUTE_IN_MILLIS;
-    private static final long LARGE_NUMBER_OF_KEYS_TEST_MAX_DURATION_WATCH_MILLIS = 3 * MINUTE_IN_MILLIS;
 
     private static boolean isDeadlineReached(long startTimeMillis, long durationMillis) {
         long nowMillis = System.currentTimeMillis();
@@ -2082,7 +2072,8 @@ public class AndroidKeyStoreTest extends AndroidTestCase {
                     protectionParams);
 
             // Import key3 lots of times, under different aliases.
-            while (!isDeadlineReached(testStartTimeMillis, mMaxTestDurationMillis)) {
+            while (!isDeadlineReached(
+                    testStartTimeMillis, LARGE_NUMBER_OF_KEYS_TEST_MAX_DURATION_MILLIS)) {
                 latestImportedEntryNumber++;
                 if ((latestImportedEntryNumber % 1000) == 0) {
                     Log.i(TAG, "Imported " + latestImportedEntryNumber + " keys");
@@ -2180,7 +2171,7 @@ public class AndroidKeyStoreTest extends AndroidTestCase {
 
             // Import key3 lots of times, under different aliases.
             while (!isDeadlineReached(
-                    testStartTimeMillis, mMaxTestDurationMillis)) {
+                    testStartTimeMillis, LARGE_NUMBER_OF_KEYS_TEST_MAX_DURATION_MILLIS)) {
                 latestImportedEntryNumber++;
                 if ((latestImportedEntryNumber % 1000) == 0) {
                     Log.i(TAG, "Imported " + latestImportedEntryNumber + " keys");
@@ -2276,7 +2267,8 @@ public class AndroidKeyStoreTest extends AndroidTestCase {
             mKeyStore.setEntry(entryName1, new KeyStore.SecretKeyEntry(key1), protectionParams);
 
             // Import key3 lots of times, under different aliases.
-            while (!isDeadlineReached(testStartTimeMillis, mMaxTestDurationMillis)) {
+            while (!isDeadlineReached(
+                    testStartTimeMillis, LARGE_NUMBER_OF_KEYS_TEST_MAX_DURATION_MILLIS)) {
                 latestImportedEntryNumber++;
                 if ((latestImportedEntryNumber % 1000) == 0) {
                     Log.i(TAG, "Imported " + latestImportedEntryNumber + " keys");
@@ -2364,7 +2356,8 @@ public class AndroidKeyStoreTest extends AndroidTestCase {
             mKeyStore.setEntry(entryName1, new KeyStore.SecretKeyEntry(key1), protectionParams);
 
             // Import key3 lots of times, under different aliases.
-            while (!isDeadlineReached(testStartTimeMillis, mMaxTestDurationMillis)) {
+            while (!isDeadlineReached(
+                    testStartTimeMillis, LARGE_NUMBER_OF_KEYS_TEST_MAX_DURATION_MILLIS)) {
                 latestImportedEntryNumber++;
                 if ((latestImportedEntryNumber % 1000) == 0) {
                     Log.i(TAG, "Imported " + latestImportedEntryNumber + " keys");

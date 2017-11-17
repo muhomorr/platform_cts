@@ -18,6 +18,7 @@ package com.android.cts.devicepolicy.accountmanagement;
 
 import android.accounts.Account;
 import android.accounts.AccountManager;
+import android.accounts.AccountManagerFuture;
 import android.accounts.AuthenticatorException;
 import android.accounts.OperationCanceledException;
 import android.content.Context;
@@ -79,14 +80,8 @@ public class AccountManagementTest extends AndroidTestCase {
         // Normally the expected result of addAccount() is AccountManager returning
         // an intent to start the authenticator activity for adding new accounts.
         // But MockAccountAuthenticator returns a new account straightway.
-        String accountType = result.getString(AccountManager.KEY_ACCOUNT_TYPE);
-        String accountName = result.getString(AccountManager.KEY_ACCOUNT_NAME);
-        assertEquals(MockAccountAuthenticator.ACCOUNT_TYPE, accountType);
-
-        // Further verify that getAuthToken is working.
-        Account account = new Account(accountName, accountType);
-        String authToken = mAccountManager.blockingGetAuthToken(account, "authTokenType", false);
-        assertEquals(MockAccountAuthenticator.AUTH_TOKEN, authToken);
+        assertEquals(MockAccountAuthenticator.ACCOUNT_TYPE,
+                result.getString(AccountManager.KEY_ACCOUNT_TYPE));
     }
 
     public void testRemoveAccount_blocked() throws AuthenticatorException,
