@@ -17,7 +17,6 @@ package com.android.compatibility.common.tradefed.testtype.suite;
 
 import com.android.compatibility.SuiteInfo;
 import com.android.compatibility.common.tradefed.build.CompatibilityBuildHelper;
-import com.android.compatibility.common.tradefed.testtype.CompatibilityTest;
 import com.android.compatibility.common.tradefed.testtype.ISubPlan;
 import com.android.compatibility.common.tradefed.testtype.SubPlan;
 import com.android.compatibility.common.util.TestFilter;
@@ -67,12 +66,6 @@ public class CompatibilityTestSuite extends ITestSuite {
     private static final String SKIP_HOST_ARCH_CHECK = "skip-host-arch-check";
     private static final String PRIMARY_ABI_RUN = "primary-abi-only";
     private static final String PRODUCT_CPU_ABI_KEY = "ro.product.cpu.abi";
-
-    // TODO: remove this option when CompatibilityTest goes away
-    @Option(name = CompatibilityTest.RETRY_OPTION,
-            shortName = 'r',
-            description = "Copy of --retry from CompatibilityTest to prevent using it.")
-    private Integer mRetrySessionId = null;
 
     @Option(name = SUBPLAN_OPTION,
             description = "the subplan to run",
@@ -153,10 +146,6 @@ public class CompatibilityTestSuite extends ITestSuite {
      */
     @Override
     public LinkedHashMap<String, IConfiguration> loadTests() {
-        if (mRetrySessionId != null) {
-            throw new IllegalArgumentException("--retry cannot be specified with cts-suite.xml. "
-                    + "Use 'run cts --retry <session id>' instead.");
-        }
         try {
             setupFilters();
             Set<IAbi> abis = getAbis(getDevice());
@@ -291,19 +280,5 @@ public class CompatibilityTestSuite extends ITestSuite {
         }
         filters.clear();
         filters.addAll(cleanedFilters);
-    }
-
-    /**
-     * Sets include-filters for the compatibility test
-     */
-    public void setIncludeFilter(Set<String> includeFilters) {
-        mIncludeFilters.addAll(includeFilters);
-    }
-
-    /**
-     * Sets exclude-filters for the compatibility test
-     */
-    public void setExcludeFilter(Set<String> excludeFilters) {
-        mExcludeFilters.addAll(excludeFilters);
     }
 }

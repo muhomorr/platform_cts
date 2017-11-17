@@ -18,7 +18,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
       package="com.android.cts.verifier"
       android:versionCode="5"
-      android:versionName="8.0_r1">
+      android:versionName="8.0_r4">
 
     <uses-sdk android:minSdkVersion="19" android:targetSdkVersion="26"/>
 
@@ -2060,6 +2060,8 @@
             <meta-data android:name="test_category" android:value="@string/test_category_other" />
             <meta-data android:name="test_required_features"
                     android:value="android.software.app_widgets" />
+            <meta-data android:name="test_excluded_features"
+                    android:value="android.hardware.type.automotive" />
         </activity>
 
         <activity android:name=".deskclock.DeskClockTestsActivity"
@@ -3096,7 +3098,7 @@
                 android:value="@string/test_category_telephony"/>
             <meta-data
                 android:name="test_required_features"
-                android:value="android.hardware.telephony"/>
+                android:value="android.hardware.telephony:android.software.sip:android.software.sip.voip"/>
         </activity>
 
         <service
@@ -3140,7 +3142,7 @@
                 android:value="@string/test_category_telecom"/>
             <meta-data
                 android:name="test_required_features"
-                android:value="android.hardware.telephony"/>
+                android:value="android.hardware.telephony:android.software.sip:android.software.sip.voip"/>
         </activity>
 
         <activity
@@ -3156,7 +3158,7 @@
                 android:value="@string/test_category_telecom"/>
             <meta-data
                 android:name="test_required_features"
-                android:value="android.hardware.telephony"/>
+                android:value="android.hardware.telephony:android.software.sip:android.software.sip.voip"/>
             </activity>
 
         <activity
@@ -3188,7 +3190,7 @@
                 android:value="@string/test_category_telecom"/>
             <meta-data
                 android:name="test_required_features"
-                android:value="android.hardware.telephony"/>
+                android:value="android.hardware.telephony:android.software.sip:android.software.sip.voip"/>
         </activity>
 
         <service android:name="com.android.cts.verifier.telecom.CtsConnectionService"

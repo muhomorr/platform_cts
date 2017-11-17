@@ -166,9 +166,9 @@
     <option name="compatibility:exclude-filter" value="CtsSecurityTestCases android.security.cts.ListeningPortsTest" />
 
     <!-- b/63115400 -->
-    <option name="compatibility:exclude-filter" value="CtsSecurityTestCases android.security.cts.SELinuxHostTest#testAospFileContexts" />
+    <option name="compatibility:exclude-filter" value="CtsSecurityHostTestCases android.security.cts.SELinuxHostTest#testAospFileContexts" />
     <!-- b/64221494 -->
-    <option name="compatibility:exclude-filter" value="CtsSecurityTestCases android.security.cts.SELinuxHostTest#testAospPropertyContexts" />
+    <option name="compatibility:exclude-filter" value="CtsSecurityHostTestCases android.security.cts.SELinuxHostTest#testAospPropertyContexts" />
     <!-- b/63378294 b/64382381 -->
     <option name="compatibility:exclude-filter" value="CtsSecurityTestCases android.security.cts.SELinuxNeverallowRulesTest#testNeverallowRules440" />
 
@@ -207,6 +207,8 @@
     <!-- b/62924649 -->
     <option name="compatibility:exclude-filter" value="CtsPreference2TestCases android.preference2.cts.PreferenceActivityLegacyFlowTest#legacyActivityMultiWindowTest" />
     <option name="compatibility:exclude-filter" value="CtsPreference2TestCases android.preference2.cts.PreferenceActivityLegacyFlowTest#legacyActivityMultiWindowToggleTest" />
+    <!-- b/67738829 -->
+    <option name="compatibility:exclude-filter" value="CtsPreference2TestCases android.preference2.cts.PreferenceActivityLegacyFlowTest#legacyActivityRecreateTest" />
 
     <!-- b/38224690 -->
     <option name="compatibility:exclude-filter" value="CtsMediaTestCases android.media.cts.NativeEncoderTest" />
@@ -238,7 +240,7 @@
     <option name="compatibility:exclude-filter" value="CtsMediaTestCases android.media.cts.VideoDecoderPerfTest#testVp8Goog0Perf1280x0720" />
 
     <!-- b/63566721 -->
-    <option name="compatibility:exclude-filter" value="CtsWrapWrapDebugTestCases android.wrap.cts.WrapTest" />
+    <option name="compatibility:exclude-filter" value="CtsWrapWrapDebugTestCases" />
 
     <!-- b/38420898 -->
     <option name="compatibility:exclude-filter" value="CtsSensorTestCases android.hardware.cts.SensorDirectReportTest#testRateIndependencyAccelMultiChannel" />
@@ -264,6 +266,6 @@
     <option name="compatibility:exclude-filter" value="CtsSensorTestCases android.hardware.cts.SensorDirectReportTest#testRegisterMultipleChannels" />
     <option name="compatibility:exclude-filter" value="CtsSensorTestCases android.hardware.cts.SensorDirectReportTest#testReconfigure" />
 
-    <!-- b/64690009 -->
-    <option name="compatibility:exclude-filter" value="CtsPermission2TestCases android.permission2.cts.PrivappPermissionsTest" />
+    <!-- b/63916274 -->
+    <option name="compatibility:exclude-filter" value="CtsTelecomTestCases android.telecom.cts.WiredHeadsetTest" />
 </configuration>
