@@ -56,6 +56,7 @@ final class UiBot {
 
     private static final String RESOURCE_ID_DATASET_PICKER = "autofill_dataset_picker";
     private static final String RESOURCE_ID_SAVE_SNACKBAR = "autofill_save";
+    private static final String RESOURCE_ID_SAVE_ICON = "autofill_save_icon";
     private static final String RESOURCE_ID_SAVE_TITLE = "autofill_save_title";
     private static final String RESOURCE_ID_CONTEXT_MENUITEM = "floating_toolbar_menu_item_text";
 
@@ -181,7 +182,11 @@ final class UiBot {
      * {@link #assertDatasets(String...)}.
      */
     public UiObject2 assertShownByText(String text) {
-        final UiObject2 object = waitForObject(By.text(text));
+        return assertShownByText(text, UI_TIMEOUT_MS);
+    }
+
+    public UiObject2 assertShownByText(String text, int timeoutMs) {
+        final UiObject2 object = waitForObject(By.text(text), timeoutMs);
         assertWithMessage("No node with text '%s'", text).that(object).isNotNull();
         return object;
     }
@@ -355,8 +360,15 @@ final class UiBot {
         final UiObject2 snackbar = waitForObject(By.res("android", RESOURCE_ID_SAVE_SNACKBAR),
                 timeout);
 
-        final UiObject2 titleView = snackbar.findObject(By.res("android", RESOURCE_ID_SAVE_TITLE));
-        assertWithMessage("save title (%s)", RESOURCE_ID_SAVE_TITLE).that(titleView).isNotNull();
+        final UiObject2 titleView =
+                waitForObject(snackbar, By.res("android", RESOURCE_ID_SAVE_TITLE), UI_TIMEOUT_MS);
+        assertWithMessage("save title (%s) is not shown", RESOURCE_ID_SAVE_TITLE).that(titleView)
+                .isNotNull();
+
+        final UiObject2 iconView =
+                waitForObject(snackbar, By.res("android", RESOURCE_ID_SAVE_ICON), UI_TIMEOUT_MS);
+        assertWithMessage("save icon (%s) is not shown", RESOURCE_ID_SAVE_ICON).that(iconView)
+                .isNotNull();
 
         final String actualTitle = titleView.getText();
         Log.d(TAG, "save title: " + actualTitle);
@@ -501,15 +513,18 @@ final class UiBot {
     /**
      * Waits for and returns an object.
      *
+     * @param parent where to find the object (or {@code null} to use device's root).
      * @param selector {@link BySelector} that identifies the object.
      * @param timeout timeout in ms
      */
-    private UiObject2 waitForObject(BySelector selector, long timeout) {
+    private UiObject2 waitForObject(UiObject2 parent, BySelector selector, long timeout) {
         // NOTE: mDevice.wait does not work for the save snackbar, so we need a polling approach.
         final int maxTries = 5;
         final long napTime = timeout / maxTries;
         for (int i = 1; i <= maxTries; i++) {
-            final UiObject2 uiObject = mDevice.findObject(selector);
+            final UiObject2 uiObject = parent != null
+                    ? parent.findObject(selector)
+                    : mDevice.findObject(selector);
             if (uiObject != null) {
                 return uiObject;
             }
@@ -517,6 +532,17 @@ final class UiBot {
         }
         throw new RetryableException("Object with selector '%s' not found in %d ms",
                 selector, UI_TIMEOUT_MS);
+
+    }
+
+    /**
+     * Waits for and returns an object.
+     *
+     * @param selector {@link BySelector} that identifies the object.
+     * @param timeout timeout in ms
+     */
+    private UiObject2 waitForObject(BySelector selector, long timeout) {
+        return waitForObject(null, selector, timeout);
     }
 
     /**

@@ -39,7 +39,6 @@ import android.support.test.uiautomator.By;
 import android.support.test.uiautomator.UiDevice;
 import android.support.test.uiautomator.UiObject2;
 import android.support.test.uiautomator.Until;
-import android.util.Log;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -204,8 +203,9 @@ public class CtsSyncAccountAccessOtherCertTestCases {
     }
 
     private boolean hasNotificationSupport() {
-        return !getContext().getPackageManager()
-                .hasSystemFeature(PackageManager.FEATURE_LEANBACK);
+        final PackageManager manager = getContext().getPackageManager();
+        return !manager.hasSystemFeature(PackageManager.FEATURE_LEANBACK)
+                && !manager.hasSystemFeature(PackageManager.FEATURE_EMBEDDED);
     }
 
     private void allowSyncAdapterRunInBackgroundAndDataInBackground() throws IOException {

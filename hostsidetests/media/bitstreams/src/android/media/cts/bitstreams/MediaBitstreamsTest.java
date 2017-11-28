@@ -16,6 +16,7 @@
 package android.media.cts.bitstreams;
 
 import com.android.compatibility.common.tradefed.build.CompatibilityBuildHelper;
+import com.android.compatibility.common.tradefed.targetprep.MediaPreparer;
 import com.android.compatibility.common.util.MetricsReportLog;
 import com.android.compatibility.common.util.ResultType;
 import com.android.compatibility.common.util.ResultUnit;
@@ -32,6 +33,7 @@ import com.android.tradefed.testtype.IDeviceTest;
 import com.android.tradefed.util.FileUtil;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileFilter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -66,7 +68,7 @@ public abstract class MediaBitstreamsTest implements IDeviceTest, IBuildReceiver
     @Option(name = MediaBitstreams.OPT_HOST_BITSTREAMS_PATH,
             description = "Absolute path of Ittiam bitstreams (host)",
             mandatory = true)
-    private File mHostBitstreamsPath = new File(MediaBitstreams.DEFAULT_HOST_BITSTREAMS_PATH);
+    private File mHostBitstreamsPath = getDefaultBitstreamsDir();
 
     @Option(name = MediaBitstreams.OPT_DEVICE_BITSTREAMS_PATH,
             description = "Absolute path of Ittiam bitstreams (device)")
@@ -128,6 +130,22 @@ public abstract class MediaBitstreamsTest implements IDeviceTest, IBuildReceiver
 
     private IAbi mAbi;
     private ITestDevice mDevice;
+
+    static File getDefaultBitstreamsDir() {
+        File mediaDir = MediaPreparer.getDefaultMediaDir();
+        File[] subDirs = mediaDir.listFiles(new FileFilter() {
+            @Override
+            public boolean accept(File child) {
+                return child.isDirectory();
+            }
+        });
+        if (subDirs != null && subDirs.length == 1) {
+            File parent = new File(mediaDir, subDirs[0].getName());
+            return new File(parent, MediaBitstreams.DEFAULT_HOST_BITSTREAMS_PATH);
+        } else {
+            return new File(MediaBitstreams.DEFAULT_HOST_BITSTREAMS_PATH);
+        }
+    }
 
     static Collection<Object[]> bitstreams(String prefix, BitstreamPackage packageToRun) {
         final String dynConfXml = new File("/", MediaBitstreams.DYNAMIC_CONFIG_XML).toString();
@@ -230,7 +248,8 @@ public abstract class MediaBitstreamsTest implements IDeviceTest, IBuildReceiver
         MetricsReportLog report = new MetricsReportLog(
                 mBuildHelper.getBuildInfo(), mAbi.getName(),
                 String.format("%s#%s", className, methodName),
-                MediaBitstreams.K_MODULE, "media_bitstreams_conformance");
+                MediaBitstreams.K_MODULE + "." + this.getClass().getSimpleName(),
+                "media_bitstreams_conformance", true);
         return report;
     }
 
@@ -409,7 +428,8 @@ public abstract class MediaBitstreamsTest implements IDeviceTest, IBuildReceiver
                 device.pushString(getBitstreamsListString(), mBitstreamsListTxt);
                 return true;
             } catch (RuntimeException e) {
-                CLog.e("Error parsing report; saving report to %s", device.pullFile(reportPath));
+                File hostFile = reportPath == null ? null : device.pullFile(reportPath);
+                CLog.e("Error parsing report; saving report to %s", hostFile);
                 CLog.e(e);
                 return false;
             }

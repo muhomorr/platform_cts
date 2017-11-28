@@ -117,13 +117,24 @@ public class BusinessLogicFactory {
         for (int i = 0; i < ruleConditionsJSONArray.length(); i++) {
             JSONObject ruleConditionJSONObject = ruleConditionsJSONArray.getJSONObject(i);
             String methodName = ruleConditionJSONObject.getString(METHOD_NAME);
-            // Each condition requires at least one arg, line below throws JSONException if not
-            JSONArray methodArgsJSONArray = ruleConditionJSONObject.getJSONArray(METHOD_ARGS);
+            boolean negated = false;
+            if (methodName.startsWith("!")) {
+                methodName = methodName.substring(1); // remove negation from method name string
+                negated = true; // change "negated" property to true
+            }
             List<String> methodArgs = new ArrayList<>();
+            JSONArray methodArgsJSONArray = null;
+            try {
+                methodArgsJSONArray = ruleConditionJSONObject.getJSONArray(METHOD_ARGS);
+            } catch (JSONException e) {
+                // No method args for this rule condition, add rule condition with empty args list
+                ruleConditions.add(new BusinessLogicRuleCondition(methodName, methodArgs, negated));
+                continue;
+            }
             for (int j = 0; j < methodArgsJSONArray.length(); j++) {
                 methodArgs.add(methodArgsJSONArray.getString(j));
             }
-            ruleConditions.add(new BusinessLogicRuleCondition(methodName, methodArgs));
+            ruleConditions.add(new BusinessLogicRuleCondition(methodName, methodArgs, negated));
         }
         return ruleConditions;
     }

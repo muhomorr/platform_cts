@@ -288,6 +288,7 @@ public abstract class ActivityManagerTestBase extends DeviceTestCase {
             setAccelerometerRotation(mInitialAccelerometerRotation);
             setUserRotation(mUserRotation);
             setFontScale(mFontScale);
+            setWindowTransitionAnimationDurationScale(1);
             // Remove special stacks.
             removeStacks(ALL_STACK_IDS_BUT_HOME_AND_FULLSCREEN);
             wakeUpAndUnlockDevice();
@@ -555,7 +556,8 @@ public abstract class ActivityManagerTestBase extends DeviceTestCase {
 
     protected boolean isHandheld() throws DeviceNotAvailableException {
         return !hasDeviceFeature("android.software.leanback")
-                && !hasDeviceFeature("android.hardware.type.watch");
+                && !hasDeviceFeature("android.hardware.type.watch")
+                && !hasDeviceFeature("android.hardware.type.embedded");
     }
 
     protected boolean supportsSplitScreenMultiWindow() throws DeviceNotAvailableException {
@@ -570,6 +572,17 @@ public abstract class ActivityManagerTestBase extends DeviceTestCase {
         executeShellCommand(AM_NO_HOME_SCREEN, outputReceiver);
         String output = outputReceiver.getOutput();
         return output.startsWith("true");
+    }
+
+    /**
+     * Rotation support is indicated by explicitly having both landscape and portrait
+     * features or not listing either at all.
+     */
+    protected boolean supportsRotation() throws DeviceNotAvailableException {
+        return (hasDeviceFeature("android.hardware.screen.landscape")
+                    && hasDeviceFeature("android.hardware.screen.portrait"))
+            || (!hasDeviceFeature("android.hardware.screen.landscape")
+                    && !hasDeviceFeature("android.hardware.screen.portrait"));
     }
 
     protected boolean hasDeviceFeature(String requiredFeature) throws DeviceNotAvailableException {
@@ -677,7 +690,7 @@ public abstract class ActivityManagerTestBase extends DeviceTestCase {
         runCommandAndPrintOutput("locksettings set-pin " + LOCK_CREDENTIAL);
     }
 
-    protected void removeLockCredential() throws DeviceNotAvailableException {
+    private void removeLockCredential() throws DeviceNotAvailableException {
         runCommandAndPrintOutput("locksettings clear --old " + LOCK_CREDENTIAL);
     }
 
@@ -764,6 +777,12 @@ public abstract class ActivityManagerTestBase extends DeviceTestCase {
             runCommandAndPrintOutput(
                     "settings put system font_scale " + fontScale);
         }
+    }
+
+    protected void setWindowTransitionAnimationDurationScale(float animDurationScale)
+            throws DeviceNotAvailableException {
+        runCommandAndPrintOutput(
+                "settings put global transition_animation_scale " + animDurationScale);
     }
 
     protected float getFontScale() throws DeviceNotAvailableException {

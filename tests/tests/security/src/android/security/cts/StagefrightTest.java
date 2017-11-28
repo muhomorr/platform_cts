@@ -75,6 +75,16 @@ public class StagefrightTest extends InstrumentationTestCase {
      ***********************************************************/
 
     @SecurityTest
+    public void testStagefright_bug_64710074() throws Exception {
+        doStagefrightTest(R.raw.bug_64710074);
+    }
+
+    @SecurityTest
+    public void testStagefright_cve_2017_0643() throws Exception {
+        doStagefrightTest(R.raw.cve_2017_0643);
+    }
+
+    @SecurityTest
     public void testStagefright_cve_2017_0728() throws Exception {
         doStagefrightTest(R.raw.cve_2017_0728);
     }
@@ -222,10 +232,46 @@ public class StagefrightTest extends InstrumentationTestCase {
         doStagefrightTest(R.raw.cve_2016_2429_b_27211885);
     }
 
+    @SecurityTest
+    public void testStagefright_bug_34031018() throws Exception {
+        doStagefrightTest(R.raw.bug_34031018_32bit);
+        doStagefrightTest(R.raw.bug_34031018_64bit);
+    }
+
+    /***********************************************************
+     to prevent merge conflicts, add L tests below this comment,
+     before any existing test methods
+     ***********************************************************/
+
+    @SecurityTest
+    public void testStagefright_cve_2017_0852_b_62815506() throws Exception {
+        doStagefrightTest(R.raw.cve_2017_0852_b_62815506);
+    }
+
     /***********************************************************
      to prevent merge conflicts, add M tests below this comment,
      before any existing test methods
      ***********************************************************/
+
+    @SecurityTest
+    public void testStagefright_bug_65717533() throws Exception {
+        doStagefrightTest(R.raw.bug_65717533_header_corrupt);
+    }
+
+    @SecurityTest
+    public void testStagefright_cve_2017_0857() throws Exception {
+        doStagefrightTest(R.raw.cve_2017_0857);
+    }
+
+    @SecurityTest
+    public void testStagefright_cve_2017_0600() throws Exception {
+        doStagefrightTest(R.raw.cve_2017_0600);
+    }
+
+    @SecurityTest
+    public void testStagefright_cve_2017_0599() throws Exception {
+        doStagefrightTest(R.raw.cve_2017_0599);
+    }
 
     @SecurityTest
     public void testStagefright_cve_2016_0842() throws Exception {
@@ -368,11 +414,6 @@ public class StagefrightTest extends InstrumentationTestCase {
     @SecurityTest
     public void testStagefright_bug_35467107() throws Exception {
         doStagefrightTest(R.raw.bug_35467107);
-    }
-
-    public void testStagefright_bug_34031018() throws Exception {
-        doStagefrightTest(R.raw.bug_34031018_32bit);
-        doStagefrightTest(R.raw.bug_34031018_64bit);
     }
 
     private void doStagefrightTest(final int rid) throws Exception {
@@ -659,6 +700,7 @@ public class StagefrightTest extends InstrumentationTestCase {
                     MediaCodecInfo.CodecCapabilities caps = info.getCapabilitiesForType(mime);
                     if (caps != null) {
                         matchingCodecs.add(info.getName());
+                        Log.i(TAG, "Found matching codec " + info.getName() + " for track " + t);
                     }
                 } catch (IllegalArgumentException e) {
                     // type is not supported
@@ -824,6 +866,25 @@ public class StagefrightTest extends InstrumentationTestCase {
 
     public void testBug36895511() throws Exception {
         doStagefrightTestRawBlob(R.raw.bug_36895511, "video/hevc", 320, 240);
+    }
+
+    public void testBug64836894() throws Exception {
+        doStagefrightTestRawBlob(R.raw.bug_64836894, "video/avc", 320, 240);
+    }
+
+    @SecurityTest
+    public void testCve_2017_0762() throws Exception {
+        doStagefrightTestRawBlob(R.raw.cve_2017_0762, "video/hevc", 320, 240);
+    }
+
+    @SecurityTest
+    public void testCve_2017_0687() throws Exception {
+        doStagefrightTestRawBlob(R.raw.cve_2017_0687, "video/avc", 320, 240);
+    }
+
+    @SecurityTest
+    public void testBug_37930177() throws Exception {
+        doStagefrightTestRawBlob(R.raw.bug_37930177_hevc, "video/hevc", 320, 240);
     }
 
     private void runWithTimeout(Runnable runner, int timeout) {

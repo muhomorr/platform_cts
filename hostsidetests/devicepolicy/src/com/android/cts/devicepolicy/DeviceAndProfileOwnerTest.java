@@ -802,6 +802,13 @@ public abstract class DeviceAndProfileOwnerTest extends BaseDevicePolicyTest {
         executeResetPasswordWithTokenTests(true);
     }
 
+    public void testPasswordSufficientInitially() throws Exception {
+        if (!mHasFeature) {
+            return;
+        }
+        executeDeviceTestClass(".PasswordSufficientInitiallyTest");
+    }
+
     protected void executeResetPasswordWithTokenTests(Boolean allowFailures) throws Exception {
         runDeviceTestsAsUser(DEVICE_ADMIN_PKG, ".ResetPasswordWithTokenTest", null, mUserId,
                 Collections.singletonMap(ARG_ALLOW_FAILURE, Boolean.toString(allowFailures)));
