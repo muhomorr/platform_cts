@@ -43,9 +43,6 @@
     <option name="compatibility:exclude-filter" value="CtsPermission2TestCases android.permission2.cts.NoReceiveSmsPermissionTest#testAppSpecificSmsToken" />
     <option name="compatibility:exclude-filter" value="CtsPermission2TestCases android.permission2.cts.NoReceiveSmsPermissionTest#testReceiveTextMessage" />
     <option name="compatibility:exclude-filter" value="CtsPermissionTestCases android.permission.cts.NoSystemFunctionPermissionTest#testSendSms" />
-    <option name="compatibility:exclude-filter" value="CtsSecurityHostTest android.security.cts.SELinuxHostTest#testNoExemptionsForBinderInVendorBan" />
-    <option name="compatibility:exclude-filter" value="CtsSecurityHostTest android.security.cts.SELinuxHostTest#testNoExemptionsForSocketsBetweenCoreAndVendorBan" />
-    <option name="compatibility:exclude-filter" value="CtsSecurityHostTest android.security.cts.SELinuxHostTest#testNoExemptionsForVendorExecutingCore" />
     <option name="compatibility:exclude-filter" value="CtsUsageStatsTestCases android.app.usage.cts.NetworkUsageStatsTest#testAppDetails" />
     <option name="compatibility:exclude-filter" value="CtsUsageStatsTestCases android.app.usage.cts.NetworkUsageStatsTest#testAppSummary" />
     <option name="compatibility:exclude-filter" value="CtsUsageStatsTestCases android.app.usage.cts.NetworkUsageStatsTest#testCallback" />
@@ -165,5 +162,8 @@
 
     <!-- b/69072351: Internal bug in the "Freeform" feature of ActivityManager -->
     <option name="compatibility:exclude-filter" value="CtsServicesHostTestCases android.server.cts.ActivityManagerFreeformStackTests#testFreeformWindowManagementSupport" />
+
+    <!-- b/69131975: Exclude android.jni.cts.JniStaticTest#test_linker_namespaces -->
+    <option name="compatibility:exclude-filter" value="CtsJniTestCases android.jni.cts.JniStaticTest#test_linker_namespaces" />
 
 </configuration>
