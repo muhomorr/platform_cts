@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Copyright (C) 2017 The Android Open Source Project
+<!-- Copyright (C) 2014 The Android Open Source Project
 
      Licensed under the Apache License, Version 2.0 (the "License");
      you may not use this file except in compliance with the License.
@@ -14,10 +14,11 @@
      limitations under the License.
 -->
 <resources>
-    <dimen name="switch_min_width">80dp</dimen>
-    <dimen name="switch_min_width2">100dp</dimen>
-
-    <dimen name="calendarview_holo_height">200dip</dimen>
-
-    <dimen name="imageview_regular_height">100dip</dimen>
+    <!-- Don't test these features on VR Standalone Headsets. -->
+    <string-array name="disabled_tests">
+        <item>com.android.cts.verifier.car.CarDockActivity</item>
+        <item>com.android.cts.verifier.car.CarDockTestActivity</item>
+        <item>com.android.cts.verifier.deskclock.DeskClockTestsActivity</item>
+        <item>com.android.cts.verifier.screenpinning.ScreenPinningTestActivity</item>
+    </string-array>
 </resources>
