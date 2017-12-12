@@ -238,7 +238,7 @@ public class BuildDalvikSuite {
     }
 
     private String getShellExecJavaLine(String classpath, String mainclass) {
-      String cmd = String.format("ANDROID_DATA=%s dalvikvm|#ABI#| -Xmx512M -Xss32K " +
+      String cmd = String.format("ANDROID_DATA=%s dalvikvm|#ABI#| -Xmx512M -Xss32K -Xnodex2oat " +
               "-Djava.io.tmpdir=%s -classpath %s %s", TARGET_JAR_ROOT_PATH, TARGET_JAR_ROOT_PATH,
               classpath, mainclass);
       StringBuilder code = new StringBuilder();
@@ -445,7 +445,7 @@ public class BuildDalvikSuite {
 
         }
 
-        DxBuildStep dexBuildStep = new DxBuildStep(
+        D8BuildStep dexBuildStep = new D8BuildStep(
             new BuildStep.BuildFile(new File(CLASSES_OUTPUT_FOLDER)),
             new BuildStep.BuildFile(new File(mainsJar)),
             false);
@@ -571,7 +571,7 @@ public class BuildDalvikSuite {
                 OUTPUT_FOLDER,
                 classFileName + ".jar");
 
-        DxBuildStep dexBuildStep = new DxBuildStep(tmpJarFile,
+        D8BuildStep dexBuildStep = new D8BuildStep(tmpJarFile,
                 outputFile,
                 true);
 

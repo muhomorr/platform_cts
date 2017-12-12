@@ -66,6 +66,21 @@ import java.util.Set;
  */
 public class FileSystemPermissionTest extends AndroidTestCase {
 
+    private int dumpable;
+
+    @Override
+    protected void setUp() throws Exception {
+        super.setUp();
+        dumpable = Os.prctl(OsConstants.PR_GET_DUMPABLE, 0, 0, 0, 0);
+        Os.prctl(OsConstants.PR_SET_DUMPABLE, 1, 0, 0, 0);
+    }
+
+    @Override
+    protected void tearDown() throws Exception {
+        Os.prctl(OsConstants.PR_SET_DUMPABLE, dumpable, 0, 0, 0);
+        super.tearDown();
+    }
+
     @MediumTest
     public void testCreateFileHasSanePermissions() throws Exception {
         File myFile = new File(getContext().getFilesDir(), "hello");
@@ -382,6 +397,9 @@ public class FileSystemPermissionTest extends AndroidTestCase {
     @MediumTest
     public void testProcSelfPagemapSane() throws ErrnoException, IOException {
         FileDescriptor pagemap = null;
+        int dumpable = Os.prctl(OsConstants.PR_GET_DUMPABLE, 0, 0, 0, 0);
+        Os.prctl(OsConstants.PR_SET_DUMPABLE, 1, 0, 0, 0);
+
         try {
             pagemap = Os.open("/proc/self/pagemap", OsConstants.O_RDONLY, 0);
 
@@ -398,6 +416,7 @@ public class FileSystemPermissionTest extends AndroidTestCase {
         } finally {
             if (pagemap != null)
                 Os.close(pagemap);
+            Os.prctl(OsConstants.PR_SET_DUMPABLE, dumpable, 0, 0, 0);
         }
     }
 
@@ -842,7 +861,8 @@ public class FileSystemPermissionTest extends AndroidTestCase {
                 new File("/sys/fs/selinux/relabel"),
                 new File("/sys/fs/selinux/create"),
                 new File("/sys/fs/selinux/access"),
-                new File("/sys/fs/selinux/context")
+                new File("/sys/fs/selinux/context"),
+                new File("/sys/fs/selinux/validatetrans")
             ));
 
     @LargeTest
