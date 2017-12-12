@@ -16,7 +16,6 @@
 
 package com.android.compatibility.common.tradefed.testtype;
 
-import com.android.compatibility.SuiteInfo;
 import com.android.compatibility.common.tradefed.build.CompatibilityBuildHelper;
 import com.android.compatibility.common.tradefed.result.InvocationFailureHandler;
 import com.android.compatibility.common.tradefed.result.SubPlanHelper;
@@ -55,6 +54,7 @@ import com.android.tradefed.testtype.IRemoteTest;
 import com.android.tradefed.testtype.IShardableTest;
 import com.android.tradefed.testtype.IStrictShardableTest;
 import com.android.tradefed.testtype.ITestCollector;
+import com.android.tradefed.testtype.suite.TestSuiteInfo;
 import com.android.tradefed.util.AbiFormatter;
 import com.android.tradefed.util.AbiUtils;
 import com.android.tradefed.util.ArrayUtil;
@@ -605,7 +605,7 @@ public class CompatibilityTest implements IDeviceTest, IShardableTest, IBuildRec
      * Exposed for testing.
      */
     protected Set<String> getAbisForBuildTargetArch() {
-        return AbiUtils.getAbisForArch(SuiteInfo.TARGET_ARCH);
+        return AbiUtils.getAbisForArch(TestSuiteInfo.getInstance().getTargetArch());
     }
 
     /**
@@ -664,10 +664,10 @@ public class CompatibilityTest implements IDeviceTest, IShardableTest, IBuildRec
         if (!failures.isEmpty()) {
             CLog.w("There are failed system status checkers: %s capturing a bugreport",
                     failures.toString());
-            InputStreamSource bugSource = device.getBugreport();
-            logger.testLog(String.format("bugreport-checker-pre-module-%s", moduleName),
-                    LogDataType.BUGREPORT, bugSource);
-            bugSource.cancel();
+            try (InputStreamSource bugSource = device.getBugreport()) {
+                logger.testLog(String.format("bugreport-checker-pre-module-%s", moduleName),
+                        LogDataType.BUGREPORT, bugSource);
+            }
         }
     }
 
@@ -686,10 +686,10 @@ public class CompatibilityTest implements IDeviceTest, IShardableTest, IBuildRec
         if (!failures.isEmpty()) {
             CLog.w("There are failed system status checkers: %s capturing a bugreport",
                     failures.toString());
-            InputStreamSource bugSource = device.getBugreport();
-            logger.testLog(String.format("bugreport-checker-post-module-%s", moduleName),
-                    LogDataType.BUGREPORT, bugSource);
-            bugSource.cancel();
+            try (InputStreamSource bugSource = device.getBugreport()) {
+                logger.testLog(String.format("bugreport-checker-post-module-%s", moduleName),
+                        LogDataType.BUGREPORT, bugSource);
+            }
         }
     }
 
@@ -724,9 +724,7 @@ public class CompatibilityTest implements IDeviceTest, IShardableTest, IBuildRec
     void setupFilters() throws DeviceNotAvailableException {
         if (mRetrySessionId != null) {
             // Load the invocation result
-            RetryFilterHelper helper = new RetryFilterHelper(mBuildHelper, mRetrySessionId,
-                    mSubPlan, mIncludeFilters, mExcludeFilters, mAbiName, mModuleName, mTestName,
-                    mRetryType);
+            RetryFilterHelper helper = createRetryFilterHelper(mRetrySessionId);
             helper.validateBuildFingerprint(mDevice);
             helper.setCommandLineOptionsFor(this);
             helper.populateRetryFilters();
@@ -765,6 +763,13 @@ public class CompatibilityTest implements IDeviceTest, IShardableTest, IBuildRec
                         "Test name given without module name. Add --module <module-name>");
             }
         }
+    }
+
+    /* Creates a new {@link RetryFilterHelper} from attributes of this object. */
+    protected RetryFilterHelper createRetryFilterHelper(Integer retrySessionId) {
+        return new RetryFilterHelper(mBuildHelper, retrySessionId,
+                mSubPlan, mIncludeFilters, mExcludeFilters, mAbiName, mModuleName, mTestName,
+                mRetryType);
     }
 
     /* Helper method designed to remove filters in a list not applicable to the given module */
@@ -860,6 +865,14 @@ public class CompatibilityTest implements IDeviceTest, IShardableTest, IBuildRec
     public void setInvocationContext(IInvocationContext invocationContext) {
         mInvocationContext = invocationContext;
     }
+
+    /**
+     * @return the mSubPlan
+     */
+    protected String getSubPlan() {
+        return mSubPlan;
+    }
+
     /**
      * @return the mIncludeFilters
      */
@@ -875,6 +888,20 @@ public class CompatibilityTest implements IDeviceTest, IShardableTest, IBuildRec
     }
 
     /**
+     * @return the mModuleName
+     */
+    protected String getModuleName() {
+        return mModuleName;
+    }
+
+    /**
+     * @return the mTestName
+     */
+    protected String getTestName() {
+        return mTestName;
+    }
+
+    /**
      * @return the mModuleArgs
      */
     protected List<String> getModuleArgs() {
@@ -886,6 +913,20 @@ public class CompatibilityTest implements IDeviceTest, IShardableTest, IBuildRec
      */
     protected List<String> getTestArgs() {
         return mTestArgs;
+    }
+
+    /**
+     * @return the mRetryType
+     */
+    protected RetryType getRetryType() {
+        return mRetryType;
+    }
+
+    /**
+     * @return the mAbiName
+     */
+    protected String getAbiName() {
+        return mAbiName;
     }
 
     /**

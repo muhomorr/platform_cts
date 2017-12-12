@@ -17,7 +17,6 @@
 package android.server.cts;
 
 import android.server.cts.WindowManagerState.WindowState;
-import android.server.cts.ActivityManagerState.ActivityStack;
 
 /**
  * Build: mmma -j32 cts/hostsidetests/services
@@ -30,19 +29,18 @@ public class KeyguardTests extends KeyguardTestBase {
         super.setUp();
 
         // Set screen lock (swipe)
-        mDevice.executeShellCommand("locksettings set-disabled false");
+        setLockDisabled(false);
     }
 
     @Override
     public void tearDown() throws Exception {
         super.tearDown();
 
-        // Remove screen lock
-        mDevice.executeShellCommand("locksettings set-disabled true");
+        tearDownLockCredentials();
     }
 
     public void testKeyguardHidesActivity() throws Exception {
-        if (!isHandheld()) {
+        if (!isHandheld() || isUiModeLockedToVrHeadset()) {
             return;
         }
         launchActivity("TestActivity");
@@ -56,7 +54,7 @@ public class KeyguardTests extends KeyguardTestBase {
     }
 
     public void testShowWhenLockedActivity() throws Exception {
-        if (!isHandheld()) {
+        if (!isHandheld() || isUiModeLockedToVrHeadset()) {
             return;
         }
         launchActivity("ShowWhenLockedActivity");
@@ -75,7 +73,7 @@ public class KeyguardTests extends KeyguardTestBase {
      * showing.
      */
     public void testShowWhenLockedActivity_withDialog() throws Exception {
-        if (!isHandheld()) {
+        if (!isHandheld() || isUiModeLockedToVrHeadset()) {
             return;
         }
         launchActivity("ShowWhenLockedWithDialogActivity");
@@ -95,7 +93,7 @@ public class KeyguardTests extends KeyguardTestBase {
      * Tests whether multiple SHOW_WHEN_LOCKED activities are shown if the topmost is translucent.
      */
     public void testMultipleShowWhenLockedActivities() throws Exception {
-        if (!isHandheld()) {
+        if (!isHandheld() || isUiModeLockedToVrHeadset()) {
             return;
         }
         launchActivity("ShowWhenLockedActivity");
@@ -117,7 +115,7 @@ public class KeyguardTests extends KeyguardTestBase {
      * If we have a translucent SHOW_WHEN_LOCKED_ACTIVITY, the wallpaper should also be showing.
      */
     public void testTranslucentShowWhenLockedActivity() throws Exception {
-        if (!isHandheld()) {
+        if (!isHandheld() || isUiModeLockedToVrHeadset()) {
             return;
         }
         launchActivity("ShowWhenLockedTranslucentActivity");
@@ -136,7 +134,7 @@ public class KeyguardTests extends KeyguardTestBase {
      * If we have a translucent SHOW_WHEN_LOCKED activity, the activity behind should not be shown.
      */
     public void testTranslucentDoesntRevealBehind() throws Exception {
-        if (!isHandheld()) {
+        if (!isHandheld() || isUiModeLockedToVrHeadset()) {
             return;
         }
         launchActivity("TestActivity");
@@ -155,7 +153,7 @@ public class KeyguardTests extends KeyguardTestBase {
     }
 
     public void testDialogShowWhenLockedActivity() throws Exception {
-        if (!isHandheld()) {
+        if (!isHandheld() || isUiModeLockedToVrHeadset()) {
             return;
         }
         launchActivity("ShowWhenLockedDialogActivity");
@@ -174,7 +172,7 @@ public class KeyguardTests extends KeyguardTestBase {
      * Test that showWhenLocked activity is fullscreen when shown over keyguard
      */
     public void testShowWhenLockedActivityWhileSplit() throws Exception {
-        if (!isHandheld() || !supportsSplitScreenMultiWindow()) {
+        if (!isHandheld() || isUiModeLockedToVrHeadset() || !supportsSplitScreenMultiWindow()) {
             return;
         }
         launchActivityInDockStack(LAUNCHING_ACTIVITY);
@@ -194,7 +192,7 @@ public class KeyguardTests extends KeyguardTestBase {
      * Tests whether a FLAG_DISMISS_KEYGUARD activity occludes Keyguard.
      */
     public void testDismissKeyguardActivity() throws Exception {
-        if (!isHandheld()) {
+        if (!isHandheld() || isUiModeLockedToVrHeadset()) {
             return;
         }
         gotoKeyguard();
@@ -208,7 +206,7 @@ public class KeyguardTests extends KeyguardTestBase {
     }
 
     public void testDismissKeyguardActivity_method() throws Exception {
-        if (!isHandheld()) {
+        if (!isHandheld() || isUiModeLockedToVrHeadset()) {
             return;
         }
         final String logSeparator = clearLogcat();
@@ -224,7 +222,7 @@ public class KeyguardTests extends KeyguardTestBase {
     }
 
     public void testDismissKeyguardActivity_method_notTop() throws Exception {
-        if (!isHandheld()) {
+        if (!isHandheld() || isUiModeLockedToVrHeadset()) {
             return;
         }
         final String logSeparator = clearLogcat();
@@ -238,7 +236,7 @@ public class KeyguardTests extends KeyguardTestBase {
     }
 
     public void testDismissKeyguardActivity_method_turnScreenOn() throws Exception {
-        if (!isHandheld()) {
+        if (!isHandheld() || isUiModeLockedToVrHeadset()) {
             return;
         }
         final String logSeparator = clearLogcat();
@@ -254,7 +252,7 @@ public class KeyguardTests extends KeyguardTestBase {
     }
 
     public void testDismissKeyguard_fromShowWhenLocked_notAllowed() throws Exception {
-        if (!isHandheld()) {
+        if (!isHandheld() || isUiModeLockedToVrHeadset()) {
             return;
         }
         gotoKeyguard();
@@ -270,7 +268,7 @@ public class KeyguardTests extends KeyguardTestBase {
     }
 
     public void testKeyguardLock() throws Exception {
-        if (!isHandheld()) {
+        if (!isHandheld() || isUiModeLockedToVrHeadset()) {
             return;
         }
         gotoKeyguard();
@@ -285,7 +283,7 @@ public class KeyguardTests extends KeyguardTestBase {
     }
 
     public void testUnoccludeRotationChange() throws Exception {
-        if (!isHandheld()) {
+        if (!isHandheld() || isUiModeLockedToVrHeadset()) {
             return;
         }
         gotoKeyguard();
@@ -309,5 +307,72 @@ public class KeyguardTests extends KeyguardTestBase {
                 mAmWmState.getWmState().findFirstWindowWithType(WindowState.TYPE_WALLPAPER);
         assertNotNull(wallpaper);
         assertTrue(wallpaper.isShown());
+    }
+
+    public void testDismissKeyguardAttrActivity_method_turnScreenOn() throws Exception {
+        if (!isHandheld()) {
+            return;
+        }
+
+        final String activityName = "TurnScreenOnAttrDismissKeyguardActivity";
+        sleepDevice();
+
+        final String logSeparator = clearLogcat();
+        mAmWmState.computeState(mDevice, null);
+        assertTrue(mAmWmState.getAmState().getKeyguardControllerState().keyguardShowing);
+        launchActivity(activityName);
+        mAmWmState.waitForKeyguardGone(mDevice);
+        mAmWmState.assertVisibility(activityName, true);
+        assertFalse(mAmWmState.getAmState().getKeyguardControllerState().keyguardShowing);
+        assertOnDismissSucceededInLogcat(logSeparator);
+        assertTrue(isDisplayOn());
+    }
+
+    public void testDismissKeyguardAttrActivity_method_turnScreenOn_withSecureKeyguard() throws Exception {
+        if (!isHandheld()) {
+            return;
+        }
+
+        final String activityName = "TurnScreenOnAttrDismissKeyguardActivity";
+
+        setLockCredential();
+        sleepDevice();
+
+        mAmWmState.computeState(mDevice, null);
+        assertTrue(mAmWmState.getAmState().getKeyguardControllerState().keyguardShowing);
+        launchActivity(activityName);
+        mAmWmState.waitForKeyguardShowingAndNotOccluded(mDevice);
+        mAmWmState.assertVisibility(activityName, false);
+        assertTrue(mAmWmState.getAmState().getKeyguardControllerState().keyguardShowing);
+        assertTrue(isDisplayOn());
+    }
+
+    public void testScreenOffWhileOccludedStopsActivity() throws Exception {
+        if (!isHandheld()) {
+            return;
+        }
+
+        final String logSeparator = clearLogcat();
+        gotoKeyguard();
+        mAmWmState.waitForKeyguardShowingAndNotOccluded(mDevice);
+        assertShowingAndNotOccluded();
+        launchActivity("ShowWhenLockedAttrActivity");
+        mAmWmState.computeState(mDevice, new String[] { "ShowWhenLockedAttrActivity" });
+        mAmWmState.assertVisibility("ShowWhenLockedAttrActivity", true);
+        assertShowingAndOccluded();
+        sleepDevice();
+        assertSingleLaunchAndStop("ShowWhenLockedAttrActivity", logSeparator);
+    }
+
+    public void testScreenOffCausesSingleStop() throws Exception {
+        if (!isHandheld()) {
+            return;
+        }
+
+        final String logSeparator = clearLogcat();
+        launchActivity("TestActivity");
+        mAmWmState.assertVisibility("TestActivity", true);
+        sleepDevice();
+        assertSingleLaunchAndStop("TestActivity", logSeparator);
     }
 }

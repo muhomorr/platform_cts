@@ -44,7 +44,7 @@ import static android.os.Build.VERSION.SECURITY_PATCH;
  * Tests for permission policy on the platform.
  */
 public class PermissionPolicyTest extends AndroidTestCase {
-    private static final Date HIDE_NON_SYSTEM_OVERLAY_WINDOWS_PATCH_DATE = parseDate("2017-09-05");
+    private static final Date HIDE_NON_SYSTEM_OVERLAY_WINDOWS_PATCH_DATE = parseDate("2017-11-01");
     private static final String HIDE_NON_SYSTEM_OVERLAY_WINDOWS_PERMISSION
             = "android.permission.HIDE_NON_SYSTEM_OVERLAY_WINDOWS";
 
@@ -164,8 +164,8 @@ public class PermissionPolicyTest extends AndroidTestCase {
         // OEMs cannot define new ephemeral permissions
         for (String permission : declaredPermissionsMap.keySet()) {
             PermissionInfo info = declaredPermissionsMap.get(permission);
-            if ((info.protectionLevel & PermissionInfo.PROTECTION_FLAG_EPHEMERAL) != 0) {
-                offendingList.add("Cannot define new ephemeral permission " + permission);
+            if ((info.protectionLevel & PermissionInfo.PROTECTION_FLAG_INSTANT) != 0) {
+                offendingList.add("Cannot define new instant permission " + permission);
             }
         }
 
@@ -253,8 +253,8 @@ public class PermissionPolicyTest extends AndroidTestCase {
                 case "setup": {
                     protectionLevel |= PermissionInfo.PROTECTION_FLAG_SETUP;
                 } break;
-                case "ephemeral": {
-                    protectionLevel |= PermissionInfo.PROTECTION_FLAG_EPHEMERAL;
+                case "instant": {
+                    protectionLevel |= PermissionInfo.PROTECTION_FLAG_INSTANT;
                 } break;
                 case "runtime": {
                     protectionLevel |= PermissionInfo.PROTECTION_FLAG_RUNTIME_ONLY;

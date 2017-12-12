@@ -33,19 +33,11 @@ public class KeyguardTransitionTests extends ActivityManagerTestBase {
         super.setUp();
 
         // Set screen lock (swipe)
-        mDevice.executeShellCommand("locksettings set-disabled false");
-    }
-
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
-
-        // Remove screen lock
-        mDevice.executeShellCommand("locksettings set-disabled true");
+        setLockDisabled(false);
     }
 
     public void testUnlock() throws Exception {
-        if (!isHandheld()) {
+        if (!isHandheld() || isUiModeLockedToVrHeadset()) {
             return;
         }
         launchActivity("TestActivity");
@@ -57,7 +49,7 @@ public class KeyguardTransitionTests extends ActivityManagerTestBase {
     }
 
     public void testUnlockWallpaper() throws Exception {
-        if (!isHandheld()) {
+        if (!isHandheld() || isUiModeLockedToVrHeadset()) {
             return;
         }
         launchActivity("WallpaperActivity");
@@ -69,7 +61,7 @@ public class KeyguardTransitionTests extends ActivityManagerTestBase {
     }
 
     public void testOcclude() throws Exception {
-        if (!isHandheld()) {
+        if (!isHandheld() || isUiModeLockedToVrHeadset()) {
             return;
         }
         gotoKeyguard();
@@ -80,11 +72,11 @@ public class KeyguardTransitionTests extends ActivityManagerTestBase {
     }
 
     public void testUnocclude() throws Exception {
-        if (!isHandheld()) {
+        if (!isHandheld() || isUiModeLockedToVrHeadset()) {
             return;
         }
-        launchActivity("ShowWhenLockedActivity");
         gotoKeyguard();
+        launchActivity("ShowWhenLockedActivity");
         launchActivity("TestActivity");
         mAmWmState.waitForKeyguardShowingAndNotOccluded(mDevice);
         mAmWmState.computeState(mDevice, null);
@@ -93,7 +85,7 @@ public class KeyguardTransitionTests extends ActivityManagerTestBase {
     }
 
     public void testNewActivityDuringOccluded() throws Exception {
-        if (!isHandheld()) {
+        if (!isHandheld() || isUiModeLockedToVrHeadset()) {
             return;
         }
         launchActivity("ShowWhenLockedActivity");
@@ -103,4 +95,59 @@ public class KeyguardTransitionTests extends ActivityManagerTestBase {
         assertEquals("Picked wrong transition", TRANSIT_ACTIVITY_OPEN,
                 mAmWmState.getWmState().getLastTransition());
     }
+
+    public void testOccludeManifestAttr() throws Exception {
+         if (!isHandheld()) {
+             return;
+         }
+
+         String activityName = "ShowWhenLockedAttrActivity";
+
+         gotoKeyguard();
+         final String logSeparator = clearLogcat();
+         launchActivity(activityName);
+         mAmWmState.computeState(mDevice, new String[] {activityName});
+         assertEquals("Picked wrong transition", TRANSIT_KEYGUARD_OCCLUDE,
+                 mAmWmState.getWmState().getLastTransition());
+         assertSingleLaunch(activityName, logSeparator);
+    }
+
+    public void testOccludeAttrRemove() throws Exception {
+        if (!isHandheld()) {
+            return;
+        }
+
+        String activityName = "ShowWhenLockedAttrRemoveAttrActivity";
+
+        gotoKeyguard();
+        String logSeparator = clearLogcat();
+        launchActivity(activityName);
+        mAmWmState.computeState(mDevice, new String[] {activityName});
+        assertEquals("Picked wrong transition", TRANSIT_KEYGUARD_OCCLUDE,
+                mAmWmState.getWmState().getLastTransition());
+        assertSingleLaunch(activityName, logSeparator);
+
+        gotoKeyguard();
+        logSeparator = clearLogcat();
+        launchActivity(activityName);
+        mAmWmState.computeState(mDevice, new String[] {activityName});
+        assertSingleStartAndStop(activityName, logSeparator);
+    }
+
+    public void testNewActivityDuringOccludedWithAttr() throws Exception {
+        if (!isHandheld()) {
+            return;
+        }
+
+        String activityName1 = "ShowWhenLockedAttrActivity";
+        String activityName2 = "ShowWhenLockedAttrWithDialogActivity";
+
+        launchActivity(activityName1);
+        gotoKeyguard();
+        launchActivity(activityName2);
+        mAmWmState.computeState(mDevice, new String[] { activityName2 });
+        assertEquals("Picked wrong transition", TRANSIT_ACTIVITY_OPEN,
+                mAmWmState.getWmState().getLastTransition());
+    }
+
 }
