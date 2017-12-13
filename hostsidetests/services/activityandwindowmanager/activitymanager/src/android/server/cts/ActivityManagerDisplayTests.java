@@ -92,7 +92,7 @@ public class ActivityManagerDisplayTests extends ActivityManagerDisplayTestBase 
 
     private boolean isVrHeadset() {
         try {
-            if (mDevice.getProperty(VR_STANDALONE_DEVICE_PROPERTY).equals("1")) {
+            if ("1".equals(mDevice.getProperty(VR_STANDALONE_DEVICE_PROPERTY))) {
               return true;
             }
 
@@ -1338,7 +1338,12 @@ public class ActivityManagerDisplayTests extends ActivityManagerDisplayTestBase 
         mAmWmState.waitForValidState(mDevice, new String[] {LAUNCHING_ACTIVITY},
                 null /* stackIds */, false /* compareTaskAndStackBounds */, componentName);
 
-        int stackId = mAmWmState.getAmState().getFrontStackId(displayId);
+        // In vr mode, 2d activities are launched on a virtual display. This means that when
+        // LAUNCHING_ACTIVITY is launched, it ends up on a activity stack on the vr virtual
+        // display but on any other device it ends up on a activity stack on the new virtual
+        // display created which is denoted by the frontStackId.
+        int tempStackId = mAmWmState.getAmState().getFrontStackId(displayId);
+        int stackId = mVrHeadset ? tempStackId : frontStackId;
         mAmWmState.assertFocusedStack("Focus must be on secondary display", stackId);
         final ActivityManagerState.ActivityStack secondFrontStack =
                 mAmWmState.getAmState().getStackById(stackId);
