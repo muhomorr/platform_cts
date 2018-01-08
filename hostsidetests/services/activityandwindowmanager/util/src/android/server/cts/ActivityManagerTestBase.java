@@ -134,6 +134,9 @@ public abstract class ActivityManagerTestBase extends DeviceTestCase {
 
     private static final String DEFAULT_COMPONENT_NAME = "android.server.cts";
 
+    private static final int UI_MODE_TYPE_MASK = 0x0f;
+    private static final int UI_MODE_TYPE_VR_HEADSET = 0x07;
+
     static String componentName = DEFAULT_COMPONENT_NAME;
 
     protected static final int INVALID_DEVICE_ROTATION = -1;
@@ -560,6 +563,34 @@ public abstract class ActivityManagerTestBase extends DeviceTestCase {
                 && !hasDeviceFeature("android.hardware.type.embedded");
     }
 
+    // TODO: Switch to using a feature flag, when available.
+    protected boolean isUiModeLockedToVrHeadset() throws DeviceNotAvailableException {
+        final String output = runCommandAndPrintOutput("dumpsys uimode");
+
+        Integer curUiMode = null;
+        Boolean uiModeLocked = null;
+        for (String line : output.split("\\n")) {
+            line = line.trim();
+            Matcher matcher = sCurrentUiModePattern.matcher(line);
+            if (matcher.find()) {
+                curUiMode = Integer.parseInt(matcher.group(1), 16);
+            }
+            matcher = sUiModeLockedPattern.matcher(line);
+            if (matcher.find()) {
+                uiModeLocked = matcher.group(1).equals("true");
+            }
+        }
+
+        boolean uiModeLockedToVrHeadset = (curUiMode != null) && (uiModeLocked != null)
+                && ((curUiMode & UI_MODE_TYPE_MASK) == UI_MODE_TYPE_VR_HEADSET) && uiModeLocked;
+
+        if (uiModeLockedToVrHeadset) {
+            CLog.logAndDisplay(LogLevel.INFO, "UI mode is locked to VR headset");
+        }
+
+        return uiModeLockedToVrHeadset;
+    }
+
     protected boolean supportsSplitScreenMultiWindow() throws DeviceNotAvailableException {
         CollectingOutputReceiver outputReceiver = new CollectingOutputReceiver();
         executeShellCommand(AM_SUPPORTS_SPLIT_SCREEN_MULTIWINDOW, outputReceiver);
@@ -628,7 +659,7 @@ public abstract class ActivityManagerTestBase extends DeviceTestCase {
 
     protected void sleepDevice() throws DeviceNotAvailableException {
         int retriesLeft = 5;
-        runCommandAndPrintOutput("input keyevent 26");
+        runCommandAndPrintOutput("input keyevent SLEEP");
         do {
             if (isDisplayOn()) {
                 log("***Waiting for display to turn off...");
@@ -655,7 +686,7 @@ public abstract class ActivityManagerTestBase extends DeviceTestCase {
     }
 
     protected void wakeUpDevice() throws DeviceNotAvailableException {
-        runCommandAndPrintOutput("input keyevent 224");
+        runCommandAndPrintOutput("input keyevent WAKEUP");
     }
 
     protected void unlockDevice() throws DeviceNotAvailableException {
@@ -680,9 +711,10 @@ public abstract class ActivityManagerTestBase extends DeviceTestCase {
         runCommandAndPrintOutput("input keyevent KEYCODE_ENTER");
     }
 
-    protected void gotoKeyguard() throws DeviceNotAvailableException {
+    protected void gotoKeyguard() throws Exception {
         sleepDevice();
         wakeUpDevice();
+        mAmWmState.waitForKeyguardShowingAndNotOccluded(mDevice);
     }
 
     protected void setLockCredential() throws DeviceNotAvailableException {
@@ -1119,6 +1151,9 @@ public abstract class ActivityManagerTestBase extends DeviceTestCase {
             + " orientation=(\\d+)");
     private static final Pattern sDisplayStatePattern =
             Pattern.compile("Display Power: state=(.+)");
+    private static final Pattern sCurrentUiModePattern = Pattern.compile("mCurUiMode=0x(\\d+)");
+    private static final Pattern sUiModeLockedPattern =
+            Pattern.compile("mUiModeLocked=(true|false)");
 
     class ReportedSizes {
         int widthDp;

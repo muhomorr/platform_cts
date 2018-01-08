@@ -19,12 +19,16 @@ package com.android.compatibility.common.util;
 import com.android.tradefed.device.DeviceNotAvailableException;
 import com.android.tradefed.device.ITestDevice;
 
+import java.util.HashSet;
+import java.util.Set;
+
 /**
  * Host-side utility class for detecting system features
  */
 public class FeatureUtil {
 
     public static final String LEANBACK_FEATURE = "android.software.leanback";
+    public static final String LOW_RAM_FEATURE = "android.hardware.ram.low";
     public static final String TV_FEATURE = "android.hardware.type.television";
     public static final String WATCH_FEATURE = "android.hardware.type.watch";
 
@@ -56,6 +60,17 @@ public class FeatureUtil {
         return true;
     }
 
+    /** Returns all system features of the device */
+    public static Set<String> getAllFeatures(ITestDevice device)
+            throws DeviceNotAvailableException {
+        Set<String> allFeatures = new HashSet<String>();
+        String output = device.executeShellCommand("pm list features");
+        for (String feature : output.split("[\\r?\\n]+")) {
+            allFeatures.add(feature.substring("feature:".length()));
+        }
+        return allFeatures;
+    }
+
     /** Returns true if the device has feature TV_FEATURE or feature LEANBACK_FEATURE */
     public static boolean isTV(ITestDevice device) throws DeviceNotAvailableException {
         return hasAnySystemFeature(device, TV_FEATURE, LEANBACK_FEATURE);
@@ -66,5 +81,12 @@ public class FeatureUtil {
         return hasSystemFeature(device, WATCH_FEATURE);
     }
 
-
+    /** Returns true if the device is a low ram device:
+     *  1. API level &gt;= O
+     *  2. device has feature LOW_RAM_FEATURE
+     */
+    public static boolean isLowRam(ITestDevice device) throws DeviceNotAvailableException {
+        return ApiLevelUtil.isAtLeast(device, VersionCodes.O) &&
+                hasSystemFeature(device, LOW_RAM_FEATURE);
+    }
 }
