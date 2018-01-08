@@ -358,7 +358,7 @@ public class TimePickerTest {
 
     private boolean isWatch() {
         return (mActivity.getResources().getConfiguration().uiMode
-                & Configuration.UI_MODE_TYPE_WATCH) == Configuration.UI_MODE_TYPE_WATCH;
+                & Configuration.UI_MODE_TYPE_MASK) == Configuration.UI_MODE_TYPE_WATCH;
     }
 
     @Test
@@ -776,6 +776,12 @@ public class TimePickerTest {
                 : (TimePicker) mActivity.findViewById(R.id.timepicker_spinner);
 
         mActivityRule.runOnUiThread(() -> {
+            /* hide one of the widgets to assure they fit onto the screen */
+            if (isClockMode) {
+                mActivity.findViewById(R.id.timepicker_spinner).setVisibility(View.GONE);
+            } else {
+                mActivity.findViewById(R.id.timepicker_clock).setVisibility(View.GONE);
+            }
             mTimePicker.setIs24HourView(is24hFormat);
             mTimePicker.setHour(initialHour);
             mTimePicker.setMinute(initialMinute);
