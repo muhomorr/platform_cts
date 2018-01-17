@@ -18,7 +18,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
       package="com.android.cts.verifier"
       android:versionCode="5"
-      android:versionName="8.0_r5">
+      android:versionName="8.0_r6">
 
     <uses-sdk android:minSdkVersion="19" android:targetSdkVersion="26"/>
 
@@ -1505,7 +1505,7 @@
                 android:value="@string/test_category_sensors" />
             <meta-data
                 android:name="test_required_features"
-                android:value="android.hardware.sensor.accelerometer:android.hardware.sensor.gyroscope:android.hardware.sensor.compass:android.hardware.camera.any" />
+                android:value="android.hardware.sensor.accelerometer:android.hardware.sensor.gyroscope:android.hardware.sensor.compass:android.hardware.camera" />
         </activity>
         <activity
             android:name=".sensors.RVCVRecordActivity"
@@ -2714,6 +2714,17 @@
             <meta-data android:name="test_category" android:value="@string/test_category_tv" />
             <meta-data android:name="test_required_features"
                 android:value="android.software.live_tv" />
+        </activity>
+
+        <activity android:name=".tv.MicrophoneDeviceTestActivity"
+                  android:label="@string/tv_microphone_device_test">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.cts.intent.category.MANUAL_TEST" />
+            </intent-filter>
+            <meta-data android:name="test_category" android:value="@string/test_category_tv" />
+            <meta-data android:name="test_required_features"
+                       android:value="android.software.leanback" />
         </activity>
 
         <activity android:name=".screenpinning.ScreenPinningTestActivity"

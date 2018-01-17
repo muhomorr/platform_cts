@@ -774,11 +774,11 @@ public class ActivityManagerDisplayTests extends ActivityManagerDisplayTestBase 
         if (!supportsMultiDisplay()) { return; }
 
         // Start an activity on default display to determine default stack.
-        launchActivity(BROADCAST_RECEIVER_ACTIVITY);
+        launchActivityOnDisplay(BROADCAST_RECEIVER_ACTIVITY, DEFAULT_DISPLAY_ID);
         final int focusedStackId = mAmWmState.getAmState().getFrontStackId(DEFAULT_DISPLAY_ID);
+
         // Finish probing activity.
         executeShellCommand(FINISH_ACTIVITY_BROADCAST);
-
 
         tryCreatingAndRemovingDisplayWithActivity(false /* splitScreen */, focusedStackId);
     }
@@ -861,6 +861,12 @@ public class ActivityManagerDisplayTests extends ActivityManagerDisplayTestBase 
      */
     public void testStackFocusSwitchOnTouchEvent() throws Exception {
         if (!supportsMultiDisplay()) { return; }
+
+        // VR Virtual display has a back button to dismiss. Clicking with a touchpad on any
+        // location does not dismiss the virtual display as assumed in this test.
+        if (mVrHeadset) {
+            return;
+        }
 
         // Create new virtual display.
         final DisplayState newDisplay = new VirtualDisplayBuilder(this).build();
@@ -1334,7 +1340,8 @@ public class ActivityManagerDisplayTests extends ActivityManagerDisplayTestBase 
                 + "--ez new_task true --es target_activity " + LAUNCHING_ACTIVITY);
 
         // Check that the third activity ends up in a new task in the same stack as the
-        // first activity
+        // first activity (the display should be newDisplay.mDisplayId).
+        displayId = mVrHeadset ? mVrVirtualDisplayId : newDisplay.mDisplayId;
         mAmWmState.waitForValidState(mDevice, new String[] {LAUNCHING_ACTIVITY},
                 null /* stackIds */, false /* compareTaskAndStackBounds */, componentName);
 
