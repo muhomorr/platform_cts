@@ -167,9 +167,17 @@ public abstract class ActivityManagerTestBase extends DeviceTestCase {
         return base;
     }
 
-    protected static String getAmStartCmd(final String activityName, final int displayId) {
-        return "am start -n " + getActivityComponentName(activityName) + " -f 0x18000000"
+    protected static String getAmStartCmd(final String activityName, final int displayId,
+                                          final String... keyValuePairs) {
+        String base = "am start -n " + getActivityComponentName(activityName) + " -f 0x18000000"
                 + " --display " + displayId;
+        if (keyValuePairs.length % 2 != 0) {
+            throw new RuntimeException("keyValuePairs must be pairs of key/value arguments");
+        }
+        for (int i = 0; i < keyValuePairs.length; i += 2) {
+            base += " --es " + keyValuePairs[i] + " " + keyValuePairs[i + 1];
+        }
+        return base;
     }
 
     protected static String getAmStartCmdInNewTask(final String activityName) {
@@ -383,9 +391,9 @@ public abstract class ActivityManagerTestBase extends DeviceTestCase {
         mAmWmState.waitForHomeActivityVisible(mDevice);
     }
 
-    protected void launchActivityOnDisplay(String targetActivityName, int displayId)
-            throws Exception {
-        executeShellCommand(getAmStartCmd(targetActivityName, displayId));
+    protected void launchActivityOnDisplay(String targetActivityName, int displayId,
+                                           String... keyValuePairs) throws Exception {
+        executeShellCommand(getAmStartCmd(targetActivityName, displayId, keyValuePairs));
 
         mAmWmState.waitForValidState(mDevice, targetActivityName);
     }
@@ -546,9 +554,10 @@ public abstract class ActivityManagerTestBase extends DeviceTestCase {
                 || PRETEND_DEVICE_SUPPORTS_FREEFORM;
     }
 
-    protected boolean isHandheld() throws DeviceNotAvailableException {
+    protected boolean supportsKeyguard() throws DeviceNotAvailableException {
         return !hasDeviceFeature("android.software.leanback")
-                && !hasDeviceFeature("android.hardware.type.watch");
+                && !hasDeviceFeature("android.hardware.type.watch")
+                && !isUiModeLockedToVrHeadset();
     }
 
     // TODO: Switch to using a feature flag, when available.
