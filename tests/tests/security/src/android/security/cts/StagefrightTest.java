@@ -88,11 +88,6 @@ public class StagefrightTest extends InstrumentationTestCase {
         doStagefrightTest(R.raw.bug_38342499);
     }
 
-    public void testStagefright_bug_23270724() throws Exception {
-        doStagefrightTest(R.raw.bug_23270724_1);
-        doStagefrightTest(R.raw.bug_23270724_2);
-    }
-
     public void testStagefright_bug_22771132() throws Exception {
         doStagefrightTest(R.raw.bug_22771132);
     }
@@ -201,6 +196,11 @@ public class StagefrightTest extends InstrumentationTestCase {
      ***********************************************************/
 
     @SecurityTest
+    public void testStagefright_bug_65483665() throws Exception {
+        doStagefrightTest(R.raw.bug_65483665);
+    }
+
+    @SecurityTest
     public void testStagefright_cve_2017_0852_b_62815506() throws Exception {
         doStagefrightTest(R.raw.cve_2017_0852_b_62815506);
     }
@@ -209,6 +209,11 @@ public class StagefrightTest extends InstrumentationTestCase {
      to prevent merge conflicts, add M tests below this comment,
      before any existing test methods
      ***********************************************************/
+
+    @SecurityTest
+    public void testStagefright_bug_69478425() throws Exception {
+        doStagefrightTest(R.raw.bug_69478425);
+    }
 
     @SecurityTest
     public void testStagefright_bug_65717533() throws Exception {
