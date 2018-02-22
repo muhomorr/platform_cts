@@ -142,6 +142,13 @@ public abstract class ActivityManagerTestBase extends DeviceTestCase {
 
     protected static final int INVALID_DEVICE_ROTATION = -1;
 
+    /** Corresponds to {@link Surface.ROTATION_0},
+     * {@link Surface.ROTATION_90}, {@link Surface.ROTATION_180}, {@link Surface.ROTATION_270} */
+    protected static final int ROTATION_0 = 0;
+    protected static final int ROTATION_90 = 1;
+    protected static final int ROTATION_180 = 2;
+    protected static final int ROTATION_270 = 3;
+
     /** A reference to the device under test. */
     protected ITestDevice mDevice;
 
@@ -391,10 +398,14 @@ public abstract class ActivityManagerTestBase extends DeviceTestCase {
         mAmWmState.waitForHomeActivityVisible(mDevice);
     }
 
+    protected void launchActivityOnDisplayNoWait(String targetActivityName, int displayId,
+                                                 String... keyValuePairs) throws Exception {
+        executeShellCommand(getAmStartCmd(targetActivityName, displayId, keyValuePairs));
+    }
+
     protected void launchActivityOnDisplay(String targetActivityName, int displayId,
                                            String... keyValuePairs) throws Exception {
-        executeShellCommand(getAmStartCmd(targetActivityName, displayId, keyValuePairs));
-
+        launchActivityOnDisplayNoWait(targetActivityName, displayId, keyValuePairs);
         mAmWmState.waitForValidState(mDevice, targetActivityName);
     }
 

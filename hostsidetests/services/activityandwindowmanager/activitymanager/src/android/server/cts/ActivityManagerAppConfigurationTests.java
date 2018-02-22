@@ -27,7 +27,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static android.server.cts.ActivityAndWindowManagersState.dpToPx;
-import static android.server.cts.ActivityAndWindowManagersState.DEFAULT_DISPLAY_ID;
 
 /**
  * Build: mmma -j32 cts/hostsidetests/services
@@ -49,7 +48,6 @@ public class ActivityManagerAppConfigurationTests extends ActivityManagerTestBas
 
     private static final int SMALL_WIDTH_DP = 426;
     private static final int SMALL_HEIGHT_DP = 320;
-    private static final int NAVI_BAR_HEIGHT_DP = 48;
 
     /**
      * Tests that the WindowManager#getDefaultDisplay() and the Configuration of the Activity
@@ -169,6 +167,26 @@ public class ActivityManagerAppConfigurationTests extends ActivityManagerTestBas
     }
 
     private void rotateAndCheckSizes(ReportedSizes prevSizes) throws Exception {
+        // If an activity gets almost square frame,
+        // resize docked stack to make sure the activity gets a non-square frame.
+        Rectangle adjustedDockedBounds = new Rectangle();
+        if (isInSplitMode(RESIZEABLE_ACTIVITY_NAME)) {
+            final int appWidth = prevSizes.displayWidth;
+            final int appHeight = prevSizes.displayHeight;
+            final float aspectRatio = (appWidth > appHeight) ?
+                    appWidth / (float) appHeight : appHeight / (float) appWidth;
+            if (aspectRatio < 1.1f) {
+                final String logSeparator = clearLogcat();
+                Rectangle dockBounds = mAmWmState.getAmState().getStackById(
+                        DOCKED_STACK_ID).getBounds();
+                adjustedDockedBounds.setBounds(dockBounds.x, dockBounds.y, dockBounds.width,
+                        (int) (dockBounds.height * 0.7f));
+                resizeDockedStack(adjustedDockedBounds.width, adjustedDockedBounds.height,
+                        adjustedDockedBounds.width, adjustedDockedBounds.height);
+                prevSizes = getActivityDisplaySize(RESIZEABLE_ACTIVITY_NAME, logSeparator);
+            }
+        }
+
         for (int rotation = 3; rotation >= 0; --rotation) {
             final String logSeparator = clearLogcat();
             final int actualStackId = mAmWmState.getAmState().getTaskByActivityName(
@@ -185,11 +203,32 @@ public class ActivityManagerAppConfigurationTests extends ActivityManagerTestBas
                 return;
             }
 
+            if (!adjustedDockedBounds.isEmpty()) {
+                if (rotation == ROTATION_0 || rotation == ROTATION_180) {
+                    resizeDockedStack(adjustedDockedBounds.width, adjustedDockedBounds.height,
+                            adjustedDockedBounds.width, adjustedDockedBounds.height);
+                } else {
+                    resizeDockedStack(adjustedDockedBounds.height, adjustedDockedBounds.width,
+                            adjustedDockedBounds.height, adjustedDockedBounds.width);
+                }
+            }
+
             final ReportedSizes rotatedSizes = getActivityDisplaySize(RESIZEABLE_ACTIVITY_NAME,
                     logSeparator);
             assertSizesRotate(prevSizes, rotatedSizes);
             prevSizes = rotatedSizes;
         }
+    }
+
+    private boolean isInSplitMode(String activityName) throws Exception {
+        mAmWmState.computeState(mDevice, new String[] { activityName });
+        ActivityManagerState.ActivityTask task = mAmWmState.getAmState().getTaskByActivityName(
+                activityName);
+        return task != null && !task.isFullscreen() &&
+                (task.mStackId == HOME_STACK_ID
+                        || task.mStackId == FULLSCREEN_WORKSPACE_STACK_ID
+                        || task.mStackId == DOCKED_STACK_ID
+                        || task.mStackId == RECENTS_STACK_ID);
     }
 
     /**
@@ -504,60 +543,16 @@ public class ActivityManagerAppConfigurationTests extends ActivityManagerTestBas
     }
 
     /**
-     * If aspect ratio larger than 2.0, and system insets less than default system insets height
-     * (from nav bar),it won't meet CTS testcase requirement, so we treat these scenario specially
-     * and do not check the rotation.
-     */
-    private boolean shouldSkipRotationCheck() throws Exception{
-        WindowManagerState wmState = mAmWmState.getWmState();
-        wmState.computeState(mDevice);
-        WindowManagerState.Display display = wmState.getDisplay(DEFAULT_DISPLAY_ID);
-        Rectangle displayRect = display.getDisplayRect();
-        Rectangle appRect = display.getAppRect();
-
-        float aspectRatio = 0.0f;
-        int naviBarHeight;
-        if (wmState.getRotation() == 0 || wmState.getRotation() == 2) {
-            aspectRatio = (float) displayRect.height / displayRect.width;
-            naviBarHeight = displayRect.height - appRect.height;
-        } else {
-            aspectRatio = (float) displayRect.width / displayRect.height;
-            naviBarHeight = displayRect.width - appRect.width;
-        }
-
-        int density = display.getDpi();
-        int systemInsetsHeight = dpToPx(NAVI_BAR_HEIGHT_DP, density);
-        // After changed rotation the dispalySize will be effected by aspect ratio and system UI
-        // insets (from nav bar) together, so we should check if needed to skip testcase
-        return aspectRatio >= 2.0 && naviBarHeight < systemInsetsHeight;
-    }
-
-    /**
      * Asserts that after rotation, the aspect ratios of display size, metrics, and configuration
      * have flipped.
      */
-    private void assertSizesRotate(ReportedSizes rotationA, ReportedSizes rotationB)
+    private static void assertSizesRotate(ReportedSizes rotationA, ReportedSizes rotationB)
             throws Exception {
         assertEquals(rotationA.displayWidth, rotationA.metricsWidth);
         assertEquals(rotationA.displayHeight, rotationA.metricsHeight);
         assertEquals(rotationB.displayWidth, rotationB.metricsWidth);
         assertEquals(rotationB.displayHeight, rotationB.metricsHeight);
 
-        final boolean beforePortrait = rotationA.displayWidth < rotationA.displayHeight;
-        final boolean afterPortrait = rotationB.displayWidth < rotationB.displayHeight;
-        assertFalse(beforePortrait == afterPortrait);
-
-        // When rotation is land, displayHeight calculated base on N does not contain
-        // statusBarHeight, while displayHeight calculated base on O version contains
-        // statusBarHeight. Therefore starting with O we don't check config rotation and
-        // smallestWidth on some devices with tall aspect ratio.
-        if (!shouldSkipRotationCheck()) {
-            final boolean beforeConfigPortrait = rotationA.widthDp < rotationA.heightDp;
-            final boolean afterConfigPortrait = rotationB.widthDp < rotationB.heightDp;
-            assertEquals(beforePortrait, beforeConfigPortrait);
-            assertEquals(afterPortrait, afterConfigPortrait);
-            assertEquals(rotationA.smallestWidthDp, rotationB.smallestWidthDp);
-        }
     }
 
     /**
