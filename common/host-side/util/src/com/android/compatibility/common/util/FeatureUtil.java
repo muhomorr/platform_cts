@@ -29,8 +29,10 @@ public class FeatureUtil {
 
     public static final String LEANBACK_FEATURE = "android.software.leanback";
     public static final String LOW_RAM_FEATURE = "android.hardware.ram.low";
+    public static final String TELEPHONY_FEATURE = "android.hardware.telephony";
     public static final String TV_FEATURE = "android.hardware.type.television";
     public static final String WATCH_FEATURE = "android.hardware.type.watch";
+    public static final String FEATURE_MICROPHONE = "android.hardware.microphone";
 
     /** Returns true if the device has a given system feature */
     public static boolean hasSystemFeature(ITestDevice device, String feature)
@@ -88,5 +90,15 @@ public class FeatureUtil {
     public static boolean isLowRam(ITestDevice device) throws DeviceNotAvailableException {
         return ApiLevelUtil.isAtLeast(device, VersionCodes.O) &&
                 hasSystemFeature(device, LOW_RAM_FEATURE);
+    }
+
+    /** Returns true if the device has feature TELEPHONY_FEATURE */
+    public static boolean hasTelephony(ITestDevice device) throws DeviceNotAvailableException {
+        return hasSystemFeature(device, TELEPHONY_FEATURE);
+    }
+
+    /** Returns true if the device has feature FEATURE_MICROPHONE */
+    public static boolean hasMicrophone(ITestDevice device) throws DeviceNotAvailableException {
+        return hasSystemFeature(device, FEATURE_MICROPHONE);
     }
 }
