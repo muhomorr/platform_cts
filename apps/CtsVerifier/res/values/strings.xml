@@ -1656,10 +1656,11 @@
 
     <string name="caboot_test">CA Cert Notification on Boot test</string>
     <string name="caboot_info">This test is to confirm that when the user has installed a trusted credential, the system notifies the user when it boots.</string>
-    <string name="caboot_check_cert_installed">Please check here to see whether a certificate is already installed. (If this button does nothing, pass the test and move on.)</string>
+    <string name="caboot_check_cert_installed">Please check here to see whether a certificate is already installed. If this button does nothing, pass the test and move on.</string>
     <string name="caboot_check_creds">Check Credentials</string>
-    <string name="caboot_if_not_installed">Only if there is no credential currently installed, install one. (If this button does nothing, pass the test and move on.)</string>
+    <string name="caboot_if_not_installed">Only if there is no credential currently installed, install one.</string>
     <string name="caboot_install_cert">Install credential</string>
+    <string name="caboot_remove_screen_lock">Remove screen lock</string>
     <string name="caboot_reboot_desc">Please reboot the device and return to this test.</string>
     <string name="caboot_after_boot">AFTER REBOOTING: Check that there is a notification that the network may be monitored. Opening that notification should show a dialog box giving more information, with a button to check trusted credentials. This should open up the same view of trusted credentials that you get via the "Check credentials" button.</string>
 
@@ -2934,7 +2935,7 @@ You should be prompted to select credentials; choose the ones you just installed
         Check that \'Dummy Input method\', along with all other non-system apps, are not enabled in Settings. Then disallow \'Dummy Input method\' from permitted input methods by turning on the switch below.
     </string>
     <string name="set_permitted_input_methods_action">
-        Enabling \'Dummy Input method\' in the list of accessibility services
+        Enabling \'Dummy Input method\' in the list of input methods
     </string>
     <string name="set_permitted_input_methods_widget_label">
         Allow only system input methods:
@@ -3935,7 +3936,7 @@ Follow the instructions on the screen to measure the frequency response for the 
         This test requires that you have connected a mandated USB Audio Interface peripheral.
         Connect the outputs to the inputs (with patch cables). Start playback by pressing the
         \"Record Loopback\" button and verify that the recorded signal is displayed in the wave
-        display view. ()It may be necessary to adjust the input controls on the peripheral).
+        display view. (It may be necessary to adjust the input controls on the peripheral).
        </string>
 
     <!-- USB Audio Peripheral Buttons Test -->

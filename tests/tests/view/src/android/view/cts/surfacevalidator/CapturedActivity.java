@@ -16,6 +16,7 @@
 package android.view.cts.surfacevalidator;
 
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import android.app.Activity;
 import android.content.Context;
@@ -23,6 +24,7 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.Point;
+import android.graphics.Rect;
 import android.hardware.display.DisplayManager;
 import android.hardware.display.VirtualDisplay;
 import android.media.MediaPlayer;
@@ -32,10 +34,10 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.support.test.InstrumentationRegistry;
+import android.support.test.uiautomator.By;
 import android.support.test.uiautomator.UiDevice;
-import android.support.test.uiautomator.UiObject;
-import android.support.test.uiautomator.UiObjectNotFoundException;
-import android.support.test.uiautomator.UiSelector;
+import android.support.test.uiautomator.UiObject2;
+import android.support.test.uiautomator.Until;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.util.SparseArray;
@@ -73,6 +75,8 @@ public class CapturedActivity extends Activity {
     private static final long END_CAPTURE_DELAY_MS = START_CAPTURE_DELAY_MS + CAPTURE_DURATION_MS;
     private static final long END_DELAY_MS = END_CAPTURE_DELAY_MS + 1000;
 
+    private static final String ACCEPT_RESOURCE_ID = "android:id/button1";
+
     private MediaPlayer mMediaPlayer;
 
     private final Handler mHandler = new Handler(Looper.getMainLooper());
@@ -102,16 +106,17 @@ public class CapturedActivity extends Activity {
 
         mMediaPlayer = MediaPlayer.create(this, R.raw.colors_video);
         mMediaPlayer.setLooping(true);
+
     }
 
-    public void dismissPermissionDialog() throws UiObjectNotFoundException {
+    public void dismissPermissionDialog() {
         // The permission dialog will be auto-opened by the activity - find it and accept
         UiDevice uiDevice = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation());
-        UiSelector acceptButtonSelector = new UiSelector().resourceId("android:id/button1");
-        UiObject acceptButton = uiDevice.findObject(acceptButtonSelector);
-            if (acceptButton.waitForExists(PERMISSION_DIALOG_WAIT_MS)) {
-            boolean success = acceptButton.click();
-            Log.d(TAG, "found permission dialog, click attempt success = " + success);
+        UiObject2 acceptButton = uiDevice.wait(Until.findObject(By.res(ACCEPT_RESOURCE_ID)),
+                PERMISSION_DIALOG_WAIT_MS);
+        if (acceptButton != null) {
+            Log.d(TAG, "found permission dialog after searching all windows, clicked");
+            acceptButton.click();
         }
     }
 
@@ -198,11 +203,20 @@ public class CapturedActivity extends Activity {
             display.getRealSize(size);
             display.getMetrics(metrics);
 
+            View decorView = getWindow().getDecorView();
+            Rect boundsToCheck = new Rect(0, 0, decorView.getWidth(), decorView.getHeight());
+            int[] topLeft = decorView.getLocationOnScreen();
+            boundsToCheck.offset(topLeft[0], topLeft[1]);
+
+            if (boundsToCheck.width() < 90 || boundsToCheck.height() < 90) {
+                fail("capture bounds too small to be a fullscreen activity: " + boundsToCheck);
+            }
 
             mSurfacePixelValidator = new SurfacePixelValidator(CapturedActivity.this,
-                    size, animationTestCase.getChecker());
-            Log.d("MediaProjection", "Size is " + size.toString());
-            mVirtualDisplay = mMediaProjection.createVirtualDisplay("ScreenSharingDemo",
+                    size, boundsToCheck, animationTestCase.getChecker());
+            Log.d("MediaProjection", "Size is " + size.toString()
+                    + ", bounds are " + boundsToCheck.toShortString());
+            mVirtualDisplay = mMediaProjection.createVirtualDisplay("CtsCapturedActivity",
                     size.x, size.y,
                     metrics.densityDpi,
                     DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
