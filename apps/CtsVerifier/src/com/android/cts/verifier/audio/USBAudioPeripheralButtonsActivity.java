@@ -16,6 +16,7 @@
 
 package com.android.cts.verifier.audio;
 
+import android.content.res.Resources;
 import android.graphics.Color;
 import android.os.Bundle;
 import android.util.Log;
@@ -34,18 +35,15 @@ public class USBAudioPeripheralButtonsActivity extends USBAudioPeripheralActivit
     private boolean mHasBtnA;
     private boolean mHasBtnB;
     private boolean mHasBtnC;
-    private boolean mHasBtnD;
 
     // Widgets
     private TextView mBtnALabelTxt;
     private TextView mBtnBLabelTxt;
     private TextView mBtnCLabelTxt;
-    private TextView mBtnDLabelTxt;
 
     private TextView mBtnAStatusTxt;
     private TextView mBtnBStatusTxt;
     private TextView mBtnCStatusTxt;
-    private TextView mBtnDStatusTxt;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -57,60 +55,25 @@ public class USBAudioPeripheralButtonsActivity extends USBAudioPeripheralActivit
         mBtnALabelTxt = (TextView)findViewById(R.id.uap_buttonsBtnALabelTx);
         mBtnBLabelTxt = (TextView)findViewById(R.id.uap_buttonsBtnBLabelTx);
         mBtnCLabelTxt = (TextView)findViewById(R.id.uap_buttonsBtnCLabelTx);
-        mBtnDLabelTxt = (TextView)findViewById(R.id.uap_buttonsBtnDLabelTx);
 
         mBtnAStatusTxt = (TextView)findViewById(R.id.uap_buttonsBtnAStatusTx);
         mBtnBStatusTxt = (TextView)findViewById(R.id.uap_buttonsBtnBStatusTx);
         mBtnCStatusTxt = (TextView)findViewById(R.id.uap_buttonsBtnCStatusTx);
-        mBtnDStatusTxt = (TextView)findViewById(R.id.uap_buttonsBtnDStatusTx);
 
         setPassFailButtonClickListeners();
         setInfoResources(R.string.usbaudio_buttons_test, R.string.usbaudio_buttons_info, -1);
     }
 
     private void showButtonsState() {
-        if (mIsPeripheralAttached && mSelectedProfile != null) {
-            ProfileButtonAttributes mButtonAttributes = mSelectedProfile.getButtonAttributes();
-            if (mButtonAttributes != null) {
-                if (!mButtonAttributes.mHasBtnA) {
-                    mBtnALabelTxt.setTextColor(Color.GRAY);
-                    mBtnAStatusTxt.setTextColor(Color.GRAY);
-                } else {
-                    mBtnALabelTxt.setTextColor(Color.WHITE);
-                    mBtnAStatusTxt.setTextColor(Color.WHITE);
-                }
-                if (!mButtonAttributes.mHasBtnB) {
-                    mBtnBLabelTxt.setTextColor(Color.GRAY);
-                    mBtnBStatusTxt.setTextColor(Color.GRAY);
-                } else {
-                    mBtnBLabelTxt.setTextColor(Color.WHITE);
-                    mBtnBStatusTxt.setTextColor(Color.WHITE);
-                }
-                if (!mButtonAttributes.mHasBtnC) {
-                    mBtnCLabelTxt.setTextColor(Color.GRAY);
-                    mBtnCStatusTxt.setTextColor(Color.GRAY);
-                } else {
-                    mBtnCLabelTxt.setTextColor(Color.WHITE);
-                    mBtnCStatusTxt.setTextColor(Color.WHITE);
-                }
-                if (!mButtonAttributes.mHasBtnD) {
-                    mBtnDLabelTxt.setTextColor(Color.GRAY);
-                    mBtnDStatusTxt.setTextColor(Color.GRAY);
-                } else {
-                    mBtnDLabelTxt.setTextColor(Color.WHITE);
-                    mBtnDStatusTxt.setTextColor(Color.WHITE);
-                }
-            } else {
-                mBtnALabelTxt.setTextColor(Color.GRAY);
-                mBtnAStatusTxt.setTextColor(Color.GRAY);
-                mBtnBLabelTxt.setTextColor(Color.GRAY);
-                mBtnBStatusTxt.setTextColor(Color.GRAY);
-                mBtnCLabelTxt.setTextColor(Color.GRAY);
-                mBtnCStatusTxt.setTextColor(Color.GRAY);
-                mBtnDLabelTxt.setTextColor(Color.GRAY);
-                mBtnDStatusTxt.setTextColor(Color.GRAY);
-            }
-        }
+        int ctrlColor = mIsPeripheralAttached && mSelectedProfile != null
+                ? Color.WHITE
+                : Color.GRAY;
+        mBtnALabelTxt.setTextColor(ctrlColor);
+        mBtnAStatusTxt.setTextColor(ctrlColor);
+        mBtnBLabelTxt.setTextColor(ctrlColor);
+        mBtnBStatusTxt.setTextColor(ctrlColor);
+        mBtnCLabelTxt.setTextColor(ctrlColor);
+        mBtnCStatusTxt.setTextColor(ctrlColor);
 
         mBtnAStatusTxt.setText(getString(
             mHasBtnA ? R.string.uapButtonsRecognized : R.string.uapButtonsNotRecognized));
@@ -118,62 +81,56 @@ public class USBAudioPeripheralButtonsActivity extends USBAudioPeripheralActivit
             mHasBtnB ? R.string.uapButtonsRecognized : R.string.uapButtonsNotRecognized));
         mBtnCStatusTxt.setText(getString(
             mHasBtnC ? R.string.uapButtonsRecognized : R.string.uapButtonsNotRecognized));
-        mBtnDStatusTxt.setText(getString(
-            mHasBtnD ? R.string.uapButtonsRecognized : R.string.uapButtonsNotRecognized));
     }
 
     private void calculateMatch() {
         if (mIsPeripheralAttached && mSelectedProfile != null) {
             ProfileButtonAttributes mButtonAttributes = mSelectedProfile.getButtonAttributes();
             boolean match = mButtonAttributes != null;
+            boolean interceptedVolume = getResources().getBoolean(Resources.getSystem()
+                .getIdentifier("config_handleVolumeKeysInWindowManager", "bool", "android"));
             if (match && mButtonAttributes.mHasBtnA != mHasBtnA) {
                 match = false;
             }
-            if (match && mButtonAttributes.mHasBtnB != mHasBtnB) {
-                match = false;
-            }
-            if (match && mButtonAttributes.mHasBtnC != mHasBtnC) {
-                match = false;
-            }
-            if (match && mButtonAttributes.mHasBtnD != mHasBtnD) {
-                match = false;
+            if (!interceptedVolume) {
+                if (match && mButtonAttributes.mHasBtnB != mHasBtnB) {
+                    match = false;
+                }
+                if (match && mButtonAttributes.mHasBtnC != mHasBtnC) {
+                    match = false;
+                }
             }
             Log.i(TAG, "match:" + match);
             getPassButton().setEnabled(match);
         } else {
-            // Headset not publicly available, violates CTS Verifier additional equipment
-            // guidelines. Allow skipping test. See b/67777923 for details.
-            getPassButton().setEnabled(true /*false*/);
+            getPassButton().setEnabled(false);
         }
     }
 
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
         Log.i(TAG, "onKeyDown(" + keyCode + ")");
-        switch (keyCode) {
-        // Function A control event
-        case KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE:
-            mHasBtnA = true;
-            break;
-
-        // Function B control event
-        case KeyEvent.KEYCODE_VOLUME_UP:
-            mHasBtnB = true;
-            break;
-
-        // Function C control event
-        case KeyEvent.KEYCODE_VOLUME_DOWN:
-            mHasBtnC = true;
-            break;
-
-        // Function D control event
-        case KeyEvent.KEYCODE_VOICE_ASSIST:
-            mHasBtnD = true;
-            break;
+        if (mSelectedProfile != null) {
+            switch (keyCode) {
+            // Function A control event
+            case KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE:
+                mHasBtnA = true;
+                break;
+    
+            // Function B control event
+            case KeyEvent.KEYCODE_VOLUME_UP:
+                mHasBtnB = true;
+                break;
+    
+            // Function C control event
+            case KeyEvent.KEYCODE_VOLUME_DOWN:
+                mHasBtnC = true;
+                break;
+            }
+    
+            showButtonsState();
+            calculateMatch();
         }
-
-        showButtonsState();
-        calculateMatch();
 
         return super.onKeyDown(keyCode, event);
     }
@@ -182,7 +139,7 @@ public class USBAudioPeripheralButtonsActivity extends USBAudioPeripheralActivit
     // USBAudioPeripheralActivity
     //
     public void updateConnectStatus() {
-        mHasBtnA = mHasBtnB = mHasBtnC = mHasBtnD = false;
+        mHasBtnA = mHasBtnB = mHasBtnC = false;
         showButtonsState();
         calculateMatch();
     }
