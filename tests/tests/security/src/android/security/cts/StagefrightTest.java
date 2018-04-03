@@ -20,10 +20,9 @@
  * Simone "evilsocket" Margaritelli
  * Joshua "jduck" Drake
  */
+
 package android.security.cts;
 
-import android.test.AndroidTestCase;
-import android.util.Log;
 import android.content.Context;
 import android.content.res.AssetFileDescriptor;
 import android.content.res.Resources;
@@ -35,16 +34,17 @@ import android.media.MediaExtractor;
 import android.media.MediaFormat;
 import android.media.MediaMetadataRetriever;
 import android.media.MediaPlayer;
-import android.opengl.GLES20;
 import android.opengl.GLES11Ext;
+import android.opengl.GLES20;
 import android.os.Looper;
 import android.os.SystemClock;
 import android.platform.test.annotations.SecurityTest;
+import android.security.cts.R;
+import android.test.AndroidTestCase;
 import android.test.InstrumentationTestCase;
 import android.util.Log;
 import android.view.Surface;
 import android.webkit.cts.CtsTestServer;
-
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -52,8 +52,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
-
-import android.security.cts.R;
 
 
 /**
@@ -239,6 +237,11 @@ public class StagefrightTest extends InstrumentationTestCase {
      ***********************************************************/
 
     @SecurityTest
+    public void testStagefright_bug_68953854() throws Exception {
+        doStagefrightTest(R.raw.bug_68953854, 1 * 60 * 1000);
+    }
+
+    @SecurityTest
     public void testStagefright_bug_70897454() throws Exception {
         doStagefrightTestRawBlob(R.raw.b70897454_avc, "video/avc", 320, 420);
     }
@@ -411,6 +414,19 @@ public class StagefrightTest extends InstrumentationTestCase {
         doStagefrightTestMediaCodec(url);
         doStagefrightTestMediaMetadataRetriever(url);
         server.shutdown();
+    }
+
+    private void doStagefrightTest(final int rid, int timeout) throws Exception {
+        runWithTimeout(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    doStagefrightTest(rid);
+                } catch (Exception e) {
+                    fail(e.toString());
+                }
+            }
+        }, timeout);
     }
 
     private Surface getDummySurface() {
