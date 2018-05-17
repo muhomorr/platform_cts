@@ -18,7 +18,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
       package="com.android.cts.verifier"
       android:versionCode="5"
-      android:versionName="7.1_r17">
+      android:versionName="7.1_r18">
 
     <uses-sdk android:minSdkVersion="19" android:targetSdkVersion="25"/>
 
@@ -162,6 +162,7 @@
                 <category android:name="android.cts.intent.category.MANUAL_TEST" />
             </intent-filter>
             <meta-data android:name="test_category" android:value="@string/test_category_device_admin" />
+            <meta-data android:name="test_excluded_features" android:value="android.hardware.type.automotive" />
             <meta-data android:name="test_required_features"
                     android:value="android.software.device_admin" />
         </activity>
@@ -1552,7 +1553,7 @@
             </intent-filter>
             <meta-data android:name="test_category" android:value="@string/test_category_projection" />
             <meta-data android:name="test_excluded_features"
-                       android:value="android.hardware.type.television:android.software.leanback" />
+                       android:value="android.hardware.type.television:android.software.leanback:android.hardware.type.automotive" />
         </activity>
 
         <service android:name=".projection.ProjectionService"
