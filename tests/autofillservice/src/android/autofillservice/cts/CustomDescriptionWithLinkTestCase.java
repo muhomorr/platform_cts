@@ -15,7 +15,11 @@
  */
 package android.autofillservice.cts;
 
+import static android.autofillservice.cts.Helper.runShellCommand;
+
 import static com.google.common.truth.Truth.assertThat;
+
+import static org.junit.Assume.assumeTrue;
 
 import android.app.Activity;
 import android.app.PendingIntent;
@@ -23,8 +27,10 @@ import android.content.Intent;
 import android.service.autofill.CustomDescription;
 import android.support.test.uiautomator.By;
 import android.support.test.uiautomator.UiObject2;
+import android.util.Log;
 import android.widget.RemoteViews;
 
+import org.junit.Ignore;
 import org.junit.Test;
 
 /**
@@ -43,6 +49,7 @@ import org.junit.Test;
  */
 abstract class CustomDescriptionWithLinkTestCase extends AutoFillServiceTestCase {
 
+    private static final String TAG = "CustomDescriptionWithLinkTestCase";
     private static final String ID_LINK = "link";
 
     /**
@@ -61,12 +68,28 @@ abstract class CustomDescriptionWithLinkTestCase extends AutoFillServiceTestCase
      */
     @Test
     public final void testTapLink_changeOrientationThenTapBack() throws Exception {
+        final int width = sUiBot.getDevice().getDisplayWidth();
+        final int heigth = sUiBot.getDevice().getDisplayHeight();
+        final int min = Math.min(width, heigth);
+
+        assumeTrue("Screen size is too small (" + width + "x" + heigth + ")", min >= 500);
+        Log.d(TAG, "testTapLink_changeOrientationThenTapBack(): screen size is "
+                + width + "x" + heigth);
+
         sUiBot.setScreenOrientation(UiBot.PORTRAIT);
         try {
+            runShellCommand("wm size 1080x1920");
+            runShellCommand("wm density 420");
             saveUiRestoredAfterTappingLinkTest(
                     PostSaveLinkTappedAction.ROTATE_THEN_TAP_BACK_BUTTON);
         } finally {
             sUiBot.setScreenOrientation(UiBot.PORTRAIT);
+            try {
+                cleanUpAfterScreenOrientationIsBackToPortrait();
+            } finally {
+                runShellCommand("wm density reset");
+                runShellCommand("wm size reset");
+            }
         }
     }
 
@@ -82,6 +105,9 @@ abstract class CustomDescriptionWithLinkTestCase extends AutoFillServiceTestCase
 
     protected abstract void saveUiRestoredAfterTappingLinkTest(PostSaveLinkTappedAction type)
             throws Exception;
+
+    protected void cleanUpAfterScreenOrientationIsBackToPortrait() throws Exception {
+    }
 
     /**
      * Tests scenarios when user taps a link in the custom description, taps back to return to the
@@ -166,6 +192,7 @@ abstract class CustomDescriptionWithLinkTestCase extends AutoFillServiceTestCase
      * the Save UI should have been canceled.
      */
     @Test
+    @Ignore("Test fail on some devices because Recents UI is not well defined: b/72044685")
     public final void testTapLink_backToPreviousActivityByTappingRecents()
             throws Exception {
         saveUiCancelledAfterTappingLinkTest(PostSaveLinkTappedAction.TAP_RECENTS);

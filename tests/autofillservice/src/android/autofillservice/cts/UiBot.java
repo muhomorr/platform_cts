@@ -18,6 +18,7 @@ package android.autofillservice.cts;
 
 import static android.autofillservice.cts.Helper.NOT_SHOWING_TIMEOUT_MS;
 import static android.autofillservice.cts.Helper.SAVE_TIMEOUT_MS;
+import static android.autofillservice.cts.Helper.UI_RECENTS_SWITCH_TIMEOUT_MS;
 import static android.autofillservice.cts.Helper.UI_TIMEOUT_MS;
 import static android.service.autofill.SaveInfo.SAVE_DATA_TYPE_ADDRESS;
 import static android.service.autofill.SaveInfo.SAVE_DATA_TYPE_CREDIT_CARD;
@@ -33,7 +34,6 @@ import android.app.Instrumentation;
 import android.app.UiAutomation;
 import android.content.Context;
 import android.content.res.Resources;
-import android.os.RemoteException;
 import android.os.SystemClock;
 import android.service.autofill.SaveInfo;
 import android.support.test.uiautomator.By;
@@ -42,12 +42,14 @@ import android.support.test.uiautomator.UiDevice;
 import android.support.test.uiautomator.UiObject2;
 import android.text.Html;
 import android.util.Log;
+import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityWindowInfo;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.TimeoutException;
 
 /**
  * Helper for UI-related needs.
@@ -95,6 +97,10 @@ final class UiBot {
         mContext = instrumentation.getContext();
         mPackageName = mContext.getPackageName();
         mAutoman = instrumentation.getUiAutomation();
+    }
+
+    UiDevice getDevice() {
+        return mDevice;
     }
 
     /**
@@ -293,11 +299,16 @@ final class UiBot {
     /**
      * Uses the Recents button to switch back to previous activity
      */
-    void switchAppsUsingRecents() throws RemoteException {
+    void switchAppsUsingRecents() throws Exception {
         Log.d(TAG, "switchAppsUsingRecents()");
 
         // Press once to show list of apps...
         mDevice.pressRecentApps();
+
+        // ...wait until apps are shown...
+        // TODO(b/37566627): figure out a way to wait for a specific UI instead.
+        SystemClock.sleep(UI_RECENTS_SWITCH_TIMEOUT_MS);
+
         // ...press again to go back to the activity.
         mDevice.pressRecentApps();
     }
@@ -543,6 +554,23 @@ final class UiBot {
      */
     private UiObject2 waitForObject(BySelector selector, long timeout) {
         return waitForObject(null, selector, timeout);
+    }
+
+    /**
+     * Execute a Runnable and wait for TYPE_WINDOWS_CHANGED or TYPE_WINDOW_STATE_CHANGED.
+     * TODO: No longer need Retry, Refactoring the Timeout (e.g. we probably need two values:
+     * one large timeout value that expects window event, one small value that expect no window
+     * event)
+     */
+    public void waitForWindowChange(Runnable runnable, long timeoutMillis) throws TimeoutException {
+        mAutoman.executeAndWaitForEvent(runnable, (AccessibilityEvent event) -> {
+            switch (event.getEventType()) {
+                case AccessibilityEvent.TYPE_WINDOWS_CHANGED:
+                case AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED:
+                    return true;
+            }
+            return false;
+        }, timeoutMillis);
     }
 
     /**

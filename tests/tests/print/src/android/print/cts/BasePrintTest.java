@@ -133,7 +133,7 @@ public abstract class BasePrintTest {
      *
      * @return the UI device
      */
-    public UiDevice getUiDevice() {
+    public static UiDevice getUiDevice() {
         return UiDevice.getInstance(getInstrumentation());
     }
 
@@ -195,6 +195,13 @@ public abstract class BasePrintTest {
         Log.d(LOG_TAG, "setUpClass()");
 
         Instrumentation instrumentation = getInstrumentation();
+
+        // Prevent rotation
+        getUiDevice().freezeRotation();
+        while (!getUiDevice().isNaturalOrientation()) {
+            getUiDevice().setOrientationNatural();
+            getUiDevice().waitForIdle();
+        }
 
         // Make sure we start with a clean slate.
         Log.d(LOG_TAG, "clearPrintSpoolerData()");
@@ -312,6 +319,9 @@ public abstract class BasePrintTest {
 
         SystemUtil.runShellCommand(instrumentation, "settings put secure "
                     + Settings.Secure.DISABLED_PRINT_SERVICES + " null");
+
+        // Allow rotation
+        getUiDevice().unfreezeRotation();
 
         Log.d(LOG_TAG, "tearDownClass() done");
     }
@@ -743,10 +753,13 @@ public abstract class BasePrintTest {
     }
 
     static void clearPrintSpoolerData() throws Exception {
-        assertTrue("failed to clear print spooler data",
-                SystemUtil.runShellCommand(getInstrumentation(), String.format(
-                        "pm clear --user %d %s", CURRENT_USER_ID, PRINT_SPOOLER_PACKAGE_NAME))
-                        .contains(PM_CLEAR_SUCCESS_OUTPUT));
+        if (getInstrumentation().getContext().getPackageManager().hasSystemFeature(
+                PackageManager.FEATURE_PRINTING)) {
+            assertTrue("failed to clear print spooler data",
+                    SystemUtil.runShellCommand(getInstrumentation(), String.format(
+                            "pm clear --user %d %s", CURRENT_USER_ID, PRINT_SPOOLER_PACKAGE_NAME))
+                            .contains(PM_CLEAR_SUCCESS_OUTPUT));
+        }
     }
 
     void verifyLayoutCall(InOrder inOrder, PrintDocumentAdapter mock,

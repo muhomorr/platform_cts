@@ -19,12 +19,14 @@ import com.android.compatibility.common.tradefed.build.CompatibilityBuildHelper;
 import com.android.compatibility.common.tradefed.targetprep.PreconditionPreparer;
 import com.android.compatibility.common.tradefed.util.DynamicConfigFileReader;
 import com.android.ddmlib.IDevice;
+import com.android.ddmlib.Log;
 import com.android.ddmlib.testrunner.TestIdentifier;
 import com.android.tradefed.build.IBuildInfo;
 import com.android.tradefed.config.Option;
 import com.android.tradefed.config.OptionClass;
 import com.android.tradefed.device.DeviceNotAvailableException;
 import com.android.tradefed.device.ITestDevice;
+import com.android.tradefed.log.LogUtil;
 import com.android.tradefed.result.ITestInvocationListener;
 import com.android.tradefed.targetprep.BuildError;
 import com.android.tradefed.targetprep.TargetSetupError;
@@ -64,6 +66,10 @@ public class MediaPreparer extends PreconditionPreparer {
             description = "Only download media files; do not run instrumentation or copy files")
     protected boolean mMediaDownloadOnly = false;
 
+    @Option(name = "images-only",
+            description = "Only push images files to the device")
+    protected boolean mImagesOnly = false;
+
     /*
      * The pathnames of the device's directories that hold media files for the tests.
      * These depend on the device's mount point, which is retrieved in the MediaPreparer's run
@@ -73,6 +79,7 @@ public class MediaPreparer extends PreconditionPreparer {
      */
     protected String mBaseDeviceShortDir;
     protected String mBaseDeviceFullDir;
+    protected String mBaseDeviceImagesDir;
 
     /*
      * Variables set by the MediaPreparerListener during retrieval of maximum media file
@@ -104,6 +111,8 @@ public class MediaPreparer extends PreconditionPreparer {
 
     /* Key to retrieve resolution string in metrics upon MediaPreparerListener.testEnded() */
     private static final String RESOLUTION_STRING_KEY = "resolution";
+
+    private static final String LOG_TAG = "MediaPreparer";
 
     /*
      * In the case of MediaPreparer error, the default maximum resolution to push to the device.
@@ -162,18 +171,20 @@ public class MediaPreparer extends PreconditionPreparer {
      */
     protected boolean mediaFilesExistOnDevice(ITestDevice device)
             throws DeviceNotAvailableException {
-        for (Resolution resolution : RESOLUTIONS) {
-            if (resolution.width > mMaxRes.width) {
-                break; // no need to check for resolutions greater than this
-            }
-            String deviceShortFilePath = mBaseDeviceShortDir + resolution.toString();
-            String deviceFullFilePath = mBaseDeviceFullDir + resolution.toString();
-            if (!device.doesFileExist(deviceShortFilePath)
-                    || !device.doesFileExist(deviceFullFilePath)) {
-                return false;
+        if (!mImagesOnly) {
+            for (Resolution resolution : RESOLUTIONS) {
+                if (resolution.width > mMaxRes.width) {
+                    break; // no need to check for resolutions greater than this
+                }
+                String deviceShortFilePath = mBaseDeviceShortDir + resolution.toString();
+                String deviceFullFilePath = mBaseDeviceFullDir + resolution.toString();
+                if (!device.doesFileExist(deviceShortFilePath)
+                        || !device.doesFileExist(deviceFullFilePath)) {
+                    return false;
+                }
             }
         }
-        return true;
+        return device.doesFileExist(mBaseDeviceImagesDir);
     }
 
     /*
@@ -197,12 +208,22 @@ public class MediaPreparer extends PreconditionPreparer {
     }
 
     /*
-     * Copies the media files to the host from a predefined URL
-     * Updates mLocalMediaPath to be the pathname of the directory containing bbb_short and
-     * bbb_full media directories.
+     * Copies the media files to the host from a predefined URL.
+     *
+     * Synchronize this static method so that multiple shards won't download/extract
+     * this file to the same location on the host. Only an issue in Android O and above,
+     * where MediaPreparer is used for multiple, shardable modules.
      */
-    private void downloadMediaToHost(ITestDevice device, IBuildInfo buildInfo, File mediaFolder)
+    private static synchronized File downloadMediaToHost(ITestDevice device, IBuildInfo buildInfo)
             throws TargetSetupError {
+        // Retrieve default directory for storing media files
+        File mediaFolder = getDefaultMediaDir();
+        if (mediaFolder.exists() && mediaFolder.list().length > 0) {
+            // Folder has already been created and populated by previous MediaPreparer runs,
+            // assume all necessary media files exist inside.
+            return mediaFolder;
+        }
+        mediaFolder.mkdirs();
         URL url;
         try {
             // Get download URL from dynamic configuration service
@@ -215,12 +236,13 @@ public class MediaPreparer extends PreconditionPreparer {
         }
         File mediaFolderZip = new File(mediaFolder.getAbsolutePath() + ".zip");
         try {
-            logInfo("Downloading media files from %s", url.toString());
+            LogUtil.printLog(Log.LogLevel.INFO, LOG_TAG,
+                    String.format("Downloading media files from %s", url.toString()));
             URLConnection conn = url.openConnection();
             InputStream in = conn.getInputStream();
             mediaFolderZip.createNewFile();
             FileUtil.writeToFile(in, mediaFolderZip);
-            logInfo("Unzipping media files");
+            LogUtil.printLog(Log.LogLevel.INFO, LOG_TAG, "Unzipping media files");
             ZipUtil.extractZip(new ZipFile(mediaFolderZip), mediaFolder);
         } catch (IOException e) {
             FileUtil.recursiveDelete(mediaFolder);
@@ -230,6 +252,7 @@ public class MediaPreparer extends PreconditionPreparer {
         } finally {
             FileUtil.deleteFile(mediaFolderZip);
         }
+        return mediaFolder;
     }
 
     /*
@@ -237,11 +260,19 @@ public class MediaPreparer extends PreconditionPreparer {
      * - are not already present on the device
      * - contain video files of a resolution less than or equal to the device's
      *       max video playback resolution
+     * - contain image files
      *
      * This method is exposed for unit testing.
      */
-    protected void copyMediaFiles(ITestDevice device)
-            throws DeviceNotAvailableException {
+    protected void copyMediaFiles(ITestDevice device) throws DeviceNotAvailableException {
+        if (!mImagesOnly) {
+            copyVideoFiles(device);
+        }
+        copyImagesFiles(device);
+    }
+
+    // copy video files of a resolution <= the device's maximum video playback resolution
+    protected void copyVideoFiles(ITestDevice device) throws DeviceNotAvailableException {
         for (Resolution resolution : RESOLUTIONS) {
             if (resolution.width > mMaxRes.width) {
                 logInfo("Media file copying complete");
@@ -268,11 +299,20 @@ public class MediaPreparer extends PreconditionPreparer {
         }
     }
 
+    // copy image files to the device
+    protected void copyImagesFiles(ITestDevice device) throws DeviceNotAvailableException {
+        if (!device.doesFileExist(mBaseDeviceImagesDir)) {
+            logInfo("Copying images files to device");
+            device.pushDir(new File(mLocalMediaPath, "images"), mBaseDeviceImagesDir);
+        }
+    }
+
     // Initialize directory strings where media files live on device
     protected void setMountPoint(ITestDevice device) {
         String mountPoint = device.getMountPoint(IDevice.MNT_EXTERNAL_STORAGE);
         mBaseDeviceShortDir = String.format("%s/test/bbb_short/", mountPoint);
         mBaseDeviceFullDir = String.format("%s/test/bbb_full/", mountPoint);
+        mBaseDeviceImagesDir = String.format("%s/test/images/", mountPoint);
     }
 
     @Override
@@ -285,7 +325,9 @@ public class MediaPreparer extends PreconditionPreparer {
         }
         if (!mMediaDownloadOnly) {
             setMountPoint(device);
-            setMaxRes(device, buildInfo);
+            if (!mImagesOnly) {
+                setMaxRes(device, buildInfo); // max resolution only applies to video files
+            }
             if (mediaFilesExistOnDevice(device)) {
                 // if files already on device, do nothing
                 logInfo("Media files found on the device");
@@ -295,15 +337,8 @@ public class MediaPreparer extends PreconditionPreparer {
         if (mLocalMediaPath == null) {
             // Option 'local-media-path' has not been defined
             // Get directory to store media files on this host
-            File mediaFolder = getDefaultMediaDir();
-            if(!mediaFolder.exists() || mediaFolder.list().length == 0){
-                // If directory already exists and contains files, it has been created by previous
-                // runs of MediaPreparer. Assume media files exist inside.
-                // Else, create directory if needed and download/extract media files inside.
-                mediaFolder.mkdirs();
-                downloadMediaToHost(device, buildInfo, mediaFolder);
-            }
-            // set mLocalMediaPath to where the CTS media files have been extracted
+            File mediaFolder = downloadMediaToHost(device, buildInfo);
+            // set mLocalMediaPath to extraction location of media files
             updateLocalMediaPath(device, mediaFolder);
         }
         logInfo("Media files located on host at: %s", mLocalMediaPath);

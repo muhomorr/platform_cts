@@ -258,6 +258,14 @@ public class SystemFeaturesTest extends InstrumentationTestCase {
         }
     }
 
+    public void testLowRamFeature() {
+        if (mActivityManager.isLowRamDevice()) {
+            assertAvailable(PackageManager.FEATURE_RAM_LOW);
+        } else {
+            assertAvailable(PackageManager.FEATURE_RAM_NORMAL);
+        }
+    }
+
     public void testNfcFeatures() {
         if (NfcAdapter.getDefaultAdapter(mContext) != null) {
             // Watches MAY support all FEATURE_NFC features when an NfcAdapter is available, but
@@ -473,7 +481,8 @@ public class SystemFeaturesTest extends InstrumentationTestCase {
         // false negatives.
         if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_AUTOMOTIVE) &&
                 !mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEVISION) &&
-                !mPackageManager.hasSystemFeature(PackageManager.FEATURE_WATCH)) {
+                !mPackageManager.hasSystemFeature(PackageManager.FEATURE_WATCH) &&
+                !mPackageManager.hasSystemFeature(PackageManager.FEATURE_EMBEDDED)) {
             // USB accessory mode is only a requirement for devices with USB ports supporting
             // peripheral mode. As there is no public API to distinguish a device with only host
             // mode support from having both peripheral and host support, the test may have

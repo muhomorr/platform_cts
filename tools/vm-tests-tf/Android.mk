@@ -73,7 +73,8 @@ include $(BUILD_SYSTEM)/base_rules.mk
 vmteststf_dep_jars := \
     $(HOST_JDK_TOOLS_JAR) \
     $(cts-tf-dalvik-lib.jar) \
-    $(addprefix $(HOST_OUT_JAVA_LIBRARIES)/, cts-tf-dalvik-buildutil.jar dasm.jar dx.jar cfassembler.jar junit-host.jar d8.jar)
+    $(addprefix $(HOST_OUT_JAVA_LIBRARIES)/, cts-tf-dalvik-buildutil.jar dasm.jar dx.jar cfassembler.jar junit-host.jar d8.jar) \
+    $(call intermediates-dir-for,JAVA_LIBRARIES,host-cts-vmtests-dot,HOST)/javalib.jar
 
 $(LOCAL_BUILT_MODULE): PRIVATE_SRC_FOLDER := $(LOCAL_PATH)/src
 $(LOCAL_BUILT_MODULE): PRIVATE_INTERMEDIATES_CLASSES := $(call intermediates-dir-for,JAVA_LIBRARIES,cts-tf-dalvik-buildutil,HOST)/classes
@@ -98,8 +99,13 @@ $(LOCAL_BUILT_MODULE) : $(vmteststf_dep_jars) $(HOST_OUT_JAVA_LIBRARIES)/tradefe
 	$(hide) $(JAR) -cf $(PRIVATE_INTERMEDIATES_DEXCORE_JAR)-class.jar \
 		$(addprefix -C $(PRIVATE_INTERMEDIATES_CLASSES) , dot/junit/DxUtil.class dot/junit/DxAbstractMain.class dot/junit/AssertionFailedException.class)
 	$(hide) mkdir -p $(PRIVATE_INTERMEDIATES_DEXCORE_JAR).tmp
+ifneq ($(USE_D8_DESUGAR),true)
 	$(hide) $(DX_COMMAND) --dex --output=$(PRIVATE_INTERMEDIATES_DEXCORE_JAR).tmp \
 		$(if $(NO_OPTIMIZE_DX), --no-optimize) $(PRIVATE_INTERMEDIATES_DEXCORE_JAR)-class.jar && rm -f $(PRIVATE_INTERMEDIATES_DEXCORE_JAR).jar
+else
+	$(hide) $(DX_COMMAND) --output $(PRIVATE_INTERMEDIATES_DEXCORE_JAR).tmp \
+		$(if $(NO_OPTIMIZE_DX), --debug) $(PRIVATE_INTERMEDIATES_DEXCORE_JAR)-class.jar && rm -f $(PRIVATE_INTERMEDIATES_DEXCORE_JAR).jar
+endif
 	$(hide) cd $(PRIVATE_INTERMEDIATES_DEXCORE_JAR).tmp && zip -q -r $(abspath $(PRIVATE_INTERMEDIATES_DEXCORE_JAR)) .
 	$(hide) cd $(PRIVATE_INTERMEDIATES_HOSTJUNIT_FILES)/classes && zip -q -r ../../$(notdir $@) .
 	$(hide) cd $(dir $@) && zip -q -r $(notdir $@) tests
