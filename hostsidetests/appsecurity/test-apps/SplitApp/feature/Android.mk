@@ -19,6 +19,7 @@ include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES := $(call all-subdir-java-files)
 LOCAL_PACKAGE_NAME := CtsSplitAppFeature
+LOCAL_SDK_VERSION := current
 LOCAL_PACKAGE_SPLITS := v7
 
 LOCAL_ASSET_DIR := $(LOCAL_PATH)/assets
@@ -37,5 +38,11 @@ localRStamp := $(call intermediates-dir-for,APPS,$(LOCAL_PACKAGE_NAME),,COMMON)/
 $(localRStamp): $(featureOfApk)
 
 LOCAL_AAPT_FLAGS += --feature-of $(featureOfApk)
+
+# Disable AAPT2 to fix:
+# unknown option '--feature-of'.
+# unknown option '--replace-version'.
+# TODO(b/79755007): Re-enable AAPT2 when it supports the missing features.
+LOCAL_USE_AAPT2 := false
 
 include $(BUILD_CTS_SUPPORT_PACKAGE)

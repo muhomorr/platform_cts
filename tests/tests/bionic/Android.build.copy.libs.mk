@@ -36,6 +36,7 @@ my_bionic_testlib_files := \
   libdlext_test_runpath_zip/libdlext_test_runpath_zip_zipaligned.zip \
   libdlext_test_zip/libdlext_test_zip.so \
   libdlext_test_zip/libdlext_test_zip_zipaligned.zip \
+  libelf-tls-library.so \
   libsysv-hash-table-library.so \
   libtest_atexit.so \
   libtest_check_order_dlsym.so \
@@ -84,6 +85,7 @@ my_bionic_testlib_files := \
   libtest_relo_check_dt_needed_order_1.so \
   libtest_relo_check_dt_needed_order_2.so \
   libtest_simple.so \
+  libtest_thread_local_dtor.so \
   libtest_two_parents_child.so \
   libtest_two_parents_parent1.so \
   libtest_two_parents_parent2.so \
@@ -104,6 +106,10 @@ my_bionic_testlib_files := \
   libtest_with_dependency_loop_c.so \
   ns2/ld_config_test_helper_lib1.so \
   ns2/ld_config_test_helper_lib2.so \
+  ns_a/libnstest_ns_a_public1.so \
+  ns_a/libnstest_ns_a_public1_internal.so \
+  ns_b/libnstest_ns_b_public2.so \
+  ns_b/libnstest_ns_b_public3.so \
   prebuilt-elf-files/libtest_invalid-empty_shdr_table.so \
   prebuilt-elf-files/libtest_invalid-rw_load_segment.so \
   prebuilt-elf-files/libtest_invalid-textrels.so \
@@ -119,9 +125,13 @@ my_bionic_testlib_files := \
   private_namespace_libs/libnstest_private.so \
   private_namespace_libs/libnstest_root.so \
   private_namespace_libs/libnstest_root_not_isolated.so \
+  private_namespace_libs/libtest_missing_symbol_child_private.so \
+  private_namespace_libs/libtest_missing_symbol_root.so \
   private_namespace_libs_external/libnstest_private_external.so \
   public_namespace_libs/libnstest_public.so \
   public_namespace_libs/libnstest_public_internal.so \
+  public_namespace_libs/libtest_missing_symbol.so \
+  public_namespace_libs/libtest_missing_symbol_child_public.so \
 
 # These libraries are not built for mips.
 my_bionic_testlib_files_non_mips := \

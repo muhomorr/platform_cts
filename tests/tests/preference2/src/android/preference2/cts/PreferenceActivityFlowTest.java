@@ -487,13 +487,28 @@ public abstract class PreferenceActivityFlowTest {
         // Go to preferences inner fragment.
         mTestUtils.tapOnViewWithText(INNER_FRAGMENT_PREF_BUTTON);
 
-        // We don't need to check that correct panel is displayed that is already covered by
-        // smallScreenGoToFragmentInner and largeScreenGoToFragmentInner
+        // Only inner fragment must be shown.
+        if (shouldRunLargeDeviceTest()) {
+            assertHeadersShown();
+        } else {
+            assertHeadersHidden();
+        }
+        assertPanelPrefs1Hidden();
+        assertInnerFragmentShown();
 
         // Take screenshot
         Bitmap before = mTestUtils.takeScreenshot();
 
         recreate();
+
+        // Only inner fragment must be shown.
+        if (shouldRunLargeDeviceTest()) {
+            assertHeadersShown();
+        } else {
+            assertHeadersHidden();
+        }
+        assertPanelPrefs1Hidden();
+        assertInnerFragmentShown();
 
         // Compare screenshots
         Bitmap after = mTestUtils.takeScreenshot();

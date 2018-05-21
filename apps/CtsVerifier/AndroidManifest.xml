@@ -113,6 +113,8 @@
                 <category android:name="android.cts.intent.category.MANUAL_TEST" />
             </intent-filter>
             <meta-data android:name="test_category" android:value="@string/test_category_device_admin" />
+            <meta-data android:name="test_excluded_features"
+                       android:value="android.software.lockscreen_disabled" />
             <meta-data android:name="test_required_features"
                     android:value="android.software.device_admin" />
         </activity>
@@ -178,6 +180,8 @@
                 <category android:name="android.cts.intent.category.MANUAL_TEST" />
             </intent-filter>
             <meta-data android:name="test_category" android:value="@string/test_category_device_admin" />
+            <meta-data android:name="test_excluded_features"
+                       android:value="android.software.lockscreen_disabled" />
             <meta-data android:name="test_required_features"
                     android:value="android.software.device_admin" />
         </activity>
@@ -204,6 +208,7 @@
                 <category android:name="android.cts.intent.category.MANUAL_TEST" />
             </intent-filter>
             <meta-data android:name="test_category" android:value="@string/test_category_device_admin" />
+            <meta-data android:name="test_excluded_features" android:value="android.hardware.type.automotive:android.software.lockscreen_disabled" />
             <meta-data android:name="test_required_features"
                     android:value="android.software.device_admin" />
         </activity>
@@ -991,6 +996,8 @@
                 <category android:name="android.cts.intent.category.MANUAL_TEST" />
             </intent-filter>
             <meta-data android:name="test_category" android:value="@string/test_category_security" />
+            <meta-data android:name="test_excluded_features"
+                       android:value="android.software.lockscreen_disabled" />
             <meta-data android:name="test_required_features"
                     android:value="android.software.device_admin" />
         </activity>
@@ -1002,6 +1009,8 @@
                 <category android:name="android.cts.intent.category.MANUAL_TEST" />
             </intent-filter>
             <meta-data android:name="test_category" android:value="@string/test_category_security" />
+            <meta-data android:name="test_excluded_features"
+                       android:value="android.software.lockscreen_disabled" />
             <meta-data android:name="test_required_features"
                     android:value="android.software.device_admin" />
         </activity>
@@ -1141,8 +1150,8 @@
                 </intent-filter>
         </activity>
 
-        <activity android:name=".net.ConnectivityScreenOffTestActivity"
-                android:label="@string/network_screen_off_test">
+        <activity android:name=".net.ConnectivityBackgroundTestActivity"
+                android:label="@string/network_background_test">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.cts.intent.category.MANUAL_TEST" />
@@ -1504,7 +1513,7 @@
 
         <activity android:name=".sensors.OffBodySensorTestActivity"
             android:label="@string/snsr_offbody_sensor_test">
-            <receiver android:name="com.android.cts.verifier.sensors.OffBodySensorTestActivity$AlarmReceiver"></receiver>
+<!--            <receiver android:name="com.android.cts.verifier.sensors.OffBodySensorTestActivity$AlarmReceiver"></receiver>-->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.cts.intent.category.MANUAL_TEST" />
@@ -1527,7 +1536,7 @@
                 android:value="@string/test_category_sensors" />
             <meta-data
                 android:name="test_required_features"
-                android:value="android.hardware.sensor.accelerometer:android.hardware.sensor.gyroscope:android.hardware.sensor.compass:android.hardware.camera.any" />
+                android:value="android.hardware.sensor.accelerometer:android.hardware.sensor.gyroscope:android.hardware.sensor.compass:android.hardware.camera" />
         </activity>
         <activity
             android:name=".sensors.RVCVRecordActivity"
@@ -2227,7 +2236,7 @@
             </intent-filter>
             <meta-data android:name="test_category" android:value="@string/test_category_projection" />
             <meta-data android:name="test_excluded_features"
-                       android:value="android.hardware.type.television:android.software.leanback" />
+                       android:value="android.hardware.type.television:android.software.leanback:android.hardware.type.automotive" />
         </activity>
 
         <service android:name=".projection.ProjectionService"
@@ -2241,6 +2250,8 @@
                 <category android:name="android.cts.intent.category.MANUAL_TEST" />
             </intent-filter>
             <meta-data android:name="test_category" android:value="@string/test_category_managed_provisioning" />
+            <meta-data android:name="test_excluded_features"
+                       android:value="android.software.lockscreen_disabled" />
             <meta-data android:name="test_required_features" android:value="android.software.device_admin" />
         </activity>
 
@@ -2263,6 +2274,8 @@
                 <category android:name="android.cts.intent.category.MANUAL_TEST" />
             </intent-filter>
             <meta-data android:name="test_category" android:value="@string/test_category_managed_provisioning" />
+            <meta-data android:name="test_excluded_features"
+                       android:value="android.software.lockscreen_disabled" />
             <meta-data android:name="test_required_features" android:value="android.software.device_admin" />
         </activity>
 
@@ -2772,6 +2785,17 @@
             </intent-filter>
         </activity>
 
+        <activity android:name=".audio.RingerModeActivity"
+                  android:label="@string/ringer_mode_tests">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.cts.intent.category.MANUAL_TEST" />
+            </intent-filter>
+            <meta-data android:name="test_category" android:value="@string/test_category_audio" />
+            <meta-data android:name="test_excluded_features"
+                       android:value="android.software.leanback" />
+        </activity>
+
         <activity android:name=".audio.HifiUltrasoundTestActivity"
                 android:label="@string/hifi_ultrasound_test"
                 android:screenOrientation="locked">
@@ -2842,6 +2866,8 @@
             </intent-filter>
             <meta-data android:name="test_category" android:value="@string/test_category_audio" />
             <meta-data android:name="test_required_features" android:value="android.hardware.usb.host" />
+            <meta-data android:name="test_excluded_features"
+                android:value="android.hardware.type.television:android.software.leanback:android.hardware.type.watch:android.hardware.type.automotive" />
         </activity>
 
         <activity android:name=".audio.USBAudioPeripheralPlayActivity"
@@ -2852,6 +2878,8 @@
             </intent-filter>
             <meta-data android:name="test_category" android:value="@string/test_category_audio" />
             <meta-data android:name="test_required_features" android:value="android.hardware.usb.host" />
+            <meta-data android:name="test_excluded_features"
+                android:value="android.hardware.type.television:android.software.leanback:android.hardware.type.watch:android.hardware.type.automotive" />
         </activity>
 
         <activity android:name=".audio.USBAudioPeripheralRecordActivity"
@@ -2862,6 +2890,8 @@
             </intent-filter>
             <meta-data android:name="test_category" android:value="@string/test_category_audio" />
             <meta-data android:name="test_required_features" android:value="android.hardware.usb.host" />
+            <meta-data android:name="test_excluded_features"
+                android:value="android.hardware.type.television:android.software.leanback:android.hardware.type.watch:android.hardware.type.automotive" />
         </activity>
 
         <activity android:name=".audio.USBAudioPeripheralButtonsActivity"
@@ -2872,6 +2902,8 @@
             </intent-filter>
             <meta-data android:name="test_category" android:value="@string/test_category_audio" />
             <meta-data android:name="test_required_features" android:value="android.hardware.usb.host" />
+            <meta-data android:name="test_excluded_features"
+                android:value="android.hardware.type.television:android.software.leanback:android.hardware.type.watch:android.hardware.type.automotive" />
         </activity>
 
         <activity android:name=".audio.AudioLoopbackActivity"
@@ -3233,6 +3265,12 @@
         </activity>
 
         <service android:name="com.android.cts.verifier.telecom.CtsConnectionService"
+            android:permission="android.permission.BIND_TELECOM_CONNECTION_SERVICE" >
+            <intent-filter>
+                <action android:name="android.telecom.ConnectionService" />
+            </intent-filter>
+        </service>
+        <service android:name="com.android.cts.verifier.telecom.CtsSelfManagedConnectionService"
             android:permission="android.permission.BIND_TELECOM_CONNECTION_SERVICE" >
             <intent-filter>
                 <action android:name="android.telecom.ConnectionService" />

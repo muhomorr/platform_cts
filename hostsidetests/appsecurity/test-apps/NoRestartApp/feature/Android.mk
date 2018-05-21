@@ -21,6 +21,7 @@ LOCAL_SRC_FILES := $(call all-java-files-under, src)
 LOCAL_RESOURCE_DIR := $(LOCAL_PATH)/res
 
 LOCAL_PACKAGE_NAME := CtsNoRestartFeature
+LOCAL_SDK_VERSION := current
 
 LOCAL_MODULE_TAGS := tests
 LOCAL_COMPATIBILITY_SUITE := cts vts general-tests
@@ -34,5 +35,10 @@ featureOfApk := $(call intermediates-dir-for,APPS,$(featureOf))/package.apk
 $(localRStamp): $(featureOfApk)
 LOCAL_APK_LIBRARIES := $(featureOf)
 LOCAL_AAPT_FLAGS += --feature-of $(featureOfApk)
+
+# Disable AAPT2 to fix:
+# unknown option '--feature-of'.
+# TODO(b/79755007): Re-enable AAPT2 when it supports the missing features.
+LOCAL_USE_AAPT2 := false
 
 include $(BUILD_CTS_SUPPORT_PACKAGE)

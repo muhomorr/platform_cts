@@ -57,6 +57,8 @@ LOCAL_STATIC_JAVA_LIBRARIES := \
 
 LOCAL_JNI_SHARED_LIBRARIES := \
     libaudio_jni \
+    libc++ \
+    libctscodecutils_jni \
     libctsimagereader_jni \
     libctsmediadrm_jni \
     libctsmediacodec_jni \
@@ -73,6 +75,7 @@ LOCAL_PACKAGE_NAME := CtsMediaTestCases
 
 # uncomment when b/13249737 is fixed
 #LOCAL_SDK_VERSION := current
+LOCAL_PRIVATE_PLATFORM_APIS := true
 
 LOCAL_JAVA_LIBRARIES += android.test.runner org.apache.http.legacy
 

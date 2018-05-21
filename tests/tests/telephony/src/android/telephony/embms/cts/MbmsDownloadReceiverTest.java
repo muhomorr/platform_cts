@@ -47,9 +47,6 @@ public class MbmsDownloadReceiverTest extends MbmsDownloadTestBase {
 
     public static final String APP_INTENT_ACTION =
             "android.telephony.embms.cts.ACTION_TEST_DOWNLOAD_COMPLETE";
-    public static final DownloadRequest TEST_DOWNLOAD_REQUEST = DOWNLOAD_REQUEST_TEMPLATE
-            .setAppIntent(new Intent(APP_INTENT_ACTION))
-            .build();
 
     public static class AppIntentCapture {
         private final BlockingQueue<Intent> mReceivedIntent = new LinkedBlockingQueue<>();
@@ -68,24 +65,43 @@ public class MbmsDownloadReceiverTest extends MbmsDownloadTestBase {
         }
 
         public Intent getIntent() {
+            return getIntent(true);
+        }
+
+        public Intent getIntent(boolean unregister) {
             try {
                 Intent result = mReceivedIntent.poll(ASYNC_TIMEOUT, TimeUnit.MILLISECONDS);
-                mContext.unregisterReceiver(mAppIntentReceiver);
+                if (unregister) {
+                    mContext.unregisterReceiver(mAppIntentReceiver);
+                }
                 return result;
             } catch (InterruptedException e) {
                 fail("test was interrupted");
                 return null;
             }
         }
+
+        public List<Intent> getIntents(int numExpected) {
+            ArrayList<Intent> result = new ArrayList<>(numExpected);
+            for (int i = 0; i < numExpected; i++) {
+                result.add(getIntent(false));
+            }
+            mContext.unregisterReceiver(mAppIntentReceiver);
+            return result;
+        }
     }
 
     private MbmsDownloadReceiver mReceiver;
     private File tempFileRootDir;
     private String tempFileRootDirPath;
+    private DownloadRequest testDownloadRequest;
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
+        testDownloadRequest = downloadRequestTemplate
+                .setAppIntent(new Intent(APP_INTENT_ACTION))
+                .build();
         mReceiver = new MbmsDownloadReceiver();
         IntentFilter filter = new IntentFilter();
         filter.addAction(VendorUtils.ACTION_DOWNLOAD_RESULT_INTERNAL);
@@ -140,9 +156,9 @@ public class MbmsDownloadReceiverTest extends MbmsDownloadTestBase {
         intentForReceiverTest.putExtra(MbmsDownloadSession.EXTRA_MBMS_DOWNLOAD_RESULT,
                 MbmsDownloadSession.RESULT_CANCELLED);
         intentForReceiverTest.putExtra(MbmsDownloadSession.EXTRA_MBMS_DOWNLOAD_REQUEST,
-                TEST_DOWNLOAD_REQUEST);
+                testDownloadRequest);
 
-        AppIntentCapture intentCaptor = new AppIntentCapture(mContext, mCallbackHandler);
+        AppIntentCapture intentCaptor = new AppIntentCapture(mContext, mHandler);
 
         sendBroadcastAndValidate(intentForReceiverTest, MbmsDownloadReceiver.RESULT_OK);
         Intent receivedIntent = intentCaptor.getIntent();
@@ -150,7 +166,7 @@ public class MbmsDownloadReceiverTest extends MbmsDownloadTestBase {
         assertEquals(MbmsDownloadSession.RESULT_CANCELLED,
                 receivedIntent.getIntExtra(MbmsDownloadSession.EXTRA_MBMS_DOWNLOAD_RESULT, -1));
 
-        assertEquals(TEST_DOWNLOAD_REQUEST,
+        assertEquals(testDownloadRequest,
                 receivedIntent.getParcelableExtra(MbmsDownloadSession.EXTRA_MBMS_DOWNLOAD_REQUEST));
     }
 
@@ -162,9 +178,9 @@ public class MbmsDownloadReceiverTest extends MbmsDownloadTestBase {
         intentForReceiverTest.putExtra(MbmsDownloadSession.EXTRA_MBMS_DOWNLOAD_RESULT,
                 MbmsDownloadSession.RESULT_SUCCESSFUL);
         intentForReceiverTest.putExtra(MbmsDownloadSession.EXTRA_MBMS_DOWNLOAD_REQUEST,
-                TEST_DOWNLOAD_REQUEST);
+                testDownloadRequest);
         intentForReceiverTest.putExtra(MbmsDownloadSession.EXTRA_MBMS_FILE_INFO,
-                CtsDownloadService.FILE_INFO);
+                CtsDownloadService.FILE_INFO_1);
         intentForReceiverTest.putExtra(VendorUtils.EXTRA_FINAL_URI,
                 Uri.fromFile(new File(new File(tempFileRootDir, TEST_SERVICE_ID), "file1")));
 
@@ -230,7 +246,7 @@ public class MbmsDownloadReceiverTest extends MbmsDownloadTestBase {
                         receivedExtras.add(getResultExtras(true));
                         receivedCode.add(getResultCode());
                     }
-                }, mCallbackHandler, -1, null, null);
+                }, mHandler, -1, null, null);
 
         try {
             assertEquals(expectedCode,

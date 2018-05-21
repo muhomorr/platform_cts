@@ -51,6 +51,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.Scanner;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Host-side SELinux tests.
@@ -147,8 +148,13 @@ public class SELinuxHostTest extends DeviceTestCase implements IBuildReceiver, I
         if (mDevice.doesFileExist("/system/etc/selinux/plat_file_contexts")) {
             devicePlatFcFile = getDeviceFile(mDevice, cachedDevicePlatFcFiles,
                     "/system/etc/selinux/plat_file_contexts", "plat_file_contexts");
-            deviceNonplatFcFile = getDeviceFile(mDevice, cachedDeviceNonplatFcFiles,
-                    "/vendor/etc/selinux/nonplat_file_contexts", "nonplat_file_contexts");
+            if (mDevice.doesFileExist("/vendor/etc/selinux/nonplat_file_contexts")){
+                deviceNonplatFcFile = getDeviceFile(mDevice, cachedDeviceNonplatFcFiles,
+                        "/vendor/etc/selinux/nonplat_file_contexts", "nonplat_file_contexts");
+            } else {
+                deviceNonplatFcFile = getDeviceFile(mDevice, cachedDeviceNonplatFcFiles,
+                        "/vendor/etc/selinux/vendor_file_contexts", "vendor_file_contexts");
+            }
         } else {
             devicePlatFcFile = getDeviceFile(mDevice, cachedDevicePlatFcFiles,
                     "/plat_file_contexts", "plat_file_contexts");
@@ -167,6 +173,9 @@ public class SELinuxHostTest extends DeviceTestCase implements IBuildReceiver, I
     private static File getDeviceFile(ITestDevice device,
             Map<ITestDevice, File> cache, String deviceFilePath,
             String tmpFileName) throws Exception {
+        if (!device.doesFileExist(deviceFilePath)){
+            throw new Exception();
+        }
         File file;
         synchronized (cache) {
             file = cache.get(device);
@@ -293,11 +302,20 @@ public class SELinuxHostTest extends DeviceTestCase implements IBuildReceiver, I
      */
     public static boolean isFullTrebleDevice(ITestDevice device)
             throws DeviceNotAvailableException {
-        return PropertyUtil.getFirstApiLevel(device) > 25;
+        return PropertyUtil.getFirstApiLevel(device) > 26;
     }
 
     private boolean isFullTrebleDevice() throws DeviceNotAvailableException {
         return isFullTrebleDevice(mDevice);
+    }
+
+    // NOTE: cts/tools/selinux depends on this method. Rename/change with caution.
+    /**
+     * Returns {@code true} if this device is required to enforce compatible property.
+     */
+    public static boolean isCompatiblePropertyEnforcedDevice(ITestDevice device)
+            throws DeviceNotAvailableException {
+        return PropertyUtil.getFirstApiLevel(device) > 27;
     }
 
     /**
@@ -592,17 +610,20 @@ public class SELinuxHostTest extends DeviceTestCase implements IBuildReceiver, I
     public void testValidPropertyContexts() throws Exception {
 
         /* retrieve the checkfc executable from jar */
-        checkFc = copyResourceToTempFile("/checkfc");
-        checkFc.setExecutable(true);
+        File propertyInfoChecker = copyResourceToTempFile("/property_info_checker");
+        propertyInfoChecker.setExecutable(true);
 
         /* obtain property_contexts file from running device */
         devicePcFile = File.createTempFile("property_contexts", ".tmp");
         devicePcFile.deleteOnExit();
-        mDevice.pullFile("/property_contexts", devicePcFile);
+        // plat_property_contexts may be either in /system/etc/sepolicy or in /
+        if (!mDevice.pullFile("/system/etc/selinux/plat_property_contexts", devicePcFile)) {
+            mDevice.pullFile("/plat_property_contexts", devicePcFile);
+        }
 
-        /* run checkfc -p on property_contexts */
-        ProcessBuilder pb = new ProcessBuilder(checkFc.getAbsolutePath(),
-                "-p", devicePolicyFile.getAbsolutePath(),
+        /* run property_info_checker on property_contexts */
+        ProcessBuilder pb = new ProcessBuilder(propertyInfoChecker.getAbsolutePath(),
+                devicePolicyFile.getAbsolutePath(),
                 devicePcFile.getAbsolutePath());
         pb.redirectOutput(ProcessBuilder.Redirect.PIPE);
         pb.redirectErrorStream(true);
@@ -717,6 +738,33 @@ public class SELinuxHostTest extends DeviceTestCase implements IBuildReceiver, I
     }
 
     /**
+     * Tests that all types in /proc have the proc_type attribute.
+     *
+     * @throws Exception
+     */
+    public void testProcTypeViolators() throws Exception {
+        assertSepolicyTests("TestProcTypeViolations", "/sepolicy_tests");
+    }
+
+    /**
+     * Tests that all types in /sys have the sysfs_type attribute.
+     *
+     * @throws Exception
+     */
+    public void testSysfsTypeViolators() throws Exception {
+        assertSepolicyTests("TestSysfsTypeViolations", "/sepolicy_tests");
+    }
+
+    /**
+     * Tests that all types on /vendor have the vendor_file_type attribute.
+     *
+     * @throws Exception
+     */
+    public void testVendorTypeViolators() throws Exception {
+        assertSepolicyTests("TestVendorTypeViolations", "/sepolicy_tests");
+    }
+
+    /**
      * Tests that all domains with entrypoints on /system have the coredomain
      * attribute, and that all domains with entrypoints on /vendor do not have the
      * coredomain attribute.
@@ -751,6 +799,28 @@ public class SELinuxHostTest extends DeviceTestCase implements IBuildReceiver, I
         }
         assertTrue("The policy contained booleans:\n"
                    + errorString, errorString.length() == 0);
+    }
+
+   /**
+     * Tests that taking a bugreport does not produce any dumpstate-related
+     * SELinux denials.
+     *
+     * @throws Exception
+     */
+    public void testNoBugreportDenials() throws Exception {
+        // Take a bugreport and get its logcat output.
+        mDevice.executeAdbCommand("logcat", "-c");
+        mDevice.executeAdbCommand("bugreport");
+        String log = mDevice.executeAdbCommand("logcat", "-d");
+        // Find all the dumpstate-related types and make a regex that will match them.
+        Set<String> types = sepolicyAnalyzeGetTypesAssociatedWithAttribute("hal_dumpstate_server");
+        types.add("dumpstate");
+        String typeRegex = types.stream().collect(Collectors.joining("|"));
+        Pattern p = Pattern.compile("avc: *denied.*scontext=u:(?:r|object_r):(?:" + typeRegex + "):s0.*");
+        // Fail if logcat contains such a denial.
+        Matcher m = p.matcher(log);
+        if (m.find())
+            fail("Found illegal SELinux denial: " + m.group());
     }
 
     /**

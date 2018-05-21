@@ -56,15 +56,15 @@ public class ActivityKeyboardShortcutsTest
             return;
         }
         // Open activity's options menu
-        mActivity.openOptionsMenu();
+        getInstrumentation().runOnMainSync(() -> mActivity.openOptionsMenu());
         mActivity.waitForMenuToBeOpen();
 
         // Request keyboard shortcuts
-        mActivity.requestShowKeyboardShortcuts();
+        getInstrumentation().runOnMainSync(() -> mActivity.requestShowKeyboardShortcuts());
         mActivity.waitForKeyboardShortcutsToBeRequested();
 
         // Close the shortcuts helper
-        mActivity.dismissKeyboardShortcutsHelper();
+        getInstrumentation().runOnMainSync(() -> mActivity.dismissKeyboardShortcutsHelper());
 
         // THEN the activity's onProvideKeyboardShortcuts should have been
         // triggered to get app specific shortcuts
@@ -91,6 +91,8 @@ public class ActivityKeyboardShortcutsTest
     private boolean keyboardShortcutsSupported() {
       // Keyboard shortcuts API is not supported on watches.
       // TODO(b/62257073): Provide a more granular feature to check here.
-      return !mActivity.getPackageManager().hasSystemFeature(PackageManager.FEATURE_WATCH);
+      // 2017-10-17: Updated to also exclude EMBEDDED
+      return !mActivity.getPackageManager().hasSystemFeature(PackageManager.FEATURE_WATCH) &&
+             !mActivity.getPackageManager().hasSystemFeature(PackageManager.FEATURE_EMBEDDED);
     }
 }
