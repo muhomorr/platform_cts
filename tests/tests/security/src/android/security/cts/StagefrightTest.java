@@ -216,6 +216,11 @@ public class StagefrightTest extends InstrumentationTestCase {
      ***********************************************************/
 
     @SecurityTest
+    public void testStagefright_bug_68953854() throws Exception {
+        doStagefrightTest(R.raw.bug_68953854, 1 * 60 * 1000);
+    }
+
+    @SecurityTest
     public void testStagefright_bug_70897454() throws Exception {
         doStagefrightTestRawBlob(R.raw.b70897454_avc, "video/avc", 320, 420);
     }
@@ -237,6 +242,11 @@ public class StagefrightTest extends InstrumentationTestCase {
 
     public void testStagefright_bug_25765591() throws Exception {
         doStagefrightTest(R.raw.bug_25765591);
+    }
+
+    @SecurityTest
+    public void testStagefright_bug_62673179() throws Exception {
+        doStagefrightTest(R.raw.bug_62673179_ts, (4 * 60 * 1000));
     }
 
     public void testStagefright_cve_2015_3867() throws Exception {
@@ -332,6 +342,11 @@ public class StagefrightTest extends InstrumentationTestCase {
         doStagefrightTest(R.raw.bug_19779574);
     }
 
+    @SecurityTest
+    public void testStagefright_bug_37093318() throws Exception {
+        doStagefrightTest(R.raw.bug_37093318, (4 * 60 * 1000));
+    }
+
     private void doStagefrightTest(final int rid) throws Exception {
         doStagefrightTestMediaPlayer(rid);
         doStagefrightTestMediaCodec(rid);
@@ -346,6 +361,19 @@ public class StagefrightTest extends InstrumentationTestCase {
         doStagefrightTestMediaCodec(url);
         doStagefrightTestMediaMetadataRetriever(url);
         server.shutdown();
+    }
+
+    private void doStagefrightTest(final int rid, int timeout) throws Exception {
+        runWithTimeout(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                  doStagefrightTest(rid);
+                } catch (Exception e) {
+                  fail(e.toString());
+                }
+            }
+        }, timeout);
     }
 
     private void doStagefrightTestANR(final int rid) throws Exception {
