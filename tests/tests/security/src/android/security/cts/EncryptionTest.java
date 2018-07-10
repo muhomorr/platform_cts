@@ -36,7 +36,11 @@ public class EncryptionTest extends AndroidTestCase {
         System.loadLibrary("ctssecurity_jni");
     }
 
+    // First API level that requires this test.
     private static final int MIN_API_LEVEL = 23;
+
+    // First API level where there are no speed exemptions.
+    private static final int MIN_ALL_SPEEDS_API_LEVEL = 28;
 
     private static final String TAG = "EncryptionTest";
 
@@ -49,12 +53,25 @@ public class EncryptionTest extends AndroidTestCase {
         return PropertyUtil.getFirstApiLevel() >= MIN_API_LEVEL;
     }
 
+    private boolean isEligibleForPerformanceExemption() {
+        return PropertyUtil.getFirstApiLevel() < MIN_ALL_SPEEDS_API_LEVEL;
+    }
+
+    private boolean isExemptByPerformance() {
+        // In older API levels, we grant an exemption if AES is not fast enough.
+        return (isEligibleForPerformanceExemption() && !aesIsFast());
+    }
+
     public void testEncryption() throws Exception {
-        if (!isRequired() || deviceIsEncrypted()) {
+        if (!isRequired() || isExemptByPerformance()) {
             return;
         }
 
-        // Required if performance is sufficient
-        assertFalse("Device encryption is required", aesIsFast());
+        assertTrue("Device encryption is required", deviceIsEncrypted());
+
+        // TODO(b/111311698): If aesIsFast(), confirm that AES, and only AES,
+        //     is in use.  If !aesIsFast(), confirm either AES or Speck is
+        //     in use.  Implementation note: aesIsFast() is expensive, so its
+        //     result should be cached.
     }
 }
