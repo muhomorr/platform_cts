@@ -18,7 +18,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
       package="com.android.cts.verifier"
       android:versionCode="5"
-      android:versionName="8.0_r11">
+      android:versionName="8.0_r12">
 
     <uses-sdk android:minSdkVersion="19" android:targetSdkVersion="26"/>
 
@@ -2654,7 +2654,7 @@
             </intent-filter>
             <meta-data android:name="test_category" android:value="@string/test_category_jobscheduler" />
             <meta-data android:name="test_excluded_features"
-                    android:value="android.hardware.type.television:android.software.leanback" />
+                    android:value="android.hardware.type.television:android.software.leanback:android.hardware.type.automotive" />
         </activity>
 
         <activity android:name=".jobscheduler.ConnectivityConstraintTestActivity" android:label="@string/js_connectivity_test">
