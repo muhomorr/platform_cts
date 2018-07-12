@@ -1375,7 +1375,19 @@ public class DecoderTest extends MediaPlayerTestBase {
         }
 
         // start decoding
-        final long kTimeOutUs = 5000;
+        MediaFormat outFormat = codec.getOutputFormat();
+        long kTimeOutUs = 5000; // 5ms timeout
+        String outMime = format.getString(MediaFormat.KEY_MIME);
+        if (outMime != null && outMime.startsWith("video/")) {
+            int outWidth = outFormat.getInteger(MediaFormat.KEY_WIDTH);
+            int outHeight = outFormat.getInteger(MediaFormat.KEY_HEIGHT);
+            // in the 4K decoding case in byte buffer mode, set kTimeOutUs to 10ms as decode may
+            // involve a memcpy
+            if (outWidth * outHeight >= 8000000) {
+                kTimeOutUs = 10000;
+            }
+        }
+
         MediaCodec.BufferInfo info = new MediaCodec.BufferInfo();
         boolean sawInputEOS = false;
         boolean sawOutputEOS = false;
