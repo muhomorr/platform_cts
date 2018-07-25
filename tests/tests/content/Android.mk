@@ -22,6 +22,13 @@ LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE_PATH := $(TARGET_OUT_DATA_APPS)
 LOCAL_USE_AAPT2 := true
 
+# Don't run manifestmerger on dependencies, it is unhappy with the duplicate
+# REQUIRED_MULTI_DENY permissions in AndroidManifest.xml
+LOCAL_DONT_MERGE_MANIFESTS := true
+
+# Include both the 32 and 64 bit versions
+LOCAL_MULTILIB := both
+
 LOCAL_JNI_SHARED_LIBRARIES := libnativecursorwindow_jni libnativehelper_compat_libc++
 
 LOCAL_JAVA_LIBRARIES := android.test.runner

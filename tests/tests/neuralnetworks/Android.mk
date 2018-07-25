@@ -24,10 +24,12 @@ LOCAL_MODULE_STEM_32 := $(LOCAL_MODULE)32
 LOCAL_MODULE_STEM_64 := $(LOCAL_MODULE)64
 
 LOCAL_SRC_FILES := \
-     src/TestValidation.cpp \
+     src/TestGenerated.cpp \
      src/TestMemory.cpp \
      src/TestTrivialModel.cpp \
-     src/TestGenerated.cpp
+     src/TestUnknownDimensions.cpp \
+     src/TestValidation.cpp \
+     src/TestWrapper.cpp
 
 LOCAL_C_INCLUDES := frameworks/ml/nn/runtime/include/
 LOCAL_C_INCLUDES += frameworks/ml/nn/runtime/test/
@@ -44,7 +46,7 @@ LOCAL_CTS_TEST_PACKAGE := android.neuralnetworks
 # Tag this module as a cts test artifact
 LOCAL_COMPATIBILITY_SUITE := cts vts general-tests
 
-LOCAL_CFLAGS := -Werror -Wall
+LOCAL_CFLAGS := -Werror -Wall -DNNTEST_ONLY_PUBLIC_API
 
 LOCAL_SDK_VERSION := current
 LOCAL_NDK_STL_VARIANT := c++_static
