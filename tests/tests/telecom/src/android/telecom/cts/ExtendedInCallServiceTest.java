@@ -31,6 +31,7 @@ import android.telecom.ConnectionService;
 import android.telecom.InCallService;
 import android.telecom.TelecomManager;
 import android.telecom.VideoProfile;
+import android.telephony.TelephonyManager;
 
 import java.util.List;
 
@@ -134,6 +135,10 @@ public class ExtendedInCallServiceTest extends BaseTelecomTestWithMockServices {
                 WAIT_FOR_STATE_CHANGE_TIMEOUT_MS);
         assertAudioRoute(connection, secondRoute);
         assertAudioRoute(inCallService, secondRoute);
+
+        // Call requestBluetoothAudio on a dummy device. This will be a noop since no devices are
+        // connected.
+        ((InCallService) inCallService).requestBluetoothAudio(TestUtils.BLUETOOTH_DEVICE1);
     }
 
     /**
@@ -575,15 +580,18 @@ public class ExtendedInCallServiceTest extends BaseTelecomTestWithMockServices {
         if (!mShouldTestTelecom) {
             return;
         }
-
         addAndVerifyNewIncomingCall(createTestNumber(), null);
         final MockConnection connection = verifyConnectionForIncomingCall();
+        final InvokeCounter counter = connection.getInvokeCounter(MockConnection.ON_SILENCE);
         final MockInCallService inCallService = mInCallCallbacks.getService();
 
         final TelecomManager telecomManager =
             (TelecomManager) mContext.getSystemService(Context.TELECOM_SERVICE);
         telecomManager.silenceRinger();
+
+        // Both the InCallService and Connection will be notified of a request to silence:
         mOnSilenceRingerCounter.waitForCount(1);
+        counter.waitForCount(1);
     }
 
     public void testOnPostDialWaitAndContinue() {
@@ -621,6 +629,11 @@ public class ExtendedInCallServiceTest extends BaseTelecomTestWithMockServices {
     public void testOnCannedTextResponsesLoaded() {
         if (!mShouldTestTelecom) {
             return;
+        }
+
+        TelephonyManager tm = (TelephonyManager) mContext.getSystemService(Context.TELEPHONY_SERVICE);
+        if (tm != null && !tm.isSmsCapable()) {
+            return ;
         }
 
         addAndVerifyNewIncomingCall(createTestNumber(), null);
