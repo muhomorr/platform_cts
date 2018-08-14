@@ -2951,6 +2951,73 @@ public class ParcelTest extends AndroidTestCase {
         p.recycle();
     }
 
+    public void testBinderDataProtection() {
+        Parcel p;
+        IBinder b = new Binder();
+
+        p = Parcel.obtain();
+        final int firstIntPos = p.dataPosition();
+        p.writeInt(1);
+        p.writeStrongBinder(b);
+        final int secondIntPos = p.dataPosition();
+        p.writeInt(2);
+        p.writeStrongBinder(b);
+        final int thirdIntPos = p.dataPosition();
+        p.writeInt(3);
+
+        for (int pos = 0; pos <= thirdIntPos; pos++) {
+            p.setDataPosition(pos);
+            int value = p.readInt();
+            if (pos == firstIntPos) {
+                assertEquals(1, value);
+            } else if (pos == secondIntPos) {
+                assertEquals(2, value);
+            } else if (pos == thirdIntPos) {
+                assertEquals(3, value);
+            } else {
+                // All other read attempts cross into protected data and will return 0
+                assertEquals(0, value);
+            }
+        }
+
+        p.recycle();
+    }
+
+    public void testBinderDataProtectionIncrements() {
+        Parcel p;
+        IBinder b = new Binder();
+
+        p = Parcel.obtain();
+        final int firstIntPos = p.dataPosition();
+        p.writeInt(1);
+        p.writeStrongBinder(b);
+        final int secondIntPos = p.dataPosition();
+        p.writeInt(2);
+        p.writeStrongBinder(b);
+        final int thirdIntPos = p.dataPosition();
+        p.writeInt(3);
+        final int end = p.dataPosition();
+
+        p.setDataPosition(0);
+        int pos;
+        do {
+            pos = p.dataPosition();
+            int value = p.readInt();
+            if (pos == firstIntPos) {
+                assertEquals(1, value);
+            } else if (pos == secondIntPos) {
+                assertEquals(2, value);
+            } else if (pos == thirdIntPos) {
+                assertEquals(3, value);
+            } else {
+                // All other read attempts cross into protected data and will return 0
+                assertEquals(0, value);
+            }
+        } while(pos < end);
+
+        p.recycle();
+    }
+
     private class MockClassLoader extends ClassLoader {
         public MockClassLoader() {
             super();
@@ -3157,5 +3224,30 @@ public class ParcelTest extends AndroidTestCase {
         assertEquals(2, list.size());
         assertEquals(42, list.get(0).getValue());
         assertEquals(56, list.get(1).getValue());
+    }
+
+    // http://b/35384981
+    public void testCreateArrayWithTruncatedParcel() {
+        Parcel parcel = Parcel.obtain();
+        parcel.writeByteArray(new byte[] { 'a', 'b' });
+        byte[] marshalled = parcel.marshall();
+
+        // Test that createByteArray returns null with a truncated parcel.
+        parcel = Parcel.obtain();
+        parcel.unmarshall(marshalled, 0, marshalled.length);
+        parcel.setDataPosition(0);
+        // Shorten the data size by 2 to remove padding at the end of the array.
+        parcel.setDataSize(marshalled.length - 2);
+        assertNull(parcel.createByteArray());
+
+        // Test that readByteArray returns null with a truncated parcel.
+        parcel = Parcel.obtain();
+        parcel.unmarshall(marshalled, 0, marshalled.length);
+        parcel.setDataSize(marshalled.length - 2);
+        try {
+            parcel.readByteArray(new byte[2]);
+            fail();
+        } catch (RuntimeException expected) {
+        }
     }
 }

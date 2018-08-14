@@ -18,6 +18,7 @@ import its.device
 import its.objects
 import os.path
 import math
+import numpy as np
 
 def main():
     """Capture auto and manual shots that should look the same.
@@ -35,6 +36,7 @@ def main():
         its.caps.skip_unless(its.caps.manual_sensor(props) and
                              its.caps.manual_post_proc(props) and
                              its.caps.per_frame_control(props))
+        mono_camera = its.caps.mono_camera(props)
 
         # Converge 3A and get the estimates.
         debug = its.caps.debug_mode()
@@ -44,7 +46,8 @@ def main():
         else:
             match_ar = (largest_yuv['width'], largest_yuv['height'])
             fmt = its.objects.get_smallest_yuv_format(props, match_ar=match_ar)
-        sens, exp, gains, xform, focus = cam.do_3a(get_results=True)
+        sens, exp, gains, xform, focus = cam.do_3a(get_results=True,
+                                                   mono_camera=mono_camera)
         xform_rat = its.objects.float_to_rational(xform)
         print "AE sensitivity %d, exposure %dms" % (sens, exp/1000000.0)
         print "AWB gains", gains
@@ -78,9 +81,8 @@ def main():
         # Manual capture 2: WB + tonemap
         gamma = sum([[i/63.0,math.pow(i/63.0,1/2.2)] for i in xrange(64)],[])
         req["android.tonemap.mode"] = 0
-        req["android.tonemap.curveRed"] = gamma
-        req["android.tonemap.curveGreen"] = gamma
-        req["android.tonemap.curveBlue"] = gamma
+        req["android.tonemap.curve"] = {
+            "red": gamma, "green": gamma, "blue": gamma}
         cap_man2 = cam.do_capture(req, fmt)
         img_man2 = its.image.convert_capture_to_rgb_image(cap_man2)
         its.image.write_image(img_man2, "%s_manual_wb_tm.jpg" % (NAME))
@@ -92,9 +94,13 @@ def main():
 
         # Check that the WB gains and transform reported in each capture
         # result match with the original AWB estimate from do_3a.
-        for g,x in [(gains_a,xform_a),(gains_m1,xform_m1),(gains_m2,xform_m2)]:
+        for g,x in [(gains_m1,xform_m1),(gains_m2,xform_m2)]:
             assert(all([abs(xform[i] - x[i]) < 0.05 for i in range(9)]))
             assert(all([abs(gains[i] - g[i]) < 0.05 for i in range(4)]))
+
+        # Check that auto AWB settings are close
+        assert(all([np.isclose(xform_a[i], xform[i], rtol=0.25, atol=0.1) for i in range(9)]))
+        assert(all([np.isclose(gains_a[i], gains[i], rtol=0.25, atol=0.1) for i in range(4)]))
 
 if __name__ == '__main__':
     main()

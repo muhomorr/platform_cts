@@ -28,6 +28,7 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 import android.app.Activity;
 import android.app.Instrumentation;
+import android.content.res.Resources;
 import android.support.test.InstrumentationRegistry;
 import android.support.test.annotation.UiThreadTest;
 import android.support.test.filters.MediumTest;
@@ -40,6 +41,7 @@ import android.view.MenuItem;
 import android.view.SubMenu;
 import android.view.View;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.ListView;
 import android.widget.PopupMenu;
 
@@ -273,7 +275,7 @@ public class PopupMenuTest {
 
     @Test
     public void testItemViewAttributes() throws Throwable {
-        mBuilder = new Builder().withDismissListener();
+        mBuilder = new Builder().withDismissListener().withAnchorId(R.id.anchor_upper_left);
         WidgetTestUtils.runOnMainAndLayoutSync(mActivityRule, mBuilder::show, true);
 
         Menu menu = mPopupMenu.getMenu();
@@ -303,6 +305,40 @@ public class PopupMenuTest {
         }
     }
 
+    @Test
+    public void testGroupDividerEnabledAPI() throws Throwable {
+        testGroupDivider(false);
+        testGroupDivider(true);
+    }
+
+    private void testGroupDivider(boolean groupDividerEnabled) throws Throwable {
+        mBuilder = new Builder().withGroupDivider(groupDividerEnabled)
+            .withAnchorId(R.id.anchor_upper_left);
+        WidgetTestUtils.runOnMainAndLayoutSync(mActivityRule, mBuilder::show, true);
+
+        Menu menu = mPopupMenu.getMenu();
+        ListView menuItemList = mPopupMenu.getMenuListView();
+
+        for (int i = 0; i < menuItemList.getChildCount(); i++) {
+            final int currGroupId = menu.getItem(i).getGroupId();
+            final int prevGroupId =
+                    i - 1 >= 0 ? menu.getItem(i - 1).getGroupId() : currGroupId;
+            View itemView = menuItemList.getChildAt(i);
+            // Find com.android.internal.R.id.group_divider
+            ImageView groupDivider = itemView.findViewById(
+                    Resources.getSystem().getIdentifier("group_divider", "id", "android"));
+
+            assertNotNull(groupDivider);
+            if (!groupDividerEnabled || currGroupId == prevGroupId) {
+                assertEquals(groupDivider.getVisibility(), View.GONE);
+            } else {
+                assertEquals(groupDivider.getVisibility(), View.VISIBLE);
+            }
+        }
+
+        teardown();
+    }
+
     /**
      * Inner helper class to configure an instance of {@link PopupMenu} for the specific test.
      * The main reason for its existence is that once a popup menu is shown with the show() method,
@@ -315,6 +351,7 @@ public class PopupMenuTest {
         private boolean mHasMenuItemClickListener;
         private boolean mInflateWithInflater;
 
+        private int mAnchorId = R.id.anchor_middle_left;
         private int mPopupMenuContent = R.menu.popup_menu;
 
         private boolean mUseCustomPopupResource;
@@ -327,6 +364,8 @@ public class PopupMenuTest {
         private PopupMenu.OnDismissListener mOnDismissListener;
 
         private View mAnchor;
+
+        private boolean mGroupDividerEnabled = false;
 
         public Builder withMenuItemClickListener() {
             mHasMenuItemClickListener = true;
@@ -360,8 +399,18 @@ public class PopupMenuTest {
             return this;
         }
 
+        public Builder withGroupDivider(boolean groupDividerEnabled) {
+            mGroupDividerEnabled = groupDividerEnabled;
+            return this;
+        }
+
+        public Builder withAnchorId(int anchorId) {
+            mAnchorId = anchorId;
+            return this;
+        }
+
         private void configure() {
-            mAnchor = mActivity.findViewById(R.id.anchor_middle_left);
+            mAnchor = mActivity.findViewById(mAnchorId);
             if (!mUseCustomGravity && !mUseCustomPopupResource) {
                 mPopupMenu = new PopupMenu(mActivity, mAnchor);
             } else if (!mUseCustomPopupResource) {
@@ -389,6 +438,10 @@ public class PopupMenuTest {
                 // Register a mock listener to be notified when our popup menu is dismissed.
                 mOnDismissListener = mock(PopupMenu.OnDismissListener.class);
                 mPopupMenu.setOnDismissListener(mOnDismissListener);
+            }
+
+            if (mGroupDividerEnabled) {
+                mPopupMenu.getMenu().setGroupDividerEnabled(true);
             }
         }
 

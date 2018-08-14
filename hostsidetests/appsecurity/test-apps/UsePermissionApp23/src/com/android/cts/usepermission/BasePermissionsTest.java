@@ -17,7 +17,6 @@
 package com.android.cts.usepermission;
 
 import static junit.framework.Assert.assertEquals;
-
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.fail;
 
@@ -40,6 +39,7 @@ import android.support.test.uiautomator.UiObject;
 import android.support.test.uiautomator.UiObject2;
 import android.support.test.uiautomator.UiScrollable;
 import android.support.test.uiautomator.UiSelector;
+import android.support.test.uiautomator.Until;
 import android.util.ArrayMap;
 import android.util.Log;
 import android.view.accessibility.AccessibilityEvent;
@@ -328,6 +328,7 @@ public abstract class BasePermissionsTest {
 
     private void scrollToBottomIfWatch() throws Exception {
         if (mWatch) {
+            getUiDevice().wait(Until.findObject(By.clazz(ScrollView.class)), GLOBAL_TIMEOUT_MILLIS);
             UiScrollable scrollable =
                     new UiScrollable(new UiSelector().className(ScrollView.class));
             if (scrollable.exists()) {
@@ -353,6 +354,7 @@ public abstract class BasePermissionsTest {
         // Open the app details settings
         Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
         intent.addCategory(Intent.CATEGORY_DEFAULT);
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         intent.setData(Uri.parse("package:" + mContext.getPackageName()));
         startActivity(intent);
 
@@ -433,6 +435,7 @@ public abstract class BasePermissionsTest {
             try {
                 getInstrumentation().getContext().startActivity(intent);
             } catch (Exception e) {
+                Log.e(LOG_TAG, "Cannot start activity: " + intent, e);
                 fail("Cannot start activity: " + intent);
             }
         }, (AccessibilityEvent event) -> event.getEventType()

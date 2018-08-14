@@ -16,17 +16,31 @@
 
 package android.permission.cts;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+
+import static android.support.test.InstrumentationRegistry.getContext;
+
+import org.junit.After;
+import org.junit.Before;
+import org.junit.runner.RunWith;
+import org.junit.Test;
+
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.os.Environment;
+import android.platform.test.annotations.AppModeFull;
+import android.support.test.filters.LargeTest;
+import android.support.test.filters.MediumTest;
+import android.support.test.runner.AndroidJUnit4;
 import android.system.ErrnoException;
-import android.util.Pair;
 import android.system.Os;
 import android.system.OsConstants;
 import android.system.StructStatVfs;
-import android.test.AndroidTestCase;
-import android.test.suitebuilder.annotation.MediumTest;
-import android.test.suitebuilder.annotation.LargeTest;
+import android.util.Pair;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -52,7 +66,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
@@ -64,24 +77,24 @@ import java.util.Set;
  *
  * TODO: Combine this file with {@link android.os.cts.FileAccessPermissionTest}
  */
-public class FileSystemPermissionTest extends AndroidTestCase {
+@RunWith(AndroidJUnit4.class)
+public class FileSystemPermissionTest {
 
     private int dumpable;
 
-    @Override
-    protected void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void setUp() throws Exception {
         dumpable = Os.prctl(OsConstants.PR_GET_DUMPABLE, 0, 0, 0, 0);
         Os.prctl(OsConstants.PR_SET_DUMPABLE, 1, 0, 0, 0);
     }
 
-    @Override
-    protected void tearDown() throws Exception {
+    @After
+    public void tearDown() throws Exception {
         Os.prctl(OsConstants.PR_SET_DUMPABLE, dumpable, 0, 0, 0);
-        super.tearDown();
     }
 
     @MediumTest
+    @Test
     public void testCreateFileHasSanePermissions() throws Exception {
         File myFile = new File(getContext().getFilesDir(), "hello");
         FileOutputStream stream = new FileOutputStream(myFile);
@@ -103,6 +116,7 @@ public class FileSystemPermissionTest extends AndroidTestCase {
     }
 
     @MediumTest
+    @Test
     public void testCreateDirectoryHasSanePermissions() throws Exception {
         File myDir = new File(getContext().getFilesDir(), "helloDirectory");
         assertTrue(myDir.mkdir());
@@ -124,6 +138,7 @@ public class FileSystemPermissionTest extends AndroidTestCase {
     }
 
     @MediumTest
+    @Test
     public void testOtherApplicationDirectoriesAreNotWritable() throws Exception {
         Set<File> writableDirs = new HashSet<File>();
         List<ApplicationInfo> apps = getContext()
@@ -141,6 +156,7 @@ public class FileSystemPermissionTest extends AndroidTestCase {
     }
 
     @MediumTest
+    @Test
     public void testApplicationParentDirectoryNotWritable() throws Exception {
         String myDataDir = getContext().getApplicationInfo().dataDir;
         File parentDir = new File(myDataDir).getParentFile();
@@ -148,36 +164,43 @@ public class FileSystemPermissionTest extends AndroidTestCase {
     }
 
     @MediumTest
+    @Test
     public void testDataDirectoryNotWritable() throws Exception {
         assertFalse(isDirectoryWritable(Environment.getDataDirectory()));
     }
 
     @MediumTest
+    @Test
     public void testAndroidRootDirectoryNotWritable() throws Exception {
         assertFalse(isDirectoryWritable(Environment.getRootDirectory()));
     }
 
     @MediumTest
+    @Test
     public void testDownloadCacheDirectoryNotWritable() throws Exception {
         assertFalse(isDirectoryWritable(Environment.getDownloadCacheDirectory()));
     }
 
     @MediumTest
+    @Test
     public void testRootDirectoryNotWritable() throws Exception {
         assertFalse(isDirectoryWritable(new File("/")));
     }
 
     @MediumTest
+    @Test
     public void testDevDirectoryNotWritable() throws Exception {
         assertFalse(isDirectoryWritable(new File("/dev")));
     }
 
     @MediumTest
+    @Test
     public void testProcDirectoryNotWritable() throws Exception {
         assertFalse(isDirectoryWritable(new File("/proc")));
     }
 
     @MediumTest
+    @Test
     public void testDevDiagSane() throws Exception {
         File f = new File("/dev/diag");
         assertFalse(f.canRead());
@@ -187,6 +210,7 @@ public class FileSystemPermissionTest extends AndroidTestCase {
 
     /* b/26813932 */
     @MediumTest
+    @Test
     public void testProcInterruptsNotReadable() throws Exception {
         File f = new File("/proc/interrupts");
         assertFalse(f.canRead());
@@ -196,6 +220,7 @@ public class FileSystemPermissionTest extends AndroidTestCase {
 
     /* b/26813932 */
     @MediumTest
+    @Test
     public void testProcStatNotReadable() throws Exception {
         File f = new File("/proc/stat");
         assertFalse(f.canRead());
@@ -204,24 +229,28 @@ public class FileSystemPermissionTest extends AndroidTestCase {
     }
 
     @MediumTest
+    @Test
     public void testDevMemSane() throws Exception {
         File f = new File("/dev/mem");
         assertFalse(f.exists());
     }
 
     @MediumTest
+    @Test
     public void testDevkmemSane() throws Exception {
         File f = new File("/dev/kmem");
         assertFalse(f.exists());
     }
 
     @MediumTest
+    @Test
     public void testDevPortSane() throws Exception {
         File f = new File("/dev/port");
         assertFalse(f.exists());
     }
 
     @MediumTest
+    @Test
     public void testPn544Sane() throws Exception {
         File f = new File("/dev/pn544");
         assertFalse(f.canRead());
@@ -233,6 +262,7 @@ public class FileSystemPermissionTest extends AndroidTestCase {
     }
 
     @MediumTest
+    @Test
     public void testBcm2079xSane() throws Exception {
         File f = new File("/dev/bcm2079x");
         assertFalse(f.canRead());
@@ -244,6 +274,7 @@ public class FileSystemPermissionTest extends AndroidTestCase {
     }
 
     @MediumTest
+    @Test
     public void testBcm2079xi2cSane() throws Exception {
         File f = new File("/dev/bcm2079x-i2c");
         assertFalse(f.canRead());
@@ -255,9 +286,10 @@ public class FileSystemPermissionTest extends AndroidTestCase {
     }
 
     @MediumTest
+    @Test
     public void testDevQtaguidSane() throws Exception {
         File f = new File("/dev/xt_qtaguid");
-        assertTrue(f.canRead());
+        assertFalse(f.canRead());
         assertFalse(f.canWrite());
         assertFalse(f.canExecute());
 
@@ -266,10 +298,11 @@ public class FileSystemPermissionTest extends AndroidTestCase {
     }
 
     @MediumTest
+    @Test
     public void testProcQtaguidCtrlSane() throws Exception {
         File f = new File("/proc/net/xt_qtaguid/ctrl");
-        assertTrue(f.canRead());
-        assertTrue(f.canWrite());
+        assertFalse(f.canRead());
+        assertFalse(f.canWrite());
         assertFalse(f.canExecute());
 
         assertFileOwnedBy(f, "root");
@@ -277,9 +310,10 @@ public class FileSystemPermissionTest extends AndroidTestCase {
     }
 
     @MediumTest
+    @Test
     public void testProcQtaguidStatsSane() throws Exception {
         File f = new File("/proc/net/xt_qtaguid/stats");
-        assertTrue(f.canRead());
+        assertFalse(f.canRead());
         assertFalse(f.canWrite());
         assertFalse(f.canExecute());
 
@@ -305,6 +339,7 @@ public class FileSystemPermissionTest extends AndroidTestCase {
     }
 
     @MediumTest
+    @Test
     public void testProcSelfOomAdjSane() throws IOException {
         final int OOM_DISABLE = -17;
 
@@ -313,13 +348,14 @@ public class FileSystemPermissionTest extends AndroidTestCase {
         assertFalse(f.canExecute());
 
         int oom_adj = readInt(f);
-        assertNotSame("unprivileged processes should not be unkillable", OOM_DISABLE, oom_adj);
+        assertNotEquals("unprivileged processes should not be unkillable", OOM_DISABLE, oom_adj);
         if (f.canWrite())
             assertFalse("unprivileged processes should not be able to reduce their oom_adj value",
                     writeInt(f, oom_adj - 1));
     }
 
     @MediumTest
+    @Test
     public void testProcSelfOomScoreAdjSane() throws IOException {
         final int OOM_SCORE_ADJ_MIN = -1000;
 
@@ -328,7 +364,7 @@ public class FileSystemPermissionTest extends AndroidTestCase {
         assertFalse(f.canExecute());
 
         int oom_score_adj = readInt(f);
-        assertNotSame("unprivileged processes should not be unkillable", OOM_SCORE_ADJ_MIN, oom_score_adj);
+        assertNotEquals("unprivileged processes should not be unkillable", OOM_SCORE_ADJ_MIN, oom_score_adj);
         if (f.canWrite()) {
             assertFalse(
                     "unprivileged processes should not be able to reduce their oom_score_adj value",
@@ -402,6 +438,7 @@ public class FileSystemPermissionTest extends AndroidTestCase {
     }
 
     @MediumTest
+    @Test
     public void testProcSelfPagemapSane() throws ErrnoException, IOException {
         FileDescriptor pagemap = null;
         try {
@@ -424,6 +461,8 @@ public class FileSystemPermissionTest extends AndroidTestCase {
     }
 
     @MediumTest
+    @AppModeFull(reason = "Instant Apps cannot access proc_net labeled files")
+    @Test
     public void testTcpDefaultRwndSane() throws Exception {
         File f = new File("/proc/sys/net/ipv4/tcp_default_init_rwnd");
         assertTrue(f.canRead());
@@ -435,6 +474,7 @@ public class FileSystemPermissionTest extends AndroidTestCase {
     }
 
     @MediumTest
+    @Test
     public void testIdletimerDirectoryExistsAndSane() throws Exception {
         File dir = new File("/sys/class/xt_idletimer");
         assertTrue(dir.isDirectory());
@@ -447,6 +487,7 @@ public class FileSystemPermissionTest extends AndroidTestCase {
 
 
     @MediumTest
+    @Test
     public void testProcfsMmapRndBitsExistsAndSane() throws Exception {
         String arch = System.getProperty("os.arch");
         boolean supported = false;
@@ -516,6 +557,7 @@ public class FileSystemPermissionTest extends AndroidTestCase {
     }
 
     @MediumTest
+    @Test
     public void testTtyO3Sane() throws Exception {
         File f = new File("/dev/ttyO3");
         assertFalse(f.canRead());
@@ -524,6 +566,7 @@ public class FileSystemPermissionTest extends AndroidTestCase {
     }
 
     @MediumTest
+    @Test
     public void testDataMediaSane() throws Exception {
         final File f = new File("/data/media");
         assertFalse(f.canRead());
@@ -532,6 +575,7 @@ public class FileSystemPermissionTest extends AndroidTestCase {
     }
 
     @MediumTest
+    @Test
     public void testMntShellSane() throws Exception {
         final File f = new File("/mnt/shell");
         assertFalse(f.canRead());
@@ -540,6 +584,7 @@ public class FileSystemPermissionTest extends AndroidTestCase {
     }
 
     @MediumTest
+    @Test
     public void testMntSecureSane() throws Exception {
         final File f = new File("/mnt/secure");
         assertFalse(f.canRead());
@@ -576,6 +621,7 @@ public class FileSystemPermissionTest extends AndroidTestCase {
      * will NOT be detected by this code.
      */
     @LargeTest
+    @Test
     public void testAllOtherDirectoriesNotWritable() throws Exception {
         File start = new File("/");
         Set<File> writableDirs = getWritableDirectoriesAndSubdirectoriesOf(start);
@@ -766,6 +812,7 @@ public class FileSystemPermissionTest extends AndroidTestCase {
      * a better way...
      */
     @LargeTest
+    @Test
     public void testOtherRandomDirectoriesNotWritable() throws Exception {
         Set<File> writableDirs = new HashSet<File>();
         for (String dir : OTHER_RANDOM_DIRECTORIES) {
@@ -778,6 +825,7 @@ public class FileSystemPermissionTest extends AndroidTestCase {
     }
 
     @LargeTest
+    @Test
     public void testReadingSysFilesDoesntFail() throws Exception {
         ExecutorService executor = Executors.newCachedThreadPool();
         tryToReadFromAllIn(new File("/sys"), executor);
@@ -869,6 +917,7 @@ public class FileSystemPermissionTest extends AndroidTestCase {
             ));
 
     @LargeTest
+    @Test
     public void testAllFilesInSysAreNotWritable() throws Exception {
         Set<File> writable = getAllWritableFilesInDirAndSubDir(new File("/sys"));
         writable.removeAll(SYS_EXCEPTIONS);
@@ -917,43 +966,51 @@ public class FileSystemPermissionTest extends AndroidTestCase {
         return retval;
     }
 
+    @Test
     public void testSystemMountedRO() throws Exception {
         StructStatVfs vfs = Os.statvfs("/system");
         assertTrue("/system is not mounted read-only", (vfs.f_flag & OsConstants.ST_RDONLY) != 0);
     }
 
+    @Test
     public void testRootMountedRO() throws Exception {
         StructStatVfs vfs = Os.statvfs("/");
         assertTrue("rootfs is not mounted read-only", (vfs.f_flag & OsConstants.ST_RDONLY) != 0);
     }
 
+    @Test
     public void testVendorMountedRO() throws Exception {
         StructStatVfs vfs = Os.statvfs("/vendor");
         assertTrue("/vendor is not mounted read-only", (vfs.f_flag & OsConstants.ST_RDONLY) != 0);
     }
 
+    @Test
     public void testOdmMountedRO() throws Exception {
         StructStatVfs vfs = Os.statvfs("/odm");
         assertTrue("/odm is not mounted read-only", (vfs.f_flag & OsConstants.ST_RDONLY) != 0);
     }
 
+    @Test
     public void testOemMountedRO() throws Exception {
         StructStatVfs vfs = Os.statvfs("/oem");
         assertTrue("/oem is not mounted read-only", (vfs.f_flag & OsConstants.ST_RDONLY) != 0);
     }
 
+    @Test
     public void testDataMountedNoSuidNoDev() throws Exception {
         StructStatVfs vfs = Os.statvfs(getContext().getFilesDir().getAbsolutePath());
         assertTrue("/data is not mounted NOSUID", (vfs.f_flag & OsConstants.ST_NOSUID) != 0);
         assertTrue("/data is not mounted NODEV", (vfs.f_flag & OsConstants.ST_NODEV) != 0);
     }
 
+    @Test
     public void testAllBlockDevicesAreSecure() throws Exception {
         Set<File> insecure = getAllInsecureDevicesInDirAndSubdir(new File("/dev"), FileUtils.S_IFBLK);
         assertTrue("Found insecure block devices: " + insecure.toString(),
                 insecure.isEmpty());
     }
 
+    @Test
     public void testDevRandomWorldReadableAndWritable() throws Exception {
         File f = new File("/dev/random");
 
@@ -968,6 +1025,7 @@ public class FileSystemPermissionTest extends AndroidTestCase {
                 (status.mode & 0666) == 0666);
     }
 
+    @Test
     public void testDevUrandomWorldReadableAndWritable() throws Exception {
         File f = new File("/dev/urandom");
 
@@ -982,6 +1040,7 @@ public class FileSystemPermissionTest extends AndroidTestCase {
                 (status.mode & 0666) == 0666);
     }
 
+    @Test
     public void testDevHwRandomLockedDown() throws Exception {
         File f = new File("/dev/hw_random");
         if (!f.exists()) {
@@ -1013,6 +1072,7 @@ public class FileSystemPermissionTest extends AndroidTestCase {
         }
     }
 
+    @Test
     public void testFileHasOnlyCapsThrowsOnInvalidCaps() throws Exception {
         try {
             // Ensure negative cap id fails.
@@ -1043,6 +1103,7 @@ public class FileSystemPermissionTest extends AndroidTestCase {
      * breakpoints for native code will not work as run-as will not
      * be able to perform required elevated-privilege functionality.
      */
+    @Test
     public void testRunAsHasCorrectCapabilities() throws Exception {
         // ensure file is user and group read/executable
         String filename = "/system/bin/run-as";
