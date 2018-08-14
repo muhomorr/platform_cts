@@ -32,6 +32,8 @@ import android.test.AndroidTestCase;
 import android.util.Log;
 import android.media.cts.R;
 
+import com.android.compatibility.common.util.MediaUtils;
+
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -55,7 +57,6 @@ public class VpxCodecTestBase extends AndroidTestCase {
     protected static final String TAG = "VPxCodecTestBase";
     protected static final String VP8_MIME = MediaFormat.MIMETYPE_VIDEO_VP8;
     protected static final String VP9_MIME = MediaFormat.MIMETYPE_VIDEO_VP9;
-    private static final String GOOGLE_CODEC_PREFIX = "omx.google.";
     protected static final String SDCARD_DIR =
             Environment.getExternalStorageDirectory().getAbsolutePath();
 
@@ -63,9 +64,8 @@ public class VpxCodecTestBase extends AndroidTestCase {
     protected static final long DEFAULT_DEQUEUE_TIMEOUT_US = 200000;
     // Default timeout for MediaEncoderAsync - 30 sec.
     protected static final long DEFAULT_ENCODE_TIMEOUT_MS = 30000;
-    // Default sync frame interval in frames (zero means allow the encoder to auto-select
-    // key frame interval).
-    private static final int SYNC_FRAME_INTERVAL = 0;
+    // Default sync frame interval in frames
+    private static final int SYNC_FRAME_INTERVAL = 30;
     // Video bitrate type - should be set to OMX_Video_ControlRateConstant from OMX_Video.h
     protected static final int VIDEO_ControlRateVariable = 1;
     protected static final int VIDEO_ControlRateConstant = 2;
@@ -100,7 +100,7 @@ public class VpxCodecTestBase extends AndroidTestCase {
             this.colorFormat = colorFormat;
         }
         public boolean  isGoogleCodec() {
-            return codecName.toLowerCase().startsWith(GOOGLE_CODEC_PREFIX);
+            return MediaUtils.isGoogle(codecName);
         }
 
         public final String codecName; // OpenMax component name for VPx codec.
@@ -138,8 +138,7 @@ public class VpxCodecTestBase extends AndroidTestCase {
             Log.v(TAG, codecInfo.getName());
             // TODO: remove dependence of Google from the test
             // Check if this is Google codec - we should ignore it.
-            boolean isGoogleCodec =
-                codecInfo.getName().toLowerCase().startsWith(GOOGLE_CODEC_PREFIX);
+            boolean isGoogleCodec = MediaUtils.isGoogle(codecInfo.getName());
             if (!isGoogleCodec && forceGoogleCodec) {
                 continue;
             }
@@ -2018,4 +2017,3 @@ public class VpxCodecTestBase extends AndroidTestCase {
         return statistics;
     }
 }
-

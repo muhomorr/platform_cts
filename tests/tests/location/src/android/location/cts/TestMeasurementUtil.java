@@ -18,8 +18,6 @@ package android.location.cts;
 
 import com.android.compatibility.common.util.ApiLevelUtil;
 
-import android.content.Context;
-import android.content.pm.PackageManager;
 import android.location.GnssClock;
 import android.location.GnssMeasurement;
 import android.location.GnssNavigationMessage;
@@ -27,8 +25,6 @@ import android.location.GnssStatus;
 import android.location.LocationManager;
 import android.os.Build;
 import android.util.Log;
-
-import junit.framework.Assert;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -58,6 +54,15 @@ public final class TestMeasurementUtil {
             " a full bugreport.";
 
     private static final int YEAR_2016 = 2016;
+    private static final int YEAR_2017 = 2017;
+    private static final int YEAR_2018 = 2018;
+
+    private enum GnssBand {
+        GNSS_L1,
+        GNSS_L2,
+        GNSS_L5,
+        GNSS_E6
+    }
 
     // The valid Gnss navigation message type as listed in
     // android/hardware/libhardware/include/hardware/gps.h
@@ -93,10 +98,8 @@ public final class TestMeasurementUtil {
         }
 
         // If device does not have a GPS, skip the test.
-        PackageManager pm = testLocationManager.getContext().getPackageManager();
-        if (!pm.hasSystemFeature(PackageManager.FEATURE_LOCATION_GPS)) {
-          Log.w(testTag, "GPS feature not present on device, skipping GPS test.");
-          return false;
+        if (!TestUtils.deviceHasGpsFeature(testLocationManager.getContext())) {
+           return false;
         }
 
         // If device has a GPS, but it's turned off in settings, and this is CTS verifier,
@@ -169,17 +172,20 @@ public final class TestMeasurementUtil {
      * Assert all mandatory fields in Gnss Measurement are in expected range.
      * See mandatory fields in {@code gps.h}.
      *
+     * @param testLocationManager TestLocationManager
      * @param measurement GnssMeasurement
      * @param softAssert  custom SoftAssert
      * @param timeInNs    event time in ns
      */
-    public static void assertAllGnssMeasurementMandatoryFields(GnssMeasurement measurement,
+    public static void assertAllGnssMeasurementMandatoryFields(
+        TestLocationManager testLocationManager, GnssMeasurement measurement,
         SoftAssert softAssert, long timeInNs) {
 
         verifySvid(measurement, softAssert, timeInNs);
         verifyReceivedSatelliteVehicleTimeInNs(measurement, softAssert, timeInNs);
         verifyAccumulatedDeltaRanges(measurement, softAssert, timeInNs);
 
+        int gnssYearOfHardware = testLocationManager.getLocationManager().getGnssYearOfHardware();
         int state = measurement.getState();
         softAssert.assertTrue("state: Satellite code sync state",
                 timeInNs,
@@ -218,14 +224,9 @@ public final class TestMeasurementUtil {
                         measurement.getPseudorangeRateUncertaintyMetersPerSecond()),
                 measurement.getPseudorangeRateUncertaintyMetersPerSecond() > 0.0);
 
-        // Check carrier_frequency_hz.
-        if (measurement.hasCarrierFrequencyHz()) {
-            softAssert.assertTrue("carrier_frequency_hz: Carrier frequency in hz",
-                    timeInNs,
-                    "X > 0.0",
-                    String.valueOf(measurement.getCarrierFrequencyHz()),
-                    measurement.getCarrierFrequencyHz() > 0.0);
-        }
+        verifyGnssCarrierFrequency(softAssert, testLocationManager,
+                measurement.hasCarrierFrequencyHz(),
+                measurement.hasCarrierFrequencyHz() ? measurement.getCarrierFrequencyHz() : 0F);
 
         // Check carrier_phase.
         if (measurement.hasCarrierPhase()) {
@@ -265,6 +266,14 @@ public final class TestMeasurementUtil {
         }
 
         // Check Automatic Gain Control level in dB.
+        // As per CDD 7.3.3 / C-3-3 Year 2107+ should have AGC level present
+        if (gnssYearOfHardware >= YEAR_2017) {
+            softAssert.assertTrue("AGC level in measurement",
+                    timeInNs,
+                    "X == true",
+                    String.valueOf(measurement.hasAutomaticGainControlLevelDb()),
+                    measurement.hasAutomaticGainControlLevelDb());
+        }
         if (measurement.hasAutomaticGainControlLevelDb()) {
             softAssert.assertTrue("Automatic Gain Control level in dB",
                 timeInNs,
@@ -288,16 +297,25 @@ public final class TestMeasurementUtil {
 
         int accumulatedDeltaRangeState = measurement.getAccumulatedDeltaRangeState();
         softAssert.assertTrue("accumulated_delta_range_state: " +
-                        "Accumulated delta range state",
+                "Accumulated delta range state",
                 timeInNs,
-                "0 <= X <= 7",
+                "X & ~ADR_STATE_ALL == 0",
                 String.valueOf(accumulatedDeltaRangeState),
-                accumulatedDeltaRangeState >= 0 && accumulatedDeltaRangeState <= 7);
-        if (accumulatedDeltaRangeState > 0) {
+                (accumulatedDeltaRangeState & ~GnssMeasurement.ADR_STATE_ALL) == 0);
+        softAssert.assertTrue("accumulated_delta_range_state: " +
+                "Accumulated delta range state",
+                timeInNs,
+                "ADR_STATE_HALF_CYCLE_REPORTED, or !ADR_STATE_HALF_CYCLE_RESOLVED",
+                String.valueOf(accumulatedDeltaRangeState),
+                ((accumulatedDeltaRangeState &
+                  GnssMeasurement.ADR_STATE_HALF_CYCLE_REPORTED) != 0) ||
+                 (accumulatedDeltaRangeState &
+                  GnssMeasurement.ADR_STATE_HALF_CYCLE_RESOLVED) == 0);
+        if ((accumulatedDeltaRangeState & GnssMeasurement.ADR_STATE_VALID) != 0) {
             double accumulatedDeltaRangeInMeters =
                     measurement.getAccumulatedDeltaRangeMeters();
             softAssert.assertTrue("accumulated_delta_range_m: " +
-                            "Accumulated delta range in meter",
+                    "Accumulated delta range in meter",
                     timeInNs,
                     "X != 0.0",
                     String.valueOf(accumulatedDeltaRangeInMeters),
@@ -305,7 +323,7 @@ public final class TestMeasurementUtil {
             double accumulatedDeltaRangeUncertainty =
                     measurement.getAccumulatedDeltaRangeUncertaintyMeters();
             softAssert.assertTrue("accumulated_delta_range_uncertainty_m: " +
-                            "Accumulated delta range uncertainty in meter",
+                    "Accumulated delta range uncertainty in meter",
                     timeInNs,
                     "X > 0.0",
                     String.valueOf(accumulatedDeltaRangeUncertainty),
@@ -323,7 +341,6 @@ public final class TestMeasurementUtil {
     private static void verifySvid(GnssMeasurement measurement, SoftAssert softAssert,
         long timeInNs) {
 
-        String svidLogMessageFormat = "svid: Space Vehicle ID. Constellation type = %s";
         int constellationType = measurement.getConstellationType();
         int svid = measurement.getSvid();
         validateSvidSub(softAssert, timeInNs, constellationType, svid);
@@ -626,7 +643,7 @@ public final class TestMeasurementUtil {
         }
     }
 
-    private static String getReceivedSvTimeNsLogMessage(String constellationType, String state) {
+    private static String getReceivedSvTimeNsLogMessage(String state, String constellationType) {
         return "received_sv_time_ns: Received SV Time-of-Week in ns. Constellation type = "
                 + constellationType + ". State = " + state;
     }
@@ -689,6 +706,34 @@ public final class TestMeasurementUtil {
         }
     }
 
+
+    /**
+     * Get a unique string for the SV including the constellation and the default L1 band.
+     *
+     * @param constellationType Gnss Constellation type
+     * @param svId Gnss Sv Identifier
+     */
+    public static String getUniqueSvStringId(int constellationType, int svId) {
+        return getUniqueSvStringId(constellationType, svId, GnssBand.GNSS_L1);
+    }
+
+    /**
+     * Get a unique string for the SV including the constellation and the band.
+     *
+     * @param constellationType Gnss Constellation type
+     * @param svId Gnss Sv Identifier
+     * @param carrierFrequencyHz Carrier Frequency for Sv in Hz
+     */
+    public static String getUniqueSvStringId(int constellationType, int svId,
+        float carrierFrequencyHz) {
+        return getUniqueSvStringId(constellationType, svId,
+            frequencyToGnssBand(carrierFrequencyHz));
+    }
+
+    private static String getUniqueSvStringId(int constellationType, int svId, GnssBand gnssBand) {
+        return gnssBand.toString() + "." + constellationType + "." + svId;
+    }
+
     /**
      * Assert all mandatory fields in Gnss Navigation Message are in expected range.
      * See mandatory fields in {@code gps.h}.
@@ -737,6 +782,37 @@ public final class TestMeasurementUtil {
         softAssert.assertAll();
     }
 
+    /**
+     * Asserts presence of CarrierFrequency and the values are in expected range.
+     * As per CDD 7.3.3 / C-3-3 Year 2107+ should have Carrier Frequency present
+     * As of 2018, per http://www.navipedia.net/index.php/GNSS_signal, all known GNSS bands
+     * lie within 2 frequency ranges [1100-1300] & [1500-1700].
+     *
+     * @param softAssert custom SoftAssert
+     * @param testLocationManager TestLocationManager
+     * @param hasCarrierFrequency Whether carrierFrequency is present
+     * @param carrierFrequencyHz Value of carrier frequency in Hz if hasCarrierFrequency is true.
+     *                              It is ignored when hasCarrierFrequency is false.
+     */
+    public static void verifyGnssCarrierFrequency(SoftAssert softAssert,
+        TestLocationManager testLocationManager,
+        boolean hasCarrierFrequency, float carrierFrequencyHz) {
+        // Enforcing CarrierFrequencyHz  check only for year 2018+
+        if (testLocationManager.getLocationManager().getGnssYearOfHardware() >= YEAR_2018) {
+            softAssert.assertTrue("Measurement has Carrier Frequency: " + hasCarrierFrequency,
+                hasCarrierFrequency);
+        }
+
+        if (hasCarrierFrequency) {
+            float frequencyMhz = carrierFrequencyHz/1e6F;
+            softAssert.assertTrue("carrier_frequency_mhz: Carrier frequency in Mhz",
+                "1100 < X < 1300 || 1500 < X < 1700",
+                String.valueOf(frequencyMhz),
+                (frequencyMhz > 1100.0 && frequencyMhz < 1300.0) ||
+                    (frequencyMhz > 1500.0 && frequencyMhz < 1700.0));
+        }
+    }
+
     private static String getGnssNavMessageTypes() {
         StringBuilder typesStr = new StringBuilder();
         for (int type : GNSS_NAVIGATION_MESSAGE_TYPE) {
@@ -745,5 +821,26 @@ public final class TestMeasurementUtil {
         }
 
         return typesStr.length() > 2 ? typesStr.substring(0, typesStr.length() - 2) : "";
+    }
+
+    /**
+     * The band information is as of 2018, per http://www.navipedia.net/index.php/GNSS_signal
+     * Bands are combined for simplicity as the constellation is also tracked.
+     *
+     * @param frequencyHz Frequency in Hz
+     * @return GnssBand where the frequency lies.
+     */
+    private static GnssBand frequencyToGnssBand(float frequencyHz) {
+        float frequencyMhz = frequencyHz/1e6F;
+        if (frequencyMhz >= 1151 && frequencyMhz <= 1214) {
+            return GnssBand.GNSS_L5;
+        }
+        if (frequencyMhz > 1214 && frequencyMhz <= 1255) {
+            return GnssBand.GNSS_L2;
+        }
+        if (frequencyMhz > 1255 && frequencyMhz <= 1300) {
+            return GnssBand.GNSS_E6;
+        }
+        return GnssBand.GNSS_L1; // default to L1 band
     }
 }

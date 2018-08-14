@@ -26,6 +26,7 @@ import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.cts.testcases.Camera2SurfaceViewTestCase;
 import android.hardware.camera2.params.StreamConfigurationMap;
 import android.media.Image;
+import android.platform.test.annotations.AppModeFull;
 import android.util.Log;
 import android.util.Range;
 import android.util.Size;
@@ -33,6 +34,7 @@ import android.util.Size;
 import java.util.List;
 import java.util.ArrayList;
 
+@AppModeFull
 public class BurstCaptureTest extends Camera2SurfaceViewTestCase {
     private static final String TAG = "BurstCaptureTest";
     private static final boolean VERBOSE = Log.isLoggable(TAG, Log.VERBOSE);
@@ -75,7 +77,7 @@ public class BurstCaptureTest extends Camera2SurfaceViewTestCase {
     private void yuvBurstTestByCamera(String cameraId) throws Exception {
         // Parameters
         final int MAX_CONVERGENCE_FRAMES = 150; // 5 sec at 30fps
-        final long MAX_PREVIEW_RESULT_TIMEOUT_MS = 1000;
+        final long MAX_PREVIEW_RESULT_TIMEOUT_MS = 2000;
         final int BURST_SIZE = 100;
         final float FRAME_DURATION_MARGIN_FRACTION = 0.1f;
 

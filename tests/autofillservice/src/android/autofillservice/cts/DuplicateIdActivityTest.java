@@ -18,11 +18,11 @@ package android.autofillservice.cts;
 
 import static android.autofillservice.cts.CannedFillResponse.NO_RESPONSE;
 import static android.autofillservice.cts.DuplicateIdActivity.DUPLICATE_ID;
-import static android.autofillservice.cts.Helper.runShellCommand;
-import static android.autofillservice.cts.InstrumentedAutoFillService.waitUntilConnected;
-import static android.autofillservice.cts.InstrumentedAutoFillService.waitUntilDisconnected;
+import static android.autofillservice.cts.common.ShellHelper.runShellCommand;
 
 import static com.google.common.truth.Truth.assertThat;
+
+import static org.junit.Assume.assumeTrue;
 
 import android.app.assist.AssistStructure;
 import android.util.Log;
@@ -33,10 +33,6 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 
-/**
- * This is the test case covering most scenarios - other test cases will cover characteristics
- * specific to that test's activity (for example, custom views).
- */
 public class DuplicateIdActivityTest extends AutoFillServiceTestCase {
     private static final String LOG_TAG = DuplicateIdActivityTest.class.getSimpleName();
     @Rule
@@ -46,9 +42,9 @@ public class DuplicateIdActivityTest extends AutoFillServiceTestCase {
     private DuplicateIdActivity mActivity;
 
     @Before
-    public void setup() {
-        Helper.disableAutoRotation(sUiBot);
-        sUiBot.setScreenOrientation(0);
+    public void setup() throws Exception {
+        Helper.disableAutoRotation(mUiBot);
+        mUiBot.setScreenOrientation(0);
 
         mActivity = mActivityRule.getActivity();
     }
@@ -79,6 +75,8 @@ public class DuplicateIdActivityTest extends AutoFillServiceTestCase {
 
     @Test
     public void testDoNotRestoreDuplicateAutofillIds() throws Exception {
+        assumeTrue("Rotation is supported", Helper.isRotationSupported(mContext));
+
         enableService();
 
         sReplier.addResponse(new CannedFillResponse.Builder()
@@ -91,14 +89,14 @@ public class DuplicateIdActivityTest extends AutoFillServiceTestCase {
         // Select field to start autofill
         runShellCommand("input keyevent KEYCODE_TAB");
 
-        waitUntilConnected();
-        InstrumentedAutoFillService.FillRequest request = sReplier.getNextFillRequest();
+        final InstrumentedAutoFillService.FillRequest request1 = sReplier.getNextFillRequest();
+        Log.v(LOG_TAG, "request1: " + request1);
 
-        AssistStructure.ViewNode[] views = findViews(request);
-        AssistStructure.ViewNode view1 = views[0];
-        AssistStructure.ViewNode view2 = views[1];
-        AutofillId id1 = view1.getAutofillId();
-        AutofillId id2 = view2.getAutofillId();
+        final AssistStructure.ViewNode[] views1 = findViews(request1);
+        final AssistStructure.ViewNode view1 = views1[0];
+        final AssistStructure.ViewNode view2 = views1[1];
+        final AutofillId id1 = view1.getAutofillId();
+        final AutofillId id2 = view2.getAutofillId();
 
         Log.i(LOG_TAG, "view1=" + id1);
         Log.i(LOG_TAG, "view2=" + id2);
@@ -109,37 +107,44 @@ public class DuplicateIdActivityTest extends AutoFillServiceTestCase {
         // They got different autofill ids though
         assertThat(id1).isNotEqualTo(id2);
 
+        // Because service returned a null response, rotation will trigger another request.
         sReplier.addResponse(NO_RESPONSE);
-
         // Force rotation to force onDestroy->onCreate cycle
-        sUiBot.setScreenOrientation(1);
+        mUiBot.setScreenOrientation(1);
+        // Wait context and Views being recreated in rotation
+        mUiBot.assertShownByRelativeId(DUPLICATE_ID);
+        // Ignore 2nd request.
+        final InstrumentedAutoFillService.FillRequest request2 = sReplier.getNextFillRequest();
+        Log.v(LOG_TAG, "request2: " + request2);
 
-        // Select other field to trigger new partition
+        // Select other field to trigger new partition (because server didn't return 2nd field
+        // on 1st response)
+        sReplier.addResponse(NO_RESPONSE);
         runShellCommand("input keyevent KEYCODE_TAB");
 
-        request = sReplier.getNextFillRequest();
-
-        views = findViews(request);
-        AutofillId recreatedId1 = views[0].getAutofillId();
-        AutofillId recreatedId2 = views[1].getAutofillId();
+        final InstrumentedAutoFillService.FillRequest request3 = sReplier.getNextFillRequest();
+        Log.v(LOG_TAG, "request3: " + request3);
+        final AssistStructure.ViewNode[] views2 = findViews(request3);
+        final AssistStructure.ViewNode recreatedView1 = views2[0];
+        final AssistStructure.ViewNode recreatedView2 = views2[1];
+        final AutofillId recreatedId1 = recreatedView1.getAutofillId();
+        final AutofillId recreatedId2 = recreatedView2.getAutofillId();
 
         Log.i(LOG_TAG, "restored view1=" + recreatedId1);
         Log.i(LOG_TAG, "restored view2=" + recreatedId2);
 
         // For the restoring logic the two views are the same. Hence it might happen that the first
-        // view is restored with the id of the second view or the other way round.
+        // view is restored with the autofill id of the second view or the other way round.
         // We just need
         // - to restore as many views as we can (i.e. one)
         // - make sure the autofill ids are still unique after
-        boolean view1WasRestored = (recreatedId1.equals(id1) || recreatedId1.equals(id2));
-        boolean view2WasRestored = (recreatedId2.equals(id1) || recreatedId2.equals(id2));
+        final boolean view1WasRestored = (recreatedId1.equals(id1) || recreatedId1.equals(id2));
+        final boolean view2WasRestored = (recreatedId2.equals(id1) || recreatedId2.equals(id2));
 
         // One id was restored
         assertThat(view1WasRestored || view2WasRestored).isTrue();
 
         // The views still have different autofill ids
         assertThat(recreatedId1).isNotEqualTo(recreatedId2);
-
-        waitUntilDisconnected();
     }
 }

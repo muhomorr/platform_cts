@@ -39,7 +39,8 @@ def main():
         its.caps.skip_unless(its.caps.raw16(props) and
                              its.caps.manual_sensor(props) and
                              its.caps.read_3a(props) and
-                             its.caps.per_frame_control(props))
+                             its.caps.per_frame_control(props) and
+                             not its.caps.mono_camera(props))
         debug = its.caps.debug_mode()
 
         # Expose for the scene with min sensitivity
@@ -62,10 +63,10 @@ def main():
             caps = cam.do_capture(reqs, cam.CAP_RAW)
         else:
             # Get the active array width and height.
-            aax = props["android.sensor.info.activeArraySize"]["left"]
-            aay = props["android.sensor.info.activeArraySize"]["top"]
-            aaw = props["android.sensor.info.activeArraySize"]["right"]-aax
-            aah = props["android.sensor.info.activeArraySize"]["bottom"]-aay
+            aax = props["android.sensor.info.preCorrectionActiveArraySize"]["left"]
+            aay = props["android.sensor.info.preCorrectionActiveArraySize"]["top"]
+            aaw = props["android.sensor.info.preCorrectionActiveArraySize"]["right"]-aax
+            aah = props["android.sensor.info.preCorrectionActiveArraySize"]["bottom"]-aay
             # Compute stats on a grid across each image.
             caps = cam.do_capture(reqs,
                                   {"format": "rawStats",

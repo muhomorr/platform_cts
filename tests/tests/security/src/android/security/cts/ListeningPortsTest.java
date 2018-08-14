@@ -67,6 +67,10 @@ public class ListeningPortsTest extends AndroidTestCase {
         EXCEPTION_PATTERNS.add(":: 1020");          // used by remote control
         //no current patterns involve address, port and UID combinations
         //Example for when necessary: EXCEPTION_PATTERNS.add("0.0.0.0:5555 10000")
+
+        // IPv6 exceptions
+        // TODO: this is not standard notation for IPv6. Use [$addr]:$port instead as per RFC 3986.
+        EXCEPTION_PATTERNS.add(":::5555");          // emulator port for adb
     }
 
     /**
@@ -101,9 +105,11 @@ public class ListeningPortsTest extends AndroidTestCase {
      * unauthorized access to computers systems without user knowledge or
      * awareness.
      */
+    /* Disabling this test due to ims_rtp_daemon listening on a random UDP6 port per b/110264058.
     public void testNoRemotelyAccessibleListeningUdp6Ports() throws Exception {
         assertNoRemotelyAccessibleListeningUdpPorts("/proc/net/udp6", false);
     }
+    */
 
     /**
      * Locally accessible ports are often targeted by malicious locally

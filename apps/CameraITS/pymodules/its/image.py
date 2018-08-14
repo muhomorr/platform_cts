@@ -151,7 +151,7 @@ def unpack_raw10_image(img):
     lsbs = img[::, 4::5].reshape(h,w/4)
     lsbs = numpy.right_shift(
             numpy.packbits(numpy.unpackbits(lsbs).reshape(h,w/4,4,2),3), 6)
-    # Pair the LSB bits group to pixel 0 instead of pixel 3
+    # Pair the LSB bits group to 0th pixel instead of 3rd pixel
     lsbs = lsbs.reshape(h,w/4,4)[:,:,::-1]
     lsbs = lsbs.reshape(h,w)
     # Fuse the MSBs and LSBs back together
@@ -267,8 +267,8 @@ def convert_capture_to_planes(cap, props=None):
                             buffer=cap["data"][0:w*h*2])
         img = img.astype(numpy.float32).reshape(h,w) / white_level
         # Crop the raw image to the active array region.
-        if props.has_key("android.sensor.info.activeArraySize") \
-                and props["android.sensor.info.activeArraySize"] is not None \
+        if props.has_key("android.sensor.info.preCorrectionActiveArraySize") \
+                and props["android.sensor.info.preCorrectionActiveArraySize"] is not None \
                 and props.has_key("android.sensor.info.pixelArraySize") \
                 and props["android.sensor.info.pixelArraySize"] is not None:
             # Note that the Rect class is defined such that the left,top values
@@ -277,10 +277,10 @@ def convert_capture_to_planes(cap, props=None):
             # computed as right-left, rather than right-left+1, etc.
             wfull = props["android.sensor.info.pixelArraySize"]["width"]
             hfull = props["android.sensor.info.pixelArraySize"]["height"]
-            xcrop = props["android.sensor.info.activeArraySize"]["left"]
-            ycrop = props["android.sensor.info.activeArraySize"]["top"]
-            wcrop = props["android.sensor.info.activeArraySize"]["right"]-xcrop
-            hcrop = props["android.sensor.info.activeArraySize"]["bottom"]-ycrop
+            xcrop = props["android.sensor.info.preCorrectionActiveArraySize"]["left"]
+            ycrop = props["android.sensor.info.preCorrectionActiveArraySize"]["top"]
+            wcrop = props["android.sensor.info.preCorrectionActiveArraySize"]["right"]-xcrop
+            hcrop = props["android.sensor.info.preCorrectionActiveArraySize"]["bottom"]-ycrop
             assert(wfull >= wcrop >= 0)
             assert(hfull >= hcrop >= 0)
             assert(wfull - wcrop >= xcrop >= 0)
@@ -414,7 +414,7 @@ def convert_raw_to_rgb_image(r_plane, gr_plane, gb_plane, b_plane,
     return img
 
 
-def get_black_level(chan, props, cap_res):
+def get_black_level(chan, props, cap_res=None):
     """Return the black level to use for a given capture.
 
     Uses a dynamic value from the capture result if available, else falls back
@@ -428,7 +428,7 @@ def get_black_level(chan, props, cap_res):
     Returns:
         The black level value for the specified channel.
     """
-    if (cap_res.has_key('android.sensor.dynamicBlackLevel') and
+    if (cap_res is not None and cap_res.has_key('android.sensor.dynamicBlackLevel') and
             cap_res['android.sensor.dynamicBlackLevel'] is not None):
         black_levels = cap_res['android.sensor.dynamicBlackLevel']
     else:
@@ -646,7 +646,10 @@ def get_image_patch(img, xnorm, ynorm, wnorm, hnorm):
     ytile = int(math.ceil(ynorm * hfull))
     wtile = int(math.floor(wnorm * wfull))
     htile = int(math.floor(hnorm * hfull))
-    return img[ytile:ytile+htile,xtile:xtile+wtile,:].copy()
+    if len(img.shape)==2:
+        return img[ytile:ytile+htile,xtile:xtile+wtile].copy()
+    else:
+        return img[ytile:ytile+htile,xtile:xtile+wtile,:].copy()
 
 
 def compute_image_means(img):
@@ -695,6 +698,22 @@ def compute_image_snrs(img):
     std_devs = [math.sqrt(v) for v in variances]
     snr = [20 * math.log10(m/s) for m,s in zip(means, std_devs)]
     return snr
+
+
+def compute_image_max_gradients(img):
+    """Calculate the maximum gradient of each color channel in the image.
+
+    Args:
+        img: Numpy float image array, with pixel values in [0,1].
+
+    Returns:
+        A list of gradient max values, one per color channel in the image.
+    """
+    grads = []
+    chans = img.shape[2]
+    for i in xrange(chans):
+        grads.append(numpy.amax(numpy.gradient(img[:, :, i])))
+    return grads
 
 
 def write_image(img, fname, apply_gamma=False):
@@ -780,6 +799,7 @@ def compute_image_sharpness(img):
     [gy, gx] = numpy.gradient(luma)
     return numpy.average(numpy.sqrt(gy*gy + gx*gx))
 
+
 def normalize_img(img):
     """Normalize the image values to between 0 and 1.
 
@@ -790,20 +810,38 @@ def normalize_img(img):
     """
     return (img - numpy.amin(img))/(numpy.amax(img) - numpy.amin(img))
 
-def flip_mirror_img_per_argv(img):
-    """Flip/mirror an image if "flip" or "mirror" is in argv
+
+def chart_located_per_argv():
+    """Determine if chart already located outside of test.
+
+    If chart info provided, return location and size. If not, return None.
+
+    Args:
+        None
+    Returns:
+        chart_loc:  float converted xnorm,ynorm,wnorm,hnorm,scale from argv text.
+                    argv is of form 'chart_loc=0.45,0.45,0.1,0.1,1.0'
+    """
+    for s in sys.argv[1:]:
+        if s[:10] == "chart_loc=" and len(s) > 10:
+            chart_loc = s[10:].split(",")
+            return map(float, chart_loc)
+    return None, None, None, None, None
+
+
+def rotate_img_per_argv(img):
+    """Rotate an image 180 degrees if "rotate" is in argv
 
     Args:
         img: 2-D numpy array of image values
     Returns:
-        Flip/mirrored image
+        Rotated image
     """
     img_out = img
-    if "flip" in sys.argv:
-        img_out = numpy.flipud(img_out)
-    if "mirror" in sys.argv:
-        img_out = numpy.fliplr(img_out)
+    if "rotate180" in sys.argv:
+        img_out = numpy.fliplr(numpy.flipud(img_out))
     return img_out
+
 
 def stationary_lens_cap(cam, req, fmt):
     """Take up to NUM_TRYS caps and save the 1st one with lens stationary.
@@ -828,6 +866,7 @@ def stationary_lens_cap(cam, req, fmt):
         if trys == NUM_TRYS:
             raise its.error.Error('Cannot settle lens after %d trys!' % trys)
     return cap[NUM_FRAMES-1]
+
 
 class __UnitTest(unittest.TestCase):
     """Run a suite of unit tests on this module.

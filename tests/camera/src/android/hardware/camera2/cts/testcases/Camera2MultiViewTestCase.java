@@ -64,15 +64,14 @@ public class Camera2MultiViewTestCase extends
     private static final String TAG = "MultiViewTestCase";
     private static final boolean VERBOSE = Log.isLoggable(TAG, Log.VERBOSE);
 
-
     private static final long SHORT_SLEEP_WAIT_TIME_MS = 100;
 
-    protected TextureView[] mTextureView = new TextureView[2];
+    protected TextureView[] mTextureView =
+            new TextureView[Camera2MultiViewCtsActivity.MAX_TEXTURE_VIEWS];
     protected String[] mCameraIds;
     protected Handler mHandler;
 
     private CameraManager mCameraManager;
-    private BlockingStateCallback mCameraListener;
     private HandlerThread mHandlerThread;
     private Context mContext;
 
@@ -97,10 +96,10 @@ public class Camera2MultiViewTestCase extends
         mHandlerThread = new HandlerThread(TAG);
         mHandlerThread.start();
         mHandler = new Handler(mHandlerThread.getLooper());
-        mCameraListener = new BlockingStateCallback();
         Camera2MultiViewCtsActivity activity = (Camera2MultiViewCtsActivity) mContext;
-        mTextureView[0] = activity.getTextureView(0);
-        mTextureView[1] = activity.getTextureView(1);
+        for (int i = 0; i < Camera2MultiViewCtsActivity.MAX_TEXTURE_VIEWS; i++) {
+            mTextureView[i] = activity.getTextureView(i);
+        }
         assertNotNull("Unable to get texture view", mTextureView);
         mCameraIdMap = new HashMap<String, Integer>();
         int numCameras = mCameraIds.length;
@@ -114,9 +113,16 @@ public class Camera2MultiViewTestCase extends
 
     @Override
     protected void tearDown() throws Exception {
+        String[] cameraIdsPostTest = mCameraManager.getCameraIdList();
+        assertNotNull("Camera ids shouldn't be null", cameraIdsPostTest);
+        Log.i(TAG, "Camera ids in setup:" + Arrays.toString(mCameraIds));
+        Log.i(TAG, "Camera ids in tearDown:" + Arrays.toString(cameraIdsPostTest));
+        assertTrue(
+                "Number of cameras changed from " + mCameraIds.length + " to " +
+                cameraIdsPostTest.length,
+                mCameraIds.length == cameraIdsPostTest.length);
         mHandlerThread.quitSafely();
         mHandler = null;
-        mCameraListener = null;
         for (CameraHolder camera : mCameraHolders) {
             if (camera.isOpened()) {
                 camera.close();
@@ -246,13 +252,13 @@ public class Camera2MultiViewTestCase extends
         camera.startPreview(outputSurfaces, listener);
     }
 
-    protected void startPreviewWithConfigs(String cameraId,
+    protected int startPreviewWithConfigs(String cameraId,
             List<OutputConfiguration> outputConfigs,
             CaptureCallback listener)
             throws Exception {
         CameraHolder camera = getCameraHolder(cameraId);
         assertTrue("Camera " + cameraId + " is not openned", camera.isOpened());
-        camera.startPreviewWithConfigs(outputConfigs, listener);
+        return camera.startPreviewWithConfigs(outputConfigs, listener);
     }
 
     protected void stopPreview(String cameraId) throws Exception {
@@ -261,11 +267,39 @@ public class Camera2MultiViewTestCase extends
         camera.stopPreview();
     }
 
-    protected void updateOutputConfigs(String cameraId, List<OutputConfiguration> configs,
+    protected void finalizeOutputConfigs(String cameraId, List<OutputConfiguration> configs,
             CaptureCallback listener) throws Exception {
         CameraHolder camera = getCameraHolder(cameraId);
         assertTrue("Camera " + cameraId + " is not opened", camera.isOpened());
-        camera.updateOutputConfigs(configs, listener);
+        camera.finalizeOutputConfigs(configs, listener);
+    }
+
+    protected int updateRepeatingRequest(String cameraId, List<OutputConfiguration> configs,
+            CaptureCallback listener) throws Exception {
+        CameraHolder camera = getCameraHolder(cameraId);
+        assertTrue("Camera " + cameraId + " is not opened", camera.isOpened());
+        return camera.updateRepeatingRequest(configs, listener);
+    }
+
+    protected void updateOutputConfiguration(String cameraId, OutputConfiguration config)
+            throws Exception {
+        CameraHolder camera = getCameraHolder(cameraId);
+        assertTrue("Camera " + cameraId + " is not opened", camera.isOpened());
+        camera.updateOutputConfiguration(config);
+    }
+
+    protected void capture(String cameraId, CaptureRequest request, CaptureCallback listener)
+            throws Exception {
+        CameraHolder camera = getCameraHolder(cameraId);
+        assertTrue("Camera " + cameraId + " is not opened", camera.isOpened());
+        camera.capture(request, listener);
+    }
+
+    protected CaptureRequest.Builder getCaptureBuilder(String cameraId, int templateId)
+            throws Exception {
+        CameraHolder camera = getCameraHolder(cameraId);
+        assertTrue("Camera " + cameraId + " is not opened", camera.isOpened());
+        return camera.getCaptureBuilder(templateId);
     }
 
     protected StaticMetadata getStaticInfo(String cameraId) {
@@ -374,6 +408,8 @@ public class Camera2MultiViewTestCase extends
     // Per device fields
     private class CameraHolder {
         private String mCameraId;
+        private CameraStateListener mCameraStateListener;
+        private BlockingStateCallback mBlockingStateListener;
         private CameraCaptureSession mSession;
         private CameraDevice mCamera;
         private StaticMetadata mStaticInfo;
@@ -382,6 +418,7 @@ public class Camera2MultiViewTestCase extends
 
         public CameraHolder(String id){
             mCameraId = id;
+            mCameraStateListener = new CameraStateListener();
         }
 
         public StaticMetadata getStaticInfo() {
@@ -392,10 +429,34 @@ public class Camera2MultiViewTestCase extends
             return mOrderedPreviewSizes;
         }
 
+        class CameraStateListener extends CameraDevice.StateCallback {
+            boolean mDisconnected = false;
+
+            @Override
+            public void onOpened(CameraDevice camera) {
+            }
+
+            @Override
+            public void onDisconnected(CameraDevice camera) {
+                synchronized(this) {
+                    mDisconnected = true;
+                }
+            }
+
+            @Override
+            public void onError(CameraDevice camera, int error) {
+            }
+
+            public synchronized boolean isDisconnected() {
+                return mDisconnected;
+            }
+        }
+
         public void open() throws Exception {
             assertNull("Camera is already opened", mCamera);
+            mBlockingStateListener = new BlockingStateCallback(mCameraStateListener);
             mCamera = (new BlockingCameraManager(mCameraManager)).openCamera(
-                    mCameraId, mCameraListener, mHandler);
+                    mCameraId, mBlockingStateListener, mHandler);
             mStaticInfo = new StaticMetadata(mCameraManager.getCameraCharacteristics(mCameraId),
                     CheckLevel.ASSERT, /*collector*/null);
             if (mStaticInfo.isColorOutputSupported()) {
@@ -407,7 +468,7 @@ public class Camera2MultiViewTestCase extends
         }
 
         public boolean isOpened() {
-            return (mCamera != null);
+            return (mCamera != null && !mCameraStateListener.isDisconnected());
         }
 
         public void close() throws Exception {
@@ -415,17 +476,21 @@ public class Camera2MultiViewTestCase extends
                 return;
             }
             mCamera.close();
-            mCameraListener.waitForState(STATE_CLOSED, CAMERA_CLOSE_TIMEOUT_MS);
+            mBlockingStateListener.waitForState(STATE_CLOSED, CAMERA_CLOSE_TIMEOUT_MS);
             mCamera = null;
             mSession = null;
             mStaticInfo = null;
             mOrderedPreviewSizes = null;
+            mBlockingStateListener = null;
         }
 
         public void startPreview(List<Surface> outputSurfaces, CaptureCallback listener)
                 throws Exception {
             mSessionListener = new BlockingSessionCallback();
             mSession = configureCameraSession(mCamera, outputSurfaces, mSessionListener, mHandler);
+            if (outputSurfaces.isEmpty()) {
+                return;
+            }
 
             // TODO: vary the different settings like crop region to cover more cases.
             CaptureRequest.Builder captureBuilder =
@@ -457,7 +522,7 @@ public class Camera2MultiViewTestCase extends
                     state == BlockingSessionCallback.SESSION_CONFIGURE_FAILED);
         }
 
-        public void startPreviewWithConfigs(List<OutputConfiguration> outputConfigs,
+        public int startPreviewWithConfigs(List<OutputConfiguration> outputConfigs,
                 CaptureCallback listener)
                 throws Exception {
             createSessionWithConfigs(outputConfigs);
@@ -470,13 +535,11 @@ public class Camera2MultiViewTestCase extends
                     captureBuilder.addTarget(surface);
                 }
             }
-            mSession.setRepeatingRequest(captureBuilder.build(), listener, mHandler);
+            return mSession.setRepeatingRequest(captureBuilder.build(), listener, mHandler);
         }
 
-        public void updateOutputConfigs(List<OutputConfiguration> configs,
+        public int updateRepeatingRequest(List<OutputConfiguration> configs,
                 CaptureCallback listener) throws Exception {
-            mSession.finalizeOutputConfigurations(configs);
-
             CaptureRequest.Builder captureBuilder =
                     mCamera.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
 
@@ -485,7 +548,26 @@ public class Camera2MultiViewTestCase extends
                     captureBuilder.addTarget(surface);
                 }
             }
-            mSession.setRepeatingRequest(captureBuilder.build(), listener, mHandler);
+            return mSession.setRepeatingRequest(captureBuilder.build(), listener, mHandler);
+        }
+
+        public void updateOutputConfiguration(OutputConfiguration config) throws Exception {
+            mSession.updateOutputConfiguration(config);
+        }
+
+        public void capture(CaptureRequest request, CaptureCallback listener)
+                throws Exception {
+            mSession.capture(request, listener, mHandler);
+        }
+
+        public CaptureRequest.Builder getCaptureBuilder(int templateId) throws Exception {
+            return mCamera.createCaptureRequest(templateId);
+        }
+
+        public void finalizeOutputConfigs(List<OutputConfiguration> configs,
+                CaptureCallback listener) throws Exception {
+            mSession.finalizeOutputConfigurations(configs);
+            updateRepeatingRequest(configs, listener);
         }
 
         public boolean isPreviewStarted() {
@@ -495,6 +577,9 @@ public class Camera2MultiViewTestCase extends
         public void stopPreview() throws Exception {
             if (VERBOSE) Log.v(TAG,
                     "Stopping camera " + mCameraId +" preview and waiting for idle");
+            if (!isOpened()) {
+                return;
+            }
             // Stop repeat, wait for captures to complete, and disconnect from surfaces
             mSession.close();
             mSessionListener.getStateWaiter().waitForState(

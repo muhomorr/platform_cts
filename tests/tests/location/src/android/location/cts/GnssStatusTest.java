@@ -77,7 +77,7 @@ public class GnssStatusTest extends GnssTestCase  {
    * @param status, GnssStatus
    * @param softAssert, customized assert class.
    */
-  public static void validateGnssStatus(GnssStatus status, SoftAssert softAssert) {
+  private void validateGnssStatus(GnssStatus status, SoftAssert softAssert) {
     int sCount = status.getSatelliteCount();
     Log.i(TAG, "Total satellite:" + sCount);
     // total number of satellites for all constellation is less than 200
@@ -87,16 +87,12 @@ public class GnssStatusTest extends GnssTestCase  {
           "0.0 <= X <= 360.0",
           String.valueOf(status.getAzimuthDegrees(i)),
           status.getAzimuthDegrees(i) >= 0.0 && status.getAzimuthDegrees(i) <= 360.0);
-
-      if (status.hasCarrierFrequencyHz(i)) {
-        softAssert.assertTrue("carrier_frequency_hz: Carrier frequency in hz",
-            "X > 0.0",
-            String.valueOf(status.getCarrierFrequencyHz(i)),
-            status.getCarrierFrequencyHz(i) > 0.0);
-      }
+      TestMeasurementUtil.verifyGnssCarrierFrequency(softAssert, mTestLocationManager,
+          status.hasCarrierFrequencyHz(i),
+          status.hasCarrierFrequencyHz(i) ? status.getCarrierFrequencyHz(i) : 0F);
 
       softAssert.assertTrue("c_n0_dbhz: Carrier-to-noise density",
-          "0.0 >= X <= 63",
+          "0.0 <= X <= 63",
           String.valueOf(status.getCn0DbHz(i)),
           status.getCn0DbHz(i) >= 0.0 &&
               status.getCn0DbHz(i) <= 63.0);
@@ -111,7 +107,7 @@ public class GnssStatusTest extends GnssTestCase  {
       TestMeasurementUtil.validateSvidSub(softAssert, null,
           status.getConstellationType(i),status.getSvid(i));
 
-      // For those function with boolean type return, just simplly call the function
+      // For those function with boolean type return, just simply call the function
       // to make sure those function won't crash, also increase the test coverage.
       Log.i(TAG, "hasAlmanacData: " + status.hasAlmanacData(i));
       Log.i(TAG, "hasEphemerisData: " + status.hasEphemerisData(i));
