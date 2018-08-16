@@ -20,6 +20,7 @@ import static android.autofillservice.cts.Helper.NOT_SHOWING_TIMEOUT_MS;
 import static android.autofillservice.cts.Helper.SAVE_TIMEOUT_MS;
 import static android.autofillservice.cts.Helper.UI_RECENTS_SWITCH_TIMEOUT_MS;
 import static android.autofillservice.cts.Helper.UI_TIMEOUT_MS;
+import static android.autofillservice.cts.Helper.runShellCommand;
 import static android.service.autofill.SaveInfo.SAVE_DATA_TYPE_ADDRESS;
 import static android.service.autofill.SaveInfo.SAVE_DATA_TYPE_CREDIT_CARD;
 import static android.service.autofill.SaveInfo.SAVE_DATA_TYPE_EMAIL_ADDRESS;
@@ -42,6 +43,7 @@ import android.support.test.uiautomator.By;
 import android.support.test.uiautomator.BySelector;
 import android.support.test.uiautomator.UiDevice;
 import android.support.test.uiautomator.UiObject2;
+import android.support.test.uiautomator.Until;
 import android.text.Html;
 import android.util.Log;
 import android.view.accessibility.AccessibilityWindowInfo;
@@ -257,6 +259,22 @@ final class UiBot {
         final UiObject2 obj = waitForObject(By.res(mPackageName, id));
         assertThat(obj).isNotNull();
         return obj;
+    }
+
+    /**
+     * Asserts the id is not shown on the screen anymore, using a resource id from the test package.
+     *
+     * <p><b>Note:</b> this method should only called AFTER the id was previously shown, otherwise
+     * it might pass without really asserting anything.
+     */
+    void assertGoneByRelativeId(String id, long timeoutMs) throws IOException {
+        boolean gone = mDevice.wait(Until.gone(By.res(mPackageName, id)), timeoutMs);
+        if (!gone) {
+            final String message = "Object with id '" + id + "' should be gone after "
+                    + timeoutMs + " ms";
+            dumpScreen();
+            throw new RetryableException(message);
+        }
     }
 
     /**
@@ -675,5 +693,28 @@ final class UiBot {
      */
     public void dumpScreen() throws IOException {
         mDevice.dumpWindowHierarchy(System.out);
+    }
+
+    /**
+     * Sets screen resolution.
+     *
+     * <p>If the screen is too small and the devices shows an IME, it might not have space for all
+     * UI elements after the device is rotated to landscape.
+     *
+     * <p>{@link #resetScreenResolution()} should always be called too.
+     */
+    void setScreenResolution() {
+        assumeMinimumResolution(500);
+
+        runShellCommand("wm size 1080x1920");
+        runShellCommand("wm density 420");
+    }
+
+    /**
+     * Resets screen resolution.
+     */
+    void resetScreenResolution() {
+        runShellCommand("wm density reset");
+        runShellCommand("wm size reset");
     }
 }
