@@ -442,6 +442,8 @@ public class SystemFeaturesTest extends InstrumentationTestCase {
     /**
      * Check that the {@link TelephonyManager#getPhoneType()} matches the reported features.
      */
+
+    @CddTest(requirement="7.4.1/C-1-1")
     public void testTelephonyFeatures() {
         if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
             return;
@@ -466,6 +468,7 @@ public class SystemFeaturesTest extends InstrumentationTestCase {
         }
     }
 
+    @CddTest(requirement="7.2.4/C-1-2,C-3-1")
     public void testTouchScreenFeatures() {
         ConfigurationInfo configInfo = mActivityManager.getDeviceConfigurationInfo();
         if (configInfo.reqTouchScreen != Configuration.TOUCHSCREEN_NOTOUCH) {
