@@ -13,41 +13,29 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package android.security.cts;
 
 import android.platform.test.annotations.SecurityTest;
+import java.util.concurrent.TimeUnit;
 
 @SecurityTest
-public class Poc16_04 extends SecurityTestCase {
+public class Poc17_06 extends SecurityTestCase {
 
     /**
-     * b/26323455
+     * b/36392138
      */
     @SecurityTest
-    public void testPocCVE_2016_2419() throws Exception {
+    public void testPocCVE_2017_0647() throws Exception {
+        AdbUtils.pushResource("/CVE-2017-0647.zip", "/data/local/tmp/CVE-2017-0647.zip",
+                getDevice());
         AdbUtils.runCommandLine("logcat -c" , getDevice());
-        AdbUtils.runPoc("CVE-2016-2419", getDevice(), 60);
-        String logcat = AdbUtils.runCommandLine("logcat -d", getDevice());
-        assertNotMatches("[\\s\\n\\S]*IOMX_InfoLeak b26323455[\\s\\n\\S]*", logcat);
-    }
-
-    /**
-    *  b/26324307
-    */
-    @SecurityTest
-    public void testPocCVE_2016_0844() throws Exception {
-        AdbUtils.runPoc("CVE-2016-0844", getDevice(), 60);
-    }
-
-    /**
-     * b/26593930
-     */
-    @SecurityTest
-    public void testPocCVE_2016_2412() throws Exception {
-        AdbUtils.runCommandLine("logcat -c" , getDevice());
-        AdbUtils.runPoc("CVE-2016-2412", getDevice(), 60);
+        AdbUtils.runCommandLine(
+            "dex2oat " +
+            "--dex-file=/data/local/tmp/CVE-2017-0647.zip " +
+            "--oat-file=/data/local/tmp/out " +
+            "--base=0x50000000", getDevice());
         String logcatOut = AdbUtils.runCommandLine("logcat -d", getDevice());
-        assertNotMatchesMultiLine("Fatal signal[\\s\\S]*>>> system_server <<<",
-            logcatOut);
+        assertNotMatchesMultiLine("Zip: missed a central dir sig", logcatOut);
     }
 }
