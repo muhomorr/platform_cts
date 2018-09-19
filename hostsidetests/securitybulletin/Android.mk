@@ -1,4 +1,4 @@
-# Copyright (C) 2011 The Android Open Source Project
+# Copyright (C) 2014 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,25 +12,28 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-LOCAL_PATH:= $(call my-dir)
+LOCAL_PATH := $(call my-dir)
 
 include $(CLEAR_VARS)
 
-LOCAL_PACKAGE_NAME := CtsNdefTestCases
-
-# Don't include this package in any target.
-LOCAL_MODULE_TAGS := optional
-
-# When built, explicitly put it in the data partition.
-LOCAL_MODULE_PATH := $(TARGET_OUT_DATA_APPS)
-
-LOCAL_STATIC_JAVA_LIBRARIES := ctstestrunner compatibility-device-util
-
 LOCAL_SRC_FILES := $(call all-java-files-under, src)
 
-LOCAL_SDK_VERSION := current
+LOCAL_JAVA_RESOURCE_DIRS := res
 
-# Tag this module as a cts test artifact
-LOCAL_COMPATIBILITY_SUITE := cts vts general-tests
+LOCAL_MODULE_TAGS := optional
 
-include $(BUILD_CTS_PACKAGE)
+# tag this module as a cts test artifact
+LOCAL_COMPATIBILITY_SUITE := cts
+
+# Must match the package name in CtsTestCaseList.mk
+LOCAL_MODULE := CtsSecurityBulletinHostTestCases
+
+LOCAL_MODULE_CLASS := JAVA_LIBRARIES
+
+LOCAL_JAVA_LIBRARIES := cts-tradefed tradefed compatibility-host-util
+
+LOCAL_CTS_TEST_PACKAGE := android.host.security
+
+include $(BUILD_CTS_HOST_JAVA_LIBRARY)
+
+include $(call all-makefiles-under,$(LOCAL_PATH))
