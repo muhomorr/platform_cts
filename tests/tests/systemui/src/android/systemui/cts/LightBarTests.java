@@ -42,8 +42,7 @@ import org.junit.runner.RunWith;
 /**
  * Test for light status bar.
  *
- * mmma cts/tests/tests/systemui
- * cts-tradefed run commandAndExit cts-dev --module CtsSystemUiTestCases --test android.systemui.cts.LightBarTests --disable-reboot --skip-device-info --skip-all-system-status-check --skip-preconditions
+ * atest CtsSystemUiTestCases:LightBarTests
  */
 @RunWith(AndroidJUnit4.class)
 public class LightBarTests extends LightBarTestBase {
@@ -69,25 +68,13 @@ public class LightBarTests extends LightBarTestBase {
 
     @Test
     public void testLightStatusBarIcons() throws Throwable {
+        assumeHasColoredStatusBar();
+
         mNm = (NotificationManager) getInstrumentation().getContext()
                 .getSystemService(Context.NOTIFICATION_SERVICE);
         NotificationChannel channel1 = new NotificationChannel(NOTIFICATION_CHANNEL_ID,
                 NOTIFICATION_CHANNEL_ID, NotificationManager.IMPORTANCE_LOW);
         mNm.createNotificationChannel(channel1);
-
-        PackageManager pm = getInstrumentation().getContext().getPackageManager();
-        if (pm.hasSystemFeature(PackageManager.FEATURE_WATCH)
-                || pm.hasSystemFeature(PackageManager.FEATURE_TELEVISION)
-                || pm.hasSystemFeature(PackageManager.FEATURE_LEANBACK)
-                || isRunningInVR()) {
-            // No status bar on TVs, watches and when running in VR.
-            return;
-        }
-
-        if (!ActivityManager.isHighEndGfx()) {
-            // non-highEndGfx devices don't do colored system bars.
-            return;
-        }
 
         // post 10 notifications to ensure enough icons in the status bar
         for (int i = 0; i < 10; i++) {
@@ -152,25 +139,7 @@ public class LightBarTests extends LightBarTestBase {
 
     @Test
     public void testLightNavigationBar() throws Throwable {
-        PackageManager pm = getInstrumentation().getContext().getPackageManager();
-        if (pm.hasSystemFeature(PackageManager.FEATURE_WATCH)
-                || pm.hasSystemFeature(PackageManager.FEATURE_TELEVISION)
-                || pm.hasSystemFeature(PackageManager.FEATURE_LEANBACK)
-                || pm.hasSystemFeature(PackageManager.FEATURE_AUTOMOTIVE)) {
-            // No navigation bar on TVs and watches.
-            // Car navigation is not transparent.
-            return;
-        }
-
-        if (!ActivityManager.isHighEndGfx()) {
-            // non-highEndGfx devices don't do colored system bars.
-            return;
-        }
-
-        if (!hasVirtualNavigationBar()) {
-            // No virtual navigation bar, so no effect.
-            return;
-        }
+        assumeHasColorNavigationBar();
 
         requestLightBars(Color.RED /* background */);
         Thread.sleep(WAIT_TIME);
@@ -229,14 +198,6 @@ public class LightBarTests extends LightBarTestBase {
         }
     }
 
-    private boolean isRunningInVR() {
-        final android.content.Context context =
-            android.support.test.InstrumentationRegistry.getContext();
-        android.content.res.Configuration config = context.getResources().getConfiguration();
-        return (config.uiMode & android.content.res.Configuration.UI_MODE_TYPE_MASK)
-        == android.content.res.Configuration.UI_MODE_TYPE_VR_HEADSET;
-    }
-
     private void assertMoreThan(String what, float expected, float actual, String hint) {
         if (!(actual > expected)) {
             fail(what + ": expected more than " + expected * 100 + "%, but only got " + actual * 100
@@ -292,6 +253,15 @@ public class LightBarTests extends LightBarTestBase {
 
         int mixedIconColor = mixSrcOver(background, iconColor);
         int mixedIconPartialColor = mixSrcOver(background, iconPartialColor);
+        float [] hsvMixedIconColor = new float[3];
+        float [] hsvMixedPartialColor = new float[3];
+        Color.RGBToHSV(Color.red(mixedIconColor), Color.green(mixedIconColor),
+                Color.blue(mixedIconColor), hsvMixedIconColor);
+        Color.RGBToHSV(Color.red(mixedIconPartialColor), Color.green(mixedIconPartialColor),
+                Color.blue(mixedIconPartialColor), hsvMixedPartialColor);
+
+        float maxHsvValue = Math.max(hsvMixedIconColor[2], hsvMixedPartialColor[2]);
+        float minHsvValue = Math.min(hsvMixedIconColor[2], hsvMixedPartialColor[2]);
 
         int[] pixels = new int[bitmap.getHeight() * bitmap.getWidth()];
         bitmap.getPixels(pixels, 0, bitmap.getWidth(), 0, 0, bitmap.getWidth(), bitmap.getHeight());
@@ -299,6 +269,7 @@ public class LightBarTests extends LightBarTestBase {
         Stats s = new Stats();
         float eps = 0.005f;
 
+        float [] hsvPixel = new float[3];
         for (int c : pixels) {
             if (isColorSame(c, background)) {
                 s.backgroundPixels++;
@@ -306,7 +277,9 @@ public class LightBarTests extends LightBarTestBase {
             }
 
             // What we expect the icons to be colored according to the spec.
-            if (isColorSame(c, mixedIconColor) || isColorSame(c, mixedIconPartialColor)) {
+            Color.RGBToHSV(Color.red(c), Color.green(c), Color.blue(c), hsvPixel);
+            if (isColorSame(c, mixedIconColor) || isColorSame(c, mixedIconPartialColor)
+                    || (hsvPixel[2] >= minHsvValue && hsvPixel[2] <= maxHsvValue)) {
                 s.iconPixels++;
                 continue;
             }
