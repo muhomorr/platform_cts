@@ -27,9 +27,10 @@ import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.graphics.Bitmap;
 import android.support.test.InstrumentationRegistry;
+import android.support.test.rule.ActivityTestRule;
 import android.util.Log;
-import android.view.KeyCharacterMap;
 import android.view.KeyEvent;
+import android.view.WindowInsets;
 
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -71,10 +72,13 @@ public class LightBarTestBase {
         }
     }
 
-    private boolean hasVirtualNavigationBar() {
-        boolean hasBackKey = KeyCharacterMap.deviceHasKey(KeyEvent.KEYCODE_BACK);
-        boolean hasHomeKey = KeyCharacterMap.deviceHasKey(KeyEvent.KEYCODE_HOME);
-        return !hasBackKey || !hasHomeKey;
+    private boolean hasVirtualNavigationBar(ActivityTestRule<? extends LightBarBaseActivity> rule)
+            throws Throwable {
+        final WindowInsets[] inset = new WindowInsets[1];
+        rule.runOnUiThread(()-> {
+            inset[0] = rule.getActivity().getRootWindowInsets();
+        });
+        return inset[0].getStableInsetBottom() > 0;
     }
 
     private boolean isRunningInVr() {
@@ -101,18 +105,26 @@ public class LightBarTestBase {
         assumeTrue(ActivityManager.isHighEndGfx());
     }
 
-    protected void assumeHasColoredStatusBar() {
+    protected void assumeHasColoredStatusBar(ActivityTestRule<? extends LightBarBaseActivity> rule)
+            throws Throwable {
         assumeBasics();
 
         // No status bar when running in Vr
         assumeFalse(isRunningInVr());
+
+        final WindowInsets[] inset = new WindowInsets[1];
+        rule.runOnUiThread(()-> {
+            inset[0] = rule.getActivity().getRootWindowInsets();
+        });
+        assumeTrue("Top stable inset is non-positive.", inset[0].getStableInsetTop() > 0);
     }
 
-    protected void assumeHasColorNavigationBar() {
+    protected void assumeHasColorNavigationBar (
+            ActivityTestRule<? extends LightBarBaseActivity> rule) throws Throwable {
         assumeBasics();
 
         // No virtual navigation bar, so no effect.
-        assumeTrue(hasVirtualNavigationBar());
+        assumeTrue(hasVirtualNavigationBar(rule));
     }
 
     protected void checkNavigationBarDivider(LightBarBaseActivity activity, int dividerColor) {

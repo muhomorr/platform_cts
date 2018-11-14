@@ -55,6 +55,7 @@ import junit.framework.AssertionFailedError;
 /**
  * Test for checking that the {@link PackageManager} is reporting the correct features.
  */
+@CddTest(requirement="7/C-0-7")
 public class SystemFeaturesTest extends InstrumentationTestCase {
 
     private Context mContext;
@@ -297,6 +298,7 @@ public class SystemFeaturesTest extends InstrumentationTestCase {
      * Check that the sensor features reported by the PackageManager correspond to the sensors
      * returned by {@link SensorManager#getSensorList(int)}.
      */
+    @CddTest(requirement="7.3/C-0-1,C-0-2,C-0-3")
     public void testSensorFeatures() throws Exception {
         Set<String> featuresLeft = getFeatureConstantsNames("FEATURE_SENSOR_");
 
