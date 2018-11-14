@@ -68,7 +68,7 @@ public class LightBarTests extends LightBarTestBase {
 
     @Test
     public void testLightStatusBarIcons() throws Throwable {
-        assumeHasColoredStatusBar();
+        assumeHasColoredStatusBar(mActivityRule);
 
         mNm = (NotificationManager) getInstrumentation().getContext()
                 .getSystemService(Context.NOTIFICATION_SERVICE);
@@ -139,7 +139,7 @@ public class LightBarTests extends LightBarTestBase {
 
     @Test
     public void testLightNavigationBar() throws Throwable {
-        assumeHasColorNavigationBar();
+        assumeHasColorNavigationBar(mActivityRule);
 
         requestLightBars(Color.RED /* background */);
         Thread.sleep(WAIT_TIME);
