@@ -53,7 +53,6 @@ LOCAL_JAVA_LIBRARIES += telephony-common
 LOCAL_JAVA_LIBRARIES += android.test.runner.stubs
 LOCAL_JAVA_LIBRARIES += android.test.base.stubs
 LOCAL_JAVA_LIBRARIES += android.test.mock.stubs
-LOCAL_JAVA_LIBRARIES += bouncycastle
 LOCAL_JAVA_LIBRARIES += voip-common
 
 LOCAL_PACKAGE_NAME := CtsVerifier
@@ -82,6 +81,7 @@ endef
 LOCAL_MODULE := cts-verifier-framework
 LOCAL_AAPT_FLAGS := --auto-add-overlay --extra-packages android.support.v4
 LOCAL_SDK_VERSION := current
+LOCAL_MIN_SDK_VERSION := 19
 LOCAL_RESOURCE_DIR := $(LOCAL_PATH)/res
 LOCAL_SRC_FILES := \
     $(call java-files-in, src/com/android/cts/verifier) \
@@ -89,7 +89,7 @@ LOCAL_SRC_FILES := \
 
 LOCAL_STATIC_JAVA_LIBRARIES := androidx.legacy_legacy-support-v4 \
                                compatibility-common-util-devicesidelib \
-                               compatibility-device-util \
+                               compatibility-device-util
 
 include $(BUILD_STATIC_JAVA_LIBRARY)
 

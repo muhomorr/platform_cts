@@ -138,7 +138,6 @@
     <protected-broadcast android:name="android.bluetooth.device.action.MAS_INSTANCE" />
     <protected-broadcast android:name="android.bluetooth.device.action.ALIAS_CHANGED" />
     <protected-broadcast android:name="android.bluetooth.device.action.FOUND" />
-    <protected-broadcast android:name="android.bluetooth.device.action.DISAPPEARED" />
     <protected-broadcast android:name="android.bluetooth.device.action.CLASS_CHANGED" />
     <protected-broadcast android:name="android.bluetooth.device.action.ACL_CONNECTED" />
     <protected-broadcast android:name="android.bluetooth.device.action.ACL_DISCONNECT_REQUESTED" />
@@ -1830,6 +1829,15 @@
     <permission
       android:name="android.permission.BIND_VISUAL_VOICEMAIL_SERVICE"
       android:protectionLevel="signature|privileged"/>
+
+    <!-- Must be required by a {@link android.telecom.PhoneAccountSuggestionService},
+         to ensure that only the system can bind to it.
+         <p>Protection level: signature|privileged
+         @SystemApi
+         @hide
+    -->
+    <permission android:name="android.permission.BIND_PHONE_ACCOUNT_SUGGESTION_SERVICE"
+        android:protectionLevel="signature|privileged" />
 
     <!-- Must be required by a {@link android.telecom.CallScreeningService},
          to ensure that only the system can bind to it.

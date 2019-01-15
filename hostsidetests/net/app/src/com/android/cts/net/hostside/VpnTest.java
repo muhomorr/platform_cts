@@ -16,6 +16,7 @@
 
 package com.android.cts.net.hostside;
 
+import static android.os.Process.INVALID_UID;
 import static android.system.OsConstants.*;
 
 import android.content.Intent;
@@ -29,6 +30,7 @@ import android.net.NetworkRequest;
 import android.net.VpnService;
 import android.os.ParcelFileDescriptor;
 import android.os.Process;
+import android.os.SystemProperties;
 import android.support.test.uiautomator.UiDevice;
 import android.support.test.uiautomator.UiObject;
 import android.support.test.uiautomator.UiObjectNotFoundException;
@@ -36,6 +38,7 @@ import android.support.test.uiautomator.UiScrollable;
 import android.support.test.uiautomator.UiSelector;
 import android.system.ErrnoException;
 import android.system.Os;
+import android.system.OsConstants;
 import android.system.StructPollfd;
 import android.test.InstrumentationTestCase;
 import android.test.MoreAsserts;
@@ -353,7 +356,7 @@ public class VpnTest extends InstrumentationTestCase {
         MoreAsserts.assertEquals(data, read);
     }
 
-    private static void checkTcpReflection(String to, String expectedFrom) throws IOException {
+    private void checkTcpReflection(String to, String expectedFrom) throws IOException {
         // Exercise TCP over the VPN by "connecting to ourselves". We open a server socket and a
         // client socket, and connect the client socket to a remote host, with the port of the
         // server socket. The PacketReflector reflects the packets, changing the source addresses
@@ -391,7 +394,8 @@ public class VpnTest extends InstrumentationTestCase {
             // Accept the connection on the server side.
             listen.setSoTimeout(SOCKET_TIMEOUT_MS);
             server = listen.accept();
-
+            checkConnectionOwnerUidTcp(client);
+            checkConnectionOwnerUidTcp(server);
             // Check that the source and peer addresses are as expected.
             assertEquals(expectedFrom, client.getLocalAddress().getHostAddress());
             assertEquals(expectedFrom, server.getLocalAddress().getHostAddress());
@@ -424,7 +428,23 @@ public class VpnTest extends InstrumentationTestCase {
         }
     }
 
-    private static void checkUdpEcho(String to, String expectedFrom) throws IOException {
+    private void checkConnectionOwnerUidUdp(DatagramSocket s, boolean expectSuccess) {
+        final int expectedUid = expectSuccess ? Process.myUid() : INVALID_UID;
+        InetSocketAddress loc = new InetSocketAddress(s.getLocalAddress(), s.getLocalPort());
+        InetSocketAddress rem = new InetSocketAddress(s.getInetAddress(), s.getPort());
+        int uid = mCM.getConnectionOwnerUid(OsConstants.IPPROTO_UDP, loc, rem);
+        assertEquals(expectedUid, uid);
+    }
+
+    private void checkConnectionOwnerUidTcp(Socket s) {
+        final int expectedUid = Process.myUid();
+        InetSocketAddress loc = new InetSocketAddress(s.getLocalAddress(), s.getLocalPort());
+        InetSocketAddress rem = new InetSocketAddress(s.getInetAddress(), s.getPort());
+        int uid = mCM.getConnectionOwnerUid(OsConstants.IPPROTO_TCP, loc, rem);
+        assertEquals(expectedUid, uid);
+    }
+
+    private void checkUdpEcho(String to, String expectedFrom) throws IOException {
         DatagramSocket s;
         InetAddress address = InetAddress.getByName(to);
         if (address instanceof Inet6Address) {  // http://b/18094870
@@ -448,6 +468,7 @@ public class VpnTest extends InstrumentationTestCase {
         try {
             if (expectedFrom != null) {
                 s.send(p);
+                checkConnectionOwnerUidUdp(s, true);
                 s.receive(p);
                 MoreAsserts.assertEquals(data, p.getData());
             } else {
@@ -455,7 +476,9 @@ public class VpnTest extends InstrumentationTestCase {
                     s.send(p);
                     s.receive(p);
                     fail("Received unexpected reply");
-                } catch(IOException expected) {}
+                } catch (IOException expected) {
+                    checkConnectionOwnerUidUdp(s, false);
+                }
             }
         } finally {
             s.close();
@@ -537,6 +560,14 @@ public class VpnTest extends InstrumentationTestCase {
 
     public void testDefault() throws Exception {
         if (!supportedHardware()) return;
+        // If adb TCP port opened, this test may running by adb over network.
+        // All of socket would be destroyed in this test. So this test don't
+        // support adb over network, see b/119382723.
+        if (SystemProperties.getInt("persist.adb.tcp.port", -1) > -1
+                || SystemProperties.getInt("service.adb.tcp.port", -1) > -1) {
+            Log.i(TAG, "adb is running over the network, so skip this test");
+            return;
+        }
 
         FileDescriptor fd = openSocketFdInOtherApp(TEST_HOST, 80, TIMEOUT_MS);
 
@@ -554,6 +585,7 @@ public class VpnTest extends InstrumentationTestCase {
 
         FileDescriptor fd = openSocketFdInOtherApp(TEST_HOST, 80, TIMEOUT_MS);
 
+        // Shell app must not be put in here or it would kill the ADB-over-network use case
         String allowedApps = mRemoteSocketFactoryClient.getPackageName() + "," + mPackageName;
         startVpn(new String[] {"192.0.2.2/32", "2001:db8:1:2::ffe/128"},
                  new String[] {"192.0.2.0/24", "2001:db8::/32"},
@@ -571,6 +603,12 @@ public class VpnTest extends InstrumentationTestCase {
         FileDescriptor remoteFd = openSocketFdInOtherApp(TEST_HOST, 80, TIMEOUT_MS);
 
         String disallowedApps = mRemoteSocketFactoryClient.getPackageName() + "," + mPackageName;
+        // If adb TCP port opened, this test may running by adb over TCP.
+        // Add com.android.shell appllication into blacklist to exclude adb socket for VPN test,
+        // see b/119382723.
+        // Note: The test don't support running adb over network for root device
+        disallowedApps = disallowedApps + ",com.android.shell";
+        Log.i(TAG, "Append shell app to disallowedApps: " + disallowedApps);
         startVpn(new String[] {"192.0.2.2/32", "2001:db8:1:2::ffe/128"},
                  new String[] {"192.0.2.0/24", "2001:db8::/32"},
                  "", disallowedApps);
@@ -579,5 +617,24 @@ public class VpnTest extends InstrumentationTestCase {
         assertSocketStillOpen(remoteFd, TEST_HOST);
 
         checkNoTrafficOnVpn();
+    }
+
+    public void testGetConnectionOwnerUidSecurity() throws Exception {
+
+        if (!supportedHardware()) return;
+
+        DatagramSocket s;
+        InetAddress address = InetAddress.getByName("localhost");
+        s = new DatagramSocket();
+        s.setSoTimeout(SOCKET_TIMEOUT_MS);
+        s.connect(address, 7);
+        InetSocketAddress loc = new InetSocketAddress(s.getLocalAddress(), s.getLocalPort());
+        InetSocketAddress rem = new InetSocketAddress(s.getInetAddress(), s.getPort());
+        try {
+            int uid = mCM.getConnectionOwnerUid(OsConstants.IPPROTO_TCP, loc, rem);
+            fail("Only an active VPN app may call this API.");
+        } catch (SecurityException expected) {
+            return;
+        }
     }
 }

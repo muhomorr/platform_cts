@@ -43,6 +43,8 @@ import android.os.Build;
 import android.telephony.TelephonyManager;
 import android.test.InstrumentationTestCase;
 
+import com.android.compatibility.common.util.PropertyUtil;
+
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -278,6 +280,30 @@ public class SystemFeaturesTest extends InstrumentationTestCase {
         }
     }
 
+    public void testOffHostCardEmulationFeatures() {
+        NfcAdapter nfcAdapter = NfcAdapter.getDefaultAdapter(mContext);
+        if (nfcAdapter != null) {
+            List<String> offHostSE = nfcAdapter.getSupportedOffHostSecureElements();
+            if (mPackageManager.hasSystemFeature(
+                    PackageManager.FEATURE_NFC_OFF_HOST_CARD_EMULATION_UICC)) {
+                assertTrue(offHostSE.contains("SIM"));
+            } else {
+                assertFalse(offHostSE.contains("SIM"));
+            }
+
+            if (mPackageManager.hasSystemFeature(
+                    PackageManager.FEATURE_NFC_OFF_HOST_CARD_EMULATION_ESE)) {
+                assertTrue(offHostSE.contains("eSE"));
+            } else {
+                assertFalse(offHostSE.contains("eSE"));
+            }
+        } else {
+            assertNotAvailable(PackageManager.FEATURE_NFC);
+            assertNotAvailable(PackageManager.FEATURE_NFC_OFF_HOST_CARD_EMULATION_UICC);
+            assertNotAvailable(PackageManager.FEATURE_NFC_OFF_HOST_CARD_EMULATION_ESE);
+        }
+    }
+
     public void testNfcFeatures() {
         if (NfcAdapter.getDefaultAdapter(mContext) != null) {
             // Watches MAY support all FEATURE_NFC features when an NfcAdapter is available, but
@@ -495,6 +521,7 @@ public class SystemFeaturesTest extends InstrumentationTestCase {
                 !mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEVISION) &&
                 !mPackageManager.hasSystemFeature(PackageManager.FEATURE_WATCH) &&
                 !mPackageManager.hasSystemFeature(PackageManager.FEATURE_EMBEDDED) &&
+                !isAndroidEmulator() &&
                 !mPackageManager.hasSystemFeature(PackageManager.FEATURE_PC)) {
             // USB accessory mode is only a requirement for devices with USB ports supporting
             // peripheral mode. As there is no public API to distinguish a device with only host
@@ -504,7 +531,7 @@ public class SystemFeaturesTest extends InstrumentationTestCase {
         }
     }
 
-  public void testWifiFeature() throws Exception {
+    public void testWifiFeature() throws Exception {
         if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_WIFI)) {
             // no WiFi, skip the test
             return;
@@ -516,6 +543,13 @@ public class SystemFeaturesTest extends InstrumentationTestCase {
 
         } finally {
             mWifiManager.setWifiEnabled(enabled);
+        }
+    }
+
+    public void testAudioOutputFeature() throws Exception {
+        if (mPackageManager.hasSystemFeature(PackageManager.FEATURE_AUTOMOTIVE) ||
+                mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEVISION)) {
+            assertAvailable(PackageManager.FEATURE_AUDIO_OUTPUT);
         }
     }
 
@@ -541,6 +575,10 @@ public class SystemFeaturesTest extends InstrumentationTestCase {
             throw new AssertionFailedError("Must support at least one of " + feature1 + " or " +
                 feature2);
         }
+    }
+
+    private boolean isAndroidEmulator() {
+        return PropertyUtil.propertyEquals("ro.kernel.qemu", "1");
     }
 
     private void assertFeature(boolean exist, String feature) {

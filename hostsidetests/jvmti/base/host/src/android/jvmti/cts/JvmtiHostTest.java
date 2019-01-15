@@ -65,6 +65,7 @@ public class JvmtiHostTest extends DeviceTestCase implements IBuildReceiver, IAb
 
     private CompatibilityBuildHelper mBuildHelper;
     private IAbi mAbi;
+    private int mCurrentUser;
 
     @Override
     public void setBuild(IBuildInfo arg0) {
@@ -74,6 +75,11 @@ public class JvmtiHostTest extends DeviceTestCase implements IBuildReceiver, IAb
     @Override
     public void setAbi(IAbi arg0) {
         mAbi = arg0;
+    }
+
+    @Override
+    protected void setUp() throws Exception {
+        mCurrentUser = getDevice().getCurrentUser();
     }
 
     public void testJvmti() throws Exception {
@@ -104,13 +110,10 @@ public class JvmtiHostTest extends DeviceTestCase implements IBuildReceiver, IAb
         }
         boolean disable_hidden_api =
             mHiddenApiChecksEnabled != null && "false".equals(mHiddenApiChecksEnabled);
-        String old_p_apps_setting = null;
-        String old_pre_p_apps_setting = null;
+        String old_hiddenapi_setting = null;
         if (disable_hidden_api) {
-            old_p_apps_setting = device.getSetting("global", "hidden_api_policy_p_apps");
-            old_pre_p_apps_setting = device.getSetting("global", "hidden_api_policy_pre_p_apps");
-            device.setSetting("global", "hidden_api_policy_p_apps", "1");
-            device.setSetting("global", "hidden_api_policy_pre_p_apps", "1");
+            old_hiddenapi_setting = device.getSetting("global", "hidden_api_policy");
+            device.setSetting("global", "hidden_api_policy", "1");
         }
 
         RemoteAndroidTestRunner runner = new RemoteAndroidTestRunner(mTestPackageName, RUNNER,
@@ -128,8 +131,7 @@ public class JvmtiHostTest extends DeviceTestCase implements IBuildReceiver, IAb
         assertFalse(tr.getErrors(), tr.hasFailed());
 
         if (disable_hidden_api) {
-            device.setSetting("global", "hidden_api_policy_p_apps", old_p_apps_setting);
-            device.setSetting("global", "hidden_api_policy_pre_p_apps", old_pre_p_apps_setting);
+            device.setSetting("global", "hidden_api_policy", old_hiddenapi_setting);
         }
     }
 
@@ -154,7 +156,8 @@ public class JvmtiHostTest extends DeviceTestCase implements IBuildReceiver, IAb
 
         public void prepare() {
             try {
-                String pwd = mDevice.executeShellCommand("run-as " + mPkg + " pwd");
+                String pwd = mDevice.executeShellCommand(
+                        "run-as " + mPkg + " --user " + mCurrentUser + " pwd");
                 if (pwd == null) {
                     throw new RuntimeException("pwd failed");
                 }
@@ -206,13 +209,15 @@ public class JvmtiHostTest extends DeviceTestCase implements IBuildReceiver, IAb
                 }
 
                 String runAsCp = mDevice.executeShellCommand(
-                        "run-as " + mPkg + " cp " + libInTmp + " " + libInDataData);
+                        "run-as " + mPkg + " --user " + mCurrentUser +
+                                " cp " + libInTmp + " " + libInDataData);
                 if (runAsCp != null && !runAsCp.trim().isEmpty()) {
                     throw new RuntimeException(runAsCp.trim());
                 }
 
-                String runAsChmod = mDevice
-                        .executeShellCommand("run-as " + mPkg + " chmod a+x " + libInDataData);
+                String runAsChmod = mDevice.executeShellCommand(
+                        "run-as " + mPkg + " --user " + mCurrentUser +
+                                " chmod a+x " + libInDataData);
                 if (runAsChmod != null && !runAsChmod.trim().isEmpty()) {
                     throw new RuntimeException(runAsChmod.trim());
                 }

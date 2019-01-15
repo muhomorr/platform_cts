@@ -26,7 +26,6 @@ LOCAL_MULTILIB := both
 
 LOCAL_JAVA_LIBRARIES := \
     voip-common \
-    conscrypt \
     org.apache.http.legacy \
     android.test.base.stubs \
 
@@ -46,7 +45,9 @@ LOCAL_STATIC_JAVA_LIBRARIES := \
     ctstestserver \
     mockwebserver \
     junit \
-    truth-prebuilt
+    junit-params \
+    truth-prebuilt \
+
 
 # uncomment when b/13249961 is fixed
 #LOCAL_SDK_VERSION := current

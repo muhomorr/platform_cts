@@ -55,6 +55,7 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.fail;
 import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
+import static com.android.compatibility.common.util.PackageUtil.supportsRotation;
 
 import android.content.ComponentName;
 import android.graphics.Rect;
@@ -404,14 +405,14 @@ public class ActivityManagerAppConfigurationTests extends ActivityManagerTestBas
         assumeTrue("Skipping test: no rotation support", supportsRotation());
 
         LogSeparator logSeparator = separateLogs();
-        launchActivity(PORTRAIT_ORIENTATION_ACTIVITY);
+        launchActivity(PORTRAIT_ORIENTATION_ACTIVITY, WINDOWING_MODE_FULLSCREEN);
         mAmWmState.assertVisibility(PORTRAIT_ORIENTATION_ACTIVITY, true /* visible */);
 
         assertLifecycleCounts(PORTRAIT_ORIENTATION_ACTIVITY, logSeparator, 1 /* create */,
                 1 /* start */, 1 /* resume */, 0 /* pause */, 0 /* stop */, 0 /* destroy */,
                 0 /* config */);
 
-        launchActivity(LANDSCAPE_ORIENTATION_ACTIVITY);
+        launchActivity(LANDSCAPE_ORIENTATION_ACTIVITY, WINDOWING_MODE_FULLSCREEN);
         mAmWmState.assertVisibility(LANDSCAPE_ORIENTATION_ACTIVITY, true /* visible */);
 
         assertLifecycleCounts(PORTRAIT_ORIENTATION_ACTIVITY, logSeparator, 1 /* create */,
@@ -421,7 +422,7 @@ public class ActivityManagerAppConfigurationTests extends ActivityManagerTestBas
                 1 /* start */, 1 /* resume */, 0 /* pause */, 0 /* stop */, 0 /* destroy */,
                 0 /* config */);
 
-        launchActivity(PORTRAIT_ORIENTATION_ACTIVITY);
+        launchActivity(PORTRAIT_ORIENTATION_ACTIVITY, WINDOWING_MODE_FULLSCREEN);
         mAmWmState.assertVisibility(PORTRAIT_ORIENTATION_ACTIVITY, true /* visible */);
 
         assertLifecycleCounts(PORTRAIT_ORIENTATION_ACTIVITY, logSeparator, 2 /* create */,
@@ -495,6 +496,10 @@ public class ActivityManagerAppConfigurationTests extends ActivityManagerTestBas
 
     @Test
     public void testNonFullscreenActivityPermitted() throws Exception {
+        if(!supportsRotation()) {
+            //cannot physically rotate the screen on automotive device, skip
+            return;
+        }
         try (final RotationSession rotationSession = new RotationSession()) {
             rotationSession.set(ROTATION_0);
 
@@ -526,6 +531,7 @@ public class ActivityManagerAppConfigurationTests extends ActivityManagerTestBas
         // Request portrait
         executeShellCommand(REQUEST_PORTRAIT_BROADCAST);
         mAmWmState.waitForLastOrientation(SCREEN_ORIENTATION_PORTRAIT);
+        waitForBroadcastActivityReady(SCREEN_ORIENTATION_PORTRAIT);
 
         // Finish activity
         executeShellCommand(FINISH_ACTIVITY_BROADCAST);
@@ -553,6 +559,7 @@ public class ActivityManagerAppConfigurationTests extends ActivityManagerTestBas
         launchActivityInNewTask(BROADCAST_RECEIVER_ACTIVITY);
         executeShellCommand(REQUEST_LANDSCAPE_BROADCAST);
         mAmWmState.waitForLastOrientation(SCREEN_ORIENTATION_LANDSCAPE);
+        waitForBroadcastActivityReady(SCREEN_ORIENTATION_LANDSCAPE);
         executeShellCommand(FINISH_ACTIVITY_BROADCAST);
 
         // Verify that activity brought to front is in originally requested orientation.
@@ -570,6 +577,7 @@ public class ActivityManagerAppConfigurationTests extends ActivityManagerTestBas
         launchActivityInNewTask(BROADCAST_RECEIVER_ACTIVITY);
         executeShellCommand(REQUEST_PORTRAIT_BROADCAST);
         mAmWmState.waitForLastOrientation(SCREEN_ORIENTATION_PORTRAIT);
+        waitForBroadcastActivityReady(SCREEN_ORIENTATION_PORTRAIT);
         executeShellCommand(FINISH_ACTIVITY_BROADCAST);
 
         // Verify that activity brought to front is in originally requested orientation.
@@ -694,6 +702,7 @@ public class ActivityManagerAppConfigurationTests extends ActivityManagerTestBas
         // Request portrait
         executeShellCommand(REQUEST_PORTRAIT_BROADCAST);
         mAmWmState.waitForLastOrientation(SCREEN_ORIENTATION_PORTRAIT);
+        waitForBroadcastActivityReady(SCREEN_ORIENTATION_PORTRAIT);
 
         // Finish activity
         executeShellCommand(MOVE_TASK_TO_BACK_BROADCAST);
@@ -881,6 +890,11 @@ public class ActivityManagerAppConfigurationTests extends ActivityManagerTestBas
         assertNotNull("Should be on a display", display);
 
         return display.getDisplayRect();
+    }
+
+    private void waitForBroadcastActivityReady(int orientation) {
+        mAmWmState.waitForActivityOrientation(BROADCAST_RECEIVER_ACTIVITY, orientation);
+        mAmWmState.waitForActivityState(BROADCAST_RECEIVER_ACTIVITY, STATE_RESUMED);
     }
 
     /**
