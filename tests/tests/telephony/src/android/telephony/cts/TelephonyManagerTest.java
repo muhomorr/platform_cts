@@ -40,6 +40,8 @@ import android.telecom.TelecomManager;
 import android.telephony.CellLocation;
 import android.telephony.PhoneStateListener;
 import android.telephony.ServiceState;
+import android.telephony.SubscriptionInfo;
+import android.telephony.SubscriptionManager;
 import android.telephony.TelephonyManager;
 import android.text.TextUtils;
 import android.util.Log;
@@ -196,6 +198,9 @@ public class TelephonyManagerTest {
         mTelephonyManager.getCellLocation();
         mTelephonyManager.getSimCarrierId();
         mTelephonyManager.getSimCarrierIdName();
+        mTelephonyManager.getSimPreciseCarrierId();
+        mTelephonyManager.getSimPreciseCarrierIdName();
+        mTelephonyManager.getCarrierIdFromSimMccMnc();
         mTelephonyManager.getSimSerialNumber();
         mTelephonyManager.getSimOperator();
         mTelephonyManager.getSignalStrength();
@@ -205,7 +210,6 @@ public class TelephonyManagerTest {
         mTelephonyManager.getNetworkOperator();
         mTelephonyManager.getSimCountryIso();
         mTelephonyManager.getVoiceMailAlphaTag();
-        mTelephonyManager.getNeighboringCellInfo();
         mTelephonyManager.isNetworkRoaming();
         mTelephonyManager.getDeviceId();
         mTelephonyManager.getDeviceId(mTelephonyManager.getSlotIndex());
@@ -557,10 +561,21 @@ public class TelephonyManagerTest {
             return;
         }
 
-        for (int i = 0; i < mTelephonyManager.getPhoneCount(); i++) {
-            String meid = mTelephonyManager.getMeid(i);
-            if (!TextUtils.isEmpty(meid)) {
-                assertMeidEsn(meid);
+        SubscriptionManager sm = (SubscriptionManager) getContext()
+                .getSystemService(Context.TELEPHONY_SUBSCRIPTION_SERVICE);
+        List<SubscriptionInfo> subInfos = sm.getActiveSubscriptionInfoList();
+
+        if (subInfos != null) {
+            for (SubscriptionInfo subInfo : subInfos) {
+                int slotIndex = subInfo.getSimSlotIndex();
+                int subId = subInfo.getSubscriptionId();
+                TelephonyManager tm = mTelephonyManager.createForSubscriptionId(subId);
+                if (tm.getPhoneType() == TelephonyManager.PHONE_TYPE_CDMA) {
+                    String meid = mTelephonyManager.getMeid(slotIndex);
+                    if (!TextUtils.isEmpty(meid)) {
+                        assertMeidEsn(meid);
+                    }
+                }
             }
         }
 
@@ -610,22 +625,12 @@ public class TelephonyManagerTest {
         }
 
         for(String plmn : plmns) {
-            if (plmn.length() > 6 || plmn.length() < 5) {
-                fail("Invalid Length for PLMN-ID, must be 5 or 6: " + plmn);
-            }
-
-            // A record which is written in the SIM but empty will
-            // be all f's
-            if(android.text.TextUtils.isDigitsOnly(plmn)) {
-                assertTrue(
-                        "PLMNs must be strings of digits 0-9,F! " + plmn,
-                        android.text.TextUtils.isDigitsOnly(plmn));
-            } else {
-                for (char c : plmn.toUpperCase().toCharArray()) {
-                    assertTrue("PLMNs must be strings of digits 0-9,F! " + plmn,
-                            Character.toUpperCase(c) == 'F');
-                }
-            }
+            assertTrue(
+                    "Invalid Length for PLMN-ID, must be 5 or 6! plmn=" + plmn,
+                    plmn.length() >= 5 && plmn.length() <= 6);
+            assertTrue(
+                    "PLMNs must be strings of digits 0-9! plmn=" + plmn,
+                    android.text.TextUtils.isDigitsOnly(plmn));
         }
     }
 

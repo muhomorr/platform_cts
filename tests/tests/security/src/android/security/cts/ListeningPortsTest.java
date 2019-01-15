@@ -17,9 +17,11 @@
 package android.security.cts;
 
 import android.content.pm.PackageManager;
-import android.platform.test.annotations.SecurityTest;
+import android.os.Process;
+import android.os.UserHandle;
 import android.test.AndroidTestCase;
 import android.util.Log;
+import com.android.compatibility.common.util.FeatureUtil;
 import junit.framework.AssertionFailedError;
 
 import java.io.File;
@@ -40,11 +42,12 @@ import java.util.regex.Pattern;
  * into computer systems remotely, and minimizing the number of open ports
  * is considered a security best practice.
  */
-@SecurityTest
 public class ListeningPortsTest extends AndroidTestCase {
     private static final String TAG = "ListeningPortsTest";
 
     private static final int CONN_TIMEOUT_IN_MS = 5000;
+
+    private boolean mIsTelevision;
 
     /** Ports that are allowed to be listening. */
     private static final List<String> EXCEPTION_PATTERNS = new ArrayList<String>(6);
@@ -65,12 +68,20 @@ public class ListeningPortsTest extends AndroidTestCase {
         EXCEPTION_PATTERNS.add("127.0.0.1 10000");  // used by the cast receiver
         EXCEPTION_PATTERNS.add(":: 1002");          // used by remote control
         EXCEPTION_PATTERNS.add(":: 1020");          // used by remote control
+        EXCEPTION_PATTERNS.add("0.0.0.0:7275");     // used by supl 
         //no current patterns involve address, port and UID combinations
         //Example for when necessary: EXCEPTION_PATTERNS.add("0.0.0.0:5555 10000")
 
         // IPv6 exceptions
         // TODO: this is not standard notation for IPv6. Use [$addr]:$port instead as per RFC 3986.
         EXCEPTION_PATTERNS.add(":::5555");          // emulator port for adb
+        EXCEPTION_PATTERNS.add(":::7275");          // used by supl
+    }
+
+    @Override
+    protected void setUp() throws Exception {
+        super.setUp();
+        mIsTelevision = FeatureUtil.isTV();
     }
 
     /**
@@ -219,6 +230,12 @@ public class ListeningPortsTest extends AndroidTestCase {
                     && !(isException(addrPort) || isException(addrUid) || isException(addrPortUid))
                     && (!entry.localAddress.isLoopbackAddress() ^ loopback)) {
                 if (isTcp && !isTcpConnectable(entry.localAddress, entry.port)) {
+                    continue;
+                }
+                // allow non-system processes to listen
+                int appId = UserHandle.getAppId(entry.uid);
+                if (appId >= Process.FIRST_APPLICATION_UID
+                        && appId <= Process.LAST_APPLICATION_UID) {
                     continue;
                 }
 

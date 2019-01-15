@@ -22,6 +22,7 @@ import static android.autofillservice.cts.Helper.ID_USERNAME;
 import static android.autofillservice.cts.Helper.assertTextAndValue;
 import static android.autofillservice.cts.Helper.findNodeByResourceId;
 import static android.autofillservice.cts.Helper.getContext;
+import static android.autofillservice.cts.OutOfProcessLoginActivity.getDestroyedMarker;
 import static android.autofillservice.cts.OutOfProcessLoginActivity.getStartedMarker;
 import static android.autofillservice.cts.OutOfProcessLoginActivity.getStoppedMarker;
 import static android.autofillservice.cts.UiBot.LANDSCAPE;
@@ -33,8 +34,11 @@ import static android.service.autofill.SaveInfo.SAVE_DATA_TYPE_USERNAME;
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
 
+import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
 
+import android.app.ActivityManager;
+import android.content.Context;
 import android.app.PendingIntent;
 import android.app.assist.AssistStructure;
 import android.content.Intent;
@@ -43,6 +47,7 @@ import android.os.Bundle;
 import android.os.SystemClock;
 import android.platform.test.annotations.AppModeFull;
 import android.support.test.uiautomator.UiObject2;
+import android.util.Log;
 import android.view.autofill.AutofillValue;
 
 import org.junit.After;
@@ -56,6 +61,8 @@ import java.util.concurrent.Callable;
  */
 @AppModeFull // This test requires android.permission.WRITE_EXTERNAL_STORAGE
 public class SessionLifecycleTest extends AutoFillServiceTestCase {
+    private static final String TAG = "SessionLifecycleTest";
+
     private static final String ID_BUTTON = "button";
     private static final String ID_CANCEL = "cancel";
 
@@ -101,6 +108,15 @@ public class SessionLifecycleTest extends AutoFillServiceTestCase {
         runShellCommand("am broadcast --receiver-foreground "
                 + "-n android.autofillservice.cts/.OutOfProcessLoginActivityFinisherReceiver");
         mUiBot.assertGoneByRelativeId(ID_USERNAME, Timeouts.ACTIVITY_RESURRECTION);
+
+        if (!OutOfProcessLoginActivity.hasInstance()) {
+            Log.v(TAG, "@After: Not waiting for oop activity to be destroyed");
+            return;
+        }
+        // Waiting for activity to be destroyed (destroy marker appears)
+        eventually("getDestroyedMarker()", () -> {
+            return getDestroyedMarker(getContext()).exists();
+        });
     }
 
     private void killOfProcessLoginActivityProcess() throws Exception {
@@ -135,6 +151,9 @@ public class SessionLifecycleTest extends AutoFillServiceTestCase {
     @Test
     public void testDatasetAuthResponseWhileAutofilledAppIsLifecycled() throws Exception {
         assumeTrue("Rotation is supported", Helper.isRotationSupported(mContext));
+        final ActivityManager activityManager = (ActivityManager) getContext()
+                .getSystemService(Context.ACTIVITY_SERVICE);
+        assumeFalse(activityManager.isLowRamDevice());
 
         // Set service.
         enableService();

@@ -206,7 +206,7 @@ public class AccessibilityFocusAndInputFocusSyncTest
             public void run() {
                 // Perform a set focus action and check for success.
                 assertTrue(secondEditText.performAction(ACTION_ACCESSIBILITY_FOCUS));
-                
+
             }
         }, new UiAutomation.AccessibilityEventFilter() {
             @Override

@@ -62,7 +62,6 @@ public class UiAutomationTest extends InstrumentationTestCase {
         grantWriteSecureSettingsPermission(uiAutomation);
     }
 
-    @Presubmit
     public void testWindowContentFrameStats() throws Exception {
         Activity activity = null;
         try {
@@ -77,6 +76,9 @@ public class UiAutomationTest extends InstrumentationTestCase {
             // Wait for things to settle.
             uiAutomation.waitForIdle(
                     QUIET_TIME_TO_BE_CONSIDERED_IDLE_STATE, TOTAL_TIME_TO_WAIT_FOR_IDLE_STATE);
+
+            // Wait for Activity draw finish
+            getInstrumentation().waitForIdleSync();
 
             // Find the application window.
             final int windowId = findAppWindowId(uiAutomation.getWindows());

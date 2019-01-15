@@ -25,6 +25,7 @@ import static android.net.NetworkCapabilities.TRANSPORT_CELLULAR;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -64,10 +65,44 @@ public class SubscriptionManagerTest {
     private int mSubId;
     private String mPackageName;
 
+    /**
+     * Callback used in testRegisterNetworkCallback that allows caller to block on
+     * {@code onAvailable}.
+     */
+    private static class TestNetworkCallback extends ConnectivityManager.NetworkCallback {
+        private final CountDownLatch mAvailableLatch = new CountDownLatch(1);
+
+        public void waitForAvailable() throws InterruptedException {
+            assertTrue("Cellular network did not come up after 5 seconds",
+                    mAvailableLatch.await(5, TimeUnit.SECONDS));
+        }
+
+        @Override
+        public void onAvailable(Network network) {
+            mAvailableLatch.countDown();
+        }
+    }
+
     @BeforeClass
     public static void setUpClass() throws Exception {
         InstrumentationRegistry.getInstrumentation().getUiAutomation()
                 .executeShellCommand("svc wifi disable");
+
+        final TestNetworkCallback callback = new TestNetworkCallback();
+        final ConnectivityManager cm = InstrumentationRegistry.getContext()
+                .getSystemService(ConnectivityManager.class);
+        cm.registerNetworkCallback(new NetworkRequest.Builder()
+                .addTransportType(TRANSPORT_CELLULAR)
+                .addCapability(NET_CAPABILITY_INTERNET)
+                .build(), callback);
+        try {
+            // Wait to get callback for availability of internet
+            callback.waitForAvailable();
+        } catch (InterruptedException e) {
+            fail("NetworkCallback wait was interrupted.");
+        } finally {
+            cm.unregisterNetworkCallback(callback);
+        }
     }
 
     @AfterClass
@@ -125,6 +160,13 @@ public class SubscriptionManagerTest {
         for (int i = 0; i < subList.size(); i++) {
             assertTrue(subList.get(i).getSubscriptionId() >= 0);
             assertTrue(subList.get(i).getSimSlotIndex() >= 0);
+            if (i >= 1) {
+                assertTrue(subList.get(i - 1).getSimSlotIndex()
+                        <= subList.get(i).getSimSlotIndex());
+                assertTrue(subList.get(i - 1).getSimSlotIndex() < subList.get(i).getSimSlotIndex()
+                        || subList.get(i - 1).getSubscriptionId()
+                        < subList.get(i).getSubscriptionId());
+            }
         }
     }
 
@@ -285,6 +327,32 @@ public class SubscriptionManagerTest {
                 .setDataLimit(1_000_000_000, SubscriptionPlan.LIMIT_BEHAVIOR_DISABLED)
                 .build();
         assertOverrideSuccess(older, newer);
+    }
+
+    @Test
+    public void testSubscriptionGrouping() throws Exception {
+        if (!isSupported()) return;
+
+        // Set subscription group with current sub Id. This should fail
+        // because we don't have MODIFY_PHONE_STATE or carrier privilege permission.
+        int[] subGroup = new int[] {mSubId};
+        try {
+            mSm.setSubscriptionGroup(subGroup);
+            fail();
+        } catch (SecurityException expected) {
+        }
+
+        // Getting subscriptions in group should return null as setSubscriptionGroup
+        // should fail.
+        assertNull(mSm.getSubscriptionsInGroup(mSubId));
+
+        // Remove from subscription group with current sub Id. This should fail
+        // because we don't have MODIFY_PHONE_STATE or carrier privilege permission.
+        try {
+            mSm.removeSubscriptionsFromGroup(subGroup);
+            fail();
+        } catch (SecurityException expected) {
+        }
     }
 
     private void assertOverrideSuccess(SubscriptionPlan... plans) {

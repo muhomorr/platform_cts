@@ -28,7 +28,9 @@ import android.os.Handler;
 import android.os.Looper;
 import android.os.Parcel;
 import android.os.ParcelFileDescriptor;
+import android.os.Process;
 import android.os.SystemClock;
+import android.os.UserManager;
 import android.support.test.InstrumentationRegistry;
 import android.telecom.PhoneAccount;
 import android.telecom.PhoneAccountHandle;
@@ -66,9 +68,12 @@ public class TestUtils {
     public static final String SELF_MANAGED_COMPONENT =
             "android.telecom.cts.CtsSelfManagedConnectionService";
     public static final String REMOTE_COMPONENT = "android.telecom.cts.CtsRemoteConnectionService";
-    public static final String ACCOUNT_ID = "xtstest_CALL_PROVIDER_ID";
+    public static final String ACCOUNT_ID_1 = "xtstest_CALL_PROVIDER_ID";
+    public static final String ACCOUNT_ID_2 = "xtstest_CALL_PROVIDER_ID";
     public static final PhoneAccountHandle TEST_PHONE_ACCOUNT_HANDLE =
-            new PhoneAccountHandle(new ComponentName(PACKAGE, COMPONENT), ACCOUNT_ID);
+            new PhoneAccountHandle(new ComponentName(PACKAGE, COMPONENT), ACCOUNT_ID_1);
+    public static final PhoneAccountHandle TEST_PHONE_ACCOUNT_HANDLE_2 =
+            new PhoneAccountHandle(new ComponentName(PACKAGE, COMPONENT), ACCOUNT_ID_2);
     public static final PhoneAccountHandle TEST_HANDOVER_SRC_PHONE_ACCOUNT_HANDLE =
             new PhoneAccountHandle(new ComponentName(PACKAGE, COMPONENT), "handoverFrom");
     public static final PhoneAccountHandle TEST_HANDOVER_DEST_PHONE_ACCOUNT_HANDLE =
@@ -102,6 +107,21 @@ public class TestUtils {
             .addSupportedUriScheme(PhoneAccount.SCHEME_TEL)
             .addSupportedUriScheme(PhoneAccount.SCHEME_VOICEMAIL)
             .build();
+
+    public static final PhoneAccount TEST_PHONE_ACCOUNT_2 = PhoneAccount.builder(
+            TEST_PHONE_ACCOUNT_HANDLE_2, ACCOUNT_LABEL + "2")
+            .setAddress(Uri.parse("tel:555-TEST2"))
+            .setSubscriptionAddress(Uri.parse("tel:555-TEST2"))
+            .setCapabilities(PhoneAccount.CAPABILITY_CALL_PROVIDER |
+                    PhoneAccount.CAPABILITY_VIDEO_CALLING |
+                    PhoneAccount.CAPABILITY_RTT |
+                    PhoneAccount.CAPABILITY_CONNECTION_MANAGER)
+            .setHighlightColor(Color.BLUE)
+            .setShortDescription(ACCOUNT_LABEL)
+            .addSupportedUriScheme(PhoneAccount.SCHEME_TEL)
+            .addSupportedUriScheme(PhoneAccount.SCHEME_VOICEMAIL)
+            .build();
+
     private static final Bundle SUPPORTS_HANDOVER_FROM_EXTRAS = new Bundle();
     private static final Bundle SUPPORTS_HANDOVER_TO_EXTRAS = new Bundle();
     static {
@@ -177,13 +197,15 @@ public class TestUtils {
 
     private static final String COMMAND_ENABLE = "telecom set-phone-account-enabled ";
 
+    private static final String COMMAND_SET_ACCT_SUGGESTION =
+            "telecom set-phone-acct-suggestion-component ";
+
     private static final String COMMAND_REGISTER_SIM = "telecom register-sim-phone-account ";
 
     private static final String COMMAND_WAIT_ON_HANDLERS = "telecom wait-on-handlers";
 
     public static final String MERGE_CALLER_NAME = "calls-merged";
     public static final String SWAP_CALLER_NAME = "calls-swapped";
-    private static final String PRIMARY_USER_SN = "0";
 
     public static boolean shouldTestTelecom(Context context) {
         if (!HAS_TELECOM) {
@@ -199,6 +221,13 @@ public class TestUtils {
         return executeShellCommand(instrumentation, COMMAND_SET_DEFAULT_DIALER + packageName);
     }
 
+    public static String setCtsPhoneAccountSuggestionService(Instrumentation instrumentation,
+            ComponentName componentName) throws Exception {
+        return executeShellCommand(instrumentation,
+                COMMAND_SET_ACCT_SUGGESTION
+                        + (componentName == null ? "" : componentName.flattenToString()));
+    }
+
     public static String getDefaultDialer(Instrumentation instrumentation) throws Exception {
         return executeShellCommand(instrumentation, COMMAND_GET_DEFAULT_DIALER);
     }
@@ -210,17 +239,19 @@ public class TestUtils {
     public static void enablePhoneAccount(Instrumentation instrumentation,
             PhoneAccountHandle handle) throws Exception {
         final ComponentName component = handle.getComponentName();
+        final long currentUserSerial = getCurrentUserSerialNumber(instrumentation);
         executeShellCommand(instrumentation, COMMAND_ENABLE
                 + component.getPackageName() + "/" + component.getClassName() + " "
-                + handle.getId() + " " + PRIMARY_USER_SN);
+                + handle.getId() + " " + currentUserSerial);
     }
 
     public static void registerSimPhoneAccount(Instrumentation instrumentation,
             PhoneAccountHandle handle, String label, String address) throws Exception {
         final ComponentName component = handle.getComponentName();
+        final long currentUserSerial = getCurrentUserSerialNumber(instrumentation);
         executeShellCommand(instrumentation, COMMAND_REGISTER_SIM
                 + component.getPackageName() + "/" + component.getClassName() + " "
-                + handle.getId() + " " + PRIMARY_USER_SN + " " + label + " " + address);
+                + handle.getId() + " " + currentUserSerial + " " + label + " " + address);
     }
 
     public static void waitOnAllHandlers(Instrumentation instrumentation) throws Exception {
@@ -509,5 +540,11 @@ public class TestUtils {
                 }
             }
         }
+    }
+
+    private static long getCurrentUserSerialNumber(Instrumentation instrumentation) {
+        UserManager userManager =
+                instrumentation.getContext().getSystemService(UserManager.class);
+        return userManager.getSerialNumberForUser(Process.myUserHandle());
     }
 }

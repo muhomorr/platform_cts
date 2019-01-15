@@ -183,6 +183,10 @@
         \n\n\"Bluetooth LE Insecure Server Test\" x \"Bluetooth LE Insecure Client Test\"
         \n\n\"Bluetooth LE Secure Client Test\" x \"Bluetooth LE Secure Server Test\"
         \n\n\"Bluetooth LE Secure Server Test\" x \"Bluetooth LE Secure Client Test\"
+        \n\n\"Bluetooth LE CoC Insecure Server Test\" x \"Bluetooth LE CoC Insecure Client Test\"
+        \n\n\"Bluetooth LE CoC Insecure Client Test\" x \"Bluetooth LE CoC Insecure Server Test\"
+        \n\n\"Bluetooth LE CoC Secure Server Test\" x \"Bluetooth LE CoC Secure Client Test\"
+        \n\n\"Bluetooth LE CoC Secure Client Test\" x \"Bluetooth LE CoC Secure Server Test\"
         \n\nThe Device Communication tests require two
         devices to pair and exchange messages. The two devices must be:
         \n\n1. a candidate device implementation running the software build to be tested
@@ -193,6 +197,7 @@
     <string name="bt_device_communication">Device Communication</string>
     <string name="bt_le">Bluetooth LE</string>
     <string name="bt_hid">Bluetooth HID</string>
+    <string name="bt_le_coc">Bluetooth LE CoC</string>
 
     <string name="bt_toggle_bluetooth">Toggle Bluetooth</string>
     <string name="bt_toggle_instructions">Disable and enable Bluetooth to successfully complete this test.</string>
@@ -200,6 +205,65 @@
     <string name="bt_disable_bluetooth">Disable Bluetooth</string>
     <string name="bt_disabling">Disabling Bluetooth...</string>
     <string name="bt_disabling_error">Could not disable Bluetooth...</string>
+
+    <string name="ble_coc_insecure_client_test_list_name">Bluetooth LE CoC Insecure Client Test</string>
+    <string name="ble_coc_insecure_client_test_list_info">
+        The Bluetooth LE CoC test must be done simultaneously on two devices. This device is the client.
+        All tests listed here must be done without pairing. Tap \"Bluetooth LE CoC Insecure Server Test\" on the other device.
+        \n\nTap \"01 Bluetooth LE CoC Client Test\" on this device, then tap \"01 Bluetooth LE CoC Server Test\" on the other device.
+        \nWhen the test is complete, move to the next item. You must complete all tests.
+    </string>
+    <string name="ble_coc_insecure_client_test_info">
+        The Bluetooth LE CoC test must be done simultaneously on two devices. This device is the client.
+        All tests listed here must be done without pairing.
+    </string>
+    <string name="ble_coc_insecure_server_test_list_name">Bluetooth LE CoC Insecure Server Test</string>
+    <string name="ble_coc_insecure_server_test_list_info">
+        This test is mostly automated, but requires some user interaction.
+        Once the list items below have check marks, the test is complete.
+        \n\nTap \"01 Bluetooth LE CoC Server Test\" on this device, then tap \"01 Bluetooth LE CoC Client Test\" on the other device.
+        \nWhen the test is complete, move to the next item. You must complete all tests.
+    </string>
+
+    <string name="ble_coc_secure_client_test_list_name">Bluetooth LE CoC Secure Client Test</string>
+    <string name="ble_coc_secure_client_test_list_info">
+        The Bluetooth LE CoC test must be done simultaneously on two devices. This device is the client.
+        All tests listed here must be done without pairing. Tap \"Bluetooth LE CoC Secure Server Test\" on the other device.
+        \n\nTap \"01 Bluetooth LE CoC Client Test\" on this device, then tap \"01 Bluetooth LE CoC Server Test\" on the other device.
+        \nWhen the test is complete, move to the next item. You must complete all tests.
+    </string>
+    <string name="ble_coc_secure_client_test_info">
+        The Bluetooth LE CoC test must be done simultaneously on two devices. This device is the client.
+        All tests listed here must be done without pairing.
+    </string>
+    <string name="ble_coc_secure_server_test_list_name">Bluetooth LE CoC Secure Server Test</string>
+    <string name="ble_coc_secure_server_test_list_info">
+        This test is mostly automated, but requires some user interaction.
+        Once the list items below have check marks, the test is complete.
+        \n\nTap \"01 Bluetooth LE CoC Server Test\" on this device, then tap \"01 Bluetooth LE CoC Client Test\" on the other device.
+        \nWhen the test is complete, move to the next item. You must complete all tests.
+    </string>
+
+    <!-- BLE CoC client side strings -->
+    <string name="ble_coc_client_test_name">01 Bluetooth LE CoC Client Test</string>
+    <string name="ble_coc_client_le_connect">Bluetooth LE Client Connect</string>
+    <string name="ble_coc_client_get_psm">Get peer PSM value</string>
+    <string name="ble_coc_client_coc_connect">LE CoC client Connect</string>
+    <string name="ble_coc_client_check_connection_type">Check connection type</string>
+    <string name="ble_coc_client_send_data_8bytes">Send 8 bytes</string>
+    <string name="ble_coc_client_receive_data_8bytes">Receive 8 bytes</string>
+    <string name="ble_coc_client_data_exchange">Send and receive large data buffer</string>
+
+    <!-- BLE CoC server side strings -->
+    <string name="ble_coc_server_start_name">01 Bluetooth LE CoC Server Test</string>
+    <string name="ble_coc_server_le_connect">Bluetooth LE Server Connect</string>
+    <string name="ble_coc_server_create_listener">Create LE CoC listener</string>
+    <string name="ble_coc_server_psm_read">Waiting on PSM to be read</string>
+    <string name="ble_coc_server_connection">Waiting on LE CoC connection</string>
+    <string name="ble_coc_server_check_connection_type">Check connection type</string>
+    <string name="ble_coc_server_receive_data_8bytes">Waiting to receive 8 bytes</string>
+    <string name="ble_coc_server_send_data_8bytes">Sending 8 bytes</string>
+    <string name="ble_coc_server_data_exchange">Send and receive large data buffer</string>
 
     <string name="bt_connection_access_server">Connection Access Server</string>
     <string name="bt_connection_access_client">Connection Access Client</string>
@@ -455,6 +519,11 @@
     <string name="ble_insecure_client_test_name">Bluetooth LE Insecure Client Test</string>
     <string name="ble_secure_server_test_name">Bluetooth LE Secure Server Test</string>
     <string name="ble_insecure_server_test_name">Bluetooth LE Insecure Server Test</string>
+
+    <string name="ble_coc_secure_client_test_name">Bluetooth LE CoC Secure Client Test</string>
+    <string name="ble_coc_insecure_client_test_name">Bluetooth LE CoC Insecure Client Test</string>
+    <string name="ble_coc_secure_server_test_name">Bluetooth LE CoC Secure Server Test</string>
+    <string name="ble_coc_insecure_server_test_name">Bluetooth LE CoC Insecure Server Test</string>
 
     <string name="ble_read_characteristic_nopermission_name">Bluetooth LE Read Characteristic Without Perrmission</string>
     <string name="ble_write_characteristic_nopermission_name">Bluetooth LE Write Characteristic Without Permission</string>
@@ -1860,6 +1929,7 @@ You should be prompted to select credentials; choose the ones you just installed
         2. Click on the play button.\n
         3. Verify that the captured audio is played.\n
         4. Click on the close button.\n
+        If this device does not support audio recording, please skip this test and mark it passing.\n
     </string>
     <string name="provisioning_byod_dismiss_result_dialog">Close</string>
     <string name="provisioning_byod_play">Play</string>
@@ -2177,9 +2247,9 @@ You should be prompted to select credentials; choose the ones you just installed
     <string name="device_admin_notification">This is device admin notification</string>
     <string name="device_admin_keyguard_disable_camera">Disable camera</string>
     <string name="device_admin_keyguard_disable_camera_instruction">
-        Please press the Go button to lock the screen. Then try to open the camera
-        from the lower right corner of the screen. Expected result is you cannot
-        open the camera from lock screen and it will ask for password instead.\n
+        Please press the Go button to lock the screen. Expected result is you cannot
+        see the camera icon on the lower right corner of the screen, or if there is one, you cannot
+        open the camera using it before you are asked for a password.\n
         Also, it shouldn\'t be possible to open the camera on the lockscreen by
         any other device specific gesture (such as double press on power button).
     </string>
@@ -2690,7 +2760,7 @@ You should be prompted to select credentials; choose the ones you just installed
     <string name="negative_device_owner">No Device Owner Tests</string>
     <string name="device_owner_negative_category">No Device Owner Tests</string>
     <string name="device_owner_provisioning_negative">Device owner provisioning</string>
-    <string name="device_owner_provisioning_negative_info">The device owner provisioning test verifies that setting up a corporate owned device can only be done on a factory reset device.\n\nPlease click the "Start provisioning" button, and when you see a warning dialog telling the device can\'t be set up, select "pass". Otherwise, select "fail".</string>
+    <string name="device_owner_provisioning_negative_info">The device owner provisioning test verifies that setting up a corporate owned device can only be done on a factory reset device.\n\nPlease click the "Start provisioning" button, and when you see a warning dialog telling the device is already set up, select "pass". Otherwise, select "fail".</string>
     <string name="start_device_owner_provisioning_button">Start provisioning</string>
     <string name="enterprise_privacy_quick_settings_negative">Quick settings disclosure</string>
     <string name="enterprise_privacy_quick_settings_negative_info">
@@ -2975,8 +3045,8 @@ You should be prompted to select credentials; choose the ones you just installed
     <string name="device_owner_disallow_usb_file_transfer_test_info">
             Please press below button to set the \"disallow USB file transfer\" restriction.\n
             If a USB notification appears, open the notification and check that the
-            \"Transfer files (MTP)\" and \"Transfer photos (PTP)\" cannot be selected and trigger a
-            support message when trying to select them.\n
+            \"Transfer files (MTP)\" and \"Transfer photos (PTP)\" options either are not displayed,
+            or they trigger a support message when trying to select them.\n
             Check if you can mount the device as a USB drive on your desktop computer. The test is
             successful if you cannot mount the device, and files from your phone cannot be
             downloaded through USB.\n
@@ -3260,7 +3330,10 @@ You should be prompted to select credentials; choose the ones you just installed
     <string name="disallow_config_mobile_networks">Disallow config mobile networks</string>
     <string name="disallow_config_mobile_networks_action">Configuring mobile networks</string>
     <string name="disallow_config_tethering">Disallow config tethering</string>
-    <string name="disallow_config_tethering_action">Configuring tethering and portable hotspots</string>
+    <string name="disallow_config_tethering_action">
+        Configuring tethering and portable hotspots.\n
+        NOTE: If the device does not support tethering please skip this test and mark it as passing.\n
+    </string>
     <string name="disallow_config_wifi">Disallow config Wi-Fi</string>
     <string name="disallow_config_wifi_action">Modifying Wi-Fi configuration</string>
     <string name="disallow_debugging_features">Disallow debugging features</string>
@@ -3278,13 +3351,37 @@ You should be prompted to select credentials; choose the ones you just installed
     <string name="disallow_outgoing_beam">Disallow outgoing beam</string>
     <string name="disallow_outgoing_beam_action">Switching on android beam</string>
     <string name="disallow_remove_user">Disallow remove user</string>
-    <string name="disallow_remove_user_action">Removing other users (please create a user and attempt to remove it to verify)</string>
+    <string name="device_owner_disallow_remove_user_info">
+        Please press \'Create uninitialized user\' to create a user that is not set up. Then press the
+        \'Set restriction\' button to set the user restriction. Then press \'Go\' to open \'Settings\',
+        and manually find and open \'Multiple users\' setting. \n\n
+
+        Mark this test as passed if:\n\n
+        - The uninitialized user cannot be removed.\n
+        - \'Remove user\' option is disabled with an info icon on it. Clicking on it triggers a support dialog.\n\n
+
+        Use the Back button to return to this page.
+    </string>
+    <string name="managed_user_disallow_remove_user_info">
+        Please press the \'Set restriction\' button to set the user restriction.
+        Then press \'Go\' to open \'Settings\', and manually find and open \'Multiple users\' setting. \n\n
+
+        Mark this test as passed if one of the following conditions is met:\n\n
+        - \'Remove user\' option is disabled with an info icon on it. Clicking on it triggers a support dialog.\n
+        - \'Remove user\' option cannot be found.\n \n
+
+        Use the Back button to return to this page.
+    </string>
+    <string name="device_owner_disallow_remove_user_create_user">Create uninitialized user</string>
     <string name="disallow_remove_managed_profile">Disallow remove managed profile</string>
     <string name="disallow_remove_managed_profile_action">Removing the work profile. It shouldn\'t be possible neither from the Accounts screen nor the Device Administrators screen (after selecting the Device Administrator that corresponds to the badged version of \"CTS Verifier\")</string>
     <string name="disallow_share_location">Disallow share location</string>
     <string name="disallow_share_location_action">Turning on location sharing</string>
     <string name="disallow_uninstall_apps">Disallow uninstall apps</string>
-    <string name="disallow_uninstall_apps_action">Uninstalling applications from the work profile (badged applications) other than CtsVerifier</string>
+    <string name="disallow_uninstall_apps_action">
+        a. If testing in work profile: uninstall applications from the work profile (badged applications) other than CtsVerifier and system apps. \n
+        b. Otherwise: uninstall applications other than CtsVerifier and system apps
+    </string>
     <string name="disallow_unified_challenge">Disallow unified challenge</string>
     <string name="disallow_unified_challenge_action">Setting one lock for both personal and work profiles. IMPORTANT: Separate work lock should be set prior to this test in Set work lock test</string>
     <string name="disallow_keyguard_unredacted_notifications">Disallow lockscreen unredacted notification</string>
@@ -4389,14 +4486,14 @@ Follow the instructions on the screen to measure the frequency response for the 
     <!-- USB Audio Peripheral Play Test -->
     <string name="usbaudio_play_test"> USB Audio Peripheral Play Test</string>
     <string name="usbaudio_play_info">
-        This test requires that you have connected a mandated USB Audio Interface peripheral and
+        This test requires that you have connected a USB Audio Interface peripheral and
         some way to monitor the output. Press the \"Play\" button and verify that a tone is produced.
        </string>
 
     <!-- USB Audio Peripheral Record Test -->
     <string name="usbaudio_record_test"> USB Audio Peripheral Record Test</string>
     <string name="usbaudio_record_info">
-        This test requires that you have connected a mandated USB Audio Interface peripheral.
+        This test requires that you have connected a USB Audio Interface peripheral.
         Connect the outputs to the inputs (with patch cables). Start playback by pressing the
         \"Record Loopback\" button and verify that the recorded signal is displayed in the wave
         display view. (It may be necessary to adjust the input controls on the peripheral).
@@ -4405,9 +4502,11 @@ Follow the instructions on the screen to measure the frequency response for the 
     <!-- USB Audio Peripheral Buttons Test -->
     <string name="usbaudio_buttons_test"> USB Audio Peripheral Buttons Test</string>
     <string name="usbaudio_buttons_info">
-        This test requires that you have connected a mandated USB Audio headset. Press each
-        \"transport\" button and verify that it is recognized by the test.
-       </string>
+        This test requires that you have connected a USB Audio headset that supports the
+        Android USB audio headset buttons specification. Press each
+        \"transport\" button and verify that it is recognized by the test. When each of the
+        buttons has been recognized the \"pass\" button will be enabled.
+    </string>
 
     <!-- Telecom tests -->
     <string name="telecom_enable_phone_account_test"> Telecom Enable Phone Account Test</string>

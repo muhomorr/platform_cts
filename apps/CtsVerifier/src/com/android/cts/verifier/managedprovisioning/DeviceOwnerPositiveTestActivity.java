@@ -77,6 +77,7 @@ public class DeviceOwnerPositiveTestActivity extends PassFailButtons.TestListAct
     private static final String MANAGED_USER_TEST_ID = "MANAGED_USER_UI";
     private static final String REMOVE_DEVICE_OWNER_TEST_ID = "REMOVE_DEVICE_OWNER";
     private static final String DISALLOW_AMBIENT_DISPLAY_ID = "DISALLOW_AMBIENT_DISPLAY";
+    private static final String DISALLOW_REMOVE_USER_TEST_ID = "DISALLOW_REMOVE_USER";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -400,6 +401,22 @@ public class DeviceOwnerPositiveTestActivity extends PassFailButtons.TestListAct
                             new ButtonInfo(
                                     R.string.device_owner_settings_go,
                                     new Intent(Settings.ACTION_SETTINGS))}));
+
+            // DISALLOW_REMOVE_USER
+            adapter.add(createInteractiveTestItem(this, DISALLOW_REMOVE_USER_TEST_ID,
+                    R.string.disallow_remove_user,
+                    R.string.device_owner_disallow_remove_user_info,
+                    new ButtonInfo[]{
+                            new ButtonInfo(
+                                    R.string.device_owner_disallow_remove_user_create_user,
+                                    createCreateManagedUserWithoutSetupIntent()),
+                            new ButtonInfo(
+                                    R.string.device_owner_user_restriction_set,
+                                    CommandReceiverActivity.createSetUserRestrictionIntent(
+                                            UserManager.DISALLOW_REMOVE_USER, true)),
+                            new ButtonInfo(
+                                    R.string.device_owner_settings_go,
+                                    new Intent(Settings.ACTION_SETTINGS))}));
         }
 
         // Network logging UI
@@ -493,6 +510,7 @@ public class DeviceOwnerPositiveTestActivity extends PassFailButtons.TestListAct
     private boolean isStatusBarEnabled() {
       // Watches don't support the status bar so this is an ok proxy, but this is not the most
       // general test for that. TODO: add a test API to do a real check for status bar support.
-      return !getPackageManager().hasSystemFeature(PackageManager.FEATURE_WATCH);
+      return !getPackageManager().hasSystemFeature(PackageManager.FEATURE_WATCH) && 
+             !getPackageManager().hasSystemFeature(PackageManager.FEATURE_AUTOMOTIVE);
     }
 }

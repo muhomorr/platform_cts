@@ -32,6 +32,7 @@ import static org.mockito.Mockito.when;
 import android.app.Instrumentation;
 import android.content.Context;
 import android.content.pm.ActivityInfo;
+import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.graphics.Color;
 import android.graphics.Point;
@@ -79,6 +80,7 @@ public class PopupWindowTest {
     private static final int CONTENT_SIZE_DP = 30;
 
     private Instrumentation mInstrumentation;
+    private Context mContext;
     private PopupWindowCtsActivity mActivity;
     private PopupWindow mPopupWindow;
     private TextView mTextView;
@@ -90,6 +92,7 @@ public class PopupWindowTest {
     @Before
     public void setup() {
         mInstrumentation = InstrumentationRegistry.getInstrumentation();
+        mContext = InstrumentationRegistry.getContext();
         mActivity = mActivityRule.getActivity();
     }
 
@@ -632,6 +635,7 @@ public class PopupWindowTest {
     public void testShowAtLocation() throws Throwable {
         int[] popupContentViewInWindowXY = new int[2];
         int[] popupContentViewOnScreenXY = new int[2];
+        Rect containingRect = new Rect();
 
         mPopupWindow = createPopupWindow(createPopupContent(CONTENT_SIZE_DP, CONTENT_SIZE_DP));
         // Do not attach within the decor; we will be measuring location
@@ -655,11 +659,12 @@ public class PopupWindowTest {
         assertTrue(mPopupWindow.isShowing());
         mPopupWindow.getContentView().getLocationInWindow(popupContentViewInWindowXY);
         mPopupWindow.getContentView().getLocationOnScreen(popupContentViewOnScreenXY);
+        upperAnchor.getWindowDisplayFrame(containingRect);
 
         assertTrue(popupContentViewInWindowXY[0] >= 0);
         assertTrue(popupContentViewInWindowXY[1] >= 0);
-        assertEquals(popupContentViewInWindowXY[0] + xOff, popupContentViewOnScreenXY[0]);
-        assertEquals(popupContentViewInWindowXY[1] + yOff, popupContentViewOnScreenXY[1]);
+        assertEquals(containingRect.left + popupContentViewInWindowXY[0] + xOff, popupContentViewOnScreenXY[0]);
+        assertEquals(containingRect.top + popupContentViewInWindowXY[1] + yOff, popupContentViewOnScreenXY[1]);
 
         dismissPopup();
     }
@@ -940,6 +945,7 @@ public class PopupWindowTest {
         int[] fstXY = new int[2];
         int[] sndXY = new int[2];
         int[] viewInWindowXY = new int[2];
+        Rect containingRect = new Rect();
         final Point popupPos = new Point();
 
         mActivityRule.runOnUiThread(() -> {
@@ -959,6 +965,7 @@ public class PopupWindowTest {
         showPopup();
         mPopupWindow.getContentView().getLocationInWindow(viewInWindowXY);
         final View containerView = mActivity.findViewById(R.id.main_container);
+        containerView.getWindowDisplayFrame(containingRect);
 
         // update if it is not shown
         mActivityRule.runOnUiThread(() -> mPopupWindow.update(80, 80));
@@ -980,8 +987,8 @@ public class PopupWindowTest {
         assertEquals(50, mPopupWindow.getHeight());
 
         mPopupWindow.getContentView().getLocationOnScreen(fstXY);
-        assertEquals(popupPos.x + viewInWindowXY[0], fstXY[0]);
-        assertEquals(popupPos.y + viewInWindowXY[1], fstXY[1]);
+        assertEquals(containingRect.left + popupPos.x + viewInWindowXY[0], fstXY[0]);
+        assertEquals(containingRect.top + popupPos.y + viewInWindowXY[1], fstXY[1]);
 
         popupPos.set(windowInsets.getStableInsetLeft() + 4, windowInsets.getStableInsetTop());
 
@@ -995,8 +1002,8 @@ public class PopupWindowTest {
         assertEquals(50, mPopupWindow.getHeight());
 
         mPopupWindow.getContentView().getLocationOnScreen(sndXY);
-        assertEquals(popupPos.x + viewInWindowXY[0], sndXY[0]);
-        assertEquals(popupPos.y + viewInWindowXY[1], sndXY[1]);
+        assertEquals(containingRect.left + popupPos.x + viewInWindowXY[0], sndXY[0]);
+        assertEquals(containingRect.top + popupPos.y + viewInWindowXY[1], sndXY[1]);
 
         dismissPopup();
     }
@@ -1332,6 +1339,11 @@ public class PopupWindowTest {
 
         for (int i = 0; i < 2; i++) {
             final int orientation = orientationValues[i];
+            if (orientation == ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+                    && !hasDeviceFeature(PackageManager.FEATURE_SCREEN_PORTRAIT)) {
+                // skip test for devices not supporting portrait orientation
+                continue;
+            }
             mActivity.runOnUiThread(() ->
                     mActivity.setRequestedOrientation(orientation));
             mActivity.waitForConfigurationChanged();
@@ -1598,6 +1610,10 @@ public class PopupWindowTest {
         PopupWindow window = createPopupWindow();
         window.setContentView(content);
         return window;
+    }
+
+    private boolean hasDeviceFeature(final String requiredFeature) {
+        return mContext.getPackageManager().hasSystemFeature(requiredFeature);
     }
 
     private void showPopup(int resourceId) throws Throwable {

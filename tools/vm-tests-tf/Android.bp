@@ -25,16 +25,16 @@ java_binary_host {
     name: "vmtests-buildutil",
     static_libs: [ "cts-vmtests-dot", "junit" ],
     srcs: [
-        "src/util/build/BuildCTSHostSources.java",
-        "src/util/build/BuildCTSMainsSources.java",
-        "src/util/build/BuildUtilBase.java",
-        "src/util/build/FileUtil.java",
-        "src/util/build/JUnitTestCollector.java",
+        "build/src/util/build/BuildCTSHostSources.java",
+        "build/src/util/build/BuildCTSMainsSources.java",
+        "build/src/util/build/BuildUtilBase.java",
+        "build/src/util/build/FileUtil.java",
+        "build/src/util/build/JUnitTestCollector.java",
     ],
     wrapper: "etc/vmtests-buildutil.sh",
 }
 
-genrule {
+java_genrule_host {
     name: "vmtests_generated_host_test_sources",
     tools: [
         "vmtests-buildutil",
@@ -45,7 +45,17 @@ genrule {
     out: ["vmtests.host.generated.srcjar"],
 }
 
-genrule {
+java_library_host {
+    name: "host-cts-vmtests",
+    libs: [
+        "junit",
+        "tradefed",
+    ],
+    srcs : [ ":vmtests_generated_host_test_sources" ],
+    installable: false,
+}
+
+java_genrule_host {
     name: "vmtests-dfh-dex-generated",
     tools: [
         "cfassembler",
@@ -57,7 +67,7 @@ genrule {
     out: ["vmtests_dfh_dex_generated.jar"],
 }
 
-genrule {
+java_genrule_host {
     name: "vmtests-dasm-dex-generated",
     tools: [
         "dasm",
@@ -69,7 +79,7 @@ genrule {
     out: ["vmtests_dasm_dex_generated.jar"],
 }
 
-genrule {
+java_genrule {
     name: "vmtests_generated_mains_test_sources",
     tools: [
         "vmtests-buildutil",
@@ -94,6 +104,7 @@ java_library {
 java_library_host {
     name: "vmtests-generated-resources",
     static_libs: [
+        "host-cts-vmtests",
         "vmtests-dfh-dex-generated",
         "vmtests-dasm-dex-generated",
     ],
