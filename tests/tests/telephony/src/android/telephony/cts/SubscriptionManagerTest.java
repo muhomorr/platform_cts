@@ -64,10 +64,44 @@ public class SubscriptionManagerTest {
     private int mSubId;
     private String mPackageName;
 
+    /**
+     * Callback used in testRegisterNetworkCallback that allows caller to block on
+     * {@code onAvailable}.
+     */
+    private static class TestNetworkCallback extends ConnectivityManager.NetworkCallback {
+        private final CountDownLatch mAvailableLatch = new CountDownLatch(1);
+
+        public void waitForAvailable() throws InterruptedException {
+            assertTrue("Cellular network did not come up after 5 seconds",
+                    mAvailableLatch.await(5, TimeUnit.SECONDS));
+        }
+
+        @Override
+        public void onAvailable(Network network) {
+            mAvailableLatch.countDown();
+        }
+    }
+
     @BeforeClass
     public static void setUpClass() throws Exception {
         InstrumentationRegistry.getInstrumentation().getUiAutomation()
                 .executeShellCommand("svc wifi disable");
+
+        final TestNetworkCallback callback = new TestNetworkCallback();
+        final ConnectivityManager cm = InstrumentationRegistry.getContext()
+                .getSystemService(ConnectivityManager.class);
+        cm.registerNetworkCallback(new NetworkRequest.Builder()
+                .addTransportType(TRANSPORT_CELLULAR)
+                .addCapability(NET_CAPABILITY_INTERNET)
+                .build(), callback);
+        try {
+            // Wait to get callback for availability of internet
+            callback.waitForAvailable();
+        } catch (InterruptedException e) {
+            fail("NetworkCallback wait was interrupted.");
+        } finally {
+            cm.unregisterNetworkCallback(callback);
+        }
     }
 
     @AfterClass
@@ -84,25 +118,21 @@ public class SubscriptionManagerTest {
     }
 
     /**
-     * Sanity check that both {@link PackageManager#FEATURE_TELEPHONY} and
-     * {@link NetworkCapabilities#TRANSPORT_CELLULAR} network must both be
-     * either defined or undefined; you can't cross the streams.
+     * Sanity check that the device has a cellular network and a valid default data subId
+     * when {@link PackageManager#FEATURE_TELEPHONY} support.
      */
     @Test
     public void testSanity() throws Exception {
+        if (!isSupported()) return;
+
         final boolean hasCellular = findCellularNetwork() != null;
-        if (isSupported() && !hasCellular) {
+        if (!hasCellular) {
             fail("Device claims to support " + PackageManager.FEATURE_TELEPHONY
                     + " but has no active cellular network, which is required for validation");
-        } else if (!isSupported() && hasCellular) {
-            fail("Device has active cellular network, but claims to not support "
-                    + PackageManager.FEATURE_TELEPHONY);
         }
 
-        if (isSupported()) {
-            if (mSubId == SubscriptionManager.INVALID_SUBSCRIPTION_ID) {
-                fail("Device must have a valid default data subId for validation");
-            }
+        if (mSubId == SubscriptionManager.INVALID_SUBSCRIPTION_ID) {
+            fail("Device must have a valid default data subId for validation");
         }
     }
 
