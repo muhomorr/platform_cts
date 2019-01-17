@@ -75,11 +75,6 @@ public class StagefrightTest extends InstrumentationTestCase {
      ***********************************************************/
 
     @SecurityTest
-    public void testStagefright_bug_64710074() throws Exception {
-        doStagefrightTest(R.raw.bug_64710074);
-    }
-
-    @SecurityTest
     public void testStagefright_cve_2017_0643() throws Exception {
         doStagefrightTest(R.raw.cve_2017_0643);
     }
@@ -459,11 +454,6 @@ public class StagefrightTest extends InstrumentationTestCase {
     @SecurityTest
     public void testStagefright_bug_37093318() throws Exception {
         doStagefrightTest(R.raw.bug_37093318, (4 * 60 * 1000));
-    }
-
-    @SecurityTest
-    public void testStagefright_bug_65484460() throws Exception {
-        doStagefrightTest(R.raw.bug_65484460);
     }
 
     private void doStagefrightTest(final int rid) throws Exception {
