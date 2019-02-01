@@ -1,10 +1,12 @@
 LOCAL_PATH := $(call my-dir)
 
 cts_bionic_tests_dir := lib32
+lib_or_lib64 := lib
 
 ifeq (true,$(TARGET_IS_64_BIT))
   ifeq (,$(cts_bionic_tests_2nd_arch_prefix))
     cts_bionic_tests_dir := lib64
+    lib_or_lib64 := lib64
   endif
 endif
 
@@ -16,6 +18,8 @@ my_bionic_testlib_files := \
   dt_runpath_b_c_x/libtest_dt_runpath_b.so \
   dt_runpath_b_c_x/libtest_dt_runpath_c.so \
   dt_runpath_b_c_x/libtest_dt_runpath_x.so \
+  dt_runpath_y/$(lib_or_lib64)/libtest_dt_runpath_y.so \
+  elftls_dlopen_ie_error_helper/elftls_dlopen_ie_error_helper \
   exec_linker_helper/exec_linker_helper \
   exec_linker_helper_lib.so \
   inaccessible_libs/libtestshared.so \
@@ -38,7 +42,6 @@ my_bionic_testlib_files := \
   libdlext_test_runpath_zip/libdlext_test_runpath_zip_zipaligned.zip \
   libdlext_test_zip/libdlext_test_zip.so \
   libdlext_test_zip/libdlext_test_zip_zipaligned.zip \
-  libelf-tls-library.so \
   libsysv-hash-table-library.so \
   libtest_atexit.so \
   libtest_check_order_dlsym.so \
@@ -74,6 +77,13 @@ my_bionic_testlib_files := \
   libtest_dlsym_from_this_grandchild.so \
   libtest_dlsym_weak_func.so \
   libtest_dt_runpath_d.so \
+  libtest_elftls_dynamic.so \
+  libtest_elftls_dynamic_filler_1.so \
+  libtest_elftls_dynamic_filler_2.so \
+  libtest_elftls_dynamic_filler_3.so \
+  libtest_elftls_shared_var.so \
+  libtest_elftls_shared_var_ie.so \
+  libtest_elftls_tprel.so \
   libtest_empty.so \
   libtest_indirect_thread_local_dtor.so \
   libtest_init_fini_order_child.so \
@@ -158,9 +168,28 @@ LOCAL_COMPATIBILITY_SUPPORT_FILES += \
     $(my_bionic_testlibs_src_dir)/$(lib):$(my_bionic_testlibs_out_dir)/$(lib))
 endif
 
+# Special casing for libtest_dt_runpath_y.so. Since we use the standard ARM CTS
+# to test ARM-on-x86 devices where ${LIB} is expanded to lib/arm, the lib
+# is installed to ./lib/arm as well as ./lib to make sure that the lib can be
+# found on any device.
+archname := $(TARGET_ARCH)
+ifneq (,$(cts_bionic_tests_2nd_arch_prefix))
+  archname := $(TARGET_2ND_ARCH)
+endif
+
+src := $(my_bionic_testlibs_src_dir)/dt_runpath_y/$(lib_or_lib64)/libtest_dt_runpath_y.so
+dst := $(my_bionic_testlibs_out_dir)/dt_runpath_y/$(lib_or_lib64)/$(archname)/libtest_dt_runpath_y.so
+
+LOCAL_COMPATIBILITY_SUPPORT_FILES += $(src):$(dst)
+
 my_bionic_testlib_files :=
 my_bionic_testlib_files_non_mips :=
 my_bionic_testlibs_src_dir :=
 my_bionic_testlibs_out_dir :=
 cts_bionic_tests_dir :=
 cts_bionic_tests_2nd_arch_prefix :=
+lib_or_lib64 :=
+archname :=
+src :=
+dst :=
+
