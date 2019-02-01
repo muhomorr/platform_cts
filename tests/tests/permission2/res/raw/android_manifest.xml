@@ -1686,6 +1686,10 @@
     <permission android:name="android.permission.HARDWARE_TEST"
         android:protectionLevel="signature" />
 
+    <!-- @hide Allows an application to manage DynamicAndroid image -->
+    <permission android:name="android.permission.MANAGE_DYNAMIC_ANDROID"
+        android:protectionLevel="signature" />
+
     <!-- @SystemApi Allows access to Broadcast Radio
          @hide This is not a third-party API (intended for system apps).-->
     <permission android:name="android.permission.ACCESS_BROADCAST_RADIO"
@@ -3208,6 +3212,12 @@
     <permission android:name="android.permission.CONTROL_VPN"
         android:protectionLevel="signature|privileged" />
     <uses-permission android:name="android.permission.CONTROL_VPN" />
+
+    <!-- Allows an application to access and modify always-on VPN configuration.
+         <p>Not for use by third-party or privileged applications.
+         @hide -->
+    <permission android:name="android.permission.CONTROL_ALWAYS_ON_VPN"
+                android:protectionLevel="signature" />
 
     <!-- @SystemApi Allows an application to capture audio output.
          <p>Not for use by third-party applications.</p> -->

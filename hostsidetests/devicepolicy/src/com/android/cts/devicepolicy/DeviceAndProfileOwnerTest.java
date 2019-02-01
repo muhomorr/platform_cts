@@ -328,8 +328,10 @@ public abstract class DeviceAndProfileOwnerTest extends BaseDevicePolicyTest {
 
         try {
             installAppAsUser(VPN_APP_APK, mUserId);
-            executeDeviceTestMethod(".AlwaysOnVpnMultiStageTest", "testAlwaysOnSet");
+            executeDeviceTestMethod(".AlwaysOnVpnMultiStageTest", "testAlwaysOnSetWithWhitelist");
             rebootAndWaitUntilReady();
+            // Make sure profile user initialization is complete before proceeding.
+            waitForBroadcastIdle();
             verifyUserCredential(testPassword, mUserId);
             executeDeviceTestMethod(".AlwaysOnVpnMultiStageTest", "testAlwaysOnSetAfterReboot");
         } finally {

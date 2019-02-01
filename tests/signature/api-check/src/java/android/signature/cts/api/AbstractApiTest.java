@@ -83,7 +83,6 @@ public class AbstractApiTest extends InstrumentationTestCase {
                 name -> KNOWN_INACCESSIBLE_CLASSES.contains(name)
                         || (name != null && name.startsWith("com.android.internal.R.")));
 
-
         initializeFromArgs(instrumentationArgs);
     }
 
@@ -91,7 +90,7 @@ public class AbstractApiTest extends InstrumentationTestCase {
 
     }
 
-    private static boolean isAccessibleClass(JDiffClassDescription classDescription) {
+    protected static boolean isAccessibleClass(JDiffClassDescription classDescription) {
         // Ignore classes that are known to be inaccessible.
         return !KNOWN_INACCESSIBLE_CLASSES.contains(classDescription.getAbsoluteClassName());
     }
@@ -131,7 +130,7 @@ public class AbstractApiTest extends InstrumentationTestCase {
         return argument.split(",");
     }
 
-    static Stream<InputStream> readFile(File file) {
+    protected Stream<InputStream> readFile(File file) {
         try {
             if (file.getName().endsWith(".zip")) {
                 ZipFile zip = new ZipFile(file);
@@ -149,7 +148,7 @@ public class AbstractApiTest extends InstrumentationTestCase {
         }
     }
 
-    static Stream<JDiffClassDescription> parseApiFilesAsStream(
+    protected Stream<JDiffClassDescription> parseApiFilesAsStream(
             ApiDocumentParser apiDocumentParser, String[] apiFiles)
             throws XmlPullParserException, IOException {
         return Stream.of(apiFiles)

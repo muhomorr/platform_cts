@@ -17,15 +17,18 @@ LOCAL_SHARED_LIBRARIES += \
     libdl_preempt_test_1 \
     libdl_preempt_test_2 \
     libdl_test_df_1_global \
+    libtest_elftls_shared_var \
+    libtest_elftls_tprel \
 
 LOCAL_WHOLE_STATIC_LIBRARIES += \
     libBionicTests \
     libBionicLoaderTests \
+    libBionicElfTlsLoaderTests \
     libBionicCtsGtestMain \
 
 LOCAL_STATIC_LIBRARIES += \
     libbase \
-    libpagemap \
+    libmeminfo \
     libziparchive \
     libtinyxml2 \
     liblog \
