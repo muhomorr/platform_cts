@@ -18,15 +18,14 @@ package android.alarmclock.cts;
 
 import android.alarmclock.common.Utils;
 import android.alarmclock.common.Utils.TestcaseType;
-
-import androidx.test.filters.Suppress;
+import android.support.test.filters.Suppress;
 
 public class SetAlarmTest extends AlarmClockTestBase {
     public SetAlarmTest() {
         super();
     }
 
-    @Suppress // b/120982312 - Flaky on AOSP
+    @Suppress // b/122662463 - Flaky on AOSP
     public void testAll() throws Exception {
         assertEquals(Utils.COMPLETION_RESULT, runTest(TestcaseType.SET_ALARM));
     }
