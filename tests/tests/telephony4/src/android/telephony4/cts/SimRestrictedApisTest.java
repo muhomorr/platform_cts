@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package android.telephony.cts;
+package android.telephony4.cts;
 
 import android.content.Context;
 import android.telephony.SmsManager;
@@ -67,21 +67,6 @@ public class SimRestrictedApisTest extends AndroidTestCase {
     }
 
     /**
-     * Tests the TelephonyManager.setLine1NumberForDisplay(long, string, string) API. This makes a
-     * call to setLine1NumberForDisplay() API and expects a SecurityException since the test apk is
-     * not signed by the certificate on the SIM.
-     */
-    public void testSetLine1NumberForDisplay2() {
-        try {
-            if (isSimCardPresent()) {
-                TelephonyManager.getDefault().setLine1NumberForDisplay(0, "", "");
-                fail("Expected SecurityException. App doesn't have carrier privileges.");
-            }
-        } catch (SecurityException expected) {
-        }
-    }
-
-    /**
      * Tests the TelephonyManager.iccOpenLogicalChannel() API. This makes a call to
      * iccOpenLogicalChannel() API and expects a SecurityException since the test apk is not signed
      * by certificate on the SIM.
@@ -89,7 +74,8 @@ public class SimRestrictedApisTest extends AndroidTestCase {
     public void testIccOpenLogicalChannel() {
         try {
             if (isSimCardPresent()) {
-                TelephonyManager.getDefault().iccOpenLogicalChannel("");
+                TelephonyManager.getDefault().iccCloseLogicalChannel(
+                        TelephonyManager.getDefault().iccOpenLogicalChannel("").getChannel());
                 fail("Expected SecurityException. App doesn't have carrier privileges.");
             }
         } catch (SecurityException expected) {
@@ -171,41 +157,13 @@ public class SimRestrictedApisTest extends AndroidTestCase {
     }
 
     /**
-     * Tests the TelephonyManager.nvWriteItem() API. This makes a call to nvWriteItem() API and
-     * expects a SecurityException since the test apk is not signed by a certificate on the SIM.
-     */
-    public void testNvWriteItem() {
-        try {
-            if (isSimCardPresent()) {
-                TelephonyManager.getDefault().nvWriteItem(0, "");
-                fail("Expected SecurityException. App doesn't have carrier privileges.");
-            }
-        } catch (SecurityException expected) {
-        }
-    }
-
-    /**
-     * Tests the TelephonyManager.nvWriteCdmaPrl() API. This makes a call to nvWriteCdmaPrl() API
-     * and expects a SecurityException since the test apk is not signed by a certificate on the SIM.
-     */
-    public void testNvWriteCdmaPrl() {
-        try {
-            if (isSimCardPresent()) {
-                TelephonyManager.getDefault().nvWriteCdmaPrl(null);
-                fail("Expected SecurityException. App doesn't have carrier privileges.");
-            }
-        } catch (SecurityException expected) {
-        }
-    }
-
-    /**
      * Tests the TelephonyManager.nvResetConfig() API. This makes a call to nvResetConfig() API and
      * expects a SecurityException since the test apk is not signed by a certificate on the SIM.
      */
     public void testNvResetConfig() {
         try {
             if (isSimCardPresent()) {
-                TelephonyManager.getDefault().nvResetConfig(0);
+                TelephonyManager.getDefault().nvResetConfig(1);
                 fail("Expected SecurityException. App doesn't have carrier privileges.");
             }
         } catch (SecurityException expected) {
@@ -246,7 +204,7 @@ public class SimRestrictedApisTest extends AndroidTestCase {
      * Tests that the test apk doesn't have carrier previliges.
      */
     public void testHasCarrierPrivileges() {
-        if (TelephonyManager.getDefault().hasCarrierPrivileges()) {
+        if (mTelephonyManager.hasCarrierPrivileges()) {
             fail("App unexpectedly has carrier privileges");
         }
     }
