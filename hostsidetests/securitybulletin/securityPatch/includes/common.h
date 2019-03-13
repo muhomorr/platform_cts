@@ -1,6 +1,5 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!--
- * Copyright (C) 2009 The Android Open Source Project
+/**
+ * Copyright (C) 2018 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,13 +12,26 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- -->
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:orientation="vertical"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent">
+ */
 
-    <WebView android:id="@+id/web_page"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent" />
-</LinearLayout>
+#ifndef COMMON_H
+#define COMMON_H
+
+#include <time.h>
+#define MAX_TEST_DURATION 300
+
+// exit status code
+#define EXIT_VULNERABLE 113
+
+time_t start_timer(void);
+int timer_active(time_t timer_started);
+
+time_t start_timer(){
+  return time(NULL);
+}
+
+int timer_active(time_t timer_started){
+  return time(NULL) < (timer_started + MAX_TEST_DURATION);
+}
+
+#endif /* COMMON_H */
