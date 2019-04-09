@@ -1,6 +1,5 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!--
- * Copyright (C) 2009 The Android Open Source Project
+/**
+ * Copyright (C) 2018 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,13 +12,21 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- -->
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:orientation="vertical"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent">
+ */
 
-    <WebView android:id="@+id/web_page"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent" />
-</LinearLayout>
+package android.security.cts;
+
+import android.platform.test.annotations.SecurityTest;
+import static org.junit.Assert.assertFalse;
+import org.junit.Test;
+
+@SecurityTest
+public class Poc19_03 extends SecurityTestCase {
+    /**
+     * b/115739809
+     */
+    @SecurityTest
+    public void testPocBug_115739809() throws Exception {
+        assertFalse(AdbUtils.runPocCheckExitCode("Bug-115739809", getDevice(), 30));
+    }
+}
