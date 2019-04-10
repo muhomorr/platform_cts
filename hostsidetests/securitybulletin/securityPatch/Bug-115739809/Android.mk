@@ -1,5 +1,4 @@
-#
-# Copyright (C) 2014 The Android Open Source Project
+# Copyright (C) 2018 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,26 +11,28 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 
 LOCAL_PATH := $(call my-dir)
 
 include $(CLEAR_VARS)
+LOCAL_MODULE := Bug-115739809
+LOCAL_SRC_FILES := poc.cpp
+LOCAL_MULTILIB := both
+LOCAL_MODULE_STEM_32 := $(LOCAL_MODULE)32
+LOCAL_MODULE_STEM_64 := $(LOCAL_MODULE)64
 
-LOCAL_MODULE_TAGS := tests
-#LOCAL_SDK_VERSION := current
-LOCAL_PRIVATE_PLATFORM_APIS := true
-LOCAL_STATIC_JAVA_LIBRARIES := compatibility-device-util ctstestrunner ub-uiautomator \
-        CtsHostsideNetworkTestsAidl
-
-LOCAL_SRC_FILES := $(call all-java-files-under, src)
-
-LOCAL_PACKAGE_NAME := CtsHostsideNetworkTestsApp
-
-LOCAL_PROGUARD_ENABLED := disabled
-LOCAL_DEX_PREOPT := false
+LOCAL_SHARED_LIBRARIES := \
+        libbase \
+        libinput \
+        libutils \
+        liblog
 
 # Tag this module as a cts test artifact
-LOCAL_COMPATIBILITY_SUITE := cts vts general-tests
+LOCAL_COMPATIBILITY_SUITE := cts sts vts
+LOCAL_CTS_TEST_PACKAGE := android.security.cts
 
-include $(BUILD_CTS_SUPPORT_PACKAGE)
+LOCAL_ARM_MODE := arm
+LOCAL_CPPFLAGS += -Wall -Werror -Wextra
+LOCAL_LDFLAGS += -fPIE -pie
+LOCAL_LDFLAGS += -rdynamic
+include $(BUILD_CTS_EXECUTABLE)
