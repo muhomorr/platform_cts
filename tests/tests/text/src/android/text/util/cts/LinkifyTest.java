@@ -21,10 +21,6 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import android.content.Context;
-import android.support.test.InstrumentationRegistry;
-import android.support.test.annotation.UiThreadTest;
-import android.support.test.filters.MediumTest;
-import android.support.test.runner.AndroidJUnit4;
 import android.telephony.TelephonyManager;
 import android.text.Spannable;
 import android.text.SpannableString;
@@ -33,6 +29,11 @@ import android.text.util.Linkify;
 import android.text.util.Linkify.MatchFilter;
 import android.text.util.Linkify.TransformFilter;
 import android.widget.TextView;
+
+import androidx.test.InstrumentationRegistry;
+import androidx.test.annotation.UiThreadTest;
+import androidx.test.filters.MediumTest;
+import androidx.test.runner.AndroidJUnit4;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -933,6 +934,17 @@ public class LinkifyTest {
         email = email + "m";
         verifyAddLinksWithEmailFails("Should not match email domain of length:" +
                 domain.length(), email);
+    }
+
+    @Test
+    public void testAddLinks_unsupportedCharacters() {
+        String url = "moc.diordna.com";
+        verifyAddLinksWithWebUrlSucceeds(url + " should be linkified", url);
+
+        verifyAddLinksWithWebUrlFails("u202C character should not be linkified", "\u202C" + url);
+        verifyAddLinksWithWebUrlFails("u202D character should not be linkified", url + "\u202D");
+        verifyAddLinksWithWebUrlFails(
+                "u202E character should not be linkified", url + "moc\u202E.diordna.com");
     }
 
     // Utility functions

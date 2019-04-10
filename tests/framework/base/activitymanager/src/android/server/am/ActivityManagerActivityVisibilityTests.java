@@ -444,6 +444,11 @@ public class ActivityManagerActivityVisibilityTests extends ActivityManagerTestB
             logSeparator = separateLogs();
             launchActivity(TURN_SCREEN_ON_SINGLE_TASK_ACTIVITY);
             mAmWmState.assertVisibility(TURN_SCREEN_ON_SINGLE_TASK_ACTIVITY, true);
+            // Wait more for display state change since turning the display ON may take longer
+            // and reported after the activity launch.
+            mAmWmState.waitFor(
+                    "***Waiting for display to turn on...",
+                    ()->{ return isDisplayOn(); });
             assertTrue("Display turns on", isDisplayOn());
             assertSingleStart(TURN_SCREEN_ON_SINGLE_TASK_ACTIVITY, logSeparator);
         }

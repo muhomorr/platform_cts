@@ -36,6 +36,8 @@ import com.android.tradefed.util.CommandResult;
 import com.android.tradefed.util.CommandStatus;
 import com.android.tradefed.util.RunUtil;
 
+import com.android.compatibility.common.util.CddTest;
+
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.util.regex.Matcher;
@@ -46,7 +48,7 @@ import java.util.regex.Pattern;
  */
 public class TestUsbTest extends DeviceTestCase implements IAbiReceiver, IBuildReceiver {
 
-    private static final String CTS_RUNNER = "android.support.test.runner.AndroidJUnitRunner";
+    private static final String CTS_RUNNER = "androidx.test.runner.AndroidJUnitRunner";
     private static final String PACKAGE_NAME = "com.android.cts.usb.serialtest";
     private static final String TEST_CLASS_NAME = PACKAGE_NAME + ".UsbSerialTest";
     private static final String APK_NAME="CtsUsbSerialTestApp.apk";
@@ -129,6 +131,7 @@ public class TestUsbTest extends DeviceTestCase implements IAbiReceiver, IBuildR
      * Check if adb serial number, USB serial number, ro.serialno, and android.os.Build.SERIAL
      * all matches and meets the format requirement [a-zA-Z0-9]{6,20}
      */
+    @CddTest(requirement="7.7.1/C-1-2")
     @AppModeFull(reason = "serial can not be read by instant apps")
     public void testUsbSerialReadOnDeviceMatches() throws Exception {
         installApp(false);
