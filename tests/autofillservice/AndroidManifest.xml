@@ -29,8 +29,7 @@
 
         <uses-library android:name="android.test.runner" />
 
-        <activity android:name=".LoginActivity"
-                  android:screenOrientation="portrait">
+        <activity android:name=".LoginActivity" >
             <intent-filter>
                 <!-- This intent filter is not really needed by CTS, but it maks easier to launch
                      this app during CTS development... -->
@@ -43,7 +42,7 @@
                   android:theme="@style/MyAutofilledHighlight"/>
         <activity android:name=".LoginWithStringsActivity" />
         <activity android:name=".WelcomeActivity" android:taskAffinity=".WelcomeActivity"/>
-        <activity android:name=".ViewAttributesTestActivity" />
+        <activity android:name=".ViewAttributesTestActivity" android:screenOrientation="portrait"/>
         <activity android:name=".AuthenticationActivity" />
         <activity android:name=".ManualAuthenticationActivity" />
         <activity android:name=".CheckoutActivity" android:taskAffinity=".CheckoutActivity"/>
@@ -141,10 +140,28 @@
                 <action android:name="android.service.autofill.AutofillService" />
             </intent-filter>
         </service>
+
+        <!-- Mock IME -->
+        <service
+            android:name="com.android.cts.mockime.MockIme"
+            android:label="Mock IME"
+            android:permission="android.permission.BIND_INPUT_METHOD">
+            <intent-filter>
+                <action android:name="android.view.InputMethod" />
+            </intent-filter>
+            <meta-data
+                android:name="android.view.im"
+                android:resource="@xml/method" />
+        </service>
+        <provider
+            android:authorities="com.android.cts.mockime.provider"
+            android:name="com.android.cts.mockime.SettingsProvider">
+        </provider>
+
     </application>
 
     <instrumentation
-        android:name="android.support.test.runner.AndroidJUnitRunner"
+        android:name="androidx.test.runner.AndroidJUnitRunner"
         android:label="CTS tests for the AutoFill Framework APIs."
         android:targetPackage="android.autofillservice.cts" >
     </instrumentation>

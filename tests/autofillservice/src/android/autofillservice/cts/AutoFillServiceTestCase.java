@@ -28,12 +28,14 @@ import android.autofillservice.cts.common.SettingsStateKeeperRule;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.provider.Settings;
-import android.support.test.InstrumentationRegistry;
-import android.support.test.runner.AndroidJUnit4;
 import android.util.Log;
 import android.widget.RemoteViews;
 
+import androidx.test.InstrumentationRegistry;
+import androidx.test.runner.AndroidJUnit4;
+
 import com.android.compatibility.common.util.RequiredFeatureRule;
+import com.android.cts.mockime.MockImeSessionRule;
 
 import org.junit.After;
 import org.junit.Before;
@@ -74,6 +76,10 @@ public abstract class AutoFillServiceTestCase {
             JUnitHelper.setCurrentTestName(null);
         }
     };
+
+    @ClassRule
+    public static final MockImeSessionRule sMockImeSessionRule =
+            new MockImeSessionRule(/* ignoreInitException= */ true);
 
     @Rule
     public final RetryRule mRetryRule = new RetryRule(2);
