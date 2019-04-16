@@ -36,8 +36,7 @@ import android.net.ConnectivityManager.NetworkCallback;
 import android.net.Network;
 import android.net.NetworkCapabilities;
 import android.net.NetworkRequest;
-import android.support.test.InstrumentationRegistry;
-import android.support.test.runner.AndroidJUnit4;
+import android.os.ParcelUuid;
 import android.telephony.SubscriptionInfo;
 import android.telephony.SubscriptionManager;
 import android.telephony.SubscriptionPlan;
@@ -52,11 +51,16 @@ import org.junit.runner.RunWith;
 
 import java.time.Period;
 import java.time.ZonedDateTime;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
+
+import androidx.test.InstrumentationRegistry;
+import androidx.test.runner.AndroidJUnit4;
 
 @RunWith(AndroidJUnit4.class)
 public class SubscriptionManagerTest {
@@ -335,23 +339,42 @@ public class SubscriptionManagerTest {
 
         // Set subscription group with current sub Id. This should fail
         // because we don't have MODIFY_PHONE_STATE or carrier privilege permission.
-        int[] subGroup = new int[] {mSubId};
+        List<Integer> subGroup = new ArrayList();
+        subGroup.add(mSubId);
         try {
-            mSm.setSubscriptionGroup(subGroup);
+            mSm.createSubscriptionGroup(subGroup);
             fail();
         } catch (SecurityException expected) {
         }
 
         // Getting subscriptions in group should return null as setSubscriptionGroup
         // should fail.
-        assertNull(mSm.getSubscriptionsInGroup(mSubId));
+        SubscriptionInfo info = mSm.getActiveSubscriptionInfo(mSubId);
+        assertNull(info.getGroupUuid());
 
         // Remove from subscription group with current sub Id. This should fail
         // because we don't have MODIFY_PHONE_STATE or carrier privilege permission.
         try {
-            mSm.removeSubscriptionsFromGroup(subGroup);
+            mSm.addSubscriptionsIntoGroup(subGroup, null);
+            fail();
+        } catch (NullPointerException expected) {
+        }
+
+        // Add into subscription group with current sub Id. This should fail
+        // because we don't have MODIFY_PHONE_STATE or carrier privilege permission.
+        try {
+            ParcelUuid groupUuid = new ParcelUuid(UUID.randomUUID());
+            mSm.addSubscriptionsIntoGroup(subGroup, groupUuid);
             fail();
         } catch (SecurityException expected) {
+        }
+
+        // Remove from subscription group with current sub Id. This should fail
+        // because we don't have MODIFY_PHONE_STATE or carrier privilege permission.
+        try {
+            mSm.removeSubscriptionsFromGroup(subGroup, null);
+            fail();
+        } catch (NullPointerException expected) {
         }
     }
 
@@ -381,23 +404,6 @@ public class SubscriptionManagerTest {
         String mnc = info.getMncString();
         assertTrue(mcc == null || mcc.length() <= 3);
         assertTrue(mnc == null || mnc.length() <= 3);
-    }
-
-    @Test
-    public void testSettingSubscriptionMeteredNess() throws Exception {
-        if (!isSupported()) return;
-
-        // Set subscription to be un-metered. This should fail
-        // because we don't have MODIFY_PHONE_STATE or carrier privilege permission.
-        try {
-            mSm.setMetered(false, mSubId);
-            fail();
-        } catch (SecurityException expected) {
-        }
-
-        // Shouldn't crash.
-        SubscriptionInfo info = mSm.getActiveSubscriptionInfo(mSubId);
-        info.isMetered();
     }
 
     private void assertOverrideSuccess(SubscriptionPlan... plans) {

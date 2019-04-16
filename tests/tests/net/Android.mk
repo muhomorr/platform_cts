@@ -39,9 +39,10 @@ LOCAL_SRC_FILES := $(call all-java-files-under, src)
 LOCAL_PACKAGE_NAME := CtsNetTestCases
 
 LOCAL_STATIC_JAVA_LIBRARIES := \
+    FrameworksNetCommonTests \
     core-tests-support \
-    compatibility-device-util \
-    ctstestrunner \
+    compatibility-device-util-axt \
+    ctstestrunner-axt \
     ctstestserver \
     mockwebserver \
     junit \

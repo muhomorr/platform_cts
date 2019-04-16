@@ -27,6 +27,7 @@
     <uses-permission android:name="android.permission.REGISTER_CALL_PROVIDER" />
     <uses-permission android:name="android.permission.ACCEPT_HANDOVER" />
     <uses-permission android:name="android.permission.INTERACT_ACROSS_USERS" />
+    <uses-permission android:name="android.permission.PROCESS_OUTGOING_CALLS" />
 
     <uses-permission android:name="com.android.voicemail.permission.ADD_VOICEMAIL" />
 
@@ -92,6 +93,12 @@
             </intent-filter>
         </receiver>
 
+        <receiver android:name="android.telecom.cts.NewOutgoingCallBroadcastReceiver">
+            <intent-filter>
+                <action android:name="android.intent.action.NEW_OUTGOING_CALL"/>
+            </intent-filter>
+        </receiver>
+
         <activity android:name="android.telecom.cts.MockDialerActivity">
             <intent-filter>
                 <action android:name="android.intent.action.DIAL" />
@@ -125,7 +132,7 @@
         </activity>
     </application>
 
-    <instrumentation android:name="android.support.test.runner.AndroidJUnitRunner"
+    <instrumentation android:name="androidx.test.runner.AndroidJUnitRunner"
                      android:targetPackage="android.telecom.cts"
                      android:label="CTS tests for android.telecom package">
         <meta-data android:name="listener"

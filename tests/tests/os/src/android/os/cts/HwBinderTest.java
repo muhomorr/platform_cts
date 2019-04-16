@@ -16,13 +16,25 @@
 
 package android.os.cts;
 
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.fail;
+
 import android.hidl.manager.V1_0.IServiceManager;
 import android.hidl.manager.V1_0.IServiceNotification;
 import android.os.HwBlob;
+import android.os.NativeHandle;
 import android.os.RemoteException;
 
-import junit.framework.TestCase;
+import androidx.test.runner.AndroidJUnit4;
 
+import org.junit.Test;
+import org.junit.runner.RunWith;
+
+import java.io.FileDescriptor;
+import java.io.IOException;
 import java.util.Calendar;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
@@ -36,7 +48,8 @@ import java.util.concurrent.locks.ReentrantLock;
  * because you can't take advantage of the versioning tools, the C++ and Java
  * interoperability, etc..
  */
-public class HwBinderTest extends TestCase {
+@RunWith(AndroidJUnit4.class)
+public class HwBinderTest {
 
     private static class MarshalCase {
         interface DoMarshalCase {
@@ -86,11 +99,11 @@ public class HwBinderTest extends TestCase {
         }),
         new MarshalCase("Float", 4, (blob, offset) -> {
             blob.putFloat(offset, 3.0f);
-            assertEquals(3.0f, blob.getFloat(offset));
+            assertEquals(3.0f, blob.getFloat(offset), 0.0f);
         }),
         new MarshalCase("Double", 8, (blob, offset) -> {
             blob.putDouble(offset, 3.0);
-            assertEquals(3.0, blob.getDouble(offset));
+            assertEquals(3.0, blob.getDouble(offset), 0.0);
         }),
         new MarshalCase("String", 16, (blob, offset) -> {
             blob.putString(offset, "foo");
@@ -123,31 +136,35 @@ public class HwBinderTest extends TestCase {
         }),
         new MarshalCase("FloatArray", 8, (blob, offset) -> {
             blob.putFloatArray(offset, new float[]{3.0f, 2.0f});
-            assertEquals(3.0f, blob.getFloat(offset));
-            assertEquals(2.0f, blob.getFloat(offset + 4));
+            assertEquals(3.0f, blob.getFloat(offset), 0.0f);
+            assertEquals(2.0f, blob.getFloat(offset + 4), 0.0f);
         }),
         new MarshalCase("DoubleArray", 16, (blob, offset) -> {
             blob.putDoubleArray(offset, new double[]{3.0, 2.0});
-            assertEquals(3.0, blob.getDouble(offset));
-            assertEquals(2.0, blob.getDouble(offset + 8));
+            assertEquals(3.0, blob.getDouble(offset), 0.0);
+            assertEquals(2.0, blob.getDouble(offset + 8), 0.0);
         }),
     };
 
+    @Test
     public void testAccurateMarshall() {
         for (MarshalCase marshalCase : sMarshalCases) {
             marshalCase.test(0 /* deltaSize */, 0 /* offset */);
         }
     }
+    @Test
     public void testAccurateMarshallWithExtraSpace() {
         for (MarshalCase marshalCase : sMarshalCases) {
             marshalCase.test(1 /* deltaSize */, 0 /* offset */);
         }
     }
+    @Test
     public void testAccurateMarshallWithExtraSpaceAndOffset() {
         for (MarshalCase marshalCase : sMarshalCases) {
             marshalCase.test(1 /* deltaSize */, 1 /* offset */);
         }
     }
+    @Test
     public void testNotEnoughSpaceBecauseOfSize() {
         for (MarshalCase marshalCase : sMarshalCases) {
             try {
@@ -158,6 +175,7 @@ public class HwBinderTest extends TestCase {
             }
         }
     }
+    @Test
     public void testNotEnoughSpaceBecauseOfOffset() {
         for (MarshalCase marshalCase : sMarshalCases) {
             try {
@@ -168,6 +186,7 @@ public class HwBinderTest extends TestCase {
             }
         }
     }
+    @Test
     public void testNotEnoughSpaceBecauseOfSizeAndOffset() {
         for (MarshalCase marshalCase : sMarshalCases) {
             try {
@@ -191,6 +210,7 @@ public class HwBinderTest extends TestCase {
         }
     }
 
+    @Test
     public void testHwBinder() throws RemoteException {
         ServiceNotification notification = new ServiceNotification();
 
@@ -214,5 +234,46 @@ public class HwBinderTest extends TestCase {
         }
 
         assertTrue(notification.registered);
+    }
+
+    @Test
+    public void testEmptyNativeHandle() throws IOException {
+        NativeHandle handle = new NativeHandle();
+
+        assertFalse(handle.hasSingleFileDescriptor());
+        assertArrayEquals(new FileDescriptor[]{}, handle.getFileDescriptors());
+        assertArrayEquals(new int[]{}, handle.getInts());
+
+        handle.close();
+    }
+
+    @Test(expected = IllegalStateException.class)
+    public void testEmptyHandleInvalidatedAfterClose() throws IOException {
+        NativeHandle handle = new NativeHandle();
+        handle.close();
+        handle.close();
+    }
+
+    @Test(expected = IllegalStateException.class)
+    public void testEmptyHandleHasNoSingleFileDescriptor() {
+        NativeHandle handle = new NativeHandle();
+        handle.getFileDescriptor();
+    }
+
+    @Test(expected = IllegalStateException.class)
+    public void testFullHandleHasNoSingleFileDescriptor() {
+        NativeHandle handle = new NativeHandle(
+            new FileDescriptor[]{FileDescriptor.in, FileDescriptor.in},
+            new int[]{}, false /*owns*/);
+        handle.getFileDescriptor();
+    }
+
+    @Test
+    public void testSingleFileDescriptor() {
+        NativeHandle handle = new NativeHandle(FileDescriptor.in, false /*own*/);
+
+        assertTrue(handle.hasSingleFileDescriptor());
+        assertArrayEquals(new FileDescriptor[]{FileDescriptor.in}, handle.getFileDescriptors());
+        assertArrayEquals(new int[]{}, handle.getInts());
     }
 }

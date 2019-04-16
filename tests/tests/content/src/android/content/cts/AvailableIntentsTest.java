@@ -267,14 +267,25 @@ public class AvailableIntentsTest extends AndroidTestCase {
         assertCanBeHandled(intent);
     }
 
-    public void testAlarmClockSetTimer() {
-        Intent intent = new Intent(AlarmClock.ACTION_SET_TIMER);
-        intent.putExtra(AlarmClock.EXTRA_LENGTH, 60000);
+    public void testAlarmClockShowAlarms() {
+        Intent intent = new Intent(AlarmClock.ACTION_SHOW_ALARMS);
         assertCanBeHandled(intent);
     }
 
-    public void testAlarmClockShowAlarms() {
-        Intent intent = new Intent(AlarmClock.ACTION_SHOW_ALARMS);
+    public void testAlarmClockDismissAlarm() {
+        Intent intent = new Intent(AlarmClock.ACTION_DISMISS_ALARM);
+        assertCanBeHandled(intent);
+    }
+
+    public void testAlarmClockSnoozeAlarm() {
+        Intent intent = new Intent(AlarmClock.ACTION_SNOOZE_ALARM);
+        intent.putExtra(AlarmClock.EXTRA_ALARM_SNOOZE_DURATION, 10);
+        assertCanBeHandled(intent);
+    }
+
+    public void testAlarmClockSetTimer() {
+        Intent intent = new Intent(AlarmClock.ACTION_SET_TIMER);
+        intent.putExtra(AlarmClock.EXTRA_LENGTH, 60000);
         assertCanBeHandled(intent);
     }
 
@@ -364,5 +375,21 @@ public class AvailableIntentsTest extends AndroidTestCase {
                 || packageManager.hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE)) {
             assertCanBeHandled(new Intent("android.settings.LOCATION_SCANNING_SETTINGS"));
         }
+    }
+
+    public void testPowerUsageSummarySettings() {
+        if (isHandheld()) {
+            assertCanBeHandled(new Intent(Intent.ACTION_POWER_USAGE_SUMMARY));
+        }
+    }
+
+    private boolean isHandheld() {
+        // handheld nature is not exposed to package manager, for now
+        // we check for touchscreen and NOT watch, NOT tv and NOT car
+        PackageManager pm = getContext().getPackageManager();
+        return pm.hasSystemFeature(pm.FEATURE_TOUCHSCREEN)
+                && !pm.hasSystemFeature(pm.FEATURE_WATCH)
+                && !pm.hasSystemFeature(pm.FEATURE_TELEVISION)
+                && !pm.hasSystemFeature(pm.FEATURE_AUTOMOTIVE);
     }
 }
