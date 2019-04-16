@@ -17,12 +17,12 @@
 package android.hardware.input.cts.tests;
 
 import android.hardware.cts.R;
-import android.support.test.filters.SmallTest;
-import android.support.test.runner.AndroidJUnit4;
+
+import androidx.test.filters.SmallTest;
+import androidx.test.runner.AndroidJUnit4;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
-
 
 @SmallTest
 @RunWith(AndroidJUnit4.class)
@@ -35,5 +35,10 @@ public class SonyDualshock4TestCase extends InputTestCase {
     @Test
     public void testAllKeys() {
         testInputEvents(R.raw.sony_dualshock4_keyeventtests);
+    }
+
+    @Test
+    public void testAllMotions() {
+        testInputEvents(R.raw.sony_dualshock4_motioneventtests);
     }
 }

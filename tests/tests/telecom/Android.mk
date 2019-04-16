@@ -25,13 +25,17 @@ LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE_PATH := $(TARGET_OUT_DATA_APPS)
 
 LOCAL_STATIC_JAVA_LIBRARIES := \
-	compatibility-device-util \
-	ctstestrunner \
-	android-support-test
+	compatibility-device-util-axt \
+	ctstestrunner-axt \
+	androidx.test.rules
 
 LOCAL_JAVA_LIBRARIES := android.test.base.stubs
 
-LOCAL_SRC_FILES := $(call all-java-files-under, src)
+LOCAL_SRC_FILES := $(call all-java-files-under, src) \
+                   $(call all-java-files-under, ThirdPtyInCallServiceTestApp) \
+                   $(call all-Iaidl-files-under, ThirdPtyInCallServiceTestApp)
+
+LOCAL_AIDL_INCLUDES := ThirdPtyInCallServiceTestApp/aidl/
 
 LOCAL_SDK_VERSION := test_current
 LOCAL_MIN_SDK_VERSION := 21
@@ -39,4 +43,7 @@ LOCAL_MIN_SDK_VERSION := 21
 # Tag this module as a cts test artifact
 LOCAL_COMPATIBILITY_SUITE := cts vts general-tests
 
+LOCAL_JAVA_LIBRARIES += android.test.runner.stubs
+
 include $(BUILD_CTS_PACKAGE)
+include $(call all-makefiles-under,$(LOCAL_PATH))

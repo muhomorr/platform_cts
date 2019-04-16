@@ -17,36 +17,35 @@
 package android.binder.cts;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 
 import android.os.IBinder;
-import android.os.RemoteException;
 import android.os.ParcelFileDescriptor;
 import android.os.Process;
-
-import android.support.test.InstrumentationRegistry;
-
+import android.os.RemoteException;
 import android.util.Log;
+
+import androidx.test.InstrumentationRegistry;
+
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
+
+import test_package.Bar;
+import test_package.Foo;
+import test_package.IEmpty;
+import test_package.ITest;
+import test_package.RegularPolygon;
 
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
-
-import test_package.IEmpty;
-import test_package.ITest;
-import test_package.RegularPolygon;
-import test_package.Foo;
-import test_package.Bar;
-
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
 
 @RunWith(Parameterized.class)
 public class JavaClientTest {
@@ -99,6 +98,31 @@ public class JavaClientTest {
     public void testTrivial() throws RemoteException {
         mInterface.TestVoidReturn();
         mInterface.TestOneway();
+    }
+
+    private void checkDump(String expected, String[] args) throws RemoteException, IOException {
+        ParcelFileDescriptor[] sockets = ParcelFileDescriptor.createReliableSocketPair();
+        ParcelFileDescriptor socketIn = sockets[0];
+        ParcelFileDescriptor socketOut = sockets[1];
+
+        mInterface.asBinder().dump(socketIn.getFileDescriptor(), args);
+        socketIn.close();
+
+        FileInputStream fileInputStream = new ParcelFileDescriptor.AutoCloseInputStream(socketOut);
+
+        byte[] expectedBytes = expected.getBytes();
+        byte[] input = new byte[expectedBytes.length];
+
+        assertEquals(input.length, fileInputStream.read(input));
+        Assert.assertArrayEquals(input, expectedBytes);
+    }
+
+    @Test
+    public void testDump() throws RemoteException, IOException {
+        checkDump("", new String[]{});
+        checkDump("", new String[]{"", ""});
+        checkDump("Hello World!", new String[]{"Hello ", "World!"});
+        checkDump("ABC", new String[]{"A", "B", "C"});
     }
 
     @Test

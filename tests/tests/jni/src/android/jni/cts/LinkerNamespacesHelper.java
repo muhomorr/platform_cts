@@ -16,6 +16,14 @@
 
 package android.jni.cts;
 
+import android.content.pm.ApplicationInfo;
+import android.content.pm.PackageManager;
+import android.content.pm.PackageManager.NameNotFoundException;
+
+import androidx.test.InstrumentationRegistry;
+
+import dalvik.system.PathClassLoader;
+
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
@@ -30,12 +38,6 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import android.content.pm.ApplicationInfo;
-import android.content.pm.PackageManager;
-import android.content.pm.PackageManager.NameNotFoundException;
-import android.support.test.InstrumentationRegistry;
-import dalvik.system.PathClassLoader;
-
 class LinkerNamespacesHelper {
     private final static String PUBLIC_CONFIG_DIR = "/system/etc/";
     private final static String PRODUCT_CONFIG_DIR = "/product/etc/";
@@ -43,6 +45,7 @@ class LinkerNamespacesHelper {
     private final static Pattern EXTENSION_CONFIG_FILE_PATTERN = Pattern.compile(
             "public\\.libraries-([A-Za-z0-9\\-_.]+)\\.txt");
     private final static String VENDOR_CONFIG_FILE = "/vendor/etc/public.libraries.txt";
+    private final static String RUNTIME_APEX_DIR = "/apex/com.android.runtime";
     private final static String[] PUBLIC_SYSTEM_LIBRARIES = {
         "libaaudio.so",
         "libandroid.so",
@@ -54,8 +57,6 @@ class LinkerNamespacesHelper {
         "libGLESv1_CM.so",
         "libGLESv2.so",
         "libGLESv3.so",
-        "libicui18n.so",
-        "libicuuc.so",
         "libjnigraphics.so",
         "liblog.so",
         "libmediandk.so",
@@ -70,6 +71,13 @@ class LinkerNamespacesHelper {
         "libvulkan.so",
         "libz.so"
     };
+
+    // Libraries listed in public.libraries.android.txt, located in RUNTIME_APEX_DIR path
+    private final static String[] PUBLIC_RUNTIME_LIBRARIES = {
+        "libicui18n.so",
+        "libicuuc.so",
+    };
+
     // The grey-list.
     private final static String[] PRIVATE_SYSTEM_LIBRARIES = {
         "libandroid_runtime.so",
@@ -145,6 +153,7 @@ class LinkerNamespacesHelper {
 
     public static String runAccessibilityTest() throws IOException {
         List<String> systemLibs = new ArrayList<>();
+        List<String> runtimeApexLibs = new ArrayList<>();
 
         Collections.addAll(systemLibs, PUBLIC_SYSTEM_LIBRARIES);
 
@@ -152,6 +161,8 @@ class LinkerNamespacesHelper {
                 hasSystemFeature(PackageManager.FEATURE_WEBVIEW)) {
             systemLibs.add(WEBVIEW_PLAT_SUPPORT_LIB);
         }
+
+        Collections.addAll(runtimeApexLibs, PUBLIC_RUNTIME_LIBRARIES);
 
         // Check if public.libraries.txt contains libs other than the
         // public system libs (NDK libs).
@@ -185,11 +196,13 @@ class LinkerNamespacesHelper {
         }
 
         return runAccessibilityTestImpl(systemLibs.toArray(new String[systemLibs.size()]),
+                                        runtimeApexLibs.toArray(new String[runtimeApexLibs.size()]),
                                         vendorLibs.toArray(new String[vendorLibs.size()]),
                                         productLibs.toArray(new String[productLibs.size()]));
     }
 
     private static native String runAccessibilityTestImpl(String[] publicSystemLibs,
+                                                          String[] publicRuntimeLibs,
                                                           String[] publicVendorLibs,
                                                           String[] publicProductLibs);
 
@@ -335,6 +348,18 @@ class LinkerNamespacesHelper {
         // On success we return null.
         return null;
     }
+
+    public static String runDlopenPublicLibrariesInRuntimeNamespace() {
+        for (String lib : PUBLIC_RUNTIME_LIBRARIES) {
+            String error = LinkerNamespacesHelper.tryDlopen(lib);
+            if (error != null) {
+                return error;
+            }
+        }
+        return null;
+    }
+
+    public static native String tryDlopen(String lib);
 }
 
 class ClassNamespaceA1 {

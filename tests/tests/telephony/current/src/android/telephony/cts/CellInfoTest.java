@@ -18,6 +18,8 @@ package android.telephony.cts;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.os.Parcel;
+import android.os.SystemClock;
+import android.telephony.CellIdentity;
 import android.telephony.CellIdentityCdma;
 import android.telephony.CellIdentityGsm;
 import android.telephony.CellIdentityLte;
@@ -37,10 +39,12 @@ import android.telephony.CellSignalStrengthLte;
 import android.telephony.CellSignalStrengthNr;
 import android.telephony.CellSignalStrengthTdscdma;
 import android.telephony.CellSignalStrengthWcdma;
+import android.telephony.PhoneStateListener;
 import android.telephony.ServiceState;
 import android.telephony.TelephonyManager;
 import android.test.AndroidTestCase;
 import android.util.Log;
+import android.util.Pair;
 
 import java.util.List;
 import java.util.concurrent.Executor;
@@ -125,9 +129,23 @@ public class CellInfoTest extends AndroidTestCase{
     private static final int CHANNEL_RASTER_EUTRAN = 100; //kHz
 
     private static final int MAX_CELLINFO_WAIT_MILLIS = 5000;
+    private static final int MAX_LISTENER_WAIT_MILLIS = 1000; // usually much less
+    // The maximum interval between CellInfo updates from the modem. In the AOSP code it varies
+    // between 2 and 10 seconds, and there is an allowable modem delay of 3 seconds, so if we
+    // cannot get a seconds CellInfo update within 15 seconds, then something is broken.
+    // See DeviceStateMonitor#CELL_INFO_INTERVAL_*
+    private static final int MAX_CELLINFO_INTERVAL_MILLIS = 15000; // in AOSP the max is 10s
+    private static final int RADIO_HAL_VERSION_1_2 = makeRadioVersion(1, 2);
 
     private PackageManager mPm;
     private TelephonyManager mTm;
+
+    private int mRadioHalVersion;
+
+    private static final int makeRadioVersion(int major, int minor) {
+        if (major < 0 || minor < 0) return 0;
+        return major * 100 + minor;
+    }
 
     private Executor mSimpleExecutor = new Executor() {
         @Override
@@ -135,20 +153,6 @@ public class CellInfoTest extends AndroidTestCase{
             r.run();
         }
     };
-
-    private boolean isCamped() {
-        ServiceState ss = mTm.getServiceState();
-        if (ss == null) return false;
-        return (ss.getState() == ServiceState.STATE_IN_SERVICE
-                || ss.getState() == ServiceState.STATE_EMERGENCY_ONLY);
-    }
-
-    @Override
-    protected void setUp() throws Exception {
-        super.setUp();
-        mTm = (TelephonyManager) getContext().getSystemService(Context.TELEPHONY_SERVICE);
-        mPm = getContext().getPackageManager();
-    }
 
     private static class CellInfoResultsCallback extends TelephonyManager.CellInfoCallback {
         List<CellInfo> cellInfo;
@@ -163,6 +167,92 @@ public class CellInfoTest extends AndroidTestCase{
             if (cellInfo == null) {
                 super.wait(millis);
             }
+        }
+    }
+
+    private static class CellInfoListener extends PhoneStateListener {
+        List<CellInfo> cellInfo;
+
+        public CellInfoListener(Executor e) {
+            super(e);
+        }
+
+        @Override
+        public synchronized void onCellInfoChanged(List<CellInfo> cellInfo) {
+            this.cellInfo = cellInfo;
+            notifyAll();
+        }
+
+        public synchronized void wait(int millis) throws InterruptedException {
+            if (cellInfo == null) {
+                super.wait(millis);
+            }
+        }
+    }
+
+    private boolean isCamped() {
+        ServiceState ss = mTm.getServiceState();
+        if (ss == null) return false;
+        return (ss.getState() == ServiceState.STATE_IN_SERVICE
+                || ss.getState() == ServiceState.STATE_EMERGENCY_ONLY);
+    }
+
+    @Override
+    protected void setUp() throws Exception {
+        super.setUp();
+        mTm = (TelephonyManager) getContext().getSystemService(Context.TELEPHONY_SERVICE);
+        mPm = getContext().getPackageManager();
+        Pair<Integer, Integer> verPair = mTm.getRadioHalVersion();
+        mRadioHalVersion = makeRadioVersion(verPair.first, verPair.second);
+    }
+
+    /**
+     * Test to ensure that the PhoneStateListener receives callbacks every time that new CellInfo
+     * is received and not otherwise.
+     */
+    public void testPhoneStateListenerCallback() throws Throwable {
+        CellInfoResultsCallback resultsCallback = new CellInfoResultsCallback();
+        // Prime the system by requesting a CellInfoUpdate
+        mTm.requestCellInfoUpdate(mSimpleExecutor, resultsCallback);
+        resultsCallback.wait(MAX_CELLINFO_WAIT_MILLIS);
+        // Register a new PhoneStateListener for CellInfo
+        CellInfoListener listener = new CellInfoListener(mSimpleExecutor);
+        mTm.listen(listener, PhoneStateListener.LISTEN_CELL_INFO);
+        // Expect a callback immediately upon registration
+        listener.wait(MAX_LISTENER_WAIT_MILLIS);
+        assertNotNull("CellInfo Listener Never Fired on Registration", listener.cellInfo);
+        // Save the initial listener result as a baseline
+        List<CellInfo> referenceList = listener.cellInfo;
+        assertFalse("CellInfo does not contain valid results", referenceList.isEmpty());
+        assertTrue("Listener Didn't Receive the Right Data",
+                referenceList.containsAll(resultsCallback.cellInfo));
+        listener.cellInfo = null;
+        resultsCallback.cellInfo = null;
+        long timeoutTime = SystemClock.elapsedRealtime() + MAX_CELLINFO_INTERVAL_MILLIS;
+        while (timeoutTime > SystemClock.elapsedRealtime()) {
+            // Request a CellInfo update to try and coax an update from the listener
+            mTm.requestCellInfoUpdate(mSimpleExecutor, resultsCallback);
+            resultsCallback.wait(MAX_CELLINFO_WAIT_MILLIS);
+            assertNotNull("CellInfoCallback should return valid data", resultsCallback.cellInfo);
+            if (referenceList.containsAll(resultsCallback.cellInfo)) {
+                // Check the a call to getAllCellInfo doesn't trigger the listener.
+                mTm.getAllCellInfo();
+                // Wait for the listener to fire; it shouldn't.
+                listener.wait(MAX_LISTENER_WAIT_MILLIS);
+                // Check to ensure the listener didn't fire for stale data.
+                assertNull("PhoneStateListener Fired For Old CellInfo Data", listener.cellInfo);
+            } else {
+                // If there is new CellInfo data, then the listener should fire
+                listener.wait(MAX_LISTENER_WAIT_MILLIS);
+                assertNotNull("Listener did not receive updated CellInfo Data",
+                        listener.cellInfo);
+                assertFalse("CellInfo data should be different from the old listener data."
+                        + referenceList + " : " + listener.cellInfo,
+                        referenceList.containsAll(listener.cellInfo));
+                return; // pass the test
+            }
+            // Reset the resultsCallback for the next iteration
+            resultsCallback.cellInfo = null;
         }
     }
 
@@ -189,6 +279,8 @@ public class CellInfoTest extends AndroidTestCase{
             if (cellInfo.isRegistered()) {
                 ++numRegisteredCells;
             }
+            verifyBaseCellInfo(cellInfo);
+            verifyBaseCellIdentity(cellInfo.getCellIdentity(), cellInfo.isRegistered());
             if (cellInfo instanceof CellInfoLte) {
                 verifyLteInfo((CellInfoLte) cellInfo);
             } else if (cellInfo instanceof CellInfoWcdma) {
@@ -211,6 +303,28 @@ public class CellInfoTest extends AndroidTestCase{
         //       not hit any of these cases yet.
         assertTrue("None or too many registered cells : " + numRegisteredCells,
                 numRegisteredCells > 0 && numRegisteredCells <= 2);
+    }
+
+    private void verifyBaseCellInfo(CellInfo info) {
+        assertTrue("Invalid timestamp in CellInfo: " + info.getTimeStamp(),
+                info.getTimeStamp() > 0 && info.getTimeStamp() < Long.MAX_VALUE);
+
+        if (mRadioHalVersion >= RADIO_HAL_VERSION_1_2) {
+            // In HAL 1.2 or greater, the connection status must be reported
+            assertTrue(info.getCellConnectionStatus() != CellInfo.CONNECTION_UNKNOWN);
+        }
+    }
+
+    private void verifyBaseCellIdentity(CellIdentity id, boolean isRegistered) {
+        if (mRadioHalVersion >= RADIO_HAL_VERSION_1_2) {
+            if (isRegistered) {
+                String alphaLong = (String) id.getOperatorAlphaLong();
+                assertNotNull("getOperatorAlphaLong() returns NULL!", alphaLong);
+
+                String alphaShort = (String) id.getOperatorAlphaShort();
+                assertNotNull("getOperatorAlphaShort() returns NULL!", alphaShort);
+            }
+        }
     }
 
     private void verifyCdmaInfo(CellInfoCdma cdma) {
@@ -259,12 +373,6 @@ public class CellInfoTest extends AndroidTestCase{
             assertTrue("SID is required for registered cells", systemId != Integer.MAX_VALUE);
             assertTrue("NID is required for registered cells", networkId != Integer.MAX_VALUE);
             assertTrue("BSID is required for registered cells", basestationId != Integer.MAX_VALUE);
-
-            String alphaLong = (String) cdma.getOperatorAlphaLong();
-            assertNotNull("getOperatorAlphaLong() returns NULL!", alphaLong);
-
-            String alphaShort = (String) cdma.getOperatorAlphaShort();
-            assertNotNull("getOperatorAlphaShort() returns NULL!", alphaShort);
         }
     }
 
@@ -392,9 +500,9 @@ public class CellInfoTest extends AndroidTestCase{
         int tac = nr.getTac();
         assertTrue("getTac() out of range [0, 65536], tac = " + tac, 0 <= tac && tac <= 65536);
 
-        int channelNumber = nr.getChannelNumber();
-        assertTrue("getChannelNumber() out of range [0, 3279165], channelNumber = " + channelNumber,
-                0 <= channelNumber && channelNumber <= 3279165);
+        int nrArfcn = nr.getNrarfcn();
+        assertTrue("getNrarfcn() out of range [0, 3279165], nrarfcn = " + nrArfcn,
+                0 <= nrArfcn && nrArfcn <= 3279165);
 
         String mccStr = nr.getMccString();
         String mncStr = nr.getMncString();
@@ -411,9 +519,6 @@ public class CellInfoTest extends AndroidTestCase{
             assertTrue("TAC is required for registered cells", tac != Integer.MAX_VALUE);
             assertTrue("MCC is required for registered cells", nr.getMccString() != null);
             assertTrue("MNC is required for registered cells", nr.getMncString() != null);
-
-            assertNotNull("getOperatorAlphaLong() returns NULL!", nr.getOperatorAlphaLong());
-            assertNotNull("getOperatorAlphaShort() returns NULL!", nr.getOperatorAlphaShort());
         }
     }
 
@@ -511,12 +616,6 @@ public class CellInfoTest extends AndroidTestCase{
                     lte.getMccString() != null || lte.getMcc() != Integer.MAX_VALUE);
             assertTrue("MNC is required for registered cells",
                     lte.getMncString() != null || lte.getMnc() != Integer.MAX_VALUE);
-
-            String alphaLong = (String) lte.getOperatorAlphaLong();
-            assertNotNull("getOperatorAlphaLong() returns NULL!", alphaLong);
-
-            String alphaShort = (String) lte.getOperatorAlphaShort();
-            assertNotNull("getOperatorAlphaShort() returns NULL!", alphaShort);
         }
     }
 
@@ -569,6 +668,11 @@ public class CellInfoTest extends AndroidTestCase{
         int timingAdvance = cellSignalStrengthLte.getTimingAdvance();
         assertTrue("getTimingAdvance() out of range [0,1282], timingAdvance=" + timingAdvance,
                 timingAdvance == Integer.MAX_VALUE || (timingAdvance >= 0 && timingAdvance <= 1282));
+
+        if (mRadioHalVersion >= RADIO_HAL_VERSION_1_2) {
+            assertTrue("RSRP Must be valid for LTE",
+                    cellSignalStrengthLte.getRsrp() != CellInfo.UNAVAILABLE);
+        }
     }
 
     private void verifyCellSignalStrengthLteParcel(CellSignalStrengthLte cellSignalStrengthLte) {
@@ -638,12 +742,6 @@ public class CellInfoTest extends AndroidTestCase{
                     wcdma.getMccString() != null || wcdma.getMcc() != Integer.MAX_VALUE);
             assertTrue("MNC is required for registered cells",
                     wcdma.getMncString() != null || wcdma.getMnc() != Integer.MAX_VALUE);
-
-            String alphaLong = (String) wcdma.getOperatorAlphaLong();
-            assertNotNull("getOperatorAlphaLong() returns NULL!", alphaLong);
-
-            String alphaShort = (String) wcdma.getOperatorAlphaShort();
-            assertNotNull("getOperatorAlphaShort() returns NULL!", alphaShort);
         }
     }
 
@@ -669,6 +767,10 @@ public class CellInfoTest extends AndroidTestCase{
 
         int level = wcdma.getLevel();
         assertTrue("getLevel() out of range [0,4], level=" + level, level >= 0 && level <= 4);
+
+        if (mRadioHalVersion >= RADIO_HAL_VERSION_1_2) {
+            assertTrue("RSCP Must be valid for WCDMA", wcdma.getRscp() != CellInfo.UNAVAILABLE);
+        }
     }
 
     private void verifyCellSignalStrengthWcdmaParcel(CellSignalStrengthWcdma wcdma) {
@@ -734,12 +836,6 @@ public class CellInfoTest extends AndroidTestCase{
                     gsm.getMccString() != null || gsm.getMcc() != Integer.MAX_VALUE);
             assertTrue("MNC is required for registered cells",
                     gsm.getMncString() != null || gsm.getMnc() != Integer.MAX_VALUE);
-
-            String alphaLong = (String) gsm.getOperatorAlphaLong();
-            assertNotNull("getOperatorAlphaLong() returns NULL!", alphaLong);
-
-            String alphaShort = (String) gsm.getOperatorAlphaShort();
-            assertNotNull("getOperatorAlphaShort() returns NULL!", alphaShort);
         }
     }
 
@@ -773,6 +869,10 @@ public class CellInfoTest extends AndroidTestCase{
         int ber = gsm.getBitErrorRate();
         assertTrue("getBitErrorRate out of range [0,7], 99, or CellInfo.UNAVAILABLE, ber=" + ber,
                 ber == 99 || ber == CellInfo.UNAVAILABLE || (ber >= 0 && ber <= 7));
+
+        if (mRadioHalVersion >= RADIO_HAL_VERSION_1_2) {
+            assertTrue("RSSI Must be valid for GSM", gsm.getDbm() != CellInfo.UNAVAILABLE);
+        }
     }
 
     private void verifyCellSignalStrengthGsmParcel(CellSignalStrengthGsm gsm) {
@@ -833,13 +933,12 @@ public class CellInfoTest extends AndroidTestCase{
                 mobileNetworkOperator == null
                         || mobileNetworkOperator.matches("^[0-9]{5,6}$"));
 
-        // b/123957505
-        // int uarfcn = tdscdma.getUarfcn();
+        int uarfcn = tdscdma.getUarfcn();
         // Reference 3GPP 25.101 Table 5.2
         // From Appendix E.1, even though UARFCN is numbered from 400, the minumum
         // usable channel is 412 due to the fixed bandwidth of 5Mhz
-        // assertTrue("getUarfcn() out of range [412,11000], uarfcn=" + uarfcn,
-        //        uarfcn >= 412 && uarfcn <= 11000);
+        assertTrue("getUarfcn() out of range [412,11000], uarfcn=" + uarfcn,
+                uarfcn >= 412 && uarfcn <= 11000);
 
         // If the cell is reported as registered, then all the logical cell info must be reported
         if (isRegistered) {
@@ -847,12 +946,6 @@ public class CellInfoTest extends AndroidTestCase{
             assertTrue("CID is required for registered cells", cid != Integer.MAX_VALUE);
             assertTrue("MCC is required for registered cells", tdscdma.getMccString() != null);
             assertTrue("MNC is required for registered cells", tdscdma.getMncString() != null);
-
-            String alphaLong = (String) tdscdma.getOperatorAlphaLong();
-            assertNotNull("getOperatorAlphaLong() returns NULL!", alphaLong);
-
-            String alphaShort = (String) tdscdma.getOperatorAlphaShort();
-            assertNotNull("getOperatorAlphaShort() returns NULL!", alphaShort);
         }
     }
 
@@ -878,6 +971,10 @@ public class CellInfoTest extends AndroidTestCase{
 
         int level = tdscdma.getLevel();
         assertTrue("getLevel() out of range [0,4], level=" + level, level >= 0 && level <= 4);
+
+        if (mRadioHalVersion >= RADIO_HAL_VERSION_1_2) {
+            assertTrue("RSCP Must be valid for TDSCDMA", tdscdma.getRscp() != CellInfo.UNAVAILABLE);
+        }
     }
 
     private void verifyCellSignalStrengthTdscdmaParcel(CellSignalStrengthTdscdma tdscdma) {

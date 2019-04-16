@@ -28,7 +28,7 @@
         <uses-library android:name="android.test.runner" />
 
         <!-- Required to be default SMS app -->
-        <receiver android:name="android.telephonyprovider.TelephonyProviderReceiver"
+        <receiver android:name="android.telephonyprovider.TelephonyProviderSmsDeliverReceiver"
                   android:permission="android.permission.BROADCAST_SMS">
 
             <intent-filter>
@@ -38,7 +38,7 @@
         </receiver>
 
         <!-- Required to be default SMS app -->
-        <receiver android:name="android.telephonyprovider.TelephonyProviderReceiver"
+        <receiver android:name="android.telephonyprovider.TelephonyProviderWapPushDeliverReceiver"
                   android:permission="android.permission.BROADCAST_WAP_PUSH">
 
             <intent-filter>
@@ -84,7 +84,7 @@
 
     <!--  self-instrumenting test package. -->
     <instrumentation
-        android:name="android.support.test.runner.AndroidJUnitRunner"
+        android:name="androidx.test.runner.AndroidJUnitRunner"
         android:label="CTS telephony provider tests"
         android:targetPackage="android.telephonyprovider.cts" >
     </instrumentation>

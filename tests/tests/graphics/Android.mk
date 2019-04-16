@@ -23,11 +23,11 @@ LOCAL_MULTILIB := both
 LOCAL_JAVA_LIBRARIES := android.test.runner.stubs android.test.base.stubs
 
 LOCAL_STATIC_JAVA_LIBRARIES += \
-    android-support-test \
+    androidx.test.rules \
     mockito-target-minus-junit4 \
-    compatibility-device-util \
-    ctsdeviceutillegacy \
-    ctstestrunner \
+    compatibility-device-util-axt \
+    ctsdeviceutillegacy-axt \
+    ctstestrunner-axt \
     androidx.annotation_annotation \
     junit
 
@@ -45,9 +45,6 @@ LOCAL_COMPATIBILITY_SUITE := cts vts general-tests
 
 # Enforce public / test api only
 LOCAL_SDK_VERSION := test_current
-
-# TODO(b/77530630): remove when this test passes with aapt2
-LOCAL_USE_AAPT2 := false
 
 include $(BUILD_CTS_PACKAGE)
 

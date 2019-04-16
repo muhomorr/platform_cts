@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# NOTE: when converting this file to Android.bp, verify that
+# 'atest CtsExtendedMockingTestCases' succeeds.
 LOCAL_PATH:= $(call my-dir)
 
 include $(CLEAR_VARS)
@@ -22,8 +24,8 @@ LOCAL_JAVA_LIBRARIES := \
     android.test.runner.stubs
 LOCAL_STATIC_JAVA_LIBRARIES = \
     mockito-target-extended \
-    android-support-test \
-    ctstestrunner \
+    androidx.test.rules \
+    ctstestrunner-axt \
     dexmaker-mockmaker-tests \
     dexmaker-inline-mockmaker-tests \
     dexmaker-extended-mockmaker-tests \

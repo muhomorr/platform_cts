@@ -26,9 +26,9 @@ LOCAL_MULTILIB := both
 
 LOCAL_STATIC_JAVA_LIBRARIES := \
     android.hidl.manager-V1.0-java \
-    android-support-test \
-    compatibility-device-util \
-    ctstestrunner \
+    androidx.test.rules \
+    compatibility-device-util-axt \
+    ctstestrunner-axt \
     truth-prebuilt \
     guava \
     junit
@@ -44,6 +44,9 @@ LOCAL_SRC_FILES := \
     src/android/os/cts/ISharedMemoryService.aidl
 
 LOCAL_PACKAGE_NAME := CtsOsTestCases
+
+# Set its own test config to prevent sharing with cts-platform-version-check
+LOCAL_TEST_CONFIG := CtsOsTestCases.xml
 
 # Tag this module as a cts test artifact
 LOCAL_COMPATIBILITY_SUITE := cts vts general-tests
