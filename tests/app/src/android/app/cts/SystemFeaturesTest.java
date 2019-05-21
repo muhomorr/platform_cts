@@ -43,6 +43,7 @@ import android.os.Build;
 import android.telephony.TelephonyManager;
 import android.test.InstrumentationTestCase;
 
+import com.android.compatibility.common.util.CddTest;
 import com.android.compatibility.common.util.PropertyUtil;
 
 import java.lang.reflect.Field;
@@ -293,6 +294,7 @@ public class SystemFeaturesTest extends InstrumentationTestCase {
         }
     }
 
+    @CddTest(requirement="7.4.4/C-1-1,C-2-1")
     public void testNfcFeatures() {
         if (NfcAdapter.getDefaultAdapter(mContext) != null) {
             // Watches MAY support all FEATURE_NFC features when an NfcAdapter is available, but
@@ -501,17 +503,16 @@ public class SystemFeaturesTest extends InstrumentationTestCase {
         // TODO: Add tests for the other touchscreen features.
     }
 
+    @CddTest(requirement="7.7.2/C-2-1")
     public void testUsbAccessory() {
-        // USB accessory mode is only a requirement for devices with USB ports supporting
-        // peripheral mode. As there is no public API to distinguish a device with only host
-        // mode support from having both peripheral and host support, the test may have
-        // false negatives.
         if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_AUTOMOTIVE) &&
-                !mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEVISION) &&
+                !mPackageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK) &&
                 !mPackageManager.hasSystemFeature(PackageManager.FEATURE_WATCH) &&
                 !mPackageManager.hasSystemFeature(PackageManager.FEATURE_EMBEDDED) &&
                 !isAndroidEmulator() &&
-                !mPackageManager.hasSystemFeature(PackageManager.FEATURE_PC)) {
+                !mPackageManager.hasSystemFeature(PackageManager.FEATURE_PC) &&
+                mPackageManager.hasSystemFeature(PackageManager.FEATURE_MICROPHONE) &&
+                mPackageManager.hasSystemFeature(PackageManager.FEATURE_TOUCHSCREEN)) {
             // USB accessory mode is only a requirement for devices with USB ports supporting
             // peripheral mode. As there is no public API to distinguish a device with only host
             // mode support from having both peripheral and host support, the test may have
@@ -537,7 +538,7 @@ public class SystemFeaturesTest extends InstrumentationTestCase {
 
     public void testAudioOutputFeature() throws Exception {
         if (mPackageManager.hasSystemFeature(PackageManager.FEATURE_AUTOMOTIVE) ||
-                mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEVISION)) {
+                mPackageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK)) {
             assertAvailable(PackageManager.FEATURE_AUDIO_OUTPUT);
         }
     }

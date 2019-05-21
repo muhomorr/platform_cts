@@ -100,32 +100,13 @@
                 <action android:name="android.media.browse.MediaBrowserService" />
             </intent-filter>
         </service>
-        <!-- Keep the test services synced together with the TestUtils.java -->
-        <service android:name="android.media.cts.MockMediaSessionService2">
-            <intent-filter>
-                <action android:name="android.media.MediaSessionService2" />
-            </intent-filter>
-            <meta-data android:name="android.media.session" android:value="TestSession" />
-        </service>
-        <!-- Keep the test services synced together with the MockMediaLibraryService -->
-        <service android:name="android.media.cts.MockMediaLibraryService2">
-            <intent-filter>
-                <action android:name="android.media.MediaLibraryService2" />
-            </intent-filter>
-            <meta-data android:name="android.media.session" android:value="TestLibrary" />
-        </service>
     </application>
 
-    <instrumentation android:name="android.support.test.runner.AndroidJUnitRunner"
+    <instrumentation android:name="androidx.test.runner.AndroidJUnitRunner"
                      android:targetPackage="android.media.cts"
                      android:label="CTS tests of android.media">
         <meta-data android:name="listener"
             android:value="com.android.cts.runner.CtsTestRunListener" />
-    </instrumentation>
-
-    <instrumentation android:name="android.test.InstrumentationTestRunner"
-                     android:targetPackage="android.media.cts"
-                     android:label="MediaPlayer Streaming tests InstrumentationRunner">
     </instrumentation>
 
 </manifest>

@@ -24,10 +24,12 @@ import android.content.pm.ResolveInfo;
 import android.content.res.Configuration;
 import android.net.Uri;
 import android.provider.Settings;
-import android.support.test.filters.MediumTest;
-import android.support.test.runner.AndroidJUnit4;
-import android.support.test.InstrumentationRegistry;
-import android.util.Log;
+
+import androidx.test.InstrumentationRegistry;
+import androidx.test.filters.MediumTest;
+import androidx.test.runner.AndroidJUnit4;
+
+import com.android.compatibility.common.util.CddTest;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -81,6 +83,7 @@ public class TestSystemIntents {
                     new Intent(Settings.ACTION_INPUT_METHOD_SETTINGS))
     };
 
+    @CddTest(requirement="3.8.3.3/C-1-1,3.2.3.5/C-1-1,7.4.7/C-1-2,C-2-3,6.2/C-0-1")
     @Test
     public void testSystemIntents() {
         final PackageManager pm = InstrumentationRegistry.getContext().getPackageManager();

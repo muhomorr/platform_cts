@@ -24,9 +24,13 @@ import android.content.Context;
 import android.database.ContentObserver;
 import android.database.Cursor;
 import android.net.Uri;
+import android.os.UserManager;
 import android.provider.BlockedNumberContract;
 import android.provider.BlockedNumberContract.BlockedNumbers;
 import android.telephony.TelephonyManager;
+import android.util.Log;
+
+import com.android.compatibility.common.util.CddTest;
 
 import junit.framework.Assert;
 
@@ -41,10 +45,13 @@ import java.util.concurrent.TimeUnit;
 // make cts
 // cts-tradefed
 // run cts -m CtsProviderTestCases --test android.provider.cts.BlockedNumberContractTest
+@CddTest(requirement="7.4.1.1/C-1-1,C-1-2")
 public class BlockedNumberContractTest extends TestCaseThatRunsIfTelephonyIsEnabled {
+    private static final String TAG = "BlockedNumberContractTest";
     private ContentResolver mContentResolver;
     private Context mContext;
     private ArrayList<Uri> mAddedUris;
+    private boolean mIsSystemUser;
 
     private static final String[] BLOCKED_NUMBERS_PROJECTION = new String[]{
             BlockedNumbers.COLUMN_ORIGINAL_NUMBER,
@@ -56,6 +63,7 @@ public class BlockedNumberContractTest extends TestCaseThatRunsIfTelephonyIsEnab
         mContext = getInstrumentation().getContext();
         mContentResolver = mContext.getContentResolver();
         mAddedUris = new ArrayList<>();
+        mIsSystemUser = isSystemUser(mContext);
     }
 
     @Override
@@ -69,7 +77,12 @@ public class BlockedNumberContractTest extends TestCaseThatRunsIfTelephonyIsEnab
         super.tearDown();
     }
 
+    @CddTest(requirement="7.4.1.1/C-1-2")
     public void testProviderInteractionsAsRegularApp_fails() {
+        if (!mIsSystemUser) {
+            Log.i(TAG, "skipping BlockedNumberContractTest");
+            return;
+        }
         TelephonyManager telephonyManager = mContext.getSystemService(TelephonyManager.class);
         // Don't run this test if we're carrier privileged.
         if (telephonyManager.checkCarrierPrivilegesForPackage(mContext.getPackageName())
@@ -122,7 +135,12 @@ public class BlockedNumberContractTest extends TestCaseThatRunsIfTelephonyIsEnab
         assertNull(mContentResolver.getType(BlockedNumberContract.AUTHORITY_URI));
     }
 
+    @CddTest(requirement="7.4.1.1/CC-1-2")
     public void testInsertAndBlockCheck_succeeds() throws Exception {
+        if (!mIsSystemUser) {
+            Log.i(TAG, "skipping BlockedNumberContractTest");
+            return;
+        }
         setDefaultSmsApp(true);
 
         assertTrue(BlockedNumberContract.canCurrentUserBlockNumbers(mContext));
@@ -149,7 +167,12 @@ public class BlockedNumberContractTest extends TestCaseThatRunsIfTelephonyIsEnab
         assertFalse(BlockedNumberContract.isBlocked(mContext, "random string"));
     }
 
+    @CddTest(requirement="7.4.1.1/C-1-2")
     public void testUnblock_succeeds() throws Exception {
+        if (!mIsSystemUser) {
+            Log.i(TAG, "skipping BlockedNumberContractTest");
+            return;
+        }
         setDefaultSmsApp(true);
 
         // Unblocking non-existent blocked number should return 0.
@@ -164,7 +187,12 @@ public class BlockedNumberContractTest extends TestCaseThatRunsIfTelephonyIsEnab
         assertFalse(BlockedNumberContract.isBlocked(mContext, "1234@abcd.com"));
     }
 
+    @CddTest(requirement="7.4.1.1/C-1-2")
     public void testInsert_failsWithInvalidInputs() throws Exception {
+        if (!mIsSystemUser) {
+            Log.i(TAG, "skipping BlockedNumberContractTest");
+            return;
+        }
         setDefaultSmsApp(true);
 
         try {
@@ -205,7 +233,12 @@ public class BlockedNumberContractTest extends TestCaseThatRunsIfTelephonyIsEnab
         }
     }
 
+    @CddTest(requirement="7.4.1.1/C-1-2")
     public void testUpdate_isUnsupported() throws  Exception {
+        if (!mIsSystemUser) {
+            Log.i(TAG, "skipping BlockedNumberContractTest");
+            return;
+        }
         setDefaultSmsApp(true);
         try {
             mContentResolver.update(
@@ -216,12 +249,21 @@ public class BlockedNumberContractTest extends TestCaseThatRunsIfTelephonyIsEnab
     }
 
     public void testIsBlocked_returnsFalseForNullAndEmpty() throws Exception {
+        if (!mIsSystemUser) {
+            Log.i(TAG, "skipping BlockedNumberContractTest");
+            return;
+        }
         setDefaultSmsApp(true);
         assertFalse(BlockedNumberContract.isBlocked(mContext, null));
         assertFalse(BlockedNumberContract.isBlocked(mContext, ""));
     }
 
+    @CddTest(requirement="7.4.1.1/C-1-2")
     public void testDelete() throws Exception {
+        if (!mIsSystemUser) {
+            Log.i(TAG, "skipping BlockedNumberContractTest");
+            return;
+        }
         setDefaultSmsApp(true);
 
         assertInsertBlockedNumberSucceeds("12345", "+112345");
@@ -264,6 +306,10 @@ public class BlockedNumberContractTest extends TestCaseThatRunsIfTelephonyIsEnab
     }
 
     public void testDelete_failsOnInvalidInputs() throws Exception {
+        if (!mIsSystemUser) {
+            Log.i(TAG, "skipping BlockedNumberContractTest");
+            return;
+        }
         setDefaultSmsApp(true);
 
         try {
@@ -284,7 +330,12 @@ public class BlockedNumberContractTest extends TestCaseThatRunsIfTelephonyIsEnab
         }
     }
 
+    @CddTest(requirement="7.4.1.1/C-1-2")
     public void testProviderNotifiesChangesUsingContentObserver() throws Exception {
+        if (!mIsSystemUser) {
+            Log.i(TAG, "skipping BlockedNumberContractTest");
+            return;
+        }
         setDefaultSmsApp(true);
 
         Cursor cursor = mContentResolver.query(BlockedNumbers.CONTENT_URI, null, null, null, null);
@@ -310,7 +361,12 @@ public class BlockedNumberContractTest extends TestCaseThatRunsIfTelephonyIsEnab
         }
     }
 
+    @CddTest(requirement="7.4.1.1/C-1-2")
     public void testAccessingNonExistentMethod_fails() throws Exception {
+        if (!mIsSystemUser) {
+            Log.i(TAG, "skipping BlockedNumberContractTest");
+            return;
+        }
         setDefaultSmsApp(true);
 
         try {
@@ -357,5 +413,9 @@ public class BlockedNumberContractTest extends TestCaseThatRunsIfTelephonyIsEnab
     private void setDefaultSmsApp(boolean setToSmsApp) throws Exception {
         ProviderTestUtils.setDefaultSmsApp(
                 setToSmsApp, mContext.getPackageName(), getInstrumentation().getUiAutomation());
+    }
+
+    private static boolean isSystemUser(Context context) {
+        return context.getSystemService(UserManager.class).isSystemUser();
     }
 }

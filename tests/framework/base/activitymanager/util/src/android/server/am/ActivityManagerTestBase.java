@@ -25,6 +25,7 @@ import static android.app.WindowConfiguration.ACTIVITY_TYPE_UNDEFINED;
 import static android.app.WindowConfiguration.WINDOWING_MODE_SPLIT_SCREEN_PRIMARY;
 import static android.content.Intent.FLAG_ACTIVITY_MULTIPLE_TASK;
 import static android.content.Intent.FLAG_ACTIVITY_NEW_TASK;
+import static android.content.pm.PackageManager.FEATURE_AUTOMOTIVE;
 import static android.content.pm.PackageManager.FEATURE_EMBEDDED;
 import static android.content.pm.PackageManager.FEATURE_FREEFORM_WINDOW_MANAGEMENT;
 import static android.content.pm.PackageManager.FEATURE_LEANBACK;
@@ -71,22 +72,22 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-import static java.lang.Integer.toHexString;
-
 import android.accessibilityservice.AccessibilityService;
 import android.app.Activity;
 import android.app.ActivityManager;
 import android.content.ComponentName;
 import android.content.Context;
-import android.graphics.Bitmap;
 import android.content.Intent;
+import android.graphics.Bitmap;
 import android.os.Bundle;
 import android.os.SystemClock;
 import android.provider.Settings;
 import android.server.am.settings.SettingsSession;
-import android.support.test.InstrumentationRegistry;
 
-import android.support.test.rule.ActivityTestRule;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.test.InstrumentationRegistry;
+import androidx.test.rule.ActivityTestRule;
 
 import com.android.compatibility.common.util.SystemUtil;
 
@@ -96,6 +97,8 @@ import org.junit.Rule;
 import org.junit.rules.TestRule;
 import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
+
+import static java.lang.Integer.toHexString;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -109,9 +112,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
 
 public abstract class ActivityManagerTestBase {
     private static final boolean PRETEND_DEVICE_SUPPORTS_PIP = false;
@@ -516,7 +516,8 @@ public abstract class ActivityManagerTestBase {
     protected boolean supportsInsecureLock() {
         return !hasDeviceFeature(FEATURE_LEANBACK)
                 && !hasDeviceFeature(FEATURE_WATCH)
-                && !hasDeviceFeature(FEATURE_EMBEDDED);
+                && !hasDeviceFeature(FEATURE_EMBEDDED)
+                && !hasDeviceFeature(FEATURE_AUTOMOTIVE);
     }
 
     protected boolean isWatch() {
@@ -803,7 +804,7 @@ public abstract class ActivityManagerTestBase {
     protected int getDeviceRotation(int displayId) {
         final String displays = runCommandAndPrintOutput("dumpsys display displays").trim();
         Pattern pattern = Pattern.compile(
-                "(mDisplayId=" + displayId + ")([\\s\\S]*)(mOverrideDisplayInfo)(.*)"
+                "(mDisplayId=" + displayId + ")([\\s\\S]*?)(mOverrideDisplayInfo)(.*)"
                         + "(rotation)(\\s+)(\\d+)");
         Matcher matcher = pattern.matcher(displays);
         if (matcher.find()) {

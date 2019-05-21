@@ -19,6 +19,8 @@ import static android.autofillservice.cts.common.ShellHelper.runShellCommand;
 
 import static com.google.common.truth.Truth.assertThat;
 
+import static org.junit.Assume.assumeTrue;
+
 import android.app.Activity;
 import android.app.PendingIntent;
 import android.content.Intent;
@@ -69,28 +71,13 @@ abstract class CustomDescriptionWithLinkTestCase extends AutoFillServiceTestCase
     public final void testTapLink_changeOrientationThenTapBack() throws Exception {
         assumeTrue("Rotation is supported", Helper.isRotationSupported(mContext));
 
-        final int width = mUiBot.getDevice().getDisplayWidth();
-        final int heigth = mUiBot.getDevice().getDisplayHeight();
-        final int min = Math.min(width, heigth);
-
-        assumeTrue("Screen size is too small (" + width + "x" + heigth + ")", min >= 500);
-        Log.d(TAG, "testTapLink_changeOrientationThenTapBack(): screen size is "
-                + width + "x" + heigth);
-
         mUiBot.setScreenOrientation(UiBot.PORTRAIT);
         try {
-            runShellCommand("wm size 1080x1920");
-            runShellCommand("wm density 320");
             saveUiRestoredAfterTappingLinkTest(
                     PostSaveLinkTappedAction.ROTATE_THEN_TAP_BACK_BUTTON);
         } finally {
             mUiBot.setScreenOrientation(UiBot.PORTRAIT);
-            try {
-                cleanUpAfterScreenOrientationIsBackToPortrait();
-            } finally {
-                runShellCommand("wm density reset");
-                runShellCommand("wm size reset");
-            }
+            cleanUpAfterScreenOrientationIsBackToPortrait();
         }
     }
 
