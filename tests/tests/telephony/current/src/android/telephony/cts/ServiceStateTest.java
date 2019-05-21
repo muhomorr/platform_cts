@@ -23,18 +23,26 @@ import static android.telephony.ServiceState.STATE_POWER_OFF;
 import static android.telephony.ServiceState.ROAMING_TYPE_DOMESTIC;
 import static android.telephony.ServiceState.ROAMING_TYPE_NOT_ROAMING;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 import android.os.Parcel;
 import android.telephony.AccessNetworkConstants;
+import android.telephony.LteVopsSupportInfo;
 import android.telephony.NetworkRegistrationInfo;
 import android.telephony.ServiceState;
 import android.telephony.TelephonyManager;
-import android.test.AndroidTestCase;
+
+import org.junit.Before;
+import org.junit.Test;
 
 import java.util.List;
 
-public class ServiceStateTest extends AndroidTestCase {
+public class ServiceStateTest {
     private static final String OPERATOR_ALPHA_LONG = "CtsOperatorLong";
     private static final String OPERATOR_ALPHA_SHORT = "CtsOp";
     private static final String OPERATOR_NUMERIC = "02871";
@@ -44,76 +52,83 @@ public class ServiceStateTest extends AndroidTestCase {
     private static final int CHANNEL_NUMBER_BAND_33 = 36000;
     private static final int[] CELL_BANDWIDTH = {1, 2, 3};
 
+    private ServiceState serviceState;
+
+    @Before
+    public void setUp() {
+        serviceState = new ServiceState();
+    }
+
+    @Test
     public void testDescribeContents() {
-        ServiceState serviceState = new ServiceState();
         assertEquals(0, serviceState.describeContents());
     }
 
+    @Test
     public void testSetStateOff() {
-        ServiceState serviceState = new ServiceState();
         serviceState.setStateOff();
         assertEquals(STATE_POWER_OFF, serviceState.getState());
         checkOffStatus(serviceState);
     }
 
+    @Test
     public void testSetStateOutOfService() {
-        ServiceState serviceState = new ServiceState();
         serviceState.setStateOutOfService();
         assertEquals(STATE_OUT_OF_SERVICE, serviceState.getState());
         checkOffStatus(serviceState);
     }
 
+    @Test
     public void testSetState() {
-        ServiceState serviceState = new ServiceState();
         serviceState.setState(ServiceState.STATE_IN_SERVICE);
         assertEquals(ServiceState.STATE_IN_SERVICE, serviceState.getState());
     }
 
+    @Test
     public void testGetRoaming() {
-        ServiceState serviceState = new ServiceState();
         serviceState.setRoaming(false);
         assertFalse(serviceState.getRoaming());
         serviceState.setRoaming(true);
         assertTrue(serviceState.getRoaming());
     }
 
+    @Test
     public void testGetIsManualSelection() {
-        ServiceState serviceState = new ServiceState();
         serviceState.setIsManualSelection(false);
         assertFalse(serviceState.getIsManualSelection());
         serviceState.setIsManualSelection(true);
         assertTrue(serviceState.getIsManualSelection());
     }
 
+    @Test
     public void testGetOperator() {
-        ServiceState serviceState = new ServiceState();
         serviceState.setOperatorName(OPERATOR_ALPHA_LONG, OPERATOR_ALPHA_SHORT, OPERATOR_NUMERIC);
         assertEquals(OPERATOR_ALPHA_LONG, serviceState.getOperatorAlphaLong());
         assertEquals(OPERATOR_ALPHA_SHORT, serviceState.getOperatorAlphaShort());
         assertEquals(OPERATOR_NUMERIC, serviceState.getOperatorNumeric());
     }
 
+    @Test
     public void testGetCdma() {
-        ServiceState serviceState = new ServiceState();
         serviceState.setCdmaSystemAndNetworkId(SYSTEM_ID, NETWORK_ID);
         assertEquals(SYSTEM_ID, serviceState.getCdmaSystemId());
         assertEquals(NETWORK_ID, serviceState.getCdmaNetworkId());
     }
 
+    @Test
     public void testGetChannelNumber() {
-        ServiceState serviceState = new ServiceState();
         serviceState.setChannelNumber(CHANNEL_NUMBER_BAND_66);
         assertEquals(CHANNEL_NUMBER_BAND_66, serviceState.getChannelNumber());
     }
 
+    @Test
     public void testGetCellBandwidths() {
-        ServiceState serviceState = new ServiceState();
         serviceState.setCellBandwidths(CELL_BANDWIDTH);
         assertEquals(CELL_BANDWIDTH, serviceState.getCellBandwidths());
     }
 
+    @Test
     public void testGetDuplexMode() {
-        ServiceState serviceState = new ServiceState();
         NetworkRegistrationInfo nri = new NetworkRegistrationInfo.Builder()
                 .setTransportType(AccessNetworkConstants.TRANSPORT_TYPE_WWAN)
                 .setAccessNetworkTechnology(TelephonyManager.NETWORK_TYPE_GSM)
@@ -135,16 +150,18 @@ public class ServiceStateTest extends AndroidTestCase {
         assertEquals(DUPLEX_MODE_TDD, serviceState.getDuplexMode());
     }
 
+    @Test
     public void testToString() {
-        ServiceState serviceState = new ServiceState();
         assertNotNull(serviceState.toString());
     }
 
+    @Test
     public void testCopyConstructor() {
         ServiceState serviceState = getServiceStateWithOperatorName("name", "numeric");
         assertEquals(serviceState, new ServiceState(serviceState));
     }
 
+    @Test
     public void testParcelConstructor() {
         ServiceState serviceState = getServiceStateWithOperatorName("name", "numeric");
         Parcel stateParcel = Parcel.obtain();
@@ -153,6 +170,7 @@ public class ServiceStateTest extends AndroidTestCase {
         assertEquals(serviceState, new ServiceState(stateParcel));
     }
 
+    @Test
     public void testHashCode() {
         ServiceState serviceStateA = getServiceStateWithOperatorName("a", "b");
         ServiceState serviceStateB = getServiceStateWithOperatorName("a", "b");
@@ -173,6 +191,7 @@ public class ServiceStateTest extends AndroidTestCase {
         assertNotEquals(serviceStateA, serviceStateC);
     }
 
+    @Test
     public void testRoaming() {
         ServiceState notRoaming = getServiceStateWithRoamingTypes(ROAMING_TYPE_NOT_ROAMING,
                                                                     ROAMING_TYPE_NOT_ROAMING);
@@ -189,8 +208,8 @@ public class ServiceStateTest extends AndroidTestCase {
         assertTrue(dataVoiceRoaming.getRoaming());
     }
 
+    @Test
     public void testIsManualSelection() {
-        ServiceState serviceState = new ServiceState();
         serviceState.setIsManualSelection(false);
         assertFalse(serviceState.getIsManualSelection());
         serviceState.setIsManualSelection(true);
@@ -221,8 +240,8 @@ public class ServiceStateTest extends AndroidTestCase {
         assertFalse(s.getIsManualSelection());
     }
 
+    @Test
     public void testGetRegistrationInfo() {
-        ServiceState serviceState = new ServiceState();
         NetworkRegistrationInfo nri = new NetworkRegistrationInfo.Builder()
                 .setAccessNetworkTechnology(TelephonyManager.NETWORK_TYPE_LTE)
                 .setRegistrationState(NetworkRegistrationInfo.REGISTRATION_STATE_HOME)
@@ -254,5 +273,49 @@ public class ServiceStateTest extends AndroidTestCase {
         assertEquals(nri, serviceState.getNetworkRegistrationInfo(
                 NetworkRegistrationInfo.DOMAIN_PS, AccessNetworkConstants.TRANSPORT_TYPE_WLAN));
 
+        nris = serviceState.getNetworkRegistrationInfoListForDomain(
+                NetworkRegistrationInfo.DOMAIN_PS);
+        assertEquals(2, nris.size());
+        assertEquals(nri, nris.get(1));
+
+        nris = serviceState.getNetworkRegistrationInfoList();
+        assertEquals(2, nris.size());
+
+        nris = serviceState.getNetworkRegistrationInfoListForTransportType(
+                AccessNetworkConstants.TRANSPORT_TYPE_WLAN);
+        assertEquals(1, nris.size());
+        assertEquals(nri, nris.get(0));
+    }
+
+    @Test
+    public void testLteVopsSupportInfo() {
+        LteVopsSupportInfo lteVopsSupportInfo =
+                new LteVopsSupportInfo(LteVopsSupportInfo.LTE_STATUS_NOT_AVAILABLE,
+                        LteVopsSupportInfo.LTE_STATUS_NOT_AVAILABLE);
+
+        NetworkRegistrationInfo wwanDataRegState = new NetworkRegistrationInfo(
+                NetworkRegistrationInfo.DOMAIN_PS, AccessNetworkConstants.TRANSPORT_TYPE_WWAN,
+                0, 0, 0, true, null, null, 0, false, false, false, lteVopsSupportInfo, false);
+
+        ServiceState ss = new ServiceState();
+
+        ss.addNetworkRegistrationInfo(wwanDataRegState);
+
+        assertEquals(ss.getNetworkRegistrationInfo(NetworkRegistrationInfo.DOMAIN_PS,
+                AccessNetworkConstants.TRANSPORT_TYPE_WWAN), wwanDataRegState);
+
+        lteVopsSupportInfo =
+                new LteVopsSupportInfo(LteVopsSupportInfo.LTE_STATUS_SUPPORTED,
+                        LteVopsSupportInfo.LTE_STATUS_NOT_SUPPORTED);
+
+        wwanDataRegState = new NetworkRegistrationInfo(
+                NetworkRegistrationInfo.DOMAIN_PS, AccessNetworkConstants.TRANSPORT_TYPE_WWAN,
+                0, 0, 0, true, null, null, 0, false, false, false, lteVopsSupportInfo, false);
+        ss.addNetworkRegistrationInfo(wwanDataRegState);
+        assertEquals(ss.getNetworkRegistrationInfo(NetworkRegistrationInfo.DOMAIN_PS,
+                AccessNetworkConstants.TRANSPORT_TYPE_WWAN), wwanDataRegState);
+        assertEquals(ss.getNetworkRegistrationInfo(NetworkRegistrationInfo.DOMAIN_PS,
+                AccessNetworkConstants.TRANSPORT_TYPE_WWAN).getDataSpecificInfo().getLteVopsSupportInfo(),
+            lteVopsSupportInfo);
     }
 }

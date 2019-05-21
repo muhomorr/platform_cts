@@ -47,21 +47,19 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
-import org.junit.runner.RunWith;
 
 import java.time.Period;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 
 import androidx.test.InstrumentationRegistry;
-import androidx.test.runner.AndroidJUnit4;
 
-@RunWith(AndroidJUnit4.class)
 public class SubscriptionManagerTest {
     private SubscriptionManager mSm;
 
@@ -350,6 +348,23 @@ public class SubscriptionManagerTest {
         // should fail.
         SubscriptionInfo info = mSm.getActiveSubscriptionInfo(mSubId);
         assertNull(info.getGroupUuid());
+
+        // Remove from subscription group with current sub Id. This should fail
+        // because we don't have MODIFY_PHONE_STATE or carrier privilege permission.
+        try {
+            mSm.addSubscriptionsIntoGroup(subGroup, null);
+            fail();
+        } catch (NullPointerException expected) {
+        }
+
+        // Add into subscription group with current sub Id. This should fail
+        // because we don't have MODIFY_PHONE_STATE or carrier privilege permission.
+        try {
+            ParcelUuid groupUuid = new ParcelUuid(UUID.randomUUID());
+            mSm.addSubscriptionsIntoGroup(subGroup, groupUuid);
+            fail();
+        } catch (SecurityException expected) {
+        }
 
         // Remove from subscription group with current sub Id. This should fail
         // because we don't have MODIFY_PHONE_STATE or carrier privilege permission.

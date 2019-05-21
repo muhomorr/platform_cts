@@ -25,6 +25,9 @@
       "name": "CtsApacheHttpLegacyUsesLibraryApiSignatureTestCases"
     },
     {
+      "name": "CtsIntentSignatureTestCases"
+    },
+    {
       "name": "CtsHiddenApiBlacklistApi27TestCases"
     },
     {
@@ -41,9 +44,6 @@
     },
     {
       "name": "CtsHiddenApiKillswitchWildcardTestCases"
-    },
-    {
-      "name": "CtsSystemApiAnnotationTestCases"
     },
     {
       "name": "CtsHiddenApiBlacklistApi28TestCases"
