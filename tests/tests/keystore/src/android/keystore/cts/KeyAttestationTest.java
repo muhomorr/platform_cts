@@ -16,6 +16,9 @@
 
 package android.keystore.cts;
 
+import android.os.SystemProperties;
+import android.platform.test.annotations.RestrictedBuildTest;
+
 import static android.keystore.cts.Attestation.KM_SECURITY_LEVEL_SOFTWARE;
 import static android.keystore.cts.Attestation.KM_SECURITY_LEVEL_TRUSTED_ENVIRONMENT;
 import static android.keystore.cts.AuthorizationList.KM_ALGORITHM_EC;
@@ -138,6 +141,7 @@ public class KeyAttestationTest extends AndroidTestCase {
         assertEquals(0, parseSystemOsVersion("99.99.100"));
     }
 
+    @RestrictedBuildTest
     public void testEcAttestation() throws Exception {
         // Note: Curve and key sizes arrays must correspond.
         String[] curves = {
@@ -239,6 +243,7 @@ public class KeyAttestationTest extends AndroidTestCase {
         }
     }
 
+    @RestrictedBuildTest
     public void testRsaAttestation() throws Exception {
         int[] keySizes = { // Smallish sizes to keep test runtimes down.
                 512, 768, 1024
@@ -772,6 +777,11 @@ public class KeyAttestationTest extends AndroidTestCase {
         assertNotNull(rootOfTrust);
         assertNotNull(rootOfTrust.getVerifiedBootKey());
         assertTrue(rootOfTrust.getVerifiedBootKey().length >= 32);
+        if (SystemProperties.getInt("ro.product.first_api_level", 0) >= 29) {
+            // Devices launched in Q and after should run CTS in LOCKED state.
+            assertTrue(rootOfTrust.isDeviceLocked());
+            assertEquals(KM_VERIFIED_BOOT_VERIFIED, rootOfTrust.getVerifiedBootState());
+        }
     }
 
     private void checkRsaKeyDetails(Attestation attestation, int keySize, int purposes,
