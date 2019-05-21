@@ -21,7 +21,13 @@ include $(CLEAR_VARS)
 LOCAL_MODULE := CtsNNAPITests_static
 LOCAL_SRC_FILES := \
      $(call all-cpp-files-under,generated/tests) \
-     GeneratedUtils.cpp \
+     $(call all-cpp-files-under,fuzzing/operation_signatures) \
+     fuzzing/OperationManager.cpp \
+     fuzzing/RandomGraphGenerator.cpp \
+     fuzzing/RandomGraphGeneratorUtils.cpp \
+     fuzzing/RandomVariable.cpp \
+     fuzzing/TestRandomGraph.cpp \
+     TestGenerated.cpp \
      TestMemory.cpp \
      TestTrivialModel.cpp \
      TestUnknownDimensions.cpp \
@@ -36,7 +42,7 @@ LOCAL_C_INCLUDES += frameworks/ml/nn/runtime/
 LOCAL_C_INCLUDES += frameworks/ml/nn/common/include
 LOCAL_C_INCLUDES += frameworks/ml/nn/tools/test_generator/include
 
-LOCAL_CFLAGS := -Werror -Wall -DNNTEST_ONLY_PUBLIC_API
+LOCAL_CFLAGS := -Werror -Wall -DNNTEST_ONLY_PUBLIC_API -DNNTEST_CTS
 
 LOCAL_SHARED_LIBRARIES := libandroid liblog libneuralnetworks
 LOCAL_STATIC_LIBRARIES := libgtest_ndk_c++ libgmock_ndk
@@ -71,3 +77,4 @@ LOCAL_NDK_STL_VARIANT := c++_static
 include $(BUILD_CTS_EXECUTABLE)
 
 include $(nnapi_cts_dir)/benchmark/Android.mk
+include $(nnapi_cts_dir)/tflite_delegate/Android.mk
