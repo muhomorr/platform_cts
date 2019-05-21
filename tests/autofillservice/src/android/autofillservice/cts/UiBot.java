@@ -39,7 +39,6 @@ import android.content.res.Resources;
 import android.graphics.Bitmap;
 import android.os.SystemClock;
 import android.service.autofill.SaveInfo;
-import android.support.test.InstrumentationRegistry;
 import android.support.test.uiautomator.By;
 import android.support.test.uiautomator.BySelector;
 import android.support.test.uiautomator.UiDevice;
@@ -52,6 +51,7 @@ import android.view.accessibility.AccessibilityWindowInfo;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.test.InstrumentationRegistry;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -93,6 +93,7 @@ final class UiBot {
             "autofill_picker_accessibility_title";
     private static final String RESOURCE_STRING_SAVE_SNACKBAR_ACCESSIBILITY_TITLE =
             "autofill_save_accessibility_title";
+
 
     static final BySelector DATASET_PICKER_SELECTOR = By.res("android", RESOURCE_ID_DATASET_PICKER);
     private static final BySelector SAVE_UI_SELECTOR = By.res("android", RESOURCE_ID_SAVE_SNACKBAR);
@@ -864,5 +865,11 @@ final class UiBot {
                     + timeout + "ms instead");
             SystemClock.sleep(timeout);
         }
+    }
+
+    private boolean getBoolean(String id) {
+        final Resources resources = mContext.getResources();
+        final int booleanId = resources.getIdentifier(id, "bool", "android");
+        return resources.getBoolean(booleanId);
     }
 }

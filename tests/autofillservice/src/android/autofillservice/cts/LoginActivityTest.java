@@ -86,6 +86,10 @@ import android.view.accessibility.AccessibilityNodeProvider;
 import android.view.autofill.AutofillManager;
 import android.widget.RemoteViews;
 
+import com.android.cts.mockime.ImeCommand;
+import com.android.cts.mockime.ImeEventStream;
+import com.android.cts.mockime.MockImeSession;
+
 import org.junit.Test;
 
 import java.util.concurrent.CountDownLatch;
@@ -2328,12 +2332,12 @@ public class LoginActivityTest extends AbstractLoginActivityTestCase {
 
         // Sanity check.
         final AutofillManager afm = mActivity.getAutofillManager();
-        assertThat(afm.isEnabled()).isTrue();
+        Helper.assertAutofillEnabled(afm, true);
 
         // Now disable user_complete and try again.
         try {
             setUserComplete(mContext, false);
-            assertThat(afm.isEnabled()).isFalse();
+            Helper.assertAutofillEnabled(afm, false);
         } finally {
             setUserComplete(mContext, true);
         }

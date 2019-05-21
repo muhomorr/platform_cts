@@ -33,7 +33,6 @@ import android.media.projection.MediaProjectionManager;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
-import android.support.test.InstrumentationRegistry;
 import android.support.test.uiautomator.By;
 import android.support.test.uiautomator.UiDevice;
 import android.support.test.uiautomator.UiObject2;
@@ -47,9 +46,10 @@ import android.view.View;
 import android.view.cts.R;
 import android.widget.FrameLayout;
 
+import androidx.test.InstrumentationRegistry;
+
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-
 
 public class CapturedActivity extends Activity {
     public static class TestResult {
@@ -157,7 +157,7 @@ public class CapturedActivity extends Activity {
     }
 
     public long getCaptureDurationMs() {
-        return mOnEmbedded ? 100000 : 10000;
+        return mOnEmbedded ? 100000 : 50000;
     }
 
     public TestResult runTest(AnimationTestCase animationTestCase) throws Throwable {
@@ -175,7 +175,7 @@ public class CapturedActivity extends Activity {
             return testResult;
         }
 
-        final long timeOutMs = mOnEmbedded ? 125000 : 25000;
+        final long timeOutMs = mOnEmbedded ? 125000 : 62500;
         final long endCaptureDelayMs = START_CAPTURE_DELAY_MS + getCaptureDurationMs();
         final long endDelayMs = endCaptureDelayMs + 1000;
 

@@ -914,7 +914,13 @@ public class RobustnessTest extends Camera2AndroidTestCase {
                     "Testing Camera %s for abandoning surface of a repeating request", id));
 
             openDevice(id);
+            if (!mStaticInfo.isColorOutputSupported()) {
+                Log.i(TAG, "Camera " + id + " does not support color output, skipping");
+                continue;
+            }
+
             try {
+
                 SurfaceTexture preview = new SurfaceTexture(/*random int*/ 1);
                 Surface previewSurface = new Surface(preview);
 
@@ -1370,13 +1376,12 @@ public class RobustnessTest extends Camera2AndroidTestCase {
             Size[] jpegSizes = sm.getJpegOutputSizesChecked();
             Size[] rawSizes = sm.getRawOutputSizesChecked();
 
-            Size maxPreviewSize = getMaxPreviewSize(context, cameraId);
-
             maxRawSize = (rawSizes.length != 0) ? CameraTestUtils.getMaxSize(rawSizes) : null;
 
             StreamConfigurationMap configs = sm.getCharacteristics().get(
                     CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
             if (sm.isColorOutputSupported()) {
+                Size maxPreviewSize = getMaxPreviewSize(context, cameraId);
                 maxPrivSizes[PREVIEW] = getMaxSize(privSizes, maxPreviewSize);
                 maxYuvSizes[PREVIEW]  = getMaxSize(yuvSizes, maxPreviewSize);
                 maxJpegSizes[PREVIEW] = getMaxSize(jpegSizes, maxPreviewSize);

@@ -77,7 +77,7 @@ public class Utils {
             testClassName = packageName + testClassName;
         }
         RemoteAndroidTestRunner testRunner = new RemoteAndroidTestRunner(packageName,
-                "android.support.test.runner.AndroidJUnitRunner", device.getIDevice());
+                "androidx.test.runner.AndroidJUnitRunner", device.getIDevice());
         // timeout_msec is the timeout per test for instrumentation
         testRunner.addInstrumentationArg("timeout_msec", Long.toString(unit.toMillis(timeout)));
         if (testClassName != null && testMethodName != null) {
@@ -140,10 +140,11 @@ public class Utils {
     public static int[] prepareMultipleUsers(ITestDevice device, int maxUsers)
             throws DeviceNotAvailableException {
         final int[] userIds = getAllUsers(device);
+        int currentUserId = device.getCurrentUser();
         for (int i = 1; i < userIds.length; i++) {
             if (i < maxUsers) {
                 device.startUser(userIds[i]);
-            } else {
+            } else if (userIds[i] != currentUserId) {
                 device.stopUser(userIds[i]);
             }
         }

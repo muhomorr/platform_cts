@@ -40,12 +40,11 @@ import android.print.test.services.PrintServiceCallbacks;
 import android.print.test.services.PrinterDiscoverySessionCallbacks;
 import android.print.test.services.SecondPrintService;
 import android.print.test.services.StubbablePrinterDiscoverySession;
-import android.support.test.runner.AndroidJUnit4;
 import android.support.test.uiautomator.By;
-import android.support.test.uiautomator.UiObject;
-import android.support.test.uiautomator.UiObjectNotFoundException;
-import android.support.test.uiautomator.UiSelector;
+import android.support.test.uiautomator.UiObject2;
 import android.util.Log;
+
+import androidx.test.runner.AndroidJUnit4;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -104,23 +103,18 @@ public class CustomPrintOptionsTest extends BasePrintTest {
             return PAGESS[2];
         }
 
-        try {
-            UiObject pagesEditText = getUiDevice().findObject(new UiSelector().resourceId(
-                    "com.android.printspooler:id/page_range_edittext"));
+        UiObject2 pagesEditText = findUiObject(By.res(
+                "com.android.printspooler:id/page_range_edittext"));
 
-            if (pagesEditText.getText().equals("2")) {
-                return PAGESS[1];
-            }
-
-            if (pagesEditText.getText().equals("1")) {
-                return PAGESS[0];
-            }
-
-            return null;
-        } catch (UiObjectNotFoundException e) {
-            dumpWindowHierarchy();
-            throw e;
+        if (pagesEditText.getText().equals("2")) {
+            return PAGESS[1];
         }
+
+        if (pagesEditText.getText().equals("1")) {
+            return PAGESS[0];
+        }
+
+        return null;
     }
 
     @Before

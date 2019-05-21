@@ -43,7 +43,8 @@ import android.content.Context;
 import android.os.SystemClock;
 import android.platform.test.annotations.AppModeFull;
 import android.service.autofill.SaveInfo;
-import android.support.test.InstrumentationRegistry;
+
+import androidx.test.InstrumentationRegistry;
 
 import org.junit.After;
 import org.junit.ClassRule;
@@ -283,7 +284,9 @@ public class VirtualContainerActivityCompatModeTest extends VirtualContainerActi
 
         // Fill in some stuff
         mActivity.mUsername.setText("foo");
+        sReplier.addResponse(CannedFillResponse.NO_RESPONSE);
         focusToPasswordExpectNoWindowEvent();
+        sReplier.getNextFillRequest();
         mActivity.mPassword.setText("bar");
 
         // Change URL bar before views become invisible

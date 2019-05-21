@@ -17,15 +17,16 @@ package android.graphics.cts;
 
 import android.content.pm.PackageManager;
 import android.content.res.AssetManager;
-import android.support.test.InstrumentationRegistry;
-import android.support.test.runner.AndroidJUnit4;
+import android.os.Build;
 import android.test.suitebuilder.annotation.SmallTest;
+
+import androidx.test.InstrumentationRegistry;
+import androidx.test.runner.AndroidJUnit4;
+
+import com.android.compatibility.common.util.PropertyUtil;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
-
-import android.os.Build;
-import com.android.compatibility.common.util.PropertyUtil;
 
 @SmallTest
 @RunWith(AndroidJUnit4.class)
@@ -40,11 +41,6 @@ public class CameraVulkanGpuTest {
         PackageManager pm = InstrumentationRegistry.getContext().getPackageManager();
         if (!pm.hasSystemFeature(PackageManager.FEATURE_CAMERA)) {
             // Test requires a camera.
-            return;
-        }
-
-        if(PropertyUtil.getFirstApiLevel() < Build.VERSION.SDK_INT){
-            // HAL3 is not required for P upgrade devices.
             return;
         }
 
