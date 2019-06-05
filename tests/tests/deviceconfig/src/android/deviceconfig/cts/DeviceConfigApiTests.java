@@ -517,7 +517,8 @@ public final class DeviceConfigApiTests {
      */
     @Test
     public void getPropertiesString_empty() {
-        setPropertiesAndAssertSuccessfulChange(NAMESPACE1, KEY1, VALUE1);
+        DeviceConfig.setProperty(
+                NAMESPACE1, KEY1, VALUE1, /*makeDefault=*/false);
         final Properties properties =
                 setPropertiesAndAssertSuccessfulChange(NAMESPACE1, KEY1, null);
         final String result = properties.getString(KEY1, DEFAULT_VALUE);
@@ -531,7 +532,7 @@ public final class DeviceConfigApiTests {
      */
     @Test
     public void getPropertiesString_nullDefault() {
-        setPropertiesAndAssertSuccessfulChange(NAMESPACE1, KEY1, DEFAULT_VALUE);
+        DeviceConfig.setProperty(NAMESPACE1, KEY1, DEFAULT_VALUE, /*makeDefault=*/false);
         final Properties properties =
                 setPropertiesAndAssertSuccessfulChange(NAMESPACE1, KEY1, null);
         final String result = properties.getString(KEY1, null);
@@ -557,7 +558,8 @@ public final class DeviceConfigApiTests {
      */
     @Test
     public void getPropertiesBoolean_empty() {
-        setPropertiesAndAssertSuccessfulChange(NAMESPACE1, KEY1, String.valueOf(BOOLEAN_TRUE));
+        DeviceConfig.setProperty(
+                NAMESPACE1, KEY1, String.valueOf(BOOLEAN_TRUE), /*makeDefault=*/false);
         final Properties properties =
                 setPropertiesAndAssertSuccessfulChange(NAMESPACE1, KEY1, null);
         final boolean result = properties.getBoolean(KEY1, DEFAULT_BOOLEAN_TRUE);
@@ -598,7 +600,8 @@ public final class DeviceConfigApiTests {
      */
     @Test
     public void getPropertiesInt_empty() {
-        setPropertiesAndAssertSuccessfulChange(NAMESPACE1, KEY1, String.valueOf(VALID_INT));
+        DeviceConfig.setProperty(
+                NAMESPACE1, KEY1, String.valueOf(VALID_INT), /*makeDefault=*/false);
         final Properties properties =
                 setPropertiesAndAssertSuccessfulChange(NAMESPACE1, KEY1, null);
 
@@ -640,7 +643,8 @@ public final class DeviceConfigApiTests {
      */
     @Test
     public void getPropertiesLong_empty() {
-        setPropertiesAndAssertSuccessfulChange(NAMESPACE1, KEY1, String.valueOf(VALID_LONG));
+        DeviceConfig.setProperty(
+                NAMESPACE1, KEY1, String.valueOf(VALID_LONG), /*makeDefault=*/false);
         final Properties properties =
                 setPropertiesAndAssertSuccessfulChange(NAMESPACE1, KEY1, null);
 
@@ -682,7 +686,8 @@ public final class DeviceConfigApiTests {
      */
     @Test
     public void getPropertiesFloat_empty() {
-        setPropertiesAndAssertSuccessfulChange(NAMESPACE1, KEY1, String.valueOf(VALID_FLOAT));
+        DeviceConfig.setProperty(
+                NAMESPACE1, KEY1, String.valueOf(VALID_FLOAT), /*makeDefault=*/false);
         final Properties properties =
                 setPropertiesAndAssertSuccessfulChange(NAMESPACE1, KEY1, null);
         final float result = properties.getFloat(KEY1, DEFAULT_FLOAT);
@@ -953,8 +958,8 @@ public final class DeviceConfigApiTests {
         return propertiesUpdate.properties;
     }
 
-    private void nullifyProperty(String namespace, String key) {
-        setPropertiesAndAssertSuccessfulChange(namespace, key, null);
+    private static void nullifyProperty(String namespace, String key) {
+        DeviceConfig.setProperty(namespace, key, null, false);
     }
 
     private static void deletePropertyThrowShell(String namespace, String key) {

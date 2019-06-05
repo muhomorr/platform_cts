@@ -570,16 +570,6 @@ public abstract class DeviceAndProfileOwnerTest extends BaseDevicePolicyTest {
         executeDeviceTestMethod(".PermissionsTest", "testPermissionMixedPolicies");
     }
 
-    public void testPermissionGrantOfDisallowedPermissionWhileOtherPermIsGranted()
-            throws Exception {
-        if (!mHasFeature) {
-            return;
-        }
-        installAppPermissionAppAsUser();
-        executeDeviceTestMethod(".PermissionsTest",
-                "testPermissionGrantOfDisallowedPermissionWhileOtherPermIsGranted");
-    }
-
     // Test flakey; suppressed.
 //    public void testPermissionPrompts() throws Exception {
 //        if (!mHasFeature) {

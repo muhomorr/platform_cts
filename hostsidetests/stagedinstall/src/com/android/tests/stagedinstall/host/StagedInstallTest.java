@@ -140,6 +140,8 @@ public class StagedInstallTest extends BaseHostJUnit4Test {
     @Test
     public void testStagedInstallDowngrade_DowngradeNotRequested_Fails() throws Exception {
         runPhase("testStagedInstallDowngrade_DowngradeNotRequested_Fails_Commit");
+        getDevice().reboot();
+        runPhase("testStagedInstallDowngrade_DowngradeNotRequested_Fails_VerifyPostReboot");
     }
 
     @Test

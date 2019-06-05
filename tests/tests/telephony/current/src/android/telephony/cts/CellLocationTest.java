@@ -66,8 +66,6 @@ public class CellLocationTest {
             return;
         }
 
-        TelephonyManagerTest.grantLocationPermissions();
-
         // getCellLocation should never return null,
         // but that is allowed if the cell network type
         // is LTE (since there is no LteCellLocation class)

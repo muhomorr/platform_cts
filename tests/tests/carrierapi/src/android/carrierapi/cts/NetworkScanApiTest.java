@@ -300,10 +300,8 @@ public class NetworkScanApiTest {
             waitUntilReady();
 
             Log.d(TAG, "mNetworkScanStatus: " + mNetworkScanStatus);
-            assertTrue("The final scan status is " + mNetworkScanStatus + " with error code "
-                            + mErrorCode + ", not ScanCompleted"
-                            + " or ScanError with an error code ERROR_MODEM_UNAVAILABLE or"
-                            + " ERROR_UNSUPPORTED",
+            assertTrue("The final scan status is not ScanCompleted or ScanError with an error "
+                            + "code ERROR_MODEM_UNAVAILABLE or ERROR_UNSUPPORTED",
                     isScanStatusValid());
         } finally {
             getAndSetLocationSwitch(isLocationSwitchOn);
@@ -349,10 +347,8 @@ public class NetworkScanApiTest {
             }
 
             Log.d(TAG, "mNetworkScanStatus: " + mNetworkScanStatus);
-            assertTrue("The final scan status is " + mNetworkScanStatus + " with error code "
-                            + mErrorCode + ", not ScanCompleted"
-                            + " or ScanError with an error code ERROR_MODEM_UNAVAILABLE or"
-                            + " ERROR_UNSUPPORTED",
+            assertTrue("The final scan status is not ScanCompleted or ScanError with an error "
+                            + "code ERROR_MODEM_UNAVAILABLE or ERROR_UNSUPPORTED",
                     isScanStatusValid());
         } finally {
             getAndSetLocationSwitch(isLocationSwitchOn);
@@ -376,20 +372,14 @@ public class NetworkScanApiTest {
 
         Log.d(TAG, "number of radioAccessSpecifier: " + radioAccessSpecifier.size());
         if (radioAccessSpecifier.isEmpty()) {
-            // Put in some arbitrary bands and channels so that we trip the location check if needed
-            int[] fakeBands = includeBandsAndChannels
-                    ? new int[] { AccessNetworkConstants.EutranBand.BAND_5 }
-                    : null;
-            int[] fakeChannels = includeBandsAndChannels ? new int[] { 2400 } : null;
-
             RadioAccessSpecifier gsm = new RadioAccessSpecifier(
                     AccessNetworkConstants.AccessNetworkType.GERAN,
                     null /* bands */,
                     null /* channels */);
             RadioAccessSpecifier lte = new RadioAccessSpecifier(
                     AccessNetworkConstants.AccessNetworkType.EUTRAN,
-                    fakeBands /* bands */,
-                    fakeChannels /* channels */);
+                    null /* bands */,
+                    null /* channels */);
             RadioAccessSpecifier wcdma = new RadioAccessSpecifier(
                     AccessNetworkConstants.AccessNetworkType.UTRAN,
                     null /* bands */,

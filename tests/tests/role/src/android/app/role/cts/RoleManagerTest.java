@@ -107,7 +107,6 @@ public class RoleManagerTest {
             new ActivityTestRule<>(WaitForResultActivity.class);
 
     private String mRoleHolder;
-    private int mCurrentUserId;
 
     @Before
     public void saveRoleHolder() throws Exception {
@@ -133,7 +132,6 @@ public class RoleManagerTest {
 
     @Before
     public void installApp() throws Exception {
-        mCurrentUserId = Process.myUserHandle().getIdentifier();
         installPackage(APP_APK_PATH);
     }
 
@@ -353,16 +351,16 @@ public class RoleManagerTest {
         return mActivityRule.getActivity().waitForActivityResult(TIMEOUT_MILLIS);
     }
 
-    private void clearPackageData(@NonNull String packageName) {
-        runShellCommand("pm clear --user " + mCurrentUserId + " " + packageName);
+    private static void clearPackageData(@NonNull String packageName) {
+        runShellCommand("pm clear " + packageName);
     }
 
     private void installPackage(@NonNull String apkPath) {
-        runShellCommand("pm install -r --user " + mCurrentUserId + " " + apkPath);
+        runShellCommand("pm install -r " + apkPath);
     }
 
     private void uninstallPackage(@NonNull String packageName) {
-        runShellCommand("pm uninstall --user " + mCurrentUserId + " " + packageName);
+        runShellCommand("pm uninstall " + packageName);
     }
 
     @Test

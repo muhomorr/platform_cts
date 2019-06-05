@@ -56,6 +56,9 @@ public class StaticMetadataTest extends Camera2AndroidTestCase {
     private static final float MIN_FPS_FOR_FULL_DEVICE = 20.0f;
     private String mCameraId;
 
+    // Last defined capability enum, for iterating over all of them
+    private static final int LAST_CAPABILITY_ENUM = REQUEST_AVAILABLE_CAPABILITIES_MONOCHROME;
+
     /**
      * Test the available capability for different hardware support level devices.
      */
@@ -169,7 +172,7 @@ public class StaticMetadataTest extends Camera2AndroidTestCase {
             List<Integer> availableCaps = mStaticInfo.getAvailableCapabilitiesChecked();
 
             for (Integer capability = REQUEST_AVAILABLE_CAPABILITIES_BACKWARD_COMPATIBLE;
-                    capability <= StaticMetadata.LAST_CAPABILITY_ENUM; capability++) {
+                    capability <= LAST_CAPABILITY_ENUM; capability++) {
                 boolean isCapabilityAvailable = availableCaps.contains(capability);
                 validateCapability(capability, isCapabilityAvailable);
             }
@@ -420,9 +423,6 @@ public class StaticMetadataTest extends Camera2AndroidTestCase {
             case REQUEST_AVAILABLE_CAPABILITIES_LOGICAL_MULTI_CAMERA:
             case REQUEST_AVAILABLE_CAPABILITIES_MONOCHROME:
                 // Tested in ExtendedCameraCharacteristicsTest
-                return;
-            case REQUEST_AVAILABLE_CAPABILITIES_SECURE_IMAGE_DATA:
-                // No other restrictions with other metadata keys which  are reliably testable.
                 return;
             default:
                 capabilityName = "Unknown";

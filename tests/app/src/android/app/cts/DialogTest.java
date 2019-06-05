@@ -59,7 +59,6 @@ import android.widget.LinearLayout;
 
 import androidx.test.InstrumentationRegistry;
 import androidx.test.annotation.UiThreadTest;
-import androidx.test.filters.FlakyTest;
 import androidx.test.rule.ActivityTestRule;
 import androidx.test.runner.AndroidJUnit4;
 
@@ -127,7 +126,6 @@ public class DialogTest {
         assertTextAppearanceStyle(ta);
     }
 
-    @FlakyTest(bugId = 133760851)
     @Test
     public void testConstructor_protectedCancellable() {
         startDialogActivity(DialogStubActivity.TEST_PROTECTED_CANCELABLE);
@@ -152,7 +150,6 @@ public class DialogTest {
         assertTrue(mActivity.onCancelListenerCalled);
     }
 
-    @FlakyTest(bugId = 133760851)
     @Test
     public void testConstructor_protectedNotCancellableEsc() {
         startDialogActivity(DialogStubActivity.TEST_PROTECTED_NOT_CANCELABLE);
@@ -183,7 +180,6 @@ public class DialogTest {
                 ta.getInt(R.styleable.TextAppearance_textStyle, defValue));
     }
 
-    @FlakyTest(bugId = 133760851)
     @Test
     public void testOnStartCreateStop(){
         startDialogActivity(DialogStubActivity.TEST_ONSTART_AND_ONSTOP);
@@ -283,7 +279,6 @@ public class DialogTest {
         TestDialog.onRestoreInstanceStateObserver.await();
     }
 
-    @FlakyTest(bugId = 133760851)
     @Test
     public void testGetCurrentFocus() throws Throwable {
         startDialogActivity(DialogStubActivity.TEST_ONSTART_AND_ONSTOP);
@@ -474,7 +469,6 @@ public class DialogTest {
         return event;
     }
 
-    @FlakyTest(bugId = 133760851)
     @Test
     public void testTouchEvent() {
         startDialogActivity(DialogStubActivity.TEST_ONSTART_AND_ONSTOP);
@@ -609,7 +603,6 @@ public class DialogTest {
         assertTrue(d.isOnContentChangedCalled);
     }
 
-    @FlakyTest(bugId = 133760851)
     @Test
     public void testOnWindowFocusChanged() throws Throwable {
         startDialogActivity(DialogStubActivity.TEST_ONSTART_AND_ONSTOP);
@@ -633,7 +626,6 @@ public class DialogTest {
         }.run();
     }
 
-    @FlakyTest(bugId = 133760851)
     @Test
     public void testDispatchKeyEvent() {
         startDialogActivity(DialogStubActivity.TEST_ONSTART_AND_ONSTOP);
@@ -761,7 +753,6 @@ public class DialogTest {
     public void testOnSearchRequested() {
     }
 
-    @FlakyTest(bugId = 133760851)
     @Test
     public void testTakeKeyEvents() throws Throwable {
         startDialogActivity(DialogStubActivity.TEST_ONSTART_AND_ONSTOP);
@@ -851,7 +842,6 @@ public class DialogTest {
         assertEquals(d.getWindow().getLayoutInflater(), d.getLayoutInflater());
     }
 
-    @FlakyTest(bugId = 133760851)
     @Test
     public void testSetCancellable_true() {
         startDialogActivity(DialogStubActivity.TEST_DIALOG_WITHOUT_THEME);
@@ -885,7 +875,6 @@ public class DialogTest {
         assertFalse(d.isShowing());
     }
 
-    @FlakyTest(bugId = 133760851)
     @Test
     public void testSetCancellableEsc_false() {
         startDialogActivity(DialogStubActivity.TEST_DIALOG_WITHOUT_THEME);
@@ -935,7 +924,6 @@ public class DialogTest {
         assertFalse(mOnCancelListenerCalled);
     }
 
-    @FlakyTest(bugId = 133760851)
     @Test
     public void testSetCancelMessage() throws Exception {
         mCalledCallback = false;

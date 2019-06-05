@@ -22,7 +22,6 @@ import android.os.Bundle;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 
 /**
@@ -31,15 +30,14 @@ import java.util.concurrent.CountDownLatch;
 class TestLocationListener implements LocationListener {
     private volatile boolean mProviderEnabled;
     private volatile boolean mLocationReceived;
-
     // Timeout in sec for count down latch wait
     private static final int TIMEOUT_IN_SEC = 120;
     private final CountDownLatch mCountDownLatch;
-    private ConcurrentLinkedQueue<Location> mLocationList = null;
+    private List<Location>  mLocationList = null;
 
     TestLocationListener(int locationToCollect) {
         mCountDownLatch = new CountDownLatch(locationToCollect);
-        mLocationList = new ConcurrentLinkedQueue<>();
+        mLocationList = new ArrayList<>();
     }
 
     @Override
@@ -71,21 +69,13 @@ class TestLocationListener implements LocationListener {
         return TestUtils.waitFor(mCountDownLatch, TIMEOUT_IN_SEC);
     }
 
-    public boolean await(int timeInSec) throws InterruptedException {
-        return TestUtils.waitFor(mCountDownLatch, timeInSec);
-    }
-
     /**
-     * Get the list of locations received.
+     * Get the list of locations received
      *
-     * Makes a copy of {@code mLocationList}. New locations received after this call is
-     * made are not reflected in the returned list so that the returned list can be safely
-     * iterated without getting a ConcurrentModificationException. Occasionally,
-     * even after calling TestLocationManager.removeLocationUpdates(), the location listener
-     * can receive one or two location updates.
+     * @return mLocationList, List of {@link Location}.
      */
     public List<Location> getReceivedLocationList(){
-        return new ArrayList(mLocationList);
+        return mLocationList;
     }
 
     /**

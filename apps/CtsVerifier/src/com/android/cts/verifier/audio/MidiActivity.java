@@ -136,7 +136,7 @@ public class MidiActivity extends PassFailButtons.Activity implements View.OnCli
         // Bluetooth
         mBTInputDeviceLbl.setText(mBTTestModule.getInputName());
         mBTOutputDeviceLbl.setText(mBTTestModule.getOutputName());
-        mBTTestBtn.setEnabled(mBTTestModule.isTestReady() && mUSBTestModule.isTestReady());
+        mBTTestBtn.setEnabled(mBTTestModule.isTestReady());
     }
 
     private boolean calcTestPassed() {

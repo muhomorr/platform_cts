@@ -320,8 +320,18 @@ public class StagedInstallTest {
         int sessionId = stageSingleApk(
                 "StagedInstallTestAppAv1.apk").assertSuccessful().getSessionId();
         assertThat(getInstalledVersion(TEST_APP_A)).isEqualTo(2);
-        PackageInstaller.SessionInfo sessionInfo = waitForBroadcast(sessionId);
-        assertThat(sessionInfo).isStagedSessionFailed();
+        waitForIsReadyBroadcast(sessionId);
+        assertSessionReady(sessionId);
+        storeSessionId(sessionId);
+    }
+
+    @Test
+    public void testStagedInstallDowngrade_DowngradeNotRequested_Fails_VerifyPostReboot()
+            throws Exception {
+        int sessionId = retrieveLastSessionId();
+        assertSessionFailed(sessionId);
+        // INSTALL_REQUEST_DOWNGRADE wasn't set, so app shouldn't be downgraded.
+        assertThat(getInstalledVersion(TEST_APP_A)).isEqualTo(2);
     }
 
     @Test
