@@ -319,6 +319,33 @@ public class TelephonyManagerPermissionTest {
         }
     }
 
+    /**
+    * Verify that getNetworkType and getDataNetworkType requires Permission.
+    * <p>
+    * Requires Permission:
+    * {@link android.Manifest.permission#READ_PHONE_STATE}.
+    */
+    @Test
+    public void testGetNetworkType() {
+        if (!mHasTelephony) {
+            return;
+        }
+
+        try {
+            mTelephonyManager.getNetworkType();
+            fail("getNetworkType did not throw a SecurityException");
+        } catch (SecurityException e) {
+            // expected
+        }
+
+        try {
+            mTelephonyManager.getDataNetworkType();
+            fail("getDataNetworkType did not throw a SecurityException");
+        } catch (SecurityException e) {
+            // expected
+        }
+    }
+
     private static Context getContext() {
         return InstrumentationRegistry.getContext();
     }
