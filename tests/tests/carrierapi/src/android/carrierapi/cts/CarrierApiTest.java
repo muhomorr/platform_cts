@@ -35,6 +35,7 @@ import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.PersistableBundle;
@@ -51,7 +52,10 @@ import android.util.Log;
 
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -103,8 +107,10 @@ public class CarrierApiTest extends AndroidTestCase {
     private static final String STATUS_WARNING_A = "62";
     private static final String STATUS_WARNING_B = "63";
     private static final String STATUS_FILE_NOT_FOUND = "6a82";
-    private static final String STATUS_FUNCTION_NOT_SUPPORTED = "6a81";
     private static final String STATUS_INCORRECT_PARAMETERS = "6a86";
+    private static final String STATUS_WRONG_PARAMETERS = "6b00";
+    private static final Set<String> INVALID_PARAMETERS_STATUSES =
+            new HashSet<>(Arrays.asList(STATUS_INCORRECT_PARAMETERS, STATUS_WRONG_PARAMETERS));
     private static final String STATUS_WRONG_CLASS = "6e00";
     // File ID for the EF ICCID. TS 102 221
     private static final String ICCID_FILE_ID = "2FE2";
@@ -471,18 +477,21 @@ public class CarrierApiTest extends AndroidTestCase {
         // {@link TelephonyManager#iccOpenLogicalChannel} sends a Manage Channel (open) APDU
         // followed by a Select APDU with the given AID and p2 values. See Open Mobile API
         // Specification v3.2 Section 6.2.7.h and TS 102 221 for details.
-        int p2 = 0;
+        int p2 = 0x0C; // '0C' for no data returned (TS 102 221 Section 11.1.1.2)
         response = mTelephonyManager.iccOpenLogicalChannel("", p2);
         verifyValidIccOpenLogicalChannelResponse(response);
         mTelephonyManager.iccCloseLogicalChannel(response.getChannel());
 
         // Valid p2 values are defined in TS 102 221 Table 11.2. Per Table 11.2, 0xF0 should be
         // invalid. Any p2 values that produce non '9000'/'62xx'/'63xx' status words are treated as
-        // an error and the channel is not opened.
-        p2 = 0xF0;
-        response = mTelephonyManager.iccOpenLogicalChannel("", p2);
-        assertEquals(INVALID_CHANNEL, response.getChannel());
-        assertNotEquals(STATUS_NO_ERROR, response.getStatus());
+        // an error and the channel is not opened. Due to compatibility issues with older devices,
+        // this check is only enabled for new devices launching on Q+.
+        if (Build.VERSION.FIRST_SDK_INT >= Build.VERSION_CODES.Q) {
+            p2 = 0xF0;
+            response = mTelephonyManager.iccOpenLogicalChannel("", p2);
+            assertEquals(INVALID_CHANNEL, response.getChannel());
+            assertNotEquals(STATUS_NO_ERROR, response.getStatus());
+        }
     }
 
     /**
@@ -549,19 +558,26 @@ public class CarrierApiTest extends AndroidTestCase {
         response = mTelephonyManager
                 .iccTransmitApduLogicalChannel(
                         channel, cla, COMMAND_SELECT, p1, p2, p3, data);
-        // We requested an FCP template in the response for the select. This will be indicated by a
-        // '61xx' response, where 'xx' is the number of bytes remaining.
-        assertTrue(response.startsWith(STATUS_BYTES_REMAINING));
 
-        // Read the FCP template from the ICC. TS 102 221 Section 12.1.1
-        cla = CLA_GET_RESPONSE;
-        p1 = 0;
-        p2 = 0;
-        p3 = 0;
-        data = "";
-        response = mTelephonyManager
-                .iccTransmitApduLogicalChannel(
-                        channel, cla, COMMAND_GET_RESPONSE, p1, p2, p3, data);
+        // Devices launching with Q or later must immediately return the FCP template from the
+        // previous SELECT command. Some devices that launched before Q return TPDUs (instead of
+        // APDUs) - these devices must issue a subsequent GET RESPONSE command to get the FCP
+        // template.
+        if (Build.VERSION.FIRST_SDK_INT < Build.VERSION_CODES.Q) {
+            // Conditionally need to send GET RESPONSE apdu based on response from TelephonyManager
+            if (response.startsWith(STATUS_BYTES_REMAINING)) {
+                // Read the FCP template from the ICC. TS 102 221 Section 12.1.1
+                cla = CLA_GET_RESPONSE;
+                p1 = 0;
+                p2 = 0;
+                p3 = 0;
+                data = "";
+                response = mTelephonyManager
+                       .iccTransmitApduLogicalChannel(
+                                channel, cla, COMMAND_GET_RESPONSE, p1, p2, p3, data);
+            }
+        }
+
         fcpTemplate = FcpTemplate.parseFcpTemplate(response);
         // Check that the FCP Template's file ID matches the selected ARR
         assertTrue(containsFileId(fcpTemplate, MF_ARR_FILE_ID));
@@ -590,7 +606,7 @@ public class CarrierApiTest extends AndroidTestCase {
         String data = "";
         String response = mTelephonyManager
                 .iccTransmitApduLogicalChannel(channel, cla, COMMAND_STATUS, p1, p2, p3, data);
-        assertEquals(STATUS_INCORRECT_PARAMETERS, response);
+        assertTrue(INVALID_PARAMETERS_STATUSES.contains(response));
 
         // Select a file that doesn't exist
         cla = CLA_SELECT;
@@ -610,7 +626,7 @@ public class CarrierApiTest extends AndroidTestCase {
         data = "";
         response = mTelephonyManager
             .iccTransmitApduLogicalChannel(channel, cla, COMMAND_MANAGE_CHANNEL, p1, p2, p3, data);
-        assertEquals(STATUS_FUNCTION_NOT_SUPPORTED, response);
+        assertTrue(isErrorResponse(response));
 
         // Use an incorrect class byte for Status apdu
         cla = 0xFF;
@@ -740,6 +756,11 @@ public class CarrierApiTest extends AndroidTestCase {
         String originalNumber = mTelephonyManager.getLine1Number();
 
         try {
+            // clear any potentially overridden values and cache defaults
+            mTelephonyManager.setLine1NumberForDisplay(null, null);
+            String defaultAlphaTag = mTelephonyManager.getLine1AlphaTag();
+            String defaultNumber = mTelephonyManager.getLine1Number();
+
             assertTrue(mTelephonyManager.setLine1NumberForDisplay(ALPHA_TAG_A, NUMBER_A));
             assertEquals(ALPHA_TAG_A, mTelephonyManager.getLine1AlphaTag());
             assertEquals(NUMBER_A, mTelephonyManager.getLine1Number());
@@ -750,8 +771,8 @@ public class CarrierApiTest extends AndroidTestCase {
 
             // null is used to clear the Line 1 alpha tag and number values.
             assertTrue(mTelephonyManager.setLine1NumberForDisplay(null, null));
-            assertEquals("", mTelephonyManager.getLine1AlphaTag());
-            assertEquals("", mTelephonyManager.getLine1Number());
+            assertEquals(defaultAlphaTag, mTelephonyManager.getLine1AlphaTag());
+            assertEquals(defaultNumber, mTelephonyManager.getLine1Number());
         } finally {
             // Reset original alpha tag and number values.
             mTelephonyManager.setLine1NumberForDisplay(originalAlphaTag, originalNumber);
