@@ -27,7 +27,8 @@
             android:maxRecents="1"
             android:multiArch="true"
             android:name="android.widget.cts.MockApplication"
-            android:supportsRtl="true">
+            android:supportsRtl="true"
+            android:theme="@android:style/Theme.Material.Light.DarkActionBar">
 
         <uses-library android:name="android.test.runner" />
 
@@ -380,15 +381,6 @@
         <activity android:name="android.widget.cts.VideoViewCtsActivity"
             android:configChanges="keyboardHidden|orientation|screenSize"
             android:label="VideoViewCtsActivity">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.FRAMEWORK_INSTRUMENTATION_TEST" />
-            </intent-filter>
-        </activity>
-
-        <activity android:name="android.widget.cts.VideoView2CtsActivity"
-            android:configChanges="keyboardHidden|orientation|screenSize"
-            android:label="VideoView2CtsActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.FRAMEWORK_INSTRUMENTATION_TEST" />

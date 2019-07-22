@@ -913,11 +913,13 @@ public class RobustnessTest extends Camera2AndroidTestCase {
             Log.i(TAG, String.format(
                     "Testing Camera %s for abandoning surface of a repeating request", id));
 
-            openDevice(id);
-            if (!mStaticInfo.isColorOutputSupported()) {
+            StaticMetadata staticInfo = mAllStaticInfo.get(id);
+            if (!staticInfo.isColorOutputSupported()) {
                 Log.i(TAG, "Camera " + id + " does not support color output, skipping");
                 continue;
             }
+
+            openDevice(id);
 
             try {
 
@@ -1376,13 +1378,12 @@ public class RobustnessTest extends Camera2AndroidTestCase {
             Size[] jpegSizes = sm.getJpegOutputSizesChecked();
             Size[] rawSizes = sm.getRawOutputSizesChecked();
 
-            Size maxPreviewSize = getMaxPreviewSize(context, cameraId);
-
             maxRawSize = (rawSizes.length != 0) ? CameraTestUtils.getMaxSize(rawSizes) : null;
 
             StreamConfigurationMap configs = sm.getCharacteristics().get(
                     CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
             if (sm.isColorOutputSupported()) {
+                Size maxPreviewSize = getMaxPreviewSize(context, cameraId);
                 maxPrivSizes[PREVIEW] = getMaxSize(privSizes, maxPreviewSize);
                 maxYuvSizes[PREVIEW]  = getMaxSize(yuvSizes, maxPreviewSize);
                 maxJpegSizes[PREVIEW] = getMaxSize(jpegSizes, maxPreviewSize);
