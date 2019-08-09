@@ -18,7 +18,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
       package="com.android.cts.verifier"
       android:versionCode="5"
-      android:versionName="8.0_r19">
+      android:versionName="8.0_r21">
 
     <uses-sdk android:minSdkVersion="19" android:targetSdkVersion="26"/>
 
@@ -1932,6 +1932,7 @@
             <meta-data android:name="test_category" android:value="@string/test_category_notifications" />
             <meta-data android:name="test_excluded_features"
                     android:value="android.hardware.type.watch:android.hardware.type.television:android.software.leanback" />
+            <meta-data android:name="test_required_features" android:value="android.software.device_admin" />
         </activity>
         <activity android:name=".security.CANotifyOnBootActivity"
                 android:label="@string/caboot_test">
@@ -1942,6 +1943,7 @@
             <meta-data android:name="test_category" android:value="@string/test_category_notifications" />
             <meta-data android:name="test_excluded_features"
                     android:value="android.hardware.type.watch:android.hardware.type.television:android.software.leanback" />
+            <meta-data android:name="test_required_features" android:value="android.software.device_admin" />
         </activity>
 
         <activity android:name=".security.KeyChainTest"
