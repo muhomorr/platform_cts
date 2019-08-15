@@ -42,6 +42,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -107,6 +108,12 @@ public class BaseDevicePolicyTest extends DeviceTestCase implements IBuildReceiv
      * android.os.BatteryManager#BATTERY_PLUGGED_WIRELESS}.
      */
     private static final int STAY_ON_WHILE_PLUGGED_IN_FLAGS = 7;
+
+    /**
+     * User ID for all users.
+     * The value is from the UserHandle class.
+     */
+    protected static final int USER_ALL = -1;
 
     protected static interface Settings {
         public static final String GLOBAL_NAMESPACE = "global";
@@ -185,6 +192,7 @@ public class BaseDevicePolicyTest extends DeviceTestCase implements IBuildReceiv
         }
 
         removeOwners();
+        switchUser(USER_SYSTEM);
         removeTestUsers();
         // Unlock keyguard before test
         wakeupAndDismissKeyguard();
@@ -199,6 +207,7 @@ public class BaseDevicePolicyTest extends DeviceTestCase implements IBuildReceiv
         getDevice().executeShellCommand("settings put global package_verifier_enable "
                 + mPackageVerifier);
         removeOwners();
+        switchUser(USER_SYSTEM);
         removeTestUsers();
         removeTestPackages();
         super.tearDown();
@@ -211,10 +220,20 @@ public class BaseDevicePolicyTest extends DeviceTestCase implements IBuildReceiv
 
     protected void installAppAsUser(String appFileName, boolean grantPermissions, int userId)
             throws FileNotFoundException, DeviceNotAvailableException {
+        installAppAsUser(appFileName, grantPermissions, /* dontKillApp */ false, userId);
+    }
+
+    protected void installAppAsUser(String appFileName, boolean grantPermissions,
+            boolean dontKillApp, int userId)
+                    throws FileNotFoundException, DeviceNotAvailableException {
         CLog.d("Installing app " + appFileName + " for user " + userId);
         CompatibilityBuildHelper buildHelper = new CompatibilityBuildHelper(mCtsBuild);
+        List<String> extraArgs = new LinkedList<>();
+        extraArgs.add("-t");
+        if (dontKillApp) extraArgs.add("--dont-kill");
         String result = getDevice().installPackageForUser(
-                buildHelper.getTestFile(appFileName), true, grantPermissions, userId, "-t");
+                buildHelper.getTestFile(appFileName), true, grantPermissions, userId,
+                extraArgs.toArray(new String[extraArgs.size()]));
         assertNull("Failed to install " + appFileName + " for user " + userId + ": " + result,
                 result);
     }
@@ -233,6 +252,21 @@ public class BaseDevicePolicyTest extends DeviceTestCase implements IBuildReceiv
     /** Initializes the user with the given id. This is required so that apps can run on it. */
     protected void startUser(int userId) throws Exception {
         getDevice().startUser(userId);
+    }
+
+    /** Initializes the user with waitFlag. This is required so that apps can run on it. */
+    protected void startUserAndWait(int userId) throws Exception {
+        getDevice().startUser(userId, /* waitFlag= */ true);
+    }
+
+    /**
+     * Initializes the user with the given id, and waits until the user has started and unlocked
+     * before continuing.
+     *
+     * <p>This is required so that apps can run on it.
+     */
+    protected void startUser(int userId, boolean waitFlag) throws Exception {
+        getDevice().startUser(userId, waitFlag);
     }
 
     /**

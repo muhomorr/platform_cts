@@ -102,7 +102,10 @@
                 android:label="@string/report_viewer" />
 
         <provider android:name=".TestResultsProvider"
-                android:authorities="com.android.cts.verifier.testresultsprovider" />
+                android:authorities="com.android.cts.verifier.testresultsprovider"
+                android:grantUriPermissions="true"
+                android:exported="true"
+                android:enabled="true" />
 
         <activity android:name=".admin.PolicySerializationTestActivity"
                 android:label="@string/da_policy_serialization_test"
@@ -2891,6 +2894,13 @@
             <meta-data android:name="test_category" android:value="@string/test_category_managed_provisioning" />
             <meta-data android:name="test_required_features" android:value="android.software.managed_users:android.software.device_admin" />
         </activity>
+
+        <receiver
+            android:name=".managedprovisioning.ByodFlowTestActivity$ProvisioningCompleteReceiver">
+            <intent-filter>
+                <action android:name="android.app.action.MANAGED_PROFILE_PROVISIONED" />
+            </intent-filter>
+        </receiver>
 
         <activity android:name=".managedprovisioning.CompTestActivity"
                 android:launchMode="singleTask"
