@@ -22,15 +22,20 @@ import static android.telecom.cts.TestUtils.WAIT_FOR_STATE_CHANGE_TIMEOUT_MS;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.not;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertThat;
 
 import android.content.Context;
 import android.content.Intent;
+import android.database.ContentObserver;
+import android.database.Cursor;
 import android.media.AudioManager;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.HandlerThread;
+import android.os.Looper;
+import android.provider.CallLog;
 import android.telecom.Call;
 import android.telecom.CallAudioState;
 import android.telecom.Conference;
@@ -43,14 +48,18 @@ import android.telecom.VideoProfile;
 import android.telecom.cts.MockInCallService.InCallServiceCallbacks;
 import android.telephony.PhoneStateListener;
 import android.telephony.TelephonyManager;
+import android.telephony.emergency.EmergencyNumber;
 import android.test.InstrumentationTestCase;
 import android.text.TextUtils;
 import android.util.Log;
 import android.util.Pair;
 
+import com.android.compatibility.common.util.ShellIdentityUtils;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Random;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
@@ -93,21 +102,31 @@ public class BaseTelecomTestWithMockServices extends InstrumentationTestCase {
     PhoneAccountHandle mPreviousDefaultOutgoingAccount = null;
     boolean mShouldRestoreDefaultOutgoingAccount = false;
     MockConnectionService connectionService = null;
+    boolean mIsEmergencyCallingSetup = false;
 
     HandlerThread mPhoneStateListenerThread;
     Handler mPhoneStateListenerHandler;
     TestPhoneStateListener mPhoneStateListener;
+    Handler mHandler;
 
     static class TestPhoneStateListener extends PhoneStateListener {
         /** Semaphore released for every callback invocation. */
         public Semaphore mCallbackSemaphore = new Semaphore(0);
 
         List<Pair<Integer, String>> mCallStates = new ArrayList<>();
+        EmergencyNumber mLastOutgoingEmergencyNumber;
 
         @Override
         public void onCallStateChanged(int state, String number) {
             Log.i(TAG, "onCallStateChanged: state=" + state + ", number=" + number);
             mCallStates.add(Pair.create(state, number));
+            mCallbackSemaphore.release();
+        }
+
+        @Override
+        public void onOutgoingEmergencyCall(EmergencyNumber emergencyNumber) {
+            Log.i(TAG, "onOutgoingEmergencyCall: emergencyNumber=" + emergencyNumber);
+            mLastOutgoingEmergencyNumber = emergencyNumber;
             mCallbackSemaphore.release();
         }
     }
@@ -118,7 +137,7 @@ public class BaseTelecomTestWithMockServices extends InstrumentationTestCase {
     protected void setUp() throws Exception {
         super.setUp();
         mContext = getInstrumentation().getContext();
-
+        mHandler = new Handler(Looper.getMainLooper());
         mShouldTestTelecom = TestUtils.shouldTestTelecom(mContext);
         if (!mShouldTestTelecom) {
             return;
@@ -142,7 +161,10 @@ public class BaseTelecomTestWithMockServices extends InstrumentationTestCase {
             @Override
             public void run() {
                 mPhoneStateListener = new TestPhoneStateListener();
-                mTelephonyManager.listen(mPhoneStateListener, PhoneStateListener.LISTEN_CALL_STATE);
+                ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mTelephonyManager,
+                    (tm) -> tm.listen(mPhoneStateListener,
+                        PhoneStateListener.LISTEN_CALL_STATE | PhoneStateListener
+                            .LISTEN_OUTGOING_EMERGENCY_CALL));
                 registeredLatch.countDown();
             }
         });
@@ -174,6 +196,7 @@ public class BaseTelecomTestWithMockServices extends InstrumentationTestCase {
             TestUtils.setDefaultDialer(getInstrumentation(), mPreviousDefaultDialer);
         }
         tearDownConnectionService(TestUtils.TEST_PHONE_ACCOUNT_HANDLE);
+        tearDownEmergencyCalling();
         assertMockInCallServiceUnbound();
     }
 
@@ -222,6 +245,26 @@ public class BaseTelecomTestWithMockServices extends InstrumentationTestCase {
         this.connectionService = null;
         mPreviousDefaultOutgoingAccount = null;
         mShouldRestoreDefaultOutgoingAccount = false;
+    }
+
+    protected void setupForEmergencyCalling(String testNumber) throws Exception {
+        TestUtils.setSystemDialerOverride(getInstrumentation());
+        TestUtils.addTestEmergencyNumber(getInstrumentation(), testNumber);
+        TestUtils.setTestEmergencyPhoneAccountPackageFilter(getInstrumentation(), mContext);
+        // Emergency calls require special capabilities.
+        TestUtils.registerEmergencyPhoneAccount(getInstrumentation(),
+                TestUtils.TEST_EMERGENCY_PHONE_ACCOUNT_HANDLE,
+                TestUtils.ACCOUNT_LABEL + "E", "tel:555-EMER");
+        mIsEmergencyCallingSetup = true;
+    }
+
+    protected void tearDownEmergencyCalling() throws Exception {
+        if (!mIsEmergencyCallingSetup) return;
+
+        TestUtils.clearSystemDialerOverride(getInstrumentation());
+        TestUtils.clearTestEmergencyNumbers(getInstrumentation());
+        TestUtils.clearTestEmergencyPhoneAccountPackageFilter(getInstrumentation());
+        mTelecomManager.unregisterPhoneAccount(TestUtils.TEST_EMERGENCY_PHONE_ACCOUNT_HANDLE);
     }
 
     protected void startCallTo(Uri address, PhoneAccountHandle accountHandle) {
@@ -411,6 +454,15 @@ public class BaseTelecomTestWithMockServices extends InstrumentationTestCase {
     /**
      *  Puts Telecom in a state where there is an active call provided by the
      *  {@link CtsConnectionService} which can be tested.
+     */
+    void placeAndVerifyCall(boolean viaCallRedirection, boolean cancelledByCallRedirection) {
+        placeAndVerifyCall(null, VideoProfile.STATE_AUDIO_ONLY, viaCallRedirection,
+                cancelledByCallRedirection);
+    }
+
+    /**
+     *  Puts Telecom in a state where there is an active call provided by the
+     *  {@link CtsConnectionService} which can be tested.
      *
      *  @param videoState the video state of the call.
      */
@@ -431,6 +483,15 @@ public class BaseTelecomTestWithMockServices extends InstrumentationTestCase {
      *  {@link CtsConnectionService} which can be tested.
      */
     void placeAndVerifyCall(Bundle extras, int videoState) {
+        placeAndVerifyCall(extras, videoState, false, false);
+    }
+
+    /**
+     *  Puts Telecom in a state where there is an active call provided by the
+     *  {@link CtsConnectionService} which can be tested.
+     */
+    void placeAndVerifyCall(Bundle extras, int videoState,
+                            boolean viaCallRedirectionService, boolean cancelledByCallRedirection) {
         assertEquals("Lock should have no permits!", 0, mInCallCallbacks.lock.availablePermits());
         int currentCallCount = 0;
         if (mInCallCallbacks.getService() != null) {
@@ -459,11 +520,20 @@ public class BaseTelecomTestWithMockServices extends InstrumentationTestCase {
         // be seen by calls to ConnectionService#getAllConnections().
         // We will wait here until the list of connections includes one more connection to ensure
         // that placing the call has fully completed.
-        final int expectedConnectionCount = currentConnectionCount + 1;
+        // If the call is canceled by call redirection service, do not expect the count increment.
+        final int expectedConnectionCount = cancelledByCallRedirection ?
+                currentConnectionCount : currentConnectionCount + 1;
         assertCSConnections(expectedConnectionCount);
 
-        // Ensure the new outgoing call broadcast fired for the outgoing call.
-        assertTrue(NewOutgoingCallBroadcastReceiver.isNewOutgoingCallBroadcastReceived());
+        // If the call redirection service is being used, allow some waiting before the new
+        // outgoing call broadcast is received.
+        if (viaCallRedirectionService) {
+            // Ensure the new outgoing call broadcast fired for the outgoing call.
+            assertOutgoingCallBroadcastReceived(true);
+        } else {
+            assertTrue(NewOutgoingCallBroadcastReceiver.isNewOutgoingCallBroadcastReceived());
+        }
+
         // CTS test does not have read call log permission so should not get the phone number.
         assertNull(NewOutgoingCallBroadcastReceiver.getReceivedNumber());
     }
@@ -646,6 +716,34 @@ public class BaseTelecomTestWithMockServices extends InstrumentationTestCase {
         // be sure the number was reported as expected.
     }
 
+    void verifyPhoneStateListenerCallbacksForEmergencyCall(String expectedNumber)
+        throws Exception {
+        assertTrue(mPhoneStateListener.mCallbackSemaphore.tryAcquire(
+            TestUtils.WAIT_FOR_PHONE_STATE_LISTENER_CALLBACK_TIMEOUT_S, TimeUnit.SECONDS));
+        // At this point we can only be sure that we got AN update, but not necessarily the one we
+        // are looking for; wait until we see the state we want before verifying further.
+        waitUntilConditionIsTrueOrTimeout(new Condition() {
+                                              @Override
+                                              public Object expected() {
+                                                  return true;
+                                              }
+
+                                              @Override
+                                              public Object actual() {
+                                                  return mPhoneStateListener
+                                                      .mLastOutgoingEmergencyNumber != null
+                                                      && mPhoneStateListener
+                                                      .mLastOutgoingEmergencyNumber.getNumber()
+                                                      .equals(expectedNumber);
+                                              }
+                                          },
+            WAIT_FOR_STATE_CHANGE_TIMEOUT_MS,
+            "Expected emergency number: " + expectedNumber);
+
+        assertEquals(mPhoneStateListener.mLastOutgoingEmergencyNumber.getNumber(),
+            expectedNumber);
+    }
+
     /**
      * Disconnect the created test call and verify that Telecom has cleared all calls.
      */
@@ -673,8 +771,13 @@ public class BaseTelecomTestWithMockServices extends InstrumentationTestCase {
         if (!VideoProfile.isAudioOnly(videoState)) {
             extras.putInt(TelecomManager.EXTRA_START_CALL_WITH_VIDEO_STATE, videoState);
         }
-
-        mTelecomManager.placeCall(createTestNumber(), extras);
+        Uri number;
+        if (extras.containsKey(TestUtils.EXTRA_PHONE_NUMBER)) {
+            number = extras.getParcelable(TestUtils.EXTRA_PHONE_NUMBER);
+        } else {
+            number = createTestNumber();
+        }
+        mTelecomManager.placeCall(number, extras);
     }
 
     /**
@@ -686,8 +789,84 @@ public class BaseTelecomTestWithMockServices extends InstrumentationTestCase {
         return Uri.fromParts("tel", String.valueOf(++sCounter), null);
     }
 
+    /**
+     * Creates a new random phone number in the range:
+     * 000-000-0000
+     * to
+     * 999-999-9999
+     * @return Randomized phone number.
+     */
+    Uri createRandomTestNumber() {
+        return Uri.fromParts("tel", String.format("16%05d", new Random().nextInt(99999))
+                + String.format("%04d", new Random().nextInt(9999)), null);
+    }
+
     public static Uri getTestNumber() {
         return Uri.fromParts("tel", String.valueOf(sCounter), null);
+    }
+
+    public boolean isLoggedCall(PhoneAccountHandle handle) {
+        PhoneAccount phoneAccount = mTelecomManager.getPhoneAccount(handle);
+        Bundle extras = phoneAccount.getExtras();
+        if (extras == null) {
+            extras = new Bundle();
+        }
+        boolean isSelfManaged = (phoneAccount.getCapabilities()
+                & PhoneAccount.CAPABILITY_SELF_MANAGED) == PhoneAccount.CAPABILITY_SELF_MANAGED;
+        // Calls are logged if:
+        // 1. They're not self-managed
+        // 2. They're self-managed and are configured to request logging.
+        return (!isSelfManaged
+                || (isSelfManaged
+                && extras.getBoolean(PhoneAccount.EXTRA_LOG_SELF_MANAGED_CALLS)
+                && (phoneAccount.getSupportedUriSchemes().contains(PhoneAccount.SCHEME_TEL)
+                || phoneAccount.getSupportedUriSchemes().contains(PhoneAccount.SCHEME_SIP))));
+    }
+
+    public CountDownLatch getCallLogEntryLatch() {
+        CountDownLatch changeLatch = new CountDownLatch(1);
+        mContext.getContentResolver().registerContentObserver(
+                CallLog.Calls.CONTENT_URI, true,
+                new ContentObserver(mHandler) {
+                    @Override
+                    public void onChange(boolean selfChange, Uri uri) {
+                        mContext.getContentResolver().unregisterContentObserver(this);
+                        changeLatch.countDown();
+                        super.onChange(selfChange);
+                    }
+                });
+        return changeLatch;
+    }
+
+
+    public void verifyCallLogging(CountDownLatch logLatch, boolean isCallLogged, Uri testNumber) {
+        if (isCallLogged) {
+            // Wait for the content observer to report that we have gotten a new call log entry.
+            try {
+                logLatch.await(WAIT_FOR_STATE_CHANGE_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+            } catch (InterruptedException ie) {
+                fail("Expected log latch");
+            }
+        }
+
+        // Query the latest entry into the call log.
+        Cursor callsCursor = mContext.getContentResolver().query(CallLog.Calls.CONTENT_URI, null,
+                null, null, CallLog.Calls._ID + " DESC limit 1;");
+        int numberIndex = callsCursor.getColumnIndex(CallLog.Calls.NUMBER);
+        if (callsCursor.moveToNext()) {
+            String number = callsCursor.getString(numberIndex);
+            if (isCallLogged) {
+                assertEquals(testNumber.getSchemeSpecificPart(), number);
+            } else {
+                assertNotEquals(testNumber.getSchemeSpecificPart(), number);
+            }
+        } else {
+            if (isCallLogged) {
+                fail("Blocked call was not logged.");
+            } else {
+                // Horray! No calls and we didn't expect it to be logged.
+            }
+        }
     }
 
     void assertNumCalls(final MockInCallService inCallService, final int numCalls) {
@@ -1009,6 +1188,84 @@ public class BaseTelecomTestWithMockServices extends InstrumentationTestCase {
                 },
                 WAIT_FOR_STATE_CHANGE_TIMEOUT_MS,
                 "Conference should be in state " + state
+        );
+    }
+
+
+    void assertOutgoingCallBroadcastReceived(boolean received) {
+        waitUntilConditionIsTrueOrTimeout(
+                new Condition() {
+                    @Override
+                    public Object expected() {
+                        return received;
+                    }
+
+                    @Override
+                    public Object actual() {
+                        return NewOutgoingCallBroadcastReceiver
+                                .isNewOutgoingCallBroadcastReceived();
+                    }
+                },
+                WAIT_FOR_STATE_CHANGE_TIMEOUT_MS,
+                received ? "Outgoing Call Broadcast should be received"
+                        : "Outgoing Call Broadcast should not be received"
+        );
+    }
+
+    void assertCallDetailsConstructed(Call mCall, boolean constructed) {
+        waitUntilConditionIsTrueOrTimeout(
+                new Condition() {
+                    @Override
+                    public Object expected() {
+                        return constructed;
+                    }
+
+                    @Override
+                    public Object actual() {
+                        return mCall != null && mCall.getDetails() != null;
+                    }
+                },
+                WAIT_FOR_STATE_CHANGE_TIMEOUT_MS,
+                constructed ? "Call Details should be constructed"
+                        : "Call Details should not be constructed"
+        );
+    }
+
+    void assertCallGatewayConstructed(Call mCall, boolean constructed) {
+        waitUntilConditionIsTrueOrTimeout(
+                new Condition() {
+                    @Override
+                    public Object expected() {
+                        return constructed;
+                    }
+
+                    @Override
+                    public Object actual() {
+                        return mCall != null && mCall.getDetails() != null
+                                && mCall.getDetails().getGatewayInfo() != null;
+                    }
+                },
+                WAIT_FOR_STATE_CHANGE_TIMEOUT_MS,
+                constructed ? "Call Gateway should be constructed"
+                        : "Call Gateway should not be constructed"
+        );
+    }
+
+    void assertCallNotNull(Call mCall, boolean notNull) {
+        waitUntilConditionIsTrueOrTimeout(
+                new Condition() {
+                    @Override
+                    public Object expected() {
+                        return notNull;
+                    }
+
+                    @Override
+                    public Object actual() {
+                        return mCall != null;
+                    }
+                },
+                WAIT_FOR_STATE_CHANGE_TIMEOUT_MS,
+                notNull ? "Call should not be null" : "Call should be null"
         );
     }
 

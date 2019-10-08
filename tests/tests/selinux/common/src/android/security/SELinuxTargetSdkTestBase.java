@@ -29,6 +29,27 @@ abstract class SELinuxTargetSdkTestBase extends AndroidTestCase
         }
     }
 
+    protected static void noExecuteOnly() throws IOException {
+        String[] maps = {"^[0-9a-z]+-[0-9a-z]+\\s+--xp.*\\/apex\\/com\\.android\\.runtime\\/.*",
+            "^[0-9a-z]+-[0-9a-z]+\\s+--xp.*\\/system\\/.*"};
+        for (String map : maps) {
+            final Pattern mapsPattern = Pattern.compile(map);
+            BufferedReader reader = new BufferedReader(new FileReader("/proc/self/maps"));
+            String line;
+            try {
+                while ((line = reader.readLine()) != null) {
+                    Matcher m = mapsPattern.matcher(line);
+                    assertFalse("System provided libraries should be not be marked execute-only " +
+                           "for apps with targetSdkVersion<Q, but an execute-only segment was " +
+                           "found:\n" + line, m.matches());
+                }
+
+            } finally {
+                reader.close();
+            }
+        }
+    }
+
     protected static String getProperty(String property)
             throws IOException {
         Process process = new ProcessBuilder("getprop", property).start();
@@ -61,15 +82,15 @@ abstract class SELinuxTargetSdkTestBase extends AndroidTestCase
      * Check expectations of being able to read/execute dex2oat.
      */
     protected static void checkDex2oatAccess(boolean expectedAllowed) throws Exception {
-        // First check whether there is an Android Runtime APEX dex2oat binary.
-        File dex2oatRuntimeApexBinary = new File("/apex/com.android.runtime/bin/dex2oat");
-        if (dex2oatRuntimeApexBinary.exists()) {
-          checkDex2oatBinaryAccess(dex2oatRuntimeApexBinary, expectedAllowed);
-        }
-        // Also check whether there is a "legacy" system binary.
-        File dex2oatSystemBinary = new File("/system/bin/dex2oat");
-        if (dex2oatSystemBinary.exists()) {
-          checkDex2oatBinaryAccess(dex2oatSystemBinary, expectedAllowed);
+        // Check the dex2oat binary in its current and legacy locations.
+        String[] locations = {"/apex/com.android.art/bin",
+                              "/apex/com.android.runtime/bin",
+                              "/system/bin"};
+        for (String loc : locations) {
+            File dex2oatBinary = new File(loc + "/dex2oat");
+            if (dex2oatBinary.exists()) {
+                checkDex2oatBinaryAccess(dex2oatBinary, expectedAllowed);
+            }
         }
     }
 

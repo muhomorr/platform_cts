@@ -16,6 +16,7 @@ android_test {
     name: "CtsDatabaseTestCases",
     defaults: ["cts_defaults"],
     static_libs: [
+        "compatibility-device-util-axt",
         "android-common",
         "ctstestrunner-axt",
         "ctstestrunner-axt",
@@ -32,7 +33,6 @@ android_test {
         "cts",
         "vts",
         "general-tests",
-        "cts_instant",
     ],
     // Enforce public / test api only
     sdk_version: "test_current",

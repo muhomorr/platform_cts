@@ -61,6 +61,7 @@ import java.io.FileOutputStream;
 import java.io.ObjectInputStream;
 import java.io.OutputStream;
 import java.io.InputStream;
+import java.net.BindException;
 import java.net.Socket;
 import java.net.ServerSocket;
 import java.io.File;
@@ -68,6 +69,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.regex.Pattern;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -803,6 +805,12 @@ public class StagefrightTest extends InstrumentationTestCase {
      before any existing test methods
      ***********************************************************/
 
+    @SecurityTest(minPatchLevel = "2018-06")
+    public void testBug_73552574() throws Exception {
+        int[] frameSizes = getFrameSizes(R.raw.bug_73552574_framelen);
+        doStagefrightTestRawBlob(R.raw.bug_73552574_avc, "video/avc", 320, 240, frameSizes);
+    }
+
     @SecurityTest(minPatchLevel = "2018-02")
     public void testStagefright_bug_68342866() throws Exception {
         Thread server = new Thread() {
@@ -844,7 +852,8 @@ public class StagefrightTest extends InstrumentationTestCase {
                 mp.setOnErrorListener(mpcl);
                 mp.setOnPreparedListener(mpcl);
                 mp.setOnCompletionListener(mpcl);
-                Surface surface = getDummySurface();
+                RenderTarget renderTarget = RenderTarget.create();
+                Surface surface = renderTarget.getSurface();
                 mp.setSurface(surface);
                 AssetFileDescriptor fd = null;
                 try {
@@ -857,6 +866,7 @@ public class StagefrightTest extends InstrumentationTestCase {
                 }
                 Looper.loop();
                 mp.release();
+                renderTarget.destroy();
             }
         });
         t.start();
@@ -1041,31 +1051,22 @@ public class StagefrightTest extends InstrumentationTestCase {
         doStagefrightTest(R.raw.cve_2016_3879);
     }
 
-    @SecurityTest(minPatchLevel = "2017-07")
-    public void testStagefright_xaac_not_present() throws Exception {
-        // ensure that the xaac codec is not present
-        MediaCodec codec;
-        String names[] = new String[] { "c2.android.xaac.decoder", "OMX.google.xaac.decoder" };
-        for (String name : names) {
-            Log.w(TAG, "trying to create codec: " + name);
-            try {
-                codec = MediaCodec.createByCodecName(name);
-                fail("not allowed to createByCodecName() for " + name);
-            } catch (IllegalArgumentException e) {
-                // expected
-                Log.w(TAG, "correctly unable to instantiate code for " + name);
-            }
-        }
-    }
-
     private void doStagefrightTest(final int rid) throws Exception {
         doStagefrightTestMediaPlayer(rid);
         doStagefrightTestMediaCodec(rid);
         doStagefrightTestMediaMetadataRetriever(rid);
 
         Context context = getInstrumentation().getContext();
+        CtsTestServer server = null;
+        try {
+            server = new CtsTestServer(context);
+        } catch (BindException e) {
+            // Instant Apps security policy does not allow
+            // listening for incoming connections.
+            // Server based tests cannot be run.
+            return;
+        }
         Resources resources =  context.getResources();
-        CtsTestServer server = new CtsTestServer(context);
         String rname = resources.getResourceEntryName(rid);
         String url = server.getAssetUrl("raw/" + rname);
         verifyServer(rid, url);
@@ -1117,32 +1118,6 @@ public class StagefrightTest extends InstrumentationTestCase {
         doStagefrightTestMediaPlayerANR(rid, null);
     }
 
-    private Surface getDummySurface() {
-        int[] textures = new int[1];
-        GLES20.glGenTextures(1, textures, 0);
-        GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, textures[0]);
-        GLES20.glTexParameterf(GLES11Ext.GL_TEXTURE_EXTERNAL_OES,
-                GLES20.GL_TEXTURE_MIN_FILTER,
-                GLES20.GL_NEAREST);
-        GLES20.glTexParameterf(GLES11Ext.GL_TEXTURE_EXTERNAL_OES,
-                GLES20.GL_TEXTURE_MAG_FILTER,
-                GLES20.GL_LINEAR);
-        GLES20.glTexParameteri(GLES11Ext.GL_TEXTURE_EXTERNAL_OES,
-                GLES20.GL_TEXTURE_WRAP_S,
-                GLES20.GL_CLAMP_TO_EDGE);
-        GLES20.glTexParameteri(GLES11Ext.GL_TEXTURE_EXTERNAL_OES,
-                GLES20.GL_TEXTURE_WRAP_T,
-                GLES20.GL_CLAMP_TO_EDGE);
-        SurfaceTexture surfaceTex = new SurfaceTexture(textures[0]);
-        surfaceTex.setOnFrameAvailableListener(new SurfaceTexture.OnFrameAvailableListener() {
-            @Override
-            public void onFrameAvailable(SurfaceTexture surfaceTexture) {
-                Log.i(TAG, "new frame available");
-            }
-        });
-        return new Surface(surfaceTex);
-    }
-
     public JSONArray getCrashReport(String testname, long timeout)
         throws InterruptedException {
         Log.i(TAG, CrashUtils.UPLOAD_REQUEST);
@@ -1174,8 +1149,23 @@ public class StagefrightTest extends InstrumentationTestCase {
         MediaPlayer.OnPreparedListener,
         MediaPlayer.OnCompletionListener {
 
-        private final String[] validProcessNames = {
-            "mediaserver", "mediadrmserver", "media.extractor", "media.codec", "media.metrics"
+        private final Pattern[] validProcessPatterns = {
+            Pattern.compile("adsprpcd"),
+            Pattern.compile("android\\.hardware\\.cas@\\d+?\\.\\d+?-service"),
+            Pattern.compile("android\\.hardware\\.drm@\\d+?\\.\\d+?-service"),
+            Pattern.compile("android\\.hardware\\.drm@\\d+?\\.\\d+?-service\\.clearkey"),
+            Pattern.compile("android\\.hardware\\.drm@\\d+?\\.\\d+?-service\\.widevine"),
+            Pattern.compile("android\\.process\\.media"),
+            Pattern.compile("mediadrmserver"),
+            Pattern.compile("media\\.extractor"),
+            Pattern.compile("media\\.metrics"),
+            Pattern.compile("mediaserver"),
+            Pattern.compile("media\\.codec"),
+            Pattern.compile("media\\.swcodec"),
+            Pattern.compile("\\[?sdcard\\]?"), // name:/system/bin/sdcard, user:media_rw
+            // Match any vendor processes.
+            // It should only catch crashes that happen during the test.
+            Pattern.compile("vendor.*"),
         };
 
         @Override
@@ -1223,7 +1213,7 @@ public class StagefrightTest extends InstrumentationTestCase {
                 if (crashes == null) {
                     Log.e(TAG, "Crash results not found for test " + getName());
                     return what;
-                } else if (CrashUtils.detectCrash(validProcessNames, true, crashes)) {
+                } else if (CrashUtils.securityCrashDetected(crashes, true, validProcessPatterns)) {
                     return what;
                 } else {
                     Log.i(TAG, "Crash ignored due to no security crash found for test " +
@@ -1305,7 +1295,8 @@ public class StagefrightTest extends InstrumentationTestCase {
                 mp.setOnErrorListener(mpcl);
                 mp.setOnPreparedListener(mpcl);
                 mp.setOnCompletionListener(mpcl);
-                Surface surface = getDummySurface();
+                RenderTarget renderTarget = RenderTarget.create();
+                Surface surface = renderTarget.getSurface();
                 mp.setSurface(surface);
                 AssetFileDescriptor fd = null;
                 try {
@@ -1328,6 +1319,7 @@ public class StagefrightTest extends InstrumentationTestCase {
 
                 Looper.loop();
                 mp.release();
+                renderTarget.destroy();
             }
         });
 
@@ -1448,9 +1440,10 @@ public class StagefrightTest extends InstrumentationTestCase {
                 Log.i(TAG, "Decoding track " + t + " using codec " + codecName);
                 ex.seekTo(0, MediaExtractor.SEEK_TO_CLOSEST_SYNC);
                 MediaCodec codec = MediaCodec.createByCodecName(codecName);
+                RenderTarget renderTarget = RenderTarget.create();
                 Surface surface = null;
                 if (mime.startsWith("video/")) {
-                    surface = getDummySurface();
+                    surface = renderTarget.getSurface();
                 }
                 try {
                     codec.configure(format, surface, null, 0);
@@ -1492,6 +1485,7 @@ public class StagefrightTest extends InstrumentationTestCase {
                     // local exceptions ignored, not security issues
                 } finally {
                     codec.release();
+                    renderTarget.destroy();
                 }
             }
             ex.unselectTrack(t);
@@ -1583,6 +1577,7 @@ public class StagefrightTest extends InstrumentationTestCase {
         thr.join();
     }
 
+    @SecurityTest(minPatchLevel = "2017-07")
     public void testBug36215950() throws Exception {
         doStagefrightTestRawBlob(R.raw.bug_36215950, "video/hevc", 320, 240);
     }
@@ -1928,7 +1923,8 @@ public class StagefrightTest extends InstrumentationTestCase {
                 mp.setOnErrorListener(mpl);
                 mp.setOnPreparedListener(mpl);
                 mp.setOnCompletionListener(mpl);
-                Surface surface = getDummySurface();
+                RenderTarget renderTarget = RenderTarget.create();
+                Surface surface = renderTarget.getSurface();
                 mp.setSurface(surface);
                 AssetFileDescriptor fd = null;
                 try {
@@ -1950,6 +1946,7 @@ public class StagefrightTest extends InstrumentationTestCase {
 
                 Looper.loop();
                 mp.release();
+                renderTarget.destroy();
             }
         });
 

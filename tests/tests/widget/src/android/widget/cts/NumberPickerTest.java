@@ -20,6 +20,10 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -28,10 +32,14 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.verifyZeroInteractions;
 
 import android.app.Instrumentation;
-import android.app.UiAutomation;
+import android.content.res.ColorStateList;
 import android.content.res.Configuration;
+import android.content.res.Resources;
+import android.graphics.Color;
 import android.text.TextUtils;
+import android.view.View;
 import android.view.accessibility.AccessibilityEvent;
+import android.widget.EditText;
 import android.widget.NumberPicker;
 
 import androidx.test.InstrumentationRegistry;
@@ -43,11 +51,18 @@ import androidx.test.runner.AndroidJUnit4;
 
 import com.android.compatibility.common.util.CtsTouchUtils;
 
+import junit.framework.Assert;
+
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.InOrder;
+import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
+
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 @FlakyTest
 @SmallTest
@@ -56,12 +71,12 @@ public class NumberPickerTest {
     private static final String[] NUMBER_NAMES3 = {"One", "Two", "Three"};
     private static final String[] NUMBER_NAMES_ALT3 = {"Three", "Four", "Five"};
     private static final String[] NUMBER_NAMES5 = {"One", "Two", "Three", "Four", "Five"};
-    private static final long TIMEOUT_ACCESSIBILITY_EVENT = 5 * 1000;
 
     private Instrumentation mInstrumentation;
-    private UiAutomation mUiAutomation;
     private NumberPickerCtsActivity mActivity;
     private NumberPicker mNumberPicker;
+    @Mock
+    private View.AccessibilityDelegate mMockA11yDelegate;
 
     @Rule
     public ActivityTestRule<NumberPickerCtsActivity> mActivityRule =
@@ -69,8 +84,10 @@ public class NumberPickerTest {
 
     @Before
     public void setup() {
+        MockitoAnnotations.initMocks(this);
         mInstrumentation = InstrumentationRegistry.getInstrumentation();
-        mUiAutomation = mInstrumentation.getUiAutomation();
+        // Create a UiAutomation, which will enable accessibility and allow us to test a11y events.
+        mInstrumentation.getUiAutomation();
         mActivity = mActivityRule.getActivity();
         mNumberPicker = (NumberPicker) mActivity.findViewById(R.id.number_picker);
     }
@@ -280,21 +297,17 @@ public class NumberPickerTest {
             mNumberPicker.setDisplayedValues(NUMBER_NAMES3);
 
             mNumberPicker.setOnValueChangedListener(mockValueChangeListener);
-        });
 
-        mInstrumentation.runOnMainSync(() -> {
             mNumberPicker.setValue(21);
             assertEquals(21, mNumberPicker.getValue());
-        });
 
-        mUiAutomation.executeAndWaitForEvent(() ->
-                        mInstrumentation.runOnMainSync(() -> mNumberPicker.setValue(20)),
-                (AccessibilityEvent event) ->
-                        event.getEventType() == AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED,
-                TIMEOUT_ACCESSIBILITY_EVENT);
-
-        mInstrumentation.runOnMainSync(() -> {
+            ((View) mNumberPicker.getParent()).setAccessibilityDelegate(mMockA11yDelegate);
+            mNumberPicker.setValue(20);
             assertEquals(20, mNumberPicker.getValue());
+            verify(mMockA11yDelegate, atLeastOnce()).onRequestSendAccessibilityEvent(
+                    any(), eq(mNumberPicker), argThat(event -> event.getEventType()
+                            == AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED));
+            ((View) mNumberPicker.getParent()).setAccessibilityDelegate(null);
 
             mNumberPicker.setValue(22);
             assertEquals(22, mNumberPicker.getValue());
@@ -329,9 +342,17 @@ public class NumberPickerTest {
                 mock(NumberPicker.OnValueChangeListener.class);
         mNumberPicker.setOnValueChangedListener(mockValueChangeListener);
 
+        final CountDownLatch latch = new CountDownLatch(1);
         final NumberPicker.OnScrollListener mockScrollListener =
                 mock(NumberPicker.OnScrollListener.class);
-        mNumberPicker.setOnScrollListener(mockScrollListener);
+        final NumberPicker.OnScrollListener waitForIdleListener =
+                (NumberPicker numberPicker, int scrollState) -> {
+                    mockScrollListener.onScrollStateChange(numberPicker, scrollState);
+                    if (scrollState == NumberPicker.OnScrollListener.SCROLL_STATE_IDLE) {
+                        mNumberPicker.post(latch::countDown);
+                    }
+                };
+        mNumberPicker.setOnScrollListener(waitForIdleListener);
 
         mActivityRule.runOnUiThread(() -> mNumberPicker.setValue(7));
         assertEquals(7, mNumberPicker.getValue());
@@ -340,11 +361,23 @@ public class NumberPickerTest {
         final int[] numberPickerLocationOnScreen = new int[2];
         mNumberPicker.getLocationOnScreen(numberPickerLocationOnScreen);
 
-        CtsTouchUtils.emulateDragGesture(mInstrumentation,
-                numberPickerLocationOnScreen[0] + mNumberPicker.getWidth() / 2,
-                numberPickerLocationOnScreen[1] + 1,
-                0,
-                mNumberPicker.getHeight() - 2);
+        try {
+            int screenHeight = Resources.getSystem().getDisplayMetrics().heightPixels;
+            int numberPickerMiddleX = numberPickerLocationOnScreen[0]
+                    + mNumberPicker.getWidth() / 2;
+            int numberPickerStartY = numberPickerLocationOnScreen[1] + 1;
+
+            CtsTouchUtils.emulateDragGesture(mInstrumentation, mActivityRule,
+                    numberPickerMiddleX,
+                    numberPickerStartY,
+                    0,
+                    screenHeight - numberPickerStartY); // drag down to the bottom of the screen.
+
+            Assert.assertTrue("Expected to get to IDLE state within 5 seconds",
+                    latch.await(5, TimeUnit.SECONDS));
+        } catch (Throwable t) {
+            throw new RuntimeException(t);
+        }
 
         // At this point we expect that the drag-down gesture has selected the value
         // that was "above" the previously selected one, and that our value change listener
@@ -378,9 +411,17 @@ public class NumberPickerTest {
                 mock(NumberPicker.OnValueChangeListener.class);
         mNumberPicker.setOnValueChangedListener(mockValueChangeListener);
 
+        final CountDownLatch latch = new CountDownLatch(1);
         final NumberPicker.OnScrollListener mockScrollListener =
                 mock(NumberPicker.OnScrollListener.class);
-        mNumberPicker.setOnScrollListener(mockScrollListener);
+        final NumberPicker.OnScrollListener waitForIdleListener =
+                (NumberPicker numberPicker, int scrollState) -> {
+                    mockScrollListener.onScrollStateChange(numberPicker, scrollState);
+                    if (scrollState == NumberPicker.OnScrollListener.SCROLL_STATE_IDLE) {
+                        mNumberPicker.post(latch::countDown);
+                    }
+                };
+        mNumberPicker.setOnScrollListener(waitForIdleListener);
 
         mActivityRule.runOnUiThread(() -> mNumberPicker.setValue(11));
         assertEquals(11, mNumberPicker.getValue());
@@ -389,15 +430,25 @@ public class NumberPickerTest {
         final int[] numberPickerLocationOnScreen = new int[2];
         mNumberPicker.getLocationOnScreen(numberPickerLocationOnScreen);
 
-        mUiAutomation.executeAndWaitForEvent(() ->
-                        CtsTouchUtils.emulateDragGesture(mInstrumentation,
-                                numberPickerLocationOnScreen[0] + mNumberPicker.getWidth() / 2,
-                                numberPickerLocationOnScreen[1] + mNumberPicker.getHeight() - 1,
-                                0,
-                                -(mNumberPicker.getHeight() - 2)),
-                (AccessibilityEvent event) ->
-                        event.getEventType() == AccessibilityEvent.TYPE_VIEW_SCROLLED,
-                TIMEOUT_ACCESSIBILITY_EVENT);
+        ((View) mNumberPicker.getParent()).setAccessibilityDelegate(mMockA11yDelegate);
+        try {
+            int numberPickerMiddleX =
+                    numberPickerLocationOnScreen[0] + mNumberPicker.getWidth() / 2;
+            int numberPickerEndY = numberPickerLocationOnScreen[1] + mNumberPicker.getHeight() - 1;
+            CtsTouchUtils.emulateDragGesture(mInstrumentation, mActivityRule,
+                    numberPickerMiddleX,
+                    numberPickerEndY,
+                    0,
+                    -(numberPickerEndY)); // drag up to the top of the screen.
+            Assert.assertTrue("Expected to get to IDLE state within 5 seconds",
+                    latch.await(5, TimeUnit.SECONDS));
+        } catch (Throwable t) {
+            throw new RuntimeException(t);
+        }
+        verify(mMockA11yDelegate, atLeastOnce()).onRequestSendAccessibilityEvent(
+                any(), eq(mNumberPicker),
+                argThat(event -> event.getEventType() == AccessibilityEvent.TYPE_VIEW_SCROLLED));
+        ((View) mNumberPicker.getParent()).setAccessibilityDelegate(null);
 
         // At this point we expect that the drag-up gesture has selected the value
         // that was "below" the previously selected one, and that our value change listener
@@ -433,5 +484,37 @@ public class NumberPickerTest {
 
         mNumberPicker.setWrapSelectorWheel(true);
         assertTrue(mNumberPicker.getWrapSelectorWheel());
+    }
+
+    @UiThreadTest
+    @Test
+    public void testSelectionDividerHeight() {
+        final NumberPicker numberPicker =
+                (NumberPicker) mActivity.findViewById(R.id.number_picker_divider_height);
+        final int initialValue = numberPicker.getSelectionDividerHeight();
+        assertEquals("Height set via XML", 4, initialValue);
+        final int newValue = 8;
+        numberPicker.setSelectionDividerHeight(newValue);
+        assertEquals(newValue, numberPicker.getSelectionDividerHeight());
+    }
+
+    @UiThreadTest
+    @Test
+    public void testSetGetTextColor() {
+        EditText inputText = (EditText) mNumberPicker.getChildAt(0);
+
+        mNumberPicker.setTextColor(Color.RED);
+        assertEquals(Color.RED, mNumberPicker.getTextColor());
+        assertEquals(ColorStateList.valueOf(Color.RED), inputText.getTextColors());
+    }
+
+    @UiThreadTest
+    @Test
+    public void testSetGetTextSize() {
+        EditText inputText = (EditText) mNumberPicker.getChildAt(0);
+
+        mNumberPicker.setTextSize(20f);
+        assertEquals(20f, mNumberPicker.getTextSize(), 0.01f);
+        assertEquals(20f, inputText.getTextSize(), 0.01f);
     }
 }
