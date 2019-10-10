@@ -33,6 +33,7 @@ import android.os.Bundle;
 import android.os.SystemClock;
 import android.provider.Settings;
 import android.support.test.uiautomator.By;
+import android.support.test.uiautomator.Direction;
 import android.support.test.uiautomator.UiDevice;
 import android.support.test.uiautomator.UiObject;
 import android.support.test.uiautomator.UiObject2;
@@ -45,6 +46,7 @@ import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.view.accessibility.AccessibilityNodeInfo.AccessibilityAction;
 import android.widget.ScrollView;
+import android.widget.ListView;
 import android.widget.Switch;
 
 import androidx.test.InstrumentationRegistry;
@@ -294,25 +296,33 @@ public abstract class BasePermissionsTest {
 
     protected void clickAllowButton() throws Exception {
         scrollToBottomIfWatch();
-        getUiDevice().findObject(new UiSelector().resourceId(
-                "com.android.packageinstaller:id/permission_allow_button")).click();
+        getUiDevice().wait(
+            Until.findObject(
+                By.res("com.android.packageinstaller:id/permission_allow_button")),
+            GLOBAL_TIMEOUT_MILLIS).click();
     }
 
     protected void clickDenyButton() throws Exception {
         scrollToBottomIfWatch();
-        getUiDevice().findObject(new UiSelector().resourceId(
-                "com.android.packageinstaller:id/permission_deny_button")).click();
+        getUiDevice().wait(
+            Until.findObject(
+                By.res("com.android.packageinstaller:id/permission_deny_button")),
+            GLOBAL_TIMEOUT_MILLIS).click();
     }
 
     protected void clickDontAskAgainCheckbox() throws Exception {
-        getUiDevice().findObject(new UiSelector().resourceId(
-                "com.android.packageinstaller:id/do_not_ask_checkbox")).click();
+        getUiDevice().wait(
+            Until.findObject(
+                By.res("com.android.packageinstaller:id/do_not_ask_checkbox")),
+            GLOBAL_TIMEOUT_MILLIS).click();
     }
 
     protected void clickDontAskAgainButton() throws Exception {
         scrollToBottomIfWatch();
-        getUiDevice().findObject(new UiSelector().resourceId(
-                "com.android.packageinstaller:id/permission_deny_dont_ask_again_button")).click();
+        getUiDevice().wait(
+            Until.findObject(
+                By.res("com.android.packageinstaller:id/permission_deny_dont_ask_again_button")),
+            GLOBAL_TIMEOUT_MILLIS).click();
     }
 
     protected void grantPermission(String permission) throws Exception {
@@ -333,12 +343,9 @@ public abstract class BasePermissionsTest {
 
     private void scrollToBottomIfWatch() throws Exception {
         if (mWatch) {
-            getUiDevice().wait(Until.findObject(By.clazz(ScrollView.class)), GLOBAL_TIMEOUT_MILLIS);
-            UiScrollable scrollable =
-                    new UiScrollable(new UiSelector().className(ScrollView.class));
-            if (scrollable.exists()) {
-                scrollable.flingToEnd(10);
-            }
+            UiObject2 scrollable = getUiDevice().wait(
+                Until.findObject(By.clazz(ScrollView.class)), GLOBAL_TIMEOUT_MILLIS);
+            if (scrollable != null) scrollable.fling(Direction.DOWN);
         }
     }
 
@@ -394,15 +401,24 @@ public abstract class BasePermissionsTest {
             if (granted != wasGranted) {
                 // Toggle the permission
 
-                if (!itemView.getActionList().contains(AccessibilityAction.ACTION_CLICK)) {
-                    click(toggleView, false);
+                boolean willShowPopup = (wasGranted && legacyApp);
+                if (mWatch) {
+                  if (!itemView.getActionList().contains(AccessibilityAction.ACTION_CLICK)) {
+                    toggleView.performAction(AccessibilityNodeInfo.ACTION_CLICK);
+                  } else {
+                    itemView.performAction(AccessibilityNodeInfo.ACTION_CLICK);
+                  }
                 } else {
-                    click(itemView, false);
+                  if (!itemView.getActionList().contains(AccessibilityAction.ACTION_CLICK)) {
+                      click(toggleView, willShowPopup);
+                  } else {
+                      click(itemView, willShowPopup);
+                  }
                 }
 
                 waitForIdle();
 
-                if (wasGranted && legacyApp) {
+                if (willShowPopup) {
                     scrollToBottomIfWatch();
                     String packageName = getInstrumentation().getContext().getPackageManager()
                             .getPermissionControllerPackageName();
@@ -458,13 +474,36 @@ public abstract class BasePermissionsTest {
     }
 
     private static AccessibilityNodeInfo findByText(AccessibilityNodeInfo root, String text) {
+        if (root == null) {
+            return null;
+        }
         List<AccessibilityNodeInfo> nodes = root.findAccessibilityNodeInfosByText(text);
+        PackageManager packageManager = InstrumentationRegistry.getTargetContext().getPackageManager();
+        boolean isWatch = packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH);
+        if (isWatch) {
+            return findByTextForWatch(root, text);
+        }
         for (AccessibilityNodeInfo node : nodes) {
             if (node.getText().toString().equals(text)) {
                 return node;
             }
         }
         return null;
+    }
+
+    private static AccessibilityNodeInfo findByTextForWatch(AccessibilityNodeInfo root, String text) {
+        String trimmedText = trimText(text);
+        List<AccessibilityNodeInfo> nodes = root.findAccessibilityNodeInfosByText(trimmedText);
+        for (AccessibilityNodeInfo node : nodes) {
+            if (trimText(node.getText().toString()).equals(trimmedText)) {
+                return node;
+            }
+        }
+        return null;
+    }
+
+    private static String trimText(String text) {
+        return text != null ? text.substring(0, Math.min(text.length(), 20)) : null;
     }
 
     private static AccessibilityNodeInfo findByTextInCollection(AccessibilityNodeInfo root,
