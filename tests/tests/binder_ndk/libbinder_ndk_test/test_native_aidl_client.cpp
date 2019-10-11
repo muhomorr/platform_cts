@@ -370,6 +370,20 @@ TEST_P(NdkBinderTest_Aidl, InsAndOuts) {
   EXPECT_EQ("Jerry", defaultPolygon.name);
 }
 
+TEST_P(NdkBinderTest_Aidl, NewField) {
+  Foo foo;
+  foo.g = {"a", "b", "c"};
+
+  Foo outFoo;
+  ASSERT_OK(iface->repeatFoo(foo, &outFoo));
+
+  if (GetParam().shouldBeOld) {
+    EXPECT_EQ(std::nullopt, outFoo.g);
+  } else {
+    EXPECT_EQ(foo.g, outFoo.g);
+  }
+}
+
 TEST_P(NdkBinderTest_Aidl, RenameFoo) {
   Foo foo;
   Foo outputFoo;
@@ -650,8 +664,8 @@ TEST_P(NdkBinderTest_Aidl, GetInterfaceVersion) {
   if (GetParam().shouldBeOld) {
     EXPECT_EQ(1, res);
   } else {
-    // 10000 is the not-yet-frozen version
-    EXPECT_EQ(10000, res);
+    // 3 is the not-yet-frozen version
+    EXPECT_EQ(3, res);
   }
 }
 
