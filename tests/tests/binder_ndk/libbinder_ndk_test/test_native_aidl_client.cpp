@@ -17,7 +17,10 @@
 
 #include <aidl/test_package/BnEmpty.h>
 #include <aidl/test_package/BpTest.h>
+#include <aidl/test_package/ByteEnum.h>
 #include <aidl/test_package/Foo.h>
+#include <aidl/test_package/IntEnum.h>
+#include <aidl/test_package/LongEnum.h>
 #include <aidl/test_package/RegularPolygon.h>
 #include <android/binder_ibinder_jni.h>
 #include <gtest/gtest.h>
@@ -31,8 +34,11 @@
 
 using ::aidl::test_package::Bar;
 using ::aidl::test_package::BpTest;
+using ::aidl::test_package::ByteEnum;
 using ::aidl::test_package::Foo;
+using ::aidl::test_package::IntEnum;
 using ::aidl::test_package::ITest;
+using ::aidl::test_package::LongEnum;
 using ::aidl::test_package::RegularPolygon;
 using ::ndk::ScopedAStatus;
 using ::ndk::ScopedFileDescriptor;
@@ -215,6 +221,24 @@ TEST_P(NdkBinderTest_Aidl, RepeatPrimitives) {
     ASSERT_OK(iface->RepeatByte(3, &out));
     EXPECT_EQ(3, out);
   }
+
+  {
+    ByteEnum out;
+    ASSERT_OK(iface->RepeatByteEnum(ByteEnum::FOO, &out));
+    EXPECT_EQ(ByteEnum::FOO, out);
+  }
+
+  {
+    IntEnum out;
+    ASSERT_OK(iface->RepeatIntEnum(IntEnum::FOO, &out));
+    EXPECT_EQ(IntEnum::FOO, out);
+  }
+
+  {
+    LongEnum out;
+    ASSERT_OK(iface->RepeatLongEnum(LongEnum::FOO, &out));
+    EXPECT_EQ(LongEnum::FOO, out);
+  }
 }
 
 TEST_P(NdkBinderTest_Aidl, RepeatBinder) {
@@ -346,6 +370,20 @@ TEST_P(NdkBinderTest_Aidl, InsAndOuts) {
   EXPECT_EQ("Jerry", defaultPolygon.name);
 }
 
+TEST_P(NdkBinderTest_Aidl, NewField) {
+  Foo foo;
+  foo.g = {"a", "b", "c"};
+
+  Foo outFoo;
+  ASSERT_OK(iface->repeatFoo(foo, &outFoo));
+
+  if (GetParam().shouldBeOld) {
+    EXPECT_EQ(std::nullopt, outFoo.g);
+  } else {
+    EXPECT_EQ(foo.g, outFoo.g);
+  }
+}
+
 TEST_P(NdkBinderTest_Aidl, RenameFoo) {
   Foo foo;
   Foo outputFoo;
@@ -376,6 +414,9 @@ TEST_P(NdkBinderTest_Aidl, RepeatFoo) {
   foo.b = 57;
   foo.d.b = "a";
   foo.e.d = 99;
+  foo.shouldBeByteBar = ByteEnum::BAR;
+  foo.shouldBeIntBar = IntEnum::BAR;
+  foo.shouldBeLongBar = LongEnum::BAR;
   Foo retFoo;
 
   ASSERT_OK(iface->repeatFoo(foo, &retFoo));
@@ -384,6 +425,9 @@ TEST_P(NdkBinderTest_Aidl, RepeatFoo) {
   EXPECT_EQ(foo.b, retFoo.b);
   EXPECT_EQ(foo.d.b, retFoo.d.b);
   EXPECT_EQ(foo.e.d, retFoo.e.d);
+  EXPECT_EQ(foo.shouldBeByteBar, retFoo.shouldBeByteBar);
+  EXPECT_EQ(foo.shouldBeIntBar, retFoo.shouldBeIntBar);
+  EXPECT_EQ(foo.shouldBeLongBar, retFoo.shouldBeLongBar);
 }
 
 template <typename T>
@@ -620,8 +664,8 @@ TEST_P(NdkBinderTest_Aidl, GetInterfaceVersion) {
   if (GetParam().shouldBeOld) {
     EXPECT_EQ(1, res);
   } else {
-    // 10000 is the not-yet-frozen version
-    EXPECT_EQ(10000, res);
+    // 3 is the not-yet-frozen version
+    EXPECT_EQ(3, res);
   }
 }
 

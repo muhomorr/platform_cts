@@ -29,5 +29,4 @@ cc_test_library {
         "-Wno-unused-parameter",
         "-Wno-unused-variable",
     ],
-
 }

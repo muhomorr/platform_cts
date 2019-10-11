@@ -28,6 +28,7 @@ android_test {
         "ctstestrunner-axt",
         "mockito-target-minus-junit4",
         "androidx.test.rules",
+        "ub-uiautomator",
     ],
 
     libs: [
@@ -47,6 +48,5 @@ android_test {
         "cts",
         "vts",
         "general-tests",
-        "cts_instant",
     ],
 }

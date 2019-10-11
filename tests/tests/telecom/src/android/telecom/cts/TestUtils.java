@@ -67,15 +67,20 @@ public class TestUtils {
     public static String PACKAGE = "android.telecom.cts";
     public static final String TEST_URI_SCHEME = "foobuzz";
     public static final String COMPONENT = "android.telecom.cts.CtsConnectionService";
+    public static final String INCALL_COMPONENT = "android.telecom.cts/.MockInCallService";
     public static final String SELF_MANAGED_COMPONENT =
             "android.telecom.cts.CtsSelfManagedConnectionService";
     public static final String REMOTE_COMPONENT = "android.telecom.cts.CtsRemoteConnectionService";
-    public static final String ACCOUNT_ID_1 = "xtstest_CALL_PROVIDER_ID";
-    public static final String ACCOUNT_ID_2 = "xtstest_CALL_PROVIDER_ID";
+    public static final String ACCOUNT_ID_1 = "xtstest_CALL_PROVIDER_ID_1";
+    public static final String ACCOUNT_ID_2 = "xtstest_CALL_PROVIDER_ID_2";
+    public static final String ACCOUNT_ID_EMERGENCY = "xtstest_CALL_PROVIDER_EMERGENCY";
+    public static final String EXTRA_PHONE_NUMBER = "android.telecom.cts.extra.PHONE_NUMBER";
     public static final PhoneAccountHandle TEST_PHONE_ACCOUNT_HANDLE =
             new PhoneAccountHandle(new ComponentName(PACKAGE, COMPONENT), ACCOUNT_ID_1);
     public static final PhoneAccountHandle TEST_PHONE_ACCOUNT_HANDLE_2 =
             new PhoneAccountHandle(new ComponentName(PACKAGE, COMPONENT), ACCOUNT_ID_2);
+    public static final PhoneAccountHandle TEST_EMERGENCY_PHONE_ACCOUNT_HANDLE =
+            new PhoneAccountHandle(new ComponentName(PACKAGE, COMPONENT), ACCOUNT_ID_EMERGENCY);
     public static final String DEFAULT_TEST_ACCOUNT_1_ID = "ctstest_DEFAULT_TEST_ID_1";
     public static final String DEFAULT_TEST_ACCOUNT_2_ID = "ctstest_DEFAULT_TEST_ID_2";
     public static final PhoneAccountHandle TEST_DEFAULT_PHONE_ACCOUNT_HANDLE_1 =
@@ -189,6 +194,12 @@ public class TestUtils {
             .setShortDescription(SELF_MANAGED_ACCOUNT_LABEL)
             .addSupportedUriScheme(TEST_URI_SCHEME)
             .build();
+    public static final Bundle SELF_MANAGED_ACCOUNT_2_EXTRAS;
+    static {
+        SELF_MANAGED_ACCOUNT_2_EXTRAS = new Bundle();
+        SELF_MANAGED_ACCOUNT_2_EXTRAS.putBoolean(PhoneAccount.EXTRA_LOG_SELF_MANAGED_CALLS, true);
+    }
+
     public static final PhoneAccount TEST_SELF_MANAGED_PHONE_ACCOUNT_2 = PhoneAccount.builder(
             TEST_SELF_MANAGED_HANDLE_2, SELF_MANAGED_ACCOUNT_LABEL)
             .setAddress(Uri.parse("sip:test@test.com"))
@@ -200,6 +211,7 @@ public class TestUtils {
             .setShortDescription(SELF_MANAGED_ACCOUNT_LABEL)
             .addSupportedUriScheme(PhoneAccount.SCHEME_TEL)
             .addSupportedUriScheme(PhoneAccount.SCHEME_SIP)
+            .setExtras(SELF_MANAGED_ACCOUNT_2_EXTRAS)
             .build();
     public static final PhoneAccount TEST_SELF_MANAGED_PHONE_ACCOUNT_1 = PhoneAccount.builder(
             TEST_SELF_MANAGED_HANDLE_1, SELF_MANAGED_ACCOUNT_LABEL)
@@ -218,6 +230,8 @@ public class TestUtils {
 
     private static final String COMMAND_GET_DEFAULT_DIALER = "telecom get-default-dialer";
 
+    private static final String COMMAND_SET_SYSTEM_DIALER = "telecom set-system-dialer ";
+
     private static final String COMMAND_GET_SYSTEM_DIALER = "telecom get-system-dialer";
 
     private static final String COMMAND_ENABLE = "telecom set-phone-account-enabled ";
@@ -231,6 +245,18 @@ public class TestUtils {
             "telecom set-user-selected-outgoing-phone-account ";
 
     private static final String COMMAND_WAIT_ON_HANDLERS = "telecom wait-on-handlers";
+
+    private static final String COMMAND_ADD_TEST_EMERGENCY_NUMBER =
+            "cmd phone emergency-number-test-mode -a ";
+
+    private static final String COMMAND_REMOVE_TEST_EMERGENCY_NUMBER =
+            "cmd phone emergency-number-test-mode -r ";
+
+    private static final String COMMAND_CLEAR_TEST_EMERGENCY_NUMBERS =
+            "cmd phone emergency-number-test-mode -c";
+
+    private static final String COMMAND_SET_TEST_EMERGENCY_PHONE_ACCOUNT_PACKAGE_NAME_FILTER =
+            "telecom set-test-emergency-phone-account-package-filter ";
 
     public static final String MERGE_CALLER_NAME = "calls-merged";
     public static final String SWAP_CALLER_NAME = "calls-swapped";
@@ -247,6 +273,15 @@ public class TestUtils {
     public static String setDefaultDialer(Instrumentation instrumentation, String packageName)
             throws Exception {
         return executeShellCommand(instrumentation, COMMAND_SET_DEFAULT_DIALER + packageName);
+    }
+
+    public static String setSystemDialerOverride(Instrumentation instrumentation) throws Exception {
+        return executeShellCommand(instrumentation, COMMAND_SET_SYSTEM_DIALER + INCALL_COMPONENT);
+    }
+
+    public static String clearSystemDialerOverride(
+            Instrumentation instrumentation) throws Exception {
+        return executeShellCommand(instrumentation, COMMAND_SET_SYSTEM_DIALER + "default");
     }
 
     public static String setCtsPhoneAccountSuggestionService(Instrumentation instrumentation,
@@ -282,6 +317,15 @@ public class TestUtils {
                 + handle.getId() + " " + currentUserSerial + " " + label + " " + address);
     }
 
+    public static void registerEmergencyPhoneAccount(Instrumentation instrumentation,
+            PhoneAccountHandle handle, String label, String address) throws Exception {
+        final ComponentName component = handle.getComponentName();
+        final long currentUserSerial = getCurrentUserSerialNumber(instrumentation);
+        executeShellCommand(instrumentation, COMMAND_REGISTER_SIM  + "-e "
+                + component.getPackageName() + "/" + component.getClassName() + " "
+                + handle.getId() + " " + currentUserSerial + " " + label + " " + address);
+    }
+
     public static void setDefaultOutgoingPhoneAccount(Instrumentation instrumentation,
             PhoneAccountHandle handle) throws Exception {
         if (handle != null) {
@@ -310,6 +354,31 @@ public class TestUtils {
                 // do nothing
             }
         }
+    }
+
+    public static void addTestEmergencyNumber(Instrumentation instr,
+            String testNumber) throws Exception {
+        executeShellCommand(instr, COMMAND_ADD_TEST_EMERGENCY_NUMBER + testNumber);
+    }
+
+    public static void removeTestEmergencyNumber(Instrumentation instr,
+            String number) throws Exception {
+        executeShellCommand(instr, COMMAND_REMOVE_TEST_EMERGENCY_NUMBER + number);
+    }
+
+    public static void clearTestEmergencyNumbers(Instrumentation instr) throws Exception {
+        executeShellCommand(instr, COMMAND_CLEAR_TEST_EMERGENCY_NUMBERS);
+    }
+
+    public static void setTestEmergencyPhoneAccountPackageFilter(Instrumentation instr,
+            Context context) throws Exception {
+        executeShellCommand(instr, COMMAND_SET_TEST_EMERGENCY_PHONE_ACCOUNT_PACKAGE_NAME_FILTER
+                + context.getPackageName());
+    }
+
+    public static void clearTestEmergencyPhoneAccountPackageFilter(
+            Instrumentation instr) throws Exception {
+        executeShellCommand(instr, COMMAND_SET_TEST_EMERGENCY_PHONE_ACCOUNT_PACKAGE_NAME_FILTER);
     }
 
     /**
@@ -557,7 +626,6 @@ public class TestUtils {
          */
         public void waitForPredicate(Predicate predicate, long timeoutMillis) {
             synchronized (mLock) {
-                mInvokeArgs.clear();
                 long startTimeMillis = SystemClock.uptimeMillis();
                 long elapsedTimeMillis = 0;
                 long remainingTimeMillis = timeoutMillis;
@@ -579,6 +647,12 @@ public class TestUtils {
                 } else if (remainingTimeMillis <= 0) {
                     TestCase.fail("Expected value not found within time limit");
                 }
+            }
+        }
+
+        public void clearArgs() {
+            synchronized (mLock) {
+                mInvokeArgs.clear();
             }
         }
     }
