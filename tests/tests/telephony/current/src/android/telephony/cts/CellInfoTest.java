@@ -42,6 +42,7 @@ import android.telephony.CellInfoLte;
 import android.telephony.CellInfoNr;
 import android.telephony.CellInfoTdscdma;
 import android.telephony.CellInfoWcdma;
+import android.telephony.CellSignalStrength;
 import android.telephony.CellSignalStrengthCdma;
 import android.telephony.CellSignalStrengthGsm;
 import android.telephony.CellSignalStrengthLte;
@@ -214,6 +215,30 @@ public class CellInfoTest {
         mPm = getContext().getPackageManager();
         Pair<Integer, Integer> verPair = mTm.getRadioHalVersion();
         mRadioHalVersion = makeRadioVersion(verPair.first, verPair.second);
+        TelephonyManagerTest.grantLocationPermissions();
+    }
+
+    /**
+     * Test to ensure that {@link CellInfo#getCellIdentity()} return a {@link CellIdentityNr}
+     * object.
+     */
+    @Test
+    public void testCellIdentityNr_Override() throws Throwable {
+        if (!mPm.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) return;
+        android.telephony.cts.TestUtils.assertSyntheticMethodOverloadExists(CellInfoNr.class,
+                "getCellIdentity", null, CellIdentity.class, CellIdentityNr.class, true);
+    }
+
+    /**
+     * Test to ensure that {@link CellInfoNr#getCellSignalStrength()} return a
+     * {@link CellSignalStrengthNr} object.
+     */
+    @Test
+    public void testCellCellSignalStrength_Override() throws Throwable {
+        if (!mPm.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) return;
+        android.telephony.cts.TestUtils.assertSyntheticMethodOverloadExists(CellInfoNr.class,
+                "getCellSignalStrength", null, CellSignalStrength.class,
+                CellSignalStrengthNr.class, true);
     }
 
     /**
@@ -222,6 +247,8 @@ public class CellInfoTest {
      */
     @Test
     public void testPhoneStateListenerCallback() throws Throwable {
+        if (!mPm.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) return;
+
         CellInfoResultsCallback resultsCallback = new CellInfoResultsCallback();
         // Prime the system by requesting a CellInfoUpdate
         mTm.requestCellInfoUpdate(mSimpleExecutor, resultsCallback);

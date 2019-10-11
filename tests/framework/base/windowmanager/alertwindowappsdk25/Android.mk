@@ -19,7 +19,7 @@ include $(CLEAR_VARS)
 # Don't include this package in any target.
 LOCAL_MODULE_TAGS := tests
 
-LOCAL_STATIC_JAVA_LIBRARIES := cts-am-app-base
+LOCAL_STATIC_JAVA_LIBRARIES := cts-wm-app-base
 
 LOCAL_SRC_FILES := \
     $(call all-java-files-under, src) \
@@ -27,7 +27,7 @@ LOCAL_SRC_FILES := \
 LOCAL_SDK_VERSION := 25
 
 # Tag this module as a cts test artifact
-LOCAL_COMPATIBILITY_SUITE := cts vts general-tests cts_instant
+LOCAL_COMPATIBILITY_SUITE := cts vts general-tests
 
 LOCAL_PACKAGE_NAME := CtsDeviceAlertWindowTestAppSdk25
 

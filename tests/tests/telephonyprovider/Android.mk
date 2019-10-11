@@ -28,6 +28,7 @@ LOCAL_PROGUARD_ENABLED := disabled
 LOCAL_STATIC_JAVA_LIBRARIES := \
     compatibility-device-util-axt \
     androidx.test.rules \
+    androidx.test.core \
     truth-prebuilt
 
 LOCAL_JAVA_LIBRARIES := android.test.runner.stubs android.test.base.stubs
@@ -35,10 +36,10 @@ LOCAL_JAVA_LIBRARIES := android.test.runner.stubs android.test.base.stubs
 LOCAL_SRC_FILES := $(call all-java-files-under, src)
 
 # Tag this module as a cts test artifact
-LOCAL_COMPATIBILITY_SUITE := cts vts general-tests cts_instant
+LOCAL_COMPATIBILITY_SUITE := cts vts general-tests
 
 LOCAL_PACKAGE_NAME := CtsTelephonyProviderTestCases
 
-LOCAL_SDK_VERSION := current
+LOCAL_SDK_VERSION := test_current
 
 include $(BUILD_CTS_PACKAGE)

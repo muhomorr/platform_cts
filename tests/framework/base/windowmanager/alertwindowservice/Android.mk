@@ -19,7 +19,7 @@ include $(CLEAR_VARS)
 LOCAL_MODULE_TAGS := tests
 
 LOCAL_STATIC_JAVA_LIBRARIES := \
-    cts-am-app-base \
+    cts-wm-app-base \
     compatibility-device-util-axt \
 
 LOCAL_SRC_FILES := \
@@ -30,7 +30,7 @@ LOCAL_SDK_VERSION := current
 LOCAL_PACKAGE_NAME := CtsAlertWindowService
 
 # Tag this module as a cts test artifact
-LOCAL_COMPATIBILITY_SUITE := cts vts general-tests cts_instant
+LOCAL_COMPATIBILITY_SUITE := cts vts general-tests
 
 LOCAL_DEX_PREOPT := false
 
