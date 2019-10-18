@@ -58,11 +58,13 @@ public class JavaClientTest {
     private ITest mInterface;
     private String mExpectedName;
     private boolean mShouldBeRemote;
+    private boolean mShouldBeOld;
 
-    public JavaClientTest(Class serviceClass, String expectedName, boolean shouldBeRemote) {
+    public JavaClientTest(Class serviceClass, String expectedName, boolean shouldBeRemote, boolean shouldBeOld) {
         mServiceClass = serviceClass;
         mExpectedName = expectedName;
         mShouldBeRemote = shouldBeRemote;
+        mShouldBeOld = shouldBeOld;
     }
 
     @Parameterized.Parameters( name = "{0}" )
@@ -71,10 +73,11 @@ public class JavaClientTest {
         // Whenever possible, the desired service should be accessed directly
         // in order to avoid this additional overhead.
         return Arrays.asList(new Object[][] {
-                {NativeService.Local.class, "CPP", false /*shouldBeRemote*/},
-                {JavaService.Local.class, "JAVA", false /*shouldBeRemote*/},
-                {NativeService.Remote.class, "CPP", true /*shouldBeRemote*/},
-                {JavaService.Remote.class, "JAVA", true /*shouldBeRemote*/},
+                {NativeService.Local.class, "CPP", false /*shouldBeRemote*/, false /*shouldBeOld*/},
+                {JavaService.Local.class, "JAVA", false /*shouldBeRemote*/, false /*shouldBeOld*/},
+                {NativeService.Remote.class, "CPP", true /*shouldBeRemote*/, false /*shouldBeOld*/},
+                {NativeService.RemoteOld.class, "CPP", true /*shouldBeRemote*/, true /*shouldBeOld*/},
+                {JavaService.Remote.class, "JAVA", true /*shouldBeRemote*/, false /*shouldBeOld*/},
             });
     }
 
@@ -345,6 +348,30 @@ public class JavaClientTest {
             Assert.assertArrayEquals(value, out2, 0.0);
         }
         {
+            byte[] value = {ByteEnum.FOO, ByteEnum.BAR};
+            byte[] out1 = new byte[value.length];
+            byte[] out2 = mInterface.RepeatByteEnumArray(value, out1);
+
+            Assert.assertArrayEquals(value, out1);
+            Assert.assertArrayEquals(value, out2);
+        }
+        {
+            int[] value = {IntEnum.FOO, IntEnum.BAR};
+            int[] out1 = new int[value.length];
+            int[] out2 = mInterface.RepeatIntEnumArray(value, out1);
+
+            Assert.assertArrayEquals(value, out1);
+            Assert.assertArrayEquals(value, out2);
+        }
+        {
+            long[] value = {LongEnum.FOO, LongEnum.BAR};
+            long[] out1 = new long[value.length];
+            long[] out2 = mInterface.RepeatLongEnumArray(value, out1);
+
+            Assert.assertArrayEquals(value, out1);
+            Assert.assertArrayEquals(value, out2);
+        }
+        {
             String[] value = {"", "aoeu", "lol", "brb"};
             String[] out1 = new String[value.length];
             String[] out2 = mInterface.RepeatStringArray(value, out1);
@@ -420,6 +447,27 @@ public class JavaClientTest {
             Assert.assertArrayEquals(value, mInterface.RepeatNullableDoubleArray(value), 0.0);
         }
         {
+            byte[] emptyValue = {};
+            byte[] value = {ByteEnum.FOO, ByteEnum.BAR};
+            Assert.assertArrayEquals(null, mInterface.RepeatNullableByteEnumArray(null));
+            Assert.assertArrayEquals(emptyValue, mInterface.RepeatNullableByteEnumArray(emptyValue));
+            Assert.assertArrayEquals(value, mInterface.RepeatNullableByteEnumArray(value));
+        }
+        {
+            int[] emptyValue = {};
+            int[] value = {IntEnum.FOO, IntEnum.BAR};
+            Assert.assertArrayEquals(null, mInterface.RepeatNullableIntEnumArray(null));
+            Assert.assertArrayEquals(emptyValue, mInterface.RepeatNullableIntEnumArray(emptyValue));
+            Assert.assertArrayEquals(value, mInterface.RepeatNullableIntEnumArray(value));
+        }
+        {
+            long[] emptyValue = {};
+            long[] value = {LongEnum.FOO, LongEnum.BAR};
+            Assert.assertArrayEquals(null, mInterface.RepeatNullableLongEnumArray(null));
+            Assert.assertArrayEquals(emptyValue, mInterface.RepeatNullableLongEnumArray(emptyValue));
+            Assert.assertArrayEquals(value, mInterface.RepeatNullableLongEnumArray(value));
+        }
+        {
             String[] emptyValue = {};
             String[] value = {"", "aoeu", null, "brb"};
             Assert.assertArrayEquals(null, mInterface.RepeatNullableStringArray(null));
@@ -443,6 +491,9 @@ public class JavaClientTest {
         foo.d = new Bar();
         foo.e = new Bar();
         foo.f = 15;
+        foo.shouldContainTwoByteFoos = new byte[]{};
+        foo.shouldContainTwoIntFoos = new int[]{};
+        foo.shouldContainTwoLongFoos = new long[]{};
 
         assertEquals(foo.f, mInterface.getF(foo));
     }
@@ -464,6 +515,10 @@ public class JavaClientTest {
         foo.shouldBeIntBar = IntEnum.BAR;
         foo.shouldBeLongBar = LongEnum.BAR;
 
+        foo.shouldContainTwoByteFoos = new byte[]{ByteEnum.FOO, ByteEnum.FOO};
+        foo.shouldContainTwoIntFoos = new int[]{IntEnum.FOO, IntEnum.FOO};
+        foo.shouldContainTwoLongFoos = new long[]{LongEnum.FOO, LongEnum.FOO};
+
         Foo repeatedFoo = mInterface.repeatFoo(foo);
 
         assertEquals(foo.a, repeatedFoo.a);
@@ -473,13 +528,35 @@ public class JavaClientTest {
         assertEquals(foo.shouldBeByteBar, repeatedFoo.shouldBeByteBar);
         assertEquals(foo.shouldBeIntBar, repeatedFoo.shouldBeIntBar);
         assertEquals(foo.shouldBeLongBar, repeatedFoo.shouldBeLongBar);
+        Assert.assertArrayEquals(foo.shouldContainTwoByteFoos, repeatedFoo.shouldContainTwoByteFoos);
+        Assert.assertArrayEquals(foo.shouldContainTwoIntFoos, repeatedFoo.shouldContainTwoIntFoos);
+        Assert.assertArrayEquals(foo.shouldContainTwoLongFoos, repeatedFoo.shouldContainTwoLongFoos);
     }
 
+    @Test
+    public void testNewField() throws RemoteException {
+        Foo foo = new Foo();
+        foo.d = new Bar();
+        foo.e = new Bar();
+        foo.shouldContainTwoByteFoos = new byte[]{};
+        foo.shouldContainTwoIntFoos = new int[]{};
+        foo.shouldContainTwoLongFoos = new long[]{};
+        foo.g = new String[]{"a", "b", "c"};
+        Foo newFoo = mInterface.repeatFoo(foo);
+        if (mShouldBeOld) {
+            assertEquals(null, newFoo.g);
+        } else {
+            Assert.assertArrayEquals(foo.g, newFoo.g);
+        }
+    }
     @Test
     public void testRenameFoo() throws RemoteException {
         Foo foo = new Foo();
         foo.d = new Bar();
         foo.e = new Bar();
+        foo.shouldContainTwoByteFoos = new byte[]{};
+        foo.shouldContainTwoIntFoos = new int[]{};
+        foo.shouldContainTwoLongFoos = new long[]{};
         mInterface.renameFoo(foo, "MYFOO");
         assertEquals("MYFOO", foo.a);
     }
@@ -488,6 +565,9 @@ public class JavaClientTest {
         Foo foo = new Foo();
         foo.d = new Bar();
         foo.e = new Bar();
+        foo.shouldContainTwoByteFoos = new byte[]{};
+        foo.shouldContainTwoIntFoos = new int[]{};
+        foo.shouldContainTwoLongFoos = new long[]{};
         mInterface.renameBar(foo, "MYBAR");
         assertEquals("MYBAR", foo.d.a);
     }
