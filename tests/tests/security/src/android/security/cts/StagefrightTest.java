@@ -62,6 +62,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.regex.Pattern;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -731,6 +732,12 @@ public class StagefrightTest extends InstrumentationTestCase {
      ***********************************************************/
 
     @SecurityTest
+    public void testBug_73552574() throws Exception {
+        int[] frameSizes = getFrameSizes(R.raw.bug_73552574_framelen);
+        doStagefrightTestRawBlob(R.raw.bug_73552574_avc, "video/avc", 320, 240, frameSizes);
+    }
+
+    @SecurityTest
     public void testStagefright_cve_2017_0474() throws Exception {
         doStagefrightTest(R.raw.cve_2017_0474, 120000);
     }
@@ -939,8 +946,23 @@ public class StagefrightTest extends InstrumentationTestCase {
         MediaPlayer.OnPreparedListener,
         MediaPlayer.OnCompletionListener {
 
-        private final String[] validProcessNames = {
-            "mediaserver", "mediadrmserver", "media.extractor", "media.codec", "media.metrics"
+        private final Pattern[] validProcessPatterns = {
+            Pattern.compile("adsprpcd"),
+            Pattern.compile("android\\.hardware\\.cas@\\d+?\\.\\d+?-service"),
+            Pattern.compile("android\\.hardware\\.drm@\\d+?\\.\\d+?-service"),
+            Pattern.compile("android\\.hardware\\.drm@\\d+?\\.\\d+?-service\\.clearkey"),
+            Pattern.compile("android\\.hardware\\.drm@\\d+?\\.\\d+?-service\\.widevine"),
+            Pattern.compile("android\\.process\\.media"),
+            Pattern.compile("mediadrmserver"),
+            Pattern.compile("media\\.extractor"),
+            Pattern.compile("media\\.metrics"),
+            Pattern.compile("mediaserver"),
+            Pattern.compile("media\\.codec"),
+            Pattern.compile("media\\.swcodec"),
+            Pattern.compile("\\[?sdcard\\]?"), // name:/system/bin/sdcard, user:media_rw
+            // Match any vendor processes.
+            // It should only catch crashes that happen during the test.
+            Pattern.compile("vendor.*"),
         };
 
         @Override
@@ -988,7 +1010,7 @@ public class StagefrightTest extends InstrumentationTestCase {
                 if (crashes == null) {
                     Log.e(TAG, "Crash results not found for test " + getName());
                     return what;
-                } else if (CrashUtils.detectCrash(validProcessNames, true, crashes)) {
+                } else if (CrashUtils.securityCrashDetected(crashes, true, validProcessPatterns)) {
                     return what;
                 } else {
                     Log.i(TAG, "Crash ignored due to no security crash found for test " +
