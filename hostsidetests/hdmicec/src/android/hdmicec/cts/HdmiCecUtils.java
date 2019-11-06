@@ -16,18 +16,17 @@
 
 package android.hdmicec.cts;
 
+import com.android.tradefed.device.ITestDevice;
 import com.android.tradefed.log.LogUtil.CLog;
-import com.android.tradefed.util.CommandResult;
-import com.android.tradefed.util.FileUtil;
 import com.android.tradefed.util.RunUtil;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.InputStreamReader;
-import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /** Class that helps communicate with the cec-client */
@@ -36,6 +35,8 @@ public final class HdmiCecUtils {
     private static final String CEC_CONSOLE_READY = "waiting for input";
     private static final int MILLISECONDS_TO_READY = 5000;
     private static final int DEFAULT_TIMEOUT = 20000;
+    private static final String HDMI_CEC_FEATURE = "feature:android.hardware.hdmi.cec";
+    private static final int HEXADECIMAL_RADIX = 16;
 
     private Process mCecClient;
     private BufferedWriter mOutputConsole;
@@ -43,31 +44,40 @@ public final class HdmiCecUtils {
     private boolean mCecClientInitialised = false;
 
     private CecDevice targetDevice;
-    private CecDevice lastTarget;
     private String physicalAddress;
 
     public HdmiCecUtils(CecDevice targetDevice, String physicalAddress) {
         this.targetDevice = targetDevice;
-        this.lastTarget = targetDevice;
         this.physicalAddress = physicalAddress;
     }
 
+    /**
+     * Checks if the HDMI CEC feature is running on the device. Call this function before running
+     * any HDMI CEC tests.
+     * This could throw a DeviceNotAvailableException.
+     */
+    public static boolean isHdmiCecFeatureSupported(ITestDevice device) throws Exception {
+        return device.hasFeature(HDMI_CEC_FEATURE);
+    }
+
     /** Initialise the client */
-    public boolean init() throws Exception {
+    public void init() throws Exception {
         boolean gotExpectedOut = false;
         List<String> commands = new ArrayList();
         int seconds = 0;
 
         commands.add("cec-client");
+        commands.add("-p");
+        commands.add("2");
         mCecClient = RunUtil.getDefault().runCmdInBackground(commands);
         mInputConsole = new BufferedReader(new InputStreamReader(mCecClient.getInputStream()));
 
         /* Wait for the client to become ready */
         mCecClientInitialised = true;
-        if (checkConsoleOutput(CecMessage.CLIENT_CONSOLE_READY + "", MILLISECONDS_TO_READY)) {
+        if (checkConsoleOutput(CecClientMessage.CLIENT_CONSOLE_READY + "", MILLISECONDS_TO_READY)) {
             mOutputConsole = new BufferedWriter(
                                 new OutputStreamWriter(mCecClient.getOutputStream()));
-            return mCecClientInitialised;
+            return;
         }
 
         mCecClientInitialised = false;
@@ -85,37 +95,45 @@ public final class HdmiCecUtils {
     }
 
     /**
-     * Sends a CEC message with source marked as broadcast to the output console of the
-     * cec-communication channel
+     * Sends a CEC message with source marked as broadcast to the device passed in the constructor
+     * through the output console of the cec-communication channel.
      */
     public void sendCecMessage(CecMessage message) throws Exception {
         sendCecMessage(CecDevice.BROADCAST, targetDevice, message, "");
     }
 
     /**
-     * Sends a CEC message from source device to the output console of the cec-communication
-     * channel
+     * Sends a CEC message from source device to the device passed in the constructor through the
+     * output console of the cec-communication channel.
      */
     public void sendCecMessage(CecDevice source, CecMessage message) throws Exception {
         sendCecMessage(source, targetDevice, message, "");
     }
 
     /**
-     * Sends a CEC message from source device to the output console of the cec-communication
-     * channel with the appended params.
+     * Sends a CEC message from source device to a destination device through the output console of
+     * the cec-communication channel.
+     */
+    public void sendCecMessage(CecDevice source, CecDevice destination,
+        CecMessage message) throws Exception {
+        sendCecMessage(source, destination, message, "");
+    }
+
+    /**
+     * Sends a CEC message from source device to a destination device through the output console of
+     * the cec-communication channel with the appended params.
      */
     public void sendCecMessage(CecDevice source, CecDevice destination,
         CecMessage message, String params) throws Exception {
         checkCecClient();
         mOutputConsole.write("tx " + source + destination + ":" + message + params);
         mOutputConsole.flush();
-        lastTarget = destination;
     }
 
     /** Sends a message to the output console of the cec-client */
     public void sendConsoleMessage(String message) throws Exception {
         checkCecClient();
-        CLog.e("Sending message:: " + message);
+        CLog.v("Sending message:: " + message);
         mOutputConsole.write(message);
         mOutputConsole.flush();
     }
@@ -185,10 +203,9 @@ public final class HdmiCecUtils {
         long startTime = System.currentTimeMillis();
         long endTime = startTime;
         Pattern pattern = Pattern.compile("(.*>>)(.*?)" +
-                                          "(" + lastTarget + toDevice + "):" +
+                                          "(" + targetDevice + toDevice + "):" +
                                           "(" + expectedMessage + ")(.*)",
                                           Pattern.CASE_INSENSITIVE);
-        CLog.e("Expected out pattern:: " + pattern);
 
         while ((endTime - startTime <= timeoutMillis)) {
             if (mInputConsole.ready()) {
@@ -203,14 +220,109 @@ public final class HdmiCecUtils {
         throw new Exception("Could not find message " + expectedMessage.name());
     }
 
+    /** Gets the hexadecimal ASCII character values of a string. */
+    public String getHexAsciiString(String string) {
+        String asciiString = "";
+        byte[] ascii = string.trim().getBytes();
+
+        for (byte b : ascii) {
+            asciiString.concat(Integer.toHexString(b));
+        }
+
+        return asciiString;
+    }
+
+    /** Prepares a CEC message. */
+    public String prepareMessage(CecDevice source, CecDevice destination, CecMessage message,
+                                 int params) {
+        String cecMessage = "" + source + destination + ":" + message;
+
+        String paramsString = Integer.toHexString(params);
+        int position = 0;
+        int endPosition = 2;
+
+        do {
+            cecMessage.concat(":" + paramsString.substring(position, endPosition));
+            position = endPosition;
+            endPosition += 2;
+        } while (endPosition <= paramsString.length());
+
+        return cecMessage;
+    }
+
+    /**
+     * Gets the params from a CEC message.
+     */
+    public int getParamsFromMessage(String message) {
+        return Integer.parseInt(getNibbles(message).substring(4), HEXADECIMAL_RADIX);
+    }
+
+    /**
+     * Gets the first 'numNibbles' number of param nibbles from a CEC message.
+     */
+    public int getParamsFromMessage(String message, int numNibbles) {
+        int paramStart = 4;
+        int end = numNibbles + paramStart;
+        return Integer.parseInt(getNibbles(message).substring(paramStart, end), HEXADECIMAL_RADIX);
+    }
+
+    /**
+     * From the params of a CEC message, gets the nibbles from position start to position end.
+     * The start and end are relative to the beginning of the params. For example, in the following
+     * message - 4F:82:10:00:04, getParamsFromMessage(message, 0, 4) will return 0x1000 and
+     * getParamsFromMessage(message, 4, 6) will return 0x04.
+     */
+    public int getParamsFromMessage(String message, int start, int end) {
+        return Integer.parseInt(getNibbles(message).substring(4).substring(start, end), HEXADECIMAL_RADIX);
+    }
+
+    /**
+     * Gets the source logical address from a CEC message.
+     */
+    public CecDevice getSourceFromMessage(String message) {
+        String param = getNibbles(message).substring(0, 1);
+        return CecDevice.getDevice(Integer.parseInt(param, HEXADECIMAL_RADIX));
+    }
+
+
+    /**
+     * Gets the destination logical address from a CEC message.
+     */
+    public CecDevice getDestinationFromMessage(String message) {
+        String param = getNibbles(message).substring(1, 2);
+        return CecDevice.getDevice(Integer.parseInt(param, HEXADECIMAL_RADIX));
+    }
+
+    private String getNibbles(String message) {
+        final String tag1 = "group1";
+        final String tag2 = "group2";
+        String paramsPattern = "(?:.*[>>|<<].*?)" +
+                               "(?<" + tag1 + ">[\\p{XDigit}{2}:]+)" +
+                               "(?<" + tag2 + ">\\p{XDigit}{2})" +
+                               "(?:.*?)";
+        String nibbles = "";
+
+        Pattern p = Pattern.compile(paramsPattern);
+        Matcher m = p.matcher(message);
+        if (m.matches()) {
+            nibbles = m.group(tag1).replace(":", "") + m.group(tag2);
+        }
+        return nibbles;
+    }
+
     /**
      * Kills the cec-client process that was created in init().
      */
-    public void killCecProcess() throws Exception {
-        checkCecClient();
-        sendConsoleMessage(CecMessage.QUIT_CLIENT.toString());
-        mOutputConsole.close();
-        mInputConsole.close();
-        mCecClientInitialised = false;
+    public void killCecProcess() {
+        try {
+            checkCecClient();
+            sendConsoleMessage(CecClientMessage.QUIT_CLIENT.toString());
+            mOutputConsole.close();
+            mInputConsole.close();
+            mCecClientInitialised = false;
+        } catch (Exception e) {
+            /* If cec-client is not running, do not throw an exception, just return. */
+            return;
+        }
     }
 }

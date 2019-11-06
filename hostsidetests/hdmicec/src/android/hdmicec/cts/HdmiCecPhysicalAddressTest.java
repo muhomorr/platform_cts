@@ -16,45 +16,61 @@
 
 package android.hdmicec.cts;
 
-import com.android.tradefed.device.ITestDevice;
-import com.android.tradefed.testtype.DeviceTestCase;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assume.assumeTrue;
 
-import java.util.regex.Pattern;
-import java.util.regex.Matcher;
+import com.android.tradefed.device.ITestDevice;
+import com.android.tradefed.log.LogUtil.CLog;
+import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
+import com.android.tradefed.testtype.IDeviceTest;
+
+import org.junit.Before;
+import org.junit.runner.RunWith;
+import org.junit.Test;
 
 /** HDMI CEC test to verify physical address after device reboot (Section 10.1.2) */
-public final class HdmiCecPhysicalAddressTest extends DeviceTestCase {
-    private static final int REBOOT_TIMEOUT = 60000;
+@RunWith(DeviceJUnit4ClassRunner.class)
+public final class HdmiCecPhysicalAddressTest implements IDeviceTest {
+
+    private ITestDevice mDevice;
+
+    @Override
+    public void setDevice(ITestDevice device) {
+        mDevice = device;
+    }
+
+    @Override
+    public ITestDevice getDevice() {
+        return mDevice;
+    }
+
+    @Before public void testHdmiCecAvailability() throws Exception {
+        assumeTrue(HdmiCecUtils.isHdmiCecFeatureSupported(getDevice()));
+    }
 
     /**
      * Test 10.1.2-1
      * Tests that the device broadcasts a <REPORT_PHYSICAL_ADDRESS> after a reboot and that the
      * device has taken the physical address 1.0.0.0.
      */
-    public void testRebootPhysicalAddress() throws Exception {
+    @Test
+    public void cect_10_1_2_1_RebootPhysicalAddress() throws Exception {
+        ITestDevice device = getDevice();
+        assertNotNull("Device not set", device);
 
         HdmiCecUtils hdmiCecUtils = new HdmiCecUtils(CecDevice.PLAYBACK_1, "1.0.0.0");
 
-        if (hdmiCecUtils.init()) {
-            ITestDevice device = getDevice();
-            assertNotNull("Device not set", device);
+        try {
+            hdmiCecUtils.init();
             device.executeShellCommand("reboot");
-            device.waitForBootComplete(REBOOT_TIMEOUT);
-            try {
-                String message = hdmiCecUtils.checkExpectedOutput
-                    (CecMessage.REPORT_PHYSICAL_ADDRESS);
-                Pattern p = Pattern.compile("(?<deviceMessage>\\p{XDigit}{2}:\\p{XDigit}{2}):" +
-                                            "(?<address>\\p{XDigit}{2}:\\p{XDigit}{2}):" +
-                                            "(.*)");
-                Matcher m = p.matcher(message);
-                if (m.find()) {
-                    assertEquals("10:00", m.group("address"));
-                } else {
-                    throw new Exception("Could not find physical address");
-                }
-            } finally {
-                hdmiCecUtils.killCecProcess();
-            }
+            device.waitForBootComplete(HdmiCecConstants.REBOOT_TIMEOUT);
+            String message = hdmiCecUtils.checkExpectedOutput(CecMessage.REPORT_PHYSICAL_ADDRESS);
+            int physicalAddress = hdmiCecUtils.getParamsFromMessage(message,
+                HdmiCecConstants.PHYSICAL_ADDRESS_LENGTH);
+            assertEquals(HdmiCecConstants.PHYSICAL_ADDRESS, physicalAddress);
+        } finally {
+            hdmiCecUtils.killCecProcess();
         }
     }
 }

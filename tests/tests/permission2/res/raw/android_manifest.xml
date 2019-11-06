@@ -4218,6 +4218,18 @@
         android:description="@string/permdesc_bindCarrierServices"
         android:protectionLevel="signature|privileged" />
 
+    <!-- @SystemApi @TestApi Allows an application to forward cell broadcast messages to the cell
+         broadcast module. This is required in order to bind to the cell broadcast service, and
+         ensures that only the system can forward messages to it.
+
+         <p>Protection level: signature
+
+         @hide -->
+    <permission android:name="android.permission.BIND_CELL_BROADCAST_SERVICE"
+        android:label="@string/permlab_bindCellBroadcastService"
+        android:description="@string/permdesc_bindCellBroadcastService"
+        android:protectionLevel="signature" />
+
     <!--
         Allows the holder to start the permission usage screen for an app.
         <p>Protection level: signature|installer
@@ -4866,6 +4878,14 @@
             android:permission="android.permission.RECEIVE_DEVICE_CUSTOMIZATION_READY">
             <intent-filter>
                 <action android:name="android.intent.action.DEVICE_CUSTOMIZATION_READY"/>
+            </intent-filter>
+        </receiver>
+
+        <receiver android:name="com.android.server.updates.EmergencyNumberDbInstallReceiver"
+            android:permission="android.permission.UPDATE_CONFIG">
+            <intent-filter>
+                <action android:name="android.os.action.UPDATE_EMERGENCY_NUMBER_DB" />
+                <data android:scheme="content" android:host="*" android:mimeType="*/*" />
             </intent-filter>
         </receiver>
 
