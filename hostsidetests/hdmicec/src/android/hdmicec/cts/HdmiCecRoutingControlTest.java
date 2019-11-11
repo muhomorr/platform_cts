@@ -16,41 +16,38 @@
 
 package android.hdmicec.cts;
 
+import static org.junit.Assert.assertEquals;
+
 import com.android.tradefed.device.ITestDevice;
-import com.android.tradefed.log.LogUtil.CLog;
-import com.android.tradefed.testtype.DeviceTestCase;
+import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
+import com.android.tradefed.testtype.junit4.BaseHostJUnit4Test;
+
+import org.junit.Rule;
+import org.junit.runner.RunWith;
+import org.junit.Test;
 
 /** HDMI CEC test to test routing control (Section 11.2.2) */
-public final class HdmiCecRoutingControlTest extends DeviceTestCase {
+@RunWith(DeviceJUnit4ClassRunner.class)
+public final class HdmiCecRoutingControlTest extends BaseHostJUnit4Test {
 
-    private static final String PHYSICAL_ADDRESS = "1000";
+    private static final int PHYSICAL_ADDRESS = 0x1000;
+
+    @Rule
+    public HdmiCecClientWrapper hdmiCecClient = new HdmiCecClientWrapper(CecDevice.PLAYBACK_1, this);
 
     /**
      * Test 11.2.2-2
      * Tests that the device broadcasts a <ACTIVE_SOURCE> in response to a <REQUEST_ACTIVE_SOURCE>.
      * This test depends on One Touch Play, and will pass only if One Touch Play passes.
      */
-    public void testRequestActiveSource() throws Exception {
+    @Test
+    public void cect_11_2_2_2_RequestActiveSource() throws Exception {
         ITestDevice device = getDevice();
-        assertNotNull("Device not set", device);
-
-        if (!HdmiCecUtils.isHdmiCecFeatureSupported(device)) {
-            CLog.v("No HDMI CEC feature running, should skip test.");
-            return;
-        }
-
-        HdmiCecUtils hdmiCecUtils = new HdmiCecUtils(CecDevice.PLAYBACK_1, "1.0.0.0");
-
-        try {
-            hdmiCecUtils.init();
-            device.executeShellCommand("input keyevent KEYCODE_HOME");
-            hdmiCecUtils.sendCecMessage(CecDevice.TV, CecDevice.BROADCAST,
-                CecMessage.REQUEST_ACTIVE_SOURCE);
-            String message = hdmiCecUtils.checkExpectedOutput(CecMessage.ACTIVE_SOURCE);
-            assertEquals(PHYSICAL_ADDRESS, hdmiCecUtils.getParamsFromMessage(message));
-        } finally {
-            hdmiCecUtils.killCecProcess();
-        }
+        device.executeShellCommand("input keyevent KEYCODE_HOME");
+        hdmiCecClient.sendCecMessage(CecDevice.TV, CecDevice.BROADCAST,
+            CecMessage.REQUEST_ACTIVE_SOURCE);
+        String message = hdmiCecClient.checkExpectedOutput(CecMessage.ACTIVE_SOURCE);
+        assertEquals(PHYSICAL_ADDRESS, hdmiCecClient.getParamsFromMessage(message));
     }
 
     /**
@@ -58,25 +55,19 @@ public final class HdmiCecRoutingControlTest extends DeviceTestCase {
      * Tests that the device sends a <INACTIVE_SOURCE> message when put on standby.
      * This test depends on One Touch Play, and will pass only if One Touch Play passes.
      */
-    public void testInactiveSourceOnStandby() throws Exception {
-        HdmiCecUtils hdmiCecUtils = new HdmiCecUtils(CecDevice.PLAYBACK_1, "1.0.0.0");
+    @Test
+    public void cect_11_2_2_4_InactiveSourceOnStandby() throws Exception {
         ITestDevice device = getDevice();
-        assertNotNull("Device not set", device);
-
-        if (!HdmiCecUtils.isHdmiCecFeatureSupported(device)) {
-            CLog.v("No HDMI CEC feature running, should skip test.");
-            return;
-        }
-
         try {
-            hdmiCecUtils.init();
             device.executeShellCommand("input keyevent KEYCODE_HOME");
-            device.executeShellCommand("input keyevent KEYCODE_POWER");
-            hdmiCecUtils.checkExpectedOutput(CecMessage.INACTIVE_SOURCE);
+            device.executeShellCommand("input keyevent KEYCODE_SLEEP");
+            String message = hdmiCecClient.checkExpectedOutput(CecDevice.TV,
+                    CecMessage.INACTIVE_SOURCE);
+            assertEquals(HdmiCecConstants.PHYSICAL_ADDRESS,
+                    hdmiCecClient.getParamsFromMessage(message));
         } finally {
-            /* Wake up the device again */
-            device.executeShellCommand("input keyevent KEYCODE_POWER");
-            hdmiCecUtils.killCecProcess();
+            /* Wake up the device */
+            device.executeShellCommand("input keyevent KEYCODE_WAKEUP");
         }
     }
 }
