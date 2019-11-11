@@ -1,4 +1,4 @@
-// Copyright (C) 2018 The Android Open Source Project
+// Copyright (C) 2019 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,9 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-cc_test {
-    name: "CVE-2018-9490",
-    defaults: ["cts_hostsidetests_securitybulletin_defaults"],
-    srcs: ["poc.cpp"],
-    shared_libs: ["libpac"],
+android_test_helper_app {
+    name: "CtsForceStopHelper",
+    defaults: ["cts_defaults"],
+    srcs: ["src/**/*.java"],
+    resource_dirs: ["res"],
+    sdk_version: "current",
+    min_sdk_version: "12",
+    // tag this module as a cts test artifact
+    test_suites: [
+        "cts",
+        "vts",
+        "general-tests",
+    ],
 }
