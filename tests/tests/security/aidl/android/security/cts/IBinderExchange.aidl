@@ -14,20 +14,11 @@
  * limitations under the License.
  */
 
-package android.media.cts;
+package android.security.cts;
 
-import android.media.MediaTimestamp;
-import android.test.AndroidTestCase;
+import android.os.IBinder;
 
-/**
- * Tests for MediaTimestamp.
- */
-@NonMediaMainlineTest
-public class MediaTimestampTest extends AndroidTestCase {
-    public void testMediaTimestamp() {
-        MediaTimestamp timestamp = new MediaTimestamp(1000, 2000, 2.0f);
-        assertEquals(1000, timestamp.getAnchorMediaTimeUs());
-        assertEquals(2000, timestamp.getAnchorSystemNanoTime());
-        assertEquals(2.0f, timestamp.getMediaClockRate());
-    }
+interface IBinderExchange {
+    void putBinder(in IBinder bnd);
+    IBinder getBinder();
 }
