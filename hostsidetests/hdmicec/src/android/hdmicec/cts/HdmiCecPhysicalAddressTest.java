@@ -16,41 +16,37 @@
 
 package android.hdmicec.cts;
 
+import static org.junit.Assert.assertEquals;
+
 import com.android.tradefed.device.ITestDevice;
-import com.android.tradefed.log.LogUtil.CLog;
-import com.android.tradefed.testtype.DeviceTestCase;
+import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
+import com.android.tradefed.testtype.junit4.BaseHostJUnit4Test;
+
+import org.junit.Rule;
+import org.junit.runner.RunWith;
+import org.junit.Test;
 
 /** HDMI CEC test to verify physical address after device reboot (Section 10.1.2) */
-public final class HdmiCecPhysicalAddressTest extends DeviceTestCase {
-    private static final int REBOOT_TIMEOUT = 60000;
+@RunWith(DeviceJUnit4ClassRunner.class)
+public final class HdmiCecPhysicalAddressTest extends BaseHostJUnit4Test {
 
-    public static final String PHY_ADDRESS = "1000";
+    @Rule
+    public HdmiCecClientWrapper hdmiCecClient =
+        new HdmiCecClientWrapper(CecDevice.PLAYBACK_1, this);
 
     /**
      * Test 10.1.2-1
      * Tests that the device broadcasts a <REPORT_PHYSICAL_ADDRESS> after a reboot and that the
      * device has taken the physical address 1.0.0.0.
      */
-    public void testRebootPhysicalAddress() throws Exception {
-        HdmiCecUtils hdmiCecUtils = new HdmiCecUtils(CecDevice.PLAYBACK_1, "1.0.0.0");
+    @Test
+    public void cect_10_1_2_1_RebootPhysicalAddress() throws Exception {
         ITestDevice device = getDevice();
-        assertNotNull("Device not set", device);
-
-        if (!HdmiCecUtils.isHdmiCecFeatureSupported(device)) {
-            CLog.v("No HDMI CEC feature running, should skip test.");
-            return;
-        }
-
-        try {
-            hdmiCecUtils.init();
-            device.executeShellCommand("reboot");
-            device.waitForBootComplete(REBOOT_TIMEOUT);
-            String message = hdmiCecUtils.checkExpectedOutput
-                (CecMessage.REPORT_PHYSICAL_ADDRESS);
-            assertEquals(PHY_ADDRESS,
-                            hdmiCecUtils.getParamsFromMessage(message, PHY_ADDRESS.length()));
-        } finally {
-            hdmiCecUtils.killCecProcess();
-        }
+        device.executeShellCommand("reboot");
+        device.waitForBootComplete(HdmiCecConstants.REBOOT_TIMEOUT);
+        String message = hdmiCecClient.checkExpectedOutput(CecMessage.REPORT_PHYSICAL_ADDRESS);
+        int physicalAddress = hdmiCecClient.getParamsFromMessage(message,
+            HdmiCecConstants.PHYSICAL_ADDRESS_LENGTH);
+        assertEquals(HdmiCecConstants.PHYSICAL_ADDRESS, physicalAddress);
     }
 }

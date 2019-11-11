@@ -16,38 +16,37 @@
 
 package android.hdmicec.cts;
 
+import static org.junit.Assert.assertEquals;
+
 import com.android.tradefed.device.ITestDevice;
-import com.android.tradefed.log.LogUtil.CLog;
-import com.android.tradefed.testtype.DeviceTestCase;
+import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
+import com.android.tradefed.testtype.junit4.BaseHostJUnit4Test;
+
+import org.junit.Rule;
+import org.junit.runner.RunWith;
+import org.junit.Test;
 
 /** HDMI CEC tests for One Touch Play (Section 11.2.1) */
-public final class HdmiCecOneTouchPlayTest extends DeviceTestCase {
+@RunWith(DeviceJUnit4ClassRunner.class)
+public final class HdmiCecOneTouchPlayTest extends BaseHostJUnit4Test {
 
-    private static final String PHYSICAL_ADDRESS = "1000";
+    private static final int PHYSICAL_ADDRESS = 0x1000;
+
+    @Rule
+    public HdmiCecClientWrapper hdmiCecClient =
+        new HdmiCecClientWrapper(CecDevice.PLAYBACK_1, this);
 
     /**
      * Test 11.2.1-1
      * Tests that the device sends a <TEXT_VIEW_ON> when the home key is pressed on device, followed
      * by a <ACTIVE_SOURCE> message.
      */
-    public void testOneTouchPlay() throws Exception {
-        HdmiCecUtils hdmiCecUtils = new HdmiCecUtils(CecDevice.PLAYBACK_1, "1.0.0.0");
+    @Test
+    public void cect_11_2_1_1_OneTouchPlay() throws Exception {
         ITestDevice device = getDevice();
-        assertNotNull("Device not set", device);
-
-        if (!HdmiCecUtils.isHdmiCecFeatureSupported(device)) {
-            CLog.v("No HDMI CEC feature running, should skip test.");
-            return;
-        }
-
-        try {
-            hdmiCecUtils.init();
-            device.executeShellCommand("input keyevent KEYCODE_HOME");
-            hdmiCecUtils.checkExpectedOutput(CecDevice.TV, CecMessage.TEXT_VIEW_ON);
-            String message = hdmiCecUtils.checkExpectedOutput(CecMessage.ACTIVE_SOURCE);
-            assertEquals(PHYSICAL_ADDRESS, hdmiCecUtils.getParamsFromMessage(message));
-        } finally {
-            hdmiCecUtils.killCecProcess();
-        }
+        device.executeShellCommand("input keyevent KEYCODE_HOME");
+        hdmiCecClient.checkExpectedOutput(CecDevice.TV, CecMessage.TEXT_VIEW_ON);
+        String message = hdmiCecClient.checkExpectedOutput(CecMessage.ACTIVE_SOURCE);
+        assertEquals(PHYSICAL_ADDRESS, hdmiCecClient.getParamsFromMessage(message));
     }
 }
