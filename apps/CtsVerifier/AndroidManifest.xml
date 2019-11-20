@@ -1308,6 +1308,16 @@
                 android:value="android.hardware.type.television:android.software.leanback:android.hardware.type.watch" />
         </activity>
 
+        <activity android:name=".security.ProtectedConfirmationTest"
+            android:label="@string/sec_protected_confirmation_test"
+            android:configChanges="keyboardHidden|orientation|screenSize" >
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.cts.intent.category.MANUAL_TEST" />
+            </intent-filter>
+            <meta-data android:name="test_category" android:value="@string/test_category_security" />
+        </activity>
+
         <activity android:name=".security.ScreenLockBoundKeysTest"
                 android:label="@string/sec_lock_bound_key_test"
                 android:configChanges="keyboardHidden|orientation|screenSize" >
@@ -3177,6 +3187,17 @@
                        android:value="android.software.leanback" />
         </activity>
 
+        <activity android:name=".tv.display.DisplayHdrCapabilitiesTestActivity"
+                  android:label="@string/tv_hdr_capabilities_test">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.cts.intent.category.MANUAL_TEST" />
+            </intent-filter>
+            <meta-data android:name="test_category" android:value="@string/test_category_tv" />
+            <meta-data android:name="test_required_features"
+                       android:value="android.software.leanback" />
+        </activity>
+
         <activity android:name=".screenpinning.ScreenPinningTestActivity"
             android:label="@string/screen_pinning_test">
             <intent-filter>
@@ -3326,7 +3347,7 @@
                 <category android:name="android.cts.intent.category.MANUAL_TEST" />
             </intent-filter>
             <meta-data android:name="test_category" android:value="@string/test_category_audio" />
-            <meta-data android:name="test_required_features" android:value="android.hardware.usb.host" />
+            <meta-data android:name="test_required_features" android:value="android.hardware.usb.host:android.hardware.audio.pro" />
         </activity>
 
         <!-- ProAudio test invokes the "Loopback" App -->

@@ -63,13 +63,14 @@ public class MockConnectionService extends ConnectionService {
     public List<RemoteConnection> remoteConnections = new ArrayList<RemoteConnection>();
     public List<MockConference> conferences = new ArrayList<MockConference>();
     public List<RemoteConference> remoteConferences = new ArrayList<RemoteConference>();
+    public List<MockConnection> failedConnections = new ArrayList<>();
 
     @Override
     public Connection onCreateOutgoingConnection(PhoneAccountHandle connectionManagerPhoneAccount,
             ConnectionRequest request) {
         final MockConnection connection = new MockConnection();
         connection.setAddress(request.getAddress(), CONNECTION_PRESENTATION);
-        connection.setPhoneAccountHandle(connectionManagerPhoneAccount);
+        connection.setMockPhoneAccountHandle(connectionManagerPhoneAccount);
         connection.setConnectionCapabilities(Connection.CAPABILITY_SUPPORT_HOLD |
                 Connection.CAPABILITY_HOLD
                 | Connection.CAPABILITY_SUPPORTS_VT_LOCAL_BIDIRECTIONAL
@@ -120,6 +121,16 @@ public class MockConnectionService extends ConnectionService {
         incomingConnections.add(connection);
         lock.release();
         return connection;
+    }
+
+    @Override
+    public void onCreateIncomingConnectionFailed(PhoneAccountHandle connectionManagerPhoneAccount,
+            ConnectionRequest request) {
+        final MockConnection connection = new MockConnection();
+        connection.setAddress(request.getAddress(), CONNECTION_PRESENTATION);
+        connection.setPhoneAccountHandle(connectionManagerPhoneAccount);
+        failedConnections.add(connection);
+        lock.release();
     }
 
     @Override
