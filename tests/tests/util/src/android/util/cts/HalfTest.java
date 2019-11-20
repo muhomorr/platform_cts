@@ -256,6 +256,13 @@ public class HalfTest {
         assertEquals(-124.0f, toFloat(Half.ceil(toHalf(-124.7f))), 1e-6f);
         assertEquals(125.0f, toFloat(Half.ceil(toHalf(124.2f))), 1e-6f);
         assertEquals(-124.0f, toFloat(Half.ceil(toHalf(-124.2f))), 1e-6f);
+        // ceil for NaN values
+        // These tests check whether the current ceil implementation achieves
+        // bit level compatibility with the hardware implementation (ARM64).
+        assertShortEquals((short) 0x7e01, Half.ceil((short) 0x7c01));
+        assertShortEquals((short) 0x7f00, Half.ceil((short) 0x7d00));
+        assertShortEquals((short) 0xfe01, Half.ceil((short) 0xfc01));
+        assertShortEquals((short) 0xff00, Half.ceil((short) 0xfd00));
     }
 
     @Test
@@ -340,12 +347,23 @@ public class HalfTest {
         assertShortEquals(NEGATIVE_ZERO, Half.round(toHalf(-0.2f)));
         assertEquals(1.0f, toFloat(Half.round(toHalf(0.7f))), 1e-6f);
         assertEquals(-1.0f, toFloat(Half.round(toHalf(-0.7f))), 1e-6f);
-        assertEquals(1.0f, toFloat(Half.round(toHalf(0.5f))), 1e-6f);
-        assertEquals(-1.0f, toFloat(Half.round(toHalf(-0.5f))), 1e-6f);
+        assertEquals(0.0f, toFloat(Half.round(toHalf(0.5f))), 1e-6f);
+        assertEquals(-0.0f, toFloat(Half.round(toHalf(-0.5f))), 1e-6f);
+        assertEquals(2.0f, toFloat(Half.round(toHalf(1.5f))), 1e-6f);
+        assertEquals(-2.0f, toFloat(Half.round(toHalf(-1.5f))), 1e-6f);
+        assertEquals(1022.0f, toFloat(Half.round(toHalf(1022.5f))), 1e-6f);
+        assertEquals(-1022.0f, toFloat(Half.round(toHalf(-1022.5f))), 1e-6f);
         assertEquals(125.0f, toFloat(Half.round(toHalf(124.7f))), 1e-6f);
         assertEquals(-125.0f, toFloat(Half.round(toHalf(-124.7f))), 1e-6f);
         assertEquals(124.0f, toFloat(Half.round(toHalf(124.2f))), 1e-6f);
         assertEquals(-124.0f, toFloat(Half.round(toHalf(-124.2f))), 1e-6f);
+        // round for NaN values
+        // These tests check whether the current round implementation achieves
+        // bit level compatibility with the hardware implementation (ARM64).
+        assertShortEquals((short) 0x7e01, Half.round((short) 0x7c01));
+        assertShortEquals((short) 0x7f00, Half.round((short) 0x7d00));
+        assertShortEquals((short) 0xfe01, Half.round((short) 0xfc01));
+        assertShortEquals((short) 0xff00, Half.round((short) 0xfd00));
     }
 
     @Test
@@ -388,7 +406,7 @@ public class HalfTest {
 
     @Test
     public void lessEquals() {
-        assertTrue(Half.less(NEGATIVE_INFINITY, POSITIVE_INFINITY));
+        assertTrue(Half.lessEquals(NEGATIVE_INFINITY, POSITIVE_INFINITY));
         assertTrue(Half.lessEquals(MAX_VALUE, POSITIVE_INFINITY));
         assertFalse(Half.lessEquals(POSITIVE_INFINITY, MAX_VALUE));
         assertFalse(Half.lessEquals(LOWEST_VALUE, NEGATIVE_INFINITY));
@@ -403,7 +421,7 @@ public class HalfTest {
         assertFalse(Half.lessEquals(toHalf(12.4f), toHalf(12.3f)));
         assertFalse(Half.lessEquals(toHalf(-12.3f), toHalf(-12.4f)));
         assertTrue(Half.lessEquals(toHalf(-12.4f), toHalf(-12.3f)));
-        assertTrue(Half.less(MIN_VALUE, (short) 0x3ff));
+        assertTrue(Half.lessEquals(MIN_VALUE, (short) 0x3ff));
         assertTrue(Half.lessEquals(NEGATIVE_INFINITY, NEGATIVE_INFINITY));
         assertTrue(Half.lessEquals(POSITIVE_INFINITY, POSITIVE_INFINITY));
         assertTrue(Half.lessEquals(toHalf(12.12356f), toHalf(12.12356f)));
@@ -447,11 +465,11 @@ public class HalfTest {
         assertFalse(Half.greaterEquals(toHalf(12.3f), toHalf(12.4f)));
         assertFalse(Half.greaterEquals(toHalf(-12.4f), toHalf(-12.3f)));
         assertTrue(Half.greaterEquals(toHalf(-12.3f), toHalf(-12.4f)));
-        assertTrue(Half.greater((short) 0x3ff, MIN_VALUE));
-        assertTrue(Half.lessEquals(NEGATIVE_INFINITY, NEGATIVE_INFINITY));
-        assertTrue(Half.lessEquals(POSITIVE_INFINITY, POSITIVE_INFINITY));
-        assertTrue(Half.lessEquals(toHalf(12.12356f), toHalf(12.12356f)));
-        assertTrue(Half.lessEquals(toHalf(-12.12356f), toHalf(-12.12356f)));
+        assertTrue(Half.greaterEquals((short) 0x3ff, MIN_VALUE));
+        assertTrue(Half.greaterEquals(NEGATIVE_INFINITY, NEGATIVE_INFINITY));
+        assertTrue(Half.greaterEquals(POSITIVE_INFINITY, POSITIVE_INFINITY));
+        assertTrue(Half.greaterEquals(toHalf(12.12356f), toHalf(12.12356f)));
+        assertTrue(Half.greaterEquals(toHalf(-12.12356f), toHalf(-12.12356f)));
     }
 
     @Test

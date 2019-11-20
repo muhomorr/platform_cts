@@ -451,6 +451,8 @@ public class TelephonyManagerTest {
                 (tm) -> tm.getDeviceId(mTelephonyManager.getSlotIndex()));
         mTelephonyManager.getDeviceSoftwareVersion();
         ShellIdentityUtils.invokeMethodWithShellPermissions(mTelephonyManager,
+                (tm) -> tm.getDeviceSoftwareVersion(mTelephonyManager.getSlotIndex()));
+        ShellIdentityUtils.invokeMethodWithShellPermissions(mTelephonyManager,
                 (tm) -> tm.getImei());
         ShellIdentityUtils.invokeMethodWithShellPermissions(mTelephonyManager,
                 (tm) -> tm.getImei(mTelephonyManager.getSlotIndex()));
@@ -463,8 +465,9 @@ public class TelephonyManagerTest {
                 .getDefaultOutgoingPhoneAccount(PhoneAccount.SCHEME_TEL);
         mTelephonyManager.getVoicemailRingtoneUri(defaultAccount);
         mTelephonyManager.isVoicemailVibrationEnabled(defaultAccount);
-        mTelephonyManager.getSubIdForPhoneAccountHandle(defaultAccount);
+        mTelephonyManager.getSubscriptionId(defaultAccount);
         mTelephonyManager.getCarrierConfig();
+        TelephonyManager.getDefaultRespondViaMessageApplication(getContext(), false);
     }
 
     @Test
@@ -683,6 +686,20 @@ public class TelephonyManagerTest {
         String deviceId = ShellIdentityUtils.invokeMethodWithShellPermissions(mTelephonyManager,
                 (tm) -> tm.getDeviceId());
         verifyDeviceId(deviceId);
+    }
+
+    /**
+     * Tests the max number of active SIMs method
+     */
+    @Test
+    public void testGetMaxNumberOfSimultaneouslyActiveSims() {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            Log.d(TAG, "Skipping test that requires FEATURE_TELEPHONY");
+            return;
+        }
+
+        int maxNum = mTelephonyManager.getMaxNumberOfSimultaneouslyActiveSims();
+        assertTrue(maxNum >= 1);
     }
 
     /**
@@ -1993,6 +2010,67 @@ public class TelephonyManagerTest {
                     mTelephonyManager, (tm) -> tm.isDataEnabledForApn(ApnSetting.TYPE_MMS));
         } catch (SecurityException se) {
             fail("testIsDataEnabledForApn: SecurityException not expected");
+        }
+    }
+
+    @Test
+    public void testGetCarrierInfoForImsiEncryption() {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            return;
+        }
+        // test without permission: verify SecurityException
+        try {
+            mTelephonyManager.getCarrierInfoForImsiEncryption(TelephonyManager.KEY_TYPE_EPDG);
+            fail("testGetCarrierInfoForImsiEncryption: "
+                    + "SecurityException expected on getCarrierInfoForImsiEncryption");
+        } catch (SecurityException se) {
+            // expected
+        }
+        try {
+            mTelephonyManager.getCarrierInfoForImsiEncryption(TelephonyManager.KEY_TYPE_WLAN);
+            fail("testGetCarrierInfoForImsiEncryption: "
+                    + "SecurityException expected on getCarrierInfoForImsiEncryption");
+        } catch (SecurityException se) {
+            // expected
+        }
+        // test with permission
+        try {
+            ShellIdentityUtils.invokeMethodWithShellPermissions(mTelephonyManager,
+                    (tm) -> tm.getCarrierInfoForImsiEncryption(TelephonyManager.KEY_TYPE_EPDG));
+        } catch (SecurityException se) {
+            fail("testGetCarrierInfoForImsiEncryption: SecurityException not expected");
+        } catch (IllegalArgumentException iae) {
+            // IllegalArgumentException is okay, just not SecurityException
+        }
+        try {
+            ShellIdentityUtils.invokeMethodWithShellPermissions(mTelephonyManager,
+                    (tm) -> tm.getCarrierInfoForImsiEncryption(TelephonyManager.KEY_TYPE_WLAN));
+        } catch (SecurityException se) {
+            fail("testGetCarrierInfoForImsiEncryption: SecurityException not expected");
+        } catch (IllegalArgumentException iae) {
+            // IllegalArgumentException is okay, just not SecurityException
+        }
+    }
+
+    @Test
+    public void testResetCarrierKeysForImsiEncryption() {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            return;
+        }
+        // test without permission: verify SecurityException
+        try {
+            mTelephonyManager.resetCarrierKeysForImsiEncryption();
+            fail("testResetCarrierKeysForImsiEncryption: SecurityException expected");
+        } catch (SecurityException se) {
+            // expected
+        }
+        // test with permission
+        try {
+            ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(
+                    mTelephonyManager,
+                    (tm) -> tm.resetCarrierKeysForImsiEncryption());
+        } catch (SecurityException se) {
+            fail("testResetCarrierKeysForImsiEncryption: SecurityException not expected");
         }
     }
 
