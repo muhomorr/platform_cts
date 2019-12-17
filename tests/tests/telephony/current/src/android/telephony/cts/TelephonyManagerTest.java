@@ -611,12 +611,9 @@ public class TelephonyManagerTest {
 
         if (sanitizedForFineOnly) return;
 
-        assertTrue(TextUtils.isEmpty(state.getDataOperatorAlphaLong()));
-        assertTrue(TextUtils.isEmpty(state.getDataOperatorAlphaShort()));
-        assertTrue(TextUtils.isEmpty(state.getDataOperatorNumeric()));
-        assertTrue(TextUtils.isEmpty(state.getVoiceOperatorAlphaLong()));
-        assertTrue(TextUtils.isEmpty(state.getVoiceOperatorAlphaShort()));
-        assertTrue(TextUtils.isEmpty(state.getVoiceOperatorNumeric()));
+        assertTrue(TextUtils.isEmpty(state.getOperatorAlphaLong()));
+        assertTrue(TextUtils.isEmpty(state.getOperatorAlphaShort()));
+        assertTrue(TextUtils.isEmpty(state.getOperatorNumeric()));
     }
 
     @Test
@@ -2071,6 +2068,28 @@ public class TelephonyManagerTest {
                     (tm) -> tm.resetCarrierKeysForImsiEncryption());
         } catch (SecurityException se) {
             fail("testResetCarrierKeysForImsiEncryption: SecurityException not expected");
+        }
+    }
+
+    @Test
+    public void testIsInEmergencySmsMode() {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            return;
+        }
+        // test without permission: verify SecurityException
+        try {
+            mTelephonyManager.isInEmergencySmsMode();
+            fail("testIsInEmergencySmsMode: SecurityException expected");
+        } catch (SecurityException se) {
+            // expected
+        }
+        // test with permission
+        try {
+            ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(
+                    mTelephonyManager,
+                    (tm) -> tm.isInEmergencySmsMode());
+        } catch (SecurityException se) {
+            fail("testIsInEmergencySmsMode: SecurityException not expected");
         }
     }
 

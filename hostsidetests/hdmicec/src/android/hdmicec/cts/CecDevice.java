@@ -21,7 +21,9 @@ import java.util.Map;
 
 public enum CecDevice {
     TV(0x0),
+    RECORDING_1(0x1),
     PLAYBACK_1(0x4),
+    AUDIO_SYSTEM(0x5),
     PLAYBACK_2(0x8),
     PLAYBACK_3(0x9),
     PLAYBACK_4(0xb),
@@ -38,6 +40,24 @@ public enum CecDevice {
     static {
         for (CecDevice device : CecDevice.values()) {
             deviceMap.put(device.playerId, device);
+        }
+    }
+
+    public static String getDeviceType(CecDevice device) {
+        switch (device) {
+            case PLAYBACK_1:
+            case PLAYBACK_2:
+            case PLAYBACK_3:
+            case PLAYBACK_4:
+                return Integer.toString(HdmiCecConstants.CEC_DEVICE_TYPE_PLAYBACK_DEVICE);
+            case TV:
+                return Integer.toString(HdmiCecConstants.CEC_DEVICE_TYPE_TV);
+            case AUDIO_SYSTEM:
+                return Integer.toString(HdmiCecConstants.CEC_DEVICE_TYPE_AUDIO_SYSTEM);
+            case RECORDING_1:
+                return Integer.toString(HdmiCecConstants.CEC_DEVICE_TYPE_RECORDING_DEVICE);
+            default:
+                return Integer.toString(HdmiCecConstants.CEC_DEVICE_TYPE_RESERVED);
         }
     }
 
