@@ -60,7 +60,12 @@ android_test {
     test_suites: [
         "cts",
         "vts",
+        "mts",
         "general-tests",
     ],
     platform_apis: true,
+    host_required: [
+        "compatibility-host-telephony-preconditions",
+        "cts-tradefed",
+    ],
 }
