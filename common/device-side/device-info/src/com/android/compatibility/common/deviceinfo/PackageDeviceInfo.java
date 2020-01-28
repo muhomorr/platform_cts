@@ -21,6 +21,7 @@ import android.content.pm.PackageManager;
 import android.content.pm.PermissionInfo;
 import com.android.compatibility.common.util.DeviceInfoStore;
 
+import java.io.IOException;
 import java.util.*;
 
 /**
@@ -29,6 +30,7 @@ import java.util.*;
 public class PackageDeviceInfo extends DeviceInfo {
 
     private static final String PACKAGE = "package";
+
     private static final String NAME = "name";
     private static final String VERSION_NAME = "version_name";
     private static final String SYSTEM_PRIV = "system_priv";
@@ -43,6 +45,7 @@ public class PackageDeviceInfo extends DeviceInfo {
     private static final String PERMISSION_PROTECTION = "protection_level";
     private static final String PERMISSION_PROTECTION_FLAGS = "protection_level_flags";
 
+    private static final int SYS_UID_MAX = 10000;
     private static final String HAS_SYSTEM_UID = "has_system_uid";
 
     private static final String SHARES_INSTALL_PERMISSION = "shares_install_packages_permission";
@@ -51,35 +54,35 @@ public class PackageDeviceInfo extends DeviceInfo {
     @Override
     protected void collectDeviceInfo(DeviceInfoStore store) throws Exception {
         final PackageManager pm = getContext().getPackageManager();
-        final ApplicationInfo system = pm.getApplicationInfo("android", 0);
+
+        final List<PackageInfo> allPackages = pm.getInstalledPackages(PackageManager.GET_PERMISSIONS);
 
         store.startArray(PACKAGE);
-        for (PackageInfo pkg : pm.getInstalledPackages(PackageManager.GET_PERMISSIONS)) {
+        for (PackageInfo pkg : allPackages) {
             store.startGroup();
 
             store.addResult(NAME, pkg.packageName);
             store.addResult(VERSION_NAME, pkg.versionName);
 
+            store.startArray(REQUESTED_PERMISSIONS);
             if (pkg.requestedPermissions != null && pkg.requestedPermissions.length > 0) {
-                store.startArray(REQUESTED_PERMISSIONS);
                 for (String permission : pkg.requestedPermissions) {
-                    store.startGroup();
-                    store.addResult(PERMISSION_NAME, permission);
-
                     try {
                         final PermissionInfo pi = pm.getPermissionInfo(permission, 0);
 
+                        store.startGroup();
+                        store.addResult(PERMISSION_NAME, permission);
                         store.addResult(PERMISSION_FLAGS, pi.flags);
                         store.addResult(PERMISSION_GROUP, pi.group);
                         store.addResult(PERMISSION_PROTECTION, pi.getProtection());
                         store.addResult(PERMISSION_PROTECTION_FLAGS, pi.getProtectionFlags());
+                        store.endGroup();
                     } catch (PackageManager.NameNotFoundException e) {
-                        // ignore future permission, end group and continue
+                        // ignore unrecognized permission and continue
                     }
-                    store.endGroup();
                 }
-                store.endArray();
             }
+            store.endArray();
 
             final ApplicationInfo appInfo = pkg.applicationInfo;
             if (appInfo != null) {
@@ -89,7 +92,7 @@ public class PackageDeviceInfo extends DeviceInfo {
                 store.addResult(MIN_SDK, appInfo.minSdkVersion);
                 store.addResult(TARGET_SDK, appInfo.targetSdkVersion);
 
-                store.addResult(HAS_SYSTEM_UID, appInfo.uid == system.uid);
+                store.addResult(HAS_SYSTEM_UID, appInfo.uid < SYS_UID_MAX);
 
                 final boolean canInstall = sharesUidWithPackageHolding(pm, appInfo.uid, INSTALL_PACKAGES_PERMISSION);
                 store.addResult(SHARES_INSTALL_PERMISSION, canInstall);
@@ -97,9 +100,8 @@ public class PackageDeviceInfo extends DeviceInfo {
 
             store.endGroup();
         }
-        store.endArray(); // Package
+        store.endArray(); // "package"
     }
-
     private static boolean sharesUidWithPackageHolding(PackageManager pm, int uid, String permission) {
         final String[] sharesUidWith = pm.getPackagesForUid(uid);
 
