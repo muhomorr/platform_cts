@@ -149,7 +149,7 @@ public class SELinuxHostTest extends DeviceTestCase implements IBuildReceiver, I
     protected void setUp() throws Exception {
         super.setUp();
         CompatibilityBuildHelper buildHelper = new CompatibilityBuildHelper(mBuild);
-        sepolicyAnalyze = buildHelper.getTestFile("sepolicy-analyze");
+        sepolicyAnalyze = copyResourceToTempFile("/sepolicy-analyze");
         sepolicyAnalyze.setExecutable(true);
 
         devicePolicyFile = getDevicePolicyFile(mDevice);
@@ -448,7 +448,7 @@ public class SELinuxHostTest extends DeviceTestCase implements IBuildReceiver, I
             return;
         }
 
-        if (getDevice().hasFeature("android.hardware.type.automotive")) {
+        if (getDevice().hasFeature("feature:android.hardware.type.automotive")) {
             return;
         }
 
@@ -1021,7 +1021,7 @@ public class SELinuxHostTest extends DeviceTestCase implements IBuildReceiver, I
     /**
      * Asserts that a domain may exist. If a domain exists, the cardinality of
      * the domain is verified to be 1 and that the correct process is running in
-     * that domain.
+     * that domain. If the process is running, it is running in that domain.
      *
      * @param domain
      *  The domain or SELinux context to check.
@@ -1032,19 +1032,21 @@ public class SELinuxHostTest extends DeviceTestCase implements IBuildReceiver, I
         throws DeviceNotAvailableException {
         List<ProcessDetails> procs = ProcessDetails.getProcMap(mDevice).get(domain);
         List<ProcessDetails> exeProcs = ProcessDetails.getExeMap(mDevice).get(executable);
-
         if (procs != null) {
             String msg = "Expected 1 process in SELinux domain \"" + domain + "\""
-            + " Found: \"" + procs + "\"";
+                + " Found: \"" + procs + "\"";
             assertEquals(msg, 1, procs.size());
 
             msg = "Expected executable \"" + executable + "\" in SELinux domain \"" + domain + "\""
                 + "Found: \"" + procs.get(0) + "\"";
             assertEquals(msg, executable, procs.get(0).procTitle);
         }
-
         if (exeProcs != null) {
-            String msg = "Expected 1 process with executable \"" + executable + "\""
+            String msg = "Expected executable \"" + executable + "\" in SELinux domain \"" + domain + "\""
+                + " Instead found it running in the domain \"" + exeProcs.get(0).label + "\"";
+            assertNotNull(msg, procs);
+
+            msg = "Expected 1 process with executable \"" + executable + "\""
             + " Found: \"" + procs + "\"";
             assertEquals(msg, 1, exeProcs.size());
 
@@ -1121,7 +1123,7 @@ public class SELinuxHostTest extends DeviceTestCase implements IBuildReceiver, I
      * @param domains
      *  The list of allowed domains.
      */
-    private void assertExecutableHasDomain(String executable, String... domains)
+    private void assertExecutableExistsAndHasDomain(String executable, String... domains)
         throws DeviceNotAvailableException {
         List<ProcessDetails> exeProcs = ProcessDetails.getExeMap(mDevice).get(executable);
         Set<String> domainList = new HashSet<String>(Arrays.asList(domains));
@@ -1136,12 +1138,34 @@ public class SELinuxHostTest extends DeviceTestCase implements IBuildReceiver, I
         }
     }
 
+    /**
+     * Asserts that an executable, if it exists, is only running in the listed domains.
+     *
+     * @param executable
+     *  The path of the executable to check.
+     * @param domains
+     *  The list of allowed domains.
+     */
+    private void assertExecutableHasDomain(String executable, String... domains)
+        throws DeviceNotAvailableException {
+        List<ProcessDetails> exeProcs = ProcessDetails.getExeMap(mDevice).get(executable);
+        Set<String> domainList = new HashSet<String>(Arrays.asList(domains));
+
+        if (exeProcs != null) {
+            for (ProcessDetails p : exeProcs) {
+                String msg = "Expected one of  \"" + domainList + "\" for executable \"" + executable
+                    + "\"" + " Found: \"" + p.label + "\"";
+                assertTrue(msg, domainList.contains(p.label));
+            }
+        }
+    }
+
     /* Init is always there */
     @CddTest(requirement="9.7")
     public void testInitDomain() throws DeviceNotAvailableException {
         assertDomainHasExecutable("u:r:init:s0", "/system/bin/init");
         assertDomainHasExecutable("u:r:vendor_init:s0", "/system/bin/init");
-        assertExecutableHasDomain("/system/bin/init", "u:r:init:s0", "u:r:vendor_init:s0");
+        assertExecutableExistsAndHasDomain("/system/bin/init", "u:r:init:s0", "u:r:vendor_init:s0");
     }
 
     /* Ueventd is always there */
@@ -1234,6 +1258,27 @@ public class SELinuxHostTest extends DeviceTestCase implements IBuildReceiver, I
         assertDomainZeroOrOne("u:r:wpa:s0", "/system/bin/wpa_supplicant");
     }
 
+    /* permissioncontroller may or may not be running */
+    @CddTest(requirement="9.7")
+    public void testPermissionControllerDomain() throws DeviceNotAvailableException {
+        assertDomainZeroOrOne("u:r:permissioncontroller_app:s0", "com.google.android.permissioncontroller");
+    }
+
+    /* vzwomatrigger may or may not be running */
+    @CddTest(requirement="9.7")
+    public void testVzwOmaTriggerDomain() throws DeviceNotAvailableException {
+        assertDomainZeroOrOne("u:r:vzwomatrigger_app:s0", "com.android.vzwomatrigger");
+    }
+
+    /* gmscore, if running, always runs in gmscore_app */
+    @CddTest(requirement="9.7")
+    public void testGMSCoreDomain() throws DeviceNotAvailableException {
+        assertExecutableHasDomain("com.google.android.gms", "u:r:gmscore_app:s0");
+        assertExecutableHasDomain("com.google.android.gms.ui", "u:r:gmscore_app:s0");
+        assertExecutableHasDomain("com.google.android.gms.persistent", "u:r:gmscore_app:s0");
+        assertExecutableHasDomain("com.google.android.gms:snet", "u:r:gmscore_app:s0");
+    }
+
     /*
      * Nothing should be running in this domain, cardinality test is all thats
      * needed
@@ -1313,29 +1358,39 @@ public class SELinuxHostTest extends DeviceTestCase implements IBuildReceiver, I
             tDevice.executeShellCommand("toybox ps -A -o label,user,pid,ppid,cmdline", psOut);
             String psOutString = psOut.getOutput();
             Pattern p = Pattern.compile(
-                    "^([\\w_:]+)\\s+([\\w_]+)\\s+(\\d+)\\s+(\\d+)\\s+(\\p{Graph}+)(\\s\\p{Graph}+)*\\s*$",
-                    Pattern.MULTILINE);
-            Matcher m = p.matcher(psOutString);
+                    "^([\\w_:,]+)\\s+([\\w_]+)\\s+(\\d+)\\s+(\\d+)\\s+(\\p{Graph}+)(\\s\\p{Graph}+)*\\s*$"
+            );
             procMap = new HashMap<String, ArrayList<ProcessDetails>>();
             exeMap = new HashMap<String, ArrayList<ProcessDetails>>();
-            while(m.find()) {
-                String domainLabel = m.group(1);
-                String user = m.group(2);
-                int pid = Integer.parseInt(m.group(3));
-                int ppid = Integer.parseInt(m.group(4));
-                String procTitle = m.group(5);
-                ProcessDetails proc = new ProcessDetails(domainLabel, user, pid, ppid, procTitle);
-                if (procMap.get(domainLabel) == null) {
-                    procMap.put(domainLabel, new ArrayList<ProcessDetails>());
+            for(String line : psOutString.split("\n")) {
+                Matcher m = p.matcher(line);
+                if(m.matches()) {
+                    String domainLabel = m.group(1);
+                    // clean up the domainlabel
+                    String[] parts = domainLabel.split(":");
+                    if (parts.length > 4) {
+                        // we have an extra categories bit at the end consisting of cxxx,cxxx ...
+                        // just make the domain out of the first 4 parts
+                        domainLabel = String.join(":", parts[0], parts[1], parts[2], parts[3]);
+                    }
+
+                    String user = m.group(2);
+                    int pid = Integer.parseInt(m.group(3));
+                    int ppid = Integer.parseInt(m.group(4));
+                    String procTitle = m.group(5);
+                    ProcessDetails proc = new ProcessDetails(domainLabel, user, pid, ppid, procTitle);
+                    if (procMap.get(domainLabel) == null) {
+                        procMap.put(domainLabel, new ArrayList<ProcessDetails>());
+                    }
+                    procMap.get(domainLabel).add(proc);
+                    if (procTitle.equals("[kthreadd]") && ppid == 0) {
+                        kernelParentThreadpid = pid;
+                    }
+                    if (exeMap.get(procTitle) == null) {
+                        exeMap.put(procTitle, new ArrayList<ProcessDetails>());
+                    }
+                    exeMap.get(procTitle).add(proc);
                 }
-                procMap.get(domainLabel).add(proc);
-                if (procTitle.equals("[kthreadd]") && ppid == 0) {
-                    kernelParentThreadpid = pid;
-                }
-                if (exeMap.get(procTitle) == null) {
-                    exeMap.put(procTitle, new ArrayList<ProcessDetails>());
-                }
-                exeMap.get(procTitle).add(proc);
             }
         }
 

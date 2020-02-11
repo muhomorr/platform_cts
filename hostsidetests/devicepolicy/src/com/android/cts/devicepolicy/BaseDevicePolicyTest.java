@@ -42,6 +42,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -94,6 +95,11 @@ public class BaseDevicePolicyTest extends DeviceTestCase implements IBuildReceiv
      */
     private static final long USER_REMOVE_WAIT = TimeUnit.SECONDS.toMillis(5);
 
+    /**
+     * The amount of milliseconds to wait for the switch user calls in {@link #tearDown}.
+     */
+    private static final long USER_SWITCH_WAIT = TimeUnit.SECONDS.toMillis(5);
+
     // From the UserInfo class
     protected static final int FLAG_PRIMARY = 0x00000001;
     protected static final int FLAG_GUEST = 0x00000004;
@@ -107,6 +113,12 @@ public class BaseDevicePolicyTest extends DeviceTestCase implements IBuildReceiv
      * android.os.BatteryManager#BATTERY_PLUGGED_WIRELESS}.
      */
     private static final int STAY_ON_WHILE_PLUGGED_IN_FLAGS = 7;
+
+    /**
+     * User ID for all users.
+     * The value is from the UserHandle class.
+     */
+    protected static final int USER_ALL = -1;
 
     protected static interface Settings {
         public static final String GLOBAL_NAMESPACE = "global";
@@ -127,6 +139,9 @@ public class BaseDevicePolicyTest extends DeviceTestCase implements IBuildReceiv
     protected boolean mHasFeature;
     protected int mPrimaryUserId;
 
+    /** Record the initial user ID. */
+    protected int mInitialUserId;
+
     /** Whether multi-user is supported. */
     protected boolean mSupportsMultiUser;
 
@@ -135,6 +150,9 @@ public class BaseDevicePolicyTest extends DeviceTestCase implements IBuildReceiv
 
     /** Whether the device has a lock screen.*/
     protected boolean mHasSecureLockScreen;
+
+    /** Whether the device supports telephony. */
+    protected boolean mHasTelephony;
 
     /** Users we shouldn't delete in the tests */
     private ArrayList<Integer> mFixedUsers;
@@ -156,6 +174,7 @@ public class BaseDevicePolicyTest extends DeviceTestCase implements IBuildReceiv
         }
         mSupportsMultiUser = getMaxNumberOfUsersSupported() > 1;
         mSupportsFbe = hasDeviceFeature("android.software.file_based_encryption");
+        mHasTelephony = hasDeviceFeature("android.hardware.telephony");
         mFixedPackages = getDevice().getInstalledPackageNames();
         mBuildHelper = new CompatibilityBuildHelper(mCtsBuild);
 
@@ -168,6 +187,11 @@ public class BaseDevicePolicyTest extends DeviceTestCase implements IBuildReceiv
 
         mFixedUsers = new ArrayList<>();
         mPrimaryUserId = getPrimaryUser();
+
+        // Set the value of initial user ID calls in {@link #setUp}.
+        if(mSupportsMultiUser) {
+            mInitialUserId = getDevice().getCurrentUser();
+        }
         mFixedUsers.add(mPrimaryUserId);
         if (mPrimaryUserId != USER_SYSTEM) {
             mFixedUsers.add(USER_SYSTEM);
@@ -185,6 +209,7 @@ public class BaseDevicePolicyTest extends DeviceTestCase implements IBuildReceiv
         }
 
         removeOwners();
+        switchUser(USER_SYSTEM);
         removeTestUsers();
         // Unlock keyguard before test
         wakeupAndDismissKeyguard();
@@ -199,6 +224,11 @@ public class BaseDevicePolicyTest extends DeviceTestCase implements IBuildReceiv
         getDevice().executeShellCommand("settings put global package_verifier_enable "
                 + mPackageVerifier);
         removeOwners();
+
+        // Switch back to initial user.
+        if (mSupportsMultiUser && getDevice().getCurrentUser() != mInitialUserId) {
+            switchUser(mInitialUserId);
+        }
         removeTestUsers();
         removeTestPackages();
         super.tearDown();
@@ -211,10 +241,20 @@ public class BaseDevicePolicyTest extends DeviceTestCase implements IBuildReceiv
 
     protected void installAppAsUser(String appFileName, boolean grantPermissions, int userId)
             throws FileNotFoundException, DeviceNotAvailableException {
+        installAppAsUser(appFileName, grantPermissions, /* dontKillApp */ false, userId);
+    }
+
+    protected void installAppAsUser(String appFileName, boolean grantPermissions,
+            boolean dontKillApp, int userId)
+                    throws FileNotFoundException, DeviceNotAvailableException {
         CLog.d("Installing app " + appFileName + " for user " + userId);
         CompatibilityBuildHelper buildHelper = new CompatibilityBuildHelper(mCtsBuild);
+        List<String> extraArgs = new LinkedList<>();
+        extraArgs.add("-t");
+        if (dontKillApp) extraArgs.add("--dont-kill");
         String result = getDevice().installPackageForUser(
-                buildHelper.getTestFile(appFileName), true, grantPermissions, userId, "-t");
+                buildHelper.getTestFile(appFileName), true, grantPermissions, userId,
+                extraArgs.toArray(new String[extraArgs.size()]));
         assertNull("Failed to install " + appFileName + " for user " + userId + ": " + result,
                 result);
     }
@@ -235,6 +275,21 @@ public class BaseDevicePolicyTest extends DeviceTestCase implements IBuildReceiv
         getDevice().startUser(userId);
     }
 
+    /** Initializes the user with waitFlag. This is required so that apps can run on it. */
+    protected void startUserAndWait(int userId) throws Exception {
+        getDevice().startUser(userId, /* waitFlag= */ true);
+    }
+
+    /**
+     * Initializes the user with the given id, and waits until the user has started and unlocked
+     * before continuing.
+     *
+     * <p>This is required so that apps can run on it.
+     */
+    protected void startUser(int userId, boolean waitFlag) throws Exception {
+        getDevice().startUser(userId, waitFlag);
+    }
+
     /**
      * Starts switching to the user with the given ID.
      *
@@ -244,7 +299,15 @@ public class BaseDevicePolicyTest extends DeviceTestCase implements IBuildReceiv
      */
     protected void switchUser(int userId) throws Exception {
         // TODO Move this logic to ITestDevice
+        int retries = 10;
         executeShellCommand("am switch-user " + userId);
+        while (getDevice().getCurrentUser() != userId && (--retries) >= 0) {
+            // am switch-user can be ignored if a previous user-switching operation
+            // is still in progress. In this case, sleep a bit and then retry
+            Thread.sleep(USER_SWITCH_WAIT);
+            executeShellCommand("am switch-user " + userId);
+        }
+        assertTrue("Failed to switch user after multiple retries", getDevice().getCurrentUser() == userId);
     }
 
     protected int getMaxNumberOfUsersSupported() throws DeviceNotAvailableException {

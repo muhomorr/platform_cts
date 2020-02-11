@@ -430,6 +430,7 @@ public class RestrictedPermissionsTest {
     @AppModeFull
     public void testStorageTargetingSdk28DoesNotLooseAccessWhenOptingIn() throws Exception {
         installApp(APK_USES_STORAGE_DEFAULT_28, null);
+        assertHasFullStorageAccess();
         installApp(APK_USES_STORAGE_OPT_IN_28, null);
 
         assertHasFullStorageAccess();
@@ -439,6 +440,7 @@ public class RestrictedPermissionsTest {
     @AppModeFull
     public void testStorageTargetingSdk28DoesNotLooseAccessViaUpdate() throws Exception {
         installApp(APK_USES_STORAGE_DEFAULT_28, null);
+        assertHasFullStorageAccess();
         installApp(APK_USES_STORAGE_DEFAULT_29, null);
 
         assertHasFullStorageAccess();
@@ -448,6 +450,7 @@ public class RestrictedPermissionsTest {
     @AppModeFull
     public void testStorageTargetingSdk29DoesNotLooseAccessViaUpdate() throws Exception {
         installApp(APK_USES_STORAGE_OPT_OUT_29, null);
+        assertHasFullStorageAccess();
         installApp(APK_USES_STORAGE_DEFAULT_29, null);
 
         assertHasFullStorageAccess();
@@ -457,6 +460,7 @@ public class RestrictedPermissionsTest {
     @AppModeFull
     public void testStorageTargetingSdk29DoesNotLooseAccessWhenOptingIn() throws Exception {
         installApp(APK_USES_STORAGE_OPT_OUT_29, null);
+        assertHasFullStorageAccess();
         installApp(APK_USES_STORAGE_OPT_IN_28, null);
 
         assertHasFullStorageAccess();
@@ -753,11 +757,10 @@ public class RestrictedPermissionsTest {
                     1, intent, PendingIntent.FLAG_ONE_SHOT).getIntentSender();
 
             // Commit as shell to avoid confirm UI
-            runWithShellPermissionIdentity(() ->
-                session.commit(intentSender)
-            );
-
-            installLatch.await(UI_TIMEOUT, TimeUnit.MILLISECONDS);
+            runWithShellPermissionIdentity(() -> {
+                session.commit(intentSender);
+                installLatch.await(UI_TIMEOUT, TimeUnit.MILLISECONDS);
+            });
         } finally {
             getContext().unregisterReceiver(installReceiver);
         }

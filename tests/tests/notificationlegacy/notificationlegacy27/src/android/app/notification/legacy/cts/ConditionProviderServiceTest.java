@@ -35,9 +35,11 @@ import android.app.NotificationManager;
 import android.app.UiAutomation;
 import android.content.ComponentName;
 import android.content.Context;
+import android.content.IntentFilter;
 import android.net.Uri;
 import android.os.ParcelFileDescriptor;
 import android.service.notification.Condition;
+import android.service.notification.ZenModeConfig;
 import android.util.ArraySet;
 import android.util.Log;
 
@@ -62,6 +64,8 @@ public class ConditionProviderServiceTest {
     private NotificationManager mNm;
     private ActivityManager mActivityManager;
     private Context mContext;
+    private ZenModeBroadcastReceiver mModeReceiver;
+    private IntentFilter mModeFilter;
     private ArraySet<String> ids = new ArraySet<>();
 
     @Before
@@ -77,10 +81,15 @@ public class ConditionProviderServiceTest {
         mNm = (NotificationManager) mContext.getSystemService(
                 Context.NOTIFICATION_SERVICE);
         mNm.setInterruptionFilter(NotificationManager.INTERRUPTION_FILTER_ALL);
+        mModeReceiver = new ZenModeBroadcastReceiver();
+        mModeFilter = new IntentFilter();
+        mModeFilter.addAction(NotificationManager.ACTION_INTERRUPTION_FILTER_CHANGED);
+        mContext.registerReceiver(mModeReceiver, mModeFilter);
     }
 
     @After
     public void tearDown() throws Exception {
+        mContext.unregisterReceiver(mModeReceiver);
         if (mNm == null) {
             // assumption in setUp is false, so mNm is not initialized
             return;
@@ -115,8 +124,12 @@ public class ConditionProviderServiceTest {
         final ComponentName cn = SecondaryConditionProviderService.getId();
 
         // add rule
+        mModeReceiver.reset();
+
         addRule(cn, INTERRUPTION_FILTER_ALARMS, true);
         pollForSubscribe(SecondaryConditionProviderService.getInstance());
+
+        mModeReceiver.waitFor(1/*Secondary only*/, 1000/*Limit is 1 second*/);
         assertEquals(INTERRUPTION_FILTER_ALARMS, mNm.getCurrentInterruptionFilter());
 
         // unbind service
@@ -143,11 +156,15 @@ public class ConditionProviderServiceTest {
         pollForConnection(SecondaryConditionProviderService.class, true);
 
         // add rules for both
+        mModeReceiver.reset();
+
         addRule(LegacyConditionProviderService.getId(), INTERRUPTION_FILTER_PRIORITY, true);
         pollForSubscribe(LegacyConditionProviderService.getInstance());
 
         addRule(SecondaryConditionProviderService.getId(), INTERRUPTION_FILTER_ALARMS, true);
         pollForSubscribe(SecondaryConditionProviderService.getInstance());
+
+        mModeReceiver.waitFor(2/*Legacy and Secondary*/, 1000/*Limit is 1 second*/);
         assertEquals(INTERRUPTION_FILTER_ALARMS, mNm.getCurrentInterruptionFilter());
 
         // unbind one of the services
@@ -175,11 +192,15 @@ public class ConditionProviderServiceTest {
         pollForConnection(SecondaryConditionProviderService.class, true);
 
         // add rules for both
+        mModeReceiver.reset();
+
         addRule(LegacyConditionProviderService.getId(), INTERRUPTION_FILTER_PRIORITY, true);
         pollForSubscribe(LegacyConditionProviderService.getInstance());
 
         addRule(SecondaryConditionProviderService.getId(), INTERRUPTION_FILTER_ALARMS, true);
         pollForSubscribe(SecondaryConditionProviderService.getInstance());
+
+        mModeReceiver.waitFor(2/*Legacy and Secondary*/, 1000/*Limit is 1 second*/);
         assertEquals(INTERRUPTION_FILTER_ALARMS, mNm.getCurrentInterruptionFilter());
 
         // unbind one of the services
@@ -273,8 +294,13 @@ public class ConditionProviderServiceTest {
     }
 
     private void addRule(ComponentName cn, int filter, boolean enabled) {
+        final Uri conditionId = new Uri.Builder()
+                .scheme(Condition.SCHEME)
+                .authority(ZenModeConfig.SYSTEM_AUTHORITY)
+                .appendPath(cn.toString())
+                .build();
         String id = mNm.addAutomaticZenRule(new AutomaticZenRule("name",
-                cn, Uri.EMPTY, filter, enabled));
+                cn, conditionId, filter, enabled));
         Log.d(TAG, "Created rule with id " + id);
         ids.add(id);
     }

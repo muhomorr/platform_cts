@@ -20,8 +20,8 @@ import static androidx.test.InstrumentationRegistry.getInstrumentation;
 
 import static org.junit.Assert.fail;
 
-import android.content.pm.PackageManager;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.os.PersistableBundle;
 import android.service.carrier.CarrierIdentifier;
 import android.service.carrier.CarrierService;
@@ -29,21 +29,19 @@ import android.telephony.TelephonyManager;
 import android.test.ServiceTestCase;
 import android.util.Log;
 
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Test;
-
 public class CarrierServiceTest extends ServiceTestCase<CarrierServiceTest.TestCarrierService> {
-
-    public CarrierServiceTest() { super(TestCarrierService.class); }
     private static final String TAG = CarrierServiceTest.class.getSimpleName();
 
-    private static boolean sHasCellular;
+    private boolean mHasCellular;
 
-    @BeforeClass
-    public static void setUpTests() {
-        sHasCellular = hasCellular();
-        if (!sHasCellular) {
+    public CarrierServiceTest() { super(TestCarrierService.class); }
+
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+
+        mHasCellular = hasCellular();
+        if (!mHasCellular) {
             Log.e(TAG, "No cellular support, all tests will be skipped.");
         }
     }
@@ -56,16 +54,14 @@ public class CarrierServiceTest extends ServiceTestCase<CarrierServiceTest.TestC
                 && telephonyManager.getPhoneCount() > 0;
     }
 
-    @Test
     public void testNotifyCarrierNetworkChange_true() {
-        if (!sHasCellular) return;
+        if (!mHasCellular) return;
 
         notifyCarrierNetworkChange(true);
     }
 
-    @Test
     public void testNotifyCarrierNetworkChange_false() {
-        if (!sHasCellular) return;
+        if (!mHasCellular) return;
 
         notifyCarrierNetworkChange(false);
     }

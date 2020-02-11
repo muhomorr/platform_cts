@@ -201,11 +201,31 @@ public class KernelConfigTest extends DeviceTestCase implements IBuildReceiver, 
 
     private Map<String, String[]> hardwareMitigations = new HashMap<String, String[]>() {
     {
+        put("EXYNOS990", null);
+        put("EXYNOS980", null);
+        put("EXYNOS850", null);
+        put("EXYNOS3830", null);
+        put("EXYNOS9630", null);
+        put("EXYNOS9830", null);
+        put("EXYNOS7870", null);
+        put("EXYNOS7880", null);
+        put("EXYNOS7570", null);
+        put("EXYNOS7872", new String[]{"CONFIG_HARDEN_BRANCH_PREDICTOR=y"});
+        put("EXYNOS7885", new String[]{"CONFIG_HARDEN_BRANCH_PREDICTOR=y"});
+        put("EXYNOS9610", new String[]{"CONFIG_HARDEN_BRANCH_PREDICTOR=y"});
         put("Kirin980", new String[]{"CONFIG_HARDEN_BRANCH_PREDICTOR=y"});
         put("Kirin970", new String[]{"CONFIG_HARDEN_BRANCH_PREDICTOR=y"});
         put("Kirin810", null);
         put("Kirin710", new String[]{"CONFIG_HARDEN_BRANCH_PREDICTOR=y"});
+        put("SM6150", new String[]{"CONFIG_HARDEN_BRANCH_PREDICTOR=y"});
+        put("SM7150", new String[]{"CONFIG_HARDEN_BRANCH_PREDICTOR=y"});
+        put("LITO", null);
         put("SM8150", new String[]{"CONFIG_HARDEN_BRANCH_PREDICTOR=y"});
+        put("SM8150P", new String[]{"CONFIG_HARDEN_BRANCH_PREDICTOR=y"});
+        put("KONA", null);
+        put("SDM429", null);
+        put("SDM439", null);
+        put("QM215", null);
         put("DEFAULT", new String[]{"CONFIG_HARDEN_BRANCH_PREDICTOR=y",
             "CONFIG_UNMAP_KERNEL_AT_EL0=y"});
     }};
@@ -222,14 +242,19 @@ public class KernelConfigTest extends DeviceTestCase implements IBuildReceiver, 
      */
     @CddTest(requirement="9.7")
     public void testConfigHardwareMitigations() throws Exception {
+        String mitigations[];
+
         if (PropertyUtil.getFirstApiLevel(mDevice) < 28) {
             return;
         }
 
         if (CpuFeatures.isArm64(mDevice) && !CpuFeatures.kernelVersionLessThan(mDevice, 4, 4)) {
-            for (String mitigation : lookupMitigations()) {
-                assertTrue("Linux kernel must have " + mitigation + " enabled.",
-                        configSet.contains(mitigation));
+            mitigations = lookupMitigations();
+            if (mitigations != null) {
+                for (String mitigation : mitigations) {
+                    assertTrue("Linux kernel must have " + mitigation + " enabled.",
+                            configSet.contains(mitigation));
+                }
             }
         } else if (CpuFeatures.isX86(mDevice)) {
             assertTrue("Linux kernel must have KPTI enabled: CONFIG_PAGE_TABLE_ISOLATION=y",

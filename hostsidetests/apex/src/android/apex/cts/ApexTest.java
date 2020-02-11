@@ -32,15 +32,30 @@ public class ApexTest extends BaseHostJUnit4Test {
     return Boolean.parseBoolean(getDevice().getProperty("ro.apex.updatable"));
   }
 
+  private boolean isGSI() throws Exception {
+    String systemProduct = getDevice().getProperty("ro.product.system_ext.name");
+    return systemProduct.equals("aosp_arm")
+      || systemProduct.equals("aosp_arm64")
+      || systemProduct.equals("aosp_x86")
+      || systemProduct.equals("aosp_x86_64");
+  }
+
   /**
    * Ensures that the built-in APEXes are all with flattened APEXes
    * or non-flattend APEXes. Mixture of them is not supported and thus
    * not allowed.
+   *
+   * GSI is exempt from this test since it exceptionally includes both types os APEXes.
    */
   @Test
   public void testApexType() throws Exception {
+    if (isGSI()) {
+      return;
+    }
+
     String[] builtinDirs = {
       "/system/apex",
+      "/system_ext/apex",
       "/product/apex",
       "/vendor/apex"
     };
@@ -73,7 +88,7 @@ public class ApexTest extends BaseHostJUnit4Test {
 
   private int countFlattenedApexes(String dir) throws Exception {
     CommandResult result = getDevice().executeShellV2Command(
-        "find " + dir + " -type f -name \"apex_manifest.json\" ! -path \"*" +
+        "find " + dir + " -type f -name \"apex_manifest.pb\" ! -path \"*" +
         CTS_SHIM_APEX_NAME + "*\" | wc -l");
     return result.getExitCode() == 0 ? Integer.parseInt(result.getStdout().trim()) : 0;
   }

@@ -408,25 +408,31 @@ public abstract class BasePermissionsTest {
             long start = System.currentTimeMillis();
             while (permissionView == null && start + RETRY_TIMEOUT > System.currentTimeMillis()) {
                 permissionView = getUiDevice().wait(Until.findObject(By.text(permissionLabel)),
-                        GLOBAL_TIMEOUT_MILLIS);
+                        IDLE_TIMEOUT_MILLIS);
 
                 if (permissionView == null) {
-                    getUiDevice().findObject(By.res("android:id/list_container"))
+                    getUiDevice().findObject(By.scrollable(true))
                             .scroll(Direction.DOWN, 1);
                 }
             }
 
-            permissionView.click();
-            waitForIdle();
+            if (!isTv()) {
+                permissionView.click();
+                waitForIdle();
+            }
 
             String denyLabel = mContext.getResources().getString(R.string.Deny);
 
-            final boolean wasGranted = !getUiDevice().wait(Until.findObject(By.text(denyLabel)),
-                    GLOBAL_TIMEOUT_MILLIS).isChecked();
-            if (granted != wasGranted) {
+            final boolean wasGranted = isTv() ? false : !getUiDevice().wait(
+                Until.findObject(By.text(denyLabel)), GLOBAL_TIMEOUT_MILLIS).isChecked();
+            // TV does not use checked state to represent granted state.
+            if (granted != wasGranted || isTv()) {
                 // Toggle the permission
 
-                if (granted) {
+                if (isTv()) {
+                    // no Allow/Deny labels on TV
+                    permissionView.click();
+                } else if (granted) {
                     String allowLabel = mContext.getResources().getString(R.string.Allow);
                     getUiDevice().findObject(By.text(allowLabel)).click();
                 } else {
@@ -455,8 +461,10 @@ public abstract class BasePermissionsTest {
                 }
             }
 
-            getUiDevice().pressBack();
-            waitForIdle();
+            if (!isTv()) {
+                getUiDevice().pressBack();
+                waitForIdle();
+            }
         }
 
         getUiDevice().pressBack();
@@ -500,13 +508,36 @@ public abstract class BasePermissionsTest {
     }
 
     private static AccessibilityNodeInfo findByText(AccessibilityNodeInfo root, String text) {
+        if (root == null) {
+            return null;
+        }
         List<AccessibilityNodeInfo> nodes = root.findAccessibilityNodeInfosByText(text);
+        PackageManager packageManager = InstrumentationRegistry.getTargetContext().getPackageManager();
+        boolean isWatch = packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH);
+        if (isWatch) {
+            return findByTextForWatch(root, text);
+        }
         for (AccessibilityNodeInfo node : nodes) {
             if (node.getText().toString().equals(text)) {
                 return node;
             }
         }
         return null;
+    }
+
+    private static AccessibilityNodeInfo findByTextForWatch(AccessibilityNodeInfo root, String text) {
+        String trimmedText = trimText(text);
+        List<AccessibilityNodeInfo> nodes = root.findAccessibilityNodeInfosByText(trimmedText);
+        for (AccessibilityNodeInfo node : nodes) {
+            if (trimText(node.getText().toString()).equals(trimmedText)) {
+                return node;
+            }
+        }
+        return null;
+    }
+
+    private static String trimText(String text) {
+        return text != null ? text.substring(0, Math.min(text.length(), 20)) : null;
     }
 
     private static AccessibilityNodeInfo findByTextInCollection(AccessibilityNodeInfo root,

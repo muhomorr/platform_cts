@@ -37,6 +37,7 @@ import android.provider.Telephony;
 import android.telecom.TelecomManager;
 import android.test.AndroidTestCase;
 
+import com.android.compatibility.common.util.CddTest;
 import com.android.compatibility.common.util.FeatureUtil;
 
 import java.util.List;
@@ -280,11 +281,17 @@ public class AvailableIntentsTest extends AndroidTestCase {
     }
 
     public void testAlarmClockDismissAlarm() {
+        if (mContext.getPackageManager().hasSystemFeature(PackageManager.FEATURE_LEANBACK_ONLY)) {
+            return;
+        }
         Intent intent = new Intent(AlarmClock.ACTION_DISMISS_ALARM);
         assertCanBeHandled(intent);
     }
 
     public void testAlarmClockSnoozeAlarm() {
+        if (mContext.getPackageManager().hasSystemFeature(PackageManager.FEATURE_LEANBACK_ONLY)) {
+            return;
+        }
         Intent intent = new Intent(AlarmClock.ACTION_SNOOZE_ALARM);
         intent.putExtra(AlarmClock.EXTRA_ALARM_SNOOZE_DURATION, 10);
         assertCanBeHandled(intent);
@@ -418,6 +425,7 @@ public class AvailableIntentsTest extends AndroidTestCase {
         }
     }
 
+    @CddTest(requirement = "7.4.2.6/C-1-1")
     public void testEasyConnectIntent() {
         WifiManager manager = mContext.getSystemService(WifiManager.class);
 

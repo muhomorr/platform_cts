@@ -27,14 +27,17 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
+import android.app.AppOpsManager;
 import android.content.ContentResolver;
 import android.content.ContentValues;
 import android.content.Context;
+import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.media.MediaExtractor;
 import android.media.MediaMetadataRetriever;
 import android.net.Uri;
 import android.os.ParcelFileDescriptor;
+import android.os.Process;
 import android.os.storage.StorageManager;
 import android.platform.test.annotations.Presubmit;
 import android.provider.MediaStore;
@@ -249,9 +252,30 @@ public class MediaStore_Video_MediaTest {
         try (ParcelFileDescriptor pfd = mContentResolver.openFileDescriptor(originalUri, "r")) {
         }
 
+        // Remove ACCESS_MEDIA_LOCATION permission
+        try {
+            InstrumentationRegistry.getInstrumentation().getUiAutomation().
+                    adoptShellPermissionIdentity("android.permission.MANAGE_APP_OPS_MODES");
+
+            // Revoking ACCESS_MEDIA_LOCATION permission will kill the test app.
+            // Deny access_media_permission App op to revoke this permission.
+            if (mContext.getPackageManager().checkPermission(
+                    android.Manifest.permission.ACCESS_MEDIA_LOCATION, mContext.getPackageName())
+                    == PackageManager.PERMISSION_GRANTED) {
+
+                mContext.getSystemService(AppOpsManager.class).setUidMode(
+                        "android:access_media_location", Process.myUid(),
+                        AppOpsManager.MODE_IGNORED);
+            }
+        } finally {
+                InstrumentationRegistry.getInstrumentation().getUiAutomation().
+                        dropShellPermissionIdentity();
+        }
+
         // Now remove ownership, which means that location should be redacted
-        ProviderTestUtils.executeShellCommand(
-                "content update --uri " + publishUri + " --bind owner_package_name:n:",
+        ProviderTestUtils.executeShellCommand("content update"
+                + " --user " + InstrumentationRegistry.getTargetContext().getUserId()
+                + " --uri " + publishUri + " --bind owner_package_name:n:",
                 InstrumentationRegistry.getInstrumentation().getUiAutomation());
         try (ParcelFileDescriptor pfd = mContentResolver.openFile(publishUri, "r", null);
                 MediaMetadataRetriever mmr = new MediaMetadataRetriever()) {
@@ -316,8 +340,9 @@ public class MediaStore_Video_MediaTest {
     @Test
     public void testCanonicalize() throws Exception {
         // Remove all audio left over from other tests
-        ProviderTestUtils.executeShellCommand(
-                "content delete --uri " + mExternalVideo,
+        ProviderTestUtils.executeShellCommand("content delete"
+                + " --user " + InstrumentationRegistry.getTargetContext().getUserId()
+                + " --uri " + mExternalVideo,
                 InstrumentationRegistry.getInstrumentation().getUiAutomation());
 
         // Publish some content

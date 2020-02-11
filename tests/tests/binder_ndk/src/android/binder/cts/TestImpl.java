@@ -20,6 +20,7 @@ import android.os.Binder;
 import android.os.IBinder;
 import android.os.ParcelFileDescriptor;
 import android.os.RemoteException;
+import java.io.IOException;
 
 import test_package.IEmpty;
 import test_package.ITest;
@@ -34,6 +35,9 @@ import java.io.PrintWriter;
 public class TestImpl extends ITest.Stub {
   @Override
   public int getInterfaceVersion() { return TestImpl.VERSION; }
+
+  @Override
+  public String getInterfaceHash() { return TestImpl.HASH; }
 
   @Override
   protected void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
@@ -193,6 +197,11 @@ public class TestImpl extends ITest.Stub {
   }
 
   @Override
+  public RegularPolygon RepeatNullablePolygon(RegularPolygon in_value) {
+    return in_value;
+  }
+
+  @Override
   public void RenamePolygon(RegularPolygon value, String name) {
     value.name = name;
   }
@@ -267,6 +276,33 @@ public class TestImpl extends ITest.Stub {
   public RegularPolygon[] RepeatRegularPolygonArray(RegularPolygon[] in_value, RegularPolygon[] repeated) {
     System.arraycopy(in_value, 0, repeated, 0, in_value.length);
     return in_value;
+  }
+
+  @Override
+  public ParcelFileDescriptor[] RepeatFdArray(ParcelFileDescriptor[] in_value, ParcelFileDescriptor[] repeated) {
+    ParcelFileDescriptor[] out = new ParcelFileDescriptor[in_value.length];
+    for (int i = 0; i < in_value.length; i++) {
+      try {
+        repeated[i] = in_value[i].dup();
+        out[i] = in_value[i].dup();
+      } catch (IOException e) {
+        e.printStackTrace();
+      }
+    }
+    return out;
+  }
+
+  public java.util.List<String> Repeat2StringList(java.util.List<String> in_value, java.util.List<String> repeated) {
+    repeated.addAll(in_value);
+    repeated.addAll(in_value);
+    return repeated;
+  }
+
+  @Override
+  public java.util.List<RegularPolygon> Repeat2RegularPolygonList(java.util.List<RegularPolygon> in_value, java.util.List<RegularPolygon> repeated) {
+    repeated.addAll(in_value);
+    repeated.addAll(in_value);
+    return repeated;
   }
 
   @Override

@@ -116,6 +116,8 @@ public class PermissionsHostTest extends DeviceTestCase implements IAbiReceiver,
         getDevice().uninstallPackage(USES_PERMISSION_PKG);
         getDevice().uninstallPackage(ESCALATE_PERMISSION_PKG);
         getDevice().uninstallPackage(PERMISSION_POLICY_25_PKG);
+
+        getDevice().executeShellCommand("input keyevent KEYCODE_HOME");
     }
 
     public void testFail() throws Exception {
@@ -414,12 +416,18 @@ public class PermissionsHostTest extends DeviceTestCase implements IAbiReceiver,
     }
 
     public void testPermissionSplit28() throws Exception {
+        if (getDevice().hasFeature("feature:android.software.leanback")) {
+            return;
+        }
         assertNull(getDevice().installPackage(mBuildHelper.getTestFile(APK_28), false, false));
         runDeviceTests(USES_PERMISSION_PKG, "com.android.cts.usepermission.UsePermissionTest28",
                 "testLocationPermissionWasSplit");
     }
 
     public void testPermissionNotSplit29() throws Exception {
+        if (getDevice().hasFeature("feature:android.software.leanback")) {
+            return;
+        }
         assertNull(getDevice().installPackage(mBuildHelper.getTestFile(APK_29), false, false));
         runDeviceTests(USES_PERMISSION_PKG, "com.android.cts.usepermission.UsePermissionTest29",
                 "locationPermissionIsNotSplit");
@@ -432,30 +440,45 @@ public class PermissionsHostTest extends DeviceTestCase implements IAbiReceiver,
     }
 
     public void testRequestBoth() throws Exception {
+        if (getDevice().hasFeature("feature:android.software.leanback")) {
+            return;
+        }
         assertNull(getDevice().installPackage(mBuildHelper.getTestFile(APK_29), false, false));
         runDeviceTests(USES_PERMISSION_PKG, "com.android.cts.usepermission.UsePermissionTest29",
                 "requestBoth");
     }
 
     public void testRequestBothInSequence() throws Exception {
+        if (getDevice().hasFeature("feature:android.software.leanback")) {
+            return;
+        }
         assertNull(getDevice().installPackage(mBuildHelper.getTestFile(APK_29), false, false));
         runDeviceTests(USES_PERMISSION_PKG, "com.android.cts.usepermission.UsePermissionTest29",
                 "requestBothInSequence");
     }
 
     public void testRequestBothButGrantInSequence() throws Exception {
+        if (getDevice().hasFeature("feature:android.software.leanback")) {
+            return;
+        }
         assertNull(getDevice().installPackage(mBuildHelper.getTestFile(APK_29), false, false));
         runDeviceTests(USES_PERMISSION_PKG, "com.android.cts.usepermission.UsePermissionTest29",
                 "requestBothButGrantInSequence");
     }
 
     public void testDenyBackgroundWithPrejudice() throws Exception {
+        if (getDevice().hasFeature("feature:android.software.leanback")) {
+            return;
+        }
         assertNull(getDevice().installPackage(mBuildHelper.getTestFile(APK_29), false, false));
         runDeviceTests(USES_PERMISSION_PKG, "com.android.cts.usepermission.UsePermissionTest29",
                 "denyBackgroundWithPrejudice");
     }
 
     public void testPermissionNotSplitLatest() throws Exception {
+        if (getDevice().hasFeature("feature:android.software.leanback")) {
+            return;
+        }
         assertNull(getDevice().installPackage(mBuildHelper.getTestFile(APK_Latest), false, false));
         runDeviceTests(USES_PERMISSION_PKG, "com.android.cts.usepermission.UsePermissionTest29",
                 "locationPermissionIsNotSplit");
