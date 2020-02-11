@@ -22,6 +22,7 @@ import static android.app.WindowConfiguration.ACTIVITY_TYPE_STANDARD;
 import static android.app.WindowConfiguration.WINDOWING_MODE_FULLSCREEN;
 import static android.app.WindowConfiguration.WINDOWING_MODE_PINNED;
 import static android.app.WindowConfiguration.WINDOWING_MODE_UNDEFINED;
+import static android.content.pm.PackageManager.FEATURE_LEANBACK;
 import static android.server.wm.ActivityManagerState.STATE_RESUMED;
 import static android.server.wm.ActivityManagerState.STATE_STOPPED;
 import static android.server.wm.ComponentNameUtils.getActivityName;
@@ -60,6 +61,8 @@ import static android.server.wm.app.Components.TRANSLUCENT_TEST_ACTIVITY;
 import static android.server.wm.app.Components.TestActivity.EXTRA_CONFIGURATION;
 import static android.server.wm.app.Components.TestActivity.EXTRA_FIXED_ORIENTATION;
 import static android.server.wm.app.Components.TestActivity.TEST_ACTIVITY_ACTION_FINISH_SELF;
+import static android.server.wm.app27.Components.SDK_27_LAUNCH_ENTER_PIP_ACTIVITY;
+import static android.server.wm.app27.Components.SDK_27_PIP_ACTIVITY;
 import static android.view.Display.DEFAULT_DISPLAY;
 
 import static androidx.test.InstrumentationRegistry.getInstrumentation;
@@ -71,6 +74,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
+import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
 
 import android.content.ComponentName;
@@ -188,6 +192,7 @@ public class PinnedStackTests extends ActivityManagerTestBase {
 
     @Test
     public void testNonTappablePipActivity() throws Exception {
+        assumeFalse(hasDeviceFeature(FEATURE_LEANBACK));
         // Launch the tap-to-finish activity at a specific place
         launchActivity(PIP_ACTIVITY,
                 EXTRA_ENTER_PIP, "true",
@@ -748,6 +753,30 @@ public class PinnedStackTests extends ActivityManagerTestBase {
         // task and ensure that it works
         launchActivity(LAUNCH_ENTER_PIP_ACTIVITY);
         waitForEnterPip(PIP_ACTIVITY);
+        assertPinnedStackExists();
+    }
+
+    @Test
+    public void testLaunchStoppedActivityWithPiPInSameProcessPreQ() {
+        // Try to enter picture-in-picture from an activity that has more than one activity in the
+        // task and ensure that it works, for pre-Q app
+        launchActivity(SDK_27_LAUNCH_ENTER_PIP_ACTIVITY,
+                EXTRA_ENTER_PIP, "true");
+        waitForEnterPip(SDK_27_PIP_ACTIVITY);
+        assertPinnedStackExists();
+
+        // Puts the host activity to stopped state
+        launchHomeActivity();
+        mAmWmState.assertHomeActivityVisible(true);
+        waitAndAssertActivityState(SDK_27_LAUNCH_ENTER_PIP_ACTIVITY, STATE_STOPPED,
+                "Activity should become STOPPED");
+        mAmWmState.assertVisibility(SDK_27_LAUNCH_ENTER_PIP_ACTIVITY, false);
+
+        // Host activity should be visible after re-launch and PiP window still exists
+        launchActivity(SDK_27_LAUNCH_ENTER_PIP_ACTIVITY);
+        waitAndAssertActivityState(SDK_27_LAUNCH_ENTER_PIP_ACTIVITY, STATE_RESUMED,
+                "Activity should become RESUMED");
+        mAmWmState.assertVisibility(SDK_27_LAUNCH_ENTER_PIP_ACTIVITY, true);
         assertPinnedStackExists();
     }
 

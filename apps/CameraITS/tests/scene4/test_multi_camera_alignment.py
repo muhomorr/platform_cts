@@ -33,6 +33,7 @@ GYRO_REFERENCE = 1
 NAME = os.path.basename(__file__).split('.')[0]
 TRANS_REF_MATRIX = np.array([0, 0, 0])
 
+
 def convert_to_world_coordinates(x, y, r, t, k, z_w):
     """Convert x,y coordinates to world coordinates.
 
@@ -266,15 +267,20 @@ def main():
                              its.caps.per_frame_control(props) and
                              its.caps.logical_multi_camera(props))
 
-        # Find physical camera IDs that support raw, and skip if less than 2
+        # Find physical camera IDs and those that support RGB raw
         ids = its.caps.logical_multi_camera_physical_ids(props)
         props_physical = {}
         physical_ids = []
+        physical_raw_ids = []
         for i in ids:
+            # Find YUV capable physical cameras
             prop = cam.get_camera_properties_by_id(i)
-            if its.caps.raw16(prop) and len(physical_ids) < 2:
-                physical_ids.append(i)
-                props_physical[i] = cam.get_camera_properties_by_id(i)
+            physical_ids.append(i)
+            props_physical[i] = cam.get_camera_properties_by_id(i)
+            # Find first 2 RAW+RGB capable physical cameras
+            if (its.caps.raw16(prop) and not its.caps.mono_camera(props)
+                        and len(physical_raw_ids) < 2):
+                physical_raw_ids.append(i)
 
         debug = its.caps.debug_mode()
         avail_fls = props['android.lens.info.availableFocalLengths']
@@ -282,19 +288,44 @@ def main():
 
         # Find highest resolution image and determine formats
         fmts = ['yuv']
-        if len(physical_ids) == 2:
+        its.caps.skip_unless(len(physical_ids) >= 2)
+        if len(physical_raw_ids) == 2:
             fmts.insert(0, 'raw')  # insert in first location in list
         else:
-            physical_ids = ids[0:1]
+            physical_ids = ids[0:2]
 
         w, h = its.objects.get_available_output_sizes('yuv', props)[0]
 
         # do captures on 2 cameras
         caps = {}
         for i, fmt in enumerate(fmts):
+            physicalSizes = {}
+
+            capture_cam_ids = physical_ids
+            if fmt == 'raw':
+                capture_cam_ids = physical_raw_ids
+
+            for physical_id in capture_cam_ids:
+                configs = props_physical[physical_id]['android.scaler.streamConfigurationMap']\
+                                   ['availableStreamConfigurations']
+                if fmt == 'raw':
+                    fmt_codes = 0x20
+                    fmt_configs = [cfg for cfg in configs if cfg['format'] == fmt_codes]
+                else:
+                    fmt_codes = 0x23
+                    fmt_configs = [cfg for cfg in configs if cfg['format'] == fmt_codes]
+
+                out_configs = [cfg for cfg in fmt_configs if cfg['input'] is False]
+                out_sizes = [(cfg['width'], cfg['height']) for cfg in out_configs]
+                physicalSizes[physical_id] = max(out_sizes, key=lambda item: item[1])
+
             out_surfaces = [{'format': 'yuv', 'width': w, 'height': h},
-                            {'format': fmt, 'physicalCamera': physical_ids[0]},
-                            {'format': fmt, 'physicalCamera': physical_ids[1]}]
+                            {'format': fmt, 'physicalCamera': capture_cam_ids[0],
+                             'width': physicalSizes[capture_cam_ids[0]][0],
+                             'height': physicalSizes[capture_cam_ids[0]][1]},
+                            {'format': fmt, 'physicalCamera': capture_cam_ids[1],
+                             'width': physicalSizes[capture_cam_ids[1]][0],
+                             'height': physicalSizes[capture_cam_ids[1]][1]},]
 
             out_surfaces_supported = cam.is_stream_combination_supported(out_surfaces)
             its.caps.skip_unless(out_surfaces_supported)
@@ -308,8 +339,8 @@ def main():
                 e_corrected = e
             print 'out_surfaces:', out_surfaces
             req = its.objects.manual_capture_request(s, e_corrected, fd)
-            _, caps[(fmt, physical_ids[0])], caps[(fmt, physical_ids[1])] = cam.do_capture(
-                    req, out_surfaces);
+            _, caps[(fmt, capture_cam_ids[0])], caps[(fmt, capture_cam_ids[1])] = cam.do_capture(
+                    req, out_surfaces)
 
     for j, fmt in enumerate(fmts):
         size = {}
@@ -320,8 +351,11 @@ def main():
         circle = {}
         fl = {}
         sensor_diag = {}
+        capture_cam_ids = physical_ids
+        if fmt == 'raw':
+            capture_cam_ids = physical_raw_ids
         print '\nFormat:', fmt
-        for i in physical_ids:
+        for i in capture_cam_ids:
             # process image
             img = its.image.convert_capture_to_rgb_image(
                     caps[(fmt, i)], props=props_physical[i])
@@ -395,7 +429,7 @@ def main():
             # Find the circles in grayscale image
             circle[i] = find_circle(cv2.cvtColor(img, cv2.COLOR_BGR2GRAY),
                                     '%s_%s_gray_%s.jpg' % (NAME, fmt, i))
-            print "Circle radius ", i, ": ", circle[i][2]
+            print 'Circle radius ', i, ': ', circle[i][2]
 
             # Undo zoom to image (if applicable). Assume that the maximum
             # physical YUV image size is close to active array size.
@@ -403,12 +437,12 @@ def main():
                 ar = props_physical[i]['android.sensor.info.activeArraySize']
                 arw = ar['right'] - ar['left']
                 arh = ar['bottom'] - ar['top']
-                cr = caps[(fmt, i)]['metadata']['android.scaler.cropRegion'];
+                cr = caps[(fmt, i)]['metadata']['android.scaler.cropRegion']
                 crw = cr['right'] - cr['left']
                 crh = cr['bottom'] - cr['top']
                 # Assume pixels remain square after zoom, so use same zoom
                 # ratios for x and y.
-                zoom_ratio = min(1.0 * arw / crw, 1.0 * arh / crh);
+                zoom_ratio = min(1.0 * arw / crw, 1.0 * arh / crh)
                 circle[i][0] = cr['left'] + circle[i][0] / zoom_ratio
                 circle[i][1] = cr['top'] + circle[i][1] / zoom_ratio
                 circle[i][2] = circle[i][2] / zoom_ratio

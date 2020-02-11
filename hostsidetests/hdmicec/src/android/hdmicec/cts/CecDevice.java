@@ -16,22 +16,55 @@
 
 package android.hdmicec.cts;
 
-public enum CecDevice {
-    TV("0"),
-    PLAYBACK_1("4"),
-    PLAYBACK_2("8"),
-    PLAYBACK_3("9"),
-    PLAYBACK_4("b"),
-    BROADCAST("f");
+import java.util.HashMap;
+import java.util.Map;
 
-    private final String playerId;
+public enum CecDevice {
+    TV(0x0),
+    RECORDING_1(0x1),
+    TUNER_1(0x3),
+    PLAYBACK_1(0x4),
+    AUDIO_SYSTEM(0x5),
+    PLAYBACK_2(0x8),
+    PLAYBACK_3(0xb),
+    BROADCAST(0xf);
+
+    private final int playerId;
+    private static Map deviceMap = new HashMap<>();
 
     @Override
     public String toString() {
-        return this.playerId;
+        return Integer.toHexString(this.playerId);
     }
 
-    private CecDevice(String playerId) {
+    static {
+        for (CecDevice device : CecDevice.values()) {
+            deviceMap.put(device.playerId, device);
+        }
+    }
+
+    public static String getDeviceType(CecDevice device) {
+        switch (device) {
+            case PLAYBACK_1:
+            case PLAYBACK_2:
+            case PLAYBACK_3:
+                return Integer.toString(HdmiCecConstants.CEC_DEVICE_TYPE_PLAYBACK_DEVICE);
+            case TV:
+                return Integer.toString(HdmiCecConstants.CEC_DEVICE_TYPE_TV);
+            case AUDIO_SYSTEM:
+                return Integer.toString(HdmiCecConstants.CEC_DEVICE_TYPE_AUDIO_SYSTEM);
+            case RECORDING_1:
+                return Integer.toString(HdmiCecConstants.CEC_DEVICE_TYPE_RECORDING_DEVICE);
+            default:
+                return Integer.toString(HdmiCecConstants.CEC_DEVICE_TYPE_RESERVED);
+        }
+    }
+
+    public static CecDevice getDevice(int playerId) {
+        return (CecDevice) deviceMap.get(playerId);
+    }
+
+    private CecDevice(int playerId) {
         this.playerId = playerId;
     }
 }

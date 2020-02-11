@@ -10,6 +10,7 @@ import android.content.ServiceConnection;
 import android.media.AudioManager;
 import android.os.Bundle;
 import android.os.IBinder;
+import android.provider.CallLog;
 import android.telecom.Call;
 import android.telecom.Call.Details;
 import android.telecom.CallScreeningService.CallResponse;
@@ -24,13 +25,21 @@ import android.telecom.cts.api29incallservice.ICtsApi29InCallServiceControl;
 import android.text.TextUtils;
 import android.util.Log;
 
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.CountDownLatch;
+import androidx.test.InstrumentationRegistry;
+
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
 public class BackgroundCallAudioTest extends BaseTelecomTestWithMockServices {
     private static final String LOG_TAG = BackgroundCallAudioTest.class.getSimpleName();
+
+    private ServiceConnection mApiCompatControlServiceConnection;
+
+    // copied from AudioSystem.java -- defined here because that change isn't in AOSP yet.
+    private static final int MODE_CALL_SCREENING = 4;
+
+    // true if there's platform support for call screening in the audio stack.
+    private boolean doesAudioManagerSupportCallScreening = false;
 
     @Override
     protected void setUp() throws Exception {
@@ -39,7 +48,16 @@ public class BackgroundCallAudioTest extends BaseTelecomTestWithMockServices {
             mPreviousDefaultDialer = TestUtils.getDefaultDialer(getInstrumentation());
             TestUtils.setDefaultDialer(getInstrumentation(), TestUtils.PACKAGE);
             setupConnectionService(null, FLAG_REGISTER | FLAG_ENABLE);
-            MockCallScreeningService.enableService(mContext);
+            // Some of the tests expect changes in audio mode when the ringer starts, so we're
+            // going to turn up the ring stream volume.
+            AudioManager audioManager = mContext.getSystemService(AudioManager.class);
+            audioManager.adjustStreamVolume(AudioManager.STREAM_RING,
+                    AudioManager.ADJUST_UNMUTE, 0);
+            // TODO: uncomment when call screening APIs in AudioManager come to AOSP
+            /*
+            doesAudioManagerSupportCallScreening =
+                    audioManager.isCallScreeningModeSupported();
+            */
         }
     }
 
@@ -73,7 +91,9 @@ public class BackgroundCallAudioTest extends BaseTelecomTestWithMockServices {
         assertConnectionState(connection, Connection.STATE_ACTIVE);
 
         AudioManager audioManager = mContext.getSystemService(AudioManager.class);
-        assertEquals(0 /* TODO: put new mode here */, audioManager.getMode());
+        if (doesAudioManagerSupportCallScreening) {
+            assertEquals(MODE_CALL_SCREENING, audioManager.getMode());
+        }
 
         verifySimulateRingAndUserPickup(call, connection);
     }
@@ -97,7 +117,9 @@ public class BackgroundCallAudioTest extends BaseTelecomTestWithMockServices {
         assertConnectionState(connection, Connection.STATE_ACTIVE);
 
         AudioManager audioManager = mContext.getSystemService(AudioManager.class);
-        assertEquals(0 /* TODO: put new mode here */, audioManager.getMode());
+        if (doesAudioManagerSupportCallScreening) {
+            assertEquals(MODE_CALL_SCREENING, audioManager.getMode());
+        }
 
         call.disconnect();
         assertCallState(call, Call.STATE_DISCONNECTED);
@@ -123,9 +145,129 @@ public class BackgroundCallAudioTest extends BaseTelecomTestWithMockServices {
         assertConnectionState(connection, Connection.STATE_ACTIVE);
 
         AudioManager audioManager = mContext.getSystemService(AudioManager.class);
-        assertEquals(0 /* TODO: put new mode here */, audioManager.getMode());
+        if (doesAudioManagerSupportCallScreening) {
+            assertEquals(MODE_CALL_SCREENING, audioManager.getMode());
+        }
 
         verifySimulateRingAndUserMissed(call, connection);
+    }
+
+    public void testAudioProcessingFromCallScreeningRemoteHangupDuringRing() throws Exception {
+        if (!mShouldTestTelecom) {
+            return;
+        }
+
+        setupIncomingCallWithCallScreening();
+
+        final MockConnection connection = verifyConnectionForIncomingCall();
+
+        if (!mInCallCallbacks.lock.tryAcquire(TestUtils.WAIT_FOR_CALL_ADDED_TIMEOUT_S,
+                TimeUnit.SECONDS)) {
+            fail("No call added to InCallService.");
+        }
+
+        Call call = mInCallCallbacks.getService().getLastCall();
+        assertCallState(call, Call.STATE_AUDIO_PROCESSING);
+        assertConnectionState(connection, Connection.STATE_ACTIVE);
+
+        AudioManager audioManager = mContext.getSystemService(AudioManager.class);
+        if (doesAudioManagerSupportCallScreening) {
+            assertEquals(MODE_CALL_SCREENING, audioManager.getMode());
+        }
+
+        call.exitBackgroundAudioProcessing(true);
+        assertCallState(call, Call.STATE_SIMULATED_RINGING);
+
+        waitOnAllHandlers(getInstrumentation());
+        assertEquals(AudioManager.MODE_RINGTONE, audioManager.getMode());
+        assertConnectionState(connection, Connection.STATE_ACTIVE);
+
+        connection.setDisconnected(new DisconnectCause(DisconnectCause.REMOTE));
+        assertCallState(call, Call.STATE_DISCONNECTED);
+        assertEquals(DisconnectCause.MISSED, call.getDetails().getDisconnectCause().getCode());
+        connection.destroy();
+    }
+
+    public void testAudioProcessingFromCallScreeningAllowPlaceEmergencyCall() throws Exception {
+        if (!mShouldTestTelecom) {
+            return;
+        }
+        setupForEmergencyCalling(TEST_EMERGENCY_NUMBER);
+        setupIncomingCallWithCallScreening();
+
+        final MockConnection connection = verifyConnectionForIncomingCall();
+
+        if (!mInCallCallbacks.lock.tryAcquire(TestUtils.WAIT_FOR_CALL_ADDED_TIMEOUT_S,
+                TimeUnit.SECONDS)) {
+            fail("No call added to InCallService.");
+        }
+
+        Call call = mInCallCallbacks.getService().getLastCall();
+        assertCallState(call, Call.STATE_AUDIO_PROCESSING);
+        assertConnectionState(connection, Connection.STATE_ACTIVE);
+
+        AudioManager audioManager = mContext.getSystemService(AudioManager.class);
+        if (doesAudioManagerSupportCallScreening) {
+            assertEquals(MODE_CALL_SCREENING, audioManager.getMode());
+        }
+
+        call.exitBackgroundAudioProcessing(true);
+        assertCallState(call, Call.STATE_SIMULATED_RINGING);
+        waitOnAllHandlers(getInstrumentation());
+        assertEquals(AudioManager.MODE_RINGTONE, audioManager.getMode());
+        assertConnectionState(connection, Connection.STATE_ACTIVE);
+
+        placeAndVerifyEmergencyCall(false /*supportsHold*/);
+        waitOnAllHandlers(getInstrumentation());
+        Call eCall = getInCallService().getLastCall();
+        assertCallState(eCall, Call.STATE_DIALING);
+        // Even though the connection was technically active, it is "simulated ringing", so
+        // disconnect as you would a normal ringing call in favor of an emergency call.
+        assertCallState(call, Call.STATE_DISCONNECTED);
+        assertConnectionState(connection, Connection.STATE_DISCONNECTED);
+        // Notify as missed instead of rejected, since the user did not explicitly reject.
+        verifyCallLogging(connection.getAddress(), CallLog.Calls.MISSED_TYPE);
+    }
+
+    public void testAudioProcessingFromIncomingActivePlaceEmergencyCall() throws Exception {
+        if (!mShouldTestTelecom) {
+            return;
+        }
+        setupForEmergencyCalling(TEST_EMERGENCY_NUMBER);
+        setupIncomingCallWithCallScreening();
+
+        final MockConnection connection = verifyConnectionForIncomingCall();
+
+        if (!mInCallCallbacks.lock.tryAcquire(TestUtils.WAIT_FOR_CALL_ADDED_TIMEOUT_S,
+                TimeUnit.SECONDS)) {
+            fail("No call added to InCallService.");
+        }
+
+        Call call = mInCallCallbacks.getService().getLastCall();
+        assertCallState(call, Call.STATE_AUDIO_PROCESSING);
+        assertConnectionState(connection, Connection.STATE_ACTIVE);
+
+        AudioManager audioManager = mContext.getSystemService(AudioManager.class);
+        if (doesAudioManagerSupportCallScreening) {
+            assertEquals(MODE_CALL_SCREENING, audioManager.getMode());
+        }
+
+        verifySimulateRingAndUserPickup(call, connection);
+        // Go back into audio processing for hold case
+        call.enterBackgroundAudioProcessing();
+        assertCallState(call, Call.STATE_AUDIO_PROCESSING);
+        waitOnAllHandlers(getInstrumentation());
+
+        placeAndVerifyEmergencyCall(false /*supportsHold*/);
+        waitOnAllHandlers(getInstrumentation());
+        Call eCall = getInCallService().getLastCall();
+        assertCallState(eCall, Call.STATE_DIALING);
+        // Even though the connection was technically active, it is "simulated ringing", so
+        // disconnect as you would a normal ringing call in favor of an emergency call.
+        assertCallState(call, Call.STATE_DISCONNECTED);
+        assertConnectionState(connection, Connection.STATE_DISCONNECTED);
+        // Notify as incoming, since the user has already answered the call.
+        verifyCallLogging(connection.getAddress(), CallLog.Calls.INCOMING_TYPE);
     }
 
     public void testAudioProcessActiveCall() {
@@ -133,39 +275,29 @@ public class BackgroundCallAudioTest extends BaseTelecomTestWithMockServices {
             return;
         }
 
-        placeAndVerifyCall();
-        final MockConnection connection = verifyConnectionForOutgoingCall();
-
-        final MockInCallService inCallService = mInCallCallbacks.getService();
-
-        connection.setActive();
-        final Call call = inCallService.getLastCall();
-        assertCallState(call, Call.STATE_ACTIVE);
+        Connection connection = placeActiveOutgoingCall();
+        Call call = mInCallCallbacks.getService().getLastCall();
 
         call.enterBackgroundAudioProcessing();
         assertCallState(call, Call.STATE_AUDIO_PROCESSING);
 
         waitOnAllHandlers(getInstrumentation());
         AudioManager audioManager = mContext.getSystemService(AudioManager.class);
-        assertEquals(0 /* TODO: put new mode here */, audioManager.getMode());
+        if (doesAudioManagerSupportCallScreening) {
+            assertEquals(MODE_CALL_SCREENING, audioManager.getMode());
+        }
         assertConnectionState(connection, Connection.STATE_ACTIVE);
 
         verifySimulateRingAndUserPickup(call, connection);
     }
 
-    public void testAudioProcessActiveCallMissed() {
+    public void testAudioProcessActiveCallMissed() throws Exception {
         if (!mShouldTestTelecom) {
             return;
         }
 
-        placeAndVerifyCall();
-        final MockConnection connection = verifyConnectionForOutgoingCall();
-
-        final MockInCallService inCallService = mInCallCallbacks.getService();
-
-        connection.setActive();
-        final Call call = inCallService.getLastCall();
-        assertCallState(call, Call.STATE_ACTIVE);
+        Connection connection = placeActiveOutgoingCall();
+        Call call = mInCallCallbacks.getService().getLastCall();
 
         call.enterBackgroundAudioProcessing();
         assertCallState(call, Call.STATE_AUDIO_PROCESSING);
@@ -173,7 +305,9 @@ public class BackgroundCallAudioTest extends BaseTelecomTestWithMockServices {
 
         waitOnAllHandlers(getInstrumentation());
         AudioManager audioManager = mContext.getSystemService(AudioManager.class);
-        assertEquals(0 /* TODO: put new mode here */, audioManager.getMode());
+        if (doesAudioManagerSupportCallScreening) {
+            assertEquals(MODE_CALL_SCREENING, audioManager.getMode());
+        }
 
         verifySimulateRingAndUserMissed(call, connection);
     }
@@ -183,14 +317,8 @@ public class BackgroundCallAudioTest extends BaseTelecomTestWithMockServices {
             return;
         }
 
-        placeAndVerifyCall();
-        final MockConnection connection = verifyConnectionForOutgoingCall();
-
-        final MockInCallService inCallService = mInCallCallbacks.getService();
-
-        connection.setActive();
-        final Call call = inCallService.getLastCall();
-        assertCallState(call, Call.STATE_ACTIVE);
+        Connection connection = placeActiveOutgoingCall();
+        Call call = mInCallCallbacks.getService().getLastCall();
 
         call.enterBackgroundAudioProcessing();
         assertCallState(call, Call.STATE_AUDIO_PROCESSING);
@@ -198,12 +326,46 @@ public class BackgroundCallAudioTest extends BaseTelecomTestWithMockServices {
 
         waitOnAllHandlers(getInstrumentation());
         AudioManager audioManager = mContext.getSystemService(AudioManager.class);
-        assertEquals(0 /* TODO: put new mode here */, audioManager.getMode());
+        if (doesAudioManagerSupportCallScreening) {
+            assertEquals(MODE_CALL_SCREENING, audioManager.getMode());
+        }
 
         connection.setDisconnected(new DisconnectCause(DisconnectCause.REMOTE));
         assertCallState(call, Call.STATE_DISCONNECTED);
         assertEquals(DisconnectCause.REMOTE, call.getDetails().getDisconnectCause().getCode());
         connection.destroy();
+    }
+
+    public void testAudioProcessOutgoingActiveEmergencyCallPlaced() throws Exception {
+        if (!mShouldTestTelecom) {
+            return;
+        }
+        setupForEmergencyCalling(TEST_EMERGENCY_NUMBER);
+
+        Connection connection = placeActiveOutgoingCall();
+        Call call = mInCallCallbacks.getService().getLastCall();
+
+        call.enterBackgroundAudioProcessing();
+        assertCallState(call, Call.STATE_AUDIO_PROCESSING);
+        assertConnectionState(connection, Connection.STATE_ACTIVE);
+
+        waitOnAllHandlers(getInstrumentation());
+        AudioManager audioManager = mContext.getSystemService(AudioManager.class);
+        if (doesAudioManagerSupportCallScreening) {
+            assertEquals(MODE_CALL_SCREENING, audioManager.getMode());
+        }
+
+        placeAndVerifyEmergencyCall(false /*supportsHold*/);
+        waitOnAllHandlers(getInstrumentation());
+        Call eCall = getInCallService().getLastCall();
+        // emergency call should be dialing
+        assertCallState(eCall, Call.STATE_DIALING);
+        // audio processing call should be disconnected
+        assertConnectionState(connection, Connection.STATE_DISCONNECTED);
+        assertCallState(call, Call.STATE_DISCONNECTED);
+        // If we went to AUDIO_PROCESSING from an active outgoing call, Make sure the call is
+        // marked outgoing, not missed.
+        verifyCallLogging(connection.getAddress(), CallLog.Calls.OUTGOING_TYPE);
     }
 
     public void testManualAudioCallScreenAccept() {
@@ -223,7 +385,9 @@ public class BackgroundCallAudioTest extends BaseTelecomTestWithMockServices {
 
         waitOnAllHandlers(getInstrumentation());
         AudioManager audioManager = mContext.getSystemService(AudioManager.class);
-        assertEquals(0 /* TODO: put new mode here */, audioManager.getMode());
+        if (doesAudioManagerSupportCallScreening) {
+            assertEquals(MODE_CALL_SCREENING, audioManager.getMode());
+        }
 
         call.exitBackgroundAudioProcessing(false);
         assertCallState(call, Call.STATE_ACTIVE);
@@ -248,7 +412,9 @@ public class BackgroundCallAudioTest extends BaseTelecomTestWithMockServices {
 
         waitOnAllHandlers(getInstrumentation());
         AudioManager audioManager = mContext.getSystemService(AudioManager.class);
-        assertEquals(0 /* TODO: put new mode here */, audioManager.getMode());
+        if (doesAudioManagerSupportCallScreening) {
+            assertEquals(MODE_CALL_SCREENING, audioManager.getMode());
+        }
 
         call.disconnect();
         assertCallState(call, Call.STATE_DISCONNECTED);
@@ -282,47 +448,102 @@ public class BackgroundCallAudioTest extends BaseTelecomTestWithMockServices {
         }
     }
 
-    public void testLowerApiLevelCompatibility() throws Exception {
+    public void testLowerApiLevelCompatibility1() throws Exception {
         if (!mShouldTestTelecom) {
             return;
         }
 
-        ICtsApi29InCallServiceControl controlInterface = setUpControl();
+        InstrumentationRegistry.getInstrumentation().getUiAutomation()
+                .adoptShellPermissionIdentity("android.permission.CONTROL_INCALL_EXPERIENCE");
+        try {
+            ICtsApi29InCallServiceControl controlInterface = setUpControl();
 
-        setupIncomingCallWithCallScreening();
+            setupIncomingCallWithCallScreening();
 
-        final MockConnection connection = verifyConnectionForIncomingCall();
+            final MockConnection connection = verifyConnectionForIncomingCall();
 
-        if (!mInCallCallbacks.lock.tryAcquire(TestUtils.WAIT_FOR_CALL_ADDED_TIMEOUT_S,
-                TimeUnit.SECONDS)) {
-            fail("No call added to InCallService.");
+            if (!mInCallCallbacks.lock.tryAcquire(TestUtils.WAIT_FOR_CALL_ADDED_TIMEOUT_S,
+                    TimeUnit.SECONDS)) {
+                fail("No call added to InCallService.");
+            }
+
+            Call call = mInCallCallbacks.getService().getLastCall();
+            assertCallState(call, Call.STATE_AUDIO_PROCESSING);
+            assertConnectionState(connection, Connection.STATE_ACTIVE);
+            // Make sure that the dummy app never got any calls
+            assertEquals(0, controlInterface.getHistoricalCallCount());
+
+            call.exitBackgroundAudioProcessing(true);
+            assertCallState(call, Call.STATE_SIMULATED_RINGING);
+            waitOnAllHandlers(getInstrumentation());
+            assertConnectionState(connection, Connection.STATE_ACTIVE);
+            // Make sure that the dummy app sees a ringing call.
+            assertEquals(Call.STATE_RINGING,
+                    controlInterface.getCallState(call.getDetails().getTelecomCallId()));
+
+            call.answer(VideoProfile.STATE_AUDIO_ONLY);
+            assertCallState(call, Call.STATE_ACTIVE);
+            waitOnAllHandlers(getInstrumentation());
+            assertConnectionState(connection, Connection.STATE_ACTIVE);
+            // Make sure that the dummy app sees an active call.
+            assertEquals(Call.STATE_ACTIVE,
+                    controlInterface.getCallState(call.getDetails().getTelecomCallId()));
+
+            tearDownControl();
+        } finally {
+            InstrumentationRegistry.getInstrumentation().getUiAutomation()
+                    .dropShellPermissionIdentity();
         }
+    }
+
+    public void testLowerApiLevelCompatibility2() throws Exception {
+        if (!mShouldTestTelecom) {
+            return;
+        }
+        InstrumentationRegistry.getInstrumentation().getUiAutomation()
+                .adoptShellPermissionIdentity("android.permission.CONTROL_INCALL_EXPERIENCE");
+        try {
+            ICtsApi29InCallServiceControl controlInterface = setUpControl();
+
+            setupIncomingCallWithCallScreening();
+
+            final MockConnection connection = verifyConnectionForIncomingCall();
+
+            if (!mInCallCallbacks.lock.tryAcquire(TestUtils.WAIT_FOR_CALL_ADDED_TIMEOUT_S,
+                    TimeUnit.SECONDS)) {
+                fail("No call added to InCallService.");
+            }
+
+            Call call = mInCallCallbacks.getService().getLastCall();
+            assertCallState(call, Call.STATE_AUDIO_PROCESSING);
+            assertConnectionState(connection, Connection.STATE_ACTIVE);
+            // Make sure that the dummy app never got any calls
+            assertEquals(0, controlInterface.getHistoricalCallCount());
+
+            call.disconnect();
+            assertCallState(call, Call.STATE_DISCONNECTED);
+            waitOnAllHandlers(getInstrumentation());
+            assertConnectionState(connection, Connection.STATE_DISCONNECTED);
+            // Make sure that the dummy app never saw the call
+            assertEquals(0, controlInterface.getHistoricalCallCount());
+
+            tearDownControl();
+        } finally {
+            InstrumentationRegistry.getInstrumentation().getUiAutomation()
+                    .dropShellPermissionIdentity();
+        }
+    }
+
+    private Connection placeActiveOutgoingCall() {
+        placeAndVerifyCall();
 
         Call call = mInCallCallbacks.getService().getLastCall();
-        assertCallState(call, Call.STATE_AUDIO_PROCESSING);
-        assertConnectionState(connection, Connection.STATE_ACTIVE);
-        // Make sure that the dummy app never got any calls
-        assertEquals(0, controlInterface.getHistoricalCallCount());
+        assertCallState(call, Call.STATE_DIALING);
 
-        call.exitBackgroundAudioProcessing(true);
-        assertCallState(call, Call.STATE_SIMULATED_RINGING);
-        waitOnAllHandlers(getInstrumentation());
-        assertConnectionState(connection, Connection.STATE_ACTIVE);
-        // Make sure that the dummy app sees a ringing call.
-        assertEquals(Call.STATE_RINGING,
-                controlInterface.getCallState(call.getDetails().getTelecomCallId()));
-
-        call.answer(VideoProfile.STATE_AUDIO_ONLY);
+        final MockConnection connection = verifyConnectionForOutgoingCall();
+        connection.setActive();
         assertCallState(call, Call.STATE_ACTIVE);
-        waitOnAllHandlers(getInstrumentation());
-        assertConnectionState(connection, Connection.STATE_ACTIVE);
-        // Make sure that the dummy app sees an active call.
-        assertEquals(Call.STATE_ACTIVE,
-                controlInterface.getCallState(call.getDetails().getTelecomCallId()));
-
-        TestUtils.executeShellCommand(getInstrumentation(),
-                "telecom add-or-remove-call-companion-app " + CtsApi29InCallService.PACKAGE_NAME
-                        + " 0");
+        return connection;
     }
 
     private void verifySimulateRingAndUserPickup(Call call, Connection connection) {
@@ -362,11 +583,12 @@ public class BackgroundCallAudioTest extends BaseTelecomTestWithMockServices {
             public void onScreenCall(Details callDetails) {
                 getService().respondToCall(callDetails, new CallResponse.Builder()
                         .setDisallowCall(false)
-                        .setShouldScreenCallFurther(true)
+                        .setShouldScreenCallViaAudioProcessing(true)
                         .build());
                 lock.release();
             }
         };
+        MockCallScreeningService.enableService(mContext);
         MockCallScreeningService.setCallbacks(callback);
         Bundle extras = new Bundle();
         extras.putParcelable(TelecomManager.EXTRA_INCOMING_CALL_ADDRESS, createTestNumber());
@@ -393,7 +615,7 @@ public class BackgroundCallAudioTest extends BaseTelecomTestWithMockServices {
         bindIntent.setComponent(controlComponentName);
         LinkedBlockingQueue<ICtsApi29InCallServiceControl> result = new LinkedBlockingQueue<>(1);
 
-        boolean success = mContext.bindService(bindIntent, new ServiceConnection() {
+        mApiCompatControlServiceConnection = new ServiceConnection() {
             @Override
             public void onServiceConnected(ComponentName name, IBinder service) {
                 Log.i(LOG_TAG, "Service Connected: " + name);
@@ -403,10 +625,22 @@ public class BackgroundCallAudioTest extends BaseTelecomTestWithMockServices {
             @Override
             public void onServiceDisconnected(ComponentName name) {
             }
-        }, Context.BIND_AUTO_CREATE);
+        };
+
+        boolean success = mContext.bindService(bindIntent,
+                mApiCompatControlServiceConnection, Context.BIND_AUTO_CREATE);
+
         if (!success) {
             fail("Failed to get control interface -- bind error");
         }
         return result.poll(TestUtils.WAIT_FOR_STATE_CHANGE_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+    }
+
+    private void tearDownControl() throws Exception {
+        mContext.unbindService(mApiCompatControlServiceConnection);
+
+        TestUtils.executeShellCommand(getInstrumentation(),
+                "telecom add-or-remove-call-companion-app " + CtsApi29InCallService.PACKAGE_NAME
+                        + " 0");
     }
 }

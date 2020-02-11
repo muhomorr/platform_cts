@@ -784,7 +784,10 @@ class StaticInfo {
                 break;
         }
 
-        ACameraMetadata_getConstEntry(mChars, streamConfigTag, &entry);
+        auto ret = ACameraMetadata_getConstEntry(mChars, streamConfigTag, &entry);
+        if (ret != ACAMERA_OK) {
+            return false;
+        }
         for (uint32_t i = 0; i < entry.count; i += 4) {
             if (entry.data.i32[i] == format &&
                     entry.data.i32[i+3] == streamConfigOutputTag &&
@@ -3164,7 +3167,7 @@ bool nativeImageReaderTestBase(
         }
         StaticInfo staticInfo(chars);
 
-        usleep(100000); // sleep to give some time for callbacks to happen
+        usleep(200000); // sleep to give some time for callbacks to happen
 
         if (testCase.isCameraAvailable(cameraId)) {
             LOG_ERROR(errorString, "Camera %s should be unavailable now", cameraId);
@@ -3259,7 +3262,7 @@ bool nativeImageReaderTestBase(
         }
 
         // wait until last sequence complete
-        resultListener.getCaptureSequenceLastFrameNumber(lastSeqId, /*timeoutSec*/ 3);
+        resultListener.getCaptureSequenceLastFrameNumber(lastSeqId, /*timeoutSec*/ 5);
 
         std::vector<ACaptureRequest*> completedRequests;
         resultListener.getCompletedRequests(&completedRequests);
@@ -3330,7 +3333,7 @@ bool nativeImageReaderTestBase(
             goto cleanup;
         }
 
-        usleep(100000); // sleep to give some time for callbacks to happen
+        usleep(200000); // sleep to give some time for callbacks to happen
 
         if (!testCase.isCameraAvailable(cameraId)) {
             LOG_ERROR(errorString, "Camera %s should be available now", cameraId);

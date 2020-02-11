@@ -47,7 +47,8 @@ LOCAL_STATIC_JAVA_LIBRARIES := android-ex-camera2 \
                                compatibility-device-util-axt \
                                platform-test-annotations \
                                cts-security-test-support-library \
-                               cts-midi-lib
+                               cts-midi-lib \
+                               cbor-java
 
 LOCAL_STATIC_ANDROID_LIBRARIES := \
     androidx.legacy_legacy-support-v4
@@ -57,6 +58,7 @@ LOCAL_JAVA_LIBRARIES += android.test.runner.stubs
 LOCAL_JAVA_LIBRARIES += android.test.base.stubs
 LOCAL_JAVA_LIBRARIES += android.test.mock.stubs
 LOCAL_JAVA_LIBRARIES += voip-common
+LOCAL_JAVA_LIBRARIES += truth-prebuilt
 
 LOCAL_PACKAGE_NAME := CtsVerifier
 LOCAL_PRIVATE_PLATFORM_APIS := true

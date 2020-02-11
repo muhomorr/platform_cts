@@ -16,8 +16,10 @@
 
 package android.net.cts;
 
+import static android.content.pm.PackageManager.FEATURE_ETHERNET;
 import static android.content.pm.PackageManager.FEATURE_TELEPHONY;
 import static android.content.pm.PackageManager.FEATURE_WIFI;
+import static android.content.pm.PackageManager.FEATURE_USB_HOST;
 import static android.net.NetworkCapabilities.NET_CAPABILITY_IMS;
 import static android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET;
 import static android.net.NetworkCapabilities.NET_CAPABILITY_NOT_METERED;
@@ -111,9 +113,7 @@ public class ConnectivityManagerTest extends AndroidTestCase {
     public static final int TYPE_WIFI = ConnectivityManager.TYPE_WIFI;
 
     private static final int HOST_ADDRESS = 0x7f000001;// represent ip 127.0.0.1
-    private static final int CONNECT_TIMEOUT_MS = 2000;
     private static final int KEEPALIVE_CALLBACK_TIMEOUT_MS = 2000;
-    private static final int KEEPALIVE_SOCKET_TIMEOUT_MS = 5000;
     private static final int INTERVAL_KEEPALIVE_RETRY_MS = 500;
     private static final int MAX_KEEPALIVE_RETRY_COUNT = 3;
     private static final int MIN_KEEPALIVE_INTERVAL = 10;
@@ -259,7 +259,7 @@ public class ConnectivityManagerTest extends AndroidTestCase {
 
     public void testGetNetworkInfo() {
         for (int type = -1; type <= ConnectivityManager.MAX_NETWORK_TYPE+1; type++) {
-            if (isSupported(type)) {
+            if (shouldBeSupported(type)) {
                 NetworkInfo ni = mCm.getNetworkInfo(type);
                 assertTrue("Info shouldn't be null for " + type, ni != null);
                 State state = ni.getState();
@@ -279,7 +279,7 @@ public class ConnectivityManagerTest extends AndroidTestCase {
         NetworkInfo[] ni = mCm.getAllNetworkInfo();
         assertTrue(ni.length >= MIN_NUM_NETWORK_TYPES);
         for (int type = 0; type <= ConnectivityManager.MAX_NETWORK_TYPE; type++) {
-            int desiredFoundCount = (isSupported(type) ? 1 : 0);
+            int desiredFoundCount = (shouldBeSupported(type) ? 1 : 0);
             int foundCount = 0;
             for (NetworkInfo i : ni) {
                 if (i.getType() == type) foundCount++;
@@ -387,20 +387,32 @@ public class ConnectivityManagerTest extends AndroidTestCase {
         assertStartUsingNetworkFeatureUnsupported(TYPE_WIFI, mmsFeature);
     }
 
-    private boolean isSupported(int networkType) {
+    private boolean shouldEthernetBeSupported() {
+        // Instant mode apps aren't allowed to query the Ethernet service due to selinux policies.
+        // When in instant mode, don't fail if the Ethernet service is available. Instead, rely on
+        // the fact that Ethernet should be supported if the device has a hardware Ethernet port, or
+        // if the device can be a USB host and thus can use USB Ethernet adapters.
+        //
+        // Note that this test this will still fail in instant mode if a device supports Ethernet
+        // via other hardware means. We are not currently aware of any such device.
+        return (mContext.getSystemService(Context.ETHERNET_SERVICE) != null) ||
+            mPackageManager.hasSystemFeature(FEATURE_ETHERNET) ||
+            mPackageManager.hasSystemFeature(FEATURE_USB_HOST);
+    }
+
+    private boolean shouldBeSupported(int networkType) {
         return mNetworks.containsKey(networkType) ||
                (networkType == ConnectivityManager.TYPE_VPN) ||
-               (networkType == ConnectivityManager.TYPE_ETHERNET &&
-                       mContext.getSystemService(Context.ETHERNET_SERVICE) != null);
+               (networkType == ConnectivityManager.TYPE_ETHERNET && shouldEthernetBeSupported());
     }
 
     public void testIsNetworkSupported() {
         for (int type = -1; type <= ConnectivityManager.MAX_NETWORK_TYPE; type++) {
             boolean supported = mCm.isNetworkSupported(type);
-            if (isSupported(type)) {
-                assertTrue(supported);
+            if (shouldBeSupported(type)) {
+                assertTrue("Network type " + type + " should be supported", supported);
             } else {
-                assertFalse(supported);
+                assertFalse("Network type " + type + " should not be supported", supported);
             }
         }
     }
@@ -834,15 +846,14 @@ public class ConnectivityManagerTest extends AndroidTestCase {
     }
 
     private Socket getConnectedSocket(final Network network, final String host, final int port,
-            final int socketTimeOut, final int family) throws Exception {
+            final int family) throws Exception {
         final Socket s = network.getSocketFactory().createSocket();
         try {
             final InetAddress addr = getAddrByName(host, family);
             if (addr == null) fail("Fail to get destination address for " + family);
 
             final InetSocketAddress sockAddr = new InetSocketAddress(addr, port);
-            s.setSoTimeout(socketTimeOut);
-            s.connect(sockAddr, CONNECT_TIMEOUT_MS);
+            s.connect(sockAddr);
         } catch (Exception e) {
             s.close();
             throw e;
@@ -967,8 +978,7 @@ public class ConnectivityManagerTest extends AndroidTestCase {
         final byte[] requestBytes = CtsNetUtils.HTTP_REQUEST.getBytes("UTF-8");
         // So far only ipv4 tcp keepalive offload is supported.
         // TODO: add test case for ipv6 tcp keepalive offload when it is supported.
-        try (Socket s = getConnectedSocket(network, TEST_HOST, HTTP_PORT,
-                KEEPALIVE_SOCKET_TIMEOUT_MS, AF_INET)) {
+        try (Socket s = getConnectedSocket(network, TEST_HOST, HTTP_PORT, AF_INET)) {
 
             // Should able to start keep alive offload when socket is idle.
             final Executor executor = mContext.getMainExecutor();
@@ -1102,7 +1112,7 @@ public class ConnectivityManagerTest extends AndroidTestCase {
             // sockets will be duplicated and kept valid in service side if the keepalives are
             // successfully started.
             try (Socket tcpSocket = getConnectedSocket(network, TEST_HOST, HTTP_PORT,
-                    0 /* Unused */, AF_INET)) {
+                    AF_INET)) {
                 return mCm.createSocketKeepalive(network, tcpSocket, executor, callback);
             } catch (Exception e) {
                 fail("Unexpected error when creating TCP socket: " + e);

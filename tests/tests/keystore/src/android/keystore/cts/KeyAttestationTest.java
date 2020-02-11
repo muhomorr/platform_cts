@@ -64,12 +64,14 @@ import android.security.keystore.KeyGenParameterSpec;
 import android.security.keystore.KeyProperties;
 import android.test.AndroidTestCase;
 import android.util.ArraySet;
+import android.util.Log;
 
 import com.google.common.collect.ImmutableSet;
 
 import org.bouncycastle.asn1.x500.X500Name;
 import org.bouncycastle.cert.jcajce.JcaX509CertificateHolder;
 
+import java.lang.Math;
 import java.security.GeneralSecurityException;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
@@ -97,6 +99,8 @@ import javax.crypto.KeyGenerator;
  * Tests for Android KeysStore attestation.
  */
 public class KeyAttestationTest extends AndroidTestCase {
+
+    private static final String TAG = AndroidKeyStoreTest.class.getSimpleName();
 
     private static final int ORIGINATION_TIME_OFFSET = 1000000;
     private static final int CONSUMPTION_TIME_OFFSET = 2000000;
@@ -879,11 +883,90 @@ public class KeyAttestationTest extends AndroidTestCase {
         RootOfTrust rootOfTrust = attestation.getTeeEnforced().getRootOfTrust();
         assertNotNull(rootOfTrust);
         assertNotNull(rootOfTrust.getVerifiedBootKey());
-        assertTrue(rootOfTrust.getVerifiedBootKey().length >= 32);
+        assertTrue("Verified boot key is only " + rootOfTrust.getVerifiedBootKey().length +
+                   " bytes long", rootOfTrust.getVerifiedBootKey().length >= 32);
         if (requireLocked) {
             assertTrue(rootOfTrust.isDeviceLocked());
+            checkEntropy(rootOfTrust.getVerifiedBootKey());
             assertEquals(KM_VERIFIED_BOOT_VERIFIED, rootOfTrust.getVerifiedBootState());
         }
+    }
+
+    private void checkEntropy(byte[] verifiedBootKey) {
+        assertTrue("Failed Shannon entropy check", checkShannonEntropy(verifiedBootKey));
+        assertTrue("Failed BiEntropy check", checkTresBiEntropy(verifiedBootKey));
+    }
+
+    private boolean checkShannonEntropy(byte[] verifiedBootKey) {
+        double probabilityOfSetBit = countSetBits(verifiedBootKey) / (double)(verifiedBootKey.length * 8);
+        return calculateShannonEntropy(probabilityOfSetBit) > 0.8;
+    }
+
+    private double calculateShannonEntropy(double probabilityOfSetBit) {
+        if (probabilityOfSetBit <= 0.001 || probabilityOfSetBit >= .999) return 0;
+        double entropy = (-probabilityOfSetBit * logTwo(probabilityOfSetBit)) -
+                            ((1 - probabilityOfSetBit) * logTwo(1 - probabilityOfSetBit));
+        Log.i(TAG, "Shannon entropy of VB Key: " + entropy);
+        return entropy;
+    }
+
+    private boolean checkTresBiEntropy(byte[] verifiedBootKey) {
+        double weightingFactor = 0;
+        double weightedEntropy = 0;
+        double probabilityOfSetBit = 0;
+        int length = verifiedBootKey.length * 8;
+        for(int i = 0; i < (verifiedBootKey.length * 8) - 2; i++) {
+            probabilityOfSetBit = countSetBits(verifiedBootKey) / (double)length;
+            weightingFactor += logTwo(i+2);
+            weightedEntropy += calculateShannonEntropy(probabilityOfSetBit) * logTwo(i+2);
+            deriveBitString(verifiedBootKey, length);
+            length -= 1;
+        }
+        double tresBiEntropy = (1 / weightingFactor) * weightedEntropy;
+        Log.i(TAG, "BiEntropy of VB Key: " + tresBiEntropy);
+        return tresBiEntropy > 0.9;
+    }
+
+    private void deriveBitString(byte[] bitString, int activeLength) {
+        int length = activeLength / 8;
+        if (activeLength % 8 != 0) {
+            length += 1;
+        }
+
+        byte mask = (byte)((byte)0x80 >>> ((activeLength + 6) % 8));
+        if (activeLength % 8 == 1) {
+            mask = (byte)~mask;
+        }
+
+        for(int i = 0; i < length; i++) {
+            if (i == length - 1) {
+                bitString[i] ^= ((bitString[i] & 0xFF) << 1);
+                bitString[i] &= mask;
+            } else {
+                bitString[i] ^= ((bitString[i] & 0xFF) << 1) | ((bitString[i+1] & 0xFF) >>> 7);
+            }
+        }
+    }
+
+    private double logTwo(double value) {
+        return Math.log(value) / Math.log(2);
+    }
+
+    private int countSetBits(byte[] toCount) {
+        int setBitCount = 0;
+        for(int i = 0; i < toCount.length; i++) {
+            setBitCount += countSetBits(toCount[i]);
+        }
+        return setBitCount;
+    }
+
+    private int countSetBits(byte toCount) {
+        int setBitCounter = 0;
+        while(toCount != 0) {
+            toCount &= (toCount - 1);
+            setBitCounter++;
+        }
+        return setBitCounter;
     }
 
     private void checkRsaKeyDetails(Attestation attestation, int keySize, int purposes,

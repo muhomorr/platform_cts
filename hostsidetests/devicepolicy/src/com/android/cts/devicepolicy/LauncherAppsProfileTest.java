@@ -31,8 +31,8 @@ public class LauncherAppsProfileTest extends BaseLauncherAppsTest {
     private static final String MANAGED_PROFILE_APK = "CtsManagedProfileApp.apk";
     private static final String ADMIN_RECEIVER_TEST_CLASS =
             MANAGED_PROFILE_PKG + ".BaseManagedProfileTest$BasicAdminReceiver";
-    private static final String LAUNCHER_TESTS_NO_LAUNCHABLE_ACTIVITY_APK =
-            "CtsNoLaunchableActivityApp.apk";
+    private static final String LAUNCHER_TESTS_HAS_LAUNCHER_ACTIVITY_APK =
+            "CtsHasLauncherActivityApp.apk";
 
     private int mProfileUserId;
     private int mParentUserId;
@@ -53,11 +53,10 @@ public class LauncherAppsProfileTest extends BaseLauncherAppsTest {
                     mProfileUserId);
             mProfileSerialNumber = Integer.toString(getUserSerialNumber(mProfileUserId));
             mMainUserSerialNumber = Integer.toString(getUserSerialNumber(mParentUserId));
-            startUser(mProfileUserId);
+            startUserAndWait(mProfileUserId);
 
             // Install test APK on primary user and the managed profile.
-            installTestApps(mPrimaryUserId);
-            installTestApps(mProfileUserId);
+            installTestApps(USER_ALL);
         }
     }
 
@@ -66,7 +65,7 @@ public class LauncherAppsProfileTest extends BaseLauncherAppsTest {
         if (mHasFeature) {
             removeUser(mProfileUserId);
             uninstallTestApps();
-            getDevice().uninstallPackage(LAUNCHER_TESTS_NO_LAUNCHABLE_ACTIVITY_APK);
+            getDevice().uninstallPackage(LAUNCHER_TESTS_HAS_LAUNCHER_ACTIVITY_APK);
         }
         super.tearDown();
     }
@@ -123,15 +122,15 @@ public class LauncherAppsProfileTest extends BaseLauncherAppsTest {
             return;
         }
         // Install app for all users.
-        installAppAsUser(LAUNCHER_TESTS_NO_LAUNCHABLE_ACTIVITY_APK, mParentUserId);
-        installAppAsUser(LAUNCHER_TESTS_NO_LAUNCHABLE_ACTIVITY_APK, mProfileUserId);
+        installAppAsUser(LAUNCHER_TESTS_HAS_LAUNCHER_ACTIVITY_APK, mParentUserId);
+        installAppAsUser(LAUNCHER_TESTS_HAS_LAUNCHER_ACTIVITY_APK, mProfileUserId);
 
         // Run tests to check SimpleApp exists in both profile and main user.
         runDeviceTestsAsUser(LAUNCHER_TESTS_PKG,
                 LAUNCHER_TESTS_CLASS, "testDoPoNoTestAppInjectedActivityFound",
                 mParentUserId, Collections.singletonMap(PARAM_TEST_USER, mProfileSerialNumber));
         runDeviceTestsAsUser(LAUNCHER_TESTS_PKG,
-                LAUNCHER_TESTS_CLASS, "testNoLaunchableActivityAppHasAppDetailsActivityInjected",
+                LAUNCHER_TESTS_CLASS, "testHasLauncherActivityAppHasAppDetailsActivityInjected",
                 mParentUserId, Collections.singletonMap(PARAM_TEST_USER, mMainUserSerialNumber));
     }
 
@@ -166,7 +165,8 @@ public class LauncherAppsProfileTest extends BaseLauncherAppsTest {
         }
         installAppAsUser(SIMPLE_APP_APK, mProfileUserId);
         startCallbackService(mPrimaryUserId);
-        installAppAsUser(SIMPLE_APP_APK, mProfileUserId);
+        installAppAsUser(SIMPLE_APP_APK, /* grantPermissions */ true, /* dontKillApp */ true,
+                mProfileUserId);
         runDeviceTestsAsUser(LAUNCHER_TESTS_PKG,
                 LAUNCHER_TESTS_CLASS,
                 "testPackageChangedCallbackForUser",

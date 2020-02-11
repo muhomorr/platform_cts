@@ -31,7 +31,6 @@ import android.telecom.PhoneAccountHandle;
 import android.telecom.StatusHints;
 import android.telecom.TelecomManager;
 import android.telecom.VideoProfile;
-import android.util.Log;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -152,6 +151,8 @@ public class ConferenceTest extends BaseTelecomTestWithMockServices {
         conf.mergeConference();
         assertCallDisplayName(mCall1, TestUtils.MERGE_CALLER_NAME);
         assertCallDisplayName(mCall2, TestUtils.MERGE_CALLER_NAME);
+        Call activeChild = conf.getGenericConferenceActiveChildCall();
+        assertNotNull(activeChild);
         assertConnectionCallDisplayName(mConferenceObject.getConnections().get(0),
                 TestUtils.MERGE_CALLER_NAME);
         assertConnectionCallDisplayName(mConferenceObject.getConnections().get(1),
@@ -160,6 +161,8 @@ public class ConferenceTest extends BaseTelecomTestWithMockServices {
         conf.swapConference();
         assertCallDisplayName(mCall1, TestUtils.SWAP_CALLER_NAME);
         assertCallDisplayName(mCall2, TestUtils.SWAP_CALLER_NAME);
+        Call activeChildAfterSwap = conf.getGenericConferenceActiveChildCall();
+        assertNotSame(activeChild, activeChildAfterSwap);
         assertConnectionCallDisplayName(mConferenceObject.getConnections().get(0),
                 TestUtils.SWAP_CALLER_NAME);
         assertConnectionCallDisplayName(mConferenceObject.getConnections().get(1),
@@ -408,6 +411,21 @@ public class ConferenceTest extends BaseTelecomTestWithMockServices {
         assertDtmfString((MockConference)mConferenceObject, "1.3");
         conf.stopDtmfTone();
         assertDtmfString((MockConference)mConferenceObject, "1.3.");
+    }
+
+    public void testConferenceEvent() {
+        if (!mShouldTestTelecom) {
+            return;
+        }
+        final Call conf = mInCallService.getLastConferenceCall();
+        assertCallState(conf, Call.STATE_ACTIVE);
+
+        mConferenceObject.sendConferenceEvent("TEST", null);
+        mOnConnectionEventCounter.waitForCount(1, WAIT_FOR_STATE_CHANGE_TIMEOUT_MS);
+        String event = (String) (mOnConnectionEventCounter.getArgs(0)[1]);
+        Bundle extras = (Bundle) (mOnConnectionEventCounter.getArgs(0)[2]);
+        assertEquals("TEST", event);
+        assertNull(extras);
     }
 
     private void verifyConferenceObject(Conference mConferenceObject, MockConnection connection1,

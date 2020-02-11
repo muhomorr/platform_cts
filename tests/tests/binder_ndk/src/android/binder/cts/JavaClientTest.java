@@ -49,6 +49,9 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
+import java.util.ArrayList;
+import java.util.function.BiPredicate;
 
 @RunWith(Parameterized.class)
 public class JavaClientTest {
@@ -174,6 +177,9 @@ public class JavaClientTest {
     private static class Empty extends IEmpty.Stub {
         @Override
         public int getInterfaceVersion() { return Empty.VERSION; }
+
+        @Override
+        public String getInterfaceHash() { return Empty.HASH; }
     }
 
     @Test
@@ -211,17 +217,7 @@ public class JavaClientTest {
         socketIn.checkError();
         repeatFd.checkError();
 
-        FileOutputStream repeatFdStream = new ParcelFileDescriptor.AutoCloseOutputStream(repeatFd);
-        String testData = "asdf";
-        byte[] output = testData.getBytes();
-        repeatFdStream.write(output);
-        repeatFdStream.close();
-
-        FileInputStream fileInputStream = new ParcelFileDescriptor.AutoCloseInputStream(socketOut);
-        byte[] input = new byte[output.length];
-
-        assertEquals(input.length, fileInputStream.read(input));
-        Assert.assertArrayEquals(input, output);
+        checkInOutSockets(repeatFd, socketOut);
     }
 
     @Test
@@ -233,6 +229,32 @@ public class JavaClientTest {
     public void testRepeatNullableFd() throws RemoteException, IOException {
         checkFdRepeated((fd) -> mInterface.RepeatNullableFd(fd));
         assertEquals(null, mInterface.RepeatNullableFd(null));
+    }
+
+    private void checkInOutSockets(ParcelFileDescriptor in, ParcelFileDescriptor out) throws IOException {
+        FileOutputStream repeatFdStream = new ParcelFileDescriptor.AutoCloseOutputStream(in);
+        String testData = "asdf";
+        byte[] output = testData.getBytes();
+        repeatFdStream.write(output);
+        repeatFdStream.close();
+
+        FileInputStream fileInputStream = new ParcelFileDescriptor.AutoCloseInputStream(out);
+        byte[] input = new byte[output.length];
+
+        assertEquals(input.length, fileInputStream.read(input));
+        Assert.assertArrayEquals(input, output);
+    }
+
+    @Test
+    public void testRepeatFdArray() throws RemoteException, IOException {
+        ParcelFileDescriptor[] sockets1 = ParcelFileDescriptor.createReliableSocketPair();
+        ParcelFileDescriptor[] sockets2 = ParcelFileDescriptor.createReliableSocketPair();
+        ParcelFileDescriptor[] inputs = {sockets1[0], sockets2[0]};
+        ParcelFileDescriptor[] repeatFdArray = new ParcelFileDescriptor[inputs.length];
+        mInterface.RepeatFdArray(inputs, repeatFdArray);
+
+        checkInOutSockets(repeatFdArray[0], sockets1[1]);
+        checkInOutSockets(repeatFdArray[1], sockets2[1]);
     }
 
     @Test
@@ -270,6 +292,36 @@ public class JavaClientTest {
         polygon.sideLength = 1.0f;
 
         RegularPolygon result = mInterface.RepeatPolygon(polygon);
+
+        assertPolygonEquals(polygon, result);
+    }
+
+    @Test
+    public void testRepeatUnexpectedNullPolygon() throws RemoteException {
+        try {
+           RegularPolygon result = mInterface.RepeatPolygon(null);
+        } catch (NullPointerException e) {
+           // non-@nullable C++ result can't handle null Polygon
+           return;
+        }
+        // Java always works w/ nullptr
+        assertEquals("JAVA", mExpectedName);
+    }
+
+    @Test
+    public void testRepeatNullNullablePolygon() throws RemoteException {
+        RegularPolygon result = mInterface.RepeatNullablePolygon(null);
+        assertEquals(null, result);
+    }
+
+    @Test
+    public void testRepeatPresentNullablePolygon() throws RemoteException {
+        RegularPolygon polygon = new RegularPolygon();
+        polygon.name = "septagon";
+        polygon.numSides = 7;
+        polygon.sideLength = 9.0f;
+
+        RegularPolygon result = mInterface.RepeatNullablePolygon(polygon);
 
         assertPolygonEquals(polygon, result);
     }
@@ -392,6 +444,41 @@ public class JavaClientTest {
 
             assertPolygonEquals(value, out1);
             assertPolygonEquals(value, out2);
+        }
+    }
+
+    @Test
+    public void testLists() throws RemoteException {
+        {
+            List<String> value = Arrays.asList("", "aoeu", "lol", "brb");
+            List<String> out1 = new ArrayList<>();
+            List<String> out2 = mInterface.Repeat2StringList(value, out1);
+
+            List<String> expected = new ArrayList<>();
+            expected.addAll(value);
+            expected.addAll(value);
+            String[] expectedArray = expected.toArray(new String[0]);
+
+            Assert.assertArrayEquals(expectedArray, out1.toArray(new String[0]));
+            Assert.assertArrayEquals(expectedArray, out2.toArray(new String[0]));
+        }
+        {
+            RegularPolygon septagon = new RegularPolygon();
+            septagon.name = "septagon";
+            septagon.numSides = 7;
+            septagon.sideLength = 1.0f;
+
+            List<RegularPolygon> value = Arrays.asList(septagon, new RegularPolygon(), new RegularPolygon());
+            List<RegularPolygon> out1 = new ArrayList<>();
+            List<RegularPolygon> out2 = mInterface.Repeat2RegularPolygonList(value, out1);
+
+            List<RegularPolygon> expected = new ArrayList<>();
+            expected.addAll(value);
+            expected.addAll(value);
+            RegularPolygon[] expectedArray = expected.toArray(new RegularPolygon[0]);
+
+            assertPolygonEquals(expectedArray, out1.toArray(new RegularPolygon[0]));
+            assertPolygonEquals(expectedArray, out1.toArray(new RegularPolygon[0]));
         }
     }
 

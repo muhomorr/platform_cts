@@ -32,6 +32,9 @@ aidl_interface {
         java: {
             sdk_version: "28",
         },
+        cpp: {
+            enabled: false,
+        }
     },
 }
 
@@ -65,7 +68,7 @@ cc_test_library {
     ],
     // Using the up-to-date version of the interface
     shared_libs: [
-        "libbinder_ndk_test_interface-ndk",
+        "libbinder_ndk_test_interface-unstable-ndk",
         "libbinder_ndk_test_utilities",
     ],
 }
@@ -94,10 +97,11 @@ cc_test_library {
         "test_ibinder_jni.cpp",
         "test_native_aidl_client.cpp",
         "test_parcel.cpp",
+        "test_parcel_jni.cpp",
         "test_status.cpp",
     ],
     shared_libs: [
-        "libbinder_ndk_test_interface-ndk",
+        "libbinder_ndk_test_interface-unstable-ndk",
         "libbinder_ndk_test_utilities",
     ],
 }

@@ -28,11 +28,11 @@ LOCAL_MODULE_STEM_64 := $(LOCAL_MODULE)64
 LOCAL_WHOLE_STATIC_LIBRARIES := CtsNNAPITests_static
 
 LOCAL_SHARED_LIBRARIES := libandroid liblog libneuralnetworks
-LOCAL_STATIC_LIBRARIES := libgtest_ndk_c++ libgtest_main_ndk_c++
+LOCAL_STATIC_LIBRARIES := libbase_ndk libgtest_ndk_c++
 LOCAL_CTS_TEST_PACKAGE := android.neuralnetworks
 
 # Tag this module as a cts test artifact
-LOCAL_COMPATIBILITY_SUITE := cts vts general-tests
+LOCAL_COMPATIBILITY_SUITE := cts vts mts general-tests
 
 LOCAL_SDK_VERSION := current
 LOCAL_NDK_STL_VARIANT := c++_static

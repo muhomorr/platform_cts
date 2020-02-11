@@ -18,8 +18,13 @@
     <option name="config-descriptor:metadata" key="component" value="security" />
     <option name="config-descriptor:metadata" key="parameter" value="not_instant_app" />
     <option name="config-descriptor:metadata" key="parameter" value="multi_abi" />
+    <option name="config-descriptor:metadata" key="parameter" value="secondary_user" />
     <target_preparer class="com.android.compatibility.common.tradefed.targetprep.FilePusher">
         <option name="cleanup" value="true" />
+        <!--__________________-->
+        <!--    Utilities     -->
+        <option name="push" value="pacrunner->/data/local/tmp/pacrunner" />
+
         <option name="push" value="CVE-2016-8460->/data/local/tmp/CVE-2016-8460" />
         <option name="push" value="CVE-2016-8482->/data/local/tmp/CVE-2016-8482" />
         <option name="push" value="CVE-2016-6730->/data/local/tmp/CVE-2016-6730" />
@@ -39,6 +44,12 @@
         <option name="push" value="CVE-2016-8432->/data/local/tmp/CVE-2016-8432" />
         <option name="push" value="CVE-2016-8434->/data/local/tmp/CVE-2016-8434" />
 
+        <!--__________________-->
+        <!-- Bulletin 2016-02 -->
+        <!-- Please add tests solely from this bulletin below to avoid merge conflict -->
+        <option name="push" value="CVE-2016-0811->/data/local/tmp/CVE-2016-0811" />
+
+        <!--__________________-->
         <!-- Bulletin 2016-04 -->
         <!-- Please add tests solely from this bulletin below to avoid merge conflict -->
         <option name="push" value="CVE-2016-2412->/data/local/tmp/CVE-2016-2412" />
@@ -183,11 +194,7 @@
         <!-- Bulletin 2019-03 -->
         <!-- Please add tests solely from this bulletin below to avoid merge conflict -->
         <option name="push" value="Bug-115739809->/data/local/tmp/Bug-115739809" />
-
-        <!--__________________-->
-        <!-- Bulletin 2019-05 -->
-        <!-- Please add tests solely from this bulletin below to avoid merge conflict -->
-        <option name="push" value="CVE-2019-2054->/data/local/tmp/CVE-2019-2054" />
+        <option name="push" value="CVE-2019-2025->/data/local/tmp/CVE-2019-2025" />
 
         <option name="append-bitness" value="true" />
     </target_preparer>
@@ -200,6 +207,7 @@
     <target_preparer class="com.android.tradefed.targetprep.suite.SuiteApkInstaller">
         <option name="cleanup-apks" value="true" />
         <option name="test-file-name" value="OomCatcher.apk" />
+        <option name="test-file-name" value="MainlineModuleDetector.apk" />
     </target_preparer>
 
     <test class="com.android.compatibility.common.tradefed.testtype.JarHostTest" >

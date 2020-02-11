@@ -28,8 +28,6 @@ import static androidx.test.InstrumentationRegistry.getContext;
 import static androidx.test.InstrumentationRegistry.getInstrumentation;
 
 import static com.android.compatibility.common.util.AppOpsUtils.setOpMode;
-import static com.android.internal.telephony.TelephonyIntents.EXTRA_SPN;
-import static com.android.internal.telephony.TelephonyIntents.SPN_STRINGS_UPDATED_ACTION;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -37,11 +35,9 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
+
 import android.app.UiAutomation;
-import android.content.BroadcastReceiver;
 import android.content.Context;
-import android.content.Intent;
-import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.net.ConnectivityManager;
 import android.os.Looper;
@@ -49,8 +45,10 @@ import android.os.PersistableBundle;
 import android.platform.test.annotations.SecurityTest;
 import android.telephony.CarrierConfigManager;
 import android.telephony.SubscriptionManager;
+import android.telephony.SubscriptionManager.OnSubscriptionsChangedListener;
 import android.telephony.TelephonyManager;
 
+import com.android.compatibility.common.util.ShellIdentityUtils;
 import com.android.compatibility.common.util.TestThread;
 
 import org.junit.After;
@@ -58,15 +56,18 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 public class CarrierConfigManagerTest {
 
     private static final String CARRIER_NAME_OVERRIDE = "carrier_a";
     private CarrierConfigManager mConfigManager;
     private TelephonyManager mTelephonyManager;
+    private SubscriptionManager mSubscriptionManager;
     private PackageManager mPackageManager;
     private static final int TOLERANCE = 2000;
-    private final Object mLock = new Object();
+    private static final CountDownLatch COUNT_DOWN_LATCH = new CountDownLatch(1);
 
     @Before
     public void setUp() throws Exception {
@@ -74,13 +75,16 @@ public class CarrierConfigManagerTest {
                 getContext().getSystemService(Context.TELEPHONY_SERVICE);
         mConfigManager = (CarrierConfigManager)
                 getContext().getSystemService(Context.CARRIER_CONFIG_SERVICE);
+        mSubscriptionManager =
+                (SubscriptionManager)
+                        getContext().getSystemService(Context.TELEPHONY_SUBSCRIPTION_SERVICE);
         mPackageManager = getContext().getPackageManager();
     }
 
     @After
     public void tearDown() throws Exception {
         try {
-            setOpMode("android.telephony.cts", OPSTR_READ_PHONE_STATE, MODE_ALLOWED);
+            setOpMode("--uid android.telephony.cts", OPSTR_READ_PHONE_STATE, MODE_ALLOWED);
         } catch (IOException e) {
             fail();
         }
@@ -134,6 +138,18 @@ public class CarrierConfigManagerTest {
                 config.getString(CarrierConfigManager.KEY_CARRIER_VVM_PACKAGE_NAME_STRING), "");
             assertFalse(CarrierConfigManager.isConfigForIdentifiedCarrier(config));
         }
+
+        // These key should return default values if not customized.
+        assertNotNull(config.getIntArray(
+                CarrierConfigManager.KEY_5G_NR_SSRSRP_THRESHOLDS_INT_ARRAY));
+        assertNotNull(config.getIntArray(
+                CarrierConfigManager.KEY_5G_NR_SSRSRQ_THRESHOLDS_INT_ARRAY));
+        assertNotNull(config.getIntArray(
+                CarrierConfigManager.KEY_5G_NR_SSSINR_THRESHOLDS_INT_ARRAY));
+        assertNotNull(config.getIntArray(
+                CarrierConfigManager.KEY_LTE_RSRQ_THRESHOLDS_INT_ARRAY));
+        assertNotNull(config.getIntArray(
+                CarrierConfigManager.KEY_LTE_RSSNR_THRESHOLDS_INT_ARRAY));
     }
 
     @Test
@@ -151,7 +167,7 @@ public class CarrierConfigManagerTest {
         PersistableBundle config;
 
         try {
-            setOpMode("android.telephony.cts", OPSTR_READ_PHONE_STATE, MODE_IGNORED);
+            setOpMode("--uid android.telephony.cts", OPSTR_READ_PHONE_STATE, MODE_IGNORED);
         } catch (IOException e) {
             fail();
         }
@@ -160,7 +176,7 @@ public class CarrierConfigManagerTest {
         assertTrue(config.isEmptyParcel());
 
         try {
-            setOpMode("android.telephony.cts", OPSTR_READ_PHONE_STATE, MODE_ALLOWED);
+            setOpMode("--uid android.telephony.cts", OPSTR_READ_PHONE_STATE, MODE_ALLOWED);
         } catch (IOException e) {
             fail();
         }
@@ -194,6 +210,16 @@ public class CarrierConfigManagerTest {
     }
 
     /**
+     * The following methods may return any value depending on the state of the device. Simply
+     * call them to make sure they do not throw any exceptions.
+     */
+    @Test
+    public void testCarrierConfigManagerResultDependentApi() {
+        assertNotNull(ShellIdentityUtils.invokeMethodWithShellPermissions(mConfigManager,
+                (cm) -> cm.getDefaultCarrierServicePackageName()));
+    }
+
+    /**
      * This checks that {@link CarrierConfigManager#overrideConfig(int, PersistableBundle)}
      * correctly overrides the Carrier Name (SPN) string.
      */
@@ -215,6 +241,18 @@ public class CarrierConfigManagerTest {
             public void run() {
                 Looper.prepare();
 
+                OnSubscriptionsChangedListener listener =
+                        new OnSubscriptionsChangedListener() {
+                            @Override
+                            public void onSubscriptionsChanged() {
+                                if (CARRIER_NAME_OVERRIDE.equals(
+                                        mTelephonyManager.getSimOperatorName())) {
+                                    COUNT_DOWN_LATCH.countDown();
+                                }
+                            }
+                        };
+                mSubscriptionManager.addOnSubscriptionsChangedListener(listener);
+
                 PersistableBundle carrierNameOverride = new PersistableBundle(3);
                 carrierNameOverride.putBoolean(KEY_CARRIER_NAME_OVERRIDE_BOOL, true);
                 carrierNameOverride.putBoolean(KEY_FORCE_HOME_NETWORK_BOOL, true);
@@ -226,27 +264,11 @@ public class CarrierConfigManagerTest {
         });
 
         try {
-            BroadcastReceiver spnBroadcastReceiver = new BroadcastReceiver() {
-                @Override
-                public void onReceive(Context context, Intent intent) {
-                    if (CARRIER_NAME_OVERRIDE.equals(intent.getStringExtra(EXTRA_SPN))) {
-                        synchronized (mLock) {
-                            mLock.notify();
-                        }
-                    }
-                }
-            };
-
-            getContext().registerReceiver(
-                    spnBroadcastReceiver,
-                    new IntentFilter(SPN_STRINGS_UPDATED_ACTION));
-
-            synchronized (mLock) {
-                t.start();
-                mLock.wait(TOLERANCE); // wait for SPN broadcast
+            t.start();
+            boolean didCarrierNameUpdate = COUNT_DOWN_LATCH.await(TOLERANCE, TimeUnit.MILLISECONDS);
+            if (!didCarrierNameUpdate) {
+                fail("CarrierName not overridden in " + TOLERANCE + " ms");
             }
-
-            assertEquals(CARRIER_NAME_OVERRIDE, mTelephonyManager.getSimOperatorName());
         } finally {
             mConfigManager.overrideConfig(subId, null);
             ui.dropShellPermissionIdentity();

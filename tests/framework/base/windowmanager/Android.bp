@@ -16,3 +16,8 @@ filegroup {
     name: "cts-wm-components",
     srcs: ["**/Components.java"],
 }
+
+filegroup {
+    name: "cts-wm-aspect-ratio-test-base",
+    srcs: ["src/android/server/wm/AspectRatioTestsBase.java"],
+}

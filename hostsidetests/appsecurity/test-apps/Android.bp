@@ -37,6 +37,7 @@ android_test_helper_app {
         "cts",
         "vts",
         "general-tests",
+        "mts",
     ],
     certificate: ":cts-testkey2",
     optimize: {
@@ -59,7 +60,7 @@ android_test_helper_app {
         "UsePermissionApp26/src/**/*.java",
         ":CtsAppSecurityBasePermissionSrc",
     ],
-    manifest: "UsePermissionApp25/AndroidManifest.xml",
+    manifest: "UsePermissionApp26/AndroidManifest.xml",
     resource_dirs: ["UsePermissionApp23/res"],
     sdk_version: "test_current",
     min_sdk_version: "26",
@@ -68,6 +69,7 @@ android_test_helper_app {
         "cts",
         "vts",
         "general-tests",
+        "mts",
     ],
     certificate: ":cts-testkey2",
     optimize: {
@@ -98,6 +100,7 @@ android_test_helper_app {
         "cts",
         "vts",
         "general-tests",
+        "mts",
     ],
     certificate: ":cts-testkey2",
     optimize: {
@@ -130,14 +133,9 @@ android_test_helper_app {
         "cts",
         "vts",
         "general-tests",
+        "mts",
     ],
     certificate: ":cts-testkey2",
-    optimize: {
-        enabled: false,
-    },
-    dex_preopt: {
-        enabled: false,
-    },
 }
 
 android_test_helper_app {
@@ -161,13 +159,39 @@ android_test_helper_app {
         "cts",
         "vts",
         "general-tests",
+        "mts",
     ],
     certificate: ":cts-testkey2",
-    optimize: {
-        enabled: false,
-    },
-    dex_preopt: {
-        enabled: false,
-    },
     min_sdk_version: "22",
+}
+
+android_test_helper_app {
+    name: "CtsUsePermissionAppLatest",
+    defaults: ["cts_support_defaults"],
+
+    static_libs: [
+        "androidx.test.rules",
+        "compatibility-device-util-axt",
+        "ctstestrunner-axt",
+        "ub-uiautomator",
+    ],
+
+    srcs: [
+        "UsePermissionApp26/src/**/*.java",
+        "UsePermissionApp29/src/**/*.java",
+        "UsePermissionApp23/src/com/android/cts/usepermission/BasePermissionActivity.java",
+        "UsePermissionApp23/src/com/android/cts/usepermission/BasePermissionsTest.java",
+    ],
+    manifest: "UsePermissionAppLatest/AndroidManifest.xml",
+    resource_dirs: ["UsePermissionApp23/res"],
+    // For ACCESS_BACKGROUND_LOCATION
+    platform_apis: true,
+    // tag this module as a cts test artifact
+    test_suites: [
+        "cts",
+        "vts",
+        "general-tests",
+        "mts",
+    ],
+    certificate: ":cts-testkey2",
 }
