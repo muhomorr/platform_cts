@@ -1114,13 +1114,21 @@ public class TelephonyManagerTest {
     @Test
     public void testSetSystemSelectionChannels() {
         LinkedBlockingQueue<Boolean> queue = new LinkedBlockingQueue<>(1);
-        ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mTelephonyManager,
-                (tm) -> tm.setSystemSelectionChannels(Collections.emptyList(),
-                        getContext().getMainExecutor(), queue::offer));
+        final UiAutomation uiAutomation =
+                InstrumentationRegistry.getInstrumentation().getUiAutomation();
         try {
-            assertTrue(queue.poll(1000, TimeUnit.MILLISECONDS));
+            uiAutomation.adoptShellPermissionIdentity();
+            // This is a oneway binder call, meaning we may return before the permission check
+            // happens. Hold shell permissions until we get a response.
+            mTelephonyManager.setSystemSelectionChannels(Collections.emptyList(),
+                    getContext().getMainExecutor(), queue::offer);
+            Boolean result = queue.poll(1000, TimeUnit.MILLISECONDS);
+            assertNotNull(result);
+            assertTrue(result);
         } catch (InterruptedException e) {
             fail("interrupted");
+        } finally {
+            uiAutomation.dropShellPermissionIdentity();
         }
     }
 
@@ -1445,6 +1453,40 @@ public class TelephonyManagerTest {
         } catch (SecurityException e) {
             // expected
         }
+    }
+
+    /**
+     * Basic test to ensure {@link NetworkRegistrationInfo#getRegisteredPlmn()} provides valid
+     * information.
+     */
+    @Test
+    public void testNetworkRegistrationInfoRegisteredPlmn() {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            return;
+        }
+        // get NetworkRegistration object
+        ServiceState ss = mTelephonyManager.getServiceState();
+        assertNotNull(ss);
+
+        boolean hasRegistered = false;
+        for (NetworkRegistrationInfo nwReg : ss.getNetworkRegistrationInfoList()) {
+            if (nwReg.isRegistered()
+                        && nwReg.getTransportType() == AccessNetworkConstants.TRANSPORT_TYPE_WWAN) {
+                hasRegistered = true;
+                String plmnId = nwReg.getRegisteredPlmn();
+                // CDMA doesn't have PLMN IDs. Rather than put CID|NID here, instead it will be
+                // empty. It's a case that's becoming less important over time, but for now a
+                // device that's only registered on CDMA needs to pass this test.
+                if (nwReg.getCellIdentity() instanceof android.telephony.CellIdentityCdma) {
+                    assertTrue(TextUtils.isEmpty(plmnId));
+                } else {
+                    assertFalse(TextUtils.isEmpty(plmnId));
+                    assertTrue("PlmnId() out of range [00000 - 999999], PLMN ID=" + plmnId,
+                            plmnId.matches("^[0-9]{5,6}$"));
+                }
+            }
+        }
+        assertTrue(hasRegistered);
     }
 
     /**

@@ -19,7 +19,9 @@ package android.media.cts;
 import static android.media.MediaRoute2Info.DEVICE_TYPE_REMOTE_SPEAKER;
 import static android.media.MediaRoute2Info.DEVICE_TYPE_REMOTE_TV;
 import static android.media.MediaRoute2Info.FEATURE_LIVE_AUDIO;
+import static android.media.MediaRoute2Info.PLAYBACK_VOLUME_VARIABLE;
 
+import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.content.Intent;
 import android.media.MediaRoute2Info;
@@ -29,7 +31,9 @@ import android.media.RoutingSessionInfo;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.text.TextUtils;
+import android.util.Log;
 
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -58,23 +62,16 @@ public class SampleMediaRoute2ProviderService extends MediaRoute2ProviderService
     public static final String ROUTE_NAME_SPECIAL_FEATURE = "Special Feature Route";
 
     public static final int VOLUME_MAX = 100;
+    public static final int SESSION_VOLUME_MAX = 50;
+    public static final int SESSION_VOLUME_INITIAL = 20;
+
     public static final String ROUTE_ID_FIXED_VOLUME = "route_fixed_volume";
     public static final String ROUTE_NAME_FIXED_VOLUME = "Fixed Volume Route";
     public static final String ROUTE_ID_VARIABLE_VOLUME = "route_variable_volume";
     public static final String ROUTE_NAME_VARIABLE_VOLUME = "Variable Volume Route";
 
-    public static final String ACTION_REMOVE_ROUTE =
-            "com.android.mediarouteprovider.action_remove_route";
-
-    public static final String FEATURE_SAMPLE =
-            "com.android.mediarouteprovider.FEATURE_SAMPLE";
-    public static final String FEATURE_SPECIAL =
-            "com.android.mediarouteprovider.FEATURE_SPECIAL";
-
-    // TODO: We shouldn't depend on this constant.
-    //       Remove this when MediaRoute2Info#isSystem() is introduced.
-    public static final String SYSTEM_PROVIDER_ID =
-            "com.android.server.media/.SystemMediaRoute2Provider";
+    public static final String FEATURE_SAMPLE = "android.media.cts.FEATURE_SAMPLE";
+    public static final String FEATURE_SPECIAL = "android.media.cts.FEATURE_SPECIAL";
 
     public static final List<String> FEATURES_ALL = new ArrayList();
     public static final List<String> FEATURES_SPECIAL = new ArrayList();
@@ -95,7 +92,7 @@ public class SampleMediaRoute2ProviderService extends MediaRoute2ProviderService
     private static SampleMediaRoute2ProviderService sInstance;
     private Proxy mProxy;
 
-    private void initializeRoutes() {
+    public void initializeRoutes() {
         MediaRoute2Info route1 = new MediaRoute2Info.Builder(ROUTE_ID1, ROUTE_NAME1)
                 .addFeature(FEATURE_SAMPLE)
                 .setDeviceType(DEVICE_TYPE_REMOTE_TV)
@@ -129,7 +126,7 @@ public class SampleMediaRoute2ProviderService extends MediaRoute2ProviderService
         MediaRoute2Info variableVolumeRoute =
                 new MediaRoute2Info.Builder(ROUTE_ID_VARIABLE_VOLUME, ROUTE_NAME_VARIABLE_VOLUME)
                         .addFeature(FEATURE_SAMPLE)
-                        .setVolumeHandling(MediaRoute2Info.PLAYBACK_VOLUME_VARIABLE)
+                        .setVolumeHandling(PLAYBACK_VOLUME_VARIABLE)
                         .setVolumeMax(VOLUME_MAX)
                         .build();
 
@@ -149,6 +146,15 @@ public class SampleMediaRoute2ProviderService extends MediaRoute2ProviderService
         }
     }
 
+    public void clear() {
+        mProxy = null;
+        mRoutes.clear();
+        mRouteIdToSessionId.clear();
+        for (RoutingSessionInfo sessionInfo : getAllSessionInfo()) {
+            notifySessionReleased(sessionInfo.getId());
+        }
+    }
+
     public void setProxy(@Nullable Proxy proxy) {
         mProxy = proxy;
     }
@@ -159,7 +165,6 @@ public class SampleMediaRoute2ProviderService extends MediaRoute2ProviderService
         synchronized (sLock) {
             sInstance = this;
         }
-        initializeRoutes();
     }
 
     @Override
@@ -174,30 +179,16 @@ public class SampleMediaRoute2ProviderService extends MediaRoute2ProviderService
 
     @Override
     public IBinder onBind(Intent intent) {
-        publishRoutes();
         return super.onBind(intent);
     }
 
     @Override
-    public void onControlRequest(String routeId, Intent request) {
-        String action = request.getAction();
-        if (ACTION_REMOVE_ROUTE.equals(action)) {
-            MediaRoute2Info route = mRoutes.get(routeId);
-            if (route != null) {
-                mRoutes.remove(routeId);
-                publishRoutes();
-                mRoutes.put(routeId, route);
-            }
-        }
-    }
-
-    @Override
-    public void onSetVolume(String routeId, int volume) {
+    public void onSetRouteVolume(String routeId, int volume) {
         MediaRoute2Info route = mRoutes.get(routeId);
         if (route == null) {
             return;
         }
-        volume = Math.min(volume, Math.max(0, route.getVolumeMax()));
+        volume = Math.max(0, Math.min(volume, route.getVolumeMax()));
         mRoutes.put(routeId, new MediaRoute2Info.Builder(route)
                 .setVolume(volume)
                 .build());
@@ -205,8 +196,27 @@ public class SampleMediaRoute2ProviderService extends MediaRoute2ProviderService
     }
 
     @Override
+    public void onSetSessionVolume(String sessionId, int volume) {
+        RoutingSessionInfo sessionInfo = getSessionInfo(sessionId);
+        if (sessionInfo == null) {
+            return;
+        }
+        volume = Math.max(0, Math.min(volume, sessionInfo.getVolumeMax()));
+        RoutingSessionInfo newSessionInfo = new RoutingSessionInfo.Builder(sessionInfo)
+                .setVolume(volume)
+                .build();
+        notifySessionUpdated(newSessionInfo);
+    }
+
+    @Override
     public void onCreateSession(String packageName, String routeId, long requestId,
             @Nullable Bundle sessionHints) {
+        Proxy proxy = mProxy;
+        if (doesProxyOverridesMethod(proxy, "onCreateSession")) {
+            proxy.onCreateSession(packageName, routeId, requestId, sessionHints);
+            return;
+        }
+
         MediaRoute2Info route = mRoutes.get(routeId);
         if (route == null || TextUtils.equals(ROUTE_ID3_SESSION_CREATION_FAILED, routeId)) {
             // Tell the router that session cannot be created by passing null as sessionInfo.
@@ -226,7 +236,10 @@ public class SampleMediaRoute2ProviderService extends MediaRoute2ProviderService
         RoutingSessionInfo sessionInfo = new RoutingSessionInfo.Builder(sessionId, packageName)
                 .addSelectedRoute(routeId)
                 .addSelectableRoute(ROUTE_ID4_TO_SELECT_AND_DESELECT)
-                .addTransferrableRoute(ROUTE_ID5_TO_TRANSFER_TO)
+                .addTransferableRoute(ROUTE_ID5_TO_TRANSFER_TO)
+                .setVolumeHandling(PLAYBACK_VOLUME_VARIABLE)
+                .setVolumeMax(SESSION_VOLUME_MAX)
+                .setVolume(SESSION_VOLUME_INITIAL)
                 // Set control hints with given sessionHints
                 .setControlHints(sessionHints)
                 .build();
@@ -236,6 +249,12 @@ public class SampleMediaRoute2ProviderService extends MediaRoute2ProviderService
 
     @Override
     public void onReleaseSession(String sessionId) {
+        Proxy proxy = mProxy;
+        if (doesProxyOverridesMethod(proxy, "onReleaseSession")) {
+            proxy.onReleaseSession(sessionId);
+            return;
+        }
+
         RoutingSessionInfo sessionInfo = getSessionInfo(sessionId);
         if (sessionInfo == null) {
             return;
@@ -257,13 +276,23 @@ public class SampleMediaRoute2ProviderService extends MediaRoute2ProviderService
     @Override
     public void onDiscoveryPreferenceChanged(RouteDiscoveryPreference preference) {
         Proxy proxy = mProxy;
-        if (proxy != null) {
+        if (doesProxyOverridesMethod(proxy, "onDiscoveryPreferenceChanged")) {
             proxy.onDiscoveryPreferenceChanged(preference);
+            return;
         }
+
+        // Just call the empty super method in order to mark the callback as tested.
+        super.onDiscoveryPreferenceChanged(preference);
     }
 
     @Override
     public void onSelectRoute(String sessionId, String routeId) {
+        Proxy proxy = mProxy;
+        if (doesProxyOverridesMethod(proxy, "onSelectRoute")) {
+            proxy.onSelectRoute(sessionId, routeId);
+            return;
+        }
+
         RoutingSessionInfo sessionInfo = getSessionInfo(sessionId);
         MediaRoute2Info route = mRoutes.get(routeId);
         if (route == null || sessionInfo == null) {
@@ -286,6 +315,12 @@ public class SampleMediaRoute2ProviderService extends MediaRoute2ProviderService
 
     @Override
     public void onDeselectRoute(String sessionId, String routeId) {
+        Proxy proxy = mProxy;
+        if (doesProxyOverridesMethod(proxy, "onDeselectRoute")) {
+            proxy.onDeselectRoute(sessionId, routeId);
+            return;
+        }
+
         RoutingSessionInfo sessionInfo = getSessionInfo(sessionId);
         MediaRoute2Info route = mRoutes.get(routeId);
 
@@ -314,6 +349,12 @@ public class SampleMediaRoute2ProviderService extends MediaRoute2ProviderService
 
     @Override
     public void onTransferToRoute(String sessionId, String routeId) {
+        Proxy proxy = mProxy;
+        if (doesProxyOverridesMethod(proxy, "onTransferToRoute")) {
+            proxy.onTransferToRoute(sessionId, routeId);
+            return;
+        }
+
         RoutingSessionInfo sessionInfo = getSessionInfo(sessionId);
         MediaRoute2Info route = mRoutes.get(routeId);
 
@@ -340,7 +381,7 @@ public class SampleMediaRoute2ProviderService extends MediaRoute2ProviderService
                 .clearSelectedRoutes()
                 .addSelectedRoute(routeId)
                 .removeDeselectableRoute(routeId)
-                .removeTransferrableRoute(routeId)
+                .removeTransferableRoute(routeId)
                 .build();
         notifySessionUpdated(newSessionInfo);
         publishRoutes();
@@ -356,10 +397,34 @@ public class SampleMediaRoute2ProviderService extends MediaRoute2ProviderService
     }
 
     void publishRoutes() {
-        notifyRoutes(mRoutes.values());
+        notifyRoutes(new ArrayList<>(mRoutes.values()));
     }
 
     public static class Proxy {
+        public void onCreateSession(@NonNull String packageName, @NonNull String routeId,
+                long requestId, @Nullable Bundle sessionHints) {}
+        public void onReleaseSession(@NonNull String sessionId) {}
+        public void onSelectRoute(@NonNull String sessionId, @NonNull String routeId) {}
+        public void onDeselectRoute(@NonNull String sessionId, @NonNull String routeId) {}
+        public void onTransferToRoute(@NonNull String sessionId, @NonNull String routeId) {}
         public void onDiscoveryPreferenceChanged(RouteDiscoveryPreference preference) {}
+        // TODO: Handle onSetRouteVolume() && onSetSessionVolume()
+    }
+
+    private static boolean doesProxyOverridesMethod(Proxy proxy, String methodName) {
+        if (proxy == null) {
+            return false;
+        }
+        Method[] methods = proxy.getClass().getMethods();
+        if (methods == null) {
+            return false;
+        }
+        for (int i = 0; i < methods.length; i++) {
+            if (methods[i].getName().equals(methodName)) {
+                // Found method. Check if it overrides
+                return methods[i].getDeclaringClass() != Proxy.class;
+            }
+        }
+        return false;
     }
 }

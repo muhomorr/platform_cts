@@ -525,6 +525,7 @@ public class CodecDecoderTest extends CodecTestBase {
                 if (mIsCodecInAsyncMode) mCodec.start();
                 queueCodecConfig(); /* flushed codec too soon after start, resubmit csd */
 
+                mExtractor.seekTo(0, mode);
                 doWork(23);
 
                 /* test flush in running state */
@@ -793,6 +794,7 @@ public class CodecDecoderTest extends CodecTestBase {
      * Test Decoder by Queuing CSD separately
      */
     @LargeTest
+    @Ignore("TODO(b/149031058)")
     @Test(timeout = PER_TEST_TIMEOUT_LARGE_TEST_MS)
     public void testSimpleDecodeQueueCSD() throws IOException, InterruptedException {
         MediaFormat format = setUpSource(mTestFile);
