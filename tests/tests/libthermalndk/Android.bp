@@ -1,4 +1,4 @@
-// Copyright (C) 2017 The Android Open Source Project
+// Copyright (C) 2020 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,22 +12,27 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-java_test_host {
-    name: "CtsBootStatsTestCases",
+android_test {
+    name: "CtsThermalTestCases",
     defaults: ["cts_defaults"],
-    // Only compile source java files in this apk.
-    srcs: ["src/**/*.java"],
-    libs: [
-        "cts-tradefed",
-        "tradefed",
-        "compatibility-host-util",
-        "libprotobuf-java-full",
-        "platformprotos",
+    compile_multilib: "both",
+    static_libs: [
+        "compatibility-device-util-axt",
+        "ctstestrunner-axt",
     ],
-    // tag this module as a cts test artifact
+    libs: [
+        "android.test.runner.stubs",
+        "android.test.base.stubs",
+    ],
+    jni_libs: [
+        "libctsthermal_jni",
+    ],
+    srcs: ["src/**/*.java"],
+    // Tag this module as a cts test artifact
     test_suites: [
         "cts",
         "vts",
         "general-tests",
     ],
+    sdk_version: "test_current",
 }
