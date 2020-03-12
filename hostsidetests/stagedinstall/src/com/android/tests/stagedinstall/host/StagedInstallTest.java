@@ -76,7 +76,7 @@ public class StagedInstallTest extends BaseHostJUnit4Test {
     }
 
     /**
-     * Tests staged install involving only one apk.
+     * Tests for staged install involving only one apk.
      */
     @Test
     @LargeTest
@@ -268,6 +268,18 @@ public class StagedInstallTest extends BaseHostJUnit4Test {
 
     @Test
     @LargeTest
+    public void testStagedInstallDowngradeApexToSystemVersion_DebugBuild() throws Exception {
+        assumeThat(getDevice().getBuildFlavor(), not(endsWith("-user")));
+        assumeTrue("Device does not support updating APEX", isUpdatingApexSupported());
+
+        installV2Apex();
+        runPhase("testStagedInstallDowngradeApexToSystemVersion_DebugBuild_Commit");
+        getDevice().reboot();
+        runPhase("testStagedInstallDowngradeApexToSystemVersion_DebugBuild_VerifyPostReboot");
+    }
+
+    @Test
+    @LargeTest
     public void testInstallStagedApex_SameGrade() throws Exception {
         assumeTrue("Device does not support updating APEX", isUpdatingApexSupported());
 
@@ -282,10 +294,28 @@ public class StagedInstallTest extends BaseHostJUnit4Test {
         runPhase("testInstallApex_DeviceDoesNotSupportApex_Fails");
     }
 
+    private void installV2Apex()throws Exception {
+        runPhase("testInstallV2Apex_Commit");
+        getDevice().reboot();
+        runPhase("testInstallV2Apex_VerifyPostReboot");
+    }
+
+    private void installV2SignedBobApex() throws Exception {
+        runPhase("testInstallV2SignedBobApex_Commit");
+        getDevice().reboot();
+        runPhase("testInstallV2SignedBobApex_VerifyPostReboot");
+    }
+
     private void installV3Apex()throws Exception {
         runPhase("testInstallV3Apex_Commit");
         getDevice().reboot();
         runPhase("testInstallV3Apex_VerifyPostReboot");
+    }
+
+    private void installV3SignedBobApex() throws Exception {
+        runPhase("testInstallV3SignedBobApex_Commit");
+        getDevice().reboot();
+        runPhase("testInstallV3SignedBobApex_VerifyPostReboot");
     }
 
     @Test
@@ -293,11 +323,6 @@ public class StagedInstallTest extends BaseHostJUnit4Test {
         assumeTrue("Device does not support updating APEX", isUpdatingApexSupported());
         runPhase("testFailsInvalidApexInstall_Commit");
         runPhase("testFailsInvalidApexInstall_AbandonSessionIsNoop");
-    }
-
-    private boolean isUpdatingApexSupported() throws Exception {
-        final String updatable = getDevice().getProperty("ro.apex.updatable");
-        return updatable != null && updatable.equals("true");
     }
 
     @Test
@@ -323,6 +348,69 @@ public class StagedInstallTest extends BaseHostJUnit4Test {
         runPhase("testInstallStagedNoHashtreeApex_Commit");
         getDevice().reboot();
         runPhase("testInstallStagedNoHashtreeApex_VerifyPostReboot");
+    }
+
+    @Test
+    public void testRejectsApexDifferentCertificate() throws Exception {
+        runPhase("testRejectsApexDifferentCertificate");
+    }
+
+    /**
+     * Tests for staged install involving rotated keys.
+     *
+     * Here alice means the original default key that cts.shim.v1 package was signed with and
+     * bob is the new key alice rotates to. Where ambiguous, we will refer keys as alice and bob
+     * instead of "old key" and "new key".
+     */
+    @Test
+    public void testUpdateWithDifferentKeyButNoRotation() throws Exception {
+        assumeTrue("Device does not support updating APEX", isUpdatingApexSupported());
+
+        runPhase("testUpdateWithDifferentKeyButNoRotation");
+    }
+
+    @Test
+    @LargeTest
+    public void testUpdateWithDifferentKey() throws Exception {
+        assumeTrue("Device does not support updating APEX", isUpdatingApexSupported());
+
+        runPhase("testUpdateWithDifferentKey_Commit");
+        getDevice().reboot();
+        runPhase("testUpdateWithDifferentKey_VerifyPostReboot");
+    }
+
+    @Test
+    @LargeTest
+    public void testAfterRotationOldKeyIsRejected() throws Exception {
+        assumeTrue("Device does not support updating APEX", isUpdatingApexSupported());
+
+        installV2SignedBobApex();
+        runPhase("testAfterRotationOldKeyIsRejected");
+    }
+
+    @Test
+    @LargeTest
+    public void testAfterRotationNewKeyCanUpdateFurther() throws Exception {
+        assumeTrue("Device does not support updating APEX", isUpdatingApexSupported());
+
+        installV2SignedBobApex();
+        runPhase("testAfterRotationNewKeyCanUpdateFurther_CommitPostReboot");
+        getDevice().reboot();
+        runPhase("testAfterRotationNewKeyCanUpdateFurther_VerifyPostReboot");
+    }
+
+    @Test
+    @LargeTest
+    public void testAfterRotationNewKeyCanUpdateFurtherWithoutLineage() throws Exception {
+        assumeTrue("Device does not support updating APEX", isUpdatingApexSupported());
+
+        installV2SignedBobApex();
+        runPhase("testAfterRotationNewKeyCanUpdateFurtherWithoutLineage");
+    }
+
+    private boolean isUpdatingApexSupported() throws Exception {
+        final String updatable = getDevice().getProperty("ro.apex.updatable");
+        return updatable != null && updatable.equals("true");
     }
 
     /**
