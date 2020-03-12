@@ -101,9 +101,25 @@ public class StagedInstallTest {
     private static final Duration WAIT_FOR_SESSION_REMOVED_TTL = Duration.ofSeconds(10);
     private static final Duration SLEEP_DURATION = Duration.ofMillis(200);
 
+    private static final String SHIM_PACKAGE_NAME = "com.android.apex.cts.shim";
     private static final TestApp TESTAPP_SAME_NAME_AS_APEX = new TestApp(
-            "TestAppSamePackageNameAsApex", "com.android.apex.cts.shim", 1, /*isApex*/ false,
+            "TestAppSamePackageNameAsApex", SHIM_PACKAGE_NAME, 1, /*isApex*/ false,
             "StagedInstallTestAppSamePackageNameAsApex.apk");
+    public static final TestApp Apex2DifferentCertificate = new TestApp(
+            "Apex2DifferentCertificate", SHIM_PACKAGE_NAME, 2, /*isApex*/true,
+            "com.android.apex.cts.shim.v2_different_certificate.apex");
+    private static final TestApp Apex2SignedBob = new TestApp(
+            "Apex2SignedBob", SHIM_PACKAGE_NAME, 2, /*isApex*/true,
+                    "com.android.apex.cts.shim.v2_signed_bob.apex");
+    private static final TestApp Apex2SignedBobRot = new TestApp(
+            "Apex2SignedBobRot", SHIM_PACKAGE_NAME, 2, /*isApex*/true,
+                    "com.android.apex.cts.shim.v2_signed_bob_rot.apex");
+    private static final TestApp Apex3SignedBob = new TestApp(
+            "Apex3SignedBob", SHIM_PACKAGE_NAME, 3, /*isApex*/true,
+                    "com.android.apex.cts.shim.v3_signed_bob.apex");
+    private static final TestApp Apex3SignedBobRot = new TestApp(
+            "Apex3SignedBobRot", SHIM_PACKAGE_NAME, 3, /*isApex*/true,
+                    "com.android.apex.cts.shim.v3_signed_bob_rot.apex");
 
     @Before
     public void adoptShellPermissions() {
@@ -471,6 +487,36 @@ public class StagedInstallTest {
     }
 
     @Test
+    public void testInstallV2Apex_Commit() throws Exception {
+        int sessionId = stageSingleApk(TestApp.Apex2).assertSuccessful().getSessionId();
+        waitForIsReadyBroadcast(sessionId);
+        assertSessionReady(sessionId);
+        storeSessionId(sessionId);
+    }
+
+    @Test
+    public void testInstallV2Apex_VerifyPostReboot() throws Exception {
+        int sessionId = retrieveLastSessionId();
+        assertSessionApplied(sessionId);
+        assertThat(getInstalledVersion(TestApp.Apex)).isEqualTo(2);
+    }
+
+    @Test
+    public void testInstallV2SignedBobApex_Commit() throws Exception {
+        int sessionId = stageSingleApk(Apex2SignedBobRot).assertSuccessful().getSessionId();
+        waitForIsReadyBroadcast(sessionId);
+        assertSessionReady(sessionId);
+        storeSessionId(sessionId);
+    }
+
+    @Test
+    public void testInstallV2SignedBobApex_VerifyPostReboot() throws Exception {
+        int sessionId = retrieveLastSessionId();
+        assertSessionApplied(sessionId);
+        assertThat(getInstalledVersion(TestApp.Apex)).isEqualTo(2);
+    }
+
+    @Test
     public void testInstallV3Apex_Commit() throws Exception {
         int sessionId = stageSingleApk(TestApp.Apex3).assertSuccessful().getSessionId();
         waitForIsReadyBroadcast(sessionId);
@@ -483,6 +529,21 @@ public class StagedInstallTest {
         int sessionId = retrieveLastSessionId();
         assertSessionApplied(sessionId);
         assertThat(getInstalledVersion(TestApp.Apex)).isEqualTo(3);
+    }
+
+    @Test
+    public void testInstallV3SignedBobApex_Commit() throws Exception {
+        int sessionId = stageSingleApk(Apex2SignedBobRot).assertSuccessful().getSessionId();
+        waitForIsReadyBroadcast(sessionId);
+        assertSessionReady(sessionId);
+        storeSessionId(sessionId);
+    }
+
+    @Test
+    public void testInstallV3SignedBobApex_VerifyPostReboot() throws Exception {
+        int sessionId = retrieveLastSessionId();
+        assertSessionApplied(sessionId);
+        assertThat(getInstalledVersion(TestApp.Apex)).isEqualTo(2);
     }
 
     @Test
@@ -544,6 +605,25 @@ public class StagedInstallTest {
         assertSessionFailed(sessionId);
         // Apex shouldn't be downgraded.
         assertThat(getInstalledVersion(TestApp.Apex)).isEqualTo(3);
+    }
+
+    @Test
+    public void testStagedInstallDowngradeApexToSystemVersion_DebugBuild_Commit()
+            throws Exception {
+        assertThat(getInstalledVersion(TestApp.Apex)).isEqualTo(2);
+        int sessionId = stageDowngradeSingleApk(TestApp.Apex1).assertSuccessful().getSessionId();
+        waitForIsReadyBroadcast(sessionId);
+        assertSessionReady(sessionId);
+        storeSessionId(sessionId);
+    }
+
+    @Test
+    public void testStagedInstallDowngradeApexToSystemVersion_DebugBuild_VerifyPostReboot()
+            throws Exception {
+        int sessionId = retrieveLastSessionId();
+        assertSessionApplied(sessionId);
+        // Apex should be downgraded.
+        assertThat(getInstalledVersion(TestApp.Apex)).isEqualTo(1);
     }
 
     @Test
@@ -686,6 +766,90 @@ public class StagedInstallTest {
                         throw exc;
                     }
                 });
+    }
+
+    @Test
+    public void testRejectsApexDifferentCertificate() throws Exception {
+        int sessionId = stageSingleApk(Apex2DifferentCertificate)
+                .assertSuccessful().getSessionId();
+        PackageInstaller.SessionInfo info =
+                SessionUpdateBroadcastReceiver.sessionBroadcasts.poll(60, TimeUnit.SECONDS);
+        assertThat(info.getSessionId()).isEqualTo(sessionId);
+        assertThat(info).isStagedSessionFailed();
+        assertThat(info.getStagedSessionErrorMessage()).contains("is not compatible with the one "
+                + "currently installed on device");
+    }
+
+    /**
+     * Tests for staged install involving rotated keys.
+     *
+     * Here alice means the original default key that cts.shim.v1 package was signed with and
+     * bob is the new key alice rotates to. Where ambiguous, we will refer keys as alice and bob
+     * instead of "old key" and "new key".
+     */
+
+    // The update should fail if it is signed with a different non-rotated key
+    @Test
+    public void testUpdateWithDifferentKeyButNoRotation() throws Exception {
+        int sessionId = stageSingleApk(Apex2SignedBob).assertSuccessful().getSessionId();
+        PackageInstaller.SessionInfo info =
+                SessionUpdateBroadcastReceiver.sessionBroadcasts.poll(60, TimeUnit.SECONDS);
+        assertThat(info.getSessionId()).isEqualTo(sessionId);
+        assertThat(info).isStagedSessionFailed();
+    }
+
+    // The update should pass if it is signed with a proper rotated key
+    @Test
+    public void testUpdateWithDifferentKey_Commit() throws Exception {
+        int sessionId = stageSingleApk(Apex2SignedBobRot).assertSuccessful().getSessionId();
+        PackageInstaller.SessionInfo info =
+                SessionUpdateBroadcastReceiver.sessionBroadcasts.poll(60, TimeUnit.SECONDS);
+        assertThat(info.getSessionId()).isEqualTo(sessionId);
+        assertThat(info).isStagedSessionReady();
+    }
+
+    @Test
+    public void testUpdateWithDifferentKey_VerifyPostReboot() throws Exception {
+        assertThat(InstallUtils.getInstalledVersion(TestApp.Apex)).isEqualTo(2);
+    }
+
+    // Once updated with a new rotated key (bob), further updates with old key (alice) should fail
+    @Test
+    public void testAfterRotationOldKeyIsRejected() throws Exception {
+        assertThat(getInstalledVersion(TestApp.Apex)).isEqualTo(2);
+        int sessionId = stageSingleApk(TestApp.Apex3).assertSuccessful().getSessionId();
+        PackageInstaller.SessionInfo info =
+                SessionUpdateBroadcastReceiver.sessionBroadcasts.poll(60, TimeUnit.SECONDS);
+        assertThat(info.getSessionId()).isEqualTo(sessionId);
+        assertThat(info).isStagedSessionFailed();
+    }
+
+    // Once updated with a new rotated key (bob), further updates with new key (bob) should pass
+    @Test
+    public void testAfterRotationNewKeyCanUpdateFurther_CommitPostReboot() throws Exception {
+        assertThat(getInstalledVersion(TestApp.Apex)).isEqualTo(2);
+        int sessionId = stageSingleApk(Apex3SignedBobRot).assertSuccessful().getSessionId();
+        PackageInstaller.SessionInfo info =
+                SessionUpdateBroadcastReceiver.sessionBroadcasts.poll(60, TimeUnit.SECONDS);
+        assertThat(info.getSessionId()).isEqualTo(sessionId);
+        assertThat(info).isStagedSessionReady();
+    }
+
+    @Test
+    public void testAfterRotationNewKeyCanUpdateFurther_VerifyPostReboot() throws Exception {
+        assertThat(InstallUtils.getInstalledVersion(TestApp.Apex)).isEqualTo(3);
+    }
+
+    // Once updated with a new rotated key (bob), further updates can be done with key only
+    @Test
+    public void testAfterRotationNewKeyCanUpdateFurtherWithoutLineage()
+            throws Exception {
+        assertThat(getInstalledVersion(TestApp.Apex)).isEqualTo(2);
+        int sessionId = stageSingleApk(Apex3SignedBob).assertSuccessful().getSessionId();
+        PackageInstaller.SessionInfo info =
+                SessionUpdateBroadcastReceiver.sessionBroadcasts.poll(60, TimeUnit.SECONDS);
+        assertThat(info.getSessionId()).isEqualTo(sessionId);
+        assertThat(info).isStagedSessionReady();
     }
 
     private static long getInstalledVersion(String packageName) {
