@@ -324,6 +324,10 @@ public class CellInfoTest {
         assertTrue("Invalid timestamp in CellInfo: " + info.getTimeStamp(),
                 info.getTimeStamp() > 0 && info.getTimeStamp() < Long.MAX_VALUE);
 
+        long curTime = SystemClock.elapsedRealtime();
+        assertTrue("Invalid timestamp in CellInfo: " + info.getTimestampMillis(),
+                info.getTimestampMillis() > 0 && info.getTimestampMillis() <= curTime);
+
         if (mRadioHalVersion >= RADIO_HAL_VERSION_1_2) {
             // In HAL 1.2 or greater, the connection status must be reported
             assertTrue(info.getCellConnectionStatus() != CellInfo.CONNECTION_UNKNOWN);
@@ -777,8 +781,16 @@ public class CellInfoTest {
         wcdma.getDbm();
 
         int asuLevel = wcdma.getAsuLevel();
-        assertTrue("getLevel() out of range [0,31] (or 99 is unknown), level=" + asuLevel,
-                asuLevel == 99 || (asuLevel >= 0 && asuLevel <= 31));
+        if (wcdma.getRscp() != CellInfo.UNAVAILABLE) {
+            assertTrue("getAsuLevel() out of range 0..96, 255), asuLevel=" + asuLevel,
+                    asuLevel == 255 || (asuLevel >= 0 && asuLevel <= 96));
+        } else if (wcdma.getRssi() != CellInfo.UNAVAILABLE) {
+            assertTrue("getAsuLevel() out of range 0..31, 99), asuLevel=" + asuLevel,
+                    asuLevel == 99 || (asuLevel >= 0 && asuLevel <= 31));
+        } else {
+            assertTrue("getAsuLevel() out of range 0..96, 255), asuLevel=" + asuLevel,
+                    asuLevel == 255);
+        }
 
         int level = wcdma.getLevel();
         assertTrue("getLevel() out of range [0,4], level=" + level, level >= 0 && level <= 4);

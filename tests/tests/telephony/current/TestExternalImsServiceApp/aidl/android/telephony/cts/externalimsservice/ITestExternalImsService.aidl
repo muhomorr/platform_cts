@@ -16,6 +16,7 @@
 
 package android.telephony.cts.externalimsservice;
 
+import android.telephony.ims.ImsReasonInfo;
 import android.telephony.ims.stub.ImsFeatureConfiguration;
 
 /**
@@ -28,8 +29,4 @@ interface ITestExternalImsService {
     boolean isRcsFeatureCreated();
     boolean isMmTelFeatureCreated();
     void resetState();
-    void updateImsRegistration(int radioTech);
-    void notifyRcsCapabilitiesStatusChanged(int capability);
-    boolean isRcsCapable(int capability, int radioTech);
-    boolean isRcsAvailable(int capability);
 }

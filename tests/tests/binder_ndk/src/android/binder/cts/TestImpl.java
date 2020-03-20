@@ -37,6 +37,9 @@ public class TestImpl extends ITest.Stub {
   public int getInterfaceVersion() { return TestImpl.VERSION; }
 
   @Override
+  public String getInterfaceHash() { return TestImpl.HASH; }
+
+  @Override
   protected void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
     for (String arg : args) {
       pw.print(arg);
@@ -190,6 +193,11 @@ public class TestImpl extends ITest.Stub {
 
   @Override
   public RegularPolygon RepeatPolygon(RegularPolygon in_value) {
+    return in_value;
+  }
+
+  @Override
+  public RegularPolygon RepeatNullablePolygon(RegularPolygon in_value) {
     return in_value;
   }
 

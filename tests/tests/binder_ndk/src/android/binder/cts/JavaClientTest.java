@@ -177,6 +177,9 @@ public class JavaClientTest {
     private static class Empty extends IEmpty.Stub {
         @Override
         public int getInterfaceVersion() { return Empty.VERSION; }
+
+        @Override
+        public String getInterfaceHash() { return Empty.HASH; }
     }
 
     @Test
@@ -289,6 +292,36 @@ public class JavaClientTest {
         polygon.sideLength = 1.0f;
 
         RegularPolygon result = mInterface.RepeatPolygon(polygon);
+
+        assertPolygonEquals(polygon, result);
+    }
+
+    @Test
+    public void testRepeatUnexpectedNullPolygon() throws RemoteException {
+        try {
+           RegularPolygon result = mInterface.RepeatPolygon(null);
+        } catch (NullPointerException e) {
+           // non-@nullable C++ result can't handle null Polygon
+           return;
+        }
+        // Java always works w/ nullptr
+        assertEquals("JAVA", mExpectedName);
+    }
+
+    @Test
+    public void testRepeatNullNullablePolygon() throws RemoteException {
+        RegularPolygon result = mInterface.RepeatNullablePolygon(null);
+        assertEquals(null, result);
+    }
+
+    @Test
+    public void testRepeatPresentNullablePolygon() throws RemoteException {
+        RegularPolygon polygon = new RegularPolygon();
+        polygon.name = "septagon";
+        polygon.numSides = 7;
+        polygon.sideLength = 9.0f;
+
+        RegularPolygon result = mInterface.RepeatNullablePolygon(polygon);
 
         assertPolygonEquals(polygon, result);
     }

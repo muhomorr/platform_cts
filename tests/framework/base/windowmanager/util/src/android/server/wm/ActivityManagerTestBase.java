@@ -138,6 +138,7 @@ import android.util.EventLog.Event;
 import android.view.Display;
 import android.view.InputDevice;
 import android.view.MotionEvent;
+import android.view.ViewConfiguration;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -492,6 +493,29 @@ public abstract class ActivityManagerTestBase {
         return ComponentName.unflattenFromString(mContext.getResources().getString(resId));
     }
 
+    /**
+     * Insert an input event (ACTION_DOWN -> ACTION_CANCEL) to ensures the display to be focused
+     * without triggering potential clicked to impact the test environment.
+     * (e.g: Keyguard credential activated unexpectedly.)
+     *
+     * @param displayId the display ID to gain focused by inject swipe action
+     */
+    protected void touchAndCancelOnDisplayCenter(int displayId) {
+        final DisplayManager dm = mContext.getSystemService(DisplayManager.class);
+        final Rect bounds = new Rect();
+        dm.getDisplay(displayId).getRectSize(bounds);
+        final int x = bounds.left + bounds.width() / 2;
+        final int y = bounds.top + bounds.height() / 2;
+        final long downTime = SystemClock.uptimeMillis();
+        injectMotion(downTime, downTime, MotionEvent.ACTION_DOWN, x, y, displayId);
+
+        final long eventTime = SystemClock.uptimeMillis();
+        final int touchSlop = ViewConfiguration.get(mContext).getScaledTouchSlop();
+        final int tapX = x + Math.round(touchSlop / 2.0f);
+        final int tapY = y + Math.round(touchSlop / 2.0f);
+        injectMotion(downTime, eventTime, MotionEvent.ACTION_CANCEL, tapX, tapY, displayId);
+    }
+
     protected void tapOnDisplay(int x, int y, int displayId) {
         final long downTime = SystemClock.uptimeMillis();
         injectMotion(downTime, downTime, MotionEvent.ACTION_DOWN, x, y, displayId);
@@ -500,11 +524,14 @@ public abstract class ActivityManagerTestBase {
         injectMotion(downTime, upTime, MotionEvent.ACTION_UP, x, y, displayId);
     }
 
+    protected void tapOnCenter(Rect bounds, int displayId) {
+        final int tapX = bounds.left + bounds.width() / 2;
+        final int tapY = bounds.top + bounds.height() / 2;
+        tapOnDisplay(tapX, tapY, displayId);
+    }
+
     protected void tapOnStackCenter(ActivityManagerState.ActivityStack stack) {
-        final Rect sideStackBounds = stack.getBounds();
-        final int tapX = sideStackBounds.left + sideStackBounds.width() / 2;
-        final int tapY = sideStackBounds.top + sideStackBounds.height() / 2;
-        tapOnDisplay(tapX, tapY, stack.mDisplayId);
+        tapOnCenter(stack.getBounds(), stack.mDisplayId);
     }
 
     private static void injectMotion(long downTime, long eventTime, int action,
@@ -1062,7 +1089,7 @@ public abstract class ActivityManagerTestBase {
         public LockScreenSession enterAndConfirmLockCredential() {
             // Ensure focus will switch to default display. Meanwhile we cannot tap on center area,
             // which may tap on input credential area.
-            tapOnDisplay(10, 10, DEFAULT_DISPLAY);
+            touchAndCancelOnDisplayCenter(DEFAULT_DISPLAY);
 
             waitForDeviceIdle(3000);
             SystemUtil.runWithShellPermissionIdentity(() ->
@@ -1107,7 +1134,7 @@ public abstract class ActivityManagerTestBase {
 
         LockScreenSession unlockDevice() {
             // Make sure the unlock button event is send to the default display.
-            tapOnDisplay(10, 10, DEFAULT_DISPLAY);
+            touchAndCancelOnDisplayCenter(DEFAULT_DISPLAY);
 
             pressUnlockButton();
             return this;
