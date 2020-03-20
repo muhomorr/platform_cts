@@ -16,14 +16,20 @@
 
 package android.telecom.cts;
 
+import static android.telecom.Call.STATE_SELECT_PHONE_ACCOUNT;
+
 import android.content.Context;
 import android.media.AudioManager;
 import android.net.Uri;
 import android.os.Bundle;
+import android.telecom.Call;
 import android.telecom.CallAudioState;
+import android.telecom.Connection;
 import android.telecom.TelecomManager;
 import android.telephony.PhoneStateListener;
 import android.telephony.TelephonyManager;
+
+import com.android.compatibility.common.util.SystemUtil;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
@@ -157,5 +163,71 @@ public class OutgoingCallTest extends BaseTelecomTestWithMockServices {
                 TimeUnit.SECONDS);
         Thread.sleep(STATE_CHANGE_DELAY);
         assertEquals(TelephonyManager.CALL_STATE_OFFHOOK, mTelephonyManager.getCallState());
+    }
+
+    /**
+     * Ensure that {@link TelecomManager#EXTRA_PHONE_ACCOUNT_HANDLE} is taken account when placing
+     * an outgoing call.
+     * @throws Exception
+     */
+    public void testExtraPhoneAccountHandleAvailable() throws Exception {
+        if (!mShouldTestTelecom) {
+            return;
+        }
+
+        final Bundle extras1 = new Bundle();
+        final Bundle extras2 = new Bundle();
+        extras1.putParcelable(TelecomManager.EXTRA_PHONE_ACCOUNT_HANDLE,
+                TestUtils.TEST_PHONE_ACCOUNT_HANDLE);
+        extras2.putParcelable(TelecomManager.EXTRA_PHONE_ACCOUNT_HANDLE,
+                TestUtils.TEST_PHONE_ACCOUNT_HANDLE_2);
+
+        mTelecomManager.registerPhoneAccount(TestUtils.TEST_PHONE_ACCOUNT);
+        TestUtils.enablePhoneAccount(
+                getInstrumentation(), TestUtils.TEST_PHONE_ACCOUNT_HANDLE);
+        placeAndVerifyCall(extras1);
+        Connection conn = verifyConnectionForOutgoingCall();
+        assertEquals(TestUtils.TEST_PHONE_ACCOUNT_HANDLE, conn.getPhoneAccountHandle());
+
+        cleanupCalls();
+        setupConnectionService(null, FLAG_REGISTER | FLAG_ENABLE);
+
+        mTelecomManager.registerPhoneAccount(TestUtils.TEST_PHONE_ACCOUNT_2);
+        TestUtils.enablePhoneAccount(
+                getInstrumentation(), TestUtils.TEST_PHONE_ACCOUNT_HANDLE_2);
+        placeAndVerifyCall(extras2);
+        conn = verifyConnectionForOutgoingCall();
+        assertEquals(TestUtils.TEST_PHONE_ACCOUNT_HANDLE_2, conn.getPhoneAccountHandle());
+        conn.onDisconnect();
+    }
+
+    public void testAccountSelectionAvailable() throws Exception {
+        if (!mShouldTestTelecom) {
+            return;
+        }
+
+        CountDownLatch latch = new CountDownLatch(1);
+        mInCallCallbacks = new MockInCallService.InCallServiceCallbacks() {
+            @Override
+            public void onCallAdded(Call call, int numCalls) {
+                if (call.getState() == STATE_SELECT_PHONE_ACCOUNT) {
+                    latch.countDown();
+                }
+            }
+        };
+        MockInCallService.setCallbacks(mInCallCallbacks);
+
+        mTelecomManager.registerPhoneAccount(TestUtils.TEST_PHONE_ACCOUNT);
+        TestUtils.enablePhoneAccount(getInstrumentation(), TestUtils.TEST_PHONE_ACCOUNT_HANDLE);
+        mTelecomManager.registerPhoneAccount(TestUtils.TEST_PHONE_ACCOUNT_2);
+        TestUtils.enablePhoneAccount(getInstrumentation(), TestUtils.TEST_PHONE_ACCOUNT_HANDLE_2);
+        SystemUtil.runWithShellPermissionIdentity(() -> {
+            mTelecomManager.setUserSelectedOutgoingPhoneAccount(null);
+        });
+
+        Uri testNumber = createTestNumber();
+        mTelecomManager.placeCall(testNumber, null);
+
+        assertTrue(latch.await(TestUtils.WAIT_FOR_CALL_ADDED_TIMEOUT_S, TimeUnit.SECONDS));
     }
 }

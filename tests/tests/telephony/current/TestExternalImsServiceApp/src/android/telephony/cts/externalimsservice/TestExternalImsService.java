@@ -20,9 +20,7 @@ import android.content.Intent;
 import android.os.IBinder;
 import android.telephony.ims.cts.ImsUtils;
 import android.telephony.ims.cts.TestImsService;
-import android.telephony.ims.feature.RcsFeature.RcsImsCapabilities;
 import android.telephony.ims.stub.ImsFeatureConfiguration;
-import android.telephony.ims.stub.ImsRegistrationImplBase;
 import android.util.Log;
 
 /**
@@ -57,25 +55,6 @@ public class TestExternalImsService extends TestImsService {
 
         public void resetState() {
             TestExternalImsService.this.resetState();
-        }
-
-        public void updateImsRegistration(int imsRadioTech) {
-            ImsRegistrationImplBase imsReg = TestExternalImsService.this.getImsRegistration();
-            imsReg.onRegistered(imsRadioTech);
-        }
-
-        public void notifyRcsCapabilitiesStatusChanged(int capability) {
-            RcsImsCapabilities capabilities = new RcsImsCapabilities(capability);
-            getRcsFeature().notifyCapabilitiesStatusChanged(capabilities);
-        }
-
-        public boolean isRcsCapable(int capability, int radioTech) {
-            return getRcsFeature().queryCapabilityConfiguration(capability, radioTech);
-        }
-
-        public boolean isRcsAvailable(int capability) {
-            RcsImsCapabilities capabilityStatus = getRcsFeature().queryCapabilityStatus();
-            return capabilityStatus.isCapable(capability);
         }
     }
 

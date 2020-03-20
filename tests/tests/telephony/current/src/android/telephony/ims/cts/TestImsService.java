@@ -198,7 +198,7 @@ public class TestImsService extends Service {
         }
     }
 
-    ImsService getImsService() {
+    protected ImsService getImsService() {
         synchronized (mLock) {
             if (mTestImsService != null) {
                 return mTestImsService;
@@ -298,5 +298,9 @@ public class TestImsService extends Service {
         synchronized (mLock) {
             return sImsRegistrationImplBase;
         }
+    }
+
+    public ImsConfigImplBase getConfig() {
+        return mTestImsConfig;
     }
 }

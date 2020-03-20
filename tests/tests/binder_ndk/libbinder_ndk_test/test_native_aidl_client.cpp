@@ -23,6 +23,7 @@
 #include <aidl/test_package/LongEnum.h>
 #include <aidl/test_package/RegularPolygon.h>
 #include <android/binder_ibinder_jni.h>
+#include <android/log.h>
 #include <gtest/gtest.h>
 
 #include "itest_impl.h"
@@ -401,9 +402,22 @@ TEST_P(NdkBinderTest_Aidl, RepeatPolygon) {
   RegularPolygon defaultPolygon = {"hexagon", 6, 2.0f};
   RegularPolygon outputPolygon;
   ASSERT_OK(iface->RepeatPolygon(defaultPolygon, &outputPolygon));
-  EXPECT_EQ("hexagon", outputPolygon.name);
-  EXPECT_EQ(defaultPolygon.numSides, outputPolygon.numSides);
-  EXPECT_EQ(defaultPolygon.sideLength, outputPolygon.sideLength);
+  EXPECT_EQ(defaultPolygon, outputPolygon);
+}
+
+TEST_P(NdkBinderTest_Aidl, RepeatNullNullablePolygon) {
+  std::optional<RegularPolygon> defaultPolygon;
+  std::optional<RegularPolygon> outputPolygon;
+  ASSERT_OK(iface->RepeatNullablePolygon(defaultPolygon, &outputPolygon));
+  EXPECT_EQ(defaultPolygon, outputPolygon);
+}
+
+TEST_P(NdkBinderTest_Aidl, RepeatPresentNullablePolygon) {
+  std::optional<RegularPolygon> defaultPolygon =
+      std::optional<RegularPolygon>({"septagon", 7, 3.0f});
+  std::optional<RegularPolygon> outputPolygon;
+  ASSERT_OK(iface->RepeatNullablePolygon(defaultPolygon, &outputPolygon));
+  EXPECT_EQ(defaultPolygon, outputPolygon);
 }
 
 TEST_P(NdkBinderTest_Aidl, InsAndOuts) {
@@ -789,6 +803,17 @@ TEST_P(NdkBinderTest_Aidl, GetInterfaceVersion) {
   }
 }
 
+TEST_P(NdkBinderTest_Aidl, GetInterfaceHash) {
+  std::string res;
+  EXPECT_OK(iface->getInterfaceHash(&res));
+  if (GetParam().shouldBeOld) {
+    // aidl_api/libbinder_ndk_test_interface/1/.hash
+    EXPECT_EQ("d755ae773aaabd1c48d22b823e29501ee387aff1", res);
+  } else {
+    EXPECT_EQ("notfrozen", res);
+  }
+}
+
 std::shared_ptr<ITest> getProxyLocalService() {
   std::shared_ptr<MyTest> test = SharedRefBase::make<MyTest>();
   SpAIBinder binder = test->asBinder();
@@ -799,41 +824,25 @@ std::shared_ptr<ITest> getProxyLocalService() {
 
   binder_status_t ret = AIBinder_setExtension(binder.get(), extBinder.get());
   if (ret != STATUS_OK) {
-    std::cout << "Could not set local extension" << std::endl;
+    __android_log_write(ANDROID_LOG_ERROR, LOG_TAG, "Could not set local extension");
   }
 
   // BpTest -> AIBinder -> test
   //
   // Warning: for testing purposes only. This parcels things within the same process for testing
   // purposes. In normal usage, this should just return SharedRefBase::make<MyTest> directly.
-  return (new BpTest(binder))->ref<ITest>();
+  return SharedRefBase::make<BpTest>(binder);
 }
 
 std::shared_ptr<ITest> getNdkBinderTestJavaService(const std::string& method) {
   JNIEnv* env = GetEnv();
   if (env == nullptr) {
-    std::cout << "No environment" << std::endl;
+    __android_log_write(ANDROID_LOG_ERROR, LOG_TAG, "No environment");
     return nullptr;
   }
 
-  jclass cl = env->FindClass("android/binder/cts/NdkBinderTest");
-  if (cl == nullptr) {
-    std::cout << "No class" << std::endl;
-    return nullptr;
-  }
-
-  jmethodID mid =
-      env->GetStaticMethodID(cl, method.c_str(), "()Landroid/os/IBinder;");
-  if (mid == nullptr) {
-    std::cout << "No method id" << std::endl;
-    return nullptr;
-  }
-
-  jobject object = env->CallStaticObjectMethod(cl, mid);
-  if (object == nullptr) {
-    std::cout << "Got null service from Java" << std::endl;
-    return nullptr;
-  }
+  jobject object = callStaticJavaMethodForObject(env, "android/binder/cts/NdkBinderTest", method,
+                                                 "()Landroid/os/IBinder;");
 
   SpAIBinder binder = SpAIBinder(AIBinder_fromJavaBinder(env, object));
 

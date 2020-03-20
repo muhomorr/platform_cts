@@ -23,7 +23,6 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 import android.content.Context;
 import android.content.pm.PackageManager;
@@ -103,6 +102,7 @@ public class SmsMessageTest {
         assertEquals(MESSAGE_BODY1, sms.getMessageBody());
         assertEquals(TPLAYER_LENGTH_FOR_PDU, SmsMessage.getTPLayerLengthForPDU(pdu));
         int[] result = SmsMessage.calculateLength(sms.getMessageBody(), true);
+        assertEquals(6, result.length);
         assertEquals(SMS_NUMBER1, result[0]);
         assertEquals(sms.getMessageBody().length(), result[1]);
         assertRemaining(sms.getMessageBody().length(), result[2], SmsMessage.MAX_USER_DATA_SEPTETS);
@@ -135,6 +135,7 @@ public class SmsMessageTest {
         assertEquals(MESSAGE_BODY2, sms.getMessageBody());
         CharSequence msgBody = sms.getMessageBody();
         result = SmsMessage.calculateLength(msgBody, false);
+        assertEquals(6, result.length);
         assertEquals(SMS_NUMBER2, result[0]);
         assertEquals(sms.getMessageBody().length(), result[1]);
         assertRemaining(sms.getMessageBody().length(), result[2], SmsMessage.MAX_USER_DATA_SEPTETS);
@@ -146,6 +147,7 @@ public class SmsMessageTest {
         sms = SmsMessage.createFromPdu(hexStringToByteArray(pdu), SmsMessage.FORMAT_3GPP);
         assertEquals(MESSAGE_BODY3, sms.getMessageBody());
         result = SmsMessage.calculateLength(sms.getMessageBody(), true);
+        assertEquals(6, result.length);
         assertEquals(SMS_NUMBER3, result[0]);
         assertEquals(sms.getMessageBody().length(), result[1]);
         assertRemaining(sms.getMessageBody().length(), result[2], SmsMessage.MAX_USER_DATA_SEPTETS);
@@ -238,26 +240,22 @@ public class SmsMessageTest {
             return;
         }
 
+        SmsMessage.SubmitPdu smsPdu;
         String scAddress = null, destinationAddress = null;
         String message = null;
         boolean statusReportRequested = false;
 
-        try {
-            // null message, null destination
-            SmsMessage.getSubmitPdu(scAddress, destinationAddress, message, statusReportRequested);
-            fail("Should throw NullPointerException");
-        } catch (NullPointerException expected) {
-            // expected
-        }
+        // Null message, null destination
+        smsPdu = SmsMessage.getSubmitPdu(scAddress, destinationAddress, message,
+                statusReportRequested);
+        assertNull(smsPdu);
 
         message = "This is a test message";
-        try {
-            // non-null message
-            SmsMessage.getSubmitPdu(scAddress, destinationAddress, message, statusReportRequested);
-            fail("Should throw NullPointerException");
-        } catch (NullPointerException expected) {
-            // expected
-        }
+
+        // Non-null message, null destination
+        smsPdu = SmsMessage.getSubmitPdu(scAddress, destinationAddress, message,
+                statusReportRequested);
+        assertNull(smsPdu);
 
         if (mTelephonyManager.getPhoneType() == TelephonyManager.PHONE_TYPE_CDMA) {
             // TODO: temp workaround, OCTET encoding for EMS not properly supported
@@ -268,8 +266,8 @@ public class SmsMessageTest {
         destinationAddress = "18004664411";
         message = "This is a test message";
         statusReportRequested = false;
-        SmsMessage.SubmitPdu smsPdu =
-            SmsMessage.getSubmitPdu(scAddress, destinationAddress, message, statusReportRequested);
+        smsPdu = SmsMessage.getSubmitPdu(
+                scAddress, destinationAddress, message, statusReportRequested);
         assertNotNull(smsPdu);
 
         smsPdu = SmsMessage.getSubmitPdu(scAddress, destinationAddress, (short)80,
@@ -317,6 +315,7 @@ public class SmsMessageTest {
         }
 
         int[] result = SmsMessage.calculateLength(LONG_TEXT_WITH_32BIT_CHARS, false);
+        assertEquals(6, result.length);
         assertEquals(3, result[0]);
         assertEquals(LONG_TEXT_WITH_32BIT_CHARS.length(), result[1]);
         // 3 parts, each with (SmsMessage.MAX_USER_DATA_BYTES_WITH_HEADER / 2) 16-bit

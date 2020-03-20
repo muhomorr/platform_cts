@@ -234,6 +234,13 @@
     <string name="sec_protected_confirmation_tee_test">Start Tee Test</string>
     <string name="sec_protected_confirmation_strongbox_test">Start Strongbox Test</string>
 
+    <!-- Strings for IdentityAuthPerPresenation -->
+    <string name="sec_identity_credential_authentication_test">Identity Credential Authentication</string>
+    <string name="sec_identity_credential_authentication_test_info">
+        This test ensures that data elements in Identity Credential documents protected by user
+        authentication with timeout 0 can only be accessed once per reader session.
+    </string>
+
     <!-- Strings for BluetoothActivity -->
     <string name="bluetooth_test">Bluetooth Test</string>
     <string name="bluetooth_test_info">
@@ -814,6 +821,7 @@
     <string name="multinetwork_status_mobile_connect_success">Mobile net connect success.</string>
     <string name="multinetwork_status_wifi_connect_timed_out">Wi-Fi connect timed out.</string>
     <string name="multinetwork_status_wifi_connect_wrong_ap">Wi-Fi connected to wrong access point.</string>
+    <string name="multinetwork_status_unable_to_toggle_wifi">User did not toggle wifi on and off.</string>
     <string name="multinetwork_status_mobile_connect_timed_out">Mobile network connect timed out.</string>
     <string name="multinetwork_status_mobile_restore_success">Mobile restore succeeded.</string>
     <string name="multinetwork_status_mobile_restore_failed">Mobile restore failed.</string>
@@ -826,6 +834,10 @@
     <string name="multinetwork_connectivity_overlay_permission_message">This test requires the CTS verifier to have the system overlay permission, please enable it in the next screen.</string>
     <string name="multinetwork_connectivity_overlay_permission_positive">Settings</string>
     <string name="multinetwork_connectivity_overlay_permission_negative">Cancel</string>
+    <string name="multinetwork_connectivity_turn_wifi_on">Please turn Wi-Fi on.</string>
+    <string name="multinetwork_connectivity_turn_wifi_off">Please turn Wi-Fi off.</string>
+    <string name="multinetwork_connectivity_turn_wifi_positive">OK</string>
+    <string name="multinetwork_connectivity_turn_wifi_negative">Cancel</string>
     <!-- Strings for NfcTestActivity -->
     <string name="nfc_test">NFC Test</string>
     <string name="nfc_test_info">The Peer-to-Peer Data Exchange tests require two devices with
@@ -1308,6 +1320,13 @@
     7. Click "Pass" if possible, otherwise open settings app, allow location again and click "Fail".
     </string>
     <string name="ci_instruction_text_intent_picture_label">\n
+    1. Click Start Test.\n
+    2. Camera app will launch, prompting to take photo.\n
+    3. Capture/confirm photo using camera app controls within 1 minute.\n
+    4. Pass button will light up if intent and URI trigger were NOT received.\n
+    5. Click "Pass" if possible, otherwise open settings app, allow location again and click "Fail".
+    </string>
+    <string name="ci_instruction_text_intent_picture_secure_label">\n
     1. Click Start Test.\n
     2. Camera app will launch, prompting to take photo.\n
     3. Capture/confirm photo using camera app controls within 1 minute.\n
@@ -2938,8 +2957,9 @@ You should be prompted to select credentials; choose the ones you just installed
     <string name="provisioning_byod_personal_ringtones_instruction">
         This test verifies that personal ringtones can be changed independently of work profile ringtones.\n
         1. Press the go button to go to the sound settings page. Under \"Work profile sounds\" turn off the \"use personal profile sounds\" switch.\n
-        2. Change the personal \"Phone ringtone\", \"Default notification sound\", and \"Default alarm sound\" settings to different values.\n
-        3. Read the values displayed under \"Work phone ringtone\", \"Default work notification sound\", and \"Default work alarm sound\".\n
+        2. Change the personal \"Phone ringtone\", \"Default notification sound\", and \"Default alarm sound\" settings to different values. Skip any of these settings that do not exist.\n
+        3. Read the values displayed under \"Work phone ringtone\", \"Default work notification sound\", and \"Default work alarm sound\". If any of the settings in #2 did not exist, skip the\n
+            corresponding work profile setting."\n
         4. Verify that the work sounds are different to the personal values just set.\n
         5. Go back to the cts-verifier tests using the back button, then mark the test accordingly.\n
     </string>
@@ -5081,6 +5101,33 @@ Follow the instructions on the screen to measure the frequency response for the 
         UI when prompted.
     </string>
     <string name="telecom_incoming_self_mgd_place_call_button">Start Self-Managed Call</string>
+    <string name="telecom_default_dialer_test_title">Default Dialer Test</string>
+    <string name="telecom_default_dialer_test_info">
+        This test verifies that a third party dialer can show an incoming call screen when the
+        device is locked.
+    </string>
+    <string name="telecom_default_dialer_step_1">
+        Click the button below to set CtsVerifier as the default dialer.
+    </string>
+    <string name="telecom_default_dialer_set_third_party_dialer_button">
+        Set third party dialer
+    </string>
+    <string name="telecom_default_dialer_step_2">
+        Click the button to make sure that this phone is secured with a lock screen.
+    </string>
+    <string name="telecom_confirm_lock_screen">Confirm lock screen</string>
+    <string name="telecom_default_dialer_step_3">
+        Click the button below to lock the phone and then call this device. Answer the incoming call
+        in the UI when prompted without unlock the phone.
+    </string>
+    <string name="telecom_default_dialer_lock_button">Lock phone and dail</string>
+    <string name="telecom_default_dialer_step_4">
+        Click the button below to confirm that the ongoing incoming call was answered when the
+        device is locked.
+    </string>
+    <string name="telecom_default_dialer_end_button">End call and confirm</string>
+    <string name="telecom_default_dialer_confirm_button">Confirm</string>
+    <string name="telecom_in_call_ui_label">CtsVerifierInCallUi</string>
     <!-- Strings for SetNewPasswordComplexityTest -->
     <string name="set_complexity_test_title">Set New Password Complexity Test</string>
     <string name="set_complexity_test_message">

@@ -47,9 +47,15 @@ public class TestApp {
             "TestAppBv2.apk");
 
     // Apex collection
+    public static final TestApp Apex1 =
+            new TestApp("Apex1", Apex, 1, /*isApex*/true,
+                    "com.android.apex.cts.shim.v1.apex");
     public static final TestApp Apex2 =
             new TestApp("Apex2", Apex, 2, /*isApex*/true,
             "com.android.apex.cts.shim.v2.apex");
+    public static final TestApp ApexNoHashtree2 =
+            new TestApp("Apex2", Apex, 2, /*isApex*/true,
+                    "com.android.apex.cts.shim.v2_no_hashtree.apex");
     public static final TestApp ApexWrongSha2 = new TestApp(
             "ApexWrongSha2", Apex, 2, /*isApex*/true,
             "com.android.apex.cts.shim.v2_wrong_sha.apex");

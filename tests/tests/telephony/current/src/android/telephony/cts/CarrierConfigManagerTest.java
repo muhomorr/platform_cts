@@ -35,6 +35,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
+
 import android.app.UiAutomation;
 import android.content.Context;
 import android.content.pm.PackageManager;
@@ -47,6 +48,7 @@ import android.telephony.SubscriptionManager;
 import android.telephony.SubscriptionManager.OnSubscriptionsChangedListener;
 import android.telephony.TelephonyManager;
 
+import com.android.compatibility.common.util.ShellIdentityUtils;
 import com.android.compatibility.common.util.TestThread;
 
 import org.junit.After;
@@ -82,7 +84,7 @@ public class CarrierConfigManagerTest {
     @After
     public void tearDown() throws Exception {
         try {
-            setOpMode("android.telephony.cts", OPSTR_READ_PHONE_STATE, MODE_ALLOWED);
+            setOpMode("--uid android.telephony.cts", OPSTR_READ_PHONE_STATE, MODE_ALLOWED);
         } catch (IOException e) {
             fail();
         }
@@ -135,7 +137,42 @@ public class CarrierConfigManagerTest {
             assertEquals("KEY_CARRIER_VVM_PACKAGE_NAME_STRING doesn't match static default.",
                 config.getString(CarrierConfigManager.KEY_CARRIER_VVM_PACKAGE_NAME_STRING), "");
             assertFalse(CarrierConfigManager.isConfigForIdentifiedCarrier(config));
+
+            // Check default value matching
+            assertEquals("KEY_DATA_LIMIT_NOTIFICATION_BOOL doesn't match static default.",
+                    config.getBoolean(CarrierConfigManager.KEY_DATA_LIMIT_NOTIFICATION_BOOL),
+                            true);
+            assertEquals("KEY_DATA_RAPID_NOTIFICATION_BOOL doesn't match static default.",
+                    config.getBoolean(CarrierConfigManager.KEY_DATA_RAPID_NOTIFICATION_BOOL),
+                            true);
+            assertEquals("KEY_DATA_WARNING_NOTIFICATION_BOOL doesn't match static default.",
+                    config.getBoolean(CarrierConfigManager.KEY_DATA_WARNING_NOTIFICATION_BOOL),
+                            true);
+            assertEquals("Gps.KEY_PERSIST_LPP_MODE_BOOL doesn't match static default.",
+                    config.getBoolean(CarrierConfigManager.Gps.KEY_PERSIST_LPP_MODE_BOOL),
+                            true);
+            assertEquals("KEY_MONTHLY_DATA_CYCLE_DAY_INT doesn't match static default.",
+                    config.getInt(CarrierConfigManager.KEY_MONTHLY_DATA_CYCLE_DAY_INT),
+                            CarrierConfigManager.DATA_CYCLE_USE_PLATFORM_DEFAULT);
         }
+
+        // These key should return default values if not customized.
+        assertNotNull(config.getIntArray(
+                CarrierConfigManager.KEY_5G_NR_SSRSRP_THRESHOLDS_INT_ARRAY));
+        assertNotNull(config.getIntArray(
+                CarrierConfigManager.KEY_5G_NR_SSRSRQ_THRESHOLDS_INT_ARRAY));
+        assertNotNull(config.getIntArray(
+                CarrierConfigManager.KEY_5G_NR_SSSINR_THRESHOLDS_INT_ARRAY));
+        assertNotNull(config.getIntArray(
+                CarrierConfigManager.KEY_LTE_RSRQ_THRESHOLDS_INT_ARRAY));
+        assertNotNull(config.getIntArray(
+                CarrierConfigManager.KEY_LTE_RSSNR_THRESHOLDS_INT_ARRAY));
+
+        // Check the GPS key prefix
+        assertTrue("Gps.KEY_PREFIX doesn't match the prefix of the name of "
+                + "Gps.KEY_PERSIST_LPP_MODE_BOOL",
+                        CarrierConfigManager.Gps.KEY_PERSIST_LPP_MODE_BOOL.startsWith(
+                                CarrierConfigManager.Gps.KEY_PREFIX));
     }
 
     @Test
@@ -153,7 +190,7 @@ public class CarrierConfigManagerTest {
         PersistableBundle config;
 
         try {
-            setOpMode("android.telephony.cts", OPSTR_READ_PHONE_STATE, MODE_IGNORED);
+            setOpMode("--uid android.telephony.cts", OPSTR_READ_PHONE_STATE, MODE_IGNORED);
         } catch (IOException e) {
             fail();
         }
@@ -162,7 +199,7 @@ public class CarrierConfigManagerTest {
         assertTrue(config.isEmptyParcel());
 
         try {
-            setOpMode("android.telephony.cts", OPSTR_READ_PHONE_STATE, MODE_ALLOWED);
+            setOpMode("--uid android.telephony.cts", OPSTR_READ_PHONE_STATE, MODE_ALLOWED);
         } catch (IOException e) {
             fail();
         }
@@ -193,6 +230,16 @@ public class CarrierConfigManagerTest {
             }
         } catch (SecurityException expected) {
         }
+    }
+
+    /**
+     * The following methods may return any value depending on the state of the device. Simply
+     * call them to make sure they do not throw any exceptions.
+     */
+    @Test
+    public void testCarrierConfigManagerResultDependentApi() {
+        assertNotNull(ShellIdentityUtils.invokeMethodWithShellPermissions(mConfigManager,
+                (cm) -> cm.getDefaultCarrierServicePackageName()));
     }
 
     /**

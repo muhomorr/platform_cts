@@ -43,6 +43,7 @@ import android.telecom.PhoneAccountHandle;
 import android.telecom.StatusHints;
 import android.telecom.TelecomManager;
 import android.telephony.TelephonyManager;
+import android.text.TextUtils;
 
 import java.util.Arrays;
 import java.util.List;
@@ -282,8 +283,8 @@ public class CallDetailsTest extends BaseTelecomTestWithMockServices {
         mConnection.setConnectionProperties(Connection.PROPERTY_IS_RTT);
         assertCallProperties(mCall, Call.Details.PROPERTY_RTT);
 
-        mConnection.setConnectionProperties(Connection.PROPERTY_ASSISTED_DIALING_USED);
-        assertCallProperties(mCall, Call.Details.PROPERTY_ASSISTED_DIALING_USED);
+        mConnection.setConnectionProperties(Connection.PROPERTY_ASSISTED_DIALING);
+        assertCallProperties(mCall, Call.Details.PROPERTY_ASSISTED_DIALING);
 
         mConnection.setConnectionProperties(Connection.PROPERTY_NETWORK_IDENTIFIED_EMERGENCY_CALL);
         assertCallProperties(mCall, Call.Details.PROPERTY_NETWORK_IDENTIFIED_EMERGENCY_CALL);
@@ -315,6 +316,18 @@ public class CallDetailsTest extends BaseTelecomTestWithMockServices {
 
         assertThat(mCall.getDetails().getCallerDisplayNamePresentation(), instanceOf(Integer.class));
         assertEquals(CALLER_DISPLAY_NAME_PRESENTATION, mCall.getDetails().getCallerDisplayNamePresentation());
+    }
+
+    /**
+     * Test the contacts display name. We don't have anything set up in contacts, so expect it to
+     * be null
+     */
+    public void testContactDisplayName() {
+        if (!mShouldTestTelecom) {
+            return;
+        }
+
+        assertTrue(TextUtils.isEmpty(mCall.getDetails().getContactDisplayName()));
     }
 
     /**
@@ -857,16 +870,26 @@ public class CallDetailsTest extends BaseTelecomTestWithMockServices {
     }
 
     /**
-     * Tests whether the CallLogManager logs the features of a call(HD call and Wifi call)
+     * Tests whether the CallLogManager logs the features of a call(HD call, Wifi call, VoLTE)
      * correctly.
      */
-    public void testLogHdAndWifi() throws Exception {
+    public void testLogFeatures() throws Exception {
         if (!mShouldTestTelecom) {
             return;
         }
 
         // Register content observer on call log and get latch
         CountDownLatch callLogEntryLatch = getCallLogEntryLatch();
+
+        Bundle testBundle = new Bundle();
+        testBundle.putInt(TelecomManager.EXTRA_CALL_NETWORK_TYPE,
+                          TelephonyManager.NETWORK_TYPE_LTE);
+        mConnection.putExtras(testBundle);
+        // Wait for the 2nd invocation; setExtras is called in the setup method.
+        mOnExtrasChangedCounter.waitForCount(2, WAIT_FOR_STATE_CHANGE_TIMEOUT_MS);
+
+        Bundle extra = mCall.getDetails().getExtras();
+
         mCall.disconnect();
 
         // Wait on the call log latch.
@@ -874,11 +897,13 @@ public class CallDetailsTest extends BaseTelecomTestWithMockServices {
 
         // Verify the contents of the call log
         Cursor callsCursor = mContext.getContentResolver().query(CallLog.Calls.CONTENT_URI, null,
-                "features", null, null);
-        int features = callsCursor.getColumnIndex(CallLog.Calls.FEATURES);
+                null, null, "_id DESC");
+        callsCursor.moveToFirst();
+        int features = callsCursor.getInt(callsCursor.getColumnIndex("features"));
         assertEquals(CallLog.Calls.FEATURES_HD_CALL,
                 features & CallLog.Calls.FEATURES_HD_CALL);
         assertEquals(CallLog.Calls.FEATURES_WIFI, features & CallLog.Calls.FEATURES_WIFI);
+        assertEquals(CallLog.Calls.FEATURES_VOLTE, features & CallLog.Calls.FEATURES_VOLTE);
     }
 
     /**
