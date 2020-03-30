@@ -94,23 +94,30 @@ public class StagedInstallTest extends BaseHostJUnit4Test {
     }
 
     @Test
-    public void testFailInstallAnotherSessionAlreadyInProgress_BothSinglePackage() throws Exception {
-        runPhase("testFailInstallAnotherSessionAlreadyInProgress_BothSinglePackage");
+    public void testFailOverlappingMultipleStagedInstall_BothSinglePackage_Apk() throws Exception {
+        runPhase("testFailOverlappingMultipleStagedInstall_BothSinglePackage_Apk");
     }
 
     @Test
-    public void testFailInstallAnotherSessionAlreadyInProgress_SinglePackageMultiPackage() throws Exception {
-        runPhase("testFailInstallAnotherSessionAlreadyInProgress_SinglePackageMultiPackage");
+    public void testAllowNonOverlappingMultipleStagedInstall_MultiPackageSinglePackage_Apk()
+            throws Exception {
+        runPhase("testAllowNonOverlappingMultipleStagedInstall_MultiPackageSinglePackage_Apk");
     }
 
     @Test
-    public void testFailInstallAnotherSessionAlreadyInProgress_MultiPackageSinglePackage() throws Exception {
-        runPhase("testFailInstallAnotherSessionAlreadyInProgress_MultiPackageSinglePackage");
+    public void testFailOverlappingMultipleStagedInstall_BothMultiPackage_Apk() throws Exception {
+        runPhase("testFailOverlappingMultipleStagedInstall_BothMultiPackage_Apk");
     }
 
+    /**
+     * Tests for installing multiple staged sessions at the same time
+     */
     @Test
-    public void testFailInstallAnotherSessionAlreadyInProgress_BothMultiPackage() throws Exception {
-        runPhase("testFailInstallAnotherSessionAlreadyInProgress_BothMultiPackage");
+    @LargeTest
+    public void testMultipleStagedInstall_ApkOnly() throws Exception {
+        runPhase("testMultipleStagedInstall_ApkOnly_Commit");
+        getDevice().reboot();
+        runPhase("testMultipleStagedInstall_ApkOnly_VerifyPostReboot");
     }
 
     @Test
@@ -137,18 +144,18 @@ public class StagedInstallTest extends BaseHostJUnit4Test {
     }
 
     @Test
-    public void testGetActiveStagedSession() throws Exception {
-        runPhase("testGetActiveStagedSession");
+    public void testGetActiveStagedSessions() throws Exception {
+        runPhase("testGetActiveStagedSessions");
     }
 
     @Test
-    public void testGetActiveStagedSessionNoSessionActive() throws Exception {
-        runPhase("testGetActiveStagedSessionNoSessionActive");
+    public void testGetActiveStagedSessionsNoSessionActive() throws Exception {
+        runPhase("testGetActiveStagedSessionsNoSessionActive");
     }
 
     @Test
-    public void getGetActiveStagedSession_MultiApkSession() throws Exception {
-        runPhase("testGetGetActiveStagedSession_MultiApkSession");
+    public void testGetActiveStagedSessions_MultiApkSession() throws Exception {
+        runPhase("testGetActiveStagedSessions_MultiApkSession");
     }
 
     @Test
@@ -312,12 +319,6 @@ public class StagedInstallTest extends BaseHostJUnit4Test {
         runPhase("testInstallV3Apex_VerifyPostReboot");
     }
 
-    private void installV3SignedBobApex() throws Exception {
-        runPhase("testInstallV3SignedBobApex_Commit");
-        getDevice().reboot();
-        runPhase("testInstallV3SignedBobApex_VerifyPostReboot");
-    }
-
     @Test
     public void testFailsInvalidApexInstall() throws Exception {
         assumeTrue("Device does not support updating APEX", isUpdatingApexSupported());
@@ -361,7 +362,13 @@ public class StagedInstallTest extends BaseHostJUnit4Test {
      * Here alice means the original default key that cts.shim.v1 package was signed with and
      * bob is the new key alice rotates to. Where ambiguous, we will refer keys as alice and bob
      * instead of "old key" and "new key".
+     *
+     * By default, rotated keys have rollback capability enabled for old keys. When we remove
+     * rollback capability from a key, it is called "Distrusting Event" and the distrusted key can
+     * not update the app anymore.
      */
+
+    // Should not be able to update with a key that has not been rotated.
     @Test
     public void testUpdateWithDifferentKeyButNoRotation() throws Exception {
         assumeTrue("Device does not support updating APEX", isUpdatingApexSupported());
@@ -369,6 +376,7 @@ public class StagedInstallTest extends BaseHostJUnit4Test {
         runPhase("testUpdateWithDifferentKeyButNoRotation");
     }
 
+    // Should be able to update with a key that has been rotated.
     @Test
     @LargeTest
     public void testUpdateWithDifferentKey() throws Exception {
@@ -379,15 +387,31 @@ public class StagedInstallTest extends BaseHostJUnit4Test {
         runPhase("testUpdateWithDifferentKey_VerifyPostReboot");
     }
 
+    // Should not be able to update with a key that is no longer trusted (i.e, has no
+    // rollback capability)
     @Test
     @LargeTest
-    public void testAfterRotationOldKeyIsRejected() throws Exception {
+    public void testUntrustedOldKeyIsRejected() throws Exception {
         assumeTrue("Device does not support updating APEX", isUpdatingApexSupported());
 
         installV2SignedBobApex();
-        runPhase("testAfterRotationOldKeyIsRejected");
+        runPhase("testUntrustedOldKeyIsRejected");
     }
 
+    // Should be able to update with an old key which is trusted
+    @Test
+    @LargeTest
+    public void testTrustedOldKeyIsAccepted() throws Exception {
+        assumeTrue("Device does not support updating APEX", isUpdatingApexSupported());
+
+        runPhase("testTrustedOldKeyIsAccepted_Commit");
+        getDevice().reboot();
+        runPhase("testTrustedOldKeyIsAccepted_CommitPostReboot");
+        getDevice().reboot();
+        runPhase("testTrustedOldKeyIsAccepted_VerifyPostReboot");
+    }
+
+    // Should be able to update further with rotated key
     @Test
     @LargeTest
     public void testAfterRotationNewKeyCanUpdateFurther() throws Exception {

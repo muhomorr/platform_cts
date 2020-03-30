@@ -19,6 +19,7 @@ android_test {
     test_suites: [
         "cts",
         "vts",
+        "vts10",
         "general-tests",
     ],
     libs: ["android.test.runner.stubs"],
@@ -26,6 +27,8 @@ android_test {
         "androidx.annotation_annotation",
         "androidx.test.rules",
         "ctstestrunner-axt",
+        "cts-install-lib",
+        "core-test-rules", // for libcore.dalvik.system.CloseGuardSupport
     ],
     srcs: ["src/**/*.java"],
     platform_apis: true,

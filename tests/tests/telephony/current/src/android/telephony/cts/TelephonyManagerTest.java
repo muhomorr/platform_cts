@@ -45,6 +45,7 @@ import android.os.Build;
 import android.os.IBinder;
 import android.os.Looper;
 import android.os.PersistableBundle;
+import android.os.Process;
 import android.os.RemoteException;
 import android.telecom.PhoneAccount;
 import android.telecom.PhoneAccountHandle;
@@ -53,7 +54,6 @@ import android.telephony.AccessNetworkConstants;
 import android.telephony.Annotation.RadioPowerState;
 import android.telephony.AvailableNetworkInfo;
 import android.telephony.CallAttributes;
-import android.telephony.CallForwardingInfo;
 import android.telephony.CallQuality;
 import android.telephony.CarrierConfigManager;
 import android.telephony.CellLocation;
@@ -516,12 +516,26 @@ public class TelephonyManagerTest {
         mTelephonyManager.isVoicemailVibrationEnabled(defaultAccount);
         mTelephonyManager.getSubscriptionId(defaultAccount);
         mTelephonyManager.getCarrierConfig();
+        mTelephonyManager.isVoiceCapable();
+        mTelephonyManager.isSmsCapable();
         ShellIdentityUtils.invokeMethodWithShellPermissions(mTelephonyManager,
                 (tm) -> tm.isDataConnectionAllowed());
         ShellIdentityUtils.invokeMethodWithShellPermissions(mTelephonyManager,
                 (tm) -> tm.isAnyRadioPoweredOn());
         ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mTelephonyManager,
                 (tm) -> tm.resetIms(tm.getSlotIndex()));
+
+        // Verify TelephonyManager.getCarrierPrivilegeStatus
+        List<Integer> validCarrierPrivilegeStatus = new ArrayList<>();
+        validCarrierPrivilegeStatus.add(TelephonyManager.CARRIER_PRIVILEGE_STATUS_HAS_ACCESS);
+        validCarrierPrivilegeStatus.add(TelephonyManager.CARRIER_PRIVILEGE_STATUS_NO_ACCESS);
+        validCarrierPrivilegeStatus.add(
+                TelephonyManager.CARRIER_PRIVILEGE_STATUS_RULES_NOT_LOADED);
+        validCarrierPrivilegeStatus.add(
+                TelephonyManager.CARRIER_PRIVILEGE_STATUS_ERROR_LOADING_RULES);
+        int carrierPrivilegeStatusResult = ShellIdentityUtils.invokeMethodWithShellPermissions(
+                mTelephonyManager, (tm) -> tm.getCarrierPrivilegeStatus(Process.myUid()));
+        assertTrue(validCarrierPrivilegeStatus.contains(carrierPrivilegeStatusResult));
 
         // Verify TelephonyManager.getCarrierPrivilegedPackagesForAllActiveSubscriptions
         List<String> resultForGetCarrierPrivilegedApis =
@@ -535,6 +549,10 @@ public class TelephonyManagerTest {
         TelephonyManager.getDefaultRespondViaMessageApplication(getContext(), false);
     }
 
+    /**
+     * Due to the corresponding API is hidden in R and will be public in S, this test
+     * is commented and will be un-commented in Android S.
+     *
     @Test
     public void testGetCallForwarding() {
         List<Integer> callForwardingReasons = new ArrayList<>();
@@ -566,7 +584,12 @@ public class TelephonyManagerTest {
             assertTrue(callForwardingInfo.getTimeoutSeconds() >= 0);
         }
     }
+     */
 
+    /**
+     * Due to the corresponding API is hidden in R and will be public in S, this test
+     * is commented and will be un-commented in Android S.
+     *
     @Test
     public void testSetCallForwarding() {
         List<Integer> callForwardingReasons = new ArrayList<>();
@@ -583,10 +606,12 @@ public class TelephonyManagerTest {
                     CallForwardingInfo.STATUS_ACTIVE,
                     callForwardingReasonToEnable,
                     TEST_FORWARD_NUMBER,
-                    1 /** time seconds */);
+                    // time seconds
+                    1);
             Log.d(TAG, "[testSetCallForwarding] Enable Call Forwarding. Status: "
-                    + CallForwardingInfo.STATUS_ACTIVE + " Reason: " + callForwardingReasonToEnable
-                    + " Number: " + TEST_FORWARD_NUMBER + " Time Seconds: 1");
+                    + CallForwardingInfo.STATUS_ACTIVE + " Reason: "
+                    + callForwardingReasonToEnable + " Number: " + TEST_FORWARD_NUMBER
+                    + " Time Seconds: 1");
             ShellIdentityUtils.invokeMethodWithShellPermissions(mTelephonyManager,
                     (tm) -> tm.setCallForwarding(callForwardingInfoToEnable));
         }
@@ -597,7 +622,8 @@ public class TelephonyManagerTest {
                     CallForwardingInfo.STATUS_INACTIVE,
                     callForwardingReasonToDisable,
                     TEST_FORWARD_NUMBER,
-                    1 /** time seconds */);
+                    // time seconds
+                    1);
             Log.d(TAG, "[testSetCallForwarding] Disable Call Forwarding. Status: "
                     + CallForwardingInfo.STATUS_INACTIVE + " Reason: "
                     + callForwardingReasonToDisable + " Number: " + TEST_FORWARD_NUMBER
@@ -606,7 +632,12 @@ public class TelephonyManagerTest {
                     (tm) -> tm.setCallForwarding(callForwardingInfoToDisable));
         }
     }
+    */
 
+    /**
+     * Due to the corresponding API is hidden in R and will be public in S, this test
+     * is commented and will be un-commented in Android S.
+     *
     @Test
     public void testGetCallWaitingStatus() {
         Set<Integer> callWaitingStatus = new HashSet<Integer>();
@@ -619,7 +650,12 @@ public class TelephonyManagerTest {
                 mTelephonyManager, (tm) -> tm.getCallWaitingStatus());
         assertTrue(callWaitingStatus.contains(status));
     }
+     */
 
+    /**
+     * Due to the corresponding API is hidden in R and will be public in S, this test
+     * is commented and will be un-commented in Android S.
+     *
     @Test
     public void testSetCallWaitingStatus() {
         ShellIdentityUtils.invokeMethodWithShellPermissions(mTelephonyManager,
@@ -627,6 +663,7 @@ public class TelephonyManagerTest {
         ShellIdentityUtils.invokeMethodWithShellPermissions(mTelephonyManager,
                 (tm) -> tm.setCallWaitingStatus(false));
     }
+     */
 
     @Test
     public void testCellLocationFinePermission() {
@@ -1054,13 +1091,21 @@ public class TelephonyManagerTest {
     @Test
     public void testSetSystemSelectionChannels() {
         LinkedBlockingQueue<Boolean> queue = new LinkedBlockingQueue<>(1);
-        ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mTelephonyManager,
-                (tm) -> tm.setSystemSelectionChannels(Collections.emptyList(),
-                        getContext().getMainExecutor(), queue::offer));
+        final UiAutomation uiAutomation =
+                InstrumentationRegistry.getInstrumentation().getUiAutomation();
         try {
-            assertTrue(queue.poll(1000, TimeUnit.MILLISECONDS));
+            uiAutomation.adoptShellPermissionIdentity();
+            // This is a oneway binder call, meaning we may return before the permission check
+            // happens. Hold shell permissions until we get a response.
+            mTelephonyManager.setSystemSelectionChannels(Collections.emptyList(),
+                    getContext().getMainExecutor(), queue::offer);
+            Boolean result = queue.poll(1000, TimeUnit.MILLISECONDS);
+            assertNotNull(result);
+            assertTrue(result);
         } catch (InterruptedException e) {
             fail("interrupted");
+        } finally {
+            uiAutomation.dropShellPermissionIdentity();
         }
 
         // Try calling the API that doesn't provide feedback. We have no way of knowing if it
@@ -1390,6 +1435,40 @@ public class TelephonyManagerTest {
         } catch (SecurityException e) {
             // expected
         }
+    }
+
+    /**
+     * Basic test to ensure {@link NetworkRegistrationInfo#getRegisteredPlmn()} provides valid
+     * information.
+     */
+    @Test
+    public void testNetworkRegistrationInfoRegisteredPlmn() {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            return;
+        }
+        // get NetworkRegistration object
+        ServiceState ss = mTelephonyManager.getServiceState();
+        assertNotNull(ss);
+
+        boolean hasRegistered = false;
+        for (NetworkRegistrationInfo nwReg : ss.getNetworkRegistrationInfoList()) {
+            if (nwReg.isRegistered()
+                        && nwReg.getTransportType() == AccessNetworkConstants.TRANSPORT_TYPE_WWAN) {
+                hasRegistered = true;
+                String plmnId = nwReg.getRegisteredPlmn();
+                // CDMA doesn't have PLMN IDs. Rather than put CID|NID here, instead it will be
+                // empty. It's a case that's becoming less important over time, but for now a
+                // device that's only registered on CDMA needs to pass this test.
+                if (nwReg.getCellIdentity() instanceof android.telephony.CellIdentityCdma) {
+                    assertTrue(TextUtils.isEmpty(plmnId));
+                } else {
+                    assertFalse(TextUtils.isEmpty(plmnId));
+                    assertTrue("PlmnId() out of range [00000 - 999999], PLMN ID=" + plmnId,
+                            plmnId.matches("^[0-9]{5,6}$"));
+                }
+            }
+        }
+        assertTrue(hasRegistered);
     }
 
     /**
@@ -2323,6 +2402,16 @@ public class TelephonyManagerTest {
     }
 
     @Test
+    public void testIsDataCapableExists() {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            return;
+        }
+
+        //Simple test to make sure that isDataCapable exists and does not crash.
+        mTelephonyManager.isDataCapable();
+    }
+
+    @Test
     public void testDisAllowedNetworkTypes() {
         if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
             return;
@@ -2575,4 +2664,5 @@ public class TelephonyManagerTest {
         return mTelephonyManager.getPhoneType() == TelephonyManager.PHONE_TYPE_GSM;
     }
 }
+
 

@@ -1125,6 +1125,9 @@ public abstract class DeviceAndProfileOwnerTest extends BaseDevicePolicyTest {
             // Reboot while in kiosk mode and then unlock the device
             rebootAndWaitUntilReady();
 
+            // Wait for the LockTask starting
+            waitForBroadcastIdle();
+
             // Try to open settings via adb
             executeShellCommand("am start -a android.settings.SETTINGS");
 
@@ -1424,7 +1427,7 @@ public abstract class DeviceAndProfileOwnerTest extends BaseDevicePolicyTest {
     }
 
     public void testPrintingPolicy() throws Exception {
-        if (!mHasFeature) {
+        if (!mHasFeature || !hasDeviceFeature("android.software.print")) {
             return;
         }
         installAppAsUser(PRINTING_APP_APK, mUserId);
