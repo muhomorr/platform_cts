@@ -722,8 +722,8 @@ public class ImsServiceTest {
         };
 
         final UiAutomation automan = InstrumentationRegistry.getInstrumentation().getUiAutomation();
-        // Latch will count down here (we callback on the state during registration).
         try {
+            // First try without the correct permissions.
             ImsManager imsManager = getContext().getSystemService(ImsManager.class);
             ImsMmTelManager mmTelManager = imsManager.getImsMmTelManager(sTestSub);
             mmTelManager.registerImsRegistrationCallback(getContext().getMainExecutor(), callback);
@@ -732,6 +732,7 @@ public class ImsServiceTest {
             //expected
         }
 
+        // Latch will count down here (we callback on the state during registration).
         try {
             automan.adoptShellPermissionIdentity();
             ImsManager imsManager = getContext().getSystemService(ImsManager.class);
@@ -761,6 +762,16 @@ public class ImsServiceTest {
         assertEquals(AccessNetworkConstants.TRANSPORT_TYPE_WLAN, waitForIntResult(mQueue));
         assertEquals(ImsReasonInfo.CODE_LOCAL_HO_NOT_FEASIBLE, waitForIntResult(mQueue));
 
+        // Ensure null ImsReasonInfo still results in non-null callback value.
+        sServiceConnector.getCarrierService().getImsRegistration().onTechnologyChangeFailed(
+                ImsRegistrationImplBase.REGISTRATION_TECH_IWLAN, null);
+        assertEquals(AccessNetworkConstants.TRANSPORT_TYPE_WLAN, waitForIntResult(mQueue));
+        assertEquals(ImsReasonInfo.CODE_UNSPECIFIED, waitForIntResult(mQueue));
+
+        // Ensure null ImsReasonInfo still results in non-null callback.
+        sServiceConnector.getCarrierService().getImsRegistration().onDeregistered(null);
+        assertEquals(ImsReasonInfo.CODE_UNSPECIFIED, waitForIntResult(mQueue));
+
         try {
             automan.adoptShellPermissionIdentity();
             ImsManager imsManager = getContext().getSystemService(ImsManager.class);
@@ -778,7 +789,6 @@ public class ImsServiceTest {
         } catch (SecurityException e) {
             //expected
         }
-
     }
 
     @Ignore("RCS APIs not public yet")
@@ -1136,6 +1146,105 @@ public class ImsServiceTest {
         }
     }
 
+    /**
+     * We are specifically testing a race case here such that IsAvailable returns the correct
+     * capability status during the callback.
+     */
+    @Test
+    public void testCapabilityStatusWithIsAvailableDuringCallback() throws Exception {
+        if (!ImsUtils.shouldTestImsService()) {
+            return;
+        }
+
+        ImsManager imsManager = getContext().getSystemService(ImsManager.class);
+        ImsMmTelManager mmTelManager = imsManager.getImsMmTelManager(sTestSub);
+
+        triggerFrameworkConnectToCarrierImsService();
+
+        // Wait for the framework to set the capabilities on the ImsService
+        sServiceConnector.getCarrierService().waitForLatchCountdown(
+                TestImsService.LATCH_MMTEL_CAP_SET);
+
+
+        // Make sure we start off with every capability unavailable
+        sServiceConnector.getCarrierService().getImsRegistration().onRegistered(
+                ImsRegistrationImplBase.REGISTRATION_TECH_LTE);
+        MmTelFeature.MmTelCapabilities stdCapabilities = new MmTelFeature.MmTelCapabilities();
+        sServiceConnector.getCarrierService().getMmTelFeature()
+                .notifyCapabilitiesStatusChanged(stdCapabilities);
+
+
+        // Make sure the capabilities match the API getter for capabilities
+        final UiAutomation automan = InstrumentationRegistry.getInstrumentation().getUiAutomation();
+
+        //This lock is to keep the shell permissions from being dropped on a different thread
+        //causing a permission error.
+        Object lockObj = new Object();
+
+        synchronized (lockObj) {
+            try {
+                automan.adoptShellPermissionIdentity();
+                boolean isAvailableBeforeStatusChange = mmTelManager.isAvailable(
+                        MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VOICE,
+                        ImsRegistrationImplBase.REGISTRATION_TECH_LTE);
+                assertFalse(isAvailableBeforeStatusChange);
+            } finally {
+                automan.dropShellPermissionIdentity();
+            }
+        }
+
+        LinkedBlockingQueue<Boolean> voiceIsAvailable = new LinkedBlockingQueue<>();
+        ImsMmTelManager.CapabilityCallback verifyCapabilityStatusCallaback =
+                new ImsMmTelManager.CapabilityCallback() {
+            @Override
+            public void onCapabilitiesStatusChanged(MmTelFeature.MmTelCapabilities capabilities) {
+                synchronized (lockObj) {
+                    try {
+                        automan.adoptShellPermissionIdentity();
+                        boolean isVoiceAvailable = mmTelManager
+                                .isAvailable(MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VOICE,
+                                        ImsRegistrationImplBase.REGISTRATION_TECH_LTE);
+
+                        voiceIsAvailable.offer(isVoiceAvailable);
+                    } finally {
+                        automan.dropShellPermissionIdentity();
+                    }
+                }
+            }
+        };
+
+        synchronized (lockObj) {
+            // Latch will count down here (we callback on the state during registration).
+            try {
+                automan.adoptShellPermissionIdentity();
+                mmTelManager.registerMmTelCapabilityCallback(getContext().getMainExecutor(),
+                        verifyCapabilityStatusCallaback);
+            } finally {
+                automan.dropShellPermissionIdentity();
+            }
+        }
+
+        // Now enable voice availability
+        Boolean isAvailableDuringRegister = waitForResult(voiceIsAvailable);
+        assertNotNull(isAvailableDuringRegister);
+        assertFalse(isAvailableDuringRegister);
+        sServiceConnector.getCarrierService().getMmTelFeature()
+                .notifyCapabilitiesStatusChanged(new MmTelFeature.MmTelCapabilities(
+                        MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VOICE));
+        Boolean isAvailableAfterStatusChange = waitForResult(voiceIsAvailable);
+        assertNotNull(isAvailableAfterStatusChange);
+        assertTrue(isAvailableAfterStatusChange);
+
+        synchronized (lockObj) {
+            try {
+                automan.adoptShellPermissionIdentity();
+                mmTelManager.unregisterMmTelCapabilityCallback(verifyCapabilityStatusCallaback);
+            } finally {
+                automan.dropShellPermissionIdentity();
+            }
+        }
+    }
+
     @Test
     public void testProvisioningManagerNotifyAutoConfig() throws Exception {
         if (!ImsUtils.shouldTestImsService()) {
@@ -1362,7 +1471,7 @@ public class ImsServiceTest {
             verifyIntKey(provisioningManager, mIntQueue,
                     ProvisioningManager.KEY_RCS_PUBLISH_TIMER_SEC, 5);
             verifyIntKey(provisioningManager, mIntQueue,
-                    ProvisioningManager.KEY_RCS_PUBLISH_TIMER_EXTENDED_SEC, 5);
+                    ProvisioningManager.KEY_RCS_PUBLISH_OFFLINE_AVAILABILITY_TIMER_SEC, 5);
             verifyIntKey(provisioningManager, mIntQueue,
                     ProvisioningManager.KEY_RCS_CAPABILITY_DISCOVERY_ENABLED, 0);
             verifyIntKey(provisioningManager, mIntQueue,
