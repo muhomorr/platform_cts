@@ -19,8 +19,7 @@ package android.hdmicec.cts.audio;
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
 
-import static org.junit.Assert.assertThat;
-import static org.hamcrest.CoreMatchers.is;
+import com.google.common.collect.Range;
 
 import android.hdmicec.cts.CecDevice;
 import android.hdmicec.cts.CecMessage;
@@ -64,7 +63,7 @@ public final class HdmiCecSystemAudioModeTest extends BaseHostJUnit4Test {
     @Rule
     public HdmiCecClientWrapper hdmiCecClient = new HdmiCecClientWrapper(AUDIO_DEVICE, this);
 
-    private void lookForLog(String expectedOut) throws Exception {
+    private void lookForLogFromHdmiCecAudioManager(String expectedOut) throws Exception {
         ITestDevice device = getDevice();
         TimeUnit.SECONDS.sleep(WAIT_TIME);
         String logs = device.executeAdbCommand("logcat", "-v", "brief", "-d", CLASS + ":I", "*:S");
@@ -109,7 +108,7 @@ public final class HdmiCecSystemAudioModeTest extends BaseHostJUnit4Test {
         // Start the APK and wait for it to complete.
         device.executeShellCommand(START_COMMAND + "android.hdmicec.app.REPORT_VOLUME");
         try {
-            lookForLog("Device muted.");
+            lookForLogFromHdmiCecAudioManager("Device muted.");
             return true;
         } catch(Exception e) {
             return false;
@@ -137,6 +136,48 @@ public final class HdmiCecSystemAudioModeTest extends BaseHostJUnit4Test {
                 HdmiCecConstants.PHYSICAL_ADDRESS_LENGTH));
     }
 
+    private int getDutAudioStatus() throws Exception {
+        hdmiCecClient.sendCecMessage(CecDevice.TV, AUDIO_DEVICE, CecMessage.GIVE_AUDIO_STATUS);
+        String message = hdmiCecClient.checkExpectedOutput(CecDevice.TV,
+                CecMessage.REPORT_AUDIO_STATUS);
+        return hdmiCecClient.getParamsFromMessage(message);
+    }
+
+    private void reportAudioStatus_0_unmuted() throws  Exception {
+        unmuteDevice();
+        setDeviceVolume(0);
+        int reportedVolume = getDutAudioStatus();
+        /* Allow for a range of volume, since the actual volume set will depend on the device's
+        volume resolution. */
+        assertThat(reportedVolume).isEqualTo(0);
+    }
+
+    private void reportAudioStatus_50_unmuted() throws  Exception {
+        unmuteDevice();
+        setDeviceVolume(50);
+        int reportedVolume = (getDutAudioStatus() * 100) / 127;
+        /* Allow for a range of volume, since the actual volume set will depend on the device's
+        volume resolution. */
+        assertThat(reportedVolume).isIn(Range.closed(40, 60));
+    }
+
+    private void reportAudioStatus_100_unmuted() throws  Exception {
+        unmuteDevice();
+        setDeviceVolume(100);
+        int reportedVolume = getDutAudioStatus();
+        /* Allow for a range of volume, since the actual volume set will depend on the device's
+        volume resolution. */
+        assertThat(reportedVolume).isEqualTo(100);
+    }
+
+    private void reportAudioStatusMuted() throws  Exception {
+        muteDevice();
+        int reportedVolume = getDutAudioStatus();
+        /* If device is muted, the 8th bit of CEC message parameters is set and the volume will
+        be greater than 127. */
+        assertWithMessage("Device not muted").that(reportedVolume).isGreaterThan(127);
+    }
+
     @After
     public void resetVolume() throws Exception {
         setDeviceVolume(20);
@@ -153,14 +194,14 @@ public final class HdmiCecSystemAudioModeTest extends BaseHostJUnit4Test {
                 CecMessage.SYSTEM_AUDIO_MODE_REQUEST,
                 hdmiCecClient.formatParams(HdmiCecConstants.TV_PHYSICAL_ADDRESS));
         String message = hdmiCecClient.checkExpectedOutput(CecMessage.SET_SYSTEM_AUDIO_MODE);
-        assertThat(hdmiCecClient.getParamsFromMessage(message), is(ON));
+        assertThat(hdmiCecClient.getParamsFromMessage(message)).isEqualTo(ON);
 
         /* Repeat test for device 0x3 (TUNER_1) */
         hdmiCecClient.sendCecMessage(CecDevice.TUNER_1, AUDIO_DEVICE,
                 CecMessage.SYSTEM_AUDIO_MODE_REQUEST,
                 hdmiCecClient.formatParams(HdmiCecConstants.TV_PHYSICAL_ADDRESS));
         message = hdmiCecClient.checkExpectedOutput(CecMessage.SET_SYSTEM_AUDIO_MODE);
-        assertThat(hdmiCecClient.getParamsFromMessage(message), is(ON));
+        assertThat(hdmiCecClient.getParamsFromMessage(message)).isEqualTo(ON);
     }
 
     /**
@@ -258,9 +299,17 @@ public final class HdmiCecSystemAudioModeTest extends BaseHostJUnit4Test {
                 CecMessage.SYSTEM_AUDIO_MODE_REQUEST,
                 hdmiCecClient.formatParams(HdmiCecConstants.TV_PHYSICAL_ADDRESS,
                 HdmiCecConstants.PHYSICAL_ADDRESS_LENGTH));
-        hdmiCecClient.sendCecMessage(CecDevice.TV, AUDIO_DEVICE,
-                CecMessage.GIVE_AUDIO_STATUS);
-        hdmiCecClient.checkExpectedOutput(CecDevice.TV, CecMessage.REPORT_AUDIO_STATUS);
+        /** Set volume to 0 % and check the <Report Audio Status> */
+        reportAudioStatus_0_unmuted();
+
+        /** Set volume to 50 % and check the <Report Audio Status> */
+        reportAudioStatus_50_unmuted();
+
+        /** Set volume to 100 % and check the <Report Audio Status> */
+        reportAudioStatus_100_unmuted();
+
+        /** Mute volume and check the <Report Audio Status> */
+        reportAudioStatusMuted();
     }
 
     /**
