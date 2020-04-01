@@ -1,4 +1,4 @@
-// Copyright (C) 2018 The Android Open Source Project
+// Copyright (C) 2020 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,27 +12,25 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-android_test {
-    name: "CtsOmapiTestCases",
+android_test_helper_app {
+    name: "CtsHostsideTaggingNoneApp",
     defaults: ["cts_defaults"],
-    static_libs: [
-        "ctstestrunner-axt",
-        "compatibility-device-util-axt",
-    ],
-    srcs: ["src/**/*.java"],
-    // was: sdk_version: "current",
-    libs: [
-        "android.test.runner",
-	"android.test.base",
-    ],
-    // Tag this module as a cts test artifact
+    compile_multilib: "both",
     test_suites: [
         "cts",
         "vts",
-        "vts10",
         "general-tests",
     ],
-    dist: {
-        targets: ["cts"],
-    },
+    static_libs: [
+	"tagging-common-devicesidelib",
+        "ctstestrunner-axt",
+        "androidx.test.rules",
+        "androidx.test.core",
+        "androidx.test.ext.junit",
+    ],
+    jni_libs: [
+        "libtagging-common-devicesidelib-jni",
+    ],
+    srcs: ["src/**/*.java"],
+    sdk_version: "current",
 }
