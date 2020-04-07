@@ -1,4 +1,4 @@
-// Copyright (C) 2015 The Android Open Source Project
+// Copyright (C) 2020 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,27 +12,35 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-android_test_helper_app {
-    name: "CtsPackageInstallerApp",
+android_test {
+    name: "CtsIkeTestCases",
     defaults: ["cts_defaults"],
-    srcs: ["src/**/*.java"],
+
+    // Include both the 32 and 64 bit versions
+    compile_multilib: "both",
+
     libs: [
-        "android.test.runner.stubs",
+        "android.net.ipsec.ike.stubs.system",
         "android.test.base.stubs",
     ],
-    static_libs: [
-        "androidx.legacy_legacy-support-v4",
-        "ctstestrunner-axt",
-        "ub-uiautomator",
+
+    srcs: [
+        "src/**/*.java",
     ],
+
+    static_libs: [
+        "androidx.test.ext.junit",
+        "compatibility-device-util-axt",
+        "ctstestrunner-axt",
+    ],
+
     platform_apis: true,
-    min_sdk_version: "21",
-    // tag this module as a cts test artifact
+
+    // Tag this module as a cts test artifact
     test_suites: [
-        "arcts",
         "cts",
+        "mts",
         "vts",
-        "vts10",
         "general-tests",
     ],
 }
