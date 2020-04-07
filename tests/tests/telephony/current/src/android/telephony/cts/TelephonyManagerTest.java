@@ -83,6 +83,7 @@ import com.android.internal.telephony.uicc.IccUtils;
 
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import java.security.MessageDigest;
@@ -1421,6 +1422,7 @@ public class TelephonyManagerTest {
      * Verifies that {@link TelephonyManager#getIsimImpu()} does not throw any exception when called
      * and has the correct permissions.
      */
+    @Ignore("API moved back to @hide for Android R.")
     @Test
     public void testGetIsimImpu() {
         if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
@@ -2441,6 +2443,31 @@ public class TelephonyManagerTest {
             assertEquals(preferredNetworkType, modemPreferredNetworkType);
         } catch (SecurityException se) {
             fail("testDisAllowedNetworkTypes: SecurityException not expected");
+        }
+    }
+
+    @Test
+    public void testGetSupportedModemCount() {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            return;
+        }
+
+        int supportedModemCount = mTelephonyManager.getSupportedModemCount();
+        int activeModemCount = mTelephonyManager.getActiveModemCount();
+        assertTrue(activeModemCount >= 0);
+        assertTrue(supportedModemCount >= activeModemCount);
+    }
+
+    @Test
+    public void testIsModemEnabledForSlot() {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            return;
+        }
+
+        int activeModemCount = mTelephonyManager.getActiveModemCount();
+        for (int i = 0; i < activeModemCount; i++) {
+            // Call isModemEnabledForSlot for each slot and verify no crash.
+            mTelephonyManager.isModemEnabledForSlot(i);
         }
     }
 
