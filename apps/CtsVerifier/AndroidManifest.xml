@@ -18,7 +18,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
       package="com.android.cts.verifier"
       android:versionCode="5"
-      android:versionName="8.1_r18">
+      android:versionName="8.1_r19">
 
     <uses-sdk android:minSdkVersion="19" android:targetSdkVersion="27"/>
 
@@ -1470,6 +1470,8 @@
             <meta-data android:name="test_category" android:value="@string/test_category_sensors"/>
             <meta-data android:name="test_required_features"
                        android:value="android.hardware.sensor.accelerometer"/>
+            <meta-data android:name="test_excluded_features"
+                       android:value="android.hardware.type.automotive"/>
         </activity>
 
         <activity android:name=".sensors.GyroscopeMeasurementTestActivity"
@@ -1482,6 +1484,8 @@
             <meta-data android:name="test_category" android:value="@string/test_category_sensors"/>
             <meta-data android:name="test_required_features"
                        android:value="android.hardware.sensor.gyroscope"/>
+            <meta-data android:name="test_excluded_features"
+                       android:value="android.hardware.type.automotive"/>
         </activity>
 
         <activity android:name=".sensors.HeartRateMonitorTestActivity"
