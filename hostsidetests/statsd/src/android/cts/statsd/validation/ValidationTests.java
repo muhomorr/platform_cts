@@ -135,9 +135,9 @@ public class ValidationTests extends DeviceAtomTestCase {
         assertNotNull(wl);
         assertTrue(wl.getDurationMs() > 0);
         assertTrue(wl.getCount() == 1);
-        assertTrue(wl.getMaxDurationMs() >= 500);
+        assertTrue(wl.getMaxDurationMs() >= 400);
         assertTrue(wl.getMaxDurationMs() < 700);
-        assertTrue(wl.getTotalDurationMs() >= 500);
+        assertTrue(wl.getTotalDurationMs() >= 400);
         assertTrue(wl.getTotalDurationMs() < 700);
 
         setAodState(aodState); // restores AOD to initial state.
@@ -148,6 +148,10 @@ public class ValidationTests extends DeviceAtomTestCase {
         if (statsdDisabled()) {
             return;
         }
+        // getUid() needs shell command via ADB. turnScreenOff() sometimes let system go to suspend.
+        // ADB disconnection causes failure of getUid(). Move up here before turnScreenOff().
+        final int EXPECTED_UID = getUid();
+
         if (!hasFeature(FEATURE_AUTOMOTIVE, false)) return;
         turnScreenOn(); // To ensure that the ScreenOff later gets logged.
         // AoD needs to be turned off because the screen should go into an off state. But, if AoD is
@@ -168,7 +172,6 @@ public class ValidationTests extends DeviceAtomTestCase {
 
         final String EXPECTED_TAG = "StatsdPartialWakelock";
         final long EXPECTED_TAG_HASH = Long.parseUnsignedLong("15814523794762874414");
-        final int EXPECTED_UID = getUid();
         final int MIN_DURATION = 350;
         final int MAX_DURATION = 700;
 
