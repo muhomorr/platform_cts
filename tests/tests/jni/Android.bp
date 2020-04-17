@@ -21,7 +21,6 @@ android_test {
     // Tag this module as a cts test artifact
     test_suites: [
         "cts",
-        "vts",
         "vts10",
         "general-tests",
     ],
@@ -50,6 +49,7 @@ cc_test_library {
         "-Wall",
         "-Werror",
     ],
+    header_libs: ["jni_headers"],
     local_include_dirs: ["libjnicommon"],
     host_ldlibs: ["-llog"],
     shared_libs: [
@@ -67,6 +67,7 @@ cc_test_library {
         "-Wall",
         "-Werror",
     ],
+    header_libs: ["jni_headers"],
     local_include_dirs: ["libjnicommon"],
     host_ldlibs: ["-llog"],
     shared_libs: [
@@ -84,6 +85,7 @@ cc_test_library {
         "-Wall",
         "-Werror",
     ],
+    header_libs: ["jni_headers"],
     local_include_dirs: ["libjnicommon"],
     host_ldlibs: ["-llog"],
     shared_libs: [
