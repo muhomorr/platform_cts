@@ -24,7 +24,6 @@ android_test_helper_app {
     compile_multilib: "both",
     test_suites: [
         "cts",
-        "vts",
         "vts10",
         "general-tests",
     ],
@@ -39,6 +38,7 @@ cc_test_library {
         "-Werror",
     ],
     srcs: ["**/*.cpp"],
+    header_libs: ["jni_headers"],
     shared_libs: [
         "liblog",
         "libstaticsharednativelibprovider",

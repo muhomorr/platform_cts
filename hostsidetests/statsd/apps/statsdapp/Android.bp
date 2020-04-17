@@ -19,6 +19,7 @@ cc_library_shared {
         "-Wall",
         "-Werror",
     ],
+    header_libs: ["jni_headers"],
     shared_libs: ["liblog"],
     stl: "c++_static",
     sdk_version: "current",
@@ -49,7 +50,6 @@ android_test_helper_app {
     // tag this module as a cts test artifact
     test_suites: [
         "cts",
-        "vts",
         "vts10",
         "general-tests",
     ],

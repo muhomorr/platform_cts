@@ -16,31 +16,60 @@
 
 package com.android.cts.tagging;
 
-import android.compat.cts.CompatChangeGatingTestCase;
+import com.android.cts.tagging.TaggingBaseTest;
 
 import com.google.common.collect.ImmutableSet;
 
-public class TaggingDefaultTest extends CompatChangeGatingTestCase {
+public class TaggingDefaultTest extends TaggingBaseTest {
 
     protected static final String TEST_APK = "CtsHostsideTaggingNoneApp.apk";
     protected static final String TEST_PKG = "android.cts.tagging.none";
 
-    private static final long NATIVE_HEAP_POINTER_TAGGING_CHANGE_ID = 135754954;
+    private static final long NATIVE_MEMORY_TAGGING_CHANGE_ID = 135772972;
+
+    private boolean supportsMemoryTagging;
 
     @Override
     protected void setUp() throws Exception {
+        super.setUp();
         installPackage(TEST_APK, true);
+        supportsMemoryTagging = !runCommand("grep 'Features.* mte' /proc/cpuinfo").isEmpty();
     }
 
-    public void testCompatFeatureEnabled() throws Exception {
+    public void testHeapTaggingCompatFeatureEnabled() throws Exception {
+        if (!supportsTaggedPointers || supportsMemoryTagging) {
+            return;
+        }
+
         runDeviceCompatTest(TEST_PKG, ".TaggingTest", "testHeapTaggingEnabled",
                 /*enabledChanges*/ImmutableSet.of(NATIVE_HEAP_POINTER_TAGGING_CHANGE_ID),
                 /*disabledChanges*/ ImmutableSet.of());
     }
 
-    public void testCompatFeatureDisabled() throws Exception {
+    public void testHeapTaggingCompatFeatureDisabled() throws Exception {
+        if (!supportsTaggedPointers || supportsMemoryTagging) {
+            return;
+        }
         runDeviceCompatTest(TEST_PKG, ".TaggingTest", "testHeapTaggingDisabled",
                 /*enabledChanges*/ImmutableSet.of(),
                 /*disabledChanges*/ ImmutableSet.of(NATIVE_HEAP_POINTER_TAGGING_CHANGE_ID));
+    }
+
+    public void testMemoryTagChecksCompatFeatureEnabled() throws Exception {
+        if (!supportsMemoryTagging) {
+            return;
+        }
+        runDeviceCompatTest(TEST_PKG, ".TaggingTest", "testMemoryTagChecksEnabled",
+                /*enabledChanges*/ ImmutableSet.of(NATIVE_MEMORY_TAGGING_CHANGE_ID),
+                /*disabledChanges*/ImmutableSet.of());
+    }
+
+    public void testMemoryTagChecksCompatFeatureDisabled() throws Exception {
+        if (!supportsMemoryTagging) {
+            return;
+        }
+        runDeviceCompatTest(TEST_PKG, ".TaggingTest", "testMemoryTagChecksDisabled",
+                /*enabledChanges*/ImmutableSet.of(),
+                /*disabledChanges*/ ImmutableSet.of(NATIVE_MEMORY_TAGGING_CHANGE_ID));
     }
 }
