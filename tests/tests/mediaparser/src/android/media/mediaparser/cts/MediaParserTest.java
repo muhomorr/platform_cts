@@ -38,6 +38,8 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.Map;
 
 @RunWith(AndroidJUnit4.class)
 public class MediaParserTest {
@@ -406,7 +408,9 @@ public class MediaParserTest {
     @Test
     public void testAdtsTruncatedWithConstantBitrateSeeking()
             throws IOException, InterruptedException {
-        testExtractAsset("ts/sample_cbs_truncated.adts");
+        testExtractAsset(
+                "ts/sample_cbs_truncated.adts",
+                Collections.singletonMap(MediaParser.PARAMETER_ADTS_ENABLE_CBR_SEEKING, true));
     }
 
     @Test
@@ -416,7 +420,9 @@ public class MediaParserTest {
 
     @Test
     public void testAdtsWithConstantBitrateSeeking() throws IOException, InterruptedException {
-        testExtractAsset("ts/sample_cbs.adts");
+        testExtractAsset(
+                "ts/sample_cbs.adts",
+                Collections.singletonMap(MediaParser.PARAMETER_ADTS_ENABLE_CBR_SEEKING, true));
     }
 
     // AC-3.
@@ -453,8 +459,23 @@ public class MediaParserTest {
     }
 
     @Test
-    public void testTsWithH264() throws IOException, InterruptedException {
+    public void testTsWithH264MpegAudio() throws IOException, InterruptedException {
         testExtractAsset("ts/sample_h264_mpeg_audio.ts");
+    }
+
+    @Test
+    public void testTsWithH264DetectAccessUnits() throws IOException, InterruptedException {
+        testExtractAsset(
+                "ts/sample_h264_no_access_unit_delimiters.ts",
+                Collections.singletonMap(MediaParser.PARAMETER_TS_DETECT_ACCESS_UNITS, true));
+    }
+
+    @Test
+    public void testTsWithH264DtsAudio() throws IOException, InterruptedException {
+        testExtractAsset(
+                "ts/sample_h264_dts_audio.ts",
+                Collections.singletonMap(
+                        MediaParser.PARAMETER_TS_ENABLE_HDMV_DTS_AUDIO_STREAMS, true));
     }
 
     @Test
@@ -577,15 +598,21 @@ public class MediaParserTest {
 
     private static void testSniffAsset(String assetPath, String expectedParserName)
             throws IOException, InterruptedException {
-        extractAsset(assetPath, expectedParserName);
+        extractAsset(assetPath, Collections.emptyMap(), expectedParserName);
     }
 
     private static void testExtractAsset(String assetPath)
             throws IOException, InterruptedException {
-        extractAsset(assetPath, /* expectedParserName= */ null);
+        testExtractAsset(assetPath, Collections.emptyMap());
     }
 
-    private static void extractAsset(String assetPath, String expectedParserName)
+    private static void testExtractAsset(String assetPath, Map<String, Object> parameters)
+            throws IOException, InterruptedException {
+        extractAsset(assetPath, parameters, /* expectedParserName= */ null);
+    }
+
+    private static void extractAsset(
+            String assetPath, Map<String, Object> parameters, String expectedParserName)
             throws IOException, InterruptedException {
         byte[] assetBytes =
                 TestUtil.getByteArray(
@@ -596,6 +623,9 @@ public class MediaParserTest {
         MockMediaParserOutputConsumer outputConsumer =
                 new MockMediaParserOutputConsumer(new FakeExtractorOutput());
         MediaParser mediaParser = MediaParser.create(outputConsumer);
+        for (Map.Entry<String, Object> entry : parameters.entrySet()) {
+            mediaParser.setParameter(entry.getKey(), entry.getValue());
+        }
 
         mediaParser.advance(mockInput);
         if (expectedParserName != null) {
