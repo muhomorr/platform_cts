@@ -22,6 +22,8 @@ import static com.google.common.truth.Truth.assertWithMessage;
 import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
 
+import android.platform.test.annotations.RequiresDevice;
+
 import com.android.compatibility.common.tradefed.build.CompatibilityBuildHelper;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
 import com.android.tradefed.testtype.junit4.BaseHostJUnit4Test;
@@ -29,6 +31,7 @@ import com.android.tradefed.util.CommandResult;
 import com.android.tradefed.util.CommandStatus;
 
 import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -67,6 +70,18 @@ public class UserspaceRebootHostTest extends BaseHostJUnit4Test  {
         getDevice().installPackage(helper.getTestFile(apkFileName), false, true);
     }
 
+    /**
+     * Sets up device to run a test case.
+     */
+    @Before
+    public void setUp() throws Exception {
+        getDevice().uninstallPackage(BASIC_TEST_APP_PACKAGE_NAME);
+        getDevice().uninstallPackage(BOOT_COMPLETED_TEST_APP_PACKAGE_NAME);
+    }
+
+    /**
+     * Cleans up device after a test case.
+     */
     @After
     public void cleanUp() throws Exception {
         getDevice().uninstallPackage(BASIC_TEST_APP_PACKAGE_NAME);
@@ -150,10 +165,14 @@ public class UserspaceRebootHostTest extends BaseHostJUnit4Test  {
         try {
             getDevice().executeShellV2Command("cmd lock_settings set-pin 1543");
             installApk(BOOT_COMPLETED_TEST_APP_APK);
-            runDeviceTest(BOOT_COMPLETED_TEST_APP_PACKAGE_NAME, "BootCompletedUserspaceRebootTest",
-                    "prepareFile");
+            installApk(BASIC_TEST_APP_APK);
+
+            prepareForCeTestCases();
+
             rebootUserspaceAndWaitForBootComplete();
             assertUserspaceRebootSucceed();
+
+            // Now it's time to verify our assumptions.
             runDeviceTest(BOOT_COMPLETED_TEST_APP_PACKAGE_NAME, "BootCompletedUserspaceRebootTest",
                     "testVerifyCeStorageUnlocked");
             runDeviceTest(BOOT_COMPLETED_TEST_APP_PACKAGE_NAME, "BootCompletedUserspaceRebootTest",
@@ -176,10 +195,13 @@ public class UserspaceRebootHostTest extends BaseHostJUnit4Test  {
             Thread.sleep(500);
             assertWithMessage("Failed to start checkpoint : %s", result.getStderr()).that(
                     result.getStatus()).isEqualTo(CommandStatus.SUCCESS);
+
             getDevice().executeShellV2Command("cmd lock_settings set-pin 1543");
             installApk(BOOT_COMPLETED_TEST_APP_APK);
-            runDeviceTest(BOOT_COMPLETED_TEST_APP_PACKAGE_NAME, "BootCompletedUserspaceRebootTest",
-                    "prepareFile");
+            installApk(BASIC_TEST_APP_APK);
+
+            prepareForCeTestCases();
+
             rebootUserspaceAndWaitForBootComplete();
             assertUserspaceRebootSucceed();
             runDeviceTest(BOOT_COMPLETED_TEST_APP_PACKAGE_NAME, "BootCompletedUserspaceRebootTest",
@@ -191,11 +213,31 @@ public class UserspaceRebootHostTest extends BaseHostJUnit4Test  {
         }
     }
 
+    private void prepareForCeTestCases() throws Exception {
+        runDeviceTest(BOOT_COMPLETED_TEST_APP_PACKAGE_NAME, "BootCompletedUserspaceRebootTest",
+                "prepareFile");
+        runDeviceTest(BASIC_TEST_APP_PACKAGE_NAME, "BasicUserspaceRebootTest", "prepareFile");
+
+        // In order to test that broadcasts are correctly sent, we need to have a separate app that
+        // is going to be listen for them. Unfortunately, we can't use BOOT_COMPLETED_TEST_APP_APK
+        // because every call to `am instrument` force stops an app. This doesn't play well with
+        // BOOT_COMPLETED broadcast, which is not sent to stopped apps.
+        // Send an intent to our "broadcast listening" test app to kick it out from stopped state.
+        getDevice().executeShellV2Command("am start -a android.intent.action.MAIN"
+                + " --user 0"
+                + " -c android.intent.category.LAUNCHER "
+                + BASIC_TEST_APP_PACKAGE_NAME + "/.LauncherActivity");
+        // Wait enough for PackageManager to persist new state of test app.
+        // I wish there was a better way to synchronize here...
+        Thread.sleep(15000);
+    }
+
     /**
      * Asserts that fallback to hard reboot is triggered when a native process fails to stop in a
      * given timeout.
      */
     @Test
+    @RequiresDevice // TODO(b/154709530): Remove dependency on physical device
     public void testUserspaceRebootFailsKillingProcesses() throws Exception {
         assumeTrue("Userspace reboot not supported on the device",
                 getDevice().getBooleanProperty(USERSPACE_REBOOT_SUPPORTED_PROP, false));
