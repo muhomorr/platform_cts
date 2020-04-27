@@ -14,12 +14,25 @@
  * limitations under the License.
  */
 
-package com.android.cts.userspacereboot.bootcompleted;
+package android.mediav2.cts;
 
 import android.app.Activity;
+import android.os.Bundle;
+import android.view.WindowManager;
 
-/**
- * An empty launcher activity.
- */
-public class LauncherActivity extends Activity {
+public class CodecTestActivity extends Activity {
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.media_decoder_surface_layout);
+    }
+
+    @Override
+    protected void onResume() {
+        setTurnScreenOn(true);
+        setShowWhenLocked(true);
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        super.onResume();
+    }
 }
