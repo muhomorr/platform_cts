@@ -639,11 +639,14 @@ public class ConnectivityManagerTest extends AndroidTestCase {
         }
     }
 
-    private void waitForActiveNetworkMetered(boolean requestedMeteredness) throws Exception {
+    private void waitForActiveNetworkMetered(int targetTransportType, boolean requestedMeteredness)
+            throws Exception {
         final CountDownLatch latch = new CountDownLatch(1);
         final NetworkCallback networkCallback = new NetworkCallback() {
             @Override
             public void onCapabilitiesChanged(Network network, NetworkCapabilities nc) {
+                if (!nc.hasTransport(targetTransportType)) return;
+
                 final boolean metered = !nc.hasCapability(NET_CAPABILITY_NOT_METERED);
                 if (metered == requestedMeteredness) {
                     latch.countDown();
@@ -709,7 +712,7 @@ public class ConnectivityManagerTest extends AndroidTestCase {
     @AppModeFull(reason = "Cannot get WifiManager in instant app mode")
     public void testGetMultipathPreference() throws Exception {
         final ContentResolver resolver = mContext.getContentResolver();
-        final Network network = ensureWifiConnected();
+        ensureWifiConnected();
         final String ssid = unquoteSSID(mWifiManager.getConnectionInfo().getSSID());
         final String oldMeteredSetting = getWifiMeteredStatus(ssid);
         final String oldMeteredMultipathPreference = Settings.Global.getString(
@@ -720,7 +723,11 @@ public class ConnectivityManagerTest extends AndroidTestCase {
             Settings.Global.putString(resolver, NETWORK_METERED_MULTIPATH_PREFERENCE,
                     Integer.toString(newMeteredPreference));
             setWifiMeteredStatus(ssid, "true");
-            waitForActiveNetworkMetered(true);
+            waitForActiveNetworkMetered(TRANSPORT_WIFI, true);
+            // Wifi meterness changes from unmetered to metered will disconnect and reconnect since
+            // R.
+            final Network network = ensureWifiConnected();
+            assertEquals(ssid, unquoteSSID(mWifiManager.getConnectionInfo().getSSID()));
             assertEquals(mCm.getNetworkCapabilities(network).hasCapability(
                     NET_CAPABILITY_NOT_METERED), false);
             assertMultipathPreferenceIsEventually(network, initialMeteredPreference,
@@ -736,7 +743,8 @@ public class ConnectivityManagerTest extends AndroidTestCase {
                     oldMeteredPreference, newMeteredPreference);
 
             setWifiMeteredStatus(ssid, "false");
-            waitForActiveNetworkMetered(false);
+            // No disconnect from unmetered to metered.
+            waitForActiveNetworkMetered(TRANSPORT_WIFI, false);
             assertEquals(mCm.getNetworkCapabilities(network).hasCapability(
                     NET_CAPABILITY_NOT_METERED), true);
             assertMultipathPreferenceIsEventually(network, newMeteredPreference,

@@ -1519,6 +1519,42 @@ public class BaseTelecomTestWithMockServices extends InstrumentationTestCase {
         );
     }
 
+    void assertIsOutgoingCallPermitted(boolean isPermitted, PhoneAccountHandle handle) {
+        waitUntilConditionIsTrueOrTimeout(
+                new Condition() {
+                    @Override
+                    public Object expected() {
+                        return isPermitted;
+                    }
+
+                    @Override
+                    public Object actual() {
+                        return mTelecomManager.isOutgoingCallPermitted(handle);
+                    }
+                },
+                WAIT_FOR_STATE_CHANGE_TIMEOUT_MS,
+                "Expected isOutgoingCallPermitted to be " + isPermitted
+        );
+    }
+
+    void assertIsIncomingCallPermitted(boolean isPermitted, PhoneAccountHandle handle) {
+        waitUntilConditionIsTrueOrTimeout(
+                new Condition() {
+                    @Override
+                    public Object expected() {
+                        return isPermitted;
+                    }
+
+                    @Override
+                    public Object actual() {
+                        return mTelecomManager.isIncomingCallPermitted(handle);
+                    }
+                },
+                WAIT_FOR_STATE_CHANGE_TIMEOUT_MS,
+                "Expected isIncomingCallPermitted to be " + isPermitted
+        );
+    }
+
     void assertIsInCall(boolean isIncall) {
         waitUntilConditionIsTrueOrTimeout(
                 new Condition() {
@@ -1576,6 +1612,31 @@ public class BaseTelecomTestWithMockServices extends InstrumentationTestCase {
                 },
                 TestUtils.WAIT_FOR_STATE_CHANGE_TIMEOUT_MS,
                 "Call should have properties " + properties
+        );
+    }
+
+    /**
+     * Asserts that a call does not have any of the specified call capability bits specified.
+     *
+     * @param call The call.
+     * @param capabilities The capability or capabilities which are not expected.
+     */
+    public void assertDoesNotHaveCallCapabilities(final Call call, final int capabilities) {
+        waitUntilConditionIsTrueOrTimeout(
+                new Condition() {
+                    @Override
+                    public Object expected() {
+                        return true;
+                    }
+
+                    @Override
+                    public Object actual() {
+                        int callCapabilities = call.getDetails().getCallCapabilities();
+                        return !Call.Details.hasProperty(callCapabilities, capabilities);
+                    }
+                },
+                TestUtils.WAIT_FOR_STATE_CHANGE_TIMEOUT_MS,
+                "Call should not have capabilities " + capabilities
         );
     }
 
