@@ -19,9 +19,7 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 /**
  * Base class for those that process a set of API definition files and perform some checking on
@@ -189,22 +187,14 @@ public abstract class AbstractApiChecker {
      */
     private void checkConstructorCompliance(JDiffClassDescription classDescription,
             Class<?> runtimeClass) {
-        Map<Constructor, String> mismatchReasons = new LinkedHashMap<>();
         for (JDiffClassDescription.JDiffConstructor con : classDescription.getConstructors()) {
             try {
-                Constructor<?> c = ReflectionHelper.findMatchingConstructor(runtimeClass, con,
-                        mismatchReasons);
+                Constructor<?> c = ReflectionHelper.findMatchingConstructor(runtimeClass, con);
                 if (c == null) {
                     resultObserver.notifyFailure(FailureType.MISSING_CONSTRUCTOR,
                             con.toReadableString(classDescription.getAbsoluteClassName()),
-                            String.format(
-                                    "No constructor with correct signature found. The following"
-                                            + " constructors were rejected:\n%s",
-                                    mismatchReasons.entrySet()
-                                            .stream()
-                                            .map(e -> String.format("\t\t%s - %s\n",
-                                                    e.getKey(), e.getValue()))
-                                            .collect(Collectors.joining())));
+                            "No constructor with correct signature found:" +
+                                    con.toSignatureString());
                 } else {
                     checkConstructor(classDescription, runtimeClass, con, c);
                 }
@@ -230,27 +220,18 @@ public abstract class AbstractApiChecker {
      */
     private void checkMethodCompliance(JDiffClassDescription classDescription,
             Class<?> runtimeClass) {
-        Map<Method, String> mismatchReasons = new LinkedHashMap<>();
         for (JDiffClassDescription.JDiffMethod method : classDescription.getMethods()) {
             try {
-                Method m = ReflectionHelper.findMatchingMethod(
-                        runtimeClass, method, mismatchReasons);
+
+                Method m = ReflectionHelper.findMatchingMethod(runtimeClass, method);
                 if (m == null) {
                     resultObserver.notifyFailure(FailureType.MISSING_METHOD,
                             method.toReadableString(classDescription.getAbsoluteClassName()),
-                            String.format(
-                                    "No method with correct signature found. The following methods"
-                                            + " with the same name were rejected:\n%s",
-                                    mismatchReasons.entrySet()
-                                            .stream()
-                                            .map(e -> String.format("\t\t%s - %s\n",
-                                                    e.getKey(), e.getValue()))
-                                            .collect(Collectors.joining())));
+                            "No method with correct signature found, looking for:" +
+                                    method.toSignatureString());
                 } else {
                     checkMethod(classDescription, runtimeClass, method, m);
                 }
-                // Clear the list.
-                mismatchReasons.clear();
             } catch (Exception e) {
                 LogHelper.loge("Got exception when checking method compliance", e);
                 resultObserver.notifyFailure(FailureType.CAUGHT_EXCEPTION,

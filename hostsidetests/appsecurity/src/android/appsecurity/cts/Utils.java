@@ -148,9 +148,9 @@ public class Utils {
         int currentUserId = device.getCurrentUser();
         for (int i = 1; i < userIds.length; i++) {
             if (i < maxUsers) {
-                device.startUser(userIds[i], true);
+                device.startUser(userIds[i]);
             } else if (userIds[i] != currentUserId) {
-                device.stopUser(userIds[i], true, true);
+                device.stopUser(userIds[i]);
             }
         }
         if (userIds.length > maxUsers) {

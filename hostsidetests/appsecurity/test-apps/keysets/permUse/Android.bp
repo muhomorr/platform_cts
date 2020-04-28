@@ -13,7 +13,7 @@
 // limitations under the License.
 
 //apks signed cts-keyset-test-a
-android_test_helper_app {
+android_test {
     name: "CtsKeySetPermUseSigningA",
     defaults: ["cts_support_defaults"],
     sdk_version: "current",
@@ -31,7 +31,7 @@ android_test_helper_app {
 }
 
 //apks signed cts-keyset-test-b
-android_test_helper_app {
+android_test {
     name: "CtsKeySetPermUseSigningB",
     defaults: ["cts_support_defaults"],
     sdk_version: "current",

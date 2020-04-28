@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-import copy
 import re
 import sys
 import SELinuxNeverallowTestFrame
@@ -10,15 +9,14 @@ usage = "Usage: ./SELinuxNeverallowTestGen.py <input policy file> <output cts ja
 
 class NeverallowRule:
     statement = ''
-    depths = None
+    treble_only = False
+    compatible_property_only = False
 
-    def __init__(self, statement, depths):
+    def __init__(self, statement):
         self.statement = statement
-        self.depths = copy.deepcopy(depths)
+        self.treble_only = False
+        self.compatible_property_only = False
 
-# full-Treble only tests are inside sections delimited by BEGIN_{section} and
-# END_{section} comments.
-sections = ["TREBLE_ONLY", "COMPATIBLE_PROPERTY_ONLY", "LAUNCHING_WITH_R_ONLY"]
 
 # extract_neverallow_rules - takes an intermediate policy file and pulls out the
 # neverallow rules by taking all of the non-commented text between the 'neverallow'
@@ -28,10 +26,12 @@ def extract_neverallow_rules(policy_file):
     with open(policy_file, 'r') as in_file:
         policy_str = in_file.read()
 
-        # uncomment section delimiter lines
-        section_headers = '|'.join(['BEGIN_%s|END_%s' % (s, s) for s in sections])
+        # full-Treble only tests are inside sections delimited by BEGIN_TREBLE_ONLY
+        # and END_TREBLE_ONLY comments.
+
+        # uncomment TREBLE_ONLY section delimiter lines
         remaining = re.sub(
-            r'^\s*#\s*(' + section_headers + ')',
+            r'^\s*#\s*(BEGIN_TREBLE_ONLY|END_TREBLE_ONLY|BEGIN_COMPATIBLE_PROPERTY_ONLY|END_COMPATIBLE_PROPERTY_ONLY)',
             r'\1',
             policy_str,
             flags = re.M)
@@ -39,35 +39,40 @@ def extract_neverallow_rules(policy_file):
         remaining = re.sub(r'#.+?$', r'', remaining, flags = re.M)
         # match neverallow rules
         lines = re.findall(
-            r'^\s*(neverallow\s.+?;|' + section_headers + ')',
+            r'^\s*(neverallow\s.+?;|BEGIN_TREBLE_ONLY|END_TREBLE_ONLY|BEGIN_COMPATIBLE_PROPERTY_ONLY|END_COMPATIBLE_PROPERTY_ONLY)',
             remaining,
             flags = re.M |re.S)
 
         # extract neverallow rules from the remaining lines
         rules = list()
-        depths = dict()
-        for section in sections:
-            depths[section] = 0
+        treble_only_depth = 0
+        compatible_property_only_depth = 0
         for line in lines:
-            is_header = False
-            for section in sections:
-                if line.startswith("BEGIN_%s" % section):
-                    depths[section] += 1
-                    is_header = True
-                    break
-                elif line.startswith("END_%s" % section):
-                    if depths[section] < 1:
-                        exit("ERROR: END_%s outside of %s section" % (section, section))
-                    depths[section] -= 1
-                    is_header = True
-                    break
-            if not is_header:
-                rule = NeverallowRule(line, depths)
-                rules.append(rule)
+            if line.startswith("BEGIN_TREBLE_ONLY"):
+                treble_only_depth += 1
+                continue
+            elif line.startswith("END_TREBLE_ONLY"):
+                if treble_only_depth < 1:
+                    exit("ERROR: END_TREBLE_ONLY outside of TREBLE_ONLY section")
+                treble_only_depth -= 1
+                continue
+            elif line.startswith("BEGIN_COMPATIBLE_PROPERTY_ONLY"):
+                compatible_property_only_depth += 1
+                continue
+            elif line.startswith("END_COMPATIBLE_PROPERTY_ONLY"):
+                if compatible_property_only_depth < 1:
+                    exit("ERROR: END_COMPATIBLE_PROPERTY_ONLY outside of COMPATIBLE_PROPERTY_ONLY section")
+                compatible_property_only_depth -= 1
+                continue
+            rule = NeverallowRule(line)
+            rule.treble_only = (treble_only_depth > 0)
+            rule.compatible_property_only = (compatible_property_only_depth > 0)
+            rules.append(rule)
 
-        for section in sections:
-            if depths[section] != 0:
-                exit("ERROR: end of input while inside %s section" % section)
+        if treble_only_depth != 0:
+            exit("ERROR: end of input while inside TREBLE_ONLY section")
+        if compatible_property_only_depth != 0:
+            exit("ERROR: end of input while inside COMPATIBLE_PROPERTY_ONLY section")
 
         return rules
 
@@ -80,10 +85,12 @@ def neverallow_rule_to_test(rule, test_num):
     method = method.replace("testNeverallowRules()",
         "testNeverallowRules" + str(test_num) + "()")
     method = method.replace("$NEVERALLOW_RULE_HERE$", squashed_neverallow)
-    for section in sections:
-        method = method.replace(
-            "$%s_BOOL_HERE$" % section,
-            "true" if rule.depths[section] else "false")
+    method = method.replace(
+        "$FULL_TREBLE_ONLY_BOOL_HERE$",
+        "true" if rule.treble_only else "false")
+    method = method.replace(
+        "$COMPATIBLE_PROPERTY_ONLY_BOOL_HERE$",
+        "true" if rule.compatible_property_only else "false")
     return method
 
 if __name__ == "__main__":

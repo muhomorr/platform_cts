@@ -803,15 +803,10 @@ public class MediaUtils {
 
     public static boolean hasHardwareCodec(String mime, boolean encode) {
         for (MediaCodecInfo info : sMCL.getCodecInfos()) {
-            if (info.isEncoder() == encode && info.isHardwareAccelerated()) {
-                try {
-                     if (info.getCapabilitiesForType(mime) != null) {
-                         return true;
-                     }
-                } catch (IllegalArgumentException e) {
-                     // mime is not supported
-                     Log.w(TAG, "not supported mime: " + mime);
-                }
+            if (info.isEncoder() == encode &&
+                    info.isHardwareAccelerated() &&
+                    info.getCapabilitiesForType(mime) != null) {
+                return true;
             }
         }
         return false;

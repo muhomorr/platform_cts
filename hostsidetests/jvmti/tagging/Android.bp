@@ -22,5 +22,4 @@ java_test_host {
         "vts",
         "general-tests",
     ],
-    data: [":CtsJvmtiTaggingDeviceApp"],
 }

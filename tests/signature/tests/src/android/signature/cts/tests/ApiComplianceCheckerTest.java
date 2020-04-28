@@ -23,7 +23,6 @@ import android.signature.cts.ClassProvider;
 import android.signature.cts.FailureType;
 import android.signature.cts.JDiffClassDescription;
 import android.signature.cts.ResultObserver;
-import android.signature.cts.tests.data.AbstractClass;
 import android.signature.cts.tests.data.ExtendedNormalInterface;
 import android.signature.cts.tests.data.NormalClass;
 import android.signature.cts.tests.data.NormalInterface;
@@ -260,7 +259,7 @@ public class ApiComplianceCheckerTest extends AbstractApiCheckerTest<ApiComplian
         JDiffClassDescription clz = createClass(NormalClass.class.getSimpleName());
         JDiffClassDescription.JDiffField field = new JDiffClassDescription.JDiffField(
                 "VALUE_FIELD", "java.lang.String",
-                Modifier.PUBLIC | Modifier.FINAL | Modifier.STATIC, "\u2708");
+                Modifier.PUBLIC | Modifier.FINAL | Modifier.STATIC, "\"\\u2708\"");
         clz.addField(field);
         checkSignatureCompliance(clz);
         assertEquals(field.toSignatureString(), "public static final java.lang.String VALUE_FIELD");
@@ -333,6 +332,21 @@ public class ApiComplianceCheckerTest extends AbstractApiCheckerTest<ApiComplian
     }
 
     /**
+     * Test the case where the API declares the method not synchronized, but it
+     * actually is.
+     */
+    @Test
+    @Ignore("b/124445655")
+    public void testAddingSync() {
+        ExpectFailure observer = new ExpectFailure(FailureType.MISMATCH_METHOD);
+        JDiffClassDescription clz = createClass(NormalClass.class.getSimpleName());
+        JDiffClassDescription.JDiffMethod method = method("syncMethod", Modifier.PUBLIC, "void");
+        clz.addMethod(method);
+        checkSignatureCompliance(clz, observer);
+        observer.validate();
+    }
+
+    /**
      * Test the case where the API declares the method is synchronized, but it
      * actually is not.
      */
@@ -399,68 +413,6 @@ public class ApiComplianceCheckerTest extends AbstractApiCheckerTest<ApiComplian
         JDiffClassDescription clz = createClass("AbstractClass");
         checkSignatureCompliance(clz, observer);
         observer.validate();
-    }
-
-    /**
-     * Compatible (no change):
-     *
-     * public abstract void AbstractClass#abstractMethod()
-     * -> public abstract void AbstractClass#abstractMethod()
-     */
-    @Test
-    public void testAbstractMethod() {
-        JDiffClassDescription clz = createAbstractClass(AbstractClass.class.getSimpleName());
-        JDiffClassDescription.JDiffMethod method = method("abstractMethod",
-                Modifier.PUBLIC | Modifier.ABSTRACT, "void");
-        clz.addMethod(method);
-        checkSignatureCompliance(clz);
-    }
-
-    /**
-     * Compatible (provide implementation for previous abstract method):
-     *
-     * public abstract void Normal#notSyncMethod()
-     * -> public void Normal#notSyncMethod()
-     */
-    @Test
-    public void testRemovingAbstractFromMethod() {
-        JDiffClassDescription clz = createClass(NormalClass.class.getSimpleName());
-        JDiffClassDescription.JDiffMethod method = method("notSyncMethod",
-                Modifier.PUBLIC | Modifier.ABSTRACT, "void");
-        clz.addMethod(method);
-        checkSignatureCompliance(clz);
-    }
-
-    /**
-     * Not compatible (overridden method is not overridable anymore):
-     *
-     * public abstract void AbstractClass#finalMethod()
-     * -> public final void AbstractClass#finalMethod()
-     */
-    @Test
-    public void testAbstractToFinalMethod() {
-        JDiffClassDescription clz = createAbstractClass(AbstractClass.class.getSimpleName());
-        JDiffClassDescription.JDiffMethod method = method("finalMethod",
-                Modifier.PUBLIC | Modifier.ABSTRACT, "void");
-        clz.addMethod(method);
-        ExpectFailure observer = new ExpectFailure(FailureType.MISMATCH_METHOD);
-        checkSignatureCompliance(clz, observer);
-    }
-
-    /**
-     * Not compatible (previously implemented method becomes abstract):
-     *
-     * public void AbstractClass#abstractMethod()
-     * -> public abstract void AbstractClass#abstractMethod()
-     */
-    @Test
-    public void testAddingAbstractToMethod() {
-        JDiffClassDescription clz = createAbstractClass(AbstractClass.class.getSimpleName());
-        JDiffClassDescription.JDiffMethod method = method("abstractMethod",
-                Modifier.PUBLIC, "void");
-        clz.addMethod(method);
-        ExpectFailure observer = new ExpectFailure(FailureType.MISMATCH_METHOD);
-        checkSignatureCompliance(clz, observer);
     }
 
     @Test

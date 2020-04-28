@@ -14,46 +14,37 @@
 
 LOCAL_PATH := $(call my-dir)
 
-all_system_api_modules :=
+all_system_api_files := system-current.api system-removed.api
 $(foreach ver,$(PLATFORM_SYSTEMSDK_VERSIONS),\
   $(if $(call math_is_number,$(ver)),\
-    $(eval all_system_api_modules += system-$(ver).txt)\
+    $(eval all_system_api_files += system-$(ver).api)\
   )\
 )
-all_system_api_files := $(addprefix $(COMPATIBILITY_TESTCASES_OUT_cts)/,$(all_system_api_modules))
 
 include $(CLEAR_VARS)
-LOCAL_MODULE := cts-system-all.txt
-LOCAL_MODULE_STEM := system-all.txt.zip
+LOCAL_MODULE := cts-system-all.api
+LOCAL_MODULE_STEM := system-all.api.zip
 LOCAL_MODULE_CLASS := ETC
 LOCAL_MODULE_PATH = $(TARGET_OUT_DATA_ETC)
 LOCAL_COMPATIBILITY_SUITE := arcts cts vts general-tests
 include $(BUILD_SYSTEM)/base_rules.mk
-$(LOCAL_BUILT_MODULE): $(SOONG_ZIP)
-$(LOCAL_BUILT_MODULE): PRIVATE_SYSTEM_API_FILES := $(all_system_api_files)
-$(LOCAL_BUILT_MODULE): $(all_system_api_files)
+$(LOCAL_BUILT_MODULE): $(addprefix $(COMPATIBILITY_TESTCASES_OUT_cts)/,$(all_system_api_files))
 	@echo "Zip API files $^ -> $@"
 	@mkdir -p $(dir $@)
 	$(hide) rm -f $@
-	$(hide) $(SOONG_ZIP) -o $@ -P out -C $(OUT_DIR) $(addprefix -f ,$(PRIVATE_SYSTEM_API_FILES))
-
-all_system_api_zip_file := $(LOCAL_BUILT_MODULE)
+	$(hide) zip -q $@ $^
 
 include $(CLEAR_VARS)
 
 LOCAL_PACKAGE_NAME := CtsSystemApiSignatureTestCases
 
-LOCAL_JAVA_RESOURCE_FILES := $(all_system_api_zip_file)
-
 LOCAL_SIGNATURE_API_FILES := \
-    current.txt \
-    android-test-mock-current.txt \
-    android-test-runner-current.txt \
-    system-current.txt \
-    system-removed.txt \
+    current.api \
+    android-test-mock-current.api \
+    android-test-runner-current.api \
+    $(all_sytem_api_files) \
+    system-all.api.zip
 
 include $(LOCAL_PATH)/../build_signature_apk.mk
 
 all_system_api_files :=
-all_system_api_modules :=
-all_system_api_zip_file :=

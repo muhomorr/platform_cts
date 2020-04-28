@@ -15,13 +15,20 @@
 android_test {
     name: "CtsSliceTestCases",
     defaults: ["cts_defaults"],
+
+    // don't include this package in any target
+
+    // and when built explicitly put it in the data partition
+
     // Tag this module as a cts test artifact
     test_suites: [
         "cts",
         "vts",
         "general-tests",
     ],
+
     libs: ["android.test.runner.stubs"],
+
     static_libs: [
         "androidx.test.rules",
         "compatibility-device-util-axt",
@@ -32,11 +39,16 @@ android_test {
         "platform-test-annotations",
         "ub-uiautomator",
     ],
+
     compile_multilib: "both",
+
     jni_libs: [
         "libdexmakerjvmtiagent",
         "libmultiplejvmtiagentsinterferenceagent",
     ],
+
     srcs: ["src/**/*.java", "src/**/*.kt"],
+
     platform_apis: true,
+
 }

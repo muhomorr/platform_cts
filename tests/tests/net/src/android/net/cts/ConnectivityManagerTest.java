@@ -111,7 +111,9 @@ public class ConnectivityManagerTest extends AndroidTestCase {
     public static final int TYPE_WIFI = ConnectivityManager.TYPE_WIFI;
 
     private static final int HOST_ADDRESS = 0x7f000001;// represent ip 127.0.0.1
+    private static final int CONNECT_TIMEOUT_MS = 2000;
     private static final int KEEPALIVE_CALLBACK_TIMEOUT_MS = 2000;
+    private static final int KEEPALIVE_SOCKET_TIMEOUT_MS = 5000;
     private static final int INTERVAL_KEEPALIVE_RETRY_MS = 500;
     private static final int MAX_KEEPALIVE_RETRY_COUNT = 3;
     private static final int MIN_KEEPALIVE_INTERVAL = 10;
@@ -832,14 +834,15 @@ public class ConnectivityManagerTest extends AndroidTestCase {
     }
 
     private Socket getConnectedSocket(final Network network, final String host, final int port,
-            final int family) throws Exception {
+            final int socketTimeOut, final int family) throws Exception {
         final Socket s = network.getSocketFactory().createSocket();
         try {
             final InetAddress addr = getAddrByName(host, family);
             if (addr == null) fail("Fail to get destination address for " + family);
 
             final InetSocketAddress sockAddr = new InetSocketAddress(addr, port);
-            s.connect(sockAddr);
+            s.setSoTimeout(socketTimeOut);
+            s.connect(sockAddr, CONNECT_TIMEOUT_MS);
         } catch (Exception e) {
             s.close();
             throw e;
@@ -964,7 +967,8 @@ public class ConnectivityManagerTest extends AndroidTestCase {
         final byte[] requestBytes = CtsNetUtils.HTTP_REQUEST.getBytes("UTF-8");
         // So far only ipv4 tcp keepalive offload is supported.
         // TODO: add test case for ipv6 tcp keepalive offload when it is supported.
-        try (Socket s = getConnectedSocket(network, TEST_HOST, HTTP_PORT, AF_INET)) {
+        try (Socket s = getConnectedSocket(network, TEST_HOST, HTTP_PORT,
+                KEEPALIVE_SOCKET_TIMEOUT_MS, AF_INET)) {
 
             // Should able to start keep alive offload when socket is idle.
             final Executor executor = mContext.getMainExecutor();
@@ -1098,7 +1102,7 @@ public class ConnectivityManagerTest extends AndroidTestCase {
             // sockets will be duplicated and kept valid in service side if the keepalives are
             // successfully started.
             try (Socket tcpSocket = getConnectedSocket(network, TEST_HOST, HTTP_PORT,
-                    AF_INET)) {
+                    0 /* Unused */, AF_INET)) {
                 return mCm.createSocketKeepalive(network, tcpSocket, executor, callback);
             } catch (Exception e) {
                 fail("Unexpected error when creating TCP socket: " + e);

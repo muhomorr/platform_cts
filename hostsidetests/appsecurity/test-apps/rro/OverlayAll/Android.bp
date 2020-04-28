@@ -14,7 +14,7 @@
 // limitations under the License.
 //
 
-android_test_helper_app {
+android_test {
     name: "CtsOverlayPolicyAll",
     defaults: ["cts_support_defaults"],
     manifest: "AndroidManifest.xml",
@@ -27,7 +27,7 @@ android_test_helper_app {
     ],
 }
 
-android_test_helper_app {
+android_test {
     name: "CtsOverlayPolicyAllPie",
     defaults: ["cts_support_defaults"],
     manifest: "AndroidManifestNoName.xml",
@@ -40,7 +40,7 @@ android_test_helper_app {
     ],
 }
 
-android_test_helper_app {
+android_test {
     name: "CtsOverlayPolicyAllNoName",
     defaults: ["cts_support_defaults"],
     manifest: "AndroidManifestNoName.xml",
@@ -53,7 +53,7 @@ android_test_helper_app {
     ],
 }
 
-android_test_helper_app {
+android_test {
     name: "CtsOverlayPolicyAllNoNameDifferentCert",
     defaults: ["cts_support_defaults"],
     manifest: "AndroidManifestNoName.xml",

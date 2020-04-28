@@ -45,7 +45,6 @@ class XmlReport {
 
         out.println("<debug>");
         out.println("<sources>");
-        Collections.sort(testApks);
         for (File testApk : testApks) {
             out.println("<apk path=\"" + testApk.getPath() + "\" />");
         }
@@ -86,13 +85,12 @@ class XmlReport {
                                 + "\">");
 
                         for (ApiConstructor constructor : apiClass.getConstructors()) {
-                            List<String> coveredWithList = new ArrayList<String>(constructor.getCoveredWith());
-                            Collections.sort(coveredWithList);
-                            String coveredWith = coveredWithList.stream().collect(Collectors.joining(","));
+                            String coveredWithList =
+                                    constructor.getCoveredWith().stream().collect(Collectors.joining(","));
                             out.println("<constructor name=\"" + constructor.getName()
                                     + "\" deprecated=\"" + constructor.isDeprecated()
                                     + "\" covered=\"" + constructor.isCovered()
-                                    + "\" with=\"" + coveredWith
+                                    + "\" with=\"" + coveredWithList
                                     + "\">");
                             if (constructor.isDeprecated()) {
                                 if (constructor.isCovered()) {
@@ -108,9 +106,8 @@ class XmlReport {
                         }
 
                         for (ApiMethod method : apiClass.getMethods()) {
-                            List<String> coveredWithList = new ArrayList<String>(method.getCoveredWith());
-                            Collections.sort(coveredWithList);
-                            String coveredWith = coveredWithList.stream().collect(Collectors.joining(","));
+                            String coveredWithList =
+                                    method.getCoveredWith().stream().collect(Collectors.joining(","));
                             out.println("<method name=\"" + method.getName()
                                     + "\" returnType=\"" + method.getReturnType()
                                     + "\" deprecated=\"" + method.isDeprecated()
@@ -119,7 +116,7 @@ class XmlReport {
                                     + "\" visibility=\"" + method.getVisibility()
                                     + "\" abstract=\"" + method.isAbstractMethod()
                                     + "\" covered=\"" + method.isCovered()
-                                    + "\" with=\"" + coveredWith
+                                    + "\" with=\"" + coveredWithList
                                     + "\">");
                             if (method.isDeprecated()) {
                                 if (method.isCovered()) {

@@ -30,14 +30,8 @@ class CoverageComparator implements Comparator<HasCoverage> {
         int rhsPct = Math.round(otherEntity.getCoveragePercentage());
         int diff = Integer.compare(getCoveragePercentageSegment(lhsPct),
                 getCoveragePercentageSegment(rhsPct));
-        if (diff != 0) {
-            return diff;
-        }
-        diff = Integer.compare(otherEntity.getMemberSize(), entity.getMemberSize());
-        if (diff != 0) {
-            return diff;
-        }
-        return entity.getName().compareTo(otherEntity.getName());
+        return diff != 0 ? diff :
+            Integer.compare(otherEntity.getMemberSize(), entity.getMemberSize());
     }
 
     /**

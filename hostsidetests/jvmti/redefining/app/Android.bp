@@ -16,6 +16,11 @@ android_test_helper_app {
     name: "CtsJvmtiRedefineClassesDeviceApp",
     srcs: ["src/**/*.java"],
     manifest: "AndroidManifest.xml",
+    test_suites: [
+        "cts",
+        "vts",
+        "general-tests",
+    ],
     dex_preopt: {
         enabled: false,
     },

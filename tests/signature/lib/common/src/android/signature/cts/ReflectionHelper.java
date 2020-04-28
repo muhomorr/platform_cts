@@ -15,8 +15,6 @@
  */
 package android.signature.cts;
 
-import android.signature.cts.JDiffClassDescription.JDiffConstructor;
-import android.signature.cts.JDiffClassDescription.JDiffMethod;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
@@ -31,7 +29,6 @@ import java.lang.reflect.WildcardType;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 /**
@@ -126,12 +123,10 @@ public class ReflectionHelper {
      *
      * @param runtimeClass the class in which to search.
      * @param jdiffDes constructor description to find.
-     * @param mismatchReasons a map from rejected constructor to the reason it was rejected.
      * @return reflected constructor, or null if not found.
      */
     static Constructor<?> findMatchingConstructor(Class<?> runtimeClass,
-            JDiffConstructor jdiffDes, Map<Constructor, String> mismatchReasons) {
-
+            JDiffClassDescription.JDiffConstructor jdiffDes) {
         for (Constructor<?> c : runtimeClass.getDeclaredConstructors()) {
             Type[] params = c.getGenericParameterTypes();
             boolean isStaticClass = ((runtimeClass.getModifiers() & Modifier.STATIC) != 0);
@@ -153,15 +148,8 @@ public class ReflectionHelper {
                 int i = 0;
                 int j = startParamOffset;
                 while (i < jdiffParamList.size()) {
-                    String expectedParameter = jdiffParamList.get(i);
-                    Type actualParameter = params[j];
-                    if (!compareParam(expectedParameter, actualParameter,
+                    if (!compareParam(jdiffParamList.get(i), params[j],
                             DefaultTypeComparator.INSTANCE)) {
-                        mismatchReasons.put(c,
-                                String.format("parameter %d mismatch: expected (%s), found (%s)",
-                                        i,
-                                        expectedParameter,
-                                        actualParameter));
                         isFound = false;
                         break;
                     }
@@ -171,11 +159,6 @@ public class ReflectionHelper {
                 if (isFound) {
                     return c;
                 }
-            } else {
-                mismatchReasons.put(c,
-                        String.format("parameter list length mismatch: expected %d, found %d",
-                                jdiffParamList.size(),
-                                params.length));
             }
         }
         return null;
@@ -221,33 +204,25 @@ public class ReflectionHelper {
      *
      * @param runtimeClass the class in which to search.
      * @param method description of the method to find
-     * @param mismatchReasons a map from rejected method to the reason it was rejected, only
-     *     contains methods with the same name.
      * @return the reflected method, or null if not found.
      */
-    static Method findMatchingMethod(
-            Class<?> runtimeClass, JDiffMethod method, Map<Method, String> mismatchReasons) {
+    static Method findMatchingMethod(Class<?> runtimeClass,
+            JDiffClassDescription.JDiffMethod method) {
 
         // Search through the class to find the methods just in case the method was actually
         // declared in a superclass which is not part of the API and so was made to appear as if
         // it was declared in each of the hidden class' subclasses. Cannot use getMethods() as that
         // will only return public methods and the API includes protected methods.
-        Class<?> currentClass = runtimeClass;
-        while (currentClass != null) {
-            Method[] reflectedMethods = currentClass.getDeclaredMethods();
+        while (runtimeClass != null) {
+            Method[] methods = runtimeClass.getDeclaredMethods();
 
-            for (Method reflectedMethod : reflectedMethods) {
-                // If the method names aren't equal, the methods can't match.
-                if (!method.mName.equals(reflectedMethod.getName())) {
-                    continue;
-                }
-
-                if (matchesSignature(method, reflectedMethod, mismatchReasons)) {
-                    return reflectedMethod;
+            for (Method m : methods) {
+                if (matches(method, m)) {
+                    return m;
                 }
             }
 
-            currentClass = currentClass.getSuperclass();
+            runtimeClass = runtimeClass.getSuperclass();
         }
 
         return null;
@@ -258,12 +233,15 @@ public class ReflectionHelper {
      *
      * @param jDiffMethod the jDiffMethod to compare
      * @param reflectedMethod the reflected method to compare
-     * @param mismatchReasons map from method to reason it did not match, used when reporting
-     *     missing methods.
      * @return true, if both methods are the same
      */
-    static boolean matchesSignature(JDiffMethod jDiffMethod, Method reflectedMethod,
-            Map<Method, String> mismatchReasons) {
+    static boolean matches(JDiffClassDescription.JDiffMethod jDiffMethod,
+            Method reflectedMethod) {
+        // If the method names aren't equal, the methods can't match.
+        if (!jDiffMethod.mName.equals(reflectedMethod.getName())) {
+            return false;
+        }
+
         // If the method is a bridge then use a special comparator for comparing types as
         // bridge methods created for generic methods may not have generic signatures.
         // See b/123558763 for more information.
@@ -272,26 +250,19 @@ public class ReflectionHelper {
 
         String jdiffReturnType = jDiffMethod.mReturnType;
         String reflectionReturnType = typeToString(reflectedMethod.getGenericReturnType());
+        List<String> jdiffParamList = jDiffMethod.mParamList;
 
         // Next, compare the return types of the two methods.  If
         // they aren't equal, the methods can't match.
         if (!typeComparator.compare(jdiffReturnType, reflectionReturnType)) {
-            mismatchReasons.put(reflectedMethod,
-                    String.format("return type mismatch: expected %s, found %s", jdiffReturnType,
-                            reflectionReturnType));
             return false;
         }
 
-        List<String> jdiffParamList = jDiffMethod.mParamList;
         Type[] params = reflectedMethod.getGenericParameterTypes();
 
         // Next, check the method parameters.  If they have different
         // parameter lengths, the two methods can't match.
         if (jdiffParamList.size() != params.length) {
-            mismatchReasons.put(reflectedMethod,
-                    String.format("parameter list length mismatch: expected %s, found %s",
-                            jdiffParamList.size(),
-                            params.length));
             return false;
         }
 
@@ -319,25 +290,15 @@ public class ReflectionHelper {
         StringBuilder reflectedMethodParams = new StringBuilder("");
         StringBuilder jdiffMethodParams = new StringBuilder("");
 
-        String sep = "";
         for (int i = 0; i < jdiffParamList.size(); i++) {
-            jdiffMethodParams.append(sep).append(jdiffParamList.get(i));
-            reflectedMethodParams.append(sep).append(params[i].getTypeName());
-            sep = ", ";
+            jdiffMethodParams.append(jdiffParamList.get(i));
+            reflectedMethodParams.append(params[i]);
         }
 
         String jDiffFName = jdiffMethodParams.toString();
         String refName = reflectedMethodParams.toString();
 
-        boolean signatureMatches = jDiffFName.equals(refName);
-        if (!signatureMatches) {
-            mismatchReasons.put(reflectedMethod,
-                    String.format("parameter signature mismatch: expected (%s), found (%s)",
-                            jDiffFName,
-                            refName));
-        }
-
-        return signatureMatches;
+        return jDiffFName.equals(refName);
     }
 
     /**
@@ -367,7 +328,7 @@ public class ReflectionHelper {
      * @param type the type to convert.
      * @return the jdiff formatted string.
      */
-    public static String typeToString(Type type) {
+    private static String typeToString(Type type) {
         if (type instanceof ParameterizedType) {
             ParameterizedType pt = (ParameterizedType) type;
 
@@ -380,9 +341,7 @@ public class ReflectionHelper {
             for (Type t : types) {
                 sb.append(typeToString(t));
                 if (++elementNum < types.length) {
-                    // Must match separator used in
-                    // android.signature.cts.KtHelper.toDefaultTypeString.
-                    sb.append(",");
+                    sb.append(", ");
                 }
             }
 

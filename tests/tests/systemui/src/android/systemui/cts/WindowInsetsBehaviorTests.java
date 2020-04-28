@@ -687,8 +687,6 @@ public class WindowInsetsBehaviorTests {
 
     @Test
     public void swipeInsideLimit_systemUiVisible_noEventCanceled() throws Throwable {
-        assumeTrue(hasSystemGestureFeature());
-
         final int swipeCount = 1;
         final boolean insideLimit = true;
         testSystemGestureExclusionLimit(swipeCount, insideLimit, SYSTEM_UI_FLAG_VISIBLE);
@@ -700,8 +698,6 @@ public class WindowInsetsBehaviorTests {
 
     @Test
     public void swipeOutsideLimit_systemUiVisible_allEventsCanceled() throws Throwable {
-        assumeTrue(hasSystemGestureFeature());
-
         final int swipeCount = 1;
         final boolean insideLimit = false;
         testSystemGestureExclusionLimit(swipeCount, insideLimit, SYSTEM_UI_FLAG_VISIBLE);
@@ -713,8 +709,6 @@ public class WindowInsetsBehaviorTests {
 
     @Test
     public void swipeInsideLimit_immersiveSticky_noEventCanceled() throws Throwable {
-        assumeTrue(hasSystemGestureFeature());
-
         // The first event may be never canceled. So we need to swipe at least twice.
         final int swipeCount = 2;
         final boolean insideLimit = true;
@@ -728,8 +722,6 @@ public class WindowInsetsBehaviorTests {
 
     @Test
     public void swipeOutsideLimit_immersiveSticky_noEventCanceled() throws Throwable {
-        assumeTrue(hasSystemGestureFeature());
-
         // The first event may be never canceled. So we need to swipe at least twice.
         final int swipeCount = 2;
         final boolean insideLimit = false;

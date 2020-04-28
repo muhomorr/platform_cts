@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-android_test_helper_app {
+android_test {
     name: "CtsV3SigningSchemeRotationTest",
     defaults: ["cts_support_defaults"],
     // tag this module as a cts test artifact
@@ -20,6 +20,7 @@ android_test_helper_app {
         "cts",
         "vts",
         "general-tests",
+        "sts",
     ],
     srcs: ["src/**/*.java"],
     sdk_version: "current",

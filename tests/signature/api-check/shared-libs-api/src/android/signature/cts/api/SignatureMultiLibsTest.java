@@ -18,11 +18,13 @@ package android.signature.cts.api;
 
 import android.signature.cts.ApiComplianceChecker;
 import android.signature.cts.ApiDocumentParser;
-import android.signature.cts.VirtualPath;
-import android.signature.cts.VirtualPath.LocalFilePath;
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Arrays;
 import java.util.stream.Stream;
+import java.util.zip.ZipFile;
 
 import static com.android.compatibility.common.util.SystemUtil.runShellCommand;
 
@@ -46,7 +48,7 @@ public class SignatureMultiLibsTest extends SignatureTest {
 
             ApiDocumentParser apiDocumentParser = new ApiDocumentParser(TAG);
 
-            parseApiResourcesAsStream(apiDocumentParser, expectedApiFiles)
+            parseApiFilesAsStream(apiDocumentParser, expectedApiFiles)
                     .forEach(complianceChecker::checkSignatureCompliance);
 
             // After done parsing all expected API files, perform any deferred checks.
@@ -68,9 +70,21 @@ public class SignatureMultiLibsTest extends SignatureTest {
         return getLibraries().anyMatch(libraryName::equals);
     }
 
-    @Override
-    protected Stream<VirtualPath> getZipEntryFiles(LocalFilePath path) throws IOException {
-        // Only return entries corresponding to shared libraries.
-        return super.getZipEntryFiles(path).filter(p -> checkLibrary(p.toString()));
+    protected Stream<InputStream> readFile(File file) {
+        try {
+            if (file.getName().endsWith(".zip")) {
+                ZipFile zip = new ZipFile(file);
+                return zip.stream().filter(entry -> checkLibrary(entry.getName())).map(entry -> {
+                    try {
+                        return zip.getInputStream(entry);
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }});
+            } else {
+                return Stream.of(new FileInputStream(file));
+            }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 }

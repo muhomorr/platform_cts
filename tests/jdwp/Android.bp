@@ -31,5 +31,4 @@ java_test {
     optimize: {
         enabled: false,
     },
-    data: [":cts-dalvik-device-test-runner"],
 }

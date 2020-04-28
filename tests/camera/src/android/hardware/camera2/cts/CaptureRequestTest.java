@@ -23,7 +23,6 @@ import android.graphics.Point;
 import android.graphics.PointF;
 import android.graphics.Rect;
 import android.graphics.SurfaceTexture;
-import android.hardware.cts.helpers.CameraUtils;
 import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraDevice;
 import android.hardware.camera2.CameraMetadata;
@@ -517,11 +516,7 @@ public class CaptureRequestTest extends Camera2SurfaceViewTestCase {
                             " does not support color outputs, skipping");
                     continue;
                 }
-                if (!mAllStaticInfo.get(mCameraIds[i]).hasFlash()) {
-                    Log.i(TAG, "Camera " + mCameraIds[i] +
-                            " does not support flash, skipping");
-                    continue;
-                }
+
                 openDevice(mCameraIds[i]);
                 SimpleCaptureCallback listener = new SimpleCaptureCallback();
                 CaptureRequest.Builder requestBuilder =
@@ -530,18 +525,17 @@ public class CaptureRequestTest extends Camera2SurfaceViewTestCase {
                 Size maxPreviewSz = mOrderedPreviewSizes.get(0); // Max preview size.
 
                 startPreview(requestBuilder, maxPreviewSz, listener);
-                boolean isLegacy = CameraUtils.isLegacyHAL(mCameraManager, mCameraIds[i]);
-                flashTurnOffTest(listener, isLegacy,
+                flashTurnOffTest(listener,
                         /* initiaAeControl */CaptureRequest.CONTROL_AE_MODE_ON_ALWAYS_FLASH,
                         /* offAeControl */CaptureRequest.CONTROL_AE_MODE_ON_ALWAYS_FLASH);
-
-                flashTurnOffTest(listener, isLegacy,
+                flashTurnOffTest(listener,
                         /* initiaAeControl */CaptureRequest.CONTROL_AE_MODE_ON_ALWAYS_FLASH,
                         /* offAeControl */CaptureRequest.CONTROL_AE_MODE_ON_AUTO_FLASH);
 
-                flashTurnOffTest(listener, isLegacy,
+                flashTurnOffTest(listener,
                         /* initiaAeControl */CaptureRequest.CONTROL_AE_MODE_ON_ALWAYS_FLASH,
                         /* offAeControl */CaptureRequest.CONTROL_AE_MODE_ON_AUTO_FLASH_REDEYE);
+
 
                 stopPreview();
             } finally {
@@ -1450,13 +1444,12 @@ public class CaptureRequestTest extends Camera2SurfaceViewTestCase {
      * CaptureRequest.CONTROL_AE_MODE_ON or CaptureRequest.CONTROL_AE_MODE_OFF
      *
      * @param listener The Capture listener that is used to wait for capture result
-     * @param isLegacy Boolean specifying if the camera device being tested is a legacy device
      * @param initialAeControl The initial AE_CONTROL mode to start repeating requests with.
      * @param flashOffAeControl The final AE_CONTROL mode which is expected to turn flash off for
      *        TEMPLATE_PREVIEW repeating requests.
      */
-    private void flashTurnOffTest(SimpleCaptureCallback listener, boolean isLegacy,
-            int initialAeControl, int flashOffAeControl) throws Exception {
+    private void flashTurnOffTest(SimpleCaptureCallback listener, int initialAeControl,
+            int flashOffAeControl) throws Exception {
         CaptureResult result;
         final int NUM_FLASH_REQUESTS_TESTED = 10;
         CaptureRequest.Builder requestBuilder = createRequestForPreview();
@@ -1465,6 +1458,18 @@ public class CaptureRequestTest extends Camera2SurfaceViewTestCase {
 
         mSession.setRepeatingRequest(requestBuilder.build(), listener, mHandler);
         waitForSettingsApplied(listener, NUM_FRAMES_WAITED_FOR_UNKNOWN_LATENCY);
+
+        // For camera that doesn't have flash unit, flash state should always be UNAVAILABLE.
+        if (mStaticInfo.getFlashInfoChecked() == false) {
+            for (int i = 0; i < NUM_FLASH_REQUESTS_TESTED; i++) {
+                result = listener.getCaptureResult(CAPTURE_RESULT_TIMEOUT_MS);
+                mCollector.expectEquals("No flash unit available, flash state must be UNAVAILABLE"
+                        + "for AE mode " + initialAeControl,
+                        CaptureResult.FLASH_STATE_UNAVAILABLE,
+                        result.get(CaptureResult.FLASH_STATE));
+            }
+            return;
+        }
 
         // Turn on torch using FLASH_MODE_TORCH
         requestBuilder.set(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON);
@@ -1519,40 +1524,10 @@ public class CaptureRequestTest extends Camera2SurfaceViewTestCase {
             mCollector.expectNotEquals("Result for flashModeTorch request null",
                     torchStateResults[j], null);
         }
-        if (isLegacy) {
-            // For LEGACY devices, flash state is null for all situations except:
-            // android.control.aeMode == ON_ALWAYS_FLASH, where flash.state will be FIRED
-            // android.flash.mode == TORCH, where flash.state will be FIRED
-            testLegacyTorchStates(torchStateResults, 0, flashModeOffRequests - 1, flashOffRequest);
-            testLegacyTorchStates(torchStateResults, flashModeOffRequests,
-                    torchStateResults.length -1,
-                    flashModeTorchRequest);
-        } else {
-            checkTorchStates(torchStateResults, numAllowedTransitionStates, flashModeOffRequests,
-                    flashModeTorchRequests);
-        }
+        checkTorchStates(torchStateResults, numAllowedTransitionStates, flashModeOffRequests,
+                flashModeTorchRequests);
     }
 
-    private void testLegacyTorchStates(CaptureResult []torchStateResults, int beg, int end,
-            CaptureRequest request) {
-        for (int i = beg; i <= end; i++) {
-            Integer requestControlAeMode = request.get(CaptureRequest.CONTROL_AE_MODE);
-            Integer requestFlashMode = request.get(CaptureRequest.FLASH_MODE);
-            Integer resultFlashState = torchStateResults[i].get(CaptureResult.FLASH_STATE);
-            if (requestControlAeMode == CaptureRequest.CONTROL_AE_MODE_ON_ALWAYS_FLASH ||
-                    requestFlashMode == CaptureRequest.FLASH_MODE_TORCH) {
-                mCollector.expectEquals("For LEGACY devices, flash state must be FIRED when" +
-                        "CONTROL_AE_MODE == CONTROL_AE_MODE_ON_ALWAYS_FLASH or FLASH_MODE == " +
-                        "TORCH, CONTROL_AE_MODE = " + requestControlAeMode + " FLASH_MODE = " +
-                        requestFlashMode, CaptureResult.FLASH_STATE_FIRED, resultFlashState);
-                continue;
-            }
-            mCollector.expectTrue("For LEGACY devices, flash state must be null when" +
-                        "CONTROL_AE_MODE != CONTROL_AE_MODE_ON_ALWAYS_FLASH or FLASH_MODE != " +
-                        "TORCH, CONTROL_AE_MODE = " + requestControlAeMode + " FLASH_MODE = " +
-                        requestFlashMode,  resultFlashState == null);
-        }
-    }
     // We check that torch states appear in the order expected. We don't necessarily know how many
     // times each state might appear, however we make sure that the states do not appear out of
     // order.

@@ -24,7 +24,6 @@ import static android.app.AppOpsManager.MODE_FOREGROUND;
 import static android.app.AppOpsManager.MODE_IGNORED;
 import static android.content.pm.PackageManager.FLAG_PERMISSION_REVIEW_REQUIRED;
 import static android.content.pm.PackageManager.FLAG_PERMISSION_USER_SET;
-import static android.permission.cts.PermissionUtils.eventually;
 import static android.permission.cts.PermissionUtils.getAppOp;
 import static android.permission.cts.PermissionUtils.getPermissionFlags;
 import static android.permission.cts.PermissionUtils.getPermissions;
@@ -112,7 +111,7 @@ public class SplitPermissionTest {
      * @param permName The permission that needs to be granted
      */
     private void assertPermissionGranted(@NonNull String permName) throws Exception {
-        eventually(() -> assertThat(isGranted(APP_PKG, permName)).named(permName + " is granted").isTrue());
+        assertThat(isGranted(APP_PKG, permName)).named(permName + " is granted").isTrue();
     }
 
     /**
@@ -452,8 +451,8 @@ public class SplitPermissionTest {
 
         install(APK_LOCATION_BACKGROUND_29);
 
-        eventually(() -> assertThat(getAppOp(APP_PKG, ACCESS_COARSE_LOCATION)).named("foreground app-op")
-                .isEqualTo(MODE_FOREGROUND));
+        assertThat(getAppOp(APP_PKG, ACCESS_COARSE_LOCATION)).named("foreground app-op")
+                .isEqualTo(MODE_FOREGROUND);
     }
 
     /**

@@ -16,7 +16,6 @@ LOCAL_WHOLE_STATIC_LIBRARIES = \
   libsimpleperf_cts_test \
 
 LOCAL_STATIC_LIBRARIES += \
-  libsimpleperf_etm_decoder \
   libbacktrace \
   libunwindstack \
   libdexfile_support \
@@ -39,7 +38,6 @@ LOCAL_STATIC_LIBRARIES += \
   libLLVMSupport \
   libprotobuf-cpp-lite \
   libevent \
-  libopencsd_decoder \
 
 simpleperf_testdata_files := $(shell cd $(simpleperf_src_path); find testdata -type f)
 

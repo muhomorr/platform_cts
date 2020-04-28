@@ -14,7 +14,7 @@
 // limitations under the License.
 //
 
-android_test_helper_app {
+android_test {
     name: "CtsPermissionPolicyTest25",
     defaults: ["cts_support_defaults"],
     static_libs: [
@@ -29,6 +29,7 @@ android_test_helper_app {
         "cts",
         "vts",
         "general-tests",
+        "mts",
     ],
     optimize: {
         enabled: false,

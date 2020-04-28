@@ -24,6 +24,9 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
+import android.Manifest;
+import android.Manifest.permission;
+import android.app.UiAutomation;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.os.Parcel;
@@ -53,6 +56,8 @@ import android.telephony.ServiceState;
 import android.telephony.TelephonyManager;
 import android.util.Log;
 import android.util.Pair;
+
+import androidx.test.InstrumentationRegistry;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -786,10 +791,6 @@ public class CellInfoTest {
         if (mRadioHalVersion >= RADIO_HAL_VERSION_1_2) {
             assertTrue("RSCP Must be valid for WCDMA", wcdma.getRscp() != CellInfo.UNAVAILABLE);
         }
-
-        int ecNo = wcdma.getEcNo();
-        assertTrue("getEcNo() out of range [-24,1], EcNo=" + ecNo,
-                (ecNo >= -24 && ecNo <= 1) || ecNo == CellInfo.UNAVAILABLE);
     }
 
     private void verifyCellSignalStrengthWcdmaParcel(CellSignalStrengthWcdma wcdma) {
@@ -877,7 +878,9 @@ public class CellInfoTest {
         assertTrue("getTimingAdvance() out of range [0,219] | Integer.MAX_VALUE, ta=" + ta,
                 ta == Integer.MAX_VALUE || (ta >= 0 && ta <= 219));
 
-        assertEquals(gsm.getDbm(), gsm.getRssi());
+        // Dbm here does not have specific limits. So just calling to verify that it does not
+        // crash the phone
+        gsm.getDbm();
 
         int asuLevel = gsm.getAsuLevel();
         assertTrue("getLevel() out of range [0,31] (or 99 is unknown), level=" + asuLevel,

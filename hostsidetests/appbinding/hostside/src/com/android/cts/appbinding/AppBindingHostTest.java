@@ -162,7 +162,8 @@ public class AppBindingHostTest extends DeviceTestCase implements IBuildReceiver
     }
 
     private void setSmsApp(String pkg, int userId) throws Exception {
-        runCommand("cmd role add-role-holder --user " + userId + " android.app.role.SMS " + pkg);
+        runCommand("cmd phone sms set-default-app --user " + userId + " " + pkg,
+                "^SMS \\s app \\s set \\s to \\s " + Pattern.quote(pkg) + "$");
     }
 
     private void uninstallTestApps() throws Exception {

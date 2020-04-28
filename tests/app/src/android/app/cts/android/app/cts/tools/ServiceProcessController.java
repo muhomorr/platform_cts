@@ -118,17 +118,6 @@ public final class ServiceProcessController {
         String result = SystemUtil.runShellCommand(mInstrumentation, cmd);
     }
 
-    /** The "battery restriction" forced app standby app-op */
-    public void denyAnyInBackgroundOp() throws IOException {
-        String cmd = "appops set " + mServicePackage + " RUN_ANY_IN_BACKGROUND deny";
-        String result = SystemUtil.runShellCommand(mInstrumentation, cmd);
-    }
-
-    public void allowAnyInBackgroundOp() throws IOException {
-        String cmd = "appops set " + mServicePackage + " RUN_ANY_IN_BACKGROUND allow";
-        String result = SystemUtil.runShellCommand(mInstrumentation, cmd);
-    }
-
     public void makeUidIdle() throws IOException {
         String cmd = "am make-uid-idle " + mServicePackage;
         String result = SystemUtil.runShellCommand(mInstrumentation, cmd);
@@ -162,7 +151,6 @@ public final class ServiceProcessController {
     public void cleanup() throws IOException {
         removeFromWhitelist();
         allowBackgroundOp();
-        allowAnyInBackgroundOp();
         mUidWatcher.finish();
         mUidGoneListener.unregister();
         mUidForegroundListener.unregister();

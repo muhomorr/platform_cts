@@ -15,11 +15,14 @@
  */
 package android.signature.cts.intent;
 
+import static android.signature.cts.CurrentApi.CURRENT_API_FILE;
+import static android.signature.cts.CurrentApi.SYSTEM_CURRENT_API_FILE;
+import static android.signature.cts.CurrentApi.SYSTEM_REMOVED_API_FILE;
+
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.signature.cts.ApiDocumentParser;
 import android.signature.cts.JDiffClassDescription.JDiffField;
-import android.signature.cts.VirtualPath;
 import android.util.Log;
 
 import androidx.test.InstrumentationRegistry;
@@ -27,15 +30,16 @@ import androidx.test.runner.AndroidJUnit4;
 
 import com.android.compatibility.common.util.DynamicConfigDeviceSide;
 
-import java.io.IOException;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.xmlpull.v1.XmlPullParserException;
 
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.HashSet;
 import java.util.List;
@@ -47,16 +51,9 @@ import java.util.Set;
  */
 @RunWith(AndroidJUnit4.class)
 public class IntentTest {
-
-    private static final String CURRENT_API_RESOURCE = "current.txt";
-
-    private static final String SYSTEM_CURRENT_API_RESOURCE = "system-current.txt";
-
-    private static final String SYSTEM_REMOVED_API_RESOURCE = "system-removed.txt";
-
     private static final String TAG = IntentTest.class.getSimpleName();
 
-    private static final File SIGNATURE_TEST_PACKAGES =
+    private static final File SIGNATURE_TEST_PACKGES =
             new File("/data/local/tmp/signature-test-packages");
     private static final String ANDROID_INTENT_PREFIX = "android.intent.action";
     private static final String ACTION_LINE_PREFIX = "          Action: ";
@@ -113,23 +110,26 @@ public class IntentTest {
         Assert.assertTrue(errors.toString(), errors.isEmpty());
     }
 
-    private Set<String> lookupPlatformIntents() throws IOException {
-        Set<String> intents = new HashSet<>();
-        intents.addAll(parse(CURRENT_API_RESOURCE));
-        intents.addAll(parse(SYSTEM_CURRENT_API_RESOURCE));
-        intents.addAll(parse(SYSTEM_REMOVED_API_RESOURCE));
-        return intents;
+    private Set<String> lookupPlatformIntents() {
+        try {
+            Set<String> intents = new HashSet<>();
+            intents.addAll(parse(CURRENT_API_FILE));
+            intents.addAll(parse(SYSTEM_CURRENT_API_FILE));
+            intents.addAll(parse(SYSTEM_REMOVED_API_FILE));
+            return intents;
+        } catch (XmlPullParserException | IOException e) {
+            throw new RuntimeException("failed to parse", e);
+        }
     }
 
-    private static Set<String> parse(String apiResourceName) throws IOException {
+    private static Set<String> parse(String apiFileName)
+            throws XmlPullParserException, IOException {
 
         Set<String> androidIntents = new HashSet<>();
 
         ApiDocumentParser apiDocumentParser = new ApiDocumentParser(TAG);
 
-        VirtualPath.ResourcePath virtualPath =
-                VirtualPath.get(IntentTest.class.getClassLoader(), apiResourceName);
-        apiDocumentParser.parseAsStream(virtualPath).forEach(
+        apiDocumentParser.parseAsStream(new FileInputStream(new File(apiFileName))).forEach(
                 classDescription -> {
                     for (JDiffField diffField : classDescription.getFieldList()) {
                         String fieldValue = diffField.getValueString();
@@ -155,7 +155,7 @@ public class IntentTest {
 
     private static Set<String> lookupActiveIntents(String packageName) {
         HashSet<String> activeIntents = new HashSet<>();
-        File dumpsysPackage = new File(SIGNATURE_TEST_PACKAGES, packageName + ".txt");
+        File dumpsysPackage = new File(SIGNATURE_TEST_PACKGES, packageName + ".txt");
         if (!dumpsysPackage.exists() || dumpsysPackage.length() == 0) {
           throw new RuntimeException("Missing package info: " + dumpsysPackage.getAbsolutePath());
         }

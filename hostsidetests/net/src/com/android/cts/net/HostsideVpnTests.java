@@ -91,8 +91,4 @@ public class HostsideVpnTests extends HostsideNetworkTestCase {
                 TEST_PKG + ".VpnTest",
                 "testAlwaysMeteredVpnWithNonNullUnderlyingNetwork");
     }
-
-    public void testB141603906() throws Exception {
-        runDeviceTests(TEST_PKG, TEST_PKG + ".VpnTest", "testB141603906");
-    }
 }

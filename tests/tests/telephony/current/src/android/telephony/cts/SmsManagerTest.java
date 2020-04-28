@@ -16,25 +16,27 @@
 
 package android.telephony.cts;
 
+import static com.android.compatibility.common.util.BlockedNumberUtil.deleteBlockedNumber;
+import static com.android.compatibility.common.util.BlockedNumberUtil.insertBlockedNumber;
+
 import static androidx.test.InstrumentationRegistry.getContext;
 import static androidx.test.InstrumentationRegistry.getInstrumentation;
 
-import static com.android.compatibility.common.util.BlockedNumberUtil.deleteBlockedNumber;
-import static com.android.compatibility.common.util.BlockedNumberUtil.insertBlockedNumber;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.startsWith;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 import android.app.AppOpsManager;
 import android.app.PendingIntent;
@@ -55,16 +57,13 @@ import android.os.Bundle;
 import android.os.ParcelFileDescriptor;
 import android.os.RemoteCallback;
 import android.os.SystemClock;
+import android.provider.Settings;
 import android.provider.Telephony;
 import android.telephony.SmsManager;
 import android.telephony.SmsMessage;
 import android.telephony.TelephonyManager;
 import android.text.TextUtils;
 import android.util.Log;
-
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
 
 import java.io.BufferedReader;
 import java.io.FileInputStream;
@@ -79,6 +78,10 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
 
 /**
  * Tests for {@link android.telephony.SmsManager}.
@@ -440,6 +443,9 @@ public class SmsManagerTest {
 
     @Test
     public void testContentProviderAccessRestriction() throws Exception {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            return;
+        }
         Uri dummySmsUri = null;
         Context context = getInstrumentation().getContext();
         ContentResolver contentResolver = context.getContentResolver();
@@ -668,13 +674,7 @@ public class SmsManagerTest {
 
     protected void sendMultiPartTextMessage(String destAddr, ArrayList<String> parts,
             ArrayList<PendingIntent> sentIntents, ArrayList<PendingIntent> deliveryIntents) {
-        if (mContext.getOpPackageName() != null) {
-            getSmsManager().sendMultipartTextMessage(destAddr, null, parts, sentIntents,
-                    deliveryIntents, mContext.getOpPackageName());
-        } else {
-            getSmsManager().sendMultipartTextMessage(destAddr, null, parts, sentIntents,
-                    deliveryIntents);
-        }
+        getSmsManager().sendMultipartTextMessage(destAddr, null, parts, sentIntents, deliveryIntents);
     }
 
     protected void sendDataMessage(String destAddr,short port, byte[] data, PendingIntent sentIntent, PendingIntent deliveredIntent) {

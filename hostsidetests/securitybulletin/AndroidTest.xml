@@ -64,10 +64,12 @@
         <!--__________________-->
         <!-- Bulletin 2016-06 -->
         <!-- Please add tests solely from this bulletin below to avoid merge conflict -->
+        <option name="push" value="CVE-2016-2482->/data/local/tmp/CVE-2016-2482" />
 
         <!--__________________-->
         <!-- Bulletin 2016-07 -->
         <!-- Please add tests solely from this bulletin below to avoid merge conflict -->
+        <option name="push" value="CVE-2016-3747->/data/local/tmp/CVE-2016-3747" />
         <option name="push" value="CVE-2014-9803->/data/local/tmp/CVE-2014-9803" />
         <option name="push" value="CVE-2016-3746->/data/local/tmp/CVE-2016-3746" />
         <option name="push" value="CVE-2016-3818->/data/local/tmp/CVE-2016-3818" />
@@ -121,6 +123,8 @@
         <!--__________________-->
         <!-- Bulletin 2017-05 -->
         <!-- Please add tests solely from this bulletin below to avoid merge conflict -->
+        <option name="push" value="CVE-2016-5862->/data/local/tmp/CVE-2016-5862"/>
+        <option name="push" value="CVE-2016-5867->/data/local/tmp/CVE-2016-5867"/>
 
         <!--__________________-->
         <!-- Bulletin 2017-06 -->
@@ -197,6 +201,20 @@
         <option name="append-bitness" value="true" />
     </target_preparer>
 
+    <!-- The following tests hit either 32-bit or 64-bit, but not both. All tests in this -->
+    <!-- section should take care to build either 32 bit or 64 bit binary, but not both.  -->
+    <target_preparer class="com.android.compatibility.common.tradefed.targetprep.FilePusher">
+        <option name="cleanup" value="true" />
+
+        <!-- Please add 32-bit binary tests below to avoid merge conflict -->
+
+
+        <!-- Please add 64-bit binary tests below to avoid merge conflict -->
+
+
+        <option name="append-bitness" value="false" />
+    </target_preparer>
+
     <target_preparer class="com.android.tradefed.targetprep.suite.SuiteApkInstaller">
         <option name="cleanup-apks" value="true" />
         <option name="test-file-name" value="CtsHostLaunchAnyWhereApp.apk" />
@@ -206,6 +224,7 @@
         <option name="cleanup-apks" value="true" />
         <option name="test-file-name" value="OomCatcher.apk" />
         <option name="test-file-name" value="MainlineModuleDetector.apk" />
+        <option name="test-file-name" value="hotspot.apk" />
     </target_preparer>
 
     <test class="com.android.compatibility.common.tradefed.testtype.JarHostTest" >

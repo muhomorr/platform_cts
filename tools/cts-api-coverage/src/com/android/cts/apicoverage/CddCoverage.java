@@ -24,12 +24,11 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 
 /** Representation of the entire CDD. */
 class CddCoverage {
 
-    private final Map<String, CddRequirement> requirements = new ConcurrentHashMap<>();
+    private final Map<String, CddRequirement> requirements = new HashMap<>();
 
     public void addCddRequirement(CddRequirement cddRequirement) {
         requirements.put(cddRequirement.getRequirementId(), cddRequirement);
@@ -40,10 +39,10 @@ class CddCoverage {
     }
 
     public void addCoverage(String cddRequirementId, TestMethod testMethod) {
-        if (cddRequirementId == null)
-            return;
+        if (!requirements.containsKey(cddRequirementId)) {
+            requirements.put(cddRequirementId, new CddRequirement(cddRequirementId));
+        }
 
-        requirements.putIfAbsent(cddRequirementId, new CddRequirement(cddRequirementId));
         requirements.get(cddRequirementId).addTestMethod(testMethod);
     }
 
@@ -53,7 +52,7 @@ class CddCoverage {
 
         CddRequirement(String requirementId) {
             this.mRequirementId = requirementId;
-            this.mtestMethods = Collections.synchronizedList(new ArrayList<>());
+            this.mtestMethods = new ArrayList<>();
         }
 
         @Override

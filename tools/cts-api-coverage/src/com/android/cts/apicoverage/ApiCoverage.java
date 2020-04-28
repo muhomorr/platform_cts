@@ -21,19 +21,18 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 /** Representation of the entire API containing packages. */
 class ApiCoverage {
 
-    private final Map<String, ApiPackage> mPackages = new ConcurrentHashMap<>();
+    private final Map<String, ApiPackage> mPackages = new HashMap<String, ApiPackage>();
 
     public void addPackage(ApiPackage pkg) {
         mPackages.put(pkg.getName(), pkg);
     }
 
     public ApiPackage getPackage(String name) {
-        return name == null ? null : mPackages.get(name);
+        return mPackages.get(name);
     }
 
     public Collection<ApiPackage> getPackages() {

@@ -285,23 +285,6 @@ public class SubscriptionManagerTest {
     }
 
     @Test
-    public void testSetDefaultVoiceSubId() {
-        int oldSubId = SubscriptionManager.getDefaultVoiceSubscriptionId();
-        InstrumentationRegistry.getInstrumentation().getUiAutomation()
-                .adoptShellPermissionIdentity();
-        try {
-            mSm.setDefaultVoiceSubscriptionId(SubscriptionManager.INVALID_SUBSCRIPTION_ID);
-            assertEquals(SubscriptionManager.INVALID_SUBSCRIPTION_ID,
-                    SubscriptionManager.getDefaultVoiceSubscriptionId());
-            mSm.setDefaultVoiceSubscriptionId(oldSubId);
-            assertEquals(oldSubId, SubscriptionManager.getDefaultVoiceSubscriptionId());
-        } finally {
-            InstrumentationRegistry.getInstrumentation().getUiAutomation()
-                    .dropShellPermissionIdentity();
-        }
-    }
-
-    @Test
     public void testSubscriptionPlansOverrideUnmetered() throws Exception {
         if (!isSupported()) return;
 
@@ -535,6 +518,10 @@ public class SubscriptionManagerTest {
             changeAndVerifySubscriptionEnabledValue(mSubId, !enabled);
             // Reset it back to original
             changeAndVerifySubscriptionEnabledValue(mSubId, enabled);
+        } else {
+            boolean changeSuccessfully = executeWithShellPermissionAndDefault(false, mSm,
+                    (sm) -> sm.setSubscriptionEnabled(mSubId, !enabled));
+            assertFalse(changeSuccessfully);
         }
     }
 

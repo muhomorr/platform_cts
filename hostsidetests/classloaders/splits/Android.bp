@@ -31,9 +31,4 @@ java_test_host {
         "CtsClassloaderSplitAppFeatureA",
         "CtsClassloaderSplitAppFeatureB",
     ],
-    data: [
-        ":CtsClassloaderSplitApp",
-        ":CtsClassloaderSplitAppFeatureA",
-        ":CtsClassloaderSplitAppFeatureB",
-    ],
 }

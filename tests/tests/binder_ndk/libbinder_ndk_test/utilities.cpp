@@ -56,9 +56,6 @@ const AIBinder_Class* SampleData::kClass =
     AIBinder_Class_define(SampleData::kDescriptor, SampleClassOnCreate,
                           SampleClassOnDestroy, SampleClassOnTransact);
 
-const AIBinder_Class* SampleData::kAnotherClassWithSameDescriptor = AIBinder_Class_define(
-    SampleData::kDescriptor, SampleClassOnCreate, SampleClassOnDestroy, SampleClassOnTransact);
-
 const char* SampleData::kAnotherDescriptor = "this-is-another-arbitrary-thing";
 const AIBinder_Class* SampleData::kAnotherClass =
     AIBinder_Class_define(SampleData::kAnotherDescriptor, SampleClassOnCreate,

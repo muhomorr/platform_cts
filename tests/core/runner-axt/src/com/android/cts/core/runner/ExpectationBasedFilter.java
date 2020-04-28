@@ -27,10 +27,10 @@ import org.junit.runner.Description;
 import org.junit.runner.manipulation.Filter;
 import org.junit.runners.ParentRunner;
 import org.junit.runners.Suite;
-import vogar.expect.Expectation;
-import vogar.expect.ExpectationStore;
-import vogar.expect.ModeId;
-import vogar.expect.Result;
+import vogar.Expectation;
+import vogar.ExpectationStore;
+import vogar.ModeId;
+import vogar.Result;
 
 /**
  * Filter out tests/classes that are not requested or which are expected to fail.

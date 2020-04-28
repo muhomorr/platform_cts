@@ -64,22 +64,6 @@ public class HalfTest {
         // Denormals (flushed to +/-0)
         assertShortEquals(POSITIVE_ZERO, toHalf(5.96046e-9f));
         assertShortEquals(NEGATIVE_ZERO, toHalf(-5.96046e-9f));
-        // Test for values that overflow the mantissa bits into exp bits
-        assertShortEquals(0x1000, toHalf(Float.intBitsToFloat(0x39fff000)));
-        assertShortEquals(0x0400, toHalf(Float.intBitsToFloat(0x387fe000)));
-        // Floats with absolute value above +/-65519 are rounded to +/-inf
-        // when using round-to-even
-        assertShortEquals(0x7bff, toHalf(65519.0f));
-        assertShortEquals(0x7bff, toHalf(65519.9f));
-        assertShortEquals(POSITIVE_INFINITY, toHalf(65520.0f));
-        assertShortEquals(NEGATIVE_INFINITY, toHalf(-65520.0f));
-        // Check if numbers are rounded to nearest even when they
-        // cannot be accurately represented by Half
-        assertShortEquals(0x6800, toHalf(2049.0f));
-        assertShortEquals(0x6c00, toHalf(4098.0f));
-        assertShortEquals(0x7000, toHalf(8196.0f));
-        assertShortEquals(0x7400, toHalf(16392.0f));
-        assertShortEquals(0x7800, toHalf(32784.0f));
     }
 
     @Test
@@ -256,13 +240,6 @@ public class HalfTest {
         assertEquals(-124.0f, toFloat(Half.ceil(toHalf(-124.7f))), 1e-6f);
         assertEquals(125.0f, toFloat(Half.ceil(toHalf(124.2f))), 1e-6f);
         assertEquals(-124.0f, toFloat(Half.ceil(toHalf(-124.2f))), 1e-6f);
-        // ceil for NaN values
-        // These tests check whether the current ceil implementation achieves
-        // bit level compatibility with the hardware implementation (ARM64).
-        assertShortEquals((short) 0x7e01, Half.ceil((short) 0x7c01));
-        assertShortEquals((short) 0x7f00, Half.ceil((short) 0x7d00));
-        assertShortEquals((short) 0xfe01, Half.ceil((short) 0xfc01));
-        assertShortEquals((short) 0xff00, Half.ceil((short) 0xfd00));
     }
 
     @Test
@@ -325,11 +302,6 @@ public class HalfTest {
         assertEquals(-125.0f, toFloat(Half.floor(toHalf(-124.7f))), 1e-6f);
         assertEquals(124.0f, toFloat(Half.floor(toHalf(124.2f))), 1e-6f);
         assertEquals(-125.0f, toFloat(Half.floor(toHalf(-124.2f))), 1e-6f);
-        // floor for NaN values
-        assertShortEquals((short) 0x7e01, Half.floor((short) 0x7c01));
-        assertShortEquals((short) 0x7f00, Half.floor((short) 0x7d00));
-        assertShortEquals((short) 0xfe01, Half.floor((short) 0xfc01));
-        assertShortEquals((short) 0xff00, Half.floor((short) 0xfd00));
     }
 
     @Test
@@ -347,23 +319,12 @@ public class HalfTest {
         assertShortEquals(NEGATIVE_ZERO, Half.round(toHalf(-0.2f)));
         assertEquals(1.0f, toFloat(Half.round(toHalf(0.7f))), 1e-6f);
         assertEquals(-1.0f, toFloat(Half.round(toHalf(-0.7f))), 1e-6f);
-        assertEquals(0.0f, toFloat(Half.round(toHalf(0.5f))), 1e-6f);
-        assertEquals(-0.0f, toFloat(Half.round(toHalf(-0.5f))), 1e-6f);
-        assertEquals(2.0f, toFloat(Half.round(toHalf(1.5f))), 1e-6f);
-        assertEquals(-2.0f, toFloat(Half.round(toHalf(-1.5f))), 1e-6f);
-        assertEquals(1022.0f, toFloat(Half.round(toHalf(1022.5f))), 1e-6f);
-        assertEquals(-1022.0f, toFloat(Half.round(toHalf(-1022.5f))), 1e-6f);
+        assertEquals(1.0f, toFloat(Half.round(toHalf(0.5f))), 1e-6f);
+        assertEquals(-1.0f, toFloat(Half.round(toHalf(-0.5f))), 1e-6f);
         assertEquals(125.0f, toFloat(Half.round(toHalf(124.7f))), 1e-6f);
         assertEquals(-125.0f, toFloat(Half.round(toHalf(-124.7f))), 1e-6f);
         assertEquals(124.0f, toFloat(Half.round(toHalf(124.2f))), 1e-6f);
         assertEquals(-124.0f, toFloat(Half.round(toHalf(-124.2f))), 1e-6f);
-        // round for NaN values
-        // These tests check whether the current round implementation achieves
-        // bit level compatibility with the hardware implementation (ARM64).
-        assertShortEquals((short) 0x7e01, Half.round((short) 0x7c01));
-        assertShortEquals((short) 0x7f00, Half.round((short) 0x7d00));
-        assertShortEquals((short) 0xfe01, Half.round((short) 0xfc01));
-        assertShortEquals((short) 0xff00, Half.round((short) 0xfd00));
     }
 
     @Test

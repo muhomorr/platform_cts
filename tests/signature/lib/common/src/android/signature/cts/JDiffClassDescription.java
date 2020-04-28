@@ -325,9 +325,9 @@ public class JDiffClassDescription {
             StringBuilder sb = new StringBuilder();
 
             // access level
-            String accessLevel = convertModifiersToAccessLevel(mModifier);
-            if (!"".equals(accessLevel)) {
-                sb.append(accessLevel).append(" ");
+            String accesLevel = convertModifiersToAccessLevel(mModifier);
+            if (!"".equals(accesLevel)) {
+                sb.append(accesLevel).append(" ");
             }
 
             String modifierString = convertModifersToModifierString(mModifier);

@@ -1572,7 +1572,7 @@ public class TimeTest {
     }
 
     @Test
-    public void testToMillis_before32BitSeconds() {
+    public void testToMillis_beforeTzRecords() {
         int[] timeFields = new int[] { 1900, 0, 1, 2, 3, 4, -999 /* not used */, 9, 9, 9 };
         verifyToMillisInvalid(timeFields, PstPdt.ID);
         verifyToMillisInvalid(timeFields, Time.TIMEZONE_UTC);
@@ -1613,7 +1613,7 @@ public class TimeTest {
     }
 
     @Test
-    public void testToMillis_after32BitSeconds() {
+    public void testToMillis_afterTzRecords() {
         int[] timeFields = new int[] { 2039, 0, 1, 2, 3, 4, -999 /* not used */, 9, 9, 9 };
         verifyToMillisInvalid(timeFields, PstPdt.ID);
         verifyToMillisInvalid(timeFields, Time.TIMEZONE_UTC);
@@ -2515,7 +2515,7 @@ public class TimeTest {
     }
 
     @Test
-    public void testNormalize_before32BitSeconds() {
+    public void testNormalize_beforeTzRecords() {
         int[] timeFields = new int[] { 1900, 0, 1, 2, 3, 4, -999 /* not used */, 9, 9, 9 };
         verifyNormalizeInvalid(timeFields, PstPdt.ID);
         verifyNormalizeInvalid(timeFields, Time.TIMEZONE_UTC);
@@ -2569,7 +2569,7 @@ public class TimeTest {
     }
 
     @Test
-    public void testNormalize_after32BitSeconds() {
+    public void testNormalize_afterTzRecords() {
         int[] timeFields = new int[] { 2039, 0, 1, 2, 3, 4, -999 /* not used */, 9, 9, 9 };
         verifyNormalizeInvalid(timeFields, PstPdt.ID);
         verifyNormalizeInvalid(timeFields, Time.TIMEZONE_UTC);
@@ -2843,7 +2843,7 @@ public class TimeTest {
         LocalDateTime localDateTime = LocalDateTime.of(2018, Month.OCTOBER, 30, 12, 48, 32);
         assertLocalTimeMillis("Asia/Singapore", localDateTime, 1540874912000L);
 
-        // The following tests check the upper limits of what Time supports. There's no guarantee
+        // The following tests check the upper limits of what we support. There's no guarantee
         // we can't deal with values higher that this but the exact value depends on the version of
         // zic being used as a transition at exactly Integer.MAX_VALUE can affect our ability to
         // deal with times. So, we just assert what we know we must be able to do to catch major
@@ -2861,21 +2861,16 @@ public class TimeTest {
         // Negative offset, has no MAX_VALUE transition with zic 2018e.
         checkUpperSupportedLimit("America/Los_Angeles");
 
-        // See comment above, but for Integer.MIN_VALUE / lower bound. Most zones do not have an
-        // explicit MIN_VALUE transition with zic 2018e 64-bit data but some zones differ around
-        // whether there are known transitions before Integer.MIN_VALUE.
+        // See comment above, but for Integer.MIN_VALUE / lower bound. Most zones have a MIN_VALUE
+        // transition with zic 2018e so it is harder to test zones without them so we just cover the
+        // same ones as we do for upper bound above.
 
-        // Positive offset zones with first transition before Integer.MIN_VALUE.
+        // Positive offset, has MIN_VALUE transition with zic 2018e.
         checkLowerSupportedLimit("Asia/Singapore");
         checkLowerSupportedLimit("Asia/Shanghai");
-        // Negative offset zones with first transition before Integer.MIN_VALUE.
+        // Negative offset, has MIN_VALUE transition with zic 2018e.
         checkLowerSupportedLimit("America/Argentina/Buenos_Aires");
         checkLowerSupportedLimit("America/Los_Angeles");
-
-        // Positive offset zone with first transition after Integer.MIN_VALUE.
-        checkLowerSupportedLimit("Asia/Kathmandu");
-        // Negative offset zone with first transition after Integer.MIN_VALUE.
-        checkLowerSupportedLimit("America/Yellowknife");
     }
 
     private static void checkUpperSupportedLimit(String timeZoneId) {
@@ -2935,9 +2930,6 @@ public class TimeTest {
                 testLocalTime.getSecond(),
                 0 /* isDst */, 0, 0, 0);
         assertEquals(expectedMillis, t.toMillis(true /* ignoreDst */));
-
-        // Check that Time agrees with native localtime / mktime.
-        NativeTimeFunctions.assertNativeTimeResults(timeZoneId, testLocalTime, expectedMillis);
     }
 
     /**
@@ -2973,26 +2965,8 @@ public class TimeTest {
                         + time, timeZone.inDaylightTime(new Date(timeInMillis)), (time.isDst != 0));
                 assertEquals(timeZone.getOffset(timeInMillis),
                         Duration.ofSeconds(time.gmtoff).toMillis());
-
-                // Check that Time agrees with native localtime / mktime.
-                NativeTimeFunctions.assertNativeTimeResults(
-                        tzId, createLocalDateTime(calendar), timeInMillis);
             }
         }
-    }
-
-    /**
-     * Creates a LocalDateTime from a Calendar by reading out the current date/time (to second
-     * precision only!).
-     */
-    private static LocalDateTime createLocalDateTime(Calendar calendar) {
-        return LocalDateTime.of(
-                calendar.get(Calendar.YEAR),
-                calendar.get(Calendar.MONTH) + 1,
-                calendar.get(Calendar.DAY_OF_MONTH),
-                calendar.get(Calendar.HOUR_OF_DAY),
-                calendar.get(Calendar.MINUTE),
-                calendar.get(Calendar.SECOND));
     }
 
     private static List<Long> calculateToMillisTestTimes(String tzId) {
@@ -3068,8 +3042,7 @@ public class TimeTest {
         // should pass regardless of zic version used as the Android behavior is stable for this
         // zone as we have fixed the logic used to determine the offset before the first transition
         // AND the first transition for the zone is after Integer.MIN_VALUE.
-        String tzId = "Africa/Abidjan";
-        Time t = new Time(tzId);
+        Time t = new Time("Africa/Abidjan");
         // Jan 1, 1912 12:16:08 AM UTC / Jan 1, 1912 00:00:00 local time
         Instant oldEarliestTransition = Instant.ofEpochSecond(-1830383032);
         Instant beforeOldEarliestTransition = oldEarliestTransition.minus(Duration.ofDays(1));
@@ -3077,14 +3050,10 @@ public class TimeTest {
 
         // The expected local time equivalent to the oldEarliestTransition time minus 1 day and
         // offset by -968 seconds.
-        Time expected = new Time(tzId);
+        Time expected = new Time("Africa/Abidjan");
         Fields.set(expected, 1911, 11, 31, 0, 0, 0, 0 /* isDst */, -968, 364, 0);
-        Fields.verifyTimeEquals(expected, t);
 
-        // Check that Time agrees with native localtime / mktime.
-        NativeTimeFunctions.assertNativeTimeResults(
-                tzId, LocalDateTime.of(1911, Month.DECEMBER, 31, 0, 0, 0),
-                beforeOldEarliestTransition.toEpochMilli());
+        Fields.verifyTimeEquals(expected, t);
     }
 
     private static void verifyNormalizeResult(boolean normalizeArgument, Time toNormalize,

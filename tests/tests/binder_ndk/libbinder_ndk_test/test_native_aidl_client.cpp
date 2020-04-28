@@ -17,10 +17,7 @@
 
 #include <aidl/test_package/BnEmpty.h>
 #include <aidl/test_package/BpTest.h>
-#include <aidl/test_package/ByteEnum.h>
 #include <aidl/test_package/Foo.h>
-#include <aidl/test_package/IntEnum.h>
-#include <aidl/test_package/LongEnum.h>
 #include <aidl/test_package/RegularPolygon.h>
 #include <android/binder_ibinder_jni.h>
 #include <gtest/gtest.h>
@@ -34,11 +31,8 @@
 
 using ::aidl::test_package::Bar;
 using ::aidl::test_package::BpTest;
-using ::aidl::test_package::ByteEnum;
 using ::aidl::test_package::Foo;
-using ::aidl::test_package::IntEnum;
 using ::aidl::test_package::ITest;
-using ::aidl::test_package::LongEnum;
 using ::aidl::test_package::RegularPolygon;
 using ::ndk::ScopedAStatus;
 using ::ndk::ScopedFileDescriptor;
@@ -87,18 +81,6 @@ TEST_P(NdkBinderTest_Aidl, Remoteness) {
 
 TEST_P(NdkBinderTest_Aidl, UseBinder) {
   ASSERT_EQ(STATUS_OK, AIBinder_ping(iface->asBinder().get()));
-}
-
-TEST_P(NdkBinderTest_Aidl, GetExtension) {
-  SpAIBinder ext;
-  ASSERT_EQ(STATUS_OK, AIBinder_getExtension(iface->asBinder().get(), ext.getR()));
-
-  // TODO(b/139325468): add support in Java as well
-  if (GetParam().expectedName == "CPP") {
-    EXPECT_EQ(STATUS_OK, AIBinder_ping(ext.get()));
-  } else {
-    ASSERT_EQ(nullptr, ext.get());
-  }
 }
 
 bool ReadFdToString(int fd, std::string* content) {
@@ -220,24 +202,6 @@ TEST_P(NdkBinderTest_Aidl, RepeatPrimitives) {
     int8_t out;
     ASSERT_OK(iface->RepeatByte(3, &out));
     EXPECT_EQ(3, out);
-  }
-
-  {
-    ByteEnum out;
-    ASSERT_OK(iface->RepeatByteEnum(ByteEnum::FOO, &out));
-    EXPECT_EQ(ByteEnum::FOO, out);
-  }
-
-  {
-    IntEnum out;
-    ASSERT_OK(iface->RepeatIntEnum(IntEnum::FOO, &out));
-    EXPECT_EQ(IntEnum::FOO, out);
-  }
-
-  {
-    LongEnum out;
-    ASSERT_OK(iface->RepeatLongEnum(LongEnum::FOO, &out));
-    EXPECT_EQ(LongEnum::FOO, out);
   }
 }
 
@@ -370,20 +334,6 @@ TEST_P(NdkBinderTest_Aidl, InsAndOuts) {
   EXPECT_EQ("Jerry", defaultPolygon.name);
 }
 
-TEST_P(NdkBinderTest_Aidl, NewField) {
-  Foo foo;
-  foo.g = {"a", "b", "c"};
-
-  Foo outFoo;
-  ASSERT_OK(iface->repeatFoo(foo, &outFoo));
-
-  if (GetParam().shouldBeOld) {
-    EXPECT_EQ(std::nullopt, outFoo.g);
-  } else {
-    EXPECT_EQ(foo.g, outFoo.g);
-  }
-}
-
 TEST_P(NdkBinderTest_Aidl, RenameFoo) {
   Foo foo;
   Foo outputFoo;
@@ -414,12 +364,6 @@ TEST_P(NdkBinderTest_Aidl, RepeatFoo) {
   foo.b = 57;
   foo.d.b = "a";
   foo.e.d = 99;
-  foo.shouldBeByteBar = ByteEnum::BAR;
-  foo.shouldBeIntBar = IntEnum::BAR;
-  foo.shouldBeLongBar = LongEnum::BAR;
-  foo.shouldContainTwoByteFoos = {ByteEnum::FOO, ByteEnum::FOO};
-  foo.shouldContainTwoIntFoos = {IntEnum::FOO, IntEnum::FOO};
-  foo.shouldContainTwoLongFoos = {LongEnum::FOO, LongEnum::FOO};
   Foo retFoo;
 
   ASSERT_OK(iface->repeatFoo(foo, &retFoo));
@@ -428,12 +372,6 @@ TEST_P(NdkBinderTest_Aidl, RepeatFoo) {
   EXPECT_EQ(foo.b, retFoo.b);
   EXPECT_EQ(foo.d.b, retFoo.d.b);
   EXPECT_EQ(foo.e.d, retFoo.e.d);
-  EXPECT_EQ(foo.shouldBeByteBar, retFoo.shouldBeByteBar);
-  EXPECT_EQ(foo.shouldBeIntBar, retFoo.shouldBeIntBar);
-  EXPECT_EQ(foo.shouldBeLongBar, retFoo.shouldBeLongBar);
-  EXPECT_EQ(foo.shouldContainTwoByteFoos, retFoo.shouldContainTwoByteFoos);
-  EXPECT_EQ(foo.shouldContainTwoIntFoos, retFoo.shouldContainTwoIntFoos);
-  EXPECT_EQ(foo.shouldContainTwoLongFoos, retFoo.shouldContainTwoLongFoos);
 }
 
 template <typename T>
@@ -513,24 +451,6 @@ TEST_P(NdkBinderTest_Aidl, Arrays) {
                          {1.0},
                          {1.0, 2.0, 3.0},
                      });
-  testRepeat<ByteEnum>(iface, &ITest::RepeatByteEnumArray,
-                       {
-                           {},
-                           {ByteEnum::FOO},
-                           {ByteEnum::FOO, ByteEnum::BAR},
-                       });
-  testRepeat<IntEnum>(iface, &ITest::RepeatIntEnumArray,
-                      {
-                          {},
-                          {IntEnum::FOO},
-                          {IntEnum::FOO, IntEnum::BAR},
-                      });
-  testRepeat<LongEnum>(iface, &ITest::RepeatLongEnumArray,
-                       {
-                           {},
-                           {LongEnum::FOO},
-                           {LongEnum::FOO, LongEnum::BAR},
-                       });
   testRepeat<std::string>(iface, &ITest::RepeatStringArray,
                           {
                               {},
@@ -636,27 +556,6 @@ TEST_P(NdkBinderTest_Aidl, NullableArrays) {
                          {{1.0}},
                          {{1.0, 2.0, 3.0}},
                      });
-  testRepeat<ByteEnum>(iface, &ITest::RepeatNullableByteEnumArray,
-                       {
-                           std::nullopt,
-                           {{}},
-                           {{ByteEnum::FOO}},
-                           {{ByteEnum::FOO, ByteEnum::BAR}},
-                       });
-  testRepeat<IntEnum>(iface, &ITest::RepeatNullableIntEnumArray,
-                      {
-                          std::nullopt,
-                          {{}},
-                          {{IntEnum::FOO}},
-                          {{IntEnum::FOO, IntEnum::BAR}},
-                      });
-  testRepeat<LongEnum>(iface, &ITest::RepeatNullableLongEnumArray,
-                       {
-                           std::nullopt,
-                           {{}},
-                           {{LongEnum::FOO}},
-                           {{LongEnum::FOO, LongEnum::BAR}},
-                       });
   testRepeat<std::optional<std::string>>(
       iface, &ITest::RepeatNullableStringArray,
       {
@@ -709,29 +608,18 @@ TEST_P(NdkBinderTest_Aidl, GetInterfaceVersion) {
   if (GetParam().shouldBeOld) {
     EXPECT_EQ(1, res);
   } else {
-    // 3 is the not-yet-frozen version
-    EXPECT_EQ(3, res);
+    // 10000 is the not-yet-frozen version
+    EXPECT_EQ(10000, res);
   }
 }
 
 std::shared_ptr<ITest> getProxyLocalService() {
-  std::shared_ptr<MyTest> test = SharedRefBase::make<MyTest>();
-  SpAIBinder binder = test->asBinder();
-
-  // adding an arbitrary class as the extension
-  std::shared_ptr<MyTest> ext = SharedRefBase::make<MyTest>();
-  SpAIBinder extBinder = ext->asBinder();
-
-  binder_status_t ret = AIBinder_setExtension(binder.get(), extBinder.get());
-  if (ret != STATUS_OK) {
-    std::cout << "Could not set local extension" << std::endl;
-  }
-
   // BpTest -> AIBinder -> test
   //
   // Warning: for testing purposes only. This parcels things within the same process for testing
   // purposes. In normal usage, this should just return SharedRefBase::make<MyTest> directly.
-  return (new BpTest(binder))->ref<ITest>();
+  std::shared_ptr<MyTest> test = SharedRefBase::make<MyTest>();
+  return (new BpTest(test->asBinder()))->ref<ITest>();
 }
 
 std::shared_ptr<ITest> getNdkBinderTestJavaService(const std::string& method) {

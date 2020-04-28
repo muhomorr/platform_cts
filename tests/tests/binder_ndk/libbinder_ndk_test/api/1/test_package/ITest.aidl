@@ -15,9 +15,6 @@ interface ITest {
   boolean RepeatBoolean(boolean value);
   char RepeatChar(char value);
   byte RepeatByte(byte value);
-  test_package.ByteEnum RepeatByteEnum(test_package.ByteEnum value);
-  test_package.IntEnum RepeatIntEnum(test_package.IntEnum value);
-  test_package.LongEnum RepeatLongEnum(test_package.LongEnum value);
   IBinder RepeatBinder(IBinder value);
   @nullable IBinder RepeatNullableBinder(@nullable IBinder value);
   test_package.IEmpty RepeatInterface(test_package.IEmpty value);
@@ -35,9 +32,6 @@ interface ITest {
   long[] RepeatLongArray(in long[] input, out long[] repeated);
   float[] RepeatFloatArray(in float[] input, out float[] repeated);
   double[] RepeatDoubleArray(in double[] input, out double[] repeated);
-  test_package.ByteEnum[] RepeatByteEnumArray(in test_package.ByteEnum[] input, out test_package.ByteEnum[] repeated);
-  test_package.IntEnum[] RepeatIntEnumArray(in test_package.IntEnum[] input, out test_package.IntEnum[] repeated);
-  test_package.LongEnum[] RepeatLongEnumArray(in test_package.LongEnum[] input, out test_package.LongEnum[] repeated);
   String[] RepeatStringArray(in String[] input, out String[] repeated);
   test_package.RegularPolygon[] RepeatRegularPolygonArray(in test_package.RegularPolygon[] input, out test_package.RegularPolygon[] repeated);
   @nullable boolean[] RepeatNullableBooleanArray(in @nullable boolean[] input);
@@ -47,9 +41,6 @@ interface ITest {
   @nullable long[] RepeatNullableLongArray(in @nullable long[] input);
   @nullable float[] RepeatNullableFloatArray(in @nullable float[] input);
   @nullable double[] RepeatNullableDoubleArray(in @nullable double[] input);
-  @nullable test_package.ByteEnum[] RepeatNullableByteEnumArray(in @nullable test_package.ByteEnum[] input);
-  @nullable test_package.IntEnum[] RepeatNullableIntEnumArray(in @nullable test_package.IntEnum[] input);
-  @nullable test_package.LongEnum[] RepeatNullableLongEnumArray(in @nullable test_package.LongEnum[] input);
   @nullable String[] RepeatNullableStringArray(in @nullable String[] input);
   @nullable String[] DoubleRepeatNullableStringArray(in @nullable String[] input, out @nullable String[] repeated);
   test_package.Foo repeatFoo(in test_package.Foo inFoo);

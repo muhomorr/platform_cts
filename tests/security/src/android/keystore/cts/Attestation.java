@@ -17,15 +17,12 @@
 package android.keystore.cts;
 
 import com.google.common.base.CharMatcher;
-import com.google.common.collect.ImmutableSet;
 import com.google.common.io.BaseEncoding;
 
 import org.bouncycastle.asn1.ASN1Sequence;
 
 import java.security.cert.CertificateParsingException;
 import java.security.cert.X509Certificate;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * Parses an attestation certificate and provides an easy-to-use interface for examining the
@@ -33,7 +30,6 @@ import java.util.stream.Collectors;
  */
 public class Attestation {
     static final String KEY_DESCRIPTION_OID = "1.3.6.1.4.1.11129.2.1.17";
-    static final String KEY_USAGE_OID = "2.5.29.15";  // Standard key usage extension.
     static final int ATTESTATION_VERSION_INDEX = 0;
     static final int ATTESTATION_SECURITY_LEVEL_INDEX = 1;
     static final int KEYMASTER_VERSION_INDEX = 2;
@@ -55,7 +51,6 @@ public class Attestation {
     private final byte[] uniqueId;
     private final AuthorizationList softwareEnforced;
     private final AuthorizationList teeEnforced;
-    private final Set<String> unexpectedExtensionOids;
 
 
     /**
@@ -67,7 +62,6 @@ public class Attestation {
      */
     public Attestation(X509Certificate x509Cert) throws CertificateParsingException {
         ASN1Sequence seq = getAttestationSequence(x509Cert);
-        unexpectedExtensionOids = retrieveUnexpectedExtensionOids(x509Cert);
 
         attestationVersion = Asn1Utils.getIntegerFromAsn1(seq.getObjectAt(ATTESTATION_VERSION_INDEX));
         attestationSecurityLevel = Asn1Utils.getIntegerFromAsn1(seq.getObjectAt(ATTESTATION_SECURITY_LEVEL_INDEX));
@@ -128,10 +122,6 @@ public class Attestation {
         return teeEnforced;
     }
 
-    public Set<String> getUnexpectedExtensionOids() {
-        return unexpectedExtensionOids;
-    }
-
     @Override
     public String toString() {
         StringBuilder s = new StringBuilder();
@@ -142,7 +132,7 @@ public class Attestation {
 
         s.append("\nChallenge");
         String stringChallenge = new String(attestationChallenge);
-        if (CharMatcher.ascii().matchesAllOf(stringChallenge)) {
+        if (CharMatcher.ASCII.matchesAllOf(stringChallenge)) {
             s.append(": [" + stringChallenge + "]");
         } else {
             s.append(" (base64): [" + BaseEncoding.base64().encode(attestationChallenge) + "]");
@@ -169,16 +159,4 @@ public class Attestation {
         return Asn1Utils.getAsn1SequenceFromBytes(attestationExtensionBytes);
     }
 
-    private Set<String> retrieveUnexpectedExtensionOids(X509Certificate x509Cert) {
-        return new ImmutableSet.Builder<String>()
-                .addAll(x509Cert.getCriticalExtensionOIDs()
-                        .stream()
-                        .filter(s -> !KEY_USAGE_OID.equals(s))
-                        .iterator())
-                .addAll(x509Cert.getNonCriticalExtensionOIDs()
-                        .stream()
-                        .filter(s -> !KEY_DESCRIPTION_OID.equals(s))
-                        .iterator())
-                .build();
-    }
 }

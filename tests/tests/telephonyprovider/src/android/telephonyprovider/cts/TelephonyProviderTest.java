@@ -18,6 +18,7 @@ package android.telephonyprovider.cts;
 
 import android.content.ContentResolver;
 import android.database.Cursor;
+import android.net.Uri;
 import android.provider.Telephony.Carriers;
 import android.test.InstrumentationTestCase;
 
@@ -41,18 +42,97 @@ public class TelephonyProviderTest extends InstrumentationTestCase {
     // In JB MR1 access to the TelephonyProvider's Carriers table was clamped down and would
     // throw a SecurityException when queried. That was fixed in JB MR2. Verify that 3rd parties
     // can access the APN info the carriers table, after JB MR1.
-
-    // However, in R, a security bug was discovered that let apps read the password by querying
-    // multiple times and matching passwords against a regex in the query. Due to this hole, we're
-    // locking down the API and no longer allowing the exception. Accordingly, the behavior of this
-    // test is now reversed and we expect a SecurityException to be thrown.
     public void testAccessToApns() {
         try {
             String selection = Carriers.CURRENT + " IS NOT NULL";
             String[] selectionArgs = null;
             Cursor cursor = mContentResolver.query(Carriers.CONTENT_URI,
                     APN_PROJECTION, selection, selectionArgs, null);
-            fail("No SecurityException thrown");
+        } catch (SecurityException e) {
+            fail("No access to current APN");
+        }
+    }
+
+    public void testNoAccessToPassword() {
+        try {
+            String selection = Carriers.CURRENT + " IS NOT NULL AND "
+                    + Carriers.PASSWORD + " IS NOT NULL";
+            String[] selectionArgs = null;
+            Cursor cursor = mContentResolver.query(Carriers.CONTENT_URI,
+                    APN_PROJECTION, selection, selectionArgs, null);
+            fail("Expected SecurityException");
+        } catch (SecurityException e) {
+            // expected
+        }
+    }
+
+    public void testNoAccessToPasswordThruSort() {
+        try {
+            String selection = Carriers.CURRENT + " IS NOT NULL";
+            String[] selectionArgs = null;
+            String sort = "LIMIT CASE WHEN ((SELECT COUNT(*) FROM carriers WHERE"
+                    + " password LIKE 'a%') > 0) THEN 1 ELSE 0 END";
+            Cursor cursor = mContentResolver.query(Carriers.CONTENT_URI,
+                    APN_PROJECTION, selection, selectionArgs, sort);
+            fail("Expected SecurityException");
+        } catch (SecurityException e) {
+            // expected
+        }
+    }
+
+    public void testNoAccessToPasswordThruMixedCase() {
+        try {
+            String selection = Carriers.CURRENT + " IS NOT NULL";
+            String[] selectionArgs = null;
+            String sort = "LIMIT CASE WHEN ((SELECT COUNT(*) FROM carriers WHERE"
+                    + " PaSsWoRd LIKE 'a%') > 0) THEN 1 ELSE 0 END";
+            Cursor cursor = mContentResolver.query(Carriers.CONTENT_URI,
+                    APN_PROJECTION, selection, selectionArgs, sort);
+            fail("Expected SecurityException");
+        } catch (SecurityException e) {
+            // expected
+        }
+    }
+
+    public void testNoAccessToUser() {
+        try {
+            String selection = Carriers.CURRENT + " IS NOT NULL AND "
+                    + Carriers.USER + " IS NOT NULL";
+            String[] selectionArgs = null;
+            String sort = "LIMIT CASE WHEN ((SELECT COUNT(*) FROM carriers WHERE"
+                    + " user LIKE 'a%') > 0) THEN 1 ELSE 0 END";
+            Cursor cursor = mContentResolver.query(Carriers.CONTENT_URI,
+                    APN_PROJECTION, selection, selectionArgs, sort);
+            fail("Expected SecurityException");
+        } catch (SecurityException e) {
+            // expected
+        }
+    }
+
+    public void testNoAccessViaSubqueries() {
+        try {
+            String selection = Carriers.CURRENT + " IS NOT NULL";
+            String[] selectionArgs = null;
+            String sort = "LIMIT CASE WHEN ((SELECT COUNT(*) FROM carriers WHERE"
+                    + " mcc LIKE 'a%') > 0) THEN 1 ELSE 0 END";
+            Cursor cursor = mContentResolver.query(Carriers.CONTENT_URI,
+                    APN_PROJECTION, selection, selectionArgs, sort);
+            fail("Expected SecurityException");
+        } catch (SecurityException e) {
+            // expected
+        }
+    }
+
+    public void testNoAccessToUserWithDifferentUri() {
+        try {
+            String selection = Carriers.CURRENT + " IS NOT NULL AND "
+                    + Carriers.USER + " IS NOT NULL";
+            String[] selectionArgs = null;
+            String sort = "LIMIT CASE WHEN ((SELECT COUNT(*) FROM carriers WHERE"
+                    + " user LIKE 'a%') > 0) THEN 1 ELSE 0 END";
+            Cursor cursor = mContentResolver.query(Uri.parse("content://telephony/siminfo"),
+                    APN_PROJECTION, selection, selectionArgs, sort);
+            fail("Expected SecurityException");
         } catch (SecurityException e) {
             // expected
         }

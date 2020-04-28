@@ -2982,14 +2982,16 @@ public class ParcelTest extends AndroidTestCase {
         for (int pos = 0; pos <= thirdIntPos; pos++) {
             p.setDataPosition(pos);
             int value = p.readInt();
-
-            // WARNING: this is using unstable APIs: these positions aren't guaranteed
-            if (firstIntPos - 4 <= pos && pos <= firstIntPos) continue;
-            if (secondIntPos - 4 <= pos && pos <= secondIntPos) continue;
-            if (thirdIntPos - 4 <= pos && pos <= thirdIntPos) continue;
-
-            // All other read attempts cross into protected data and will return 0
-            assertEquals(0, value);
+            if (pos == firstIntPos) {
+                assertEquals(1, value);
+            } else if (pos == secondIntPos) {
+                assertEquals(2, value);
+            } else if (pos == thirdIntPos) {
+                assertEquals(3, value);
+            } else {
+                // All other read attempts cross into protected data and will return 0
+                assertEquals(0, value);
+            }
         }
 
         p.recycle();
@@ -3015,13 +3017,16 @@ public class ParcelTest extends AndroidTestCase {
         do {
             pos = p.dataPosition();
             int value = p.readInt();
-
-            // WARNING: this is using unstable APIs: these positions aren't guaranteed
-            if (firstIntPos - 4 <= pos && pos <= firstIntPos) continue;
-            if (secondIntPos - 4 <= pos && pos <= secondIntPos) continue;
-            if (thirdIntPos - 4 <= pos && pos <= thirdIntPos) continue;
-
-            assertEquals(0, value);
+            if (pos == firstIntPos) {
+                assertEquals(1, value);
+            } else if (pos == secondIntPos) {
+                assertEquals(2, value);
+            } else if (pos == thirdIntPos) {
+                assertEquals(3, value);
+            } else {
+                // All other read attempts cross into protected data and will return 0
+                assertEquals(0, value);
+            }
         } while(pos < end);
 
         p.recycle();
@@ -3427,5 +3432,35 @@ public class ParcelTest extends AndroidTestCase {
                 Context.BIND_ABOVE_CLIENT | Context.BIND_EXTERNAL_SERVICE));
 
         assertNotNull("Service should have started without crashing.", connection.get());
+    }
+
+    public void testObjectResize() throws Exception {
+        Parcel p;
+        IBinder b1 = new Binder();
+        IBinder b2 = new Binder();
+
+        p = Parcel.obtain();
+        p.writeStrongBinder(b1);
+        p.setDataSize(0);
+        p.writeStrongBinder(b2);
+
+        p.setDataPosition(0);
+        assertEquals("Object in parcel should match the binder written after the resize", b2,
+                p.readStrongBinder());
+        p.recycle();
+
+        p = Parcel.obtain();
+        p.writeStrongBinder(b1);
+        final int secondBinderPos = p.dataPosition();
+        p.writeStrongBinder(b1);
+        p.setDataSize(secondBinderPos);
+        p.writeStrongBinder(b2);
+
+        p.setDataPosition(0);
+        assertEquals("Object at the start of the parcel parcel should match the first binder", b1,
+                p.readStrongBinder());
+        assertEquals("Object in parcel should match the binder written after the resize", b2,
+                p.readStrongBinder());
+        p.recycle();
     }
 }

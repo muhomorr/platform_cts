@@ -21,5 +21,4 @@ java_test_host {
         "vts",
         "general-tests",
     ],
-    data: [":CtsJvmtiRunTest1936DeviceApp"],
 }

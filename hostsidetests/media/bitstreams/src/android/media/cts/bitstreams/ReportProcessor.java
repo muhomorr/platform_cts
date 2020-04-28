@@ -16,7 +16,6 @@
 
 package android.media.cts.bitstreams;
 
-import com.android.tradefed.config.Configuration;
 import com.android.tradefed.device.DeviceNotAvailableException;
 import com.android.tradefed.device.ITestDevice;
 import com.android.tradefed.log.LogUtil.CLog;
@@ -157,9 +156,6 @@ abstract class ReportProcessor {
         for (Entry<String, String> e : getArgs().entrySet()) {
             instrTest.addInstrumentationArg(e.getKey(), e.getValue());
         }
-        // AndroidJUnitTest requires a IConfiguration to work properly, add a stub to this
-        // implementation to avoid an NPE.
-        instrTest.setConfiguration(new Configuration("stub", "stub"));
         instrTest.run(new MediaBitstreamsListener());
 
         return checkFile(reportKey);

@@ -16,6 +16,9 @@
 
 package android.keystore.cts;
 
+import android.os.SystemProperties;
+import android.platform.test.annotations.RestrictedBuildTest;
+
 import static android.keystore.cts.Attestation.KM_SECURITY_LEVEL_SOFTWARE;
 import static android.keystore.cts.Attestation.KM_SECURITY_LEVEL_STRONG_BOX;
 import static android.keystore.cts.Attestation.KM_SECURITY_LEVEL_TRUSTED_ENVIRONMENT;
@@ -45,18 +48,18 @@ import static android.security.keystore.KeyProperties.PURPOSE_SIGN;
 import static android.security.keystore.KeyProperties.PURPOSE_VERIFY;
 import static android.security.keystore.KeyProperties.SIGNATURE_PADDING_RSA_PKCS1;
 import static android.security.keystore.KeyProperties.SIGNATURE_PADDING_RSA_PSS;
-
 import static org.hamcrest.CoreMatchers.is;
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.either;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.hasItems;
+import static org.junit.Assert.assertThat;
+import static org.junit.matchers.JUnitMatchers.either;
+import static org.junit.matchers.JUnitMatchers.hasItems;
 
+import com.google.common.collect.ImmutableSet;
+import android.content.pm.PackageManager;
 import android.content.pm.PackageManager.NameNotFoundException;
+import android.content.Context;
 import android.os.Build;
 import android.os.SystemProperties;
-import android.platform.test.annotations.RestrictedBuildTest;
 import android.security.KeyStoreException;
 import android.security.keystore.AttestationUtils;
 import android.security.keystore.DeviceIdAttestationException;
@@ -65,12 +68,9 @@ import android.security.keystore.KeyProperties;
 import android.test.AndroidTestCase;
 import android.util.ArraySet;
 
-import com.google.common.collect.ImmutableSet;
-
 import org.bouncycastle.asn1.x500.X500Name;
 import org.bouncycastle.cert.jcajce.JcaX509CertificateHolder;
 
-import java.lang.Math;
 import java.security.GeneralSecurityException;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
@@ -161,6 +161,10 @@ public class KeyAttestationTest extends AndroidTestCase {
                 KM_PURPOSE_SIGN, KM_PURPOSE_VERIFY, KM_PURPOSE_SIGN | KM_PURPOSE_VERIFY
         };
 
+        // Skip the test if there is no secure lock screen
+        if (!hasSecureLockScreen()) {
+            return;
+        }
         for (int curveIndex = 0; curveIndex < curves.length; ++curveIndex) {
             for (int challengeIndex = 0; challengeIndex < challenges.length; ++challengeIndex) {
                 for (int purposeIndex = 0; purposeIndex < purposes.length; ++purposeIndex) {
@@ -321,6 +325,10 @@ public class KeyAttestationTest extends AndroidTestCase {
                 },
         };
 
+        // Skip the test if there is no secure lock screen
+        if (!hasSecureLockScreen()) {
+            return;
+        }
         for (int keySize : keySizes) {
             for (byte[] challenge : challenges) {
                 for (int purpose : purposes) {
@@ -591,7 +599,6 @@ public class KeyAttestationTest extends AndroidTestCase {
     private void checkKeyIndependentAttestationInfo(byte[] challenge, int purposes, Date startTime,
             boolean includesValidityDates, Attestation attestation)
             throws NoSuchAlgorithmException, NameNotFoundException {
-        checkUnexpectedOids(attestation);
         checkAttestationSecurityLevelDependentParams(attestation);
         assertNotNull(attestation.getAttestationChallenge());
         assertTrue(Arrays.equals(challenge, attestation.getAttestationChallenge()));
@@ -604,11 +611,6 @@ public class KeyAttestationTest extends AndroidTestCase {
         checkFlags(attestation);
         checkOrigin(attestation);
         checkAttestationApplicationId(attestation);
-    }
-
-    private void checkUnexpectedOids(Attestation attestation) {
-        assertThat("Attestations must not contain any extra data",
-                attestation.getUnexpectedExtensionOids(), is(empty()));
     }
 
     private int getSystemPatchLevel() {
@@ -881,85 +883,10 @@ public class KeyAttestationTest extends AndroidTestCase {
         assertNotNull(rootOfTrust);
         assertNotNull(rootOfTrust.getVerifiedBootKey());
         assertTrue(rootOfTrust.getVerifiedBootKey().length >= 32);
-        checkEntropy(rootOfTrust.getVerifiedBootKey());
         if (requireLocked) {
             assertTrue(rootOfTrust.isDeviceLocked());
             assertEquals(KM_VERIFIED_BOOT_VERIFIED, rootOfTrust.getVerifiedBootState());
         }
-    }
-
-    private void checkEntropy(byte[] verifiedBootKey) {
-        assertTrue(checkShannonEntropy(verifiedBootKey));
-        assertTrue(checkTresBiEntropy(verifiedBootKey));
-    }
-
-    private boolean checkShannonEntropy(byte[] verifiedBootKey) {
-        double probabilityOfSetBit = countSetBits(verifiedBootKey) / (double)(verifiedBootKey.length * 8);
-        return calculateShannonEntropy(probabilityOfSetBit) > 0.8;
-    }
-
-    private double calculateShannonEntropy(double probabilityOfSetBit) {
-        if (probabilityOfSetBit <= 0.001 || probabilityOfSetBit >= .999) return 0;
-        return (-probabilityOfSetBit * logTwo(probabilityOfSetBit)) -
-               ((1 - probabilityOfSetBit) * logTwo(1 - probabilityOfSetBit));
-    }
-
-    private boolean checkTresBiEntropy(byte[] verifiedBootKey) {
-        double weightingFactor = 0;
-        double weightedEntropy = 0;
-        double probabilityOfSetBit = 0;
-        int length = verifiedBootKey.length * 8;
-        for(int i = 0; i < (verifiedBootKey.length * 8) - 2; i++) {
-            probabilityOfSetBit = countSetBits(verifiedBootKey) / (double)length;
-            weightingFactor += logTwo(i+2);
-            weightedEntropy += calculateShannonEntropy(probabilityOfSetBit) * logTwo(i+2);
-            deriveBitString(verifiedBootKey, length);
-            length -= 1;
-        }
-        double tresBiEntropy = (1 / weightingFactor) * weightedEntropy;
-        return tresBiEntropy > 0.9;
-    }
-
-    private void deriveBitString(byte[] bitString, int activeLength) {
-        int length = activeLength / 8;
-        if (activeLength % 8 != 0) {
-            length += 1;
-        }
-
-        byte mask = (byte)((byte)0x80 >>> ((activeLength + 6) % 8));
-        if (activeLength % 8 == 1) {
-            mask = (byte)~mask;
-        }
-
-        for(int i = 0; i < length; i++) {
-            if (i == length - 1) {
-                bitString[i] ^= ((bitString[i] & 0xFF) << 1);
-                bitString[i] &= mask;
-            } else {
-                bitString[i] ^= ((bitString[i] & 0xFF) << 1) | ((bitString[i+1] & 0xFF) >>> 7);
-            }
-        }
-    }
-
-    private double logTwo(double value) {
-        return Math.log(value) / Math.log(2);
-    }
-
-    private int countSetBits(byte[] toCount) {
-        int setBitCount = 0;
-        for(int i = 0; i < toCount.length; i++) {
-            setBitCount += countSetBits(toCount[i]);
-        }
-        return setBitCount;
-    }
-
-    private int countSetBits(byte toCount) {
-        int setBitCounter = 0;
-        while(toCount != 0) {
-            toCount &= (toCount - 1);
-            setBitCounter++;
-        }
-        return setBitCounter;
     }
 
     private void checkRsaKeyDetails(Attestation attestation, int keySize, int purposes,
@@ -1098,12 +1025,6 @@ public class KeyAttestationTest extends AndroidTestCase {
                     X500Name signedCertSubject =
                             new JcaX509CertificateHolder(x509PrevCert).getSubject();
                     assertEquals(signedCertSubject, new X500Name("CN=Android Keystore Key"));
-                } else {
-                    // Only strongbox implementations should have strongbox in the subject line
-                    assertFalse(x509CurrCert.getSubjectDN()
-                                            .getName()
-                                            .toLowerCase()
-                                            .contains("strongbox"));
                 }
             } catch (InvalidKeyException | CertificateException | NoSuchAlgorithmException
                     | NoSuchProviderException | SignatureException e) {
@@ -1131,5 +1052,16 @@ public class KeyAttestationTest extends AndroidTestCase {
                 throw e;
             }
         }
+    }
+    /*
+     * Device that don't report android.software.device_admin doesn't have secure lock screen
+     * because device with secure lock screen MUST report android.software.device_admin .
+     *
+     * https://source.android.com/compatibility/7.0/android-7.0-cdd.html#3_9_device_administration
+     *
+     */
+    private boolean hasSecureLockScreen() {
+        PackageManager pm = getContext().getPackageManager();
+        return pm.hasSystemFeature(PackageManager.FEATURE_DEVICE_ADMIN);
     }
 }

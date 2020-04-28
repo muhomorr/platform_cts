@@ -16,12 +16,9 @@
 
 package test_package;
 
-import test_package.ByteEnum;
-import test_package.Foo;
 import test_package.IEmpty;
-import test_package.IntEnum;
-import test_package.LongEnum;
 import test_package.RegularPolygon;
+import test_package.Foo;
 
 // This test interface is used in order to test the all of the things that AIDL can generate which
 // build on top of the NDK.
@@ -55,9 +52,6 @@ interface ITest {
     boolean RepeatBoolean(boolean value);
     char RepeatChar(char value);
     byte RepeatByte(byte value);
-    ByteEnum RepeatByteEnum(ByteEnum value);
-    IntEnum RepeatIntEnum(IntEnum value);
-    LongEnum RepeatLongEnum(LongEnum value);
 
     IBinder RepeatBinder(IBinder value);
     @nullable IBinder RepeatNullableBinder(@nullable IBinder value);
@@ -83,9 +77,6 @@ interface ITest {
     long[] RepeatLongArray(in long[] input, out long[] repeated);
     float[] RepeatFloatArray(in float[] input, out float[] repeated);
     double[] RepeatDoubleArray(in double[] input, out double[] repeated);
-    ByteEnum[] RepeatByteEnumArray(in ByteEnum[] input, out ByteEnum[] repeated);
-    IntEnum[] RepeatIntEnumArray(in IntEnum[] input, out IntEnum[] repeated);
-    LongEnum[] RepeatLongEnumArray(in LongEnum[] input, out LongEnum[] repeated);
     String[] RepeatStringArray(in String[] input, out String[] repeated);
     RegularPolygon[] RepeatRegularPolygonArray(in RegularPolygon[] input, out RegularPolygon[] repeated);
 
@@ -97,9 +88,6 @@ interface ITest {
     @nullable long[] RepeatNullableLongArray(in @nullable long[] input);
     @nullable float[] RepeatNullableFloatArray(in @nullable float[] input);
     @nullable double[] RepeatNullableDoubleArray(in @nullable double[] input);
-    @nullable ByteEnum[] RepeatNullableByteEnumArray(in @nullable ByteEnum[] input);
-    @nullable IntEnum[] RepeatNullableIntEnumArray(in @nullable IntEnum[] input);
-    @nullable LongEnum[] RepeatNullableLongEnumArray(in @nullable LongEnum[] input);
     @nullable String[] RepeatNullableStringArray(in @nullable String[] input);
 
     // Nullable Arrays where each individual element can be nullable

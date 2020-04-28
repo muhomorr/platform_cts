@@ -97,7 +97,7 @@ public class ApexTest extends BaseHostJUnit4Test {
       Assert.assertNotEquals("device supports updatable APEX, but is not using multiple mount namespaces",
           rootMountIdOfInit, rootMountIdOfVold);
     } else {
-      Assert.assertEquals("device supports updatable APEX, but is using multiple mount namespaces",
+      Assert.assertEquals("device doesn't support updatable APEX, but is using multiple mount namespaces",
           rootMountIdOfInit, rootMountIdOfVold);
     }
   }

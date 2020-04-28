@@ -41,6 +41,7 @@ import android.graphics.Color;
 import android.graphics.ImageDecoder;
 import android.net.Uri;
 import android.os.Environment;
+import android.os.SystemClock;
 import android.platform.test.annotations.Presubmit;
 import android.provider.MediaStore;
 import android.provider.MediaStore.Images.Media;
@@ -207,7 +208,6 @@ public class MediaStore_Images_ThumbnailsTest {
         String imagePath = c.getString(c.getColumnIndex(Media.DATA));
         c.close();
 
-        MediaStore.waitForIdle(mContext);
         assertExists("image file does not exist", imagePath);
         assertNotNull(Thumbnails.getThumbnail(resolver, imageId, Thumbnails.MINI_KIND, null));
         assertNotNull(Thumbnails.getThumbnail(resolver, imageId, Thumbnails.MICRO_KIND, null));
@@ -218,7 +218,6 @@ public class MediaStore_Images_ThumbnailsTest {
         mContentResolver.delete(stringUri, null, null);
         mRowsAdded.remove(stringUri);
 
-        MediaStore.waitForIdle(mContext);
         assertNotExists("image file should no longer exist", imagePath);
         assertNull(Thumbnails.getThumbnail(resolver, imageId, Thumbnails.MINI_KIND, null));
         assertNull(Thumbnails.getThumbnail(resolver, imageId, Thumbnails.MICRO_KIND, null));
@@ -305,14 +304,16 @@ public class MediaStore_Images_ThumbnailsTest {
                 "test description"));
         long imageId = ContentUris.parseId(uri);
 
-        MediaStore.waitForIdle(mContext);
+        SystemClock.sleep(1000); // TODO: Remove sleep once getThumbnail has been fixed
+
         assertNotNull(Thumbnails.getThumbnail(resolver, imageId, Thumbnails.MINI_KIND, null));
         assertNotNull(Thumbnails.getThumbnail(resolver, imageId, Thumbnails.MICRO_KIND, null));
 
         // delete the source image and check that the thumbnail is gone too
         mContentResolver.delete(uri, null /* where clause */, null /* where args */);
 
-        MediaStore.waitForIdle(mContext);
+        SystemClock.sleep(1000); // TODO: Remove sleep once getThumbnail has been fixed
+
         assertNull(Thumbnails.getThumbnail(resolver, imageId, Thumbnails.MINI_KIND, null));
         assertNull(Thumbnails.getThumbnail(resolver, imageId, Thumbnails.MICRO_KIND, null));
 
@@ -321,8 +322,9 @@ public class MediaStore_Images_ThumbnailsTest {
                 "test description"));
         imageId = ContentUris.parseId(uri);
 
+        SystemClock.sleep(1000); // TODO: Remove sleep once getThumbnail has been fixed
+
         // query its thumbnail again
-        MediaStore.waitForIdle(mContext);
         assertNotNull(Thumbnails.getThumbnail(resolver, imageId, Thumbnails.MINI_KIND, null));
         assertNotNull(Thumbnails.getThumbnail(resolver, imageId, Thumbnails.MICRO_KIND, null));
 
@@ -332,8 +334,9 @@ public class MediaStore_Images_ThumbnailsTest {
         assertEquals("unexpected number of updated rows",
                 1, mContentResolver.update(uri, values, null /* where */, null /* where args */));
 
+        SystemClock.sleep(1000);
+
         // image was marked as regular file in the database, which should have deleted its thumbnail
-        MediaStore.waitForIdle(mContext);
         assertNull(Thumbnails.getThumbnail(resolver, imageId, Thumbnails.MINI_KIND, null));
         assertNull(Thumbnails.getThumbnail(resolver, imageId, Thumbnails.MICRO_KIND, null));
 
@@ -370,7 +373,7 @@ public class MediaStore_Images_ThumbnailsTest {
                         Media.insertImage(mContentResolver, src, "cts" + System.nanoTime(), null));
                 mRowsAdded.add(url[i]);
                 long origId = Long.parseLong(url[i].getLastPathSegment());
-                MediaStore.waitForIdle(mContext);
+                SystemClock.sleep(1000); // TODO: Remove sleep once getThumbnail has been fixed
                 Bitmap foo = MediaStore.Images.Thumbnails.getThumbnail(mContentResolver,
                         origId, Thumbnails.MICRO_KIND, null);
                 assertNotNull(foo);
@@ -387,7 +390,6 @@ public class MediaStore_Images_ThumbnailsTest {
             long remainingId2 = Long.parseLong(url[2].getLastPathSegment());
 
             // check if a thumbnail is still being returned for the image that was removed
-            MediaStore.waitForIdle(mContext);
             Bitmap foo = MediaStore.Images.Thumbnails.getThumbnail(mContentResolver,
                     removedId, Thumbnails.MICRO_KIND, null);
             assertNull(foo);
@@ -398,7 +400,6 @@ public class MediaStore_Images_ThumbnailsTest {
                         MediaColumns._ID + order);
                 while (c.moveToNext()) {
                     long id = c.getLong(c.getColumnIndex(MediaColumns._ID));
-                    MediaStore.waitForIdle(mContext);
                     foo = MediaStore.Images.Thumbnails.getThumbnail(
                             mContentResolver, id,
                             MediaStore.Images.Thumbnails.MICRO_KIND, null);
@@ -438,7 +439,6 @@ public class MediaStore_Images_ThumbnailsTest {
 
         {
             // Thumbnail should be smaller
-            MediaStore.waitForIdle(mContext);
             final Bitmap thumb = mContentResolver.loadThumbnail(finalUri, new Size(32, 32), null);
             assertTrue(thumb.getWidth() < full.getWidth());
             assertTrue(thumb.getHeight() < full.getHeight());
@@ -455,7 +455,6 @@ public class MediaStore_Images_ThumbnailsTest {
                     MediaStore.Images.Thumbnails.MICRO_KIND
             }) {
                 // Thumbnail should be smaller
-                MediaStore.waitForIdle(mContext);
                 final Bitmap thumb = MediaStore.Images.Thumbnails.getThumbnail(mContentResolver,
                         ContentUris.parseId(finalUri), kind, null);
                 assertTrue(thumb.getWidth() < full.getWidth());
@@ -472,11 +471,10 @@ public class MediaStore_Images_ThumbnailsTest {
         }
 
         // Wait a few moments for events to settle
-        MediaStore.waitForIdle(mContext);
+        SystemClock.sleep(1000);
 
         {
             // Thumbnail should match updated contents
-            MediaStore.waitForIdle(mContext);
             final Bitmap thumb = mContentResolver.loadThumbnail(finalUri, new Size(32, 32), null);
             assertColorMostlyEquals(Color.BLUE, thumb.getPixel(16, 16));
         }
@@ -486,7 +484,6 @@ public class MediaStore_Images_ThumbnailsTest {
 
         // Thumbnail should no longer exist
         try {
-            MediaStore.waitForIdle(mContext);
             mContentResolver.loadThumbnail(finalUri, new Size(32, 32), null);
             fail("Funky; we somehow made a thumbnail out of nothing?");
         } catch (FileNotFoundException expected) {

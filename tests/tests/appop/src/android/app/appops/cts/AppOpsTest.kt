@@ -313,11 +313,11 @@ class AppOpsTest {
     @Test
     fun testPermissionMapping() {
         for (entry in permissionToOpStr) {
-            testPermissionMapping(entry.key, entry.value)
+            testPermissionMapping(entry.key, permissionToOpStr[entry.key])
         }
     }
 
-    private fun testPermissionMapping(permission: String, opStr: String) {
+    private fun testPermissionMapping(permission: String, opStr: String?) {
         // Do the public value => internal op code lookups.
         val mappedOpStr = AppOpsManager.permissionToOp(permission)
         assertEquals(mappedOpStr, opStr)

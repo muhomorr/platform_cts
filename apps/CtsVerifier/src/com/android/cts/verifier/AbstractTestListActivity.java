@@ -31,6 +31,10 @@ public abstract class AbstractTestListActivity extends ListActivity {
     private static final int LAUNCH_TEST_REQUEST_CODE = 9001;
 
     protected TestListAdapter mAdapter;
+    // Start time of test item.
+    protected long mStartTime;
+    // End time of test item.
+    protected long mEndTime;
 
     protected void setTestListAdapter(TestListAdapter adapter) {
         mAdapter = adapter;
@@ -73,15 +77,24 @@ public abstract class AbstractTestListActivity extends ListActivity {
 
     protected void handleLaunchTestResult(int resultCode, Intent data) {
         if (resultCode == RESULT_OK) {
+            // If subtest didn't set end time, set current time
+            if (mEndTime == 0) {
+                mEndTime = System.currentTimeMillis();
+            }
             TestResult testResult = TestResult.fromActivityResult(resultCode, data);
+            testResult.getHistoryCollection().add(
+                testResult.getName(), mStartTime, mEndTime);
             mAdapter.setTestResult(testResult);
         }
+        // Reset end time to avoid keeping same end time in retry.
+        mEndTime = 0;
     }
 
     /** Launch the activity when its {@link ListView} item is clicked. */
     @Override
     protected final void onListItemClick(ListView listView, View view, int position, long id) {
         super.onListItemClick(listView, view, position, id);
+        mStartTime = System.currentTimeMillis();
         handleItemClick(listView, view, position, id);
     }
 

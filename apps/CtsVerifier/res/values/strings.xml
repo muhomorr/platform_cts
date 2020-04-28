@@ -275,13 +275,13 @@
     <string name="ble_coc_secure_client_test_list_name">Bluetooth LE CoC Secure Client Test</string>
     <string name="ble_coc_secure_client_test_list_info">
         The Bluetooth LE CoC test must be done simultaneously on two devices. This device is the client.
-        All tests listed here must be done with pairing. Tap \"Bluetooth LE CoC Secure Server Test\" on the other device.
+        All tests listed here must be done without pairing. Tap \"Bluetooth LE CoC Secure Server Test\" on the other device.
         \n\nTap \"01 Bluetooth LE CoC Client Test\" on this device, then tap \"01 Bluetooth LE CoC Server Test\" on the other device.
         \nWhen the test is complete, move to the next item. You must complete all tests.
     </string>
     <string name="ble_coc_secure_client_test_info">
         The Bluetooth LE CoC test must be done simultaneously on two devices. This device is the client.
-        All tests listed here must be done with pairing.
+        All tests listed here must be done without pairing.
     </string>
     <string name="ble_coc_secure_server_test_list_name">Bluetooth LE CoC Secure Server Test</string>
     <string name="ble_coc_secure_server_test_list_info">
@@ -4329,25 +4329,6 @@ You should be prompted to select credentials; choose the ones you just installed
     and key character map (.kcm) files are found by the system accordingly.
     </string>
     <string name="tv_microphone_device_test_no_input_devices">No input devices found.</string>
-
-    <!-- Common strings for the TV Display tests -->
-    <string name="tv_start_test">Start Test</string>
-
-    <!-- HDR Capabilities test -->
-    <string name="tv_hdr_capabilities_test">HDR Capabilities Test</string>
-    <string name="tv_hdr_capabilities_test_info">This test checks if
-        Display.getHdrCapabilities correctly reports the HDR capabilities of the display.
-    </string>
-    <string name="tv_hdr_connect_no_hdr_display">Connect a non-HDR display and then
-        press the "%s" button, below.
-    </string>
-    <string name="tv_hdr_connect_hdr_display">Connect an HDR display and press
-        the "%s" button, below.
-    </string>
-    <string name="tv_hdr_disconnect_display">Press the "%1$s" button
-        and disconnect the display within %2$d seconds. Wait at least %3$d seconds and then
-        reconnect the display.
-    </string>
 
     <string name="overlay_view_text">Overlay View Dummy Text</string>
     <string name="custom_rating">Example of input app specific custom rating.</string>

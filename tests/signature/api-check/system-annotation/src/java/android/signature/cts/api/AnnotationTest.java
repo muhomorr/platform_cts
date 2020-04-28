@@ -53,7 +53,7 @@ public class AnnotationTest extends AbstractApiTest {
 
                 ApiDocumentParser apiDocumentParser = new ApiDocumentParser(TAG);
 
-                parseApiResourcesAsStream(apiDocumentParser, expectedApiFiles)
+                parseApiFilesAsStream(apiDocumentParser, expectedApiFiles)
                         .forEach(complianceChecker::checkSignatureCompliance);
 
                 // After done parsing all expected API files, perform any deferred checks.

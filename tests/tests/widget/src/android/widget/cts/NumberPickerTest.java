@@ -34,7 +34,6 @@ import static org.mockito.Mockito.verifyZeroInteractions;
 import android.app.Instrumentation;
 import android.content.res.ColorStateList;
 import android.content.res.Configuration;
-import android.content.res.Resources;
 import android.graphics.Color;
 import android.text.TextUtils;
 import android.view.View;
@@ -75,8 +74,7 @@ public class NumberPickerTest {
     private Instrumentation mInstrumentation;
     private NumberPickerCtsActivity mActivity;
     private NumberPicker mNumberPicker;
-    @Mock
-    private View.AccessibilityDelegate mMockA11yDelegate;
+    @Mock private View.AccessibilityDelegate mMockA11yDelegate;
 
     @Rule
     public ActivityTestRule<NumberPickerCtsActivity> mActivityRule =
@@ -362,17 +360,11 @@ public class NumberPickerTest {
         mNumberPicker.getLocationOnScreen(numberPickerLocationOnScreen);
 
         try {
-            int screenHeight = Resources.getSystem().getDisplayMetrics().heightPixels;
-            int numberPickerMiddleX = numberPickerLocationOnScreen[0]
-                    + mNumberPicker.getWidth() / 2;
-            int numberPickerStartY = numberPickerLocationOnScreen[1] + 1;
-
             CtsTouchUtils.emulateDragGesture(mInstrumentation, mActivityRule,
-                    numberPickerMiddleX,
-                    numberPickerStartY,
+                    numberPickerLocationOnScreen[0] + mNumberPicker.getWidth() / 2,
+                    numberPickerLocationOnScreen[1] + 1,
                     0,
-                    screenHeight - numberPickerStartY); // drag down to the bottom of the screen.
-
+                    mNumberPicker.getHeight() - 2);
             Assert.assertTrue("Expected to get to IDLE state within 5 seconds",
                     latch.await(5, TimeUnit.SECONDS));
         } catch (Throwable t) {
@@ -430,16 +422,14 @@ public class NumberPickerTest {
         final int[] numberPickerLocationOnScreen = new int[2];
         mNumberPicker.getLocationOnScreen(numberPickerLocationOnScreen);
 
+
         ((View) mNumberPicker.getParent()).setAccessibilityDelegate(mMockA11yDelegate);
         try {
-            int numberPickerMiddleX =
-                    numberPickerLocationOnScreen[0] + mNumberPicker.getWidth() / 2;
-            int numberPickerEndY = numberPickerLocationOnScreen[1] + mNumberPicker.getHeight() - 1;
             CtsTouchUtils.emulateDragGesture(mInstrumentation, mActivityRule,
-                    numberPickerMiddleX,
-                    numberPickerEndY,
+                    numberPickerLocationOnScreen[0] + mNumberPicker.getWidth() / 2,
+                    numberPickerLocationOnScreen[1] + mNumberPicker.getHeight() - 1,
                     0,
-                    -(numberPickerEndY)); // drag up to the top of the screen.
+                    -(mNumberPicker.getHeight() - 2));
             Assert.assertTrue("Expected to get to IDLE state within 5 seconds",
                     latch.await(5, TimeUnit.SECONDS));
         } catch (Throwable t) {

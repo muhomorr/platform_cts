@@ -48,13 +48,10 @@ import android.telecom.VideoProfile;
 import android.telecom.cts.MockInCallService.InCallServiceCallbacks;
 import android.telephony.PhoneStateListener;
 import android.telephony.TelephonyManager;
-import android.telephony.emergency.EmergencyNumber;
 import android.test.InstrumentationTestCase;
 import android.text.TextUtils;
 import android.util.Log;
 import android.util.Pair;
-
-import com.android.compatibility.common.util.ShellIdentityUtils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -102,7 +99,6 @@ public class BaseTelecomTestWithMockServices extends InstrumentationTestCase {
     PhoneAccountHandle mPreviousDefaultOutgoingAccount = null;
     boolean mShouldRestoreDefaultOutgoingAccount = false;
     MockConnectionService connectionService = null;
-    boolean mIsEmergencyCallingSetup = false;
 
     HandlerThread mPhoneStateListenerThread;
     Handler mPhoneStateListenerHandler;
@@ -114,19 +110,11 @@ public class BaseTelecomTestWithMockServices extends InstrumentationTestCase {
         public Semaphore mCallbackSemaphore = new Semaphore(0);
 
         List<Pair<Integer, String>> mCallStates = new ArrayList<>();
-        EmergencyNumber mLastOutgoingEmergencyNumber;
 
         @Override
         public void onCallStateChanged(int state, String number) {
             Log.i(TAG, "onCallStateChanged: state=" + state + ", number=" + number);
             mCallStates.add(Pair.create(state, number));
-            mCallbackSemaphore.release();
-        }
-
-        @Override
-        public void onOutgoingEmergencyCall(EmergencyNumber emergencyNumber) {
-            Log.i(TAG, "onOutgoingEmergencyCall: emergencyNumber=" + emergencyNumber);
-            mLastOutgoingEmergencyNumber = emergencyNumber;
             mCallbackSemaphore.release();
         }
     }
@@ -161,10 +149,7 @@ public class BaseTelecomTestWithMockServices extends InstrumentationTestCase {
             @Override
             public void run() {
                 mPhoneStateListener = new TestPhoneStateListener();
-                ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mTelephonyManager,
-                    (tm) -> tm.listen(mPhoneStateListener,
-                        PhoneStateListener.LISTEN_CALL_STATE | PhoneStateListener
-                            .LISTEN_OUTGOING_EMERGENCY_CALL));
+                mTelephonyManager.listen(mPhoneStateListener, PhoneStateListener.LISTEN_CALL_STATE);
                 registeredLatch.countDown();
             }
         });
@@ -196,7 +181,6 @@ public class BaseTelecomTestWithMockServices extends InstrumentationTestCase {
             TestUtils.setDefaultDialer(getInstrumentation(), mPreviousDefaultDialer);
         }
         tearDownConnectionService(TestUtils.TEST_PHONE_ACCOUNT_HANDLE);
-        tearDownEmergencyCalling();
         assertMockInCallServiceUnbound();
     }
 
@@ -245,26 +229,6 @@ public class BaseTelecomTestWithMockServices extends InstrumentationTestCase {
         this.connectionService = null;
         mPreviousDefaultOutgoingAccount = null;
         mShouldRestoreDefaultOutgoingAccount = false;
-    }
-
-    protected void setupForEmergencyCalling(String testNumber) throws Exception {
-        TestUtils.setSystemDialerOverride(getInstrumentation());
-        TestUtils.addTestEmergencyNumber(getInstrumentation(), testNumber);
-        TestUtils.setTestEmergencyPhoneAccountPackageFilter(getInstrumentation(), mContext);
-        // Emergency calls require special capabilities.
-        TestUtils.registerEmergencyPhoneAccount(getInstrumentation(),
-                TestUtils.TEST_EMERGENCY_PHONE_ACCOUNT_HANDLE,
-                TestUtils.ACCOUNT_LABEL + "E", "tel:555-EMER");
-        mIsEmergencyCallingSetup = true;
-    }
-
-    protected void tearDownEmergencyCalling() throws Exception {
-        if (!mIsEmergencyCallingSetup) return;
-
-        TestUtils.clearSystemDialerOverride(getInstrumentation());
-        TestUtils.clearTestEmergencyNumbers(getInstrumentation());
-        TestUtils.clearTestEmergencyPhoneAccountPackageFilter(getInstrumentation());
-        mTelecomManager.unregisterPhoneAccount(TestUtils.TEST_EMERGENCY_PHONE_ACCOUNT_HANDLE);
     }
 
     protected void startCallTo(Uri address, PhoneAccountHandle accountHandle) {
@@ -586,11 +550,6 @@ public class BaseTelecomTestWithMockServices extends InstrumentationTestCase {
     }
 
     void setAndVerifyConnectionForIncomingCall(MockConnection connection) {
-        if (connection.getState() == Connection.STATE_ACTIVE) {
-            // If the connection is already active (like if it got picked up immediately), don't
-            // bother with setting it back to ringing.
-            return;
-        }
         connection.setRinging();
         assertConnectionState(connection, Connection.STATE_RINGING);
     }
@@ -719,34 +678,6 @@ public class BaseTelecomTestWithMockServices extends InstrumentationTestCase {
         // broadcast is sent, the caller may receive multiple broadcasts, and the number will be
         // present in one or the other.  We waited for a full matching broadcast above so we can
         // be sure the number was reported as expected.
-    }
-
-    void verifyPhoneStateListenerCallbacksForEmergencyCall(String expectedNumber)
-        throws Exception {
-        assertTrue(mPhoneStateListener.mCallbackSemaphore.tryAcquire(
-            TestUtils.WAIT_FOR_PHONE_STATE_LISTENER_CALLBACK_TIMEOUT_S, TimeUnit.SECONDS));
-        // At this point we can only be sure that we got AN update, but not necessarily the one we
-        // are looking for; wait until we see the state we want before verifying further.
-        waitUntilConditionIsTrueOrTimeout(new Condition() {
-                                              @Override
-                                              public Object expected() {
-                                                  return true;
-                                              }
-
-                                              @Override
-                                              public Object actual() {
-                                                  return mPhoneStateListener
-                                                      .mLastOutgoingEmergencyNumber != null
-                                                      && mPhoneStateListener
-                                                      .mLastOutgoingEmergencyNumber.getNumber()
-                                                      .equals(expectedNumber);
-                                              }
-                                          },
-            WAIT_FOR_STATE_CHANGE_TIMEOUT_MS,
-            "Expected emergency number: " + expectedNumber);
-
-        assertEquals(mPhoneStateListener.mLastOutgoingEmergencyNumber.getNumber(),
-            expectedNumber);
     }
 
     /**

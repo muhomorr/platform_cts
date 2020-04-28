@@ -80,9 +80,9 @@ public class TestImpl extends ITest.Stub {
 
   @Override
   public void CacheCallingInfoFromOneway() {
+    mCachedLatch.countDown();
     mCachedPid = Binder.getCallingPid();
     mCachedUid = Binder.getCallingUid();
-    mCachedLatch.countDown();
   }
 
   @Override
@@ -129,21 +129,6 @@ public class TestImpl extends ITest.Stub {
 
   @Override
   public byte RepeatByte(byte in_value) {
-    return in_value;
-  }
-
-  @Override
-  public byte RepeatByteEnum(byte in_value) {
-    return in_value;
-  }
-
-  @Override
-  public int RepeatIntEnum(int in_value) {
-    return in_value;
-  }
-
-  @Override
-  public long RepeatLongEnum(long in_value) {
     return in_value;
   }
 
@@ -240,24 +225,6 @@ public class TestImpl extends ITest.Stub {
   }
 
   @Override
-  public byte[] RepeatByteEnumArray(byte[] in_value, byte[] repeated) {
-    System.arraycopy(in_value, 0, repeated, 0, in_value.length);
-    return in_value;
-  }
-
-  @Override
-  public int[] RepeatIntEnumArray(int[] in_value, int[] repeated) {
-    System.arraycopy(in_value, 0, repeated, 0, in_value.length);
-    return in_value;
-  }
-
-  @Override
-  public long[] RepeatLongEnumArray(long[] in_value, long[] repeated) {
-    System.arraycopy(in_value, 0, repeated, 0, in_value.length);
-    return in_value;
-  }
-
-  @Override
   public String[] RepeatStringArray(String[] in_value, String[] repeated) {
     System.arraycopy(in_value, 0, repeated, 0, in_value.length);
     return in_value;
@@ -301,21 +268,6 @@ public class TestImpl extends ITest.Stub {
 
   @Override
   public double[] RepeatNullableDoubleArray(double[] in_value) {
-    return in_value;
-  }
-
-  @Override
-  public byte[] RepeatNullableByteEnumArray(byte[] in_value) {
-    return in_value;
-  }
-
-  @Override
-  public int[] RepeatNullableIntEnumArray(int[] in_value) {
-    return in_value;
-  }
-
-  @Override
-  public long[] RepeatNullableLongEnumArray(long[] in_value) {
     return in_value;
   }
 

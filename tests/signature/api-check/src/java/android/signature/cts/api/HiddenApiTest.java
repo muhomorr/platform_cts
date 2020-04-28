@@ -16,6 +16,8 @@
 
 package android.signature.cts.api;
 
+import static android.signature.cts.CurrentApi.API_FILE_DIRECTORY;
+
 import android.os.Bundle;
 import android.signature.cts.DexApiDocumentParser;
 import android.signature.cts.DexField;
@@ -23,12 +25,15 @@ import android.signature.cts.DexMember;
 import android.signature.cts.DexMemberChecker;
 import android.signature.cts.DexMethod;
 import android.signature.cts.FailureType;
-import android.signature.cts.VirtualPath;
 
 import java.io.BufferedReader;
-import java.io.InputStreamReader;
-import java.util.Set;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
+import java.io.IOException;
+import java.text.ParseException;
 import java.util.function.Predicate;
+import java.util.stream.Stream;
 
 /**
  * Checks that it is not possible to access hidden APIs.
@@ -39,7 +44,7 @@ public class HiddenApiTest extends AbstractApiTest {
     private String[] hiddenapiTestFlags;
 
     @Override
-    protected void initializeFromArgs(Bundle instrumentationArgs) {
+    protected void initializeFromArgs(Bundle instrumentationArgs) throws Exception {
         hiddenapiFiles = getCommaSeparatedList(instrumentationArgs, "hiddenapi-files");
         hiddenapiTestFlags = getCommaSeparatedList(instrumentationArgs, "hiddenapi-test-flags");
     }
@@ -136,12 +141,9 @@ public class HiddenApiTest extends AbstractApiTest {
                     }
                 }
             };
-
             for (String apiFile : hiddenapiFiles) {
-                VirtualPath.ResourcePath resourcePath =
-                        VirtualPath.get(getClass().getClassLoader(), apiFile);
                 BufferedReader reader = new BufferedReader(
-                        new InputStreamReader(resourcePath.newInputStream()));
+                        new FileReader(API_FILE_DIRECTORY + "/" + apiFile));
                 int lineIndex = 1;
                 String line = reader.readLine();
                 while (line != null) {
@@ -157,11 +159,12 @@ public class HiddenApiTest extends AbstractApiTest {
         });
     }
 
-    protected boolean shouldTestMember(DexMember member) {
-        Set<String> flags = member.getHiddenapiFlags();
+    private boolean shouldTestMember(DexMember member) {
         for (String testFlag : hiddenapiTestFlags) {
-            if (flags.contains(testFlag)) {
-                return true;
+            for (String memberFlag : member.getHiddenapiFlags()) {
+                if (testFlag.equals(memberFlag)) {
+                    return true;
+                }
             }
         }
         return false;

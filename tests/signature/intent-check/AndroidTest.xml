@@ -18,7 +18,6 @@
     <option name="config-descriptor:metadata" key="component" value="systems" />
     <option name="config-descriptor:metadata" key="parameter" value="not_instant_app" />
     <option name="config-descriptor:metadata" key="parameter" value="not_multi_abi" />
-    <option name="config-descriptor:metadata" key="parameter" value="secondary_user" />
     <option name="not-shardable" value="true" />
     <target_preparer class="com.android.compatibility.common.tradefed.targetprep.DynamicConfigPusher">
         <option name="target" value="device" />
@@ -35,13 +34,21 @@
         <option name="run-command" value="mkdir -p /data/local/tmp/signature-test" />
         <option name="teardown-command" value="rm -rf /data/local/tmp/signature-test" />
     </target_preparer>
+    <target_preparer class="com.android.compatibility.common.tradefed.targetprep.FilePusher">
+        <option name="push" value="current.api->/data/local/tmp/signature-test/current.api" />
+    </target_preparer>
+    <target_preparer class="com.android.compatibility.common.tradefed.targetprep.FilePusher">
+        <option name="push" value="system-current.api->/data/local/tmp/signature-test/system-current.api" />
+    </target_preparer>
+    <target_preparer class="com.android.compatibility.common.tradefed.targetprep.FilePusher">
+        <option name="push" value="system-removed.api->/data/local/tmp/signature-test/system-removed.api" />
+    </target_preparer>
     <target_preparer class="com.android.tradefed.targetprep.suite.SuiteApkInstaller">
         <option name="cleanup-apks" value="true" />
         <option name="test-file-name" value="CtsIntentSignatureTestCases.apk" />
     </target_preparer>
     <test class="com.android.tradefed.testtype.AndroidJUnitTest" >
         <option name="package" value="android.signature.cts.intent" />
-        <option name="class" value="android.signature.cts.intent.IntentTest" />
         <option name="runtime-hint" value="10s" />
         <!-- disable isolated storage so tests can access dynamic config stored in /sdcard. -->
         <option name="isolated-storage" value="false" />
