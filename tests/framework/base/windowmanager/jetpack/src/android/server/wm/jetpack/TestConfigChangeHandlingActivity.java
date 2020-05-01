@@ -14,23 +14,11 @@
  * limitations under the License.
  */
 
-package android.app.stubs;
+package android.server.wm.jetpack;
 
-import android.app.Activity;
-
-public final class ActivityNonConfigInstanceActivity extends Activity {
-    public Runnable onStop = () -> { };
-    public Runnable onDestroy = () -> { };
-
-    @Override
-    protected void onStop() {
-        super.onStop();
-        onStop.run();
-    }
-
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        onDestroy.run();
-    }
+/**
+ * Activity that handles orientation configuration change. Copied from
+ * androidx.window.TestConfigChangeHandlingActivity.
+ */
+public final class TestConfigChangeHandlingActivity extends TestActivity {
 }
