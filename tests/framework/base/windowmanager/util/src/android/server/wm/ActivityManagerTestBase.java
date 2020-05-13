@@ -222,6 +222,7 @@ public abstract class ActivityManagerTestBase {
     protected final Context mContext = getInstrumentation().getContext();
     protected final ActivityManager mAm = mContext.getSystemService(ActivityManager.class);
     protected final ActivityTaskManager mAtm = mContext.getSystemService(ActivityTaskManager.class);
+    protected final DisplayManager mDm = mContext.getSystemService(DisplayManager.class);
 
     /** The tracker to manage objects (especially {@link AutoCloseable}) in a test method. */
     protected final ObjectTracker mObjectTracker = new ObjectTracker();
@@ -985,6 +986,10 @@ public abstract class ActivityManagerTestBase {
 
     protected boolean isWatch() {
         return hasDeviceFeature(FEATURE_WATCH);
+    }
+
+    protected boolean isCar() {
+        return hasDeviceFeature(FEATURE_AUTOMOTIVE);
     }
 
     protected boolean isTablet() {
@@ -2305,5 +2310,9 @@ public abstract class ActivityManagerTestBase {
      * by {@link #moveTaskToPrimarySplitScreen}.
      */
     public static class SideActivity extends Activity {
+    }
+
+    /** Activity that can handle all config changes. */
+    public static class ConfigChangeHandlingActivity extends CommandSession.BasicTestActivity {
     }
 }

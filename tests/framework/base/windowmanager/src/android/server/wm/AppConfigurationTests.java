@@ -23,6 +23,8 @@ import static android.app.WindowConfiguration.WINDOWING_MODE_FULLSCREEN_OR_SPLIT
 import static android.app.WindowConfiguration.WINDOWING_MODE_SPLIT_SCREEN_PRIMARY;
 import static android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE;
 import static android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT;
+import static android.content.res.Configuration.ORIENTATION_LANDSCAPE;
+import static android.content.res.Configuration.ORIENTATION_PORTRAIT;
 import static android.server.wm.ComponentNameUtils.getWindowName;
 import static android.server.wm.StateLogger.logE;
 import static android.server.wm.WindowManagerState.STATE_RESUMED;
@@ -35,6 +37,8 @@ import static android.server.wm.app.Components.NIGHT_MODE_ACTIVITY;
 import static android.server.wm.app.Components.PORTRAIT_ORIENTATION_ACTIVITY;
 import static android.server.wm.app.Components.RESIZEABLE_ACTIVITY;
 import static android.server.wm.app.Components.TEST_ACTIVITY;
+import static android.server.wm.app.Components.LandscapeOrientationActivity.EXTRA_CONFIG_INFO_IN_ON_CREATE;
+import static android.server.wm.app.Components.LandscapeOrientationActivity.EXTRA_DISPLAY_REAL_SIZE;
 import static android.server.wm.translucentapp26.Components.SDK26_TRANSLUCENT_LANDSCAPE_ACTIVITY;
 import static android.view.Surface.ROTATION_0;
 import static android.view.Surface.ROTATION_180;
@@ -53,11 +57,19 @@ import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
 
 import android.content.ComponentName;
-import android.content.res.Configuration;
+import android.content.Context;
+import android.graphics.Point;
 import android.graphics.Rect;
+import android.hardware.display.DisplayManager;
+import android.os.Bundle;
 import android.platform.test.annotations.Presubmit;
+import android.provider.Settings;
 import android.server.wm.CommandSession.ActivitySession;
+import android.server.wm.CommandSession.ConfigInfo;
 import android.server.wm.CommandSession.SizeInfo;
+import android.server.wm.TestJournalProvider.TestJournalContainer;
+import android.server.wm.settings.SettingsSession;
+import android.view.Display;
 
 import org.junit.Test;
 
@@ -68,7 +80,7 @@ import java.util.List;
  *     atest CtsWindowManagerDeviceTestCases:AppConfigurationTests
  */
 @Presubmit
-public class AppConfigurationTests extends ActivityManagerTestBase {
+public class AppConfigurationTests extends MultiDisplayTestBase {
 
     private static final int SMALL_WIDTH_DP = 426;
     private static final int SMALL_HEIGHT_DP = 320;
@@ -311,21 +323,21 @@ public class AppConfigurationTests extends ActivityManagerTestBase {
         mWmState.assertVisibility(PORTRAIT_ORIENTATION_ACTIVITY, true /* visible */);
         SizeInfo reportedSizes = getLastReportedSizesForActivity(PORTRAIT_ORIENTATION_ACTIVITY);
         assertEquals("portrait activity should be in portrait",
-                Configuration.ORIENTATION_PORTRAIT, reportedSizes.orientation);
+                ORIENTATION_PORTRAIT, reportedSizes.orientation);
         separateTestJournal();
 
         launchActivity(LANDSCAPE_ORIENTATION_ACTIVITY);
         mWmState.assertVisibility(LANDSCAPE_ORIENTATION_ACTIVITY, true /* visible */);
         reportedSizes = getLastReportedSizesForActivity(LANDSCAPE_ORIENTATION_ACTIVITY);
         assertEquals("landscape activity should be in landscape",
-                Configuration.ORIENTATION_LANDSCAPE, reportedSizes.orientation);
+                ORIENTATION_LANDSCAPE, reportedSizes.orientation);
         separateTestJournal();
 
         launchActivity(PORTRAIT_ORIENTATION_ACTIVITY);
         mWmState.assertVisibility(PORTRAIT_ORIENTATION_ACTIVITY, true /* visible */);
         reportedSizes = getLastReportedSizesForActivity(PORTRAIT_ORIENTATION_ACTIVITY);
         assertEquals("portrait activity should be in portrait",
-                Configuration.ORIENTATION_PORTRAIT, reportedSizes.orientation);
+                ORIENTATION_PORTRAIT, reportedSizes.orientation);
     }
 
     @Test
@@ -337,7 +349,7 @@ public class AppConfigurationTests extends ActivityManagerTestBase {
         final SizeInfo initialReportedSizes =
                 getLastReportedSizesForActivity(PORTRAIT_ORIENTATION_ACTIVITY);
         assertEquals("portrait activity should be in portrait",
-                Configuration.ORIENTATION_PORTRAIT, initialReportedSizes.orientation);
+                ORIENTATION_PORTRAIT, initialReportedSizes.orientation);
         separateTestJournal();
 
         launchActivity(SDK26_TRANSLUCENT_LANDSCAPE_ACTIVITY, WINDOWING_MODE_FULLSCREEN);
@@ -407,9 +419,9 @@ public class AppConfigurationTests extends ActivityManagerTestBase {
 
         // Launch an activity that requests different orientation and check that it will be applied
         final boolean launchingPortrait;
-        if (initialOrientation == Configuration.ORIENTATION_LANDSCAPE) {
+        if (initialOrientation == ORIENTATION_LANDSCAPE) {
             launchingPortrait = true;
-        } else if (initialOrientation == Configuration.ORIENTATION_PORTRAIT) {
+        } else if (initialOrientation == ORIENTATION_PORTRAIT) {
             launchingPortrait = false;
         } else {
             fail("Unexpected orientation value: " + initialOrientation);
@@ -433,6 +445,46 @@ public class AppConfigurationTests extends ActivityManagerTestBase {
         final SizeInfo finalReportedSizes = getLastReportedSizesForActivity(RESIZEABLE_ACTIVITY);
         assertEquals("Applied orientation must not be influenced by previously visible activity",
                 initialOrientation, finalReportedSizes.orientation);
+    }
+
+    @Test
+    public void testRotatedInfoWithFixedRotationTransform() {
+        assumeTrue("Skipping test: no rotation support", supportsRotation());
+
+        // TODO(b/143053092): Remove the settings if it becomes stable.
+        mObjectTracker.manage(new SettingsSession<>(
+                Settings.Global.getUriFor("fixed_rotation_transform"),
+                Settings.Global::getInt, Settings.Global::putInt)).set(1);
+
+        getLaunchActivityBuilder()
+                .setUseInstrumentation()
+                .setTargetActivity(LANDSCAPE_ORIENTATION_ACTIVITY)
+                // Request the info from onCreate because at that moment the real display hasn't
+                // rotated but the activity is rotated.
+                .setIntentExtra(bundle -> bundle.putBoolean(EXTRA_CONFIG_INFO_IN_ON_CREATE, true))
+                .execute();
+        mWmState.waitForLastOrientation(SCREEN_ORIENTATION_LANDSCAPE);
+
+        final SizeInfo reportedSizes = getActivityDisplaySize(LANDSCAPE_ORIENTATION_ACTIVITY);
+        final Bundle extras = TestJournalContainer.get(LANDSCAPE_ORIENTATION_ACTIVITY).extras;
+        final Point onCreateRealDisplaySize = extras.getParcelable(EXTRA_DISPLAY_REAL_SIZE);
+        final ConfigInfo onCreateConfigInfo = extras.getParcelable(EXTRA_CONFIG_INFO_IN_ON_CREATE);
+        final SizeInfo onCreateSize = onCreateConfigInfo.sizeInfo;
+
+        assertEquals("The last reported size should be the same as the one from onCreate",
+                reportedSizes, onCreateConfigInfo.sizeInfo);
+
+        final Display display = mDm.getDisplay(Display.DEFAULT_DISPLAY);
+        final Point expectedRealDisplaySize = new Point();
+        display.getRealSize(expectedRealDisplaySize);
+
+        assertEquals("The activity should get the final display rotation in onCreate",
+                display.getRotation(), onCreateConfigInfo.rotation);
+        assertEquals("The activity should get the final display size in onCreate",
+                expectedRealDisplaySize, onCreateRealDisplaySize);
+        assertEquals("The app size of activity should have the same orientation",
+                expectedRealDisplaySize.x > expectedRealDisplaySize.y,
+                onCreateSize.displayWidth > onCreateSize.displayHeight);
     }
 
     @Test
@@ -472,7 +524,7 @@ public class AppConfigurationTests extends ActivityManagerTestBase {
         // Request portrait
         mBroadcastActionTrigger.requestOrientation(SCREEN_ORIENTATION_PORTRAIT);
         mWmState.waitForLastOrientation(SCREEN_ORIENTATION_PORTRAIT);
-        waitForBroadcastActivityReady(Configuration.ORIENTATION_PORTRAIT);
+        waitForBroadcastActivityReady(ORIENTATION_PORTRAIT);
 
         // Finish activity
         mBroadcastActionTrigger.finishBroadcastReceiverActivity();
@@ -503,7 +555,7 @@ public class AppConfigurationTests extends ActivityManagerTestBase {
         launchActivityInNewTask(BROADCAST_RECEIVER_ACTIVITY);
         mBroadcastActionTrigger.requestOrientation(SCREEN_ORIENTATION_LANDSCAPE);
         mWmState.waitForLastOrientation(SCREEN_ORIENTATION_LANDSCAPE);
-        waitForBroadcastActivityReady(Configuration.ORIENTATION_LANDSCAPE);
+        waitForBroadcastActivityReady(ORIENTATION_LANDSCAPE);
         mBroadcastActionTrigger.finishBroadcastReceiverActivity();
 
         // Verify that activity brought to front is in originally requested orientation.
@@ -520,7 +572,7 @@ public class AppConfigurationTests extends ActivityManagerTestBase {
         launchActivityInNewTask(BROADCAST_RECEIVER_ACTIVITY);
         mBroadcastActionTrigger.requestOrientation(SCREEN_ORIENTATION_PORTRAIT);
         mWmState.waitForLastOrientation(SCREEN_ORIENTATION_PORTRAIT);
-        waitForBroadcastActivityReady(Configuration.ORIENTATION_PORTRAIT);
+        waitForBroadcastActivityReady(ORIENTATION_PORTRAIT);
         mBroadcastActionTrigger.finishBroadcastReceiverActivity();
 
         // Verify that activity brought to front is in originally requested orientation.
@@ -573,6 +625,52 @@ public class AppConfigurationTests extends ActivityManagerTestBase {
                     0 /* numConfigChange */);
 
             prevOrientation = reportedSizes.orientation;
+        }
+    }
+
+    /**
+     * Test that the orientation for a simulated display context will not change when the device is
+     * rotated.
+     */
+    @Test
+    public void testAppContextDerivedDisplayContextOrientationWhenRotating() {
+        assumeTrue("Skipping test: no rotation support", supportsRotation());
+        assumeTrue("Skipping test: no multi-display support", supportsMultiDisplay());
+
+        RotationSession rotationSession = createManagedRotationSession();
+        rotationSession.set(ROTATION_0);
+
+        TestActivitySession<ConfigChangeHandlingActivity> activitySession
+                = createManagedTestActivitySession();
+        activitySession.launchTestActivityOnDisplaySync(ConfigChangeHandlingActivity.class,
+                Display.DEFAULT_DISPLAY);
+        final ConfigChangeHandlingActivity activity = activitySession.getActivity();
+
+        VirtualDisplaySession virtualDisplaySession = createManagedVirtualDisplaySession();
+        WindowManagerState.DisplayContent displayContent = virtualDisplaySession
+                .setSimulateDisplay(true)
+                .setSimulationDisplaySize(100 /* width */, 200 /* height */)
+                .createDisplay();
+
+        DisplayManager dm = activity.getSystemService(DisplayManager.class);
+        Display simulatedDisplay = dm.getDisplay(displayContent.mId);
+        Context simulatedDisplayContext = activity.getApplicationContext()
+                .createDisplayContext(simulatedDisplay);
+        assertEquals(ORIENTATION_PORTRAIT,
+                simulatedDisplayContext.getResources().getConfiguration().orientation);
+
+        separateTestJournal();
+
+        final int[] rotations = {ROTATION_270, ROTATION_180, ROTATION_90, ROTATION_0};
+        for (final int rotation : rotations) {
+            rotationSession.set(rotation);
+
+            assertRelaunchOrConfigChanged(activity.getComponentName(), 0 /* numRelaunch */,
+                    1 /* numConfigChange */);
+            separateTestJournal();
+
+            assertEquals("Display context orientation must not be changed", ORIENTATION_PORTRAIT,
+                    simulatedDisplayContext.getResources().getConfiguration().orientation);
         }
     }
 
@@ -639,7 +737,7 @@ public class AppConfigurationTests extends ActivityManagerTestBase {
         // Request portrait
         mBroadcastActionTrigger.requestOrientation(SCREEN_ORIENTATION_PORTRAIT);
         mWmState.waitForLastOrientation(SCREEN_ORIENTATION_PORTRAIT);
-        waitForBroadcastActivityReady(Configuration.ORIENTATION_PORTRAIT);
+        waitForBroadcastActivityReady(ORIENTATION_PORTRAIT);
 
         // Finish activity
         mBroadcastActionTrigger.moveTopTaskToBack();
