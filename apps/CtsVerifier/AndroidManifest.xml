@@ -60,6 +60,7 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
     <uses-permission android:name="com.android.alarm.permission.SET_ALARM" />
     <uses-feature android:name="android.hardware.usb.accessory" />
     <uses-permission android:name="android.permission.CALL_PHONE" />
@@ -1982,7 +1983,8 @@
             <meta-data android:name="android.nfc.cardemulation.host_nfcf_service" android:resource="@xml/felicaservice"/>
         </service>
         <!-- Service used for Camera ITS tests -->
-        <service android:name=".camera.its.ItsService" >
+        <service android:name=".camera.its.ItsService"
+            android:foregroundServiceType="camera">
             <intent-filter>
                 <action android:name="com.android.cts.verifier.camera.its.START"/>
                 <category android:name="android.intent.category.DEFAULT" />
