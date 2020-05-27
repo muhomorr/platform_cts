@@ -956,7 +956,7 @@ public abstract class DeviceAndProfileOwnerTest extends BaseDevicePolicyTest {
     }
 
     public void testSetMeteredDataDisabledPackages() throws Exception {
-        if (!mHasFeature) {
+        if (!mHasFeature || !hasDeviceFeature("android.hardware.wifi")) {
             return;
         }
         installAppAsUser(METERED_DATA_APP_APK, mUserId);
@@ -1127,6 +1127,9 @@ public abstract class DeviceAndProfileOwnerTest extends BaseDevicePolicyTest {
 
             // Wait for the LockTask starting
             waitForBroadcastIdle();
+
+            // Make sure that the LockTaskUtilityActivityIfWhitelisted was started.
+            executeDeviceTestMethod(".LockTaskHostDrivenTest", "testLockTaskIsActive");
 
             // Try to open settings via adb
             executeShellCommand("am start -a android.settings.SETTINGS");

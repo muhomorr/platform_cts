@@ -37,16 +37,21 @@ import android.content.IntentFilter;
 import android.content.ServiceConnection;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
+import android.database.ContentObserver;
 import android.net.ConnectivityManager;
+import android.net.Uri;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.os.AsyncTask;
 import android.os.Build;
+import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
 import android.os.PersistableBundle;
 import android.os.Process;
 import android.os.RemoteException;
+import android.os.UserManager;
+import android.provider.Settings;
 import android.telecom.PhoneAccount;
 import android.telecom.PhoneAccountHandle;
 import android.telecom.TelecomManager;
@@ -524,6 +529,7 @@ public class TelephonyManagerTest {
         mTelephonyManager.getCarrierConfig();
         mTelephonyManager.isVoiceCapable();
         mTelephonyManager.isSmsCapable();
+        mTelephonyManager.isLteCdmaEvdoGsmWcdmaEnabled();
         ShellIdentityUtils.invokeMethodWithShellPermissions(mTelephonyManager,
                 (tm) -> tm.isDataConnectionAllowed());
         ShellIdentityUtils.invokeMethodWithShellPermissions(mTelephonyManager,
@@ -1134,6 +1140,73 @@ public class TelephonyManagerTest {
         } else {
             // Non-telephony may still have the property defined if it has a SIM.
         }
+    }
+
+    @Test
+    public void testResetSettings() throws Exception {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            Log.d(TAG, "skipping test on device without FEATURE_TELEPHONY present");
+            return;
+        }
+
+        UserManager userManager = getContext().getSystemService(UserManager.class);
+
+        boolean canChangeMobileNetworkSettings = userManager != null
+                && !userManager.hasUserRestriction(UserManager.DISALLOW_CONFIG_MOBILE_NETWORKS);
+        assertTrue("Primary user must be able to configure mobile networks to pass this test",
+                canChangeMobileNetworkSettings);
+
+        //First check permissions are correct
+        try {
+            mTelephonyManager.resetSettings();
+            fail("TelephonyManager#resetSettings requires the"
+                    + " android.Manifest.permission.NETWORK_SETTINGS permission");
+        } catch (SecurityException e) {
+            //expected
+        }
+        // and then do a reset to move data to default.
+        try {
+            ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mTelephonyManager,
+                    TelephonyManager::resetSettings, "android.permission.NETWORK_SETTINGS");
+        } catch (SecurityException e) {
+            fail("TelephonyManager#resetSettings requires the"
+                    + " android.Manifest.permission.NETWORK_SETTINGS permission");
+        }
+
+        LinkedBlockingQueue<Boolean> queue = new LinkedBlockingQueue<>(2);
+        final ContentObserver mobileDataChangeObserver = new ContentObserver(
+                new Handler(Looper.getMainLooper())) {
+            @Override
+            public void onChange(boolean selfChange) {
+                queue.offer(isDataEnabled());
+            }
+        };
+
+        getContext().getContentResolver().registerContentObserver(
+                getObservableDataEnabledUri(mTestSub), /* notifyForDescendants= */ false,
+                mobileDataChangeObserver);
+        boolean defaultDataSetting = isDataEnabled();
+
+        // set data to not the default!
+        ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mTelephonyManager,
+                tm -> tm.setDataEnabled(!defaultDataSetting));
+        Boolean dataChangedResult = queue.poll(TOLERANCE, TimeUnit.MILLISECONDS);
+        assertNotNull("Data setting was not changed", dataChangedResult);
+        assertEquals("Data enable change didn't work", !defaultDataSetting,
+                dataChangedResult);
+
+        // and then do a reset to move data to default again.
+        try {
+            ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mTelephonyManager,
+                    TelephonyManager::resetSettings, "android.permission.NETWORK_SETTINGS");
+        } catch (SecurityException e) {
+            fail("TelephonyManager#resetSettings requires the"
+                    + " android.Manifest.permission.NETWORK_SETTINGS permission");
+        }
+        dataChangedResult = queue.poll(TOLERANCE, TimeUnit.MILLISECONDS);
+        assertNotNull("Data setting was not changed", dataChangedResult);
+        assertEquals("resetSettings did not reset default data", defaultDataSetting,
+                dataChangedResult);
     }
 
     @Test
@@ -1999,7 +2072,7 @@ public class TelephonyManagerTest {
             return;
         }
         if (mTelephonyManager.getPhoneCount() == 2 && activeSubscriptionInfoCount != 2) {
-            fail("This test requires two SIM cards.");
+            return;
         }
         ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mTelephonyManager,
                 (tm) -> tm.setPreferredOpportunisticDataSubscription(
@@ -2135,7 +2208,7 @@ public class TelephonyManagerTest {
             return;
         }
         if (mTelephonyManager.getPhoneCount() == 2 && activeSubscriptionInfoCount != 2) {
-            fail("This test requires two SIM cards.");
+            return;
         }
 
         List<SubscriptionInfo> subscriptionInfoList =
@@ -2276,6 +2349,28 @@ public class TelephonyManagerTest {
     }
 
     @Test
+    public void testIsIccLockEnabled() {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            return;
+        }
+        // verify SecurityException
+        try {
+            mTelephonyManager.isIccLockEnabled();
+            fail("testIsIccLockEnabled: Expected SecurityException on isIccLockEnabled");
+        } catch (SecurityException se) {
+            // expected
+        }
+
+        // test with permission
+        try {
+            ShellIdentityUtils.invokeMethodWithShellPermissions(
+                    mTelephonyManager, (tm) -> tm.isIccLockEnabled());
+        } catch (SecurityException se) {
+            fail("testIsIccLockEnabled: SecurityException not expected");
+        }
+    }
+
+    @Test
     public void testIsDataEnabledForApn() {
         if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
             return;
@@ -2294,6 +2389,29 @@ public class TelephonyManagerTest {
                     mTelephonyManager, (tm) -> tm.isDataEnabledForApn(ApnSetting.TYPE_MMS));
         } catch (SecurityException se) {
             fail("testIsDataEnabledForApn: SecurityException not expected");
+        }
+    }
+
+    @Test
+    public void testIsTetheringApnRequired() {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            return;
+        }
+        // verify SecurityException
+        try {
+            mTelephonyManager.isTetheringApnRequired();
+            fail("testIsTetheringApnRequired: Expected SecurityException on "
+                    + "isTetheringApnRequired");
+        } catch (SecurityException se) {
+            // expected
+        }
+
+        // test with permission
+        try {
+            ShellIdentityUtils.invokeMethodWithShellPermissions(
+                    mTelephonyManager, (tm) -> tm.isTetheringApnRequired());
+        } catch (SecurityException se) {
+            fail("testIsIccLockEnabled: SecurityException not expected");
         }
     }
 
@@ -2478,6 +2596,68 @@ public class TelephonyManagerTest {
             // Call isModemEnabledForSlot for each slot and verify no crash.
             mTelephonyManager.isModemEnabledForSlot(i);
         }
+    }
+
+    @Test
+    public void testOpportunisticNetworkState() {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            return;
+        }
+
+        boolean isEnabled = ShellIdentityUtils.invokeMethodWithShellPermissions(mTelephonyManager,
+                tm -> tm.isOpportunisticNetworkEnabled());
+        ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mTelephonyManager,
+                tm -> tm.setOpportunisticNetworkState(true));
+        assertTrue(ShellIdentityUtils.invokeMethodWithShellPermissions(mTelephonyManager,
+                tm -> tm.isOpportunisticNetworkEnabled()));
+        ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mTelephonyManager,
+                tm -> tm.setOpportunisticNetworkState(false));
+        assertFalse(ShellIdentityUtils.invokeMethodWithShellPermissions(mTelephonyManager,
+                tm -> tm.isOpportunisticNetworkEnabled()));
+        ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mTelephonyManager,
+                tm -> tm.setOpportunisticNetworkState(isEnabled));
+    }
+
+    @Test
+    public void testGetSimApplicationState() {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            return;
+        }
+        int simApplicationState = mTelephonyManager.getSimApplicationState();
+        assertTrue(Arrays.asList(TelephonyManager.SIM_STATE_UNKNOWN,
+                TelephonyManager.SIM_STATE_PIN_REQUIRED,
+                TelephonyManager.SIM_STATE_PUK_REQUIRED,
+                TelephonyManager.SIM_STATE_NETWORK_LOCKED,
+                TelephonyManager.SIM_STATE_NOT_READY,
+                TelephonyManager.SIM_STATE_PERM_DISABLED,
+                TelephonyManager.SIM_STATE_LOADED).contains(simApplicationState));
+    }
+
+    @Test
+    public void testGetSimCardState() {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            return;
+        }
+        int simCardState = mTelephonyManager.getSimCardState();
+        assertTrue(Arrays.asList(TelephonyManager.SIM_STATE_UNKNOWN,
+                TelephonyManager.SIM_STATE_ABSENT,
+                TelephonyManager.SIM_STATE_CARD_IO_ERROR,
+                TelephonyManager.SIM_STATE_CARD_RESTRICTED,
+                TelephonyManager.SIM_STATE_PRESENT).contains(simCardState));
+    }
+
+
+    private boolean isDataEnabled() {
+        return ShellIdentityUtils.invokeMethodWithShellPermissions(mTelephonyManager,
+                TelephonyManager::isDataEnabled);
+    }
+
+    private Uri getObservableDataEnabledUri(int subId) {
+        Uri uri = Settings.Global.getUriFor(Settings.Global.MOBILE_DATA);
+        if (mTelephonyManager.getActiveModemCount() != 1) {
+            uri = Settings.Global.getUriFor(Settings.Global.MOBILE_DATA + subId);
+        }
+        return uri;
     }
 
     /**

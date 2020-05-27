@@ -19,7 +19,7 @@ package android.hdmicec.cts;
 import java.util.HashMap;
 import java.util.Map;
 
-public enum CecDevice {
+public enum LogicalAddress {
     TV(0x0),
     RECORDER_1(0x1),
     RECORDER_2(0x2),
@@ -37,17 +37,24 @@ public enum CecDevice {
     SPECIFIC_USE(0xe),
     BROADCAST(0xf);
 
-    private final int playerId;
+    private final int address;
     private static Map deviceMap = new HashMap<>();
+
+    // CEC Device feature list
+    public static final String HDMI_CEC_FEATURE = "feature:android.hardware.hdmi.cec";
+    public static final String LEANBACK_FEATURE = "feature:android.software.leanback";
+
+    // CEC Device property list
+    public static final String HDMI_DEVICE_TYPE_PROPERTY = "ro.hdmi.device_type";
 
     @Override
     public String toString() {
-        return Integer.toHexString(this.playerId);
+        return Integer.toHexString(this.address);
     }
 
     static {
-        for (CecDevice device : CecDevice.values()) {
-            deviceMap.put(device.playerId, device);
+        for (LogicalAddress device : LogicalAddress.values()) {
+            deviceMap.put(device.address, device);
         }
     }
 
@@ -75,11 +82,11 @@ public enum CecDevice {
         }
     }
 
-    public static CecDevice getDevice(int playerId) {
-        return (CecDevice) deviceMap.get(playerId);
+    public static LogicalAddress getLogicalAddress(int address) {
+        return (LogicalAddress) deviceMap.get(address);
     }
 
-    private CecDevice(int playerId) {
-        this.playerId = playerId;
+    private LogicalAddress(int address) {
+        this.address = address;
     }
 }

@@ -40,6 +40,7 @@ import java.time.Duration;
 /**
  * Host side CTS tests verifying userspace reboot functionality.
  */
+@RequiresDevice
 @RunWith(DeviceJUnit4ClassRunner.class)
 public class UserspaceRebootHostTest extends BaseHostJUnit4Test  {
 
@@ -176,6 +177,8 @@ public class UserspaceRebootHostTest extends BaseHostJUnit4Test  {
             runDeviceTest(BOOT_COMPLETED_TEST_APP_PACKAGE_NAME, "BootCompletedUserspaceRebootTest",
                     "testVerifyCeStorageUnlocked");
             runDeviceTest(BOOT_COMPLETED_TEST_APP_PACKAGE_NAME, "BootCompletedUserspaceRebootTest",
+                    "testVerifyReceivedLockedBootCompletedBroadcast", Duration.ofMinutes(3));
+            runDeviceTest(BOOT_COMPLETED_TEST_APP_PACKAGE_NAME, "BootCompletedUserspaceRebootTest",
                     "testVerifyReceivedBootCompletedBroadcast", Duration.ofMinutes(6));
         } finally {
             getDevice().executeShellV2Command("cmd lock_settings clear --old 1543");
@@ -206,6 +209,8 @@ public class UserspaceRebootHostTest extends BaseHostJUnit4Test  {
             assertUserspaceRebootSucceed();
             runDeviceTest(BOOT_COMPLETED_TEST_APP_PACKAGE_NAME, "BootCompletedUserspaceRebootTest",
                     "testVerifyCeStorageUnlocked");
+            runDeviceTest(BOOT_COMPLETED_TEST_APP_PACKAGE_NAME, "BootCompletedUserspaceRebootTest",
+                    "testVerifyReceivedLockedBootCompletedBroadcast", Duration.ofMinutes(3));
             runDeviceTest(BOOT_COMPLETED_TEST_APP_PACKAGE_NAME, "BootCompletedUserspaceRebootTest",
                     "testVerifyReceivedBootCompletedBroadcast", Duration.ofMinutes(6));
         } finally {
@@ -252,7 +257,7 @@ public class UserspaceRebootHostTest extends BaseHostJUnit4Test  {
             getDevice().setProperty("init.userspace_reboot.sigterm.timeoutmillis", "10");
             rebootUserspaceAndWaitForBootComplete();
             assertUserspaceRebootFailed();
-            assertLastBootReasonIs("userspace_failed,shutdown_aborted");
+            assertLastBootReasonIs("userspace_failed,shutdown_aborted,sigkill");
         } finally {
             getDevice().setProperty("init.userspace_reboot.sigkill.timeoutmillis", sigkillTimeout);
             getDevice().setProperty("init.userspace_reboot.sigterm.timeoutmillis", sigtermTimeout);
