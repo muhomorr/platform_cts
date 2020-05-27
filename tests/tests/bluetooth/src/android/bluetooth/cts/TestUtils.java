@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 The Android Open Source Project
+ * Copyright (C) 2020 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,8 +16,12 @@
 
 package android.bluetooth.cts;
 
+import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.le.ScanRecord;
+import android.content.BroadcastReceiver;
 import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.provider.Settings;
 import android.util.Log;
@@ -27,12 +31,14 @@ import junit.framework.Assert;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Arrays;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * Utility class for Bluetooth CTS test.
  */
 class TestUtils {
-
     /**
      * Utility method to call hidden ScanRecord.parseFromBytes method.
      */

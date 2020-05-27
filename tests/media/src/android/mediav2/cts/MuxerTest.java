@@ -57,7 +57,9 @@ import static org.junit.Assert.fail;
 class MuxerTestHelper {
     private static final String LOG_TAG = MuxerTestHelper.class.getSimpleName();
     private static final boolean ENABLE_LOGS = false;
-    static final int STTS_TOLERANCE = 100;
+    // Stts values within 0.1ms(100us) difference are fudged to save too
+    // many stts entries in MPEG4Writer.
+    static final int STTS_TOLERANCE_US = 100;
     private String mSrcPath;
     private String mMime;
     private int mTrackCount;
@@ -253,10 +255,9 @@ class MuxerTestHelper {
         }
     }
 
-    @Override
     // returns true if 'this' stream is a subset of 'o'. That is all tracks in current media
     // stream are present in ref media stream
-    public boolean equals(Object o) {
+    boolean isSubsetOf(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         MuxerTestHelper that = (MuxerTestHelper) o;
@@ -273,43 +274,39 @@ class MuxerTestHelper {
                 if (thisMime != null && thisMime.equals(thatMime)) {
                     if (!ExtractorTest.isCSDIdentical(thisFormat, thatFormat)) continue;
                     if (mBufferInfo.get(i).size() == that.mBufferInfo.get(j).size()) {
-                        int flagsDiff = 0, sizeDiff = 0, tsDiff = 0, buffDiff = 0;
-                        for (int k = 0; k < mBufferInfo.get(i).size(); k++) {
+                        long tolerance = thisMime.startsWith("video/") ? STTS_TOLERANCE_US : 0;
+                        // TODO(b/157008437) - muxed file pts is +1us of target pts
+                        tolerance += 1; // rounding error
+                        int k = 0;
+                        for (; k < mBufferInfo.get(i).size(); k++) {
                             MediaCodec.BufferInfo thisInfo = mBufferInfo.get(i).get(k);
                             MediaCodec.BufferInfo thatInfo = that.mBufferInfo.get(j).get(k);
                             if (thisInfo.flags != thatInfo.flags) {
-                                flagsDiff++;
+                                break;
                             }
                             if (thisInfo.size != thatInfo.size) {
-                                sizeDiff++;
+                                break;
                             } else {
                                 mBuff.position(thisInfo.offset);
                                 mBuff.get(refBuffer, 0, thisInfo.size);
                                 that.mBuff.position(thatInfo.offset);
                                 that.mBuff.get(testBuffer, 0, thatInfo.size);
-                                for (int count = 0; count < thisInfo.size; count++) {
+                                int count = 0;
+                                for (; count < thisInfo.size; count++) {
                                     if (refBuffer[count] != testBuffer[count]) {
-                                        buffDiff++;
                                         break;
                                     }
                                 }
+                                if (count != thisInfo.size) break;
                             }
                             if (Math.abs(
                                     thisInfo.presentationTimeUs - thatInfo.presentationTimeUs) >
-                                    STTS_TOLERANCE) {
-                                tsDiff++;
+                                    tolerance) {
+                                break;
                             }
                         }
-                        if (flagsDiff != 0 || sizeDiff != 0 || tsDiff != 0 || buffDiff != 0) {
-                            if (ENABLE_LOGS) {
-                                Log.d(LOG_TAG, "For track: " + thisMime +
-                                        " Total Samples: " + mBufferInfo.get(i).size() +
-                                        " flagsDiff: " + flagsDiff +
-                                        " sizeDiff: " + sizeDiff +
-                                        " tsDiff: " + tsDiff +
-                                        " buffDiff: " + buffDiff);
-                            }
-                        } else break;
+                        // all samples are identical. successful match found. move to next track
+                        if (k == mBufferInfo.get(i).size()) break;
                     } else {
                         if (ENABLE_LOGS) {
                             Log.d(LOG_TAG, "Mime matched but sample count different." +
@@ -742,7 +739,7 @@ public class MuxerTest {
             try {
                 mediaInfoA.combineMedias(muxer, mediaInfoB, new int[]{1, 1});
                 refInfo = new MuxerTestHelper(mRefPath);
-                if (!mediaInfoA.equals(refInfo) || !mediaInfoB.equals(refInfo)) {
+                if (!mediaInfoA.isSubsetOf(refInfo) || !mediaInfoB.isSubsetOf(refInfo)) {
                     fail(msg + "error ! muxing src A and src B failed");
                 }
             } catch (Exception e) {
@@ -761,7 +758,7 @@ public class MuxerTest {
                 try {
                     mediaInfoA.combineMedias(muxer, mediaInfoB, numTrack);
                     MuxerTestHelper outInfo = new MuxerTestHelper(mOutPath);
-                    if (!outInfo.equals(refInfo)) {
+                    if (!outInfo.isSubsetOf(refInfo)) {
                         fail(msg + " error ! muxing src A: " + numTrack[0] + " src B: " +
                                 numTrack[1] + "failed");
                     }
@@ -848,15 +845,11 @@ public class MuxerTest {
         public void testOffsetPresentationTime() throws IOException {
             final int OFFSET_TS = 111000;
             Assume.assumeTrue(shouldRunTest(mOutFormat));
-            Assume.assumeTrue("TODO(b/148978457)",
-                    mOutFormat != MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4);
-            Assume.assumeTrue("TODO(b/148978457)",
-                    mOutFormat != MediaMuxer.OutputFormat.MUXER_OUTPUT_3GPP);
             Assume.assumeTrue("TODO(b/146423022)",
                     mOutFormat != MediaMuxer.OutputFormat.MUXER_OUTPUT_WEBM);
             Assume.assumeTrue("TODO(b/146421018)",
                     mOutFormat != MediaMuxer.OutputFormat.MUXER_OUTPUT_OGG);
-            assertTrue(OFFSET_TS > MuxerTestHelper.STTS_TOLERANCE);
+            assertTrue(OFFSET_TS > MuxerTestHelper.STTS_TOLERANCE_US);
             MuxerTestHelper mediaInfo = new MuxerTestHelper(mInpPath);
             for (int trackID = 0; trackID < mediaInfo.getTrackCount(); trackID++) {
                 for (int i = 0; i < mOffsetIndices.length; i++) {
@@ -866,7 +859,7 @@ public class MuxerTest {
                 mediaInfo.muxMedia(muxer);
                 muxer.release();
                 MuxerTestHelper outInfo = new MuxerTestHelper(mOutPath);
-                if (!outInfo.equals(mediaInfo)) {
+                if (!outInfo.isSubsetOf(mediaInfo)) {
                     String msg = String.format(
                             "testOffsetPresentationTime: inp: %s, fmt: %d, trackID %d", mSrcFile,
                             mOutFormat, trackID);
@@ -881,10 +874,6 @@ public class MuxerTest {
         @Test
         public void testOffsetPresentationTimeNative() {
             Assume.assumeTrue(shouldRunTest(mOutFormat));
-            Assume.assumeTrue("TODO(b/148978457)",
-                    mOutFormat != MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4);
-            Assume.assumeTrue("TODO(b/148978457)",
-                    mOutFormat != MediaMuxer.OutputFormat.MUXER_OUTPUT_3GPP);
             Assume.assumeTrue("TODO(b/146423022)",
                     mOutFormat != MediaMuxer.OutputFormat.MUXER_OUTPUT_WEBM);
             Assume.assumeTrue("TODO(b/146421018)",
@@ -996,8 +985,6 @@ public class MuxerTest {
         public void testSimpleMux() throws IOException {
             Assume.assumeTrue("TODO(b/146421018)",
                     !mMime.equals(MediaFormat.MIMETYPE_AUDIO_OPUS));
-            Assume.assumeTrue("TODO(b/146923287)",
-                    !mMime.equals(MediaFormat.MIMETYPE_AUDIO_VORBIS));
             MuxerTestHelper mediaInfo = new MuxerTestHelper(mInpPath, mMime);
             assertEquals("error! unexpected track count", 1, mediaInfo.getTrackCount());
             for (int format = MUXER_OUTPUT_FIRST; format <= MUXER_OUTPUT_LAST; format++) {
@@ -1010,7 +997,7 @@ public class MuxerTest {
                 try {
                     mediaInfo.muxMedia(muxer);
                     MuxerTestHelper outInfo = new MuxerTestHelper(mOutPath);
-                    if (!mediaInfo.equals(outInfo)) {
+                    if (!mediaInfo.isSubsetOf(outInfo)) {
                         fail(msg + "error! output != clone(input)");
                     }
                 } catch (Exception e) {
@@ -1027,8 +1014,6 @@ public class MuxerTest {
         public void testSimpleMuxNative() {
             Assume.assumeTrue("TODO(b/146421018)",
                     !mMime.equals(MediaFormat.MIMETYPE_AUDIO_OPUS));
-            Assume.assumeTrue("TODO(b/146923287)",
-                    !mMime.equals(MediaFormat.MIMETYPE_AUDIO_VORBIS));
             assertTrue(nativeTestSimpleMux(mInpPath, mOutPath, mMime, selector));
         }
     }
