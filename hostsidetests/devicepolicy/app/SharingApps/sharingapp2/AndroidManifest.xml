@@ -20,19 +20,21 @@
   ~ and UID. For example, you could use it to set permissions or app-ops.
   -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-          package="com.android.cts.dummyapps.dummyapp2">
+          package="com.android.cts.sharingapps.sharingapp2">
     <uses-permission android:name="android.permission.INTERACT_ACROSS_PROFILES"/>
     <application android:testOnly="true"
                  android:crossProfile="true">
         <uses-library android:name="android.test.runner" />
-        <receiver android:name=".CanInteractAcrossProfilesChangedReceiver">
+        <activity android:name=".SimpleActivity" >
             <intent-filter>
-                <action android:name="android.content.pm.action.CAN_INTERACT_ACROSS_PROFILES_CHANGED" />
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-        </receiver>
-        <activity
-            android:name="android.app.Activity"
-            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="*/*" />
+            </intent-filter>
         </activity>
     </application>
 </manifest>
