@@ -68,6 +68,8 @@ import android.util.Log;
 
 import com.google.common.collect.ImmutableSet;
 
+import androidx.test.filters.RequiresDevice;
+
 import org.bouncycastle.asn1.x500.X500Name;
 import org.bouncycastle.cert.jcajce.JcaX509CertificateHolder;
 
@@ -163,21 +165,26 @@ public class KeyAttestationTest extends AndroidTestCase {
         int[] purposes = {
                 KM_PURPOSE_SIGN, KM_PURPOSE_VERIFY, KM_PURPOSE_SIGN | KM_PURPOSE_VERIFY
         };
+        boolean[] devicePropertiesAttestationValues = {true, false};
+        boolean[] includeValidityDatesValues = {true, false};
 
         for (int curveIndex = 0; curveIndex < curves.length; ++curveIndex) {
             for (int challengeIndex = 0; challengeIndex < challenges.length; ++challengeIndex) {
                 for (int purposeIndex = 0; purposeIndex < purposes.length; ++purposeIndex) {
-                    try {
-                        testEcAttestation(challenges[challengeIndex],
-                                true /* includeValidityDates */,
-                                curves[curveIndex], keySizes[curveIndex], purposes[purposeIndex]);
-                        testEcAttestation(challenges[challengeIndex],
-                                false /* includeValidityDates */,
-                                curves[curveIndex], keySizes[curveIndex], purposes[purposeIndex]);
-                    } catch (Throwable e) {
-                        throw new Exception(
-                                "Failed on curve " + curveIndex + " and challege " + challengeIndex,
-                                e);
+                    for (boolean includeValidityDates : includeValidityDatesValues) {
+                        for (boolean devicePropertiesAttestation : devicePropertiesAttestationValues) {
+                            try {
+                                testEcAttestation(challenges[challengeIndex], includeValidityDates,
+                                        curves[curveIndex], keySizes[curveIndex],
+                                        purposes[purposeIndex], devicePropertiesAttestation);
+                            } catch (Throwable e) {
+                                throw new Exception("Failed on curve " + curveIndex +
+                                        " challenge " + challengeIndex + " purpose " +
+                                        purposeIndex + " includeValidityDates " +
+                                        includeValidityDates + " and devicePropertiesAttestation " +
+                                        devicePropertiesAttestation, e);
+                            }
+                        }
                     }
                 }
             }
@@ -185,43 +192,50 @@ public class KeyAttestationTest extends AndroidTestCase {
     }
 
     public void testEcAttestation_TooLargeChallenge() throws Exception {
-        try {
-            testEcAttestation(new byte[129], true /* includeValidityDates */, "secp256r1", 256,
-                    KM_PURPOSE_SIGN);
-            fail("Attestation challenges larger than 128 bytes should be rejected");
-        } catch (ProviderException e) {
-            KeyStoreException cause = (KeyStoreException) e.getCause();
-            assertEquals(KM_ERROR_INVALID_INPUT_LENGTH, cause.getErrorCode());
+        boolean[] devicePropertiesAttestationValues = {true, false};
+        for (boolean devicePropertiesAttestation : devicePropertiesAttestationValues) {
+            try {
+                testEcAttestation(new byte[129], true /* includeValidityDates */, "secp256r1", 256,
+                        KM_PURPOSE_SIGN, devicePropertiesAttestation);
+                fail("Attestation challenges larger than 128 bytes should be rejected");
+            } catch (ProviderException e) {
+                KeyStoreException cause = (KeyStoreException) e.getCause();
+                assertEquals(KM_ERROR_INVALID_INPUT_LENGTH, cause.getErrorCode());
+            }
         }
     }
 
     public void testEcAttestation_NoChallenge() throws Exception {
-        String keystoreAlias = "test_key";
-        Date now = new Date();
-        Date originationEnd = new Date(now.getTime() + ORIGINATION_TIME_OFFSET);
-        Date consumptionEnd = new Date(now.getTime() + CONSUMPTION_TIME_OFFSET);
-        KeyGenParameterSpec spec = new KeyGenParameterSpec.Builder(keystoreAlias, PURPOSE_SIGN)
-                .setAlgorithmParameterSpec(new ECGenParameterSpec("secp256r1"))
-                .setDigests(DIGEST_NONE, DIGEST_SHA256, DIGEST_SHA512)
-                .setAttestationChallenge(null)
-                .setKeyValidityStart(now)
-                .setKeyValidityForOriginationEnd(originationEnd)
-                .setKeyValidityForConsumptionEnd(consumptionEnd)
-                .build();
+        boolean[] devicePropertiesAttestationValues = {true, false};
+        for (boolean devicePropertiesAttestation : devicePropertiesAttestationValues) {
+            String keystoreAlias = "test_key";
+            Date now = new Date();
+            Date originationEnd = new Date(now.getTime() + ORIGINATION_TIME_OFFSET);
+            Date consumptionEnd = new Date(now.getTime() + CONSUMPTION_TIME_OFFSET);
+            KeyGenParameterSpec spec = new KeyGenParameterSpec.Builder(keystoreAlias, PURPOSE_SIGN)
+                    .setAlgorithmParameterSpec(new ECGenParameterSpec("secp256r1"))
+                    .setDigests(DIGEST_NONE, DIGEST_SHA256, DIGEST_SHA512)
+                    .setAttestationChallenge(null)
+                    .setKeyValidityStart(now)
+                    .setKeyValidityForOriginationEnd(originationEnd)
+                    .setKeyValidityForConsumptionEnd(consumptionEnd)
+                    .setDevicePropertiesAttestationIncluded(devicePropertiesAttestation)
+                    .build();
 
-        generateKeyPair(KEY_ALGORITHM_EC, spec);
+            generateKeyPair(KEY_ALGORITHM_EC, spec);
 
-        KeyStore keyStore = KeyStore.getInstance("AndroidKeyStore");
-        keyStore.load(null);
+            KeyStore keyStore = KeyStore.getInstance("AndroidKeyStore");
+            keyStore.load(null);
 
-        try {
-            Certificate certificates[] = keyStore.getCertificateChain(keystoreAlias);
-            assertEquals(1, certificates.length);
+            try {
+                Certificate certificates[] = keyStore.getCertificateChain(keystoreAlias);
+                assertEquals(1, certificates.length);
 
-            X509Certificate attestationCert = (X509Certificate) certificates[0];
-            assertNull(attestationCert.getExtensionValue(Attestation.KEY_DESCRIPTION_OID));
-        } finally {
-            keyStore.deleteEntry(keystoreAlias);
+                X509Certificate attestationCert = (X509Certificate) certificates[0];
+                assertNull(attestationCert.getExtensionValue(Attestation.KEY_DESCRIPTION_OID));
+            } finally {
+                keyStore.deleteEntry(keystoreAlias);
+            }
         }
     }
 
@@ -325,14 +339,19 @@ public class KeyAttestationTest extends AndroidTestCase {
                         SIGNATURE_PADDING_RSA_PSS,
                 },
         };
+        boolean[] devicePropertiesAttestationValues = {true, false};
 
-        for (int keySize : keySizes) {
-            for (byte[] challenge : challenges) {
-                for (int purpose : purposes) {
-                    if (isEncryptionPurpose(purpose)) {
-                        testRsaAttestations(keySize, challenge, purpose, encryptionPaddingModes);
-                    } else {
-                        testRsaAttestations(keySize, challenge, purpose, signaturePaddingModes);
+        for (boolean devicePropertiesAttestation : devicePropertiesAttestationValues) {
+            for (int keySize : keySizes) {
+                for (byte[] challenge : challenges) {
+                    for (int purpose : purposes) {
+                        if (isEncryptionPurpose(purpose)) {
+                            testRsaAttestations(keySize, challenge, purpose, encryptionPaddingModes,
+                                    devicePropertiesAttestation);
+                        } else {
+                            testRsaAttestations(keySize, challenge, purpose, signaturePaddingModes,
+                                    devicePropertiesAttestation);
+                        }
                     }
                 }
             }
@@ -340,46 +359,56 @@ public class KeyAttestationTest extends AndroidTestCase {
     }
 
     public void testRsaAttestation_TooLargeChallenge() throws Exception {
-        try {
-            testRsaAttestation(new byte[129], true /* includeValidityDates */, 512, PURPOSE_SIGN,
-                    null /* paddingModes; may be empty because we'll never test them */);
-            fail("Attestation challenges larger than 128 bytes should be rejected");
-        } catch (ProviderException e) {
-            KeyStoreException cause = (KeyStoreException) e.getCause();
-            assertEquals(KM_ERROR_INVALID_INPUT_LENGTH, cause.getErrorCode());
+        boolean[] devicePropertiesAttestationValues = {true, false};
+        for (boolean devicePropertiesAttestation : devicePropertiesAttestationValues) {
+            try {
+                testRsaAttestation(new byte[129], true /* includeValidityDates */, 512,
+                        PURPOSE_SIGN,
+                        null /* paddingModes; may be empty because we'll never test them */,
+                        devicePropertiesAttestation);
+                fail("Attestation challenges larger than 128 bytes should be rejected");
+            } catch(ProviderException e){
+                KeyStoreException cause = (KeyStoreException) e.getCause();
+                assertEquals(KM_ERROR_INVALID_INPUT_LENGTH, cause.getErrorCode());
+            }
         }
     }
 
     public void testRsaAttestation_NoChallenge() throws Exception {
-        String keystoreAlias = "test_key";
-        Date now = new Date();
-        Date originationEnd = new Date(now.getTime() + ORIGINATION_TIME_OFFSET);
-        Date consumptionEnd = new Date(now.getTime() + CONSUMPTION_TIME_OFFSET);
-        KeyGenParameterSpec spec = new KeyGenParameterSpec.Builder(keystoreAlias, PURPOSE_SIGN)
-                .setDigests(DIGEST_NONE, DIGEST_SHA256, DIGEST_SHA512)
-                .setAttestationChallenge(null)
-                .setKeyValidityStart(now)
-                .setKeyValidityForOriginationEnd(originationEnd)
-                .setKeyValidityForConsumptionEnd(consumptionEnd)
-                .build();
+        boolean[] devicePropertiesAttestationValues = {true, false};
+        for (boolean devicePropertiesAttestation : devicePropertiesAttestationValues) {
+            String keystoreAlias = "test_key";
+            Date now = new Date();
+            Date originationEnd = new Date(now.getTime() + ORIGINATION_TIME_OFFSET);
+            Date consumptionEnd = new Date(now.getTime() + CONSUMPTION_TIME_OFFSET);
+            KeyGenParameterSpec spec = new KeyGenParameterSpec.Builder(keystoreAlias, PURPOSE_SIGN)
+                    .setDigests(DIGEST_NONE, DIGEST_SHA256, DIGEST_SHA512)
+                    .setAttestationChallenge(null)
+                    .setKeyValidityStart(now)
+                    .setKeyValidityForOriginationEnd(originationEnd)
+                    .setKeyValidityForConsumptionEnd(consumptionEnd)
+                    .setDevicePropertiesAttestationIncluded(devicePropertiesAttestation)
+                    .build();
 
-        generateKeyPair(KEY_ALGORITHM_RSA, spec);
+            generateKeyPair(KEY_ALGORITHM_RSA, spec);
 
-        KeyStore keyStore = KeyStore.getInstance("AndroidKeyStore");
-        keyStore.load(null);
+            KeyStore keyStore = KeyStore.getInstance("AndroidKeyStore");
+            keyStore.load(null);
 
-        try {
-            Certificate certificates[] = keyStore.getCertificateChain(keystoreAlias);
-            assertEquals(1, certificates.length);
+            try {
+                Certificate certificates[] = keyStore.getCertificateChain(keystoreAlias);
+                assertEquals(1, certificates.length);
 
-            X509Certificate attestationCert = (X509Certificate) certificates[0];
-            assertNull(attestationCert.getExtensionValue(Attestation.KEY_DESCRIPTION_OID));
-        } finally {
-            keyStore.deleteEntry(keystoreAlias);
+                X509Certificate attestationCert = (X509Certificate) certificates[0];
+                assertNull(attestationCert.getExtensionValue(Attestation.KEY_DESCRIPTION_OID));
+            } finally {
+                keyStore.deleteEntry(keystoreAlias);
+            }
         }
     }
 
     @RestrictedBuildTest
+    @RequiresDevice  // Emulators have no place to store the needed key
     public void testRsaAttestation_DeviceLocked() throws Exception {
         String keystoreAlias = "test_key";
         Date now = new Date();
@@ -417,52 +446,62 @@ public class KeyAttestationTest extends AndroidTestCase {
     }
 
     public void testAesAttestation() throws Exception {
-        String keystoreAlias = "test_key";
-        KeyGenParameterSpec spec = new KeyGenParameterSpec.Builder(keystoreAlias, PURPOSE_ENCRYPT)
-                .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
-                .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
-                .setAttestationChallenge(new byte[0])
-                .build();
-        generateKey(spec, KeyProperties.KEY_ALGORITHM_AES);
+        boolean[] devicePropertiesAttestationValues = {true, false};
+        for (boolean devicePropertiesAttestation : devicePropertiesAttestationValues) {
+            String keystoreAlias = "test_key";
+            KeyGenParameterSpec spec = new KeyGenParameterSpec.Builder(keystoreAlias,
+                    PURPOSE_ENCRYPT)
+                    .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+                    .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+                    .setAttestationChallenge(new byte[0])
+                    .setDevicePropertiesAttestationIncluded(devicePropertiesAttestation)
+                    .build();
+            generateKey(spec, KeyProperties.KEY_ALGORITHM_AES);
 
-        KeyStore keyStore = KeyStore.getInstance("AndroidKeyStore");
-        keyStore.load(null);
-        try {
-            assertNull(keyStore.getCertificateChain(keystoreAlias));
-        } finally {
-            keyStore.deleteEntry(keystoreAlias);
+            KeyStore keyStore = KeyStore.getInstance("AndroidKeyStore");
+            keyStore.load(null);
+            try {
+                assertNull(keyStore.getCertificateChain(keystoreAlias));
+            } finally {
+                keyStore.deleteEntry(keystoreAlias);
+            }
         }
     }
 
     public void testHmacAttestation() throws Exception {
-        String keystoreAlias = "test_key";
-        KeyGenParameterSpec spec = new KeyGenParameterSpec.Builder(keystoreAlias, PURPOSE_SIGN)
-                .build();
+        boolean[] devicePropertiesAttestationValues = {true, false};
+        for (boolean devicePropertiesAttestation : devicePropertiesAttestationValues) {
+            String keystoreAlias = "test_key";
+            KeyGenParameterSpec spec = new KeyGenParameterSpec.Builder(keystoreAlias, PURPOSE_SIGN)
+                    .setDevicePropertiesAttestationIncluded(devicePropertiesAttestation)
+                    .build();
 
-        generateKey(spec, KeyProperties.KEY_ALGORITHM_HMAC_SHA256);
+            generateKey(spec, KeyProperties.KEY_ALGORITHM_HMAC_SHA256);
 
-        KeyStore keyStore = KeyStore.getInstance("AndroidKeyStore");
-        keyStore.load(null);
-        try {
-            assertNull(keyStore.getCertificateChain(keystoreAlias));
-        } finally {
-            keyStore.deleteEntry(keystoreAlias);
+            KeyStore keyStore = KeyStore.getInstance("AndroidKeyStore");
+            keyStore.load(null);
+            try {
+                assertNull(keyStore.getCertificateChain(keystoreAlias));
+            } finally {
+                keyStore.deleteEntry(keystoreAlias);
+            }
         }
     }
 
     private void testRsaAttestations(int keySize, byte[] challenge, int purpose,
-            String[][] paddingModes) throws Exception {
+            String[][] paddingModes, boolean devicePropertiesAttestation) throws Exception {
         for (String[] paddings : paddingModes) {
             try {
                 testRsaAttestation(challenge, true /* includeValidityDates */, keySize, purpose,
-                        paddings);
+                        paddings, devicePropertiesAttestation);
                 testRsaAttestation(challenge, false /* includeValidityDates */, keySize, purpose,
-                        paddings);
+                        paddings, devicePropertiesAttestation);
             } catch (Throwable e) {
                 throw new Exception("Failed on key size " + keySize + " challenge [" +
                         new String(challenge) + "], purposes " +
-                        buildPurposeSet(purpose) + " and paddings " +
-                        ImmutableSet.copyOf(paddings),
+                        buildPurposeSet(purpose) + " paddings " +
+                        ImmutableSet.copyOf(paddings) + " and devicePropertiesAttestation "
+                        + devicePropertiesAttestation,
                         e);
             }
         }
@@ -476,9 +515,14 @@ public class KeyAttestationTest extends AndroidTestCase {
 
     @SuppressWarnings("deprecation")
     private void testRsaAttestation(byte[] challenge, boolean includeValidityDates, int keySize,
-            int purposes, String[] paddingModes) throws Exception {
-        String keystoreAlias = "test_key";
+            int purposes, String[] paddingModes, boolean devicePropertiesAttestation)
+            throws Exception {
+        Log.i(TAG, "RSA key attestation with: challenge " + Arrays.toString(challenge) +
+                " / includeValidityDates " + includeValidityDates + " / keySize " + keySize +
+                " / purposes " + purposes + " / paddingModes " + Arrays.toString(paddingModes) +
+                " / devicePropertiesAttestation " + devicePropertiesAttestation);
 
+        String keystoreAlias = "test_key";
         Date startTime = new Date();
         Date originationEnd = new Date(startTime.getTime() + ORIGINATION_TIME_OFFSET);
         Date consumptionEnd = new Date(startTime.getTime() + CONSUMPTION_TIME_OFFSET);
@@ -486,7 +530,8 @@ public class KeyAttestationTest extends AndroidTestCase {
             new KeyGenParameterSpec.Builder(keystoreAlias, purposes)
                         .setKeySize(keySize)
                         .setDigests(DIGEST_NONE, DIGEST_SHA256, DIGEST_SHA512)
-                        .setAttestationChallenge(challenge);
+                        .setAttestationChallenge(challenge)
+                        .setDevicePropertiesAttestationIncluded(devicePropertiesAttestation);
 
         if (includeValidityDates) {
             builder.setKeyValidityStart(startTime)
@@ -517,7 +562,7 @@ public class KeyAttestationTest extends AndroidTestCase {
             checkRsaKeyDetails(attestation, keySize, purposes, ImmutableSet.copyOf(paddingModes));
             checkKeyUsage(attestationCert, purposes);
             checkKeyIndependentAttestationInfo(challenge, purposes, startTime, includeValidityDates,
-                    attestation);
+                    devicePropertiesAttestation, attestation);
         } finally {
             keyStore.deleteEntry(keystoreAlias);
         }
@@ -538,9 +583,13 @@ public class KeyAttestationTest extends AndroidTestCase {
 
     @SuppressWarnings("deprecation")
     private void testEcAttestation(byte[] challenge, boolean includeValidityDates, String ecCurve,
-            int keySize, int purposes) throws Exception {
-        String keystoreAlias = "test_key";
+            int keySize, int purposes, boolean devicePropertiesAttestation) throws Exception {
+        Log.i(TAG, "EC key attestation with: challenge " + Arrays.toString(challenge) +
+                " / includeValidityDates " + includeValidityDates + " / ecCurve " + ecCurve +
+                " / keySize " + keySize + " / purposes " + purposes +
+                " / devicePropertiesAttestation " + devicePropertiesAttestation);
 
+        String keystoreAlias = "test_key";
         Date startTime = new Date();
         Date originationEnd = new Date(startTime.getTime() + ORIGINATION_TIME_OFFSET);
         Date consumptionEnd = new Date(startTime.getTime() + CONSUMPTION_TIME_OFFSET);
@@ -548,7 +597,8 @@ public class KeyAttestationTest extends AndroidTestCase {
                 purposes)
                         .setAlgorithmParameterSpec(new ECGenParameterSpec(ecCurve))
                         .setDigests(DIGEST_NONE, DIGEST_SHA256, DIGEST_SHA512)
-                        .setAttestationChallenge(challenge);
+                        .setAttestationChallenge(challenge)
+                        .setDevicePropertiesAttestationIncluded(devicePropertiesAttestation);
 
         if (includeValidityDates) {
             builder.setKeyValidityStart(startTime)
@@ -571,7 +621,7 @@ public class KeyAttestationTest extends AndroidTestCase {
             checkEcKeyDetails(attestation, ecCurve, keySize);
             checkKeyUsage(attestationCert, purposes);
             checkKeyIndependentAttestationInfo(challenge, purposes, startTime, includeValidityDates,
-                    attestation);
+                    devicePropertiesAttestation, attestation);
         } finally {
             keyStore.deleteEntry(keystoreAlias);
         }
@@ -596,9 +646,50 @@ public class KeyAttestationTest extends AndroidTestCase {
         }
     }
 
+    private void checkAttestationDeviceProperties(boolean devicePropertiesAttestation,
+            Attestation attestation) {
+        final AuthorizationList keyDetailsList;
+        final AuthorizationList nonKeyDetailsList;
+        if (attestation.getKeymasterSecurityLevel() == KM_SECURITY_LEVEL_TRUSTED_ENVIRONMENT) {
+            keyDetailsList = attestation.getTeeEnforced();
+            nonKeyDetailsList = attestation.getSoftwareEnforced();
+        } else {
+            keyDetailsList = attestation.getSoftwareEnforced();
+            nonKeyDetailsList = attestation.getTeeEnforced();
+        }
+
+        if (devicePropertiesAttestation) {
+            assertEquals(Build.BRAND, keyDetailsList.getBrand());
+            assertEquals(Build.DEVICE, keyDetailsList.getDevice());
+            assertEquals(Build.PRODUCT, keyDetailsList.getProduct());
+            assertEquals(Build.MANUFACTURER, keyDetailsList.getManufacturer());
+            assertEquals(Build.MODEL, keyDetailsList.getModel());
+        } else {
+            assertNull(keyDetailsList.getBrand());
+            assertNull(keyDetailsList.getDevice());
+            assertNull(keyDetailsList.getProduct());
+            assertNull(keyDetailsList.getManufacturer());
+            assertNull(keyDetailsList.getModel());
+        }
+        assertNull(nonKeyDetailsList.getBrand());
+        assertNull(nonKeyDetailsList.getDevice());
+        assertNull(nonKeyDetailsList.getProduct());
+        assertNull(nonKeyDetailsList.getManufacturer());
+        assertNull(nonKeyDetailsList.getModel());
+    }
+
+    private void checkAttestationNoUniqueIds(Attestation attestation) {
+        assertNull(attestation.getTeeEnforced().getImei());
+        assertNull(attestation.getTeeEnforced().getMeid());
+        assertNull(attestation.getTeeEnforced().getSerialNumber());
+        assertNull(attestation.getSoftwareEnforced().getImei());
+        assertNull(attestation.getSoftwareEnforced().getMeid());
+        assertNull(attestation.getSoftwareEnforced().getSerialNumber());
+    }
+
     private void checkKeyIndependentAttestationInfo(byte[] challenge, int purposes, Date startTime,
-            boolean includesValidityDates, Attestation attestation)
-            throws NoSuchAlgorithmException, NameNotFoundException {
+            boolean includesValidityDates, boolean devicePropertiesAttestation,
+            Attestation attestation) throws NoSuchAlgorithmException, NameNotFoundException {
         checkUnexpectedOids(attestation);
         checkAttestationSecurityLevelDependentParams(attestation);
         assertNotNull(attestation.getAttestationChallenge());
@@ -612,6 +703,8 @@ public class KeyAttestationTest extends AndroidTestCase {
         checkFlags(attestation);
         checkOrigin(attestation);
         checkAttestationApplicationId(attestation);
+        checkAttestationDeviceProperties(devicePropertiesAttestation, attestation);
+        checkAttestationNoUniqueIds(attestation);
     }
 
     private void checkUnexpectedOids(Attestation attestation) {

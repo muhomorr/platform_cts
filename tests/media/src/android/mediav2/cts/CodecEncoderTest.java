@@ -16,33 +16,28 @@
 
 package android.mediav2.cts;
 
-import android.graphics.ImageFormat;
-import android.media.Image;
 import android.media.MediaCodec;
 import android.media.MediaCodecInfo;
 import android.media.MediaFormat;
 import android.os.Bundle;
-import android.os.PersistableBundle;
 import android.util.Log;
 
 import androidx.test.filters.LargeTest;
 import androidx.test.filters.SmallTest;
 
-import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
-import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -58,53 +53,27 @@ import static org.junit.Assert.fail;
  * of these tests are not to cover CDD requirements but to test components and their plugins
  */
 @RunWith(Parameterized.class)
-public class CodecEncoderTest extends CodecTestBase {
+public class CodecEncoderTest extends CodecEncoderTestBase {
     private static final String LOG_TAG = CodecEncoderTest.class.getSimpleName();
-    // files are in WorkDir.getMediaDirString();
-    private static final String mInputAudioFile = "bbb_2ch_44kHz_s16le.raw";
-    private static final String mInputVideoFile = "bbb_cif_yuv420p_30fps.yuv";
-    private final int INP_FRM_WIDTH = 352;
-    private final int INP_FRM_HEIGHT = 288;
-
-    private final String mMime;
     private final int[] mBitrates;
     private final int[] mEncParamList1;
     private final int[] mEncParamList2;
-    private final String mInputFile;
     private ArrayList<MediaFormat> mFormats;
-    private byte[] mInputData;
-    private int mNumBytesSubmitted;
-    private long mInputOffsetPts;
     private int mNumSyncFramesReceived;
     private ArrayList<Integer> mSyncFramesPos;
 
-    private int mWidth, mHeight;
-    private int mChannels;
-    private int mSampleRate;
-    private int mFrameRate;
-    private int mMaxBFrames;
-
     public CodecEncoderTest(String mime, int[] bitrates, int[] encoderInfo1, int[] encoderInfo2) {
-        mMime = mime;
-        mFrameRate = 30;
-        if (mime.equals(MediaFormat.MIMETYPE_VIDEO_MPEG4)) mFrameRate = 12;
-        else if (mime.equals(MediaFormat.MIMETYPE_VIDEO_H263)) mFrameRate = 12;
-        mMaxBFrames = 0;
+        super(mime);
         mBitrates = bitrates;
         mEncParamList1 = encoderInfo1;
         mEncParamList2 = encoderInfo2;
         mFormats = new ArrayList<>();
         mSyncFramesPos = new ArrayList<>();
-        mAsyncHandle = new CodecAsyncHandler();
-        mIsAudio = mMime.startsWith("audio/");
-        mInputFile = mIsAudio ? mInputAudioFile : mInputVideoFile;
     }
 
     @Override
     void resetContext(boolean isAsync, boolean signalEOSWithLastFrame) {
         super.resetContext(isAsync, signalEOSWithLastFrame);
-        mNumBytesSubmitted = 0;
-        mInputOffsetPts = 0;
         mNumSyncFramesReceived = 0;
         mSyncFramesPos.clear();
     }
@@ -112,184 +81,16 @@ public class CodecEncoderTest extends CodecTestBase {
     @Override
     void flushCodec() {
         super.flushCodec();
-        if (mIsAudio) {
-            mInputOffsetPts =
-                    (mNumBytesSubmitted + 1024) * 1000000L / (2 * mChannels * mSampleRate);
-        } else {
-            mInputOffsetPts = (mInputCount + 5) * 1000000L / mFrameRate;
-        }
-        mPrevOutputPts = mInputOffsetPts - 1;
-        mNumBytesSubmitted = 0;
         mNumSyncFramesReceived = 0;
         mSyncFramesPos.clear();
     }
 
-    private void setUpSource(String srcFile) throws IOException {
-        String inpPath = mInpPrefix + srcFile;
-        try (FileInputStream fInp = new FileInputStream(inpPath)) {
-            int size = (int) new File(inpPath).length();
-            mInputData = new byte[size];
-            fInp.read(mInputData, 0, size);
-        }
-    }
-
-    void fillImage(Image image) {
-        Assert.assertTrue(image.getFormat() == ImageFormat.YUV_420_888);
-        int imageWidth = image.getWidth();
-        int imageHeight = image.getHeight();
-        Image.Plane[] planes = image.getPlanes();
-        int offset = mNumBytesSubmitted;
-        for (int i = 0; i < planes.length; ++i) {
-            ByteBuffer buf = planes[i].getBuffer();
-            int width = imageWidth;
-            int height = imageHeight;
-            int tileWidth = INP_FRM_WIDTH;
-            int tileHeight = INP_FRM_HEIGHT;
-            int rowStride = planes[i].getRowStride();
-            int pixelStride = planes[i].getPixelStride();
-            if (i != 0) {
-                width = imageWidth / 2;
-                height = imageHeight / 2;
-                tileWidth = INP_FRM_WIDTH / 2;
-                tileHeight = INP_FRM_HEIGHT / 2;
-            }
-            if (pixelStride == 1) {
-                if (width == rowStride && width == tileWidth && height == tileHeight) {
-                    buf.put(mInputData, offset, width * height);
-                } else {
-                    for (int z = 0; z < height; z += tileHeight) {
-                        int rowsToCopy = Math.min(height - z, tileHeight);
-                        for (int y = 0; y < rowsToCopy; y++) {
-                            for (int x = 0; x < width; x += tileWidth) {
-                                int colsToCopy = Math.min(width - x, tileWidth);
-                                buf.position((z + y) * rowStride + x);
-                                buf.put(mInputData, offset + y * tileWidth, colsToCopy);
-                            }
-                        }
-                    }
-                }
-            } else {
-                // do it pixel-by-pixel
-                for (int z = 0; z < height; z += tileHeight) {
-                    int rowsToCopy = Math.min(height - z, tileHeight);
-                    for (int y = 0; y < rowsToCopy; y++) {
-                        int lineOffset = (z + y) * rowStride;
-                        for (int x = 0; x < width; x += tileWidth) {
-                            int colsToCopy = Math.min(width - x, tileWidth);
-                            for (int w = 0; w < colsToCopy; w++) {
-                                buf.position(lineOffset + (x + w) * pixelStride);
-                                buf.put(mInputData[offset + y * tileWidth + w]);
-                            }
-                        }
-                    }
-                }
-            }
-            offset += tileWidth * tileHeight;
-        }
-    }
-
-    void fillByteBuffer(ByteBuffer inputBuffer) {
-        int offset = 0, frmOffset = mNumBytesSubmitted;
-        for (int plane = 0; plane < 3; plane++) {
-            int width = mWidth;
-            int height = mHeight;
-            int tileWidth = INP_FRM_WIDTH;
-            int tileHeight = INP_FRM_HEIGHT;
-            if (plane != 0) {
-                width = mWidth / 2;
-                height = mHeight / 2;
-                tileWidth = INP_FRM_WIDTH / 2;
-                tileHeight = INP_FRM_HEIGHT / 2;
-            }
-            for (int k = 0; k < height; k += tileHeight) {
-                int rowsToCopy = Math.min(height - k, tileHeight);
-                for (int j = 0; j < rowsToCopy; j++) {
-                    for (int i = 0; i < width; i += tileWidth) {
-                        int colsToCopy = Math.min(width - i, tileWidth);
-                        inputBuffer.position(offset + (k + j) * width + i);
-                        inputBuffer.put(mInputData, frmOffset + j * tileWidth, colsToCopy);
-                    }
-                }
-            }
-            offset += width * height;
-            frmOffset += tileWidth * tileHeight;
-        }
-    }
-
-    void enqueueInput(int bufferIndex) {
-        ByteBuffer inputBuffer = mCodec.getInputBuffer(bufferIndex);
-        if (mNumBytesSubmitted >= mInputData.length) {
-            enqueueEOS(bufferIndex);
-        } else {
-            int size;
-            int flags = 0;
-            long pts = mInputOffsetPts;
-            if (mIsAudio) {
-                pts += mNumBytesSubmitted * 1000000L / (2 * mChannels * mSampleRate);
-                size = Math.min(inputBuffer.capacity(), mInputData.length - mNumBytesSubmitted);
-                inputBuffer.put(mInputData, mNumBytesSubmitted, size);
-                if (mNumBytesSubmitted + size >= mInputData.length && mSignalEOSWithLastFrame) {
-                    flags |= MediaCodec.BUFFER_FLAG_END_OF_STREAM;
-                    mSawInputEOS = true;
-                }
-                mNumBytesSubmitted += size;
-            } else {
-                pts += mInputCount * 1000000L / mFrameRate;
-                size = mWidth * mHeight * 3 / 2;
-                int frmSize = INP_FRM_WIDTH * INP_FRM_HEIGHT * 3 / 2;
-                if (mNumBytesSubmitted + frmSize > mInputData.length) {
-                    fail("received partial frame to encode");
-                } else {
-                    Image img = mCodec.getInputImage(bufferIndex);
-                    if (img != null) {
-                        fillImage(img);
-                    } else {
-                        if (mWidth == INP_FRM_WIDTH && mHeight == INP_FRM_HEIGHT) {
-                            inputBuffer.put(mInputData, mNumBytesSubmitted, size);
-                        } else {
-                            fillByteBuffer(inputBuffer);
-                        }
-                    }
-                }
-                if (mNumBytesSubmitted + frmSize >= mInputData.length && mSignalEOSWithLastFrame) {
-                    flags |= MediaCodec.BUFFER_FLAG_END_OF_STREAM;
-                    mSawInputEOS = true;
-                }
-                mNumBytesSubmitted += frmSize;
-            }
-            if (ENABLE_LOGS) {
-                Log.v(LOG_TAG, "input: id: " + bufferIndex + " size: " + size + " pts: " + pts +
-                        " flags: " + flags);
-            }
-            mCodec.queueInputBuffer(bufferIndex, 0, size, pts, flags);
-            mOutputBuff.saveInPTS(pts);
-            mInputCount++;
-        }
-    }
-
     void dequeueOutput(int bufferIndex, MediaCodec.BufferInfo info) {
-        if (ENABLE_LOGS) {
-            Log.v(LOG_TAG, "output: id: " + bufferIndex + " flags: " + info.flags + " size: " +
-                    info.size + " timestamp: " + info.presentationTimeUs);
+        if (info.size > 0 && (info.flags & MediaCodec.BUFFER_FLAG_KEY_FRAME) != 0) {
+            mNumSyncFramesReceived += 1;
+            mSyncFramesPos.add(mOutputCount);
         }
-        if ((info.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
-            mSawOutputEOS = true;
-        }
-        if (info.size > 0) {
-            if (mSaveToMem) {
-                ByteBuffer buf = mCodec.getOutputBuffer(bufferIndex);
-                mOutputBuff.saveToMemory(buf, info);
-            }
-            if ((info.flags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG) == 0) {
-                mOutputBuff.saveOutPTS(info.presentationTimeUs);
-                mOutputCount++;
-            }
-            if ((info.flags & MediaCodec.BUFFER_FLAG_KEY_FRAME) != 0) {
-                mNumSyncFramesReceived += 1;
-                mSyncFramesPos.add(mOutputCount);
-            }
-        }
-        mCodec.releaseOutputBuffer(bufferIndex, false);
+        super.dequeueOutput(bufferIndex, info);
     }
 
     private void encodeToMemory(String file, String encoder, int frameLimit, MediaFormat format)
@@ -338,14 +139,6 @@ public class CodecEncoderTest extends CodecTestBase {
         return colorFormat;
     }
 
-    @Override
-    PersistableBundle validateMetrics(String codec, MediaFormat format) {
-        PersistableBundle metrics = super.validateMetrics(codec, format);
-        assertTrue(metrics.getString(MediaCodec.MetricsConstants.MIME_TYPE).equals(mMime));
-        assertTrue(metrics.getInt(MediaCodec.MetricsConstants.ENCODER) == 1);
-        return metrics;
-    }
-
     private void forceSyncFrame() {
         final Bundle syncFrame = new Bundle();
         syncFrame.putInt(MediaCodec.PARAMETER_KEY_REQUEST_SYNC_FRAME, 0);
@@ -366,19 +159,26 @@ public class CodecEncoderTest extends CodecTestBase {
 
     @Parameterized.Parameters(name = "{index}({0})")
     public static Collection<Object[]> input() {
-        final ArrayList<String> cddRequiredMimeList =
-                new ArrayList<>(Arrays.asList(
-                        MediaFormat.MIMETYPE_AUDIO_FLAC,
-                        MediaFormat.MIMETYPE_AUDIO_OPUS,
-                        MediaFormat.MIMETYPE_AUDIO_AAC,
-                        MediaFormat.MIMETYPE_AUDIO_AMR_NB,
-                        MediaFormat.MIMETYPE_AUDIO_AMR_WB,
-                        MediaFormat.MIMETYPE_VIDEO_MPEG4,
-                        MediaFormat.MIMETYPE_VIDEO_H263,
-                        MediaFormat.MIMETYPE_VIDEO_AVC,
-                        MediaFormat.MIMETYPE_VIDEO_HEVC,
-                        MediaFormat.MIMETYPE_VIDEO_VP8,
-                        MediaFormat.MIMETYPE_VIDEO_VP9));
+        Set<String> list = new HashSet<>();
+        if (hasMicrophone()) {
+            // sec 5.1.1
+            // TODO(b/154423550)
+            // list.add(MediaFormat.MIMETYPE_AUDIO_RAW);
+            list.add(MediaFormat.MIMETYPE_AUDIO_FLAC);
+            list.add(MediaFormat.MIMETYPE_AUDIO_OPUS);
+        }
+        if (isHandheld() || isTv() || isAutomotive()) {
+            // sec 2.2.2, 2.3.2, 2.5.2
+            list.add(MediaFormat.MIMETYPE_AUDIO_AAC);
+            list.add(MediaFormat.MIMETYPE_VIDEO_AVC);
+            list.add(MediaFormat.MIMETYPE_VIDEO_VP8);
+        }
+        if (isHandheld()) {
+            // sec 2.2.2
+            list.add(MediaFormat.MIMETYPE_AUDIO_AMR_NB);
+            list.add(MediaFormat.MIMETYPE_AUDIO_AMR_WB);
+        }
+        ArrayList<String> cddRequiredMimeList = new ArrayList<>(list);
         final List<Object[]> exhaustiveArgsList = Arrays.asList(new Object[][]{
                 // Audio - CodecMime, arrays of bit-rates, sample rates, channel counts
                 {MediaFormat.MIMETYPE_AUDIO_AAC, new int[]{64000, 128000}, new int[]{8000, 11025,

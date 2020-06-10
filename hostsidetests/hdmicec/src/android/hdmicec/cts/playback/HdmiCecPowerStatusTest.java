@@ -18,16 +18,20 @@ package android.hdmicec.cts.playback;
 
 import static com.google.common.truth.Truth.assertThat;
 
-import android.hdmicec.cts.CecDevice;
 import android.hdmicec.cts.CecMessage;
+import android.hdmicec.cts.CecOperand;
 import android.hdmicec.cts.HdmiCecClientWrapper;
 import android.hdmicec.cts.HdmiCecConstants;
+import android.hdmicec.cts.LogicalAddress;
+import android.hdmicec.cts.RequiredPropertyRule;
+import android.hdmicec.cts.RequiredFeatureRule;
 
 import com.android.tradefed.device.ITestDevice;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
 import com.android.tradefed.testtype.junit4.BaseHostJUnit4Test;
 
 import org.junit.Rule;
+import org.junit.rules.RuleChain;
 import org.junit.runner.RunWith;
 import org.junit.Test;
 
@@ -42,9 +46,18 @@ public final class HdmiCecPowerStatusTest extends BaseHostJUnit4Test {
 
     private static final int WAIT_TIME = 5;
 
+    public HdmiCecClientWrapper hdmiCecClient = new HdmiCecClientWrapper(LogicalAddress.PLAYBACK_1);
+
     @Rule
-    public HdmiCecClientWrapper hdmiCecClient =
-        new HdmiCecClientWrapper(CecDevice.PLAYBACK_1, this);
+    public RuleChain ruleChain =
+        RuleChain
+            .outerRule(new RequiredFeatureRule(this, LogicalAddress.HDMI_CEC_FEATURE))
+            .around(new RequiredFeatureRule(this, LogicalAddress.LEANBACK_FEATURE))
+            .around(RequiredPropertyRule.asCsvContainsValue(
+                this,
+                LogicalAddress.HDMI_DEVICE_TYPE_PROPERTY,
+                LogicalAddress.PLAYBACK_1.getDeviceType()))
+            .around(hdmiCecClient);
 
     /**
      * Test 11.2.14-1
@@ -56,10 +69,10 @@ public final class HdmiCecPowerStatusTest extends BaseHostJUnit4Test {
         ITestDevice device = getDevice();
         /* Make sure the device is not booting up/in standby */
         device.waitForBootComplete(HdmiCecConstants.REBOOT_TIMEOUT);
-        hdmiCecClient.sendCecMessage(CecDevice.TV, CecMessage.GIVE_POWER_STATUS);
-        String message = hdmiCecClient.checkExpectedOutput(CecDevice.TV,
-                                                            CecMessage.REPORT_POWER_STATUS);
-        assertThat(hdmiCecClient.getParamsFromMessage(message)).isEqualTo(ON);
+        hdmiCecClient.sendCecMessage(LogicalAddress.TV, CecOperand.GIVE_POWER_STATUS);
+        String message = hdmiCecClient.checkExpectedOutput(LogicalAddress.TV,
+            CecOperand.REPORT_POWER_STATUS);
+        assertThat(CecMessage.getParams(message)).isEqualTo(ON);
     }
 
     /**
@@ -73,12 +86,14 @@ public final class HdmiCecPowerStatusTest extends BaseHostJUnit4Test {
         try {
             /* Make sure the device is not booting up/in standby */
             device.waitForBootComplete(HdmiCecConstants.REBOOT_TIMEOUT);
+            /* Home Key to prevent device from going to deep suspend state */
+            device.executeShellCommand("input keyevent KEYCODE_HOME");
             device.executeShellCommand("input keyevent KEYCODE_SLEEP");
             TimeUnit.SECONDS.sleep(WAIT_TIME);
-            hdmiCecClient.sendCecMessage(CecDevice.TV, CecMessage.GIVE_POWER_STATUS);
-            String message = hdmiCecClient.checkExpectedOutput(CecDevice.TV,
-                                                              CecMessage.REPORT_POWER_STATUS);
-            assertThat(hdmiCecClient.getParamsFromMessage(message)).isEqualTo(OFF);
+            hdmiCecClient.sendCecMessage(LogicalAddress.TV, CecOperand.GIVE_POWER_STATUS);
+            String message = hdmiCecClient.checkExpectedOutput(LogicalAddress.TV,
+                CecOperand.REPORT_POWER_STATUS);
+            assertThat(CecMessage.getParams(message)).isEqualTo(OFF);
         } finally {
             /* Wake up the device */
             device.executeShellCommand("input keyevent KEYCODE_WAKEUP");

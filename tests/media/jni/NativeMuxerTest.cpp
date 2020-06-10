@@ -32,7 +32,7 @@
 #include <map>
 #include <vector>
 
-#include "NativeMediaConstants.h"
+#include "NativeMediaCommon.h"
 
 /**
  * MuxerNativeTestHelper breaks a media file to elements that a muxer can use to rebuild its clone.
@@ -66,14 +66,14 @@ class MuxerNativeTestHelper {
 
     bool combineMedias(AMediaMuxer* muxer, MuxerNativeTestHelper* that, const int* repeater);
 
-    bool equals(MuxerNativeTestHelper* that);
+    bool isSubsetOf(MuxerNativeTestHelper* that);
 
     void offsetTimeStamp(int trackID, long tsOffset, int sampleOffset);
 
   private:
     void splitMediaToMuxerParameters();
 
-    static const int STTS_TOLERANCE = 100;
+    static const int STTS_TOLERANCE_US = 100;
     const char* mSrcPath;
     const char* mMime;
     int mTrackCount;
@@ -263,7 +263,7 @@ bool MuxerNativeTestHelper::combineMedias(AMediaMuxer* muxer, MuxerNativeTestHel
 
 // returns true if 'this' stream is a subset of 'o'. That is all tracks in current media
 // stream are present in ref media stream
-bool MuxerNativeTestHelper::equals(MuxerNativeTestHelper* that) {
+bool MuxerNativeTestHelper::isSubsetOf(MuxerNativeTestHelper* that) {
     if (this == that) return true;
     if (that == nullptr) return false;
 
@@ -277,28 +277,30 @@ bool MuxerNativeTestHelper::equals(MuxerNativeTestHelper* that) {
             const char* thatMime = nullptr;
             AMediaFormat_getString(thatFormat, AMEDIAFORMAT_KEY_MIME, &thatMime);
             if (thisMime != nullptr && thatMime != nullptr && !strcmp(thisMime, thatMime)) {
+                if (!isCSDIdentical(thisFormat, thatFormat)) continue;
                 if (mBufferInfo[i].size() == that->mBufferInfo[j].size()) {
-                    int flagsDiff = 0, sizeDiff = 0, tsDiff = 0;
-                    for (int k = 0; k < mBufferInfo[i].size(); k++) {
+                    int tolerance =
+                            !strncmp(thisMime, "video/", strlen("video/")) ? STTS_TOLERANCE_US : 0;
+                    tolerance += 1; // rounding error
+                    int k = 0;
+                    for (; k < mBufferInfo[i].size(); k++) {
                         AMediaCodecBufferInfo* thisInfo = mBufferInfo[i][k];
                         AMediaCodecBufferInfo* thatInfo = that->mBufferInfo[j][k];
                         if (thisInfo->flags != thatInfo->flags) {
-                            flagsDiff++;
+                            break;
                         }
                         if (thisInfo->size != thatInfo->size) {
-                            sizeDiff++;
+                            break;
+                        } else if (memcmp(mBuffer + thisInfo->offset,
+                                          that->mBuffer + thatInfo->offset, thisInfo->size)) {
+                            break;
                         }
                         if (abs(thisInfo->presentationTimeUs - thatInfo->presentationTimeUs) >
-                            STTS_TOLERANCE) {
-                            tsDiff++;
+                            tolerance) {
+                            break;
                         }
                     }
-                    if (flagsDiff == 0 && sizeDiff == 0 && tsDiff == 0)
-                        break;
-                    else {
-                        ALOGV("For mime %s, Total Samples %d, flagsDiff %d, sizeDiff %d, tsDiff %d",
-                              thisMime, (int)mBufferInfo[i].size(), flagsDiff, sizeDiff, tsDiff);
-                    }
+                    if (k == mBufferInfo[i].size()) break;
                 }
             }
         }
@@ -519,7 +521,7 @@ static jboolean nativeTestMultiTrack(JNIEnv* env, jobject, jint jformat, jstring
             fclose(rfp);
             if (muxStatus) {
                 auto* refInfo = new MuxerNativeTestHelper(crefPath);
-                if (!mediaInfoA->equals(refInfo) || !mediaInfoB->equals(refInfo)) {
+                if (!mediaInfoA->isSubsetOf(refInfo) || !mediaInfoB->isSubsetOf(refInfo)) {
                     isPass = false;
                     ALOGE("testMultiTrack: inputs: %s %s, fmt: %d, error ! muxing src A and src B "
                           "failed", csrcPathA, csrcPathB, jformat);
@@ -535,7 +537,7 @@ static jboolean nativeTestMultiTrack(JNIEnv* env, jobject, jint jformat, jstring
                             fclose(ofp);
                             if (status) {
                                 auto* dstInfo = new MuxerNativeTestHelper(cdstPath);
-                                if (!dstInfo->equals(refInfo)) {
+                                if (!dstInfo->isSubsetOf(refInfo)) {
                                     isPass = false;
                                     ALOGE("testMultiTrack: inputs: %s %s, fmt: %d, error ! muxing "
                                           "src A: %d, src B: %d failed", csrcPathA, csrcPathB,
@@ -609,7 +611,7 @@ static jboolean nativeTestOffsetPts(JNIEnv* env, jobject, jint format, jstring j
                 AMediaMuxer_delete(muxer);
                 fclose(ofp);
                 auto* outInfo = new MuxerNativeTestHelper(cdstPath);
-                isPass = mediaInfo->equals(outInfo);
+                isPass = mediaInfo->isSubsetOf(outInfo);
                 if (!isPass) {
                     ALOGE("Validation failed after adding timestamp offset to track %d", trackID);
                 }
@@ -663,7 +665,7 @@ static jboolean nativeTestSimpleMux(JNIEnv* env, jobject, jstring jsrcPath, jstr
                 fclose(ofp);
                 if (muxStatus) {
                     auto* outInfo = new MuxerNativeTestHelper(cdstPath, cmime);
-                    result = mediaInfo->equals(outInfo);
+                    result = mediaInfo->isSubsetOf(outInfo);
                     delete outInfo;
                 }
                 if ((muxStatus && !result) ||
