@@ -18,9 +18,7 @@ package android.mediav2.cts;
 
 import android.media.MediaCodec;
 import android.media.MediaCodecInfo;
-import android.media.MediaCodecList;
 import android.media.MediaFormat;
-import android.os.Build;
 import android.util.Log;
 import android.util.Pair;
 
@@ -29,7 +27,6 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -39,46 +36,36 @@ import java.util.List;
 import static android.media.MediaCodecInfo.CodecProfileLevel.*;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 /**
  * Validate profile and level configuration for listed encoder components
  */
 @RunWith(Parameterized.class)
-public class EncoderProfileLevelTest extends CodecTestBase {
+public class EncoderProfileLevelTest extends CodecEncoderTestBase {
     private static final String LOG_TAG = EncoderProfileLevelTest.class.getSimpleName();
     private static final HashMap<String, int[]> mProfileMap = new HashMap<>();
     private static final HashMap<String, Pair<int[], Integer>> mProfileLevelCdd = new HashMap<>();
 
-    private final String mMime;
     private MediaFormat mConfigFormat;
-    private int mNumBytesSubmitted;
-
-    private int mHeight;
-    private int mWidth;
-    private int mChannels;
-    private int mRate;
 
     public EncoderProfileLevelTest(String mime, int bitrate, int encoderInfo1, int encoderInfo2,
             int frameRate) {
-        mMime = mime;
-        mAsyncHandle = new CodecAsyncHandler();
+        super(mime);
         mConfigFormat = new MediaFormat();
-        mIsAudio = mMime.startsWith("audio/");
         mConfigFormat.setString(MediaFormat.KEY_MIME, mMime);
         mConfigFormat.setInteger(MediaFormat.KEY_BIT_RATE, bitrate);
         if (mIsAudio) {
-            mRate = encoderInfo1;
+            mSampleRate = encoderInfo1;
             mChannels = encoderInfo2;
-            mConfigFormat.setInteger(MediaFormat.KEY_SAMPLE_RATE, mRate);
+            mConfigFormat.setInteger(MediaFormat.KEY_SAMPLE_RATE, mSampleRate);
             mConfigFormat.setInteger(MediaFormat.KEY_CHANNEL_COUNT, mChannels);
         } else {
             mWidth = encoderInfo1;
             mHeight = encoderInfo2;
-            mRate = frameRate;
+            mFrameRate = frameRate;
             mConfigFormat.setInteger(MediaFormat.KEY_WIDTH, mWidth);
             mConfigFormat.setInteger(MediaFormat.KEY_HEIGHT, mHeight);
-            mConfigFormat.setInteger(MediaFormat.KEY_FRAME_RATE, mRate);
+            mConfigFormat.setInteger(MediaFormat.KEY_FRAME_RATE, mFrameRate);
             mConfigFormat.setFloat(MediaFormat.KEY_I_FRAME_INTERVAL, 1.0f);
             mConfigFormat.setInteger(MediaFormat.KEY_COLOR_FORMAT,
                     MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Flexible);
@@ -87,10 +74,13 @@ public class EncoderProfileLevelTest extends CodecTestBase {
 
     @Parameterized.Parameters(name = "{index}({0})")
     public static Collection<Object[]> input() {
-        final List<String> cddEncodersList =
-                Arrays.asList(MediaFormat.MIMETYPE_VIDEO_H263, MediaFormat.MIMETYPE_VIDEO_AVC,
-                        MediaFormat.MIMETYPE_VIDEO_HEVC, MediaFormat.MIMETYPE_VIDEO_VP8,
-                        MediaFormat.MIMETYPE_VIDEO_VP9);
+        ArrayList<String> cddRequiredMimeList = new ArrayList<>();
+        if (isHandheld() || isTv() || isAutomotive()) {
+            // sec 2.2.2, 2.3.2, 2.5.2
+            cddRequiredMimeList.add(MediaFormat.MIMETYPE_AUDIO_AAC);
+            cddRequiredMimeList.add(MediaFormat.MIMETYPE_VIDEO_AVC);
+            cddRequiredMimeList.add(MediaFormat.MIMETYPE_VIDEO_VP8);
+        }
         final List<Object[]> exhaustiveArgsList = Arrays.asList(new Object[][]{
                 // Audio - CodecMime, bit-rate, sample rate, channel count
                 {MediaFormat.MIMETYPE_AUDIO_AAC, 64000, 8000, 1, -1},
@@ -201,41 +191,7 @@ public class EncoderProfileLevelTest extends CodecTestBase {
                 {MediaFormat.MIMETYPE_VIDEO_VP8, 512000, 176, 144, 20},
                 {MediaFormat.MIMETYPE_VIDEO_VP8, 512000, 480, 360, 20},
         });
-
-        ArrayList<String> mimes = new ArrayList<>();
-        MediaCodecList codecList = new MediaCodecList(MediaCodecList.REGULAR_CODECS);
-        MediaCodecInfo[] codecInfos = codecList.getCodecInfos();
-        for (MediaCodecInfo codecInfo : codecInfos) {
-            if (!codecInfo.isEncoder()) continue;
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && codecInfo.isAlias()) continue;
-            String[] types = codecInfo.getSupportedTypes();
-            for (String type : types) {
-                if (!mimes.contains(type)) mimes.add(type);
-            }
-        }
-        for (String mime : cddEncodersList) {
-            if (!mimes.contains(mime)) {
-                fail("media codec encoder list doesn't contain " + mime +
-                        " as required by cdd");
-            }
-        }
-        final List<Object[]> argsList = new ArrayList<>();
-        for (String mime : mimes) {
-            boolean miss = true;
-            for (int i = 0; i < exhaustiveArgsList.size(); i++) {
-                if (mime.equals(exhaustiveArgsList.get(i)[0])) {
-                    argsList.add(exhaustiveArgsList.get(i));
-                    miss = false;
-                }
-            }
-            if (miss) {
-                if (cddEncodersList.contains(mime)) {
-                    fail("no test vectors available for " + mime);
-                }
-                Log.w(LOG_TAG, "no test vectors available for " + mime);
-            }
-        }
-        return argsList;
+        return prepareParamList(cddRequiredMimeList, exhaustiveArgsList, true);
     }
 
     static {
@@ -650,45 +606,6 @@ public class EncoderProfileLevelTest extends CodecTestBase {
     }
 
     @Override
-    void enqueueInput(int bufferIndex) {
-        ByteBuffer inputBuffer = mCodec.getInputBuffer(bufferIndex);
-        int size;
-        int flags = 0;
-        long pts;
-        if (mIsAudio) {
-            pts = mNumBytesSubmitted * 1000000L / (2 * mChannels * mRate);
-            size = inputBuffer.capacity();
-            byte[] data = new byte[size];
-            inputBuffer.put(data);
-            mNumBytesSubmitted += size;
-        } else {
-            pts = mInputCount * 1000000L / mRate;
-            size = mWidth * mHeight * 3 / 2;
-            byte[] data = new byte[size];
-            inputBuffer.put(data);
-            mNumBytesSubmitted += size;
-        }
-        if (ENABLE_LOGS) {
-            Log.v(LOG_TAG, "input: id: " + bufferIndex + " size: " + size + " pts: " + pts +
-                    " flags: " + flags);
-        }
-        mCodec.queueInputBuffer(bufferIndex, 0, size, pts, flags);
-        mInputCount++;
-    }
-
-    @Override
-    void dequeueOutput(int bufferIndex, MediaCodec.BufferInfo info) {
-        if (ENABLE_LOGS) {
-            Log.v(LOG_TAG, "output: id: " + bufferIndex + " flags: " + info.flags + " size: " +
-                    info.size + " timestamp: " + info.presentationTimeUs);
-        }
-        if ((info.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
-            mSawOutputEOS = true;
-        }
-        mCodec.releaseOutputBuffer(bufferIndex, false);
-    }
-
-    @Override
     boolean isFormatSimilar(MediaFormat inpFormat, MediaFormat outFormat) {
         if (!super.isFormatSimilar(inpFormat, outFormat)) {
             Log.e(LOG_TAG, "Basic channel-rate/resolution comparisons failed");
@@ -775,6 +692,7 @@ public class EncoderProfileLevelTest extends CodecTestBase {
         boolean[] boolStates = {true, false};
         MediaFormat format = mConfigFormat;
         mOutputBuff = new OutputManager();
+        setUpSource(mInputFile);
         int supportedCddCount = listOfEncoders.size() * (cddSupportedMime ? profileCdd.length : 1);
         for (String encoder : listOfEncoders) {
             mCodec = MediaCodec.createByCodecName(encoder);

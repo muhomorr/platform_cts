@@ -1672,6 +1672,45 @@ public class ImsServiceTest {
         overrideCarrierConfig(null);
     }
 
+    @Test
+    public void testProvisioningManagerRcsProvisioningCaps() throws Exception {
+        if (!ImsUtils.shouldTestImsService()) {
+            return;
+        }
+
+        triggerFrameworkConnectToCarrierImsService();
+
+        PersistableBundle bundle = new PersistableBundle();
+        bundle.putBoolean(CarrierConfigManager.KEY_USE_RCS_PRESENCE_BOOL, true);
+        bundle.putBoolean(CarrierConfigManager.KEY_CARRIER_RCS_PROVISIONING_REQUIRED_BOOL, true);
+        overrideCarrierConfig(bundle);
+
+        ProvisioningManager provisioningManager =
+                ProvisioningManager.createForSubscriptionId(sTestSub);
+
+        final UiAutomation automan = InstrumentationRegistry.getInstrumentation().getUiAutomation();
+        try {
+            automan.adoptShellPermissionIdentity();
+            boolean provisioningStatus = provisioningManager.getRcsProvisioningStatusForCapability(
+                    RCS_CAP_PRESENCE);
+            provisioningManager.setRcsProvisioningStatusForCapability(RCS_CAP_PRESENCE,
+                    !provisioningStatus);
+            // Make sure the change in provisioning status is correctly returned.
+            assertEquals(!provisioningStatus,
+                    provisioningManager.getRcsProvisioningStatusForCapability(RCS_CAP_PRESENCE));
+            // TODO: Enhance test to make sure the provisioning change is also sent to the
+            // ImsService
+
+            // set back to current status
+            provisioningManager.setRcsProvisioningStatusForCapability(RCS_CAP_PRESENCE,
+                    provisioningStatus);
+        } finally {
+            automan.dropShellPermissionIdentity();
+        }
+
+        overrideCarrierConfig(null);
+    }
+
     private void verifyIntKey(ProvisioningManager pm,
             LinkedBlockingQueue<Pair<Integer, Integer>> intQueue, int key, int value)
             throws Exception {
@@ -1700,6 +1739,10 @@ public class ImsServiceTest {
                 TestImsService.LATCH_CREATE_MMTEL));
         assertTrue(sServiceConnector.getCarrierService().waitForLatchCountdown(
                 TestImsService.LATCH_MMTEL_READY));
+        int serviceSlot = sServiceConnector.getCarrierService().getMmTelFeature().getSlotIndex();
+        assertEquals("The slot specified for the test (" + sTestSlot + ") does not match the "
+                        + "assigned slot (" + serviceSlot + "+ for the associated MmTelFeature",
+                sTestSlot, serviceSlot);
         // Wait until ImsSmsDispatcher connects and calls onReady.
         assertTrue(sServiceConnector.getCarrierService().getMmTelFeature().getSmsImplementation()
                 .waitForOnReadyLatch());
@@ -1729,6 +1772,10 @@ public class ImsServiceTest {
         // Make sure the RcsFeature was created in the test service.
         assertNotNull("Device ImsService created, but TestDeviceImsService#createRcsFeature was not"
                 + "called!", sServiceConnector.getCarrierService().getRcsFeature());
+        int serviceSlot = sServiceConnector.getCarrierService().getRcsFeature().getSlotIndex();
+        assertEquals("The slot specified for the test (" + sTestSlot + ") does not match the "
+                        + "assigned slot (" + serviceSlot + "+ for the associated RcsFeature",
+                sTestSlot, serviceSlot);
     }
 
     private void triggerFrameworkConnectToCarrierImsService() throws Exception {
@@ -1744,6 +1791,33 @@ public class ImsServiceTest {
                 .waitForLatchCountdown(TestImsService.LATCH_MMTEL_READY));
         assertNotNull("ImsService created, but ImsService#createMmTelFeature was not called!",
                 sServiceConnector.getCarrierService().getMmTelFeature());
+        int serviceSlot = sServiceConnector.getCarrierService().getMmTelFeature().getSlotIndex();
+        assertEquals("The slot specified for the test (" + sTestSlot + ") does not match the "
+                        + "assigned slot (" + serviceSlot + "+ for the associated MmTelFeature",
+                sTestSlot, serviceSlot);
+    }
+
+    // Waiting for ImsRcsManager to become public before implementing RegistrationManager,
+    // Duplicate these methods for now.
+    private void verifyRegistrationState(ImsRcsManager regManager, int expectedState)
+            throws Exception {
+        LinkedBlockingQueue<Integer> mQueue = new LinkedBlockingQueue<>();
+        assertTrue(ImsUtils.retryUntilTrue(() -> {
+            ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(regManager,
+                    (m) -> m.getRegistrationState(getContext().getMainExecutor(), mQueue::offer));
+            return waitForIntResult(mQueue) == expectedState;
+        }));
+    }
+
+    // Waiting for ImsRcsManager to become public before implementing RegistrationManager,
+    // Duplicate these methods for now.
+    private void verifyRegistrationTransportType(ImsRcsManager regManager,
+            int expectedTransportType) throws Exception {
+        LinkedBlockingQueue<Integer> mQueue = new LinkedBlockingQueue<>();
+        ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(regManager,
+                (m) -> m.getRegistrationTransportType(getContext().getMainExecutor(),
+                        mQueue::offer));
+        assertEquals(expectedTransportType, waitForIntResult(mQueue));
     }
 
     private void verifyRegistrationState(RegistrationManager regManager, int expectedState)

@@ -39,6 +39,7 @@ java_defaults {
 
     static_libs: [
         "FrameworksNetCommonTests",
+        "TestNetworkStackLib",
         "core-tests-support",
         "compatibility-device-util-axt",
         "cts-net-utils",
@@ -47,6 +48,7 @@ java_defaults {
         "mockwebserver",
         "junit",
         "junit-params",
+        "libnanohttpd",
         "truth-prebuilt",
     ],
 
@@ -76,9 +78,11 @@ android_test {
 android_test {
     name: "CtsNetTestCasesLatestSdk",
     defaults: ["CtsNetTestCasesDefaults"],
+    jni_uses_sdk_apis: true,
     min_sdk_version: "29",
     target_sdk_version: "29",
     test_suites: [
+        "device-tests",
         "mts",
     ],
     test_config_template: "AndroidTestTemplate.xml",
