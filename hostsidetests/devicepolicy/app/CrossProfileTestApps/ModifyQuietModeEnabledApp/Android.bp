@@ -12,18 +12,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-java_test_host {
-    name: "CtsPackageManagerMultiUserHostTestCases",
+android_test_helper_app {
+    name: "CtsModifyQuietModeEnabledApp",
     defaults: ["cts_defaults"],
     srcs: ["src/**/*.java"],
+    libs: ["junit"],
+    static_libs: [
+        "androidx.legacy_legacy-support-v4",
+        "ctstestrunner-axt",
+        "compatibility-device-util-axt",
+        "androidx.test.rules",
+        "truth-prebuilt",
+        "ub-uiautomator",
+    ],
+    min_sdk_version: "29",
     // tag this module as a cts test artifact
     test_suites: [
         "cts",
+        "vts10",
         "general-tests",
-    ],
-    libs: [
-        "cts-tradefed",
-        "tradefed",
-        "compatibility-host-util",
     ],
 }
