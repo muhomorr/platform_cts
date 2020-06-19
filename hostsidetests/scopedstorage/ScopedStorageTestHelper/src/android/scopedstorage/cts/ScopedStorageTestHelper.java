@@ -18,6 +18,7 @@ package android.scopedstorage.cts;
 import static android.scopedstorage.cts.lib.RedactionTestHelper.EXIF_METADATA_QUERY;
 import static android.scopedstorage.cts.lib.RedactionTestHelper.getExifMetadata;
 import static android.scopedstorage.cts.lib.TestUtils.CAN_READ_WRITE_QUERY;
+import static android.scopedstorage.cts.lib.TestUtils.CREATE_IMAGE_ENTRY_QUERY;
 import static android.scopedstorage.cts.lib.TestUtils.CREATE_FILE_QUERY;
 import static android.scopedstorage.cts.lib.TestUtils.DELETE_FILE_QUERY;
 import static android.scopedstorage.cts.lib.TestUtils.INTENT_EXCEPTION;
@@ -26,11 +27,16 @@ import static android.scopedstorage.cts.lib.TestUtils.OPEN_FILE_FOR_READ_QUERY;
 import static android.scopedstorage.cts.lib.TestUtils.OPEN_FILE_FOR_WRITE_QUERY;
 import static android.scopedstorage.cts.lib.TestUtils.QUERY_TYPE;
 import static android.scopedstorage.cts.lib.TestUtils.READDIR_QUERY;
+import static android.scopedstorage.cts.lib.TestUtils.SETATTR_QUERY;
 import static android.scopedstorage.cts.lib.TestUtils.canOpen;
+import static android.scopedstorage.cts.lib.TestUtils.getMediaContentUri;
 
 import android.app.Activity;
 import android.content.Intent;
+import android.content.ContentResolver;
+import android.content.ContentValues;
 import android.os.Bundle;
+import android.provider.MediaStore;
 
 import androidx.annotation.Nullable;
 
@@ -73,10 +79,14 @@ public class ScopedStorageTestHelper extends Activity {
                 case DELETE_FILE_QUERY:
                 case OPEN_FILE_FOR_READ_QUERY:
                 case OPEN_FILE_FOR_WRITE_QUERY:
+                case SETATTR_QUERY:
                     returnIntent = accessFile(queryType);
                     break;
                 case EXIF_METADATA_QUERY:
                     returnIntent = sendMetadata(queryType);
+                    break;
+                case CREATE_IMAGE_ENTRY_QUERY:
+                    returnIntent = createImageEntry(queryType);
                     break;
                 case "null":
                 default:
@@ -125,6 +135,28 @@ public class ScopedStorageTestHelper extends Activity {
         }
     }
 
+    private Intent createImageEntry(String queryType) throws Exception {
+        if (getIntent().hasExtra(INTENT_EXTRA_PATH)) {
+            final String path = getIntent().getStringExtra(INTENT_EXTRA_PATH);
+            final String relativePath = path.substring(0, path.lastIndexOf('/'));
+            final String name = path.substring(path.lastIndexOf('/') + 1);
+
+            ContentValues values = new ContentValues();
+            values.put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg");
+            values.put(MediaStore.Images.Media.RELATIVE_PATH, relativePath);
+            values.put(MediaStore.Images.Media.DISPLAY_NAME, name);
+
+            getContentResolver().insert(getMediaContentUri(), values);
+
+            final Intent intent = new Intent(queryType);
+            intent.putExtra(queryType, true);
+            return intent;
+        } else {
+            throw new IllegalStateException(
+                    CREATE_IMAGE_ENTRY_QUERY + ": File path not set from launcher app");
+        }
+    }
+
     private Intent accessFile(String queryType) throws IOException {
         if (getIntent().hasExtra(INTENT_EXTRA_PATH)) {
             final String filePath = getIntent().getStringExtra(INTENT_EXTRA_PATH);
@@ -141,6 +173,9 @@ public class ScopedStorageTestHelper extends Activity {
                 returnStatus = canOpen(file, false /* forWrite */);
             } else if (queryType.equals(OPEN_FILE_FOR_WRITE_QUERY)) {
                 returnStatus = canOpen(file, true /* forWrite */);
+            } else if (queryType.equals(SETATTR_QUERY)) {
+                int newTimeMillis = 12345000;
+                returnStatus = file.setLastModified(newTimeMillis);
             }
             final Intent intent = new Intent(queryType);
             intent.putExtra(queryType, returnStatus);

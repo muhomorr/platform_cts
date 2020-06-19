@@ -26,6 +26,7 @@ import static android.scopedstorage.cts.lib.TestUtils.assertCantRenameFile;
 import static android.scopedstorage.cts.lib.TestUtils.assertDirectoryContains;
 import static android.scopedstorage.cts.lib.TestUtils.assertFileContent;
 import static android.scopedstorage.cts.lib.TestUtils.createFileAs;
+import static android.scopedstorage.cts.lib.TestUtils.createImageEntryAs;
 import static android.scopedstorage.cts.lib.TestUtils.deleteFileAsNoThrow;
 import static android.scopedstorage.cts.lib.TestUtils.deleteWithMediaProviderNoThrow;
 import static android.scopedstorage.cts.lib.TestUtils.executeShellCommand;
@@ -34,10 +35,12 @@ import static android.scopedstorage.cts.lib.TestUtils.getFileOwnerPackageFromDat
 import static android.scopedstorage.cts.lib.TestUtils.getFileRowIdFromDatabase;
 import static android.scopedstorage.cts.lib.TestUtils.installApp;
 import static android.scopedstorage.cts.lib.TestUtils.listAs;
+import static android.scopedstorage.cts.lib.TestUtils.openFileAs;
 import static android.scopedstorage.cts.lib.TestUtils.pollForExternalStorageState;
 import static android.scopedstorage.cts.lib.TestUtils.pollForPermission;
 import static android.scopedstorage.cts.lib.TestUtils.setupDefaultDirectories;
 import static android.scopedstorage.cts.lib.TestUtils.uninstallApp;
+import static android.scopedstorage.cts.lib.TestUtils.uninstallAppNoThrow;
 
 import static com.google.common.truth.Truth.assertThat;
 
@@ -93,9 +96,16 @@ public class LegacyStorageTest {
     private static final String TAG = "LegacyFileAccessTest";
     static final String THIS_PACKAGE_NAME = InstrumentationRegistry.getContext().getPackageName();
 
-    static final String IMAGE_FILE_NAME = "LegacyStorageTest_file.jpg";
-    static final String VIDEO_FILE_NAME = "LegacyStorageTest_file.mp4";
-    static final String NONMEDIA_FILE_NAME = "LegacyStorageTest_file.pdf";
+    /**
+     * To help avoid flaky tests, give ourselves a unique nonce to be used for
+     * all filesystem paths, so that we don't risk conflicting with previous
+     * test runs.
+     */
+    static final String NONCE = String.valueOf(System.nanoTime());
+
+    static final String IMAGE_FILE_NAME = "LegacyStorageTest_file_" + NONCE + ".jpg";
+    static final String VIDEO_FILE_NAME = "LegacyStorageTest_file_" + NONCE + ".mp4";
+    static final String NONMEDIA_FILE_NAME = "LegacyStorageTest_file_" + NONCE + ".pdf";
 
     private static final TestApp TEST_APP_A = new TestApp("TestAppA",
             "android.scopedstorage.cts.testapp.A", 1, false, "CtsScopedStorageTestAppA.apk");
@@ -664,6 +674,30 @@ public class LegacyStorageTest {
         assertThat(obbDir.delete()).isFalse();
         assertThat(androidDir.delete()).isFalse();
         assertThat(canDeleteDir.delete()).isTrue();
+    }
+
+    @Test
+    public void testLegacyAppUpdatingOwnershipOfExistingEntry() throws Exception {
+        pollForPermission(Manifest.permission.READ_EXTERNAL_STORAGE, /*granted*/ true);
+        pollForPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE, /*granted*/ true);
+
+        final File fullPath = new File(TestUtils.getDcimDir(),
+                "OwnershipChange_" + IMAGE_FILE_NAME);
+        final String relativePath = "DCIM/OwnershipChange_" + IMAGE_FILE_NAME;
+        try {
+            installApp(TEST_APP_A, false);
+            createImageEntryAs(TEST_APP_A, relativePath);
+            assertThat(fullPath.createNewFile()).isTrue();
+
+            // We have transferred ownership away from TEST_APP_A so reads / writes
+            // should no longer work.
+            assertThat(openFileAs(TEST_APP_A, fullPath, false /* for write */)).isFalse();
+            assertThat(openFileAs(TEST_APP_A, fullPath, false /* for read */)).isFalse();
+        } finally {
+            deleteFileAsNoThrow(TEST_APP_A, fullPath.getAbsolutePath());
+            uninstallAppNoThrow(TEST_APP_A);
+            fullPath.delete();
+        }
     }
 
     private static void assertCanCreateFile(File file) throws IOException {

@@ -108,6 +108,11 @@ public class ScopedStorageHostTest extends BaseHostJUnit4Test {
     }
 
     @Test
+    public void testDeleteAlreadyUnlinkedFile() throws Exception {
+        runDeviceTest("testDeleteAlreadyUnlinkedFile");
+
+    }
+    @Test
     public void testOpendirRestrictions() throws Exception {
         runDeviceTest("testOpendirRestrictions");
     }
@@ -359,6 +364,11 @@ public class ScopedStorageHostTest extends BaseHostJUnit4Test {
         } finally {
             revokePermissions("android.permission.READ_EXTERNAL_STORAGE");
         }
+    }
+
+    @Test
+    public void testCantSetAttrOtherAppsFile() throws Exception {
+        runDeviceTest("testCantSetAttrOtherAppsFile");
     }
 
     @Test
