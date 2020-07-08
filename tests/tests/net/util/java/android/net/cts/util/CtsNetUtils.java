@@ -20,6 +20,7 @@ import static android.Manifest.permission.NETWORK_SETTINGS;
 import static android.net.ConnectivityManager.PRIVATE_DNS_MODE_OPPORTUNISTIC;
 import static android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET;
 import static android.net.NetworkCapabilities.TRANSPORT_CELLULAR;
+import static android.net.NetworkCapabilities.TRANSPORT_TEST;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -27,11 +28,13 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import android.annotation.NonNull;
+import android.app.AppOpsManager;
 import android.content.BroadcastReceiver;
-import android.content.Context;
 import android.content.ContentResolver;
+import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.pm.PackageManager;
 import android.net.ConnectivityManager;
 import android.net.ConnectivityManager.NetworkCallback;
 import android.net.LinkProperties;
@@ -40,7 +43,14 @@ import android.net.NetworkCapabilities;
 import android.net.NetworkInfo;
 import android.net.NetworkInfo.State;
 import android.net.NetworkRequest;
+import android.net.TestNetworkManager;
+import android.net.wifi.WifiConfiguration;
+import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
+import android.os.Binder;
+import android.os.Build;
+import android.os.IBinder;
+import android.os.SystemProperties;
 import android.provider.Settings;
 import android.system.Os;
 import android.system.OsConstants;
@@ -73,6 +83,7 @@ public final class CtsNetUtils {
     public static final String NETWORK_CALLBACK_ACTION =
             "ConnectivityManagerTest.NetworkCallbackAction";
 
+    private final IBinder mBinder = new Binder();
     private final Context mContext;
     private final ConnectivityManager mCm;
     private final ContentResolver mCR;
@@ -88,6 +99,51 @@ public final class CtsNetUtils {
         mCR = context.getContentResolver();
     }
 
+    /** Checks if FEATURE_IPSEC_TUNNELS is enabled on the device */
+    public boolean hasIpsecTunnelsFeature() {
+        return mContext.getPackageManager().hasSystemFeature(PackageManager.FEATURE_IPSEC_TUNNELS)
+                || SystemProperties.getInt("ro.product.first_api_level", 0)
+                        >= Build.VERSION_CODES.Q;
+    }
+
+    /**
+     * Sets the given appop using shell commands
+     *
+     * <p>Expects caller to hold the shell permission identity.
+     */
+    public void setAppopPrivileged(int appop, boolean allow) {
+        final String opName = AppOpsManager.opToName(appop);
+        for (final String pkg : new String[] {"com.android.shell", mContext.getPackageName()}) {
+            final String cmd =
+                    String.format(
+                            "appops set %s %s %s",
+                            pkg, // Package name
+                            opName, // Appop
+                            (allow ? "allow" : "deny")); // Action
+            SystemUtil.runShellCommand(cmd);
+        }
+    }
+
+    /** Sets up a test network using the provided interface name */
+    public TestNetworkCallback setupAndGetTestNetwork(String ifname) throws Exception {
+        // Build a network request
+        final NetworkRequest nr =
+                new NetworkRequest.Builder()
+                        .clearCapabilities()
+                        .addTransportType(TRANSPORT_TEST)
+                        .setNetworkSpecifier(ifname)
+                        .build();
+
+        final TestNetworkCallback cb = new TestNetworkCallback();
+        mCm.requestNetwork(nr, cb);
+
+        // Setup the test network after network request is filed to prevent Network from being
+        // reaped due to no requests matching it.
+        mContext.getSystemService(TestNetworkManager.class).setupTestNetwork(ifname, mBinder);
+
+        return cb;
+    }
+
     // Toggle WiFi twice, leaving it in the state it started in
     public void toggleWifi() {
         if (mWifiManager.isWifiEnabled()) {
@@ -101,8 +157,36 @@ public final class CtsNetUtils {
         }
     }
 
-    /** Enable WiFi and wait for it to become connected to a network. */
+    /**
+     * Enable WiFi and wait for it to become connected to a network.
+     *
+     * This method expects to receive a legacy broadcast on connect, which may not be sent if the
+     * network does not become default or if it is not the first network.
+     */
     public Network connectToWifi() {
+        return connectToWifi(true /* expectLegacyBroadcast */);
+    }
+
+    /**
+     * Enable WiFi and wait for it to become connected to a network.
+     *
+     * A network is considered connected when a {@link NetworkCallback#onAvailable(Network)}
+     * callback is received.
+     */
+    public Network ensureWifiConnected() {
+        return connectToWifi(false /* expectLegacyBroadcast */);
+    }
+
+    /**
+     * Enable WiFi and wait for it to become connected to a network.
+     *
+     * @param expectLegacyBroadcast Whether to check for a legacy CONNECTIVITY_ACTION connected
+     *                              broadcast. The broadcast is typically not sent if the network
+     *                              does not become the default network, and is not the first
+     *                              network to appear.
+     * @return The network that was newly connected.
+     */
+    private Network connectToWifi(boolean expectLegacyBroadcast) {
         final TestNetworkCallback callback = new TestNetworkCallback();
         mCm.registerNetworkCallback(makeWifiNetworkRequest(), callback);
         Network wifiNetwork = null;
@@ -114,14 +198,16 @@ public final class CtsNetUtils {
         mContext.registerReceiver(receiver, filter);
 
         boolean connected = false;
+        final String err = "Wifi must be configured to connect to an access point for this test.";
         try {
+            clearWifiBlacklist();
             SystemUtil.runShellCommand("svc wifi enable");
             SystemUtil.runWithShellPermissionIdentity(() -> mWifiManager.reconnect(),
                     NETWORK_SETTINGS);
-            // Ensure we get both an onAvailable callback and a CONNECTIVITY_ACTION.
+            // Ensure we get an onAvailable callback and possibly a CONNECTIVITY_ACTION.
             wifiNetwork = callback.waitForAvailable();
-            assertNotNull(wifiNetwork);
-            connected = receiver.waitForState();
+            assertNotNull(err, wifiNetwork);
+            connected = !expectLegacyBroadcast || receiver.waitForState();
         } catch (InterruptedException ex) {
             fail("connectToWifi was interrupted");
         } finally {
@@ -129,16 +215,66 @@ public final class CtsNetUtils {
             mContext.unregisterReceiver(receiver);
         }
 
-        assertTrue("Wifi must be configured to connect to an access point for this test.",
-                connected);
+        assertTrue(err, connected);
         return wifiNetwork;
     }
 
-    /** Disable WiFi and wait for it to become disconnected from the network. */
+    /**
+     * Re-enable wifi networks that were blacklisted, typically because no internet connection was
+     * detected the last time they were connected. This is necessary to make sure wifi can reconnect
+     * to them.
+     */
+    private void clearWifiBlacklist() {
+        SystemUtil.runWithShellPermissionIdentity(() -> {
+            for (WifiConfiguration config : mWifiManager.getConfiguredNetworks()) {
+                mWifiManager.enableNetwork(config.networkId, false /* attemptConnect */);
+            }
+        });
+    }
+
+    /**
+     * Disable WiFi and wait for it to become disconnected from the network.
+     *
+     * This method expects to receive a legacy broadcast on disconnect, which may not be sent if the
+     * network was not default, or was not the first network.
+     *
+     * @param wifiNetworkToCheck If non-null, a network that should be disconnected. This network
+     *                           is expected to be able to establish a TCP connection to a remote
+     *                           server before disconnecting, and to have that connection closed in
+     *                           the process.
+     */
     public void disconnectFromWifi(Network wifiNetworkToCheck) {
+        disconnectFromWifi(wifiNetworkToCheck, true /* expectLegacyBroadcast */);
+    }
+
+    /**
+     * Disable WiFi and wait for it to become disconnected from the network.
+     *
+     * @param wifiNetworkToCheck If non-null, a network that should be disconnected. This network
+     *                           is expected to be able to establish a TCP connection to a remote
+     *                           server before disconnecting, and to have that connection closed in
+     *                           the process.
+     */
+    public void ensureWifiDisconnected(Network wifiNetworkToCheck) {
+        disconnectFromWifi(wifiNetworkToCheck, false /* expectLegacyBroadcast */);
+    }
+
+    /**
+     * Disable WiFi and wait for it to become disconnected from the network.
+     *
+     * @param wifiNetworkToCheck If non-null, a network that should be disconnected. This network
+     *                           is expected to be able to establish a TCP connection to a remote
+     *                           server before disconnecting, and to have that connection closed in
+     *                           the process.
+     * @param expectLegacyBroadcast Whether to check for a legacy CONNECTIVITY_ACTION disconnected
+     *                              broadcast. The broadcast is typically not sent if the network
+     *                              was not the default network and not the first network to appear.
+     *                              The check will always be skipped if the device was not connected
+     *                              to wifi in the first place.
+     */
+    private void disconnectFromWifi(Network wifiNetworkToCheck, boolean expectLegacyBroadcast) {
         final TestNetworkCallback callback = new TestNetworkCallback();
         mCm.registerNetworkCallback(makeWifiNetworkRequest(), callback);
-        Network lostWifiNetwork = null;
 
         ConnectivityActionReceiver receiver = new ConnectivityActionReceiver(
                 mCm, ConnectivityManager.TYPE_WIFI, NetworkInfo.State.DISCONNECTED);
@@ -146,9 +282,15 @@ public final class CtsNetUtils {
         filter.addAction(ConnectivityManager.CONNECTIVITY_ACTION);
         mContext.registerReceiver(receiver, filter);
 
+        final WifiInfo wifiInfo = mWifiManager.getConnectionInfo();
+        final boolean wasWifiConnected = wifiInfo != null && wifiInfo.getNetworkId() != -1;
         // Assert that we can establish a TCP connection on wifi.
         Socket wifiBoundSocket = null;
         if (wifiNetworkToCheck != null) {
+            assertTrue("Cannot check network " + wifiNetworkToCheck + ": wifi is not connected",
+                    wasWifiConnected);
+            final NetworkCapabilities nc = mCm.getNetworkCapabilities(wifiNetworkToCheck);
+            assertNotNull("Network " + wifiNetworkToCheck + " is not connected", nc);
             try {
                 wifiBoundSocket = getBoundSocket(wifiNetworkToCheck, TEST_HOST, HTTP_PORT);
                 testHttpRequest(wifiBoundSocket);
@@ -157,21 +299,22 @@ public final class CtsNetUtils {
             }
         }
 
-        boolean disconnected = false;
         try {
             SystemUtil.runShellCommand("svc wifi disable");
-            // Ensure we get both an onLost callback and a CONNECTIVITY_ACTION.
-            lostWifiNetwork = callback.waitForLost();
-            assertNotNull(lostWifiNetwork);
-            disconnected = receiver.waitForState();
+            if (wasWifiConnected) {
+                // Ensure we get both an onLost callback and a CONNECTIVITY_ACTION.
+                assertNotNull("Did not receive onLost callback after disabling wifi",
+                        callback.waitForLost());
+            }
+            if (wasWifiConnected && expectLegacyBroadcast) {
+                assertTrue("Wifi failed to reach DISCONNECTED state.", receiver.waitForState());
+            }
         } catch (InterruptedException ex) {
             fail("disconnectFromWifi was interrupted");
         } finally {
             mCm.unregisterNetworkCallback(callback);
             mContext.unregisterReceiver(receiver);
         }
-
-        assertTrue("Wifi failed to reach DISCONNECTED state.", disconnected);
 
         // Check that the socket is closed when wifi disconnects.
         if (wifiBoundSocket != null) {

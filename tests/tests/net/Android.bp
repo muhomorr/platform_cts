@@ -22,7 +22,7 @@ java_defaults {
     libs: [
         "voip-common",
         "org.apache.http.legacy",
-        "android.test.base.stubs",
+        "android.test.base",
     ],
 
     jni_libs: [
@@ -36,18 +36,20 @@ java_defaults {
         "src/**/*.java",
         "src/**/*.kt",
     ],
-
+    jarjar_rules: "jarjar-rules-shared.txt",
     static_libs: [
         "FrameworksNetCommonTests",
-        "core-tests-support",
+        "TestNetworkStackLib",
         "compatibility-device-util-axt",
+        "core-tests-support",
         "cts-net-utils",
         "ctstestrunner-axt",
         "ctstestserver",
-        "mockwebserver",
         "junit",
         "junit-params",
         "libnanohttpd",
+        "mockwebserver",
+        "net-utils-framework-common",
         "truth-prebuilt",
     ],
 
@@ -81,6 +83,7 @@ android_test {
     min_sdk_version: "29",
     target_sdk_version: "29",
     test_suites: [
+        "device-tests",
         "mts",
     ],
     test_config_template: "AndroidTestTemplate.xml",
