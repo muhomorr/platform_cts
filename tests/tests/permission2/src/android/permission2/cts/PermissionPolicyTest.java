@@ -52,6 +52,10 @@ public class PermissionPolicyTest extends AndroidTestCase {
     private static final String HIDE_NON_SYSTEM_OVERLAY_WINDOWS_PERMISSION
             = "android.permission.HIDE_NON_SYSTEM_OVERLAY_WINDOWS";
 
+    private static final Date MANAGE_COMPANION_DEVICES_PATCH_DATE = parseDate("2020-07-01");
+    private static final String MANAGE_COMPANION_DEVICES_PERMISSION
+            = "android.permission.MANAGE_COMPANION_DEVICES";
+
     private static final String LOG_TAG = "PermissionProtectionTest";
 
     private static final String PLATFORM_PACKAGE_NAME = "android";
@@ -92,6 +96,11 @@ public class PermissionPolicyTest extends AndroidTestCase {
         for (PermissionInfo expectedPermission : expectedPermissions) {
             String expectedPermissionName = expectedPermission.name;
             if (shouldSkipPermission(expectedPermissionName)) {
+                // This permission doesn't need to exist yet, but will exist in
+                // a future SPL. It is acceptable to declare the permission
+                // even in an earlier SPL, so we remove it here so it doesn't
+                // trigger a failure after the loop.
+                declaredPermissionsMap.remove(expectedPermissionName);
                 continue;
             }
 
@@ -295,8 +304,13 @@ public class PermissionPolicyTest extends AndroidTestCase {
     }
 
     private boolean shouldSkipPermission(String permissionName) {
-        return parseDate(SECURITY_PATCH).before(HIDE_NON_SYSTEM_OVERLAY_WINDOWS_PATCH_DATE) &&
-                HIDE_NON_SYSTEM_OVERLAY_WINDOWS_PERMISSION.equals(permissionName);
-
+        switch (permissionName) {
+            case HIDE_NON_SYSTEM_OVERLAY_WINDOWS_PERMISSION:
+                return parseDate(SECURITY_PATCH).before(HIDE_NON_SYSTEM_OVERLAY_WINDOWS_PATCH_DATE);
+            case MANAGE_COMPANION_DEVICES_PERMISSION:
+                return parseDate(SECURITY_PATCH).before(MANAGE_COMPANION_DEVICES_PATCH_DATE);
+            default:
+                return false;
+        }
     }
 }
