@@ -54,7 +54,7 @@ public class PermissionPolicyTest extends AndroidTestCase {
 
     private static final Date MANAGE_COMPANION_DEVICES_PATCH_DATE = parseDate("2020-07-01");
     private static final String MANAGE_COMPANION_DEVICES_PERMISSION
-            = "android.Manifest.permission.MANAGE_COMPANION_DEVICES";
+            = "android.permission.MANAGE_COMPANION_DEVICES";
 
     private static final String LOG_TAG = "PermissionProtectionTest";
 
@@ -95,6 +95,11 @@ public class PermissionPolicyTest extends AndroidTestCase {
         for (PermissionInfo expectedPermission : expectedPermissions) {
             String expectedPermissionName = expectedPermission.name;
             if (shouldSkipPermission(expectedPermissionName)) {
+                // This permission doesn't need to exist yet, but will exist in
+                // a future SPL. It is acceptable to declare the permission
+                // even in an earlier SPL, so we remove it here so it doesn't
+                // trigger a failure after the loop.
+                declaredPermissionsMap.remove(expectedPermissionName);
                 continue;
             }
 
