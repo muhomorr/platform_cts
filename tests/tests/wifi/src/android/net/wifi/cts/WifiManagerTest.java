@@ -106,7 +106,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 @AppModeFull(reason = "Cannot get WifiManager in instant app mode")
-public class WifiManagerTest extends AndroidTestCase {
+public class WifiManagerTest extends WifiJUnit3TestBase {
     private static class MySync {
         int expectedState = STATE_NULL;
     }
@@ -513,6 +513,7 @@ public class WifiManagerTest extends AndroidTestCase {
      * To run this test in cts-tradefed:
      * run cts --class android.net.wifi.cts.WifiManagerTest --method testWifiScanTimestamp
      */
+    @VirtualDeviceNotSupported
     public void testWifiScanTimestamp() throws Exception {
         if (!WifiFeature.isWifiSupported(getContext())) {
             Log.d(TAG, "Skipping test as WiFi is not supported");
@@ -814,7 +815,13 @@ public class WifiManagerTest extends AndroidTestCase {
 
             SoftApConfiguration softApConfig = callback.reservation.getSoftApConfiguration();
             assertNotNull(softApConfig);
-            assertNotNull(softApConfig.toWifiConfiguration());
+            int securityType = softApConfig.getSecurityType();
+            if (securityType == SoftApConfiguration.SECURITY_TYPE_OPEN
+                || securityType == SoftApConfiguration.SECURITY_TYPE_WPA2_PSK) {
+                 assertNotNull(softApConfig.toWifiConfiguration());
+            } else {
+                assertNull(softApConfig.toWifiConfiguration());
+            }
             if (!hasAutomotiveFeature()) {
                 assertEquals(
                         SoftApConfiguration.BAND_2GHZ,
@@ -1922,6 +1929,7 @@ public class WifiManagerTest extends AndroidTestCase {
     /**
      * Tests {@link WifiManager#getFactoryMacAddresses()} returns at least one valid MAC address.
      */
+    @VirtualDeviceNotSupported
     public void testGetFactoryMacAddresses() throws Exception {
         if (!WifiFeature.isWifiSupported(getContext())) {
             // skip the test if WiFi is not supported
