@@ -15,22 +15,14 @@
 //
 
 android_test_helper_app {
-    name: "CtsHostAppOpTestApp",
-
-    defaults: ["cts_support_defaults"],
-    sdk_version: "test_current",
-
-    srcs: ["src/**/*.kt"],
-
-   static_libs: [
-        "androidx.test.ext.junit",
-        "compatibility-device-util-axt",
-    ],
-
+    name: "TestAutofillServiceApp",
+    defaults: ["cts_defaults"],
+    sdk_version: "current",
     // Tag this module as a cts test artifact
     test_suites: [
         "cts",
         "vts10",
         "general-tests",
     ],
+    srcs: ["src/**/*.java"],
 }

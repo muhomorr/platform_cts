@@ -14,14 +14,25 @@
  * limitations under the License.
  */
 
-package android.appop.host.cts.app
+package com.android.cts.install.lib.host;
 
-import androidx.test.platform.app.InstrumentationRegistry
+import com.android.tradefed.testtype.junit4.BaseHostJUnit4Test;
 
-open class AppOpMultiUserTestBase {
-    protected val createdUser = InstrumentationRegistry.getArguments()
-            .getString("createdUser")!!.toInt()
-    protected val createdProfile = InstrumentationRegistry.getArguments()
-            .getString("createdProfile")!!.toInt()
-    protected val context = InstrumentationRegistry.getInstrumentation().targetContext
+/**
+ * Utilities to facilitate installation in tests on host side.
+ */
+public class InstallUtilsHost {
+
+    private BaseHostJUnit4Test mTest;
+
+    public InstallUtilsHost(BaseHostJUnit4Test test) {
+        mTest = test;
+    }
+
+    /**
+     * Return {@code true} if and only if device supports updating apex.
+     */
+    public boolean isApexUpdateSupported() throws Exception {
+        return mTest.getDevice().getBooleanProperty("ro.apex.updatable", false);
+    }
 }
