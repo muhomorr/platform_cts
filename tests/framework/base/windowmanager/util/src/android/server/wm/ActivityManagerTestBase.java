@@ -392,30 +392,13 @@ public abstract class ActivityManagerTestBase {
         private static final int ACTIVITY_LAUNCH_TIMEOUT = 10000;
         private static final int WAIT_SLICE = 50;
 
-        /**
-         * Launches an {@link Activity} on a target display synchronously.
-         * @param activityClass The {@link Activity} class to be launched
-         * @param displayId ID of the target display
-         */
         void launchTestActivityOnDisplaySync(Class<T> activityClass, int displayId) {
-            final Intent intent = new Intent(mContext, activityClass)
-                    .addFlags(FLAG_ACTIVITY_NEW_TASK);
-            final String className = intent.getComponent().getClassName();
-            launchTestActivityOnDisplaySync(className, intent, displayId);
+            launchTestActivityOnDisplaySync(new Intent(mContext, activityClass), displayId);
         }
 
-        /**
-         * Launches an {@link Activity} synchronously on a target display. The class name needs to 
-         * be provided either implicitly through the {@link Intent} or explicitly as a parameter
-         *
-         * @param className Optional class name of expected activity
-         * @param intent Intent to launch an activity
-         * @param displayId ID for the target display
-         */
-        void launchTestActivityOnDisplaySync(@Nullable String className, Intent intent,
-                int displayId) {
+        void launchTestActivityOnDisplaySync(Intent intent, int displayId) {
             SystemUtil.runWithShellPermissionIdentity(() -> {
-                mTestActivity = launchActivityOnDisplay(className, intent, displayId);
+                mTestActivity = launchActivityOnDisplay(intent, displayId);
                 // Check activity is launched and resumed.
                 final ComponentName testActivityName = mTestActivity.getComponentName();
                 waitAndAssertTopResumedActivity(testActivityName, displayId,
@@ -423,41 +406,18 @@ public abstract class ActivityManagerTestBase {
             });
         }
 
-        /**
-         * Launches an {@link Activity} on a target display asynchronously.
-         * @param activityClass The {@link Activity} class to be launched
-         * @param displayId ID of the target display
-         */
         void launchTestActivityOnDisplay(Class<T> activityClass, int displayId) {
-            final Intent intent = new Intent(mContext, activityClass)
-                    .addFlags(FLAG_ACTIVITY_NEW_TASK);
-            final String className = intent.getComponent().getClassName();
             SystemUtil.runWithShellPermissionIdentity(() -> {
-                mTestActivity = launchActivityOnDisplay(className, intent, displayId);
+                mTestActivity = launchActivityOnDisplay(new Intent(mContext, activityClass)
+                        .addFlags(FLAG_ACTIVITY_NEW_TASK), displayId);
                 assertNotNull(mTestActivity);
             });
         }
 
-        /**
-         * Launches an {@link Activity} on a target display. In order to return the correct activity
-         * the class name or an explicit {@link Intent} must be provided.
-         *
-         * @param className Optional class name of expected activity
-         * @param intent {@link Intent} to launch an activity
-         * @param displayId ID for the target display
-         * @return The {@link Activity} that was launched
-         */
-        private T launchActivityOnDisplay(@Nullable String className, Intent intent,
-                int displayId) {
-            final String localClassName = className != null ? className :
-              (intent.getComponent() != null ? intent.getComponent().getClassName() : null);
-            if (localClassName == null || localClassName.isEmpty()) {
-                fail("Must provide either a class name or an intent with a component");
-            }
+        private T launchActivityOnDisplay(Intent intent, int displayId) {
             final Bundle bundle = ActivityOptions.makeBasic()
                     .setLaunchDisplayId(displayId).toBundle();
-            final ActivityMonitor monitor = mInstrumentation.addMonitor(localClassName, null,
-                    false);
+            final ActivityMonitor monitor = mInstrumentation.addMonitor((String) null, null, false);
             mContext.startActivity(intent.addFlags(FLAG_ACTIVITY_NEW_TASK), bundle);
             // Wait for activity launch with timeout.
             mTestActivity = (T) mInstrumentation.waitForMonitorWithTimeout(monitor,

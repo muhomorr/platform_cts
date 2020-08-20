@@ -69,10 +69,7 @@ public class AccessibilityGestureDetectorTest {
 
     // Constants
     private static final float GESTURE_LENGTH_INCHES = 1.0f;
-    // The movement should exceed the threshold 1 cm in 150 ms defined in Swipe.java. It means the
-    // swipe velocity in testing should be greater than 2.54 cm / 381 ms. Therefore the
-    // duration should be smaller than 381.
-    private static final long STROKE_MS = 380;
+    private static final long STROKE_MS = 400;
     private static final long GESTURE_DISPATCH_TIMEOUT_MS = 3000;
     private static final long EVENT_DISPATCH_TIMEOUT_MS = 3000;
     private static final PointF FINGER_OFFSET_PX = new PointF(100f, -50f);
@@ -134,11 +131,8 @@ public class AccessibilityGestureDetectorTest {
         mCenter = new Point((int) metrics.widthPixels / 2, (int) metrics.heightPixels / 2);
         mTapLocation = new PointF(mCenter);
         mStrokeLenPxX = (int) (GESTURE_LENGTH_INCHES * metrics.xdpi);
-        // The threshold is determined by xdpi.
-        mStrokeLenPxY = mStrokeLenPxX;
-        final boolean screenWideEnough = metrics.widthPixels / 2 > mStrokeLenPxX;
-        final boolean screenHighEnough =  metrics.heightPixels / 2 > mStrokeLenPxY;
-        mScreenBigEnough = screenWideEnough && screenHighEnough;
+        mStrokeLenPxY = (int) (GESTURE_LENGTH_INCHES * metrics.ydpi);
+        mScreenBigEnough = (metrics.widthPixels / (2 * metrics.xdpi) > GESTURE_LENGTH_INCHES);
         if (!mScreenBigEnough) {
             return;
         }
@@ -285,6 +279,23 @@ public class AccessibilityGestureDetectorTest {
         testGesture(
                 fourFingerTripleTap(displayId),
                 AccessibilityService.GESTURE_4_FINGER_TRIPLE_TAP,
+                displayId);
+
+        testGesture(
+                MultiFingerSwipe(displayId, 2, 0, dy),
+                AccessibilityService.GESTURE_2_FINGER_SWIPE_DOWN,
+                displayId);
+        testGesture(
+                MultiFingerSwipe(displayId, 2, -dx, 0),
+                AccessibilityService.GESTURE_2_FINGER_SWIPE_LEFT,
+                displayId);
+        testGesture(
+                MultiFingerSwipe(displayId, 2, dx, 0),
+                AccessibilityService.GESTURE_2_FINGER_SWIPE_RIGHT,
+                displayId);
+        testGesture(
+                MultiFingerSwipe(displayId, 2, 0, -dy),
+                AccessibilityService.GESTURE_2_FINGER_SWIPE_UP,
                 displayId);
 
         testGesture(

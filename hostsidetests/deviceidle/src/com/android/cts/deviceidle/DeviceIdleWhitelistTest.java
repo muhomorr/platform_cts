@@ -91,9 +91,7 @@ public class DeviceIdleWhitelistTest extends BaseHostJUnit4Test {
         final List<String> packages = new ArrayList<>();
         for (String line : output.split("\n")) {
             final int i = line.indexOf(',');
-            if (i > 0) {
-                packages.add(line.substring(0, i));
-            }
+            packages.add(line.substring(0, i));
         }
         return packages;
     }

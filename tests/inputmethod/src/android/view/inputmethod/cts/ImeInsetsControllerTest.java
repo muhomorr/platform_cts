@@ -25,11 +25,9 @@ import static com.android.cts.mockime.ImeEventStreamTestUtils.expectCommand;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 
-import android.graphics.Point;
 import android.os.Process;
 import android.os.SystemClock;
 import android.util.Pair;
-import android.view.View;
 import android.view.Window;
 import android.view.WindowInsets;
 import android.view.WindowInsetsAnimationControlListener;
@@ -103,7 +101,6 @@ public class ImeInsetsControllerTest extends EndToEndImeTestBase {
 
             Pair<EditText, Window> launchResult = launchTestActivity();
             final EditText editText = launchResult.first;
-            final View decorView = launchResult.second.getDecorView();
 
             WindowInsets[] lastInsets = new WindowInsets[1];
 
@@ -144,8 +141,7 @@ public class ImeInsetsControllerTest extends EndToEndImeTestBase {
 
             controlLatch.await(5, TimeUnit.SECONDS);
             assertEquals(0, controlLatch.getCount());
-            assertEquals(getExpectedBottomInsets(INITIAL_KEYBOARD_HEIGHT, decorView),
-                         lastInsets[0].getInsets(ime()).bottom);
+            assertEquals(INITIAL_KEYBOARD_HEIGHT, lastInsets[0].getInsets(ime()).bottom);
             assertEquals(animController[0].getShownStateInsets(), lastInsets[0].getInsets(ime()));
 
             // Change keyboard height, but make sure the insets don't change until the controlling
@@ -155,8 +151,7 @@ public class ImeInsetsControllerTest extends EndToEndImeTestBase {
             SystemClock.sleep(500);
 
             // Make sure keyboard height hasn't changed yet.
-            assertEquals(getExpectedBottomInsets(INITIAL_KEYBOARD_HEIGHT, decorView),
-                         lastInsets[0].getInsets(ime()).bottom);
+            assertEquals(INITIAL_KEYBOARD_HEIGHT, lastInsets[0].getInsets(ime()).bottom);
 
             // Wait until new insets dispatch
             CountDownLatch insetsLatch = new CountDownLatch(1);
@@ -172,8 +167,7 @@ public class ImeInsetsControllerTest extends EndToEndImeTestBase {
             assertEquals(0, insetsLatch.getCount());
 
             // Verify new height
-            assertEquals(getExpectedBottomInsets(NEW_KEYBOARD_HEIGHT, decorView),
-                         lastInsets[0].getInsets(ime()).bottom);
+            assertEquals(NEW_KEYBOARD_HEIGHT, lastInsets[0].getInsets(ime()).bottom);
 
             assertFalse(cancelled[0]);
         }
@@ -202,24 +196,5 @@ public class ImeInsetsControllerTest extends EndToEndImeTestBase {
                 outCancelled[0] = true;
             }
         };
-    }
-
-    private int getDisplayHeight(View view) {
-        final Point size = new Point();
-        view.getDisplay().getRealSize(size);
-        return size.y;
-    }
-
-    private int getBottomOfWindow(View decorView) {
-        int viewPos[] = new int[2];
-        decorView.getLocationOnScreen(viewPos);
-        return decorView.getHeight() + viewPos[1];
-    }
-
-    private int getExpectedBottomInsets(int keyboardHeight, View decorView) {
-        return Math.max(
-                0,
-                keyboardHeight
-                        - Math.max(0, getDisplayHeight(decorView) - getBottomOfWindow(decorView)));
     }
 }

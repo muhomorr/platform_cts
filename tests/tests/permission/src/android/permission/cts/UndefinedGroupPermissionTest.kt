@@ -25,7 +25,6 @@ import android.content.pm.PackageManager
 import android.os.Process
 import android.support.test.uiautomator.By
 import android.support.test.uiautomator.UiDevice
-import android.support.test.uiautomator.UiObject2
 import android.support.test.uiautomator.UiObjectNotFoundException
 import androidx.test.platform.app.InstrumentationRegistry
 import com.android.compatibility.common.util.SystemUtil
@@ -35,7 +34,6 @@ import org.junit.After
 import org.junit.Assert
 import org.junit.Before
 import org.junit.Test
-import java.util.regex.Pattern
 
 /**
  * Tests that the permissioncontroller behaves normally when an app defines a permission in the
@@ -46,12 +44,11 @@ class UndefinedGroupPermissionTest {
     private var mUiDevice: UiDevice? = null
     private var mContext: Context? = null
     private var mPm: PackageManager? = null
-    private var mAllowButtonText: Pattern? = null
 
     @Before
     fun install() {
         SystemUtil.runShellCommand("pm install -r " +
-                TEST_APP_DEFINES_UNDEFINED_PERMISSION_GROUP_ELEMENT_APK)
+                "$TEST_APP_DEFINES_UNDEFINED_PERMISSION_GROUP_ELEMENT_APK")
     }
 
     @Before
@@ -60,14 +57,6 @@ class UndefinedGroupPermissionTest {
         mUiDevice = UiDevice.getInstance(mInstrumentation)
         mContext = mInstrumentation?.targetContext
         mPm = mContext?.packageManager
-        val permissionControllerResources = mContext?.createPackageContext(
-                mContext?.packageManager?.permissionControllerPackageName, 0)?.resources
-        mAllowButtonText = Pattern.compile(
-                Pattern.quote(requireNotNull(permissionControllerResources?.getString(
-                        permissionControllerResources.getIdentifier(
-                                "grant_dialog_button_allow", "string",
-                                "com.android.permissioncontroller")))),
-                Pattern.CASE_INSENSITIVE or Pattern.UNICODE_CASE)
     }
 
     @Before
@@ -105,7 +94,9 @@ class UndefinedGroupPermissionTest {
         eventually {
             startRequestActivity(arrayOf(TEST))
             mUiDevice!!.waitForIdle()
-            findAllowButton().click()
+            waitFindObject(By.res(
+                    "com.android.permissioncontroller:id/permission_allow_button"),
+                    100).click()
         }
         eventually {
             Assert.assertEquals(mPm!!.checkPermission(CAMERA, APP_PKG_NAME),
@@ -120,17 +111,6 @@ class UndefinedGroupPermissionTest {
     @After
     fun uninstall() {
         SystemUtil.runShellCommand("pm uninstall $APP_PKG_NAME")
-    }
-
-    fun findAllowButton(): UiObject2 {
-        return if (mContext?.packageManager
-                        ?.hasSystemFeature(PackageManager.FEATURE_AUTOMOTIVE) == true) {
-            waitFindObject(By.text(mAllowButtonText), 100)
-        } else {
-            waitFindObject(By.res(
-                    "com.android.permissioncontroller:id/permission_allow_button"),
-                    100)
-        }
     }
 
     /**
@@ -151,12 +131,7 @@ class UndefinedGroupPermissionTest {
             startRequestActivity(arrayOf(targetPermission))
             mUiDevice!!.waitForIdle()
             try {
-                if (mContext?.packageManager
-                                ?.hasSystemFeature(PackageManager.FEATURE_AUTOMOTIVE) == true) {
-                    findAllowButton()
-                } else {
-                    waitFindObject(By.res("com.android.permissioncontroller:id/grant_dialog"), 100)
-                }
+                waitFindObject(By.res("com.android.permissioncontroller:id/grant_dialog"), 100)
             } catch (e: UiObjectNotFoundException) {
                 Assert.assertEquals("grant dialog never showed.",
                         mPm!!.checkPermission(targetPermission,
