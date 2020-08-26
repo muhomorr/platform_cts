@@ -209,8 +209,7 @@ public class CarrierApiTest extends AndroidTestCase {
     }
 
     private boolean isSimCardPresent() {
-        return mTelephonyManager.getPhoneType() != TelephonyManager.PHONE_TYPE_NONE &&
-                mTelephonyManager.getSimState() != TelephonyManager.SIM_STATE_ABSENT;
+        return mTelephonyManager.getSimState() != TelephonyManager.SIM_STATE_ABSENT;
     }
 
     private String getCertHash(String pkgName) {
@@ -253,8 +252,9 @@ public class CarrierApiTest extends AndroidTestCase {
         assertEquals(TelephonyManager.UPDATE_AVAILABLE_NETWORKS_SUCCESS, value);
     }
 
-    private static void assertUpdateAvailableNetworkInvalidArguments(int value) {
-        assertEquals(TelephonyManager.UPDATE_AVAILABLE_NETWORKS_INVALID_ARGUMENTS, value);
+    private static void assertUpdateAvailableNetworkNoOpportunisticSubAvailable(int value) {
+        assertEquals(
+                TelephonyManager.UPDATE_AVAILABLE_NETWORKS_NO_OPPORTUNISTIC_SUB_AVAILABLE, value);
     }
 
     private static void assertSetOpportunisticSubSuccess(int value) {
@@ -308,8 +308,8 @@ public class CarrierApiTest extends AndroidTestCase {
         List<AvailableNetworkInfo> availableNetworkInfos = new ArrayList<AvailableNetworkInfo>();
         Consumer<Integer> callbackSuccess =
                 CarrierApiTest::assertUpdateAvailableNetworkSuccess;
-        Consumer<Integer> callbackFailure =
-                CarrierApiTest::assertUpdateAvailableNetworkInvalidArguments;
+        Consumer<Integer> callbackNoOpportunisticSubAvailable =
+                CarrierApiTest::assertUpdateAvailableNetworkNoOpportunisticSubAvailable;
         Consumer<Integer> setOpCallbackSuccess = CarrierApiTest::assertSetOpportunisticSubSuccess;
         if (subscriptionInfoList == null || subscriptionInfoList.size() == 0
                 || !mSubscriptionManager.isActiveSubscriptionId(
@@ -320,15 +320,16 @@ public class CarrierApiTest extends AndroidTestCase {
                         bands);
                 availableNetworkInfos.add(availableNetworkInfo);
                 // Call updateAvailableNetworks without opportunistic subscription.
-                // callbackFailure is expected to be triggered and the return value will be checked
-                // against UPDATE_AVAILABLE_NETWORKS_INVALID_ARGUMENTS
+                // callbackNoOpportunisticSubAvailable is expected to be triggered
+                // and the return value will be checked against
+                // UPDATE_AVAILABLE_NETWORKS_NO_OPPORTUNISTIC_SUB_AVAILABLE
                 mTelephonyManager.updateAvailableNetworks(availableNetworkInfos,
-                        AsyncTask.SERIAL_EXECUTOR, callbackFailure);
+                        AsyncTask.SERIAL_EXECUTOR, callbackNoOpportunisticSubAvailable);
             } finally {
                 // clear all the operations at the end of test.
                 availableNetworkInfos.clear();
                 mTelephonyManager.updateAvailableNetworks(availableNetworkInfos,
-                        AsyncTask.SERIAL_EXECUTOR, callbackFailure);
+                        AsyncTask.SERIAL_EXECUTOR, callbackNoOpportunisticSubAvailable);
             }
         } else {
             // This is case of DSDS phone, one active opportunistic subscription and one
@@ -1014,6 +1015,7 @@ public class CarrierApiTest extends AndroidTestCase {
 
         // Set subscription group with current sub Id.
         int subId = SubscriptionManager.getDefaultDataSubscriptionId();
+        if (subId == SubscriptionManager.INVALID_SUBSCRIPTION_ID) return;
         ParcelUuid uuid = mSubscriptionManager.createSubscriptionGroup(Arrays.asList(subId));
 
         try {
@@ -1051,6 +1053,7 @@ public class CarrierApiTest extends AndroidTestCase {
 
         // Set subscription group with current sub Id.
         int subId = SubscriptionManager.getDefaultDataSubscriptionId();
+        if (subId == SubscriptionManager.INVALID_SUBSCRIPTION_ID) return;
         ParcelUuid uuid = mSubscriptionManager.createSubscriptionGroup(Arrays.asList(subId));
 
         try {
@@ -1082,6 +1085,7 @@ public class CarrierApiTest extends AndroidTestCase {
         if (!hasCellular) return;
 
         int subId = SubscriptionManager.getDefaultDataSubscriptionId();
+        if (subId == SubscriptionManager.INVALID_SUBSCRIPTION_ID) return;
         SubscriptionInfo info = mSubscriptionManager.getActiveSubscriptionInfo(subId);
         boolean oldOpportunistic = info.isOpportunistic();
         boolean newOpportunistic = !oldOpportunistic;

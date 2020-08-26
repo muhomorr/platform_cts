@@ -64,6 +64,8 @@ import android.telephony.cdma.CdmaSmsCbProgramData;
 import android.text.TextUtils;
 import android.util.Log;
 
+import androidx.test.InstrumentationRegistry;
+
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -320,6 +322,9 @@ public class SmsManagerTest {
         assertFalse("[RERUN] SIM card does not provide phone number. Use a suitable SIM Card.",
                 TextUtils.isEmpty(mDestAddr));
 
+        // disable suppressing blocking.
+        TelephonyUtils.endBlockSuppression(getInstrumentation());
+
         String mccmnc = mTelephonyManager.getSimOperator();
         // Setting default SMS App is needed to be able to block numbers.
         setDefaultSmsApp(true);
@@ -430,7 +435,7 @@ public class SmsManagerTest {
         int originalWriteSmsMode = -1;
         String ctsPackageName = context.getPackageName();
         try {
-            // Insert some dummy sms
+            // Insert some test sms
             originalWriteSmsMode = context.getSystemService(AppOpsManager.class)
                     .unsafeCheckOpNoThrow(AppOpsManager.OPSTR_WRITE_SMS,
                             getPackageUid(ctsPackageName), ctsPackageName);
@@ -445,8 +450,8 @@ public class SmsManagerTest {
                         new Date().toString().replace(" ", "_"));
                 return contentResolver.insert(Telephony.Sms.CONTENT_URI, contentValues);
             });
-            assertNotNull("Failed to insert dummy sms", dummySmsUri);
-            assertNotEquals("Failed to insert dummy sms", dummySmsUri.getLastPathSegment(), "0");
+            assertNotNull("Failed to insert test sms", dummySmsUri);
+            assertNotEquals("Failed to insert test sms", dummySmsUri.getLastPathSegment(), "0");
             testSmsAccessAboutDefaultApp(LEGACY_SMS_APP);
             testSmsAccessAboutDefaultApp(MODERN_SMS_APP);
         } finally {
@@ -689,6 +694,27 @@ public class SmsManagerTest {
             });
         } catch (Exception e) {
             // expected
+        }
+    }
+
+    @Test
+    public void testGetSmsCapacityOnIcc() {
+        try {
+            getSmsManager().getSmsCapacityOnIcc();
+            fail("Caller without READ_PRIVILEGED_PHONE_STATE should NOT be able to call API");
+        } catch (SecurityException se) {
+            // all good
+        }
+
+        InstrumentationRegistry.getInstrumentation().getUiAutomation()
+                .adoptShellPermissionIdentity("android.permission.READ_PRIVILEGED_PHONE_STATE");
+        try {
+            getSmsManager().getSmsCapacityOnIcc();
+        } catch (SecurityException se) {
+            fail("Caller with READ_PRIVILEGED_PHONE_STATE should be able to call API");
+        } finally {
+            InstrumentationRegistry.getInstrumentation().getUiAutomation()
+                    .dropShellPermissionIdentity();
         }
     }
 

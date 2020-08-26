@@ -25,7 +25,6 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-import android.Manifest;
 import android.Manifest.permission;
 import android.app.UiAutomation;
 import android.bluetooth.BluetoothAdapter;
@@ -34,7 +33,6 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.content.ServiceConnection;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.database.ContentObserver;
@@ -45,11 +43,9 @@ import android.net.wifi.WifiManager;
 import android.os.AsyncTask;
 import android.os.Build;
 import android.os.Handler;
-import android.os.IBinder;
 import android.os.Looper;
 import android.os.PersistableBundle;
 import android.os.Process;
-import android.os.RemoteException;
 import android.os.UserManager;
 import android.provider.Settings;
 import android.telecom.PhoneAccount;
@@ -72,8 +68,6 @@ import android.telephony.SubscriptionManager;
 import android.telephony.TelephonyManager;
 import android.telephony.UiccCardInfo;
 import android.telephony.UiccSlotInfo;
-import android.telephony.cts.locationaccessingapp.CtsLocationAccessService;
-import android.telephony.cts.locationaccessingapp.ICtsLocationAccessControl;
 import android.telephony.data.ApnSetting;
 import android.telephony.emergency.EmergencyNumber;
 import android.text.TextUtils;
@@ -678,152 +672,6 @@ public class TelephonyManagerTest {
      */
 
     @Test
-    public void testCellLocationFinePermission() {
-        withRevokedPermission(() -> {
-            try {
-                CellLocation cellLocation = (CellLocation) performLocationAccessCommand(
-                        CtsLocationAccessService.COMMAND_GET_CELL_LOCATION);
-                assertTrue(cellLocation == null || cellLocation.isEmpty());
-            } catch (SecurityException e) {
-                // expected
-            }
-
-            try {
-                List cis = (List) performLocationAccessCommand(
-                        CtsLocationAccessService.COMMAND_GET_CELL_INFO);
-                assertTrue(cis == null || cis.isEmpty());
-            } catch (SecurityException e) {
-                // expected
-            }
-        }, Manifest.permission.ACCESS_FINE_LOCATION);
-    }
-
-    @Test
-    public void testServiceStateLocationSanitization() {
-        withRevokedPermission(() -> {
-                    ServiceState ss = (ServiceState) performLocationAccessCommand(
-                            CtsLocationAccessService.COMMAND_GET_SERVICE_STATE);
-                    assertServiceStateSanitization(ss, true);
-
-                    withRevokedPermission(() -> {
-                                ServiceState ss1 = (ServiceState) performLocationAccessCommand(
-                                        CtsLocationAccessService.COMMAND_GET_SERVICE_STATE);
-                                assertServiceStateSanitization(ss1, false);
-                            },
-                            Manifest.permission.ACCESS_COARSE_LOCATION);
-                },
-                Manifest.permission.ACCESS_FINE_LOCATION);
-    }
-
-    @Test
-    public void testServiceStateListeningWithoutPermissions() {
-        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) return;
-
-        withRevokedPermission(() -> {
-                    ServiceState ss = (ServiceState) performLocationAccessCommand(
-                            CtsLocationAccessService.COMMAND_GET_SERVICE_STATE_FROM_LISTENER);
-                    assertServiceStateSanitization(ss, true);
-
-                    withRevokedPermission(() -> {
-                                ServiceState ss1 = (ServiceState) performLocationAccessCommand(
-                                        CtsLocationAccessService
-                                                .COMMAND_GET_SERVICE_STATE_FROM_LISTENER);
-                                assertServiceStateSanitization(ss1, false);
-                            },
-                            Manifest.permission.ACCESS_COARSE_LOCATION);
-                },
-                Manifest.permission.ACCESS_FINE_LOCATION);
-    }
-
-    @Test
-    public void testRegistryPermissionsForCellLocation() {
-        withRevokedPermission(() -> {
-                    CellLocation cellLocation = (CellLocation) performLocationAccessCommand(
-                            CtsLocationAccessService.COMMAND_LISTEN_CELL_LOCATION);
-                    assertNull(cellLocation);
-                },
-                Manifest.permission.ACCESS_FINE_LOCATION);
-    }
-
-    @Test
-    public void testRegistryPermissionsForCellInfo() {
-        withRevokedPermission(() -> {
-                    CellLocation cellLocation = (CellLocation) performLocationAccessCommand(
-                            CtsLocationAccessService.COMMAND_LISTEN_CELL_INFO);
-                    assertNull(cellLocation);
-                },
-                Manifest.permission.ACCESS_FINE_LOCATION);
-    }
-
-    private ICtsLocationAccessControl getLocationAccessAppControl() {
-        Intent bindIntent = new Intent(CtsLocationAccessService.CONTROL_ACTION);
-        bindIntent.setComponent(new ComponentName(CtsLocationAccessService.class.getPackageName$(),
-                CtsLocationAccessService.class.getName()));
-
-        LinkedBlockingQueue<ICtsLocationAccessControl> pipe =
-                new LinkedBlockingQueue<>();
-        getContext().bindService(bindIntent, new ServiceConnection() {
-            @Override
-            public void onServiceConnected(ComponentName name, IBinder service) {
-                pipe.offer(ICtsLocationAccessControl.Stub.asInterface(service));
-            }
-
-            @Override
-            public void onServiceDisconnected(ComponentName name) {
-
-            }
-        }, Context.BIND_AUTO_CREATE);
-
-        try {
-            return pipe.poll(TOLERANCE, TimeUnit.MILLISECONDS);
-        } catch (InterruptedException e) {
-            fail("interrupted");
-        }
-        fail("Unable to connect to location access test app");
-        return null;
-    }
-
-    private Object performLocationAccessCommand(String command) {
-        ICtsLocationAccessControl control = getLocationAccessAppControl();
-        try {
-            List ret = control.performCommand(command);
-            if (!ret.isEmpty()) return ret.get(0);
-        } catch (RemoteException e) {
-            fail("Remote exception");
-        }
-        return null;
-    }
-
-    private void withRevokedPermission(Runnable r, String permission) {
-        InstrumentationRegistry.getInstrumentation()
-                .getUiAutomation().revokeRuntimePermission(
-                CtsLocationAccessService.class.getPackageName$(), permission);
-        try {
-            r.run();
-        } finally {
-            InstrumentationRegistry.getInstrumentation()
-                    .getUiAutomation().grantRuntimePermission(
-                    CtsLocationAccessService.class.getPackageName$(), permission);
-        }
-    }
-
-    private void assertServiceStateSanitization(ServiceState state, boolean sanitizedForFineOnly) {
-        if (state == null) return;
-
-        if (state.getNetworkRegistrationInfoList() != null) {
-            for (NetworkRegistrationInfo nrs : state.getNetworkRegistrationInfoList()) {
-                assertNull(nrs.getCellIdentity());
-            }
-        }
-
-        if (sanitizedForFineOnly) return;
-
-        assertTrue(TextUtils.isEmpty(state.getOperatorAlphaLong()));
-        assertTrue(TextUtils.isEmpty(state.getOperatorAlphaShort()));
-        assertTrue(TextUtils.isEmpty(state.getOperatorNumeric()));
-    }
-
-    @Test
     public void testGetRadioHalVersion() {
         if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
             Log.d(TAG,"skipping test on device without FEATURE_TELEPHONY present");
@@ -843,6 +691,16 @@ public class TelephonyManagerTest {
             Log.d(TAG, "Skipping test that requires FEATURE_TELEPHONY");
             return;
         }
+        if (!mTelephonyManager.isVoiceCapable()) {
+            Log.d(TAG, "Skipping test that requires config_voice_capable is true");
+            return;
+        }
+        int subId = SubscriptionManager.getDefaultDataSubscriptionId();
+        if (subId == SubscriptionManager.INVALID_SUBSCRIPTION_ID) {
+            Log.d(TAG, "Skipping test that requires DefaultDataSubscriptionId setting");
+            return;
+        }
+
         TelecomManager telecomManager = getContext().getSystemService(TelecomManager.class);
         PhoneAccountHandle handle =
                 telecomManager.getDefaultOutgoingPhoneAccount(PhoneAccount.SCHEME_TEL);
@@ -2126,10 +1984,6 @@ public class TelephonyManagerTest {
         assertThat(value).isEqualTo(TelephonyManager.UPDATE_AVAILABLE_NETWORKS_SUCCESS);
     }
 
-    private static void assertUpdateAvailableNetworkInvalidArguments(int value) {
-        assertThat(value).isEqualTo(TelephonyManager.UPDATE_AVAILABLE_NETWORKS_INVALID_ARGUMENTS);
-    }
-
     private static void assertUpdateAvailableNetworkNoOpportunisticSub(int value) {
         assertThat(value).isEqualTo(
                 TelephonyManager.UPDATE_AVAILABLE_NETWORKS_NO_OPPORTUNISTIC_SUB_AVAILABLE);
@@ -2219,8 +2073,6 @@ public class TelephonyManagerTest {
         List<AvailableNetworkInfo> availableNetworkInfos = new ArrayList<AvailableNetworkInfo>();
         Consumer<Integer> callbackSuccess =
                 TelephonyManagerTest::assertUpdateAvailableNetworkSuccess;
-        Consumer<Integer> callbackFailure =
-                TelephonyManagerTest::assertUpdateAvailableNetworkInvalidArguments;
         Consumer<Integer> callbackNoOpSub =
                 TelephonyManagerTest::assertUpdateAvailableNetworkNoOpportunisticSub;
         if (subscriptionInfoList == null || subscriptionInfoList.size() == 0
@@ -2238,7 +2090,7 @@ public class TelephonyManagerTest {
             availableNetworkInfos.clear();
             ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mTelephonyManager,
                     (tm) -> tm.updateAvailableNetworks(availableNetworkInfos,
-                            AsyncTask.SERIAL_EXECUTOR, callbackFailure));
+                            AsyncTask.SERIAL_EXECUTOR, callbackNoOpSub));
         } else {
             AvailableNetworkInfo availableNetworkInfo = new AvailableNetworkInfo(
                     subscriptionInfoList.get(0).getSubscriptionId(),
@@ -2262,20 +2114,21 @@ public class TelephonyManagerTest {
         if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
             return;
         }
-
-        boolean rebootRequired = ShellIdentityUtils.invokeMethodWithShellPermissions(
-                mTelephonyManager, (tm) -> tm.doesSwitchMultiSimConfigTriggerReboot());
-
-        // It's hard to test if reboot is needed.
-        if (!rebootRequired) {
-            ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mTelephonyManager,
-                    (tm) -> tm.switchMultiSimConfig(1));
-            ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mTelephonyManager,
-                    (tm) -> tm.switchMultiSimConfig(2));
-        } else {
+        try {
+            mTelephonyManager.switchMultiSimConfig(mTelephonyManager.getActiveModemCount());
+            fail("TelephonyManager#switchMultiSimConfig should require the MODIFY_PHONE_STATE"
+                    + " permission to access.");
+        } catch (SecurityException e) {
+            // expected
+        }
+        try {
             // This should result in no-op.
-            ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mTelephonyManager,
-                    (tm) -> tm.switchMultiSimConfig(mTelephonyManager.getPhoneCount()));
+            ShellIdentityUtils.invokeThrowableMethodWithShellPermissionsNoReturn(mTelephonyManager,
+                    (tm) -> tm.switchMultiSimConfig(mTelephonyManager.getActiveModemCount()),
+                    SecurityException.class, "android.permission.MODIFY_PHONE_STATE");
+        } catch (SecurityException e) {
+            fail("TelephonyManager#switchMultiSimConfig should require MODIFY_PHONE_STATE"
+                    + "permission to access.");
         }
     }
 
@@ -2570,6 +2423,32 @@ public class TelephonyManagerTest {
             assertEquals(preferredNetworkType, modemPreferredNetworkType);
         } catch (SecurityException se) {
             fail("testDisAllowedNetworkTypes: SecurityException not expected");
+        }
+    }
+
+    @Test
+    public void testIsApplicationOnUicc() {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            return;
+        }
+
+        // Expect a security exception without permission.
+        try {
+            mTelephonyManager.isApplicationOnUicc(TelephonyManager.APPTYPE_SIM);
+            fail("Expected security exception");
+        } catch (SecurityException se1) {
+            // Expected
+        }
+
+        InstrumentationRegistry.getInstrumentation().getUiAutomation()
+                .adoptShellPermissionIdentity("android.permission.READ_PRIVILEGED_PHONE_STATE");
+        try {
+            mTelephonyManager.isApplicationOnUicc(TelephonyManager.APPTYPE_SIM);
+        } catch (SecurityException se) {
+            fail("Caller with READ_PRIVILEGED_PHONE_STATE should be able to call API");
+        } finally {
+            InstrumentationRegistry.getInstrumentation().getUiAutomation()
+                    .dropShellPermissionIdentity();
         }
     }
 

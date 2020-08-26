@@ -16,29 +16,42 @@
 
 package android.hdmicec.cts.playback;
 
-import static com.google.common.truth.Truth.assertThat;
-
+import android.hdmicec.cts.BaseHdmiCecCtsTest;
 import android.hdmicec.cts.CecMessage;
 import android.hdmicec.cts.CecOperand;
 import android.hdmicec.cts.HdmiCecClientWrapper;
+import android.hdmicec.cts.HdmiCecConstants;
 import android.hdmicec.cts.LogicalAddress;
-import android.hdmicec.cts.RequiredPropertyRule;
 import android.hdmicec.cts.RequiredFeatureRule;
+import android.hdmicec.cts.RequiredPropertyRule;
 
 import com.android.tradefed.device.ITestDevice;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
-import com.android.tradefed.testtype.junit4.BaseHostJUnit4Test;
 
 import org.junit.Rule;
+import org.junit.Test;
 import org.junit.rules.RuleChain;
 import org.junit.runner.RunWith;
-import org.junit.Test;
 
 /** HDMI CEC tests for One Touch Play (Section 11.2.1) */
 @RunWith(DeviceJUnit4ClassRunner.class)
-public final class HdmiCecOneTouchPlayTest extends BaseHostJUnit4Test {
+public final class HdmiCecOneTouchPlayTest extends BaseHdmiCecCtsTest {
 
     private static final int PHYSICAL_ADDRESS = 0x1000;
+    /**
+     * The package name of the APK.
+     */
+    private static final String HDMI_CEC_HELPER_PACKAGE = "android.hdmicec.app";
+    /**
+     * The class name of the main activity in the APK.
+     */
+    private static final String HDMI_CONTROL_HELPER_CLASS = "HdmiControlManagerHelper";
+    /**
+     * Intent to trigger an OTP.
+     */
+    private static final String OTP_ACTION = String.format(
+        "android.hdmicec.app.OTP -n %s/%s.%s", HDMI_CEC_HELPER_PACKAGE, HDMI_CEC_HELPER_PACKAGE,
+        HDMI_CONTROL_HELPER_CLASS);
 
     /** Intent to launch the remote pairing activity */
     private static final String ACTION_CONNECT_INPUT_NORMAL =
@@ -54,17 +67,16 @@ public final class HdmiCecOneTouchPlayTest extends BaseHostJUnit4Test {
     /** The command to stop an app. */
     private static final String FORCE_STOP_COMMAND = "am force-stop ";
 
-    public HdmiCecClientWrapper hdmiCecClient = new HdmiCecClientWrapper(LogicalAddress.PLAYBACK_1);
+    public HdmiCecOneTouchPlayTest() {
+        super(LogicalAddress.PLAYBACK_1);
+    }
 
     @Rule
     public RuleChain ruleChain =
         RuleChain
-            .outerRule(new RequiredFeatureRule(this, LogicalAddress.HDMI_CEC_FEATURE))
-            .around(new RequiredFeatureRule(this, LogicalAddress.LEANBACK_FEATURE))
-            .around(RequiredPropertyRule.asCsvContainsValue(
-                this,
-                LogicalAddress.HDMI_DEVICE_TYPE_PROPERTY,
-                LogicalAddress.PLAYBACK_1.getDeviceType()))
+            .outerRule(CecRules.requiresCec(this))
+            .around(CecRules.requiresLeanback(this))
+            .around(CecRules.requiresDeviceType(this, LogicalAddress.PLAYBACK_1))
             .around(hdmiCecClient);
 
     /**
@@ -76,10 +88,10 @@ public final class HdmiCecOneTouchPlayTest extends BaseHostJUnit4Test {
     public void cect_11_2_1_1_OneTouchPlay() throws Exception {
         ITestDevice device = getDevice();
         device.reboot();
-        device.executeShellCommand("input keyevent KEYCODE_HOME");
+        sendOtp(device);
         hdmiCecClient.checkExpectedOutput(LogicalAddress.TV, CecOperand.TEXT_VIEW_ON);
         String message = hdmiCecClient.checkExpectedOutput(CecOperand.ACTIVE_SOURCE);
-        assertThat(CecMessage.getParams(message)).isEqualTo(PHYSICAL_ADDRESS);
+        CecMessage.assertPhysicalAddressValid(message, getDumpsysPhysicalAddress());
     }
 
     /**
@@ -93,7 +105,16 @@ public final class HdmiCecOneTouchPlayTest extends BaseHostJUnit4Test {
         device.executeShellCommand(START_COMMAND + ACTION_CONNECT_INPUT_NORMAL);
         hdmiCecClient.checkExpectedOutput(LogicalAddress.TV, CecOperand.TEXT_VIEW_ON);
         String message = hdmiCecClient.checkExpectedOutput(CecOperand.ACTIVE_SOURCE);
-        assertThat(CecMessage.getParams(message)).isEqualTo(PHYSICAL_ADDRESS);
+        CecMessage.assertPhysicalAddressValid(message, getDumpsysPhysicalAddress());
         device.executeShellCommand(FORCE_STOP_COMMAND + SETTINGS_PACKAGE);
+    }
+
+    private void sendOtp(ITestDevice device) throws Exception {
+        // Clear activity
+        device.executeShellCommand(FORCE_STOP_COMMAND + HDMI_CEC_HELPER_PACKAGE);
+        // Clear logcat.
+        device.executeAdbCommand("logcat", "-c");
+        // Start the APK and wait for it to complete.
+        device.executeShellCommand(START_COMMAND + OTP_ACTION);
     }
 }

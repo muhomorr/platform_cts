@@ -46,6 +46,7 @@ import java.util.HashMap;
 import java.util.List;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -71,6 +72,7 @@ class MuxerTestHelper {
     private int mFrameLimit;
     // combineMedias() uses local version of this variable
     private HashMap<Integer, Integer> mOutIndexMap = new HashMap<>();
+    private boolean mRemoveCSD;
 
     private void splitMediaToMuxerParameters() throws IOException {
         // Set up MediaExtractor to read from the source.
@@ -82,6 +84,16 @@ class MuxerTestHelper {
         for (int trackID = 0; trackID < extractor.getTrackCount(); trackID++) {
             extractor.selectTrack(trackID);
             MediaFormat format = extractor.getTrackFormat(trackID);
+            if (mRemoveCSD) {
+                for (int i = 0; ; ++i) {
+                    String csdKey = "csd-" + i;
+                    if (format.containsKey(csdKey)) {
+                        format.removeKey(csdKey);
+                    } else {
+                        break;
+                    }
+                }
+            }
             if (mMime == null) {
                 mTrackCount++;
                 mFormat.add(format);
@@ -221,33 +233,45 @@ class MuxerTestHelper {
         muxer.stop();
     }
 
-    MuxerTestHelper(String srcPath, String mime, int frameLimit) throws IOException {
+    MuxerTestHelper(String srcPath, String mime, int frameLimit, boolean aRemoveCSD) throws IOException {
         mSrcPath = srcPath;
         mMime = mime;
         if (frameLimit < 0) frameLimit = Integer.MAX_VALUE;
         mFrameLimit = frameLimit;
+        mRemoveCSD = aRemoveCSD;
         splitMediaToMuxerParameters();
     }
 
     MuxerTestHelper(String srcPath, String mime) throws IOException {
-        this(srcPath, mime, -1);
+        this(srcPath, mime, -1, false);
     }
 
     MuxerTestHelper(String srcPath, int frameLimit) throws IOException {
-        this(srcPath, null, frameLimit);
+        this(srcPath, null, frameLimit, false);
+    }
+
+    MuxerTestHelper(String srcPath, boolean aRemoveCSD) throws IOException {
+        this(srcPath, null, -1, aRemoveCSD);
     }
 
     MuxerTestHelper(String srcPath) throws IOException {
-        this(srcPath, null, -1);
+        this(srcPath, null, -1, false);
     }
 
     int getTrackCount() {
         return mTrackCount;
     }
 
-    // offset pts of samples from index sampleOffset till the end by tsOffset
-    void offsetTimeStamp(int trackID, long tsOffset, int sampleOffset) {
-        if (trackID < mTrackCount) {
+    // offset pts of samples from index sampleOffset till the end by tsOffset for each audio and
+    // video track
+    void offsetTimeStamp(long tsAudioOffset, long tsVideoOffset, int sampleOffset) {
+        for (int trackID = 0; trackID < mTrackCount; trackID++) {
+            long tsOffset = 0;
+            if (mFormat.get(trackID).getString(MediaFormat.KEY_MIME).startsWith("video/")) {
+                tsOffset = tsVideoOffset;
+            } else if (mFormat.get(trackID).getString(MediaFormat.KEY_MIME).startsWith("audio/")) {
+                tsOffset = tsAudioOffset;
+            }
             for (int i = sampleOffset; i < mBufferInfo.get(trackID).size(); i++) {
                 MediaCodec.BufferInfo bufferInfo = mBufferInfo.get(trackID).get(i);
                 bufferInfo.presentationTimeUs += tsOffset;
@@ -272,7 +296,7 @@ class MuxerTestHelper {
                 MediaFormat thatFormat = that.mFormat.get(j);
                 String thatMime = thatFormat.getString(MediaFormat.KEY_MIME);
                 if (thisMime != null && thisMime.equals(thatMime)) {
-                    if (!ExtractorTest.isCSDIdentical(thisFormat, thatFormat)) continue;
+                    if (!ExtractorTest.isFormatSimilar(thisFormat, thatFormat)) continue;
                     if (mBufferInfo.get(i).size() == that.mBufferInfo.get(j).size()) {
                         long tolerance = thisMime.startsWith("video/") ? STTS_TOLERANCE_US : 0;
                         // TODO(b/157008437) - muxed file pts is +1us of target pts
@@ -340,6 +364,20 @@ public class MuxerTest {
     private static boolean[] muxSelector = new boolean[MUXER_OUTPUT_LAST + 1];
     private static HashMap<Integer, String> formatStringPair = new HashMap<>();
 
+    static final List<String> codecListforTypeMp4 =
+            Arrays.asList(MediaFormat.MIMETYPE_VIDEO_MPEG4, MediaFormat.MIMETYPE_VIDEO_H263,
+                    MediaFormat.MIMETYPE_VIDEO_AVC, MediaFormat.MIMETYPE_VIDEO_HEVC,
+                    MediaFormat.MIMETYPE_AUDIO_AAC);
+    static final List<String> codecListforTypeWebm =
+            Arrays.asList(MediaFormat.MIMETYPE_VIDEO_VP8, MediaFormat.MIMETYPE_VIDEO_VP9,
+                    MediaFormat.MIMETYPE_AUDIO_VORBIS, MediaFormat.MIMETYPE_AUDIO_OPUS);
+    static final List<String> codecListforType3gp =
+            Arrays.asList(MediaFormat.MIMETYPE_VIDEO_MPEG4, MediaFormat.MIMETYPE_VIDEO_H263,
+                    MediaFormat.MIMETYPE_VIDEO_AVC, MediaFormat.MIMETYPE_AUDIO_AAC,
+                    MediaFormat.MIMETYPE_AUDIO_AMR_NB, MediaFormat.MIMETYPE_AUDIO_AMR_WB);
+    static final List<String> codecListforTypeOgg =
+            Arrays.asList(MediaFormat.MIMETYPE_AUDIO_OPUS);
+
     static {
         android.os.Bundle args = InstrumentationRegistry.getArguments();
         final String defSel = "mp4;webm;3gp;ogg";
@@ -361,6 +399,20 @@ public class MuxerTest {
 
     static private boolean shouldRunTest(int format) {
         return muxSelector[format];
+    }
+
+    static boolean isCodecContainerPairValid(String mime, int format) {
+        boolean result = false;
+        if (format == MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
+            result = codecListforTypeMp4.contains(mime) || mime.startsWith("application/");
+        else if (format == MediaMuxer.OutputFormat.MUXER_OUTPUT_WEBM) {
+            return codecListforTypeWebm.contains(mime);
+        } else if (format == MediaMuxer.OutputFormat.MUXER_OUTPUT_3GPP) {
+            result = codecListforType3gp.contains(mime);
+        } else if (format == MediaMuxer.OutputFormat.MUXER_OUTPUT_OGG) {
+            result = codecListforTypeOgg.contains(mime);
+        }
+        return result;
     }
 
     /**
@@ -683,8 +735,8 @@ public class MuxerTest {
         public static Collection<Object[]> input() {
             return Arrays.asList(new Object[][]{
                     // audio, video are 3 sec
-                    {MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4, "bbb_cif_768kbps_30fps_mpeg4" +
-                            ".mkv", "bbb_stereo_48kHz_192kbps_aac.mp4", "mp4"},
+                    {MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4, "bbb_cif_768kbps_30fps_h263" +
+                            ".mp4", "bbb_stereo_48kHz_192kbps_aac.mp4", "mp4"},
                     {MediaMuxer.OutputFormat.MUXER_OUTPUT_WEBM, "bbb_cif_768kbps_30fps_vp9.mkv"
                             , "bbb_stereo_48kHz_192kbps_vorbis.ogg", "webm"},
                     {MediaMuxer.OutputFormat.MUXER_OUTPUT_3GPP, "bbb_cif_768kbps_30fps_h263.mp4"
@@ -699,8 +751,8 @@ public class MuxerTest {
                             , "bbb_mono_16kHz_20kbps_amrwb.amr", "3gpp"},
 
                     // audio 10 sec, video 3 sec
-                    {MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4, "bbb_cif_768kbps_30fps_mpeg4" +
-                            ".mkv", "bbb_stereo_48kHz_128kbps_aac.mp4", "mp4"},
+                    {MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4, "bbb_cif_768kbps_30fps_h263" +
+                            ".mp4", "bbb_stereo_48kHz_128kbps_aac.mp4", "mp4"},
                     {MediaMuxer.OutputFormat.MUXER_OUTPUT_WEBM, "bbb_cif_768kbps_30fps_vp9.mkv"
                             , "bbb_stereo_48kHz_128kbps_vorbis.ogg", "webm"},
                     {MediaMuxer.OutputFormat.MUXER_OUTPUT_3GPP, "bbb_cif_768kbps_30fps_h263.mp4"
@@ -723,7 +775,8 @@ public class MuxerTest {
             Assume.assumeTrue("TODO(b/146423022)",
                     mOutFormat != MediaMuxer.OutputFormat.MUXER_OUTPUT_WEBM);
             // number of times to repeat {mSrcFileA, mSrcFileB} in Output
-            final int[][] numTracks = {{2, 0}, {0, 2}, {1, 2}, {2, 1}};
+            // values should be in sync with nativeTestMultiTrack
+            final int[][] numTracks = {{2, 0}, {0, 2}, {1, 2}, {2, 1}, {2, 2}};
 
             MuxerTestHelper mediaInfoA = new MuxerTestHelper(mInpPathA);
             MuxerTestHelper mediaInfoB = new MuxerTestHelper(mInpPathB);
@@ -843,7 +896,9 @@ public class MuxerTest {
 
         @Test
         public void testOffsetPresentationTime() throws IOException {
-            final int OFFSET_TS = 111000;
+            // values sohuld be in sync with nativeTestOffsetPts
+            final long[] OFFSET_TS_AUDIO_US = {-23220L, 0L, 200000L, 400000L};
+            final long[] OFFSET_TS_VIDEO_US = {0L, 200000L, 400000L};
             Assume.assumeTrue(shouldRunTest(mOutFormat));
             Assume.assumeTrue("TODO(b/148978457)",
                     mOutFormat != MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4);
@@ -853,24 +908,27 @@ public class MuxerTest {
                     mOutFormat != MediaMuxer.OutputFormat.MUXER_OUTPUT_WEBM);
             Assume.assumeTrue("TODO(b/146421018)",
                     mOutFormat != MediaMuxer.OutputFormat.MUXER_OUTPUT_OGG);
-            assertTrue(OFFSET_TS > MuxerTestHelper.STTS_TOLERANCE_US);
             MuxerTestHelper mediaInfo = new MuxerTestHelper(mInpPath);
-            for (int trackID = 0; trackID < mediaInfo.getTrackCount(); trackID++) {
-                for (int i = 0; i < mOffsetIndices.length; i++) {
-                    mediaInfo.offsetTimeStamp(trackID, OFFSET_TS, mOffsetIndices[i]);
-                }
-                MediaMuxer muxer = new MediaMuxer(mOutPath, mOutFormat);
-                mediaInfo.muxMedia(muxer);
-                muxer.release();
-                MuxerTestHelper outInfo = new MuxerTestHelper(mOutPath);
-                if (!outInfo.isSubsetOf(mediaInfo)) {
-                    String msg = String.format(
-                            "testOffsetPresentationTime: inp: %s, fmt: %d, trackID %d", mSrcFile,
-                            mOutFormat, trackID);
-                    fail(msg + "error! output != input");
-                }
-                for (int i = mOffsetIndices.length - 1; i >= 0; i--) {
-                    mediaInfo.offsetTimeStamp(trackID, -OFFSET_TS, mOffsetIndices[i]);
+            for (long audioOffsetUs : OFFSET_TS_AUDIO_US) {
+                for (long videoOffsetUs : OFFSET_TS_VIDEO_US) {
+                    for (int i = 0; i < mOffsetIndices.length; i++) {
+                        mediaInfo.offsetTimeStamp(audioOffsetUs, videoOffsetUs, mOffsetIndices[i]);
+                    }
+                    MediaMuxer muxer = new MediaMuxer(mOutPath, mOutFormat);
+                    mediaInfo.muxMedia(muxer);
+                    muxer.release();
+                    MuxerTestHelper outInfo = new MuxerTestHelper(mOutPath);
+                    if (!outInfo.isSubsetOf(mediaInfo)) {
+                        String msg = String.format(
+                                "testOffsetPresentationTime: inp: %s, fmt: %d, audioOffsetUs %d, " +
+                                        "videoOffsetUs %d ",
+                                mSrcFile, mOutFormat, audioOffsetUs, videoOffsetUs);
+                        fail(msg + "error! output != input");
+                    }
+                    for (int i = mOffsetIndices.length - 1; i >= 0; i--) {
+                        mediaInfo.offsetTimeStamp(-audioOffsetUs, -videoOffsetUs,
+                                mOffsetIndices[i]);
+                    }
                 }
             }
         }
@@ -899,19 +957,6 @@ public class MuxerTest {
     @LargeTest
     @RunWith(Parameterized.class)
     public static class TestSimpleMux {
-        private final List<String> codecListforTypeMp4 =
-                Arrays.asList(MediaFormat.MIMETYPE_VIDEO_MPEG4, MediaFormat.MIMETYPE_VIDEO_H263,
-                        MediaFormat.MIMETYPE_VIDEO_AVC, MediaFormat.MIMETYPE_VIDEO_HEVC,
-                        MediaFormat.MIMETYPE_AUDIO_AAC);
-        private final List<String> codecListforTypeWebm =
-                Arrays.asList(MediaFormat.MIMETYPE_VIDEO_VP8, MediaFormat.MIMETYPE_VIDEO_VP9,
-                        MediaFormat.MIMETYPE_AUDIO_VORBIS, MediaFormat.MIMETYPE_AUDIO_OPUS);
-        private final List<String> codecListforType3gp =
-                Arrays.asList(MediaFormat.MIMETYPE_VIDEO_MPEG4, MediaFormat.MIMETYPE_VIDEO_H263,
-                        MediaFormat.MIMETYPE_VIDEO_AVC, MediaFormat.MIMETYPE_AUDIO_AAC,
-                        MediaFormat.MIMETYPE_AUDIO_AMR_NB, MediaFormat.MIMETYPE_AUDIO_AMR_WB);
-        private final List<String> codecListforTypeOgg =
-                Arrays.asList(MediaFormat.MIMETYPE_AUDIO_OPUS);
         private String mMime;
         private String mSrcFile;
         private String mInpPath;
@@ -937,18 +982,12 @@ public class MuxerTest {
             new File(mOutPath).delete();
         }
 
-        private boolean isCodecContainerPairValid(int format) {
-            boolean result = false;
-            if (format == MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
-                result = codecListforTypeMp4.contains(mMime) || mMime.startsWith("application/");
-            else if (format == MediaMuxer.OutputFormat.MUXER_OUTPUT_WEBM) {
-                return codecListforTypeWebm.contains(mMime);
-            } else if (format == MediaMuxer.OutputFormat.MUXER_OUTPUT_3GPP) {
-                result = codecListforType3gp.contains(mMime);
-            } else if (format == MediaMuxer.OutputFormat.MUXER_OUTPUT_OGG) {
-                result = codecListforTypeOgg.contains(mMime);
-            }
-            return result;
+        private boolean doesCodecRequireCSD(String aMime) {
+            return (aMime == MediaFormat.MIMETYPE_VIDEO_AVC ||
+                    aMime == MediaFormat.MIMETYPE_VIDEO_HEVC ||
+                    aMime == MediaFormat.MIMETYPE_VIDEO_MPEG4 ||
+                    aMime == MediaFormat.MIMETYPE_AUDIO_AAC);
+
         }
 
         private native boolean nativeTestSimpleMux(String srcPath, String outPath, String mime,
@@ -1011,10 +1050,43 @@ public class MuxerTest {
                         fail(msg + "error! output != clone(input)");
                     }
                 } catch (Exception e) {
-                    if (isCodecContainerPairValid(format)) {
+                    if (isCodecContainerPairValid(mMime, format)) {
                         fail(msg + "error! incompatible mime and output format");
                     }
                 } finally {
+                    muxer.release();
+                }
+            }
+        }
+
+        /* Does MediaMuxer throw IllegalStateException on missing codec specific data when required.
+         * Check if relevant exception is thrown for AAC, AVC, HEVC, and MPEG4
+         * codecs that require CSD in MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4.
+         * TODO(b/156767190): Need to evaluate what all codecs need CSD and also what all formats
+         * can contain these codecs, and add test cases accordingly.
+         * TODO(b/156767190): Add similar tests in the native side/NDK as well.
+         * TODO(b/156767190): Make a separate class, like TestNoCSDMux, instead of being part of
+         * TestSimpleMux?
+         */
+        @Test
+        public void testNoCSDMux() throws IOException {
+            Assume.assumeTrue(doesCodecRequireCSD(mMime));
+            MuxerTestHelper mediaInfo = new MuxerTestHelper(mInpPath, true);
+            for (int format = MUXER_OUTPUT_FIRST; format <= MUXER_OUTPUT_LAST; format++) {
+                // TODO(b/156767190)
+                if(format != MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4) continue;
+                MediaMuxer muxer = new MediaMuxer(mOutPath, format);
+                Exception expected = null;
+                String msg = String.format("testNoCSDMux: inp: %s, mime %s, fmt: %s", mSrcFile,
+                                            mMime, formatStringPair.get(format));
+                try {
+                    mediaInfo.muxMedia(muxer);
+                } catch (IllegalStateException e) {
+                    expected = e;
+                } catch (Exception e) {
+                    fail(msg + ", unexpected exception:" + e.getMessage());
+                } finally {
+                    assertNotNull(msg, expected);
                     muxer.release();
                 }
             }
