@@ -118,6 +118,54 @@ public class CtsConnectionService extends ConnectionService {
     }
 
     @Override
+    public Conference onCreateOutgoingConference(PhoneAccountHandle connectionManagerPhoneAccount,
+            ConnectionRequest request) {
+        synchronized (sLock) {
+            if (sConnectionService != null) {
+                return sConnectionService.onCreateOutgoingConference(connectionManagerPhoneAccount,
+                        request);
+            } else {
+                return null;
+            }
+        }
+    }
+
+    @Override
+    public void onCreateOutgoingConferenceFailed(PhoneAccountHandle connectionManagerPhoneAccount,
+            ConnectionRequest request) {
+        synchronized (sLock) {
+            if (sConnectionService != null) {
+                sConnectionService.onCreateOutgoingConferenceFailed(connectionManagerPhoneAccount,
+                        request);
+            }
+        }
+    }
+
+    @Override
+    public Conference onCreateIncomingConference(PhoneAccountHandle connectionManagerPhoneAccount,
+            ConnectionRequest request) {
+        synchronized (sLock) {
+            if (sConnectionService != null) {
+                return sConnectionService.onCreateIncomingConference(connectionManagerPhoneAccount,
+                        request);
+            } else {
+                return null;
+            }
+        }
+    }
+
+    @Override
+    public void onCreateIncomingConferenceFailed(PhoneAccountHandle connectionManagerPhoneAccount,
+            ConnectionRequest request) {
+        synchronized (sLock) {
+            if (sConnectionService != null) {
+                sConnectionService.onCreateIncomingConferenceFailed(connectionManagerPhoneAccount,
+                        request);
+            }
+        }
+    }
+
+    @Override
     public void onConference(Connection connection1, Connection connection2) {
         synchronized(sLock) {
             if (sConnectionService != null) {
@@ -171,6 +219,25 @@ public class CtsConnectionService extends ConnectionService {
             ConnectionRequest request) {
         synchronized(sLock) {
             return sTelecomConnectionService.createRemoteIncomingConnection(
+                    connectionManagerPhoneAccount, request);
+        }
+    }
+
+    public static RemoteConference createRemoteIncomingConferenceToTelecom(
+            PhoneAccountHandle connectionManagerPhoneAccount,
+            ConnectionRequest request) {
+        synchronized (sLock) {
+            return sTelecomConnectionService.createRemoteIncomingConference(
+                    connectionManagerPhoneAccount, request);
+        }
+    }
+
+
+    public static RemoteConference createRemoteOutgoingConferenceToTelecom(
+            PhoneAccountHandle connectionManagerPhoneAccount,
+            ConnectionRequest request) {
+        synchronized (sLock) {
+            return sTelecomConnectionService.createRemoteOutgoingConference(
                     connectionManagerPhoneAccount, request);
         }
     }

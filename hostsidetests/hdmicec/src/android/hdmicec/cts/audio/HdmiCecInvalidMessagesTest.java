@@ -20,29 +20,27 @@ import static com.google.common.truth.Truth.assertThat;
 import static org.junit.Assume.assumeNoException;
 import static org.junit.Assume.assumeTrue;
 
+import android.hdmicec.cts.BaseHdmiCecCtsTest;
 import android.hdmicec.cts.CecMessage;
 import android.hdmicec.cts.CecOperand;
 import android.hdmicec.cts.HdmiCecClientWrapper;
 import android.hdmicec.cts.HdmiCecConstants;
+import android.hdmicec.cts.LogHelper;
 import android.hdmicec.cts.LogicalAddress;
 import android.hdmicec.cts.RequiredPropertyRule;
 import android.hdmicec.cts.RequiredFeatureRule;
 
 import com.android.tradefed.device.ITestDevice;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
-import com.android.tradefed.testtype.junit4.BaseHostJUnit4Test;
 
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.RuleChain;
 import org.junit.runner.RunWith;
 
-import java.util.Scanner;
-import java.util.concurrent.TimeUnit;
-
 /** HDMI CEC test to verify that device ignores invalid messages (Section 12) */
 @RunWith(DeviceJUnit4ClassRunner.class)
-public final class HdmiCecInvalidMessagesTest extends BaseHostJUnit4Test {
+public final class HdmiCecInvalidMessagesTest extends BaseHdmiCecCtsTest {
 
     private static final LogicalAddress AUDIO_DEVICE = LogicalAddress.AUDIO_SYSTEM;
     private static final String PROPERTY_LOCALE = "persist.sys.locale";
@@ -60,19 +58,16 @@ public final class HdmiCecInvalidMessagesTest extends BaseHostJUnit4Test {
     /** The command to clear the main activity. */
     private static final String CLEAR_COMMAND = String.format("pm clear %s", PACKAGE);
 
-    private static final int WAIT_TIME = 10;
-
-    public HdmiCecClientWrapper hdmiCecClient = new HdmiCecClientWrapper(AUDIO_DEVICE);
+    public HdmiCecInvalidMessagesTest() {
+        super(AUDIO_DEVICE);
+    }
 
     @Rule
     public RuleChain ruleChain =
         RuleChain
-            .outerRule(new RequiredFeatureRule(this, LogicalAddress.HDMI_CEC_FEATURE))
-            .around(new RequiredFeatureRule(this, LogicalAddress.LEANBACK_FEATURE))
-            .around(RequiredPropertyRule.asCsvContainsValue(
-                this,
-                LogicalAddress.HDMI_DEVICE_TYPE_PROPERTY,
-                AUDIO_DEVICE.getDeviceType()))
+            .outerRule(CecRules.requiresCec(this))
+            .around(CecRules.requiresLeanback(this))
+            .around(CecRules.requiresDeviceType(this, AUDIO_DEVICE))
             .around(hdmiCecClient);
 
     private String getSystemLocale() throws Exception {
@@ -102,24 +97,6 @@ public final class HdmiCecInvalidMessagesTest extends BaseHostJUnit4Test {
         } catch(Exception e) {
             assumeNoException(e);
         }
-    }
-
-    private void logShouldNotContain(String expectedOut) throws Exception {
-        ITestDevice device = getDevice();
-        TimeUnit.SECONDS.sleep(WAIT_TIME);
-        String logs = device.executeAdbCommand("logcat", "-v", "brief", "-d", CLASS + ":I", "*:S");
-        // Search for string.
-        String testString = "";
-        Scanner in = new Scanner(logs);
-        while (in.hasNextLine()) {
-            String line = in.nextLine();
-            if(line.startsWith("I/" + CLASS)) {
-                testString = line.split(":")[1].trim();
-                break;
-            }
-        }
-        device.executeAdbCommand("logcat", "-c");
-        assertThat(testString).doesNotContain(expectedOut);
     }
 
     /**
@@ -352,6 +329,6 @@ public final class HdmiCecInvalidMessagesTest extends BaseHostJUnit4Test {
                 LogicalAddress.BROADCAST,
                 HdmiCecConstants.CEC_CONTROL_UP,
                 false);
-        logShouldNotContain("Short press KEYCODE_DPAD_UP");
+        LogHelper.assertLogDoesNotContain(getDevice(), CLASS, "Short press KEYCODE_DPAD_UP");
     }
 }

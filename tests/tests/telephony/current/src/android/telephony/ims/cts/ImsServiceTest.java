@@ -196,6 +196,20 @@ public class ImsServiceTest {
         if (tm.getSimState(sTestSlot) != TelephonyManager.SIM_STATE_READY) {
             fail("This test requires that there is a SIM in the device!");
         }
+        // Correctness check: ensure that the subscription hasn't changed between tests.
+        int[] subs = SubscriptionManager.getSubId(sTestSlot);
+
+        if (subs == null) {
+            fail("This test requires there is an active subscription in slot " + sTestSlot);
+        }
+        boolean isFound = false;
+        for (int sub : subs) {
+            isFound |= (sTestSub == sub);
+        }
+        if (!isFound) {
+            fail("Invalid state found: the test subscription in slot " + sTestSlot + " changed "
+                    + "during this test.");
+        }
     }
 
     @After
@@ -1620,6 +1634,8 @@ public class ImsServiceTest {
                     ProvisioningManager.KEY_MULTIENDPOINT_ENABLED, 0);
             verifyIntKey(provisioningManager, mIntQueue,
                     ProvisioningManager.KEY_RTT_ENABLED, 0);
+            verifyStringKey(provisioningManager, mStringQueue,
+                    ProvisioningManager.KEY_VOICE_OVER_WIFI_ENTITLEMENT_ID, "carrier_spec");
 
             automan.adoptShellPermissionIdentity();
             provisioningManager.unregisterProvisioningChangedCallback(callback);

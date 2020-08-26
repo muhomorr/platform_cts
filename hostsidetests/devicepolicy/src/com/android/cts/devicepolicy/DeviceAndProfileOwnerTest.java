@@ -469,6 +469,7 @@ public abstract class DeviceAndProfileOwnerTest extends BaseDevicePolicyTest {
 
         try {
             installAppAsUser(VPN_APP_APK, mUserId);
+            waitForBroadcastIdle();
             executeDeviceTestMethod(".AlwaysOnVpnMultiStageTest", "testAlwaysOnSetWithWhitelist");
             rebootAndWaitUntilReady();
             // Make sure profile user initialization is complete before proceeding.
@@ -533,6 +534,8 @@ public abstract class DeviceAndProfileOwnerTest extends BaseDevicePolicyTest {
             executeDeviceTestMethod(".AlwaysOnVpnUnsupportedTest", "testSetSupportedVpnAlwaysOn");
             // Update the app to target higher API level, but with manifest opt-out
             installAppAsUser(VPN_APP_NOT_ALWAYS_ON_APK, mUserId);
+            // wait for the app update install completed, ready to be tested
+            waitForBroadcastIdle();
             executeDeviceTestMethod(".AlwaysOnVpnUnsupportedTest", "testAssertNoAlwaysOnVpn");
         } finally {
             executeDeviceTestMethod(".AlwaysOnVpnUnsupportedTest", "testClearAlwaysOnVpn");
@@ -1128,9 +1131,6 @@ public abstract class DeviceAndProfileOwnerTest extends BaseDevicePolicyTest {
             // Wait for the LockTask starting
             waitForBroadcastIdle();
 
-            // Make sure that the LockTaskUtilityActivityIfWhitelisted was started.
-            executeDeviceTestMethod(".LockTaskHostDrivenTest", "testLockTaskIsActive");
-
             // Try to open settings via adb
             executeShellCommand("am start -a android.settings.SETTINGS");
 
@@ -1143,7 +1143,7 @@ public abstract class DeviceAndProfileOwnerTest extends BaseDevicePolicyTest {
     }
 
     public void testLockTask_defaultDialer() throws Exception {
-        if (!mHasFeature || !mHasTelephony) {
+        if (!mHasFeature || !mHasTelephony || !mHasConnectionService) {
             return;
         }
         try {

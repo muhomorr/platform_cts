@@ -27,6 +27,7 @@ import static org.junit.Assert.fail;
 import android.content.Context;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
+import android.database.ContentObserver;
 import android.os.AsyncTask;
 import android.os.Handler;
 import android.os.HandlerThread;
@@ -57,6 +58,8 @@ import org.junit.runner.RunWith;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 /**
@@ -82,8 +85,12 @@ public class NetworkScanApiTest {
     private NetworkScan mNetworkScan;
     private NetworkScanRequest mNetworkScanRequest;
     private NetworkScanCallbackImpl mNetworkScanCallback;
+    private static final int LOCATION_SETTING_CHANGE_WAIT_MS = 1000;
     private static final int MAX_CELLINFO_WAIT_MILLIS = 5000; // 5 seconds
-    private static final int MAX_INIT_WAIT_MS = 60000; // 60 seconds
+    private static final int SCAN_SEARCH_TIME_SECONDS = 60;
+    // Wait one second longer than the max scan search time to give the test time to receive the
+    // results.
+    private static final int MAX_INIT_WAIT_MS = (SCAN_SEARCH_TIME_SECONDS + 1) * 1000;
     private Object mLock = new Object();
     private boolean mReady;
     private int mErrorCode;
@@ -404,7 +411,7 @@ public class NetworkScanApiTest {
                 NetworkScanRequest.SCAN_TYPE_ONE_SHOT /* scan type */,
                 radioAccessSpecifier.toArray(radioAccessSpecifierArray),
                 5 /* search periodicity */,
-                60 /* max search time */,
+                SCAN_SEARCH_TIME_SECONDS /* max search time */,
                 true /*enable incremental results*/,
                 5 /* incremental results periodicity */,
                 null /* List of PLMN ids (MCC-MNC) */);
@@ -450,6 +457,15 @@ public class NetworkScanApiTest {
     }
 
     private boolean getAndSetLocationSwitch(boolean enabled) {
+        CountDownLatch locationChangeLatch = new CountDownLatch(1);
+        ContentObserver settingsObserver = new ContentObserver(mHandler) {
+            @Override
+            public void onChange(boolean selfChange) {
+                locationChangeLatch.countDown();
+                super.onChange(selfChange);
+            }
+        };
+
         InstrumentationRegistry.getInstrumentation().getUiAutomation()
                 .adoptShellPermissionIdentity();
         try {
@@ -460,8 +476,22 @@ public class NetworkScanApiTest {
             int locationMode = enabled ? Settings.Secure.LOCATION_MODE_HIGH_ACCURACY
                     : Settings.Secure.LOCATION_MODE_OFF;
             if (locationMode != oldLocationMode) {
+                InstrumentationRegistry.getContext().getContentResolver().registerContentObserver(
+                        Settings.Secure.getUriFor(Settings.Secure.LOCATION_MODE),
+                        false, settingsObserver);
                 Settings.Secure.putInt(InstrumentationRegistry.getContext().getContentResolver(),
                         Settings.Secure.LOCATION_MODE, locationMode);
+                try {
+                    assertTrue(locationChangeLatch.await(LOCATION_SETTING_CHANGE_WAIT_MS,
+                            TimeUnit.MILLISECONDS));
+                } catch (InterruptedException e) {
+                    Log.w(NetworkScanApiTest.class.getSimpleName(),
+                            "Interrupted while waiting for location settings change. Test results"
+                            + " may not be accurate.");
+                } finally {
+                    InstrumentationRegistry.getContext().getContentResolver()
+                            .unregisterContentObserver(settingsObserver);
+                }
             }
             return oldLocationMode == Settings.Secure.LOCATION_MODE_HIGH_ACCURACY;
         } finally {

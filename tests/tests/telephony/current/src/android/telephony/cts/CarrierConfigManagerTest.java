@@ -67,7 +67,11 @@ public class CarrierConfigManagerTest {
     private TelephonyManager mTelephonyManager;
     private SubscriptionManager mSubscriptionManager;
     private PackageManager mPackageManager;
-    private static final int TOLERANCE = 2000;
+
+    // Use a long timeout to accommodate devices with lower amounts of memory, as it will take
+    // longer for these devices to receive the broadcast (b/161963269). It is expected that all
+    // devices can receive the broadcast in under 5s (most should receive it well before then).
+    private static final int BROADCAST_TIMEOUT_MILLIS = 5000;
     private static final CountDownLatch COUNT_DOWN_LATCH = new CountDownLatch(1);
 
     @Before
@@ -155,6 +159,9 @@ public class CarrierConfigManagerTest {
             assertEquals("KEY_MONTHLY_DATA_CYCLE_DAY_INT doesn't match static default.",
                     config.getInt(CarrierConfigManager.KEY_MONTHLY_DATA_CYCLE_DAY_INT),
                             CarrierConfigManager.DATA_CYCLE_USE_PLATFORM_DEFAULT);
+            assertEquals("KEY_SUPPORT_ADHOC_CONFERENCE_CALLS_BOOL doesn't match static default.",
+                    config.getBoolean(CarrierConfigManager.KEY_SUPPORT_ADHOC_CONFERENCE_CALLS_BOOL),
+                    false);
         }
 
         // These key should return default values if not customized.
@@ -290,9 +297,10 @@ public class CarrierConfigManagerTest {
 
         try {
             t.start();
-            boolean didCarrierNameUpdate = COUNT_DOWN_LATCH.await(TOLERANCE, TimeUnit.MILLISECONDS);
+            boolean didCarrierNameUpdate =
+                    COUNT_DOWN_LATCH.await(BROADCAST_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
             if (!didCarrierNameUpdate) {
-                fail("CarrierName not overridden in " + TOLERANCE + " ms");
+                fail("CarrierName not overridden in " + BROADCAST_TIMEOUT_MILLIS + " ms");
             }
         } finally {
             mConfigManager.overrideConfig(subId, null);
