@@ -68,6 +68,8 @@ import android.util.Log;
 
 import com.google.common.collect.ImmutableSet;
 
+import androidx.test.filters.RequiresDevice;
+
 import org.bouncycastle.asn1.x500.X500Name;
 import org.bouncycastle.cert.jcajce.JcaX509CertificateHolder;
 
@@ -226,6 +228,7 @@ public class KeyAttestationTest extends AndroidTestCase {
     }
 
     @RestrictedBuildTest
+    @RequiresDevice
     public void testEcAttestation_DeviceLocked() throws Exception {
         String keystoreAlias = "test_key";
         Date now = new Date();
@@ -380,6 +383,7 @@ public class KeyAttestationTest extends AndroidTestCase {
     }
 
     @RestrictedBuildTest
+    @RequiresDevice  // Emulators have no place to store the needed key
     public void testRsaAttestation_DeviceLocked() throws Exception {
         String keystoreAlias = "test_key";
         Date now = new Date();
