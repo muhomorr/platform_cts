@@ -68,6 +68,8 @@ import android.util.Log;
 
 import com.google.common.collect.ImmutableSet;
 
+import androidx.test.filters.RequiresDevice;
+
 import org.bouncycastle.asn1.x500.X500Name;
 import org.bouncycastle.cert.jcajce.JcaX509CertificateHolder;
 
@@ -226,6 +228,7 @@ public class KeyAttestationTest extends AndroidTestCase {
     }
 
     @RestrictedBuildTest
+    @RequiresDevice
     public void testEcAttestation_DeviceLocked() throws Exception {
         String keystoreAlias = "test_key";
         Date now = new Date();
@@ -380,6 +383,7 @@ public class KeyAttestationTest extends AndroidTestCase {
     }
 
     @RestrictedBuildTest
+    @RequiresDevice  // Emulators have no place to store the needed key
     public void testRsaAttestation_DeviceLocked() throws Exception {
         String keystoreAlias = "test_key";
         Date now = new Date();
@@ -780,6 +784,7 @@ public class KeyAttestationTest extends AndroidTestCase {
                 case 2:
                 case 3:
                 case 4:
+                case 41:
                     assertThat(teeEnforcedDigests, is(expectedDigests));
                     break;
 
@@ -808,8 +813,8 @@ public class KeyAttestationTest extends AndroidTestCase {
 
     @SuppressWarnings("unchecked")
     private void checkAttestationSecurityLevelDependentParams(Attestation attestation) {
-        assertThat("Attestation version must be 1, 2, or 3", attestation.getAttestationVersion(),
-               either(is(1)).or(is(2)).or(is(3)));
+        assertThat("Attestation version must be 1, 2, 3, or 4", attestation.getAttestationVersion(),
+               either(is(1)).or(is(2)).or(is(3)).or(is(4)));
 
         AuthorizationList teeEnforced = attestation.getTeeEnforced();
         AuthorizationList softwareEnforced = attestation.getSoftwareEnforced();
@@ -822,7 +827,8 @@ public class KeyAttestationTest extends AndroidTestCase {
                 assertThat("TEE attestation can only come from TEE keymaster",
                         attestation.getKeymasterSecurityLevel(),
                         is(KM_SECURITY_LEVEL_TRUSTED_ENVIRONMENT));
-                assertThat(attestation.getKeymasterVersion(), either(is(2)).or(is(3)).or(is(4)));
+                assertThat(attestation.getKeymasterVersion(),
+                           either(is(2)).or(is(3)).or(is(4)).or(is(41)));
 
                 checkRootOfTrust(attestation, false /* requireLocked */);
                 assertThat(teeEnforced.getOsVersion(), is(systemOsVersion));

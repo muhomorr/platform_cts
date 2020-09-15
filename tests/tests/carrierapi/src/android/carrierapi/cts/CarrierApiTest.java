@@ -210,8 +210,7 @@ public class CarrierApiTest extends AndroidTestCase {
     }
 
     private boolean isSimCardPresent() {
-        return mTelephonyManager.getPhoneType() != TelephonyManager.PHONE_TYPE_NONE &&
-                mTelephonyManager.getSimState() != TelephonyManager.SIM_STATE_ABSENT;
+        return mTelephonyManager.getSimState() != TelephonyManager.SIM_STATE_ABSENT;
     }
 
     private String getCertHash(String pkgName) {
@@ -571,6 +570,7 @@ public class CarrierApiTest extends AndroidTestCase {
 
     public void testGetManualNetworkSelectionPlmnPersisted() throws Exception {
         if (!hasCellular) return;
+        if (mTelephonyManager.getPhoneType() != TelephonyManager.PHONE_TYPE_GSM) return;
 
         try {
             mTelephonyManager.setNetworkSelectionModeManual(
@@ -594,6 +594,7 @@ public class CarrierApiTest extends AndroidTestCase {
 
     public void testIsManualNetworkSelectionAllowed() throws Exception {
         if (!hasCellular) return;
+        if (mTelephonyManager.getPhoneType() != TelephonyManager.PHONE_TYPE_GSM) return;
 
         try {
             assertTrue(mTelephonyManager.isManualNetworkSelectionAllowed());

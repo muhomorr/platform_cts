@@ -1729,6 +1729,10 @@ public class NotificationManagerTest extends AndroidTestCase {
     public void testCancel() throws Exception {
         final int id = 9;
         sendNotification(id, R.drawable.black);
+        // Wait for the notification posted not just enqueued
+        try {
+            Thread.sleep(500);
+        } catch(InterruptedException e) {}
         mNotificationManager.cancel(id);
 
         if (!checkNotificationExistence(id, /*shouldExist=*/ false)) {
@@ -2975,7 +2979,8 @@ public class NotificationManagerTest extends AndroidTestCase {
 
     public void testNotificationManagerBubble_checkActivityFlagsDocumentLaunchMode()
             throws Exception {
-        if (FeatureUtil.isAutomotive() || FeatureUtil.isTV()) {
+        if (FeatureUtil.isAutomotive() || FeatureUtil.isTV()
+                || mActivityManager.isLowRamDevice()) {
             // These do not support bubbles.
             return;
         }
@@ -3224,7 +3229,8 @@ public class NotificationManagerTest extends AndroidTestCase {
 
     public void testNotificationManagerBubblePolicy_noFlag_shortcutRemoved()
             throws Exception {
-        if (FeatureUtil.isAutomotive() || FeatureUtil.isTV()) {
+        if (FeatureUtil.isAutomotive() || FeatureUtil.isTV()
+                    || mActivityManager.isLowRamDevice()) {
             // These do not support bubbles.
             return;
         }
@@ -3251,7 +3257,8 @@ public class NotificationManagerTest extends AndroidTestCase {
     }
 
     public void testNotificationManagerBubbleNotificationSuppression() throws Exception {
-        if (FeatureUtil.isAutomotive() || FeatureUtil.isTV()) {
+        if (FeatureUtil.isAutomotive() || FeatureUtil.isTV()
+                || mActivityManager.isLowRamDevice()) {
             // These do not support bubbles.
             return;
         }

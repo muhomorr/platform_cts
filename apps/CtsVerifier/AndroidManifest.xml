@@ -284,6 +284,10 @@
                 android:value="com.android.cts.verifier.bluetooth.BluetoothTestActivity" />
         </activity>
 
+        <!-- Support service to ensure HID Device Test succeeds on
+            devices with full screen pairing dialogs (ex. Android TV -->
+        <service android:name=".bluetooth.FocusLossPreventionService" />
+
         <!--
              CTS Verifier Bluetooth Hid Host Test Screen
                  test category : bt_device_communication
@@ -1643,7 +1647,7 @@
             <meta-data android:name="test_required_features"
                        android:value="android.software.secure_lock_screen" />
             <meta-data android:name="test_excluded_features"
-                       android:value="android.software.lockscreen_disabled" />
+                       android:value="android.hardware.type.automotive:android.software.lockscreen_disabled" />
         </activity>
 
         <activity android:name=".streamquality.StreamingVideoActivity"
@@ -2225,7 +2229,7 @@
 
             <meta-data android:name="test_required_features" android:value="android.hardware.camera.any"/>
             <meta-data android:name="test_excluded_features"
-                       android:value="android.hardware.type.automotive"/>
+                       android:value="android.hardware.type.automotive:android.hardware.type.television:android.software.leanback"/>
         </activity>
 
         <service android:name=".camera.intents.CameraContentJobService"
@@ -2366,6 +2370,7 @@
                 android:resource="@xml/accessory_filter" />
         </activity>
 
+<!-- Temporary disabled b/c of incorrect assumptions in part of the test: b/160938927
         <activity android:name=".usb.device.UsbDeviceTestActivity"
                 android:label="@string/usb_device_test"
                 android:configChanges="keyboardHidden|orientation|screenSize">
@@ -2379,6 +2384,7 @@
             <meta-data android:name="test_excluded_features"
                     android:value="android.hardware.type.watch" />
         </activity>
+        -->
 
         <activity android:name=".usb.mtp.MtpHostTestActivity" android:label="@string/mtp_host_test">
             <intent-filter>
@@ -2535,6 +2541,7 @@
                        android:value="@string/test_category_notifications" />
             <meta-data android:name="test_excluded_features"
                        android:value="android.hardware.type.watch:android.software.leanback:android.hardware.type.automotive" />
+            <meta-data android:name="test_required_configs" android:value="config_quick_settings_supported" />
         </activity>
 
         <service android:name=".notifications.MockListener"
@@ -2576,6 +2583,7 @@
             <meta-data android:name="test_category" android:value="@string/test_category_tiles" />
             <meta-data android:name="test_excluded_features"
                        android:value="android.hardware.type.television:android.software.leanback:android.hardware.type.watch:android.hardware.type.automotive" />
+            <meta-data android:name="test_required_configs" android:value="config_quick_settings_supported" />
         </activity>
 
         <service android:name=".qstiles.MockTileService"
@@ -3660,6 +3668,17 @@
                        android:value="android.software.leanback" />
         </activity>
 
+        <activity android:name=".tv.audio.AudioCapabilitiesTestActivity"
+                  android:label="@string/tv_audio_capabilities_test"
+                  android:configChanges="orientation|screenSize|density|smallestScreenSize|screenLayout">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.cts.intent.category.MANUAL_TEST" />
+            </intent-filter>
+            <meta-data android:name="test_category" android:value="@string/test_category_tv" />
+            <meta-data android:name="test_required_features"
+                       android:value="android.software.leanback" />
+        </activity>
         <activity android:name=".tv.display.DisplayHdrCapabilitiesTestActivity"
                   android:label="@string/tv_hdr_capabilities_test"
                   android:configChanges="orientation|screenSize|density|smallestScreenSize|screenLayout">
@@ -3670,17 +3689,8 @@
             <meta-data android:name="test_category" android:value="@string/test_category_tv" />
             <meta-data android:name="test_required_features"
                        android:value="android.software.leanback" />
-        </activity>
-        <activity android:name=".tv.display.DisplayModesTestActivity"
-                  android:label="@string/tv_display_modes_test"
-                  android:configChanges="orientation|screenSize|density|smallestScreenSize|screenLayout">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.cts.intent.category.MANUAL_TEST" />
-            </intent-filter>
-            <meta-data android:name="test_category" android:value="@string/test_category_tv"/>
-            <meta-data android:name="test_required_features"
-                       android:value="android.software.leanback"/>
+            <meta-data android:name="test_required_configs"
+                       android:value="config_tv_panel"/>
         </activity>
 
 

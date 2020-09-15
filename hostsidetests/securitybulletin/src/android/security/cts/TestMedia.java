@@ -25,6 +25,7 @@ import org.junit.runner.RunWith;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
 
 import static org.junit.Assert.*;
+import junit.framework.Assert;
 
 @RunWith(DeviceJUnit4ClassRunner.class)
 public class TestMedia extends SecurityTestCase {
@@ -39,6 +40,30 @@ public class TestMedia extends SecurityTestCase {
      * To prevent merge conflicts, add tests for O below this comment, before any
      * existing test methods
      ******************************************************************************/
+
+    /**
+     * b/62948670
+     * Vulnerability Behaviour: SIGSEGV in media.codec
+     */
+    @SecurityTest(minPatchLevel = "2017-11")
+    @Test
+    public void testPocCVE_2017_0840() throws Exception {
+        String processPatternStrings[] = {"media\\.codec", "omx@\\d+?\\.\\d+?-service"};
+        AdbUtils.runPocAssertNoCrashesNotVulnerable("CVE-2017-0840", null, getDevice(),
+                processPatternStrings);
+    }
+
+    /**
+     * b/69065651
+     * Vulnerability Behaviour: SIGSEGV in media.codec
+     */
+    @SecurityTest(minPatchLevel = "2018-02")
+    @Test
+    public void testPocCVE_2017_13241() throws Exception {
+        String processPatternStrings[] = {"media\\.codec", "omx@\\d+?\\.\\d+?-service"};
+        AdbUtils.runPocAssertNoCrashesNotVulnerable("CVE-2017-13241", null, getDevice(),
+                processPatternStrings);
+    }
 
     /**
      * b/111603051
@@ -61,7 +86,6 @@ public class TestMedia extends SecurityTestCase {
     }
 
     /**
-     * CTS test for Android Security b/79662501
      * b/36554207
      * Vulnerability Behaviour: SIGSEGV in self
      **/
@@ -98,6 +122,24 @@ public class TestMedia extends SecurityTestCase {
     }
 
     /**
+     * b/65540999
+     * Vulnerability Behaviour: Assert failure
+     **/
+    @SecurityTest(minPatchLevel = "2017-11")
+    @Test
+    public void testPocCVE_2017_0847() throws Exception {
+        String cmdOut = AdbUtils.runCommandLine("ps -eo cmd,gid | grep mediametrics", getDevice());
+        if (cmdOut.length() > 0) {
+            String[] segment = cmdOut.split("\\s+");
+            if (segment.length > 1) {
+                if (segment[1].trim().equals("0")) {
+                    Assert.fail("mediametrics has root group id");
+                }
+            }
+        }
+    }
+
+    /**
      * b/112005441
      * Vulnerability Behaviour: EXIT_VULNERABLE (113)
      */
@@ -127,4 +169,16 @@ public class TestMedia extends SecurityTestCase {
      * To prevent merge conflicts, add tests for Q below this comment, before any
      * existing test methods
      ******************************************************************************/
+
+    /**
+     * b/109891727
+     * Vulnerability Behaviour: SIGSEGV in media.codec
+     */
+    @SecurityTest(minPatchLevel = "2019-09")
+    @Test
+    public void testPocCVE_2019_9347() throws Exception {
+        String processPatternStrings[] = {"media\\.codec", "omx@\\d+?\\.\\d+?-service"};
+        AdbUtils.runPocAssertNoCrashesNotVulnerable("CVE-2019-9347", null, getDevice(),
+                processPatternStrings);
+    }
 }
