@@ -30,6 +30,7 @@ import android.media.MediaCodecInfo.EncoderCapabilities;
 import android.media.MediaCodecInfo.VideoCapabilities;
 import android.media.MediaCodecList;
 import android.media.MediaFormat;
+import android.platform.test.annotations.Presubmit;
 import android.platform.test.annotations.RequiresDevice;
 import android.test.AndroidTestCase;
 import android.util.Log;
@@ -46,6 +47,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+@Presubmit
 @SmallTest
 @RequiresDevice
 public class MediaCodecListTest extends AndroidTestCase {
@@ -324,6 +326,11 @@ public class MediaCodecListTest extends AndroidTestCase {
         return pm.hasSystemFeature(pm.FEATURE_AUTOMOTIVE);
     }
 
+    private boolean isPC() {
+        PackageManager pm = getContext().getPackageManager();
+        return pm.hasSystemFeature(pm.FEATURE_PC);
+    }
+
     // Find whether the given codec can be found using MediaCodecList.find methods.
     private boolean codecCanBeFound(boolean isEncoder, MediaFormat format) {
         String codecName = isEncoder
@@ -416,8 +423,8 @@ public class MediaCodecListTest extends AndroidTestCase {
             list.add(new VideoCodec(MediaFormat.MIMETYPE_VIDEO_VP8, true));    // vp8 encoder
             list.add(new VideoCodec(MediaFormat.MIMETYPE_VIDEO_VP9, false));   // vp9 decoder
 
-            //According to CDD, hevc decoding is not mandatory for automotive devices
-            if (!isAutomotive()) {
+            // According to CDD, hevc decoding is not mandatory for automotive and PC devices.
+            if (!isAutomotive() && !isPC()) {
                 list.add(new VideoCodec(MediaFormat.MIMETYPE_VIDEO_HEVC, false));  // hevc decoder
             }
             list.add(new VideoCodec(MediaFormat.MIMETYPE_VIDEO_MPEG4, false)); // m4v decoder

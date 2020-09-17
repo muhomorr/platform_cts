@@ -37,6 +37,7 @@ using ::aidl::test_package::Bar;
 using ::aidl::test_package::BpTest;
 using ::aidl::test_package::ByteEnum;
 using ::aidl::test_package::Foo;
+using ::aidl::test_package::GenericBar;
 using ::aidl::test_package::IntEnum;
 using ::aidl::test_package::ITest;
 using ::aidl::test_package::LongEnum;
@@ -263,6 +264,14 @@ TEST_P(NdkBinderTest_Aidl, RepeatBinder) {
   ASSERT_OK(iface->RepeatBinder(binder, &ret));
   EXPECT_EQ(binder.get(), ret.get());
 
+  if (shouldBeWrapped) {
+    ndk::ScopedAStatus status = iface->RepeatBinder(nullptr, &ret);
+    ASSERT_EQ(STATUS_UNEXPECTED_NULL, AStatus_getStatus(status.get()));
+  } else {
+    ASSERT_OK(iface->RepeatBinder(nullptr, &ret));
+    EXPECT_EQ(nullptr, ret.get());
+  }
+
   ASSERT_OK(iface->RepeatNullableBinder(binder, &ret));
   EXPECT_EQ(binder.get(), ret.get());
 
@@ -278,6 +287,11 @@ TEST_P(NdkBinderTest_Aidl, RepeatInterface) {
   std::shared_ptr<IEmpty> ret;
   ASSERT_OK(iface->RepeatInterface(empty, &ret));
   EXPECT_EQ(empty.get(), ret.get());
+
+  // interfaces are always nullable in AIDL C++, and that behavior was carried
+  // over to the NDK backend for consistency
+  ASSERT_OK(iface->RepeatInterface(nullptr, &ret));
+  EXPECT_EQ(nullptr, ret.get());
 
   ASSERT_OK(iface->RepeatNullableInterface(empty, &ret));
   EXPECT_EQ(empty.get(), ret.get());
@@ -490,6 +504,27 @@ TEST_P(NdkBinderTest_Aidl, RepeatFoo) {
   EXPECT_EQ(foo.shouldContainTwoByteFoos, retFoo.shouldContainTwoByteFoos);
   EXPECT_EQ(foo.shouldContainTwoIntFoos, retFoo.shouldContainTwoIntFoos);
   EXPECT_EQ(foo.shouldContainTwoLongFoos, retFoo.shouldContainTwoLongFoos);
+}
+
+TEST_P(NdkBinderTest_Aidl, RepeatGenericBar) {
+  if (GetParam().shouldBeOld) {
+    // TODO(b/127361166): GTEST_SKIP is considered a failure, would prefer to use that here
+    __android_log_write(ANDROID_LOG_ERROR, LOG_TAG,
+                        "Skipping RepeatGenericBar test on old interface");
+    return;
+  }
+  GenericBar<int32_t> bar;
+  bar.a = 40;
+  bar.shouldBeGenericFoo.a = 41;
+  bar.shouldBeGenericFoo.b = 42;
+
+  GenericBar<int32_t> retBar;
+
+  ASSERT_OK(iface->repeatGenericBar(bar, &retBar));
+
+  EXPECT_EQ(bar.a, retBar.a);
+  EXPECT_EQ(bar.shouldBeGenericFoo.a, retBar.shouldBeGenericFoo.a);
+  EXPECT_EQ(bar.shouldBeGenericFoo.b, retBar.shouldBeGenericFoo.b);
 }
 
 template <typename T>
@@ -838,7 +873,7 @@ TEST_P(NdkBinderTest_Aidl, GetInterfaceHash) {
   EXPECT_OK(iface->getInterfaceHash(&res));
   if (GetParam().shouldBeOld) {
     // aidl_api/libbinder_ndk_test_interface/1/.hash
-    EXPECT_EQ("8e163a1b4a6f366aa0c00b6da7fc13a970ee55d8", res);
+    EXPECT_EQ("d1f6d67f8af3bf736ae93d872660b0c800dd14d9", res);
   } else {
     EXPECT_EQ("notfrozen", res);
   }
