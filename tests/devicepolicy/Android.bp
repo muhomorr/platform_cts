@@ -20,7 +20,9 @@ android_test {
         "ctstestrunner-axt",
         "truth-prebuilt",
         "androidx.test.ext.junit",
-        "testng",
+        "testng", // used for assertThrows
+        // TODO: Remove this once we remove ui automator usage
+        "androidx.test.uiautomator_uiautomator",
     ],
     srcs: ["src/**/*.java"],
     test_suites: [
@@ -29,7 +31,7 @@ android_test {
         "general-tests",
     ],
     test_options: {
-        extra_test_configs: ["WorkProfileAndroidTest.xml"]
+    extra_test_configs: ["DevicePolicyWorkProfileTest.xml"]
     },
     sdk_version: "test_current",
 }
