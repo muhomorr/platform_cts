@@ -77,7 +77,6 @@ import androidx.annotation.NonNull;
 import androidx.test.InstrumentationRegistry;
 import com.android.compatibility.common.util.ShellIdentityUtils;
 import com.android.utils.blob.DummyBlobData;
-import com.android.utils.blob.FakeBlobData;
 import com.google.common.io.BaseEncoding;
 import java.net.HttpURLConnection;
 import java.net.URL;
