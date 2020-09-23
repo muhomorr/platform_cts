@@ -14,14 +14,22 @@
  * limitations under the License.
  */
 
-package android.permission.host.cts.app
+package android.car.cts.app;
 
-import androidx.test.platform.app.InstrumentationRegistry
+import android.app.Activity;
+import android.os.Bundle;
+import android.util.Log;
 
-open class PermissionMultiUserTestBase {
-    protected val createdUser = InstrumentationRegistry.getArguments()
-            .getString("createdUser")!!.toInt()
-    protected val createdProfile = InstrumentationRegistry.getArguments()
-            .getString("createdProfile")!!.toInt()
-    protected val context = InstrumentationRegistry.getInstrumentation().targetContext
+/**
+ * Very simple activity.
+ */
+public final class SimpleActivity extends Activity {
+
+    private static final String TAG = SimpleActivity.class.getSimpleName();
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        Log.i(TAG, "onCreate()");
+        super.onCreate(savedInstanceState);
+    };
 }

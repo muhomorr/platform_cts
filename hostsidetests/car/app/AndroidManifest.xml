@@ -1,4 +1,5 @@
-/*
+<?xml version="1.0" encoding="utf-8"?>
+<!--
  * Copyright (C) 2020 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,16 +13,17 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- */
+ -->
 
-package android.appop.host.cts.app
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="android.car.cts.app">
 
-import androidx.test.platform.app.InstrumentationRegistry
-
-open class AppOpMultiUserTestBase {
-    protected val createdUser = InstrumentationRegistry.getArguments()
-            .getString("createdUser")!!.toInt()
-    protected val createdProfile = InstrumentationRegistry.getArguments()
-            .getString("createdProfile")!!.toInt()
-    protected val context = InstrumentationRegistry.getInstrumentation().targetContext
-}
+    <application>
+        <activity android:name=".SimpleActivity" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>
