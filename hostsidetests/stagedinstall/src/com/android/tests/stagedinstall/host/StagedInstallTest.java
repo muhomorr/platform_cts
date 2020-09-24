@@ -16,6 +16,8 @@
 
 package com.android.tests.stagedinstall.host;
 
+import static com.android.cts.shim.lib.ShimPackage.SHIM_APEX_PACKAGE_NAME;
+
 import static com.google.common.truth.Truth.assertThat;
 
 import static org.hamcrest.CoreMatchers.endsWith;
@@ -45,8 +47,6 @@ import org.junit.runner.RunWith;
 public class StagedInstallTest extends BaseHostJUnit4Test {
 
     private static final String TAG = "StagedInstallTest";
-
-    private static final String SHIM_APEX_PACKAGE_NAME = "com.android.apex.cts.shim";
 
     private static final String PACKAGE_NAME = "com.android.tests.stagedinstall";
 
@@ -696,7 +696,9 @@ public class StagedInstallTest extends BaseHostJUnit4Test {
      */
     private void setDefaultLauncher(String launcherComponent) throws DeviceNotAvailableException {
         assertThat(launcherComponent).isNotEmpty();
-        getDevice().executeShellCommand("cmd package set-home-activity " + launcherComponent);
+        int user = getDevice().getCurrentUser();
+        getDevice().executeShellCommand(
+                "cmd package set-home-activity --user " + user + " " + launcherComponent);
     }
 
     private static final class FailedTestLogHook extends TestWatcher {
