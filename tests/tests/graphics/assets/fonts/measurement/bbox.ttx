@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Copyright (C) 2017 The Android Open Source Project
+<!-- Copyright (C) 2020 The Android Open Source Project
 
      Licensed under the Apache License, Version 2.0 (the "License");
      you may not use this file except in compliance with the License.
@@ -17,8 +17,11 @@
 
   <GlyphOrder>
     <GlyphID id="0" name=".notdef"/>
-    <GlyphID id="1" name="1em"/>
-    <GlyphID id="2" name="3em"/>
+    <GlyphID id="1" name="1emx1em"/>
+    <GlyphID id="2" name="2emx2em"/>
+    <GlyphID id="3" name="3emx3em"/>
+    <GlyphID id="4" name="2emx2em_lsb_1em"/>
+    <GlyphID id="5" name="1emx1em_y1em_origin"/>
   </GlyphOrder>
 
   <head>
@@ -101,7 +104,7 @@
     <fsSelection value="00000000 01000000"/>
     <usFirstCharIndex value="32"/>
     <usLastCharIndex value="122"/>
-    <sTypoAscender value="1000"/>
+    <sTypoAscender value="800"/>
     <sTypoDescender value="-200"/>
     <sTypoLineGap value="200"/>
     <usWinAscent value="1000"/>
@@ -117,19 +120,23 @@
 
   <hmtx>
     <mtx name=".notdef" width="500" lsb="93"/>
-    <mtx name="1em" width="1000" lsb="100"/>
-    <mtx name="3em" width="3000" lsb="100"/>
+    <mtx name="1emx1em" width="1000" lsb="0"/>
+    <mtx name="2emx2em" width="2000" lsb="0"/>
+    <mtx name="3emx3em" width="3000" lsb="0"/>
+    <mtx name="2emx2em_lsb_1em" width="2000" lsb="1000"/>
+    <mtx name="1emx1em_y1em_origin" width="1000" lsb="0"/>
   </hmtx>
 
   <cmap>
     <tableVersion version="0"/>
-    <cmap_format_4 platformID="3" platEncID="10" language="0">
-      <map code="0x0061" name="3em" />
-      <map code="0x0062" name="1em" />
-      <map code="0x0063" name="1em" />
-      <map code="0x0064" name="1em" />
-      <map code="0x0065" name="1em" />
-    </cmap_format_4>
+    <cmap_format_12 format="12" reserved="0" length="3" nGroups="6" platformID="3" platEncID="1" language="0">
+      <map code="0x0028" name="1emx1em" />
+      <map code="0x0061" name="1emx1em" />
+      <map code="0x0062" name="2emx2em" />
+      <map code="0x0063" name="3emx3em" />
+      <map code="0x0064" name="2emx2em_lsb_1em" />
+      <map code="0x0065" name="1emx1em_y1em_origin" />
+    </cmap_format_12>
   </cmap>
 
   <loca>
@@ -138,7 +145,7 @@
 
   <glyf>
     <TTGlyph name=".notdef" xMin="0" yMin="0" xMax="0" yMax="0" />
-    <TTGlyph name="1em" xMin="0" yMin="0" xMax="1000" yMax="1000">
+    <TTGlyph name="1emx1em" xMin="0" yMin="0" xMax="1000" yMax="1000">
       <contour>
         <pt x="0" y="0" on="1" />
         <pt x="500" y="1000" on="1" />
@@ -146,7 +153,15 @@
       </contour>
       <instructions />
     </TTGlyph>
-    <TTGlyph name="3em" xMin="0" yMin="0" xMax="3000" yMax="3000">
+    <TTGlyph name="2emx2em" xMin="0" yMin="0" xMax="2000" yMax="2000">
+      <contour>
+        <pt x="0" y="0" on="1" />
+        <pt x="1000" y="2000" on="1" />
+        <pt x="2000" y="0" on="1" />
+      </contour>
+      <instructions />
+    </TTGlyph>
+    <TTGlyph name="3emx3em" xMin="0" yMin="0" xMax="3000" yMax="3000">
       <contour>
         <pt x="0" y="0" on="1" />
         <pt x="1500" y="3000" on="1" />
@@ -154,7 +169,56 @@
       </contour>
       <instructions />
     </TTGlyph>
+    <TTGlyph name="2emx2em_lsb_1em" xMin="0" yMin="0" xMax="2000" yMax="2000">
+      <contour>
+        <pt x="0" y="0" on="1" />
+        <pt x="1000" y="2000" on="1" />
+        <pt x="2000" y="0" on="1" />
+      </contour>
+      <instructions />
+    </TTGlyph>
+    <TTGlyph name="1emx1em_y1em_origin" xMin="0" yMin="1000" xMax="1000" yMax="2000">
+      <contour>
+        <pt x="0" y="1000" on="1" />
+        <pt x="500" y="2000" on="1" />
+        <pt x="1000" y="1000" on="1" />
+      </contour>
+      <instructions />
+    </TTGlyph>
   </glyf>
+
+  <GSUB>
+  <Version value="0x00010000"/>
+  <ScriptList>
+    <ScriptRecord index="0">
+      <ScriptTag value="latn"/>
+      <Script>
+        <DefaultLangSys>
+          <ReqFeatureIndex value="65535"/>
+          <FeatureIndex index="0" value="0"/>
+        </DefaultLangSys>
+      </Script>
+    </ScriptRecord>
+  </ScriptList>
+  <FeatureList>
+    <FeatureRecord index="0">
+      <FeatureTag value="rtlm"/>
+      <Feature>
+        <LookupListIndex index="0" value="0"/>
+      </Feature>
+    </FeatureRecord>
+  </FeatureList>
+  <LookupList>
+    <Lookup index="0">
+      <LookupType value="1"/>
+      <LookupFlag value="0"/>
+      <SingleSubst index="0" Format="2">
+        <Substitution in="1emx1em" out="3emx3em" />
+      </SingleSubst>
+    </Lookup>
+  </LookupList>
+
+  </GSUB>
 
   <name>
     <namerecord nameID="0" platformID="3" platEncID="1" langID="0x409">
