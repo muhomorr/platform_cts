@@ -1,3 +1,4 @@
+//
 // Copyright (C) 2020 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -11,41 +12,17 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+//
 
-android_test {
-    name: "CtsWifiTestCases",
-    defaults: ["cts_defaults"],
-
-    // Include both the 32 and 64 bit versions
-    compile_multilib: "both",
-
-    libs: [
-        "android.test.base",
+android_test_helper_app {
+    name: "CtsUsePermissionApp30",
+    srcs: [
+        ":CtsUsePermissionAppSrc",
     ],
-
-    srcs: [ "src/**/*.java" ],
-
     static_libs: [
-        "androidx.appcompat_appcompat",
-        "androidx.test.rules",
-        "compatibility-device-util-axt",
-        "ctstestrunner-axt",
-        "junit",
-        "junit-params",
-        "truth-prebuilt",
+        "kotlin-stdlib",
     ],
+    certificate: ":cts-testkey2",
 
-    test_suites: [
-        "cts",
-        "vts10",
-        "general-tests",
-        "mts",
-    ],
-
-
-    data: [
-        ":CtsWifiLocationTestApp",
-    ],
-
-    platform_apis: true,
+    min_sdk_version: "30",
 }
