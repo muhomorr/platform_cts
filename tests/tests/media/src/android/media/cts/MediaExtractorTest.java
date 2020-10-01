@@ -19,16 +19,18 @@ package android.media.cts;
 import static org.junit.Assert.assertNotEquals;
 
 import android.content.res.AssetFileDescriptor;
-import android.content.res.Resources;
 import android.icu.util.ULocale;
 import android.media.AudioFormat;
 import android.media.AudioPresentation;
+import android.media.DrmInitData;
+import android.media.MediaCodec;
 import android.media.MediaCodecInfo;
 import android.media.MediaDataSource;
 import android.media.MediaExtractor;
 import android.media.MediaFormat;
 import static android.media.MediaFormat.MIMETYPE_VIDEO_DOLBY_VISION;
-import android.media.cts.R;
+import android.os.Build;
+import android.os.ParcelFileDescriptor;
 import android.os.PersistableBundle;
 import android.platform.test.annotations.AppModeFull;
 import android.test.AndroidTestCase;
@@ -37,11 +39,16 @@ import android.webkit.cts.CtsTestServer;
 
 import androidx.test.filters.SmallTest;
 
+import com.android.compatibility.common.util.ApiLevelUtil;
 import com.android.compatibility.common.util.MediaUtils;
 
 import java.io.BufferedReader;
 import java.io.Closeable;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.io.StreamTokenizer;
@@ -52,17 +59,21 @@ import java.util.List;
 import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.UUID;
 
+@AppModeFull(reason = "Instant apps cannot access the SD card")
 public class MediaExtractorTest extends AndroidTestCase {
     private static final String TAG = "MediaExtractorTest";
+    private static final UUID UUID_WIDEVINE = new UUID(0xEDEF8BA979D64ACEL, 0xA3C827DCD51D21EDL);
+    private static final UUID UUID_PLAYREADY = new UUID(0x9A04F07998404286L, 0xAB92E65BE0885F95L);
+    private static boolean mIsAtLeastR = ApiLevelUtil.isAtLeast(Build.VERSION_CODES.R);
 
-    protected Resources mResources;
+    static final String mInpPrefix = WorkDir.getMediaDirString();
     protected MediaExtractor mExtractor;
 
     @Override
     protected void setUp() throws Exception {
         super.setUp();
-        mResources = getContext().getResources();
         mExtractor = new MediaExtractor();
     }
 
@@ -72,13 +83,21 @@ public class MediaExtractorTest extends AndroidTestCase {
         mExtractor.release();
     }
 
-    protected TestMediaDataSource getDataSourceFor(int resid) throws Exception {
-        AssetFileDescriptor afd = mResources.openRawResourceFd(resid);
+    protected AssetFileDescriptor getAssetFileDescriptorFor(final String res)
+            throws FileNotFoundException {
+        File inpFile = new File(mInpPrefix + res);
+        ParcelFileDescriptor parcelFD =
+                ParcelFileDescriptor.open(inpFile, ParcelFileDescriptor.MODE_READ_ONLY);
+        return new AssetFileDescriptor(parcelFD, 0, parcelFD.getStatSize());
+    }
+
+    protected TestMediaDataSource getDataSourceFor(final String res) throws Exception {
+        AssetFileDescriptor afd = getAssetFileDescriptorFor(res);
         return TestMediaDataSource.fromAssetFd(afd);
     }
 
-    protected TestMediaDataSource setDataSource(int resid) throws Exception {
-        TestMediaDataSource ds = getDataSourceFor(resid);
+    protected TestMediaDataSource setDataSource(final String res) throws Exception {
+        TestMediaDataSource ds = getDataSourceFor(res);
         mExtractor.setDataSource(ds);
         return ds;
     }
@@ -93,13 +112,13 @@ public class MediaExtractorTest extends AndroidTestCase {
     }
 
     public void testMediaDataSourceIsClosedOnRelease() throws Exception {
-        TestMediaDataSource dataSource = setDataSource(R.raw.testvideo);
+        TestMediaDataSource dataSource = setDataSource("testvideo.3gp");
         mExtractor.release();
         assertTrue(dataSource.isClosed());
     }
 
     public void testExtractorFailsIfMediaDataSourceThrows() throws Exception {
-        TestMediaDataSource dataSource = getDataSourceFor(R.raw.testvideo);
+        TestMediaDataSource dataSource = getDataSourceFor("testvideo.3gp");
         dataSource.throwFromReadAt();
         try {
             mExtractor.setDataSource(dataSource);
@@ -110,7 +129,7 @@ public class MediaExtractorTest extends AndroidTestCase {
     }
 
     public void testExtractorFailsIfMediaDataSourceReturnsAnError() throws Exception {
-        TestMediaDataSource dataSource = getDataSourceFor(R.raw.testvideo);
+        TestMediaDataSource dataSource = getDataSourceFor("testvideo.3gp");
         dataSource.returnFromReadAt(-2);
         try {
             mExtractor.setDataSource(dataSource);
@@ -122,13 +141,13 @@ public class MediaExtractorTest extends AndroidTestCase {
 
     // Smoke test MediaExtractor reading from a DataSource.
     public void testExtractFromAMediaDataSource() throws Exception {
-        TestMediaDataSource dataSource = setDataSource(R.raw.testvideo);
+        TestMediaDataSource dataSource = setDataSource("testvideo.3gp");
         checkExtractorSamplesAndMetrics();
     }
 
     // Smoke test MediaExtractor reading from an AssetFileDescriptor.
     public void testExtractFromAssetFileDescriptor() throws Exception {
-        AssetFileDescriptor afd = mResources.openRawResourceFd(R.raw.testvideo);
+       AssetFileDescriptor afd = getAssetFileDescriptorFor("testvideo.3gp");
         mExtractor.setDataSource(afd);
         checkExtractorSamplesAndMetrics();
         afd.close();
@@ -136,7 +155,7 @@ public class MediaExtractorTest extends AndroidTestCase {
 
     // DolbyVisionMediaExtractor for profile-level (DvheDtr/Fhd30).
     public void testDolbyVisionMediaExtractorProfileDvheDtr() throws Exception {
-        TestMediaDataSource dataSource = setDataSource(R.raw.video_dovi_1920x1080_30fps_dvhe_04);
+        TestMediaDataSource dataSource = setDataSource("video_dovi_1920x1080_30fps_dvhe_04.mp4");
 
         assertTrue("There should be either 1 or 2 tracks",
             0 < mExtractor.getTrackCount() && 3 > mExtractor.getTrackCount());
@@ -183,7 +202,7 @@ public class MediaExtractorTest extends AndroidTestCase {
 
     // DolbyVisionMediaExtractor for profile-level (DvheStn/Fhd60).
     public void testDolbyVisionMediaExtractorProfileDvheStn() throws Exception {
-        TestMediaDataSource dataSource = setDataSource(R.raw.video_dovi_1920x1080_60fps_dvhe_05);
+        TestMediaDataSource dataSource = setDataSource("video_dovi_1920x1080_60fps_dvhe_05.mp4");
 
         if (MediaUtils.hasDecoder(MIMETYPE_VIDEO_DOLBY_VISION)) {
             // DvheStn exposes only a single non-backward compatible Dolby Vision HDR track.
@@ -205,7 +224,7 @@ public class MediaExtractorTest extends AndroidTestCase {
 
     // DolbyVisionMediaExtractor for profile-level (DvheSt/Fhd60).
     public void testDolbyVisionMediaExtractorProfileDvheSt() throws Exception {
-        TestMediaDataSource dataSource = setDataSource(R.raw.video_dovi_1920x1080_60fps_dvhe_08);
+        TestMediaDataSource dataSource = setDataSource("video_dovi_1920x1080_60fps_dvhe_08.mp4");
 
         assertTrue("There should be either 1 or 2 tracks",
             0 < mExtractor.getTrackCount() && 3 > mExtractor.getTrackCount());
@@ -252,7 +271,7 @@ public class MediaExtractorTest extends AndroidTestCase {
 
     // DolbyVisionMediaExtractor for profile-level (DvavSe/Fhd60).
     public void testDolbyVisionMediaExtractorProfileDvavSe() throws Exception {
-        TestMediaDataSource dataSource = setDataSource(R.raw.video_dovi_1920x1080_60fps_dvav_09);
+        TestMediaDataSource dataSource = setDataSource("video_dovi_1920x1080_60fps_dvav_09.mp4");
 
         assertTrue("There should be either 1 or 2 tracks",
             0 < mExtractor.getTrackCount() && 3 > mExtractor.getTrackCount());
@@ -295,6 +314,89 @@ public class MediaExtractorTest extends AndroidTestCase {
         // The backward-compatible track should have mime video/avc
         final String mimeType = trackFormat.getString(MediaFormat.KEY_MIME);
         assertEquals("video/avc", mimeType);
+    }
+
+    // DolbyVisionMediaExtractor for profile-level (Dvav1 10.0/Uhd30)
+    @SmallTest
+    public void testDolbyVisionMediaExtractorProfileDvav1() throws Exception {
+        TestMediaDataSource dataSource = setDataSource("video_dovi_3840x2160_30fps_dav1_10.mp4");
+
+        if (MediaUtils.hasDecoder(MIMETYPE_VIDEO_DOLBY_VISION)) {
+            assertEquals(1, mExtractor.getTrackCount());
+
+            // Dvav1 10 exposes a single backward compatible track.
+            final MediaFormat trackFormat = mExtractor.getTrackFormat(0);
+            final String mimeType = trackFormat.getString(MediaFormat.KEY_MIME);
+
+            assertEquals("video/dolby-vision", mimeType);
+
+            final int profile = trackFormat.getInteger(MediaFormat.KEY_PROFILE);
+            final int level = trackFormat.getInteger(MediaFormat.KEY_LEVEL);
+
+            assertEquals(MediaCodecInfo.CodecProfileLevel.DolbyVisionProfileDvav110, profile);
+            assertEquals(MediaCodecInfo.CodecProfileLevel.DolbyVisionLevelUhd30, level);
+        } else {
+            MediaUtils.skipTest("Device does not provide a Dolby Vision decoder");
+        }
+    }
+
+    // DolbyVisionMediaExtractor for profile-level (Dvav1 10.1/Uhd30)
+    @SmallTest
+    public void testDolbyVisionMediaExtractorProfileDvav1_2() throws Exception {
+        TestMediaDataSource dataSource = setDataSource("video_dovi_3840x2160_30fps_dav1_10_2.mp4");
+
+        assertTrue("There should be either 1 or 2 tracks",
+            0 < mExtractor.getTrackCount() && 3 > mExtractor.getTrackCount());
+
+        MediaFormat trackFormat = mExtractor.getTrackFormat(0);
+        int trackCountForDolbyVision = 1;
+
+        // Handle the case where there is a Dolby Vision extractor
+        // Note that it may or may not have a Dolby Vision Decoder
+        if (mExtractor.getTrackCount() == 2) {
+            if (trackFormat.getString(MediaFormat.KEY_MIME)
+                    .equalsIgnoreCase(MIMETYPE_VIDEO_DOLBY_VISION)) {
+                trackFormat = mExtractor.getTrackFormat(1);
+                trackCountForDolbyVision = 0;
+            }
+        }
+
+        if (MediaUtils.hasDecoder(MIMETYPE_VIDEO_DOLBY_VISION)) {
+            assertEquals("There must be 2 tracks", 2, mExtractor.getTrackCount());
+
+            MediaFormat trackFormatForDolbyVision =
+                mExtractor.getTrackFormat(trackCountForDolbyVision);
+
+            final String mimeType = trackFormatForDolbyVision.getString(MediaFormat.KEY_MIME);
+            assertEquals("video/dolby-vision", mimeType);
+
+            int profile = trackFormatForDolbyVision.getInteger(MediaFormat.KEY_PROFILE);
+            assertEquals(MediaCodecInfo.CodecProfileLevel.DolbyVisionProfileDvav110, profile);
+
+            int level = trackFormatForDolbyVision.getInteger(MediaFormat.KEY_LEVEL);
+            assertEquals(MediaCodecInfo.CodecProfileLevel.DolbyVisionLevelUhd30, level);
+
+            final int trackIdForDolbyVision =
+                trackFormatForDolbyVision.getInteger(MediaFormat.KEY_TRACK_ID);
+
+            final int trackIdForBackwardCompat = trackFormat.getInteger(MediaFormat.KEY_TRACK_ID);
+            assertEquals(trackIdForDolbyVision, trackIdForBackwardCompat);
+        }
+
+        // The backward-compatible track should have mime video/av01
+        final String mimeType = trackFormat.getString(MediaFormat.KEY_MIME);
+        assertEquals("video/av01", mimeType);
+    }
+
+    public void testGetDrmInitData() throws Exception {
+        if (!MediaUtils.check(mIsAtLeastR, "test needs Android 11")) return;
+        setDataSource("psshtest.mp4");
+        DrmInitData drmInitData = mExtractor.getDrmInitData();
+        assertEquals(drmInitData.getSchemeInitDataCount(), 2);
+        assertEquals(drmInitData.getSchemeInitDataAt(0).uuid, UUID_WIDEVINE);
+        assertEquals(drmInitData.get(UUID_WIDEVINE), drmInitData.getSchemeInitDataAt(0));
+        assertEquals(drmInitData.getSchemeInitDataAt(1).uuid, UUID_PLAYREADY);
+        assertEquals(drmInitData.get(UUID_PLAYREADY), drmInitData.getSchemeInitDataAt(1));
     }
 
     private void checkExtractorSamplesAndMetrics() {
@@ -349,8 +451,7 @@ public class MediaExtractorTest extends AndroidTestCase {
     }
 
     public void testGetAudioPresentations() throws Exception {
-        final int resid = R.raw.MultiLangPerso_1PID_PC0_Select_AC4_H265_DVB_50fps_Audio_Only;
-        TestMediaDataSource dataSource = setDataSource(resid);
+        setDataSource("MultiLangPerso_1PID_PC0_Select_AC4_H265_DVB_50fps_Audio_Only.ts");
         int ac4TrackIndex = -1;
         for (int i = 0; i < mExtractor.getTrackCount(); i++) {
             MediaFormat format = mExtractor.getTrackFormat(i);
@@ -453,11 +554,12 @@ public class MediaExtractorTest extends AndroidTestCase {
         mExtractor.setDataSource(url);
         long cachedDurationUs = mExtractor.getCachedDuration();
         assertTrue("cached duration should be non-negative", cachedDurationUs >= 0);
+        foo.shutdown();
     }
 
     public void testExtractorHasCacheReachedEndOfStream() throws Exception {
         // Using file source to get deterministic result.
-        AssetFileDescriptor afd = mResources.openRawResourceFd(R.raw.testvideo);
+        AssetFileDescriptor afd = getAssetFileDescriptorFor("testvideo.3gp");
         mExtractor.setDataSource(afd);
         assertTrue(mExtractor.hasCacheReachedEndOfStream());
         afd.close();
@@ -468,15 +570,15 @@ public class MediaExtractorTest extends AndroidTestCase {
      * the corresponding text file with just PTS values.
      */
     public void testVideoPresentationTimeStampsMatch() throws Exception {
-        setDataSource(R.raw.binary_counter_320x240_30fps_600frames);
+        setDataSource("binary_counter_320x240_30fps_600frames.mp4");
         // Select the only video track present in the file.
         final int trackCount = mExtractor.getTrackCount();
         for (int i = 0; i < trackCount; i++) {
             mExtractor.selectTrack(i);
         }
 
-        Reader txtRdr = new BufferedReader(new InputStreamReader(mResources.openRawResource(
-                R.raw.timestamps_binary_counter_320x240_30fps_600frames)));
+        Reader txtRdr = new BufferedReader(new InputStreamReader(new FileInputStream(
+                mInpPrefix + "timestamps_binary_counter_320x240_30fps_600frames.txt")));
         StreamTokenizer strTok = new StreamTokenizer(txtRdr);
         strTok.parseNumbers();
 
@@ -694,8 +796,7 @@ public class MediaExtractorTest extends AndroidTestCase {
     }
 
     public void testFlacMovExtraction() throws Exception {
-        AssetFileDescriptor testFd = mResources.openRawResourceFd(R.raw.sinesweepalac);
-
+        AssetFileDescriptor testFd = getAssetFileDescriptorFor("sinesweepalac.mov");
         MediaExtractor extractor = new MediaExtractor();
         extractor.setDataSource(testFd.getFileDescriptor(), testFd.getStartOffset(),
                 testFd.getLength());
@@ -717,8 +818,77 @@ public class MediaExtractorTest extends AndroidTestCase {
         assertTrue("could not read alac mov", totalSize > 0);
     }
 
-    private void doTestAdvance(int res) throws Exception {
-        AssetFileDescriptor testFd = mResources.openRawResourceFd(res);
+    public void testProgramStreamExtraction() throws Exception {
+        AssetFileDescriptor testFd = getAssetFileDescriptorFor("programstream.mpeg");
+
+        MediaExtractor extractor = new MediaExtractor();
+        extractor.setDataSource(testFd.getFileDescriptor(), testFd.getStartOffset(),
+                testFd.getLength());
+        testFd.close();
+        assertEquals("There must be 2 tracks", 2, extractor.getTrackCount());
+        extractor.selectTrack(0);
+        extractor.selectTrack(1);
+        boolean lastAdvanceResult = true;
+        boolean lastReadResult = true;
+        int [] bytesRead = new int[2];
+        MediaCodec [] codecs = { null, null };
+
+        try {
+            MediaFormat f = extractor.getTrackFormat(0);
+            codecs[0] = MediaCodec.createDecoderByType(f.getString(MediaFormat.KEY_MIME));
+            codecs[0].configure(f, null /* surface */, null /* crypto */, 0 /* flags */);
+            codecs[0].start();
+        } catch (IOException | IllegalArgumentException e) {
+            // ignore
+        }
+        try {
+            MediaFormat f = extractor.getTrackFormat(1);
+            codecs[1] = MediaCodec.createDecoderByType(f.getString(MediaFormat.KEY_MIME));
+            codecs[1].configure(f, null /* surface */, null /* crypto */, 0 /* flags */);
+            codecs[1].start();
+        } catch (IOException | IllegalArgumentException e) {
+            // ignore
+        }
+
+        ByteBuffer buf = ByteBuffer.allocate(2*1024*1024);
+        MediaCodec.BufferInfo info = new MediaCodec.BufferInfo();
+        while(true) {
+            for (MediaCodec codec : codecs) {
+                if (codec != null) {
+                    int idx = codec.dequeueOutputBuffer(info, 5);
+                    if (idx >= 0) {
+                        codec.releaseOutputBuffer(idx, false);
+                    }
+                }
+            }
+            int trackIdx = extractor.getSampleTrackIndex();
+            MediaCodec codec = codecs[trackIdx];
+            ByteBuffer b = buf;
+            int bufIdx = -1;
+            if (codec != null) {
+                bufIdx = codec.dequeueInputBuffer(-1);
+                b = codec.getInputBuffer(bufIdx);
+            }
+            int n = extractor.readSampleData(b, 0);
+            if (n > 0) {
+                bytesRead[trackIdx] += n;
+            }
+            if (codec != null) {
+                int sampleFlags = extractor.getSampleFlags();
+                long sampleTime = extractor.getSampleTime();
+                codec.queueInputBuffer(bufIdx, 0, n, sampleTime, sampleFlags);
+            }
+            if (!extractor.advance()) {
+                break;
+            }
+        }
+        assertTrue("did not read from track 0", bytesRead[0] > 0);
+        assertTrue("did not read from track 1", bytesRead[1] > 0);
+        extractor.release();
+    }
+
+    private void doTestAdvance(final String res) throws Exception {
+        AssetFileDescriptor testFd = getAssetFileDescriptorFor(res);
 
         MediaExtractor extractor = new MediaExtractor();
         extractor.setDataSource(testFd.getFileDescriptor(), testFd.getStartOffset(),
@@ -757,20 +927,96 @@ public class MediaExtractorTest extends AndroidTestCase {
 
     public void testAdvance() throws Exception {
         // audio-only
-        doTestAdvance(R.raw.sinesweepm4a);
-        doTestAdvance(R.raw.sinesweepmp3lame);
-        doTestAdvance(R.raw.sinesweepmp3smpb);
-        doTestAdvance(R.raw.sinesweepwav);
-        doTestAdvance(R.raw.sinesweepflac);
-        doTestAdvance(R.raw.sinesweepogg);
-        doTestAdvance(R.raw.sinesweepoggmkv);
+        doTestAdvance("sinesweepm4a.m4a");
+        doTestAdvance("sinesweepmp3lame.mp3");
+        doTestAdvance("sinesweepmp3smpb.mp3");
+        doTestAdvance("sinesweepwav.wav");
+        doTestAdvance("sinesweepflac.flac");
+        doTestAdvance("sinesweepogg.ogg");
+        doTestAdvance("sinesweepoggmkv.mkv");
 
         // video-only
-        doTestAdvance(R.raw.swirl_144x136_mpeg4);
-        doTestAdvance(R.raw.video_640x360_mp4_hevc_450kbps_no_b);
+        doTestAdvance("swirl_144x136_mpeg4.mp4");
+        doTestAdvance("video_640x360_mp4_hevc_450kbps_no_b.mp4");
 
         // audio+video
-        doTestAdvance(R.raw.video_480x360_mp4_h264_500kbps_30fps_aac_stereo_128kbps_44100hz);
-        doTestAdvance(R.raw.video_1280x720_mkv_h265_500kbps_25fps_aac_stereo_128kbps_44100hz);
+        doTestAdvance("video_480x360_mp4_h264_500kbps_30fps_aac_stereo_128kbps_44100hz.mp4");
+        doTestAdvance("video_1280x720_mkv_h265_500kbps_25fps_aac_stereo_128kbps_44100hz.mkv");
+    }
+
+    private void readAllData() {
+        // 1MB is enough for any sample.
+        final ByteBuffer buf = ByteBuffer.allocate(1024*1024);
+        final int trackCount = mExtractor.getTrackCount();
+
+        for (int i = 0; i < trackCount; i++) {
+            mExtractor.selectTrack(i);
+        }
+        do {
+            mExtractor.readSampleData(buf, 0);
+        } while (mExtractor.advance());
+        mExtractor.seekTo(0, MediaExtractor.SEEK_TO_NEXT_SYNC);
+        do {
+            mExtractor.readSampleData(buf, 0);
+        } while (mExtractor.advance());
+    }
+
+    public void testAC3inMP4() throws Exception {
+        setDataSource("testac3mp4.mp4");
+        readAllData();
+    }
+
+    public void testEAC3inMP4() throws Exception {
+        setDataSource("testeac3mp4.mp4");
+        readAllData();
+    }
+
+    public void testAC3inTS() throws Exception {
+        setDataSource("testac3ts.ts");
+        readAllData();
+    }
+
+    public void testEAC3inTS() throws Exception {
+        setDataSource("testeac3ts.ts");
+        readAllData();
+    }
+
+    public void testAC4inMP4() throws Exception {
+        setDataSource("multi0.mp4");
+        readAllData();
+    }
+
+    public void testAV1InMP4() throws Exception {
+        setDataSource("video_dovi_3840x2160_30fps_dav1_10_2.mp4");
+        readAllData();
+    }
+
+    public void testDolbyVisionInMP4() throws Exception {
+        setDataSource("video_dovi_3840x2160_30fps_dav1_10.mp4");
+        readAllData();
+    }
+
+    public void testPcmLeInMov() throws Exception {
+        setDataSource("sinesweeppcmlemov.mov");
+        readAllData();
+    }
+
+    public void testPcmBeInMov() throws Exception {
+        setDataSource("sinesweeppcmbemov.mov");
+        readAllData();
+    }
+
+    public void testFragmentedRead() throws Exception {
+        setDataSource("psshtest.mp4");
+        readAllData();
+    }
+
+    @AppModeFull(reason = "Instant apps cannot bind sockets.")
+    public void testFragmentedHttpRead() throws Exception {
+        CtsTestServer server = new CtsTestServer(getContext());
+        String url = server.getAssetUrl(mInpPrefix + "psshtest.mp4");
+        mExtractor.setDataSource(url);
+        readAllData();
+        server.shutdown();
     }
 }

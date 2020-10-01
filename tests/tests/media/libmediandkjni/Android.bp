@@ -22,17 +22,18 @@ cc_test_library {
         "codec-utils-jni.cpp",
         "md5_utils.cpp",
     ],
-    include_dirs: ["system/core/include"],
     shared_libs: [
         "libnativehelper_compat_libc++",
         "liblog",
     ],
-    sdk_version: "current",
+    header_libs: ["liblog_headers"],
+    sdk_version: "29",
     cflags: [
         "-Werror",
         "-Wall",
         "-DEGL_EGLEXT_PROTOTYPES",
     ],
+    stl: "libc++_static",
     gtest: false,
 }
 
@@ -45,9 +46,7 @@ cc_test_library {
         "native-media-jni.cpp",
         "native_media_utils.cpp",
         "native_media_decoder_source.cpp",
-        "native_media_encoder_jni.cpp",
     ],
-    include_dirs: ["system/core/include"],
     shared_libs: [
         "libandroid",
         "libnativehelper_compat_libc++",
@@ -55,6 +54,7 @@ cc_test_library {
         "libmediandk",
         "libEGL",
     ],
+    header_libs: ["liblog_headers"],
     stl: "libc++_static",
     cflags: [
         "-Werror",
@@ -62,6 +62,7 @@ cc_test_library {
         "-DEGL_EGLEXT_PROTOTYPES",
     ],
     gtest: false,
+    sdk_version: "current",
 }
 
 //------------------------------------------------------------------------------
@@ -84,6 +85,7 @@ cc_test_library {
         "libdl",
         "libEGL",
     ],
+    header_libs: ["liblog_headers"],
     cflags: [
         "-Werror",
         "-Wall",
@@ -91,4 +93,5 @@ cc_test_library {
     ],
     stl: "libc++_static",
     gtest: false,
+    sdk_version: "current",
 }

@@ -16,6 +16,8 @@
 
 package android.dumpsys.cts;
 
+import static com.google.common.truth.Truth.assertThat;
+
 import com.android.compatibility.common.tradefed.build.CompatibilityBuildHelper;
 import com.android.tradefed.log.LogUtil.CLog;
 
@@ -244,7 +246,7 @@ public class BatteryStatsDumpsysTest extends BaseDumpsysTest {
         assertInteger(parts[8]); // starts
         assertInteger(parts[9]); // launches
 
-        // Sanity check.
+        // Validation check.
         assertTrue("wakeup count must be >= 0", wakeup_count >= 0);
     }
 
@@ -328,7 +330,7 @@ public class BatteryStatsDumpsysTest extends BaseDumpsysTest {
         assertInteger(parts[27]);      // max duration
         assertInteger(parts[28]);      // total duration
 
-        // Sanity checks.
+        // Validation checks.
         assertTrue("full wakelock count must be >= 0", full_count >= 0);
         assertTrue("partial wakelock count must be >= 0", partial_count >= 0);
         assertTrue("background partial wakelock count must be >= 0", bg_partial_count >= 0);
@@ -360,13 +362,16 @@ public class BatteryStatsDumpsysTest extends BaseDumpsysTest {
     }
 
     private void checkJobCompletion(String[] parts) {
-        assertEquals(10, parts.length);
+        // This line contains a number for each job cancel reason.
+        // (See JobParameters.JOB_STOP_REASON_CODES), and future mainline updates may introudce
+        // more codes, so we have no upper bound for the number of columns.
+        assertThat(parts.length).isAtLeast(11);
         assertNotNull(parts[4]); // job
-        assertInteger(parts[5]); // reason_canceled
-        assertInteger(parts[6]); // reason_constraints_not_satisfied
-        assertInteger(parts[7]); // reason_preempt
-        assertInteger(parts[8]); // reason_timeout
-        assertInteger(parts[9]); // reason_device_idle
+
+        // Values for each of JOB_STOP_REASON_CODES.
+        for (int i = 5; i < parts.length; i++) {
+            assertInteger(parts[i]);
+        }
     }
 
     private void checkJobsDeferred(String[] parts) {
@@ -576,7 +581,7 @@ public class BatteryStatsDumpsysTest extends BaseDumpsysTest {
 
     private void checkDataConnection(String[] parts) {
         assertEquals(27, parts.length);
-        assertInteger(parts[4]);  // oos
+        assertInteger(parts[4]);  // none
         assertInteger(parts[5]);  // gprs
         assertInteger(parts[6]);  // edge
         assertInteger(parts[7]);  // umts

@@ -16,6 +16,9 @@
 
 package com.android.cts.verifier;
 
+import static com.android.cts.verifier.TestListActivity.sCurrentDisplayMode;
+import static com.android.cts.verifier.TestListAdapter.setTestNameSuffix;
+
 import com.android.compatibility.common.util.ReportLog;
 
 import android.app.AlertDialog;
@@ -35,6 +38,8 @@ import android.view.View;
 import android.view.View.OnClickListener;
 import android.widget.ImageButton;
 import android.widget.Toast;
+import android.app.ActionBar;
+import android.view.MenuItem;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -160,7 +165,7 @@ public class PassFailButtons {
 
         @Override
         public String getTestId() {
-            return getClass().getName();
+            return setTestNameSuffix(sCurrentDisplayMode, getClass().getName());
         }
 
         @Override
@@ -180,6 +185,25 @@ public class PassFailButtons {
 
         @Override
         public TestResultHistoryCollection getHistoryCollection() { return mHistoryCollection; }
+
+        @Override
+        protected void onCreate(Bundle savedInstanceState) {
+            super.onCreate(savedInstanceState);
+            ActionBar actBar = getActionBar();
+            if (actBar != null) {
+                actBar.setDisplayHomeAsUpEnabled(true);
+            }
+        }
+
+        @Override
+        public boolean onOptionsItemSelected(MenuItem item) {
+            if (item.getItemId() == android.R.id.home) {
+                onBackPressed();
+                return true;
+            }
+            return super.onOptionsItemSelected(item);
+        }
+
     }
 
     public static class ListActivity extends android.app.ListActivity implements PassFailActivity {
@@ -214,7 +238,7 @@ public class PassFailButtons {
 
         @Override
         public String getTestId() {
-            return getClass().getName();
+            return setTestNameSuffix(sCurrentDisplayMode, getClass().getName());
         }
 
         @Override
@@ -234,6 +258,25 @@ public class PassFailButtons {
 
         @Override
         public TestResultHistoryCollection getHistoryCollection() { return mHistoryCollection; }
+
+
+        @Override
+        protected void onCreate(Bundle savedInstanceState) {
+            super.onCreate(savedInstanceState);
+            ActionBar actBar = getActionBar();
+            if (actBar != null) {
+                actBar.setDisplayHomeAsUpEnabled(true);
+            }
+        }
+
+        @Override
+        public boolean onOptionsItemSelected(MenuItem item) {
+            if (item.getItemId() == android.R.id.home) {
+                onBackPressed();
+                return true;
+            }
+            return super.onOptionsItemSelected(item);
+        }
     }
 
     public static class TestListActivity extends AbstractTestListActivity
@@ -267,7 +310,7 @@ public class PassFailButtons {
 
         @Override
         public String getTestId() {
-            return getClass().getName();
+            return setTestNameSuffix(sCurrentDisplayMode, getClass().getName());
         }
 
         @Override
@@ -301,6 +344,25 @@ public class PassFailButtons {
 
         public void updatePassButton() {
             getPassButton().setEnabled(mAdapter.allTestsPassed());
+        }
+
+
+        @Override
+        protected void onCreate(Bundle savedInstanceState) {
+            super.onCreate(savedInstanceState);
+            ActionBar actBar = getActionBar();
+            if (actBar != null) {
+                actBar.setDisplayHomeAsUpEnabled(true);
+            }
+        }
+
+        @Override
+        public boolean onOptionsItemSelected(MenuItem item) {
+            if (item.getItemId() == android.R.id.home) {
+                onBackPressed();
+                return true;
+            }
+            return super.onOptionsItemSelected(item);
         }
     }
 
@@ -424,7 +486,8 @@ public class PassFailButtons {
     protected static void markSeenInfoDialog(android.app.Activity activity) {
         ContentResolver resolver = activity.getContentResolver();
         ContentValues values = new ContentValues(2);
-        values.put(TestResultsProvider.COLUMN_TEST_NAME, activity.getClass().getName());
+        String activityName = setTestNameSuffix(sCurrentDisplayMode, activity.getClass().getName());
+        values.put(TestResultsProvider.COLUMN_TEST_NAME, activityName);
         values.put(TestResultsProvider.COLUMN_TEST_INFO_SEEN, 1);
         int numUpdated = resolver.update(
                 TestResultsProvider.getTestNameUri(activity), values, null, null);

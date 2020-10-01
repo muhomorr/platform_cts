@@ -43,7 +43,7 @@ import org.junit.runner.RunWith;
 public class KeyValueBackupRestoreHostSideTest extends BaseBackupHostSideTest {
 
     /** The name of the package of the app under test */
-    private static final String KEY_VALUE_RESTORE_APP_PACKAGE =
+    static final String KEY_VALUE_RESTORE_APP_PACKAGE =
             "android.cts.backup.keyvaluerestoreapp";
 
     /** The name of the package with the activity testing shared preference restore. */
@@ -51,11 +51,11 @@ public class KeyValueBackupRestoreHostSideTest extends BaseBackupHostSideTest {
             "android.cts.backup.sharedprefrestoreapp";
 
     /** The name of the device side test class */
-    private static final String KEY_VALUE_RESTORE_DEVICE_TEST_NAME =
+    static final String KEY_VALUE_RESTORE_DEVICE_TEST_NAME =
             KEY_VALUE_RESTORE_APP_PACKAGE + ".KeyValueBackupRestoreTest";
 
     /** The name of the apk of the app under test */
-    private static final String KEY_VALUE_RESTORE_APP_APK = "CtsKeyValueBackupRestoreApp.apk";
+    static final String KEY_VALUE_RESTORE_APP_APK = "CtsKeyValueBackupRestoreApp.apk";
 
     /** The name of the apk with the activity testing shared preference restore. */
     private static final String SHARED_PREFERENCES_RESTORE_APP_APK =
@@ -74,10 +74,7 @@ public class KeyValueBackupRestoreHostSideTest extends BaseBackupHostSideTest {
     }
 
     @After
-    @Override
     public void tearDown() throws Exception {
-        super.tearDown();
-
         // Clear backup data and uninstall the package (in that order!)
         clearBackupDataInLocalTransport(KEY_VALUE_RESTORE_APP_PACKAGE);
         assertNull(uninstallPackage(KEY_VALUE_RESTORE_APP_PACKAGE));
@@ -99,11 +96,6 @@ public class KeyValueBackupRestoreHostSideTest extends BaseBackupHostSideTest {
      */
     @Test
     public void testKeyValueBackupAndRestore() throws Exception {
-        if (!mIsBackupSupported) {
-            CLog.i("android.software.backup feature is not supported on this device");
-            return;
-        }
-
         checkDeviceTest("checkSharedPrefIsEmpty");
 
         checkDeviceTest("saveSharedPreferencesAndNotifyBackupManager");
@@ -143,11 +135,6 @@ public class KeyValueBackupRestoreHostSideTest extends BaseBackupHostSideTest {
      */
     @Test
     public void testSharedPreferencesRestore() throws Exception {
-        if (!mIsBackupSupported) {
-            CLog.i("android.software.backup feature is not supported on this device");
-            return;
-        }
-
         checkDeviceTest("launchSharedPrefActivity");
 
         getBackupUtils().backupNowAndAssertSuccess(SHARED_PREFERENCES_RESTORE_APP_PACKAGE);

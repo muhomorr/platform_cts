@@ -30,6 +30,7 @@ import static android.net.ConnectivityDiagnosticsManager.DataStallReport.KEY_DNS
 import static android.net.ConnectivityDiagnosticsManager.DataStallReport.KEY_TCP_METRICS_COLLECTION_PERIOD_MILLIS;
 import static android.net.ConnectivityDiagnosticsManager.DataStallReport.KEY_TCP_PACKET_FAIL_RATE;
 import static android.net.ConnectivityDiagnosticsManager.persistableBundleEquals;
+import static android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET;
 import static android.net.NetworkCapabilities.NET_CAPABILITY_NOT_VPN;
 import static android.net.NetworkCapabilities.NET_CAPABILITY_TRUSTED;
 import static android.net.NetworkCapabilities.TRANSPORT_CELLULAR;
@@ -77,9 +78,10 @@ import androidx.test.InstrumentationRegistry;
 
 import com.android.internal.telephony.uicc.IccUtils;
 import com.android.internal.util.ArrayUtils;
-import com.android.testutils.ArrayTrackRecord;
+import com.android.net.module.util.ArrayTrackRecord;
 import com.android.testutils.DevSdkIgnoreRule.IgnoreUpTo;
 import com.android.testutils.DevSdkIgnoreRunner;
+import com.android.testutils.SkipPresubmit;
 
 import org.junit.After;
 import org.junit.Before;
@@ -120,7 +122,10 @@ public class ConnectivityDiagnosticsManagerTest {
     private static final String SHA_256 = "SHA-256";
 
     private static final NetworkRequest CELLULAR_NETWORK_REQUEST =
-            new NetworkRequest.Builder().addTransportType(TRANSPORT_CELLULAR).build();
+            new NetworkRequest.Builder()
+                    .addTransportType(TRANSPORT_CELLULAR)
+                    .addCapability(NET_CAPABILITY_INTERNET)
+                    .build();
 
     private static final IBinder BINDER = new Binder();
 
@@ -190,6 +195,7 @@ public class ConnectivityDiagnosticsManagerTest {
         cb.assertNoCallback();
     }
 
+    @SkipPresubmit(reason = "Flaky: b/159718782; add to presubmit after fixing")
     @Test
     public void testRegisterCallbackWithCarrierPrivileges() throws Exception {
         assumeTrue(mPackageManager.hasSystemFeature(FEATURE_TELEPHONY));

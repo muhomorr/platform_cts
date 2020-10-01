@@ -61,5 +61,9 @@ static const int kBitrateModeConstant = 2;
 
 // common utility functions
 bool isCSDIdentical(AMediaFormat* refFormat, AMediaFormat* testFormat);
+bool isFormatSimilar(AMediaFormat* refFormat, AMediaFormat* testFormat);
+
+template <class T>
+void flattenField(uint8_t* buffer, int* pos, T value);
 
 #endif  // MEDIACTSNATIVE_NATIVE_MEDIA_COMMON_H

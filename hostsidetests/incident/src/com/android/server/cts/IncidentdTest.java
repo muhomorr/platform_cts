@@ -40,15 +40,12 @@ public class IncidentdTest extends ProtoDumpTestCase {
             FingerprintIncidentTest.verifyFingerprintServiceDumpProto(dump.getFingerprint(), filterLevel);
         }
 
-        NetstatsIncidentTest.verifyNetworkStatsServiceDumpProto(dump.getNetstats(), filterLevel);
-
         SettingsIncidentTest.verifySettingsServiceDumpProto(dump.getSettings(), filterLevel);
 
         NotificationIncidentTest.verifyNotificationServiceDumpProto(dump.getNotification(), filterLevel);
 
-        BatteryStatsIncidentTest.verifyBatteryStatsServiceDumpProto(dump.getBatterystats(), filterLevel);
-
         if (BatteryIncidentTest.hasBattery(getDevice())) {
+            BatteryStatsIncidentTest.verifyBatteryStatsServiceDumpProto(dump.getBatterystats(), filterLevel);
             BatteryIncidentTest.verifyBatteryServiceDumpProto(dump.getBattery(), filterLevel);
         }
 
@@ -73,8 +70,6 @@ public class IncidentdTest extends ProtoDumpTestCase {
         ActivityManagerIncidentTest.verifyActivityManagerServiceDumpProcessesProto(dump.getAmprocesses(), filterLevel);
 
         AlarmManagerIncidentTest.verifyAlarmManagerServiceDumpProto(dump.getAlarm(), filterLevel);
-
-        MemInfoIncidentTest.verifyMemInfoDumpProto(dump.getMeminfo(), filterLevel);
 
         // GraphicsStats is expected to be all AUTOMATIC.
 

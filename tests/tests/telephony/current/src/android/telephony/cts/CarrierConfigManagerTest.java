@@ -21,6 +21,7 @@ import static android.app.AppOpsManager.MODE_IGNORED;
 import static android.app.AppOpsManager.OPSTR_READ_PHONE_STATE;
 import static android.telephony.CarrierConfigManager.KEY_CARRIER_NAME_OVERRIDE_BOOL;
 import static android.telephony.CarrierConfigManager.KEY_CARRIER_NAME_STRING;
+import static android.telephony.CarrierConfigManager.KEY_CARRIER_VOLTE_PROVISIONED_BOOL;
 import static android.telephony.CarrierConfigManager.KEY_FORCE_HOME_NETWORK_BOOL;
 import static android.telephony.ServiceState.STATE_IN_SERVICE;
 
@@ -53,7 +54,6 @@ import com.android.compatibility.common.util.TestThread;
 
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -67,7 +67,11 @@ public class CarrierConfigManagerTest {
     private TelephonyManager mTelephonyManager;
     private SubscriptionManager mSubscriptionManager;
     private PackageManager mPackageManager;
-    private static final int TOLERANCE = 2000;
+
+    // Use a long timeout to accommodate devices with lower amounts of memory, as it will take
+    // longer for these devices to receive the broadcast (b/161963269). It is expected that all
+    // devices can receive the broadcast in under 5s (most should receive it well before then).
+    private static final int BROADCAST_TIMEOUT_MILLIS = 5000;
     private static final CountDownLatch COUNT_DOWN_LATCH = new CountDownLatch(1);
 
     @Before
@@ -115,7 +119,8 @@ public class CarrierConfigManagerTest {
 
     private void checkConfig(PersistableBundle config) {
         if (config == null) {
-            assertFalse("Config should only be null when telephony is not running.", hasTelephony());
+            assertFalse(
+                    "Config should only be null when telephony is not running.", hasTelephony());
             return;
         }
         assertNotNull("CarrierConfigManager should not return null config", config);
@@ -155,6 +160,9 @@ public class CarrierConfigManagerTest {
             assertEquals("KEY_MONTHLY_DATA_CYCLE_DAY_INT doesn't match static default.",
                     config.getInt(CarrierConfigManager.KEY_MONTHLY_DATA_CYCLE_DAY_INT),
                             CarrierConfigManager.DATA_CYCLE_USE_PLATFORM_DEFAULT);
+            assertEquals("KEY_SUPPORT_ADHOC_CONFERENCE_CALLS_BOOL doesn't match static default.",
+                    config.getBoolean(CarrierConfigManager.KEY_SUPPORT_ADHOC_CONFERENCE_CALLS_BOOL),
+                    false);
         }
 
         // These key should return default values if not customized.
@@ -183,7 +191,6 @@ public class CarrierConfigManagerTest {
     }
 
     @SecurityTest
-    @Ignore // TODO(b/146238285) -- Appop commands not working.
     @Test
     public void testRevokePermission() {
         if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
@@ -290,13 +297,27 @@ public class CarrierConfigManagerTest {
 
         try {
             t.start();
-            boolean didCarrierNameUpdate = COUNT_DOWN_LATCH.await(TOLERANCE, TimeUnit.MILLISECONDS);
+            boolean didCarrierNameUpdate =
+                    COUNT_DOWN_LATCH.await(BROADCAST_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
             if (!didCarrierNameUpdate) {
-                fail("CarrierName not overridden in " + TOLERANCE + " ms");
+                fail("CarrierName not overridden in " + BROADCAST_TIMEOUT_MILLIS + " ms");
             }
         } finally {
             mConfigManager.overrideConfig(subId, null);
             ui.dropShellPermissionIdentity();
+        }
+    }
+
+    @Test
+    public void testGetConfigByComponentForSubId() {
+        PersistableBundle config =
+                mConfigManager.getConfigByComponentForSubId(
+                        CarrierConfigManager.Wifi.KEY_PREFIX,
+                        SubscriptionManager.getDefaultSubscriptionId());
+        if (config != null) {
+            assertTrue(config.containsKey(CarrierConfigManager.Wifi.KEY_HOTSPOT_MAX_CLIENT_COUNT));
+            assertFalse(config.containsKey(KEY_CARRIER_VOLTE_PROVISIONED_BOOL));
+            assertFalse(config.containsKey(CarrierConfigManager.Gps.KEY_SUPL_ES_STRING));
         }
     }
 }

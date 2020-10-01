@@ -51,7 +51,7 @@ import java.util.Arrays;
 import java.util.Vector;
 
 /**
- * Basic sanity test of data returned by MediaCodeCapabilities.
+ * Basic validation test of data returned by MediaCodeCapabilities.
  */
 @AppModeFull(reason = "Dynamic config disabled.")
 public class MediaCodecCapabilitiesTest extends MediaPlayerTestBase {
@@ -937,6 +937,21 @@ public class MediaCodecCapabilitiesTest extends MediaPlayerTestBase {
         }
         if (skipTest) {
             MediaUtils.skipTest(TAG, "AAC and FLAC encoders not present");
+        }
+    }
+
+    public void testLowLatencyFeatureIsSupportedOnly() throws IOException {
+        MediaCodecList list = new MediaCodecList(MediaCodecList.ALL_CODECS);
+        for (MediaCodecInfo info : list.getCodecInfos()) {
+            for (String type : info.getSupportedTypes()) {
+                CodecCapabilities caps = info.getCapabilitiesForType(type);
+                if (caps.isFeatureSupported(CodecCapabilities.FEATURE_LowLatency)) {
+                    assertFalse(
+                        info.getName() + "(" + type + ") "
+                            + " supports low latency, but low latency shall not be required",
+                        caps.isFeatureRequired(CodecCapabilities.FEATURE_LowLatency));
+                }
+            }
         }
     }
 }

@@ -60,11 +60,18 @@ import java.util.List;
 import java.util.TimeZone;
 import java.text.SimpleDateFormat;
 
+import org.junit.runners.Parameterized;
+import org.junit.runner.RunWith;
+import org.junit.Test;
+
 import static android.hardware.camera2.cts.helpers.AssertHelpers.*;
+import static junit.framework.Assert.*;
 
 /**
  * Tests for the DngCreator API.
  */
+
+@RunWith(Parameterized.class)
 public class DngCreatorTest extends Camera2AndroidTestCase {
     private static final String TAG = "DngCreatorTest";
     private static final boolean VERBOSE = Log.isLoggable(TAG, Log.VERBOSE);
@@ -73,7 +80,7 @@ public class DngCreatorTest extends Camera2AndroidTestCase {
 
     private static final double IMAGE_DIFFERENCE_TOLERANCE = 65;
     private static final int DEFAULT_PATCH_DIMEN = 512;
-    private static final int AE_TIMEOUT_MS = 2000;
+    private static final int AE_TIMEOUT_MS = 3000;
 
     // Constants used for GPS testing.
     private static final double GPS_DIFFERENCE_TOLERANCE = 0.0001;
@@ -99,22 +106,15 @@ public class DngCreatorTest extends Camera2AndroidTestCase {
     }
 
     @Override
-    protected void setUp() throws Exception {
-        RenderScriptSingleton.setContext(getContext());
-
+    public void setUp() throws Exception {
         super.setUp();
+        RenderScriptSingleton.setContext(mContext);
     }
 
     @Override
-    protected void tearDown() throws Exception {
+    public void tearDown() throws Exception {
         RenderScriptSingleton.clearContext();
-
         super.tearDown();
-    }
-
-    @Override
-    public synchronized void setContext(Context context) {
-        super.setContext(context);
     }
 
     /**
@@ -131,16 +131,17 @@ public class DngCreatorTest extends Camera2AndroidTestCase {
      * raw image captured for the first reported camera device to be saved to an output file.
      * </p>
      */
+    @Test
     public void testSingleImageBasic() throws Exception {
-        for (int i = 0; i < mCameraIds.length; i++) {
-            String deviceId = mCameraIds[i];
+        for (int i = 0; i < mCameraIdsUnderTest.length; i++) {
+            String deviceId = mCameraIdsUnderTest[i];
             ImageReader captureReader = null;
             FileOutputStream fileStream = null;
             ByteArrayOutputStream outputStream = null;
             try {
                 if (!mAllStaticInfo.get(deviceId).isCapabilitySupported(
                         CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES_RAW)) {
-                    Log.i(TAG, "RAW capability is not supported in camera " + mCameraIds[i] +
+                    Log.i(TAG, "RAW capability is not supported in camera " + mCameraIdsUnderTest[i] +
                             ". Skip the test.");
                     continue;
                 }
@@ -205,9 +206,10 @@ public class DngCreatorTest extends Camera2AndroidTestCase {
      * raw image captured for the first reported camera device to be saved to an output file.
      * </p>
      */
+    @Test
     public void testSingleImageThumbnail() throws Exception {
-        for (int i = 0; i < mCameraIds.length; i++) {
-            String deviceId = mCameraIds[i];
+        for (int i = 0; i < mCameraIdsUnderTest.length; i++) {
+            String deviceId = mCameraIdsUnderTest[i];
             List<ImageReader> captureReaders = new ArrayList<ImageReader>();
             List<CameraTestUtils.SimpleImageReaderListener> captureListeners =
                     new ArrayList<CameraTestUtils.SimpleImageReaderListener>();
@@ -216,7 +218,7 @@ public class DngCreatorTest extends Camera2AndroidTestCase {
             try {
                 if (!mAllStaticInfo.get(deviceId).isCapabilitySupported(
                         CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES_RAW)) {
-                    Log.i(TAG, "RAW capability is not supported in camera " + mCameraIds[i] +
+                    Log.i(TAG, "RAW capability is not supported in camera " + mCameraIdsUnderTest[i] +
                             ". Skip the test.");
                     continue;
                 }
@@ -369,8 +371,9 @@ public class DngCreatorTest extends Camera2AndroidTestCase {
      * adb shell setprop log.tag.DngCreatorTest VERBOSE
      * </p>
      */
+    @Test
     public void testRaw16JpegConsistency() throws Exception {
-        for (String deviceId : mCameraIds) {
+        for (String deviceId : mCameraIdsUnderTest) {
             List<ImageReader> captureReaders = new ArrayList<>();
             FileOutputStream fileStream = null;
             ByteArrayOutputStream outputStream = null;
@@ -461,8 +464,9 @@ public class DngCreatorTest extends Camera2AndroidTestCase {
     /**
      * Test basic DNG creation, ensure that the DNG image can be rendered by BitmapFactory.
      */
+    @Test
     public void testDngRenderingByBitmapFactor() throws Exception {
-        for (String deviceId : mCameraIds) {
+        for (String deviceId : mCameraIdsUnderTest) {
             List<ImageReader> captureReaders = new ArrayList<>();
 
             CapturedData data = captureRawJpegImagePair(deviceId, captureReaders);
@@ -731,9 +735,10 @@ public class DngCreatorTest extends Camera2AndroidTestCase {
                 @Override
                 public void onCaptureProgressed(CameraCaptureSession session,
                         CaptureRequest request, CaptureResult partialResult) {
-                    int aeState = partialResult.get(CaptureResult.CONTROL_AE_STATE);
-                    if (aeState == CaptureRequest.CONTROL_AE_STATE_CONVERGED ||
-                            aeState == CaptureRequest.CONTROL_AE_STATE_FLASH_REQUIRED) {
+                    Integer aeState = partialResult.get(CaptureResult.CONTROL_AE_STATE);
+                    if (aeState != null &&
+                            (aeState == CaptureRequest.CONTROL_AE_STATE_CONVERGED ||
+                             aeState == CaptureRequest.CONTROL_AE_STATE_FLASH_REQUIRED)) {
                         waitForAeCondition.open();
                     }
                 }

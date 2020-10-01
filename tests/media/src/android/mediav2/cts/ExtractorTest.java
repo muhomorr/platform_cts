@@ -19,6 +19,7 @@ package android.mediav2.cts;
 import android.content.Context;
 import android.content.res.AssetFileDescriptor;
 import android.media.MediaCodec;
+import android.media.MediaCodecInfo;
 import android.media.MediaDataSource;
 import android.media.MediaExtractor;
 import android.media.MediaFormat;
@@ -26,6 +27,7 @@ import android.net.Uri;
 import android.os.ParcelFileDescriptor;
 import android.os.PersistableBundle;
 import android.util.Log;
+import android.webkit.cts.CtsTestServer;
 
 import androidx.test.filters.LargeTest;
 import androidx.test.filters.SmallTest;
@@ -41,10 +43,14 @@ import org.junit.rules.TestName;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.Reader;
+import java.io.StreamTokenizer;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -52,7 +58,10 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
+import java.util.zip.CRC32;
 
+import static android.mediav2.cts.CodecTestBase.hasDecoder;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.junit.Assume.assumeTrue;
@@ -149,19 +158,25 @@ public class ExtractorTest {
     static private final List<String> codecListforTypeTs =
             Arrays.asList(MediaFormat.MIMETYPE_AUDIO_AAC, MediaFormat.MIMETYPE_VIDEO_MPEG2,
                     MediaFormat.MIMETYPE_VIDEO_AVC);
+    static private final List<String> codecListforTypePs =
+            Arrays.asList(MediaFormat.MIMETYPE_VIDEO_MPEG2);
     static private final List<String> codecListforTypeRaw =
             Arrays.asList(MediaFormat.MIMETYPE_AUDIO_AAC, MediaFormat.MIMETYPE_AUDIO_FLAC,
                     MediaFormat.MIMETYPE_AUDIO_MPEG, MediaFormat.MIMETYPE_AUDIO_AMR_NB,
                     MediaFormat.MIMETYPE_AUDIO_AMR_WB, MediaFormat.MIMETYPE_AUDIO_RAW);
+    static private final List<String> codecListforTypeWav =
+            Arrays.asList(MediaFormat.MIMETYPE_AUDIO_RAW,  MediaFormat.MIMETYPE_AUDIO_G711_ALAW,
+                    MediaFormat.MIMETYPE_AUDIO_G711_MLAW,  MediaFormat.MIMETYPE_AUDIO_MSGSM);
     // List of codecs that are not required to be supported as per CDD but are tested
     static private final List<String> codecListSupp =
-            Arrays.asList(MediaFormat.MIMETYPE_VIDEO_AV1);
+            Arrays.asList(MediaFormat.MIMETYPE_VIDEO_AV1, MediaFormat.MIMETYPE_AUDIO_AC3,
+                    MediaFormat.MIMETYPE_AUDIO_AC4, MediaFormat.MIMETYPE_AUDIO_EAC3);
     private static String mInpPrefix = WorkDir.getMediaDirString();
     private static String extSel;
 
     static {
         android.os.Bundle args = InstrumentationRegistry.getArguments();
-        final String defSel = "mp4;webm;3gp;mkv;ogg;supp";
+        final String defSel = "mp4;webm;3gp;mkv;ogg;supp;raw;ts;ps;wav";
         extSel = (null == args.getString(EXT_SEL_KEY)) ? defSel : args.getString(EXT_SEL_KEY);
     }
 
@@ -172,6 +187,10 @@ public class ExtractorTest {
                 (extSel.contains("3gp") && codecListforType3gp.contains(mime)) ||
                 (extSel.contains("mkv") && codecListforTypeMkv.contains(mime)) ||
                 (extSel.contains("ogg") && codecListforTypeOgg.contains(mime)) ||
+                (extSel.contains("ts") && codecListforTypeTs.contains(mime)) ||
+                (extSel.contains("ps") && codecListforTypePs.contains(mime)) ||
+                (extSel.contains("raw") && codecListforTypeRaw.contains(mime)) ||
+                (extSel.contains("wav") && codecListforTypeWav.contains(mime)) ||
                 (extSel.contains("supp") && codecListSupp.contains(mime)))
             result = true;
         return result;
@@ -223,22 +242,30 @@ public class ExtractorTest {
         return true;
     }
 
-    private static boolean isFormatSimilar(MediaFormat refFormat, MediaFormat testFormat) {
+    static boolean isFormatSimilar(MediaFormat refFormat, MediaFormat testFormat) {
         String refMime = refFormat.getString(MediaFormat.KEY_MIME);
         String testMime = testFormat.getString(MediaFormat.KEY_MIME);
 
         if (!refMime.equals(testMime)) return false;
+        if (refFormat.getLong(MediaFormat.KEY_DURATION) !=
+                    testFormat.getLong(MediaFormat.KEY_DURATION)) {
+            Log.w(LOG_TAG, "Duration mismatches ref / test = " +
+                                   refFormat.getLong(MediaFormat.KEY_DURATION) + " / " +
+                                   testFormat.getLong(MediaFormat.KEY_DURATION));
+            // TODO (b/163477410)(b/163478168)
+//            return false;
+        }
         if (!isCSDIdentical(refFormat, testFormat)) return false;
         if (refMime.startsWith("audio/")) {
-            return refFormat.getInteger(MediaFormat.KEY_CHANNEL_COUNT) ==
-                    testFormat.getInteger(MediaFormat.KEY_CHANNEL_COUNT) &&
-                    refFormat.getInteger(MediaFormat.KEY_SAMPLE_RATE) ==
-                            testFormat.getInteger(MediaFormat.KEY_SAMPLE_RATE);
+            if (refFormat.getInteger(MediaFormat.KEY_CHANNEL_COUNT) !=
+                        testFormat.getInteger(MediaFormat.KEY_CHANNEL_COUNT)) return false;
+            if (refFormat.getInteger(MediaFormat.KEY_SAMPLE_RATE) !=
+                        testFormat.getInteger(MediaFormat.KEY_SAMPLE_RATE)) return false;
         } else if (refMime.startsWith("video/")) {
-            return refFormat.getInteger(MediaFormat.KEY_WIDTH) ==
-                    testFormat.getInteger(MediaFormat.KEY_WIDTH) &&
-                    refFormat.getInteger(MediaFormat.KEY_HEIGHT) ==
-                            testFormat.getInteger(MediaFormat.KEY_HEIGHT);
+            if (refFormat.getInteger(MediaFormat.KEY_WIDTH) !=
+                        testFormat.getInteger(MediaFormat.KEY_WIDTH)) return false;
+            if (refFormat.getInteger(MediaFormat.KEY_HEIGHT) !=
+                        testFormat.getInteger(MediaFormat.KEY_HEIGHT)) return false;
         }
         return true;
     }
@@ -378,6 +405,70 @@ public class ExtractorTest {
         }
     }
 
+    private static long readAllData(MediaExtractor extractor, String mime, int sampleLimit) {
+        CRC32 checksum = new CRC32();
+        ByteBuffer buffer = ByteBuffer.allocate(MAX_SAMPLE_SIZE);
+        int tracksSelected = 0;
+        for (int trackID = 0; trackID < extractor.getTrackCount(); trackID++) {
+            MediaFormat format = extractor.getTrackFormat(trackID);
+            String srcMime = format.getString(MediaFormat.KEY_MIME);
+            if (mime != null && !srcMime.equals(mime)) {
+                continue;
+            }
+            extractor.selectTrack(trackID);
+            tracksSelected++;
+            if (srcMime.startsWith("audio/")) {
+                buffer.putInt(0);
+                buffer.putInt(format.getInteger(MediaFormat.KEY_SAMPLE_RATE));
+                buffer.putInt(format.getInteger(MediaFormat.KEY_CHANNEL_COUNT));
+            } else if (srcMime.startsWith("video/")) {
+                buffer.putInt(1);
+                buffer.putInt(format.getInteger(MediaFormat.KEY_WIDTH));
+                buffer.putInt(format.getInteger(MediaFormat.KEY_HEIGHT));
+            } else {
+                buffer.putInt(2);
+            }
+            buffer.putLong(format.getLong(MediaFormat.KEY_DURATION));
+            for (int i = 0; ; i++) {
+                String csdKey = "csd-" + i;
+                if (format.containsKey(csdKey)) {
+                    checksum.update(format.getByteBuffer(csdKey));
+                } else break;
+            }
+        }
+        assertTrue(tracksSelected > 0);
+        buffer.flip();
+        checksum.update(buffer);
+
+        MediaCodec.BufferInfo sampleInfo = new MediaCodec.BufferInfo();
+        for (int sampleCount = 0; sampleCount < sampleLimit; sampleCount++) {
+            sampleInfo.set(0, (int) extractor.getSampleSize(), extractor.getSampleTime(),
+                    extractor.getSampleFlags());
+            extractor.readSampleData(buffer, 0);
+            checksum.update(buffer);
+            assertEquals(sampleInfo.size, buffer.limit());
+            assertTrue(sampleInfo.flags != -1);
+            assertTrue(sampleInfo.presentationTimeUs != -1);
+            buffer.position(0);
+            buffer.putInt(sampleInfo.size)
+                    .putInt(sampleInfo.flags)
+                    .putLong(sampleInfo.presentationTimeUs);
+            buffer.flip();
+            checksum.update(buffer);
+            sampleCount++;
+            if (!extractor.advance()) {
+                assertTrue(isExtractorOKonEOS(extractor));
+                break;
+            }
+        }
+        for (int trackID = 0; trackID < extractor.getTrackCount(); trackID++) {
+            extractor.unselectTrack(trackID);
+        }
+        return checksum.getValue();
+    }
+
+    private static native long nativeReadAllData(String srcPath, String mime, int sampleLimit);
+
     /**
      * Tests setDataSource(...) Api by observing the extractor behavior after its successful
      * instantiation using a media stream.
@@ -388,9 +479,9 @@ public class ExtractorTest {
         public TestName testName = new TestName();
 
         private static final String mInpMedia = "ForBiggerEscapes.mp4";
-        private static final String mInpMediaUrl =
-                "http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4";
-
+        private static final String mResString = "raw/forbiggerescapes";
+        private CtsTestServer mWebServer;
+        private String mInpMediaUrl;
         private MediaExtractor mRefExtractor;
 
         static {
@@ -401,12 +492,20 @@ public class ExtractorTest {
         public void setUp() throws IOException {
             mRefExtractor = new MediaExtractor();
             mRefExtractor.setDataSource(mInpPrefix + mInpMedia);
+            try {
+                Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+                mWebServer = new CtsTestServer(context);
+                mInpMediaUrl = mWebServer.getAssetUrl(mResString);
+            } catch (Exception e) {
+                fail(e.getMessage());
+            }
         }
 
         @After
         public void tearDown() {
             mRefExtractor.release();
             mRefExtractor = null;
+            mWebServer.shutdown();
         }
 
         private static boolean areMetricsIdentical(MediaExtractor refExtractor,
@@ -504,7 +603,11 @@ public class ExtractorTest {
                     !isSeekOk(mRefExtractor, testExtractor)) {
                 fail("setDataSource failed: " + testName.getMethodName());
             }
+            long sdkChecksum = readAllData(testExtractor, null, Integer.MAX_VALUE);
+            long ndkChecksum =
+                    nativeReadAllData(mInpPrefix + mInpMedia, "", Integer.MAX_VALUE);
             testExtractor.release();
+            assertEquals("SDK and NDK checksums mismatch", sdkChecksum, ndkChecksum);
         }
 
         @Test
@@ -556,7 +659,7 @@ public class ExtractorTest {
         @Test
         public void testContextUri() throws IOException {
             Context context = InstrumentationRegistry.getInstrumentation().getContext();
-            String path = "android.resource://android.mediav2.cts/" + R.raw.forbiggerescapes;
+            String path = "android.resource://android.mediav2.cts/" + mResString;
             MediaExtractor testExtractor = new MediaExtractor();
             testExtractor.setDataSource(context, Uri.parse(path), null);
             assertTrue(testExtractor.getCachedDuration() < 0);
@@ -626,7 +729,11 @@ public class ExtractorTest {
             return Arrays.asList(new Object[][]{
                     {MediaFormat.MIMETYPE_VIDEO_MPEG2, new String[]{
                             "bbb_cif_768kbps_30fps_mpeg2_stereo_48kHz_192kbps_mp3.mp4",
-                            "bbb_cif_768kbps_30fps_mpeg2.mkv",}},
+                            "bbb_cif_768kbps_30fps_mpeg2.mkv",
+                            /* TODO(b/162919907)
+                            "bbb_cif_768kbps_30fps_mpeg2.vob",*/
+                            /* TODO(b/162715861)
+                            "bbb_cif_768kbps_30fps_mpeg2.ts" */}},
                     {MediaFormat.MIMETYPE_VIDEO_H263, new String[]{
                             "bbb_cif_768kbps_30fps_h263.mp4",
                             "bbb_cif_768kbps_30fps_h263_mono_8kHz_12kbps_amrnb.3gp",}},
@@ -636,7 +743,9 @@ public class ExtractorTest {
                     {MediaFormat.MIMETYPE_VIDEO_AVC, new String[]{
                             "bbb_cif_768kbps_30fps_avc_stereo_48kHz_192kbps_vorbis.mp4",
                             "bbb_cif_768kbps_30fps_avc_stereo_48kHz_192kbps_aac.mkv",
-                            "bbb_cif_768kbps_30fps_avc_stereo_48kHz_192kbps_aac.3gp",}},
+                            "bbb_cif_768kbps_30fps_avc_stereo_48kHz_192kbps_aac.3gp",
+                            /* TODO(b/162715861)
+                            "bbb_cif_768kbps_30fps_avc.ts",*/}},
                     {MediaFormat.MIMETYPE_VIDEO_HEVC, new String[]{
                             "bbb_cif_768kbps_30fps_hevc_stereo_48kHz_192kbps_opus.mp4",
                             "bbb_cif_768kbps_30fps_hevc_stereo_48kHz_192kbps_mp3.mkv",}},
@@ -667,7 +776,8 @@ public class ExtractorTest {
                     {MediaFormat.MIMETYPE_AUDIO_AAC, new String[]{
                             "bbb_stereo_48kHz_192kbps_aac.mp4",
                             "bbb_cif_768kbps_30fps_avc_stereo_48kHz_192kbps_aac.3gp",
-                            "bbb_cif_768kbps_30fps_avc_stereo_48kHz_192kbps_aac.mkv",}},
+                            "bbb_cif_768kbps_30fps_avc_stereo_48kHz_192kbps_aac.mkv",
+                            "bbb_stereo_48kHz_128kbps_aac.ts",}},
                     {MediaFormat.MIMETYPE_AUDIO_AMR_NB, new String[]{
                             "bbb_cif_768kbps_30fps_h263_mono_8kHz_12kbps_amrnb.3gp",
                             "bbb_mono_8kHz_12kbps_amrnb.amr",}},
@@ -677,6 +787,18 @@ public class ExtractorTest {
                     {MediaFormat.MIMETYPE_AUDIO_FLAC, new String[]{
                             "bbb_cif_768kbps_30fps_mpeg4_stereo_48kHz_192kbps_flac.mp4",
                             "bbb_cif_768kbps_30fps_h263_stereo_48kHz_192kbps_flac.mkv",}},
+                    {MediaFormat.MIMETYPE_AUDIO_RAW, new String[]{
+                            "bbb_stereo_48kHz_192kbps_flac.flac",}},
+                    {MediaFormat.MIMETYPE_AUDIO_RAW, new String[]{"canon.mid",}},
+                    {MediaFormat.MIMETYPE_AUDIO_AC3, new String[]{
+                            "testac3mp4.mp4", "testac3ts.ts",}},
+                    {MediaFormat.MIMETYPE_AUDIO_AC4, new String[]{"multi0.mp4", "multi0.ts",}},
+                    {MediaFormat.MIMETYPE_AUDIO_EAC3, new String[]{
+                            "testeac3mp4.mp4", "testeac3ts.ts",}},
+                    {MediaFormat.MIMETYPE_AUDIO_RAW, new String[]{"bbb_1ch_16kHz.wav",}},
+                    {MediaFormat.MIMETYPE_AUDIO_G711_ALAW, new String[]{"bbb_2ch_8kHz_alaw.wav",}},
+                    {MediaFormat.MIMETYPE_AUDIO_G711_MLAW, new String[]{"bbb_2ch_8kHz_mulaw.wav",}},
+                    {MediaFormat.MIMETYPE_AUDIO_MSGSM, new String[]{"bbb_1ch_8kHz_gsm.wav",}},
             });
         }
 
@@ -852,6 +974,16 @@ public class ExtractorTest {
             return errCnt;
         }
 
+        private boolean isFileSeekable(String srcFile) throws IOException {
+            MediaExtractor ext = new MediaExtractor();
+            ext.setDataSource(mInpPrefix + srcFile);
+            String format = ext.getMetrics().getString(MediaExtractor.MetricsConstants.FORMAT);
+            ext.release();
+            // MPEG2TS and MPEG2PS files are non-seekable
+            return !(format.equalsIgnoreCase("MPEG2TSExtractor") ||
+                    format.equalsIgnoreCase("MPEG2PSExtractor"));
+        }
+
         /**
          * Audio, Video codecs support a variety of file-types/container formats. For example,
          * Vorbis supports OGG, MP4, WEBM and MKV. H.263 supports 3GPP, WEBM and MKV. For every
@@ -863,13 +995,20 @@ public class ExtractorTest {
         @Test
         public void testExtract() throws IOException {
             assumeTrue(shouldRunTest(mMime));
-            assertTrue(mSrcFiles.length > 1);
+            MediaExtractor refExtractor = new MediaExtractor();
+            refExtractor.setDataSource(mInpPrefix + mSrcFiles[0]);
+            long sdkChecksum = readAllData(refExtractor, mMime, Integer.MAX_VALUE);
+            long ndkChecksum =
+                    nativeReadAllData(mInpPrefix + mSrcFiles[0], mMime, Integer.MAX_VALUE);
+            assertEquals("SDK and NDK checksums mismatch", sdkChecksum, ndkChecksum);
+            if (mSrcFiles.length == 1) {
+                refExtractor.release();
+                return;
+            }
             assumeTrue("TODO(b/146925481)", !mMime.equals(MediaFormat.MIMETYPE_AUDIO_VORBIS));
             assumeTrue("TODO(b/146925481)", !mMime.equals(MediaFormat.MIMETYPE_AUDIO_OPUS));
             assumeTrue("TODO(b/146925481)", !mMime.equals(MediaFormat.MIMETYPE_AUDIO_MPEG));
             assumeTrue("TODO(b/146925481)", !mMime.equals(MediaFormat.MIMETYPE_AUDIO_AAC));
-            MediaExtractor refExtractor = new MediaExtractor();
-            refExtractor.setDataSource(mInpPrefix + mSrcFiles[0]);
             boolean isOk = true;
             for (int i = 1; i < mSrcFiles.length && isOk; i++) {
                 MediaExtractor testExtractor = new MediaExtractor();
@@ -897,9 +1036,10 @@ public class ExtractorTest {
         @Test
         @Ignore("TODO(b/146420831)")
         public void testSeek() throws IOException {
-            assumeTrue(shouldRunTest(mMime));
+            assumeTrue(shouldRunTest(mMime) && !mMime.equals(MediaFormat.MIMETYPE_AUDIO_RAW));
             boolean isOk = true;
             for (String srcFile : mSrcFiles) {
+                if (!isFileSeekable(srcFile)) continue;
                 ArrayList<SeekTestParams> seekTestArgs =
                         generateSeekTestArgs(srcFile, mMime, false);
                 assertTrue("Mime is null.", seekTestArgs != null);
@@ -929,6 +1069,7 @@ public class ExtractorTest {
             assumeTrue(shouldRunTest(mMime));
             boolean isOk = true;
             for (String srcFile : mSrcFiles) {
+                if (!isFileSeekable(srcFile)) continue;
                 ArrayList<SeekTestParams> seekTestArgs = generateSeekTestArgs(srcFile, mMime, true);
                 assertTrue("Mime is null.", seekTestArgs != null);
                 assertTrue("No samples found.", !seekTestArgs.isEmpty());
@@ -961,6 +1102,7 @@ public class ExtractorTest {
             assumeTrue("TODO(b/146925481)", !mMime.equals(MediaFormat.MIMETYPE_AUDIO_AAC));
             boolean isOk = true;
             for (String srcFile : mSrcFiles) {
+                if (!isFileSeekable(srcFile)) continue;
                 MediaExtractor extractor = new MediaExtractor();
                 extractor.setDataSource(mInpPrefix + srcFile);
                 MediaCodec.BufferInfo sampleInfoAtZero = new MediaCodec.BufferInfo();
@@ -1039,7 +1181,7 @@ public class ExtractorTest {
         @Test
         public void testExtractNative() {
             assumeTrue(shouldRunTest(mMime));
-            assertTrue(mSrcFiles.length > 1);
+            if (mSrcFiles.length == 1) return;
             assumeTrue("TODO(b/146925481)", !mMime.equals(MediaFormat.MIMETYPE_AUDIO_VORBIS));
             assumeTrue("TODO(b/146925481)", !mMime.equals(MediaFormat.MIMETYPE_AUDIO_OPUS));
             assumeTrue("TODO(b/146925481)", !mMime.equals(MediaFormat.MIMETYPE_AUDIO_MPEG));
@@ -1062,10 +1204,11 @@ public class ExtractorTest {
         @LargeTest
         @Test
         @Ignore("TODO(b/146420831)")
-        public void testSeekNative() {
-            assumeTrue(shouldRunTest(mMime));
+        public void testSeekNative() throws IOException {
+            assumeTrue(shouldRunTest(mMime) && !mMime.equals(MediaFormat.MIMETYPE_AUDIO_RAW));
             boolean isOk = true;
             for (String srcFile : mSrcFiles) {
+                if (!isFileSeekable(srcFile)) continue;
                 if (!nativeTestSeek(mInpPrefix + srcFile, mMime)) {
                     if (!codecListSupp.contains(mMime)) {
                         isOk = false;
@@ -1078,10 +1221,11 @@ public class ExtractorTest {
 
         @LargeTest
         @Test
-        public void testSeekFlakinessNative() {
+        public void testSeekFlakinessNative() throws IOException {
             assumeTrue(shouldRunTest(mMime));
             boolean isOk = true;
             for (String srcFile : mSrcFiles) {
+                if (!isFileSeekable(srcFile)) continue;
                 if (!nativeTestSeekFlakiness(mInpPrefix + srcFile, mMime)) {
                     if (!codecListSupp.contains(mMime)) {
                         isOk = false;
@@ -1094,13 +1238,14 @@ public class ExtractorTest {
 
         @SmallTest
         @Test
-        public void testSeekToZeroNative() {
+        public void testSeekToZeroNative() throws IOException {
             assumeTrue(shouldRunTest(mMime));
             assumeTrue("TODO(b/146925481)", !mMime.equals(MediaFormat.MIMETYPE_AUDIO_VORBIS));
             assumeTrue("TODO(b/146925481)", !mMime.equals(MediaFormat.MIMETYPE_AUDIO_MPEG));
             assumeTrue("TODO(b/146925481)", !mMime.equals(MediaFormat.MIMETYPE_AUDIO_AAC));
             boolean isOk = true;
             for (String srcFile : mSrcFiles) {
+                if (!isFileSeekable(srcFile)) continue;
                 if (!nativeTestSeekToZero(mInpPrefix + srcFile, mMime)) {
                     if (!codecListSupp.contains(mMime)) {
                         isOk = false;
@@ -1121,7 +1266,434 @@ public class ExtractorTest {
                     isOk = false;
                     break;
                 }
-                assertTrue(testName.getMethodName() + " failed for mime: " + mMime, isOk);
+            }
+            assertTrue(testName.getMethodName() + " failed for mime: " + mMime, isOk);
+        }
+    }
+
+    /**
+     * Encloses extractor test for validating extractor output for extractors which directly
+     * decode instead of extracting.
+     */
+    @RunWith(Parameterized.class)
+    public static class FusedExtractorDecoderTest {
+        private final String mMime;
+        private final String mRefFile;
+        private final String mTestFile;
+
+        public FusedExtractorDecoderTest(String mime, String refFile, String testFile) {
+            mMime = mime;
+            mRefFile = refFile;
+            mTestFile = testFile;
+        }
+
+        @Parameterized.Parameters(name = "{index}({0})")
+        public static Collection<Object[]> input() {
+            return Arrays.asList(new Object[][]{
+                    {MediaFormat.MIMETYPE_AUDIO_FLAC,
+                            "bbb_cif_768kbps_30fps_mpeg4_stereo_48kHz_192kbps_flac.mp4",
+                            "bbb_stereo_48kHz_192kbps_flac.flac"},
+                    /* TODO(b/163566531)
+                    {MediaFormat.MIMETYPE_AUDIO_RAW, "bbb_1ch_16kHz.mkv", "bbb_1ch_16kHz.wav"},*/
+            });
+        }
+
+        @LargeTest
+        @Test
+        public void testExtractDecodeAndValidate() throws IOException, InterruptedException {
+            MediaExtractor testExtractor = new MediaExtractor();
+            testExtractor.setDataSource(mInpPrefix + mTestFile);
+            MediaFormat format = testExtractor.getTrackFormat(0);
+            String mime = format.getString(MediaFormat.KEY_MIME);
+            if (mime.equals(MediaFormat.MIMETYPE_AUDIO_RAW)) {
+                ArrayList<String> listOfDecoders =
+                        CodecTestBase.selectCodecs(mMime, null, null, false);
+                assertTrue("no suitable codecs found for mime: " + mMime,
+                        !listOfDecoders.isEmpty());
+                CodecDecoderTestBase cdtb = new CodecDecoderTestBase(mMime, mRefFile);
+                cdtb.decodeToMemory(mRefFile, listOfDecoders.get(0), 0,
+                        MediaExtractor.SEEK_TO_CLOSEST_SYNC, Integer.MAX_VALUE);
+                String log = String.format("test file: %s, ref file: %s:: ", mTestFile, mRefFile);
+                assertTrue(log + "no output received", 0 != cdtb.mOutputCount);
+                final ByteBuffer refBuffer = cdtb.mOutputBuff.getBuffer();
+
+                testExtractor.selectTrack(0);
+                ByteBuffer testBuffer = ByteBuffer.allocate(refBuffer.limit());
+                int bufOffset = 0;
+                while (true) {
+                    long bytesRead = testExtractor.readSampleData(testBuffer, bufOffset);
+                    if (bytesRead == -1) break;
+                    bufOffset += bytesRead;
+                    testExtractor.advance();
+                }
+                testBuffer.rewind();
+                assertEquals(log + "Output mismatch", 0, refBuffer.compareTo(testBuffer));
+                assertTrue(log + "Output formats mismatch",
+                        cdtb.isFormatSimilar(cdtb.mOutFormat, format));
+            } else if (mime.equals(mMime)) {
+                MediaExtractor refExtractor = new MediaExtractor();
+                refExtractor.setDataSource(mInpPrefix + mRefFile);
+                if (!isMediaSimilar(refExtractor, testExtractor, mMime, Integer.MAX_VALUE)) {
+                    fail("Files: " + mRefFile + ", " + mTestFile +
+                            " are different from extractor perspective");
+                }
+                refExtractor.release();
+            } else {
+                fail("unexpected mime: " + mime);
+            }
+            testExtractor.release();
+        }
+    }
+
+    /**
+     * Test if extractor populates key-value pairs correctly
+     */
+    @RunWith(Parameterized.class)
+    public static class ValidateKeyValuePairs {
+        private static final String mInpPrefix = WorkDir.getMediaDirString();
+        private final String mMime;
+        private final String[] mInpFiles;
+        private final int mProfile;
+        private final int mLevel;
+        private final int mWR;
+        private final int mHCh;
+
+        public ValidateKeyValuePairs(String mime, String[] inpFiles, int profile, int level, int wr,
+                int hCh) {
+            mMime = mime;
+            mInpFiles = inpFiles;
+            mProfile = profile;
+            mLevel = level;
+            mWR = wr;
+            mHCh = hCh;
+        }
+
+        @Parameterized.Parameters(name = "{index}({0})")
+        public static Collection<Object[]> input() {
+            // mime, clips, profile, level, width/sample rate, height/channel count
+            List<Object[]> exhaustiveArgsList = new ArrayList<>();
+
+            if (hasDecoder(MediaFormat.MIMETYPE_VIDEO_MPEG2)) {
+                // profile and level constraints as per sec 2.3.2 of cdd
+                /* TODO(b/159582475)
+                exhaustiveArgsList.add(new Object[]{MediaFormat.MIMETYPE_VIDEO_MPEG2, new String[]{
+                        "bbb_1920x1080_mpeg2_main_high.mp4",
+                        "bbb_1920x1080_mpeg2_main_high.mkv"},
+                        MediaCodecInfo.CodecProfileLevel.MPEG2ProfileMain,
+                        MediaCodecInfo.CodecProfileLevel.MPEG2LevelHL, 1920, 1080});*/
+            }
+
+            if (hasDecoder(MediaFormat.MIMETYPE_VIDEO_AVC)) {
+                // profile and level constraints as per sec 2.3.2 of cdd
+                exhaustiveArgsList.add(new Object[]{MediaFormat.MIMETYPE_VIDEO_AVC, new String[]{
+                        "bbb_1920x1080_avc_baseline_l42.mp4",
+                        "bbb_1920x1080_avc_baseline_l42.mkv",
+                        "bbb_1920x1080_avc_baseline_l42.3gp"},
+                        MediaCodecInfo.CodecProfileLevel.AVCProfileConstrainedBaseline,
+                        MediaCodecInfo.CodecProfileLevel.AVCLevel42, 1920, 1080});
+                exhaustiveArgsList.add(new Object[]{MediaFormat.MIMETYPE_VIDEO_AVC, new String[]{
+                        "bbb_1920x1080_avc_main_l42.mp4",
+                        "bbb_1920x1080_avc_main_l42.mkv",
+                        "bbb_1920x1080_avc_main_l42.3gp"},
+                        MediaCodecInfo.CodecProfileLevel.AVCProfileMain,
+                        MediaCodecInfo.CodecProfileLevel.AVCLevel42, 1920, 1080});
+                exhaustiveArgsList.add(new Object[]{MediaFormat.MIMETYPE_VIDEO_AVC, new String[]{
+                        "bbb_1920x1080_avc_high_l42.mp4",
+                        "bbb_1920x1080_avc_high_l42.mkv",
+                        "bbb_1920x1080_avc_high_l42.3gp"},
+                        MediaCodecInfo.CodecProfileLevel.AVCProfileHigh,
+                        MediaCodecInfo.CodecProfileLevel.AVCLevel42, 1920, 1080});
+                exhaustiveArgsList.add(new Object[]{MediaFormat.MIMETYPE_VIDEO_AVC, new String[]{
+                        "video_dovi_1920x1080_60fps_dvav_09.mp4"},
+                        MediaCodecInfo.CodecProfileLevel.AVCProfileHigh,
+                        MediaCodecInfo.CodecProfileLevel.AVCLevel42, 1920, 1080});
+                // profile/level constraints for avc as per sec 5.3.4 of cdd
+                exhaustiveArgsList.add(new Object[]{MediaFormat.MIMETYPE_VIDEO_AVC, new String[]{
+                        "bbb_1920x1080_avc_baseline_l40.mp4",
+                        "bbb_1920x1080_avc_baseline_l40.mkv",
+                        "bbb_1920x1080_avc_baseline_l40.3gp"},
+                        MediaCodecInfo.CodecProfileLevel.AVCProfileConstrainedBaseline,
+                        MediaCodecInfo.CodecProfileLevel.AVCLevel4, 1920, 1080});
+                exhaustiveArgsList.add(new Object[]{MediaFormat.MIMETYPE_VIDEO_AVC, new String[]{
+                        "bbb_1920x1080_avc_main_l40.mp4",
+                        "bbb_1920x1080_avc_main_l40.mkv",
+                        "bbb_1920x1080_avc_main_l40.3gp"},
+                        MediaCodecInfo.CodecProfileLevel.AVCProfileMain,
+                        MediaCodecInfo.CodecProfileLevel.AVCLevel4, 1920, 1080});
+            }
+
+            if (hasDecoder(MediaFormat.MIMETYPE_VIDEO_HEVC)) {
+                // profile and level constraints as per sec 2.3.2 of cdd
+                exhaustiveArgsList.add(new Object[]{MediaFormat.MIMETYPE_VIDEO_HEVC, new String[]{
+                        "bbb_1920x1080_hevc_main_l41.mp4",
+                        "bbb_1920x1080_hevc_main_l41.mkv"},
+                        MediaCodecInfo.CodecProfileLevel.HEVCProfileMain,
+                        MediaCodecInfo.CodecProfileLevel.HEVCMainTierLevel41, 1920, 1080});
+                // profile/level constraints for hevc as per sec 5.3.5 of cdd
+                exhaustiveArgsList.add(new Object[]{MediaFormat.MIMETYPE_VIDEO_HEVC, new String[]{
+                        "bbb_1920x1080_hevc_main_l40.mp4",
+                        "bbb_1920x1080_hevc_main_l40.mkv"},
+                        MediaCodecInfo.CodecProfileLevel.HEVCProfileMain,
+                        MediaCodecInfo.CodecProfileLevel.HEVCMainTierLevel4, 1920, 1080});
+                exhaustiveArgsList.add(new Object[]{MediaFormat.MIMETYPE_VIDEO_HEVC, new String[]{
+                        "video_dovi_1920x1080_30fps_dvhe_04.mp4"},
+                        MediaCodecInfo.CodecProfileLevel.HEVCProfileMain10,
+                        MediaCodecInfo.CodecProfileLevel.HEVCMainTierLevel4, 1920, 1080});
+                exhaustiveArgsList.add(new Object[]{MediaFormat.MIMETYPE_VIDEO_HEVC, new String[]{
+                        "video_dovi_1920x1080_60fps_dvhe_08.mp4"},
+                        MediaCodecInfo.CodecProfileLevel.HEVCProfileMain10,
+                        MediaCodecInfo.CodecProfileLevel.HEVCMainTierLevel41, 1920, 1080});
+            }
+
+            if (hasDecoder(MediaFormat.MIMETYPE_VIDEO_VP9)) {
+                // profile and level constraints as per sec 2.3.2 of cdd
+                /* TODO(b/159582475)
+                exhaustiveArgsList.add(new Object[]{MediaFormat.MIMETYPE_VIDEO_VP9, new String[]{
+                        "bbb_1920x1080_vp9_main_l41.webm",
+                        "bbb_1920x1080_vp9_main_l41.mkv"},
+                        MediaCodecInfo.CodecProfileLevel.VP9Profile0,
+                        MediaCodecInfo.CodecProfileLevel.VP9Level41, 1920, 1080});*/
+                // profile/level constraints for vp9 as per sec 5.3.6 of cdd
+                /* TODO(b/159582475)
+                exhaustiveArgsList.add(new Object[]{MediaFormat.MIMETYPE_VIDEO_VP9, new String[]{
+                        "bbb_1920x1080_vp9_main_l40.webm",
+                        "bbb_1920x1080_vp9_main_l40.mkv"},
+                        MediaCodecInfo.CodecProfileLevel.VP9Profile0,
+                        MediaCodecInfo.CodecProfileLevel.VP9Level4, 1920, 1080});*/
+            }
+
+            if (hasDecoder(MediaFormat.MIMETYPE_VIDEO_H263)) {
+                // profile/level constraints for h263 as per sec 5.3.2 of cdd
+                /* TODO(b/159582475)
+                exhaustiveArgsList.add(new Object[]{MediaFormat.MIMETYPE_VIDEO_H263, new String[]{
+                        "bbb_352x288_384kbps_30fps_h263_baseline_l3.3gp",
+                        "bbb_352x288_384kbps_30fps_h263_baseline_l3.mp4",
+                        "bbb_352x288_384kbps_30fps_h263_baseline_l3.mkv"},
+                        MediaCodecInfo.CodecProfileLevel.H263ProfileBaseline,
+                        MediaCodecInfo.CodecProfileLevel.H263Level30, 352, 288});*/
+            }
+
+            if (hasDecoder(MediaFormat.MIMETYPE_VIDEO_MPEG4)) {
+                // profile/level constraints for mpeg4 as per sec 5.3.3 of cdd
+                exhaustiveArgsList.add(new Object[]{MediaFormat.MIMETYPE_VIDEO_MPEG4, new String[]{
+                        "bbb_352x288_384kbps_30fps_mpeg4_simple_l3.mp4",
+                        "bbb_352x288_384kbps_30fps_mpeg4_simple_l3.3gp",
+                        "bbb_352x288_384kbps_30fps_mpeg4_simple_l3.mkv"},
+                        MediaCodecInfo.CodecProfileLevel.MPEG4ProfileSimple,
+                        MediaCodecInfo.CodecProfileLevel.MPEG4Level3, 352, 288});
+            }
+
+            if (hasDecoder(MediaFormat.MIMETYPE_AUDIO_AAC)) {
+                // profile and level constraints for devices that have audio output as per sec 2.2.2,
+                // sec 2.3.2, sec 2.5.2, sec 5.1.2 of cdd
+                exhaustiveArgsList.add(new Object[]{MediaFormat.MIMETYPE_AUDIO_AAC, new String[]{
+                        "bbb_stereo_44kHz_192kbps_aac_lc.mp4",
+                        "bbb_stereo_44kHz_192kbps_aac_lc.3gp",
+                        "bbb_stereo_44kHz_192kbps_aac_lc.mkv"},
+                        MediaCodecInfo.CodecProfileLevel.AACObjectLC, 0, 44100, 2});
+                /* TODO(b/159582475)
+                exhaustiveArgsList.add(new Object[]{MediaFormat.MIMETYPE_AUDIO_AAC, new String[]{
+                        "bbb_stereo_44kHz_192kbps_aac_he.mp4",
+                        "bbb_stereo_44kHz_192kbps_aac_he.3gp",
+                        "bbb_stereo_44kHz_192kbps_aac_he.mkv"},
+                        MediaCodecInfo.CodecProfileLevel.AACObjectHE, 0, 44100, 2});*/
+                exhaustiveArgsList.add(new Object[]{MediaFormat.MIMETYPE_AUDIO_AAC, new String[] {
+                        "bbb_stereo_44kHz_192kbps_aac_eld.mp4",
+                        "bbb_stereo_44kHz_192kbps_aac_eld.3gp",
+                        "bbb_stereo_44kHz_192kbps_aac_eld.mkv"},
+                        MediaCodecInfo.CodecProfileLevel.AACObjectELD, 0, 44100, 2});
+                exhaustiveArgsList.add(new Object[]{MediaFormat.MIMETYPE_AUDIO_AAC, new String[]{
+                        "bbb_stereo_44kHz_192kbps_aac_ld.mp4",
+                        "bbb_stereo_44kHz_192kbps_aac_ld.3gp",
+                        "bbb_stereo_44kHz_192kbps_aac_ld.mkv"},
+                        MediaCodecInfo.CodecProfileLevel.AACObjectLD, 0, 44100, 2});
+                /*TODO(b/159582475)
+                exhaustiveArgsList.add(new Object[]{MediaFormat.MIMETYPE_AUDIO_AAC, new String[]{
+                        "bbb_stereo_44kHz_192kbps_aac_hev2.mp4",
+                        "bbb_stereo_44kHz_192kbps_aac_hev2.3gp",
+                        "bbb_stereo_44kHz_192kbps_aac_hev2.mkv"},
+                        MediaCodecInfo.CodecProfileLevel.AACObjectHE_PS, 0, 44100, 2});*/
+            }
+
+            // Miscellaneous
+            if (hasDecoder(MediaFormat.MIMETYPE_VIDEO_DOLBY_VISION)) {
+                exhaustiveArgsList.add(new Object[]{MediaFormat.MIMETYPE_VIDEO_DOLBY_VISION,
+                        new String[]{"video_dovi_1920x1080_30fps_dvhe_04.mp4"},
+                        MediaCodecInfo.CodecProfileLevel.DolbyVisionProfileDvheDtr,
+                        MediaCodecInfo.CodecProfileLevel.DolbyVisionLevelFhd30, 1920, 1080});
+                exhaustiveArgsList.add(new Object[]{MediaFormat.MIMETYPE_VIDEO_DOLBY_VISION,
+                        new String[]{"video_dovi_1920x1080_60fps_dvhe_05.mp4"},
+                        MediaCodecInfo.CodecProfileLevel.DolbyVisionProfileDvheStn,
+                        MediaCodecInfo.CodecProfileLevel.DolbyVisionLevelFhd60, 1920, 1080});
+                exhaustiveArgsList.add(new Object[]{MediaFormat.MIMETYPE_VIDEO_DOLBY_VISION,
+                        new String[]{"video_dovi_1920x1080_60fps_dvhe_08.mp4"},
+                        MediaCodecInfo.CodecProfileLevel.DolbyVisionProfileDvheSt,
+                        MediaCodecInfo.CodecProfileLevel.DolbyVisionLevelFhd60, 1920, 1080});
+                exhaustiveArgsList.add(new Object[]{MediaFormat.MIMETYPE_VIDEO_DOLBY_VISION,
+                        new String[]{"video_dovi_1920x1080_60fps_dvav_09.mp4"},
+                        MediaCodecInfo.CodecProfileLevel.DolbyVisionProfileDvavSe,
+                        MediaCodecInfo.CodecProfileLevel.DolbyVisionLevelFhd60, 1920, 1080});
+            }
+
+            return exhaustiveArgsList;
+        }
+
+        @Test
+        public void validateKeyValuePairs() throws IOException {
+            for (String file : mInpFiles) {
+                MediaFormat format = null;
+                MediaExtractor extractor = new MediaExtractor();
+                extractor.setDataSource(mInpPrefix + file);
+                for (int trackID = 0; trackID < extractor.getTrackCount(); trackID++) {
+                    MediaFormat fmt = extractor.getTrackFormat(trackID);
+                    if (mMime.equalsIgnoreCase(fmt.getString(MediaFormat.KEY_MIME))) {
+                        format = fmt;
+                        break;
+                    }
+                }
+                extractor.release();
+                assertTrue(format != null);
+                if (mMime.equals(MediaFormat.MIMETYPE_AUDIO_AAC)) {
+                    assertTrue(format.containsKey(MediaFormat.KEY_AAC_PROFILE) ||
+                            format.containsKey(MediaFormat.KEY_PROFILE));
+                    if (format.containsKey(MediaFormat.KEY_AAC_PROFILE)) {
+                        assertEquals(mProfile, format.getInteger(MediaFormat.KEY_AAC_PROFILE));
+                    }
+                    if (format.containsKey(MediaFormat.KEY_PROFILE)) {
+                        assertEquals(mProfile, format.getInteger(MediaFormat.KEY_PROFILE));
+                    }
+                } else {
+                    assertEquals(mProfile, format.getInteger(MediaFormat.KEY_PROFILE));
+                    assertEquals(mLevel, format.getInteger(MediaFormat.KEY_LEVEL));
+                }
+                if (mMime.startsWith("audio/")) {
+                    assertEquals(mWR, format.getInteger(MediaFormat.KEY_SAMPLE_RATE));
+                    assertEquals(mHCh, format.getInteger(MediaFormat.KEY_CHANNEL_COUNT));
+                } else if (mMime.startsWith("video/")) {
+                    assertEquals(mWR, format.getInteger(MediaFormat.KEY_WIDTH));
+                    assertEquals(mHCh, format.getInteger(MediaFormat.KEY_HEIGHT));
+                }
+            }
+        }
+    }
+
+    /**
+     * Makes sure if PTS(order) of a file matches the expected values in the corresponding text
+     * file with just PTS values.
+     */
+    @RunWith(Parameterized.class)
+    public static class ExtractorTimeStampTest {
+        private final String mRefFile;
+        private final String mPTSListFile;
+        private int mTrackIndex;
+        // Allowing tolerance of +1/-1 for rounding error.
+        private static final int PTS_TOLERANCE = 1;
+
+        public ExtractorTimeStampTest(String refFile, String textFile, int trackIndex) {
+            mRefFile = refFile;
+            mPTSListFile = textFile;
+            mTrackIndex = trackIndex;
+        }
+
+        @Parameterized.Parameters
+        public static Collection<Object[]> input() {
+            final List<Object[]> exhaustiveArgsList = Arrays.asList(new Object[][]{
+                    {"bbb_384x216_768kbps_30fps_avc_2b.mp4",
+                            "pts_bbb_384x216_768kbps_30fps_avc_2b.txt", 0},
+                    {"bbb_384x216_768kbps_25fps_avc_7b.mp4",
+                            "pts_bbb_384x216_768kbps_25fps_avc_7b.txt", 0},
+                    {"bbb_384x216_768kbps_24fps_avc_5b.mkv",
+                            "pts_bbb_384x216_768kbps_24fps_avc_5b.txt", 0},
+                    {"bbb_384x216_768kbps_30fps_avc_badapt.mkv",
+                            "pts_bbb_384x216_768kbps_30fps_avc_badapt.txt", 0},
+                    {"bbb_384x216_768kbps_30fps_avc_2b.3gp",
+                            "pts_bbb_384x216_768kbps_30fps_avc_2b.txt", 0},
+                    {"bbb_384x216_768kbps_25fps_avc_7b.3gp",
+                            "pts_bbb_384x216_768kbps_25fps_avc_7b.txt", 0},
+                    {"bbb_384x216_768kbps_30fps_avc_badapt_bbb_480x360_768kbps_24fps_avc_5b.mkv",
+                            "pts_bbb_384x216_768kbps_30fps_avc_badapt.txt", 0},
+                    {"bbb_384x216_768kbps_30fps_avc_badapt_bbb_480x360_768kbps_24fps_avc_5b.mkv",
+                            "pts_bbb_480x360_768kbps_24fps_avc_5b.txt", 1},
+                    {"bbb_384x216_768kbps_30fps_avc_2b_bbb_cif_768kbps_25fps_avc_7b.mp4",
+                            "pts_bbb_384x216_768kbps_30fps_avc_2b.txt", 0},
+                    {"bbb_384x216_768kbps_30fps_avc_2b_bbb_cif_768kbps_25fps_avc_7b.mp4",
+                            "pts_bbb_cif_768kbps_25fps_avc_7b.txt", 1},
+                    {"bbb_384x216_768kbps_30fps_hevc_2b.mp4",
+                            "pts_bbb_384x216_768kbps_30fps_hevc_2b.txt", 0},
+                    {"bbb_384x216_768kbps_25fps_hevc_7b.mp4",
+                            "pts_bbb_384x216_768kbps_25fps_hevc_7b.txt", 0},
+                    {"bbb_384x216_768kbps_24fps_hevc_5b.mkv",
+                            "pts_bbb_384x216_768kbps_24fps_hevc_5b.txt", 0},
+                    {"bbb_384x216_768kbps_30fps_hevc_badapt.mkv",
+                            "pts_bbb_384x216_768kbps_30fps_hevc_badapt.txt", 0},
+                    {"bbb_384x216_768kbps_30fps_hevc_badapt_bbb_480x360_768kbps_24fps_hevc_5b.mkv",
+                            "pts_bbb_384x216_768kbps_30fps_hevc_badapt.txt", 0},
+                    {"bbb_384x216_768kbps_30fps_hevc_badapt_bbb_480x360_768kbps_24fps_hevc_5b.mkv",
+                            "pts_bbb_480x360_768kbps_24fps_hevc_5b.txt", 1},
+                    {"bbb_384x216_768kbps_30fps_hevc_2b_bbb_cif_768kbps_25fps_hevc_7b.mp4",
+                            "pts_bbb_384x216_768kbps_30fps_hevc_2b.txt", 0},
+                    {"bbb_384x216_768kbps_30fps_hevc_2b_bbb_cif_768kbps_25fps_hevc_7b.mp4",
+                            "pts_bbb_cif_768kbps_25fps_hevc_7b.txt", 1},
+                    {"bbb_384x216_768kbps_30fps_mpeg2_2b.mp4",
+                            "pts_bbb_384x216_768kbps_30fps_mpeg2_2b.txt", 0},
+                    {"bbb_384x216_768kbps_25fps_mpeg2_5b.mp4",
+                            "pts_bbb_384x216_768kbps_25fps_mpeg2_5b.txt", 0},
+                    {"bbb_384x216_768kbps_24fps_mpeg2_5b.mkv",
+                            "pts_bbb_384x216_768kbps_24fps_mpeg2_5b.txt", 0},
+                    {"bbb_384x216_768kbps_30fps_mpeg2_2b.ts",
+                            "pts_bbb_384x216_768kbps_30fps_mpeg2_2b.txt", 0},
+                    {"bbb_384x216_768kbps_25fps_mpeg2_7b.ts",
+                            "pts_bbb_384x216_768kbps_25fps_mpeg2_7b.txt", 0},
+                    {"bbb_cif_768kbps_30fps_vp8_stereo_48kHz_192kbps_vorbis.webm",
+                            "pts_bbb_cif_768kbps_30fps_vp8.txt", 0},
+                    {"bbb_cif_768kbps_30fps_vp8_stereo_48kHz_192kbps_vorbis.mkv",
+                            "pts_bbb_cif_768kbps_30fps_vp8.txt", 0},
+                    {"bbb_cif_768kbps_30fps_vp8_stereo_48kHz_192kbps_vorbis.webm",
+                            "pts_stereo_48kHz_192kbps_vorbis.txt", 1},
+                    {"bbb_cif_768kbps_30fps_vp8_stereo_48kHz_192kbps_vorbis.mkv",
+                            "pts_stereo_48kHz_192kbps_vorbis.txt", 1},
+                    {"bbb_340x280_768kbps_30fps_split_non_display_frame_vp9.webm",
+                            "pts_bbb_340x280_768kbps_30fps_split_non_display_frame_vp9.txt", 0},
+                    {"bbb_cif_768kbps_30fps_vp9_stereo_48kHz_192kbps_opus.webm",
+                            "pts_bbb_cif_768kbps_30fps_vp9.txt", 0},
+                    {"bbb_cif_768kbps_30fps_vp9_stereo_48kHz_192kbps_opus.mkv",
+                            "pts_bbb_cif_768kbps_30fps_vp9.txt", 0},
+                    {"bbb_cif_768kbps_30fps_av1.mp4",
+                            "pts_bbb_cif_768kbps_30fps_av1.txt", 0},
+                    {"bbb_cif_768kbps_30fps_av1.mkv",
+                            "pts_bbb_cif_768kbps_30fps_av1.txt", 0},
+                    {"bbb_cif_768kbps_30fps_av1.webm",
+                            "pts_bbb_cif_768kbps_30fps_av1.txt", 0},
+                    {"binary_counter_320x240_30fps_600frames.mp4",
+                            "pts_binary_counter_320x240_30fps_600frames.txt", 0},
+            });
+            return exhaustiveArgsList;
+        }
+
+        @LargeTest
+        @Test
+        public void testPresentationTimeStampsMatch() throws IOException {
+            try (FileInputStream file = new FileInputStream(mInpPrefix + mPTSListFile);
+                 InputStreamReader input = new InputStreamReader(file);
+                 Reader txtRdr = new BufferedReader(input)) {
+                StreamTokenizer strTok = new StreamTokenizer(txtRdr);
+                strTok.parseNumbers();
+
+                MediaExtractor extractor = new MediaExtractor();
+                extractor.setDataSource(mInpPrefix + mRefFile);
+                assertTrue(mTrackIndex < extractor.getTrackCount());
+                extractor.selectTrack(mTrackIndex);
+                while (true) {
+                    if (strTok.nextToken() == StreamTokenizer.TT_EOF) break;
+                    assertTrue("PTS mismatch exp/got: " + (long) strTok.nval + "/" +
+                                    extractor.getSampleTime(),
+                            Math.abs(extractor.getSampleTime() - (long) strTok.nval) <=
+                                    PTS_TOLERANCE);
+                    if (!extractor.advance()) break;
+                }
+                assertEquals(StreamTokenizer.TT_EOF, strTok.nextToken());
+                assertTrue(!extractor.advance());
+                extractor.release();
             }
         }
     }

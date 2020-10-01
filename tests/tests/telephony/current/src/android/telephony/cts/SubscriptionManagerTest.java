@@ -39,16 +39,19 @@ import android.net.ConnectivityManager.NetworkCallback;
 import android.net.Network;
 import android.net.NetworkCapabilities;
 import android.net.NetworkRequest;
+import android.os.Looper;
 import android.os.ParcelUuid;
 import android.telephony.SubscriptionInfo;
 import android.telephony.SubscriptionManager;
 import android.telephony.SubscriptionPlan;
 import android.telephony.TelephonyManager;
+import android.util.Log;
 
 import androidx.test.InstrumentationRegistry;
 
 import com.android.compatibility.common.util.ShellIdentityUtils;
 import com.android.compatibility.common.util.SystemUtil;
+import com.android.compatibility.common.util.TestThread;
 import com.android.internal.util.ArrayUtils;
 
 import org.junit.AfterClass;
@@ -66,12 +69,14 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 
 public class SubscriptionManagerTest {
+    private static final String TAG = "SubscriptionManagerTest";
     private SubscriptionManager mSm;
 
     private int mSubId;
@@ -99,9 +104,6 @@ public class SubscriptionManagerTest {
     public static void setUpClass() throws Exception {
         if (!isSupported()) return;
 
-        InstrumentationRegistry.getInstrumentation().getUiAutomation()
-                .executeShellCommand("svc wifi disable");
-
         final TestNetworkCallback callback = new TestNetworkCallback();
         final ConnectivityManager cm = InstrumentationRegistry.getContext()
                 .getSystemService(ConnectivityManager.class);
@@ -122,9 +124,6 @@ public class SubscriptionManagerTest {
     @AfterClass
     public static void tearDownClass() throws Exception {
         if (!isSupported()) return;
-
-        InstrumentationRegistry.getInstrumentation().getUiAutomation()
-                .executeShellCommand("svc wifi enable");
     }
 
     @Before
@@ -137,21 +136,27 @@ public class SubscriptionManagerTest {
     }
 
     /**
-     * Sanity check that the device has a cellular network and a valid default data subId
-     * when {@link PackageManager#FEATURE_TELEPHONY} support.
+     * Correctness check that both {@link PackageManager#FEATURE_TELEPHONY} and
+     * {@link NetworkCapabilities#TRANSPORT_CELLULAR} network must both be
+     * either defined or undefined; you can't cross the streams.
      */
     @Test
-    public void testSanity() throws Exception {
+    public void testCorrectness() throws Exception {
         if (!isSupported()) return;
 
         final boolean hasCellular = findCellularNetwork() != null;
-        if (!hasCellular) {
+        if (isSupported() && !hasCellular) {
             fail("Device claims to support " + PackageManager.FEATURE_TELEPHONY
                     + " but has no active cellular network, which is required for validation");
+        } else if (!isSupported() && hasCellular) {
+            fail("Device has active cellular network, but claims to not support "
+                    + PackageManager.FEATURE_TELEPHONY);
         }
 
-        if (mSubId == SubscriptionManager.INVALID_SUBSCRIPTION_ID) {
-            fail("Device must have a valid default data subId for validation");
+        if (isSupported()) {
+            if (mSubId == SubscriptionManager.INVALID_SUBSCRIPTION_ID) {
+                fail("Device must have a valid default data subId for validation");
+            }
         }
     }
 
@@ -165,7 +170,8 @@ public class SubscriptionManagerTest {
     @Test
     public void testGetActiveSubscriptionInfoForIcc() throws Exception {
         if (!isSupported()) return;
-        SubscriptionInfo info = mSm.getActiveSubscriptionInfo(mSubId);
+        SubscriptionInfo info = ShellIdentityUtils.invokeMethodWithShellPermissions(mSm,
+                (sm) -> sm.getActiveSubscriptionInfo(mSubId));
         assertNotNull(ShellIdentityUtils.invokeMethodWithShellPermissions(mSm,
                 (sm) -> sm.getActiveSubscriptionInfoForIcc(info.getIccId())));
     }
@@ -312,6 +318,8 @@ public class SubscriptionManagerTest {
 
     @Test
     public void testSetDefaultVoiceSubId() {
+        if (!isSupported()) return;
+
         int oldSubId = SubscriptionManager.getDefaultVoiceSubscriptionId();
         InstrumentationRegistry.getInstrumentation().getUiAutomation()
                 .adoptShellPermissionIdentity();
@@ -684,12 +692,101 @@ public class SubscriptionManagerTest {
         if (!isSupported()) return;
         boolean enabled = executeWithShellPermissionAndDefault(false, mSm,
                 (sm) -> sm.isSubscriptionEnabled(mSubId));
-        // Enable or disable subscription may require users UX confirmation or may not be supported.
-        // Call APIs to make sure there's no crash.
-        executeWithShellPermissionAndDefault(false, mSm,
-                (sm) -> sm.setSubscriptionEnabled(mSubId, !enabled));
-        executeWithShellPermissionAndDefault(false, mSm,
-                (sm) -> sm.setSubscriptionEnabled(mSubId, enabled));
+
+        AtomicBoolean waitForIsEnabledValue = new AtomicBoolean(!enabled);
+        // wait for the first call to take effect
+        Object lock = new Object();
+        AtomicBoolean setSubscriptionEnabledCallCompleted = new AtomicBoolean(false);
+        TestThread t = new TestThread(new Runnable() {
+            @Override
+            public void run() {
+                Looper.prepare();
+
+                SubscriptionManager.OnSubscriptionsChangedListener listener =
+                        new SubscriptionManager.OnSubscriptionsChangedListener() {
+                            @Override
+                            public void onSubscriptionsChanged() {
+                                boolean waitForValue = waitForIsEnabledValue.get();
+                                if (executeWithShellPermissionAndDefault(!waitForValue, mSm,
+                                        (sm) -> sm.isSubscriptionEnabled(mSubId)) == waitForValue) {
+                                    synchronized (lock) {
+                                        setSubscriptionEnabledCallCompleted.set(true);
+                                        lock.notifyAll();
+                                    }
+                                }
+                            }
+                        };
+                mSm.addOnSubscriptionsChangedListener(listener);
+
+                Looper.loop();
+            }
+        });
+
+        try {
+            t.start();
+            // Enable or disable subscription may require users UX confirmation or may not be
+            // supported. Call APIs to make sure there's no crash.
+            executeWithShellPermissionAndDefault(false, mSm,
+                    (sm) -> sm.setSubscriptionEnabled(mSubId, !enabled));
+
+            synchronized (lock) {
+                if (!setSubscriptionEnabledCallCompleted.get()) {
+                    lock.wait(5000);
+                }
+            }
+            if (!setSubscriptionEnabledCallCompleted.get()) {
+                // not treating this as test failure as it may be due to UX confirmation or may not
+                // be supported
+                Log.e(TAG, "setSubscriptionEnabled() did not complete");
+                return;
+            }
+
+            // switch back to the original value
+            waitForIsEnabledValue.set(enabled);
+            setSubscriptionEnabledCallCompleted.set(false);
+            executeWithShellPermissionAndDefault(false, mSm,
+                    (sm) -> sm.setSubscriptionEnabled(mSubId, enabled));
+
+            // wait to make sure device is left in the same state after the test as it was before
+            // the test
+            synchronized (lock) {
+                if (!setSubscriptionEnabledCallCompleted.get()) {
+                    // longer wait time on purpose as re-enabling can take a longer time
+                    lock.wait(50000);
+                }
+            }
+            if (!setSubscriptionEnabledCallCompleted.get()) {
+                // treat this as failure because it worked the first time
+                fail("setSubscriptionEnabled() did not work second time");
+            }
+
+            // Reset default data subId as it may have been changed as part of the calls above
+            ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mSm,
+                    (sm) -> sm.setDefaultDataSubId(mSubId));
+
+            // Other tests also expect that cellular data must be available if telephony is
+            // supported. Wait for that before returning.
+            final CountDownLatch latch = waitForCellularNetwork();
+            latch.await(10, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            fail("InterruptedException");
+        }
+    }
+
+    @Test
+    public void testGetActiveDataSubscriptionId() {
+        if (!isSupported()) return;
+
+        int activeDataSubIdCurrent = executeWithShellPermissionAndDefault(
+                SubscriptionManager.INVALID_SUBSCRIPTION_ID, mSm,
+                (sm) -> sm.getActiveDataSubscriptionId());
+
+        if (activeDataSubIdCurrent != SubscriptionManager.INVALID_SUBSCRIPTION_ID) {
+            List<SubscriptionInfo> subscriptionInfos = mSm.getCompleteActiveSubscriptionInfoList();
+            boolean foundSub = subscriptionInfos.stream()
+                    .anyMatch(x -> x.getSubscriptionId() == activeDataSubIdCurrent);
+            assertTrue(foundSub);
+        }
     }
 
     @Test
@@ -702,7 +799,7 @@ public class SubscriptionManagerTest {
             setPreferredDataSubId(SubscriptionManager.DEFAULT_SUBSCRIPTION_ID);
         }
 
-        List<SubscriptionInfo> subscriptionInfos = mSm.getActiveAndHiddenSubscriptionInfoList();
+        List<SubscriptionInfo> subscriptionInfos = mSm.getCompleteActiveSubscriptionInfoList();
 
         for (SubscriptionInfo subInfo : subscriptionInfos) {
             // Only test on opportunistic subscriptions.
@@ -775,6 +872,28 @@ public class SubscriptionManagerTest {
                     @Override
                     public void onCapabilitiesChanged(Network net, NetworkCapabilities caps) {
                         if (net.equals(network) && predicate.test(caps)) {
+                            latch.countDown();
+                            cm.unregisterNetworkCallback(this);
+                        }
+                    }
+                });
+        return latch;
+    }
+
+    /**
+     * Corresponding to findCellularNetwork()
+     */
+    private static CountDownLatch waitForCellularNetwork() {
+        final CountDownLatch latch = new CountDownLatch(1);
+        final ConnectivityManager cm = InstrumentationRegistry.getContext()
+                .getSystemService(ConnectivityManager.class);
+        cm.registerNetworkCallback(new NetworkRequest.Builder().build(),
+                new NetworkCallback() {
+                    @Override
+                    public void onCapabilitiesChanged(Network net, NetworkCapabilities caps) {
+                        if (caps.hasTransport(TRANSPORT_CELLULAR)
+                                && caps.hasCapability(NET_CAPABILITY_INTERNET)
+                                && caps.hasCapability(NET_CAPABILITY_NOT_RESTRICTED)) {
                             latch.countDown();
                             cm.unregisterNetworkCallback(this);
                         }

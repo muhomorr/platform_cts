@@ -32,6 +32,7 @@ import android.media.MediaFormat;
 import android.media.MediaRecorder;
 import android.media.cts.TestUtils.Monitor;
 
+import android.net.Uri;
 import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
@@ -73,6 +74,7 @@ public class RoutingTest extends AndroidTestCase {
     private static final int RECORD_TIME_MS = 3000;
     private static final Set<Integer> AVAILABLE_INPUT_DEVICES_TYPE = new HashSet<>(
         Arrays.asList(AudioDeviceInfo.TYPE_BUILTIN_MIC));
+    static final String mInpPrefix = WorkDir.getMediaDirString();
 
     private boolean mRoutingChanged;
     private boolean mRoutingChangedDetected;
@@ -567,11 +569,21 @@ public class RoutingTest extends AndroidTestCase {
     }
 
     private MediaPlayer allocMediaPlayer() {
-        final int resid = R.raw.testmp3_2;
-        MediaPlayer mediaPlayer = MediaPlayer.create(mContext, resid);
+        return allocMediaPlayer(null, true);
+    }
+
+    private MediaPlayer allocMediaPlayer(AudioDeviceInfo device, boolean start) {
+        final String res = "testmp3_2.mp3";
+        MediaPlayer mediaPlayer = MediaPlayer.create(mContext, Uri
+                .fromFile(new File(mInpPrefix + res)));
         mediaPlayer.setAudioAttributes(
                 new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).build());
-        mediaPlayer.start();
+        if (device != null) {
+            mediaPlayer.setPreferredDevice(device);
+        }
+        if (start) {
+            mediaPlayer.start();
+        }
         return mediaPlayer;
     }
 
@@ -753,15 +765,19 @@ public class RoutingTest extends AndroidTestCase {
         MediaPlayer mediaPlayer = null;
 
         try {
-            mediaPlayer = allocMediaPlayer();
-
-            mediaPlayer.setPreferredDevice(telephonyDevice);
+            mediaPlayer = allocMediaPlayer(telephonyDevice, false);
             assertEquals(AudioDeviceInfo.TYPE_TELEPHONY, mediaPlayer.getPreferredDevice().getType());
-
-            // Sleep for 1s to ensure the output device open
+            mediaPlayer.start();
+            // Sleep for 1s to ensure the underlying AudioTrack is created and started
             SystemClock.sleep(1000);
-            assertTrue(mediaPlayer.getRoutedDevice().getType() != AudioDeviceInfo.TYPE_TELEPHONY);
-
+            telephonyDevice = mediaPlayer.getRoutedDevice();
+            // 3 behaviors are accepted when permission to play to telephony device is rejected:
+            // - indicate a null routed device
+            // - fallback to another device for playback
+            // - stop playback in error.
+            assertTrue(telephonyDevice == null
+                    || telephonyDevice.getType() != AudioDeviceInfo.TYPE_TELEPHONY
+                    || !mediaPlayer.isPlaying());
         } finally {
             if (mediaPlayer != null) {
                 mediaPlayer.stop();
