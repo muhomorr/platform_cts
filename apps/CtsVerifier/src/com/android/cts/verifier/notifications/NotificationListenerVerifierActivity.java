@@ -38,18 +38,26 @@ import android.annotation.SuppressLint;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationChannelGroup;
+import android.app.Person;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.content.pm.ShortcutInfo;
+import android.content.pm.ShortcutManager;
+import android.graphics.drawable.Icon;
 import android.os.Bundle;
+import android.os.SystemClock;
 import android.provider.Settings;
 import android.provider.Settings.Secure;
 import android.service.notification.StatusBarNotification;
+import android.util.ArraySet;
 import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
+import android.widget.FrameLayout;
+import android.widget.RemoteViews;
 
 import androidx.core.app.NotificationCompat;
 
@@ -59,6 +67,7 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -110,6 +119,7 @@ public class NotificationListenerVerifierActivity extends InteractiveVerifierAct
         tests.add(new IsEnabledTest());
         tests.add(new ServiceStartedTest());
         tests.add(new NotificationReceivedTest());
+        tests.add(new LongMessageTest());
         tests.add(new DataIntactTest());
         tests.add(new AudiblyAlertedTest());
         tests.add(new DismissOneTest());
@@ -129,6 +139,7 @@ public class NotificationListenerVerifierActivity extends InteractiveVerifierAct
         tests.add(new RequestUnbindTest());
         tests.add(new RequestBindTest());
         tests.add(new MessageBundleTest());
+        tests.add(new ConversationOrderingTest());
         tests.add(new EnableHintsTest());
         tests.add(new IsDisabledTest());
         tests.add(new ServiceStoppedTest());
@@ -253,8 +264,73 @@ public class NotificationListenerVerifierActivity extends InteractiveVerifierAct
 
         @Override
         protected void test() {
-            List<String> result = new ArrayList<>(MockListener.getInstance().mPosted);
-            if (result.size() > 0 && result.contains(mTag1)) {
+            if (MockListener.getInstance().getPosted(mTag1) != null) {
+                status = PASS;
+            } else {
+                logFail();
+                status = FAIL;
+            }
+        }
+    }
+
+    private class LongMessageTest extends InteractiveTestCase {
+        private ViewGroup mParent;
+        @Override
+        protected View inflate(ViewGroup parent) {
+            mParent = createAutoItem(parent, R.string.nls_anr);
+            return mParent;
+        }
+
+        @Override
+        protected void setUp() {
+            createChannels();
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < 20000; i++) {
+                sb.append("\u2009\u200a" + "\u200E\u200F" + "stuff");
+            }
+            Notification.Builder builder = new Notification.Builder(
+                    mContext, NOTIFICATION_CHANNEL_ID)
+                    .setSmallIcon(android.R.id.icon)
+                    .setContentTitle("This is an long notification")
+                    .setContentText("Innocuous content")
+                    .setStyle(new Notification.MessagingStyle("Fake person")
+                            .addMessage("hey how is it goin", 0, "Person 1")
+                            .addMessage("hey", 0, "Person 1")
+                            .addMessage("u there", 0, "Person 1")
+                            .addMessage("how you like tHIS", 0, "Person 1")
+                            .addMessage(sb.toString(), 0, "Person 1")
+                    );
+            mTag1 = UUID.randomUUID().toString();
+            mId1 = NOTIFICATION_ID + 1;
+            mPackageString = "com.android.cts.verifier";
+            mNm.notify(mTag1, mId1, builder.build());
+            status = READY;
+        }
+
+        @Override
+        protected void tearDown() {
+            mNm.cancelAll();
+            MockListener.getInstance().resetData();
+            deleteChannels();
+        }
+
+        @Override
+        protected void test() {
+            StatusBarNotification sbn = MockListener.getInstance().getPosted(mTag1);
+            if (sbn == null) {
+                logFail();
+                status = FAIL;
+            } else {
+                ViewGroup parent = mParent.findViewById(R.id.feedback);
+                parent.setVisibility(View.VISIBLE);
+                final Notification.Builder recoveredBuilder = Notification.Builder.recoverBuilder(
+                        NotificationListenerVerifierActivity.this,
+                        sbn.getNotification());
+                RemoteViews rv = recoveredBuilder.createContentView();
+                View v = rv.apply(NotificationListenerVerifierActivity.this, parent);
+                parent.addView(v);
+            }
+            if (MockListener.getInstance().getPosted(mTag1) != null) {
                 status = PASS;
             } else {
                 logFail();
@@ -977,8 +1053,7 @@ public class NotificationListenerVerifierActivity extends InteractiveVerifierAct
             if (MockListener.getInstance() == null) {
                 status = PASS;
             } else {
-                List<String> result = new ArrayList<>(MockListener.getInstance().mPosted);
-                if (result.size() == 0) {
+                if (MockListener.getInstance().mPosted.size() == 0) {
                     status = PASS;
                 } else {
                     logFail();
@@ -1149,8 +1224,7 @@ public class NotificationListenerVerifierActivity extends InteractiveVerifierAct
                     state = READY_TO_CHECK_FOR_UNSNOOZE;
                 }
             } else {
-                List<String> result = new ArrayList<>(MockListener.getInstance().mPosted);
-                if (result.size() > 0 && result.contains(mTag1)) {
+                if (MockListener.getInstance().getPosted(mTag1) != null) {
                     status = PASS;
                 } else {
                     logFail();
@@ -1430,6 +1504,108 @@ public class NotificationListenerVerifierActivity extends InteractiveVerifierAct
             }
 
             status = PASS;
+        }
+    }
+
+    /**
+     * Tests that conversation notifications appear at the top of the shade, if the device supports
+     * a separate conversation section
+     */
+    private class ConversationOrderingTest extends InteractiveTestCase {
+        private static final String SHARE_SHORTCUT_ID = "shareShortcut";
+        private static final String SHORTCUT_CATEGORY =
+                "com.android.cts.verifier.notifications.SHORTCUT_CATEGORY";
+
+        @Override
+        protected void setUp() {
+            createChannels();
+            createDynamicShortcut();
+            sendNotifications();
+            status = READY;
+        }
+
+        @Override
+        protected void tearDown() {
+            mNm.cancelAll();
+            deleteChannels();
+            delay();
+        }
+
+        @Override
+        protected View inflate(ViewGroup parent) {
+            return createPassFailItem(parent, R.string.conversation_section_ordering);
+        }
+
+        private void createDynamicShortcut() {
+            Person person = new Person.Builder()
+                    .setBot(false)
+                    .setIcon(Icon.createWithResource(mContext, R.drawable.ic_stat_alice))
+                    .setName("Person A")
+                    .setImportant(true)
+                    .build();
+
+            Set<String> categorySet = new ArraySet<>();
+            categorySet.add(SHORTCUT_CATEGORY);
+            Intent shortcutIntent =
+                    new Intent(mContext, BubbleActivity.class);
+            shortcutIntent.setAction(Intent.ACTION_VIEW);
+
+            ShortcutInfo shortcut = new ShortcutInfo.Builder(mContext, SHARE_SHORTCUT_ID)
+                    .setShortLabel(SHARE_SHORTCUT_ID)
+                    .setIcon(Icon.createWithResource(mContext, R.drawable.ic_stat_alice))
+                    .setIntent(shortcutIntent)
+                    .setPerson(person)
+                    .setCategories(categorySet)
+                    .setLongLived(true)
+                    .build();
+
+            ShortcutManager scManager =
+                    (ShortcutManager) mContext.getSystemService(Context.SHORTCUT_SERVICE);
+            scManager.addDynamicShortcuts(Arrays.asList(shortcut));
+        }
+
+        private void sendNotifications() {
+            mTag1 = UUID.randomUUID().toString();
+            mId1 = NOTIFICATION_ID + 1;
+
+            Person person = new Person.Builder()
+                    .setName("Person A")
+                    .build();
+
+            Notification n1 = new Notification.Builder(mContext, NOTIFICATION_CHANNEL_ID)
+                    .setContentTitle("ConversationOrderingTest")
+                    .setContentText(mTag1)
+                    .setSmallIcon(R.drawable.ic_stat_alice)
+                    .setShortcutId(SHARE_SHORTCUT_ID)
+                    .setStyle(new Notification.MessagingStyle(person)
+                            .setConversationTitle("Bubble Chat")
+                            .addMessage("Hello?",
+                                    SystemClock.currentThreadTimeMillis() - 300000, person)
+                            .addMessage("Is it me you're looking for?",
+                                    SystemClock.currentThreadTimeMillis(), person)
+                    )
+                    .build();
+            mNm.notify(mTag1, mId1, n1);
+
+            mTag2 = UUID.randomUUID().toString();
+            mId2 = mId1 + 1;
+            Notification n2 = new Notification.Builder(mContext, NOTIFICATION_CHANNEL_ID)
+                    .setContentTitle("Non-Person Notification")
+                    .setContentText(mTag1)
+                    .setSmallIcon(R.drawable.ic_stat_alice)
+                    .build();
+            mNm.notify(mTag2, mId2, n2);
+        }
+
+        @Override
+        boolean autoStart() {
+            return true;
+        }
+
+        @Override
+        protected void test() {
+            status = WAIT_FOR_USER;
+            next();
         }
     }
 }
