@@ -42,6 +42,7 @@ import android.telecom.Call;
 import android.telecom.CallAudioState;
 import android.telecom.Conference;
 import android.telecom.Connection;
+import android.telecom.ConnectionRequest;
 import android.telecom.InCallService;
 import android.telecom.PhoneAccount;
 import android.telecom.PhoneAccountHandle;
@@ -209,7 +210,15 @@ public class BaseTelecomTestWithMockServices extends InstrumentationTestCase {
         }
         tearDownConnectionService(TestUtils.TEST_PHONE_ACCOUNT_HANDLE);
         tearDownEmergencyCalling();
-        assertMockInCallServiceUnbound();
+        try {
+            assertMockInCallServiceUnbound();
+        } catch (Throwable t) {
+            // If we haven't unbound, that means there's some dirty state in Telecom that needs
+            // cleaning up. Forcibly unbind and clean up Telecom state so that we don't have a
+            // cascading failure of tests.
+            TestUtils.executeShellCommand(getInstrumentation(), "telecom cleanup-stuck-calls");
+            throw t;
+        }
     }
 
     protected PhoneAccount setupConnectionService(MockConnectionService connectionService,
@@ -471,6 +480,11 @@ public class BaseTelecomTestWithMockServices extends InstrumentationTestCase {
      * {@link CtsConnectionService} which can be tested.
      */
     void addAndVerifyNewIncomingCall(Uri incomingHandle, Bundle extras) {
+        int currentCallCount = addNewIncomingCall(incomingHandle, extras);
+        verifyNewIncomingCall(currentCallCount);
+    }
+
+    int addNewIncomingCall(Uri incomingHandle, Bundle extras) {
         assertEquals("Lock should have no permits!", 0, mInCallCallbacks.lock.availablePermits());
         int currentCallCount = 0;
         if (mInCallCallbacks.getService() != null) {
@@ -483,9 +497,13 @@ public class BaseTelecomTestWithMockServices extends InstrumentationTestCase {
         extras.putParcelable(TelecomManager.EXTRA_INCOMING_CALL_ADDRESS, incomingHandle);
         mTelecomManager.addNewIncomingCall(TestUtils.TEST_PHONE_ACCOUNT_HANDLE, extras);
 
+        return currentCallCount;
+    }
+
+    void verifyNewIncomingCall(int currentCallCount) {
         try {
             if (!mInCallCallbacks.lock.tryAcquire(TestUtils.WAIT_FOR_CALL_ADDED_TIMEOUT_S,
-                        TimeUnit.SECONDS)) {
+                    TimeUnit.SECONDS)) {
                 fail("No call added to InCallService.");
             }
         } catch (InterruptedException e) {
@@ -698,6 +716,18 @@ public class BaseTelecomTestWithMockServices extends InstrumentationTestCase {
         return connection;
     }
 
+    MockConference verifyConference(int permit) {
+        try {
+            if (!connectionService.lock.tryAcquire(permit, WAIT_FOR_STATE_CHANGE_TIMEOUT_MS,
+                    TimeUnit.MILLISECONDS)) {
+                fail("No conference requested by Telecom");
+            }
+        } catch (InterruptedException e) {
+            Log.i(TAG, "Test interrupted!");
+        }
+        return connectionService.conferences.get(0);
+    }
+
     void setAndVerifyConnectionForIncomingCall(MockConnection connection) {
         if (connection.getState() == Connection.STATE_ACTIVE) {
             // If the connection is already active (like if it got picked up immediately), don't
@@ -787,6 +817,19 @@ public class BaseTelecomTestWithMockServices extends InstrumentationTestCase {
         MockConference conference = connectionService.conferences.get(0);
         setAndVerifyConferenceForOutgoingCall(conference);
         return conference;
+    }
+
+    Pair<Conference, ConnectionRequest> verifyAdhocConferenceCall() {
+        try {
+            if (!connectionService.lock.tryAcquire(2, WAIT_FOR_STATE_CHANGE_TIMEOUT_MS,
+                    TimeUnit.MILLISECONDS)) {
+                fail("No conference requested by Telecom");
+            }
+        } catch (InterruptedException e) {
+            Log.i(TAG, "Test interrupted!");
+        }
+        return new Pair<>(connectionService.conferences.get(0),
+                connectionService.connectionRequest);
     }
 
     void setAndVerifyConferenceForOutgoingCall(MockConference conference) {
@@ -1270,6 +1313,24 @@ public class BaseTelecomTestWithMockServices extends InstrumentationTestCase {
         );
     }
 
+    void assertCallHandle(final Call call, final Uri expectedHandle) {
+        waitUntilConditionIsTrueOrTimeout(
+                new Condition() {
+                    @Override
+                    public Object expected() {
+                        return expectedHandle;
+                    }
+
+                    @Override
+                    public Object actual() {
+                        return call.getDetails().getHandle();
+                    }
+                },
+                WAIT_FOR_STATE_CHANGE_TIMEOUT_MS,
+                "Call should have handle name: " + expectedHandle
+        );
+    }
+
     void assertCallConnectTimeChanged(final Call call, final long time) {
         waitUntilConditionIsTrueOrTimeout(
                 new Condition() {
@@ -1748,7 +1809,7 @@ public class BaseTelecomTestWithMockServices extends InstrumentationTestCase {
     void waitUntilConditionIsTrueOrTimeout(Condition condition, long timeout,
             String description) {
         final long start = System.currentTimeMillis();
-        while (!condition.expected().equals(condition.actual())
+        while (!Objects.equals(condition.expected(), condition.actual())
                 && System.currentTimeMillis() - start < timeout) {
             sleep(50);
         }

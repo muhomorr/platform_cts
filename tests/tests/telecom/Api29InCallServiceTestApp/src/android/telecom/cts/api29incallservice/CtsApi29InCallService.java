@@ -62,10 +62,18 @@ public class CtsApi29InCallService extends MockInCallService {
     public IBinder onBind(Intent intent) {
         Log.i(TAG, "onBind future=" + sBindRequestFuture);
         sBindRequestFuture.complete(true);
+        // Sets mIsServiceBound
+        IBinder result = super.onBind(intent);
         if (!sShouldReturnNullBinding) {
-            return super.onBind(intent);
+            return result;
         }
         return null;
+    }
+
+    @Override
+    public boolean onUnbind(Intent intent) {
+        reset();
+        return super.onUnbind(intent);
     }
 
     public static boolean waitForBindRequest() {

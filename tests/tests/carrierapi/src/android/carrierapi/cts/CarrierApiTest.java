@@ -133,6 +133,7 @@ public class CarrierApiTest extends AndroidTestCase {
     private static final String ALPHA_TAG_B = "tagB";
     private static final String NUMBER_A = "1234567890";
     private static final String NUMBER_B = "0987654321";
+    private static final String TESTING_PLMN = "12345";
 
     private static final String EAP_SIM_AKA_RAND = "11111111111111111111111111111111";
 
@@ -209,8 +210,7 @@ public class CarrierApiTest extends AndroidTestCase {
     }
 
     private boolean isSimCardPresent() {
-        return mTelephonyManager.getPhoneType() != TelephonyManager.PHONE_TYPE_NONE &&
-                mTelephonyManager.getSimState() != TelephonyManager.SIM_STATE_ABSENT;
+        return mTelephonyManager.getSimState() != TelephonyManager.SIM_STATE_ABSENT;
     }
 
     private String getCertHash(String pkgName) {
@@ -499,6 +499,7 @@ public class CarrierApiTest extends AndroidTestCase {
             mTelephonyManager.getVoiceMailAlphaTag();
             mTelephonyManager.getForbiddenPlmns();
             mTelephonyManager.getServiceState();
+            mTelephonyManager.getManualNetworkSelectionPlmn();
             mTelephonyManager.setForbiddenPlmns(new ArrayList<String>());
         } catch (SecurityException e) {
             failMessage();
@@ -567,6 +568,19 @@ public class CarrierApiTest extends AndroidTestCase {
     static final int CARRIER_PRIVILEGE_LISTENERS =
             READ_PHONE_STATE_LISTENERS | READ_PRECISE_PHONE_STATE_LISTENERS;
 
+    public void testGetManualNetworkSelectionPlmnPersisted() throws Exception {
+        if (!hasCellular) return;
+
+        try {
+            mTelephonyManager.setNetworkSelectionModeManual(
+                     TESTING_PLMN/* operatorNumeric */, true /* persistSelection */);
+            String plmn = mTelephonyManager.getManualNetworkSelectionPlmn();
+            assertEquals(TESTING_PLMN, plmn);
+        } finally {
+            mTelephonyManager.setNetworkSelectionModeAutomatic();
+        }
+    }
+
     public void testPhoneStateListener() throws Exception {
         if (!hasCellular) return;
         PhoneStateListener psl = new PhoneStateListener((Runnable r) -> { });
@@ -574,6 +588,29 @@ public class CarrierApiTest extends AndroidTestCase {
             mTelephonyManager.listen(psl, CARRIER_PRIVILEGE_LISTENERS);
         } finally {
             mTelephonyManager.listen(psl, PhoneStateListener.LISTEN_NONE);
+        }
+    }
+
+    public void testIsManualNetworkSelectionAllowed() throws Exception {
+        if (!hasCellular) return;
+
+        try {
+            assertTrue(mTelephonyManager.isManualNetworkSelectionAllowed());
+        } catch (SecurityException e) {
+            failMessage();
+        }
+    }
+
+    public void testGetNetworkSelectionMode() throws Exception {
+        if (!hasCellular) return;
+
+        try {
+            ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mTelephonyManager,
+                    (tm) -> tm.setNetworkSelectionModeAutomatic());
+            int networkMode = mTelephonyManager.getNetworkSelectionMode();
+            assertEquals(TelephonyManager.NETWORK_SELECTION_MODE_AUTO, networkMode);
+        } catch (SecurityException e) {
+            failMessage();
         }
     }
 
@@ -1016,6 +1053,7 @@ public class CarrierApiTest extends AndroidTestCase {
 
         // Set subscription group with current sub Id.
         int subId = SubscriptionManager.getDefaultDataSubscriptionId();
+        if (subId == SubscriptionManager.INVALID_SUBSCRIPTION_ID) return;
         ParcelUuid uuid = mSubscriptionManager.createSubscriptionGroup(Arrays.asList(subId));
 
         try {
@@ -1053,6 +1091,7 @@ public class CarrierApiTest extends AndroidTestCase {
 
         // Set subscription group with current sub Id.
         int subId = SubscriptionManager.getDefaultDataSubscriptionId();
+        if (subId == SubscriptionManager.INVALID_SUBSCRIPTION_ID) return;
         ParcelUuid uuid = mSubscriptionManager.createSubscriptionGroup(Arrays.asList(subId));
 
         try {
@@ -1084,6 +1123,7 @@ public class CarrierApiTest extends AndroidTestCase {
         if (!hasCellular) return;
 
         int subId = SubscriptionManager.getDefaultDataSubscriptionId();
+        if (subId == SubscriptionManager.INVALID_SUBSCRIPTION_ID) return;
         SubscriptionInfo info = mSubscriptionManager.getActiveSubscriptionInfo(subId);
         boolean oldOpportunistic = info.isOpportunistic();
         boolean newOpportunistic = !oldOpportunistic;

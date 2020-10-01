@@ -17,8 +17,6 @@ package android.media.cts;
 
 import android.app.ActivityManager;
 import android.content.res.AssetFileDescriptor;
-import android.media.cts.R;
-
 
 import android.app.Activity;
 import android.app.Instrumentation;
@@ -43,6 +41,7 @@ public class RingtoneManagerTest
 
     private static final String PKG = "android.media.cts";
     private static final String TAG = "RingtoneManagerTest";
+    static final String mInpPrefix = WorkDir.getMediaDirString();
 
     private RingtonePickerActivity mActivity;
     private Instrumentation mInstrumentation;
@@ -70,8 +69,7 @@ public class RingtoneManagerTest
         mDefaultUri = RingtoneManager.getActualDefaultRingtoneUri(mContext,
                 RingtoneManager.TYPE_RINGTONE);
 
-        if (mAudioManager.getRingerMode() == AudioManager.RINGER_MODE_SILENT
-                && !ActivityManager.isLowRamDeviceStatic()) {
+        if (mAudioManager.getRingerMode() == AudioManager.RINGER_MODE_SILENT) {
             try {
                 Utils.toggleNotificationPolicyAccess(
                         mContext.getPackageName(), getInstrumentation(), true);
@@ -87,19 +85,17 @@ public class RingtoneManagerTest
 
     @Override
     protected void tearDown() throws Exception {
-        if (!ActivityManager.isLowRamDeviceStatic()) {
-            try {
-                Utils.toggleNotificationPolicyAccess(
-                        mContext.getPackageName(), getInstrumentation(), true);
-                // restore original ringer settings
-                if (mAudioManager != null) {
-                    mAudioManager.setStreamVolume(AudioManager.STREAM_RING, mOriginalVolume,
-                            AudioManager.FLAG_ALLOW_RINGER_MODES);
-                }
-            } finally {
-                Utils.toggleNotificationPolicyAccess(
-                        mContext.getPackageName(), getInstrumentation(), false);
+        try {
+            Utils.toggleNotificationPolicyAccess(
+                    mContext.getPackageName(), getInstrumentation(), true);
+            // restore original ringer settings
+            if (mAudioManager != null) {
+                mAudioManager.setStreamVolume(AudioManager.STREAM_RING, mOriginalVolume,
+                        AudioManager.FLAG_ALLOW_RINGER_MODES);
             }
+        } finally {
+            Utils.toggleNotificationPolicyAccess(
+                    mContext.getPackageName(), getInstrumentation(), false);
         }
         RingtoneManager.setActualDefaultRingtoneUri(mContext, RingtoneManager.TYPE_RINGTONE,
                 mDefaultUri);
@@ -188,7 +184,7 @@ public class RingtoneManagerTest
 
         mRingtoneManager.setStopPreviousRingtone(true);
         assertTrue(mRingtoneManager.getStopPreviousRingtone());
-        Uri uri = Uri.parse("android.resource://" + PKG + "/" + R.raw.john_cage);
+        Uri uri = Uri.parse(mInpPrefix + "john_cage.ogg");
         Ringtone ringtone = RingtoneManager.getRingtone(mContext, uri);
         ringtone.play();
         assertTrue(ringtone.isPlaying());

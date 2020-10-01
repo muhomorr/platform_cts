@@ -16,8 +16,6 @@
 
 package android.media.cts;
 
-import android.media.cts.R;
-
 import android.media.cts.CodecUtils;
 
 import android.graphics.ImageFormat;
@@ -34,6 +32,8 @@ import android.media.MediaFormat;
 import android.media.MediaMuxer;
 import android.net.Uri;
 import android.platform.test.annotations.AppModeFull;
+import android.platform.test.annotations.Presubmit;
+import android.platform.test.annotations.RequiresDevice;
 import android.util.Log;
 import android.util.Pair;
 import android.util.Range;
@@ -48,6 +48,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.HashMap;
@@ -66,8 +67,9 @@ public class VideoEncoderTest extends MediaPlayerTestBase {
     // use larger delay before we get first frame, some encoders may need more time
     private static final long INIT_TIMEOUT_MS = 2000;
 
+    static final String mInpPrefix = WorkDir.getMediaDirString();
     private static final String SOURCE_URL =
-        "android.resource://android.media.cts/raw/video_480x360_mp4_h264_871kbps_30fps";
+            mInpPrefix + "video_480x360_mp4_h264_871kbps_30fps.mp4";
 
     private final boolean DEBUG = false;
 
@@ -75,6 +77,11 @@ public class VideoEncoderTest extends MediaPlayerTestBase {
         private LinkedList<Pair<ByteBuffer, BufferInfo>> mStream;
         private MediaFormat mFormat;
         private int mInputBufferSize;
+        // Media buffers(no CSD, no EOS) enqueued.
+        private int mMediaBuffersEnqueuedCount;
+        // Media buffers decoded.
+        private int mMediaBuffersDecodedCount;
+        private final AtomicReference<String> errorMsg = new AtomicReference(null);
 
         public VideoStorage() {
             mStream = new LinkedList<Pair<ByteBuffer, BufferInfo>>();
@@ -93,6 +100,9 @@ public class VideoEncoderTest extends MediaPlayerTestBase {
             BufferInfo savedInfo = new BufferInfo();
             savedInfo.set(0, savedBuffer.position(), info.presentationTimeUs, info.flags);
             mStream.addLast(Pair.create(savedBuffer, savedInfo));
+            if (info.size > 0 && (info.flags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG) == 0) {
+                ++mMediaBuffersEnqueuedCount;
+            }
         }
 
         private void play(MediaCodec decoder, Surface surface) {
@@ -101,6 +111,9 @@ public class VideoEncoderTest extends MediaPlayerTestBase {
             final Iterator<Pair<ByteBuffer, BufferInfo>> it = mStream.iterator();
             decoder.setCallback(new MediaCodec.Callback() {
                 public void onOutputBufferAvailable(MediaCodec codec, int ix, BufferInfo info) {
+                    if (info.size > 0) {
+                        ++mMediaBuffersDecodedCount;
+                    }
                     codec.releaseOutputBuffer(ix, info.size > 0);
                     if ((info.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
                         synchronized (condition) {
@@ -129,7 +142,10 @@ public class VideoEncoderTest extends MediaPlayerTestBase {
                 }
                 public void onError(MediaCodec codec, MediaCodec.CodecException e) {
                     Log.i(TAG, "got codec exception", e);
-                    fail("received codec error during decode" + e);
+                    errorMsg.set("received codec error during decode" + e);
+                    synchronized (condition) {
+                        condition.notifyAll();
+                    }
                 }
                 public void onOutputFormatChanged(MediaCodec codec, MediaFormat format) {
                     Log.i(TAG, "got output format " + format);
@@ -146,17 +162,26 @@ public class VideoEncoderTest extends MediaPlayerTestBase {
                 }
             }
             decoder.stop();
+            assertNull(errorMsg.get(), errorMsg.get());
+            // All enqueued media data buffers should have got decoded.
+            if (mMediaBuffersEnqueuedCount != mMediaBuffersDecodedCount) {
+                Log.i(TAG, "mMediaBuffersEnqueuedCount:" + mMediaBuffersEnqueuedCount);
+                Log.i(TAG, "mMediaBuffersDecodedCount:" + mMediaBuffersDecodedCount);
+                fail("not all enqueued encoded media buffers were decoded");
+            }
+            mMediaBuffersDecodedCount = 0;
         }
 
-        public void playAll(Surface surface) {
+        public boolean playAll(Surface surface) {
+            boolean skipped = true;
             if (mFormat == null) {
                 Log.i(TAG, "no stream to play");
-                return;
+                return !skipped;
             }
             String mime = mFormat.getString(MediaFormat.KEY_MIME);
             MediaCodecList mcl = new MediaCodecList(MediaCodecList.REGULAR_CODECS);
             for (MediaCodecInfo info : mcl.getCodecInfos()) {
-                if (info.isEncoder()) {
+                if (info.isEncoder() || info.isAlias()) {
                     continue;
                 }
                 MediaCodec codec = null;
@@ -171,7 +196,9 @@ public class VideoEncoderTest extends MediaPlayerTestBase {
                 }
                 play(codec, surface);
                 codec.release();
+                skipped = false;
             }
+            return !skipped;
         }
     }
 
@@ -405,9 +432,7 @@ public class VideoEncoderTest extends MediaPlayerTestBase {
             }
         }
 
-        public void playBack(Surface surface) {
-            mEncodedStream.playAll(surface);
-        }
+        public boolean playBack(Surface surface) { return mEncodedStream.playAll(surface); }
 
         public void setFrameAndBitRates(int frameRate, int bitRate) {
             mFrameRate = frameRate;
@@ -453,6 +478,7 @@ public class VideoEncoderTest extends MediaPlayerTestBase {
         private LinkedList<Integer> mEncInputBuffers = new LinkedList<Integer>();
 
         private int mEncInputBufferSize = -1;
+        private final AtomicReference<String> errorMsg = new AtomicReference(null);
 
         @Override
         public boolean processLoop(
@@ -475,7 +501,7 @@ public class VideoEncoderTest extends MediaPlayerTestBase {
                 mEncoder.start();
 
                 // main loop - process GL ops as only main thread has GL context
-                while (!mCompleted) {
+                while (!mCompleted && errorMsg.get() == null) {
                     Pair<Integer, BufferInfo> decBuffer = null;
                     int encBuffer = -1;
                     synchronized (mCondition) {
@@ -526,6 +552,7 @@ public class VideoEncoderTest extends MediaPlayerTestBase {
             } finally {
                 close();
             }
+            assertNull(errorMsg.get(), errorMsg.get());
             return !skipped;
         }
 
@@ -560,7 +587,7 @@ public class VideoEncoderTest extends MediaPlayerTestBase {
                     // can release empty buffers now
                     if (info.size == 0) {
                         mDecoder.releaseOutputBuffer(ix, false /* render */);
-                        ix = -1; // dummy index used by render to not render
+                        ix = -1; // fake index used by render to not render
                     }
                     synchronized(mCondition) {
                         if (ix < 0 && eos && mBuffersToRender.size() > 0) {
@@ -615,7 +642,13 @@ public class VideoEncoderTest extends MediaPlayerTestBase {
 
         @Override
         public void onError(MediaCodec mediaCodec, MediaCodec.CodecException e) {
-            fail("received error on " + mediaCodec.getName() + ": " + e);
+            String codecName = null;
+            try {
+                codecName = mediaCodec.getName();
+            } catch (Exception ex) {
+                codecName = "(error getting codec name)";
+            }
+            errorMsg.set("received error on " + codecName + ": " + e);
         }
 
         @Override
@@ -670,6 +703,8 @@ public class VideoEncoderTest extends MediaPlayerTestBase {
         private LinkedList<Pair<Integer, BufferInfo>> mBuffersToRender =
             new LinkedList<Pair<Integer, BufferInfo>>();
 
+        private final AtomicReference<String> errorMsg = new AtomicReference(null);
+
         @Override
         public boolean processLoop(
                 String path, String outMime, String videoEncName,
@@ -696,7 +731,7 @@ public class VideoEncoderTest extends MediaPlayerTestBase {
                 mEncoder.start();
 
                 // main loop - process GL ops as only main thread has GL context
-                while (!mCompleted) {
+                while (!mCompleted && errorMsg.get() == null) {
                     BufferInfo info = null;
                     synchronized (mCondition) {
                         try {
@@ -764,6 +799,7 @@ public class VideoEncoderTest extends MediaPlayerTestBase {
                     mDecSurface = null;
                 }
             }
+            assertNull(errorMsg.get(), errorMsg.get());
             return !skipped;
         }
 
@@ -803,7 +839,7 @@ public class VideoEncoderTest extends MediaPlayerTestBase {
                     // can release empty buffers now
                     if (info.size == 0) {
                         mDecoder.releaseOutputBuffer(ix, false /* render */);
-                        ix = -1; // dummy index used by render to not render
+                        ix = -1; // fake index used by render to not render
                     }
                     if (eos || info.size > 0) {
                         synchronized(mCondition) {
@@ -847,7 +883,13 @@ public class VideoEncoderTest extends MediaPlayerTestBase {
 
         @Override
         public void onError(MediaCodec mediaCodec, MediaCodec.CodecException e) {
-            fail("received error on " + mediaCodec.getName() + ": " + e);
+            String codecName = null;
+            try {
+                codecName = mediaCodec.getName();
+            } catch (Exception ex) {
+                codecName = "(error getting codec name)";
+            }
+            errorMsg.set("received error on " + codecName + ": " + e);
         }
 
         @Override
@@ -1147,7 +1189,7 @@ public class VideoEncoderTest extends MediaPlayerTestBase {
             boolean success = processor.processLoop(
                     SOURCE_URL, mMime, mName, width, height, optional);
             if (success) {
-                processor.playBack(getActivity().getSurfaceHolder().getSurface());
+                success = processor.playBack(getActivity().getSurfaceHolder().getSurface());
             }
             return success;
         }
@@ -1195,7 +1237,7 @@ public class VideoEncoderTest extends MediaPlayerTestBase {
         ArrayList<Encoder> result = new ArrayList<Encoder>();
 
         for (MediaCodecInfo info : mcl.getCodecInfos()) {
-            if (!info.isEncoder() || !info.isVendor() != goog) {
+            if (!info.isEncoder() || !info.isVendor() != goog || info.isAlias()) {
                 continue;
             }
             CodecCapabilities caps = null;
@@ -1592,8 +1634,10 @@ public class VideoEncoderTest extends MediaPlayerTestBase {
 
     public void testGoogH265FlexQCIF()   { specific(googH265(),   176, 144, true /* flex */); }
     public void testGoogH265SurfQCIF()   { specific(googH265(),   176, 144, false /* flex */); }
+    @Presubmit
     @SmallTest
     public void testGoogH264FlexQCIF()   { specific(googH264(),   176, 144, true /* flex */); }
+    @Presubmit
     @SmallTest
     public void testGoogH264SurfQCIF()   { specific(googH264(),   176, 144, false /* flex */); }
     public void testGoogH263FlexQCIF()   { specific(googH263(),   176, 144, true /* flex */); }
@@ -1610,9 +1654,13 @@ public class VideoEncoderTest extends MediaPlayerTestBase {
     @NonMediaMainlineTest
     public void testOtherH265SurfQCIF()  { specific(otherH265(),  176, 144, false /* flex */); }
     @NonMediaMainlineTest
+    @RequiresDevice
+    @Presubmit
     @SmallTest
     public void testOtherH264FlexQCIF()  { specific(otherH264(),  176, 144, true /* flex */); }
     @NonMediaMainlineTest
+    @RequiresDevice
+    @Presubmit
     @SmallTest
     public void testOtherH264SurfQCIF()  { specific(otherH264(),  176, 144, false /* flex */); }
     @NonMediaMainlineTest

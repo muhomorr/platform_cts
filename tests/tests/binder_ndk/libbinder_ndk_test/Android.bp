@@ -17,12 +17,15 @@ filegroup {
     srcs: [
         "test_package/Bar.aidl",
         "test_package/ByteEnum.aidl",
+        "test_package/FixedSize.aidl",
         "test_package/Foo.aidl",
         "test_package/IEmpty.aidl",
         "test_package/ITest.aidl",
         "test_package/IntEnum.aidl",
         "test_package/LongEnum.aidl",
         "test_package/RegularPolygon.aidl",
+        "test_package/GenericFoo.aidl",
+        "test_package/GenericBar.aidl",
     ],
     visibility: ["//visibility:private"]
 }

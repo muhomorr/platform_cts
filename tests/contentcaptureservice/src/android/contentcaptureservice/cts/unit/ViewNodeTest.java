@@ -133,7 +133,7 @@ public class ViewNodeTest {
 
         ViewStructureImpl structure = new ViewStructureImpl(view);
         ViewNode node = structure.getNode();
-        assertThat(node.getAutofillId()).isEqualTo(initialId); // sanity check
+        assertThat(node.getAutofillId()).isEqualTo(initialId); // confidence check
 
         assertThrows(NullPointerException.class, () -> structure.setAutofillId(null));
         assertThat(node.getAutofillId()).isEqualTo(initialId); // invariant
@@ -143,6 +143,9 @@ public class ViewNodeTest {
 
         assertThrows(NullPointerException.class, () -> structure.setTextIdEntry(null));
         assertThat(node.getTextIdEntry()).isNull();
+
+        assertThrows(NullPointerException.class, () -> structure.setHintIdEntry(null));
+        assertThat(node.getHintIdEntry()).isNull();
     }
 
     @Test
@@ -156,7 +159,7 @@ public class ViewNodeTest {
     public void testValidProperties_throughParcel() {
         ViewStructureImpl structure = newSimpleStructure();
         final ViewNode node = structure.getNode();
-        assertSimpleNode(node); // sanity check
+        assertSimpleNode(node); // confidence check
 
         final ViewNode clone = cloneThroughParcel(node);
         assertSimpleNode(clone);
@@ -173,7 +176,7 @@ public class ViewNodeTest {
     public void testComplexText_throughParcel() {
         ViewStructureImpl structure = newStructureWithComplexText();
         final ViewNode node = structure.getNode();
-        assertNodeWithComplexText(node); // sanity check
+        assertNodeWithComplexText(node); // confidence check
 
         ViewNode clone = cloneThroughParcel(node);
         assertNodeWithComplexText(clone);
@@ -363,6 +366,7 @@ public class ViewNodeTest {
         structure.setText("IGNORE ME!");
         structure.setText("Now we're talking!", 4, 8);
         structure.setHint("Soylent Green is SPOILER ALERT");
+        structure.setHintIdEntry("HINT ID ENTRY");
         structure.setTextStyle(15.0f, 16, 23, 42);
         structure.setTextLines(new int[] {4,  8, 15} , new int[] {16, 23, 42});
         return structure;
@@ -377,6 +381,7 @@ public class ViewNodeTest {
         assertThat(node.getTextSelectionStart()).isEqualTo(4);
         assertThat(node.getTextSelectionEnd()).isEqualTo(8);
         assertThat(node.getHint()).isEqualTo("Soylent Green is SPOILER ALERT");
+        assertThat(node.getHintIdEntry()).isEqualTo("HINT ID ENTRY");
         assertThat(node.getTextSize()).isWithin(1.0e-10f).of(15.0f);
         assertThat(node.getTextColor()).isEqualTo(16);
         assertThat(node.getTextBackgroundColor()).isEqualTo(23);
@@ -401,7 +406,7 @@ public class ViewNodeTest {
 
         try {
             // Write to parcel
-            parcel.setDataPosition(0); // Sanity / paranoid check
+            parcel.setDataPosition(0); // Confidence check
             ViewNode.writeToParcel(parcel, node, 0);
 
             // Read from parcel

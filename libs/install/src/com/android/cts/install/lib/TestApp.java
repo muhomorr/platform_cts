@@ -16,6 +16,8 @@
 
 package com.android.cts.install.lib;
 
+import static com.android.cts.shim.lib.ShimPackage.SHIM_APEX_PACKAGE_NAME;
+
 import android.content.pm.VersionedPackage;
 
 import java.io.File;
@@ -28,11 +30,10 @@ import java.util.function.Function;
  * Collection of dummy apps used in tests.
  */
 public class TestApp {
+
     public static final String A = "com.android.cts.install.lib.testapp.A";
     public static final String B = "com.android.cts.install.lib.testapp.B";
     public static final String C = "com.android.cts.install.lib.testapp.C";
-    public static final String Apex = "com.android.apex.cts.shim";
-    public static final String NotPreInstalledApex = "com.android.apex.cts.shim_not_pre_installed";
 
     // Apk collection
     public static final TestApp A1 = new TestApp("Av1", A, 1, /*isApex*/false,
@@ -57,24 +58,12 @@ public class TestApp {
             "TestAppCv1.apk");
 
     // Apex collection
-    public static final TestApp Apex1 =
-            new TestApp("Apex1", Apex, 1, /*isApex*/true,
-                    "com.android.apex.cts.shim.v1.apex");
-    public static final TestApp Apex2 =
-            new TestApp("Apex2", Apex, 2, /*isApex*/true,
-            "com.android.apex.cts.shim.v2.apex");
-    public static final TestApp ApexNoHashtree2 =
-            new TestApp("Apex2", Apex, 2, /*isApex*/true,
-                    "com.android.apex.cts.shim.v2_no_hashtree.apex");
-    public static final TestApp ApexWrongSha2 = new TestApp(
-            "ApexWrongSha2", Apex, 2, /*isApex*/true,
-            "com.android.apex.cts.shim.v2_wrong_sha.apex");
-    public static final TestApp Apex3 =
-            new TestApp("Apex3", Apex, 3, /*isApex*/true,
-            "com.android.apex.cts.shim.v3.apex");
-    public static final TestApp ApexNotPreInstalled =
-            new TestApp("ApexNotPreInstalled", NotPreInstalledApex, 3, /*isApex*/true,
-            "com.android.apex.cts.shim_not_pre_installed.apex");
+    public static final TestApp Apex1 = new TestApp("Apex1", SHIM_APEX_PACKAGE_NAME, 1,
+            /*isApex*/true, "com.android.apex.cts.shim.v1.apex");
+    public static final TestApp Apex2 = new TestApp("Apex2", SHIM_APEX_PACKAGE_NAME, 2,
+            /*isApex*/true, "com.android.apex.cts.shim.v2.apex");
+    public static final TestApp Apex3 = new TestApp("Apex3", SHIM_APEX_PACKAGE_NAME, 3,
+            /*isApex*/true, "com.android.apex.cts.shim.v3.apex");
 
     private final String mName;
     private final String mPackageName;
@@ -93,19 +82,31 @@ public class TestApp {
         mGetResourceStream = (res) -> TestApp.class.getClassLoader().getResourceAsStream(res);
     }
 
-    public TestApp(String name, String packageName, long versionCode, boolean isApex, File path) {
+    public TestApp(String name, String packageName, long versionCode, boolean isApex,
+            File[] paths) {
         mName = name;
         mPackageName = packageName;
         mVersionCode = versionCode;
-        mResourceNames = new String[] { path.getName() };
+        mResourceNames = new String[paths.length];
+        for (int i = 0; i < paths.length; ++i) {
+            mResourceNames[i] = paths[i].getName();
+        }
         mIsApex = isApex;
         mGetResourceStream = (res) -> {
             try {
-                return new FileInputStream(path);
-            } catch (FileNotFoundException e) {
-                return null;
+                for (int i = 0; i < paths.length; ++i) {
+                    if (paths[i].getName().equals(res)) {
+                        return new FileInputStream(paths[i]);
+                    }
+                }
+            } catch (FileNotFoundException ignore) {
             }
+            return null;
         };
+    }
+
+    public TestApp(String name, String packageName, long versionCode, boolean isApex, File path) {
+        this(name, packageName, versionCode, isApex, new File[]{ path });
     }
 
     public String getPackageName() {

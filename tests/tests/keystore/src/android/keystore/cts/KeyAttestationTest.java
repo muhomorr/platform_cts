@@ -51,6 +51,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItems;
 
 import android.content.pm.PackageManager.NameNotFoundException;
@@ -73,6 +74,7 @@ import androidx.test.filters.RequiresDevice;
 import org.bouncycastle.asn1.x500.X500Name;
 import org.bouncycastle.cert.jcajce.JcaX509CertificateHolder;
 
+import java.io.File;
 import java.lang.Math;
 import java.security.GeneralSecurityException;
 import java.security.InvalidAlgorithmParameterException;
@@ -873,6 +875,7 @@ public class KeyAttestationTest extends AndroidTestCase {
                 case 2:
                 case 3:
                 case 4:
+                case 41:
                     assertThat(teeEnforcedDigests, is(expectedDigests));
                     break;
 
@@ -899,6 +902,21 @@ public class KeyAttestationTest extends AndroidTestCase {
         return expectedPurposes;
     }
 
+    private boolean isGsiImage() {
+        final File initGsiRc= new File("/system/system_ext/etc/init/init.gsi.rc");
+        return initGsiRc.exists();
+    }
+
+    private void checkSystemPatchLevel(int teeOsPatchLevel, int systemPatchLevel) {
+        if (isGsiImage()) {
+            // b/168663786: When using a GSI image, the system patch level might be
+            // greater than or equal to the OS patch level reported from TEE.
+            assertThat(teeOsPatchLevel, lessThanOrEqualTo(systemPatchLevel));
+        } else {
+            assertThat(teeOsPatchLevel, is(systemPatchLevel));
+        }
+    }
+
     @SuppressWarnings("unchecked")
     private void checkAttestationSecurityLevelDependentParams(Attestation attestation) {
         assertThat("Attestation version must be 1, 2, 3, or 4", attestation.getAttestationVersion(),
@@ -915,11 +933,12 @@ public class KeyAttestationTest extends AndroidTestCase {
                 assertThat("TEE attestation can only come from TEE keymaster",
                         attestation.getKeymasterSecurityLevel(),
                         is(KM_SECURITY_LEVEL_TRUSTED_ENVIRONMENT));
-                assertThat(attestation.getKeymasterVersion(), either(is(2)).or(is(3)).or(is(4)));
+                assertThat(attestation.getKeymasterVersion(),
+                           either(is(2)).or(is(3)).or(is(4)).or(is(41)));
 
                 checkRootOfTrust(attestation, false /* requireLocked */);
                 assertThat(teeEnforced.getOsVersion(), is(systemOsVersion));
-                assertThat(teeEnforced.getOsPatchLevel(), is(systemPatchLevel));
+                checkSystemPatchLevel(teeEnforced.getOsPatchLevel(), systemPatchLevel);
                 break;
 
             case KM_SECURITY_LEVEL_SOFTWARE:
@@ -931,7 +950,7 @@ public class KeyAttestationTest extends AndroidTestCase {
                     assertThat("Software KM is version 3", attestation.getKeymasterVersion(),
                             is(3));
                     assertThat(softwareEnforced.getOsVersion(), is(systemOsVersion));
-                    assertThat(softwareEnforced.getOsPatchLevel(), is(systemPatchLevel));
+                    checkSystemPatchLevel(teeEnforced.getOsPatchLevel(), systemPatchLevel);
                 }
 
                 assertNull("Software attestation cannot provide root of trust",
@@ -1198,17 +1217,16 @@ public class KeyAttestationTest extends AndroidTestCase {
                 assertTrue(
                         signedCertIssuer.toASN1Object().equals(signingCertSubject.toASN1Object()));
 
+                X500Name signedCertSubject =
+                        new JcaX509CertificateHolder(x509PrevCert).getSubject();
                 if (i == 1) {
                     // First cert should have subject "CN=Android Keystore Key".
-                    X500Name signedCertSubject =
-                            new JcaX509CertificateHolder(x509PrevCert).getSubject();
                     assertEquals(signedCertSubject, new X500Name("CN=Android Keystore Key"));
                 } else {
                     // Only strongbox implementations should have strongbox in the subject line
-                    assertEquals(expectStrongBox, x509CurrCert.getSubjectDN()
-                                                              .getName()
-                                                              .toLowerCase()
-                                                              .contains("strongbox"));
+                    assertEquals(expectStrongBox, signedCertSubject.toString()
+                                                                   .toLowerCase()
+                                                                   .contains("strongbox"));
                 }
             } catch (InvalidKeyException | CertificateException | NoSuchAlgorithmException
                     | NoSuchProviderException | SignatureException e) {

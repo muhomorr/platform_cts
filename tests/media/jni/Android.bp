@@ -23,6 +23,7 @@ cc_test_library {
         "libmediandk",
         "liblog",
     ],
+    header_libs: ["liblog_headers"],
     include_dirs: [
         "frameworks/av/media/ndk/include/media",
     ],
@@ -32,6 +33,7 @@ cc_test_library {
         "-Wall",
     ],
     gtest: false,
+    sdk_version: "29",
 }
 
 cc_test_library {
@@ -44,7 +46,9 @@ cc_test_library {
     shared_libs: [
         "libmediandk",
         "liblog",
+        "libz",
     ],
+    header_libs: ["liblog_headers"],
     include_dirs: [
         "frameworks/av/media/ndk/include/media",
     ],
@@ -54,6 +58,7 @@ cc_test_library {
         "-Wall",
     ],
     gtest: false,
+    sdk_version: "29",
 }
 
 cc_test_library {
@@ -70,7 +75,9 @@ cc_test_library {
         "libmediandk",
         "liblog",
         "libandroid",
+        "libz",
     ],
+    header_libs: ["liblog_headers"],
     include_dirs: [
         "frameworks/av/media/ndk/include/media",
     ],
@@ -80,4 +87,5 @@ cc_test_library {
         "-Wall",
     ],
     gtest: false,
+    sdk_version: "29",
 }

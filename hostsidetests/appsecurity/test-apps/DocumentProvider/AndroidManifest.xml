@@ -16,8 +16,11 @@
 
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
           package="com.android.cts.documentprovider">
+
+    <uses-sdk android:minSdkVersion="29" android:targetSdkVersion="29"/>
+
     <application>
-        <uses-library android:name="android.test.runner" />
+        <uses-library android:name="android.test.runner"/>
 
         <provider android:name=".MyDocumentsProvider"
                 android:authorities="com.android.cts.documentprovider"

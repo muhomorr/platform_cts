@@ -169,6 +169,7 @@ import static java.lang.annotation.RetentionPolicy.SOURCE;
 import java.io.IOException;
 import java.lang.annotation.Retention;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
 
 /**
@@ -738,7 +739,7 @@ public class TextViewTest {
         mTextView = findTextView(R.id.selectAllOnFocus_default);
         mTextView.setText(blank, BufferType.SPANNABLE);
         // change the focus
-        findTextView(R.id.selectAllOnFocus_dummy).requestFocus();
+        findTextView(R.id.selectAllOnFocus_placeholder).requestFocus();
         assertFalse(mTextView.isFocused());
         mTextView.requestFocus();
         assertTrue(mTextView.isFocused());
@@ -749,7 +750,7 @@ public class TextViewTest {
         mTextView.setText(content, BufferType.SPANNABLE);
         mTextView.setSelectAllOnFocus(true);
         // change the focus
-        findTextView(R.id.selectAllOnFocus_dummy).requestFocus();
+        findTextView(R.id.selectAllOnFocus_placeholder).requestFocus();
         assertFalse(mTextView.isFocused());
         mTextView.requestFocus();
         assertTrue(mTextView.isFocused());
@@ -760,7 +761,7 @@ public class TextViewTest {
         Selection.setSelection((Spannable) mTextView.getText(), 0);
         mTextView.setSelectAllOnFocus(false);
         // change the focus
-        findTextView(R.id.selectAllOnFocus_dummy).requestFocus();
+        findTextView(R.id.selectAllOnFocus_placeholder).requestFocus();
         assertFalse(mTextView.isFocused());
         mTextView.requestFocus();
         assertTrue(mTextView.isFocused());
@@ -771,7 +772,7 @@ public class TextViewTest {
         mTextView.setText(blank, BufferType.SPANNABLE);
         mTextView.setSelectAllOnFocus(true);
         // change the focus
-        findTextView(R.id.selectAllOnFocus_dummy).requestFocus();
+        findTextView(R.id.selectAllOnFocus_placeholder).requestFocus();
         assertFalse(mTextView.isFocused());
         mTextView.requestFocus();
         assertTrue(mTextView.isFocused());
@@ -782,7 +783,7 @@ public class TextViewTest {
         Selection.setSelection((Spannable) mTextView.getText(), 0);
         mTextView.setSelectAllOnFocus(false);
         // change the focus
-        findTextView(R.id.selectAllOnFocus_dummy).requestFocus();
+        findTextView(R.id.selectAllOnFocus_placeholder).requestFocus();
         assertFalse(mTextView.isFocused());
         mTextView.requestFocus();
         assertTrue(mTextView.isFocused());
@@ -5789,11 +5790,11 @@ public class TextViewTest {
     public void testSelectAllJustAfterTap() throws Throwable {
         // Prepare an EditText with focus.
         mActivityRule.runOnUiThread(() -> {
-            // Make a dummy focusable so that initial focus doesn't go to our test textview
+            // Make a placeholder focusable so that initial focus doesn't go to our test textview
             LinearLayout top = new LinearLayout(mActivity);
-            TextView dummy = new TextView(mActivity);
-            dummy.setFocusableInTouchMode(true);
-            top.addView(dummy, LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT);
+            TextView placeholder = new TextView(mActivity);
+            placeholder.setFocusableInTouchMode(true);
+            top.addView(placeholder, LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT);
             mTextView = new EditText(mActivity);
             top.addView(mTextView, LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT);
             mActivity.setContentView(top);
@@ -6951,11 +6952,11 @@ public class TextViewTest {
         final View.OnClickListener mockOnClickListener = mock(View.OnClickListener.class);
         final int safeDoubleTapTimeout = ViewConfiguration.getDoubleTapTimeout() + 1;
         mActivityRule.runOnUiThread(() -> {
-            // set up a dummy focusable so that initial focus doesn't go to our test textview
+            // set up a placeholder focusable so that initial focus doesn't go to our test textview
             LinearLayout top = new LinearLayout(mActivity);
-            TextView dummy = new TextView(mActivity);
-            dummy.setFocusableInTouchMode(true);
-            top.addView(dummy, LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT);
+            TextView placeholder = new TextView(mActivity);
+            placeholder.setFocusableInTouchMode(true);
+            top.addView(placeholder, LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT);
             mTextView = new TextView(mActivity);
             mTextView.setText("...text 11:11. some more text is in here...");
             mTextView.setFocusable(true);
@@ -7147,6 +7148,106 @@ public class TextViewTest {
                 TextUtils.equals(nonHintText, info.getText()));
         assertTrue("Hint text not provided to accessibility",
                 TextUtils.equals(hintText, info.getHintText()));
+    }
+
+    @UiThreadTest
+    @Test
+    public void testOnInitializeA11yNodeInfo_removesClickabilityWithLinkMovementMethod() {
+        mTextView = findTextView(R.id.textview_text);
+        mTextView.setMovementMethod(new LinkMovementMethod());
+
+        assertTrue("clickable should be true", mTextView.isClickable());
+        assertFalse("View should not have onClickListeners", mTextView.hasOnClickListeners());
+        assertTrue("longClickable should be true", mTextView.isLongClickable());
+        assertFalse("View should not have onLongClickListeners",
+                mTextView.hasOnLongClickListeners());
+
+        final AccessibilityNodeInfo info = AccessibilityNodeInfo.obtain();
+        mTextView.onInitializeAccessibilityNodeInfo(info);
+        List<AccessibilityNodeInfo.AccessibilityAction> actionList = info.getActionList();
+        assertFalse("info's isClickable should be false", info.isClickable());
+        assertFalse("info should not have ACTION_CLICK",
+                actionList.contains(AccessibilityNodeInfo.AccessibilityAction.ACTION_CLICK));
+        assertFalse("info's isLongClickable should be false",
+                info.isLongClickable());
+        assertFalse("info should not have ACTION_LONG_CLICK",
+                actionList.contains(AccessibilityNodeInfo.AccessibilityAction.ACTION_LONG_CLICK));
+    }
+
+    @UiThreadTest
+    @Test
+    public void testOnInitializeA11yNodeInfo_keepsClickabilityWithMovementMethod() {
+        mTextView = findTextView(R.id.textview_text);
+        mTextView.setMovementMethod(new ArrowKeyMovementMethod());
+
+        assertTrue("clickable should be true", mTextView.isClickable());
+        assertFalse("View should not have onClickListeners", mTextView.hasOnClickListeners());
+        assertTrue("longClickable should be false", mTextView.isLongClickable());
+        assertFalse("View should not have onLongClickListeners",
+                mTextView.hasOnLongClickListeners());
+
+        final AccessibilityNodeInfo info = AccessibilityNodeInfo.obtain();
+        mTextView.onInitializeAccessibilityNodeInfo(info);
+        List<AccessibilityNodeInfo.AccessibilityAction> actionList = info.getActionList();
+        assertTrue("info's isClickable should be true", info.isClickable());
+        assertTrue("info should have ACTION_CLICK",
+                actionList.contains(AccessibilityNodeInfo.AccessibilityAction.ACTION_CLICK));
+        assertTrue("info's isLongClickable should be true",
+                info.isLongClickable());
+        assertTrue("info should have ACTION_LONG_CLICK",
+                actionList.contains(AccessibilityNodeInfo.AccessibilityAction.ACTION_LONG_CLICK));
+    }
+
+    @UiThreadTest
+    @Test
+    public void testOnInitializeA11yNodeInfo_keepsClickabilityWithOnClickListener() {
+        mTextView = findTextView(R.id.textview_text);
+        mTextView.setMovementMethod(new LinkMovementMethod());
+
+        assertTrue("clickable should be true", mTextView.isClickable());
+        assertFalse("View should not have onClickListeners", mTextView.hasOnClickListeners());
+        assertTrue("longClickable should be true", mTextView.isLongClickable());
+        assertFalse("View should not have onLongClickListeners",
+                mTextView.hasOnLongClickListeners());
+
+        mTextView.setOnClickListener(mock(View.OnClickListener.class));
+
+        final AccessibilityNodeInfo info = AccessibilityNodeInfo.obtain();
+        mTextView.onInitializeAccessibilityNodeInfo(info);
+        List<AccessibilityNodeInfo.AccessibilityAction> actionList = info.getActionList();
+        assertTrue("info's isClickable should be true", info.isClickable());
+        assertTrue("info should have ACTION_CLICK",
+                actionList.contains(AccessibilityNodeInfo.AccessibilityAction.ACTION_CLICK));
+        assertFalse("info's isLongClickable should not be true",
+                info.isLongClickable());
+        assertFalse("info should have ACTION_LONG_CLICK",
+                actionList.contains(AccessibilityNodeInfo.AccessibilityAction.ACTION_LONG_CLICK));
+    }
+
+    @UiThreadTest
+    @Test
+    public void testOnInitializeA11yNodeInfo_keepsLongClickabilityWithOnLongClickListener() {
+        mTextView = findTextView(R.id.textview_text);
+        mTextView.setMovementMethod(new LinkMovementMethod());
+
+        assertTrue("clickable should be true", mTextView.isClickable());
+        assertFalse("View should not have onClickListeners", mTextView.hasOnClickListeners());
+        assertTrue("longClickable should be true", mTextView.isLongClickable());
+        assertFalse("View should not have onLongClickListeners",
+                mTextView.hasOnLongClickListeners());
+
+        mTextView.setOnLongClickListener(mock(View.OnLongClickListener.class));
+
+        final AccessibilityNodeInfo info = AccessibilityNodeInfo.obtain();
+        mTextView.onInitializeAccessibilityNodeInfo(info);
+        List<AccessibilityNodeInfo.AccessibilityAction> actionList = info.getActionList();
+        assertFalse("info's isClickable should be false", info.isClickable());
+        assertFalse("info should not have ACTION_CLICK",
+                actionList.contains(AccessibilityNodeInfo.AccessibilityAction.ACTION_CLICK));
+        assertTrue("info's isLongClickable should be true",
+                info.isLongClickable());
+        assertTrue("info should have ACTION_LONG_CLICK",
+                actionList.contains(AccessibilityNodeInfo.AccessibilityAction.ACTION_LONG_CLICK));
     }
 
     @Test

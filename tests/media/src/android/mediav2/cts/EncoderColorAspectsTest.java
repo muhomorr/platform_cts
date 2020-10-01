@@ -18,10 +18,8 @@ package android.mediav2.cts;
 
 import android.media.MediaCodec;
 import android.media.MediaCodecInfo;
-import android.media.MediaCodecList;
 import android.media.MediaFormat;
 import android.media.MediaMuxer;
-import android.os.Build;
 import android.util.Log;
 
 import androidx.test.filters.SmallTest;
@@ -46,7 +44,6 @@ import static org.junit.Assert.assertTrue;
 @RunWith(Parameterized.class)
 public class EncoderColorAspectsTest extends CodecEncoderTestBase {
     private static final String LOG_TAG = EncoderColorAspectsTest.class.getSimpleName();
-    private static final int UNSPECIFIED = 0;
 
     private int mRange;
     private int mStandard;
@@ -55,8 +52,6 @@ public class EncoderColorAspectsTest extends CodecEncoderTestBase {
 
     private MediaMuxer mMuxer;
     private int mTrackID = -1;
-
-    private ArrayList<MediaCodec.BufferInfo> mInfoList = new ArrayList<>();
 
     private ArrayList<String> mCheckESList = new ArrayList<>();
 
@@ -98,44 +93,33 @@ public class EncoderColorAspectsTest extends CodecEncoderTestBase {
                 }
                 mMuxer.writeSampleData(mTrackID, buf, info);
             }
-            MediaCodec.BufferInfo copy = new MediaCodec.BufferInfo();
-            copy.set(mOutputBuff.getOutStreamSize(), info.size, info.presentationTimeUs,
-                    info.flags);
-            mInfoList.add(copy);
         }
         super.dequeueOutput(bufferIndex, info);
     }
 
     @Parameterized.Parameters(name = "{index}({0}{3}{4}{5})")
     public static Collection<Object[]> input() {
-        ArrayList<String> testMimeList = new ArrayList<>();
-        testMimeList.add(MediaFormat.MIMETYPE_VIDEO_AVC);
-        testMimeList.add(MediaFormat.MIMETYPE_VIDEO_HEVC);
-        testMimeList.add(MediaFormat.MIMETYPE_VIDEO_VP8);
-        testMimeList.add(MediaFormat.MIMETYPE_VIDEO_VP9);
-        ArrayList<String> mimes = new ArrayList<>();
-        if (CodecTestBase.codecSelKeys.contains(CodecTestBase.CODEC_SEL_VALUE)) {
-            MediaCodecList codecList = new MediaCodecList(MediaCodecList.REGULAR_CODECS);
-            MediaCodecInfo[] codecInfos = codecList.getCodecInfos();
-            for (MediaCodecInfo codecInfo : codecInfos) {
-                if (!codecInfo.isEncoder()) continue;
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && codecInfo.isAlias()) continue;
-                String[] types = codecInfo.getSupportedTypes();
-                for (String type : types) {
-                    if (testMimeList.contains(type) && !mimes.contains(type)) {
-                        mimes.add(type);
-                    }
-                }
-            }
-        }
-        int[] ranges =
-                {-1, UNSPECIFIED, MediaFormat.COLOR_RANGE_FULL, MediaFormat.COLOR_RANGE_LIMITED};
-        int[] standards =
-                {-1, UNSPECIFIED, MediaFormat.COLOR_STANDARD_BT709,
-                        MediaFormat.COLOR_STANDARD_BT601_PAL,
-                        MediaFormat.COLOR_STANDARD_BT601_NTSC, MediaFormat.COLOR_STANDARD_BT2020};
-        int[] transfers =
-                {-1, UNSPECIFIED, MediaFormat.COLOR_TRANSFER_LINEAR, MediaFormat.COLOR_TRANSFER_SDR_VIDEO};
+        final boolean isEncoder = true;
+        final boolean needAudio = false;
+        final boolean needVideo = true;
+        String[] mimes = {MediaFormat.MIMETYPE_VIDEO_AVC,
+                MediaFormat.MIMETYPE_VIDEO_HEVC,
+                MediaFormat.MIMETYPE_VIDEO_VP8,
+                MediaFormat.MIMETYPE_VIDEO_VP9};
+        int[] ranges = {-1,
+                UNSPECIFIED,
+                MediaFormat.COLOR_RANGE_FULL,
+                MediaFormat.COLOR_RANGE_LIMITED};
+        int[] standards = {-1,
+                UNSPECIFIED,
+                MediaFormat.COLOR_STANDARD_BT709,
+                MediaFormat.COLOR_STANDARD_BT601_PAL,
+                MediaFormat.COLOR_STANDARD_BT601_NTSC,
+                MediaFormat.COLOR_STANDARD_BT2020};
+        int[] transfers = {-1,
+                UNSPECIFIED,
+                MediaFormat.COLOR_TRANSFER_LINEAR,
+                MediaFormat.COLOR_TRANSFER_SDR_VIDEO};
         // TODO: COLOR_TRANSFER_ST2084, COLOR_TRANSFER_HLG are for 10 bit and above. Should these
         //  be tested as well?
         List<Object[]> exhaustiveArgsList = new ArrayList<>();
@@ -150,7 +134,8 @@ public class EncoderColorAspectsTest extends CodecEncoderTestBase {
                 }
             }
         }
-        return exhaustiveArgsList;
+        return CodecTestBase
+                .prepareParamList(exhaustiveArgsList, isEncoder, needAudio, needVideo, false);
     }
 
     @SmallTest
@@ -159,21 +144,13 @@ public class EncoderColorAspectsTest extends CodecEncoderTestBase {
         ArrayList<String> listOfEncoders = selectCodecs(mMime, null, null, true);
         assertFalse("no suitable codecs found for mime: " + mMime, listOfEncoders.isEmpty());
         setUpSource(mInputFile);
-        mSaveToMem = true;
         mOutputBuff = new OutputManager();
         for (String encoder : listOfEncoders) {
             mCodec = MediaCodec.createByCodecName(encoder);
             mOutputBuff.reset();
-            mInfoList.clear();
-            /* TODO(b/157523045) */
-            if (mRange <= UNSPECIFIED || mStandard <= UNSPECIFIED ||
-                    mTransferCurve <= UNSPECIFIED) {
-                Log.d(LOG_TAG, "test skipped due to b/157523045");
-                mCodec.release();
-                continue;
-            }
             /* TODO(b/156571486) */
             if (encoder.equals("c2.android.hevc.encoder") ||
+                    encoder.equals("OMX.google.h264.encoder") ||
                     encoder.equals("c2.android.avc.encoder")) {
                 Log.d(LOG_TAG, "test skipped due to b/156571486");
                 mCodec.release();
@@ -219,16 +196,13 @@ public class EncoderColorAspectsTest extends CodecEncoderTestBase {
             if (parent != null) parent += File.separator;
             else parent = "";
             cdtb.validateColorAspects(null, parent, tmpFile.getName(), mRange, mStandard,
-                    mTransferCurve);
+                    mTransferCurve, false);
 
             // if color metadata can also be signalled via elementary stream then verify if the
             // elementary stream contains color aspects as expected
             if (mCheckESList.contains(mMime)) {
-                fmt.removeKey(MediaFormat.KEY_COLOR_RANGE);
-                fmt.removeKey(MediaFormat.KEY_COLOR_STANDARD);
-                fmt.removeKey(MediaFormat.KEY_COLOR_TRANSFER);
-                cdtb.validateColorAspects(null, fmt, mOutputBuff.getBuffer(), mInfoList, mRange,
-                        mStandard, mTransferCurve);
+                cdtb.validateColorAspects(null, parent, tmpFile.getName(), mRange, mStandard,
+                        mTransferCurve, true);
             }
         }
     }

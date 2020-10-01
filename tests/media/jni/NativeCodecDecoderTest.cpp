@@ -24,12 +24,14 @@
 
 #include <array>
 #include <fstream>
+#include <string>
 
 #include "NativeCodecTestBase.h"
 #include "NativeMediaCommon.h"
 
 class CodecDecoderTest final : public CodecTestBase {
   private:
+    bool mIsInterlaced;
     uint8_t* mRefData;
     size_t mRefLength;
     AMediaExtractor* mExtractor;
@@ -57,7 +59,7 @@ class CodecDecoderTest final : public CodecTestBase {
     ~CodecDecoderTest();
 
     bool testSimpleDecode(const char* decoder, const char* testFile, const char* refFile,
-                          float rmsError);
+                          float rmsError, uLong checksum);
     bool testFlush(const char* decoder, const char* testFile);
     bool testOnlyEos(const char* decoder, const char* testFile);
     bool testSimpleDecodeQueueCSD(const char* decoder, const char* testFile);
@@ -123,6 +125,8 @@ bool CodecDecoderTest::setUpExtractor(const char* srcFile) {
                                               COLOR_FormatYUV420Flexible);
                     }
                     mInpDecFormat = currFormat;
+                    // TODO: determine this from the extractor format when it becomes exposed.
+                    mIsInterlaced = strstr(srcFile, "_interlaced_") != nullptr;
                     break;
                 }
                 AMediaFormat_delete(currFormat);
@@ -224,7 +228,7 @@ bool CodecDecoderTest::dequeueOutput(size_t bufferIndex, AMediaCodecBufferInfo* 
             size_t buffSize;
             uint8_t* buf = AMediaCodec_getOutputBuffer(mCodec, bufferIndex, &buffSize);
             if (mIsAudio) mOutputBuff->saveToMemory(buf, info);
-            else mOutputBuff->saveChecksum(buf, info);
+            mOutputBuff->updateChecksum(buf, info);
         }
         mOutputBuff->saveOutPTS(info->presentationTimeUs);
         mOutputCount++;
@@ -284,7 +288,7 @@ bool CodecDecoderTest::decodeToMemory(const char* decoder, AMediaFormat* format,
 }
 
 bool CodecDecoderTest::testSimpleDecode(const char* decoder, const char* testFile,
-                                        const char* refFile, float rmsError) {
+                                        const char* refFile, float rmsError, uLong checksum) {
     bool isPass = true;
     if (!setUpExtractor(testFile)) return false;
     mSaveToMem = (mWindow == nullptr);
@@ -345,9 +349,13 @@ bool CodecDecoderTest::testSimpleDecode(const char* decoder, const char* testFil
             CHECK_ERR(
                     loopCounter == 0 && mIsAudio && (!ref->isPtsStrictlyIncreasing(mPrevOutputPts)),
                     log, "pts is not strictly increasing", isPass);
-            CHECK_ERR(loopCounter == 0 && !mIsAudio &&
-                      (!ref->isOutPtsListIdenticalToInpPtsList(false)),
-                      log, "input pts list and output pts list are not identical", isPass);
+            // TODO: Timestamps for deinterlaced content are under review. (E.g. can decoders
+            // produce multiple progressive frames?) For now, do not verify timestamps.
+            if (!mIsInterlaced) {
+                CHECK_ERR(loopCounter == 0 && !mIsAudio &&
+                          (!ref->isOutPtsListIdenticalToInpPtsList(false)),
+                          log, "input pts list and output pts list are not identical", isPass);
+            }
             if (validateFormat) {
                 if (mIsCodecInAsyncMode ? !mAsyncHandle.hasOutputFormatChanged()
                                         : !mSignalledOutFormatChanged) {
@@ -359,6 +367,10 @@ bool CodecDecoderTest::testSimpleDecode(const char* decoder, const char* testFil
                     ALOGE(log, "configured format and output format are not similar");
                     isPass = false;
                 }
+            }
+            if (checksum != ref->getChecksum()) {
+                ALOGE(log, "sdk output and ndk output differ");
+                isPass = false;
             }
             loopCounter++;
         }
@@ -396,8 +408,12 @@ bool CodecDecoderTest::testFlush(const char* decoder, const char* testFile) {
     }
     CHECK_ERR(mIsAudio && (!ref->isPtsStrictlyIncreasing(mPrevOutputPts)), "",
               "pts is not strictly increasing", isPass);
-    CHECK_ERR(!mIsAudio && (!ref->isOutPtsListIdenticalToInpPtsList(false)), "",
-              "input pts list and output pts list are not identical", isPass);
+    // TODO: Timestamps for deinterlaced content are under review. (E.g. can decoders
+    // produce multiple progressive frames?) For now, do not verify timestamps.
+    if (!mIsInterlaced) {
+        CHECK_ERR(!mIsAudio && (!ref->isOutPtsListIdenticalToInpPtsList(false)), "",
+                  "input pts list and output pts list are not identical", isPass);
+    }
     if (!isPass) return false;
 
     auto test = &mTestBuff;
@@ -634,15 +650,17 @@ bool CodecDecoderTest::testSimpleDecodeQueueCSD(const char* decoder, const char*
 
 static jboolean nativeTestSimpleDecode(JNIEnv* env, jobject, jstring jDecoder, jobject surface,
                                        jstring jMime, jstring jtestFile, jstring jrefFile,
-                                       jfloat jrmsError) {
+                                       jfloat jrmsError, jlong jChecksum) {
     const char* cDecoder = env->GetStringUTFChars(jDecoder, nullptr);
     const char* cMime = env->GetStringUTFChars(jMime, nullptr);
     const char* cTestFile = env->GetStringUTFChars(jtestFile, nullptr);
     const char* cRefFile = env->GetStringUTFChars(jrefFile, nullptr);
     float cRmsError = jrmsError;
+    uLong cChecksum = jChecksum;
     ANativeWindow* window = surface ? ANativeWindow_fromSurface(env, surface) : nullptr;
     auto* codecDecoderTest = new CodecDecoderTest(cMime, window);
-    bool isPass = codecDecoderTest->testSimpleDecode(cDecoder, cTestFile, cRefFile, cRmsError);
+    bool isPass =
+            codecDecoderTest->testSimpleDecode(cDecoder, cTestFile, cRefFile, cRmsError, cChecksum);
     delete codecDecoderTest;
     if (window) {
         ANativeWindow_release(window);
@@ -706,7 +724,7 @@ int registerAndroidMediaV2CtsDecoderTest(JNIEnv* env) {
     const JNINativeMethod methodTable[] = {
             {"nativeTestSimpleDecode",
              "(Ljava/lang/String;Landroid/view/Surface;Ljava/lang/String;Ljava/lang/String;Ljava/"
-             "lang/String;F)Z",
+             "lang/String;FJ)Z",
              (void*)nativeTestSimpleDecode},
             {"nativeTestOnlyEos", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Z",
              (void*)nativeTestOnlyEos},
@@ -725,7 +743,7 @@ int registerAndroidMediaV2CtsDecoderSurfaceTest(JNIEnv* env) {
     const JNINativeMethod methodTable[] = {
             {"nativeTestSimpleDecode",
              "(Ljava/lang/String;Landroid/view/Surface;Ljava/lang/String;Ljava/lang/String;Ljava/"
-             "lang/String;F)Z",
+             "lang/String;FJ)Z",
              (void*)nativeTestSimpleDecode},
             {"nativeTestFlush",
              "(Ljava/lang/String;Landroid/view/Surface;Ljava/lang/String;Ljava/lang/String;)Z",

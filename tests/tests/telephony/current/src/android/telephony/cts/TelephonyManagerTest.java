@@ -16,6 +16,8 @@
 
 package android.telephony.cts;
 
+import static com.android.compatibility.common.util.SystemUtil.runWithShellPermissionIdentity;
+
 import static com.google.common.truth.Truth.assertThat;
 
 import static org.junit.Assert.assertEquals;
@@ -35,19 +37,14 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
-import android.database.ContentObserver;
 import android.net.ConnectivityManager;
-import android.net.Uri;
-import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.os.AsyncTask;
 import android.os.Build;
-import android.os.Handler;
 import android.os.Looper;
 import android.os.PersistableBundle;
 import android.os.Process;
 import android.os.UserManager;
-import android.provider.Settings;
 import android.telecom.PhoneAccount;
 import android.telecom.PhoneAccountHandle;
 import android.telecom.TelecomManager;
@@ -167,6 +164,7 @@ public class TelephonyManagerTest {
     private static final int MIN_FPLMN_NUM = 3;
 
     private static final String TEST_FORWARD_NUMBER = "54321";
+    private static final String TESTING_PLMN = "12345";
 
     private static final int RADIO_HAL_VERSION_1_3 = makeRadioVersion(1, 3);
 
@@ -331,6 +329,10 @@ public class TelephonyManagerTest {
 
     @Test
     public void testDevicePolicyApn() {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            Log.d(TAG, "skipping test on device without FEATURE_TELEPHONY present");
+            return;
+        }
         // These methods aren't accessible to anything except system and phone by design, so we just
         // look for security exceptions here.
         try {
@@ -427,7 +429,9 @@ public class TelephonyManagerTest {
             CellLocation.requestLocationUpdate();
             mLock.wait(TOLERANCE);
 
-            assertTrue("Test register, mOnCellLocationChangedCalled should be true.",
+            // Starting with Android S, this API will silently drop all requests from apps
+            // targeting Android S due to unfixable limitations with the API.
+            assertFalse("Test register, mOnCellLocationChangedCalled should be false.",
                     mOnCellLocationChangedCalled);
         }
 
@@ -510,10 +514,15 @@ public class TelephonyManagerTest {
                 (tm) -> tm.getImei());
         ShellIdentityUtils.invokeMethodWithShellPermissions(mTelephonyManager,
                 (tm) -> tm.getImei(mTelephonyManager.getSlotIndex()));
+        ShellIdentityUtils.invokeMethodWithShellPermissions(mTelephonyManager,
+                (tm) -> tm.isManualNetworkSelectionAllowed());
+        ShellIdentityUtils.invokeMethodWithShellPermissions(mTelephonyManager,
+                (tm) -> tm.getManualNetworkSelectionPlmn());
+
         mTelephonyManager.getPhoneCount();
         mTelephonyManager.getDataEnabled();
         mTelephonyManager.getNetworkSpecifier();
-        mTelephonyManager.getNai();
+        ShellIdentityUtils.invokeMethodWithShellPermissions(mTelephonyManager, (tm) -> tm.getNai());
         TelecomManager telecomManager = getContext().getSystemService(TelecomManager.class);
         PhoneAccountHandle defaultAccount = telecomManager
                 .getDefaultOutgoingPhoneAccount(PhoneAccount.SCHEME_TEL);
@@ -552,7 +561,9 @@ public class TelephonyManagerTest {
             assertFalse(TextUtils.isEmpty(result));
         }
 
-        TelephonyManager.getDefaultRespondViaMessageApplication(getContext(), false);
+        mTelephonyManager.getDefaultRespondViaMessageApplication();
+        ShellIdentityUtils.invokeMethodWithShellPermissions(mTelephonyManager,
+                TelephonyManager::getAndUpdateDefaultRespondViaMessageApplication);
     }
 
     /**
@@ -695,6 +706,12 @@ public class TelephonyManagerTest {
             Log.d(TAG, "Skipping test that requires config_voice_capable is true");
             return;
         }
+        int subId = SubscriptionManager.getDefaultDataSubscriptionId();
+        if (subId == SubscriptionManager.INVALID_SUBSCRIPTION_ID) {
+            Log.d(TAG, "Skipping test that requires DefaultDataSubscriptionId setting");
+            return;
+        }
+
         TelecomManager telecomManager = getContext().getSystemService(TelecomManager.class);
         PhoneAccountHandle handle =
                 telecomManager.getDefaultOutgoingPhoneAccount(PhoneAccount.SCHEME_TEL);
@@ -904,19 +921,16 @@ public class TelephonyManagerTest {
     private String getWifiMacAddress() {
         WifiManager wifiManager = getContext().getSystemService(WifiManager.class);
 
-        boolean enabled = wifiManager.isWifiEnabled();
+        if (wifiManager.isWifiEnabled()) {
+            return wifiManager.getConnectionInfo().getMacAddress();
+        } else {
+            try {
+                runWithShellPermissionIdentity(() -> wifiManager.setWifiEnabled(true));
 
-        try {
-            if (!enabled) {
-                wifiManager.setWifiEnabled(true);
-            }
+                return wifiManager.getConnectionInfo().getMacAddress();
 
-            WifiInfo wifiInfo = wifiManager.getConnectionInfo();
-            return wifiInfo.getMacAddress();
-
-        } finally {
-            if (!enabled) {
-                wifiManager.setWifiEnabled(false);
+            } finally {
+                runWithShellPermissionIdentity(() -> wifiManager.setWifiEnabled(false));
             }
         }
     }
@@ -954,6 +968,10 @@ public class TelephonyManagerTest {
 
     @Test
     public void testSetSystemSelectionChannels() {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            Log.d(TAG, "skipping test on device without FEATURE_TELEPHONY present");
+            return;
+        }
         LinkedBlockingQueue<Boolean> queue = new LinkedBlockingQueue<>(1);
         final UiAutomation uiAutomation =
                 InstrumentationRegistry.getInstrumentation().getUiAutomation();
@@ -1007,6 +1025,7 @@ public class TelephonyManagerTest {
                 && !userManager.hasUserRestriction(UserManager.DISALLOW_CONFIG_MOBILE_NETWORKS);
         assertTrue("Primary user must be able to configure mobile networks to pass this test",
                 canChangeMobileNetworkSettings);
+        boolean initialDataSetting = isDataEnabled();
 
         //First check permissions are correct
         try {
@@ -1024,28 +1043,20 @@ public class TelephonyManagerTest {
             fail("TelephonyManager#resetSettings requires the"
                     + " android.Manifest.permission.NETWORK_SETTINGS permission");
         }
+        // This may timeout because the default is equal to the initial data setting, but there is
+        // no way to definitively check what the default should be, so assume the default will be
+        // set within TOLERANCE time.
+        TelephonyUtils.pollUntilTrue(() -> initialDataSetting != isDataEnabled(), 5 /*times*/,
+                TOLERANCE/5 /*timeout per poll*/);
 
-        LinkedBlockingQueue<Boolean> queue = new LinkedBlockingQueue<>(2);
-        final ContentObserver mobileDataChangeObserver = new ContentObserver(
-                new Handler(Looper.getMainLooper())) {
-            @Override
-            public void onChange(boolean selfChange) {
-                queue.offer(isDataEnabled());
-            }
-        };
-
-        getContext().getContentResolver().registerContentObserver(
-                getObservableDataEnabledUri(mTestSub), /* notifyForDescendants= */ false,
-                mobileDataChangeObserver);
         boolean defaultDataSetting = isDataEnabled();
 
         // set data to not the default!
         ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mTelephonyManager,
                 tm -> tm.setDataEnabled(!defaultDataSetting));
-        Boolean dataChangedResult = queue.poll(TOLERANCE, TimeUnit.MILLISECONDS);
-        assertNotNull("Data setting was not changed", dataChangedResult);
-        assertEquals("Data enable change didn't work", !defaultDataSetting,
-                dataChangedResult);
+        assertTrue("Data enable change didn't work",
+                TelephonyUtils.pollUntilTrue(() -> defaultDataSetting != isDataEnabled(),
+                        5 /*times*/, TOLERANCE/5 /*timeout per poll*/));
 
         // and then do a reset to move data to default again.
         try {
@@ -1055,10 +1066,10 @@ public class TelephonyManagerTest {
             fail("TelephonyManager#resetSettings requires the"
                     + " android.Manifest.permission.NETWORK_SETTINGS permission");
         }
-        dataChangedResult = queue.poll(TOLERANCE, TimeUnit.MILLISECONDS);
-        assertNotNull("Data setting was not changed", dataChangedResult);
-        assertEquals("resetSettings did not reset default data", defaultDataSetting,
-                dataChangedResult);
+
+        assertTrue("resetSettings did not reset default data",
+                TelephonyUtils.pollUntilTrue(() -> defaultDataSetting == isDataEnabled(),
+                        5 /*times*/, TOLERANCE/5 /*timeout per poll*/));
     }
 
     @Test
@@ -1681,6 +1692,74 @@ public class TelephonyManagerTest {
         }
     }
 
+    @Test
+    public void testGetEquivalentHomePlmns() {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            return;
+        }
+
+        List<String> plmns = mTelephonyManager.getEquivalentHomePlmns();
+
+        if (mTelephonyManager.getPhoneType() != TelephonyManager.PHONE_TYPE_GSM) {
+            assertEquals(0, plmns.size());
+        } else {
+            for (String plmn : plmns) {
+                assertTrue(
+                        "Invalid Length for PLMN-ID, must be 5 or 6! plmn=" + plmn,
+                        plmn.length() >= 5 && plmn.length() <= 6);
+                assertTrue(
+                        "PLMNs must be strings of digits 0-9! plmn=" + plmn,
+                        android.text.TextUtils.isDigitsOnly(plmn));
+            }
+        }
+    }
+
+    /**
+     * Tests that the device properly reports the contents of ManualNetworkSelectionPlmn
+     * The setting is not persisted selection
+     */
+    @Test
+    public void testGetManualNetworkSelectionPlmnNonPersisted() {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            return;
+        }
+
+        try {
+            ShellIdentityUtils.invokeMethodWithShellPermissions(mTelephonyManager,
+                    (tm) -> tm.setNetworkSelectionModeManual(
+                     TESTING_PLMN/* operatorNumeric */, false /* persistSelection */));
+            String plmn = ShellIdentityUtils.invokeMethodWithShellPermissions(mTelephonyManager,
+                     (tm) -> tm.getManualNetworkSelectionPlmn());
+            assertEquals(TESTING_PLMN, plmn);
+        } finally {
+            ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mTelephonyManager,
+                    (tm) -> tm.setNetworkSelectionModeAutomatic());
+        }
+    }
+
+    /**
+     * Tests that the device properly reports the contents of ManualNetworkSelectionPlmn
+     * The setting is persisted selection
+     */
+    @Test
+    public void testGetManualNetworkSelectionPlmnPersisted() {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            return;
+        }
+
+        try {
+            ShellIdentityUtils.invokeMethodWithShellPermissions(mTelephonyManager,
+                    (tm) -> tm.setNetworkSelectionModeManual(
+                     TESTING_PLMN/* operatorNumeric */, true /* persistSelection */));
+            String plmn = ShellIdentityUtils.invokeMethodWithShellPermissions(mTelephonyManager,
+                     (tm) -> tm.getManualNetworkSelectionPlmn());
+            assertEquals(TESTING_PLMN, plmn);
+        } finally {
+            ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mTelephonyManager,
+                    (tm) -> tm.setNetworkSelectionModeAutomatic());
+        }
+    }
+
     /**
      * Verify that TelephonyManager.getCardIdForDefaultEuicc returns a positive value or either
      * UNINITIALIZED_CARD_ID or UNSUPPORTED_CARD_ID.
@@ -1699,6 +1778,10 @@ public class TelephonyManagerTest {
      */
     @Test
     public void testGetUiccCardsInfoException() {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            Log.d(TAG, "skipping test on device without FEATURE_TELEPHONY present");
+            return;
+        }
         try {
             // Requires READ_PRIVILEGED_PHONE_STATE or carrier privileges
             List<UiccCardInfo> infos = mTelephonyManager.getUiccCardsInfo();
@@ -1734,6 +1817,27 @@ public class TelephonyManagerTest {
 
     private static Context getContext() {
         return InstrumentationRegistry.getContext();
+    }
+
+    /**
+     * Tests that the device properly reports the contents of NetworkSelectionMode
+     */
+    @Test
+    public void testGetNetworkSelectionMode() {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            return;
+        }
+
+        try {
+            ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mTelephonyManager,
+                    (tm) -> tm.setNetworkSelectionModeAutomatic());
+        } catch (Exception e) {
+        }
+
+        int networkMode = ShellIdentityUtils.invokeMethodWithShellPermissions(mTelephonyManager,
+                (tm) -> tm.getNetworkSelectionMode());
+
+        assertEquals(TelephonyManager.NETWORK_SELECTION_MODE_AUTO, networkMode);
     }
 
     /**
@@ -1773,6 +1877,19 @@ public class TelephonyManagerTest {
     }
 
     /**
+     * Tests that the device properly check whether selection mode was manual.
+     */
+    @Test
+    public void testIsManualNetworkSelectionAllowed() {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            Log.d(TAG, "Skipping test that requires FEATURE_TELEPHONY");
+            return;
+        }
+        assertTrue(ShellIdentityUtils.invokeMethodWithShellPermissions(mTelephonyManager,
+                (tm) -> tm.isManualNetworkSelectionAllowed()));
+    }
+
+    /**
      * Construct a CallAttributes object and test getters.
      */
     @Test
@@ -1802,6 +1919,9 @@ public class TelephonyManagerTest {
         assertEquals(0, cq.getMaxRelativeJitter());
         assertEquals(0, cq.getAverageRoundTripTime());
         assertEquals(0, cq.getCodecType());
+        assertEquals(false, cq.isRtpInactivityDetected());
+        assertEquals(false, cq.isIncomingSilenceDetectedAtCallSetup());
+        assertEquals(false, cq.isOutgoingSilenceDetectedAtCallSetup());
     }
 
 
@@ -2346,6 +2466,17 @@ public class TelephonyManagerTest {
     }
 
     @Test
+    public void testGetSubscriptionId() {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            return;
+        }
+
+        TelephonyManager tm = mTelephonyManager.createForSubscriptionId(1);
+        int subId = tm.getSubscriptionId();
+        assertEquals(1, subId);
+    }
+
+    @Test
     public void testSetAllowedNetworkTypes() {
         if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
             return;
@@ -2417,6 +2548,32 @@ public class TelephonyManagerTest {
             assertEquals(preferredNetworkType, modemPreferredNetworkType);
         } catch (SecurityException se) {
             fail("testDisAllowedNetworkTypes: SecurityException not expected");
+        }
+    }
+
+    @Test
+    public void testIsApplicationOnUicc() {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            return;
+        }
+
+        // Expect a security exception without permission.
+        try {
+            mTelephonyManager.isApplicationOnUicc(TelephonyManager.APPTYPE_SIM);
+            fail("Expected security exception");
+        } catch (SecurityException se1) {
+            // Expected
+        }
+
+        InstrumentationRegistry.getInstrumentation().getUiAutomation()
+                .adoptShellPermissionIdentity("android.permission.READ_PRIVILEGED_PHONE_STATE");
+        try {
+            mTelephonyManager.isApplicationOnUicc(TelephonyManager.APPTYPE_SIM);
+        } catch (SecurityException se) {
+            fail("Caller with READ_PRIVILEGED_PHONE_STATE should be able to call API");
+        } finally {
+            InstrumentationRegistry.getInstrumentation().getUiAutomation()
+                    .dropShellPermissionIdentity();
         }
     }
 
@@ -2493,18 +2650,9 @@ public class TelephonyManagerTest {
                 TelephonyManager.SIM_STATE_PRESENT).contains(simCardState));
     }
 
-
     private boolean isDataEnabled() {
         return ShellIdentityUtils.invokeMethodWithShellPermissions(mTelephonyManager,
                 TelephonyManager::isDataEnabled);
-    }
-
-    private Uri getObservableDataEnabledUri(int subId) {
-        Uri uri = Settings.Global.getUriFor(Settings.Global.MOBILE_DATA);
-        if (mTelephonyManager.getActiveModemCount() != 1) {
-            uri = Settings.Global.getUriFor(Settings.Global.MOBILE_DATA + subId);
-        }
-        return uri;
     }
 
     /**
@@ -2722,5 +2870,4 @@ public class TelephonyManagerTest {
         return major * 100 + minor;
     }
 }
-
 
