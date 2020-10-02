@@ -796,7 +796,7 @@ public class TelephonyManagerTest {
                 assertTrue("Phone count should be > 0", phoneCount > 0);
                 break;
             case TelephonyManager.PHONE_TYPE_NONE:
-                assertTrue("Phone count should be 0", phoneCount == 0 || phoneCount == 1);
+                assertTrue("Phone count should be >= 0", phoneCount >= 0);
                 break;
             default:
                 throw new IllegalArgumentException("Did you add a new phone type? " + phoneType);
@@ -1758,6 +1758,28 @@ public class TelephonyManagerTest {
         } finally {
             // Restore
             mTelephonyManager.setForbiddenPlmns(Arrays.asList(originalFplmns));
+        }
+    }
+
+    @Test
+    public void testGetEquivalentHomePlmns() {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            return;
+        }
+
+        List<String> plmns = mTelephonyManager.getEquivalentHomePlmns();
+
+        if (mTelephonyManager.getPhoneType() != TelephonyManager.PHONE_TYPE_GSM) {
+            assertEquals(0, plmns.size());
+        } else {
+            for (String plmn : plmns) {
+                assertTrue(
+                        "Invalid Length for PLMN-ID, must be 5 or 6! plmn=" + plmn,
+                        plmn.length() >= 5 && plmn.length() <= 6);
+                assertTrue(
+                        "PLMNs must be strings of digits 0-9! plmn=" + plmn,
+                        android.text.TextUtils.isDigitsOnly(plmn));
+            }
         }
     }
 
