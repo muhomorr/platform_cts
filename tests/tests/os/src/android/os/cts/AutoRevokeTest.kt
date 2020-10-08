@@ -16,6 +16,7 @@
 
 package android.os.cts
 
+import android.app.ActivityManager
 import android.app.Instrumentation
 import android.content.Context
 import android.content.Intent
@@ -26,6 +27,7 @@ import android.content.pm.PackageManager.PERMISSION_DENIED
 import android.content.pm.PackageManager.PERMISSION_GRANTED
 import android.content.res.Resources
 import android.net.Uri
+import android.os.Build
 import android.platform.test.annotations.AppModeFull
 import android.provider.DeviceConfig
 import android.support.test.uiautomator.By
@@ -54,6 +56,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertThat
 import org.junit.Assert.assertTrue
+import org.junit.Assume.assumeTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -86,11 +89,7 @@ class AutoRevokeTest {
 
     @Before
     fun setup() {
-        // Kill Permission Controller
-        assertThat(
-                runShellCommand("killall " +
-                        context.packageManager.permissionControllerPackageName),
-                equalTo(""))
+        assumeTrue(Build.VERSION.SDK_INT >= Build.VERSION_CODES.R)
 
         // Collapse notifications
         assertThat(
