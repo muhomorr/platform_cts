@@ -35,6 +35,7 @@ import android.media.tv.tuner.dvr.DvrRecorder;
 import android.media.tv.tuner.dvr.OnPlaybackStatusChangedListener;
 import android.media.tv.tuner.dvr.OnRecordStatusChangedListener;
 
+import android.media.tv.tuner.filter.AvSettings;
 import android.media.tv.tuner.filter.AudioDescriptor;
 import android.media.tv.tuner.filter.DownloadEvent;
 import android.media.tv.tuner.filter.FilterCallback;
@@ -208,7 +209,19 @@ public class TunerTest {
                         FrontendStatus.FRONTEND_STATUS_TYPE_FREQ_OFFSET,
                         FrontendStatus.FRONTEND_STATUS_TYPE_HIERARCHY,
                         FrontendStatus.FRONTEND_STATUS_TYPE_RF_LOCK,
-                        FrontendStatus.FRONTEND_STATUS_TYPE_ATSC3_PLP_INFO
+                        FrontendStatus.FRONTEND_STATUS_TYPE_ATSC3_PLP_INFO,
+                        // Extended status types in Android 12
+                        FrontendStatus.FRONTEND_STATUS_TYPE_BERS,
+                        FrontendStatus.FRONTEND_STATUS_TYPE_CODERATES,
+                        FrontendStatus.FRONTEND_STATUS_TYPE_BANDWIDTH,
+                        FrontendStatus.FRONTEND_STATUS_TYPE_GUARD_INTERVAL,
+                        FrontendStatus.FRONTEND_STATUS_TYPE_TRANSMISSION_MODE,
+                        FrontendStatus.FRONTEND_STATUS_TYPE_UEC,
+                        FrontendStatus.FRONTEND_STATUS_TYPE_T2_SYSTEM_ID,
+                        FrontendStatus.FRONTEND_STATUS_TYPE_INTERLEAVINGS,
+                        FrontendStatus.FRONTEND_STATUS_TYPE_ISDBT_SEGMENTS,
+                        FrontendStatus.FRONTEND_STATUS_TYPE_TS_DATA_RATES,
+                        FrontendStatus.FRONTEND_STATUS_TYPE_MODULATIONS_EXT
                 });
         assertNotNull(status);
 
@@ -241,6 +254,18 @@ public class TunerTest {
                 tuningInfo.getUec();
             }
         }
+        // Status supported from Android 12
+        status.getBandwidth();
+        status.getBers();
+        status.getCodeRates();
+        status.getGuardInterval();
+        status.getInterleaving();
+        status.getIsdbtSegment();
+        status.getModulationsExt();
+        status.getSystemId();
+        status.getTransmissionMode();
+        status.getTsDataRate();
+        status.getUec();
     }
 
     @Test
@@ -318,6 +343,31 @@ public class TunerTest {
         f.start();
         f.flush();
         f.read(new byte[3], 0, 3);
+        f.stop();
+        f.close();
+    }
+
+    @Test
+    public void testAudioFilterStreamTypeConfig() throws Exception {
+        if (!hasTuner()) return;
+        Filter f = mTuner.openFilter(
+                Filter.TYPE_TS, Filter.SUBTYPE_AUDIO, 1000, getExecutor(), getFilterCallback());
+        assertNotNull(f);
+        assertNotEquals(Tuner.INVALID_FILTER_ID, f.getId());
+
+        Settings settings = AvSettings
+                .builder(Filter.TYPE_TS, true)
+                .setPassthrough(false)
+                .setAudioStreamType(AvSettings.AUDIO_STREAM_TYPE_MPEG1)
+                .build();
+        FilterConfiguration config = TsFilterConfiguration
+                .builder()
+                .setTpid(10)
+                .setSettings(settings)
+                .build();
+        f.configure(config);
+        f.start();
+        f.flush();
         f.stop();
         f.close();
     }
@@ -807,6 +857,12 @@ public class TunerTest {
 
             @Override
             public void onSignalTypeReported(int signalType) {}
+
+            @Override
+            public void onModulationReported(int modulation) {}
+
+            @Override
+            public void onPriorityReported(boolean isHighPriority) {}
         };
     }
 }
