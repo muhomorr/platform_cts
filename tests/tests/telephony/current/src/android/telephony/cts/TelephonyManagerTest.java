@@ -175,6 +175,7 @@ public class TelephonyManagerTest {
     private static final String TESTING_PLMN = "12345";
 
     private static final int RADIO_HAL_VERSION_1_3 = makeRadioVersion(1, 3);
+    private static final int RADIO_HAL_VERSION_1_6 = makeRadioVersion(1, 6);
 
     static {
         EMERGENCY_NUMBER_SOURCE_SET = new HashSet<Integer>();
@@ -2894,7 +2895,7 @@ public class TelephonyManagerTest {
                 (tm) -> tm.setDataEnabledForReason(TelephonyManager.DATA_ENABLED_REASON_CARRIER,
                         false));
 
-        waitForMs(100);
+        waitForMs(500);
         boolean isDataEnabledForReason = ShellIdentityUtils.invokeMethodWithShellPermissions(
                 mTelephonyManager, (tm) -> tm.isDataEnabledForReason(
                         TelephonyManager.DATA_ENABLED_REASON_CARRIER));
@@ -2909,7 +2910,7 @@ public class TelephonyManagerTest {
                 (tm) -> tm.setDataEnabledForReason(TelephonyManager.DATA_ENABLED_REASON_CARRIER,
                         true));
 
-        waitForMs(100);
+        waitForMs(500);
         isDataEnabledForReason = ShellIdentityUtils.invokeMethodWithShellPermissions(
                 mTelephonyManager, (tm) -> tm.isDataEnabledForReason(
                         TelephonyManager.DATA_ENABLED_REASON_CARRIER));
@@ -2930,6 +2931,7 @@ public class TelephonyManagerTest {
                 (tm) -> tm.setDataEnabledForReason(TelephonyManager.DATA_ENABLED_REASON_USER,
                         false));
 
+        waitForMs(500);
         boolean isDataEnabledForReason = ShellIdentityUtils.invokeMethodWithShellPermissions(
                 mTelephonyManager, (tm) -> tm.isDataEnabledForReason(
                         TelephonyManager.DATA_ENABLED_REASON_USER));
@@ -2944,6 +2946,7 @@ public class TelephonyManagerTest {
                 (tm) -> tm.setDataEnabledForReason(TelephonyManager.DATA_ENABLED_REASON_USER,
                         true));
 
+        waitForMs(500);
         isDataEnabledForReason = ShellIdentityUtils.invokeMethodWithShellPermissions(
                 mTelephonyManager, (tm) -> tm.isDataEnabledForReason(
                         TelephonyManager.DATA_ENABLED_REASON_USER));
@@ -3025,6 +3028,50 @@ public class TelephonyManagerTest {
             assertTrue(index >= 0 && index <= 255);
         } else {
             assertEquals(-1, index);
+        }
+    }
+
+    private void disableNrDualConnectivity() {
+        ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(
+                mTelephonyManager,
+                (tm) -> tm.setNrDualConnectivityState(
+                        TelephonyManager.NR_DUAL_CONNECTIVITY_DISABLE));
+
+        boolean isNrDualConnectivityEnabled =
+                ShellIdentityUtils.invokeMethodWithShellPermissions(
+                        mTelephonyManager, (tm) -> tm.isNrDualConnectivityEnabled());
+        // Only verify the result for supported devices on IRadio 1.6+
+        if (mRadioVersion >= RADIO_HAL_VERSION_1_6) {
+            assertFalse(isNrDualConnectivityEnabled);
+        }
+    }
+
+    @Test
+    public void testNrDualConnectivityEnable() {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            return;
+        }
+
+        boolean isInitiallyEnabled = ShellIdentityUtils.invokeMethodWithShellPermissions(
+                mTelephonyManager, (tm) -> tm.isNrDualConnectivityEnabled());
+        boolean isNrDualConnectivityEnabled;
+        if (isInitiallyEnabled) {
+            disableNrDualConnectivity();
+        }
+
+        ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(
+                mTelephonyManager,
+                (tm) -> tm.setNrDualConnectivityState(
+                        TelephonyManager.NR_DUAL_CONNECTIVITY_ENABLE));
+        isNrDualConnectivityEnabled = ShellIdentityUtils.invokeMethodWithShellPermissions(
+                mTelephonyManager, (tm) -> tm.isNrDualConnectivityEnabled());
+        // Only verify the result for supported devices on IRadio 1.6+
+        if (mRadioVersion >= RADIO_HAL_VERSION_1_6) {
+            assertTrue(isNrDualConnectivityEnabled);
+        }
+
+        if (!isInitiallyEnabled) {
+            disableNrDualConnectivity();
         }
     }
 
