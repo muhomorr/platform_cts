@@ -211,7 +211,7 @@ public class ActivityManagerTest extends InstrumentationTestCase {
         private String mActivityToFilter;
         private int result = RESULT_TIMEOUT;
         public long mTimeUsed = 0;
-        private static final int TIMEOUT_IN_MS = 2000;
+        private static final int TIMEOUT_IN_MS = 5000;
 
         // Create the filter with the intent to look for.
         public ActivityReceiverFilter(String activityToFilter) {
@@ -706,6 +706,9 @@ public class ActivityManagerTest extends InstrumentationTestCase {
      * activities, the process of the package should not be alive (restarted).
      */
     public void testForceStopPackageWontRestartProcess() throws Exception {
+        // Ensure that there are no remaining component records of the test app package.
+        SystemUtil.runWithShellPermissionIdentity(
+                () -> mActivityManager.forceStopPackage(SIMPLE_PACKAGE_NAME));
         ActivityReceiverFilter appStartedReceiver = new ActivityReceiverFilter(
                 ACTIVITY_LAUNCHED_ACTION);
         // Start an activity of another APK.
