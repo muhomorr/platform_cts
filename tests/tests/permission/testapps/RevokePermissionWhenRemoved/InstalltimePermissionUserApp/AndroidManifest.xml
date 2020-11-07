@@ -1,4 +1,5 @@
-/*
+<?xml version="1.0" encoding="utf-8"?>
+<!--
  * Copyright (C) 2019 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,18 +13,13 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- */
+ -->
 
-package android.telecom.cts.carmodetestapp;
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="android.permission.cts.revokepermissionwhenremoved.installtimepermissionuserapp">
 
-interface ICtsCarModeInCallServiceControl {
-    boolean isBound();
-    boolean isUnbound();
-    void reset();
-    int getCallCount();
-    void enableCarMode(int priority);
-    void disableCarMode();
-    void disconnectCalls();
-    boolean requestAutomotiveProjection();
-    void releaseAutomotiveProjection();
-}
+    <uses-permission android:name="android.permission.cts.revokepermissionwhenremoved.TestInstalltimePermission" />
+
+    <application>
+    </application>
+</manifest>
