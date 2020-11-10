@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Copyright (C) 2019 The Android Open Source Project
+<!-- Copyright (C) 2020 The Android Open Source Project
 
      Licensed under the Apache License, Version 2.0 (the "License");
      you may not use this file except in compliance with the License.
@@ -13,24 +13,19 @@
      See the License for the specific language governing permissions and
      limitations under the License.
 -->
-<configuration description="Configuration for CTS NNAPI Benchmark Tests">
+<configuration description="Config for CTS Settings test cases">
     <option name="test-suite-tag" value="cts" />
-    <option name="config-descriptor:metadata" key="component" value="neuralnetworks" />
-    <option name="config-descriptor:metadata" key="parameter" value="instant_app" />
-    <option name="config-descriptor:metadata" key="parameter" value="multi_abi" />
+
+    <option name="config-descriptor:metadata" key="component" value="framework" />
+    <option name="config-descriptor:metadata" key="parameter" value="not_instant_app" />
+    <option name="config-descriptor:metadata" key="parameter" value="not_multi_abi" />
     <option name="config-descriptor:metadata" key="parameter" value="secondary_user" />
+
     <target_preparer class="com.android.tradefed.targetprep.suite.SuiteApkInstaller">
         <option name="cleanup-apks" value="true" />
-        <option name="test-file-name" value="CtsNNAPIBenchmarkTestCases.apk" />
+        <option name="test-file-name" value="CtsSettingsTestCases.apk" />
     </target_preparer>
-
     <test class="com.android.tradefed.testtype.AndroidJUnitTest" >
-        <option name="package" value="com.android.nn.benchmark.cts" />
-        <!-- test-timeout unit is ms, value = 15 min -->
-        <option name="test-timeout" value="900000" />
+        <option name="package" value="android.settings.cts" />
     </test>
-
-    <object type="module_controller" class="com.android.tradefed.testtype.suite.module.MainlineTestModuleController">
-        <option name="mainline-module-package-name" value="com.google.android.neuralnetworks" />
-    </object>
 </configuration>
