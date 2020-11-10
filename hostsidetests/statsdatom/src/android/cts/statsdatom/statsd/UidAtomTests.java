@@ -1675,28 +1675,6 @@ public class UidAtomTests extends DeviceTestCase implements IBuildReceiver {
         getDevice().executeShellCommand("settings put system font_scale " + originalFontScale);
     }
 
-    public void testIntegrityCheckAtomReportedDuringInstall() throws Exception {
-        ConfigUtils.uploadConfigForPushedAtom(getDevice(), DeviceUtils.STATSD_ATOM_TEST_PKG,
-                Atom.INTEGRITY_CHECK_RESULT_REPORTED_FIELD_NUMBER);
-
-        DeviceUtils.uninstallStatsdTestApp(getDevice());
-        DeviceUtils.installStatsdTestApp(getDevice(), mCtsBuild);
-
-        List<EventMetricData> data = ReportUtils.getEventMetricDataList(getDevice());
-
-        assertThat(data.size()).isEqualTo(1);
-        assertThat(data.get(0).getAtom().hasIntegrityCheckResultReported()).isTrue();
-        IntegrityCheckResultReported result = data.get(0)
-                .getAtom().getIntegrityCheckResultReported();
-        assertThat(result.getPackageName()).isEqualTo(DeviceUtils.STATSD_ATOM_TEST_PKG);
-        // we do not assert on certificates since it seem to differ by device.
-        assertThat(result.getInstallerPackageName()).isEqualTo("adb");
-        long testPackageVersion = 10;
-        assertThat(result.getVersionCode()).isEqualTo(testPackageVersion);
-        assertThat(result.getResponse()).isEqualTo(ALLOWED);
-        assertThat(result.getCausedByAppCertRule()).isFalse();
-        assertThat(result.getCausedByInstallerRule()).isFalse();
-    }
 /*
     public void testMobileBytesTransfer() throws Throwable {
         final int appUid = getUid();
@@ -1845,7 +1823,7 @@ public class UidAtomTests extends DeviceTestCase implements IBuildReceiver {
         ConfigUtils.uploadConfigForPulledAtom(getDevice(), DeviceUtils.STATSD_ATOM_TEST_PKG,
                 Atom.BLOB_INFO_FIELD_NUMBER);
 
-        final long testStartTimeMs = System.currentTimeMillis();
+        final long testStartTimeMs = getDeviceTimeMs();
         Thread.sleep(AtomTestUtils.WAIT_TIME_SHORT);
         DeviceUtils.runDeviceTestsOnStatsdApp(getDevice(), ".AtomTests", "testBlobStore");
         Thread.sleep(AtomTestUtils.WAIT_TIME_LONG);
@@ -1854,7 +1832,7 @@ public class UidAtomTests extends DeviceTestCase implements IBuildReceiver {
 
         // Add commit callback time to test end time to account for async execution
         final long testEndTimeMs =
-                System.currentTimeMillis() + BLOB_COMMIT_CALLBACK_TIMEOUT_SEC * 1000;
+                getDeviceTimeMs() + BLOB_COMMIT_CALLBACK_TIMEOUT_SEC * 1000;
 
         // Find the BlobInfo for the blob created in the test run
         AtomsProto.BlobInfo blobInfo = null;
@@ -2112,4 +2090,8 @@ public class UidAtomTests extends DeviceTestCase implements IBuildReceiver {
         getDevice().executeShellCommand("settings put system screen_brightness " + brightness);
     }
 
+    private long getDeviceTimeMs() throws Exception {
+        String timeMs = getDevice().executeShellCommand("date +%s%3N");
+        return Long.parseLong(timeMs.trim());
+    }
 }
