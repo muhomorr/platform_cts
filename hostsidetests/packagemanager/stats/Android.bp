@@ -12,23 +12,27 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-android_test {
-    name: "CtsVoiceRecognitionTestCases",
+java_test_host {
+    name: "CtsPackageManagerStatsHostTestCases",
     defaults: ["cts_defaults"],
-    // Tag this module as a cts test artifact
+    srcs: ["src/**/*.java"],
+    // tag this module as a cts test artifact
     test_suites: [
         "cts",
         "general-tests",
     ],
-    libs: ["android.test.base"],
-    static_libs: [
-        "ctstestrunner-axt",
-        "compatibility-device-util-axt",
-        "androidx.test.ext.junit",
-        "truth-prebuilt",
-        "cts-wm-util",
+    libs: [
+        "cts-tradefed",
+        "tradefed",
+        "compatibility-host-util",
+        "cts-host-utils",
     ],
-    srcs: ["src/**/*.java"],
-    resource_dirs: ["res"],
-    sdk_version: "test_current",
+    static_libs: [
+        "cts-statsd-atom-host-test-utils",
+    ],
+    data: [
+        ":CtsStatsdAtomEmptyApp",
+        ":CtsStatsdAtomEmptySplitApp",
+    ],
+    java_resource_dirs: ["res"],
 }
