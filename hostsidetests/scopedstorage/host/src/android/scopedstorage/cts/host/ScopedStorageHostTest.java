@@ -16,14 +16,13 @@
 
 package android.scopedstorage.cts.host;
 
-import static org.junit.Assert.assertTrue;
+import static com.google.common.truth.Truth.assertThat;
 
 import android.platform.test.annotations.AppModeFull;
 
 import com.android.tradefed.device.ITestDevice;
 import com.android.tradefed.device.contentprovider.ContentProviderHandler;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
-import com.android.tradefed.testtype.junit4.BaseHostJUnit4Test;
 import com.android.tradefed.testtype.junit4.DeviceTestRunOptions;
 
 import org.junit.After;
@@ -36,8 +35,8 @@ import org.junit.runner.RunWith;
  */
 @RunWith(DeviceJUnit4ClassRunner.class)
 @AppModeFull
-public class ScopedStorageHostTest extends BaseHostJUnit4Test {
-    private boolean mIsExternalStorageSetup = false;
+public class ScopedStorageHostTest extends BaseHostTestCase {
+    private boolean mIsExternalStorageSetup;
 
     private ContentProviderHandler mContentProviderHandler;
 
@@ -46,9 +45,8 @@ public class ScopedStorageHostTest extends BaseHostJUnit4Test {
      * Throws an exception if the test phase fails.
      */
     void runDeviceTest(String phase) throws Exception {
-        assertTrue(runDeviceTests("android.scopedstorage.cts",
-                "android.scopedstorage.cts.ScopedStorageTest", phase));
-
+        assertThat(runDeviceTests("android.scopedstorage.cts",
+                "android.scopedstorage.cts.ScopedStorageTest", phase)).isTrue();
     }
 
     /**
@@ -62,10 +60,6 @@ public class ScopedStorageHostTest extends BaseHostJUnit4Test {
             .setTestClassName("android.scopedstorage.cts.ScopedStorageTest")
             .setTestMethodName(phase)
             .setDisableIsolatedStorage(true));
-    }
-
-    String executeShellCommand(String cmd) throws Exception {
-        return getDevice().executeShellCommand(cmd);
     }
 
     private void setupExternalStorage() throws Exception {
@@ -521,14 +515,18 @@ public class ScopedStorageHostTest extends BaseHostJUnit4Test {
     }
 
     private void grantPermissions(String... perms) throws Exception {
+        int currentUserId = getCurrentUserId();
         for (String perm : perms) {
-            executeShellCommand("pm grant android.scopedstorage.cts " + perm);
+            executeShellCommand("pm grant --user %d android.scopedstorage.cts %s",
+                    currentUserId, perm);
         }
     }
 
     private void revokePermissions(String... perms) throws Exception {
+        int currentUserId = getCurrentUserId();
         for (String perm : perms) {
-            executeShellCommand("pm revoke android.scopedstorage.cts " + perm);
+            executeShellCommand("pm revoke --user %d android.scopedstorage.cts %s",
+                    currentUserId, perm);
         }
     }
 
