@@ -228,27 +228,6 @@ public class UidAtomTests extends DeviceTestCase implements IBuildReceiver {
         assertFalse(atom.getIsPackageLoading());
     }
 
-    public void testAppStartOccurred() throws Exception {
-        final int atomTag = Atom.APP_START_OCCURRED_FIELD_NUMBER;
-        ConfigUtils.uploadConfigForPushedAtomWithUid(getDevice(), DeviceUtils.STATSD_ATOM_TEST_PKG,
-                atomTag,  /*uidInAttributionChain=*/false);
-
-        DeviceUtils.runActivity(getDevice(), DeviceUtils.STATSD_ATOM_TEST_PKG,
-                "StatsdCtsForegroundActivity", "action", "action.sleep_top", 3_500);
-
-        // Sorted list of events in order in which they occurred.
-        List<EventMetricData> data = ReportUtils.getEventMetricDataList(getDevice());
-
-        assertThat(data).hasSize(1);
-        AppStartOccurred atom = data.get(0).getAtom().getAppStartOccurred();
-        assertThat(atom.getPkgName()).isEqualTo(DeviceUtils.STATSD_ATOM_TEST_PKG);
-        assertThat(atom.getActivityName())
-                .isEqualTo("com.android.server.cts.device.statsdatom.StatsdCtsForegroundActivity");
-        assertThat(atom.getIsInstantApp()).isFalse();
-        assertThat(atom.getActivityStartMillis()).isGreaterThan(0L);
-        assertThat(atom.getTransitionDelayMillis()).isGreaterThan(0);
-    }
-
     public void testAudioState() throws Exception {
         if (!DeviceUtils.hasFeature(getDevice(), FEATURE_AUDIO_OUTPUT)) return;
 
@@ -853,98 +832,6 @@ public class UidAtomTests extends DeviceTestCase implements IBuildReceiver {
         WifiScanStateChanged a1 = data.get(1).getAtom().getWifiScanStateChanged();
         assertThat(a0.getState().getNumber()).isEqualTo(stateOn);
         assertThat(a1.getState().getNumber()).isEqualTo(stateOff);
-    }
-
-    /**
-     * The the app id from a uid.
-     *
-     * @param uid The uid of the app
-     *
-     * @return The app id of the app
-     *
-     * @see android.os.UserHandle#getAppId
-     */
-    private static int getAppId(int uid) {
-        return uid % 100000;
-    }
-
-    public void testRoleHolder() throws Exception {
-        // Make device side test package a role holder
-        String callScreenAppRole = "android.app.role.CALL_SCREENING";
-        getDevice().executeShellCommand(
-                "cmd role add-role-holder " + callScreenAppRole + " "
-                        + DeviceUtils.STATSD_ATOM_TEST_PKG);
-
-        // Set up what to collect
-        ConfigUtils.uploadConfigForPulledAtom(getDevice(), DeviceUtils.STATSD_ATOM_TEST_PKG,
-                Atom.ROLE_HOLDER_FIELD_NUMBER);
-
-        boolean verifiedKnowRoleState = false;
-
-        // Pull a report
-        AtomTestUtils.sendAppBreadcrumbReportedAtom(getDevice());
-        Thread.sleep(AtomTestUtils.WAIT_TIME_SHORT);
-
-        int testAppId = getAppId(DeviceUtils.getStatsdTestAppUid(getDevice()));
-
-        for (Atom atom : ReportUtils.getGaugeMetricAtoms(getDevice())) {
-            AtomsProto.RoleHolder roleHolder = atom.getRoleHolder();
-
-            assertThat(roleHolder.getPackageName()).isNotNull();
-            assertThat(roleHolder.getUid()).isAtLeast(0);
-            assertThat(roleHolder.getRole()).isNotNull();
-
-            if (roleHolder.getPackageName().equals(DeviceUtils.STATSD_ATOM_TEST_PKG)) {
-                assertThat(getAppId(roleHolder.getUid())).isEqualTo(testAppId);
-                assertThat(roleHolder.getPackageName()).isEqualTo(DeviceUtils.STATSD_ATOM_TEST_PKG);
-                assertThat(roleHolder.getRole()).isEqualTo(callScreenAppRole);
-
-                verifiedKnowRoleState = true;
-            }
-        }
-
-        assertThat(verifiedKnowRoleState).isTrue();
-    }
-
-    public void testDangerousPermissionState() throws Exception {
-        final int FLAG_PERMISSION_USER_SENSITIVE_WHEN_GRANTED = 1 << 8;
-        final int FLAG_PERMISSION_USER_SENSITIVE_WHEN_DENIED = 1 << 9;
-
-        // Set up what to collect
-        ConfigUtils.uploadConfigForPulledAtom(getDevice(), DeviceUtils.STATSD_ATOM_TEST_PKG,
-                Atom.DANGEROUS_PERMISSION_STATE_FIELD_NUMBER);
-
-        boolean verifiedKnowPermissionState = false;
-
-        // Pull a report
-        AtomTestUtils.sendAppBreadcrumbReportedAtom(getDevice());
-        Thread.sleep(AtomTestUtils.WAIT_TIME_SHORT);
-
-        int testAppId = getAppId(DeviceUtils.getStatsdTestAppUid(getDevice()));
-
-        for (Atom atom : ReportUtils.getGaugeMetricAtoms(getDevice())) {
-            DangerousPermissionState permissionState = atom.getDangerousPermissionState();
-
-            assertThat(permissionState.getPermissionName()).isNotNull();
-            assertThat(permissionState.getUid()).isAtLeast(0);
-            assertThat(permissionState.getPackageName()).isNotNull();
-
-            if (getAppId(permissionState.getUid()) == testAppId) {
-
-                if (permissionState.getPermissionName().contains(
-                        "ACCESS_FINE_LOCATION")) {
-                    assertThat(permissionState.getIsGranted()).isTrue();
-                    assertThat(permissionState.getPermissionFlags() & ~(
-                            FLAG_PERMISSION_USER_SENSITIVE_WHEN_DENIED
-                                    | FLAG_PERMISSION_USER_SENSITIVE_WHEN_GRANTED))
-                            .isEqualTo(0);
-
-                    verifiedKnowPermissionState = true;
-                }
-            }
-        }
-
-        assertThat(verifiedKnowPermissionState).isTrue();
     }
 
     public void testDangerousPermissionStateSampled() throws Exception {
