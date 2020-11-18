@@ -2840,6 +2840,103 @@ public class ScopedStorageTest {
         }
     }
 
+    @Test
+    public void testClearPackageData() throws Exception {
+        pollForPermission(Manifest.permission.READ_EXTERNAL_STORAGE, /*granted*/ true);
+
+        File fileToRemain = new File(getPicturesDir(), IMAGE_FILE_NAME);
+        String testAppPackageName = TEST_APP_A.getPackageName();
+        File fileToBeDeleted =
+                new File(
+                        getAndroidMediaDir(),
+                        String.format("%s/%s", testAppPackageName, IMAGE_FILE_NAME));
+        File nestedFileToBeDeleted =
+                new File(
+                        getAndroidMediaDir(),
+                        String.format("%s/nesteddir/%s", testAppPackageName, IMAGE_FILE_NAME));
+
+        try {
+            installApp(TEST_APP_A);
+
+            createAndCheckFileAsApp(TEST_APP_A, fileToRemain);
+            createAndCheckFileAsApp(TEST_APP_A, fileToBeDeleted);
+            createAndCheckFileAsApp(TEST_APP_A, nestedFileToBeDeleted);
+
+            executeShellCommand("pm clear " + testAppPackageName);
+
+            // Wait a max of 5 seconds for the cleaning after "pm clear" command to complete.
+            int i = 0;
+            while(i < 10 && getFileRowIdFromDatabase(fileToBeDeleted) != -1
+                && getFileRowIdFromDatabase(nestedFileToBeDeleted) != -1) {
+                Thread.sleep(500);
+                i++;
+            }
+
+            assertThat(getFileOwnerPackageFromDatabase(fileToRemain)).isNull();
+            assertThat(getFileRowIdFromDatabase(fileToRemain)).isNotEqualTo(-1);
+
+            assertThat(getFileOwnerPackageFromDatabase(fileToBeDeleted)).isNull();
+            assertThat(getFileRowIdFromDatabase(fileToBeDeleted)).isEqualTo(-1);
+
+            assertThat(getFileOwnerPackageFromDatabase(nestedFileToBeDeleted)).isNull();
+            assertThat(getFileRowIdFromDatabase(nestedFileToBeDeleted)).isEqualTo(-1);
+        } finally {
+            deleteFilesAs(TEST_APP_A, fileToRemain);
+            deleteFilesAs(TEST_APP_A, fileToBeDeleted);
+            deleteFilesAs(TEST_APP_A, nestedFileToBeDeleted);
+            uninstallAppNoThrow(TEST_APP_A);
+        }
+    }
+
+    private void createAndCheckFileAsApp(TestApp testApp, File newFile) throws Exception {
+        assertThat(createFileAs(testApp, newFile.getPath())).isTrue();
+        assertThat(getFileOwnerPackageFromDatabase(newFile))
+            .isEqualTo(testApp.getPackageName());
+        assertThat(getFileRowIdFromDatabase(newFile)).isNotEqualTo(-1);
+    }
+
+    /**
+     * b/171768780: Test that scan doesn't skip scanning renamed hidden file.
+     */
+    @Test
+    public void testScanUpdatesMetadataForRenamedHiddenFile() throws Exception {
+        final File hiddenFile = new File(getPicturesDir(), ".hidden_" + IMAGE_FILE_NAME);
+        final File jpgFile = new File(getPicturesDir(), IMAGE_FILE_NAME);
+        try {
+            // Copy the image content to hidden file
+            try (InputStream in =
+                         getContext().getResources().openRawResource(R.raw.img_with_metadata);
+                 FileOutputStream out = new FileOutputStream(hiddenFile)) {
+                FileUtils.copy(in, out);
+                out.getFD().sync();
+            }
+            Uri scanUri = MediaStore.scanFile(getContentResolver(), hiddenFile);
+            assertNotNull(scanUri);
+
+            // Rename hidden file to non-hidden
+            assertCanRenameFile(hiddenFile, jpgFile);
+
+            try (Cursor c = queryFile(jpgFile, MediaStore.MediaColumns.DATE_TAKEN)) {
+                assertTrue(c.moveToFirst());
+                // The file is not scanned yet, hence the metadata is not updated yet.
+                assertThat(c.getString(0)).isNull();
+            }
+
+            // Scan the file to update the metadata for renamed hidden file.
+            scanUri = MediaStore.scanFile(getContentResolver(), jpgFile);
+            assertNotNull(scanUri);
+
+            // Scan should be able to update metadata even if File.lastModifiedTime hasn't changed.
+            try (Cursor c = queryFile(jpgFile, MediaStore.MediaColumns.DATE_TAKEN)) {
+                assertTrue(c.moveToFirst());
+                assertThat(c.getString(0)).isNotNull();
+            }
+        } finally {
+            hiddenFile.delete();
+            jpgFile.delete();
+        }
+    }
+
     /**
      * Checks restrictions for opening pending and trashed files by different apps. Assumes that
      * given {@code testApp} is already installed and has READ_EXTERNAL_STORAGE permission. This
