@@ -43,6 +43,7 @@ public class PermissionsHostTest extends DeviceTestCase implements IAbiReceiver,
     private static final String APK_28 = "CtsUsePermissionApp28.apk";
     private static final String APK_29 = "CtsUsePermissionApp29.apk";
     private static final String APK_Latest = "CtsUsePermissionAppLatest.apk";
+    private static final String APK_OVERLAY = "CtsUsePermissionAppWithOverlay.apk";
 
     private static final String APK_PERMISSION_POLICY_25 = "CtsPermissionPolicyTest25.apk";
     private static final String PERMISSION_POLICY_25_PKG = "com.android.cts.permission.policy";
@@ -379,6 +380,17 @@ public class PermissionsHostTest extends DeviceTestCase implements IAbiReceiver,
                 "testCannotEscalateNonRuntimePermissionsToRuntime");
     }
 
+    public void testNoPermissionEscalationAfterReboot() throws Exception {
+        assertNull(getDevice().installPackage(mBuildHelper.getTestFile(
+                APK_DECLARE_NON_RUNTIME_PERMISSIONS), false, false));
+        assertNull(getDevice().installPackage(mBuildHelper.getTestFile(
+                APK_ESCLATE_TO_RUNTIME_PERMISSIONS), true, false));
+        getDevice().reboot();
+        runDeviceTests(ESCALATE_PERMISSION_PKG,
+                "com.android.cts.escalatepermission.PermissionEscalationTest",
+                "testRuntimePermissionsAreNotGranted");
+    }
+
     public void testNoProtectionFlagsAddedToNonSignatureProtectionPermissions25() throws Exception {
         assertNull(getDevice().installPackage(mBuildHelper.getTestFile(
                 APK_PERMISSION_POLICY_25), false, false));
@@ -524,6 +536,14 @@ public class PermissionsHostTest extends DeviceTestCase implements IAbiReceiver,
         // Check if service of APK_22 has permissions
         runDeviceTests(REVIEW_HELPER_PKG, REVIEW_HELPER_TEST_CLASS,
                 "reviewPermissionWhenServiceIsBound");
+    }
+
+    public void testTapjackingGrantDialog() throws Exception {
+        assertNull(getDevice().installPackage(mBuildHelper.getTestFile(APK_OVERLAY), false,
+                false));
+
+        runDeviceTests(USES_PERMISSION_PKG, "com.android.cts.usepermission.TapjackingTest",
+                "testTapjackingGrantDialog");
     }
 
     private void runDeviceTests(String packageName, String testClassName, String testMethodName)

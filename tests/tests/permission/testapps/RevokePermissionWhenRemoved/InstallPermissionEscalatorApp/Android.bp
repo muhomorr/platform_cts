@@ -1,5 +1,4 @@
-//
-// Copyright (C) 2016 The Android Open Source Project
+// Copyright (C) 2019 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,29 +13,15 @@
 // limitations under the License.
 //
 
-android_test {
-    name: "CtsEphemeralTestsNormalApp",
-    defaults: ["cts_support_defaults"],
-    static_libs: [
-        "cts-aia-util",
-        "androidx.test.rules",
-    ],
-    libs: ["android.test.base.stubs"],
-    // tag this module as a cts test artifact
+android_test_helper_app {
+    name: "CtsInstallPermissionEscalatorApp",
+    defaults: ["cts_defaults"],
+    sdk_version: "current",
+    // Tag this module as a cts test artifact
     test_suites: [
         "cts",
-        "vts",
+        "vts10",
         "general-tests",
-        "sts",
     ],
-    srcs: ["src/**/*.java"],
-    resource_dirs: ["res"],
-    sdk_version: "system_current",
-    min_sdk_version: "24",
-    optimize: {
-        enabled: false,
-    },
-    dex_preopt: {
-        enabled: false,
-    },
+    certificate: ":cts-testkey1",
 }
