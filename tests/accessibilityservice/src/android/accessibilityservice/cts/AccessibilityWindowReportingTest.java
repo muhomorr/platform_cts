@@ -23,6 +23,7 @@ import static android.accessibilityservice.cts.utils.ActivityLaunchUtils.findWin
 import static android.accessibilityservice.cts.utils.ActivityLaunchUtils.getActivityTitle;
 import static android.accessibilityservice.cts.utils.ActivityLaunchUtils.launchActivityAndWaitForItToBeOnscreen;
 import static android.accessibilityservice.cts.utils.ActivityLaunchUtils.launchActivityOnSpecifiedDisplayAndWaitForItToBeOnscreen;
+import static android.accessibilityservice.cts.utils.ActivityLaunchUtils.supportsMultiDisplay;
 import static android.accessibilityservice.cts.utils.DisplayUtils.VirtualDisplaySession;
 import static android.accessibilityservice.cts.utils.DisplayUtils.getStatusBarHeight;
 import static android.content.pm.PackageManager.FEATURE_PICTURE_IN_PICTURE;
@@ -41,6 +42,7 @@ import static junit.framework.TestCase.assertTrue;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assume.assumeTrue;
 
 import android.accessibility.cts.common.AccessibilityDumpOnFailureRule;
 import android.accessibilityservice.AccessibilityServiceInfo;
@@ -49,8 +51,8 @@ import android.accessibilityservice.cts.utils.DisplayUtils;
 import android.app.Activity;
 import android.app.Instrumentation;
 import android.app.UiAutomation;
+import android.graphics.Rect;
 import android.os.SystemClock;
-import android.util.DisplayMetrics;
 import android.view.Display;
 import android.view.Gravity;
 import android.view.InputDevice;
@@ -247,6 +249,8 @@ public class AccessibilityWindowReportingTest {
 
     @Test
     public void moveFocusToAnotherDisplay_movesActiveAndFocusWindow() throws Exception {
+        assumeTrue(supportsMultiDisplay(sInstrumentation.getContext()));
+
         // Makes sure activityWindow on default display is focused
         AccessibilityWindowInfo activityWindow = findWindowByTitle(sUiAutomation, mActivityTitle);
         assertTrue(activityWindow.isActive());
@@ -263,15 +267,23 @@ public class AccessibilityWindowReportingTest {
                             sUiAutomation,
                             AccessibilityEmbeddedDisplayTest.EmbeddedDisplayActivity.class,
                             virtualDisplayId);
+
+            final CharSequence activityTitle = getActivityTitle(sInstrumentation,
+                    activityOnVirtualDisplay);
+
             // Window manager changed the behavior of focused window at a virtual display. A window
             // at virtual display needs to be touched then it becomes to be focused one. Adding this
             // touch event on the activity window of the virtual display to pass this test case.
             sUiAutomation.executeAndWaitForEvent(
                     () -> {
-                        final DisplayMetrics displayMetrics =
-                                mActivity.getResources().getDisplayMetrics();
-                        final int xOnScreen = displayMetrics.widthPixels / 2;
-                        final int yOnScreen = displayMetrics.heightPixels / 2;
+                        final Rect areaOfActivityWindowOnVirtualDisplay = new Rect();
+                        findWindowByTitleAndDisplay(sUiAutomation, activityTitle, virtualDisplayId)
+                                .getBoundsInScreen(areaOfActivityWindowOnVirtualDisplay);
+
+                        final int xOnScreen =
+                            areaOfActivityWindowOnVirtualDisplay.centerX();
+                        final int yOnScreen =
+                            areaOfActivityWindowOnVirtualDisplay.centerY();
                         final long downEventTime = SystemClock.uptimeMillis();
                         final MotionEvent downEvent = MotionEvent.obtain(downEventTime,
                                 downEventTime, MotionEvent.ACTION_DOWN, xOnScreen, yOnScreen, 0);
@@ -290,8 +302,6 @@ public class AccessibilityWindowReportingTest {
                             WINDOWS_CHANGE_ACTIVE),
                     TIMEOUT_ASYNC_PROCESSING);
 
-            final CharSequence activityTitle = getActivityTitle(sInstrumentation,
-                    activityOnVirtualDisplay);
             // Make sure activityWindow on virtual display is focused.
             AccessibilityWindowInfo activityWindowOnVirtualDisplay =
                 findWindowByTitleAndDisplay(sUiAutomation, activityTitle, virtualDisplayId);

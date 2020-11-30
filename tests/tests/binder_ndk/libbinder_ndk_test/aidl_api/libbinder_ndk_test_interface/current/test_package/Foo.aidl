@@ -30,4 +30,5 @@ parcelable Foo {
   test_package.IntEnum[] shouldContainTwoIntFoos;
   test_package.LongEnum[] shouldContainTwoLongFoos;
   @nullable String[] g;
+  @nullable test_package.SimpleUnion u;
 }

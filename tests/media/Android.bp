@@ -22,6 +22,7 @@ android_test {
         "ctstestserver",
     ],
     libs: [
+        "org.apache.http.legacy",
         "android.test.runner",
         "android.test.base",
     ],
@@ -36,7 +37,6 @@ android_test {
     // Tag this module as a cts test artifact
     test_suites: [
         "cts",
-        "vts10",
         "general-tests",
     ],
     min_sdk_version: "29",

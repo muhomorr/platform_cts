@@ -322,7 +322,7 @@
     <string name="biometric_test_set_user_authentication_biometric_or_credential_signature_label">4f: Signature, Biometric|Credential</string>
     <string name="biometric_test_set_user_authentication_credential_mac_label">4g: MAC, Credential</string>
     <string name="biometric_test_set_user_authentication_biometric_mac_label">4h: MAC, Biometric</string>
-    <string name="biometric_test_set_user_authentication_biometric_or_credential_mac_label">4h: MAC, Biometric|Credential</string>
+    <string name="biometric_test_set_user_authentication_biometric_or_credential_mac_label">4i: MAC, Biometric|Credential</string>
     <string name="biometric_test_set_user_authentication_credential_instructions">This test checks the correctness of the KeyGenParameterSpec.Builder#setUserAuthenticationParameters(int, int) API for AUTH_DEVICE_CREDENTIAL.
         Buttons for completed tasks will become invisible. It\'s normal for buttons to be disabled for a few seconds during this test.</string>
     <string name="biometric_test_set_user_authentication_biometric_instructions">This test checks the correctness of the KeyGenParameterSpec.Builder#setUserAuthenticationParameters(int, int) API for AUTH_BIOMETRIC_STRONG.
@@ -2186,6 +2186,11 @@
         dismiss them.
     </string>
     <string name="msg_extras_preserved">Check that Message extras Bundle was preserved.</string>
+    <string name="conversation_section_ordering">If this device supports conversation notifications,
+        and groups them into a separate section from alerting and silent non-conversation
+        notifications, fully expand the notification display and verify that the \"Person A\"
+        notification appears before the "\Non-Person Notification\".
+        If this device does not support conversation notifications or does not group them together, press Pass.</string>
     <string name="qs_media_player_title">QS Media Controls Test</string>
     <string name="qs_media_player_test">Media Controls Test</string>
     <string name="qs_media_player_info">This test checks that media controls appear in the
@@ -2334,7 +2339,7 @@
     <string name="caboot_install_cert">Install credential</string>
     <string name="caboot_remove_screen_lock">Remove screen lock</string>
     <string name="caboot_reboot_desc">Please reboot the device and return to this test.</string>
-    <string name="caboot_after_boot">AFTER REBOOTING: Check that there is a notification that the network may be monitored. Opening that notification should show a dialog box giving more information, with a button to check trusted credentials. This should open up the same view of trusted credentials that you get via the "Check credentials" button.</string>
+    <string name="caboot_after_boot">AFTER REBOOTING: Check that there is a notification saying a certificate authority is installed. Opening that notification should show a dialog box giving more information, with a button to check trusted credentials. This should open up the same view of trusted credentials that you get via the "Check credentials" button.</string>
 
     <!-- Strings for KeyChain -->
     <string name="keychain_test">KeyChain Storage Test</string>
@@ -2586,10 +2591,12 @@ You should be prompted to select credentials; choose the ones you just installed
     </string>
     <string name="provisioning_byod_pattern_work_challenge">Confirm pattern lock test</string>
     <string name="provisioning_byod_pattern_work_challenge_description">
-        This test verifies that when a work pattern lock is set, a work app can open correctly.
+        This test verifies that when a work pattern lock is set, a work app can open correctly.\n
 
         1. Verify that you get sent to the page for Choosing a new work lock.\n
         2. Set a pattern lock.\n
+        Some devices have the pattern lock option disabled and it will not show up in the list.\n
+        If that\'s the case then mark the test as passed.\n
         3. Press the power button to turn the screen off and then back on and swipe to unlock.\n
         4. Open a work app.\n
         5. Verify that a screen asking you for your work credentials is shown.\n
@@ -3919,8 +3926,8 @@ You should be prompted to select credentials; choose the ones you just installed
         Email: someone@example.com
     </string>
     <string name="policy_transparency_update_button_label">Update</string>
-    <string name="dummy_input_method_label">Dummy input method</string>
-    <string name="dummy_accessibility_service_label">Dummy accessibility service</string>
+    <string name="test_input_method_label">Test input method</string>
+    <string name="test_accessibility_service_label">Test accessibility service</string>
     <string name="policy_transparency_test_instructions">
         1. <xliff:g id="set_step" example="Set policy by turning the switch on">%1$s</xliff:g>\n
         2. Open Settings app by clicking the "Open settings" button below. Note that this will open the personal Settings app. If this device has the work settings in a different app or screen, then navigate there, ignoring the button if necessary.\n
@@ -4045,21 +4052,21 @@ You should be prompted to select credentials; choose the ones you just installed
     <string name="password_quality_complex">Complex</string>
     <string name="set_permitted_accessibility_services">Set permitted accessibility services</string>
     <string name="permitted_accessibility_services_set_step">
-        Check that \'Dummy Accessibility service\' is not enabled in Settings and disallow \'Dummy Accessibility service\' from permitted accessibility services by turning on
+        Check that \'Test Accessibility service\' is not enabled in Settings and disallow \'Test Accessibility service\' from permitted accessibility services by turning on
         the switch below.
     </string>
     <string name="set_permitted_accessibility_services_action">
-        Enabling \'Dummy Accessibility service\' in the list of accessibility services
+        Enabling \'Test Accessibility service\' in the list of accessibility services
     </string>
     <string name="set_permitted_accessibility_services_widget_label">
         Allow only system accessibility services:
     </string>
     <string name="set_permitted_input_methods">Set permitted input methods</string>
     <string name="permitted_input_methods_set_step">
-        Check that \'Dummy Input method\', along with all other non-system apps, are not enabled in Settings for the managed profile (they may be enabled for the primary profile). Then disallow \'Dummy Input method\' from permitted input methods by turning on the switch below.
+        Check that \'Test Input method\', along with all other non-system apps, are not enabled in Settings for the managed profile (they may be enabled for the primary profile). Then disallow \'Test Input method\' from permitted input methods by turning on the switch below.
     </string>
     <string name="set_permitted_input_methods_action">
-        Enabling \'Dummy Input method\' in the list of input methods (make sure you are enabling it for the managed profile, not primary profile)
+        Enabling \'Test Input method\' in the list of input methods (make sure you are enabling it for the managed profile, not primary profile)
     </string>
     <string name="set_permitted_input_methods_widget_label">
         Allow only system input methods:
@@ -4644,6 +4651,16 @@ You should be prompted to select credentials; choose the ones you just installed
 
     <!-- Common strings for the TV Display tests -->
     <string name="tv_start_test">Start Test</string>
+
+    <!-- Audio Capabilities test -->
+    <string name="tv_audio_capabilities_test">Audio Capabilities Test</string>
+    <string name="tv_audio_capabilities_test_info">This test checks if AudioDeviceInfo and
+    AudioTrack#isDirectPlaybackSupported APIs correctly report the Audio capabilities
+    of the connected audio devices.</string>
+    <string name="tv_audio_capabilities_no_receiver_connected">Disconnect all receivers or
+    soundbars which are connected. </string>
+    <string name="tv_audio_capabilities_receiver_connected">Connect a receiver or
+    soundbar which can play Dolby Atmos. </string>
 
     <!-- HDR Capabilities test -->
     <string name="tv_hdr_capabilities_test">HDR Capabilities Test</string>
@@ -5569,16 +5586,16 @@ Follow the instructions on the screen to measure the frequency response for the 
     1. Click Start Test. \n\n
     2. An alert dialog with install instruction will be shown if the sample Instant App has not been installed, otherwise, the sample Instant App will be opened automatically. \n\n
     3. Drag down the notification bar when the sample Instant App is at foreground. \n\n
-    4. Skip this step in china version. \n\n
+    4. Check if Instant App is shown in notifciation area with the following (Please expand the notification if it is collapsed): \n
+    \u0020\u0020\u0020a. It provides information about Instant Apps not requiring installation and an action that provides more information about the Instant App. \n
+    \u0020\u0020\u0020b. It provides an action allowing the user to launch the associated link with web browser. \n\n
     5. Click Pass button if all checks in step 4 passed, otherwise click Fail button.
     </string>
     <string name="ia_notification_instruction_label_no_app_market_version">\n
     1. Click Start Test. \n\n
     2. An alert dialog with install instruction will be shown if the sample Instant App has not been installed, otherwise, the sample Instant App will be opened automatically. \n\n
     3. Drag down the notification bar when the sample Instant App is at foreground. \n\n
-    4. Check if Instant App is shown in notification area with the following (Please expand the notification if it is collapsed): \n
-    \u0020\u0020\u0020a. It provides information about Instant Apps not requiring installation and an action that provides more information about the Instant App. \n
-    \u0020\u0020\u0020b. Skip this step in china version.Can not launch the associated link with web browser. \n\n
+    4. Check if Instant App is shown in notification area with information about Instant Apps not requiring installation and an action that provides more information about the Instant App (Please expand the notification if it is collapsed) \n\n
     5. Click Pass button if all checks in step 4 passed, otherwise click Fail button.
     </string>
     <string name="ia_recents">Instant Apps Recents Test</string>

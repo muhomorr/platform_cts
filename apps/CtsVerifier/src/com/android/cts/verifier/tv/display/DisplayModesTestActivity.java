@@ -24,6 +24,8 @@ import android.view.Display;
 import androidx.annotation.StringRes;
 
 import com.android.cts.verifier.R;
+import com.android.cts.verifier.tv.TestSequence;
+import com.android.cts.verifier.tv.TestStepBase;
 import com.android.cts.verifier.tv.TvAppVerifierActivity;
 import com.android.cts.verifier.tv.TvUtil;
 
@@ -54,17 +56,9 @@ public class DisplayModesTestActivity extends TvAppVerifierActivity {
             (failureMetadata, mode) -> new ModeSubject(failureMetadata, mode);
 
     private static final Correspondence<Display.Mode, Mode> MODE_CORRESPONDENCE =
-            new Correspondence<Display.Mode, Mode>() {
-                @Override
-                public boolean compare(Display.Mode displayMode, Mode mode) {
-                    return mode.isEquivalent(displayMode, REFRESH_RATE_PRECISION);
-                }
-
-                @Override
-                public String toString() {
-                    return "is equivalent to";
-                }
-            };
+            Correspondence.from((Display.Mode displayMode, Mode mode) -> {
+                return mode.isEquivalent(displayMode, REFRESH_RATE_PRECISION);
+            }, "is equivalent to");
 
     private TestSequence mTestSequence;
 
@@ -130,13 +124,12 @@ public class DisplayModesTestActivity extends TvAppVerifierActivity {
         private void runTest() {
             try {
                 // Verify the display APIs do not crash when the display is disconnected
-                DisplayManager displayManager =
-                        (DisplayManager) mContext.getSystemService(Context.DISPLAY_SERVICE);
+                DisplayManager displayManager = mContext.getSystemService(DisplayManager.class);
                 Display display = displayManager.getDisplay(Display.DEFAULT_DISPLAY);
                 display.getMode();
                 display.getSupportedModes();
             } catch (Exception e) {
-                getAsserter().fail(Throwables.getStackTraceAsString(e));
+                getAsserter().withMessage(Throwables.getStackTraceAsString(e)).fail();
             }
             done();
         }
@@ -163,8 +156,7 @@ public class DisplayModesTestActivity extends TvAppVerifierActivity {
 
         @Override
         public void runTest() {
-            DisplayManager displayManager =
-                    (DisplayManager) mContext.getSystemService(Context.DISPLAY_SERVICE);
+            DisplayManager displayManager = mContext.getSystemService(DisplayManager.class);
             Display display = displayManager.getDisplay(Display.DEFAULT_DISPLAY);
             getAsserter()
                     .withMessage("Display.getMode()")
@@ -199,7 +191,7 @@ public class DisplayModesTestActivity extends TvAppVerifierActivity {
                     .withMessage("Display.getSupportedModes()")
                     .that(Arrays.asList(display.getSupportedModes()))
                     .comparingElementsUsing(MODE_CORRESPONDENCE)
-                    .containsAllIn(expected2160pSupportedModes);
+                    .containsAtLeastElementsIn(expected2160pSupportedModes);
         }
     }
 
@@ -224,8 +216,7 @@ public class DisplayModesTestActivity extends TvAppVerifierActivity {
 
         @Override
         public void runTest() {
-            DisplayManager displayManager =
-                    (DisplayManager) mContext.getSystemService(Context.DISPLAY_SERVICE);
+            DisplayManager displayManager = mContext.getSystemService(DisplayManager.class);
             Display display = displayManager.getDisplay(Display.DEFAULT_DISPLAY);
 
             getAsserter()
@@ -255,7 +246,7 @@ public class DisplayModesTestActivity extends TvAppVerifierActivity {
                     .withMessage("Display.getSupportedModes()")
                     .that(Arrays.asList(display.getSupportedModes()))
                     .comparingElementsUsing(MODE_CORRESPONDENCE)
-                    .containsAllIn(expected1080pSupportedModes);
+                    .containsAtLeastElementsIn(expected1080pSupportedModes);
         }
     }
 
@@ -265,8 +256,7 @@ public class DisplayModesTestActivity extends TvAppVerifierActivity {
         }
 
         private static String getInstructionText(Context context) {
-            DisplayManager displayManager =
-                    (DisplayManager) context.getSystemService(Context.DISPLAY_SERVICE);
+            DisplayManager displayManager = context.getSystemService(DisplayManager.class);
             Display display = displayManager.getDisplay(Display.DEFAULT_DISPLAY);
             String supportedModes =
                     Arrays.stream(display.getSupportedModes())
@@ -289,7 +279,7 @@ public class DisplayModesTestActivity extends TvAppVerifierActivity {
     }
 
     // We use a custom Mode class since the constructors of Display.Mode are hidden. Additionally,
-    // we want to use fuzzy comparision for frame rates which is not used in Display.Mode.equals().
+    // we want to use fuzzy comparison for frame rates which is not used in Display.Mode.equals().
     private static class Mode {
         public int mWidth;
         public int mHeight;
@@ -313,14 +303,17 @@ public class DisplayModesTestActivity extends TvAppVerifierActivity {
         }
     }
 
-    private static class ModeSubject extends Subject<ModeSubject, Display.Mode> {
+    private static class ModeSubject extends Subject {
+        private final Display.Mode mActual;
+
         public ModeSubject(FailureMetadata failureMetadata, @Nullable Display.Mode subject) {
             super(failureMetadata, subject);
+            mActual = subject;
         }
 
         public void isEquivalentToAnyOf(final float refreshRatePrecision, Mode... modes) {
             boolean found = Arrays.stream(modes)
-                    .anyMatch(mode -> mode.isEquivalent(actual(), refreshRatePrecision));
+                    .anyMatch(mode -> mode.isEquivalent(mActual, refreshRatePrecision));
             if (!found) {
                 failWithActual("expected any of", Arrays.toString(modes));
             }

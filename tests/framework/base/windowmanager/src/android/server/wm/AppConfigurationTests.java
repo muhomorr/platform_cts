@@ -207,8 +207,11 @@ public class AppConfigurationTests extends MultiDisplayTestBase {
 
             final SizeInfo rotatedSizes = getActivityDisplaySize(RESIZEABLE_ACTIVITY);
             assertSizesRotate(prevSizes, rotatedSizes,
-                    // Skip orientation checks if we are not in fullscreen mode.
-                    task.getWindowingMode() != WINDOWING_MODE_FULLSCREEN);
+                    // Skip orientation checks if we are not in fullscreen mode, or when the display
+                    // is close to square because the app config orientation may always be landscape
+                    // excluding the system insets.
+                    task.getWindowingMode() != WINDOWING_MODE_FULLSCREEN
+                            || isCloseToSquareDisplay());
             prevSizes = rotatedSizes;
         }
     }
@@ -315,7 +318,7 @@ public class AppConfigurationTests extends MultiDisplayTestBase {
      */
     @Test
     public void testFullscreenAppOrientationRequests() {
-        assumeTrue("Skipping test: no rotation support", supportsRotation());
+        assumeTrue("Skipping test: no orientation request support", supportsOrientationRequest());
 
         separateTestJournal();
         launchActivity(PORTRAIT_ORIENTATION_ACTIVITY);
@@ -341,7 +344,7 @@ public class AppConfigurationTests extends MultiDisplayTestBase {
 
     @Test
     public void testNonfullscreenAppOrientationRequests() {
-        assumeTrue("Skipping test: no rotation support", supportsRotation());
+        assumeTrue("Skipping test: no orientation request support", supportsOrientationRequest());
 
         separateTestJournal();
         launchActivity(PORTRAIT_ORIENTATION_ACTIVITY, WINDOWING_MODE_FULLSCREEN);
@@ -368,7 +371,7 @@ public class AppConfigurationTests extends MultiDisplayTestBase {
      */
     @Test
     public void testAppOrientationRequestConfigChanges() {
-        assumeTrue("Skipping test: no rotation support", supportsRotation());
+        assumeTrue("Skipping test: no orientation request support", supportsOrientationRequest());
 
         separateTestJournal();
         launchActivity(PORTRAIT_ORIENTATION_ACTIVITY, WINDOWING_MODE_FULLSCREEN);
@@ -408,7 +411,7 @@ public class AppConfigurationTests extends MultiDisplayTestBase {
      */
     @Test
     public void testAppOrientationRequestConfigClears() {
-        assumeTrue("Skipping test: no rotation support", supportsRotation());
+        assumeTrue("Skipping test: no orientation request support", supportsOrientationRequest());
 
         separateTestJournal();
         launchActivity(TEST_ACTIVITY);
@@ -448,7 +451,7 @@ public class AppConfigurationTests extends MultiDisplayTestBase {
 
     @Test
     public void testRotatedInfoWithFixedRotationTransform() {
-        assumeTrue("Skipping test: no rotation support", supportsRotation());
+        assumeTrue("Skipping test: no orientation request support", supportsOrientationRequest());
 
         // Start a portrait activity first to ensure that the orientation will change.
         launchActivity(PORTRAIT_ORIENTATION_ACTIVITY);
@@ -494,10 +497,7 @@ public class AppConfigurationTests extends MultiDisplayTestBase {
 
     @Test
     public void testNonFullscreenActivityPermitted() throws Exception {
-        if(!supportsRotation()) {
-            //cannot physically rotate the screen on automotive device, skip
-            return;
-        }
+        assumeTrue("Skipping test: no orientation request support", supportsOrientationRequest());
 
         final RotationSession rotationSession = createManagedRotationSession();
         rotationSession.set(ROTATION_0);
@@ -515,10 +515,10 @@ public class AppConfigurationTests extends MultiDisplayTestBase {
      */
     @Test
     public void testTaskCloseRestoreFixedOrientation() {
-        assumeTrue("Skipping test: no rotation support", supportsRotation());
+        assumeTrue("Skipping test: no orientation request support", supportsOrientationRequest());
 
         // Start landscape activity.
-        launchActivity(LANDSCAPE_ORIENTATION_ACTIVITY);
+        launchActivity(LANDSCAPE_ORIENTATION_ACTIVITY, WINDOWING_MODE_FULLSCREEN);
         mWmState.assertVisibility(LANDSCAPE_ORIENTATION_ACTIVITY, true /* visible */);
         mWmState.waitAndAssertLastOrientation("Fullscreen app requested landscape orientation",
                 SCREEN_ORIENTATION_LANDSCAPE);
@@ -548,7 +548,7 @@ public class AppConfigurationTests extends MultiDisplayTestBase {
      */
     @Test
     public void testTaskCloseRestoreFreeOrientation() {
-        assumeTrue("Skipping test: no rotation support", supportsRotation());
+        assumeTrue("Skipping test: no orientation request support", supportsOrientationRequest());
 
         // Start landscape activity.
         launchActivity(RESIZEABLE_ACTIVITY);
@@ -600,8 +600,8 @@ public class AppConfigurationTests extends MultiDisplayTestBase {
 
         // Start resizeable activity that handles configuration changes.
         separateTestJournal();
-        launchActivity(TEST_ACTIVITY);
-        launchActivity(RESIZEABLE_ACTIVITY);
+        launchActivity(TEST_ACTIVITY, WINDOWING_MODE_FULLSCREEN);
+        launchActivity(RESIZEABLE_ACTIVITY, WINDOWING_MODE_FULLSCREEN);
         mWmState.assertVisibility(RESIZEABLE_ACTIVITY, true /* visible */);
 
         final int displayId = mWmState.getDisplayByActivity(RESIZEABLE_ACTIVITY);
@@ -647,8 +647,10 @@ public class AppConfigurationTests extends MultiDisplayTestBase {
 
         TestActivitySession<ConfigChangeHandlingActivity> activitySession
                 = createManagedTestActivitySession();
-        activitySession.launchTestActivityOnDisplaySync(ConfigChangeHandlingActivity.class,
-                Display.DEFAULT_DISPLAY);
+        activitySession.launchTestActivityOnDisplaySync(
+                ConfigChangeHandlingActivity.class,
+                Display.DEFAULT_DISPLAY,
+                WINDOWING_MODE_FULLSCREEN);
         final ConfigChangeHandlingActivity activity = activitySession.getActivity();
 
         VirtualDisplaySession virtualDisplaySession = createManagedVirtualDisplaySession();
@@ -686,27 +688,27 @@ public class AppConfigurationTests extends MultiDisplayTestBase {
      */
     @Test
     public void testFixedOrientationWhenRotating() throws Exception {
-        assumeTrue("Skipping test: no rotation support", supportsRotation());
+        assumeTrue("Skipping test: no orientation request support", supportsOrientationRequest());
         // TODO(b/110533226): Fix test on devices with display cutout
         assumeFalse("Skipping test: display cutout present, can't predict exact lifecycle",
                 hasDisplayCutout());
 
         // Start portrait-fixed activity
         separateTestJournal();
-        launchActivity(RESIZEABLE_ACTIVITY);
-        launchActivity(PORTRAIT_ORIENTATION_ACTIVITY);
-        mWmState.assertVisibility(PORTRAIT_ORIENTATION_ACTIVITY, true /* visible */);
+        launchActivity(RESIZEABLE_ACTIVITY, WINDOWING_MODE_FULLSCREEN);
+        mWmState.assertVisibility(RESIZEABLE_ACTIVITY, true /* visible */);
 
-        final int displayId = mWmState
-                .getDisplayByActivity(PORTRAIT_ORIENTATION_ACTIVITY);
+        final int displayId = mWmState.getDisplayByActivity(RESIZEABLE_ACTIVITY);
 
-        // Rotate the activity and check that the orientation doesn't change
         final RotationSession rotationSession = createManagedRotationSession();
         assumeTrue("Skipping test: no user locked rotation support.",
                 supportsLockedUserRotation(rotationSession, displayId));
 
-        rotationSession.set(ROTATION_0);
+        launchActivity(PORTRAIT_ORIENTATION_ACTIVITY, WINDOWING_MODE_FULLSCREEN);
+        mWmState.assertVisibility(PORTRAIT_ORIENTATION_ACTIVITY, true /* visible */);
 
+        // Rotate the display and check that the orientation doesn't change
+        rotationSession.set(ROTATION_0);
         final int[] rotations = { ROTATION_270, ROTATION_180, ROTATION_90, ROTATION_0 };
         for (final int rotation : rotations) {
             separateTestJournal();
@@ -728,10 +730,10 @@ public class AppConfigurationTests extends MultiDisplayTestBase {
      */
     @Test
     public void testTaskMoveToBackOrientation() {
-        assumeTrue("Skipping test: no rotation support", supportsRotation());
+        assumeTrue("Skipping test: no orientation request support", supportsOrientationRequest());
 
         // Start landscape activity.
-        launchActivity(LANDSCAPE_ORIENTATION_ACTIVITY);
+        launchActivity(LANDSCAPE_ORIENTATION_ACTIVITY, WINDOWING_MODE_FULLSCREEN);
         mWmState.assertVisibility(LANDSCAPE_ORIENTATION_ACTIVITY, true /* visible */);
         mWmState.waitAndAssertLastOrientation("Fullscreen app requested landscape orientation",
                 SCREEN_ORIENTATION_LANDSCAPE);
@@ -869,8 +871,7 @@ public class AppConfigurationTests extends MultiDisplayTestBase {
      * that are smaller than the dockedSizes.
      */
     private static void assertSizesAreSane(SizeInfo fullscreenSizes, SizeInfo dockedSizes) {
-        final boolean portrait = fullscreenSizes.displayWidth < fullscreenSizes.displayHeight;
-        if (portrait) {
+        if (isDisplayPortrait()) {
             assertThat(dockedSizes.displayHeight, lessThan(fullscreenSizes.displayHeight));
             assertThat(dockedSizes.heightDp, lessThan(fullscreenSizes.heightDp));
             assertThat(dockedSizes.metricsHeight, lessThan(fullscreenSizes.metricsHeight));

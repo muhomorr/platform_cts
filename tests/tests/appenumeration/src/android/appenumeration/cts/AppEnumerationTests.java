@@ -66,6 +66,7 @@ import static android.appenumeration.cts.Constants.TARGET_EDITOR;
 import static android.appenumeration.cts.Constants.TARGET_FILTERS;
 import static android.appenumeration.cts.Constants.TARGET_FILTERS_APK;
 import static android.appenumeration.cts.Constants.TARGET_FORCEQUERYABLE;
+import static android.appenumeration.cts.Constants.TARGET_FORCEQUERYABLE_NORMAL;
 import static android.appenumeration.cts.Constants.TARGET_NO_API;
 import static android.appenumeration.cts.Constants.TARGET_SHARE;
 import static android.appenumeration.cts.Constants.TARGET_SHARED_USER;

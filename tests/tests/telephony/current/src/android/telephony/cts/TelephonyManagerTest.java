@@ -22,6 +22,7 @@ import static com.google.common.truth.Truth.assertThat;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
@@ -52,11 +53,14 @@ import android.telephony.AccessNetworkConstants;
 import android.telephony.Annotation.RadioPowerState;
 import android.telephony.AvailableNetworkInfo;
 import android.telephony.CallAttributes;
+import android.telephony.CallForwardingInfo;
 import android.telephony.CallQuality;
+import android.telephony.CarrierBandwidth;
 import android.telephony.CarrierConfigManager;
 import android.telephony.CellLocation;
 import android.telephony.NetworkRegistrationInfo;
 import android.telephony.PhoneStateListener;
+import android.telephony.PinResult;
 import android.telephony.PreciseCallState;
 import android.telephony.RadioAccessFamily;
 import android.telephony.ServiceState;
@@ -95,11 +99,14 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 
 /**
@@ -123,6 +130,7 @@ public class TelephonyManagerTest {
     private String mSelfCertHash;
 
     private static final int TOLERANCE = 1000;
+    private static final int TIMEOUT_FOR_NETWORK_OPS = TOLERANCE * 10;
     private PhoneStateListener mListener;
     private static ConnectivityManager mCm;
     private static final String TAG = "TelephonyManagerTest";
@@ -167,6 +175,7 @@ public class TelephonyManagerTest {
     private static final String TESTING_PLMN = "12345";
 
     private static final int RADIO_HAL_VERSION_1_3 = makeRadioVersion(1, 3);
+    private static final int RADIO_HAL_VERSION_1_6 = makeRadioVersion(1, 6);
 
     static {
         EMERGENCY_NUMBER_SOURCE_SET = new HashSet<Integer>();
@@ -239,6 +248,8 @@ public class TelephonyManagerTest {
         IntentFilter filter = new IntentFilter(CarrierConfigManager.ACTION_CARRIER_CONFIG_CHANGED);
         // ACTION_CARRIER_CONFIG_CHANGED is sticky, so we will get a callback right away.
         getContext().registerReceiver(mReceiver, filter);
+        InstrumentationRegistry.getInstrumentation().getUiAutomation()
+                .adoptShellPermissionIdentity("android.permission.READ_PHONE_STATE");
     }
 
     @After
@@ -566,12 +577,12 @@ public class TelephonyManagerTest {
                 TelephonyManager::getAndUpdateDefaultRespondViaMessageApplication);
     }
 
-    /**
-     * Due to the corresponding API is hidden in R and will be public in S, this test
-     * is commented and will be un-commented in Android S.
-     *
     @Test
-    public void testGetCallForwarding() {
+    public void testGetCallForwarding() throws Exception {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            Log.d(TAG, "skipping test on device without FEATURE_TELEPHONY present");
+            return;
+        }
         List<Integer> callForwardingReasons = new ArrayList<>();
         callForwardingReasons.add(CallForwardingInfo.REASON_UNCONDITIONAL);
         callForwardingReasons.add(CallForwardingInfo.REASON_BUSY);
@@ -580,35 +591,61 @@ public class TelephonyManagerTest {
         callForwardingReasons.add(CallForwardingInfo.REASON_ALL);
         callForwardingReasons.add(CallForwardingInfo.REASON_ALL_CONDITIONAL);
 
-        Set<Integer> callForwardingStatus = new HashSet<Integer>();
-        callForwardingStatus.add(CallForwardingInfo.STATUS_INACTIVE);
-        callForwardingStatus.add(CallForwardingInfo.STATUS_ACTIVE);
-        callForwardingStatus.add(CallForwardingInfo.STATUS_FDN_CHECK_FAILURE);
-        callForwardingStatus.add(CallForwardingInfo.STATUS_UNKNOWN_ERROR);
-        callForwardingStatus.add(CallForwardingInfo.STATUS_NOT_SUPPORTED);
+        Set<Integer> callForwardingErrors = new HashSet<Integer>();
+        callForwardingErrors.add(TelephonyManager.CallForwardingInfoCallback
+                .RESULT_ERROR_FDN_CHECK_FAILURE);
+        callForwardingErrors.add(TelephonyManager.CallForwardingInfoCallback.RESULT_ERROR_UNKNOWN);
+        callForwardingErrors.add(TelephonyManager.CallForwardingInfoCallback
+                .RESULT_ERROR_NOT_SUPPORTED);
 
         for (int callForwardingReasonToGet : callForwardingReasons) {
             Log.d(TAG, "[testGetCallForwarding] callForwardingReasonToGet: "
                     + callForwardingReasonToGet);
-            CallForwardingInfo callForwardingInfo =
-                    ShellIdentityUtils.invokeMethodWithShellPermissions(mTelephonyManager,
-                            (tm) -> tm.getCallForwarding(callForwardingReasonToGet));
+            AtomicReference<CallForwardingInfo> receivedForwardingInfo = new AtomicReference<>();
+            AtomicReference<Integer> receivedErrorCode = new AtomicReference<>();
+            CountDownLatch latch = new CountDownLatch(1);
+            TelephonyManager.CallForwardingInfoCallback callback =
+                    new TelephonyManager.CallForwardingInfoCallback() {
+                        @Override
+                        public void onCallForwardingInfoAvailable(CallForwardingInfo info) {
+                            receivedForwardingInfo.set(info);
+                            latch.countDown();
+                        }
 
-            assertNotNull(callForwardingInfo);
-            assertTrue(callForwardingStatus.contains(callForwardingInfo.getStatus()));
-            assertTrue(callForwardingReasons.contains(callForwardingInfo.getReason()));
-            callForwardingInfo.getNumber();
-            assertTrue(callForwardingInfo.getTimeoutSeconds() >= 0);
+                        @Override
+                        public void onError(int error) {
+                            receivedErrorCode.set(error);
+                            latch.countDown();
+                        }
+            };
+            ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mTelephonyManager,
+                    (tm) -> tm.getCallForwarding(callForwardingReasonToGet,
+                            getContext().getMainExecutor(), callback));
+
+            assertTrue(latch.await(TIMEOUT_FOR_NETWORK_OPS, TimeUnit.MILLISECONDS));
+            // Make sure only one of the callbacks gets invoked
+            assertTrue((receivedForwardingInfo.get() != null) ^ (receivedErrorCode.get() != null));
+            if (receivedForwardingInfo.get() != null) {
+                CallForwardingInfo info = receivedForwardingInfo.get();
+                assertTrue(callForwardingReasons.contains(info.getReason()));
+                if (info.isEnabled()) {
+                    assertNotNull(info.getNumber());
+                    assertTrue(info.getTimeoutSeconds() >= 0);
+                }
+            }
+
+            if (receivedErrorCode.get() != null) {
+                assertTrue(callForwardingErrors.contains(receivedErrorCode.get()));
+            }
         }
     }
-     */
 
-    /**
-     * Due to the corresponding API is hidden in R and will be public in S, this test
-     * is commented and will be un-commented in Android S.
-     *
     @Test
-    public void testSetCallForwarding() {
+    public void testSetCallForwarding() throws Exception {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            Log.d(TAG, "skipping test on device without FEATURE_TELEPHONY present");
+            return;
+        }
         List<Integer> callForwardingReasons = new ArrayList<>();
         callForwardingReasons.add(CallForwardingInfo.REASON_UNCONDITIONAL);
         callForwardingReasons.add(CallForwardingInfo.REASON_BUSY);
@@ -619,68 +656,107 @@ public class TelephonyManagerTest {
 
         // Enable Call Forwarding
         for (int callForwardingReasonToEnable : callForwardingReasons) {
+            CountDownLatch latch = new CountDownLatch(1);
+            // Disregard success or failure; just make sure it reports back.
+            Consumer<Integer> ignoringResultListener = (x) -> latch.countDown();
+
             final CallForwardingInfo callForwardingInfoToEnable = new CallForwardingInfo(
-                    CallForwardingInfo.STATUS_ACTIVE,
+                    true,
                     callForwardingReasonToEnable,
                     TEST_FORWARD_NUMBER,
                     // time seconds
                     1);
-            Log.d(TAG, "[testSetCallForwarding] Enable Call Forwarding. Status: "
-                    + CallForwardingInfo.STATUS_ACTIVE + " Reason: "
+            Log.d(TAG, "[testSetCallForwarding] Enable Call Forwarding. Reason: "
                     + callForwardingReasonToEnable + " Number: " + TEST_FORWARD_NUMBER
                     + " Time Seconds: 1");
-            ShellIdentityUtils.invokeMethodWithShellPermissions(mTelephonyManager,
-                    (tm) -> tm.setCallForwarding(callForwardingInfoToEnable));
+            ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mTelephonyManager,
+                    (tm) -> tm.setCallForwarding(callForwardingInfoToEnable,
+                            getContext().getMainExecutor(), ignoringResultListener));
+            // TODO: this takes way too long on a real network (upwards of 40s).
+            // assertTrue("No response for forwarding for reason " + callForwardingReasonToEnable,
+            //        latch.await(TIMEOUT_FOR_NETWORK_OPS * 3, TimeUnit.MILLISECONDS));
         }
 
         // Disable Call Forwarding
         for (int callForwardingReasonToDisable : callForwardingReasons) {
+            CountDownLatch latch = new CountDownLatch(1);
+            // Disregard success or failure; just make sure it reports back.
+            Consumer<Integer> ignoringResultListener = (x) -> latch.countDown();
+
             final CallForwardingInfo callForwardingInfoToDisable = new CallForwardingInfo(
-                    CallForwardingInfo.STATUS_INACTIVE,
+                    false,
                     callForwardingReasonToDisable,
                     TEST_FORWARD_NUMBER,
                     // time seconds
                     1);
-            Log.d(TAG, "[testSetCallForwarding] Disable Call Forwarding. Status: "
-                    + CallForwardingInfo.STATUS_INACTIVE + " Reason: "
+            Log.d(TAG, "[testSetCallForwarding] Disable Call Forwarding. Reason: "
                     + callForwardingReasonToDisable + " Number: " + TEST_FORWARD_NUMBER
                     + " Time Seconds: 1");
-            ShellIdentityUtils.invokeMethodWithShellPermissions(mTelephonyManager,
-                    (tm) -> tm.setCallForwarding(callForwardingInfoToDisable));
+            ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mTelephonyManager,
+                    (tm) -> tm.setCallForwarding(callForwardingInfoToDisable,
+                            getContext().getMainExecutor(), ignoringResultListener));
+            // TODO: this takes way too long on a real network (upwards of 40s).
+            //assertTrue("No response for forwarding for reason " + callForwardingReasonToDisable,
+            //        latch.await(TIMEOUT_FOR_NETWORK_OPS * 3, TimeUnit.MILLISECONDS));
         }
     }
-    */
 
-    /**
-     * Due to the corresponding API is hidden in R and will be public in S, this test
-     * is commented and will be un-commented in Android S.
-     *
     @Test
-    public void testGetCallWaitingStatus() {
-        Set<Integer> callWaitingStatus = new HashSet<Integer>();
-        callWaitingStatus.add(TelephonyManager.CALL_WAITING_STATUS_ACTIVE);
-        callWaitingStatus.add(TelephonyManager.CALL_WAITING_STATUS_INACTIVE);
-        callWaitingStatus.add(TelephonyManager.CALL_WAITING_STATUS_UNKNOWN_ERROR);
-        callWaitingStatus.add(TelephonyManager.CALL_WAITING_STATUS_NOT_SUPPORTED);
+    public void testGetCallWaitingStatus() throws Exception {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            Log.d(TAG, "skipping test on device without FEATURE_TELEPHONY present");
+            return;
+        }
+        Set<Integer> validCallWaitingStatuses = new HashSet<Integer>();
+        validCallWaitingStatuses.add(TelephonyManager.CALL_WAITING_STATUS_ENABLED);
+        validCallWaitingStatuses.add(TelephonyManager.CALL_WAITING_STATUS_DISABLED);
+        validCallWaitingStatuses.add(TelephonyManager.CALL_WAITING_STATUS_UNKNOWN_ERROR);
+        validCallWaitingStatuses.add(TelephonyManager.CALL_WAITING_STATUS_NOT_SUPPORTED);
 
-        int status = ShellIdentityUtils.invokeMethodWithShellPermissions(
-                mTelephonyManager, (tm) -> tm.getCallWaitingStatus());
-        assertTrue(callWaitingStatus.contains(status));
+        LinkedBlockingQueue<Integer> callWaitingStatusResult = new LinkedBlockingQueue<>(1);
+        ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(
+                mTelephonyManager, (tm) -> tm.getCallWaitingStatus(getContext().getMainExecutor(),
+                        callWaitingStatusResult::offer));
+        assertTrue(validCallWaitingStatuses.contains(
+                callWaitingStatusResult.poll(TIMEOUT_FOR_NETWORK_OPS, TimeUnit.MILLISECONDS)));
     }
-     */
 
-    /**
-     * Due to the corresponding API is hidden in R and will be public in S, this test
-     * is commented and will be un-commented in Android S.
-     *
     @Test
-    public void testSetCallWaitingStatus() {
-        ShellIdentityUtils.invokeMethodWithShellPermissions(mTelephonyManager,
-                (tm) -> tm.setCallWaitingStatus(true));
-        ShellIdentityUtils.invokeMethodWithShellPermissions(mTelephonyManager,
-                (tm) -> tm.setCallWaitingStatus(false));
+    public void testSetCallWaitingStatus() throws Exception {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            Log.d(TAG, "skipping test on device without FEATURE_TELEPHONY present");
+            return;
+        }
+        Set<Integer> validCallWaitingErrors = new HashSet<Integer>();
+        validCallWaitingErrors.add(TelephonyManager.CALL_WAITING_STATUS_UNKNOWN_ERROR);
+        validCallWaitingErrors.add(TelephonyManager.CALL_WAITING_STATUS_NOT_SUPPORTED);
+        Executor executor = getContext().getMainExecutor();
+        {
+            LinkedBlockingQueue<Integer> callWaitingResult = new LinkedBlockingQueue<>(1);
+
+            ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mTelephonyManager,
+                    (tm) -> tm.setCallWaitingEnabled(true, executor, callWaitingResult::offer));
+            Integer result = callWaitingResult.poll(TIMEOUT_FOR_NETWORK_OPS, TimeUnit.MILLISECONDS);
+            assertNotNull("Never got callback from set call waiting", result);
+            if (result != TelephonyManager.CALL_WAITING_STATUS_ENABLED) {
+                assertTrue("Call waiting callback got an invalid value: " + result,
+                        validCallWaitingErrors.contains(result));
+            }
+        }
+
+        {
+            LinkedBlockingQueue<Integer> callWaitingResult = new LinkedBlockingQueue<>(1);
+
+            ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mTelephonyManager,
+                    (tm) -> tm.setCallWaitingEnabled(false, executor, callWaitingResult::offer));
+            Integer result = callWaitingResult.poll(TIMEOUT_FOR_NETWORK_OPS, TimeUnit.MILLISECONDS);
+            assertNotNull("Never got callback from set call waiting", result);
+            if (result != TelephonyManager.CALL_WAITING_STATUS_DISABLED) {
+                assertTrue("Call waiting callback got an invalid value: " + result,
+                        validCallWaitingErrors.contains(result));
+            }
+        }
     }
-     */
 
     @Test
     public void testGetRadioHalVersion() {
@@ -743,7 +819,7 @@ public class TelephonyManagerTest {
                 assertTrue("Phone count should be > 0", phoneCount > 0);
                 break;
             case TelephonyManager.PHONE_TYPE_NONE:
-                assertTrue("Phone count should be 0", phoneCount == 0 || phoneCount == 1);
+                assertTrue("Phone count should be >= 0", phoneCount >= 0);
                 break;
             default:
                 throw new IllegalArgumentException("Did you add a new phone type? " + phoneType);
@@ -1157,6 +1233,11 @@ public class TelephonyManagerTest {
             return;
         }
 
+        // mc and meid should either be null or supported. empty string is not expected even if
+        // the device does not support mc/meid.
+        assertNotEquals("", mc);
+        assertNotEquals("", meid);
+
         if (mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
             if (mTelephonyManager.getPhoneType() == TelephonyManager.PHONE_TYPE_CDMA) {
                 assertEquals(meid.substring(0, 8), mc);
@@ -1326,6 +1407,8 @@ public class TelephonyManagerTest {
                 mLock.wait(60000);
             }
         }
+        InstrumentationRegistry.getInstrumentation().getUiAutomation()
+                .adoptShellPermissionIdentity("android.permission.READ_PHONE_STATE");
         assertThat(mTelephonyManager.getServiceState().getState()).isEqualTo(
                 ServiceState.STATE_IN_SERVICE);
     }
@@ -1692,6 +1775,28 @@ public class TelephonyManagerTest {
         }
     }
 
+    @Test
+    public void testGetEquivalentHomePlmns() {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            return;
+        }
+
+        List<String> plmns = mTelephonyManager.getEquivalentHomePlmns();
+
+        if (mTelephonyManager.getPhoneType() != TelephonyManager.PHONE_TYPE_GSM) {
+            assertEquals(0, plmns.size());
+        } else {
+            for (String plmn : plmns) {
+                assertTrue(
+                        "Invalid Length for PLMN-ID, must be 5 or 6! plmn=" + plmn,
+                        plmn.length() >= 5 && plmn.length() <= 6);
+                assertTrue(
+                        "PLMNs must be strings of digits 0-9! plmn=" + plmn,
+                        android.text.TextUtils.isDigitsOnly(plmn));
+            }
+        }
+    }
+
     /**
      * Tests that the device properly reports the contents of ManualNetworkSelectionPlmn
      * The setting is not persisted selection
@@ -1863,6 +1968,8 @@ public class TelephonyManagerTest {
             Log.d(TAG, "Skipping test that requires FEATURE_TELEPHONY");
             return;
         }
+        if (mTelephonyManager.getPhoneType() != TelephonyManager.PHONE_TYPE_GSM) return;
+
         assertTrue(ShellIdentityUtils.invokeMethodWithShellPermissions(mTelephonyManager,
                 (tm) -> tm.isManualNetworkSelectionAllowed()));
     }
@@ -2568,6 +2675,37 @@ public class TelephonyManagerTest {
     }
 
     @Test
+    public void testGetAllNetworkTypes() {
+        Set<Integer> expectedNetworkTypes = new HashSet<>(Arrays.asList(
+                TelephonyManager.NETWORK_TYPE_GPRS,
+                TelephonyManager.NETWORK_TYPE_EDGE,
+                TelephonyManager.NETWORK_TYPE_UMTS,
+                TelephonyManager.NETWORK_TYPE_CDMA,
+                TelephonyManager.NETWORK_TYPE_EVDO_0,
+                TelephonyManager.NETWORK_TYPE_EVDO_A,
+                TelephonyManager.NETWORK_TYPE_1xRTT,
+                TelephonyManager.NETWORK_TYPE_HSDPA,
+                TelephonyManager.NETWORK_TYPE_HSUPA,
+                TelephonyManager.NETWORK_TYPE_HSPA,
+                TelephonyManager.NETWORK_TYPE_IDEN,
+                TelephonyManager.NETWORK_TYPE_EVDO_B,
+                TelephonyManager.NETWORK_TYPE_LTE,
+                TelephonyManager.NETWORK_TYPE_EHRPD,
+                TelephonyManager.NETWORK_TYPE_HSPAP,
+                TelephonyManager.NETWORK_TYPE_GSM,
+                TelephonyManager.NETWORK_TYPE_TD_SCDMA,
+                TelephonyManager.NETWORK_TYPE_IWLAN,
+                TelephonyManager.NETWORK_TYPE_LTE_CA,
+                TelephonyManager.NETWORK_TYPE_NR
+        ));
+
+        Set<Integer> actualNetworkTypes = IntStream.of(TelephonyManager.getAllNetworkTypes())
+                .boxed().collect(Collectors.toSet());
+        assertTrue(expectedNetworkTypes.containsAll(actualNetworkTypes));
+        assertTrue(actualNetworkTypes.containsAll(expectedNetworkTypes));
+    }
+
+    @Test
     public void testIsModemEnabledForSlot() {
         if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
             return;
@@ -2631,6 +2769,373 @@ public class TelephonyManagerTest {
     private boolean isDataEnabled() {
         return ShellIdentityUtils.invokeMethodWithShellPermissions(mTelephonyManager,
                 TelephonyManager::isDataEnabled);
+    }
+
+    @Test
+    public void testDataDuringVoiceCallPolicy() {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            return;
+        }
+
+        ShellIdentityUtils.ShellPermissionMethodHelper<Boolean, TelephonyManager> getPolicyHelper =
+                (tm) -> tm.isMobileDataPolicyEnabled(
+                        TelephonyManager.MOBILE_DATA_POLICY_DATA_ON_NON_DEFAULT_DURING_VOICE_CALL);
+
+        boolean allowDataDuringVoiceCall = ShellIdentityUtils.invokeMethodWithShellPermissions(
+                mTelephonyManager, getPolicyHelper);
+
+        ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(
+                mTelephonyManager, (tm) -> tm.setMobileDataPolicyEnabledStatus(
+                        TelephonyManager.MOBILE_DATA_POLICY_DATA_ON_NON_DEFAULT_DURING_VOICE_CALL,
+                        !allowDataDuringVoiceCall));
+
+        assertNotEquals(allowDataDuringVoiceCall,
+                ShellIdentityUtils.invokeMethodWithShellPermissions(
+                        mTelephonyManager, getPolicyHelper));
+
+        ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(
+                mTelephonyManager, (tm) -> tm.setMobileDataPolicyEnabledStatus(
+                        TelephonyManager.MOBILE_DATA_POLICY_DATA_ON_NON_DEFAULT_DURING_VOICE_CALL,
+                        allowDataDuringVoiceCall));
+
+        assertEquals(allowDataDuringVoiceCall,
+                ShellIdentityUtils.invokeMethodWithShellPermissions(
+                        mTelephonyManager, getPolicyHelper));
+    }
+
+    @Test
+    public void testAlwaysAllowMmsDataPolicy() {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            return;
+        }
+
+        ShellIdentityUtils.ShellPermissionMethodHelper<Boolean, TelephonyManager> getPolicyHelper =
+                (tm) -> tm.isMobileDataPolicyEnabled(
+                        TelephonyManager.MOBILE_DATA_POLICY_MMS_ALWAYS_ALLOWED);
+
+        boolean mmsAlwaysAllowed = ShellIdentityUtils.invokeMethodWithShellPermissions(
+                mTelephonyManager, getPolicyHelper);
+
+        ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(
+                mTelephonyManager, (tm) -> tm.setMobileDataPolicyEnabledStatus(
+                        TelephonyManager.MOBILE_DATA_POLICY_MMS_ALWAYS_ALLOWED,
+                        !mmsAlwaysAllowed));
+
+        assertNotEquals(mmsAlwaysAllowed,
+                ShellIdentityUtils.invokeMethodWithShellPermissions(
+                        mTelephonyManager, getPolicyHelper));
+
+        ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(
+                mTelephonyManager, (tm) -> tm.setMobileDataPolicyEnabledStatus(
+                        TelephonyManager.MOBILE_DATA_POLICY_MMS_ALWAYS_ALLOWED,
+                        mmsAlwaysAllowed));
+
+        assertEquals(mmsAlwaysAllowed,
+                ShellIdentityUtils.invokeMethodWithShellPermissions(
+                        mTelephonyManager, getPolicyHelper));
+    }
+
+    @Test
+    public void testThermalDataEnable() {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            return;
+        }
+
+        ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(
+                mTelephonyManager,
+                (tm) -> tm.setDataEnabledForReason(TelephonyManager.DATA_ENABLED_REASON_THERMAL,
+                        false));
+
+        boolean isDataEnabledForReason = ShellIdentityUtils.invokeMethodWithShellPermissions(
+                mTelephonyManager, (tm) -> tm.isDataEnabledForReason(
+                        TelephonyManager.DATA_ENABLED_REASON_THERMAL));
+        assertFalse(isDataEnabledForReason);
+
+        boolean isDataConnectionAvailable = ShellIdentityUtils.invokeMethodWithShellPermissions(
+                mTelephonyManager, (tm) -> tm.isDataConnectionAllowed());
+        assertFalse(isDataConnectionAvailable);
+
+        ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(
+                mTelephonyManager,
+                (tm) -> tm.setDataEnabledForReason(TelephonyManager.DATA_ENABLED_REASON_THERMAL,
+                        true));
+
+        isDataEnabledForReason = ShellIdentityUtils.invokeMethodWithShellPermissions(
+                mTelephonyManager, (tm) -> tm.isDataEnabledForReason(
+                        TelephonyManager.DATA_ENABLED_REASON_THERMAL));
+        assertTrue(isDataEnabledForReason);
+
+        isDataConnectionAvailable = ShellIdentityUtils.invokeMethodWithShellPermissions(
+                mTelephonyManager, (tm) -> tm.isDataConnectionAllowed());
+        assertTrue(isDataConnectionAvailable);
+    }
+
+    @Test
+    public void testPolicyDataEnable() {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            return;
+        }
+
+        ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(
+                mTelephonyManager,
+                (tm) -> tm.setDataEnabledForReason(TelephonyManager.DATA_ENABLED_REASON_POLICY,
+                        false));
+
+        boolean isDataEnabledForReason = ShellIdentityUtils.invokeMethodWithShellPermissions(
+                mTelephonyManager, (tm) -> tm.isDataEnabledForReason(
+                        TelephonyManager.DATA_ENABLED_REASON_POLICY));
+        assertFalse(isDataEnabledForReason);
+
+        boolean isDataConnectionAvailable = ShellIdentityUtils.invokeMethodWithShellPermissions(
+                mTelephonyManager, (tm) -> tm.isDataConnectionAllowed());
+        assertFalse(isDataConnectionAvailable);
+
+        ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(
+                mTelephonyManager,
+                (tm) -> tm.setDataEnabledForReason(TelephonyManager.DATA_ENABLED_REASON_POLICY,
+                        true));
+
+        isDataEnabledForReason = ShellIdentityUtils.invokeMethodWithShellPermissions(
+                mTelephonyManager, (tm) -> tm.isDataEnabledForReason(
+                        TelephonyManager.DATA_ENABLED_REASON_POLICY));
+        assertTrue(isDataEnabledForReason);
+
+        isDataConnectionAvailable = ShellIdentityUtils.invokeMethodWithShellPermissions(
+                mTelephonyManager, (tm) -> tm.isDataConnectionAllowed());
+        assertTrue(isDataConnectionAvailable);
+    }
+
+    @Test
+    public void testCarrierDataEnable() {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            return;
+        }
+
+        ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(
+                mTelephonyManager,
+                (tm) -> tm.setDataEnabledForReason(TelephonyManager.DATA_ENABLED_REASON_CARRIER,
+                        false));
+
+        waitForMs(100);
+        boolean isDataEnabledForReason = ShellIdentityUtils.invokeMethodWithShellPermissions(
+                mTelephonyManager, (tm) -> tm.isDataEnabledForReason(
+                        TelephonyManager.DATA_ENABLED_REASON_CARRIER));
+        assertFalse(isDataEnabledForReason);
+
+        boolean isDataConnectionAvailable = ShellIdentityUtils.invokeMethodWithShellPermissions(
+                mTelephonyManager, (tm) -> tm.isDataConnectionAllowed());
+        assertFalse(isDataConnectionAvailable);
+
+        ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(
+                mTelephonyManager,
+                (tm) -> tm.setDataEnabledForReason(TelephonyManager.DATA_ENABLED_REASON_CARRIER,
+                        true));
+
+        waitForMs(100);
+        isDataEnabledForReason = ShellIdentityUtils.invokeMethodWithShellPermissions(
+                mTelephonyManager, (tm) -> tm.isDataEnabledForReason(
+                        TelephonyManager.DATA_ENABLED_REASON_CARRIER));
+        assertTrue(isDataEnabledForReason);
+        isDataConnectionAvailable = ShellIdentityUtils.invokeMethodWithShellPermissions(
+                mTelephonyManager, (tm) -> tm.isDataConnectionAllowed());
+        assertTrue(isDataConnectionAvailable);
+    }
+
+    @Test
+    public void testUserDataEnable() {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            return;
+        }
+
+        ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(
+                mTelephonyManager,
+                (tm) -> tm.setDataEnabledForReason(TelephonyManager.DATA_ENABLED_REASON_USER,
+                        false));
+
+        boolean isDataEnabledForReason = ShellIdentityUtils.invokeMethodWithShellPermissions(
+                mTelephonyManager, (tm) -> tm.isDataEnabledForReason(
+                        TelephonyManager.DATA_ENABLED_REASON_USER));
+        assertFalse(isDataEnabledForReason);
+
+        boolean isDataConnectionAvailable = ShellIdentityUtils.invokeMethodWithShellPermissions(
+                mTelephonyManager, (tm) -> tm.isDataConnectionAllowed());
+        assertFalse(isDataConnectionAvailable);
+
+        ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(
+                mTelephonyManager,
+                (tm) -> tm.setDataEnabledForReason(TelephonyManager.DATA_ENABLED_REASON_USER,
+                        true));
+
+        isDataEnabledForReason = ShellIdentityUtils.invokeMethodWithShellPermissions(
+                mTelephonyManager, (tm) -> tm.isDataEnabledForReason(
+                        TelephonyManager.DATA_ENABLED_REASON_USER));
+        assertTrue(isDataEnabledForReason);
+        isDataConnectionAvailable = ShellIdentityUtils.invokeMethodWithShellPermissions(
+                mTelephonyManager, (tm) -> tm.isDataConnectionAllowed());
+        assertTrue(isDataConnectionAvailable);
+    }
+
+    @Test
+    public void testGetCdmaEnhancedRoamingIndicatorDisplayNumber() {
+        int index = mTelephonyManager.getCdmaEnhancedRoamingIndicatorDisplayNumber();
+        int phoneType = mTelephonyManager.getPhoneType();
+        if (phoneType == TelephonyManager.PHONE_TYPE_CDMA) {
+            assertTrue(index >= 0 && index <= 255);
+        } else {
+            assertEquals(-1, index);
+        }
+    }
+
+    private void disableNrDualConnectivity() {
+        ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(
+                mTelephonyManager,
+                (tm) -> tm.setNrDualConnectivityState(
+                        TelephonyManager.NR_DUAL_CONNECTIVITY_DISABLE));
+
+        boolean isNrDualConnectivityEnabled =
+                ShellIdentityUtils.invokeMethodWithShellPermissions(
+                        mTelephonyManager, (tm) -> tm.isNrDualConnectivityEnabled());
+        // Only verify the result for supported devices on IRadio 1.6+
+        if (mRadioVersion >= RADIO_HAL_VERSION_1_6) {
+            assertFalse(isNrDualConnectivityEnabled);
+        }
+    }
+
+    @Test
+    public void testNrDualConnectivityEnable() {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            return;
+        }
+
+        boolean isInitiallyEnabled = ShellIdentityUtils.invokeMethodWithShellPermissions(
+                mTelephonyManager, (tm) -> tm.isNrDualConnectivityEnabled());
+        boolean isNrDualConnectivityEnabled;
+        if (isInitiallyEnabled) {
+            disableNrDualConnectivity();
+        }
+
+        ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(
+                mTelephonyManager,
+                (tm) -> tm.setNrDualConnectivityState(
+                        TelephonyManager.NR_DUAL_CONNECTIVITY_ENABLE));
+        isNrDualConnectivityEnabled = ShellIdentityUtils.invokeMethodWithShellPermissions(
+                mTelephonyManager, (tm) -> tm.isNrDualConnectivityEnabled());
+        // Only verify the result for supported devices on IRadio 1.6+
+        if (mRadioVersion >= RADIO_HAL_VERSION_1_6) {
+            assertTrue(isNrDualConnectivityEnabled);
+        }
+
+        if (!isInitiallyEnabled) {
+            disableNrDualConnectivity();
+        }
+    }
+
+    @Test
+    public void testCdmaRoamingMode() {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            return;
+        }
+
+        // Save state
+        int cdmaRoamingMode = ShellIdentityUtils.invokeMethodWithShellPermissions(mTelephonyManager,
+                TelephonyManager::getCdmaRoamingMode);
+
+        ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mTelephonyManager,
+                tm -> tm.setCdmaRoamingMode(TelephonyManager.CDMA_ROAMING_MODE_HOME));
+        assertEquals(TelephonyManager.CDMA_ROAMING_MODE_HOME,
+                (int) ShellIdentityUtils.invokeMethodWithShellPermissions(mTelephonyManager,
+                        TelephonyManager::getCdmaRoamingMode));
+        ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mTelephonyManager,
+                tm -> tm.setCdmaRoamingMode(TelephonyManager.CDMA_ROAMING_MODE_AFFILIATED));
+        assertEquals(TelephonyManager.CDMA_ROAMING_MODE_AFFILIATED,
+                (int) ShellIdentityUtils.invokeMethodWithShellPermissions(mTelephonyManager,
+                        TelephonyManager::getCdmaRoamingMode));
+
+        // Reset state
+        ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mTelephonyManager,
+                tm -> tm.setCdmaRoamingMode(cdmaRoamingMode));
+    }
+
+    @Test
+    public void testCdmaSubscriptionMode() {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            return;
+        }
+
+        // Save state
+        int cdmaSubscriptionMode = ShellIdentityUtils.invokeMethodWithShellPermissions(
+                mTelephonyManager, TelephonyManager::getCdmaSubscriptionMode);
+
+        ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mTelephonyManager,
+                tm -> tm.setCdmaSubscriptionMode(TelephonyManager.CDMA_SUBSCRIPTION_NV));
+        assertEquals(TelephonyManager.CDMA_SUBSCRIPTION_NV,
+                (int) ShellIdentityUtils.invokeMethodWithShellPermissions(mTelephonyManager,
+                        TelephonyManager::getCdmaSubscriptionMode));
+        ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mTelephonyManager,
+                tm -> tm.setCdmaSubscriptionMode(TelephonyManager.CDMA_SUBSCRIPTION_RUIM_SIM));
+        assertEquals(TelephonyManager.CDMA_SUBSCRIPTION_RUIM_SIM,
+                (int) ShellIdentityUtils.invokeMethodWithShellPermissions(mTelephonyManager,
+                        TelephonyManager::getCdmaSubscriptionMode));
+
+        // Reset state
+        ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mTelephonyManager,
+                tm -> tm.setCdmaRoamingMode(cdmaSubscriptionMode));
+    }
+
+    @Test
+    public void testPinResult() {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            return;
+        }
+
+        final String pin = "fake_pin";
+        final String puk = "fake_puk";
+        final String newPin = "fake_new_pin";
+
+        boolean isEnabled = ShellIdentityUtils.invokeMethodWithShellPermissions(
+                mTelephonyManager, TelephonyManager::isIccLockEnabled);
+        PinResult result = ShellIdentityUtils.invokeMethodWithShellPermissions(
+                mTelephonyManager, (tm) -> tm.setIccLockEnabled(!isEnabled, pin));
+        assertTrue(result.getResult() == PinResult.PIN_RESULT_TYPE_INCORRECT
+                || result.getResult() == PinResult.PIN_RESULT_TYPE_FAILURE);
+        assertTrue(result.getAttemptsRemaining() >= 0);
+        assertEquals(isEnabled, ShellIdentityUtils.invokeMethodWithShellPermissions(
+                mTelephonyManager, TelephonyManager::isIccLockEnabled));
+
+        result = ShellIdentityUtils.invokeMethodWithShellPermissions(
+                mTelephonyManager, (tm) -> tm.changeIccLockPin(pin, newPin));
+        assertTrue(result.getResult() == PinResult.PIN_RESULT_TYPE_INCORRECT
+                || result.getResult() == PinResult.PIN_RESULT_TYPE_FAILURE);
+        assertTrue(result.getAttemptsRemaining() >= 0);
+
+        result = ShellIdentityUtils.invokeMethodWithShellPermissions(
+                mTelephonyManager, (tm) -> tm.supplyIccLockPin(pin));
+        assertTrue(result.getResult() == PinResult.PIN_RESULT_TYPE_INCORRECT
+                || result.getResult() == PinResult.PIN_RESULT_TYPE_FAILURE);
+        assertTrue(result.getAttemptsRemaining() >= 0);
+
+        result = ShellIdentityUtils.invokeMethodWithShellPermissions(
+                mTelephonyManager, (tm) -> tm.supplyIccLockPuk(puk, pin));
+        assertTrue(result.getResult() == PinResult.PIN_RESULT_TYPE_INCORRECT
+                || result.getResult() == PinResult.PIN_RESULT_TYPE_FAILURE);
+        assertTrue(result.getAttemptsRemaining() >= 0);
+    }
+
+    @Test
+    public void testGetCarrierBandwidth() {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            return;
+        }
+        CarrierBandwidth bandwidth =
+                ShellIdentityUtils.invokeMethodWithShellPermissions(mTelephonyManager,
+                        (tm) -> tm.getCarrierBandwidth());
+        if (mRadioVersion >= RADIO_HAL_VERSION_1_6) {
+            assertTrue(bandwidth != null);
+            assertTrue(bandwidth.getPrimaryDownlinkCapacityKbps()
+                            != CarrierBandwidth.INVALID);
+            assertTrue(bandwidth.getPrimaryUplinkCapacityKbps()
+                            != CarrierBandwidth.INVALID);
+        }
     }
 
     /**
@@ -2837,6 +3342,18 @@ public class TelephonyManagerTest {
      * @return whether to proceed the test
      */
     private boolean supportSetFplmn() {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            return false;
+        }
+        return mTelephonyManager.getPhoneType() == TelephonyManager.PHONE_TYPE_GSM;
+    }
+
+    /**
+     * Verify that the phone is supporting the action of setForbiddenPlmn.
+     *
+     * @return whether to proceed the test
+     */
+    private boolean test() {
         if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
             return false;
         }

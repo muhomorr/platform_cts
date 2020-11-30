@@ -16,6 +16,7 @@
 package android.signature.cts.api;
 
 import android.os.Bundle;
+import android.provider.Settings;
 import android.signature.cts.ApiDocumentParser;
 import android.signature.cts.ClassProvider;
 import android.signature.cts.ExcludingClassProvider;
@@ -51,6 +52,18 @@ public class AbstractApiTest extends InstrumentationTestCase {
 
     ClassProvider classProvider;
 
+    protected String getGlobalExemptions() {
+        return Settings.Global.getString(
+                getInstrumentation().getContext().getContentResolver(),
+                Settings.Global.HIDDEN_API_BLACKLIST_EXEMPTIONS);
+    }
+
+    protected String getGlobalHiddenApiPolicy() {
+        return Settings.Global.getString(
+                getInstrumentation().getContext().getContentResolver(),
+                Settings.Global.HIDDEN_API_POLICY);
+    }
+
     @Override
     protected void setUp() throws Exception {
         super.setUp();
@@ -59,6 +72,19 @@ public class AbstractApiTest extends InstrumentationTestCase {
         // Get the arguments passed to the instrumentation.
         Bundle instrumentationArgs =
                 ((InstrumentationTestRunner) getInstrumentation()).getArguments();
+
+        // Check that the device is in the correct state for running this test.
+        assertEquals(
+                String.format("Device in bad state: %s is not as expected",
+                        Settings.Global.HIDDEN_API_BLACKLIST_EXEMPTIONS),
+                getExpectedBlocklistExemptions(),
+                getGlobalExemptions());
+        assertEquals(
+                String.format("Device in bad state: %s is not as expected",
+                        Settings.Global.HIDDEN_API_POLICY),
+                null,
+                getGlobalHiddenApiPolicy());
+
 
         // Prepare for a class provider that loads classes from bootclasspath but filters
         // out known inaccessible classes.
@@ -69,6 +95,10 @@ public class AbstractApiTest extends InstrumentationTestCase {
                 name -> name != null && name.startsWith("com.android.internal.R."));
 
         initializeFromArgs(instrumentationArgs);
+    }
+
+    protected String getExpectedBlocklistExemptions() {
+        return null;
     }
 
     protected void initializeFromArgs(Bundle instrumentationArgs) throws Exception {
@@ -90,16 +120,7 @@ public class AbstractApiTest extends InstrumentationTestCase {
             mResultObserver.notifyFailure(FailureType.CAUGHT_EXCEPTION, e.getClass().getName(),
                     writer.toString());
         }
-        if (mResultObserver.mDidFail) {
-            StringBuilder errorString = mResultObserver.mErrorString;
-            ClassLoader classLoader = getClass().getClassLoader();
-            errorString.append("\nClassLoader hierarchy\n");
-            while (classLoader != null) {
-                errorString.append("    ").append(classLoader).append("\n");
-                classLoader = classLoader.getParent();
-            }
-            fail(errorString.toString());
-        }
+        mResultObserver.onTestComplete(); // Will throw is there are failures
     }
 
     static String[] getCommaSeparatedList(Bundle instrumentationArgs, String key) {

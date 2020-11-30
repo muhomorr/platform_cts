@@ -7,9 +7,7 @@ android_test_import {
 
     test_suites: [
         "cts",
-        "vts10",
         "general-tests",
-        "cts-instant",
     ],
     // Make sure the build system doesn't try to resign the APK
     presigned: true,
@@ -36,7 +34,6 @@ android_test_helper_app {
     // Tag this module as a cts test artifact
     test_suites: [
         "cts",
-        "vts10",
         "general-tests",
     ],
     dist: {
