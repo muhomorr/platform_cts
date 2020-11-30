@@ -24,7 +24,7 @@ android_test {
     sdk_version: "current",
     test_suites: [
         "cts",
-        "vts10",
+        "general-tests",
     ],
     use_embedded_native_libs: true,
 }

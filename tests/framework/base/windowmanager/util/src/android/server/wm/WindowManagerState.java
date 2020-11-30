@@ -39,6 +39,7 @@ import static org.junit.Assert.fail;
 
 import android.content.ComponentName;
 import android.content.res.Configuration;
+import android.graphics.Point;
 import android.graphics.Rect;
 import android.os.ParcelFileDescriptor;
 import android.os.SystemClock;
@@ -610,15 +611,15 @@ public class WindowManagerState {
         return -1;
     }
 
-    /** Get the stack position on its display. */
-    int getStackIndexByActivity(ComponentName activityName) {
+    /** Get the stack on its display. */
+    ActivityTask getStackByActivity(ComponentName activityName) {
         for (DisplayContent display : mDisplays) {
             for (int i = display.mRootTasks.size() - 1; i >= 0; --i) {
                 final ActivityTask stack = display.mRootTasks.get(i);
-                if (stack.containsActivity(activityName)) return i;
+                if (stack.containsActivity(activityName)) return stack;
             }
         }
-        return -1;
+        return null;
     }
 
     /** Get display id by activity on it. */
@@ -835,6 +836,14 @@ public class WindowManagerState {
 
     boolean pendingActivityContain(ComponentName activityName) {
         return mPendingActivities.contains(getActivityName(activityName));
+    }
+
+    // Get the logical display size of the default display.
+    public static Point getLogicalDisplaySize() {
+        WindowManagerState mWmState = new WindowManagerState();
+        mWmState.computeState();
+        Rect size = mWmState.getDisplay(DEFAULT_DISPLAY).getDisplayRect();
+        return new Point(size.width(), size.height());
     }
 
     String getDefaultDisplayLastTransition() {
@@ -1512,7 +1521,7 @@ public class WindowManagerState {
     public static class WindowState extends WindowContainer {
 
         private static final int WINDOW_TYPE_NORMAL = 0;
-        private static final int WINDOW_TYPE_STARTING = 1;
+        public static final int WINDOW_TYPE_STARTING = 1;
         private static final int WINDOW_TYPE_EXITING = 2;
         private static final int WINDOW_TYPE_DEBUGGER = 3;
 

@@ -170,7 +170,8 @@ public class TestUtils {
     /**
      * Executes a shell command.
      */
-    public static String executeShellCommand(String command) throws IOException {
+    public static String executeShellCommand(String pattern, Object...args) throws IOException {
+        String command = String.format(pattern, args);
         int attempt = 0;
         while (attempt++ < 5) {
             try {
@@ -743,7 +744,7 @@ public class TestUtils {
      */
     public static void assertDirectoryContains(@NonNull File dir, File... expectedContent) {
         assertThat(dir.isDirectory()).isTrue();
-        assertThat(Arrays.asList(dir.listFiles())).containsAllIn(expectedContent);
+        assertThat(Arrays.asList(dir.listFiles())).containsAtLeastElementsIn(expectedContent);
     }
 
     public static File getExternalStorageDir() {

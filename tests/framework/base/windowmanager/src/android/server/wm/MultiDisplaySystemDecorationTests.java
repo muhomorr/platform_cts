@@ -110,6 +110,8 @@ public class MultiDisplaySystemDecorationTests extends MultiDisplayTestBase {
      */
     @Test
     public void testWallpaperGetDisplayContext() throws Exception {
+        assumeTrue(supportsLiveWallpaper());
+
         final ChangeWallpaperSession wallpaperSession = createManagedChangeWallpaperSession();
         final VirtualDisplaySession virtualDisplaySession = createManagedVirtualDisplaySession();
 
@@ -183,7 +185,7 @@ public class MultiDisplaySystemDecorationTests extends MultiDisplayTestBase {
 
         @Override
         public void close() {
-            SystemUtil.runWithShellPermissionIdentity(mWallpaperManager::clearWallpaper);
+            SystemUtil.runWithShellPermissionIdentity(() -> mWallpaperManager.clearWallpaper());
             if (mTestBitmap != null) {
                 mTestBitmap.recycle();
             }

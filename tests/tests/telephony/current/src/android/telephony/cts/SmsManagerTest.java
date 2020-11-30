@@ -156,6 +156,34 @@ public class SmsManagerTest {
             String mccmnc = mTelephonyManager.getSimOperator();
             mDeliveryReportSupported = !(CarrierCapability.NO_DELIVERY_REPORTS.contains(mccmnc));
         }
+
+        // register receivers
+        mSendIntent = new Intent(SMS_SEND_ACTION);
+        mDeliveryIntent = new Intent(SMS_DELIVERY_ACTION);
+
+        IntentFilter sendIntentFilter = new IntentFilter(SMS_SEND_ACTION);
+        IntentFilter deliveryIntentFilter = new IntentFilter(SMS_DELIVERY_ACTION);
+        IntentFilter dataSmsReceivedIntentFilter = new IntentFilter(DATA_SMS_RECEIVED_ACTION);
+        IntentFilter smsDeliverIntentFilter = new IntentFilter(SMS_DELIVER_DEFAULT_APP_ACTION);
+        IntentFilter smsReceivedIntentFilter =
+                new IntentFilter(Telephony.Sms.Intents.SMS_RECEIVED_ACTION);
+        IntentFilter smsRetrieverIntentFilter = new IntentFilter(SMS_RETRIEVER_ACTION);
+        dataSmsReceivedIntentFilter.addDataScheme("sms");
+        dataSmsReceivedIntentFilter.addDataAuthority("localhost", "19989");
+
+        mSendReceiver = new SmsBroadcastReceiver(SMS_SEND_ACTION);
+        mDeliveryReceiver = new SmsBroadcastReceiver(SMS_DELIVERY_ACTION);
+        mDataSmsReceiver = new SmsBroadcastReceiver(DATA_SMS_RECEIVED_ACTION);
+        mSmsDeliverReceiver = new SmsBroadcastReceiver(SMS_DELIVER_DEFAULT_APP_ACTION);
+        mSmsReceivedReceiver = new SmsBroadcastReceiver(Telephony.Sms.Intents.SMS_RECEIVED_ACTION);
+        mSmsRetrieverReceiver = new SmsBroadcastReceiver(SMS_RETRIEVER_ACTION);
+
+        mContext.registerReceiver(mSendReceiver, sendIntentFilter);
+        mContext.registerReceiver(mDeliveryReceiver, deliveryIntentFilter);
+        mContext.registerReceiver(mDataSmsReceiver, dataSmsReceivedIntentFilter);
+        mContext.registerReceiver(mSmsDeliverReceiver, smsDeliverIntentFilter);
+        mContext.registerReceiver(mSmsReceivedReceiver, smsReceivedIntentFilter);
+        mContext.registerReceiver(mSmsRetrieverReceiver, smsRetrieverIntentFilter);
     }
 
     @After
@@ -166,6 +194,26 @@ public class SmsManagerTest {
         }
         if (mTestAppSetAsDefaultSmsApp) {
             setDefaultSmsApp(false);
+        }
+
+        // unregister receivers
+        if (mSendReceiver != null) {
+            mContext.unregisterReceiver(mSendReceiver);
+        }
+        if (mDeliveryReceiver != null) {
+            mContext.unregisterReceiver(mDeliveryReceiver);
+        }
+        if (mDataSmsReceiver != null) {
+            mContext.unregisterReceiver(mDataSmsReceiver);
+        }
+        if (mSmsDeliverReceiver != null) {
+            mContext.unregisterReceiver(mSmsDeliverReceiver);
+        }
+        if (mSmsReceivedReceiver != null) {
+            mContext.unregisterReceiver(mSmsReceivedReceiver);
+        }
+        if (mSmsRetrieverReceiver != null) {
+            mContext.unregisterReceiver(mSmsRetrieverReceiver);
         }
     }
 
@@ -213,7 +261,6 @@ public class SmsManagerTest {
                 TextUtils.isEmpty(mDestAddr));
 
         String mccmnc = mTelephonyManager.getSimOperator();
-        setupBroadcastReceivers();
         init();
 
         CompletableFuture<Bundle> callbackResult = new CompletableFuture<>();
@@ -242,10 +289,12 @@ public class SmsManagerTest {
         init();
         if (addMessageId) {
             long fakeMessageId = 19812L;
-            sendTextMessageWithMessageId(mDestAddr, mDestAddr, mSentIntent, mDeliveredIntent,
-                    fakeMessageId);
+            sendTextMessageWithMessageId(mDestAddr,
+                    String.valueOf(SystemClock.elapsedRealtimeNanos()), mSentIntent,
+                    mDeliveredIntent, fakeMessageId);
         } else {
-            sendTextMessage(mDestAddr, mDestAddr, mSentIntent, mDeliveredIntent);
+            sendTextMessage(mDestAddr, String.valueOf(SystemClock.elapsedRealtimeNanos()),
+                    mSentIntent, mDeliveredIntent);
         }
         assertTrue("[RERUN] Could not send SMS. Check signal.",
                 mSendReceiver.waitForCalls(1, TIME_OUT));
@@ -304,7 +353,6 @@ public class SmsManagerTest {
                 TextUtils.isEmpty(mDestAddr));
 
         String mccmnc = mTelephonyManager.getSimOperator();
-        setupBroadcastReceivers();
 
         // send/receive single text sms with and without messageId
         sendAndReceiveSms(/* addMessageId= */ true);
@@ -338,11 +386,11 @@ public class SmsManagerTest {
         // Setting default SMS App is needed to be able to block numbers.
         setDefaultSmsApp(true);
         blockNumber(mDestAddr);
-        setupBroadcastReceivers();
 
         // single-part SMS blocking
         init();
-        sendTextMessage(mDestAddr, mDestAddr, mSentIntent, mDeliveredIntent);
+        sendTextMessage(mDestAddr, String.valueOf(SystemClock.elapsedRealtimeNanos()),
+                mSentIntent, mDeliveredIntent);
         assertTrue("[RERUN] Could not send SMS. Check signal.",
                 mSendReceiver.waitForCalls(1, TIME_OUT));
         assertTrue("Expected no messages to be received due to number blocking.",
@@ -586,35 +634,6 @@ public class SmsManagerTest {
                 PendingIntent.FLAG_ONE_SHOT);
     }
 
-    private void setupBroadcastReceivers() {
-        mSendIntent = new Intent(SMS_SEND_ACTION);
-        mDeliveryIntent = new Intent(SMS_DELIVERY_ACTION);
-
-        IntentFilter sendIntentFilter = new IntentFilter(SMS_SEND_ACTION);
-        IntentFilter deliveryIntentFilter = new IntentFilter(SMS_DELIVERY_ACTION);
-        IntentFilter dataSmsReceivedIntentFilter = new IntentFilter(DATA_SMS_RECEIVED_ACTION);
-        IntentFilter smsDeliverIntentFilter = new IntentFilter(SMS_DELIVER_DEFAULT_APP_ACTION);
-        IntentFilter smsReceivedIntentFilter =
-                new IntentFilter(Telephony.Sms.Intents.SMS_RECEIVED_ACTION);
-        IntentFilter smsRetrieverIntentFilter = new IntentFilter(SMS_RETRIEVER_ACTION);
-        dataSmsReceivedIntentFilter.addDataScheme("sms");
-        dataSmsReceivedIntentFilter.addDataAuthority("localhost", "19989");
-
-        mSendReceiver = new SmsBroadcastReceiver(SMS_SEND_ACTION);
-        mDeliveryReceiver = new SmsBroadcastReceiver(SMS_DELIVERY_ACTION);
-        mDataSmsReceiver = new SmsBroadcastReceiver(DATA_SMS_RECEIVED_ACTION);
-        mSmsDeliverReceiver = new SmsBroadcastReceiver(SMS_DELIVER_DEFAULT_APP_ACTION);
-        mSmsReceivedReceiver = new SmsBroadcastReceiver(Telephony.Sms.Intents.SMS_RECEIVED_ACTION);
-        mSmsRetrieverReceiver = new SmsBroadcastReceiver(SMS_RETRIEVER_ACTION);
-
-        mContext.registerReceiver(mSendReceiver, sendIntentFilter);
-        mContext.registerReceiver(mDeliveryReceiver, deliveryIntentFilter);
-        mContext.registerReceiver(mDataSmsReceiver, dataSmsReceivedIntentFilter);
-        mContext.registerReceiver(mSmsDeliverReceiver, smsDeliverIntentFilter);
-        mContext.registerReceiver(mSmsReceivedReceiver, smsReceivedIntentFilter);
-        mContext.registerReceiver(mSmsRetrieverReceiver, smsRetrieverIntentFilter);
-    }
-
     /**
      * Returns the number of parts sent in the message. If Multi-part SMS is not supported,
      * returns 0.
@@ -737,24 +756,18 @@ public class SmsManagerTest {
         }
     }
 
+    /**
+     * Verify that SmsManager.getSmsCapacityOnIcc requires Permission.
+     * <p>
+     * Requires Permission:
+     * {@link android.Manifest.permission#READ_PHONE_STATE}.
+     */
     @Test
     public void testGetSmsCapacityOnIcc() {
         try {
             getSmsManager().getSmsCapacityOnIcc();
-            fail("Caller without READ_PRIVILEGED_PHONE_STATE should NOT be able to call API");
-        } catch (SecurityException se) {
-            // all good
-        }
-
-        InstrumentationRegistry.getInstrumentation().getUiAutomation()
-                .adoptShellPermissionIdentity("android.permission.READ_PRIVILEGED_PHONE_STATE");
-        try {
-            getSmsManager().getSmsCapacityOnIcc();
-        } catch (SecurityException se) {
-            fail("Caller with READ_PRIVILEGED_PHONE_STATE should be able to call API");
-        } finally {
-            InstrumentationRegistry.getInstrumentation().getUiAutomation()
-                    .dropShellPermissionIdentity();
+        } catch (SecurityException e) {
+            fail("Caller with READ_PHONE_STATE should be able to call API");
         }
     }
 
@@ -911,7 +924,7 @@ public class SmsManagerTest {
             if (mAction.equals(Telephony.Sms.Intents.SMS_RECEIVED_ACTION)) {
                 sMessageId = intent.getLongExtra("messageId", 0L);
             }
-            Log.i(TAG, "onReceive " + intent.getAction());
+            Log.i(TAG, "onReceive " + intent.getAction() + " mAction " + mAction);
             if (intent.getAction().equals(mAction)) {
                 synchronized (mLock) {
                     mCalls += 1;

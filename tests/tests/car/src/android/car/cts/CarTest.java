@@ -23,6 +23,7 @@ import android.content.Context;
 import android.content.ServiceConnection;
 import android.content.pm.PackageManager;
 import android.os.IBinder;
+import android.platform.test.annotations.AppModeFull;
 import android.test.suitebuilder.annotation.SmallTest;
 
 import androidx.annotation.NonNull;
@@ -43,6 +44,7 @@ import java.util.concurrent.TimeUnit;
 
 @SmallTest
 @RunWith(AndroidJUnit4.class)
+@AppModeFull(reason = "Test relies on other server to connect to.")
 public class CarTest {
     @ClassRule
     public static final RequiredFeatureRule sRequiredFeatureRule = new RequiredFeatureRule(

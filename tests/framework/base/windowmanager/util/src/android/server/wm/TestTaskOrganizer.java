@@ -61,6 +61,7 @@ class TestTaskOrganizer extends TaskOrganizer {
         registerOrganizerIfNeeded();
         ActivityManager.RunningTaskInfo taskInfo = getTaskInfo(taskId);
         final WindowContainerTransaction t = new WindowContainerTransaction();
+        t.setBounds(taskInfo.getToken(), null);
         t.reparent(taskInfo.getToken(), mRootPrimary.getToken(), true /* onTop */);
         applyTransaction(t);
     }
@@ -156,12 +157,14 @@ class TestTaskOrganizer extends TaskOrganizer {
 
         final int windowingMode =
                 taskInfo.getConfiguration().windowConfiguration.getWindowingMode();
-        if (windowingMode == WINDOWING_MODE_SPLIT_SCREEN_PRIMARY) {
+        if (windowingMode == WINDOWING_MODE_SPLIT_SCREEN_PRIMARY
+                && (mRootPrimary == null || mRootPrimary.taskId == taskInfo.taskId)) {
             mRootPrimary = taskInfo;
             processRootPrimaryTaskInfoChanged();
         }
 
-        if (windowingMode == WINDOWING_MODE_SPLIT_SCREEN_SECONDARY) {
+        if (windowingMode == WINDOWING_MODE_SPLIT_SCREEN_SECONDARY
+                && (mRootSecondary == null || mRootSecondary.taskId == taskInfo.taskId)) {
             mRootSecondary = taskInfo;
         }
     }

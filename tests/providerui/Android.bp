@@ -26,11 +26,11 @@ android_test {
         "junit",
         "androidx.legacy_legacy-support-v4",
     ],
-    srcs: ["src/**/*.java"],
+    srcs: ["src/**/*.java",
+           ":CtsProviderTestUtils"],
     // Tag this module as a cts test artifact
     test_suites: [
         "cts",
-        "vts10",
         "general-tests",
     ],
     sdk_version: "test_current",

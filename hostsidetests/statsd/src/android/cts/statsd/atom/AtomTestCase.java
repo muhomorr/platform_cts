@@ -128,7 +128,7 @@ public class AtomTestCase extends BaseTestCase {
     public static final int PHONE_TYPE_CDMA = 2;
     public static final int PHONE_TYPE_CDMA_LTE = 6;
 
-    protected static final int WAIT_TIME_SHORT = 500;
+    protected static final int WAIT_TIME_SHORT = 1000;
     protected static final int WAIT_TIME_LONG = 2_000;
 
     protected static final long SCREEN_STATE_CHANGE_TIMEOUT = 4000;
@@ -209,6 +209,12 @@ public class AtomTestCase extends BaseTestCase {
         builder.setDurationMs(10000);
         builder.setAllowUserBuildTracing(true);
 
+        TraceConfig.IncidentReportConfig incident = TraceConfig.IncidentReportConfig
+            .newBuilder()
+            .setDestinationPackage("foo.bar.baz")
+            .build();
+        builder.setIncidentReportConfig(incident);
+
         // To avoid being hit with guardrails firing in multiple test runs back
         // to back, we set a unique session key for each config.
         Random random = new Random();
@@ -266,6 +272,7 @@ public class AtomTestCase extends BaseTestCase {
           .addAllowedLogSource("AID_RADIO")
           .addAllowedLogSource("AID_ROOT")
           .addAllowedLogSource("AID_STATSD")
+          .addAllowedLogSource("com.android.systemui")
           .addAllowedLogSource(DeviceAtomTestCase.DEVICE_SIDE_TEST_PACKAGE)
           .addDefaultPullPackages("AID_RADIO")
           .addDefaultPullPackages("AID_SYSTEM")

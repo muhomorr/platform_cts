@@ -23,8 +23,9 @@ import static com.android.cts.shim.lib.ShimPackage.SHIM_PACKAGE_NAME;
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
 
-import static org.junit.Assume.assumeThat;
+import static org.junit.Assume.assumeTrue;
 
+import android.cts.install.lib.host.InstallUtilsHost;
 import android.platform.test.annotations.LargeTest;
 
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
@@ -36,7 +37,6 @@ import com.android.tradefed.util.FileUtil;
 import com.android.tradefed.util.RunUtil;
 import com.android.tradefed.util.ZipUtil;
 
-import org.hamcrest.CoreMatchers;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -66,6 +66,8 @@ import java.util.zip.ZipFile;
  */
 @RunWith(DeviceJUnit4ClassRunner.class)
 public class ApexShimValidationTest extends BaseHostJUnit4Test {
+
+    private final InstallUtilsHost mHostUtils = new InstallUtilsHost(this);
 
     private static final String SHIM_APK_CODE_PATH_PREFIX = "/apex/" + SHIM_APEX_PACKAGE_NAME + "/";
     private static final String STAGED_INSTALL_TEST_FILE_NAME = "StagedInstallTest.apk";
@@ -107,8 +109,7 @@ public class ApexShimValidationTest extends BaseHostJUnit4Test {
 
     @Before
     public void setUp() throws Exception {
-        final String updatable = getDevice().getProperty("ro.apex.updatable");
-        assumeThat("Device doesn't support updating APEX", updatable, CoreMatchers.equalTo("true"));
+        assumeTrue("Device doesn't support updating APEX", mHostUtils.isApexUpdateSupported());
         cleanUp();
         mDeapexerZip = getTestInformation().getDependencyFile(DEAPEXER_ZIP_FILE_NAME, false);
         mAllApexesZip = getTestInformation().getDependencyFile(STAGED_INSTALL_TEST_FILE_NAME,

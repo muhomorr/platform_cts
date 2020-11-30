@@ -181,6 +181,11 @@ public class NotificationManagerTest extends AndroidTestCase {
         mAudioManager = (AudioManager) mContext.getSystemService(Context.AUDIO_SERVICE);
         mRuleIds = new ArrayList<>();
 
+        // ensure listener access isn't allowed before test runs (other tests could put
+        // TestListener in an unexpected state)
+        toggleListenerAccess(TestNotificationListener.getId(),
+                InstrumentationRegistry.getInstrumentation(), false);
+
         toggleNotificationPolicyAccess(mContext.getPackageName(),
                 InstrumentationRegistry.getInstrumentation(), true);
         mNotificationManager.setInterruptionFilter(INTERRUPTION_FILTER_ALL);
@@ -282,6 +287,19 @@ public class NotificationManagerTest extends AndroidTestCase {
             operationList.add(builder.build());
         }
 
+        try {
+            mContext.getContentResolver().applyBatch(ContactsContract.AUTHORITY, operationList);
+        } catch (RemoteException e) {
+            Log.e(TAG, String.format("%s: %s", e.toString(), e.getMessage()));
+        } catch (OperationApplicationException e) {
+            Log.e(TAG, String.format("%s: %s", e.toString(), e.getMessage()));
+        }
+    }
+
+    private void deleteSingleContact(Uri uri) {
+        final ArrayList<ContentProviderOperation> operationList =
+                new ArrayList<ContentProviderOperation>();
+        operationList.add(ContentProviderOperation.newDelete(uri).build());
         try {
             mContext.getContentResolver().applyBatch(ContactsContract.AUTHORITY, operationList);
         } catch (RemoteException e) {
@@ -599,9 +617,9 @@ public class NotificationManagerTest extends AndroidTestCase {
         runCommand(command, instrumentation);
 
         NotificationManager nm = mContext.getSystemService(NotificationManager.class);
-        Assert.assertEquals("Notification Policy Access Grant is " +
-                        nm.isNotificationPolicyAccessGranted() + " not " + on, on,
-                nm.isNotificationPolicyAccessGranted());
+        assertEquals("Notification Policy Access Grant is "
+                + nm.isNotificationPolicyAccessGranted() + " not " + on + " for "
+                + packageName,  on, nm.isNotificationPolicyAccessGranted());
     }
 
     private void suspendPackage(String packageName,
@@ -2050,7 +2068,8 @@ public class NotificationManagerTest extends AndroidTestCase {
 
             // ensure volume is not muted/0 to start test
             mAudioManager.setStreamVolume(AudioManager.STREAM_MUSIC, 1, 0);
-            mAudioManager.setStreamVolume(AudioManager.STREAM_ALARM, 1, 0);
+            // exception for presidential alert
+            //mAudioManager.setStreamVolume(AudioManager.STREAM_ALARM, 1, 0);
             mAudioManager.setStreamVolume(AudioManager.STREAM_SYSTEM, 1, 0);
             mAudioManager.setStreamVolume(AudioManager.STREAM_RING, 1, 0);
 
@@ -2070,12 +2089,14 @@ public class NotificationManagerTest extends AndroidTestCase {
                     mAudioManager.isStreamMute(AudioManager.STREAM_MUSIC));
             assertTrue("System stream should be muted",
                     mAudioManager.isStreamMute(AudioManager.STREAM_SYSTEM));
-            assertTrue("Alarm stream should be muted",
-                    mAudioManager.isStreamMute(AudioManager.STREAM_ALARM));
+            // exception for presidential alert
+            //assertTrue("Alarm stream should be muted",
+            //        mAudioManager.isStreamMute(AudioManager.STREAM_ALARM));
 
             // Test requires that the phone's default state has no channels that can bypass dnd
-            assertTrue("Ringer stream should be muted",
-                    mAudioManager.isStreamMute(AudioManager.STREAM_RING));
+            // which we can't currently guarantee (b/169267379)
+            // assertTrue("Ringer stream should be muted",
+            //        mAudioManager.isStreamMute(AudioManager.STREAM_RING));
         } finally {
             mNotificationManager.setInterruptionFilter(originalFilter);
             mNotificationManager.setNotificationPolicy(origPolicy);
@@ -2115,8 +2136,9 @@ public class NotificationManagerTest extends AndroidTestCase {
                     mAudioManager.isStreamMute(AudioManager.STREAM_ALARM));
 
             // Test requires that the phone's default state has no channels that can bypass dnd
-            assertTrue("Ringer stream should be muted",
-                    mAudioManager.isStreamMute(AudioManager.STREAM_RING));
+            // which we can't currently guarantee (b/169267379)
+            // assertTrue("Ringer stream should be muted",
+            //  mAudioManager.isStreamMute(AudioManager.STREAM_RING));
         } finally {
             mNotificationManager.setInterruptionFilter(originalFilter);
             mNotificationManager.setNotificationPolicy(origPolicy);
@@ -2401,7 +2423,7 @@ public class NotificationManagerTest extends AndroidTestCase {
 
         // wait for the activity to launch and finish
         mContext.startActivity(activityIntent);
-        Thread.sleep(1000);
+        Thread.sleep(mActivityManager.isLowRamDevice() ? 1500 : 1000);
 
         // send notification
         Notification n = new Notification.Builder(mContext, "channel")
@@ -2625,6 +2647,7 @@ public class NotificationManagerTest extends AndroidTestCase {
         toggleNotificationPolicyAccess(mContext.getPackageName(),
                 InstrumentationRegistry.getInstrumentation(), true);
         Policy origPolicy = mNotificationManager.getNotificationPolicy();
+        Uri aliceUri = null;
         try {
             NotificationManager.Policy currPolicy = mNotificationManager.getNotificationPolicy();
             NotificationManager.Policy newPolicy = new NotificationManager.Policy(
@@ -2644,13 +2667,17 @@ public class NotificationManagerTest extends AndroidTestCase {
 
             final Bundle peopleExtras = new Bundle();
             ArrayList<Person> personList = new ArrayList<>();
-            personList.add(
-                    new Person.Builder().setUri(lookupContact(ALICE_PHONE).toString()).build());
+            aliceUri = lookupContact(ALICE_PHONE);
+            personList.add(new Person.Builder().setUri(aliceUri.toString()).build());
             peopleExtras.putParcelableArrayList(Notification.EXTRA_PEOPLE_LIST, personList);
             SystemUtil.runWithShellPermissionIdentity(() ->
                     assertTrue(mNotificationManager.matchesCallFilter(peopleExtras)));
         } finally {
             mNotificationManager.setNotificationPolicy(origPolicy);
+            if (aliceUri != null) {
+                // delete the contact
+                deleteSingleContact(aliceUri);
+            }
         }
 
     }
@@ -2975,7 +3002,8 @@ public class NotificationManagerTest extends AndroidTestCase {
 
     public void testNotificationManagerBubble_checkActivityFlagsDocumentLaunchMode()
             throws Exception {
-        if (FeatureUtil.isAutomotive() || FeatureUtil.isTV()) {
+        if (FeatureUtil.isAutomotive() || FeatureUtil.isTV()
+                || mActivityManager.isLowRamDevice()) {
             // These do not support bubbles.
             return;
         }
@@ -3224,7 +3252,8 @@ public class NotificationManagerTest extends AndroidTestCase {
 
     public void testNotificationManagerBubblePolicy_noFlag_shortcutRemoved()
             throws Exception {
-        if (FeatureUtil.isAutomotive() || FeatureUtil.isTV()) {
+        if (FeatureUtil.isAutomotive() || FeatureUtil.isTV()
+                    || mActivityManager.isLowRamDevice()) {
             // These do not support bubbles.
             return;
         }
@@ -3251,7 +3280,8 @@ public class NotificationManagerTest extends AndroidTestCase {
     }
 
     public void testNotificationManagerBubbleNotificationSuppression() throws Exception {
-        if (FeatureUtil.isAutomotive() || FeatureUtil.isTV()) {
+        if (FeatureUtil.isAutomotive() || FeatureUtil.isTV()
+                || mActivityManager.isLowRamDevice()) {
             // These do not support bubbles.
             return;
         }

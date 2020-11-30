@@ -17,6 +17,7 @@
 #ifndef MEDIACTSNATIVE_NATIVE_MEDIA_COMMON_H
 #define MEDIACTSNATIVE_NATIVE_MEDIA_COMMON_H
 
+#include <inttypes.h>
 #include <NdkMediaFormat.h>
 
 extern const char* AMEDIA_MIMETYPE_VIDEO_VP8;
@@ -30,6 +31,7 @@ extern const char* AMEDIA_MIMETYPE_VIDEO_H263;
 extern const char* AMEDIA_MIMETYPE_AUDIO_AMR_NB;
 extern const char* AMEDIA_MIMETYPE_AUDIO_AMR_WB;
 extern const char* AMEDIA_MIMETYPE_AUDIO_AAC;
+extern const char* AMEDIA_MIMETYPE_AUDIO_FLAC;
 extern const char* AMEDIA_MIMETYPE_AUDIO_VORBIS;
 extern const char* AMEDIA_MIMETYPE_AUDIO_OPUS;
 

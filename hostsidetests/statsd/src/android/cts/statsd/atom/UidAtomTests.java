@@ -16,7 +16,6 @@
 package android.cts.statsd.atom;
 
 import static com.android.os.AtomsProto.IntegrityCheckResultReported.Response.ALLOWED;
-
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
 
@@ -25,9 +24,9 @@ import android.net.wifi.WifiModeEnum;
 import android.os.WakeLockLevelEnum;
 import android.server.ErrorSource;
 import android.telephony.NetworkTypeEnum;
-
 import com.android.compatibility.common.tradefed.build.CompatibilityBuildHelper;
 import com.android.compatibility.common.util.PropertyUtil;
+import com.android.internal.os.StatsdConfigProto.FieldValueMatcher;
 import com.android.internal.os.StatsdConfigProto.StatsdConfig;
 import com.android.os.AtomsProto;
 import com.android.os.AtomsProto.ANROccurred;
@@ -73,6 +72,7 @@ import com.android.os.AtomsProto.ScheduledJobStateChanged;
 import com.android.os.AtomsProto.SettingSnapshot;
 import com.android.os.AtomsProto.SyncStateChanged;
 import com.android.os.AtomsProto.TestAtomReported;
+import com.android.os.AtomsProto.UiEventReported;
 import com.android.os.AtomsProto.VibratorStateChanged;
 import com.android.os.AtomsProto.WakelockStateChanged;
 import com.android.os.AtomsProto.WakeupAlarmOccurred;
@@ -82,10 +82,8 @@ import com.android.os.AtomsProto.WifiScanStateChanged;
 import com.android.os.StatsLog.EventMetricData;
 import com.android.server.notification.SmallHash;
 import com.android.tradefed.log.LogUtil;
-
 import com.google.common.collect.Range;
 import com.google.protobuf.Descriptors;
-
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -93,6 +91,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * Statsd atom tests that are done via app, for atoms that report a uid.
@@ -416,6 +415,9 @@ public class UidAtomTests extends DeviceAtomTestCase {
 
     public void testDeviceCalculatedPowerBlameUid() throws Exception {
         if (!hasFeature(FEATURE_LEANBACK_ONLY, false)) return;
+        if (!hasBattery()) {
+            return;
+        }
 
         String kernelVersion = getDevice().executeShellCommand("uname -r");
         if (kernelVersion.contains("3.18")) {
@@ -733,15 +735,15 @@ public class UidAtomTests extends DeviceAtomTestCase {
             return;
         }
 
-        final int atomTag = Atom.PICTURE_IN_PICTURE_STATE_CHANGED_FIELD_NUMBER;
-
-        Set<Integer> entered = new HashSet<>(
-                Arrays.asList(PictureInPictureStateChanged.State.ENTERED_VALUE));
-
-        // Add state sets to the list in order.
-        List<Set<Integer>> stateSet = Arrays.asList(entered);
-
-        createAndUploadConfig(atomTag, false);
+        StatsdConfig.Builder conf = createConfigBuilder();
+        // PictureInPictureStateChanged atom is used prior to rvc-qpr
+        addAtomEvent(conf, Atom.PICTURE_IN_PICTURE_STATE_CHANGED_FIELD_NUMBER,
+                /*useAttribution=*/false);
+        // Picture-in-picture logs' been migrated to UiEvent since rvc-qpr
+        FieldValueMatcher.Builder pkgMatcher = createFvm(UiEventReported.PACKAGE_NAME_FIELD_NUMBER)
+                .setEqString(DEVICE_SIDE_TEST_PACKAGE);
+        addAtomEvent(conf, Atom.UI_EVENT_REPORTED_FIELD_NUMBER, Arrays.asList(pkgMatcher));
+        uploadConfig(conf);
 
         LogUtil.CLog.d("Playing video in Picture-in-Picture mode");
         runActivity("VideoPlayerActivity", "action", "action.play_video_picture_in_picture_mode");
@@ -749,9 +751,34 @@ public class UidAtomTests extends DeviceAtomTestCase {
         // Sorted list of events in order in which they occurred.
         List<EventMetricData> data = getEventMetricDataList();
 
-        // Assert that the events happened in the expected order.
-        assertStatesOccurred(stateSet, data, WAIT_TIME_LONG,
-                atom -> atom.getPictureInPictureStateChanged().getState().getNumber());
+        // Filter out the PictureInPictureStateChanged and UiEventReported atom
+        List<EventMetricData> pictureInPictureStateChangedData = data.stream()
+                .filter(e -> e.getAtom().hasPictureInPictureStateChanged())
+                .collect(Collectors.toList());
+        List<EventMetricData> uiEventReportedData = data.stream()
+                .filter(e -> e.getAtom().hasUiEventReported())
+                .collect(Collectors.toList());
+
+        if (!pictureInPictureStateChangedData.isEmpty()) {
+            LogUtil.CLog.d("Assert using PictureInPictureStateChanged");
+            Set<Integer> entered = new HashSet<>(
+                    Arrays.asList(PictureInPictureStateChanged.State.ENTERED_VALUE));
+            List<Set<Integer>> stateSet = Arrays.asList(entered);
+            assertStatesOccurred(stateSet, data, WAIT_TIME_LONG,
+                    atom -> atom.getPictureInPictureStateChanged().getState().getNumber());
+        } else if (!uiEventReportedData.isEmpty()) {
+            LogUtil.CLog.d("Assert using UiEventReported");
+            // See PipUiEventEnum for definitions
+            final int enterPipEventId = 603;
+            // Assert that log for entering PiP happens exactly once, we do not use
+            // assertStateOccurred here since PiP may log something else when activity finishes.
+            List<EventMetricData> entered = uiEventReportedData.stream()
+                    .filter(e -> e.getAtom().getUiEventReported().getEventId() == enterPipEventId)
+                    .collect(Collectors.toList());
+            assertThat(entered).hasSize(1);
+        } else {
+            fail("No logging event from PictureInPictureStateChanged nor UiEventReported");
+        }
     }
 
     public void testScheduledJobState() throws Exception {
@@ -1758,18 +1785,32 @@ public class UidAtomTests extends DeviceAtomTestCase {
 
     public void testSettingsStatsReported() throws Exception {
         // Base64 encoded proto com.android.service.nano.StringListParamProto,
-        // which contains two strings "font_scale" and "screen_auto_brightness_adj".
-        final String encoded = "ChpzY3JlZW5fYXV0b19icmlnaHRuZXNzX2FkagoKZm9udF9zY2FsZQ";
-        final String font_scale = "font_scale";
-        SettingSnapshot snapshot = null;
+        // which contains five strings 'low_power_trigger_level', 'preferred_network_mode1',
+        // 'preferred_network_mode1_int', 'wfc_ims_mode','zen_mode'
+        final String encoded =
+            "Chdsb3dfcG93ZXJfdHJpZ2dlcl9sZXZlbAoQd2ZjX2ltc19tb2RlID0gMgoXcHJlZmVycmVkX25ldHdvcmtfbW9kZTEKG3ByZWZlcnJlZF9uZXR3b3JrX21vZGUxX2ludAoIemVuX21vZGU";
+        final String network_mode1 = "preferred_network_mode1";
 
+        int originalNetworkMode;
+        try {
+            originalNetworkMode = Integer.parseInt(
+                getDevice().executeShellCommand("settings get global " + network_mode1));
+        } catch (NumberFormatException e) {
+            // The default value, zen mode is not enabled
+            originalNetworkMode = 0;
+        }
+
+        // Clear settings_stats device config.
+        Thread.sleep(WAIT_TIME_SHORT);
+        getDevice().executeShellCommand(
+            "device_config reset untrusted_clear settings_stats");
         // Set whitelist through device config.
         Thread.sleep(WAIT_TIME_SHORT);
         getDevice().executeShellCommand(
-                "device_config put settings_stats SystemFeature__float_whitelist " + encoded);
+            "device_config put settings_stats GlobalFeature__integer_whitelist " + encoded);
         Thread.sleep(WAIT_TIME_SHORT);
-        // Set font_scale value
-        getDevice().executeShellCommand("settings put system font_scale 1.5");
+        // Set network_mode1 value
+        getDevice().executeShellCommand("settings put global " + network_mode1 + " 15");
 
         // Get SettingSnapshot as a simple gauge metric.
         StatsdConfig.Builder config = createConfigBuilder();
@@ -1786,13 +1827,13 @@ public class UidAtomTests extends DeviceAtomTestCase {
             Thread.sleep(WAIT_TIME_LONG);
         }
 
-        // Test the size of atoms. It should contain at least "font_scale" and
-        // "screen_auto_brightness_adj" two setting values.
+        // Test the size of atoms. It should contain 5 atoms
         List<Atom> atoms = getGaugeMetricDataList();
-        assertThat(atoms.size()).isAtLeast(2);
+        assertThat(atoms.size()).isEqualTo(5);
+        SettingSnapshot snapshot = null;
         for (Atom atom : atoms) {
             SettingSnapshot settingSnapshot = atom.getSettingSnapshot();
-            if (font_scale.equals(settingSnapshot.getName())) {
+            if (network_mode1.equals(settingSnapshot.getName())) {
                 snapshot = settingSnapshot;
                 break;
             }
@@ -1801,16 +1842,20 @@ public class UidAtomTests extends DeviceAtomTestCase {
         Thread.sleep(WAIT_TIME_SHORT);
         // Test the data of atom.
         assertNotNull(snapshot);
-        // Get font_scale value and test value type.
-        final float fontScale = Float.parseFloat(
-                getDevice().executeShellCommand("settings get system font_scale"));
+        // Get setting value and test value type.
+        final int newNetworkMode = Integer.parseInt(
+            getDevice().executeShellCommand("settings get global " + network_mode1).trim());
         assertThat(snapshot.getType()).isEqualTo(
-                SettingSnapshot.SettingsValueType.ASSIGNED_FLOAT_TYPE);
+            SettingSnapshot.SettingsValueType.ASSIGNED_INT_TYPE);
         assertThat(snapshot.getBoolValue()).isEqualTo(false);
-        assertThat(snapshot.getIntValue()).isEqualTo(0);
-        assertThat(snapshot.getFloatValue()).isEqualTo(fontScale);
+        assertThat(snapshot.getIntValue()).isEqualTo(newNetworkMode);
+        assertThat(snapshot.getFloatValue()).isEqualTo(0f);
         assertThat(snapshot.getStrValue()).isEqualTo("");
         assertThat(snapshot.getUserId()).isEqualTo(0);
+
+        // Restore the setting value.
+        getDevice().executeShellCommand(
+            "settings put global " + network_mode1 + " " + originalNetworkMode);
     }
 
     public void testIntegrityCheckAtomReportedDuringInstall() throws Exception {
@@ -1905,7 +1950,7 @@ public class UidAtomTests extends DeviceAtomTestCase {
         doTestMobileBytesTransferThat(atomId, (atom) -> {
             final AtomsProto.BytesTransferByTagAndMetered data =
                     ((Atom) atom).getBytesTransferByTagAndMetered();
-            if (data.getUid() == appUid) {
+            if (data.getUid() == appUid && data.getTag() == 0 /*app traffic generated on tag 0*/) {
                 assertDataUsageAtomDataExpected(data.getRxBytes(), data.getTxBytes(),
                         data.getRxPackets(), data.getTxPackets());
                 return true; // found

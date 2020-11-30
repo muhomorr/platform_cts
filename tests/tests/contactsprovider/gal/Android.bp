@@ -1,0 +1,13 @@
+android_test_helper_app {
+    name: "CtsContactsProviderGalProvider",
+    defaults: ["cts_defaults"],
+
+    test_suites: [
+        "cts",
+        "general-tests",
+    ],
+
+    srcs: ["src/**/*.java"],
+
+    min_sdk_version: "30",
+}

@@ -20,7 +20,7 @@ import static android.content.pm.PermissionInfo.FLAG_INSTALLED;
 import static android.content.pm.PermissionInfo.PROTECTION_MASK_BASE;
 import static android.os.Build.VERSION.SECURITY_PATCH;
 
-import static com.google.common.truth.Truth.assertThat;
+import static com.google.common.truth.Truth.assertWithMessage;
 
 import android.content.Context;
 import android.content.pm.PackageInfo;
@@ -68,6 +68,9 @@ public class PermissionPolicyTest {
     private static final Date MANAGE_COMPANION_DEVICES_PATCH_DATE = parseDate("2020-07-01");
     private static final String MANAGE_COMPANION_DEVICES_PERMISSION
             = "android.permission.MANAGE_COMPANION_DEVICES";
+
+    private static final Date INPUT_CONSUMER_PATCH_DATE = parseDate("2020-12-05");
+    private static final String INPUT_CONSUMER_PERMISSION = "android.permission.INPUT_CONSUMER";
 
     private static final String LOG_TAG = "PermissionProtectionTest";
 
@@ -117,6 +120,11 @@ public class PermissionPolicyTest {
         for (ExpectedPermissionInfo expectedPermission : expectedPermissions) {
             String expectedPermissionName = expectedPermission.name;
             if (shouldSkipPermission(expectedPermissionName)) {
+                // This permission doesn't need to exist yet, but will exist in
+                // a future SPL. It is acceptable to declare the permission
+                // even in an earlier SPL, so we remove it here so it doesn't
+                // trigger a failure after the loop.
+                declaredPermissionsMap.remove(expectedPermissionName);
                 continue;
             }
 
@@ -230,7 +238,7 @@ public class PermissionPolicyTest {
         }
 
         // Fail on any offending item
-        assertThat(offendingList).named("list of offending permissions").isEmpty();
+        assertWithMessage("list of offending permissions").that(offendingList).isEmpty();
     }
 
     private List<ExpectedPermissionInfo> loadExpectedPermissions(int resourceId) throws Exception {
@@ -446,6 +454,8 @@ public class PermissionPolicyTest {
                 return parseDate(SECURITY_PATCH).before(HIDE_NON_SYSTEM_OVERLAY_WINDOWS_PATCH_DATE);
             case MANAGE_COMPANION_DEVICES_PERMISSION:
                 return parseDate(SECURITY_PATCH).before(MANAGE_COMPANION_DEVICES_PATCH_DATE);
+            case INPUT_CONSUMER_PERMISSION:
+                return parseDate(SECURITY_PATCH).before(INPUT_CONSUMER_PATCH_DATE);
             default:
                 return false;
         }

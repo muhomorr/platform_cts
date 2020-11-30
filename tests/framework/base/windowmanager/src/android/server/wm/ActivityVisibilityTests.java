@@ -139,7 +139,7 @@ public class ActivityVisibilityTests extends ActivityManagerTestBase {
      */
     @Test
     public void testHomeVisibleOnActivityTaskPinned() throws Exception {
-        if (!supportsPip()) {
+        if (!supportsPip() || !hasHomeScreen()) {
             return;
         }
 
@@ -332,7 +332,7 @@ public class ActivityVisibilityTests extends ActivityManagerTestBase {
         mWmState.assertVisibility(MOVE_TASK_TO_BACK_ACTIVITY, true);
 
         // Launch a different activity on top.
-        launchActivity(BROADCAST_RECEIVER_ACTIVITY);
+        launchActivity(BROADCAST_RECEIVER_ACTIVITY, WINDOWING_MODE_FULLSCREEN);
         mWmState.waitForActivityState(BROADCAST_RECEIVER_ACTIVITY, STATE_RESUMED);
         mWmState.waitForActivityState(MOVE_TASK_TO_BACK_ACTIVITY,STATE_STOPPED);
         final boolean shouldBeVisible =
@@ -465,11 +465,12 @@ public class ActivityVisibilityTests extends ActivityManagerTestBase {
      */
     @Test
     public void testActivityStoppedWhileNextActivityNotIdle() {
-        launchActivity(LAUNCHING_ACTIVITY);
+        final ComponentName activityWithSameAffinity = TURN_SCREEN_ON_ATTR_ACTIVITY;
+        launchActivity(activityWithSameAffinity);
         launchNoIdleActivity();
-        waitAndAssertActivityState(LAUNCHING_ACTIVITY, STATE_STOPPED,
+        waitAndAssertActivityState(activityWithSameAffinity, STATE_STOPPED,
                 "Activity should be stopped before idle timeout");
-        mWmState.assertVisibility(LAUNCHING_ACTIVITY, false);
+        mWmState.assertVisibility(activityWithSameAffinity, false);
     }
 
     private void launchNoIdleActivity() {
@@ -478,6 +479,7 @@ public class ActivityVisibilityTests extends ActivityManagerTestBase {
                 .setIntentExtra(
                         extra -> extra.putBoolean(Components.TestActivity.EXTRA_NO_IDLE, true))
                 .setTargetActivity(TEST_ACTIVITY)
+                .setWindowingMode(WINDOWING_MODE_FULLSCREEN)
                 .execute();
     }
 
@@ -552,7 +554,7 @@ public class ActivityVisibilityTests extends ActivityManagerTestBase {
         final LockScreenSession lockScreenSession = createManagedLockScreenSession();
         lockScreenSession.sleepDevice();
         separateTestJournal();
-        launchActivity(TURN_SCREEN_ON_SINGLE_TASK_ACTIVITY);
+        launchActivity(TURN_SCREEN_ON_SINGLE_TASK_ACTIVITY, WINDOWING_MODE_FULLSCREEN);
         mWmState.assertVisibility(TURN_SCREEN_ON_SINGLE_TASK_ACTIVITY, true);
         assertTrue("Display turns on", isDisplayOn(DEFAULT_DISPLAY));
         assertSingleLaunch(TURN_SCREEN_ON_SINGLE_TASK_ACTIVITY);

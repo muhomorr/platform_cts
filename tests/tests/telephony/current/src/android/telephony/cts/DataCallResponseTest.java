@@ -16,6 +16,9 @@
 
 package android.telephony.cts;
 
+import static android.telephony.data.DataCallResponse.HANDOVER_FAILURE_MODE_DO_FALLBACK;
+import static android.telephony.data.DataCallResponse.HANDOVER_FAILURE_MODE_LEGACY;
+
 import static com.google.common.truth.Truth.assertThat;
 
 import android.net.InetAddresses;
@@ -32,7 +35,7 @@ import java.util.List;
 
 public class DataCallResponseTest {
     private static final int CAUSE = 0;
-    private static final int RETRY = -1;
+    private static final long RETRY = -1L;
     private static final int ID = 1;
     private static final int LINK_STATUS = 2;
     private static final int PROTOCOL_TYPE = ApnSetting.PROTOCOL_IP;
@@ -47,12 +50,14 @@ public class DataCallResponseTest {
             Arrays.asList(InetAddresses.parseNumericAddress("22.33.44.55"));
     private static final int MTU_V4 = 1440;
     private static final int MTU_V6 = 1400;
+    private static final int HANDOVER_FAILURE_MODE = HANDOVER_FAILURE_MODE_DO_FALLBACK;
+    private static final int PDU_SESSION_ID = 5;
 
     @Test
     public void testConstructorAndGetters() {
         DataCallResponse response = new DataCallResponse.Builder()
                 .setCause(CAUSE)
-                .setSuggestedRetryTime(RETRY)
+                .setRetryIntervalMillis(RETRY)
                 .setId(ID)
                 .setLinkStatus(LINK_STATUS)
                 .setProtocolType(PROTOCOL_TYPE)
@@ -63,10 +68,12 @@ public class DataCallResponseTest {
                 .setPcscfAddresses(PCSCFS)
                 .setMtuV4(MTU_V4)
                 .setMtuV6(MTU_V6)
+                .setHandoverFailureMode(HANDOVER_FAILURE_MODE)
+                .setPduSessionId(PDU_SESSION_ID)
                 .build();
 
         assertThat(response.getCause()).isEqualTo(CAUSE);
-        assertThat(response.getSuggestedRetryTime()).isEqualTo(RETRY);
+        assertThat(response.getRetryIntervalMillis()).isEqualTo(RETRY);
         assertThat(response.getId()).isEqualTo(ID);
         assertThat(response.getLinkStatus()).isEqualTo(LINK_STATUS);
         assertThat(response.getProtocolType()).isEqualTo(PROTOCOL_TYPE);
@@ -77,13 +84,15 @@ public class DataCallResponseTest {
         assertThat(response.getPcscfAddresses()).isEqualTo(PCSCFS);
         assertThat(response.getMtuV4()).isEqualTo(MTU_V4);
         assertThat(response.getMtuV6()).isEqualTo(MTU_V6);
+        assertThat(response.getHandoverFailureMode()).isEqualTo(HANDOVER_FAILURE_MODE_DO_FALLBACK);
+        assertThat(response.getPduSessionId()).isEqualTo(PDU_SESSION_ID);
     }
 
     @Test
     public void testEquals() {
         DataCallResponse response = new DataCallResponse.Builder()
                 .setCause(CAUSE)
-                .setSuggestedRetryTime(RETRY)
+                .setRetryIntervalMillis(RETRY)
                 .setId(ID)
                 .setLinkStatus(LINK_STATUS)
                 .setProtocolType(PROTOCOL_TYPE)
@@ -94,11 +103,13 @@ public class DataCallResponseTest {
                 .setPcscfAddresses(PCSCFS)
                 .setMtuV4(MTU_V4)
                 .setMtuV6(MTU_V6)
+                .setHandoverFailureMode(HANDOVER_FAILURE_MODE)
+                .setPduSessionId(PDU_SESSION_ID)
                 .build();
 
         DataCallResponse equalsResponse = new DataCallResponse.Builder()
                 .setCause(CAUSE)
-                .setSuggestedRetryTime(RETRY)
+                .setRetryIntervalMillis(RETRY)
                 .setId(ID)
                 .setLinkStatus(LINK_STATUS)
                 .setProtocolType(PROTOCOL_TYPE)
@@ -109,6 +120,8 @@ public class DataCallResponseTest {
                 .setPcscfAddresses(PCSCFS)
                 .setMtuV4(MTU_V4)
                 .setMtuV6(MTU_V6)
+                .setHandoverFailureMode(HANDOVER_FAILURE_MODE)
+                .setPduSessionId(PDU_SESSION_ID)
                 .build();
 
         assertThat(response).isEqualTo(equalsResponse);
@@ -118,7 +131,7 @@ public class DataCallResponseTest {
     public void testNotEquals() {
         DataCallResponse response = new DataCallResponse.Builder()
                 .setCause(CAUSE)
-                .setSuggestedRetryTime(RETRY)
+                .setRetryIntervalMillis(RETRY)
                 .setId(ID)
                 .setLinkStatus(LINK_STATUS)
                 .setProtocolType(PROTOCOL_TYPE)
@@ -129,11 +142,13 @@ public class DataCallResponseTest {
                 .setPcscfAddresses(PCSCFS)
                 .setMtuV4(MTU_V4)
                 .setMtuV6(MTU_V6)
+                .setHandoverFailureMode(HANDOVER_FAILURE_MODE)
+                .setPduSessionId(PDU_SESSION_ID)
                 .build();
 
         DataCallResponse notEqualsResponse = new DataCallResponse.Builder()
                 .setCause(1)
-                .setSuggestedRetryTime(-1)
+                .setRetryIntervalMillis(-1)
                 .setId(1)
                 .setLinkStatus(3)
                 .setProtocolType(PROTOCOL_TYPE)
@@ -144,6 +159,8 @@ public class DataCallResponseTest {
                 .setPcscfAddresses(PCSCFS)
                 .setMtuV4(1441)
                 .setMtuV6(1440)
+                .setHandoverFailureMode(HANDOVER_FAILURE_MODE_LEGACY)
+                .setPduSessionId(PDU_SESSION_ID)
                 .build();
 
         assertThat(response).isNotEqualTo(notEqualsResponse);
@@ -155,7 +172,7 @@ public class DataCallResponseTest {
     public void testParcel() {
         DataCallResponse response = new DataCallResponse.Builder()
                 .setCause(CAUSE)
-                .setSuggestedRetryTime(RETRY)
+                .setRetryIntervalMillis(RETRY)
                 .setId(ID)
                 .setLinkStatus(LINK_STATUS)
                 .setProtocolType(PROTOCOL_TYPE)
@@ -166,6 +183,8 @@ public class DataCallResponseTest {
                 .setPcscfAddresses(PCSCFS)
                 .setMtuV4(MTU_V4)
                 .setMtuV6(MTU_V6)
+                .setHandoverFailureMode(HANDOVER_FAILURE_MODE)
+                .setPduSessionId(PDU_SESSION_ID)
                 .build();
 
         Parcel stateParcel = Parcel.obtain();

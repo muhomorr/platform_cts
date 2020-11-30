@@ -43,6 +43,7 @@ android_test {
         "truth-prebuilt",
         "mockito-target-minus-junit4",
         "androidx.heifwriter_heifwriter",
+        "CtsCameraUtils",
     ],
     jni_libs: [
         "libaudio_jni",
@@ -75,7 +76,6 @@ android_test {
     // Tag this module as a cts test artifact
     test_suites: [
         "cts",
-        "vts10",
         "general-tests",
         "mts",
     ],
