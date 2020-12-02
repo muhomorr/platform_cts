@@ -30,8 +30,10 @@ java_test_host {
         "src/**/memory/*.java",
         "src/**/notification/*.java",
         "src/**/permissionstate/*.java",
+        "src/**/settingsstats/*.java",
         "src/**/statsd/*.java",
         "src/**/telephony/*.java",
+        "src/**/wifi/*.java",
     ],
 
     test_suites: [
