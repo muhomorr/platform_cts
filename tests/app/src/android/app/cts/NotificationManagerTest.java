@@ -17,6 +17,9 @@
 package android.app.cts;
 
 import static android.app.Notification.FLAG_BUBBLE;
+import static android.app.NotificationManager.BUBBLE_PREFERENCE_ALL;
+import static android.app.NotificationManager.BUBBLE_PREFERENCE_NONE;
+import static android.app.NotificationManager.BUBBLE_PREFERENCE_SELECTED;
 import static android.app.NotificationManager.IMPORTANCE_DEFAULT;
 import static android.app.NotificationManager.IMPORTANCE_HIGH;
 import static android.app.NotificationManager.IMPORTANCE_LOW;
@@ -70,6 +73,7 @@ import android.app.NotificationManager.Policy;
 import android.app.PendingIntent;
 import android.app.Person;
 import android.app.UiAutomation;
+import android.app.cts.android.app.cts.tools.FutureServiceConnection;
 import android.app.stubs.AutomaticZenRuleActivity;
 import android.app.stubs.BubbledActivity;
 import android.app.stubs.BubblesTestService;
@@ -147,7 +151,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
@@ -2657,18 +2660,33 @@ public class NotificationManagerTest extends AndroidTestCase {
     }
 
     public void testAreBubblesAllowed_appNone() throws Exception {
-        setBubblesAppPref(0 /* none */);
+        setBubblesAppPref(BUBBLE_PREFERENCE_NONE);
         assertFalse(mNotificationManager.areBubblesAllowed());
     }
 
     public void testAreBubblesAllowed_appSelected() throws Exception {
-        setBubblesAppPref(2 /* selected */);
+        setBubblesAppPref(BUBBLE_PREFERENCE_SELECTED);
         assertFalse(mNotificationManager.areBubblesAllowed());
     }
 
     public void testAreBubblesAllowed_appAll() throws Exception {
-        setBubblesAppPref(1 /* all */);
+        setBubblesAppPref(BUBBLE_PREFERENCE_ALL);
         assertTrue(mNotificationManager.areBubblesAllowed());
+    }
+
+    public void testGetBubblePreference_appNone() throws Exception {
+        setBubblesAppPref(BUBBLE_PREFERENCE_NONE);
+        assertEquals(BUBBLE_PREFERENCE_NONE, mNotificationManager.getBubblePreference());
+    }
+
+    public void testGetBubblePreference_appSelected() throws Exception {
+        setBubblesAppPref(BUBBLE_PREFERENCE_SELECTED);
+        assertEquals(BUBBLE_PREFERENCE_SELECTED, mNotificationManager.getBubblePreference());
+    }
+
+    public void testGetBubblePreference_appAll() throws Exception {
+        setBubblesAppPref(BUBBLE_PREFERENCE_ALL);
+        assertEquals(BUBBLE_PREFERENCE_ALL, mNotificationManager.getBubblePreference());
     }
 
     public void testNotificationIcon() {
@@ -3863,21 +3881,6 @@ public class NotificationManagerTest extends AndroidTestCase {
                 fail(pkg.packageName + " can't hold "
                         + Manifest.permission.MANAGE_NOTIFICATION_LISTENERS);
             }
-        }
-    }
-
-    private static class FutureServiceConnection implements ServiceConnection {
-        public final CompletableFuture<IBinder> future = new CompletableFuture<>();
-        public IBinder get(long timeoutMs) throws Exception {
-            return future.get(timeoutMs, TimeUnit.MILLISECONDS);
-        }
-        @Override
-        public void onServiceConnected(ComponentName name, IBinder service) {
-            future.complete(service);
-        }
-        @Override
-        public void onServiceDisconnected(ComponentName name) {
-            fail(name + " disconnected");
         }
     }
 
