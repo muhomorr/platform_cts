@@ -26,6 +26,7 @@ import static android.scopedstorage.cts.lib.TestUtils.assertCanRenameFile;
 import static android.scopedstorage.cts.lib.TestUtils.assertCantRenameFile;
 import static android.scopedstorage.cts.lib.TestUtils.assertDirectoryContains;
 import static android.scopedstorage.cts.lib.TestUtils.assertFileContent;
+import static android.scopedstorage.cts.lib.TestUtils.canOpenFileAs;
 import static android.scopedstorage.cts.lib.TestUtils.createFileAs;
 import static android.scopedstorage.cts.lib.TestUtils.createImageEntryAs;
 import static android.scopedstorage.cts.lib.TestUtils.deleteFileAsNoThrow;
@@ -40,12 +41,13 @@ import static android.scopedstorage.cts.lib.TestUtils.getImageContentUri;
 import static android.scopedstorage.cts.lib.TestUtils.getPicturesDir;
 import static android.scopedstorage.cts.lib.TestUtils.installApp;
 import static android.scopedstorage.cts.lib.TestUtils.listAs;
-import static android.scopedstorage.cts.lib.TestUtils.openFileAs;
 import static android.scopedstorage.cts.lib.TestUtils.pollForExternalStorageState;
 import static android.scopedstorage.cts.lib.TestUtils.pollForPermission;
 import static android.scopedstorage.cts.lib.TestUtils.setupDefaultDirectories;
 import static android.scopedstorage.cts.lib.TestUtils.uninstallApp;
 import static android.scopedstorage.cts.lib.TestUtils.uninstallAppNoThrow;
+
+import static androidx.test.InstrumentationRegistry.getContext;
 
 import static com.google.common.truth.Truth.assertThat;
 
@@ -63,6 +65,7 @@ import android.database.Cursor;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
+import android.os.FileUtils;
 import android.os.Process;
 import android.provider.MediaStore;
 import android.scopedstorage.cts.lib.TestUtils;
@@ -88,6 +91,7 @@ import java.io.File;
 import java.io.FileDescriptor;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -281,7 +285,7 @@ public class LegacyStorageTest {
         // can open file for read
         FileDescriptor fd = null;
         try {
-            executeShellCommand("touch " + existingFile);
+            executeShellCommand("touch %s", existingFile);
             MediaStore.scanFile(getContentResolver(), existingFile);
             fd = Os.open(existingFile.getPath(), OsConstants.O_RDONLY, /*mode*/ 0);
         } finally {
@@ -711,8 +715,8 @@ public class LegacyStorageTest {
 
             // We have transferred ownership away from TEST_APP_A so reads / writes
             // should no longer work.
-            assertThat(openFileAs(TEST_APP_A, fullPath, false /* for write */)).isFalse();
-            assertThat(openFileAs(TEST_APP_A, fullPath, false /* for read */)).isFalse();
+            assertThat(canOpenFileAs(TEST_APP_A, fullPath, false /* for write */)).isFalse();
+            assertThat(canOpenFileAs(TEST_APP_A, fullPath, false /* for read */)).isFalse();
         } finally {
             deleteFileAsNoThrow(TEST_APP_A, fullPath.getAbsolutePath());
             uninstallAppNoThrow(TEST_APP_A);
@@ -858,6 +862,47 @@ public class LegacyStorageTest {
             otherAppVideoFile.delete();
             videoFile.delete();
             uninstallAppNoThrow(TEST_APP_A);
+        }
+    }
+
+    @Test
+    public void testScanUpdatesMetadataForNewlyAddedFile_hasRW() throws Exception {
+        pollForPermission(Manifest.permission.READ_EXTERNAL_STORAGE, /*granted*/ true);
+        pollForPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE, /*granted*/ true);
+
+        final File jpgFile = new File(getPicturesDir(), IMAGE_FILE_NAME);
+        try {
+            // Copy the image content to jpgFile
+            try (InputStream in =
+                         getContext().getResources().openRawResource(R.raw.img_with_metadata);
+                 FileOutputStream out = new FileOutputStream(jpgFile)) {
+                FileUtils.copy(in, out);
+                out.getFD().sync();
+            }
+            // Insert a new row for jpgFile.
+            ContentValues values = new ContentValues();
+            values.put(MediaStore.MediaColumns.DATA, jpgFile.getAbsolutePath());
+            final Uri targetUri =
+                    getContentResolver().insert(getImageContentUri(), values, Bundle.EMPTY);
+            assertNotNull(targetUri);
+
+            try (Cursor c = TestUtils.queryFile(jpgFile, MediaStore.MediaColumns.DATE_TAKEN)) {
+                // Since the file is not yet scanned, no metadata is available
+                assertThat(c.moveToFirst()).isTrue();
+                assertThat(c.getString(0)).isNull();
+            }
+
+            // Scan the file to update the metadata. This scan shouldn't no-op
+            final Uri scanUri = MediaStore.scanFile(getContentResolver(), jpgFile);
+            assertNotNull(scanUri);
+
+            // ScanFile was able to update the metadata hence we should see DATE_TAKEN value.
+            try (Cursor c = TestUtils.queryFile(jpgFile, MediaStore.MediaColumns.DATE_TAKEN)) {
+                assertThat(c.moveToFirst()).isTrue();
+                assertThat(c.getString(0)).isNotNull();
+            }
+        } finally {
+            jpgFile.delete();
         }
     }
 

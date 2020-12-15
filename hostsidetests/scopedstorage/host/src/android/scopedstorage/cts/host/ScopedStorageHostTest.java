@@ -16,13 +16,13 @@
 
 package android.scopedstorage.cts.host;
 
-import static org.junit.Assert.assertTrue;
+import static com.google.common.truth.Truth.assertThat;
 
 import android.platform.test.annotations.AppModeFull;
 
 import com.android.tradefed.device.ITestDevice;
+import com.android.tradefed.device.contentprovider.ContentProviderHandler;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
-import com.android.tradefed.testtype.junit4.BaseHostJUnit4Test;
 import com.android.tradefed.testtype.junit4.DeviceTestRunOptions;
 
 import org.junit.After;
@@ -35,17 +35,18 @@ import org.junit.runner.RunWith;
  */
 @RunWith(DeviceJUnit4ClassRunner.class)
 @AppModeFull
-public class ScopedStorageHostTest extends BaseHostJUnit4Test {
-    private boolean mIsExternalStorageSetup = false;
+public class ScopedStorageHostTest extends BaseHostTestCase {
+    private boolean mIsExternalStorageSetup;
+
+    private ContentProviderHandler mContentProviderHandler;
 
     /**
      * Runs the given phase of ScopedStorageTest by calling into the device.
      * Throws an exception if the test phase fails.
      */
     void runDeviceTest(String phase) throws Exception {
-        assertTrue(runDeviceTests("android.scopedstorage.cts",
-                "android.scopedstorage.cts.ScopedStorageTest", phase));
-
+        assertThat(runDeviceTests("android.scopedstorage.cts",
+                "android.scopedstorage.cts.ScopedStorageTest", phase)).isTrue();
     }
 
     /**
@@ -61,10 +62,6 @@ public class ScopedStorageHostTest extends BaseHostJUnit4Test {
             .setDisableIsolatedStorage(true));
     }
 
-    String executeShellCommand(String cmd) throws Exception {
-        return getDevice().executeShellCommand(cmd);
-    }
-
     private void setupExternalStorage() throws Exception {
         if (!mIsExternalStorageSetup) {
             runDeviceTest("setupExternalStorage");
@@ -74,6 +71,11 @@ public class ScopedStorageHostTest extends BaseHostJUnit4Test {
 
     @Before
     public void setup() throws Exception {
+        // Set up content provider. This would install android.tradefed.contentprovider
+        // which is used to create and delete files/Dir on device side test.
+        mContentProviderHandler = new ContentProviderHandler(getDevice());
+        mContentProviderHandler.setUp();
+
         setupExternalStorage();
         executeShellCommand("mkdir /sdcard/Android/data/com.android.shell -m 2770");
         executeShellCommand("mkdir /sdcard/Android/data/com.android.shell/files -m 2770");
@@ -87,80 +89,14 @@ public class ScopedStorageHostTest extends BaseHostJUnit4Test {
 
     @After
     public void tearDown() throws Exception {
+        mContentProviderHandler.tearDown();
         executeShellCommand("rm -r /sdcard/Android/data/com.android.shell");
     }
 
-    @Test
-    public void testReadWriteFilesInOtherAppExternalDir() throws Exception {
-        runDeviceTest("testReadWriteFilesInOtherAppExternalDir");
-    }
-
-    @Test
-    public void testCantDeleteOtherAppsContents() throws Exception {
-        runDeviceTest("testCantDeleteOtherAppsContents");
-    }
-
-    @Test
-    public void testDeleteAlreadyUnlinkedFile() throws Exception {
-        runDeviceTest("testDeleteAlreadyUnlinkedFile");
-
-    }
-
-    @Test
-    public void testListDirectoriesWithNonMediaFiles() throws Exception {
-        runDeviceTest("testListDirectoriesWithNonMediaFiles");
-    }
-
-    @Test
-    public void testListFilesFromExternalFilesDirectory() throws Exception {
-        runDeviceTest("testListFilesFromExternalFilesDirectory");
-    }
 
     @Test
     public void testListUnsupportedFileType() throws Exception {
         runDeviceTest("testListUnsupportedFileType");
-    }
-
-    @Test
-    public void testCallingIdentityCacheInvalidation() throws Exception {
-        // General IO access
-        runDeviceTest("testReadStorageInvalidation");
-        runDeviceTest("testWriteStorageInvalidation");
-        // File manager access
-        runDeviceTest("testManageStorageInvalidation");
-        // Default gallery
-        runDeviceTest("testWriteImagesInvalidation");
-        runDeviceTest("testWriteVideoInvalidation");
-        // EXIF access
-        runDeviceTest("testAccessMediaLocationInvalidation");
-
-        runDeviceTest("testAppUpdateInvalidation");
-        runDeviceTest("testAppReinstallInvalidation");
-    }
-
-    @Test
-    public void testRenameFile() throws Exception {
-        runDeviceTest("testRenameFile");
-    }
-
-    @Test
-    public void testRenameFileType() throws Exception {
-        runDeviceTest("testRenameFileType");
-    }
-
-    @Test
-    public void testRenameFileNotOwned() throws Exception {
-        runDeviceTest("testRenameFileNotOwned");
-    }
-
-    @Test
-    public void testRenameDirectoryNotOwned() throws Exception {
-        runDeviceTest("testRenameDirectoryNotOwned");
-    }
-
-    @Test
-    public void testRenameEmptyDirectory() throws Exception {
-        runDeviceTest("testRenameEmptyDirectory");
     }
 
     @Test
@@ -199,41 +135,6 @@ public class ScopedStorageHostTest extends BaseHostJUnit4Test {
     }
 
     @Test
-    public void testCantAccessOtherAppsContents() throws Exception {
-        runDeviceTest("testCantAccessOtherAppsContents");
-    }
-
-    @Test
-    public void testCanWriteToDCIMCameraWithNomedia() throws Exception {
-        runDeviceTest("testCanWriteToDCIMCameraWithNomedia");
-    }
-
-    @Test
-    public void testHiddenDirectory_nomedia() throws Exception {
-        runDeviceTest("testHiddenDirectory_nomedia");
-    }
-
-    @Test
-    public void testListHiddenFile() throws Exception {
-        runDeviceTest("testListHiddenFile");
-    }
-
-    @Test
-    public void testOpenPendingAndTrashed() throws Exception {
-        runDeviceTest("testOpenPendingAndTrashed");
-    }
-
-    @Test
-    public void testDeletePendingAndTrashed() throws Exception {
-        runDeviceTest("testDeletePendingAndTrashed");
-    }
-
-    @Test
-    public void testListPendingAndTrashed() throws Exception {
-        runDeviceTest("testListPendingAndTrashed");
-    }
-
-    @Test
     public void testCanCreateDefaultDirectory() throws Exception {
         runDeviceTest("testCanCreateDefaultDirectory");
     }
@@ -249,18 +150,23 @@ public class ScopedStorageHostTest extends BaseHostJUnit4Test {
     }
 
     @Test
-    public void testSystemGalleryQueryOtherAppsFiles() throws Exception {
-        runDeviceTest("testSystemGalleryQueryOtherAppsFiles");
+    public void testManageExternalStorageDoesntSkipScanningDirtyNomediaDir() throws Exception {
+        allowAppOps("android:manage_external_storage");
+        try {
+            runDeviceTest("testManageExternalStorageDoesntSkipScanningDirtyNomediaDir");
+        } finally {
+            denyAppOps("android:manage_external_storage");
+        }
     }
 
     @Test
-    public void testCantCreateOrRenameFileWithInvalidName() throws Exception {
-        runDeviceTest("testCantCreateOrRenameFileWithInvalidName");
-    }
-
-    @Test
-    public void testPendingFromFuse() throws Exception {
-        runDeviceTest("testPendingFromFuse");
+    public void testScanDoesntSkipDirtySubtree() throws Exception {
+        allowAppOps("android:manage_external_storage");
+        try {
+            runDeviceTest("testScanDoesntSkipDirtySubtree");
+        } finally {
+            denyAppOps("android:manage_external_storage");
+        }
     }
 
     @Test
@@ -271,11 +177,6 @@ public class ScopedStorageHostTest extends BaseHostJUnit4Test {
         } finally {
             revokePermissions("android.permission.READ_EXTERNAL_STORAGE");
         }
-    }
-
-    @Test
-    public void testCantSetAttrOtherAppsFile() throws Exception {
-        runDeviceTest("testCantSetAttrOtherAppsFile");
     }
 
     @Test
@@ -325,11 +226,6 @@ public class ScopedStorageHostTest extends BaseHostJUnit4Test {
                 "testNoIsolatedStorageCantReadWriteOtherAppExternalDir");
         runDeviceTestWithDisabledIsolatedStorage("testNoIsolatedStorageStorageReaddir");
         runDeviceTestWithDisabledIsolatedStorage("testNoIsolatedStorageQueryOtherAppsFile");
-
-        // Check that appop is revoked after instrumentation is over.
-        runDeviceTest("testCreateFileInAppExternalDir");
-        runDeviceTest("testCreateFileInOtherAppExternalDir");
-        runDeviceTest("testReadWriteFilesInOtherAppExternalDir");
     }
 
     @Test
@@ -349,11 +245,6 @@ public class ScopedStorageHostTest extends BaseHostJUnit4Test {
     }
 
     @Test
-    public void testScanUpdatesMetadataForRenamedHiddenFile() throws Exception {
-        runDeviceTest("testScanUpdatesMetadataForRenamedHiddenFile");
-    }
-
-    @Test
     public void testClearPackageData() throws Exception {
         grantPermissions("android.permission.READ_EXTERNAL_STORAGE");
         try {
@@ -364,14 +255,18 @@ public class ScopedStorageHostTest extends BaseHostJUnit4Test {
     }
 
     private void grantPermissions(String... perms) throws Exception {
+        int currentUserId = getCurrentUserId();
         for (String perm : perms) {
-            executeShellCommand("pm grant android.scopedstorage.cts " + perm);
+            executeShellCommand("pm grant --user %d android.scopedstorage.cts %s",
+                    currentUserId, perm);
         }
     }
 
     private void revokePermissions(String... perms) throws Exception {
+        int currentUserId = getCurrentUserId();
         for (String perm : perms) {
-            executeShellCommand("pm revoke android.scopedstorage.cts " + perm);
+            executeShellCommand("pm revoke --user %d android.scopedstorage.cts %s",
+                    currentUserId, perm);
         }
     }
 

@@ -1259,6 +1259,16 @@ public class StagefrightTest {
      ***********************************************************/
 
     @Test
+    @SecurityTest(minPatchLevel = "2021-01")
+    public void testStagefright_cve_2021_0312() throws Exception {
+        assumeFalse(ModuleDetector.moduleIsPlayManaged(
+            getInstrumentation().getContext().getPackageManager(),
+            MainlineModule.MEDIA));
+        doStagefrightTestExtractorSeek(R.raw.cve_2021_0312, 2, new CrashUtils.Config()
+                .setSignals(CrashUtils.SIGSEGV, CrashUtils.SIGBUS, CrashUtils.SIGABRT));
+    }
+
+    @Test
     @SecurityTest(minPatchLevel = "2018-09")
     public void testStagefright_cve_2018_9474() throws Exception {
         MediaPlayer mp = new MediaPlayer();
@@ -1750,6 +1760,11 @@ public class StagefrightTest {
     @Test
     @SecurityTest(minPatchLevel = "2019-12")
     public void testStagefright_cve_2019_2223() throws Exception {
+        // TODO(b/170987914): This also skips testing hw_codecs.
+        // Update doStagefrightTestRawBlob to skip just the sw_codec test.
+        assumeFalse(ModuleDetector.moduleIsPlayManaged(
+            getInstrumentation().getContext().getPackageManager(),
+            MainlineModule.MEDIA_SOFTWARE_CODEC));
         int[] frameSizes = getFrameSizes(R.raw.cve_2019_2223_framelen);
         doStagefrightTestRawBlob(R.raw.cve_2019_2223_hevc, "video/hevc", 320, 240, frameSizes);
     }
