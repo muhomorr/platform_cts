@@ -21,6 +21,7 @@ import static android.app.WindowConfiguration.WINDOWING_MODE_FULLSCREEN;
 import static android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP;
 import static android.content.Intent.FLAG_ACTIVITY_MULTIPLE_TASK;
 import static android.content.Intent.FLAG_ACTIVITY_NEW_TASK;
+import static android.content.Intent.FLAG_ACTIVITY_NO_USER_ACTION;
 import static android.server.wm.WindowManagerState.STATE_PAUSED;
 import static android.server.wm.WindowManagerState.STATE_STOPPED;
 import static android.server.wm.UiDeviceUtils.pressBackButton;
@@ -40,6 +41,7 @@ import static android.server.wm.lifecycle.LifecycleLog.ActivityCallback.ON_START
 import static android.server.wm.lifecycle.LifecycleLog.ActivityCallback.ON_STOP;
 import static android.server.wm.lifecycle.LifecycleLog.ActivityCallback.ON_TOP_POSITION_GAINED;
 import static android.server.wm.lifecycle.LifecycleLog.ActivityCallback.ON_TOP_POSITION_LOST;
+import static android.server.wm.lifecycle.LifecycleLog.ActivityCallback.ON_USER_LEAVE_HINT;
 import static android.server.wm.lifecycle.LifecycleLog.ActivityCallback.PRE_ON_CREATE;
 import static android.server.wm.lifecycle.LifecycleVerifier.transition;
 import static android.view.Surface.ROTATION_0;
@@ -546,6 +548,32 @@ public class ActivityLifecycleTests extends ActivityLifecycleClientTestBase {
     }
 
     @Test
+    public void testLaunchActivityWithFlagForwardResult() throws Exception {
+        final ActivityMonitor resultMonitor = getInstrumentation().addMonitor(
+                ResultActivity.class.getName(), null /* result */, false /* block */);
+
+        new Launcher(LaunchForwardResultActivity.class)
+                .setExpectedState(ON_STOP)
+                .setNoInstance()
+                .launch();
+
+        final Activity resultActivity = getInstrumentation()
+                .waitForMonitorWithTimeout(resultMonitor, 5000);
+        getInstrumentation().runOnMainSync(resultActivity::finish);
+        waitAndAssertActivityStates(state(LaunchForwardResultActivity.class,
+                ON_TOP_POSITION_GAINED));
+
+        // verify the result have sent back to original activity
+        final List<LifecycleLog.ActivityCallback> expectedSequence =
+                Arrays.asList(PRE_ON_CREATE, ON_CREATE, ON_START, ON_POST_CREATE, ON_RESUME,
+                        ON_TOP_POSITION_GAINED, ON_TOP_POSITION_LOST, ON_PAUSE, ON_STOP,
+                        ON_ACTIVITY_RESULT, ON_RESTART, ON_START, ON_RESUME,
+                        ON_TOP_POSITION_GAINED);
+        LifecycleVerifier.assertSequence(LaunchForwardResultActivity.class, getLifecycleLog(),
+                expectedSequence, "becomingVisibleResumed");
+    }
+
+    @Test
     public void testOnActivityResult() throws Exception {
         new Launcher(LaunchForResultActivity.class)
                 .customizeIntent(LaunchForResultActivity.forwardFlag(EXTRA_FINISH_IN_ON_RESUME))
@@ -996,5 +1024,35 @@ public class ActivityLifecycleTests extends ActivityLifecycleClientTestBase {
         // Verify the result have been sent back to original activity
         LifecycleVerifier.assertTransitionObserved(getLifecycleLog(),
                 transition(SingleTopActivity.class, ON_ACTIVITY_RESULT),"activityResult");
+    }
+
+    @Test
+    public void testLaunchOnUserLeaveHint() throws Exception {
+        new Launcher(FirstActivity.class)
+                .setExtraFlags(EXTRA_ACTIVITY_ON_USER_LEAVE_HINT)
+                .launch();
+
+        getLifecycleLog().clear();
+        launchActivityAndWait(SecondActivity.class);
+        waitAndAssertActivityStates(state(FirstActivity.class, ON_STOP));
+
+        LifecycleVerifier.assertTransitionObserved(getLifecycleLog(),
+                transition(FirstActivity.class, ON_USER_LEAVE_HINT),"userLeaveHint");
+    }
+
+    @Test
+    public void testLaunchOnUserLeaveHintWithNoUserAction() throws Exception {
+        new Launcher(FirstActivity.class)
+                .setExtraFlags(EXTRA_ACTIVITY_ON_USER_LEAVE_HINT)
+                .launch();
+
+        getLifecycleLog().clear();
+        new Launcher(SecondActivity.class)
+                .setFlags(FLAG_ACTIVITY_NO_USER_ACTION | FLAG_ACTIVITY_NEW_TASK)
+                .launch();
+        waitAndAssertActivityStates(state(FirstActivity.class, ON_STOP));
+
+        LifecycleVerifier.assertTransitionNotObserved(getLifecycleLog(),
+                transition(FirstActivity.class, ON_USER_LEAVE_HINT),"userLeaveHint");
     }
 }
