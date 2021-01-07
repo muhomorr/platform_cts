@@ -400,10 +400,7 @@
     <string name="ble_scan_stop">Stop scan</string>
 
     <!-- BLE connection priority test strings -->
-    <string name="ble_client_connection_priority">Testing priority: </string>
-    <string name="ble_connection_priority_balanced">BALANCED</string>
-    <string name="ble_connection_priority_high">HIGH</string>
-    <string name="ble_connection_priority_low">LOW</string>
+    <string name="ble_client_connection_priority">Testing connection priority switching </string>
     <string name="ble_server_connection_priority_result_passed">All test passed</string>
     <string name="ble_server_connection_priority_result_failed">Test failed.</string>
     <string name="ble_server_connection_priority_result_intervals">
@@ -426,9 +423,7 @@
     <string name="ble_write_authenticated_characteristic_name">Bluetooth LE Write Encrypted Characteristic</string>
     <string name="ble_read_authenticated_descriptor_name">Bluetooth LE Read Encrypted Descriptor</string>
     <string name="ble_write_authenticated_descriptor_name">Bluetooth LE Write Encrypted Descriptor</string>
-    <string name="ble_connection_priority_client_high">Bluetooth LE Send With CONNECTION_PRIORITY_HIGH</string>
-    <string name="ble_connection_priority_client_low">Bluetooth LE Send With CONNECTION_PRIORITY_LOW_POWER</string>
-    <string name="ble_connection_priority_client_balanced">Bluetooth LE Send With CONNECTION_PRIORITY_BALANCED</string>
+    <string name="ble_connection_priority_client_description">Client Switching Connection Priority</string>
     <string name="ble_indicate_characteristic_name">Bluetooth LE Indicate Characteristic</string>
     <string name="ble_encrypted_client_name">03 Bluetooth LE Encrypted Client Test</string>
     <string name="ble_encrypted_client_info">Bluetooth LE Encrypted Client read/write on characteristic and descriptor need encrypted.</string>
@@ -4050,4 +4045,17 @@ Follow the instructions on the screen to measure the frequency response for the 
         Click the button below to confirm that the incoming call was answered.
     </string>
     <string name="telecom_incoming_self_mgd_confirm_answer_button">Confirm Answer</string>
+
+    <string name="uap_test_no">No</string>
+    <string name="uap_test_yes">Yes</string>
+    <string name="uap_test_info">Info</string>
+    <string name="uap_test_question">Does this device allow for the connectiono of a USB reference microphone?</string>
+    <string name="uap_mic_dlg_caption">USB Host Mode Audio Required</string>
+    <string name="uap_mic_dlg_text">This test requires a USB audio peripheral to be connected to the device.
+    If the device under test does not support USB Host Mode Audio (either because it does not have a
+    USB port, or USB Host Mode Audio has been removed from the OS) you can be granted a provisional
+    pass on this test by pressing the \"No\" button and indicating \"Test Pass\" at the bottom.\n
+    Note: Handheld devices supporting USB host mode MUST support USB audio class (CDD 7.7 .2/H-1-1)\n
+    Note: Devices declaring feature android.hardware.audio.pro MUST implement USB host mode (CDD 5.10 C-1-3) and if they omit a 4 conductor 3.5mm audio jack MUST support USB audio class (CDD 5.10 C-3-1)
+    </string>
 </resources>
