@@ -44,7 +44,9 @@ import static android.view.accessibility.AccessibilityEvent.TYPE_VIEW_CLICKED;
 import static android.view.accessibility.AccessibilityEvent.TYPE_VIEW_LONG_CLICKED;
 
 import android.accessibility.cts.common.AccessibilityDumpOnFailureRule;
+import android.accessibility.cts.common.InstrumentedAccessibilityService;
 import android.accessibility.cts.common.InstrumentedAccessibilityServiceTestRule;
+import android.accessibility.cts.common.ShellCommandBuilder;
 import android.accessibilityservice.GestureDescription;
 import android.accessibilityservice.GestureDescription.StrokeDescription;
 import android.accessibilityservice.cts.AccessibilityGestureDispatchTest.GestureDispatchActivity;
@@ -56,10 +58,10 @@ import android.app.Instrumentation;
 import android.app.UiAutomation;
 import android.content.Context;
 import android.content.pm.PackageManager;
-import android.graphics.Point;
 import android.graphics.PointF;
 import android.graphics.Region;
 import android.platform.test.annotations.AppModeFull;
+import android.provider.Settings;
 import android.util.DisplayMetrics;
 import android.util.TypedValue;
 import android.view.Display;
@@ -72,6 +74,7 @@ import androidx.test.InstrumentationRegistry;
 import androidx.test.rule.ActivityTestRule;
 import androidx.test.runner.AndroidJUnit4;
 
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -94,6 +97,7 @@ public class TouchExplorerTest {
     private boolean mHasTouchscreen;
     private boolean mScreenBigEnough;
     private long mSwipeTimeMillis;
+    private String mEnabledServices;
     private EventCapturingHoverListener mHoverListener = new EventCapturingHoverListener(false);
     private EventCapturingTouchListener mTouchListener = new EventCapturingTouchListener(false);
     private EventCapturingClickListener mClickListener = new EventCapturingClickListener();
@@ -122,6 +126,14 @@ public class TouchExplorerTest {
     @Before
     public void setUp() throws Exception {
         mInstrumentation = InstrumentationRegistry.getInstrumentation();
+        // Save enabled accessibility services before disabling them so they can be re-enabled after
+        // the test.
+        mEnabledServices = Settings.Secure.getString(
+                mInstrumentation.getContext().getContentResolver(),
+                Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
+        // Disable all services before enabling Accessibility service to prevent flakiness
+        // that depends on which services are enabled.
+        InstrumentedAccessibilityService.disableAllServices();
         mUiAutomation =
                 mInstrumentation.getUiAutomation(
                         UiAutomation.FLAG_DONT_SUPPRESS_ACCESSIBILITY_SERVICES);
@@ -157,6 +169,13 @@ public class TouchExplorerTest {
                     mView.setOnClickListener(mClickListener);
                     mView.setOnLongClickListener(mLongClickListener);
                 });
+    }
+
+    @After
+    public void postTestTearDown() {
+        ShellCommandBuilder.create(mUiAutomation)
+                .putSecureSetting(Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES, mEnabledServices)
+                .run();
     }
 
     /** Test a slow swipe which should initiate touch exploration. */
@@ -248,8 +267,7 @@ public class TouchExplorerTest {
         mService.assertPropagated(
                 TYPE_VIEW_ACCESSIBILITY_FOCUSED,
                 TYPE_TOUCH_INTERACTION_START,
-                TYPE_TOUCH_INTERACTION_END,
-                TYPE_VIEW_CLICKED);
+                TYPE_TOUCH_INTERACTION_END);
         mClickListener.assertClicked(mView);
     }
 
@@ -271,8 +289,7 @@ public class TouchExplorerTest {
         mService.assertPropagated(
                 TYPE_VIEW_ACCESSIBILITY_FOCUSED,
                 TYPE_TOUCH_INTERACTION_START,
-                TYPE_TOUCH_INTERACTION_END,
-                TYPE_VIEW_CLICKED);
+                TYPE_TOUCH_INTERACTION_END);
         mClickListener.assertClicked(mView);
     }
 
@@ -331,8 +348,7 @@ public class TouchExplorerTest {
                 TYPE_TOUCH_INTERACTION_START,
                 TYPE_TOUCH_EXPLORATION_GESTURE_START,
                 TYPE_TOUCH_EXPLORATION_GESTURE_END,
-                TYPE_TOUCH_INTERACTION_END,
-                TYPE_VIEW_CLICKED);
+                TYPE_TOUCH_INTERACTION_END);
         mClickListener.assertClicked(mView);
     }
 
@@ -359,8 +375,7 @@ public class TouchExplorerTest {
         mHoverListener.assertNonePropagated();
         // The click gets delivered as a series of touch events.
         mTouchListener.assertPropagated(ACTION_DOWN, ACTION_UP);
-        mService.assertPropagated(
-                TYPE_TOUCH_INTERACTION_START, TYPE_TOUCH_INTERACTION_END, TYPE_VIEW_CLICKED);
+        mService.assertPropagated(TYPE_TOUCH_INTERACTION_START, TYPE_TOUCH_INTERACTION_END);
         mClickListener.assertClicked(mView);
     }
 
@@ -416,8 +431,7 @@ public class TouchExplorerTest {
         mService.assertPropagated(
                 TYPE_VIEW_ACCESSIBILITY_FOCUSED,
                 TYPE_TOUCH_INTERACTION_START,
-                TYPE_TOUCH_INTERACTION_END,
-                TYPE_VIEW_CLICKED);
+                TYPE_TOUCH_INTERACTION_END);
         mClickListener.assertClicked(mView);
     }
 
@@ -530,15 +544,13 @@ public class TouchExplorerTest {
         dispatch(swipe(mTapLocation, add(mTapLocation, mSwipeDistance, 0)));
         mTouchListener.assertPropagated(ACTION_DOWN, ACTION_MOVE, ACTION_UP);
         // We still want accessibility events to tell us when the gesture starts and ends.
-        mService.assertPropagated(
-                TYPE_TOUCH_INTERACTION_START, TYPE_TOUCH_INTERACTION_END, TYPE_VIEW_CLICKED);
+        mService.assertPropagated(TYPE_TOUCH_INTERACTION_START, TYPE_TOUCH_INTERACTION_END);
         mService.clearEvents();
         // Swipe starting inside the passthrough region but ending outside of it. This should still
         // behave as a passthrough interaction.
         dispatch(swipe(mTapLocation, add(mTapLocation, -mSwipeDistance, 0)));
         mTouchListener.assertPropagated(ACTION_DOWN, ACTION_MOVE, ACTION_UP);
-        mService.assertPropagated(
-                TYPE_TOUCH_INTERACTION_START, TYPE_TOUCH_INTERACTION_END, TYPE_VIEW_CLICKED);
+        mService.assertPropagated(TYPE_TOUCH_INTERACTION_START, TYPE_TOUCH_INTERACTION_END);
         mService.clearEvents();
         // Swipe outside the passthrough region. This should not generate touch events.
         dispatch(swipe(add(mTapLocation, -1, 0), add(mTapLocation, -mSwipeDistance, 0)));
