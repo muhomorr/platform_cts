@@ -26,6 +26,7 @@ import org.junit.runner.RunWith;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
 
 import static org.junit.Assert.*;
+import static org.junit.Assume.*;
 import junit.framework.Assert;
 import java.util.Arrays;
 import java.util.ArrayList;
@@ -43,6 +44,19 @@ public class TestMedia extends SecurityTestCase {
      * To prevent merge conflicts, add tests for O below this comment, before any
      * existing test methods
      ******************************************************************************/
+
+    /**
+     * b/17769851
+     * Vulnerability Behaviour: EXIT_VULNERABLE (113)
+     */
+    @SecurityTest(minPatchLevel = "2015-12")
+    @Test
+    public void testPocCVE_2015_6616() throws Exception {
+        pocPusher.only64();
+        String inputFiles[] = {"cve_2015_6616.mp4"};
+        AdbUtils.runPocAssertNoCrashesNotVulnerable("CVE-2015-6616",
+                AdbUtils.TMP_PATH + inputFiles[0], inputFiles, AdbUtils.TMP_PATH, getDevice());
+    }
 
     /**
      * b/37239013
@@ -497,6 +511,26 @@ public class TestMedia extends SecurityTestCase {
      ******************************************************************************/
 
     /**
+     * b/158762825
+     * Vulnerability Behaviour: SIGABRT / EXIT_VULNERABLE (113)
+     */
+    @SecurityTest(minPatchLevel = "2020-11")
+    @Test
+    public void testPocCVE_2020_0451() throws Exception {
+        assumeFalse(moduleIsPlayManaged("com.google.android.media.swcodec"));
+        String inputFiles[] = {"cve_2020_0451.aac"};
+        String binaryName = "CVE-2020-0451";
+        String signals[] = {CrashUtils.SIGSEGV, CrashUtils.SIGBUS, CrashUtils.SIGABRT};
+        AdbUtils.pocConfig testConfig = new AdbUtils.pocConfig(binaryName, getDevice());
+        testConfig.config = new CrashUtils.Config().setProcessPatterns(binaryName);
+        testConfig.config.setSignals(signals);
+        testConfig.arguments = AdbUtils.TMP_PATH + inputFiles[0];
+        testConfig.inputFiles = Arrays.asList(inputFiles);
+        testConfig.inputFilesDestination = AdbUtils.TMP_PATH;
+        AdbUtils.runPocAssertNoCrashesNotVulnerable(testConfig);
+    }
+
+    /**
      * b/112891564
      * Vulnerability Behaviour: SIGSEGV in self (Android P),
      *                          SIGABRT in self (Android Q onward)
@@ -516,6 +550,34 @@ public class TestMedia extends SecurityTestCase {
      * To prevent merge conflicts, add tests for Q below this comment, before any
      * existing test methods
      ******************************************************************************/
+
+    /**
+     * b/143464314
+     * Vulnerability Behaviour: SIGSEGV in self / EXIT_VULNERABLE (113)
+     */
+    @SecurityTest(minPatchLevel = "2020-10")
+    @Test
+    public void testPocCVE_2020_0213() throws Exception {
+        assumeFalse(moduleIsPlayManaged("com.google.android.media.swcodec"));
+        String inputFiles[] = {"cve_2020_0213.hevc", "cve_2020_0213_info.txt"};
+        AdbUtils.runPocAssertNoCrashesNotVulnerable("CVE-2020-0213",
+            AdbUtils.TMP_PATH + inputFiles[0] + " " + AdbUtils.TMP_PATH + inputFiles[1],
+            inputFiles, AdbUtils.TMP_PATH, getDevice());
+    }
+
+    /**
+     * b/166268541
+     * Vulnerability Behaviour: SIGSEGV in media.swcodec
+     */
+    @SecurityTest(minPatchLevel = "2020-12")
+    @Test
+    public void testPocCVE_2020_0470() throws Exception {
+        String inputFiles[] = {"cve_2020_0470.mp4"};
+        String processPatternStrings[] = {"media\\.swcodec"};
+        AdbUtils.runPocAssertNoCrashesNotVulnerable("CVE-2020-0470",
+                AdbUtils.TMP_PATH + inputFiles[0], inputFiles, AdbUtils.TMP_PATH, getDevice(),
+                processPatternStrings);
+    }
 
     /**
      * b/120426980
