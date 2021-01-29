@@ -21,6 +21,7 @@ import com.android.tradefed.config.OptionClass;
 import com.android.tradefed.device.ITestDevice;
 import com.android.tradefed.testtype.junit4.BaseHostJUnit4Test;
 
+import org.junit.Before;
 import org.junit.rules.TestRule;
 
 import java.io.BufferedReader;
@@ -33,6 +34,23 @@ import java.util.regex.Pattern;
 public class BaseHdmiCecCtsTest extends BaseHostJUnit4Test {
 
     public final HdmiCecClientWrapper hdmiCecClient;
+    public LogicalAddress mDutLogicalAddress;
+
+    /**
+     * Constructor for BaseHdmiCecCtsTest. Uses the DUT logical address for the test.
+     */
+    public BaseHdmiCecCtsTest() {
+        this(LogicalAddress.UNKNOWN);
+    }
+
+    /**
+     * Constructor for BaseHdmiCecCtsTest. Uses the DUT logical address for the test.
+     *
+     * @param clientParams Extra parameters to use when launching cec-client
+     */
+    public BaseHdmiCecCtsTest(String ...clientParams) {
+        this(LogicalAddress.UNKNOWN, clientParams);
+    }
 
     /**
      * Constructor for BaseHdmiCecCtsTest.
@@ -41,7 +59,19 @@ public class BaseHdmiCecCtsTest extends BaseHostJUnit4Test {
      * @param clientParams Extra parameters to use when launching cec-client
      */
     public BaseHdmiCecCtsTest(LogicalAddress dutLogicalAddress, String ...clientParams) {
-        this.hdmiCecClient = new HdmiCecClientWrapper(this, dutLogicalAddress, clientParams);
+        this.hdmiCecClient = new HdmiCecClientWrapper(clientParams);
+        mDutLogicalAddress = dutLogicalAddress;
+    }
+
+    @Before
+    public void setUp() throws Exception {
+        if (mDutLogicalAddress == LogicalAddress.UNKNOWN) {
+            mDutLogicalAddress = LogicalAddress.getLogicalAddress(getDumpsysLogicalAddress());
+        }
+        hdmiCecClient.setTargetLogicalAddress(mDutLogicalAddress);
+        boolean startAsTv =
+                mDutLogicalAddress.getDeviceType() != HdmiCecConstants.CEC_DEVICE_TYPE_TV;
+        hdmiCecClient.init(startAsTv, getDevice());
     }
 
     /** Class with predefined rules which can be used by HDMI CEC CTS tests. */
@@ -60,7 +90,15 @@ public class BaseHdmiCecCtsTest extends BaseHostJUnit4Test {
             return RequiredPropertyRule.asCsvContainsValue(
                         testPointer,
                         HdmiCecConstants.HDMI_DEVICE_TYPE_PROPERTY,
-                        dutLogicalAddress.getDeviceType());
+                        dutLogicalAddress.getDeviceTypeString());
+        }
+
+        /** This rule will skip the test if the DUT belongs to the HDMI device type deviceType. */
+        public static TestRule skipDeviceType(BaseHostJUnit4Test testPointer, int deviceType) {
+            return RequiredPropertyRule.asCsvDoesNotContainsValue(
+                    testPointer,
+                    HdmiCecConstants.HDMI_DEVICE_TYPE_PROPERTY,
+                    Integer.toString(deviceType));
         }
     }
 
@@ -87,5 +125,60 @@ public class BaseHdmiCecCtsTest extends BaseHostJUnit4Test {
             }
         }
         throw new Exception("Could not parse physical address from dumpsys.");
+    }
+
+    /** Gets the logical address of the DUT by parsing the dumpsys hdmi_control. */
+    public int getDumpsysLogicalAddress() throws Exception {
+        String line;
+        String pattern = "(.*?)" + "(mAddress: )" + "(?<address>\\d+)" +
+                "(.*?)";
+        Pattern p = Pattern.compile(pattern);
+        Matcher m;
+        ITestDevice device = getDevice();
+        String dumpsys = device.executeShellCommand("dumpsys hdmi_control");
+        BufferedReader reader = new BufferedReader(new StringReader(dumpsys));
+        while ((line = reader.readLine()) != null) {
+            m = p.matcher(line);
+            if (m.matches()) {
+                int address = Integer.decode(m.group("address"));
+                return address;
+            }
+        }
+        throw new Exception("Could not parse logical address from dumpsys.");
+    }
+
+    /**
+     * Parses the dumpsys hdmi_control to get the logical address of the current device registered
+     * as active source.
+     */
+    public LogicalAddress getDumpsysActiveSourceLogicalAddress() throws Exception {
+        String line;
+        String pattern =
+                "(.*?)"
+                        + "(mActiveSource: )"
+                        + "(\\(0x)"
+                        + "(?<logicalAddress>\\d+)"
+                        + "(, )"
+                        + "(0x)"
+                        + "(?<physicalAddress>\\d+)"
+                        + "(\\))"
+                        + "(.*?)";
+        Pattern p = Pattern.compile(pattern);
+        Matcher m;
+        ITestDevice device = getDevice();
+        String dumpsys = device.executeShellCommand("dumpsys hdmi_control");
+        BufferedReader reader = new BufferedReader(new StringReader(dumpsys));
+        while ((line = reader.readLine()) != null) {
+            m = p.matcher(line);
+            if (m.matches()) {
+                try {
+                    int address = Integer.decode(m.group("logicalAddress"));
+                    return LogicalAddress.getLogicalAddress(address);
+                } catch (NumberFormatException ne) {
+                    throw new Exception("Could not correctly parse the logical address");
+                }
+            }
+        }
+        throw new Exception("Could not parse active source from dumpsys.");
     }
 }

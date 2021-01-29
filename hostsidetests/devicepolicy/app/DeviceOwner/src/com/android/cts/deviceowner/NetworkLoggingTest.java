@@ -172,9 +172,9 @@ public class NetworkLoggingTest extends BaseDeviceOwnerTest {
         }
 
         // generate enough traffic to fill the batches.
-        int dummyReqNo = 0;
+        int fakeReqNo = 0;
         for (int i = 0; i < mBatchesRequested; i++) {
-            dummyReqNo += generateDummyTraffic();
+            fakeReqNo += generateFakeTraffic();
         }
 
         // if DeviceAdminReceiver#onNetworkLogsAvailable() hasn't been triggered yet, wait for up to
@@ -190,11 +190,11 @@ public class NetworkLoggingTest extends BaseDeviceOwnerTest {
 
         // Verify network logs.
         assertEquals("First event has the wrong id.", 0L, mNetworkEvents.get(0).getId());
-        // For each of the real URLs we have two events: one DNS and one connect. Dummy requests
+        // For each of the real URLs we have two events: one DNS and one connect. Fake requests
         // don't require DNS queries.
         final int eventsExpected =
                 Math.min(FULL_LOG_BATCH_SIZE * mBatchesRequested,
-                        2 * LOGGED_URLS_LIST.length + dummyReqNo);
+                        2 * LOGGED_URLS_LIST.length + fakeReqNo);
         verifyNetworkLogs(mNetworkEvents, eventsExpected);
     }
 
@@ -340,11 +340,11 @@ public class NetworkLoggingTest extends BaseDeviceOwnerTest {
     }
 
     /** Quickly generate loads of events by repeatedly connecting to a local server. */
-    private int generateDummyTraffic() throws IOException, InterruptedException {
+    private int generateFakeTraffic() throws IOException, InterruptedException {
         final ServerSocket serverSocket = new ServerSocket(0);
-        final Thread serverThread = startDummyServer(serverSocket);
+        final Thread serverThread = startFakeServer(serverSocket);
 
-        final int reqNo = makeDummyRequests(serverSocket.getLocalPort());
+        final int reqNo = makeFakeRequests(serverSocket.getLocalPort());
 
         serverSocket.close();
         serverThread.join();
@@ -352,11 +352,11 @@ public class NetworkLoggingTest extends BaseDeviceOwnerTest {
         return reqNo;
     }
 
-    private int makeDummyRequests(int port) {
+    private int makeFakeRequests(int port) {
         int reqNo;
-        final String DUMMY_SERVER = "127.0.0.1:" + port;
+        final String FAKE_SERVER = "127.0.0.1:" + port;
         for (reqNo = 0; reqNo < FULL_LOG_BATCH_SIZE && mBatchCountDown.getCount() > 0; reqNo++) {
-            connectToWebsite(DUMMY_SERVER);
+            connectToWebsite(FAKE_SERVER);
             try {
                 // Just to prevent choking the server.
                 Thread.sleep(10);
@@ -367,7 +367,7 @@ public class NetworkLoggingTest extends BaseDeviceOwnerTest {
         return reqNo;
     }
 
-    private Thread startDummyServer(ServerSocket serverSocket) throws InterruptedException {
+    private Thread startFakeServer(ServerSocket serverSocket) throws InterruptedException {
         final Thread serverThread = new Thread(() -> {
             while (!serverSocket.isClosed()) {
                 try {

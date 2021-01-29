@@ -93,68 +93,66 @@ static bool isMediaSimilar(AMediaExtractor* refExtractor, AMediaExtractor* testE
                 setSampleInfo(refExtractor, &refSampleInfo);
                 setSampleInfo(testExtractor, &testSampleInfo);
                 if (!isSampleInfoValidAndIdentical(&refSampleInfo, &testSampleInfo)) {
-                    ALOGD(" Mime: %s mismatch for sample: %d", refMime, frameCount);
+                    ALOGD(" Mime: %s mismatch for sample: %d", mime, frameCount);
                     ALOGD(" flags exp/got: %d / %d", refSampleInfo.flags, testSampleInfo.flags);
                     ALOGD(" size exp/got: %d / %d ", refSampleInfo.size, testSampleInfo.size);
-                    ALOGD(" ts exp/got: %d / %d ", (int)refSampleInfo.presentationTimeUs,
-                          (int)testSampleInfo.presentationTimeUs);
+                    ALOGD(" ts exp/got: %" PRId64 " / %" PRId64 "",
+                          refSampleInfo.presentationTimeUs, testSampleInfo.presentationTimeUs);
                     areTracksIdentical = false;
                     break;
                 }
                 ssize_t refSz =
                         AMediaExtractor_readSampleData(refExtractor, refBuffer, maxSampleSize);
                 if (refSz != refSampleInfo.size) {
-                    ALOGD("Mime: %s Size exp/got:  %d / %zd ", refMime, refSampleInfo.size, refSz);
+                    ALOGD("Mime: %s Size exp/got:  %d / %zd ", mime, refSampleInfo.size, refSz);
                     areTracksIdentical = false;
                     break;
                 }
                 ssize_t testSz =
                         AMediaExtractor_readSampleData(testExtractor, testBuffer, maxSampleSize);
                 if (testSz != testSampleInfo.size) {
-                    ALOGD("Mime: %s Size exp/got:  %d / %zd ", refMime, testSampleInfo.size,
-                          testSz);
+                    ALOGD("Mime: %s Size exp/got:  %d / %zd ", mime, testSampleInfo.size, testSz);
                     areTracksIdentical = false;
                     break;
                 }
                 int trackIndex = AMediaExtractor_getSampleTrackIndex(refExtractor);
                 if (trackIndex != refTrackID) {
-                    ALOGD("Mime: %s TrackID exp/got: %zu / %d", refMime, refTrackID, trackIndex);
+                    ALOGD("Mime: %s TrackID exp/got: %zu / %d", mime, refTrackID, trackIndex);
                     areTracksIdentical = false;
                     break;
                 }
                 trackIndex = AMediaExtractor_getSampleTrackIndex(testExtractor);
                 if (trackIndex != testTrackID) {
-                    ALOGD("Mime: %s  TrackID exp/got %zd / %d : ", refMime, testTrackID,
-                          trackIndex);
+                    ALOGD("Mime: %s  TrackID exp/got %zd / %d : ", mime, testTrackID, trackIndex);
                     areTracksIdentical = false;
                     break;
                 }
                 if (memcmp(refBuffer, testBuffer, refSz)) {
-                    ALOGD("Mime: %s Mismatch in sample data", refMime);
+                    ALOGD("Mime: %s Mismatch in sample data", mime);
                     areTracksIdentical = false;
                     break;
                 }
                 bool haveRefSamples = AMediaExtractor_advance(refExtractor);
                 bool haveTestSamples = AMediaExtractor_advance(testExtractor);
                 if (haveRefSamples != haveTestSamples) {
-                    ALOGD("Mime: %s Mismatch in sampleCount", refMime);
+                    ALOGD("Mime: %s Mismatch in sampleCount", mime);
                     areTracksIdentical = false;
                     break;
                 }
 
                 if (!haveRefSamples && !isExtractorOKonEOS(refExtractor)) {
-                    ALOGD("Mime: %s calls post advance() are not OK", refMime);
+                    ALOGD("Mime: %s calls post advance() are not OK", mime);
                     areTracksIdentical = false;
                     break;
                 }
                 if (!haveTestSamples && !isExtractorOKonEOS(testExtractor)) {
-                    ALOGD("Mime: %s calls post advance() are not OK", refMime);
+                    ALOGD("Mime: %s calls post advance() are not OK", mime);
                     areTracksIdentical = false;
                     break;
                 }
-                ALOGV("Mime: %s Sample: %d flags: %d size: %d ts: %d", refMime, frameCount,
-                      refSampleInfo.flags, refSampleInfo.size,
-                      (int)refSampleInfo.presentationTimeUs);
+                ALOGV("Mime: %s Sample: %d flags: %d size: %d ts: % " PRId64 "", mime,
+                      frameCount, refSampleInfo.flags, refSampleInfo.size,
+                      refSampleInfo.presentationTimeUs);
                 if (!haveRefSamples || frameCount >= sampleLimit) {
                     break;
                 }
@@ -213,6 +211,37 @@ static AMediaExtractor* createExtractorFromFD(FILE* fp) {
         }
     }
     return extractor;
+}
+
+static bool createExtractorFromUrl(JNIEnv* env, jobjectArray jkeys, jobjectArray jvalues,
+                                   AMediaExtractor** ex, AMediaDataSource** ds, const char* url) {
+    int numkeys = jkeys ? env->GetArrayLength(jkeys) : 0;
+    int numvalues = jvalues ? env->GetArrayLength(jvalues) : 0;
+    if (numkeys != numvalues) {
+        ALOGE("Unequal number of keys and values");
+        return false;
+    }
+    const char** keyvalues = numkeys ? new const char*[numkeys * 2] : nullptr;
+    for (int i = 0; i < numkeys; i++) {
+        auto jkey = (jstring)(env->GetObjectArrayElement(jkeys, i));
+        auto jvalue = (jstring)(env->GetObjectArrayElement(jvalues, i));
+        const char* key = env->GetStringUTFChars(jkey, nullptr);
+        const char* value = env->GetStringUTFChars(jvalue, nullptr);
+        keyvalues[i * 2] = key;
+        keyvalues[i * 2 + 1] = value;
+    }
+    *ex = AMediaExtractor_new();
+    *ds = AMediaDataSource_newUri(url, numkeys, keyvalues);
+    bool isPass = *ds ? (AMEDIA_OK == AMediaExtractor_setDataSourceCustom(*ex, *ds)) : false;
+    if (!isPass) ALOGE("setDataSourceCustom failed");
+    for (int i = 0; i < numkeys; i++) {
+        auto jkey = (jstring)(env->GetObjectArrayElement(jkeys, i));
+        auto jvalue = (jstring)(env->GetObjectArrayElement(jvalues, i));
+        env->ReleaseStringUTFChars(jkey, keyvalues[i * 2]);
+        env->ReleaseStringUTFChars(jvalue, keyvalues[i * 2 + 1]);
+    }
+    delete[] keyvalues;
+    return isPass;
 }
 
 // content necessary for testing seek are grouped in this class
@@ -392,6 +421,7 @@ static int checkSeekPoints(const char* srcFile, const char* mime,
         const char* currMime = nullptr;
         bool hasKey = AMediaFormat_getString(format, AMEDIAFORMAT_KEY_MIME, &currMime);
         if (!hasKey || strcmp(currMime, mime) != 0) {
+            AMediaFormat_delete(format);
             continue;
         }
         AMediaExtractor_selectTrack(extractor, trackID);
@@ -402,8 +432,8 @@ static int checkSeekPoints(const char* srcFile, const char* mime,
             if (!isSampleInfoIdentical(&arg->mExpected, &received)) {
                 ALOGE(" flags exp/got: %d / %d", arg->mExpected.flags, received.flags);
                 ALOGE(" size exp/got: %d / %d ", arg->mExpected.size, received.size);
-                ALOGE(" ts exp/got: %d / %d ", (int)arg->mExpected.presentationTimeUs,
-                      (int)received.presentationTimeUs);
+                ALOGE(" ts exp/got: %" PRId64 " / %" PRId64 "", arg->mExpected.presentationTimeUs,
+                      received.presentationTimeUs);
                 errCnt++;
             }
         }
@@ -460,8 +490,8 @@ static bool isSeekOk(AMediaExtractor* refExtractor, AMediaExtractor* testExtract
                 if (!result) {
                     ALOGE(" flags exp/got: %d / %d", refSampleInfo.flags, testSampleInfo.flags);
                     ALOGE(" size exp/got: %d / %d ", refSampleInfo.size, testSampleInfo.size);
-                    ALOGE(" ts exp/got: %d / %d ", (int)refSampleInfo.presentationTimeUs,
-                          (int)testSampleInfo.presentationTimeUs);
+                    ALOGE(" ts exp/got: %" PRId64 " / %" PRId64 "",
+                          refSampleInfo.presentationTimeUs, testSampleInfo.presentationTimeUs);
                 }
                 int refTrackIdx = AMediaExtractor_getSampleTrackIndex(refExtractor);
                 int testTrackIdx = AMediaExtractor_getSampleTrackIndex(testExtractor);
@@ -478,22 +508,35 @@ static bool isSeekOk(AMediaExtractor* refExtractor, AMediaExtractor* testExtract
 }
 
 static jlong nativeReadAllData(JNIEnv* env, jobject, jstring jsrcPath, jstring jmime,
-                               jint sampleLimit) {
+                               jint sampleLimit, jobjectArray jkeys, jobjectArray jvalues,
+                               jboolean isSrcUrl) {
     const int maxSampleSize = (4 * 1024 * 1024);
-    bool isPass = false;
+    bool isPass = true;
     uLong crc32value = 0U;
     const char* csrcPath = env->GetStringUTFChars(jsrcPath, nullptr);
     const char* cmime = env->GetStringUTFChars(jmime, nullptr);
-    FILE* srcFp = fopen(csrcPath, "rbe");
-    AMediaExtractor* extractor = createExtractorFromFD(srcFp);
-    if (extractor == nullptr) {
-        if (srcFp) fclose(srcFp);
+    AMediaExtractor* extractor = nullptr;
+    AMediaDataSource* dataSource = nullptr;
+    FILE* srcFp = nullptr;
+
+    if (isSrcUrl) {
+        isPass = createExtractorFromUrl(env, jkeys, jvalues, &extractor, &dataSource, csrcPath);
+    } else {
+        srcFp = fopen(csrcPath, "rbe");
+        extractor = createExtractorFromFD(srcFp);
+        if (extractor == nullptr) {
+            if (srcFp) fclose(srcFp);
+            isPass = false;
+        }
+    }
+    if (!isPass) {
         env->ReleaseStringUTFChars(jmime, cmime);
         env->ReleaseStringUTFChars(jsrcPath, csrcPath);
-        ALOGE(" Error while creating extractor");
+        ALOGE("Error while creating extractor");
+        if (dataSource) AMediaDataSource_delete(dataSource);
+        if (extractor) AMediaExtractor_delete(extractor);
         return static_cast<jlong>(-2);
     }
-    isPass = true;
     auto buffer = new uint8_t[maxSampleSize];
     int bufferSize = 0;
     int tracksSelected = 0;
@@ -586,7 +629,8 @@ static jlong nativeReadAllData(JNIEnv* env, jobject, jstring jsrcPath, jstring j
         }
     }
     delete[] buffer;
-    AMediaExtractor_delete(extractor);
+    if (extractor) AMediaExtractor_delete(extractor);
+    if (dataSource) AMediaDataSource_delete(dataSource);
     if (srcFp) fclose(srcFp);
     env->ReleaseStringUTFChars(jmime, cmime);
     env->ReleaseStringUTFChars(jsrcPath, csrcPath);
@@ -632,8 +676,8 @@ static jboolean nativeTestSeek(JNIEnv* env, jobject, jstring jsrcPath, jstring j
         std::shuffle(seekTestArgs.begin(), seekTestArgs.end(), std::default_random_engine(kSeed));
         int seekAccErrCnt = checkSeekPoints(csrcPath, cmime, seekTestArgs);
         if (seekAccErrCnt != 0) {
-            ALOGE("For %s seek chose inaccurate Sync point in: %d / %d", csrcPath, seekAccErrCnt,
-                  (int)seekTestArgs.size());
+            ALOGE("For %s seek chose inaccurate Sync point in: %d / %zu", csrcPath, seekAccErrCnt,
+                  seekTestArgs.size());
             isPass = false;
         } else {
             isPass = true;
@@ -705,8 +749,8 @@ static jboolean nativeTestSeekToZero(JNIEnv* env, jobject, jstring jsrcPath, jst
                     ALOGE("seen mismatch seekTo(0, SEEK_TO_CLOSEST_SYNC)");
                     ALOGE(" flags exp/got: %d / %d", sampleInfoAtZero.flags, currInfo.flags);
                     ALOGE(" size exp/got: %d / %d ", sampleInfoAtZero.size, currInfo.size);
-                    ALOGE(" ts exp/got: %d / %d ", (int)sampleInfoAtZero.presentationTimeUs,
-                          (int)currInfo.presentationTimeUs);
+                    ALOGE(" ts exp/got: %" PRId64 " / %" PRId64 " ",
+                          sampleInfoAtZero.presentationTimeUs, currInfo.presentationTimeUs);
                     AMediaFormat_delete(format);
                     break;
                 }
@@ -717,8 +761,8 @@ static jboolean nativeTestSeekToZero(JNIEnv* env, jobject, jstring jsrcPath, jst
                     ALOGE("seen mismatch seekTo(-1, SEEK_TO_CLOSEST_SYNC)");
                     ALOGE(" flags exp/got: %d / %d", sampleInfoAtZero.flags, currInfo.flags);
                     ALOGE(" size exp/got: %d / %d ", sampleInfoAtZero.size, currInfo.size);
-                    ALOGE(" ts exp/got: %d / %d ", (int)sampleInfoAtZero.presentationTimeUs,
-                          (int)currInfo.presentationTimeUs);
+                    ALOGE(" ts exp/got: %" PRId64 " / %" PRId64 "",
+                          sampleInfoAtZero.presentationTimeUs, currInfo.presentationTimeUs);
                     AMediaFormat_delete(format);
                     break;
                 }
@@ -763,13 +807,9 @@ static jboolean nativeTestDataSource(JNIEnv* env, jobject, jstring jsrcPath, jst
     if (status == AMEDIA_OK) {
         isPass &= validateCachedDuration(refExtractor, true);
         const char* csrcPath = env->GetStringUTFChars(jsrcPath, nullptr);
-        AMediaDataSource* dataSource = AMediaDataSource_newUri(csrcUrl, 0, nullptr);
-        AMediaExtractor* testExtractor = AMediaExtractor_new();
-        status = AMediaExtractor_setDataSourceCustom(testExtractor, dataSource);
-        if (status != AMEDIA_OK) {
-            ALOGE("setDataSourceCustom failed");
-            isPass = false;
-        } else {
+        AMediaDataSource* dataSource = nullptr;
+        AMediaExtractor* testExtractor = nullptr;
+        if (createExtractorFromUrl(env, nullptr, nullptr, &testExtractor, &dataSource, csrcUrl)) {
             isPass &= validateCachedDuration(testExtractor, true);
             if (!(isMediaSimilar(refExtractor, testExtractor, nullptr) &&
                   isFileFormatIdentical(refExtractor, testExtractor) &&
@@ -831,7 +871,8 @@ int registerAndroidMediaV2CtsExtractorTestFunc(JNIEnv* env) {
 
 int registerAndroidMediaV2CtsExtractorTest(JNIEnv* env) {
     const JNINativeMethod methodTable[] = {
-            {"nativeReadAllData", "(Ljava/lang/String;Ljava/lang/String;I)J",
+            {"nativeReadAllData",
+             "(Ljava/lang/String;Ljava/lang/String;I[Ljava/lang/String;[Ljava/lang/String;Z)J",
              (void*)nativeReadAllData},
     };
     jclass c = env->FindClass("android/mediav2/cts/ExtractorTest");

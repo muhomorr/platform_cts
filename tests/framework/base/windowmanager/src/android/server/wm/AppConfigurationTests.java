@@ -40,6 +40,7 @@ import static android.server.wm.app.Components.TEST_ACTIVITY;
 import static android.server.wm.app.Components.LandscapeOrientationActivity.EXTRA_APP_CONFIG_INFO;
 import static android.server.wm.app.Components.LandscapeOrientationActivity.EXTRA_CONFIG_INFO_IN_ON_CREATE;
 import static android.server.wm.app.Components.LandscapeOrientationActivity.EXTRA_DISPLAY_REAL_SIZE;
+import static android.server.wm.app.Components.LandscapeOrientationActivity.EXTRA_SYSTEM_RESOURCES_CONFIG_INFO;
 import static android.server.wm.translucentapp26.Components.SDK26_TRANSLUCENT_LANDSCAPE_ACTIVITY;
 import static android.view.Surface.ROTATION_0;
 import static android.view.Surface.ROTATION_180;
@@ -59,6 +60,7 @@ import static org.junit.Assume.assumeTrue;
 
 import android.content.ComponentName;
 import android.content.Context;
+import android.content.res.Resources;
 import android.graphics.Point;
 import android.graphics.Rect;
 import android.hardware.display.DisplayManager;
@@ -68,6 +70,7 @@ import android.server.wm.CommandSession.ActivitySession;
 import android.server.wm.CommandSession.ConfigInfo;
 import android.server.wm.CommandSession.SizeInfo;
 import android.server.wm.TestJournalProvider.TestJournalContainer;
+import android.util.DisplayMetrics;
 import android.view.Display;
 
 import org.junit.Test;
@@ -472,6 +475,9 @@ public class AppConfigurationTests extends MultiDisplayTestBase {
         final Point onCreateRealDisplaySize = extras.getParcelable(EXTRA_DISPLAY_REAL_SIZE);
         final ConfigInfo onCreateConfigInfo = extras.getParcelable(EXTRA_CONFIG_INFO_IN_ON_CREATE);
         final SizeInfo onCreateSize = onCreateConfigInfo.sizeInfo;
+        final ConfigInfo globalConfigInfo =
+                extras.getParcelable(EXTRA_SYSTEM_RESOURCES_CONFIG_INFO);
+        final SizeInfo globalSizeInfo = globalConfigInfo.sizeInfo;
 
         assertEquals("The last reported size should be the same as the one from onCreate",
                 reportedSizes, onCreateConfigInfo.sizeInfo);
@@ -485,6 +491,10 @@ public class AppConfigurationTests extends MultiDisplayTestBase {
                 expectedRotation, onCreateConfigInfo.rotation);
         assertEquals("The application should get the final display rotation in onCreate",
                 expectedRotation, appConfigInfo.rotation);
+        assertEquals("The orientation of application must be landscape",
+                ORIENTATION_LANDSCAPE, appConfigInfo.sizeInfo.orientation);
+        assertEquals("The orientation of system resources must be landscape",
+                ORIENTATION_LANDSCAPE, globalSizeInfo.orientation);
         assertEquals("The activity should get the final display size in onCreate",
                 expectedRealDisplaySize, onCreateRealDisplaySize);
 
@@ -493,6 +503,13 @@ public class AppConfigurationTests extends MultiDisplayTestBase {
                 onCreateSize.displayWidth > onCreateSize.displayHeight);
         assertEquals("The application should get the same orientation", isLandscape,
                 appConfigInfo.sizeInfo.displayWidth > appConfigInfo.sizeInfo.displayHeight);
+        assertEquals("The app display metrics must be landscape", isLandscape,
+                appConfigInfo.sizeInfo.metricsWidth > appConfigInfo.sizeInfo.metricsHeight);
+
+        final DisplayMetrics globalMetrics = Resources.getSystem().getDisplayMetrics();
+        assertEquals("The display metrics of system resources must be landscape",
+                new Point(globalMetrics.widthPixels, globalMetrics.heightPixels),
+                new Point(globalSizeInfo.metricsWidth, globalSizeInfo.metricsHeight));
     }
 
     @Test
@@ -600,8 +617,8 @@ public class AppConfigurationTests extends MultiDisplayTestBase {
 
         // Start resizeable activity that handles configuration changes.
         separateTestJournal();
-        launchActivity(TEST_ACTIVITY);
-        launchActivity(RESIZEABLE_ACTIVITY);
+        launchActivity(TEST_ACTIVITY, WINDOWING_MODE_FULLSCREEN);
+        launchActivity(RESIZEABLE_ACTIVITY, WINDOWING_MODE_FULLSCREEN);
         mWmState.assertVisibility(RESIZEABLE_ACTIVITY, true /* visible */);
 
         final int displayId = mWmState.getDisplayByActivity(RESIZEABLE_ACTIVITY);
@@ -647,8 +664,10 @@ public class AppConfigurationTests extends MultiDisplayTestBase {
 
         TestActivitySession<ConfigChangeHandlingActivity> activitySession
                 = createManagedTestActivitySession();
-        activitySession.launchTestActivityOnDisplaySync(ConfigChangeHandlingActivity.class,
-                Display.DEFAULT_DISPLAY);
+        activitySession.launchTestActivityOnDisplaySync(
+                ConfigChangeHandlingActivity.class,
+                Display.DEFAULT_DISPLAY,
+                WINDOWING_MODE_FULLSCREEN);
         final ConfigChangeHandlingActivity activity = activitySession.getActivity();
 
         VirtualDisplaySession virtualDisplaySession = createManagedVirtualDisplaySession();
@@ -693,20 +712,20 @@ public class AppConfigurationTests extends MultiDisplayTestBase {
 
         // Start portrait-fixed activity
         separateTestJournal();
-        launchActivity(RESIZEABLE_ACTIVITY);
-        launchActivity(PORTRAIT_ORIENTATION_ACTIVITY);
-        mWmState.assertVisibility(PORTRAIT_ORIENTATION_ACTIVITY, true /* visible */);
+        launchActivity(RESIZEABLE_ACTIVITY, WINDOWING_MODE_FULLSCREEN);
+        mWmState.assertVisibility(RESIZEABLE_ACTIVITY, true /* visible */);
 
-        final int displayId = mWmState
-                .getDisplayByActivity(PORTRAIT_ORIENTATION_ACTIVITY);
+        final int displayId = mWmState.getDisplayByActivity(RESIZEABLE_ACTIVITY);
 
-        // Rotate the activity and check that the orientation doesn't change
         final RotationSession rotationSession = createManagedRotationSession();
         assumeTrue("Skipping test: no user locked rotation support.",
                 supportsLockedUserRotation(rotationSession, displayId));
 
-        rotationSession.set(ROTATION_0);
+        launchActivity(PORTRAIT_ORIENTATION_ACTIVITY, WINDOWING_MODE_FULLSCREEN);
+        mWmState.assertVisibility(PORTRAIT_ORIENTATION_ACTIVITY, true /* visible */);
 
+        // Rotate the display and check that the orientation doesn't change
+        rotationSession.set(ROTATION_0);
         final int[] rotations = { ROTATION_270, ROTATION_180, ROTATION_90, ROTATION_0 };
         for (final int rotation : rotations) {
             separateTestJournal();
@@ -830,7 +849,7 @@ public class AppConfigurationTests extends MultiDisplayTestBase {
 
         // Move activity back to docked stack.
         separateTestJournal();
-        setActivityTaskWindowingMode(activityName, WINDOWING_MODE_SPLIT_SCREEN_PRIMARY);
+        moveTaskToPrimarySplitScreen(mWmState.getTaskByActivity(activityName).mTaskId);
         final SizeInfo finalDockedSizes = getActivityDisplaySize(activityName);
 
         // After activity configuration was changed twice it must report same size as original one.
@@ -869,7 +888,10 @@ public class AppConfigurationTests extends MultiDisplayTestBase {
      * that are smaller than the dockedSizes.
      */
     private static void assertSizesAreSane(SizeInfo fullscreenSizes, SizeInfo dockedSizes) {
-        if (isDisplayPortrait()) {
+        final boolean isHorizontalDivision =
+                fullscreenSizes.displayHeight - dockedSizes.displayHeight >
+                fullscreenSizes.displayWidth - dockedSizes.displayWidth;
+        if (isHorizontalDivision) {
             assertThat(dockedSizes.displayHeight, lessThan(fullscreenSizes.displayHeight));
             assertThat(dockedSizes.heightDp, lessThan(fullscreenSizes.heightDp));
             assertThat(dockedSizes.metricsHeight, lessThan(fullscreenSizes.metricsHeight));

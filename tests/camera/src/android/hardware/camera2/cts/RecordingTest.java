@@ -1153,7 +1153,7 @@ public class RecordingTest extends Camera2SurfaceViewTestCase {
 
             // Stop recording and preview
             stopRecording(/* useMediaRecorder */true, useIntermediateSurface,
-                    /* stopCameraStreaming */false);
+                    /* stopCameraStreaming */true);
             // Convert number of frames camera produced into the duration in unit of ms.
             float frameDurationMs = 1000.0f / profile.videoFrameRate;
             float durationMs = 0.f;
@@ -1264,7 +1264,12 @@ public class RecordingTest extends Camera2SurfaceViewTestCase {
         Size maxVideoSize = SIZE_BOUND_1080P;
         if (CamcorderProfile.hasProfile(CamcorderProfile.QUALITY_2160P)) {
             maxVideoSize = SIZE_BOUND_2160P;
+        } else if (CamcorderProfile.hasProfile(CamcorderProfile.QUALITY_QHD)) {
+            maxVideoSize = SIZE_BOUND_QHD;
+        } else if (CamcorderProfile.hasProfile(CamcorderProfile.QUALITY_2K)) {
+            maxVideoSize = SIZE_BOUND_2K;
         }
+
         mSupportedVideoSizes =
                 getSupportedVideoSizes(cameraId, mCameraManager, maxVideoSize);
     }

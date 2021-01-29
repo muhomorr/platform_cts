@@ -16,16 +16,17 @@ android_test {
     name: "CtsCarrierApiTestCases",
     defaults: ["cts_defaults"],
     static_libs: [
+        "androidx.test.uiautomator_uiautomator",
         "ctstestrunner-axt",
         "compatibility-device-util-axt",
         "junit",
+        "truth-prebuilt",
     ],
     srcs: ["src/**/*.java"],
     sdk_version: "test_current",
     // Tag this module as a cts test artifact
     test_suites: [
         "cts",
-        "vts10",
         "general-tests",
     ],
     libs: [

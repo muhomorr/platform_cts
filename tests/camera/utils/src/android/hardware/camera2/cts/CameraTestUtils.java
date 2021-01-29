@@ -99,6 +99,8 @@ public class CameraTestUtils extends Assert {
     private static final boolean VERBOSE = Log.isLoggable(TAG, Log.VERBOSE);
     private static final boolean DEBUG = Log.isLoggable(TAG, Log.DEBUG);
     public static final Size SIZE_BOUND_1080P = new Size(1920, 1088);
+    public static final Size SIZE_BOUND_2K = new Size(2048, 1088);
+    public static final Size SIZE_BOUND_QHD = new Size(2560, 1440);
     public static final Size SIZE_BOUND_2160P = new Size(3840, 2160);
     // Only test the preview size that is no larger than 1080p.
     public static final Size PREVIEW_SIZE_BOUND = SIZE_BOUND_1080P;
@@ -1287,6 +1289,7 @@ public class CameraTestUtils extends Assert {
         for (int i = 0; i < planes.length; i++) {
             buffer = planes[i].getBuffer();
             assertNotNull("Fail to get bytebuffer from plane", buffer);
+            buffer.rewind();
             rowStride = planes[i].getRowStride();
             pixelStride = planes[i].getPixelStride();
             assertTrue("pixel stride " + pixelStride + " is invalid", pixelStride > 0);
@@ -2234,30 +2237,28 @@ public class CameraTestUtils extends Assert {
                         " is not supported");
             }
 
-            if (srcRowStride == dstRowStride && srcPixStride == dstPixStride) {
+            if (srcRowStride == dstRowStride && srcPixStride == dstPixStride &&
+                    srcPixStride == 1) {
                 // Fast path, just copy the content in the byteBuffer all together.
                 dstBuffer.put(srcBuffer);
             } else {
                 Size effectivePlaneSize = getEffectivePlaneSizeForImage(src, i);
                 int srcRowByteCount = srcRowStride;
                 int dstRowByteCount = dstRowStride;
-                byte[] srcDataRow = new byte[srcRowByteCount];
+                byte[] srcDataRow = new byte[Math.max(srcRowStride, dstRowStride)];
 
-                if (srcPixStride == dstPixStride) {
+                if (srcPixStride == dstPixStride && srcPixStride == 1) {
                     // Row by row copy case
                     for (int row = 0; row < effectivePlaneSize.getHeight(); row++) {
                         if (row == effectivePlaneSize.getHeight() - 1) {
                             // Special case for interleaved planes: need handle the last row
                             // carefully to avoid memory corruption. Check if we have enough bytes
                             // to copy.
-                            int remainingBytes = srcBuffer.remaining();
-                            if (srcRowByteCount > remainingBytes) {
-                                srcRowByteCount = remainingBytes;
-                            }
+                            srcRowByteCount = Math.min(srcRowByteCount, srcBuffer.remaining());
+                            dstRowByteCount = Math.min(dstRowByteCount, dstBuffer.remaining());
                         }
                         srcBuffer.get(srcDataRow, /*offset*/0, srcRowByteCount);
-                        dstBuffer.put(srcDataRow, /*offset*/0,
-                                Math.min(srcRowByteCount, dstRowByteCount));
+                        dstBuffer.put(srcDataRow, /*offset*/0, dstRowByteCount);
                     }
                 } else {
                     // Row by row per pixel copy case
@@ -2379,10 +2380,12 @@ public class CameraTestUtils extends Assert {
             rhsBuffer = rhsPlanes[i].getBuffer();
             lhsBuffer.rewind();
             rhsBuffer.rewind();
-            // Special case for YUV420_888 buffer with different layout
+            // Special case for YUV420_888 buffer with different layout or
+            // potentially differently interleaved U/V planes.
             if (lhsImg.getFormat() == ImageFormat.YUV_420_888 &&
                     (lhsPlanes[i].getPixelStride() != rhsPlanes[i].getPixelStride() ||
-                     lhsPlanes[i].getRowStride() != rhsPlanes[i].getRowStride())) {
+                     lhsPlanes[i].getRowStride() != rhsPlanes[i].getRowStride() ||
+                     (lhsPlanes[i].getPixelStride() != 1))) {
                 int width = getEffectivePlaneSizeForImage(lhsImg, i).getWidth();
                 int height = getEffectivePlaneSizeForImage(lhsImg, i).getHeight();
                 int rowSizeL = lhsPlanes[i].getRowStride();

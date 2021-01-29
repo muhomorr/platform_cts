@@ -28,10 +28,13 @@ import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.Rect;
 import android.platform.test.annotations.Presubmit;
+import android.view.WindowManager;
 
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+
+import static android.app.WindowConfiguration.WINDOWING_MODE_FULLSCREEN;
 
 /**
  * Build/Install/Run:
@@ -59,9 +62,15 @@ public class SplashscreenTests extends ActivityManagerTestBase {
         mWmState.waitForAppTransitionIdleOnDisplay(DEFAULT_DISPLAY);
         mWmState.getStableBounds();
         final Bitmap image = takeScreenshot();
+        int windowingMode = mWmState.getFocusedStackWindowingMode();
+        Rect appBounds = new Rect();
+        appBounds.set(windowingMode == WINDOWING_MODE_FULLSCREEN ?
+                mWmState.getStableBounds() :
+                mWmState.findFirstWindowWithType(
+                        WindowManager.LayoutParams.TYPE_APPLICATION_STARTING).getContentFrame());
         // Use ratios to flexibly accomodate circular or not quite rectangular displays
         // Note: Color.BLACK is the pixel color outside of the display region
-        assertColors(image, mWmState.getStableBounds(),
+        assertColors(image, appBounds,
             Color.RED, 0.50f, Color.BLACK, 0.02f);
     }
 

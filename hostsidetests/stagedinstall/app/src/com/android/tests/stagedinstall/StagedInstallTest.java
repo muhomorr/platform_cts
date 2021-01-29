@@ -37,7 +37,6 @@ import android.content.pm.PackageInstaller;
 import android.content.pm.PackageManager;
 import android.os.Handler;
 import android.os.HandlerThread;
-import android.os.storage.StorageManager;
 import android.util.Log;
 
 import androidx.test.platform.app.InstrumentationRegistry;
@@ -279,10 +278,10 @@ public class StagedInstallTest {
         int sessionId = stageSingleApk(TestApp.A1).assertSuccessful().getSessionId();
         assertThat(getInstalledVersion(TestApp.A)).isEqualTo(-1);
         waitForIsReadyBroadcast(sessionId);
-        PackageInstaller.SessionInfo session = getStagedSessionInfo(sessionId);
+        PackageInstaller.SessionInfo session = InstallUtils.getStagedSessionInfo(sessionId);
         assertSessionReady(sessionId);
         abandonSession(sessionId);
-        assertThat(getStagedSessionInfo(sessionId)).isNull();
+        InstallUtils.assertStagedSessionIsAbandoned(sessionId);
         // Allow the session to be removed from PackageInstaller
         Duration spentWaiting = Duration.ZERO;
         while (spentWaiting.compareTo(WAIT_FOR_SESSION_REMOVED_TTL) < 0) {
@@ -312,7 +311,7 @@ public class StagedInstallTest {
         int sessionId = stageSingleApk(TestApp.A1).assertSuccessful().getSessionId();
         assertThat(getInstalledVersion(TestApp.A)).isEqualTo(-1);
         abandonSession(sessionId);
-        assertThat(getStagedSessionInfo(sessionId)).isNull();
+        InstallUtils.assertStagedSessionIsAbandoned(sessionId);
     }
 
     @Test
@@ -346,7 +345,7 @@ public class StagedInstallTest {
         int sessionId = stageMultipleApks(TestApp.A1, TestApp.Apex2).assertSuccessful()
                 .getSessionId();
         abandonSession(sessionId);
-        assertThat(getStagedSessionInfo(sessionId)).isNull();
+        InstallUtils.assertStagedSessionIsAbandoned(sessionId);
         assertNoSessionUpdatedBroadcastSent();
     }
 
@@ -1174,6 +1173,22 @@ public class StagedInstallTest {
                 .contains("AVB footer verification failed");
     }
 
+    /**
+     * Test non-priv apps cannot access /data/app-staging folder contents
+     */
+    @Test
+    public void testAppStagingDirCannotBeReadByNonPrivApps() throws Exception {
+        final int sessionId = stageSingleApk(TestApp.A1).assertSuccessful().getSessionId();
+        // Non-priv apps should not be able to view contents of app-staging directory
+        final File appStagingDir = new File("/data/app-staging");
+        assertThat(appStagingDir.exists()).isTrue();
+        assertThat(appStagingDir.listFiles()).isNull();
+        // Non-owner user should not be able to access sub-dirs of app-staging directory
+        final File appStagingSubDir = new File("/data/app-staging/session_" + sessionId);
+        assertThat(appStagingSubDir.exists()).isFalse();
+        assertThat(appStagingDir.listFiles()).isNull();
+    }
+
     private static long getInstalledVersion(String packageName) {
         Context context = InstrumentationRegistry.getInstrumentation().getContext();
         PackageManager pm = context.getPackageManager();
@@ -1367,19 +1382,6 @@ public class StagedInstallTest {
         getPackageInstaller().abandonSession(sessionId);
     }
 
-    /**
-     * Returns the session by session Id, or null if no session is found.
-     */
-    private static PackageInstaller.SessionInfo getStagedSessionInfo(int sessionId) {
-        PackageInstaller packageInstaller = getPackageInstaller();
-        for (PackageInstaller.SessionInfo session : packageInstaller.getStagedSessions()) {
-            if (session.getSessionId() == sessionId) {
-                return session;
-            }
-        }
-        return null;
-    }
-
     private static PackageInstaller.SessionInfo getSessionInfo(int sessionId) {
         return getPackageInstaller().getSessionInfo(sessionId);
     }
@@ -1437,12 +1439,5 @@ public class StagedInstallTest {
                 SessionUpdateBroadcastReceiver.sessionBroadcasts.poll(10,
                         TimeUnit.SECONDS);
         assertThat(info).isNull();
-    }
-
-    @Test
-    public void isCheckpointSupported() {
-        Context context = InstrumentationRegistry.getInstrumentation().getContext();
-        StorageManager sm = (StorageManager) context.getSystemService(Context.STORAGE_SERVICE);
-        assertThat(sm.isCheckpointSupported()).isTrue();
     }
 }

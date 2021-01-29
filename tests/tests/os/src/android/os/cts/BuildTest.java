@@ -85,9 +85,6 @@ public class BuildTest extends TestCase {
 
         List<String> abiList = Arrays.asList(abiListProperty);
 
-        // Every device must support at least one 32 bit ABI.
-        assertTrue(Build.SUPPORTED_32_BIT_ABIS.length > 0);
-
         // Every supported 32 bit ABI must be present in Build.SUPPORTED_ABIS.
         for (String abi : Build.SUPPORTED_32_BIT_ABIS) {
             assertTrue(abiList.contains(abi));
@@ -221,6 +218,10 @@ public class BuildTest extends TestCase {
         Pattern.compile("^([0-9A-Za-z.,_-]+)$");
     private static final Pattern PRODUCT_PATTERN =
         Pattern.compile("^([0-9A-Za-z._-]+)$");
+    private static final Pattern SOC_MANUFACTURER_PATTERN =
+        Pattern.compile("^([0-9A-Za-z ]+)$");
+    private static final Pattern SOC_MODEL_PATTERN =
+        Pattern.compile("^([0-9A-Za-z ._/+-]+)$");
     private static final Pattern SERIAL_NUMBER_PATTERN =
         Pattern.compile("^([0-9A-Za-z]{6,20})$");
     private static final Pattern SKU_PATTERN =
@@ -252,11 +253,19 @@ public class BuildTest extends TestCase {
 
         assertNotEmpty(Build.MODEL);
 
+        assertEquals(Build.SOC_MANUFACTURER, Build.SOC_MANUFACTURER.trim());
+        assertTrue(SOC_MANUFACTURER_PATTERN.matcher(Build.SOC_MANUFACTURER).matches());
+
+        assertEquals(Build.SOC_MODEL, Build.SOC_MODEL.trim());
+        assertTrue(SOC_MODEL_PATTERN.matcher(Build.SOC_MODEL).matches());
+
         assertTrue(PRODUCT_PATTERN.matcher(Build.PRODUCT).matches());
 
         assertTrue(SERIAL_NUMBER_PATTERN.matcher(Build.SERIAL).matches());
 
         assertTrue(SKU_PATTERN.matcher(Build.SKU).matches());
+
+        assertTrue(SKU_PATTERN.matcher(Build.ODM_SKU).matches());
 
         assertTrue(TAGS_PATTERN.matcher(Build.TAGS).matches());
 

@@ -42,15 +42,20 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import test_package.Bar;
+import test_package.Baz;
 import test_package.ByteEnum;
+import test_package.ExtendableParcelable;
 import test_package.Foo;
 import test_package.GenericBar;
 import test_package.GenericFoo;
+import test_package.ICompatTest;
 import test_package.IEmpty;
 import test_package.ITest;
 import test_package.IntEnum;
 import test_package.LongEnum;
+import test_package.MyExt;
 import test_package.RegularPolygon;
+import test_package.SimpleUnion;
 
 @RunWith(Parameterized.class)
 public class JavaClientTest {
@@ -103,9 +108,19 @@ public class JavaClientTest {
     }
 
     @Test
-    public void testTrivial() throws RemoteException {
+    public void testVoidReturn() throws RemoteException {
         mInterface.TestVoidReturn();
-        mInterface.TestOneway();
+    }
+
+    @Test
+    public void testOneway() throws RemoteException {
+        boolean isLocalJava = !mShouldBeRemote && mExpectedName == "JAVA";
+        try {
+            mInterface.TestOneway();
+            assertFalse("local Java should throw exception", isLocalJava);
+        } catch (RemoteException e) {
+            assertTrue("only local Java should report error", isLocalJava);
+        }
     }
 
     private void checkDump(String expected, String[] args) throws RemoteException, IOException {
@@ -174,11 +189,6 @@ public class JavaClientTest {
     }
 
     private static class Empty extends IEmpty.Stub {
-        @Override
-        public int getInterfaceVersion() { return Empty.VERSION; }
-
-        @Override
-        public String getInterfaceHash() { return Empty.HASH; }
     }
 
     @Test
@@ -222,6 +232,18 @@ public class JavaClientTest {
     @Test
     public void testRepeatFd() throws RemoteException, IOException {
         checkFdRepeated((fd) -> mInterface.RepeatFd(fd));
+    }
+
+    @Test
+    public void testRepeatFdNull() throws RemoteException {
+        boolean isNativeRemote = mInterface.GetName().equals("CPP");
+
+        try {
+            mInterface.RepeatFd(null);
+            assertFalse("Native shouldn't accept null here", isNativeRemote);
+        } catch (java.lang.NullPointerException e) {
+            assertTrue("Java should accept null here", isNativeRemote);
+        }
     }
 
     @Test
@@ -605,6 +627,11 @@ public class JavaClientTest {
         foo.shouldContainTwoIntFoos = new int[]{IntEnum.FOO, IntEnum.FOO};
         foo.shouldContainTwoLongFoos = new long[]{LongEnum.FOO, LongEnum.FOO};
 
+        foo.u = SimpleUnion.e(new byte[]{ByteEnum.FOO, ByteEnum.FOO});
+
+        foo.shouldSetBit0AndBit2 = Foo.BIT0 | Foo.BIT2;
+        foo.shouldBeConstS1 = SimpleUnion.c(SimpleUnion.S1);
+
         Foo repeatedFoo = mInterface.repeatFoo(foo);
 
         assertEquals(foo.a, repeatedFoo.a);
@@ -617,6 +644,9 @@ public class JavaClientTest {
         Assert.assertArrayEquals(foo.shouldContainTwoByteFoos, repeatedFoo.shouldContainTwoByteFoos);
         Assert.assertArrayEquals(foo.shouldContainTwoIntFoos, repeatedFoo.shouldContainTwoIntFoos);
         Assert.assertArrayEquals(foo.shouldContainTwoLongFoos, repeatedFoo.shouldContainTwoLongFoos);
+        Assert.assertArrayEquals(foo.u.getE(), repeatedFoo.u.getE());
+        assertEquals(foo.shouldSetBit0AndBit2, repeatedFoo.shouldSetBit0AndBit2);
+        assertEquals(foo.shouldBeConstS1.getC(), repeatedFoo.shouldBeConstS1.getC());
     }
 
     @Test
@@ -635,18 +665,14 @@ public class JavaClientTest {
 
     @Test
     public void testNewField() throws RemoteException {
-        Foo foo = new Foo();
-        foo.d = new Bar();
-        foo.e = new Bar();
-        foo.shouldContainTwoByteFoos = new byte[]{};
-        foo.shouldContainTwoIntFoos = new int[]{};
-        foo.shouldContainTwoLongFoos = new long[]{};
-        foo.g = new String[]{"a", "b", "c"};
-        Foo newFoo = mInterface.repeatFoo(foo);
+        Baz baz = new Baz();
+        baz.d = new String[]{"a", "b", "c"};
+        ICompatTest compatTest = ICompatTest.Stub.asInterface(mInterface.getICompatTest());
+        Baz newBaz = compatTest.repeatBaz(baz);
         if (mShouldBeOld) {
-            assertEquals(null, newFoo.g);
+            assertEquals(null, newBaz.d);
         } else {
-            Assert.assertArrayEquals(foo.g, newFoo.g);
+            Assert.assertArrayEquals(baz.d, newBaz.d);
         }
     }
     @Test
@@ -676,14 +702,52 @@ public class JavaClientTest {
     public void testRepeatStringNullableLater() throws RemoteException {
         // see notes in native NdkBinderTest_Aidl RepeatStringNullableLater
         boolean handlesNull = !mShouldBeOld || mExpectedName == "JAVA";
+        ICompatTest compatTest = ICompatTest.Stub.asInterface(mInterface.getICompatTest());
+
         try {
-            assertEquals(null, mInterface.RepeatStringNullableLater(null));
+            assertEquals(null, compatTest.RepeatStringNullableLater(null));
             assertTrue("should reach here if null is handled", handlesNull);
         } catch (NullPointerException e) {
             assertFalse("should reach here if null isn't handled", handlesNull);
         }
-        assertEquals("", mInterface.RepeatStringNullableLater(""));
-        assertEquals("a", mInterface.RepeatStringNullableLater("a"));
-        assertEquals("foo", mInterface.RepeatStringNullableLater("foo"));
+        assertEquals("", compatTest.RepeatStringNullableLater(""));
+        assertEquals("a", compatTest.RepeatStringNullableLater("a"));
+        assertEquals("foo", compatTest.RepeatStringNullableLater("foo"));
+    }
+
+    @Test
+    public void testParcelableHolder() throws RemoteException {
+        ExtendableParcelable ep = new ExtendableParcelable();
+        ep.c = 42L;
+        MyExt myext1 = new MyExt();
+        myext1.a = 42;
+        myext1.b = "mystr";
+        ep.ext.setParcelable(myext1);
+
+        ExtendableParcelable ep2 = new ExtendableParcelable();
+        mInterface.RepeatExtendableParcelable(ep, ep2);
+        MyExt myext2 = ep2.ext.getParcelable(MyExt.class);
+        assertEquals(42L, ep2.c);
+        assertNotEquals(null, myext2);
+        assertEquals(42, myext2.a);
+        assertEquals("mystr", myext2.b);
+    }
+
+    @Test
+    public void testEmptyParcelableHolder() throws RemoteException {
+        ExtendableParcelable ep = new ExtendableParcelable();
+        ep.c = 42L;
+        ExtendableParcelable ep2 = new ExtendableParcelable();
+        mInterface.RepeatExtendableParcelableWithoutExtension(ep, ep2);
+        assertEquals(42L, ep2.c);
+    }
+
+    @Test
+    public void testRepeatSimpleUnion() throws RemoteException {
+        final int[] intArray = { 1, 2, 3 };
+        SimpleUnion origin = SimpleUnion.b(intArray);
+        SimpleUnion ret = mInterface.RepeatSimpleUnion(origin);
+        assertEquals(SimpleUnion.b, ret.getTag());
+        Assert.assertArrayEquals(intArray, ret.getB());
     }
 }

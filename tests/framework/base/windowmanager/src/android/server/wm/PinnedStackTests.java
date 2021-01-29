@@ -72,12 +72,14 @@ import static android.view.Display.DEFAULT_DISPLAY;
 import static androidx.test.platform.app.InstrumentationRegistry.getInstrumentation;
 
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
+import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
 
 import android.content.ComponentName;
@@ -860,7 +862,7 @@ public class PinnedStackTests extends ActivityManagerTestBase {
     public void testConfigurationChangeOrderDuringTransition() throws Exception {
         // Launch a PiP activity and ensure configuration change only happened once, and that the
         // configuration change happened after the picture-in-picture and multi-window callbacks
-        launchActivity(PIP_ACTIVITY);
+        launchActivity(PIP_ACTIVITY, WINDOWING_MODE_FULLSCREEN);
         separateTestJournal();
         int windowingMode = mWmState.getTaskByActivity(PIP_ACTIVITY).getWindowingMode();
         mBroadcastActionTrigger.doAction(ACTION_ENTER_PIP);
@@ -947,7 +949,7 @@ public class PinnedStackTests extends ActivityManagerTestBase {
 
         // Skip the test if it's freeform, since freeform <-> PIP does not trigger any multi-window
         // calbacks.
-        assumeTrue(windowingMode == WINDOWING_MODE_FREEFORM);
+        assumeFalse(windowingMode == WINDOWING_MODE_FREEFORM);
 
         mBroadcastActionTrigger.doAction(ACTION_ENTER_PIP);
         // Wait for animation complete so that system has reported pip mode change event to
@@ -1102,9 +1104,10 @@ public class PinnedStackTests extends ActivityManagerTestBase {
         // Some devices do not support recents or implement it differently (instead of using a
         // separate stack id or as an activity), for those cases the visibility asserts will be
         // ignored
-        pressAppSwitchButtonAndWaitForRecents();
-        mWmState.assertVisibility(LAUNCHING_ACTIVITY, true);
-        mWmState.assertVisibility(TEST_ACTIVITY, false);
+        if (pressAppSwitchButtonAndWaitForRecents()) {
+            mWmState.assertVisibility(LAUNCHING_ACTIVITY, true);
+            mWmState.assertVisibility(TEST_ACTIVITY, false);
+        }
     }
 
     @Test
@@ -1287,8 +1290,12 @@ public class PinnedStackTests extends ActivityManagerTestBase {
     private void assertValidPictureInPictureCallbackOrder(ComponentName activityName,
             int windowingMode) {
         final ActivityLifecycleCounts lifecycles = new ActivityLifecycleCounts(activityName);
-        assertEquals(getActivityName(activityName) + " onConfigurationChanged()",
-                1, lifecycles.getCount(ActivityCallback.ON_CONFIGURATION_CHANGED));
+        // There might be one additional config change caused by smallest screen width change when
+        // there are cutout areas on the left & right edges of the display.
+        assertThat(getActivityName(activityName) +
+                        " onConfigurationChanged() shouldn't be triggered more than 2 times",
+                lifecycles.getCount(ActivityCallback.ON_CONFIGURATION_CHANGED),
+                lessThanOrEqualTo(2));
         assertEquals(getActivityName(activityName) + " onMultiWindowModeChanged",
                 windowingMode == WINDOWING_MODE_FULLSCREEN ? 1 : 0,
                 lifecycles.getCount(ActivityCallback.ON_MULTI_WINDOW_MODE_CHANGED));

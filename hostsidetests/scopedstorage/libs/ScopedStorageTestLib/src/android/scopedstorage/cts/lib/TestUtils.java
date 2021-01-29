@@ -46,6 +46,7 @@ import android.provider.MediaStore;
 import android.system.ErrnoException;
 import android.system.Os;
 import android.system.OsConstants;
+import android.text.TextUtils;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
@@ -69,6 +70,7 @@ import java.io.InterruptedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -170,7 +172,8 @@ public class TestUtils {
     /**
      * Executes a shell command.
      */
-    public static String executeShellCommand(String command) throws IOException {
+    public static String executeShellCommand(String pattern, Object...args) throws IOException {
+        String command = String.format(pattern, args);
         int attempt = 0;
         while (attempt++ < 5) {
             try {
@@ -622,11 +625,20 @@ public class TestUtils {
      * Asserts can rename file.
      */
     public static void assertCanRenameFile(File oldFile, File newFile) {
+        assertCanRenameFile(oldFile, newFile, /* checkDB */ true);
+    }
+
+    /**
+     * Asserts can rename file and optionally checks if the database is updated after rename.
+     */
+    public static void assertCanRenameFile(File oldFile, File newFile, boolean checkDatabase) {
         assertThat(oldFile.renameTo(newFile)).isTrue();
         assertThat(oldFile.exists()).isFalse();
         assertThat(newFile.exists()).isTrue();
-        assertThat(getFileRowIdFromDatabase(oldFile)).isEqualTo(-1);
-        assertThat(getFileRowIdFromDatabase(newFile)).isNotEqualTo(-1);
+        if (checkDatabase) {
+            assertThat(getFileRowIdFromDatabase(oldFile)).isEqualTo(-1);
+            assertThat(getFileRowIdFromDatabase(newFile)).isNotEqualTo(-1);
+        }
     }
 
     /**
@@ -743,7 +755,7 @@ public class TestUtils {
      */
     public static void assertDirectoryContains(@NonNull File dir, File... expectedContent) {
         assertThat(dir.isDirectory()).isTrue();
-        assertThat(Arrays.asList(dir.listFiles())).containsAllIn(expectedContent);
+        assertThat(Arrays.asList(dir.listFiles())).containsAtLeastElementsIn(expectedContent);
     }
 
     public static File getExternalStorageDir() {
@@ -1079,10 +1091,34 @@ public class TestUtils {
         return c;
     }
 
+    private static boolean isObbDirUnmounted() {
+        List<String> mounts = new ArrayList<>();
+        try {
+            for (String line : executeShellCommand("cat /proc/mounts").split("\n")) {
+                String[] split = line.split(" ");
+                // Only check obb dirs with tmpfs, as if it's mounted for app data
+                // isolation, it will be tmpfs only.
+                if (split[0].equals("tmpfs") && split[1].startsWith("/storage/")
+                        && split[1].endsWith("/obb")) {
+                    return false;
+                }
+            }
+        } catch (IOException e) {
+            Log.e(TAG, "Failed to execute shell command", e);
+        }
+        return true;
+    }
+
     /**
      * Creates a new virtual public volume and returns the volume's name.
      */
     public static void createNewPublicVolume() throws Exception {
+        // Unmount data and obb dirs for test app first so test app won't be killed during
+        // volume unmount.
+        executeShellCommand("sm unmount-app-data-dirs " + getContext().getPackageName() + " "
+                        + android.os.Process.myPid() + " " + android.os.UserHandle.myUserId());
+        pollForCondition(TestUtils::isObbDirUnmounted,
+                "Timed out while waiting for unmounting obb dir");
         executeShellCommand("sm set-force-adoptable on");
         executeShellCommand("sm set-virtual-disk true");
         Thread.sleep(2000);
@@ -1092,6 +1128,9 @@ public class TestUtils {
     private static boolean partitionDisk() {
         try {
             final String listDisks = executeShellCommand("sm list-disks").trim();
+            if (TextUtils.isEmpty(listDisks)) {
+                return false;
+            }
             executeShellCommand("sm partition " + listDisks + " public");
             return true;
         } catch (Exception e) {

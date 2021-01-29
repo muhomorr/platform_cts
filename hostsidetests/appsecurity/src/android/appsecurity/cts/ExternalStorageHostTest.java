@@ -135,6 +135,9 @@ public class ExternalStorageHostTest extends BaseHostJUnit4Test {
             getDevice().uninstallPackage(WRITE_PKG);
             installPackage(WRITE_APK);
 
+            // Make sure user initialization is complete before testing
+            waitForBroadcastIdle();
+
             for (int user : mUsers) {
                 runDeviceTests(WRITE_PKG, WRITE_CLASS, "testExternalStorageRename", user);
             }
@@ -488,6 +491,8 @@ public class ExternalStorageHostTest extends BaseHostJUnit4Test {
     private void doMediaSandboxed(Config config, boolean sandboxed) throws Exception {
         installPackage(config.apk);
         installPackage(MEDIA_29.apk);
+        // Make sure user initialization is complete before updating permission
+        waitForBroadcastIdle();
         for (int user : mUsers) {
             updatePermissions(config.pkg, user, new String[] {
                     PERM_READ_EXTERNAL_STORAGE,
@@ -747,6 +752,11 @@ public class ExternalStorageHostTest extends BaseHostJUnit4Test {
                     "cmd package " + verb + " --user " + userId + " --uid " + packageName + " "
                             + permission);
         }
+    }
+
+    /** Wait until all broadcast queues are idle. */
+    private void waitForBroadcastIdle() throws Exception{
+        getDevice().executeShellCommand("am wait-for-broadcast-idle");
     }
 
     private void updateAppOp(String packageName, int userId, String appOp, boolean allow)

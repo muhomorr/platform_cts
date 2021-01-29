@@ -16,18 +16,17 @@
 
 package com.android.cts.rollback.host;
 
-import static com.android.cts.shim.lib.ShimPackage.SHIM_APEX_PACKAGE_NAME;
-
 import static com.google.common.truth.Truth.assertThat;
 
 import static org.hamcrest.CoreMatchers.endsWith;
+import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.not;
 import static org.junit.Assume.assumeThat;
 import static org.junit.Assume.assumeTrue;
+import static org.junit.Assume.assumeThat;
 
-import com.android.ddmlib.Log;
-import com.android.tradefed.device.DeviceNotAvailableException;
-import com.android.tradefed.device.ITestDevice;
+import android.cts.install.lib.host.InstallUtilsHost;
+
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
 import com.android.tradefed.testtype.junit4.BaseHostJUnit4Test;
 
@@ -43,6 +42,7 @@ import org.junit.runner.RunWith;
 public class RollbackManagerHostTest extends BaseHostJUnit4Test {
 
     private static final String TAG = "RollbackManagerHostTest";
+    private final InstallUtilsHost mHostUtils = new InstallUtilsHost(this);
 
     /**
      * Runs the helper app test method on device.
@@ -67,55 +67,6 @@ public class RollbackManagerHostTest extends BaseHostJUnit4Test {
     }
 
     /**
-     * Return {@code true} if and only if device supports updating apex.
-     */
-    private boolean isApexUpdateSupported() throws Exception {
-        return "true".equals(getDevice().getProperty("ro.apex.updatable"));
-    }
-
-    /**
-     * Uninstalls a shim apex only if it's latest version is installed on /data partition (i.e.
-     * it has a version higher than {@code 1}).
-     *
-     * <p>This is purely to optimize tests run time, since uninstalling an apex requires a reboot.
-     */
-    private void uninstallShimApexIfNecessary() throws Exception {
-        if (!isApexUpdateSupported()) {
-            // Device doesn't support updating apex. Nothing to uninstall.
-            return;
-        }
-
-        if (getShimApex().sourceDir.startsWith("/data")) {
-            final String errorMessage = getDevice().uninstallPackage(SHIM_APEX_PACKAGE_NAME);
-            if (errorMessage == null) {
-                Log.i(TAG, "Uninstalling shim apex");
-                getDevice().reboot();
-            } else {
-                Log.e(TAG, "Failed to uninstall shim APEX : " + errorMessage);
-            }
-        }
-        assertThat(getShimApex().versionCode).isEqualTo(1L);
-    }
-
-    /**
-     * Get {@link ITestDevice.ApexInfo} for the installed shim apex.
-     */
-    private ITestDevice.ApexInfo getShimApex() throws DeviceNotAvailableException {
-        return getDevice().getActiveApexes().stream().filter(
-                apex -> apex.name.equals(SHIM_APEX_PACKAGE_NAME)).findAny().orElseThrow(
-                () -> new AssertionError("Can't find " + SHIM_APEX_PACKAGE_NAME));
-    }
-
-    private boolean isCheckpointSupported() throws Exception {
-        try {
-            run("isCheckpointSupported");
-            return true;
-        } catch (AssertionError ignore) {
-            return false;
-        }
-    }
-
-    /**
      * Uninstalls any version greater than 1 of shim apex and reboots the device if necessary
      * to complete the uninstall.
      *
@@ -131,7 +82,7 @@ public class RollbackManagerHostTest extends BaseHostJUnit4Test {
         getDevice().executeShellCommand("pm uninstall com.android.cts.install.lib.testapp.A");
         getDevice().executeShellCommand("pm uninstall com.android.cts.install.lib.testapp.B");
         run("cleanUp");
-        uninstallShimApexIfNecessary();
+        mHostUtils.uninstallShimApexIfNecessary();
     }
 
     /**
@@ -151,7 +102,9 @@ public class RollbackManagerHostTest extends BaseHostJUnit4Test {
      */
     @Test
     public void testApkOnlyMultipleStagedRollback() throws Exception {
-        assumeTrue(isCheckpointSupported());
+        assumeTrue("Device does not support file-system checkpoint",
+                mHostUtils.isCheckpointSupported());
+
         run("testApkOnlyMultipleStagedRollback_Phase1");
         getDevice().reboot();
         run("testApkOnlyMultipleStagedRollback_Phase2");
@@ -164,7 +117,9 @@ public class RollbackManagerHostTest extends BaseHostJUnit4Test {
      */
     @Test
     public void testApkOnlyMultipleStagedPartialRollback() throws Exception {
-        assumeTrue(isCheckpointSupported());
+        assumeTrue("Device does not support file-system checkpoint",
+                mHostUtils.isCheckpointSupported());
+
         run("testApkOnlyMultipleStagedPartialRollback_Phase1");
         getDevice().reboot();
         run("testApkOnlyMultipleStagedPartialRollback_Phase2");
@@ -177,7 +132,7 @@ public class RollbackManagerHostTest extends BaseHostJUnit4Test {
      */
     @Test
     public void testApexOnlyStagedRollback() throws Exception {
-        assumeTrue("Device does not support updating APEX", isApexUpdateSupported());
+        assumeTrue("Device does not support updating APEX", mHostUtils.isApexUpdateSupported());
 
         run("testApexOnlyStagedRollback_Phase1");
         getDevice().reboot();
@@ -193,7 +148,7 @@ public class RollbackManagerHostTest extends BaseHostJUnit4Test {
      */
     @Test
     public void testApexOnlySystemVersionStagedRollback() throws Exception {
-        assumeTrue("Device does not support updating APEX", isApexUpdateSupported());
+        assumeTrue("Device does not support updating APEX", mHostUtils.isApexUpdateSupported());
 
         run("testApexOnlySystemVersionStagedRollback_Phase1");
         getDevice().reboot();
@@ -207,7 +162,8 @@ public class RollbackManagerHostTest extends BaseHostJUnit4Test {
      */
     @Test
     public void testApexAndApkStagedRollback() throws Exception {
-        assumeTrue("Device does not support updating APEX", isApexUpdateSupported());
+        assumeSystemUser();
+        assumeTrue("Device does not support updating APEX", mHostUtils.isApexUpdateSupported());
 
         run("testApexAndApkStagedRollback_Phase1");
         getDevice().reboot();
@@ -218,12 +174,18 @@ public class RollbackManagerHostTest extends BaseHostJUnit4Test {
         run("testApexAndApkStagedRollback_Phase4");
     }
 
+    private void assumeSystemUser() throws Exception {
+        String systemUser = "0";
+        assumeThat("Current user is not system user",
+                getDevice().executeShellCommand("am get-current-user").trim(), equalTo(systemUser));
+    }
+
     /**
      * Tests that apex update expires existing rollbacks for that apex.
      */
     @Test
     public void testApexRollbackExpiration() throws Exception {
-        assumeTrue("Device does not support updating APEX", isApexUpdateSupported());
+        assumeTrue("Device does not support updating APEX", mHostUtils.isApexUpdateSupported());
 
         run("testApexRollbackExpiration_Phase1");
         getDevice().reboot();
@@ -237,7 +199,7 @@ public class RollbackManagerHostTest extends BaseHostJUnit4Test {
      */
     @Test
     public void testApexKeyRotationStagedRollback() throws Exception {
-        assumeTrue("Device does not support updating APEX", isApexUpdateSupported());
+        assumeTrue("Device does not support updating APEX", mHostUtils.isApexUpdateSupported());
 
         run("testApexKeyRotationStagedRollback_Phase1");
         getDevice().reboot();

@@ -289,10 +289,12 @@ public class SmsManagerTest {
         init();
         if (addMessageId) {
             long fakeMessageId = 19812L;
-            sendTextMessageWithMessageId(mDestAddr, mDestAddr, mSentIntent, mDeliveredIntent,
-                    fakeMessageId);
+            sendTextMessageWithMessageId(mDestAddr,
+                    String.valueOf(SystemClock.elapsedRealtimeNanos()), mSentIntent,
+                    mDeliveredIntent, fakeMessageId);
         } else {
-            sendTextMessage(mDestAddr, mDestAddr, mSentIntent, mDeliveredIntent);
+            sendTextMessage(mDestAddr, String.valueOf(SystemClock.elapsedRealtimeNanos()),
+                    mSentIntent, mDeliveredIntent);
         }
         assertTrue("[RERUN] Could not send SMS. Check signal.",
                 mSendReceiver.waitForCalls(1, TIME_OUT));
@@ -387,7 +389,8 @@ public class SmsManagerTest {
 
         // single-part SMS blocking
         init();
-        sendTextMessage(mDestAddr, mDestAddr, mSentIntent, mDeliveredIntent);
+        sendTextMessage(mDestAddr, String.valueOf(SystemClock.elapsedRealtimeNanos()),
+                mSentIntent, mDeliveredIntent);
         assertTrue("[RERUN] Could not send SMS. Check signal.",
                 mSendReceiver.waitForCalls(1, TIME_OUT));
         assertTrue("Expected no messages to be received due to number blocking.",
@@ -753,24 +756,18 @@ public class SmsManagerTest {
         }
     }
 
+    /**
+     * Verify that SmsManager.getSmsCapacityOnIcc requires Permission.
+     * <p>
+     * Requires Permission:
+     * {@link android.Manifest.permission#READ_PHONE_STATE}.
+     */
     @Test
     public void testGetSmsCapacityOnIcc() {
         try {
             getSmsManager().getSmsCapacityOnIcc();
-            fail("Caller without READ_PRIVILEGED_PHONE_STATE should NOT be able to call API");
-        } catch (SecurityException se) {
-            // all good
-        }
-
-        InstrumentationRegistry.getInstrumentation().getUiAutomation()
-                .adoptShellPermissionIdentity("android.permission.READ_PRIVILEGED_PHONE_STATE");
-        try {
-            getSmsManager().getSmsCapacityOnIcc();
-        } catch (SecurityException se) {
-            fail("Caller with READ_PRIVILEGED_PHONE_STATE should be able to call API");
-        } finally {
-            InstrumentationRegistry.getInstrumentation().getUiAutomation()
-                    .dropShellPermissionIdentity();
+        } catch (SecurityException e) {
+            fail("Caller with READ_PHONE_STATE should be able to call API");
         }
     }
 
@@ -927,7 +924,7 @@ public class SmsManagerTest {
             if (mAction.equals(Telephony.Sms.Intents.SMS_RECEIVED_ACTION)) {
                 sMessageId = intent.getLongExtra("messageId", 0L);
             }
-            Log.i(TAG, "onReceive " + intent.getAction());
+            Log.i(TAG, "onReceive " + intent.getAction() + " mAction " + mAction);
             if (intent.getAction().equals(mAction)) {
                 synchronized (mLock) {
                     mCalls += 1;

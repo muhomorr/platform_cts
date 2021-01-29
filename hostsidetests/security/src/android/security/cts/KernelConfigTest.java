@@ -174,8 +174,10 @@ public class KernelConfigTest extends DeviceTestCase implements IBuildReceiver, 
                     (configSet.contains("CONFIG_ARM64_SW_TTBR0_PAN=y") ||
                     configSet.contains("CONFIG_ARM64_PAN=y")));
         } else if (CpuFeatures.isArm32(mDevice)) {
-            assertTrue("Linux kernel must have PAN emulation enabled: CONFIG_CPU_SW_DOMAIN_PAN=y",
-                    configSet.contains("CONFIG_CPU_SW_DOMAIN_PAN=y"));
+            assertTrue("Linux kernel must have PAN emulation enabled: " +
+                    "CONFIG_CPU_SW_DOMAIN_PAN=y or CONFIG_CPU_TTBR0_PAN=y",
+                    (configSet.contains("CONFIG_CPU_SW_DOMAIN_PAN=y") ||
+                    configSet.contains("CONFIG_CPU_TTBR0_PAN=y")));
         }
     }
 
@@ -242,6 +244,11 @@ public class KernelConfigTest extends DeviceTestCase implements IBuildReceiver, 
         put("Kirin970", new String[]{"CONFIG_HARDEN_BRANCH_PREDICTOR=y"});
         put("Kirin810", null);
         put("Kirin710", new String[]{"CONFIG_HARDEN_BRANCH_PREDICTOR=y"});
+        put("MT6889Z/CZA", new String[]{"CONFIG_HARDEN_BRANCH_PREDICTOR=y"});
+        put("MT6889Z/CIZA", new String[]{"CONFIG_HARDEN_BRANCH_PREDICTOR=y"});
+        put("mt6873", new String[]{"CONFIG_HARDEN_BRANCH_PREDICTOR=y"});
+        put("MT6853V/TZA", new String[]{"CONFIG_HARDEN_BRANCH_PREDICTOR=y"});
+        put("MT6853V/TNZA", new String[]{"CONFIG_HARDEN_BRANCH_PREDICTOR=y"});
         put("SDMMAGPIE", new String[]{"CONFIG_HARDEN_BRANCH_PREDICTOR=y"});
         put("SM6150", new String[]{"CONFIG_HARDEN_BRANCH_PREDICTOR=y"});
         put("SM7150", new String[]{"CONFIG_HARDEN_BRANCH_PREDICTOR=y"});
@@ -255,6 +262,8 @@ public class KernelConfigTest extends DeviceTestCase implements IBuildReceiver, 
         put("SDM429", null);
         put("SDM439", null);
         put("QM215", null);
+        put("ATOLL", null);
+        put("ATOLL-AB", null);
         put("BENGAL", new String[]{"CONFIG_HARDEN_BRANCH_PREDICTOR=y"});
         put("DEFAULT", new String[]{"CONFIG_HARDEN_BRANCH_PREDICTOR=y",
             "CONFIG_UNMAP_KERNEL_AT_EL0=y"});

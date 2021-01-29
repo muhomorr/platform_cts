@@ -125,6 +125,7 @@ public class KeyAttestationTest extends AndroidTestCase {
     private static final Pattern OS_PATCH_LEVEL_STRING_PATTERN = Pattern
             .compile("([0-9]{4})-([0-9]{2})-[0-9]{2}");
 
+    private static final int KM_ERROR_CANNOT_ATTEST_IDS = -66;
     private static final int KM_ERROR_INVALID_INPUT_LENGTH = -21;
     private static final int KM_ERROR_PERMISSION_DENIED = 6;
 
@@ -180,6 +181,14 @@ public class KeyAttestationTest extends AndroidTestCase {
                                         curves[curveIndex], keySizes[curveIndex],
                                         purposes[purposeIndex], devicePropertiesAttestation);
                             } catch (Throwable e) {
+                                if (devicePropertiesAttestation
+                                        && (e.getCause() instanceof KeyStoreException)
+                                        && KM_ERROR_CANNOT_ATTEST_IDS ==
+                                                ((KeyStoreException) e.getCause()).getErrorCode()) {
+                                    Log.i(TAG, "key attestation with device IDs not supported; "
+                                            + "test skipped");
+                                    continue;
+                                }
                                 throw new Exception("Failed on curve " + curveIndex +
                                         " challenge " + challengeIndex + " purpose " +
                                         purposeIndex + " includeValidityDates " +
@@ -234,7 +243,8 @@ public class KeyAttestationTest extends AndroidTestCase {
                 assertEquals(1, certificates.length);
 
                 X509Certificate attestationCert = (X509Certificate) certificates[0];
-                assertNull(attestationCert.getExtensionValue(Attestation.KEY_DESCRIPTION_OID));
+                assertNull(attestationCert.getExtensionValue(Attestation.ASN1_OID));
+                assertNull(attestationCert.getExtensionValue(Attestation.EAT_OID));
             } finally {
                 keyStore.deleteEntry(keystoreAlias);
             }
@@ -242,6 +252,7 @@ public class KeyAttestationTest extends AndroidTestCase {
     }
 
     @RestrictedBuildTest
+    @RequiresDevice
     public void testEcAttestation_DeviceLocked() throws Exception {
         String keystoreAlias = "test_key";
         Date now = new Date();
@@ -272,7 +283,7 @@ public class KeyAttestationTest extends AndroidTestCase {
             verifyCertificateChain(certificates, TestUtils.hasStrongBox(getContext()));
 
             X509Certificate attestationCert = (X509Certificate) certificates[0];
-            checkDeviceLocked(new Attestation(attestationCert));
+            checkDeviceLocked(Attestation.loadFromCertificate(attestationCert));
         } finally {
             keyStore.deleteEntry(keystoreAlias);
         }
@@ -402,7 +413,7 @@ public class KeyAttestationTest extends AndroidTestCase {
                 assertEquals(1, certificates.length);
 
                 X509Certificate attestationCert = (X509Certificate) certificates[0];
-                assertNull(attestationCert.getExtensionValue(Attestation.KEY_DESCRIPTION_OID));
+                assertNull(attestationCert.getExtensionValue(Attestation.ASN1_OID));
             } finally {
                 keyStore.deleteEntry(keystoreAlias);
             }
@@ -441,7 +452,7 @@ public class KeyAttestationTest extends AndroidTestCase {
             verifyCertificateChain(certificates, TestUtils.hasStrongBox(getContext()));
 
             X509Certificate attestationCert = (X509Certificate) certificates[0];
-            checkDeviceLocked(new Attestation(attestationCert));
+            checkDeviceLocked(Attestation.loadFromCertificate(attestationCert));
         } finally {
             keyStore.deleteEntry(keystoreAlias);
         }
@@ -499,6 +510,12 @@ public class KeyAttestationTest extends AndroidTestCase {
                 testRsaAttestation(challenge, false /* includeValidityDates */, keySize, purpose,
                         paddings, devicePropertiesAttestation);
             } catch (Throwable e) {
+                if (devicePropertiesAttestation && (e.getCause() instanceof KeyStoreException)
+                        && KM_ERROR_CANNOT_ATTEST_IDS ==
+                                ((KeyStoreException) e.getCause()).getErrorCode()) {
+                    Log.i(TAG, "key attestation with device IDs not supported; test skipped");
+                    continue;
+                }
                 throw new Exception("Failed on key size " + keySize + " challenge [" +
                         new String(challenge) + "], purposes " +
                         buildPurposeSet(purpose) + " paddings " +
@@ -559,12 +576,13 @@ public class KeyAttestationTest extends AndroidTestCase {
             verifyCertificateChain(certificates, false /* expectStrongBox */);
 
             X509Certificate attestationCert = (X509Certificate) certificates[0];
-            Attestation attestation = new Attestation(attestationCert);
+            Attestation attestation = Attestation.loadFromCertificate(attestationCert);
 
-            checkRsaKeyDetails(attestation, keySize, purposes, ImmutableSet.copyOf(paddingModes));
+            checkRsaKeyDetails(attestation, keySize, purposes,
+                ImmutableSet.copyOf(paddingModes));
             checkKeyUsage(attestationCert, purposes);
-            checkKeyIndependentAttestationInfo(challenge, purposes, startTime, includeValidityDates,
-                    devicePropertiesAttestation, attestation);
+            checkKeyIndependentAttestationInfo(challenge, purposes, startTime,
+                includeValidityDates, devicePropertiesAttestation, attestation);
         } finally {
             keyStore.deleteEntry(keystoreAlias);
         }
@@ -618,12 +636,12 @@ public class KeyAttestationTest extends AndroidTestCase {
             verifyCertificateChain(certificates, false /* expectStrongBox */);
 
             X509Certificate attestationCert = (X509Certificate) certificates[0];
-            Attestation attestation = new Attestation(attestationCert);
+            Attestation attestation = Attestation.loadFromCertificate(attestationCert);
 
             checkEcKeyDetails(attestation, ecCurve, keySize);
             checkKeyUsage(attestationCert, purposes);
-            checkKeyIndependentAttestationInfo(challenge, purposes, startTime, includeValidityDates,
-                    devicePropertiesAttestation, attestation);
+            checkKeyIndependentAttestationInfo(challenge, purposes, startTime,
+                includeValidityDates, devicePropertiesAttestation, attestation);
         } finally {
             keyStore.deleteEntry(keystoreAlias);
         }
@@ -635,6 +653,7 @@ public class KeyAttestationTest extends AndroidTestCase {
         int kmVersion = attestation.getKeymasterVersion();
         assertNull(attestation.getTeeEnforced().getAttestationApplicationId());
         aaid = attestation.getSoftwareEnforced().getAttestationApplicationId();
+
         if (kmVersion >= 3) {
             // must be present and correct
             assertNotNull(aaid);
@@ -695,9 +714,11 @@ public class KeyAttestationTest extends AndroidTestCase {
         checkUnexpectedOids(attestation);
         checkAttestationSecurityLevelDependentParams(attestation);
         assertNotNull(attestation.getAttestationChallenge());
-        assertTrue(Arrays.equals(challenge, attestation.getAttestationChallenge()));
-        assertNotNull(attestation.getUniqueId());
-        assertEquals(0, attestation.getUniqueId().length);
+        assertThat(attestation.getAttestationChallenge(), is(challenge));
+        // In EAT, this is null if not filled in. In ASN.1, this is an array with length 0.
+        if (attestation.getUniqueId() != null) {
+            assertEquals(0, attestation.getUniqueId().length);
+        }
         checkPurposes(attestation, purposes);
         checkDigests(attestation,
                 ImmutableSet.of(KM_DIGEST_NONE, KM_DIGEST_SHA_2_256, KM_DIGEST_SHA_2_512));
@@ -919,8 +940,8 @@ public class KeyAttestationTest extends AndroidTestCase {
 
     @SuppressWarnings("unchecked")
     private void checkAttestationSecurityLevelDependentParams(Attestation attestation) {
-        assertThat("Attestation version must be 1, 2, 3, or 4", attestation.getAttestationVersion(),
-               either(is(1)).or(is(2)).or(is(3)).or(is(4)));
+        assertThat("Attestation version must be 1, 2, 3, 4 or 5", attestation.getAttestationVersion(),
+               either(is(1)).or(is(2)).or(is(3)).or(is(4)).or(is(5)));
 
         AuthorizationList teeEnforced = attestation.getTeeEnforced();
         AuthorizationList softwareEnforced = attestation.getSoftwareEnforced();
@@ -950,7 +971,7 @@ public class KeyAttestationTest extends AndroidTestCase {
                     assertThat("Software KM is version 3", attestation.getKeymasterVersion(),
                             is(3));
                     assertThat(softwareEnforced.getOsVersion(), is(systemOsVersion));
-                    checkSystemPatchLevel(teeEnforced.getOsPatchLevel(), systemPatchLevel);
+                    checkSystemPatchLevel(softwareEnforced.getOsPatchLevel(), systemPatchLevel);
                 }
 
                 assertNull("Software attestation cannot provide root of trust",
@@ -997,7 +1018,7 @@ public class KeyAttestationTest extends AndroidTestCase {
     }
 
     private void checkRootOfTrust(Attestation attestation, boolean requireLocked) {
-        RootOfTrust rootOfTrust = attestation.getTeeEnforced().getRootOfTrust();
+        RootOfTrust rootOfTrust = attestation.getRootOfTrust();
         assertNotNull(rootOfTrust);
         assertNotNull(rootOfTrust.getVerifiedBootKey());
         assertTrue("Verified boot key is only " + rootOfTrust.getVerifiedBootKey().length +

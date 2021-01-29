@@ -1602,13 +1602,17 @@ public class AudioTrackTest {
         final int TEST_LOOPS = 1;
         final double TEST_LOOP_DURATION = 1.;
         final int TEST_ADDITIONAL_DRAIN_MS = 0;
+        // Compensates for cold start when run in isolation.
+        // The cold output latency must be 500 ms less or
+        // 200 ms less for low latency devices.
+        final long WAIT_TIME_MS = isLowLatencyDevice() ? WAIT_MSEC : 500;
 
         for (int TEST_FORMAT : TEST_FORMAT_ARRAY) {
             double frequency = 400; // frequency changes for each test
             for (int TEST_SR : TEST_SR_ARRAY) {
                 for (int TEST_CONF : TEST_CONF_ARRAY) {
                     playOnceStaticData(TEST_NAME, TEST_MODE, TEST_STREAM_TYPE, TEST_SWEEP,
-                            TEST_LOOPS, TEST_FORMAT, frequency, TEST_SR, TEST_CONF, WAIT_MSEC,
+                            TEST_LOOPS, TEST_FORMAT, frequency, TEST_SR, TEST_CONF, WAIT_TIME_MS,
                             TEST_LOOP_DURATION, TEST_ADDITIONAL_DRAIN_MS);
 
                     frequency += 70; // increment test tone frequency
@@ -2094,6 +2098,11 @@ public class AudioTrackTest {
             .hasSystemFeature(PackageManager.FEATURE_AUDIO_OUTPUT);
     }
 
+    private boolean isLowLatencyDevice() {
+        return getContext().getPackageManager()
+            .hasSystemFeature(PackageManager.FEATURE_AUDIO_LOW_LATENCY);
+    }
+
     private boolean isLowRamDevice() {
         return ((ActivityManager) getContext().getSystemService(Context.ACTIVITY_SERVICE))
                 .isLowRamDevice();
@@ -2577,6 +2586,38 @@ public class AudioTrackTest {
         assertThrows(IllegalArgumentException.class, () -> {
             track.setPresentation(null);
         });
+    }
+
+    @Test
+    public void testAc3BuilderNoBufferSize() throws Exception {
+        AudioFormat format = new AudioFormat.Builder()
+            .setEncoding(AudioFormat.ENCODING_AC3)
+            .setChannelMask(AudioFormat.CHANNEL_OUT_STEREO)
+            .setSampleRate(48000)
+            .build();
+        try {
+            AudioTrack audioTrack = new AudioTrack.Builder()
+                .setAudioFormat(format)
+                .setBufferSizeInBytes(100)
+                .build();
+            audioTrack.release();
+            Thread.sleep(200);
+        } catch (UnsupportedOperationException e) {
+            // Do nothing. It's OK for a device to not support ac3 audio tracks.
+            return;
+        }
+        // if ac3 audio tracks with set buffer size succeed, the builder should also succeed if the
+        // buffer size isn't set, allowing the framework to report the recommended buffer size.
+        try {
+            AudioTrack audioTrack = new AudioTrack.Builder()
+                .setAudioFormat(format)
+                .build();
+            audioTrack.release();
+        } catch (UnsupportedOperationException e) {
+            // This builder should not fail as the first builder succeeded when setting buffer size
+            fail("UnsupportedOperationException should not be thrown when setBufferSizeInBytes"
+                  + " is excluded from builder");
+        }
     }
 
     @Test

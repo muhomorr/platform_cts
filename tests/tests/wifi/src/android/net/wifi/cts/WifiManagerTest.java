@@ -41,7 +41,6 @@ import android.net.NetworkInfo;
 import android.net.NetworkRequest;
 import android.net.TetheringManager;
 import android.net.Uri;
-import android.net.util.MacAddressUtils;
 import android.net.wifi.ScanResult;
 import android.net.wifi.SoftApCapability;
 import android.net.wifi.SoftApConfiguration;
@@ -76,6 +75,7 @@ import android.util.Log;
 
 import androidx.test.platform.app.InstrumentationRegistry;
 
+import com.android.net.module.util.MacAddressUtils;
 import com.android.compatibility.common.util.PollingCheck;
 import com.android.compatibility.common.util.ShellIdentityUtils;
 import com.android.compatibility.common.util.SystemUtil;
@@ -817,8 +817,9 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
             int securityType = softApConfig.getSecurityType();
             if (securityType == SoftApConfiguration.SECURITY_TYPE_OPEN
                 || securityType == SoftApConfiguration.SECURITY_TYPE_WPA2_PSK) {
-                 assertNotNull(softApConfig.toWifiConfiguration());
-            } else {
+                // TODO: b/165504232, add WPA3_SAE_TRANSITION assert check
+                assertNotNull(softApConfig.toWifiConfiguration());
+            } else if (securityType == SoftApConfiguration.SECURITY_TYPE_WPA3_SAE) {
                 assertNull(softApConfig.toWifiConfiguration());
             }
             if (!hasAutomotiveFeature()) {
@@ -976,7 +977,7 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
         }
     }
 
-    public void testStartLocalOnlyHotspotWithConfig() throws Exception {
+    public void testStartLocalOnlyHotspotWithConfigBssid() throws Exception {
         if (!WifiFeature.isWifiSupported(getContext())) {
             // skip the test if WiFi is not supported
             return;
@@ -998,8 +999,58 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
 
             boolean wifiEnabled = mWifiManager.isWifiEnabled();
             mWifiManager.startLocalOnlyHotspot(customConfig, executor, callback);
-            Log.d(TAG, "Sleeping for 2 seconds");
-            Thread.sleep(2000);
+            // now wait for callback
+            Thread.sleep(TEST_WAIT_DURATION_MS);
+
+            // Verify callback is run on the supplied executor
+            assertFalse(callback.onStartedCalled);
+            executor.runAll();
+            if (callback.onFailedCalled) {
+                // TODO: b/160752000, customize bssid might not support.
+                // Allow the specific error code.
+                assertEquals(callback.failureReason,
+                        WifiManager.SAP_START_FAILURE_UNSUPPORTED_CONFIGURATION);
+            } else {
+                assertTrue(callback.onStartedCalled);
+
+                assertNotNull(callback.reservation);
+                SoftApConfiguration softApConfig = callback.reservation.getSoftApConfiguration();
+                assertNotNull(softApConfig);
+                assertEquals(TEST_MAC, softApConfig.getBssid());
+                assertEquals(TEST_SSID_UNQUOTED, softApConfig.getSsid());
+                assertEquals(TEST_PASSPHRASE, softApConfig.getPassphrase());
+
+                // clean up
+                stopLocalOnlyHotspot(callback, wifiEnabled);
+            }
+        } finally {
+            uiAutomation.dropShellPermissionIdentity();
+        }
+    }
+
+    public void testStartLocalOnlyHotspotWithNullBssidConfig() throws Exception {
+        if (!WifiFeature.isWifiSupported(getContext())) {
+            // skip the test if WiFi is not supported
+            return;
+        }
+        // check that softap mode is supported by the device
+        if (!mWifiManager.isPortableHotspotSupported()) {
+            return;
+        }
+        SoftApConfiguration customConfig = new SoftApConfiguration.Builder()
+                .setSsid(TEST_SSID_UNQUOTED)
+                .setPassphrase(TEST_PASSPHRASE, SoftApConfiguration.SECURITY_TYPE_WPA2_PSK)
+                .build();
+        TestExecutor executor = new TestExecutor();
+        TestLocalOnlyHotspotCallback callback = new TestLocalOnlyHotspotCallback(mLock);
+        UiAutomation uiAutomation = InstrumentationRegistry.getInstrumentation().getUiAutomation();
+        try {
+            uiAutomation.adoptShellPermissionIdentity();
+
+            boolean wifiEnabled = mWifiManager.isWifiEnabled();
+            mWifiManager.startLocalOnlyHotspot(customConfig, executor, callback);
+            // now wait for callback
+            Thread.sleep(TEST_WAIT_DURATION_MS);
 
             // Verify callback is run on the supplied executor
             assertFalse(callback.onStartedCalled);
@@ -1009,7 +1060,6 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
             assertNotNull(callback.reservation);
             SoftApConfiguration softApConfig = callback.reservation.getSoftApConfiguration();
             assertNotNull(softApConfig);
-            assertEquals(TEST_MAC, softApConfig.getBssid());
             assertEquals(TEST_SSID_UNQUOTED, softApConfig.getSsid());
             assertEquals(TEST_PASSPHRASE, softApConfig.getPassphrase());
 
@@ -1720,13 +1770,15 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
             }
             waitForDisconnection();
 
-            // Now trigger connection to the first saved network.
+            // Now trigger connection to the last saved network.
+            WifiConfiguration savedNetworkToConnect =
+                    savedNetworks.get(savedNetworks.size() - 1);
             synchronized (mLock) {
                 try {
                     if (withNetworkId) {
-                        mWifiManager.connect(savedNetworks.get(0).networkId, actionListener);
+                        mWifiManager.connect(savedNetworkToConnect.networkId, actionListener);
                     } else {
-                        mWifiManager.connect(savedNetworks.get(0), actionListener);
+                        mWifiManager.connect(savedNetworkToConnect, actionListener);
                     }
                     // now wait for callback
                     mLock.wait(TEST_WAIT_DURATION_MS);
@@ -1737,7 +1789,7 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
             assertTrue(actionListener.onSuccessCalled);
             // Wait for connection to complete & ensure we are connected to the saved network.
             waitForConnection();
-            assertEquals(savedNetworks.get(0).networkId,
+            assertEquals(savedNetworkToConnect.networkId,
                     mWifiManager.getConnectionInfo().getNetworkId());
         } finally {
             // Re-enable all saved networks before exiting.
@@ -1911,6 +1963,19 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
 
             assertEquals(savedNetworks.size() + 1, mWifiManager.getConfiguredNetworks().size());
 
+            // Need an effectively-final holder because we need to modify inner Intent in callback.
+            class IntentHolder {
+                Intent intent;
+            }
+            IntentHolder intentHolder = new IntentHolder();
+            mContext.registerReceiver(new BroadcastReceiver() {
+                @Override
+                public void onReceive(Context context, Intent intent) {
+                    Log.i(TAG, "Received CONFIGURED_NETWORKS_CHANGED_ACTION broadcast: " + intent);
+                    intentHolder.intent = intent;
+                }
+            }, new IntentFilter(WifiManager.CONFIGURED_NETWORKS_CHANGED_ACTION));
+
             // Now remove the network
             synchronized (mLock) {
                 try {
@@ -1922,6 +1987,17 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
             }
             // check if we got the success callback
             assertTrue(actionListener.onSuccessCalled);
+
+            PollingCheck.check(
+                    "Didn't receive CONFIGURED_NETWORKS_CHANGED_ACTION broadcast!",
+                    TEST_WAIT_DURATION_MS,
+                    () -> intentHolder.intent != null);
+            Intent intent = intentHolder.intent;
+            assertEquals(WifiManager.CONFIGURED_NETWORKS_CHANGED_ACTION, intent.getAction());
+            assertTrue(intent.getBooleanExtra(WifiManager.EXTRA_MULTIPLE_NETWORKS_CHANGED, false));
+            assertEquals(WifiManager.CHANGE_REASON_REMOVED,
+                    intent.getIntExtra(WifiManager.EXTRA_CHANGE_REASON, -1));
+            assertNull(intent.getParcelableExtra(WifiManager.EXTRA_WIFI_CONFIGURATION));
 
             // Ensure that the new network has been successfully removed.
             assertEquals(savedNetworks.size(), mWifiManager.getConfiguredNetworks().size());
@@ -2074,13 +2150,17 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
         boolean isStaApConcurrencySupported = mWifiManager.isStaApConcurrencySupported();
         // start local only hotspot.
         TestLocalOnlyHotspotCallback callback = startLocalOnlyHotspot();
-        if (isStaApConcurrencySupported) {
-            assertTrue(mWifiManager.isWifiEnabled());
-        } else {
-            // no concurrency, wifi should be disabled.
-            assertFalse(mWifiManager.isWifiEnabled());
+        try {
+            if (isStaApConcurrencySupported) {
+                assertTrue(mWifiManager.isWifiEnabled());
+            } else {
+                // no concurrency, wifi should be disabled.
+                assertFalse(mWifiManager.isWifiEnabled());
+            }
+        } finally {
+            // clean up local only hotspot no matter if assertion passed or failed
+            stopLocalOnlyHotspot(callback, true);
         }
-        stopLocalOnlyHotspot(callback, true);
 
         assertTrue(mWifiManager.isWifiEnabled());
     }
@@ -2330,11 +2410,20 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
         // assert that the country code is all uppercase
         assertEquals(wifiCountryCode.toUpperCase(Locale.US), wifiCountryCode);
 
-        if (WifiFeature.isTelephonySupported(getContext())) {
-            String telephonyCountryCode = getContext().getSystemService(TelephonyManager.class)
-                    .getNetworkCountryIso();
-            assertEquals(telephonyCountryCode, wifiCountryCode.toLowerCase(Locale.US));
+        // skip if Telephony is unsupported
+        if (!WifiFeature.isTelephonySupported(getContext())) {
+            return;
         }
+
+        String telephonyCountryCode = getContext().getSystemService(TelephonyManager.class)
+                .getNetworkCountryIso();
+
+        // skip if Telephony country code is unavailable
+        if (telephonyCountryCode == null || telephonyCountryCode.isEmpty()) {
+            return;
+        }
+
+        assertEquals(telephonyCountryCode, wifiCountryCode.toLowerCase(Locale.US));
     }
 
     /**

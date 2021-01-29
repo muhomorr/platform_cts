@@ -24,13 +24,19 @@ import android.service.carrier.CarrierService;
 import android.telephony.SubscriptionInfo;
 import android.telephony.SubscriptionManager;
 import android.telephony.TelephonyManager;
+import android.telephony.ims.SipMessage;
 
 import androidx.test.platform.app.InstrumentationRegistry;
 
 import com.android.compatibility.common.util.ShellIdentityUtils;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.Callable;
+import java.util.zip.GZIPInputStream;
+import java.util.zip.GZIPOutputStream;
 
 public class ImsUtils {
     public static final boolean VDBG = false;
@@ -43,6 +49,16 @@ public class ImsUtils {
     public static final int ITEM_NON_COMPRESSED = 2000;
     // Id for compressed auto configuration xml.
     public static final int ITEM_COMPRESSED = 2001;
+    // TODO Replace with a real sip message once that logic is in.
+    public static final String TEST_TRANSACTION_ID = "z9hG4bK.TeSt";
+    public static final String TEST_CALL_ID = "testcall";
+    public static final SipMessage TEST_SIP_MESSAGE = new SipMessage("A", "B", new byte[0]);
+
+    public static boolean shouldTestTelephony() {
+        final PackageManager pm = InstrumentationRegistry.getInstrumentation().getContext()
+                .getPackageManager();
+        return pm.hasSystemFeature(PackageManager.FEATURE_TELEPHONY);
+    }
 
     public static boolean shouldTestImsService() {
         final PackageManager pm = InstrumentationRegistry.getInstrumentation().getContext()
@@ -120,8 +136,18 @@ public class ImsUtils {
      * Retry every 5 seconds until the condition is true or fail after TEST_TIMEOUT_MS seconds.
      */
     public static boolean retryUntilTrue(Callable<Boolean> condition) throws Exception {
+        return retryUntilTrue(condition, TEST_TIMEOUT_MS, 14 /*numTries*/);
+    }
+
+    /**
+     * Retry every timeoutMs/numTimes until the condition is true or fail if the condition is never
+     * met.
+     */
+    public static boolean retryUntilTrue(Callable<Boolean> condition,
+            int timeoutMs, int numTimes) throws Exception {
+        int sleepTime = timeoutMs / numTimes;
         int retryCounter = 0;
-        while (retryCounter < (TEST_TIMEOUT_MS / 5000)) {
+        while (retryCounter < numTimes) {
             try {
                 Boolean isSuccessful = condition.call();
                 isSuccessful = (isSuccessful == null) ? false : isSuccessful;
@@ -129,9 +155,60 @@ public class ImsUtils {
             } catch (Exception e) {
                 // we will retry
             }
-            Thread.sleep(5000);
+            Thread.sleep(sleepTime);
             retryCounter++;
         }
         return false;
+    }
+
+    /**
+     * compress the gzip format data
+     * @hide
+     */
+    public static byte[] compressGzip(byte[] data) {
+        if (data == null || data.length == 0) {
+            return data;
+        }
+        byte[] out = null;
+        try {
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream(data.length);
+            GZIPOutputStream gzipCompressingStream =
+                    new GZIPOutputStream(outputStream);
+            gzipCompressingStream.write(data);
+            gzipCompressingStream.close();
+            out = outputStream.toByteArray();
+            outputStream.close();
+        } catch (IOException e) {
+        }
+        return out;
+    }
+
+    /**
+     * decompress the gzip format data
+     * @hide
+     */
+    public static byte[] decompressGzip(byte[] data) {
+        if (data == null || data.length == 0) {
+            return data;
+        }
+        byte[] out = null;
+        try {
+            ByteArrayInputStream inputStream = new ByteArrayInputStream(data);
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+            GZIPInputStream gzipDecompressingStream =
+                    new GZIPInputStream(inputStream);
+            byte[] buf = new byte[1024];
+            int size = gzipDecompressingStream.read(buf);
+            while (size >= 0) {
+                outputStream.write(buf, 0, size);
+                size = gzipDecompressingStream.read(buf);
+            }
+            gzipDecompressingStream.close();
+            inputStream.close();
+            out = outputStream.toByteArray();
+            outputStream.close();
+        } catch (IOException e) {
+        }
+        return out;
     }
 }

@@ -22,7 +22,7 @@ LOCAL_MODULE_TAGS := tests
 LOCAL_MODULE_PATH := $(TARGET_OUT_DATA_APPS)
 
 # Tag this module as a cts test artifact
-LOCAL_COMPATIBILITY_SUITE := cts vts10 general-tests
+LOCAL_COMPATIBILITY_SUITE := cts general-tests
 
 LOCAL_MULTILIB := both
 
@@ -38,7 +38,8 @@ LOCAL_STATIC_JAVA_LIBRARIES := \
     platform-test-annotations \
     ub-uiautomator \
     truth-prebuilt \
-    CtsSurfaceValidatorLib
+    CtsSurfaceValidatorLib \
+    cts-wm-util
 
 
 LOCAL_JNI_SHARED_LIBRARIES := libctsview_jni libnativehelper_compat_libc++

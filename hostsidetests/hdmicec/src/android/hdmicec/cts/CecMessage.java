@@ -25,18 +25,6 @@ public class CecMessage {
 
     private static final int HEXADECIMAL_RADIX = 16;
 
-    /** Gets the hexadecimal ASCII character values of a string. */
-    public static String getHexAsciiString(String string) {
-        String asciiString = "";
-        byte[] ascii = string.trim().getBytes();
-
-        for (byte b : ascii) {
-            asciiString.concat(Integer.toHexString(b));
-        }
-
-        return asciiString;
-    }
-
     public static String formatParams(String rawParams) {
         StringBuilder params = new StringBuilder("");
         int position = 0;
@@ -153,7 +141,7 @@ public class CecMessage {
     /** Assert for the DUT's physical address with the value passed from command line argument. */
     public static void assertPhysicalAddressValid(String message, int expectedPhysicalAddress) {
         int physicalAddress = getParams(message, HdmiCecConstants.PHYSICAL_ADDRESS_LENGTH);
-        assertThat(expectedPhysicalAddress).isEqualTo(physicalAddress);
+        assertThat(physicalAddress).isEqualTo(expectedPhysicalAddress);
     }
 
     private static String getNibbles(String message) {
