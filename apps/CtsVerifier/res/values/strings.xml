@@ -128,6 +128,18 @@
     <string name="da_tapjacking_test_info">This test checks that an activity cannot tapjack the
         user by obscuring the device admin details while prompting the user to activate the admin.
     </string>
+    <string name="car_enable_garage_monitor">Enable Garage Mode Monitor</string>
+    <string name="car_garage_mode_test">Garage Mode Test</string>
+    <string name="car_garage_mode_test_desc">
+        This test verifies that Garage Mode runs at the end of a drive.\n\n
+        Optional: Disable Wi-Fi to minimize other activity during the test.\n\n
+        Touch "Enable Garage Mode Monitor" to launch the Garage Mode verifier.\n\n
+        Turn the vehicle off and exit the vehicle (or take the proprietary action that
+        initiates shut-down of the system).\n\n
+        Do not enter or disturb the vehicle for at least 15 minutes.\n\n
+        Enter the vehicle. Re-launch the CTS-Verifier app if it is not running.\n\n
+        If Garage Mode ran as required, the pass button will be enabled.</string>
+    <string name="car_wifi_settings">Go to Wi-Fi settings</string>
     <string name="car_dock_test">Car Dock Test</string>
     <string name="car_dock_test_desc">This test ensures that car mode opens the app associated with
         car dock when going into car mode.\n\n
@@ -322,7 +334,7 @@
     <string name="biometric_test_set_user_authentication_biometric_or_credential_signature_label">4f: Signature, Biometric|Credential</string>
     <string name="biometric_test_set_user_authentication_credential_mac_label">4g: MAC, Credential</string>
     <string name="biometric_test_set_user_authentication_biometric_mac_label">4h: MAC, Biometric</string>
-    <string name="biometric_test_set_user_authentication_biometric_or_credential_mac_label">4h: MAC, Biometric|Credential</string>
+    <string name="biometric_test_set_user_authentication_biometric_or_credential_mac_label">4i: MAC, Biometric|Credential</string>
     <string name="biometric_test_set_user_authentication_credential_instructions">This test checks the correctness of the KeyGenParameterSpec.Builder#setUserAuthenticationParameters(int, int) API for AUTH_DEVICE_CREDENTIAL.
         Buttons for completed tasks will become invisible. It\'s normal for buttons to be disabled for a few seconds during this test.</string>
     <string name="biometric_test_set_user_authentication_biometric_instructions">This test checks the correctness of the KeyGenParameterSpec.Builder#setUserAuthenticationParameters(int, int) API for AUTH_BIOMETRIC_STRONG.
@@ -587,6 +599,7 @@
     <string name="ble_read_descriptor_name">Bluetooth LE Read Descriptor</string>
     <string name="ble_write_descriptor_name">Bluetooth LE Write Descriptor</string>
     <string name="ble_read_rssi_name">Bluetooth LE Read RSSI</string>
+    <string name="ble_on_service_changed">Bluetooth LE On Service Changed</string>
     <string name="ble_client_disconnect_name">Bluetooth LE Client Disconnect</string>
     <string name="ble_insecure_client_test_info">
         The Bluetooth LE test must be done simultaneously on two devices. This device is the client.
@@ -635,6 +648,7 @@
     <string name="ble_server_read_descriptor">Waiting on read descriptor request</string>
     <string name="ble_server_reliable_write">Waiting on reliable write from client</string>
     <string name="ble_server_reliable_write_bad_resp">Waiting on reliable write from client (send bad response)</string>
+    <string name="ble_server_service_changed_indication">Waiting on service changed indication</string>
     <string name="ble_server_receiving_disconnect">Waiting on disconnection from Bluetooth LE client</string>
     <string name="ble_connection_priority_server_name">02 Bluetooth LE Connection Priority Server Test</string>
     <string name="ble_connection_priority_server_info">Bluetooth LE Connection Priority Server receive message from message in 3 different priority.</string>
@@ -1201,7 +1215,7 @@
       If your device supports type B (for example, because of a type B only UICC), select "Type B" from the drop-down box above. Note that all tests must be completed in the same mode (either "Type A" or "Type B").</string>
     <string name="nfc_offhost_please_wait">Please wait</string>
     <string name="nfc_offhost_setting_up">Setting up card emulation services...</string>
-    <string name="nfc_offhost_uicc_transaction_event_emulator_help">Switch application to background before starting tests. Successful transaction event will switch application to foreground with transaction event data.</string>
+    <string name="nfc_offhost_uicc_transaction_event_emulator_help"> This is an optional test for Android version beofre S. This is okay to set this test to passed and continue. Switch application to background before starting tests. Successful transaction event will switch application to foreground with transaction event data.</string>
 
     <!-- Strings for Sensor Test Activities -->
     <string name="snsr_device_admin_receiver">Sensor Tests Device Admin Receiver</string>
@@ -2185,36 +2199,15 @@
         and disabled, and that once enabled the service is able to receive notifications and
         dismiss them.
     </string>
+    <string name="nls_anr">This test checks that notifications are not sent with content that is
+        too long. If this test causes the test app to ANR, the test has failed.
+    </string>
     <string name="msg_extras_preserved">Check that Message extras Bundle was preserved.</string>
-    <string name="qs_media_player_title">QS Media Controls Test</string>
-    <string name="qs_media_player_test">Media Controls Test</string>
-    <string name="qs_media_player_info">This test checks that media controls appear in the
-        Quick Settings shade for applications that post a media style notification.</string>
-    <string name="qs_media_player_song_and_artist">Fully expand Quick Settings and look at the media
-        player controls for the CTS Verifier app.
-        Check that the media player contains the strings "Song" and "Artist".
-    </string>
-    <string name="qs_media_player_album_art">Open Quick Settings and look at the media player
-        controls for the CTS Verifier app.
-        Check that the media player contains a solid yellow image.
-    </string>
-    <string name="qs_media_player_progress_bar">Fully expand Quick Settings and look at the media
-        player controls for the CTS Verifier app.
-        Check that the media player contains a progress bar showing 6 seconds have elapsed of a
-        one minute long track.
-    </string>
-    <string name="qs_media_player_actions">Fully expand Quick Settings and look at the media player
-        controls for the CTS Verifier app.
-        Check that icons appear for rewind, previous track, pause, next track and fast forward.
-    </string>
-    <string name="qs_media_player_compact_actions">Open Notification Shade and look at the media player
-        controls for the CTS Verifier app.
-        Check that icons appear for only previous track, pause and next track.
-    </string>
-    <string name="qs_media_player_output_switcher">Open Quick Settings and look at the media player
-        controls for the CTS Verifier app. Click on the button showing that the media is playing
-        on the phone speaker. Check that the Output Switcher opens.
-    </string>
+    <string name="conversation_section_ordering">If this device supports conversation notifications,
+        and groups them into a separate section from alerting and silent non-conversation
+        notifications, fully expand the notification display and verify that the \"Person A\"
+        notification appears before the "\Non-Person Notification\".
+        If this device does not support conversation notifications or does not group them together, press Pass.</string>
     <string name="tile_service_name">Tile Service for CTS Verifier</string>
     <string name="tiles_test">Tile Service Test</string>
     <string name="tiles_info">This test checks that a Tile Service added by a third party
@@ -2334,7 +2327,7 @@
     <string name="caboot_install_cert">Install credential</string>
     <string name="caboot_remove_screen_lock">Remove screen lock</string>
     <string name="caboot_reboot_desc">Please reboot the device and return to this test.</string>
-    <string name="caboot_after_boot">AFTER REBOOTING: Check that there is a notification that the network may be monitored. Opening that notification should show a dialog box giving more information, with a button to check trusted credentials. This should open up the same view of trusted credentials that you get via the "Check credentials" button.</string>
+    <string name="caboot_after_boot">AFTER REBOOTING: Check that there is a notification saying a certificate authority is installed. Opening that notification should show a dialog box giving more information, with a button to check trusted credentials. This should open up the same view of trusted credentials that you get via the "Check credentials" button.</string>
 
     <!-- Strings for KeyChain -->
     <string name="keychain_test">KeyChain Storage Test</string>
@@ -3921,8 +3914,8 @@ You should be prompted to select credentials; choose the ones you just installed
         Email: someone@example.com
     </string>
     <string name="policy_transparency_update_button_label">Update</string>
-    <string name="dummy_input_method_label">Dummy input method</string>
-    <string name="dummy_accessibility_service_label">Dummy accessibility service</string>
+    <string name="test_input_method_label">Test input method</string>
+    <string name="test_accessibility_service_label">Test accessibility service</string>
     <string name="policy_transparency_test_instructions">
         1. <xliff:g id="set_step" example="Set policy by turning the switch on">%1$s</xliff:g>\n
         2. Open Settings app by clicking the "Open settings" button below. Note that this will open the personal Settings app. If this device has the work settings in a different app or screen, then navigate there, ignoring the button if necessary.\n
@@ -4047,21 +4040,21 @@ You should be prompted to select credentials; choose the ones you just installed
     <string name="password_quality_complex">Complex</string>
     <string name="set_permitted_accessibility_services">Set permitted accessibility services</string>
     <string name="permitted_accessibility_services_set_step">
-        Check that \'Dummy Accessibility service\' is not enabled in Settings and disallow \'Dummy Accessibility service\' from permitted accessibility services by turning on
+        Check that \'Test Accessibility service\' is not enabled in Settings and disallow \'Test Accessibility service\' from permitted accessibility services by turning on
         the switch below.
     </string>
     <string name="set_permitted_accessibility_services_action">
-        Enabling \'Dummy Accessibility service\' in the list of accessibility services
+        Enabling \'Test Accessibility service\' in the list of accessibility services
     </string>
     <string name="set_permitted_accessibility_services_widget_label">
         Allow only system accessibility services:
     </string>
     <string name="set_permitted_input_methods">Set permitted input methods</string>
     <string name="permitted_input_methods_set_step">
-        Check that \'Dummy Input method\', along with all other non-system apps, are not enabled in Settings for the managed profile (they may be enabled for the primary profile). Then disallow \'Dummy Input method\' from permitted input methods by turning on the switch below.
+        Check that \'Test Input method\', along with all other non-system apps, are not enabled in Settings for the managed profile (they may be enabled for the primary profile). Then disallow \'Test Input method\' from permitted input methods by turning on the switch below.
     </string>
     <string name="set_permitted_input_methods_action">
-        Enabling \'Dummy Input method\' in the list of input methods (make sure you are enabling it for the managed profile, not primary profile)
+        Enabling \'Test Input method\' in the list of input methods (make sure you are enabling it for the managed profile, not primary profile)
     </string>
     <string name="set_permitted_input_methods_widget_label">
         Allow only system input methods:
@@ -4647,23 +4640,21 @@ You should be prompted to select credentials; choose the ones you just installed
     <!-- Common strings for the TV Display tests -->
     <string name="tv_start_test">Start Test</string>
 
+    <!-- Audio Capabilities test -->
+    <string name="tv_audio_capabilities_test">Audio Capabilities Test</string>
+    <string name="tv_audio_capabilities_test_info">This test checks if AudioDeviceInfo and
+    AudioTrack#isDirectPlaybackSupported APIs correctly report the Audio capabilities
+    of the connected audio devices.</string>
+    <string name="tv_audio_capabilities_no_receiver_connected">Disconnect all receivers or
+    soundbars which are connected. </string>
+    <string name="tv_audio_capabilities_receiver_connected">Connect a receiver or
+    soundbar which can play Dolby Atmos. </string>
+    <string name="tv_audio_capabilities_atmos_supported">Does your Android TV device support Dolby Atmos? </string>
+
     <!-- HDR Capabilities test -->
     <string name="tv_hdr_capabilities_test">HDR Capabilities Test</string>
-    <string name="tv_hdr_capabilities_test_step_hdr_display">HDR Display</string>
-    <string name="tv_hdr_capabilities_test_step_no_display">No Display</string>
-    <string name="tv_hdr_capabilities_test_step_non_hdr_display">Non HDR Display</string>
     <string name="tv_hdr_capabilities_test_info">This test checks if
         Display.getHdrCapabilities correctly reports the HDR capabilities of the display.
-    </string>
-    <string name="tv_hdr_connect_no_hdr_display">Connect a non-HDR display and then
-        press the "%s" button, below.
-    </string>
-    <string name="tv_hdr_connect_hdr_display">Connect an HDR display and press
-        the "%s" button, below.
-    </string>
-    <string name="tv_hdr_disconnect_display">Press the "%1$s" button
-        and disconnect the display within %2$d seconds. Wait at least %3$d seconds and then
-        reconnect the display.
     </string>
     <string name="tv_panel_hdr_types_reported_are_supported">
         The supported HDR types are: %s\nAre all of them supported by the hardware?
@@ -4672,31 +4663,6 @@ You should be prompted to select credentials; choose the ones you just installed
         Are there other HDR types which are supported by the hardware, but are not listed above?
     </string>
 
-    <!-- Display Modes Test -->
-    <string name="tv_display_modes_test">Display Modes Test</string>
-    <string name="tv_display_modes_test_info">This test checks if Display.getSupportedModes()
-        and Display.getMode() are correctly reporting the supported screen modes.
-    </string>
-    <string name="tv_display_modes_disconnect_display">
-        Press the "%1$s" button and disconnect the display within %2$d seconds. Wait at least %3$d
-        seconds and then reconnect the display.
-    </string>
-    <string name="tv_display_modes_test_step_no_display">No Display</string>
-    <string name="tv_display_modes_test_step_1080p">1080p Display</string>
-    <string name="tv_display_modes_test_step_2160p">2160p Display</string>
-    <string name="tv_display_modes_start_test_button">Start Test</string>
-    <string name="tv_display_modes_connect_2160p_display">
-        Connect a 2160p display and press the "%s" button, below.
-    </string>
-    <string name="tv_display_modes_connect_1080p_display">
-        Connect a 1080p display and press the "%s" button, below.
-    </string>
-    <string name="tv_panel_display_modes_reported_are_supported">
-        The supported display modes are:\n%s\n\nAre all of the above display modes supported by the hardware?
-    </string>
-    <string name="tv_panel_display_modes_supported_are_reported">
-        Are there other modes which are supported by the hardware, but are not listed above?
-    </string>
     <string name="overlay_view_text">Overlay View Dummy Text</string>
     <string name="custom_rating">Example of input app specific custom rating.</string>
 
@@ -5571,16 +5537,16 @@ Follow the instructions on the screen to measure the frequency response for the 
     1. Click Start Test. \n\n
     2. An alert dialog with install instruction will be shown if the sample Instant App has not been installed, otherwise, the sample Instant App will be opened automatically. \n\n
     3. Drag down the notification bar when the sample Instant App is at foreground. \n\n
-    4. Skip this step in china version. \n\n
+    4. Check if Instant App is shown in notifciation area with the following (Please expand the notification if it is collapsed): \n
+    \u0020\u0020\u0020a. It provides information about Instant Apps not requiring installation and an action that provides more information about the Instant App. \n
+    \u0020\u0020\u0020b. It provides an action allowing the user to launch the associated link with web browser. \n\n
     5. Click Pass button if all checks in step 4 passed, otherwise click Fail button.
     </string>
     <string name="ia_notification_instruction_label_no_app_market_version">\n
     1. Click Start Test. \n\n
     2. An alert dialog with install instruction will be shown if the sample Instant App has not been installed, otherwise, the sample Instant App will be opened automatically. \n\n
     3. Drag down the notification bar when the sample Instant App is at foreground. \n\n
-    4. Check if Instant App is shown in notification area with the following (Please expand the notification if it is collapsed): \n
-    \u0020\u0020\u0020a. It provides information about Instant Apps not requiring installation and an action that provides more information about the Instant App. \n
-    \u0020\u0020\u0020b. Skip this step in china version.Can not launch the associated link with web browser. \n\n
+    4. Check if Instant App is shown in notification area with information about Instant Apps not requiring installation and an action that provides more information about the Instant App (Please expand the notification if it is collapsed) \n\n
     5. Click Pass button if all checks in step 4 passed, otherwise click Fail button.
     </string>
     <string name="ia_recents">Instant Apps Recents Test</string>

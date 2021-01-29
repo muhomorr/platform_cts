@@ -45,7 +45,10 @@ public final class BarTestUtils {
 
     public static void assumeHasColoredStatusBar(ActivityTestRule<?> rule) {
         assumeHasColoredBars();
+        assumeHasStatusBar(rule);
+    }
 
+    public static void assumeHasStatusBar(ActivityTestRule<?> rule) {
         assumeFalse("No status bar when running in VR", isRunningInVr());
 
         assumeTrue("Top stable inset is non-positive, no status bar.",
@@ -81,6 +84,8 @@ public final class BarTestUtils {
         assumeFalse("No bars on watches and TVs", pm.hasSystemFeature(PackageManager.FEATURE_WATCH)
                 || pm.hasSystemFeature(PackageManager.FEATURE_TELEVISION)
                 || pm.hasSystemFeature(PackageManager.FEATURE_LEANBACK));
+
+        assumeFalse("No bars on PCs", pm.hasSystemFeature(PackageManager.FEATURE_PC));
     }
 
     private static boolean isRunningInVr() {

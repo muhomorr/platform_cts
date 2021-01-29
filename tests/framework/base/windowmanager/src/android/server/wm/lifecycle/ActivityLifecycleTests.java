@@ -17,6 +17,7 @@
 package android.server.wm.lifecycle;
 
 import static android.app.Instrumentation.ActivityMonitor;
+import static android.app.WindowConfiguration.WINDOWING_MODE_FULLSCREEN;
 import static android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP;
 import static android.content.Intent.FLAG_ACTIVITY_MULTIPLE_TASK;
 import static android.content.Intent.FLAG_ACTIVITY_NEW_TASK;
@@ -51,6 +52,7 @@ import static androidx.test.platform.app.InstrumentationRegistry.getInstrumentat
 import static org.junit.Assert.fail;
 
 import android.app.Activity;
+import android.app.ActivityOptions;
 import android.content.ComponentName;
 import android.content.Intent;
 import android.content.pm.ActivityInfo;
@@ -146,9 +148,12 @@ public class ActivityLifecycleTests extends ActivityLifecycleClientTestBase {
     @Test
     public void testTranslucentMovedIntoStack() throws Exception {
         // Launch a translucent activity and a regular activity in separate stacks
-        final Activity translucentActivity = launchActivityAndWait(TranslucentActivity.class);
+        final Activity translucentActivity = new Launcher(TranslucentActivity.class)
+                .setOptions(getLaunchOptionsForFullscreen())
+                .launch();
         final Activity firstActivity = new Launcher(FirstActivity.class)
                 .setFlags(FLAG_ACTIVITY_NEW_TASK | FLAG_ACTIVITY_MULTIPLE_TASK)
+                .setOptions(getLaunchOptionsForFullscreen())
                 .launch();
         waitAndAssertActivityStates(state(translucentActivity, ON_STOP));
 
@@ -484,9 +489,15 @@ public class ActivityLifecycleTests extends ActivityLifecycleClientTestBase {
             return;
         }
 
-        final Activity becomingVisibleActivity = launchActivityAndWait(FirstActivity.class);
-        final Activity translucentActivity = launchActivityAndWait(TranslucentActivity.class);
-        final Activity topOpaqueActivity = launchActivityAndWait(SecondActivity.class);
+        final ActivityOptions options = ActivityOptions.makeBasic();
+        options.setLaunchWindowingMode(WINDOWING_MODE_FULLSCREEN);
+
+        final Activity becomingVisibleActivity =
+                new Launcher(FirstActivity.class).setOptions(options).launch();
+        final Activity translucentActivity =
+                new Launcher(TranslucentActivity.class).setOptions(options).launch();
+        final Activity topOpaqueActivity =
+                new Launcher(SecondActivity.class).setOptions(options).launch();
 
         waitAndAssertActivityStates(
                 state(becomingVisibleActivity, ON_STOP),
@@ -697,8 +708,10 @@ public class ActivityLifecycleTests extends ActivityLifecycleClientTestBase {
         // Launch activity whose process will be killed
         builder.execute();
 
-        // Start activity in another process to put original activity in background.
-        final Activity testActivity = launchActivityAndWait(FirstActivity.class);
+        // Start fullscreen activity in another process to put original activity in background.
+        final Activity testActivity = new Launcher(FirstActivity.class)
+                .setOptions(getLaunchOptionsForFullscreen())
+                .launch();
         final boolean isTranslucent = isTranslucent(testActivity);
         mWmState.waitForActivityState(
                 targetActivity, isTranslucent ? STATE_PAUSED : STATE_STOPPED);
@@ -731,6 +744,7 @@ public class ActivityLifecycleTests extends ActivityLifecycleClientTestBase {
         // Launch second activity to cover and stop first
         final Activity secondActivity = new Launcher(SecondActivity.class)
                 .setFlags(FLAG_ACTIVITY_NEW_TASK | FLAG_ACTIVITY_MULTIPLE_TASK)
+                .setOptions(getLaunchOptionsForFullscreen())
                 .launch();
 
         // Wait for first activity to become occluded
@@ -791,6 +805,7 @@ public class ActivityLifecycleTests extends ActivityLifecycleClientTestBase {
         // Launch something on top
         final Activity secondActivity = new Launcher(SecondActivity.class)
                 .setFlags(FLAG_ACTIVITY_NEW_TASK | FLAG_ACTIVITY_MULTIPLE_TASK)
+                .setOptions(getLaunchOptionsForFullscreen())
                 .launch();
 
         waitAndAssertActivityStates(state(singleTopActivity, ON_STOP));

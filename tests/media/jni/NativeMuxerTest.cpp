@@ -205,11 +205,11 @@ bool MuxerNativeTestHelper::insertSampleData(AMediaMuxer* muxer) {
             delete[] frameCount;
             return false;
         }
-        ALOGV("Track: %d Timestamp: %d", trackID, (int)info->presentationTimeUs);
+        ALOGV("Track: %d Timestamp: %" PRId64 "", trackID, info->presentationTimeUs);
         frameCount[index]++;
     }
     delete[] frameCount;
-    ALOGV("Total track samples %d", (int)mTrackIdxOrder.size());
+    ALOGV("Total track samples %zu", mTrackIdxOrder.size());
     return true;
 }
 
@@ -250,8 +250,8 @@ bool MuxerNativeTestHelper::combineMedias(AMediaMuxer* muxer, MuxerNativeTestHel
                                                     info) != AMEDIA_OK) {
                         return false;
                     }
-                    ALOGV("Track: %d Timestamp: %d", outIndexMap[idx],
-                          (int)info->presentationTimeUs);
+                    ALOGV("Track: %d Timestamp: %" PRId64 "", outIndexMap[idx],
+                          info->presentationTimeUs);
                 }
                 idx++;
             }
@@ -271,6 +271,8 @@ bool MuxerNativeTestHelper::isSubsetOf(MuxerNativeTestHelper* that) {
         AMediaFormat* thisFormat = mFormat[i];
         const char* thisMime = nullptr;
         AMediaFormat_getString(thisFormat, AMEDIAFORMAT_KEY_MIME, &thisMime);
+        int tolerance = !strncmp(thisMime, "video/", strlen("video/")) ? STTS_TOLERANCE_US : 0;
+        tolerance += 1; // rounding error
         int j = 0;
         for (; j < that->mTrackCount; j++) {
             AMediaFormat* thatFormat = that->mFormat[j];
@@ -279,9 +281,6 @@ bool MuxerNativeTestHelper::isSubsetOf(MuxerNativeTestHelper* that) {
             if (thisMime != nullptr && thatMime != nullptr && !strcmp(thisMime, thatMime)) {
                 if (!isFormatSimilar(thisFormat, thatFormat)) continue;
                 if (mBufferInfo[i].size() == that->mBufferInfo[j].size()) {
-                    int tolerance =
-                            !strncmp(thisMime, "video/", strlen("video/")) ? STTS_TOLERANCE_US : 0;
-                    tolerance += 1; // rounding error
                     int k = 0;
                     for (; k < mBufferInfo[i].size(); k++) {
                         AMediaCodecBufferInfo* thisInfo = mBufferInfo[i][k];
@@ -305,6 +304,7 @@ bool MuxerNativeTestHelper::isSubsetOf(MuxerNativeTestHelper* that) {
             }
         }
         if (j == that->mTrackCount) {
+            AMediaFormat_getString(thisFormat, AMEDIAFORMAT_KEY_MIME, &thisMime);
             ALOGV("For mime %s, Couldn't find a match", thisMime);
             return false;
         }

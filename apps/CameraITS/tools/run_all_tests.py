@@ -306,8 +306,9 @@ def run_rotations(camera_id, test_name):
     """Determine if camera rotation is run for this test."""
     with ItsSession(camera_id) as cam:
         props = cam.get_camera_properties()
+        props = cam.override_with_hidden_physical_camera_props(props)
         method = {'test_sensor_fusion': {
-                          'flag': its.caps.sensor_fusion_capable(props),
+                          'flag': its.caps.sensor_fusion_test_capable(props, cam),
                           'runs': 10},
                   'test_multi_camera_frame_sync': {
                           'flag': its.caps.multi_camera_frame_sync_capable(props),
@@ -523,7 +524,7 @@ def main():
             id_combo_string += ItsSession.CAMERA_ID_TOKENIZER + id_combo.sub_id
             scenes = [scene for scene in scenes if HIDDEN_PHYSICAL_CAMERA_TESTS[scene]]
         # Loop capturing images until user confirm test scene is correct
-        camera_id_arg = "camera=" + id_combo.id
+        camera_id_arg = "camera=" + id_combo_string
         print "Preparing to run ITS on camera", id_combo_string, "for scenes ", scenes
 
         os.mkdir(os.path.join(topdir, id_combo_string))
@@ -566,7 +567,8 @@ def main():
                         fov_arg = 'fov=' + camera_fov
                         cmd = ['python',
                                os.path.join(os.getcwd(), 'tools/load_scene.py'),
-                               scene_arg, chart_dist_arg, fov_arg, screen_id_arg]
+                               scene_arg, chart_dist_arg, fov_arg, screen_id_arg,
+                               device_id_arg, camera_id_arg]
                     else:
                         time.sleep(CHART_DELAY)
                 else:

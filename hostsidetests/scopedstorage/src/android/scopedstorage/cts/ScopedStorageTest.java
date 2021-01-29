@@ -164,7 +164,9 @@ import java.util.List;
 @RunWith(AndroidJUnit4.class)
 public class ScopedStorageTest {
     static final String TAG = "ScopedStorageTest";
+    static final String CONTENT_PROVIDER_URL = "content://android.tradefed.contentprovider";
     static final String THIS_PACKAGE_NAME = getContext().getPackageName();
+    static final int USER_SYSTEM = 0;
 
     /**
      * To help avoid flaky tests, give ourselves a unique nonce to be used for
@@ -766,7 +768,7 @@ public class ScopedStorageTest {
         final File videoFile = new File(getMusicDir(), VIDEO_FILE_NAME);
         try {
             // TEST_APP_A with storage permission should not see pdf file in DCIM
-            executeShellCommand("touch " + pdfFile.getAbsolutePath());
+            createFileUsingTradefedContentProvider(pdfFile);
             assertThat(pdfFile.exists()).isTrue();
             assertThat(MediaStore.scanFile(getContentResolver(), pdfFile)).isNotNull();
 
@@ -774,14 +776,14 @@ public class ScopedStorageTest {
             assertThat(listAs(TEST_APP_A, getDcimDir().getPath()))
                     .doesNotContain(NONMEDIA_FILE_NAME);
 
-            executeShellCommand("touch " + videoFile.getAbsolutePath());
+            createFileUsingTradefedContentProvider(videoFile);
             // We don't insert files to db for files created by shell.
             assertThat(MediaStore.scanFile(getContentResolver(), videoFile)).isNotNull();
             // TEST_APP_A with storage permission should see video file in Music directory.
             assertThat(listAs(TEST_APP_A, getMusicDir().getPath())).contains(VIDEO_FILE_NAME);
         } finally {
-            executeShellCommand("rm " + pdfFile.getAbsolutePath());
-            executeShellCommand("rm " + videoFile.getAbsolutePath());
+            deleteFileUsingTradefedContentProvider(pdfFile);
+            deleteFileUsingTradefedContentProvider(videoFile);
             MediaStore.scanFile(getContentResolver(), pdfFile);
             MediaStore.scanFile(getContentResolver(), videoFile);
             uninstallAppNoThrow(TEST_APP_A);
@@ -2094,15 +2096,15 @@ public class ScopedStorageTest {
             assertAccess(doesntExistPdf, false, false, false);
 
             // We can check only exists for another app's files on root.
-            // Use shell to create root file because TEST_APP_A is in
+            // Use content provider to create root file because TEST_APP_A is in
             // scoped storage.
-            executeShellCommand("touch " + shellPdfAtRoot.getAbsolutePath());
+            createFileUsingTradefedContentProvider(shellPdfAtRoot);
             MediaStore.scanFile(getContentResolver(), shellPdfAtRoot);
             assertFileAccess_existsOnly(shellPdfAtRoot);
         } finally {
             deleteFileAsNoThrow(TEST_APP_A, otherAppPdf.getAbsolutePath());
             deleteFileAsNoThrow(TEST_APP_A, otherAppImage.getAbsolutePath());
-            executeShellCommand("rm " + shellPdfAtRoot.getAbsolutePath());
+            deleteFileUsingTradefedContentProvider(shellPdfAtRoot);
             MediaStore.scanFile(getContentResolver(), shellPdfAtRoot);
             myAppPdf.delete();
             uninstallApp(TEST_APP_A);
@@ -2150,13 +2152,13 @@ public class ScopedStorageTest {
             assertDirectoryAccess(new File(getExternalStorageDir(), "Android"), true, false);
             assertDirectoryAccess(new File(getExternalStorageDir(), "doesnt/exist"), false, false);
 
-            executeShellCommand("mkdir " + topLevelDir.getAbsolutePath());
+            createDirUsingTradefedContentProvider(topLevelDir);
             assertDirectoryAccess(topLevelDir, true, false);
 
             assertCannotReadOrWrite(new File("/storage/emulated"));
         } finally {
             uninstallApp(TEST_APP_A); // Uninstalling deletes external app dirs
-            executeShellCommand("rmdir " + topLevelDir.getAbsolutePath());
+            deleteDirUsingTradefedContentProvider(topLevelDir);
         }
     }
 
@@ -2184,18 +2186,18 @@ public class ScopedStorageTest {
             assertFileContent(otherAppPdf, BYTES_DATA1);
 
             // Assert we can rename the file and ensure the file has the same content
-            assertCanRenameFile(otherAppPdf, pdf);
+            assertCanRenameFile(otherAppPdf, pdf, /* checkDatabase */ false);
             assertFileContent(pdf, BYTES_DATA1);
             // We can even move it to the top level directory
-            assertCanRenameFile(pdf, topLevelPdf);
+            assertCanRenameFile(pdf, topLevelPdf, /* checkDatabase */ false);
             assertFileContent(topLevelPdf, BYTES_DATA1);
             // And even rename to a place where PDFs don't belong, because we're an omnipotent
             // external storage manager
-            assertCanRenameFile(topLevelPdf, pdfInObviouslyWrongPlace);
+            assertCanRenameFile(topLevelPdf, pdfInObviouslyWrongPlace, /* checkDatabase */ false);
             assertFileContent(pdfInObviouslyWrongPlace, BYTES_DATA1);
 
             // And we can even convert it into a music file, because why not?
-            assertCanRenameFile(pdfInObviouslyWrongPlace, musicFile);
+            assertCanRenameFile(pdfInObviouslyWrongPlace, musicFile, /* checkDatabase */ false);
             assertFileContent(musicFile, BYTES_DATA1);
         } finally {
             pdf.delete();
@@ -2212,13 +2214,11 @@ public class ScopedStorageTest {
         final File podcastsDir = getPodcastsDir();
         try {
             if (podcastsDir.exists()) {
-                // Apps can't delete top level directories, not even default directories, so we let
-                // shell do the deed for us.
-                executeShellCommand("rm -r " + podcastsDir);
+                deleteDirUsingTradefedContentProvider(podcastsDir);
             }
             assertThat(podcastsDir.mkdir()).isTrue();
         } finally {
-            executeShellCommand("mkdir " + podcastsDir);
+            createDirUsingTradefedContentProvider(podcastsDir);
         }
     }
 
@@ -2234,7 +2234,7 @@ public class ScopedStorageTest {
         try {
             installApp(TEST_APP_A);
             assertCreateFilesAs(TEST_APP_A, otherAppImg, otherAppMusic, otherAppPdf);
-            executeShellCommand("touch " + otherTopLevelFile);
+            createFileUsingTradefedContentProvider(otherTopLevelFile);
             MediaStore.scanFile(getContentResolver(), otherTopLevelFile);
 
             // We can list other apps' files
@@ -2247,7 +2247,7 @@ public class ScopedStorageTest {
             // We can also list all top level directories
             assertDirectoryContains(getExternalStorageDir(), getDefaultTopLevelDirs());
         } finally {
-            executeShellCommand("rm " + otherTopLevelFile);
+            deleteFileUsingTradefedContentProvider(otherTopLevelFile);
             MediaStore.scanFile(getContentResolver(), otherTopLevelFile);
             deleteFilesAs(TEST_APP_A, otherAppImg, otherAppMusic, otherAppPdf);
             uninstallApp(TEST_APP_A);
@@ -2490,6 +2490,8 @@ public class ScopedStorageTest {
     @Test
     public void testWallpaperApisNoPermission() throws Exception {
         WallpaperManager wallpaperManager = WallpaperManager.getInstance(getContext());
+        assumeTrue("Test skipped as wallpaper is not supported.",
+                wallpaperManager.isWallpaperSupported());
         assertThrows(SecurityException.class, () -> wallpaperManager.getFastDrawable());
         assertThrows(SecurityException.class, () -> wallpaperManager.peekFastDrawable());
         assertThrows(SecurityException.class,
@@ -2696,7 +2698,7 @@ public class ScopedStorageTest {
         try {
             installApp(TEST_APP_A);
             assertCreateFilesAs(TEST_APP_A, otherAppImg, otherAppMusic, otherAppPdf);
-            executeShellCommand("touch " + otherTopLevelFile);
+            createFileUsingTradefedContentProvider(otherTopLevelFile);
 
             // We can list other apps' files
             assertDirectoryContains(otherAppPdf.getParentFile(), otherAppPdf);
@@ -2708,7 +2710,7 @@ public class ScopedStorageTest {
             // We can also list all top level directories
             assertDirectoryContains(getExternalStorageDir(), getDefaultTopLevelDirs());
         } finally {
-            executeShellCommand("rm " + otherTopLevelFile);
+            deleteFileUsingTradefedContentProvider(otherTopLevelFile);
             deleteFilesAs(TEST_APP_A, otherAppImg, otherAppMusic, otherAppPdf);
             uninstallApp(TEST_APP_A);
         }
@@ -2738,6 +2740,8 @@ public class ScopedStorageTest {
 
     @Test
     public void testRenameFromShell() throws Exception {
+        // This test is for shell and shell always runs as USER_SYSTEM
+        assumeTrue("Test is applicable only for System User.", getCurrentUser() == USER_SYSTEM);
         final File imageFile = new File(getPicturesDir(), IMAGE_FILE_NAME);
         final File dir = new File(getMoviesDir(), TEST_DIRECTORY_NAME);
         final File renamedDir = new File(getMusicDir(), TEST_DIRECTORY_NAME);
@@ -3044,12 +3048,28 @@ public class ScopedStorageTest {
         assertThat(readPfd.getStatSize()).isEqualTo(writePfd.getStatSize());
     }
 
+    private void assertStartsWith(String actual, String prefix, boolean expected) throws Exception {
+        String message = "String \"" + actual + "\" should start with \"" + prefix + "\"";
+
+        if (expected) {
+            assertTrue(message, actual.startsWith(prefix));
+        } else {
+            assertFalse(message, actual.startsWith(prefix));
+        }
+    }
+
     private void assertLowerFsFd(ParcelFileDescriptor pfd) throws Exception {
-        assertThat(Os.readlink("/proc/self/fd/" + pfd.getFd()).startsWith("/storage")).isTrue();
+        String path = Os.readlink("/proc/self/fd/" + pfd.getFd());
+        String prefix = "/storage";
+
+        assertStartsWith(path, prefix, true);
     }
 
     private void assertUpperFsFd(ParcelFileDescriptor pfd) throws Exception {
-        assertThat(Os.readlink("/proc/self/fd/" + pfd.getFd()).startsWith("/mnt/user")).isTrue();
+        String path = Os.readlink("/proc/self/fd/" + pfd.getFd());
+        String prefix = "/mnt/user";
+
+        assertStartsWith(path, prefix, true);
     }
 
     private static void assertCanCreateFile(File file) throws IOException {
@@ -3143,5 +3163,39 @@ public class ScopedStorageTest {
         } else {
             assertThrows(ErrnoException.class, () -> { Os.access(file.getAbsolutePath(), mask); });
         }
+    }
+
+    private void createFileUsingTradefedContentProvider(File file) throws Exception {
+        // Files/Dirs are created using content provider. Owner of the Filse/Dirs is
+        // android.tradefed.contentprovider.
+        Log.d(TAG, "Creating file " + file);
+        getContentResolver().openFile(Uri.parse(CONTENT_PROVIDER_URL + file.getPath()), "w", null);
+    }
+
+    private void createDirUsingTradefedContentProvider(File file) throws Exception {
+        // Files/Dirs are created using content provider. Owner of the Files/Dirs is
+        // android.tradefed.contentprovider.
+        Log.d(TAG, "Creating Dir " + file);
+        // Create a tmp file in the target directory, this would also create the required
+        // directory, then delete the tmp file. It would leave only new directory.
+        getContentResolver()
+            .openFile(Uri.parse(CONTENT_PROVIDER_URL + file.getPath() + "/tmp.txt"), "w", null);
+        getContentResolver()
+            .delete(Uri.parse(CONTENT_PROVIDER_URL + file.getPath() + "/tmp.txt"), null, null);
+    }
+
+    private void deleteFileUsingTradefedContentProvider(File file) throws Exception {
+        Log.d(TAG, "Deleting file " + file);
+        getContentResolver().delete(Uri.parse(CONTENT_PROVIDER_URL + file.getPath()), null, null);
+    }
+
+    private void deleteDirUsingTradefedContentProvider(File file) throws Exception {
+        Log.d(TAG, "Deleting Dir " + file);
+        getContentResolver().delete(Uri.parse(CONTENT_PROVIDER_URL + file.getPath()), null, null);
+    }
+
+    private int getCurrentUser() throws Exception {
+        String userId = executeShellCommand("am get-current-user");
+        return Integer.parseInt(userId.trim());
     }
 }

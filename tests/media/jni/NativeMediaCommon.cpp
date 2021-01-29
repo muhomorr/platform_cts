@@ -36,6 +36,7 @@ const char* AMEDIA_MIMETYPE_VIDEO_H263 = "video/3gpp";
 const char* AMEDIA_MIMETYPE_AUDIO_AMR_NB = "audio/3gpp";
 const char* AMEDIA_MIMETYPE_AUDIO_AMR_WB = "audio/amr-wb";
 const char* AMEDIA_MIMETYPE_AUDIO_AAC = "audio/mp4a-latm";
+const char* AMEDIA_MIMETYPE_AUDIO_FLAC = "audio/flac";
 const char* AMEDIA_MIMETYPE_AUDIO_VORBIS = "audio/vorbis";
 const char* AMEDIA_MIMETYPE_AUDIO_OPUS = "audio/opus";
 
@@ -46,8 +47,6 @@ const char* TBD_AMEDIACODEC_PARAMETER_KEY_MAX_B_FRAMES = "max-bframes";
 const char* TBD_AMEDIAFORMAT_KEY_BIT_RATE_MODE = "bitrate-mode";
 
 bool isCSDIdentical(AMediaFormat* refFormat, AMediaFormat* testFormat) {
-    const char* mime;
-    AMediaFormat_getString(refFormat, AMEDIAFORMAT_KEY_MIME, &mime);
     for (int i = 0;; i++) {
         std::pair<void*, size_t> refCsd;
         std::pair<void*, size_t> testCsd;

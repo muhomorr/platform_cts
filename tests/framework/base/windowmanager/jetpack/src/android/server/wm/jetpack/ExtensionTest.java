@@ -16,7 +16,7 @@
 
 package android.server.wm.jetpack;
 
-import static android.server.wm.jetpack.ExtensionUtils.assertEqualsState;
+import static android.server.wm.jetpack.utils.ExtensionUtils.assertEqualsState;
 
 import static com.google.common.truth.Truth.assertThat;
 
@@ -26,10 +26,11 @@ import android.content.Intent;
 import android.content.pm.ActivityInfo;
 import android.graphics.Rect;
 import android.os.IBinder;
-import android.server.wm.jetpack.wrapper.TestDeviceState;
-import android.server.wm.jetpack.wrapper.TestDisplayFeature;
-import android.server.wm.jetpack.wrapper.TestInterfaceCompat;
-import android.server.wm.jetpack.wrapper.TestWindowLayoutInfo;
+import android.server.wm.jetpack.utils.ExtensionUtils;
+import android.server.wm.jetpack.utils.wrapper.TestDeviceState;
+import android.server.wm.jetpack.utils.wrapper.TestDisplayFeature;
+import android.server.wm.jetpack.utils.wrapper.TestInterfaceCompat;
+import android.server.wm.jetpack.utils.wrapper.TestWindowLayoutInfo;
 
 import androidx.annotation.NonNull;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
@@ -135,8 +136,12 @@ public class ExtensionTest extends JetpackExtensionTestBase {
             assertThat(featureRect.top).isAtLeast(0);
             assertThat(featureRect.right).isAtLeast(0);
             assertThat(featureRect.bottom).isAtLeast(0);
-            assertThat(featureRect.right).isAtMost(mActivity.getWidth());
-            assertThat(featureRect.bottom).isAtMost(mActivity.getHeight());
+
+            final Rect activityBounds =
+                    mActivity.getWindowManager().getCurrentWindowMetrics().getBounds();
+
+            assertThat(featureRect.right).isAtMost(activityBounds.width());
+            assertThat(featureRect.bottom).isAtMost(activityBounds.height());
         }
     }
 

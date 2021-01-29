@@ -168,7 +168,7 @@ public class KeyManagementTest extends BaseDeviceAdminTest {
     private List<Certificate> loadCertificateChain(String assetName) throws Exception {
         final Collection<Certificate> certs = loadCertificatesFromAsset(assetName);
         final ArrayList<Certificate> certChain = new ArrayList(certs);
-        // Some sanity check on the cert chain
+        // Check the cert chain
         assertThat(certs.size()).isGreaterThan(1);
         for (int i = 1; i < certChain.size(); i++) {
             certChain.get(i - 1).verify(certChain.get(i).getPublicKey());
@@ -376,7 +376,7 @@ public class KeyManagementTest extends BaseDeviceAdminTest {
     private void validateDeviceIdAttestationData(Certificate leaf,
             String expectedSerial, String expectedImei, String expectedMeid)
             throws CertificateParsingException {
-        Attestation attestationRecord = new Attestation((X509Certificate) leaf);
+        Attestation attestationRecord = Attestation.loadFromCertificate((X509Certificate) leaf);
         AuthorizationList teeAttestation = attestationRecord.getTeeEnforced();
         assertThat(teeAttestation).isNotNull();
         validateBrandAttestationRecord(teeAttestation);
@@ -402,7 +402,7 @@ public class KeyManagementTest extends BaseDeviceAdminTest {
         assertThat(attestation).isNotNull();
         assertThat(attestation.size()).isGreaterThan(1);
         X509Certificate leaf = (X509Certificate) attestation.get(0);
-        Attestation attestationRecord = new Attestation(leaf);
+        Attestation attestationRecord = Attestation.loadFromCertificate(leaf);
         assertThat(attestationRecord.getAttestationChallenge()).isEqualTo(providedChallenge);
     }
 

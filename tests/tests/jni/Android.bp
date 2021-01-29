@@ -21,12 +21,12 @@ android_test {
     // Tag this module as a cts test artifact
     test_suites: [
         "cts",
-        "vts10",
         "general-tests",
     ],
     static_libs: [
         "ctstestrunner-axt",
         "androidx.test.rules",
+        "compatibility-device-util-axt",
     ],
     jni_libs: [
         "libjni_test_dlclose",

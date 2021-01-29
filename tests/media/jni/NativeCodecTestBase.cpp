@@ -141,6 +141,7 @@ void CodecAsyncHandler::clearQueues() {
 }
 
 void CodecAsyncHandler::setOutputFormat(AMediaFormat* format) {
+    std::unique_lock<std::mutex> lock{mMutex};
     assert(format != nullptr);
     if (mOutFormat) {
         AMediaFormat_delete(mOutFormat);
@@ -151,10 +152,12 @@ void CodecAsyncHandler::setOutputFormat(AMediaFormat* format) {
 }
 
 AMediaFormat* CodecAsyncHandler::getOutputFormat() {
+    std::unique_lock<std::mutex> lock{mMutex};
     return mOutFormat;
 }
 
 bool CodecAsyncHandler::hasOutputFormatChanged() {
+    std::unique_lock<std::mutex> lock{mMutex};
     return mSignalledOutFormatChanged;
 }
 
@@ -194,13 +197,39 @@ bool OutputManager::isPtsStrictlyIncreasing(int64_t lastPts) {
         if (lastPts < *it1) {
             lastPts = *it1;
         } else {
-            ALOGE("Timestamp ordering check failed: last timestamp: %d / current timestamp: %d",
-                  (int)lastPts, (int)*it1);
+            ALOGE("Timestamp ordering check failed: last timestamp: %" PRId64
+                  " / current timestamp: %" PRId64 "",
+                  lastPts, *it1);
             result = false;
             break;
         }
     }
     return result;
+}
+
+void OutputManager::updateChecksum(
+        uint8_t* buf, AMediaCodecBufferInfo* info, int width, int height, int stride) {
+    uint8_t flattenInfo[16];
+    int pos = 0;
+    if (width <= 0 || height <= 0 || stride <= 0) {
+        flattenField<int32_t>(flattenInfo, &pos, info->size);
+    }
+    flattenField<int32_t>(flattenInfo, &pos,
+                          info->flags & ~AMEDIACODEC_BUFFER_FLAG_END_OF_STREAM);
+    flattenField<int64_t>(flattenInfo, &pos, info->presentationTimeUs);
+    crc32value = crc32(crc32value, flattenInfo, pos);
+    if (width > 0 && height > 0 && stride > 0) {
+        // Only checksum Y plane
+        std::vector<uint8_t> tmp(width * height, 0u);
+        size_t offset = 0;
+        for (int i = 0; i < height; ++i) {
+            memcpy(tmp.data() + (i * width), buf + offset, width);
+            offset += stride;
+        }
+        crc32value = crc32(crc32value, tmp.data(), width * height);
+    } else {
+        crc32value = crc32(crc32value, buf, info->size);
+    }
 }
 
 bool OutputManager::isOutPtsListIdenticalToInpPtsList(bool requireSorting) {
@@ -212,14 +241,15 @@ bool OutputManager::isOutPtsListIdenticalToInpPtsList(bool requireSorting) {
     if (outPtsArray != inpPtsArray) {
         if (outPtsArray.size() != inpPtsArray.size()) {
             ALOGE("input and output presentation timestamp list sizes are not identical sizes "
-                  "exp/rec %d/%d", (int)inpPtsArray.size(), (int)outPtsArray.size());
+                  "exp/rec %zu/%zu", inpPtsArray.size(), outPtsArray.size());
             isEqual = false;
         } else {
             int count = 0;
             for (auto it1 = outPtsArray.cbegin(), it2 = inpPtsArray.cbegin();
                  it1 < outPtsArray.cend(); it1++, it2++) {
                 if (*it1 != *it2) {
-                    ALOGE("input output pts mismatch, exp/rec %d/%d", (int)*it2, (int)*it1);
+                    ALOGE("input output pts mismatch, exp/rec %" PRId64 "/%" PRId64 "",
+                          *it2, *it1);
                     count++;
                 }
                 if (count == 20) {
@@ -237,15 +267,15 @@ bool OutputManager::equals(const OutputManager* that) {
     if (this == that) return true;
     if (outPtsArray != that->outPtsArray) {
         if (outPtsArray.size() != that->outPtsArray.size()) {
-            ALOGE("ref and test outputs presentation timestamp arrays are of unequal sizes %d, %d",
-                  (int)outPtsArray.size(), (int)that->outPtsArray.size());
+            ALOGE("ref and test outputs presentation timestamp arrays are of unequal sizes "
+                  "%zu, %zu", outPtsArray.size(), that->outPtsArray.size());
             return false;
         } else {
             int count = 0;
             for (auto it1 = outPtsArray.cbegin(), it2 = that->outPtsArray.cbegin();
                  it1 < outPtsArray.cend(); it1++, it2++) {
                 if (*it1 != *it2) {
-                    ALOGE("presentation timestamp exp/rec %d/%d", (int)*it1, (int)*it2);
+                    ALOGE("presentation timestamp exp/rec %" PRId64 "/%" PRId64 "", *it1, *it2);
                     count++;
                 }
                 if (count == 20) {
@@ -259,14 +289,14 @@ bool OutputManager::equals(const OutputManager* that) {
     if (crc32value != that->crc32value) {
         ALOGE("ref and test outputs checksum do not match %lu, %lu", crc32value, that->crc32value);
         if (memory.size() != that->memory.size()) {
-            ALOGE("ref and test outputs decoded buffer are of unequal sizes %d, %d",
-                  (int)memory.size(), (int)that->memory.size());
+            ALOGE("ref and test outputs decoded buffer are of unequal sizes %zu, %zu",
+                  memory.size(), that->memory.size());
         } else {
             int count = 0;
             for (auto it1 = memory.cbegin(), it2 = that->memory.cbegin(); it1 < memory.cend();
                  it1++, it2++) {
                 if (*it1 != *it2) {
-                    ALOGE("decoded sample exp/rec %d/%d", (int)*it1, (int)*it2);
+                    ALOGE("decoded sample exp/rec %d/%d", *it1, *it2);
                     count++;
                 }
                 if (count == 20) {
@@ -414,7 +444,7 @@ bool CodecTestBase::doWork(int frameLimit) {
             } else if (oBufferID == AMEDIACODEC_INFO_TRY_AGAIN_LATER) {
             } else if (oBufferID == AMEDIACODEC_INFO_OUTPUT_BUFFERS_CHANGED) {
             } else {
-                ALOGE("unexpected return value from *_dequeueOutputBuffer: %d", (int)oBufferID);
+                ALOGE("unexpected return value from *_dequeueOutputBuffer: %zd", oBufferID);
                 return false;
             }
             ssize_t iBufferId = AMediaCodec_dequeueInputBuffer(mCodec, kQDeQTimeOutUs);
@@ -423,7 +453,7 @@ bool CodecTestBase::doWork(int frameLimit) {
                 frameCnt++;
             } else if (iBufferId == AMEDIACODEC_INFO_TRY_AGAIN_LATER) {
             } else {
-                ALOGE("unexpected return value from *_dequeueInputBuffer: %d", (int)iBufferId);
+                ALOGE("unexpected return value from *_dequeueInputBuffer: %zd", iBufferId);
                 return false;
             }
         }
@@ -446,7 +476,7 @@ bool CodecTestBase::queueEOS() {
             if (bufferIndex >= 0) {
                 isOk = enqueueEOS(bufferIndex);
             } else {
-                ALOGE("unexpected return value from *_dequeueInputBuffer: %d", (int)bufferIndex);
+                ALOGE("unexpected return value from *_dequeueInputBuffer: %d", bufferIndex);
                 return false;
             }
         }
@@ -479,7 +509,7 @@ bool CodecTestBase::waitForAllOutputs() {
             } else if (bufferID == AMEDIACODEC_INFO_TRY_AGAIN_LATER) {
             } else if (bufferID == AMEDIACODEC_INFO_OUTPUT_BUFFERS_CHANGED) {
             } else {
-                ALOGE("unexpected return value from *_dequeueOutputBuffer: %d", (int)bufferID);
+                ALOGE("unexpected return value from *_dequeueOutputBuffer: %d", bufferID);
                 return false;
             }
         }

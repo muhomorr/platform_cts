@@ -31,9 +31,9 @@ CHART_SCALE_START = 0.65
 CHART_SCALE_STOP = 1.35
 CHART_SCALE_STEP = 0.025
 
-FOV_THRESH_SUPER_TELE = 45
+FOV_THRESH_SUPER_TELE = 40
 FOV_THRESH_TELE = 60
-FOV_THRESH_WFOV = 90
+FOV_THRESH_WFOV = 91
 
 SCALE_RFOV_IN_WFOV_BOX = 0.67
 SCALE_TELE_IN_RFOV_BOX = 0.67
@@ -106,6 +106,7 @@ class Chart(object):
         if not self.xnorm:
             with its.device.ItsSession(camera_id) as cam:
                 props = cam.get_camera_properties()
+                props = cam.override_with_hidden_physical_camera_props(props)
                 if its.caps.read_3a(props):
                     self.locate(cam, props)
                 else:

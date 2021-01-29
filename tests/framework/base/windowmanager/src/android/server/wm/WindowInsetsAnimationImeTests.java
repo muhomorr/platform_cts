@@ -16,6 +16,7 @@
 
 package android.server.wm;
 
+import static android.app.WindowConfiguration.WINDOWING_MODE_FULLSCREEN;
 import static android.graphics.Insets.NONE;
 import static android.view.WindowInsets.Type.ime;
 import static android.view.WindowInsets.Type.navigationBars;
@@ -70,7 +71,7 @@ public class WindowInsetsAnimationImeTests extends WindowInsetsAnimationTestBase
     private void initActivity(boolean useFloating) throws Exception {
         initMockImeSession(useFloating);
 
-        mActivity = startActivity(TestActivity.class);
+        mActivity = startActivityInWindowingMode(TestActivity.class, WINDOWING_MODE_FULLSCREEN);
         mRootView = mActivity.getWindow().getDecorView();
     }
 

@@ -30,4 +30,17 @@ parcelable Foo {
   test_package.IntEnum[] shouldContainTwoIntFoos;
   test_package.LongEnum[] shouldContainTwoLongFoos;
   @nullable String[] g;
+  @nullable test_package.SimpleUnion u;
+  int shouldSetBit0AndBit2;
+  @nullable test_package.SimpleUnion shouldBeConstS1;
+  const int kZero = 0;
+  const int kOne = 1;
+  const int kOnes = -1;
+  const byte kByteOne = 1;
+  const long kLongOnes = -1;
+  const String kEmpty = "";
+  const String kFoo = "foo";
+  const int BIT0 = 1;
+  const int BIT1 = 2;
+  const int BIT2 = 4;
 }

@@ -17,12 +17,16 @@
 package android.server.wm;
 
 import static android.app.ActivityTaskManager.SPLIT_SCREEN_CREATE_MODE_TOP_OR_LEFT;
+import static android.app.AppOpsManager.MODE_ALLOWED;
+import static android.app.AppOpsManager.OPSTR_SYSTEM_ALERT_WINDOW;
 import static android.app.Instrumentation.ActivityMonitor;
 import static android.app.WindowConfiguration.ACTIVITY_TYPE_ASSISTANT;
 import static android.app.WindowConfiguration.ACTIVITY_TYPE_RECENTS;
 import static android.app.WindowConfiguration.ACTIVITY_TYPE_STANDARD;
 import static android.app.WindowConfiguration.ACTIVITY_TYPE_UNDEFINED;
 import static android.app.WindowConfiguration.WINDOWING_MODE_SPLIT_SCREEN_PRIMARY;
+import static android.app.WindowConfiguration.WINDOWING_MODE_SPLIT_SCREEN_SECONDARY;
+import static android.app.WindowConfiguration.WINDOWING_MODE_UNDEFINED;
 import static android.content.Intent.ACTION_MAIN;
 import static android.content.Intent.CATEGORY_HOME;
 import static android.content.Intent.FLAG_ACTIVITY_MULTIPLE_TASK;
@@ -150,6 +154,7 @@ import android.view.ViewConfiguration;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
+import com.android.compatibility.common.util.AppOpsUtils;
 import com.android.compatibility.common.util.SystemUtil;
 
 import org.junit.Before;
@@ -393,32 +398,107 @@ public abstract class ActivityManagerTestBase {
         private static final int ACTIVITY_LAUNCH_TIMEOUT = 10000;
         private static final int WAIT_SLICE = 50;
 
+        /**
+         * Launches an {@link Activity} on a target display synchronously.
+         * @param activityClass The {@link Activity} class to be launched
+         * @param displayId ID of the target display
+         */
         void launchTestActivityOnDisplaySync(Class<T> activityClass, int displayId) {
-            launchTestActivityOnDisplaySync(new Intent(mContext, activityClass), displayId);
+            launchTestActivityOnDisplaySync(activityClass, displayId, WINDOWING_MODE_UNDEFINED);
         }
 
-        void launchTestActivityOnDisplaySync(Intent intent, int displayId) {
-            SystemUtil.runWithShellPermissionIdentity(() -> {
-                mTestActivity = launchActivityOnDisplay(intent, displayId);
-                // Check activity is launched and resumed.
-                final ComponentName testActivityName = mTestActivity.getComponentName();
-                waitAndAssertTopResumedActivity(testActivityName, displayId,
-                        "Activity must be resumed");
-            });
+        /**
+         * Launches an {@link Activity} on a target display synchronously.
+         *
+         * @param activityClass The {@link Activity} class to be launched
+         * @param displayId ID of the target display
+         * @param windowingMode Windowing mode at launch
+         */
+        void launchTestActivityOnDisplaySync(
+                Class<T> activityClass, int displayId, int windowingMode) {
+            final Intent intent = new Intent(mContext, activityClass)
+                    .addFlags(FLAG_ACTIVITY_NEW_TASK);
+            final String className = intent.getComponent().getClassName();
+            launchTestActivityOnDisplaySync(className, intent, displayId, windowingMode);
         }
 
+        /**
+         * Launches an {@link Activity} synchronously on a target display. The class name needs to 
+         * be provided either implicitly through the {@link Intent} or explicitly as a parameter
+         *
+         * @param className Optional class name of expected activity
+         * @param intent Intent to launch an activity
+         * @param displayId ID for the target display
+         */
+        void launchTestActivityOnDisplaySync(@Nullable String className, Intent intent,
+                int displayId) {
+            launchTestActivityOnDisplaySync(className, intent, displayId, WINDOWING_MODE_UNDEFINED);
+        }
+
+        /**
+         * Launches an {@link Activity} synchronously on a target display. The class name needs to
+         * be provided either implicitly through the {@link Intent} or explicitly as a parameter
+         *
+         * @param className Optional class name of expected activity
+         * @param intent Intent to launch an activity
+         * @param displayId ID for the target display
+         * @param windowingMode Windowing mode at launch
+         */
+        void launchTestActivityOnDisplaySync(
+                @Nullable String className, Intent intent, int displayId, int windowingMode) {
+            SystemUtil.runWithShellPermissionIdentity(
+                    () -> {
+                        mTestActivity =
+                                launchActivityOnDisplay(
+                                        className, intent, displayId, windowingMode);
+                        // Check activity is launched and resumed.
+                        final ComponentName testActivityName = mTestActivity.getComponentName();
+                        waitAndAssertTopResumedActivity(
+                                testActivityName, displayId, "Activity must be resumed");
+                    });
+        }
+
+        /**
+         * Launches an {@link Activity} on a target display asynchronously.
+         * @param activityClass The {@link Activity} class to be launched
+         * @param displayId ID of the target display
+         */
         void launchTestActivityOnDisplay(Class<T> activityClass, int displayId) {
-            SystemUtil.runWithShellPermissionIdentity(() -> {
-                mTestActivity = launchActivityOnDisplay(new Intent(mContext, activityClass)
-                        .addFlags(FLAG_ACTIVITY_NEW_TASK), displayId);
-                assertNotNull(mTestActivity);
-            });
+            final Intent intent = new Intent(mContext, activityClass)
+                    .addFlags(FLAG_ACTIVITY_NEW_TASK);
+            final String className = intent.getComponent().getClassName();
+            SystemUtil.runWithShellPermissionIdentity(
+                    () -> {
+                        mTestActivity =
+                                launchActivityOnDisplay(
+                                        className, intent, displayId, WINDOWING_MODE_UNDEFINED);
+                        assertNotNull(mTestActivity);
+                    });
         }
 
-        private T launchActivityOnDisplay(Intent intent, int displayId) {
-            final Bundle bundle = ActivityOptions.makeBasic()
-                    .setLaunchDisplayId(displayId).toBundle();
-            final ActivityMonitor monitor = mInstrumentation.addMonitor((String) null, null, false);
+        /**
+         * Launches an {@link Activity} on a target display. In order to return the correct activity
+         * the class name or an explicit {@link Intent} must be provided.
+         *
+         * @param className Optional class name of expected activity
+         * @param intent {@link Intent} to launch an activity
+         * @param displayId ID for the target display
+         * @param windowingMode Windowing mode at launch
+         * @return The {@link Activity} that was launched
+         */
+        private T launchActivityOnDisplay(
+                @Nullable String className, Intent intent, int displayId, int windowingMode) {
+            final String localClassName = className != null ? className :
+              (intent.getComponent() != null ? intent.getComponent().getClassName() : null);
+            if (localClassName == null || localClassName.isEmpty()) {
+                fail("Must provide either a class name or an intent with a component");
+            }
+            final ActivityOptions launchOptions = ActivityOptions.makeBasic();
+            launchOptions.setLaunchDisplayId(displayId);
+            launchOptions.setLaunchWindowingMode(windowingMode);
+            final Bundle bundle = launchOptions.toBundle();
+            final ActivityMonitor monitor = mInstrumentation.addMonitor(localClassName, null,
+                    false);
             mContext.startActivity(intent.addFlags(FLAG_ACTIVITY_NEW_TASK), bundle);
             // Wait for activity launch with timeout.
             mTestActivity = (T) mInstrumentation.waitForMonitorWithTimeout(monitor,
@@ -730,6 +810,10 @@ public abstract class ActivityManagerTestBase {
         return null;
     }
 
+    protected int getDisplayWindowingModeByActivity(ComponentName activity) {
+        return mWmState.getDisplay(mWmState.getDisplayByActivity(activity)).getWindowingMode();
+    }
+
     /**
      * Launches the home activity directly. If there is no specific reason to simulate a home key
      * (which will trigger stop-app-switches), it is the recommended method to go home.
@@ -809,13 +893,12 @@ public abstract class ActivityManagerTestBase {
     /**
      * Moves the device into split-screen with the specified task into the primary stack.
      * @param taskId             The id of the task to move into the primary stack.
-     * @param showSideActivity   Whether to show the Recents activity (or a placeholder activity in
-     *                           place of the Recents activity if home is the recents component).
+     * @param showSideActivity   Whether to show the home activity or a placeholder activity in
+     *                           secondary split-screen.
      *                           If {@code true} it will also wait for activity in the primary
      *                           split-screen stack to be resumed.
      */
     public void moveTaskToPrimarySplitScreen(int taskId, boolean showSideActivity) {
-        final boolean isHomeRecentsComponent = mWmState.isHomeRecentsComponent();
         SystemUtil.runWithShellPermissionIdentity(() -> {
             if (mUseTaskOrganizer) {
                 mTaskOrganizer.putTaskInSplitPrimary(taskId);
@@ -823,30 +906,27 @@ public abstract class ActivityManagerTestBase {
                 mAtm.setTaskWindowingModeSplitScreenPrimary(taskId,
                         SPLIT_SCREEN_CREATE_MODE_TOP_OR_LEFT, true /* onTop */,
                         false /* animate */, null /* initialBounds */,
-                        showSideActivity && !isHomeRecentsComponent);
+                        false /* showRecents */);
             }
 
-            mWmState.waitForRecentsActivityVisible();
+            // Wait for split screen ready
+            mWmState.waitForWithAmState(state -> {
+                final WindowManagerState.ActivityTask task =
+                        state.getStandardStackByWindowingMode(
+                                WINDOWING_MODE_SPLIT_SCREEN_SECONDARY);
+                return task != null && task.getResumedActivity() != null;
+            }, "home activity in the secondary split-screen task must be resumed");
 
             if (showSideActivity) {
-                if (isHomeRecentsComponent) {
-                    // Launch Placeholder Side Activity
-                    final ComponentName sideActivityName =
-                            new ComponentName(mContext, SideActivity.class);
-                    mContext.startActivity(new Intent().setComponent(sideActivityName)
-                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
-                    mWmState.waitForActivityState(sideActivityName, STATE_RESUMED);
-                }
+                // Launch Placeholder Side Activity
+                final ComponentName sideActivityName =
+                        new ComponentName(mContext, SideActivity.class);
+                mContext.startActivity(new Intent().setComponent(sideActivityName)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+                mWmState.waitForActivityState(sideActivityName, STATE_RESUMED);
 
-                // There are two cases when showSideActivity == true:
-                // Case 1: it's 3rd-party launcher and it should show recents, so the primary split
-                // screen won't enter minimized dock, but the activity on primary split screen
-                // should be relaunched.
-                // Case 2: It's not 3rd-party launcher but we launched side activity on secondary
-                // split screen, the activity on primary split screen should enter then leave
-                // minimized dock.
-                // In both cases, we shall wait for the state of the activity on primary split
-                // screen to resumed, so the LifecycleLog won't affect the following tests.
+                // Wait for the state of the activity on primary split screen to resumed, so the
+                // LifecycleLog won't affect the following tests.
                 mWmState.waitForWithAmState(state -> {
                     final WindowManagerState.ActivityTask stack =
                             state.getStandardStackByWindowingMode(
@@ -938,10 +1018,13 @@ public abstract class ActivityManagerTestBase {
                         new Rect(0, 0, taskWidth, taskHeight)));
     }
 
-    protected void pressAppSwitchButtonAndWaitForRecents() {
+    protected boolean pressAppSwitchButtonAndWaitForRecents() {
         pressAppSwitchButton();
-        mWmState.waitForRecentsActivityVisible();
-        mWmState.waitForAppTransitionIdleOnDisplay(DEFAULT_DISPLAY);
+        final boolean isRecentsVisible = mWmState.waitForRecentsActivityVisible();
+        if (isRecentsVisible) {
+            mWmState.waitForAppTransitionIdleOnDisplay(DEFAULT_DISPLAY);
+        }
+        return isRecentsVisible;
     }
 
     // Utility method for debugging, not used directly here, but useful, so kept around.
@@ -1166,6 +1249,11 @@ public abstract class ActivityManagerTestBase {
                 .getBoolean(android.R.bool.config_perDisplayFocusEnabled);
     }
 
+    protected static boolean remoteInsetsControllerControlsSystemBars() {
+        return getInstrumentation().getTargetContext().getResources()
+                .getBoolean(android.R.bool.config_remoteInsetsControllerControlsSystemBars);
+    }
+
     /** @see ObjectTracker#manage(AutoCloseable) */
     protected HomeActivitySession createManagedHomeActivitySession(ComponentName homeActivity) {
         return mObjectTracker.manage(new HomeActivitySession(homeActivity));
@@ -1189,6 +1277,12 @@ public abstract class ActivityManagerTestBase {
     /** @see ObjectTracker#manage(AutoCloseable) */
     protected <T extends Activity> TestActivitySession<T> createManagedTestActivitySession() {
         return new TestActivitySession<T>();
+    }
+
+    /** @see ObjectTracker#manage(AutoCloseable) */
+    protected SystemAlertWindowAppOpSession createAllowSystemAlertWindowAppOpSession() {
+        return mObjectTracker.manage(
+                new SystemAlertWindowAppOpSession(mContext.getOpPackageName(), MODE_ALLOWED));
     }
 
     /**
@@ -1352,6 +1446,10 @@ public abstract class ActivityManagerTestBase {
             } else {
                 Condition.waitFor("display to turn off", () -> !isDisplayOn(DEFAULT_DISPLAY));
             }
+            if(!isLockDisabled()) {
+                mWmState.waitFor(state -> state.getKeyguardControllerState().keyguardShowing,
+                        "Keyguard showing");
+            }
             return this;
         }
 
@@ -1430,20 +1528,51 @@ public abstract class ActivityManagerTestBase {
         }
     }
 
+    /** Helper class to set and restore appop mode "android:system_alert_window". */
+    protected static class SystemAlertWindowAppOpSession implements AutoCloseable {
+        private final String mPackageName;
+        private final int mPreviousOpMode;
+
+        SystemAlertWindowAppOpSession(String packageName, int mode) {
+            mPackageName = packageName;
+            try {
+                mPreviousOpMode = AppOpsUtils.getOpMode(mPackageName, OPSTR_SYSTEM_ALERT_WINDOW);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+            setOpMode(mode);
+        }
+
+        @Override
+        public void close() {
+            setOpMode(mPreviousOpMode);
+        }
+
+        void setOpMode(int mode) {
+            try {
+                AppOpsUtils.setOpMode(mPackageName, OPSTR_SYSTEM_ALERT_WINDOW, mode);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+    }
+
     /** Helper class to save, set & wait, and restore rotation related preferences. */
     protected class RotationSession extends SettingsSession<Integer> {
-        private final SettingsSession<Integer> mUserRotation;
+        private final String SET_FIX_TO_USER_ROTATION_COMMAND =
+                "cmd window set-fix-to-user-rotation ";
+        private final SettingsSession<Integer> mAccelerometerRotation;
         private final HandlerThread mThread;
         private final Handler mRunnableHandler;
         private final SettingsObserver mRotationObserver;
         private int mPreviousDegree;
 
         public RotationSession() {
-            // Save accelerometer_rotation preference.
-            super(Settings.System.getUriFor(Settings.System.ACCELEROMETER_ROTATION),
+            // Save user_rotation and accelerometer_rotation preferences.
+            super(Settings.System.getUriFor(Settings.System.USER_ROTATION),
                     Settings.System::getInt, Settings.System::putInt);
-            mUserRotation = new SettingsSession<>(
-                    Settings.System.getUriFor(Settings.System.USER_ROTATION),
+            mAccelerometerRotation = new SettingsSession<>(
+                    Settings.System.getUriFor(Settings.System.ACCELEROMETER_ROTATION),
                     Settings.System::getInt, Settings.System::putInt);
 
             mThread = new HandlerThread("Observer_Thread");
@@ -1451,9 +1580,12 @@ public abstract class ActivityManagerTestBase {
             mRunnableHandler = new Handler(mThread.getLooper());
             mRotationObserver = new SettingsObserver(mRunnableHandler);
 
-            mPreviousDegree = mUserRotation.get();
+            // Disable fixed to user rotation
+            executeShellCommand(SET_FIX_TO_USER_ROTATION_COMMAND + "disabled");
+
+            mPreviousDegree = get();
             // Disable accelerometer_rotation.
-            super.set(0);
+            mAccelerometerRotation.set(0);
         }
 
         @Override
@@ -1480,7 +1612,7 @@ public abstract class ActivityManagerTestBase {
             if (observeRotationSettings) {
                 mRotationObserver.observe();
             }
-            mUserRotation.set(value);
+            super.set(value);
             mPreviousDegree = value;
 
             if (waitSystemUI) {
@@ -1506,10 +1638,12 @@ public abstract class ActivityManagerTestBase {
 
         @Override
         public void close() {
+            // Set fixed to user rotation to default
+            executeShellCommand(SET_FIX_TO_USER_ROTATION_COMMAND + "default");
             mThread.quitSafely();
-            mUserRotation.close();
-            // Restore accelerometer_rotation preference.
             super.close();
+            // Restore accelerometer_rotation preference.
+            mAccelerometerRotation.close();
         }
 
         private class SettingsObserver extends ContentObserver {
@@ -2238,8 +2372,15 @@ public abstract class ActivityManagerTestBase {
                         // Include stopped packages
                         .append(" -f 0x00000020");
             } else {
+                // If new task flag isn't set the windowing mode of launcher activity will be the
+                // windowing mode of the target activity, so we need to launch launcher activity in
+                // it.
+                String amStartCmd =
+                        (mWindowingMode == -1 || mNewTask)
+                                ? getAmStartCmd(mLaunchingActivity)
+                                : getAmStartCmd(mLaunchingActivity, mWindowingMode);
                 // Use launching activity to launch the target.
-                commandBuilder.append(getAmStartCmd(mLaunchingActivity))
+                commandBuilder.append(amStartCmd)
                         .append(" -f 0x20000020");
             }
 

@@ -37,6 +37,7 @@ import android.app.PendingIntent;
 import android.app.assist.AssistStructure;
 import android.app.assist.AssistStructure.ViewNode;
 import android.app.assist.AssistStructure.WindowNode;
+import android.content.AutofillOptions;
 import android.content.ComponentName;
 import android.content.ContentResolver;
 import android.content.Context;
@@ -88,6 +89,7 @@ import java.util.Map.Entry;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
+import java.util.regex.Pattern;
 
 /**
  * Helper for common funcionalities.
@@ -231,6 +233,24 @@ public final class Helper {
         final String myServiceDump = runShellCommand("dumpsys activity service %s",
                 InstrumentedAutoFillService.SERVICE_NAME);
         Log.i(tag, "my service dump: \n" + myServiceDump);
+    }
+
+    /**
+     * Dumps the state of {@link android.service.autofill.InlineSuggestionRenderService}, and assert
+     * that it says the number of active inline suggestion views is the given number.
+     *
+     * <p>Note that ideally we should have a test api to fetch the number and verify against it.
+     * But at the time this test is added for Android 11, we have passed the deadline for adding
+     * the new test api, hence this approach.
+     */
+    public static void assertActiveViewCountFromInlineSuggestionRenderService(int count) {
+        String response = runShellCommand(
+                "dumpsys activity service .InlineSuggestionRenderService");
+        Log.d(TAG, "InlineSuggestionRenderService dump: " + response);
+        Pattern pattern = Pattern.compile(".*mActiveInlineSuggestions: " + count + ".*");
+        assertWithMessage("Expecting view count " + count
+                + ", but seeing different count from service dumpsys " + response).that(
+                pattern.matcher(response).find()).isTrue();
     }
 
     /**
@@ -1552,6 +1572,22 @@ public final class Helper {
         final ContentResolver cr = context.getContentResolver();
         final int subtype = Settings.Secure.getInt(cr, SELECTED_INPUT_METHOD_SUBTYPE);
         Settings.Secure.putInt(cr, SELECTED_INPUT_METHOD_SUBTYPE, subtype);
+    }
+
+    /**
+     * Reset AutofillOptions to avoid cts package was added to augmented autofill allowlist.
+     */
+    public static void resetApplicationAutofillOptions(@NonNull Context context) {
+        AutofillOptions options = AutofillOptions.forWhitelistingItself();
+        options.augmentedAutofillEnabled = false;
+        context.getApplicationContext().setAutofillOptions(options);
+    }
+
+    /**
+     * Clear AutofillOptions.
+     */
+    public static void clearApplicationAutofillOptions(@NonNull Context context) {
+        context.getApplicationContext().setAutofillOptions(null);
     }
 
     private Helper() {

@@ -110,6 +110,8 @@ public class MultiDisplaySystemDecorationTests extends MultiDisplayTestBase {
      */
     @Test
     public void testWallpaperGetDisplayContext() throws Exception {
+        assumeTrue(supportsLiveWallpaper());
+
         final ChangeWallpaperSession wallpaperSession = createManagedChangeWallpaperSession();
         final VirtualDisplaySession virtualDisplaySession = createManagedVirtualDisplaySession();
 
@@ -183,7 +185,7 @@ public class MultiDisplaySystemDecorationTests extends MultiDisplayTestBase {
 
         @Override
         public void close() {
-            SystemUtil.runWithShellPermissionIdentity(mWallpaperManager::clearWallpaper);
+            SystemUtil.runWithShellPermissionIdentity(() -> mWallpaperManager.clearWallpaper());
             if (mTestBitmap != null) {
                 mTestBitmap.recycle();
             }
@@ -572,6 +574,9 @@ public class MultiDisplaySystemDecorationTests extends MultiDisplayTestBase {
 
     @Test
     public void testImeWindowCanShownWhenActivityMovedToDisplay() throws Exception {
+        // If config_perDisplayFocusEnabled, the focus will not move even if touching on
+        // the Activity in the different display.
+        assumeFalse(perDisplayFocusEnabled());
         assumeTrue(MSG_NO_MOCK_IME, supportsInstallableIme());
 
         // Launch a regular activity on default display at the test beginning to prevent the test

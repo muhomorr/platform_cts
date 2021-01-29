@@ -210,7 +210,8 @@ bool CodecDecoderTest::enqueueInput(size_t bufferIndex) {
         }
         CHECK_STATUS(AMediaCodec_queueInputBuffer(mCodec, bufferIndex, 0, size, pts, flags),
                      "AMediaCodec_queueInputBuffer failed");
-        ALOGV("input: id: %zu  size: %zu  pts: %d  flags: %d", bufferIndex, size, (int)pts, flags);
+        ALOGV("input: id: %zu  size: %zu  pts: %" PRId64 "  flags: %d", bufferIndex, size, pts,
+              flags);
         if (size > 0) {
             mOutputBuff->saveInPTS(pts);
             mInputCount++;
@@ -227,14 +228,24 @@ bool CodecDecoderTest::dequeueOutput(size_t bufferIndex, AMediaCodecBufferInfo* 
         if (mSaveToMem) {
             size_t buffSize;
             uint8_t* buf = AMediaCodec_getOutputBuffer(mCodec, bufferIndex, &buffSize);
-            if (mIsAudio) mOutputBuff->saveToMemory(buf, info);
-            mOutputBuff->updateChecksum(buf, info);
+            if (mIsAudio) {
+                mOutputBuff->saveToMemory(buf, info);
+                mOutputBuff->updateChecksum(buf, info);
+            } else {
+                AMediaFormat* format =
+                    mIsCodecInAsyncMode ? mAsyncHandle.getOutputFormat() : mOutFormat;
+                int32_t width, height, stride;
+                AMediaFormat_getInt32(format, "width", &width);
+                AMediaFormat_getInt32(format, "height", &height);
+                AMediaFormat_getInt32(format, "stride", &stride);
+                mOutputBuff->updateChecksum(buf, info, width, height, stride);
+            }
         }
         mOutputBuff->saveOutPTS(info->presentationTimeUs);
         mOutputCount++;
     }
-    ALOGV("output: id: %zu  size: %d  pts: %d  flags: %d", bufferIndex, info->size,
-          (int)info->presentationTimeUs, info->flags);
+    ALOGV("output: id: %zu  size: %d  pts: %" PRId64 "  flags: %d", bufferIndex, info->size,
+          info->presentationTimeUs, info->flags);
     CHECK_STATUS(AMediaCodec_releaseOutputBuffer(mCodec, bufferIndex, mWindow != nullptr),
                  "AMediaCodec_releaseOutputBuffer failed");
     return !hasSeenError();
@@ -257,7 +268,7 @@ bool CodecDecoderTest::queueCodecConfig() {
             if (bufferIndex >= 0) {
                 isOk = enqueueCodecConfig(bufferIndex);
             } else {
-                ALOGE("unexpected return value from *_dequeueInputBuffer: %d", (int)bufferIndex);
+                ALOGE("unexpected return value from *_dequeueInputBuffer: %d", bufferIndex);
                 return false;
             }
         }
@@ -359,17 +370,17 @@ bool CodecDecoderTest::testSimpleDecode(const char* decoder, const char* testFil
             if (validateFormat) {
                 if (mIsCodecInAsyncMode ? !mAsyncHandle.hasOutputFormatChanged()
                                         : !mSignalledOutFormatChanged) {
-                    ALOGE(log, "not received format change");
+                    ALOGE("%s%s", log, "not received format change");
                     isPass = false;
                 } else if (!isFormatSimilar(mInpDecFormat, mIsCodecInAsyncMode
                                                                    ? mAsyncHandle.getOutputFormat()
                                                                    : mOutFormat)) {
-                    ALOGE(log, "configured format and output format are not similar");
+                    ALOGE("%s%s", log, "configured format and output format are not similar");
                     isPass = false;
                 }
             }
             if (checksum != ref->getChecksum()) {
-                ALOGE(log, "sdk output and ndk output differ");
+                ALOGE("%s%s", log, "sdk output and ndk output differ");
                 isPass = false;
             }
             loopCounter++;
@@ -499,12 +510,12 @@ bool CodecDecoderTest::testFlush(const char* decoder, const char* testFile) {
         if (validateFormat) {
             if (mIsCodecInAsyncMode ? !mAsyncHandle.hasOutputFormatChanged()
                                     : !mSignalledOutFormatChanged) {
-                ALOGE(log, "not received format change");
+                ALOGE("%s%s", log, "not received format change");
                 isPass = false;
             } else if (!isFormatSimilar(mInpDecFormat, mIsCodecInAsyncMode
                                                                ? mAsyncHandle.getOutputFormat()
                                                                : mOutFormat)) {
-                ALOGE(log, "configured format and output format are not similar");
+                ALOGE("%s%s", log, "configured format and output format are not similar");
                 isPass = false;
             }
         }
@@ -631,12 +642,12 @@ bool CodecDecoderTest::testSimpleDecodeQueueCSD(const char* decoder, const char*
                 if (validateFormat) {
                     if (mIsCodecInAsyncMode ? !mAsyncHandle.hasOutputFormatChanged()
                                             : !mSignalledOutFormatChanged) {
-                        ALOGE(log, "not received format change");
+                        ALOGE("%s%s", log, "not received format change");
                         isPass = false;
                     } else if (!isFormatSimilar(mInpDecFormat,
                                                 mIsCodecInAsyncMode ? mAsyncHandle.getOutputFormat()
                                                                     : mOutFormat)) {
-                        ALOGE(log, "configured format and output format are not similar");
+                        ALOGE("%s%s", log, "configured format and output format are not similar");
                         isPass = false;
                     }
                 }

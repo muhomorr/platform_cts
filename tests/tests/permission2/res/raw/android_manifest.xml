@@ -504,6 +504,7 @@
     <protected-broadcast android:name="android.telecom.action.NUISANCE_CALL_STATUS_CHANGED" />
     <protected-broadcast android:name="android.telecom.action.PHONE_ACCOUNT_REGISTERED" />
     <protected-broadcast android:name="android.telecom.action.PHONE_ACCOUNT_UNREGISTERED" />
+    <protected-broadcast android:name="android.telecom.action.POST_CALL" />
     <protected-broadcast android:name="android.telecom.action.SHOW_MISSED_CALLS_NOTIFICATION" />
     <protected-broadcast android:name="android.telephony.action.CARRIER_CONFIG_CHANGED" />
     <protected-broadcast android:name="android.telephony.action.DEFAULT_SUBSCRIPTION_CHANGED" />
@@ -1754,6 +1755,16 @@
     <permission android:name="android.permission.WIFI_UPDATE_USABILITY_STATS_SCORE"
         android:protectionLevel="signature|privileged" />
 
+    <!-- @SystemApi @hide Allows system APK to update Wifi/Cellular coex channels to avoid.
+         <p>Not for use by third-party applications. -->
+    <permission android:name="android.permission.WIFI_UPDATE_COEX_UNSAFE_CHANNELS"
+        android:protectionLevel="signature" />
+
+    <!-- @SystemApi @hide Allows applications to access Wifi/Cellular coex channels being avoided.
+         <p>Not for use by third-party applications. -->
+    <permission android:name="android.permission.WIFI_ACCESS_COEX_UNSAFE_CHANNELS"
+        android:protectionLevel="signature|privileged" />
+
     <!-- ======================================= -->
     <!-- Permissions for short range, peripheral networks -->
     <!-- ======================================= -->
@@ -2171,6 +2182,11 @@
     <permission android:name="android.permission.BIND_INCALL_SERVICE"
         android:protectionLevel="signature|privileged" />
 
+    <!-- Allows to query ongoing call details and manage ongoing calls
+        <p>Protection level: signature|appop -->
+    <permission android:name="android.permission.MANAGE_ONGOING_CALLS"
+        android:protectionLevel="signature|appop" />
+
     <!-- Allows the app to request network scans from telephony.
          <p>Not for use by third-party applications.
          @SystemApi @hide-->
@@ -2294,6 +2310,15 @@
          @hide
     -->
     <permission android:name="android.permission.READ_CARRIER_APP_INFO"
+        android:protectionLevel="signature" />
+
+    <!-- Must be required by an GbaService to ensure that only the
+         system can bind to it.
+         <p>Protection level: signature
+         @SystemApi
+         @hide
+    -->
+    <permission android:name="android.permission.BIND_GBA_SERVICE"
         android:protectionLevel="signature" />
 
     <!-- ================================== -->
@@ -2932,6 +2957,12 @@
     <permission android:name="android.permission.RECOVERY"
         android:protectionLevel="signature|privileged" />
 
+    <!-- @SystemApi Allows an application to do certain operations needed for
+         resume on reboot feature.
+         @hide -->
+    <permission android:name="android.permission.BIND_RESUME_ON_REBOOT_SERVICE"
+        android:protectionLevel="signature" />
+
     <!-- @SystemApi Allows an application to read system update info.
          @hide -->
     <permission android:name="android.permission.READ_SYSTEM_UPDATE_INFO"
@@ -3003,6 +3034,12 @@
     <!-- Allows an application to retrieve state dump information from system services.
     <p>Not for use by third-party applications. -->
     <permission android:name="android.permission.DUMP"
+        android:protectionLevel="signature|privileged|development" />
+
+    <!-- Allows an application to start tracing for InputMethod and WindowManager.
+    <p>Not for use by third-party applications.
+    @hide -->
+    <permission android:name="android.permission.CONTROL_UI_TRACING"
         android:protectionLevel="signature|privileged|development" />
 
     <!-- Allows an application to read the low-level system log files.
@@ -4423,7 +4460,7 @@
     <!-- Allows access to keyguard secure storage.  Only allowed for system processes.
         @hide -->
     <permission android:name="android.permission.ACCESS_KEYGUARD_SECURE_STORAGE"
-        android:protectionLevel="signature" />
+        android:protectionLevel="signature|setup" />
 
     <!-- Allows applications to set the initial lockscreen state.
          <p>Not for use by third-party applications. @hide -->
@@ -5018,6 +5055,10 @@
     <!-- @hide @SystemApi Allows an application to access locusId events in the usage stats. -->
     <permission android:name="android.permission.ACCESS_LOCUS_ID_USAGE_STATS"
                 android:protectionLevel="signature|appPredictor" />
+
+    <!-- @hide Allows an application to create/destroy input consumer. -->
+    <permission android:name="android.permission.INPUT_CONSUMER"
+                android:protectionLevel="signature" />
 
     <application android:process="system"
                  android:persistent="true"

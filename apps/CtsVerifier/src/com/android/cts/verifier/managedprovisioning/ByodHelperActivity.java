@@ -32,12 +32,12 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.UserManager;
 import android.provider.MediaStore;
-import androidx.core.content.FileProvider;
-import androidx.core.util.Pair;
 import android.util.Log;
 
+import androidx.core.content.FileProvider;
+import androidx.core.util.Pair;
+
 import com.android.cts.verifier.R;
-import com.android.cts.verifier.location.LocationListenerActivity;
 import com.android.cts.verifier.managedprovisioning.ByodPresentMediaDialog.DialogCallback;
 
 import java.io.File;
@@ -50,7 +50,7 @@ import java.util.ArrayList;
  * owner is setup correctly, removing the work profile upon request, and verifying the image and
  * video capture functionality.
  *
- * Note: We have to use a dummy activity because cross-profile intents only work for activities.
+ * Note: We have to use a test activity because cross-profile intents only work for activities.
  */
 public class ByodHelperActivity extends LocationListenerActivity
         implements DialogCallback {
