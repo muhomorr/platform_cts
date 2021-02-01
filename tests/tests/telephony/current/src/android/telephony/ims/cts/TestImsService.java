@@ -43,7 +43,8 @@ public class TestImsService extends Service {
 
     private static final String TAG = "GtsImsTestImsService";
 
-    private static ImsRegistrationImplBase sImsRegistrationImplBase = new ImsRegistrationImplBase();
+    private static final TestImsRegistration sImsRegistrationImplBase =
+            new TestImsRegistration();
 
     private TestRcsFeature mTestRcsFeature;
     private TestMmTelFeature mTestMmTelFeature;
@@ -68,7 +69,9 @@ public class TestImsService extends Service {
     public static final int LATCH_RCS_READY = 8;
     public static final int LATCH_MMTEL_CAP_SET = 9;
     public static final int LATCH_RCS_CAP_SET = 10;
-    private static final int LATCH_MAX = 11;
+    public static final int LATCH_UCE_LISTENER_SET = 11;
+    public static final int LATCH_UCE_REQUEST_PUBLISH = 12;
+    private static final int LATCH_MAX = 13;
     protected static final CountDownLatch[] sLatches = new CountDownLatch[LATCH_MAX];
     static {
         for (int i = 0; i < LATCH_MAX; i++) {
@@ -84,6 +87,12 @@ public class TestImsService extends Service {
     }
     interface CapabilitiesSetListener {
         void onSet();
+    }
+    interface RcsCapabilitySetListener {
+        void onSet();
+    }
+    interface DeviceCapPublishListener {
+        void onPublish();
     }
 
     // This is defined here instead TestImsService extending ImsService directly because the GTS
@@ -158,8 +167,20 @@ public class TestImsService extends Service {
                             synchronized (mLock) {
                                 countDownLatch(LATCH_RCS_CAP_SET);
                             }
+                        },
+                        () -> {
+                            synchronized (mLock) {
+                                countDownLatch(LATCH_UCE_LISTENER_SET);
                         }
-                        );
+                        });
+
+                // Setup UCE request listener
+                mTestRcsFeature.setDeviceCapPublishListener(() -> {
+                    synchronized (mLock) {
+                        countDownLatch(LATCH_UCE_REQUEST_PUBLISH);
+                    }
+                });
+
                 if (mSetNullRcsBinding) {
                     return null;
                 }
@@ -348,7 +369,7 @@ public class TestImsService extends Service {
         }
     }
 
-    public ImsRegistrationImplBase getImsRegistration() {
+    public TestImsRegistration getImsRegistration() {
         synchronized (mLock) {
             return sImsRegistrationImplBase;
         }

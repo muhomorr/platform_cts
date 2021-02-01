@@ -108,9 +108,19 @@ public class JavaClientTest {
     }
 
     @Test
-    public void testTrivial() throws RemoteException {
+    public void testVoidReturn() throws RemoteException {
         mInterface.TestVoidReturn();
-        mInterface.TestOneway();
+    }
+
+    @Test
+    public void testOneway() throws RemoteException {
+        boolean isLocalJava = !mShouldBeRemote && mExpectedName == "JAVA";
+        try {
+            mInterface.TestOneway();
+            assertFalse("local Java should throw exception", isLocalJava);
+        } catch (RemoteException e) {
+            assertTrue("only local Java should report error", isLocalJava);
+        }
     }
 
     private void checkDump(String expected, String[] args) throws RemoteException, IOException {
@@ -222,6 +232,18 @@ public class JavaClientTest {
     @Test
     public void testRepeatFd() throws RemoteException, IOException {
         checkFdRepeated((fd) -> mInterface.RepeatFd(fd));
+    }
+
+    @Test
+    public void testRepeatFdNull() throws RemoteException {
+        boolean isNativeRemote = mInterface.GetName().equals("CPP");
+
+        try {
+            mInterface.RepeatFd(null);
+            assertFalse("Native shouldn't accept null here", isNativeRemote);
+        } catch (java.lang.NullPointerException e) {
+            assertTrue("Java should accept null here", isNativeRemote);
+        }
     }
 
     @Test

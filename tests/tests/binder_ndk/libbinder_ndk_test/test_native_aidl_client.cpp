@@ -414,6 +414,25 @@ TEST_P(NdkBinderTest_Aidl, RepeatFdArray) {
 
 TEST_P(NdkBinderTest_Aidl, RepeatFd) { checkFdRepeat(iface, &ITest::RepeatFd); }
 
+TEST_P(NdkBinderTest_Aidl, RepeatFdNull) {
+  ScopedFileDescriptor fd;
+  // FD is different from most types because the standard type used to represent
+  // it can also contain a null value (this is why many other types don't have
+  // 'null' tests for the non-@nullable Repeat* functions).
+  //
+  // Even worse, these are default initialized to this value, so it's a pretty
+  // common error:
+  EXPECT_EQ(fd.get(), -1);
+  ScopedFileDescriptor out;
+
+  if (shouldBeWrapped) {
+    ASSERT_EQ(STATUS_UNEXPECTED_NULL, AStatus_getStatus(iface->RepeatFd(fd, &out).get()));
+  } else {
+    // another in/out-process difference
+    ASSERT_OK(iface->RepeatFd(fd, &out));
+  }
+}
+
 TEST_P(NdkBinderTest_Aidl, RepeatNullableFd) {
   checkFdRepeat(iface, &ITest::RepeatNullableFd);
 
@@ -453,6 +472,27 @@ TEST_P(NdkBinderTest_Aidl, RepeatNullableString) {
 
   EXPECT_OK(iface->RepeatNullableString("say what?", &res));
   EXPECT_EQ("say what?", *res);
+}
+
+TEST_P(NdkBinderTest_Aidl, ParcelableOrder) {
+  RegularPolygon p1 = {"A", 1, 1.0f};
+
+  // tests on self
+  EXPECT_EQ(p1, p1);
+  EXPECT_LE(p1, p1);
+  EXPECT_GE(p1, p1);
+  EXPECT_FALSE(p1 < p1);
+  EXPECT_FALSE(p1 > p1);
+
+  RegularPolygon p2 = {"A", 2, 1.0f};
+  RegularPolygon p3 = {"B", 1, 1.0f};
+  for (const auto& bigger : {p2, p3}) {
+    EXPECT_FALSE(p1 == bigger);
+    EXPECT_LE(p1, bigger);
+    EXPECT_GE(bigger, p1);
+    EXPECT_LT(p1, bigger);
+    EXPECT_GT(bigger, p1);
+  }
 }
 
 TEST_P(NdkBinderTest_Aidl, ParcelableDefaults) {
@@ -530,28 +570,6 @@ TEST_P(NdkBinderTest_Aidl, GetLastItem) {
   EXPECT_EQ(15, retF);
 }
 
-namespace aidl {
-namespace test_package {
-bool operator==(const SimpleUnion& lhs, const SimpleUnion& rhs) {
-  if (lhs.getTag() != rhs.getTag()) return false;
-  switch (lhs.getTag()) {
-    case SimpleUnion::a:
-      return lhs.get<SimpleUnion::a>() == rhs.get<SimpleUnion::a>();
-    case SimpleUnion::b:
-      return lhs.get<SimpleUnion::b>() == rhs.get<SimpleUnion::b>();
-    case SimpleUnion::c:
-      return lhs.get<SimpleUnion::c>() == rhs.get<SimpleUnion::c>();
-    case SimpleUnion::d:
-      return lhs.get<SimpleUnion::d>() == rhs.get<SimpleUnion::d>();
-    case SimpleUnion::e:
-      return lhs.get<SimpleUnion::e>() == rhs.get<SimpleUnion::e>();
-    case SimpleUnion::f:
-      return lhs.get<SimpleUnion::f>() == rhs.get<SimpleUnion::f>();
-  }
-}
-}  // namespace test_package
-}  // namespace aidl
-
 TEST_P(NdkBinderTest_Aidl, RepeatFoo) {
   Foo foo;
   foo.a = "NEW FOO";
@@ -605,22 +623,6 @@ TEST_P(NdkBinderTest_Aidl, RepeatGenericBar) {
 template <typename T>
 using RepeatMethod = ScopedAStatus (ITest::*)(const std::vector<T>&,
                                               std::vector<T>*, std::vector<T>*);
-
-namespace aidl {
-namespace test_package {
-inline bool operator==(const RegularPolygon& lhs, const RegularPolygon& rhs) {
-  return lhs.name == rhs.name && lhs.numSides == rhs.numSides && lhs.sideLength == rhs.sideLength;
-}
-inline bool operator==(const std::vector<RegularPolygon>& lhs,
-                       const std::vector<RegularPolygon>& rhs) {
-  if (lhs.size() != rhs.size()) return false;
-  for (size_t i = 0; i < lhs.size(); i++) {
-    if (!(lhs[i] == rhs[i])) return false;
-  }
-  return true;
-}
-}  // namespace test_package
-}  // namespace aidl
 
 template <typename T>
 void testRepeat(const std::shared_ptr<ITest>& i, RepeatMethod<T> repeatMethod,
@@ -964,7 +966,8 @@ TEST_P(NdkBinderTest_Aidl, ParcelableHolderTest) {
   myext1.a = 42;
   myext1.b = "mystr";
   ep.ext.setParcelable(myext1);
-  std::unique_ptr<MyExt> myext2 = ep.ext.getParcelable<MyExt>();
+  std::optional<MyExt> myext2;
+  ep.ext.getParcelable(&myext2);
   EXPECT_TRUE(myext2);
   EXPECT_EQ(42, myext2->a);
   EXPECT_EQ("mystr", myext2->b);
@@ -974,7 +977,8 @@ TEST_P(NdkBinderTest_Aidl, ParcelableHolderTest) {
   AParcel_setDataPosition(parcel, 0);
   ExtendableParcelable ep2;
   ep2.readFromParcel(parcel);
-  std::unique_ptr<MyExt> myext3 = ep2.ext.getParcelable<MyExt>();
+  std::optional<MyExt> myext3;
+  ep2.ext.getParcelable(&myext3);
   EXPECT_TRUE(myext3);
   EXPECT_EQ(42, myext3->a);
   EXPECT_EQ("mystr", myext3->b);
@@ -990,7 +994,8 @@ TEST_P(NdkBinderTest_Aidl, ParcelableHolderCommunicationTest) {
 
   ExtendableParcelable ep2;
   EXPECT_OK(iface->RepeatExtendableParcelable(ep, &ep2));
-  std::unique_ptr<MyExt> myext2 = ep2.ext.getParcelable<MyExt>();
+  std::optional<MyExt> myext2;
+  ep2.ext.getParcelable(&myext2);
   EXPECT_EQ(42L, ep2.c);
   EXPECT_TRUE(myext2);
   EXPECT_EQ(42, myext2->a);

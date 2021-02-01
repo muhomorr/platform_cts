@@ -2412,7 +2412,7 @@
                 android:name="test_required_features"
                 android:value="android.hardware.sensor.accelerometer:android.hardware.sensor.gyroscope:android.hardware.sensor.compass:android.hardware.camera" />
             <meta-data android:name="display_mode"
-                       android:value="multi_display_mode" />
+                       android:value="single_display_mode" />
         </activity>
         <activity
             android:name=".sensors.RVCVRecordActivity"
@@ -2850,21 +2850,6 @@
 
             <meta-data android:name="android.app.shortcuts"
                        android:resource="@xml/shortcuts" />
-            <meta-data android:name="display_mode"
-                       android:value="multi_display_mode" />
-        </activity>
-
-        <activity android:name=".notifications.MediaPlayerVerifierActivity"
-                  android:label="@string/qs_media_player_title">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.cts.intent.category.MANUAL_TEST" />
-            </intent-filter>
-            <meta-data android:name="test_category"
-                       android:value="@string/test_category_notifications" />
-            <meta-data android:name="test_excluded_features"
-                       android:value="android.hardware.type.watch:android.software.leanback:android.hardware.type.automotive" />
-            <meta-data android:name="test_required_configs" android:value="config_quick_settings_supported" />
             <meta-data android:name="display_mode"
                        android:value="multi_display_mode" />
         </activity>
@@ -4270,8 +4255,8 @@
             <meta-data android:name="test_category" android:value="@string/test_category_tv" />
             <meta-data android:name="test_required_features"
                        android:value="android.software.leanback" />
-            <meta-data android:name="display_mode"
-                       android:value="multi_display_mode" />
+            <meta-data android:name="test_required_configs"
+                       android:value="config_hdmi_source" />
         </activity>
         <activity android:name=".tv.display.DisplayHdrCapabilitiesTestActivity"
                   android:label="@string/tv_hdr_capabilities_test"
@@ -4283,19 +4268,6 @@
             <meta-data android:name="test_category" android:value="@string/test_category_tv" />
             <meta-data android:name="test_required_features"
                        android:value="android.software.leanback" />
-            <meta-data android:name="display_mode"
-                       android:value="multi_display_mode" />
-        </activity>
-        <activity android:name=".tv.display.DisplayModesTestActivity"
-                  android:label="@string/tv_display_modes_test"
-                  android:configChanges="orientation|screenSize|density|smallestScreenSize|screenLayout">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.cts.intent.category.MANUAL_TEST" />
-            </intent-filter>
-            <meta-data android:name="test_category" android:value="@string/test_category_tv"/>
-            <meta-data android:name="test_required_features"
-                       android:value="android.software.leanback"/>
             <meta-data android:name="display_mode"
                        android:value="multi_display_mode" />
         </activity>
@@ -4688,6 +4660,20 @@
                 <category android:name="android.intent.category.CAR_DOCK" />
             </intent-filter>
         </activity-alias>
+
+        <service android:name=
+            "com.android.cts.verifier.car.GarageModeChecker"
+            android:permission="android.permission.BIND_JOB_SERVICE" />
+        <activity android:name=".car.GarageModeTestActivity"
+                android:label="@string/car_garage_mode_test">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.cts.intent.category.MANUAL_TEST" />
+            </intent-filter>
+            <meta-data android:name="test_category" android:value="@string/test_category_car" />
+            <meta-data android:name="test_required_features"
+                android:value="android.hardware.type.automotive"/>
+        </activity>
 
         <activity-alias android:name=".car.CarDockActivity2"
             android:targetActivity=".car.CarDockActivity"
