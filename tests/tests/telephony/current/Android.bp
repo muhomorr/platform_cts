@@ -20,10 +20,13 @@ filegroup {
         "src/android/telephony/ims/cts/TestMmTelFeature.java",
         "src/android/telephony/ims/cts/TestImsSmsImpl.java",
         "src/android/telephony/ims/cts/TestImsConfig.java",
+        "src/android/telephony/ims/cts/TestImsRegistration.java",
+        "src/android/telephony/ims/cts/TestRcsCapabilityExchangeImpl.java",
         "src/android/telephony/ims/cts/TestSipTransport.java",
         "src/android/telephony/ims/cts/TestSipDelegate.java",
         "src/android/telephony/ims/cts/TestSipDelegateConnection.java",
         "src/android/telephony/ims/cts/ImsUtils.java",
+	"src/android/telephony/ims/cts/TestAcsClient.java",
     ],
     path: "src/",
 }

@@ -29,6 +29,7 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import android.Manifest.permission;
+import android.annotation.NonNull;
 import android.app.UiAutomation;
 import android.bluetooth.BluetoothAdapter;
 import android.content.BroadcastReceiver;
@@ -57,6 +58,10 @@ import android.telephony.CallForwardingInfo;
 import android.telephony.CallQuality;
 import android.telephony.CarrierBandwidth;
 import android.telephony.CarrierConfigManager;
+import android.telephony.CellIdentity;
+import android.telephony.CellIdentityLte;
+import android.telephony.CellIdentityNr;
+import android.telephony.CellInfo;
 import android.telephony.CellLocation;
 import android.telephony.DataThrottlingRequest;
 import android.telephony.NetworkRegistrationInfo;
@@ -65,6 +70,9 @@ import android.telephony.PinResult;
 import android.telephony.PreciseCallState;
 import android.telephony.RadioAccessFamily;
 import android.telephony.ServiceState;
+import android.telephony.SignalStrength;
+import android.telephony.SignalStrengthUpdateRequest;
+import android.telephony.SignalThresholdInfo;
 import android.telephony.SubscriptionInfo;
 import android.telephony.SubscriptionManager;
 import android.telephony.TelephonyManager;
@@ -121,6 +129,8 @@ public class TelephonyManagerTest {
     private SubscriptionManager mSubscriptionManager;
     private PackageManager mPackageManager;
     private boolean mOnCellLocationChangedCalled = false;
+    private boolean mOnCellInfoChanged = false;
+    private boolean mOnSignalStrengthsChanged = false;
     private boolean mServiceStateChangedCalled = false;
     private boolean mRadioRebootTriggered = false;
     private boolean mHasRadioPowerOff = false;
@@ -177,6 +187,7 @@ public class TelephonyManagerTest {
     private static final String TESTING_PLMN = "12345";
 
     private static final int RADIO_HAL_VERSION_1_3 = makeRadioVersion(1, 3);
+    private static final int RADIO_HAL_VERSION_1_5 = makeRadioVersion(1, 5);
     private static final int RADIO_HAL_VERSION_1_6 = makeRadioVersion(1, 6);
 
     static {
@@ -256,7 +267,7 @@ public class TelephonyManagerTest {
 
     @After
     public void tearDown() throws Exception {
-        if (mListener != null) {
+        if (mListener != null && mListener.isExecutorSet()) {
             // unregister the listener
             mTelephonyManager.listen(mListener, PhoneStateListener.LISTEN_NONE);
         }
@@ -384,6 +395,25 @@ public class TelephonyManagerTest {
             // expected
         }
     }
+
+    @Test
+    public void testListenFailWithNonLooper() throws Throwable {
+        if (!InstrumentationRegistry.getContext().getPackageManager()
+                .hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            Log.d(TAG, "Skipping test that requires PackageManager.FEATURE_TELEPHONY");
+            return;
+        }
+
+        mListener = new PhoneStateListener();
+        try {
+            // .listen generates an onCellLocationChanged event
+            mTelephonyManager.listen(mListener, PhoneStateListener.LISTEN_CELL_LOCATION);
+            fail("PhoneStateListener created from a thread without looper should " +
+                    "trigger IllegalStateException.");
+        } catch (IllegalStateException e) {
+        }
+    }
+
     @Test
     public void testListen() throws Throwable {
         if (!InstrumentationRegistry.getContext().getPackageManager()
@@ -415,7 +445,7 @@ public class TelephonyManagerTest {
                 };
 
                 synchronized (mLock) {
-                    mLock.notify(); // mListener is ready
+                    mLock.notify(); // listener is ready
                 }
 
                 Looper.loop();
@@ -429,8 +459,8 @@ public class TelephonyManagerTest {
 
         // Test register
         synchronized (mLock) {
-            // .listen generates an onCellLocationChanged event
-            mTelephonyManager.listen(mListener, PhoneStateListener.LISTEN_CELL_LOCATION);
+            // .registerPhoneStateListener generates an onCellLocationChanged event
+            mTelephonyManager.registerPhoneStateListener(mSimpleExecutor, mMockPhoneStateListener);
             mLock.wait(TOLERANCE);
 
             assertTrue("Test register, mOnCellLocationChangedCalled should be true.",
@@ -449,19 +479,19 @@ public class TelephonyManagerTest {
         }
 
         // unregister the listener
-        mTelephonyManager.listen(mListener, PhoneStateListener.LISTEN_NONE);
+        mTelephonyManager.unregisterPhoneStateListener(mMockPhoneStateListener);
         Thread.sleep(TOLERANCE);
 
         // Test unregister
         synchronized (mLock) {
-            mOnCellLocationChangedCalled = false;
+            mOnCellInfoChanged = false;
             // unregister again, to make sure doing so does not call the listener
-            mTelephonyManager.listen(mListener, PhoneStateListener.LISTEN_NONE);
+            mTelephonyManager.unregisterPhoneStateListener(mMockPhoneStateListener);
             CellLocation.requestLocationUpdate();
             mLock.wait(TOLERANCE);
 
             assertFalse("Test unregister, mOnCellLocationChangedCalled should be false.",
-                    mOnCellLocationChangedCalled);
+                    mOnCellInfoChanged);
         }
     }
 
@@ -2061,6 +2091,36 @@ public class TelephonyManagerTest {
     }
 
     /**
+     * Tests TelephonyManager.getEmergencyNumberList(@EmergencyServiceCategories int categories).
+     *
+     */
+    @Test
+    public void testGetEmergencyNumberListForCategories() {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            return;
+        }
+        Map<Integer, List<EmergencyNumber>> emergencyNumberList =
+                mTelephonyManager.getEmergencyNumberList(
+                        EmergencyNumber.EMERGENCY_SERVICE_CATEGORY_POLICE);
+
+        assertFalse(emergencyNumberList == null);
+
+        checkEmergencyNumberFormat(emergencyNumberList);
+
+        int defaultSubId = mSubscriptionManager.getDefaultSubscriptionId();
+        final String country_us = "us";
+        final String country_us_police_number = "911";
+        if (mTelephonyManager.getNetworkCountryIso().equals(country_us)) {
+            assertTrue(checkIfEmergencyNumberListHasSpecificAddress(
+                    emergencyNumberList.get(defaultSubId), country_us_police_number));
+        }
+        for (EmergencyNumber num : emergencyNumberList.get(defaultSubId)) {
+            assertTrue(num.isInEmergencyServiceCategories(
+                    EmergencyNumber.EMERGENCY_SERVICE_CATEGORY_POLICE));
+        }
+    }
+
+    /**
      * Tests TelephonyManager.isEmergencyNumber.
      *
      * Also enforce country-specific emergency number in CTS.
@@ -2098,6 +2158,59 @@ public class TelephonyManagerTest {
         } else {
             assertTrue(ShellIdentityUtils.invokeMethodWithShellPermissions(mTelephonyManager,
                     (tm) -> tm.isPotentialEmergencyNumber(potentialEmergencyAddress)));
+        }
+    }
+
+    /**
+     * Tests TelephonyManager.setCallComposerStatus and TelephonyManager.getCallComposerStatus.
+     */
+    @Test
+    public void testSetGetCallComposerStatus() {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            return;
+        }
+
+        boolean hasImsFeature = mPackageManager.hasSystemFeature(
+                PackageManager.FEATURE_TELEPHONY_IMS);
+
+        if (hasImsFeature) {
+            ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mTelephonyManager,
+                    tm -> tm.setCallComposerStatus(TelephonyManager.CALL_COMPOSER_STATUS_OFF));
+            int status = ShellIdentityUtils.invokeMethodWithShellPermissions(mTelephonyManager,
+                    tm -> tm.getCallComposerStatus());
+            assertThat(status).isEqualTo(TelephonyManager.CALL_COMPOSER_STATUS_OFF);
+
+            ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mTelephonyManager,
+                    tm -> tm.setCallComposerStatus(
+                            TelephonyManager.CALL_COMPOSER_STATUS_ON_NO_PICTURES));
+            status = ShellIdentityUtils.invokeMethodWithShellPermissions(mTelephonyManager,
+                    tm -> tm.getCallComposerStatus());
+            assertThat(status).isEqualTo(TelephonyManager.CALL_COMPOSER_STATUS_ON_NO_PICTURES);
+
+            ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mTelephonyManager,
+                    tm -> tm.setCallComposerStatus(TelephonyManager.CALL_COMPOSER_STATUS_ON));
+            status = ShellIdentityUtils.invokeMethodWithShellPermissions(mTelephonyManager,
+                    tm -> tm.getCallComposerStatus());
+            assertThat(status).isEqualTo(TelephonyManager.CALL_COMPOSER_STATUS_ON);
+        } else {
+            ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mTelephonyManager,
+                    tm -> tm.setCallComposerStatus(TelephonyManager.CALL_COMPOSER_STATUS_OFF));
+            int status = ShellIdentityUtils.invokeMethodWithShellPermissions(mTelephonyManager,
+                    tm -> tm.getCallComposerStatus());
+            assertThat(status).isEqualTo(TelephonyManager.CALL_COMPOSER_STATUS_OFF);
+
+            ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mTelephonyManager,
+                    tm -> tm.setCallComposerStatus(TelephonyManager.CALL_COMPOSER_STATUS_ON));
+            status = ShellIdentityUtils.invokeMethodWithShellPermissions(mTelephonyManager,
+                    tm -> tm.getCallComposerStatus());
+            assertThat(status).isEqualTo(TelephonyManager.CALL_COMPOSER_STATUS_OFF);
+
+            ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mTelephonyManager,
+                    tm -> tm.setCallComposerStatus(
+                            TelephonyManager.CALL_COMPOSER_STATUS_ON_NO_PICTURES));
+            status = ShellIdentityUtils.invokeMethodWithShellPermissions(mTelephonyManager,
+                    tm -> tm.getCallComposerStatus());
+            assertThat(status).isEqualTo(TelephonyManager.CALL_COMPOSER_STATUS_OFF);
         }
     }
 
@@ -3108,7 +3221,7 @@ public class TelephonyManagerTest {
                 mTelephonyManager, (tm) -> tm.setIccLockEnabled(!isEnabled, pin));
         assertTrue(result.getResult() == PinResult.PIN_RESULT_TYPE_INCORRECT
                 || result.getResult() == PinResult.PIN_RESULT_TYPE_FAILURE);
-        assertTrue(result.getAttemptsRemaining() >= 0);
+        assertTrue(result.getAttemptsRemaining() >= -1);
         assertEquals(isEnabled, ShellIdentityUtils.invokeMethodWithShellPermissions(
                 mTelephonyManager, TelephonyManager::isIccLockEnabled));
 
@@ -3116,19 +3229,19 @@ public class TelephonyManagerTest {
                 mTelephonyManager, (tm) -> tm.changeIccLockPin(pin, newPin));
         assertTrue(result.getResult() == PinResult.PIN_RESULT_TYPE_INCORRECT
                 || result.getResult() == PinResult.PIN_RESULT_TYPE_FAILURE);
-        assertTrue(result.getAttemptsRemaining() >= 0);
+        assertTrue(result.getAttemptsRemaining() >= -1);
 
         result = ShellIdentityUtils.invokeMethodWithShellPermissions(
                 mTelephonyManager, (tm) -> tm.supplyIccLockPin(pin));
         assertTrue(result.getResult() == PinResult.PIN_RESULT_TYPE_INCORRECT
                 || result.getResult() == PinResult.PIN_RESULT_TYPE_FAILURE);
-        assertTrue(result.getAttemptsRemaining() >= 0);
+        assertTrue(result.getAttemptsRemaining() >= -1);
 
         result = ShellIdentityUtils.invokeMethodWithShellPermissions(
                 mTelephonyManager, (tm) -> tm.supplyIccLockPuk(puk, pin));
         assertTrue(result.getResult() == PinResult.PIN_RESULT_TYPE_INCORRECT
                 || result.getResult() == PinResult.PIN_RESULT_TYPE_FAILURE);
-        assertTrue(result.getAttemptsRemaining() >= 0);
+        assertTrue(result.getAttemptsRemaining() >= -1);
     }
 
     @Test
@@ -3142,10 +3255,334 @@ public class TelephonyManagerTest {
         if (mRadioVersion >= RADIO_HAL_VERSION_1_6) {
             assertTrue(bandwidth != null);
             assertTrue(bandwidth.getPrimaryDownlinkCapacityKbps()
-                            != CarrierBandwidth.INVALID);
+                    != CarrierBandwidth.INVALID);
             assertTrue(bandwidth.getPrimaryUplinkCapacityKbps()
-                            != CarrierBandwidth.INVALID);
+                    != CarrierBandwidth.INVALID);
         }
+    }
+
+    @Test
+    public void testSetSignalStrengthUpdateRequest_nullRequest() {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            Log.d(TAG, "skipping test on device without FEATURE_TELEPHONY present");
+            return;
+        }
+
+        // Verify NPE throws if set request with null object
+        try {
+            mTelephonyManager.setSignalStrengthUpdateRequest(null);
+            fail("NullPointerException expected when setSignalStrengthUpdateRequest with null");
+        } catch (NullPointerException expected) {
+        }
+    }
+
+    @Test
+    public void testSetSignalStrengthUpdateRequest_noPermission() {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            Log.d(TAG, "skipping test on device without FEATURE_TELEPHONY present");
+            return;
+        }
+
+        final SignalStrengthUpdateRequest normalRequest =
+                new SignalStrengthUpdateRequest.Builder()
+                        .setSignalThresholdInfos(List.of(
+                                new SignalThresholdInfo.Builder()
+                                        .setRadioAccessNetworkType(
+                                                AccessNetworkConstants.AccessNetworkType.GERAN)
+                                        .setSignalMeasurementType(
+                                                SignalThresholdInfo.SIGNAL_MEASUREMENT_TYPE_RSSI)
+                                        .setThresholds(new int[]{-113, -103, -97, -51})
+                                        .build()))
+                        .setReportingRequestedWhileIdle(true)
+                        .build();
+
+        // Verify SE throws for apps without carrier privilege or MODIFY_PHONE_STATE permission
+        try {
+            mTelephonyManager.setSignalStrengthUpdateRequest(normalRequest);
+            fail("SecurityException expected when setSignalStrengthUpdateRequest without "
+                    + "carrier privilege or MODIFY_PHONE_STATE permission");
+        } catch (SecurityException expected) {
+        }
+    }
+
+    @Test
+    public void testSetSignalStrengthUpdateRequest_systemThresholdReportingRequestedWhileIdle() {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            Log.d(TAG, "skipping test on device without FEATURE_TELEPHONY present");
+            return;
+        }
+
+        // Verify SE throws for app when set systemThresholdReportingRequestedWhileIdle to true
+        SignalStrengthUpdateRequest requestWithSystemThresholdReportingRequestedWhileIdle =
+                new SignalStrengthUpdateRequest.Builder()
+                        .setSignalThresholdInfos(List.of(
+                                new SignalThresholdInfo.Builder()
+                                        .setRadioAccessNetworkType(
+                                                AccessNetworkConstants.AccessNetworkType.GERAN)
+                                        .setSignalMeasurementType(
+                                                SignalThresholdInfo.SIGNAL_MEASUREMENT_TYPE_RSSI)
+                                        .setThresholds(new int[]{-113, -103, -97, -51})
+                                        .build()))
+                        .setReportingRequestedWhileIdle(true)
+                        //allowed for system caller only
+                        .setSystemThresholdReportingRequestedWhileIdle(true)
+                        .build();
+        try {
+            ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mTelephonyManager,
+                    (tm) -> tm.setSignalStrengthUpdateRequest(
+                            requestWithSystemThresholdReportingRequestedWhileIdle));
+            fail("IllegalArgumentException expected when set "
+                    + "systemThresholdReportingRequestedWhileIdle");
+        } catch (IllegalArgumentException expected) {
+        }
+    }
+
+    @Test
+    public void testSetSignalStrengthUpdateRequest_systeresisDbSet() {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            Log.d(TAG, "skipping test on device without FEATURE_TELEPHONY present");
+            return;
+        }
+
+        // Verify SE throws for app when set hysteresisDb in the SignalThresholdInfo
+        SignalStrengthUpdateRequest requestWithHysteresisDbSet =
+                new SignalStrengthUpdateRequest.Builder()
+                        .setSignalThresholdInfos(List.of(
+                                new SignalThresholdInfo.Builder()
+                                        .setRadioAccessNetworkType(
+                                                AccessNetworkConstants.AccessNetworkType.GERAN)
+                                        .setSignalMeasurementType(
+                                                SignalThresholdInfo.SIGNAL_MEASUREMENT_TYPE_RSSI)
+                                        .setThresholds(new int[]{-113, -103, -97, -51})
+                                        .setHysteresisDb(10) //allowed for system caller only
+                                        .build()))
+                        .setReportingRequestedWhileIdle(true)
+                        .build();
+        try {
+            ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mTelephonyManager,
+                    (tm) -> tm.setSignalStrengthUpdateRequest(requestWithHysteresisDbSet));
+            fail("IllegalArgumentException expected when set hysteresisDb in SignalThresholdInfo "
+                    + "to true");
+        } catch (IllegalArgumentException expected) {
+        }
+    }
+
+    @Test
+    public void testSetSignalStrengthUpdateRequest_systeresisMsSet() {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            Log.d(TAG, "skipping test on device without FEATURE_TELEPHONY present");
+            return;
+        }
+
+        // Verify SE throws for app when set hysteresisMs in the SignalThresholdInfo
+        SignalStrengthUpdateRequest requestWithHysteresisMsSet =
+                new SignalStrengthUpdateRequest.Builder()
+                        .setSignalThresholdInfos(List.of(
+                                new SignalThresholdInfo.Builder()
+                                        .setRadioAccessNetworkType(
+                                                AccessNetworkConstants.AccessNetworkType.GERAN)
+                                        .setSignalMeasurementType(
+                                                SignalThresholdInfo.SIGNAL_MEASUREMENT_TYPE_RSSI)
+                                        .setThresholds(new int[]{-113, -103, -97, -51})
+                                        .setHysteresisMs(1000) //allowed for system caller only
+                                        .build()))
+                        .setReportingRequestedWhileIdle(true)
+                        .build();
+        try {
+            ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mTelephonyManager,
+                    (tm) -> tm.setSignalStrengthUpdateRequest(requestWithHysteresisMsSet));
+            fail("IllegalArgumentException expected when set hysteresisMs in SignalThresholdInfo "
+                    + "to true");
+        } catch (IllegalArgumentException expected) {
+        }
+    }
+
+    @Test
+    public void testSetSignalStrengthUpdateRequest_isEnabledSet() {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            Log.d(TAG, "skipping test on device without FEATURE_TELEPHONY present");
+            return;
+        }
+
+        // Verify SE throws for app when set isEnabled in the SignalThresholdInfo
+        SignalStrengthUpdateRequest requestWithThresholdIsEnabledSet =
+                new SignalStrengthUpdateRequest.Builder()
+                        .setSignalThresholdInfos(List.of(
+                                new SignalThresholdInfo.Builder()
+                                        .setRadioAccessNetworkType(
+                                                AccessNetworkConstants.AccessNetworkType.GERAN)
+                                        .setSignalMeasurementType(
+                                                SignalThresholdInfo.SIGNAL_MEASUREMENT_TYPE_RSSI)
+                                        .setThresholds(new int[]{-113, -103, -97})
+                                        .setIsEnabled(true) //allowed for system caller only
+                                        .build()))
+                        .setReportingRequestedWhileIdle(true)
+                        .build();
+        try {
+            ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mTelephonyManager,
+                    (tm) -> tm.setSignalStrengthUpdateRequest(requestWithThresholdIsEnabledSet));
+            fail("IllegalArgumentException expected when set isEnabled in SignalThresholdInfo "
+                    + "with true");
+        } catch (IllegalArgumentException expected) {
+        }
+    }
+
+    @Test
+    public void testSetSignalStrengthUpdateRequest_tooShortThresholds() {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            Log.d(TAG, "skipping test on device without FEATURE_TELEPHONY present");
+            return;
+        }
+
+        // verify SE throws if app set too short thresholds
+        SignalStrengthUpdateRequest requestWithTooShortThresholds =
+                new SignalStrengthUpdateRequest.Builder()
+                        .setSignalThresholdInfos(List.of(
+                                new SignalThresholdInfo.Builder()
+                                        .setRadioAccessNetworkType(
+                                                AccessNetworkConstants.AccessNetworkType.GERAN)
+                                        .setSignalMeasurementType(
+                                                SignalThresholdInfo.SIGNAL_MEASUREMENT_TYPE_RSSI)
+                                        .setThresholdsUnlimited(new int[]{})
+                                        .build()))
+                        .setReportingRequestedWhileIdle(true)
+                        .build();
+        try {
+            ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mTelephonyManager,
+                    (tm) -> tm.setSignalStrengthUpdateRequest(requestWithTooShortThresholds));
+            fail("IllegalArgumentException expected when set thresholds that is too short");
+        } catch (IllegalArgumentException expected) {
+        }
+    }
+
+    @Test
+    public void testSetSignalStrengthUpdateRequest_tooLongThresholds() {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            Log.d(TAG, "skipping test on device without FEATURE_TELEPHONY present");
+            return;
+        }
+
+        // verify SE throws if app set too long thresholds
+        SignalStrengthUpdateRequest requestWithTooLongThresholds =
+                new SignalStrengthUpdateRequest.Builder()
+                        .setSignalThresholdInfos(List.of(
+                                new SignalThresholdInfo.Builder()
+                                        .setRadioAccessNetworkType(
+                                                AccessNetworkConstants.AccessNetworkType.GERAN)
+                                        .setSignalMeasurementType(
+                                                SignalThresholdInfo.SIGNAL_MEASUREMENT_TYPE_RSSI)
+                                        .setThresholdsUnlimited(
+                                                new int[]{-113, -103, -97, -61, -51})
+                                        .build()))
+                        .setReportingRequestedWhileIdle(true)
+                        .build();
+        try {
+            ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mTelephonyManager,
+                    (tm) -> tm.setSignalStrengthUpdateRequest(requestWithTooLongThresholds));
+            fail("IllegalArgumentException expected when set thresholds that is too long");
+        } catch (IllegalArgumentException expected) {
+        }
+    }
+
+    @Test
+    public void testSetSignalStrengthUpdateRequest_duplicatedRequest() {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            Log.d(TAG, "skipping test on device without FEATURE_TELEPHONY present");
+            return;
+        }
+
+        final SignalStrengthUpdateRequest normalRequest =
+                new SignalStrengthUpdateRequest.Builder()
+                        .setSignalThresholdInfos(List.of(
+                                new SignalThresholdInfo.Builder()
+                                        .setRadioAccessNetworkType(
+                                                AccessNetworkConstants.AccessNetworkType.GERAN)
+                                        .setSignalMeasurementType(
+                                                SignalThresholdInfo.SIGNAL_MEASUREMENT_TYPE_RSSI)
+                                        .setThresholds(new int[]{-113, -103, -97, -51})
+                                        .build()))
+                        .setReportingRequestedWhileIdle(true)
+                        .build();
+
+        // Verify IllegalStateException should throw when set the same request twice
+        ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mTelephonyManager,
+                (tm) -> tm.setSignalStrengthUpdateRequest(normalRequest));
+        try {
+            ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mTelephonyManager,
+                    (tm) -> tm.setSignalStrengthUpdateRequest(normalRequest));
+            fail("IllegalStateException expected when setSignalStrengthUpdateRequest twice with "
+                    + "same request object");
+        } catch (IllegalStateException expected) {
+        } finally {
+            ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mTelephonyManager,
+                    (tm) -> tm.clearSignalStrengthUpdateRequest(normalRequest));
+        }
+    }
+
+    @Test
+    public void testClearSignalStrengthUpdateRequest_nullRequest() {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            Log.d(TAG, "skipping test on device without FEATURE_TELEPHONY present");
+            return;
+        }
+
+        // Verify NPE should throw if clear request with null object
+        try {
+            mTelephonyManager.clearSignalStrengthUpdateRequest(null);
+            fail("NullPointerException expected when clearSignalStrengthUpdateRequest with null");
+        } catch (NullPointerException expected) {
+        }
+    }
+
+    @Test
+    public void testClearSignalStrengthUpdateRequest_noPermission() {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            Log.d(TAG, "skipping test on device without FEATURE_TELEPHONY present");
+            return;
+        }
+
+        final SignalStrengthUpdateRequest normalRequest =
+                new SignalStrengthUpdateRequest.Builder()
+                        .setSignalThresholdInfos(List.of(
+                                new SignalThresholdInfo.Builder()
+                                        .setRadioAccessNetworkType(
+                                                AccessNetworkConstants.AccessNetworkType.GERAN)
+                                        .setSignalMeasurementType(
+                                                SignalThresholdInfo.SIGNAL_MEASUREMENT_TYPE_RSSI)
+                                        .setThresholds(new int[]{-113, -103, -97, -51})
+                                        .build()))
+                        .setReportingRequestedWhileIdle(true)
+                        .build();
+
+        // Verify SE throws for apps without carrier privilege or MODIFY_PHONE_STATE permission
+        try {
+            mTelephonyManager.clearSignalStrengthUpdateRequest(normalRequest);
+            fail("SecurityException expected when clearSignalStrengthUpdateRequest without "
+                    + "carrier privilege or MODIFY_PHONE_STATE permission");
+        } catch (SecurityException expected) {
+        }
+    }
+
+    @Test
+    public void testClearSignalStrengthUpdateRequest_clearWithNoSet() {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            Log.d(TAG, "skipping test on device without FEATURE_TELEPHONY present");
+            return;
+        }
+
+        SignalStrengthUpdateRequest requestNeverSetBefore = new SignalStrengthUpdateRequest
+                .Builder()
+                .setSignalThresholdInfos(List.of(new SignalThresholdInfo.Builder()
+                        .setRadioAccessNetworkType(AccessNetworkConstants.AccessNetworkType.GERAN)
+                        .setSignalMeasurementType(SignalThresholdInfo.SIGNAL_MEASUREMENT_TYPE_RSSI)
+                        .setThresholds(new int[]{-113, -103, -97, -51})
+                        .build()))
+                .setReportingRequestedWhileIdle(true)
+                .build();
+
+        // Verify clearSignalStrengthUpdateRequest is no-op when clear request that was not set
+        ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mTelephonyManager,
+                (tm) -> tm.clearSignalStrengthUpdateRequest(requestNeverSetBefore));
     }
 
     @Test
@@ -3166,8 +3603,8 @@ public class TelephonyManagerTest {
                                         .setDataThrottlingAction(DataThrottlingRequest
                                                 .DATA_THROTTLING_ACTION_THROTTLE_SECONDARY_CARRIER)
                                         .setCompletionDurationMillis(arbitraryCompletionWindowSecs)
-                                .build())
-                        .build()));
+                                        .build())
+                                .build()));
         // Only verify the result for supported devices on IRadio 1.6+
         if (mRadioVersion >= RADIO_HAL_VERSION_1_6) {
             assertEquals(thermalMitigationResult,
@@ -3230,11 +3667,11 @@ public class TelephonyManagerTest {
                                     .setDataThrottlingRequest(new DataThrottlingRequest.Builder()
                                             .setDataThrottlingAction(
                                                     DataThrottlingRequest
-                                                    .DATA_THROTTLING_ACTION_THROTTLE_PRIMARY_CARRIER
+                                                            .DATA_THROTTLING_ACTION_THROTTLE_PRIMARY_CARRIER
                                             )
                                             .setCompletionDurationMillis(-1)
                                             .build())
-                            .build()));
+                                    .build()));
         } catch (IllegalArgumentException e) {
         }
 
@@ -3252,8 +3689,51 @@ public class TelephonyManagerTest {
                                             )
                                             .setCompletionDurationMillis(-1)
                                             .build())
-                            .build()));
+                                    .build()));
         } catch (IllegalArgumentException e) {
+        }
+    }
+
+    @Test
+    public void testIsRadioInterfaceCapabilitySupported() {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) return;
+
+        assertFalse(mTelephonyManager.isRadioInterfaceCapabilitySupported("empty"));
+        assertFalse(mTelephonyManager.isRadioInterfaceCapabilitySupported(null));
+        assertFalse(mTelephonyManager.isRadioInterfaceCapabilitySupported(""));
+    }
+
+    @Test
+    public void testGetAllCellInfo() {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) return;
+
+        // For IRadio <1.5, just verify that calling the method doesn't throw an error.
+        if (mRadioVersion < RADIO_HAL_VERSION_1_5) {
+            mTelephonyManager.getAllCellInfo();
+            return;
+        }
+
+        for (CellInfo cellInfo : mTelephonyManager.getAllCellInfo()) {
+            CellIdentity cellIdentity = cellInfo.getCellIdentity();
+            int[] bands;
+            if (cellIdentity instanceof CellIdentityLte) {
+                bands = ((CellIdentityLte) cellIdentity).getBands();
+                for (int band : bands) {
+                    assertTrue(band >= AccessNetworkConstants.EutranBand.BAND_1
+                            && band <= AccessNetworkConstants.EutranBand.BAND_88);
+                }
+            } else if (cellIdentity instanceof CellIdentityNr) {
+                bands = ((CellIdentityNr) cellIdentity).getBands();
+                for (int band : bands) {
+                    assertTrue((band >= AccessNetworkConstants.NgranBands.BAND_1
+                            && band <= AccessNetworkConstants.NgranBands.BAND_95)
+                            || (band >= AccessNetworkConstants.NgranBands.BAND_257
+                            && band <= AccessNetworkConstants.NgranBands.BAND_261));
+                }
+            } else {
+                continue;
+            }
+            assertTrue(bands.length > 0);
         }
     }
 
@@ -3482,6 +3962,160 @@ public class TelephonyManagerTest {
     private static int makeRadioVersion(int major, int minor) {
         if (major < 0 || minor < 0) return 0;
         return major * 100 + minor;
+    }
+
+    private Executor mSimpleExecutor = new Executor() {
+        @Override
+        public void execute(Runnable r) {
+            r.run();
+        }
+    };
+
+    private static MockSignalStrengthsPhoneStateListener mMockSignalStrengthsPhoneStateListener;
+
+    private class MockSignalStrengthsPhoneStateListener extends PhoneStateListener
+            implements PhoneStateListener.SignalStrengthsChangedListener {
+        @Override
+        public void onSignalStrengthsChanged(SignalStrength signalStrength) {
+            if (!mOnSignalStrengthsChanged) {
+                synchronized (mLock) {
+                    mOnSignalStrengthsChanged = true;
+                    mLock.notify();
+                }
+            }
+        }
+    }
+
+    @Test
+    public void testRegisterPhoneStateListenerWithNonLooper() throws Throwable {
+        if (!InstrumentationRegistry.getContext().getPackageManager()
+                .hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            Log.d(TAG, "Skipping test that requires PackageManager.FEATURE_TELEPHONY");
+            return;
+        }
+
+        mMockSignalStrengthsPhoneStateListener = new MockSignalStrengthsPhoneStateListener();
+
+        // Test register, generates an mOnSignalStrengthsChanged event
+        mTelephonyManager.registerPhoneStateListener(mSimpleExecutor,
+                mMockSignalStrengthsPhoneStateListener);
+
+        synchronized (mLock) {
+            if (!mOnSignalStrengthsChanged) {
+                mLock.wait(TOLERANCE);
+            }
+        }
+        assertTrue("Test register, mOnSignalStrengthsChanged should be true.",
+                mOnSignalStrengthsChanged);
+
+        // Test unregister
+        mOnSignalStrengthsChanged = false;
+        // unregister again, to make sure doing so does not call the listener
+        mTelephonyManager.unregisterPhoneStateListener(mMockSignalStrengthsPhoneStateListener);
+
+        assertFalse("Test unregister, mOnSignalStrengthsChanged should be false.",
+                mOnSignalStrengthsChanged);
+    }
+
+    private static MockPhoneStateListener mMockPhoneStateListener;
+
+    private class MockPhoneStateListener extends PhoneStateListener
+            implements PhoneStateListener.CellInfoChangedListener {
+        @Override
+        public void onCellInfoChanged(@NonNull List<CellInfo> cellInfo) {
+            if (!mOnCellInfoChanged) {
+                synchronized (mLock) {
+                    mOnCellInfoChanged = true;
+                    mLock.notify();
+                }
+            }
+        }
+    }
+
+    @Test
+    public void testRegisterPhoneStateListener() throws Throwable {
+        if (!InstrumentationRegistry.getContext().getPackageManager()
+                .hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            Log.d(TAG, "Skipping test that requires PackageManager.FEATURE_TELEPHONY");
+            return;
+        }
+
+        if (mTelephonyManager.getPhoneType() == TelephonyManager.PHONE_TYPE_CDMA) {
+            // TODO: temp workaround, need to adjust test to for CDMA
+            return;
+        }
+        grantLocationPermissions();
+
+        TestThread t = new TestThread(new Runnable() {
+            public void run() {
+                Looper.prepare();
+                mMockPhoneStateListener = new MockPhoneStateListener();
+                synchronized (mLock) {
+                    mLock.notify(); // listener is ready
+                }
+
+                Looper.loop();
+            }
+        });
+
+        synchronized (mLock) {
+            t.start();
+            mLock.wait(TOLERANCE); // wait for mListener
+        }
+
+        // Test register
+        synchronized (mLock) {
+            // .registerPhoneStateListener generates an onCellLocationChanged event
+            mTelephonyManager.registerPhoneStateListener(getContext().getMainExecutor(),
+                    mMockPhoneStateListener);
+            mLock.wait(TOLERANCE);
+
+            assertTrue("Test register, mOnCellLocationChangedCalled should be true.",
+                    mOnCellInfoChanged);
+        }
+
+        synchronized (mLock) {
+            mOnCellInfoChanged = false;
+
+            CellInfoResultsCallback resultsCallback = new CellInfoResultsCallback();
+            mTelephonyManager.requestCellInfoUpdate(getContext().getMainExecutor(), resultsCallback);
+            mLock.wait(TOLERANCE);
+
+            assertTrue("Test register, mOnCellLocationChangedCalled should be true.",
+                    mOnCellInfoChanged);
+        }
+
+        // unregister the listener
+        mTelephonyManager.unregisterPhoneStateListener(mMockPhoneStateListener);
+        Thread.sleep(TOLERANCE);
+
+        // Test unregister
+        synchronized (mLock) {
+            mOnCellInfoChanged = false;
+            // unregister again, to make sure doing so does not call the listener
+            mTelephonyManager.unregisterPhoneStateListener(mMockPhoneStateListener);
+            CellLocation.requestLocationUpdate();
+            mLock.wait(TOLERANCE);
+
+            assertFalse("Test unregister, mOnCellLocationChangedCalled should be false.",
+                    mOnCellInfoChanged);
+        }
+    }
+
+    private class CellInfoResultsCallback extends TelephonyManager.CellInfoCallback {
+        public List<CellInfo> cellInfo;
+
+        @Override
+        public synchronized void onCellInfo(List<CellInfo> cellInfo) {
+            this.cellInfo = cellInfo;
+            notifyAll();
+        }
+
+        public synchronized void wait(int millis) throws InterruptedException {
+            if (cellInfo == null) {
+                super.wait(millis);
+            }
+        }
     }
 }
 
