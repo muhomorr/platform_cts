@@ -16,14 +16,12 @@
 
 package android.net.cts;
 
+import android.net.NetworkStats;
 import android.net.TrafficStats;
 import android.os.Process;
 import android.test.AndroidTestCase;
 import android.util.Log;
 
-import java.io.BufferedReader;
-import java.io.FileNotFoundException;
-import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -216,19 +214,15 @@ public class TrafficStatsTest extends AndroidTestCase {
             uidRxDeltaBytes <= tcpPacketToIpBytes(packetCount, byteCount) + tcpPacketToIpBytes(packetCount + maxExpectedExtraPackets + deltaRxOtherPackets, 0));
 
         // Localhost traffic *does* count against total stats.
-        // Fudge by 132 packets of 1500 bytes not related to the test.
+        // Check the total stats increased after test data transfer over localhost has been made.
         assertTrue("ttxp: " + totalTxPacketsBefore + " -> " + totalTxPacketsAfter,
-            totalTxPacketsAfter >= totalTxPacketsBefore + uidTxDeltaPackets &&
-            totalTxPacketsAfter <= totalTxPacketsBefore + uidTxDeltaPackets + 132);
+                totalTxPacketsAfter >= totalTxPacketsBefore + uidTxDeltaPackets);
         assertTrue("trxp: " + totalRxPacketsBefore + " -> " + totalRxPacketsAfter,
-            totalRxPacketsAfter >= totalRxPacketsBefore + uidRxDeltaPackets &&
-            totalRxPacketsAfter <= totalRxPacketsBefore + uidRxDeltaPackets + 132);
+                totalRxPacketsAfter >= totalRxPacketsBefore + uidRxDeltaPackets);
         assertTrue("ttxb: " + totalTxBytesBefore + " -> " + totalTxBytesAfter,
-            totalTxBytesAfter >= totalTxBytesBefore + uidTxDeltaBytes &&
-            totalTxBytesAfter <= totalTxBytesBefore + uidTxDeltaBytes + 132 * 1500);
+                totalTxBytesAfter >= totalTxBytesBefore + uidTxDeltaBytes);
         assertTrue("trxb: " + totalRxBytesBefore + " -> " + totalRxBytesAfter,
-            totalRxBytesAfter >= totalRxBytesBefore + uidRxDeltaBytes &&
-            totalRxBytesAfter <= totalRxBytesBefore + uidRxDeltaBytes + 132 * 1500);
+                totalRxBytesAfter >= totalRxBytesBefore + uidRxDeltaBytes);
 
         // Localhost traffic should *not* count against mobile stats,
         // There might be some other traffic, but nowhere near 1MB.
@@ -244,6 +238,5 @@ public class TrafficStatsTest extends AndroidTestCase {
         assertTrue("mrxb: " + mobileRxBytesBefore + " -> " + mobileRxBytesAfter,
             mobileRxBytesAfter >= mobileRxBytesBefore &&
             mobileRxBytesAfter <= mobileRxBytesBefore + 200000);
-
     }
 }
