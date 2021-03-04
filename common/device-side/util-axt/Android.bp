@@ -12,6 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+package {
+    default_applicable_licenses: ["Android-Apache-2.0"],
+}
+
 java_library_static {
     name: "compatibility-device-util-axt",
     sdk_version: "test_current",
@@ -37,4 +41,12 @@ java_library_static {
     ],
 
     jarjar_rules: "protobuf-jarjar-rules.txt",
+}
+
+filegroup {
+    name: "compatibility-device-util-nodeps",
+    srcs: [
+         "src/com/android/compatibility/common/util/IBinderParcelable.java",
+         "src/com/android/compatibility/common/util/ImeAwareEditText.java",
+    ],
 }

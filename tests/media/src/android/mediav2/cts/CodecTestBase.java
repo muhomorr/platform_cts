@@ -430,9 +430,10 @@ class OutputManager {
 
     float getRmsError(short[] refData) {
         long totalErrorSquared = 0;
-        assertTrue(0 == (memory.length & 1));
-        short[] shortData = new short[memory.length / 2];
-        ByteBuffer.wrap(memory).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer().get(shortData);
+        assertTrue(0 == (memIndex & 1));
+        short[] shortData = new short[memIndex / 2];
+        ByteBuffer.wrap(memory, 0, memIndex).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer()
+                .get(shortData);
         if (refData.length != shortData.length) return Float.MAX_VALUE;
         for (int i = 0; i < shortData.length; i++) {
             int d = shortData[i] - refData[i];
@@ -511,6 +512,9 @@ abstract class CodecTestBase {
     static final int PER_TEST_TIMEOUT_SMALL_TEST_MS = 60000;
     static final long Q_DEQ_TIMEOUT_US = 5000;
     static final int UNSPECIFIED = 0;
+    static final int CODEC_ALL = 0; // All codecs should support
+    static final int CODEC_ANY = 1; // Atleast one codec should support
+    static final int CODEC_OPTIONAL = 2; // Codec support is optional
     static final String mInpPrefix = WorkDir.getMediaDirString();
     static final PackageManager pm =
             InstrumentationRegistry.getInstrumentation().getContext().getPackageManager();

@@ -12,6 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+package {
+    default_applicable_licenses: ["Android-Apache-2.0"],
+}
+
 android_test {
     name: "CtsIcuTestCases",
     defaults: ["cts_support_defaults"],
@@ -36,8 +40,10 @@ java_test_host {
     defaults: ["cts_support_defaults"],
     test_config: "CtsIcu4cTestCases.xml",
     data: [
-        ":cintltst",
-        ":intltest",
+        ":cintltst32",
+        ":cintltst64",
+        ":intltest32",
+        ":intltest64",
         ":icu4c_test_data",
         ":ICU4CTestRunner",
     ],

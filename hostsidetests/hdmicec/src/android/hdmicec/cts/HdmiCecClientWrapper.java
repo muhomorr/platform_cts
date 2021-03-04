@@ -403,6 +403,43 @@ public final class HdmiCecClientWrapper extends ExternalResource {
         return receivedOperands;
     }
 
+    /**
+     * Gets the list of logical addresses which receives messages with operand expectedMessage
+     * during a period of duration seconds.
+     */
+    public List<LogicalAddress> getAllDestLogicalAddresses(CecOperand expectedMessage, int duration)
+            throws Exception {
+        return getAllDestLogicalAddresses(expectedMessage, "", duration);
+    }
+
+    /**
+     * Gets the list of logical addresses which receives messages with operand expectedMessage and
+     * params during a period of duration seconds.
+     */
+    public List<LogicalAddress> getAllDestLogicalAddresses(
+            CecOperand expectedMessage, String params, int duration) throws Exception {
+        List<LogicalAddress> destinationAddresses = new ArrayList<>();
+        long startTime = System.currentTimeMillis();
+        long endTime = startTime;
+        Pattern pattern =
+                Pattern.compile(
+                        "(.*>>)(.*?)" + ":(" + expectedMessage + params + ")(.*)",
+                        Pattern.CASE_INSENSITIVE);
+
+        while ((endTime - startTime <= (duration * 1000))) {
+            if (mInputConsole.ready()) {
+                String line = mInputConsole.readLine();
+                if (pattern.matcher(line).matches()) {
+                    LogicalAddress destination = CecMessage.getDestination(line);
+                    if (!destinationAddresses.contains(destination)) {
+                        destinationAddresses.add(destination);
+                    }
+                }
+            }
+            endTime = System.currentTimeMillis();
+        }
+        return destinationAddresses;
+    }
 
     /**
      * Looks for the CEC expectedMessage broadcast on the cec-client communication channel and
@@ -521,8 +558,19 @@ public final class HdmiCecClientWrapper extends ExternalResource {
      */
     public void checkOutputDoesNotContainMessage(LogicalAddress toDevice,
             CecOperand incorrectMessage) throws Exception {
-        checkOutputDoesNotContainMessage(toDevice, incorrectMessage, DEFAULT_TIMEOUT);
+        checkOutputDoesNotContainMessage(toDevice, incorrectMessage, "", DEFAULT_TIMEOUT);
      }
+
+    /**
+     * Looks for the CEC message incorrectMessage along with the params sent to CEC device toDevice
+     * on the cec-client communication channel and throws an exception if it finds the line that
+     * contains the message with its params within the default timeout. If the CEC message is not
+     * found within the timeout, function returns without error.
+     */
+    public void checkOutputDoesNotContainMessage(
+            LogicalAddress toDevice, CecOperand incorrectMessage, String params) throws Exception {
+        checkOutputDoesNotContainMessage(toDevice, incorrectMessage, params, DEFAULT_TIMEOUT);
+    }
 
     /**
      * Looks for the CEC message incorrectMessage sent to CEC device toDevice on the cec-client
@@ -530,16 +578,36 @@ public final class HdmiCecClientWrapper extends ExternalResource {
      * within timeoutMillis. If the CEC message is not found within the timeout, function returns
      * without error.
      */
-    public void checkOutputDoesNotContainMessage(LogicalAddress toDevice, CecOperand incorrectMessage,
-            long timeoutMillis) throws Exception {
+    public void checkOutputDoesNotContainMessage(
+            LogicalAddress toDevice, CecOperand incorrectMessage, long timeoutMillis)
+            throws Exception {
+        checkOutputDoesNotContainMessage(toDevice, incorrectMessage, "", timeoutMillis);
+    }
 
+    /**
+     * Looks for the CEC message incorrectMessage along with the params sent to CEC device toDevice
+     * on the cec-client communication channel and throws an exception if it finds the line that
+     * contains the message and params within timeoutMillis. If the CEC message is not found within
+     * the timeout, function returns without error.
+     */
+    public void checkOutputDoesNotContainMessage(
+            LogicalAddress toDevice, CecOperand incorrectMessage, String params, long timeoutMillis)
+            throws Exception {
         checkCecClient();
         long startTime = System.currentTimeMillis();
         long endTime = startTime;
-        Pattern pattern = Pattern.compile("(.*>>)(.*?)" +
-                                          "(" + targetDevice + toDevice + "):" +
-                                          "(" + incorrectMessage + ")(.*)",
-                                          Pattern.CASE_INSENSITIVE);
+        Pattern pattern =
+                Pattern.compile(
+                        "(.*>>)(.*?)"
+                                + "("
+                                + targetDevice
+                                + toDevice
+                                + "):"
+                                + "("
+                                + incorrectMessage
+                                + params
+                                + ")(.*)",
+                        Pattern.CASE_INSENSITIVE);
 
         while ((endTime - startTime <= timeoutMillis)) {
             if (mInputConsole.ready()) {

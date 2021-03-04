@@ -17,6 +17,7 @@
 package android.cts.tagging.sdk30;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -58,12 +59,13 @@ public class TaggingTest {
     }
 
     @Test
-    public void testMemoryTagChecksEnabled() throws Exception {
+    public void testMemoryTagSyncChecksEnabled() throws Exception {
         final DropBoxReceiver receiver =
                 new DropBoxReceiver(
                         mContext,
                         NATIVE_CRASH_TAG,
                         mContext.getPackageName() + ":CrashProcess",
+                        "SEGV_MTESERR",
                         "backtrace:");
         Intent intent = new Intent();
         intent.setClass(mContext, CrashActivity.class);
@@ -74,7 +76,60 @@ public class TaggingTest {
     }
 
     @Test
+    public void testMemoryTagAsyncChecksEnabled() throws Exception {
+        final DropBoxReceiver receiver =
+                new DropBoxReceiver(
+                        mContext,
+                        NATIVE_CRASH_TAG,
+                        mContext.getPackageName() + ":CrashProcess",
+                        "SEGV_MTEAERR",
+                        "backtrace:");
+        Intent intent = new Intent();
+        intent.setClass(mContext, CrashActivity.class);
+        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        mContext.startActivity(intent);
+
+        assertTrue(receiver.await());
+        assertTrue(Utils.mistaggedKernelUaccessFails());
+    }
+
+    @Test
     public void testMemoryTagChecksDisabled() {
         Utils.accessMistaggedPointer();
+        assertFalse(Utils.mistaggedKernelUaccessFails());
+    }
+
+    @Test
+    public void testMemoryTagSyncActivityChecksEnabled() throws Exception {
+        final DropBoxReceiver receiver =
+                new DropBoxReceiver(
+                        mContext,
+                        NATIVE_CRASH_TAG,
+                        mContext.getPackageName() + ":CrashMemtagSync",
+                        "SEGV_MTESERR",
+                        "backtrace:");
+        Intent intent = new Intent();
+        intent.setClass(mContext, CrashMemtagSyncActivity.class);
+        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        mContext.startActivity(intent);
+
+        assertTrue(receiver.await());
+    }
+
+    @Test
+    public void testMemoryTagAsyncActivityChecksEnabled() throws Exception {
+        final DropBoxReceiver receiver =
+                new DropBoxReceiver(
+                        mContext,
+                        NATIVE_CRASH_TAG,
+                        mContext.getPackageName() + ":CrashMemtagAsync",
+                        "SEGV_MTEAERR",
+                        "backtrace:");
+        Intent intent = new Intent();
+        intent.setClass(mContext, CrashMemtagAsyncActivity.class);
+        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        mContext.startActivity(intent);
+
+        assertTrue(receiver.await());
     }
 }
