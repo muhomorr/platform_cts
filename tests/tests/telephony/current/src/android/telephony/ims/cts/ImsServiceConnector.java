@@ -67,7 +67,14 @@ class ImsServiceConnector {
             "src set-device-enabled ";
     private static final String COMMAND_GET_DEVICE_SINGLE_REGISTRATION_ENABLED =
             "src get-device-enabled";
+    private static final String COMMAND_SET_CARRIER_SINGLE_REGISTRATION_ENABLED =
+            "src set-carrier-enabled ";
+    private static final String COMMAND_GET_CARRIER_SINGLE_REGISTRATION_ENABLED =
+            "src get-carrier-enabled";
     private static final String COMMAND_REMOVE_EAB_CONTACT = "uce remove-eab-contact ";
+    private static final String COMMAND_GET_UCE_ENABLED = "uce get-device-enabled";
+    private static final String COMMAND_SET_UCE_ENABLED = "uce set-device-enabled ";
+    private static final String COMMAND_SET_TEST_MODE_ENABLED = "src set-test-enabled ";
 
     private class TestCarrierServiceConnection implements ServiceConnection {
 
@@ -551,6 +558,9 @@ class ImsServiceConnector {
         mDeviceServiceConnection.restoreOriginalPackage();
         mCarrierServiceConnection.restoreOriginalPackage();
         mDefaultSmsAppConnection.restoreOriginalPackage();
+
+        // Remove any overrides for single registration state
+        setDeviceSingleRegistrationEnabled(null);
     }
 
     void enableImsService(int slot) throws Exception {
@@ -565,12 +575,29 @@ class ImsServiceConnector {
 
     void setDeviceSingleRegistrationEnabled(Boolean enabled) throws Exception {
         TelephonyUtils.executeShellCommand(mInstrumentation, COMMAND_BASE
-                + COMMAND_SET_DEVICE_SINGLE_REGISTRATION_ENABLED + enabled);
+                + COMMAND_SET_DEVICE_SINGLE_REGISTRATION_ENABLED
+                // if "null" is sent, it will remove override
+                + (enabled != null ? enabled : "null"));
     }
 
     boolean getDeviceSingleRegistrationEnabled() throws Exception {
         return Boolean.parseBoolean(TelephonyUtils.executeShellCommand(mInstrumentation,
                 COMMAND_BASE + COMMAND_GET_DEVICE_SINGLE_REGISTRATION_ENABLED));
+    }
+
+    boolean getCarrierSingleRegistrationEnabled() throws Exception {
+        return Boolean.parseBoolean(TelephonyUtils.executeShellCommand(mInstrumentation,
+                COMMAND_BASE + COMMAND_GET_CARRIER_SINGLE_REGISTRATION_ENABLED));
+    }
+
+    boolean getDeviceUceEnabled() throws Exception {
+        return Boolean.parseBoolean(TelephonyUtils.executeShellCommand(mInstrumentation,
+                COMMAND_BASE + COMMAND_GET_UCE_ENABLED));
+    }
+
+    void setDeviceUceEnabled(boolean isEnabled) throws Exception {
+        TelephonyUtils.executeShellCommand(mInstrumentation,
+                COMMAND_BASE + COMMAND_SET_UCE_ENABLED + isEnabled);
     }
 
     void removeEabContacts(int slotId, String phoneNum) throws Exception {
@@ -586,5 +613,10 @@ class ImsServiceConnector {
 
     ITestExternalImsService getExternalService() {
         return mExternalService;
+    }
+
+    void setSingleRegistrationTestModeEnabled(boolean enabled) throws Exception {
+        TelephonyUtils.executeShellCommand(mInstrumentation, COMMAND_BASE
+                + COMMAND_SET_TEST_MODE_ENABLED  + (enabled ? "true" : "false"));
     }
 }

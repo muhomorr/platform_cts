@@ -65,6 +65,7 @@ import android.os.Process;
 import android.os.SystemClock;
 import android.os.UserHandle;
 import android.platform.test.annotations.AppModeFull;
+import android.platform.test.annotations.SecurityTest;
 import android.provider.Settings;
 import android.support.test.uiautomator.UiDevice;
 import android.telephony.TelephonyManager;
@@ -79,6 +80,7 @@ import com.android.net.module.util.MacAddressUtils;
 import com.android.compatibility.common.util.PollingCheck;
 import com.android.compatibility.common.util.ShellIdentityUtils;
 import com.android.compatibility.common.util.SystemUtil;
+import com.android.compatibility.common.util.FeatureUtil;
 import com.android.compatibility.common.util.ThrowingRunnable;
 
 import java.io.BufferedReader;
@@ -1457,6 +1459,11 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
      * @throws Exception
      */
     public void testScreenOffDoesNotTurnOffWifiScanningWhenWifiDisabled() throws Exception {
+        if (FeatureUtil.isTV() || FeatureUtil.isAutomotive()) {
+            // TV and auto do not support the setting options of WIFI scanning and Bluetooth
+            // scanning
+            return;
+        }
         if (!WifiFeature.isWifiSupported(getContext())) {
             // skip the test if WiFi is not supported
             return;
@@ -1486,6 +1493,11 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
      * @throws Exception
      */
     public void testScreenOffDoesNotTurnOffWifiScanningWhenWifiEnabled() throws Exception {
+        if (FeatureUtil.isTV() || FeatureUtil.isAutomotive()) {
+            // TV and auto do not support the setting options of WIFI scanning and Bluetooth
+            // scanning
+            return;
+        }
         if (!WifiFeature.isWifiSupported(getContext())) {
             // skip the test if WiFi is not supported
             return;
@@ -1670,6 +1682,10 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
         TestSoftApCallback callback = new TestSoftApCallback(mLock);
         try {
             uiAutomation.adoptShellPermissionIdentity();
+            // check that tethering is supported by the device
+            if (!mTetheringManager.isTetheringSupported()) {
+                return;
+            }
             turnOffWifiAndTetheredHotspotIfEnabled();
             verifyRegisterSoftApCallback(executor, callback);
 
@@ -1942,6 +1958,7 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
      * Tests {@link WifiManager#forget(int, WifiManager.ActionListener)} by adding/removing a new
      * network.
      */
+    @SecurityTest
     public void testForget() throws Exception {
         if (!WifiFeature.isWifiSupported(getContext())) {
             // skip the test if WiFi is not supported

@@ -3155,7 +3155,8 @@ public class TelephonyManagerTest {
 
     @Test
     public void testCdmaRoamingMode() {
-        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)
+                || mTelephonyManager.getPhoneType() != TelephonyManager.PHONE_TYPE_CDMA) {
             return;
         }
 
@@ -3181,7 +3182,8 @@ public class TelephonyManagerTest {
 
     @Test
     public void testCdmaSubscriptionMode() {
-        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)
+                || mTelephonyManager.getPhoneType() != TelephonyManager.PHONE_TYPE_CDMA) {
             return;
         }
 
@@ -3202,7 +3204,7 @@ public class TelephonyManagerTest {
 
         // Reset state
         ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mTelephonyManager,
-                tm -> tm.setCdmaRoamingMode(cdmaSubscriptionMode));
+                tm -> tm.setCdmaSubscriptionMode(cdmaSubscriptionMode));
     }
 
     @Test
@@ -3443,7 +3445,7 @@ public class TelephonyManagerTest {
                                                 AccessNetworkConstants.AccessNetworkType.GERAN)
                                         .setSignalMeasurementType(
                                                 SignalThresholdInfo.SIGNAL_MEASUREMENT_TYPE_RSSI)
-                                        .setThresholdsUnlimited(new int[]{})
+                                        .setThresholds(new int[]{}, true /*isSystem*/)
                                         .build()))
                         .setReportingRequestedWhileIdle(true)
                         .build();
@@ -3471,8 +3473,8 @@ public class TelephonyManagerTest {
                                                 AccessNetworkConstants.AccessNetworkType.GERAN)
                                         .setSignalMeasurementType(
                                                 SignalThresholdInfo.SIGNAL_MEASUREMENT_TYPE_RSSI)
-                                        .setThresholdsUnlimited(
-                                                new int[]{-113, -103, -97, -61, -51})
+                                        .setThresholds(new int[]{-113, -103, -97, -61, -51},
+                                            true /*isSystem*/)
                                         .build()))
                         .setReportingRequestedWhileIdle(true)
                         .build();

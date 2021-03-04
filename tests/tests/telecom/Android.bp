@@ -12,6 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+package {
+    default_applicable_licenses: ["Android-Apache-2.0"],
+}
+
 filegroup {
     name: "car-mode-app-srcs",
     srcs: [
@@ -27,6 +31,22 @@ filegroup {
         "aidl/android/telecom/cts/carmodetestapp/ICtsCarModeInCallServiceControl.aidl",
     ],
     path: "aidl/",
+}
+filegroup {
+    name: "third-pty-dialer-app-srcs",
+    srcs: [
+        "ThirdPtyInCallServiceTestApp/src/android/telecom/cts/thirdptyincallservice/CtsThirdPartyInCallService.java",
+        "ThirdPtyInCallServiceTestApp/src/android/telecom/cts/thirdptyincallservice/CtsThirdPartyInCallServiceControl.java",
+        "ThirdPtyInCallServiceTestApp/src/android/telecom/cts/thirdptyincallservice/CtsThirdPartyInCallServiceActivity.java",
+    ],
+    path: "ThirdPtyInCallServiceTestApp/",
+}
+filegroup {
+    name: "third-pty-dialer-app-aidl",
+    srcs: [
+        "ThirdPtyInCallServiceTestApp/aidl/android/telecom/cts/thirdptyincallservice/ICtsThirdPartyInCallServiceControl.aidl",
+    ],
+    path: "ThirdPtyInCallServiceTestApp/",
 }
 
 android_test {
@@ -54,6 +74,9 @@ android_test {
         "CallRedirectionServiceTestApp/**/I*.aidl",
         "Api29InCallServiceTestApp/**/*.java",
         "Api29InCallServiceTestApp/**/I*.aidl",
+        "ThirdPtyDialerTestApp/**/*.java",
+        "ThirdPtyDialerTestAppTwo/**/*.java",
+        "CarModeTestAppTwo/**/*.java",
     ],
     exclude_srcs: [
         "src/android/telecom/cts/SelfManagedConnection.java",

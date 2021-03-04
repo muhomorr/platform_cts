@@ -29,6 +29,8 @@
         <option name="test-file-name" value="CallScreeningServiceTestApp.apk" />
         <option name="test-file-name" value="CarModeTestApp.apk" />
         <option name="test-file-name" value="CarModeTestAppTwo.apk" />
+        <option name="test-file-name" value="ThirdPtyDialerTestApp.apk" />
+        <option name="test-file-name" value="ThirdPtyDialerTestAppTwo.apk" />
     </target_preparer>
 
     <!-- Enabling change id ALLOW_TEST_API_ACCESS allows that package to access @TestApi methods -->
@@ -41,5 +43,7 @@
     <test class="com.android.tradefed.testtype.AndroidJUnitTest" >
         <option name="package" value="android.telecom.cts" />
         <option name="runtime-hint" value="10m20s" />
+        <option name="test-timeout" value="20m"/>
+        <option name="shell-timeout" value="22m"/>
     </test>
 </configuration>
