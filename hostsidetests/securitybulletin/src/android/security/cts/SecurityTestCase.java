@@ -58,7 +58,6 @@ public class SecurityTestCase extends BaseHostJUnit4Test {
 
     private long kernelStartTime;
 
-    private HostsideOomCatcher oomCatcher = new HostsideOomCatcher(this);
     private HostsideMainlineModuleDetector mainlineModuleDetector = new HostsideMainlineModuleDetector(this);
 
     @Rule public TestName testName = new TestName();
@@ -80,7 +79,6 @@ public class SecurityTestCase extends BaseHostJUnit4Test {
         // TODO:(badash@): Watch for other things to track.
         //     Specifically time when app framework starts
 
-        oomCatcher.start();
         sBuildInfo.put(getDevice(), getBuild());
         sAbi.put(getDevice(), getAbi());
         sTestName.put(getDevice(), testName.getMethodName());
@@ -95,8 +93,6 @@ public class SecurityTestCase extends BaseHostJUnit4Test {
      */
     @After
     public void tearDown() throws Exception {
-        oomCatcher.stop(getDevice().getSerialNumber());
-
         try {
             getDevice().waitForDeviceAvailable(90 * 1000);
         } catch (DeviceNotAvailableException e) {
@@ -105,27 +101,11 @@ public class SecurityTestCase extends BaseHostJUnit4Test {
             getDevice().waitForDeviceAvailable(30 * 1000);
         }
 
-        if (oomCatcher.isOomDetected()) {
-            // we don't need to check kernel start time if we intentionally rebooted because oom
-            updateKernelStartTime();
-            switch (oomCatcher.getOomBehavior()) {
-                case FAIL_AND_LOG:
-                    fail("The device ran out of memory.");
-                    break;
-                case PASS_AND_LOG:
-                    Log.logAndDisplay(Log.LogLevel.INFO, LOG_TAG, "Skipping test.");
-                    break;
-                case FAIL_NO_LOG:
-                    fail();
-                    break;
-            }
-        } else {
-            long deviceTime = getDeviceUptime() + kernelStartTime;
-            long hostTime = System.currentTimeMillis() / 1000;
-            assertTrue("Phone has had a hard reset", (hostTime - deviceTime) < 2);
+        long deviceTime = getDeviceUptime() + kernelStartTime;
+        long hostTime = System.currentTimeMillis() / 1000;
+        assertTrue("Phone has had a hard reset", (hostTime - deviceTime) < 2);
 
-            // TODO(badash@): add ability to catch runtime restart
-        }
+        // TODO(badash@): add ability to catch runtime restart
     }
 
     public static IBuildInfo getBuildInfo(ITestDevice device) {
@@ -231,7 +211,22 @@ public class SecurityTestCase extends BaseHostJUnit4Test {
      * Check if a driver is present on a machine.
      */
     protected boolean containsDriver(ITestDevice device, String driver) throws Exception {
-        boolean containsDriver = AdbUtils.runCommandGetExitCode("test -r " + driver, device) == 0;
+        boolean containsDriver = false;
+        if (driver.contains("*")) {
+            // -A  list all files but . and ..
+            // -d  directory, not contents
+            // -1  list one file per line
+            // -f  unsorted
+            String ls = "ls -A -d -1 -f " + driver;
+            if (AdbUtils.runCommandGetExitCode(ls, device) == 0) {
+                String[] expanded = device.executeShellCommand(ls).split("\\R");
+                for (String expandedDriver : expanded) {
+                    containsDriver |= containsDriver(device, expandedDriver);
+                }
+            }
+        } else {
+            containsDriver = AdbUtils.runCommandGetExitCode("test -r " + driver, device) == 0;
+        }
 
         MetricsReportLog reportLog = buildMetricsReportLog(getDevice());
         reportLog.addValue("path", driver, ResultType.NEUTRAL, ResultUnit.NONE);
@@ -291,10 +286,6 @@ public class SecurityTestCase extends BaseHostJUnit4Test {
     public void updateKernelStartTime() throws DeviceNotAvailableException {
         long uptime = getDeviceUptime();
         kernelStartTime = (System.currentTimeMillis() / 1000) - uptime;
-    }
-
-    public HostsideOomCatcher getOomCatcher() {
-        return oomCatcher;
     }
 
     /**
