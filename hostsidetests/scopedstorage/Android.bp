@@ -19,7 +19,7 @@ android_test_helper_app {
     sdk_version: "test_current",
     srcs: ["ScopedStorageTestHelper/src/**/*.java"],
     // Tag as a CTS artifact
-    test_suites: ["device-tests", "mts", "cts"],
+    test_suites: ["device-tests", "mts-mediaprovider", "cts"],
 }
 android_test_helper_app {
     name: "CtsScopedStorageTestAppB",
@@ -28,7 +28,7 @@ android_test_helper_app {
     sdk_version: "test_current",
     srcs: ["ScopedStorageTestHelper/src/**/*.java"],
     // Tag as a CTS artifact
-    test_suites: ["device-tests", "mts", "cts"],
+    test_suites: ["device-tests", "mts-mediaprovider", "cts"],
 }
 android_test_helper_app {
     name: "CtsScopedStorageTestAppC",
@@ -37,7 +37,7 @@ android_test_helper_app {
     sdk_version: "test_current",
     srcs: ["ScopedStorageTestHelper/src/**/*.java"],
     // Tag as a CTS artifact
-    test_suites: ["device-tests", "mts", "cts"],
+    test_suites: ["device-tests", "mts-mediaprovider", "cts"],
 }
 android_test_helper_app {
     name: "CtsScopedStorageTestAppCLegacy",
@@ -47,7 +47,7 @@ android_test_helper_app {
     target_sdk_version: "28",
     srcs: ["ScopedStorageTestHelper/src/**/*.java"],
     // Tag as a CTS artifact
-    test_suites: ["device-tests", "mts", "cts"],
+    test_suites: ["device-tests", "mts-mediaprovider", "cts"],
 }
 android_test_helper_app {
     name: "CtsScopedStorageTestAppDLegacy",
@@ -57,7 +57,7 @@ android_test_helper_app {
     target_sdk_version: "28",
     srcs: ["ScopedStorageTestHelper/src/**/*.java"],
     // Tag as a CTS artifact
-    test_suites: ["device-tests", "mts", "cts"],
+    test_suites: ["device-tests", "mts-mediaprovider", "cts"],
 }
 
 android_test_helper_app {
@@ -67,7 +67,7 @@ android_test_helper_app {
     sdk_version: "test_current",
     srcs: ["ScopedStorageTestHelper/src/**/*.java"],
     // Tag as a CTS artifact
-    test_suites: ["device-tests", "mts", "cts"],
+    test_suites: ["device-tests", "mts-mediaprovider", "cts"],
 }
 
 android_test {
@@ -76,7 +76,7 @@ android_test {
     srcs: ["src/**/*.java"],
     static_libs: ["truth-prebuilt", "cts-scopedstorage-lib"],
     compile_multilib: "both",
-    test_suites: ["general-tests", "mts", "cts"],
+    test_suites: ["general-tests", "mts-mediaprovider", "cts"],
     sdk_version: "test_current",
     java_resources: [
         ":CtsScopedStorageTestAppA",
@@ -91,7 +91,7 @@ android_test {
     srcs: ["legacy/src/**/*.java"],
     static_libs: ["truth-prebuilt", "cts-scopedstorage-lib"],
     compile_multilib: "both",
-    test_suites: ["general-tests", "mts", "cts"],
+    test_suites: ["general-tests", "mts-mediaprovider", "cts"],
     sdk_version: "test_current",
     target_sdk_version: "29",
     java_resources: [
@@ -106,7 +106,7 @@ java_test_host {
         "host/src/android/scopedstorage/cts/host/BaseHostTestCase.java"
     ],
     libs: ["tradefed", "testng"],
-    test_suites: ["general-tests", "mts", "cts"],
+    test_suites: ["general-tests", "mts-mediaprovider", "cts"],
     test_config: "CoreTest.xml",
 }
 
@@ -114,7 +114,7 @@ java_test_host {
     name: "CtsScopedStorageHostTest",
     srcs: ["host/src/**/*.java"],
     libs: ["tradefed", "testng"],
-    test_suites: ["general-tests", "mts", "cts"],
+    test_suites: ["general-tests", "mts-mediaprovider", "cts"],
     test_config: "AndroidTest.xml",
 }
 
@@ -122,7 +122,7 @@ java_test_host {
     name: "CtsScopedStoragePublicVolumeHostTest",
     srcs: ["host/src/**/*.java"],
     libs: ["tradefed", "testng"],
-    test_suites: ["general-tests", "mts"],
+    test_suites: ["general-tests", "mts-mediaprovider"],
     test_config: "PublicVolumeTest.xml",
 }
 
@@ -133,7 +133,7 @@ android_test {
     srcs: ["device/**/*.java"],
     static_libs: ["truth-prebuilt", "cts-scopedstorage-lib"],
     compile_multilib: "both",
-    test_suites: ["device-tests", "mts", "cts"],
+    test_suites: ["device-tests", "mts-mediaprovider", "cts"],
     sdk_version: "test_current",
     libs: ["android.test.base", "android.test.mock", "android.test.runner",],
     java_resources: [
