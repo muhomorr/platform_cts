@@ -26,6 +26,10 @@ public class TestImsConfig extends ImsConfigImplBase {
     private HashMap<Integer, Integer> mIntHashMap = new HashMap<>();
     private HashMap<Integer, String> mStringHashMap = new HashMap<>();
 
+    TestImsConfig() {
+        TestAcsClient.getInstance().setImsConfigImpl(this);
+    }
+
     @Override
     public int setConfig(int item, int value) {
         mIntHashMap.put(item, value);
@@ -52,6 +56,11 @@ public class TestImsConfig extends ImsConfigImplBase {
     @Override
     public void notifyRcsAutoConfigurationReceived(byte[] content, boolean isCompressed) {
         TestAcsClient.getInstance().onConfigChanged(content, isCompressed);
+    }
+
+    @Override
+    public void notifyRcsAutoConfigurationRemoved() {
+        TestAcsClient.getInstance().onConfigRemoved();
     }
 
     @Override

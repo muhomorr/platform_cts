@@ -510,8 +510,13 @@ abstract class CodecTestBase {
     static final boolean ENABLE_LOGS = false;
     static final int PER_TEST_TIMEOUT_LARGE_TEST_MS = 300000;
     static final int PER_TEST_TIMEOUT_SMALL_TEST_MS = 60000;
-    static final long Q_DEQ_TIMEOUT_US = 5000;
     static final int UNSPECIFIED = 0;
+    static final int CODEC_ALL = 0; // All codecs should support
+    static final int CODEC_ANY = 1; // Atleast one codec should support
+    static final int CODEC_OPTIONAL = 2; // Codec support is optional
+    // Maintain Timeouts in sync with their counterpart in NativeMediaCommon.h
+    static final long Q_DEQ_TIMEOUT_US = 5000; // block at most 5ms while looking for io buffers
+    static final int RETRY_LIMIT = 100; // max poll counter before test aborts and returns error
     static final String mInpPrefix = WorkDir.getMediaDirString();
     static final PackageManager pm =
             InstrumentationRegistry.getInstrumentation().getContext().getPackageManager();
@@ -859,8 +864,21 @@ abstract class CodecTestBase {
                     }
                 }
             }
-        } else if (!mSawInputEOS) {
-            enqueueEOS(mCodec.dequeueInputBuffer(-1));
+        } else {
+            MediaCodec.BufferInfo outInfo = new MediaCodec.BufferInfo();
+            while (!mSawInputEOS) {
+                int outputBufferId = mCodec.dequeueOutputBuffer(outInfo, Q_DEQ_TIMEOUT_US);
+                if (outputBufferId >= 0) {
+                    dequeueOutput(outputBufferId, outInfo);
+                } else if (outputBufferId == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
+                    mOutFormat = mCodec.getOutputFormat();
+                    mSignalledOutFormatChanged = true;
+                }
+                int inputBufferId = mCodec.dequeueInputBuffer(Q_DEQ_TIMEOUT_US);
+                if (inputBufferId != -1) {
+                    enqueueEOS(inputBufferId);
+                }
+            }
         }
     }
 

@@ -75,6 +75,7 @@ import android.telephony.SignalStrengthUpdateRequest;
 import android.telephony.SignalThresholdInfo;
 import android.telephony.SubscriptionInfo;
 import android.telephony.SubscriptionManager;
+import android.telephony.TelephonyCallback;
 import android.telephony.TelephonyManager;
 import android.telephony.ThermalMitigationRequest;
 import android.telephony.UiccCardInfo;
@@ -215,6 +216,8 @@ public class TelephonyManagerTest {
     private int mTestSub;
     private TelephonyManagerTest.CarrierConfigReceiver mReceiver;
     private int mRadioVersion;
+    private boolean mIsAllowedNetworkTypeChanged;
+    private Map<Integer, Long> mAllowedNetworkTypesList = new HashMap<>();
 
     private static class CarrierConfigReceiver extends BroadcastReceiver {
         private CountDownLatch mLatch = new CountDownLatch(1);
@@ -263,17 +266,65 @@ public class TelephonyManagerTest {
         getContext().registerReceiver(mReceiver, filter);
         InstrumentationRegistry.getInstrumentation().getUiAutomation()
                 .adoptShellPermissionIdentity("android.permission.READ_PHONE_STATE");
+        saveAllowedNetworkTypesForAllReasons();
     }
 
     @After
     public void tearDown() throws Exception {
-        if (mListener != null && mListener.isExecutorSet()) {
+        if (mListener != null) {
             // unregister the listener
             mTelephonyManager.listen(mListener, PhoneStateListener.LISTEN_NONE);
         }
         if (mReceiver != null) {
             getContext().unregisterReceiver(mReceiver);
             mReceiver = null;
+        }
+        if (mIsAllowedNetworkTypeChanged) {
+            recoverAllowedNetworkType();
+        }
+    }
+
+    private void saveAllowedNetworkTypesForAllReasons() {
+        mIsAllowedNetworkTypeChanged = false;
+        if (mAllowedNetworkTypesList == null) {
+            mAllowedNetworkTypesList = new HashMap<>();
+        }
+        long allowedNetworkTypesUser = ShellIdentityUtils.invokeMethodWithShellPermissions(
+                mTelephonyManager, (tm) -> {
+                    return tm.getAllowedNetworkTypesForReason(
+                            TelephonyManager.ALLOWED_NETWORK_TYPES_REASON_USER);
+                }
+        );
+        long allowedNetworkTypesPower = ShellIdentityUtils.invokeMethodWithShellPermissions(
+                mTelephonyManager, (tm) -> {
+                    return tm.getAllowedNetworkTypesForReason(
+                            TelephonyManager.ALLOWED_NETWORK_TYPES_REASON_POWER);
+                }
+        );
+        long allowedNetworkTypesCarrier = ShellIdentityUtils.invokeMethodWithShellPermissions(
+                mTelephonyManager, (tm) -> {
+                    return tm.getAllowedNetworkTypesForReason(
+                            TelephonyManager.ALLOWED_NETWORK_TYPES_REASON_CARRIER);
+                }
+        );
+        mAllowedNetworkTypesList.put(TelephonyManager.ALLOWED_NETWORK_TYPES_REASON_USER,
+                allowedNetworkTypesUser);
+        mAllowedNetworkTypesList.put(TelephonyManager.ALLOWED_NETWORK_TYPES_REASON_POWER,
+                allowedNetworkTypesPower);
+        mAllowedNetworkTypesList.put(TelephonyManager.ALLOWED_NETWORK_TYPES_REASON_CARRIER,
+                allowedNetworkTypesCarrier);
+    }
+
+    private void recoverAllowedNetworkType() {
+        if (mAllowedNetworkTypesList == null) {
+            return;
+        }
+        for (Integer key : mAllowedNetworkTypesList.keySet()) {
+            ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(
+                    mTelephonyManager,
+                    (tm) -> tm.setAllowedNetworkTypesForReason(
+                            key,
+                            mAllowedNetworkTypesList.get(key)));
         }
     }
 
@@ -397,24 +448,6 @@ public class TelephonyManagerTest {
     }
 
     @Test
-    public void testListenFailWithNonLooper() throws Throwable {
-        if (!InstrumentationRegistry.getContext().getPackageManager()
-                .hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
-            Log.d(TAG, "Skipping test that requires PackageManager.FEATURE_TELEPHONY");
-            return;
-        }
-
-        mListener = new PhoneStateListener();
-        try {
-            // .listen generates an onCellLocationChanged event
-            mTelephonyManager.listen(mListener, PhoneStateListener.LISTEN_CELL_LOCATION);
-            fail("PhoneStateListener created from a thread without looper should " +
-                    "trigger IllegalStateException.");
-        } catch (IllegalStateException e) {
-        }
-    }
-
-    @Test
     public void testListen() throws Throwable {
         if (!InstrumentationRegistry.getContext().getPackageManager()
                 .hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
@@ -445,7 +478,7 @@ public class TelephonyManagerTest {
                 };
 
                 synchronized (mLock) {
-                    mLock.notify(); // listener is ready
+                    mLock.notify(); // mListener is ready
                 }
 
                 Looper.loop();
@@ -459,8 +492,8 @@ public class TelephonyManagerTest {
 
         // Test register
         synchronized (mLock) {
-            // .registerPhoneStateListener generates an onCellLocationChanged event
-            mTelephonyManager.registerPhoneStateListener(mSimpleExecutor, mMockPhoneStateListener);
+            // .listen generates an onCellLocationChanged event
+            mTelephonyManager.listen(mListener, PhoneStateListener.LISTEN_CELL_LOCATION);
             mLock.wait(TOLERANCE);
 
             assertTrue("Test register, mOnCellLocationChangedCalled should be true.",
@@ -479,19 +512,19 @@ public class TelephonyManagerTest {
         }
 
         // unregister the listener
-        mTelephonyManager.unregisterPhoneStateListener(mMockPhoneStateListener);
+        mTelephonyManager.listen(mListener, PhoneStateListener.LISTEN_NONE);
         Thread.sleep(TOLERANCE);
 
         // Test unregister
         synchronized (mLock) {
-            mOnCellInfoChanged = false;
+            mOnCellLocationChangedCalled = false;
             // unregister again, to make sure doing so does not call the listener
-            mTelephonyManager.unregisterPhoneStateListener(mMockPhoneStateListener);
+            mTelephonyManager.listen(mListener, PhoneStateListener.LISTEN_NONE);
             CellLocation.requestLocationUpdate();
             mLock.wait(TOLERANCE);
 
             assertFalse("Test unregister, mOnCellLocationChangedCalled should be false.",
-                    mOnCellInfoChanged);
+                    mOnCellLocationChangedCalled);
         }
     }
 
@@ -659,15 +692,18 @@ public class TelephonyManagerTest {
             assertTrue((receivedForwardingInfo.get() != null) ^ (receivedErrorCode.get() != null));
             if (receivedForwardingInfo.get() != null) {
                 CallForwardingInfo info = receivedForwardingInfo.get();
-                assertTrue(callForwardingReasons.contains(info.getReason()));
+                assertTrue("Got reason not in expected set:" + info.getReason(),
+                        callForwardingReasons.contains(info.getReason()));
                 if (info.isEnabled()) {
                     assertNotNull(info.getNumber());
-                    assertTrue(info.getTimeoutSeconds() >= 0);
+                    assertTrue("Got negative timeoutSeconds=" + info.getTimeoutSeconds(),
+                            info.getTimeoutSeconds() >= 0);
                 }
             }
 
             if (receivedErrorCode.get() != null) {
-                assertTrue(callForwardingErrors.contains(receivedErrorCode.get()));
+                assertTrue("Got code not in expected set:" + receivedErrorCode.get(),
+                        callForwardingErrors.contains(receivedErrorCode.get()));
             }
         }
     }
@@ -2760,6 +2796,102 @@ public class TelephonyManagerTest {
     }
 
     @Test
+    public void testSetAllowedNetworkTypesForReason() {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            return;
+        }
+
+        // test without permission: verify SecurityException
+        long allowedNetworkTypes = TelephonyManager.NETWORK_TYPE_BITMASK_NR;
+        try {
+            mIsAllowedNetworkTypeChanged = true;
+            mTelephonyManager.setAllowedNetworkTypesForReason(
+                    TelephonyManager.ALLOWED_NETWORK_TYPES_REASON_POWER, allowedNetworkTypes);
+            fail("testSetPolicyDataEnabled: SecurityException expected");
+        } catch (SecurityException se) {
+            // expected
+        }
+
+        // test with permission
+        try {
+            ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(
+                    mTelephonyManager,
+                    (tm) -> tm.setAllowedNetworkTypesForReason(
+                            TelephonyManager.ALLOWED_NETWORK_TYPES_REASON_POWER,
+                            allowedNetworkTypes));
+
+            long deviceAllowedNetworkTypes = ShellIdentityUtils.invokeMethodWithShellPermissions(
+                    mTelephonyManager, (tm) -> {
+                        return tm.getAllowedNetworkTypesForReason(
+                                TelephonyManager.ALLOWED_NETWORK_TYPES_REASON_POWER);
+                    }
+            );
+            assertEquals(allowedNetworkTypes, deviceAllowedNetworkTypes);
+        } catch (SecurityException se) {
+            fail("testSetAllowedNetworkTypes: SecurityException not expected");
+        }
+    }
+
+    @Test
+    public void testSetAllowedNetworkTypesForReason_moreReason() {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            return;
+        }
+
+        // test without permission: verify SecurityException
+        long allowedNetworkTypes1 = TelephonyManager.NETWORK_TYPE_BITMASK_NR
+                | TelephonyManager.NETWORK_TYPE_BITMASK_UMTS;
+        long allowedNetworkTypes2 = TelephonyManager.NETWORK_TYPE_BITMASK_LTE
+                | TelephonyManager.NETWORK_TYPE_BITMASK_LTE_CA;
+        long allowedNetworkTypes3 = TelephonyManager.NETWORK_TYPE_BITMASK_NR
+                | TelephonyManager.NETWORK_TYPE_BITMASK_LTE
+                | TelephonyManager.NETWORK_TYPE_BITMASK_UMTS;
+
+        try {
+            mIsAllowedNetworkTypeChanged = true;
+            ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(
+                    mTelephonyManager,
+                    (tm) -> tm.setAllowedNetworkTypesForReason(
+                            TelephonyManager.ALLOWED_NETWORK_TYPES_REASON_POWER,
+                            allowedNetworkTypes1));
+
+            ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(
+                    mTelephonyManager,
+                    (tm) -> tm.setAllowedNetworkTypesForReason(
+                            TelephonyManager.ALLOWED_NETWORK_TYPES_REASON_USER,
+                            allowedNetworkTypes2));
+            ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(
+                    mTelephonyManager,
+                    (tm) -> tm.setAllowedNetworkTypesForReason(
+                            TelephonyManager.ALLOWED_NETWORK_TYPES_REASON_CARRIER,
+                            allowedNetworkTypes3));
+            long deviceAllowedNetworkTypes1 = ShellIdentityUtils.invokeMethodWithShellPermissions(
+                    mTelephonyManager, (tm) -> {
+                        return tm.getAllowedNetworkTypesForReason(
+                                TelephonyManager.ALLOWED_NETWORK_TYPES_REASON_POWER);
+                    }
+            );
+            long deviceAllowedNetworkTypes2 = ShellIdentityUtils.invokeMethodWithShellPermissions(
+                    mTelephonyManager, (tm) -> {
+                        return tm.getAllowedNetworkTypesForReason(
+                                TelephonyManager.ALLOWED_NETWORK_TYPES_REASON_USER);
+                    }
+            );
+            long deviceAllowedNetworkTypes3 = ShellIdentityUtils.invokeMethodWithShellPermissions(
+                    mTelephonyManager, (tm) -> {
+                        return tm.getAllowedNetworkTypesForReason(
+                                TelephonyManager.ALLOWED_NETWORK_TYPES_REASON_CARRIER);
+                    }
+            );
+            assertEquals(allowedNetworkTypes1, deviceAllowedNetworkTypes1);
+            assertEquals(allowedNetworkTypes2, deviceAllowedNetworkTypes2);
+            assertEquals(allowedNetworkTypes3, deviceAllowedNetworkTypes3);
+        } catch (SecurityException se) {
+            fail("testSetAllowedNetworkTypes: SecurityException not expected");
+        }
+    }
+
+    @Test
     public void testIsApplicationOnUicc() {
         if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
             return;
@@ -3973,10 +4105,10 @@ public class TelephonyManagerTest {
         }
     };
 
-    private static MockSignalStrengthsPhoneStateListener mMockSignalStrengthsPhoneStateListener;
+    private static MockSignalStrengthsTelephonyCallback mMockSignalStrengthsTelephonyCallback;
 
-    private class MockSignalStrengthsPhoneStateListener extends PhoneStateListener
-            implements PhoneStateListener.SignalStrengthsChangedListener {
+    private class MockSignalStrengthsTelephonyCallback extends TelephonyCallback
+            implements TelephonyCallback.SignalStrengthsListener {
         @Override
         public void onSignalStrengthsChanged(SignalStrength signalStrength) {
             if (!mOnSignalStrengthsChanged) {
@@ -3989,18 +4121,18 @@ public class TelephonyManagerTest {
     }
 
     @Test
-    public void testRegisterPhoneStateListenerWithNonLooper() throws Throwable {
+    public void testRegisterTelephonyCallbackWithNonLooper() throws Throwable {
         if (!InstrumentationRegistry.getContext().getPackageManager()
                 .hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
             Log.d(TAG, "Skipping test that requires PackageManager.FEATURE_TELEPHONY");
             return;
         }
 
-        mMockSignalStrengthsPhoneStateListener = new MockSignalStrengthsPhoneStateListener();
+        mMockSignalStrengthsTelephonyCallback = new MockSignalStrengthsTelephonyCallback();
 
         // Test register, generates an mOnSignalStrengthsChanged event
-        mTelephonyManager.registerPhoneStateListener(mSimpleExecutor,
-                mMockSignalStrengthsPhoneStateListener);
+        mTelephonyManager.registerTelephonyCallback(mSimpleExecutor,
+                mMockSignalStrengthsTelephonyCallback);
 
         synchronized (mLock) {
             if (!mOnSignalStrengthsChanged) {
@@ -4013,16 +4145,16 @@ public class TelephonyManagerTest {
         // Test unregister
         mOnSignalStrengthsChanged = false;
         // unregister again, to make sure doing so does not call the listener
-        mTelephonyManager.unregisterPhoneStateListener(mMockSignalStrengthsPhoneStateListener);
+        mTelephonyManager.unregisterTelephonyCallback(mMockSignalStrengthsTelephonyCallback);
 
         assertFalse("Test unregister, mOnSignalStrengthsChanged should be false.",
                 mOnSignalStrengthsChanged);
     }
 
-    private static MockPhoneStateListener mMockPhoneStateListener;
+    private static MockCellInfoListener mMockCellInfoListener;
 
-    private class MockPhoneStateListener extends PhoneStateListener
-            implements PhoneStateListener.CellInfoChangedListener {
+    private class MockCellInfoListener extends TelephonyCallback
+            implements TelephonyCallback.CellInfoListener {
         @Override
         public void onCellInfoChanged(@NonNull List<CellInfo> cellInfo) {
             if (!mOnCellInfoChanged) {
@@ -4035,7 +4167,7 @@ public class TelephonyManagerTest {
     }
 
     @Test
-    public void testRegisterPhoneStateListener() throws Throwable {
+    public void testRegisterTelephonyCallback() throws Throwable {
         if (!InstrumentationRegistry.getContext().getPackageManager()
                 .hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
             Log.d(TAG, "Skipping test that requires PackageManager.FEATURE_TELEPHONY");
@@ -4051,7 +4183,7 @@ public class TelephonyManagerTest {
         TestThread t = new TestThread(new Runnable() {
             public void run() {
                 Looper.prepare();
-                mMockPhoneStateListener = new MockPhoneStateListener();
+                mMockCellInfoListener = new MockCellInfoListener();
                 synchronized (mLock) {
                     mLock.notify(); // listener is ready
                 }
@@ -4067,9 +4199,8 @@ public class TelephonyManagerTest {
 
         // Test register
         synchronized (mLock) {
-            // .registerPhoneStateListener generates an onCellLocationChanged event
-            mTelephonyManager.registerPhoneStateListener(getContext().getMainExecutor(),
-                    mMockPhoneStateListener);
+            // .registerTelephonyCallback generates an onCellLocationChanged event
+            mTelephonyManager.registerTelephonyCallback(mSimpleExecutor, mMockCellInfoListener);
             mLock.wait(TOLERANCE);
 
             assertTrue("Test register, mOnCellLocationChangedCalled should be true.",
@@ -4088,14 +4219,14 @@ public class TelephonyManagerTest {
         }
 
         // unregister the listener
-        mTelephonyManager.unregisterPhoneStateListener(mMockPhoneStateListener);
+        mTelephonyManager.unregisterTelephonyCallback(mMockCellInfoListener);
         Thread.sleep(TOLERANCE);
 
         // Test unregister
         synchronized (mLock) {
             mOnCellInfoChanged = false;
             // unregister again, to make sure doing so does not call the listener
-            mTelephonyManager.unregisterPhoneStateListener(mMockPhoneStateListener);
+            mTelephonyManager.unregisterTelephonyCallback(mMockCellInfoListener);
             CellLocation.requestLocationUpdate();
             mLock.wait(TOLERANCE);
 

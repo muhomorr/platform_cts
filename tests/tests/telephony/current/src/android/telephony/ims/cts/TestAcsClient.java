@@ -17,6 +17,7 @@
 package android.telephony.ims.cts;
 
 import android.telephony.ims.RcsClientConfiguration;
+import android.telephony.ims.stub.ImsConfigImplBase;
 
 import java.util.concurrent.LinkedBlockingQueue;
 
@@ -24,10 +25,12 @@ public class TestAcsClient {
     public static int ACTION_SET_RCS_CLIENT_CONFIG = 1;
     public static int ACTION_TRIGGER_AUTO_CONFIG = 2;
     public static int ACTION_CONFIG_CHANGED = 3;
+    public static int ACTION_CONFIG_REMOVED = 4;
 
-    private LinkedBlockingQueue<Integer> mActionQueue;
+    private LinkedBlockingQueue<Integer> mActionQueue = new LinkedBlockingQueue<>();
     private RcsClientConfiguration mRcc;
     private byte[] mConfig;
+    private ImsConfigImplBase mImsConfigImpl;
 
     private static TestAcsClient sInstance;
 
@@ -41,27 +44,26 @@ public class TestAcsClient {
     }
 
     public void onSetRcsClientConfiguration(RcsClientConfiguration rcc) {
-        if (mActionQueue != null) {
-            mActionQueue.offer(ACTION_SET_RCS_CLIENT_CONFIG);
-        }
+        mActionQueue.offer(ACTION_SET_RCS_CLIENT_CONFIG);
         mRcc = rcc;
     }
 
     public void onTriggerAutoConfiguration() {
-        if (mActionQueue != null) {
-            mActionQueue.offer(ACTION_TRIGGER_AUTO_CONFIG);
-        }
+        mActionQueue.offer(ACTION_TRIGGER_AUTO_CONFIG);
     }
 
     public void onConfigChanged(byte[] config, boolean isCompressed) {
-        if (mActionQueue != null) {
-            mActionQueue.offer(ACTION_CONFIG_CHANGED);
-        }
+        mActionQueue.offer(ACTION_CONFIG_CHANGED);
         mConfig = isCompressed ? ImsUtils.decompressGzip(config) : config;
     }
 
-    public void setActionQueue(LinkedBlockingQueue<Integer> actionQueue) {
-        mActionQueue = actionQueue;
+    public void onConfigRemoved() {
+        mActionQueue.offer(ACTION_CONFIG_REMOVED);
+        mConfig = null;
+    }
+
+    public LinkedBlockingQueue<Integer> getActionQueue() {
+        return mActionQueue;
     }
 
     public RcsClientConfiguration getRcc() {
@@ -73,8 +75,16 @@ public class TestAcsClient {
     }
 
     public void reset() {
-        mActionQueue = null;
+        mActionQueue.clear();
         mRcc = null;
         mConfig = null;
+    }
+
+    public void setImsConfigImpl(ImsConfigImplBase impl) {
+        mImsConfigImpl = impl;
+    }
+
+    public void notifyPreProvisioning(byte[] conf) {
+        mImsConfigImpl.notifyPreProvisioningReceived(conf);
     }
 }

@@ -82,6 +82,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -314,7 +315,7 @@ public class RcsUceAdapterTest {
         ImsManager imsManager = getContext().getSystemService(ImsManager.class);
         RcsUceAdapter uceAdapter = imsManager.getImsRcsManager(sTestSub).getUceAdapter();
         assertNotNull("UCE adapter should not be null!", uceAdapter);
-        ArrayList<Uri> numbers = new ArrayList<>(1);
+        Collection<Uri> numbers = new ArrayList<>(1);
         numbers.add(sTestNumberUri);
 
         // isUceSettingEnabled - read
@@ -368,30 +369,137 @@ public class RcsUceAdapterTest {
             }
         }
 
-        // getUcePublishState
+        // Trigger carrier config changed
+        PersistableBundle bundle = new PersistableBundle();
+        bundle.putBoolean(CarrierConfigManager.Ims.KEY_ENABLE_PRESENCE_PUBLISH_BOOL, true);
+        overrideCarrierConfig(bundle);
+
+        // Connect to the TestImsService
+        connectTestImsService();
+
+        // getUcePublishState without permission
         try {
             uceAdapter.getUcePublishState();
-            fail("getUcePublishState should require READ_PRIVILEGED_PHONE_STATE.");
+            fail("getUcePublishState should require READ_PRIVILEGED_PHONE_STATE permission.");
         } catch (SecurityException e) {
             //expected
         }
 
-        // requestCapabilities
+        // getUcePublishState with permission
         try {
-            uceAdapter.requestCapabilities(numbers, Runnable::run,
-                    new RcsUceAdapter.CapabilitiesCallback() {
-                        @Override
-                        public void onCapabilitiesReceived(
-                                List<RcsContactUceCapability> capabilities) {}
-                        @Override
-                        public void onComplete() {}
-                        @Override
-                        public void onError(int errorCode, long retryAfterMilliseconds) {}
-                    });
-            fail("requestCapabilities should require READ_PRIVILEGED_PHONE_STATE.");
+            ShellIdentityUtils.invokeThrowableMethodWithShellPermissionsNoReturn(uceAdapter,
+                    (m) -> m.getUcePublishState(), ImsException.class,
+                    "android.permission.READ_PRIVILEGED_PHONE_STATE");
+        } catch (SecurityException e) {
+            fail("getUcePublishState should succeed with READ_PRIVILEGED_PHONE_STATE.");
+        } catch (ImsException e) {
+            // unsupported is a valid fail cause.
+            if (e.getCode() != ImsException.CODE_ERROR_UNSUPPORTED_OPERATION) {
+                fail("getUcePublishState failed with code " + e.getCode());
+            }
+        }
+
+        final RcsUceAdapter.OnPublishStateChangedListener publishStateListener = (state) -> { };
+
+        // addOnPublishStateChangedListener without permission
+        try {
+            uceAdapter.addOnPublishStateChangedListener(Runnable::run, publishStateListener);
+            fail("addOnPublishStateChangedListener should require "
+                    + "READ_PRIVILEGED_PHONE_STATE");
+        } catch (SecurityException e) {
+            // expected
+        }
+
+        // addOnPublishStateChangedListener with permission.
+        try {
+            ShellIdentityUtils.invokeThrowableMethodWithShellPermissionsNoReturn(uceAdapter,
+                    (m) -> m.addOnPublishStateChangedListener(Runnable::run, publishStateListener),
+                    ImsException.class,
+                    "android.permission.READ_PRIVILEGED_PHONE_STATE");
+        } catch (SecurityException e) {
+            fail("addOnPublishStateChangedListener should succeed with "
+                    + "READ_PRIVILEGED_PHONE_STATE.");
+        } catch (ImsException e) {
+            // unsupported is a valid fail cause.
+            if (e.getCode() != ImsException.CODE_ERROR_UNSUPPORTED_OPERATION) {
+                fail("addOnPublishStateChangedListener failed with code " + e.getCode());
+            }
+        }
+
+        // removeOnPublishStateChangedListener without permission
+        try {
+            uceAdapter.removeOnPublishStateChangedListener(publishStateListener);
+            fail("removeOnPublishStateChangedListener should require "
+                    + "READ_PRIVILEGED_PHONE_STATE");
+        } catch (SecurityException e) {
+            // expected
+        }
+
+        // Prepare the callback of the capability request
+        RcsUceAdapter.CapabilitiesCallback callback = new RcsUceAdapter.CapabilitiesCallback() {
+            @Override
+            public void onCapabilitiesReceived(List<RcsContactUceCapability> capabilities) {
+            }
+            @Override
+            public void onComplete() {
+            }
+            @Override
+            public void onError(int errorCode, long retryAfterMilliseconds) {
+            }
+        };
+
+        // requestCapabilities without permission
+        try {
+            uceAdapter.requestCapabilities(numbers, Runnable::run , callback);
+            fail("requestCapabilities should require ACCESS_RCS_USER_CAPABILITY_EXCHANGE.");
         } catch (SecurityException e) {
             //expected
         }
+
+        // requestAvailability without permission
+        try {
+            uceAdapter.requestAvailability(sTestNumberUri, Runnable::run, callback);
+            fail("requestAvailability should require ACCESS_RCS_USER_CAPABILITY_EXCHANGE.");
+        } catch (SecurityException e) {
+            //expected
+        }
+
+        // Lunch an activity to stay in the foreground.
+        lunchUceActivity();
+
+        // requestCapabilities in the foreground
+        try {
+            ShellIdentityUtils.invokeThrowableMethodWithShellPermissionsNoReturn(uceAdapter,
+                    (m) -> m.requestCapabilities(numbers, Runnable::run, callback),
+                    ImsException.class,
+                    "android.permission.ACCESS_RCS_USER_CAPABILITY_EXCHANGE");
+        } catch (SecurityException e) {
+            fail("requestCapabilities should succeed with ACCESS_RCS_USER_CAPABILITY_EXCHANGE.");
+        } catch (ImsException e) {
+            // unsupported is a valid fail cause.
+            if (e.getCode() != ImsException.CODE_ERROR_UNSUPPORTED_OPERATION) {
+                fail("requestCapabilities failed with code " + e.getCode());
+            }
+        }
+
+        // requestAvailability in the foreground
+        try {
+            ShellIdentityUtils.invokeThrowableMethodWithShellPermissionsNoReturn(uceAdapter,
+                    (m) -> m.requestAvailability(sTestNumberUri, Runnable::run, callback),
+                    ImsException.class,
+                    "android.permission.ACCESS_RCS_USER_CAPABILITY_EXCHANGE");
+        } catch (SecurityException e) {
+            fail("requestAvailability should succeed with ACCESS_RCS_USER_CAPABILITY_EXCHANGE.");
+        } catch (ImsException e) {
+            // unsupported is a valid fail cause.
+            if (e.getCode() != ImsException.CODE_ERROR_UNSUPPORTED_OPERATION) {
+                fail("requestAvailability failed with code " + e.getCode());
+            }
+        }
+
+        // Finish the activity
+        finishUceActivity();
+        overrideCarrierConfig(null);
     }
 
     @Test
@@ -404,7 +512,7 @@ public class RcsUceAdapterTest {
         assertNotNull("UCE adapter should not be null!", uceAdapter);
 
         // Prepare the test contact and the callback
-        ArrayList<Uri> numbers = new ArrayList<>(1);
+        Collection<Uri> numbers = new ArrayList<>(1);
         numbers.add(sTestNumberUri);
 
         ArrayList<String> pidfXmlList = new ArrayList<>(1);
@@ -431,7 +539,7 @@ public class RcsUceAdapterTest {
         // The API requestCapabilities should fail when it doesn't grant the permission.
         try {
             uceAdapter.requestCapabilities(numbers, Runnable::run, callback);
-            fail("requestCapabilities requires READ_PRIVILEGED_PHONE_STATE permission.");
+            fail("requestCapabilities requires ACCESS_RCS_USER_CAPABILITY_EXCHANGE permission.");
         } catch (SecurityException e) {
             //expected
         }
@@ -439,7 +547,7 @@ public class RcsUceAdapterTest {
         // The API requestAvailability should fail when it doesn't grant the permission.
         try {
             uceAdapter.requestAvailability(sTestNumberUri, Runnable::run, callback);
-            fail("requestAvailability requires READ_PRIVILEGED_PHONE_STATE permission.");
+            fail("requestAvailability requires ACCESS_RCS_USER_CAPABILITY_EXCHANGE permission.");
         } catch (SecurityException e) {
             //expected
         }
@@ -452,21 +560,13 @@ public class RcsUceAdapterTest {
         // Connect to the TestImsService
         connectTestImsService();
 
+        // Stay in the foreground.
+        lunchUceActivity();
+
         TestRcsCapabilityExchangeImpl capabilityExchangeImpl = sServiceConnector
                 .getCarrierService().getRcsFeature().getRcsCapabilityExchangeImpl();
 
-        // The API requestCapabilities is available to be called without exceptions.
-        try {
-            ShellIdentityUtils.invokeThrowableMethodWithShellPermissionsNoReturn(
-                    uceAdapter,
-                    adapter -> adapter.requestCapabilities(numbers, Runnable::run, callback),
-                    ImsException.class,
-                    "android.permission.READ_PRIVILEGED_PHONE_STATE");
-        } catch (SecurityException e) {
-            fail("requestCapabilities should succeed with READ_PRIVILEGED_PHONE_STATE.");
-        } catch (ImsException e) {
-            fail("requestCapabilities failed " + e);
-        }
+        requestCapabilities(uceAdapter, numbers, callback);
 
         // Verify that the callback "onError" is called with the error code NOT_ENABLED because
         // the carrier config KEY_ENABLE_PRESENCE_CAPABILITY_EXCHANGE_BOOL is still false.
@@ -480,19 +580,7 @@ public class RcsUceAdapterTest {
             errorQueue.clear();
         }
 
-        // The API requestAvailability is available to be called without exceptions.
-        try {
-            ShellIdentityUtils.invokeThrowableMethodWithShellPermissionsNoReturn(
-                    uceAdapter,
-                    adapter -> adapter.requestAvailability(
-                            sTestNumberUri, Runnable::run, callback),
-                    ImsException.class,
-                    "android.permission.READ_PRIVILEGED_PHONE_STATE");
-        } catch (SecurityException e) {
-            fail("requestAvailability should succeed with READ_PRIVILEGED_PHONE_STATE.");
-        } catch (ImsException e) {
-            fail("requestAvailability failed " + e);
-        }
+        requestAvailability(uceAdapter, sTestNumberUri, callback);
 
         // Verify that the callback "onError" is called with the error code NOT_ENABLED because
         // the carrier config KEY_ENABLE_PRESENCE_CAPABILITY_EXCHANGE_BOOL is still false.
@@ -520,19 +608,7 @@ public class RcsUceAdapterTest {
             cb.onTerminated("", 0L);
         });
 
-        // Call the API requestCapabilities and it should work as expected after the
-        // KEY_ENABLE_PRESENCE_CAPABILITY_EXCHANGE_BOOL is updated to true.
-        try {
-            ShellIdentityUtils.invokeThrowableMethodWithShellPermissionsNoReturn(
-                    uceAdapter,
-                    adapter -> adapter.requestCapabilities(numbers, Runnable::run, callback),
-                    ImsException.class,
-                    "android.permission.READ_PRIVILEGED_PHONE_STATE");
-        } catch (SecurityException e) {
-            fail("requestCapabilities should succeed with READ_PRIVILEGED_PHONE_STATE.");
-        } catch (ImsException e) {
-            fail("requestCapabilities failed " + e);
-        }
+        requestCapabilities(uceAdapter, numbers, callback);
 
         // Verify that the contact capability is received and the onCompleted is called.
         RcsContactUceCapability capability = waitForResult(capabilityQueue);
@@ -544,25 +620,14 @@ public class RcsUceAdapterTest {
         capabilityQueue.clear();
         removeTestContactFromEab();
 
-        // Call the API requestAvailability and it should work as expected after the
-        // KEY_ENABLE_PRESENCE_CAPABILITY_EXCHANGE_BOOL is updated to true.
-        try {
-            ShellIdentityUtils.invokeThrowableMethodWithShellPermissionsNoReturn(
-                    uceAdapter,
-                    a -> a.requestAvailability(sTestNumberUri, Runnable::run, callback),
-                    ImsException.class,
-                    "android.permission.READ_PRIVILEGED_PHONE_STATE");
-        } catch (SecurityException e) {
-            fail("requestAvailability should succeed with READ_PRIVILEGED_PHONE_STATE");
-        } catch (ImsException e) {
-            fail("requestAvailability failed " + e);
-        }
+        requestAvailability(uceAdapter, sTestNumberUri, callback);
 
         // Verify that the contact capability is received and the onCompleted is called.
         capability = waitForResult(capabilityQueue);
         verifyCapabilityResult(capability, sTestNumberUri, REQUEST_RESULT_FOUND, true, true);
         waitForResult(completeQueue);
 
+        finishUceActivity();
         overrideCarrierConfig(null);
     }
 
@@ -578,7 +643,10 @@ public class RcsUceAdapterTest {
         // Connect to the TestImsService
         setupTestImsService(uceAdapter, true, true, false);
 
-        List<Uri> contacts = Collections.singletonList(sTestNumberUri);
+        // Stay in the foreground
+        lunchUceActivity();
+
+        Collection<Uri> contacts = Collections.singletonList(sTestNumberUri);
 
         TestRcsCapabilityExchangeImpl capabilityExchangeImpl = sServiceConnector
                 .getCarrierService().getRcsFeature().getRcsCapabilityExchangeImpl();
@@ -621,18 +689,7 @@ public class RcsUceAdapterTest {
                 cb.onCommandError(cmdError);
             });
 
-            // Call the exposed API "requestCapabilities" to retrieve the contact's capabilities.
-            try {
-                ShellIdentityUtils.invokeThrowableMethodWithShellPermissionsNoReturn(
-                        uceAdapter,
-                        adapter -> adapter.requestCapabilities(contacts, Runnable::run, callback),
-                        ImsException.class,
-                        "android.permission.READ_PRIVILEGED_PHONE_STATE");
-            } catch (SecurityException e) {
-                fail("requestCapabilities should succeed with READ_PRIVILEGED_PHONE_STATE.");
-            } catch (ImsException e) {
-                fail("requestCapabilities failed " + e);
-            }
+            requestCapabilities(uceAdapter, contacts, callback);
 
             // Verify that the callback "onError" is called with the expected error code.
             try {
@@ -645,18 +702,7 @@ public class RcsUceAdapterTest {
                 retryAfterQueue.clear();
             }
 
-            // Call another exposed API "requestAvailability" to retrieve the capabilities.
-            try {
-                ShellIdentityUtils.invokeThrowableMethodWithShellPermissionsNoReturn(
-                        uceAdapter,
-                        adapter -> adapter.requestAvailability(sTestNumberUri,
-                                Runnable::run, callback), ImsException.class,
-                                "android.permission.READ_PRIVILEGED_PHONE_STATE");
-            } catch (SecurityException e) {
-                fail("requestAvailability should succeed with READ_PRIVILEGED_PHONE_STATE");
-            } catch (ImsException e) {
-                fail("requestAvailability failed " + e);
-            }
+            requestAvailability(uceAdapter, sTestNumberUri, callback);
 
             // Verify that the callback "onError" is called with the expected error code.
             try {
@@ -670,6 +716,7 @@ public class RcsUceAdapterTest {
             }
         });
 
+        finishUceActivity();
         overrideCarrierConfig(null);
     }
 
@@ -685,7 +732,7 @@ public class RcsUceAdapterTest {
         // Connect to the ImsService
         setupTestImsService(uceAdapter, true, true /* presence cap */, false /* options */);
 
-        ArrayList<Uri> numbers = new ArrayList<>(1);
+        Collection<Uri> numbers = new ArrayList<>(1);
         numbers.add(sTestNumberUri);
 
         BlockingQueue<Integer> errorQueue = new LinkedBlockingQueue<>();
@@ -769,6 +816,9 @@ public class RcsUceAdapterTest {
             }
         }, RcsUceAdapter.ERROR_SERVER_UNAVAILABLE);
 
+        // Stay in the foreground.
+        lunchUceActivity();
+
         TestRcsCapabilityExchangeImpl capabilityExchangeImpl = sServiceConnector
                 .getCarrierService().getRcsFeature().getRcsCapabilityExchangeImpl();
 
@@ -778,19 +828,7 @@ public class RcsUceAdapterTest {
                 cb.onNetworkResponse(networkResp.getKey(), networkResp.getValue());
             });
 
-            // Request capabilities by calling the API requestCapabilities
-            try {
-                ShellIdentityUtils.invokeThrowableMethodWithShellPermissionsNoReturn(
-                        uceAdapter,
-                        adapter -> adapter.requestCapabilities(numbers, Runnable::run, callback),
-                        ImsException.class,
-                        "android.permission.READ_PRIVILEGED_PHONE_STATE");
-            } catch (SecurityException e) {
-                fail("requestCapabilities should succeed with READ_PRIVILEGED_PHONE_STATE.");
-            } catch (ImsException e) {
-                fail("requestCapabilities failed " + e);
-            }
-
+            requestCapabilities(uceAdapter, numbers, callback);
             // Verify that the callback "onError" is called with the expected error code.
             try {
                 assertEquals(expectedCallbackResult.intValue(), waitForIntResult(errorQueue));
@@ -802,18 +840,7 @@ public class RcsUceAdapterTest {
                 retryAfterQueue.clear();
             }
 
-            // Request capabilities by calling the API requestAvailability
-            try {
-                ShellIdentityUtils.invokeThrowableMethodWithShellPermissionsNoReturn(
-                        uceAdapter,
-                        a -> a.requestAvailability(sTestNumberUri, Runnable::run, callback),
-                        ImsException.class,
-                        "android.permission.READ_PRIVILEGED_PHONE_STATE");
-            } catch (SecurityException e) {
-                fail("requestAvailability should succeed with READ_PRIVILEGED_PHONE_STATE");
-            } catch (ImsException e) {
-                fail("requestAvailability failed " + e);
-            }
+            requestAvailability(uceAdapter, sTestNumberUri, callback);
 
             // Verify that the callback "onError" is called with the expected error code.
             try {
@@ -836,18 +863,7 @@ public class RcsUceAdapterTest {
                         networkResp.getKey(), networkResp.getValue());
             });
 
-            // Request capabilities by calling the API requestCapabilities
-            try {
-                ShellIdentityUtils.invokeThrowableMethodWithShellPermissionsNoReturn(
-                        uceAdapter,
-                        adapter -> adapter.requestCapabilities(numbers, Runnable::run, callback),
-                        ImsException.class,
-                        "android.permission.READ_PRIVILEGED_PHONE_STATE");
-            } catch (SecurityException e) {
-                fail("requestCapabilities should succeed with READ_PRIVILEGED_PHONE_STATE.");
-            } catch (ImsException e) {
-                fail("requestCapabilities failed " + e);
-            }
+            requestCapabilities(uceAdapter, numbers, callback);
 
             // Verify that the callback "onError" is called with the expected error code.
             try {
@@ -860,18 +876,7 @@ public class RcsUceAdapterTest {
                 retryAfterQueue.clear();
             }
 
-            // Request capabilities by calling the API requestAvailability
-            try {
-                ShellIdentityUtils.invokeThrowableMethodWithShellPermissionsNoReturn(
-                        uceAdapter,
-                        a -> a.requestAvailability(sTestNumberUri, Runnable::run, callback),
-                        ImsException.class,
-                        "android.permission.READ_PRIVILEGED_PHONE_STATE");
-            } catch (SecurityException e) {
-                fail("requestAvailability should succeed with READ_PRIVILEGED_PHONE_STATE");
-            } catch (ImsException e) {
-                fail("requestAvailability failed " + e);
-            }
+            requestAvailability(uceAdapter, sTestNumberUri, callback);
 
             // Verify that the callback "onError" is called with the expected error code.
             try {
@@ -892,18 +897,7 @@ public class RcsUceAdapterTest {
             cb.onNetworkResponse(networkResp, networkRespReason);
         });
 
-        // Request the capabilities by calling the API requestAvailability
-        try {
-            ShellIdentityUtils.invokeThrowableMethodWithShellPermissionsNoReturn(
-                    uceAdapter,
-                    a -> a.requestAvailability(sTestNumberUri, Runnable::run, callback),
-                    ImsException.class,
-                    "android.permission.READ_PRIVILEGED_PHONE_STATE");
-        } catch (SecurityException e) {
-            fail("requestAvailability should succeed with READ_PRIVILEGED_PHONE_STATE");
-        } catch (ImsException e) {
-            fail("requestAvailability failed " + e);
-        }
+        requestAvailability(uceAdapter, sTestNumberUri, callback);
 
         // Verify that the callback "onError" is called with the error code FORBIDDEN
         try {
@@ -916,18 +910,7 @@ public class RcsUceAdapterTest {
             retryAfterQueue.clear();
         }
 
-        // Request the capabilities again after the ImsService return the 403 error.
-        try {
-            ShellIdentityUtils.invokeThrowableMethodWithShellPermissionsNoReturn(
-                    uceAdapter,
-                    adapter -> adapter.requestCapabilities(numbers, Runnable::run, callback),
-                    ImsException.class,
-                    "android.permission.READ_PRIVILEGED_PHONE_STATE");
-        } catch (SecurityException e) {
-            fail("requestCapabilities should succeed with READ_PRIVILEGED_PHONE_STATE");
-        } catch (ImsException e) {
-            fail("requestCapabilities failed " + e);
-        }
+        requestCapabilities(uceAdapter, numbers, callback);
 
         // Verify that the capabilities request is sill failed because the ImsService has returned
         // the 403 error before.
@@ -941,6 +924,7 @@ public class RcsUceAdapterTest {
             retryAfterQueue.clear();
         }
 
+        finishUceActivity();
         overrideCarrierConfig(null);
     }
 
@@ -962,7 +946,7 @@ public class RcsUceAdapterTest {
         TestRcsCapabilityExchangeImpl capabilityExchangeImpl = sServiceConnector
                 .getCarrierService().getRcsFeature().getRcsCapabilityExchangeImpl();
 
-        ArrayList<Uri> numbers = new ArrayList<>(1);
+        Collection<Uri> numbers = new ArrayList<>(1);
         numbers.add(sTestNumberUri);
 
         BlockingQueue<Long> errorQueue = new LinkedBlockingQueue<>();
@@ -989,7 +973,7 @@ public class RcsUceAdapterTest {
         final Uri contact2 = sTestContact2Uri;
         final Uri contact3 = sTestContact3Uri;
 
-        ArrayList<Uri> contacts = new ArrayList<>(3);
+        Collection<Uri> contacts = new ArrayList<>(3);
         contacts.add(contact1);
         contacts.add(contact2);
         contacts.add(contact3);
@@ -1008,18 +992,10 @@ public class RcsUceAdapterTest {
             cb.onTerminated("", 0L);
         });
 
-        // Request capabilities by calling the API requestCapabilities.
-        try {
-            ShellIdentityUtils.invokeThrowableMethodWithShellPermissionsNoReturn(
-                    uceAdapter,
-                    adapter -> adapter.requestCapabilities(contacts, Runnable::run, callback),
-                    ImsException.class,
-                    "android.permission.READ_PRIVILEGED_PHONE_STATE");
-        } catch (SecurityException e) {
-            fail("requestCapabilities should succeed with READ_PRIVILEGED_PHONE_STATE.");
-        } catch (ImsException e) {
-            fail("requestCapabilities failed " + e);
-        }
+        // Stay in the foreground.
+        lunchUceActivity();
+
+        requestCapabilities(uceAdapter, contacts, callback);
 
         // Verify that all the three contact's capabilities are received
         RcsContactUceCapability capability = waitForResult(capabilityQueue);
@@ -1041,32 +1017,22 @@ public class RcsUceAdapterTest {
 
         // Setup the callback that some of the contacts are terminated.
         capabilityExchangeImpl.setSubscribeOperation((uris, cb) -> {
+            List<Uri> uriList = new ArrayList(uris);
             cb.onNetworkResponse(networkRespCode, networkRespReason);
             // Notify capabilities updated for the first contact
             String pidfXml = pidfXmlList.get(0);
             cb.onNotifyCapabilitiesUpdate(Collections.singletonList(pidfXml));
 
             List<Pair<Uri, String>> terminatedResources = new ArrayList<>();
-            for (int i = 1; i < uris.size(); i++) {
-                Pair<Uri, String> pair = Pair.create(uris.get(i), "noresource");
+            for (int i = 1; i < uriList.size(); i++) {
+                Pair<Uri, String> pair = Pair.create(uriList.get(i), "noresource");
                 terminatedResources.add(pair);
             }
             cb.onResourceTerminated(terminatedResources);
             cb.onTerminated("", 0L);
         });
 
-        // Request capabilities by again calling the API requestCapabilities
-        try {
-            ShellIdentityUtils.invokeThrowableMethodWithShellPermissionsNoReturn(
-                    uceAdapter,
-                    adapter -> adapter.requestCapabilities(contacts, Runnable::run, callback),
-                    ImsException.class,
-                    "android.permission.READ_PRIVILEGED_PHONE_STATE");
-        } catch (SecurityException e) {
-            fail("requestCapabilities should succeed with READ_PRIVILEGED_PHONE_STATE.");
-        } catch (ImsException e) {
-            fail("requestCapabilities failed " + e);
-        }
+        requestCapabilities(uceAdapter, contacts, callback);
 
         // Verify the first contact is found.
         capability = waitForResult(capabilityQueue);
@@ -1082,6 +1048,7 @@ public class RcsUceAdapterTest {
         // Verify the onCompleted is called
         waitForResult(completeQueue);
 
+        finishUceActivity();
         overrideCarrierConfig(null);
     }
 
@@ -1104,7 +1071,7 @@ public class RcsUceAdapterTest {
                 .getCarrierService().getRcsFeature().getRcsCapabilityExchangeImpl();
 
         // The test contact
-        ArrayList<Uri> contacts = new ArrayList<>(3);
+        Collection<Uri> contacts = new ArrayList<>(3);
         contacts.add(sTestNumberUri);
 
         // The result callback
@@ -1145,9 +1112,9 @@ public class RcsUceAdapterTest {
                     uceAdapter,
                     adapter -> adapter.requestCapabilities(contacts, Runnable::run, callback),
                     ImsException.class,
-                    "android.permission.READ_PRIVILEGED_PHONE_STATE");
+                    "android.permission.ACCESS_RCS_USER_CAPABILITY_EXCHANGE");
         } catch (SecurityException e) {
-            fail("requestCapabilities should succeed with READ_PRIVILEGED_PHONE_STATE.");
+            fail("requestCapabilities should succeed with ACCESS_RCS_USER_CAPABILITY_EXCHANGE.");
         } catch (ImsException e) {
             fail("requestCapabilities failed " + e);
         }
@@ -1182,9 +1149,9 @@ public class RcsUceAdapterTest {
                     adapter -> adapter.requestAvailability(sTestContact2Uri,
                             Runnable::run, callback),
                     ImsException.class,
-                    "android.permission.READ_PRIVILEGED_PHONE_STATE");
+                    "android.permission.ACCESS_RCS_USER_CAPABILITY_EXCHANGE");
         } catch (SecurityException e) {
-            fail("requestCapabilities should succeed with READ_PRIVILEGED_PHONE_STATE.");
+            fail("requestCapabilities should succeed with ACCESS_RCS_USER_CAPABILITY_EXCHANGE.");
         } catch (ImsException e) {
             fail("requestCapabilities failed " + e);
         }
@@ -1225,9 +1192,9 @@ public class RcsUceAdapterTest {
                     uceAdapter,
                     adapter -> adapter.requestCapabilities(contacts, Runnable::run, callback),
                     ImsException.class,
-                    "android.permission.READ_PRIVILEGED_PHONE_STATE");
+                    "android.permission.ACCESS_RCS_USER_CAPABILITY_EXCHANGE");
         } catch (SecurityException e) {
-            fail("requestCapabilities should succeed with READ_PRIVILEGED_PHONE_STATE.");
+            fail("requestCapabilities should succeed with ACCESS_RCS_USER_CAPABILITY_EXCHANGE.");
         } catch (ImsException e) {
             fail("requestCapabilities failed " + e);
         }
@@ -1375,17 +1342,6 @@ public class RcsUceAdapterTest {
                 presenceCapExchangeEnabled);
         bundle.putBoolean(CarrierConfigManager.KEY_USE_RCS_SIP_OPTIONS_BOOL, sipOptionsEnabled);
         overrideCarrierConfig(bundle);
-
-        // Enable the UCE setting.
-        try {
-            ShellIdentityUtils.invokeThrowableMethodWithShellPermissionsNoReturn(
-                    uceAdapter, adapter -> adapter.setUceSettingEnabled(true), ImsException.class,
-                    "android.permission.MODIFY_PHONE_STATE");
-        } catch (SecurityException e) {
-            fail("setUceSettingEnabled should succeed with MODIFY_PHONE_STATE.");
-        } catch (ImsException e) {
-            fail("setUceSettingEnabled failed with code " + e);
-        }
 
         // Connect to the TestImsService
         connectTestImsService();
@@ -1558,5 +1514,57 @@ public class RcsUceAdapterTest {
         } catch (Exception e) {
             Log.w("RcsUceAdapterTest", "Cannot remove test contacts from eab database: " + e);
         }
+    }
+
+    private void requestCapabilities(RcsUceAdapter uceAdapter, Collection<Uri> numbers,
+            RcsUceAdapter.CapabilitiesCallback callback) {
+        try {
+            ShellIdentityUtils.invokeThrowableMethodWithShellPermissionsNoReturn(
+                    uceAdapter,
+                    adapter -> adapter.requestCapabilities(numbers, Runnable::run, callback),
+                    ImsException.class,
+                    "android.permission.ACCESS_RCS_USER_CAPABILITY_EXCHANGE");
+        } catch (SecurityException e) {
+            fail("requestCapabilities should succeed with ACCESS_RCS_USER_CAPABILITY_EXCHANGE. "
+                    + "Exception: " + e);
+        } catch (ImsException e) {
+            fail("requestCapabilities failed " + e);
+        }
+    }
+
+    private void requestAvailability(RcsUceAdapter uceAdapter, Uri number,
+            RcsUceAdapter.CapabilitiesCallback callback) {
+        try {
+            ShellIdentityUtils.invokeThrowableMethodWithShellPermissionsNoReturn(
+                    uceAdapter,
+                    adapter -> adapter.requestAvailability(number, Runnable::run, callback),
+                    ImsException.class,
+                    "android.permission.ACCESS_RCS_USER_CAPABILITY_EXCHANGE");
+        } catch (SecurityException e) {
+            fail("requestAvailability should succeed with ACCESS_RCS_USER_CAPABILITY_EXCHANGE. "
+                    + "Exception: " + e);
+        } catch (ImsException e) {
+            fail("requestAvailability failed " + e);
+        }
+    }
+
+    private void lunchUceActivity() throws Exception {
+        final CountDownLatch countdownLatch = new CountDownLatch(1);
+        final Intent activityIntent = new Intent(getContext(), UceActivity.class);
+        activityIntent.setAction(Intent.ACTION_MAIN);
+        activityIntent.addCategory(Intent.CATEGORY_LAUNCHER);
+        activityIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        UceActivity.setCountDownLatch(countdownLatch);
+        getContext().startActivity(activityIntent);
+        countdownLatch.await(5000, TimeUnit.MILLISECONDS);
+    }
+
+    private void finishUceActivity() {
+        final Intent finishIntent = new Intent(getContext(), UceActivity.class);
+        finishIntent.setAction(UceActivity.ACTION_FINISH);
+        finishIntent.addCategory(Intent.CATEGORY_LAUNCHER);
+        finishIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        finishIntent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        getContext().startActivity(finishIntent);
     }
 }

@@ -273,9 +273,11 @@ public class CodecEncoderSurfaceTest {
                             return;
                         }
                     } else {
-                        if (retry > 10) throw new InterruptedException(
-                                "did not receive output format changed for encoder");
-                        Thread.sleep(timeOutUs / 1000);
+                        if (retry > CodecTestBase.RETRY_LIMIT) throw new InterruptedException(
+                                "did not receive output format changed for encoder after " +
+                                        CodecTestBase.Q_DEQ_TIMEOUT_US * CodecTestBase.RETRY_LIMIT +
+                                        " us");
+                        Thread.sleep(CodecTestBase.Q_DEQ_TIMEOUT_US / 1000);
                         retry ++;
                     }
                 }
@@ -324,8 +326,19 @@ public class CodecEncoderSurfaceTest {
                     }
                 }
             }
-        } else if (!mSawDecInputEOS) {
-            enqueueDecoderEOS(mDecoder.dequeueInputBuffer(-1));
+        } else {
+            MediaCodec.BufferInfo outInfo = new MediaCodec.BufferInfo();
+            while (!mSawDecInputEOS) {
+                int outputBufferId =
+                        mDecoder.dequeueOutputBuffer(outInfo, CodecTestBase.Q_DEQ_TIMEOUT_US);
+                if (outputBufferId >= 0) {
+                    dequeueDecoderOutput(outputBufferId, outInfo);
+                }
+                int inputBufferId = mDecoder.dequeueInputBuffer(CodecTestBase.Q_DEQ_TIMEOUT_US);
+                if (inputBufferId != -1) {
+                    enqueueDecoderEOS(inputBufferId);
+                }
+            }
         }
         if (mIsCodecInAsyncMode) {
             while (!hasSeenError() && !mSawDecOutputEOS) {
