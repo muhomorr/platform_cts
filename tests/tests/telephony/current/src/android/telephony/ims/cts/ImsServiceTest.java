@@ -129,16 +129,50 @@ public class ImsServiceTest {
             + "\t\t</Ext>\n"
             + "\t</SERVICES>\n"
             + "</RCSConfig>";
+    private static final String TEST_RCS_PRE_CONFIG = "<RCSPreProvisiniongConfig>\n"
+            + "\t<VERS>\n"
+            + "\t\t<version>1</version>\n"
+            + "\t\t<validity>1728000</validity>\n"
+            + "\t</VERS>\n"
+            + "\t<TOKEN>\n"
+            + "\t\t<token>X</token>\n"
+            + "\t</TOKEN>\n"
+            + "\t<EXT>\n"
+            + "\t\t<url>https://rcs.mnc123.mcc456.pub.3gppnetwork.org</url>\n"
+            + "\t</EXT>\n"
+            + "</RCSPreProvisiniongConfig>";
     private static final int RCS_CONFIG_CB_UNKNOWN = Integer.MAX_VALUE;
     private static final int RCS_CONFIG_CB_CHANGED = 0;
     private static final int RCS_CONFIG_CB_ERROR   = 1;
     private static final int RCS_CONFIG_CB_RESET   = 2;
     private static final int RCS_CONFIG_CB_DELETE  = 3;
+    private static final int RCS_CONFIG_CB_PREPROV = 4;
+
+    private static final String CHAT_FEATURE_TAG =
+            "+g.3gpp.icsi-ref=\"urn%3Aurn-7%3A3gpp-service.ims.icsi.oma.cpm.session\"";
+    public static final String FILE_TRANSFER_FEATURE_TAG =
+            "+g.3gpp.iari-ref=\"urn%3Aurn-7%3A3gpp-application.ims.iari.rcs.fthttp\"";
+    private static final String CHAT_SERVICE_ID =
+            "org.openmobilealliance:ChatSession";
+    private static final String FILE_TRANSFER_SERVICE_ID =
+            "org.openmobilealliance:File-Transfer-HTTP";
 
     private static CarrierConfigReceiver sReceiver;
+    private static SingleRegistrationCapabilityReceiver sSrcReceiver;
 
-    private static class CarrierConfigReceiver extends BroadcastReceiver {
-        private CountDownLatch mLatch = new CountDownLatch(1);
+    private abstract static class BaseReceiver extends BroadcastReceiver {
+        protected CountDownLatch mLatch = new CountDownLatch(1);
+
+        void clearQueue() {
+            mLatch = new CountDownLatch(1);
+        }
+
+        void waitForChanged() throws Exception {
+            mLatch.await(5000, TimeUnit.MILLISECONDS);
+        }
+    }
+
+    private static class CarrierConfigReceiver extends BaseReceiver {
         private final int mSubId;
 
         CarrierConfigReceiver(int subId) {
@@ -154,13 +188,24 @@ public class ImsServiceTest {
                 }
             }
         }
+    }
 
-        void clearQueue() {
-            mLatch = new CountDownLatch(1);
+    private static class SingleRegistrationCapabilityReceiver extends BaseReceiver {
+        private int mCapability;
+
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if (ProvisioningManager.ACTION_RCS_SINGLE_REGISTRATION_CAPABILITY_UPDATE
+                    .equals(intent.getAction())) {
+                mCapability = intent.getIntExtra(ProvisioningManager.EXTRA_STATUS,
+                        ProvisioningManager.STATUS_DEVICE_NOT_CAPABLE
+                        | ProvisioningManager.STATUS_CARRIER_NOT_CAPABLE);
+                mLatch.countDown();
+            }
         }
 
-        void waitForCarrierConfigChanged() throws Exception {
-            mLatch.await(5000, TimeUnit.MILLISECONDS);
+        int getCapability() {
+            return mCapability;
         }
     }
 
@@ -198,6 +243,11 @@ public class ImsServiceTest {
         // ACTION_CARRIER_CONFIG_CHANGED is sticky, so we will get a callback right away.
         InstrumentationRegistry.getInstrumentation().getContext()
                 .registerReceiver(sReceiver, filter);
+
+        sSrcReceiver = new SingleRegistrationCapabilityReceiver();
+        InstrumentationRegistry.getInstrumentation().getContext()
+                .registerReceiver(sSrcReceiver, new IntentFilter(
+                        ProvisioningManager.ACTION_RCS_SINGLE_REGISTRATION_CAPABILITY_UPDATE));
     }
 
     @AfterClass
@@ -220,10 +270,16 @@ public class ImsServiceTest {
             InstrumentationRegistry.getInstrumentation().getContext().unregisterReceiver(sReceiver);
             sReceiver = null;
         }
+
+        if (sSrcReceiver != null) {
+            InstrumentationRegistry.getInstrumentation()
+                    .getContext().unregisterReceiver(sSrcReceiver);
+            sSrcReceiver = null;
+        }
     }
 
     @Before
-    public void beforeTest() {
+    public void beforeTest() throws Exception {
         if (!ImsUtils.shouldTestImsService()) {
             return;
         }
@@ -248,6 +304,7 @@ public class ImsServiceTest {
         }
 
         TestAcsClient.getInstance().reset();
+        sServiceConnector.setSingleRegistrationTestModeEnabled(true);
     }
 
     @After
@@ -257,6 +314,7 @@ public class ImsServiceTest {
         }
         // Unbind the GTS ImsService after the test completes.
         if (sServiceConnector != null) {
+            sServiceConnector.setSingleRegistrationTestModeEnabled(false);
             sServiceConnector.disconnectCarrierImsService();
             sServiceConnector.disconnectDeviceImsService();
         }
@@ -1145,6 +1203,106 @@ public class ImsServiceTest {
     }
 
     @Test
+    public void testPublishImsReg() throws Exception {
+        if (!ImsUtils.shouldTestImsService()) {
+            return;
+        }
+        // Trigger carrier config changed
+        PersistableBundle bundle = new PersistableBundle();
+        bundle.putBoolean(CarrierConfigManager.KEY_CARRIER_VOLTE_PROVISIONED_BOOL, false);
+        bundle.putBoolean(CarrierConfigManager.Ims.KEY_ENABLE_PRESENCE_PUBLISH_BOOL, true);
+        overrideCarrierConfig(bundle);
+
+        ImsManager imsManager = getContext().getSystemService(ImsManager.class);
+        if (imsManager == null) {
+            fail("Cannot find IMS service");
+        }
+
+        ImsRcsManager imsRcsManager = imsManager.getImsRcsManager(sTestSub);
+        RcsUceAdapter uceAdapter = imsRcsManager.getUceAdapter();
+
+        // Connect to device ImsService with MmTel feature and RCS feature
+        triggerFrameworkConnectToImsServiceBindMmTelAndRcsFeature();
+
+        TestRcsCapabilityExchangeImpl capExchangeImpl = sServiceConnector.getCarrierService()
+                .getRcsFeature().getRcsCapabilityExchangeImpl();
+
+        // Register the callback to listen to the publish state changed
+        LinkedBlockingQueue<Integer> publishStateQueue = new LinkedBlockingQueue<>();
+        RcsUceAdapter.OnPublishStateChangedListener publishStateCallback =
+                publishStateQueue::offer;
+
+        final UiAutomation automan = InstrumentationRegistry.getInstrumentation().getUiAutomation();
+        try {
+            automan.adoptShellPermissionIdentity();
+            uceAdapter.addOnPublishStateChangedListener(getContext().getMainExecutor(),
+                    publishStateCallback);
+        } finally {
+            automan.dropShellPermissionIdentity();
+        }
+
+        // Verify receiving the publish state callback immediately after registering the callback.
+        assertEquals(RcsUceAdapter.PUBLISH_STATE_NOT_PUBLISHED,
+                waitForIntResult(publishStateQueue));
+        publishStateQueue.clear();
+
+        LinkedBlockingQueue<String> pidfQueue = new LinkedBlockingQueue<>();
+        // Setup the operation of the publish request.
+        capExchangeImpl.setPublishOperator((listener, pidfXml, cb) -> {
+            pidfQueue.offer(pidfXml);
+            int networkResp = 200;
+            String reason = "";
+            listener.onPublish();
+            cb.onNetworkResponse(networkResp, reason);
+        });
+
+        // IMS registers
+        ArraySet<String> featureTags = new ArraySet<>();
+        // Chat Session
+        featureTags.add(CHAT_FEATURE_TAG);
+        featureTags.add(FILE_TRANSFER_FEATURE_TAG);
+        ImsRegistrationAttributes attr = new ImsRegistrationAttributes.Builder(
+                ImsRegistrationImplBase.REGISTRATION_TECH_LTE).setFeatureTags(featureTags).build();
+        sServiceConnector.getCarrierService().getImsRegistration().onRegistered(attr);
+
+        // Notify framework that the RCS capability status is changed and PRESENCE UCE is enabled.
+        RcsImsCapabilities capabilities =
+                new RcsImsCapabilities(RcsUceAdapter.CAPABILITY_TYPE_PRESENCE_UCE);
+        sServiceConnector.getCarrierService().getRcsFeature()
+                .notifyCapabilitiesStatusChanged(capabilities);
+
+        CapabilityExchangeEventListener eventListener =
+                sServiceConnector.getCarrierService().getRcsFeature().getEventListener();
+
+        // ImsService triggers to notify framework publish device's capabilities.
+        eventListener.onRequestPublishCapabilities(
+                RcsUceAdapter.CAPABILITY_UPDATE_TRIGGER_MOVE_TO_WLAN);
+
+        // Verify that the publish is triggered and receive the publish state changed callback.
+        assertTrue(sServiceConnector.getCarrierService().waitForLatchCountdown(
+                TestImsService.LATCH_UCE_REQUEST_PUBLISH));
+        assertEquals(RcsUceAdapter.PUBLISH_STATE_OK, waitForIntResult(publishStateQueue));
+        publishStateQueue.clear();
+
+        // Can not verify the pidf fully, but we can ensure that the service id for the feature is
+        // contained in the XML.
+        String pidf = waitForResult(pidfQueue);
+        assertTrue("PIDF XML doesn't contain chat service-id", pidf.contains(CHAT_SERVICE_ID));
+        assertTrue("PIDF XML doesn't contain FT service-id",
+                        pidf.contains(FILE_TRANSFER_SERVICE_ID));
+
+        // Trigger RcsFeature is unavailable
+        sServiceConnector.getCarrierService().getRcsFeature()
+                .setFeatureState(ImsFeature.STATE_UNAVAILABLE);
+
+        // Verify the RcsCapabilityExchangeImplBase will be removed.
+        assertTrue(sServiceConnector.getCarrierService().waitForLatchCountdown(
+                TestImsService.LATCH_UCE_LISTENER_SET));
+
+        overrideCarrierConfig(null);
+    }
+
+    @Test
     public void testRcsCapabilitiesPublishNetworkResponseWithReasonHeader() throws Exception {
         if (!ImsUtils.shouldTestImsService()) {
             return;
@@ -1256,6 +1414,129 @@ public class ImsServiceTest {
                 ImsException.class,
                 "android.permission.READ_PRIVILEGED_PHONE_STATE");
         assertEquals(RcsUceAdapter.PUBLISH_STATE_OTHER_ERROR, publishState);
+
+        overrideCarrierConfig(null);
+    }
+
+    @Test
+    public void testRcsPublishThrottle() throws Exception {
+        if (!ImsUtils.shouldTestImsService()) {
+            return;
+        }
+
+        // Trigger carrier config change
+        PersistableBundle bundle = new PersistableBundle();
+        bundle.putBoolean(CarrierConfigManager.KEY_CARRIER_VOLTE_PROVISIONED_BOOL, false);
+        bundle.putBoolean(CarrierConfigManager.Ims.KEY_ENABLE_PRESENCE_PUBLISH_BOOL, true);
+        overrideCarrierConfig(bundle);
+
+        ImsManager imsManager = getContext().getSystemService(ImsManager.class);
+        if (imsManager == null) {
+            fail("Cannot get the ImsManager");
+        }
+        ImsRcsManager imsRcsManager = imsManager.getImsRcsManager(sTestSub);
+        RcsUceAdapter uceAdapter = imsRcsManager.getUceAdapter();
+
+        // Connect to the ImsService
+        triggerFrameworkConnectToImsServiceBindMmTelAndRcsFeature();
+
+        TestRcsCapabilityExchangeImpl capExchangeImpl = sServiceConnector.getCarrierService()
+                .getRcsFeature().getRcsCapabilityExchangeImpl();
+
+        // Setup the response of the publish request.
+        capExchangeImpl.setPublishOperator((listener, pidfXml, cb) -> {
+            int networkResp = 200;
+            String reason = "OK";
+            listener.onPublish();
+            cb.onNetworkResponse(networkResp, reason);
+        });
+
+        // Register the callback to listen to the publish state changed
+        LinkedBlockingQueue<Integer> publishStateQueue = new LinkedBlockingQueue<>();
+        RcsUceAdapter.OnPublishStateChangedListener publishStateCallback =
+                new RcsUceAdapter.OnPublishStateChangedListener() {
+                    public void onPublishStateChange(int state) {
+                        publishStateQueue.offer(state);
+                    }
+                };
+
+        final UiAutomation automation = InstrumentationRegistry.getInstrumentation()
+                .getUiAutomation();
+        try {
+            automation.adoptShellPermissionIdentity();
+            uceAdapter.addOnPublishStateChangedListener(getContext().getMainExecutor(),
+                    publishStateCallback);
+        } finally {
+            automation.dropShellPermissionIdentity();
+        }
+
+        // Verify receiving the publish state callback immediately after registering the callback.
+        assertEquals(RcsUceAdapter.PUBLISH_STATE_NOT_PUBLISHED,
+                waitForIntResult(publishStateQueue));
+        publishStateQueue.clear();
+
+        // IMS registers
+        sServiceConnector.getCarrierService().getImsRegistration().onRegistered(
+                ImsRegistrationImplBase.REGISTRATION_TECH_LTE);
+
+        // Verify the PUBLISH request should not be triggered and the publish state is still
+        // NOT_PUBLISHED even the IMS is registered.
+        if (publishStateQueue.poll() != null) {
+            fail("The PUBLISH request should not be triggered.");
+        }
+        try {
+            automation.adoptShellPermissionIdentity();
+            int publishState = uceAdapter.getUcePublishState();
+            assertEquals(RcsUceAdapter.PUBLISH_STATE_NOT_PUBLISHED, publishState);
+        } finally {
+            automation.dropShellPermissionIdentity();
+        }
+
+        // Notify framework that the RCS capability status is changed and PRESENCE UCE is enabled.
+        RcsImsCapabilities capabilities =
+                new RcsImsCapabilities(RcsUceAdapter.CAPABILITY_TYPE_PRESENCE_UCE);
+        sServiceConnector.getCarrierService().getRcsFeature()
+                .notifyCapabilitiesStatusChanged(capabilities);
+
+        CapabilityExchangeEventListener eventListener =
+                sServiceConnector.getCarrierService().getRcsFeature().getEventListener();
+
+        // Notify framework to send the PUBLISH request to the ImsService.
+        eventListener.onRequestPublishCapabilities(
+                RcsUceAdapter.CAPABILITY_UPDATE_TRIGGER_MOVE_TO_WLAN);
+
+        // Verify that ImsService received the first PUBLISH
+        assertTrue(sServiceConnector.getCarrierService().waitForLatchCountdown(
+                TestImsService.LATCH_UCE_REQUEST_PUBLISH));
+        assertEquals(RcsUceAdapter.PUBLISH_STATE_OK, waitForIntResult(publishStateQueue));
+        publishStateQueue.clear();
+        try {
+            automation.adoptShellPermissionIdentity();
+            int publishState = uceAdapter.getUcePublishState();
+            assertEquals(RcsUceAdapter.PUBLISH_STATE_OK, publishState);
+        } finally {
+            automation.dropShellPermissionIdentity();
+        }
+
+        // Now enable voice availability
+        sServiceConnector.getCarrierService().getMmTelFeature()
+                .notifyCapabilitiesStatusChanged(new MmTelFeature.MmTelCapabilities(
+                        MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VOICE));
+
+        // The published just succeeded. The next publish should not be triggered immediately even
+        // the device capabilities has changed. Wait 3 seconds to verify the ImsService does not
+        // receive the publish request from the framework.
+        assertFalse(sServiceConnector.getCarrierService().waitForLatchCountdown(
+                TestImsService.LATCH_UCE_REQUEST_PUBLISH, 3000 /* 3 seconds */));
+
+        // However, if the request is triggered from the service, a new publish request should be
+        // sent immediately.
+        eventListener.onRequestPublishCapabilities(
+                RcsUceAdapter.CAPABILITY_UPDATE_TRIGGER_MOVE_TO_WLAN);
+
+        // Verify the ImsService receive the publish request
+        assertTrue(sServiceConnector.getCarrierService().waitForLatchCountdown(
+                TestImsService.LATCH_UCE_REQUEST_PUBLISH, 3000 /* Wait up to 3 seconds */));
 
         overrideCarrierConfig(null);
     }
@@ -2320,28 +2601,39 @@ public class ImsServiceTest {
                 ProvisioningManager.createForSubscriptionId(sTestSub);
         ImsConfigImplBase config = sServiceConnector.getCarrierService().getConfig();
 
+        //notify rcs configuration received, wait rcs gets ready and receives notification
         try {
             automan.adoptShellPermissionIdentity();
-            provisioningManager.registerRcsProvisioningChangedCallback(
+            provisioningManager.notifyRcsAutoConfigurationReceived(
+                    TEST_RCS_CONFIG.getBytes(), false);
+        } finally {
+            automan.dropShellPermissionIdentity();
+        }
+
+        int res = waitForIntResult(TestAcsClient.getInstance().getActionQueue());
+        assertEquals(res, TestAcsClient.ACTION_CONFIG_CHANGED);
+
+        try {
+            automan.adoptShellPermissionIdentity();
+            provisioningManager.registerRcsProvisioningCallback(
                     getContext().getMainExecutor(), cb);
         } finally {
             automan.dropShellPermissionIdentity();
         }
 
-        actionQueue.clear();
-        paramsQueue.clear();
-
-        //callback when rcs configuration received, uncompressed
-        config.getIImsConfig().notifyRcsAutoConfigurationReceived(
-                TEST_RCS_CONFIG.getBytes(), false);
-
-        int res = waitForIntResult(actionQueue);
+        //callback is expected immediately
+        res = waitForIntResult(actionQueue);
         assertEquals(res, RCS_CONFIG_CB_CHANGED);
         RcsProvisioningCallbackParams params = waitForResult(paramsQueue);
         assertNotNull(params);
         assertTrue(Arrays.equals(params.mConfig, TEST_RCS_CONFIG.getBytes()));
 
-        //verify when rcs configuration received, conpressed
+        //verify callback when rcs configuration removed
+        config.getIImsConfig().notifyRcsAutoConfigurationRemoved();
+        res = waitForIntResult(actionQueue);
+        assertEquals(res, RCS_CONFIG_CB_RESET);
+
+        //verify callback when rcs configuration received, compressed
         config.getIImsConfig().notifyRcsAutoConfigurationReceived(
                 ImsUtils.compressGzip(TEST_RCS_CONFIG.getBytes()), true);
 
@@ -2351,12 +2643,7 @@ public class ImsServiceTest {
         assertNotNull(params);
         assertTrue(Arrays.equals(params.mConfig, TEST_RCS_CONFIG.getBytes()));
 
-        //callback when rcs configuration removed
-        config.getIImsConfig().notifyRcsAutoConfigurationRemoved();
-        res = waitForIntResult(actionQueue);
-        assertEquals(res, RCS_CONFIG_CB_RESET);
-
-        //callback when auto config error received
+        //verify callback when auto config error received
         config.notifyAutoConfigurationErrorReceived(errorCode, errorString);
         res = waitForIntResult(actionQueue);
         assertEquals(res, RCS_CONFIG_CB_ERROR);
@@ -2365,15 +2652,24 @@ public class ImsServiceTest {
         assertTrue(params.mErrorCode != null && params.mErrorCode == errorCode);
         assertTrue(errorString.equals(params.mErrorString));
 
-        //callback when config removed
+        //verify callback when config removed
         config.getIImsConfig().notifyRcsAutoConfigurationRemoved();
         res = waitForIntResult(actionQueue);
         assertEquals(res, RCS_CONFIG_CB_RESET);
 
+        //verify callback when rcs pre-provisioning configuration received
+        TestAcsClient.getInstance().notifyPreProvisioning(TEST_RCS_PRE_CONFIG.getBytes());
+
+        res = waitForIntResult(actionQueue);
+        assertEquals(res, RCS_CONFIG_CB_PREPROV);
+        params = waitForResult(paramsQueue);
+        assertNotNull(params);
+        assertTrue(Arrays.equals(params.mConfig, TEST_RCS_PRE_CONFIG.getBytes()));
+
         //unregister callback and verify not to receive callback any more
         try {
             automan.adoptShellPermissionIdentity();
-            provisioningManager.unregisterRcsProvisioningChangedCallback(cb);
+            provisioningManager.unregisterRcsProvisioningCallback(cb);
         } finally {
             automan.dropShellPermissionIdentity();
         }
@@ -2401,36 +2697,41 @@ public class ImsServiceTest {
                 buildRcsProvisioningCallback(clientQueue, paramsQueue);
         ProvisioningManager provisioningManager =
                 ProvisioningManager.createForSubscriptionId(sTestSub);
-        LinkedBlockingQueue<Integer> acsQueue = new LinkedBlockingQueue<>();
-        TestAcsClient.getInstance().setActionQueue(acsQueue);
+        String configStr = "<test01/>\n" + TEST_RCS_CONFIG;
 
+        //notify rcs configuration received, wait rcs gets ready and receives notification
         try {
             automan.adoptShellPermissionIdentity();
-            provisioningManager.registerRcsProvisioningChangedCallback(
-                    getContext().getMainExecutor(), cb);
-            clientQueue.clear();
-            paramsQueue.clear();
             provisioningManager.notifyRcsAutoConfigurationReceived(
-                    TEST_RCS_CONFIG.getBytes(), false);
+                    configStr.getBytes(), false);
         } finally {
             automan.dropShellPermissionIdentity();
         }
 
-        int res = waitForIntResult(clientQueue);
-        assertEquals(res, RCS_CONFIG_CB_CHANGED);
-        RcsProvisioningCallbackParams params = waitForResult(paramsQueue);
-        assertNotNull(params);
-        assertTrue(Arrays.equals(params.mConfig, TEST_RCS_CONFIG.getBytes()));
-
-        res = waitForIntResult(acsQueue);
+        int res = waitForIntResult(TestAcsClient.getInstance().getActionQueue());
         assertEquals(res, TestAcsClient.ACTION_CONFIG_CHANGED);
-        assertTrue(Arrays.equals(
-                TEST_RCS_CONFIG.getBytes(), TestAcsClient.getInstance().getConfig()));
 
         try {
             automan.adoptShellPermissionIdentity();
+            provisioningManager.registerRcsProvisioningCallback(
+                    getContext().getMainExecutor(), cb);
+        } finally {
+            automan.dropShellPermissionIdentity();
+        }
+
+        res = waitForIntResult(clientQueue);
+        assertEquals(res, RCS_CONFIG_CB_CHANGED);
+        RcsProvisioningCallbackParams params = waitForResult(paramsQueue);
+        assertNotNull(params);
+        assertTrue(Arrays.equals(params.mConfig, configStr.getBytes()));
+        assertTrue(Arrays.equals(
+                configStr.getBytes(), TestAcsClient.getInstance().getConfig()));
+
+        configStr = "<test02/>\n" + TEST_RCS_CONFIG;
+        try {
+            automan.adoptShellPermissionIdentity();
             provisioningManager.notifyRcsAutoConfigurationReceived(
-                    ImsUtils.compressGzip(TEST_RCS_CONFIG.getBytes()), true);
+                    ImsUtils.compressGzip(configStr.getBytes()), true);
         } finally {
             automan.dropShellPermissionIdentity();
         }
@@ -2439,12 +2740,12 @@ public class ImsServiceTest {
         assertEquals(res, RCS_CONFIG_CB_CHANGED);
         params = waitForResult(paramsQueue);
         assertNotNull(params);
-        assertTrue(Arrays.equals(params.mConfig, TEST_RCS_CONFIG.getBytes()));
+        assertTrue(Arrays.equals(params.mConfig, configStr.getBytes()));
 
-        res = waitForIntResult(acsQueue);
+        res = waitForIntResult(TestAcsClient.getInstance().getActionQueue());
         assertEquals(res, TestAcsClient.ACTION_CONFIG_CHANGED);
         assertTrue(Arrays.equals(
-                TEST_RCS_CONFIG.getBytes(), TestAcsClient.getInstance().getConfig()));
+                configStr.getBytes(), TestAcsClient.getInstance().getConfig()));
     }
 
     @Test
@@ -2459,27 +2760,49 @@ public class ImsServiceTest {
         LinkedBlockingQueue<Integer> clientQueue = new LinkedBlockingQueue<>();
         ProvisioningManager.RcsProvisioningCallback cb =
                 buildRcsProvisioningCallback(clientQueue, null);
-        LinkedBlockingQueue<Integer> acsQueue = new LinkedBlockingQueue<>();
-        TestAcsClient.getInstance().setActionQueue(acsQueue);
 
         ProvisioningManager provisioningManager =
                 ProvisioningManager.createForSubscriptionId(sTestSub);
 
+        //notify rcs configuration received, wait rcs gets ready and receives notification
         try {
             automan.adoptShellPermissionIdentity();
-            provisioningManager.registerRcsProvisioningChangedCallback(
-                    getContext().getMainExecutor(), cb);
+            provisioningManager.notifyRcsAutoConfigurationReceived(
+                    TEST_RCS_CONFIG.getBytes(), false);
+        } finally {
+            automan.dropShellPermissionIdentity();
+        }
 
-            clientQueue.clear();
+        int res = waitForIntResult(TestAcsClient.getInstance().getActionQueue());
+        assertEquals(res, TestAcsClient.ACTION_CONFIG_CHANGED);
+
+        //set default rcs config
+        try {
+            automan.adoptShellPermissionIdentity();
+            provisioningManager.registerRcsProvisioningCallback(
+                    getContext().getMainExecutor(), cb);
+        } finally {
+            automan.dropShellPermissionIdentity();
+        }
+
+        res = waitForIntResult(clientQueue);
+        assertEquals(res, RCS_CONFIG_CB_CHANGED);
+
+        //test triggerRcsReconfiguration
+        try {
+            automan.adoptShellPermissionIdentity();
             provisioningManager.triggerRcsReconfiguration();
         } finally {
             automan.dropShellPermissionIdentity();
         }
 
-        int res = waitForIntResult(clientQueue);
+        res = waitForIntResult(clientQueue);
         assertEquals(res, RCS_CONFIG_CB_RESET);
 
-        res = waitForIntResult(acsQueue);
+        res = waitForIntResult(TestAcsClient.getInstance().getActionQueue());
+        assertEquals(res, TestAcsClient.ACTION_CONFIG_REMOVED);
+
+        res = waitForIntResult(TestAcsClient.getInstance().getActionQueue());
         assertEquals(res, TestAcsClient.ACTION_TRIGGER_AUTO_CONFIG);
     }
 
@@ -2493,11 +2816,20 @@ public class ImsServiceTest {
         triggerFrameworkConnectToLocalImsServiceBindRcsFeature();
 
         final UiAutomation automan = InstrumentationRegistry.getInstrumentation().getUiAutomation();
-        LinkedBlockingQueue<Integer> actionQueue = new LinkedBlockingQueue<>();
-        TestAcsClient.getInstance().setActionQueue(actionQueue);
-
         ProvisioningManager provisioningManager =
                 ProvisioningManager.createForSubscriptionId(sTestSub);
+
+        //notify rcs configuration received, wait rcs gets ready and receives notification
+        try {
+            automan.adoptShellPermissionIdentity();
+            provisioningManager.notifyRcsAutoConfigurationReceived(
+                    TEST_RCS_CONFIG.getBytes(), false);
+        } finally {
+            automan.dropShellPermissionIdentity();
+        }
+
+        int res = waitForIntResult(TestAcsClient.getInstance().getActionQueue());
+        assertEquals(res, TestAcsClient.ACTION_CONFIG_CHANGED);
 
         try {
             automan.adoptShellPermissionIdentity();
@@ -2506,32 +2838,59 @@ public class ImsServiceTest {
             automan.dropShellPermissionIdentity();
         }
 
-        int res = waitForIntResult(actionQueue);
+        res = waitForIntResult(TestAcsClient.getInstance().getActionQueue());
         assertEquals(res, TestAcsClient.ACTION_SET_RCS_CLIENT_CONFIG);
         assertEquals(rcc, TestAcsClient.getInstance().getRcc());
     }
 
     @Test
     public void testProvisioningManagerRcsVolteSingleRegistrationCapable() throws Exception {
+        if (!ImsUtils.shouldTestImsService()) {
+            return;
+        }
+        triggerFrameworkConnectToLocalImsServiceBindRcsFeature();
+
+        final UiAutomation automan = InstrumentationRegistry.getInstrumentation().getUiAutomation();
         boolean isSingleRegistrationEnabledOnDevice =
                 sServiceConnector.getDeviceSingleRegistrationEnabled();
+        boolean isSingleRegistrationEnabledByCarrier =
+                sServiceConnector.getCarrierSingleRegistrationEnabled();
+
+        sSrcReceiver.waitForChanged();
+        int capability = sSrcReceiver.getCapability();
+
+        assertEquals(isSingleRegistrationEnabledOnDevice,
+                (ProvisioningManager.STATUS_DEVICE_NOT_CAPABLE & capability) == 0);
+        assertEquals(isSingleRegistrationEnabledByCarrier,
+                (ProvisioningManager.STATUS_CARRIER_NOT_CAPABLE & capability) == 0);
+
         ProvisioningManager provisioningManager =
                 ProvisioningManager.createForSubscriptionId(sTestSub);
         PersistableBundle bundle = new PersistableBundle();
         bundle.putBoolean(
                 CarrierConfigManager.Ims.KEY_IMS_SINGLE_REGISTRATION_REQUIRED_BOOL, false);
+        sSrcReceiver.clearQueue();
         overrideCarrierConfig(bundle);
-        final UiAutomation automan = InstrumentationRegistry.getInstrumentation().getUiAutomation();
+        sSrcReceiver.waitForChanged();
+        capability = sSrcReceiver.getCapability();
+
+        assertEquals(false, (ProvisioningManager.STATUS_CARRIER_NOT_CAPABLE & capability) == 0);
         try {
             automan.adoptShellPermissionIdentity();
-            assertFalse(provisioningManager.isRcsVolteSingleRegistrationCapable());
+            assertEquals(provisioningManager.isRcsVolteSingleRegistrationCapable(),
+                    (ProvisioningManager.STATUS_CARRIER_NOT_CAPABLE & capability) == 0);
         } finally {
             automan.dropShellPermissionIdentity();
         }
 
         bundle = new PersistableBundle();
         bundle.putBoolean(CarrierConfigManager.Ims.KEY_IMS_SINGLE_REGISTRATION_REQUIRED_BOOL, true);
+        sSrcReceiver.clearQueue();
         overrideCarrierConfig(bundle);
+        sSrcReceiver.waitForChanged();
+        capability = sSrcReceiver.getCapability();
+
+        assertEquals(true, (ProvisioningManager.STATUS_CARRIER_NOT_CAPABLE & capability) == 0);
         try {
             automan.adoptShellPermissionIdentity();
             assertEquals(provisioningManager.isRcsVolteSingleRegistrationCapable(),
@@ -2540,7 +2899,13 @@ public class ImsServiceTest {
             automan.dropShellPermissionIdentity();
         }
 
+        sSrcReceiver.clearQueue();
         sServiceConnector.setDeviceSingleRegistrationEnabled(!isSingleRegistrationEnabledOnDevice);
+        sSrcReceiver.waitForChanged();
+        capability = sSrcReceiver.getCapability();
+
+        assertEquals(!isSingleRegistrationEnabledOnDevice,
+                (ProvisioningManager.STATUS_DEVICE_NOT_CAPABLE & capability) == 0);
         try {
             automan.adoptShellPermissionIdentity();
             assertEquals(provisioningManager.isRcsVolteSingleRegistrationCapable(),
@@ -2548,6 +2913,9 @@ public class ImsServiceTest {
         } finally {
             automan.dropShellPermissionIdentity();
         }
+
+        sServiceConnector.setDeviceSingleRegistrationEnabled(null);
+        overrideCarrierConfig(null);
     }
 
     private void verifyIntKey(ProvisioningManager pm,
@@ -2708,6 +3076,16 @@ public class ImsServiceTest {
             public void onRemoved() {
                 actionQueue.offer(RCS_CONFIG_CB_DELETE);
             }
+
+            @Override
+            public void onPreProvisioningReceived(byte[] configXml) {
+                actionQueue.offer(RCS_CONFIG_CB_PREPROV);
+                if (paramQueue != null) {
+                    RcsProvisioningCallbackParams params = new RcsProvisioningCallbackParams();
+                    params.mConfig = configXml;
+                    paramQueue.offer(params);
+                }
+            }
         };
     }
     // Waiting for ImsRcsManager to become public before implementing RegistrationManager,
@@ -2785,7 +3163,7 @@ public class ImsServiceTest {
         sReceiver.clearQueue();
         ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(carrierConfigManager,
                 (m) -> m.overrideConfig(sTestSub, bundle));
-        sReceiver.waitForCarrierConfigChanged();
+        sReceiver.waitForChanged();
     }
 
     private static Context getContext() {

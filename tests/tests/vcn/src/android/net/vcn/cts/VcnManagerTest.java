@@ -22,12 +22,17 @@ import static android.net.ipsec.ike.SaProposal.DH_GROUP_2048_BIT_MODP;
 import static android.net.ipsec.ike.SaProposal.ENCRYPTION_ALGORITHM_AES_GCM_12;
 import static android.net.ipsec.ike.SaProposal.PSEUDORANDOM_FUNCTION_AES128_XCBC;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assume.assumeTrue;
 
+import android.annotation.NonNull;
+import android.annotation.Nullable;
 import android.content.Context;
 import android.net.ConnectivityManager;
+import android.net.LinkProperties;
+import android.net.NetworkCapabilities;
 import android.net.ipsec.ike.ChildSaProposal;
 import android.net.ipsec.ike.IkeFqdnIdentification;
 import android.net.ipsec.ike.IkeSaProposal;
@@ -52,11 +57,17 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 
 @RunWith(AndroidJUnit4.class)
 public class VcnManagerTest {
     private static final String TAG = VcnManagerTest.class.getSimpleName();
+
+    private static final int TIMEOUT_MS = 500;
+
+    private static final Executor INLINE_EXECUTOR = Runnable::run;
 
     private final Context mContext;
     private final VcnManager mVcnManager;
@@ -173,5 +184,149 @@ public class VcnManagerTest {
                 mVcnManager.clearVcnConfig(subGrp);
             });
         });
+    }
+
+    /** Test implementation of VcnNetworkPolicyChangeListener for verification purposes. */
+    private static class TestVcnNetworkPolicyChangeListener
+            implements VcnManager.VcnNetworkPolicyChangeListener {
+        private final CompletableFuture<Void> mFutureOnPolicyChanged = new CompletableFuture<>();
+
+        @Override
+        public void onPolicyChanged() {
+            mFutureOnPolicyChanged.complete(null /* unused */);
+        }
+
+        public void awaitOnPolicyChanged() throws Exception {
+            mFutureOnPolicyChanged.get(TIMEOUT_MS, TimeUnit.MILLISECONDS);
+        }
+    }
+
+    @Test(expected = SecurityException.class)
+    public void testAddVcnNetworkPolicyChangeListener_noNetworkFactoryPermission()
+            throws Exception {
+        final TestVcnNetworkPolicyChangeListener listener =
+                new TestVcnNetworkPolicyChangeListener();
+
+        try {
+            mVcnManager.addVcnNetworkPolicyChangeListener(INLINE_EXECUTOR, listener);
+        } finally {
+            mVcnManager.removeVcnNetworkPolicyChangeListener(listener);
+        }
+    }
+
+    @Test
+    public void testRemoveVcnNetworkPolicyChangeListener_noNetworkFactoryPermission() {
+        final TestVcnNetworkPolicyChangeListener listener =
+                new TestVcnNetworkPolicyChangeListener();
+
+        mVcnManager.removeVcnNetworkPolicyChangeListener(listener);
+    }
+
+    @Test(expected = SecurityException.class)
+    public void testApplyVcnNetworkPolicy_noNetworkFactoryPermission() throws Exception {
+        final NetworkCapabilities nc = new NetworkCapabilities.Builder().build();
+        final LinkProperties lp = new LinkProperties();
+
+        mVcnManager.applyVcnNetworkPolicy(nc, lp);
+    }
+
+    /** Test implementation of VcnStatusCallback for verification purposes. */
+    private static class TestVcnStatusCallback extends VcnManager.VcnStatusCallback {
+        private final CompletableFuture<Integer> mFutureOnVcnStatusChanged =
+                new CompletableFuture<>();
+        private final CompletableFuture<GatewayConnectionError> mFutureOnGatewayConnectionError =
+                new CompletableFuture<>();
+
+        @Override
+        public void onVcnStatusChanged(int statusCode) {
+            mFutureOnVcnStatusChanged.complete(statusCode);
+        }
+
+        @Override
+        public void onGatewayConnectionError(
+                @NonNull int[] networkCapabilities, int errorCode, @Nullable Throwable detail) {
+            mFutureOnGatewayConnectionError.complete(
+                    new GatewayConnectionError(networkCapabilities, errorCode, detail));
+        }
+
+        public int awaitOnVcnStatusChanged() throws Exception {
+            return mFutureOnVcnStatusChanged.get(TIMEOUT_MS, TimeUnit.MILLISECONDS);
+        }
+
+        public GatewayConnectionError awaitOnGatewayConnectionError() throws Exception {
+            return mFutureOnGatewayConnectionError.get(TIMEOUT_MS, TimeUnit.MILLISECONDS);
+        }
+    }
+
+    /** Info class for organizing VcnStatusCallback#onGatewayConnectionError response data. */
+    private static class GatewayConnectionError {
+        @NonNull public final int[] networkCapabilities;
+        public final int errorCode;
+        @Nullable public final Throwable detail;
+
+        public GatewayConnectionError(
+                @NonNull int[] networkCapabilities, int errorCode, @Nullable Throwable detail) {
+            this.networkCapabilities = networkCapabilities.clone();
+            this.errorCode = errorCode;
+            this.detail = detail;
+        }
+    }
+
+    private void registerVcnStatusCallbackForSubId(
+            @NonNull TestVcnStatusCallback callback, int subId) throws Exception {
+        CarrierPrivilegeUtils.withCarrierPrivileges(mContext, subId, () -> {
+            SubscriptionGroupUtils.withEphemeralSubscriptionGroup(mContext, subId, (subGrp) -> {
+                mVcnManager.registerVcnStatusCallback(subGrp, INLINE_EXECUTOR, callback);
+            });
+        });
+    }
+
+    @Test
+    public void testRegisterVcnStatusCallback() throws Exception {
+        final TestVcnStatusCallback callback = new TestVcnStatusCallback();
+        final int subId = SubscriptionManager.getDefaultSubscriptionId();
+
+        try {
+            registerVcnStatusCallbackForSubId(callback, subId);
+
+            final int statusCode = callback.awaitOnVcnStatusChanged();
+            assertEquals(VcnManager.VCN_STATUS_CODE_NOT_CONFIGURED, statusCode);
+        } finally {
+            mVcnManager.unregisterVcnStatusCallback(callback);
+        }
+    }
+
+    @Test
+    public void testRegisterVcnStatusCallback_reuseUnregisteredCallback() throws Exception {
+        final TestVcnStatusCallback callback = new TestVcnStatusCallback();
+        final int subId = SubscriptionManager.getDefaultSubscriptionId();
+
+        try {
+            registerVcnStatusCallbackForSubId(callback, subId);
+            mVcnManager.unregisterVcnStatusCallback(callback);
+            registerVcnStatusCallbackForSubId(callback, subId);
+        } finally {
+            mVcnManager.unregisterVcnStatusCallback(callback);
+        }
+    }
+
+    @Test(expected = IllegalStateException.class)
+    public void testRegisterVcnStatusCallback_duplicateRegister() throws Exception {
+        final TestVcnStatusCallback callback = new TestVcnStatusCallback();
+        final int subId = SubscriptionManager.getDefaultSubscriptionId();
+
+        try {
+            registerVcnStatusCallbackForSubId(callback, subId);
+            registerVcnStatusCallbackForSubId(callback, subId);
+        } finally {
+            mVcnManager.unregisterVcnStatusCallback(callback);
+        }
+    }
+
+    @Test
+    public void testUnregisterVcnStatusCallback() throws Exception {
+        final TestVcnStatusCallback callback = new TestVcnStatusCallback();
+
+        mVcnManager.unregisterVcnStatusCallback(callback);
     }
 }
