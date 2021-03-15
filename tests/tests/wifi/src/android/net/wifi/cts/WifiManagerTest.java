@@ -66,6 +66,7 @@ import android.os.Process;
 import android.os.SystemClock;
 import android.os.UserHandle;
 import android.platform.test.annotations.AppModeFull;
+import android.platform.test.annotations.SecurityTest;
 import android.provider.Settings;
 import android.support.test.uiautomator.UiDevice;
 import android.telephony.TelephonyManager;
@@ -1933,6 +1934,7 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
      * Tests {@link WifiManager#forget(int, WifiManager.ActionListener)} by adding/removing a new
      * network.
      */
+    @SecurityTest
     public void testForget() throws Exception {
         if (!WifiFeature.isWifiSupported(getContext())) {
             // skip the test if WiFi is not supported
@@ -1954,6 +1956,19 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
 
             assertEquals(savedNetworks.size() + 1, mWifiManager.getConfiguredNetworks().size());
 
+            // Need an effectively-final holder because we need to modify inner Intent in callback.
+            class IntentHolder {
+                Intent intent;
+            }
+            IntentHolder intentHolder = new IntentHolder();
+            mContext.registerReceiver(new BroadcastReceiver() {
+                @Override
+                public void onReceive(Context context, Intent intent) {
+                    Log.i(TAG, "Received CONFIGURED_NETWORKS_CHANGED_ACTION broadcast: " + intent);
+                    intentHolder.intent = intent;
+                }
+            }, new IntentFilter(WifiManager.CONFIGURED_NETWORKS_CHANGED_ACTION));
+
             // Now remove the network
             synchronized (mLock) {
                 try {
@@ -1965,6 +1980,17 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
             }
             // check if we got the success callback
             assertTrue(actionListener.onSuccessCalled);
+
+            PollingCheck.check(
+                    "Didn't receive CONFIGURED_NETWORKS_CHANGED_ACTION broadcast!",
+                    TEST_WAIT_DURATION_MS,
+                    () -> intentHolder.intent != null);
+            Intent intent = intentHolder.intent;
+            assertEquals(WifiManager.CONFIGURED_NETWORKS_CHANGED_ACTION, intent.getAction());
+            assertTrue(intent.getBooleanExtra(WifiManager.EXTRA_MULTIPLE_NETWORKS_CHANGED, false));
+            assertEquals(WifiManager.CHANGE_REASON_REMOVED,
+                    intent.getIntExtra(WifiManager.EXTRA_CHANGE_REASON, -1));
+            assertNull(intent.getParcelableExtra(WifiManager.EXTRA_WIFI_CONFIGURATION));
 
             // Ensure that the new network has been successfully removed.
             assertEquals(savedNetworks.size(), mWifiManager.getConfiguredNetworks().size());
