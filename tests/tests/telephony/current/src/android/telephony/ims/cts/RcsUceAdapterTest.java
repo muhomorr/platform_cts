@@ -82,6 +82,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -314,7 +315,7 @@ public class RcsUceAdapterTest {
         ImsManager imsManager = getContext().getSystemService(ImsManager.class);
         RcsUceAdapter uceAdapter = imsManager.getImsRcsManager(sTestSub).getUceAdapter();
         assertNotNull("UCE adapter should not be null!", uceAdapter);
-        ArrayList<Uri> numbers = new ArrayList<>(1);
+        Collection<Uri> numbers = new ArrayList<>(1);
         numbers.add(sTestNumberUri);
 
         // isUceSettingEnabled - read
@@ -511,7 +512,7 @@ public class RcsUceAdapterTest {
         assertNotNull("UCE adapter should not be null!", uceAdapter);
 
         // Prepare the test contact and the callback
-        ArrayList<Uri> numbers = new ArrayList<>(1);
+        Collection<Uri> numbers = new ArrayList<>(1);
         numbers.add(sTestNumberUri);
 
         ArrayList<String> pidfXmlList = new ArrayList<>(1);
@@ -611,6 +612,7 @@ public class RcsUceAdapterTest {
 
         // Verify that the contact capability is received and the onCompleted is called.
         RcsContactUceCapability capability = waitForResult(capabilityQueue);
+        assertNotNull("Capabilities were not received for contact: " + sTestNumberUri, capability);
         verifyCapabilityResult(capability, sTestNumberUri, REQUEST_RESULT_FOUND, true, true);
         waitForResult(completeQueue);
 
@@ -645,7 +647,7 @@ public class RcsUceAdapterTest {
         // Stay in the foreground
         lunchUceActivity();
 
-        List<Uri> contacts = Collections.singletonList(sTestNumberUri);
+        Collection<Uri> contacts = Collections.singletonList(sTestNumberUri);
 
         TestRcsCapabilityExchangeImpl capabilityExchangeImpl = sServiceConnector
                 .getCarrierService().getRcsFeature().getRcsCapabilityExchangeImpl();
@@ -731,7 +733,7 @@ public class RcsUceAdapterTest {
         // Connect to the ImsService
         setupTestImsService(uceAdapter, true, true /* presence cap */, false /* options */);
 
-        ArrayList<Uri> numbers = new ArrayList<>(1);
+        Collection<Uri> numbers = new ArrayList<>(1);
         numbers.add(sTestNumberUri);
 
         BlockingQueue<Integer> errorQueue = new LinkedBlockingQueue<>();
@@ -945,7 +947,7 @@ public class RcsUceAdapterTest {
         TestRcsCapabilityExchangeImpl capabilityExchangeImpl = sServiceConnector
                 .getCarrierService().getRcsFeature().getRcsCapabilityExchangeImpl();
 
-        ArrayList<Uri> numbers = new ArrayList<>(1);
+        Collection<Uri> numbers = new ArrayList<>(1);
         numbers.add(sTestNumberUri);
 
         BlockingQueue<Long> errorQueue = new LinkedBlockingQueue<>();
@@ -972,7 +974,7 @@ public class RcsUceAdapterTest {
         final Uri contact2 = sTestContact2Uri;
         final Uri contact3 = sTestContact3Uri;
 
-        ArrayList<Uri> contacts = new ArrayList<>(3);
+        Collection<Uri> contacts = new ArrayList<>(3);
         contacts.add(contact1);
         contacts.add(contact2);
         contacts.add(contact3);
@@ -998,12 +1000,15 @@ public class RcsUceAdapterTest {
 
         // Verify that all the three contact's capabilities are received
         RcsContactUceCapability capability = waitForResult(capabilityQueue);
+        assertNotNull("Capabilities were not received for contact: " + contact1, capability);
         verifyCapabilityResult(capability, contact1, REQUEST_RESULT_FOUND, true, true);
 
         capability = waitForResult(capabilityQueue);
+        assertNotNull("Capabilities were not received for contact: " + contact2, capability);
         verifyCapabilityResult(capability, contact2, REQUEST_RESULT_FOUND, true, false);
 
         capability = waitForResult(capabilityQueue);
+        assertNotNull("Capabilities were not received for contact: " + contact3, capability);
         verifyCapabilityResult(capability, contact3, REQUEST_RESULT_FOUND, false, false);
 
         // Verify the onCompleted is called
@@ -1016,14 +1021,15 @@ public class RcsUceAdapterTest {
 
         // Setup the callback that some of the contacts are terminated.
         capabilityExchangeImpl.setSubscribeOperation((uris, cb) -> {
+            List<Uri> uriList = new ArrayList(uris);
             cb.onNetworkResponse(networkRespCode, networkRespReason);
             // Notify capabilities updated for the first contact
             String pidfXml = pidfXmlList.get(0);
             cb.onNotifyCapabilitiesUpdate(Collections.singletonList(pidfXml));
 
             List<Pair<Uri, String>> terminatedResources = new ArrayList<>();
-            for (int i = 1; i < uris.size(); i++) {
-                Pair<Uri, String> pair = Pair.create(uris.get(i), "noresource");
+            for (int i = 1; i < uriList.size(); i++) {
+                Pair<Uri, String> pair = Pair.create(uriList.get(i), "noresource");
                 terminatedResources.add(pair);
             }
             cb.onResourceTerminated(terminatedResources);
@@ -1069,7 +1075,7 @@ public class RcsUceAdapterTest {
                 .getCarrierService().getRcsFeature().getRcsCapabilityExchangeImpl();
 
         // The test contact
-        ArrayList<Uri> contacts = new ArrayList<>(3);
+        Collection<Uri> contacts = new ArrayList<>(3);
         contacts.add(sTestNumberUri);
 
         // The result callback
@@ -1119,9 +1125,9 @@ public class RcsUceAdapterTest {
 
         // Verify the callback "onCapabilitiesReceived" is called.
         RcsContactUceCapability capability = waitForResult(capabilityQueue);
-        // Verify the callback "onComplete" is called.
-        waitForResult(completeQueue);
         assertNotNull("RcsContactUceCapability should not be null", capability);
+        // Verify the callback "onComplete" is called.
+        assertNotNull(waitForResult(completeQueue));
         assertEquals(RcsContactUceCapability.SOURCE_TYPE_NETWORK, capability.getSourceType());
         assertEquals(sTestNumberUri, capability.getContactUri());
         assertEquals(RcsContactUceCapability.REQUEST_RESULT_FOUND, capability.getRequestResult());
@@ -1341,17 +1347,6 @@ public class RcsUceAdapterTest {
         bundle.putBoolean(CarrierConfigManager.KEY_USE_RCS_SIP_OPTIONS_BOOL, sipOptionsEnabled);
         overrideCarrierConfig(bundle);
 
-        // Enable the UCE setting.
-        try {
-            ShellIdentityUtils.invokeThrowableMethodWithShellPermissionsNoReturn(
-                    uceAdapter, adapter -> adapter.setUceSettingEnabled(true), ImsException.class,
-                    "android.permission.MODIFY_PHONE_STATE");
-        } catch (SecurityException e) {
-            fail("setUceSettingEnabled should succeed with MODIFY_PHONE_STATE.");
-        } catch (ImsException e) {
-            fail("setUceSettingEnabled failed with code " + e);
-        }
-
         // Connect to the TestImsService
         connectTestImsService();
     }
@@ -1525,7 +1520,7 @@ public class RcsUceAdapterTest {
         }
     }
 
-    private void requestCapabilities(RcsUceAdapter uceAdapter, List<Uri> numbers,
+    private void requestCapabilities(RcsUceAdapter uceAdapter, Collection<Uri> numbers,
             RcsUceAdapter.CapabilitiesCallback callback) {
         try {
             ShellIdentityUtils.invokeThrowableMethodWithShellPermissionsNoReturn(
