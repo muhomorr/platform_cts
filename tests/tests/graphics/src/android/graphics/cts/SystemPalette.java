@@ -31,6 +31,7 @@ import androidx.test.filters.SmallTest;
 import androidx.test.runner.AndroidJUnit4;
 
 import org.junit.Assert;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -41,101 +42,87 @@ import java.util.List;
 @RunWith(AndroidJUnit4.class)
 public class SystemPalette {
 
-    private static final double MAX_CHROMA_DISTANCE = 0.1;
-    private static final String LOG_TAG = SystemPalette.class.getSimpleName();
+    // Hue goes from 0 to 360
+    private static final int MAX_HUE_DISTANCE = 30;
 
     @Test
     public void testShades0and1000() {
         final Context context = getInstrumentation().getTargetContext();
-        final int primary0 = context.getColor(R.color.system_primary_0);
-        final int primary1000 = context.getColor(R.color.system_primary_1000);
-        final int secondary0 = context.getColor(R.color.system_secondary_0);
-        final int secondary1000 = context.getColor(R.color.system_secondary_1000);
-        final int neutral0 = context.getColor(R.color.system_neutral_0);
-        final int neutral1000 = context.getColor(R.color.system_neutral_1000);
-        assertColor(primary0, Color.WHITE);
-        assertColor(primary1000, Color.BLACK);
-        assertColor(secondary0, Color.WHITE);
-        assertColor(secondary1000, Color.BLACK);
-        assertColor(neutral0, Color.WHITE);
-        assertColor(neutral1000, Color.BLACK);
+        final int[] leftmostColors = new int[]{
+                R.color.system_neutral1_0, R.color.system_neutral2_0, R.color.system_accent1_0,
+                R.color.system_accent2_0, R.color.system_accent3_0
+        };
+        final int[] rightmostColors = new int[]{
+                R.color.system_neutral1_1000, R.color.system_neutral2_1000,
+                R.color.system_accent1_1000, R.color.system_accent2_1000,
+                R.color.system_accent3_1000
+        };
+        for (int i = 0; i < leftmostColors.length; i++) {
+            assertColor(context.getColor(leftmostColors[0]), Color.WHITE);
+        }
+        for (int i = 0; i < rightmostColors.length; i++) {
+            assertColor(context.getColor(rightmostColors[0]), Color.BLACK);
+        }
     }
 
+    @Ignore
     @Test
     public void testAllColorsBelongToSameFamily() {
         final Context context = getInstrumentation().getTargetContext();
-        final int[] primaryColors = getAllPrimaryColors(context);
-        final int[] secondaryColors = getAllSecondaryColors(context);
-        final int[] neutralColors = getAllNeutralColors(context);
+        List<int[]> allPalettes = Arrays.asList(getAllAccent1Colors(context),
+                getAllAccent2Colors(context), getAllAccent3Colors(context),
+                getAllNeutral1Colors(context), getAllNeutral2Colors(context));
 
-        for (int i = 2; i < primaryColors.length - 1; i++) {
-            assertWithMessage("Primary color " + Integer.toHexString((primaryColors[i - 1]))
-                    + " has different chroma compared to " + Integer.toHexString(primaryColors[i]))
-                    .that(similarChroma(primaryColors[i - 1], primaryColors[i])).isTrue();
-            assertWithMessage("Secondary color " + Integer.toHexString((secondaryColors[i - 1]))
-                    + " has different chroma compared to " + Integer.toHexString(
-                    secondaryColors[i]))
-                    .that(similarChroma(secondaryColors[i - 1], secondaryColors[i])).isTrue();
-            assertWithMessage("Neutral color " + Integer.toHexString((neutralColors[i - 1]))
-                    + " has different chroma compared to " + Integer.toHexString(neutralColors[i]))
-                    .that(similarChroma(neutralColors[i - 1], neutralColors[i])).isTrue();
+        for (int[] palette : allPalettes) {
+            for (int i = 2; i < palette.length - 1; i++) {
+                assertWithMessage("Color " + Integer.toHexString((palette[i - 1]))
+                        + " has different chroma compared to " + Integer.toHexString(palette[i])
+                        + " for palette: " + Arrays.toString(palette))
+                        .that(similarHue(palette[i - 1], palette[i])).isTrue();
+            }
         }
     }
 
     /**
-     * Compare if color A and B have similar color, in LAB space.
+     * Compare if color A and B have similar hue, in HSL space.
      *
      * @param colorA Color 1
      * @param colorB Color 2
      * @return True when colors have similar chroma.
      */
-    private boolean similarChroma(@ColorInt int colorA, @ColorInt int colorB) {
-        final double[] labColor1 = new double[3];
-        final double[] labColor2 = new double[3];
+    private boolean similarHue(@ColorInt int colorA, @ColorInt int colorB) {
+        final float[] hslColor1 = new float[3];
+        final float[] hslColor2 = new float[3];
 
-        ColorUtils.RGBToLAB(Color.red(colorA), Color.green(colorA), Color.blue(colorA), labColor1);
-        ColorUtils.RGBToLAB(Color.red(colorB), Color.green(colorB), Color.blue(colorB), labColor2);
+        ColorUtils.RGBToHSL(Color.red(colorA), Color.green(colorA), Color.blue(colorA), hslColor1);
+        ColorUtils.RGBToHSL(Color.red(colorB), Color.green(colorB), Color.blue(colorB), hslColor2);
 
-        labColor1[1] = (labColor1[1] + 128.0) / 256;
-        labColor1[2] = (labColor1[2] + 128.0) / 256;
-        labColor2[1] = (labColor2[1] + 128.0) / 256;
-        labColor2[2] = (labColor2[2] + 128.0) / 256;
+        float hue1 = Math.max(hslColor1[0], hslColor2[0]);
+        float hue2 = Math.min(hslColor1[0], hslColor2[0]);
 
-        return (Math.abs(labColor1[1] - labColor2[1]) < MAX_CHROMA_DISTANCE)
-                && (Math.abs(labColor1[2] - labColor2[2]) < MAX_CHROMA_DISTANCE);
+        return hue1 - hue2 < MAX_HUE_DISTANCE;
     }
 
     @Test
     public void testColorsMatchExpectedLuminosity() {
         final Context context = getInstrumentation().getTargetContext();
-        final int[] primaryColors = getAllPrimaryColors(context);
-        final int[] secondaryColors = getAllSecondaryColors(context);
-        final int[] neutralColors = getAllNeutralColors(context);
+        List<int[]> allPalettes = Arrays.asList(getAllAccent1Colors(context),
+                getAllAccent2Colors(context), getAllAccent3Colors(context),
+                getAllNeutral1Colors(context), getAllNeutral2Colors(context));
 
-        final double[] labPrimary = new double[3];
-        final double[] labSecondary = new double[3];
-        final double[] labNeutral = new double[3];
+        final double[] labColor = new double[3];
         final double[] expectedL = {100, 95, 90, 80, 70, 60, 49, 40, 30, 20, 10, 0};
 
-        for (int i = 0; i < primaryColors.length; i++) {
-            ColorUtils.RGBToLAB(Color.red(primaryColors[i]), Color.green(primaryColors[i]),
-                    Color.blue(primaryColors[i]), labPrimary);
-            ColorUtils.RGBToLAB(Color.red(secondaryColors[i]), Color.green(secondaryColors[i]),
-                    Color.blue(secondaryColors[i]), labSecondary);
-            ColorUtils.RGBToLAB(Color.red(neutralColors[i]), Color.green(neutralColors[i]),
-                    Color.blue(neutralColors[i]), labNeutral);
+        for (int[] palette : allPalettes) {
+            for (int i = 0; i < palette.length; i++) {
+                ColorUtils.colorToLAB(palette[i], labColor);
 
-            // Colors in the same palette should vary mostly in L, decreasing lightness as we move
-            // across the palette.
-            assertWithMessage("Color " + Integer.toHexString((primaryColors[i]))
-                    + " at index " + i + " should have L " + expectedL[i] + " in LAB space.")
-                    .that(labPrimary[0]).isWithin(3).of(expectedL[i]);
-            assertWithMessage("Color " + Integer.toHexString((secondaryColors[i]))
-                    + " at index " + i + " should have L " + expectedL[i] + " in LAB space.")
-                    .that(labSecondary[0]).isWithin(3).of(expectedL[i]);
-            assertWithMessage("Color " + Integer.toHexString((neutralColors[i]))
-                    + " at index " + i + " should have L " + expectedL[i] + " in LAB space.")
-                    .that(labNeutral[0]).isWithin(3).of(expectedL[i]);
+                // Colors in the same palette should vary mostly in L, decreasing lightness as we
+                // move across the palette.
+                assertWithMessage("Color " + Integer.toHexString((palette[i]))
+                        + " at index " + i + " should have L " + expectedL[i] + " in LAB space.")
+                        .that(labColor[0]).isWithin(3).of(expectedL[i]);
+            }
         }
     }
 
@@ -151,12 +138,12 @@ public class SystemPalette {
                 new Pair<>(300, 700), new Pair<>(400, 800), new Pair<>(500, 900),
                 new Pair<>(600, 1000));
 
-        final int[] primaryColors = getAllPrimaryColors(context);
-        final int[] secondaryColors = getAllSecondaryColors(context);
-        final int[] neutralColors = getAllNeutralColors(context);
+        List<int[]> allPalettes = Arrays.asList(getAllAccent1Colors(context),
+                getAllAccent2Colors(context), getAllAccent3Colors(context),
+                getAllNeutral1Colors(context), getAllNeutral2Colors(context));
 
-        for (int[] palette: Arrays.asList(primaryColors, secondaryColors, neutralColors)) {
-            for (Pair<Integer, Integer> shades: atLeast4dot5) {
+        for (int[] palette : allPalettes) {
+            for (Pair<Integer, Integer> shades : atLeast4dot5) {
                 final int background = palette[shadeToArrayIndex(shades.first)];
                 final int foreground = palette[shadeToArrayIndex(shades.second)];
                 final double contrast = ColorUtils.calculateContrast(foreground, background);
@@ -166,7 +153,7 @@ public class SystemPalette {
                         .isGreaterThan(4.5);
             }
 
-            for (Pair<Integer, Integer> shades: atLeast3dot0) {
+            for (Pair<Integer, Integer> shades : atLeast3dot0) {
                 final int background = palette[shadeToArrayIndex(shades.first)];
                 final int foreground = palette[shadeToArrayIndex(shades.second)];
                 final double contrast = ColorUtils.calculateContrast(foreground, background);
@@ -183,9 +170,8 @@ public class SystemPalette {
      *
      * @param shade Shade from 0 to 1000.
      * @return index in array
-     * @see #getAllPrimaryColors(Context)
-     * @see #getAllSecondaryColors(Context)
-     * @see #getAllNeutralColors(Context)
+     * @see #getAllAccent1Colors(Context) (Context)
+     * @see #getAllNeutral1Colors(Context)
      */
     private int shadeToArrayIndex(int shade) {
         if (shade == 0) {
@@ -199,58 +185,91 @@ public class SystemPalette {
 
     private void assertColor(@ColorInt int observed, @ColorInt int expected) {
         Assert.assertEquals("Color = " + Integer.toHexString(observed) + ", "
-                        + Integer.toHexString(expected) + " expected",
-                observed, expected);
+                        + Integer.toHexString(expected) + " expected", expected, observed);
     }
 
-    private int[] getAllPrimaryColors(Context context) {
+    private int[] getAllAccent1Colors(Context context) {
         final int[] colors = new int[12];
-        colors[0] = context.getColor(R.color.system_primary_0);
-        colors[1] = context.getColor(R.color.system_primary_50);
-        colors[2] = context.getColor(R.color.system_primary_100);
-        colors[3] = context.getColor(R.color.system_primary_200);
-        colors[4] = context.getColor(R.color.system_primary_300);
-        colors[5] = context.getColor(R.color.system_primary_400);
-        colors[6] = context.getColor(R.color.system_primary_500);
-        colors[7] = context.getColor(R.color.system_primary_600);
-        colors[8] = context.getColor(R.color.system_primary_700);
-        colors[9] = context.getColor(R.color.system_primary_800);
-        colors[10] = context.getColor(R.color.system_primary_900);
-        colors[11] = context.getColor(R.color.system_primary_1000);
+        colors[0] = context.getColor(R.color.system_accent1_0);
+        colors[1] = context.getColor(R.color.system_accent1_50);
+        colors[2] = context.getColor(R.color.system_accent1_100);
+        colors[3] = context.getColor(R.color.system_accent1_200);
+        colors[4] = context.getColor(R.color.system_accent1_300);
+        colors[5] = context.getColor(R.color.system_accent1_400);
+        colors[6] = context.getColor(R.color.system_accent1_500);
+        colors[7] = context.getColor(R.color.system_accent1_600);
+        colors[8] = context.getColor(R.color.system_accent1_700);
+        colors[9] = context.getColor(R.color.system_accent1_800);
+        colors[10] = context.getColor(R.color.system_accent1_900);
+        colors[11] = context.getColor(R.color.system_accent1_1000);
         return colors;
     }
 
-    private int[] getAllSecondaryColors(Context context) {
+    private int[] getAllAccent2Colors(Context context) {
         final int[] colors = new int[12];
-        colors[0] = context.getColor(R.color.system_secondary_0);
-        colors[1] = context.getColor(R.color.system_secondary_50);
-        colors[2] = context.getColor(R.color.system_secondary_100);
-        colors[3] = context.getColor(R.color.system_secondary_200);
-        colors[4] = context.getColor(R.color.system_secondary_300);
-        colors[5] = context.getColor(R.color.system_secondary_400);
-        colors[6] = context.getColor(R.color.system_secondary_500);
-        colors[7] = context.getColor(R.color.system_secondary_600);
-        colors[8] = context.getColor(R.color.system_secondary_700);
-        colors[9] = context.getColor(R.color.system_secondary_800);
-        colors[10] = context.getColor(R.color.system_secondary_900);
-        colors[11] = context.getColor(R.color.system_secondary_1000);
+        colors[0] = context.getColor(R.color.system_accent2_0);
+        colors[1] = context.getColor(R.color.system_accent2_50);
+        colors[2] = context.getColor(R.color.system_accent2_100);
+        colors[3] = context.getColor(R.color.system_accent2_200);
+        colors[4] = context.getColor(R.color.system_accent2_300);
+        colors[5] = context.getColor(R.color.system_accent2_400);
+        colors[6] = context.getColor(R.color.system_accent2_500);
+        colors[7] = context.getColor(R.color.system_accent2_600);
+        colors[8] = context.getColor(R.color.system_accent2_700);
+        colors[9] = context.getColor(R.color.system_accent2_800);
+        colors[10] = context.getColor(R.color.system_accent2_900);
+        colors[11] = context.getColor(R.color.system_accent2_1000);
         return colors;
     }
 
-    private int[] getAllNeutralColors(Context context) {
+    private int[] getAllAccent3Colors(Context context) {
         final int[] colors = new int[12];
-        colors[0] = context.getColor(R.color.system_neutral_0);
-        colors[1] = context.getColor(R.color.system_neutral_50);
-        colors[2] = context.getColor(R.color.system_neutral_100);
-        colors[3] = context.getColor(R.color.system_neutral_200);
-        colors[4] = context.getColor(R.color.system_neutral_300);
-        colors[5] = context.getColor(R.color.system_neutral_400);
-        colors[6] = context.getColor(R.color.system_neutral_500);
-        colors[7] = context.getColor(R.color.system_neutral_600);
-        colors[8] = context.getColor(R.color.system_neutral_700);
-        colors[9] = context.getColor(R.color.system_neutral_800);
-        colors[10] = context.getColor(R.color.system_neutral_900);
-        colors[11] = context.getColor(R.color.system_neutral_1000);
+        colors[0] = context.getColor(R.color.system_accent3_0);
+        colors[1] = context.getColor(R.color.system_accent3_50);
+        colors[2] = context.getColor(R.color.system_accent3_100);
+        colors[3] = context.getColor(R.color.system_accent3_200);
+        colors[4] = context.getColor(R.color.system_accent3_300);
+        colors[5] = context.getColor(R.color.system_accent3_400);
+        colors[6] = context.getColor(R.color.system_accent3_500);
+        colors[7] = context.getColor(R.color.system_accent3_600);
+        colors[8] = context.getColor(R.color.system_accent3_700);
+        colors[9] = context.getColor(R.color.system_accent3_800);
+        colors[10] = context.getColor(R.color.system_accent3_900);
+        colors[11] = context.getColor(R.color.system_accent3_1000);
+        return colors;
+    }
+
+    private int[] getAllNeutral1Colors(Context context) {
+        final int[] colors = new int[12];
+        colors[0] = context.getColor(R.color.system_neutral1_0);
+        colors[1] = context.getColor(R.color.system_neutral1_50);
+        colors[2] = context.getColor(R.color.system_neutral1_100);
+        colors[3] = context.getColor(R.color.system_neutral1_200);
+        colors[4] = context.getColor(R.color.system_neutral1_300);
+        colors[5] = context.getColor(R.color.system_neutral1_400);
+        colors[6] = context.getColor(R.color.system_neutral1_500);
+        colors[7] = context.getColor(R.color.system_neutral1_600);
+        colors[8] = context.getColor(R.color.system_neutral1_700);
+        colors[9] = context.getColor(R.color.system_neutral1_800);
+        colors[10] = context.getColor(R.color.system_neutral1_900);
+        colors[11] = context.getColor(R.color.system_neutral1_1000);
+        return colors;
+    }
+
+    private int[] getAllNeutral2Colors(Context context) {
+        final int[] colors = new int[12];
+        colors[0] = context.getColor(R.color.system_neutral2_0);
+        colors[1] = context.getColor(R.color.system_neutral2_50);
+        colors[2] = context.getColor(R.color.system_neutral2_100);
+        colors[3] = context.getColor(R.color.system_neutral2_200);
+        colors[4] = context.getColor(R.color.system_neutral2_300);
+        colors[5] = context.getColor(R.color.system_neutral2_400);
+        colors[6] = context.getColor(R.color.system_neutral2_500);
+        colors[7] = context.getColor(R.color.system_neutral2_600);
+        colors[8] = context.getColor(R.color.system_neutral2_700);
+        colors[9] = context.getColor(R.color.system_neutral2_800);
+        colors[10] = context.getColor(R.color.system_neutral2_900);
+        colors[11] = context.getColor(R.color.system_neutral2_1000);
         return colors;
     }
 }

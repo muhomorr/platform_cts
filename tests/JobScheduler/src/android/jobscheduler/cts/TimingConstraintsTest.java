@@ -118,7 +118,7 @@ public class TimingConstraintsTest extends BaseJobSchedulerTest {
         mJobScheduler.schedule(deadlineJob);
         assertTrue("Failed to execute deadline job", kTestEnvironment.awaitExecution());
         assertTrue("Job does not show its deadline as expired",
-                kTestEnvironment.getLastJobParameters().isOverrideDeadlineExpired());
+                kTestEnvironment.getLastStartJobParameters().isOverrideDeadlineExpired());
     }
 
 
@@ -135,11 +135,12 @@ public class TimingConstraintsTest extends BaseJobSchedulerTest {
         kTestEnvironment.setExpectedExecutions(1);
         setStorageStateLow(true);
         mJobScheduler.schedule(deadlineJob);
+        Thread.sleep(500L);
         // Run everything by making storage state not-low.
         setStorageStateLow(false);
         assertTrue("Failed to execute non-deadline job", kTestEnvironment.awaitExecution());
         assertFalse("Job that ran early (unexpired) didn't have" +
                         " JobParameters#isOverrideDeadlineExpired=false",
-                kTestEnvironment.getLastJobParameters().isOverrideDeadlineExpired());
+                kTestEnvironment.getLastStartJobParameters().isOverrideDeadlineExpired());
     }
 }

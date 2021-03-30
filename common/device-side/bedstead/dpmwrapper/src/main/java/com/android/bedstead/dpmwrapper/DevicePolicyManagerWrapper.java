@@ -20,6 +20,7 @@ import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doReturn;
 
 import android.app.admin.DevicePolicyManager;
 import android.content.Context;
@@ -43,18 +44,22 @@ final class DevicePolicyManagerWrapper
         int userId = context.getUserId();
         DevicePolicyManager spy = sSpies.get(context);
         if (spy != null) {
-            Log.d(TAG, "get(): returning cached spy for user " + userId);
+            Log.d(TAG, "getWrapper(): returning cached spy for user " + userId);
             return spy;
         }
 
-        Log.d(TAG, "get(): creating spy for user " + context.getUserId());
         spy = Mockito.spy(dpm);
+        String spyString = "DevicePolicyManagerWrapper#" + System.identityHashCode(spy);
+        Log.d(TAG, "get(): created spy for user " + context.getUserId() + ": " + spyString);
+
 
         // TODO(b/176993670): ideally there should be a way to automatically mock all DPM methods,
         // but that's probably not doable, as there is no contract (such as an interface) to specify
         // which ones should be spied and which ones should not (in fact, if there was an interface,
         // we wouldn't need Mockito and could wrap the calls using java's DynamicProxy
         try {
+            doReturn(spyString).when(spy).toString();
+
             // Basic methods used by most tests
             doAnswer(answer).when(spy).isAdminActive(any());
             doAnswer(answer).when(spy).isDeviceOwnerApp(any());
@@ -148,6 +153,9 @@ final class DevicePolicyManagerWrapper
             doAnswer(answer).when(spy).getEndUserSessionMessage(any());
             doAnswer(answer).when(spy).setEndUserSessionMessage(any(), any());
 
+            // Used by SuspendPackageTest
+            doAnswer(answer).when(spy).getPolicyExemptApps();
+
             // TODO(b/176993670): add more methods below as tests are converted
         } catch (Exception e) {
             // Should never happen, but needs to be catch as some methods declare checked exceptions
@@ -155,8 +163,8 @@ final class DevicePolicyManagerWrapper
         }
 
         sSpies.put(context, spy);
-        Log.d(TAG, "get(): returning new spy for context " + context + " and user "
-                + userId);
+        Log.d(TAG, "getWrapper(): returning new spy for context " + context  + " ("
+                + context.getPackageName() + ")" + " and user " + userId);
 
         return spy;
     }

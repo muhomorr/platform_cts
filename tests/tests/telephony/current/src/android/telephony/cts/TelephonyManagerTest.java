@@ -17,7 +17,6 @@
 package android.telephony.cts;
 
 import static android.app.AppOpsManager.OPSTR_USE_ICC_AUTH_WITH_DEVICE_IDENTIFIER;
-import static android.telephony.PhoneCapability.DEVICE_NR_CAPABILITY_NONE;
 import static android.telephony.PhoneCapability.DEVICE_NR_CAPABILITY_NSA;
 import static android.telephony.PhoneCapability.DEVICE_NR_CAPABILITY_SA;
 
@@ -25,6 +24,7 @@ import static com.android.compatibility.common.util.SystemUtil.runWithShellPermi
 
 import static com.google.common.truth.Truth.assertThat;
 
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
@@ -89,6 +89,7 @@ import android.telephony.ThermalMitigationRequest;
 import android.telephony.UiccCardInfo;
 import android.telephony.UiccSlotInfo;
 import android.telephony.data.ApnSetting;
+import android.telephony.data.SlicingConfig;
 import android.telephony.emergency.EmergencyNumber;
 import android.text.TextUtils;
 import android.util.Log;
@@ -200,6 +201,11 @@ public class TelephonyManagerTest {
     private static final List<String> FPLMN_TEST = Arrays.asList(PLMN_A, PLMN_B);
     private static final int MAX_FPLMN_NUM = 100;
     private static final int MIN_FPLMN_NUM = 3;
+
+    private static final String THERMAL_MITIGATION_COMMAND_BASE = "cmd phone thermal-mitigation ";
+    private static final String ALLOW_PACKAGE_SUBCOMMAND = "allow-package ";
+    private static final String DISALLOW_PACKAGE_SUBCOMMAND = "disallow-package ";
+    private static final String TELEPHONY_CTS_PACKAGE = "android.telephony.cts";
 
     private static final String TEST_FORWARD_NUMBER = "54321";
     private static final String TESTING_PLMN = "12345";
@@ -355,9 +361,16 @@ public class TelephonyManagerTest {
         if (mIsAllowedNetworkTypeChanged) {
             recoverAllowedNetworkType();
         }
+
+        StringBuilder cmdBuilder = new StringBuilder();
+        cmdBuilder.append(THERMAL_MITIGATION_COMMAND_BASE).append(DISALLOW_PACKAGE_SUBCOMMAND)
+                .append(TELEPHONY_CTS_PACKAGE);
+        TelephonyUtils.executeShellCommand(InstrumentationRegistry.getInstrumentation(),
+                cmdBuilder.toString());
     }
 
     private void saveAllowedNetworkTypesForAllReasons() {
+        if (!hasCellular()) return;
         mIsAllowedNetworkTypeChanged = false;
         if (mAllowedNetworkTypesList == null) {
             mAllowedNetworkTypesList = new HashMap<>();
@@ -657,6 +670,7 @@ public class TelephonyManagerTest {
                 (tm) -> tm.getSubscriberId());
         mTelephonyManager.getLine1Number();
         mTelephonyManager.getNetworkOperator();
+        mTelephonyManager.getPhoneAccountHandle();
         mTelephonyManager.getSimCountryIso();
         mTelephonyManager.getVoiceMailAlphaTag();
         mTelephonyManager.isNetworkRoaming();
@@ -967,6 +981,15 @@ public class TelephonyManagerTest {
         PhoneAccountHandle handle =
                 new PhoneAccountHandle(new ComponentName("com.example.foo", "bar"), "baz");
         assertNull(mTelephonyManager.createForPhoneAccountHandle(handle));
+    }
+
+    @Test
+    public void testGetPhoneAccountHandle() {
+        TelecomManager telecomManager = getContext().getSystemService(TelecomManager.class);
+        PhoneAccountHandle defaultAccount = telecomManager
+                .getDefaultOutgoingPhoneAccount(PhoneAccount.SCHEME_TEL);
+        PhoneAccountHandle phoneAccountHandle = mTelephonyManager.getPhoneAccountHandle();
+        assertEquals(phoneAccountHandle, defaultAccount);
     }
 
     /**
@@ -1385,62 +1408,31 @@ public class TelephonyManagerTest {
     }
 
     @Test
-    public void testGetPhoneCapability() throws Throwable {
+    public void testGetPhoneCapabilityAndVerify() {
         if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
-            Log.d(TAG, "skipping test on device without FEATURE_TELEPHONY present");
+            Log.d(TAG,"skipping test that requires Telephony");
             return;
         }
-
-        // test without permission: verify SecurityException
-        try {
-            mTelephonyManager.getPhoneCapability();
-            fail("testGetPhoneCapability: SecurityException expected");
-        } catch (SecurityException se) {
-            // expected
-        }
-
-        assertThat(mOnPhoneCapabilityChanged).isFalse();
-        TestThread t = new TestThread(new Runnable() {
-            public void run() {
-                Looper.prepare();
-
-                mMockPhoneCapabilityListener = new MockPhoneCapabilityListener();
-                ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mTelephonyManager,
-                        (tm) -> tm.registerTelephonyCallback(mSimpleExecutor,
-                                mMockPhoneCapabilityListener));
-                Looper.loop();
-            }
-        });
-        synchronized (mLock) {
-            t.start();
-            mLock.wait(TOLERANCE);
-        }
-
-        // test with permission
-        try {
-            PhoneCapability phoneCapability = ShellIdentityUtils.invokeMethodWithShellPermissions(
-                    mTelephonyManager, (tm) -> tm.getPhoneCapability());
-
-            assertEquals(mPhoneCapability, phoneCapability);
-        } catch (SecurityException se) {
-            fail("testGetPhoneCapability: SecurityException not expected");
-        }
-    }
-
-    @Test
-    public void testGetPhoneCapabilityAndVerify() {
         boolean is5gStandalone = getContext().getResources().getBoolean(
                 com.android.internal.R.bool.config_telephony5gStandalone);
         boolean is5gNonStandalone = getContext().getResources().getBoolean(
                 com.android.internal.R.bool.config_telephony5gNonStandalone);
-        int deviceNrCapability =
-                (is5gStandalone ? DEVICE_NR_CAPABILITY_SA : DEVICE_NR_CAPABILITY_NONE) | (
-                        is5gNonStandalone ? DEVICE_NR_CAPABILITY_NSA : DEVICE_NR_CAPABILITY_NONE);
+        int[] deviceNrCapabilities = new int[0];
+        if (is5gStandalone || is5gNonStandalone) {
+            List<Integer> list = new ArrayList<>();
+            if (is5gNonStandalone) {
+                list.add(DEVICE_NR_CAPABILITY_NSA);
+            }
+            if (is5gStandalone) {
+                list.add(DEVICE_NR_CAPABILITY_SA);
+            }
+            deviceNrCapabilities = list.stream().mapToInt(Integer::valueOf).toArray();
+        }
 
         PhoneCapability phoneCapability = ShellIdentityUtils.invokeMethodWithShellPermissions(
                 mTelephonyManager, (tm) -> tm.getPhoneCapability());
 
-        assertEquals(deviceNrCapability, phoneCapability.getDeviceNrCapabilityBitmask());
+        assertArrayEquals(deviceNrCapabilities, phoneCapability.getDeviceNrCapabilities());
     }
 
     @Test
@@ -3979,10 +3971,17 @@ public class TelephonyManagerTest {
     }
 
     @Test
-    public void testSendThermalMitigationRequest() {
+    public void testSendThermalMitigationRequest() throws Exception {
         if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
             return;
         }
+
+        StringBuilder cmdBuilder = new StringBuilder();
+        cmdBuilder.append(THERMAL_MITIGATION_COMMAND_BASE).append(ALLOW_PACKAGE_SUBCOMMAND)
+                .append(TELEPHONY_CTS_PACKAGE);
+        TelephonyUtils.executeShellCommand(InstrumentationRegistry.getInstrumentation(),
+                cmdBuilder.toString());
+
         long arbitraryCompletionWindowSecs = 1L;
 
 
@@ -4515,6 +4514,20 @@ public class TelephonyManagerTest {
         int mode = allowed ? AppOpsManager.MODE_ALLOWED : AppOpsManager.opToDefaultMode(op);
         ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(
                 appOpsManager, (appOps) -> appOps.setUidMode(op, Process.myUid(), mode));
+    }
+
+    /**
+     * Verifies that {@link TelephonyManager#getNetworkSlicingConfiguration()} does not throw any
+     * exception
+     */
+    @Test
+    public void testGetNetworkSlicingConfiguration() {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            return;
+        }
+        CompletableFuture<SlicingConfig> resultFuture = new CompletableFuture<>();
+        ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mTelephonyManager,
+                (tm) -> tm.getNetworkSlicingConfiguration(mSimpleExecutor, resultFuture::complete));
     }
 }
 

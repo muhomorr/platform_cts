@@ -19,9 +19,10 @@ package android.voiceinteraction.service;
 import static com.android.compatibility.common.util.SystemUtil.runWithShellPermissionIdentity;
 
 import android.content.Intent;
-import android.os.Bundle;
+import android.os.PersistableBundle;
 import android.os.SharedMemory;
 import android.service.voice.AlwaysOnHotwordDetector;
+import android.service.voice.HotwordDetectionService;
 import android.service.voice.VoiceInteractionService;
 import android.system.ErrnoException;
 import android.util.Log;
@@ -37,6 +38,8 @@ public class BasicVoiceInteractionService extends VoiceInteractionService {
     // TODO: (b/182236586) Refactor the voice interaction service logic
     static final String TAG = "BasicVoiceInteractionService";
 
+    public static String KEY_FAKE_DATA = "fakeData";
+    public static String VALUE_FAKE_DATA = "fakeData";
     public static byte[] FAKE_BYTE_ARRAY_DATA = new byte[] {1, 2, 3};
 
     private boolean mReady = false;
@@ -74,7 +77,7 @@ public class BasicVoiceInteractionService extends VoiceInteractionService {
         try {
             createAlwaysOnHotwordDetector(/* keyphrase */ "Hello Google",
                     Locale.forLanguageTag("en-US"),
-                    createFakeBundleData(),
+                    createFakePersistableBundleData(),
                     createFakeSharedMemoryData(),
                     new AlwaysOnHotwordDetector.Callback() {
                         @Override
@@ -100,6 +103,11 @@ public class BasicVoiceInteractionService extends VoiceInteractionService {
                         @Override
                         public void onRecognitionResumed() {
                             Log.i(TAG, "onRecognitionResumed");
+                        }
+
+                        @Override
+                        public void onHotwordDetectionServiceInitialized(int status) {
+                            verifyHotwordDetectionServiceInitializedStatus(status);
                         }
                     });
         } catch (IllegalStateException e) {
@@ -135,10 +143,18 @@ public class BasicVoiceInteractionService extends VoiceInteractionService {
         }
     }
 
-    private Bundle createFakeBundleData() {
+    private PersistableBundle createFakePersistableBundleData() {
         // TODO : Add more data for testing
-        Bundle bundle = new Bundle();
-        bundle.putByteArray("fakeData", FAKE_BYTE_ARRAY_DATA);
-        return bundle;
+        PersistableBundle persistableBundle = new PersistableBundle();
+        persistableBundle.putString(KEY_FAKE_DATA, VALUE_FAKE_DATA);
+        return persistableBundle;
+    }
+
+    private void verifyHotwordDetectionServiceInitializedStatus(int status) {
+        if (status == HotwordDetectionService.INITIALIZATION_STATUS_SUCCESS) {
+            broadcastIntentWithResult(
+                    Utils.BROADCAST_HOTWORD_DETECTION_SERVICE_TRIGGER_RESULT_INTENT,
+                    Utils.HOTWORD_DETECTION_SERVICE_TRIGGER_SUCCESS);
+        }
     }
 }

@@ -30,6 +30,7 @@ import static android.view.WindowInsets.Type.systemBars;
 import static android.view.WindowInsets.Type.systemGestures;
 import static android.view.WindowInsetsController.BEHAVIOR_DEFAULT;
 import static android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE;
+import static android.view.WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM;
 import static android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN;
 import static android.view.WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE;
 import static android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS;
@@ -73,6 +74,7 @@ import androidx.annotation.Nullable;
 import com.android.compatibility.common.util.PollingCheck;
 import com.android.compatibility.common.util.SystemUtil;
 import com.android.cts.mockime.ImeEventStream;
+import com.android.cts.mockime.ImeSettings;
 import com.android.cts.mockime.MockImeSession;
 
 import org.junit.Rule;
@@ -94,6 +96,7 @@ import java.util.concurrent.TimeUnit;
 public class WindowInsetsControllerTests extends WindowManagerTestBase {
 
     private final static long TIMEOUT = 1000; // milliseconds
+    private final static long TIMEOUT_UPDATING_INPUT_WINDOW = 500; // milliseconds
     private final static long TIME_SLICE = 50; // milliseconds
     private final static AnimationCallback ANIMATION_CALLBACK = new AnimationCallback();
 
@@ -233,6 +236,10 @@ public class WindowInsetsControllerTests extends WindowManagerTestBase {
         tapOnDisplay(rootView.getWidth() / 2f, rootView.getHeight() / 2f);
         PollingCheck.waitFor(TIMEOUT, () -> !rootView.getRootWindowInsets().isVisible(types));
 
+        // Wait for status bar invisible from InputDispatcher. Otherwise, the following
+        // dragFromTopToCenter might expand notification shade.
+        SystemClock.sleep(TIMEOUT_UPDATING_INPUT_WINDOW);
+
         // Swiping from top of display can show bars.
         dragFromTopToCenter(rootView);
         PollingCheck.waitFor(TIMEOUT, () -> rootView.getRootWindowInsets().isVisible(types));
@@ -256,9 +263,17 @@ public class WindowInsetsControllerTests extends WindowManagerTestBase {
         tapOnDisplay(rootView.getWidth() / 2f, rootView.getHeight() / 2f);
         PollingCheck.waitFor(TIMEOUT, () -> !rootView.getRootWindowInsets().isVisible(types));
 
+        // Wait for status bar invisible from InputDispatcher. Otherwise, the following
+        // dragFromTopToCenter might expand notification shade.
+        SystemClock.sleep(TIMEOUT_UPDATING_INPUT_WINDOW);
+
         // Swiping from top of display can show transient bars, but apps cannot detect that.
         dragFromTopToCenter(rootView);
-        PollingCheck.waitFor(TIMEOUT, () -> !rootView.getRootWindowInsets().isVisible(types));
+        // Make sure status bar stays invisible.
+        for (long time = TIMEOUT; time >= 0; time -= TIME_SLICE) {
+            assertFalse(rootView.getRootWindowInsets().isVisible(types));
+            SystemClock.sleep(TIME_SLICE);
+        }
     }
 
     @Test
@@ -395,13 +410,17 @@ public class WindowInsetsControllerTests extends WindowManagerTestBase {
             rootView.setWindowInsetsAnimationCallback(ANIMATION_CALLBACK);
             rootView.setSystemUiVisibility(targetFlags);
         });
-        ANIMATION_CALLBACK.waitForFinishing(TIMEOUT);
+        ANIMATION_CALLBACK.waitForFinishing();
         PollingCheck.waitFor(TIMEOUT, () -> !rootView.getRootWindowInsets().isVisible(types));
 
-        getInstrumentation().waitForIdleSync();
+        // Wait for status bar invisible from InputDispatcher. Otherwise, the following
+        // dragFromTopToCenter might expand notification shade.
+        SystemClock.sleep(TIMEOUT_UPDATING_INPUT_WINDOW);
 
         // Swiping from top of display can show bars.
+        ANIMATION_CALLBACK.reset();
         dragFromTopToCenter(rootView);
+        ANIMATION_CALLBACK.waitForFinishing();
         PollingCheck.waitFor(TIMEOUT, () -> rootView.getRootWindowInsets().isVisible(types)
             && rootView.getSystemUiVisibility() != targetFlags);
 
@@ -411,11 +430,17 @@ public class WindowInsetsControllerTests extends WindowManagerTestBase {
             rootView.setWindowInsetsAnimationCallback(ANIMATION_CALLBACK);
             rootView.setSystemUiVisibility(targetFlags);
         });
-        ANIMATION_CALLBACK.waitForFinishing(TIMEOUT);
+        ANIMATION_CALLBACK.waitForFinishing();
         PollingCheck.waitFor(TIMEOUT, () -> !rootView.getRootWindowInsets().isVisible(types));
 
+        // Wait for status bar invisible from InputDispatcher. Otherwise, the following
+        // dragFromTopToCenter might expand notification shade.
+        SystemClock.sleep(TIMEOUT_UPDATING_INPUT_WINDOW);
+
         // Swiping from top of display can show bars.
+        ANIMATION_CALLBACK.reset();
         dragFromTopToCenter(rootView);
+        ANIMATION_CALLBACK.waitForFinishing();
         PollingCheck.waitFor(TIMEOUT, () -> rootView.getRootWindowInsets().isVisible(types));
 
         // The swipe action brings down the notification shade which causes subsequent tests to
@@ -442,7 +467,7 @@ public class WindowInsetsControllerTests extends WindowManagerTestBase {
             rootView.setWindowInsetsAnimationCallback(ANIMATION_CALLBACK);
             rootView.setSystemUiVisibility(SYSTEM_UI_FLAG_FULLSCREEN);
         });
-        ANIMATION_CALLBACK.waitForFinishing(TIMEOUT);
+        ANIMATION_CALLBACK.waitForFinishing();
         PollingCheck.waitFor(TIMEOUT, () -> !rootView.getRootWindowInsets().isVisible(types));
 
         // Clearing the flag can show status bar.
@@ -457,7 +482,7 @@ public class WindowInsetsControllerTests extends WindowManagerTestBase {
             rootView.setWindowInsetsAnimationCallback(ANIMATION_CALLBACK);
             rootView.setSystemUiVisibility(SYSTEM_UI_FLAG_FULLSCREEN);
         });
-        ANIMATION_CALLBACK.waitForFinishing(TIMEOUT);
+        ANIMATION_CALLBACK.waitForFinishing();
         PollingCheck.waitFor(TIMEOUT, () -> !rootView.getRootWindowInsets().isVisible(types));
 
         // Clearing the flag can show status bar.
@@ -471,7 +496,7 @@ public class WindowInsetsControllerTests extends WindowManagerTestBase {
     public void testHideOnCreate() throws Exception {
         final TestHideOnCreateActivity activity = startActivity(TestHideOnCreateActivity.class);
         final View rootView = activity.getWindow().getDecorView();
-        ANIMATION_CALLBACK.waitForFinishing(TIMEOUT);
+        ANIMATION_CALLBACK.waitForFinishing();
         PollingCheck.waitFor(TIMEOUT,
                 () -> !rootView.getRootWindowInsets().isVisible(statusBars())
                         && !rootView.getRootWindowInsets().isVisible(navigationBars()));
@@ -485,8 +510,39 @@ public class WindowInsetsControllerTests extends WindowManagerTestBase {
         MockImeHelper.createManagedMockImeSession(this);
         final TestShowOnCreateActivity activity = startActivity(TestShowOnCreateActivity.class);
         final View rootView = activity.getWindow().getDecorView();
-        ANIMATION_CALLBACK.waitForFinishing(TIMEOUT);
+        ANIMATION_CALLBACK.waitForFinishing();
         PollingCheck.waitFor(TIMEOUT, () -> rootView.getRootWindowInsets().isVisible(ime()));
+    }
+
+    @Test
+    public void testShowImeOnCreate_doesntCauseImeToReappearWhenDialogIsShown() throws Exception {
+        final Instrumentation instrumentation = getInstrumentation();
+        assumeThat(MockImeSession.getUnavailabilityReason(instrumentation.getContext()),
+                nullValue());
+        try (MockImeSession imeSession = MockImeSession.create(instrumentation.getContext(),
+                instrumentation.getUiAutomation(), new ImeSettings.Builder())) {
+            final TestShowOnCreateActivity activity = startActivity(TestShowOnCreateActivity.class);
+            final View rootView = activity.getWindow().getDecorView();
+            PollingCheck.waitFor(TIMEOUT,
+                    () -> rootView.getRootWindowInsets().isVisible(ime()));
+            ANIMATION_CALLBACK.waitForFinishing();
+            ANIMATION_CALLBACK.reset();
+            getInstrumentation().runOnMainSync(() ->  {
+                rootView.getWindowInsetsController().hide(ime());
+            });
+            PollingCheck.waitFor(TIMEOUT,
+                    () -> !rootView.getRootWindowInsets().isVisible(ime()));
+            ANIMATION_CALLBACK.waitForFinishing();
+            getInstrumentation().runOnMainSync(() ->  {
+                activity.showAltImDialog();
+            });
+
+            for (long time = TIMEOUT; time >= 0; time -= TIME_SLICE) {
+                assertFalse("IME visible when it shouldn't be",
+                        rootView.getRootWindowInsets().isVisible(ime()));
+                SystemClock.sleep(TIME_SLICE);
+            }
+        }
     }
 
     @Test
@@ -494,7 +550,7 @@ public class WindowInsetsControllerTests extends WindowManagerTestBase {
         // Start an activity which hides system bars.
         final TestHideOnCreateActivity activity = startActivity(TestHideOnCreateActivity.class);
         final View rootView = activity.getWindow().getDecorView();
-        ANIMATION_CALLBACK.waitForFinishing(TIMEOUT);
+        ANIMATION_CALLBACK.waitForFinishing();
         PollingCheck.waitFor(TIMEOUT,
                 () -> !rootView.getRootWindowInsets().isVisible(statusBars())
                         && !rootView.getRootWindowInsets().isVisible(navigationBars()));
@@ -525,7 +581,7 @@ public class WindowInsetsControllerTests extends WindowManagerTestBase {
     public void testWindowInsetsController_availableAfterAddView() throws Exception {
         final TestHideOnCreateActivity activity = startActivity(TestHideOnCreateActivity.class);
         final View rootView = activity.getWindow().getDecorView();
-        ANIMATION_CALLBACK.waitForFinishing(TIMEOUT);
+        ANIMATION_CALLBACK.waitForFinishing();
         PollingCheck.waitFor(TIMEOUT,
                 () -> !rootView.getRootWindowInsets().isVisible(statusBars())
                         && !rootView.getRootWindowInsets().isVisible(navigationBars()));
@@ -573,7 +629,7 @@ public class WindowInsetsControllerTests extends WindowManagerTestBase {
             rootView.setWindowInsetsAnimationCallback(ANIMATION_CALLBACK);
             rootView.getWindowInsetsController().hide(systemBars());
         });
-        ANIMATION_CALLBACK.waitForFinishing(TIMEOUT);
+        ANIMATION_CALLBACK.waitForFinishing();
 
         // ... should only trigger one dispatchApplyWindowInsets
         assertEquals(1, dispatchApplyWindowInsetsCount[0]);
@@ -585,7 +641,7 @@ public class WindowInsetsControllerTests extends WindowManagerTestBase {
             rootView.setWindowInsetsAnimationCallback(ANIMATION_CALLBACK);
             rootView.getWindowInsetsController().show(systemBars());
         });
-        ANIMATION_CALLBACK.waitForFinishing(TIMEOUT);
+        ANIMATION_CALLBACK.waitForFinishing();
 
         // ... should only trigger one dispatchApplyWindowInsets
         assertEquals(1, dispatchApplyWindowInsetsCount[0]);
@@ -613,7 +669,7 @@ public class WindowInsetsControllerTests extends WindowManagerTestBase {
             rootView.setWindowInsetsAnimationCallback(ANIMATION_CALLBACK);
             rootView.getWindowInsetsController().show(ime());
         });
-        ANIMATION_CALLBACK.waitForFinishing(TIMEOUT);
+        ANIMATION_CALLBACK.waitForFinishing();
 
         // ... should only trigger one dispatchApplyWindowInsets
         assertEquals(1, dispatchApplyWindowInsetsCount[0]);
@@ -625,7 +681,7 @@ public class WindowInsetsControllerTests extends WindowManagerTestBase {
             rootView.setWindowInsetsAnimationCallback(ANIMATION_CALLBACK);
             rootView.getWindowInsetsController().hide(ime());
         });
-        ANIMATION_CALLBACK.waitForFinishing(TIMEOUT);
+        ANIMATION_CALLBACK.waitForFinishing();
 
         // ... should only trigger one dispatchApplyWindowInsets
         assertEquals(1, dispatchApplyWindowInsetsCount[0]);
@@ -645,7 +701,7 @@ public class WindowInsetsControllerTests extends WindowManagerTestBase {
             view.setWindowInsetsAnimationCallback(ANIMATION_CALLBACK);
             view.getWindowInsetsController().hide(types);
         });
-        ANIMATION_CALLBACK.waitForFinishing(TIMEOUT);
+        ANIMATION_CALLBACK.waitForFinishing();
         PollingCheck.waitFor(TIMEOUT, () -> !view.getRootWindowInsets().isVisible(types));
     }
 
@@ -692,6 +748,8 @@ public class WindowInsetsControllerTests extends WindowManagerTestBase {
 
     private static class AnimationCallback extends WindowInsetsAnimation.Callback {
 
+        private static final long ANIMATION_TIMEOUT = 5000; // milliseconds
+
         private boolean mFinished = false;
 
         AnimationCallback() {
@@ -712,10 +770,10 @@ public class WindowInsetsControllerTests extends WindowManagerTestBase {
             }
         }
 
-        void waitForFinishing(long timeout) throws InterruptedException {
+        void waitForFinishing() throws InterruptedException {
             synchronized (this) {
                 if (!mFinished) {
-                    wait(timeout);
+                    wait(ANIMATION_TIMEOUT);
                 }
             }
         }
@@ -772,6 +830,14 @@ public class WindowInsetsControllerTests extends WindowManagerTestBase {
             ANIMATION_CALLBACK.reset();
             getWindow().getDecorView().setWindowInsetsAnimationCallback(ANIMATION_CALLBACK);
             getWindow().getInsetsController().show(ime());
+        }
+
+        void showAltImDialog() {
+            AlertDialog dialog = new AlertDialog.Builder(this)
+                    .setTitle("TestDialog")
+                    .create();
+            dialog.getWindow().addFlags(FLAG_ALT_FOCUSABLE_IM);
+            dialog.show();
         }
     }
 }

@@ -16,50 +16,57 @@
 
 package android.voiceinteraction.service;
 
-import android.content.Intent;
 import android.media.AudioFormat;
-import android.os.Bundle;
 import android.os.ParcelFileDescriptor;
+import android.os.PersistableBundle;
 import android.os.SharedMemory;
 import android.service.voice.HotwordDetectionService;
 import android.system.ErrnoException;
+import android.text.TextUtils;
 import android.util.Log;
-import android.voiceinteraction.common.Utils;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+
+import java.util.function.IntConsumer;
 
 public class MainHotwordDetectionService extends HotwordDetectionService {
     static final String TAG = "MainHotwordDetectionService";
 
     @Override
-    public void onDetectFromDspSource(
+    public void onDetect(
             @NonNull ParcelFileDescriptor audioStream,
             @NonNull AudioFormat audioFormat,
             long timeoutMillis,
-            @NonNull DspHotwordDetectionCallback callback) {
+            @NonNull Callback callback) {
         Log.d(TAG, "onDetectFromDspSource");
         if (callback == null) {
             Log.w(TAG, "callback is null");
             return;
         }
-        callback.onDetected();
+        callback.onDetected(null);
     }
 
     @Override
-    public void onUpdateState(@Nullable Bundle options, @Nullable SharedMemory sharedMemory) {
+    public void onUpdateState(
+            @Nullable PersistableBundle options,
+            @Nullable SharedMemory sharedMemory,
+            long callbackTimeoutMillis,
+            @Nullable IntConsumer statusCallback) {
         Log.d(TAG, "onUpdateState");
 
-        // TODO : Check the options data and sharedMemory data. It will also need to use the new
-        // mechanism instead of sendBroadcast to respond the test result when submitting isolated
-        // process patch.
+        if (options != null) {
+            String fakeData = options.getString(BasicVoiceInteractionService.KEY_FAKE_DATA);
+            if (!TextUtils.equals(fakeData, BasicVoiceInteractionService.VALUE_FAKE_DATA)) {
+                Log.d(TAG, "options : data is not the same");
+                return;
+            }
+        }
 
         if (sharedMemory != null) {
             try {
                 sharedMemory.mapReadWrite();
-                broadcastIntentWithResult(
-                        Utils.BROADCAST_HOTWORD_DETECTION_SERVICE_TRIGGER_RESULT_INTENT,
-                        Utils.HOTWORD_DETECTION_SERVICE_TRIGGER_SHARED_MEMORY_NOT_READ_ONLY);
+                Log.d(TAG, "sharedMemory : is not read-only");
                 return;
             } catch (ErrnoException e) {
                 // For read-only case
@@ -67,15 +74,11 @@ public class MainHotwordDetectionService extends HotwordDetectionService {
                 sharedMemory.close();
             }
         }
-        broadcastIntentWithResult(Utils.BROADCAST_HOTWORD_DETECTION_SERVICE_TRIGGER_RESULT_INTENT,
-                Utils.HOTWORD_DETECTION_SERVICE_TRIGGER_SUCCESS);
-    }
 
-    private void broadcastIntentWithResult(String intentName, int result) {
-        Intent intent = new Intent(intentName)
-                .addFlags(Intent.FLAG_RECEIVER_FOREGROUND | Intent.FLAG_RECEIVER_REGISTERED_ONLY)
-                .putExtra(Utils.KEY_TEST_RESULT, result);
-        Log.d(TAG, "broadcast intent = " + intent + ", result = " + result);
-        sendBroadcast(intent);
+        // Report success
+        Log.d(TAG, "onUpdateState success");
+        if (statusCallback != null) {
+            statusCallback.accept(INITIALIZATION_STATUS_SUCCESS);
+        }
     }
 }

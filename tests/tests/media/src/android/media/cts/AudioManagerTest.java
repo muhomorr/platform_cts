@@ -44,6 +44,7 @@ import static android.media.AudioManager.VIBRATE_TYPE_NOTIFICATION;
 import static android.media.AudioManager.VIBRATE_TYPE_RINGER;
 import static android.provider.Settings.System.SOUND_EFFECTS_ENABLED;
 
+import android.Manifest;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.content.BroadcastReceiver;
@@ -55,8 +56,10 @@ import android.content.res.Resources;
 import android.media.AudioAttributes;
 import android.media.AudioDeviceAttributes;
 import android.media.AudioDeviceInfo;
+import android.media.AudioFormat;
 import android.media.AudioManager;
 import android.media.AudioProfile;
+import android.media.AudioDescriptor;
 import android.media.MediaPlayer;
 import android.media.MediaRecorder;
 import android.media.MicrophoneInfo;
@@ -72,10 +75,15 @@ import android.text.TextUtils;
 import android.util.Log;
 import android.view.SoundEffectConstants;
 
+import androidx.test.InstrumentationRegistry;
+
 import com.android.compatibility.common.util.ApiLevelUtil;
 import com.android.compatibility.common.util.CddTest;
 import com.android.compatibility.common.util.MediaUtils;
+import com.android.compatibility.common.util.SettingsStateKeeperRule;
 import com.android.internal.annotations.GuardedBy;
+
+import org.junit.ClassRule;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -83,6 +91,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -99,6 +108,14 @@ public class AudioManagerTest extends InstrumentationTestCase {
     private final static long POLL_TIME_PLAY_MUSIC = 2000;
     private final static long TIME_TO_PLAY = 2000;
     private final static String APPOPS_OP_STR = "android:write_settings";
+    private final static Set<Integer> ALL_ENCAPSULATION_TYPES = new HashSet<>() {{
+            add(AudioProfile.AUDIO_ENCAPSULATION_TYPE_NONE);
+            add(AudioProfile.AUDIO_ENCAPSULATION_TYPE_IEC61937);
+    }};
+    private final static HashSet<Integer> ALL_AUDIO_STANDARDS = new HashSet<>() {{
+            add(AudioDescriptor.STANDARD_NONE);
+            add(AudioDescriptor.STANDARD_EDID);
+    }};
     private AudioManager mAudioManager;
     private NotificationManager mNm;
     private boolean mHasVibrator;
@@ -119,6 +136,16 @@ public class AudioManagerTest extends InstrumentationTestCase {
     private int mOriginalZen;
     private boolean mDoNotCheckUnmute;
     private boolean mAppsBypassingDnd;
+
+    @ClassRule
+    public static final SettingsStateKeeperRule mSurroundSoundFormatsSettingsKeeper =
+            new SettingsStateKeeperRule(InstrumentationRegistry.getTargetContext(),
+                    Settings.Global.ENCODED_SURROUND_OUTPUT_ENABLED_FORMATS);
+
+    @ClassRule
+    public static final SettingsStateKeeperRule mSurroundSoundModeSettingsKeeper =
+            new SettingsStateKeeperRule(InstrumentationRegistry.getTargetContext(),
+                    Settings.Global.ENCODED_SURROUND_OUTPUT);
 
     @Override
     protected void setUp() throws Exception {
@@ -365,6 +392,36 @@ public class AudioManagerTest extends InstrumentationTestCase {
         assertEquals(MODE_IN_COMMUNICATION, mAudioManager.getMode());
         mAudioManager.setMode(MODE_NORMAL);
         assertEquals(MODE_NORMAL, mAudioManager.getMode());
+    }
+
+    public void testSetSurroundFormatEnabled() throws Exception {
+        getInstrumentation().getUiAutomation().adoptShellPermissionIdentity(
+                Manifest.permission.WRITE_SETTINGS);
+
+        int audioFormat = AudioFormat.ENCODING_DTS;
+
+        mAudioManager.setSurroundFormatEnabled(audioFormat, true /*enabled*/);
+        assertTrue(mAudioManager.isSurroundFormatEnabled(audioFormat));
+
+        mAudioManager.setSurroundFormatEnabled(audioFormat, false /*enabled*/);
+        assertFalse(mAudioManager.isSurroundFormatEnabled(audioFormat));
+
+        getInstrumentation().getUiAutomation().dropShellPermissionIdentity();
+    }
+
+    public void testSetEncodedSurroundMode() throws Exception {
+        getInstrumentation().getUiAutomation().adoptShellPermissionIdentity(
+                Manifest.permission.WRITE_SETTINGS);
+
+        int expectedSurroundFormatsMode = Settings.Global.ENCODED_SURROUND_OUTPUT_MANUAL;
+        mAudioManager.setEncodedSurroundMode(expectedSurroundFormatsMode);
+        assertEquals(expectedSurroundFormatsMode, mAudioManager.getEncodedSurroundMode());
+
+        expectedSurroundFormatsMode = Settings.Global.ENCODED_SURROUND_OUTPUT_NEVER;
+        mAudioManager.setEncodedSurroundMode(expectedSurroundFormatsMode);
+        assertEquals(expectedSurroundFormatsMode, mAudioManager.getEncodedSurroundMode());
+
+        getInstrumentation().getUiAutomation().dropShellPermissionIdentity();
     }
 
     @SuppressWarnings("deprecation")
@@ -1801,6 +1858,11 @@ public class AudioManagerTest extends InstrumentationTestCase {
                         .boxed().collect(Collectors.toList()));
                 sampleRatesFromProfile.addAll(Arrays.stream(profile.getSampleRates()).boxed()
                         .collect(Collectors.toList()));
+                assertTrue(ALL_ENCAPSULATION_TYPES.contains(profile.getEncapsulationType()));
+            }
+            for (AudioDescriptor descriptor : device.getAudioDescriptors()) {
+                assertNotEquals(AudioDescriptor.STANDARD_NONE, descriptor.getStandard());
+                assertNotNull(descriptor.getDescriptor());
             }
             assertEquals(formats, formatsFromProfile);
             assertEquals(channelMasks, channelMasksFromProfile);

@@ -295,7 +295,7 @@ public class EdgeEffectTests extends ActivityTestBase {
     public void testStretchTop() {
         RenderNode renderNode = drawStretchEffect(1f, 1f, 0f);
         Rect innerRect = new Rect(0, 0, WIDTH, HEIGHT / 2 + 1);
-        Rect outerRect = new Rect(0, HEIGHT / 2 + 5, WIDTH, HEIGHT);
+        Rect outerRect = new Rect(0, HEIGHT / 2 + 10, WIDTH, HEIGHT);
         createTest()
                 .addCanvasClientWithoutUsingPicture((canvas, width, height) -> {
                     canvas.drawRenderNode(renderNode);
@@ -477,6 +477,20 @@ public class EdgeEffectTests extends ActivityTestBase {
         // There should be no change once it has been caught.
         edgeEffect.draw(canvas);
         assertEquals(distanceAfterAnimation, edgeEffect.getDistance(), 0f);
+    }
+
+    /**
+     * When an EdgeEffect with TYPE_STRETCH is drawn on a non-RecordingCanvas, the animation
+     * should immediately end.
+     */
+    @Test
+    public void testStretchOnBitmapCanvas() throws Throwable {
+        EdgeEffect edgeEffect = createEdgeEffectWithPull(EdgeEffect.TYPE_STRETCH);
+        Bitmap bitmap = Bitmap.createBitmap(WIDTH, HEIGHT, Bitmap.Config.ARGB_8888);
+        Canvas canvas = new Canvas(bitmap);
+        edgeEffect.draw(canvas);
+        assertTrue(edgeEffect.isFinished());
+        assertEquals(0f, edgeEffect.getDistance(), 0f);
     }
 
     private EdgeEffect createEdgeEffectWithPull(int edgeEffectType) {
