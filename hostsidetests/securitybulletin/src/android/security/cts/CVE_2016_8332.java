@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 2021 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,29 +17,20 @@
 package android.security.cts;
 
 import android.platform.test.annotations.SecurityTest;
-import androidx.test.filters.RequiresDevice;
-import androidx.test.runner.AndroidJUnit4;
-import org.junit.runner.RunWith;
 import org.junit.Test;
-import static org.junit.Assert.assertFalse;
+import org.junit.runner.RunWith;
+import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
 
-@RunWith(AndroidJUnit4.class)
-public class CVE_2021_0394 {
-    static {
-        System.loadLibrary("ctssecurity_jni");
-    }
+@RunWith(DeviceJUnit4ClassRunner.class)
+public class CVE_2016_8332 extends SecurityTestCase {
 
     /**
-     * b/172655291
+     * b/37761553
+     * Vulnerability Behaviour: SIGSEGV in self
      */
-    @SecurityTest(minPatchLevel = "2021-03")
+    @SecurityTest(minPatchLevel = "2017-06")
     @Test
-    @RequiresDevice
-    // emulators always have checkJNI enabled which causes the test
-    // to abort the VM while passing invalid input to NewStringUTF
-    public void testPocCVE_2021_0394() throws Exception {
-        assertFalse(poc());
+    public void testPocCVE_2016_8332() throws Exception {
+        AdbUtils.runPocAssertNoCrashesNotVulnerable("CVE-2016-8332", null, getDevice());
     }
-
-    public static native boolean poc();
 }
