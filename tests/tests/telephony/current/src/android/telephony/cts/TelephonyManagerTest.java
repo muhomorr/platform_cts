@@ -670,7 +670,9 @@ public class TelephonyManagerTest {
                 (tm) -> tm.getSubscriberId());
         mTelephonyManager.getLine1Number();
         mTelephonyManager.getNetworkOperator();
-        mTelephonyManager.getPhoneAccountHandle();
+        ShellIdentityUtils.invokeMethodWithShellPermissions(mTelephonyManager,
+                (tm) -> tm.getPhoneAccountHandle(),
+                "android.Manifest.permission.READ_PRIVILEGED_PHONE_STATE");
         mTelephonyManager.getSimCountryIso();
         mTelephonyManager.getVoiceMailAlphaTag();
         mTelephonyManager.isNetworkRoaming();
@@ -988,7 +990,10 @@ public class TelephonyManagerTest {
         TelecomManager telecomManager = getContext().getSystemService(TelecomManager.class);
         PhoneAccountHandle defaultAccount = telecomManager
                 .getDefaultOutgoingPhoneAccount(PhoneAccount.SCHEME_TEL);
-        PhoneAccountHandle phoneAccountHandle = mTelephonyManager.getPhoneAccountHandle();
+        PhoneAccountHandle phoneAccountHandle = ShellIdentityUtils.invokeMethodWithShellPermissions(
+                mTelephonyManager,
+                (tm) -> tm.getPhoneAccountHandle(),
+                "android.Manifest.permission.READ_PRIVILEGED_PHONE_STATE");
         assertEquals(phoneAccountHandle, defaultAccount);
     }
 
@@ -3984,9 +3989,14 @@ public class TelephonyManagerTest {
 
         long arbitraryCompletionWindowSecs = 1L;
 
+        boolean isDataThrottlingSupported = ShellIdentityUtils.invokeMethodWithShellPermissions(
+                mTelephonyManager, (tm) -> tm.isRadioInterfaceCapabilitySupported(
+                        TelephonyManager.CAPABILITY_THERMAL_MITIGATION_DATA_THROTTLING));
 
-        // Test a proper data throttling thermal mitigation request.
-        int thermalMitigationResult = ShellIdentityUtils.invokeMethodWithShellPermissions(
+        int thermalMitigationResult = -1;
+        if (isDataThrottlingSupported) {
+            // Test a proper data throttling thermal mitigation request.
+            thermalMitigationResult = ShellIdentityUtils.invokeMethodWithShellPermissions(
                 mTelephonyManager, (tm) -> tm.sendThermalMitigationRequest(
                         new ThermalMitigationRequest.Builder()
                                 .setThermalMitigationAction(ThermalMitigationRequest
@@ -3995,10 +4005,9 @@ public class TelephonyManagerTest {
                                         .setDataThrottlingAction(DataThrottlingRequest
                                                 .DATA_THROTTLING_ACTION_THROTTLE_SECONDARY_CARRIER)
                                         .setCompletionDurationMillis(arbitraryCompletionWindowSecs)
-                                .build())
-                        .build()));
-        // Only verify the result for supported devices on IRadio 1.6+
-        if (mRadioVersion >= RADIO_HAL_VERSION_1_6) {
+                                        .build())
+                                .build()));
+
             assertEquals(thermalMitigationResult,
                     TelephonyManager.THERMAL_MITIGATION_RESULT_SUCCESS);
         }
@@ -4297,6 +4306,7 @@ public class TelephonyManagerTest {
                 mTelephonyManager, (tm) -> {
                     List<UiccCardInfo> cardInfos = mTelephonyManager.getUiccCardsInfo();
                     Set<String> presentCards = Arrays.stream(mTelephonyManager.getUiccSlotsInfo())
+                            .filter(Objects::nonNull)
                             .filter(UiccSlotInfo::getIsActive)
                             .map(UiccSlotInfo::getCardId)
                             .filter(Objects::nonNull)

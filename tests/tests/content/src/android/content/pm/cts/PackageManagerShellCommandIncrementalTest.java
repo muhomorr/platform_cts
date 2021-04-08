@@ -56,7 +56,6 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -586,7 +585,7 @@ public class PackageManagerShellCommandIncrementalTest {
 
     @LargeTest
     @Test
-    @Ignore("Pending fix in GMSCore")
+    // @Ignore("Pending fix in GMSCore")
     public void testInstallWithIdSigNoDigesting() throws Exception {
         // Overall timeout of 3secs in 100ms intervals.
         final int installIterations = 1;
@@ -884,8 +883,8 @@ public class PackageManagerShellCommandIncrementalTest {
 
     private void doTestInstallSysTrace(String testApk) throws Exception {
         // Async atrace dump uses less resources but requires periodic pulls.
-        // Overall timeout of 30secs in 100ms intervals should be enough.
-        final int atraceDumpIterations = 300;
+        // Overall timeout of 10secs in 100ms intervals should be enough.
+        final int atraceDumpIterations = 100;
         final int atraceDumpDelayMs = 100;
         final String expected = "|page_read:";
 

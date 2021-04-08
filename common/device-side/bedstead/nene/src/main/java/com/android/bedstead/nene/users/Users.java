@@ -29,6 +29,7 @@ import android.os.UserHandle;
 import androidx.annotation.CheckResult;
 import androidx.annotation.Nullable;
 
+import com.android.bedstead.nene.TestApis;
 import com.android.bedstead.nene.exceptions.AdbException;
 import com.android.bedstead.nene.exceptions.AdbParseException;
 import com.android.bedstead.nene.exceptions.NeneException;
@@ -43,6 +44,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 public final class Users {
 
@@ -52,7 +54,13 @@ public final class Users {
     private Map<Integer, User> mCachedUsers = null;
     private Map<String, UserType> mCachedUserTypes = null;
     private Set<UserType> mCachedUserTypeValues = null;
-    private final AdbUserParser parser = AdbUserParser.get(this, SDK_INT);
+    private final AdbUserParser mParser;
+    private final TestApis mTestApis;
+
+    public Users(TestApis testApis) {
+        mTestApis = testApis;
+        mParser = AdbUserParser.get(mTestApis, SDK_INT);
+    }
 
     /** Get all {@link User}s on the device. */
     public Collection<User> all() {
@@ -73,12 +81,12 @@ public final class Users {
 
     /** Get a {@link UserReference} by {@code id}. */
     public UserReference find(int id) {
-        return new UnresolvedUser(this, id);
+        return new UnresolvedUser(mTestApis, id);
     }
 
     /** Get a {@link UserReference} by {@code userHandle}. */
     public UserReference find(UserHandle userHandle) {
-        return new UnresolvedUser(this, userHandle.getIdentifier());
+        return new UnresolvedUser(mTestApis, userHandle.getIdentifier());
     }
 
     @Nullable
@@ -100,6 +108,85 @@ public final class Users {
     public UserType supportedType(String typeName) {
         ensureSupportedTypesCacheFilled();
         return mCachedUserTypes.get(typeName);
+    }
+
+    /**
+     * Find all users which have the given {@link UserType}.
+     */
+    public Set<UserReference> findUsersOfType(UserType userType) {
+        if (userType == null) {
+            throw new NullPointerException();
+        }
+
+        if (userType.baseType().contains(UserType.BaseType.PROFILE)) {
+            throw new NeneException("Cannot use findUsersOfType with profile type " + userType);
+        }
+
+        return all().stream()
+                .filter(u -> u.type().equals(userType))
+                .collect(Collectors.toSet());
+    }
+
+    /**
+     * Find a single user which has the given {@link UserType}.
+     *
+     * <p>If there are no users of the given type, {@code Null} will be returned.
+     *
+     * <p>If there is more than one user of the given type, {@link NeneException} will be thrown.
+     */
+    @Nullable
+    public UserReference findUserOfType(UserType userType) {
+        Set<UserReference> users = findUsersOfType(userType);
+
+        if (users.isEmpty()) {
+            return null;
+        } else if (users.size() > 1) {
+            throw new NeneException("findUserOfType called but there is more than 1 user of type "
+                    + userType + ". Found: " + users);
+        }
+
+        return users.iterator().next();
+    }
+
+    /**
+     * Find all users which have the given {@link UserType} and the given parent.
+     */
+    public Set<UserReference> findProfilesOfType(UserType userType, UserReference parent) {
+        if (userType == null || parent == null) {
+            throw new NullPointerException();
+        }
+
+        if (!userType.baseType().contains(UserType.BaseType.PROFILE)) {
+            throw new NeneException("Cannot use findProfilesOfType with non-profile type "
+                    + userType);
+        }
+
+        return all().stream()
+                .filter(u -> parent.equals(u.parent())
+                        && u.type().equals(userType))
+                .collect(Collectors.toSet());
+    }
+
+    /**
+     * Find all users which have the given {@link UserType} and the given parent.
+     *
+     * <p>If there are no users of the given type and parent, {@code Null} will be returned.
+     *
+     * <p>If there is more than one user of the given type and parent, {@link NeneException} will
+     * be thrown.
+     */
+    @Nullable
+    public UserReference findProfileOfType(UserType userType, UserReference parent) {
+        Set<UserReference> profiles = findProfilesOfType(userType, parent);
+
+        if (profiles.isEmpty()) {
+            return null;
+        } else if (profiles.size() > 1) {
+            throw new NeneException("findProfileOfType called but there is more than 1 user of "
+                    + "type " + userType + " with parent " + parent + ". Found: " + profiles);
+        }
+
+        return profiles.iterator().next();
     }
 
     private void ensureSupportedTypesCacheFilled() {
@@ -156,14 +243,14 @@ public final class Users {
      */
     @CheckResult
     public UserBuilder createUser() {
-        return new UserBuilder(this);
+        return new UserBuilder(mTestApis);
     }
 
     private void fillCache() {
         try {
             // TODO: Replace use of adb on supported versions of Android
             String userDumpsysOutput = ShellCommand.builder("dumpsys user").execute();
-            AdbUserParser.ParseResult result = parser.parse(userDumpsysOutput);
+            AdbUserParser.ParseResult result = mParser.parse(userDumpsysOutput);
 
             mCachedUsers = result.mUsers;
             if (result.mUserTypes != null) {

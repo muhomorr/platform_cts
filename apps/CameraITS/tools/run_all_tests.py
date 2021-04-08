@@ -47,6 +47,7 @@ EXTRA_CAMERA_ID = 'camera.its.extra.CAMERA_ID'
 EXTRA_RESULTS = 'camera.its.extra.RESULTS'
 TIME_KEY_START = 'start'
 TIME_KEY_END = 'end'
+VALID_CONTROLLERS = ('arduino', 'canakit')
 
 # All possible scenes
 # Notes on scene names:
@@ -233,8 +234,11 @@ def check_manual_scenes(device_id, camera_id, scene, out_path):
     while True:
       input(f'\n Press <ENTER> after positioning camera {camera_id} with '
             f'{scene}.\n The scene setup should be: \n  {_SCENE_REQ[scene]}\n')
-      # Converge 3A prior to capture.
-      cam.do_3a()
+      # Converge 3A prior to capture
+      if scene == 'scene5':
+        cam.do_3a(do_af=False, lock_ae=True, lock_awb=True)
+      else:
+        cam.do_3a()
       req, fmt = capture_request_utils.get_fastest_auto_capture_settings(props)
       logging.info('Capturing an image to check the test scene')
       cap = cam.do_capture(req, fmt)
@@ -388,10 +392,17 @@ def main():
 
   device_id = get_device_serial_number('dut', config_file_contents)
 
-  if TEST_KEY_TABLET in config_file_contents['TestBeds'][0]['Name'].lower():
+  config_file_test_key = config_file_contents['TestBeds'][0]['Name'].lower()
+  if TEST_KEY_TABLET in config_file_test_key:
     tablet_id = get_device_serial_number('tablet', config_file_contents)
   else:
     tablet_id = None
+
+  testing_sensor_fusion_with_controller = False
+  if TEST_KEY_SENSOR_FUSION in config_file_test_key:
+    if test_params_content['rotator_cntl'].lower() in VALID_CONTROLLERS:
+      testing_sensor_fusion_with_controller = True
+
   # Prepend 'scene' if not specified at cmd line
   for i, s in enumerate(scenes):
     if (not s.startswith('scene') and
@@ -453,11 +464,11 @@ def main():
 
       if auto_scene_switch:
         # Copy scene images onto the tablet
-        if s not in ['scene0', 'sensor_fusion']:
+        if s not in ['scene0']:
           load_scenes_on_tablet(s, tablet_id)
       else:
-        # Check manual scens for correctness
-        if s not in ['scene0']:
+        # Check manual scenes for correctness
+        if s not in ['scene0'] and not testing_sensor_fusion_with_controller:
           check_manual_scenes(device_id, camera_id, s, mobly_output_logs_path)
 
       scene_test_list = []

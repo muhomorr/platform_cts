@@ -20,9 +20,6 @@ import static android.server.wm.WindowManagerState.getLogicalDisplaySize;
 
 import static org.junit.Assert.assertTrue;
 
-import android.animation.ObjectAnimator;
-import android.animation.PropertyValuesHolder;
-import android.animation.ValueAnimator;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.support.test.uiautomator.UiObjectNotFoundException;
@@ -30,10 +27,8 @@ import android.test.suitebuilder.annotation.LargeTest;
 import android.util.Log;
 import android.view.Surface;
 import android.view.SurfaceHolder;
-import android.view.View;
-import android.view.animation.LinearInterpolator;
-import android.view.cts.surfacevalidator.AnimationFactory;
 import android.view.cts.surfacevalidator.CapturedActivity;
+import android.view.cts.surfacevalidator.MultiFramePixelChecker;
 import android.view.cts.surfacevalidator.PixelChecker;
 import android.view.cts.surfacevalidator.PixelColor;
 import android.view.cts.surfacevalidator.SurfaceControlTestCase;
@@ -48,11 +43,10 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TestName;
 import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized.Parameter;
-import org.junit.runners.Parameterized.Parameters;
 
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 
 @LargeTest
 @RunWith(AndroidJUnit4.class)
@@ -61,11 +55,25 @@ public class ASurfaceControlTest {
         System.loadLibrary("ctsview_jni");
     }
 
-    @Parameter(0) public boolean mTestSetGeometry;
+    public interface TransactionCompleteListener {
+        void onTransactionComplete(long latchTime);
+    }
 
-    @Parameters
-    public static Object[] data() {
-        return new Boolean[] {false, true};
+    private static class SyncTransactionCompleteListener implements TransactionCompleteListener {
+        private final CountDownLatch mCountDownLatch = new CountDownLatch(1);
+
+        @Override
+        public void onTransactionComplete(long latchTime) {
+            mCountDownLatch.countDown();
+        }
+
+        public void waitForTransactionComplete() {
+            try {
+                mCountDownLatch.await();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
     }
 
     private static final String TAG = ASurfaceControlTest.class.getSimpleName();
@@ -73,8 +81,6 @@ public class ASurfaceControlTest {
 
     private static final int DEFAULT_LAYOUT_WIDTH = 100;
     private static final int DEFAULT_LAYOUT_HEIGHT = 100;
-    private static final int DEFAULT_BUFFER_WIDTH = 640;
-    private static final int DEFAULT_BUFFER_HEIGHT = 480;
 
     @Rule
     public ActivityTestRule<CapturedActivity> mActivityRule =
@@ -89,6 +95,7 @@ public class ASurfaceControlTest {
     public void setup() {
         mActivity = mActivityRule.getActivity();
         mActivity.setLogicalDisplaySize(getLogicalDisplaySize());
+        mActivity.setMinimumCaptureDurationMs(1000);
     }
 
     /**
@@ -98,6 +105,7 @@ public class ASurfaceControlTest {
     @After
     public void tearDown() throws UiObjectNotFoundException {
         mActivity.dismissPermissionDialog();
+        mActivity.restoreSettings();
     }
 
     ///////////////////////////////////////////////////////////////////////////
@@ -107,6 +115,51 @@ public class ASurfaceControlTest {
     private abstract class BasicSurfaceHolderCallback implements SurfaceHolder.Callback {
         private Set<Long> mSurfaceControls = new HashSet<Long>();
         private Set<Long> mBuffers = new HashSet<Long>();
+        private Set<BufferCycler> mBufferCyclers = new HashSet<>();
+
+        // Helper class to submit buffers as fast as possible. The thread submits a buffer,
+        // waits for the transaction complete callback, and then submits the next buffer.
+        class BufferCycler extends Thread {
+            private long mSurfaceControl;
+            private long[] mBuffers;
+            private volatile boolean mStop = false;
+            private int mFrameNumber = 0;
+
+            BufferCycler(long surfaceControl, long[] buffers) {
+                mSurfaceControl = surfaceControl;
+                mBuffers = buffers;
+            }
+
+            private long getNextBuffer() {
+                return mBuffers[mFrameNumber++ % mBuffers.length];
+            }
+
+            @Override
+            public void run() {
+                while (!mStop) {
+                    SyncTransactionCompleteListener listener =
+                            new SyncTransactionCompleteListener();
+                    // Send all buffers in batches so we can stuff the SurfaceFlinger transaction
+                    // queue.
+                    for (int i = 0; i < mBuffers.length; i++) {
+                        long surfaceTransaction = createSurfaceTransaction();
+                        setBuffer(mSurfaceControl, surfaceTransaction, getNextBuffer());
+                        if (i == 0) {
+                            setOnCompleteCallback(surfaceTransaction, listener);
+                        }
+                        applyAndDeleteSurfaceTransaction(surfaceTransaction);
+                    }
+
+                    // Wait for one of transactions to be applied before sending more transactions.
+                    listener.waitForTransactionComplete();
+                }
+            }
+
+            void end() {
+                mStop = true;
+            }
+        }
+
 
         @Override
         public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
@@ -117,6 +170,13 @@ public class ASurfaceControlTest {
 
         @Override
         public void surfaceDestroyed(SurfaceHolder holder) {
+            for (BufferCycler cycler: mBufferCyclers) {
+                cycler.end();
+                try {
+                    cycler.join();
+                } catch (InterruptedException e) {
+                }
+            }
             for (Long surfaceControl : mSurfaceControls) {
                 reparent(surfaceControl, 0);
                 nSurfaceControl_release(surfaceControl);
@@ -164,18 +224,24 @@ public class ASurfaceControlTest {
             return childSurfaceControl;
         }
 
-        public void setSolidBuffer(
+        public long setSolidBuffer(
                 long surfaceControl, long surfaceTransaction, int width, int height, int color) {
             long buffer = nSurfaceTransaction_setSolidBuffer(
                     surfaceControl, surfaceTransaction, width, height, color);
             assertTrue("failed to set buffer", buffer != 0);
             mBuffers.add(buffer);
+            return buffer;
         }
 
-        public void setSolidBuffer(long surfaceControl, int width, int height, int color) {
+        public long setSolidBuffer(long surfaceControl, int width, int height, int color) {
             long surfaceTransaction = createSurfaceTransaction();
-            setSolidBuffer(surfaceControl, surfaceTransaction, width, height, color);
+            long buffer = setSolidBuffer(surfaceControl, surfaceTransaction, width, height, color);
             applyAndDeleteSurfaceTransaction(surfaceTransaction);
+            return buffer;
+        }
+
+        public void setBuffer(long surfaceControl, long surfaceTransaction, long buffer) {
+            nSurfaceTransaction_setBuffer(surfaceControl, surfaceTransaction, buffer);
         }
 
         public void setQuadrantBuffer(long surfaceControl, long surfaceTransaction, int width,
@@ -218,16 +284,8 @@ public class ASurfaceControlTest {
         public void setGeometry(long surfaceControl, long surfaceTransaction, int srcLeft,
                 int srcTop, int srcRight, int srcBottom, int dstLeft, int dstTop, int dstRight,
                 int dstBottom, int transform) {
-            if (mTestSetGeometry) {
-                nSurfaceTransaction_setGeometry(surfaceControl, surfaceTransaction, srcLeft, srcTop,
-                        srcRight, srcBottom, dstLeft, dstTop, dstRight, dstBottom, transform);
-            } else {
-                nSurfaceTransaction_setPosition(
-                        surfaceControl, surfaceTransaction, dstLeft, dstTop, dstRight, dstBottom);
-                nSurfaceTransaction_setTransform(surfaceControl, surfaceTransaction, transform);
-                nSurfaceTransaction_setSourceRect(
-                        surfaceControl, surfaceTransaction, srcLeft, srcTop, srcRight, srcBottom);
-            }
+            nSurfaceTransaction_setGeometry(surfaceControl, surfaceTransaction, srcLeft, srcTop,
+                    srcRight, srcBottom, dstLeft, dstTop, dstRight, dstBottom, transform);
         }
 
         public void setGeometry(long surfaceControl, int srcLeft, int srcTop, int srcRight,
@@ -294,25 +352,26 @@ public class ASurfaceControlTest {
             setColor(surfaceControl, surfaceTransaction, red, green, blue, alpha);
             applyAndDeleteSurfaceTransaction(surfaceTransaction);
         }
+
+        public void setEnableBackPressure(long surfaceControl, boolean enableBackPressure) {
+            long surfaceTransaction = createSurfaceTransaction();
+            nSurfaceTransaction_setEnableBackPressure(surfaceControl, surfaceTransaction,
+                    enableBackPressure);
+            applyAndDeleteSurfaceTransaction(surfaceTransaction);
+        }
+
+        public void setOnCompleteCallback(long surfaceTransaction,
+                TransactionCompleteListener listener) {
+            nSurfaceTransaction_setOnCompleteCallback(surfaceTransaction, listener);
+        }
+
+        public void addBufferCycler(long surfaceControl, long[] buffers) {
+            BufferCycler cycler = new BufferCycler(surfaceControl, buffers);
+            cycler.start();
+            mBufferCyclers.add(cycler);
+        }
+
     }
-
-    ///////////////////////////////////////////////////////////////////////////
-    // AnimationFactories
-    ///////////////////////////////////////////////////////////////////////////
-
-    private static ValueAnimator makeInfinite(ValueAnimator a) {
-        a.setRepeatMode(ObjectAnimator.REVERSE);
-        a.setRepeatCount(ObjectAnimator.INFINITE);
-        a.setDuration(200);
-        a.setInterpolator(new LinearInterpolator());
-        return a;
-    }
-
-    private static AnimationFactory sTranslateAnimationFactory = view -> {
-        PropertyValuesHolder pvhX = PropertyValuesHolder.ofFloat(View.TRANSLATION_X, 10f, 30f);
-        PropertyValuesHolder pvhY = PropertyValuesHolder.ofFloat(View.TRANSLATION_Y, 10f, 30f);
-        return makeInfinite(ObjectAnimator.ofPropertyValuesHolder(view, pvhX, pvhY));
-    };
 
     ///////////////////////////////////////////////////////////////////////////
     // Tests
@@ -320,11 +379,10 @@ public class ASurfaceControlTest {
 
     private void verifyTest(SurfaceHolder.Callback callback, PixelChecker pixelChecker)
                 throws Throwable {
-        mActivity.verifyTest(new SurfaceControlTestCase(callback, sTranslateAnimationFactory,
-                                                 pixelChecker,
-                                                 DEFAULT_LAYOUT_WIDTH, DEFAULT_LAYOUT_HEIGHT,
-                                                 DEFAULT_BUFFER_WIDTH, DEFAULT_BUFFER_HEIGHT),
-                mName);
+        mActivity.verifyTest(
+                new SurfaceControlTestCase(callback, null, pixelChecker, DEFAULT_LAYOUT_WIDTH,
+                        DEFAULT_LAYOUT_HEIGHT, DEFAULT_LAYOUT_WIDTH, DEFAULT_LAYOUT_HEIGHT,
+                        false /* checkSurfaceViewBoundsOnly */), mName);
     }
 
     @Test
@@ -588,7 +646,6 @@ public class ASurfaceControlTest {
 
                         setSolidBuffer(surfaceControl, DEFAULT_LAYOUT_WIDTH, DEFAULT_LAYOUT_HEIGHT,
                                 PixelColor.RED);
-                        setGeometry(surfaceControl, 0, 0, 100, 100, 0, 0, 640, 480, 0);
                     }
                 },
                 new PixelChecker(PixelColor.RED) { //10000
@@ -609,7 +666,7 @@ public class ASurfaceControlTest {
 
                         setSolidBuffer(surfaceControl, DEFAULT_LAYOUT_WIDTH, DEFAULT_LAYOUT_HEIGHT,
                                 PixelColor.RED);
-                        setGeometry(surfaceControl, 0, 0, 100, 100, 64, 48, 320, 240, 0);
+                        setGeometry(surfaceControl, 0, 0, 100, 100, 10, 10, 50, 50, 0);
                     }
                 },
                 new PixelChecker(PixelColor.RED) { //1600
@@ -631,7 +688,7 @@ public class ASurfaceControlTest {
 
                         setSolidBuffer(childSurfaceControl, DEFAULT_LAYOUT_WIDTH,
                                 DEFAULT_LAYOUT_HEIGHT, PixelColor.RED);
-                        setGeometry(childSurfaceControl, 0, 0, 100, 100, 64, 48, 320, 240, 0);
+                        setGeometry(childSurfaceControl, 0, 0, 100, 100, 10, 10, 50, 50, 0);
                     }
                 },
                 new PixelChecker(PixelColor.RED) { //1600
@@ -652,7 +709,7 @@ public class ASurfaceControlTest {
 
                         setSolidBuffer(surfaceControl, DEFAULT_LAYOUT_WIDTH, DEFAULT_LAYOUT_HEIGHT,
                                 PixelColor.RED);
-                        setGeometry(surfaceControl, 0, 0, 100, 100, -100, -100, 740, 580, 0);
+                        setGeometry(surfaceControl, 0, 0, 100, 100, -100, -100, 200, 200, 0);
                     }
                 },
                 new PixelChecker(PixelColor.RED) { //10000
@@ -674,7 +731,7 @@ public class ASurfaceControlTest {
 
                         setSolidBuffer(childSurfaceControl, DEFAULT_LAYOUT_WIDTH,
                                 DEFAULT_LAYOUT_HEIGHT, PixelColor.RED);
-                        setGeometry(childSurfaceControl, 0, 0, 100, 100, -100, -100, 740, 580, 0);
+                        setGeometry(childSurfaceControl, 0, 0, 100, 100, -100, -100, 200, 200, 0);
                     }
                 },
                 new PixelChecker(PixelColor.RED) { //10000
@@ -695,7 +752,7 @@ public class ASurfaceControlTest {
 
                         setSolidBuffer(surfaceControl, DEFAULT_LAYOUT_WIDTH, DEFAULT_LAYOUT_HEIGHT,
                                 PixelColor.RED);
-                        setGeometry(surfaceControl, 0, 0, 100, 100, -32, -24, 320, 240, 0);
+                        setGeometry(surfaceControl, 0, 0, 100, 100, -32, -24, 50, 50, 0);
                     }
                 },
                 new PixelChecker(PixelColor.RED) { //2500
@@ -716,7 +773,7 @@ public class ASurfaceControlTest {
 
                         setSolidBuffer(surfaceControl, DEFAULT_LAYOUT_WIDTH, DEFAULT_LAYOUT_HEIGHT,
                                 PixelColor.RED);
-                        setGeometry(surfaceControl, 0, 0, 100, 100, 320, 240, 704, 504, 0);
+                        setGeometry(surfaceControl, 0, 0, 100, 100, 50, 50, 110, 105, 0);
                     }
                 },
                 new PixelChecker(PixelColor.RED) { //2500
@@ -739,8 +796,8 @@ public class ASurfaceControlTest {
                                 PixelColor.RED);
                         setSolidBuffer(surfaceControl2, DEFAULT_LAYOUT_WIDTH, DEFAULT_LAYOUT_HEIGHT,
                                 PixelColor.BLUE);
-                        setGeometry(surfaceControl1, 0, 0, 100, 100, 64, 48, 192, 192, 0);
-                        setGeometry(surfaceControl2, 0, 0, 100, 100, 448, 96, 576, 240, 0);
+                        setGeometry(surfaceControl1, 0, 0, 100, 100, 10, 10, 30, 40, 0);
+                        setGeometry(surfaceControl2, 0, 0, 100, 100, 70, 20, 90, 50, 0);
                     }
                 };
         verifyTest(callback,
@@ -769,7 +826,6 @@ public class ASurfaceControlTest {
                         setQuadrantBuffer(surfaceControl, DEFAULT_LAYOUT_WIDTH,
                                 DEFAULT_LAYOUT_HEIGHT, PixelColor.RED, PixelColor.BLUE,
                                 PixelColor.MAGENTA, PixelColor.GREEN);
-                        setGeometry(surfaceControl, 0, 0, 100, 100, 0, 0, 640, 480, 0);
                     }
                 };
         verifyTest(callback,
@@ -812,7 +868,7 @@ public class ASurfaceControlTest {
                         setQuadrantBuffer(surfaceControl, DEFAULT_LAYOUT_WIDTH,
                                 DEFAULT_LAYOUT_HEIGHT, PixelColor.RED, PixelColor.BLUE,
                                 PixelColor.MAGENTA, PixelColor.GREEN);
-                        setGeometry(surfaceControl, 10, 10, 90, 90, 0, 0, 640, 480, 0);
+                        setGeometry(surfaceControl, 10, 10, 90, 90, 0, 0, 100, 100, 0);
                     }
                 };
         verifyTest(callback,
@@ -856,7 +912,7 @@ public class ASurfaceControlTest {
                         setQuadrantBuffer(surfaceControl, DEFAULT_LAYOUT_WIDTH,
                                 DEFAULT_LAYOUT_HEIGHT, PixelColor.RED, PixelColor.BLUE,
                                 PixelColor.MAGENTA, PixelColor.GREEN);
-                        setGeometry(surfaceControl, 60, 10, 90, 90, 0, 0, 640, 480, 0);
+                        setGeometry(surfaceControl, 60, 10, 90, 90, 0, 0, 100, 100, 0);
                     }
                 },
                 new PixelChecker(PixelColor.MAGENTA) { //5000
@@ -877,35 +933,35 @@ public class ASurfaceControlTest {
                         setQuadrantBuffer(surfaceControl, DEFAULT_LAYOUT_WIDTH,
                                 DEFAULT_LAYOUT_HEIGHT, PixelColor.RED, PixelColor.BLUE,
                                 PixelColor.MAGENTA, PixelColor.GREEN);
-                        setGeometry(surfaceControl, -50, -50, 150, 150, 0, 0, 640, 480, 0);
+                        setGeometry(surfaceControl, -50, -50, 150, 150, 0, 0, 100, 100, 0);
                     }
                 };
         verifyTest(callback,
-                new PixelChecker(PixelColor.RED) { //2500
+                new PixelChecker(PixelColor.RED) { //1111
                     @Override
                     public boolean checkPixels(int pixelCount, int width, int height) {
-                        return pixelCount > 2250 && pixelCount < 2750;
+                        return pixelCount > 1000 && pixelCount < 1250;
                     }
                 });
         verifyTest(callback,
-                new PixelChecker(PixelColor.BLUE) { //2500
+                new PixelChecker(PixelColor.BLUE) { //1111
                     @Override
                     public boolean checkPixels(int pixelCount, int width, int height) {
-                        return pixelCount > 2250 && pixelCount < 2750;
+                        return pixelCount > 1000 && pixelCount < 1250;
                     }
                 });
         verifyTest(callback,
-                new PixelChecker(PixelColor.MAGENTA) { //2500
+                new PixelChecker(PixelColor.MAGENTA) { //1111
                     @Override
                     public boolean checkPixels(int pixelCount, int width, int height) {
-                        return pixelCount > 2250 && pixelCount < 2750;
+                        return pixelCount > 1000 && pixelCount < 1250;
                     }
                 });
         verifyTest(callback,
-                new PixelChecker(PixelColor.GREEN) { //2500
+                new PixelChecker(PixelColor.GREEN) { //1111
                     @Override
                     public boolean checkPixels(int pixelCount, int width, int height) {
-                        return pixelCount > 2250 && pixelCount < 2750;
+                        return pixelCount > 1000 && pixelCount < 1250;
                     }
                 });
     }
@@ -921,7 +977,7 @@ public class ASurfaceControlTest {
                         setQuadrantBuffer(surfaceControl, DEFAULT_LAYOUT_WIDTH,
                                 DEFAULT_LAYOUT_HEIGHT, PixelColor.RED, PixelColor.BLUE,
                                 PixelColor.MAGENTA, PixelColor.GREEN);
-                        setGeometry(surfaceControl, -50, -50, 50, 50, 0, 0, 640, 480, 0);
+                        setGeometry(surfaceControl, -50, -50, 50, 50, 0, 0, 100, 100, 0);
                     }
                 },
                 new PixelChecker(PixelColor.RED) { //10000
@@ -943,7 +999,7 @@ public class ASurfaceControlTest {
                         setQuadrantBuffer(surfaceControl, DEFAULT_LAYOUT_WIDTH,
                                 DEFAULT_LAYOUT_HEIGHT, PixelColor.RED, PixelColor.BLUE,
                                 PixelColor.MAGENTA, PixelColor.GREEN);
-                        setGeometry(surfaceControl, 60, 10, 90, 90, 0, 0, 640, 480,
+                        setGeometry(surfaceControl, 60, 10, 90, 90, 0, 0, 100, 100,
                                     /*NATIVE_WINDOW_TRANSFORM_FLIP_H*/ 1);
                     }
                 },
@@ -966,7 +1022,7 @@ public class ASurfaceControlTest {
                         setQuadrantBuffer(surfaceControl, DEFAULT_LAYOUT_WIDTH,
                                 DEFAULT_LAYOUT_HEIGHT, PixelColor.RED, PixelColor.BLUE,
                                 PixelColor.MAGENTA, PixelColor.GREEN);
-                        setGeometry(surfaceControl, 60, 10, 90, 90, 0, 0, 640, 480,
+                        setGeometry(surfaceControl, 60, 10, 90, 90, 0, 0, 100, 100,
                                     /*NATIVE_WINDOW_TRANSFORM_ROT_180*/ 3);
                     }
                 },
@@ -1340,8 +1396,8 @@ public class ASurfaceControlTest {
                         long parentSurfaceControl2 = createFromWindow(holder.getSurface());
                         long childSurfaceControl = create(parentSurfaceControl1);
 
-                        setGeometry(parentSurfaceControl1, 0, 0, 100, 100, 0, 0, 160, 480, 0);
-                        setGeometry(parentSurfaceControl2, 0, 0, 100, 100, 160, 0, 640, 480, 0);
+                        setGeometry(parentSurfaceControl1, 0, 0, 100, 100, 0, 0, 25, 100, 0);
+                        setGeometry(parentSurfaceControl2, 0, 0, 100, 100, 25, 0, 100, 100, 0);
 
                         setSolidBuffer(childSurfaceControl, DEFAULT_LAYOUT_WIDTH,
                                 DEFAULT_LAYOUT_HEIGHT, PixelColor.RED);
@@ -1588,6 +1644,77 @@ public class ASurfaceControlTest {
             });
     }
 
+    @Test
+    public void testSurfaceTransaction_setEnableBackPressure() throws Throwable {
+        int[] colors = new int[] {PixelColor.RED, PixelColor.GREEN, PixelColor.BLUE};
+        BasicSurfaceHolderCallback callback = new BasicSurfaceHolderCallback() {
+            @Override
+            public void surfaceCreated(SurfaceHolder holder) {
+                long surfaceControl = createFromWindow(holder.getSurface());
+                setEnableBackPressure(surfaceControl, true);
+                long[] buffers = new long[6];
+                for (int i = 0; i < buffers.length; i++) {
+                    buffers[i] = setSolidBuffer(surfaceControl, DEFAULT_LAYOUT_WIDTH,
+                            DEFAULT_LAYOUT_HEIGHT, colors[i % colors.length]);
+                }
+                addBufferCycler(surfaceControl, buffers);
+            }
+        };
+
+        MultiFramePixelChecker pixelChecker = new MultiFramePixelChecker(colors) {
+            @Override
+            public boolean checkPixels(int pixelCount, int width, int height) {
+                return pixelCount > 9000 && pixelCount < 11000;
+            }
+        };
+
+        mActivity.verifyTest(new SurfaceControlTestCase(callback, null /* animation factory */,
+                        pixelChecker,
+                        DEFAULT_LAYOUT_WIDTH, DEFAULT_LAYOUT_HEIGHT,
+                        DEFAULT_LAYOUT_WIDTH, DEFAULT_LAYOUT_HEIGHT,
+                        true /* checkSurfaceViewBoundsOnly */),
+                mName);
+    }
+
+    @Test
+    public void testSurfaceTransaction_defaultBackPressureDisabled() throws Throwable {
+        int[] colors = new int[] {PixelColor.RED, PixelColor.GREEN, PixelColor.BLUE};
+        BasicSurfaceHolderCallback callback = new BasicSurfaceHolderCallback() {
+            @Override
+            public void surfaceCreated(SurfaceHolder holder) {
+                long surfaceControl = createFromWindow(holder.getSurface());
+                // back pressure is disabled by default
+                long[] buffers = new long[6];
+                for (int i = 0; i < buffers.length; i++) {
+                    buffers[i] = setSolidBuffer(surfaceControl, DEFAULT_LAYOUT_WIDTH,
+                            DEFAULT_LAYOUT_HEIGHT, colors[i % colors.length]);
+                }
+                addBufferCycler(surfaceControl, buffers);
+            }
+        };
+
+        MultiFramePixelChecker pixelChecker = new MultiFramePixelChecker(colors) {
+            @Override
+            public boolean checkPixels(int pixelCount, int width, int height) {
+                return pixelCount > 9000 && pixelCount < 11000;
+            }
+        };
+
+        CapturedActivity.TestResult result = mActivity.runTest(new SurfaceControlTestCase(callback,
+                        null /* animation factory */,
+                        pixelChecker,
+                        DEFAULT_LAYOUT_WIDTH, DEFAULT_LAYOUT_HEIGHT,
+                        DEFAULT_LAYOUT_WIDTH, DEFAULT_LAYOUT_HEIGHT,
+                        true /* checkSurfaceViewBoundsOnly */));
+
+        assertTrue(result.passFrames > 0);
+
+        // With back pressure disabled, the default config, we expect at least one or more frames to
+        // fail since we expect at least one buffer to be dropped.
+        assertTrue(result.failFrames > 0);
+
+    }
+
     ///////////////////////////////////////////////////////////////////////////
     // Native function prototypes
     ///////////////////////////////////////////////////////////////////////////
@@ -1601,6 +1728,8 @@ public class ASurfaceControlTest {
     private static native void nSurfaceControl_release(long surfaceControl);
     private static native long nSurfaceTransaction_setSolidBuffer(
             long surfaceControl, long surfaceTransaction, int width, int height, int color);
+    private static native void nSurfaceTransaction_setBuffer(long surfaceControl,
+            long surfaceTransaction, long buffer);
     private static native long nSurfaceTransaction_setQuadrantBuffer(long surfaceControl,
             long surfaceTransaction, int width, int height, int colorTopLeft, int colorTopRight,
             int colorBottomRight, int colorBottomLeft);
@@ -1633,4 +1762,8 @@ public class ASurfaceControlTest {
             long newParentSurfaceControl, long surfaceTransaction);
     private static native void nSurfaceTransaction_setColor(long surfaceControl,
             long surfaceTransaction, float r, float g, float b, float alpha);
+    private static native void nSurfaceTransaction_setEnableBackPressure(long surfaceControl,
+            long surfaceTransaction, boolean enableBackPressure);
+    private static native void nSurfaceTransaction_setOnCompleteCallback(long surfaceTransaction,
+            TransactionCompleteListener listener);
 }

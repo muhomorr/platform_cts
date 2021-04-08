@@ -85,8 +85,12 @@ import com.android.compatibility.common.util.ShellIdentityUtils;
 
 import org.junit.Test;
 
+import java.io.File;
+import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -216,6 +220,8 @@ public class AtomTests {
         APP_OPS_ENUM_MAP.put(AppOpsManager.OPSTR_COARSE_LOCATION_SOURCE, 109);
         APP_OPS_ENUM_MAP.put(AppOpsManager.OPSTR_MANAGE_MEDIA, 110);
         APP_OPS_ENUM_MAP.put(AppOpsManager.OPSTR_BLUETOOTH_CONNECT, 111);
+        APP_OPS_ENUM_MAP.put(AppOpsManager.OPSTR_UWB_RANGING, 112);
+        APP_OPS_ENUM_MAP.put(AppOpsManager.OPSTR_ACTIVITY_RECOGNITION_SOURCE, 113);
     }
 
     private static boolean sWasVerboseLoggingEnabled;
@@ -995,8 +1001,8 @@ public class AtomTests {
     /**
      * Generates traffic on a network with a given transport.
      */
-    private boolean doGenerateNetworkTraffic(@NonNull Context context,
-            @NetworkCapabilities.Transport int transport) throws IllegalStateException {
+    private boolean doGenerateNetworkTraffic(@NonNull Context context, int transport)
+            throws IllegalStateException {
         final NetworkRequest request = new NetworkRequest.Builder().addCapability(
                 NetworkCapabilities.NET_CAPABILITY_INTERNET).addTransportType(transport).build();
         return doGenerateNetworkTraffic(context, request);
@@ -1021,19 +1027,7 @@ public class AtomTests {
      * Assembles a String representation of a list of NetworkCapabilities.
      */
     private String oemManagedCapabilitiesToString(@NonNull List<Integer> capabilities) {
-        final StringBuilder sb = new StringBuilder();
-        sb.append("{");
-        for (final Integer capability : capabilities) {
-            sb.append(NetworkCapabilities.capabilityNameOf(capability) + ", ");
-        }
-        // Must have been an empty set of capabilities.
-        if (sb.length() < 3) {
-            sb.append("}");
-            return sb.toString();
-        }
-        // Replace the trailing ", " with a "}".
-        sb.replace(sb.length()-2, sb.length()-1, "}");
-        return sb.toString();
+        return "{" + TextUtils.join(", ", capabilities) + "}";
     }
     /**
      * Checks if a network with a given set of OEM managed capabilities (OEM_PAID, for example) is
@@ -1167,7 +1161,7 @@ public class AtomTests {
                     break;
                 default:
                     throw new IllegalStateException("Unsupported OEM network capability "
-                            + NetworkCapabilities.capabilityNameOf(capability));
+                            + capability);
             }
         }
         suggestionBuilder.setSsid(WifiInfo.sanitizeSsid(network.SSID));
@@ -1430,5 +1424,24 @@ public class AtomTests {
                 "Wifi not connected",
                 WIFI_CONNECT_TIMEOUT_MILLIS,
                 () -> wifiManager.getConnectionInfo().getNetworkId() != -1);
+    }
+
+    @Test
+    public void testLoadingApks() throws Exception {
+        final Context context = InstrumentationRegistry.getContext();
+        final ApplicationInfo appInfo = context.getPackageManager()
+                .getApplicationInfo(context.getPackageName(), 0);
+        final String codePath = appInfo.sourceDir;
+        final String apkDir = codePath.substring(0, codePath.lastIndexOf('/'));
+        for (String apkName : new File(apkDir).list()) {
+            final String apkPath = apkDir + "/" + apkName;
+            if (new File(apkPath).isFile()) {
+                try {
+                    Files.readAllBytes(Paths.get(apkPath));
+                } catch (IOException ignored) {
+                    // Probably hitting pages that we are intentionally blocking
+                }
+            }
+        }
     }
 }

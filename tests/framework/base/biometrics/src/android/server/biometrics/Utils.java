@@ -19,18 +19,25 @@ package android.server.biometrics;
 import static androidx.test.platform.app.InstrumentationRegistry.getInstrumentation;
 
 import android.content.ComponentName;
+import android.hardware.biometrics.BiometricManager;
 import android.hardware.biometrics.BiometricPrompt;
+import android.hardware.biometrics.SensorProperties;
 import android.os.ParcelFileDescriptor;
 import android.security.keystore.KeyGenParameterSpec;
 import android.security.keystore.KeyProperties;
+import android.server.wm.Condition;
+import android.util.Log;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
 import java.io.ByteArrayOutputStream;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.security.KeyStore;
 import java.util.List;
+import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 
 import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
@@ -38,7 +45,59 @@ import javax.crypto.SecretKey;
 
 public class Utils {
 
+    private static final String TAG = "BiometricTestUtils";
     private static final String KEYSTORE_PROVIDER = "AndroidKeyStore";
+
+    /**
+     * Retrieves the current SensorStates.
+     */
+    public interface SensorStatesSupplier {
+        SensorStates getSensorStates() throws Exception;
+    }
+
+    /**
+     * Waits for the service to become idle
+     * @throws Exception
+     */
+    public static void waitForIdleService(@NonNull SensorStatesSupplier supplier) throws Exception {
+        for (int i = 0; i < 10; i++) {
+            if (!supplier.getSensorStates().areAllSensorsIdle()) {
+                Log.d(TAG, "Not idle yet..");
+                Thread.sleep(300);
+            } else {
+                return;
+            }
+        }
+        Log.d(TAG, "Timed out waiting for idle");
+    }
+
+    /**
+     * Waits for the specified sensor to become non-idle
+     */
+    public static void waitForBusySensor(int sensorId, @NonNull SensorStatesSupplier supplier)
+            throws Exception {
+        for (int i = 0; i < 10; i++) {
+            if (!supplier.getSensorStates().sensorStates.get(sensorId).isBusy()) {
+                Log.d(TAG, "Not busy yet..");
+                Thread.sleep(300);
+            } else {
+                return;
+            }
+        }
+        Log.d(TAG, "Timed out waiting to become busy");
+    }
+
+    public static void waitFor(@NonNull String message, @NonNull BooleanSupplier condition) {
+        waitFor(message, condition, null /* onFailure */);
+    }
+
+    public static void waitFor(@NonNull String message, @NonNull BooleanSupplier condition,
+            @Nullable Consumer<Object> onFailure) {
+        Condition.waitFor(new Condition<>(message, condition)
+                .setRetryIntervalMs(500)
+                .setRetryLimit(20)
+                .setOnFailure(onFailure));
+    }
 
     /**
      * Runs a shell command, similar to running "adb shell ..." from the command line.
@@ -83,7 +142,48 @@ public class Utils {
         return count;
     }
 
-    public static void generateBiometricBoundKey(String keyName) throws Exception {
+    public static void createTimeBoundSecretKey_deprecated(String keyName, boolean useStrongBox)
+            throws Exception {
+        KeyStore keyStore = KeyStore.getInstance("AndroidKeyStore");
+        keyStore.load(null);
+        KeyGenerator keyGenerator = KeyGenerator.getInstance(
+                KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore");
+
+        // Set the alias of the entry in Android KeyStore where the key will appear
+        // and the constrains (purposes) in the constructor of the Builder
+        keyGenerator.init(new KeyGenParameterSpec.Builder(keyName,
+                KeyProperties.PURPOSE_ENCRYPT | KeyProperties.PURPOSE_DECRYPT)
+                .setBlockModes(KeyProperties.BLOCK_MODE_CBC)
+                .setUserAuthenticationRequired(true)
+                .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_PKCS7)
+                .setIsStrongBoxBacked(useStrongBox)
+                .setUserAuthenticationValidityDurationSeconds(5 /* seconds */)
+                .build());
+        keyGenerator.generateKey();
+    }
+
+    static void createTimeBoundSecretKey(String keyName, int authTypes, boolean useStrongBox)
+            throws Exception {
+        KeyStore keyStore = KeyStore.getInstance("AndroidKeyStore");
+        keyStore.load(null);
+        KeyGenerator keyGenerator = KeyGenerator.getInstance(
+                KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore");
+
+        // Set the alias of the entry in Android KeyStore where the key will appear
+        // and the constrains (purposes) in the constructor of the Builder
+        keyGenerator.init(new KeyGenParameterSpec.Builder(keyName,
+                KeyProperties.PURPOSE_ENCRYPT | KeyProperties.PURPOSE_DECRYPT)
+                .setBlockModes(KeyProperties.BLOCK_MODE_CBC)
+                .setUserAuthenticationRequired(true)
+                .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_PKCS7)
+                .setIsStrongBoxBacked(useStrongBox)
+                .setUserAuthenticationParameters(1 /* seconds */, authTypes)
+                .build());
+        keyGenerator.generateKey();
+    }
+
+    public static void generateBiometricBoundKey(String keyName, boolean useStrongBox)
+            throws Exception {
         final KeyStore keystore = KeyStore.getInstance(KEYSTORE_PROVIDER);
         keystore.load(null);
         KeyGenParameterSpec.Builder builder = new KeyGenParameterSpec.Builder(
@@ -93,6 +193,7 @@ public class Utils {
                 .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_PKCS7)
                 .setUserAuthenticationRequired(true)
                 .setInvalidatedByBiometricEnrollment(true)
+                .setIsStrongBoxBacked(useStrongBox)
                 .setUserAuthenticationParameters(0, KeyProperties.AUTH_BIOMETRIC_STRONG);
 
         KeyGenerator keyGenerator = KeyGenerator
@@ -118,5 +219,28 @@ public class Utils {
         final BiometricPrompt.CryptoObject cryptoObject =
                 new BiometricPrompt.CryptoObject(cipher);
         return cryptoObject;
+    }
+
+    public static boolean isPublicAuthenticatorConstant(int authenticator) {
+        switch (authenticator) {
+            case BiometricManager.Authenticators.BIOMETRIC_STRONG:
+            case BiometricManager.Authenticators.BIOMETRIC_WEAK:
+            case BiometricManager.Authenticators.DEVICE_CREDENTIAL:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    public static int testApiStrengthToAuthenticatorStrength(int testApiStrength) {
+        switch (testApiStrength) {
+            case SensorProperties.STRENGTH_STRONG:
+                return BiometricManager.Authenticators.BIOMETRIC_STRONG;
+            case SensorProperties.STRENGTH_WEAK:
+                return BiometricManager.Authenticators.BIOMETRIC_WEAK;
+            default:
+                throw new IllegalArgumentException("Unable to convert testApiStrength: "
+                        + testApiStrength);
+        }
     }
 }

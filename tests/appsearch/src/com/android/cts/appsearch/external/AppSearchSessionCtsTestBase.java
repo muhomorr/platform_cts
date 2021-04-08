@@ -127,7 +127,6 @@ public abstract class AppSearchSessionCtsTestBase {
     }
 
     @Test
-    @Ignore("TODO(b/177266929)")
     public void testSetSchema_Failure() throws Exception {
         mDb1.setSchema(new SetSchemaRequest.Builder().addSchemas(AppSearchEmail.SCHEMA).build())
                 .get();
@@ -164,7 +163,6 @@ public abstract class AppSearchSessionCtsTestBase {
     }
 
     @Test
-    @Ignore("TODO(b/177266929)")
     public void testSetSchema_updateVersion() throws Exception {
         AppSearchSchema schema =
                 new AppSearchSchema.Builder("Email")
@@ -197,6 +195,42 @@ public abstract class AppSearchSessionCtsTestBase {
         GetSchemaResponse getSchemaResponse = mDb1.getSchema().get();
         assertThat(getSchemaResponse.getSchemas()).containsExactly(schema);
         assertThat(getSchemaResponse.getVersion()).isEqualTo(2);
+    }
+
+    @Test
+    public void testSetSchema_checkVersion() throws Exception {
+        AppSearchSchema schema =
+                new AppSearchSchema.Builder("Email")
+                        .addProperty(
+                                new StringPropertyConfig.Builder("subject")
+                                        .setCardinality(PropertyConfig.CARDINALITY_OPTIONAL)
+                                        .setIndexingType(
+                                                StringPropertyConfig.INDEXING_TYPE_PREFIXES)
+                                        .setTokenizerType(StringPropertyConfig.TOKENIZER_TYPE_PLAIN)
+                                        .build())
+                        .addProperty(
+                                new StringPropertyConfig.Builder("body")
+                                        .setCardinality(PropertyConfig.CARDINALITY_OPTIONAL)
+                                        .setIndexingType(
+                                                StringPropertyConfig.INDEXING_TYPE_PREFIXES)
+                                        .setTokenizerType(StringPropertyConfig.TOKENIZER_TYPE_PLAIN)
+                                        .build())
+                        .build();
+
+        // set different version number to different database.
+        mDb1.setSchema(new SetSchemaRequest.Builder().addSchemas(schema).setVersion(135).build())
+                .get();
+        mDb2.setSchema(new SetSchemaRequest.Builder().addSchemas(schema).setVersion(246).build())
+                .get();
+
+        // check the version has been set correctly.
+        GetSchemaResponse getSchemaResponse = mDb1.getSchema().get();
+        assertThat(getSchemaResponse.getSchemas()).containsExactly(schema);
+        assertThat(getSchemaResponse.getVersion()).isEqualTo(135);
+
+        getSchemaResponse = mDb2.getSchema().get();
+        assertThat(getSchemaResponse.getSchemas()).containsExactly(schema);
+        assertThat(getSchemaResponse.getVersion()).isEqualTo(246);
     }
 
     @Test
@@ -388,7 +422,6 @@ public abstract class AppSearchSessionCtsTestBase {
     }
 
     @Test
-    @Ignore("TODO(b/177266929)")
     public void testRemoveSchema() throws Exception {
         // Schema registration
         AppSearchSchema emailSchema =
@@ -454,7 +487,6 @@ public abstract class AppSearchSessionCtsTestBase {
     }
 
     @Test
-    @Ignore("TODO(b/177266929)")
     public void testRemoveSchema_twoDatabases() throws Exception {
         // Schema registration in mDb1 and mDb2
         AppSearchSchema emailSchema =

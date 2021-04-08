@@ -57,6 +57,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertThat
 import org.junit.Assert.assertTrue
+import org.junit.Assume.assumeFalse
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -65,12 +66,6 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 import java.util.regex.Pattern
 
-private const val APK_PATH_S_APP = "/data/local/tmp/cts/os/CtsAutoRevokeSApp.apk"
-private const val APK_PACKAGE_NAME_S_APP = "android.os.cts.autorevokesapp"
-private const val APK_PATH_R_APP = "/data/local/tmp/cts/os/CtsAutoRevokeRApp.apk"
-private const val APK_PACKAGE_NAME_R_APP = "android.os.cts.autorevokerapp"
-private const val APK_PATH_Q_APP = "/data/local/tmp/cts/os/CtsAutoRevokeQApp.apk"
-private const val APK_PACKAGE_NAME_Q_APP = "android.os.cts.autorevokeqapp"
 private const val READ_CALENDAR = "android.permission.READ_CALENDAR"
 
 /**
@@ -200,6 +195,7 @@ class AutoRevokeTest {
     @AppModeFull(reason = "Uses separate apps for testing")
     @Test
     fun testAutoRevoke_userAllowlisting() {
+        assumeFalse(context.packageManager.hasSystemFeature(PackageManager.FEATURE_AUTOMOTIVE))
         withUnusedThresholdMs(4L) {
             withDummyApp {
                 // Setup

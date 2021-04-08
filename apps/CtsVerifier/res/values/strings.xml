@@ -23,6 +23,8 @@
     <string name="fail_button_text">Fail</string>
     <string name="next_button_text">Next</string>
     <string name="go_button_text">Go</string>
+    <string name="present_button_text">Device Present</string>
+    <string name="gone_button_text">Device Gone</string>
     <string name="tests_completed_successfully">All tests completed successfully.</string>
 
     <string name="retry_button_text">Retry</string>
@@ -247,33 +249,12 @@
     <!-- Strings for BiometricTest -->
     <string name="biometric_test">Biometric Tests</string>
 
-    <string name="biometric_test_category_generic">0) Generic Tests</string>
     <string name="biometric_test_category_credential">1) Credential Tests</string>
     <string name="biometric_test_category_strong">2) Strong Biometric Tests</string>
     <string name="biometric_test_category_weak">3) Weak Biometric Tests</string>
     <string name="biometric_test_category_combination">4) setUserAuthParams Tests</string>
 
-    <string name="biometric_test_sensor_configuration_label">0a: Sensor Configuration Test</string>
-    <string name="biometric_test_sensor_configuration_instructions">This test checks that the device configuration is valid</string>
-    <string name="biometric_test_sensor_configuration_button">Start test</string>
-
-    <string name="biometric_test_credential_not_enrolled_label">1a: Credential Not Enrolled Tests</string>
-    <string name="biometric_test_credential_not_enrolled_instructions">This test checks that the BiometricManager/BiometricPrompt
-        APIs return results consistent with credential (PIN/Pattern/Password) state. Before starting this test, please ensure that you do
-        NOT have a credential set up.</string>
-    <string name="biometric_test_credential_not_enrolled_bm_button">Check BiometricManager</string>
-    <string name="biometric_test_credential_not_enrolled_bp_setAllowedAuthenticators_button">Check BiometricPrompt setAllowedAuthenticators(DEVICE_CREDENTIAL)</string>
-    <string name="biometric_test_credential_not_enrolled_bp_setDeviceCredentialAllowed_button">Check BiometricPrompt setDeviceCredentialAllowed(true)</string>
-
-    <string name="biometric_test_credential_enrolled_label">1b: Credential Enrolled Tests</string>
-    <string name="biometric_test_credential_enrolled_instructions">This test checks that apps are able to request credential enrollment, and that the BiometricManager/BiometricPrompt
-        APIs return results consistent with credential (PIN/Pattern/Password) state.</string>
-    <string name="biometric_test_credential_enroll_button">Enroll credential</string>
-    <string name="biometric_test_credential_enrolled_bm_button">Check BiometricManager</string>
-    <string name="biometric_test_credential_enrolled_bp_setAllowedAuthenticators_button">Check BiometricPrompt setAllowedAuthenticators(DEVICE_CREDENTIAL)</string>
-    <string name="biometric_test_credential_enrolled_bp_setDeviceCredentialAllowed_button">Check BiometricPrompt setDeviceCredentialAllowed(true)</string>
-
-    <string name="biometric_test_credential_crypto_label">1c: Credential Crypto</string>
+    <string name="biometric_test_credential_crypto_label">1a: Credential Crypto</string>
     <string name="biometric_test_credential_crypto_instructions">This test checks that PIN/Pattern/Password successfully unlocks the relevant KeyStore operations. Please
         ensure that you have a PIN/Pattern/Password set up.</string>
     <string name="biometric_test_credential_crypto_timed_key_strongbox">Create and unlock timed key (StrongBox)</string>
@@ -284,21 +265,6 @@
     <string name="biometric_test_ui_instruction_dialog_continue">Continue</string>
     <string name="biometric_test_ui_verification_dialog_title">Please enter your recorded contents</string>
     <string name="biometric_test_ui_verification_dialog_check">Check</string>
-
-    <!-- setDeviceCredentialAllowed(true), biometric authentication -->
-    <string name="biometric_test_authenticate_with_credential1_button">Authenticate with biometric (not PIN/Pattern/Pass)</string>
-    <!-- setDeviceCredentialAllowed(true), credential authentication -->
-    <string name="biometric_test_authenticate_with_credential2_button">Authenticate with PIN/Pattern/Pass (skip biometric)</string>
-    <!-- setAllowedAuthenticators(CREDENTIAL|BIOMETRIC), credential authentication -->
-    <string name="biometric_test_authenticate_with_credential3_button">Authenticate with PIN/Pattern/Pass (skip biometric again)</string>
-    <!-- Invoking the public API with non-public constants -->
-    <string name="biometric_test_invalid_inputs">Test invalid inputs</string>
-    <!-- Rejecting does not end the authentication lifecycle -->
-    <string name="biometric_test_reject_first">Reject, then authenticate</string>
-    <!-- Negative button callback is received -->
-    <string name="biometric_test_negative_button_button">Test Negative Button</string>
-    <!-- ERROR_CANCELED is received -->
-    <string name="biometric_test_cancellation_button">Test CancellationSignal</string>
 
     <string name="biometric_test_reject_continues_instruction_title">Instructions</string>
     <string name="biometric_test_reject_continues_instruction_contents">Please authenticate with a non-enrolled biometric before authenticating with the actual enrolled biometric.</string>
@@ -312,7 +278,6 @@
     <string name="biometric_test_strong_check_and_enroll_button">Start enrollment</string>
     <string name="biometric_test_strong_authenticate_no_strongbox_button">Authenticate Crypto (without StrongBox)</string>
     <string name="biometric_test_strong_authenticate_strongbox_button">Authenticate Crypto (with StrongBox)</string>
-    <string name="biometric_test_strong_authenticate_ui_button">Authenticate Crypto UI</string>
     <string name="biometric_test_strong_authenticate_invalidated_button">Authenticate Key Invalidated</string>
     <string name="biometric_test_strong_authenticate_invalidated_instruction_title">Instructions</string>
     <string name="biometric_test_strong_authenticate_invalidated_instruction_contents">Before starting the next test, please add another enrollment to your strong biometric sensor. If only one enrollment is supported, please remove the current enrollment, then enroll.</string>
@@ -324,8 +289,6 @@
         does NOT have ANY biometrics enrolled before starting this test. After passing the first part of the test, it will check various use cases
         when authentication is invoked.</string>
     <string name="biometric_test_weak_enroll">Start enrollment</string>
-    <string name="biometric_test_weak_authenticate">Authenticate</string>
-    <string name="biometric_test_weak_authenticate_time_based_keys">Authenticate attempt time-based keys</string>
 
     <string name="biometric_test_set_user_authentication_credential_cipher_label">4a: Cipher, Credential</string>
     <string name="biometric_test_set_user_authentication_biometric_cipher_label">4b: Cipher, Biometric</string>
@@ -813,6 +776,31 @@
         Before proceeding, make sure you have a bluetooth device nearby and discoverable.
         Also, make sure that bluetooth is turned on on this device.
         Once you press the button, wait for a dialog to pop up and select your device from the list.
+    </string>
+
+    <string name="companion_service_test">Companion Device Service Test</string>
+    <string name="companion_service_test_info">
+        This test checks that APIs to notify the companion app of its associated device going in and
+        out of Bluetooth range are working correctly.
+        Before proceeding, make sure you have a Bluetooth LE device nearby and
+        discoverable. Also, make sure that bluetooth is turned on the device.
+        First, you press the go button, wait for a dialog to pop up and select your device from the
+        list. Second, make sure your bluetooth device is unreachable(you can power off/reboot your
+        Bluetooth device or put it into a Faraday bag) and press the Device Gone button.
+        Lastly, make your bluetooth device reachable by waiting for the device to power on or
+        removing it from the Faraday bag and press the Device Present button.
+    </string>
+
+    <string name="companion_service_test_gone_text">
+        Now, please make your Bluetooth device unreachable.
+        Put your bluetooth device into a RF Bag or power off/reboot your device,
+        then press the Device Gone button.
+    </string>
+
+    <string name="companion_service_test_present_text">
+        Now, please make your Bluetooth device reachable.
+        Remove your Bluetooth device from a RF Bag or power on your device,
+        then press the Device Present button.
     </string>
 
     <!-- Strings for FeatureSummaryActivity -->
@@ -2310,8 +2298,8 @@
     <string name="nls_snooze_one_time">Check that service can snooze a notification for a given time.</string>
     <string name="nls_get_snoozed">Check that service can retrieve snoozed notifications.</string>
     <string name="nls_unsnooze_one">Check that service can unsnooze a notification.</string>
-    <string name="nls_change_type_filter">Click this button to launch the settings page for this app\'s notification listener in settings. Note what types were checked and which were disabled before you make any changes. Change the filter types to allow everything except ongoing and silent notifications, and then return to this screen</string>
-    <string name="nls_original_filter_verification">Were only alerting and silent notifications allowed? Was the ongoing option disabled? Are all only conversations and alerting notifications allowed now?</string>
+    <string name="nls_change_type_filter">Click this button to launch the settings page for this app\'s notification listener in settings. Note what types were checked and which were disabled before you make any changes. View the list of apps and note any that are not allowed. Change the filter types to allow everything except ongoing and silent notifications, and then return to this screen</string>
+    <string name="nls_original_filter_verification">Were only alerting and silent notifications allowed? Was the Settings app not allowed? Was the ongoing option disabled? Are all only conversations and alerting notification types allowed now?</string>
     <string name="nls_filter_test">Checking that an alerting notification is received and a silent one is not</string>
     <string name="nls_reset_type_filter">Go to settings and allow all notification types, and then return here.</string>
     <string name="nas_note_missed_enqueued">Check that notification was not enqueued.</string>
@@ -5341,7 +5329,8 @@ Follow the instructions on the screen to measure the frequency response for the 
       can receive incoming calls after it has been set.
     </string>
     <string name="dialer_incoming_call_detected">Detected the incoming call. Activity passed.</string>
-    <string name="dialer_check_incoming_call_explanation">Call the device.</string>
+    <string name="dialer_check_incoming_call_explanation">Call the device and end the call in the
+        pop up in-call UI.</string>
     <string name="dialer_check_incoming_call">Verify Call Received</string>
 
     <!-- Strings for VoicemailSettingsCheck test -->
@@ -5365,6 +5354,7 @@ Follow the instructions on the screen to measure the frequency response for the 
     <string name="dialer_shows_hun_explanation">Call the device.
         Check the box if the heads up notification was shown containing the text
         \"CTS Incoming Call Notification\", and only one incoming call notification was shown.
+        Also a pop up CtsVerifier in call UI will show.
     </string>
     <string name="dialer_shows_hun_check_box">HUN shown and meets criteria specified above.</string>
     <string name="dialer_incoming_call_hun_teaser">Incoming Call</string>
@@ -5761,4 +5751,11 @@ Follow the instructions on the screen to measure the frequency response for the 
       5. Ensure that each engine can be selected.
     </string>
     <string name="tts_accessibility_settings_button">Go To Accessibility Settings</string>
+
+    <!-- Strings for SecurityModeFeatureVerifierActivity test -->
+    <string name="security_mode_feature_verifier_test">SecurityModeFeatureVerifier Test</string>
+    <string name="security_mode_feature_verifier_instructions">This test verifies that the PackageManager.FEATURE_SECURITY_MODEL_COMPATIBLE feature is present.</string>
+    <string name="handheld_or_tablet_text_before_test">Is this a handheld or tablet device?</string>
+    <string name="handheld_or_tablet_yes">Yes</string>
+    <string name="handheld_or_tablet_not_applicable">Not applicable</string>
 </resources>

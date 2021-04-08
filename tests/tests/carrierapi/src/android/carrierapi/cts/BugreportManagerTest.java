@@ -43,6 +43,8 @@ import androidx.test.uiautomator.UiDevice;
 import androidx.test.uiautomator.UiObject2;
 import androidx.test.uiautomator.Until;
 
+import com.android.compatibility.common.util.PollingCheck;
+
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -74,6 +76,7 @@ public class BugreportManagerTest {
 
     private static final long BUGREPORT_TIMEOUT_MILLIS = TimeUnit.MINUTES.toMillis(10);
     private static final long UIAUTOMATOR_TIMEOUT_MILLIS = TimeUnit.SECONDS.toMillis(10);
+    private static final long ONEWAY_CALLBACK_TIMEOUT_MILLIS = TimeUnit.SECONDS.toMillis(5);
     // This value is defined in dumpstate.cpp:TELEPHONY_REPORT_USER_CONSENT_TIMEOUT_MS. Because the
     // consent dialog is so large and important, the user *must* be given at least 2 minutes to read
     // it before it times out.
@@ -126,11 +129,13 @@ public class BugreportManagerTest {
     public void startConnectivityBugreport() throws Exception {
         BugreportCallbackImpl callback = new BugreportCallbackImpl();
 
+        assertThat(callback.hasEarlyReportFinished()).isFalse();
         mBugreportManager.startConnectivityBugreport(mBugreportFd, Runnable::run, callback);
         setConsentDialogReply(ConsentReply.ALLOW);
         waitUntilDoneOrTimeout(callback);
 
         assertThat(callback.isSuccess()).isTrue();
+        assertThat(callback.hasEarlyReportFinished()).isTrue();
         assertThat(callback.hasReceivedProgress()).isTrue();
         assertThat(mBugreportFile.length()).isGreaterThan(0L);
         assertFdIsClosed(mBugreportFd);
@@ -179,12 +184,20 @@ public class BugreportManagerTest {
         File bugreportFile2 = createTempFile("bugreport_2_" + name.getMethodName(), ".zip");
         ParcelFileDescriptor bugreportFd2 = parcelFd(bugreportFile2);
 
+        assertThat(callback1.hasEarlyReportFinished()).isFalse();
         // Start the first report, but don't accept the consent dialog or wait for the callback to
         // complete yet.
         mBugreportManager.startConnectivityBugreport(mBugreportFd, Runnable::run, callback1);
 
         // Attempting to start a second report immediately gets us a concurrency error.
         mBugreportManager.startConnectivityBugreport(bugreportFd2, Runnable::run, callback2);
+        // Since IDumpstateListener#onError is oneway, it's not guaranteed that binder has delivered
+        // the callback to us yet, even though BugreportManagerServiceImpl sends it before returning
+        // from #startBugreport.
+        PollingCheck.check(
+                "No terminal callback received for the second bugreport",
+                ONEWAY_CALLBACK_TIMEOUT_MILLIS,
+                callback2::isDone);
         assertThat(callback2.getErrorCode())
                 .isEqualTo(BugreportCallback.BUGREPORT_ERROR_ANOTHER_REPORT_IN_PROGRESS);
 
@@ -193,6 +206,7 @@ public class BugreportManagerTest {
         waitUntilDoneOrTimeout(callback1);
 
         assertThat(callback1.isSuccess()).isTrue();
+        assertThat(callback1.hasEarlyReportFinished()).isTrue();
         assertThat(callback1.hasReceivedProgress()).isTrue();
         assertThat(mBugreportFile.length()).isGreaterThan(0L);
         assertFdIsClosed(mBugreportFd);
@@ -225,6 +239,7 @@ public class BugreportManagerTest {
     public void startBugreport_connectivityBugreport() throws Exception {
         BugreportCallbackImpl callback = new BugreportCallbackImpl();
 
+        assertThat(callback.hasEarlyReportFinished()).isFalse();
         // Carrier apps that compile with the system SDK have visibility to use this API, so we need
         // to enforce that the additional parameters can't be abused to e.g. surreptitiously capture
         // screenshots.
@@ -238,6 +253,7 @@ public class BugreportManagerTest {
         waitUntilDoneOrTimeout(callback);
 
         assertThat(callback.isSuccess()).isTrue();
+        assertThat(callback.hasEarlyReportFinished()).isTrue();
         assertThat(callback.hasReceivedProgress()).isTrue();
         assertThat(mBugreportFile.length()).isGreaterThan(0L);
         assertFdIsClosed(mBugreportFd);

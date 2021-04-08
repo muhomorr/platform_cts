@@ -34,7 +34,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
-public final class TestActivity extends Activity {
+public class TestActivity extends Activity {
 
     private static final AtomicReference<Function<TestActivity, View>> sInitializer =
             new AtomicReference<>();
@@ -146,6 +146,20 @@ public final class TestActivity extends Activity {
                         TestActivity.class)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_DOCUMENT);
+        return (TestActivity) InstrumentationRegistry
+                .getInstrumentation().startActivitySync(intent);
+    }
+
+
+    public static TestActivity startSameTaskAndClearTopSync(
+            @NonNull Function<TestActivity, View> activityInitializer) {
+        sInitializer.set(activityInitializer);
+        final Intent intent = new Intent()
+                .setAction(Intent.ACTION_MAIN)
+                .setClass(InstrumentationRegistry.getInstrumentation().getContext(),
+                        TestActivity.class)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
         return (TestActivity) InstrumentationRegistry
                 .getInstrumentation().startActivitySync(intent);
     }

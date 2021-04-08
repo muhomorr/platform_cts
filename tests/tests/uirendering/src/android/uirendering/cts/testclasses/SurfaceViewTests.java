@@ -23,7 +23,6 @@ import android.graphics.Color;
 import android.graphics.Rect;
 import android.uirendering.cts.R;
 import android.uirendering.cts.bitmapverifiers.ColorVerifier;
-import android.uirendering.cts.runner.SkipPresubmit;
 import android.uirendering.cts.testinfrastructure.ActivityTestBase;
 import android.uirendering.cts.testinfrastructure.CanvasClient;
 import android.uirendering.cts.testinfrastructure.ViewInitializer;
@@ -36,7 +35,6 @@ import android.view.animation.LinearInterpolator;
 import android.widget.FrameLayout;
 
 import androidx.test.filters.LargeTest;
-import androidx.test.filters.RequiresDevice;
 import androidx.test.runner.AndroidJUnit4;
 
 import com.android.compatibility.common.util.SynchronousPixelCopy;
@@ -47,10 +45,7 @@ import org.junit.runner.RunWith;
 
 import java.util.concurrent.CountDownLatch;
 
-// TODO(b/182584062): remove @RequiresDevice and @SkipPresubmit.
-@RequiresDevice
 @LargeTest
-@SkipPresubmit
 @RunWith(AndroidJUnit4.class)
 public class SurfaceViewTests extends ActivityTestBase {
 
@@ -152,9 +147,14 @@ public class SurfaceViewTests extends ActivityTestBase {
             FrameLayout root = (FrameLayout) view.findViewById(R.id.frame_layout);
             mSurfaceView = new SurfaceView(view.getContext());
             mSurfaceView.getHolder().addCallback(this);
+            onSurfaceViewCreated(mSurfaceView);
             root.addView(mSurfaceView, new FrameLayout.LayoutParams(
                     FrameLayout.LayoutParams.MATCH_PARENT,
                     FrameLayout.LayoutParams.MATCH_PARENT));
+        }
+
+        public void onSurfaceViewCreated(SurfaceView surfaceView) {
+
         }
 
         @Override
@@ -192,5 +192,25 @@ public class SurfaceViewTests extends ActivityTestBase {
                 .addLayout(R.layout.frame_layout, helper, true, helper.getFence())
                 .withScreenshotter(helper)
                 .runWithVerifier(new ColorVerifier(Color.GREEN, 0 /* zero tolerance */));
+    }
+
+    @Test
+    public void testSurfaceViewHolePunchWithLayer() {
+        SurfaceViewHelper helper = new SurfaceViewHelper((canvas, width, height) -> {
+            Assert.assertNotNull(canvas);
+            Assert.assertTrue(canvas.isHardwareAccelerated());
+            canvas.drawColor(Color.GREEN);
+        }
+        ) {
+            @Override
+            public void onSurfaceViewCreated(SurfaceView surfaceView) {
+                surfaceView.setLayerType(View.LAYER_TYPE_HARDWARE, null);
+            }
+        };
+        createTest()
+                .addLayout(R.layout.frame_layout, helper, true, helper.getFence())
+                .withScreenshotter(helper)
+                .runWithVerifier(new ColorVerifier(Color.GREEN, 0 /* zero tolerance */));
+
     }
 }
