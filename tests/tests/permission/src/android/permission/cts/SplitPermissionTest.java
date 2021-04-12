@@ -18,10 +18,8 @@ package android.permission.cts;
 
 import static android.Manifest.permission.ACCESS_BACKGROUND_LOCATION;
 import static android.Manifest.permission.ACCESS_COARSE_LOCATION;
-import static android.Manifest.permission.ACCESS_MEDIA_LOCATION;
 import static android.Manifest.permission.READ_CALL_LOG;
 import static android.Manifest.permission.READ_CONTACTS;
-import static android.Manifest.permission.READ_EXTERNAL_STORAGE;
 import static android.app.AppOpsManager.MODE_FOREGROUND;
 import static android.content.pm.PackageManager.FLAG_PERMISSION_REVIEW_REQUIRED;
 import static android.content.pm.PackageManager.FLAG_PERMISSION_USER_SET;
@@ -37,6 +35,7 @@ import static android.permission.cts.PermissionUtils.uninstallApp;
 import static com.android.compatibility.common.util.SystemUtil.eventually;
 
 import static com.google.common.truth.Truth.assertThat;
+import static com.google.common.truth.Truth.assertWithMessage;
 
 import static org.junit.Assert.assertEquals;
 
@@ -118,7 +117,8 @@ public class SplitPermissionTest {
      * @param permName The permission that needs to be granted
      */
     private void assertPermissionGranted(@NonNull String permName) throws Exception {
-        eventually(() -> assertThat(isGranted(APP_PKG, permName)).named(permName + " is granted").isTrue());
+        eventually(() -> assertWithMessage(permName + " is granted").that(
+                isGranted(APP_PKG, permName)).isTrue());
     }
 
     /**
@@ -127,7 +127,7 @@ public class SplitPermissionTest {
      * @param permName The permission that should not be granted
      */
     private void assertPermissionRevoked(@NonNull String permName) throws Exception {
-        assertThat(isGranted(APP_PKG, permName)).named(permName + " is granted").isFalse();
+        assertWithMessage(permName + " is granted").that(isGranted(APP_PKG, permName)).isFalse();
     }
 
     /**
@@ -262,22 +262,6 @@ public class SplitPermissionTest {
         install(APK_LOCATION_28);
 
         assertPermissionGranted(ACCESS_BACKGROUND_LOCATION);
-    }
-
-    /**
-     * If a permission was granted before the split happens, the new permission should inherit the
-     * granted state.
-     *
-     * This is a duplicate of {@link #inheritGrantedPermissionState} but for the storage permission
-     */
-    @Test
-    public void inheritGrantedPermissionStateStorage() throws Exception {
-        install(APK_STORAGE_29);
-        grantPermission(APP_PKG, READ_EXTERNAL_STORAGE);
-
-        install(APK_STORAGE_28);
-
-        assertPermissionGranted(ACCESS_MEDIA_LOCATION);
     }
 
     /**
@@ -477,8 +461,8 @@ public class SplitPermissionTest {
 
         install(APK_LOCATION_BACKGROUND_29);
 
-        eventually(() -> assertThat(getAppOp(APP_PKG, ACCESS_COARSE_LOCATION)).named("foreground app-op")
-                .isEqualTo(MODE_FOREGROUND));
+        eventually(() -> assertWithMessage("foreground app-op").that(
+                getAppOp(APP_PKG, ACCESS_COARSE_LOCATION)).isEqualTo(MODE_FOREGROUND));
     }
 
     /**
