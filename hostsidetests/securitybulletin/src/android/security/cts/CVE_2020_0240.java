@@ -17,26 +17,22 @@
 package android.security.cts;
 
 import android.platform.test.annotations.SecurityTest;
-import com.android.compatibility.common.util.CrashUtils;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
-import java.util.Arrays;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
 @RunWith(DeviceJUnit4ClassRunner.class)
-public class CVE_2020_0224 extends SecurityTestCase {
+public class CVE_2020_0240 extends SecurityTestCase {
 
     /**
-     * b/147664838
+     * b/150706594
      * Vulnerability Behaviour: SIGSEGV in self
      */
-    @SecurityTest(minPatchLevel = "2020-07")
+    @SecurityTest(minPatchLevel = "2020-08")
     @Test
-    public void testPocCVE_2020_0224() throws Exception {
-        AdbUtils.runProxyAutoConfig("cve_2020_0224", getDevice());
-        AdbUtils.assertNoCrashes(getDevice(), new CrashUtils.Config()
-                .setProcessPatterns("pacrunner")
-                .checkMinAddress(false)
-                .appendSignals(CrashUtils.SIGABRT));
+    public void testPocCVE_2020_0240() throws Exception {
+        String inputFiles[] = {"cve_2020_0240.pac"};
+        AdbUtils.runPocAssertNoCrashesNotVulnerable("CVE-2020-0240",
+                AdbUtils.TMP_PATH + inputFiles[0], inputFiles, AdbUtils.TMP_PATH, getDevice());
     }
 }
