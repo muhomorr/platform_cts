@@ -183,6 +183,11 @@ public class TelephonyManagerTest {
     private static final int MAX_FPLMN_NUM = 100;
     private static final int MIN_FPLMN_NUM = 3;
 
+    private static final String THERMAL_MITIGATION_COMMAND_BASE = "cmd phone thermal-mitigation ";
+    private static final String ALLOW_PACKAGE_SUBCOMMAND = "allow-package ";
+    private static final String DISALLOW_PACKAGE_SUBCOMMAND = "disallow-package ";
+    private static final String TELEPHONY_CTS_PACKAGE = "android.telephony.cts";
+
     private static final String TEST_FORWARD_NUMBER = "54321";
     private static final String TESTING_PLMN = "12345";
 
@@ -281,6 +286,12 @@ public class TelephonyManagerTest {
         if (mIsAllowedNetworkTypeChanged) {
             recoverAllowedNetworkType();
         }
+
+        StringBuilder cmdBuilder = new StringBuilder();
+        cmdBuilder.append(THERMAL_MITIGATION_COMMAND_BASE).append(DISALLOW_PACKAGE_SUBCOMMAND)
+                .append(TELEPHONY_CTS_PACKAGE);
+        TelephonyUtils.executeShellCommand(InstrumentationRegistry.getInstrumentation(),
+                cmdBuilder.toString());
     }
 
     private void saveAllowedNetworkTypesForAllReasons() {
@@ -3724,15 +3735,27 @@ public class TelephonyManagerTest {
     }
 
     @Test
-    public void testSendThermalMitigationRequest() {
+    public void testSendThermalMitigationRequest() throws Exception {
         if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
             return;
         }
+
+        StringBuilder cmdBuilder = new StringBuilder();
+        cmdBuilder.append(THERMAL_MITIGATION_COMMAND_BASE).append(ALLOW_PACKAGE_SUBCOMMAND)
+                .append(TELEPHONY_CTS_PACKAGE);
+        TelephonyUtils.executeShellCommand(InstrumentationRegistry.getInstrumentation(),
+                cmdBuilder.toString());
+
         long arbitraryCompletionWindowSecs = 1L;
 
+        boolean isDataThrottlingSupported = ShellIdentityUtils.invokeMethodWithShellPermissions(
+                mTelephonyManager, (tm) -> tm.isRadioInterfaceCapabilitySupported(
+                        TelephonyManager.CAPABILITY_THERMAL_MITIGATION_DATA_THROTTLING));
 
-        // Test a proper data throttling thermal mitigation request.
-        int thermalMitigationResult = ShellIdentityUtils.invokeMethodWithShellPermissions(
+        int thermalMitigationResult = -1;
+        if (isDataThrottlingSupported) {
+            // Test a proper data throttling thermal mitigation request.
+            thermalMitigationResult = ShellIdentityUtils.invokeMethodWithShellPermissions(
                 mTelephonyManager, (tm) -> tm.sendThermalMitigationRequest(
                         new ThermalMitigationRequest.Builder()
                                 .setThermalMitigationAction(ThermalMitigationRequest
@@ -3743,8 +3766,7 @@ public class TelephonyManagerTest {
                                         .setCompletionDurationMillis(arbitraryCompletionWindowSecs)
                                         .build())
                                 .build()));
-        // Only verify the result for supported devices on IRadio 1.6+
-        if (mRadioVersion >= RADIO_HAL_VERSION_1_6) {
+
             assertEquals(thermalMitigationResult,
                     TelephonyManager.THERMAL_MITIGATION_RESULT_SUCCESS);
         }

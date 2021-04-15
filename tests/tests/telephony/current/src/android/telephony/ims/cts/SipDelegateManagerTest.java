@@ -83,6 +83,9 @@ public class SipDelegateManagerTest {
     private static final String FILE_TRANSFER_HTTP_TAG =
             "+g.3gpp.iari-ref=\"urn%3Aurn-7%3A3gppapplication.ims.iari.rcs.fthttp\"";
 
+    private static final String[] DEFAULT_FEATURE_TAGS = {
+            ONE_TO_ONE_CHAT_TAG, GROUP_CHAT_TAG, FILE_TRANSFER_HTTP_TAG};
+
     private static class CarrierConfigReceiver extends BroadcastReceiver {
         private CountDownLatch mLatch = new CountDownLatch(1);
         private final int mSubId;
@@ -149,6 +152,8 @@ public class SipDelegateManagerTest {
             // APIs.
             sServiceConnector.setDeviceSingleRegistrationEnabled(true);
         }
+
+        setFeatureTagsCarrierAllowed(DEFAULT_FEATURE_TAGS);
     }
 
     @AfterClass
@@ -854,7 +859,7 @@ public class SipDelegateManagerTest {
         byte[] content2 = new byte[0];
 
         SipMessage m = new SipMessage(startLine, header, content1);
-        byte[] encodedMsg = m.getEncodedMessage();
+        byte[] encodedMsg = m.toEncodedMessage();
         String decodedStr = new String(encodedMsg, UTF_8);
         SipMessage decodedMsg = generateSipMessage(decodedStr);
         assertEquals(decodedMsg.getStartLine(), m.getStartLine());
@@ -863,12 +868,47 @@ public class SipDelegateManagerTest {
 
         // Test empty content
         m = new SipMessage(startLine, header, content2);
-        encodedMsg = m.getEncodedMessage();
+        encodedMsg = m.toEncodedMessage();
         decodedStr = new String(encodedMsg, UTF_8);
         decodedMsg = generateSipMessage(decodedStr);
         assertEquals(decodedMsg.getStartLine(), m.getStartLine());
         assertEquals(decodedMsg.getHeaderSection(), m.getHeaderSection());
         assertTrue(Arrays.equals(decodedMsg.getContent(), m.getContent()));
+    }
+
+    @Test
+    public void testFeatureTagDeniedByCarrierConfig() throws Exception {
+        if (!ImsUtils.shouldTestImsService()) {
+            return;
+        }
+
+        setFeatureTagsCarrierAllowed(new String[]{FILE_TRANSFER_HTTP_TAG});
+        assertTrue(sServiceConnector.setDefaultSmsApp());
+        connectTestImsServiceWithSipTransportAndConfig();
+        TestSipTransport transportImpl = sServiceConnector.getCarrierService().getSipTransport();
+        TestImsRegistration regImpl = sServiceConnector.getCarrierService().getImsRegistration();
+        SipDelegateManager manager = getSipDelegateManager();
+        DelegateRequest request = getDefaultRequest();
+        TestSipDelegateConnection delegateConn = new TestSipDelegateConnection(request);
+        Set<String> deniedTags = new ArraySet<>(request.getFeatureTags());
+        deniedTags.remove(FILE_TRANSFER_HTTP_TAG);
+
+        TestSipDelegate delegate = createSipDelegateConnectionAndVerify(manager, delegateConn,
+                transportImpl, getDeniedTagsForReason(deniedTags,
+                        SipDelegateManager.DENIED_REASON_NOT_ALLOWED), 0);
+        assertNotNull(delegate);
+
+        Set<String> registeredTags = new ArraySet<>(
+                Arrays.asList(new String[]{FILE_TRANSFER_HTTP_TAG}));
+        delegateConn.setOperationCountDownLatch(1);
+        DelegateRegistrationState s = getRegisteredRegistrationState(registeredTags);
+        delegate.notifyImsRegistrationUpdate(s);
+        delegateConn.waitForCountDown(ImsUtils.TEST_TIMEOUT_MS);
+        delegateConn.verifyRegistrationStateEquals(s);
+        destroySipDelegateAndVerify(manager, transportImpl, delegateConn, delegate, registeredTags);
+        assertEquals("There should be no more delegates", 0,
+                transportImpl.getDelegates().size());
+        setFeatureTagsCarrierAllowed(getDefaultRequest().getFeatureTags().toArray(new String[0]));
     }
 
     private SipMessage generateSipMessage(String str) {
@@ -1038,8 +1078,8 @@ public class SipDelegateManagerTest {
         // Send a message and ensure it gets received on the other end as well as acked
         delegateConn.sendMessageAndVerifyCompletedSuccessfully(ImsUtils.TEST_SIP_MESSAGE);
         delegate.verifyMessageSend(ImsUtils.TEST_SIP_MESSAGE);
-        delegateConn.sendCloseDialog(ImsUtils.TEST_CALL_ID);
-        delegate.verifyCloseDialog(ImsUtils.TEST_CALL_ID);
+        delegateConn.sendCloseSession(ImsUtils.TEST_CALL_ID);
+        delegate.verifyCloseSession(ImsUtils.TEST_CALL_ID);
         // send a message and notify connection that it failed
         delegate.setSendMessageDenyReason(
                 SipDelegateManager.MESSAGE_FAILURE_REASON_NETWORK_NOT_AVAILABLE);
@@ -1151,17 +1191,14 @@ public class SipDelegateManagerTest {
     }
 
     private DelegateRequest getDefaultRequest() {
-        ArraySet<String> features = new ArraySet<>(3);
-        features.add(TestSipTransport.ONE_TO_ONE_CHAT_TAG);
-        features.add(TestSipTransport.GROUP_CHAT_TAG);
-        features.add(TestSipTransport.FILE_TRANSFER_HTTP_TAG);
+        ArraySet<String> features = new ArraySet<>(Arrays.asList(DEFAULT_FEATURE_TAGS));
         return new DelegateRequest(features);
     }
 
     private DelegateRequest getChatOnlyRequest() {
         ArraySet<String> features = new ArraySet<>(3);
-        features.add(TestSipTransport.ONE_TO_ONE_CHAT_TAG);
-        features.add(TestSipTransport.GROUP_CHAT_TAG);
+        features.add(ONE_TO_ONE_CHAT_TAG);
+        features.add(GROUP_CHAT_TAG);
         return new DelegateRequest(features);
     }
 
@@ -1172,10 +1209,16 @@ public class SipDelegateManagerTest {
                 .addFeature(sTestSlot, ImsFeature.FEATURE_RCS)
                 .build();
     }
+
     private ImsFeatureConfiguration getConfigForRcs() {
         return new ImsFeatureConfiguration.Builder()
                 .addFeature(sTestSlot, ImsFeature.FEATURE_RCS)
                 .build();
+    }
+
+    private Set<FeatureTagState> getDeniedTagsForReason(Set<String> deniedTags, int reason) {
+        return deniedTags.stream().map(t -> new FeatureTagState(t, reason))
+                .collect(Collectors.toSet());
     }
 
     private static void overrideCarrierConfig(PersistableBundle bundle) throws Exception {
@@ -1185,6 +1228,13 @@ public class SipDelegateManagerTest {
         ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(carrierConfigManager,
                 (m) -> m.overrideConfig(sTestSub, bundle));
         sReceiver.waitForCarrierConfigChanged();
+    }
+
+    private static void setFeatureTagsCarrierAllowed(String[] tags) throws Exception {
+        PersistableBundle bundle = new PersistableBundle();
+        bundle.putStringArray(CarrierConfigManager.Ims.KEY_RCS_FEATURE_TAG_ALLOWED_STRING_ARRAY,
+                tags);
+        overrideCarrierConfig(bundle);
     }
 
     private SipDelegateManager getSipDelegateManager() {

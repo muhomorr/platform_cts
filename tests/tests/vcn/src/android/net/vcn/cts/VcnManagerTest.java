@@ -69,6 +69,8 @@ public class VcnManagerTest {
 
     private static final Executor INLINE_EXECUTOR = Runnable::run;
 
+    private static final String VCN_GATEWAY_CONNECTION_NAME = "test-vcn-gateway-connection";
+
     private final Context mContext;
     private final VcnManager mVcnManager;
     private final SubscriptionManager mSubscriptionManager;
@@ -125,7 +127,7 @@ public class VcnManagerTest {
                 new VcnControlPlaneIkeConfig(ikeParams, childParams);
 
         final VcnGatewayConnectionConfig gatewayConnConfig =
-                new VcnGatewayConnectionConfig.Builder(controlConfig)
+                new VcnGatewayConnectionConfig.Builder(VCN_GATEWAY_CONNECTION_NAME, controlConfig)
                         .addExposedCapability(NET_CAPABILITY_INTERNET)
                         .addRequiredUnderlyingCapability(NET_CAPABILITY_INTERNET)
                         .setRetryInterval(
@@ -232,25 +234,25 @@ public class VcnManagerTest {
 
     /** Test implementation of VcnStatusCallback for verification purposes. */
     private static class TestVcnStatusCallback extends VcnManager.VcnStatusCallback {
-        private final CompletableFuture<Integer> mFutureOnVcnStatusChanged =
+        private final CompletableFuture<Integer> mFutureOnStatusChanged =
                 new CompletableFuture<>();
         private final CompletableFuture<GatewayConnectionError> mFutureOnGatewayConnectionError =
                 new CompletableFuture<>();
 
         @Override
-        public void onVcnStatusChanged(int statusCode) {
-            mFutureOnVcnStatusChanged.complete(statusCode);
+        public void onStatusChanged(int statusCode) {
+            mFutureOnStatusChanged.complete(statusCode);
         }
 
         @Override
         public void onGatewayConnectionError(
-                @NonNull int[] networkCapabilities, int errorCode, @Nullable Throwable detail) {
+                @NonNull String gatewayConnectionName, int errorCode, @Nullable Throwable detail) {
             mFutureOnGatewayConnectionError.complete(
-                    new GatewayConnectionError(networkCapabilities, errorCode, detail));
+                    new GatewayConnectionError(gatewayConnectionName, errorCode, detail));
         }
 
-        public int awaitOnVcnStatusChanged() throws Exception {
-            return mFutureOnVcnStatusChanged.get(TIMEOUT_MS, TimeUnit.MILLISECONDS);
+        public int awaitOnStatusChanged() throws Exception {
+            return mFutureOnStatusChanged.get(TIMEOUT_MS, TimeUnit.MILLISECONDS);
         }
 
         public GatewayConnectionError awaitOnGatewayConnectionError() throws Exception {
@@ -260,13 +262,13 @@ public class VcnManagerTest {
 
     /** Info class for organizing VcnStatusCallback#onGatewayConnectionError response data. */
     private static class GatewayConnectionError {
-        @NonNull public final int[] networkCapabilities;
+        @NonNull public final String gatewayConnectionName;
         public final int errorCode;
         @Nullable public final Throwable detail;
 
         public GatewayConnectionError(
-                @NonNull int[] networkCapabilities, int errorCode, @Nullable Throwable detail) {
-            this.networkCapabilities = networkCapabilities.clone();
+                @NonNull String gatewayConnectionName, int errorCode, @Nullable Throwable detail) {
+            this.gatewayConnectionName = gatewayConnectionName;
             this.errorCode = errorCode;
             this.detail = detail;
         }
@@ -289,7 +291,7 @@ public class VcnManagerTest {
         try {
             registerVcnStatusCallbackForSubId(callback, subId);
 
-            final int statusCode = callback.awaitOnVcnStatusChanged();
+            final int statusCode = callback.awaitOnStatusChanged();
             assertEquals(VcnManager.VCN_STATUS_CODE_NOT_CONFIGURED, statusCode);
         } finally {
             mVcnManager.unregisterVcnStatusCallback(callback);

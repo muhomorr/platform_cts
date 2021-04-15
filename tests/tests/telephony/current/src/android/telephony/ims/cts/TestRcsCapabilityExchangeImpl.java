@@ -23,8 +23,7 @@ import android.telephony.ims.stub.RcsCapabilityExchangeImplBase;
 import android.util.Log;
 
 import java.util.Collection;
-import java.util.List;
-import java.util.concurrent.Executor;
+import java.util.Set;
 
 /**
  * A implementation class of RcsCapabilityExchangeImplBase for the TestRcsFeature.
@@ -46,7 +45,7 @@ public class TestRcsCapabilityExchangeImpl extends RcsCapabilityExchangeImplBase
 
     @FunctionalInterface
     public interface OptionsOperation {
-        void execute(Uri contactUri, List<String> myCapabilities, OptionsResponseCallback callback)
+        void execute(Uri contactUri, Set<String> myCapabilities, OptionsResponseCallback callback)
                 throws ImsException;
     }
 
@@ -63,10 +62,8 @@ public class TestRcsCapabilityExchangeImpl extends RcsCapabilityExchangeImplBase
 
     /**
      * Create a new RcsCapabilityExchangeImplBase instance.
-     * @param executor The executor that remote calls from the framework will be called on.
      */
-    public TestRcsCapabilityExchangeImpl(Executor executor, DeviceCapPublishListener listener) {
-        super(executor);
+    public TestRcsCapabilityExchangeImpl(DeviceCapPublishListener listener) {
         mPublishListener = listener;
     }
 
@@ -101,7 +98,7 @@ public class TestRcsCapabilityExchangeImpl extends RcsCapabilityExchangeImplBase
     }
 
     @Override
-    public void sendOptionsCapabilityRequest(Uri contactUri, List<String> myCapabilities,
+    public void sendOptionsCapabilityRequest(Uri contactUri, Set<String> myCapabilities,
             OptionsResponseCallback callback) {
         try {
             mOptionsOperation.execute(contactUri, myCapabilities, callback);

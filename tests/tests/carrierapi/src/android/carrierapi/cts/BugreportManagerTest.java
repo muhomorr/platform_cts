@@ -16,21 +16,19 @@
 
 package android.carrierapi.cts;
 
+import static com.android.compatibility.common.util.SystemUtil.runShellCommand;
+
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
 
 import static org.junit.Assert.fail;
-import static org.junit.Assume.assumeTrue;
 
-import android.content.Context;
-import android.content.pm.PackageManager;
 import android.os.BugreportManager;
 import android.os.BugreportManager.BugreportCallback;
 import android.os.BugreportParams;
 import android.os.FileUtils;
 import android.os.ParcelFileDescriptor;
 import android.platform.test.annotations.SystemUserOnly;
-import android.telephony.TelephonyManager;
 import android.util.Log;
 
 import androidx.test.InstrumentationRegistry;
@@ -40,6 +38,8 @@ import androidx.test.uiautomator.BySelector;
 import androidx.test.uiautomator.UiDevice;
 import androidx.test.uiautomator.UiObject2;
 import androidx.test.uiautomator.Until;
+
+import com.android.compatibility.common.util.PollingCheck;
 
 import org.junit.After;
 import org.junit.Before;
@@ -64,11 +64,15 @@ import java.util.concurrent.TimeUnit;
  */
 @SystemUserOnly(reason = "BugreportManager requires calls to originate from the primary user")
 @RunWith(AndroidJUnit4.class)
-public class BugreportManagerTest {
+public class BugreportManagerTest extends BaseCarrierApiTest {
     private static final String TAG = "BugreportManagerTest";
+
+    // See BugreportManagerServiceImpl#BUGREPORT_SERVICE.
+    private static final String BUGREPORT_SERVICE = "bugreportd";
 
     private static final long BUGREPORT_TIMEOUT_MILLIS = TimeUnit.MINUTES.toMillis(10);
     private static final long UIAUTOMATOR_TIMEOUT_MILLIS = TimeUnit.SECONDS.toMillis(10);
+    private static final long ONEWAY_CALLBACK_TIMEOUT_MILLIS = TimeUnit.SECONDS.toMillis(5);
     // This value is defined in dumpstate.cpp:TELEPHONY_REPORT_USER_CONSENT_TIMEOUT_MS. Because the
     // consent dialog is so large and important, the user *must* be given at least 2 minutes to read
     // it before it times out.
@@ -78,7 +82,6 @@ public class BugreportManagerTest {
 
     @Rule public TestName name = new TestName();
 
-    private TelephonyManager mTelephonyManager;
     private BugreportManager mBugreportManager;
     private File mBugreportFile;
     private ParcelFileDescriptor mBugreportFd;
@@ -87,20 +90,9 @@ public class BugreportManagerTest {
 
     @Before
     public void setUp() throws Exception {
-        Context context = InstrumentationRegistry.getContext();
-        // Bail out if no cellular support.
-        assumeTrue(
-                "No cellular support, CarrierAPI.BugreportManagerTest cases will be skipped",
-                context.getPackageManager().hasSystemFeature(PackageManager.FEATURE_TELEPHONY));
-        // Fail the test if we don't have carrier privileges.
-        mTelephonyManager = context.getSystemService(TelephonyManager.class);
-        assertWithMessage(
-                        "This test requires a SIM card with carrier privilege rules on it.\n"
-                                + "Visit https://source.android.com/devices/tech/config/uicc.html")
-                .that(mTelephonyManager.hasCarrierPrivileges())
-                .isTrue();
-        mBugreportManager = context.getSystemService(BugreportManager.class);
+        mBugreportManager = getContext().getSystemService(BugreportManager.class);
 
+        killCurrentBugreportIfRunning();
         mBugreportFile = createTempFile("bugreport_" + name.getMethodName(), ".zip");
         mBugreportFd = parcelFd(mBugreportFile);
         // Should never be written for anything a carrier app can trigger; several tests assert that
@@ -111,8 +103,11 @@ public class BugreportManagerTest {
 
     @After
     public void tearDown() throws Exception {
+        if (!werePreconditionsSatisfied()) return;
+
         FileUtils.closeQuietly(mBugreportFd);
         FileUtils.closeQuietly(mScreenshotFd);
+        killCurrentBugreportIfRunning();
     }
 
     @Test
@@ -178,6 +173,13 @@ public class BugreportManagerTest {
 
         // Attempting to start a second report immediately gets us a concurrency error.
         mBugreportManager.startConnectivityBugreport(bugreportFd2, Runnable::run, callback2);
+        // Since IDumpstateListener#onError is oneway, it's not guaranteed that binder has delivered
+        // the callback to us yet, even though BugreportManagerServiceImpl sends it before returning
+        // from #startBugreport.
+        PollingCheck.check(
+                "No terminal callback received for the second bugreport",
+                ONEWAY_CALLBACK_TIMEOUT_MILLIS,
+                callback2::isDone);
         assertThat(callback2.getErrorCode())
                 .isEqualTo(BugreportCallback.BUGREPORT_ERROR_ANOTHER_REPORT_IN_PROGRESS);
 
@@ -332,6 +334,14 @@ public class BugreportManagerTest {
         public synchronized boolean hasEarlyReportFinished() {
             return mEarlyReportFinished;
         }
+    }
+
+    /**
+     * Kills the current bugreport if one is in progress to prevent failing test cases from
+     * cascading into other cases and causing flakes.
+     */
+    private static void killCurrentBugreportIfRunning() throws Exception {
+        runShellCommand("setprop ctl.stop " + BUGREPORT_SERVICE);
     }
 
     /** Allow/deny the consent dialog to sharing bugreport data, or just check existence. */
