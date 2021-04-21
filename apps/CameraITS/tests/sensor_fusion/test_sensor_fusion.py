@@ -19,6 +19,7 @@ import logging
 import math
 import multiprocessing
 import os
+import sys
 import time
 
 from matplotlib import pylab
@@ -38,11 +39,22 @@ import sensor_fusion_utils
 _CAM_FRAME_RANGE_MAX = 9.0  # Seconds: max allowed camera frame range.
 _FEATURE_MARGIN = 0.20  # Only take feature points from center 20% so that
                         # rotation measured has less rolling shutter effect.
-_CV2_FEATURE_PARAMS = dict(maxCorners=100,
-                           qualityLevel=0.3,
-                           minDistance=7,
-                           blockSize=7)  # values for cv2.goodFeaturesToTrack
 _FEATURE_PTS_MIN = 30  # Min number of feature pts to perform rotation analysis.
+# cv2.goodFeatures to track.
+# 'POSTMASK' is the measurement method in all previous versions of Android.
+# 'POSTMASK' finds best features on entire frame and then masks the features
+# to the vertical center FEATURE_MARGIN for the measurement.
+# 'PREMASK' is a new measurement that is used when FEATURE_PTS_MIN is not
+# found in frame. This finds the best 2*FEATURE_PTS_MIN in the FEATURE_MARGIN
+# part of the frame.
+_CV2_FEATURE_PARAMS_POSTMASK = dict(maxCorners=240,
+                                    qualityLevel=0.3,
+                                    minDistance=7,
+                                    blockSize=7)
+_CV2_FEATURE_PARAMS_PREMASK = dict(maxCorners=2*_FEATURE_PTS_MIN,
+                                   qualityLevel=0.3,
+                                   minDistance=7,
+                                   blockSize=7)
 _GYRO_SAMP_RATE_MIN = 100.0  # Samples/second: min gyro sample rate.
 _CV2_LK_PARAMS = dict(winSize=(15, 15),
                       maxLevel=2,
@@ -266,48 +278,70 @@ def _get_cam_rotations(frames, facing, h, log_path):
     numpy array of N-1 camera rotation measurements (rad).
   """
   gframes = []
+  file_name_stem = os.path.join(log_path, _NAME)
   for frame in frames:
     frame = (frame * 255.0).astype(np.uint8)  # cv2 uses [0, 255]
     gframes.append(cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY))
-  rots = []
+  num_frames = len(gframes)
 
   # create mask
   ymin = int(h * (1 - _FEATURE_MARGIN) / 2)
   ymax = int(h * (1 + _FEATURE_MARGIN) / 2)
-  mask = np.zeros_like(gframes[0])
-  mask[ymin:ymax, :] = 255
+  pre_mask = np.zeros_like(gframes[0])
+  pre_mask[ymin:ymax, :] = 255
 
-  for i in range(1, len(gframes)):
-    gframe0 = gframes[i-1]
-    gframe1 = gframes[i]
-    p0_filtered = cv2.goodFeaturesToTrack(
-        gframe0, mask=mask, **_CV2_FEATURE_PARAMS)
-    num_features = len(p0_filtered)
-    if num_features < _FEATURE_PTS_MIN:
-      raise AssertionError(
-          f'Not enough features points in frame {i-1}. Need at least '
-          f'{_FEATURE_PTS_MIN} features, got {num_features}.')
-    else:
-      logging.debug('Number of features in frame %s is %d',
-                    str(i - 1).zfill(3), num_features)
-    p1, st, _ = cv2.calcOpticalFlowPyrLK(gframe0, gframe1, p0_filtered, None,
-                                         **_CV2_LK_PARAMS)
-    tform = _procrustes_rotation(p0_filtered[st == 1], p1[st == 1])
-    if facing == camera_properties_utils.LENS_FACING_BACK:
-      rot = -math.atan2(tform[0, 1], tform[0, 0])
-    elif facing == camera_properties_utils.LENS_FACING_FRONT:
-      rot = math.atan2(tform[0, 1], tform[0, 0])
-    else:
-      raise AssertionError(f'Unknown lens facing: {facing}.')
-    rots.append(rot)
-    if i == 1:
-      # Save a debug visualization of the features that are being
-      # tracked in the first frame.
-      frame = frames[i-1]
-      for x, y in p0_filtered[st == 1]:
-        cv2.circle(frame, (x, y), 3, (100, 100, 255), -1)
-      image_processing_utils.write_image(
-          frame, '%s_features.png' % os.path.join(log_path, _NAME))
+  for masking in ['post', 'pre']:  # Do post-masking (original) method 1st
+    logging.debug('Using %s masking method', masking)
+    rots = []
+    for i in range(1, num_frames):
+      gframe0 = gframes[i-1]
+      gframe1 = gframes[i]
+      if masking == 'post':
+        p0 = cv2.goodFeaturesToTrack(
+            gframe0, mask=None, **_CV2_FEATURE_PARAMS_POSTMASK)
+        post_mask = (p0[:, 0, 1] >= ymin) & (p0[:, 0, 1] <= ymax)
+        p0_filtered = p0[post_mask]
+      else:
+        p0_filtered = cv2.goodFeaturesToTrack(
+            gframe0, mask=pre_mask, **_CV2_FEATURE_PARAMS_PREMASK)
+      num_features = len(p0_filtered)
+      if num_features < _FEATURE_PTS_MIN:
+        for pt in p0_filtered:
+          x, y = pt[0][0], pt[0][1]
+          cv2.circle(frames[i-1], (x, y), 3, (100, 255, 255), -1)
+        image_processing_utils.write_image(
+            frames[i-1], f'{file_name_stem}_features{i-1:03d}.png')
+        msg = (f'Not enough features in frame {i-1}. Need at least '
+               f'{_FEATURE_PTS_MIN} features, got {num_features}.')
+        if masking == 'pre':
+          raise AssertionError(msg)
+        else:
+          logging.debug(msg)
+          break
+      else:
+        logging.debug('Number of features in frame %s is %d',
+                      str(i - 1).zfill(3), num_features)
+      p1, st, _ = cv2.calcOpticalFlowPyrLK(gframe0, gframe1, p0_filtered, None,
+                                           **_CV2_LK_PARAMS)
+      tform = _procrustes_rotation(p0_filtered[st == 1], p1[st == 1])
+      if facing == camera_properties_utils.LENS_FACING_BACK:
+        rot = -math.atan2(tform[0, 1], tform[0, 0])
+      elif facing == camera_properties_utils.LENS_FACING_FRONT:
+        rot = math.atan2(tform[0, 1], tform[0, 0])
+      else:
+        raise AssertionError(f'Unknown lens facing: {facing}.')
+      rots.append(rot)
+      if i == 1:
+        # Save debug visualization of features that are being
+        # tracked in the first frame.
+        frame = frames[i-1]
+        for x, y in p0_filtered[st == 1]:
+          cv2.circle(frame, (x, y), 3, (100, 100, 255), -1)
+        image_processing_utils.write_image(
+            frame, f'{file_name_stem}_features000.png')
+    if i == len(rots):
+      break  # exit if enough features in all frames
+
   rots = np.array(rots)
   rot_per_frame_max = max(abs(rots))
   logging.debug('Max rotation: %.4f radians', rot_per_frame_max)
@@ -366,6 +400,26 @@ def _plot_rotations(cam_rots, gyro_rots, log_path):
       '%s_plot_rotations.png' % os.path.join(log_path, _NAME))
 
 
+def load_data():
+  """Load a set of previously captured data.
+
+  Returns:
+    events: Dictionary containing all gyro events and cam timestamps.
+    frames: List of RGB images as numpy arrays.
+    w:      Pixel width of frames
+    h:      Pixel height of frames
+  """
+  with open(f'{_NAME}_events.txt', 'r') as f:
+    events = json.loads(f.read())
+  n = len(events['cam'])
+  frames = []
+  for i in range(n):
+    img = image_processing_utils.read_image(f'{_NAME}_frame{i:03d}.png')
+    w, h = img.size[0:2]
+    frames.append(np.array(img).reshape((h, w, 3)) / 255)
+  return events, frames, w, h
+
+
 class SensorFusionTest(its_base_test.ItsBaseTest):
   """Tests if image and motion sensor events are well synchronized.
 
@@ -414,6 +468,13 @@ class SensorFusionTest(its_base_test.ItsBaseTest):
       raise AssertionError(f'Gyro sample rate, {gyro_smp_per_sec}S/s, low!')
 
   def test_sensor_fusion(self):
+    # Determine if '--replay' in cmd line
+    replay = False
+    for s in list(sys.argv[1:]):
+      if '--replay' in s:
+        replay = True
+        logging.info('test_sensor_fusion.py not run. Using existing data set.')
+
     rot_rig = {}
     fps = float(self.fps)
     img_w, img_h = self.img_w, self.img_h
@@ -427,15 +488,18 @@ class SensorFusionTest(its_base_test.ItsBaseTest):
           ' to run smoothly.  If you run into problems, consider'
           " smaller values of 'w', 'h', 'fps', or 'test_length'.")
 
-    with its_session_utils.ItsSession(
-        device_id=self.dut.serial,
-        camera_id=self.camera_id,
-        hidden_physical_id=self.hidden_physical_id) as cam:
+    if replay:
+      events, frames, _, h = load_data()
+    else:
+      with its_session_utils.ItsSession(
+          device_id=self.dut.serial,
+          camera_id=self.camera_id,
+          hidden_physical_id=self.hidden_physical_id) as cam:
 
-      rot_rig['cntl'] = self.rotator_cntl
-      rot_rig['ch'] = self.rotator_ch
-      events, frames = _collect_data(cam, fps, img_w, img_h, test_length,
-                                     rot_rig, chart_distance, log_path)
+        rot_rig['cntl'] = self.rotator_cntl
+        rot_rig['ch'] = self.rotator_ch
+        events, frames = _collect_data(cam, fps, img_w, img_h, test_length,
+                                       rot_rig, chart_distance, log_path)
 
     _plot_gyro_events(events['gyro'], log_path)
 
@@ -463,8 +527,8 @@ class SensorFusionTest(its_base_test.ItsBaseTest):
 
     # Assert PASS/FAIL criteria.
     if corr_dist > _CORR_DIST_THRESH_MAX:
-      raise AssertionError(f'Poor gyro/camera correlation. '
-                           f'Corr: {corr_dist}, TOL: {_CORR_DIST_THRESH_MAX}.')
+      raise AssertionError(f'Poor gyro/camera correlation: {corr_dist:.6f}, '
+                           f'TOL: {_CORR_DIST_THRESH_MAX}.')
     if abs(offset_ms) > _OFFSET_MS_THRESH_MAX:
       raise AssertionError('Offset too large. Measured (ms): '
                            f'{offset_ms:.3f}, TOL: {_OFFSET_MS_THRESH_MAX}.')

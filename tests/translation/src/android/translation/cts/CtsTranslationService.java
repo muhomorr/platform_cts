@@ -17,6 +17,7 @@
 package android.translation.cts;
 
 import android.content.Context;
+import android.icu.util.ULocale;
 import android.os.CancellationSignal;
 import android.os.Handler;
 import android.os.HandlerThread;
@@ -104,8 +105,15 @@ public class CtsTranslationService extends TranslationService {
 
     @Override
     public void onCreateTranslationSession(@NonNull TranslationContext translationContext,
-            int sessionId) {
+            int sessionId, @NonNull Consumer<Boolean> callback) {
         Log.v(TAG, "onCreateTranslationSession");
+        callback.accept(true);
+    }
+
+    @Override
+    public void onCreateTranslationSession(@NonNull TranslationContext translationContext,
+            int sessionId) {
+        Log.v(TAG, "deprecated");
     }
 
     @Override
@@ -130,8 +138,8 @@ public class CtsTranslationService extends TranslationService {
         //TODO: Implement properly with replier?
         final HashSet<TranslationCapability> capabilities = new HashSet<>();
         capabilities.add(new TranslationCapability(TranslationCapability.STATE_ON_DEVICE,
-                new TranslationSpec("en", sourceFormat),
-                new TranslationSpec("es", targetFormat),
+                new TranslationSpec(ULocale.ENGLISH, sourceFormat),
+                new TranslationSpec(ULocale.FRENCH, targetFormat),
                 /* uiTranslationEnabled= */ true, 0));
         callback.accept(capabilities);
     }

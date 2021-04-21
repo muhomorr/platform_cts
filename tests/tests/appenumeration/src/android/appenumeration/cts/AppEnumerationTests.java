@@ -18,6 +18,7 @@ package android.appenumeration.cts;
 
 import static android.appenumeration.cts.Constants.ACTION_BIND_SERVICE;
 import static android.appenumeration.cts.Constants.ACTION_CHECK_SIGNATURES;
+import static android.appenumeration.cts.Constants.ACTION_GET_INSTALLED_APPWIDGET_PROVIDERS;
 import static android.appenumeration.cts.Constants.ACTION_GET_INSTALLED_PACKAGES;
 import static android.appenumeration.cts.Constants.ACTION_GET_NAMES_FOR_UIDS;
 import static android.appenumeration.cts.Constants.ACTION_GET_NAME_FOR_UID;
@@ -26,6 +27,7 @@ import static android.appenumeration.cts.Constants.ACTION_GET_PACKAGE_INFO;
 import static android.appenumeration.cts.Constants.ACTION_GET_SYNCADAPTER_TYPES;
 import static android.appenumeration.cts.Constants.ACTION_HAS_SIGNING_CERTIFICATE;
 import static android.appenumeration.cts.Constants.ACTION_JUST_FINISH;
+import static android.appenumeration.cts.Constants.ACTION_LAUNCHER_APPS_IS_ACTIVITY_ENABLED;
 import static android.appenumeration.cts.Constants.ACTION_MANIFEST_ACTIVITY;
 import static android.appenumeration.cts.Constants.ACTION_MANIFEST_PROVIDER;
 import static android.appenumeration.cts.Constants.ACTION_MANIFEST_SERVICE;
@@ -70,6 +72,8 @@ import static android.appenumeration.cts.Constants.QUERIES_WILDCARD_CONTACTS;
 import static android.appenumeration.cts.Constants.QUERIES_WILDCARD_EDITOR;
 import static android.appenumeration.cts.Constants.QUERIES_WILDCARD_SHARE;
 import static android.appenumeration.cts.Constants.QUERIES_WILDCARD_WEB;
+import static android.appenumeration.cts.Constants.TARGET_APPWIDGETPROVIDER;
+import static android.appenumeration.cts.Constants.TARGET_APPWIDGETPROVIDER_SHARED_USER;
 import static android.appenumeration.cts.Constants.TARGET_BROWSER;
 import static android.appenumeration.cts.Constants.TARGET_BROWSER_WILDCARD;
 import static android.appenumeration.cts.Constants.TARGET_CONTACTS;
@@ -95,6 +99,7 @@ import static android.os.Process.INVALID_UID;
 
 import static com.android.compatibility.common.util.ShellUtils.runShellCommand;
 
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -102,11 +107,11 @@ import static org.hamcrest.Matchers.hasItemInArray;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.core.Is.is;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import android.app.PendingIntent;
+import android.appwidget.AppWidgetProviderInfo;
 import android.content.ComponentName;
 import android.content.Intent;
 import android.content.SyncAdapterType;
@@ -630,7 +635,7 @@ public class AppEnumerationTests {
     public void broadcastAdded_notVisibleDoesNotReceive() throws Exception {
         final Result result = sendCommand(QUERIES_NOTHING, TARGET_FILTERS,
                 /* targetUid */ INVALID_UID, /* intentExtra */ null,
-                Constants.ACTION_AWAIT_PACKAGE_ADDED, /* waitForReady */ false);
+                Constants.ACTION_AWAIT_PACKAGE_ADDED, /* waitForReady */ true);
         runShellCommand("pm install " + TARGET_FILTERS_APK);
         try {
             result.await();
@@ -644,7 +649,7 @@ public class AppEnumerationTests {
     public void broadcastAdded_visibleReceives() throws Exception {
         final Result result = sendCommand(QUERIES_ACTIVITY_ACTION, TARGET_FILTERS,
                 /* targetUid */ INVALID_UID, /* intentExtra */ null,
-                Constants.ACTION_AWAIT_PACKAGE_ADDED, /* waitForReady */ false);
+                Constants.ACTION_AWAIT_PACKAGE_ADDED, /* waitForReady */ true);
         runShellCommand("pm install " + TARGET_FILTERS_APK);
         try {
             Assert.assertEquals(TARGET_FILTERS,
@@ -658,7 +663,7 @@ public class AppEnumerationTests {
     public void reinstallTarget_broadcastRemoved_notVisibleDoesNotReceive() throws Exception {
         final Result result = sendCommand(QUERIES_NOTHING, TARGET_FILTERS,
                 /* targetUid */ INVALID_UID, /* intentExtra */ null,
-                Constants.ACTION_AWAIT_PACKAGE_REMOVED, /* waitForReady */ false);
+                Constants.ACTION_AWAIT_PACKAGE_REMOVED, /* waitForReady */ true);
         runShellCommand("pm install " + TARGET_FILTERS_APK);
         try {
             result.await();
@@ -672,7 +677,7 @@ public class AppEnumerationTests {
     public void reinstallTarget_broadcastRemoved_visibleReceives() throws Exception {
         final Result result = sendCommand(QUERIES_ACTIVITY_ACTION, TARGET_FILTERS,
                 /* targetUid */ INVALID_UID, /* intentExtra */ null,
-                Constants.ACTION_AWAIT_PACKAGE_REMOVED, /* waitForReady */ false);
+                Constants.ACTION_AWAIT_PACKAGE_REMOVED, /* waitForReady */ true);
         runShellCommand("pm install " + TARGET_FILTERS_APK);
         try {
             Assert.assertEquals(TARGET_FILTERS,
@@ -687,7 +692,7 @@ public class AppEnumerationTests {
         ensurePackageIsInstalled(TARGET_STUB, TARGET_STUB_APK);
         final Result result = sendCommand(QUERIES_NOTHING, TARGET_STUB,
                 /* targetUid */ INVALID_UID, /* intentExtra */ null,
-                Constants.ACTION_AWAIT_PACKAGE_REMOVED, /* waitForReady */ false);
+                Constants.ACTION_AWAIT_PACKAGE_REMOVED, /* waitForReady */ true);
         runShellCommand("pm uninstall " + TARGET_STUB);
         try {
             result.await();
@@ -702,7 +707,7 @@ public class AppEnumerationTests {
         ensurePackageIsInstalled(TARGET_STUB, TARGET_STUB_APK);
         final Result result = sendCommand(QUERIES_NOTHING_PERM, TARGET_STUB,
                 /* targetUid */ INVALID_UID, /* intentExtra */ null,
-                Constants.ACTION_AWAIT_PACKAGE_REMOVED, /* waitForReady */ false);
+                Constants.ACTION_AWAIT_PACKAGE_REMOVED, /* waitForReady */ true);
         runShellCommand("pm uninstall " + TARGET_STUB);
         try {
             Assert.assertEquals(TARGET_STUB,
@@ -774,6 +779,47 @@ public class AppEnumerationTests {
     public void queriesNothingSharedUser_canSeeSyncadapterSharedUserTarget() throws Exception {
         assertVisible(QUERIES_NOTHING_SHARED_USER, TARGET_SYNCADAPTER_SHARED_USER,
                 this::getSyncAdapterTypes);
+    }
+
+    @Test
+    public void launcherAppsIsActivityEnabled_queriesActivityAction_canSeeActivity()
+            throws Exception {
+        final ComponentName targetFilters = ComponentName.createRelative(TARGET_FILTERS,
+                ACTIVITY_CLASS_DUMMY_ACTIVITY);
+        assertThat(QUERIES_ACTIVITY_ACTION + " should be able to see " + targetFilters,
+                launcherAppsIsActivityEnabled(QUERIES_ACTIVITY_ACTION, targetFilters),
+                is(true));
+    }
+
+    @Test
+    public void launcherAppsIsActivityEnabled_queriesNothing_cannotSeeActivity()
+            throws Exception {
+        final ComponentName targetFilters = ComponentName.createRelative(TARGET_FILTERS,
+                ACTIVITY_CLASS_DUMMY_ACTIVITY);
+        assertThat(QUERIES_ACTIVITY_ACTION + " should not be able to see " + targetFilters,
+                launcherAppsIsActivityEnabled(QUERIES_NOTHING, targetFilters),
+                is(false));
+    }
+
+    @Test
+    public void queriesPackage_canSeeAppWidgetProviderTarget() throws Exception {
+        assertVisible(QUERIES_PACKAGE, TARGET_APPWIDGETPROVIDER,
+                this::getInstalledAppWidgetProviders);
+    }
+
+    @Test
+    public void queriesNothing_cannotSeeAppWidgetProviderTarget() throws Exception {
+        assertNotVisible(QUERIES_NOTHING, TARGET_APPWIDGETPROVIDER,
+                this::getInstalledAppWidgetProviders);
+        assertNotVisible(QUERIES_NOTHING, TARGET_APPWIDGETPROVIDER_SHARED_USER,
+                this::getInstalledAppWidgetProviders);
+    }
+
+    @Test
+    public void queriesNothingSharedUser_canSeeAppWidgetProviderSharedUserTarget()
+            throws Exception {
+        assertVisible(QUERIES_NOTHING_SHARED_USER, TARGET_APPWIDGETPROVIDER_SHARED_USER,
+                this::getInstalledAppWidgetProviders);
     }
 
     private void assertNotVisible(String sourcePackageName, String targetPackageName)
@@ -1008,6 +1054,17 @@ public class AppEnumerationTests {
                 .toArray(String[]::new);
     }
 
+    private String[] getInstalledAppWidgetProviders(String sourcePackageName) throws Exception {
+        final Bundle response = sendCommandBlocking(sourcePackageName, /* targetPackageName */ null,
+                /* intentExtra */ null, ACTION_GET_INSTALLED_APPWIDGET_PROVIDERS);
+        final List<Parcelable> parcelables = response.getParcelableArrayList(
+                Intent.EXTRA_RETURN_RESULT);
+        return parcelables.stream()
+                .map(parcelable -> ((AppWidgetProviderInfo) parcelable).provider.getPackageName())
+                .distinct()
+                .toArray(String[]::new);
+    }
+
     private void setPackagesSuspended(boolean suspend, List<String> packages) {
         final StringBuilder cmd = new StringBuilder("pm ");
         if (suspend) {
@@ -1018,6 +1075,15 @@ public class AppEnumerationTests {
         cmd.append(" --user cur");
         packages.stream().forEach(p -> cmd.append(" ").append(p));
         runShellCommand(cmd.toString());
+    }
+
+    private boolean launcherAppsIsActivityEnabled(String sourcePackageName,
+            ComponentName componentName) throws Exception {
+        final Bundle extraData = new Bundle();
+        extraData.putString(Intent.EXTRA_COMPONENT_NAME, componentName.flattenToString());
+        final Bundle response = sendCommandBlocking(sourcePackageName, /* targetPackageName */ null,
+                extraData, ACTION_LAUNCHER_APPS_IS_ACTIVITY_ENABLED);
+        return response.getBoolean(Intent.EXTRA_RETURN_RESULT);
     }
 
     interface Result {

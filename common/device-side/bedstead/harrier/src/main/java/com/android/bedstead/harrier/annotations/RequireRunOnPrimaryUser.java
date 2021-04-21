@@ -17,6 +17,7 @@
 package com.android.bedstead.harrier.annotations;
 
 import com.android.bedstead.harrier.DeviceState;
+import com.android.bedstead.harrier.annotations.meta.RequireRunOnUserAnnotation;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -31,7 +32,8 @@ import java.lang.annotation.Target;
  * <p>Optionally, you can guarantee that these methods do not run outside of the primary
  * user by using {@link DeviceState}.
  */
-@Target(ElementType.METHOD)
+@Target({ElementType.METHOD, ElementType.ANNOTATION_TYPE})
 @Retention(RetentionPolicy.RUNTIME)
+@RequireRunOnUserAnnotation("android.os.usertype.full.SYSTEM")
 public @interface RequireRunOnPrimaryUser {
 }

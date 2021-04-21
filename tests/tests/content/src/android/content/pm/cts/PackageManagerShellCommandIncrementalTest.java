@@ -23,15 +23,12 @@ import static org.junit.Assert.assertTrue;
 
 import android.annotation.NonNull;
 import android.app.UiAutomation;
-import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.net.Uri;
 import android.os.IBinder;
 import android.os.ParcelFileDescriptor;
 import android.os.Process;
-import android.os.RemoteCallback;
 import android.os.SystemClock;
 import android.os.SystemProperties;
 import android.os.UserHandle;
@@ -40,11 +37,13 @@ import android.provider.DeviceConfig;
 import android.service.dataloader.DataLoaderService;
 import android.text.TextUtils;
 import android.util.ArrayMap;
+import android.util.Log;
 
 import androidx.test.InstrumentationRegistry;
 import androidx.test.filters.LargeTest;
 import androidx.test.runner.AndroidJUnit4;
 
+import com.android.incfs.install.IBlockFilter;
 import com.android.incfs.install.IBlockTransformer;
 import com.android.incfs.install.IncrementalInstallSession;
 import com.android.incfs.install.PendingBlock;
@@ -56,6 +55,7 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -72,13 +72,12 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Optional;
+import java.util.Random;
 import java.util.Scanner;
-import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -88,6 +87,8 @@ import java.util.stream.Stream;
 @AppModeFull
 @LargeTest
 public class PackageManagerShellCommandIncrementalTest {
+    private static final String TAG = "PackageManagerShellCommandIncrementalTest";
+
     private static final String CTS_PACKAGE_NAME = "android.content.cts";
     private static final String TEST_APP_PACKAGE = "com.example.helloworld";
 
@@ -102,6 +103,7 @@ public class PackageManagerShellCommandIncrementalTest {
     private static final String TEST_APK_SPLIT1_IDSIG = "HelloWorld5_hdpi-v4.apk.idsig";
     private static final String TEST_APK_SPLIT2 = "HelloWorld5_xhdpi-v4.apk";
     private static final String TEST_APK_SPLIT2_IDSIG = "HelloWorld5_xhdpi-v4.apk.idsig";
+    private static final String TEST_APK_MALFORMED = "malformed.apk";
 
     private static final long EXPECTED_READ_TIME = 1000L;
 
@@ -152,19 +154,31 @@ public class PackageManagerShellCommandIncrementalTest {
 
     @Test
     public void testInstallWithIdSig() throws Exception {
-        final Result stateListenerResult = startListeningForBroadcast();
         installPackage(TEST_APK);
-        assertTrue(stateListenerResult.await());
         assertTrue(isAppInstalled(TEST_APP_PACKAGE));
+    }
+
+    @Test
+    @Ignore("Wait until the kernel change lands in RVC branch for the mixed vendor image tests")
+    public void testBug183952694Fixed() throws Exception {
+        // first ensure the IncFS is up and running, e.g. if it's a module
+        installPackage(TEST_APK);
+        assertTrue(isAppInstalled(TEST_APP_PACKAGE));
+
+        // the bug is fixed in the v2 version, or when the specific marker feature is present
+        final String[] validValues = {"v2", "mounter_context_for_backing_rw"};
+        final String features = executeShellCommand("ls /sys/fs/incremental-fs/features/");
+        assertTrue(
+                "Missing all of required IncFS features [" + TextUtils.join(",", validValues) + "]",
+                Arrays.stream(features.split("\\s+")).anyMatch(
+                        f -> Arrays.stream(validValues).anyMatch(f::equals)));
     }
 
     @Test
     public void testSplitInstallWithIdSig() throws Exception {
         // First fully install the apk.
         {
-            final Result stateListenerResult = startListeningForBroadcast();
             installPackage(TEST_APK);
-            assertTrue(stateListenerResult.await());
             assertTrue(isAppInstalled(TEST_APP_PACKAGE));
         }
 
@@ -185,6 +199,7 @@ public class PackageManagerShellCommandIncrementalTest {
                 executeShellCommand("pm install-incremental -t -g " + file.getPath()));
     }
 
+    @LargeTest
     @Test
     public void testInstallWithIdSigAndSplit() throws Exception {
         File apkfile = new File(createApkPath(TEST_APK));
@@ -192,12 +207,10 @@ public class PackageManagerShellCommandIncrementalTest {
         File[] files = new File[]{apkfile, splitfile};
         String param = Arrays.stream(files).map(
                 file -> file.getName() + ":" + file.length()).collect(Collectors.joining(" "));
-        final Result stateListenerResult = startListeningForBroadcast();
         assertEquals("Success\n", executeShellCommand(
                 String.format("pm install-incremental -t -g -S %s %s",
                         (apkfile.length() + splitfile.length()), param),
                 files));
-        assertTrue(stateListenerResult.await());
         assertTrue(isAppInstalled(TEST_APP_PACKAGE));
         assertEquals("base, config.mdpi", getSplits(TEST_APP_PACKAGE));
     }
@@ -215,15 +228,72 @@ public class PackageManagerShellCommandIncrementalTest {
                         .build();
         getUiAutomation().adoptShellPermissionIdentity();
         try {
-            mSession.start(
-                    Executors.newSingleThreadExecutor(),
-                    new IncrementalDeviceConnection.Factory(
-                            IncrementalDeviceConnection.ConnectionType.RELIABLE));
+            mSession.start(Executors.newSingleThreadExecutor(),
+                    IncrementalDeviceConnection.Factory.reliable());
             mSession.waitForInstallCompleted(30, TimeUnit.SECONDS);
         } finally {
             getUiAutomation().dropShellPermissionIdentity();
         }
         assertTrue(isAppInstalled(TEST_APP_PACKAGE));
+    }
+
+    @LargeTest
+    @Test
+    public void testInstallWithMissingBlocks() throws Exception {
+        setDeviceProperty("incfs_default_timeouts", "0:0:0");
+        setDeviceProperty("known_digesters_list", CTS_PACKAGE_NAME);
+        setSystemProperty("debug.incremental.always_enable_read_timeouts_for_system_dataloaders",
+                "0");
+
+        final long randomSeed = System.currentTimeMillis();
+        Log.i(TAG, "Randomizing missing blocks with seed: " + randomSeed);
+        final Random random = new Random(randomSeed);
+
+        // TODO: add detection of orphaned IncFS instances after failed installations
+
+        final int blockSize = 4096;
+        final int retries = 7; // 7 * 3s + leeway ~= 30secs of test timeout
+
+        final File apk = new File(createApkPath(TEST_APK));
+        final int blocks = (int) (apk.length() / blockSize);
+
+        for (int i = 0; i < retries; ++i) {
+            final int skipBlock = random.nextInt(blocks);
+            Log.i(TAG, "skipBlock: " + skipBlock + " out of " + blocks);
+            try {
+                installWithBlockFilter((block -> block.getType() == PendingBlock.Type.SIGNATURE_TREE
+                        || block.getBlockIndex() != skipBlock));
+                if (isAppInstalled(TEST_APP_PACKAGE)) {
+                    uninstallPackageSilently(TEST_APP_PACKAGE);
+                }
+            } catch (RuntimeException re) {
+                Log.i(TAG, "RuntimeException: ", re);
+                assertTrue(re.toString(), re.getCause() instanceof IOException);
+            } catch (IOException e) {
+                Log.i(TAG, "IOException: ", e);
+                throw e;
+            }
+        }
+    }
+
+    public void installWithBlockFilter(IBlockFilter blockFilter) throws Exception {
+        final String apk = createApkPath(TEST_APK);
+        final String idsig = createApkPath(TEST_APK_IDSIG);
+        mSession =
+                new IncrementalInstallSession.Builder()
+                        .addApk(Paths.get(apk), Paths.get(idsig))
+                        .addExtraArgs("-t", "-i", CTS_PACKAGE_NAME)
+                        .setLogger(new IncrementalDeviceConnection.Logger())
+                        .setBlockFilter(blockFilter)
+                        .build();
+        getUiAutomation().adoptShellPermissionIdentity();
+        try {
+            mSession.start(Executors.newSingleThreadExecutor(),
+                    IncrementalDeviceConnection.Factory.reliableExpectInstallationFailure());
+            mSession.waitForAnyCompletion(3, TimeUnit.SECONDS);
+        } finally {
+            getUiAutomation().dropShellPermissionIdentity();
+        }
     }
 
     /**
@@ -305,10 +375,8 @@ public class PackageManagerShellCommandIncrementalTest {
                         .build();
         getUiAutomation().adoptShellPermissionIdentity();
         try {
-            mSession.start(
-                    Executors.newSingleThreadExecutor(),
-                    new IncrementalDeviceConnection.Factory(
-                            IncrementalDeviceConnection.ConnectionType.RELIABLE));
+            mSession.start(Executors.newSingleThreadExecutor(),
+                    IncrementalDeviceConnection.Factory.reliable());
             mSession.waitForInstallCompleted(30, TimeUnit.SECONDS);
         } finally {
             getUiAutomation().dropShellPermissionIdentity();
@@ -329,10 +397,8 @@ public class PackageManagerShellCommandIncrementalTest {
                         .build();
         getUiAutomation().adoptShellPermissionIdentity();
         try {
-            mSession.start(
-                    Executors.newSingleThreadExecutor(),
-                    new IncrementalDeviceConnection.Factory(
-                            IncrementalDeviceConnection.ConnectionType.UNRELIABLE));
+            mSession.start(Executors.newSingleThreadExecutor(),
+                    IncrementalDeviceConnection.Factory.ureliable());
             mSession.waitForInstallCompleted(30, TimeUnit.SECONDS);
         } catch (Exception ignored) {
             // Ignore, we are looking for crashes anyway.
@@ -344,12 +410,18 @@ public class PackageManagerShellCommandIncrementalTest {
     @Test
     public void testInstallWithIdSigInvalidLength() throws Exception {
         File file = new File(createApkPath(TEST_APK));
-        final Result stateListenerResult = startListeningForBroadcast();
         assertTrue(
                 executeShellCommand("pm install-incremental -t -g -S " + (file.length() - 1),
                         new File[]{file}).contains(
                         "Failure"));
-        assertFalse(stateListenerResult.await());
+        assertFalse(isAppInstalled(TEST_APP_PACKAGE));
+    }
+
+    @Test
+    public void testInstallWithInvalidIdSig() throws Exception {
+        File file = new File(createApkPath(TEST_APK_MALFORMED));
+        String result = executeShellCommand("pm install-incremental -t -g " + file.getPath());
+        assertTrue(result, result.contains("Failure"));
         assertFalse(isAppInstalled(TEST_APP_PACKAGE));
     }
 
@@ -360,14 +432,12 @@ public class PackageManagerShellCommandIncrementalTest {
         long length = file.length();
         // Streaming happens in blocks of 1024 bytes, new length will not stream the last block.
         long newLength = length - (length % 1024 == 0 ? 1024 : length % 1024);
-        final Result stateListenerResult = startListeningForBroadcast();
         assertTrue(
                 executeShellCommand(
                         "pm install-incremental -t -g -S " + length,
                         new File[] {file},
                         new long[] {newLength})
                         .contains("Failure"));
-        assertFalse(stateListenerResult.await());
         assertFalse(isAppInstalled(TEST_APP_PACKAGE));
     }
 
@@ -676,9 +746,7 @@ public class PackageManagerShellCommandIncrementalTest {
             setDeviceProperty("incfs_default_timeouts", "5000000:5000000:5000000");
             setDeviceProperty("known_digesters_list", CTS_PACKAGE_NAME);
 
-            final Result stateListenerResult = startListeningForBroadcast();
             installPackage(TEST_APK);
-            assertTrue(stateListenerResult.await());
             assertTrue(isAppInstalled(TEST_APP_PACKAGE));
         } finally {
             executeShellCommand("atrace --async_stop");
@@ -713,10 +781,8 @@ public class PackageManagerShellCommandIncrementalTest {
             // Partially install the apk+split0+split1.
             getUiAutomation().adoptShellPermissionIdentity();
             try {
-                mSession.start(
-                        Executors.newSingleThreadExecutor(),
-                        new IncrementalDeviceConnection.Factory(
-                                IncrementalDeviceConnection.ConnectionType.RELIABLE));
+                mSession.start(Executors.newSingleThreadExecutor(),
+                        IncrementalDeviceConnection.Factory.reliable());
                 mSession.waitForInstallCompleted(30, TimeUnit.SECONDS);
                 assertEquals("base, config.hdpi, config.mdpi", getSplits(TEST_APP_PACKAGE));
             } finally {
@@ -745,9 +811,7 @@ public class PackageManagerShellCommandIncrementalTest {
 
         // First fully install the apk and a split0.
         {
-            final Result stateListenerResult = startListeningForBroadcast();
             installPackage(TEST_APK);
-            assertTrue(stateListenerResult.await());
             assertTrue(isAppInstalled(TEST_APP_PACKAGE));
             installSplit(TEST_APK_SPLIT0);
             assertEquals("base, config.mdpi", getSplits(TEST_APP_PACKAGE));
@@ -774,13 +838,11 @@ public class PackageManagerShellCommandIncrementalTest {
         File[] files = new File[]{apkfile, splitfile};
         String param = Arrays.stream(files).map(
                 file -> file.getName() + ":" + file.length()).collect(Collectors.joining(" "));
-        final Result stateListenerResult = startListeningForBroadcast();
         assertTrue(executeShellCommand(
                 String.format("pm install-incremental -t -g -S %s %s",
                         (apkfile.length() + splitfile.length()), param),
                 files, new long[]{apkfile.length(), newSplitLength}).contains(
                 "Failure"));
-        assertFalse(stateListenerResult.await());
         assertFalse(isAppInstalled(TEST_APP_PACKAGE));
     }
 
@@ -942,14 +1004,12 @@ public class PackageManagerShellCommandIncrementalTest {
 
     private void installSplit(String splitName) throws Exception {
         final File splitfile = new File(createApkPath(splitName));
-        final Result stateListenerResult = startListeningForBroadcast();
 
         try (InputStream inputStream = executeShellCommandStream(
                 "pm install-incremental -t -g -p " + TEST_APP_PACKAGE + " "
                         + splitfile.getPath())) {
             assertEquals("Success\n", readFullStream(inputStream));
         }
-        assertTrue(stateListenerResult.await());
     }
 
     private void readSplitInChunks(String splitName) throws Exception {
@@ -1002,38 +1062,6 @@ public class PackageManagerShellCommandIncrementalTest {
 
     interface Result {
         boolean await() throws Exception;
-    }
-
-    private Result startListeningForBroadcast() {
-        final Intent intent = new Intent()
-                .setComponent(new ComponentName("android.content.pm.cts.app", "android.content"
-                        + ".pm.cts.app.MainActivity"))
-                // data uri unique to each activity start to ensure actual launch and not just
-                // redisplay
-                .setData(Uri.parse("test://" + UUID.randomUUID().toString()))
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_NEW_DOCUMENT);
-        intent.putExtra(Intent.EXTRA_PACKAGE_NAME, TEST_APP_PACKAGE);
-        // Should receive at least one fully_loaded broadcast
-        final CompletableFuture<Boolean> fullyLoaded = new CompletableFuture<>();
-        final RemoteCallback callback = new RemoteCallback(
-                bundle -> {
-                    if (bundle == null) {
-                        return;
-                    }
-                    if (bundle.getString("intent").equals(
-                            Intent.ACTION_PACKAGE_FULLY_LOADED)) {
-                        fullyLoaded.complete(true);
-                    }
-                });
-        intent.putExtra("callback", callback);
-        getContext().startActivity(intent);
-        return () -> {
-            try {
-                return fullyLoaded.get(10, TimeUnit.SECONDS);
-            } catch (TimeoutException e) {
-                return false;
-            }
-        };
     }
 
     private static String executeShellCommand(String command) throws IOException {
@@ -1114,6 +1142,8 @@ public class PackageManagerShellCommandIncrementalTest {
         setSystemProperty("debug.incremental.enforce_readlogs_max_interval_for_system_dataloaders",
                 "0");
         setSystemProperty("debug.incremental.readlogs_max_interval_sec", "10000");
+        setSystemProperty("debug.incremental.always_enable_read_timeouts_for_system_dataloaders",
+                "1");
         IoUtils.closeQuietly(mSession);
         mSession = null;
     }

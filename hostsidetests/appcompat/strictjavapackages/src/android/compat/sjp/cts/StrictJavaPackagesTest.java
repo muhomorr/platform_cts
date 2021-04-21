@@ -63,7 +63,7 @@ import java.util.Set;
 @RunWith(DeviceJUnit4ClassRunner.class)
 public class StrictJavaPackagesTest extends BaseHostJUnit4Test {
 
-    private static final long ADB_TIMEOUT_MILLIS = 10000L;
+    private static final long ADB_TIMEOUT_MILLIS = 30000L;
 
     /**
      * This is the list of classes that are currently duplicated and should be addressed.
@@ -89,6 +89,7 @@ public class StrictJavaPackagesTest extends BaseHostJUnit4Test {
                     "Landroid/annotation/MainThread;",
                     "Landroid/annotation/NonNull;",
                     "Landroid/annotation/Nullable;",
+                    "Landroid/annotation/RequiresNoPermission;",
                     "Landroid/annotation/RequiresPermission;",
                     "Landroid/annotation/RequiresPermission$Read;",
                     "Landroid/annotation/RequiresPermission$Write;",
@@ -217,13 +218,6 @@ public class StrictJavaPackagesTest extends BaseHostJUnit4Test {
                     "Landroid/os/InputEventInjectionResult;",
                     "Landroid/os/InputEventInjectionSync;",
                     "Landroid/os/TouchOcclusionMode;",
-                    "Lcom/android/internal/protolog/common/BitmaskConversionException;",
-                    "Lcom/android/internal/protolog/common/InvalidFormatStringException;",
-                    "Lcom/android/internal/protolog/common/IProtoLogGroup;",
-                    "Lcom/android/internal/protolog/common/LogDataType;",
-                    "Lcom/android/internal/protolog/common/ProtoLog;",
-                    "Lcom/android/internal/protolog/ProtoLogImpl;",
-                    "Lcom/android/internal/protolog/ProtoLogViewerConfigReader;",
                     "Lcom/android/internal/util/FrameworkStatsLog;"
             );
 

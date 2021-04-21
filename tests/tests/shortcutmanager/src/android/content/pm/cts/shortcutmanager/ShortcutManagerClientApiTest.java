@@ -25,14 +25,21 @@ import static com.android.server.pm.shortcutmanagertest.ShortcutManagerTestUtils
 import static com.android.server.pm.shortcutmanagertest.ShortcutManagerTestUtils.setDefaultLauncher;
 
 import android.app.PendingIntent;
+import android.app.appsearch.AppSearchManager;
+import android.app.appsearch.SearchResult;
+import android.app.appsearch.SearchSpec;
 import android.content.ComponentName;
 import android.content.Intent;
+import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
 import android.content.pm.ShortcutInfo;
 import android.content.pm.ShortcutManager;
+import android.content.pm.Signature;
 import android.graphics.BitmapFactory;
 import android.graphics.drawable.Icon;
 import android.net.Uri;
 import android.test.suitebuilder.annotation.SmallTest;
+import android.util.ArraySet;
 
 import com.android.compatibility.common.util.CddTest;
 
@@ -42,6 +49,13 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 
 /**
  * Tests for {@link ShortcutManager} and {@link ShortcutInfo}.

@@ -33,18 +33,16 @@ import androidx.annotation.Nullable;
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.platform.app.InstrumentationRegistry;
 
-import com.android.bedstead.harrier.annotations.EnsureHasNoSecondaryUser;
-import com.android.bedstead.harrier.annotations.EnsureHasSecondaryUser;
-import com.android.bedstead.harrier.annotations.EnsureHasTvProfile;
-import com.android.bedstead.harrier.annotations.EnsureHasWorkProfile;
 import com.android.bedstead.harrier.annotations.FailureMode;
 import com.android.bedstead.harrier.annotations.RequireFeatures;
-import com.android.bedstead.harrier.annotations.RequireRunOnPrimaryUser;
-import com.android.bedstead.harrier.annotations.RequireRunOnSecondaryUser;
-import com.android.bedstead.harrier.annotations.RequireRunOnTvProfile;
-import com.android.bedstead.harrier.annotations.RequireRunOnWorkProfile;
 import com.android.bedstead.harrier.annotations.RequireUserSupported;
 import com.android.bedstead.harrier.annotations.meta.EnsureHasNoProfileAnnotation;
+import com.android.bedstead.harrier.annotations.meta.EnsureHasNoUserAnnotation;
+import com.android.bedstead.harrier.annotations.meta.EnsureHasProfileAnnotation;
+import com.android.bedstead.harrier.annotations.meta.EnsureHasUserAnnotation;
+import com.android.bedstead.harrier.annotations.meta.ParameterizedAnnotation;
+import com.android.bedstead.harrier.annotations.meta.RequireRunOnUserAnnotation;
+import com.android.bedstead.harrier.annotations.meta.RequiresBedsteadJUnit4;
 import com.android.bedstead.nene.TestApis;
 import com.android.bedstead.nene.exceptions.AdbException;
 import com.android.bedstead.nene.exceptions.NeneException;
@@ -53,6 +51,8 @@ import com.android.bedstead.nene.users.UserBuilder;
 import com.android.bedstead.nene.users.UserReference;
 import com.android.bedstead.nene.utils.ShellCommand;
 import com.android.compatibility.common.util.BlockingBroadcastReceiver;
+
+import junit.framework.AssertionFailedError;
 
 import org.junit.rules.TestRule;
 import org.junit.runner.Description;
@@ -83,9 +83,12 @@ public final class DeviceState implements TestRule {
     private final Context mContext = ApplicationProvider.getApplicationContext();
     private static final TestApis sTestApis = new TestApis();
     private static final String SKIP_TEST_TEARDOWN_KEY = "skip-test-teardown";
+    private static final String SKIP_CLASS_TEARDOWN_KEY = "skip-class-teardown";
     private static final String SKIP_TESTS_REASON_KEY = "skip-tests-reason";
-    private final boolean mSkipTestTeardown;
+    private boolean mSkipTestTeardown;
+    private boolean mSkipClassTeardown;
     private boolean mSkipTests;
+    private boolean mUsingBedsteadJUnit4 = false;
     private String mSkipTestsReason;
 
     private static final String TV_PROFILE_TYPE_NAME = "com.android.tv.profile";
@@ -94,8 +97,18 @@ public final class DeviceState implements TestRule {
         Bundle arguments = InstrumentationRegistry.getArguments();
         mSkipTestTeardown = Boolean.parseBoolean(
                 arguments.getString(SKIP_TEST_TEARDOWN_KEY, "false"));
+        mSkipClassTeardown = Boolean.parseBoolean(
+                arguments.getString(SKIP_CLASS_TEARDOWN_KEY, "false"));
         mSkipTestsReason = arguments.getString(SKIP_TESTS_REASON_KEY, "");
         mSkipTests = !mSkipTestsReason.isEmpty();
+    }
+
+    void setSkipTestTeardown(boolean skipTestTeardown) {
+        mSkipTestTeardown = skipTestTeardown;
+    }
+
+    void setUsingBedsteadJUnit4(boolean usingBedsteadJUnit4) {
+        mUsingBedsteadJUnit4 = usingBedsteadJUnit4;
     }
 
     @Override public Statement apply(final Statement base,
@@ -116,7 +129,7 @@ public final class DeviceState implements TestRule {
 
                 assumeFalse(mSkipTestsReason, mSkipTests);
 
-                for (Annotation annotation : description.getAnnotations()) {
+                for (Annotation annotation : getAnnotations(description)) {
                     Class<? extends Annotation> annotationType = annotation.annotationType();
 
                     EnsureHasNoProfileAnnotation ensureHasNoProfileAnnotation =
@@ -126,71 +139,56 @@ public final class DeviceState implements TestRule {
                                 .getMethod("forUser").invoke(annotation);
                         ensureHasNoProfile(ensureHasNoProfileAnnotation.value(), userType);
                     }
-                }
 
-                if (description.getAnnotation(RequireRunOnPrimaryUser.class) != null) {
-                    assumeTrue("@RequireRunOnPrimaryUser tests only run on primary user",
-                            isRunningOnPrimaryUser());
-                }
-                if (description.getAnnotation(RequireRunOnWorkProfile.class) != null) {
-                    assumeTrue("@RequireRunOnWorkProfile tests only run on work profile",
-                            isRunningOnWorkProfile());
-                }
-                if (description.getAnnotation(RequireRunOnSecondaryUser.class) != null) {
-                    assumeTrue("@RequireRunOnSecondaryUser tests only run on secondary user",
-                            isRunningOnSecondaryUser());
-                }
-                if (description.getAnnotation(RequireRunOnTvProfile.class) != null) {
-                    assumeTrue("@RequireRunOnTvProfile tests only run on TV profile",
-                            isRunningOnTvProfile());
-                }
-                EnsureHasWorkProfile ensureHasWorkAnnotation =
-                        description.getAnnotation(EnsureHasWorkProfile.class);
-                if (ensureHasWorkAnnotation != null) {
-                    ensureHasProfile(
-                            MANAGED_PROFILE_TYPE_NAME,
-                            /* installTestApp= */ ensureHasWorkAnnotation.installTestApp(),
-                            /* forUser= */ ensureHasWorkAnnotation.forUser()
-                    );
-                }
-                EnsureHasTvProfile ensureHasTvProfileAnnotation =
-                        description.getAnnotation(EnsureHasTvProfile.class);
-                if (ensureHasTvProfileAnnotation != null) {
-                    ensureHasProfile(
-                            TV_PROFILE_TYPE_NAME,
-                            /* installTestApp= */ ensureHasTvProfileAnnotation.installTestApp(),
-                            /* forUser= */ ensureHasTvProfileAnnotation.forUser()
-                    );
-                }
-                EnsureHasSecondaryUser ensureHasSecondaryUserAnnotation =
-                        description.getAnnotation(EnsureHasSecondaryUser.class);
-                if (ensureHasSecondaryUserAnnotation != null) {
-                    ensureHasUser(
-                            SECONDARY_USER_TYPE_NAME,
-                            /* installTestApp= */ ensureHasSecondaryUserAnnotation.installTestApp()
-                    );
-                }
-                EnsureHasNoSecondaryUser ensureHasNoSecondaryUserAnnotation =
-                        description.getAnnotation(EnsureHasNoSecondaryUser.class);
-                if (ensureHasNoSecondaryUserAnnotation != null) {
-                    ensureHasNoUser(SECONDARY_USER_TYPE_NAME);
-                }
-                RequireFeatures requireFeaturesAnnotation =
-                        description.getAnnotation(RequireFeatures.class);
-                if (requireFeaturesAnnotation != null) {
-                    for (String feature: requireFeaturesAnnotation.value()) {
-                        requireFeature(feature, requireFeaturesAnnotation.failureMode());
+                    EnsureHasProfileAnnotation ensureHasProfileAnnotation =
+                            annotationType.getAnnotation(EnsureHasProfileAnnotation.class);
+                    if (ensureHasProfileAnnotation != null) {
+                        UserType forUser = (UserType) annotation.annotationType()
+                                .getMethod("forUser").invoke(annotation);
+                        boolean installTestApp = (boolean) annotation.annotationType()
+                                .getMethod("installTestApp").invoke(annotation);
+                            ensureHasProfile(
+                                    ensureHasProfileAnnotation.value(), installTestApp, forUser);
                     }
-                }
-                RequireUserSupported requireUserSupportedAnnotation =
-                        description.getAnnotation(RequireUserSupported.class);
-                if (requireUserSupportedAnnotation != null) {
-                    for (String userType: requireUserSupportedAnnotation.value()) {
-                        requireUserSupported(
-                                userType, requireUserSupportedAnnotation.failureMode());
-                    }
-                }
 
+
+                    EnsureHasNoUserAnnotation ensureHasNoUserAnnotation =
+                            annotationType.getAnnotation(EnsureHasNoUserAnnotation.class);
+                    if (ensureHasNoUserAnnotation != null) {
+                        ensureHasNoUser(ensureHasNoUserAnnotation.value());
+                    }
+
+                    EnsureHasUserAnnotation ensureHasUserAnnotation =
+                            annotationType.getAnnotation(EnsureHasUserAnnotation.class);
+                    if (ensureHasUserAnnotation != null) {
+                        boolean installTestApp = (boolean) annotation.getClass()
+                                .getMethod("installTestApp").invoke(annotation);
+                        ensureHasUser(ensureHasUserAnnotation.value(), installTestApp);
+                    }
+
+                    RequireRunOnUserAnnotation requireRunOnUserAnnotation =
+                            annotationType.getAnnotation(RequireRunOnUserAnnotation.class);
+                    if (requireRunOnUserAnnotation != null) {
+                        requireRunOnUser(requireRunOnUserAnnotation.value());
+                    }
+
+                    if (annotation instanceof RequireFeatures) {
+                        RequireFeatures requireFeaturesAnnotation = (RequireFeatures) annotation;
+                        for (String feature: requireFeaturesAnnotation.value()) {
+                            requireFeature(feature, requireFeaturesAnnotation.failureMode());
+                        }
+                    }
+
+                    if (annotation instanceof RequireUserSupported) {
+                        RequireUserSupported requireUserSupportedAnnotation =
+                                (RequireUserSupported) annotation;
+                        for (String userType: requireUserSupportedAnnotation.value()) {
+                            requireUserSupported(
+                                    userType, requireUserSupportedAnnotation.failureMode());
+                        }
+                    }
+
+                }
                 Log.d(LOG_TAG,
                         "Finished preparing state for test " + description.getMethodName());
 
@@ -209,8 +207,53 @@ public final class DeviceState implements TestRule {
             }};
     }
 
+    private Collection<Annotation> getAnnotations(Description description) {
+        if (mUsingBedsteadJUnit4) {
+            // The annotations are already exploded
+            return description.getAnnotations();
+        }
+
+        // Otherwise we should build a new collection by recursively gathering annotations
+        // if we find any which don't work without the runner we should error and fail the test
+        List<Annotation> annotations = new ArrayList<>(description.getAnnotations());
+        checkAnnotations(annotations);
+
+        BedsteadJUnit4.resolveRecursiveAnnotations(annotations,
+                /* parameterizedAnnotation= */ null);
+
+        checkAnnotations(annotations);
+
+        return annotations;
+    }
+
+    private void checkAnnotations(Collection<Annotation> annotations) {
+        for (Annotation annotation : annotations) {
+            if (annotation.annotationType().getAnnotation(RequiresBedsteadJUnit4.class) != null
+                    || annotation.annotationType().getAnnotation(
+                            ParameterizedAnnotation.class) != null) {
+                throw new AssertionFailedError("Test is annotated "
+                        + annotation.annotationType().getSimpleName()
+                        + " which requires using the BedsteadJUnit4 test runner");
+            }
+        }
+    }
+
     private Statement applySuite(final Statement base, final Description description) {
-        return base;
+        return new Statement() {
+            @Override
+            public void evaluate() throws Throwable {
+                base.evaluate();
+
+                if (!mSkipClassTeardown) {
+                    teardownShareableState();
+                }
+            }
+        };
+    }
+
+    private void requireRunOnUser(String userType) {
+        assumeTrue("This test only runs on users of type " + userType,
+                isRunningOnUser(userType));
     }
 
     private void requireFeature(String feature, FailureMode failureMode) {
@@ -325,9 +368,9 @@ public final class DeviceState implements TestRule {
         return mProfiles.get(userType).get(forUser);
     }
 
-    private boolean isRunningOnWorkProfile() {
+    private boolean isRunningOnUser(String userType) {
         return sTestApis.users().instrumented()
-                .resolve().type().name().equals(MANAGED_PROFILE_TYPE_NAME);
+                .resolve().type().name().equals(userType);
     }
 
     /**
@@ -364,20 +407,6 @@ public final class DeviceState implements TestRule {
      */
     public UserReference tvProfile(UserReference forUser) {
         return profile(TV_PROFILE_TYPE_NAME, forUser);
-    }
-
-    public boolean isRunningOnTvProfile() {
-        return sTestApis.users().instrumented().resolve()
-                .type().name().equals(TV_PROFILE_TYPE_NAME);
-    }
-
-    public boolean isRunningOnPrimaryUser() {
-        return sTestApis.users().instrumented().resolve().isPrimary();
-    }
-
-    public boolean isRunningOnSecondaryUser() {
-        return sTestApis.users().instrumented().resolve()
-                .type().name().equals(SECONDARY_USER_TYPE_NAME);
     }
 
     /**

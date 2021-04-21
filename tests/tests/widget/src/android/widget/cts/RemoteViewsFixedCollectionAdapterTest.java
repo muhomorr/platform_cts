@@ -30,6 +30,7 @@ import static org.junit.Assert.assertTrue;
 import android.app.Activity;
 import android.app.Instrumentation;
 import android.app.PendingIntent;
+import android.appwidget.AppWidgetHostView;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -38,6 +39,7 @@ import android.os.Parcel;
 import android.util.TypedValue;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.ViewGroup.LayoutParams;
 import android.widget.Adapter;
 import android.widget.AdapterViewFlipper;
 import android.widget.CompoundButton;
@@ -89,9 +91,12 @@ public class RemoteViewsFixedCollectionAdapterTest {
         mActivity = mActivityRule.getActivity();
         mRemoteViews = new RemoteViews(PACKAGE_NAME, R.layout.remoteviews_adapters);
 
-        ViewGroup parent = (ViewGroup) mActivity.findViewById(R.id.remoteView_host);
-        mView = mRemoteViews.apply(mActivity, parent);
-        parent.addView(mView);
+        ViewGroup parent = mActivity.findViewById(R.id.remoteView_host);
+        AppWidgetHostView hostView = new AppWidgetHostView(mActivity);
+        parent.addView(hostView, LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT);
+
+        mView = mRemoteViews.apply(mActivity, hostView);
+        hostView.addView(mView);
 
         mListView = mView.findViewById(R.id.remoteView_list);
         mGridView = mView.findViewById(R.id.remoteView_grid);
@@ -489,11 +494,14 @@ public class RemoteViewsFixedCollectionAdapterTest {
                 .addItem(13 /* id= */, item3)
                 .build();
 
-        mListView.setVisibility(View.GONE);
-        mGridView.setVisibility(View.VISIBLE);
-        mRemoteViews.setRemoteAdapter(R.id.remoteView_grid, items);
         runOnMainAndDrawSync(
-                mActivityRule, mGridView, () -> mRemoteViews.reapply(mActivity, mView));
+                mActivityRule,
+                mGridView, () -> {
+                    mListView.setVisibility(View.GONE);
+                    mGridView.setVisibility(View.VISIBLE);
+                    mRemoteViews.setRemoteAdapter(R.id.remoteView_grid, items);
+                    mRemoteViews.reapply(mActivity, mView);
+                });
 
         Adapter adapter = mGridView.getAdapter();
         assertEquals(4, adapter.getCount());
@@ -528,11 +536,14 @@ public class RemoteViewsFixedCollectionAdapterTest {
                 .addItem(11 /* id= */, item1)
                 .build();
 
-        mListView.setVisibility(View.GONE);
-        mStackView.setVisibility(View.VISIBLE);
-        mRemoteViews.setRemoteAdapter(R.id.remoteView_stack, items);
         runOnMainAndDrawSync(
-                mActivityRule, mStackView, () -> mRemoteViews.reapply(mActivity, mView));
+                mActivityRule,
+                mStackView, () -> {
+                    mListView.setVisibility(View.GONE);
+                    mStackView.setVisibility(View.VISIBLE);
+                    mRemoteViews.setRemoteAdapter(R.id.remoteView_stack, items);
+                    mRemoteViews.reapply(mActivity, mView);
+                });
 
         Adapter adapter = mStackView.getAdapter();
         assertEquals(2, adapter.getCount());
@@ -555,11 +566,14 @@ public class RemoteViewsFixedCollectionAdapterTest {
                 .addItem(11 /* id= */, item1)
                 .build();
 
-        mListView.setVisibility(View.GONE);
-        mAdapterViewFlipper.setVisibility(View.VISIBLE);
-        mRemoteViews.setRemoteAdapter(R.id.remoteView_flipper, items);
         runOnMainAndDrawSync(
-                mActivityRule, mAdapterViewFlipper, () -> mRemoteViews.reapply(mActivity, mView));
+                mActivityRule,
+                mAdapterViewFlipper, () -> {
+                    mListView.setVisibility(View.GONE);
+                    mAdapterViewFlipper.setVisibility(View.VISIBLE);
+                    mRemoteViews.setRemoteAdapter(R.id.remoteView_flipper, items);
+                    mRemoteViews.reapply(mActivity, mView);
+                });
 
         Adapter adapter = mAdapterViewFlipper.getAdapter();
         assertEquals(2, adapter.getCount());

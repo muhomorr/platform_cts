@@ -100,13 +100,15 @@ public class DeviceOwnerTest extends BaseDeviceOwnerTest {
     }
 
     @Test
-    @TemporaryIgnoreOnHeadlessSystemUserMode
+    @TemporaryIgnoreOnHeadlessSystemUserMode(bugId = "185498043",
+            reason = "automotive doesn't have IProxyService")
     public void testProxyStaticProxyTest() throws Exception {
         executeDeviceOwnerTest("proxy.StaticProxyTest");
     }
 
     @Test
-    @TemporaryIgnoreOnHeadlessSystemUserMode
+    @TemporaryIgnoreOnHeadlessSystemUserMode(bugId = "185498043",
+            reason = "automotive doesn't have IProxyService")
     public void testProxyPacProxyTest() throws Exception {
         executeDeviceOwnerTest("proxy.PacProxyTest");
     }
@@ -453,7 +455,6 @@ public class DeviceOwnerTest extends BaseDeviceOwnerTest {
 
     @FlakyTest(bugId = 127101449)
     @Test
-    @TemporaryIgnoreOnHeadlessSystemUserMode
     public void testWifiConfigLockdown() throws Exception {
         assumeHasWifiFeature();
 
@@ -470,7 +471,6 @@ public class DeviceOwnerTest extends BaseDeviceOwnerTest {
      * Execute WifiSetHttpProxyTest as device owner.
      */
     @Test
-    @TemporaryIgnoreOnHeadlessSystemUserMode
     public void testWifiSetHttpProxyTest() throws Exception {
         assumeHasWifiFeature();
         try (LocationModeSetter locationModeSetter = new LocationModeSetter(getDevice())) {
@@ -501,7 +501,6 @@ public class DeviceOwnerTest extends BaseDeviceOwnerTest {
 
     // Execute HardwarePropertiesManagerTest as a device owner.
     @Test
-    @TemporaryIgnoreOnHeadlessSystemUserMode
     public void testHardwarePropertiesManagerAsDeviceOwner() throws Exception {
 
         executeDeviceTestMethod(".HardwarePropertiesManagerTest", "testHardwarePropertiesManager");
@@ -533,7 +532,8 @@ public class DeviceOwnerTest extends BaseDeviceOwnerTest {
 
     @FlakyTest(bugId = 137096267)
     @Test
-    @TemporaryIgnoreOnHeadlessSystemUserMode
+    @TemporaryIgnoreOnHeadlessSystemUserMode(bugId = "132361856", reason = "3 failures such as "
+            + "missing activity handling bugreport intent")
     public void testAdminActionBookkeeping() throws Exception {
         executeDeviceOwnerTest("AdminActionBookkeepingTest");
         assertMetricsLogged(getDevice(), () -> {
@@ -552,7 +552,6 @@ public class DeviceOwnerTest extends BaseDeviceOwnerTest {
     }
 
     @Test
-    @TemporaryIgnoreOnHeadlessSystemUserMode
     public void testBluetoothRestriction() throws Exception {
         executeDeviceOwnerTest("BluetoothRestrictionTest");
     }
@@ -563,7 +562,8 @@ public class DeviceOwnerTest extends BaseDeviceOwnerTest {
     }
 
     @Test
-    @TemporaryIgnoreOnHeadlessSystemUserMode
+    @TemporaryIgnoreOnHeadlessSystemUserMode(bugId = "185523465",
+            reason = "need to decide how to support it")
     public void testSetLocationEnabled() throws Exception {
         executeDeviceOwnerTest("SetLocationEnabledTest");
     }
@@ -579,23 +579,27 @@ public class DeviceOwnerTest extends BaseDeviceOwnerTest {
     }
 
     @Test
-    @TemporaryIgnoreOnHeadlessSystemUserMode
     public void testDisallowFactoryReset() throws Exception {
         int adminVersion = 24;
-        changeUserRestrictionOrFail("no_factory_reset", true, mPrimaryUserId,
-                DEVICE_OWNER_PKG);
+        // NOTE: the restriction must be set on primary user as it will launch SetPolicyActivity,
+        // but the admin must be installed on USER_SYSTEM, otherwise wipeData() on headless system
+        // user mode would wipe the current user (instead of factory resetting the device)
+        changeUserRestrictionOrFail("no_factory_reset", true, mPrimaryUserId, DEVICE_OWNER_PKG);
+        int adminUserId = USER_SYSTEM;
+
+        String deviceAdminPkg = DeviceAdminHelper.getDeviceAdminApkPackage(adminVersion);
+        String deviceAdminReceiver = DeviceAdminHelper.getAdminReceiverComponent(adminVersion);
         try {
             installAppAsUser(DeviceAdminHelper.getDeviceAdminApkFileName(adminVersion),
-                    mPrimaryUserId);
-            setDeviceAdmin(DeviceAdminHelper.getAdminReceiverComponent(adminVersion),
-                    mPrimaryUserId);
+                    adminUserId);
+            setDeviceAdmin(deviceAdminReceiver, adminUserId);
             runDeviceTestsAsUser(
-                    DeviceAdminHelper.getDeviceAdminApkPackage(adminVersion),
+                    deviceAdminPkg,
                     DeviceAdminHelper.getDeviceAdminJavaPackage() + ".WipeDataTest",
-                    "testWipeDataThrowsSecurityException", mPrimaryUserId);
+                    "testWipeDataThrowsSecurityException", adminUserId);
         } finally {
-            removeAdmin(DeviceAdminHelper.getAdminReceiverComponent(adminVersion), mPrimaryUserId);
-            getDevice().uninstallPackage(DeviceAdminHelper.getDeviceAdminApkPackage(adminVersion));
+            removeAdmin(deviceAdminReceiver, adminUserId);
+            getDevice().uninstallPackage(deviceAdminPkg);
         }
     }
 
@@ -608,15 +612,14 @@ public class DeviceOwnerTest extends BaseDeviceOwnerTest {
     }
 
     @Test
-    @TemporaryIgnoreOnHeadlessSystemUserMode
     public void testDeviceOwnerCanGetDeviceIdentifiers() throws Exception {
         // The Device Owner should have access to all device identifiers.
-        executeDeviceTestMethod(".DeviceIdentifiersTest",
+
+        executeDeviceOwnerTestMethod(".DeviceIdentifiersTest",
                 "testDeviceOwnerCanGetDeviceIdentifiersWithPermission");
     }
 
     @Test
-    @TemporaryIgnoreOnHeadlessSystemUserMode
     public void testPackageInstallCache() throws Exception {
         CompatibilityBuildHelper buildHelper = new CompatibilityBuildHelper(getBuild());
         final File apk = buildHelper.getTestFile(TEST_APP_APK);
@@ -627,7 +630,6 @@ public class DeviceOwnerTest extends BaseDeviceOwnerTest {
             // Install the package in primary user
             runDeviceTestsAsUser(DEVICE_OWNER_PKG, ".PackageInstallTest",
                     "testPackageInstall", mPrimaryUserId);
-
             assertMetricsLogged(getDevice(), () -> {
                 runDeviceTestsAsUser(DEVICE_OWNER_PKG, ".PackageInstallTest",
                         "testKeepPackageCache", mPrimaryUserId);
@@ -727,7 +729,6 @@ public class DeviceOwnerTest extends BaseDeviceOwnerTest {
 
     @FlakyTest(bugId = 134487729)
     @Test
-    @TemporaryIgnoreOnHeadlessSystemUserMode
     public void testPrivateDnsPolicy() throws Exception {
         executeDeviceOwnerTest("PrivateDnsPolicyTest");
     }
@@ -755,6 +756,7 @@ public class DeviceOwnerTest extends BaseDeviceOwnerTest {
                     .build());
     }
 
+    @TemporaryIgnoreOnHeadlessSystemUserMode(bugId = "185486201", reason = "need to change DPMS")
     @Test
     public void testDefaultSmsApplication() throws Exception {
         assumeHasTelephonyFeature();
@@ -767,7 +769,6 @@ public class DeviceOwnerTest extends BaseDeviceOwnerTest {
     }
 
     @Test
-    @TemporaryIgnoreOnHeadlessSystemUserMode
     public void testNoHiddenActivityFoundTest() throws Exception {
         try {
             // Install app to primary user
@@ -913,7 +914,6 @@ public class DeviceOwnerTest extends BaseDeviceOwnerTest {
                 "testListForegroundAffiliatedUsers_onlyForegroundUser");
     }
 
-    @TemporaryIgnoreOnHeadlessSystemUserMode
     @Test
     public void testWifiNetworkConfigurationWithoutFineLocationPermission() throws Exception {
         getDevice().executeShellCommand(String.format(
@@ -932,7 +932,7 @@ public class DeviceOwnerTest extends BaseDeviceOwnerTest {
             installAppAsUser(DEVICE_OWNER_APK, userId);
             setProfileOwnerOrFail(DEVICE_OWNER_COMPONENT, userId);
         } else {
-            grantDpmWrapperPermissions(DEVICE_OWNER_APK, userId);
+            grantDpmWrapperPermissions(DEVICE_OWNER_PKG, userId);
         }
         wakeupAndDismissKeyguard();
 

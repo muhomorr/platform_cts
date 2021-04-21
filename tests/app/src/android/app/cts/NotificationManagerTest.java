@@ -61,9 +61,11 @@ import static android.content.pm.PackageManager.FEATURE_WATCH;
 
 import static org.hamcrest.CoreMatchers.hasItem;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertThrows;
 
 import android.Manifest;
 import android.app.ActivityManager;
+import android.app.ActivityOptions;
 import android.app.AutomaticZenRule;
 import android.app.Instrumentation;
 import android.app.KeyguardManager;
@@ -237,8 +239,8 @@ public class NotificationManagerTest extends AndroidTestCase {
 
         // This setting is forced on / off for certain tests, save it & restore what's on the
         // device after tests are run
-        mBubblesEnabledSettingToRestore = Settings.Global.getInt(mContext.getContentResolver(),
-                Settings.Global.NOTIFICATION_BUBBLES) == 1;
+        mBubblesEnabledSettingToRestore = Settings.Secure.getInt(mContext.getContentResolver(),
+                Settings.Secure.NOTIFICATION_BUBBLES) == 1;
 
         // delay between tests so notifications aren't dropped by the rate limiter
         try {
@@ -704,8 +706,8 @@ public class NotificationManagerTest extends AndroidTestCase {
     private void setBubblesGlobal(boolean enabled)
             throws InterruptedException {
         SystemUtil.runWithShellPermissionIdentity(() ->
-                Settings.Global.putInt(mContext.getContentResolver(),
-                        Settings.Global.NOTIFICATION_BUBBLES, enabled ? 1 : 0));
+                Settings.Secure.putInt(mContext.getContentResolver(),
+                        Settings.Secure.NOTIFICATION_BUBBLES, enabled ? 1 : 0));
         Thread.sleep(500); // wait for ranking update
     }
 
@@ -1562,8 +1564,8 @@ public class NotificationManagerTest extends AndroidTestCase {
         // turn on bubbles globally
         setBubblesGlobal(true);
 
-        assertEquals(1, Settings.Global.getInt(
-                mContext.getContentResolver(), Settings.Global.NOTIFICATION_BUBBLES));
+        assertEquals(1, Settings.Secure.getInt(
+                mContext.getContentResolver(), Settings.Secure.NOTIFICATION_BUBBLES));
 
         toggleListenerAccess(true);
         Thread.sleep(500); // wait for listener to be allowed
@@ -3669,14 +3671,7 @@ public class NotificationManagerTest extends AndroidTestCase {
             createDynamicShortcut();
             setUpNotifListener();
 
-            // Make a bubble
             SendBubbleActivity a = startSendBubbleActivity();
-            a.sendBubble(BUBBLE_NOTIF_ID,
-                    false /* autoExpand */,
-                    false /* suppressNotif */,
-                    true /* suppressBubble */);
-
-            verifyNotificationBubbleState(BUBBLE_NOTIF_ID, true /* shouldBeBubble */);
 
             // Prep to find bubbled activity
             Class clazz = BubbledActivity.class;
@@ -3690,10 +3685,8 @@ public class NotificationManagerTest extends AndroidTestCase {
 
             verifyNotificationBubbleState(BUBBLE_NOTIF_ID, true /* shouldBeBubble */);
 
-            InstrumentationRegistry.getInstrumentation().waitForIdleSync();
-
             BubbledActivity activity = (BubbledActivity) monitor.waitForActivity();
-            assertTrue(activity.isBubbled());
+            assertTrue(activity.isLaunchedFromBubble());
         } finally {
             deleteShortcuts();
             cleanupSendBubbleActivity();
@@ -3715,14 +3708,7 @@ public class NotificationManagerTest extends AndroidTestCase {
             createDynamicShortcut();
             setUpNotifListener();
 
-            // Make a bubble
             SendBubbleActivity a = startSendBubbleActivity();
-            a.sendBubble(BUBBLE_NOTIF_ID,
-                    false /* autoExpand */,
-                    false /* suppressNotif */,
-                    true /* suppressBubble */);
-
-            verifyNotificationBubbleState(BUBBLE_NOTIF_ID, true /* shouldBeBubble */);
 
             // Prep to find bubbled activity
             Class clazz = BubbledActivity.class;
@@ -3732,17 +3718,16 @@ public class NotificationManagerTest extends AndroidTestCase {
                     new Instrumentation.ActivityMonitor(clazz.getName(), result, false);
             InstrumentationRegistry.getInstrumentation().addMonitor(monitor);
 
-            a.sendBubble(BUBBLE_NOTIF_ID,
-                    true /* autoExpand */,
+            a.sendBubble(BUBBLE_NOTIF_ID, true /* autoExpand */,
                     false /* suppressNotif */,
-                    true /* useShortcut */);
+                    false /* suppressBubble */,
+                    true /* useShortcut */,
+                    true /* setLocus */);
 
             verifyNotificationBubbleState(BUBBLE_NOTIF_ID, true /* shouldBeBubble */);
 
-            InstrumentationRegistry.getInstrumentation().waitForIdleSync();
-
             BubbledActivity activity = (BubbledActivity) monitor.waitForActivity();
-            assertTrue(activity.isBubbled());
+            assertTrue(activity.isLaunchedFromBubble());
         } finally {
             deleteShortcuts();
             cleanupSendBubbleActivity();
@@ -4038,6 +4023,27 @@ public class NotificationManagerTest extends AndroidTestCase {
             assertFalse(sbn.getNotification().getBubbleMetadata().isBubbleSuppressed());
         } finally {
             deleteShortcuts();
+            cleanupSendBubbleActivity();
+        }
+    }
+
+    /** Verifies that a regular activity can't specify a bubble in ActivityOptions */
+    public void testNotificationManagerBubble_launchBubble_activityOptions_fails()
+            throws Exception {
+        try {
+            // Start test activity
+            SendBubbleActivity activity = startSendBubbleActivity();
+            assertFalse(activity.isLaunchedFromBubble());
+
+            // Should have exception
+            assertThrows(SecurityException.class, () -> {
+                Intent i = new Intent(mContext, BubbledActivity.class);
+                ActivityOptions options = ActivityOptions.makeBasic();
+                Bundle b = options.toBundle();
+                b.putBoolean("android.activity.launchTypeBubble", true);
+                activity.startActivity(i, b);
+            });
+        } finally {
             cleanupSendBubbleActivity();
         }
     }

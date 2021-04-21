@@ -17,6 +17,7 @@
 package com.android.bedstead.harrier.annotations;
 
 import com.android.bedstead.harrier.DeviceState;
+import com.android.bedstead.harrier.annotations.meta.RequireRunOnUserAnnotation;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -34,5 +35,6 @@ import java.lang.annotation.Target;
  */
 @Target(ElementType.METHOD)
 @Retention(RetentionPolicy.RUNTIME)
+@RequireRunOnUserAnnotation("com.android.tv.profile")
 public @interface RequireRunOnTvProfile {
 }

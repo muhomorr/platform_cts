@@ -116,17 +116,17 @@ public class DevicePolicyManagerTest extends AndroidTestCase {
         assertTrue(mDevicePolicyManager.isAdminActive(mComponent));
     }
 
-    public void testSetGetEnterpriseNetworkPreferenceEnabled() {
+    public void testSetGetPreferentialNetworkServiceEnabled() {
         if (!mDeviceAdmin) {
-            Log.w(TAG, "Skipping testSetGetEnterpriseNetworkPreferenceEnabled");
+            Log.w(TAG, "Skipping testSetGetPreferentialNetworkServiceEnabled");
             return;
         }
         try {
             mDevicePolicyManager.clearProfileOwner(DeviceAdminInfoTest.getProfileOwnerComponent());
             assertThrows(SecurityException.class,
-                    () -> mDevicePolicyManager.setEnterpriseNetworkPreferenceEnabled(true));
+                    () -> mDevicePolicyManager.setPreferentialNetworkServiceEnabled(true));
             assertThrows(SecurityException.class,
-                    () -> mDevicePolicyManager.isEnterpriseNetworkPreferenceEnabled());
+                    () -> mDevicePolicyManager.isPreferentialNetworkServiceEnabled());
         }  catch (SecurityException se) {
             Log.w(TAG, "Test is not a profile owner and there is no need to clear.");
         } finally {
@@ -1178,5 +1178,58 @@ public class DevicePolicyManagerTest extends AndroidTestCase {
             fail("getUserControlDisabledPackages did not throw expected SecurityException");
         } catch(SecurityException e) {
         }
+    }
+
+    public void testSetNearbyNotificationStreamingPolicy_failIfNotDeviceOrProfileOwner() {
+        if (!mDeviceAdmin) {
+            String message =
+                    "Skipping"
+                        + " testSetNearbyNotificationStreamingPolicy_failIfNotDeviceOrProfileOwner";
+            Log.w(TAG, message);
+            return;
+        }
+        assertThrows(
+                SecurityException.class,
+                () ->
+                        mDevicePolicyManager.setNearbyNotificationStreamingPolicy(
+                                DevicePolicyManager.NEARBY_STREAMING_ENABLED));
+    }
+
+    public void testGetNearbyNotificationStreamingPolicy_failIfNotDeviceOrProfileOwner() {
+        if (!mDeviceAdmin) {
+            String message =
+                    "Skipping"
+                        + " testGetNearbyNotificationStreamingPolicy_failIfNotDeviceOrProfileOwner";
+            Log.w(TAG, message);
+            return;
+        }
+        assertThrows(
+                SecurityException.class,
+                () -> mDevicePolicyManager.getNearbyNotificationStreamingPolicy());
+    }
+
+    public void testSetNearbyAppStreamingPolicy_failIfNotDeviceOrProfileOwner() {
+        if (!mDeviceAdmin) {
+            String message =
+                    "Skipping testSetNearbyAppStreamingPolicy_failIfNotDeviceOrProfileOwner";
+            Log.w(TAG, message);
+            return;
+        }
+        assertThrows(
+                SecurityException.class,
+                () ->
+                        mDevicePolicyManager.setNearbyAppStreamingPolicy(
+                                DevicePolicyManager.NEARBY_STREAMING_ENABLED));
+    }
+
+    public void testGetNearbyAppStreamingPolicy_failIfNotDeviceOrProfileOwner() {
+        if (!mDeviceAdmin) {
+            String message =
+                    "Skipping testGetNearbyAppStreamingPolicy_failIfNotDeviceOrProfileOwner";
+            Log.w(TAG, message);
+            return;
+        }
+        assertThrows(
+                SecurityException.class, () -> mDevicePolicyManager.getNearbyAppStreamingPolicy());
     }
 }

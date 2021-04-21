@@ -24,6 +24,7 @@ import static com.android.bedstead.dpmwrapper.Utils.EXTRA_CLASS;
 import static com.android.bedstead.dpmwrapper.Utils.EXTRA_METHOD;
 import static com.android.bedstead.dpmwrapper.Utils.EXTRA_NUMBER_ARGS;
 import static com.android.bedstead.dpmwrapper.Utils.VERBOSE;
+import static com.android.bedstead.dpmwrapper.Utils.getHandler;
 
 import android.annotation.Nullable;
 import android.app.admin.DeviceAdminReceiver;
@@ -37,8 +38,7 @@ import android.content.pm.PackageManager;
 import android.content.pm.PackageManager.NameNotFoundException;
 import android.net.wifi.WifiManager;
 import android.os.Bundle;
-import android.os.Handler;
-import android.os.HandlerThread;
+import android.os.HardwarePropertiesManager;
 import android.os.UserHandle;
 import android.os.UserManager;
 import android.util.Log;
@@ -72,10 +72,6 @@ public final class TestAppSystemServiceFactory {
     // 6 minutes for network monitoring events.
     private static final long TIMEOUT_MS = TimeUnit.MINUTES.toMillis(10);
 
-    private static final HandlerThread HANDLER_THREAD = new HandlerThread(TAG + "HandlerThread");
-
-    private static Handler sHandler;
-
     // Caches whether the package declares the required receiver (otherwise each test would be
     // querying package manager, which is expensive)
     private static final HashMap<String, Boolean> sHasRequiredReceiver = new HashMap<>();
@@ -94,6 +90,14 @@ public final class TestAppSystemServiceFactory {
     public static WifiManager getWifiManager(Context context,
             Class<? extends DeviceAdminReceiver> receiverClass) {
         return getSystemService(context, WifiManager.class, receiverClass);
+    }
+
+    /**
+     * Gets the proper {@link HardwarePropertiesManager} instance to be used by the test.
+     */
+    public static HardwarePropertiesManager getHardwarePropertiesManager(Context context,
+            Class<? extends DeviceAdminReceiver> receiverClass) {
+        return getSystemService(context, HardwarePropertiesManager.class, receiverClass);
     }
 
     private static void assertHasRequiredReceiver(Context context) {
@@ -151,6 +155,12 @@ public final class TestAppSystemServiceFactory {
                     (ServiceManagerWrapper<T>) new WifiManagerWrapper();
             wrapper = safeCastWrapper;
             wrappedClass = WifiManager.class;
+        } else if (serviceClass.equals(HardwarePropertiesManager.class)) {
+            @SuppressWarnings("unchecked")
+            ServiceManagerWrapper<T> safeCastWrapper =
+                    (ServiceManagerWrapper<T>) new HardwarePropertiesManagerWrapper();
+            wrapper = safeCastWrapper;
+            wrappedClass = HardwarePropertiesManager.class;
         } else {
             throw new IllegalArgumentException("invalid service class: " + serviceClass);
         }
@@ -162,12 +172,6 @@ public final class TestAppSystemServiceFactory {
         if (userId == UserHandle.USER_SYSTEM || !UserManager.isHeadlessSystemUserMode()) {
             Log.i(TAG, "get(): returning 'pure' DevicePolicyManager for user " + userId);
             return manager;
-        }
-
-        if (sHandler == null) {
-            Log.i(TAG, "Starting handler thread " + HANDLER_THREAD);
-            HANDLER_THREAD.start();
-            sHandler = new Handler(HANDLER_THREAD.getLooper());
         }
 
         String receiverClassName = receiverClass.getName();
@@ -219,10 +223,10 @@ public final class TestAppSystemServiceFactory {
                     != PackageManager.PERMISSION_GRANTED) {
                 fail("Package " + context.getPackageName() + " doesn't have "
                         + INTERACT_ACROSS_USERS + " - did you add it to the manifest and called "
-                        + "grantDpmWrapper() in the host-side test?");
+                        + "grantDpmWrapper() (for user " + userId + ") in the host-side test?");
             }
             context.sendOrderedBroadcastAsUser(intent,
-                    UserHandle.SYSTEM, /* permission= */ null, myReceiver, sHandler,
+                    UserHandle.SYSTEM, /* permission= */ null, myReceiver, getHandler(),
                     RESULT_NOT_SENT_TO_ANY_RECEIVER, /* initialData= */ null,
                     /* initialExtras= */ null);
 

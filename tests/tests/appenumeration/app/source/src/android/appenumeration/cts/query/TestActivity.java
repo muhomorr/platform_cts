@@ -37,6 +37,7 @@ import static android.appenumeration.cts.Constants.EXTRA_ERROR;
 import static android.appenumeration.cts.Constants.EXTRA_FLAGS;
 import static android.appenumeration.cts.Constants.EXTRA_REMOTE_CALLBACK;
 import static android.appenumeration.cts.Constants.EXTRA_REMOTE_READY_CALLBACK;
+import static android.content.Intent.EXTRA_COMPONENT_NAME;
 import static android.content.Intent.EXTRA_RETURN_RESULT;
 import static android.content.pm.PackageManager.CERT_INPUT_RAW_X509;
 import static android.os.Process.INVALID_UID;
@@ -45,6 +46,8 @@ import android.app.Activity;
 import android.app.PendingIntent;
 import android.appenumeration.cts.Constants;
 import android.appenumeration.cts.MissingBroadcastException;
+import android.appwidget.AppWidgetManager;
+import android.appwidget.AppWidgetProviderInfo;
 import android.content.ActivityNotFoundException;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
@@ -55,6 +58,7 @@ import android.content.IntentFilter;
 import android.content.IntentSender;
 import android.content.ServiceConnection;
 import android.content.SyncAdapterType;
+import android.content.pm.LauncherApps;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
@@ -65,6 +69,7 @@ import android.os.HandlerThread;
 import android.os.IBinder;
 import android.os.Parcelable;
 import android.os.PatternMatcher;
+import android.os.Process;
 import android.os.RemoteCallback;
 import android.util.SparseArray;
 
@@ -189,11 +194,18 @@ public class TestActivity extends Activity {
                 bindService(remoteCallback, packageName);
             } else if (Constants.ACTION_GET_SYNCADAPTER_TYPES.equals(action)) {
                 sendSyncAdapterTypes(remoteCallback);
+            } else if (Constants.ACTION_GET_INSTALLED_APPWIDGET_PROVIDERS.equals(action)) {
+                sendInstalledAppWidgetProviders(remoteCallback);
             } else if (Constants.ACTION_AWAIT_PACKAGES_SUSPENDED.equals(action)) {
                 final String[] awaitPackages = intent.getBundleExtra(EXTRA_DATA)
                         .getStringArray(Intent.EXTRA_PACKAGES);
                 awaitSuspendedPackagesBroadcast(remoteCallback, Arrays.asList(awaitPackages),
                         Intent.ACTION_PACKAGES_SUSPENDED, TIMEOUT_MS);
+            } else if (Constants.ACTION_LAUNCHER_APPS_IS_ACTIVITY_ENABLED.equals(action)) {
+                final String componentName = intent.getBundleExtra(EXTRA_DATA)
+                        .getString(EXTRA_COMPONENT_NAME);
+                sendIsActivityEnabled(remoteCallback, ComponentName.unflattenFromString(
+                        componentName));
             } else {
                 sendError(remoteCallback, new Exception("unknown action " + action));
             }
@@ -404,6 +416,31 @@ public class TestActivity extends Activity {
         final ArrayList<Parcelable> parcelables = new ArrayList<>();
         for (SyncAdapterType type : types) {
             parcelables.add(type);
+        }
+        final Bundle result = new Bundle();
+        result.putParcelableArrayList(EXTRA_RETURN_RESULT, parcelables);
+        remoteCallback.sendResult(result);
+        finish();
+    }
+
+    private void sendIsActivityEnabled(RemoteCallback remoteCallback, ComponentName componentName) {
+        final LauncherApps launcherApps = getSystemService(LauncherApps.class);
+        final Bundle result = new Bundle();
+        try {
+            result.putBoolean(EXTRA_RETURN_RESULT, launcherApps.isActivityEnabled(componentName,
+                    Process.myUserHandle()));
+        } catch (IllegalArgumentException e) {
+        }
+        remoteCallback.sendResult(result);
+        finish();
+    }
+
+    private void sendInstalledAppWidgetProviders(RemoteCallback remoteCallback) {
+        final AppWidgetManager appWidgetManager = getSystemService(AppWidgetManager.class);
+        final List<AppWidgetProviderInfo> providers = appWidgetManager.getInstalledProviders();
+        final ArrayList<Parcelable> parcelables = new ArrayList<>();
+        for (AppWidgetProviderInfo info : providers) {
+            parcelables.add(info);
         }
         final Bundle result = new Bundle();
         result.putParcelableArrayList(EXTRA_RETURN_RESULT, parcelables);

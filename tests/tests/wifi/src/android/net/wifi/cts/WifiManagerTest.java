@@ -29,6 +29,7 @@ import static com.google.common.truth.Truth.assertWithMessage;
 
 import static org.junit.Assert.assertNotEquals;
 
+import android.annotation.NonNull;
 import android.app.UiAutomation;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -1118,8 +1119,8 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
     }
 
     /**
-     * Verify that {@link WifiManager#addetworkPrivileged} throws a SecurityException when called
-     * by a normal app.
+     * Verify that {@link WifiManager#addNetworkPrivileged(WifiConfiguration)} throws a
+     * SecurityException when called by a normal app.
      */
     public void testAddNetworkPrivilegedNotAllowedForNormalApps() {
         if (!WifiFeature.isWifiSupported(getContext())) {
@@ -1140,7 +1141,8 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
     }
 
     /**
-     * Verify {@link WifiManager#addetworkPrivileged} throws an exception when null is the input.
+     * Verify {@link WifiManager#addNetworkPrivileged(WifiConfiguration)} throws an exception when
+     * null is the input.
      */
     public void testAddNetworkPrivilegedBadInput() {
         if (!WifiFeature.isWifiSupported(getContext())) {
@@ -1163,8 +1165,8 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
     }
 
     /**
-     * Verify {@link WifiManager#addetworkPrivileged} returns the proper failure status code
-     * when adding an enterprise config with mandatory fields not filled in.
+     * Verify {@link WifiManager#addNetworkPrivileged(WifiConfiguration)} returns the proper
+     * failure status code when adding an enterprise config with mandatory fields not filled in.
      */
     public void testAddNetworkPrivilegedFailureBadEnterpriseConfig() {
         if (!WifiFeature.isWifiSupported(getContext())) {
@@ -1193,8 +1195,8 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
     }
 
     /**
-     * Verify {@link WifiManager#addetworkPrivileged} works properly when the calling app has
-     * permissions.
+     * Verify {@link WifiManager#addNetworkPrivileged(WifiConfiguration)} works properly when the
+     * calling app has permissions.
      */
     public void testAddNetworkPrivilegedSuccess() {
         if (!WifiFeature.isWifiSupported(getContext())) {
@@ -2002,12 +2004,15 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
                 () -> mWifiManager.isWifiEnabled() == true);
             turnOffWifiAndTetheredHotspotIfEnabled();
             verifyRegisterSoftApCallback(executor, callback);
-            int[] testBands = {SoftApConfiguration.BAND_2GHZ, SoftApConfiguration.BAND_5GHZ};
+            int[] testBands = {SoftApConfiguration.BAND_2GHZ,
+                    SoftApConfiguration.BAND_5GHZ};
+            int[] expectedBands = {SoftApConfiguration.BAND_2GHZ,
+                    SoftApConfiguration.BAND_2GHZ | SoftApConfiguration.BAND_5GHZ};
             // Test bridged SoftApConfiguration set and get (setBands)
             SoftApConfiguration testSoftApConfig = new SoftApConfiguration.Builder()
                     .setSsid(TEST_SSID_UNQUOTED)
                     .setPassphrase(TEST_PASSPHRASE, SoftApConfiguration.SECURITY_TYPE_WPA2_PSK)
-                    .setBands(testBands)
+                    .setBands(expectedBands)
                     .build();
             boolean shouldFallbackToSingleAp = shouldFallbackToSingleAp(testBands,
                     callback.getCurrentSoftApCapability());
@@ -2922,13 +2927,14 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
             }
             mWifiManager.setVerboseLoggingEnabled(newState);
             PollingCheck.check(
-                    "Wifi settings toggle failed!",
+                    "Wifi verbose logging toggle failed!",
                     DURATION_SETTINGS_TOGGLE,
                     () -> mWifiManager.isVerboseLoggingEnabled() == newState);
-            assertEquals(newState, mWifiManager.isVerboseLoggingEnabled());
             if (listener != null) {
-                assertEquals(newState, listener.status);
-                assertEquals(1, listener.numCalls);
+                PollingCheck.check(
+                        "Verbose logging listener timeout",
+                        DURATION_SETTINGS_TOGGLE,
+                        () -> listener.status == newState && listener.numCalls == 1);
             }
         } finally {
             if (currState != null) mWifiManager.setVerboseLoggingEnabled(currState);
@@ -2962,11 +2968,63 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
             assertFalse(mWifiManager.isVerboseLoggingEnabled());
             assertEquals(WifiManager.VERBOSE_LOGGING_LEVEL_DISABLED,
                     mWifiManager.getVerboseLoggingLevel());
+        } finally {
+            if (currState != null) mWifiManager.setVerboseLoggingEnabled(currState);
+            uiAutomation.dropShellPermissionIdentity();
+        }
+    }
+
+    /**
+     * Test {@link WifiManager#setVerboseLoggingLevel(int)} for show key mode.
+     * TODO(b/167575586): Wait for S SDK finalization to determine the final minSdkVersion.
+     */
+    @SdkSuppress(minSdkVersion = 31, codeName = "S")
+    public void testSetVerboseLoggingShowKeyModeNonUserBuild() throws Exception {
+        if (Build.TYPE.equals("user")) return;
+        if (!WifiFeature.isWifiSupported(getContext())) {
+            // skip the test if WiFi is not supported
+            return;
+        }
+        UiAutomation uiAutomation = InstrumentationRegistry.getInstrumentation().getUiAutomation();
+        Boolean currState = null;
+        try {
+            uiAutomation.adoptShellPermissionIdentity();
+            currState = mWifiManager.isVerboseLoggingEnabled();
 
             mWifiManager.setVerboseLoggingLevel(WifiManager.VERBOSE_LOGGING_LEVEL_ENABLED_SHOW_KEY);
             assertTrue(mWifiManager.isVerboseLoggingEnabled());
             assertEquals(WifiManager.VERBOSE_LOGGING_LEVEL_ENABLED_SHOW_KEY,
                     mWifiManager.getVerboseLoggingLevel());
+        } finally {
+            if (currState != null) mWifiManager.setVerboseLoggingEnabled(currState);
+            uiAutomation.dropShellPermissionIdentity();
+        }
+    }
+
+    /**
+     * Test {@link WifiManager#setVerboseLoggingLevel(int)} for show key mode.
+     * TODO(b/167575586): Wait for S SDK finalization to determine the final minSdkVersion.
+     */
+    @SdkSuppress(minSdkVersion = 31, codeName = "S")
+    public void testSetVerboseLoggingShowKeyModeUserBuild() throws Exception {
+        if (!Build.TYPE.equals("user")) return;
+        if (!WifiFeature.isWifiSupported(getContext())) {
+            // skip the test if WiFi is not supported
+            return;
+        }
+        UiAutomation uiAutomation = InstrumentationRegistry.getInstrumentation().getUiAutomation();
+        Boolean currState = null;
+        try {
+            uiAutomation.adoptShellPermissionIdentity();
+            currState = mWifiManager.isVerboseLoggingEnabled();
+
+            mWifiManager.setVerboseLoggingLevel(WifiManager.VERBOSE_LOGGING_LEVEL_ENABLED_SHOW_KEY);
+            assertTrue(mWifiManager.isVerboseLoggingEnabled());
+            assertEquals(WifiManager.VERBOSE_LOGGING_LEVEL_ENABLED_SHOW_KEY,
+                    mWifiManager.getVerboseLoggingLevel());
+            fail("Verbosing logging show key mode should not be allowed for user build.");
+        } catch (SecurityException e) {
+            // expected
         } finally {
             if (currState != null) mWifiManager.setVerboseLoggingEnabled(currState);
             uiAutomation.dropShellPermissionIdentity();
@@ -3894,14 +3952,19 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
     public class TestCoexCallback extends WifiManager.CoexCallback {
         private Object mCoexLock;
         private int mOnCoexUnsafeChannelChangedCount;
+        private List<CoexUnsafeChannel> mCoexUnsafeChannels;
+        private int mCoexRestrictions;
 
         TestCoexCallback(Object lock) {
             mCoexLock = lock;
         }
 
         @Override
-        public void onCoexUnsafeChannelsChanged() {
+        public void onCoexUnsafeChannelsChanged(
+                    @NonNull List<CoexUnsafeChannel> unsafeChannels, int restrictions) {
             synchronized (mCoexLock) {
+                mCoexUnsafeChannels = unsafeChannels;
+                mCoexRestrictions = restrictions;
                 mOnCoexUnsafeChannelChangedCount++;
                 mCoexLock.notify();
             }
@@ -3911,6 +3974,14 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
             synchronized (mCoexLock) {
                 return mOnCoexUnsafeChannelChangedCount;
             }
+        }
+
+        public List<CoexUnsafeChannel> getCoexUnsafeChannels() {
+            return mCoexUnsafeChannels;
+        }
+
+        public int getCoexRestrictions() {
+            return mCoexRestrictions;
         }
     }
 
@@ -3926,14 +3997,8 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
         }
 
         try {
-            mWifiManager.setCoexUnsafeChannels(Collections.emptySet(), 0);
+            mWifiManager.setCoexUnsafeChannels(Collections.emptyList(), 0);
             fail("setCoexUnsafeChannels should not succeed - privileged call");
-        } catch (SecurityException e) {
-            // expected
-        }
-        try {
-            mWifiManager.getCoexUnsafeChannels();
-            fail("getCoexUnsafeChannels should not succeed - privileged call");
         } catch (SecurityException e) {
             // expected
         }
@@ -3967,45 +4032,40 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
         // These below API's only work with privileged permissions (obtained via shell identity
         // for test)
         UiAutomation uiAutomation = InstrumentationRegistry.getInstrumentation().getUiAutomation();
-        Set<CoexUnsafeChannel> prevUnsafeChannels = null;
+        List<CoexUnsafeChannel> prevUnsafeChannels = null;
         int prevRestrictions = -1;
         try {
             uiAutomation.adoptShellPermissionIdentity();
-            // Save the current state to reset after the test.
-            prevUnsafeChannels = mWifiManager.getCoexUnsafeChannels();
-            prevRestrictions = mWifiManager.getCoexRestrictions();
-
-            // Register callback
             final TestCoexCallback callback = new TestCoexCallback(mLock);
-            mWifiManager.registerCoexCallback(mExecutor, callback);
-            Set<CoexUnsafeChannel> unsafeChannels = new HashSet<>();
-            unsafeChannels.add(new CoexUnsafeChannel(WIFI_BAND_24_GHZ, 6));
-            final int restrictions = COEX_RESTRICTION_WIFI_DIRECT | COEX_RESTRICTION_SOFTAP
-                    | COEX_RESTRICTION_WIFI_AWARE;
-
+            final List<CoexUnsafeChannel> testUnsafeChannels = new ArrayList<>();
+            testUnsafeChannels.add(new CoexUnsafeChannel(WIFI_BAND_24_GHZ, 6));
+            final int testRestrictions = COEX_RESTRICTION_WIFI_DIRECT
+                    | COEX_RESTRICTION_SOFTAP | COEX_RESTRICTION_WIFI_AWARE;
             synchronized (mLock) {
                 try {
-                    mWifiManager.setCoexUnsafeChannels(unsafeChannels, restrictions);
-                    // Callback should be called if the default algorithm is disabled.
+                    mWifiManager.registerCoexCallback(mExecutor, callback);
+                    // Callback should be called after registering
                     mLock.wait(TEST_WAIT_DURATION_MS);
+                    assertEquals(1, callback.getOnCoexUnsafeChannelChangedCount());
+                    // Store the previous coex channels and set new coex channels
+                    prevUnsafeChannels = callback.getCoexUnsafeChannels();
+                    prevRestrictions = callback.getCoexRestrictions();
+                    mWifiManager.setCoexUnsafeChannels(testUnsafeChannels, testRestrictions);
+                    mLock.wait(TEST_WAIT_DURATION_MS);
+                    // Unregister callback and try setting again
                     mWifiManager.unregisterCoexCallback(callback);
-                    mWifiManager.setCoexUnsafeChannels(unsafeChannels, restrictions);
+                    mWifiManager.setCoexUnsafeChannels(testUnsafeChannels, testRestrictions);
                     // Callback should not be called here since it was unregistered.
                     mLock.wait(TEST_WAIT_DURATION_MS);
                 } catch (InterruptedException e) {
                     fail("Thread interrupted unexpectedly while waiting on mLock");
                 }
             }
-
-            if (callback.getOnCoexUnsafeChannelChangedCount() == 0) {
-                // Default algorithm enabled, setter should have done nothing
-                assertEquals(prevUnsafeChannels, mWifiManager.getCoexUnsafeChannels());
-                assertEquals(prevRestrictions, mWifiManager.getCoexRestrictions());
-            } else if (callback.getOnCoexUnsafeChannelChangedCount() == 1) {
+            if (callback.getOnCoexUnsafeChannelChangedCount() == 2) {
                 // Default algorithm disabled, setter should set the getter values.
-                assertEquals(unsafeChannels, mWifiManager.getCoexUnsafeChannels());
-                assertEquals(restrictions, mWifiManager.getCoexRestrictions());
-            } else {
+                assertEquals(testUnsafeChannels, callback.getCoexUnsafeChannels());
+                assertEquals(testRestrictions, callback.getCoexRestrictions());
+            } else if (callback.getOnCoexUnsafeChannelChangedCount() != 1) {
                 fail("Coex callback called " + callback.mOnCoexUnsafeChannelChangedCount
                         + " times. Expected 0 or 1 calls." );
             }

@@ -31,6 +31,6 @@ import java.lang.annotation.Target;
 @Target(ElementType.ANNOTATION_TYPE)
 @Retention(RetentionPolicy.RUNTIME)
 public @interface EnsureHasNoProfileAnnotation {
-    /** The name of the profile which should not be present. */
+    /** The name of the profile type which should not be present. */
     String value();
 }

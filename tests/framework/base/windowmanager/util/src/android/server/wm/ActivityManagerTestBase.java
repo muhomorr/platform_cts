@@ -23,8 +23,6 @@ import static android.app.WindowConfiguration.ACTIVITY_TYPE_ASSISTANT;
 import static android.app.WindowConfiguration.ACTIVITY_TYPE_RECENTS;
 import static android.app.WindowConfiguration.ACTIVITY_TYPE_STANDARD;
 import static android.app.WindowConfiguration.ACTIVITY_TYPE_UNDEFINED;
-import static android.app.WindowConfiguration.WINDOWING_MODE_SPLIT_SCREEN_PRIMARY;
-import static android.app.WindowConfiguration.WINDOWING_MODE_SPLIT_SCREEN_SECONDARY;
 import static android.app.WindowConfiguration.WINDOWING_MODE_UNDEFINED;
 import static android.content.Intent.ACTION_MAIN;
 import static android.content.Intent.CATEGORY_HOME;
@@ -43,6 +41,7 @@ import static android.content.pm.PackageManager.FEATURE_PICTURE_IN_PICTURE;
 import static android.content.pm.PackageManager.FEATURE_SCREEN_LANDSCAPE;
 import static android.content.pm.PackageManager.FEATURE_SCREEN_PORTRAIT;
 import static android.content.pm.PackageManager.FEATURE_SECURE_LOCK_SCREEN;
+import static android.content.pm.PackageManager.FEATURE_TELEVISION;
 import static android.content.pm.PackageManager.FEATURE_VR_MODE_HIGH_PERFORMANCE;
 import static android.content.pm.PackageManager.FEATURE_WATCH;
 import static android.content.pm.PackageManager.MATCH_DEFAULT_ONLY;
@@ -68,7 +67,6 @@ import static android.server.wm.ComponentNameUtils.getActivityName;
 import static android.server.wm.ComponentNameUtils.getLogTag;
 import static android.server.wm.StateLogger.log;
 import static android.server.wm.StateLogger.logE;
-import static android.server.wm.UiDeviceUtils.pressAppSwitchButton;
 import static android.server.wm.UiDeviceUtils.pressBackButton;
 import static android.server.wm.UiDeviceUtils.pressEnterButton;
 import static android.server.wm.UiDeviceUtils.pressHomeButton;
@@ -89,9 +87,12 @@ import static android.server.wm.app.Components.LAUNCHING_ACTIVITY;
 import static android.server.wm.app.Components.LaunchingActivity.KEY_FINISH_BEFORE_LAUNCH;
 import static android.server.wm.app.Components.PipActivity.ACTION_EXPAND_PIP;
 import static android.server.wm.app.Components.PipActivity.ACTION_SET_REQUESTED_ORIENTATION;
+import static android.server.wm.app.Components.PipActivity.ACTION_UPDATE_PIP_STATE;
 import static android.server.wm.app.Components.PipActivity.EXTRA_PIP_ORIENTATION;
 import static android.server.wm.app.Components.PipActivity.EXTRA_SET_ASPECT_RATIO_WITH_DELAY_DENOMINATOR;
 import static android.server.wm.app.Components.PipActivity.EXTRA_SET_ASPECT_RATIO_WITH_DELAY_NUMERATOR;
+import static android.server.wm.app.Components.PipActivity.EXTRA_SET_PIP_CALLBACK;
+import static android.server.wm.app.Components.PipActivity.EXTRA_SET_PIP_STASHED;
 import static android.server.wm.app.Components.TEST_ACTIVITY;
 import static android.server.wm.second.Components.SECOND_ACTIVITY;
 import static android.server.wm.third.Components.THIRD_ACTIVITY;
@@ -132,6 +133,7 @@ import android.hardware.display.DisplayManager;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.HandlerThread;
+import android.os.RemoteCallback;
 import android.os.SystemClock;
 import android.os.SystemProperties;
 import android.provider.Settings;
@@ -382,10 +384,20 @@ public abstract class ActivityManagerTestBase {
                     .putExtra(EXTRA_DISMISS_KEYGUARD_METHOD, true));
         }
 
+        void expandPip() {
+            mContext.sendBroadcast(createIntentWithAction(ACTION_EXPAND_PIP));
+        }
+
         void expandPipWithAspectRatio(String extraNum, String extraDenom) {
             mContext.sendBroadcast(createIntentWithAction(ACTION_EXPAND_PIP)
                     .putExtra(EXTRA_SET_ASPECT_RATIO_WITH_DELAY_NUMERATOR, extraNum)
                     .putExtra(EXTRA_SET_ASPECT_RATIO_WITH_DELAY_DENOMINATOR, extraDenom));
+        }
+
+        void sendPipStateUpdate(RemoteCallback callback, boolean stashed) {
+            mContext.sendBroadcast(createIntentWithAction(ACTION_UPDATE_PIP_STATE)
+                    .putExtra(EXTRA_SET_PIP_CALLBACK, callback)
+                    .putExtra(EXTRA_SET_PIP_STASHED, stashed));
         }
 
         void requestOrientationForPip(int orientation) {
@@ -694,6 +706,11 @@ public abstract class ActivityManagerTestBase {
         waitForIdle();
     }
 
+    protected void removeRootTask(int taskId) {
+        runWithShellPermission(() -> mAtm.removeTask(taskId));
+        waitForIdle();
+    }
+
     public static String executeShellCommand(String command) {
         log("Shell command: " + command);
         try {
@@ -836,6 +853,18 @@ public abstract class ActivityManagerTestBase {
         });
     }
 
+    protected void putActivityInPrimarySplit(ComponentName activityName) {
+        final int taskId = mWmState.getTaskByActivity(activityName).mTaskId;
+        mTaskOrganizer.putTaskInSplitPrimary(taskId);
+        mWmState.waitForValidState(activityName);
+    }
+
+    protected void putActivityInSecondarySplit(ComponentName activityName) {
+        final int taskId = mWmState.getTaskByActivity(activityName).mTaskId;
+        mTaskOrganizer.putTaskInSplitSecondary(taskId);
+        mWmState.waitForValidState(activityName);
+    }
+
     /**
      * Launches {@param primaryActivity} into split-screen primary windowing mode
      * and {@param secondaryActivity} to the side in split-screen secondary windowing mode.
@@ -892,22 +921,6 @@ public abstract class ActivityManagerTestBase {
         }
     }
 
-    protected boolean setActivityTaskWindowingMode(ComponentName activityName, int windowingMode) {
-        mWmState.computeState(activityName);
-        final int taskId = mWmState.getTaskByActivity(activityName).mTaskId;
-        boolean[] result = new boolean[1];
-        runWithShellPermission(() -> {
-            result[0] = mAtm.setTaskWindowingMode(taskId, windowingMode, true /* toTop */);
-        });
-        if (result[0]) {
-            mWmState.waitForValidState(new WaitForValidActivityState.Builder(activityName)
-                    .setActivityType(ACTIVITY_TYPE_STANDARD)
-                    .setWindowingMode(windowingMode)
-                    .build());
-        }
-        return result[0];
-    }
-
     /**
      * Move activity to root task or on top of the given root task when the root task is also a leaf
      * task.
@@ -939,22 +952,6 @@ public abstract class ActivityManagerTestBase {
         mWmState.computeState(activityName);
         final int taskId = mWmState.getTaskByActivity(activityName).mTaskId;
         runWithShellPermission(() -> mAtm.resizeTask(taskId, new Rect(left, top, right, bottom)));
-    }
-
-    protected void resizePrimarySplitScreen(
-            int rootTaskWidth, int rootTaskHeight, int taskWidth, int taskHeight) {
-        runWithShellPermission(() ->
-                mAtm.resizePrimarySplitScreen(new Rect(0, 0, rootTaskWidth, rootTaskHeight),
-                        new Rect(0, 0, taskWidth, taskHeight)));
-    }
-
-    protected boolean pressAppSwitchButtonAndWaitForRecents() {
-        pressAppSwitchButton();
-        final boolean isRecentsVisible = mWmState.waitForRecentsActivityVisible();
-        if (isRecentsVisible) {
-            mWmState.waitForAppTransitionIdleOnDisplay(DEFAULT_DISPLAY);
-        }
-        return isRecentsVisible;
     }
 
     protected boolean supportsVrMode() {
@@ -1001,6 +998,10 @@ public abstract class ActivityManagerTestBase {
 
     protected boolean isCar() {
         return hasDeviceFeature(FEATURE_AUTOMOTIVE);
+    }
+
+    protected boolean isLeanBack() {
+        return hasDeviceFeature(FEATURE_TELEVISION);
     }
 
     protected boolean isTablet() {
@@ -1256,6 +1257,11 @@ public abstract class ActivityManagerTestBase {
     protected SystemAlertWindowAppOpSession createAllowSystemAlertWindowAppOpSession() {
         return mObjectTracker.manage(
                 new SystemAlertWindowAppOpSession(mContext.getOpPackageName(), MODE_ALLOWED));
+    }
+
+    /** @see ObjectTracker#manage(AutoCloseable) */
+    protected FontScaleSession createFontScaleSession() {
+        return mObjectTracker.manage(new FontScaleSession());
     }
 
     /**
@@ -1666,6 +1672,15 @@ public abstract class ActivityManagerTestBase {
             public void onChange(boolean selfChange) {
                 count++;
             }
+        }
+    }
+
+    /** Helper class to save, set, and restore font_scale preferences. */
+    protected static class FontScaleSession extends SettingsSession<Float> {
+        FontScaleSession() {
+            super(Settings.System.getUriFor(Settings.System.FONT_SCALE),
+                    Settings.System::getFloat,
+                    Settings.System::putFloat);
         }
     }
 
