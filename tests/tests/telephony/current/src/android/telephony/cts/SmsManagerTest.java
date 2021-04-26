@@ -493,19 +493,18 @@ public class SmsManagerTest {
             originalWriteSmsMode = context.getSystemService(AppOpsManager.class)
                     .unsafeCheckOpNoThrow(AppOpsManager.OPSTR_WRITE_SMS,
                             getPackageUid(ctsPackageName), ctsPackageName);
-            dummySmsUri = executeWithShellPermissionIdentity(() -> {
-                setModeForOps(ctsPackageName,
-                        AppOpsManager.MODE_ALLOWED, AppOpsManager.OPSTR_WRITE_SMS);
-                ContentValues contentValues = new ContentValues();
-                contentValues.put(Telephony.TextBasedSmsColumns.ADDRESS, "addr");
-                contentValues.put(Telephony.TextBasedSmsColumns.READ, 1);
-                contentValues.put(Telephony.TextBasedSmsColumns.SUBJECT, "subj");
-                contentValues.put(Telephony.TextBasedSmsColumns.BODY, "created_at_" +
-                        new Date().toString().replace(" ", "_"));
-                return contentResolver.insert(Telephony.Sms.CONTENT_URI, contentValues);
-            });
+            setModeForOps(ctsPackageName,
+                    AppOpsManager.MODE_ALLOWED, AppOpsManager.OPSTR_WRITE_SMS);
+            ContentValues contentValues = new ContentValues();
+            contentValues.put(Telephony.TextBasedSmsColumns.ADDRESS, "addr");
+            contentValues.put(Telephony.TextBasedSmsColumns.READ, 1);
+            contentValues.put(Telephony.TextBasedSmsColumns.SUBJECT, "subj");
+            contentValues.put(Telephony.TextBasedSmsColumns.BODY, "created_at_"
+                    + new Date().toString().replace(" ", "_"));
+
+            dummySmsUri = contentResolver.insert(Telephony.Sms.CONTENT_URI, contentValues);
             assertNotNull("Failed to insert test sms", dummySmsUri);
-            assertNotEquals("Failed to insert test sms", dummySmsUri.getLastPathSegment(), "0");
+            assertNotEquals("Failed to insert test sms", "0", dummySmsUri.getLastPathSegment());
             testSmsAccessAboutDefaultApp(LEGACY_SMS_APP);
             testSmsAccessAboutDefaultApp(MODERN_SMS_APP);
         } finally {
@@ -570,10 +569,16 @@ public class SmsManagerTest {
     private void setSmsApp(String pkg) throws Exception {
         executeWithShellPermissionIdentity(() -> {
             Context context = getInstrumentation().getContext();
+            RoleManager roleManager = context.getSystemService(RoleManager.class);
             CompletableFuture<Boolean> result = new CompletableFuture<>();
-            context.getSystemService(RoleManager.class).addRoleHolderAsUser(
-                    RoleManager.ROLE_SMS, pkg, RoleManager.MANAGE_HOLDERS_FLAG_DONT_KILL_APP,
-                    context.getUser(), AsyncTask.THREAD_POOL_EXECUTOR, result::complete);
+            if (roleManager.getRoleHoldersAsUser(RoleManager.ROLE_SMS,
+                    context.getUser()).contains(pkg)) {
+                result.complete(true);
+            } else {
+                roleManager.addRoleHolderAsUser(RoleManager.ROLE_SMS, pkg,
+                        RoleManager.MANAGE_HOLDERS_FLAG_DONT_KILL_APP, context.getUser(),
+                        AsyncTask.THREAD_POOL_EXECUTOR, result::complete);
+            }
             assertTrue(result.get(5, TimeUnit.SECONDS));
         });
     }

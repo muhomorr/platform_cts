@@ -21,9 +21,11 @@ import static android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET;
 import static android.net.ipsec.ike.SaProposal.DH_GROUP_2048_BIT_MODP;
 import static android.net.ipsec.ike.SaProposal.ENCRYPTION_ALGORITHM_AES_GCM_12;
 import static android.net.ipsec.ike.SaProposal.PSEUDORANDOM_FUNCTION_AES128_XCBC;
+import static android.telephony.SubscriptionManager.INVALID_SUBSCRIPTION_ID;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assume.assumeTrue;
 
 import android.annotation.NonNull;
@@ -36,10 +38,10 @@ import android.net.ipsec.ike.ChildSaProposal;
 import android.net.ipsec.ike.IkeFqdnIdentification;
 import android.net.ipsec.ike.IkeSaProposal;
 import android.net.ipsec.ike.IkeSessionParams;
+import android.net.ipsec.ike.IkeTunnelConnectionParams;
 import android.net.ipsec.ike.SaProposal;
 import android.net.ipsec.ike.TunnelModeChildSessionParams;
 import android.net.vcn.VcnConfig;
-import android.net.vcn.VcnControlPlaneIkeConfig;
 import android.net.vcn.VcnGatewayConnectionConfig;
 import android.net.vcn.VcnManager;
 import android.os.ParcelUuid;
@@ -120,11 +122,11 @@ public class VcnManagerTest {
         final TunnelModeChildSessionParams childParams =
                 new TunnelModeChildSessionParams.Builder().addSaProposal(childProposal).build();
 
-        final VcnControlPlaneIkeConfig controlConfig =
-                new VcnControlPlaneIkeConfig(ikeParams, childParams);
+        final IkeTunnelConnectionParams tunnelParams =
+                new IkeTunnelConnectionParams(ikeParams, childParams);
 
         final VcnGatewayConnectionConfig gatewayConnConfig =
-                new VcnGatewayConnectionConfig.Builder(VCN_GATEWAY_CONNECTION_NAME, controlConfig)
+                new VcnGatewayConnectionConfig.Builder(VCN_GATEWAY_CONNECTION_NAME, tunnelParams)
                         .addExposedCapability(NET_CAPABILITY_INTERNET)
                         .addRequiredUnderlyingCapability(NET_CAPABILITY_INTERNET)
                         .setRetryIntervalsMs(
@@ -141,6 +143,15 @@ public class VcnManagerTest {
                 .build();
     }
 
+    private int verifyAndGetValidDataSubId() {
+        final int dataSubId = SubscriptionManager.getDefaultDataSubscriptionId();
+        assertNotEquals(
+                "There must be an active data subscription to complete CTS",
+                INVALID_SUBSCRIPTION_ID,
+                dataSubId);
+        return dataSubId;
+    }
+
     @Test(expected = SecurityException.class)
     public void testSetVcnConfig_noCarrierPrivileges() throws Exception {
         mVcnManager.setVcnConfig(new ParcelUuid(UUID.randomUUID()), buildVcnConfig());
@@ -148,7 +159,7 @@ public class VcnManagerTest {
 
     @Test
     public void testSetVcnConfig_withCarrierPrivileges() throws Exception {
-        final int dataSubId = SubscriptionManager.getDefaultDataSubscriptionId();
+        final int dataSubId = verifyAndGetValidDataSubId();
         CarrierPrivilegeUtils.withCarrierPrivileges(mContext, dataSubId, () -> {
             SubscriptionGroupUtils.withEphemeralSubscriptionGroup(mContext, dataSubId, (subGrp) -> {
                 mVcnManager.setVcnConfig(subGrp, buildVcnConfig());
@@ -165,7 +176,8 @@ public class VcnManagerTest {
 
     @Test
     public void testClearVcnConfig_withCarrierPrivileges() throws Exception {
-        final int dataSubId = SubscriptionManager.getDefaultDataSubscriptionId();
+        final int dataSubId = verifyAndGetValidDataSubId();
+
         CarrierPrivilegeUtils.withCarrierPrivileges(mContext, dataSubId, () -> {
             SubscriptionGroupUtils.withEphemeralSubscriptionGroup(mContext, dataSubId, (subGrp) -> {
                 mVcnManager.clearVcnConfig(subGrp);
@@ -271,7 +283,7 @@ public class VcnManagerTest {
     @Test
     public void testRegisterVcnStatusCallback() throws Exception {
         final TestVcnStatusCallback callback = new TestVcnStatusCallback();
-        final int subId = SubscriptionManager.getDefaultSubscriptionId();
+        final int subId = verifyAndGetValidDataSubId();
 
         try {
             registerVcnStatusCallbackForSubId(callback, subId);
@@ -286,7 +298,7 @@ public class VcnManagerTest {
     @Test
     public void testRegisterVcnStatusCallback_reuseUnregisteredCallback() throws Exception {
         final TestVcnStatusCallback callback = new TestVcnStatusCallback();
-        final int subId = SubscriptionManager.getDefaultSubscriptionId();
+        final int subId = verifyAndGetValidDataSubId();
 
         try {
             registerVcnStatusCallbackForSubId(callback, subId);
@@ -300,7 +312,7 @@ public class VcnManagerTest {
     @Test(expected = IllegalStateException.class)
     public void testRegisterVcnStatusCallback_duplicateRegister() throws Exception {
         final TestVcnStatusCallback callback = new TestVcnStatusCallback();
-        final int subId = SubscriptionManager.getDefaultSubscriptionId();
+        final int subId = verifyAndGetValidDataSubId();
 
         try {
             registerVcnStatusCallbackForSubId(callback, subId);

@@ -40,6 +40,7 @@
     <protected-broadcast android:name="android.intent.action.PACKAGE_REPLACED" />
     <protected-broadcast android:name="android.intent.action.MY_PACKAGE_REPLACED" />
     <protected-broadcast android:name="android.intent.action.PACKAGE_REMOVED" />
+    <protected-broadcast android:name="android.intent.action.PACKAGE_REMOVED_INTERNAL" />
     <protected-broadcast android:name="android.intent.action.PACKAGE_FULLY_REMOVED" />
     <protected-broadcast android:name="android.intent.action.PACKAGE_CHANGED" />
     <protected-broadcast android:name="android.intent.action.PACKAGE_ENABLE_ROLLBACK" />
@@ -2707,10 +2708,9 @@
     <permission android:name="android.permission.CREATE_USERS"
         android:protectionLevel="signature" />
 
-    <!-- @SystemApi @hide Allows an application to access data blobs across users.
-         This permission is not available to third party applications. -->
+    <!-- Allows an application to access data blobs across users. -->
     <permission android:name="android.permission.ACCESS_BLOBS_ACROSS_USERS"
-        android:protectionLevel="signature|privileged|development" />
+        android:protectionLevel="signature|privileged|development|role" />
 
     <!-- @hide Allows an application to set the profile owners and the device owner.
          This permission is not available to third party applications.-->
@@ -5636,7 +5636,7 @@
                 android:protectionLevel="signature|recents" />
     <!--  Allows the caller to change the associations between input devices and displays.
         Very dangerous! @hide -->
-    <permission android:name="android.permission.ASSOCIATE_INPUT_DEVICE_TO_DISPLAY_BY_PORT"
+    <permission android:name="android.permission.ASSOCIATE_INPUT_DEVICE_TO_DISPLAY"
                 android:protectionLevel="signature" />
 
     <!-- Allows query of any normal app on the device, regardless of manifest declarations.
