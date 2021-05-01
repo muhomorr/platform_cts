@@ -85,15 +85,18 @@ public class BiometricSimpleTests extends BiometricTestBase {
     @Test
     public void testPackageManagerAndDumpsysMatch() throws Exception {
         final BiometricServiceState state = getCurrentState();
+        if (mSensorProperties.isEmpty()) {
+            assertTrue(state.mSensorStates.sensorStates.isEmpty());
+        } else {
+            final PackageManager pm = mContext.getPackageManager();
 
-        final PackageManager pm = mContext.getPackageManager();
-
-        assertEquals(pm.hasSystemFeature(PackageManager.FEATURE_FINGERPRINT),
-                state.mSensorStates.containsModality(SensorStateProto.FINGERPRINT));
-        assertEquals(pm.hasSystemFeature(PackageManager.FEATURE_FACE),
-                state.mSensorStates.containsModality(SensorStateProto.FACE));
-        assertEquals(pm.hasSystemFeature(PackageManager.FEATURE_IRIS),
-                state.mSensorStates.containsModality(SensorStateProto.IRIS));
+            assertEquals(pm.hasSystemFeature(PackageManager.FEATURE_FINGERPRINT),
+                    state.mSensorStates.containsModality(SensorStateProto.FINGERPRINT));
+            assertEquals(pm.hasSystemFeature(PackageManager.FEATURE_FACE),
+                    state.mSensorStates.containsModality(SensorStateProto.FACE));
+            assertEquals(pm.hasSystemFeature(PackageManager.FEATURE_IRIS),
+                    state.mSensorStates.containsModality(SensorStateProto.IRIS));
+        }
     }
 
     @Test
@@ -153,11 +156,13 @@ public class BiometricSimpleTests extends BiometricTestBase {
 
         // Third case above. Since the deprecated API is intended to allow credential in addition
         // to biometrics, we should be receiving BIOMETRIC_ERROR_NO_BIOMETRICS.
+        final boolean noSensors = mSensorProperties.isEmpty();
         callback = mock(BiometricPrompt.AuthenticationCallback.class);
         showDeviceCredentialAllowedBiometricPrompt(callback, new CancellationSignal(),
                 false /* shouldShow */);
         verify(callback).onAuthenticationError(
-                eq(BiometricPrompt.BIOMETRIC_ERROR_NO_BIOMETRICS),
+                eq(noSensors ? BiometricPrompt.BIOMETRIC_ERROR_NO_DEVICE_CREDENTIAL
+                        : BiometricPrompt.BIOMETRIC_ERROR_NO_BIOMETRICS),
                 any());
     }
 
