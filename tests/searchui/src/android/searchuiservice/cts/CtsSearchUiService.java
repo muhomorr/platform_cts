@@ -62,7 +62,7 @@ public class CtsSearchUiService extends SearchUiService {
     }
 
     @Override
-    public void onCreateSearchSession(SearchContext context,
+    public void onSearchSessionCreated(SearchContext context,
             SearchSessionId sessionId) {
         if (DEBUG) Log.d(TAG, "onCreateSearchSession");
 
@@ -71,6 +71,7 @@ public class CtsSearchUiService extends SearchUiService {
         }
         sWatcher.verifier = Mockito.mock(CtsSearchUiService.class);
         sWatcher.created.countDown();
+        sWatcher.searchContext = context;
     }
 
     @Override
@@ -124,6 +125,8 @@ public class CtsSearchUiService extends SearchUiService {
         public CtsSearchUiService verifier;
 
         public List<SearchTarget> searchTargets;
+
+        public SearchContext searchContext;
 
         public void setTargets(List<SearchTarget> targets) {
             searchTargets = targets;

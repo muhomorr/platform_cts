@@ -66,8 +66,8 @@ public abstract class DeviceAndProfileOwnerTest extends BaseDevicePolicyTest {
     protected static final String DEVICE_ADMIN_COMPONENT_FLATTENED =
             DEVICE_ADMIN_PKG + "/" + ADMIN_RECEIVER_TEST_CLASS;
 
-    private static final String STORAGE_ENCRYPTION_TEST_CLASS = ".StorageEncryptionTest";
-    private static final String IS_PRIMARY_USER_PARAM = "isPrimaryUser";
+    protected static final String STORAGE_ENCRYPTION_TEST_CLASS = ".StorageEncryptionTest";
+    protected static final String IS_SYSTEM_USER_PARAM = "isSystemUser";
 
     protected static final String INTENT_RECEIVER_PKG = "com.android.cts.intent.receiver";
     protected static final String INTENT_RECEIVER_APK = "CtsIntentReceiverApp.apk";
@@ -1406,10 +1406,6 @@ public abstract class DeviceAndProfileOwnerTest extends BaseDevicePolicyTest {
         executeDeviceTestClass(".PrintingPolicyTest");
     }
 
-    protected void executeDeviceTestClass(String className) throws Exception {
-        runDeviceTestsAsUser(DEVICE_ADMIN_PKG, className, mUserId);
-    }
-
     @Test
     public void testKeyManagement() throws Exception {
         installAppAsUser(SHARED_UID_APP1_APK, mUserId);
@@ -1510,7 +1506,7 @@ public abstract class DeviceAndProfileOwnerTest extends BaseDevicePolicyTest {
     @Test
     public void testSetStorageEncryption() throws Exception {
         Map<String, String> params =
-                ImmutableMap.of(IS_PRIMARY_USER_PARAM, String.valueOf(mUserId == mPrimaryUserId));
+                ImmutableMap.of(IS_SYSTEM_USER_PARAM, String.valueOf(mUserId == USER_SYSTEM));
         runDeviceTestsAsUser(
                 DEVICE_ADMIN_PKG, STORAGE_ENCRYPTION_TEST_CLASS, null, mUserId, params);
     }
@@ -1907,30 +1903,35 @@ public abstract class DeviceAndProfileOwnerTest extends BaseDevicePolicyTest {
 
     // TODO(b/184175078): Migrate test to Bedstead when the infra is ready.
     @Test
-    public void testGetNearbyNotificationStreamingPolicy() throws Exception {
+    public void testGetNearbyNotificationStreamingPolicy_getsNearbyStreamingDisabledAsDefault()
+            throws Exception {
         executeDeviceTestMethod(
                 ".NearbyNotificationStreamingPolicyTest",
-                "testGetNearbyNotificationStreamingPolicy");
+                "testGetNearbyNotificationStreamingPolicy_getsNearbyStreamingDisabledAsDefault");
     }
 
     // TODO(b/184175078): Migrate test to Bedstead when the infra is ready.
     @Test
-    public void testSetNearbyNotificationStreamingPolicy() throws Exception {
+    public void testSetNearbyNotificationStreamingPolicy_changesPolicy() throws Exception {
         executeDeviceTestMethod(
                 ".NearbyNotificationStreamingPolicyTest",
-                "testSetNearbyNotificationStreamingPolicy");
+                "testSetNearbyNotificationStreamingPolicy_changesPolicy");
     }
 
     // TODO(b/184175078): Migrate test to Bedstead when the infra is ready.
     @Test
-    public void testGetNearbyAppStreamingPolicy() throws Exception {
-        executeDeviceTestMethod(".NearbyAppStreamingPolicyTest", "testGetNearbyAppStreamingPolicy");
+    public void testGetNearbyAppStreamingPolicy_getsNearbyStreamingDisabledAsDefault()
+            throws Exception {
+        executeDeviceTestMethod(
+                ".NearbyAppStreamingPolicyTest",
+                "testGetNearbyAppStreamingPolicy_getsNearbyStreamingDisabledAsDefault");
     }
 
     // TODO(b/184175078): Migrate test to Bedstead when the infra is ready.
     @Test
-    public void testSetNearbyAppStreamingPolicy() throws Exception {
-        executeDeviceTestMethod(".NearbyAppStreamingPolicyTest", "testSetNearbyAppStreamingPolicy");
+    public void testSetNearbyAppStreamingPolicy_changesPolicy() throws Exception {
+        executeDeviceTestMethod(
+                ".NearbyAppStreamingPolicyTest", "testSetNearbyAppStreamingPolicy_changesPolicy");
     }
 
     /**
@@ -1949,8 +1950,12 @@ public abstract class DeviceAndProfileOwnerTest extends BaseDevicePolicyTest {
         }
     }
 
+    protected void executeDeviceTestClass(String className) throws Exception {
+        executeDeviceTestMethod(className, /* testName= */ null);
+    }
+
     protected void executeDeviceTestMethod(String className, String testName) throws Exception {
-        runDeviceTestsAsUser(DEVICE_ADMIN_PKG, className, testName, mUserId);
+        executeDeviceTestMethod(className, testName, /* params= */ new HashMap<>());
     }
 
     protected void executeDeviceTestMethod(String className, String testName,

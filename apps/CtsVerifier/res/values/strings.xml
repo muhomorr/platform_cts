@@ -63,6 +63,7 @@
         android:read_device_identifiers allow\" </string>
     <string name="runtime_permissions_error">Please grant runtime permissions, otherwise, tests might fail.</string>
     <string name="export">Export</string>
+    <string name="report_log_folder_name">ctsv-report-logs</string>
     <string name="no_storage">Cannot save report to external storage, see log for details.</string>
     <string name="no_storage_io_parser_exception">Cannot save report to external
         storage, see log for details. Or try running the following command if
@@ -357,6 +358,12 @@
     <string name="sec_identity_credential_authentication_test_info">
         This test ensures that data elements in Identity Credential documents protected by user
         authentication with timeout 0 can only be accessed once per reader session.
+    </string>
+
+    <string name="sec_unlocked_device_required_test">Unlocked Device Required</string>
+    <string name="sec_unlocked_device_required_test_info">
+        This test ensures that keys created with setUnlockedDeviceRequired are usable when the
+        screen is unlocked but not when it is locked.
     </string>
 
     <!-- Strings for BluetoothActivity -->
@@ -788,7 +795,9 @@
         list. Second, make sure your bluetooth device is unreachable(you can power off/reboot your
         Bluetooth device or put it into a Faraday bag) and press the Device Gone button.
         Lastly, make your bluetooth device reachable by waiting for the device to power on or
-        removing it from the Faraday bag and press the Device Present button.
+        removing it from the Faraday bag and press the Device Present button. Note that, if you are
+        using a phone for the testing, please manually pair on another Bluetooth phone before
+        pressing Device Gone and Device Present.
     </string>
 
     <string name="companion_service_test_gone_text">
@@ -4402,6 +4411,29 @@ You should be prompted to select credentials; choose the ones you just installed
     <string name="device_owner_set_lockscreen_message_hint">My lock screen message</string>
     <string name="device_owner_lockscreen_message_cannot_be_empty">Lock screen message cannot be empty.</string>
 
+    <string name="device_owner_disable_usb_data_signaling_test">Disable USB data signaling</string>
+    <string name="device_owner_disable_usb_data_signaling_test_info">
+         This test verifies that USB data signaling can be disabled by the device owner.\n
+         1. Press the \"Go\" button to go to Settings. Go to Connected devices > USB and select use
+         USB for \"File transfer/Android Auto\". Verify that you can mount the device as a USB drive
+         on your desktop computer and access files from your phone through USB.\n
+         2. Press the \"Disable USB data signaling\" button to disable USB data signaling on
+         the device. When disabled, all USB data connections (except from charging functions)
+         are prohibited.\n
+         3. Press the \"Go\" button to go to Settings and confirm that the following preferences
+         cannot be selected:\n
+              - Connected devices > USB\n
+              - System > Developer Options > USB debugging\n
+              - System > Developer Options > Default USB configuration\n
+              - System > Developer Options > Disable USB audio routing\n
+         4. Verify that you cannot mount the device as a USB drive on your desktop computer and
+         cannot access files from your phone through USB.\n
+         5. Press the \"Enable USB data signaling\" button to re-enable USB data signaling on
+         the device.\n
+         Please mark the test accordingly.
+    </string>
+    <string name="device_owner_enable_usb_data_signaling_test">Enable USB data signaling</string>
+
     <string name="managed_user_test">Managed User</string>
     <string name="managed_user_positive_tests">Managed User positive tests</string>
     <string name="managed_user_positive_tests_instructions">
@@ -5165,10 +5197,12 @@ Follow the instructions on the screen to measure the frequency response for the 
     <!-- AudioTap2Tone test -->
     <string name="audio_tap2tone">Audio Tap To Tone Test</string>
     <string name="audio_tap2tone_info">This tests the latency from a screen interaction to a
-        resulting tone.\nSelect the Audio API to test and press the \"Start\" button.
-        Use your fingernail to tap on the field below to trigger the test tone. Results will be
-        displayed in the field.</string>
-    <string name="audio_tap2tone_init_result">Result:</string>
+        resulting tone. This time is a combination of touch screen latency and audio latency\nSelect
+        the Audio API to test and press the \"Start\" button. Use your fingernail to tap on the
+        field below to trigger the test tone. Results will be displayed in the field.</string>
+    <string name="audio_tap2tone_spec">80ms average is required to pass.</string>
+    <string name="audio_tap2tone_too_few">Not enough edges. Use fingernail.</string>
+    <string name="audio_tap2tone_too_many">Too many edges. Use fingernail.</string>
 
     <!-- Strings for 6DoF test -->
     <string name="six_dof_test">6DoF Test</string>
@@ -5581,6 +5615,29 @@ Follow the instructions on the screen to measure the frequency response for the 
         \nAlphanumeric, length at least 4</string>
     <string name="set_complexity_low_desc">Any pattern, PIN or password</string>
     <string name="set_complexity_none_desc">No restrictions</string>
+    <!-- Strings for UnlockedDeviceRequiredTest -->
+    <string name="unlock_req_config_lock_screen">Secure lock screen has not been set up. Go to
+        Settings -> Security to set up a lock screen.</string>
+    <string name="unlock_req_config_lock_screen_and_biometrics">Secure lock screen has not been set
+        up. Go to Settings -> Security to set up a lock screen and biometric unlock.</string>
+    <string name="unlock_req_config_biometrics">Biometric unlock has not been set up. Go to Settings
+        -> Security to set up biometric unlock.</string>
+    <string name="unlock_req_biometric_lock">Lock the screen, wait 5 seconds, then unlock with
+        biometrics.</string>
+    <!-- This message should only be displayed briefly immediately after the user has unlocked
+        the device; as soon as key access is verified this message will be updated. -->
+    <string name="unlock_req_unlocked">Verifying the key is accessible after the unlock...</string>
+    <string name="unlock_req_credential_lock">Lock the screen, wait 5 seconds, then unlock with
+        credentials.</string>
+    <string name="unlock_req_successful">Test completed successfully.</string>
+    <string name="unlock_req_failed_key_available_when_locked">Test failed; the key was available
+        when the device was locked.</string>
+    <string name="unlock_req_failed_key_unavailable_when_unlocked">Test failed; the key was not
+        available when the device was unlocked.</string>
+    <!-- While this state should never be reached since all possible states are accounted for
+         it is included just in case. -->
+    <string name="unlock_req_unknown_state">The test is in an unexpected state; please dismiss
+        this dialog and restart the test.</string>
 
     <!-- Notification Bubble Tests-->
     <string name="bubbles_notification_title">Bubble Notification Tests</string>

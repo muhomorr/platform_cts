@@ -27,6 +27,7 @@ import android.content.pm.PackageManager.PERMISSION_DENIED
 import android.content.pm.PackageManager.PERMISSION_GRANTED
 import android.content.res.Resources
 import android.net.Uri
+import android.os.Build
 import android.platform.test.annotations.AppModeFull
 import android.support.test.uiautomator.By
 import android.support.test.uiautomator.BySelector
@@ -37,7 +38,9 @@ import android.support.test.uiautomator.UiSelector
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityNodeInfo.ACTION_SCROLL_FORWARD
 import android.widget.Switch
+import androidx.core.os.BuildCompat
 import androidx.test.InstrumentationRegistry
+import androidx.test.filters.SdkSuppress
 import androidx.test.runner.AndroidJUnit4
 import com.android.compatibility.common.util.MatcherUtils.hasTextThat
 import com.android.compatibility.common.util.SystemUtil
@@ -70,6 +73,7 @@ import java.util.concurrent.atomic.AtomicReference
 import java.util.regex.Pattern
 
 private const val READ_CALENDAR = "android.permission.READ_CALENDAR"
+private const val BLUETOOTH_CONNECT = "android.permission.BLUETOOTH_CONNECT"
 
 /**
  * Test for auto revoke
@@ -139,6 +143,27 @@ class AutoRevokeTest {
                         .click()
                 waitFindObject(By.text(supportedAppPackageName))
                 waitFindObject(By.text("Calendar permission removed"))
+            }
+        }
+    }
+
+    @AppModeFull(reason = "Uses separate apps for testing")
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S, codeName = "S")
+    @Test
+    fun testUnusedApp_doesntGetSplitPermissionRevoked() {
+        withUnusedThresholdMs(3L) {
+            withDummyApp(APK_PATH_R_APP, APK_PACKAGE_NAME_R_APP) {
+                // Setup
+                startApp()
+                assertPermission(PERMISSION_GRANTED, APK_PACKAGE_NAME_R_APP, BLUETOOTH_CONNECT)
+                killDummyApp()
+                Thread.sleep(500)
+
+                // Run
+                runAppHibernationJob(context, LOG_TAG)
+
+                // Verify
+                assertPermission(PERMISSION_GRANTED, APK_PACKAGE_NAME_R_APP, BLUETOOTH_CONNECT)
             }
         }
     }
@@ -314,6 +339,12 @@ class AutoRevokeTest {
     }
 
     private fun killDummyApp(pkg: String = supportedAppPackageName) {
+        if (!BuildCompat.isAtLeastS()) {
+            // Work around a race condition on R that killing the app process too fast after
+            // activity launch would result in a stale process record in LRU process list that
+            // sticks until next reboot.
+            Thread.sleep(5000)
+        }
         assertThat(
                 runShellCommandOrThrow("am force-stop " + pkg),
                 equalTo(""))
@@ -342,8 +373,12 @@ class AutoRevokeTest {
         withApp(apk, packageName, action)
     }
 
-    private fun assertPermission(state: Int, packageName: String = supportedAppPackageName) {
-        assertPermission(packageName, READ_CALENDAR, state)
+    private fun assertPermission(
+        state: Int,
+        packageName: String = supportedAppPackageName,
+        permission: String = READ_CALENDAR
+    ) {
+        assertPermission(packageName, permission, state)
     }
 
     private fun goToPermissions(packageName: String = supportedAppPackageName) {

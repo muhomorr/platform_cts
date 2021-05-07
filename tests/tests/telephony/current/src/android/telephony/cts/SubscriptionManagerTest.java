@@ -600,6 +600,12 @@ public class SubscriptionManagerTest {
         List<SubscriptionInfo> infoList = mSm.getSubscriptionsInGroup(uuid);
         assertNotNull(infoList);
         assertEquals(1, infoList.size());
+        assertNull(infoList.get(0).getGroupUuid());
+
+        infoList = ShellIdentityUtils.invokeMethodWithShellPermissions(mSm,
+                (sm) -> sm.getSubscriptionsInGroup(uuid));
+        assertNotNull(infoList);
+        assertEquals(1, infoList.size());
         assertEquals(uuid, infoList.get(0).getGroupUuid());
 
         List<SubscriptionInfo> availableInfoList = mSm.getAvailableSubscriptionInfoList();
@@ -644,6 +650,12 @@ public class SubscriptionManagerTest {
         List<SubscriptionInfo> infoList = mSm.getSubscriptionsInGroup(uuid);
         assertNotNull(infoList);
         assertEquals(1, infoList.size());
+        assertNull(infoList.get(0).getGroupUuid());
+
+        infoList = ShellIdentityUtils.invokeMethodWithShellPermissions(mSm,
+                (sm) -> sm.getSubscriptionsInGroup(uuid));
+        assertNotNull(infoList);
+        assertEquals(1, infoList.size());
         assertEquals(uuid, infoList.get(0).getGroupUuid());
 
         // Remove from subscription group with current sub Id.
@@ -681,6 +693,23 @@ public class SubscriptionManagerTest {
         String mnc = info.getMncString();
         assertTrue(mcc == null || mcc.length() <= 3);
         assertTrue(mnc == null || mnc.length() <= 3);
+    }
+
+    @Test
+    public void testSetUiccApplicationsEnabled() {
+        if (!isSupported()) return;
+
+        boolean canDisable = ShellIdentityUtils.invokeMethodWithShellPermissions(mSm,
+                (sm) -> sm.canDisablePhysicalSubscription());
+        if (canDisable) {
+            ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mSm,
+                    (sm) -> sm.setUiccApplicationsEnabled(mSubId, false));
+            assertFalse(mSm.getActiveSubscriptionInfo(mSubId).areUiccApplicationsEnabled());
+
+            ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mSm,
+                    (sm) -> sm.setUiccApplicationsEnabled(mSubId, true));
+            assertTrue(mSm.getActiveSubscriptionInfo(mSubId).areUiccApplicationsEnabled());
+        }
     }
 
     @Test

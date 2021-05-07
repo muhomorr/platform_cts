@@ -18,6 +18,7 @@ package com.android.bedstead.harrier;
 
 import static com.android.bedstead.nene.users.UserType.MANAGED_PROFILE_TYPE_NAME;
 import static com.android.bedstead.nene.users.UserType.SECONDARY_USER_TYPE_NAME;
+import static com.android.bedstead.remotedpc.Configuration.REMOTE_DPC_COMPONENT_NAME;
 
 import static com.google.common.truth.Truth.assertWithMessage;
 
@@ -33,27 +34,43 @@ import androidx.annotation.Nullable;
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.platform.app.InstrumentationRegistry;
 
+import com.android.bedstead.harrier.annotations.EnsureDoesNotHavePermission;
+import com.android.bedstead.harrier.annotations.EnsureHasPermission;
 import com.android.bedstead.harrier.annotations.FailureMode;
+import com.android.bedstead.harrier.annotations.RequireDoesNotHaveFeatures;
 import com.android.bedstead.harrier.annotations.RequireFeatures;
 import com.android.bedstead.harrier.annotations.RequireUserSupported;
+import com.android.bedstead.harrier.annotations.enterprise.EnsureHasDeviceOwner;
+import com.android.bedstead.harrier.annotations.enterprise.EnsureHasNoDeviceOwner;
+import com.android.bedstead.harrier.annotations.enterprise.EnsureHasNoProfileOwner;
+import com.android.bedstead.harrier.annotations.enterprise.EnsureHasProfileOwner;
 import com.android.bedstead.harrier.annotations.meta.EnsureHasNoProfileAnnotation;
 import com.android.bedstead.harrier.annotations.meta.EnsureHasNoUserAnnotation;
 import com.android.bedstead.harrier.annotations.meta.EnsureHasProfileAnnotation;
 import com.android.bedstead.harrier.annotations.meta.EnsureHasUserAnnotation;
 import com.android.bedstead.harrier.annotations.meta.ParameterizedAnnotation;
+import com.android.bedstead.harrier.annotations.meta.RequireRunOnProfileAnnotation;
 import com.android.bedstead.harrier.annotations.meta.RequireRunOnUserAnnotation;
 import com.android.bedstead.harrier.annotations.meta.RequiresBedsteadJUnit4;
 import com.android.bedstead.nene.TestApis;
+import com.android.bedstead.nene.devicepolicy.DeviceOwner;
+import com.android.bedstead.nene.devicepolicy.DevicePolicyController;
+import com.android.bedstead.nene.devicepolicy.ProfileOwner;
 import com.android.bedstead.nene.exceptions.AdbException;
 import com.android.bedstead.nene.exceptions.NeneException;
+import com.android.bedstead.nene.permissions.PermissionContextImpl;
 import com.android.bedstead.nene.users.User;
 import com.android.bedstead.nene.users.UserBuilder;
 import com.android.bedstead.nene.users.UserReference;
 import com.android.bedstead.nene.utils.ShellCommand;
+import com.android.bedstead.remotedpc.RemoteDpc;
 import com.android.compatibility.common.util.BlockingBroadcastReceiver;
+
+import com.google.common.base.Objects;
 
 import junit.framework.AssertionFailedError;
 
+import org.junit.AssumptionViolatedException;
 import org.junit.rules.TestRule;
 import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
@@ -129,7 +146,9 @@ public final class DeviceState implements TestRule {
 
                 assumeFalse(mSkipTestsReason, mSkipTests);
 
-                for (Annotation annotation : getAnnotations(description)) {
+                PermissionContextImpl permissionContext = null;
+
+                for (Annotation annotation : description.getAnnotations()) {
                     Class<? extends Annotation> annotationType = annotation.annotationType();
 
                     EnsureHasNoProfileAnnotation ensureHasNoProfileAnnotation =
@@ -145,12 +164,13 @@ public final class DeviceState implements TestRule {
                     if (ensureHasProfileAnnotation != null) {
                         UserType forUser = (UserType) annotation.annotationType()
                                 .getMethod("forUser").invoke(annotation);
-                        boolean installTestApp = (boolean) annotation.annotationType()
-                                .getMethod("installTestApp").invoke(annotation);
+                        OptionalBoolean installInstrumentedApp = (OptionalBoolean)
+                                annotation.annotationType()
+                                .getMethod("installInstrumentedApp").invoke(annotation);
                             ensureHasProfile(
-                                    ensureHasProfileAnnotation.value(), installTestApp, forUser);
+                                    ensureHasProfileAnnotation.value(), installInstrumentedApp,
+                                    forUser);
                     }
-
 
                     EnsureHasNoUserAnnotation ensureHasNoUserAnnotation =
                             annotationType.getAnnotation(EnsureHasNoUserAnnotation.class);
@@ -161,15 +181,37 @@ public final class DeviceState implements TestRule {
                     EnsureHasUserAnnotation ensureHasUserAnnotation =
                             annotationType.getAnnotation(EnsureHasUserAnnotation.class);
                     if (ensureHasUserAnnotation != null) {
-                        boolean installTestApp = (boolean) annotation.getClass()
-                                .getMethod("installTestApp").invoke(annotation);
-                        ensureHasUser(ensureHasUserAnnotation.value(), installTestApp);
+                        OptionalBoolean installInstrumentedApp = (OptionalBoolean)
+                                annotation.getClass()
+                                .getMethod("installInstrumentedApp").invoke(annotation);
+                        ensureHasUser(ensureHasUserAnnotation.value(), installInstrumentedApp);
                     }
 
                     RequireRunOnUserAnnotation requireRunOnUserAnnotation =
                             annotationType.getAnnotation(RequireRunOnUserAnnotation.class);
                     if (requireRunOnUserAnnotation != null) {
                         requireRunOnUser(requireRunOnUserAnnotation.value());
+                    }
+
+                    RequireRunOnProfileAnnotation requireRunOnProfileAnnotation =
+                            annotationType.getAnnotation(RequireRunOnProfileAnnotation.class);
+                    if (requireRunOnProfileAnnotation != null) {
+                        OptionalBoolean installInstrumentedAppInParent = (OptionalBoolean)
+                                annotation.getClass()
+                                        .getMethod("installInstrumentedAppInParent")
+                                        .invoke(annotation);
+                        requireRunOnProfile(requireRunOnProfileAnnotation.value(),
+                                installInstrumentedAppInParent);
+                    }
+
+                    if (annotation instanceof EnsureHasDeviceOwner) {
+                        EnsureHasDeviceOwner ensureHasDeviceOwnerAnnotation =
+                                (EnsureHasDeviceOwner) annotation;
+                        ensureHasDeviceOwner(ensureHasDeviceOwnerAnnotation.onUser());
+                    }
+
+                    if (annotation instanceof EnsureHasNoDeviceOwner) {
+                        ensureHasNoDeviceOwner();
                     }
 
                     if (annotation instanceof RequireFeatures) {
@@ -179,12 +221,63 @@ public final class DeviceState implements TestRule {
                         }
                     }
 
+                    if (annotation instanceof RequireDoesNotHaveFeatures) {
+                        RequireDoesNotHaveFeatures requireDoesNotHaveFeaturesAnnotation =
+                                (RequireDoesNotHaveFeatures) annotation;
+                        for (String feature : requireDoesNotHaveFeaturesAnnotation.value()) {
+                            requireDoesNotHaveFeature(feature,
+                                    requireDoesNotHaveFeaturesAnnotation.failureMode());
+                        }
+                    }
+
+                    if (annotationType.equals(EnsureHasProfileOwner.class)) {
+                        EnsureHasProfileOwner ensureHasProfileOwnerAnnotation =
+                                (EnsureHasProfileOwner) annotation;
+                        ensureHasProfileOwner(ensureHasProfileOwnerAnnotation.onUser());
+                    }
+
+                    if (annotationType.equals(EnsureHasNoProfileOwner.class)) {
+                        EnsureHasNoProfileOwner ensureHasNoProfileOwnerAnnotation =
+                                (EnsureHasNoProfileOwner) annotation;
+                        ensureHasNoProfileOwner(ensureHasNoProfileOwnerAnnotation.onUser());
+                    }
+                       
                     if (annotation instanceof RequireUserSupported) {
                         RequireUserSupported requireUserSupportedAnnotation =
                                 (RequireUserSupported) annotation;
                         for (String userType: requireUserSupportedAnnotation.value()) {
                             requireUserSupported(
                                     userType, requireUserSupportedAnnotation.failureMode());
+                        }
+                    }
+
+                    if (annotation instanceof EnsureHasPermission) {
+                        EnsureHasPermission ensureHasPermissionAnnotation =
+                                (EnsureHasPermission) annotation;
+                        try {
+                            permissionContext = sTestApis.permissions().withPermission(
+                                    ensureHasPermissionAnnotation.value());
+                        } catch (NeneException e) {
+                            failOrSkip("Error getting permission: " + e,
+                                    ensureHasPermissionAnnotation.failureMode());
+                        }
+                    }
+
+                    if (annotation instanceof EnsureDoesNotHavePermission) {
+                        EnsureDoesNotHavePermission ensureDoesNotHavePermission =
+                                (EnsureDoesNotHavePermission) annotation;
+
+                        try {
+                            if (permissionContext == null) {
+                                permissionContext = sTestApis.permissions().withoutPermission(
+                                        ensureDoesNotHavePermission.value());
+                            } else {
+                                permissionContext = permissionContext.withoutPermission(
+                                        ensureDoesNotHavePermission.value());
+                            }
+                        } catch (NeneException e) {
+                            failOrSkip("Error denying permission: " + e,
+                                    ensureDoesNotHavePermission.failureMode());
                         }
                     }
 
@@ -197,12 +290,18 @@ public final class DeviceState implements TestRule {
                 } finally {
                     Log.d(LOG_TAG,
                             "Tearing down state for test " + description.getMethodName());
+
+                    if (permissionContext != null) {
+                        permissionContext.close();
+                    }
+
                     teardownNonShareableState();
                     if (!mSkipTestTeardown) {
                         teardownShareableState();
                     }
                     Log.d(LOG_TAG,
-                            "Finished tearing down state for test " + description.getMethodName());
+                            "Finished tearing down state for test "
+                                    + description.getMethodName());
                 }
             }};
     }
@@ -256,9 +355,28 @@ public final class DeviceState implements TestRule {
                 isRunningOnUser(userType));
     }
 
+    private void requireRunOnProfile(String userType,
+            OptionalBoolean installInstrumentedAppInParent) {
+        assumeTrue("This test only runs on users of type " + userType,
+                isRunningOnUser(userType));
+
+        if (installInstrumentedAppInParent.equals(OptionalBoolean.TRUE)) {
+            sTestApis.packages().find(sContext.getPackageName()).install(
+                    sTestApis.users().instrumented().resolve().parent());
+        } else if (installInstrumentedAppInParent.equals(OptionalBoolean.FALSE)) {
+            sTestApis.packages().find(sContext.getPackageName()).uninstall(
+                    sTestApis.users().instrumented().resolve().parent());
+        }
+    }
+
     private void requireFeature(String feature, FailureMode failureMode) {
         checkFailOrSkip("Device must have feature " + feature,
                 sTestApis.packages().features().contains(feature), failureMode);
+    }
+
+    private void requireDoesNotHaveFeature(String feature, FailureMode failureMode) {
+        checkFailOrSkip("Device must not have feature " + feature,
+                !sTestApis.packages().features().contains(feature), failureMode);
     }
 
     private com.android.bedstead.nene.users.UserType requireUserSupported(
@@ -284,7 +402,18 @@ public final class DeviceState implements TestRule {
         }
     }
 
+    private void failOrSkip(String message, FailureMode failureMode) {
+        if (failureMode.equals(FailureMode.FAIL)) {
+            throw new AssertionError(message);
+        } else if (failureMode.equals(FailureMode.SKIP)) {
+            throw new AssumptionViolatedException(message);
+        } else {
+            throw new IllegalStateException("Unknown failure mode: " + failureMode);
+        }
+    }
+
     public enum UserType {
+        SYSTEM_USER,
         CURRENT_USER,
         PRIMARY_USER,
         SECONDARY_USER,
@@ -300,10 +429,15 @@ public final class DeviceState implements TestRule {
             new HashMap<>();
     private final Map<com.android.bedstead.nene.users.UserType, Map<UserReference, UserReference>>
             mProfiles = new HashMap<>();
+    private DevicePolicyController mDeviceOwner;
+    private Map<UserReference, DevicePolicyController> mProfileOwners = new HashMap<>();
 
     private final List<UserReference> mCreatedUsers = new ArrayList<>();
     private final List<UserBuilder> mRemovedUsers = new ArrayList<>();
     private final List<BlockingBroadcastReceiver> mRegisteredBroadcastReceivers = new ArrayList<>();
+    private boolean mHasChangedDeviceOwner = false;
+    private DevicePolicyController mOriginalDeviceOwner = null;
+    private Map<UserReference, DevicePolicyController> mChangedProfileOwners = new HashMap<>();
 
     /**
      * Get the {@link UserReference} of the work profile for the current user
@@ -460,7 +594,7 @@ public final class DeviceState implements TestRule {
     }
 
     private UserReference ensureHasProfile(
-            String profileType, boolean installTestApp, UserType forUser) {
+            String profileType, OptionalBoolean installInstrumentedApp, UserType forUser) {
         requireFeature("android.software.managed_users", FailureMode.SKIP);
         com.android.bedstead.nene.users.UserType resolvedUserType =
                 requireUserSupported(profileType, FailureMode.SKIP);
@@ -475,9 +609,9 @@ public final class DeviceState implements TestRule {
 
         profile.start();
 
-        if (installTestApp) {
+        if (installInstrumentedApp.equals(OptionalBoolean.TRUE)) {
             sTestApis.packages().find(sContext.getPackageName()).install(profile);
-        } else {
+        } else if (installInstrumentedApp.equals(OptionalBoolean.FALSE)) {
             sTestApis.packages().find(sContext.getPackageName()).uninstall(profile);
         }
 
@@ -507,11 +641,11 @@ public final class DeviceState implements TestRule {
                         resolvedProfileType,
                         forUserReference);
         if (profile != null) {
-            removeAndRecordUser(profile.resolve());
+            removeAndRecordUser(profile);
         }
     }
 
-    private void ensureHasUser(String userType, boolean installTestApp) {
+    private void ensureHasUser(String userType, OptionalBoolean installInstrumentedApp) {
         com.android.bedstead.nene.users.UserType resolvedUserType =
                 requireUserSupported(userType, FailureMode.SKIP);
 
@@ -522,9 +656,9 @@ public final class DeviceState implements TestRule {
 
         user.start();
 
-        if (installTestApp) {
+        if (installInstrumentedApp.equals(OptionalBoolean.TRUE)) {
             sTestApis.packages().find(sContext.getPackageName()).install(user);
-        } else {
+        } else if (installInstrumentedApp.equals(OptionalBoolean.FALSE)) {
             sTestApis.packages().find(sContext.getPackageName()).uninstall(user);
         }
 
@@ -544,19 +678,23 @@ public final class DeviceState implements TestRule {
         }
 
         for (UserReference secondaryUser : sTestApis.users().findUsersOfType(resolvedUserType)) {
-            removeAndRecordUser(secondaryUser.resolve());
+            removeAndRecordUser(secondaryUser);
         }
     }
 
-    private void removeAndRecordUser(User user) {
-        if (user == null) {
+    private void removeAndRecordUser(UserReference userReference) {
+        if (userReference == null) {
             return; // Nothing to remove
         }
 
-        mRemovedUsers.add(sTestApis.users().createUser()
-                .name(user.name())
-                .type(user.type())
-                .parent(user.parent()));
+        User user = userReference.resolve();
+
+        if (!mCreatedUsers.remove(user)) {
+            mRemovedUsers.add(sTestApis.users().createUser()
+                    .name(user.name())
+                    .type(user.type())
+                    .parent(user.parent()));
+        }
 
         user.remove();
     }
@@ -593,6 +731,8 @@ public final class DeviceState implements TestRule {
 
     private UserReference resolveUserTypeToUser(UserType userType) {
         switch (userType) {
+            case SYSTEM_USER:
+                return sTestApis.users().system();
             case CURRENT_USER:
                 return sTestApis.users().instrumented();
             case PRIMARY_USER:
@@ -619,6 +759,40 @@ public final class DeviceState implements TestRule {
     }
 
     private void teardownShareableState() {
+        if (mHasChangedDeviceOwner) {
+            if (mOriginalDeviceOwner == null) {
+                if (mDeviceOwner != null) {
+                    mDeviceOwner.remove();
+                }
+            } else if (!mOriginalDeviceOwner.equals(mDeviceOwner)) {
+                mDeviceOwner.remove();
+                sTestApis.devicePolicy().setDeviceOwner(
+                        mOriginalDeviceOwner.user(), mOriginalDeviceOwner.componentName());
+            }
+            mHasChangedDeviceOwner = false;
+            mOriginalDeviceOwner = null;
+        }
+
+        for (Map.Entry<UserReference, DevicePolicyController> profileOwner :
+                mProfileOwners.entrySet()) {
+
+            ProfileOwner currentProfileOwner =
+                    sTestApis.devicePolicy().getProfileOwner(profileOwner.getKey());
+
+            if (Objects.equal(currentProfileOwner, profileOwner.getValue())) {
+                continue; // No need to restore
+            }
+
+            if (currentProfileOwner != null) {
+                currentProfileOwner.remove();
+            }
+
+            if (profileOwner.getValue() != null) {
+                sTestApis.devicePolicy().setProfileOwner(profileOwner.getKey(),
+                        profileOwner.getValue().componentName());
+            }
+        }
+
         for (UserReference user : mCreatedUsers) {
             user.remove();
         }
@@ -669,5 +843,165 @@ public final class DeviceState implements TestRule {
         } catch (AdbException e) {
             throw new IllegalStateException("Invalid command output", e);
         }
+    }
+
+    private void ensureHasDeviceOwner(UserType onUser) {
+        // TODO(scottjonathan): Should support non-remotedpc device owner (default to remotedpc)
+        // TODO(scottjonathan): Should allow setting the device owner on a different user
+        DeviceOwner currentDeviceOwner = sTestApis.devicePolicy().getDeviceOwner();
+
+        if (currentDeviceOwner != null
+                && currentDeviceOwner.componentName().equals(RemoteDpc.DPC_COMPONENT_NAME)) {
+            return;
+        }
+
+        UserReference instrumentedUser = sTestApis.users().instrumented();
+
+        // TODO(scottjonathan): Consider if we should restore these users
+        for (UserReference u : sTestApis.users().all()) {
+            if (u.equals(instrumentedUser)) {
+                continue;
+            }
+
+            removeAndRecordUser(u);
+        }
+
+        // TODO(scottjonathan): Remove accounts
+        ensureHasNoProfileOwner(onUser);
+
+        if (!mHasChangedDeviceOwner) {
+            mOriginalDeviceOwner = currentDeviceOwner;
+            mHasChangedDeviceOwner = true;
+        }
+
+        mDeviceOwner = RemoteDpc.setAsDeviceOwner(resolveUserTypeToUser(onUser))
+                .devicePolicyController();
+    }
+
+    private void ensureHasProfileOwner(UserType onUser) {
+        // TODO(scottjonathan): Should support non-remotedpc profile owner (default to remotedpc)
+        UserReference user = resolveUserTypeToUser(onUser);
+        ProfileOwner currentProfileOwner = sTestApis.devicePolicy().getProfileOwner(user);
+        DeviceOwner currentDeviceOwner = sTestApis.devicePolicy().getDeviceOwner();
+
+        if (currentDeviceOwner != null && currentDeviceOwner.user().equals(user)) {
+            // Can't have DO and PO on the same user
+            ensureHasNoDeviceOwner();
+        }
+
+        if (currentProfileOwner != null
+                && currentProfileOwner.componentName().equals(RemoteDpc.DPC_COMPONENT_NAME)) {
+            return;
+        }
+
+        if (!mChangedProfileOwners.containsKey(user)) {
+            mChangedProfileOwners.put(user, currentProfileOwner);
+        }
+
+        mProfileOwners.put(user, RemoteDpc.setAsProfileOwner(user).devicePolicyController());
+    }
+
+    private void ensureHasNoDeviceOwner() {
+        DeviceOwner deviceOwner = sTestApis.devicePolicy().getDeviceOwner();
+
+        if (deviceOwner == null) {
+            return;
+        }
+
+        if (!mHasChangedDeviceOwner) {
+            mOriginalDeviceOwner = deviceOwner;
+            mHasChangedDeviceOwner = true;
+        }
+
+        deviceOwner.remove();
+    }
+
+    private void ensureHasNoProfileOwner(UserType onUser) {
+        UserReference user = resolveUserTypeToUser(onUser);
+        ProfileOwner currentProfileOwner = sTestApis.devicePolicy().getProfileOwner(user);
+
+        if (currentProfileOwner == null) {
+            return;
+        }
+
+        if (!mChangedProfileOwners.containsKey(user)) {
+            mChangedProfileOwners.put(user, currentProfileOwner);
+        }
+
+        sTestApis.devicePolicy().getProfileOwner(user).remove();
+        mProfileOwners.remove(user);
+    }
+
+    /**
+     * Get the {@link RemoteDpc} for the device owner controlled by Harrier.
+     *
+     * <p>If no Harrier-managed device owner exists, an exception will be thrown.
+     *
+     * <p>If the device owner is not a RemoteDPC then an exception will be thrown
+     */
+    public RemoteDpc deviceOwner() {
+        if (mDeviceOwner == null) {
+            throw new IllegalStateException("No Harrier-managed device owner. This method should "
+                    + "only be used when Harrier was used to set the Device Owner.");
+        }
+        if (!mDeviceOwner.componentName().equals(REMOTE_DPC_COMPONENT_NAME)) {
+            throw new IllegalStateException("The device owner is not a RemoteDPC."
+                    + " You must use Nene to query for this device owner.");
+        }
+
+        return RemoteDpc.forDevicePolicyController(mDeviceOwner);
+    }
+
+    /**
+     * Get the {@link RemoteDpc} for the profile owner on the current user controlled by Harrier.
+     *
+     * <p>If no Harrier-managed profile owner exists, an exception will be thrown.
+     *
+     * <p>If the profile owner is not a RemoteDPC then an exception will be thrown.
+     */
+    public RemoteDpc profileOwner() {
+        return profileOwner(UserType.CURRENT_USER);
+    }
+
+    /**
+     * Get the {@link RemoteDpc} for the profile owner on the given user controlled by Harrier.
+     *
+     * <p>If no Harrier-managed profile owner exists, an exception will be thrown.
+     *
+     * <p>If the profile owner is not a RemoteDPC then an exception will be thrown.
+     */
+    public RemoteDpc profileOwner(UserType onUser) {
+        if (onUser == null) {
+            throw new NullPointerException();
+        }
+
+        return profileOwner(resolveUserTypeToUser(onUser));
+    }
+
+    /**
+     * Get the {@link RemoteDpc} for the profile owner on the given user controlled by Harrier.
+     *
+     * <p>If no Harrier-managed profile owner exists, an exception will be thrown.
+     *
+     * <p>If the profile owner is not a RemoteDPC then an exception will be thrown.
+     */
+    public RemoteDpc profileOwner(UserReference onUser) {
+        if (onUser == null) {
+            throw new NullPointerException();
+        }
+
+        if (!mProfileOwners.containsKey(onUser)) {
+            throw new IllegalStateException("No Harrier-managed profile owner. This method should "
+                    + "only be used when Harrier was used to set the Profile Owner.");
+        }
+
+        DevicePolicyController profileOwner = mProfileOwners.get(onUser);
+
+        if (!profileOwner.componentName().equals(REMOTE_DPC_COMPONENT_NAME)) {
+            throw new IllegalStateException("The profile owner is not a RemoteDPC."
+                    + " You must use Nene to query for this profile owner.");
+        }
+
+        return RemoteDpc.forDevicePolicyController(profileOwner);
     }
 }

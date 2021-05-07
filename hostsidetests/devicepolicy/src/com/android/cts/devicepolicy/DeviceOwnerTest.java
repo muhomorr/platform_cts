@@ -562,10 +562,10 @@ public class DeviceOwnerTest extends BaseDeviceOwnerTest {
     }
 
     @Test
-    @TemporaryIgnoreOnHeadlessSystemUserMode(bugId = "185523465",
-            reason = "need to decide how to support it")
     public void testSetLocationEnabled() throws Exception {
-        executeDeviceOwnerTest("SetLocationEnabledTest");
+        // Currently this method is only available for device owners, so on headless system user
+        // it must run on system user.
+        executeDeviceOwnerTestOnDeviceOwnerUser("SetLocationEnabledTest");
     }
 
     /**
@@ -884,6 +884,25 @@ public class DeviceOwnerTest extends BaseDeviceOwnerTest {
     public void testListForegroundAffiliatedUsers_onlyForegroundUser() throws Exception {
         executeDeviceTestMethod(".ListForegroundAffiliatedUsersTest",
                 "testListForegroundAffiliatedUsers_onlyForegroundUser");
+    }
+
+    @Test
+    public void testListForegroundAffiliatedUsers_onlyForegroundUserCalledByDeviceOwner()
+            throws Exception {
+        assumeHeadlessSystemUserMode("redundant, same as "
+                + "testListForegroundAffiliatedUsers_onlyForegroundUser");
+
+        // Must temporarily revoke permission to make sure internal checks are allowing it to be
+        // called by profile owner
+        revokePermission(DEVICE_OWNER_PKG, PERMISSION_INTERACT_ACROSS_USERS, mDeviceOwnerUserId);
+
+        try {
+            executeDeviceOwnerTestMethod(".ListForegroundAffiliatedUsersTest",
+                    "testListForegroundAffiliatedUsers_onlyForegroundUser");
+        } finally {
+            grantPermission(DEVICE_OWNER_PKG, PERMISSION_INTERACT_ACROSS_USERS, mDeviceOwnerUserId,
+                    /* reason= */ null);
+        }
     }
 
     @Test

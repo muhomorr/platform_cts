@@ -3,6 +3,24 @@ package {
 }
 
 android_library {
+    name: "RemoteDPC_Communication",
+    sdk_version: "test_current",
+    srcs: [
+        "src/communication/main/java/**/*.java"
+    ],
+    static_libs: [
+        "Nene",
+        "ConnectedAppsSDK",
+        "ConnectedAppsSDK_Annotations",
+        "androidx.annotation_annotation",
+        "RemoteDPC_Annotations"
+    ],
+    manifest: "src/communication/main/AndroidManifest.xml",
+    min_sdk_version: "27",
+    plugins: ["ConnectedAppsSDK_Processor", "RemoteDPC_Processor"],
+}
+
+android_library {
     name: "RemoteDPC",
     sdk_version: "test_current",
     srcs: [
@@ -10,6 +28,8 @@ android_library {
     ],
     static_libs: [
         "Nene",
+        "RemoteDPC_Communication",
+        "ConnectedAppsSDK",
     ],
     manifest: "src/library/main/AndroidManifest.xml",
     min_sdk_version: "27",
@@ -19,7 +39,8 @@ android_library {
 android_test_helper_app {
     name: "RemoteDPC_DPC",
     static_libs: [
-        "DeviceAdminApp"
+        "DeviceAdminApp",
+        "RemoteDPC_Communication",
     ],
     manifest: "src/dpc/main/AndroidManifest.xml",
     min_sdk_version: "27"
@@ -46,6 +67,7 @@ android_test {
     static_libs: [
         "RemoteDPC",
         "Nene",
+        "Harrier",
         "TestApp",
         "EventLib",
         "androidx.test.ext.junit",
@@ -55,4 +77,28 @@ android_test {
     ],
     manifest: "src/library/test/AndroidManifest.xml",
     min_sdk_version: "27"
+}
+
+java_library {
+    name: "RemoteDPC_Annotations",
+    srcs: [
+        "src/processor/main/java/com/android/bedstead/remotedpc/processor/annotations/*.java"
+    ],
+    host_supported: true
+}
+
+java_plugin {
+    name: "RemoteDPC_Processor",
+    processor_class: "com.android.bedstead.remotedpc.processor.Processor",
+    static_libs: [
+        "javapoet",
+        "auto_service_annotations",
+        "RemoteDPC_Annotations",
+        "ConnectedAppsSDK_Annotations"
+    ],
+    srcs: [
+        "src/processor/main/java/com/android/bedstead/remotedpc/processor/Processor.java"
+    ],
+    plugins: ["auto_service_plugin"],
+    generates_api: true,
 }

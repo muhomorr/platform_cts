@@ -64,8 +64,6 @@
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
-    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
     <uses-permission android:name="com.android.alarm.permission.SET_ALARM" />
     <uses-feature android:name="android.hardware.usb.accessory" />
     <uses-permission android:name="android.permission.CALL_PHONE" />
@@ -1777,6 +1775,22 @@
                     android:value="android.software.device_admin:android.software.secure_lock_screen" />
             <meta-data android:name="display_mode"
                        android:value="single_display_mode" />
+        </activity>
+
+        <activity android:name=".security.UnlockedDeviceRequiredTest"
+                android:label="@string/sec_unlocked_device_required_test"
+                android:configChanges="keyboardHidden|orientation|screenSize" >
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.cts.intent.category.MANUAL_TEST" />
+            </intent-filter>
+            <meta-data android:name="test_category" android:value="@string/test_category_security" />
+            <meta-data android:name="test_excluded_features"
+                       android:value="android.software.lockscreen_disabled" />
+            <meta-data android:name="test_required_features"
+                    android:value="android.software.device_admin:android.software.secure_lock_screen" />
+            <meta-data android:name="display_mode"
+                       android:value="multi_display_mode" />
         </activity>
 
         <activity android:name=".security.LockConfirmBypassTest"
@@ -4816,8 +4830,8 @@
             <meta-data android:name="display_mode" android:value="multi_display_mode" />
         </activity>
 
-        <service android:name="com.android.midi.MidiEchoTestService"
-                android:exported="true"
+        <service android:name="com.android.midi.VerifierMidiEchoService"
+            android:exported="true"
             android:permission="android.permission.BIND_MIDI_DEVICE_SERVICE">
             <intent-filter>
                 <action android:name="android.media.midi.MidiDeviceService" />
@@ -5383,7 +5397,7 @@
                 <category android:name="android.cts.intent.category.MANUAL_TEST" />
             </intent-filter>
             <meta-data android:name="test_category" android:value="@string/test_category_instant_apps" />
-            <meta-data android:name="test_excluded_features" android:value="android.hardware.type.television:android.software.leanback:android.hardware.type.automotive" />
+            <meta-data android:name="test_excluded_features" android:value="android.hardware.type.television:android.software.leanback:android.hardware.type.automotive:android.hardware.type.watch" />
             <meta-data android:name="display_mode"
                        android:value="multi_display_mode" />
         </activity>
@@ -5395,7 +5409,7 @@
                 <category android:name="android.cts.intent.category.MANUAL_TEST" />
             </intent-filter>
             <meta-data android:name="test_category" android:value="@string/test_category_instant_apps" />
-            <meta-data android:name="test_excluded_features" android:value="android.hardware.type.television:android.software.leanback:android.hardware.type.automotive" />
+            <meta-data android:name="test_excluded_features" android:value="android.hardware.type.television:android.software.leanback:android.hardware.type.automotive:android.hardware.type.watch" />
             <meta-data android:name="display_mode"
                        android:value="multi_display_mode" />
         </activity>
@@ -5408,7 +5422,7 @@
             </intent-filter>
             <meta-data android:name="test_category" android:value="@string/test_category_instant_apps" />
             <meta-data android:name="test_excluded_features"
-                android:value="android.hardware.type.television:android.software.leanback:android.hardware.type.automotive" />
+                android:value="android.hardware.type.television:android.software.leanback:android.hardware.type.automotive:android.hardware.type.watch" />
             <meta-data android:name="display_mode"
                        android:value="multi_display_mode" />
         </activity>

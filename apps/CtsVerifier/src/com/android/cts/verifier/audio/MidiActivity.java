@@ -44,7 +44,7 @@ import android.widget.TextView;
 import com.android.cts.verifier.PassFailButtons;
 import com.android.cts.verifier.R;  // needed to access resource in CTSVerifier project namespace.
 
-import com.android.midi.MidiEchoTestService;
+import com.android.midi.VerifierMidiEchoService;
 
 /*
  * A note about the USB MIDI device.
@@ -56,7 +56,7 @@ import com.android.midi.MidiEchoTestService;
 
 /*
  *  A note about the "virtual MIDI" device...
- * See file MidiEchoTestService for implementation of the echo server itself.
+ * See file MidiEchoService for implementation of the echo server itself.
  * This service is started by the main manifest file (AndroidManifest.xml).
  */
 
@@ -279,7 +279,7 @@ public class MidiActivity extends PassFailButtons.Activity implements View.OnCli
         // Init MIDI Stuff
         mMidiManager = (MidiManager) getSystemService(Context.MIDI_SERVICE);
 
-        mMidiServiceIntent = new Intent(this, MidiEchoTestService.class);
+        mMidiServiceIntent = new Intent(this, VerifierMidiEchoService.class);
 
         // Initial MIDI Device Scan
         scanMidiDevices();
@@ -687,7 +687,7 @@ public class MidiActivity extends PassFailButtons.Activity implements View.OnCli
 
             // KeyUp
             mTestMessages[1] = new TestMessage();
-            mTestMessages[1].mMsgBytes = new byte[]{makeMIDICmd(kMIDICmd_KeyDown, 0), 64, 45};
+            mTestMessages[1].mMsgBytes = new byte[]{makeMIDICmd(kMIDICmd_KeyUp, 0), 64, 45};
 
             // SysEx
             // NOTE: A sysex on the MT-BT01 seems to top out at sometimes as low as 40 bytes.
@@ -721,6 +721,10 @@ public class MidiActivity extends PassFailButtons.Activity implements View.OnCli
                 offset += numBytes;
             }
             mReceiveStreamPos = 0;
+
+            if (DEBUG) {
+                logByteArray("mMIDIDataStream: ", mMIDIDataStream, 0, mMIDIDataStreamSize);
+            }
         }
 
         /**
@@ -759,8 +763,13 @@ public class MidiActivity extends PassFailButtons.Activity implements View.OnCli
                 if (bytes[offset + index] != mMIDIDataStream[mReceiveStreamPos]) {
                     matches = false;
                     if (DEBUG) {
-                        Log.i(TAG, "---- mismatch @" + index + " [" + bytes[offset + index] +
-                                " : " + mMIDIDataStream[mReceiveStreamPos] + "]");
+                        int gotValue = bytes[offset + index] & 0x000000FF;
+                        int expectedValue = mMIDIDataStream[mReceiveStreamPos] & 0x000000FF;
+                        Log.i(TAG, "---- mismatch @"
+                                + index
+                                + " [0x" + Integer.toHexString(gotValue)
+                                + " : 0x" + Integer.toHexString(expectedValue)
+                                + "]");
                     }
                 }
                 mReceiveStreamPos++;
@@ -825,6 +834,7 @@ public class MidiActivity extends PassFailButtons.Activity implements View.OnCli
             @Override
             public void onSend(byte[] msg, int offset, int count, long timestamp) throws IOException {
                 if (DEBUG) {
+                    logByteArray("received: ", msg, offset, count);
                     Log.d(TAG, "---- onSend() offset:" + offset + " count:" + count);
                 }
                 if (!matchStream(msg, offset, count)) {
@@ -846,7 +856,6 @@ public class MidiActivity extends PassFailButtons.Activity implements View.OnCli
                         public void run() {
                             mTestStatus = mTestMismatched
                                     ? TESTSTATUS_FAILED_MISMATCH : TESTSTATUS_PASSED;
-                            Log.i(TAG, "---- mTestStatus:" + mTestStatus);
                             closePorts();
                         }
                     }).start();

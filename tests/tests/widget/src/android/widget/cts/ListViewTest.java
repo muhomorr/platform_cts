@@ -16,6 +16,8 @@
 
 package android.widget.cts;
 
+import static android.widget.cts.util.StretchEdgeUtil.fling;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -38,7 +40,6 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import android.app.ActionBar.LayoutParams;
 import android.app.Activity;
 import android.app.Instrumentation;
-import android.app.compat.CompatChanges;
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Color;
@@ -60,7 +61,6 @@ import android.widget.AdapterView;
 import android.widget.AdapterView.OnItemClickListener;
 import android.widget.ArrayAdapter;
 import android.widget.BaseAdapter;
-import android.widget.EdgeEffect;
 import android.widget.FrameLayout;
 import android.widget.ListView;
 import android.widget.TextView;
@@ -98,8 +98,6 @@ import java.util.concurrent.TimeUnit;
 @SmallTest
 @RunWith(AndroidJUnit4.class)
 public class ListViewTest {
-    static final long USE_STRETCH_EDGE_EFFECT_BY_DEFAULT = 171228096L;
-    static final long USE_STRETCH_EDGE_EFFECT_FOR_SUPPORTED = 178807038L;
     private final String[] mCountryList = new String[] {
         "Argentina", "Australia", "China", "France", "Germany", "Italy", "Japan", "United States"
     };
@@ -1163,23 +1161,6 @@ public class ListViewTest {
     }
 
     @Test
-    public void testEdgeEffectType() {
-        // Should default to "glow"
-        int expectedStartType = (CompatChanges.isChangeEnabled(USE_STRETCH_EDGE_EFFECT_BY_DEFAULT)
-                || CompatChanges.isChangeEnabled(USE_STRETCH_EDGE_EFFECT_FOR_SUPPORTED))
-                ? EdgeEffect.TYPE_STRETCH : EdgeEffect.TYPE_GLOW;
-        assertEquals(expectedStartType, mListView.getEdgeEffectType());
-
-        // This one has "stretch" attribute
-        assertEquals(EdgeEffect.TYPE_STRETCH, mListViewStretch.getEdgeEffectType());
-
-        mListViewStretch.setEdgeEffectType(EdgeEffect.TYPE_GLOW);
-        assertEquals(EdgeEffect.TYPE_GLOW, mListViewStretch.getEdgeEffectType());
-        mListViewStretch.setEdgeEffectType(EdgeEffect.TYPE_STRETCH);
-        assertEquals(EdgeEffect.TYPE_STRETCH, mListViewStretch.getEdgeEffectType());
-    }
-
-    @Test
     public void testStretchAtTop() throws Throwable {
         // Make sure that the view we care about is on screen and at the top:
         showOnlyStretch();
@@ -1225,6 +1206,32 @@ public class ListViewTest {
 
         scrollToBottomOfStretch();
         assertTrue(StretchEdgeUtil.dragUpTapAndHoldStretches(mActivityRule, mListViewStretch));
+    }
+
+    @Test
+    public void testFlingWhileStretchedTop() throws Throwable {
+        // Make sure that the scroll view we care about is on screen and at the top:
+        showOnlyStretch();
+
+        ScrollViewTest.CaptureOnAbsorbEdgeEffect
+                edgeEffect = new ScrollViewTest.CaptureOnAbsorbEdgeEffect(mActivity);
+        mListViewStretch.mEdgeGlowTop = edgeEffect;
+        fling(mActivityRule, mListViewStretch, 0, 300);
+        assertTrue(edgeEffect.onAbsorbVelocity > 0);
+    }
+
+    @Test
+    public void testFlingWhileStretchedBottom() throws Throwable {
+        // Make sure that the scroll view we care about is on screen and at the top:
+        showOnlyStretch();
+
+        scrollToBottomOfStretch();
+
+        ScrollViewTest.CaptureOnAbsorbEdgeEffect
+                edgeEffect = new ScrollViewTest.CaptureOnAbsorbEdgeEffect(mActivity);
+        mListViewStretch.mEdgeGlowBottom = edgeEffect;
+        fling(mActivityRule, mListViewStretch, 0, -300);
+        assertTrue(edgeEffect.onAbsorbVelocity > 0);
     }
 
     private void showOnlyStretch() throws Throwable {

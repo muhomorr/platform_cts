@@ -394,6 +394,83 @@ public class JobThrottlingTest {
         assertFalse("New job started in RESTRICTED bucket", mTestAppInterface.awaitJobStart(3_000));
     }
 
+    /**
+     * Tests that apps in the RESTRICTED bucket have their parole sessions properly counted even
+     * when charging (but not idle).
+     */
+    @Test
+    public void testJobsInRestrictedBucket_CorrectParoleWhileCharging() throws Exception {
+        assumeTrue("app standby not enabled", mAppStandbyEnabled);
+        assumeFalse("not testable in automotive device", mAutomotiveDevice);
+        assumeFalse("not testable in leanback device", mLeanbackOnly);
+
+        setRestrictedBucketEnabled(true);
+
+        // Disable coalescing
+        mDeviceConfigStateHelper.set("qc_timing_session_coalescing_duration_ms", "0");
+        mDeviceConfigStateHelper.set("qc_max_session_count_restricted", "1");
+
+        setScreenState(true);
+        BatteryUtils.runDumpsysBatterySetPluggedIn(true);
+        BatteryUtils.runDumpsysBatterySetLevel(100);
+
+        setTestPackageStandbyBucket(Bucket.RESTRICTED);
+        Thread.sleep(DEFAULT_WAIT_TIMEOUT);
+        sendScheduleJobBroadcast(false);
+        runJob();
+        assertTrue("Parole job didn't start in RESTRICTED bucket",
+                mTestAppInterface.awaitJobStart(3_000));
+
+        sendScheduleJobBroadcast(false);
+        assertFalse("New job started in RESTRICTED bucket after parole used",
+                mTestAppInterface.awaitJobStart(3_000));
+    }
+
+    /**
+     * Tests that apps in the RESTRICTED bucket that have used their one parole session per day
+     * don't get to run again until the device is charging + idle.
+     */
+    @Test
+    public void testJobsInRestrictedBucket_DeferredUntilFreeResources() throws Exception {
+        assumeTrue("app standby not enabled", mAppStandbyEnabled);
+        assumeFalse("not testable in automotive device", mAutomotiveDevice);
+        assumeFalse("not testable in leanback device", mLeanbackOnly);
+
+        setRestrictedBucketEnabled(true);
+
+        // Disable coalescing
+        mDeviceConfigStateHelper.set("qc_timing_session_coalescing_duration_ms", "0");
+
+        setScreenState(true);
+
+        BatteryUtils.runDumpsysBatteryUnplug();
+        setTestPackageStandbyBucket(Bucket.RESTRICTED);
+        Thread.sleep(DEFAULT_WAIT_TIMEOUT);
+        sendScheduleJobBroadcast(false);
+        runJob();
+        assertTrue("Parole job didn't start in RESTRICTED bucket",
+                mTestAppInterface.awaitJobStart(3_000));
+
+        sendScheduleJobBroadcast(false);
+        assertFalse("New job started in RESTRICTED bucket after parole used",
+                mTestAppInterface.awaitJobStart(3_000));
+
+        BatteryUtils.runDumpsysBatterySetPluggedIn(true);
+        BatteryUtils.runDumpsysBatterySetLevel(100);
+        assertFalse("New job started in RESTRICTED bucket after parole when charging but not idle",
+                mTestAppInterface.awaitJobStart(3_000));
+
+        setScreenState(false);
+        triggerJobIdle();
+        assertTrue("Job didn't start in RESTRICTED bucket when charging + idle",
+                mTestAppInterface.awaitJobStart(3_000));
+
+        // Make sure job can be stopped and started again when charging + idle
+        sendScheduleJobBroadcast(false);
+        assertTrue("Job didn't restart in RESTRICTED bucket when charging + idle",
+                mTestAppInterface.awaitJobStart(3_000));
+    }
+
     @Test
     public void testJobsInRestrictedBucket_NoRequiredNetwork() throws Exception {
         assumeTrue("app standby not enabled", mAppStandbyEnabled);
@@ -632,14 +709,18 @@ public class JobThrottlingTest {
     @Test
     public void testExpeditedJobDeferredAfterTimeoutInDoze() throws Exception {
         assumeTrue("device idle not enabled", mDeviceIdleEnabled);
-        mDeviceConfigStateHelper.set("runtime_min_ej_guarantee_ms", Long.toString(60_000L));
+        // Intentionally set a value below 1 minute to ensure the range checks work.
+        mDeviceConfigStateHelper.set("runtime_min_ej_guarantee_ms", Long.toString(30_000L));
 
         toggleDozeState(true);
         mTestAppInterface.scheduleJob(false, JobInfo.NETWORK_TYPE_NONE, true);
         runJob();
         assertTrue("Job did not start after scheduling",
                 mTestAppInterface.awaitJobStart(DEFAULT_WAIT_TIMEOUT));
-        assertTrue("Job did not stop after timeout", mTestAppInterface.awaitJobStop(70_000L));
+        // Don't put full minute as the timeout to give some leeway with test timing/processing.
+        assertFalse("Job stopped before min runtime limit",
+                mTestAppInterface.awaitJobStop(55_000L));
+        assertTrue("Job did not stop after timeout", mTestAppInterface.awaitJobStop(15_000L));
         assertEquals(JobParameters.STOP_REASON_DEVICE_STATE,
                 mTestAppInterface.getLastParams().getStopReason());
         // Should be rescheduled.
@@ -660,7 +741,8 @@ public class JobThrottlingTest {
     public void testExpeditedJobDeferredAfterTimeoutInBatterySaver() throws Exception {
         BatteryUtils.assumeBatterySaverFeature();
 
-        mDeviceConfigStateHelper.set("runtime_min_ej_guarantee_ms", Long.toString(60_000L));
+        // Intentionally set a value below 1 minute to ensure the range checks work.
+        mDeviceConfigStateHelper.set("runtime_min_ej_guarantee_ms", Long.toString(47_000L));
 
         BatteryUtils.runDumpsysBatteryUnplug();
         BatteryUtils.enableBatterySaver(true);
@@ -668,7 +750,10 @@ public class JobThrottlingTest {
         runJob();
         assertTrue("Job did not start after scheduling",
                 mTestAppInterface.awaitJobStart(DEFAULT_WAIT_TIMEOUT));
-        assertTrue("Job did not stop after timeout", mTestAppInterface.awaitJobStop(70_000L));
+        // Don't put full minute as the timeout to give some leeway with test timing/processing.
+        assertFalse("Job stopped before min runtime limit",
+                mTestAppInterface.awaitJobStop(55_000L));
+        assertTrue("Job did not stop after timeout", mTestAppInterface.awaitJobStop(15_000L));
         assertEquals(JobParameters.STOP_REASON_DEVICE_STATE,
                 mTestAppInterface.getLastParams().getStopReason());
         // Should be rescheduled.
@@ -697,7 +782,10 @@ public class JobThrottlingTest {
         runJob();
         assertTrue("Job did not start after scheduling",
                 mTestAppInterface.awaitJobStart(DEFAULT_WAIT_TIMEOUT));
-        assertTrue("Job did not stop after timeout", mTestAppInterface.awaitJobStop(70_000L));
+        // Don't put full minute as the timeout to give some leeway with test timing/processing.
+        assertFalse("Job stopped before min runtime limit",
+                mTestAppInterface.awaitJobStop(55_000L));
+        assertTrue("Job did not stop after timeout", mTestAppInterface.awaitJobStop(15_000L));
         assertEquals(JobParameters.STOP_REASON_DEVICE_STATE,
                 mTestAppInterface.getLastParams().getStopReason());
         // Should be rescheduled.
@@ -720,7 +808,8 @@ public class JobThrottlingTest {
     @Test
     public void testLongExpeditedJobStoppedByDoze() throws Exception {
         assumeTrue("device idle not enabled", mDeviceIdleEnabled);
-        mDeviceConfigStateHelper.set("runtime_min_ej_guarantee_ms", Long.toString(60_000L));
+        // Intentionally set a value below 1 minute to ensure the range checks work.
+        mDeviceConfigStateHelper.set("runtime_min_ej_guarantee_ms", Long.toString(59_000L));
 
         toggleDozeState(false);
         mTestAppInterface.scheduleJob(false, JobInfo.NETWORK_TYPE_NONE, true);
@@ -742,7 +831,8 @@ public class JobThrottlingTest {
     public void testLongExpeditedJobStoppedByBatterySaver() throws Exception {
         BatteryUtils.assumeBatterySaverFeature();
 
-        mDeviceConfigStateHelper.set("runtime_min_ej_guarantee_ms", Long.toString(60_000L));
+        // Intentionally set a value below 1 minute to ensure the range checks work.
+        mDeviceConfigStateHelper.set("runtime_min_ej_guarantee_ms", Long.toString(0L));
 
         BatteryUtils.runDumpsysBatteryUnplug();
         BatteryUtils.enableBatterySaver(false);

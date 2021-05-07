@@ -156,7 +156,7 @@ public class DisplayTest {
         mDefaultDisplay = mDisplayManager.getDisplay(DEFAULT_DISPLAY);
         mSupportedWideGamuts = mDefaultDisplay.getSupportedWideColorGamut();
         mOriginalHdrSettings = new HdrSettings();
-        cacheOriginalHdrSettings();
+        cacheAndClearOriginalHdrSettings();
     }
 
     @After
@@ -369,7 +369,7 @@ public class DisplayTest {
         public int[] userDisabledHdrTypes;
     }
 
-    private void cacheOriginalHdrSettings() {
+    private void cacheAndClearOriginalHdrSettings() {
         mOriginalHdrSettings.areUserDisabledHdrTypesAllowed =
                 mDisplayManager.areUserDisabledHdrTypesAllowed();
         mOriginalHdrSettings.userDisabledHdrTypes =
@@ -378,6 +378,7 @@ public class DisplayTest {
         SurfaceControl.overrideHdrTypes(displayToken, new int[]{
                 HdrCapabilities.HDR_TYPE_DOLBY_VISION, HdrCapabilities.HDR_TYPE_HDR10,
                 HdrCapabilities.HDR_TYPE_HLG, HdrCapabilities.HDR_TYPE_HDR10_PLUS});
+        mDisplayManager.setAreUserDisabledHdrTypesAllowed(true);
     }
 
     private void restoreOriginalHdrSettings() {
@@ -389,8 +390,9 @@ public class DisplayTest {
                 mOriginalHdrSettings.areUserDisabledHdrTypesAllowed);
     }
 
-    private void waitUntil(Display d, Predicate<Display> pred, Duration maxWait) throws Exception {
-        final int id = d.getDisplayId();
+    private void waitUntil(Display display, Predicate<Display> pred, Duration maxWait)
+            throws Exception {
+        final int id = display.getDisplayId();
         final Lock lock = new ReentrantLock();
         final Condition displayChanged = lock.newCondition();
         DisplayListener listener = new DisplayListener() {
@@ -416,7 +418,7 @@ public class DisplayTest {
         long remainingNanos = maxWait.toNanos();
         lock.lock();
         try {
-            while (!pred.test(mDefaultDisplay)) {
+            while (!pred.test(display)) {
                 if (remainingNanos <= 0L) {
                     throw new TimeoutException();
                 }

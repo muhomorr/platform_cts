@@ -121,6 +121,8 @@ public class CommandReceiverActivity extends Activity {
     public static final String COMMAND_WITHOUT_USER_SWITCHER_MESSAGE =
             "without-user-switcher-message";
     public static final String COMMAND_ENABLE_LOGOUT = "enable-logout";
+    public static final String COMMAND_DISABLE_USB_DATA_SIGNALING = "disable-usb-data-signaling";
+    public static final String COMMAND_ENABLE_USB_DATA_SIGNALING = "enable-usb-data-signaling";
 
     public static final String EXTRA_USER_RESTRICTION =
             "com.android.cts.verifier.managedprovisioning.extra.USER_RESTRICTION";
@@ -208,7 +210,7 @@ public class CommandReceiverActivity extends Activity {
                     String restrictionKey = intent.getStringExtra(EXTRA_USER_RESTRICTION);
                     boolean enforced = intent.getBooleanExtra(EXTRA_ENFORCED, false);
                     Log.i(TAG, "Setting '" + restrictionKey + "'=" + enforced + " using " + mDpm
-                            + " on user " + getUserId());
+                            + " on user " + UserHandle.myUserId());
                     if (enforced) {
                         mDpm.addUserRestriction(mAdmin, restrictionKey);
                     } else {
@@ -283,7 +285,7 @@ public class CommandReceiverActivity extends Activity {
                 case COMMAND_REMOVE_DEVICE_OWNER: {
                     if (!mDpm.isDeviceOwnerApp(getPackageName())) {
                         Log.e(TAG, COMMAND_REMOVE_DEVICE_OWNER + ": " + getPackageName()
-                                + " is not DO for user " + getUserId());
+                                + " is not DO for user " + UserHandle.myUserId());
                         return;
                     }
                     clearAllPoliciesAndRestrictions();
@@ -291,7 +293,7 @@ public class CommandReceiverActivity extends Activity {
 
                     // TODO(b/179100903): temporarily removing PO, should be done automatically
                     if (UserManager.isHeadlessSystemUserMode()) {
-                        Log.i(TAG, "Disabling PO on user " + getUserId());
+                        Log.i(TAG, "Disabling PO on user " + UserHandle.myUserId());
                         DevicePolicyManager localDpm = getSystemService(DevicePolicyManager.class);
                         localDpm.clearProfileOwner(mAdmin);
                     }
@@ -527,6 +529,14 @@ public class CommandReceiverActivity extends Activity {
                             null, SKIP_SETUP_WIZARD | MAKE_USER_EPHEMERAL);
                     mDpm.switchUser(mAdmin, userHandle);
                 } break;
+                case COMMAND_DISABLE_USB_DATA_SIGNALING: {
+                    mDpm.setUsbDataSignalingEnabled(false);
+                    break;
+                }
+                case COMMAND_ENABLE_USB_DATA_SIGNALING: {
+                    mDpm.setUsbDataSignalingEnabled(true);
+                    break;
+                }
             }
         } catch (Exception e) {
             Log.e(TAG, "Failed to execute command: " + intent, e);

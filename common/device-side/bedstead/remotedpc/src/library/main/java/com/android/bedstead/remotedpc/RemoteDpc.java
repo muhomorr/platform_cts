@@ -16,8 +16,10 @@
 
 package com.android.bedstead.remotedpc;
 
+import static com.android.bedstead.remotedpc.Configuration.REMOTE_DPC_COMPONENT_NAME;
 import static com.android.compatibility.common.util.FileUtils.readInputStreamFully;
 
+import android.app.admin.DevicePolicyManager;
 import android.content.ComponentName;
 import android.content.Context;
 import android.os.UserHandle;
@@ -30,6 +32,11 @@ import com.android.bedstead.nene.devicepolicy.DevicePolicyController;
 import com.android.bedstead.nene.devicepolicy.ProfileOwner;
 import com.android.bedstead.nene.exceptions.NeneException;
 import com.android.bedstead.nene.users.UserReference;
+import com.android.bedstead.remotedpc.connected.RemoteDPCBinder;
+import com.android.bedstead.remotedpc.managers.RemoteDevicePolicyManager;
+import com.android.bedstead.remotedpc.managers.RemoteDevicePolicyManager_Wrapper;
+
+import com.google.android.enterprise.connectedapps.CrossProfileConnector;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -39,10 +46,8 @@ public final class RemoteDpc {
 
     private static final TestApis sTestApis = new TestApis();
     private static final Context sContext = sTestApis.context().instrumentedContext();
-    private static final ComponentName DPC_COMPONENT = new ComponentName(
-            "com.android.bedstead.remotedpc.dpc",
-            "com.android.eventlib.premade.EventLibDeviceAdminReceiver"
-    );
+
+    public static final ComponentName DPC_COMPONENT_NAME = REMOTE_DPC_COMPONENT_NAME;
 
     /**
      * Get the {@link RemoteDpc} instance for the Device Owner.
@@ -52,7 +57,7 @@ public final class RemoteDpc {
     @Nullable
     public static RemoteDpc deviceOwner() {
         DeviceOwner deviceOwner = sTestApis.devicePolicy().getDeviceOwner();
-        if (deviceOwner == null || !deviceOwner.componentName().equals(DPC_COMPONENT)) {
+        if (deviceOwner == null || !deviceOwner.componentName().equals(DPC_COMPONENT_NAME)) {
             return null;
         }
 
@@ -95,7 +100,7 @@ public final class RemoteDpc {
         }
 
         ProfileOwner profileOwner = sTestApis.devicePolicy().getProfileOwner(profile);
-        if (profileOwner == null || !profileOwner.componentName().equals(DPC_COMPONENT)) {
+        if (profileOwner == null || !profileOwner.componentName().equals(DPC_COMPONENT_NAME)) {
             return null;
         }
 
@@ -144,6 +149,21 @@ public final class RemoteDpc {
     }
 
     /**
+     * Get the {@link RemoteDpc} controller for the given {@link DevicePolicyController}.
+     */
+    public static RemoteDpc forDevicePolicyController(DevicePolicyController controller) {
+        if (controller == null) {
+            throw new NullPointerException();
+        }
+        if (!controller.componentName().equals(REMOTE_DPC_COMPONENT_NAME)) {
+            throw new IllegalStateException("DevicePolicyController is not a RemoteDPC: "
+                    + controller);
+        }
+
+        return new RemoteDpc(controller);
+    }
+
+    /**
      * Set RemoteDPC as the Device Owner.
      */
     public static RemoteDpc setAsDeviceOwner(UserHandle user) {
@@ -163,14 +183,15 @@ public final class RemoteDpc {
 
         DeviceOwner deviceOwner = sTestApis.devicePolicy().getDeviceOwner();
         if (deviceOwner != null) {
-            if (deviceOwner.componentName().equals(DPC_COMPONENT)) {
+            if (deviceOwner.componentName().equals(DPC_COMPONENT_NAME)) {
                 return new RemoteDpc(deviceOwner); // Already set
             }
             deviceOwner.remove();
         }
 
         ensureInstalled(user);
-        return new RemoteDpc(sTestApis.devicePolicy().setDeviceOwner(user, DPC_COMPONENT));
+        return new RemoteDpc(sTestApis.devicePolicy().setDeviceOwner(user,
+                REMOTE_DPC_COMPONENT_NAME));
     }
 
     /**
@@ -193,14 +214,15 @@ public final class RemoteDpc {
 
         ProfileOwner profileOwner = sTestApis.devicePolicy().getProfileOwner(user);
         if (profileOwner != null) {
-            if (profileOwner.componentName().equals(DPC_COMPONENT)) {
+            if (profileOwner.componentName().equals(DPC_COMPONENT_NAME)) {
                 return new RemoteDpc(profileOwner); // Already set
             }
             profileOwner.remove();
         }
 
         ensureInstalled(user);
-        return new RemoteDpc(sTestApis.devicePolicy().setProfileOwner(user, DPC_COMPONENT));
+        return new RemoteDpc(sTestApis.devicePolicy().setProfileOwner(user,
+                REMOTE_DPC_COMPONENT_NAME));
     }
 
     private static void ensureInstalled(UserReference user) {
@@ -219,12 +241,16 @@ public final class RemoteDpc {
     }
 
     private final DevicePolicyController mDevicePolicyController;
+    private final CrossProfileConnector mConnector;
 
     private RemoteDpc(DevicePolicyController devicePolicyController) {
         if (devicePolicyController == null) {
             throw new NullPointerException();
         }
         mDevicePolicyController = devicePolicyController;
+        mConnector = CrossProfileConnector.builder(sTestApis.context().instrumentedContext())
+                .setBinder(new RemoteDPCBinder(this))
+                .build();
     }
 
     /**
@@ -239,7 +265,7 @@ public final class RemoteDpc {
      */
     public void remove() {
         mDevicePolicyController.remove();
-        sTestApis.packages().find(DPC_COMPONENT.getPackageName())
+        sTestApis.packages().find(REMOTE_DPC_COMPONENT_NAME.getPackageName())
                 .uninstall(mDevicePolicyController.user());
     }
 
@@ -256,5 +282,13 @@ public final class RemoteDpc {
 
         RemoteDpc other = (RemoteDpc) obj;
         return other.mDevicePolicyController.equals(mDevicePolicyController);
+    }
+
+    /**
+     * Get a {@link RemoteDevicePolicyManager} to make calls to {@link DevicePolicyManager} using
+     * this RemoteDPC.
+     */
+    public RemoteDevicePolicyManager devicePolicyManager() {
+        return new RemoteDevicePolicyManager_Wrapper(mConnector);
     }
 }

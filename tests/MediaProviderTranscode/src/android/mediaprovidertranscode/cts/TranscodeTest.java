@@ -893,6 +893,39 @@ public class TranscodeTest {
     }
 
     /**
+     * Tests that transcoding cache gets cleared when PackagerManager frees storage.
+     */
+    @Test
+    public void testTranscodingCacheClear() throws Exception {
+        File modernFile = new File(DIR_CAMERA, HEVC_FILE_NAME);
+        try {
+            TranscodeTestUtils.stageHEVCVideoFile(modernFile);
+            TranscodeTestUtils.enableTranscodingForPackage(getContext().getPackageName());
+
+            // Trigger transcoding so that the transcoded file gets added to cache.
+            assertTranscode(modernFile, true);
+
+            // Invoke StorageManager to free maximum allocatable bytes, so that it tries to clear
+            // all available caches.
+            StorageManager storageManager = getContext().getSystemService(StorageManager.class);
+            StorageVolume vol = storageManager.getStorageVolume(modernFile);
+            UUID uuid = vol.getStorageUuid();
+            try {
+                // The storage allocation for requested bytes may succeed or fail, but we don't
+                // care as long as the cache clearing gets invoked. Hence we swallow the exception
+                // for failure case, and allow the test execution to continue.
+                storageManager.allocateBytes(uuid, storageManager.getAllocatableBytes(uuid));
+            } catch (IOException e) {}
+            finally {
+                // Assert that transcoding happens again, i.e., transcoding cache was cleared.
+                assertTranscode(modernFile, true);
+            }
+        } finally {
+            modernFile.delete();
+        }
+    }
+
+    /**
      * Tests that we can successfully write to a transcoded file.
      * We check this by writing something to tanscoded content and then read it back.
      */
