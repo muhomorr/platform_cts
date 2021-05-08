@@ -14,12 +14,7 @@
   ~ See the License for the specific language governing permissions and
   ~ limitations under the License.
   -->
-<configuration description="Config for Nene test cases">
-    <target_preparer class="com.android.tradefed.targetprep.suite.SuiteApkInstaller">
-        <option name="cleanup-apks" value="true" />
-        <option name="test-file-name" value="HarrierTest.apk" />
-    </target_preparer>
-    <test class="com.android.tradefed.testtype.AndroidJUnitTest" >
-        <option name="package" value="com.android.bedstead.harrier.test" />
-    </test>
-</configuration>
+<resources>
+    <dimen name="appwidget_max_background_radius">28dp</dimen>
+    <dimen name="appwidget_radii_difference">8dp</dimen>
+</resources>
