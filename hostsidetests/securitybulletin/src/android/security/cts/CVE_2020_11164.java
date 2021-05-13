@@ -1,4 +1,4 @@
-/*
+/**
  * Copyright (C) 2021 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,34 +13,26 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package android.security.cts;
 
+import static org.junit.Assert.*;
+
 import android.platform.test.annotations.SecurityTest;
-import com.android.compatibility.common.util.CrashUtils;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
-import java.util.Arrays;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import static org.junit.Assume.*;
-import static org.hamcrest.CoreMatchers.*;
-
 @RunWith(DeviceJUnit4ClassRunner.class)
-public class CVE_2020_0224 extends SecurityTestCase {
+public class CVE_2020_11164 extends SecurityTestCase {
 
     /**
-     * b/147664838
-     * Vulnerability Behaviour: SIGSEGV in self
+     * CVE-2020-11164
      */
-    @SecurityTest(minPatchLevel = "2020-07")
+    @SecurityTest(minPatchLevel = "2020-10")
     @Test
-    public void testPocCVE_2020_0224() throws Exception {
-        assumeThat(getDevice().getProperty("ro.config.low_ram"), is("false"));
-        AdbUtils.runProxyAutoConfig("cve_2020_0224", getDevice());
-        AdbUtils.assertNoCrashes(getDevice(), new CrashUtils.Config()
-                .setProcessPatterns("pacrunner")
-                .checkMinAddress(false)
-                .appendSignals(CrashUtils.SIGABRT));
+    public void testPocCVE_2020_11164() throws Exception {
+        String result =
+                AdbUtils.runCommandLine("pm list package com.qualcomm.qti.perfdump", getDevice());
+        assertFalse(result.contains("com.qualcomm.qti.perfdump"));
     }
 }
