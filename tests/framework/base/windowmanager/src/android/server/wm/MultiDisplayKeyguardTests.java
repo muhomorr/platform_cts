@@ -26,6 +26,8 @@ import android.platform.test.annotations.Presubmit;
 import android.server.wm.WindowManagerState.DisplayContent;
 import android.util.Size;
 
+import androidx.test.filters.FlakyTest;
+
 import org.junit.Before;
 import org.junit.Test;
 
@@ -37,6 +39,7 @@ import org.junit.Test;
  */
 @Presubmit
 @android.server.wm.annotation.Group3
+@FlakyTest(bugId = 186608789)
 public class MultiDisplayKeyguardTests extends MultiDisplayTestBase {
 
     @Before
@@ -189,6 +192,7 @@ public class MultiDisplayKeyguardTests extends MultiDisplayTestBase {
     }
 
     @Test
+    @FlakyTest(bugId = 185566696)
     public void testUnlockScreen_decoredSystemDisplayChanged_dismissesKeyguardOnUnlock() {
         final LockScreenSession lockScreenSession = createManagedLockScreenSession();
         final VirtualDisplaySession virtualDisplaySession = createManagedVirtualDisplaySession();
