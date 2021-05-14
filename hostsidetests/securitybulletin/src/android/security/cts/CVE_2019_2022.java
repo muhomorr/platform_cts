@@ -17,30 +17,22 @@
 package android.security.cts;
 
 import android.platform.test.annotations.SecurityTest;
-import com.android.compatibility.common.util.CrashUtils;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
-import java.util.Arrays;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import static org.junit.Assume.*;
-import static org.hamcrest.CoreMatchers.*;
-
 @RunWith(DeviceJUnit4ClassRunner.class)
-public class CVE_2020_0224 extends SecurityTestCase {
+public class CVE_2019_2022 extends SecurityTestCase {
 
     /**
-     * b/147664838
+     * b/120506143
      * Vulnerability Behaviour: SIGSEGV in self
      */
-    @SecurityTest(minPatchLevel = "2020-07")
+    @SecurityTest(minPatchLevel = "2019-03")
     @Test
-    public void testPocCVE_2020_0224() throws Exception {
-        assumeThat(getDevice().getProperty("ro.config.low_ram"), is("false"));
-        AdbUtils.runProxyAutoConfig("cve_2020_0224", getDevice());
-        AdbUtils.assertNoCrashes(getDevice(), new CrashUtils.Config()
-                .setProcessPatterns("pacrunner")
-                .checkMinAddress(false)
-                .appendSignals(CrashUtils.SIGABRT));
+    public void testPocCVE_2019_2022() throws Exception {
+        AdbUtils.assumeHasNfc(getDevice());
+        pocPusher.only64();
+        AdbUtils.runPocAssertNoCrashesNotVulnerable("CVE-2019-2022", null, getDevice());
     }
 }
