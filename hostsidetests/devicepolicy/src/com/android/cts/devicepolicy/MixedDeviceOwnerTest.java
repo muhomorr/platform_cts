@@ -283,7 +283,11 @@ public class MixedDeviceOwnerTest extends DeviceAndProfileOwnerTest {
         pushUpdateFileToDevice("wrongPayload.zip");
         pushUpdateFileToDevice("wrongHash.zip");
         pushUpdateFileToDevice("wrongSize.zip");
-        executeDeviceTestClass(".systemupdate.InstallUpdateTest");
+
+        // This test will run as user 0 since there will be {@link InstallSystemUpdateCallback}
+        // in the test and it's not necessary to run from secondary user.
+        runDeviceTestsAsUser(DEVICE_ADMIN_PKG, ".systemupdate.InstallUpdateTest",
+                mDeviceOwnerUserId);
     }
 
     @Test
@@ -516,16 +520,17 @@ public class MixedDeviceOwnerTest extends DeviceAndProfileOwnerTest {
     }
 
     @Override
-    protected void runDeviceTestsAsUser(String pkgName, String testClassName, int userId)
-            throws DeviceNotAvailableException {
-        runDeviceTestsAsUser(pkgName, testClassName, /* testMethodName= */ null, userId,
-                paramsForDeviceOwnerTest());
+    protected void runDeviceTestsAsUser(String pkgName, String testClassName, String testName,
+            int userId, Map<String, String> params) throws DeviceNotAvailableException {
+        Map<String, String> newParams = new HashMap(params);
+        newParams.putAll(getParamsForDeviceOwnerTest());
+        super.runDeviceTestsAsUser(
+                pkgName, testClassName, testName, userId, newParams);
     }
 
     @Override
     protected void executeDeviceTestMethod(String className, String testName,
             Map<String, String> params) throws Exception {
-        addParamsForDeviceOwnerTest(params);
         runDeviceTestsAsUser(DEVICE_ADMIN_PKG, className, testName, mUserId, params);
     }
 

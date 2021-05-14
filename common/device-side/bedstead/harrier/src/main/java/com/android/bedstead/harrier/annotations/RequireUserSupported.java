@@ -19,6 +19,7 @@ package com.android.bedstead.harrier.annotations;
 import com.android.bedstead.harrier.DeviceState;
 
 import java.lang.annotation.ElementType;
+import java.lang.annotation.Repeatable;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
@@ -30,9 +31,10 @@ import java.lang.annotation.Target;
  * supports the user types. Otherwise, you can use {@link DeviceState} to ensure that the test is
  * not run when the user type is not supported.
  */
-@Target(ElementType.METHOD)
+@Target({ElementType.METHOD, ElementType.ANNOTATION_TYPE})
 @Retention(RetentionPolicy.RUNTIME)
+@Repeatable(RequireUsersSupported.class)
 public @interface RequireUserSupported {
-    String[] value();
+    String value();
     FailureMode failureMode() default FailureMode.SKIP;
 }

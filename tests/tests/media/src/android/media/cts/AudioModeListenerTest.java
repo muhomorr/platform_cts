@@ -18,7 +18,10 @@ package android.media.cts;
 
 import android.content.pm.PackageManager;
 import android.media.AudioManager;
+import android.platform.test.annotations.AppModeFull;
 import android.util.Log;
+
+import androidx.test.filters.SdkSuppress;
 
 import com.android.compatibility.common.util.CtsAndroidTestCase;
 import com.android.internal.annotations.GuardedBy;
@@ -26,6 +29,8 @@ import com.android.internal.annotations.GuardedBy;
 import java.util.concurrent.Executors;
 
 
+
+@SdkSuppress(minSdkVersion = 31, codeName = "S")
 public class AudioModeListenerTest extends CtsAndroidTestCase {
     private final static String TAG = "AudioModeListenerTest";
 
@@ -91,6 +96,7 @@ public class AudioModeListenerTest extends CtsAndroidTestCase {
         }
     }
 
+    @AppModeFull(reason = "Instant apps don't have MODIFY_AUDIO_SETTINGS")
     public void testModeListener() throws Exception {
         if (!isValidPlatform("testModeListener")) return;
 

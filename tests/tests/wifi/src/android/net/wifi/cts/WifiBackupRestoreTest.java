@@ -41,7 +41,6 @@ import android.platform.test.annotations.AppModeFull;
 import android.support.test.uiautomator.UiDevice;
 import android.util.Log;
 
-import androidx.core.os.BuildCompat;
 import androidx.test.filters.SmallTest;
 import androidx.test.platform.app.InstrumentationRegistry;
 import androidx.test.runner.AndroidJUnit4;
@@ -385,12 +384,13 @@ public class WifiBackupRestoreTest extends WifiJUnit4TestBase {
     }
 
     /**
-     * Asserts that the 2 lists of WifiConfigurations are equal. This compares all the elements
-     * saved for backup/restore.
+     * Check that expected configrations could be found in restored configurations.
+     * As multi-type configurations would be converted to several single-type configurations,
+     * two list could not be compared directly.
      */
-    public static void assertConfigurationsEqual(
+    private void assertConfigurationsEqual(
             List<WifiConfiguration> expected, List<WifiConfiguration> actual) {
-        assertThat(actual.size()).isEqualTo(expected.size());
+        assertThat(actual.size() >= expected.size()).isTrue();
         for (WifiConfiguration expectedConfiguration : expected) {
             String expectedConfigKey = expectedConfiguration.getKey();
             boolean didCompare = false;
@@ -410,7 +410,7 @@ public class WifiBackupRestoreTest extends WifiJUnit4TestBase {
     /**
      * Asserts that the 2 WifiConfigurations are equal.
      */
-    private static void assertConfigurationEqual(
+    private void assertConfigurationEqual(
             WifiConfiguration expected, WifiConfiguration actual) {
         assertThat(actual).isNotNull();
         assertThat(expected).isNotNull();
@@ -436,7 +436,7 @@ public class WifiBackupRestoreTest extends WifiJUnit4TestBase {
                 .that(actual.getIpConfiguration()).isEqualTo(expected.getIpConfiguration());
         assertWithMessage("Network: " + actual.toString())
                 .that(actual.meteredOverride).isEqualTo(expected.meteredOverride);
-        if (BuildCompat.isAtLeastS()) {
+        if (WifiBuildCompat.isPlatformOrWifiModuleAtLeastS(mContext)) {
             assertWithMessage("Network: " + actual.toString())
                     .that(actual.getProfileKey()).isEqualTo(expected.getProfileKey());
         } else {

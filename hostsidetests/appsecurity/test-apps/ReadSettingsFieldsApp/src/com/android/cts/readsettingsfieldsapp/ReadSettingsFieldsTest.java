@@ -49,6 +49,10 @@ public class ReadSettingsFieldsTest extends AndroidTestCase {
                 if (isSettingsDeprecated(ex)) {
                     continue;
                 }
+                /** b/174151290 skip it due to it's @hide but also @TestApi */
+                if (key.equals(Settings.Secure.NFC_PAYMENT_DEFAULT_COMPONENT)) {
+                    continue;
+                }
                 fail("Reading public " + settingsClass.getSimpleName() + " settings key <" + key
                         + "> should not raise exception! "
                         + "Did you forget to add @Readable annotation?\n" + ex.getMessage());
@@ -154,6 +158,23 @@ public class ReadSettingsFieldsTest extends AndroidTestCase {
                 "people_space_conversation_type"};
         testHiddenSettingsKeysNotReadableWithoutAnnotation(Settings.Global.class,
                 publicSettingsKeys, hiddenSettingsKeys);
+    }
+
+    // test the cases that hidden keys are marked with readable annotation but access should be
+    // protected by additional permission check.
+    public void testGlobalHiddenSettingsKeyNotReadableWithoutPermissions() {
+        final String[] hiddenSettingsKeysRequiresPermissions = {"multi_sim_data_call"};
+        for (String key : hiddenSettingsKeysRequiresPermissions) {
+            try {
+                // Verify that the hidden keys can't be accessed due to lack of permissions.
+                callGetStringMethod(Settings.Global.class, key);
+            } catch (SecurityException ex) {
+                assertTrue(ex.getMessage().contains("permission"));
+                continue;
+            }
+            fail("Reading hidden " + Settings.Global.class.getSimpleName() + " settings key <" + key
+                    + "> should be protected with permission!");
+        }
     }
 
     private <T extends Settings.NameValueTable>

@@ -28,6 +28,7 @@ import android.media.cts.R;
 import android.os.Build;
 import android.os.Handler;
 import android.os.HandlerThread;
+import android.platform.test.annotations.AppModeFull;
 import android.platform.test.annotations.Presubmit;
 import android.platform.test.annotations.RequiresDevice;
 import android.test.AndroidTestCase;
@@ -51,6 +52,7 @@ import java.util.regex.Pattern;
 @Presubmit
 @SmallTest
 @RequiresDevice
+@AppModeFull(reason = "TODO: evaluate and port to instant")
 public class MediaCasTest extends AndroidTestCase {
     private static final String TAG = "MediaCasTest";
 
@@ -190,9 +192,13 @@ public class MediaCasTest extends AndroidTestCase {
                 if (!MediaCas.isSystemIdSupported(CA_system_id)) {
                     fail("Enumerated " + descriptors[i] + " but is not supported.");
                 }
-                mediaCas = new MediaCas(CA_system_id);
-                if (mediaCas == null) {
-                    fail("Enumerated " + descriptors[i] + " but cannot instantiate MediaCas.");
+                try {
+                    mediaCas = new MediaCas(CA_system_id);
+                } catch (UnsupportedCasException e) {
+                    Log.d(TAG, "Enumerated " + descriptors[i]
+                        + " but cannot instantiate MediaCas.");
+                    throw new UnsupportedCasException(
+                        descriptors[i] + " is enumerated, but cannot instantiate" );
                 }
                 try {
                     descrambler = new MediaDescrambler(CA_system_id);

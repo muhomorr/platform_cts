@@ -128,6 +128,7 @@ public class CameraTestUtils extends Assert {
     public static final int MAX_READER_IMAGES = 5;
 
     public static final String OFFLINE_CAMERA_ID = "offline_camera_id";
+    public static final String REPORT_LOG_NAME = "CtsCameraTestCases";
 
     private static final int EXIF_DATETIME_LENGTH = 19;
     private static final int EXIF_DATETIME_ERROR_MARGIN_SEC = 60;
@@ -3507,11 +3508,13 @@ public class CameraTestUtils extends Assert {
         return zoomRatios;
     }
 
+    private static final int PERFORMANCE_CLASS_S = Build.VERSION_CODES.R + 1;
+
     /**
      * Check whether this mobile device is S performance class as defined in CDD
      */
     public static boolean isSPerfClass() {
-        return Build.VERSION.MEDIA_PERFORMANCE_CLASS == Build.VERSION_CODES.S;
+        return Build.VERSION.MEDIA_PERFORMANCE_CLASS == PERFORMANCE_CLASS_S;
     }
 
     /**

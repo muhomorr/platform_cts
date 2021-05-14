@@ -21,9 +21,18 @@ import static android.Manifest.permission.INTERACT_ACROSS_USERS_FULL;
 import static android.content.pm.PackageManager.PERMISSION_DENIED;
 import static android.content.pm.PackageManager.PERMISSION_GRANTED;
 
+import static com.android.bedstead.harrier.DeviceState.UserType.ANY;
+import static com.android.bedstead.harrier.annotations.RequireAospBuild.GMS_CORE_PACKAGE;
+import static com.android.bedstead.harrier.annotations.RequireCnGmsBuild.CHINA_GOOGLE_SERVICES_FEATURE;
+import static com.android.bedstead.nene.users.UserType.MANAGED_PROFILE_TYPE_NAME;
+import static com.android.bedstead.nene.users.UserType.SECONDARY_USER_TYPE_NAME;
+import static com.android.bedstead.nene.users.UserType.SYSTEM_USER_TYPE_NAME;
+
 import static com.google.common.truth.Truth.assertThat;
 
 import static org.testng.Assert.assertThrows;
+
+import android.os.Build;
 
 import com.android.bedstead.harrier.annotations.EnsureDoesNotHavePermission;
 import com.android.bedstead.harrier.annotations.EnsureHasNoSecondaryUser;
@@ -33,16 +42,35 @@ import com.android.bedstead.harrier.annotations.EnsureHasPermission;
 import com.android.bedstead.harrier.annotations.EnsureHasSecondaryUser;
 import com.android.bedstead.harrier.annotations.EnsureHasTvProfile;
 import com.android.bedstead.harrier.annotations.EnsureHasWorkProfile;
+import com.android.bedstead.harrier.annotations.EnsurePackageNotInstalled;
+import com.android.bedstead.harrier.annotations.RequireAospBuild;
+import com.android.bedstead.harrier.annotations.RequireCnGmsBuild;
+import com.android.bedstead.harrier.annotations.RequireDoesNotHaveFeature;
+import com.android.bedstead.harrier.annotations.RequireFeature;
+import com.android.bedstead.harrier.annotations.RequireGmsBuild;
+import com.android.bedstead.harrier.annotations.RequireNotCnGmsBuild;
+import com.android.bedstead.harrier.annotations.RequirePackageInstalled;
+import com.android.bedstead.harrier.annotations.RequirePackageNotInstalled;
+import com.android.bedstead.harrier.annotations.RequireRunOnPrimaryUser;
+import com.android.bedstead.harrier.annotations.RequireRunOnSecondaryUser;
+import com.android.bedstead.harrier.annotations.RequireRunOnTvProfile;
+import com.android.bedstead.harrier.annotations.RequireRunOnWorkProfile;
+import com.android.bedstead.harrier.annotations.RequireSdkVersion;
 import com.android.bedstead.harrier.annotations.RequireUserSupported;
 import com.android.bedstead.harrier.annotations.enterprise.EnsureHasDeviceOwner;
 import com.android.bedstead.harrier.annotations.enterprise.EnsureHasNoDeviceOwner;
 import com.android.bedstead.harrier.annotations.enterprise.EnsureHasNoProfileOwner;
 import com.android.bedstead.harrier.annotations.enterprise.EnsureHasProfileOwner;
+import com.android.bedstead.harrier.annotations.parameterized.IncludeRunOnDeviceOwnerUser;
+import com.android.bedstead.harrier.annotations.parameterized.IncludeRunOnNonAffiliatedDeviceOwnerSecondaryUser;
+import com.android.bedstead.harrier.annotations.parameterized.IncludeRunOnProfileOwner;
+import com.android.bedstead.harrier.annotations.parameterized.IncludeRunOnSecondaryUserInDifferentProfileGroupToProfileOwner;
 import com.android.bedstead.nene.TestApis;
+import com.android.bedstead.nene.packages.Package;
 import com.android.bedstead.nene.users.UserReference;
-import com.android.bedstead.nene.users.UserType;
 
 import org.junit.ClassRule;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -78,7 +106,7 @@ public class DeviceStateTest {
     public void workProfile_createdWorkProfile_throwsException() {
         try (UserReference workProfile = sTestApis.users().createUser()
                 .parent(sTestApis.users().instrumented())
-                .type(sTestApis.users().supportedType(UserType.MANAGED_PROFILE_TYPE_NAME))
+                .type(sTestApis.users().supportedType(MANAGED_PROFILE_TYPE_NAME))
                 .create()) {
             assertThrows(IllegalStateException.class, sDeviceState::workProfile);
         }
@@ -88,7 +116,7 @@ public class DeviceStateTest {
     @EnsureHasWorkProfile
     public void ensureHasWorkProfileAnnotation_workProfileExists() {
         assertThat(sTestApis.users().findProfileOfType(
-                sTestApis.users().supportedType(UserType.MANAGED_PROFILE_TYPE_NAME),
+                sTestApis.users().supportedType(MANAGED_PROFILE_TYPE_NAME),
                 sTestApis.users().instrumented())
         ).isNotNull();
     }
@@ -100,7 +128,7 @@ public class DeviceStateTest {
     @EnsureHasNoWorkProfile
     public void ensureHasNoWorkProfileAnnotation_workProfileDoesNotExist() {
         assertThat(sTestApis.users().findProfileOfType(
-                sTestApis.users().supportedType(UserType.MANAGED_PROFILE_TYPE_NAME),
+                sTestApis.users().supportedType(MANAGED_PROFILE_TYPE_NAME),
                 sTestApis.users().instrumented())
         ).isNull();
     }
@@ -167,7 +195,7 @@ public class DeviceStateTest {
     @EnsureHasNoSecondaryUser
     public void secondaryUser_createdSecondaryUser_throwsException() {
         try (UserReference secondaryUser = sTestApis.users().createUser()
-                .type(sTestApis.users().supportedType(UserType.SECONDARY_USER_TYPE_NAME))
+                .type(sTestApis.users().supportedType(SECONDARY_USER_TYPE_NAME))
                 .create()) {
             assertThrows(IllegalStateException.class, sDeviceState::secondaryUser);
         }
@@ -177,7 +205,7 @@ public class DeviceStateTest {
     @EnsureHasSecondaryUser
     public void ensureHasSecondaryUserAnnotation_secondaryUserExists() {
         assertThat(sTestApis.users().findUserOfType(
-                sTestApis.users().supportedType(UserType.SECONDARY_USER_TYPE_NAME))
+                sTestApis.users().supportedType(SECONDARY_USER_TYPE_NAME))
         ).isNotNull();
     }
 
@@ -188,7 +216,7 @@ public class DeviceStateTest {
     @EnsureHasNoSecondaryUser
     public void ensureHasNoSecondaryUserAnnotation_secondaryUserDoesNotExist() {
         assertThat(sTestApis.users().findUserOfType(
-                sTestApis.users().supportedType(UserType.SECONDARY_USER_TYPE_NAME))
+                sTestApis.users().supportedType(SECONDARY_USER_TYPE_NAME))
         ).isNull();
     }
 
@@ -320,5 +348,183 @@ public class DeviceStateTest {
     public void profileOwner_userReference_onUserIsNull_throwsException() {
         assertThrows(NullPointerException.class,
                 () -> sDeviceState.profileOwner((UserReference) null));
+    }
+
+    @RequireRunOnWorkProfile
+    public void requireRunOnWorkProfileAnnotation_isRunningOnWorkProfile() {
+        assertThat(
+                sTestApis.users().instrumented().resolve().type().name())
+                .isEqualTo(MANAGED_PROFILE_TYPE_NAME);
+    }
+
+    @Test
+    @RequireRunOnWorkProfile
+    public void requireRunOnWorkProfileAnnotation_workProfileHasProfileOwner() {
+        assertThat(
+                sTestApis.devicePolicy().getProfileOwner(sTestApis.users().instrumented())
+        ).isNotNull();
+    }
+
+    @Test
+    @RequireRunOnSecondaryUser
+    public void requireRunOnSecondaryUserAnnotation_isRunningOnSecondaryUser() {
+        assertThat(
+                sTestApis.users().instrumented().resolve().type().name())
+                .isEqualTo(SECONDARY_USER_TYPE_NAME);
+    }
+
+    @Test
+    @IncludeRunOnDeviceOwnerUser
+    public void includeRunOnDeviceOwnerUserAnnotation_isRunningOnDeviceOwnerUser() {
+        assertThat(sTestApis.devicePolicy().getDeviceOwner().user())
+                .isEqualTo(sTestApis.users().instrumented());
+    }
+
+    @Test
+    @IncludeRunOnNonAffiliatedDeviceOwnerSecondaryUser
+    public void includeRunOnNonAffiliatedDeviceOwnerSecondaryUserAnnotation_isRunningOnNonAffiliatedDeviceOwnerSecondaryUser() {
+        assertThat(sTestApis.devicePolicy().getDeviceOwner().user())
+                .isNotEqualTo(sTestApis.users().instrumented());
+        assertThat(sTestApis.users().instrumented().resolve().type().name())
+                .isEqualTo(SECONDARY_USER_TYPE_NAME);
+    }
+
+    @Test
+    @IncludeRunOnProfileOwner
+    public void includeRunOnProfileOwnerAnnotation_hasProfileOwner() {
+        assertThat(
+                sTestApis.devicePolicy().getProfileOwner(sTestApis.users().instrumented())
+        ).isNotNull();
+    }
+
+    @Test
+    @IncludeRunOnSecondaryUserInDifferentProfileGroupToProfileOwner
+    public void includeRunOnSecondaryUserInDifferentProfileGroupToProfileOwnerAnnotation_isRunningOnSecondaryUserInDifferentProfileGroupToProfileOwner() {
+        assertThat(sTestApis.users().instrumented().resolve().type().name())
+                .isEqualTo(SECONDARY_USER_TYPE_NAME);
+        assertThat(sDeviceState.workProfile()).isNotEqualTo(sTestApis.users().instrumented());
+        assertThat(sTestApis.devicePolicy().getProfileOwner(sDeviceState.workProfile()))
+                .isNotNull();
+
+        // TODO(scottjonathan): Assert profile groups are different
+    }
+
+    @RequirePackageInstalled(value = GMS_CORE_PACKAGE, onUser = ANY)
+    public void requirePackageInstalledAnnotation_anyUser_packageIsInstalled() {
+        assertThat(sTestApis.packages().find(GMS_CORE_PACKAGE).resolve()).isNotNull();
+    }
+
+    @Test
+    @RequirePackageInstalled(GMS_CORE_PACKAGE)
+    public void requirePackageInstalledAnnotation_currentUser_packageIsInstalled() {
+        assertThat(sTestApis.packages().find(GMS_CORE_PACKAGE).resolve().installedOnUsers())
+                .contains(sTestApis.users().instrumented());
+    }
+
+    @Test
+    @RequirePackageNotInstalled(value = GMS_CORE_PACKAGE, onUser = ANY)
+    public void requirePackageNotInstalledAnnotation_anyUser_packageIsNotInstalled() {
+        assertThat(sTestApis.packages().find(GMS_CORE_PACKAGE).resolve()).isNull();
+
+    }
+
+    @Test
+    @RequirePackageNotInstalled(GMS_CORE_PACKAGE)
+    public void requirePackageNotInstalledAnnotation_currentUser_packageIsNotInstalled() {
+        Package resolvedPackage = sTestApis.packages().find(GMS_CORE_PACKAGE).resolve();
+
+        if (resolvedPackage != null) {
+            assertThat(resolvedPackage.installedOnUsers())
+                    .doesNotContain(sTestApis.users().instrumented());
+        }
+    }
+
+    @Test
+    @EnsurePackageNotInstalled(value = GMS_CORE_PACKAGE, onUser = ANY)
+    @Ignore // TODO(scottjonathan): Restore this with a package which can be uninstalled
+    public void ensurePackageNotInstalledAnnotation_anyUser_packageIsNotInstalled() {
+        assertThat(sTestApis.packages().find(GMS_CORE_PACKAGE).resolve()).isNull();
+    }
+
+    @Test
+    @EnsurePackageNotInstalled(GMS_CORE_PACKAGE)
+    @Ignore // TODO(scottjonathan): Restore this with a package which can be uninstalled
+    public void ensurePackageNotInstalledAnnotation_currentUser_packageIsNotInstalled() {
+        Package resolvedPackage = sTestApis.packages().find(GMS_CORE_PACKAGE).resolve();
+
+        if (resolvedPackage != null) {
+            assertThat(resolvedPackage.installedOnUsers())
+                    .doesNotContain(sTestApis.users().instrumented());
+        }
+    }
+
+    @Test
+    @RequireAospBuild
+    public void requireAospBuildAnnotation_isRunningOnAospBuild() {
+        assertThat(sTestApis.packages().find(GMS_CORE_PACKAGE).resolve()).isNull();
+    }
+
+    @Test
+    @RequireGmsBuild
+    public void requireGmsBuildAnnotation_isRunningOnGmsbuild() {
+        assertThat(sTestApis.packages().find(GMS_CORE_PACKAGE).resolve()).isNotNull();
+    }
+
+    @Test
+    @RequireCnGmsBuild
+    public void requireCnGmsBuildAnnotation_isRunningOnCnGmsBuild() {
+        assertThat(sTestApis.packages().features()).contains(CHINA_GOOGLE_SERVICES_FEATURE);
+    }
+
+    @Test
+    @RequireNotCnGmsBuild
+    public void requireNotCnGmsBuildAnnotation_isNotRunningOnCnGmsBuild() {
+        assertThat(sTestApis.packages().features()).doesNotContain(CHINA_GOOGLE_SERVICES_FEATURE);
+
+    }
+
+    @Test
+    @RequireFeature(CHINA_GOOGLE_SERVICES_FEATURE)
+    public void requireHasFeatureAnnotation_doesNotHaveFeature() {
+        assertThat(sTestApis.packages().features()).contains(CHINA_GOOGLE_SERVICES_FEATURE);
+    }
+
+    @Test
+    @RequireDoesNotHaveFeature(CHINA_GOOGLE_SERVICES_FEATURE)
+    public void requireDoesNotHaveFeatureAnnotation_doesNotHaveFeature() {
+        assertThat(sTestApis.packages().features()).doesNotContain(CHINA_GOOGLE_SERVICES_FEATURE);
+    }
+
+    @Test
+    @RequireSdkVersion(min = 27)
+    public void requireSdkVersionAnnotation_min_minIsMet() {
+        assertThat(Build.VERSION.SDK_INT).isGreaterThan(26);
+    }
+
+    @Test
+    @RequireSdkVersion(max = 30)
+    public void requireSdkVersionAnnotation_max_maxIsMet() {
+        assertThat(Build.VERSION.SDK_INT).isLessThan(31);
+    }
+
+    @Test
+    @RequireSdkVersion(min = 27, max = 30)
+    public void requireSdkVersionAnnotation_minAndMax_bothAreMet() {
+        assertThat(Build.VERSION.SDK_INT).isGreaterThan(26);
+        assertThat(Build.VERSION.SDK_INT).isLessThan(31);
+    }
+
+    @Test
+    @RequireRunOnPrimaryUser
+    public void requireRunOnPrimaryUserAnnotation_isRunningOnPrimaryUser() {
+        assertThat(sTestApis.users().instrumented().resolve().type().name())
+                .isEqualTo(SYSTEM_USER_TYPE_NAME);
+    }
+
+    @Test
+    @RequireRunOnTvProfile
+    public void requireRunOnTvProfileAnnotation_isRunningOnTvProfile() {
+        assertThat(sTestApis.users().instrumented().resolve().type().name())
+                .isEqualTo(TV_PROFILE_TYPE_NAME);
     }
 }

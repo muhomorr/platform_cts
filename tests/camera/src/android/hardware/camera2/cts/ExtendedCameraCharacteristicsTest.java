@@ -25,6 +25,7 @@ import android.hardware.Camera;
 import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraCharacteristics.Key;
 import android.hardware.camera2.CameraDevice;
+import android.hardware.camera2.CameraExtensionCharacteristics;
 import android.hardware.camera2.CameraManager;
 import android.hardware.camera2.CameraMetadata;
 import android.hardware.camera2.CaptureRequest;
@@ -2529,12 +2530,6 @@ public class ExtendedCameraCharacteristicsTest extends Camera2AndroidTestCase {
             return;
         }
 
-        // H-1-6
-        boolean frontBackAdvertised = mContext.getPackageManager().hasSystemFeature(
-                PackageManager.FEATURE_CAMERA_CONCURRENT);
-        mCollector.expectTrue("Performance class device should support concurrent front-back",
-                frontBackAdvertised);
-
         boolean hasPrimaryRear = false;
         boolean hasPrimaryFront = false;
         for (int i = 0; i < mCameraIdsUnderTest.length; i++) {
@@ -2640,7 +2635,7 @@ public class ExtendedCameraCharacteristicsTest extends Camera2AndroidTestCase {
                     timestampSource != null &&
                     timestampSource.equals(CameraMetadata.SENSOR_INFO_TIMESTAMP_SOURCE_REALTIME));
 
-            // H-1-10
+            // H-1-8
             Size[] jpegSizes = staticInfo.getJpegOutputSizesChecked();
             assertTrue("Primary rear/front cameras must support JPEG formats",
                     jpegSizes != null && jpegSizes.length > 0);
@@ -2651,6 +2646,17 @@ public class ExtendedCameraCharacteristicsTest extends Camera2AndroidTestCase {
                         jpegSize.getWidth() >= FULLHD.getWidth() &&
                         jpegSize.getHeight() >= FULLHD.getHeight());
             }
+
+            // H-1-9
+            CameraExtensionCharacteristics extensionChars =
+                    mCameraManager.getCameraExtensionCharacteristics(cameraId);
+            List<Integer> supportedExtensions = extensionChars.getSupportedExtensions();
+            mCollector.expectTrue(
+                    "Primary rear/front camera must support the HDR camera2 extension",
+                    supportedExtensions.contains(CameraExtensionCharacteristics.EXTENSION_HDR));
+            mCollector.expectTrue(
+                    "Primary rear/front camera must support the NIGHT camera2 extension",
+                    supportedExtensions.contains(CameraExtensionCharacteristics.EXTENSION_NIGHT));
         }
         mCollector.expectTrue("There must be a primary rear camera for S performance class.",
                 hasPrimaryRear);
