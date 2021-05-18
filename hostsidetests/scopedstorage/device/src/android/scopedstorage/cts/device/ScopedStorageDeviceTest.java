@@ -211,7 +211,8 @@ public class ScopedStorageDeviceTest extends ScopedStorageBaseDeviceTest {
     @Parameter(0)
     public String mVolumeName;
 
-    @Parameters
+    /** Parameters data. */
+    @Parameters(name = "volume={0}")
     public static Iterable<? extends Object> data() {
         return ScopedStorageDeviceTest.getTestParameters();
     }
@@ -815,9 +816,13 @@ public class ScopedStorageDeviceTest extends ScopedStorageBaseDeviceTest {
 
             try (InputStream in =
                          getContext().getResources().openRawResource(R.raw.img_with_metadata);
-                 OutputStream out = new FileOutputStream(jpgFile)) {
+                FileOutputStream out = new FileOutputStream(jpgFile)) {
                 // Dump the image we have to external storage
                 FileUtils.copy(in, out);
+                // Sync file to disk to ensure file is fully written to the lower fs attempting to
+                // open for redaction. Otherwise, the FUSE daemon might not accurately parse the
+                // EXIF tags and might misleadingly think there are not tags to redact
+                out.getFD().sync();
 
                 HashMap<String, String> exif = getExifMetadata(jpgFile);
                 assertExifMetadataMatch(exif, originalExif);
@@ -1130,13 +1135,16 @@ public class ScopedStorageDeviceTest extends ScopedStorageBaseDeviceTest {
     private void createDeleteCreate(File create, File delete) throws Exception {
         try {
             assertThat(create.createNewFile()).isTrue();
-            Thread.sleep(5);
+            // Wait for the kernel to update the dentry cache.
+            Thread.sleep(100);
 
             assertThat(delete.delete()).isTrue();
-            Thread.sleep(5);
+            // Wait for the kernel to clean up the dentry cache.
+            Thread.sleep(100);
 
             assertThat(create.createNewFile()).isTrue();
-            Thread.sleep(5);
+            // Wait for the kernel to update the dentry cache.
+            Thread.sleep(100);
         } finally {
             create.delete();
             delete.delete();

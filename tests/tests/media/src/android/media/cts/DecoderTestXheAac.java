@@ -33,8 +33,8 @@ import android.media.cts.DecoderTest.AudioParameter;
 import android.media.cts.DecoderTestAacDrc.DrcParams;
 import android.media.cts.R;
 import android.os.Build;
-import android.util.Log;
 import android.os.Bundle;
+import android.util.Log;
 
 import androidx.test.InstrumentationRegistry;
 
@@ -43,6 +43,8 @@ import com.android.compatibility.common.util.MediaUtils;
 
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.JUnit4;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -50,6 +52,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+@RunWith(JUnit4.class)
 public class DecoderTestXheAac {
     private static final String TAG = "DecoderTestXheAac";
 
@@ -567,6 +570,13 @@ public class DecoderTestXheAac {
     @Test
     public void testDecodeUsacSyncSampleSeekingM4a() throws Exception {
         Log.v(TAG, "START testDecodeUsacSyncSampleSeekingM4a");
+        if(!sIsAndroidRAndAbove) {
+            // The fix for b/158471477 was released in mainline release 300802800
+            // See https://android-build.googleplex.com/builds/treetop/googleplex-android-review/11990700
+            final int MIN_VERSION = 300802800;
+            TestUtils.assumeMainlineModuleAtLeast("com.google.android.media.swcodec", MIN_VERSION);
+            TestUtils.assumeMainlineModuleAtLeast("com.google.android.media", MIN_VERSION);
+        }
 
         assertTrue("No AAC decoder found", sAacDecoderNames.size() > 0);
 
