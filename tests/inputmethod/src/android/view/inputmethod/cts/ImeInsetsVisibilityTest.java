@@ -34,6 +34,8 @@ import static org.junit.Assert.assertTrue;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.content.res.Configuration;
 import android.graphics.PixelFormat;
 import android.graphics.Point;
 import android.os.SystemClock;
@@ -77,7 +79,7 @@ import java.util.concurrent.atomic.AtomicReference;
 @RunWith(AndroidJUnit4.class)
 public class ImeInsetsVisibilityTest extends EndToEndImeTestBase {
     private static final long TIMEOUT = TimeUnit.SECONDS.toMillis(5);
-    private static final int NEW_KEYBOARD_HEIGHT = 400;
+    private static final int NEW_KEYBOARD_HEIGHT = 300;
 
     private static final String TEST_MARKER_PREFIX =
             "android.view.inputmethod.cts.ImeInsetsVisibilityTest";
@@ -177,9 +179,23 @@ public class ImeInsetsVisibilityTest extends EndToEndImeTestBase {
 
             Point lastEditTextPos = new Point(curEditPos);
             curEditPos = getLocationOnScreenForView(editText);
-            assertTrue("Insets should visible and EditText position should be adjusted",
-                    isInsetsVisible(insetsFromActivity[0], WindowInsets.Type.ime())
-                            && curEditPos.y < lastEditTextPos.y);
+            // Watch doesn't support navigation bar and has limited screen size, so no transition
+            // in editbox with respect to x and y coordinates
+            Configuration config = InstrumentationRegistry.getInstrumentation()
+                    .getContext()
+                    .getResources()
+                    .getConfiguration();
+            boolean isSmallScreenLayout =
+                    config.isLayoutSizeAtLeast(Configuration.SCREENLAYOUT_SIZE_SMALL);
+
+            if (isSmallScreenLayout) {
+              assertTrue("Insets should visible",
+                  isInsetsVisible(insetsFromActivity[0], WindowInsets.Type.ime()));
+            } else {
+              assertTrue("Insets should visible and EditText position should be adjusted",
+                  isInsetsVisible(insetsFromActivity[0], WindowInsets.Type.ime())
+                      && curEditPos.y < lastEditTextPos.y);
+            }
 
             imm.showInputMethodPicker();
             TestUtils.waitOnMainUntil(() -> imm.isInputMethodPickerShown() && editText.isLaidOut(),

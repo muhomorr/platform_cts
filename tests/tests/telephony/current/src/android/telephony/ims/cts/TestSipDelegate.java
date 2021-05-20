@@ -16,6 +16,8 @@
 
 package android.telephony.ims.cts;
 
+import static junit.framework.Assert.assertTrue;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 
@@ -24,9 +26,11 @@ import android.telephony.ims.DelegateRegistrationState;
 import android.telephony.ims.DelegateRequest;
 import android.telephony.ims.DelegateStateCallback;
 import android.telephony.ims.FeatureTagState;
+import android.telephony.ims.SipDelegateConfiguration;
 import android.telephony.ims.SipDelegateImsConfiguration;
 import android.telephony.ims.SipMessage;
 import android.telephony.ims.stub.SipDelegate;
+import android.util.ArraySet;
 import android.util.Log;
 import android.util.Pair;
 
@@ -65,10 +69,10 @@ public class TestSipDelegate implements SipDelegate {
         if (ImsUtils.VDBG) Log.d(LOG_TAG, "sendMessage");
         mIncomingMessages.offer(message);
         if (mSendMessageDenyReason > -1) {
-            mMessageCallback.onMessageSendFailure(ImsUtils.TEST_TRANSACTION_ID,
+            mMessageCallback.onMessageSendFailure(message.getViaBranchParameter(),
                     mSendMessageDenyReason);
         } else {
-            mMessageCallback.onMessageSent(ImsUtils.TEST_TRANSACTION_ID);
+            mMessageCallback.onMessageSent(message.getViaBranchParameter());
         }
     }
 
@@ -95,10 +99,15 @@ public class TestSipDelegate implements SipDelegate {
         assertEquals(messageToVerify, m);
     }
 
-    public void verifyCloseSession(String callIdToVerify) throws Exception {
-        String requestedCallId = mCleanupSipSessionRequests.poll(ImsUtils.TEST_TIMEOUT_MS,
-                TimeUnit.MILLISECONDS);
-        assertEquals(callIdToVerify, requestedCallId);
+    public void verifyCleanupSession(String... callIdsToVerify) throws Exception {
+        Set<String> ids = new ArraySet<>(callIdsToVerify);
+        for (int i = 0; i < callIdsToVerify.length; i++) {
+            String requestedCallId = mCleanupSipSessionRequests.poll(ImsUtils.TEST_TIMEOUT_MS,
+                    TimeUnit.MILLISECONDS);
+            assertTrue(ids.contains(requestedCallId));
+            ids.remove(requestedCallId);
+        }
+        assertTrue(ids.isEmpty());
     }
 
     public void setSendMessageDenyReason(int reason) {
@@ -109,7 +118,7 @@ public class TestSipDelegate implements SipDelegate {
         mMessageCallback.onMessageReceived(m);
         Pair<String, Integer> transactionAndIdPair = mReceivedMessageAcks.poll(
                 ImsUtils.TEST_TIMEOUT_MS, TimeUnit.MILLISECONDS);
-        assertEquals(ImsUtils.TEST_TRANSACTION_ID, transactionAndIdPair.first);
+        assertEquals(m.getViaBranchParameter(), transactionAndIdPair.first);
         assertNotNull(transactionAndIdPair.second);
         assertEquals(-1, transactionAndIdPair.second.intValue());
     }
@@ -119,13 +128,17 @@ public class TestSipDelegate implements SipDelegate {
         mMessageCallback.onMessageReceived(m);
         Pair<String, Integer> transactionAndIdPair = mReceivedMessageAcks.poll(
                 ImsUtils.TEST_TIMEOUT_MS, TimeUnit.MILLISECONDS);
-        assertEquals(ImsUtils.TEST_TRANSACTION_ID, transactionAndIdPair.first);
+        assertEquals(m.getViaBranchParameter(), transactionAndIdPair.first);
         assertNotNull(transactionAndIdPair.second);
         assertEquals(reason, transactionAndIdPair.second.intValue());
     }
 
     public void notifyImsRegistrationUpdate(DelegateRegistrationState state) {
         mStateCallback.onFeatureTagRegistrationChanged(state);
+    }
+
+    public void notifyConfigurationUpdate(SipDelegateConfiguration config) {
+        mStateCallback.onConfigurationChanged(config);
     }
 
     public void notifyImsConfigurationUpdate(SipDelegateImsConfiguration config) {
