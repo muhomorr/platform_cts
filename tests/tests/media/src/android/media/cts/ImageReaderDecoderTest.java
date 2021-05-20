@@ -44,6 +44,7 @@ import android.test.AndroidTestCase;
 import android.util.Log;
 import android.view.Surface;
 
+import androidx.test.filters.FlakyTest;
 import androidx.test.filters.SmallTest;
 
 import com.android.compatibility.common.util.MediaUtils;
@@ -393,11 +394,16 @@ public class ImageReaderDecoderTest extends AndroidTestCase {
     public void testGoogVP8ImageReader()    { swirlTest(googVP8(),    MODE_IMAGEREADER); }
     public void testGoogVP9ImageReader()    { swirlTest(googVP9(),    MODE_IMAGEREADER); }
 
+    // TODO: b/186001256
+    @FlakyTest
     public void testOtherH265ImageReader()  { swirlTest(otherH265(),  MODE_IMAGEREADER); }
+    @FlakyTest
     public void testOtherH264ImageReader()  { swirlTest(otherH264(),  MODE_IMAGEREADER); }
     public void testOtherH263ImageReader()  { swirlTest(otherH263(),  MODE_IMAGEREADER); }
     public void testOtherMpeg4ImageReader() { swirlTest(otherMpeg4(), MODE_IMAGEREADER); }
+    @FlakyTest
     public void testOtherVP8ImageReader()   { swirlTest(otherVP8(),   MODE_IMAGEREADER); }
+    @FlakyTest
     public void testOtherVP9ImageReader()   { swirlTest(otherVP9(),   MODE_IMAGEREADER); }
 
     /**

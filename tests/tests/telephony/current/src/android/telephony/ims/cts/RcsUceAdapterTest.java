@@ -74,6 +74,7 @@ import androidx.test.platform.app.InstrumentationRegistry;
 
 import com.android.compatibility.common.util.BlockedNumberUtil;
 import com.android.compatibility.common.util.ShellIdentityUtils;
+import com.android.internal.os.SomeArgs;
 
 import org.junit.After;
 import org.junit.AfterClass;
@@ -236,6 +237,8 @@ public class RcsUceAdapterTest {
         overrideCarrierConfig(null);
         // Remove all the test contacts from EAB database
         removeTestContactFromEab();
+
+        removeUceRequestDisallowedStatus();
     }
 
     @Test
@@ -372,14 +375,6 @@ public class RcsUceAdapterTest {
             }
         }
 
-        // Trigger carrier config changed
-        PersistableBundle bundle = new PersistableBundle();
-        bundle.putBoolean(CarrierConfigManager.Ims.KEY_ENABLE_PRESENCE_PUBLISH_BOOL, true);
-        overrideCarrierConfig(bundle);
-
-        // Connect to the TestImsService
-        connectTestImsService();
-
         // getUcePublishState without permission
         try {
             uceAdapter.getUcePublishState();
@@ -391,15 +386,12 @@ public class RcsUceAdapterTest {
         // getUcePublishState with permission
         try {
             ShellIdentityUtils.invokeThrowableMethodWithShellPermissionsNoReturn(uceAdapter,
-                    (m) -> m.getUcePublishState(), ImsException.class,
+                    RcsUceAdapter::getUcePublishState, ImsException.class,
                     "android.permission.READ_PRIVILEGED_PHONE_STATE");
         } catch (SecurityException e) {
             fail("getUcePublishState should succeed with READ_PRIVILEGED_PHONE_STATE.");
         } catch (ImsException e) {
-            // unsupported is a valid fail cause.
-            if (e.getCode() != ImsException.CODE_ERROR_UNSUPPORTED_OPERATION) {
-                fail("getUcePublishState failed with code " + e.getCode());
-            }
+            // ImsExceptions are still valid because it means the permission check passed.
         }
 
         final RcsUceAdapter.OnPublishStateChangedListener publishStateListener = (state) -> { };
@@ -423,10 +415,7 @@ public class RcsUceAdapterTest {
             fail("addOnPublishStateChangedListener should succeed with "
                     + "READ_PRIVILEGED_PHONE_STATE.");
         } catch (ImsException e) {
-            // unsupported is a valid fail cause.
-            if (e.getCode() != ImsException.CODE_ERROR_UNSUPPORTED_OPERATION) {
-                fail("addOnPublishStateChangedListener failed with code " + e.getCode());
-            }
+            // ImsExceptions are still valid because it means the permission check passed.
         }
 
         // removeOnPublishStateChangedListener without permission
@@ -467,9 +456,6 @@ public class RcsUceAdapterTest {
             //expected
         }
 
-        // Lunch an activity to stay in the foreground.
-        lunchUceActivity();
-
         // requestCapabilities in the foreground
         try {
             ShellIdentityUtils.invokeThrowableMethodWithShellPermissionsNoReturn(uceAdapter,
@@ -479,10 +465,7 @@ public class RcsUceAdapterTest {
         } catch (SecurityException e) {
             fail("requestCapabilities should succeed with ACCESS_RCS_USER_CAPABILITY_EXCHANGE.");
         } catch (ImsException e) {
-            // unsupported is a valid fail cause.
-            if (e.getCode() != ImsException.CODE_ERROR_UNSUPPORTED_OPERATION) {
-                fail("requestCapabilities failed with code " + e.getCode());
-            }
+            // ImsExceptions are still valid because it means the permission check passed.
         }
 
         // requestAvailability in the foreground
@@ -494,14 +477,9 @@ public class RcsUceAdapterTest {
         } catch (SecurityException e) {
             fail("requestAvailability should succeed with ACCESS_RCS_USER_CAPABILITY_EXCHANGE.");
         } catch (ImsException e) {
-            // unsupported is a valid fail cause.
-            if (e.getCode() != ImsException.CODE_ERROR_UNSUPPORTED_OPERATION) {
-                fail("requestAvailability failed with code " + e.getCode());
-            }
+            // ImsExceptions are still valid because it means the permission check passed.
         }
 
-        // Finish the activity
-        finishUceActivity();
         overrideCarrierConfig(null);
     }
 
@@ -510,6 +488,12 @@ public class RcsUceAdapterTest {
         if (!ImsUtils.shouldTestImsService()) {
             return;
         }
+        // Start cap exchange disabled and enable later.
+        PersistableBundle bundle = new PersistableBundle();
+        bundle.putBoolean(CarrierConfigManager.Ims.KEY_ENABLE_PRESENCE_CAPABILITY_EXCHANGE_BOOL,
+                false);
+        overrideCarrierConfig(bundle);
+
         ImsManager imsManager = getContext().getSystemService(ImsManager.class);
         RcsUceAdapter uceAdapter = imsManager.getImsRcsManager(sTestSub).getUceAdapter();
         assertNotNull("UCE adapter should not be null!", uceAdapter);
@@ -556,15 +540,11 @@ public class RcsUceAdapterTest {
         }
 
         // Trigger carrier config changed
-        PersistableBundle bundle = new PersistableBundle();
         bundle.putBoolean(CarrierConfigManager.Ims.KEY_ENABLE_PRESENCE_PUBLISH_BOOL, true);
         overrideCarrierConfig(bundle);
 
         // Connect to the TestImsService
         connectTestImsService();
-
-        // Stay in the foreground.
-        lunchUceActivity();
 
         TestRcsCapabilityExchangeImpl capabilityExchangeImpl = sServiceConnector
                 .getCarrierService().getRcsFeature().getRcsCapabilityExchangeImpl();
@@ -602,7 +582,7 @@ public class RcsUceAdapterTest {
                 true);
         overrideCarrierConfig(bundle);
 
-        // Preapre the network response is 200 OK and the capabilities update
+        // Prepare the network response is 200 OK and the capabilities update
         int networkRespCode = 200;
         String networkRespReason = "OK";
         capabilityExchangeImpl.setSubscribeOperation((uris, cb) -> {
@@ -631,7 +611,6 @@ public class RcsUceAdapterTest {
         verifyCapabilityResult(capability, sTestNumberUri, REQUEST_RESULT_FOUND, true, true);
         waitForResult(completeQueue);
 
-        finishUceActivity();
         overrideCarrierConfig(null);
     }
 
@@ -646,9 +625,6 @@ public class RcsUceAdapterTest {
 
         // Connect to the TestImsService
         setupTestImsService(uceAdapter, true, true, false);
-
-        // Stay in the foreground
-        lunchUceActivity();
 
         Collection<Uri> contacts = Collections.singletonList(sTestNumberUri);
 
@@ -720,7 +696,6 @@ public class RcsUceAdapterTest {
             }
         });
 
-        finishUceActivity();
         overrideCarrierConfig(null);
     }
 
@@ -819,9 +794,6 @@ public class RcsUceAdapterTest {
                 return value;
             }
         }, RcsUceAdapter.ERROR_SERVER_UNAVAILABLE);
-
-        // Stay in the foreground.
-        lunchUceActivity();
 
         TestRcsCapabilityExchangeImpl capabilityExchangeImpl = sServiceConnector
                 .getCarrierService().getRcsFeature().getRcsCapabilityExchangeImpl();
@@ -928,7 +900,6 @@ public class RcsUceAdapterTest {
             retryAfterQueue.clear();
         }
 
-        finishUceActivity();
         overrideCarrierConfig(null);
     }
 
@@ -950,7 +921,8 @@ public class RcsUceAdapterTest {
         TestRcsCapabilityExchangeImpl capabilityExchangeImpl = sServiceConnector
                 .getCarrierService().getRcsFeature().getRcsCapabilityExchangeImpl();
 
-        BlockingQueue<Long> errorQueue = new LinkedBlockingQueue<>();
+        BlockingQueue<Integer> errorQueue = new LinkedBlockingQueue<>();
+        BlockingQueue<Long> errorRetryQueue = new LinkedBlockingQueue<>();
         BlockingQueue<Boolean> completeQueue = new LinkedBlockingQueue<>();
         BlockingQueue<RcsContactUceCapability> capabilityQueue = new LinkedBlockingQueue<>();
         RcsUceAdapter.CapabilitiesCallback callback = new RcsUceAdapter.CapabilitiesCallback() {
@@ -964,8 +936,8 @@ public class RcsUceAdapterTest {
             }
             @Override
             public void onError(int errorCode, long retryAfterMilliseconds) {
-                errorQueue.offer(new Long(errorCode));
-                errorQueue.offer(retryAfterMilliseconds);
+                errorQueue.offer(errorCode);
+                errorRetryQueue.offer(retryAfterMilliseconds);
             }
         };
 
@@ -993,9 +965,6 @@ public class RcsUceAdapterTest {
             cb.onTerminated("", 0L);
         });
 
-        // Stay in the foreground.
-        lunchUceActivity();
-
         requestCapabilities(uceAdapter, contacts, callback);
 
         // Verify that all the three contact's capabilities are received
@@ -1015,6 +984,33 @@ public class RcsUceAdapterTest {
         waitForResult(completeQueue);
 
         errorQueue.clear();
+        errorRetryQueue.clear();
+        completeQueue.clear();
+        capabilityQueue.clear();
+        removeTestContactFromEab();
+
+        // Setup the callback that some of the contacts are terminated.
+        capabilityExchangeImpl.setSubscribeOperation((uris, cb) -> {
+            cb.onNetworkResponse(404, "NOT FOUND");
+        });
+
+        requestCapabilities(uceAdapter, contacts, callback);
+
+        // Verify the contacts are not found.
+        capability = waitForResult(capabilityQueue);
+        verifyCapabilityResult(capability, contact1, REQUEST_RESULT_NOT_FOUND, false, false);
+
+        capability = waitForResult(capabilityQueue);
+        verifyCapabilityResult(capability, contact2, REQUEST_RESULT_NOT_FOUND, false, false);
+
+        capability = waitForResult(capabilityQueue);
+        verifyCapabilityResult(capability, contact3, REQUEST_RESULT_NOT_FOUND, false, false);
+
+        int errorCode = waitForResult(errorQueue);
+        assertEquals(RcsUceAdapter.ERROR_NOT_FOUND, errorCode);
+
+        errorQueue.clear();
+        errorRetryQueue.clear();
         completeQueue.clear();
         capabilityQueue.clear();
         removeTestContactFromEab();
@@ -1052,7 +1048,6 @@ public class RcsUceAdapterTest {
         // Verify the onCompleted is called
         waitForResult(completeQueue);
 
-        finishUceActivity();
         overrideCarrierConfig(null);
     }
 
@@ -1115,24 +1110,21 @@ public class RcsUceAdapterTest {
         // Setup the network response is 200 OK and notify capabilities update
         int networkRespCode = 200;
         String networkRespReason = "OK";
-
         AtomicInteger receiveRequestCount = new AtomicInteger(0);
-
         capabilityExchangeImpl.setSubscribeOperation((uris, cb) -> {
             receiveRequestCount.incrementAndGet();
             cb.onNetworkResponse(networkRespCode, networkRespReason);
-            if (receiveRequestCount.get() == 1) {
+            assertEquals(1, uris.size());
+            String uriPart = uris.iterator().next().getSchemeSpecificPart();
+            if (contact1.getSchemeSpecificPart().equalsIgnoreCase(uriPart)) {
                 cb.onNotifyCapabilitiesUpdate(pidfXml1);
-            } else if (receiveRequestCount.get() == 2) {
+            } else if (contact2.getSchemeSpecificPart().equalsIgnoreCase(uriPart)) {
                 cb.onNotifyCapabilitiesUpdate(pidfXml2);
-            } else if (receiveRequestCount.get() == 3) {
+            } else if (contact3.getSchemeSpecificPart().equalsIgnoreCase(uriPart)) {
                 cb.onNotifyCapabilitiesUpdate(pidfXml3);
             }
             cb.onTerminated("", 0L);
         });
-
-        // Stay in the foreground.
-        lunchUceActivity();
 
         requestCapabilities(uceAdapter, contacts, callback);
 
@@ -1207,7 +1199,6 @@ public class RcsUceAdapterTest {
             }
         }
 
-        finishUceActivity();
         overrideCarrierConfig(null);
     }
 
@@ -1266,17 +1257,7 @@ public class RcsUceAdapterTest {
         });
 
         // Request capabilities by calling the API requestCapabilities.
-        try {
-            ShellIdentityUtils.invokeThrowableMethodWithShellPermissionsNoReturn(
-                    uceAdapter,
-                    adapter -> adapter.requestCapabilities(contacts, Runnable::run, callback),
-                    ImsException.class,
-                    "android.permission.ACCESS_RCS_USER_CAPABILITY_EXCHANGE");
-        } catch (SecurityException e) {
-            fail("requestCapabilities should succeed with ACCESS_RCS_USER_CAPABILITY_EXCHANGE.");
-        } catch (ImsException e) {
-            fail("requestCapabilities failed " + e);
-        }
+        requestCapabilities(uceAdapter, contacts, callback);
 
         // Verify the callback "onCapabilitiesReceived" is called.
         RcsContactUceCapability capability = waitForResult(capabilityQueue);
@@ -1302,18 +1283,7 @@ public class RcsUceAdapterTest {
         removeTestContactFromEab();
 
         // Request capabilities by calling the API requestAvailability.
-        try {
-            ShellIdentityUtils.invokeThrowableMethodWithShellPermissionsNoReturn(
-                    uceAdapter,
-                    adapter -> adapter.requestAvailability(sTestContact2Uri,
-                            Runnable::run, callback),
-                    ImsException.class,
-                    "android.permission.ACCESS_RCS_USER_CAPABILITY_EXCHANGE");
-        } catch (SecurityException e) {
-            fail("requestCapabilities should succeed with ACCESS_RCS_USER_CAPABILITY_EXCHANGE.");
-        } catch (ImsException e) {
-            fail("requestCapabilities failed " + e);
-        }
+        requestAvailability(uceAdapter, sTestContact2Uri, callback);
 
         // Verify the callback "onCapabilitiesReceived" is called.
         capability = waitForResult(capabilityQueue);
@@ -1346,17 +1316,7 @@ public class RcsUceAdapterTest {
         });
 
         // Request capabilities by calling the API requestCapabilities.
-        try {
-            ShellIdentityUtils.invokeThrowableMethodWithShellPermissionsNoReturn(
-                    uceAdapter,
-                    adapter -> adapter.requestCapabilities(contacts, Runnable::run, callback),
-                    ImsException.class,
-                    "android.permission.ACCESS_RCS_USER_CAPABILITY_EXCHANGE");
-        } catch (SecurityException e) {
-            fail("requestCapabilities should succeed with ACCESS_RCS_USER_CAPABILITY_EXCHANGE.");
-        } catch (ImsException e) {
-            fail("requestCapabilities failed " + e);
-        }
+        requestCapabilities(uceAdapter, contacts, callback);
 
         // Verify the callback "onError" is called.
         assertEquals(RcsUceAdapter.ERROR_GENERIC_FAILURE, waitForLongResult(errorQueue));
@@ -1429,9 +1389,6 @@ public class RcsUceAdapterTest {
             optionsCallback.onNetworkResponse(sipCode, reason, featureTags);
         });
 
-        // Stay in the foreground.
-        lunchUceActivity();
-
         // Request capabilities by calling the API requestCapabilities.
         requestCapabilities(uceAdapter, contacts, callback);
 
@@ -1479,7 +1436,6 @@ public class RcsUceAdapterTest {
         receiveRequestCount.set(0);
         removeTestContactFromEab();
 
-        finishUceActivity();
         overrideCarrierConfig(null);
     }
 
@@ -1605,6 +1561,309 @@ public class RcsUceAdapterTest {
         overrideCarrierConfig(null);
     }
 
+    @Test
+    public void testForbidCapabilitiesRequest() throws Exception {
+        if (!ImsUtils.shouldTestImsService()) {
+            return;
+        }
+        ImsManager imsManager = getContext().getSystemService(ImsManager.class);
+        RcsUceAdapter uceAdapter = imsManager.getImsRcsManager(sTestSub).getUceAdapter();
+        assertNotNull("UCE adapter should not be null!", uceAdapter);
+
+        // Remove the test contact capabilities
+        removeTestContactFromEab();
+
+        // Override the carrier config of SIP 489 request forbidden.
+        PersistableBundle bundle = new PersistableBundle();
+        bundle.putBoolean(CarrierConfigManager.Ims.KEY_RCS_REQUEST_FORBIDDEN_BY_SIP_489_BOOL, true);
+        overrideCarrierConfig(bundle);
+
+        // Connect to the ImsService
+        setupTestImsService(uceAdapter, true, true /* presence cap */, false /* OPTIONS */);
+
+        TestRcsCapabilityExchangeImpl capabilityExchangeImpl = sServiceConnector
+                .getCarrierService().getRcsFeature().getRcsCapabilityExchangeImpl();
+
+        BlockingQueue<Integer> errorQueue = new LinkedBlockingQueue<>();
+        BlockingQueue<Long> retryAfterQueue = new LinkedBlockingQueue<>();
+        BlockingQueue<Boolean> completeQueue = new LinkedBlockingQueue<>();
+        List<RcsContactUceCapability> capabilityQueue = new ArrayList<>();
+        RcsUceAdapter.CapabilitiesCallback callback = new RcsUceAdapter.CapabilitiesCallback() {
+            @Override
+            public void onCapabilitiesReceived(List<RcsContactUceCapability> capabilities) {
+                capabilities.forEach(c -> capabilityQueue.add(c));
+            }
+
+            @Override
+            public void onComplete() {
+                completeQueue.offer(true);
+            }
+
+            @Override
+            public void onError(int errorCode, long retryAfterMillis) {
+                errorQueue.offer(errorCode);
+                retryAfterQueue.offer(retryAfterMillis);
+            }
+        };
+
+        // Prepare two contacts
+        final Uri contact1 = sTestNumberUri;
+        final Uri contact2 = sTestContact2Uri;
+        Collection<Uri> contacts = new ArrayList<>(2);
+        contacts.add(contact1);
+        contacts.add(contact2);
+
+        // Prepare the network response.
+        final int sipCodeBadEvent = 489;
+        final int sipCodeForbidden = 403;
+        AtomicInteger subscribeRequestCount = new AtomicInteger(0);
+
+        // Prepare a map to define the sip code and its associated result.
+        Map<Integer, Integer> networkSipCodeMap = new HashMap<>();
+        networkSipCodeMap.put(sipCodeBadEvent, RcsUceAdapter.ERROR_FORBIDDEN);
+        networkSipCodeMap.put(sipCodeForbidden, RcsUceAdapter.ERROR_FORBIDDEN);
+
+        // Verify each command error code and the expected callback result
+        networkSipCodeMap.forEach((sipCode, expectedCallbackResult) -> {
+            // Setup the capabilities request response with the given sip code.
+            capabilityExchangeImpl.setSubscribeOperation((uris, cb) -> {
+                subscribeRequestCount.incrementAndGet();
+                cb.onNetworkResponse(sipCode, "");
+            });
+
+            try {
+                // Request contact uce capabilities
+                requestCapabilities(uceAdapter, contacts, callback);
+
+                // Verify that the callback "onError" is called with the error code FORBIDDEN
+                assertEquals(RcsUceAdapter.ERROR_FORBIDDEN, waitForIntResult(errorQueue));
+                // Verify the retryAfter value
+                long retryAfterMillis = waitForLongResult(retryAfterQueue);
+                if (sipCode == sipCodeForbidden) {
+                    assertEquals(0L, retryAfterMillis);
+                } else if (sipCode == sipCodeBadEvent) {
+                    assertTrue(retryAfterMillis > 0L);
+                }
+
+                // Verify the ImsService received the capabilities request.
+                assertEquals(1, subscribeRequestCount.get());
+            } catch (Exception e) {
+                fail("testForbiddenResponseToCapabilitiesRequest with command error failed: " + e);
+            } finally {
+                errorQueue.clear();
+                retryAfterQueue.clear();
+                subscribeRequestCount.set(0);
+            }
+
+            // Prepare the network response with sip code 200 OK
+            capabilityExchangeImpl.setSubscribeOperation((uris, cb) -> {
+                subscribeRequestCount.incrementAndGet();
+                cb.onNetworkResponse(200, "OK");
+            });
+
+            try {
+                // Request contact uce capabilities again.
+                requestCapabilities(uceAdapter, contacts, callback);
+
+                // Verify that the callback "onError" is called with the error code FORBIDDEN
+                assertEquals(RcsUceAdapter.ERROR_FORBIDDEN, waitForIntResult(errorQueue));
+                // Verify the retryAfter value
+                long retryAfterMillis = waitForLongResult(retryAfterQueue);
+                if (sipCode == sipCodeForbidden) {
+                    assertEquals(0L, retryAfterMillis);
+                } else if (sipCode == sipCodeBadEvent) {
+                    assertTrue(retryAfterMillis > 0L);
+                }
+
+                // Verify that the capabilities won't be send to the ImsService because the
+                // uce request is forbidden.
+                assertEquals(0, subscribeRequestCount.get());
+            } catch (Exception e) {
+                fail("testForbiddenResponseToCapabilitiesRequest with command error failed: " + e);
+            } finally {
+                errorQueue.clear();
+                retryAfterQueue.clear();
+                subscribeRequestCount.set(0);
+            }
+
+            // Reset the device status
+            removeUceRequestDisallowedStatus();
+        });
+
+        overrideCarrierConfig(null);
+    }
+
+    @Test
+    public void testTerminatedCallbackWithCapabilitiesRequest() throws Exception {
+        if (!ImsUtils.shouldTestImsService()) {
+            return;
+        }
+
+        ImsManager imsManager = getContext().getSystemService(ImsManager.class);
+        RcsUceAdapter uceAdapter = imsManager.getImsRcsManager(sTestSub).getUceAdapter();
+        assertNotNull("UCE adapter should not be null!", uceAdapter);
+
+        // Remove the test contact capabilities
+        removeTestContactFromEab();
+
+        // Connect to the ImsService
+        setupTestImsService(uceAdapter, true, true /* presence cap */, false /* OPTIONS */);
+
+        ArrayList<String> pidfXmlList = new ArrayList<>(1);
+        pidfXmlList.add(getPidfXmlData(sTestNumberUri, true, true));
+
+        TestRcsCapabilityExchangeImpl capabilityExchangeImpl = sServiceConnector
+                .getCarrierService().getRcsFeature().getRcsCapabilityExchangeImpl();
+
+        BlockingQueue<Integer> errorQueue = new LinkedBlockingQueue<>();
+        BlockingQueue<Long> errorRetryQueue = new LinkedBlockingQueue<>();
+        BlockingQueue<Boolean> completeQueue = new LinkedBlockingQueue<>();
+        BlockingQueue<RcsContactUceCapability> capabilityQueue = new LinkedBlockingQueue<>();
+        RcsUceAdapter.CapabilitiesCallback callback = new RcsUceAdapter.CapabilitiesCallback() {
+            @Override
+            public void onCapabilitiesReceived(List<RcsContactUceCapability> capabilities) {
+                capabilities.forEach(c -> capabilityQueue.offer(c));
+            }
+            @Override
+            public void onComplete() {
+                completeQueue.offer(true);
+            }
+            @Override
+            public void onError(int errorCode, long retryAfterMillis) {
+                errorQueue.offer(errorCode);
+                errorRetryQueue.offer(retryAfterMillis);
+            }
+        };
+
+        // Prepare the test contact and the callback
+        Collection<Uri> numbers = new ArrayList<>(1);
+        numbers.add(sTestNumberUri);
+
+        // Prepare the network response is 200 OK and the capabilities update
+        int networkRespCode = 200;
+        String networkRespReason = "OK";
+
+        Map<SomeArgs, SomeArgs> terminatedMap = new HashMap<>();
+        SomeArgs deactivatedArgs = SomeArgs.obtain();
+        deactivatedArgs.arg1 = "deactivated";
+        deactivatedArgs.arg2 = Long.valueOf(3000L);
+        SomeArgs deactivatedExpectedArgs = SomeArgs.obtain();
+        deactivatedExpectedArgs.argi1 = RcsUceAdapter.ERROR_GENERIC_FAILURE;
+        deactivatedExpectedArgs.arg1 = Long.valueOf(3000L);
+        terminatedMap.put(deactivatedArgs, deactivatedExpectedArgs);
+
+        SomeArgs probationArgs = SomeArgs.obtain();
+        probationArgs.arg1 = "probation";
+        probationArgs.arg2 = Long.valueOf(4000L);
+        SomeArgs probationExpectedArgs = SomeArgs.obtain();
+        probationExpectedArgs.argi1 = RcsUceAdapter.ERROR_GENERIC_FAILURE;
+        probationExpectedArgs.arg1 = Long.valueOf(4000L);
+        terminatedMap.put(probationArgs, probationExpectedArgs);
+
+        SomeArgs rejectedArgs = SomeArgs.obtain();
+        rejectedArgs.arg1 = "rejected";
+        rejectedArgs.arg2 = Long.valueOf(5000L);
+        SomeArgs rejectedExpectedArgs = SomeArgs.obtain();
+        rejectedExpectedArgs.argi1 = RcsUceAdapter.ERROR_NOT_AUTHORIZED;
+        rejectedExpectedArgs.arg1 = Long.valueOf(0L);
+        terminatedMap.put(rejectedArgs, rejectedExpectedArgs);
+
+        SomeArgs timeoutArgs = SomeArgs.obtain();
+        timeoutArgs.arg1 = "timeout";
+        timeoutArgs.arg2 = Long.valueOf(6000L);
+        SomeArgs timeoutExpectedArgs = SomeArgs.obtain();
+        timeoutExpectedArgs.argi1 = RcsUceAdapter.ERROR_REQUEST_TIMEOUT;
+        timeoutExpectedArgs.arg1 = Long.valueOf(6000L);
+        terminatedMap.put(timeoutArgs, timeoutExpectedArgs);
+
+        SomeArgs giveupArgs = SomeArgs.obtain();
+        giveupArgs.arg1 = "giveup";
+        giveupArgs.arg2 = Long.valueOf(7000L);
+        SomeArgs giveupExpectedArgs = SomeArgs.obtain();
+        giveupExpectedArgs.argi1 = RcsUceAdapter.ERROR_NOT_AUTHORIZED;
+        giveupExpectedArgs.arg1 = Long.valueOf(7000L);
+        terminatedMap.put(giveupArgs, giveupExpectedArgs);
+
+        SomeArgs noresourceArgs = SomeArgs.obtain();
+        noresourceArgs.arg1 = "noresource";
+        noresourceArgs.arg2 = Long.valueOf(8000L);
+        SomeArgs noresourceExpectedArgs = SomeArgs.obtain();
+        noresourceExpectedArgs.argi1 = RcsUceAdapter.ERROR_NOT_FOUND;
+        noresourceExpectedArgs.arg1 = Long.valueOf(0L);
+        terminatedMap.put(giveupArgs, giveupExpectedArgs);
+
+        SomeArgs emptyReasonArgs = SomeArgs.obtain();
+        emptyReasonArgs.arg1 = "";
+        emptyReasonArgs.arg2 = Long.valueOf(9000L);
+        SomeArgs emptyReasonExpectedArgs = SomeArgs.obtain();
+        emptyReasonExpectedArgs.argi1 = RcsUceAdapter.ERROR_GENERIC_FAILURE;
+        emptyReasonExpectedArgs.arg1 = Long.valueOf(9000L);
+        terminatedMap.put(emptyReasonArgs, emptyReasonExpectedArgs);
+
+        // Verify each subscription terminated and the expected result
+        terminatedMap.forEach((deactivated, expectedResult) -> {
+            String terminatedReason = (String) deactivated.arg1;
+            Long terminatedRetryAfterMillis = (Long) deactivated.arg2;
+            capabilityExchangeImpl.setSubscribeOperation((uris, cb) -> {
+                cb.onNetworkResponse(networkRespCode, networkRespReason);
+                cb.onNotifyCapabilitiesUpdate(pidfXmlList);
+                cb.onTerminated(terminatedReason, terminatedRetryAfterMillis);
+            });
+
+            requestCapabilities(uceAdapter, numbers, callback);
+
+            try {
+                // Verify that the contact capability is received and the onCompleted is called.
+                RcsContactUceCapability capability = waitForResult(capabilityQueue);
+                assertNotNull("Capabilities were not received for contact: " + sTestNumberUri,
+                        capability);
+                verifyCapabilityResult(capability, sTestNumberUri, REQUEST_RESULT_FOUND, true,
+                        true);
+
+                int expectedErrorCode = expectedResult.argi1;
+                Long expectedRetryAfter = (Long) expectedResult.arg1;
+                assertEquals(expectedErrorCode, waitForIntResult(errorQueue));
+                assertEquals(expectedRetryAfter.longValue(), (waitForLongResult(errorRetryQueue)));
+            } catch (Exception e) {
+                fail("Unexpected exception " + e);
+            }
+
+            deactivated.recycle();
+            expectedResult.recycle();
+            errorQueue.clear();
+            errorRetryQueue.clear();
+            completeQueue.clear();
+            capabilityQueue.clear();
+            removeTestContactFromEab();
+        });
+
+        // Verify the subscribe request is sccessful when the terminated is timeout and the
+        // retryAfter is 0L
+        String terminatedReason = "timemout";
+        long terminatedRetryAfterMillis = 0L;
+        capabilityExchangeImpl.setSubscribeOperation((uris, cb) -> {
+            cb.onNetworkResponse(networkRespCode, networkRespReason);
+            cb.onNotifyCapabilitiesUpdate(pidfXmlList);
+            cb.onTerminated(terminatedReason, terminatedRetryAfterMillis);
+        });
+
+        requestCapabilities(uceAdapter, numbers, callback);
+
+        // Verify that the contact capability is received and the onCompleted is called.
+        RcsContactUceCapability capability = waitForResult(capabilityQueue);
+        assertNotNull("Capabilities were not received for contact: " + sTestNumberUri, capability);
+        verifyCapabilityResult(capability, sTestNumberUri, REQUEST_RESULT_FOUND, true, true);
+        assertTrue(waitForResult(completeQueue));
+
+        errorQueue.clear();
+        errorRetryQueue.clear();
+        completeQueue.clear();
+        capabilityQueue.clear();
+        removeTestContactFromEab();
+
+        overrideCarrierConfig(null);
+    }
+
     private void setupTestImsService(RcsUceAdapter uceAdapter, boolean presencePublishEnabled,
             boolean presenceCapExchangeEnabled, boolean sipOptionsEnabled) throws Exception {
         // Trigger carrier config changed
@@ -1653,7 +1912,7 @@ public class RcsUceAdapterTest {
 
         // Verify the request result is expected.
         final int requestResult = resultCapability.getRequestResult();
-        assertEquals(requestResult, expectedResult);
+        assertEquals(expectedResult, requestResult);
 
         // Return directly if the result is not found.
         if (requestResult == REQUEST_RESULT_NOT_FOUND) {
@@ -1813,6 +2072,14 @@ public class RcsUceAdapterTest {
         }
     }
 
+    private static void removeUceRequestDisallowedStatus() {
+        try {
+            sServiceConnector.removeUceRequestDisallowedStatus(sTestSlot);
+        } catch (Exception e) {
+            Log.w("RcsUceAdapterTest", "Cannot remove request disallowed status: " + e);
+        }
+    }
+
     private void requestCapabilities(RcsUceAdapter uceAdapter, Collection<Uri> numbers,
             RcsUceAdapter.CapabilitiesCallback callback) {
         try {
@@ -1843,25 +2110,5 @@ public class RcsUceAdapterTest {
         } catch (ImsException e) {
             fail("requestAvailability failed " + e);
         }
-    }
-
-    private void lunchUceActivity() throws Exception {
-        final CountDownLatch countdownLatch = new CountDownLatch(1);
-        final Intent activityIntent = new Intent(getContext(), UceActivity.class);
-        activityIntent.setAction(Intent.ACTION_MAIN);
-        activityIntent.addCategory(Intent.CATEGORY_LAUNCHER);
-        activityIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        UceActivity.setCountDownLatch(countdownLatch);
-        getContext().startActivity(activityIntent);
-        countdownLatch.await(5000, TimeUnit.MILLISECONDS);
-    }
-
-    private void finishUceActivity() {
-        final Intent finishIntent = new Intent(getContext(), UceActivity.class);
-        finishIntent.setAction(UceActivity.ACTION_FINISH);
-        finishIntent.addCategory(Intent.CATEGORY_LAUNCHER);
-        finishIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        finishIntent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
-        getContext().startActivity(finishIntent);
     }
 }
