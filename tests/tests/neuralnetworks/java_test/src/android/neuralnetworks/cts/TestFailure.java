@@ -13,13 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package android.autofillservice.cts.client;
 
-import android.autofillservice.cts.commontests.ClientSuggestionsCommonTestCase;
+package android.neuralnetworks.cts;
 
-/**
- * Tests client suggestions behaviors for the dropdown mode.
- */
-public class ClientSuggestionsTest extends ClientSuggestionsCommonTestCase {
-
+public class TestFailure extends Exception {
+    public TestFailure(String message) {
+        super(message);
+    }
 }
