@@ -19,6 +19,7 @@ package com.android.bedstead.harrier.annotations.enterprise;
 import static com.android.bedstead.harrier.DeviceState.UserType.SYSTEM_USER;
 
 import com.android.bedstead.harrier.DeviceState;
+import com.android.bedstead.harrier.annotations.FailureMode;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -36,11 +37,21 @@ import java.lang.annotation.Target;
  * <p>If {@link DeviceState} is required to set the device owner (because there isn't one already)
  * then all users and accounts may be removed from the device.
  */
-@Target({ElementType.METHOD, ElementType.ANNOTATION_TYPE})
+@Target({ElementType.METHOD, ElementType.ANNOTATION_TYPE, ElementType.TYPE})
 @Retention(RetentionPolicy.RUNTIME)
 public @interface EnsureHasDeviceOwner {
     /** Which user type the device owner should be installed on. */
     DeviceState.UserType onUser() default SYSTEM_USER;
+
+    /** Behaviour if the device owner cannot be set. */
+    FailureMode failureMode() default FailureMode.FAIL;
+
+    /**
+     * Whether this DPC should be returned by calls to {@link DeviceState#dpc()}.
+     *
+     * <p>Only one device policy controller per test should be marked as primary.
+     */
+    boolean isPrimary() default false;
 }
 // TODO(scottjonathan): Is there a feature or something that we need to check to make sure DO is
 //  supported?
