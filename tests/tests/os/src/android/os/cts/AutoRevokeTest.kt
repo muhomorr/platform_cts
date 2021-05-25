@@ -42,6 +42,7 @@ import androidx.core.os.BuildCompat
 import androidx.test.InstrumentationRegistry
 import androidx.test.filters.SdkSuppress
 import androidx.test.runner.AndroidJUnit4
+import com.android.compatibility.common.util.DisableAnimationRule
 import com.android.compatibility.common.util.MatcherUtils.hasTextThat
 import com.android.compatibility.common.util.SystemUtil
 import com.android.compatibility.common.util.SystemUtil.eventually
@@ -65,6 +66,7 @@ import org.junit.Assert.assertThat
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeFalse
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.lang.reflect.Modifier
@@ -96,6 +98,9 @@ class AutoRevokeTest {
     companion object {
         const val LOG_TAG = "AutoRevokeTest"
     }
+
+    @get:Rule
+    val disableAnimationRule = DisableAnimationRule()
 
     @Before
     fun setup() {
@@ -147,10 +152,11 @@ class AutoRevokeTest {
                         .click()
                 if (hasFeatureWatch()) {
                     // In wear os, notification has one additional button to open it
-                    waitFindObject(By.text("Open")).click();
+                    waitFindObject(By.text("Open")).click()
                 }
                 waitFindObject(By.text(supportedAppPackageName))
                 waitFindObject(By.text("Calendar permission removed"))
+                goBack()
             }
         }
     }
@@ -396,17 +402,11 @@ class AutoRevokeTest {
 
         waitForIdle()
 
-        if (hasFeatureWatch()) {
-            // WearOS need to scroll down to find the Permission item to click
-            UiScrollable(UiSelector().scrollable(true))
-                    .getChildByText(UiSelector(), "Permissions")
-        }
-
         click("Permissions")
     }
 
     private fun click(label: String) {
-        waitFindNode(hasTextThat(containsStringIgnoringCase(label))).click()
+        waitFindObject(byTextIgnoreCase(label)).click()
         waitForIdle()
     }
 

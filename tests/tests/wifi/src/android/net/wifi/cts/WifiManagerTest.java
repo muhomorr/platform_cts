@@ -18,6 +18,7 @@ package android.net.wifi.cts;
 
 import static android.net.NetworkCapabilities.NET_CAPABILITY_NOT_METERED;
 import static android.net.NetworkCapabilities.TRANSPORT_WIFI;
+import static android.net.wifi.WifiAvailableChannel.OP_MODE_SAP;
 import static android.net.wifi.WifiAvailableChannel.OP_MODE_STA;
 import static android.net.wifi.WifiConfiguration.INVALID_NETWORK_ID;
 import static android.net.wifi.WifiManager.COEX_RESTRICTION_SOFTAP;
@@ -530,12 +531,15 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
 
     /**
      * Restart WiFi subsystem - verify that privileged call fails.
-     * TODO(b/167575586): Wait for S SDK finalization to determine the final minSdkVersion.
      */
-    @SdkSuppress(minSdkVersion = 31, codeName = "S")
+
     public void testRestartWifiSubsystemShouldFailNoPermission() throws Exception {
         if (!WifiFeature.isWifiSupported(getContext())) {
             // skip the test if WiFi is not supported
+            return;
+        }
+        if (!WifiBuildCompat.isPlatformOrWifiModuleAtLeastS(getContext())) {
+            // Skip the test if wifi module version is older than S.
             return;
         }
         try {
@@ -548,15 +552,17 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
 
     /**
      * Restart WiFi subsystem and verify transition through states.
-     * TODO(b/167575586): Wait for S SDK finalization to determine the final minSdkVersion.
      */
-    @SdkSuppress(minSdkVersion = 31, codeName = "S")
     public void testRestartWifiSubsystem() throws Exception {
-        mSubsystemRestartStatus = 0; // 0: uninitialized
         if (!WifiFeature.isWifiSupported(getContext())) {
             // skip the test if WiFi is not supported
             return;
         }
+        if (!WifiBuildCompat.isPlatformOrWifiModuleAtLeastS(getContext())) {
+            // Skip the test if wifi module version is older than S.
+            return;
+        }
+        mSubsystemRestartStatus = 0; // 0: uninitialized
         UiAutomation uiAutomation = InstrumentationRegistry.getInstrumentation().getUiAutomation();
         try {
             uiAutomation.adoptShellPermissionIdentity();
@@ -2390,14 +2396,20 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
                         executor.runAll();
                         int sapChannel = ScanResult.convertFrequencyMhzToChannelIfSupported(
                                 callback.getCurrentSoftApInfo().getFrequency());
-                        return WifiManager.WIFI_AP_STATE_ENABLED == callback.getCurrentState()
+                        boolean isInfoCallbackSupported =
+                                callback.getOnSoftapInfoChangedCalledCount() > 1;
+                        if (isInfoCallbackSupported) {
+                            return WifiManager.WIFI_AP_STATE_ENABLED == callback.getCurrentState()
                                 && testBandsAndChannels.valueAt(0) == sapChannel;
+                        }
+                        return WifiManager.WIFI_AP_STATE_ENABLED == callback.getCurrentState();
                     });
-            // After Soft Ap enabled, check SoftAp info
-            if (isSupportCustomizedMac) {
+            // After Soft Ap enabled, check SoftAp info if it supported
+            if (isSupportCustomizedMac && callback.getOnSoftapInfoChangedCalledCount() > 1) {
                 assertEquals(callback.getCurrentSoftApInfo().getBssid(), TEST_MAC);
             }
-            if (PropertyUtil.isVndkApiLevelNewerThan(Build.VERSION_CODES.S)) {
+            if (PropertyUtil.isVndkApiLevelNewerThan(Build.VERSION_CODES.S)
+                    && callback.getOnSoftapInfoChangedCalledCount() > 1) {
                 assertNotEquals(callback.getCurrentSoftApInfo().getWifiStandard(),
                         ScanResult.WIFI_STANDARD_UNKNOWN);
             }
@@ -4272,12 +4284,14 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
 
     /**
      * Tests {@link WifiManager#isPasspointTermsAndConditionsSupported)} does not crash.
-     * TODO(b/167575586): Wait for S SDK finalization to determine the final minSdkVersion.
      */
-    @SdkSuppress(minSdkVersion = 31, codeName = "S")
     public void testIsPasspointTermsAndConditionsSupported() throws Exception {
         if (!WifiFeature.isWifiSupported(getContext())) {
             // skip the test if WiFi is not supported
+            return;
+        }
+        if (!WifiBuildCompat.isPlatformOrWifiModuleAtLeastS(getContext())) {
+            // Skip the test if wifi module version is older than S.
             return;
         }
         mWifiManager.isPasspointTermsAndConditionsSupported();
@@ -4324,12 +4338,14 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
 
     /**
      * Tests {@link WifiManager#flushPasspointAnqpCache)} does not crash.
-     * TODO(b/167575586): Wait for S SDK finalization to determine the final minSdkVersion.
      */
-    @SdkSuppress(minSdkVersion = 31, codeName = "S")
     public void testFlushPasspointAnqpCache() throws Exception {
         if (!WifiFeature.isWifiSupported(getContext())) {
             // skip the test if WiFi is not supported
+            return;
+        }
+        if (!WifiBuildCompat.isPlatformOrWifiModuleAtLeastS(getContext())) {
+            // Skip the test if wifi module version is older than S.
             return;
         }
         // The below API only works with privileged permissions (obtained via shell identity
@@ -4345,12 +4361,14 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
 
     /**
      * Tests {@link WifiManager#isDecoratedIdentitySupported)} does not crash.
-     * TODO(b/167575586): Wait for S SDK finalization to determine the final minSdkVersion.
      */
-    @SdkSuppress(minSdkVersion = 31, codeName = "S")
     public void testIsDecoratedIdentitySupported() throws Exception {
         if (!WifiFeature.isWifiSupported(getContext())) {
             // skip the test if WiFi is not supported
+            return;
+        }
+        if (!WifiBuildCompat.isPlatformOrWifiModuleAtLeastS(getContext())) {
+            // Skip the test if wifi module version is older than S.
             return;
         }
         mWifiManager.isDecoratedIdentitySupported();
@@ -4419,6 +4437,10 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
         // for test)
         UiAutomation uiAutomation = InstrumentationRegistry.getInstrumentation().getUiAutomation();
         try {
+
+            WifiAvailableChannel channel = new WifiAvailableChannel(2412, OP_MODE_SAP);
+            assertEquals(channel.getFrequencyMhz(), 2412);
+            assertEquals(channel.getOperationalModes(), OP_MODE_SAP);
             final List<Integer> valid24GhzFreqs = Arrays.asList(
                 2412, 2417, 2422, 2427, 2432, 2437, 2442,
                 2447, 2452, 2457, 2462, 2467, 2472, 2484);
