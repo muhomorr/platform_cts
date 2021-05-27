@@ -17,26 +17,20 @@
 package android.security.cts;
 
 import android.platform.test.annotations.SecurityTest;
+import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
-import com.android.tradefed.device.ITestDevice;
-
-import static org.junit.Assume.*;
-import static org.hamcrest.CoreMatchers.*;
 
 @RunWith(DeviceJUnit4ClassRunner.class)
-public class CVE_2021_0393 extends SecurityTestCase {
+public class CVE_2021_0515 extends SecurityTestCase {
 
     /**
-     * b/168041375
-     * Vulnerability Behavior: SIGSEGV in pacrunner
+     * b/167389063
+     * Vulnerability Behaviour: SIGSEGV in pacrunner
      */
-    @SecurityTest(minPatchLevel = "2021-03")
+    @SecurityTest(minPatchLevel = "2021-06")
     @Test
-    public void testPocCVE_2021_0393() throws Exception {
-        assumeThat(getDevice().getProperty("ro.config.low_ram"), is("false"));
-        pocPusher.only64();
-        AdbUtils.runProxyAutoConfig("cve_2021_0393", getDevice());
+    public void testPocCVE_2021_0515() throws Exception {
+        AdbUtils.runProxyAutoConfig("cve_2021_0515", getDevice());
     }
 }
