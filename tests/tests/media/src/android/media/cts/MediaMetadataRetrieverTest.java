@@ -87,6 +87,7 @@ public class MediaMetadataRetrieverTest extends AndroidTestCase {
             Color.valueOf(0.64f, 0.64f, 0.0f),
     };
     private boolean mIsAtLeastR = ApiLevelUtil.isAtLeast(Build.VERSION_CODES.R);
+    private boolean mIsAtLeastS = ApiLevelUtil.isAtLeast(Build.VERSION_CODES.S);
 
     @Override
     protected void setUp() throws Exception {
@@ -108,6 +109,7 @@ public class MediaMetadataRetrieverTest extends AndroidTestCase {
     protected AssetFileDescriptor getAssetFileDescriptorFor(final String res)
             throws FileNotFoundException {
         File inpFile = new File(mInpPrefix + res);
+        Preconditions.assertTestFileExists(mInpPrefix + res);
         ParcelFileDescriptor parcelFD =
                 ParcelFileDescriptor.open(inpFile, ParcelFileDescriptor.MODE_READ_ONLY);
         return new AssetFileDescriptor(parcelFD, 0, parcelFD.getStatSize());
@@ -1070,11 +1072,13 @@ public class MediaMetadataRetrieverTest extends AndroidTestCase {
     }
 
     public void testGetImageAtIndexAvif() throws Exception {
+        if (!MediaUtils.check(mIsAtLeastS, "test needs Android 12")) return;
         testGetImage("sample.avif", 1920, 1080, "image/avif", 0 /*rotation*/,
                 1 /*imageCount*/, 0 /*primary*/, false /*useGrid*/, true /*checkColor*/);
     }
 
     public void testGetImageAtIndexAvifGrid() throws Exception {
+        if (!MediaUtils.check(mIsAtLeastS, "test needs Android 12")) return;
         testGetImage("sample_grid2x4.avif", 1920, 1080, "image/avif", 0 /*rotation*/,
                 1 /*imageCount*/, 0 /*primary*/, true /*useGrid*/, true /*checkColor*/);
     }
@@ -1109,6 +1113,7 @@ public class MediaMetadataRetrieverTest extends AndroidTestCase {
         MediaExtractor extractor = null;
         AssetFileDescriptor afd = null;
         InputStream inputStream = null;
+        Preconditions.assertTestFileExists(mInpPrefix + res);
 
         try {
             setDataSourceFd(res);
@@ -1143,6 +1148,7 @@ public class MediaMetadataRetrieverTest extends AndroidTestCase {
                 for (int imageIndex = 0; imageIndex < imageCount; imageIndex++) {
                     timer.start();
                     bitmap = mRetriever.getImageAtIndex(imageIndex);
+                    assertNotNull("Failed to retrieve image at index " + imageIndex, bitmap);
                     timer.end();
                     timer.printDuration("getImageAtIndex");
 
@@ -1218,6 +1224,7 @@ public class MediaMetadataRetrieverTest extends AndroidTestCase {
     private void copyMediaFile() {
         InputStream inputStream = null;
         FileOutputStream outputStream = null;
+        Preconditions.assertTestFileExists(mInpPrefix + "testvideo.3gp");
         String outputPath = new File(
             Environment.getExternalStorageDirectory(), TEST_MEDIA_FILE).getAbsolutePath();
         try {

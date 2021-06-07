@@ -84,6 +84,21 @@ inline fun withApp(
     }
 }
 
+inline fun withAppNoUninstallAssertion(
+    apk: String,
+    packageName: String,
+    action: () -> Unit
+) {
+    installApk(apk)
+    try {
+        // Try to reduce flakiness caused by new package update not propagating in time
+        Thread.sleep(1000)
+        action()
+    } finally {
+        uninstallAppWithoutAssertion(packageName)
+    }
+}
+
 inline fun <T> withDeviceConfig(
     namespace: String,
     name: String,
@@ -129,6 +144,10 @@ fun startApp(packageName: String) {
         CoreMatchers.containsString("Events injected: 1"))
     awaitAppState(packageName, Matchers.lessThanOrEqualTo(IMPORTANCE_TOP_SLEEPING))
     waitForIdle()
+}
+
+fun goHome() {
+    runShellCommandOrThrow("input keyevent KEYCODE_HOME")
 }
 
 fun waitFindObject(uiAutomation: UiAutomation, selector: BySelector): UiObject2 {

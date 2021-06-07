@@ -269,6 +269,7 @@ public class Components extends ComponentsBase {
         public static final String ICON_BACKGROUND_COLOR = "icon_background_color";
         public static final String ICON_ANIMATION_DURATION = "icon_animation_duration";
         public static final String ICON_ANIMATION_START = "icon_animation_start";
+        public static final String CENTER_VIEW_IS_SURFACE_VIEW = "center_view_is_surface_view";
 
         public static final String REQUEST_HANDLE_EXIT_ON_CREATE = "handle_exit_onCreate";
         public static final String REQUEST_HANDLE_EXIT_ON_RESUME = "handle_exit_onResume";
@@ -311,6 +312,7 @@ public class Components extends ComponentsBase {
         public static final String EXTRA_INTENTS = "intents";
         public static final String EXTRA_NO_IDLE = "no_idle";
         public static final String COMMAND_NAVIGATE_UP_TO = "navigate_up_to";
+        public static final String COMMAND_START_ACTIVITY = "start_activity";
         public static final String COMMAND_START_ACTIVITIES = "start_activities";
     }
 

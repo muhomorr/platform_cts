@@ -36,7 +36,6 @@ import static android.server.wm.lifecycle.LifecycleLog.ActivityCallback.ON_STOP;
 import static android.server.wm.lifecycle.LifecycleLog.ActivityCallback.ON_TOP_POSITION_GAINED;
 import static android.server.wm.lifecycle.LifecycleLog.ActivityCallback.ON_TOP_POSITION_LOST;
 import static android.server.wm.lifecycle.LifecycleLog.ActivityCallback.ON_USER_LEAVE_HINT;
-import static android.server.wm.lifecycle.LifecycleLog.ActivityCallback.PRE_ON_CREATE;
 
 import static androidx.test.platform.app.InstrumentationRegistry.getInstrumentation;
 
@@ -343,7 +342,6 @@ public class ActivityLifecycleClientTestBase extends MultiDisplayTestBase {
         protected void onCreate(Bundle savedInstanceState) {
             super.onCreate(savedInstanceState);
             mLifecycleLogClient = LifecycleLog.LifecycleLogClient.create(this);
-            mLifecycleLogClient.onActivityCallback(PRE_ON_CREATE);
             mLifecycleLogClient.onActivityCallback(ON_CREATE);
 
             final Intent intent = getIntent();
@@ -537,6 +535,8 @@ public class ActivityLifecycleClientTestBase extends MultiDisplayTestBase {
         public static final String EXTRA_LAUNCH_ON_RESULT = "LAUNCH_ON_RESULT";
         public static final String EXTRA_LAUNCH_ON_RESUME_AFTER_RESULT =
                 "LAUNCH_ON_RESUME_AFTER_RESULT";
+        public static final String EXTRA_USE_TRANSLUCENT_RESULT =
+                "USE_TRANSLUCENT_RESULT";
 
         boolean mReceivedResultOk;
 
@@ -552,7 +552,14 @@ public class ActivityLifecycleClientTestBase extends MultiDisplayTestBase {
         @Override
         protected void onCreate(Bundle savedInstanceState) {
             super.onCreate(savedInstanceState);
-            final Intent intent = new Intent(this, ResultActivity.class);
+
+            final Intent intent;
+            if (getIntent().hasExtra(EXTRA_USE_TRANSLUCENT_RESULT)) {
+                intent = new Intent(this, TranslucentResultActivity.class);
+            } else {
+                intent = new Intent(this, ResultActivity.class);
+            }
+
             final Bundle forwardExtras = getIntent().getBundleExtra(EXTRA_FORWARD_EXTRAS);
             if (forwardExtras != null) {
                 intent.putExtras(forwardExtras);
@@ -577,6 +584,10 @@ public class ActivityLifecycleClientTestBase extends MultiDisplayTestBase {
                 startActivity(new Intent(this, CallbackTrackingActivity.class));
             }
         }
+    }
+
+    /** Translucent activity that is started for result. */
+    public static class TranslucentResultActivity extends ResultActivity {
     }
 
     /** Test activity that is started for result. */

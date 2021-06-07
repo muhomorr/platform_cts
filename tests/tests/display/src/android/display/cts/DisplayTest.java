@@ -38,6 +38,7 @@ import android.graphics.Point;
 import android.hardware.display.DeviceProductInfo;
 import android.hardware.display.DisplayManager;
 import android.hardware.display.DisplayManager.DisplayListener;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
@@ -61,6 +62,7 @@ import androidx.test.rule.ActivityTestRule;
 import androidx.test.runner.AndroidJUnit4;
 
 import com.android.compatibility.common.util.AdoptShellPermissionsRule;
+import com.android.compatibility.common.util.PropertyUtil;
 
 import org.junit.After;
 import org.junit.Before;
@@ -677,6 +679,19 @@ public class DisplayTest {
         Thread.sleep(Duration.ofSeconds(3).toMillis());
         assertEquals(1, changeCounter.get());
 
+        // Many TV apps use the vendor.display-size sysprop to detect the display size (although
+        // it's not an official API). In Android S the bugs which required this workaround were
+        // fixed and the sysprop should be either unset or should have the same value as the
+        // official API. The assertions are done after the delay above because on some
+        // devices the sysprop is not updated immediately after onDisplayChanged is called.
+        if (PropertyUtil.getVendorApiLevel() >= Build.VERSION_CODES.S) {
+            Point vendorDisplaySize = getVendorDisplaySize();
+            if (vendorDisplaySize != null) {
+                assertEquals(mode.getPhysicalWidth(), vendorDisplaySize.x);
+                assertEquals(mode.getPhysicalHeight(), vendorDisplaySize.y);
+            }
+        }
+
         mDisplayManager.unregisterDisplayListener(listener);
     }
 
@@ -876,6 +891,9 @@ public class DisplayTest {
         // This assumption is based on Section of 3.4.4 - Week and Year of Manufacture or Model Year
         // of VESA EDID STANDARD Version 1, Revision 4
         assertTrue(year >= 1990);
+
+        int week = deviceProductInfo.getManufactureWeek();
+        assertTrue(week == -1 || (week >= 1 && week <= 53));
 
         List<Integer> allowedConnectionToSinkValues = List.of(
                 DeviceProductInfo.CONNECTION_TO_SINK_UNKNOWN,
@@ -1081,5 +1099,16 @@ public class DisplayTest {
     public boolean setBrightness(float value) throws Exception {
         Process process = Runtime.getRuntime().exec("cmd display set-brightness " + value);
         return 0 == process.waitFor();
+    }
+
+    private Point getVendorDisplaySize() {
+        String value = PropertyUtil.getProperty("vendor.display-size");
+        if (value.isEmpty()) {
+            return null;
+        }
+
+        String[] parts = value.split("x");
+        assertEquals(2, parts.length);
+        return new Point(Integer.parseInt(parts[0]), Integer.parseInt(parts[1]));
     }
 }

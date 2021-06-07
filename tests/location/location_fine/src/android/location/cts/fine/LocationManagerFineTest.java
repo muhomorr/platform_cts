@@ -17,7 +17,6 @@
 package android.location.cts.fine;
 
 import static android.Manifest.permission.WRITE_SECURE_SETTINGS;
-import static android.location.LocationDeviceConfig.IGNORE_SETTINGS_ALLOWLIST;
 import static android.location.LocationManager.EXTRA_PROVIDER_ENABLED;
 import static android.location.LocationManager.EXTRA_PROVIDER_NAME;
 import static android.location.LocationManager.FUSED_PROVIDER;
@@ -117,6 +116,8 @@ public class LocationManagerFineTest {
             "another_valid_location_attribution_tag";
     private static final String INVALID_LOCATION_ATTRIBUTION_TAG =
             "invalid_location_attribution_tag";
+
+    private static final String IGNORE_SETTINGS_ALLOWLIST = "ignore_settings_allowlist";
 
     private Random mRandom;
     private Context mContext;
@@ -1677,8 +1678,10 @@ public class LocationManagerFineTest {
             attributionContextFast
                     .getSystemService(LocationManager.class)
                     .requestLocationUpdates(
-                            TEST_PROVIDER, new LocationRequest.Builder(0).build(),
-                            Runnable::run, fastCapture);
+                            TEST_PROVIDER,
+                            new LocationRequest.Builder(0).build(),
+                            Runnable::run,
+                            fastCapture);
             attributionContextSlow
                     .getSystemService(LocationManager.class)
                     .requestLocationUpdates(
@@ -1688,10 +1691,16 @@ public class LocationManagerFineTest {
                             slowCapture);
 
             // Set initial location.
+            long timeBeforeLocationAccess = System.currentTimeMillis();
             mManager.setTestProviderLocation(TEST_PROVIDER, loc1);
+            assertNotedOpsSinceLastLocationAccess(
+                    timeBeforeLocationAccess,
+                    /* expectedOp */ AppOpsManager.OPSTR_FINE_LOCATION,
+                    /* unexpectedOp */ AppOpsManager.OPSTR_FINE_LOCATION_SOURCE,
+                   VALID_LOCATION_ATTRIBUTION_TAG);
 
             // Verify noteOp for the fast request.
-            long timeBeforeLocationAccess = System.currentTimeMillis();
+            timeBeforeLocationAccess = System.currentTimeMillis();
             mManager.setTestProviderLocation(TEST_PROVIDER, loc2);
             assertNotedOpsSinceLastLocationAccess(
                     timeBeforeLocationAccess,

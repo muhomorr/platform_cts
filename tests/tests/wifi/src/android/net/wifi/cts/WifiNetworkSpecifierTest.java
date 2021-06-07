@@ -31,17 +31,20 @@ import android.net.MacAddress;
 import android.net.Network;
 import android.net.NetworkCapabilities;
 import android.net.NetworkRequest;
+import android.net.NetworkSpecifier;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiEnterpriseConfig;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.net.wifi.WifiNetworkSpecifier;
+import android.os.Build;
 import android.os.PatternMatcher;
 import android.platform.test.annotations.AppModeFull;
 import android.support.test.uiautomator.UiDevice;
 import android.util.Pair;
 
+import androidx.core.os.BuildCompat;
 import androidx.test.filters.SdkSuppress;
 import androidx.test.filters.SmallTest;
 import androidx.test.platform.app.InstrumentationRegistry;
@@ -226,10 +229,6 @@ public class WifiNetworkSpecifierTest extends WifiJUnit4TestBase {
         // Pick any network in range.
         sTestNetwork = TestHelper.findMatchingSavedNetworksWithBssid(wifiManager, savedNetworks)
                 .get(0);
-
-        // Disconnect & disable auto-join on the saved network to prevent auto-connect from
-        // interfering with the test.
-        disableAllSavedNetworks(wifiManager);
     }
 
     private static void enableAllSavedNetworks(@NonNull WifiManager wifiManager) {
@@ -290,6 +289,9 @@ public class WifiNetworkSpecifierTest extends WifiJUnit4TestBase {
                     () -> mWifiManager.removeAppState(myUid(), mContext.getPackageName()));
         }
 
+        // Disconnect & disable auto-join on the saved network to prevent auto-connect from
+        // interfering with the test.
+        disableAllSavedNetworks(mWifiManager);
 
         // Wait for Wifi to be disconnected.
         PollingCheck.check(
@@ -400,9 +402,7 @@ public class WifiNetworkSpecifierTest extends WifiJUnit4TestBase {
     /**
      * Tests using the specifier to set a band.
      */
-    // TODO(b/167575586): Wait for S SDK finalization to change minSdkVersion to
-    //  Build.VERSION_CODES.S
-    @SdkSuppress(minSdkVersion = 31, codeName = "S")
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
     @Test
     public void testWifiBandInNetworkCallback() throws Exception {
         // Enable all networks and wait for Internet connectivity to be restored.
@@ -567,5 +567,30 @@ public class WifiNetworkSpecifierTest extends WifiJUnit4TestBase {
                 .setWpa3Enterprise192BitModeConfig(enterpriseConfig)
                 .build();
         assertThat(specifier1.canBeSatisfiedBy(specifier2)).isTrue();
+    }
+
+    /**
+     * Test WifiNetworkSpecifier redaction.
+     */
+    @Test
+    public void testRedact() {
+        if (!WifiBuildCompat.isPlatformOrWifiModuleAtLeastS(mContext)) {
+            // Skip the test if wifi module version is older than S.
+            return;
+        }
+        WifiNetworkSpecifier specifier = TestHelper
+                .createSpecifierBuilderWithCredentialFromSavedNetworkWithBssid(sTestNetwork)
+                .setBssidPattern(MacAddress.fromString(sTestNetwork.BSSID),
+                        MacAddress.fromString("ff:ff:ff:00:00:00"))
+                .setBand(ScanResult.WIFI_BAND_5_GHZ)
+                .build();
+
+        final NetworkSpecifier redacted = specifier.redact();
+        if (BuildCompat.isAtLeastS()) {
+            assertThat(new WifiNetworkSpecifier.Builder().setBand(ScanResult.WIFI_BAND_5_GHZ)
+                    .build().equals(redacted)).isTrue();
+        } else {
+            assertThat(redacted.equals(specifier)).isTrue();
+        }
     }
 }

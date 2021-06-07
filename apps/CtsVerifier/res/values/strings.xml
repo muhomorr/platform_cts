@@ -136,7 +136,7 @@
     <string name="car_garage_mode_test">Garage Mode Test</string>
     <string name="car_garage_mode_test_desc">
         This test verifies that Garage Mode runs at the end of a drive.\n\n
-        Optional: Disable Wi-Fi to minimize other activity during the test.\n\n
+        <b>Important: Please enable Wi-Fi or other connectivity for test to pass.\n\n </b>
         Touch "Enable Garage Mode Monitor" to launch the Garage Mode verifier.\n\n
         Turn the vehicle off and exit the vehicle (or take the proprietary action that
         initiates shut-down of the system).\n\n
@@ -882,7 +882,7 @@
         Remove the test app from the ignore battery optimizations list to begin the test. (Try going
         to the App Info page and make sure the system is optimizing battery for the app.)
     </string>
-    <string name="ibo_exempt_app">
+    <string name="ibo_exempt_app_request">
         Click Next to have the test request the exemption. Grant the exemption when prompted.
     </string>
     <string name="ibo_next_to_confirm">Press next to confirm.</string>
@@ -892,6 +892,14 @@
         to the App Info page and make sure the system is optimizing battery for the app.)
     </string>
     <string name="ibo_app_is_exempted">The app is exempted from battery optimizations.</string>
+    <string name="ibo_exempt_app_list">
+        Click Next to have the test open the list of apps and their exemption statuses. Find the
+        test app in the list and exempt it.
+    </string>
+    <string name="ibo_unexempt_app_list">
+        Click Next to have the test open the list of apps and their exemption statuses. Find the
+        test app in the list and remove the app\'s exemption.
+    </string>
 
     <!-- Strings for Location tests -->
     <string name="location_gps_test">GPS Test</string>
@@ -5038,7 +5046,7 @@ You should be prompted to select credentials; choose the ones you just installed
 
     <!-- Audio Loopback Latency Test -->
     <string name="audio_loopback_latency_test">Audio Loopback Latency Test</string>
-     <string name="audio_loopback_info">
+    <string name="audio_loopback_info">
           This test requires some form of audio loopback. This can be either:\n
           - a <a href="https://source.android.com/devices/audio/latency/loopback">Loopback Plug</a>  connected to a 3.5mm headset jack.\n
           - a <a href="https://source.android.com/devices/audio/latency/loopback">Loopback Plug</a>  connected to a USB audio adapter.\n
@@ -5062,7 +5070,16 @@ You should be prompted to select credentials; choose the ones you just installed
     <string name="audio_loopback_test_btn">Test</string>
     <string name="audio_loopback_results_text">Results...</string>
 
-   <!-- Audio Frequency Line Test -->
+    <!-- Audio Loopback Latency Test -->
+    <string name="audio_coldstart_out_latency_test">Audio Cold Start Output Latency Test</string>
+    <string name="audio_coldstart_in_latency_test">Audio Cold Start Input Latency Test</string>
+
+    <string name="audio_coldstart_output_info">Info Here</string>
+    <string name="audio_coldstart_input_info">Info Here</string>
+    <string name="audio_coldstart_outputlbl">Output Cold Start Latency</string>
+    <string name="audio_coldstart_inputlbl">Input Cold Start Latency</string>
+
+    <!-- Audio Frequency Line Test -->
     <string name="audio_frequency_line_test">Audio Frequency Line Test</string>
     <string name="audio_frequency_line_info">
         The system will measure the frequency response of the left and right line outputs,
@@ -5220,12 +5237,17 @@ Follow the instructions on the screen to measure the frequency response for the 
     <!-- AudioTap2Tone test -->
     <string name="audio_tap2tone">Audio Tap To Tone Test</string>
     <string name="audio_tap2tone_info">This tests the latency from a screen interaction to a
-        resulting tone. This time is a combination of touch screen latency and audio latency\nSelect
+        resulting tone. This time is a combination of touch screen latency and audio latency.\nThis
+        test is best conducted in a quiet room with the device laying on a table. Select
         the Audio API to test and press the \"Start\" button. Use your fingernail to tap on the
-        field below to trigger the test tone. Results will be displayed in the field.</string>
-    <string name="audio_tap2tone_spec">80ms average is required to pass.</string>
+        field below to trigger the test tone. Results will be displayed in the field above the
+        waveform display.\nFive successful tests runs are required to determine if the test
+        as a whole succeeds.
+    </string>
+    <string name="audio_tap2tone_spec">80ms or less average latency is STRONGLY RECOMMENDED to pass.</string>
     <string name="audio_tap2tone_too_few">Not enough edges. Use fingernail.</string>
-    <string name="audio_tap2tone_too_many">Too many edges. Use fingernail.</string>
+    <string name="audio_tap2tone_too_many">Too many edges. Use fingernail. Ensure there is
+    no background noise.</string>
 
     <!-- Strings for 6DoF test -->
     <string name="six_dof_test">6DoF Test</string>
@@ -5727,6 +5749,30 @@ Follow the instructions on the screen to measure the frequency response for the 
     <string name="bubbles_test_summary_title">Test Complete</string>
     <string name="bubbles_test_summary">%1$d out of %2$d tests passed</string>
     <string name="bubble_activity_title">Bubble Activity</string>
+
+    <!-- Toast test -->
+    <string name="toast_title">Toast test (may auto pass if CtsVerifier isn\'t targeting
+        S+)</string>
+    <string name="toast_info">This test checks the behavior for toasts for apps targeting
+        sdk S+ (31). Toasts are short messages that appear as popups for a limited amount of time.
+    </string>
+    <string name="toast_instructions_pre_s">No cts requirement for toasts for apps targeting
+        pre-s. Auto pass this test.</string>
+    <string name="toast_instructions_s">Press the button below to post a toast. Pass this
+        test if a toast appears and has:\n
+        \n\t1. a maximum of two lines
+        \n\t2. an application icon
+    </string>
+    <string name="toast_post_button_label">Post toast</string>
+    <string name="toast_long_text">Lorem ipsum dolor sit amet, consectetur adipiscing elit.
+        Nam luctus eros ac interdum tincidunt. Vestibulum dignissim, metus nec tempor mollis,
+        tortor leo aliquam est, eget rutrum mi nisi ut ligula. Quisque enim justo, tempus at
+        ligula ac, porta posuere odio. Proin et tortor tincidunt, tempus ligula id,
+        vestibulum mauris. Vivamus blandit tristique tempus. Integer dignissim purus eu nibh
+        faucibus, eget dignissim eros gravida. Sed sit amet erat quis leo pharetra euismod vel at
+        purus. Duis blandit, diam eu imperdiet pulvinar, erat odio eleifend augue, nec luctus
+        lectus erat ac nibh. Nullam id enim metus.
+    </string>
 
     <!-- Strings for Instant Apps -->
     <string name="ia_instruction_heading_label">Instructions:</string>

@@ -129,6 +129,9 @@
 
         <activity android:name="android.server.wm.lifecycle.ActivityLifecycleClientTestBase$ResultActivity"/>
 
+        <activity android:name="android.server.wm.lifecycle.ActivityLifecycleClientTestBase$TranslucentResultActivity"
+                  android:theme="@android:style/Theme.Dialog"/>
+
         <activity android:name="android.server.wm.lifecycle.ActivityLifecycleClientTestBase$SingleTopActivity"
              android:launchMode="singleTop"/>
 
@@ -491,11 +494,23 @@
                   android:screenOrientation="portrait"
                   android:exported="true"/>
 
+        <activity android:name="android.server.wm.CompatChangeTests$NonResizeableAspectRatioActivity"
+                  android:resizeableActivity="false"
+                  android:screenOrientation="portrait"
+                  android:minAspectRatio="1.6"
+                  android:exported="true"/>
+
+        <activity android:name="android.server.wm.CompatChangeTests$NonResizeableLargeAspectRatioActivity"
+                  android:resizeableActivity="false"
+                  android:screenOrientation="portrait"
+                  android:minAspectRatio="3"
+                  android:exported="true"/>
+
         <activity android:name="android.server.wm.CompatChangeTests$SupportsSizeChangesPortraitActivity"
                   android:resizeableActivity="false"
                   android:screenOrientation="portrait"
                   android:exported="true">
-            <meta-data android:name="android.supports_size_changes"
+        <meta-data android:name="android.supports_size_changes"
                        android:value="true"/>
         </activity>
 

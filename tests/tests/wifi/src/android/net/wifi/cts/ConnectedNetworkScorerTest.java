@@ -22,6 +22,7 @@ import static android.Manifest.permission.READ_WIFI_CREDENTIAL;
 import static android.Manifest.permission.WIFI_UPDATE_USABILITY_STATS_SCORE;
 import static android.net.NetworkCapabilities.NET_CAPABILITY_OEM_PAID;
 import static android.net.NetworkCapabilities.NET_CAPABILITY_OEM_PRIVATE;
+import static android.net.wifi.WifiUsabilityStatsEntry.ContentionTimeStats;
 import static android.net.wifi.WifiUsabilityStatsEntry.RadioStats;
 import static android.net.wifi.WifiUsabilityStatsEntry.RateStats;
 import static android.net.wifi.WifiUsabilityStatsEntry.PROBE_STATUS_FAILURE;
@@ -278,6 +279,12 @@ public class ConnectedNetworkScorerTest extends WifiJUnit4TestBase {
                             WME_ACCESS_CATEGORY_VO).getContentionTimeAvgMicros()).isAtLeast(0);
                     assertThat(statsEntry.getContentionTimeStats(
                             WME_ACCESS_CATEGORY_VO).getContentionNumSamples()).isAtLeast(0);
+                    // This is to add CTS test for the constructor function.
+                    ContentionTimeStats contentionStats = new ContentionTimeStats(2, 1, 4, 10);
+                    assertEquals(2, contentionStats.getContentionTimeMinMicros());
+                    assertEquals(1, contentionStats.getContentionTimeMaxMicros());
+                    assertEquals(4, contentionStats.getContentionTimeAvgMicros());
+                    assertEquals(10, contentionStats.getContentionNumSamples());
                     assertThat(statsEntry.getChannelUtilizationRatio()).isIn(Range.closed(0, 255));
                     if (mTelephonyManager != null) {
                         boolean isCellularDataAvailable =
@@ -373,10 +380,8 @@ public class ConnectedNetworkScorerTest extends WifiJUnit4TestBase {
 
     /**
      * Tests the {@link android.net.wifi.WifiManager#setWifiScoringEnabled(boolean)}
-     *
-     * TODO(b/167575586): Wait for S SDK finalization to determine the final minSdkVersion.
      */
-    @SdkSuppress(minSdkVersion = 31, codeName = "S")
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
     @Test
     public void testSetWifiScoringEnabled() throws Exception {
         UiAutomation uiAutomation = InstrumentationRegistry.getInstrumentation().getUiAutomation();
@@ -552,6 +557,15 @@ public class ConnectedNetworkScorerTest extends WifiJUnit4TestBase {
             assertThat(countDownLatchScorer.await(DURATION, TimeUnit.MILLISECONDS)).isTrue();
             assertThat(connectedNetworkScorer.stopSessionId)
                     .isEqualTo(connectedNetworkScorer.startSessionId);
+            // Verify that onStart() and onStop() set internal variables correctly.
+            connectedNetworkScorer.onStart(
+                    new WifiConnectedSessionInfo.Builder(100)
+                            .setUserSelected(false)
+                            .build());
+            assertEquals(100, connectedNetworkScorer.startSessionId.intValue());
+            assertEquals(false, connectedNetworkScorer.isUserSelected);
+            connectedNetworkScorer.onStop(200);
+            assertEquals(200, connectedNetworkScorer.stopSessionId.intValue());
         } finally {
             mWifiManager.removeOnWifiUsabilityStatsListener(usabilityStatsListener);
             mWifiManager.clearWifiConnectedNetworkScorer();
@@ -572,9 +586,8 @@ public class ConnectedNetworkScorerTest extends WifiJUnit4TestBase {
      * Tests the {@link android.net.wifi.WifiConnectedNetworkScorer} interface.
      *
      * Verifies that the external scorer works even after wifi restart.
-     * TODO(b/167575586): Wait for S SDK finalization to determine the final minSdkVersion.
      */
-    @SdkSuppress(minSdkVersion = 31, codeName = "S")
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
     @Test
     public void testSetWifiConnectedNetworkScorerOnSubsystemRestart() throws Exception {
         CountDownLatch countDownLatchScorer = new CountDownLatch(1);
@@ -754,9 +767,8 @@ public class ConnectedNetworkScorerTest extends WifiJUnit4TestBase {
      * Tests the {@link android.net.wifi.WifiConnectedNetworkScorer} interface.
      *
      * Verifies that the external scorer is not notified for oem paid suggestion connections.
-     * TODO(b/167575586): Wait for S SDK finalization to determine the final minSdkVersion.
      */
-    @SdkSuppress(minSdkVersion = 31, codeName = "S")
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
     @Test
     public void testSetWifiConnectedNetworkScorerForOemPaidSuggestionConnection() throws Exception {
         testSetWifiConnectedNetworkScorerForRestrictedSuggestionConnection(
@@ -767,9 +779,8 @@ public class ConnectedNetworkScorerTest extends WifiJUnit4TestBase {
      * Tests the {@link android.net.wifi.WifiConnectedNetworkScorer} interface.
      *
      * Verifies that the external scorer is not notified for oem private suggestion connections.
-     * TODO(b/167575586): Wait for S SDK finalization to determine the final minSdkVersion.
      */
-    @SdkSuppress(minSdkVersion = 31, codeName = "S")
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
     @Test
     public void testSetWifiConnectedNetworkScorerForOemPrivateSuggestionConnection()
             throws Exception {

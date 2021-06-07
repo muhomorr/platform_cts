@@ -19,6 +19,9 @@ import static android.compat.testing.Classpaths.ClasspathType.BOOTCLASSPATH;
 import static android.compat.testing.Classpaths.ClasspathType.DEX2OATBOOTCLASSPATH;
 import static android.compat.testing.Classpaths.ClasspathType.SYSTEMSERVERCLASSPATH;
 
+import static com.google.common.truth.Truth.assertThat;
+import static com.google.common.truth.Truth.assertWithMessage;
+
 import android.compat.testing.Classpaths;
 import android.compat.testing.Classpaths.ClasspathType;
 
@@ -30,7 +33,14 @@ import com.google.common.collect.ImmutableList;
 
 import org.jf.dexlib2.iface.ClassDef;
 
+/**
+ * Collects information about Java classes present in *CLASSPATH variables and Java shared libraries
+ * from the device.
+ */
 public class ClasspathDeviceInfo extends DeviceInfo {
+
+    private static final String HELPER_APP_PACKAGE = "android.edi.cts.app";
+    private static final String HELPER_APP_CLASS = HELPER_APP_PACKAGE + ".ClasspathDeviceTest";
 
     private ITestDevice mDevice;
 
@@ -39,17 +49,19 @@ public class ClasspathDeviceInfo extends DeviceInfo {
         mDevice = getDevice();
 
         store.startArray("jars");
-        collectBootclasspathJars(store);
+        collectClasspathsJars(store);
+        collectSharedLibraryJars(store);
         store.endArray();
     }
 
-    private void collectBootclasspathJars(HostInfoStore store) throws Exception {
-        collectJarInfo(store, BOOTCLASSPATH);
-        collectJarInfo(store, SYSTEMSERVERCLASSPATH);
-        collectJarInfo(store, DEX2OATBOOTCLASSPATH);
+    private void collectClasspathsJars(HostInfoStore store) throws Exception {
+        collectClasspathJarInfo(store, BOOTCLASSPATH);
+        collectClasspathJarInfo(store, SYSTEMSERVERCLASSPATH);
+        collectClasspathJarInfo(store, DEX2OATBOOTCLASSPATH);
     }
 
-    private void collectJarInfo(HostInfoStore store, ClasspathType classpath) throws Exception {
+    private void collectClasspathJarInfo(HostInfoStore store, ClasspathType classpath)
+            throws Exception {
         ImmutableList<String> paths = Classpaths.getJarsOnClasspath(mDevice, classpath);
         for (int i = 0; i < paths.size(); i++) {
             store.startGroup();
@@ -61,7 +73,49 @@ public class ClasspathDeviceInfo extends DeviceInfo {
         }
     }
 
+    private void collectSharedLibraryJars(HostInfoStore store) throws Exception {
+        // Trigger helper app to collect and write info about shared libraries on the device.
+        assertThat(runDeviceTests(HELPER_APP_PACKAGE, HELPER_APP_CLASS)).isTrue();
+
+        String remoteFile = "/sdcard/shared-libs.txt";
+        String content;
+        try {
+            content = mDevice.pullFileContents(remoteFile);
+        } finally {
+            mDevice.deleteFile(remoteFile);
+        }
+
+        for (String line : content.split("\n")) {
+            String[] words = line.split(" ");
+            assertWithMessage(
+                    "expected each line to be in the format: <name> <type> <version> <path>...")
+                    .that(words.length)
+                    .isAtLeast(4);
+            String libraryName = words[0];
+            String libraryType = words[1];
+            String libraryVersion = words[2];
+            for (int i = 3; i < words.length; i++) {
+                String path = words[i];
+
+                store.startGroup();
+                store.startGroup("shared_library");
+                store.addResult("name", libraryName);
+                store.addResult("type", libraryType);
+                store.addResult("version", libraryVersion);
+                store.endGroup(); // shared_library
+                store.addResult("path", path);
+                store.addResult("index", i - 3); // minus <name> <type> <version>
+                collectClassInfo(store, path);
+                store.endGroup();
+            }
+        }
+    }
+
     private void collectClassInfo(HostInfoStore store, String path) throws Exception {
+        // TODO(b/189924891): stop ignoring libhwinfo.jar
+        if (path.equals("/product/framework/libhwinfo.jar")) {
+            return;
+        }
         store.startArray("classes");
         for (ClassDef classDef : Classpaths.getClassDefsFromJar(mDevice, path)) {
             store.startGroup();

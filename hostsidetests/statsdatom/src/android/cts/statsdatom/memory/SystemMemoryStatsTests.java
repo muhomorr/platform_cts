@@ -23,6 +23,7 @@ import android.cts.statsdatom.lib.ConfigUtils;
 import android.cts.statsdatom.lib.DeviceUtils;
 import android.cts.statsdatom.lib.ReportUtils;
 
+import com.android.compatibility.common.util.PropertyUtil;
 import com.android.os.AtomsProto;
 import com.android.tradefed.build.IBuildInfo;
 import com.android.tradefed.testtype.DeviceTestCase;
@@ -64,6 +65,9 @@ public class SystemMemoryStatsTests extends DeviceTestCase implements IBuildRece
         assertThat(systemMemory.getVmallocUsedKb()).isAtLeast(0);
         assertThat(systemMemory.getPageTablesKb()).isAtLeast(0);
         assertThat(systemMemory.getKernelStackKb()).isAtLeast(0);
+        if (PropertyUtil.getFirstApiLevel(getDevice()) >= 30) {
+            assertThat(systemMemory.getTotalIonKb()).isAtLeast(0);
+        }
     }
 
     /** Returns SystemMemory atoms pulled as a simple gauge metric while test app is running. */
@@ -71,15 +75,8 @@ public class SystemMemoryStatsTests extends DeviceTestCase implements IBuildRece
         // Get SystemMemory as a simple gauge metric.
         ConfigUtils.uploadConfigForPulledAtom(getDevice(), DeviceUtils.STATSD_ATOM_TEST_PKG,
                 AtomsProto.Atom.SYSTEM_MEMORY_FIELD_NUMBER);
-
-        // Start test app and trigger a pull while it is running.
-        try (AutoCloseable a = DeviceUtils.withActivity(getDevice(),
-                DeviceUtils.STATSD_ATOM_TEST_PKG, "StatsdCtsForegroundActivity", "action",
-                "action.show_notification")) {
-            AtomTestUtils.sendAppBreadcrumbReportedAtom(getDevice());
-            Thread.sleep(AtomTestUtils.WAIT_TIME_LONG);
-        }
-
+        AtomTestUtils.sendAppBreadcrumbReportedAtom(getDevice());
+        Thread.sleep(AtomTestUtils.WAIT_TIME_LONG);
         return ReportUtils.getGaugeMetricAtoms(getDevice());
     }
 }

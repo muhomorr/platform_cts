@@ -33,8 +33,6 @@ import android.support.test.uiautomator.By
 import android.support.test.uiautomator.BySelector
 import android.support.test.uiautomator.UiDevice
 import android.support.test.uiautomator.UiObject2
-import android.support.test.uiautomator.UiScrollable
-import android.support.test.uiautomator.UiSelector
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityNodeInfo.ACTION_SCROLL_FORWARD
 import android.widget.Switch
@@ -43,8 +41,8 @@ import androidx.test.InstrumentationRegistry
 import androidx.test.filters.SdkSuppress
 import androidx.test.runner.AndroidJUnit4
 import com.android.compatibility.common.util.DisableAnimationRule
-import com.android.compatibility.common.util.MatcherUtils.hasTextThat
 import com.android.compatibility.common.util.SystemUtil
+import com.android.compatibility.common.util.SystemUtil.callWithShellPermissionIdentity
 import com.android.compatibility.common.util.SystemUtil.eventually
 import com.android.compatibility.common.util.SystemUtil.getEventually
 import com.android.compatibility.common.util.SystemUtil.runShellCommandOrThrow
@@ -56,10 +54,10 @@ import com.android.compatibility.common.util.lowestCommonAncestor
 import com.android.compatibility.common.util.textAsString
 import com.android.compatibility.common.util.uiDump
 import org.hamcrest.CoreMatchers.containsString
-import org.hamcrest.CoreMatchers.containsStringIgnoringCase
 import org.hamcrest.CoreMatchers.equalTo
 import org.hamcrest.Matcher
 import org.hamcrest.Matchers.greaterThan
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertThat
@@ -126,36 +124,60 @@ class AutoRevokeTest {
         }
     }
 
+    @After
+    fun cleanUp() {
+        goHome()
+    }
+
     @AppModeFull(reason = "Uses separate apps for testing")
     @Test
     fun testUnusedApp_getsPermissionRevoked() {
         withUnusedThresholdMs(3L) {
             withDummyApp {
                 // Setup
-                startApp()
-                clickPermissionAllow()
-                assertPermission(PERMISSION_GRANTED)
+                startAppAndAcceptPermission()
                 killDummyApp()
-                Thread.sleep(5)
+                Thread.sleep(5) // wait longer than the unused threshold
 
                 // Run
                 runAppHibernationJob(context, LOG_TAG)
 
                 // Verify
                 assertPermission(PERMISSION_DENIED)
-                if (hasFeatureWatch()) {
-                    expandNotificationsWatch()
-                } else {
-                    runShellCommandOrThrow("cmd statusbar expand-notifications")
-                }
-                waitFindObject(By.textContains("unused app"))
-                        .click()
-                if (hasFeatureWatch()) {
-                    // In wear os, notification has one additional button to open it
-                    waitFindObject(By.text("Open")).click()
-                }
+                openUnusedAppsNotification()
+
                 waitFindObject(By.text(supportedAppPackageName))
                 waitFindObject(By.text("Calendar permission removed"))
+                goBack()
+            }
+        }
+    }
+
+    @AppModeFull(reason = "Uses separate apps for testing")
+    @Test
+    fun testUnusedApp_uninstallApp() {
+        withUnusedThresholdMs(3L) {
+            withDummyAppNoUninstallAssertion {
+                // Setup
+                startAppAndAcceptPermission()
+                killDummyApp()
+                Thread.sleep(5) // wait longer than the unused threshold
+
+                // Run
+                runAppHibernationJob(context, LOG_TAG)
+
+                // Verify
+                openUnusedAppsNotification()
+                waitFindObject(By.text(supportedAppPackageName))
+
+                assertTrue(isPackageInstalled(supportedAppPackageName))
+                clickUninstallIcon()
+                clickUninstallOk()
+
+                eventually {
+                    assertFalse(isPackageInstalled(supportedAppPackageName))
+                }
+
                 goBack()
             }
         }
@@ -336,6 +358,19 @@ class AutoRevokeTest {
         installApk(supportedApkPath)
     }
 
+    private fun isPackageInstalled(packageName: String): Boolean {
+        val pm = context.packageManager
+
+        return callWithShellPermissionIdentity {
+            try {
+                pm.getPackageInfo(packageName, 0)
+                true
+            } catch (e: PackageManager.NameNotFoundException) {
+                false
+            }
+        }
+    }
+
     private fun uninstallApp() {
         uninstallApp(supportedAppPackageName)
     }
@@ -344,8 +379,23 @@ class AutoRevokeTest {
         startApp(supportedAppPackageName)
     }
 
-    private fun goHome() {
-        runShellCommandOrThrow("input keyevent KEYCODE_HOME")
+    private fun startAppAndAcceptPermission() {
+        startApp()
+        clickPermissionAllow()
+        assertPermission(PERMISSION_GRANTED)
+    }
+
+    private fun openUnusedAppsNotification() {
+        if (hasFeatureWatch()) {
+            expandNotificationsWatch()
+        } else {
+            runShellCommandOrThrow("cmd statusbar expand-notifications")
+        }
+        waitFindObject(By.textContains("unused app")).click()
+        if (hasFeatureWatch()) {
+            // In wear os, notification has one additional button to open it
+            waitFindObject(By.text("Open")).click()
+        }
     }
 
     private fun goBack() {
@@ -379,12 +429,37 @@ class AutoRevokeTest {
         }
     }
 
+    private fun clickUninstallIcon() {
+        val rowSelector = By.text(supportedAppPackageName)
+        val rowItem = waitFindObject(rowSelector).parent.parent
+
+        val uninstallSelector = if (isAutomotiveDevice()) {
+            By.res("com.android.permissioncontroller:id/car_ui_secondary_action")
+        } else {
+            By.desc("Uninstall or disable")
+        }
+
+        rowItem.findObject(uninstallSelector).click()
+    }
+
+    private fun clickUninstallOk() {
+        waitFindObject(By.text("OK")).click()
+    }
+
     private inline fun withDummyApp(
         apk: String = supportedApkPath,
         packageName: String = supportedAppPackageName,
         action: () -> Unit
     ) {
         withApp(apk, packageName, action)
+    }
+
+    private inline fun withDummyAppNoUninstallAssertion(
+        apk: String = supportedApkPath,
+        packageName: String = supportedAppPackageName,
+        action: () -> Unit
+    ) {
+        withAppNoUninstallAssertion(apk, packageName, action)
     }
 
     private fun assertPermission(
@@ -505,6 +580,10 @@ fun waitForIdle() {
 
 fun uninstallApp(packageName: String) {
     assertThat(runShellCommandOrThrow("pm uninstall $packageName"), containsString("Success"))
+}
+
+fun uninstallAppWithoutAssertion(packageName: String) {
+    runShellCommandOrThrow("pm uninstall $packageName")
 }
 
 fun installApk(apk: String) {
