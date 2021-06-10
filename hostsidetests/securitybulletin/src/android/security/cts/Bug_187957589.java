@@ -15,28 +15,26 @@
  */
 
 package android.security.cts;
+import static org.junit.Assume.assumeFalse;
 
 import android.platform.test.annotations.SecurityTest;
+import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
-import com.android.tradefed.device.ITestDevice;
-
-import static org.junit.Assume.*;
-import static org.hamcrest.CoreMatchers.*;
 
 @RunWith(DeviceJUnit4ClassRunner.class)
-public class CVE_2021_0393 extends SecurityTestCase {
-
+public class Bug_187957589 extends SecurityTestCase {
     /**
-     * b/168041375
-     * Vulnerability Behavior: SIGSEGV in pacrunner
+     * b/187957589
+     * Vulnerability Behaviour: out of bounds write in noteAtomLogged for negative atom ids.
      */
-    @SecurityTest(minPatchLevel = "2021-03")
+    @SecurityTest(minPatchLevel = "unknown")
     @Test
-    public void testPocCVE_2021_0393() throws Exception {
-        assumeThat(getDevice().getProperty("ro.config.low_ram"), is("false"));
-        pocPusher.only64();
-        AdbUtils.runProxyAutoConfig("cve_2021_0393", getDevice());
+    public void testPocBug_187957589() throws Exception {
+        assumeFalse(moduleIsPlayManaged("com.google.android.os.statsd"));
+        AdbUtils.runPoc("Bug-187957589", getDevice());
+        // Sleep to ensure statsd was able to process the injected event.
+        Thread.sleep(5_000);
+        AdbUtils.assertNoCrashes(getDevice(), "statsd");
     }
 }
