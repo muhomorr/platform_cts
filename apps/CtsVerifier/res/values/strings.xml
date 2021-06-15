@@ -344,7 +344,7 @@
         Keymaster signs a message with a confirmation key only if the message was previously
         confirmed by the user.
     </string>
-    <string name="sec_protected_confirmation_not_supported_title">Android Protected Confirmation not supported</string>
+    <string name="sec_protected_confirmation_not_supported_title">Not Supported</string>
     <string name="sec_protected_confirmation_not_supported_info">
         Android Protected Confirmation is not implemented by this device. This is okay because this
         is an optional feature. Set this test to passed and continue.
@@ -4086,6 +4086,7 @@ You should be prompted to select credentials; choose the ones you just installed
         Use the Back button to return to this page.
     </string>
     <string name="device_owner_disallow_remove_user_create_user">Create uninitialized user</string>
+    <string name="device_owner_remove_secondary_user">Remove uninitialized user</string>
     <string name="disallow_remove_managed_profile">Disallow remove managed profile</string>
     <string name="disallow_remove_managed_profile_action">Removing the work profile. It shouldn\'t be possible neither from the Accounts screen nor the Device Administrators screen (after selecting the Device Administrator that corresponds to the badged version of \"CTS Verifier\")</string>
     <string name="disallow_share_location">Disallow share location</string>
@@ -4116,17 +4117,6 @@ You should be prompted to select credentials; choose the ones you just installed
     </string>
     <string name="set_maximum_time_to_lock_action">Selecting maximum time to lock greater than the set value below</string>
     <string name="set_maximum_time_to_lock_widget_label">Set maximum time to lock (in Sec):</string>
-    <string name="set_password_quality">Set password quality</string>
-    <string name="password_quality_set_step">Set minimum password quality by selecting an option in the spinner below.</string>
-    <string name="set_password_quality_action">Setting a password which does not meet the requirements of the password quality selected</string>
-    <string name="set_password_quality_widget_label">@string/set_password_quality</string>
-    <string name="password_quality_unspecified">Unspecified</string>
-    <string name="password_quality_something">Something</string>
-    <string name="password_quality_numeric">Numeric</string>
-    <string name="password_quality_numeric_complex">Numeric (Complex)</string>
-    <string name="password_quality_alphabetic">Alphabetic</string>
-    <string name="password_quality_alphanumeric">Alphanumeric</string>
-    <string name="password_quality_complex">Complex</string>
     <string name="set_permitted_accessibility_services">Set permitted accessibility services</string>
     <string name="permitted_accessibility_services_set_step">
         Check that \'Test Accessibility service\' is not enabled in Settings and disallow \'Test Accessibility service\' from permitted accessibility services by turning on
@@ -4465,6 +4455,32 @@ You should be prompted to select credentials; choose the ones you just installed
     </string>
     <string name="device_owner_enable_usb_data_signaling_test">Enable USB data signaling</string>
 
+    <string name="device_owner_required_password_complexity_test">Set required password complexity</string>
+    <string name="device_owner_required_password_complexity_test_info">
+         This test verifies that required password complexity can be set by the device owner.\n
+         1. Press the \"Set low required password complexity\" button.\n
+         2. Press the \"Go\" button to go to Settings > Security > Screen lock. Verify that
+         you have to set a pattern, PIN or password.\n
+         3. Press the \"Set medium required password complexity\" button.\n
+         4. Press the \"Go\" button to go to Settings > Security > Screen lock. Verify that
+         you have to set a PIN without repeating (4444) or ordered (1234, 4321, 2468) sequences
+         with a length of at least 4; or you have to set an alphabetic or alphanumeric password with
+         a length of at least 4.\n
+         5. Press the \"Set high required password complexity\" button.\n
+         6. Press the \"Go\" button to go to Settings > Security > Screen lock. Verify that
+         you have to set a PIN without repeating (4444) or ordered (1234, 4321, 2468) sequences
+         with a length of at least 8; or you have to set an alphabetic or alphanumeric password with
+         a length of at least 6.\n
+         7. Press the \"Remove required password complexity\" button.\n
+         8. Press the \"Go\" button to go to Settings > Security > Screen lock. Verify that
+         you don\'t have to set a pattern, PIN or password.\n
+         Please mark the test accordingly.
+    </string>
+    <string name="set_low_required_password_complexity">Set low required password complexity</string>
+    <string name="set_medium_required_password_complexity">Set medium required password complexity</string>
+    <string name="set_high_required_password_complexity">Set high required password complexity</string>
+    <string name="remove_required_password_complexity">Remove required password complexity</string>
+
     <string name="managed_user_test">Managed User</string>
     <string name="managed_user_positive_tests">Managed User positive tests</string>
     <string name="managed_user_positive_tests_instructions">
@@ -4761,58 +4777,9 @@ You should be prompted to select credentials; choose the ones you just installed
     soundbars which are connected. </string>
     <string name="tv_audio_capabilities_receiver_connected">Connect a receiver or
     soundbar which can play Dolby Atmos. </string>
-    <string name="tv_audio_capabilities_atmos_supported">Does your Android TV device support Dolby Atmos? </string>
+    <string name="tv_audio_capabilities_atmos_supported">Does your Android TV device support Dolby
+    Atmos (either passthrough or decode)?  </string>
 
-    <!-- HDR Capabilities test -->
-    <string name="tv_hdr_capabilities_test">HDR Capabilities Test</string>
-    <string name="tv_hdr_capabilities_test_step_hdr_display">HDR Display</string>
-    <string name="tv_hdr_capabilities_test_step_no_display">No Display</string>
-    <string name="tv_hdr_capabilities_test_step_non_hdr_display">Non HDR Display</string>
-    <string name="tv_hdr_capabilities_test_info">This test checks if
-        Display.getHdrCapabilities correctly reports the HDR capabilities of the display.
-    </string>
-    <string name="tv_hdr_connect_no_hdr_display">Connect a non-HDR display and then
-        press the "%s" button, below.
-    </string>
-    <string name="tv_hdr_connect_hdr_display">Connect an HDR display and press
-        the "%s" button, below.
-    </string>
-    <string name="tv_hdr_disconnect_display">Press the "%1$s" button
-        and disconnect the display within %2$d seconds. Wait at least %3$d seconds and then
-        reconnect the display.
-    </string>
-    <string name="tv_panel_hdr_types_reported_are_supported">
-        The supported HDR types are: %s\nAre all of them supported by the hardware?
-    </string>
-    <string name="tv_panel_hdr_types_supported_are_reported">
-        Are there other HDR types which are supported by the hardware, but are not listed above?
-    </string>
-
-    <!-- Display Modes Test -->
-    <string name="tv_display_modes_test">Display Modes Test</string>
-    <string name="tv_display_modes_test_info">This test checks if Display.getSupportedModes()
-        and Display.getMode() are correctly reporting the supported screen modes.
-    </string>
-    <string name="tv_display_modes_disconnect_display">
-        Press the "%1$s" button and disconnect the display within %2$d seconds. Wait at least %3$d
-        seconds and then reconnect the display.
-    </string>
-    <string name="tv_display_modes_test_step_no_display">No Display</string>
-    <string name="tv_display_modes_test_step_1080p">1080p Display</string>
-    <string name="tv_display_modes_test_step_2160p">2160p Display</string>
-    <string name="tv_display_modes_start_test_button">Start Test</string>
-    <string name="tv_display_modes_connect_2160p_display">
-        Connect a 2160p display and press the "%s" button, below.
-    </string>
-    <string name="tv_display_modes_connect_1080p_display">
-        Connect a 1080p display and press the "%s" button, below.
-    </string>
-    <string name="tv_panel_display_modes_reported_are_supported">
-        The supported display modes are:\n%s\n\nAre all of the above display modes supported by the hardware?
-    </string>
-    <string name="tv_panel_display_modes_supported_are_reported">
-        Are there other modes which are supported by the hardware, but are not listed above?
-    </string>
     <string name="overlay_view_text">Overlay View Dummy Text</string>
     <string name="custom_rating">Example of input app specific custom rating.</string>
 

@@ -182,7 +182,8 @@ public class UiTranslationManagerTest {
                 SimpleActivity.HELLO_TEXT_ID);
         assertThat(helloText).isNotNull();
         // Set response
-        sTranslationReplier.addResponse(createViewsTranslationResponse(views, translatedText));
+        final TranslationResponse response = createViewsTranslationResponse(views, translatedText);
+        sTranslationReplier.addResponse(response);
 
         runWithShellPermissionIdentity(() -> {
             // Call startTranslation API
@@ -206,6 +207,8 @@ public class UiTranslationManagerTest {
 
             SystemClock.sleep(UI_WAIT_TIMEOUT);
             assertThat(helloText.getText().toString()).isEqualTo(translatedText);
+            assertThat(mTextView.getViewTranslationResponse())
+                    .isEqualTo(response.getViewTranslationResponses().get(0));
 
             // Call pauseTranslation API
             manager.pauseTranslation(contentCaptureContext.getActivityId());
@@ -229,6 +232,25 @@ public class UiTranslationManagerTest {
             CtsTranslationService translationService =
                     mTranslationServiceServiceWatcher.getService();
             translationService.awaitSessionDestroyed();
+        });
+
+        // Test re-translating.
+        sTranslationReplier.addResponse(createViewsTranslationResponse(views, translatedText));
+        runWithShellPermissionIdentity(() -> {
+            manager.startTranslation(
+                    new TranslationSpec(ULocale.ENGLISH,
+                            TranslationSpec.DATA_FORMAT_TEXT),
+                    new TranslationSpec(ULocale.FRENCH,
+                            TranslationSpec.DATA_FORMAT_TEXT),
+                    views, contentCaptureContext.getActivityId(),
+                    new UiTranslationSpec.Builder().build());
+            SystemClock.sleep(UI_WAIT_TIMEOUT);
+            assertThat(helloText.getText()).isEqualTo(translatedText);
+
+            // Also make sure pausing still works.
+            manager.pauseTranslation(contentCaptureContext.getActivityId());
+            SystemClock.sleep(UI_WAIT_TIMEOUT);
+            assertThat(helloText.getText()).isEqualTo(originalText.toString());
         });
     }
 

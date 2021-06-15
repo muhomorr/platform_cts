@@ -22,6 +22,7 @@ import android.Manifest;
 import android.content.Intent;
 import android.media.AudioFormat;
 import android.os.ParcelFileDescriptor;
+import android.os.Parcelable;
 import android.os.PersistableBundle;
 import android.os.SharedMemory;
 import android.service.voice.AlwaysOnHotwordDetector;
@@ -127,6 +128,17 @@ public class BasicVoiceInteractionService extends VoiceInteractionService {
                     mSoftwareHotwordDetector.startRecognition();
                 }
             });
+        } else if (testEvent == Utils.HOTWORD_DETECTION_SERVICE_PROCESS_DIED_TEST) {
+            runWithShellPermissionIdentity(() -> {
+                if (mAlwaysOnHotwordDetector != null) {
+                    PersistableBundle persistableBundle = new PersistableBundle();
+                    persistableBundle.putInt(Utils.KEY_TEST_SCENARIO,
+                            Utils.HOTWORD_DETECTION_SERVICE_ON_UPDATE_STATE_CRASH);
+                    mAlwaysOnHotwordDetector.updateState(
+                            persistableBundle,
+                            createFakeSharedMemoryData());
+                }
+            }, Manifest.permission.MANAGE_HOTWORD_DETECTION);
         }
 
         return START_NOT_STICKY;
@@ -156,7 +168,7 @@ public class BasicVoiceInteractionService extends VoiceInteractionService {
                             Log.i(TAG, "onDetected");
                             broadcastIntentWithResult(
                                     Utils.HOTWORD_DETECTION_SERVICE_ONDETECT_RESULT_INTENT,
-                                    Utils.HOTWORD_DETECTION_SERVICE_ONDETECT_SUCCESS);
+                                    eventPayload.getHotwordDetectedResult());
                         }
 
                         @Override
@@ -164,12 +176,15 @@ public class BasicVoiceInteractionService extends VoiceInteractionService {
                             Log.i(TAG, "onRejected");
                             broadcastIntentWithResult(
                                     Utils.HOTWORD_DETECTION_SERVICE_ONDETECT_RESULT_INTENT,
-                                    Utils.HOTWORD_DETECTION_SERVICE_ONDETECT_REJECTION);
+                                    result);
                         }
 
                         @Override
                         public void onError() {
                             Log.i(TAG, "onError");
+                            broadcastIntentWithResult(
+                                    Utils.HOTWORD_DETECTION_SERVICE_TRIGGER_RESULT_INTENT,
+                                    Utils.HOTWORD_DETECTION_SERVICE_GET_ERROR);
                         }
 
                         @Override
@@ -213,12 +228,15 @@ public class BasicVoiceInteractionService extends VoiceInteractionService {
                             Log.i(TAG, "onDetected");
                             broadcastIntentWithResult(
                                     Utils.HOTWORD_DETECTION_SERVICE_ONDETECT_RESULT_INTENT,
-                                    Utils.HOTWORD_DETECTION_SERVICE_ONDETECT_SUCCESS);
+                                    eventPayload.getHotwordDetectedResult());
                         }
 
                         @Override
                         public void onError() {
                             Log.i(TAG, "onError");
+                            broadcastIntentWithResult(
+                                    Utils.HOTWORD_DETECTION_SERVICE_TRIGGER_RESULT_INTENT,
+                                    Utils.HOTWORD_DETECTION_SERVICE_GET_ERROR);
                         }
 
                         @Override
@@ -253,6 +271,14 @@ public class BasicVoiceInteractionService extends VoiceInteractionService {
     }
 
     private void broadcastIntentWithResult(String intentName, int result) {
+        Intent intent = new Intent(intentName)
+                .addFlags(Intent.FLAG_RECEIVER_FOREGROUND | Intent.FLAG_RECEIVER_REGISTERED_ONLY)
+                .putExtra(Utils.KEY_TEST_RESULT, result);
+        Log.d(TAG, "broadcast intent = " + intent + ", result = " + result);
+        sendBroadcast(intent);
+    }
+
+    private void broadcastIntentWithResult(String intentName, Parcelable result) {
         Intent intent = new Intent(intentName)
                 .addFlags(Intent.FLAG_RECEIVER_FOREGROUND | Intent.FLAG_RECEIVER_REGISTERED_ONLY)
                 .putExtra(Utils.KEY_TEST_RESULT, result);

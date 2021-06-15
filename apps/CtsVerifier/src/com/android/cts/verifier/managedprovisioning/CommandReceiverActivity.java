@@ -75,7 +75,6 @@ public class CommandReceiverActivity extends Activity {
     public static final String COMMAND_SET_GLOBAL_SETTING =
             "set-global-setting";
     public static final String COMMAND_SET_MAXIMUM_TO_LOCK = "set-maximum-time-to-lock";
-    public static final String COMMAND_SET_PASSWORD_QUALITY = "set-password-quality";
     public static final String COMMAND_SET_KEYGUARD_DISABLED = "set-keyguard-disabled";
     public static final String COMMAND_SET_LOCK_SCREEN_INFO = "set-lock-screen-info";
     public static final String COMMAND_SET_STATUSBAR_DISABLED = "set-statusbar-disabled";
@@ -117,12 +116,15 @@ public class CommandReceiverActivity extends Activity {
     public static final String COMMAND_CREATE_MANAGED_USER = "create-managed-user";
     public static final String COMMAND_CREATE_MANAGED_USER_WITHOUT_SETUP =
             "create-managed-user-without-setup";
+    public static final String COMMAND_REMOVE_SECONDARY_USERS = "remove-secondary-users";
     public static final String COMMAND_WITH_USER_SWITCHER_MESSAGE = "with-user-switcher-message";
     public static final String COMMAND_WITHOUT_USER_SWITCHER_MESSAGE =
             "without-user-switcher-message";
     public static final String COMMAND_ENABLE_LOGOUT = "enable-logout";
     public static final String COMMAND_DISABLE_USB_DATA_SIGNALING = "disable-usb-data-signaling";
     public static final String COMMAND_ENABLE_USB_DATA_SIGNALING = "enable-usb-data-signaling";
+    public static final String COMMAND_SET_REQUIRED_PASSWORD_COMPLEXITY =
+            "set-required-password-complexity";
 
     public static final String EXTRA_USER_RESTRICTION =
             "com.android.cts.verifier.managedprovisioning.extra.USER_RESTRICTION";
@@ -236,10 +238,6 @@ public class CommandReceiverActivity extends Activity {
                     final long timeInSeconds = Long.parseLong(intent.getStringExtra(EXTRA_VALUE));
                     mDpm.setMaximumTimeToLock(mAdmin,
                             TimeUnit.SECONDS.toMillis(timeInSeconds) /* in milliseconds */);
-                } break;
-                case COMMAND_SET_PASSWORD_QUALITY: {
-                    int quality = intent.getIntExtra(EXTRA_VALUE, 0);
-                    mDpm.setPasswordQuality(mAdmin, quality);
                 } break;
                 case COMMAND_SET_KEYGUARD_DISABLED: {
                     boolean enforced = intent.getBooleanExtra(EXTRA_ENFORCED, false);
@@ -513,6 +511,14 @@ public class CommandReceiverActivity extends Activity {
                     extras.putBoolean(DeviceAdminTestReceiver.EXTRA_MANAGED_USER_TEST, true);
                     mDpm.createAndManageUser(mAdmin, "managed user", mAdmin, extras, /* flags */ 0);
                 } break;
+                case COMMAND_REMOVE_SECONDARY_USERS: {
+                    if (!mDpm.isDeviceOwnerApp(getPackageName())) {
+                        return;
+                    }
+                    for (UserHandle secondaryUser : mDpm.getSecondaryUsers(mAdmin)) {
+                        mDpm.removeUser(mAdmin, secondaryUser);
+                    }
+                } break;
                 case COMMAND_WITH_USER_SWITCHER_MESSAGE: {
                     createAndSwitchUserWithMessage("Start user session", "End user session");
                 } break;
@@ -536,6 +542,11 @@ public class CommandReceiverActivity extends Activity {
                 case COMMAND_ENABLE_USB_DATA_SIGNALING: {
                     mDpm.setUsbDataSignalingEnabled(true);
                     break;
+                }
+                case COMMAND_SET_REQUIRED_PASSWORD_COMPLEXITY: {
+                    int complexity = intent.getIntExtra(EXTRA_VALUE,
+                            DevicePolicyManager.PASSWORD_COMPLEXITY_NONE);
+                    mDpm.setRequiredPasswordComplexity(complexity);
                 }
             }
         } catch (Exception e) {

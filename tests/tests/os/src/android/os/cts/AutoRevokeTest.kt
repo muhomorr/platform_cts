@@ -33,14 +33,16 @@ import android.support.test.uiautomator.By
 import android.support.test.uiautomator.BySelector
 import android.support.test.uiautomator.UiDevice
 import android.support.test.uiautomator.UiObject2
+import android.support.test.uiautomator.UiObjectNotFoundException
 import android.view.accessibility.AccessibilityNodeInfo
-import android.view.accessibility.AccessibilityNodeInfo.ACTION_SCROLL_FORWARD
 import android.widget.Switch
 import androidx.core.os.BuildCompat
 import androidx.test.InstrumentationRegistry
 import androidx.test.filters.SdkSuppress
 import androidx.test.runner.AndroidJUnit4
 import com.android.compatibility.common.util.DisableAnimationRule
+import com.android.compatibility.common.util.FreezeRotationRule
+import com.android.compatibility.common.util.MatcherUtils.hasTextThat
 import com.android.compatibility.common.util.SystemUtil
 import com.android.compatibility.common.util.SystemUtil.callWithShellPermissionIdentity
 import com.android.compatibility.common.util.SystemUtil.eventually
@@ -50,10 +52,9 @@ import com.android.compatibility.common.util.SystemUtil.runWithShellPermissionId
 import com.android.compatibility.common.util.UI_ROOT
 import com.android.compatibility.common.util.click
 import com.android.compatibility.common.util.depthFirstSearch
-import com.android.compatibility.common.util.lowestCommonAncestor
-import com.android.compatibility.common.util.textAsString
 import com.android.compatibility.common.util.uiDump
 import org.hamcrest.CoreMatchers.containsString
+import org.hamcrest.CoreMatchers.containsStringIgnoringCase
 import org.hamcrest.CoreMatchers.equalTo
 import org.hamcrest.Matcher
 import org.hamcrest.Matchers.greaterThan
@@ -100,6 +101,9 @@ class AutoRevokeTest {
     @get:Rule
     val disableAnimationRule = DisableAnimationRule()
 
+    @get:Rule
+    val freezeRotationRule = FreezeRotationRule()
+
     @Before
     fun setup() {
         // Collapse notifications
@@ -132,6 +136,9 @@ class AutoRevokeTest {
     @AppModeFull(reason = "Uses separate apps for testing")
     @Test
     fun testUnusedApp_getsPermissionRevoked() {
+        assumeFalse(
+                "Watch doesn't provide a unified way to check notifications. it depends on UX",
+                hasFeatureWatch())
         withUnusedThresholdMs(3L) {
             withDummyApp {
                 // Setup
@@ -272,12 +279,12 @@ class AutoRevokeTest {
                 waitFindObject(byTextIgnoreCase("Request allowlist")).click()
                 waitFindObject(byTextIgnoreCase("Permissions")).click()
                 val autoRevokeEnabledToggle = getAllowlistToggle()
-                assertTrue(autoRevokeEnabledToggle.isChecked)
+                assertTrue(autoRevokeEnabledToggle.isChecked())
 
                 // Grant allowlist
                 autoRevokeEnabledToggle.click()
                 eventually {
-                    assertFalse(getAllowlistToggle().isChecked)
+                    assertFalse(getAllowlistToggle().isChecked())
                 }
 
                 // Run
@@ -481,7 +488,15 @@ class AutoRevokeTest {
     }
 
     private fun click(label: String) {
-        waitFindObject(byTextIgnoreCase(label)).click()
+        try {
+            waitFindObject(byTextIgnoreCase(label)).click()
+        } catch (e: UiObjectNotFoundException) {
+            // waitFindObject sometimes fails to find UI that is present in the view hierarchy
+            // Increasing sleep to 2000 in waitForIdle() might be passed but no guarantee that the
+            // UI is fully displayed So Adding one more check without using the UiAutomator helps
+            // reduce false positives
+            waitFindNode(hasTextThat(containsStringIgnoringCase(label))).click()
+        }
         waitForIdle()
     }
 
@@ -504,9 +519,14 @@ class AutoRevokeTest {
             containsString(state.toString()))
     }
 
-    private fun getAllowlistToggle(): AccessibilityNodeInfo {
+    private fun getAllowlistToggle(): UiObject2 {
         waitForIdle()
-        return waitFindSwitch("Remove permissions if app isn’t used")
+        val parent = waitFindObject(
+            By.clickable(true)
+                .hasDescendant(By.text("Remove permissions if app isn’t used"))
+                .hasDescendant(By.clazz(Switch::class.java.name))
+        )
+        return parent.findObject(By.clazz(Switch::class.java.name))
     }
 
     private fun waitForIdle() {
@@ -530,21 +550,6 @@ class AutoRevokeTest {
 
 private fun permissionStateToString(state: Int): String {
     return constToString<PackageManager>("PERMISSION_", state)
-}
-
-fun waitFindSwitch(label: String): AccessibilityNodeInfo {
-    return getEventually {
-        val ui = UI_ROOT
-        val node = ui.lowestCommonAncestor(
-                { node -> node.textAsString == label },
-                { node -> node.className == Switch::class.java.name })
-        if (node == null) {
-            ui.depthFirstSearch { it.isScrollable }?.performAction(ACTION_SCROLL_FORWARD)
-        }
-        return@getEventually node.assertNotNull {
-            "Switch not found: $label in\n${uiDump(ui)}"
-        }.depthFirstSearch { node -> node.className == Switch::class.java.name }!!
-    }
 }
 
 /**

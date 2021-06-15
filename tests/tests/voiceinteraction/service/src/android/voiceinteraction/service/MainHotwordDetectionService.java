@@ -19,6 +19,7 @@ package android.voiceinteraction.service;
 import android.media.AudioFormat;
 import android.os.ParcelFileDescriptor;
 import android.os.PersistableBundle;
+import android.os.Process;
 import android.os.SharedMemory;
 import android.service.voice.AlwaysOnHotwordDetector;
 import android.service.voice.HotwordDetectedResult;
@@ -27,6 +28,7 @@ import android.service.voice.HotwordRejectedResult;
 import android.system.ErrnoException;
 import android.text.TextUtils;
 import android.util.Log;
+import android.voiceinteraction.common.Utils;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -38,6 +40,16 @@ import java.util.function.IntConsumer;
 public class MainHotwordDetectionService extends HotwordDetectionService {
     static final String TAG = "MainHotwordDetectionService";
 
+    // TODO: Fill in the remaining fields.
+    public static final HotwordDetectedResult DETECTED_RESULT =
+            new HotwordDetectedResult.Builder()
+                    .setConfidenceLevel(HotwordDetectedResult.CONFIDENCE_LEVEL_HIGH)
+                    .build();
+    public static final HotwordRejectedResult REJECTED_RESULT =
+            new HotwordRejectedResult.Builder()
+                    .setConfidenceLevel(HotwordRejectedResult.CONFIDENCE_LEVEL_MEDIUM)
+                    .build();
+
     @Override
     public void onDetect(@NonNull AlwaysOnHotwordDetector.EventPayload eventPayload,
             long timeoutMillis, @NonNull Callback callback) {
@@ -46,9 +58,9 @@ public class MainHotwordDetectionService extends HotwordDetectionService {
         // TODO: Check the capture session (needs to be reflectively accessed).
         byte[] data = eventPayload.getTriggerAudio();
         if (data != null && data.length > 0) {
-            callback.onDetected(new HotwordDetectedResult.Builder().build());
+            callback.onDetected(DETECTED_RESULT);
         } else {
-            callback.onRejected(new HotwordRejectedResult.Builder().build());
+            callback.onRejected(REJECTED_RESULT);
         }
     }
 
@@ -93,7 +105,7 @@ public class MainHotwordDetectionService extends HotwordDetectionService {
             if(isSame(buffer, BasicVoiceInteractionService.FAKE_HOTWORD_AUDIO_DATA,
                     buffer.length)) {
                 Log.d(TAG, "call callback.onDetected");
-                callback.onDetected(new HotwordDetectedResult.Builder().build());
+                callback.onDetected(DETECTED_RESULT);
             }
         } catch (IOException e) {
             Log.w(TAG, "Failed to read data : ", e);
@@ -103,7 +115,7 @@ public class MainHotwordDetectionService extends HotwordDetectionService {
     @Override
     public void onDetect(@NonNull Callback callback) {
         Log.d(TAG, "onDetect for Mic source");
-        callback.onDetected(new HotwordDetectedResult.Builder().build());
+        callback.onDetected(DETECTED_RESULT);
     }
 
     @Override
@@ -115,6 +127,12 @@ public class MainHotwordDetectionService extends HotwordDetectionService {
         Log.d(TAG, "onUpdateState");
 
         if (options != null) {
+            if (options.getInt(Utils.KEY_TEST_SCENARIO, -1)
+                    == Utils.HOTWORD_DETECTION_SERVICE_ON_UPDATE_STATE_CRASH) {
+                Log.d(TAG, "Crash itself. Pid: " + Process.myPid());
+                Process.killProcess(Process.myPid());
+                return;
+            }
             String fakeData = options.getString(BasicVoiceInteractionService.KEY_FAKE_DATA);
             if (!TextUtils.equals(fakeData, BasicVoiceInteractionService.VALUE_FAKE_DATA)) {
                 Log.d(TAG, "options : data is not the same");
