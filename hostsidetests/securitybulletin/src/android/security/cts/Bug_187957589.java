@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 2021 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,25 +15,26 @@
  */
 
 package android.security.cts;
+import static org.junit.Assume.assumeFalse;
 
 import android.platform.test.annotations.SecurityTest;
+import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
-
-import static org.junit.Assert.*;
 
 @RunWith(DeviceJUnit4ClassRunner.class)
-public class Poc19_04 extends SecurityTestCase {
-
+public class Bug_187957589 extends SecurityTestCase {
     /**
-     * CVE-2018-13895
+     * b/187957589
+     * Vulnerability Behaviour: out of bounds write in noteAtomLogged for negative atom ids.
      */
+    @SecurityTest(minPatchLevel = "unknown")
     @Test
-    @SecurityTest(minPatchLevel = "2019-04")
-    public void testPocCVE_2018_13895() throws Exception {
-        String result = AdbUtils.runCommandLine(
-                "pm list package com.suntek.mway.rcs.app.service",getDevice());
-        assertFalse(result.contains("com.suntek.mway.rcs.app.service"));
+    public void testPocBug_187957589() throws Exception {
+        assumeFalse(moduleIsPlayManaged("com.google.android.os.statsd"));
+        AdbUtils.runPoc("Bug-187957589", getDevice());
+        // Sleep to ensure statsd was able to process the injected event.
+        Thread.sleep(5_000);
+        AdbUtils.assertNoCrashes(getDevice(), "statsd");
     }
 }
