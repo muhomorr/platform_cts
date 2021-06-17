@@ -22,7 +22,6 @@ import static com.android.compatibility.common.util.AmUtils.runKill;
 import static com.android.compatibility.common.util.AmUtils.runMakeUidIdle;
 import static com.android.compatibility.common.util.BatteryUtils.enableBatterySaver;
 import static com.android.compatibility.common.util.BatteryUtils.runDumpsysBatteryUnplug;
-import static com.android.compatibility.common.util.SettingsUtils.putGlobalSetting;
 import static com.android.compatibility.common.util.TestUtils.waitUntil;
 
 import static org.junit.Assert.assertEquals;
@@ -41,16 +40,19 @@ import android.os.cts.batterysaving.common.BatterySavingCtsCommon.Payload.TestSe
 import android.os.cts.batterysaving.common.BatterySavingCtsCommon.Payload.TestServiceRequest.SetAlarmRequest;
 import android.os.cts.batterysaving.common.BatterySavingCtsCommon.Payload.TestServiceRequest.StartServiceRequest;
 import android.os.cts.batterysaving.common.Values;
+import android.provider.DeviceConfig;
 import android.util.Log;
 
 import androidx.test.filters.LargeTest;
 import androidx.test.filters.MediumTest;
 import androidx.test.runner.AndroidJUnit4;
 
+import com.android.compatibility.common.util.DeviceConfigStateHelper;
 import com.android.compatibility.common.util.ThreadUtils;
 
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -76,16 +78,19 @@ public class BatterySaverAlarmTest extends BatterySavingTestBase {
     private static final long ALLOW_WHILE_IDLE_LONG_TIME = 20_000;
     private static final long MIN_FUTURITY = 2_000;
 
-    private void updateAlarmManagerConstants() throws IOException {
-        putGlobalSetting("alarm_manager_constants",
-                "min_interval=" + MIN_REPEATING_INTERVAL + ","
-                + "min_futurity=" + MIN_FUTURITY + ","
-                + "allow_while_idle_short_time=" + ALLOW_WHILE_IDLE_SHORT_TIME + ","
-                + "allow_while_idle_long_time=" + ALLOW_WHILE_IDLE_LONG_TIME);
+    private void updateAlarmManagerConstants() {
+        mAlarmManagerDeviceConfigStateHelper.set("min_interval",
+                String.valueOf(MIN_REPEATING_INTERVAL));
+        mAlarmManagerDeviceConfigStateHelper.set("min_futurity",
+                String.valueOf(MIN_FUTURITY));
+        mAlarmManagerDeviceConfigStateHelper.set("allow_while_idle_short_time",
+                String.valueOf(ALLOW_WHILE_IDLE_SHORT_TIME));
+        mAlarmManagerDeviceConfigStateHelper.set("allow_while_idle_long_time",
+                String.valueOf(ALLOW_WHILE_IDLE_LONG_TIME));
     }
 
-    private void resetAlarmManagerConstants() throws IOException {
-        putGlobalSetting("alarm_manager_constants", "null");
+    private void resetAlarmManagerConstants() {
+        mAlarmManagerDeviceConfigStateHelper.restoreOriginalValues();
     }
 
     // Use a different broadcast action every time.
@@ -100,6 +105,9 @@ public class BatterySaverAlarmTest extends BatterySavingTestBase {
             Log.d(TAG, "Alarm received at " + SystemClock.elapsedRealtime());
         }
     };
+
+    private final DeviceConfigStateHelper mAlarmManagerDeviceConfigStateHelper =
+            new DeviceConfigStateHelper(DeviceConfig.NAMESPACE_ALARM_MANAGER);
 
     @Before
     public void setUp() throws IOException {
@@ -177,6 +185,7 @@ public class BatterySaverAlarmTest extends BatterySavingTestBase {
 
     @LargeTest
     @Test
+    @Ignore("Broken until b/171306433 is completed")
     public void testAllowWhileIdleThrottled() throws Exception {
         final String targetPackage = APP_25_PACKAGE;
 
