@@ -41,6 +41,7 @@ import com.android.tradefed.util.zip.CentralDirectoryInfo;
 import com.android.tradefed.util.zip.EndCentralDirectoryInfo;
 
 import com.google.common.collect.Lists;
+import com.google.common.truth.Truth;
 
 import org.junit.After;
 import org.junit.Before;
@@ -84,6 +85,8 @@ public class IncrementalInstallTest extends BaseHostJUnit4Test {
     private static final String TEST_APP_DYNAMIC_CODE_NAME = "IncrementalTestAppDynamicCode.apk";
     private static final String TEST_APP_COMPRESSED_NATIVE_NAME =
             "IncrementalTestAppCompressedNativeLib.apk";
+    private static final String TEST_APP_UNCOMPRESSED_BASE_NAME =
+            "IncrementalTestAppUncompressed.apk";
     private static final String TEST_APP_UNCOMPRESSED_NATIVE_NAME =
             "IncrementalTestAppUncompressedNativeLib.apk";
 
@@ -112,8 +115,7 @@ public class IncrementalInstallTest extends BaseHostJUnit4Test {
 
     @Test
     public void testBaseApkAdbInstall() throws Exception {
-        assertTrue(
-                installWithAdbInstaller(TEST_APP_BASE_APK_NAME).contains(INSTALL_SUCCESS_OUTPUT));
+        verifyInstallCommandSuccess(installWithAdbInstaller(TEST_APP_BASE_APK_NAME));
         verifyPackageInstalled(TEST_APP_PACKAGE_NAME);
         verifyInstallationTypeAndVersion(TEST_APP_PACKAGE_NAME, /* isIncfs= */ true,
                 TEST_APP_V1_VERSION);
@@ -205,7 +207,7 @@ public class IncrementalInstallTest extends BaseHostJUnit4Test {
         assertTrue(checkNativeLibInApkCompression(TEST_APP_COMPRESSED_NATIVE_NAME,
                 "libuncompressednativeincrementaltest.so", false));
         verifyInstallCommandSuccess(
-                installWithAdbInstaller(TEST_APP_BASE_APK_NAME, TEST_APP_UNCOMPRESSED_NATIVE_NAME));
+                installWithAdbInstaller(TEST_APP_UNCOMPRESSED_BASE_NAME, TEST_APP_UNCOMPRESSED_NATIVE_NAME));
         verifyPackageInstalled(TEST_APP_PACKAGE_NAME);
         verifyInstallationTypeAndVersion(TEST_APP_PACKAGE_NAME, /* isIncfs= */ true,
                 TEST_APP_V1_VERSION);
@@ -318,18 +320,18 @@ public class IncrementalInstallTest extends BaseHostJUnit4Test {
     private String installWithAdbInstaller(boolean shouldUpdate, String... filenames)
             throws Exception {
         assertTrue(filenames.length > 0);
-        String installMultipleArg =
-                filenames.length > 1 ? "install-multiple" : "";
-        String updateArg =
-                shouldUpdate ? "-r" : "";
         List<String> adbCmd = new ArrayList<>();
         adbCmd.add("adb");
         adbCmd.add("-s");
         adbCmd.add(getDevice().getSerialNumber());
         adbCmd.add("install");
-        adbCmd.add(updateArg);
+        if (shouldUpdate) {
+            adbCmd.add("-r");
+        }
         adbCmd.add(INCREMENTAL_ARG);
-        adbCmd.add(installMultipleArg);
+        if (filenames.length > 1) {
+            adbCmd.add("install-multiple");
+        }
         adbCmd.addAll(getFilePathsFromBuildInfo(filenames));
 
         // Using runUtil instead of executeAdbCommand() because the latter doesn't provide the
@@ -387,12 +389,12 @@ public class IncrementalInstallTest extends BaseHostJUnit4Test {
 
     private void verifyInstallCommandSuccess(String adbOutput) {
         logInstallCommandOutput(adbOutput);
-        assertTrue(adbOutput.contains(INSTALL_SUCCESS_OUTPUT));
+        Truth.assertThat(adbOutput).contains(INSTALL_SUCCESS_OUTPUT);
     }
 
     private void verifyInstallCommandFailure(String adbOutput) {
         logInstallCommandOutput(adbOutput);
-        assertFalse(adbOutput.contains(INSTALL_SUCCESS_OUTPUT));
+        Truth.assertThat(adbOutput).doesNotContain(INSTALL_SUCCESS_OUTPUT);
     }
 
     private void logInstallCommandOutput(String adbOutput) {
@@ -406,7 +408,8 @@ public class IncrementalInstallTest extends BaseHostJUnit4Test {
     }
 
     private boolean hasIncrementalFeature() throws Exception {
-        return hasDeviceFeature(FEATURE_INCREMENTAL_DELIVERY);
+        return "true\n".equals(getDevice().executeShellCommand(
+                "pm has-feature android.software.incremental_delivery"));
     }
 
     private boolean adbBinarySupportsIncremental() throws Exception {
