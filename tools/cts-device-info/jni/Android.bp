@@ -12,12 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+package {
+    default_applicable_licenses: ["Android-Apache-2.0"],
+}
+
 cc_library_shared {
     name: "libctsdeviceinfo",
     srcs: [
         "CtsDeviceInfoJniOnLoad.cpp",
         "com_android_cts_deviceinfo_VulkanDeviceInfo.cpp",
     ],
+    header_libs: ["jni_headers"],
     static_libs: ["libvkjson_ndk"],
     shared_libs: [
         "libvulkan",

@@ -134,21 +134,6 @@ public class TestMedia extends SecurityTestCase {
     }
 
     /**
-     * b/156999009
-     * Vulnerability Behaviour: SIGABRT in self
-     */
-    @SecurityTest(minPatchLevel = "2020-10")
-    @Test
-    public void testPocCVE_2020_0408() throws Exception {
-        String signals[] = {CrashUtils.SIGSEGV, CrashUtils.SIGBUS, CrashUtils.SIGABRT};
-        String binaryName = "CVE-2020-0408";
-        AdbUtils.pocConfig testConfig = new AdbUtils.pocConfig(binaryName, getDevice());
-        testConfig.config = new CrashUtils.Config().setProcessPatterns(binaryName);
-        testConfig.config.setSignals(signals);
-        AdbUtils.runPocAssertNoCrashesNotVulnerable(testConfig);
-    }
-
-    /**
      * b/161894517
      * Vulnerability Behaviour: SIGABRT in self
      */
@@ -266,17 +251,6 @@ public class TestMedia extends SecurityTestCase {
         String inputFiles[] = { "cve_2017_13234.xmf" };
         AdbUtils.runPocAssertNoCrashesNotVulnerable("CVE-2017-13234",
                 AdbUtils.TMP_PATH + inputFiles[0], inputFiles, AdbUtils.TMP_PATH, getDevice());
-    }
-
-    /**
-     * b/74122779
-     * Vulnerability Behaviour: SIGABRT in audioserver
-     */
-    @SecurityTest(minPatchLevel = "2018-07")
-    @Test
-    public void testPocCVE_2018_9428() throws Exception {
-        String signals[] = {CrashUtils.SIGSEGV, CrashUtils.SIGBUS, CrashUtils.SIGABRT};
-        AdbUtils.pocConfig testConfig = new AdbUtils.pocConfig("CVE-2018-9428", getDevice());
     }
 
     /**
