@@ -94,7 +94,7 @@ public class ConcurrencyTest extends WifiJUnit3TestBase {
     private static final String TAG = "ConcurrencyTest";
     private static final int TIMEOUT_MSEC = 6000;
     private static final int WAIT_MSEC = 60;
-    private static final int DURATION = 10000;
+    private static final int DURATION = 5000;
     private IntentFilter mIntentFilter;
     private final BroadcastReceiver mReceiver = new BroadcastReceiver() {
         @Override
@@ -325,14 +325,6 @@ public class ConcurrencyTest extends WifiJUnit3TestBase {
                     + " needs Location enabled.");
         }
 
-        mWifiP2pManager =
-                (WifiP2pManager) getContext().getSystemService(Context.WIFI_P2P_SERVICE);
-        mWifiP2pChannel = mWifiP2pManager.initialize(
-                getContext(), getContext().getMainLooper(), null);
-
-        assertNotNull(mWifiP2pManager);
-        assertNotNull(mWifiP2pChannel);
-
         long timeout = System.currentTimeMillis() + TIMEOUT_MSEC;
         while (!mWifiManager.isWifiEnabled() && System.currentTimeMillis() < timeout) {
             try {
@@ -341,6 +333,14 @@ public class ConcurrencyTest extends WifiJUnit3TestBase {
         }
 
         assertTrue(mWifiManager.isWifiEnabled());
+
+        mWifiP2pManager =
+                (WifiP2pManager) getContext().getSystemService(Context.WIFI_P2P_SERVICE);
+        mWifiP2pChannel = mWifiP2pManager.initialize(
+                getContext(), getContext().getMainLooper(), null);
+
+        assertNotNull(mWifiP2pManager);
+        assertNotNull(mWifiP2pChannel);
 
         assertTrue(waitForBroadcasts(
                 new LinkedList<Integer>(
@@ -554,6 +554,7 @@ public class ConcurrencyTest extends WifiJUnit3TestBase {
         String originalDeviceName = getDeviceName();
         assertNotNull(originalDeviceName);
 
+        resetResponse(mMyResponse);
         ShellIdentityUtils.invokeWithShellPermissions(() -> {
             mWifiP2pManager.setDeviceName(
                     mWifiP2pChannel, testDeviceName, mActionListener);
@@ -565,6 +566,7 @@ public class ConcurrencyTest extends WifiJUnit3TestBase {
         assertEquals(testDeviceName, currentDeviceName);
 
         // restore the device name at the end
+        resetResponse(mMyResponse);
         ShellIdentityUtils.invokeWithShellPermissions(() -> {
             mWifiP2pManager.setDeviceName(
                     mWifiP2pChannel, originalDeviceName, mActionListener);

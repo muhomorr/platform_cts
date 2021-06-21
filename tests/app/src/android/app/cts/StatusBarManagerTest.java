@@ -18,29 +18,36 @@ package android.app.cts;
 
 import static androidx.test.InstrumentationRegistry.getInstrumentation;
 
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assume.assumeFalse;
 
-import android.Manifest;
 import android.app.StatusBarManager;
 import android.app.StatusBarManager.DisableInfo;
+import android.app.UiAutomation;
 import android.content.Context;
+import android.content.pm.PackageManager;
+
+import androidx.test.InstrumentationRegistry;
+import androidx.test.filters.SmallTest;
+import androidx.test.runner.AndroidJUnit4;
 
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import androidx.test.InstrumentationRegistry;
-import androidx.test.filters.SmallTest;
-import androidx.test.runner.AndroidJUnit4;
-
 @RunWith(AndroidJUnit4.class)
 @SmallTest
 public class StatusBarManagerTest {
+    private static final String PERMISSION_STATUS_BAR = "android.permission.STATUS_BAR";
 
     private StatusBarManager mStatusBarManager;
     private Context mContext;
+    private UiAutomation mUiAutomation;
+
+    private boolean isWatch() {
+        return mContext.getPackageManager().hasSystemFeature(PackageManager.FEATURE_WATCH);
+    }
 
     /**
      * Setup
@@ -49,16 +56,22 @@ public class StatusBarManagerTest {
     @Before
     public void setUp() throws Exception {
         mContext = InstrumentationRegistry.getContext();
+        assumeFalse("Status bar service not supported", isWatch());
         mStatusBarManager = (StatusBarManager) mContext.getSystemService(
                 Context.STATUS_BAR_SERVICE);
-        getInstrumentation().getUiAutomation()
-                .adoptShellPermissionIdentity("android.permission.STATUS_BAR");
+        mUiAutomation = getInstrumentation().getUiAutomation();
+        mUiAutomation.adoptShellPermissionIdentity(PERMISSION_STATUS_BAR);
     }
 
     @After
     public void tearDown() {
-        mStatusBarManager.setDisabledForSetup(false);
-        getInstrumentation().getUiAutomation().dropShellPermissionIdentity();
+
+        if (mStatusBarManager != null) {
+            // Adopt again since tests could've dropped it
+            mUiAutomation.adoptShellPermissionIdentity(PERMISSION_STATUS_BAR);
+            mStatusBarManager.setDisabledForSetup(false);
+        }
+        mUiAutomation.dropShellPermissionIdentity();
     }
 
 
@@ -99,7 +112,7 @@ public class StatusBarManagerTest {
 
     @Test
     public void testDisableForSimLock_setDisabledTrue() throws Exception {
-        mStatusBarManager.setDisabledForSimNetworkLock(true);
+        mStatusBarManager.setExpansionDisabledForSimNetworkLock(true);
 
         // Check for the default set of disable flags
         assertTrue(mStatusBarManager.getDisableInfo().isStatusBarExpansionDisabled());
@@ -108,10 +121,27 @@ public class StatusBarManagerTest {
     @Test
     public void testDisableForSimLock_setDisabledFalse() throws Exception {
         // First disable, then re-enable
-        mStatusBarManager.setDisabledForSimNetworkLock(true);
-        mStatusBarManager.setDisabledForSimNetworkLock(false);
+        mStatusBarManager.setExpansionDisabledForSimNetworkLock(true);
+        mStatusBarManager.setExpansionDisabledForSimNetworkLock(false);
 
         DisableInfo info = mStatusBarManager.getDisableInfo();
         assertTrue("Invalid disableFlags", info.areAllComponentsEnabled());
+    }
+
+    @Test(expected = SecurityException.class)
+    public void testCollapsePanels_withoutStatusBarPermission_throws() throws Exception {
+        // We've adopted shell identity for STATUS_BAR in setUp(), so drop it now
+        mUiAutomation.dropShellPermissionIdentity();
+
+        mStatusBarManager.collapsePanels();
+    }
+
+    @Test
+    public void testCollapsePanels_withStatusBarPermission_doesNotThrow() throws Exception {
+        // We've adopted shell identity for STATUS_BAR in setUp()
+
+        mStatusBarManager.collapsePanels();
+
+        // Nothing thrown, passed
     }
 }

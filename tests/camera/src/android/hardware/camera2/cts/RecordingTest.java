@@ -1153,7 +1153,7 @@ public class RecordingTest extends Camera2SurfaceViewTestCase {
 
             // Stop recording and preview
             stopRecording(/* useMediaRecorder */true, useIntermediateSurface,
-                    /* stopCameraStreaming */false);
+                    /* stopCameraStreaming */true);
             // Convert number of frames camera produced into the duration in unit of ms.
             float frameDurationMs = 1000.0f / profile.videoFrameRate;
             float durationMs = 0.f;
@@ -1264,7 +1264,12 @@ public class RecordingTest extends Camera2SurfaceViewTestCase {
         Size maxVideoSize = SIZE_BOUND_1080P;
         if (CamcorderProfile.hasProfile(CamcorderProfile.QUALITY_2160P)) {
             maxVideoSize = SIZE_BOUND_2160P;
+        } else if (CamcorderProfile.hasProfile(CamcorderProfile.QUALITY_QHD)) {
+            maxVideoSize = SIZE_BOUND_QHD;
+        } else if (CamcorderProfile.hasProfile(CamcorderProfile.QUALITY_2K)) {
+            maxVideoSize = SIZE_BOUND_2K;
         }
+
         mSupportedVideoSizes =
                 getSupportedVideoSizes(cameraId, mCameraManager, maxVideoSize);
     }
@@ -1833,8 +1838,20 @@ public class RecordingTest extends Camera2SurfaceViewTestCase {
         sharedConfig.addSurface(mRecordingSurface);
         outputConfigs.add(sharedConfig);
 
+        CaptureRequest.Builder recordingRequestBuilder =
+                mCamera.createCaptureRequest(CameraDevice.TEMPLATE_RECORD);
+        // Make sure camera output frame rate is set to correct value.
+        Range<Integer> fpsRange = (variableFpsRange == null) ?
+                Range.create(mVideoFrameRate, mVideoFrameRate) : variableFpsRange;
+        recordingRequestBuilder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, fpsRange);
+        if (useVideoStab) {
+            recordingRequestBuilder.set(CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE,
+                    CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE_ON);
+        }
+        CaptureRequest recordingRequest = recordingRequestBuilder.build();
+
         mSessionListener = new BlockingSessionCallback();
-        mSession = tryConfigureCameraSessionWithConfig(mCamera, outputConfigs,
+        mSession = tryConfigureCameraSessionWithConfig(mCamera, outputConfigs, recordingRequest,
                 mSessionListener, mHandler);
 
         if (mSession == null) {
@@ -1842,17 +1859,6 @@ public class RecordingTest extends Camera2SurfaceViewTestCase {
             return false;
         }
 
-        CaptureRequest.Builder recordingRequestBuilder =
-                mCamera.createCaptureRequest(CameraDevice.TEMPLATE_RECORD);
-        // Make sure camera output frame rate is set to correct value.
-        Range<Integer> fpsRange = (variableFpsRange == null) ?
-                Range.create(mVideoFrameRate, mVideoFrameRate) : variableFpsRange;
-
-        recordingRequestBuilder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, fpsRange);
-        if (useVideoStab) {
-            recordingRequestBuilder.set(CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE,
-                    CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE_ON);
-        }
         recordingRequestBuilder.addTarget(mRecordingSurface);
         recordingRequestBuilder.addTarget(mPreviewSurface);
         mSession.setRepeatingRequest(recordingRequestBuilder.build(), listener, mHandler);

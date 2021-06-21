@@ -13,6 +13,10 @@
 // limitations under the License.
 //
 
+package {
+    default_applicable_licenses: ["Android-Apache-2.0"],
+}
+
 cc_test_library {
     name: "libaudio_jni",
     srcs: [
@@ -32,6 +36,7 @@ cc_test_library {
     ],
     header_libs: [
         "libaudioutils_headers",
+        "liblog_headers",
     ],
     stl: "libc++_static",
     cflags: [

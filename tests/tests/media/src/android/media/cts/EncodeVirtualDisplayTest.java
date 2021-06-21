@@ -48,6 +48,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Tests connecting a virtual display to the input of a MediaCodec encoder.
@@ -224,6 +225,9 @@ public class EncodeVirtualDisplayTest extends AndroidTestCase {
             encoderFormat.setInteger(MediaFormat.KEY_BIT_RATE, sBitRate);
             encoderFormat.setInteger(MediaFormat.KEY_FRAME_RATE, sFrameRate);
             encoderFormat.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, IFRAME_INTERVAL);
+            encoderFormat.setInteger(MediaFormat.KEY_COLOR_RANGE, MediaFormat.COLOR_RANGE_LIMITED);
+            encoderFormat.setInteger(MediaFormat.KEY_COLOR_STANDARD, MediaFormat.COLOR_STANDARD_BT601_PAL);
+            encoderFormat.setInteger(MediaFormat.KEY_COLOR_TRANSFER, MediaFormat.COLOR_TRANSFER_SDR_VIDEO);
 
             MediaCodecList mcl = new MediaCodecList(MediaCodecList.REGULAR_CODECS);
             String codec = mcl.findEncoderForFormat(encoderFormat);
@@ -516,7 +520,6 @@ public class EncodeVirtualDisplayTest extends AndroidTestCase {
      */
     private class ColorSlideShow extends Thread {
         private Display mDisplay;
-        private ArrayList<TestPresentation> mPresentations = new ArrayList<>();
 
         public ColorSlideShow(Display display) {
             mDisplay = display;
@@ -524,48 +527,39 @@ public class EncodeVirtualDisplayTest extends AndroidTestCase {
 
         @Override
         public void run() {
-            for (int i = 0; i < TEST_COLORS.length; i++) {
-                showPresentation(TEST_COLORS[i]);
+            for (int testColor : TEST_COLORS) {
+                showPresentation(testColor);
             }
 
             if (VERBOSE) Log.d(TAG, "slide show finished");
             mInputDone = true;
-            runOnUiThread(new Runnable() {
-                @Override
-                public void run() {
-                    for (TestPresentation presentation : mPresentations) {
-                        presentation.dismiss();
-                    }
-                }
-            });
         }
 
         private void showPresentation(final int color) {
             final TestPresentation[] presentation = new TestPresentation[1];
+            final CountDownLatch latch = new CountDownLatch(1);
             try {
-                final CountDownLatch latch = new CountDownLatch(1);
-                runOnUiThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        // Want to create presentation on UI thread so it finds the right Looper
-                        // when setting up the Dialog.
-                        presentation[0] = new TestPresentation(getContext(), mDisplay, color);
-                        if (VERBOSE) Log.d(TAG, "showing color=0x" + Integer.toHexString(color));
-                        presentation[0].show();
-                        latch.countDown();
-                    }
+                runOnUiThread(() -> {
+                    // Want to create presentation on UI thread so it finds the right Looper
+                    // when setting up the Dialog.
+                    presentation[0] = new TestPresentation(getContext(), mDisplay, color);
+                    if (VERBOSE) Log.d(TAG, "showing color=0x" + Integer.toHexString(color));
+                    presentation[0].show();
+                    latch.countDown();
                 });
 
                 // Give the presentation an opportunity to render.  We don't have a way to
                 // monitor the output, so we just sleep for a bit.
                 try {
                     // wait for the UI thread execution to finish
-                    latch.await();
+                    latch.await(5, TimeUnit.SECONDS);
                     Thread.sleep(UI_RENDER_PAUSE_MS);
-                } catch (InterruptedException ignore) {}
+                } catch (InterruptedException ignore) {
+                }
             } finally {
                 if (presentation[0] != null) {
-                    mPresentations.add(presentation[0]);
+                    presentation[0].dismiss();
+                    presentation[0] = null;
                 }
             }
         }
@@ -609,7 +603,6 @@ public class EncodeVirtualDisplayTest extends AndroidTestCase {
             super.onCreate(savedInstanceState);
 
             setTitle("Encode Virtual Test");
-            getWindow().setType(WindowManager.LayoutParams.TYPE_PRIVATE_PRESENTATION);
 
             // Create a solid color image to use as the content of the presentation.
             ImageView view = new ImageView(getContext());
