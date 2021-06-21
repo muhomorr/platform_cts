@@ -16,7 +16,10 @@
 
 package android.appsecurity.cts;
 
+import android.platform.test.annotations.SecurityTest;
+
 import com.android.compatibility.common.tradefed.build.CompatibilityBuildHelper;
+import com.android.compatibility.common.util.ApiLevelUtil;
 
 import com.android.tradefed.device.DeviceNotAvailableException;
 
@@ -28,9 +31,9 @@ import com.google.common.collect.ImmutableSet;
  */
 public class DocumentsTest extends DocumentsTestCase {
     private static final String PROVIDER_PKG = "com.android.cts.documentprovider";
-    private static final String DUMMYIME_PKG = "com.android.cts.dummyime";
+    private static final String STUBIME_PKG = "com.android.cts.stubime";
     private static final String PROVIDER_APK = "CtsDocumentProvider.apk";
-    private static final String DUMMYIME_APK = "CtsDummyIme.apk";
+    private static final String STUBIME_APK = "CtsStubIme.apk";
 
     private static final long RESTRICT_STORAGE_ACCESS_FRAMEWORK = 141600225L;
 
@@ -41,7 +44,7 @@ public class DocumentsTest extends DocumentsTestCase {
         getDevice().uninstallPackage(PROVIDER_PKG);
         CompatibilityBuildHelper buildHelper = new CompatibilityBuildHelper(mCtsBuild);
         assertNull(getDevice().installPackage(buildHelper.getTestFile(PROVIDER_APK), false));
-        assertNull(getDevice().installPackage(buildHelper.getTestFile(DUMMYIME_APK), false));
+        assertNull(getDevice().installPackage(buildHelper.getTestFile(STUBIME_APK), false));
     }
 
     @Override
@@ -49,7 +52,7 @@ public class DocumentsTest extends DocumentsTestCase {
         super.tearDown();
 
         getDevice().uninstallPackage(PROVIDER_PKG);
-        getDevice().uninstallPackage(DUMMYIME_PKG);
+        getDevice().uninstallPackage(STUBIME_PKG);
     }
 
     public void testOpenSimple() throws Exception {
@@ -144,14 +147,26 @@ public class DocumentsTest extends DocumentsTestCase {
         }
     }
 
+    @SecurityTest
+    public void testAfterMoveDocumentInStorage_revokeUriPermission() throws Exception {
+        if (isAtLeastS()) {
+            runDeviceTests(CLIENT_PKG, ".DocumentsClientTest",
+                "testAfterMoveDocumentInStorage_revokeUriPermission");
+        }
+    }
+
     private boolean isAtLeastR() {
         try {
-            String apiString = getDevice().getProperty("ro.build.version.sdk");
-            if (apiString == null) {
-                return false;
-            }
-            int apiLevel = Integer.parseInt(apiString);
-            return apiLevel > 29;
+            return ApiLevelUtil.isAfter(getDevice(), 29 /* BUILD.VERSION_CODES.Q */);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private boolean isAtLeastS() {
+        try {
+            return ApiLevelUtil.isAfter(getDevice(), 30 /* BUILD.VERSION_CODES.R */)
+                || ApiLevelUtil.codenameEquals(getDevice(), "S");
         } catch (Exception e) {
             return false;
         }

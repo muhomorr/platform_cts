@@ -51,7 +51,7 @@ public class LockTaskHostDrivenTest extends BaseDeviceAdminTest {
     private static final int LOCK_TASK_STATE_CHANGE_TIMEOUT_MILLIS = 10000;  // 10 seconds
     private static final String ACTION_EMERGENCY_DIAL = "com.android.phone.EmergencyDialer.DIAL";
     private static final String LOCK_TASK_ACTIVITY
-            = LockTaskUtilityActivityIfWhitelisted.class.getName();
+            = LockTaskUtilityActivityIfAllowed.class.getName();
 
     private UiDevice mUiDevice;
     private Context mContext;
@@ -86,6 +86,12 @@ public class LockTaskHostDrivenTest extends BaseDeviceAdminTest {
         mDevicePolicyManager.setLockTaskFeatures(ADMIN_RECEIVER_COMPONENT, 0);
         // In case some activity is still in foreground
         mUiDevice.pressHome();
+    }
+
+    public void testLockTaskIsActive() throws Exception {
+        Log.d(TAG, "testLockTaskIsActive on host-driven test");
+        waitAndCheckLockedActivityIsResumed();
+        checkLockedActivityIsRunning();
     }
 
     /**
@@ -135,10 +141,10 @@ public class LockTaskHostDrivenTest extends BaseDeviceAdminTest {
         }
     }
 
-    public void testLockTaskIsExitedIfNotWhitelisted() throws Exception {
-        Log.d(TAG, "testLockTaskIsExitedIfNotWhitelisted on host-driven test");
+    public void testLockTaskIsExitedIfNotAllowed() throws Exception {
+        Log.d(TAG, "testLockTaskIsExitedIfNotAllowed on host-driven test");
 
-        // Whitelist this package
+        // Allow this package
         setLockTaskPackages(mContext.getPackageName());
 
         // Launch lock task root activity
@@ -148,7 +154,7 @@ public class LockTaskHostDrivenTest extends BaseDeviceAdminTest {
         assertEquals(
                 ActivityManager.LOCK_TASK_MODE_LOCKED, mActivityManager.getLockTaskModeState());
 
-        // Remove it from whitelist
+        // Remove it from allowlist
         setLockTaskPackages();
         waitForLockTaskModeStateNone();
         mUiDevice.waitForIdle();
@@ -170,7 +176,7 @@ public class LockTaskHostDrivenTest extends BaseDeviceAdminTest {
 
         Log.d(TAG, "testLockTaskCanLaunchDefaultDialer on host-driven test");
 
-        // Whitelist dialer package
+        // Allow dialer package
         String dialerPackage = mTelcomManager.getSystemDialerPackage();
         assertNotNull(dialerPackage);
         setLockTaskPackages(mContext.getPackageName(), dialerPackage);
@@ -214,7 +220,7 @@ public class LockTaskHostDrivenTest extends BaseDeviceAdminTest {
         Log.d(TAG, "testLockTaskCanLaunchEmergencyDialer on host-driven test");
 
         // Emergency dialer should be usable as long as keyguard feature is enabled
-        // regardless of the package whitelist
+        // regardless of the package allowlist
         mDevicePolicyManager.setLockTaskFeatures(
                 ADMIN_RECEIVER_COMPONENT, DevicePolicyManager.LOCK_TASK_FEATURE_KEYGUARD);
         setLockTaskPackages(mContext.getPackageName());
@@ -265,6 +271,7 @@ public class LockTaskHostDrivenTest extends BaseDeviceAdminTest {
                 LockTaskUtilityActivity.waitUntilActivityResumed(ACTIVITY_RESUMED_TIMEOUT_MILLIS);
         if (!lockedActivityIsResumed) {
             launchLockTaskUtilityActivityWithoutStartingLockTask();
+            waitAndCheckLockedActivityIsResumed();
         }
     }
 
@@ -301,14 +308,14 @@ public class LockTaskHostDrivenTest extends BaseDeviceAdminTest {
     }
 
     private void launchLockTaskActivity() {
-        Intent intent = new Intent(mContext, LockTaskUtilityActivityIfWhitelisted.class);
+        Intent intent = new Intent(mContext, LockTaskUtilityActivityIfAllowed.class);
         intent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
         intent.putExtra(LockTaskUtilityActivity.START_LOCK_TASK, true);
         mContext.startActivity(intent);
     }
 
     private void launchLockTaskUtilityActivityWithoutStartingLockTask() {
-        final Intent intent = new Intent(mContext, LockTaskUtilityActivityIfWhitelisted.class);
+        final Intent intent = new Intent(mContext, LockTaskUtilityActivityIfAllowed.class);
         intent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
         mContext.startActivity(intent);
     }

@@ -19,8 +19,12 @@ package com.android.cts.verifier.managedprovisioning;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.content.pm.ResolveInfo;
 import android.os.UserManager;
 import android.provider.Settings;
+import android.provider.Telephony;
+import android.telephony.TelephonyManager;
+import android.text.TextUtils;
 import android.util.ArrayMap;
 
 import com.android.cts.verifier.R;
@@ -217,13 +221,20 @@ public class UserRestrictions {
 
     public static Intent getUserRestrictionTestIntent(Context context, String restriction) {
         final UserRestrictionItem item = USER_RESTRICTION_ITEMS.get(restriction);
-        return new Intent(PolicyTransparencyTestActivity.ACTION_SHOW_POLICY_TRANSPARENCY_TEST)
-                .putExtra(PolicyTransparencyTestActivity.EXTRA_TEST,
-                        PolicyTransparencyTestActivity.TEST_CHECK_USER_RESTRICTION)
-                .putExtra(CommandReceiverActivity.EXTRA_USER_RESTRICTION, restriction)
-                .putExtra(PolicyTransparencyTestActivity.EXTRA_TITLE, context.getString(item.label))
-                .putExtra(PolicyTransparencyTestActivity.EXTRA_SETTINGS_INTENT_ACTION,
-                        item.intentAction);
+        final Intent intent =
+                new Intent(PolicyTransparencyTestActivity.ACTION_SHOW_POLICY_TRANSPARENCY_TEST)
+                        .putExtra(PolicyTransparencyTestActivity.EXTRA_TEST,
+                                PolicyTransparencyTestActivity.TEST_CHECK_USER_RESTRICTION)
+                        .putExtra(CommandReceiverActivity.EXTRA_USER_RESTRICTION, restriction)
+                        .putExtra(PolicyTransparencyTestActivity.EXTRA_TITLE,
+                                context.getString(item.label))
+                        .putExtra(PolicyTransparencyTestActivity.EXTRA_SETTINGS_INTENT_ACTION,
+                                item.intentAction);
+        // For DISALLOW_FACTORY_RESET, set on the device owner, not on the current user.
+        if (!UserManager.DISALLOW_FACTORY_RESET.equals(restriction)) {
+            intent.putExtra(CommandReceiverActivity.EXTRA_USE_CURRENT_USER_DPM, true);
+        }
+        return intent;
     }
 
     public static boolean isRestrictionValid(Context context, String restriction) {
@@ -234,13 +245,19 @@ public class UserRestrictions {
             case UserManager.DISALLOW_ADJUST_VOLUME:
                 return pm.hasSystemFeature(PackageManager.FEATURE_AUDIO_OUTPUT);
             case UserManager.DISALLOW_CONFIG_CELL_BROADCASTS:
+                final TelephonyManager tm =
+                    context.getSystemService(TelephonyManager.class);
+                if (!tm.isSmsCapable()) {
+                    return false;
+                }
                 // Get com.android.internal.R.bool.config_cellBroadcastAppLinks
                 final int resId = context.getResources().getIdentifier(
                         "config_cellBroadcastAppLinks", "bool", "android");
                 boolean isCellBroadcastAppLinkEnabled = context.getResources().getBoolean(resId);
                 try {
                     if (isCellBroadcastAppLinkEnabled) {
-                        if (pm.getApplicationEnabledSetting("com.android.cellbroadcastreceiver")
+                        String packageName = getDefaultCellBroadcastReceiverPackageName(context);
+                        if (packageName == null || pm.getApplicationEnabledSetting(packageName)
                                 == PackageManager.COMPONENT_ENABLED_STATE_DISABLED) {
                             isCellBroadcastAppLinkEnabled = false;  // CMAS app disabled
                         }
@@ -271,6 +288,32 @@ public class UserRestrictions {
             default:
                 return true;
         }
+    }
+
+    /**
+     * Utility method to query the default CBR's package name.
+     * from frameworks/base/telephony/common/com/android/internal/telephony/CellBroadcastUtils.java
+     */
+    private static String getDefaultCellBroadcastReceiverPackageName(Context context) {
+        PackageManager packageManager = context.getPackageManager();
+        ResolveInfo resolveInfo = packageManager.resolveActivity(
+                new Intent(Telephony.Sms.Intents.SMS_CB_RECEIVED_ACTION),
+                PackageManager.MATCH_SYSTEM_ONLY);
+        String packageName;
+
+        if (resolveInfo == null) {
+            return null;
+        }
+
+        packageName = resolveInfo.activityInfo.applicationInfo.packageName;
+
+        if (TextUtils.isEmpty(packageName) || packageManager.checkPermission(
+            android.Manifest.permission.READ_CELL_BROADCASTS, packageName)
+                == PackageManager.PERMISSION_DENIED) {
+            return null;
+        }
+
+        return packageName;
     }
 
     private static class UserRestrictionItem {
