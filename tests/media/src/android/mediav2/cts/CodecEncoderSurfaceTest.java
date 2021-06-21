@@ -22,7 +22,6 @@ import android.media.MediaCodecList;
 import android.media.MediaExtractor;
 import android.media.MediaFormat;
 import android.media.MediaMuxer;
-import android.os.Build;
 import android.util.Log;
 import android.util.Pair;
 import android.view.Surface;
@@ -38,9 +37,9 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -57,6 +56,8 @@ public class CodecEncoderSurfaceTest {
     private final int mBitrate;
     private final int mFrameRate;
     private final int mMaxBFrames;
+    private int mLatency;
+    private boolean mReviseLatency;
 
     private MediaExtractor mExtractor;
     private MediaCodec mEncoder;
@@ -82,9 +83,7 @@ public class CodecEncoderSurfaceTest {
 
     static {
         android.os.Bundle args = InstrumentationRegistry.getArguments();
-        CodecTestBase.codecSelKeys = args.getString(CodecTestBase.CODEC_SEL_KEY);
-        if (CodecTestBase.codecSelKeys == null)
-            CodecTestBase.codecSelKeys = CodecTestBase.CODEC_SEL_VALUE;
+        CodecTestBase.mimeSelKeys = args.getString(CodecTestBase.MIME_SEL_KEY);
     }
 
     public CodecEncoderSurfaceTest(String mime, String testFile, int bitrate, int frameRate) {
@@ -93,19 +92,18 @@ public class CodecEncoderSurfaceTest {
         mBitrate = bitrate;
         mFrameRate = frameRate;
         mMaxBFrames = 0;
+        mLatency = mMaxBFrames;
+        mReviseLatency = false;
         mAsyncHandleDecoder = new CodecAsyncHandler();
         mAsyncHandleEncoder = new CodecAsyncHandler();
     }
 
     @Parameterized.Parameters(name = "{index}({0})")
     public static Collection<Object[]> input() {
-        ArrayList<String> cddRequiredMimeList = new ArrayList<>();
-        if (CodecTestBase.isHandheld() || CodecTestBase.isTv() || CodecTestBase.isAutomotive()) {
-            // sec 2.2.2, 2.3.2, 2.5.2
-            cddRequiredMimeList.add(MediaFormat.MIMETYPE_VIDEO_AVC);
-            cddRequiredMimeList.add(MediaFormat.MIMETYPE_VIDEO_VP8);
-        }
-        final Object[][] exhaustiveArgsList = new Object[][]{
+        final boolean isEncoder = true;
+        final boolean needAudio = false;
+        final boolean needVideo = true;
+        final List<Object[]> exhaustiveArgsList = Arrays.asList(new Object[][]{
                 // Video - CodecMime, test file, bit rate, frame rate
                 {MediaFormat.MIMETYPE_VIDEO_H263, "bbb_176x144_128kbps_15fps_h263.3gp", 128000, 15},
                 {MediaFormat.MIMETYPE_VIDEO_MPEG4, "bbb_128x96_64kbps_12fps_mpeg4.mp4", 64000, 12},
@@ -114,60 +112,9 @@ public class CodecEncoderSurfaceTest {
                 {MediaFormat.MIMETYPE_VIDEO_VP8, "bbb_cif_768kbps_30fps_avc.mp4", 512000, 30},
                 {MediaFormat.MIMETYPE_VIDEO_VP9, "bbb_cif_768kbps_30fps_avc.mp4", 512000, 30},
                 {MediaFormat.MIMETYPE_VIDEO_AV1, "bbb_cif_768kbps_30fps_avc.mp4", 512000, 30},
-        };
-        ArrayList<String> mimes = new ArrayList<>();
-        if (CodecTestBase.codecSelKeys.contains(CodecTestBase.CODEC_SEL_VALUE)) {
-            MediaCodecList codecList = new MediaCodecList(MediaCodecList.REGULAR_CODECS);
-            MediaCodecInfo[] codecInfos = codecList.getCodecInfos();
-            for (MediaCodecInfo codecInfo : codecInfos) {
-                if (!codecInfo.isEncoder()) continue;
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && codecInfo.isAlias()) continue;
-                String[] types = codecInfo.getSupportedTypes();
-                for (String type : types) {
-                    if (!mimes.contains(type) && type.startsWith("video/")) {
-                        mimes.add(type);
-                    }
-                }
-            }
-            // TODO(b/154423708): add checks for video o/p port and display length >= 2.5"
-            /* sec 5.2: device implementations include an embedded screen display with the diagonal
-            length of at least 2.5inches or include a video output port or declare the support of a
-            camera */
-            if (CodecTestBase.hasCamera() && !mimes.contains(MediaFormat.MIMETYPE_VIDEO_AVC) &&
-                    !mimes.contains(MediaFormat.MIMETYPE_VIDEO_VP8)) {
-                fail("device must support at least one of VP8 or AVC video encoders");
-            }
-            for (String mime : cddRequiredMimeList) {
-                if (!mimes.contains(mime)) {
-                    fail("no codec found for mime " + mime + " as required by cdd");
-                }
-            }
-        } else {
-            for (Map.Entry<String, String> entry : CodecTestBase.codecSelKeyMimeMap.entrySet()) {
-                String key = entry.getKey();
-                String value = entry.getValue();
-                if (CodecTestBase.codecSelKeys.contains(key) && !mimes.contains(value)) {
-                    mimes.add(value);
-                }
-            }
-        }
-        final List<Object[]> argsList = new ArrayList<>();
-        for (String mime : mimes) {
-            boolean miss = true;
-            for (Object[] arg : exhaustiveArgsList) {
-                if (mime.equals(arg[0])) {
-                    argsList.add(arg);
-                    miss = false;
-                }
-            }
-            if (miss) {
-                if (cddRequiredMimeList.contains(mime)) {
-                    fail("no test vectors for required mimetype " + mime);
-                }
-                Log.w(LOG_TAG, "no test vectors available for optional mime type " + mime);
-            }
-        }
-        return argsList;
+        });
+        return CodecTestBase.prepareParamList(exhaustiveArgsList, isEncoder, needAudio, needVideo,
+                true);
     }
 
     private boolean hasSeenError() {
@@ -212,6 +159,10 @@ public class CodecEncoderSurfaceTest {
         resetContext(isAsync, signalEOSWithLastFrame);
         mAsyncHandleEncoder.setCallBack(mEncoder, isAsync);
         mEncoder.configure(encFormat, null, MediaCodec.CONFIGURE_FLAG_ENCODE, null);
+        if (mEncoder.getInputFormat().containsKey(MediaFormat.KEY_LATENCY)) {
+            mReviseLatency = true;
+            mLatency = mEncoder.getInputFormat().getInteger(MediaFormat.KEY_LATENCY);
+        }
         mSurface = mEncoder.createInputSurface();
         assertTrue("Surface is not valid", mSurface.isValid());
         mAsyncHandleDecoder.setCallBack(mDecoder, isAsync);
@@ -309,6 +260,25 @@ public class CodecEncoderSurfaceTest {
     private void tryEncoderOutput(long timeOutUs) throws InterruptedException {
         if (mIsCodecInAsyncMode) {
             if (!hasSeenError() && !mSawEncOutputEOS) {
+                int retry = 0;
+                while (mReviseLatency) {
+                    if (mAsyncHandleEncoder.hasOutputFormatChanged()) {
+                        mReviseLatency = false;
+                        int actualLatency = mAsyncHandleEncoder.getOutputFormat()
+                                .getInteger(MediaFormat.KEY_LATENCY, mLatency);
+                        if (mLatency < actualLatency) {
+                            mLatency = actualLatency;
+                            return;
+                        }
+                    } else {
+                        if (retry > CodecTestBase.RETRY_LIMIT) throw new InterruptedException(
+                                "did not receive output format changed for encoder after " +
+                                        CodecTestBase.Q_DEQ_TIMEOUT_US * CodecTestBase.RETRY_LIMIT +
+                                        " us");
+                        Thread.sleep(CodecTestBase.Q_DEQ_TIMEOUT_US / 1000);
+                        retry ++;
+                    }
+                }
                 Pair<Integer, MediaCodec.BufferInfo> element = mAsyncHandleEncoder.getOutput();
                 if (element != null) {
                     dequeueEncoderOutput(element.first, element.second);
@@ -320,6 +290,9 @@ public class CodecEncoderSurfaceTest {
                 int outputBufferId = mEncoder.dequeueOutputBuffer(outInfo, timeOutUs);
                 if (outputBufferId >= 0) {
                     dequeueEncoderOutput(outputBufferId, outInfo);
+                } else if (outputBufferId == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
+                    mLatency = mEncoder.getOutputFormat()
+                            .getInteger(MediaFormat.KEY_LATENCY, mLatency);
                 }
             }
         }
@@ -351,16 +324,26 @@ public class CodecEncoderSurfaceTest {
                     }
                 }
             }
-        } else if (!mSawDecInputEOS) {
-            enqueueDecoderEOS(mDecoder.dequeueInputBuffer(-1));
+        } else {
+            MediaCodec.BufferInfo outInfo = new MediaCodec.BufferInfo();
+            while (!mSawDecInputEOS) {
+                int outputBufferId =
+                        mDecoder.dequeueOutputBuffer(outInfo, CodecTestBase.Q_DEQ_TIMEOUT_US);
+                if (outputBufferId >= 0) {
+                    dequeueDecoderOutput(outputBufferId, outInfo);
+                }
+                int inputBufferId = mDecoder.dequeueInputBuffer(CodecTestBase.Q_DEQ_TIMEOUT_US);
+                if (inputBufferId != -1) {
+                    enqueueDecoderEOS(inputBufferId);
+                }
+            }
         }
         if (mIsCodecInAsyncMode) {
             while (!hasSeenError() && !mSawDecOutputEOS) {
                 Pair<Integer, MediaCodec.BufferInfo> decOp = mAsyncHandleDecoder.getOutput();
                 if (decOp != null) dequeueDecoderOutput(decOp.first, decOp.second);
                 if (mSawDecOutputEOS) mEncoder.signalEndOfInputStream();
-                // TODO: remove fixed constant and change it according to encoder latency
-                if (mDecOutputCount - mEncOutputCount > mMaxBFrames) {
+                if (mDecOutputCount - mEncOutputCount > mLatency) {
                     tryEncoderOutput(-1);
                 }
             }
@@ -373,8 +356,7 @@ public class CodecEncoderSurfaceTest {
                     dequeueDecoderOutput(outputBufferId, outInfo);
                 }
                 if (mSawDecOutputEOS) mEncoder.signalEndOfInputStream();
-                // TODO: remove fixed constant and change it according to encoder latency
-                if (mDecOutputCount - mEncOutputCount > mMaxBFrames) {
+                if (mDecOutputCount - mEncOutputCount > mLatency) {
                     tryEncoderOutput(-1);
                 }
             }
@@ -402,8 +384,7 @@ public class CodecEncoderSurfaceTest {
                 // check decoder EOS
                 if (mSawDecOutputEOS) mEncoder.signalEndOfInputStream();
                 // encoder output
-                // TODO: remove fixed constant and change it according to encoder latency
-                if (mDecOutputCount - mEncOutputCount > mMaxBFrames) {
+                if (mDecOutputCount - mEncOutputCount > mLatency) {
                     tryEncoderOutput(-1);
                 }
             }
@@ -425,8 +406,7 @@ public class CodecEncoderSurfaceTest {
                 // check decoder EOS
                 if (mSawDecOutputEOS) mEncoder.signalEndOfInputStream();
                 // encoder output
-                // TODO: remove fixed constant and change it according to encoder latency
-                if (mDecOutputCount - mEncOutputCount > mMaxBFrames) {
+                if (mDecOutputCount - mEncOutputCount > mLatency) {
                     tryEncoderOutput(-1);
                 }
             }
@@ -585,4 +565,3 @@ public class CodecEncoderSurfaceTest {
         }
     }
 }
-

@@ -105,9 +105,6 @@ public class VulkanPreTransformTest {
     @Before
     public void setUp() {
         Log.d(TAG, "setUp!");
-        // Work around for b/77148807
-        // Activity was falsely created before ActivityManager set config change to landscape
-        SystemClock.sleep(2000);
         mContext = InstrumentationRegistry.getContext();
     }
 
@@ -143,15 +140,11 @@ public class VulkanPreTransformTest {
         return mContext.getPackageManager().hasSystemFeature(requiredFeature);
     }
 
-    private static Bitmap takeScreenshot() {
+    private static Bitmap takeScreenshot(int width, int height) {
         assertNotNull("sActivity should not be null", sActivity);
-        Rect srcRect = new Rect();
-        sActivity.findViewById(R.id.surfaceview).getGlobalVisibleRect(srcRect);
         SynchronousPixelCopy copy = new SynchronousPixelCopy();
-        Bitmap dest =
-                Bitmap.createBitmap(srcRect.width(), srcRect.height(), Bitmap.Config.ARGB_8888);
-        int copyResult =
-                copy.request((SurfaceView) sActivity.findViewById(R.id.surfaceview), srcRect, dest);
+        Bitmap dest = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+        int copyResult = copy.request((SurfaceView) sActivity.findViewById(R.id.surfaceview), dest);
         assertEquals("PixelCopy failed", PixelCopy.SUCCESS, copyResult);
         return dest;
     }
@@ -168,11 +161,9 @@ public class VulkanPreTransformTest {
     }
 
     private static boolean validatePixelValuesAfterRotation(
-            boolean setPreTransform, int preTransformHint) {
-        Bitmap bitmap = takeScreenshot();
+            int width, int height, boolean setPreTransform, int preTransformHint) {
+        Bitmap bitmap = takeScreenshot(width, height);
 
-        int width = bitmap.getWidth();
-        int height = bitmap.getHeight();
         int diff = 0;
         if (!setPreTransform || preTransformHint == 0x1 /*VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR*/) {
             diff += pixelDiff(bitmap.getPixel(0, 0), 255, 0, 0);

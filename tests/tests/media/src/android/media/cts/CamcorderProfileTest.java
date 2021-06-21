@@ -16,12 +16,16 @@
 
 package android.media.cts;
 
-
 import android.content.pm.PackageManager;
 import android.hardware.Camera;
 import android.hardware.Camera.Parameters;
 import android.hardware.Camera.Size;
+import android.hardware.cts.helpers.CameraUtils;
 import android.media.CamcorderProfile;
+import android.media.EncoderProfiles;
+import android.media.MediaCodecInfo;
+import android.media.MediaFormat;
+import android.media.MediaRecorder;
 import android.test.AndroidTestCase;
 import android.util.Log;
 
@@ -42,6 +46,8 @@ public class CamcorderProfileTest extends AndroidTestCase {
         CamcorderProfile.QUALITY_720P,
         CamcorderProfile.QUALITY_1080P,
         CamcorderProfile.QUALITY_QVGA,
+        CamcorderProfile.QUALITY_2K,
+        CamcorderProfile.QUALITY_QHD,
         CamcorderProfile.QUALITY_2160P,
         CamcorderProfile.QUALITY_TIME_LAPSE_LOW,
         CamcorderProfile.QUALITY_TIME_LAPSE_HIGH,
@@ -51,6 +57,8 @@ public class CamcorderProfileTest extends AndroidTestCase {
         CamcorderProfile.QUALITY_TIME_LAPSE_720P,
         CamcorderProfile.QUALITY_TIME_LAPSE_1080P,
         CamcorderProfile.QUALITY_TIME_LAPSE_QVGA,
+        CamcorderProfile.QUALITY_TIME_LAPSE_2K,
+        CamcorderProfile.QUALITY_TIME_LAPSE_QHD,
         CamcorderProfile.QUALITY_TIME_LAPSE_2160P,
         CamcorderProfile.QUALITY_HIGH_SPEED_LOW,
         CamcorderProfile.QUALITY_HIGH_SPEED_HIGH,
@@ -108,6 +116,108 @@ public class CamcorderProfileTest extends AndroidTestCase {
                                    videoSizes));
     }
 
+    private void checkAllProfiles(EncoderProfiles allProfiles, CamcorderProfile profile,
+                                  List<Size> videoSizes) {
+        Log.v(TAG, String.format("profile: duration=%d, quality=%d, " +
+            "fileFormat=%d, videoCodec=%d, videoBitRate=%d, videoFrameRate=%d, " +
+            "videoFrameWidth=%d, videoFrameHeight=%d, audioCodec=%d, " +
+            "audioBitRate=%d, audioSampleRate=%d, audioChannels=%d",
+            profile.duration,
+            profile.quality,
+            profile.fileFormat,
+            profile.videoCodec,
+            profile.videoBitRate,
+            profile.videoFrameRate,
+            profile.videoFrameWidth,
+            profile.videoFrameHeight,
+            profile.audioCodec,
+            profile.audioBitRate,
+            profile.audioSampleRate,
+            profile.audioChannels));
+        // generic fields must match the corresponding CamcorderProfile
+        assertEquals(profile.duration, allProfiles.getDefaultDurationSeconds());
+        assertEquals(profile.fileFormat, allProfiles.getRecommendedFileFormat());
+        boolean first = true;
+        for (EncoderProfiles.VideoProfile videoProfile : allProfiles.getVideoProfiles()) {
+            if (first) {
+                // the first profile must be the default profile which must match
+                // the corresponding CamcorderProfile
+                assertEquals(profile.videoCodec, videoProfile.getCodec());
+                assertEquals(profile.videoBitRate, videoProfile.getBitrate());
+                assertEquals(profile.videoFrameRate, videoProfile.getFrameRate());
+                first = false;
+            }
+            // all profiles must be the same size
+            assertEquals(profile.videoFrameWidth, videoProfile.getWidth());
+            assertEquals(profile.videoFrameHeight, videoProfile.getHeight());
+            assertTrue(videoProfile.getMediaType() != null);
+            switch (videoProfile.getCodec()) {
+              // don't validate profile for regular codecs as vendors may use vendor specific profile
+            case MediaRecorder.VideoEncoder.H263:
+                assertEquals(MediaFormat.MIMETYPE_VIDEO_H263, videoProfile.getMediaType());
+                break;
+            case MediaRecorder.VideoEncoder.H264:
+                assertEquals(MediaFormat.MIMETYPE_VIDEO_AVC, videoProfile.getMediaType());
+                break;
+            case MediaRecorder.VideoEncoder.MPEG_4_SP:
+                assertEquals(MediaFormat.MIMETYPE_VIDEO_MPEG4, videoProfile.getMediaType());
+                break;
+            case MediaRecorder.VideoEncoder.VP8:
+                assertEquals(MediaFormat.MIMETYPE_VIDEO_VP8, videoProfile.getMediaType());
+                break;
+            case MediaRecorder.VideoEncoder.HEVC:
+                  assertEquals(MediaFormat.MIMETYPE_VIDEO_HEVC, videoProfile.getMediaType());
+                  break;
+            }
+            // Cannot validate profile as vendors may use vendor specific profile. Just read it.
+            int codecProfile = videoProfile.getProfile();
+        }
+        first = true;
+        for (EncoderProfiles.AudioProfile audioProfile : allProfiles.getAudioProfiles()) {
+            if (first) {
+                // the first profile must be the default profile which must match
+                // the corresponding CamcorderProfile
+                assertEquals(profile.audioCodec, audioProfile.getCodec());
+                assertEquals(profile.audioBitRate, audioProfile.getBitrate());
+                assertEquals(profile.audioSampleRate, audioProfile.getSampleRate());
+                assertEquals(profile.audioChannels, audioProfile.getChannels());
+                first = false;
+            }
+            assertTrue(audioProfile.getMediaType() != null);
+            switch (audioProfile.getCodec()) {
+            // don't validate profile for regular codecs as vendors may use vendor specific profile
+            case MediaRecorder.AudioEncoder.AMR_NB:
+                assertEquals(MediaFormat.MIMETYPE_AUDIO_AMR_NB, audioProfile.getMediaType());
+                break;
+            case MediaRecorder.AudioEncoder.AMR_WB:
+                assertEquals(MediaFormat.MIMETYPE_AUDIO_AMR_WB, audioProfile.getMediaType());
+                break;
+            case MediaRecorder.AudioEncoder.AAC:
+                assertEquals(MediaFormat.MIMETYPE_AUDIO_AAC, audioProfile.getMediaType());
+                break;
+            case MediaRecorder.AudioEncoder.HE_AAC:
+                assertEquals(MediaFormat.MIMETYPE_AUDIO_AAC, audioProfile.getMediaType());
+                assertEquals(MediaCodecInfo.CodecProfileLevel.AACObjectHE,
+                             audioProfile.getProfile());
+                break;
+            case MediaRecorder.AudioEncoder.AAC_ELD:
+                assertEquals(MediaFormat.MIMETYPE_AUDIO_AAC, audioProfile.getMediaType());
+                assertEquals(MediaCodecInfo.CodecProfileLevel.AACObjectELD,
+                             audioProfile.getProfile());
+                break;
+            case MediaRecorder.AudioEncoder.VORBIS:
+                assertEquals(MediaFormat.MIMETYPE_AUDIO_VORBIS, audioProfile.getMediaType());
+                break;
+            case MediaRecorder.AudioEncoder.OPUS:
+                assertEquals(MediaFormat.MIMETYPE_AUDIO_OPUS, audioProfile.getMediaType());
+                break;
+            default:
+                // there may be some extended profiles we don't know about and that's OK
+                break;
+            }
+        }
+    }
+
     private void assertProfileEquals(CamcorderProfile expectedProfile,
             CamcorderProfile actualProfile) {
         assertEquals(expectedProfile.duration, actualProfile.duration);
@@ -160,6 +270,18 @@ public class CamcorderProfileTest extends AndroidTestCase {
                 assertEquals(1920, profile.videoFrameWidth);
                 assertTrue(1088 == profile.videoFrameHeight ||
                            1080 == profile.videoFrameHeight);
+                break;
+            case CamcorderProfile.QUALITY_2K:
+            case CamcorderProfile.QUALITY_TIME_LAPSE_2K:
+                // 2K could be either 2048x1088 or 2048x1080
+                assertEquals(2048, profile.videoFrameWidth);
+                assertTrue(1088 == profile.videoFrameHeight ||
+                           1080 == profile.videoFrameHeight);
+                break;
+            case CamcorderProfile.QUALITY_QHD:
+            case CamcorderProfile.QUALITY_TIME_LAPSE_QHD:
+                assertEquals(2560, profile.videoFrameWidth);
+                assertEquals(1440, profile.videoFrameHeight);
                 break;
             case CamcorderProfile.QUALITY_2160P:
             case CamcorderProfile.QUALITY_TIME_LAPSE_2160P:
@@ -258,11 +380,16 @@ public class CamcorderProfileTest extends AndroidTestCase {
             if (CamcorderProfile.hasProfile(cameraId, quality) || isProfileMandatory(quality)) {
                 List<Size> videoSizesToCheck = null;
                 if (quality >= CamcorderProfile.QUALITY_LOW &&
-                                quality <= CamcorderProfile.QUALITY_2160P) {
+                                quality <= CamcorderProfile.QUALITY_2K) {
                     videoSizesToCheck = videoSizes;
                 }
                 CamcorderProfile profile = getWithOptionalId(quality, cameraId);
                 checkProfile(profile, videoSizesToCheck);
+                if (cameraId >= 0) {
+                    EncoderProfiles allProfiles =
+                        CamcorderProfile.getAll(String.valueOf(cameraId), quality);
+                    checkAllProfiles(allProfiles, profile, videoSizesToCheck);
+                }
             }
         }
 
@@ -303,6 +430,8 @@ public class CamcorderProfileTest extends AndroidTestCase {
                                           CamcorderProfile.QUALITY_480P,
                                           CamcorderProfile.QUALITY_720P,
                                           CamcorderProfile.QUALITY_1080P,
+                                          CamcorderProfile.QUALITY_2K,
+                                          CamcorderProfile.QUALITY_QHD,
                                           CamcorderProfile.QUALITY_2160P};
 
         int[] specificTimeLapseProfileQualities = {CamcorderProfile.QUALITY_TIME_LAPSE_QCIF,
@@ -311,6 +440,8 @@ public class CamcorderProfileTest extends AndroidTestCase {
                                                    CamcorderProfile.QUALITY_TIME_LAPSE_480P,
                                                    CamcorderProfile.QUALITY_TIME_LAPSE_720P,
                                                    CamcorderProfile.QUALITY_TIME_LAPSE_1080P,
+                                                   CamcorderProfile.QUALITY_TIME_LAPSE_2K,
+                                                   CamcorderProfile.QUALITY_TIME_LAPSE_QHD,
                                                    CamcorderProfile.QUALITY_TIME_LAPSE_2160P};
 
         int[] specificHighSpeedProfileQualities = {CamcorderProfile.QUALITY_HIGH_SPEED_480P,
@@ -351,7 +482,16 @@ public class CamcorderProfileTest extends AndroidTestCase {
     public void testGetWithId() {
         int nCamera = Camera.getNumberOfCameras();
         for (int cameraId = 0; cameraId < nCamera; cameraId++) {
-            checkGet(cameraId);
+            boolean isExternal = false;
+            try {
+                isExternal = CameraUtils.isExternal(mContext, cameraId);
+            } catch (Exception e) {
+                Log.e(TAG, "Unable to query external camera: " + e);
+            }
+
+            if (!isExternal) {
+                checkGet(cameraId);
+            }
         }
     }
 
