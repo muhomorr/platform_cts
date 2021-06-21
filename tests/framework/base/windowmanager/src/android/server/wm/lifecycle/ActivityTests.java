@@ -93,7 +93,6 @@ public class ActivityTests extends ActivityLifecycleClientTestBase {
      * Verify that {@link Activity#finishAndRemoveTask()} removes all activities in task if called
      * for root of task.
      */
-    @FlakyTest(bugId=137329632)
     @Test
     public void testFinishTask_FromRoot() throws Exception {
         final Class<? extends Activity> rootActivityClass = CallbackTrackingActivity.class;
@@ -121,7 +120,6 @@ public class ActivityTests extends ActivityLifecycleClientTestBase {
      * Verify that {@link Activity#finishAndRemoveTask()} removes all activities in task if called
      * for root of task. This version verifies lifecycle when top activity is translucent
      */
-    @FlakyTest(bugId=137329632)
     @Test
     public void testFinishTask_FromRoot_TranslucentOnTop() throws Exception {
         final Class<? extends Activity> rootActivityClass = CallbackTrackingActivity.class;
@@ -150,7 +148,6 @@ public class ActivityTests extends ActivityLifecycleClientTestBase {
      * Verify that {@link Activity#finishAndRemoveTask()} only removes one activity in task if
      * called not for root of task.
      */
-    @FlakyTest(bugId=137329632)
     @Test
     public void testFinishTask_NotFromRoot() throws Exception {
         final Class<? extends Activity> rootActivityClass = CallbackTrackingActivity.class;
@@ -175,7 +172,6 @@ public class ActivityTests extends ActivityLifecycleClientTestBase {
      * Verify the lifecycle of {@link Activity#finishAfterTransition()} for activity that has a
      * transition set.
      */
-    @FlakyTest(bugId=137329632)
     @Test
     public void testFinishAfterTransition() throws Exception {
         final TransitionSourceActivity rootActivity =
@@ -211,7 +207,6 @@ public class ActivityTests extends ActivityLifecycleClientTestBase {
      * Verify the lifecycle of {@link Activity#finishAfterTransition()} for activity with no
      * transition set.
      */
-    @FlakyTest(bugId=137329632)
     @Test
     public void testFinishAfterTransition_noTransition() throws Exception {
         final Activity rootActivity = launchActivityAndWait(FirstActivity.class);
@@ -252,8 +247,9 @@ public class ActivityTests extends ActivityLifecycleClientTestBase {
     @Test
     public void testFinishAffinity_differentAffinity() throws Exception {
         final Activity firstActivity = launchActivityAndWait(FirstActivity.class);
-        final Activity differentAffinityActivity =
-                launchActivityAndWait(DifferentAffinityActivity.class);
+        final Activity differentAffinityActivity = new Launcher(DifferentAffinityActivity.class)
+                .setOptions(getLaunchOptionsForFullscreen())
+                .launch();
         waitAndAssertActivityStates(state(differentAffinityActivity, ON_RESUME),
                 state(firstActivity, ON_STOP));
 
@@ -271,9 +267,10 @@ public class ActivityTests extends ActivityLifecycleClientTestBase {
     @Test
     public void testFinishAffinity_multiTask() throws Exception {
         final Activity firstActivity = launchActivityAndWait(FirstActivity.class);
-        // Launch activity in a new task
+        // Launch fullscreen activity in a new task to stop first activity
         final Activity secondActivity = new Launcher(SecondActivity.class)
                 .setFlags(FLAG_ACTIVITY_NEW_TASK | FLAG_ACTIVITY_MULTIPLE_TASK)
+                .setOptions(getLaunchOptionsForFullscreen())
                 .launch();
         waitAndAssertActivityStates(state(secondActivity, ON_RESUME),
                 state(firstActivity, ON_STOP));

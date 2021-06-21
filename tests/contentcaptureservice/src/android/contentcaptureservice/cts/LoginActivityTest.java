@@ -45,6 +45,8 @@ import android.content.LocusId;
 import android.contentcaptureservice.cts.CtsContentCaptureService.Session;
 import android.os.Bundle;
 import android.platform.test.annotations.AppModeFull;
+import android.text.Editable;
+import android.text.Spannable;
 import android.util.ArraySet;
 import android.util.Log;
 import android.view.View;
@@ -56,6 +58,8 @@ import android.view.contentcapture.ContentCaptureSession;
 import android.view.contentcapture.ContentCaptureSessionId;
 import android.view.contentcapture.DataRemovalRequest;
 import android.view.contentcapture.DataRemovalRequest.LocusIdRequest;
+import android.view.inputmethod.BaseInputConnection;
+import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
@@ -425,11 +429,160 @@ public class LoginActivityTest
         activity.syncRunOnUiThread(() -> {
             activity.mUsername.setText("a");
             activity.mUsername.setText("ab");
+            activity.mUsername.setText("");
+            activity.mUsername.setText("abc");
 
             activity.mPassword.setText("d");
+            activity.mPassword.setText("");
+            activity.mPassword.setText("");
             activity.mPassword.setText("de");
+            activity.mPassword.setText("def");
+            activity.mPassword.setText("");
 
             activity.mUsername.setText("abc");
+        });
+
+        activity.finish();
+        watcher.waitFor(DESTROYED);
+
+        final Session session = service.getOnlyFinishedSession();
+        final ContentCaptureSessionId sessionId = session.id;
+
+        assertRightActivity(session, sessionId, activity);
+
+        final int additionalEvents = 8;
+        final List<ContentCaptureEvent> events = activity.assertInitialViewsAppeared(session,
+                additionalEvents);
+
+        final int i = LoginActivity.MIN_EVENTS;
+
+        assertViewTextChanged(events, i, activity.mUsername.getAutofillId(), "a");
+        assertViewTextChanged(events, i + 1, activity.mUsername.getAutofillId(), "ab");
+        assertViewTextChanged(events, i + 2, activity.mUsername.getAutofillId(), "");
+        assertViewTextChanged(events, i + 3, activity.mUsername.getAutofillId(), "abc");
+        assertViewTextChanged(events, i + 4, activity.mPassword.getAutofillId(), "d");
+        assertViewTextChanged(events, i + 5, activity.mPassword.getAutofillId(), "");
+        assertViewTextChanged(events, i + 6, activity.mPassword.getAutofillId(), "");
+        assertViewTextChanged(events, i + 7, activity.mPassword.getAutofillId(), "de");
+        assertViewTextChanged(events, i + 8, activity.mPassword.getAutofillId(), "def");
+        assertViewTextChanged(events, i + 9, activity.mPassword.getAutofillId(), "");
+        assertViewTextChanged(events, i + 10, activity.mUsername.getAutofillId(), "abc");
+
+        activity.assertInitialViewsDisappeared(events, additionalEvents);
+    }
+
+    @Test
+    public void testComposingSpan_mergedEvent() throws Exception {
+        final CtsContentCaptureService service = enableService();
+        final ActivityWatcher watcher = startWatcher();
+
+        LoginActivity.onRootView((activity, rootView) -> ((LoginActivity) activity).mUsername
+                .setText(""));
+
+        final LoginActivity activity = launchActivity();
+        watcher.waitFor(RESUMED);
+
+        activity.syncRunOnUiThread(() -> {
+            // add text with composing span.
+            appendText(activity.mUsername, "A");
+            appendText(activity.mUsername, "n");
+            appendText(activity.mUsername, "d");
+            appendText(activity.mUsername, "r");
+            appendText(activity.mUsername, "o");
+            appendText(activity.mUsername, "i");
+            appendText(activity.mUsername, "d");
+        });
+
+        activity.finish();
+        watcher.waitFor(DESTROYED);
+
+        final Session session = service.getOnlyFinishedSession();
+        final ContentCaptureSessionId sessionId = session.id;
+
+        assertRightActivity(session, sessionId, activity);
+
+        final int additionalEvents = 5;
+        final List<ContentCaptureEvent> events = activity.assertInitialViewsAppeared(session,
+                additionalEvents);
+
+        final int i = LoginActivity.MIN_EVENTS;
+
+        assertViewTextChanged(events, i, activity.mUsername.getAutofillId(), "Android");
+
+        activity.assertInitialViewsDisappeared(events, additionalEvents);
+    }
+
+    @Test
+    public void testComposingSpan_notMergedWithoutComposing() throws Exception {
+        final CtsContentCaptureService service = enableService();
+        final ActivityWatcher watcher = startWatcher();
+
+        LoginActivity.onRootView((activity, rootView) -> ((LoginActivity) activity).mUsername
+                .setText(""));
+
+        final LoginActivity activity = launchActivity();
+        watcher.waitFor(RESUMED);
+
+        activity.syncRunOnUiThread(() -> {
+            // add text with composing span.
+            appendText(activity.mUsername, "G");
+            appendText(activity.mUsername, "o");
+            appendText(activity.mUsername, "o");
+            appendText(activity.mUsername, "d");
+
+            // append text without composing span
+            appendText(activity.mUsername, " ", false);
+
+            // append text with composing span, again.
+            appendText(activity.mUsername, "m");
+            appendText(activity.mUsername, "orning");
+        });
+
+        activity.finish();
+        watcher.waitFor(DESTROYED);
+
+        final Session session = service.getOnlyFinishedSession();
+        final ContentCaptureSessionId sessionId = session.id;
+
+        assertRightActivity(session, sessionId, activity);
+
+        final int additionalEvents = 5;
+        final List<ContentCaptureEvent> events = activity.assertInitialViewsAppeared(session,
+                additionalEvents);
+
+        final int i = LoginActivity.MIN_EVENTS;
+
+        assertViewTextChanged(events, i, activity.mUsername.getAutofillId(), "Good");
+        assertComposingSpan(events.get(i).getText(), 0, 4);
+        assertViewTextChanged(events, i + 1, activity.mUsername.getAutofillId(), "Good ");
+        assertNoComposingSpan(events.get(i + 1).getText());
+        assertViewTextChanged(events, i + 2, activity.mUsername.getAutofillId(), "Good morning");
+        // TODO: Change how the appending works to more realistically test the case where only
+        // "morning" is in the composing state.
+        assertComposingSpan(events.get(i + 2).getText(), 0, 12);
+
+        activity.assertInitialViewsDisappeared(events, additionalEvents);
+    }
+
+    @Test
+    public void testComposingSpan_differentEditText() throws Exception {
+        final CtsContentCaptureService service = enableService();
+        final ActivityWatcher watcher = startWatcher();
+
+        LoginActivity.onRootView((activity, rootView) -> ((LoginActivity) activity).mUsername
+                .setText(""));
+
+        final LoginActivity activity = launchActivity();
+        watcher.waitFor(RESUMED);
+
+        activity.syncRunOnUiThread(() -> {
+            // add text with composing span.
+            appendText(activity.mUsername, "Good");
+            // add text with composing span on the different EditText.
+            appendText(activity.mPassword, "How");
+            // switch again.
+            appendText(activity.mUsername, " morning");
+            appendText(activity.mPassword, " are you");
         });
 
         activity.finish();
@@ -446,11 +599,26 @@ public class LoginActivityTest
 
         final int i = LoginActivity.MIN_EVENTS;
 
-        assertViewTextChanged(events, i, activity.mUsername.getAutofillId(), "ab");
-        assertViewTextChanged(events, i + 1, activity.mPassword.getAutofillId(), "de");
-        assertViewTextChanged(events, i + 2, activity.mUsername.getAutofillId(), "abc");
+        assertViewTextChanged(events, i, activity.mUsername.getAutofillId(), "Good morning");
+        assertViewTextChanged(events, i + 1, activity.mPassword.getAutofillId(), "How are you");
 
         activity.assertInitialViewsDisappeared(events, additionalEvents);
+    }
+
+    private void appendText(EditText editText, String text) {
+        appendText(editText, text, true);
+    }
+
+    private void appendText(EditText editText, String text, boolean hasComposingSpan) {
+        Editable editable = editText.getText();
+        String s = editable.toString() + text;
+        Editable newEditable = Editable.Factory.getInstance().newEditable(s);
+        if (hasComposingSpan) {
+            BaseInputConnection.setComposingSpans(newEditable);
+        } else {
+            BaseInputConnection.removeComposingSpans(editable);
+        }
+        editable.replace(0, editable.length() , newEditable);
     }
 
     @Test
@@ -803,6 +971,19 @@ public class LoginActivityTest
                 .isEqualTo(1);
         assertWithMessage("wrong extras on context %s", context).that(extras.getString("DUDE"))
                 .isEqualTo("SWEET");
+    }
+
+    private void assertComposingSpan(CharSequence text, int start, int end) {
+        assertThat(text).isInstanceOf(Spannable.class);
+        Spannable sp = (Spannable) text;
+        assertThat(BaseInputConnection.getComposingSpanStart(sp)).isEqualTo(start);
+        assertThat(BaseInputConnection.getComposingSpanEnd(sp)).isEqualTo(end);
+    }
+
+    private void assertNoComposingSpan(CharSequence text) {
+        if (text instanceof Spannable) {
+            assertThat(BaseInputConnection.getComposingSpanStart((Spannable) text)).isLessThan(0);
+        }
     }
 
     // TODO(b/123540602): add moar test cases for different sessions:
