@@ -87,10 +87,10 @@ import android.util.Log;
 import android.util.SparseArray;
 import android.util.SparseIntArray;
 
-import androidx.core.os.BuildCompat;
 import androidx.test.filters.SdkSuppress;
 import androidx.test.platform.app.InstrumentationRegistry;
 
+import com.android.compatibility.common.util.ApiLevelUtil;
 import com.android.compatibility.common.util.FeatureUtil;
 import com.android.compatibility.common.util.PollingCheck;
 import com.android.compatibility.common.util.PropertyUtil;
@@ -167,9 +167,7 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
     private static final int WAIT_MSEC = 60;
     private static final int DURATION_SCREEN_TOGGLE = 2000;
     private static final int DURATION_SETTINGS_TOGGLE = 1_000;
-    private static final int WIFI_SCAN_TEST_INTERVAL_MILLIS = 60 * 1000;
     private static final int WIFI_SCAN_TEST_CACHE_DELAY_MILLIS = 3 * 60 * 1000;
-    private static final int WIFI_SCAN_TEST_ITERATIONS = 5;
 
     private static final int ENFORCED_NUM_NETWORK_SUGGESTIONS_PER_APP = 50;
 
@@ -626,32 +624,27 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
         if (!mWifiManager.isWifiEnabled()) {
             setWifiEnabled(true);
         }
-        // Scan multiple times to make sure scan timestamps increase with device timestamp.
-        for (int i = 0; i < WIFI_SCAN_TEST_ITERATIONS; ++i) {
-            startScan();
-            // Make sure at least one AP is found.
-            assertTrue("mScanResult should not be null. This may be due to a scan timeout",
-                       mScanResults != null);
-            assertFalse("empty scan results!", mScanResults.isEmpty());
-            long nowMillis = SystemClock.elapsedRealtime();
-            // Keep track of how many APs are fresh in one scan.
-            int numFreshAps = 0;
-            for (ScanResult result : mScanResults) {
-                long scanTimeMillis = TimeUnit.MICROSECONDS.toMillis(result.timestamp);
-                if (Math.abs(nowMillis - scanTimeMillis)  < WIFI_SCAN_TEST_CACHE_DELAY_MILLIS) {
-                    numFreshAps++;
-                }
-            }
-            // At least half of the APs in the scan should be fresh.
-            int numTotalAps = mScanResults.size();
-            String msg = "Stale AP count: " + (numTotalAps - numFreshAps) + ", fresh AP count: "
-                    + numFreshAps;
-            assertTrue(msg, numFreshAps * 2 >= mScanResults.size());
-            if (i < WIFI_SCAN_TEST_ITERATIONS - 1) {
-                // Wait before running next iteration.
-                Thread.sleep(WIFI_SCAN_TEST_INTERVAL_MILLIS);
+        // Make sure the scan timestamps are consistent with the device timestamp within the range
+        // of WIFI_SCAN_TEST_CACHE_DELAY_MILLIS.
+        startScan();
+        // Make sure at least one AP is found.
+        assertTrue("mScanResult should not be null. This may be due to a scan timeout",
+                   mScanResults != null);
+        assertFalse("empty scan results!", mScanResults.isEmpty());
+        long nowMillis = SystemClock.elapsedRealtime();
+        // Keep track of how many APs are fresh in one scan.
+        int numFreshAps = 0;
+        for (ScanResult result : mScanResults) {
+            long scanTimeMillis = TimeUnit.MICROSECONDS.toMillis(result.timestamp);
+            if (Math.abs(nowMillis - scanTimeMillis)  < WIFI_SCAN_TEST_CACHE_DELAY_MILLIS) {
+                numFreshAps++;
             }
         }
+        // At least half of the APs in the scan should be fresh.
+        int numTotalAps = mScanResults.size();
+        String msg = "Stale AP count: " + (numTotalAps - numFreshAps) + ", fresh AP count: "
+                + numFreshAps;
+        assertTrue(msg, numFreshAps * 2 >= mScanResults.size());
     }
 
     public void testConvertBetweenChannelFrequencyMhz() throws Exception {
@@ -2070,7 +2063,7 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
         // Bssid set dodesn't support for tethered hotspot
         SoftApConfiguration currentConfig = mWifiManager.getSoftApConfiguration();
         compareSoftApConfiguration(targetConfig, currentConfig);
-        if (BuildCompat.isAtLeastS()) {
+        if (ApiLevelUtil.isAtLeast(Build.VERSION_CODES.S)) {
             assertTrue(currentConfig.isUserConfiguration());
         }
     }
@@ -2096,7 +2089,7 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
                 testSoftApConfig.getAllowedClientList());
         assertEquals(currentConfig.getBlockedClientList(),
                 testSoftApConfig.getBlockedClientList());
-        if (BuildCompat.isAtLeastS()) {
+        if (ApiLevelUtil.isAtLeast(Build.VERSION_CODES.S)) {
             assertEquals(currentConfig.getMacRandomizationSetting(),
                     testSoftApConfig.getMacRandomizationSetting());
             assertEquals(currentConfig.getChannels().toString(),
@@ -2158,7 +2151,7 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
         final int[] bands = {SoftApConfiguration.BAND_2GHZ, SoftApConfiguration.BAND_5GHZ,
               SoftApConfiguration.BAND_6GHZ, SoftApConfiguration.BAND_60GHZ};
         SparseIntArray testBandsAndChannels = new SparseIntArray();
-        if (!BuildCompat.isAtLeastS()) {
+        if (!ApiLevelUtil.isAtLeast(Build.VERSION_CODES.S)) {
             testBandsAndChannels.put(SoftApConfiguration.BAND_2GHZ, 1);
             return testBandsAndChannels;
         }
@@ -2376,7 +2369,7 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
                 verifySetGetSoftApConfig(softApConfigBuilder.build());
             }
 
-            if (BuildCompat.isAtLeastS()) {
+            if (ApiLevelUtil.isAtLeast(Build.VERSION_CODES.S)) {
                 softApConfigBuilder.setBridgedModeOpportunisticShutdownEnabled(false);
                 verifySetGetSoftApConfig(softApConfigBuilder.build());
             }
@@ -2416,7 +2409,7 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
             SparseIntArray testBandsAndChannels = getAvailableBandAndChannelForTesting(
                     callback.getCurrentSoftApCapability());
 
-            if (BuildCompat.isAtLeastS()) {
+            if (ApiLevelUtil.isAtLeast(Build.VERSION_CODES.S)) {
                 assertNotEquals(0, testBandsAndChannels.size());
             }
             boolean isSupportCustomizedMac = callback.getCurrentSoftApCapability()
@@ -2484,7 +2477,7 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
                                 0 == callback.getCurrentSoftApInfo().getBandwidth() &&
                                 0 == callback.getCurrentSoftApInfo().getFrequency();
                     });
-            if (BuildCompat.isAtLeastS()) {
+            if (ApiLevelUtil.isAtLeast(Build.VERSION_CODES.S)) {
                 assertEquals(callback.getCurrentSoftApInfo().getBssid(), null);
                 assertEquals(ScanResult.WIFI_STANDARD_UNKNOWN,
                         callback.getCurrentSoftApInfo().getWifiStandard());
@@ -3498,7 +3491,8 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
      * are valid responses.
      */
     public void testIs60GhzBandSupported() throws Exception {
-        if (!(WifiFeature.isWifiSupported(getContext()) && BuildCompat.isAtLeastS())) {
+        if (!(WifiFeature.isWifiSupported(getContext())
+                && ApiLevelUtil.isAtLeast(Build.VERSION_CODES.S))) {
             // skip the test if WiFi is not supported
             return;
         }
@@ -4100,9 +4094,7 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
      * Test that {@link WifiManager#is60GHzBandSupported()} throws UnsupportedOperationException
      * if the release is older than S.
      */
-    // TODO(b/167575586): Wait for S SDK finalization before changing
-    // to `maxSdkVersion = Build.VERSION_CODES.R`
-    @SdkSuppress(maxSdkVersion = -1, codeName = "REL")
+    @SdkSuppress(maxSdkVersion = Build.VERSION_CODES.R)
     public void testIs60GhzBandSupportedOnROrOlder() throws Exception {
         if (!WifiFeature.isWifiSupported(getContext())) {
             // skip the test if WiFi is not supported
@@ -4447,9 +4439,7 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
      * {@link WifiManager#getAllowedChannels(int, int)}
      * throws UnsupportedOperationException if the release is older than S.
      */
-    // TODO(b/167575586): Wait for S SDK finalization before changing
-    // to `maxSdkVersion = Build.VERSION_CODES.R`
-    @SdkSuppress(maxSdkVersion = -1, codeName = "REL")
+    @SdkSuppress(maxSdkVersion = Build.VERSION_CODES.R)
     public void testGetAllowedUsableChannelsOnROrOlder() throws Exception {
         if (!WifiFeature.isWifiSupported(getContext())) {
             // skip the test if WiFi is not supported

@@ -16,38 +16,16 @@
 
 package com.android.bedstead.testapp;
 
-import static android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK;
-import static android.content.Intent.FLAG_ACTIVITY_NEW_TASK;
-
 import android.app.Activity;
-import android.content.Intent;
 
 import com.android.bedstead.nene.packages.ComponentReference;
-import com.android.eventlib.events.activities.ActivityCreatedEvent;
 
 /**
  * A reference to an {@link Activity} in a {@link TestApp}.
  */
 public final class UnresolvedTestAppActivity extends TestAppActivityReference {
-
     UnresolvedTestAppActivity(TestAppInstanceReference instance,
             ComponentReference component) {
         super(instance, component);
-    }
-
-    /**
-     * Starts the activity.
-     */
-    public TestAppActivity start() {
-        Intent intent = new Intent();
-        intent.setComponent(mComponent.componentName());
-        intent.setFlags(FLAG_ACTIVITY_NEW_TASK | FLAG_ACTIVITY_CLEAR_TASK);
-        sTestApis.context().instrumentedContext().startActivity(intent);
-
-        ActivityCreatedEvent
-                .queryPackage(mComponent.packageName().packageName())
-                .whereActivity().className().isEqualTo(mComponent.className()).waitForEvent();
-
-        return new TestAppActivityImpl(mInstance, mComponent);
     }
 }

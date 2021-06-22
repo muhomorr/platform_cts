@@ -13,5 +13,14 @@
      See the License for the specific language governing permissions and
      limitations under the License.
 -->
-<configuration description="TODO">
-</configuration>
+
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+     package="android.provider.apps.cts.multiauthority">
+
+    <application>
+        <provider android:name=".MultiAuthorityProvider"
+                android:exported="true"
+                android:authorities="android.provider.apps.cts.multi1;android.provider.apps.cts.multi2" />
+    </application>
+
+</manifest>

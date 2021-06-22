@@ -84,6 +84,8 @@ public class SecurityLoggingDelegateTest extends BaseTestCase {
      */
     @Test
     public void testGenerateLogs() throws Exception {
+        // If any logs are available, fetch them so that force-security-logs causes a broadcast.
+        mDpm.retrieveSecurityLogs(null);
         try {
             final KeyPairGenerator keyGen = KeyPairGenerator.getInstance("RSA", "AndroidKeyStore");
             keyGen.initialize(new KeyGenParameterSpec.Builder(
@@ -105,9 +107,7 @@ public class SecurityLoggingDelegateTest extends BaseTestCase {
      */
     @Test
     public void testVerifyGeneratedLogs() throws Exception {
-        mDevice.executeShellCommand("dpm force-security-logs");
-        DelegateTestUtils.DelegatedLogsReceiver.waitForBroadcast();
-
+        DelegateTestUtils.DelegatedLogsReceiver.forceAndWaitForSecurityLogsBroadcast();
         final List<SecurityEvent> events =
                 DelegateTestUtils.DelegatedLogsReceiver.getSecurityEvents();
 

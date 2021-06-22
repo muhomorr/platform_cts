@@ -21,7 +21,7 @@ import android.content.pm.PackageManager;
 import android.content.res.AssetFileDescriptor;
 import android.graphics.ImageFormat;
 import android.hardware.display.DisplayManager;
-import android.media.cts.CodecUtils;
+import android.media.AudioTimestamp;
 import android.media.Image;
 import android.media.AudioFormat;
 import android.media.AudioManager;
@@ -47,7 +47,6 @@ import com.android.compatibility.common.util.ApiLevelUtil;
 import com.android.compatibility.common.util.CddTest;
 import com.android.compatibility.common.util.DeviceReportLog;
 import com.android.compatibility.common.util.DynamicConfigDeviceSide;
-import com.android.compatibility.common.util.MediaPerfUtils;
 import com.android.compatibility.common.util.MediaUtils;
 import com.android.compatibility.common.util.ResultType;
 import com.android.compatibility.common.util.ResultUnit;
@@ -60,9 +59,11 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Supplier;
 import java.util.zip.CRC32;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -98,6 +99,8 @@ public class DecoderTest extends MediaPlayerTestBase {
     private static final String MODULE_NAME = "CtsMediaTestCases";
     private DynamicConfigDeviceSide dynamicConfig;
     private DisplayManager mDisplayManager;
+
+    private static boolean mIsAtLeastS = ApiLevelUtil.isAtLeast(Build.VERSION_CODES.S);
 
     protected static AssetFileDescriptor getAssetFileDescriptorFor(final String res)
             throws FileNotFoundException {
@@ -3766,7 +3769,7 @@ public class DecoderTest extends MediaPlayerTestBase {
                     timeOutMs > System.currentTimeMillis());
             Thread.sleep(SLEEP_TIME_MS);
             if (mMediaCodecPlayer.getCurrentPosition() >= mMediaCodecPlayer.getDuration()) {
-                Log.d(TAG, "testTunneledVideoPlayback -- current pos = " +
+                Log.d(TAG, "testTunneledVideoPeek -- current pos = " +
                         mMediaCodecPlayer.getCurrentPosition() +
                         ">= duration = " + mMediaCodecPlayer.getDuration());
                 break;
@@ -3797,6 +3800,170 @@ public class DecoderTest extends MediaPlayerTestBase {
     public void testTunneledVideoPeekVp9() throws Exception {
         testTunneledVideoPeek(MediaFormat.MIMETYPE_VIDEO_VP9,
                 "bbb_s1_640x360_webm_vp9_0p21_1600kbps_30fps_vorbis_stereo_128kbps_48000hz.webm");
+    }
+
+    /**
+     * Test accurate video rendering after a video MediaCodec flush.
+     *
+     * On some devices, queuing content when the player is paused, then triggering a flush, then
+     * queuing more content does not behave as expected. The queued content gets lost and the flush
+     * is really only applied once playback has resumed.
+     *
+     * TODO(b/182915887): Test all the codecs advertised by the DUT for the provided test content
+     */
+    private void testTunneledAccurateVideoFlush(String mimeType, String videoName)
+            throws Exception {
+        if (!MediaUtils.check(mIsAtLeastS, "testTunneledAccurateVideoFlush requires Android 12")) {
+            return;
+        }
+
+        if (!MediaUtils.check(isVideoFeatureSupported(mimeType,
+                                CodecCapabilities.FEATURE_TunneledPlayback),
+                        "No tunneled video playback codec found for MIME " + mimeType)){
+            return;
+        }
+
+        // Setup tunnel mode test media player
+        AudioManager am = mContext.getSystemService(AudioManager.class);
+        mMediaCodecPlayer = new MediaCodecTunneledPlayer(
+                getActivity().getSurfaceHolder(), true, am.generateAudioSessionId());
+
+        Uri mediaUri = Uri.fromFile(new File(mInpPrefix, videoName));
+        mMediaCodecPlayer.setAudioDataSource(mediaUri, null);
+        mMediaCodecPlayer.setVideoDataSource(mediaUri, null);
+        assertTrue("MediaCodecPlayer.start() failed!", mMediaCodecPlayer.start());
+        assertTrue("MediaCodecPlayer.prepare() failed!", mMediaCodecPlayer.prepare());
+
+        // start video playback
+        mMediaCodecPlayer.startThread();
+        Thread.sleep(100);
+        assertTrue("Video playback stalled", mMediaCodecPlayer.getCurrentPosition() != 0);
+        mMediaCodecPlayer.pause();
+        Thread.sleep(50);
+        assertTrue("Video is ahead of audio", mMediaCodecPlayer.getCurrentPosition() <=
+                mMediaCodecPlayer.getAudioTrackPositionUs());
+        mMediaCodecPlayer.videoFlush();
+        Thread.sleep(50);
+        assertEquals("Video frame rendered after flush", mMediaCodecPlayer.getCurrentPosition(), 0);
+        // We queue one frame, but expect it not to be rendered
+        Long queuedVideoTimestamp = mMediaCodecPlayer.queueOneVideoFrame();
+        assertNotNull("Failed to queue a video frame", queuedVideoTimestamp);
+        Thread.sleep(50); // longer wait to account for buffer manipulation
+        assertEquals("Video frame rendered during pause", mMediaCodecPlayer.getCurrentPosition(), 0);
+        mMediaCodecPlayer.resume();
+        Thread.sleep(100);
+        ArrayList<Long> renderedVideoTimestamps =
+                mMediaCodecPlayer.getRenderedVideoFrameTimestampList();
+        assertFalse("No new video timestamps", renderedVideoTimestamps.isEmpty());
+        assertEquals("First rendered video frame does not match first queued video frame",
+                renderedVideoTimestamps.get(0), queuedVideoTimestamp);
+        // mMediaCodecPlayer.reset() handled in TearDown();
+    }
+
+    /**
+     * Test accurate video rendering after a video MediaCodec flush with HEVC if supported
+     */
+    public void testTunneledAccurateVideoFlushHevc() throws Exception {
+        testTunneledAccurateVideoFlush(MediaFormat.MIMETYPE_VIDEO_HEVC,
+                "video_1280x720_mkv_h265_500kbps_25fps_aac_stereo_128kbps_44100hz.mkv");
+    }
+
+    /**
+     * Test accurate video rendering after a video MediaCodec flush with AVC if supported
+     */
+    public void testTunneledAccurateVideoFlushAvc() throws Exception {
+        testTunneledAccurateVideoFlush(MediaFormat.MIMETYPE_VIDEO_AVC,
+                "video_480x360_mp4_h264_1000kbps_25fps_aac_stereo_128kbps_44100hz.mp4");
+    }
+
+    /**
+     * Test accurate video rendering after a video MediaCodec flush with VP9 if supported
+     */
+    public void testTunneledAccurateVideoFlushVp9() throws Exception {
+        testTunneledAccurateVideoFlush(MediaFormat.MIMETYPE_VIDEO_VP9,
+                "bbb_s1_640x360_webm_vp9_0p21_1600kbps_30fps_vorbis_stereo_128kbps_48000hz.webm");
+    }
+
+    /**
+     * Test tunneled audioTimestamp progress with HEVC if supported
+     */
+    public void testTunneledAudioTimestampProgressHevc() throws Exception {
+        testTunneledAudioTimestampProgress(MediaFormat.MIMETYPE_VIDEO_HEVC,
+                "video_1280x720_mkv_h265_500kbps_25fps_aac_stereo_128kbps_44100hz.mkv");
+    }
+
+    /**
+     * Test tunneled audioTimestamp progress with AVC if supported
+     */
+    public void testTunneledAudioTimestampProgressAvc() throws Exception {
+        testTunneledAudioTimestampProgress(MediaFormat.MIMETYPE_VIDEO_AVC,
+                "video_480x360_mp4_h264_1000kbps_25fps_aac_stereo_128kbps_44100hz.mp4");
+    }
+
+    /**
+     * Test tunneled audioTimestamp progress with VP9 if supported
+     */
+    public void testTunneledAudioTimestampProgressVp9() throws Exception {
+        testTunneledAudioTimestampProgress(MediaFormat.MIMETYPE_VIDEO_VP9,
+                "bbb_s1_640x360_webm_vp9_0p21_1600kbps_30fps_vorbis_stereo_128kbps_48000hz.webm");
+    }
+
+    /**
+     * Test that AudioTrack timestamps don't advance after pause.
+     */
+    private void
+    testTunneledAudioTimestampProgress(String mimeType, String videoName) throws Exception
+    {
+        if (!isVideoFeatureSupported(mimeType,
+                CodecCapabilities.FEATURE_TunneledPlayback)) {
+            MediaUtils.skipTest(TAG,"No tunneled video playback codec found for MIME " + mimeType);
+            return;
+        }
+
+        AudioManager am = mContext.getSystemService(AudioManager.class);
+        mMediaCodecPlayer = new MediaCodecTunneledPlayer(
+                getActivity().getSurfaceHolder(), true, am.generateAudioSessionId());
+
+        Uri mediaUri = Uri.fromFile(new File(mInpPrefix, videoName));
+        mMediaCodecPlayer.setAudioDataSource(mediaUri, null);
+        mMediaCodecPlayer.setVideoDataSource(mediaUri, null);
+        assertTrue("MediaCodecPlayer.start() failed!", mMediaCodecPlayer.start());
+        assertTrue("MediaCodecPlayer.prepare() failed!", mMediaCodecPlayer.prepare());
+
+        // starts video playback
+        mMediaCodecPlayer.startThread();
+
+        sleepUntil(() -> mMediaCodecPlayer.getCurrentPosition() > 0, Duration.ofSeconds(1));
+        final int firstPosition = mMediaCodecPlayer.getCurrentPosition();
+        assertTrue(
+                "On frame rendered not called after playback start!",
+                firstPosition > 0);
+        AudioTimestamp firstTimestamp = mMediaCodecPlayer.getTimestamp();
+        assertTrue("Timestamp is null!", firstTimestamp != null);
+
+        // Expected stabilization wait is 60ms. We triple to 180ms to prevent flakiness
+        // and still test basic functionality.
+        final int sleepTimeMs = 180;
+        Thread.sleep(sleepTimeMs);
+        mMediaCodecPlayer.pause();
+        // pause might take some time to ramp volume down.
+        Thread.sleep(sleepTimeMs);
+        AudioTimestamp timeStampAfterPause = mMediaCodecPlayer.getTimestamp();
+        // Verify the video has advanced beyond the first position.
+        assertTrue(mMediaCodecPlayer.getCurrentPosition() > firstPosition);
+        // Verify that the timestamp has advanced beyond the first timestamp.
+        assertTrue(timeStampAfterPause.nanoTime > firstTimestamp.nanoTime);
+
+        Thread.sleep(sleepTimeMs);
+        // Verify that the timestamp does not advance after pause.
+        assertEquals(timeStampAfterPause.nanoTime, mMediaCodecPlayer.getTimestamp().nanoTime);
+    }
+
+    private void sleepUntil(Supplier<Boolean> supplier, Duration maxWait) throws Exception {
+        final long deadLineMs = System.currentTimeMillis() + maxWait.toMillis();
+        do {
+            Thread.sleep(50);
+        } while (!supplier.get() && System.currentTimeMillis() < deadLineMs);
     }
 
     /**
