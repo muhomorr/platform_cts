@@ -94,6 +94,9 @@
          removed once tests are refactored to use the proper IPC between theses users.  -->
     <uses-permission android:name="android.permission.INTERACT_ACROSS_USERS" />
 
+    <!-- Needed for sensor tests -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+
     <application>
 
         <meta-data android:name="SuiteName" android:value="CTS_VERIFIER" />
@@ -4558,6 +4561,38 @@
                        android:value="android.software.leanback" />
             <meta-data android:name="test_required_configs"
                        android:value="config_hdmi_source" />
+        </activity>
+
+        <activity android:name=".tv.display.HotplugTestActivity"
+                  android:label="@string/tv_hotplug_test"
+                  android:exported="true"
+                  android:configChanges="orientation|screenSize|density|smallestScreenSize|screenLayout">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.cts.intent.category.MANUAL_TEST" />
+            </intent-filter>
+            <meta-data android:name="test_category" android:value="@string/test_category_tv"/>
+            <meta-data android:name="test_required_features"
+                       android:value="android.software.leanback"/>
+            <meta-data android:name="test_required_configs"
+                       android:value="config_hdmi_source"/>
+            <meta-data android:name="display_mode"
+                       android:value="multi_display_mode" />
+        </activity>
+
+        <activity android:name=".tv.display.ModeSwitchingTestActivity"
+                  android:label="@string/tv_mode_switching_test"
+                  android:exported="true"
+                  android:configChanges="orientation|screenSize|density|smallestScreenSize|screenLayout">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.cts.intent.category.MANUAL_TEST" />
+            </intent-filter>
+            <meta-data android:name="test_category" android:value="@string/test_category_tv"/>
+            <meta-data android:name="test_required_features"
+                       android:value="android.software.leanback"/>
+            <meta-data android:name="display_mode"
+                       android:value="multi_display_mode" />
         </activity>
 
         <activity android:name=".screenpinning.ScreenPinningTestActivity"
