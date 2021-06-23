@@ -16,17 +16,19 @@
 
 package com.android.cts.devicepolicy;
 
+import static com.android.cts.devicepolicy.DeviceAdminFeaturesCheckerRule.FEATURE_MANAGED_USERS;
+
 import android.platform.test.annotations.SecurityTest;
 
-import org.junit.Test;
+import com.android.cts.devicepolicy.DeviceAdminFeaturesCheckerRule.RequiresAdditionalFeatures;
 
-import com.android.tradefed.device.DeviceNotAvailableException;
+import org.junit.Test;
 
 /**
  * Host side tests for separate profile challenge permissions.
  * Run the CtsSeparateProfileChallengeApp device side test.
  */
-
+@RequiresAdditionalFeatures({FEATURE_MANAGED_USERS})
 public class SeparateProfileChallengeTest extends BaseDevicePolicyTest {
     private static final String SEPARATE_PROFILE_PKG = "com.android.cts.separateprofilechallenge";
     private static final String SEPARATE_PROFILE_APK = "CtsSeparateProfileChallengeApp.apk";
@@ -37,11 +39,13 @@ public class SeparateProfileChallengeTest extends BaseDevicePolicyTest {
     @Override
     public void setUp() throws Exception {
         super.setUp();
+
         setHiddenApiPolicyOn();
     }
 
     @Override
     public void tearDown() throws Exception {
+
         removeTestUsers();
         getDevice().uninstallPackage(SEPARATE_PROFILE_PKG);
         setHiddenApiPolicyPreviousOrOff();
@@ -51,9 +55,7 @@ public class SeparateProfileChallengeTest extends BaseDevicePolicyTest {
     @SecurityTest
     @Test
     public void testSeparateProfileChallengePermissions() throws Exception {
-        if (!mHasFeature || !mSupportsMultiUser) {
-            return;
-        }
+        assumeCanCreateOneManagedUser();
 
         // Create managed profile.
         final int profileUserId = createManagedProfile(mPrimaryUserId);

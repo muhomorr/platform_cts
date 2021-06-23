@@ -114,6 +114,30 @@ public class StagefrightTest {
         mInstrumentation = InstrumentationRegistry.getInstrumentation();
     }
 
+    class CodecConfig {
+        boolean isAudio;
+        /* Video Parameters - valid only when isAudio is false */
+        int initWidth;
+        int initHeight;
+        /* Audio Parameters - valid only when isAudio is true */
+        int sampleRate;
+        int channelCount;
+
+        public CodecConfig setVideoParams(int initWidth, int initHeight) {
+            this.isAudio = false;
+            this.initWidth = initWidth;
+            this.initHeight = initHeight;
+            return this;
+        }
+
+        public CodecConfig setAudioParams(int sampleRate, int channelCount) {
+            this.isAudio = true;
+            this.sampleRate = sampleRate;
+            this.channelCount = channelCount;
+            return this;
+        }
+    }
+
     /***********************************************************
      to prevent merge conflicts, add K tests below this comment,
      before any existing test methods
@@ -1146,91 +1170,6 @@ public class StagefrightTest {
 
     @Test
     @SecurityTest(minPatchLevel = "2018-04")
-    public void testStagefright_cve_2017_13279() throws Exception {
-      Thread server = new Thread() {
-        @Override
-        public void run(){
-          try (ServerSocket serverSocket = new ServerSocket(8080) {
-                  {setSoTimeout(10_000);} // time out after 10 seconds
-              };
-              Socket conn = serverSocket.accept()
-          ) {
-              OutputStream stream = conn.getOutputStream();
-              byte http[] = ("HTTP/1.0 200 OK\r\nContent-Type: application/x-mpegURL\r\n\r\n"
-                           + "#EXTM3U\n#EXT-X-STREAM-INF:\n").getBytes();
-              stream.write(http);
-              while(!conn.isClosed())
-                stream.write(("a\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\n"
-                    + "a\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\n"
-                    + "a\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\n"
-                    + "a\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\n"
-                    + "a\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\n"
-                    + "a\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\n"
-                    + "a\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\n"
-                    + "a\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\n"
-                    + "a\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\n"
-                    + "a\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\n"
-                    + "a\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\n"
-                    + "a\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\n"
-                    + "a\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\n"
-                    + "a\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\n"
-                    + "a\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\n"
-                    + "a\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\n"
-                    + "a\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\n"
-                    + "a\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\n"
-                    + "a\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\n"
-                    + "a\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\n"
-                    + "a\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\n"
-                    + "a\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\na\n"
-                    + "a\na\na\na\na\na\na\na\n").getBytes());
-            }
-          catch(IOException e){
-          }
-        }
-      };
-      server.start();
-      String uri = "http://127.0.0.1:8080/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-                 + "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/"
-                 + "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.m3u8";
-      final MediaPlayerCrashListener mpcl = new MediaPlayerCrashListener();
-
-      LooperThread t = new LooperThread(new Runnable() {
-          @Override
-          public void run() {
-
-              MediaPlayer mp = new MediaPlayer();
-              mp.setOnErrorListener(mpcl);
-              mp.setOnPreparedListener(mpcl);
-              mp.setOnCompletionListener(mpcl);
-              RenderTarget renderTarget = RenderTarget.create();
-              Surface surface = renderTarget.getSurface();
-              mp.setSurface(surface);
-              AssetFileDescriptor fd = null;
-              try {
-                mp.setDataSource(uri);
-                mp.prepareAsync();
-              } catch (IOException e) {
-                Log.e(TAG, e.toString());
-              } finally {
-                  closeQuietly(fd);
-              }
-
-              Looper.loop();
-              mp.release();
-          }
-      });
-      t.start();
-      Thread.sleep(60000); // Poc takes a while to crash mediaserver, waitForError
-                           // doesn't wait long enough
-      assertFalse("Device *IS* vulnerable to CVE-2017-13279",
-                  mpcl.waitForError() == MediaPlayer.MEDIA_ERROR_SERVER_DIED);
-      t.stopLooper();
-      t.join(); // wait for thread to exit so we're sure the player was released
-      server.join();
-    }
-
-    @Test
-    @SecurityTest(minPatchLevel = "2018-04")
     public void testStagefright_cve_2017_13276() throws Exception {
         doStagefrightTest(R.raw.cve_2017_13276);
     }
@@ -1257,6 +1196,34 @@ public class StagefrightTest {
      to prevent merge conflicts, add O tests below this comment,
      before any existing test methods
      ***********************************************************/
+    @Test
+    @SecurityTest(minPatchLevel = "2020-11")
+    public void testStagefright_cve_2020_11184() throws Exception {
+        doStagefrightTest(R.raw.cve_2020_11184);
+    }
+
+    @Test
+    @SecurityTest(minPatchLevel = "2019-07")
+    public void testStagefright_cve_2019_2107() throws Exception {
+        assumeFalse(ModuleDetector.moduleIsPlayManaged(
+            getInstrumentation().getContext().getPackageManager(),
+            MainlineModule.MEDIA_SOFTWARE_CODEC));
+        int[] frameSizes = getFrameSizes(R.raw.cve_2019_2107_framelen);
+        doStagefrightTestRawBlob(R.raw.cve_2019_2107_hevc, "video/hevc", 1920,
+                1080, frameSizes);
+    }
+
+    @Test
+    @SecurityTest(minPatchLevel = "2019-04")
+    public void testStagefright_cve_2019_2245() throws Exception {
+        doStagefrightTest(R.raw.cve_2019_2245);
+    }
+
+    @Test
+    @SecurityTest(minPatchLevel = "2019-04")
+    public void testStagefright_cve_2018_13925() throws Exception {
+        doStagefrightTest(R.raw.cve_2018_13925);
+    }
 
     @Test
     @SecurityTest(minPatchLevel = "2020-12")
@@ -1803,6 +1770,25 @@ public class StagefrightTest {
      ***********************************************************/
 
     @Test
+    @SecurityTest(minPatchLevel = "2020-11")
+    public void testStagefright_cve_2020_11196() throws Exception {
+        doStagefrightTest(R.raw.cve_2020_11196);
+    }
+
+    @Test
+    @SecurityTest(minPatchLevel = "2018-11")
+    public void testStagefright_cve_2018_9531() throws Exception {
+        assumeFalse(ModuleDetector.moduleIsPlayManaged(
+                getInstrumentation().getContext().getPackageManager(),
+                MainlineModule.MEDIA_SOFTWARE_CODEC));
+        int[] frameSizes = getFrameSizes(R.raw.cve_2018_9531_framelen);
+        CodecConfig codecConfig = new CodecConfig().setAudioParams(48000, 8);
+        doStagefrightTestRawBlob(R.raw.cve_2018_9531_aac, "audio/mp4a-latm", codecConfig,
+                frameSizes, new CrashUtils.Config().setSignals(CrashUtils.SIGSEGV,
+                        CrashUtils.SIGBUS, CrashUtils.SIGABRT));
+    }
+
+    @Test
     @SecurityTest(minPatchLevel = "2019-12")
     public void testStagefright_cve_2019_2222() throws Exception {
         // TODO(b/170987914): This also skips testing hw_codecs.
@@ -1934,7 +1920,9 @@ public class StagefrightTest {
             Thread.sleep(CHECK_INTERVAL);
             timeout -= CHECK_INTERVAL;
         }
+
         if (!reportFile.exists() || !reportFile.isFile() || !lockFile.exists()) {
+            Log.e(TAG, "couldn't get the report or lock file");
             return null;
         }
         try (BufferedReader reader = new BufferedReader(new FileReader(reportFile))) {
@@ -1999,7 +1987,9 @@ public class StagefrightTest {
             if (what != MediaPlayer.MEDIA_ERROR_SERVER_DIED) {
                 what = newWhat;
             }
+
             lock.lock();
+            errored = true;
             condition.signal();
             lock.unlock();
 
@@ -2022,17 +2012,19 @@ public class StagefrightTest {
 
         public int waitForError() throws InterruptedException {
             lock.lock();
-            if (condition.awaitNanos(TIMEOUT_NS) <= 0) {
-                Log.d(TAG, "timed out on waiting for error");
+            if (!errored && !completed) {
+                if (condition.awaitNanos(TIMEOUT_NS) <= 0) {
+                    Log.d(TAG, "timed out on waiting for error. " +
+                          "errored: " + errored + ", completed: " + completed);
+                }
             }
             lock.unlock();
-            if (what != 0) {
+            if (what == MediaPlayer.MEDIA_ERROR_SERVER_DIED) {
                 // Sometimes mediaserver signals a decoding error first, and *then* crashes
                 // due to additional in-flight buffers being processed, so wait a little
                 // and see if more errors show up.
+                Log.e(TAG, "couldn't get media crash yet, waiting 1 second");
                 SystemClock.sleep(1000);
-            }
-            if (what == MediaPlayer.MEDIA_ERROR_SERVER_DIED) {
                 JSONArray crashes = getCrashReport(name.getMethodName(), 5000);
                 if (crashes == null) {
                     Log.e(TAG, "Crash results not found for test " + name.getMethodName());
@@ -2045,8 +2037,8 @@ public class StagefrightTest {
                     // 0 is the code for no error.
                     return 0;
                 }
-
             }
+            Log.d(TAG, "waitForError finished with no errors.");
             return what;
         }
 
@@ -2063,6 +2055,7 @@ public class StagefrightTest {
         Condition condition = lock.newCondition();
         int what;
         boolean completed = false;
+        boolean errored = false;
     }
 
     class LooperThread extends Thread {
@@ -2163,9 +2156,8 @@ public class StagefrightTest {
         });
 
         t.start();
-        String cve = name.replace("_", "-").toUpperCase();
-        assertFalse("Device *IS* vulnerable to " + cve,
-                    mpcl.waitForError() == MediaPlayer.MEDIA_ERROR_SERVER_DIED);
+        assertNotEquals("MediaPlayer encountered a security crash when testing MediaPlayer.",
+                MediaPlayer.MEDIA_ERROR_SERVER_DIED, mpcl.waitForError());
         t.stopLooper();
         t.join(); // wait for thread to exit so we're sure the player was released
     }
@@ -2238,9 +2230,8 @@ public class StagefrightTest {
         });
 
         t.start();
-        String cve = name.replace("_", "-").toUpperCase();
-        assertFalse("Device *IS* vulnerable to " + cve,
-                    mpcl.waitForError() == MediaPlayer.MEDIA_ERROR_SERVER_DIED);
+        assertNotEquals("MediaPlayer encountered a security crash when testing CVE-2019-2129.",
+                MediaPlayer.MEDIA_ERROR_SERVER_DIED, mpcl.waitForError());
         t.stopLooper();
         t.join(); // wait for thread to exit so we're sure the player was released
     }
@@ -2413,11 +2404,6 @@ public class StagefrightTest {
                 } catch (Exception e) {
                     // local exceptions ignored, not security issues
                 } finally {
-                    try {
-                        codec.stop();
-                    } catch (Exception e) {
-                        // local exceptions ignored, not security issues
-                    }
                     codec.release();
                     renderTarget.destroy();
                 }
@@ -2429,9 +2415,8 @@ public class StagefrightTest {
             }
         }
         ex.release();
-        String cve = rname.replace("_", "-").toUpperCase();
-        assertFalse("Device *IS* vulnerable to " + cve,
-                    mpcl.waitForError() == MediaPlayer.MEDIA_ERROR_SERVER_DIED);
+        assertNotEquals("MediaPlayer encountered a security crash when testing media codecs.",
+                MediaPlayer.MEDIA_ERROR_SERVER_DIED, mpcl.waitForError());
         thr.stopLooper();
         thr.join();
     }
@@ -2522,9 +2507,8 @@ public class StagefrightTest {
 
         retriever.release();
         String rname = url != null ? url : resources.getResourceEntryName(rid);
-        String cve = rname.replace("_", "-").toUpperCase();
-        assertFalse("Device *IS* vulnerable to " + cve,
-                    mpcl.waitForError() == MediaPlayer.MEDIA_ERROR_SERVER_DIED);
+        assertNotEquals("MediaPlayer encountered a security crash when retrieving media metadata.",
+                MediaPlayer.MEDIA_ERROR_SERVER_DIED, mpcl.waitForError());
         thr.stopLooper();
         thr.join();
     }
@@ -2729,7 +2713,6 @@ public class StagefrightTest {
         FileInputStream fis = fd.createInputStream();
         int numRead = fis.read(blob);
         fis.close();
-        //Log.i("@@@@", "read " + numRead + " bytes");
 
         // find all the available decoders for this format
         ArrayList<String> matchingCodecs = new ArrayList<String>();
@@ -2758,8 +2741,14 @@ public class StagefrightTest {
             Log.i(TAG, "Decoding blob " + rname + " using codec " + codecName);
             MediaCodec codec = MediaCodec.createByCodecName(codecName);
             MediaFormat format = MediaFormat.createVideoFormat(mime, initWidth, initHeight);
-            codec.configure(format, null, null, 0);
-            codec.start();
+            try {
+                codec.configure(format, null, null, 0);
+                codec.start();
+            } catch (Exception e) {
+                Log.i(TAG, "Exception from codec " + codecName);
+                releaseCodec(codec);
+                continue;
+            }
 
             try {
                 MediaCodec.BufferInfo info = new MediaCodec.BufferInfo();
@@ -2791,9 +2780,8 @@ public class StagefrightTest {
             }
         }
 
-        String cve = rname.replace("_", "-").toUpperCase();
-        assertFalse("Device *IS* vulnerable to " + cve,
-                    mpcl.waitForError() == MediaPlayer.MEDIA_ERROR_SERVER_DIED);
+        assertNotEquals("MediaPlayer encountered a security crash when testing raw blobs.",
+                MediaPlayer.MEDIA_ERROR_SERVER_DIED, mpcl.waitForError());
         thr.stopLooper();
         thr.join();
     }
@@ -2805,6 +2793,12 @@ public class StagefrightTest {
     }
 
     private void doStagefrightTestRawBlob(int rid, String mime, int initWidth, int initHeight,
+            int frameSizes[], CrashUtils.Config config) throws Exception {
+        CodecConfig codecConfig = new CodecConfig().setVideoParams(initWidth, initHeight);
+        doStagefrightTestRawBlob(rid, mime, codecConfig, frameSizes, config);
+    }
+
+    private void doStagefrightTestRawBlob(int rid, String mime, CodecConfig codecConfig,
             int frameSizes[], CrashUtils.Config config) throws Exception {
 
         final MediaPlayerCrashListener mpcl = new MediaPlayerCrashListener(config);
@@ -2877,7 +2871,14 @@ public class StagefrightTest {
         for (String codecName: matchingCodecs) {
             Log.i(TAG, "Decoding blob " + rname + " using codec " + codecName);
             MediaCodec codec = MediaCodec.createByCodecName(codecName);
-            MediaFormat format = MediaFormat.createVideoFormat(mime, initWidth, initHeight);
+            MediaFormat format;
+            if (codecConfig.isAudio) {
+                format = MediaFormat.createAudioFormat(mime, codecConfig.sampleRate,
+                        codecConfig.channelCount);
+            } else {
+                format = MediaFormat.createVideoFormat(mime, codecConfig.initWidth,
+                        codecConfig.initHeight);
+            }
             try {
                 codec.configure(format, null, null, 0);
                 codec.start();
@@ -2901,19 +2902,27 @@ public class StagefrightTest {
 
                 int offset = 0;
                 int bytesToFeed = 0;
-                int flags = 0;
                 byte [] tempBlob = new byte[(int)inputBuffers[0].capacity()];
                 for (int j = 0; j < numFrames; j++) {
+                    int flags = 0;
                     int bufidx = codec.dequeueInputBuffer(5000);
                     if (bufidx >= 0) {
                         inputBuffers[bufidx].rewind();
-                        bytesToFeed = Math.min((int)(fd.getLength() - offset),
-                                               inputBuffers[bufidx].capacity());
                         if(j == (numFrames - 1)) {
                             flags = MediaCodec.BUFFER_FLAG_END_OF_STREAM;
                         }
-                        System.arraycopy(blob, offset, tempBlob, 0, bytesToFeed);
-                        inputBuffers[bufidx].put(tempBlob, 0, inputBuffers[bufidx].capacity());
+                        if (codecConfig.isAudio) {
+                            if (j == 0) {
+                                flags = MediaCodec.BUFFER_FLAG_CODEC_CONFIG;
+                            }
+                            inputBuffers[bufidx].put(blob, offset, frameSizes[j]);
+                            bytesToFeed = frameSizes[j];
+                        } else {
+                            bytesToFeed = Math.min((int) (fd.getLength() - offset),
+                                    inputBuffers[bufidx].capacity());
+                            System.arraycopy(blob, offset, tempBlob, 0, bytesToFeed);
+                            inputBuffers[bufidx].put(tempBlob, 0, inputBuffers[bufidx].capacity());
+                        }
                         codec.queueInputBuffer(bufidx, 0, bytesToFeed, 0, flags);
                         offset = offset + frameSizes[j];
                     } else {
@@ -2933,9 +2942,9 @@ public class StagefrightTest {
             }
         }
 
-        String cve = rname.replace("_", "-").toUpperCase();
-        assertFalse("Device *IS* vulnerable to " + cve,
-                    mpcl.waitForError() == MediaPlayer.MEDIA_ERROR_SERVER_DIED);
+        assertNotEquals(
+                "MediaPlayer encountered a security crash when testing raw blobs with frame sizes.",
+                MediaPlayer.MEDIA_ERROR_SERVER_DIED, mpcl.waitForError());
         thr.stopLooper();
         thr.join();
     }
@@ -3117,8 +3126,8 @@ public class StagefrightTest {
         });
 
         t.start();
-        String cve = name.replace("_", "-").toUpperCase();
-        assertTrue("Device *IS* vulnerable to " + cve, mpl.waitForErrorOrCompletion());
+        assertTrue("MediaPlayer failed to complete when testing ANR.",
+                mpl.waitForErrorOrCompletion());
         t.stopLooper();
         t.join(); // wait for thread to exit so we're sure the player was released
     }
@@ -3185,9 +3194,8 @@ public class StagefrightTest {
             }
         }
         ex.release();
-        String cve = rname.replace("_", "-").toUpperCase();
-        assertFalse("Device *IS* vulnerable to " + cve,
-                    mpcl.waitForError() == MediaPlayer.MEDIA_ERROR_SERVER_DIED);
+        assertNotEquals("MediaPlayer encountered a security crash when testing extractor seeking.",
+                MediaPlayer.MEDIA_ERROR_SERVER_DIED, mpcl.waitForError());
         thr.stopLooper();
         thr.join();
     }

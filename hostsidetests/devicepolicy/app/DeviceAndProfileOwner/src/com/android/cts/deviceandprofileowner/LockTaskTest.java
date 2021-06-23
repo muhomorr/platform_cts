@@ -16,16 +16,6 @@
 package com.android.cts.deviceandprofileowner;
 
 import static android.app.admin.DevicePolicyManager.LOCK_TASK_FEATURE_BLOCK_ACTIVITY_START_IN_TASK;
-import static android.app.admin.DevicePolicyManager.LOCK_TASK_FEATURE_GLOBAL_ACTIONS;
-import static android.app.admin.DevicePolicyManager.LOCK_TASK_FEATURE_HOME;
-import static android.app.admin.DevicePolicyManager.LOCK_TASK_FEATURE_KEYGUARD;
-import static android.app.admin.DevicePolicyManager.LOCK_TASK_FEATURE_NONE;
-import static android.app.admin.DevicePolicyManager.LOCK_TASK_FEATURE_NOTIFICATIONS;
-import static android.app.admin.DevicePolicyManager.LOCK_TASK_FEATURE_OVERVIEW;
-import static android.app.admin.DevicePolicyManager.LOCK_TASK_FEATURE_SYSTEM_INFO;
-
-import static org.junit.Assert.assertArrayEquals;
-import static org.testng.Assert.assertThrows;
 
 import android.app.ActivityManager;
 import android.app.ActivityOptions;
@@ -43,7 +33,6 @@ import android.util.Log;
 import android.view.KeyEvent;
 
 import androidx.test.InstrumentationRegistry;
-import androidx.test.runner.AndroidJUnit4;
 
 import java.time.Duration;
 import java.util.concurrent.TimeUnit;
@@ -54,12 +43,11 @@ public class LockTaskTest extends BaseDeviceAdminTest {
 
     private static final String PACKAGE_NAME = LockTaskTest.class.getPackage().getName();
     private static final ComponentName ADMIN_COMPONENT = ADMIN_RECEIVER_COMPONENT;
-    private static final String TEST_PACKAGE = "com.google.android.example.somepackage";
 
     private static final String UTILITY_ACTIVITY
             = "com.android.cts.deviceandprofileowner.LockTaskUtilityActivity";
-    private static final String UTILITY_ACTIVITY_IF_WHITELISTED
-            = "com.android.cts.deviceandprofileowner.LockTaskUtilityActivityIfWhitelisted";
+    private static final String UTILITY_ACTIVITY_IF_ALLOWED
+            = "com.android.cts.deviceandprofileowner.LockTaskUtilityActivityIfAllowed";
 
     private static final String RECEIVER_ACTIVITY_PACKAGE_NAME =
             "com.android.cts.intent.receiver";
@@ -167,308 +155,53 @@ public class LockTaskTest extends BaseDeviceAdminTest {
         mContext.unregisterReceiver(mReceiver);
     }
 
-    // Setting and unsetting the lock task packages.
-    public void testSetLockTaskPackages() {
-        final String[] packages = new String[] { TEST_PACKAGE, "some.other.package" };
-        mDevicePolicyManager.setLockTaskPackages(ADMIN_COMPONENT, packages);
-        assertArrayEquals(packages, mDevicePolicyManager.getLockTaskPackages(ADMIN_COMPONENT));
-        assertTrue(mDevicePolicyManager.isLockTaskPermitted(TEST_PACKAGE));
-
-        mDevicePolicyManager.setLockTaskPackages(ADMIN_COMPONENT, new String[0]);
-        assertEquals(0, mDevicePolicyManager.getLockTaskPackages(ADMIN_COMPONENT).length);
-        assertFalse(mDevicePolicyManager.isLockTaskPermitted(TEST_PACKAGE));
-    }
-
-    // Setting and unsetting the lock task features. The actual UI behavior is tested with CTS
-    // verifier.
-    public void testSetLockTaskFeatures() {
-        final int[] flags = new int[] {
-                LOCK_TASK_FEATURE_SYSTEM_INFO,
-                LOCK_TASK_FEATURE_HOME,
-                LOCK_TASK_FEATURE_NOTIFICATIONS,
-                LOCK_TASK_FEATURE_OVERVIEW,
-                LOCK_TASK_FEATURE_GLOBAL_ACTIONS,
-                LOCK_TASK_FEATURE_KEYGUARD
-        };
-
-        int cumulative = LOCK_TASK_FEATURE_NONE;
-        for (int flag : flags) {
-            if (flag == LOCK_TASK_FEATURE_OVERVIEW || flag == LOCK_TASK_FEATURE_NOTIFICATIONS) {
-                // Those flags can only be used in combination with HOME
-                assertThrows(
-                        IllegalArgumentException.class,
-                        () -> mDevicePolicyManager.setLockTaskFeatures(ADMIN_COMPONENT, flag));
-            } else {
-                mDevicePolicyManager.setLockTaskFeatures(ADMIN_COMPONENT, flag);
-                assertEquals(flag, mDevicePolicyManager.getLockTaskFeatures(ADMIN_COMPONENT));
-            }
-
-            cumulative |= flag;
-            mDevicePolicyManager.setLockTaskFeatures(ADMIN_COMPONENT, cumulative);
-            assertEquals(cumulative, mDevicePolicyManager.getLockTaskFeatures(ADMIN_COMPONENT));
-
-            mDevicePolicyManager.setLockTaskFeatures(ADMIN_COMPONENT, LOCK_TASK_FEATURE_NONE);
-            assertEquals(LOCK_TASK_FEATURE_NONE,
-                    mDevicePolicyManager.getLockTaskFeatures(ADMIN_COMPONENT));
-        }
-    }
-
-    // Start lock task, verify that ActivityManager knows thats what is going on.
-    public void testStartLockTask() throws Exception {
+    // Test the lockTaskMode flag for an activity declaring if_whitelisted.
+    // Allow the activity and verify that lock task mode is started.
+    public void testManifestArgument_allowed() throws Exception {
         mDevicePolicyManager.setLockTaskPackages(ADMIN_COMPONENT, new String[] { PACKAGE_NAME });
-        startLockTask(UTILITY_ACTIVITY);
+        startAndWait(getLockTaskUtility(UTILITY_ACTIVITY_IF_ALLOWED));
         waitForResume();
-
-        // Verify that activity open and activity manager is in lock task.
-        assertLockTaskModeActive();
-        assertTrue(mIsActivityRunning);
-        assertTrue(mIsActivityResumed);
-
-        stopAndFinish(UTILITY_ACTIVITY);
-    }
-
-    // Verifies that the act of finishing is blocked by ActivityManager in lock task.
-    // This results in onDestroy not being called until stopLockTask is called before finish.
-    public void testCannotFinish() throws Exception {
-        mDevicePolicyManager.setLockTaskPackages(ADMIN_COMPONENT, new String[] { PACKAGE_NAME });
-        startLockTask(UTILITY_ACTIVITY);
-
-        // If lock task has not exited then the activity shouldn't actually receive onDestroy.
-        finishAndWait(UTILITY_ACTIVITY);
-        assertLockTaskModeActive();
-        assertTrue(mIsActivityRunning);
-
-        stopAndFinish(UTILITY_ACTIVITY);
-    }
-
-    // Verifies that updating the whitelisting during lock task mode finishes the locked task.
-    public void testUpdateWhitelisting() throws Exception {
-        mDevicePolicyManager.setLockTaskPackages(ADMIN_COMPONENT, new String[] { PACKAGE_NAME });
-        startLockTask(UTILITY_ACTIVITY);
-
-        mDevicePolicyManager.setLockTaskPackages(ADMIN_COMPONENT, new String[0]);
-
-        synchronized (mActivityRunningLock) {
-            mActivityRunningLock.wait(ACTIVITY_DESTROYED_TIMEOUT_MILLIS);
-        }
-
-        assertLockTaskModeInactive();
-        assertFalse(mIsActivityRunning);
-        assertFalse(mIsActivityResumed);
-    }
-
-    // Verifies that removing the whitelist authorization immediately finishes the corresponding
-    // locked task. The other locked task(s) should remain locked.
-    public void testUpdateWhitelisting_twoTasks() throws Exception {
-        mDevicePolicyManager.setLockTaskPackages(ADMIN_COMPONENT, new String[] { PACKAGE_NAME,
-                RECEIVER_ACTIVITY_PACKAGE_NAME});
-
-        // Start first locked task
-        startLockTask(UTILITY_ACTIVITY);
-        waitForResume();
-
-        // Start the other task from the running activity
-        mIsReceiverActivityRunning = false;
-        Intent launchIntent = createReceiverActivityIntent(true /*newTask*/, true /*shouldWait*/);
-        mContext.startActivity(launchIntent);
-        synchronized (mReceiverActivityRunningLock) {
-            mReceiverActivityRunningLock.wait(ACTIVITY_RESUMED_TIMEOUT_MILLIS);
-            assertTrue(mIsReceiverActivityRunning);
-        }
-
-        // Remove whitelist authorization of the second task
-        mDevicePolicyManager.setLockTaskPackages(ADMIN_COMPONENT, new String[] { PACKAGE_NAME });
-        synchronized (mReceiverActivityRunningLock) {
-            mReceiverActivityRunningLock.wait(ACTIVITY_DESTROYED_TIMEOUT_MILLIS);
-            assertFalse(mIsReceiverActivityRunning);
-        }
 
         assertLockTaskModeActive();
         assertTrue(mIsActivityRunning);
         assertTrue(mIsActivityResumed);
 
-        stopAndFinish(UTILITY_ACTIVITY);
-    }
-
-    // This launches an activity that is in the current task.
-    // This should always be permitted as a part of lock task (since it isn't a new task).
-    public void testStartActivity_withinTask() throws Exception {
-        mDevicePolicyManager.setLockTaskPackages(ADMIN_COMPONENT, new String[] { PACKAGE_NAME });
-        startLockTask(UTILITY_ACTIVITY);
-        waitForResume();
-
-        mIsReceiverActivityRunning = false;
-        Intent launchIntent = createReceiverActivityIntent(false /*newTask*/, false /*shouldWait*/);
-        Intent lockTaskUtility = getLockTaskUtility(UTILITY_ACTIVITY);
-        lockTaskUtility.putExtra(LockTaskUtilityActivity.START_ACTIVITY, launchIntent);
-        mContext.startActivity(lockTaskUtility);
-
-        synchronized (mReceiverActivityRunningLock) {
-            mReceiverActivityRunningLock.wait(ACTIVITY_RESUMED_TIMEOUT_MILLIS);
-            assertTrue(mIsReceiverActivityRunning);
-        }
-        synchronized (mReceiverActivityRunningLock) {
-            mReceiverActivityRunningLock.wait(ACTIVITY_DESTROYED_TIMEOUT_MILLIS);
-            assertFalse(mIsReceiverActivityRunning);
-        }
-        stopAndFinish(UTILITY_ACTIVITY);
-    }
-
-    // When LOCK_TASK_FEATURE_BLOCK_ACTIVITY_START_IN_TASK is set, un-whitelisted apps cannot
-    // be launched in the same task.
-    public void testStartActivity_withinTask_blockInTask() throws Exception {
-        mDevicePolicyManager.setLockTaskPackages(ADMIN_COMPONENT, new String[] { PACKAGE_NAME });
-        mDevicePolicyManager.setLockTaskFeatures(
-                ADMIN_COMPONENT, LOCK_TASK_FEATURE_BLOCK_ACTIVITY_START_IN_TASK);
-        startLockTask(UTILITY_ACTIVITY);
-        waitForResume();
-
-        mIsReceiverActivityRunning = false;
-        Intent launchIntent = createReceiverActivityIntent(false /*newTask*/, false /*shouldWait*/);
-        Intent lockTaskUtility = getLockTaskUtility(UTILITY_ACTIVITY);
-        lockTaskUtility.putExtra(LockTaskUtilityActivity.START_ACTIVITY, launchIntent);
-        mContext.startActivity(lockTaskUtility);
-
-        synchronized (mReceiverActivityRunningLock) {
-            mReceiverActivityRunningLock.wait(ACTIVITY_RESUMED_TIMEOUT_MILLIS);
-            assertFalse(mIsReceiverActivityRunning);
-        }
-
-        Log.d(TAG, "Waiting for the system dialog");
-        mUiDevice.waitForIdle();
-        assertTrue(mUiDevice.wait(
-                Until.hasObject(By.textContains(RECEIVER_ACTIVITY_PACKAGE_NAME)),
-                ACTIVITY_RESUMED_TIMEOUT_MILLIS));
-        Log.d(TAG, "dialog found");
-
-        // Dismiss the system dialog
-        mUiDevice.pressKeyCode(KeyEvent.KEYCODE_ENTER);
-        mUiDevice.pressKeyCode(KeyEvent.KEYCODE_ENTER);
-        assertFalse(mUiDevice.wait(
-                Until.hasObject(By.textContains(RECEIVER_ACTIVITY_PACKAGE_NAME)),
-                ACTIVITY_RESUMED_TIMEOUT_MILLIS));
-
-        mDevicePolicyManager.setLockTaskFeatures(ADMIN_COMPONENT, 0);
-    }
-
-    // When LOCK_TASK_FEATURE_BLOCK_ACTIVITY_START_IN_TASK is set, the system dialog will also be
-    // shown when an un-whitelisted app is being launched in a new task.
-    public void testStartActivity_newTask_blockInTask() throws Exception {
-        mDevicePolicyManager.setLockTaskPackages(ADMIN_COMPONENT, new String[] { PACKAGE_NAME });
-        mDevicePolicyManager.setLockTaskFeatures(
-                ADMIN_COMPONENT, LOCK_TASK_FEATURE_BLOCK_ACTIVITY_START_IN_TASK);
-        startLockTask(UTILITY_ACTIVITY);
-        waitForResume();
-
-        mIsReceiverActivityRunning = false;
-        Intent launchIntent = createReceiverActivityIntent(true /*newTask*/, false /*shouldWait*/);
-        Intent lockTaskUtility = getLockTaskUtility(UTILITY_ACTIVITY);
-        lockTaskUtility.putExtra(LockTaskUtilityActivity.START_ACTIVITY, launchIntent);
-        mContext.startActivity(lockTaskUtility);
-
-        synchronized (mReceiverActivityRunningLock) {
-            mReceiverActivityRunningLock.wait(ACTIVITY_RESUMED_TIMEOUT_MILLIS);
-            assertFalse(mIsReceiverActivityRunning);
-        }
-
-        Log.d(TAG, "Waiting for the system dialog");
-        mUiDevice.waitForIdle();
-        assertTrue(mUiDevice.wait(
-                Until.hasObject(By.textContains(RECEIVER_ACTIVITY_PACKAGE_NAME)),
-                ACTIVITY_RESUMED_TIMEOUT_MILLIS));
-        Log.d(TAG, "dialog found");
-
-        // Dismiss the system dialog
-        mUiDevice.pressKeyCode(KeyEvent.KEYCODE_ENTER);
-        mUiDevice.pressKeyCode(KeyEvent.KEYCODE_ENTER);
-        assertFalse(mUiDevice.wait(
-                Until.hasObject(By.textContains(RECEIVER_ACTIVITY_PACKAGE_NAME)),
-                ACTIVITY_RESUMED_TIMEOUT_MILLIS));
-
-        mDevicePolicyManager.setLockTaskFeatures(ADMIN_COMPONENT, 0);
-    }
-
-    // This launches a whitelisted activity that is not part of the current task.
-    // This should be permitted as a part of lock task.
-    public void testStartActivity_outsideTaskWhitelisted() throws Exception {
-        mDevicePolicyManager.setLockTaskPackages(ADMIN_COMPONENT, new String[] { PACKAGE_NAME,
-                RECEIVER_ACTIVITY_PACKAGE_NAME});
-        startLockTask(UTILITY_ACTIVITY);
-        waitForResume();
-
-        mIsReceiverActivityRunning = false;
-        Intent launchIntent = createReceiverActivityIntent(true /*newTask*/, false /*shouldWait*/);
-        mContext.startActivity(launchIntent);
-        synchronized (mReceiverActivityRunningLock) {
-            mReceiverActivityRunningLock.wait(ACTIVITY_RESUMED_TIMEOUT_MILLIS);
-            assertTrue(mIsReceiverActivityRunning);
-        }
-        stopAndFinish(UTILITY_ACTIVITY);
-    }
-
-    // This launches a non-whitelisted activity that is not part of the current task.
-    // This should be blocked.
-    public void testStartActivity_outsideTaskNonWhitelisted() throws Exception {
-        mDevicePolicyManager.setLockTaskPackages(ADMIN_COMPONENT, new String[] { PACKAGE_NAME });
-        startLockTask(UTILITY_ACTIVITY);
-        waitForResume();
-
-        Intent launchIntent = createReceiverActivityIntent(true /*newTask*/, false /*shouldWait*/);
-        mContext.startActivity(launchIntent);
-        synchronized (mActivityResumedLock) {
-            mActivityResumedLock.wait(ACTIVITY_RESUMED_TIMEOUT_MILLIS);
-            assertFalse(mIsReceiverActivityRunning);
-        }
-        stopAndFinish(UTILITY_ACTIVITY);
+        stopAndFinish(UTILITY_ACTIVITY_IF_ALLOWED);
     }
 
     // Test the lockTaskMode flag for an activity declaring if_whitelisted.
-    // Whitelist the activity and verify that lock task mode is started.
-    public void testManifestArgument_whitelisted() throws Exception {
-        mDevicePolicyManager.setLockTaskPackages(ADMIN_COMPONENT, new String[] { PACKAGE_NAME });
-        startAndWait(getLockTaskUtility(UTILITY_ACTIVITY_IF_WHITELISTED));
-        waitForResume();
-
-        assertLockTaskModeActive();
-        assertTrue(mIsActivityRunning);
-        assertTrue(mIsActivityResumed);
-
-        stopAndFinish(UTILITY_ACTIVITY_IF_WHITELISTED);
-    }
-
-    // Test the lockTaskMode flag for an activity declaring if_whitelisted.
-    // Don't whitelist the activity and verify that lock task mode is not started.
-    public void testManifestArgument_nonWhitelisted() throws Exception {
-        startAndWait(getLockTaskUtility(UTILITY_ACTIVITY_IF_WHITELISTED));
+    // Don't allow the activity and verify that lock task mode is not started.
+    public void testManifestArgument_notAllowed() throws Exception {
+        startAndWait(getLockTaskUtility(UTILITY_ACTIVITY_IF_ALLOWED));
         waitForResume();
 
         assertLockTaskModeInactive();
         assertTrue(mIsActivityRunning);
         assertTrue(mIsActivityResumed);
 
-        stopAndFinish(UTILITY_ACTIVITY_IF_WHITELISTED);
+        stopAndFinish(UTILITY_ACTIVITY_IF_ALLOWED);
     }
 
     // Test the lockTaskMode flag for an activity declaring if_whitelisted.
     // An activity locked via manifest argument cannot finish without calling stopLockTask.
     public void testManifestArgument_cannotFinish() throws Exception {
         mDevicePolicyManager.setLockTaskPackages(ADMIN_COMPONENT, new String[] { PACKAGE_NAME });
-        startAndWait(getLockTaskUtility(UTILITY_ACTIVITY_IF_WHITELISTED));
+        startAndWait(getLockTaskUtility(UTILITY_ACTIVITY_IF_ALLOWED));
         waitForResume();
 
         // If lock task has not exited then the activity shouldn't actually receive onDestroy.
-        finishAndWait(UTILITY_ACTIVITY_IF_WHITELISTED);
+        finishAndWait(UTILITY_ACTIVITY_IF_ALLOWED);
         assertLockTaskModeActive();
         assertTrue(mIsActivityRunning);
 
-        stopAndFinish(UTILITY_ACTIVITY_IF_WHITELISTED);
+        stopAndFinish(UTILITY_ACTIVITY_IF_ALLOWED);
     }
 
     // Test the lockTaskMode flag for an activity declaring if_whitelisted.
-    // Verifies that updating the whitelisting during lock task mode finishes the locked task.
-    public void testManifestArgument_updateWhitelisting() throws Exception {
+    // Verifies that updating the allowlist during lock task mode finishes the locked task.
+    public void testManifestArgument_updateAllowlist() throws Exception {
         mDevicePolicyManager.setLockTaskPackages(ADMIN_COMPONENT, new String[] { PACKAGE_NAME });
-        startAndWait(getLockTaskUtility(UTILITY_ACTIVITY_IF_WHITELISTED));
+        startAndWait(getLockTaskUtility(UTILITY_ACTIVITY_IF_ALLOWED));
         waitForResume();
 
         mDevicePolicyManager.setLockTaskPackages(ADMIN_COMPONENT, new String[0]);
@@ -480,30 +213,6 @@ public class LockTaskTest extends BaseDeviceAdminTest {
         assertLockTaskModeInactive();
         assertFalse(mIsActivityRunning);
         assertFalse(mIsActivityResumed);
-    }
-
-    // Start lock task with ActivityOptions
-    public void testActivityOptions_whitelisted() throws Exception {
-        mDevicePolicyManager.setLockTaskPackages(ADMIN_COMPONENT, new String[] { PACKAGE_NAME });
-        startLockTaskWithOptions(UTILITY_ACTIVITY);
-        waitForResume();
-
-        // Verify that activity open and activity manager is in lock task.
-        assertLockTaskModeActive();
-        assertTrue(mIsActivityRunning);
-        assertTrue(mIsActivityResumed);
-
-        stopAndFinish(UTILITY_ACTIVITY);
-    }
-
-    // Starting a non-whitelisted activity with ActivityOptions is not allowed
-    public void testActivityOptions_nonWhitelisted() throws Exception {
-        try {
-            startLockTaskWithOptions(UTILITY_ACTIVITY);
-            fail();
-        } catch (SecurityException e) {
-            // pass
-        }
     }
 
     /**
@@ -572,24 +281,6 @@ public class LockTaskTest extends BaseDeviceAdminTest {
     }
 
     /**
-     * Calls startLockTask on the LockTaskUtilityActivity
-     */
-    private void startLockTask(String className) throws InterruptedException {
-        Intent intent = getLockTaskUtility(className);
-        intent.putExtra(LockTaskUtilityActivity.START_LOCK_TASK, true);
-        startAndWait(intent);
-    }
-
-    /**
-     * Starts LockTaskUtilityActivity with {@link ActivityOptions#setLockTaskEnabled(boolean)}
-     */
-    private void startLockTaskWithOptions(String className) throws InterruptedException {
-        Intent intent = getLockTaskUtility(className);
-        Bundle options = ActivityOptions.makeBasic().setLockTaskEnabled(true).toBundle();
-        startAndWait(intent, options);
-    }
-
-    /**
      * Calls stopLockTask on the LockTaskUtilityActivity
      */
     private void stopLockTask(String className) throws InterruptedException {
@@ -638,16 +329,6 @@ public class LockTaskTest extends BaseDeviceAdminTest {
         Intent intent = new Intent();
         intent.setClassName(PACKAGE_NAME, className);
         intent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
-        return intent;
-    }
-
-    /** Create an intent to launch {@link #RECEIVER_ACTIVITY_NAME}. */
-    private Intent createReceiverActivityIntent(boolean newTask, boolean shouldWait) {
-        final Intent intent = new Intent();
-        intent.setComponent(
-                new ComponentName(RECEIVER_ACTIVITY_PACKAGE_NAME, RECEIVER_ACTIVITY_NAME));
-        intent.setAction(shouldWait ? ACTION_CREATE_AND_WAIT : ACTION_JUST_CREATE);
-        intent.setFlags(newTask ? Intent.FLAG_ACTIVITY_NEW_TASK : 0);
         return intent;
     }
 }
