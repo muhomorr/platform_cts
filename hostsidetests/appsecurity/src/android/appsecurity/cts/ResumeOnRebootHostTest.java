@@ -66,6 +66,7 @@ public class ResumeOnRebootHostTest extends BaseHostJUnit4Test {
     private static final long SHUTDOWN_TIME_MS = TimeUnit.SECONDS.toMicros(30);
     private static final int USER_SYSTEM = 0;
 
+    private static final int USER_SWITCH_TIMEOUT_SECONDS = 10;
     private static final long USER_SWITCH_WAIT = TimeUnit.SECONDS.toMillis(10);
 
     private boolean mSupportsMultiUser;
@@ -81,11 +82,13 @@ public class ResumeOnRebootHostTest extends BaseHostJUnit4Test {
         mSupportsMultiUser = getDevice().getMaxNumberOfUsersSupported() > 1;
 
         removeTestPackages();
+        deviceDisableDeviceConfigSync();
     }
 
     @After
     public void tearDown() throws Exception {
         removeTestPackages();
+        deviceRestoreDeviceConfigSync();
     }
 
     @Test
@@ -426,14 +429,39 @@ public class ResumeOnRebootHostTest extends BaseHostJUnit4Test {
         }
     }
 
+    private void deviceDisableDeviceConfigSync() throws Exception {
+        getDevice().executeShellCommand("device_config set_sync_disabled_for_tests persistent");
+        String res = getDevice().executeShellCommand("device_config is_sync_disabled_for_tests");
+        if (res == null || !res.contains("true")) {
+            CLog.w(TAG, "Could not disable device config for test");
+        }
+    }
+
+    private void deviceRestoreDeviceConfigSync() throws Exception {
+        getDevice().executeShellCommand("device_config set_sync_disabled_for_tests none");
+    }
+
+
     private void deviceSetupServerBasedParameter() throws Exception {
         getDevice().executeShellCommand("device_config put ota server_based_ror_enabled true");
+        String res = getDevice().executeShellCommand(
+                "device_config get ota server_based_ror_enabled");
+        if (res == null || !res.contains("true")) {
+            fail("could not set up server based ror");
+        }
+
         getDevice().executeShellCommand(
                 "cmd lock_settings set-resume-on-reboot-provider-package " + PKG);
     }
 
     private void deviceCleanupServerBasedParameter() throws Exception {
         getDevice().executeShellCommand("device_config put ota server_based_ror_enabled false");
+        String res = getDevice().executeShellCommand(
+                "device_config get ota server_based_ror_enabled");
+        if (res == null || !res.contains("false")) {
+            fail("could not clean up server based ror");
+        }
+
         getDevice().executeShellCommand(
                 "cmd lock_settings set-resume-on-reboot-provider-package ");
     }
@@ -535,7 +563,7 @@ public class ResumeOnRebootHostTest extends BaseHostJUnit4Test {
      */
     private void switchUser(int userId) throws Exception {
         getDevice().switchUser(userId);
-        HostSideTestUtils.waitUntil("Could not switch users", 5,
+        HostSideTestUtils.waitUntil("Could not switch users", USER_SWITCH_TIMEOUT_SECONDS,
                 () -> getDevice().getCurrentUser() == userId);
         Thread.sleep(USER_SWITCH_WAIT);
     }

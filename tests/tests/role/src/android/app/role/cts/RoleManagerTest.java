@@ -316,14 +316,6 @@ public class RoleManagerTest {
     }
 
     @Test
-    public void requestEmptyRoleThenDeniedAutomatically() throws Exception {
-        requestRole("");
-        Pair<Integer, Intent> result = waitForResult();
-
-        assertThat(result.first).isEqualTo(Activity.RESULT_CANCELED);
-    }
-
-    @Test
     public void requestInvalidRoleThenDeniedAutomatically() throws Exception {
         requestRole("invalid");
         Pair<Integer, Intent> result = waitForResult();
@@ -378,7 +370,7 @@ public class RoleManagerTest {
 
     @Nullable
     private UiObject2 findDontAskAgainCheck(boolean expected) throws UiObjectNotFoundException {
-        BySelector selector = By.text("Don\u2019t ask again");
+        BySelector selector = By.res("com.android.permissioncontroller:id/dont_ask_again");
         return expected
                 ? waitFindObject(selector)
                 : waitFindObjectOrNull(selector, UNEXPECTED_TIMEOUT_MILLIS);

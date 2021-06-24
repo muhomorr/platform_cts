@@ -16,21 +16,15 @@
 
 package android.hdmicec.cts.audio;
 
-import static com.google.common.truth.Truth.assertThat;
-import static org.junit.Assume.assumeNoException;
-import static org.junit.Assume.assumeTrue;
 
 import android.hdmicec.cts.BaseHdmiCecCtsTest;
 import android.hdmicec.cts.CecMessage;
 import android.hdmicec.cts.CecOperand;
-import android.hdmicec.cts.HdmiCecClientWrapper;
 import android.hdmicec.cts.HdmiCecConstants;
-import android.hdmicec.cts.LogHelper;
+import android.hdmicec.cts.error.CecClientWrapperException;
+import android.hdmicec.cts.error.ErrorCodes;
 import android.hdmicec.cts.LogicalAddress;
-import android.hdmicec.cts.RequiredPropertyRule;
-import android.hdmicec.cts.RequiredFeatureRule;
 
-import com.android.tradefed.device.ITestDevice;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
 
 import org.junit.Ignore;
@@ -45,7 +39,6 @@ import org.junit.runner.RunWith;
 public final class HdmiCecInvalidMessagesTest extends BaseHdmiCecCtsTest {
 
     private static final LogicalAddress AUDIO_DEVICE = LogicalAddress.AUDIO_SYSTEM;
-    private static final String PROPERTY_LOCALE = "persist.sys.locale";
 
     /** The package name of the APK. */
     private static final String PACKAGE = "android.hdmicec.app";
@@ -61,7 +54,7 @@ public final class HdmiCecInvalidMessagesTest extends BaseHdmiCecCtsTest {
     private static final String CLEAR_COMMAND = String.format("pm clear %s", PACKAGE);
 
     public HdmiCecInvalidMessagesTest() {
-        super(AUDIO_DEVICE);
+        super(HdmiCecConstants.CEC_DEVICE_TYPE_AUDIO_SYSTEM);
     }
 
     @Rule
@@ -72,32 +65,15 @@ public final class HdmiCecInvalidMessagesTest extends BaseHdmiCecCtsTest {
             .around(CecRules.requiresDeviceType(this, AUDIO_DEVICE))
             .around(hdmiCecClient);
 
-    private String getSystemLocale() throws Exception {
-        ITestDevice device = getDevice();
-        return device.executeShellCommand("getprop " + PROPERTY_LOCALE).trim();
-    }
-
-    private void setSystemLocale(String locale) throws Exception {
-        ITestDevice device = getDevice();
-        device.executeShellCommand("setprop " + PROPERTY_LOCALE + " " + locale);
-    }
-
-    private boolean isLanguageEditable() throws Exception {
-        String val = getDevice().executeShellCommand("getprop ro.hdmi.set_menu_language");
-        return val.trim().equals("true") ? true : false;
-    }
-
-    private static String extractLanguage(String locale) {
-        return locale.split("[^a-zA-Z]")[0];
-    }
-
-    private void checkArcIsInitiated(){
+    private void checkArcIsInitiated() throws CecClientWrapperException {
         try {
             hdmiCecClient.sendCecMessage(LogicalAddress.TV, AUDIO_DEVICE,
                 CecOperand.REQUEST_ARC_INITIATION);
             hdmiCecClient.checkExpectedOutput(LogicalAddress.TV, CecOperand.INITIATE_ARC);
-        } catch(Exception e) {
-            assumeNoException(e);
+        } catch (CecClientWrapperException e) {
+            if (e.getErrorCode() != ErrorCodes.CecMessageNotFound) {
+                throw e;
+            }
         }
     }
 

@@ -179,7 +179,7 @@
                 <category android:name="android.cts.intent.category.MANUAL_TEST" />
             </intent-filter>
             <meta-data android:name="test_category" android:value="@string/test_category_other" />
-            <meta-data android:name="test_excluded_features" android:value="android.hardware.type.automotive" />
+            <meta-data android:name="test_excluded_features" android:value="android.hardware.type.automotive:android.hardware.type.watch" />
             <meta-data android:name="display_mode"
                        android:value="multi_display_mode" />
         </activity>
@@ -1741,6 +1741,22 @@
 
         <activity android:name=".security.ScreenLockBoundKeysTest"
                 android:label="@string/sec_lock_bound_key_test"
+                android:configChanges="keyboardHidden|orientation|screenSize" >
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.cts.intent.category.MANUAL_TEST" />
+            </intent-filter>
+            <meta-data android:name="test_category" android:value="@string/test_category_security" />
+            <meta-data android:name="test_excluded_features"
+                       android:value="android.software.lockscreen_disabled" />
+            <meta-data android:name="test_required_features"
+                    android:value="android.software.device_admin:android.software.secure_lock_screen" />
+            <meta-data android:name="display_mode"
+                       android:value="multi_display_mode" />
+        </activity>
+
+        <activity android:name=".security.UnlockedDeviceRequiredTest"
+                android:label="@string/sec_unlocked_device_required_test"
                 android:configChanges="keyboardHidden|orientation|screenSize" >
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -4953,6 +4969,8 @@
                 android:value="config_voice_capable"/>
             <meta-data android:name="display_mode"
                        android:value="multi_display_mode" />
+            <meta-data android:name="test_excluded_features"
+                       android:value="android.hardware.type.watch" />
         </activity>
 
         <service
@@ -4983,6 +5001,8 @@
                 android:value="config_voice_capable"/>
             <meta-data android:name="display_mode"
                        android:value="multi_display_mode" />
+            <meta-data android:name="test_excluded_features"
+                       android:value="android.hardware.type.watch" />
         </activity>
 
         <activity
@@ -5004,6 +5024,8 @@
                 android:value="config_voice_capable"/>
             <meta-data android:name="display_mode"
                        android:value="multi_display_mode" />
+            <meta-data android:name="test_excluded_features"
+                       android:value="android.hardware.type.watch" />
             </activity>
 
         <activity
@@ -5046,6 +5068,8 @@
                 android:value="config_voice_capable"/>
             <meta-data android:name="display_mode"
                        android:value="multi_display_mode" />
+            <meta-data android:name="test_excluded_features"
+                       android:value="android.hardware.type.watch" />
         </activity>
 
         <activity android:name=".telecom.TelecomDefaultDialerTestActivity"
@@ -5104,7 +5128,7 @@
                 <category android:name="android.cts.intent.category.MANUAL_TEST" />
             </intent-filter>
             <meta-data android:name="test_category" android:value="@string/test_category_instant_apps" />
-            <meta-data android:name="test_excluded_features" android:value="android.hardware.type.television:android.software.leanback:android.hardware.type.automotive" />
+            <meta-data android:name="test_excluded_features" android:value="android.hardware.type.television:android.software.leanback:android.hardware.type.automotive:android.hardware.type.watch" />
             <meta-data android:name="display_mode"
                        android:value="multi_display_mode" />
         </activity>
@@ -5115,7 +5139,7 @@
                 <category android:name="android.cts.intent.category.MANUAL_TEST" />
             </intent-filter>
             <meta-data android:name="test_category" android:value="@string/test_category_instant_apps" />
-            <meta-data android:name="test_excluded_features" android:value="android.hardware.type.television:android.software.leanback:android.hardware.type.automotive" />
+            <meta-data android:name="test_excluded_features" android:value="android.hardware.type.television:android.software.leanback:android.hardware.type.automotive:android.hardware.type.watch" />
             <meta-data android:name="display_mode"
                        android:value="multi_display_mode" />
         </activity>
@@ -5127,7 +5151,7 @@
             </intent-filter>
             <meta-data android:name="test_category" android:value="@string/test_category_instant_apps" />
             <meta-data android:name="test_excluded_features"
-                android:value="android.hardware.type.television:android.software.leanback:android.hardware.type.automotive" />
+                android:value="android.hardware.type.television:android.software.leanback:android.hardware.type.automotive:android.hardware.type.watch" />
             <meta-data android:name="display_mode"
                        android:value="multi_display_mode" />
         </activity>

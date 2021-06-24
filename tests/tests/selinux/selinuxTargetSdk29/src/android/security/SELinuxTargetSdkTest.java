@@ -42,9 +42,8 @@ public class SELinuxTargetSdkTest extends SELinuxTargetSdkTestBase
             checkDex2oatAccess(false);
         }
     }
-
-    public void testNetlinkRouteGetlinkSucceeds() throws IOException {
-        checkNetlinkRouteGetlink(true);
+    public void testNoNetlinkRouteGetlink() throws IOException {
+        noNetlinkRouteGetlink();
     }
 
     public void testNoNetlinkRouteBind() throws IOException {
