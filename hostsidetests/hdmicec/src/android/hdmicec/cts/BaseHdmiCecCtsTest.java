@@ -16,8 +16,11 @@
 
 package android.hdmicec.cts;
 
+import android.hdmicec.cts.error.DumpsysParseException;
+
 import com.android.tradefed.config.Option;
 import com.android.tradefed.config.OptionClass;
+import com.android.tradefed.device.DeviceNotAvailableException;
 import com.android.tradefed.device.ITestDevice;
 import com.android.tradefed.testtype.junit4.BaseHostJUnit4Test;
 
@@ -25,7 +28,10 @@ import org.junit.Before;
 import org.junit.rules.TestRule;
 
 import java.io.BufferedReader;
+import java.io.IOException;
 import java.io.StringReader;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -33,44 +39,61 @@ import java.util.regex.Pattern;
 @OptionClass(alias="hdmi-cec-client-cts-test")
 public class BaseHdmiCecCtsTest extends BaseHostJUnit4Test {
 
-    public final HdmiCecClientWrapper hdmiCecClient;
-    public LogicalAddress mDutLogicalAddress;
+    public static final String PROPERTY_LOCALE = "persist.sys.locale";
 
-    /**
-     * Constructor for BaseHdmiCecCtsTest. Uses the DUT logical address for the test.
-     */
-    public BaseHdmiCecCtsTest() {
-        this(LogicalAddress.UNKNOWN);
+    /** Enum contains the list of possible address types. */
+    private enum AddressType {
+        DUMPSYS_AS_LOGICAL_ADDRESS("activeSourceLogicalAddress"),
+        DUMPSYS_PHYSICAL_ADDRESS("physicalAddress");
+
+        private String address;
+
+        public String getAddressType() {
+            return this.address;
+        }
+
+        private AddressType(String address) {
+            this.address = address;
+        }
     }
 
+    public final HdmiCecClientWrapper hdmiCecClient;
+    public List<LogicalAddress> mDutLogicalAddresses = new ArrayList<>();
+    public int mTestDeviceType = HdmiCecConstants.CEC_DEVICE_TYPE_UNKNOWN;
+
     /**
-     * Constructor for BaseHdmiCecCtsTest. Uses the DUT logical address for the test.
-     *
-     * @param clientParams Extra parameters to use when launching cec-client
+     * Constructor for BaseHdmiCecCtsTest.
      */
-    public BaseHdmiCecCtsTest(String ...clientParams) {
-        this(LogicalAddress.UNKNOWN, clientParams);
+    public BaseHdmiCecCtsTest() {
+        this(HdmiCecConstants.CEC_DEVICE_TYPE_UNKNOWN);
     }
 
     /**
      * Constructor for BaseHdmiCecCtsTest.
      *
-     * @param dutLogicalAddress The logical address that the DUT will have.
      * @param clientParams Extra parameters to use when launching cec-client
      */
-    public BaseHdmiCecCtsTest(LogicalAddress dutLogicalAddress, String ...clientParams) {
+    public BaseHdmiCecCtsTest(String ...clientParams) {
+        this(HdmiCecConstants.CEC_DEVICE_TYPE_UNKNOWN, clientParams);
+    }
+
+    /**
+     * Constructor for BaseHdmiCecCtsTest.
+     *
+     * @param testDeviceType The primary test device type. This is used to determine to which
+     * logical address of the DUT messages should be sent.
+     * @param clientParams Extra parameters to use when launching cec-client
+     */
+    public BaseHdmiCecCtsTest(int testDeviceType, String... clientParams) {
         this.hdmiCecClient = new HdmiCecClientWrapper(clientParams);
-        mDutLogicalAddress = dutLogicalAddress;
+        mTestDeviceType = testDeviceType;
     }
 
     @Before
     public void setUp() throws Exception {
-        if (mDutLogicalAddress == LogicalAddress.UNKNOWN) {
-            mDutLogicalAddress = LogicalAddress.getLogicalAddress(getDumpsysLogicalAddress());
-        }
-        hdmiCecClient.setTargetLogicalAddress(mDutLogicalAddress);
-        boolean startAsTv =
-                mDutLogicalAddress.getDeviceType() != HdmiCecConstants.CEC_DEVICE_TYPE_TV;
+        mDutLogicalAddresses = getDumpsysLogicalAddresses();
+        hdmiCecClient.setTargetLogicalAddress(getTargetLogicalAddress());
+        boolean startAsTv = !hasDeviceType(HdmiCecConstants.CEC_DEVICE_TYPE_TV);
         hdmiCecClient.init(startAsTv, getDevice());
     }
 
@@ -108,85 +131,175 @@ public class BaseHdmiCecCtsTest extends BaseHostJUnit4Test {
     public static int dutPhysicalAddress = HdmiCecConstants.DEFAULT_PHYSICAL_ADDRESS;
 
     /** Gets the physical address of the DUT by parsing the dumpsys hdmi_control. */
-    public int getDumpsysPhysicalAddress() throws Exception {
+    public int getDumpsysPhysicalAddress() throws DumpsysParseException {
         return getDumpsysPhysicalAddress(getDevice());
     }
 
     /** Gets the physical address of the specified device by parsing the dumpsys hdmi_control. */
-    public static int getDumpsysPhysicalAddress(ITestDevice device) throws Exception {
+    public static int getDumpsysPhysicalAddress(ITestDevice device) throws DumpsysParseException {
+        return parseRequiredAddressFromDumpsys(device, AddressType.DUMPSYS_PHYSICAL_ADDRESS);
+    }
+
+    /** Gets the list of logical addresses of the DUT by parsing the dumpsys hdmi_control. */
+    public List<LogicalAddress> getDumpsysLogicalAddresses() throws DumpsysParseException {
+        return getDumpsysLogicalAddresses(getDevice());
+    }
+
+    /** Gets the list of logical addresses of the device by parsing the dumpsys hdmi_control. */
+    public static List<LogicalAddress> getDumpsysLogicalAddresses(ITestDevice device)
+            throws DumpsysParseException {
+        List<LogicalAddress> logicalAddressList = new ArrayList<>();
         String line;
-        String pattern = "(.*?)" + "(physical_address: )" + "(?<address>0x\\p{XDigit}{4})" +
-                "(.*?)";
+        String pattern =
+                "(.*?)"
+                        + "(mAddress: )"
+                        + "(?<"
+                        + "logicalAddress"
+                        + ">\\p{Digit}{1,2})"
+                        + "(.*?)";
         Pattern p = Pattern.compile(pattern);
-        Matcher m;
-        String dumpsys = device.executeShellCommand("dumpsys hdmi_control");
-        BufferedReader reader = new BufferedReader(new StringReader(dumpsys));
-        while ((line = reader.readLine()) != null) {
-            m = p.matcher(line);
-            if (m.matches()) {
-                int address = Integer.decode(m.group("address"));
+        try {
+            String dumpsys = device.executeShellCommand("dumpsys hdmi_control");
+            BufferedReader reader = new BufferedReader(new StringReader(dumpsys));
+            while ((line = reader.readLine()) != null) {
+                Matcher m = p.matcher(line);
+                if (m.matches()) {
+                    int address = Integer.decode(m.group("logicalAddress"));
+                    LogicalAddress logicalAddress = LogicalAddress.getLogicalAddress(address);
+                    logicalAddressList.add(logicalAddress);
+                }
+            }
+            if (!logicalAddressList.isEmpty()) {
+                return logicalAddressList;
+            }
+        } catch (Exception e) {
+            throw new DumpsysParseException("Parsing dumpsys for logicalAddress failed.", e);
+        }
+        throw new DumpsysParseException("Could not parse logicalAddress from dumpsys.");
+    }
+
+    /** Gets the DUT's logical address to which messages should be sent */
+    public LogicalAddress getTargetLogicalAddress() throws DumpsysParseException {
+        return getTargetLogicalAddress(getDevice(), mTestDeviceType);
+    }
+
+    /** Gets the given device's logical address to which messages should be sent */
+    public static LogicalAddress getTargetLogicalAddress(ITestDevice device)
+            throws DumpsysParseException {
+        return getTargetLogicalAddress(device, HdmiCecConstants.CEC_DEVICE_TYPE_UNKNOWN);
+    }
+
+    /** Gets the given device's logical address to which messages should be sent, based on the test
+     * device type.
+     *
+     * When the test doesn't specify a device type, or the device doesn't have a logical address
+     * that matches the specified device type, use the first logical address.
+     *
+     */
+    public static LogicalAddress getTargetLogicalAddress(ITestDevice device, int testDeviceType)
+            throws DumpsysParseException {
+        List<LogicalAddress> logicalAddressList = getDumpsysLogicalAddresses(device);
+        for (LogicalAddress address : logicalAddressList) {
+            if (address.getDeviceType() == testDeviceType) {
                 return address;
             }
         }
-        throw new Exception("Could not parse physical address from dumpsys.");
-    }
-
-    /** Gets the logical address of the DUT by parsing the dumpsys hdmi_control. */
-    public int getDumpsysLogicalAddress() throws Exception {
-        return getDumpsysLogicalAddress(getDevice());
-    }
-
-    /** Gets the logical address of the specified device by parsing the dumpsys hdmi_control. */
-    public static int getDumpsysLogicalAddress(ITestDevice device) throws Exception {
-        String line;
-        String pattern = "(.*?)" + "(mAddress: )" + "(?<address>\\d+)" +
-                "(.*?)";
-        Pattern p = Pattern.compile(pattern);
-        Matcher m;
-        String dumpsys = device.executeShellCommand("dumpsys hdmi_control");
-        BufferedReader reader = new BufferedReader(new StringReader(dumpsys));
-        while ((line = reader.readLine()) != null) {
-            m = p.matcher(line);
-            if (m.matches()) {
-                int address = Integer.decode(m.group("address"));
-                return address;
-            }
-        }
-        throw new Exception("Could not parse logical address from dumpsys.");
+        return logicalAddressList.get(0);
     }
 
     /**
      * Parses the dumpsys hdmi_control to get the logical address of the current device registered
      * as active source.
      */
-    public LogicalAddress getDumpsysActiveSourceLogicalAddress() throws Exception {
-        String line;
-        String pattern =
-                "(.*?)"
-                        + "(mActiveSource: )"
-                        + "(\\(0x)"
-                        + "(?<logicalAddress>\\d+)"
-                        + "(, )"
-                        + "(0x)"
-                        + "(?<physicalAddress>\\d+)"
-                        + "(\\))"
-                        + "(.*?)";
-        Pattern p = Pattern.compile(pattern);
-        Matcher m;
+    public LogicalAddress getDumpsysActiveSourceLogicalAddress() throws DumpsysParseException {
         ITestDevice device = getDevice();
-        String dumpsys = device.executeShellCommand("dumpsys hdmi_control");
-        BufferedReader reader = new BufferedReader(new StringReader(dumpsys));
-        while ((line = reader.readLine()) != null) {
-            m = p.matcher(line);
-            if (m.matches()) {
-                try {
-                    int address = Integer.decode(m.group("logicalAddress"));
-                    return LogicalAddress.getLogicalAddress(address);
-                } catch (NumberFormatException ne) {
-                    throw new Exception("Could not correctly parse the logical address");
+        int address =
+                parseRequiredAddressFromDumpsys(device, AddressType.DUMPSYS_AS_LOGICAL_ADDRESS);
+        return LogicalAddress.getLogicalAddress(address);
+    }
+
+    private static int parseRequiredAddressFromDumpsys(ITestDevice device, AddressType addressType)
+            throws DumpsysParseException {
+        Matcher m;
+        String line;
+        String pattern;
+        switch (addressType) {
+            case DUMPSYS_PHYSICAL_ADDRESS:
+                pattern =
+                        "(.*?)"
+                                + "(physical_address: )"
+                                + "(?<"
+                                + addressType.getAddressType()
+                                + ">0x\\p{XDigit}{4})"
+                                + "(.*?)";
+                break;
+            case DUMPSYS_AS_LOGICAL_ADDRESS:
+                pattern =
+                        "(.*?)"
+                                + "(mActiveSource: )"
+                                + "(\\(0x)"
+                                + "(?<"
+                                + addressType.getAddressType()
+                                + ">\\d+)"
+                                + "(, )"
+                                + "(0x)"
+                                + "(?<physicalAddress>\\d+)"
+                                + "(\\))"
+                                + "(.*?)";
+                break;
+            default:
+                throw new DumpsysParseException(
+                        "Incorrect parameters", new IllegalArgumentException());
+        }
+
+        try {
+            Pattern p = Pattern.compile(pattern);
+            String dumpsys = device.executeShellCommand("dumpsys hdmi_control");
+            BufferedReader reader = new BufferedReader(new StringReader(dumpsys));
+            while ((line = reader.readLine()) != null) {
+                m = p.matcher(line);
+                if (m.matches()) {
+                    int address = Integer.decode(m.group(addressType.getAddressType()));
+                    return address;
                 }
             }
+        } catch (IOException | DeviceNotAvailableException e) {
+            throw new DumpsysParseException(
+                    "Could not parse " + addressType.getAddressType() + " from dumpsys.", e);
         }
-        throw new Exception("Could not parse active source from dumpsys.");
+        throw new DumpsysParseException(
+                "Could not parse " + addressType.getAddressType() + " from dumpsys.");
+    }
+
+    public boolean hasDeviceType(int deviceType) {
+        for (LogicalAddress address : mDutLogicalAddresses) {
+            if (address.getDeviceType() == deviceType) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public boolean hasLogicalAddress(LogicalAddress address) {
+        return mDutLogicalAddresses.contains(address);
+    }
+
+    public String getSystemLocale() throws Exception {
+        ITestDevice device = getDevice();
+        return device.executeShellCommand("getprop " + PROPERTY_LOCALE).trim();
+    }
+
+    public static String extractLanguage(String locale) {
+        return locale.split("[^a-zA-Z]")[0];
+    }
+
+    public void setSystemLocale(String locale) throws Exception {
+        ITestDevice device = getDevice();
+        device.executeShellCommand("setprop " + PROPERTY_LOCALE + " " + locale);
+    }
+
+    public boolean isLanguageEditable() throws Exception {
+        String val = getDevice().executeShellCommand("getprop ro.hdmi.set_menu_language");
+        return val.trim().equals("true") ? true : false;
     }
 }

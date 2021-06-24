@@ -17,9 +17,11 @@
 package com.android.cts.appcompat.compatchanges;
 
 import static com.google.common.truth.Truth.assertThat;
+import static org.junit.Assert.assertThrows;
 
 import android.Manifest;
 import android.app.compat.CompatChanges;
+import android.app.compat.PackageOverride;
 import android.content.Context;
 import android.os.Process;
 
@@ -30,7 +32,8 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.junit.runners.JUnit4;
+
+import java.util.Collections;
 
 /**
  * Tests for the {@link android.app.compat.CompatChanges} SystemApi.
@@ -44,11 +47,17 @@ import org.junit.runners.JUnit4;
 @RunWith(AndroidJUnit4.class)
 public final class CompatChangesTest {
   private static final long CTS_SYSTEM_API_CHANGEID = 149391281;
+  private static final long CTS_SYSTEM_API_OVERRIDABLE_CHANGEID = 174043039;
+
+  private static final String OVERRIDE_PACKAGE = "com.android.cts.appcompat.preinstalloverride";
+
   @Before
   public void setUp() {
     InstrumentationRegistry.getInstrumentation().getUiAutomation()
       .adoptShellPermissionIdentity(Manifest.permission.LOG_COMPAT_CHANGE,
-                                    Manifest.permission.READ_COMPAT_CHANGE_CONFIG);
+                                    Manifest.permission.READ_COMPAT_CHANGE_CONFIG,
+                                    Manifest.permission.OVERRIDE_COMPAT_CHANGE_CONFIG_ON_RELEASE_BUILD,
+                                    Manifest.permission.INTERACT_ACROSS_USERS_FULL);
   }
 
   @After
@@ -94,5 +103,89 @@ public final class CompatChangesTest {
   @Test
   public void isChangeEnabledUid_changeDisabled() {
     assertThat(CompatChanges.isChangeEnabled(CTS_SYSTEM_API_CHANGEID, Process.myUid())).isFalse();
+  }
+
+  @Test
+  public void putPackageOverrides_securityExceptionForNonOverridableChangeId() {
+    SecurityException e = assertThrows(SecurityException.class,
+            () -> CompatChanges.putPackageOverrides(OVERRIDE_PACKAGE,
+                    Collections.singletonMap(CTS_SYSTEM_API_CHANGEID,
+                    new PackageOverride.Builder().setEnabled(true).build())));
+    assertThat(e).hasMessageThat().contains("marked as Overridable");
+  }
+
+  @Test
+  public void putPackageOverrides_success() {
+    CompatChanges.putPackageOverrides(OVERRIDE_PACKAGE,
+            Collections.singletonMap(CTS_SYSTEM_API_OVERRIDABLE_CHANGEID,
+                    new PackageOverride.Builder().setEnabled(true).build()));
+  }
+
+  @Test
+  public void putPackageOverrides_fromVersion2() {
+    CompatChanges.putPackageOverrides(OVERRIDE_PACKAGE,
+            Collections.singletonMap(CTS_SYSTEM_API_OVERRIDABLE_CHANGEID,
+                    new PackageOverride.Builder().setMinVersionCode(2).setEnabled(true).build()));
+  }
+
+  @Test
+  public void putPackageOverrides_untilVersion1() {
+    CompatChanges.putPackageOverrides(OVERRIDE_PACKAGE,
+            Collections.singletonMap(CTS_SYSTEM_API_OVERRIDABLE_CHANGEID,
+                    new PackageOverride.Builder().setMaxVersionCode(1).setEnabled(true).build()));
+  }
+
+  @Test
+  public void putPackageOverrides_securityExceptionForNotHoldingPermission() {
+    // Adopt the normal override permission that doesn't allow to clear overrides on release builds
+    InstrumentationRegistry.getInstrumentation().getUiAutomation().dropShellPermissionIdentity();
+    InstrumentationRegistry.getInstrumentation().getUiAutomation().adoptShellPermissionIdentity(
+            Manifest.permission.OVERRIDE_COMPAT_CHANGE_CONFIG);
+
+    SecurityException e = assertThrows(SecurityException.class,
+            () -> CompatChanges.putPackageOverrides(OVERRIDE_PACKAGE,
+                    Collections.singletonMap(CTS_SYSTEM_API_OVERRIDABLE_CHANGEID,
+                            new PackageOverride.Builder().setEnabled(true).build())));
+    assertThat(e).hasMessageThat().contains("Cannot override compat change");
+  }
+
+  @Test
+  public void removePackageOverrides_securityExceptionForNonOverridableChangeId() {
+    SecurityException e = assertThrows(SecurityException.class,
+            () -> CompatChanges.removePackageOverrides(OVERRIDE_PACKAGE,
+                    Collections.singleton(CTS_SYSTEM_API_CHANGEID)));
+    assertThat(e).hasMessageThat().contains("marked as Overridable");
+  }
+
+  @Test
+  public void removePackageOverrides_doesNothingIfOverrideNotPresent() {
+    CompatChanges.removePackageOverrides(OVERRIDE_PACKAGE,
+            Collections.singleton(CTS_SYSTEM_API_OVERRIDABLE_CHANGEID));
+  }
+
+  @Test
+  public void removePackageOverrides_overridePresentSuccess() {
+    CompatChanges.putPackageOverrides(OVERRIDE_PACKAGE,
+            Collections.singletonMap(CTS_SYSTEM_API_OVERRIDABLE_CHANGEID,
+                    new PackageOverride.Builder().setEnabled(true).build()));
+    CompatChanges.removePackageOverrides(OVERRIDE_PACKAGE,
+            Collections.singleton(CTS_SYSTEM_API_OVERRIDABLE_CHANGEID));
+  }
+
+  @Test
+  public void removePackageOverrides_securityExceptionForNotHoldingPermission() {
+    CompatChanges.putPackageOverrides(OVERRIDE_PACKAGE,
+            Collections.singletonMap(CTS_SYSTEM_API_OVERRIDABLE_CHANGEID,
+                    new PackageOverride.Builder().setEnabled(true).build()));
+
+    // Adopt the normal override permission that doesn't allow to clear overrides on release builds
+    InstrumentationRegistry.getInstrumentation().getUiAutomation().dropShellPermissionIdentity();
+    InstrumentationRegistry.getInstrumentation().getUiAutomation().adoptShellPermissionIdentity(
+            Manifest.permission.OVERRIDE_COMPAT_CHANGE_CONFIG);
+
+    SecurityException e = assertThrows(SecurityException.class,
+            () -> CompatChanges.removePackageOverrides(OVERRIDE_PACKAGE,
+                    Collections.singleton(CTS_SYSTEM_API_OVERRIDABLE_CHANGEID)));
+    assertThat(e).hasMessageThat().contains("Cannot override compat change");
   }
 }

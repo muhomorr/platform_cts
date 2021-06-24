@@ -74,6 +74,10 @@ class ImsServiceConnector {
     private static final String COMMAND_REMOVE_EAB_CONTACT = "uce remove-eab-contact ";
     private static final String COMMAND_GET_UCE_ENABLED = "uce get-device-enabled";
     private static final String COMMAND_SET_UCE_ENABLED = "uce set-device-enabled ";
+    private static final String COMMAND_REMOVE_UCE_REQUEST_DISALLOWED_STATUS =
+            "uce remove-request-disallowed-status ";
+    private static final String COMMAND_SET_CAPABILITY_REQUEST_TIMEOUT =
+            "uce set-capabilities-request-timeout ";
     private static final String COMMAND_SET_TEST_MODE_ENABLED = "src set-test-enabled ";
 
     private class TestCarrierServiceConnection implements ServiceConnection {
@@ -308,18 +312,24 @@ class ImsServiceConnector {
         }
 
         private boolean setDefaultSmsApp(String packageName) throws Exception {
-            if (packageName == null) {
-                return false;
-            }
             RoleManager roleManager = mInstrumentation.getContext()
                     .getSystemService(RoleManager.class);
             Boolean result;
             LinkedBlockingQueue<Boolean> queue = new LinkedBlockingQueue<>(1);
-            ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(roleManager,
-                    (m) -> m.addRoleHolderAsUser(RoleManager.ROLE_SMS, packageName, 0,
-                            android.os.Process.myUserHandle(),
-                            // Run on calling binder thread.
-                            Runnable::run, queue::offer));
+            if (TextUtils.isEmpty(packageName)) {
+                ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(roleManager,
+                        (m) -> m.clearRoleHoldersAsUser(RoleManager.ROLE_SMS,
+                                RoleManager.MANAGE_HOLDERS_FLAG_DONT_KILL_APP,
+                                android.os.Process.myUserHandle(),
+                                // Run on calling binder thread.
+                                Runnable::run, queue::offer));
+            } else {
+                ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(roleManager,
+                        (m) -> m.addRoleHolderAsUser(RoleManager.ROLE_SMS, packageName, 0,
+                                android.os.Process.myUserHandle(),
+                                // Run on calling binder thread.
+                                Runnable::run, queue::offer));
+            }
             result = queue.poll(ImsUtils.TEST_TIMEOUT_MS, TimeUnit.MILLISECONDS);
             if (ImsUtils.VDBG) {
                 Log.d(TAG, "setDefaultSmsApp result: " + result);
@@ -334,6 +344,10 @@ class ImsServiceConnector {
                     (m) -> m.getRoleHolders(RoleManager.ROLE_SMS));
             if (ImsUtils.VDBG) {
                 Log.d(TAG, "getDefaultSmsApp result: " + result);
+            }
+            if (result.isEmpty()) {
+                // No default SMS app.
+                return null;
             }
             // There should only be one default sms app
             return result.get(0);
@@ -618,5 +632,19 @@ class ImsServiceConnector {
     void setSingleRegistrationTestModeEnabled(boolean enabled) throws Exception {
         TelephonyUtils.executeShellCommand(mInstrumentation, COMMAND_BASE
                 + COMMAND_SET_TEST_MODE_ENABLED  + (enabled ? "true" : "false"));
+    }
+
+    void setCapabilitiesRequestTimeout(int slotId, long timeoutAfterMs) throws Exception {
+        StringBuilder cmdBuilder = new StringBuilder();
+        cmdBuilder.append(COMMAND_BASE).append(COMMAND_SET_CAPABILITY_REQUEST_TIMEOUT)
+                .append(COMMAND_SLOT_IDENTIFIER).append(slotId).append(" ").append(timeoutAfterMs);
+        TelephonyUtils.executeShellCommand(mInstrumentation, cmdBuilder.toString());
+    }
+
+    void removeUceRequestDisallowedStatus(int slotId) throws Exception {
+        StringBuilder cmdBuilder = new StringBuilder();
+        cmdBuilder.append(COMMAND_BASE).append(COMMAND_REMOVE_UCE_REQUEST_DISALLOWED_STATUS)
+                .append(COMMAND_SLOT_IDENTIFIER).append(slotId);
+        TelephonyUtils.executeShellCommand(mInstrumentation, cmdBuilder.toString());
     }
 }

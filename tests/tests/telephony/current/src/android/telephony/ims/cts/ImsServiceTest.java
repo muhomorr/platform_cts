@@ -110,28 +110,57 @@ public class ImsServiceTest {
     private static final int TEST_CONFIG_VALUE_INT = 0xDEADBEEF;
     private static final String TEST_CONFIG_VALUE_STRING = "DEADBEEF";
 
-    private static final String TEST_RCS_CONFIG_DEFAULT = "<RCSConfig>\n"
-            + "\t<rcsVolteSingleRegistration>1</rcsVolteSingleRegistration>\n"
-            + "\t<SERVICES>\n"
-            + "\t\t<SupportedRCSProfileVersions>UP_2.0</SupportedRCSProfileVersions>\n"
-            + "\t\t<ChatAuth>1</ChatAuth>\n"
-            + "\t\t<GroupChatAuth>1</GroupChatAuth>\n"
-            + "\t\t<ftAuth>1</ftAuth>\n"
-            + "\t\t<standaloneMsgAuth>1</standaloneMsgAuth>\n"
-            + "\t\t<geolocPushAuth>1</geolocPushAuth>\n"
-            + "\t\t<Ext>\n"
-            + "\t\t\t<DataOff>\n"
-            + "\t\t\t\t<rcsMessagingDataOff>1</rcsMessagingDataOff>\n"
-            + "\t\t\t\t<fileTransferDataOff>1</fileTransferDataOff>\n"
-            + "\t\t\t\t<mmsDataOff>1</mmsDataOff>\n"
-            + "\t\t\t\t<syncDataOff>1</syncDataOff>\n"
-            + "\t\t\t</DataOff>\n"
-            + "\t\t</Ext>\n"
-            + "\t</SERVICES>\n"
-            + "</RCSConfig>";
-    private static final String TEST_RCS_CONFIG_SINGLE_REGISTRATION_DISABLED = "<RCSConfig>\n"
-            + "\t<rcsVolteSingleRegistration>0</rcsVolteSingleRegistration>\n"
-            + "</RCSConfig>";
+    private static final String TEST_RCS_CONFIG_DEFAULT = "<?xml version=\"1.0\"?>\n"
+            + "<wap-provisioningdoc version=\"1.1\">\n"
+            + "\t<characteristic type=\"APPLICATION\">\n"
+            + "\t\t<parm name=\"AppID\" value=\"urn:oma:mo:ext-3gpp-ims:1.0\"/>\n"
+            + "\t\t<characteristic type=\"3GPP_IMS\">\n"
+            + "\t\t\t<parm name=\"AppID\" value=\"ap2001\"/>\n"
+            + "\t\t\t<parm name=\"Name\" value=\"RCS IMS Settings\"/>\n"
+            + "\t\t\t<characteristic type=\"Ext\">\n"
+            + "\t\t\t\t<characteristic type=\"GSMA\">\n"
+            + "\t\t\t\t\t<parm name=\"AppRef\" value=\"IMS-Setting\"/>\n"
+            + "\t\t\t\t\t<parm name=\"rcsVolteSingleRegistration\" value=\"1\"/>\n"
+            + "\t\t\t\t</characteristic>\n"
+            + "\t\t\t</characteristic>\n"
+            + "\t\t</characteristic>\n"
+            + "\t\t<characteristic type=\"SERVICES\">\n"
+            + "\t\t\t<parm name=\"SupportedRCSProfileVersions\" value=\"UP2.3\"/>\n"
+            + "\t\t\t<parm name=\"ChatAuth\" value=\"1\"/>\n"
+            + "\t\t\t<parm name=\"GroupChatAuth\" value=\"1\"/>\n"
+            + "\t\t\t<parm name=\"ftAuth\" value=\"1\"/>\n"
+            + "\t\t\t<parm name=\"standaloneMsgAuth\" value=\"1\"/>\n"
+            + "\t\t\t<parm name=\"geolocPushAuth\" value=\"1\"/>\n"
+            + "\t\t\t<characteristic type=\"Ext\">\n"
+            + "\t\t\t\t<characteristic type=\"DataOff\">\n"
+            + "\t\t\t\t\t<parm name=\"rcsMessagingDataOff\" value=\"1\"/>\n"
+            + "\t\t\t\t\t<parm name=\"fileTransferDataOff\" value=\"1\"/>\n"
+            + "\t\t\t\t\t<parm name=\"mmsDataOff\" value=\"1\"/>\n"
+            + "\t\t\t\t\t<parm name=\"syncDataOff\" value=\"1\"/>\n"
+            + "\t\t\t\t\t<characteristic type=\"Ext\"/>\n"
+            + "\t\t\t\t</characteristic>\n"
+            + "\t\t\t</characteristic>\n"
+            + "\t\t</characteristic>\n"
+            + "\t</characteristic>\n"
+            + "</wap-provisioningdoc>\n";
+
+    private static final String TEST_RCS_CONFIG_SINGLE_REGISTRATION_DISABLED =
+            "<?xml version=\"1.0\"?>\n"
+            + "<wap-provisioningdoc version=\"1.1\">\n"
+            + "\t<characteristic type=\"APPLICATION\">\n"
+            + "\t\t<parm name=\"AppID\" value=\"urn:oma:mo:ext-3gpp-ims:1.0\"/>\n"
+            + "\t\t<characteristic type=\"3GPP_IMS\">\n"
+            + "\t\t\t<parm name=\"AppID\" value=\"ap2001\"/>\n"
+            + "\t\t\t<parm name=\"Name\" value=\"RCS IMS Settings\"/>\n"
+            + "\t\t\t<characteristic type=\"Ext\">\n"
+            + "\t\t\t\t<characteristic type=\"GSMA\">\n"
+            + "\t\t\t\t\t<parm name=\"AppRef\" value=\"IMS-Setting\"/>\n"
+            + "\t\t\t\t\t<parm name=\"rcsVolteSingleRegistration\" value=\"0\"/>\n"
+            + "\t\t\t\t</characteristic>\n"
+            + "\t\t\t</characteristic>\n"
+            + "\t\t</characteristic>\n"
+            + "\t</characteristic>\n"
+            + "</wap-provisioningdoc>\n";
     private static final String TEST_RCS_PRE_CONFIG = "<RCSPreProvisiniongConfig>\n"
             + "\t<VERS>\n"
             + "\t\t<version>1</version>\n"
@@ -882,28 +911,20 @@ public class ImsServiceTest {
         assertEquals(ImsReasonInfo.CODE_LOCAL_NOT_REGISTERED, deregResult.getCode());
 
         // Start registration
-        ImsRegistrationAttributes lteTagsAttr = new ImsRegistrationAttributes.Builder(
-                ImsRegistrationImplBase.REGISTRATION_TECH_LTE)
-                .setFeatureTags(featureTags)
-                .build();
-        sServiceConnector.getCarrierService().getImsRegistration().onRegistering(lteTagsAttr);
-        ImsRegistrationAttributes attrResult = waitForResult(mRegQueue);
-        assertNotNull(attrResult);
-        assertEquals(ImsRegistrationImplBase.REGISTRATION_TECH_LTE,
-                attrResult.getRegistrationTechnology());
-        assertEquals(AccessNetworkConstants.TRANSPORT_TYPE_WWAN, attrResult.getTransportType());
-        assertEquals(0, attrResult.getAttributeFlags());
-        assertEquals(featureTags, attrResult.getFeatureTags());
+        verifyRegistering(ImsRegistrationImplBase.REGISTRATION_TECH_LTE, featureTags, mRegQueue,
+                AccessNetworkConstants.TRANSPORT_TYPE_WWAN, 0 /*expected flags*/);
+
+        // move to NR
+        verifyRegistering(ImsRegistrationImplBase.REGISTRATION_TECH_NR, featureTags, mRegQueue,
+                AccessNetworkConstants.TRANSPORT_TYPE_WWAN, 0 /*expected flags*/);
 
         // Complete registration
-        sServiceConnector.getCarrierService().getImsRegistration().onRegistered(lteTagsAttr);
-        attrResult = waitForResult(mRegQueue);
-        assertNotNull(attrResult);
-        assertEquals(ImsRegistrationImplBase.REGISTRATION_TECH_LTE,
-                attrResult.getRegistrationTechnology());
-        assertEquals(AccessNetworkConstants.TRANSPORT_TYPE_WWAN, attrResult.getTransportType());
-        assertEquals(0, attrResult.getAttributeFlags());
-        assertEquals(featureTags, attrResult.getFeatureTags());
+        verifyRegistered(ImsRegistrationImplBase.REGISTRATION_TECH_LTE, featureTags, mRegQueue,
+                AccessNetworkConstants.TRANSPORT_TYPE_WWAN, 0 /*expected flags*/);
+
+        // move to NR
+        verifyRegistered(ImsRegistrationImplBase.REGISTRATION_TECH_NR, featureTags, mRegQueue,
+                AccessNetworkConstants.TRANSPORT_TYPE_WWAN, 0 /*expected flags*/);
 
         try {
             automan.adoptShellPermissionIdentity();
@@ -1858,6 +1879,20 @@ public class ImsServiceTest {
         verifyRegistrationState(imsRcsManager, RegistrationManager.REGISTRATION_STATE_REGISTERED);
         verifyRegistrationTransportType(imsRcsManager, AccessNetworkConstants.TRANSPORT_TYPE_WWAN);
 
+        // Start registration over NR
+        sServiceConnector.getCarrierService().getImsRegistration().onRegistering(
+                ImsRegistrationImplBase.REGISTRATION_TECH_NR);
+        assertEquals(AccessNetworkConstants.TRANSPORT_TYPE_WWAN, waitForIntResult(mQueue));
+        verifyRegistrationState(imsRcsManager, RegistrationManager.REGISTRATION_STATE_REGISTERING);
+        verifyRegistrationTransportType(imsRcsManager, AccessNetworkConstants.TRANSPORT_TYPE_WWAN);
+
+        // Complete registration over NR
+        sServiceConnector.getCarrierService().getImsRegistration().onRegistered(
+                ImsRegistrationImplBase.REGISTRATION_TECH_NR);
+        assertEquals(AccessNetworkConstants.TRANSPORT_TYPE_WWAN, waitForIntResult(mQueue));
+        verifyRegistrationState(imsRcsManager, RegistrationManager.REGISTRATION_STATE_REGISTERED);
+        verifyRegistrationTransportType(imsRcsManager, AccessNetworkConstants.TRANSPORT_TYPE_WWAN);
+
         // Fail handover to IWLAN
         sServiceConnector.getCarrierService().getImsRegistration().onTechnologyChangeFailed(
                 ImsRegistrationImplBase.REGISTRATION_TECH_IWLAN,
@@ -2746,7 +2781,7 @@ public class ImsServiceTest {
                 buildRcsProvisioningCallback(clientQueue, paramsQueue);
         ProvisioningManager provisioningManager =
                 ProvisioningManager.createForSubscriptionId(sTestSub);
-        String configStr = "<test01/>\n" + TEST_RCS_CONFIG_DEFAULT;
+        String configStr = TEST_RCS_CONFIG_DEFAULT;
 
         //notify rcs configuration received, wait rcs gets ready and receives notification
         try {
@@ -2776,7 +2811,7 @@ public class ImsServiceTest {
         assertTrue(Arrays.equals(
                 configStr.getBytes(), TestAcsClient.getInstance().getConfig()));
 
-        configStr = "<test02/>\n" + TEST_RCS_CONFIG_DEFAULT;
+        configStr = TEST_RCS_CONFIG_SINGLE_REGISTRATION_DISABLED;
         try {
             automan.adoptShellPermissionIdentity();
             provisioningManager.notifyRcsAutoConfigurationReceived(
@@ -2988,7 +3023,7 @@ public class ImsServiceTest {
                     TEST_RCS_CONFIG_SINGLE_REGISTRATION_DISABLED.getBytes(), false);
             int res = waitForIntResult(TestAcsClient.getInstance().getActionQueue());
             assertEquals(res, TestAcsClient.ACTION_CONFIG_CHANGED);
-            assertEquals(provisioningManager.isRcsVolteSingleRegistrationCapable(), false);
+            assertEquals(provisioningManager.isRcsVolteSingleRegistrationCapable(), true);
         } finally {
             automan.dropShellPermissionIdentity();
         }
@@ -3127,6 +3162,7 @@ public class ImsServiceTest {
         return new ProvisioningManager.RcsProvisioningCallback() {
             @Override
             public void onConfigurationChanged(byte[] configXml) {
+                super.onConfigurationChanged(configXml);
                 actionQueue.offer(RCS_CONFIG_CB_CHANGED);
                 if (paramQueue != null) {
                     RcsProvisioningCallbackParams params = new RcsProvisioningCallbackParams();
@@ -3137,6 +3173,7 @@ public class ImsServiceTest {
 
             @Override
             public void onAutoConfigurationErrorReceived(int code, String str) {
+                super.onAutoConfigurationErrorReceived(code, str);
                 actionQueue.offer(RCS_CONFIG_CB_ERROR);
                 if (paramQueue != null) {
                     RcsProvisioningCallbackParams params = new RcsProvisioningCallbackParams();
@@ -3148,16 +3185,19 @@ public class ImsServiceTest {
 
             @Override
             public void onConfigurationReset() {
+                super.onConfigurationReset();
                 actionQueue.offer(RCS_CONFIG_CB_RESET);
             }
 
             @Override
             public void onRemoved() {
+                super.onRemoved();
                 actionQueue.offer(RCS_CONFIG_CB_DELETE);
             }
 
             @Override
             public void onPreProvisioningReceived(byte[] configXml) {
+                super.onPreProvisioningReceived(configXml);
                 actionQueue.offer(RCS_CONFIG_CB_PREPROV);
                 if (paramQueue != null) {
                     RcsProvisioningCallbackParams params = new RcsProvisioningCallbackParams();
@@ -3209,6 +3249,34 @@ public class ImsServiceTest {
                 (m) -> m.getRegistrationTransportType(getContext().getMainExecutor(),
                         mQueue::offer));
         assertEquals(expectedTransportType, waitForIntResult(mQueue));
+    }
+
+    private void verifyRegistering(int tech, ArraySet<String> featureTags,
+            LinkedBlockingQueue<ImsRegistrationAttributes> attrQueue, int expectedTransport,
+            int expectedAttrFlags) throws Exception {
+        ImsRegistrationAttributes attr = new ImsRegistrationAttributes.Builder(tech)
+                .setFeatureTags(featureTags).build();
+        sServiceConnector.getCarrierService().getImsRegistration().onRegistering(attr);
+        ImsRegistrationAttributes attrResult = waitForResult(attrQueue);
+        assertNotNull(attrResult);
+        assertEquals(tech, attrResult.getRegistrationTechnology());
+        assertEquals(expectedTransport, attrResult.getTransportType());
+        assertEquals(expectedAttrFlags, attrResult.getAttributeFlags());
+        assertEquals(featureTags, attrResult.getFeatureTags());
+    }
+
+    private void verifyRegistered(int tech, ArraySet<String> featureTags,
+            LinkedBlockingQueue<ImsRegistrationAttributes> attrQueue, int expectedTransport,
+            int expectedAttrFlags) throws Exception {
+        ImsRegistrationAttributes attr = new ImsRegistrationAttributes.Builder(tech)
+                .setFeatureTags(featureTags).build();
+        sServiceConnector.getCarrierService().getImsRegistration().onRegistered(attr);
+        ImsRegistrationAttributes attrResult = waitForResult(attrQueue);
+        assertNotNull(attrResult);
+        assertEquals(tech, attrResult.getRegistrationTechnology());
+        assertEquals(expectedTransport, attrResult.getTransportType());
+        assertEquals(expectedAttrFlags, attrResult.getAttributeFlags());
+        assertEquals(featureTags, attrResult.getFeatureTags());
     }
 
     private <T> boolean waitForParam(LinkedBlockingQueue<T> queue, T waitParam) throws Exception {

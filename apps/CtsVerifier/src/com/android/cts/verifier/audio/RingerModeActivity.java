@@ -75,7 +75,9 @@ public class RingerModeActivity extends InteractiveVerifierActivity {
     private boolean mUseFixedVolume;
     private boolean mIsTelevision;
     private boolean mIsSingleVolume;
+    private boolean mIsWatch;
     private boolean mSkipRingerTests;
+    private boolean mSkipTouchSoundTests;
 
     @Override
     protected int getTitleResource() {
@@ -101,6 +103,8 @@ public class RingerModeActivity extends InteractiveVerifierActivity {
         mIsSingleVolume = mContext.getResources().getBoolean(
                 Resources.getSystem().getIdentifier("config_single_volume", "bool", "android"));
         mSkipRingerTests = mUseFixedVolume || mIsTelevision || mIsSingleVolume;
+        mIsWatch = packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH);
+        mSkipTouchSoundTests = mIsWatch;
     }
 
     // Test Setup
@@ -246,6 +250,12 @@ public class RingerModeActivity extends InteractiveVerifierActivity {
 
         @Override
         protected void test() {
+
+            if (mSkipTouchSoundTests) {
+                status = PASS;
+                return;
+            }
+
             boolean touchSoundEnabled =
                 Settings.System.getInt(mContext.getContentResolver(),
                     Settings.System.SOUND_EFFECTS_ENABLED, 1) == 1;
@@ -276,6 +286,12 @@ public class RingerModeActivity extends InteractiveVerifierActivity {
 
         @Override
         protected void test() {
+
+            if (mSkipTouchSoundTests) {
+                status = PASS;
+                return;
+            }
+
             // should hear sound after loadSoundEffects() called.
             mAudioManager.loadSoundEffects();
             try {
@@ -1101,7 +1117,7 @@ public class RingerModeActivity extends InteractiveVerifierActivity {
                     if (stream == AudioManager.STREAM_VOICE_CALL) {
                         // Voice call requires MODIFY_PHONE_STATE, so we should not be able to mute
                         mAudioManager.adjustStreamVolume(stream, AudioManager.ADJUST_MUTE, 0);
-                        assertTrue("Voice call stream (" + stream + ") should require MODIFY_PHONE_STATE "
+                        assertFalse("Voice call stream (" + stream + ") should require MODIFY_PHONE_STATE "
                                 + "to mute.", mAudioManager.isStreamMute(stream));
                     } else {
                         mAudioManager.adjustStreamVolume(stream, AudioManager.ADJUST_MUTE, 0);

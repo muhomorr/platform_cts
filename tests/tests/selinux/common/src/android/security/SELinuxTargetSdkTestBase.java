@@ -62,21 +62,13 @@ abstract class SELinuxTargetSdkTestBase extends AndroidTestCase
         }
     }
 
-    protected static void checkNetlinkRouteGetlink(boolean expectAllowed) throws IOException {
-        if (!expectAllowed) {
-            assertEquals(
-                    "RTM_GETLINK is not allowed on a netlink route sockets. Verify that the"
-                        + " following patch has been applied to your kernel: "
-                        + "https://android-review.googlesource.com/q/I7b44ce60ad98f858c412722d41b9842f8577151f",
-                    13,
-                    checkNetlinkRouteGetlink());
-        } else {
-            assertEquals(
-                    "RTM_GETLINK should be allowed netlink route sockets for apps with "
-                            + "targetSdkVersion <= Q",
-                    -1,
-                    checkNetlinkRouteGetlink());
-        }
+    protected static void noNetlinkRouteGetlink() throws IOException {
+        assertEquals(
+                "RTM_GETLINK is not allowed on netlink route sockets. Verify that the"
+                    + " following patch has been applied to your kernel: "
+                    + "https://android-review.googlesource.com/q/I7b44ce60ad98f858c412722d41b9842f8577151f",
+                13,
+                checkNetlinkRouteGetlink());
     }
 
     protected static void noNetlinkRouteBind() throws IOException {
@@ -164,10 +156,18 @@ abstract class SELinuxTargetSdkTestBase extends AndroidTestCase
     }
 
     /**
+     * Verify that apps are not able to see MAC addresses of ethernet devices.
+     */
+    protected static void checkNetworkInterfaceHardwareAddress_returnsNull() throws Exception {
+        assertNotNull(NetworkInterface.getNetworkInterfaces());
+        for (NetworkInterface nif : Collections.list(NetworkInterface.getNetworkInterfaces())) {
+            assertNull(nif.getHardwareAddress());
+        }
+    }
+
+    /**
      * Verify that apps having targetSdkVersion <= 29 get an anonymized MAC
      * address (02:00:00:00:00:00) instead of a null MAC for ethernet interfaces.
-     * The counterpart of this test (testing for targetSdkVersion > 29) is
-     * {@link libcore.java.net.NetworkInterfaceTest#testGetHardwareAddress_returnsNull()}.
      */
     protected static void checkNetworkInterface_returnsAnonymizedHardwareAddresses()
         throws Exception {

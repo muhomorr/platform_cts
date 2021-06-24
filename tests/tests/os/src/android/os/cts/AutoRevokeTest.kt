@@ -30,7 +30,9 @@ import android.platform.test.annotations.AppModeFull
 import android.provider.DeviceConfig
 import android.support.test.uiautomator.By
 import android.support.test.uiautomator.BySelector
+import android.support.test.uiautomator.UiDevice
 import android.support.test.uiautomator.UiObject2
+import android.support.test.uiautomator.UiObjectNotFoundException
 import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.Switch
 import androidx.test.InstrumentationRegistry
@@ -54,6 +56,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertThat
 import org.junit.Assert.assertTrue
+import org.junit.Assume.assumeFalse
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -76,6 +79,7 @@ class AutoRevokeTest {
 
     private val context: Context = InstrumentationRegistry.getTargetContext()
     private val instrumentation: Instrumentation = InstrumentationRegistry.getInstrumentation()
+    private val uiDevice: UiDevice = UiDevice.getInstance(instrumentation)
 
     private val mPermissionControllerResources: Resources = context.createPackageContext(
             context.packageManager.permissionControllerPackageName, 0).resources
@@ -105,6 +109,13 @@ class AutoRevokeTest {
     @AppModeFull(reason = "Uses separate apps for testing")
     @Test
     fun testUnusedApp_getsPermissionRevoked() {
+        assumeFalse(
+                "AOSP TV doesn't support visible notifications",
+                context.packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK))
+        assumeFalse(
+                "Watch doesn't provide a unified way to check notifications. it depends on UX",
+                hasFeatureWatch())
+
         withUnusedThresholdMs(3L) {
             withDummyApp {
                 // Setup
@@ -128,6 +139,12 @@ class AutoRevokeTest {
                 runShellCommand("cmd statusbar expand-notifications")
                 waitFindObject(By.textContains("unused app"))
                         .click()
+
+                if (hasFeatureWatch()) {
+                    // In wear os, notification has one additional button to open it
+                    waitFindObject(By.text("Open")).click()
+                }
+
                 waitFindObject(By.text(APK_PACKAGE_NAME))
                 waitFindObject(By.text("Calendar permission removed"))
             }
@@ -244,7 +261,10 @@ class AutoRevokeTest {
                 // Setup
                 goToPermissions()
                 click("Calendar")
-                click("Allow")
+                // Wear OS uses a switch and does not display a dialog
+                if (!hasFeatureWatch()) {
+                    click("Allow")
+                }
                 Thread.sleep(500)
                 goBack()
                 goBack()
@@ -387,11 +407,25 @@ class AutoRevokeTest {
                 .addFlags(FLAG_ACTIVITY_NEW_TASK))
 
         waitForIdle()
+
         click("Permissions")
     }
 
     private fun click(label: String) {
-        waitFindNode(hasTextThat(containsStringIgnoringCase(label))).click()
+        try {
+            waitFindObject(byTextIgnoreCase(label)).click()
+        } catch (e: UiObjectNotFoundException) {
+            // waitFindObject sometimes fails to find UI that is present in the view hierarchy
+            // Increasing sleep to 2000 in waitForIdle() might be passed but no guarantee that the
+            // UI is fully displayed So Adding one more check without using the UiAutomator helps
+            // reduce false positives
+            waitFindNode(hasTextThat(containsStringIgnoringCase(label))).click()
+        }
+        waitForIdle()
+    }
+
+    private fun hasFeatureWatch(): Boolean {
+        return context.packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH)
     }
 
     private fun assertWhitelistState(state: Boolean) {

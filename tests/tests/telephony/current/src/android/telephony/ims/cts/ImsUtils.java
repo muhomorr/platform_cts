@@ -24,7 +24,6 @@ import android.service.carrier.CarrierService;
 import android.telephony.SubscriptionInfo;
 import android.telephony.SubscriptionManager;
 import android.telephony.TelephonyManager;
-import android.telephony.ims.SipMessage;
 
 import androidx.test.platform.app.InstrumentationRegistry;
 
@@ -39,7 +38,7 @@ import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
 public class ImsUtils {
-    public static final boolean VDBG = false;
+    public static final boolean VDBG = true;
 
     // ImsService rebind has an exponential backoff capping at 64 seconds. Wait for 70 seconds to
     // allow for the new poll to happen in the framework.
@@ -49,23 +48,6 @@ public class ImsUtils {
     public static final int ITEM_NON_COMPRESSED = 2000;
     // Id for compressed auto configuration xml.
     public static final int ITEM_COMPRESSED = 2001;
-    // TODO Replace with a real sip message once that logic is in.
-    public static final String TEST_TRANSACTION_ID = "z9hG4bK.TeSt";
-    public static final String TEST_CALL_ID = "a84b4c76e66710@pc33.atlanta.com";
-    // Sample messages from RFC 3261 modified for parsing use cases.
-    public static final SipMessage TEST_SIP_MESSAGE = new SipMessage(
-            "INVITE sip:bob@biloxi.com SIP/2.0",
-            // Typical Via
-            "Via: SIP/2.0/UDP pc33.atlanta.com;branch=z9hG4bK.TeSt\n"
-                    + "Max-Forwards: 70\n"
-                    + "To: Bob <sip:bob@biloxi.com>\n"
-                    + "From: Alice <sip:alice@atlanta.com>;tag=1928301774\n"
-                    + "Call-ID: a84b4c76e66710@pc33.atlanta.com\n"
-                    + "CSeq: 314159 INVITE\n"
-                    + "Contact: <sip:alice@pc33.atlanta.com>\n"
-                    + "Content-Type: application/sdp\n"
-                    + "Content-Length: 142",
-            new byte[0]);
 
     public static boolean shouldTestTelephony() {
         final PackageManager pm = InstrumentationRegistry.getInstrumentation().getContext()
