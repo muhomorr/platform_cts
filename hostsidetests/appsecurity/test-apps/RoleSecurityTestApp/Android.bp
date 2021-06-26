@@ -1,4 +1,5 @@
-// Copyright (C) 2012 The Android Open Source Project
+//
+// Copyright (C) 2021 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,24 +18,25 @@ package {
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
-cc_library_shared {
-    name: "libctsmediastress_jni",
-    srcs: ["native-media-jni.cpp"],
-    include_dirs: ["frameworks/wilhelm/include"],
-    shared_libs: [
-        "libandroid",
-        "libnativehelper_compat_libc++",
-        "liblog",
-        "libOpenMAXAL",
+android_test_helper_app {
+    name: "CtsRoleSecurityTestApp",
+    defaults: ["cts_defaults"],
+    srcs: ["src/**/*.java"],
+    libs: [
+        "android.test.runner",
+        "android.test.base",
     ],
-    stl: "none",
-    // this test suite will run on sdk 29 as part of MTS, make sure it's compatible
-    // (revisit if/when we add features to this library that require newer sdk)
-    sdk_version: "29",
-    cflags: [
-        "-Wall",
-        "-Werror",
-        "-Wno-unused-parameter",
-        "-Wno-unused-variable",
+    static_libs: [
+        "androidx.test.core",
+        "androidx.test.rules",
+        "ctstestrunner-axt",
+    ],
+    platform_apis: true,
+    min_sdk_version: "29",
+    target_sdk_version: "29",
+    test_suites: [
+        "general-tests",
+        "cts",
+        "sts",
     ],
 }
