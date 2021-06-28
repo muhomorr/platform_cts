@@ -22,6 +22,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.content.res.Configuration;
+import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.IBinder;
@@ -31,6 +32,10 @@ import android.telecom.cts.carmodetestapp.ICtsCarModeInCallServiceControl;
 
 import androidx.test.InstrumentationRegistry;
 
+import org.junit.Assert;
+import org.junit.Test;
+
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
@@ -45,6 +50,10 @@ public class CarModeInCallServiceTest extends BaseTelecomTestWithMockServices {
     protected void setUp() throws Exception {
         super.setUp();
         if (!mShouldTestTelecom) {
+            return;
+        }
+
+        if (mContext.getPackageManager().hasSystemFeature(PackageManager.FEATURE_WATCH)) {
             return;
         }
 
@@ -64,23 +73,30 @@ public class CarModeInCallServiceTest extends BaseTelecomTestWithMockServices {
 
     @Override
     protected void tearDown() throws Exception {
-        super.tearDown();
         if (!mShouldTestTelecom) {
             return;
         }
 
-        if (mCarModeIncallServiceControlOne != null) {
-            mCarModeIncallServiceControlOne.reset();
+	try {
+            if (mContext.getPackageManager().hasSystemFeature(PackageManager.FEATURE_WATCH)) {
+                return;
+            }
+
+            if (mCarModeIncallServiceControlOne != null) {
+                mCarModeIncallServiceControlOne.reset();
+            }
+
+            if (mCarModeIncallServiceControlTwo != null) {
+                mCarModeIncallServiceControlTwo.reset();
+            }
+
+            assertUiMode(Configuration.UI_MODE_TYPE_NORMAL);
+
+            InstrumentationRegistry.getInstrumentation().getUiAutomation()
+                    .dropShellPermissionIdentity();
+        } finally {
+            super.tearDown();
         }
-
-        if (mCarModeIncallServiceControlTwo != null) {
-            mCarModeIncallServiceControlTwo.reset();
-        }
-
-        assertUiMode(Configuration.UI_MODE_TYPE_NORMAL);
-
-        InstrumentationRegistry.getInstrumentation().getUiAutomation()
-                .dropShellPermissionIdentity();
     }
 
     /**
@@ -88,6 +104,10 @@ public class CarModeInCallServiceTest extends BaseTelecomTestWithMockServices {
      */
     public void testSetCarMode() {
         if (!mShouldTestTelecom) {
+            return;
+        }
+
+        if (mContext.getPackageManager().hasSystemFeature(PackageManager.FEATURE_WATCH)) {
             return;
         }
 
@@ -101,6 +121,10 @@ public class CarModeInCallServiceTest extends BaseTelecomTestWithMockServices {
      */
     public void testStartCallInCarMode() {
         if (!mShouldTestTelecom) {
+            return;
+        }
+
+        if (mContext.getPackageManager().hasSystemFeature(PackageManager.FEATURE_WATCH)) {
             return;
         }
 
@@ -123,6 +147,10 @@ public class CarModeInCallServiceTest extends BaseTelecomTestWithMockServices {
      */
     public void testStartCallInCarModeTwoServices() {
         if (!mShouldTestTelecom) {
+            return;
+        }
+
+        if (mContext.getPackageManager().hasSystemFeature(PackageManager.FEATURE_WATCH)) {
             return;
         }
 
@@ -152,6 +180,10 @@ public class CarModeInCallServiceTest extends BaseTelecomTestWithMockServices {
             return;
         }
 
+        if (mContext.getPackageManager().hasSystemFeature(PackageManager.FEATURE_WATCH)) {
+            return;
+        }
+
         // Place a call and verify it went to the default dialer
         placeAndVerifyCall();
         verifyConnectionForOutgoingCall();
@@ -170,6 +202,10 @@ public class CarModeInCallServiceTest extends BaseTelecomTestWithMockServices {
      */
     public void testSwitchToCarModeAndBack() {
         if (!mShouldTestTelecom) {
+            return;
+        }
+
+        if (mContext.getPackageManager().hasSystemFeature(PackageManager.FEATURE_WATCH)) {
             return;
         }
 
@@ -206,6 +242,10 @@ public class CarModeInCallServiceTest extends BaseTelecomTestWithMockServices {
      */
     public void testSwitchToCarModeMultiple() {
         if (!mShouldTestTelecom) {
+            return;
+        }
+
+        if (mContext.getPackageManager().hasSystemFeature(PackageManager.FEATURE_WATCH)) {
             return;
         }
 
@@ -387,28 +427,28 @@ public class CarModeInCallServiceTest extends BaseTelecomTestWithMockServices {
      * @throws InterruptedException
      */
     private ICtsCarModeInCallServiceControl getControlBinder(String packageName)
-            throws InterruptedException {
+            throws Exception {
         Intent bindIntent = new Intent(
                 android.telecom.cts.carmodetestapp.CtsCarModeInCallServiceControl
                         .CONTROL_INTERFACE_ACTION);
         bindIntent.setPackage(packageName);
-        final LinkedBlockingQueue<ICtsCarModeInCallServiceControl> queue =
-                new LinkedBlockingQueue(1);
+        CompletableFuture<ICtsCarModeInCallServiceControl> future =
+                new CompletableFuture<>();
         boolean success = mContext.bindService(bindIntent, new ServiceConnection() {
             @Override
             public void onServiceConnected(ComponentName name, IBinder service) {
-                queue.offer(android.telecom.cts.carmodetestapp
+                future.complete(android.telecom.cts.carmodetestapp
                         .ICtsCarModeInCallServiceControl.Stub.asInterface(service));
             }
 
             @Override
             public void onServiceDisconnected(ComponentName name) {
-                queue.offer(null);
+                future.complete(null);
             }
         }, Context.BIND_AUTO_CREATE);
         if (!success) {
             fail("Failed to get control interface -- bind error");
         }
-        return queue.poll(ASYNC_TIMEOUT, TimeUnit.MILLISECONDS);
+        return future.get(ASYNC_TIMEOUT, TimeUnit.MILLISECONDS);
     }
 }

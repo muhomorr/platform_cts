@@ -34,7 +34,9 @@ android_test {
     static_libs: [
         "androidx.test.ext.junit",
         "compatibility-device-util-axt",
+        "cts-net-utils",
         "ctstestrunner-axt",
+        "ike-tun-utils",
         "net-tests-utils",
         "telephony-cts-utils",
     ],
