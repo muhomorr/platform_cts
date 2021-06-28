@@ -18,6 +18,8 @@ package android.voiceinteraction.common;
 import android.app.VoiceInteractor.PickOptionRequest.Option;
 import android.content.LocusId;
 import android.os.Bundle;
+import android.os.Parcel;
+import android.os.Parcelable;
 import android.util.Log;
 
 import java.util.ArrayList;
@@ -44,6 +46,9 @@ public class Utils {
 
     public static final long OPERATION_TIMEOUT_MS = 5000;
 
+    /** CDD restricts the max size of each successful hotword result is 100 bytes. */
+    public static final int MAX_HOTWORD_DETECTED_RESULT_SIZE = 100;
+
     /** Decide which VoiceInteractionService should be started for testing. */
     public static final int HOTWORD_DETECTION_SERVICE_NONE = 0;
     public static final int HOTWORD_DETECTION_SERVICE_BASIC = 1;
@@ -67,6 +72,7 @@ public class Utils {
     public static final int HOTWORD_DETECTION_SERVICE_MIC_ONDETECT_TEST = 104;
     public static final int HOTWORD_DETECTION_SERVICE_DSP_ONREJECT_TEST = 105;
     public static final int HOTWORD_DETECTION_SERVICE_PROCESS_DIED_TEST = 106;
+    public static final int HOTWORD_DETECTION_SERVICE_CALL_STOP_RECOGNITION = 107;
 
     public static final int HOTWORD_DETECTION_SERVICE_TRIGGER_SUCCESS = 1;
     public static final int HOTWORD_DETECTION_SERVICE_TRIGGER_ILLEGAL_STATE_EXCEPTION = 2;
@@ -226,5 +232,23 @@ public class Utils {
             Log.e(TAG, "Interrupted", e);
         }
         return false;
+    }
+
+    public static int getParcelableSize(Parcelable parcelable) {
+        final Parcel p = Parcel.obtain();
+        parcelable.writeToParcel(p, 0);
+        p.setDataPosition(0);
+        final int size = p.dataSize();
+        p.recycle();
+        return size;
+    }
+
+    public static int bitCount(int value) {
+        int bits = 0;
+        while (value > 0) {
+            bits++;
+            value = value >> 1;
+        }
+        return bits;
     }
 }

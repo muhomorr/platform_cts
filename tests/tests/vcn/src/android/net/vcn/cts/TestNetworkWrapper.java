@@ -18,11 +18,9 @@ package android.net.vcn.cts;
 
 import static android.net.cts.util.CtsNetUtils.TestNetworkCallback;
 
-import static com.android.compatibility.common.util.SystemUtil.callWithShellPermissionIdentity;
-import static com.android.compatibility.common.util.SystemUtil.runWithShellPermissionIdentity;
-
 import android.annotation.NonNull;
 import android.content.Context;
+import android.ipsec.ike.cts.IkeTunUtils;
 import android.net.ConnectivityManager;
 import android.net.IpPrefix;
 import android.net.LinkAddress;
@@ -95,6 +93,7 @@ public class TestNetworkWrapper implements AutoCloseable {
 
     public final VcnTestNetworkCallback vcnNetworkCallback;
     public final ParcelFileDescriptor tunFd;
+    public final IkeTunUtils ikeTunUtils;
     public final Network tunNetwork;
 
     public TestNetworkWrapper(
@@ -106,9 +105,7 @@ public class TestNetworkWrapper implements AutoCloseable {
             throws Exception {
         mConnectivityManager = context.getSystemService(ConnectivityManager.class);
         mVcnManager = context.getSystemService(VcnManager.class);
-        mTestNetworkManager =
-                callWithShellPermissionIdentity(
-                        () -> context.getSystemService(TestNetworkManager.class));
+        mTestNetworkManager = context.getSystemService(TestNetworkManager.class);
 
         try {
             final LinkAddress linkAddress =
@@ -116,53 +113,37 @@ public class TestNetworkWrapper implements AutoCloseable {
                             localAddress,
                             localAddress instanceof Inet4Address ? IP4_PREFIX_LEN : IP6_PREFIX_LEN);
             final TestNetworkInterface tni =
-                    callWithShellPermissionIdentity(
-                            () -> {
-                                return mTestNetworkManager.createTunInterface(
-                                        Arrays.asList(linkAddress));
-                            });
+                    mTestNetworkManager.createTunInterface(Arrays.asList(linkAddress));
             tunFd = tni.getFileDescriptor();
             final String iface = tni.getInterfaceName();
 
-            vcnNetworkCallback =
-                    callWithShellPermissionIdentity(
-                            () -> {
-                                final NetworkRequest nr =
-                                        new NetworkRequest.Builder(TEST_NETWORK_REQUEST)
-                                                .setNetworkSpecifier(iface)
-                                                .build();
-                                final VcnTestNetworkCallback cb = new VcnTestNetworkCallback();
-                                mConnectivityManager.requestNetwork(nr, cb);
-                                return cb;
-                            });
+            final NetworkRequest nr =
+                    new NetworkRequest.Builder(TEST_NETWORK_REQUEST)
+                            .setNetworkSpecifier(iface)
+                            .build();
+            vcnNetworkCallback = new VcnTestNetworkCallback();
+            mConnectivityManager.requestNetwork(nr, vcnNetworkCallback);
 
             final NetworkCapabilities nc =
                     createNetworkCapabilitiesForIface(iface, isMetered, subIds);
             final LinkProperties lp = createLinkPropertiesForIface(iface, mtu);
 
-            mTestNetworkAgent =
-                    callWithShellPermissionIdentity(
-                            () -> {
-                                final VcnNetworkPolicyResult policy =
-                                        mVcnManager.applyVcnNetworkPolicy(nc, lp);
-                                if (policy.isTeardownRequested()) {
-                                    throw new IllegalStateException("Restart requested in bringup");
-                                }
+            final VcnNetworkPolicyResult policy = mVcnManager.applyVcnNetworkPolicy(nc, lp);
+            if (policy.isTeardownRequested()) {
+                throw new IllegalStateException("Restart requested in bringup");
+            }
 
-                                final TestNetworkAgent agent =
-                                        new TestNetworkAgent(
-                                                context,
-                                                Looper.getMainLooper(),
-                                                policy.getNetworkCapabilities(),
-                                                lp);
-                                agent.register();
-                                agent.markConnected();
-                                return agent;
-                            });
+            mTestNetworkAgent =
+                    new TestNetworkAgent(
+                            context, Looper.getMainLooper(), policy.getNetworkCapabilities(), lp);
+            mTestNetworkAgent.register();
+            mTestNetworkAgent.markConnected();
 
             tunNetwork = vcnNetworkCallback.waitForAvailable();
+            ikeTunUtils = new IkeTunUtils(tunFd);
             mCloseGuard.open(TAG);
         } catch (Exception e) {
+            Log.e(TAG, "Failed to bring up TestNetworkWrapper", e);
             close();
             throw e;
         }
@@ -176,6 +157,9 @@ public class TestNetworkWrapper implements AutoCloseable {
                         .addCapability(NetworkCapabilities.NET_CAPABILITY_NOT_SUSPENDED)
                         .addCapability(NetworkCapabilities.NET_CAPABILITY_NOT_RESTRICTED)
                         .addCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VCN_MANAGED)
+                        .addCapability(NetworkCapabilities.NET_CAPABILITY_MMS)
+                        .addCapability(NetworkCapabilities.NET_CAPABILITY_DUN)
+                        .addCapability(NetworkCapabilities.NET_CAPABILITY_FOTA)
                         .setNetworkSpecifier(new TestNetworkSpecifier(iface))
                         .setSubscriptionIds(subIds);
         if (!isMetered) {
@@ -232,42 +216,40 @@ public class TestNetworkWrapper implements AutoCloseable {
     @Override
     public void close() {
         mCloseGuard.close();
-        runWithShellPermissionIdentity(
-                () -> {
-                    if (vcnNetworkCallback != null) {
-                        try {
-                            mConnectivityManager.unregisterNetworkCallback(vcnNetworkCallback);
-                        } catch (Exception e) {
-                            Log.e(TAG, "Failed to unregister Network CB", e);
-                        }
-                    }
 
-                    if (mTestNetworkAgent != null) {
-                        synchronized (mTestNetworkAgent) {
-                            try {
-                                mTestNetworkAgent.teardown();
-                            } catch (Exception e) {
-                                Log.e(TAG, "Failed to unregister TestNetworkAgent", e);
-                            }
-                        }
-                    }
+        if (vcnNetworkCallback != null) {
+            try {
+                mConnectivityManager.unregisterNetworkCallback(vcnNetworkCallback);
+            } catch (Exception e) {
+                Log.e(TAG, "Failed to unregister Network CB", e);
+            }
+        }
 
-                    if (tunNetwork != null) {
-                        try {
-                            mTestNetworkManager.teardownTestNetwork(tunNetwork);
-                        } catch (Exception e) {
-                            Log.e(TAG, "Failed to tear down Test Network", e);
-                        }
-                    }
+        if (mTestNetworkAgent != null) {
+            synchronized (mTestNetworkAgent) {
+                try {
+                    mTestNetworkAgent.teardown();
+                } catch (Exception e) {
+                    Log.e(TAG, "Failed to unregister TestNetworkAgent", e);
+                }
+            }
+        }
 
-                    if (tunFd != null) {
-                        try {
-                            tunFd.close();
-                        } catch (Exception e) {
-                            Log.e(TAG, "Failed to close Test Network FD", e);
-                        }
-                    }
-                });
+        if (tunNetwork != null) {
+            try {
+                mTestNetworkManager.teardownTestNetwork(tunNetwork);
+            } catch (Exception e) {
+                Log.e(TAG, "Failed to tear down Test Network", e);
+            }
+        }
+
+        if (tunFd != null) {
+            try {
+                tunFd.close();
+            } catch (Exception e) {
+                Log.e(TAG, "Failed to close Test Network FD", e);
+            }
+        }
     }
 
     @Override
@@ -321,11 +303,9 @@ public class TestNetworkWrapper implements AutoCloseable {
 
         @Override
         public void onNetworkUnwanted() {
-            // Not guaranteed to be called from the same thread, so synchronize on this. The shell
-            // is needed for teardown because unregistering the VcnPolicyListener requires
-            // permission MANAGE_TEST_NETWORKS.
+            // Not guaranteed to be called from the same thread, so synchronize on this.
             synchronized (this) {
-                runWithShellPermissionIdentity(() -> teardown());
+                teardown();
             }
         }
 
@@ -353,24 +333,19 @@ public class TestNetworkWrapper implements AutoCloseable {
         private class TestVcnNetworkPolicyChangeListener implements VcnNetworkPolicyChangeListener {
             @Override
             public void onPolicyChanged() {
-                runWithShellPermissionIdentity(
-                        () -> {
-                            synchronized (TestNetworkAgent.this) {
-                                final VcnNetworkPolicyResult policy =
-                                        mVcnManager.applyVcnNetworkPolicy(
-                                                mTestNetworkAgent.getNetworkCapabilities(),
-                                                mTestNetworkAgent.getLinkProperties());
-                                if (policy.isTeardownRequested()) {
-                                    Log.w(
-                                            POLICY_LISTENER_TAG,
-                                            "network teardown requested on policy change");
-                                    teardown();
-                                    return;
-                                }
+                synchronized (TestNetworkAgent.this) {
+                    final VcnNetworkPolicyResult policy =
+                            mVcnManager.applyVcnNetworkPolicy(
+                                    mTestNetworkAgent.getNetworkCapabilities(),
+                                    mTestNetworkAgent.getLinkProperties());
+                    if (policy.isTeardownRequested()) {
+                        Log.w(POLICY_LISTENER_TAG, "network teardown requested on policy change");
+                        teardown();
+                        return;
+                    }
 
-                                updateNetworkCapabilities(policy.getNetworkCapabilities());
-                            }
-                        });
+                    updateNetworkCapabilities(policy.getNetworkCapabilities());
+                }
             }
         }
     }
@@ -378,11 +353,38 @@ public class TestNetworkWrapper implements AutoCloseable {
     /** NetworkCallback to used for tracking test network events. */
     // TODO(b/187231331): remove once TestNetworkCallback supports tracking NetworkCapabilities
     public static class VcnTestNetworkCallback extends TestNetworkCallback {
+        private final BlockingQueue<Network> mAvailableHistory = new LinkedBlockingQueue<>();
+        private final BlockingQueue<Network> mLostHistory = new LinkedBlockingQueue<>();
         private final BlockingQueue<CapabilitiesChangedEvent> mCapabilitiesChangedHistory =
                 new LinkedBlockingQueue<>();
 
+        @Override
+        public Network waitForAvailable() throws InterruptedException {
+            return mAvailableHistory.poll(NETWORK_CB_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+        }
+
+        @Override
+        public Network waitForLost() throws InterruptedException {
+            return mLostHistory.poll(NETWORK_CB_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+        }
+
         public CapabilitiesChangedEvent waitForOnCapabilitiesChanged() throws Exception {
-            return mCapabilitiesChangedHistory.poll(NETWORK_CB_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+            return waitForOnCapabilitiesChanged(NETWORK_CB_TIMEOUT_MS);
+        }
+
+        public CapabilitiesChangedEvent waitForOnCapabilitiesChanged(long timeoutMillis)
+                throws Exception {
+            return mCapabilitiesChangedHistory.poll(timeoutMillis, TimeUnit.MILLISECONDS);
+        }
+
+        @Override
+        public void onAvailable(@NonNull Network network) {
+            mAvailableHistory.offer(network);
+        }
+
+        @Override
+        public void onLost(@NonNull Network network) {
+            mLostHistory.offer(network);
         }
 
         @Override
