@@ -72,6 +72,7 @@ import android.widget.TextView;
 import androidx.lifecycle.Lifecycle;
 import androidx.test.core.app.ActivityScenario;
 import androidx.test.core.app.ApplicationProvider;
+import androidx.test.filters.FlakyTest;
 import androidx.test.runner.AndroidJUnit4;
 import androidx.test.uiautomator.UiObject2;
 
@@ -434,6 +435,8 @@ public class UiTranslationManagerTest {
                     onFinishIntent.getBooleanExtra(EXTRA_VERIFY_RESULT, true);
             assertThat(onFinishVerifyResult).isFalse();
             onFinishResultReceiver.unregisterQuietly();
+
+            // TODO(b/191417938): add tests for the Activity destroyed for IME package callback
         }
     }
 
@@ -457,8 +460,23 @@ public class UiTranslationManagerTest {
 
         startUiTranslation(/* shouldPadContent */ false, views, contentCaptureContext);
 
-        Mockito.verify(mockCallback, Mockito.never())
+        // TODO(b/191417938): add tests for the Activity isn't the same package of the
+        //  registered callback app
+        Mockito.verify(mockCallback, Mockito.times(1))
                 .onStarted(any(ULocale.class), any(ULocale.class));
+
+        finishUiTranslation(contentCaptureContext);
+
+        Mockito.verify(mockCallback, Mockito.times(1))
+                .onFinished();
+
+        // Make sure onFinished will not be called twice.
+        mActivityScenario.moveToState(Lifecycle.State.DESTROYED);
+        mActivityScenario = null;
+        Mockito.verify(mockCallback, Mockito.times(1))
+                .onFinished();
+
+        // TODO(b/191417938): add a test to verify startUiTranslation + Activity destroyed.
     }
 
     @Test
@@ -561,6 +579,7 @@ public class UiTranslationManagerTest {
     }
 
     @Test
+    @FlakyTest(bugId = 192418800)
     public void testUiTranslation_customTextView() throws Throwable {
         // Enable CTS ContentCaptureService
         CtsContentCaptureService contentcaptureService = enableContentCaptureService();

@@ -21,11 +21,13 @@ import static android.content.Intent.FLAG_ACTIVITY_NEW_TASK;
 
 import android.content.Intent;
 import android.os.Bundle;
+import android.util.Log;
 
 import com.android.bedstead.nene.TestApis;
 import com.android.bedstead.nene.activities.ActivityReference;
 import com.android.bedstead.nene.packages.ComponentReference;
 import com.android.eventlib.events.activities.ActivityCreatedEvent;
+import com.android.eventlib.events.activities.ActivityStartedEvent;
 
 /**
  * A reference to an activity in a test app for which there may or may not be an instance.
@@ -63,9 +65,9 @@ public abstract class TestAppActivityReference {
         intent.setFlags(FLAG_ACTIVITY_NEW_TASK | FLAG_ACTIVITY_CLEAR_TASK);
         sTestApis.context().instrumentedContext().startActivity(intent);
 
-        ActivityCreatedEvent
+        ActivityStartedEvent
                 .queryPackage(mComponent.packageName().packageName())
-                .whereActivity().className().isEqualTo(mComponent.className()).waitForEvent();
+                .whereActivity().activityClass().className().isEqualTo(mComponent.className()).waitForEvent();
 
         return sTestApis.activities().wrap(
                 TestAppActivity.class, new TestAppActivityImpl(mInstance, mComponent));
@@ -82,8 +84,19 @@ public abstract class TestAppActivityReference {
 
         ActivityCreatedEvent
                 .queryPackage(mComponent.packageName().packageName())
-                .whereActivity().className().isEqualTo(mComponent.className()).waitForEvent();
+                .whereActivity().activityClass().className().isEqualTo(mComponent.className()).waitForEvent();
 
+        return sTestApis.activities().wrap(
+                TestAppActivity.class, new TestAppActivityImpl(mInstance, mComponent));
+    }
+
+    /**
+     * Get a reference to an already running activity.
+     *
+     * <p>If the activity is not running then this will still return a reference but calls will
+     * fail.
+     */
+    public com.android.bedstead.nene.activities.Activity<TestAppActivity> instance() {
         return sTestApis.activities().wrap(
                 TestAppActivity.class, new TestAppActivityImpl(mInstance, mComponent));
     }

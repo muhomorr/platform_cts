@@ -4051,7 +4051,8 @@ You should be prompted to select credentials; choose the ones you just installed
     <string name="disallow_add_user">Disallow add user</string>
     <string name="disallow_add_user_action">Adding a new user</string>
     <string name="disallow_adjust_volume">Disallow adjust volume</string>
-    <string name="disallow_adjust_volume_action">Adjusting the volume</string>
+    <string name="disallow_adjust_volume_action">Adjusting the volume\n
+        NOTE: If the device does not support volume adjustment in Settings app please skip this test and mark it as passing.\n</string>
     <string name="disallow_config_date_time">Disallow config date time</string>
     <string name="disallow_config_date_time_action">Configuring auto time, time, auto date or date</string>
     <string name="disallow_config_location">Disallow config location</string>
@@ -4090,7 +4091,8 @@ You should be prompted to select credentials; choose the ones you just installed
     <string name="disallow_modify_accounts">Disallow modify accounts</string>
     <string name="disallow_modify_accounts_action">Adding an account, and also removing an account (after you have previously added one)</string>
     <string name="disallow_network_reset">Disallow network reset</string>
-    <string name="disallow_network_reset_action">Resetting network settings</string>
+    <string name="disallow_network_reset_action">Resetting network settings\n
+        NOTE: If the device does not support network reset please skip this test and mark it as passing.\n</string>
     <string name="disallow_outgoing_beam">Disallow outgoing beam</string>
     <string name="disallow_outgoing_beam_action">Switching on android beam</string>
     <string name="disallow_remove_user">Disallow remove user</string>
@@ -5101,10 +5103,18 @@ You should be prompted to select credentials; choose the ones you just installed
     <string name="audio_coldstart_out_latency_test">Audio Cold Start Output Latency Test</string>
     <string name="audio_coldstart_in_latency_test">Audio Cold Start Input Latency Test</string>
 
-    <string name="audio_coldstart_output_info">Info Here</string>
+    <string name="audio_coldstart_output_info">
+        This test measures the time required to output audio from a suspended \"cold\" audio system.
+        It requires that touch-sounds be disabled in the device \"Sound &amp; Vibration\" settings
+        panel.
+    </string>
     <string name="audio_coldstart_input_info">Info Here</string>
     <string name="audio_coldstart_outputlbl">Output Cold Start Latency</string>
     <string name="audio_coldstart_inputlbl">Input Cold Start Latency</string>
+    <string name="audio_coldstart_touchsounds_message">
+        Touch sounds are ENABLED. Please DISABLE touch sounds in the \"Sound &amp; Vibration\" settings panel.
+    </string>
+    <string name="audio_coldstart_notouchsounds_message">Touch sound are DISABLED.</string>
 
     <!-- Audio Frequency Line Test -->
     <string name="audio_frequency_line_test">Audio Frequency Line Test</string>
@@ -5871,6 +5881,12 @@ Follow the instructions on the screen to measure the frequency response for the 
         have the smallest height.\n\n
     2. Open the bubble, it will tell you if the height is correct.</string>
     <string name="bubbles_test_min_height_button">Send small height bubble</string>
+    <!-- Expanded view max height -->
+    <string name="bubbles_test_max_height_title">Expanded view max height</string>
+    <string name="bubbles_test_max_height_verify">1. Press the button below to update the bubble to
+        have the maximum height.\n\n
+        2. Open the bubble, it will tell you if the height is correct.</string>
+    <string name="bubbles_test_max_height_button">Send max height bubble</string>
     <!-- Low ram -->
     <string name="bubbles_test_lowram_title">No bubbles on low memory device</string>
     <string name="bubbles_test_lowram_verify">Click the button below and verify that a
