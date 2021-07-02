@@ -65,7 +65,6 @@ public abstract class TestAppActivityReference {
         intent.setFlags(FLAG_ACTIVITY_NEW_TASK | FLAG_ACTIVITY_CLEAR_TASK);
         sTestApis.context().instrumentedContext().startActivity(intent);
 
-        Log.e("jonathan", "Starting with intent " + intent);
         ActivityStartedEvent
                 .queryPackage(mComponent.packageName().packageName())
                 .whereActivity().activityClass().className().isEqualTo(mComponent.className()).waitForEvent();
@@ -87,6 +86,17 @@ public abstract class TestAppActivityReference {
                 .queryPackage(mComponent.packageName().packageName())
                 .whereActivity().activityClass().className().isEqualTo(mComponent.className()).waitForEvent();
 
+        return sTestApis.activities().wrap(
+                TestAppActivity.class, new TestAppActivityImpl(mInstance, mComponent));
+    }
+
+    /**
+     * Get a reference to an already running activity.
+     *
+     * <p>If the activity is not running then this will still return a reference but calls will
+     * fail.
+     */
+    public com.android.bedstead.nene.activities.Activity<TestAppActivity> instance() {
         return sTestApis.activities().wrap(
                 TestAppActivity.class, new TestAppActivityImpl(mInstance, mComponent));
     }
