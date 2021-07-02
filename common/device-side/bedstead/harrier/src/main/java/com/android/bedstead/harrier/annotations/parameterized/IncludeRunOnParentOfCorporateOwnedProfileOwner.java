@@ -34,7 +34,6 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @ParameterizedAnnotation
 @RequireRunOnPrimaryUser
-@RequireFeature(FEATURE_DEVICE_ADMIN)
 // TODO(scottjonathan): Add annotation to create corporate-owned profile
 public @interface IncludeRunOnParentOfCorporateOwnedProfileOwner {
 }
