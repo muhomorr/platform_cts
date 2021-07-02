@@ -23,6 +23,7 @@ import android.content.IntentFilter;
 import android.os.PowerManager;
 import android.os.PowerManager.WakeLock;
 import android.platform.test.annotations.AppModeFull;
+import android.platform.test.annotations.LargeTest;
 import android.provider.Settings.Global;
 import android.test.AndroidTestCase;
 
@@ -135,6 +136,7 @@ public class PowerManagerTest extends AndroidTestCase {
         });
     }
 
+    @LargeTest
     public void testPowerManager_batteryDischargePrediction() throws Exception {
         final PowerManager manager = BatteryUtils.getPowerManager();
 
