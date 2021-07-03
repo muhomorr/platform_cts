@@ -18,9 +18,14 @@ package com.android.bedstead.nene.activities;
 
 import static android.app.ActivityManager.LOCK_TASK_MODE_NONE;
 
+import android.content.Intent;
+
 import com.android.bedstead.nene.TestApis;
 import com.android.bedstead.nene.annotations.Experimental;
+import com.android.bedstead.nene.packages.ComponentReference;
 import com.android.compatibility.common.util.PollingCheck;
+
+import java.util.Objects;
 
 /**
  * A wrapper around a specific Activity instance.
@@ -73,6 +78,27 @@ public class Activity<E> {
         //  find another thing to poll on
         PollingCheck.waitFor(
                 () -> mTestApis.activities().getLockTaskModeState() == LOCK_TASK_MODE_NONE);
+    }
+
+    /**
+     * Calls {@link android.app.Activity#startActivity(Intent)} and blocks until the activity has
+     * started.
+     *
+     * <p>If a specific component is specified, this will block until that component is in the
+     * foreground. Otherwise, it will block only until the foreground activity has changed.
+     */
+    @Experimental
+    public void startActivity(Intent intent) {
+        if (intent.getComponent() == null) {
+            ComponentReference startActivity = mTestApis.activities().foregroundActivity();
+            mActivity.startActivity(intent);
+            PollingCheck.waitFor(() -> !Objects.equals(startActivity,
+                    mTestApis.activities().foregroundActivity()));
+        } else {
+            mActivity.startActivity(intent);
+            ComponentReference component = new ComponentReference(mTestApis, intent.getComponent());
+            PollingCheck.waitFor(() -> component.equals(mTestApis.activities().foregroundActivity()));
+        }
     }
 
     /**

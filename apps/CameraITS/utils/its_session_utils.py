@@ -1010,16 +1010,34 @@ class ItsSession(object):
         chart_distance, camera_fov)
     if numpy.isclose(
         chart_scaling,
+        opencv_processing_utils.SCALE_RFOV_IN_WFOV_BOX,
+        atol=0.01):
+      file_name = '%s_%sx_scaled.pdf' % (
+          scene, str(opencv_processing_utils.SCALE_RFOV_IN_WFOV_BOX))
+    elif numpy.isclose(
+        chart_scaling,
         opencv_processing_utils.SCALE_TELE_IN_WFOV_BOX,
         atol=0.01):
       file_name = '%s_%sx_scaled.pdf' % (
           scene, str(opencv_processing_utils.SCALE_TELE_IN_WFOV_BOX))
     elif numpy.isclose(
         chart_scaling,
-        opencv_processing_utils.SCALE_RFOV_IN_WFOV_BOX,
+        opencv_processing_utils.SCALE_TELE25_IN_RFOV_BOX,
         atol=0.01):
       file_name = '%s_%sx_scaled.pdf' % (
-          scene, str(opencv_processing_utils.SCALE_RFOV_IN_WFOV_BOX))
+          scene, str(opencv_processing_utils.SCALE_TELE25_IN_RFOV_BOX))
+    elif numpy.isclose(
+        chart_scaling,
+        opencv_processing_utils.SCALE_TELE40_IN_RFOV_BOX,
+        atol=0.01):
+      file_name = '%s_%sx_scaled.pdf' % (
+          scene, str(opencv_processing_utils.SCALE_TELE40_IN_RFOV_BOX))
+    elif numpy.isclose(
+        chart_scaling,
+        opencv_processing_utils.SCALE_TELE_IN_RFOV_BOX,
+        atol=0.01):
+      file_name = '%s_%sx_scaled.pdf' % (
+          scene, str(opencv_processing_utils.SCALE_TELE_IN_RFOV_BOX))
     else:
       file_name = '%s.pdf' % scene
     logging.debug('Scene to load: %s', file_name)
@@ -1075,8 +1093,8 @@ class ItsSession(object):
                                       ' support')
     return data['strValue'] == 'true'
 
-  def is_s_performance_class_primary_camera(self):
-    """Query whether the camera device is a S performance class primary camera.
+  def is_performance_class_primary_camera(self):
+    """Query whether the camera device is an R or S performance class primary camera.
 
     A primary rear/front facing camera is a camera device with the lowest
     camera Id for that facing.
@@ -1085,13 +1103,13 @@ class ItsSession(object):
       Boolean
     """
     cmd = {}
-    cmd['cmdName'] = 'isSPerformanceClassPrimaryCamera'
+    cmd['cmdName'] = 'isPerformanceClassPrimaryCamera'
     cmd['cameraId'] = self._camera_id
     self.sock.send(json.dumps(cmd).encode() + '\n'.encode())
 
     data, _ = self.__read_response_from_socket()
-    if data['tag'] != 'sPerformanceClassPrimaryCamera':
-      raise error_util.CameraItsError('Failed to query S performance class '
+    if data['tag'] != 'performanceClassPrimaryCamera':
+      raise error_util.CameraItsError('Failed to query performance class '
                                       'primary camera')
     return data['strValue'] == 'true'
 

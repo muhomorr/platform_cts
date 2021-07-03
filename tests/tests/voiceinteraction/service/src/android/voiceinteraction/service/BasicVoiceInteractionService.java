@@ -128,6 +128,12 @@ public class BasicVoiceInteractionService extends VoiceInteractionService {
                     mSoftwareHotwordDetector.startRecognition();
                 }
             });
+        } else if (testEvent == Utils.HOTWORD_DETECTION_SERVICE_CALL_STOP_RECOGNITION) {
+            runWithShellPermissionIdentity(() -> {
+                if (mSoftwareHotwordDetector != null) {
+                    mSoftwareHotwordDetector.stopRecognition();
+                }
+            });
         } else if (testEvent == Utils.HOTWORD_DETECTION_SERVICE_PROCESS_DIED_TEST) {
             runWithShellPermissionIdentity(() -> {
                 if (mAlwaysOnHotwordDetector != null) {
@@ -153,7 +159,7 @@ public class BasicVoiceInteractionService extends VoiceInteractionService {
     private AlwaysOnHotwordDetector callCreateAlwaysOnHotwordDetector() {
         Log.i(TAG, "callCreateAlwaysOnHotwordDetector()");
         try {
-            return createAlwaysOnHotwordDetector(/* keyphrase */ "Hello Google",
+            return createAlwaysOnHotwordDetector(/* keyphrase */ "Hello Android",
                     Locale.forLanguageTag("en-US"),
                     createFakePersistableBundleData(),
                     createFakeSharedMemoryData(),
@@ -168,11 +174,12 @@ public class BasicVoiceInteractionService extends VoiceInteractionService {
                             Log.i(TAG, "onDetected");
                             broadcastIntentWithResult(
                                     Utils.HOTWORD_DETECTION_SERVICE_ONDETECT_RESULT_INTENT,
-                                    eventPayload.getHotwordDetectedResult());
+                                    new EventPayloadParcelable(eventPayload));
                         }
 
                         @Override
                         public void onRejected(@NonNull HotwordRejectedResult result) {
+                            super.onRejected(result);
                             Log.i(TAG, "onRejected");
                             broadcastIntentWithResult(
                                     Utils.HOTWORD_DETECTION_SERVICE_ONDETECT_RESULT_INTENT,
@@ -199,7 +206,15 @@ public class BasicVoiceInteractionService extends VoiceInteractionService {
 
                         @Override
                         public void onHotwordDetectionServiceInitialized(int status) {
+                            super.onHotwordDetectionServiceInitialized(status);
+                            Log.i(TAG, "onHotwordDetectionServiceInitialized");
                             verifyHotwordDetectionServiceInitializedStatus(status);
+                        }
+
+                        @Override
+                        public void onHotwordDetectionServiceRestarted() {
+                            super.onHotwordDetectionServiceRestarted();
+                            Log.i(TAG, "onHotwordDetectionServiceRestarted");
                         }
                     });
         } catch (IllegalStateException e) {
@@ -228,7 +243,7 @@ public class BasicVoiceInteractionService extends VoiceInteractionService {
                             Log.i(TAG, "onDetected");
                             broadcastIntentWithResult(
                                     Utils.HOTWORD_DETECTION_SERVICE_ONDETECT_RESULT_INTENT,
-                                    eventPayload.getHotwordDetectedResult());
+                                    new EventPayloadParcelable(eventPayload));
                         }
 
                         @Override

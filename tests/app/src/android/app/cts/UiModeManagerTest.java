@@ -28,6 +28,7 @@ import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.os.ParcelFileDescriptor;
 import android.os.UserHandle;
+import android.platform.test.annotations.SystemUserOnly;
 import android.test.AndroidTestCase;
 import android.util.ArraySet;
 import android.util.Log;
@@ -48,6 +49,9 @@ import java.time.LocalTime;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
+
+@SystemUserOnly(reason = "UiAutomation doesn't support untrusted UID's. "
+        + "see UiAutomationConnection#throwIfCalledByNotTrustedUidLocked")
 public class UiModeManagerTest extends AndroidTestCase {
     private static final String TAG = "UiModeManagerTest";
     private static final long MAX_WAIT_TIME_SECS = 2;
@@ -659,6 +663,7 @@ public class UiModeManagerTest extends AndroidTestCase {
 
     private void applyCommand(String command) {
         final UiAutomation uiAutomation = getInstrumentation().getUiAutomation();
+        uiAutomation.adoptShellPermissionIdentity(Manifest.permission.INTERACT_ACROSS_USERS_FULL);
         try (ParcelFileDescriptor fd = uiAutomation.executeShellCommand(command)) {
             Assert.assertNotNull("Failed to execute shell command: " + command, fd);
             // Wait for the command to finish by reading until EOF

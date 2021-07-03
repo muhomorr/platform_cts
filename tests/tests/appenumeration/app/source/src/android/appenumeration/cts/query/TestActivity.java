@@ -84,6 +84,7 @@ import android.os.Process;
 import android.os.RemoteCallback;
 import android.os.UserHandle;
 import android.util.SparseArray;
+import android.view.accessibility.AccessibilityManager;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -93,6 +94,13 @@ import java.util.stream.Collectors;
 public class TestActivity extends Activity {
 
     private final static long TIMEOUT_MS = 3000;
+
+    /**
+     * Extending the timeout time of non broadcast receivers, avoid not
+     * receiving callbacks in time on some common low-end platforms and
+     * do not affect the situation that callback can be received in advance.
+     */
+    private final static long EXTENDED_TIMEOUT_MS = 5000;
 
     SparseArray<RemoteCallback> callbacks = new SparseArray<>();
 
@@ -227,7 +235,7 @@ public class TestActivity extends Activity {
             } else if (Constants.ACTION_AWAIT_LAUNCHER_APPS_CALLBACK.equals(action)) {
                 final int expectedEventCode = intent.getBundleExtra(EXTRA_DATA)
                         .getInt(EXTRA_FLAGS, CALLBACK_EVENT_INVALID);
-                awaitLauncherAppsCallback(remoteCallback, expectedEventCode, TIMEOUT_MS);
+                awaitLauncherAppsCallback(remoteCallback, expectedEventCode, EXTENDED_TIMEOUT_MS);
             } else if (Constants.ACTION_GET_SHAREDLIBRARY_DEPENDENT_PACKAGES.equals(action)) {
                 final String sharedLibName = intent.getStringExtra(Intent.EXTRA_PACKAGE_NAME);
                 sendGetSharedLibraryDependentPackages(remoteCallback, sharedLibName);
@@ -239,12 +247,25 @@ public class TestActivity extends Activity {
                         .getString(Intent.EXTRA_INSTALLER_PACKAGE_NAME);
                 sendSetInstallerPackageName(remoteCallback, targetPackageName,
                         installerPackageName);
+            } else if (Constants.ACTION_GET_INSTALLED_ACCESSIBILITYSERVICES_PACKAGES.equals(
+                    action)) {
+                sendGetInstalledAccessibilityServicePackages(remoteCallback);
             } else {
                 sendError(remoteCallback, new Exception("unknown action " + action));
             }
         } catch (Exception e) {
             sendError(remoteCallback, e);
         }
+    }
+
+    private void sendGetInstalledAccessibilityServicePackages(RemoteCallback remoteCallback) {
+        final String[] packages = getSystemService(
+                AccessibilityManager.class).getInstalledAccessibilityServiceList().stream().map(
+                p -> p.getComponentName().getPackageName()).distinct().toArray(String[]::new);
+        final Bundle result = new Bundle();
+        result.putStringArray(EXTRA_RETURN_RESULT, packages);
+        remoteCallback.sendResult(result);
+        finish();
     }
 
     private void onCommandReady(Intent intent) {

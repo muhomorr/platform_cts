@@ -27,11 +27,11 @@ import static org.junit.Assert.fail;
 
 import android.platform.test.annotations.FlakyTest;
 import android.platform.test.annotations.LargeTest;
+import android.platform.test.annotations.SecurityTest;
 import android.stats.devicepolicy.EventId;
 
 import com.android.compatibility.common.tradefed.build.CompatibilityBuildHelper;
 import com.android.cts.devicepolicy.DeviceAdminFeaturesCheckerRule.RequiresAdditionalFeatures;
-import com.android.cts.devicepolicy.DeviceAdminFeaturesCheckerRule.TemporaryIgnoreOnHeadlessSystemUserMode;
 import com.android.cts.devicepolicy.metrics.DevicePolicyEventWrapper;
 import com.android.tradefed.log.LogUtil.CLog;
 
@@ -529,10 +529,35 @@ public class DeviceOwnerTest extends BaseDeviceOwnerTest {
 
     @FlakyTest(bugId = 137096267)
     @Test
-    @TemporaryIgnoreOnHeadlessSystemUserMode(bugId = "132361856", reason = "3 failures such as "
-            + "missing activity handling bugreport intent")
     public void testAdminActionBookkeeping() throws Exception {
-        executeDeviceOwnerTest("AdminActionBookkeepingTest");
+        if (isHeadlessSystemUserMode()) {
+            // TODO(b/176993670):ALLOW_TEST_API_ACCESS is needed by DevicePolicyManagerWrapper to
+            // access test apis
+            allowTestApiAccess(DEVICE_OWNER_PKG);
+            // This test has to run as system user since the test will get KeyStore instance for
+            // current user.
+            executeDeviceOwnerTestMethod(".AdminActionBookkeepingTest",
+                    "testGetPolicyInstalledCaCerts");
+        } else {
+            // This test will be skipped for headless system user mode since headless system user
+            // does not have IME.
+            executeDeviceTestMethod(".AdminActionBookkeepingTest",
+                    "testIsDefaultInputMethodSet");
+            executeDeviceTestMethod(".AdminActionBookkeepingTest",
+                    "testGetPolicyInstalledCaCerts");
+        }
+
+        executeDeviceTestMethod(".AdminActionBookkeepingTest",
+                "testRetrieveSecurityLogs");
+        executeDeviceTestMethod(".AdminActionBookkeepingTest",
+                "testRequestBugreport");
+        executeDeviceTestMethod(".AdminActionBookkeepingTest",
+                "testGetLastNetworkLogRetrievalTime");
+        executeDeviceTestMethod(".AdminActionBookkeepingTest",
+                "testDeviceOwnerOrganizationName");
+        executeDeviceTestMethod(".AdminActionBookkeepingTest",
+                "testIsDeviceManaged");
+
         assertMetricsLogged(getDevice(), () -> {
             executeDeviceTestMethod(".AdminActionBookkeepingTest", "testRetrieveSecurityLogs");
         }, new DevicePolicyEventWrapper.Builder(EventId.RETRIEVE_SECURITY_LOGS_VALUE)
@@ -548,8 +573,6 @@ public class DeviceOwnerTest extends BaseDeviceOwnerTest {
                 .build());
     }
 
-    @TemporaryIgnoreOnHeadlessSystemUserMode(bugId = "132360087",
-            reason = "need more investigation / decide how to support it")
     @Test
     public void testBluetoothRestriction() throws Exception {
         executeDeviceOwnerTest("BluetoothRestrictionTest");
@@ -611,6 +634,7 @@ public class DeviceOwnerTest extends BaseDeviceOwnerTest {
     }
 
     @Test
+    @SecurityTest(minPatchLevel = "2021-04")
     public void testDeviceOwnerCanGetDeviceIdentifiers() throws Exception {
         // The Device Owner should have access to all device identifiers.
 
@@ -760,7 +784,6 @@ public class DeviceOwnerTest extends BaseDeviceOwnerTest {
                     .build());
     }
 
-    @TemporaryIgnoreOnHeadlessSystemUserMode(bugId = "185486201", reason = "need to change DPMS")
     @Test
     public void testDefaultSmsApplication() throws Exception {
         assumeHasTelephonyFeature();

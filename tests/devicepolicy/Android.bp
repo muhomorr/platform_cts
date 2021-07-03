@@ -22,6 +22,7 @@ android_test {
     static_libs: [
         "compatibility-device-util-axt",
         "ctstestrunner-axt",
+        "cts-net-utils",
         "truth-prebuilt",
         "androidx.test.ext.junit",
         "testng", // used for assertThrows
@@ -31,7 +32,9 @@ android_test {
         "ActivityContext",
         "Harrier",
         "DeviceAdminApp",
-        "TestApp"
+        "TestApp",
+        "MetricsRecorder",
+        "statsdprotolite"
     ],
     srcs: ["src/**/*.java"],
     test_suites: [
