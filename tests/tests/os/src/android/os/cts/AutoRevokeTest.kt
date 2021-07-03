@@ -31,7 +31,6 @@ import android.os.Build
 import android.platform.test.annotations.AppModeFull
 import android.support.test.uiautomator.By
 import android.support.test.uiautomator.BySelector
-import android.support.test.uiautomator.UiDevice
 import android.support.test.uiautomator.UiObject2
 import android.support.test.uiautomator.UiObjectNotFoundException
 import android.view.accessibility.AccessibilityNodeInfo
@@ -84,7 +83,6 @@ class AutoRevokeTest {
 
     private val context: Context = InstrumentationRegistry.getTargetContext()
     private val instrumentation: Instrumentation = InstrumentationRegistry.getInstrumentation()
-    private val uiDevice: UiDevice = UiDevice.getInstance(instrumentation)
 
     private val mPermissionControllerResources: Resources = context.createPackageContext(
             context.packageManager.permissionControllerPackageName, 0).resources
@@ -194,12 +192,15 @@ class AutoRevokeTest {
     @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S, codeName = "S")
     @Test
     fun testUnusedApp_doesntGetSplitPermissionRevoked() {
+        assumeFalse(
+            "Auto doesn't support hibernation for pre-S apps",
+            isAutomotiveDevice())
         withUnusedThresholdMs(3L) {
             withDummyApp(APK_PATH_R_APP, APK_PACKAGE_NAME_R_APP) {
                 // Setup
-                startApp()
+                startApp(APK_PACKAGE_NAME_R_APP)
                 assertPermission(PERMISSION_GRANTED, APK_PACKAGE_NAME_R_APP, BLUETOOTH_CONNECT)
-                killDummyApp()
+                killDummyApp(APK_PACKAGE_NAME_R_APP)
                 Thread.sleep(500)
 
                 // Run
@@ -310,10 +311,7 @@ class AutoRevokeTest {
                 // Setup
                 goToPermissions()
                 click("Calendar")
-                // Wear OS uses a switch and does not display a dialog
-                if (!hasFeatureWatch()) {
-                    click("Allow")
-                }
+                click("Allow")
                 goBack()
                 goBack()
                 goBack()
@@ -390,19 +388,6 @@ class AutoRevokeTest {
         startApp()
         clickPermissionAllow()
         assertPermission(PERMISSION_GRANTED)
-    }
-
-    private fun openUnusedAppsNotification() {
-        if (hasFeatureWatch()) {
-            expandNotificationsWatch()
-        } else {
-            runShellCommandOrThrow("cmd statusbar expand-notifications")
-        }
-        waitFindObject(By.textContains("unused app")).click()
-        if (hasFeatureWatch()) {
-            // In wear os, notification has one additional button to open it
-            waitFindObject(By.text("Open")).click()
-        }
     }
 
     private fun goBack() {
@@ -500,19 +485,6 @@ class AutoRevokeTest {
         waitForIdle()
     }
 
-    private fun hasFeatureWatch(): Boolean {
-        return context.packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH)
-    }
-
-    private fun expandNotificationsWatch() {
-        with(uiDevice) {
-            wakeUp()
-            // Swipe up from bottom to reveal notifications
-            val x = displayWidth / 2
-            swipe(x, displayHeight, x, 0, 1)
-        }
-    }
-
     private fun assertAllowlistState(state: Boolean) {
         assertThat(
             waitFindObject(By.textStartsWith("Auto-revoke allowlisted: ")).text,
@@ -523,7 +495,7 @@ class AutoRevokeTest {
         waitForIdle()
         val parent = waitFindObject(
             By.clickable(true)
-                .hasDescendant(By.text("Remove permissions if app isn’t used"))
+                .hasDescendant(By.textStartsWith("Remove permissions"))
                 .hasDescendant(By.clazz(Switch::class.java.name))
         )
         return parent.findObject(By.clazz(Switch::class.java.name))

@@ -24,10 +24,12 @@ import android.media.MediaCodecInfo.CodecProfileLevel;
 import android.media.MediaCodecList;
 import android.media.MediaExtractor;
 import android.media.MediaFormat;
+import android.os.Build;
 import android.platform.test.annotations.AppModeFull;
 import android.util.Log;
 import android.view.Surface;
 
+import com.android.compatibility.common.util.ApiLevelUtil;
 import com.android.compatibility.common.util.MediaUtils;
 
 import android.opengl.GLES20;
@@ -50,6 +52,8 @@ public class AdaptivePlaybackTest extends MediaPlayerTestBase {
     private static final String TAG = "AdaptivePlaybackTest";
     private boolean verify = false;
     private static final int MIN_FRAMES_BEFORE_DRC = 2;
+
+    private static boolean sIsAtLeastS = ApiLevelUtil.isAtLeast(Build.VERSION_CODES.S);
 
     public Iterable<Codec> H264(CodecFactory factory) {
         return factory.createCodecList(
@@ -470,7 +474,10 @@ public class AdaptivePlaybackTest extends MediaPlayerTestBase {
                             mDecoder.flush();
                             // First run will trigger output format change exactly once,
                             // and subsequent runs should not trigger format change.
-                            assertEquals(1, mDecoder.getOutputFormatChangeCount());
+                            // this part of test is new for Android12
+                            if (sIsAtLeastS) {
+                                assertEquals(1, mDecoder.getOutputFormatChangeCount());
+                            }
                         }
                     });
                 if (verify) {
@@ -1058,9 +1065,12 @@ public class AdaptivePlaybackTest extends MediaPlayerTestBase {
                 // Previous dequeue was output format change; format change must
                 // correspond to a new sequence, so it must happen right before
                 // the first frame of one of the sequences.
-                assertTrue("cannot find formatchange " + info.presentationTimeUs +
+                // this part of test is new for Android12
+                if (sIsAtLeastS) {
+                    assertTrue("Codec " + getName() + " cannot find formatchange " + info.presentationTimeUs +
                         " in " + mFirstQueueTimestamps,
                         mFirstQueueTimestamps.remove(info.presentationTimeUs));
+                }
                 mOutputFormatChanged = false;
             }
 

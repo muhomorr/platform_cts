@@ -18,12 +18,11 @@ package android.app.appsearch.cts.app;
 
 import static com.google.common.truth.Truth.assertThat;
 
-import static org.testng.Assert.expectThrows;
+import static org.junit.Assert.assertThrows;
 
 import android.app.appsearch.AppSearchSchema;
 import android.app.appsearch.AppSearchSchema.PropertyConfig;
 import android.app.appsearch.AppSearchSchema.StringPropertyConfig;
-import android.app.appsearch.exceptions.IllegalSchemaException;
 
 import com.android.server.appsearch.testing.AppSearchEmail;
 
@@ -35,7 +34,7 @@ public class AppSearchSchemaCtsTest {
     @Test
     public void testInvalidEnums() {
         StringPropertyConfig.Builder builder = new StringPropertyConfig.Builder("test");
-        expectThrows(IllegalArgumentException.class, () -> builder.setCardinality(99));
+        assertThrows(IllegalArgumentException.class, () -> builder.setCardinality(99));
     }
 
     @Test
@@ -57,9 +56,9 @@ public class AppSearchSchemaCtsTest {
                                                 StringPropertyConfig.INDEXING_TYPE_PREFIXES)
                                         .setTokenizerType(StringPropertyConfig.TOKENIZER_TYPE_PLAIN)
                                         .build());
-        IllegalSchemaException e =
-                expectThrows(
-                        IllegalSchemaException.class,
+        IllegalArgumentException e =
+                assertThrows(
+                        IllegalArgumentException.class,
                         () ->
                                 builder.addProperty(
                                         new StringPropertyConfig.Builder("subject")
@@ -278,10 +277,10 @@ public class AppSearchSchemaCtsTest {
 
         // Setting an indexing type other NONE with the default tokenizer type (NONE) should fail.
         builder.setIndexingType(StringPropertyConfig.INDEXING_TYPE_EXACT_TERMS);
-        expectThrows(IllegalStateException.class, () -> builder.build());
+        assertThrows(IllegalStateException.class, () -> builder.build());
 
         builder.setIndexingType(StringPropertyConfig.INDEXING_TYPE_PREFIXES);
-        expectThrows(IllegalStateException.class, () -> builder.build());
+        assertThrows(IllegalStateException.class, () -> builder.build());
 
         // Explicitly setting the default should work fine.
         builder.setIndexingType(StringPropertyConfig.INDEXING_TYPE_NONE);
@@ -290,10 +289,10 @@ public class AppSearchSchemaCtsTest {
         // Explicitly setting the default tokenizer type should result in the same behavior.
         builder.setTokenizerType(StringPropertyConfig.TOKENIZER_TYPE_NONE)
                 .setIndexingType(StringPropertyConfig.INDEXING_TYPE_EXACT_TERMS);
-        expectThrows(IllegalStateException.class, () -> builder.build());
+        assertThrows(IllegalStateException.class, () -> builder.build());
 
         builder.setIndexingType(StringPropertyConfig.INDEXING_TYPE_PREFIXES);
-        expectThrows(IllegalStateException.class, () -> builder.build());
+        assertThrows(IllegalStateException.class, () -> builder.build());
 
         builder.setIndexingType(StringPropertyConfig.INDEXING_TYPE_NONE);
         assertThat(builder.build()).isNotNull();
@@ -306,10 +305,10 @@ public class AppSearchSchemaCtsTest {
         final StringPropertyConfig.Builder builder =
                 new StringPropertyConfig.Builder("property")
                         .setTokenizerType(StringPropertyConfig.TOKENIZER_TYPE_PLAIN);
-        expectThrows(IllegalStateException.class, () -> builder.build());
+        assertThrows(IllegalStateException.class, () -> builder.build());
 
         builder.setIndexingType(StringPropertyConfig.INDEXING_TYPE_NONE);
-        expectThrows(IllegalStateException.class, () -> builder.build());
+        assertThrows(IllegalStateException.class, () -> builder.build());
 
         // Setting indexing type to be something other than NONE with tokenizer type PLAIN should
         // be just fine.
@@ -318,5 +317,113 @@ public class AppSearchSchemaCtsTest {
 
         builder.setIndexingType(StringPropertyConfig.INDEXING_TYPE_PREFIXES);
         assertThat(builder.build()).isNotNull();
+    }
+
+    @Test
+    public void testAppSearchSchema_toString() {
+        AppSearchSchema schema =
+                new AppSearchSchema.Builder("testSchema")
+                        .addProperty(
+                                new StringPropertyConfig.Builder("string1")
+                                        .setCardinality(PropertyConfig.CARDINALITY_REQUIRED)
+                                        .setIndexingType(StringPropertyConfig.INDEXING_TYPE_NONE)
+                                        .setTokenizerType(StringPropertyConfig.TOKENIZER_TYPE_NONE)
+                                        .build())
+                        .addProperty(
+                                new StringPropertyConfig.Builder("string2")
+                                        .setCardinality(PropertyConfig.CARDINALITY_REQUIRED)
+                                        .setIndexingType(
+                                                StringPropertyConfig.INDEXING_TYPE_EXACT_TERMS)
+                                        .setTokenizerType(StringPropertyConfig.TOKENIZER_TYPE_PLAIN)
+                                        .build())
+                        .addProperty(
+                                new StringPropertyConfig.Builder("string3")
+                                        .setCardinality(PropertyConfig.CARDINALITY_REQUIRED)
+                                        .setIndexingType(
+                                                StringPropertyConfig.INDEXING_TYPE_PREFIXES)
+                                        .setTokenizerType(StringPropertyConfig.TOKENIZER_TYPE_PLAIN)
+                                        .build())
+                        .addProperty(
+                                new AppSearchSchema.LongPropertyConfig.Builder("long")
+                                        .setCardinality(PropertyConfig.CARDINALITY_OPTIONAL)
+                                        .build())
+                        .addProperty(
+                                new AppSearchSchema.DoublePropertyConfig.Builder("double")
+                                        .setCardinality(PropertyConfig.CARDINALITY_REPEATED)
+                                        .build())
+                        .addProperty(
+                                new AppSearchSchema.BooleanPropertyConfig.Builder("boolean")
+                                        .setCardinality(PropertyConfig.CARDINALITY_REQUIRED)
+                                        .build())
+                        .addProperty(
+                                new AppSearchSchema.BytesPropertyConfig.Builder("bytes")
+                                        .setCardinality(PropertyConfig.CARDINALITY_OPTIONAL)
+                                        .build())
+                        .addProperty(
+                                new AppSearchSchema.DocumentPropertyConfig.Builder(
+                                                "document", AppSearchEmail.SCHEMA_TYPE)
+                                        .setCardinality(PropertyConfig.CARDINALITY_REPEATED)
+                                        .setShouldIndexNestedProperties(true)
+                                        .build())
+                        .build();
+
+        String schemaString = schema.toString();
+
+        String expectedString =
+                "{\n"
+                        + "  schemaType: \"testSchema\",\n"
+                        + "  properties: [\n"
+                        + "    {\n"
+                        + "      name: \"boolean\",\n"
+                        + "      cardinality: CARDINALITY_REQUIRED,\n"
+                        + "      dataType: DATA_TYPE_BOOLEAN,\n"
+                        + "    },\n"
+                        + "    {\n"
+                        + "      name: \"bytes\",\n"
+                        + "      cardinality: CARDINALITY_OPTIONAL,\n"
+                        + "      dataType: DATA_TYPE_BYTES,\n"
+                        + "    },\n"
+                        + "    {\n"
+                        + "      name: \"document\",\n"
+                        + "      shouldIndexNestedProperties: true,\n"
+                        + "      schemaType: \"builtin:Email\",\n"
+                        + "      cardinality: CARDINALITY_REPEATED,\n"
+                        + "      dataType: DATA_TYPE_DOCUMENT,\n"
+                        + "    },\n"
+                        + "    {\n"
+                        + "      name: \"double\",\n"
+                        + "      cardinality: CARDINALITY_REPEATED,\n"
+                        + "      dataType: DATA_TYPE_DOUBLE,\n"
+                        + "    },\n"
+                        + "    {\n"
+                        + "      name: \"long\",\n"
+                        + "      cardinality: CARDINALITY_OPTIONAL,\n"
+                        + "      dataType: DATA_TYPE_LONG,\n"
+                        + "    },\n"
+                        + "    {\n"
+                        + "      name: \"string1\",\n"
+                        + "      indexingType: INDEXING_TYPE_NONE,\n"
+                        + "      tokenizerType: TOKENIZER_TYPE_NONE,\n"
+                        + "      cardinality: CARDINALITY_REQUIRED,\n"
+                        + "      dataType: DATA_TYPE_STRING,\n"
+                        + "    },\n"
+                        + "    {\n"
+                        + "      name: \"string2\",\n"
+                        + "      indexingType: INDEXING_TYPE_EXACT_TERMS,\n"
+                        + "      tokenizerType: TOKENIZER_TYPE_PLAIN,\n"
+                        + "      cardinality: CARDINALITY_REQUIRED,\n"
+                        + "      dataType: DATA_TYPE_STRING,\n"
+                        + "    },\n"
+                        + "    {\n"
+                        + "      name: \"string3\",\n"
+                        + "      indexingType: INDEXING_TYPE_PREFIXES,\n"
+                        + "      tokenizerType: TOKENIZER_TYPE_PLAIN,\n"
+                        + "      cardinality: CARDINALITY_REQUIRED,\n"
+                        + "      dataType: DATA_TYPE_STRING,\n"
+                        + "    }\n"
+                        + "  ]\n"
+                        + "}";
+
+        assertThat(schemaString).isEqualTo(expectedString);
     }
 }
