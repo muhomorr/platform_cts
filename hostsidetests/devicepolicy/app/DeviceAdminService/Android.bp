@@ -12,6 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+package {
+    default_applicable_licenses: ["Android-Apache-2.0"],
+}
+
 android_test_helper_app {
     name: "CtsDeviceAdminService1",
     defaults: ["cts_defaults"],
@@ -21,14 +25,13 @@ android_test_helper_app {
         "ctstestrunner-axt",
         "compatibility-device-util-axt",
     ],
-    libs: ["android.test.base.stubs"],
+    libs: ["android.test.base"],
     sdk_version: "test_current",
     // tag this module as a cts test artifact
     test_suites: [
         "cts",
-        "vts10",
         "general-tests",
-        "mts-permission",
+        "mts",
     ],
     manifest: "package1/AndroidManifest.xml",
 }
@@ -42,14 +45,13 @@ android_test_helper_app {
         "ctstestrunner-axt",
         "compatibility-device-util-axt",
     ],
-    libs: ["android.test.base.stubs"],
+    libs: ["android.test.base"],
     sdk_version: "test_current",
     // tag this module as a cts test artifact
     test_suites: [
         "cts",
-        "vts10",
         "general-tests",
-        "mts-permission",
+        "mts",
     ],
     manifest: "package2/AndroidManifest.xml",
 }
@@ -63,14 +65,13 @@ android_test_helper_app {
         "ctstestrunner-axt",
         "compatibility-device-util-axt",
     ],
-    libs: ["android.test.base.stubs"],
+    libs: ["android.test.base"],
     sdk_version: "test_current",
     // tag this module as a cts test artifact
     test_suites: [
         "cts",
-        "vts10",
         "general-tests",
-        "mts-permission",
+        "mts",
     ],
     manifest: "package3/AndroidManifest.xml",
 }
@@ -84,14 +85,13 @@ android_test_helper_app {
         "ctstestrunner-axt",
         "compatibility-device-util-axt",
     ],
-    libs: ["android.test.base.stubs"],
+    libs: ["android.test.base"],
     sdk_version: "test_current",
     // tag this module as a cts test artifact
     test_suites: [
         "cts",
-        "vts10",
         "general-tests",
-        "mts-permission",
+        "mts",
     ],
     manifest: "package4/AndroidManifest.xml",
 }
@@ -105,14 +105,13 @@ android_test_helper_app {
         "ctstestrunner-axt",
         "compatibility-device-util-axt",
     ],
-    libs: ["android.test.base.stubs"],
+    libs: ["android.test.base"],
     sdk_version: "test_current",
     // tag this module as a cts test artifact
     test_suites: [
         "cts",
-        "vts10",
         "general-tests",
-        "mts-permission",
+        "mts",
     ],
     manifest: "packageb/AndroidManifest.xml",
 }

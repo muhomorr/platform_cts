@@ -42,6 +42,7 @@ import android.os.IInterface;
 import android.os.Parcel;
 import android.os.ParcelFileDescriptor;
 import android.os.Parcelable;
+import android.platform.test.annotations.SecurityTest;
 import android.test.AndroidTestCase;
 import android.util.Log;
 import android.util.SparseArray;
@@ -126,7 +127,7 @@ public class ParcelTest extends AndroidTestCase {
         int dC1 = p.dataCapacity();
         p.writeDouble(2.19);
         int dC2 = p.dataCapacity();
-        assertTrue(dC2 > dC1);
+        assertTrue(dC2 >= dC1);
         p.recycle();
     }
 
@@ -3441,6 +3442,7 @@ public class ParcelTest extends AndroidTestCase {
         assertNotNull("Service should have started without crashing.", connection.get());
     }
 
+    @SecurityTest(minPatchLevel="2020-02")
     public void testObjectResize() throws Exception {
         Parcel p;
         IBinder b1 = new Binder();
