@@ -12,20 +12,38 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Build the unit tests.
+
 package {
+    // See: http://go/android-license-faq
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
-android_test {
-    name: "CtsLibcoreLegacy22TestCases",
-    defaults: ["cts_defaults"],
-    static_libs: ["ctstestrunner-axt"],
-    srcs: ["src/**/*.java"],
-    sdk_version: "22",
+cc_test {
+    name: "CtsNativeMediaXaTestCases",
+    compile_multilib: "both",
+    multilib: {
+        lib32: {
+            suffix: "32",
+        },
+        lib64: {
+            suffix: "64",
+        },
+    },
+    include_dirs: [
+        "frameworks/wilhelm/include",
+        "frameworks/wilhelm/src/ut",
+    ],
+    srcs: ["src/XAObjectCreationTest.cpp"],
+    shared_libs: [
+        "libutils",
+        "liblog",
+        "libOpenMAXAL",
+    ],
+    static_libs: ["libgtest"],
     // Tag this module as a cts test artifact
     test_suites: [
         "cts",
         "general-tests",
-        "mts",
     ],
 }
