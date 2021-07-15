@@ -23,6 +23,7 @@ import org.junit.runner.RunWith;
 
 @RunWith(DeviceJUnit4ClassRunner.class)
 public class CVE_2019_2039 extends SecurityTestCase {
+
     /**
      * b/121260197
      * Vulnerability Behaviour: SIGSEGV in self
