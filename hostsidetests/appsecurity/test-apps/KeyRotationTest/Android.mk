@@ -20,6 +20,8 @@ cert_dir := cts/hostsidetests/appsecurity/certs/pkgsigverify
 
 include $(CLEAR_VARS)
 LOCAL_MODULE := cts_signature_query_service
+LOCAL_LICENSE_KINDS := SPDX-license-identifier-Apache-2.0
+LOCAL_LICENSE_CONDITIONS := notice
 LOCAL_SRC_FILES := $(call all-java-files-under, src)
 LOCAL_SRC_FILES += $(call all-Iaidl-files-under, src)
 LOCAL_SDK_VERSION := current
@@ -32,8 +34,10 @@ include $(CLEAR_VARS)
 LOCAL_PACKAGE_NAME := CtsSignatureQueryService
 LOCAL_SDK_VERSION := current
 LOCAL_STATIC_JAVA_LIBRARIES := cts_signature_query_service
-LOCAL_COMPATIBILITY_SUITE := cts vts10 general-tests
+LOCAL_COMPATIBILITY_SUITE := cts general-tests
 LOCAL_CERTIFICATE := $(cert_dir)/ec-p256
+LOCAL_LICENSE_KINDS := SPDX-license-identifier-Apache-2.0
+LOCAL_LICENSE_CONDITIONS := notice
 include $(BUILD_CTS_SUPPORT_PACKAGE)
 
 # This is the second version of the test app signed with the rotated signing
@@ -44,10 +48,12 @@ LOCAL_PACKAGE_NAME := CtsSignatureQueryService_v2
 LOCAL_MANIFEST_FILE = AndroidManifest_v2.xml
 LOCAL_SDK_VERSION := current
 LOCAL_STATIC_JAVA_LIBRARIES := cts_signature_query_service
-LOCAL_COMPATIBILITY_SUITE := cts vts10 general-tests
+LOCAL_COMPATIBILITY_SUITE := cts general-tests
 LOCAL_CERTIFICATE := $(cert_dir)/ec-p256_2
 LOCAL_ADDITIONAL_CERTIFICATES := $(cert_dir)/ec-p256
 LOCAL_CERTIFICATE_LINEAGE := $(cert_dir)/ec-p256-por_1_2-default-caps
+LOCAL_LICENSE_KINDS := SPDX-license-identifier-Apache-2.0
+LOCAL_LICENSE_CONDITIONS := notice
 include $(BUILD_CTS_SUPPORT_PACKAGE)
 
 # This is the third version of the test app signed with the same rotated
@@ -58,12 +64,13 @@ LOCAL_PACKAGE_NAME := CtsSignatureQueryService_v3
 LOCAL_MANIFEST_FILE = AndroidManifest_v3.xml
 LOCAL_SDK_VERSION := current
 LOCAL_STATIC_JAVA_LIBRARIES := cts_signature_query_service
-LOCAL_COMPATIBILITY_SUITE := cts vts10 general-tests
+LOCAL_COMPATIBILITY_SUITE := cts general-tests
 LOCAL_CERTIFICATE := $(cert_dir)/ec-p256_2
 LOCAL_ADDITIONAL_CERTIFICATES := $(cert_dir)/ec-p256
 LOCAL_CERTIFICATE_LINEAGE := $(cert_dir)/ec-p256-por_1_2-default-caps
+LOCAL_LICENSE_KINDS := SPDX-license-identifier-Apache-2.0
+LOCAL_LICENSE_CONDITIONS := notice
 include $(BUILD_CTS_SUPPORT_PACKAGE)
 
 cert_dir :=
 include $(call all-makefiles-under,$(LOCAL_PATH))
-
