@@ -35,6 +35,7 @@ import org.junit.Assume.assumeNoException
 import org.junit.Before
 import org.junit.Test
 
+@AppModeFull
 class StorageEscalationTest {
     companion object {
         private const val APK_DIRECTORY = "/data/local/tmp/cts/permissions"

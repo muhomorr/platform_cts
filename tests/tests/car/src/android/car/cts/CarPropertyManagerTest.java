@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package android.car.cts;
 
 import static com.google.common.truth.Truth.assertThat;
@@ -23,11 +24,14 @@ import static org.testng.Assert.assertThrows;
 import android.car.Car;
 import android.car.VehicleAreaSeat;
 import android.car.VehicleAreaType;
+import android.car.VehicleAreaWheel;
 import android.car.VehiclePropertyIds;
+import android.car.cts.utils.VehiclePropertyVerifier;
 import android.car.hardware.CarPropertyConfig;
 import android.car.hardware.CarPropertyValue;
 import android.car.hardware.property.CarPropertyManager;
 import android.car.hardware.property.CarPropertyManager.CarPropertyEventCallback;
+import android.platform.test.annotations.AppModeFull;
 import android.platform.test.annotations.RequiresDevice;
 import android.test.suitebuilder.annotation.SmallTest;
 import android.util.ArraySet;
@@ -51,84 +55,62 @@ import java.util.concurrent.TimeUnit;
 @SmallTest
 @RequiresDevice
 @RunWith(AndroidJUnit4.class)
+@AppModeFull(reason = "Instant apps cannot get car related permissions.")
 public class CarPropertyManagerTest extends CarApiTestBase {
 
-    private static final String TAG = CarPropertyManagerTest.class.getSimpleName();
     private static final long WAIT_CALLBACK = 1500L;
     private static final int NO_EVENTS = 0;
     private static final int ONCHANGE_RATE_EVENT_COUNTER = 1;
     private static final int UI_RATE_EVENT_COUNTER = 5;
     private static final int FAST_OR_FASTEST_EVENT_COUNTER = 10;
+    /** contains property Ids for the properties required by CDD */
+    private final ArraySet<Integer> mPropertyIds = new ArraySet<>();
     private CarPropertyManager mCarPropertyManager;
-    /** contains property Ids for the properties required by CDD*/
-    private ArraySet<Integer> mPropertyIds = new ArraySet<>();
 
-
-    private static class CarPropertyEventCounter implements CarPropertyEventCallback {
-        private final Object mLock = new Object();
-        private int mCounter = FAST_OR_FASTEST_EVENT_COUNTER;
-        private CountDownLatch mCountDownLatch = new CountDownLatch(mCounter);
-
-        @GuardedBy("mLock")
-        private SparseArray<Integer> mEventCounter = new SparseArray<>();
-
-        @GuardedBy("mLock")
-        private SparseArray<Integer> mErrorCounter = new SparseArray<>();
-
-        public int receivedEvent(int propId) {
-            int val;
-            synchronized (mLock) {
-                val = mEventCounter.get(propId, 0);
-            }
-            return val;
+    private static void verifyWheelTickConfigArray(int supportedWheels, int wheelToVerify,
+            int configArrayIndex, int wheelTicksToUm) {
+        if ((supportedWheels & wheelToVerify) != 0) {
+            assertWithMessage(
+                    "WHEEL_TICK configArray[" + configArrayIndex
+                            + "] must specify the ticks to micrometers for " + wheelToString(
+                            wheelToVerify))
+                    .that(wheelTicksToUm)
+                    .isGreaterThan(0);
+        } else {
+            assertWithMessage(
+                    "WHEEL_TICK configArray[" + configArrayIndex + "] should be zero since "
+                            + wheelToString(wheelToVerify)
+                            + "is not supported")
+                    .that(wheelTicksToUm)
+                    .isEqualTo(0);
         }
+    }
 
-        public int receivedError(int propId) {
-            int val;
-            synchronized (mLock) {
-                val = mErrorCounter.get(propId, 0);
-            }
-            return val;
+    private static void verifyWheelTickValue(int supportedWheels, int wheelToVerify,
+            int valueIndex, Long ticks) {
+        if ((supportedWheels & wheelToVerify) == 0) {
+            assertWithMessage(
+                    "WHEEL_TICK value[" + valueIndex + "] should be zero since "
+                            + wheelToString(wheelToVerify)
+                            + "is not supported")
+                    .that(ticks)
+                    .isEqualTo(0);
         }
+    }
 
-        @Override
-        public void onChangeEvent(CarPropertyValue value) {
-            synchronized (mLock) {
-                int val = mEventCounter.get(value.getPropertyId(), 0) + 1;
-                mEventCounter.put(value.getPropertyId(), val);
-            }
-            mCountDownLatch.countDown();
+    private static String wheelToString(int wheel) {
+        switch (wheel) {
+            case VehicleAreaWheel.WHEEL_LEFT_FRONT:
+                return "WHEEL_LEFT_FRONT";
+            case VehicleAreaWheel.WHEEL_RIGHT_FRONT:
+                return "WHEEL_RIGHT_FRONT";
+            case VehicleAreaWheel.WHEEL_RIGHT_REAR:
+                return "WHEEL_RIGHT_REAR";
+            case VehicleAreaWheel.WHEEL_LEFT_REAR:
+                return "WHEEL_LEFT_REAR";
+            default:
+                return Integer.toString(wheel);
         }
-
-        @Override
-        public void onErrorEvent(int propId, int zone) {
-            synchronized (mLock) {
-                int val = mErrorCounter.get(propId, 0) + 1;
-                mErrorCounter.put(propId, val);
-            }
-        }
-
-        public void resetCountDownLatch(int counter) {
-            mCountDownLatch = new CountDownLatch(counter);
-            mCounter = counter;
-        }
-
-        public void assertOnChangeEventCalled() throws InterruptedException {
-            if (!mCountDownLatch.await(WAIT_CALLBACK, TimeUnit.MILLISECONDS)) {
-                throw new IllegalStateException("Callback is not called:" + mCounter + "times in "
-                        + WAIT_CALLBACK + " ms.");
-            }
-        }
-
-        public void assertOnChangeEventNotCalled() throws InterruptedException {
-            // Once get an event, fail the test.
-            mCountDownLatch = new CountDownLatch(1);
-            if (mCountDownLatch.await(WAIT_CALLBACK, TimeUnit.MILLISECONDS)) {
-                throw new IllegalStateException("Callback is called in "
-                        + WAIT_CALLBACK + " ms.");
-            }
-        }
-
     }
 
     @Before
@@ -196,36 +178,110 @@ public class CarPropertyManagerTest extends CarApiTestBase {
         }
     }
 
-    @CddTest(requirement="2.5.1")
+    @CddTest(requirement = "2.5.1")
     @Test
-    public void testMustSupportGearSelection() throws Exception {
-        assertWithMessage("Must support GEAR_SELECTION")
-                .that(mCarPropertyManager.getCarPropertyConfig(VehiclePropertyIds.GEAR_SELECTION))
-                .isNotNull();
-    }
-
-    @CddTest(requirement="2.5.1")
-    @Test
-    public void testMustSupportNightMode() {
-        assertWithMessage("Must support NIGHT_MODE")
-                .that(mCarPropertyManager.getCarPropertyConfig(VehiclePropertyIds.NIGHT_MODE))
-                .isNotNull();
-    }
-
-    @CddTest(requirement="2.5.1")
-    @Test
-    public void testMustSupportPerfVehicleSpeed() throws Exception {
-        assertWithMessage("Must support PERF_VEHICLE_SPEED")
-                .that(mCarPropertyManager.getCarPropertyConfig(
-                        VehiclePropertyIds.PERF_VEHICLE_SPEED)).isNotNull();
+    public void testMustSupportGearSelection() {
+        VehiclePropertyVerifier.newBuilder(VehiclePropertyIds.GEAR_SELECTION,
+                CarPropertyConfig.VEHICLE_PROPERTY_ACCESS_READ,
+                VehicleAreaType.VEHICLE_AREA_TYPE_GLOBAL,
+                CarPropertyConfig.VEHICLE_PROPERTY_CHANGE_MODE_ONCHANGE,
+                Integer.class).requireProperty().setConfigArrayVerifier(
+                configArray -> assertWithMessage(
+                        "GEAR_SELECTION config array must specify supported gears")
+                        .that(configArray.size())
+                        .isGreaterThan(0)).setCarPropertyValueVerifier(
+                (carPropertyConfig, carPropertyValue) -> assertWithMessage(
+                        "GEAR_SELECTION Integer value must be listed as supported gear in "
+                                + "configArray")
+                        .that(carPropertyConfig.getConfigArray().contains(
+                                carPropertyValue.getValue())).isTrue())
+                .build().verify(mCarPropertyManager);
     }
 
     @CddTest(requirement = "2.5.1")
     @Test
-    public void testMustSupportParkingBrakeOn() throws Exception {
-        assertWithMessage("Must support PARKING_BRAKE_ON")
-                .that(mCarPropertyManager.getCarPropertyConfig(VehiclePropertyIds.PARKING_BRAKE_ON))
-                .isNotNull();
+    public void testMustSupportNightMode() {
+        VehiclePropertyVerifier.newBuilder(VehiclePropertyIds.NIGHT_MODE,
+                CarPropertyConfig.VEHICLE_PROPERTY_ACCESS_READ,
+                VehicleAreaType.VEHICLE_AREA_TYPE_GLOBAL,
+                CarPropertyConfig.VEHICLE_PROPERTY_CHANGE_MODE_ONCHANGE,
+                Boolean.class).requireProperty().build().verify(mCarPropertyManager);
+    }
+
+    @CddTest(requirement = "2.5.1")
+    @Test
+    public void testMustSupportPerfVehicleSpeed() {
+        VehiclePropertyVerifier.newBuilder(VehiclePropertyIds.PERF_VEHICLE_SPEED,
+                CarPropertyConfig.VEHICLE_PROPERTY_ACCESS_READ,
+                VehicleAreaType.VEHICLE_AREA_TYPE_GLOBAL,
+                CarPropertyConfig.VEHICLE_PROPERTY_CHANGE_MODE_CONTINUOUS,
+                Float.class).requireProperty().build().verify(mCarPropertyManager);
+    }
+
+    @CddTest(requirement = "2.5.1")
+    @Test
+    public void testMustSupportParkingBrakeOn() {
+        VehiclePropertyVerifier.newBuilder(VehiclePropertyIds.PARKING_BRAKE_ON,
+                CarPropertyConfig.VEHICLE_PROPERTY_ACCESS_READ,
+                VehicleAreaType.VEHICLE_AREA_TYPE_GLOBAL,
+                CarPropertyConfig.VEHICLE_PROPERTY_CHANGE_MODE_ONCHANGE,
+                Boolean.class).requireProperty().build().verify(mCarPropertyManager);
+    }
+
+    @Test
+    public void testWheelTickIfSupported() {
+        VehiclePropertyVerifier.newBuilder(VehiclePropertyIds.WHEEL_TICK,
+                CarPropertyConfig.VEHICLE_PROPERTY_ACCESS_READ,
+                VehicleAreaType.VEHICLE_AREA_TYPE_GLOBAL,
+                CarPropertyConfig.VEHICLE_PROPERTY_CHANGE_MODE_CONTINUOUS,
+                Long[].class).setConfigArrayVerifier(
+                configArray -> {
+                    assertWithMessage("WHEEL_TICK config array must be size 5")
+                            .that(configArray.size())
+                            .isEqualTo(5);
+
+                    int supportedWheels = configArray.get(0);
+                    assertWithMessage(
+                            "WHEEL_TICK config array first element specifies which wheels are"
+                                    + " supported")
+                            .that(supportedWheels).isGreaterThan(
+                            VehicleAreaWheel.WHEEL_UNKNOWN);
+                    assertWithMessage(
+                            "WHEEL_TICK config array first element specifies which wheels are"
+                                    + " supported")
+                            .that(supportedWheels)
+                            .isAtMost(VehicleAreaWheel.WHEEL_LEFT_FRONT
+                                    | VehicleAreaWheel.WHEEL_RIGHT_FRONT |
+                                    VehicleAreaWheel.WHEEL_LEFT_REAR
+                                    | VehicleAreaWheel.WHEEL_RIGHT_REAR);
+
+                    verifyWheelTickConfigArray(supportedWheels,
+                            VehicleAreaWheel.WHEEL_LEFT_FRONT, 1, configArray.get(1));
+                    verifyWheelTickConfigArray(supportedWheels,
+                            VehicleAreaWheel.WHEEL_RIGHT_FRONT, 2, configArray.get(2));
+                    verifyWheelTickConfigArray(supportedWheels,
+                            VehicleAreaWheel.WHEEL_RIGHT_REAR, 3, configArray.get(3));
+                    verifyWheelTickConfigArray(supportedWheels,
+                            VehicleAreaWheel.WHEEL_LEFT_REAR, 4, configArray.get(4));
+                }).setCarPropertyValueVerifier(
+                (carPropertyConfig, carPropertyValue) -> {
+                    List<Integer> wheelTickConfigArray = carPropertyConfig.getConfigArray();
+                    int supportedWheels = wheelTickConfigArray.get(0);
+
+                    Long[] wheelTicks = (Long[]) carPropertyValue.getValue();
+                    assertWithMessage("WHEEL_TICK Long[] value must be size 5").that(
+                            wheelTicks.length)
+                            .isEqualTo(5);
+
+                    verifyWheelTickValue(supportedWheels, VehicleAreaWheel.WHEEL_LEFT_FRONT, 1,
+                            wheelTicks[1]);
+                    verifyWheelTickValue(supportedWheels, VehicleAreaWheel.WHEEL_RIGHT_FRONT, 2,
+                            wheelTicks[2]);
+                    verifyWheelTickValue(supportedWheels, VehicleAreaWheel.WHEEL_RIGHT_REAR, 3,
+                            wheelTicks[3]);
+                    verifyWheelTickValue(supportedWheels, VehicleAreaWheel.WHEEL_LEFT_REAR, 4,
+                            wheelTicks[4]);
+                }).build().verify(mCarPropertyManager);
 
     }
 
@@ -257,7 +313,7 @@ public class CarPropertyManagerTest extends CarApiTestBase {
                 } else {
                     for (int areaId : areaIds) {
                         mCarPropertyManager.getProperty(
-                                cfg.getPropertyType(), propId, areaId);;
+                                cfg.getPropertyType(), propId, areaId);
                     }
                 }
             }
@@ -282,12 +338,12 @@ public class CarPropertyManagerTest extends CarApiTestBase {
                     break;
                 case VehiclePropertyIds.INFO_MULTI_EV_PORT_LOCATIONS:
                     int[] evPortLocations = mCarPropertyManager.getIntArrayProperty(
-                            cfg.getPropertyId(),VehicleAreaType.VEHICLE_AREA_TYPE_GLOBAL);
+                            cfg.getPropertyId(), VehicleAreaType.VEHICLE_AREA_TYPE_GLOBAL);
                     verifyEnumsRange(EXPECTED_PORT_LOCATIONS, evPortLocations);
                     break;
                 default:
                     int[] areaIds = getAreaIdsHelper(cfg);
-                    for(int areaId : areaIds) {
+                    for (int areaId : areaIds) {
                         mCarPropertyManager.getIntArrayProperty(cfg.getPropertyId(), areaId);
                     }
             }
@@ -328,7 +384,7 @@ public class CarPropertyManagerTest extends CarApiTestBase {
                 for (int areaId : getAreaIdsHelper(cfg)) {
                     assertThrows(SecurityException.class,
                             () -> mCarPropertyManager.setBooleanProperty(
-                                    cfg.getPropertyId(), areaId,true));
+                                    cfg.getPropertyId(), areaId, true));
                 }
             }
         }
@@ -339,7 +395,7 @@ public class CarPropertyManagerTest extends CarApiTestBase {
         //Test on registering a invalid property
         int invalidPropertyId = -1;
         boolean isRegistered = mCarPropertyManager.registerCallback(
-            new CarPropertyEventCounter(), invalidPropertyId, 0);
+                new CarPropertyEventCounter(), invalidPropertyId, 0);
         assertThat(isRegistered).isFalse();
 
         // Test for continuous properties
@@ -349,8 +405,10 @@ public class CarPropertyManagerTest extends CarApiTestBase {
 
         assertThat(speedListenerUI.receivedEvent(vehicleSpeed)).isEqualTo(NO_EVENTS);
         assertThat(speedListenerUI.receivedError(vehicleSpeed)).isEqualTo(NO_EVENTS);
+        assertThat(speedListenerUI.receivedErrorWithErrorCode(vehicleSpeed)).isEqualTo(NO_EVENTS);
         assertThat(speedListenerFast.receivedEvent(vehicleSpeed)).isEqualTo(NO_EVENTS);
         assertThat(speedListenerFast.receivedError(vehicleSpeed)).isEqualTo(NO_EVENTS);
+        assertThat(speedListenerFast.receivedErrorWithErrorCode(vehicleSpeed)).isEqualTo(NO_EVENTS);
 
         mCarPropertyManager.registerCallback(speedListenerUI, vehicleSpeed,
                 CarPropertyManager.SENSOR_RATE_UI);
@@ -361,6 +419,9 @@ public class CarPropertyManagerTest extends CarApiTestBase {
         assertThat(speedListenerUI.receivedEvent(vehicleSpeed)).isGreaterThan(NO_EVENTS);
         assertThat(speedListenerFast.receivedEvent(vehicleSpeed)).isGreaterThan(
                 speedListenerUI.receivedEvent(vehicleSpeed));
+        // The test did not change property values, it should not get error with error codes.
+        assertThat(speedListenerUI.receivedErrorWithErrorCode(vehicleSpeed)).isEqualTo(NO_EVENTS);
+        assertThat(speedListenerFast.receivedErrorWithErrorCode(vehicleSpeed)).isEqualTo(NO_EVENTS);
 
         mCarPropertyManager.unregisterCallback(speedListenerFast);
         mCarPropertyManager.unregisterCallback(speedListenerUI);
@@ -420,6 +481,16 @@ public class CarPropertyManagerTest extends CarApiTestBase {
                 mCarPropertyManager.isPropertyAvailable(
                         VehiclePropertyIds.WHEEL_TICK, VehicleAreaType.VEHICLE_AREA_TYPE_GLOBAL));
 
+        CarPropertyConfig wheelTickConfig = mCarPropertyManager.getCarPropertyConfig(
+                VehiclePropertyIds.WHEEL_TICK);
+        CarPropertyConfig speedConfig = mCarPropertyManager.getCarPropertyConfig(
+                VehiclePropertyIds.PERF_VEHICLE_SPEED);
+        // Ignores the test if sampleRates for properties are too low.
+        Assume.assumeTrue("The SampleRates for properties are too low, "
+                        + "skip testUnregisterWithPropertyId test",
+                wheelTickConfig.getMaxSampleRate() < FAST_OR_FASTEST_EVENT_COUNTER
+                        || speedConfig.getMaxSampleRate() < FAST_OR_FASTEST_EVENT_COUNTER);
+
         CarPropertyEventCounter speedAndWheelTicksListener = new CarPropertyEventCounter();
         mCarPropertyManager.registerCallback(speedAndWheelTicksListener,
                 VehiclePropertyIds.PERF_VEHICLE_SPEED, CarPropertyManager.SENSOR_RATE_FASTEST);
@@ -448,14 +519,95 @@ public class CarPropertyManagerTest extends CarApiTestBase {
         assertThat(wheelTicksEventsAfterUnregister).isGreaterThan(currentWheelTickEvents);
     }
 
-
     // Returns {0} if the property is global property, otherwise query areaId for CarPropertyConfig
     private int[] getAreaIdsHelper(CarPropertyConfig config) {
         if (config.isGlobalProperty()) {
-            int[] areaIds = {0};
-            return areaIds;
+            return new int[]{0};
         } else {
             return config.getAreaIds();
         }
+    }
+
+    private static class CarPropertyEventCounter implements CarPropertyEventCallback {
+        private final Object mLock = new Object();
+        @GuardedBy("mLock")
+        private final SparseArray<Integer> mEventCounter = new SparseArray<>();
+        @GuardedBy("mLock")
+        private final SparseArray<Integer> mErrorCounter = new SparseArray<>();
+        @GuardedBy("mLock")
+        private final SparseArray<Integer> mErrorWithErrorCodeCounter = new SparseArray<>();
+        private int mCounter = FAST_OR_FASTEST_EVENT_COUNTER;
+        private CountDownLatch mCountDownLatch = new CountDownLatch(mCounter);
+
+        public int receivedEvent(int propId) {
+            int val;
+            synchronized (mLock) {
+                val = mEventCounter.get(propId, 0);
+            }
+            return val;
+        }
+
+        public int receivedError(int propId) {
+            int val;
+            synchronized (mLock) {
+                val = mErrorCounter.get(propId, 0);
+            }
+            return val;
+        }
+
+        public int receivedErrorWithErrorCode(int propId) {
+            int val;
+            synchronized (mLock) {
+                val = mErrorWithErrorCodeCounter.get(propId, 0);
+            }
+            return val;
+        }
+
+        @Override
+        public void onChangeEvent(CarPropertyValue value) {
+            synchronized (mLock) {
+                int val = mEventCounter.get(value.getPropertyId(), 0) + 1;
+                mEventCounter.put(value.getPropertyId(), val);
+            }
+            mCountDownLatch.countDown();
+        }
+
+        @Override
+        public void onErrorEvent(int propId, int zone) {
+            synchronized (mLock) {
+                int val = mErrorCounter.get(propId, 0) + 1;
+                mErrorCounter.put(propId, val);
+            }
+        }
+
+        @Override
+        public void onErrorEvent(int propId, int areaId, int errorCode) {
+            synchronized (mLock) {
+                int val = mErrorWithErrorCodeCounter.get(propId, 0) + 1;
+                mErrorWithErrorCodeCounter.put(propId, val);
+            }
+        }
+
+        public void resetCountDownLatch(int counter) {
+            mCountDownLatch = new CountDownLatch(counter);
+            mCounter = counter;
+        }
+
+        public void assertOnChangeEventCalled() throws InterruptedException {
+            if (!mCountDownLatch.await(WAIT_CALLBACK, TimeUnit.MILLISECONDS)) {
+                throw new IllegalStateException("Callback is not called:" + mCounter + "times in "
+                        + WAIT_CALLBACK + " ms.");
+            }
+        }
+
+        public void assertOnChangeEventNotCalled() throws InterruptedException {
+            // Once get an event, fail the test.
+            mCountDownLatch = new CountDownLatch(1);
+            if (mCountDownLatch.await(WAIT_CALLBACK, TimeUnit.MILLISECONDS)) {
+                throw new IllegalStateException("Callback is called in "
+                        + WAIT_CALLBACK + " ms.");
+            }
+        }
+
     }
 }
