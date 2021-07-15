@@ -1770,6 +1770,12 @@ public class StagefrightTest {
      ***********************************************************/
 
     @Test
+    @SecurityTest(minPatchLevel = "2020-11")
+    public void testStagefright_cve_2020_11196() throws Exception {
+        doStagefrightTest(R.raw.cve_2020_11196);
+    }
+
+    @Test
     @SecurityTest(minPatchLevel = "2018-11")
     public void testStagefright_cve_2018_9531() throws Exception {
         assumeFalse(ModuleDetector.moduleIsPlayManaged(
@@ -2398,11 +2404,6 @@ public class StagefrightTest {
                 } catch (Exception e) {
                     // local exceptions ignored, not security issues
                 } finally {
-                    try {
-                        codec.stop();
-                    } catch (Exception e) {
-                        // local exceptions ignored, not security issues
-                    }
                     codec.release();
                     renderTarget.destroy();
                 }
