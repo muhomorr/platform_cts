@@ -31,6 +31,9 @@ import junit.framework.Assert;
 import java.util.Arrays;
 import java.util.ArrayList;
 
+import static org.junit.Assume.*;
+import static org.hamcrest.CoreMatchers.*;
+
 @RunWith(DeviceJUnit4ClassRunner.class)
 public class TestMedia extends SecurityTestCase {
 
@@ -111,6 +114,7 @@ public class TestMedia extends SecurityTestCase {
     @SecurityTest(minPatchLevel = "2020-11")
     @Test
     public void testPocCVE_2020_0450() throws Exception {
+        AdbUtils.assumeHasNfc(getDevice());
         AdbUtils.runPocAssertNoCrashesNotVulnerable("CVE-2020-0450", null, getDevice());
     }
 
@@ -123,21 +127,6 @@ public class TestMedia extends SecurityTestCase {
     public void testPocCVE_2020_0409() throws Exception {
         String signals[] = {CrashUtils.SIGSEGV, CrashUtils.SIGBUS, CrashUtils.SIGABRT};
         String binaryName = "CVE-2020-0409";
-        AdbUtils.pocConfig testConfig = new AdbUtils.pocConfig(binaryName, getDevice());
-        testConfig.config = new CrashUtils.Config().setProcessPatterns(binaryName);
-        testConfig.config.setSignals(signals);
-        AdbUtils.runPocAssertNoCrashesNotVulnerable(testConfig);
-    }
-
-    /**
-     * b/156999009
-     * Vulnerability Behaviour: SIGABRT in self
-     */
-    @SecurityTest(minPatchLevel = "2020-10")
-    @Test
-    public void testPocCVE_2020_0408() throws Exception {
-        String signals[] = {CrashUtils.SIGSEGV, CrashUtils.SIGBUS, CrashUtils.SIGABRT};
-        String binaryName = "CVE-2020-0408";
         AdbUtils.pocConfig testConfig = new AdbUtils.pocConfig(binaryName, getDevice());
         testConfig.config = new CrashUtils.Config().setProcessPatterns(binaryName);
         testConfig.config.setSignals(signals);
@@ -166,6 +155,7 @@ public class TestMedia extends SecurityTestCase {
     @SecurityTest(minPatchLevel = "2019-08")
     @Test
     public void testPocCVE_2019_2133() throws Exception {
+        AdbUtils.assumeHasNfc(getDevice());
         AdbUtils.runPocAssertNoCrashesNotVulnerable("CVE-2019-2133", null, getDevice());
     }
 
@@ -176,6 +166,7 @@ public class TestMedia extends SecurityTestCase {
     @SecurityTest(minPatchLevel = "2019-08")
     @Test
     public void testPocCVE_2019_2134() throws Exception {
+        AdbUtils.assumeHasNfc(getDevice());
         AdbUtils.runPocAssertNoCrashesNotVulnerable("CVE-2019-2134", null, getDevice());
     }
 
@@ -222,6 +213,7 @@ public class TestMedia extends SecurityTestCase {
     @SecurityTest(minPatchLevel = "2019-02")
     @Test
     public void testPocCVE_2019_1988() throws Exception {
+        assumeThat(getDevice().getProperty("ro.config.low_ram"), not(is("true")));
         String inputFiles[] = {"cve_2019_1988.mp4"};
         AdbUtils.runPocAssertNoCrashesNotVulnerable("CVE-2019-1988",
                 AdbUtils.TMP_PATH + inputFiles[0], inputFiles, AdbUtils.TMP_PATH, getDevice());
@@ -259,17 +251,6 @@ public class TestMedia extends SecurityTestCase {
         String inputFiles[] = { "cve_2017_13234.xmf" };
         AdbUtils.runPocAssertNoCrashesNotVulnerable("CVE-2017-13234",
                 AdbUtils.TMP_PATH + inputFiles[0], inputFiles, AdbUtils.TMP_PATH, getDevice());
-    }
-
-    /**
-     * b/74122779
-     * Vulnerability Behaviour: SIGABRT in audioserver
-     */
-    @SecurityTest(minPatchLevel = "2018-07")
-    @Test
-    public void testPocCVE_2018_9428() throws Exception {
-        String signals[] = {CrashUtils.SIGSEGV, CrashUtils.SIGBUS, CrashUtils.SIGABRT};
-        AdbUtils.pocConfig testConfig = new AdbUtils.pocConfig("CVE-2018-9428", getDevice());
     }
 
     /**
@@ -528,7 +509,11 @@ public class TestMedia extends SecurityTestCase {
         String binaryName = "CVE-2018-9537";
         String signals[] = {CrashUtils.SIGSEGV, CrashUtils.SIGBUS, CrashUtils.SIGABRT};
         AdbUtils.pocConfig testConfig = new AdbUtils.pocConfig(binaryName, getDevice());
-        testConfig.config = new CrashUtils.Config().setProcessPatterns(binaryName);
+        // example of check crash to skip:
+        // Abort message: 'frameworks/av/media/extractors/mkv/MatroskaExtractor.cpp:548 CHECK(mCluster) failed.'
+        testConfig.config = new CrashUtils.Config()
+                .setProcessPatterns(binaryName)
+                .appendAbortMessageExcludes("CHECK\\(.*?\\)");
         testConfig.config.setSignals(signals);
         AdbUtils.runPocAssertNoCrashesNotVulnerable(testConfig);
     }
