@@ -440,27 +440,17 @@ abstract class BaseUsePermissionTest : BasePermissionTest() {
         for (permission in permissions) {
             // Find the permission screen
             val permissionLabel = getPermissionLabel(permission)
-
-            click(By.text(permissionLabel))
-
-            // Watch does not show an alert dialog when the user turns on permission, only when they
-            // turns it off.
             if (isWatch) {
-                try {
-                    if (waitFindObjectOrNull(By.text(permissionLabel), 1000) != null) {
-                        continue
-                    }
-                } catch (e: StaleObjectException) {
-                    // It sometimes causes StaleObjectException when screen changes due to click
-                    // It should be ignored, because it depends on timing
-                    Log.w("CtsPermission3TestCases", "Caught StaleObjectException")
-                }
+                click(By.text(permissionLabel), 40_000)
+            } else {
+                click(By.text(permissionLabel))
             }
 
             val wasGranted = if (isAutomotive) {
                 // Automotive doesn't support one time permissions, and thus
                 // won't show an "Ask every time" message
-                !waitFindObject(By.res(DENY_RADIO_BUTTON)).isChecked
+                !waitFindObject(By.text(
+                        getPermissionControllerString("app_permission_button_deny"))).isChecked
             } else {
                 if (isWatch) {
                     click(By.text("Deny"))
@@ -477,12 +467,16 @@ abstract class BaseUsePermissionTest : BasePermissionTest() {
                     when (state) {
                         PermissionState.ALLOWED ->
                             if (showsForegroundOnlyButton(permission)) {
-                                By.res(ALLOW_FOREGROUND_RADIO_BUTTON)
+                                By.text(getPermissionControllerString(
+                                        "app_permission_button_allow_foreground"))
                             } else {
-                                By.res(ALLOW_RADIO_BUTTON)
+                                By.text(getPermissionControllerString(
+                                                "app_permission_button_allow"))
                             }
-                        PermissionState.DENIED -> By.res(DENY_RADIO_BUTTON)
-                        PermissionState.DENIED_WITH_PREJUDICE -> By.res(DENY_RADIO_BUTTON)
+                        PermissionState.DENIED -> By.text(
+                                getPermissionControllerString("app_permission_button_deny"))
+                        PermissionState.DENIED_WITH_PREJUDICE -> By.text(
+                                getPermissionControllerString("app_permission_button_deny"))
                     }
                 } else {
                     when (state) {
@@ -557,7 +551,7 @@ abstract class BaseUsePermissionTest : BasePermissionTest() {
         }
 
     private fun isMediaStorageButton(permission: String, targetSdk: Int): Boolean =
-            if (isTv) {
+            if (isTv || isWatch) {
                 false
             } else {
                 when (permission) {
@@ -571,7 +565,7 @@ abstract class BaseUsePermissionTest : BasePermissionTest() {
             }
 
     private fun isAllStorageButton(permission: String, targetSdk: Int): Boolean =
-            if (isTv) {
+            if (isTv || isWatch) {
                 false
             } else {
                 when (permission) {

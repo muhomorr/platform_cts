@@ -23,9 +23,9 @@ import androidx.annotation.CheckResult;
 import com.android.eventlib.Event;
 import com.android.eventlib.EventLogger;
 import com.android.eventlib.EventLogsQuery;
-import com.android.eventlib.info.ActivityInfo;
-import com.android.eventlib.queryhelpers.ActivityQuery;
-import com.android.eventlib.queryhelpers.ActivityQueryHelper;
+import com.android.queryable.info.ActivityInfo;
+import com.android.queryable.queries.ActivityQuery;
+import com.android.queryable.queries.ActivityQueryHelper;
 
 /**
  * Event logged when {@link Activity#onStart()} is called.
@@ -62,32 +62,21 @@ public final class ActivityStartedEvent extends Event {
     }
 
     /** Begin logging a {@link ActivityStartedEvent}. */
-    public static ActivityStartedEventLogger logger(Activity activity) {
-        return new ActivityStartedEventLogger(activity);
+    public static ActivityStartedEventLogger logger(Activity activity, android.content.pm.ActivityInfo activityInfo) {
+        return new ActivityStartedEventLogger(activity, activityInfo);
     }
 
     /** {@link EventLogger} for {@link ActivityStartedEvent}. */
     public static final class ActivityStartedEventLogger extends EventLogger<ActivityStartedEvent> {
-        private ActivityStartedEventLogger(Activity activity) {
+        private ActivityStartedEventLogger(Activity activity, android.content.pm.ActivityInfo activityInfo) {
             super(activity, new ActivityStartedEvent());
-            setActivity(activity);
+            setActivity(activityInfo);
         }
 
         /** Set the {@link Activity} being started. */
-        public ActivityStartedEventLogger setActivity(Activity activity) {
-            mEvent.mActivity = new ActivityInfo(activity);
-            return this;
-        }
-
-        /** Set the {@link Activity} class being started. */
-        public ActivityStartedEventLogger setActivity(Class<? extends Activity> activityClass) {
-            mEvent.mActivity = new ActivityInfo(activityClass);
-            return this;
-        }
-
-        /** Set the {@link Activity} class name being started. */
-        public ActivityStartedEventLogger setActivity(String activityClassName) {
-            mEvent.mActivity = new ActivityInfo(activityClassName);
+        public ActivityStartedEventLogger setActivity(
+                android.content.pm.ActivityInfo activity) {
+            mEvent.mActivity = ActivityInfo.builder(activity).build();
             return this;
         }
     }

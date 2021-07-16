@@ -1001,6 +1001,10 @@ public class TelephonyManagerTest {
 
     @Test
     public void testGetPhoneAccountHandle() {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            Log.d(TAG, "Skipping test that requires FEATURE_TELEPHONY");
+            return;
+        }
         TelecomManager telecomManager = getContext().getSystemService(TelecomManager.class);
         PhoneAccountHandle defaultAccount = telecomManager
                 .getDefaultOutgoingPhoneAccount(PhoneAccount.SCHEME_TEL);
@@ -4597,6 +4601,7 @@ public class TelephonyManagerTest {
 
     @Test
     public void testCheckCarrierPrivilegesForPackageThrowsExceptionWithoutReadPrivilege() {
+        if (!hasCellular()) return;
         try {
             mTelephonyManager.checkCarrierPrivilegesForPackage(mSelfPackageName);
             fail("TelephonyManager#checkCarrierPrivilegesForPackage must be protected "
@@ -4635,6 +4640,7 @@ public class TelephonyManagerTest {
 
     @Test
     public void testGetCarrierPackageNamesForIntentAndPhoneThrowsExceptionWithoutReadPrivilege() {
+        if (!hasCellular()) return;
         try {
             Intent intent = new Intent();
             int phoneId = 1;
@@ -4666,6 +4672,7 @@ public class TelephonyManagerTest {
 
     @Test
     public void testGetPackagesWithCarrierPrivilegesThrowsExceptionWithoutReadPrivilege() {
+        if (!hasCellular()) return;
         try {
             mTelephonyManager.getPackagesWithCarrierPrivileges();
             fail("TelephonyManager#getPackagesWithCarrierPrivileges must be protected "
