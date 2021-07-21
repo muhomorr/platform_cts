@@ -103,10 +103,11 @@ public class PackageSignatureTest extends AndroidTestCase {
         wellKnownSignatures.add(getSignature(R.raw.sig_com_google_android_resolv));
         wellKnownSignatures.add(getSignature(R.raw.sig_com_google_android_runtime_debug));
         wellKnownSignatures.add(getSignature(R.raw.sig_com_google_android_runtime_release));
-        wellKnownSignatures.add(getSignature(R.raw.sig_com_google_android_tzdata2));
-        // The following keys are no longer in use by modules, but it won't negatively affect tests
-        // to include their signatures here too.
+        wellKnownSignatures.add(getSignature(R.raw.sig_com_google_android_tzdata3));
+        // The following keys are not not used by modules on the latest Android release, but it
+        // won't negatively affect tests to include their signatures here too.
         wellKnownSignatures.add(getSignature(R.raw.sig_com_google_android_tzdata));
+        wellKnownSignatures.add(getSignature(R.raw.sig_com_google_android_tzdata2));
         return wellKnownSignatures;
     }
 
@@ -148,7 +149,10 @@ public class PackageSignatureTest extends AndroidTestCase {
             "com.android.apex.cts.shim",
 
             // Oom Catcher package to prevent tests from ooming device.
-            "com.android.cts.oomcatcher"
+            "com.android.cts.oomcatcher",
+
+            // Collects device info at the start of the test
+            "com.android.compatibility.common.deviceinfo"
 
             ));
 
