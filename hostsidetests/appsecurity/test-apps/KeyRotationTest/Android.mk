@@ -1,4 +1,4 @@
-# Copyright (C) 2019 The Android Open Source Project
+# Copyright (C) 2021 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,11 +14,5 @@
 
 LOCAL_PATH := $(call my-dir)
 
-include $(CLEAR_VARS)
-
-# tag this module as a cts test artifact
-LOCAL_COMPATIBILITY_SUITE := cts general-tests
-
 # Build the test APKs using their own makefiles
 include $(call all-makefiles-under,$(LOCAL_PATH))
-
