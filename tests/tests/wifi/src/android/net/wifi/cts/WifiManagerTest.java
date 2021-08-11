@@ -77,7 +77,7 @@ import android.os.Process;
 import android.os.SystemClock;
 import android.os.UserHandle;
 import android.platform.test.annotations.AppModeFull;
-import android.platform.test.annotations.SecurityTest;
+import android.platform.test.annotations.AsbSecurityTest;
 import android.provider.Settings;
 import android.support.test.uiautomator.UiDevice;
 import android.telephony.TelephonyManager;
@@ -2137,7 +2137,7 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
             PollingCheck.check(
                     "SoftAp state and info on bridged AP mode are mismatch!!!"
                     + " shouldFallbackSingleApMode = " + shouldFallbackSingleApMode
-                    + ", isEnabled = "  + isEnabled, 5_000,
+                    + ", isEnabled = "  + isEnabled, 10_000,
                     () -> {
                         executor.runAll();
                         int expectedState = isEnabled ? WifiManager.WIFI_AP_STATE_ENABLED
@@ -2449,7 +2449,7 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
 
             // Verify state and info callback value as expected
             PollingCheck.check(
-                    "SoftAp channel and state mismatch!!!", 5_000,
+                    "SoftAp channel and state mismatch!!!", 10_000,
                     () -> {
                         executor.runAll();
                         int sapChannel = ScanResult.convertFrequencyMhzToChannelIfSupported(
@@ -2738,7 +2738,7 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
      * Tests {@link WifiManager#forget(int, WifiManager.ActionListener)} by adding/removing a new
      * network.
      */
-    @SecurityTest
+    @AsbSecurityTest(cveBugId = 159373687)
     public void testForget() throws Exception {
         if (!WifiFeature.isWifiSupported(getContext())) {
             // skip the test if WiFi is not supported
