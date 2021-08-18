@@ -130,7 +130,7 @@ public class CameraExtensionSessionTest extends Camera2ParameterizedTestCase {
         for (String id : mCameraIdsUnderTest) {
             StaticMetadata staticMeta =
                     new StaticMetadata(mTestRule.getCameraManager().getCameraCharacteristics(id));
-            if (!staticMeta.isColorCorrectionSupported()) {
+            if (!staticMeta.isColorOutputSupported()) {
                 continue;
             }
             updatePreviewSurfaceTexture();
@@ -180,7 +180,7 @@ public class CameraExtensionSessionTest extends Camera2ParameterizedTestCase {
         for (String id : mCameraIdsUnderTest) {
             StaticMetadata staticMeta =
                     new StaticMetadata(mTestRule.getCameraManager().getCameraCharacteristics(id));
-            if (!staticMeta.isColorCorrectionSupported()) {
+            if (!staticMeta.isColorOutputSupported()) {
                 continue;
             }
             updatePreviewSurfaceTexture();
@@ -191,25 +191,18 @@ public class CameraExtensionSessionTest extends Camera2ParameterizedTestCase {
                 List<Size> extensionSizes = extensionChars.getExtensionSupportedSizes(extension,
                         mSurfaceTexture.getClass());
                 Size maxSize = CameraTestUtils.getMaxSize(extensionSizes.toArray(new Size[0]));
-                ImageReader privateReader = CameraTestUtils.makeImageReader(maxSize,
-                        ImageFormat.PRIVATE, /*maxImages*/ 3, new ImageDropperListener(),
-                        mTestRule.getHandler());
-                OutputConfiguration privateOutput = new OutputConfiguration(
-                        OutputConfiguration.SURFACE_GROUP_ID_NONE, privateReader.getSurface());
-                List<OutputConfiguration> outputConfigs = new ArrayList<>();
-                outputConfigs.add(privateOutput);
-                BlockingSessionCallback regularSessionListener = new BlockingSessionCallback(
-                        mock(CameraCaptureSession.StateCallback.class));
-                SessionConfiguration regularConfiguration = new SessionConfiguration(
-                        SessionConfiguration.SESSION_REGULAR, outputConfigs,
-                        new HandlerExecutor(mTestRule.getHandler()), regularSessionListener);
-
                 mSurfaceTexture.setDefaultBufferSize(maxSize.getWidth(), maxSize.getHeight());
                 Surface repeatingSurface = new Surface(mSurfaceTexture);
                 OutputConfiguration textureOutput = new OutputConfiguration(
                         OutputConfiguration.SURFACE_GROUP_ID_NONE, repeatingSurface);
                 List<OutputConfiguration> outputs = new ArrayList<>();
                 outputs.add(textureOutput);
+                BlockingSessionCallback regularSessionListener = new BlockingSessionCallback(
+                        mock(CameraCaptureSession.StateCallback.class));
+                SessionConfiguration regularConfiguration = new SessionConfiguration(
+                        SessionConfiguration.SESSION_REGULAR, outputs,
+                        new HandlerExecutor(mTestRule.getHandler()), regularSessionListener);
+
                 BlockingExtensionSessionCallback sessionListener =
                         new BlockingExtensionSessionCallback(mock(
                                 CameraExtensionSession.StateCallback.class));
@@ -242,7 +235,6 @@ public class CameraExtensionSessionTest extends Camera2ParameterizedTestCase {
                             SESSION_CLOSE_TIMEOUT_MS);
                 } finally {
                     mTestRule.closeDevice(id);
-                    mTestRule.closeImageReader(privateReader);
                 }
             }
         }
@@ -255,7 +247,7 @@ public class CameraExtensionSessionTest extends Camera2ParameterizedTestCase {
         for (String id : mCameraIdsUnderTest) {
             StaticMetadata staticMeta =
                     new StaticMetadata(mTestRule.getCameraManager().getCameraCharacteristics(id));
-            if (!staticMeta.isColorCorrectionSupported()) {
+            if (!staticMeta.isColorOutputSupported()) {
                 continue;
             }
             updatePreviewSurfaceTexture();
@@ -266,25 +258,18 @@ public class CameraExtensionSessionTest extends Camera2ParameterizedTestCase {
                 List<Size> extensionSizes = extensionChars.getExtensionSupportedSizes(extension,
                         mSurfaceTexture.getClass());
                 Size maxSize = CameraTestUtils.getMaxSize(extensionSizes.toArray(new Size[0]));
-                ImageReader privateReader = CameraTestUtils.makeImageReader(maxSize,
-                        ImageFormat.PRIVATE, /*maxImages*/ 3, new ImageDropperListener(),
-                        mTestRule.getHandler());
-                OutputConfiguration privateOutput = new OutputConfiguration(
-                        OutputConfiguration.SURFACE_GROUP_ID_NONE, privateReader.getSurface());
-                List<OutputConfiguration> outputConfigs = new ArrayList<>();
-                outputConfigs.add(privateOutput);
-                BlockingSessionCallback regularSessionListener = new BlockingSessionCallback(
-                        mock(CameraCaptureSession.StateCallback.class));
-                SessionConfiguration regularConfiguration = new SessionConfiguration(
-                        SessionConfiguration.SESSION_REGULAR, outputConfigs,
-                        new HandlerExecutor(mTestRule.getHandler()), regularSessionListener);
-
                 mSurfaceTexture.setDefaultBufferSize(maxSize.getWidth(), maxSize.getHeight());
                 Surface surface = new Surface(mSurfaceTexture);
                 OutputConfiguration textureOutput = new OutputConfiguration(
                         OutputConfiguration.SURFACE_GROUP_ID_NONE, surface);
                 List<OutputConfiguration> outputs = new ArrayList<>();
                 outputs.add(textureOutput);
+                BlockingSessionCallback regularSessionListener = new BlockingSessionCallback(
+                        mock(CameraCaptureSession.StateCallback.class));
+                SessionConfiguration regularConfiguration = new SessionConfiguration(
+                        SessionConfiguration.SESSION_REGULAR, outputs,
+                        new HandlerExecutor(mTestRule.getHandler()), regularSessionListener);
+
                 BlockingExtensionSessionCallback sessionListener =
                         new BlockingExtensionSessionCallback(mock(
                                 CameraExtensionSession.StateCallback.class));
@@ -313,7 +298,6 @@ public class CameraExtensionSessionTest extends Camera2ParameterizedTestCase {
                             BlockingSessionCallback.SESSION_CLOSED, SESSION_CLOSE_TIMEOUT_MS);
                 } finally {
                     mTestRule.closeDevice(id);
-                    mTestRule.closeImageReader(privateReader);
                 }
             }
         }
@@ -325,7 +309,7 @@ public class CameraExtensionSessionTest extends Camera2ParameterizedTestCase {
         for (String id : mCameraIdsUnderTest) {
             StaticMetadata staticMeta =
                     new StaticMetadata(mTestRule.getCameraManager().getCameraCharacteristics(id));
-            if (!staticMeta.isColorCorrectionSupported()) {
+            if (!staticMeta.isColorOutputSupported()) {
                 continue;
             }
             updatePreviewSurfaceTexture();
@@ -384,7 +368,7 @@ public class CameraExtensionSessionTest extends Camera2ParameterizedTestCase {
         for (String id : mCameraIdsUnderTest) {
             StaticMetadata staticMeta =
                     new StaticMetadata(mTestRule.getCameraManager().getCameraCharacteristics(id));
-            if (!staticMeta.isColorCorrectionSupported()) {
+            if (!staticMeta.isColorOutputSupported()) {
                 continue;
             }
             updatePreviewSurfaceTexture();
@@ -490,7 +474,7 @@ public class CameraExtensionSessionTest extends Camera2ParameterizedTestCase {
         for (String id : mCameraIdsUnderTest) {
             StaticMetadata staticMeta =
                     new StaticMetadata(mTestRule.getCameraManager().getCameraCharacteristics(id));
-            if (!staticMeta.isColorCorrectionSupported()) {
+            if (!staticMeta.isColorOutputSupported()) {
                 continue;
             }
             updatePreviewSurfaceTexture();
@@ -632,7 +616,7 @@ public class CameraExtensionSessionTest extends Camera2ParameterizedTestCase {
         for (String id : mCameraIdsUnderTest) {
             StaticMetadata staticMeta =
                     new StaticMetadata(mTestRule.getCameraManager().getCameraCharacteristics(id));
-            if (!staticMeta.isColorCorrectionSupported()) {
+            if (!staticMeta.isColorOutputSupported()) {
                 continue;
             }
             CameraExtensionCharacteristics extensionChars =
@@ -776,7 +760,7 @@ public class CameraExtensionSessionTest extends Camera2ParameterizedTestCase {
         for (String id : mCameraIdsUnderTest) {
             StaticMetadata staticMeta =
                     new StaticMetadata(mTestRule.getCameraManager().getCameraCharacteristics(id));
-            if (!staticMeta.isColorCorrectionSupported()) {
+            if (!staticMeta.isColorOutputSupported()) {
                 continue;
             }
             updatePreviewSurfaceTexture();
@@ -1082,7 +1066,7 @@ public class CameraExtensionSessionTest extends Camera2ParameterizedTestCase {
         for (String id : mCameraIdsUnderTest) {
             StaticMetadata staticMeta =
                     new StaticMetadata(mTestRule.getCameraManager().getCameraCharacteristics(id));
-            if (!staticMeta.isColorCorrectionSupported()) {
+            if (!staticMeta.isColorOutputSupported()) {
                 continue;
             }
             updatePreviewSurfaceTexture();

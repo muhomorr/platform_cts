@@ -50,6 +50,9 @@ android_test {
         ":CtsUsePermissionAppLatest",
         ":CtsUsePermissionAppLatestNone",
         ":CtsUsePermissionAppWithOverlay",
+        ":CtsAccessMicrophoneApp",
+        ":CtsAccessMicrophoneApp2",
+        ":CtsAccessMicrophoneAppLocationProvider",
     ],
     test_suites: [
         "cts",
