@@ -13,26 +13,21 @@
 // limitations under the License.
 
 package {
+    // See: http://go/android-license-faq
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
-android_app {
-    name: "CtsHoloGeneration",
-    dex_preopt: {
-        enabled: false,
-    },
-    optimize: {
-        enabled: false,
-    },
-    static_libs: ["androidx.test.rules"],
-    libs: [
-        "android.test.runner",
-        "android.test.base",
-    ],
-    uses_libs: [
-        "android.test.runner",
-        "android.test.base",
-    ],
+java_test_host {
+    name: "CtsSustainedPerformanceHostTestCases",
     srcs: ["src/**/*.java"],
-    sdk_version: "current",
+    // tag this module as a cts test artifact
+    test_suites: [
+        "cts",
+        "general-tests",
+    ],
+    libs: [
+        "cts-tradefed",
+        "tradefed",
+        "compatibility-host-util",
+    ],
 }
