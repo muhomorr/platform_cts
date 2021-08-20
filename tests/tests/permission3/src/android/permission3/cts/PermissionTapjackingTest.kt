@@ -20,7 +20,9 @@ import android.Manifest.permission.ACCESS_FINE_LOCATION
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Point
+import android.os.Build
 import android.support.test.uiautomator.By
+import androidx.test.filters.SdkSuppress
 import com.android.compatibility.common.util.SystemUtil
 import org.junit.Assume.assumeFalse
 import org.junit.Before
@@ -55,10 +57,13 @@ class PermissionTapjackingTest : BaseUsePermissionTest() {
         tryClicking(buttonCenter)
     }
 
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
     @Test
     fun testTapjackGrantDialog_partialOverlay() {
         // PermissionController for television uses a floating window.
         assumeFalse(isTv)
+        // Automotive doesn't support detecting partial overlays yet: b/192088266
+        assumeFalse(isAutomotive)
 
         assertAppHasPermission(ACCESS_FINE_LOCATION, false)
         requestAppPermissionsForNoResult(ACCESS_FINE_LOCATION) {}

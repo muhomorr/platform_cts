@@ -30,6 +30,7 @@ NUM_POSE_ROTATION_PARAMS = 4  # number of terms in poseRotation
 NUM_POSE_TRANSLATION_PARAMS = 3  # number of terms in poseTranslation
 SKIP_RET_MSG = 'Test skipped'
 SOLID_COLOR_TEST_PATTERN = 1
+COLOR_BARS_TEST_PATTERN = 2
 
 
 def legacy(props):
@@ -735,7 +736,9 @@ def post_raw_sensitivity_boost(props):
   Returns:
     Boolean. True if android.control.postRawSensitivityBoost is supported.
   """
-  return props.get('android.control.postRawSensitivityBoostRange') != [100, 100]
+  return (
+      'android.control.postRawSensitivityBoostRange' in props.keys() and
+      props.get('android.control.postRawSensitivityBoostRange') != [100, 100])
 
 
 def sensor_fusion_capable(props):
@@ -805,6 +808,34 @@ def solid_color_test_pattern(props):
   """
   return SOLID_COLOR_TEST_PATTERN in props.get(
       'android.sensor.availableTestPatternModes')
+
+
+def color_bars_test_pattern(props):
+  """Determines if camera supports color bars test pattern.
+
+  Args:
+    props: Camera properties object.
+
+  Returns:
+    Boolean. True if android.sensor.availableTestPatternModes has
+             COLOR_BARS_TEST_PATTERN.
+  """
+  return COLOR_BARS_TEST_PATTERN in props.get(
+      'android.sensor.availableTestPatternModes')
+
+
+def linear_tonemap(props):
+  """Determines if camera supports CONTRAST_CURVE or GAMMA_VALUE in tonemap.
+
+  Args:
+    props: Camera properties object.
+
+  Returns:
+    Boolean. True if android.tonemap.availableToneMapModes has
+             CONTRAST_CURVE (0) or GAMMA_VALUE (3).
+  """
+  return (0 in props.get('android.tonemap.availableToneMapModes') or
+          3 in props.get('android.tonemap.availableToneMapModes'))
 
 
 if __name__ == '__main__':

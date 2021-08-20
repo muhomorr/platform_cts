@@ -28,10 +28,8 @@ import android.support.test.uiautomator.By
 import android.support.test.uiautomator.BySelector
 import android.support.test.uiautomator.UiScrollable
 import android.support.test.uiautomator.UiSelector
-import android.support.test.uiautomator.StaleObjectException
 import android.text.Spanned
 import android.text.style.ClickableSpan
-import android.util.Log
 import android.view.View
 import com.android.compatibility.common.util.SystemUtil.eventually
 import org.junit.After
@@ -84,6 +82,8 @@ abstract class BaseUsePermissionTest : BasePermissionTest() {
 
         const val ALLOW_BUTTON_TEXT = "grant_dialog_button_allow"
         const val ALLOW_FOREGROUND_BUTTON_TEXT = "grant_dialog_button_allow_foreground"
+        const val ALLOW_FOREGROUND_PREFERENCE_TEXT = "permission_access_only_foreground"
+        const val ASK_BUTTON_TEXT = "app_permission_button_ask"
         const val DENY_BUTTON_TEXT = "grant_dialog_button_deny"
         const val DENY_AND_DONT_ASK_AGAIN_BUTTON_TEXT =
                 "grant_dialog_button_deny_and_dont_ask_again"
@@ -95,10 +95,6 @@ abstract class BaseUsePermissionTest : BasePermissionTest() {
         DENIED,
         DENIED_WITH_PREJUDICE
     }
-
-    protected val isTv = packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK)
-    protected val isWatch = packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH)
-    protected val isAutomotive = packageManager.hasSystemFeature(PackageManager.FEATURE_AUTOMOTIVE)
 
     private val platformResources = context.createPackageContext("android", 0).resources
     private val permissionToLabelResNameMap = mapOf(
@@ -321,7 +317,7 @@ abstract class BaseUsePermissionTest : BasePermissionTest() {
     }
 
     protected fun clickPermissionRequestDenyButton() {
-        if (isAutomotive || isWatch) {
+        if (isAutomotive || isWatch || isTv) {
             click(By.text(getPermissionControllerString(DENY_BUTTON_TEXT)))
         } else {
             click(By.res(DENY_BUTTON))
@@ -410,11 +406,16 @@ abstract class BaseUsePermissionTest : BasePermissionTest() {
         isLegacyApp: Boolean,
         targetSdk: Int
     ) {
-        pressBack()
-        pressBack()
-        pressBack()
         if (isTv) {
+            // Dismiss DeprecatedTargetSdkVersionDialog, if present
+            if (waitFindObjectOrNull(By.text(APP_PACKAGE_NAME), 1000L) != null) {
+                pressBack()
+            }
             pressHome()
+        } else {
+            pressBack()
+            pressBack()
+            pressBack()
         }
 
         // Try multiple times as the AppInfo page might have read stale data
@@ -440,13 +441,22 @@ abstract class BaseUsePermissionTest : BasePermissionTest() {
         for (permission in permissions) {
             // Find the permission screen
             val permissionLabel = getPermissionLabel(permission)
-
-            click(By.text(permissionLabel))
+            if (isWatch) {
+                click(By.text(permissionLabel), 40_000)
+            } else {
+                click(By.text(permissionLabel))
+            }
 
             val wasGranted = if (isAutomotive) {
                 // Automotive doesn't support one time permissions, and thus
                 // won't show an "Ask every time" message
-                !waitFindObject(By.res(DENY_RADIO_BUTTON)).isChecked
+                !waitFindObject(By.text(
+                        getPermissionControllerString("app_permission_button_deny"))).isChecked
+            } else if (isTv) {
+                !(waitFindObject(
+                    By.text(getPermissionControllerString(DENY_BUTTON_TEXT))).isChecked ||
+                    (!isLegacyApp && hasAskButton(permission) && waitFindObject(
+                        By.text(getPermissionControllerString(ASK_BUTTON_TEXT))).isChecked))
             } else {
                 if (isWatch) {
                     click(By.text("Deny"))
@@ -463,12 +473,34 @@ abstract class BaseUsePermissionTest : BasePermissionTest() {
                     when (state) {
                         PermissionState.ALLOWED ->
                             if (showsForegroundOnlyButton(permission)) {
-                                By.res(ALLOW_FOREGROUND_RADIO_BUTTON)
+                                By.text(getPermissionControllerString(
+                                        "app_permission_button_allow_foreground"))
                             } else {
-                                By.res(ALLOW_RADIO_BUTTON)
+                                By.text(getPermissionControllerString(
+                                                "app_permission_button_allow"))
                             }
-                        PermissionState.DENIED -> By.res(DENY_RADIO_BUTTON)
-                        PermissionState.DENIED_WITH_PREJUDICE -> By.res(DENY_RADIO_BUTTON)
+                        PermissionState.DENIED -> By.text(
+                                getPermissionControllerString("app_permission_button_deny"))
+                        PermissionState.DENIED_WITH_PREJUDICE -> By.text(
+                                getPermissionControllerString("app_permission_button_deny"))
+                    }
+                } else if (isTv) {
+                    when (state) {
+                        PermissionState.ALLOWED ->
+                            if (showsForegroundOnlyButton(permission)) {
+                                By.text(getPermissionControllerString(
+                                        ALLOW_FOREGROUND_PREFERENCE_TEXT))
+                            } else {
+                                By.text(getPermissionControllerString(ALLOW_BUTTON_TEXT))
+                            }
+                        PermissionState.DENIED ->
+                            if (!isLegacyApp && hasAskButton(permission)) {
+                                By.text(getPermissionControllerString(ASK_BUTTON_TEXT))
+                            } else {
+                                By.text(getPermissionControllerString(DENY_BUTTON_TEXT))
+                            }
+                        PermissionState.DENIED_WITH_PREJUDICE -> By.text(
+                                getPermissionControllerString(DENY_BUTTON_TEXT))
                     }
                 } else {
                     when (state) {
@@ -499,7 +531,9 @@ abstract class BaseUsePermissionTest : BasePermissionTest() {
                 button.click()
             }
             if (!alreadyChecked && isLegacyApp && wasGranted) {
-                scrollToBottom()
+                if (!isTv) {
+                    scrollToBottom()
+                }
                 val resources = context.createPackageContext(
                     packageManager.permissionControllerPackageName, 0
                 ).resources
