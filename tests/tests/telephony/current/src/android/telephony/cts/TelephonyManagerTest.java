@@ -16,10 +16,14 @@
 
 package android.telephony.cts;
 
+import static android.telephony.PhoneCapability.DEVICE_NR_CAPABILITY_NSA;
+import static android.telephony.PhoneCapability.DEVICE_NR_CAPABILITY_SA;
+
 import static com.android.compatibility.common.util.SystemUtil.runWithShellPermissionIdentity;
 
 import static com.google.common.truth.Truth.assertThat;
 
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
@@ -64,6 +68,7 @@ import android.telephony.CellInfo;
 import android.telephony.CellLocation;
 import android.telephony.DataThrottlingRequest;
 import android.telephony.NetworkRegistrationInfo;
+import android.telephony.PhoneCapability;
 import android.telephony.PhoneStateListener;
 import android.telephony.PinResult;
 import android.telephony.PreciseCallState;
@@ -135,6 +140,8 @@ public class TelephonyManagerTest {
     private boolean mRadioRebootTriggered = false;
     private boolean mHasRadioPowerOff = false;
     private ServiceState mServiceState;
+    private PhoneCapability mPhoneCapability;
+    private boolean mOnPhoneCapabilityChanged = false;
     private final Object mLock = new Object();
 
     private CarrierConfigManager mCarrierConfigManager;
@@ -1161,6 +1168,8 @@ public class TelephonyManagerTest {
         ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mTelephonyManager,
                 tp -> tp.setSystemSelectionChannels(Collections.emptyList()));
 
+        // TODO (b/189255895): Uncomment once getSystemSelection channels is functional in S QPR
+        /**
         // getSystemSelectionChannels was added in IRadio 1.6, so ensure it returns
         // the value that was set by setSystemSelectionChannels.
         if (mRadioVersion >= RADIO_HAL_VERSION_1_6) {
@@ -1168,6 +1177,7 @@ public class TelephonyManagerTest {
                     ShellIdentityUtils.invokeMethodWithShellPermissions(mTelephonyManager,
                     TelephonyManager::getSystemSelectionChannels));
         }
+         **/
     }
 
     @Test
@@ -1273,6 +1283,44 @@ public class TelephonyManagerTest {
         }
 
         assertEquals(mServiceState, mTelephonyManager.getServiceState());
+    }
+
+    private MockPhoneCapabilityListener mMockPhoneCapabilityListener;
+
+    private class MockPhoneCapabilityListener extends TelephonyCallback
+            implements TelephonyCallback.PhoneCapabilityListener {
+        @Override
+        public void onPhoneCapabilityChanged(PhoneCapability capability) {
+            synchronized (mLock) {
+                mPhoneCapability = capability;
+                mOnPhoneCapabilityChanged = true;
+                mLock.notify();
+            }
+        }
+    }
+
+    @Test
+    public void testGetPhoneCapabilityAndVerify() {
+        boolean is5gStandalone = getContext().getResources().getBoolean(
+                com.android.internal.R.bool.config_telephony5gStandalone);
+        boolean is5gNonStandalone = getContext().getResources().getBoolean(
+                com.android.internal.R.bool.config_telephony5gNonStandalone);
+        int[] deviceNrCapabilities = new int[0];
+        if (is5gStandalone || is5gNonStandalone) {
+            List<Integer> list = new ArrayList<>();
+            if (is5gNonStandalone) {
+                list.add(DEVICE_NR_CAPABILITY_NSA);
+            }
+            if (is5gStandalone) {
+                list.add(DEVICE_NR_CAPABILITY_SA);
+            }
+            deviceNrCapabilities = list.stream().mapToInt(Integer::valueOf).toArray();
+        }
+
+        PhoneCapability phoneCapability = ShellIdentityUtils.invokeMethodWithShellPermissions(
+                mTelephonyManager, (tm) -> tm.getPhoneCapability());
+
+        assertArrayEquals(deviceNrCapabilities, phoneCapability.getDeviceNrCapabilities());
     }
 
     @Test
@@ -1464,7 +1512,7 @@ public class TelephonyManagerTest {
         synchronized (mLock) {
             // reboot takes longer time
             if (!mRadioRebootTriggered) {
-                mLock.wait(10000);
+                mLock.wait(20000);
             }
         }
         assertThat(mTelephonyManager.getRadioPowerState()).isEqualTo(
@@ -3010,6 +3058,9 @@ public class TelephonyManagerTest {
         if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
             return;
         }
+        if (mPackageManager.hasSystemFeature(PackageManager.FEATURE_WATCH)) {
+            return;
+        }
 
         boolean isEnabled = ShellIdentityUtils.invokeMethodWithShellPermissions(mTelephonyManager,
                 tm -> tm.isOpportunisticNetworkEnabled());
@@ -3274,6 +3325,13 @@ public class TelephonyManagerTest {
     }
 
     private void disableNrDualConnectivity() {
+        if (!ShellIdentityUtils.invokeMethodWithShellPermissions(
+                mTelephonyManager, (tm) -> tm.isRadioInterfaceCapabilitySupported(
+                        TelephonyManager
+                                .CAPABILITY_NR_DUAL_CONNECTIVITY_CONFIGURATION_AVAILABLE))) {
+            return;
+        }
+
         ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(
                 mTelephonyManager,
                 (tm) -> tm.setNrDualConnectivityState(
@@ -3291,6 +3349,13 @@ public class TelephonyManagerTest {
     @Test
     public void testNrDualConnectivityEnable() {
         if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            return;
+        }
+
+        if (!ShellIdentityUtils.invokeMethodWithShellPermissions(
+                mTelephonyManager, (tm) -> tm.isRadioInterfaceCapabilitySupported(
+                        TelephonyManager
+                                .CAPABILITY_NR_DUAL_CONNECTIVITY_CONFIGURATION_AVAILABLE))) {
             return;
         }
 

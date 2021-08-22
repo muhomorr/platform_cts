@@ -20,6 +20,7 @@ import static android.net.NetworkCapabilities.NET_CAPABILITY_NOT_METERED;
 import static android.net.NetworkCapabilities.TRANSPORT_WIFI;
 import static android.net.wifi.WifiConfiguration.INVALID_NETWORK_ID;
 
+import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
 
 import static org.junit.Assert.assertNotEquals;
@@ -1720,7 +1721,7 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
 
             // Verify clean up
             PollingCheck.check(
-                    "Stop Softap failed", 2_000,
+                    "Stop Softap failed", 3_000,
                     () -> {
                         executor.runAll();
                         return WifiManager.WIFI_AP_STATE_DISABLED == callback.getCurrentState() &&
@@ -1978,7 +1979,8 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
             newNetworkId = mWifiManager.addNetwork(newOpenNetwork);
             assertNotEquals(INVALID_NETWORK_ID, newNetworkId);
 
-            assertEquals(savedNetworks.size() + 1, mWifiManager.getConfiguredNetworks().size());
+            // Multi-type configurations might be converted to more than 1 configuration.
+            assertThat(savedNetworks.size() < mWifiManager.getConfiguredNetworks().size()).isTrue();
 
             // Need an effectively-final holder because we need to modify inner Intent in callback.
             class IntentHolder {
