@@ -707,7 +707,7 @@ public class CarrierApiTest extends BaseCarrierApiTest {
         // invalid. Any p2 values that produce non '9000'/'62xx'/'63xx' status words are treated as
         // an error and the channel is not opened. Due to compatibility issues with older devices,
         // this check is only enabled for new devices launching on Q+.
-        if (Build.VERSION.FIRST_SDK_INT >= Build.VERSION_CODES.Q) {
+        if (Build.VERSION.DEVICE_INITIAL_SDK_INT >= Build.VERSION_CODES.Q) {
             int p2 = 0xF0;
             IccOpenLogicalChannelResponse response =
                     mTelephonyManager.iccOpenLogicalChannel("", p2);
@@ -785,7 +785,7 @@ public class CarrierApiTest extends BaseCarrierApiTest {
             // previous SELECT command. Some devices that launched before Q return TPDUs (instead of
             // APDUs) - these devices must issue a subsequent GET RESPONSE command to get the FCP
             // template.
-            if (Build.VERSION.FIRST_SDK_INT < Build.VERSION_CODES.Q) {
+            if (Build.VERSION.DEVICE_INITIAL_SDK_INT < Build.VERSION_CODES.Q) {
                 // Conditionally need to send GET RESPONSE apdu based on response from
                 // TelephonyManager
                 if (response.startsWith(STATUS_BYTES_REMAINING)) {
@@ -1076,12 +1076,14 @@ public class CarrierApiTest extends BaseCarrierApiTest {
         // Set subscription group with current sub Id.
         int subId = SubscriptionManager.getDefaultDataSubscriptionId();
         if (subId == SubscriptionManager.INVALID_SUBSCRIPTION_ID) return;
-        ParcelUuid uuid = mSubscriptionManager.createSubscriptionGroup(Arrays.asList(subId));
+        ParcelUuid uuid = ShellIdentityUtils.invokeMethodWithShellPermissions(mSubscriptionManager,
+                (sm) -> sm.createSubscriptionGroup(Arrays.asList(subId)));
 
         try {
             // Get all active subscriptions.
             List<SubscriptionInfo> activeSubInfos =
-                    mSubscriptionManager.getActiveSubscriptionInfoList();
+                    ShellIdentityUtils.invokeMethodWithShellPermissions(mSubscriptionManager,
+                    (sm) -> sm.getActiveSubscriptionInfoList());
 
             // Verify that the device has at least two active subscriptions.
             assertThat(activeSubInfos.size()).isAtLeast(DSDS_PHONE_COUNT);
@@ -1089,13 +1091,15 @@ public class CarrierApiTest extends BaseCarrierApiTest {
             List<Integer> activeSubGroup = getSubscriptionIdList(activeSubInfos);
             activeSubGroup.removeIf(id -> id == subId);
 
-            mSubscriptionManager.addSubscriptionsIntoGroup(activeSubGroup, uuid);
+            ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mSubscriptionManager,
+                    (sm) -> sm.addSubscriptionsIntoGroup(activeSubGroup, uuid));
 
-            List<Integer> infoList =
-                    getSubscriptionIdList(mSubscriptionManager.getSubscriptionsInGroup(uuid));
+            List<Integer> infoList = ShellIdentityUtils.invokeMethodWithShellPermissions(
+                    mSubscriptionManager,
+                    (sm) -> getSubscriptionIdList(sm.getSubscriptionsInGroup(uuid)));
+
             activeSubGroup.add(subId);
-            assertThat(infoList).hasSize(activeSubGroup.size());
-            assertThat(infoList).containsExactly(activeSubGroup);
+            assertThat(infoList).containsExactlyElementsIn(activeSubGroup);
         } finally {
             removeSubscriptionsFromGroup(uuid);
         }
@@ -1127,8 +1131,7 @@ public class CarrierApiTest extends BaseCarrierApiTest {
                 List<Integer> infoList =
                         getSubscriptionIdList(mSubscriptionManager.getSubscriptionsInGroup(uuid));
                 accessibleSubGroup.add(subId);
-                assertThat(infoList).hasSize(accessibleSubGroup.size());
-                assertThat(infoList).containsExactly(accessibleSubGroup);
+                assertThat(infoList).containsExactlyElementsIn(accessibleSubGroup);
             }
         } finally {
             removeSubscriptionsFromGroup(uuid);
@@ -1259,12 +1262,17 @@ public class CarrierApiTest extends BaseCarrierApiTest {
     }
 
     private void removeSubscriptionsFromGroup(ParcelUuid uuid) {
-        List<SubscriptionInfo> infoList = mSubscriptionManager.getSubscriptionsInGroup(uuid);
+        List<SubscriptionInfo> infoList = ShellIdentityUtils.invokeMethodWithShellPermissions(
+                mSubscriptionManager,
+                (sm) -> (sm.getSubscriptionsInGroup(uuid)));
         if (!infoList.isEmpty()) {
-            mSubscriptionManager.removeSubscriptionsFromGroup(
-                    getSubscriptionIdList(infoList), uuid);
+            List<Integer> subscriptionIdList = getSubscriptionIdList(infoList);
+            ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mSubscriptionManager,
+                    (sm) -> sm.removeSubscriptionsFromGroup(subscriptionIdList, uuid));
         }
-        infoList = mSubscriptionManager.getSubscriptionsInGroup(uuid);
+        infoList = ShellIdentityUtils.invokeMethodWithShellPermissions(
+                mSubscriptionManager,
+                (sm) -> (sm.getSubscriptionsInGroup(uuid)));
         assertThat(infoList).isEmpty();
     }
 

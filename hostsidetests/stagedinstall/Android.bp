@@ -19,7 +19,10 @@ package {
 java_test_host {
     name: "CtsStagedInstallHostTestCases",
     defaults: ["cts_defaults"],
-    srcs:  ["src/**/*.java"],
+    srcs:  [
+        "src/**/*.java",
+        ":apex-info-list",
+    ],
     libs: [
         "cts-tradefed",
         "cts-shim-host-lib",
@@ -66,6 +69,7 @@ android_test_helper_app {
         ":StagedInstallTestCorruptedApex_b146895998",
         ":StagedInstallTestApexV2_NoApkSignature",
         ":StagedInstallTestApexV2_UnsignedPayload",
+        ":StagedInstallTestApexV2_SignPayloadWithDifferentKey",
     ],
     static_libs: [
         "androidx.test.runner",
@@ -530,6 +534,28 @@ prebuilt_apex {
         },
     },
   filename: "com.android.apex.cts.shim.v2_unsigned_payload.apex",
+  installable: false,
+}
+
+ApexFilenameSigningPayloadWithDifferentKey =
+  "com.android.apex.cts.shim.v2_sign_payload_with_different_key.apex"
+prebuilt_apex {
+  name: "StagedInstallTestApexV2_SignPayloadWithDifferentKey",
+  arch: {
+        arm: {
+              src: "testdata/apex/arm/" + ApexFilenameSigningPayloadWithDifferentKey,
+        },
+        arm64: {
+              src: "testdata/apex/arm/" + ApexFilenameSigningPayloadWithDifferentKey,
+        },
+        x86: {
+              src: "testdata/apex/x86/" + ApexFilenameSigningPayloadWithDifferentKey,
+        },
+        x86_64: {
+              src: "testdata/apex/x86/" + ApexFilenameSigningPayloadWithDifferentKey,
+        },
+    },
+  filename: ApexFilenameSigningPayloadWithDifferentKey,
   installable: false,
 }
 

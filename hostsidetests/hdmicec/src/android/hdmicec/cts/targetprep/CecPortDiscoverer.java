@@ -20,6 +20,8 @@ import android.hdmicec.cts.BaseHdmiCecCtsTest;
 import android.hdmicec.cts.CecMessage;
 import android.hdmicec.cts.HdmiCecClientWrapper;
 import android.hdmicec.cts.HdmiCecConstants;
+import android.hdmicec.cts.error.CecClientWrapperException;
+import android.hdmicec.cts.error.ErrorCodes;
 
 import com.android.tradefed.device.DeviceNotAvailableException;
 import com.android.tradefed.device.ITestDevice;
@@ -48,6 +50,15 @@ public class CecPortDiscoverer extends BaseTargetPreparer {
     private File mCecMapDir = HdmiCecConstants.CEC_MAP_FOLDER;
     private File mDeviceEntry = null;
     private File mPortEntry = null;
+
+    private String instructionsOnError =
+            "\nIn case the setup is valid according to the README and "
+                    + "the test should have run, please verify that\n"
+                    + "1. cec-client is not running already on the port the DUT is connected to\n"
+                    + "2. "
+                    + HdmiCecConstants.CEC_MAP_FOLDER
+                    + " has been cleared of stale mappings (in case a"
+                    + " test was interrupted)\n";
 
     /** {@inheritDoc} */
     @Override
@@ -96,7 +107,8 @@ public class CecPortDiscoverer extends BaseTargetPreparer {
                 throw new TargetSetupError("No adapters connected to host.");
             }
 
-            int targetDevice = BaseHdmiCecCtsTest.getDumpsysLogicalAddress(device);
+            int targetDevice =
+                    BaseHdmiCecCtsTest.getTargetLogicalAddress(device).getLogicalAddressAsInt();
             int toDevice;
             launchCommand.add("-t");
             if (targetDevice == 0) {
@@ -108,7 +120,8 @@ public class CecPortDiscoverer extends BaseTargetPreparer {
             }
 
             serialNo = device.getProperty("ro.serialno");
-            String serialNoParam = CecMessage.convertStringToHexParams(serialNo);
+            String serialNoHashCode = String.valueOf(serialNo.hashCode());
+            String serialNoParam = CecMessage.convertStringToHexParams(serialNoHashCode);
             /*
              * formatParams prefixes with a ':' that we do not want in the vendorcommand
              * command line utility.
@@ -154,10 +167,14 @@ public class CecPortDiscoverer extends BaseTargetPreparer {
                             portBeingRetried = false;
                         } else {
                             CLog.e("Console did not get ready!");
-                            throw new HdmiCecClientWrapper.CecPortBusyException();
+                            throw new CecClientWrapperException(ErrorCodes.CecPortBusy);
                         }
-                    } catch (HdmiCecClientWrapper.CecPortBusyException cpbe) {
-                        retryCount++;
+                    } catch (CecClientWrapperException cwe) {
+                        if (cwe.getErrorCode() != ErrorCodes.CecPortBusy) {
+                            retryCount = MAX_RETRY_COUNT;
+                        } else {
+                            retryCount++;
+                        }
                         if (retryCount >= MAX_RETRY_COUNT) {
                             /* We have retried enough number of times. Check another port */
                             portBeingRetried = false;
@@ -180,7 +197,8 @@ public class CecPortDiscoverer extends BaseTargetPreparer {
                             + ". "
                             + "Could not get adapter mapping for device"
                             + serialNo
-                            + ".",
+                            + "."
+                            + instructionsOnError,
                     e);
         } catch (Exception generic) {
             throw new TargetSetupError(
@@ -189,10 +207,12 @@ public class CecPortDiscoverer extends BaseTargetPreparer {
                             + "'. "
                             + "Could not get adapter mapping for device"
                             + serialNo
-                            + ".",
+                            + "."
+                            + instructionsOnError,
                     generic);
         }
-        throw new TargetSetupError("Device " + serialNo + " not connected to any adapter!");
+        throw new TargetSetupError(
+                "Device " + serialNo + " not connected to any adapter!" + instructionsOnError);
     }
 
     private String getPortFilename(String port) {

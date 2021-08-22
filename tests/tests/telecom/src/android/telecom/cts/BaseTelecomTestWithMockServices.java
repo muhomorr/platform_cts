@@ -29,6 +29,7 @@ import android.app.UiModeManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.res.Configuration;
+import android.content.pm.PackageManager;
 import android.database.ContentObserver;
 import android.database.Cursor;
 import android.media.AudioManager;
@@ -37,6 +38,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.Looper;
+import android.os.RemoteException;
 import android.provider.CallLog;
 import android.telecom.Call;
 import android.telecom.CallAudioState;
@@ -49,6 +51,7 @@ import android.telecom.PhoneAccountHandle;
 import android.telecom.TelecomManager;
 import android.telecom.VideoProfile;
 import android.telecom.cts.MockInCallService.InCallServiceCallbacks;
+import android.telecom.cts.carmodetestapp.ICtsCarModeInCallServiceControl;
 import android.telephony.PhoneStateListener;
 import android.telephony.TelephonyManager;
 import android.telephony.emergency.EmergencyNumber;
@@ -121,6 +124,63 @@ public class BaseTelecomTestWithMockServices extends InstrumentationTestCase {
     TestPhoneStateListener mPhoneStateListener;
     Handler mHandler;
 
+    /**
+     * Uses the control interface to disable car mode.
+     * @param expectedUiMode
+     */
+    protected void disableAndVerifyCarMode(ICtsCarModeInCallServiceControl control,
+            int expectedUiMode) {
+        if (control == null) {
+            return;
+        }
+        try {
+            control.disableCarMode();
+        } catch (RemoteException re) {
+            fail("Bee-boop; can't control the incall service");
+        }
+        assertUiMode(expectedUiMode);
+    }
+
+    protected void disconnectAllCallsAndVerify(ICtsCarModeInCallServiceControl controlBinder) {
+        if (controlBinder == null) {
+            return;
+        }
+        try {
+            controlBinder.disconnectCalls();
+        } catch (RemoteException re) {
+            fail("Bee-boop; can't control the incall service");
+        }
+        assertCarModeCallCount(controlBinder, 0);
+    }
+
+    /**
+     * Verify the car mode ICS has an expected call count.
+     * @param expected
+     */
+    protected void assertCarModeCallCount(ICtsCarModeInCallServiceControl control, int expected) {
+        waitUntilConditionIsTrueOrTimeout(
+                new Condition() {
+                    @Override
+                    public Object expected() {
+                        return expected;
+                    }
+
+                    @Override
+                    public Object actual() {
+                        int callCount = 0;
+                        try {
+                            callCount = control.getCallCount();
+                        } catch (RemoteException re) {
+                            fail("Bee-boop; can't control the incall service");
+                        }
+                        return callCount;
+                    }
+                },
+                WAIT_FOR_STATE_CHANGE_TIMEOUT_MS,
+                "Expected " + expected + " calls."
+        );
+    }
+
     static class TestPhoneStateListener extends PhoneStateListener {
         /** Semaphore released for every callback invocation. */
         public Semaphore mCallbackSemaphore = new Semaphore(0);
@@ -171,14 +231,19 @@ public class BaseTelecomTestWithMockServices extends InstrumentationTestCase {
             return;
         }
 
-        // Assume we start in normal mode at the start of all Telecom tests.
-        // A failure to leave car mode in any of the tests would cause subsequent test failures,
-        // but this failure should not affect other tests.
+        // Assume we start in normal mode at the start of all Telecom tests; a failure to leave car
+        // mode in any of the tests would cause subsequent test failures.
+        // For Watch, UI_MODE shouldn't be normal mode.
         mUiModeManager = mContext.getSystemService(UiModeManager.class);
         if (mUiModeManager.getCurrentModeType() == Configuration.UI_MODE_TYPE_CAR) {
             mUiModeManager.disableCarMode(0);
         }
-        assertUiMode(Configuration.UI_MODE_TYPE_NORMAL);
+
+        if  (mContext.getPackageManager().hasSystemFeature(PackageManager.FEATURE_WATCH)) {
+             assertUiMode(Configuration.UI_MODE_TYPE_WATCH);
+        } else {
+             assertUiMode(Configuration.UI_MODE_TYPE_NORMAL);
+        }
 
         mTelecomManager = (TelecomManager) mContext.getSystemService(Context.TELECOM_SERVICE);
         mTelephonyManager = (TelephonyManager) mContext.getSystemService(Context.TELEPHONY_SERVICE);
@@ -248,6 +313,7 @@ public class BaseTelecomTestWithMockServices extends InstrumentationTestCase {
 
     protected PhoneAccount setupConnectionService(MockConnectionService connectionService,
             int flags) throws Exception {
+        Log.i(TAG, "Setting up mock connection service");
         if (connectionService != null) {
             this.connectionService = connectionService;
         } else {
@@ -278,6 +344,7 @@ public class BaseTelecomTestWithMockServices extends InstrumentationTestCase {
     }
 
     protected void tearDownConnectionService(PhoneAccountHandle accountHandle) throws Exception {
+        Log.i(TAG, "Tearing down mock connection service");
         if (this.connectionService != null) {
             assertNumConnections(this.connectionService, 0);
         }

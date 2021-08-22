@@ -43,6 +43,7 @@ public final class HdmiCecConstants {
 
     public static final int UNRECOGNIZED_OPCODE = 0x0;
 
+    public static final int CEC_DEVICE_TYPE_UNKNOWN = -1;
     public static final int CEC_DEVICE_TYPE_TV = 0;
     public static final int CEC_DEVICE_TYPE_RECORDER = 1;
     public static final int CEC_DEVICE_TYPE_RESERVED = 2;
@@ -58,6 +59,12 @@ public final class HdmiCecConstants {
     public static final int ABORT_INVALID_OPERAND = 3;
     public static final int ABORT_REFUSED = 4;
     public static final int ABORT_UNABLE_TO_DETERMINE = 5;
+
+    /** CEC Power Status */
+    public static final int CEC_POWER_STATUS_ON = 0x0;
+    public static final int CEC_POWER_STATUS_STANDBY = 0x1;
+    public static final int CEC_POWER_STATUS_IN_TRANSITION_TO_ON = 0x2;
+    public static final int CEC_POWER_STATUS_IN_TRANSITION_TO_STANDBY = 0x3;
 
     // CEC Device feature list
     public static final String HDMI_CEC_FEATURE = "feature:android.hardware.hdmi.cec";

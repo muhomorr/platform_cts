@@ -559,8 +559,6 @@
 
     <protected-broadcast android:name="android.intent.action.DYNAMIC_SENSOR_CHANGED" />
 
-    <protected-broadcast android:name="android.intent.action.ACTION_RADIO_OFF" />
-
     <protected-broadcast android:name="android.accounts.LOGIN_ACCOUNTS_CHANGED" />
     <protected-broadcast android:name="android.accounts.action.ACCOUNT_REMOVED" />
     <protected-broadcast android:name="android.accounts.action.VISIBLE_ACCOUNTS_CHANGED" />
@@ -3187,6 +3185,13 @@
         @hide
     -->
     <permission android:name="android.permission.TRIGGER_SHELL_BUGREPORT"
+        android:protectionLevel="signature" />
+
+    <!-- Allows an application to trigger profcollect report upload via shell.
+        <p>Not for use by third-party applications.
+        @hide
+    -->
+    <permission android:name="android.permission.TRIGGER_SHELL_PROFCOLLECT_UPLOAD"
         android:protectionLevel="signature" />
 
     <!-- Allows an application to be the status bar.  Currently used only by SystemUI.apk

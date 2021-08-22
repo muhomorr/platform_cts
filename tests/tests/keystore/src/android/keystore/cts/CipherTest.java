@@ -24,6 +24,7 @@ import android.platform.test.annotations.Presubmit;
 import android.security.keystore.KeyProperties;
 import android.security.keystore.KeyProtection;
 import android.server.wm.ActivityManagerTestBase;
+import android.server.wm.UiDeviceUtils;
 import android.test.AndroidTestCase;
 import android.test.MoreAsserts;
 
@@ -293,6 +294,8 @@ public class CipherTest extends AndroidTestCase {
 
         public void performDeviceUnlock() throws Exception {
             mLockCredential.gotoKeyguard();
+            UiDeviceUtils.pressUnlockButton();
+            SystemClock.sleep(200);
             mLockCredential.enterAndConfirmLockCredential();
             launchHomeActivity();
             KeyguardManager keyguardManager = (KeyguardManager)getContext().getSystemService(
@@ -587,10 +590,15 @@ public class CipherTest extends AndroidTestCase {
         return (pm != null && pm.hasSystemFeature("android.software.leanback_only"));
     }
 
+    private boolean hasSecureLockScreen() {
+        PackageManager pm = getContext().getPackageManager();
+        return (pm != null && pm.hasSystemFeature("android.software.secure_lock_screen"));
+    }
+
     @Presubmit
     public void testKeyguardLockAndUnlock()
             throws Exception {
-        if (isLeanbackOnly()) {
+        if (!hasSecureLockScreen()) {
             return;
         }
 
@@ -611,7 +619,7 @@ public class CipherTest extends AndroidTestCase {
         final boolean isUnlockedDeviceRequired = true;
         final boolean isUserAuthRequired = false;
 
-        if (isLeanbackOnly()) {
+        if (!hasSecureLockScreen()) {
             return;
         }
 
@@ -1122,7 +1130,7 @@ public class CipherTest extends AndroidTestCase {
         final boolean isUnlockedDeviceRequired = false;
         final boolean isUserAuthRequired = true;
 
-        if (isLeanbackOnly()) {
+        if (!hasSecureLockScreen()) {
             return;
         }
 
