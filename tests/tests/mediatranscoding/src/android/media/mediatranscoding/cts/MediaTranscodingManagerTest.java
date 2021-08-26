@@ -30,6 +30,7 @@ import android.media.MediaTranscodingManager.TranscodingRequest;
 import android.media.MediaTranscodingManager.TranscodingSession;
 import android.media.MediaTranscodingManager.VideoTranscodingRequest;
 import android.net.Uri;
+// import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.FileUtils;
@@ -168,6 +169,7 @@ public class MediaTranscodingManagerTest extends AndroidTestCase {
 
     // Skip the test for TV, Car and Watch devices.
     private boolean shouldSkip() {
+
         PackageManager pm =
                 InstrumentationRegistry.getInstrumentation().getTargetContext().getPackageManager();
         return pm.hasSystemFeature(pm.FEATURE_LEANBACK) || pm.hasSystemFeature(pm.FEATURE_WATCH)
