@@ -17,6 +17,8 @@
 package android.os.cts
 
 import android.companion.CompanionDeviceManager
+import android.content.pm.PackageManager
+import android.content.pm.PackageManager.FEATURE_AUTOMOTIVE
 import android.content.pm.PackageManager.FEATURE_COMPANION_DEVICE_SETUP
 import android.content.pm.PackageManager.PERMISSION_GRANTED
 import android.net.MacAddress
@@ -54,8 +56,10 @@ import org.hamcrest.Matcher
 import org.hamcrest.Matchers.empty
 import org.hamcrest.Matchers.not
 import org.junit.Assert.assertThat
+import org.junit.Assume.assumeFalse
 import org.junit.Assume.assumeTrue
 import org.junit.Before
+import org.junit.After
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.Serializable
@@ -65,6 +69,8 @@ const val COMPANION_APPROVE_WIFI_CONNECTIONS =
 const val DUMMY_MAC_ADDRESS = "00:00:00:00:00:10"
 const val MANAGE_COMPANION_DEVICES = "android.permission.MANAGE_COMPANION_DEVICES"
 const val SHELL_PACKAGE_NAME = "com.android.shell"
+const val TEST_APP_PACKAGE_NAME = "android.os.cts.companiontestapp"
+const val TEST_APP_APK_LOCATION = "/data/local/tmp/cts/os/CtsCompanionTestApp.apk"
 val InstrumentationTestCase.context get() = InstrumentationRegistry.getTargetContext()
 
 /**
@@ -76,6 +82,11 @@ class CompanionDeviceManagerTest : InstrumentationTestCase() {
     val cdm: CompanionDeviceManager by lazy {
         context.getSystemService(CompanionDeviceManager::class.java)
     }
+    val pm: PackageManager by lazy { context.packageManager }
+    private val hasFeatureCompanionDeviceSetup: Boolean by lazy {
+        pm.hasSystemFeature(FEATURE_COMPANION_DEVICE_SETUP)
+    }
+    private val isAuto: Boolean by lazy { pm.hasSystemFeature(FEATURE_AUTOMOTIVE) }
 
     private fun isShellAssociated(macAddress: String, packageName: String): Boolean {
         val userId = context.userId
@@ -99,7 +110,25 @@ class CompanionDeviceManagerTest : InstrumentationTestCase() {
 
     @Before
     fun assumeHasFeature() {
-        assumeTrue(context.packageManager.hasSystemFeature(FEATURE_COMPANION_DEVICE_SETUP))
+        assumeTrue(hasFeatureCompanionDeviceSetup)
+        // TODO(b/191699828) test does not work in automotive due to accessibility issue
+        assumeFalse(isAuto)
+    }
+
+    @After
+    fun removeAllAssociations() {
+        // If the devices does not have the feature or is an Auto, the test didn't run, and the
+        // clean up is not needed (will actually crash if the feature is missing).
+        // See assumeHasFeature @Before method.
+        if (!hasFeatureCompanionDeviceSetup || isAuto) return
+
+        val userId = context.userId
+        val associations = getAssociatedDevices(TEST_APP_PACKAGE_NAME)
+
+        for (address in associations) {
+            runShellCommandOrThrow(
+                    "cmd companiondevice disassociate $userId $TEST_APP_PACKAGE_NAME $address")
+        }
     }
 
     @AppModeFull(reason = "Companion API for non-instant apps only")
@@ -152,9 +181,8 @@ class CompanionDeviceManagerTest : InstrumentationTestCase() {
     @AppModeFull(reason = "Companion API for non-instant apps only")
     @Test
     fun testProfiles() {
-        val packageName = "android.os.cts.companiontestapp"
-        installApk("/data/local/tmp/cts/os/CtsCompanionTestApp.apk")
-        startApp(packageName)
+        installApk("--user ${UserHandle.myUserId()} $TEST_APP_APK_LOCATION")
+        startApp(TEST_APP_PACKAGE_NAME)
 
         waitFindNode(hasClassThat(`is`(equalTo(EditText::class.java.name))))
                 .performAction(ACTION_SET_TEXT,
@@ -166,23 +194,63 @@ class CompanionDeviceManagerTest : InstrumentationTestCase() {
             click("Associate")
             waitFindNode(hasIdThat(containsString("device_list")),
                     failMsg = "Test requires a discoverable bluetooth device nearby",
+                    timeoutMs = 9_000)
+                    .children
+                    .find { it.className == TextView::class.java.name }
+                    .assertNotNull { "Empty device list" }
+        }, 90_000)
+        device!!.click()
+
+        eventually {
+            assertThat(getAssociatedDevices(TEST_APP_PACKAGE_NAME), not(empty()))
+        }
+        val deviceAddress = getAssociatedDevices(TEST_APP_PACKAGE_NAME).last()
+
+        runShellCommandOrThrow("cmd companiondevice simulate_connect $deviceAddress")
+        assertPermission(
+                TEST_APP_PACKAGE_NAME, "android.permission.CALL_PHONE", PERMISSION_GRANTED)
+
+        runShellCommandOrThrow("cmd companiondevice simulate_disconnect $deviceAddress")
+        assertPermission(
+                TEST_APP_PACKAGE_NAME, "android.permission.CALL_PHONE", PERMISSION_GRANTED)
+    }
+
+    @AppModeFull(reason = "Companion API for non-instant apps only")
+    @Test
+    fun testRequestNotifications() {
+        installApk("--user ${UserHandle.myUserId()} $TEST_APP_APK_LOCATION")
+        startApp(TEST_APP_PACKAGE_NAME)
+
+        waitFindNode(hasClassThat(`is`(equalTo(EditText::class.java.name))))
+                .performAction(ACTION_SET_TEXT,
+                        bundleOf(ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE to ""))
+        waitForIdle()
+
+        val deviceForAssociation = getEventually({
+            click("Associate")
+            waitFindNode(hasIdThat(containsString("device_list")),
+                    failMsg = "Test requires a discoverable bluetooth device nearby",
                     timeoutMs = 5_000)
                     .children
                     .find { it.className == TextView::class.java.name }
                     .assertNotNull { "Empty device list" }
         }, 60_000)
-        device!!.click()
 
-        eventually {
-            assertThat(getAssociatedDevices(packageName), not(empty()))
-        }
-        val deviceAddress = getAssociatedDevices(packageName).last()
+        deviceForAssociation!!.click()
 
-        runShellCommandOrThrow("cmd companiondevice simulate_connect $deviceAddress")
-        assertPermission(packageName, "android.permission.CALL_PHONE", PERMISSION_GRANTED)
+        waitForIdle()
 
-        runShellCommandOrThrow("cmd companiondevice simulate_disconnect $deviceAddress")
-        assertPermission(packageName, "android.permission.CALL_PHONE", PERMISSION_GRANTED)
+        val deviceForNotifications = getEventually({
+            click("Request Notifications")
+            waitFindNode(hasIdThat(containsString("button1")),
+                    failMsg = "The Request Notifications dialog is not showing up",
+                    timeoutMs = 5_000)
+                    .assertNotNull { "Request Notifications is not implemented" }
+        }, 60_000)
+
+        deviceForNotifications!!.click()
+
+        waitForIdle()
     }
 
     private fun getAssociatedDevices(

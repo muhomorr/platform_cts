@@ -146,7 +146,7 @@ public class SplashscreenTests extends ActivityManagerTestBase {
 
         launchActivityNoWait(SPLASHSCREEN_ACTIVITY);
         // The windowSplashScreenContent attribute is set to RED. We check that it is ignored.
-        testSplashScreenColor(SPLASHSCREEN_ACTIVITY, Color.BLUE, Color.BLACK);
+        testSplashScreenColor(SPLASHSCREEN_ACTIVITY, Color.BLUE, Color.WHITE);
     }
 
     private void testSplashScreenColor(ComponentName name, int primaryColor, int secondaryColor) {
@@ -173,8 +173,6 @@ public class SplashscreenTests extends ActivityManagerTestBase {
         Rect topInsetsBounds = new Rect(insets.left, 0, appBounds.right - insets.right, insets.top);
         Rect bottomInsetsBounds = new Rect(insets.left, appBounds.bottom - insets.bottom,
                 appBounds.right - insets.right, appBounds.bottom);
-        assertFalse("Top insets bounds rect is empty", topInsetsBounds.isEmpty());
-        assertFalse("Bottom insets bounds rect is empty", bottomInsetsBounds.isEmpty());
 
         if (appBounds.isEmpty()) {
             fail("Couldn't find splash screen bounds. Impossible to assert the colors");
@@ -319,6 +317,7 @@ public class SplashscreenTests extends ActivityManagerTestBase {
         assumeFalse(isLeanBack());
         launchRuntimeHandleExitAnimationActivity(false, true, false, true);
     }
+
     @Test
     public void testHandleExitAnimationCancel() throws Exception {
         assumeFalse(isLeanBack());
@@ -339,12 +338,17 @@ public class SplashscreenTests extends ActivityManagerTestBase {
         mWmState.assertVisibility(HANDLE_SPLASH_SCREEN_EXIT_ACTIVITY, true);
         final TestJournalProvider.TestJournal journal =
                 TestJournalProvider.TestJournalContainer.get(HANDLE_SPLASH_SCREEN_EXIT);
-        TestUtils.waitUntil("Waiting for runtime onSplashScreenExit", 5 /* timeoutSecond */,
-                () -> expectResult == journal.extras.getBoolean(RECEIVE_SPLASH_SCREEN_EXIT));
-        assertEquals(expectResult, journal.extras.getBoolean(CONTAINS_CENTER_VIEW));
-        assertEquals(expectResult, journal.extras.getBoolean(CONTAINS_BRANDING_VIEW));
-        assertEquals(expectResult ? Color.BLUE : Color.TRANSPARENT,
-                journal.extras.getInt(ICON_BACKGROUND_COLOR));
+        if (expectResult) {
+            TestUtils.waitUntil("Waiting for runtime onSplashScreenExit", 5 /* timeoutSecond */,
+                    () -> journal.extras.getBoolean(RECEIVE_SPLASH_SCREEN_EXIT));
+            assertTrue("No entry for CONTAINS_CENTER_VIEW",
+                    journal.extras.containsKey(CONTAINS_CENTER_VIEW));
+            assertTrue("No entry for CONTAINS_BRANDING_VIEW",
+                    journal.extras.containsKey(CONTAINS_BRANDING_VIEW));
+            assertTrue("Center View shouldn't be null", journal.extras.getBoolean(CONTAINS_CENTER_VIEW));
+            assertTrue(journal.extras.getBoolean(CONTAINS_BRANDING_VIEW));
+            assertEquals(Color.BLUE, journal.extras.getInt(ICON_BACKGROUND_COLOR, Color.YELLOW));
+        }
     }
 
     @Test
@@ -380,7 +384,7 @@ public class SplashscreenTests extends ActivityManagerTestBase {
         assumeFalse(isCar());
 
         launchActivityNoWait(SPLASH_SCREEN_REPLACE_ICON_ACTIVITY, extraBool(DELAY_RESUME, true));
-        testSplashScreenColor(SPLASH_SCREEN_REPLACE_ICON_ACTIVITY, Color.BLUE, Color.BLACK);
+        testSplashScreenColor(SPLASH_SCREEN_REPLACE_ICON_ACTIVITY, Color.BLUE, Color.WHITE);
     }
 
     @Test
@@ -447,10 +451,29 @@ public class SplashscreenTests extends ActivityManagerTestBase {
         try {
             shortcutManager.addDynamicShortcuts(Collections.singletonList(shortcut));
             runWithShellPermission(() -> launcherApps.startShortcut(shortcut, null, null));
-            testSplashScreenColor(SPLASHSCREEN_ACTIVITY, Color.BLACK, Color.BLACK);
+            testSplashScreenColor(SPLASHSCREEN_ACTIVITY, Color.BLACK, Color.WHITE);
         } finally {
             shortcutManager.removeDynamicShortcuts(Collections.singletonList(shortCutId));
         }
+    }
+
+    private void waitAndAssertOverrideThemeColor(int expectedColor) {
+        final ComponentName activity = SPLASH_SCREEN_REPLACE_THEME_ACTIVITY;
+        final Bundle resultExtras = Condition.waitForResult(
+                new Condition<Bundle>("splash screen theme color of " + activity)
+                        .setResultSupplier(() -> TestJournalProvider.TestJournalContainer.get(
+                                OVERRIDE_THEME_COMPONENT).extras)
+                        .setResultValidator(extras -> extras.containsKey(OVERRIDE_THEME_COLOR)));
+        if (resultExtras == null) {
+            fail("No reported override theme color from " + activity);
+        }
+        if (expectedColor > 0) {
+            assertEquals("Override theme color must match",
+                    Integer.toHexString(expectedColor),
+                    Integer.toHexString(resultExtras.getInt(OVERRIDE_THEME_COLOR)));
+        }
+        mWmState.waitForActivityRemoved(activity);
+        separateTestJournal();
     }
 
     @Test
@@ -461,36 +484,23 @@ public class SplashscreenTests extends ActivityManagerTestBase {
         // Pre-launch the activity to ensure status is cleared on the device
         startActivityFromTestLauncher(homeActivity, SPLASH_SCREEN_REPLACE_THEME_ACTIVITY,
                 intent -> {});
-        mWmState.waitAndAssertActivityRemoved(SPLASH_SCREEN_REPLACE_THEME_ACTIVITY);
+        waitAndAssertOverrideThemeColor(0 /* ignore */);
 
         // Launch the activity a first time, check that the splashscreen use the default theme,
         // and override the theme for the next launch
-        TestJournalProvider.TestJournal journal = TestJournalProvider.TestJournalContainer.get(
-                OVERRIDE_THEME_COMPONENT);
-
         startActivityFromTestLauncher(homeActivity, SPLASH_SCREEN_REPLACE_THEME_ACTIVITY,
                 intent -> intent.putExtra(OVERRIDE_THEME_ENABLED, true));
-        mWmState.waitForActivityRemoved(SPLASH_SCREEN_REPLACE_THEME_ACTIVITY);
-        assertEquals(Integer.toHexString(Color.BLUE),
-                Integer.toHexString(journal.extras.getInt(OVERRIDE_THEME_COLOR)));
+        waitAndAssertOverrideThemeColor(Color.BLUE);
 
         // Launch the activity a second time, check that the theme has been overridden and reset
         // to the default theme
         startActivityFromTestLauncher(homeActivity, SPLASH_SCREEN_REPLACE_THEME_ACTIVITY,
                 intent -> {});
-        mWmState.waitForActivityRemoved(SPLASH_SCREEN_REPLACE_THEME_ACTIVITY);
-
-        journal = TestJournalProvider.TestJournalContainer.get(OVERRIDE_THEME_COMPONENT);
-        assertEquals(Integer.toHexString(Color.RED),
-                Integer.toHexString(journal.extras.getInt(OVERRIDE_THEME_COLOR)));
+        waitAndAssertOverrideThemeColor(Color.RED);
 
         // Launch the activity a third time just to check that the theme has indeed been reset.
         startActivityFromTestLauncher(homeActivity, SPLASH_SCREEN_REPLACE_THEME_ACTIVITY,
                 intent -> {});
-        mWmState.waitForActivityRemoved(SPLASH_SCREEN_REPLACE_THEME_ACTIVITY);
-
-        journal = TestJournalProvider.TestJournalContainer.get(OVERRIDE_THEME_COMPONENT);
-        assertEquals(Integer.toHexString(Color.BLUE),
-                Integer.toHexString(journal.extras.getInt(OVERRIDE_THEME_COLOR)));
+        waitAndAssertOverrideThemeColor(Color.BLUE);
     }
 }

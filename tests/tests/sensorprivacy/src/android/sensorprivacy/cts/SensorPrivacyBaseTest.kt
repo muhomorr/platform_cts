@@ -26,6 +26,7 @@ import android.os.PowerManager
 import android.platform.test.annotations.AppModeFull
 import android.hardware.SensorPrivacyManager.Sensors.CAMERA
 import android.hardware.SensorPrivacyManager.Sensors.MICROPHONE
+import android.hardware.SensorPrivacyManager.Sources.OTHER
 import android.support.test.uiautomator.By
 import android.view.KeyEvent
 import androidx.test.platform.app.InstrumentationRegistry
@@ -95,6 +96,7 @@ abstract class SensorPrivacyBaseTest(
     @After
     fun tearDown() {
         finishTestApp()
+        Thread.sleep(3000)
         setSensor(oldState)
     }
 
@@ -185,6 +187,9 @@ abstract class SensorPrivacyBaseTest(
     @Test
     @AppModeFull(reason = "Instant apps can't manage keyguard")
     fun testCantChangeWhenLocked() {
+        Assume.assumeTrue(packageManager
+                .hasSystemFeature(PackageManager.FEATURE_SECURE_LOCK_SCREEN))
+
         setSensor(false)
         assertFalse(isSensorPrivacyEnabled())
         runWhileLocked {
@@ -211,6 +216,7 @@ abstract class SensorPrivacyBaseTest(
     }
 
     @Test
+    @AppModeFull(reason = "Uses secondary app, instant apps have no visibility")
     fun testOpNotRunningWhileSensorPrivacyEnabled() {
         setSensor(false)
         val before = System.currentTimeMillis()
@@ -228,6 +234,7 @@ abstract class SensorPrivacyBaseTest(
     }
 
     @Test
+    @AppModeFull(reason = "Uses secondary app, instant apps have no visibility")
     fun testOpStartsRunningAfterStartedWithSensoryPrivacyEnabled() {
         setSensor(true)
         startTestApp()
@@ -241,6 +248,7 @@ abstract class SensorPrivacyBaseTest(
     }
 
     @Test
+    @AppModeFull(reason = "Uses secondary app, instant apps have no visibility")
     fun testOpGetsRecordedAfterStartedWithSensorPrivacyEnabled() {
         setSensor(true)
         startTestApp()
@@ -259,6 +267,7 @@ abstract class SensorPrivacyBaseTest(
     }
 
     @Test
+    @AppModeFull(reason = "Uses secondary app, instant apps have no visibility")
     fun testOpLastAccessUpdatesAfterToggleSensorPrivacy() {
         setSensor(false)
         val before = System.currentTimeMillis()
@@ -289,6 +298,7 @@ abstract class SensorPrivacyBaseTest(
     }
 
     @Test
+    @AppModeFull(reason = "Uses secondary app, instant apps have no visibility")
     fun testOpFinishedWhileToggleOn() {
         setSensor(false)
         startTestApp()
@@ -329,7 +339,7 @@ abstract class SensorPrivacyBaseTest(
 
     protected fun setSensor(enable: Boolean) {
         runWithShellPermissionIdentity {
-            spm.setSensorPrivacy(sensor, enable)
+            spm.setSensorPrivacy(OTHER, sensor, enable)
         }
     }
 

@@ -59,10 +59,10 @@ import android.platform.test.annotations.AppModeFull;
 import android.support.test.uiautomator.UiDevice;
 import android.telephony.TelephonyManager;
 
+import androidx.test.ext.junit.runners.AndroidJUnit4;
+import androidx.test.filters.LargeTest;
 import androidx.test.filters.SdkSuppress;
-import androidx.test.filters.SmallTest;
 import androidx.test.platform.app.InstrumentationRegistry;
-import androidx.test.runner.AndroidJUnit4;
 
 import com.android.compatibility.common.util.ApiLevelUtil;
 import com.android.compatibility.common.util.PollingCheck;
@@ -88,7 +88,7 @@ import java.util.concurrent.TimeUnit;
  * Tests for wifi connected network scorer interface and usability stats.
  */
 @AppModeFull(reason = "Cannot get WifiManager in instant app mode")
-@SmallTest
+@LargeTest
 @RunWith(AndroidJUnit4.class)
 public class ConnectedNetworkScorerTest extends WifiJUnit4TestBase {
     private Context mContext;
@@ -618,14 +618,16 @@ public class ConnectedNetworkScorerTest extends WifiJUnit4TestBase {
 
             // Restart wifi subsystem.
             mWifiManager.restartWifiSubsystem();
+
+            // wait for scorer to stop session due to network disconnection.
+            assertThat(countDownLatchScorer.await(TIMEOUT, TimeUnit.MILLISECONDS)).isTrue();
+            assertThat(connectedNetworkScorer.stopSessionId).isEqualTo(prevSessionId);
+
             // Wait for the device to connect back.
             PollingCheck.check(
                     "Wifi not connected",
                     WIFI_CONNECT_TIMEOUT_MILLIS * 2,
                     () -> mWifiManager.getConnectionInfo().getNetworkId() != -1);
-
-            assertThat(countDownLatchScorer.await(TIMEOUT, TimeUnit.MILLISECONDS)).isTrue();
-            assertThat(connectedNetworkScorer.stopSessionId).isEqualTo(prevSessionId);
 
             // Followed by a new onStart() after the connection.
             // Note: There is a 5 second delay between stop/start when restartWifiSubsystem() is

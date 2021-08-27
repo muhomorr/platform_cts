@@ -59,6 +59,10 @@ abstract class BasePermissionTest {
     private val mPermissionControllerResources: Resources = context.createPackageContext(
             context.packageManager.permissionControllerPackageName, 0).resources
 
+    protected val isTv = packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK)
+    protected val isWatch = packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH)
+    protected val isAutomotive = packageManager.hasSystemFeature(PackageManager.FEATURE_AUTOMOTIVE)
+
     @get:Rule
     val disableAnimationRule = DisableAnimationRule()
 
@@ -108,9 +112,13 @@ abstract class BasePermissionTest {
     protected fun installPackage(
         apkPath: String,
         reinstall: Boolean = false,
+        grantRuntimePermissions: Boolean = false,
         expectSuccess: Boolean = true
     ) {
-        val output = runShellCommand("pm install${if (reinstall) " -r" else ""} $apkPath").trim()
+        val output = runShellCommand(
+            "pm install${if (reinstall) " -r" else ""}${if (grantRuntimePermissions) " -g" else ""
+                } $apkPath"
+        ).trim()
         if (expectSuccess) {
             assertEquals("Success", output)
         } else {

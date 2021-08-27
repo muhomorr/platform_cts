@@ -3559,6 +3559,13 @@ public class TelephonyManagerTest {
     }
 
     private void disableNrDualConnectivity() {
+        if (!ShellIdentityUtils.invokeMethodWithShellPermissions(
+                mTelephonyManager, (tm) -> tm.isRadioInterfaceCapabilitySupported(
+                        TelephonyManager
+                                .CAPABILITY_NR_DUAL_CONNECTIVITY_CONFIGURATION_AVAILABLE))) {
+            return;
+        }
+
         ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(
                 mTelephonyManager,
                 (tm) -> tm.setNrDualConnectivityState(
@@ -3576,6 +3583,13 @@ public class TelephonyManagerTest {
     @Test
     public void testNrDualConnectivityEnable() {
         if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            return;
+        }
+
+        if (!ShellIdentityUtils.invokeMethodWithShellPermissions(
+                mTelephonyManager, (tm) -> tm.isRadioInterfaceCapabilitySupported(
+                        TelephonyManager
+                                .CAPABILITY_NR_DUAL_CONNECTIVITY_CONFIGURATION_AVAILABLE))) {
             return;
         }
 
@@ -4601,6 +4615,7 @@ public class TelephonyManagerTest {
 
     @Test
     public void testCheckCarrierPrivilegesForPackageThrowsExceptionWithoutReadPrivilege() {
+        if (!hasCellular()) return;
         try {
             mTelephonyManager.checkCarrierPrivilegesForPackage(mSelfPackageName);
             fail("TelephonyManager#checkCarrierPrivilegesForPackage must be protected "
@@ -4639,6 +4654,7 @@ public class TelephonyManagerTest {
 
     @Test
     public void testGetCarrierPackageNamesForIntentAndPhoneThrowsExceptionWithoutReadPrivilege() {
+        if (!hasCellular()) return;
         try {
             Intent intent = new Intent();
             int phoneId = 1;
@@ -4670,6 +4686,7 @@ public class TelephonyManagerTest {
 
     @Test
     public void testGetPackagesWithCarrierPrivilegesThrowsExceptionWithoutReadPrivilege() {
+        if (!hasCellular()) return;
         try {
             mTelephonyManager.getPackagesWithCarrierPrivileges();
             fail("TelephonyManager#getPackagesWithCarrierPrivileges must be protected "
