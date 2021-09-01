@@ -47,8 +47,11 @@ import androidx.test.InstrumentationRegistry;
 import androidx.test.filters.SdkSuppress;
 import androidx.test.runner.AndroidJUnit4;
 
+import com.android.compatibility.common.util.CddTest;
+
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -63,6 +66,7 @@ import org.junit.runner.RunWith;
 public class NearbyDevicesPermissionTest {
     private static final String TEST_APP_PKG = "android.permission.cts.appthatrequestpermission";
     private static final String TEST_APP_AUTHORITY = "appthatrequestpermission";
+    private static final String DISAVOWAL_APP_PKG = "android.permission.cts.appneverforlocation";
 
     private static final String TMP_DIR = "/data/local/tmp/cts/permissions/";
     private static final String APK_BLUETOOTH_30 = TMP_DIR
@@ -71,6 +75,8 @@ public class NearbyDevicesPermissionTest {
             + "CtsAppThatRequestsBluetoothPermission31.apk";
     private static final String APK_BLUETOOTH_NEVER_FOR_LOCATION_31 = TMP_DIR
             + "CtsAppThatRequestsBluetoothPermissionNeverForLocation31.apk";
+    private static final String APK_BLUETOOTH_NEVER_FOR_LOCATION_NO_PROVIDER = TMP_DIR
+            + "CtsAppThatRequestsBluetoothPermissionNeverForLocationNoProvider.apk";
 
     private enum Result {
         UNKNOWN, EXCEPTION, EMPTY, FILTERED, FULL
@@ -105,12 +111,14 @@ public class NearbyDevicesPermissionTest {
     }
 
     @Test
+    @CddTest(requirement="7.4.3/C-6-1")
     public void testRequestBluetoothPermission30_Default() throws Throwable {
         install(APK_BLUETOOTH_30);
         assertScanBluetoothResult(Result.EMPTY);
     }
 
     @Test
+    @CddTest(requirement="7.4.3/C-6-1")
     public void testRequestBluetoothPermission30_GrantLocation() throws Throwable {
         install(APK_BLUETOOTH_30);
         grantPermission(TEST_APP_PKG, ACCESS_FINE_LOCATION);
@@ -119,12 +127,14 @@ public class NearbyDevicesPermissionTest {
     }
 
     @Test
+    @CddTest(requirement="7.4.3/C-6-1")
     public void testRequestBluetoothPermission31_Default() throws Throwable {
         install(APK_BLUETOOTH_31);
         assertScanBluetoothResult(Result.EXCEPTION);
     }
 
     @Test
+    @CddTest(requirement="7.4.3/C-6-1")
     public void testRequestBluetoothPermission31_GrantNearby() throws Throwable {
         install(APK_BLUETOOTH_31);
         grantPermission(TEST_APP_PKG, BLUETOOTH_CONNECT);
@@ -133,6 +143,7 @@ public class NearbyDevicesPermissionTest {
     }
 
     @Test
+    @CddTest(requirement="7.4.3/C-6-1")
     public void testRequestBluetoothPermission31_GrantLocation() throws Throwable {
         install(APK_BLUETOOTH_31);
         grantPermission(TEST_APP_PKG, ACCESS_FINE_LOCATION);
@@ -141,6 +152,7 @@ public class NearbyDevicesPermissionTest {
     }
 
     @Test
+    @CddTest(requirement="7.4.3/C-6-1")
     public void testRequestBluetoothPermission31_GrantNearby_GrantLocation() throws Throwable {
         install(APK_BLUETOOTH_31);
         grantPermission(TEST_APP_PKG, BLUETOOTH_CONNECT);
@@ -151,12 +163,14 @@ public class NearbyDevicesPermissionTest {
     }
 
     @Test
+    @CddTest(requirement="7.4.3/C-6-1")
     public void testRequestBluetoothPermissionNeverForLocation31_Default() throws Throwable {
         install(APK_BLUETOOTH_NEVER_FOR_LOCATION_31);
         assertScanBluetoothResult(Result.EXCEPTION);
     }
 
     @Test
+    @CddTest(requirement="7.4.3/C-6-1")
     public void testRequestBluetoothPermissionNeverForLocation31_GrantNearby() throws Throwable {
         install(APK_BLUETOOTH_NEVER_FOR_LOCATION_31);
         grantPermission(TEST_APP_PKG, BLUETOOTH_CONNECT);
@@ -165,6 +179,7 @@ public class NearbyDevicesPermissionTest {
     }
 
     @Test
+    @CddTest(requirement="7.4.3/C-6-1")
     public void testRequestBluetoothPermissionNeverForLocation31_GrantLocation() throws Throwable {
         install(APK_BLUETOOTH_NEVER_FOR_LOCATION_31);
         grantPermission(TEST_APP_PKG, ACCESS_FINE_LOCATION);
@@ -173,6 +188,7 @@ public class NearbyDevicesPermissionTest {
     }
 
     @Test
+    @CddTest(requirement="7.4.3/C-6-1")
     public void testRequestBluetoothPermissionNeverForLocation31_GrantNearby_GrantLocation()
             throws Throwable {
         install(APK_BLUETOOTH_NEVER_FOR_LOCATION_31);
@@ -183,25 +199,52 @@ public class NearbyDevicesPermissionTest {
         assertScanBluetoothResult(Result.FILTERED);
     }
 
+    @Test
+    public void testRequestBluetoothPermission31_OnBehalfOfDisavowingApp() throws Throwable {
+        install(APK_BLUETOOTH_31);
+        install(APK_BLUETOOTH_NEVER_FOR_LOCATION_NO_PROVIDER);
+        grantPermission(TEST_APP_PKG, BLUETOOTH_CONNECT);
+        grantPermission(TEST_APP_PKG, BLUETOOTH_SCAN);
+        grantPermission(DISAVOWAL_APP_PKG, BLUETOOTH_CONNECT);
+        grantPermission(DISAVOWAL_APP_PKG, BLUETOOTH_SCAN);
+        assertScanBluetoothResult("PROXY", Result.FILTERED);
+    }
+
     /**
-     * Verify that upgrading an app doesn't gain them any access to Bluetooth
-     * scan results; they'd always need to involve the user to gain permissions.
+     * Verify that a legacy app that was unable to interact with Bluetooth
+     * devices is still unable to interact with them after updating to a modern
+     * SDK; they'd always need to involve the user to gain permissions.
      */
     @Test
-    public void testRequestBluetoothPermission_Upgrade() throws Throwable {
+    public void testRequestBluetoothPermission_Default_Upgrade() throws Throwable {
         install(APK_BLUETOOTH_30);
-        grantPermission(TEST_APP_PKG, ACCESS_FINE_LOCATION);
-        grantPermission(TEST_APP_PKG, ACCESS_BACKGROUND_LOCATION);
-        assertScanBluetoothResult(Result.FULL);
+        assertScanBluetoothResult(Result.EMPTY);
 
         // Upgrading to target a new SDK level means they need to explicitly
         // request the new runtime permission; by default it's denied
-        install(APK_BLUETOOTH_31);
+        install(APK_BLUETOOTH_NEVER_FOR_LOCATION_31);
         assertScanBluetoothResult(Result.EXCEPTION);
 
         // If the user does grant it, they can scan again
         grantPermission(TEST_APP_PKG, BLUETOOTH_CONNECT);
         grantPermission(TEST_APP_PKG, BLUETOOTH_SCAN);
+        assertScanBluetoothResult(Result.FILTERED);
+    }
+
+    /**
+     * Verify that a legacy app that was able to interact with Bluetooth devices
+     * is still able to interact with them after updating to a modern SDK.
+     */
+    @Test
+    public void testRequestBluetoothPermission_GrantLocation_Upgrade() throws Throwable {
+        install(APK_BLUETOOTH_30);
+        grantPermission(TEST_APP_PKG, ACCESS_FINE_LOCATION);
+        grantPermission(TEST_APP_PKG, ACCESS_BACKGROUND_LOCATION);
+        assertScanBluetoothResult(Result.FULL);
+
+        // Upgrading to target a new SDK level means they still have the access
+        // they enjoyed as a legacy app
+        install(APK_BLUETOOTH_31);
         assertScanBluetoothResult(Result.FULL);
     }
 
@@ -230,10 +273,14 @@ public class NearbyDevicesPermissionTest {
     }
 
     private void assertScanBluetoothResult(Result expected) {
+        assertScanBluetoothResult(null, expected);
+    }
+
+    private void assertScanBluetoothResult(String arg, Result expected) {
         SystemClock.sleep(1000); // Wait for location permissions to propagate
         final ContentResolver resolver = InstrumentationRegistry.getTargetContext()
                 .getContentResolver();
-        final Bundle res = resolver.call(TEST_APP_AUTHORITY, "", null, null);
+        final Bundle res = resolver.call(TEST_APP_AUTHORITY, "", arg, null);
         Result actual = Result.values()[res.getInt(Intent.EXTRA_INDEX)];
         assertEquals(expected, actual);
     }

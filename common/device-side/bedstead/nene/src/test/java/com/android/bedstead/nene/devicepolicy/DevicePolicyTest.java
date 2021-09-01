@@ -27,6 +27,8 @@ import android.os.Build;
 
 import com.android.bedstead.harrier.BedsteadJUnit4;
 import com.android.bedstead.harrier.DeviceState;
+import com.android.bedstead.harrier.annotations.AfterClass;
+import com.android.bedstead.harrier.annotations.BeforeClass;
 import com.android.bedstead.harrier.annotations.EnsureHasNoSecondaryUser;
 import com.android.bedstead.harrier.annotations.EnsureHasNoWorkProfile;
 import com.android.bedstead.harrier.annotations.EnsureHasSecondaryUser;
@@ -42,8 +44,6 @@ import com.android.bedstead.testapp.TestApp;
 import com.android.bedstead.testapp.TestAppProvider;
 import com.android.eventlib.premade.EventLibDeviceAdminReceiver;
 
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.Ignore;
 import org.junit.Rule;
@@ -74,7 +74,7 @@ public class DevicePolicyTest {
     @BeforeClass
     public static void setupClass() {
         sTestApp = new TestAppProvider().query()
-                .withPackageName(DEVICE_ADMIN_TESTAPP_PACKAGE_NAME)
+                .wherePackageName().isEqualTo(DEVICE_ADMIN_TESTAPP_PACKAGE_NAME)
                 .get();
 
         sTestApp.install(sUser);

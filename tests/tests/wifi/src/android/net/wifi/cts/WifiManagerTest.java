@@ -77,7 +77,7 @@ import android.os.Process;
 import android.os.SystemClock;
 import android.os.UserHandle;
 import android.platform.test.annotations.AppModeFull;
-import android.platform.test.annotations.SecurityTest;
+import android.platform.test.annotations.AsbSecurityTest;
 import android.provider.Settings;
 import android.support.test.uiautomator.UiDevice;
 import android.telephony.TelephonyManager;
@@ -97,6 +97,7 @@ import com.android.compatibility.common.util.PropertyUtil;
 import com.android.compatibility.common.util.ShellIdentityUtils;
 import com.android.compatibility.common.util.SystemUtil;
 import com.android.compatibility.common.util.ThrowingRunnable;
+import com.android.modules.utils.build.SdkLevel;
 import com.android.net.module.util.MacAddressUtils;
 
 import java.io.BufferedReader;
@@ -158,10 +159,10 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
 
     private static final String TAG = "WifiManagerTest";
     private static final String SSID1 = "\"WifiManagerTest\"";
-    // A full single scan duration is about 6-7 seconds if country code is set
-    // to US. If country code is set to world mode (00), we would expect a scan
-    // duration of roughly 8 seconds. So we set scan timeout as 9 seconds here.
-    private static final int SCAN_TEST_WAIT_DURATION_MS = 9000;
+    // A full single scan duration is typically about 6-7 seconds, but
+    // depending on devices it takes more time (9-11 seconds). For a
+    // safety margin, the test waits for 15 seconds.
+    private static final int SCAN_TEST_WAIT_DURATION_MS = 15_000;
     private static final int TEST_WAIT_DURATION_MS = 10_000;
     private static final int WIFI_CONNECT_TIMEOUT_MILLIS = 30_000;
     private static final int WAIT_MSEC = 60;
@@ -1213,36 +1214,6 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
     }
 
     /**
-     * Verify {@link WifiManager#addNetworkPrivileged(WifiConfiguration)} returns the proper
-     * failure status code when adding an enterprise config with mandatory fields not filled in.
-     */
-    public void testAddNetworkPrivilegedFailureBadEnterpriseConfig() {
-        if (!WifiFeature.isWifiSupported(getContext())) {
-            // skip the test if WiFi is not supported
-            return;
-        }
-        if (!WifiBuildCompat.isPlatformOrWifiModuleAtLeastS(mContext)) {
-            // Skip the test if wifi module version is older than S.
-            return;
-        }
-        UiAutomation uiAutomation = InstrumentationRegistry.getInstrumentation().getUiAutomation();
-        try {
-            uiAutomation.adoptShellPermissionIdentity();
-            WifiConfiguration wifiConfiguration = new WifiConfiguration();
-            wifiConfiguration.SSID = SSID1;
-            wifiConfiguration.setSecurityParams(WifiConfiguration.SECURITY_TYPE_EAP_WPA3_ENTERPRISE);
-            wifiConfiguration.enterpriseConfig.setEapMethod(WifiEnterpriseConfig.Eap.TTLS);
-            WifiManager.AddNetworkResult result =
-                    mWifiManager.addNetworkPrivileged(wifiConfiguration);
-            assertEquals(WifiManager.AddNetworkResult.STATUS_INVALID_CONFIGURATION_ENTERPRISE,
-                    result.statusCode);
-            assertEquals(-1, result.networkId);
-        } finally {
-            uiAutomation.dropShellPermissionIdentity();
-        }
-    }
-
-    /**
      * Verify {@link WifiManager#addNetworkPrivileged(WifiConfiguration)} works properly when the
      * calling app has permissions.
      */
@@ -1384,27 +1355,37 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
                 assertTrue(result.networkId >= 0);
                 c.networkId = result.networkId;
             }
-            // open/owe, psk/sae, and wpa2e/wpa3e should be merged
-            // so they should have the same network ID.
-            assertEquals(testConfigs.get(0).networkId, testConfigs.get(1).networkId);
-            assertEquals(testConfigs.get(2).networkId, testConfigs.get(3).networkId);
-            assertEquals(testConfigs.get(4).networkId, testConfigs.get(5).networkId);
+            List<WifiConfiguration> expectedConfigs = testConfigs;
+            if (SdkLevel.isAtLeastS()) {
+                // open/owe, psk/sae, and wpa2e/wpa3e should be merged
+                // so they should have the same network ID.
+                assertEquals(testConfigs.get(0).networkId, testConfigs.get(1).networkId);
+                assertEquals(testConfigs.get(2).networkId, testConfigs.get(3).networkId);
+                assertEquals(testConfigs.get(4).networkId, testConfigs.get(5).networkId);
+            } else {
+                // Network IDs for different security types should be unique for R
+                assertNotEquals(testConfigs.get(0).networkId, testConfigs.get(1).networkId);
+                assertNotEquals(testConfigs.get(2).networkId, testConfigs.get(3).networkId);
+                assertNotEquals(testConfigs.get(4).networkId, testConfigs.get(5).networkId);
+                // WPA3-Enterprise is omitted when WPA2-Enterprise is present for R
+                expectedConfigs = testConfigs.subList(0, 5);
+            }
             List<WifiConfiguration> configuredNetworks = mWifiManager.getConfiguredNetworks();
-            assertEquals(originalConfiguredNetworksNumber + testConfigs.size(),
+            assertEquals(originalConfiguredNetworksNumber + expectedConfigs.size(),
                     configuredNetworks.size());
-            assertConfigsAreFound(testConfigs, configuredNetworks);
+            assertConfigsAreFound(expectedConfigs, configuredNetworks);
 
             List<WifiConfiguration> privilegedConfiguredNetworks =
                     mWifiManager.getPrivilegedConfiguredNetworks();
-            assertEquals(originalPrivilegedConfiguredNetworksNumber + testConfigs.size(),
+            assertEquals(originalPrivilegedConfiguredNetworksNumber + expectedConfigs.size(),
                     privilegedConfiguredNetworks.size());
-            assertConfigsAreFound(testConfigs, privilegedConfiguredNetworks);
+            assertConfigsAreFound(expectedConfigs, privilegedConfiguredNetworks);
 
             List<WifiConfiguration> callerConfiguredNetworks =
                     mWifiManager.getCallerConfiguredNetworks();
-            assertEquals(originalCallerConfiguredNetworksNumber + testConfigs.size(),
+            assertEquals(originalCallerConfiguredNetworksNumber + expectedConfigs.size(),
                     callerConfiguredNetworks.size());
-            assertConfigsAreFound(testConfigs, callerConfiguredNetworks);
+            assertConfigsAreFound(expectedConfigs, callerConfiguredNetworks);
 
         } finally {
             for (WifiConfiguration c: testConfigs) {
@@ -2126,7 +2107,7 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
             PollingCheck.check(
                     "SoftAp state and info on bridged AP mode are mismatch!!!"
                     + " shouldFallbackSingleApMode = " + shouldFallbackSingleApMode
-                    + ", isEnabled = "  + isEnabled, 5_000,
+                    + ", isEnabled = "  + isEnabled, 10_000,
                     () -> {
                         executor.runAll();
                         int expectedState = isEnabled ? WifiManager.WIFI_AP_STATE_ENABLED
@@ -2438,7 +2419,7 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
 
             // Verify state and info callback value as expected
             PollingCheck.check(
-                    "SoftAp channel and state mismatch!!!", 5_000,
+                    "SoftAp channel and state mismatch!!!", 10_000,
                     () -> {
                         executor.runAll();
                         int sapChannel = ScanResult.convertFrequencyMhzToChannelIfSupported(
@@ -2470,7 +2451,7 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
 
             // Verify clean up
             PollingCheck.check(
-                    "Stop Softap failed", 2_000,
+                    "Stop Softap failed", 3_000,
                     () -> {
                         executor.runAll();
                         return WifiManager.WIFI_AP_STATE_DISABLED == callback.getCurrentState() &&
@@ -2559,8 +2540,17 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
             assertTrue(actionListener.onSuccessCalled);
             // Wait for connection to complete & ensure we are connected to the saved network.
             waitForConnection();
-            assertEquals(savedNetworkToConnect.networkId,
-                    mWifiManager.getConnectionInfo().getNetworkId());
+            if (SdkLevel.isAtLeastS()) {
+                assertEquals(savedNetworkToConnect.networkId,
+                        mWifiManager.getConnectionInfo().getNetworkId());
+            } else {
+                // In R, auto-upgraded network IDs may be different from the original saved network.
+                // Since we may end up selecting the auto-upgraded network ID for connection and end
+                // up connected to the original saved network with a different network ID, we should
+                // instead match by SSID.
+                assertEquals(savedNetworkToConnect.SSID,
+                        mWifiManager.getConnectionInfo().getSSID());
+            }
         } finally {
             // Re-enable all saved networks before exiting.
             if (savedNetworks != null) {
@@ -2718,7 +2708,7 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
      * Tests {@link WifiManager#forget(int, WifiManager.ActionListener)} by adding/removing a new
      * network.
      */
-    @SecurityTest
+    @AsbSecurityTest(cveBugId = 159373687)
     public void testForget() throws Exception {
         if (!WifiFeature.isWifiSupported(getContext())) {
             // skip the test if WiFi is not supported
@@ -4268,12 +4258,11 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
         }
     }
 
-
     /**
-     * Verify that insecure WPA-Enterprise network configurations are rejected.
+     * Verify that secure WPA-Enterprise network configurations can be added and updated.
      */
     @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
-    public void testInsecureEnterpriseConfigurationsRejected() throws Exception {
+    public void testSecureEnterpriseConfigurationsAccepted() throws Exception {
         if (!WifiFeature.isWifiSupported(getContext())) {
             // skip the test if WiFi is not supported
             return;
@@ -4290,9 +4279,6 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
         try {
             uiAutomation.adoptShellPermissionIdentity();
 
-            // Verify that an insecure network is rejected
-            assertEquals(INVALID_NETWORK_ID, mWifiManager.addNetwork(wifiConfiguration));
-
             // Now configure it correctly with a Root CA cert and domain name
             wifiConfiguration.enterpriseConfig.setCaCertificate(FakeKeys.CA_CERT0);
             wifiConfiguration.enterpriseConfig.setAltSubjectMatch(TEST_DOM_SUBJECT_MATCH);
@@ -4304,13 +4290,6 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
             // Verify that the update API accepts configurations configured securely
             wifiConfiguration.networkId = networkId;
             assertEquals(networkId, mWifiManager.updateNetwork(wifiConfiguration));
-
-            // Now clear the security configuration
-            wifiConfiguration.enterpriseConfig.setCaCertificate(null);
-            wifiConfiguration.enterpriseConfig.setAltSubjectMatch(null);
-
-            // Verify that the update API rejects insecure configurations
-            assertEquals(INVALID_NETWORK_ID, mWifiManager.updateNetwork(wifiConfiguration));
         } finally {
             if (networkId != INVALID_NETWORK_ID) {
                 // Clean up the previously added network

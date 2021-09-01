@@ -36,6 +36,9 @@ import androidx.test.uiautomator.Until;
 public final class Helper {
 
     private static final String TAG = "Helper";
+
+    public static final String ACTIVITY_PACKAGE = "android.translation.cts";
+
     public static final String ACTION_REGISTER_UI_TRANSLATION_CALLBACK =
             "android.translation.cts.action.REGISTER_UI_TRANSLATION_CALLBACK";
     public static final String ACTION_UNREGISTER_UI_TRANSLATION_CALLBACK =
@@ -53,6 +56,9 @@ public final class Helper {
     public static final String EXTRA_SOURCE_LOCALE = "source_locale";
     public static final String EXTRA_TARGET_LOCALE = "target_locale";
     public static final String EXTRA_VERIFY_RESULT = "verify_result";
+
+    public static final String CUSTOM_TRANSLATION_ID_MY_TAG = "myTag";
+    private static final String LOG_TAG = "log.tag.UiTranslation";
 
     /**
      * Sets the translation service temporarily.
@@ -139,5 +145,25 @@ public final class Helper {
         final UiObject2 foundObj = uiDevice.wait(
                         Until.findObject(By.res(resourcePackage, resourceId)), 5_000L);
         return foundObj;
+    }
+
+    /**
+     * Enable DEBUG log and returns the original log level value.
+     */
+    public static String enableDebugLog() {
+        String originalValue = System.getProperty(LOG_TAG, "");
+        System.setProperty(LOG_TAG, "DEBUG");
+        Log.d(TAG, "enableDebugLog(), original value = " + originalValue);
+        return originalValue;
+    }
+
+    /**
+     * Disable debug log.
+     *
+     * @param level the log level. The value can be DEBUG, INFO, VERBOSE or empty if not set.
+     */
+    public static void disableDebugLog(String level) {
+        Log.d(TAG, "disableDebugLog(), set level  " + level);
+        System.setProperty(LOG_TAG, level);
     }
 }

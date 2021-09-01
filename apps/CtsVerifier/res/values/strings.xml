@@ -15,6 +15,7 @@
 -->
 <resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="app_name">CTS Verifier</string>
+    <string name="module_id">noabi CtsVerifier</string>
 
     <string name="title_version">CTS Verifier %1$s</string>
 
@@ -790,14 +791,13 @@
         This test checks that APIs to notify the companion app of its associated device going in and
         out of Bluetooth range are working correctly.
         Before proceeding, make sure you have a Bluetooth LE device nearby and
-        discoverable. Also, make sure that bluetooth is turned on the device.
+        discoverable. Also, make sure that bluetooth is turned on. Note that, the nearby device can
+        not be a phone since it considers advertising as classic device scan.
         First, you press the go button, wait for a dialog to pop up and select your device from the
         list. Second, make sure your bluetooth device is unreachable(you can power off/reboot your
         Bluetooth device or put it into a Faraday bag) and press the Device Gone button.
         Lastly, make your bluetooth device reachable by waiting for the device to power on or
-        removing it from the Faraday bag and press the Device Present button. Note that, if you are
-        using a phone for the testing, please manually pair on another Bluetooth phone before
-        pressing Device Gone and Device Present.
+        removing it from the Faraday bag and press the Device Present button.
     </string>
 
     <string name="companion_service_test_gone_text">
@@ -908,7 +908,6 @@
         Make sure the device has line of sight to GPS satellites
         (for example, outside, or near a window)
         and then press OK to run the automated tests.</string>
-    <string name="location_listener_activity">Location listener</string>
 
     <!-- Strings for Location GNSS tests -->
     <string name="location_gnss_constellation_type_test">GNSS Measurement Constellation Test</string>
@@ -1757,6 +1756,26 @@
     <!-- Strings for MediaCodecFlushActivity -->
     <string name="media_codec_flush">Video codec flushing in Tunnel Mode</string>
 
+    <!-- Strings for VolumeLevelChangesActivity -->
+    <string name="volume_level_changes">Volume level changes</string>
+    <string name="volume_level_changes_title">This test is for verifying that the Volume level
+        changes are reflected when playback occurs with and without tunnel mode playback for
+        PCM audio.</string>
+    <string name="increase_volume_level"> Increase the volume until you can clearly recognize the
+        audio, and then press OK button.</string>
+    <string name="ok_button_volume_level">OK</string>
+    <string name="decrease_volume_level"> Decrease the volume until you can no longer recognize the
+        audio, and then press OK button.</string>
+    <string name="yes_button_volume_level">Yes</string>
+    <string name="no_button_volume_level">No</string>
+    <string name="is_same_volume"> "Is the volume still the same as what you had set?"</string>
+    <string name="volume_level_changes_failure_tunnel_to_non_tunnel">
+        "The volume change was not maintained when switching from tunnel mode to non-tunnel mode."
+    </string>
+    <string name="volume_level_changes_failure_non_tunnel_to_tunnel">
+        "The volume change was not maintained when switching from non-tunnel mode to tunnel mode."
+    </string>
+
     <!-- Strings for the Camera Bokeh mode test activity -->
     <string name="camera_bokeh_test">Camera Bokeh</string>
     <string name="camera_bokeh_test_info">
@@ -2257,6 +2276,8 @@
     <string name="action_test_title">Action</string>
     <string name="nls_visibility">Please change the lock screen setting to hide sensitive content
         on the lockscreen</string>
+    <string name="nls_restore_visibility">Please change the lock screen setting to show all
+        content on the lockscreen</string>
     <string name="add_screen_lock">Add a secure screen lock of any type</string>
     <string name="remove_screen_lock">Remove the added screen lock</string>
     <string name="secure_action_lockscreen">Lock the screen and find the SecureActionOnLockScreenTest
@@ -3207,6 +3228,15 @@ You should be prompted to select credentials; choose the ones you just installed
         \n
         Then use the Back button (or navigate back to this app using Recents) to return to this test and mark accordingly.
     </string>
+    <string name="provisioning_byod_location_failed">Failed to obtain location from any provider</string>
+    <string name="provisioning_byod_location_no_provider">Cannot obtain location: no providers available.</string>
+    <string name="provisioning_byod_location_trying">Trying to obtain location using providers: %1$s</string>
+    <string name="provisioning_byod_location_obtained">Location has been obtained.</string>
+    <string name="provisioning_byod_pass_message">PASS: %1$s</string>
+    <string name="provisioning_byod_fail_message">FAIL: %1$s</string>
+    <string name="provisioning_byod_location_test_activity">Location listener</string>
+    <string name="provisioning_byod_location_checker_activity">Location checker</string>
+
 
     <string name="provisioning_byod_wifi_data_usage_settings">Profile-aware data usage settings (Wi-Fi)</string>
     <string name="provisioning_byod_wifi_data_usage_settings_instruction">
@@ -3290,46 +3320,40 @@ You should be prompted to select credentials; choose the ones you just installed
 
     <string name="provisioning_byod_no_gps_location_feature">No GPS feature present. Skip test.</string>
     <string name="provisioning_byod_location_mode_enable">Enable location</string>
-    <string name="provisioning_byod_location_mode_enable_toast_location_change">Location changed</string>
     <string name="provisioning_byod_location_mode_enable_missing_permission">Permission missing</string>
     <string name="provisioning_byod_location_mode_enable_instruction">
-        This test verifies that the location updates can be enabled for the managed profile apps.\n
-        If prompted, accept the location permission after pressing go.\n
-        1. Press the go button to go to the location settings page, set both the main location switch and the work profile location switch enabled.\n
-        2. Press home to go to the launcher.\n
-        3. Move your position a little bit, verify that location updates toast comes up.\n
-        Please wait until the location updates or timeout toast message shows up before going back to the cts-verifier tests.\n
-        4. Go back to the cts-verifier tests using the back button, then mark the test accordingly.\n
+        This test verifies that the location can be enabled for the managed profile apps.\n
+        1. Press the \"Prepare Test\" button to go to the location settings page, set both the main location switch and the work profile location switch enabled.\n
+        2. Return using back button and press Go button to check if location is available. If prompted, accept the location permission.\n
+        3. Check the result message below and mark the test accordingly.\n
+        \n
+        If the test fails to obtain location, try to enable as many location services as possible and move outside to make GPS work.
     </string>
 
     <string name="provisioning_byod_location_mode_disable">Disable location</string>
     <string name="provisioning_byod_location_mode_time_out_toast">Timeout waiting for gps location change</string>
     <string name="provisioning_byod_location_mode_disable_instruction">
-        This test verifies that the location updates can be disabled for the managed profile apps through the main location switch.\n
-        1. Press the go button to go to the location settings page, set the main location switch disabled.\n
-        2. Press home to go to the launcher.\n
-        3. Move your position a little bit, verify that no location updates toast come up and that the timeout message show up after around 15 seconds.
-        Please wait until the timeout or location updates toast message shows up before going back to the cts-verifier tests.\n
-        4. Go back to the cts-verifier tests using the back button, then mark the test accordingly.\n
+        This test verifies that the location can be disabled for the managed profile apps through the main location switch.\n
+        1. Press the \"Prepare Test\" button to go to the location settings page, set the main location switch disabled.\n
+        2. Return using back button and press Go button to check if location is available.  If prompted, accept the location permission.\n
+        3. Check the result message below and mark the test accordingly.\n
     </string>
 
     <string name="provisioning_byod_work_location_mode_disable">Disable location for work profile</string>
     <string name="provisioning_byod_work_location_mode_disable_instruction">
-        This test verifies that the location updates can be disabled for the managed profile apps through work profile location switch.\n
-        1. Press the go button to go to the location settings page, set the work location switch disabled while the main location switch is still enabled.\n
-        2. Press home to go to the launcher.\n
-        3. Move your position a little bit, verify that no location updates toast come up and that the timeout message show up after around 15 seconds.
-        Please wait until the timeout or location updates toast message shows up before going back to the cts-verifier tests.\n
-        4. Go back to the cts-verifier tests using the back button, then mark the test accordingly.\n
+        This test verifies that the location can be disabled for the managed profile apps through work profile location switch.\n
+        1. Press the \"Prepare Test\" button to go to the location settings page, set the work location switch disabled while the main location switch is still enabled.\n
+        2. Return using back button and press Go button to check if location is available. If prompted, accept the location permission.\n
+        3. Check the result message below and mark the test accordingly.\n
     </string>
     <string name="provisioning_byod_primary_location_when_work_disabled">Primary receives updates while work location is disabled</string>
     <string name="provisioning_byod_primary_location_when_work_disabled_instruction">
-        This test verifies that location updates are still received by primary profile when location updates are disabled for managed profile apps through work profile location switch.\n
-        1. Press the go button to go to the location settings page, set the work location switch disabled while the main location switch is still enabled.\n
-        2. Press home to go to the launcher.\n
-        3. Move your position a little bit, verify that location updates toast comes up.\n
-        Please wait until the location updates or timeout toast message shows up before going back to the cts-verifier tests.\n
-        4. Go back to the cts-verifier tests using the back button, then mark the test accordingly.\n
+        This test verifies that location is still available by primary profile when location updates are disabled for managed profile apps through work profile location switch.\n
+        1. Press the \"Prepare Test\" button to go to the location settings page, set the work location switch disabled while the main location switch is still enabled.\n
+        2. Return using back button and press Go button to check if location is available. If prompted, accept the location permission.\n
+        3. Check the result message below and mark the test accordingly.\n
+        \n
+        If the test fails to obtain location, try to enable as many location services as possible and move outside to make GPS work.
     </string>
 
     <string name="provisioning_byod_personal_ringtones">Personal ringtones</string>
@@ -4031,7 +4055,8 @@ You should be prompted to select credentials; choose the ones you just installed
     <string name="disallow_add_user">Disallow add user</string>
     <string name="disallow_add_user_action">Adding a new user</string>
     <string name="disallow_adjust_volume">Disallow adjust volume</string>
-    <string name="disallow_adjust_volume_action">Adjusting the volume</string>
+    <string name="disallow_adjust_volume_action">Adjusting the volume\n
+        NOTE: If the device does not support volume adjustment in Settings app please skip this test and mark it as passing.\n</string>
     <string name="disallow_config_date_time">Disallow config date time</string>
     <string name="disallow_config_date_time_action">Configuring auto time, time, auto date or date</string>
     <string name="disallow_config_location">Disallow config location</string>
@@ -4070,7 +4095,8 @@ You should be prompted to select credentials; choose the ones you just installed
     <string name="disallow_modify_accounts">Disallow modify accounts</string>
     <string name="disallow_modify_accounts_action">Adding an account, and also removing an account (after you have previously added one)</string>
     <string name="disallow_network_reset">Disallow network reset</string>
-    <string name="disallow_network_reset_action">Resetting network settings</string>
+    <string name="disallow_network_reset_action">Resetting network settings\n
+        NOTE: If the device does not support network reset please skip this test and mark it as passing.\n</string>
     <string name="disallow_outgoing_beam">Disallow outgoing beam</string>
     <string name="disallow_outgoing_beam_action">Switching on android beam</string>
     <string name="disallow_remove_user">Disallow remove user</string>
@@ -4452,16 +4478,19 @@ You should be prompted to select credentials; choose the ones you just installed
          2. Press the \"Disable USB data signaling\" button to disable USB data signaling on
          the device. When disabled, all USB data connections (except from charging functions)
          are prohibited.\n
-         3. Press the \"Go\" button to go to Settings and confirm that the following preferences
-         cannot be selected:\n
+         3. Press the \"Go\" button to go to Settings and confirm that the "USB" preferences in
+         \"System > Developer Options\" cannot be selected and "USB" preference in
+         \"Connected devices\" has disappeared.:\n
               - Connected devices > USB\n
               - System > Developer Options > USB debugging\n
               - System > Developer Options > Default USB configuration\n
               - System > Developer Options > Disable USB audio routing\n
          4. Verify that you cannot mount the device as a USB drive on your desktop computer and
          cannot access files from your phone through USB.\n
-         5. Press the \"Enable USB data signaling\" button to re-enable USB data signaling on
-         the device.\n
+         5. Press the \"Enable USB data signaling\" button to re-enable USB data signaling and
+         replug USB cable in the device. After that the "USB" preferences in
+         \"System > Developer Options\" can be selected and "USB" preference in
+         \"Connected devices\" has appeared.\n
          Please mark the test accordingly.
     </string>
     <string name="device_owner_enable_usb_data_signaling_test">Enable USB data signaling</string>
@@ -5054,14 +5083,15 @@ You should be prompted to select credentials; choose the ones you just installed
     <!-- Audio Loopback Latency Test -->
     <string name="audio_loopback_latency_test">Audio Loopback Latency Test</string>
     <string name="audio_loopback_info">
-          This test requires some form of audio loopback. This can be either:\n
+        This test verifies that the device can achieve the required or recommended loopback latency.
+        To pass the test, the device need only achieve this on one of the following audio paths:\n
           - a <a href="https://source.android.com/devices/audio/latency/loopback">Loopback Plug</a>  connected to a 3.5mm headset jack.\n
           - a <a href="https://source.android.com/devices/audio/latency/loopback">Loopback Plug</a>  connected to a USB audio adapter.\n
-          - a USB interface with patch cords connecting the input and output jaccks.
-          Please connect one of these Loopback mechanisms, and proceed with the instructions
-          on the screen.
-          The system will measure the input-output audio latency by injecting a pulse on the output,
-          and computing the distance between replicas of the pulse.
+          - a USB interface with patch cords connecting the input and output jacks.
+          \nPlease connect one of these Loopback mechanisms, and proceed with the instructions
+          on the screen. The required &amp; recommended latencies will be displayed.
+          The system will measure the input-output audio latency by injecting an audio signal to
+          the output and compute the time between generating the signal and recording it back.
           You can vary the Audio Level slider to ensure the pulse will feed back at adequate levels.
           Repeat until a confidence level >= 0.6 is achieved.
     </string>
@@ -5077,14 +5107,24 @@ You should be prompted to select credentials; choose the ones you just installed
     <string name="audio_loopback_test_btn">Test</string>
     <string name="audio_loopback_results_text">Results...</string>
 
-    <!-- Audio Loopback Latency Test -->
+    <string name="audio_loopback_failure">FAILURE - Could not allocate analyzer thread.</string>
+
+    <!-- Audio Cold-Start Latency Test -->
     <string name="audio_coldstart_out_latency_test">Audio Cold Start Output Latency Test</string>
     <string name="audio_coldstart_in_latency_test">Audio Cold Start Input Latency Test</string>
 
-    <string name="audio_coldstart_output_info">Info Here</string>
+    <string name="audio_coldstart_output_info">
+        This test measures the time required to output audio from a suspended \"cold\" audio system.
+        It requires that touch-sounds be disabled in the device \"Sound &amp; Vibration\" settings
+        panel.
+    </string>
     <string name="audio_coldstart_input_info">Info Here</string>
     <string name="audio_coldstart_outputlbl">Output Cold Start Latency</string>
     <string name="audio_coldstart_inputlbl">Input Cold Start Latency</string>
+    <string name="audio_coldstart_touchsounds_message">
+        Touch sounds are ENABLED. Please DISABLE touch sounds in the \"Sound &amp; Vibration\" settings panel.
+    </string>
+    <string name="audio_coldstart_notouchsounds_message">Touch sound are DISABLED.</string>
 
     <!-- Audio Frequency Line Test -->
     <string name="audio_frequency_line_test">Audio Frequency Line Test</string>
@@ -5246,10 +5286,13 @@ Follow the instructions on the screen to measure the frequency response for the 
     <string name="audio_tap2tone_info">This tests the latency from a screen interaction to a
         resulting tone. This time is a combination of touch screen latency and audio latency.\nThis
         test is best conducted in a quiet room with the device laying on a table. Select
-        the Audio API to test and press the \"Start\" button. Use your fingernail to tap on the
-        field below to trigger the test tone. Results will be displayed in the field above the
-        waveform display.\nFive successful tests runs are required to determine if the test
-        as a whole succeeds.
+        the Audio API to test (\"Native\" has the lowest latency) and press the \"Start\" button.
+        Use your fingernail to tap ONCE on the field below to trigger the test tone. DO NOT leave
+        the finger resting on the test field. A strong "tick" sound from the fingernail striking
+        the display is necessary to register the start of the test process. After tapping ONCE,
+        wait until the results are displayed in the field above the waveform display before
+        tapping for the next test run.\nFive successful tests runs are required to determine
+        if the test as a whole succeeds.
     </string>
     <string name="audio_tap2tone_spec">80ms or less average latency is STRONGLY RECOMMENDED to pass.</string>
     <string name="audio_tap2tone_too_few">Not enough edges. Use fingernail.</string>
@@ -5518,16 +5561,8 @@ Follow the instructions on the screen to measure the frequency response for the 
     <!-- Pro Audio Test -->
     <string name="proaudio_test">Pro Audio Test</string>
     <string name="proaudio_info">
-       This test requires that you have connected a supported USB Audio Peripheral device
-       (not a headset) and that peripheral\'s audio outputs are connected to the peripherals\'s
-       audio inputs. Alternatively, for devices with an analog audio jack or USB-C Digital
-       to Analog dongle, a <a href="https://source.android.com/devices/audio/latency/loopback">Loopback Plug</a>
-       can be used. Also, if there is an input level
-       control on the peripheral, it must be set to a non-zero value. When the test has
-       verified support for a valid audio peripheral, press the \"Round-Trip Test\" button
-       to complete the test.
-       The latency measurement is generally accurate even when the volume is low. But you may
-       need to increase the volume to bring the confidence number above the threshold.
+        This test will check for validity of the \"Pro Audio\" and subsidiary flags. Note
+        that this test no longer requires a loopback audio device.
     </string>
     <string name="proaudio_hdmi_infotitle">HDMI Support</string>
     <string name="proaudio_hdmi_message">Please connect an HDMI peripheral to validate
@@ -5693,69 +5728,185 @@ Follow the instructions on the screen to measure the frequency response for the 
 
     <!-- Notification Bubble Tests-->
     <string name="bubbles_notification_title">Bubble Notification Tests</string>
-    <string name="bubbles_notification_description">This test checks the behaviour of bubble
-        notifications, ensuring that notifications appear or disappear appropriately based on how
-        BubbleMetadata is configured on the notification and user actions. Bubbles are special
-        notifications that appear as a floating button on the screen, in addition to the notification
-        in the notification shade.</string>
-    <string name="bubbles_notification_test_enable_bubbles_title">Enable Bubbles for CTS Verifier</string>
-    <string name="bubbles_notification_test_enable_bubbles_verify">Click the button below and enable
-        bubbles for the verifier app on the resulting screen, if they aren\'t enabled already.</string>
-    <string name="bubbles_notification_enable_bubbles_button">Enable bubbles for CTS Verifier</string>
-    <string name="bubbles_notification_test_title_1">Step 1: send a bubble with notification</string>
-    <string name="bubbles_notification_test_verify_1">Click the button below and verify that there is a
+    <string name="bubbles_test_title">Bubble Tests</string>
+    <string name="bubbles_test_info">This set of tests checks the settings, UI, and behaviour of
+        bubble notifications. Bubbles are special notifications that can appear as a floating button
+        on the screen along with a notification in the notification shade. When the floating button
+        is tapped an activity is opened in a contained view and the notification is hidden from the
+        shade.</string>
+    <!-- Default settings -->
+    <string name="bubbles_test_check_defaults_title">Check Default Settings</string>
+    <string name="bubbles_test_check_defaults_verify">This step verifies the default bubble
+        settings on the device. \n\n
+        Bubbles are enabled at a feature level and at a per-app level.\n\n
+        By default, bubbles are enabled at a feature level, but off for apps until the user opts in.
+        \n\nIf the default settings are correct, the test will indicate that the state is correct.
+    </string>
+    <!-- Bubble button -->
+    <string name="bubbles_test_bubble_button_title">Bubble Button</string>
+    <string name="bubbles_test_bubble_button_verify">1. Click the button below to send a bubble
+        notification.\n\n
+        2. Pull down the notification shade and press the bubble button on the bottom right of the
+        notification.\n\n
+        3. Pass this test if tapping the bubble button opens the bubble.</string>
+    <string name="bubbles_test_bubble_button_button">Send notification</string>
+    <!-- Bubble preference selected -->
+    <string name="bubbles_test_app_selected_title">Check Settings After Bubble Button</string>
+    <string name="bubbles_test_app_selected_verify">When a notification is turned into a bubble
+        via the bubble button, the app setting for bubbles will change to allow selected
+        notifications to bubble. If the settings are right, the test will indicate that the state
+        is correct.</string>
+    <!-- Disable at feature level -->
+    <string name="bubbles_test_disable_title">Disable Bubbles Feature</string>
+    <string name="bubbles_test_disable_verify">Click the button to open notification settings,
+        find Bubbles and turn the feature off. When the setting is off, the test will indicate that
+        the state is correct.</string>
+    <string name="bubbles_test_disable_button">Open settings</string>
+    <!-- App settings available when disabled -->
+    <string name="bubbles_test_enable_title">Enable Bubbles for CTS Verifier</string>
+    <string name="bubbles_test_enable_verify">1. Click the button below and enable bubbles for the
+        verifier app on the resulting screen, select "All conversations can bubble".\n\n
+        2. You will be prompted to turn on bubbles for the device, turn them on.\n\n
+        Once this is done, the test will indicate that the state is correct.</string>
+    <string name="bubbles_test_enable_button">Open bubble settings</string>
+    <!-- Send bubble -->
+    <string name="bubbles_test_send_bubble_title">Send bubble notification</string>
+    <string name="bubbles_test_send_bubble_verify">Click the button below and verify that there is a
         bubble on the screen and a notification in the notification shade.
     </string>
-    <string name="bubbles_notification_test_button_1">Send bubble notification</string>
-    <string name="bubbles_notification_test_title_2">Step 2: hide notification</string>
-    <string name="bubbles_notification_test_verify_2">Click the button below and verify that the bubble
-        is still on the screen, but the notification is now hidden from the notification shade.
+    <string name="bubbles_test_send_bubble_button">Send bubble notification</string>
+    <!-- Suppress notification -->
+    <string name="bubbles_test_suppress_notif_title">Hide notification</string>
+    <string name="bubbles_test_suppress_notif_verify">Click the button below and verify that the
+        bubble is still on the screen, but the notification is now hidden from the notification
+        shade.
     </string>
-    <string name="bubbles_notification_test_button_2">Update bubble to hide notification</string>
-    <string name="bubbles_notification_test_title_3">Step 3: show notification</string>
-    <string name="bubbles_notification_test_verify_3">Click the button below and verify that the bubble
-        is still on the screen, and the notification is now visible in the notification shade.
+    <string name="bubbles_test_suppress_notif_button">Update bubble to hide notification</string>
+    <!-- Add notification -->
+    <string name="bubbles_test_add_notif_title">Show notification</string>
+    <string name="bubbles_test_add_notif_verify">Click the button below and verify that the bubble
+        is still on the screen, the notification is now visible in the notification shade, and the
+        bubble has a dot indicating the new message.
     </string>
-    <string name="bubbles_notification_test_button_3">Update bubble to show notification</string>
-    <string name="bubbles_notification_test_title_4">Step 4: remove bubble</string>
-    <string name="bubbles_notification_test_verify_4">Click the button below and verify that the
+    <string name="bubbles_test_add_notif_button">Update bubble to show notification</string>
+    <!-- Remove bubble metadata -->
+    <string name="bubbles_test_remove_metadata_title">Remove bubble</string>
+    <string name="bubbles_test_remove_metadata_verify">Click the button below and verify that the
         bubble is removed from the screen, and the notification is still visible in the notification
         shade.</string>
-    <string name="bubbles_notification_test_button_4">Remove bubble</string>
-    <string name="bubbles_notification_test_title_5">Step 5: add bubble</string>
-    <string name="bubbles_notification_test_verify_5">Click the button below and verify that the
+    <string name="bubbles_test_remove_metadata_button">Remove bubble</string>
+    <!-- Add bubble metadata -->
+    <string name="bubbles_test_add_metadata_title">Add bubble</string>
+    <string name="bubbles_test_add_metadata_verify">Click the button below and verify that the
         bubble appears on the screen, and the notification is still visible in the notification
         shade.</string>
-    <string name="bubbles_notification_test_button_5">Add bubble</string>
-    <string name="bubbles_notification_test_title_6">Step 6: open bubble</string>
-    <string name="bubbles_notification_test_verify_6">Tap on the bubble to open it, then tap on the
+    <string name="bubbles_test_add_metadata_button">Add bubble</string>
+    <!-- Expand bubble -->
+    <string name="bubbles_test_expand_bubble_title">Open bubble</string>
+    <string name="bubbles_test_expand_bubble_verify">Tap on the bubble to open it, then tap on the
         bubble again to collapse it and return to this screen. Verify that after opening the bubble,
         there is no longer a notification for it visible in the notification shade.</string>
-    <string name="bubbles_notification_test_title_7">Step 7: drag and dismiss bubble</string>
-    <string name="bubbles_notification_test_verify_7">Click the button below and verify that the bubble
+    <!-- Dismiss bubble -->
+    <string name="bubbles_test_dismiss_title">Drag and dismiss bubble</string>
+    <string name="bubbles_test_dismiss_verify">Click the button below and verify that the bubble
         is still on screen, and the notification is visible in the notification shade.\n\n
         Drag the bubble, while dragging a UI affordance should show. Verify that: \n\n
         1. Dragging and dropping the bubble on that UI affordance removes it from the screen.\n\n
         2. The notification should remain in the notification shade.</string>
-    <string name="bubbles_notification_test_button_7">Update bubble to show notification</string>
-    <string name="bubbles_notification_test_title_8">Step 8: dismiss notification</string>
-    <string name="bubbles_notification_test_verify_8">Click the button below and verify that a bubble
+    <string name="bubbles_test_dismiss_button">Update bubble to show notification</string>
+    <!-- Dismiss notification -->
+    <string name="bubbles_test_dismiss_notif_title">Dismiss notification</string>
+    <string name="bubbles_test_dismiss_notif_verify">Click the button below and verify that a bubble
         appears on screen, and the notification is visible in the notification shade.\n\n
         Dismiss the notification from the notification shade and verify that the bubble remains on
         screen.</string>
-    <string name="bubbles_notification_test_button_8">Send bubble notification</string>
-    <string name="bubbles_notification_test_title_9">Step 9: auto expand bubble</string>
-    <string name="bubbles_notification_test_verify_9">Click the button below and verify that a bubble
+    <string name="bubbles_test_dismiss_notif_button">Send bubble notification</string>
+    <!-- Auto expand bubble -->
+    <string name="bubbles_test_autoexpand_title">Auto expand bubble</string>
+    <string name="bubbles_test_autoexpand_verify">Click the button below and verify that a bubble
         appears on screen, auto-expanded.</string>
-    <string name="bubbles_notification_test_button_9">Send auto-expanded bubble notification</string>
-    <string name="bubbles_notification_test_title_10">No bubbles on low memory device</string>
-    <string name="bubbles_notification_test_verify_10">Click the button below and verify that a
+    <string name="bubbles_test_autoexpand_button">Send auto-expanded bubble notification</string>
+    <!--Overflow exists -->
+    <string name="bubbles_test_overflow_title">Bubble overflow (empty)</string>
+    <string name="bubbles_test_overflow_verify">Tap the bubble to expand it and verify there is an
+        affordance to see previous bubbles. It should be empty right now and show an empty state
+        message.</string>
+    <!-- Bubbles appear in overflow -->
+    <string name="bubbles_test_bubbles_in_overflow_title">Bubble overflow (with bubbles)</string>
+    <string name="bubbles_test_bubbles_in_overflow_verify">1. Press the button below to create
+        several bubbles.\n\n
+        2. Expand the stack and drag down two of the bubbles to dismiss them.\n\n
+        3. Tap on the bubble overflow, pass this test if the two bubbles you dismissed are in
+        the overflow. </string>
+    <string name="bubbles_test_bubbles_in_overflow_button">Send several bubbles</string>
+    <!-- Add bubble from overflow -->
+    <string name="bubbles_test_add_from_overflow_title">Add bubble from overflow</string>
+    <string name="bubbles_test_add_from_overflow_verify">1. Expand the stack and open the bubble
+        overflow.\n\n 2. Tap on a bubble in the overflow, pass this test if that bubble is opened
+        and removed from the overflow.</string>
+    <!-- Cancel removes bubbles in overflow -->
+    <string name="bubbles_test_cancel_overflow_title">Cancel removes overflowed bubbles</string>
+    <string name="bubbles_test_cancel_overflow_verify">1. Press the button below, it will cancel all
+        previous bubble notifications and post one more.\n\n
+        2. Expand that bubble, navigate to the overflow and ensure that it is empty.</string>
+    <string name="bubbles_test_cancel_overflow_button">Cancel previous bubbles and post a
+        single bubble</string>
+    <!-- Tap on notification with bubble in the overflow -->
+    <string name="bubbles_test_tap_notif_with_overflow_title">Tap on notification opens bubble
+    </string>
+    <string name="bubbles_test_tap_notif_with_overflow_verify">1. Press the button to create a
+        bubble.\n\n
+        2. Dismiss the bubble without opening it.\n\n
+        3. Tap on the notification. Pass this test if the notification opened as a bubble.</string>
+    <string name="bubbles_test_tap_notif_with_overflow_button">Send bubble</string>
+    <!-- Portrait & landscape positioning -->
+    <string name ="bubbles_test_expanded_position_title">Portrait and landscape positioning</string>
+    <string name="bubbles_test_expanded_position_phone_verify">1. While in portrait orientation,
+        tap on the bubble to open it.\n\n
+        2. Verify that the bubbles show at the top of the screen.\n\n
+        3. Rotate the device to landscape orientation.\n\n
+        3. Verify that the bubbles are aligned to the left or right edge of the screen.</string>
+    <string name="bubbles_test_expanded_position_largescreen_verify">
+        1. Tap the bubble to open it.\n\n
+        2. Verify that the bubbles are aligned to the left or right edge of the screen.\n\n
+        3. Rotate the device.\n\n
+        4. Verify that the bubbles are aligned to the left or right edge of the screen.</string>
+    <!-- Expanded view scrim -->
+    <string name="bubbles_test_expanded_scrim_title">Expanded state has scrim</string>
+    <string name="bubbles_test_expanded_scrim_verify">Expand the bubble and pass this test if the
+        area below the bubble is dimmed (like when a dialog is opened).</string>
+    <!-- IME insets -->
+    <string name="bubbles_test_ime_title">IME behavior</string>
+    <string name="bubbles_test_ime_verify">1. Tap on the bubble to open it.\n\n
+        2. Tap the edit text in the bubble to bring up the IME.\n\n
+        3. Pass this test if the IME appears and the edit text is still visible.</string>
+    <!-- Expanded view min height -->
+    <string name="bubbles_test_min_height_title">Expanded view min height</string>
+    <string name="bubbles_test_min_height_verify">1. Press the button below to update the bubble to
+        have the smallest height.\n\n
+    2. Open the bubble, it will tell you if the height is correct.</string>
+    <string name="bubbles_test_min_height_button">Send small height bubble</string>
+    <!-- Expanded view max height -->
+    <string name="bubbles_test_max_height_title">Expanded view max height</string>
+    <string name="bubbles_test_max_height_verify">1. Press the button below to update the bubble to
+        have the maximum height.\n\n
+        2. Open the bubble, it will tell you if the height is correct.</string>
+    <string name="bubbles_test_max_height_button">Send max height bubble</string>
+    <!-- Low ram -->
+    <string name="bubbles_test_lowram_title">No bubbles on low memory device</string>
+    <string name="bubbles_test_lowram_verify">Click the button below and verify that a
         bubble does NOT appear on screen. Verify that there is a notification in the notification
         shade.</string>
-    <string name="bubbles_notification_test_button_10">Add bubble</string>
+    <string name="bubbles_test_lowram_button">Add bubble</string>
+    <!-- Bubbles end of test summary -->
     <string name="bubbles_test_summary_title">Test Complete</string>
     <string name="bubbles_test_summary">%1$d out of %2$d tests passed</string>
     <string name="bubble_activity_title">Bubble Activity</string>
+    <string name="bubble_test_state_correct">State is correct, pass the test.</string>
+    <string name="bubble_test_state_waiting">State is not correct, waiting for the correct state.
+    </string>
+    <string name="bubble_test_ime_hint">Tap for IME</string>
+    <string name="bubble_test_expanded_view">Bubble expanded view</string>
 
     <!-- Toast test -->
     <string name="toast_title">Toast test (may auto pass if CtsVerifier isn\'t targeting
@@ -5871,12 +6022,6 @@ Follow the instructions on the screen to measure the frequency response for the 
 
     <string name="loopback_test_question">Does this device allow for the connection of a loopback audio peripheral?</string>
     <string name="loopback_dlg_caption">Loopback Peripheral Required</string>
-    <string name="loopback_dlg_text">This test requires an Audio Loopback Peripheral to be connected to the device.\n
-        This can be done in one of three ways:\n
-        1. Connect a <a href="https://source.android.com/devices/audio/latency/loopback">Loopback Plug</a> to the 3.5mm headset jack.\n
-        2. Connect a <a href="https://source.android.com/devices/audio/latency/loopback">Loopback Plug</a> to a USB-C headset adapter.\n
-        3. Connect a USB audio interface peripheral and connect the outputs to the inputs with audio patch cables.
-    </string>
 
     <string name="display_cutout_test">DisplayCutout Test</string>
     <string name="display_cutout_test_instruction">\n

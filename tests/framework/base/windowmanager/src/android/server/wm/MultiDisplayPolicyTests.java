@@ -519,6 +519,10 @@ public class MultiDisplayPolicyTests extends MultiDisplayTestBase {
 
     private void validateStackFocusSwitchOnStackEmptied(VirtualDisplaySession virtualDisplaySession,
             LockScreenSession lockScreenSession) {
+        if (lockScreenSession != null) {
+            lockScreenSession.setLockCredential();
+        }
+
         // Create new virtual display.
         final DisplayContent newDisplay = virtualDisplaySession.createDisplay();
         mWmState.assertVisibility(VIRTUAL_DISPLAY_ACTIVITY, true /* visible */);
@@ -538,7 +542,7 @@ public class MultiDisplayPolicyTests extends MultiDisplayTestBase {
 
         if (lockScreenSession != null) {
             // Unlock and check if the focus is switched back to primary display.
-            lockScreenSession.wakeUpDevice().unlockDevice();
+            lockScreenSession.wakeUpDevice().enterAndConfirmLockCredential();
         }
 
         waitAndAssertTopResumedActivity(VIRTUAL_DISPLAY_ACTIVITY, DEFAULT_DISPLAY,
@@ -833,10 +837,12 @@ public class MultiDisplayPolicyTests extends MultiDisplayTestBase {
                 mWmState.getResumedActivitiesCountInPackage(
                         SDK_27_LAUNCHING_ACTIVITY.getPackageName()));
 
+        // Start SeparateProcessActivity in the same task as LaunchingActivity by setting
+        // allowMultipleInstances to false, and the TestActivity should be resumed.
         getLaunchActivityBuilder().setUseInstrumentation()
                 .setTargetActivity(SDK_27_SEPARATE_PROCESS_ACTIVITY).setNewTask(true)
                 .setDisplayId(DEFAULT_DISPLAY).setWindowingMode(WINDOWING_MODE_FULLSCREEN)
-                .execute();
+                .allowMultipleInstances(false).execute();
         waitAndAssertTopResumedActivity(SDK_27_SEPARATE_PROCESS_ACTIVITY, DEFAULT_DISPLAY,
                 "Activity launched on default display must be resumed and focused");
         assertTrue("Activity that was on secondary display must be resumed",
