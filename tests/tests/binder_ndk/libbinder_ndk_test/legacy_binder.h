@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019 The Android Open Source Project
+ * Copyright (C) 2021 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,20 +14,11 @@
  * limitations under the License.
  */
 
-package android.signature.cts.api.test;
+#pragma once
 
-import android.signature.cts.DexMember;
-import java.util.Set;
+#include <android/binder_ibinder.h>
 
-public class HiddenApiTest extends android.signature.cts.api.HiddenApiTest {
-
-    /**
-     * Override to match only those members that specify both test-api and blocked.
-     */
-    @Override
-    protected boolean shouldTestMember(DexMember member) {
-        Set<String> flags = member.getHiddenapiFlags();
-        return flags.contains("test-api") && flags.contains("blocked");
-    }
-
-}
+// WARNING: this class is used for testing APIs for use w/ legacy services that
+// won't work with AIDL. If
+// Every transaction is repeat int w/o an interface header
+extern const AIBinder_Class* kLegacyBinderClass;
