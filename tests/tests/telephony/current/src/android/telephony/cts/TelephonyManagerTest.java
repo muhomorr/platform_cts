@@ -68,6 +68,7 @@ import android.telephony.CellIdentityNr;
 import android.telephony.CellInfo;
 import android.telephony.CellLocation;
 import android.telephony.DataThrottlingRequest;
+import android.telephony.ModemActivityInfo;
 import android.telephony.NetworkRegistrationInfo;
 import android.telephony.PhoneCapability;
 import android.telephony.PhoneStateListener;
@@ -86,6 +87,7 @@ import android.telephony.ThermalMitigationRequest;
 import android.telephony.UiccCardInfo;
 import android.telephony.UiccSlotInfo;
 import android.telephony.data.ApnSetting;
+import android.telephony.data.SlicingConfig;
 import android.telephony.emergency.EmergencyNumber;
 import android.text.TextUtils;
 import android.util.Log;
@@ -114,6 +116,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -3001,6 +3004,40 @@ public class TelephonyManagerTest {
     }
 
     @Test
+    public void testRequestModemActivityInfo() throws Exception {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            return;
+        }
+
+        InstrumentationRegistry.getInstrumentation().getUiAutomation()
+                .adoptShellPermissionIdentity("android.permission.MODIFY_PHONE_STATE");
+        try {
+            // Get one instance of activity info and make sure it's valid
+            CompletableFuture<ModemActivityInfo> future1 = new CompletableFuture<>();
+            mTelephonyManager.requestModemActivityInfo(getContext().getMainExecutor(),
+                    future1::complete);
+            ModemActivityInfo activityInfo1 = future1.get(TOLERANCE, TimeUnit.MILLISECONDS);
+            assertNotNull(activityInfo1);
+            assertTrue("first activity info is" + activityInfo1, activityInfo1.isValid());
+
+            // Wait a bit, then get another instance to make sure that some info has accumulated
+            CompletableFuture<ModemActivityInfo> future2 = new CompletableFuture<>();
+            mTelephonyManager.requestModemActivityInfo(getContext().getMainExecutor(),
+                    future2::complete);
+            ModemActivityInfo activityInfo2 = future2.get(TOLERANCE, TimeUnit.MILLISECONDS);
+            assertNotNull(activityInfo2);
+            assertTrue("second activity info is" + activityInfo2, activityInfo2.isValid());
+
+            ModemActivityInfo diff = activityInfo1.getDelta(activityInfo2);
+            assertNotNull(diff);
+            assertTrue("diff is" + diff, diff.isValid() || diff.isEmpty());
+        } finally {
+            InstrumentationRegistry.getInstrumentation().getUiAutomation()
+                    .dropShellPermissionIdentity();
+        }
+    }
+
+    @Test
     public void testGetSupportedModemCount() {
         if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
             return;
@@ -3327,15 +3364,15 @@ public class TelephonyManagerTest {
         }
     }
 
-    private void disableNrDualConnectivity() {
+    private int disableNrDualConnectivity() {
         if (!ShellIdentityUtils.invokeMethodWithShellPermissions(
                 mTelephonyManager, (tm) -> tm.isRadioInterfaceCapabilitySupported(
                         TelephonyManager
                                 .CAPABILITY_NR_DUAL_CONNECTIVITY_CONFIGURATION_AVAILABLE))) {
-            return;
+            return TelephonyManager.ENABLE_NR_DUAL_CONNECTIVITY_NOT_SUPPORTED;
         }
 
-        ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(
+        int result = ShellIdentityUtils.invokeMethodWithShellPermissions(
                 mTelephonyManager,
                 (tm) -> tm.setNrDualConnectivityState(
                         TelephonyManager.NR_DUAL_CONNECTIVITY_DISABLE));
@@ -3344,9 +3381,12 @@ public class TelephonyManagerTest {
                 ShellIdentityUtils.invokeMethodWithShellPermissions(
                         mTelephonyManager, (tm) -> tm.isNrDualConnectivityEnabled());
         // Only verify the result for supported devices on IRadio 1.6+
-        if (mRadioVersion >= RADIO_HAL_VERSION_1_6) {
+        if (mRadioVersion >= RADIO_HAL_VERSION_1_6
+                && result != TelephonyManager.ENABLE_NR_DUAL_CONNECTIVITY_NOT_SUPPORTED) {
             assertFalse(isNrDualConnectivityEnabled);
         }
+
+        return result;
     }
 
     @Test
@@ -3365,9 +3405,14 @@ public class TelephonyManagerTest {
         boolean isInitiallyEnabled = ShellIdentityUtils.invokeMethodWithShellPermissions(
                 mTelephonyManager, (tm) -> tm.isNrDualConnectivityEnabled());
         boolean isNrDualConnectivityEnabled;
+        int result;
         if (isInitiallyEnabled) {
-            disableNrDualConnectivity();
+            result = disableNrDualConnectivity();
+            if (result == TelephonyManager.ENABLE_NR_DUAL_CONNECTIVITY_NOT_SUPPORTED) {
+                return;
+            }
         }
+
 
         ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(
                 mTelephonyManager,
@@ -4343,6 +4388,20 @@ public class TelephonyManagerTest {
                 super.wait(millis);
             }
         }
+    }
+
+    /**
+     * Verifies that {@link TelephonyManager#getNetworkSlicingConfiguration()} does not throw any
+     * exception
+     */
+    @Test
+    public void testGetNetworkSlicingConfiguration() {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            return;
+        }
+        CompletableFuture<SlicingConfig> resultFuture = new CompletableFuture<>();
+        ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mTelephonyManager,
+                (tm) -> tm.getNetworkSlicingConfiguration(mSimpleExecutor, resultFuture::complete));
     }
 }
 
