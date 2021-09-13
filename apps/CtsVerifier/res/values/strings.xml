@@ -15,6 +15,7 @@
 -->
 <resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="app_name">CTS Verifier</string>
+    <string name="module_id">noabi CtsVerifier</string>
 
     <string name="title_version">CTS Verifier %1$s</string>
 
@@ -875,7 +876,8 @@
     <string name="ibo_test">Ignore Battery Optimizations Test</string>
     <string name="ibo_test_info">
         This test verifies that the device provides a user affordance to ask the user if the system
-        should disable battery optimizations for an app.
+        should disable battery optimizations for an app and to allow a user to remove the app from
+        the exemption list.
     </string>
     <string name="ibo_test_start_unexempt_app">
         Remove the test app from the ignore battery optimizations list to begin the test. (Try going
@@ -887,8 +889,9 @@
     <string name="ibo_next_to_confirm">Press next to confirm.</string>
     <string name="ibo_app_not_exempted">The app is not exempted from battery optimizations.</string>
     <string name="ibo_unexempt_app">
-        Remove the test app from the ignore battery optimizations list. (Try going
-        to the App Info page and make sure the system is optimizing battery for the app.)
+        Remove the test app from the ignore battery optimizations list. (Either run \"adb shell cmd
+        deviceidle whitelist -com.android.cts.verifier\" or open the list of apps and their
+        exemption statuses. Find the test app in the list and remove the app\'s exemption.)
     </string>
     <string name="ibo_app_is_exempted">The app is exempted from battery optimizations.</string>
     <string name="ibo_exempt_app_list">
@@ -5086,8 +5089,8 @@ You should be prompted to select credentials; choose the ones you just installed
         To pass the test, the device need only achieve this on one of the following audio paths:\n
           - a <a href="https://source.android.com/devices/audio/latency/loopback">Loopback Plug</a>  connected to a 3.5mm headset jack.\n
           - a <a href="https://source.android.com/devices/audio/latency/loopback">Loopback Plug</a>  connected to a USB audio adapter.\n
-          - a USB interface with patch cords connecting the input and output jacks.\n
-          Please connect one of these Loopback mechanisms, and proceed with the instructions
+          - a USB interface with patch cords connecting the input and output jacks.
+          \nPlease connect one of these Loopback mechanisms, and proceed with the instructions
           on the screen. The required &amp; recommended latencies will be displayed.
           The system will measure the input-output audio latency by injecting an audio signal to
           the output and compute the time between generating the signal and recording it back.
