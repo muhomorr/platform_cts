@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019 The Android Open Source Project
+ * Copyright (C) 2021 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,20 +14,13 @@
  * limitations under the License.
  */
 
-package android.signature.cts.api.test;
+package android.app.usage.cts.test1;
 
-import android.signature.cts.DexMember;
-import java.util.Set;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
 
-public class HiddenApiTest extends android.signature.cts.api.HiddenApiTest {
-
-    /**
-     * Override to match only those members that specify both test-api and blocked.
-     */
+public final class TestBroadcastReceiver extends BroadcastReceiver {
     @Override
-    protected boolean shouldTestMember(DexMember member) {
-        Set<String> flags = member.getHiddenapiFlags();
-        return flags.contains("test-api") && flags.contains("blocked");
-    }
-
+    public void onReceive(Context context, Intent intent) {}
 }
