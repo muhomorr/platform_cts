@@ -387,13 +387,6 @@ public class MediaMetadataRetrieverTest extends AndroidTestCase {
     }
 
     public void testID3v240ExtHeader() {
-        if(!ApiLevelUtil.isAtLeast(Build.VERSION_CODES.R)) {
-            // The fix for b/154357105 was released in mainline release 30.09.007.01
-            // See https://android-build.googleplex.com/builds/treetop/googleplex-android-review/11174063
-            if (TestUtils.skipTestIfMainlineLessThan("com.google.android.media", 300900701)) {
-                return;
-            }
-        }
         setDataSourceFd("sinesweepid3v24ext.mp3");
         assertEquals("Mime type was other than expected",
                 "audio/mpeg",
@@ -1073,12 +1066,20 @@ public class MediaMetadataRetrieverTest extends AndroidTestCase {
 
     public void testGetImageAtIndexAvif() throws Exception {
         if (!MediaUtils.check(mIsAtLeastS, "test needs Android 12")) return;
+        if (!MediaUtils.canDecodeVideo("AV1", 1920, 1080, 30)) {
+            MediaUtils.skipTest("No AV1 codec for 1080p");
+            return;
+        }
         testGetImage("sample.avif", 1920, 1080, "image/avif", 0 /*rotation*/,
                 1 /*imageCount*/, 0 /*primary*/, false /*useGrid*/, true /*checkColor*/);
     }
 
     public void testGetImageAtIndexAvifGrid() throws Exception {
         if (!MediaUtils.check(mIsAtLeastS, "test needs Android 12")) return;
+        if (!MediaUtils.canDecodeVideo("AV1", 512, 512, 30)) {
+            MediaUtils.skipTest("No AV1 codec for 512p");
+            return;
+        }
         testGetImage("sample_grid2x4.avif", 1920, 1080, "image/avif", 0 /*rotation*/,
                 1 /*imageCount*/, 0 /*primary*/, true /*useGrid*/, true /*checkColor*/);
     }
