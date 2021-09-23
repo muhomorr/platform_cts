@@ -25,3 +25,11 @@ java_library {
         "android.test.base.stubs",
     ],
 }
+
+filegroup {
+    name: "wrap.sh",
+    srcs: [
+        "wrap.sh",
+    ],
+    path: ".",
+}
