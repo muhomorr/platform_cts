@@ -26,7 +26,7 @@
 #include <memory>
 
 struct SecurityContext_Delete {
-    void operator()(security_context_t p) const {
+    void operator()(char* p) const {
         freecon(p);
     }
 };
@@ -151,7 +151,7 @@ static jstring getFileContext(JNIEnv *env, jobject, jstring pathStr) {
         return NULL;
     }
 
-    security_context_t tmp = NULL;
+    char* tmp = NULL;
     int ret = getfilecon(path.c_str(), &tmp);
     Unique_SecurityContext context(tmp);
 
