@@ -45,6 +45,7 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
+import android.content.res.Resources;
 import android.net.ConnectivityManager;
 import android.net.wifi.WifiManager;
 import android.os.AsyncTask;
@@ -1451,9 +1452,11 @@ public class TelephonyManagerTest {
             return;
         }
         boolean is5gStandalone = getContext().getResources().getBoolean(
-                com.android.internal.R.bool.config_telephony5gStandalone);
+                Resources.getSystem().getIdentifier("config_telephony5gStandalone", "bool",
+                        "android"));
         boolean is5gNonStandalone = getContext().getResources().getBoolean(
-                com.android.internal.R.bool.config_telephony5gNonStandalone);
+                Resources.getSystem().getIdentifier("config_telephony5gNonStandalone", "bool",
+                        "android"));
         int[] deviceNrCapabilities = new int[0];
         if (is5gStandalone || is5gNonStandalone) {
             List<Integer> list = new ArrayList<>();
@@ -3558,15 +3561,15 @@ public class TelephonyManagerTest {
         }
     }
 
-    private void disableNrDualConnectivity() {
+    private int disableNrDualConnectivity() {
         if (!ShellIdentityUtils.invokeMethodWithShellPermissions(
                 mTelephonyManager, (tm) -> tm.isRadioInterfaceCapabilitySupported(
                         TelephonyManager
                                 .CAPABILITY_NR_DUAL_CONNECTIVITY_CONFIGURATION_AVAILABLE))) {
-            return;
+            return TelephonyManager.ENABLE_NR_DUAL_CONNECTIVITY_NOT_SUPPORTED;
         }
 
-        ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(
+        int result = ShellIdentityUtils.invokeMethodWithShellPermissions(
                 mTelephonyManager,
                 (tm) -> tm.setNrDualConnectivityState(
                         TelephonyManager.NR_DUAL_CONNECTIVITY_DISABLE));
@@ -3575,9 +3578,12 @@ public class TelephonyManagerTest {
                 ShellIdentityUtils.invokeMethodWithShellPermissions(
                         mTelephonyManager, (tm) -> tm.isNrDualConnectivityEnabled());
         // Only verify the result for supported devices on IRadio 1.6+
-        if (mRadioVersion >= RADIO_HAL_VERSION_1_6) {
+        if (mRadioVersion >= RADIO_HAL_VERSION_1_6
+                && result != TelephonyManager.ENABLE_NR_DUAL_CONNECTIVITY_NOT_SUPPORTED) {
             assertFalse(isNrDualConnectivityEnabled);
         }
+
+        return result;
     }
 
     @Test
@@ -3596,14 +3602,23 @@ public class TelephonyManagerTest {
         boolean isInitiallyEnabled = ShellIdentityUtils.invokeMethodWithShellPermissions(
                 mTelephonyManager, (tm) -> tm.isNrDualConnectivityEnabled());
         boolean isNrDualConnectivityEnabled;
+        int result;
         if (isInitiallyEnabled) {
-            disableNrDualConnectivity();
+            result = disableNrDualConnectivity();
+            if (result == TelephonyManager.ENABLE_NR_DUAL_CONNECTIVITY_NOT_SUPPORTED) {
+                return;
+            }
         }
 
-        ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(
+        result = ShellIdentityUtils.invokeMethodWithShellPermissions(
                 mTelephonyManager,
                 (tm) -> tm.setNrDualConnectivityState(
                         TelephonyManager.NR_DUAL_CONNECTIVITY_ENABLE));
+
+        if (result == TelephonyManager.ENABLE_NR_DUAL_CONNECTIVITY_NOT_SUPPORTED) {
+            return;
+        }
+
         isNrDualConnectivityEnabled = ShellIdentityUtils.invokeMethodWithShellPermissions(
                 mTelephonyManager, (tm) -> tm.isNrDualConnectivityEnabled());
         // Only verify the result for supported devices on IRadio 1.6+
