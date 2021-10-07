@@ -37,6 +37,7 @@ import androidx.test.runner.AndroidJUnit4;
 
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -99,6 +100,7 @@ public class SettingsPanelTest {
 
     // Check correct package is opened
 
+    @Ignore
     @Test
     public void internetPanel_correctPackage() {
         launchInternetPanel();
@@ -136,6 +138,7 @@ public class SettingsPanelTest {
         assertThat(currentPackage).isEqualTo(mSettingsPackage);
     }
 
+    @Ignore
     @Test
     public void internetPanel_doneClosesPanel() {
         // Launch panel
@@ -195,25 +198,6 @@ public class SettingsPanelTest {
         // Assert that we have left the panel
         currentPackage = mDevice.getCurrentPackageName();
         assertThat(currentPackage).isNotEqualTo(mSettingsPackage);
-    }
-
-    @Test
-    public void internetPanel_seeMoreButton_launchesIntoSettings() {
-        // Launch panel
-        launchInternetPanel();
-        String currentPackage = mDevice.getCurrentPackageName();
-        assertThat(currentPackage).isEqualTo(mSettingsPackage);
-
-        // Click the see more button
-        assumeTrue(mHasTouchScreen);
-        mDevice.findObject(By.res(mSettingsPackage, RESOURCE_SEE_MORE)).click();
-        mDevice.wait(Until.hasObject(By.pkg(mSettingsPackage).depth(0)), TIMEOUT);
-
-        // Assert that we're still in Settings, on a different page.
-        currentPackage = mDevice.getCurrentPackageName();
-        assertThat(currentPackage).isEqualTo(mSettingsPackage);
-        UiObject2 titleView = mDevice.findObject(By.res(mSettingsPackage, RESOURCE_TITLE));
-        assertThat(titleView).isNull();
     }
 
     @Test

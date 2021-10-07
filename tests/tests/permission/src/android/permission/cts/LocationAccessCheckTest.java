@@ -66,7 +66,7 @@ import android.os.IBinder;
 import android.os.Looper;
 import android.permission.cts.appthataccesseslocation.IAccessLocationOnCommand;
 import android.platform.test.annotations.AppModeFull;
-import android.platform.test.annotations.SecurityTest;
+import android.platform.test.annotations.AsbSecurityTest;
 import android.platform.test.annotations.SystemUserOnly;
 import android.provider.DeviceConfig;
 import android.provider.Settings;
@@ -121,7 +121,7 @@ public class LocationAccessCheckTest {
             "location_access_check_enabled";
 
     private static final long UNEXPECTED_TIMEOUT_MILLIS = 10000;
-    private static final long EXPECTED_TIMEOUT_MILLIS = 1000;
+    private static final long EXPECTED_TIMEOUT_MILLIS = 15000;
     private static final long LOCATION_ACCESS_TIMEOUT_MILLIS = 15000;
 
     private static final Context sContext = InstrumentationRegistry.getTargetContext();
@@ -165,7 +165,7 @@ public class LocationAccessCheckTest {
 
         long beforeAccess = System.currentTimeMillis();
         // Wait a little to avoid raciness in timing between threads
-        Thread.sleep(10);
+        Thread.sleep(1000);
 
         // Try again until binder call goes though. It might not go through if the sLocationAccessor
         // is not bound yet
@@ -295,24 +295,28 @@ public class LocationAccessCheckTest {
      * Force a run of the location check.
      */
     private static void runLocationCheck() throws Throwable {
+        // Sleep a little bit to make sure we don't have overlap in timing
+        Thread.sleep(1000);
+
         long beforeJob = System.currentTimeMillis();
 
         // Sleep a little bit to avoid raciness in time keeping
-        Thread.sleep(100);
+        Thread.sleep(1000);
 
         runShellCommand(
                 "cmd jobscheduler run -u " + android.os.Process.myUserHandle().getIdentifier()
                         + " -f " + PERMISSION_CONTROLLER_PKG + " 0");
 
-        long[] startTime = new long[] {-1};
         eventually(() -> {
-            startTime[0] = getLastJobTime(START_PERIODIC_JOB);
-            assertTrue(startTime[0] + "!>" + beforeJob, startTime[0] > beforeJob);
+            long startTime = getLastJobTime(START_PERIODIC_JOB);
+            assertTrue(startTime + " !> " + beforeJob, startTime > beforeJob);
         }, EXPECTED_TIMEOUT_MILLIS);
 
+        // We can't simply require startTime <= endTime because the time being reported isn't
+        // accurate, and sometimes the end time may come before the start time by around 100 ms.
         eventually(() -> {
             long stopTime = getLastJobTime(STOP_JOB);
-            assertTrue(startTime[0] <= stopTime);
+            assertTrue(stopTime + " !> " + beforeJob, stopTime > beforeJob);
         }, EXPECTED_TIMEOUT_MILLIS);
     }
 
@@ -404,17 +408,19 @@ public class LocationAccessCheckTest {
     }
 
     @BeforeClass
-    public static void installBackgroundAccessApp() {
+    public static void installBackgroundAccessApp() throws Exception {
         installBackgroundAccessApp(false);
     }
 
-    private static void installBackgroundAccessApp(boolean isDowngrade) {
+    private static void installBackgroundAccessApp(boolean isDowngrade) throws Exception {
         String command = "pm install -r -g ";
         if (isDowngrade) {
             command = command + "-d ";
         }
         String output = runShellCommand(command + TEST_APP_LOCATION_BG_ACCESS_APK);
         assertTrue(output.contains("Success"));
+        // Wait for user sensitive to be updated, which is checked by LocationAccessCheck.
+        Thread.sleep(5000);
     }
 
     @AfterClass
@@ -432,9 +438,11 @@ public class LocationAccessCheckTest {
     }
 
 
-    private static void installForegroundAccessApp() {
+    private static void installForegroundAccessApp() throws Exception {
         unbindService();
         runShellCommand("pm install -r -g " + TEST_APP_LOCATION_FG_ACCESS_APK);
+        // Wait for user sensitive to be updated, which is checked by LocationAccessCheck.
+        Thread.sleep(5000);
     }
 
     private static void uninstallForegroundAccessApp() {
@@ -447,6 +455,12 @@ public class LocationAccessCheckTest {
     @Before
     public void assumeIsNotLowRamDevice() {
         assumeFalse(sActivityManager.isLowRamDevice());
+    }
+
+    @Before
+    public void wakeUpAndDismissKeyguard() {
+        runShellCommand("input keyevent KEYCODE_WAKEUP");
+        runShellCommand("wm dismiss-keyguard");
     }
 
     @Before
@@ -649,7 +663,7 @@ public class LocationAccessCheckTest {
     }
 
     @Test
-    @SecurityTest(minPatchLevel = "2019-12-01")
+    @AsbSecurityTest(cveBugId = 141028068)
     public void notificationIsShownOnlyOnce() throws Throwable {
         assumeNotPlayManaged();
 
@@ -666,7 +680,7 @@ public class LocationAccessCheckTest {
 
     @SystemUserOnly(reason = "b/172259935")
     @Test
-    @SecurityTest(minPatchLevel = "2019-12-01")
+    @AsbSecurityTest(cveBugId = 141028068)
     public void notificationIsShownAgainAfterClear() throws Throwable {
         assumeNotPlayManaged();
         accessLocation();
@@ -711,7 +725,7 @@ public class LocationAccessCheckTest {
     }
 
     @Test
-    @SecurityTest(minPatchLevel = "2019-12-01")
+    @AsbSecurityTest(cveBugId = 141028068)
     public void removeNotificationOnUninstall() throws Throwable {
         assumeNotPlayManaged();
 
@@ -753,7 +767,7 @@ public class LocationAccessCheckTest {
     }
 
     @Test
-    @SecurityTest(minPatchLevel = "2019-12-01")
+    @AsbSecurityTest(cveBugId = 141028068)
     public void noNotificationIfFeatureDisabled() throws Throwable {
         assumeNotPlayManaged();
 
@@ -766,7 +780,7 @@ public class LocationAccessCheckTest {
     }
 
     @Test
-    @SecurityTest(minPatchLevel = "2019-12-01")
+    @AsbSecurityTest(cveBugId = 141028068)
     public void notificationOnlyForAccessesSinceFeatureWasEnabled() throws Throwable {
         assumeNotPlayManaged();
 
@@ -796,7 +810,7 @@ public class LocationAccessCheckTest {
     }
 
     @Test
-    @SecurityTest(minPatchLevel = "2019-12-01")
+    @AsbSecurityTest(cveBugId = 141028068)
     public void noNotificationIfBlamerNotSystemOrLocationProvider() throws Throwable {
         assumeNotPlayManaged();
 
@@ -812,7 +826,7 @@ public class LocationAccessCheckTest {
     }
 
     @Test
-    @SecurityTest(minPatchLevel = "2019-12-01")
+    @AsbSecurityTest(cveBugId = 141028068)
     public void testOpeningLocationSettingsDoesNotTriggerAccess() throws Throwable {
         assumeNotPlayManaged();
 

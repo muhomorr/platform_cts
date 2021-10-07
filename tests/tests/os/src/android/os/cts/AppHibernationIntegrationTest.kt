@@ -16,6 +16,9 @@
 
 package android.os.cts
 
+import android.app.ActivityManager
+import android.app.ActivityManager.RunningAppProcessInfo.IMPORTANCE_GONE
+import android.app.ActivityManager.RunningAppProcessInfo.IMPORTANCE_TOP_SLEEPING
 import android.app.Instrumentation
 import android.content.Context
 import android.content.Intent
@@ -36,13 +39,17 @@ import androidx.test.filters.SdkSuppress
 import androidx.test.runner.AndroidJUnit4
 import com.android.compatibility.common.util.DisableAnimationRule
 import com.android.compatibility.common.util.FreezeRotationRule
+import com.android.compatibility.common.util.SystemUtil
+import com.android.compatibility.common.util.SystemUtil.eventually
 import com.android.compatibility.common.util.SystemUtil.runShellCommandOrThrow
 import com.android.compatibility.common.util.UiAutomatorUtils
 import org.hamcrest.CoreMatchers
+import org.hamcrest.Matchers
 import org.junit.After
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertThat
 import org.junit.Assert.assertTrue
+import org.junit.Assume.assumeFalse
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -58,8 +65,9 @@ class AppHibernationIntegrationTest {
         const val LOG_TAG = "AppHibernationIntegrationTest"
         const val WAIT_TIME_MS = 1000L
         const val MAX_SCROLL_ATTEMPTS = 3
+        const val TEST_UNUSED_THRESHOLD = 1L
 
-        const val SETTINGS_PACKAGE = "com.android.settings"
+        const val CMD_KILL = "am kill %s"
     }
     private val context: Context = InstrumentationRegistry.getTargetContext()
     private val instrumentation: Instrumentation = InstrumentationRegistry.getInstrumentation()
@@ -94,28 +102,30 @@ class AppHibernationIntegrationTest {
     @Test
     fun testUnusedApp_getsForceStopped() {
         withDeviceConfig(NAMESPACE_APP_HIBERNATION, "app_hibernation_enabled", "true") {
-            withUnusedThresholdMs(1) {
+            withUnusedThresholdMs(TEST_UNUSED_THRESHOLD) {
                 withApp(APK_PATH_S_APP, APK_PACKAGE_NAME_S_APP) {
                     // Use app
                     startApp(APK_PACKAGE_NAME_S_APP)
-                    Thread.sleep(WAIT_TIME_MS)
-                    runShellCommandOrThrow("input keyevent KEYCODE_BACK")
-                    runShellCommandOrThrow("input keyevent KEYCODE_BACK")
-                    Thread.sleep(WAIT_TIME_MS)
-                    runShellCommandOrThrow("am kill $APK_PACKAGE_NAME_S_APP")
-                    Thread.sleep(WAIT_TIME_MS)
+                    leaveApp(APK_PACKAGE_NAME_S_APP)
+                    killApp(APK_PACKAGE_NAME_S_APP)
+
+                    // Wait for the unused threshold time to pass
+                    Thread.sleep(TEST_UNUSED_THRESHOLD)
 
                     // Run job
                     runAppHibernationJob(context, LOG_TAG)
-                    Thread.sleep(WAIT_TIME_MS)
 
                     // Verify
                     val ai =
                         packageManager.getApplicationInfo(APK_PACKAGE_NAME_S_APP, 0 /* flags */)
                     val stopped = ((ai.flags and ApplicationInfo.FLAG_STOPPED) != 0)
                     assertTrue(stopped)
-                    openUnusedAppsNotification()
 
+                    if (hasFeatureTV()) {
+                        // Skip checking unused apps screen because it may be unavailable on TV
+                        return
+                    }
+                    openUnusedAppsNotification()
                     waitFindObject(By.text(APK_PACKAGE_NAME_S_APP))
                 }
             }
@@ -124,20 +134,21 @@ class AppHibernationIntegrationTest {
 
     @Test
     fun testPreSVersionUnusedApp_doesntGetForceStopped() {
-        withUnusedThresholdMs(1) {
+        assumeFalse(
+            "TV may have different behaviour for Pre-S version apps",
+            hasFeatureTV())
+        withUnusedThresholdMs(TEST_UNUSED_THRESHOLD) {
             withApp(APK_PATH_R_APP, APK_PACKAGE_NAME_R_APP) {
                 // Use app
                 startApp(APK_PACKAGE_NAME_R_APP)
-                Thread.sleep(WAIT_TIME_MS)
-                runShellCommandOrThrow("input keyevent KEYCODE_BACK")
-                runShellCommandOrThrow("input keyevent KEYCODE_BACK")
-                Thread.sleep(WAIT_TIME_MS)
-                runShellCommandOrThrow("am kill $APK_PACKAGE_NAME_R_APP")
-                Thread.sleep(WAIT_TIME_MS)
+                leaveApp(APK_PACKAGE_NAME_R_APP)
+                killApp(APK_PACKAGE_NAME_R_APP)
+
+                // Wait for the unused threshold time to pass
+                Thread.sleep(TEST_UNUSED_THRESHOLD)
 
                 // Run job
                 runAppHibernationJob(context, LOG_TAG)
-                Thread.sleep(WAIT_TIME_MS)
 
                 // Verify
                 val ai =
@@ -151,6 +162,9 @@ class AppHibernationIntegrationTest {
     @AppModeFull(reason = "Uses application details settings")
     @Test
     fun testAppInfo_RemovePermissionsAndFreeUpSpaceToggleExists() {
+        assumeFalse(
+            "Remove permissions and free up space toggle may be unavailable on TV",
+            hasFeatureTV())
         withDeviceConfig(NAMESPACE_APP_HIBERNATION, "app_hibernation_enabled", "true") {
             withApp(APK_PATH_S_APP, APK_PACKAGE_NAME_S_APP) {
                 // Open app info
@@ -164,11 +178,46 @@ class AppHibernationIntegrationTest {
                 UiAutomatorUtils.getUiDevice()
 
                 val packageManager = context.packageManager
-                val res = packageManager.getResourcesForApplication(SETTINGS_PACKAGE)
+                val settingsPackage = intent.resolveActivity(packageManager).packageName
+                val res = packageManager.getResourcesForApplication(settingsPackage)
                 val title = res.getString(
-                    res.getIdentifier("unused_apps_switch", "string", SETTINGS_PACKAGE))
-                assertTrue("Remove permissions and free up space toggle not found",
-                    UiScrollable(UiSelector().scrollable(true)).scrollTextIntoView(title))
+                    res.getIdentifier("unused_apps_switch", "string", settingsPackage))
+
+                // Settings can have multiple scrollable containers so all of them should be
+                // searched.
+                var toggleFound = false
+                var i = 0
+                var scrollableObject = UiScrollable(UiSelector().scrollable(true).instance(i))
+                while (!toggleFound && scrollableObject.waitForExists(WAIT_TIME_MS)) {
+                    toggleFound = scrollableObject.scrollTextIntoView(title)
+                    scrollableObject = UiScrollable(UiSelector().scrollable(true).instance(++i))
+                }
+
+                assertTrue("Remove permissions and free up space toggle not found", toggleFound)
+            }
+        }
+    }
+
+    private fun leaveApp(packageName: String) {
+        eventually {
+            goHome()
+            SystemUtil.runWithShellPermissionIdentity {
+                val packageImportance = context
+                    .getSystemService(ActivityManager::class.java)!!
+                    .getPackageImportance(packageName)
+                assertThat(packageImportance, Matchers.greaterThan(IMPORTANCE_TOP_SLEEPING))
+            }
+        }
+    }
+
+    private fun killApp(packageName: String) {
+        eventually {
+            SystemUtil.runWithShellPermissionIdentity {
+                runShellCommandOrThrow(String.format(CMD_KILL, packageName))
+                val packageImportance = context
+                    .getSystemService(ActivityManager::class.java)!!
+                    .getPackageImportance(packageName)
+                assertThat(packageImportance, Matchers.equalTo(IMPORTANCE_GONE))
             }
         }
     }

@@ -1269,6 +1269,8 @@ public class ServiceTest extends ActivityTestsBase {
         mExpectedServiceState = STATE_START_1;
         startForegroundService(COMMAND_START_FOREGROUND_DEFER_NOTIFICATION);
         waitForResultOrThrow(DELAY, "service to start with deferred notification");
+        // Pause a moment and ensure that the notification has still not appeared
+        waitMillis(1000L);
         assertNoNotification(1);
 
         // Explicitly post a new Notification with the same id, still deferrable
@@ -1290,6 +1292,24 @@ public class ServiceTest extends ActivityTestsBase {
         assertNoNotification(1);
         waitMillis(10_000L);
         assertNotification(1, notificationTitle);
+
+        mExpectedServiceState = STATE_DESTROY;
+        mContext.stopService(mLocalForegroundService);
+        waitForResultOrThrow(DELAY, "service to be destroyed");
+    }
+
+    public void testForegroundService_deferThenKeepNotification() throws Exception {
+        // Start FGS with deferred notification; it should not display
+        mExpectedServiceState = STATE_START_1;
+        startForegroundService(COMMAND_START_FOREGROUND_DEFER_NOTIFICATION);
+        waitForResultOrThrow(DELAY, "service to start first time");
+        assertNoNotification(1);
+
+        // Exit foreground but keep notification - it should display immediately
+        mExpectedServiceState = STATE_START_2;
+        startForegroundService(COMMAND_STOP_FOREGROUND_DONT_REMOVE_NOTIFICATION);
+        waitForResultOrThrow(DELAY, "service to stop foreground");
+        assertNotification(1, LocalForegroundService.getNotificationTitle(1));
 
         mExpectedServiceState = STATE_DESTROY;
         mContext.stopService(mLocalForegroundService);

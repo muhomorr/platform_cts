@@ -22,6 +22,9 @@ import android.media.MediaCodecList;
 import android.media.MediaExtractor;
 import android.media.MediaFormat;
 import android.os.Build;
+import android.os.SystemProperties;
+import android.util.Range;
+import android.view.Surface;
 
 import java.io.File;
 import java.io.IOException;
@@ -29,8 +32,10 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.junit.Before;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
+import static org.junit.Assume.assumeTrue;
 
 class CodecPerformanceTestBase {
     private static final String LOG_TAG = CodecPerformanceTestBase.class.getSimpleName();
@@ -40,6 +45,19 @@ class CodecPerformanceTestBase {
     static final int SELECT_ALL = 0; // Select all codecs
     static final int SELECT_HARDWARE = 1; // Select Hardware codecs only
     static final int SELECT_SOFTWARE = 2; // Select Software codecs only
+    // allowed tolerance in measured fps vs expected fps, i.e. codecs achieving fps
+    // that is greater than (FPS_TOLERANCE_FACTOR * expectedFps) will be considered as
+    // passing the test
+    static final double FPS_TOLERANCE_FACTOR;
+    static final boolean IS_AT_LEAST_VNDK_S;
+
+    static final int DEVICE_INITIAL_SDK;
+
+    // Some older devices can not support concurrent instances of both decoder and encoder
+    // at max resolution. To handle such cases, this test is limited to test the
+    // resolutions that are less than half of max supported frame sizes of encoder.
+    static final boolean EXCLUDE_ENCODER_MAX_RESOLUTION;
+
     static final String mInputPrefix = WorkDir.getMediaDirString();
 
     ArrayList<MediaCodec.BufferInfo> mBufferInfos;
@@ -63,10 +81,41 @@ class CodecPerformanceTestBase {
 
     MediaCodec mDecoder;
     MediaFormat mDecoderFormat;
+    Surface mSurface;
     double mOperatingRateExpected;
 
-    static final float[] SCALING_FACTORS_LIST = new float[]{2.0f, 1.25f, 1.0f, 0.75f, 0.0f};
+    static final float[] SCALING_FACTORS_LIST = new float[]{2.5f, 1.25f, 1.0f, 0.75f, 0.0f, -1.0f};
     static final int[] KEY_PRIORITIES_LIST = new int[]{1, 0};
+
+    static {
+        // os.Build.VERSION.DEVICE_INITIAL_SDK_INT can be used here, but it was called
+        // os.Build.VERSION.FIRST_SDK_INT in Android R and below. Using DEVICE_INITIAL_SDK_INT
+        // will mean that the tests built in Android S can't be run on Android R and below.
+        DEVICE_INITIAL_SDK = SystemProperties.getInt("ro.product.first_api_level", 0);
+
+        // fps tolerance factor is kept quite low for devices launched on Android R and lower
+        FPS_TOLERANCE_FACTOR = DEVICE_INITIAL_SDK <= Build.VERSION_CODES.R ? 0.67 : 0.95;
+
+        IS_AT_LEAST_VNDK_S = SystemProperties.getInt("ro.vndk.version", 0) > Build.VERSION_CODES.R;
+
+        // Encoders on devices launched on Android Q and lower aren't tested at maximum resolution
+        EXCLUDE_ENCODER_MAX_RESOLUTION = DEVICE_INITIAL_SDK <= Build.VERSION_CODES.Q;
+    }
+
+    @Before
+    public void prologue() {
+        assumeTrue("For VNDK R and below, operating rate <= 0 isn't tested",
+                IS_AT_LEAST_VNDK_S || mMaxOpRateScalingFactor > 0.0);
+
+        assumeTrue("For devices launched on Android P and below, operating rate tests are disabled",
+                DEVICE_INITIAL_SDK > Build.VERSION_CODES.P);
+
+        if (DEVICE_INITIAL_SDK <= Build.VERSION_CODES.Q) {
+            assumeTrue("For devices launched with Android Q and below, operating rate tests are " +
+                            "limited to operating rate scaling factor > 0.0 and <= 1.25",
+                    mMaxOpRateScalingFactor > 0.0 && mMaxOpRateScalingFactor <= 1.25);
+        }
+    }
 
     public CodecPerformanceTestBase(String decoderName, String testFile, int keyPriority,
             float maxOpRateScalingFactor) {
@@ -152,7 +201,7 @@ class CodecPerformanceTestBase {
             if (format.getString(MediaFormat.KEY_MIME).startsWith("video/")) {
                 extractor.selectTrack(trackID);
                 File file = new File(input);
-                int bufferSize = ((int) file.length()) << 1;
+                int bufferSize = (int) file.length();
                 mBuff = ByteBuffer.allocate(bufferSize);
                 int offset = 0;
                 long maxPTS = 0;
@@ -187,6 +236,7 @@ class CodecPerformanceTestBase {
                                 tmpBufferInfo.flags);
                         maxPTS = Math.max(maxPTS, bufferInfo.presentationTimeUs);
                         mBufferInfos.add(bufferInfo);
+                        if (mBufferInfos.size() >= MIN_FRAME_COUNT) break;
                     }
                 }
                 MediaCodec.BufferInfo bufferInfo = new MediaCodec.BufferInfo();
@@ -205,7 +255,19 @@ class CodecPerformanceTestBase {
         return null;
     }
 
-    int getMaxOperatingRate(String codecName, String mime) throws Exception {
+    // TODO (b/193458026) Limit max expected fps
+    static int getMaxExpectedFps(int width, int height) {
+        int numSamples = width * height;
+        if (numSamples > 3840 * 2160 * 2) { // 8K
+            return 30;
+        } else if (numSamples > 1920 * 1088 * 2) { // 4K
+            return 120;
+        } else {
+            return 240;
+        }
+    }
+
+    int getMaxOperatingRate(String codecName, String mime) throws IOException {
         MediaCodec codec = MediaCodec.createByCodecName(codecName);
         MediaCodecInfo mediaCodecInfo = codec.getCodecInfo();
         List<MediaCodecInfo.VideoCapabilities.PerformancePoint> pps = mediaCodecInfo
@@ -225,6 +287,32 @@ class CodecPerformanceTestBase {
         codec.release();
         assertTrue(maxOperatingRate != -1);
         return maxOperatingRate;
+    }
+
+    int getEncoderMinComplexity(String codecName, String mime) throws IOException {
+        MediaCodec codec = MediaCodec.createByCodecName(codecName);
+        MediaCodecInfo mediaCodecInfo = codec.getCodecInfo();
+        int minComplexity = -1;
+        if (mediaCodecInfo.isEncoder()) {
+            Range<Integer> complexityRange = mediaCodecInfo
+                    .getCapabilitiesForType(mime).getEncoderCapabilities()
+                    .getComplexityRange();
+            minComplexity = complexityRange.getLower();
+        }
+        codec.release();
+        return minComplexity;
+    }
+
+    static int getMaxFrameSize(String codecName, String mime) throws IOException {
+        MediaCodec codec = MediaCodec.createByCodecName(codecName);
+        MediaCodecInfo.CodecCapabilities codecCapabilities =
+                codec.getCodecInfo().getCapabilitiesForType(mime);
+        MediaCodecInfo.VideoCapabilities vc = codecCapabilities.getVideoCapabilities();
+        Range<Integer> heights = vc.getSupportedHeights();
+        Range<Integer> widths = vc.getSupportedWidthsFor(heights.getUpper());
+        int maxFrameSize = heights.getUpper() * widths.getUpper();
+        codec.release();
+        return maxFrameSize;
     }
 
     void enqueueDecoderInput(int bufferIndex) {
