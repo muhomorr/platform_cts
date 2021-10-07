@@ -16,6 +16,8 @@
 
 package android.filesystem.cts;
 
+import android.util.Log;
+
 import static androidx.test.InstrumentationRegistry.getContext;
 import static androidx.test.InstrumentationRegistry.getInstrumentation;
 
@@ -29,6 +31,8 @@ import com.android.compatibility.common.util.ResultType;
 import com.android.compatibility.common.util.ResultUnit;
 import com.android.compatibility.common.util.Stat;
 
+import static org.junit.Assert.assertTrue;
+
 import org.junit.After;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -39,11 +43,26 @@ import java.io.IOException;
 
 @RunWith(AndroidJUnit4.class)
 public class SequentialRWTest {
+    private static final String TAG = "SequentialRWTest";
+
     private static final String DIR_SEQ_WR = "SEQ_WR";
     private static final String DIR_SEQ_UPDATE = "SEQ_UPDATE";
     private static final String DIR_SEQ_RD = "SEQ_RD";
     private static final String REPORT_LOG_NAME = "CtsFileSystemTestCases";
     private static final int BUFFER_SIZE = 10 * 1024 * 1024;
+    private static final double MIN_READ_MBPS;
+    private static final double MIN_WRITE_MBPS;
+
+    static {
+        if (MediaPerformanceClassUtils.isRPerfClass()) {
+            MIN_READ_MBPS = 200;
+            MIN_WRITE_MBPS = 100;
+        } else {
+            // Performance class Build.VERSION_CODES.S and beyond
+            MIN_READ_MBPS = 250;
+            MIN_WRITE_MBPS = 125;
+        }
+    }
 
     @After
     public void tearDown() throws Exception {
@@ -59,6 +78,7 @@ public class SequentialRWTest {
         if (fileSize == 0) { // not enough space, give up
             return;
         }
+        FileActivity.startFileActivity(getContext());
         final int numberOfFiles =(int)(fileSize / BUFFER_SIZE);
         String streamName = "test_single_sequential_write";
         DeviceReportLog report = new DeviceReportLog(REPORT_LOG_NAME, streamName);
@@ -81,7 +101,13 @@ public class SequentialRWTest {
         Stat.StatResult stat = Stat.getStat(mbps);
         report.setSummary("write_throughput_average", stat.mAverage, ResultType.HIGHER_BETTER,
                 ResultUnit.MBPS);
+        Log.v(TAG, "sequential write " + stat.mAverage + " MBPS");
         report.submit(getInstrumentation());
+
+        if (MediaPerformanceClassUtils.isPerfClass()) {
+            assertTrue("measured " + stat.mAverage + " is less than target (" + MIN_WRITE_MBPS +
+                       " MBPS)", stat.mAverage >= MIN_WRITE_MBPS);
+        }
     }
 
     @Test
@@ -90,6 +116,7 @@ public class SequentialRWTest {
         if (fileSize == 0) { // not enough space, give up
             return;
         }
+        FileActivity.startFileActivity(getContext());
         final int NUMBER_REPETITION = 3;
         String streamName = "test_single_sequential_update";
         FileUtil.doSequentialUpdateTest(getContext(), DIR_SEQ_UPDATE, fileSize, BUFFER_SIZE,
@@ -103,6 +130,7 @@ public class SequentialRWTest {
         if (fileSize == 0) { // not enough space, give up
             return;
         }
+        FileActivity.startFileActivity(getContext());
         long start = System.currentTimeMillis();
         final File file = FileUtil.createNewFilledFile(getContext(),
                 DIR_SEQ_RD, fileSize);
@@ -135,6 +163,12 @@ public class SequentialRWTest {
         Stat.StatResult stat = Stat.getStat(mbps);
         report.setSummary("read_throughput_average", stat.mAverage, ResultType.HIGHER_BETTER,
                 ResultUnit.MBPS);
+        Log.v(TAG, "sequential read " + stat.mAverage + " MBPS");
         report.submit(getInstrumentation());
+
+        if (MediaPerformanceClassUtils.isPerfClass()) {
+            assertTrue("measured " + stat.mAverage + " is less than target (" + MIN_READ_MBPS +
+                       " MBPS)", stat.mAverage >= MIN_READ_MBPS);
+        }
     }
 }
