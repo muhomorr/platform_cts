@@ -16,6 +16,7 @@
 
 package android.appsecurity.cts;
 
+import android.platform.test.annotations.AsbSecurityTest;
 import com.android.compatibility.common.tradefed.build.CompatibilityBuildHelper;
 import com.android.tradefed.build.IBuildInfo;
 import com.android.tradefed.device.DeviceNotAvailableException;
@@ -48,7 +49,7 @@ public class DeviceIdentifierTest extends DeviceTestCase implements IBuildReceiv
         assertNotNull(mBuildHelper);
         assertNull(
                 getDevice().installPackage(mBuildHelper.getTestFile(DEVICE_IDENTIFIER_APK), false,
-                        false));
+                        true));
     }
 
     @Override
@@ -57,9 +58,11 @@ public class DeviceIdentifierTest extends DeviceTestCase implements IBuildReceiv
         getDevice().uninstallPackage(DEVICE_IDENTIFIER_PKG);
     }
 
+    @AsbSecurityTest(cveBugId = 173421434)
     public void testDeviceIdentifierAccessWithAppOpGranted() throws Exception {
         setDeviceIdentifierAccessAppOp(DEVICE_IDENTIFIER_PKG, true);
-        Utils.runDeviceTests(getDevice(), DEVICE_IDENTIFIER_PKG, DEVICE_IDENTIFIER_CLASS,
+        Utils.runDeviceTestsAsCurrentUser(getDevice(), DEVICE_IDENTIFIER_PKG,
+                DEVICE_IDENTIFIER_CLASS,
                 DEVICE_IDENTIFIER_TEST_METHOD);
     }
 

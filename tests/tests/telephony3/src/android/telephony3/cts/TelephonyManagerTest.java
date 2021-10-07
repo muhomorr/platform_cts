@@ -21,7 +21,11 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.fail;
 
 import android.content.Context;
+import android.content.pm.PackageManager;
 import android.os.Build;
+import android.platform.test.annotations.AsbSecurityTest;
+import android.telephony.SubscriptionInfo;
+import android.telephony.SubscriptionManager;
 import android.telephony.TelephonyManager;
 import android.util.Log;
 
@@ -40,16 +44,17 @@ import org.junit.runner.RunWith;
  */
 @RunWith(AndroidJUnit4.class)
 public class TelephonyManagerTest {
+    private Context mContext;
     private TelephonyManager mTelephonyManager;
 
     @Before
     public void setUp() throws Exception {
-        mTelephonyManager =
-                (TelephonyManager) InstrumentationRegistry.getContext().getSystemService(
-                        Context.TELEPHONY_SERVICE);
+        mContext = InstrumentationRegistry.getContext();
+        mTelephonyManager = (TelephonyManager) mContext.getSystemService(Context.TELEPHONY_SERVICE);
     }
 
     @Test
+    @AsbSecurityTest(cveBugId = 173421434)
     public void testDeviceIdentifiersAreNotAccessible() throws Exception {
         // Apps with the READ_PHONE_STATE permission should no longer have access to device
         // identifiers. If an app's target SDK is less than Q and it has been granted the
@@ -83,6 +88,23 @@ public class TelephonyManagerTest {
                     "An app targeting pre-Q with the READ_PHONE_STATE permission granted must "
                             + "receive " + Build.UNKNOWN + " when invoking Build.getSerial",
                     Build.getSerial(), Build.UNKNOWN);
+            // Previous getIccId documentation does not indicate the value returned if the ICC ID is
+            // not available, so to prevent NPEs SubscriptionInfo#getIccId will return an empty
+            // string if the caller does not have permission to access this identifier.
+            if (mContext.getPackageManager().hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+                SubscriptionManager subscriptionManager =
+                        (SubscriptionManager) mContext.getSystemService(
+                                Context.TELEPHONY_SUBSCRIPTION_SERVICE);
+                int subId = subscriptionManager.getDefaultSubscriptionId();
+                if (subId != SubscriptionManager.INVALID_SUBSCRIPTION_ID) {
+                    SubscriptionInfo subInfo = subscriptionManager.getActiveSubscriptionInfo(
+                            subId);
+                    assertEquals(
+                            "An app targeting pre-Q with the READ_PHONE_STATE permission granted "
+                                    + "must receive an empty string when invoking getIccId",
+                            "", subInfo.getIccId());
+                }
+            }
         } catch (SecurityException e) {
             fail("An app targeting pre-Q with the READ_PHONE_STATE permission granted must "
                     + "receive null (or "

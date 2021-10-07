@@ -15,8 +15,11 @@
  */
 package com.android.cts.deviceowner;
 
+import android.platform.test.annotations.AsbSecurityTest;
 import android.content.Context;
 import android.os.Build;
+import android.telephony.SubscriptionInfo;
+import android.telephony.SubscriptionManager;
 import android.telephony.TelephonyManager;
 
 import com.android.compatibility.common.util.ShellIdentityUtils;
@@ -33,6 +36,7 @@ public class DeviceIdentifiersTest extends BaseDeviceOwnerTest {
             "A device owner that does not have the READ_PHONE_STATE permission must receive a "
                     + "SecurityException when invoking %s";
 
+    @AsbSecurityTest(cveBugId = 173421434)
     public void testDeviceOwnerCanGetDeviceIdentifiersWithPermission() throws Exception {
         // The device owner with the READ_PHONE_STATE permission should have access to all device
         // identifiers. However since the TelephonyManager methods can return null this method
@@ -61,6 +65,19 @@ public class DeviceIdentifiersTest extends BaseDeviceOwnerTest {
             assertEquals(String.format(DEVICE_ID_WITH_PERMISSION_ERROR_MESSAGE, "Build#getSerial"),
                     ShellIdentityUtils.invokeStaticMethodWithShellPermissions(Build::getSerial),
                     Build.getSerial());
+            SubscriptionManager subscriptionManager =
+                    (SubscriptionManager) mContext.getSystemService(
+                            Context.TELEPHONY_SUBSCRIPTION_SERVICE);
+            int subId = subscriptionManager.getDefaultSubscriptionId();
+            if (subId != SubscriptionManager.INVALID_SUBSCRIPTION_ID) {
+                SubscriptionInfo expectedSubInfo =
+                        ShellIdentityUtils.invokeMethodWithShellPermissions(subscriptionManager,
+                                (sm) -> sm.getActiveSubscriptionInfo(subId));
+                SubscriptionInfo actualSubInfo = subscriptionManager.getActiveSubscriptionInfo(
+                        subId);
+                assertEquals(String.format(DEVICE_ID_WITH_PERMISSION_ERROR_MESSAGE, "getIccId"),
+                        expectedSubInfo.getIccId(), actualSubInfo.getIccId());
+            }
         } catch (SecurityException e) {
             fail("The device owner with the READ_PHONE_STATE permission must be able to access "
                     + "the device IDs: " + e);
