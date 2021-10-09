@@ -1,4 +1,4 @@
-/*
+/**
  * Copyright (C) 2021 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,25 +19,26 @@ package android.security.cts;
 import android.platform.test.annotations.AsbSecurityTest;
 import com.android.compatibility.common.util.CrashUtils;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
-import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.junit.Test;
 
 @RunWith(DeviceJUnit4ClassRunner.class)
-public class CVE_2019_2014 extends SecurityTestCase {
+public class CVE_2018_9549 extends SecurityTestCase {
 
     /**
-     * b/120499324
+     * b/112160868
      * Vulnerability Behaviour: SIGABRT in self
      */
+    @AsbSecurityTest(cveBugId = 112160868)
     @Test
-    @AsbSecurityTest(cveBugId = 120499324)
-    public void testPocCVE_2019_2014() throws Exception {
-        pocPusher.only64();
-        String binaryName = "CVE-2019-2014";
+    public void testPocCVE_2018_9549() throws Exception {
+        String binaryName = "CVE-2018-9549";
         String signals[] = {CrashUtils.SIGABRT};
         AdbUtils.pocConfig testConfig = new AdbUtils.pocConfig(binaryName, getDevice());
         testConfig.config = new CrashUtils.Config().setProcessPatterns(binaryName);
         testConfig.config.setSignals(signals);
+        testConfig.config
+                .setAbortMessageIncludes(AdbUtils.escapeRegexSpecialChars("ubsan: mul-overflow"));
         AdbUtils.runPocAssertNoCrashesNotVulnerable(testConfig);
     }
 }
