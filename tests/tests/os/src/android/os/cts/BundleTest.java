@@ -970,10 +970,10 @@ public class BundleTest {
     }
 
     private void assertSpannableEquals(Spannable expected, CharSequence observed) {
-        Spannable s = (Spannable) observed;
+        final Spannable observedSpan = (Spannable) observed;
         assertEquals(expected.toString(), observed.toString());
         Object[] expectedSpans = expected.getSpans(0, expected.length(), Object.class);
-        Object[] observedSpans = expected.getSpans(0, expected.length(), Object.class);
+        Object[] observedSpans = observedSpan.getSpans(0, observedSpan.length(), Object.class);
         assertEquals(expectedSpans.length, observedSpans.length);
         for (int i = 0; i < expectedSpans.length; i++) {
             // Can't compare values of arbitrary objects
@@ -1111,6 +1111,21 @@ public class BundleTest {
     }
 
     @Test
+    public void testPutAll_withLazyValues() {
+        Parcelable parcelable = new CustomParcelable(13, "Tiramisu");
+        mBundle.putParcelable(KEY1, parcelable);
+        roundtrip();
+        mBundle.isEmpty(); // Triggers partial deserialization (leaving lazy values)
+        Bundle copy = new Bundle();
+        copy.putAll(mBundle);
+        assertEquals(parcelable, copy.getParcelable(KEY1));
+        // Here we're verifying that LazyValue caches the deserialized object, hence they are the
+        // same instance
+        assertSame(copy.getParcelable(KEY1), mBundle.getParcelable(KEY1));
+        assertEquals(1, copy.size());
+    }
+
+    @Test
     public void testDeepCopy_withLazyValues() {
         Parcelable parcelable = new CustomParcelable(13, "Tiramisu");
         mBundle.putParcelable(KEY1, parcelable);
@@ -1118,6 +1133,8 @@ public class BundleTest {
         mBundle.isEmpty(); // Triggers partial deserialization (leaving lazy values)
         Bundle copy = mBundle.deepCopy();
         assertEquals(parcelable, copy.getParcelable(KEY1));
+        // Here we're verifying that LazyValue caches the deserialized object, hence they are the
+        // same instance
         assertSame(copy.getParcelable(KEY1), mBundle.getParcelable(KEY1));
         assertEquals(1, copy.size());
     }
