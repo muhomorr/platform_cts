@@ -43,6 +43,7 @@ import android.os.IInterface;
 import android.os.Parcel;
 import android.os.ParcelFileDescriptor;
 import android.os.Parcelable;
+import android.platform.test.annotations.AsbSecurityTest;
 import android.test.AndroidTestCase;
 import android.util.Log;
 import android.util.SparseArray;
@@ -210,6 +211,18 @@ public class ParcelTest extends AndroidTestCase {
         assertEquals(5, p.dataSize());
         p.setDataSize(3);
         assertEquals(3, p.dataSize());
+        p.recycle();
+    }
+
+    public void testObtainWithBinder() {
+        Parcel p = Parcel.obtain(new Binder("anything"));
+        // testing does not throw an exception, Parcel still works
+
+        final int kTest = 17;
+        p.writeInt(kTest);
+        p.setDataPosition(0);
+        assertEquals(kTest, p.readInt());
+
         p.recycle();
     }
 
@@ -3598,6 +3611,7 @@ public class ParcelTest extends AndroidTestCase {
         assertNotNull("Service should have started without crashing.", connection.get());
     }
 
+    @AsbSecurityTest(cveBugId = 140419401)
     public void testObjectResize() throws Exception {
         Parcel p;
         IBinder b1 = new Binder();
