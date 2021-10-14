@@ -97,6 +97,7 @@ public class SubscriptionManagerTest {
     }
 
     private int mSubId;
+    private int mDefaultVoiceSubId;
     private String mPackageName;
 
     /**
@@ -150,6 +151,7 @@ public class SubscriptionManagerTest {
 
         mSm = InstrumentationRegistry.getContext().getSystemService(SubscriptionManager.class);
         mSubId = SubscriptionManager.getDefaultDataSubscriptionId();
+        mDefaultVoiceSubId = SubscriptionManager.getDefaultVoiceSubscriptionId();
         mPackageName = InstrumentationRegistry.getContext().getPackageName();
     }
 
@@ -339,7 +341,7 @@ public class SubscriptionManagerTest {
 
     @Test
     public void testSubscriptionInfoRecord() {
-        if (!isSupported()) return;
+        if (!isSupported() || !isAutomotive()) return;
 
         UiAutomation uiAutomation = InstrumentationRegistry.getInstrumentation().getUiAutomation();
         uiAutomation.adoptShellPermissionIdentity();
@@ -629,6 +631,12 @@ public class SubscriptionManagerTest {
         List<SubscriptionInfo> infoList = mSm.getSubscriptionsInGroup(uuid);
         assertNotNull(infoList);
         assertEquals(1, infoList.size());
+        assertNull(infoList.get(0).getGroupUuid());
+
+        infoList = ShellIdentityUtils.invokeMethodWithShellPermissions(mSm,
+                (sm) -> sm.getSubscriptionsInGroup(uuid));
+        assertNotNull(infoList);
+        assertEquals(1, infoList.size());
         assertEquals(uuid, infoList.get(0).getGroupUuid());
 
         List<SubscriptionInfo> availableInfoList;
@@ -681,6 +689,12 @@ public class SubscriptionManagerTest {
         List<SubscriptionInfo> infoList = mSm.getSubscriptionsInGroup(uuid);
         assertNotNull(infoList);
         assertEquals(1, infoList.size());
+        assertNull(infoList.get(0).getGroupUuid());
+
+        infoList = ShellIdentityUtils.invokeMethodWithShellPermissions(mSm,
+                (sm) -> sm.getSubscriptionsInGroup(uuid));
+        assertNotNull(infoList);
+        assertEquals(1, infoList.size());
         assertEquals(uuid, infoList.get(0).getGroupUuid());
 
         // Remove from subscription group with current sub Id.
@@ -718,6 +732,23 @@ public class SubscriptionManagerTest {
         String mnc = info.getMncString();
         assertTrue(mcc == null || mcc.length() <= 3);
         assertTrue(mnc == null || mnc.length() <= 3);
+    }
+
+    @Test
+    public void testSetUiccApplicationsEnabled() {
+        if (!isSupported()) return;
+
+        boolean canDisable = ShellIdentityUtils.invokeMethodWithShellPermissions(mSm,
+                (sm) -> sm.canDisablePhysicalSubscription());
+        if (canDisable) {
+            ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mSm,
+                    (sm) -> sm.setUiccApplicationsEnabled(mSubId, false));
+            assertFalse(mSm.getActiveSubscriptionInfo(mSubId).areUiccApplicationsEnabled());
+
+            ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mSm,
+                    (sm) -> sm.setUiccApplicationsEnabled(mSubId, true));
+            assertTrue(mSm.getActiveSubscriptionInfo(mSubId).areUiccApplicationsEnabled());
+        }
     }
 
     @Test
@@ -827,9 +858,11 @@ public class SubscriptionManagerTest {
                 fail("setSubscriptionEnabled() did not work second time");
             }
 
-            // Reset default data subId as it may have been changed as part of the calls above
+            // Reset default subIds as they may have changed as part of the calls above
             ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mSm,
                     (sm) -> sm.setDefaultDataSubId(mSubId));
+            ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mSm,
+                    (sm) -> sm.setDefaultVoiceSubId(mDefaultVoiceSubId));
 
             // Other tests also expect that cellular data must be available if telephony is
             // supported. Wait for that before returning.
@@ -985,27 +1018,32 @@ public class SubscriptionManagerTest {
 
     @Test
     public void testSetAndGetD2DStatusSharing() {
+        if (!isSupported()) return;
+
         UiAutomation uiAutomation = InstrumentationRegistry.getInstrumentation().getUiAutomation();
         uiAutomation.adoptShellPermissionIdentity(MODIFY_PHONE_STATE);
-        int originalD2DStatusSharing = mSm.getDeviceToDeviceStatusSharing(mSubId);
-        mSm.setDeviceToDeviceStatusSharing(SubscriptionManager.D2D_SHARING_ALL_CONTACTS, mSubId);
+        int originalD2DStatusSharing = mSm.getDeviceToDeviceStatusSharingPreference(mSubId);
+        mSm.setDeviceToDeviceStatusSharingPreference(mSubId,
+                SubscriptionManager.D2D_SHARING_ALL_CONTACTS);
         assertEquals(SubscriptionManager.D2D_SHARING_ALL_CONTACTS,
-                mSm.getDeviceToDeviceStatusSharing(mSubId));
-        mSm.setDeviceToDeviceStatusSharing(SubscriptionManager.D2D_SHARING_ALL, mSubId);
+                mSm.getDeviceToDeviceStatusSharingPreference(mSubId));
+        mSm.setDeviceToDeviceStatusSharingPreference(mSubId, SubscriptionManager.D2D_SHARING_ALL);
         assertEquals(SubscriptionManager.D2D_SHARING_ALL,
-                mSm.getDeviceToDeviceStatusSharing(mSubId));
-        mSm.setDeviceToDeviceStatusSharing(originalD2DStatusSharing, mSubId);
+                mSm.getDeviceToDeviceStatusSharingPreference(mSubId));
+        mSm.setDeviceToDeviceStatusSharingPreference(mSubId, originalD2DStatusSharing);
         uiAutomation.dropShellPermissionIdentity();
     }
 
     @Test
     public void testSetAndGetD2DSharingContacts() {
+        if (!isSupported()) return;
+
         UiAutomation uiAutomation = InstrumentationRegistry.getInstrumentation().getUiAutomation();
         uiAutomation.adoptShellPermissionIdentity(MODIFY_PHONE_STATE);
         List<Uri> originalD2DSharingContacts = mSm.getDeviceToDeviceStatusSharingContacts(mSubId);
-        mSm.setDeviceToDeviceStatusSharingContacts(CONTACTS, mSubId);
+        mSm.setDeviceToDeviceStatusSharingContacts(mSubId, CONTACTS);
         assertEquals(CONTACTS, mSm.getDeviceToDeviceStatusSharingContacts(mSubId));
-        mSm.setDeviceToDeviceStatusSharingContacts(originalD2DSharingContacts, mSubId);
+        mSm.setDeviceToDeviceStatusSharingContacts(mSubId, originalD2DSharingContacts);
         uiAutomation.dropShellPermissionIdentity();
     }
 
@@ -1143,6 +1181,11 @@ public class SubscriptionManagerTest {
     private static boolean isSupported() {
         return InstrumentationRegistry.getContext().getPackageManager()
                 .hasSystemFeature(PackageManager.FEATURE_TELEPHONY);
+    }
+
+    private static boolean isAutomotive() {
+        return InstrumentationRegistry.getContext().getPackageManager()
+                .hasSystemFeature(PackageManager.FEATURE_AUTOMOTIVE);
     }
 
     private static boolean isDSDS() {
