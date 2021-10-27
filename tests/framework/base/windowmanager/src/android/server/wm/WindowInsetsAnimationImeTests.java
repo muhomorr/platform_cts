@@ -19,6 +19,7 @@ package android.server.wm;
 import static android.app.WindowConfiguration.WINDOWING_MODE_FULLSCREEN;
 import static android.graphics.Insets.NONE;
 import static android.view.WindowInsets.Type.ime;
+import static android.view.WindowInsets.Type.navigationBars;
 import static android.view.WindowInsets.Type.statusBars;
 
 import static androidx.test.platform.app.InstrumentationRegistry.getInstrumentation;
@@ -121,8 +122,10 @@ public class WindowInsetsAnimationImeTests extends WindowInsetsAnimationTestBase
                         && argument.getUpperBound().equals(before.getInsets(statusBars()))));
 
         inOrderIme.verify(callback).onPrepare(eq(callback.imeAnim));
-        inOrderIme.verify(mActivity.mListener).onApplyWindowInsets(
-                any(), eq(mActivity.mLastWindowInsets));
+        inOrderIme.verify(mActivity.mListener).onApplyWindowInsets(any(), argThat(
+                argument -> after.getInsets(navigationBars()).equals(
+                                argument.getInsets(navigationBars()))
+                        && after.getInsets(ime()).equals(argument.getInsets(ime()))));
 
         inOrderIme.verify(callback).onStart(eq(callback.imeAnim), argThat(
                 argument -> argument.getLowerBound().equals(NONE)
