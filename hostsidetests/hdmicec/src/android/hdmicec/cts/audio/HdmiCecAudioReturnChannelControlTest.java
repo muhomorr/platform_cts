@@ -46,11 +46,12 @@ public final class HdmiCecAudioReturnChannelControlTest extends BaseHdmiCecCtsTe
 
     @Rule
     public RuleChain ruleChain =
-        RuleChain
-            .outerRule(CecRules.requiresCec(this))
-            .around(CecRules.requiresLeanback(this))
-            .around(CecRules.requiresDeviceType(this, AUDIO_DEVICE))
-            .around(hdmiCecClient);
+            RuleChain.outerRule(CecRules.requiresCec(this))
+                    .around(CecRules.requiresLeanback(this))
+                    .around(
+                            CecRules.requiresDeviceType(
+                                    this, HdmiCecConstants.CEC_DEVICE_TYPE_AUDIO_SYSTEM))
+                    .around(hdmiCecClient);
 
     private void checkArcIsInitiated() throws CecClientWrapperException {
         try {
@@ -92,11 +93,11 @@ public final class HdmiCecAudioReturnChannelControlTest extends BaseHdmiCecCtsTe
                 CecOperand.REPORT_PHYSICAL_ADDRESS,
                 CecMessage.formatParams(HdmiCecConstants.TV_PHYSICAL_ADDRESS,
                         HdmiCecConstants.PHYSICAL_ADDRESS_LENGTH));
-        getDevice().executeShellCommand("input keyevent KEYCODE_SLEEP");
+        sendDeviceToSleep();
         try {
             hdmiCecClient.checkExpectedOutput(LogicalAddress.TV, CecOperand.TERMINATE_ARC);
         } finally {
-            getDevice().executeShellCommand("input keyevent KEYCODE_WAKEUP");
+            wakeUpDevice();
         }
     }
 

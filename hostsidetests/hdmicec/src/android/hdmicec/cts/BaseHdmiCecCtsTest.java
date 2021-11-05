@@ -16,8 +16,11 @@
 
 package android.hdmicec.cts;
 
+import static com.google.common.truth.Truth.assertThat;
+
 import static org.junit.Assume.assumeTrue;
 
+import android.hdmicec.cts.HdmiCecConstants.CecDeviceType;
 import android.hdmicec.cts.error.DumpsysParseException;
 
 import com.android.tradefed.config.Option;
@@ -62,7 +65,7 @@ public class BaseHdmiCecCtsTest extends BaseHostJUnit4Test {
 
     public final HdmiCecClientWrapper hdmiCecClient;
     public List<LogicalAddress> mDutLogicalAddresses = new ArrayList<>();
-    public int mTestDeviceType = HdmiCecConstants.CEC_DEVICE_TYPE_UNKNOWN;
+    public @CecDeviceType int mTestDeviceType;
 
     /**
      * Constructor for BaseHdmiCecCtsTest.
@@ -84,10 +87,10 @@ public class BaseHdmiCecCtsTest extends BaseHostJUnit4Test {
      * Constructor for BaseHdmiCecCtsTest.
      *
      * @param testDeviceType The primary test device type. This is used to determine to which
-     * logical address of the DUT messages should be sent.
+     *     logical address of the DUT messages should be sent.
      * @param clientParams Extra parameters to use when launching cec-client
      */
-    public BaseHdmiCecCtsTest(int testDeviceType, String... clientParams) {
+    public BaseHdmiCecCtsTest(@CecDeviceType int testDeviceType, String... clientParams) {
         this.hdmiCecClient = new HdmiCecClientWrapper(clientParams);
         mTestDeviceType = testDeviceType;
     }
@@ -113,16 +116,17 @@ public class BaseHdmiCecCtsTest extends BaseHostJUnit4Test {
             return new RequiredFeatureRule(testPointer, HdmiCecConstants.LEANBACK_FEATURE);
         }
 
-        public static TestRule requiresDeviceType(BaseHostJUnit4Test testPointer,
-                                                  LogicalAddress dutLogicalAddress) {
+        public static TestRule requiresDeviceType(
+                BaseHostJUnit4Test testPointer, @CecDeviceType int dutDeviceType) {
             return RequiredPropertyRule.asCsvContainsValue(
-                        testPointer,
-                        HdmiCecConstants.HDMI_DEVICE_TYPE_PROPERTY,
-                        dutLogicalAddress.getDeviceTypeString());
+                    testPointer,
+                    HdmiCecConstants.HDMI_DEVICE_TYPE_PROPERTY,
+                    Integer.toString(dutDeviceType));
         }
 
         /** This rule will skip the test if the DUT belongs to the HDMI device type deviceType. */
-        public static TestRule skipDeviceType(BaseHostJUnit4Test testPointer, int deviceType) {
+        public static TestRule skipDeviceType(
+                BaseHostJUnit4Test testPointer, @CecDeviceType int deviceType) {
             return RequiredPropertyRule.asCsvDoesNotContainsValue(
                     testPointer,
                     HdmiCecConstants.HDMI_DEVICE_TYPE_PROPERTY,
@@ -277,7 +281,7 @@ public class BaseHdmiCecCtsTest extends BaseHostJUnit4Test {
                 "Could not parse " + addressType.getAddressType() + " from dumpsys.");
     }
 
-    public boolean hasDeviceType(int deviceType) {
+    public boolean hasDeviceType(@CecDeviceType int deviceType) {
         for (LogicalAddress address : mDutLogicalAddresses) {
             if (address.getDeviceType() == deviceType) {
                 return true;
@@ -354,5 +358,39 @@ public class BaseHdmiCecCtsTest extends BaseHostJUnit4Test {
 
     public void setSettingsValue(String setting, String value) throws Exception {
         setSettingsValue(getDevice(), setting, value);
+    }
+
+    public String getDeviceList() throws Exception {
+        return getDevice().executeShellCommand(
+                "dumpsys hdmi_control | sed -n '/mDeviceInfos/,/mCecController/{//!p;}'");
+    }
+
+    public void checkDeviceAsleep() throws Exception {
+        ITestDevice device = getDevice();
+        TimeUnit.SECONDS.sleep(HdmiCecConstants.DEVICE_WAIT_TIME_SECONDS);
+        String wakeState = device.executeShellCommand("dumpsys power | grep mWakefulness=");
+        assertThat(wakeState.trim()).isEqualTo("mWakefulness=Asleep");
+    }
+
+    public void sendDeviceToSleepAndValidate() throws Exception {
+        sendDeviceToSleep();
+        checkDeviceAsleep();
+    }
+
+    public void sendDeviceToSleep() throws Exception {
+        ITestDevice device = getDevice();
+        device.executeShellCommand("input keyevent KEYCODE_SLEEP");
+        TimeUnit.SECONDS.sleep(HdmiCecConstants.DEVICE_WAIT_TIME_SECONDS);
+    }
+
+    public void wakeUpDevice() throws Exception {
+        ITestDevice device = getDevice();
+        device.executeShellCommand("input keyevent KEYCODE_WAKEUP");
+        TimeUnit.SECONDS.sleep(HdmiCecConstants.DEVICE_WAIT_TIME_SECONDS);
+    }
+
+    public void checkStandbyAndWakeUp() throws Exception {
+        checkDeviceAsleep();
+        wakeUpDevice();
     }
 }

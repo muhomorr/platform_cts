@@ -89,7 +89,6 @@ import java.util.stream.Collectors;
 public class SubscriptionManagerTest {
     private static final String TAG = "SubscriptionManagerTest";
     private static final String MODIFY_PHONE_STATE = "android.permission.MODIFY_PHONE_STATE";
-    private SubscriptionManager mSm;
     private static final List<Uri> CONTACTS = new ArrayList<>();
     static {
         CONTACTS.add(Uri.fromParts("tel", "+16505551212", null));
@@ -99,6 +98,7 @@ public class SubscriptionManagerTest {
     private int mSubId;
     private int mDefaultVoiceSubId;
     private String mPackageName;
+    private SubscriptionManager mSm;
 
     /**
      * Callback used in testRegisterNetworkCallback that allows caller to block on
@@ -232,8 +232,10 @@ public class SubscriptionManagerTest {
     public void testActiveSubscriptions() throws Exception {
         if (!isSupported()) return;
 
-        List<SubscriptionInfo> subList = mSm.getActiveSubscriptionInfoList();
-        int[] idList = mSm.getActiveSubscriptionIdList();
+        List<SubscriptionInfo> subList = ShellIdentityUtils.invokeMethodWithShellPermissions(mSm,
+                (sm) -> sm.getActiveSubscriptionInfoList());
+        int[] idList = ShellIdentityUtils.invokeMethodWithShellPermissions(mSm,
+                (sm) -> sm.getActiveSubscriptionIdList());
         // Assert when there is no sim card present or detected
         assertNotNull("Active subscriber required", subList);
         assertNotNull("Active subscriber required", idList);

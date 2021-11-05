@@ -26,15 +26,54 @@ package {
 java_library {
     name: "ctsmediautil",
     srcs: [
-        "src/android/media/cts/CodecImage.java",
-        "src/android/media/cts/YUVImage.java",
-        "src/android/media/cts/CodecUtils.java",
-        "src/android/media/cts/CodecState.java",
-        "src/android/media/cts/MediaCodecTunneledPlayer.java",
-        "src/android/media/cts/MediaTimeProvider.java",
-        "src/android/media/cts/NonBlockingAudioTrack.java",
+        "common/src/android/media/cts/CodecImage.java",
+        "common/src/android/media/cts/YUVImage.java",
+        "common/src/android/media/cts/CodecUtils.java",
+        "common/src/android/media/cts/CodecState.java",
+        "common/src/android/media/cts/MediaCodecTunneledPlayer.java",
+        "common/src/android/media/cts/MediaTimeProvider.java",
+        "common/src/android/media/cts/NonBlockingAudioTrack.java",
     ],
-    sdk_version: "current",
+    static_libs: [
+        "compatibility-device-util-axt",
+        "platform-test-annotations",
+    ],
+    platform_apis: true,
+    min_sdk_version: "29",
+    target_sdk_version: "31",
+}
+
+// Build the res and asset library to
+// share with android.mediadrm.cts package.
+android_library {
+    name: "cts-media-res-lib",
+    asset_dirs: ["assets"],
+    resource_dirs: ["res"],
+    min_sdk_version: "29",
+    target_sdk_version: "31",
+}
+
+android_library {
+    name: "cts-media-common",
+    srcs: [
+        "common/src/**/*.java",
+    ],
+    static_libs: [
+        "androidx.heifwriter_heifwriter",
+        "androidx.test.core",
+        "androidx.test.ext.junit",
+        "compatibility-device-util-axt",
+        "junit",
+        "platform-test-annotations",
+    ],
+    platform_apis: true,
+    libs: [
+        "org.apache.http.legacy",
+        "android.test.base",
+        "android.test.runner",
+    ],
+    min_sdk_version: "29",
+    target_sdk_version: "31",
 }
 
 android_test {
@@ -51,6 +90,8 @@ android_test {
         "ctstestrunner-axt",
         "hamcrest-library",
         "ctstestserver",
+        "cts-media-common",
+        "cts-media-res-lib",
         "junit",
         "junit-params",
         "ndkaudio",
@@ -69,8 +110,14 @@ android_test {
         "libnativehelper_compat_libc++",
         "libndkaudioLib",
     ],
-    // do not compress VP9 video files
+    asset_dirs: ["assets"],
+    resource_dirs: ["res"],
     aaptflags: [
+        "--auto-add-overlay",
+        // Give com.android.mediadrm.cts Java files access to the R class
+        "--extra-packages com.android.mediadrm.cts",
+
+        // Do not compress these files:
         "-0 .vp9",
         "-0 .ts",
         "-0 .heic",
@@ -83,7 +130,6 @@ android_test {
         "aidl/**/*.aidl",
     ],
     // This test uses private APIs
-    //sdk_version: "current",
     platform_apis: true,
     jni_uses_sdk_apis: true,
     libs: [
@@ -99,4 +145,5 @@ android_test {
     ],
     host_required: ["cts-dynamic-config"],
     min_sdk_version: "29",
+    target_sdk_version: "31",
 }
