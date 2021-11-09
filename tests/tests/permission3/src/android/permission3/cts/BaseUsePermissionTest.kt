@@ -84,6 +84,7 @@ abstract class BaseUsePermissionTest : BasePermissionTest() {
         const val ALLOW_FOREGROUND_BUTTON_TEXT = "grant_dialog_button_allow_foreground"
         const val ALLOW_FOREGROUND_PREFERENCE_TEXT = "permission_access_only_foreground"
         const val ASK_BUTTON_TEXT = "app_permission_button_ask"
+        const val ALLOW_ONE_TIME_BUTTON_TEXT = "grant_dialog_button_allow_one_time"
         const val DENY_BUTTON_TEXT = "grant_dialog_button_deny"
         const val DENY_AND_DONT_ASK_AGAIN_BUTTON_TEXT =
                 "grant_dialog_button_deny_and_dont_ask_again"
@@ -410,11 +411,16 @@ abstract class BaseUsePermissionTest : BasePermissionTest() {
         isLegacyApp: Boolean,
         targetSdk: Int
     ) {
-        pressBack()
-        pressBack()
-        pressBack()
         if (isTv) {
+            // Dismiss DeprecatedTargetSdkVersionDialog, if present
+            if (waitFindObjectOrNull(By.text(APP_PACKAGE_NAME), 1000L) != null) {
+                pressBack()
+            }
             pressHome()
+        } else {
+            pressBack()
+            pressBack()
+            pressBack()
         }
 
         // Try multiple times as the AppInfo page might have read stale data
