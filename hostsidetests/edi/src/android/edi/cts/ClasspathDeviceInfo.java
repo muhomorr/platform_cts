@@ -18,6 +18,8 @@ package android.edi.cts;
 import static android.compat.testing.Classpaths.ClasspathType.BOOTCLASSPATH;
 import static android.compat.testing.Classpaths.ClasspathType.SYSTEMSERVERCLASSPATH;
 
+import static org.junit.Assume.assumeTrue;
+
 import android.compat.testing.Classpaths;
 import android.compat.testing.Classpaths.ClasspathType;
 import android.compat.testing.SharedLibraryInfo;
@@ -33,6 +35,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 
 import org.jf.dexlib2.iface.ClassDef;
+import org.junit.Before;
 
 import java.io.File;
 import java.io.IOException;
@@ -44,15 +47,20 @@ import java.util.stream.IntStream;
  */
 public class ClasspathDeviceInfo extends DeviceInfo {
 
+    private final Object mStoreLock = new Object();
+
     private ITestDevice mDevice;
     private DeviceSdkLevel mDeviceSdkLevel;
-    private final Object mStoreLock = new Object();
+
+    @Before
+    public void before() throws DeviceNotAvailableException {
+        mDevice = getDevice();
+        mDeviceSdkLevel = new DeviceSdkLevel(mDevice);
+        assumeTrue(mDeviceSdkLevel.isDeviceAtLeastR());
+    }
 
     @Override
     protected void collectDeviceInfo(HostInfoStore store) throws Exception {
-        mDevice = getDevice();
-        mDeviceSdkLevel = new DeviceSdkLevel(mDevice);
-
         store.startArray("jars");
         collectClasspathsJars(store);
         collectSharedLibraries(store);
