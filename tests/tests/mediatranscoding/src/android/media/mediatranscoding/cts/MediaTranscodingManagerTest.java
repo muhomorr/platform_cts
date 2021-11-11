@@ -24,6 +24,9 @@ import android.content.Context;
 import android.content.pm.PackageManager;
 import android.content.res.AssetFileDescriptor;
 import android.media.ApplicationMediaCapabilities;
+import android.media.MediaCodec;
+import android.media.MediaCodecInfo;
+import android.media.MediaExtractor;
 import android.media.MediaFormat;
 import android.media.MediaTranscodingManager;
 import android.media.MediaTranscodingManager.TranscodingRequest;
@@ -85,9 +88,9 @@ public class MediaTranscodingManagerTest extends AndroidTestCase {
 
     // Default setting for transcoding to H.264.
     private static final String MIME_TYPE = MediaFormat.MIMETYPE_VIDEO_AVC;
-    private static final int BIT_RATE = 20000000;            // 20Mbps
-    private static final int WIDTH = 1920;
-    private static final int HEIGHT = 1080;
+    private static final int BIT_RATE = 4000000;            // 4Mbps
+    private static final int WIDTH = 720;
+    private static final int HEIGHT = 480;
 
     // Threshold for the psnr to make sure the transcoded video is valid.
     private static final int PSNR_THRESHOLD = 20;
@@ -145,9 +148,9 @@ public class MediaTranscodingManagerTest extends AndroidTestCase {
         androidx.test.InstrumentationRegistry.registerInstance(
                 InstrumentationRegistry.getInstrumentation(), new Bundle());
 
-        // Setup source HEVC file uri.
-        mSourceHEVCVideoUri = resourceToUri(mContext, R.raw.Video_HEVC_30Frames,
-                "Video_HEVC_30Frames.mp4");
+        // Setup default source HEVC 480p file uri.
+        mSourceHEVCVideoUri = resourceToUri(mContext, R.raw.Video_HEVC_480p_30Frames,
+                "Video_HEVC_480p_30Frames.mp4");
 
         // Setup source AVC file uri.
         mSourceAVCVideoUri = resourceToUri(mContext, R.raw.Video_AVC_30Frames,
@@ -376,6 +379,14 @@ public class MediaTranscodingManagerTest extends AndroidTestCase {
                 TranscodingSession.RESULT_SUCCESS);
     }
 
+    public void testHevcTranscoding720PVideo30FramesWithoutAudio() throws Exception {
+        if (shouldSkip()) {
+            return;
+        }
+        transcodeFile(resourceToUri(mContext, R.raw.Video_HEVC_720p_30Frames,
+                "Video_HEVC_720p_30Frames.mp4"), false /* testFileDescriptor */);
+    }
+
     public void testAvcTranscoding1080PVideo30FramesWithoutAudio() throws Exception {
         if (shouldSkip()) {
             return;
@@ -423,14 +434,6 @@ public class MediaTranscodingManagerTest extends AndroidTestCase {
         if (shouldSkip()) {
             return;
         }
-        MediaFormat format = new MediaFormat();
-        format.setString(MediaFormat.KEY_MIME, MediaFormat.MIMETYPE_VIDEO_HEVC);
-        format.setInteger(MediaFormat.KEY_WIDTH, 3840);
-        format.setInteger(MediaFormat.KEY_HEIGHT, 2160);
-        format.setInteger(MediaFormat.KEY_FRAME_RATE, 30);
-        if (!MediaUtils.canDecode(format) || !MediaUtils.canEncode(format) ) {
-            return;
-        }
         transcodeFile(resourceToUri(mContext, R.raw.Video_4K_HEVC_64Frames_Audio,
                 "Video_4K_HEVC_64Frames_Audio.mp4"), false /* testFileDescriptor */);
     }
@@ -453,13 +456,25 @@ public class MediaTranscodingManagerTest extends AndroidTestCase {
         ApplicationMediaCapabilities clientCaps =
                 new ApplicationMediaCapabilities.Builder().build();
 
+        MediaFormat srcVideoFormat = getVideoTrackFormat(fileUri);
+        assertNotNull(srcVideoFormat);
+
+        int width = srcVideoFormat.getInteger(MediaFormat.KEY_WIDTH);
+        int height = srcVideoFormat.getInteger(MediaFormat.KEY_HEIGHT);
+
         TranscodingRequest.VideoFormatResolver
                 resolver = new TranscodingRequest.VideoFormatResolver(clientCaps,
                 MediaFormat.createVideoFormat(
-                        MediaFormat.MIMETYPE_VIDEO_HEVC, WIDTH, HEIGHT));
+                        MediaFormat.MIMETYPE_VIDEO_HEVC, width, height));
         assertTrue(resolver.shouldTranscode());
         MediaFormat videoTrackFormat = resolver.resolveVideoFormat();
         assertNotNull(videoTrackFormat);
+
+        // Return if the source or target video format is not supported
+        if (!isFormatSupported(srcVideoFormat, false)
+                || !isFormatSupported(videoTrackFormat, true)) {
+            return;
+        }
 
         int pid = android.os.Process.myPid();
         int uid = android.os.Process.myUid();
@@ -757,5 +772,52 @@ public class MediaTranscodingManagerTest extends AndroidTestCase {
         assertTrue("Transcode failed to complete in time.", finishedOnTime);
         assertTrue("Failed to receive at least 10 progress updates",
                 progressUpdateCount.get() > 10);
+    }
+
+    private MediaFormat getVideoTrackFormat(Uri fileUri) throws IOException {
+        MediaFormat videoFormat = null;
+        MediaExtractor extractor = new MediaExtractor();
+        extractor.setDataSource(fileUri.toString());
+        // Find video track format
+        for (int trackID = 0; trackID < extractor.getTrackCount(); trackID++) {
+            MediaFormat format = extractor.getTrackFormat(trackID);
+            if (format.getString(MediaFormat.KEY_MIME).startsWith("video/")) {
+                videoFormat = format;
+                break;
+            }
+        }
+        extractor.release();
+        return videoFormat;
+    }
+
+    private boolean isFormatSupported(MediaFormat format, boolean isEncoder) {
+        String mime = format.getString(MediaFormat.KEY_MIME);
+        MediaCodec codec = null;
+        try {
+            // The underlying transcoder library uses AMediaCodec_createEncoderByType
+            // to create encoder. So we cannot perform an exhaustive search of
+            // all codecs that support the format. This is because the codec that
+            // advertises support for the format during search may not be the one
+            // instantiated by the transcoder library. So, we have to check whether
+            // the codec returned by createEncoderByType supports the format.
+            // The same point holds for decoder too.
+            if (isEncoder) {
+                codec = MediaCodec.createEncoderByType(mime);
+            } else {
+                codec = MediaCodec.createDecoderByType(mime);
+            }
+            MediaCodecInfo info = codec.getCodecInfo();
+            MediaCodecInfo.CodecCapabilities caps = info.getCapabilitiesForType(mime);
+            if (caps != null && caps.isFormatSupported(format) && info.isHardwareAccelerated()) {
+                return true;
+            }
+        } catch (IOException e) {
+            Log.d(TAG, "Exception: " + e);
+        } finally {
+            if (codec != null) {
+                codec.release();
+            }
+        }
+        return false;
     }
 }
