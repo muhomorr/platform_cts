@@ -24,14 +24,13 @@ import static com.google.common.truth.Truth.assertThat;
 import static org.junit.Assume.assumeTrue;
 
 import android.compat.testing.Classpaths;
+import android.compat.testing.SharedLibraryInfo;
 
 import com.android.compatibility.common.util.ApiLevelUtil;
-import com.android.tradefed.log.LogUtil;
-import com.android.tradefed.log.LogUtil.CLog;
+import com.android.tradefed.device.DeviceNotAvailableException;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
 import com.android.tradefed.testtype.junit4.BaseHostJUnit4Test;
 
-import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableCollection;
 import com.google.common.collect.ImmutableList;
@@ -39,12 +38,11 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Multimaps;
 
-import org.jf.dexlib2.iface.ClassDef;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import java.io.IOException;
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.Set;
 
 /**
@@ -195,6 +193,84 @@ public class StrictJavaPackagesTest extends BaseHostJUnit4Test {
             );
 
     /**
+     * TODO(b/199529199): Address these.
+     * List of duplicate classes between bootclasspath and shared libraries.
+     *
+     * <p> DO NOT ADD CLASSES TO THIS LIST!
+     */
+    private static final Set<String> BCP_AND_SHARED_LIB_BURNDOWN_LIST =
+                ImmutableSet.of(
+                    "Landroid/hidl/base/V1_0/DebugInfo;",
+                    "Landroid/hidl/base/V1_0/IBase;",
+                    "Landroid/hidl/manager/V1_0/IServiceManager;",
+                    "Landroid/hidl/manager/V1_0/IServiceNotification;",
+                    "Landroidx/annotation/Keep;",
+                    "Lcom/google/android/embms/nano/EmbmsProtos;",
+                    "Lcom/google/protobuf/nano/android/ParcelableExtendableMessageNano;",
+                    "Lcom/google/protobuf/nano/android/ParcelableMessageNano;",
+                    "Lcom/google/protobuf/nano/android/ParcelableMessageNanoCreator;",
+                    "Lcom/google/protobuf/nano/CodedInputByteBufferNano;",
+                    "Lcom/google/protobuf/nano/CodedOutputByteBufferNano;",
+                    "Lcom/google/protobuf/nano/ExtendableMessageNano;",
+                    "Lcom/google/protobuf/nano/Extension;",
+                    "Lcom/google/protobuf/nano/FieldArray;",
+                    "Lcom/google/protobuf/nano/FieldData;",
+                    "Lcom/google/protobuf/nano/InternalNano;",
+                    "Lcom/google/protobuf/nano/InvalidProtocolBufferNanoException;",
+                    "Lcom/google/protobuf/nano/MapFactories;",
+                    "Lcom/google/protobuf/nano/MessageNano;",
+                    "Lcom/google/protobuf/nano/MessageNanoPrinter;",
+                    "Lcom/google/protobuf/nano/UnknownFieldData;",
+                    "Lcom/google/protobuf/nano/WireFormatNano;",
+                    "Lcom/qualcomm/qcrilhook/BaseQmiTypes;",
+                    "Lcom/qualcomm/qcrilhook/CSignalStrength;",
+                    "Lcom/qualcomm/qcrilhook/EmbmsOemHook;",
+                    "Lcom/qualcomm/qcrilhook/EmbmsProtoUtils;",
+                    "Lcom/qualcomm/qcrilhook/IOemHookCallback;",
+                    "Lcom/qualcomm/qcrilhook/IQcRilHook;",
+                    "Lcom/qualcomm/qcrilhook/IQcRilHookExt;",
+                    "Lcom/qualcomm/qcrilhook/OemHookCallback;",
+                    "Lcom/qualcomm/qcrilhook/PresenceMsgBuilder;",
+                    "Lcom/qualcomm/qcrilhook/PresenceMsgParser;",
+                    "Lcom/qualcomm/qcrilhook/PresenceOemHook;",
+                    "Lcom/qualcomm/qcrilhook/PrimitiveParser;",
+                    "Lcom/qualcomm/qcrilhook/QcRilHook;",
+                    "Lcom/qualcomm/qcrilhook/QcRilHookCallback;",
+                    "Lcom/qualcomm/qcrilhook/QcRilHookCallbackExt;",
+                    "Lcom/qualcomm/qcrilhook/QcRilHookExt;",
+                    "Lcom/qualcomm/qcrilhook/QmiOemHook;",
+                    "Lcom/qualcomm/qcrilhook/QmiOemHookConstants;",
+                    "Lcom/qualcomm/qcrilhook/QmiPrimitiveTypes;",
+                    "Lcom/qualcomm/qcrilhook/TunerOemHook;",
+                    "Lcom/qualcomm/qcrilmsgtunnel/IQcrilMsgTunnel;",
+                    "Lcom/qualcomm/utils/CommandException;",
+                    "Lcom/qualcomm/utils/RILConstants;",
+                    "Lorg/chromium/net/ApiVersion;",
+                    "Lorg/chromium/net/BidirectionalStream;",
+                    "Lorg/chromium/net/CallbackException;",
+                    "Lorg/chromium/net/CronetEngine;",
+                    "Lorg/chromium/net/CronetException;",
+                    "Lorg/chromium/net/CronetProvider;",
+                    "Lorg/chromium/net/EffectiveConnectionType;",
+                    "Lorg/chromium/net/ExperimentalBidirectionalStream;",
+                    "Lorg/chromium/net/ExperimentalCronetEngine;",
+                    "Lorg/chromium/net/ExperimentalUrlRequest;",
+                    "Lorg/chromium/net/ICronetEngineBuilder;",
+                    "Lorg/chromium/net/InlineExecutionProhibitedException;",
+                    "Lorg/chromium/net/NetworkException;",
+                    "Lorg/chromium/net/NetworkQualityRttListener;",
+                    "Lorg/chromium/net/NetworkQualityThroughputListener;",
+                    "Lorg/chromium/net/QuicException;",
+                    "Lorg/chromium/net/RequestFinishedInfo;",
+                    "Lorg/chromium/net/RttThroughputValues;",
+                    "Lorg/chromium/net/ThreadStatsUid;",
+                    "Lorg/chromium/net/UploadDataProvider;",
+                    "Lorg/chromium/net/UploadDataProviders;",
+                    "Lorg/chromium/net/UploadDataSink;",
+                    "Lorg/chromium/net/UrlRequest;",
+                    "Lorg/chromium/net/UrlResponseInfo;"
+                );
+    /**
      * Ensure that there are no duplicate classes among jars listed in BOOTCLASSPATH.
      */
     @Test
@@ -284,6 +360,31 @@ public class StrictJavaPackagesTest extends BaseHostJUnit4Test {
     }
 
     /**
+     * Ensure that there are no duplicate classes among jars listed in BOOTCLASSPATH and
+     * shared library jars.
+     */
+    @Test
+    public void testBootClasspathAndSharedLibs_nonDuplicateClasses() throws Exception {
+        assumeTrue(ApiLevelUtil.isAfter(getDevice(), 29));
+        final ImmutableList.Builder<String> jars = ImmutableList.builder();
+        final ImmutableList<SharedLibraryInfo> sharedLibs =
+                Classpaths.getSharedLibraryInfos(getDevice(), getBuild());
+        jars.addAll(Classpaths.getJarsOnClasspath(getDevice(), BOOTCLASSPATH));
+        jars.addAll(sharedLibs.stream()
+                .map(sharedLibraryInfo -> sharedLibraryInfo.paths)
+                .flatMap(ImmutableCollection::stream)
+                .filter(this::doesFileExist)
+                .collect(ImmutableList.toImmutableList())
+        );
+        final Multimap<String, String> duplicates = getDuplicateClasses(jars.build());
+        final Multimap<String, String> filtered = Multimaps.filterKeys(duplicates,
+            duplicate -> !BCP_AND_SHARED_LIB_BURNDOWN_LIST.contains(duplicate)
+                         && !isSameLibrary(duplicates.get(duplicate), sharedLibs)
+        );
+        assertThat(filtered).isEmpty();
+    }
+
+    /**
      * Gets the duplicate classes within a list of jar files.
      *
      * @param jars a list of jar files.
@@ -292,25 +393,56 @@ public class StrictJavaPackagesTest extends BaseHostJUnit4Test {
     private Multimap<String, String> getDuplicateClasses(ImmutableCollection<String> jars)
             throws Exception {
         final Multimap<String, String> allClasses = HashMultimap.create();
-        for (String jar : jars) {
-            ImmutableSet<ClassDef> classes = Classpaths.getClassDefsFromJar(getDevice(), jar);
-            for (ClassDef classDef : classes) {
-                // No need to worry about inner classes, as they always go with their parent.
-                if (!classDef.getType().contains("$")) {
-                    allClasses.put(classDef.getType(), jar);
-                }
-            }
-        }
+        jars.stream()
+                .parallel()
+                .forEach(jar -> {
+                    try {
+                        Classpaths.getClassDefsFromJar(getDevice(), jar)
+                                .stream()
+                                // Inner classes always go with their parent.
+                                .filter(classDef -> !classDef.getType().contains("$"))
+                                .forEach(classDef -> {
+                                    synchronized (allClasses) {
+                                        allClasses.put(classDef.getType(), jar);
+                                    }
+                                });
+                    } catch (DeviceNotAvailableException | IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                });
+        return Multimaps.filterKeys(allClasses, key -> allClasses.get(key).size() > 1);
+    }
 
-        final Multimap<String, String> duplicates = HashMultimap.create();
-        for (String clazz : allClasses.keySet()) {
-            Collection<String> jarsWithClazz = allClasses.get(clazz);
-            if (jarsWithClazz.size() > 1) {
-                CLog.i("Class %s is duplicated in %s", clazz, jarsWithClazz);
-                duplicates.putAll(clazz, jarsWithClazz);
-            }
+    private boolean doesFileExist(String path) {
+        assertThat(path).isNotNull();
+        try {
+            return getDevice().doesFileExist(path);
+        } catch(DeviceNotAvailableException e) {
+            throw new RuntimeException("Could not check whether " + path + " exists on device", e);
         }
+    }
 
-        return duplicates;
+    /**
+     * Get the name of a shared library.
+     *
+     * @return the shared library name or the jar's path if it's not a shared library.
+     */
+    private String getSharedLibraryNameOrPath(String jar,
+                ImmutableList<SharedLibraryInfo> sharedLibs) {
+        return sharedLibs.stream()
+                         .filter(sharedLib -> sharedLib.paths.contains(jar))
+                         .map(sharedLib -> sharedLib.name)
+                         .findFirst().orElse(jar);
+    }
+
+    /**
+     * Check whether a list of jars are all different versions of the same library.
+     */
+    private boolean isSameLibrary(Collection<String> jars,
+                ImmutableList<SharedLibraryInfo> sharedLibs) {
+        return jars.stream()
+                   .map(jar -> getSharedLibraryNameOrPath(jar, sharedLibs))
+                   .distinct()
+                   .count() == 1;
     }
 }

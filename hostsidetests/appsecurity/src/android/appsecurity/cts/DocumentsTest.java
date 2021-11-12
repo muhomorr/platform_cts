@@ -16,7 +16,7 @@
 
 package android.appsecurity.cts;
 
-import android.platform.test.annotations.SecurityTest;
+import android.platform.test.annotations.AsbSecurityTest;
 
 import com.android.compatibility.common.tradefed.build.CompatibilityBuildHelper;
 import com.android.compatibility.common.util.ApiLevelUtil;
@@ -131,23 +131,28 @@ public class DocumentsTest extends DocumentsTestCase {
 
     public void testRestrictStorageAccessFrameworkEnabled_blockFromTree() throws Exception {
         if (isAtLeastR() && isSupportedHardware()) {
-            runDeviceCompatTest(CLIENT_PKG, ".DocumentsClientTest",
+            runDeviceCompatTestReported(CLIENT_PKG, ".DocumentsClientTest",
                 "testRestrictStorageAccessFrameworkEnabled_blockFromTree",
-                /* enabledChanges */ ImmutableSet.of(RESTRICT_STORAGE_ACCESS_FRAMEWORK),
-                /* disabledChanges */ ImmutableSet.of());
+                /* enabledChanges= */ ImmutableSet.of(RESTRICT_STORAGE_ACCESS_FRAMEWORK),
+                /* disabledChanges= */ ImmutableSet.of(),
+                /* reportedEnabledChanges= */ ImmutableSet.of(),
+                /* reportedDisabledChanges= */ ImmutableSet.of());
         }
     }
 
     public void testRestrictStorageAccessFrameworkDisabled_notBlockFromTree() throws Exception {
-        if (isAtLeastR() && isSupportedHardware()) {
-            runDeviceCompatTest(CLIENT_PKG, ".DocumentsClientTest",
+        // For S+, the flag will be force enabled, so we only run this test against R.
+        if (isAtLeastR() && !isAtLeastS() && isSupportedHardware()) {
+            runDeviceCompatTestReported(CLIENT_PKG, ".DocumentsClientTest",
                 "testRestrictStorageAccessFrameworkDisabled_notBlockFromTree",
                 /* enabledChanges */ ImmutableSet.of(),
-                /* disabledChanges */ ImmutableSet.of(RESTRICT_STORAGE_ACCESS_FRAMEWORK));
+                /* disabledChanges */ ImmutableSet.of(RESTRICT_STORAGE_ACCESS_FRAMEWORK),
+                /* reportedEnabledChanges= */ ImmutableSet.of(),
+                /* reportedDisabledChanges= */ ImmutableSet.of());
         }
     }
 
-    @SecurityTest
+    @AsbSecurityTest(cveBugId = 157474195)
     public void testAfterMoveDocumentInStorage_revokeUriPermission() throws Exception {
         if (isAtLeastS()) {
             runDeviceTests(CLIENT_PKG, ".DocumentsClientTest",

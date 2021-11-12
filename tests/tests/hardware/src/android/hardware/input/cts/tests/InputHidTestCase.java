@@ -31,6 +31,7 @@ import static org.mockito.Mockito.verify;
 
 import android.hardware.BatteryState;
 import android.hardware.input.InputManager;
+import android.hardware.input.cts.GlobalKeyMapping;
 import android.hardware.lights.Light;
 import android.hardware.lights.LightState;
 import android.hardware.lights.LightsManager;
@@ -38,8 +39,13 @@ import android.os.SystemClock;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
 import android.os.Vibrator.OnVibratorStateChangedListener;
+import android.os.VintfRuntimeInfo;
+import android.text.TextUtils;
 import android.util.Log;
+import android.util.Pair;
 import android.view.InputDevice;
+
+import androidx.annotation.CallSuper;
 
 import com.android.cts.input.HidBatteryTestData;
 import com.android.cts.input.HidDevice;
@@ -57,6 +63,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class InputHidTestCase extends InputTestCase {
     private static final String TAG = "InputHidTestCase";
@@ -65,6 +73,8 @@ public class InputHidTestCase extends InputTestCase {
     private static final long CALLBACK_TIMEOUT_MILLIS = 5000;
 
     private HidDevice mHidDevice;
+    private final GlobalKeyMapping mGlobalKeyMapping = new GlobalKeyMapping(
+            mInstrumentation.getTargetContext());
     private int mDeviceId;
     private final int mRegisterResourceId;
     private boolean mDelayAfterSetup = false;
@@ -79,6 +89,7 @@ public class InputHidTestCase extends InputTestCase {
         mRegisterResourceId = registerResourceId;
     }
 
+    @CallSuper
     @Override
     public void setUp() throws Exception {
         super.setUp();
@@ -98,6 +109,38 @@ public class InputHidTestCase extends InputTestCase {
     /** Check if input device has specific capability */
     interface Capability {
         boolean check(InputDevice inputDevice);
+    }
+
+    private static Pair<Integer, Integer> getVersionFromString(String version) {
+        // Only gets major and minor number of the version string.
+        final Pattern versionPattern = Pattern.compile("^(\\d+)(\\.(\\d+))?.*");
+        final Matcher m = versionPattern.matcher(version);
+        if (m.matches()) {
+            final int major = Integer.parseInt(m.group(1));
+            final int minor = TextUtils.isEmpty(m.group(3)) ? 0 : Integer.parseInt(m.group(3));
+
+            return new Pair<>(major, minor);
+
+        } else {
+            fail("Cannot parse kernel version: " + version);
+            return new Pair<>(0, 0);
+        }
+    }
+
+    private static int compareMajorMinorVersion(final String s1, final String s2) throws Exception {
+        final Pair<Integer, Integer> v1 = getVersionFromString(s1);
+        final Pair<Integer, Integer> v2 = getVersionFromString(s2);
+
+        if (v1.first == v2.first) {
+            return Integer.compare(v1.second, v2.second);
+        } else {
+            return Integer.compare(v1.first, v2.first);
+        }
+    }
+
+    protected static boolean isKernelVersionGreaterThan(String version) throws Exception {
+        final String actualVersion = VintfRuntimeInfo.getKernelVersion();
+        return compareMajorMinorVersion(actualVersion, version) > 0;
     }
 
     /** Gets an input device with specific capability */
@@ -174,17 +217,19 @@ public class InputHidTestCase extends InputTestCase {
     @Override
     protected void testInputDeviceEvents(int resourceId) {
         List<HidTestData> tests = mParser.getHidTestData(resourceId);
+        // Global keys are handled by the framework and do not reach apps.
+        // The set of global keys is vendor-specific.
+        // Remove tests which contain global keys because we can't test them
+        tests.removeIf(testData -> testData.events.removeIf(mGlobalKeyMapping::isGlobalKey));
 
         for (HidTestData testData: tests) {
             mCurrentTestCase = testData.name;
-
             // Send all of the HID reports
             for (int i = 0; i < testData.reports.size(); i++) {
                 final String report = testData.reports.get(i);
                 mHidDevice.sendHidReport(report);
             }
             verifyEvents(testData.events);
-
         }
     }
 

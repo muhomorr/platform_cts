@@ -29,7 +29,6 @@ import android.content.pm.PackageManager;
 import android.os.IBinder;
 import android.os.ParcelFileDescriptor;
 import android.os.SystemClock;
-import android.os.SystemProperties;
 import android.platform.test.annotations.AppModeFull;
 import android.provider.DeviceConfig;
 import android.service.dataloader.DataLoaderService;
@@ -41,6 +40,7 @@ import androidx.test.InstrumentationRegistry;
 import androidx.test.filters.LargeTest;
 import androidx.test.runner.AndroidJUnit4;
 
+import com.android.compatibility.common.util.PropertyUtil;
 import com.android.incfs.install.IBlockFilter;
 import com.android.incfs.install.IBlockTransformer;
 import com.android.incfs.install.IncrementalInstallSession;
@@ -55,7 +55,6 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -153,10 +152,19 @@ public class PackageManagerShellCommandIncrementalTest {
 
     @Test
     public void testAndroid12RequiresIncFsV2() throws Exception {
-        final boolean v2Required = (SystemProperties.getInt("ro.product.first_api_level", 0) > 30);
+        // IncFS is a kernel feature, which is a subject to vendor freeze. That's why
+        // the test verifies the vendor API level here, not the system's one.
+        // Note: vendor API level getter returns either the frozen API level, or the current one for
+        //  non-vendor-freeze devices; need to verify both the system first API level and vendor
+        //  level to make the final decision.
+        final boolean v2ReqdForSystem = PropertyUtil.getFirstApiLevel() > 30;
+        final boolean v2ReqdForVendor = PropertyUtil.isVendorApiLevelNewerThan(30);
+        final boolean v2Required = v2ReqdForSystem && v2ReqdForVendor;
         if (v2Required) {
-            Assert.assertTrue(getPackageManager().hasSystemFeature(
-                    PackageManager.FEATURE_INCREMENTAL_DELIVERY, 2));
+            Assert.assertTrue("Devices launched at API 31+ with a vendor partition of API 31+ need "
+                    + "to support Incremental Delivery version 2 or higher",
+                    getPackageManager().hasSystemFeature(
+                        PackageManager.FEATURE_INCREMENTAL_DELIVERY, 2));
         }
     }
 
@@ -167,7 +175,6 @@ public class PackageManagerShellCommandIncrementalTest {
     }
 
     @Test
-    @Ignore("Wait until the kernel change lands in RVC branch for the mixed vendor image tests")
     public void testBug183952694Fixed() throws Exception {
         // first ensure the IncFS is up and running, e.g. if it's a module
         installPackage(TEST_APK);
@@ -934,10 +941,15 @@ public class PackageManagerShellCommandIncrementalTest {
     }
 
     static boolean isAppInstalled(String packageName) throws IOException {
-        final String commandResult = executeShellCommand("pm list packages");
-        final int prefixLength = "package:".length();
+        return isAppInstalledForUser(packageName, -1);
+    }
+
+    static boolean isAppInstalledForUser(String packageName, int userId) throws IOException {
+        final String command = userId < 0 ? "pm list packages " + packageName :
+                "pm list packages --user " + userId + " " + packageName;
+        final String commandResult = executeShellCommand(command);
         return Arrays.stream(commandResult.split("\\r?\\n"))
-                .anyMatch(line -> line.substring(prefixLength).equals(packageName));
+                .anyMatch(line -> line.equals("package:" + packageName));
     }
 
     private String getSplits(String packageName) throws IOException {

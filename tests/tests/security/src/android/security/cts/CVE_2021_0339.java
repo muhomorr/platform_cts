@@ -26,7 +26,7 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.os.RemoteCallback;
 import android.os.SystemClock;
-import android.platform.test.annotations.SecurityTest;
+import android.platform.test.annotations.AsbSecurityTest;
 import android.test.AndroidTestCase;
 import android.util.Log;
 import androidx.test.InstrumentationRegistry;
@@ -37,7 +37,6 @@ import org.junit.runner.RunWith;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
-@SecurityTest
 @RunWith(AndroidJUnit4.class)
 public class CVE_2021_0339 {
 
@@ -63,7 +62,7 @@ public class CVE_2021_0339 {
      * start the first activity and get the result from the remote callback
      */
     @Test
-    @SecurityTest
+    @AsbSecurityTest(cveBugId = 145728687)
     public void testPocCVE_2021_0339() throws Exception {
         CompletableFuture<Integer> callbackReturn = new CompletableFuture<>();
         RemoteCallback cb = new RemoteCallback((Bundle result) ->
@@ -71,6 +70,7 @@ public class CVE_2021_0339 {
         launchActivity(FirstActivity.class, cb); // start activity with callback as intent extra
 
         // blocking while the remotecallback is unset
+        Log.i(TAG, "wait for callbackReturn.get(15)");
         int duration = callbackReturn.get(15, TimeUnit.SECONDS);
 
         // if we couldn't get the duration of secondactivity in firstactivity, the default is -1
@@ -98,25 +98,30 @@ public class CVE_2021_0339 {
 
         @Override
         public void onEnterAnimationComplete() {
+            Log.d(TAG,this.getLocalClassName()+" onEnterAnimationComplete() start");
             super.onEnterAnimationComplete();
             Intent intent = new Intent(this, SecondActivity.class);
             intent.putExtra("STARTED_TIMESTAMP", SystemClock.uptimeMillis());
             startActivityForResult(intent, DURATION_RESULT_CODE);
             overridePendingTransition(R.anim.translate2,R.anim.translate1);
-            Log.d(TAG,this.getLocalClassName()+" onEnterAnimationComplete()");
+            Log.d(TAG,this.getLocalClassName()+" onEnterAnimationComplete() stop");
         }
 
         @Override
         protected void onActivityResult(int requestCode,int resultCode, Intent data) {
+            Log.d(TAG,this.getLocalClassName()+" onActivityResult() start");
             super.onActivityResult(requestCode, resultCode, data);
             if (requestCode == DURATION_RESULT_CODE && resultCode == RESULT_OK) {
                 // this is the result that we requested
                 int duration = data.getIntExtra("duration", -1); // get result from secondactivity
+                Log.d(TAG,this.getLocalClassName()+" onActivityResult() duration=" + duration);
                 Bundle res = new Bundle();
                 res.putInt(RESULT_KEY, duration);
                 finish();
                 cb.sendResult(res); // update callback in test
+                Log.d(TAG,this.getLocalClassName()+" onActivityResult() result sent");
             }
+            Log.d(TAG,this.getLocalClassName()+" onActivityResult() stop");
         }
     }
 
@@ -127,6 +132,7 @@ public class CVE_2021_0339 {
     public static class SecondActivity extends Activity{
         @Override
         public void onEnterAnimationComplete() {
+            Log.d(TAG,this.getLocalClassName()+" onEnterAnimationComplete() start");
             super.onEnterAnimationComplete();
             long completedTs = SystemClock.uptimeMillis();
             long startedTs = getIntent().getLongExtra("STARTED_TIMESTAMP", 0);

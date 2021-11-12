@@ -43,6 +43,7 @@ import com.google.protobuf.Parser;
 
 import java.io.FileNotFoundException;
 import java.util.Map;
+import java.util.StringTokenizer;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
@@ -243,7 +244,15 @@ public final class DeviceUtils {
      */
     public static boolean hasFeature(ITestDevice device, String feature) throws Exception {
         final String features = device.executeShellCommand("pm list features");
-        return features.contains(feature);
+        StringTokenizer featureToken = new StringTokenizer(features, "\n");
+
+        while(featureToken.hasMoreTokens()) {
+            if (("feature:" + feature).equals(featureToken.nextToken())) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -330,6 +339,19 @@ public final class DeviceUtils {
 
     public static void turnScreenOff(ITestDevice device) throws Exception {
         device.executeShellCommand("input keyevent KEYCODE_SLEEP");
+    }
+
+    public static void turnBatteryStatsAutoResetOn(ITestDevice device) throws Exception {
+        device.executeShellCommand("dumpsys batterystats enable no-auto-reset");
+    }
+
+    public static void turnBatteryStatsAutoResetOff(ITestDevice device) throws Exception {
+        device.executeShellCommand("dumpsys batterystats enable no-auto-reset");
+    }
+
+    public static void flushBatteryStatsHandlers(ITestDevice device) throws Exception {
+        // Dumping batterystats will flush everything in the batterystats handler threads.
+        device.executeShellCommand("dumpsys batterystats");
     }
 
     public static boolean hasBattery(ITestDevice device) throws Exception {

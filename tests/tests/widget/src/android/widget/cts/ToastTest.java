@@ -17,7 +17,6 @@
 package android.widget.cts;
 
 import static android.app.WindowConfiguration.WINDOWING_MODE_FULLSCREEN;
-import static android.content.Intent.FLAG_ACTIVITY_NEW_TASK;
 
 import static androidx.test.platform.app.InstrumentationRegistry.getInstrumentation;
 
@@ -96,8 +95,8 @@ public class ToastTest {
     private static final int MAX_PACKAGE_TOASTS_LIMIT = 5;
     private static final String ACTION_TRANSLUCENT_ACTIVITY_RESUMED =
             "android.widget.cts.app.TRANSLUCENT_ACTIVITY_RESUMED";
-    private static final String ACTION_TRANSLUCENT_ACTIVITY_FINISH =
-            "android.widget.cts.app.TRANSLUCENT_ACTIVITY_FINISH";
+    private static final ComponentName COMPONENT_CTS_ACTIVITY =
+            ComponentName.unflattenFromString("android.widget.cts/.CtsActivity");
     private static final ComponentName COMPONENT_TRANSLUCENT_ACTIVITY =
             ComponentName.unflattenFromString("android.widget.cts.app/.TranslucentActivity");
     private static final double TOAST_DURATION_ERROR_TOLERANCE_FRACTION = 0.25;
@@ -862,12 +861,11 @@ public class ToastTest {
                 ACTION_TRANSLUCENT_ACTIVITY_RESUMED);
         Intent intent = new Intent();
         intent.setComponent(COMPONENT_TRANSLUCENT_ACTIVITY);
-        intent.setFlags(FLAG_ACTIVITY_NEW_TASK);
         // Launch the translucent activity in fullscreen to ensure the test activity won't resume
         // even on the freeform-first multi-window device.
         final ActivityOptions options = ActivityOptions.makeBasic();
         options.setLaunchWindowingMode(WINDOWING_MODE_FULLSCREEN);
-        mContext.startActivity(intent, options.toBundle());
+        mActivityRule.getActivity().startActivity(intent, options.toBundle());
         activityStarted.block();
         makeCustomToast();
         View view = mToast.getView();
@@ -875,7 +873,14 @@ public class ToastTest {
         mActivityRule.runOnUiThread(mToast::show);
 
         assertCustomToastNotShown(view);
-        mContext.sendBroadcast(new Intent(ACTION_TRANSLUCENT_ACTIVITY_FINISH));
+
+        // Start CtsActivity with CLEAR_TOP flag to finish the TranslucentActivity on top.
+        intent = new Intent();
+        intent.setComponent(COMPONENT_CTS_ACTIVITY);
+        intent.setAction(Intent.ACTION_MAIN);
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP
+                | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        mActivityRule.getActivity().startActivity(intent);
     }
 
     @UiThreadTest

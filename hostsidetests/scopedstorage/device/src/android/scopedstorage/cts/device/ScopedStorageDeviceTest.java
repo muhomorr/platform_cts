@@ -85,8 +85,10 @@ import static android.scopedstorage.cts.lib.TestUtils.readExifMetadataFromTestAp
 import static android.scopedstorage.cts.lib.TestUtils.revokePermission;
 import static android.scopedstorage.cts.lib.TestUtils.setAppOpsModeForUid;
 import static android.scopedstorage.cts.lib.TestUtils.setAttrAs;
+import static android.scopedstorage.cts.lib.TestUtils.trashFileAndAssert;
 import static android.scopedstorage.cts.lib.TestUtils.uninstallApp;
 import static android.scopedstorage.cts.lib.TestUtils.uninstallAppNoThrow;
+import static android.scopedstorage.cts.lib.TestUtils.untrashFileAndAssert;
 import static android.scopedstorage.cts.lib.TestUtils.updateDisplayNameWithMediaProvider;
 import static android.scopedstorage.cts.lib.TestUtils.verifyInsertFromExternalMediaDirViaRelativePath_allowed;
 import static android.scopedstorage.cts.lib.TestUtils.verifyInsertFromExternalPrivateDirViaRelativePath_denied;
@@ -1360,10 +1362,9 @@ public class ScopedStorageDeviceTest extends ScopedStorageBaseDeviceTest {
             revokePermission(packageName, permission);
         } else {
             denyAppOpsToUid(uid, opstr);
+            // TODO(191724755): Poll for AppOp state change instead
+            Thread.sleep(200);
         }
-        // revokePermission waits for permission status to be updated, but MediaProvider still
-        // needs to get permission change callback and clear its permission cache.
-        Thread.sleep(100);
         assertThat(canOpenFileAs(app, file, forWrite)).isFalse();
 
         // Grant
@@ -1371,10 +1372,9 @@ public class ScopedStorageDeviceTest extends ScopedStorageBaseDeviceTest {
             grantPermission(packageName, permission);
         } else {
             allowAppOpsToUid(uid, opstr);
+            // TODO(191724755): Poll for AppOp state change instead
+            Thread.sleep(200);
         }
-        // grantPermission waits for permission status to be updated, but MediaProvider still
-        // needs to get permission change callback and clear its permission cache.
-        Thread.sleep(100);
         assertThat(canOpenFileAs(app, file, forWrite)).isTrue();
 
         // Deny
@@ -1382,10 +1382,9 @@ public class ScopedStorageDeviceTest extends ScopedStorageBaseDeviceTest {
             revokePermission(packageName, permission);
         } else {
             denyAppOpsToUid(uid, opstr);
+            // TODO(191724755): Poll for AppOp state change instead
+            Thread.sleep(200);
         }
-        // revokePermission waits for permission status to be updated, but MediaProvider still
-        // needs to get permission change callback and clear its permission cache.
-        Thread.sleep(100);
         assertThat(canOpenFileAs(app, file, forWrite)).isFalse();
     }
 
@@ -2060,7 +2059,7 @@ public class ScopedStorageDeviceTest extends ScopedStorageBaseDeviceTest {
             // file.
             assertListPendingOrTrashed(imageFileUri, imageFile, /*isImageOrVideo*/ true);
 
-            trashFile(imageFileUri);
+            trashFileAndAssert(imageFileUri);
             // Check that only owner package, file manager and system gallery can list trashed image
             // file.
             assertListPendingOrTrashed(imageFileUri, imageFile, /*isImageOrVideo*/ true);
@@ -2069,7 +2068,7 @@ public class ScopedStorageDeviceTest extends ScopedStorageBaseDeviceTest {
             // Check that only owner package, file manager can list pending non media file.
             assertListPendingOrTrashed(pdfFileUri, pdfFile, /*isImageOrVideo*/ false);
 
-            trashFile(pdfFileUri);
+            trashFileAndAssert(pdfFileUri);
             // Check that only owner package, file manager can list trashed non media file.
             assertListPendingOrTrashed(pdfFileUri, pdfFile, /*isImageOrVideo*/ false);
         } finally {
@@ -2197,6 +2196,65 @@ public class ScopedStorageDeviceTest extends ScopedStorageBaseDeviceTest {
             deletePaths(pendingVideoFilePath, trashedImageFilePath, pendingPdfFilePath,
                     trashedPdfFilePath);
             deleteFiles(pendingVideoFile, trashedImageFile, pendingPdfFile, trashedPdfFile);
+        }
+    }
+
+    @Test
+    public void testSystemGalleryCanTrashOtherAndroidMediaFiles() throws Exception {
+        final File otherVideoFile = new File(getAndroidMediaDir(),
+                String.format("%s/%s", APP_B_NO_PERMS.getPackageName(), VIDEO_FILE_NAME));
+        try {
+            allowAppOpsToUid(Process.myUid(), SYSTEM_GALERY_APPOPS);
+
+            assertThat(createFileAs(APP_B_NO_PERMS, otherVideoFile.getAbsolutePath())).isTrue();
+
+            final Uri otherVideoUri = MediaStore.scanFile(getContentResolver(), otherVideoFile);
+            assertNotNull(otherVideoUri);
+
+            trashFileAndAssert(otherVideoUri);
+            untrashFileAndAssert(otherVideoUri);
+        } finally {
+            otherVideoFile.delete();
+            denyAppOpsToUid(Process.myUid(), SYSTEM_GALERY_APPOPS);
+        }
+    }
+
+    @Test
+    public void testSystemGalleryCanUpdateOtherAndroidMediaFiles() throws Exception {
+        final File otherImageFile = new File(getAndroidMediaDir(),
+                String.format("%s/%s", APP_B_NO_PERMS.getPackageName(), IMAGE_FILE_NAME));
+        final File updatedImageFileInDcim = new File(getDcimDir(), IMAGE_FILE_NAME);
+        try {
+            allowAppOpsToUid(Process.myUid(), SYSTEM_GALERY_APPOPS);
+
+            assertThat(createFileAs(APP_B_NO_PERMS, otherImageFile.getAbsolutePath())).isTrue();
+
+            final Uri otherImageUri = MediaStore.scanFile(getContentResolver(), otherImageFile);
+            assertNotNull(otherImageUri);
+
+            final ContentValues values = new ContentValues();
+            values.put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DCIM);
+            // Test that we can move the file to "DCIM/"
+            assertWithMessage("Result of ContentResolver#update for " + otherImageUri
+                    + " with values " + values)
+                    .that(getContentResolver().update(otherImageUri, values, Bundle.EMPTY))
+                    .isEqualTo(1);
+            assertThat(updatedImageFileInDcim.exists()).isTrue();
+            assertThat(otherImageFile.exists()).isFalse();
+
+            values.clear();
+            values.put(MediaStore.MediaColumns.RELATIVE_PATH,
+                    "Android/media/" + APP_B_NO_PERMS.getPackageName());
+            // Test that we can move the file back to other app's owned path
+            assertWithMessage("Result of ContentResolver#update for " + otherImageUri
+                    + " with values " + values)
+                    .that(getContentResolver().update(otherImageUri, values, Bundle.EMPTY))
+                    .isEqualTo(1);
+            assertThat(otherImageFile.exists()).isTrue();
+        } finally {
+            otherImageFile.delete();
+            updatedImageFileInDcim.delete();
+            denyAppOpsToUid(Process.myUid(), SYSTEM_GALERY_APPOPS);
         }
     }
 
@@ -3002,14 +3060,8 @@ public class ScopedStorageDeviceTest extends ScopedStorageBaseDeviceTest {
         final Uri trashedFileUri = MediaStore.scanFile(cr, trashedFile);
         assertNotNull(trashedFileUri);
 
-        trashFile(trashedFileUri);
+        trashFileAndAssert(trashedFileUri);
         return trashedFileUri;
-    }
-
-    private void trashFile(Uri uri) throws Exception {
-        final ContentValues values = new ContentValues();
-        values.put(MediaStore.MediaColumns.IS_TRASHED, 1);
-        assertEquals(1, getContentResolver().update(uri, values, Bundle.EMPTY));
     }
 
     /**
