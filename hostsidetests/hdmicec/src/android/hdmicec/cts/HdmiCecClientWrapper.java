@@ -57,6 +57,11 @@ public final class HdmiCecClientWrapper extends ExternalResource {
     private StringBuilder sendVendorCommand = new StringBuilder("cmd hdmi_control vendorcommand ");
     private int physicalAddress = 0xFFFF;
 
+    private CecOperand featureAbortOperand = CecOperand.FEATURE_ABORT;
+    private List<Integer> featureAbortReasons =
+            new ArrayList<>(HdmiCecConstants.ABORT_INVALID_OPERAND);
+    private boolean isFeatureAbortExpected = false;
+
     private static final String CEC_PORT_BUSY = "unable to open the device on port";
 
     public HdmiCecClientWrapper(String ...clientParams) {
@@ -536,6 +541,26 @@ public final class HdmiCecClientWrapper extends ExternalResource {
     }
 
     /**
+     * The next checkExpectedOutput calls will also permit a feature abort as an alternate to the
+     * expected operand. The feature abort will be permissible if it has
+     *
+     * @param abortForOperand The operand for which the feature abort could be an allowed response
+     * @param reasons List of allowed reasons that the feature abort message could have
+     */
+    private void setExpectFeatureAbortFor(CecOperand abortOperand, Integer... abortReasons) {
+        isFeatureAbortExpected = true;
+        featureAbortOperand = abortOperand;
+        featureAbortReasons = Arrays.asList(abortReasons);
+    }
+
+    /** Removes feature abort as a permissible alternate response for {@link checkExpectedOutput} */
+    private void unsetExpectFeatureAbort() {
+        isFeatureAbortExpected = false;
+        CecOperand featureAbortOperand = CecOperand.FEATURE_ABORT;
+        List<Integer> featureAbortReasons = new ArrayList<>(HdmiCecConstants.ABORT_INVALID_OPERAND);
+    }
+
+    /**
      * Looks for the CEC expectedMessage broadcast on the cec-client communication channel and
      * returns the first line that contains that message within default timeout. If the CEC message
      * is not found within the timeout, an CecClientWrapperException is thrown.
@@ -581,6 +606,27 @@ public final class HdmiCecClientWrapper extends ExternalResource {
     }
 
     /**
+     * Looks for the CEC expectedMessage or a {@code <Feature Abort>} for {@code
+     * featureAbortOperand} with one of the abort reasons in {@code abortReason} is sent from
+     * cec-client device fromDevice to the DUT on the cec-client communication channel and returns
+     * the first line that contains that message within default timeout. If the CEC message is not
+     * found within the timeout, a CecClientWrapperException is thrown.
+     */
+    public String checkExpectedOutputOrFeatureAbort(
+            LogicalAddress fromDevice,
+            CecOperand expectedMessage,
+            CecOperand featureAbortOperand,
+            Integer... featureAbortReasons)
+            throws CecClientWrapperException {
+        setExpectFeatureAbortFor(featureAbortOperand, featureAbortReasons);
+        String message =
+                checkExpectedOutput(
+                        targetDevice, fromDevice, expectedMessage, DEFAULT_TIMEOUT, false);
+        unsetExpectFeatureAbort();
+        return message;
+    }
+
+    /**
      * Looks for the CEC expectedMessage broadcast on the cec-client communication channel and
      * returns the first line that contains that message within timeoutMillis. If the CEC message is
      * not found within the timeout, an CecClientWrapperException is thrown.
@@ -620,25 +666,54 @@ public final class HdmiCecClientWrapper extends ExternalResource {
         long startTime = System.currentTimeMillis();
         long endTime = startTime;
         String direction = fromCecClient ? "<<" : ">>";
-        Pattern pattern =
-                Pattern.compile(
-                        "(.*"
-                                + direction
-                                + ")(.*?)"
-                                + "("
-                                + fromDevice
-                                + toDevice
-                                + "):"
-                                + "("
-                                + expectedMessage
-                                + ")(.*)",
-                        Pattern.CASE_INSENSITIVE);
-
+        Pattern pattern;
+        if (expectedMessage == CecOperand.POLL) {
+            pattern =
+                    Pattern.compile(
+                            "(.*"
+                                    + direction
+                                    + ")(.*?)"
+                                    + "("
+                                    + fromDevice
+                                    + toDevice
+                                    + ")(.*)",
+                            Pattern.CASE_INSENSITIVE);
+        } else {
+            String expectedOperands = expectedMessage.toString();
+            if (isFeatureAbortExpected) {
+                expectedOperands += "|" + CecOperand.FEATURE_ABORT;
+            }
+            pattern =
+                    Pattern.compile(
+                            "(.*"
+                                    + direction
+                                    + ")(.*?)"
+                                    + "("
+                                    + fromDevice
+                                    + toDevice
+                                    + "):"
+                                    + "("
+                                    + expectedOperands
+                                    + ")(.*)",
+                            Pattern.CASE_INSENSITIVE);
+        }
         while ((endTime - startTime <= timeoutMillis)) {
             try {
                 if (mInputConsole.ready()) {
                     String line = mInputConsole.readLine();
                     if (pattern.matcher(line).matches()) {
+                        if (isFeatureAbortExpected
+                                && CecMessage.getOperand(line) == CecOperand.FEATURE_ABORT) {
+                            CecOperand featureAbortedFor =
+                                    CecOperand.getOperand(CecMessage.getParams(line, 0, 2));
+                            int reason = CecMessage.getParams(line, 2, 4);
+                            if (featureAbortedFor == featureAbortOperand
+                                    && featureAbortReasons.contains(reason)) {
+                                return line;
+                            } else {
+                                continue;
+                            }
+                        }
                         CLog.v("Found " + expectedMessage.name() + " in " + line);
                         return line;
                     }
