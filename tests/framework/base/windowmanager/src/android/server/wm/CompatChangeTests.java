@@ -31,6 +31,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assume.assumeFalse;
 
 import android.app.Activity;
 import android.compat.testing.PlatformCompatChangeRule;
@@ -316,7 +317,7 @@ public final class CompatChangeTests extends MultiDisplayTestBase {
     @Test
     public void testSandboxResizableActivityPackageInAlwaysSandboxDeviceConfigFlag() {
         ComponentName activity = RESIZEABLE_LARGE_ASPECT_RATIO_ACTIVITY;
-        setNeverConstrainDisplayApisFlag(
+        setAlwaysConstrainDisplayApisFlag(
                 "com.android.other::," + activity.getPackageName() + "::");
         runSandboxTest(activity, /* isSandboxed= */ true, /* inSizeCompatModeAfterResize= */ false);
     }
@@ -614,9 +615,15 @@ public final class CompatChangeTests extends MultiDisplayTestBase {
      * Resize the display and ensure configuration changes are complete.
      */
     private void resizeDisplay(ComponentName activity, double sizeRatio) {
+        Size originalDisplaySize = mDisplayMetricsSession.getInitialDisplayMetrics().getSize();
         final Rect originalTaskBounds = mWmState.getTaskByActivity(activity).getBounds();
         mDisplayMetricsSession.changeDisplayMetrics(sizeRatio, /* densityRatio= */ 1);
         mWmState.computeState(new WaitForValidActivityState(activity));
+
+        Size currentDisplaySize = mDisplayMetricsSession.getDisplayMetrics().getSize();
+        assumeFalse("If a display size is capped, resizing may be a no-op",
+            originalDisplaySize.equals(currentDisplaySize));
+
         // Ensure configuration changes are complete after resizing the display.
         waitForTaskBoundsChanged(activity, originalTaskBounds);
     }

@@ -28,6 +28,7 @@ import java.util.Map;
 
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assume.assumeTrue;
 
 class CodecEncoderPerformanceTestBase extends CodecPerformanceTestBase {
     private static final String LOG_TAG = CodecEncoderPerformanceTest.class.getSimpleName();
@@ -113,6 +114,8 @@ class CodecEncoderPerformanceTestBase extends CodecPerformanceTestBase {
         double maxOperatingRateDecoder = getMaxOperatingRate(mDecoderName, mDecoderMime);
         double maxOperatingRateEncoder = getMaxOperatingRate(mEncoderName, mEncoderMime);
         mOperatingRateExpected = Math.min(maxOperatingRateDecoder, maxOperatingRateEncoder);
+        // As both decoder and encoder are running in concurrently, expected rate is halved
+        mOperatingRateExpected /= 2.0;
         if (mMaxOpRateScalingFactor > 0.0f) {
             int operatingRateToSet = (int) (mOperatingRateExpected * mMaxOpRateScalingFactor);
             if (mMaxOpRateScalingFactor < 1.0f) {
@@ -126,7 +129,6 @@ class CodecEncoderPerformanceTestBase extends CodecPerformanceTestBase {
         }
         mEncoderFormat.setInteger(MediaFormat.KEY_COMPLEXITY,
                 getEncoderMinComplexity(mEncoderName, mEncoderMime));
-        mOperatingRateExpected /= 2.0;
     }
 
     private void doWork() {
@@ -159,6 +161,14 @@ class CodecEncoderPerformanceTestBase extends CodecPerformanceTestBase {
     public void encode() throws IOException {
         MediaFormat format = setUpDecoderInput();
         assertNotNull("Video track not present in " + mTestFile, format);
+
+        if (EXCLUDE_ENCODER_MAX_RESOLUTION) {
+            int maxFrameSize = getMaxFrameSize(mEncoderName, mEncoderMime);
+            assumeTrue(mWidth + "x" + mHeight + " is skipped as it not less than half of " +
+                    "maximum frame size: " + maxFrameSize + " supported by the encoder.",
+                    mWidth * mHeight < maxFrameSize / 2);
+        }
+
         setUpFormats(format);
         mDecoder = MediaCodec.createByCodecName(mDecoderName);
         mEncoder = MediaCodec.createByCodecName(mEncoderName);

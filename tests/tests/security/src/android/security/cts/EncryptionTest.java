@@ -23,7 +23,6 @@ import android.content.Context;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.platform.test.annotations.AppModeFull;
-import android.platform.test.annotations.SecurityTest;
 import android.util.Log;
 
 import androidx.test.platform.app.InstrumentationRegistry;
@@ -37,7 +36,6 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-@SecurityTest
 @RunWith(AndroidJUnit4.class)
 public class EncryptionTest {
     static {
@@ -51,10 +49,14 @@ public class EncryptionTest {
     @Before
     public void setUp() throws Exception {
         Context context = InstrumentationRegistry.getInstrumentation().getContext();
-        // Assumes every test in this file asserts a requirement of CDD section 9.
-        assumeTrue("Skipping test: FEATURE_SECURITY_MODEL_COMPATIBLE missing.",
-                context.getPackageManager()
-                .hasSystemFeature(PackageManager.FEATURE_SECURITY_MODEL_COMPATIBLE));
+        // This feature name check only applies to devices that first shipped with
+        // SC or later.
+        if (PropertyUtil.getFirstApiLevel() >= Build.VERSION_CODES.S) {
+            // Assumes every test in this file asserts a requirement of CDD section 9.
+            assumeTrue("Skipping test: FEATURE_SECURITY_MODEL_COMPATIBLE missing.",
+                    !context.getPackageManager()
+                    .hasSystemFeature(PackageManager.FEATURE_SECURITY_MODEL_COMPATIBLE));
+        }
     }
 
     private void handleUnencryptedDevice() {

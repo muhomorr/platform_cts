@@ -21,7 +21,7 @@ import static org.junit.Assert.fail;
 import static org.junit.Assume.assumeFalse;
 
 import android.platform.test.annotations.AppModeFull;
-import android.platform.test.annotations.SecurityTest;
+import android.platform.test.annotations.AsbSecurityTest;
 
 import com.android.tradefed.log.LogUtil.CLog;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
@@ -380,7 +380,7 @@ public class EphemeralTest extends BaseAppSecurityTest {
     }
 
     @Test
-    @SecurityTest(minPatchLevel = "2020-11")
+    @AsbSecurityTest(cveBugId = 140256621)
     public void testInstallPermissionNotGrantedInPackageInfo() throws Exception {
         if (mIsUnsupportedDevice) {
             return;
@@ -390,7 +390,7 @@ public class EphemeralTest extends BaseAppSecurityTest {
     }
 
     @Test
-    @SecurityTest(minPatchLevel = "2020-11")
+    @AsbSecurityTest(cveBugId = 140256621)
     public void testInstallPermissionGrantedInPackageInfo() throws Exception {
         if (mIsUnsupportedDevice) {
             return;
@@ -406,7 +406,7 @@ public class EphemeralTest extends BaseAppSecurityTest {
             return;
         }
         // Make sure the test package does not have INSTANT_APP_FOREGROUND_SERVICE
-        getDevice().executeShellCommand("cmd package revoke " + EPHEMERAL_1_PKG
+        getDevice().executeShellCommand("cmd package revoke --user cur " + EPHEMERAL_1_PKG
                 + " android.permission.INSTANT_APP_FOREGROUND_SERVICE");
         Utils.runDeviceTestsAsCurrentUser(getDevice(), EPHEMERAL_1_PKG, TEST_CLASS,
                 "testStartForegroundService");

@@ -185,7 +185,7 @@ public abstract class DeviceAndProfileOwnerTest extends BaseDevicePolicyTest {
     private static final int PERMISSION_GRANT_STATE_GRANTED = 1;
     private static final int PERMISSION_GRANT_STATE_DENIED = 2;
     private static final String PARAM_APP_TO_ENABLE = "app_to_enable";
-    public static final String RESOLVE_ACTIVITY_CMD = "cmd package resolve-activity --brief %s | tail -n 1";
+    public static final String RESOLVE_ACTIVITY_CMD = "cmd package resolve-activity --brief --user %d %s | tail -n 1";
 
     private static final String NOT_CALLED_FROM_PARENT = "notCalledFromParent";
 
@@ -439,6 +439,7 @@ public abstract class DeviceAndProfileOwnerTest extends BaseDevicePolicyTest {
     }
 
     @Test
+    @FlakyTest(bugId = 187862351)
     public void testGrantOfSensorsRelatedPermissions() throws Exception {
         installAppPermissionAppAsUser();
         executeDeviceTestMethod(".PermissionsTest", "testSensorsRelatedPermissionsCannotBeGranted");
@@ -451,6 +452,7 @@ public abstract class DeviceAndProfileOwnerTest extends BaseDevicePolicyTest {
     }
 
     @Test
+    @FlakyTest(bugId = 187862351)
     public void testSensorsRelatedPermissionsNotGrantedViaPolicy() throws Exception {
         installAppPermissionAppAsUser();
         executeDeviceTestMethod(".PermissionsTest",
@@ -458,6 +460,7 @@ public abstract class DeviceAndProfileOwnerTest extends BaseDevicePolicyTest {
     }
 
     @Test
+    @FlakyTest(bugId = 187862351)
     public void testStateOfSensorsRelatedPermissionsCannotBeRead() throws Exception {
         installAppPermissionAppAsUser();
         executeDeviceTestMethod(".PermissionsTest",
@@ -1723,7 +1726,7 @@ public abstract class DeviceAndProfileOwnerTest extends BaseDevicePolicyTest {
         final List<String> enabledSystemPackageNames = getEnabledSystemPackageNames();
         for (String enabledSystemPackage : enabledSystemPackageNames) {
             final String result = getDevice().executeShellCommand(
-                    String.format(RESOLVE_ACTIVITY_CMD, enabledSystemPackage));
+                    String.format(RESOLVE_ACTIVITY_CMD, mUserId, enabledSystemPackage));
             if (!result.contains("No activity found")) {
                 return enabledSystemPackage;
             }

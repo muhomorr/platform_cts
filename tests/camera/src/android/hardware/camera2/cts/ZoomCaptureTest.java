@@ -26,7 +26,9 @@ import android.hardware.camera2.CaptureRequest;
 import android.hardware.camera2.CaptureResult;
 import android.media.Image;
 import android.media.ImageReader;
+import android.os.Build;
 import android.os.ConditionVariable;
+import android.platform.test.annotations.AppModeFull;
 import android.util.Log;
 import android.util.Size;
 
@@ -34,6 +36,8 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+
+import com.android.compatibility.common.util.PropertyUtil;
 
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -66,6 +70,7 @@ public class ZoomCaptureTest extends Camera2AndroidTestCase {
     }
 
     @Test
+    @AppModeFull(reason = "Instant apps can't access Test API")
     public void testJpegZoomCapture() throws Exception {
         for (String id : mCameraIdsUnderTest) {
             try {
@@ -79,6 +84,7 @@ public class ZoomCaptureTest extends Camera2AndroidTestCase {
     }
 
     @Test
+    @AppModeFull(reason = "Instant apps can't access Test API")
     public void testRawZoomCapture() throws Exception {
         for (String id : mCameraIdsUnderTest) {
             try {
@@ -121,6 +127,8 @@ public class ZoomCaptureTest extends Camera2AndroidTestCase {
                     outputConfigs, CameraDevice.TEMPLATE_PREVIEW);
 
             Set<String> activePhysicalIdsSeen = new HashSet<String>();
+            boolean checkActivePhysicalIdConsistency =
+                    PropertyUtil.getFirstApiLevel() >= Build.VERSION_CODES.S;
             for (Float zoomRatio : candidateZoomRatios) {
                 if (VERBOSE) {
                     Log.v(TAG, "Testing format " + format + " zoomRatio " + zoomRatio +
@@ -146,17 +154,20 @@ public class ZoomCaptureTest extends Camera2AndroidTestCase {
                     CaptureResult result = listener.getCaptureResult(CAPTURE_RESULT_TIMEOUT_MS);
                     String activePhysicalId = result.get(
                             CaptureResult.LOGICAL_MULTI_CAMERA_ACTIVE_PHYSICAL_ID);
-                    assertNotNull("Camera " + mCamera.getId() + " result metadata must contain " +
-                            "ACTIVE_PHYSICAL_ID", activePhysicalId);
-                    assertTrue("Camera " + mCamera.getId() + " must be logical " +
-                            "camera if activePhysicalId exists in capture result",
-                            physicalCameraIds != null && physicalCameraIds.size() != 0);
-                    mCollector.expectTrue("Camera " + mCamera.getId() + "  activePhysicalId " +
-                            activePhysicalId + "must be among valid physical Ids "  +
-                            physicalCameraIds.toString(),
-                            physicalCameraIds.contains(activePhysicalId));
+                    if (checkActivePhysicalIdConsistency) {
+                        assertNotNull("Camera " + mCamera.getId() +
+                                " result metadata must contain ACTIVE_PHYSICAL_ID",
+                                activePhysicalId);
+                        assertTrue("Camera " + mCamera.getId() + " must be logical " +
+                                "camera if activePhysicalId exists in capture result",
+                                physicalCameraIds != null && physicalCameraIds.size() != 0);
+                        mCollector.expectTrue("Camera " + mCamera.getId() + "  activePhysicalId " +
+                                activePhysicalId + "must be among valid physical Ids "  +
+                                physicalCameraIds.toString(),
+                                physicalCameraIds.contains(activePhysicalId));
 
-                    activePhysicalIdsSeen.add(activePhysicalId);
+                        activePhysicalIdsSeen.add(activePhysicalId);
+                    }
                 }
             }
             // stop capture.

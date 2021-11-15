@@ -1542,9 +1542,13 @@ public class CameraTestUtils extends Assert {
                 }
                 int h = (i == 0) ? height : height / 2;
                 for (int row = 0; row < h; row++) {
-                    int length = rowStride;
+                    // Each 10-bit pixel occupies 2 bytes
+                    int length = 2 * width;
                     buffer.get(data, offset, length);
                     offset += length;
+                    if (row < h - 1) {
+                        buffer.position(buffer.position() + rowStride - length);
+                    }
                 }
                 if (VERBOSE) Log.v(TAG, "Finished reading data from plane " + i);
                 buffer.rewind();
@@ -1679,16 +1683,31 @@ public class CameraTestUtils extends Assert {
      */
     public static Size[] getSupportedSizeForFormat(int format, String cameraId,
             CameraManager cameraManager) throws CameraAccessException {
+        return getSupportedSizeForFormat(format, cameraId, cameraManager,
+                /*maxResolution*/false);
+    }
+
+    public static Size[] getSupportedSizeForFormat(int format, String cameraId,
+            CameraManager cameraManager, boolean maxResolution) throws CameraAccessException {
         CameraCharacteristics properties = cameraManager.getCameraCharacteristics(cameraId);
         assertNotNull("Can't get camera characteristics!", properties);
         if (VERBOSE) {
             Log.v(TAG, "get camera characteristics for camera: " + cameraId);
         }
-        StreamConfigurationMap configMap =
-                properties.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
+        CameraCharacteristics.Key<StreamConfigurationMap> configMapTag = maxResolution ?
+                CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP_MAXIMUM_RESOLUTION :
+                CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP;
+        StreamConfigurationMap configMap = properties.get(configMapTag);
+        if (configMap == null) {
+            assertTrue("SCALER_STREAM_CONFIGURATION_MAP is null!", maxResolution);
+            return null;
+        }
+
         Size[] availableSizes = configMap.getOutputSizes(format);
-        assertArrayNotEmpty(availableSizes, "availableSizes should not be empty for format: "
-                + format);
+        if (!maxResolution) {
+            assertArrayNotEmpty(availableSizes, "availableSizes should not be empty for format: "
+                    + format);
+        }
         Size[] highResAvailableSizes = configMap.getHighResolutionOutputSizes(format);
         if (highResAvailableSizes != null && highResAvailableSizes.length > 0) {
             Size[] allSizes = new Size[availableSizes.length + highResAvailableSizes.length];
