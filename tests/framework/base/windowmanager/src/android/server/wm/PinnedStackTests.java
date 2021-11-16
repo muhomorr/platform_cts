@@ -1100,16 +1100,10 @@ public class PinnedStackTests extends ActivityManagerTestBase {
         launchActivity(PIP_ACTIVITY);
         waitForExitPipToFullscreen(PIP_ACTIVITY);
         assertPinnedStackDoesNotExist();
-        mWmState.waitForLastOrientation(ORIENTATION_LANDSCAPE);
+        mWmState.waitForActivityOrientation(PIP_ACTIVITY, ORIENTATION_LANDSCAPE);
 
-        mWmState.computeState(PIP_ACTIVITY);
-        final ActivityTask activityTask =
-                mWmState.getTaskByActivity(PIP_ACTIVITY);
-        if (activityTask.getWindowingMode() == WINDOWING_MODE_FULLSCREEN) {
-            assertEquals(ORIENTATION_LANDSCAPE, mWmState.getLastOrientation());
-        } else {
-            assertEquals(ORIENTATION_LANDSCAPE, activityTask.mOverrideConfiguration.orientation);
-        }
+        final ActivityTask pipActivityTask = mWmState.getTaskByActivity(PIP_ACTIVITY);
+        assertEquals(ORIENTATION_LANDSCAPE, pipActivityTask.mOverrideConfiguration.orientation);
     }
 
     @Test
@@ -1303,8 +1297,8 @@ public class PinnedStackTests extends ActivityManagerTestBase {
         launchActivity(PIP_ACTIVITY, extraString(EXTRA_ALLOW_AUTO_PIP, "true"));
         assertPinnedStackDoesNotExist();
 
-        // Go home and ensure that there is a pinned stack.
-        launchHomeActivity();
+        // Launch a new activity and ensure that there is a pinned stack.
+        launchActivity(RESUME_WHILE_PAUSING_ACTIVITY);
         waitForEnterPip(PIP_ACTIVITY);
         assertPinnedStackExists();
     }
