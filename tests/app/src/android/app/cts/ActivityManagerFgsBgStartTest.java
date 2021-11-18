@@ -57,7 +57,7 @@ import android.os.IBinder;
 import android.os.PowerExemptionManager;
 import android.os.SystemClock;
 import android.permission.cts.PermissionUtils;
-import android.platform.test.annotations.SecurityTest;
+import android.platform.test.annotations.AsbSecurityTest;
 import android.provider.DeviceConfig;
 import android.provider.Settings;
 
@@ -464,7 +464,7 @@ public class ActivityManagerFgsBgStartTest {
      * @throws Exception
      */
     @Test
-    @SecurityTest(minPatchLevel = "2021-03")
+    @AsbSecurityTest(cveBugId = 173516292)
     public void testFgsLocationStartFromBGWithBind() throws Exception {
         ApplicationInfo app1Info = mContext.getPackageManager().getApplicationInfo(
                 PACKAGE_NAME_APP1, 0);
@@ -1605,6 +1605,7 @@ public class ActivityManagerFgsBgStartTest {
                 PACKAGE_NAME_APP1, 0);
         WatchUidRunner uid1Watcher = new WatchUidRunner(mInstrumentation, app1Info.uid,
                 WAITFOR_MSEC);
+        final int defaultBehavior = getPushMessagingOverQuotaBehavior();
         try {
             // Enable the FGS background startForeground() restriction.
             enableFgsRestriction(true, true, null);
@@ -1666,8 +1667,7 @@ public class ActivityManagerFgsBgStartTest {
         } finally {
             uid1Watcher.finish();
             // Change back to default behavior.
-            setPushMessagingOverQuotaBehavior(
-                    TEMPORARY_ALLOW_LIST_TYPE_FOREGROUND_SERVICE_NOT_ALLOWED);
+            setPushMessagingOverQuotaBehavior(defaultBehavior);
             // allow temp allowlist to expire.
             SystemClock.sleep(TEMP_ALLOWLIST_DURATION_MS);
         }
@@ -1701,7 +1701,10 @@ public class ActivityManagerFgsBgStartTest {
                 WAITFOR_MSEC);
         WatchUidRunner uid2Watcher = new WatchUidRunner(mInstrumentation, app2Info.uid,
                 WAITFOR_MSEC);
+        final int defaultBehavior = getPushMessagingOverQuotaBehavior();
         try {
+            setPushMessagingOverQuotaBehavior(
+                    TEMPORARY_ALLOW_LIST_TYPE_FOREGROUND_SERVICE_NOT_ALLOWED);
             // Enable the FGS background startForeground() restriction.
             enableFgsRestriction(true, true, null);
             // Now it can start FGS.
@@ -1741,8 +1744,64 @@ public class ActivityManagerFgsBgStartTest {
         } finally {
             uid1Watcher.finish();
             uid2Watcher.finish();
+            setPushMessagingOverQuotaBehavior(defaultBehavior);
             // Sleep to let the temp allowlist expire so it won't affect next test case.
             SystemClock.sleep(TEMP_ALLOWLIST_DURATION_MS);
+        }
+    }
+
+    /**
+     * Test default_input_method is exempted from BG-FGS-start restriction.
+     * @throws Exception
+     */
+    @Test
+    public void testFgsStartInputMethod() throws Exception {
+        ApplicationInfo app1Info = mContext.getPackageManager().getApplicationInfo(
+                PACKAGE_NAME_APP1, 0);
+        WatchUidRunner uid1Watcher = new WatchUidRunner(mInstrumentation, app1Info.uid,
+                WAITFOR_MSEC);
+        final String defaultInputMethod = CtsAppTestUtils.executeShellCmd(mInstrumentation,
+                "settings get --user current secure default_input_method");
+        try {
+            // Enable the FGS background startForeground() restriction.
+            enableFgsRestriction(true, true, null);
+            // Start FGS in BG state.
+            WaitForBroadcast waiter = new WaitForBroadcast(mInstrumentation.getTargetContext());
+            waiter.prepare(ACTION_START_FGS_RESULT);
+            CommandReceiver.sendCommand(mContext,
+                    CommandReceiver.COMMAND_START_FOREGROUND_SERVICE,
+                    PACKAGE_NAME_APP1, PACKAGE_NAME_APP1, 0, null);
+            // APP1 does not enter FGS state
+            try {
+                waiter.doWait(WAITFOR_MSEC);
+                fail("Service should not enter foreground service state");
+            } catch (Exception e) {
+            }
+
+            // Change default_input_method to PACKAGE_NAME_APP1.
+            final ComponentName cn = new ComponentName(PACKAGE_NAME_APP1, "xxx");
+            CtsAppTestUtils.executeShellCmd(mInstrumentation,
+                    "settings put --user current secure default_input_method "
+                            + cn.flattenToShortString());
+
+            waiter = new WaitForBroadcast(mInstrumentation.getTargetContext());
+            waiter.prepare(ACTION_START_FGS_RESULT);
+            // Now it can start FGS.
+            CommandReceiver.sendCommand(mContext,
+                    CommandReceiver.COMMAND_START_FOREGROUND_SERVICE,
+                    PACKAGE_NAME_APP1, PACKAGE_NAME_APP1, 0, null);
+            uid1Watcher.waitFor(WatchUidRunner.CMD_PROCSTATE, WatchUidRunner.STATE_FG_SERVICE);
+            waiter.doWait(WAITFOR_MSEC);
+            // Stop the FGS.
+            CommandReceiver.sendCommand(mContext,
+                    CommandReceiver.COMMAND_STOP_FOREGROUND_SERVICE,
+                    PACKAGE_NAME_APP1, PACKAGE_NAME_APP1, 0, null);
+            uid1Watcher.waitFor(WatchUidRunner.CMD_PROCSTATE, WatchUidRunner.STATE_CACHED_EMPTY);
+        } finally {
+            uid1Watcher.finish();
+            CtsAppTestUtils.executeShellCmd(mInstrumentation,
+                    "settings put --user current secure default_input_method "
+                            + defaultInputMethod);
         }
     }
 
@@ -1823,5 +1882,21 @@ public class ActivityManagerFgsBgStartTest {
                             Integer.toString(type), false);
                 }
         );
+        // Sleep 2 seconds to allow the device config change to be applied.
+        SystemClock.sleep(2000);
+    }
+
+    private int getPushMessagingOverQuotaBehavior() throws Exception {
+        final String defaultBehaviorStr = CtsAppTestUtils.executeShellCmd(mInstrumentation,
+                "device_config get activity_manager "
+                        + KEY_PUSH_MESSAGING_OVER_QUOTA_BEHAVIOR).trim();
+        int defaultBehavior = TEMPORARY_ALLOW_LIST_TYPE_FOREGROUND_SERVICE_NOT_ALLOWED;
+        if (!defaultBehaviorStr.equals("null")) {
+            try {
+                defaultBehavior = Integer.parseInt(defaultBehaviorStr);
+            } catch (NumberFormatException e) {
+            }
+        }
+        return defaultBehavior;
     }
 }

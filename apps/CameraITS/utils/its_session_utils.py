@@ -1010,18 +1010,36 @@ class ItsSession(object):
         chart_distance, camera_fov)
     if numpy.isclose(
         chart_scaling,
+        opencv_processing_utils.SCALE_RFOV_IN_WFOV_BOX,
+        atol=0.01):
+      file_name = '%s_%sx_scaled.png' % (
+          scene, str(opencv_processing_utils.SCALE_RFOV_IN_WFOV_BOX))
+    elif numpy.isclose(
+        chart_scaling,
         opencv_processing_utils.SCALE_TELE_IN_WFOV_BOX,
         atol=0.01):
-      file_name = '%s_%sx_scaled.pdf' % (
+      file_name = '%s_%sx_scaled.png' % (
           scene, str(opencv_processing_utils.SCALE_TELE_IN_WFOV_BOX))
     elif numpy.isclose(
         chart_scaling,
-        opencv_processing_utils.SCALE_RFOV_IN_WFOV_BOX,
+        opencv_processing_utils.SCALE_TELE25_IN_RFOV_BOX,
         atol=0.01):
-      file_name = '%s_%sx_scaled.pdf' % (
-          scene, str(opencv_processing_utils.SCALE_RFOV_IN_WFOV_BOX))
+      file_name = '%s_%sx_scaled.png' % (
+          scene, str(opencv_processing_utils.SCALE_TELE25_IN_RFOV_BOX))
+    elif numpy.isclose(
+        chart_scaling,
+        opencv_processing_utils.SCALE_TELE40_IN_RFOV_BOX,
+        atol=0.01):
+      file_name = '%s_%sx_scaled.png' % (
+          scene, str(opencv_processing_utils.SCALE_TELE40_IN_RFOV_BOX))
+    elif numpy.isclose(
+        chart_scaling,
+        opencv_processing_utils.SCALE_TELE_IN_RFOV_BOX,
+        atol=0.01):
+      file_name = '%s_%sx_scaled.png' % (
+          scene, str(opencv_processing_utils.SCALE_TELE_IN_RFOV_BOX))
     else:
-      file_name = '%s.pdf' % scene
+      file_name = '%s.png' % scene
     logging.debug('Scene to load: %s', file_name)
     return file_name
 
@@ -1075,25 +1093,24 @@ class ItsSession(object):
                                       ' support')
     return data['strValue'] == 'true'
 
-  def is_performance_class_primary_camera(self):
+  def get_performance_class_level(self):
     """Query whether the camera device is an R or S performance class primary camera.
 
     A primary rear/front facing camera is a camera device with the lowest
     camera Id for that facing.
 
     Returns:
-      Boolean
+      Performance class level in integer. R: 11. S: 12.
     """
     cmd = {}
-    cmd['cmdName'] = 'isPerformanceClassPrimaryCamera'
+    cmd['cmdName'] = 'getPerformanceClassLevel'
     cmd['cameraId'] = self._camera_id
     self.sock.send(json.dumps(cmd).encode() + '\n'.encode())
 
     data, _ = self.__read_response_from_socket()
-    if data['tag'] != 'performanceClassPrimaryCamera':
-      raise error_util.CameraItsError('Failed to query performance class '
-                                      'primary camera')
-    return data['strValue'] == 'true'
+    if data['tag'] != 'performanceClassLevel':
+      raise error_util.CameraItsError('Failed to query performance class level')
+    return int(data['strValue'])
 
   def measure_camera_launch_ms(self):
     """Measure camera launch latency in millisecond, from open to first frame.
@@ -1141,7 +1158,7 @@ def parse_camera_ids(ids):
   camera_id_combo = collections.namedtuple('CameraIdCombo', ['id', 'sub_id'])
   id_combos = []
   for one_id in ids:
-    one_combo = one_id.split(':')
+    one_combo = one_id.split(SUB_CAMERA_SEPARATOR)
     if len(one_combo) == 1:
       id_combos.append(camera_id_combo(one_combo[0], None))
     elif len(one_combo) == 2:
@@ -1196,7 +1213,7 @@ def load_scene(cam, props, scene, tablet, chart_distance):
   logging.debug('Displaying %s on the tablet', file_name)
   # Display the scene on the tablet depending on camera_fov
   tablet.adb.shell(
-      'am start -a android.intent.action.VIEW -t application/pdf '
+      'am start -a android.intent.action.VIEW -t image/png '
       f'-d file://mnt/sdcard/Download/{file_name}')
   time.sleep(LOAD_SCENE_DELAY_SEC)
   rfov_camera_in_rfov_box = (

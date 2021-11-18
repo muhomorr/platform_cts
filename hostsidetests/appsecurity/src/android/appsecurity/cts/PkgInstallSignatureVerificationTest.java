@@ -16,7 +16,7 @@
 
 package android.appsecurity.cts;
 
-import android.platform.test.annotations.SecurityTest;
+import android.platform.test.annotations.AsbSecurityTest;
 
 import com.android.compatibility.common.tradefed.build.CompatibilityBuildHelper;
 import com.android.tradefed.build.IBuildInfo;
@@ -39,6 +39,7 @@ import java.util.Locale;
 public class PkgInstallSignatureVerificationTest extends DeviceTestCase implements IBuildReceiver {
 
     private static final String TEST_PKG = "android.appsecurity.cts.tinyapp";
+    private static final String TEST_PKG2 = "android.appsecurity.cts.tinyapp2";
     private static final String COMPANION_TEST_PKG = "android.appsecurity.cts.tinyapp_companion";
     private static final String COMPANION2_TEST_PKG = "android.appsecurity.cts.tinyapp_companion2";
     private static final String DEVICE_TESTS_APK = "CtsV3SigningSchemeRotationTest.apk";
@@ -515,7 +516,7 @@ public class PkgInstallSignatureVerificationTest extends DeviceTestCase implemen
         assertInstallFailsWithError("v2-only-empty.apk", "Unknown failure");
     }
 
-    @SecurityTest
+    @AsbSecurityTest(cveBugId = 64211847)
     public void testInstallApkWhichDoesNotStartWithZipLocalFileHeaderMagic() throws Exception {
         // The APKs below are competely fine except they don't start with ZIP Local File Header
         // magic. Thus, these APKs will install just fine unless Package Manager requires that APKs
@@ -958,6 +959,35 @@ public class PkgInstallSignatureVerificationTest extends DeviceTestCase implemen
         assertInstallSucceeds("v3-rsa-pkcs1-sha256-2048-1_P_and_2_Qplus.apk");
     }
 
+    public void testSharedKeyInSeparateLineageRetainsDeclaredCapabilities() throws Exception {
+        // This test verifies when a key is used in the signing lineage of multiple apps each
+        // instance of the key retains its declared capabilities.
+
+        // This app has granted the PERMISSION capability to the previous signer in the lineage
+        // but has revoked the SHARED_USER_ID capability.
+        assertInstallFromBuildSucceeds("v3-ec-p256-with-por_1_2-no-shUid-cap-declperm2.apk");
+        // This app has granted the SHARED_USER_ID capability to the previous signer in the lineage
+        // but has revoked the PERMISSION capability.
+        assertInstallFromBuildSucceeds("v3-ec-p256-with-por_1_2-no-perm-cap-sharedUid.apk");
+
+        // Reboot the device to ensure that the capabilities written to packages.xml are properly
+        // assigned to the packages installed above; it's possible immediately after a package
+        // install the capabilities are as declared, but then during the reboot shared signing
+        // keys also share the initial declared capabilities.
+        getDevice().reboot();
+
+        // This app is signed with the original shared signing key in the lineage and is part of the
+        // sharedUserId; since the other app in this sharedUserId has granted the required
+        // capability in the lineage the install should succeed.
+        assertInstallFromBuildSucceeds("v3-ec-p256-1-sharedUid-companion2.apk");
+        // This app is signed with the original shared signing key in the lineage and requests the
+        // signature permission declared by the test app above. Since that app granted the
+        // PERMISSION capability to the previous signer in the lineage this app should have the
+        // permission granted.
+        assertInstallFromBuildSucceeds("v3-ec-p256-1-companion-usesperm.apk");
+        Utils.runDeviceTests(getDevice(), DEVICE_TESTS_PKG, DEVICE_TESTS_CLASS, "testHasPerm");
+    }
+
     public void testInstallTargetSdk30WithV1Signers() throws Exception {
         // An app targeting SDK version >= 30 must have at least a V2 signature; this test verifies
         // an app targeting SDK version 30 with only a V1 signature fails to install.
@@ -1291,7 +1321,6 @@ public class PkgInstallSignatureVerificationTest extends DeviceTestCase implemen
                 "signatures do not match previously installed version");
     }
 
-
     public void testV4IncToV2NonIncSameKeyUpgradeSucceeds() throws Exception {
         // V4 is only enabled on devices with Incremental feature
         if (!hasIncrementalFeature()) {
@@ -1319,6 +1348,47 @@ public class PkgInstallSignatureVerificationTest extends DeviceTestCase implemen
         // non-incremental upgrade with a mismatching key.
         assertInstallFailsWithError("v4-inc-to-v2-noninc-ec-p384-appv2.apk",
                 "signatures do not match previously installed version");
+    }
+
+    public void testInstallV4UpdateAfterRotation() throws Exception {
+        // V4 is only enabled on devices with Incremental feature
+        if (!hasIncrementalFeature()) {
+            return;
+        }
+
+        // This test performs an end to end verification of the update of an app with a rotated
+        // key. The app under test exports a bound service that performs its own PackageManager key
+        // rotation API verification, and the instrumentation test binds to the service and invokes
+        // the verifySignatures method to verify that the key rotation APIs return the expected
+        // results. The instrumentation test app is signed with the same key and lineage as the
+        // app under test to also provide a second app that can be used for the checkSignatures
+        // verification.
+
+        // Install the initial versions of the apps; the test method verifies the app under test is
+        // signed with the original signing key.
+        assertInstallV4FromBuildSucceeds("CtsSignatureQueryService.apk");
+        assertInstallV4FromBuildSucceeds("CtsSignatureQueryServiceTest.apk");
+        Utils.runDeviceTests(getDevice(), SERVICE_TEST_PKG, SERVICE_TEST_CLASS,
+                "verifySignatures_noRotation_succeeds");
+
+        // Install the second version of the app signed with the rotated key. This test verifies the
+        // app still functions as expected after the update with the rotated key. The
+        // instrumentation test app is not updated here to allow verification of the pre-key
+        // rotation behavior for the checkSignatures APIs. These APIs should behave similar to the
+        // GET_SIGNATURES flag in that if one or both apps have a signing lineage if the oldest
+        // signers in the lineage match then the methods should return that the signatures match
+        // even if one is signed with a newer key in the lineage.
+        assertInstallV4FromBuildSucceeds("CtsSignatureQueryService_v2.apk");
+        Utils.runDeviceTests(getDevice(), SERVICE_TEST_PKG, SERVICE_TEST_CLASS,
+                "verifySignatures_withRotation_succeeds");
+
+        // Installs the third version of the app under test and the instrumentation test, both
+        // signed with the same rotated key and lineage. This test is intended to verify that the
+        // app can still be updated and function as expected after an update with a rotated key.
+        assertInstallV4FromBuildSucceeds("CtsSignatureQueryService_v3.apk");
+        assertInstallV4FromBuildSucceeds("CtsSignatureQueryServiceTest_v2.apk");
+        Utils.runDeviceTests(getDevice(), SERVICE_TEST_PKG, SERVICE_TEST_CLASS,
+                "verifySignatures_withRotation_succeeds");
     }
 
     private boolean hasIncrementalFeature() throws Exception {
@@ -1362,6 +1432,13 @@ public class PkgInstallSignatureVerificationTest extends DeviceTestCase implemen
         String installResult = installV4PackageFromResource(apkFilenameInResources);
         if (!installResult.equals("Success\n")) {
             fail("Failed to install " + apkFilenameInResources + ": " + installResult);
+        }
+    }
+
+    private void assertInstallV4FromBuildSucceeds(String apkName) throws Exception {
+        String installResult = installV4PackageFromBuild(apkName);
+        if (!installResult.equals("Success\n")) {
+            fail("Failed to install " + apkName + ": " + installResult);
         }
     }
 
@@ -1488,6 +1565,16 @@ public class PkgInstallSignatureVerificationTest extends DeviceTestCase implemen
         }
     }
 
+    private String installV4PackageFromBuild(String apkName)
+            throws IOException, DeviceNotAvailableException {
+        CompatibilityBuildHelper buildHelper = new CompatibilityBuildHelper(mCtsBuild);
+        File apkFile = buildHelper.getTestFile(apkName);
+        File v4SignatureFile = buildHelper.getTestFile(apkName + ".idsig");
+        String remoteApkFilePath = pushFileToRemote(apkFile);
+        pushFileToRemote(v4SignatureFile);
+        return installV4Package(remoteApkFilePath);
+    }
+
     private String pushFileToRemote(File localFile) throws DeviceNotAvailableException {
         String remotePath = "/data/local/tmp/pkginstalltest-" + localFile.getName();
         getDevice().pushFile(localFile, remotePath);
@@ -1496,7 +1583,7 @@ public class PkgInstallSignatureVerificationTest extends DeviceTestCase implemen
 
     private String installV4Package(String remoteApkPath)
             throws DeviceNotAvailableException {
-        String command = "pm install-incremental -t -g " + remoteApkPath;
+        String command = "pm install-incremental --force-queryable -t -g " + remoteApkPath;
         return getDevice().executeShellCommand(command);
     }
 
@@ -1536,7 +1623,9 @@ public class PkgInstallSignatureVerificationTest extends DeviceTestCase implemen
     }
 
     private String uninstallPackage() throws DeviceNotAvailableException {
-        return getDevice().uninstallPackage(TEST_PKG);
+        String result1 = getDevice().uninstallPackage(TEST_PKG);
+        String result2 = getDevice().uninstallPackage(TEST_PKG2);
+        return result1 != null ? result1 : result2;
     }
 
     private String uninstallCompanionPackages() throws DeviceNotAvailableException {
