@@ -248,6 +248,21 @@ public class ParcelTest extends AndroidTestCase {
         p.recycle();
     }
 
+    public void testEnforceNoDataAvail(){
+        final Parcel p = Parcel.obtain();
+        p.writeInt(1);
+        p.writeString("test");
+
+        p.setDataPosition(0);
+        p.readInt();
+        Throwable error = assertThrows(BadParcelableException.class, () -> p.enforceNoDataAvail());
+        assertTrue(error.getMessage().contains("Parcel data not fully consumed"));
+
+        p.readString();
+        p.enforceNoDataAvail();
+        p.recycle();
+    }
+
     public void testMarshall() {
         final byte[] c = {Byte.MAX_VALUE, (byte) 111, (byte) 11, (byte) 1, (byte) 0,
                     (byte) -1, (byte) -11, (byte) -111, Byte.MIN_VALUE};
@@ -2060,6 +2075,17 @@ public class ParcelTest extends AndroidTestCase {
 
         p.setDataPosition(0);
         assertNull(p.readSerializable(null, Exception.class));
+        p.recycle();
+    }
+
+    public void testReadSerializableWithClass_whenNullClassLoader(){
+        Parcel p = Parcel.obtain();
+        TestSubException testSubException = new TestSubException("test");
+        p.writeSerializable(testSubException);
+        p.setDataPosition(0);
+        Throwable error = assertThrows(BadParcelableException.class, () ->
+                p.readSerializable(null, TestSubException.class));
+        assertTrue(error.getMessage().contains("ClassNotFoundException reading a Serializable"));
         p.recycle();
     }
 
@@ -4387,6 +4413,12 @@ public class ParcelTest extends AndroidTestCase {
         @Override
         public int hashCode() {
             return mString.hashCode();
+        }
+    }
+
+    private static class TestSubException extends Exception{
+        public TestSubException(String msg) {
+            super(msg);
         }
     }
 
