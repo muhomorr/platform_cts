@@ -22,9 +22,10 @@ import android.os.Build
 import android.support.test.uiautomator.By
 import androidx.test.filters.SdkSuppress
 import com.android.compatibility.common.util.SystemUtil
+import com.android.modules.utils.build.SdkLevel
 import org.junit.After
+import org.junit.Assume.assumeFalse
 import org.junit.Before
-import org.junit.Ignore
 import org.junit.Test
 
 private const val APP_LABEL_1 = "CtsMicAccess"
@@ -40,7 +41,17 @@ private const val MORE_OPTIONS = "More options"
 @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
 class PermissionHistoryTest : BasePermissionHubTest() {
     private val micLabel = packageManager.getPermissionGroupInfo(
-            Manifest.permission_group.MICROPHONE, 0).loadLabel(packageManager).toString()
+        Manifest.permission_group.MICROPHONE, 0).loadLabel(packageManager).toString()
+
+    // Permission history is not available on TV devices.
+    @Before
+    fun assumeNotTv() = assumeFalse(isTv)
+
+    // Permission history is not available on Auto devices running S or below.
+    @Before
+    fun assumeNotAutoBelowT() {
+        assumeFalse(isAutomotive && !SdkLevel.isAtLeastT())
+    }
 
     @Before
     fun installApps() {
@@ -84,6 +95,7 @@ class PermissionHistoryTest : BasePermissionHubTest() {
 
         waitFindObject(By.text(SHOW_SYSTEM))
         pressBack()
+        pressBack()
     }
 
     @Test
@@ -101,7 +113,6 @@ class PermissionHistoryTest : BasePermissionHubTest() {
         pressBack()
     }
 
-    @Ignore("b/186656826#comment27")
     @Test
     fun testCameraTimelineWithMultipleApps() {
         openMicrophoneApp(INTENT_ACTION_1)

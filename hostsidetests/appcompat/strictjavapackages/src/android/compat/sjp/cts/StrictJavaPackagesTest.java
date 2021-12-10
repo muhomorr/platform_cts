@@ -24,28 +24,31 @@ import static com.google.common.truth.Truth.assertThat;
 import static org.junit.Assume.assumeTrue;
 
 import android.compat.testing.Classpaths;
+import android.compat.testing.SharedLibraryInfo;
 
-import com.android.compatibility.common.util.ApiLevelUtil;
-import com.android.tradefed.log.LogUtil;
-import com.android.tradefed.log.LogUtil.CLog;
+import com.android.modules.utils.build.testing.DeviceSdkLevel;
+import com.android.tradefed.device.DeviceNotAvailableException;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
 import com.android.tradefed.testtype.junit4.BaseHostJUnit4Test;
 
-import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableCollection;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.ImmutableSetMultimap;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Multimaps;
 
 import org.jf.dexlib2.iface.ClassDef;
+import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import java.io.IOException;
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.Set;
+import java.util.stream.Stream;
+
 
 /**
  * Tests for detecting no duplicate class files are present on BOOTCLASSPATH and
@@ -56,6 +59,17 @@ import java.util.Set;
  */
 @RunWith(DeviceJUnit4ClassRunner.class)
 public class StrictJavaPackagesTest extends BaseHostJUnit4Test {
+
+    private static final String ANDROID_TEST_MOCK_JAR = "/system/framework/android.test.mock.jar";
+
+    private static final Object sLock = new Object();
+    private static ImmutableList<String> sBootclasspathJars;
+    private static ImmutableList<String> sSystemserverclasspathJars;
+    private static ImmutableList<String> sSharedLibJars;
+    private static ImmutableList<SharedLibraryInfo> sSharedLibs;
+    private static ImmutableSetMultimap<String, String> sJarsToClasses;
+
+    private DeviceSdkLevel mDeviceSdkLevel;
 
     /**
      * This is the list of classes that are currently duplicated and should be addressed.
@@ -194,15 +208,172 @@ public class StrictJavaPackagesTest extends BaseHostJUnit4Test {
                     "Lcom/android/internal/util/FrameworkStatsLog;"
             );
 
+    private static final String FEATURE_WEARABLE = "android.hardware.type.watch";
+    private static final String FEATURE_AUTOMOTIVE = "android.hardware.type.automotive";
+
+    private static final Set<String> WEAR_HIDL_OVERLAP_BURNDOWN_LIST =
+            ImmutableSet.of(
+                    "Landroid/hidl/base/V1_0/DebugInfo$Architecture;",
+                    "Landroid/hidl/base/V1_0/IBase;",
+                    "Landroid/hidl/base/V1_0/IBase$Proxy;",
+                    "Landroid/hidl/base/V1_0/IBase$Stub;",
+                    "Landroid/hidl/base/V1_0/DebugInfo;",
+                    "Landroid/hidl/safe_union/V1_0/Monostate;"
+            );
+
+    private static final Set<String> AUTOMOTIVE_HIDL_OVERLAP_BURNDOWN_LIST =
+            ImmutableSet.of(
+                    "Landroid/hidl/base/V1_0/DebugInfo$Architecture;",
+                    "Landroid/hidl/base/V1_0/IBase;",
+                    "Landroid/hidl/base/V1_0/IBase$Proxy;",
+                    "Landroid/hidl/base/V1_0/IBase$Stub;",
+                    "Landroid/hidl/base/V1_0/DebugInfo;"
+            );
+
+    /**
+     * TODO(b/199529199): Address these.
+     * List of duplicate classes between bootclasspath and shared libraries.
+     *
+     * <p> DO NOT ADD CLASSES TO THIS LIST!
+     */
+    private static final Set<String> BCP_AND_SHARED_LIB_BURNDOWN_LIST =
+            ImmutableSet.of(
+                    "Landroid/hidl/base/V1_0/DebugInfo;",
+                    "Landroid/hidl/base/V1_0/IBase;",
+                    "Landroid/hidl/manager/V1_0/IServiceManager;",
+                    "Landroid/hidl/manager/V1_0/IServiceNotification;",
+                    "Landroidx/annotation/Keep;",
+                    "Lcom/google/android/embms/nano/EmbmsProtos;",
+                    "Lcom/google/protobuf/nano/android/ParcelableExtendableMessageNano;",
+                    "Lcom/google/protobuf/nano/android/ParcelableMessageNano;",
+                    "Lcom/google/protobuf/nano/android/ParcelableMessageNanoCreator;",
+                    "Lcom/google/protobuf/nano/CodedInputByteBufferNano;",
+                    "Lcom/google/protobuf/nano/CodedOutputByteBufferNano;",
+                    "Lcom/google/protobuf/nano/ExtendableMessageNano;",
+                    "Lcom/google/protobuf/nano/Extension;",
+                    "Lcom/google/protobuf/nano/FieldArray;",
+                    "Lcom/google/protobuf/nano/FieldData;",
+                    "Lcom/google/protobuf/nano/InternalNano;",
+                    "Lcom/google/protobuf/nano/InvalidProtocolBufferNanoException;",
+                    "Lcom/google/protobuf/nano/MapFactories;",
+                    "Lcom/google/protobuf/nano/MessageNano;",
+                    "Lcom/google/protobuf/nano/MessageNanoPrinter;",
+                    "Lcom/google/protobuf/nano/UnknownFieldData;",
+                    "Lcom/google/protobuf/nano/WireFormatNano;",
+                    "Lcom/qualcomm/qcrilhook/BaseQmiTypes;",
+                    "Lcom/qualcomm/qcrilhook/CSignalStrength;",
+                    "Lcom/qualcomm/qcrilhook/EmbmsOemHook;",
+                    "Lcom/qualcomm/qcrilhook/EmbmsProtoUtils;",
+                    "Lcom/qualcomm/qcrilhook/IOemHookCallback;",
+                    "Lcom/qualcomm/qcrilhook/IQcRilHook;",
+                    "Lcom/qualcomm/qcrilhook/IQcRilHookExt;",
+                    "Lcom/qualcomm/qcrilhook/OemHookCallback;",
+                    "Lcom/qualcomm/qcrilhook/PresenceMsgBuilder;",
+                    "Lcom/qualcomm/qcrilhook/PresenceMsgParser;",
+                    "Lcom/qualcomm/qcrilhook/PresenceOemHook;",
+                    "Lcom/qualcomm/qcrilhook/PrimitiveParser;",
+                    "Lcom/qualcomm/qcrilhook/QcRilHook;",
+                    "Lcom/qualcomm/qcrilhook/QcRilHookCallback;",
+                    "Lcom/qualcomm/qcrilhook/QcRilHookCallbackExt;",
+                    "Lcom/qualcomm/qcrilhook/QcRilHookExt;",
+                    "Lcom/qualcomm/qcrilhook/QmiOemHook;",
+                    "Lcom/qualcomm/qcrilhook/QmiOemHookConstants;",
+                    "Lcom/qualcomm/qcrilhook/QmiPrimitiveTypes;",
+                    "Lcom/qualcomm/qcrilhook/TunerOemHook;",
+                    "Lcom/qualcomm/qcrilmsgtunnel/IQcrilMsgTunnel;",
+                    "Lcom/qualcomm/utils/CommandException;",
+                    "Lcom/qualcomm/utils/RILConstants;",
+                    "Lorg/codeaurora/telephony/utils/CommandException;",
+                    "Lorg/codeaurora/telephony/utils/Log;",
+                    "Lorg/codeaurora/telephony/utils/RILConstants;",
+                    "Lorg/chromium/net/ApiVersion;",
+                    "Lorg/chromium/net/BidirectionalStream;",
+                    "Lorg/chromium/net/CallbackException;",
+                    "Lorg/chromium/net/CronetEngine;",
+                    "Lorg/chromium/net/CronetException;",
+                    "Lorg/chromium/net/CronetProvider;",
+                    "Lorg/chromium/net/EffectiveConnectionType;",
+                    "Lorg/chromium/net/ExperimentalBidirectionalStream;",
+                    "Lorg/chromium/net/ExperimentalCronetEngine;",
+                    "Lorg/chromium/net/ExperimentalUrlRequest;",
+                    "Lorg/chromium/net/ICronetEngineBuilder;",
+                    "Lorg/chromium/net/InlineExecutionProhibitedException;",
+                    "Lorg/chromium/net/NetworkException;",
+                    "Lorg/chromium/net/NetworkQualityRttListener;",
+                    "Lorg/chromium/net/NetworkQualityThroughputListener;",
+                    "Lorg/chromium/net/QuicException;",
+                    "Lorg/chromium/net/RequestFinishedInfo;",
+                    "Lorg/chromium/net/RttThroughputValues;",
+                    "Lorg/chromium/net/ThreadStatsUid;",
+                    "Lorg/chromium/net/UploadDataProvider;",
+                    "Lorg/chromium/net/UploadDataProviders;",
+                    "Lorg/chromium/net/UploadDataSink;",
+                    "Lorg/chromium/net/UrlRequest;",
+                    "Lorg/chromium/net/UrlResponseInfo;"
+            );
+
+    /**
+     * Fetch all jar files in BCP, SSCP and shared libs and extract all the classes.
+     *
+     * <p>This method cannot be static, as there are no static equivalents for {@link #getDevice()}
+     * and {@link #getBuild()}.
+     */
+    @Before
+    public void setupOnce() throws IOException, DeviceNotAvailableException {
+        if (getDevice() == null || getBuild() == null) {
+            throw new RuntimeException("No device and/or build type specified!");
+        }
+        mDeviceSdkLevel = new DeviceSdkLevel(getDevice());
+
+        synchronized (sLock) {
+            if (sJarsToClasses != null) {
+                return;
+            }
+            sBootclasspathJars = Classpaths.getJarsOnClasspath(getDevice(), BOOTCLASSPATH);
+            sSystemserverclasspathJars =
+                    Classpaths.getJarsOnClasspath(getDevice(), SYSTEMSERVERCLASSPATH);
+            sSharedLibs = mDeviceSdkLevel.isDeviceAtLeastS()
+                    ? Classpaths.getSharedLibraryInfos(getDevice(), getBuild())
+                    : ImmutableList.of();
+            sSharedLibJars = sSharedLibs.stream()
+                    .map(sharedLibraryInfo -> sharedLibraryInfo.paths)
+                    .flatMap(ImmutableCollection::stream)
+                    .filter(this::doesFileExist)
+                    .collect(ImmutableList.toImmutableList());
+
+            final ImmutableSetMultimap.Builder<String, String> jarsToClasses =
+                    ImmutableSetMultimap.builder();
+            Stream.of(sBootclasspathJars.stream(),
+                            sSystemserverclasspathJars.stream(),
+                            sSharedLibJars.stream())
+                    .reduce(Stream::concat).orElseGet(Stream::empty)
+                    .parallel()
+                    .forEach(jar -> {
+                        try {
+                            ImmutableSet<String> classes =
+                                    Classpaths.getClassDefsFromJar(getDevice(), jar).stream()
+                                            .map(ClassDef::getType)
+                                            // Inner classes always go with their parent.
+                                            .filter(className -> !className.contains("$"))
+                                            .collect(ImmutableSet.toImmutableSet());
+                            synchronized (jarsToClasses) {
+                                jarsToClasses.putAll(jar, classes);
+                            }
+                        } catch (DeviceNotAvailableException | IOException e) {
+                            throw new RuntimeException(e);
+                        }
+                    });
+            sJarsToClasses = jarsToClasses.build();
+        }
+    }
+
     /**
      * Ensure that there are no duplicate classes among jars listed in BOOTCLASSPATH.
      */
     @Test
     public void testBootclasspath_nonDuplicateClasses() throws Exception {
-        assumeTrue(ApiLevelUtil.isAfter(getDevice(), 29));
-        ImmutableList<String> jars =
-                Classpaths.getJarsOnClasspath(getDevice(), BOOTCLASSPATH);
-        assertThat(getDuplicateClasses(jars)).isEmpty();
+        assumeTrue(mDeviceSdkLevel.isDeviceAtLeastR());
+        assertThat(getDuplicateClasses(sBootclasspathJars)).isEmpty();
     }
 
     /**
@@ -210,10 +381,20 @@ public class StrictJavaPackagesTest extends BaseHostJUnit4Test {
      */
     @Test
     public void testSystemServerClasspath_nonDuplicateClasses() throws Exception {
-        assumeTrue(ApiLevelUtil.isAfter(getDevice(), 29));
-        ImmutableList<String> jars =
-                Classpaths.getJarsOnClasspath(getDevice(), SYSTEMSERVERCLASSPATH);
-        assertThat(getDuplicateClasses(jars)).isEmpty();
+        assumeTrue(mDeviceSdkLevel.isDeviceAtLeastR());
+        ImmutableSet<String> overlapBurndownList;
+        if (hasFeature(FEATURE_AUTOMOTIVE)) {
+            overlapBurndownList = ImmutableSet.copyOf(AUTOMOTIVE_HIDL_OVERLAP_BURNDOWN_LIST);
+        } else if (hasFeature(FEATURE_WEARABLE)) {
+            overlapBurndownList = ImmutableSet.copyOf(WEAR_HIDL_OVERLAP_BURNDOWN_LIST);
+        } else {
+            overlapBurndownList = ImmutableSet.of();
+        }
+        Multimap<String, String> duplicates = getDuplicateClasses(sSystemserverclasspathJars);
+        Multimap<String, String> filtered = Multimaps.filterKeys(duplicates,
+                duplicate -> !overlapBurndownList.contains(duplicate));
+
+        assertThat(filtered).isEmpty();
     }
 
     /**
@@ -222,14 +403,25 @@ public class StrictJavaPackagesTest extends BaseHostJUnit4Test {
      */
     @Test
     public void testBootClasspathAndSystemServerClasspath_nonDuplicateClasses() throws Exception {
-        assumeTrue(ApiLevelUtil.isAfter(getDevice(), 29));
+        assumeTrue(mDeviceSdkLevel.isDeviceAtLeastR());
         ImmutableList.Builder<String> jars = ImmutableList.builder();
-        jars.addAll(Classpaths.getJarsOnClasspath(getDevice(), BOOTCLASSPATH));
-        jars.addAll(Classpaths.getJarsOnClasspath(getDevice(), SYSTEMSERVERCLASSPATH));
-
+        jars.addAll(sBootclasspathJars);
+        jars.addAll(sSystemserverclasspathJars);
+        ImmutableSet<String> overlapBurndownList;
+        if (hasFeature(FEATURE_AUTOMOTIVE)) {
+            overlapBurndownList = ImmutableSet.<String>builder()
+                    .addAll(BCP_AND_SSCP_OVERLAP_BURNDOWN_LIST)
+                    .addAll(AUTOMOTIVE_HIDL_OVERLAP_BURNDOWN_LIST).build();
+        } else if (hasFeature(FEATURE_WEARABLE)) {
+            overlapBurndownList = ImmutableSet.<String>builder()
+                    .addAll(BCP_AND_SSCP_OVERLAP_BURNDOWN_LIST)
+                    .addAll(WEAR_HIDL_OVERLAP_BURNDOWN_LIST).build();
+        } else {
+            overlapBurndownList = ImmutableSet.copyOf(BCP_AND_SSCP_OVERLAP_BURNDOWN_LIST);
+        }
         Multimap<String, String> duplicates = getDuplicateClasses(jars.build());
         Multimap<String, String> filtered = Multimaps.filterKeys(duplicates,
-                duplicate -> !BCP_AND_SSCP_OVERLAP_BURNDOWN_LIST.contains(duplicate));
+                duplicate -> !overlapBurndownList.contains(duplicate));
 
         assertThat(filtered).isEmpty();
     }
@@ -239,13 +431,9 @@ public class StrictJavaPackagesTest extends BaseHostJUnit4Test {
      */
     @Test
     public void testBootClasspath_nonDuplicateApexJarClasses() throws Exception {
-        ImmutableList<String> jars =
-                Classpaths.getJarsOnClasspath(getDevice(), BOOTCLASSPATH);
-
-        Multimap<String, String> duplicates = getDuplicateClasses(jars);
+        Multimap<String, String> duplicates = getDuplicateClasses(sBootclasspathJars);
         Multimap<String, String> filtered =
                 Multimaps.filterValues(duplicates, jar -> jar.startsWith("/apex/"));
-
         assertThat(filtered).isEmpty();
     }
 
@@ -254,10 +442,7 @@ public class StrictJavaPackagesTest extends BaseHostJUnit4Test {
      */
     @Test
     public void testSystemServerClasspath_nonDuplicateApexJarClasses() throws Exception {
-        ImmutableList<String> jars =
-                Classpaths.getJarsOnClasspath(getDevice(), SYSTEMSERVERCLASSPATH);
-
-        Multimap<String, String> duplicates = getDuplicateClasses(jars);
+        Multimap<String, String> duplicates = getDuplicateClasses(sSystemserverclasspathJars);
         Multimap<String, String> filtered =
                 Multimaps.filterValues(duplicates, jar -> jar.startsWith("/apex/"));
 
@@ -272,8 +457,8 @@ public class StrictJavaPackagesTest extends BaseHostJUnit4Test {
     public void testBootClasspathAndSystemServerClasspath_nonApexDuplicateClasses()
             throws Exception {
         ImmutableList.Builder<String> jars = ImmutableList.builder();
-        jars.addAll(Classpaths.getJarsOnClasspath(getDevice(), BOOTCLASSPATH));
-        jars.addAll(Classpaths.getJarsOnClasspath(getDevice(), SYSTEMSERVERCLASSPATH));
+        jars.addAll(sBootclasspathJars);
+        jars.addAll(sSystemserverclasspathJars);
 
         Multimap<String, String> duplicates = getDuplicateClasses(jars.build());
         Multimap<String, String> filtered = Multimaps.filterKeys(duplicates,
@@ -284,33 +469,92 @@ public class StrictJavaPackagesTest extends BaseHostJUnit4Test {
     }
 
     /**
+     * Ensure that there are no duplicate classes among jars listed in BOOTCLASSPATH and
+     * shared library jars.
+     */
+    @Test
+    public void testBootClasspathAndSharedLibs_nonDuplicateClasses() throws Exception {
+        assumeTrue(mDeviceSdkLevel.isDeviceAtLeastS());
+        final ImmutableList.Builder<String> jars = ImmutableList.builder();
+        jars.addAll(sBootclasspathJars);
+        jars.addAll(sSharedLibJars);
+        final Multimap<String, String> duplicates = getDuplicateClasses(jars.build());
+        final Multimap<String, String> filtered = Multimaps.filterKeys(duplicates,
+                dupeClass -> {
+                    try {
+                        final Collection<String> dupeJars = duplicates.get(dupeClass);
+                        // Duplicate is already known.
+                        if (BCP_AND_SHARED_LIB_BURNDOWN_LIST.contains(dupeClass)) {
+                            return false;
+                        }
+                        // Duplicate is only between different versions of the same shared library.
+                        if (isSameLibrary(dupeJars)) {
+                            return false;
+                        }
+                        // Pre-T, the Android test mock library included some platform classes.
+                        if (!mDeviceSdkLevel.isDeviceAtLeastT()
+                                && dupeJars.contains(ANDROID_TEST_MOCK_JAR)) {
+                            return false;
+                        }
+                        // Different versions of the same library may have different names, and
+                        // there's
+                        // no reliable way to dedupe them. Ignore duplicates if they do not
+                        // include apex jars.
+                        if (dupeJars.stream().noneMatch(lib -> lib.startsWith("/apex/"))) {
+                            return false;
+                        }
+                    } catch (DeviceNotAvailableException e) {
+                        throw new RuntimeException(e);
+                    }
+                    return true;
+                });
+        assertThat(filtered).isEmpty();
+    }
+
+    /**
      * Gets the duplicate classes within a list of jar files.
      *
      * @param jars a list of jar files.
      * @return a multimap with the class name as a key and the jar files as a value.
      */
-    private Multimap<String, String> getDuplicateClasses(ImmutableCollection<String> jars)
-            throws Exception {
-        final Multimap<String, String> allClasses = HashMultimap.create();
-        for (String jar : jars) {
-            ImmutableSet<ClassDef> classes = Classpaths.getClassDefsFromJar(getDevice(), jar);
-            for (ClassDef classDef : classes) {
-                // No need to worry about inner classes, as they always go with their parent.
-                if (!classDef.getType().contains("$")) {
-                    allClasses.put(classDef.getType(), jar);
-                }
-            }
-        }
+    private Multimap<String, String> getDuplicateClasses(ImmutableCollection<String> jars) {
+        final HashMultimap<String, String> allClasses = HashMultimap.create();
+        Multimaps.invertFrom(Multimaps.filterKeys(sJarsToClasses, jars::contains), allClasses);
+        return Multimaps.filterKeys(allClasses, key -> allClasses.get(key).size() > 1);
+    }
 
-        final Multimap<String, String> duplicates = HashMultimap.create();
-        for (String clazz : allClasses.keySet()) {
-            Collection<String> jarsWithClazz = allClasses.get(clazz);
-            if (jarsWithClazz.size() > 1) {
-                CLog.i("Class %s is duplicated in %s", clazz, jarsWithClazz);
-                duplicates.putAll(clazz, jarsWithClazz);
-            }
+    private boolean doesFileExist(String path) {
+        assertThat(path).isNotNull();
+        try {
+            return getDevice().doesFileExist(path);
+        } catch (DeviceNotAvailableException e) {
+            throw new RuntimeException("Could not check whether " + path + " exists on device", e);
         }
+    }
 
-        return duplicates;
+    /**
+     * Get the name of a shared library.
+     *
+     * @return the shared library name or the jar's path if it's not a shared library.
+     */
+    private String getSharedLibraryNameOrPath(String jar) {
+        return sSharedLibs.stream()
+                .filter(sharedLib -> sharedLib.paths.contains(jar))
+                .map(sharedLib -> sharedLib.name)
+                .findFirst().orElse(jar);
+    }
+
+    /**
+     * Check whether a list of jars are all different versions of the same library.
+     */
+    private boolean isSameLibrary(Collection<String> jars) {
+        return jars.stream()
+                .map(this::getSharedLibraryNameOrPath)
+                .distinct()
+                .count() == 1;
+    }
+
+    private boolean hasFeature(String featureName) throws DeviceNotAvailableException {
+        return getDevice().executeShellCommand("pm list features").contains(featureName);
     }
 }

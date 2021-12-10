@@ -15,6 +15,7 @@
 -->
 <resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="app_name">CTS Verifier</string>
+    <string name="module_id">noabi CtsVerifier</string>
 
     <string name="title_version">CTS Verifier %1$s</string>
 
@@ -875,7 +876,8 @@
     <string name="ibo_test">Ignore Battery Optimizations Test</string>
     <string name="ibo_test_info">
         This test verifies that the device provides a user affordance to ask the user if the system
-        should disable battery optimizations for an app.
+        should disable battery optimizations for an app and to allow a user to remove the app from
+        the exemption list.
     </string>
     <string name="ibo_test_start_unexempt_app">
         Remove the test app from the ignore battery optimizations list to begin the test. (Try going
@@ -887,8 +889,9 @@
     <string name="ibo_next_to_confirm">Press next to confirm.</string>
     <string name="ibo_app_not_exempted">The app is not exempted from battery optimizations.</string>
     <string name="ibo_unexempt_app">
-        Remove the test app from the ignore battery optimizations list. (Try going
-        to the App Info page and make sure the system is optimizing battery for the app.)
+        Remove the test app from the ignore battery optimizations list. (Either run \"adb shell cmd
+        deviceidle whitelist -com.android.cts.verifier\" or open the list of apps and their
+        exemption statuses. Find the test app in the list and remove the app\'s exemption.)
     </string>
     <string name="ibo_app_is_exempted">The app is exempted from battery optimizations.</string>
     <string name="ibo_exempt_app_list">
@@ -2277,12 +2280,50 @@
         on the lockscreen</string>
     <string name="nls_restore_visibility">Please change the lock screen setting to show all
         content on the lockscreen</string>
-    <string name="add_screen_lock">Add a secure screen lock of any type</string>
+    <string name="add_screen_lock">Add a secure screen lock of any type.\nLet all notification content be shown.</string>
+    <string name="set_global_visibility_public">Update notification settings to ensure that all notification content is shown.</string>
+    <string name="set_global_visibility_private">Update notification settings to ensure that sensitive notification content is shown only when unlocked.</string>
+    <string name="set_global_visibility_secret">Update notification settings to ensure that all notifications are hidden on the lock screen.</string>
     <string name="remove_screen_lock">Remove the added screen lock</string>
     <string name="secure_action_lockscreen">Lock the screen and find the SecureActionOnLockScreenTest
         notification. Tap on its action. Verify that the keyguard displays on tap, and that the
         notification text does not update until the passcode is entered. Ensure that the notification
         text does update once the device is unlocked.</string>
+    <string name="np_start_channel_settings">Launch Channel Settings</string>
+    <string name="np_start_security_settings">Launch Security Settings</string>
+    <string name="np_start_notif_settings">Launch Notification Settings</string>
+    <string name="np_when_locked_see_redacted">Lock the screen and find the NotifPrivacyTest notification.\n
+        Pass the test if the notification content is REDACTED and the icon is B.</string>
+    <string name="np_when_locked_see_private">Lock the screen and find the NotifPrivacyTest notification.\n
+        Pass the test if the notification content is EXPOSED and the icon is A.</string>
+    <string name="np_when_locked_hidden">Lock the screen and look for the NotifPrivacyTest notification.\n
+        Fail the test if it can be found without unlocking the device.</string>
+    <string name="np_start_occluding">Launch CallSimulator</string>
+    <string name="np_occluding_instructions">Launch the CallSimulator and follow the instructions on that screen.</string>
+    <string name="np_occluding_see_redacted">CallSimulator
+        \n\n(Like a call, this screen will be visible even when the device is locked.)
+        \n\nLock the screen, then come back here without unlocking.
+        \nPull down the notification shade and find the NotifPrivacyTest notification.
+        \nPass the test if the notification content is REDACTED and the icon is B.
+        \n\nGo back when ready to Pass/Fail the step.</string>
+    <string name="np_occluding_see_private">CallSimulator
+        \n\n(Like a call, this screen will be visible even when the device is locked.)
+        \n\nLock the screen, then come back here without unlocking.
+        \nPull down the notification shade and find the NotifPrivacyTest notification.
+        \nPass the test if the notification content is EXPOSED and the icon is A.
+        \n\nGo back when ready to Pass/Fail the step.</string>
+    <string name="np_occluding_hidden">CallSimulator
+        \n\n(Like a call, this screen will be visible even when the device is locked.)
+        \n\nLock the screen, then come back here without unlocking.
+        \nPull down the notification shade and look for the NotifPrivacyTest notification.
+        \nFail the test if it can be found without unlocking the device.
+        \n\nGo back when ready to Pass/Fail the step.</string>
+    <string name="np_public_version_text">NotifPrivacyTest: REDACTED</string>
+    <string name="np_private_version_text">NotifPrivacyTest: EXPOSED</string>
+    <string name="notif_privacy_test">Notification Privacy Test</string>
+    <string name="notif_privacy_info">This test checks that Notification privacy is correctly
+        handled on the insecure and secure lockscreen.
+    </string>
     <string name="msg_extras_preserved">Check that Message extras Bundle was preserved.</string>
     <string name="conversation_section_ordering">If this device supports conversation notifications,
         and groups them into a separate section from alerting and silent non-conversation
@@ -5113,11 +5154,34 @@ You should be prompted to select credentials; choose the ones you just installed
     <string name="audio_coldstart_in_latency_test">Audio Cold Start Input Latency Test</string>
 
     <string name="audio_coldstart_output_info">
-        This test measures the time required to output audio from a suspended \"cold\" audio system.
-        It requires that touch-sounds be disabled in the device \"Sound &amp; Vibration\" settings
+        This test measures the time required to play audio from a suspended \"cold\" audio system.
+        This time is defined as the \"cold start latency\". To pass this test, a maximum
+        cold start latency time of 500ms or less is REQUIRED, while a time of 100ms or less
+        is STRONGLY RECOMMENDED. (See <a href="https://source.android.com/compatibility/android-cdd#5_6_audio_latency">Android CDD § 5.6. Audio Latency</a>)
+        \n\nTo run this test, it is required to have touch-sounds disabled in the device
+        \"Sound &amp; Vibration\" settings
         panel.
+        \n\nThe \"Java API\" and \"Native API\" allow for capturing performance data from the
+        two streaming APIs. The cold start latency measurement need only pass for one API.
+        The Native API generally gives the best performance.
+        \n\nAlthough not part of the pass criteria, the test will also report \"open\" &amp;
+        \"start\" times. Open time is the time taken to allocate and prepare the player for the
+        specified stream attributes. Start time is the time taken to start playing audio on an
+        open stream.
     </string>
-    <string name="audio_coldstart_input_info">Info Here</string>
+    <string name="audio_coldstart_input_info">
+        This test measures the time required to record audio from a suspended \"cold\" audio system.
+        This time is defined as the \"cold start latency\". To pass this test, a maximum
+        cold start latency time of 500ms or less is REQUIRED, while a time of 100ms or less
+        is STRONGLY RECOMMENDED. (See <a href="https://source.android.com/compatibility/android-cdd#5_6_audio_latency">Android CDD § 5.6. Audio Latency</a>)
+        \n\nThe \"Java API\" and \"Native API\" allow for capturing performance data from the
+        two streaming APIs. The cold start latency measurement need only pass for one API.
+        The Native API generally gives the best performance.
+        \n\nAlthough not part of the pass criteria, the test will also report \"open\" &amp;
+        \"start\" times. Open time is the time taken to allocate and prepare the recorder for the
+        specified stream attributes. Start time is the time taken to start recording audio on an
+        open stream.
+    </string>
     <string name="audio_coldstart_outputlbl">Output Cold Start Latency</string>
     <string name="audio_coldstart_inputlbl">Input Cold Start Latency</string>
     <string name="audio_coldstart_touchsounds_message">
@@ -5245,18 +5309,34 @@ Follow the instructions on the screen to measure the frequency response for the 
     <string name="analog_headset_query">Does this Android device have an analog headset jack?</string>
     <string name="analog_headset_play">Play</string>
     <string name="analog_headset_stop">Stop</string>
-    <string name="analog_headset_success_question">Was the audio correctly played through the headset/headphones?</string>
-    <string name="analog_headset_keycodes_label">Headset Keycodes</string>
+    <string name="analog_headset_playback_prompt">Play a test tone and verify correct playback</string>
+    <string name="analog_headset_playback_query">Was the audio correctly played through the headset?</string>
+    <string name="analog_headset_keycodes_label">Headset key codes</string>
     <string name="analog_headset_headsethook">HEADSETHOOK</string>
     <string name="analog_headset_volup">VOLUME_UP</string>
     <string name="analog_headset_voldown">VOLUME_DOWN</string>
     <string name="analog_headset_test">Analog Headset Test</string>
-    <string name="analog_headset_test_info">
-        This test tests the following functionality with respect to wired analog headset/headphones.\n
+    <string name="analog_headset_pass_noheadset">"PASS. No headset port available."</string>
+    <string name="analog_headset_pass">PASS.</string>
+    <string name="analog_headset_port_detected">"Analog port detected."</string>
+    <string name="analog_headset_press_buttons">Press headset buttons to verify recognition.</string>
+    <string name="analog_headset_headset_connected">Headset connected.</string>
+    <string name="analog_headset_no_headset">No Headset. Connect headset to 3.5mm analog jack.</string>
+    <string name="analog_headset_action_received">ACTION_HEADSET_PLUG received - </string>
+    <string name="analog_headset_unplugged">Unplugged</string>
+    <string name="analog_headset_plugged">Plugged</string>
+    <string name="analog_headset_mic"> [mic]</string>
+    <string name="analog_headset_test_info">This test tests the following functionality with respect to wired analog headsets.\n
         1. Correct audio playback.\n
         2. Plug intents.\n
         3. Headset keycodes.\n
-        To run this test it is necessary to have an Android device with a 3.5mm analog headset jack and a compatible analog headset with Hook, Volume Up and Volume Down buttons.
+        \nTo execute test:\n
+        1. Plug in an Android-compatible, analog headset. Verify connection/recognition.\n
+        2. Play test tone and verify correct behavior.\n
+        3. Press headset buttons until all are recognized on the test screen.\n
+        \nTo run this test it is necessary to have an Android device with a 3.5mm analog headset jack and a compatible analog headset with Hook, Volume Up and Volume Down buttons.\n
+        \n(see <a href="https://source.android.com/devices/accessories/headset/plug-headset-spec">3.5 mm Headset: Accessory Specification</a> and
+        <a href="https://source.android.com/compatibility/android-cdd#7_8_2_1_analog_audio_ports">Android CDD § 7.8.2.1. Analog Audio Ports</a>)
     </string>
     <!-- Audio AEC Test -->
     <string name="audio_aec_test">Audio Acoustic Echo Cancellation (AEC) Test</string>
