@@ -2078,6 +2078,17 @@ public class ParcelTest extends AndroidTestCase {
         p.recycle();
     }
 
+    public void testReadSerializableWithClass_whenNullClassLoader(){
+        Parcel p = Parcel.obtain();
+        TestSubException testSubException = new TestSubException("test");
+        p.writeSerializable(testSubException);
+        p.setDataPosition(0);
+        Throwable error = assertThrows(BadParcelableException.class, () ->
+                p.readSerializable(null, TestSubException.class));
+        assertTrue(error.getMessage().contains("ClassNotFoundException reading a Serializable"));
+        p.recycle();
+    }
+
     public void testReadSerializableWithClass_whenSameClass(){
         Parcel p = Parcel.obtain();
         MockClassLoader mcl = new MockClassLoader();
@@ -2113,6 +2124,12 @@ public class ParcelTest extends AndroidTestCase {
         assertTrue(object1 instanceof Exception);
         Exception e2 = (Exception) object1;
         assertEquals("test", e2.getMessage());
+
+        p.setDataPosition(0);
+        Object object2 = p.readSerializable(null, Object.class);
+        assertTrue(object1 instanceof Exception);
+        Exception e3 = (Exception) object2;
+        assertEquals("test", e3.getMessage());
 
         p.setDataPosition(0);
         assertThrows(BadParcelableException.class, () -> p.readSerializable(mcl, String.class));
@@ -2164,6 +2181,9 @@ public class ParcelTest extends AndroidTestCase {
         p.writeParcelable(testSubIntent, 0);
         p.setDataPosition(0);
         assertEquals(testSubIntent, (p.readParcelable(getClass().getClassLoader(), Intent.class)));
+
+        p.setDataPosition(0);
+        assertEquals(testSubIntent, (p.readParcelable(getClass().getClassLoader(), Object.class)));
         p.recycle();
     }
 
@@ -4402,6 +4422,12 @@ public class ParcelTest extends AndroidTestCase {
         @Override
         public int hashCode() {
             return mString.hashCode();
+        }
+    }
+
+    private static class TestSubException extends Exception{
+        public TestSubException(String msg) {
+            super(msg);
         }
     }
 
