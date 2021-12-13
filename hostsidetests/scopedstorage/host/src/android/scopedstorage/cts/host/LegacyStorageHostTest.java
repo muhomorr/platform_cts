@@ -147,6 +147,11 @@ public class LegacyStorageHostTest extends BaseHostTestCase {
     }
 
     @Test
+    public void testCanTrashOtherAndroidMediaFiles_hasRW() throws Exception {
+        runDeviceTest("testCanTrashOtherAndroidMediaFiles_hasRW");
+    }
+
+    @Test
     public void testCantRename_hasR() throws Exception {
         revokePermissions("android.permission.WRITE_EXTERNAL_STORAGE");
         runDeviceTest("testCantRename_hasR");
@@ -212,6 +217,15 @@ public class LegacyStorageHostTest extends BaseHostTestCase {
     @Test
     public void testLegacySystemGalleryCanRenameImagesAndVideosWithoutDbUpdates() throws Exception {
         runDeviceTest("testLegacySystemGalleryCanRenameImagesAndVideosWithoutDbUpdates");
+    }
+
+    /**
+     * (b/205673506): Test that legacy System Gallery can update() media file's releative_path to a
+     * non default top level directory.
+     */
+    @Test
+    public void testLegacySystemGalleryCanUpdateToExistingDirectory() throws Exception {
+        runDeviceTest("testLegacySystemGalleryCanUpdateToExistingDirectory");
     }
 
     @Test

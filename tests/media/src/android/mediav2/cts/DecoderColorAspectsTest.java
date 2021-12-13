@@ -51,10 +51,10 @@ public class DecoderColorAspectsTest extends CodecDecoderTestBase {
         mCheckESList = new ArrayList<>();
         mCheckESList.add(MediaFormat.MIMETYPE_VIDEO_AVC);
         mCheckESList.add(MediaFormat.MIMETYPE_VIDEO_HEVC);
-        /* TODO (b/165492703) Mpeg2 and (b/165787556) AV1 has problems in signalling color
+        /* TODO (b/165492703) Mpeg2 has problems in signalling color
             aspects information via elementary stream. */
         // mCheckESList.add(MediaFormat.MIMETYPE_VIDEO_MPEG2);
-        // mCheckESList.add(MediaFormat.MIMETYPE_VIDEO_AV1);
+        mCheckESList.add(MediaFormat.MIMETYPE_VIDEO_AV1);
         mCanIgnoreColorBox = canIgnoreColorBox;
     }
 
@@ -246,6 +246,9 @@ public class DecoderColorAspectsTest extends CodecDecoderTestBase {
         ArrayList<MediaFormat> formats = new ArrayList<>();
         formats.add(format);
         Assume.assumeTrue(areFormatsSupported(mCodecName, mMime, formats));
+        if (doesAnyFormatHaveHDRProfile(mMime, formats)) {
+            Assume.assumeTrue(canDisplaySupportHDRContent());
+        }
         CodecTestActivity activity = mActivityRule.getActivity();
         setUpSurface(activity);
         activity.setScreenParams(getWidth(format), getHeight(format), true);
