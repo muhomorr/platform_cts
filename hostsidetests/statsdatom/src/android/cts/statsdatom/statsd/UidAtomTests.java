@@ -58,6 +58,7 @@ import com.android.tradefed.testtype.IBuildReceiver;
 import com.android.tradefed.util.Pair;
 
 import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -224,7 +225,8 @@ public class UidAtomTests extends DeviceTestCase implements IBuildReceiver {
                 atomTag,  /*uidInAttributionChain=*/false);
 
         DeviceUtils.runActivity(getDevice(), DeviceUtils.STATSD_ATOM_TEST_PKG,
-                "StatsdCtsForegroundActivity", "action", "action.native_crash");
+                "StatsdCtsForegroundActivity", "action", "action.native_crash",
+                /* waitTimeMs= */ 5000L);
 
         // Sorted list of events in order in which they occurred.
         List<EventMetricData> data = ReportUtils.getEventMetricDataList(getDevice());
@@ -269,12 +271,15 @@ public class UidAtomTests extends DeviceTestCase implements IBuildReceiver {
         Thread.sleep(AtomTestUtils.WAIT_TIME_SHORT);
         // Sorted list of events in order in which they occurred.
         List<EventMetricData> data = ReportUtils.getEventMetricDataList(getDevice());
-
+        List<Integer> atomStates = data.stream().map(
+                eventMetricData -> eventMetricData.getAtom().getAudioStateChanged()
+                        .getState().getNumber())
+                .collect(Collectors.toList());
         // Because the timestamp is truncated, we skip checking time differences between state
         // changes.
-        AtomTestUtils.assertStatesOccurred(stateSet, data, 0,
-                atom -> atom.getAudioStateChanged().getState().getNumber());
-
+        assertThat(data.size()).isEqualTo(2);
+        assertThat(new ArrayList<>(Arrays.asList(AudioStateChanged.State.ON_VALUE,
+                AudioStateChanged.State.OFF_VALUE))).containsExactlyElementsIn(atomStates);
         // Check that timestamp is truncated
         for (EventMetricData metric : data) {
             long elapsedTimestampNs = metric.getElapsedTimestampNanos();

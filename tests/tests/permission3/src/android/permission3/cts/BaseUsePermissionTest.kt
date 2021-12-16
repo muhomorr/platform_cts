@@ -84,6 +84,7 @@ abstract class BaseUsePermissionTest : BasePermissionTest() {
         const val ALLOW_FOREGROUND_BUTTON_TEXT = "grant_dialog_button_allow_foreground"
         const val ALLOW_FOREGROUND_PREFERENCE_TEXT = "permission_access_only_foreground"
         const val ASK_BUTTON_TEXT = "app_permission_button_ask"
+        const val ALLOW_ONE_TIME_BUTTON_TEXT = "grant_dialog_button_allow_one_time"
         const val DENY_BUTTON_TEXT = "grant_dialog_button_deny"
         const val DENY_AND_DONT_ASK_AGAIN_BUTTON_TEXT =
                 "grant_dialog_button_deny_and_dont_ask_again"
@@ -472,14 +473,8 @@ abstract class BaseUsePermissionTest : BasePermissionTest() {
                     // Automotive doesn't support one time permissions, and thus
                     // won't show an "Ask every time" message
                     when (state) {
-                        PermissionState.ALLOWED ->
-                            if (showsForegroundOnlyButton(permission)) {
-                                By.text(getPermissionControllerString(
-                                        "app_permission_button_allow_foreground"))
-                            } else {
-                                By.text(getPermissionControllerString(
-                                                "app_permission_button_allow"))
-                            }
+                        PermissionState.ALLOWED ->By.text(
+                                getPermissionControllerString("app_permission_button_allow"))
                         PermissionState.DENIED -> By.text(
                                 getPermissionControllerString("app_permission_button_deny"))
                         PermissionState.DENIED_WITH_PREJUDICE -> By.text(
