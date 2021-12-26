@@ -46,7 +46,9 @@
 
     <permission android:name="android.telephony.embms.cts.permission.TEST_BROADCAST"
          android:protectionLevel="signature"/>
-    <application>
+    <!-- Must be debuggable for compat shell commands to work on user builds -->
+    <application android:debuggable="true">
+
         <provider android:name="android.telephony.cts.MmsPduProvider"
              android:authorities="telephonyctstest"
              android:grantUriPermissions="true"/>
@@ -155,6 +157,21 @@
              android:exported="true">
             <intent-filter>
                 <action android:name="android.telephony.ims.ImsService"/>
+            </intent-filter>
+        </service>
+
+        <service android:name="android.telephony.cts.MockModemService"
+             android:directBootAware="true"
+             android:persistent="true"
+             android:exported="true">
+            <intent-filter>
+                <action android:name="android.telephony.cts.iradioconfig"/>
+                <action android:name="android.telephony.cts.iradiomodem"/>
+                <action android:name="android.telephony.cts.iradiosim"/>
+                <action android:name="android.telephony.cts.iradionetwork"/>
+                <action android:name="android.telephony.cts.iradiodata"/>
+                <action android:name="android.telephony.cts.iradiomessaging"/>
+                <action android:name="android.telephony.cts.iradiovoice"/>
             </intent-filter>
         </service>
 

@@ -1413,6 +1413,44 @@ public class TelephonyManagerTest {
         }
 
         assertEquals(mServiceState, mTelephonyManager.getServiceState());
+        assertServiceStateSanitization(mServiceState, mTelephonyManager.getServiceState(true,
+                true));
+        assertServiceStateFineLocationSanitization(mServiceState,
+                mTelephonyManager.getServiceState(true, false));
+        assertEquals(mServiceState, mTelephonyManager.getServiceState(false, true));
+    }
+
+    private void assertServiceStateSanitization(ServiceState expectedServiceState,
+            ServiceState receivedServiceState) {
+        assertNotEquals(null, receivedServiceState);
+        assertServiceStateFineLocationSanitization(expectedServiceState, receivedServiceState);
+
+        assertTrue(TextUtils.isEmpty(receivedServiceState.getOperatorAlphaLong()));
+        assertTrue(TextUtils.isEmpty(receivedServiceState.getOperatorAlphaShort()));
+        assertTrue(TextUtils.isEmpty(receivedServiceState.getOperatorNumeric()));
+    }
+
+    private void assertServiceStateFineLocationSanitization(ServiceState expectedServiceState,
+            ServiceState receivedServiceState) {
+        assertNotEquals(null, receivedServiceState);
+
+        assertEquals(expectedServiceState.getVoiceRegState(),
+                receivedServiceState.getVoiceRegState());
+        assertEquals(expectedServiceState.getDataRegState(),
+                receivedServiceState.getDataRegState());
+        assertEquals(expectedServiceState.getDataNetworkType(),
+                receivedServiceState.getDataNetworkType());
+        assertEquals(expectedServiceState.getDataRoaming(),
+                receivedServiceState.getDataRoaming());
+        assertEquals(expectedServiceState.getRilVoiceRadioTechnology(),
+                receivedServiceState.getRilVoiceRadioTechnology());
+
+        if (receivedServiceState.getNetworkRegistrationInfoList() != null) {
+            for (NetworkRegistrationInfo nrs : receivedServiceState
+                    .getNetworkRegistrationInfoList()) {
+                assertNull(nrs.getCellIdentity());
+            }
+        }
     }
 
     @Test
@@ -2297,6 +2335,44 @@ public class TelephonyManagerTest {
 
         assertTrue(ShellIdentityUtils.invokeMethodWithShellPermissions(mTelephonyManager,
                 (tm) -> tm.isManualNetworkSelectionAllowed()));
+    }
+
+    /**
+     * Tests that the device properly sets the VoNr
+     */
+    @Test
+    public void testIsVoNrEnabled() {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            return;
+        }
+
+        try {
+            int result = ShellIdentityUtils.invokeMethodWithShellPermissions(mTelephonyManager,
+                    (tm) -> tm.setVoNrEnabled(true));
+            if (result ==  TelephonyManager.ENABLE_VONR_REQUEST_NOT_SUPPORTED) {
+                return;
+            }
+        } catch (Exception e) {
+        }
+
+        assertTrue(ShellIdentityUtils.invokeMethodWithShellPermissions(mTelephonyManager,
+                (tm) -> tm.isVoNrEnabled()));
+    }
+
+    /**
+     * Tests that a SecurityException is thrown when trying to set VoNR
+     */
+    @Test
+    public void testSetVoNrEnabledException() {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            Log.d(TAG, "Skipping test that requires FEATURE_TELEPHONY");
+            return;
+        }
+        try {
+            mTelephonyManager.setVoNrEnabled(true);
+            fail("Expected SecurityException. App does not have carrier privileges.");
+        } catch (SecurityException expected) {
+        }
     }
 
     /**
