@@ -26,6 +26,7 @@ import static android.photopicker.cts.util.PhotoPickerUiUtils.SHORT_TIMEOUT;
 import static android.photopicker.cts.util.PhotoPickerUiUtils.REGEX_PACKAGE_NAME;
 import static android.photopicker.cts.util.PhotoPickerUiUtils.findAddButton;
 import static android.photopicker.cts.util.PhotoPickerUiUtils.findItemList;
+import static android.photopicker.cts.util.PhotoPickerUiUtils.findPreviewAddButton;
 import static android.photopicker.cts.util.PhotoPickerUiUtils.findPreviewAddOrSelectButton;
 
 import static com.google.common.truth.Truth.assertThat;
@@ -213,16 +214,17 @@ public class PhotoPickerTest extends PhotoPickerBaseTest {
 
     @Test
     public void testMultiSelect_longPress() throws Exception {
-        final int imageCount = 3;
-        createImages(imageCount, mContext.getUserId(), mUriList);
+        final int videoCount = 3;
+        createVideos(videoCount, mContext.getUserId(), mUriList);
         final Intent intent = new Intent(MediaStore.ACTION_PICK_IMAGES);
         // TODO(b/205291616): Replace 100 with MediaStore.getPickImagesMaxLimit()
         intent.putExtra(MediaStore.EXTRA_PICK_IMAGES_MAX, 100);
+        intent.setType("video/*");
         mActivity.startActivityForResult(intent, REQUEST_CODE);
 
-        final List<UiObject> itemList = findItemList(imageCount);
+        final List<UiObject> itemList = findItemList(videoCount);
         final int itemCount = itemList.size();
-        assertThat(itemCount).isEqualTo(imageCount);
+        assertThat(itemCount).isEqualTo(videoCount);
 
         // Select one item from Photo grid
         itemList.get(0).click();
@@ -293,7 +295,7 @@ public class PhotoPickerTest extends PhotoPickerBaseTest {
         selectCheckButton.click();
         mDevice.waitForIdle();
 
-        final UiObject addButton = findPreviewAddOrSelectButton();
+        final UiObject addButton = findPreviewAddButton();
         addButton.click();
         mDevice.waitForIdle();
 

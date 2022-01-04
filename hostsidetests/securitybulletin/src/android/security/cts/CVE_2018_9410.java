@@ -1,4 +1,4 @@
-/*
+/**
  * Copyright (C) 2021 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,27 +16,21 @@
 
 package android.security.cts;
 
-import static org.junit.Assert.assertTrue;
 import android.platform.test.annotations.AsbSecurityTest;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
 @RunWith(DeviceJUnit4ClassRunner.class)
-public class CVE_2021_0922 extends SecurityTestCase {
+public class CVE_2018_9410 extends SecurityTestCase {
 
     /**
-     * b/195630721
+     * b/77822336
+     * Vulnerability Behaviour: SIGSEGV in self
      */
-    @AsbSecurityTest(cveBugId = 195630721)
+    @AsbSecurityTest(cveBugId = 77822336)
     @Test
-    public void testPocCVE_2021_0922() throws Exception {
-        String packageName = "com.android.managedprovisioning";
-        String queryStr = "dumpsys package " + packageName;
-        String permissions = AdbUtils.runCommandLine(queryStr, getDevice());
-
-        // MANAGE_APP_OPS_MODES permission must be enforced for
-        // package com.android.managedprovisioning
-        assertTrue(permissions.contains("android.permission.MANAGE_APP_OPS_MODES"));
+    public void testPocCVE_2018_9410() throws Exception {
+        AdbUtils.runPocAssertNoCrashesNotVulnerable("CVE-2018-9410", null, getDevice());
     }
 }
