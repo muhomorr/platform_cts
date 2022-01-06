@@ -186,6 +186,8 @@ public abstract class BaseDevicePolicyTest extends BaseHostJUnit4Test {
     /** Users we shouldn't delete in the tests */
     private ArrayList<Integer> mFixedUsers;
 
+    protected boolean mHasAttestation;
+
     private static final String VERIFY_CREDENTIAL_CONFIRMATION = "Lock credential verified";
 
     @Rule
@@ -205,6 +207,10 @@ public abstract class BaseDevicePolicyTest extends BaseHostJUnit4Test {
         mFixedPackages = getDevice().getInstalledPackageNames();
         mBuildHelper = new CompatibilityBuildHelper(getBuild());
 
+        String propertyValue = getDevice().getProperty("ro.product.first_api_level");
+        if (propertyValue != null && !propertyValue.isEmpty()) {
+            mHasAttestation = Integer.parseInt(propertyValue) >= 26;
+        }
         if (hasDeviceFeature(FEATURE_SECURE_LOCK_SCREEN)) {
             ensurePrimaryUserHasNoPassword();
         }
@@ -736,6 +742,10 @@ public abstract class BaseDevicePolicyTest extends BaseHostJUnit4Test {
 
     protected final void assumeHasTelephonyFeature() throws DeviceNotAvailableException {
         assumeHasDeviceFeature(FEATURE_TELEPHONY);
+    }
+
+    protected final void assumeSupportsSms() throws Exception {
+        assumeTrue("device doesn't support SMS", isSmsCapable());
     }
 
     protected final void assumeHasNfcFeatures() throws DeviceNotAvailableException {
@@ -1345,5 +1355,15 @@ public abstract class BaseDevicePolicyTest extends BaseHostJUnit4Test {
     void sleep(int timeMs) throws InterruptedException {
         CLog.d("Sleeping %d ms");
         Thread.sleep(timeMs);
+    }
+
+    private boolean isSmsCapable() throws Exception {
+        String output = getDevice().executeShellCommand("dumpsys phone");
+        if (output.contains("isSmsCapable=true")) {
+            CLog.d("Device is SMS capable");
+            return true;
+        }
+        CLog.d("Device is not SMS capable");
+        return false;
     }
 }

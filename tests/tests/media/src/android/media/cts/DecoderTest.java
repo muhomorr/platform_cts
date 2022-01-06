@@ -16,32 +16,52 @@
 
 package android.media.cts;
 
+import static android.media.MediaCodecInfo.CodecProfileLevel.AVCLevel31;
+import static android.media.MediaCodecInfo.CodecProfileLevel.AVCLevel32;
+import static android.media.MediaCodecInfo.CodecProfileLevel.AVCLevel4;
+import static android.media.MediaCodecInfo.CodecProfileLevel.AVCLevel42;
+import static android.media.MediaCodecInfo.CodecProfileLevel.AVCProfileHigh;
+import static android.media.MediaCodecInfo.CodecProfileLevel.HEVCMainTierLevel31;
+import static android.media.MediaCodecInfo.CodecProfileLevel.HEVCMainTierLevel41;
+import static android.media.MediaCodecInfo.CodecProfileLevel.HEVCProfileMain;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.content.res.AssetFileDescriptor;
 import android.graphics.ImageFormat;
 import android.hardware.display.DisplayManager;
-import android.media.AudioTimestamp;
-import android.media.Image;
 import android.media.AudioFormat;
 import android.media.AudioManager;
+import android.media.AudioTimestamp;
+import android.media.AudioTrack;
+import android.media.Image;
 import android.media.MediaCodec;
 import android.media.MediaCodec.BufferInfo;
-import android.media.MediaCodecList;
 import android.media.MediaCodecInfo;
 import android.media.MediaCodecInfo.CodecCapabilities;
+import android.media.MediaCodecList;
 import android.media.MediaExtractor;
 import android.media.MediaFormat;
-import android.os.ParcelFileDescriptor;
+import android.net.Uri;
 import android.os.Build;
+import android.os.Bundle;
 import android.os.Handler;
 import android.os.HandlerThread;
+import android.os.ParcelFileDescriptor;
 import android.platform.test.annotations.AppModeFull;
 import android.util.Log;
 import android.view.Display;
 import android.view.Surface;
-import android.net.Uri;
-import android.os.Bundle;
+
+import androidx.test.ext.junit.runners.AndroidJUnit4;
+import androidx.test.filters.SdkSuppress;
 
 import com.android.compatibility.common.util.ApiLevelUtil;
 import com.android.compatibility.common.util.CddTest;
@@ -51,7 +71,12 @@ import com.android.compatibility.common.util.MediaUtils;
 import com.android.compatibility.common.util.ResultType;
 import com.android.compatibility.common.util.ResultUnit;
 
-import androidx.test.filters.SdkSuppress;
+import com.google.common.collect.ImmutableList;
+
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+import org.junit.runner.RunWith;
 
 import java.io.BufferedInputStream;
 import java.io.File;
@@ -62,18 +87,19 @@ import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
-import java.util.function.Supplier;
-import java.util.zip.CRC32;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
-import static android.media.MediaCodecInfo.CodecProfileLevel.*;
+import java.util.zip.CRC32;
 
 @MediaHeavyPresubmitTest
 @AppModeFull(reason = "There should be no instant apps specific behavior related to decoders")
+@RunWith(AndroidJUnit4.class)
 public class DecoderTest extends MediaPlayerTestBase {
     private static final String TAG = "DecoderTest";
     private static final String REPORT_LOG_NAME = "CtsMediaTestCases";
@@ -89,6 +115,11 @@ public class DecoderTest extends MediaPlayerTestBase {
     private static final int CONFIG_MODE_NONE = 0;
     private static final int CONFIG_MODE_QUEUE = 1;
 
+    private static final int CODEC_ALL = 0; // All codecs must support
+    private static final int CODEC_ANY = 1; // At least one codec must support
+    private static final int CODEC_DEFAULT = 2; // Default codec must support
+    private static final int CODEC_OPTIONAL = 3; // Codec support is optional
+
     short[] mMasterBuffer;
     static final String mInpPrefix = WorkDir.getMediaDirString();
 
@@ -99,6 +130,7 @@ public class DecoderTest extends MediaPlayerTestBase {
     private static final String MODULE_NAME = "CtsMediaTestCases";
     private DynamicConfigDeviceSide dynamicConfig;
     private DisplayManager mDisplayManager;
+    static final Map<String, String> sDefaultDecoders = new HashMap<>();
 
     private static boolean mIsAtLeastS = ApiLevelUtil.isAtLeast(Build.VERSION_CODES.S);
 
@@ -111,8 +143,9 @@ public class DecoderTest extends MediaPlayerTestBase {
         return new AssetFileDescriptor(parcelFD, 0, parcelFD.getStatSize());
     }
 
+    @Before
     @Override
-    protected void setUp() throws Exception {
+    public void setUp() throws Throwable {
         super.setUp();
 
         // read primary file into memory
@@ -137,16 +170,31 @@ public class DecoderTest extends MediaPlayerTestBase {
         mDisplayManager = (DisplayManager) mContext.getSystemService(Context.DISPLAY_SERVICE);
     }
 
+    @After
     @Override
-    protected void tearDown() throws Exception {
+    public void tearDown() {
         // ensure MediaCodecPlayer resources are released even if an exception is thrown.
         if (mMediaCodecPlayer != null) {
             mMediaCodecPlayer.reset();
             mMediaCodecPlayer = null;
         }
+        super.tearDown();
+    }
+
+    static boolean isDefaultCodec(String codecName, String mime) throws IOException {
+        if (sDefaultDecoders.containsKey(mime)) {
+            return sDefaultDecoders.get(mime).equalsIgnoreCase(codecName);
+        }
+        MediaCodec codec = MediaCodec.createDecoderByType(mime);
+        boolean isDefault = codec.getName().equalsIgnoreCase(codecName);
+        sDefaultDecoders.put(mime, codec.getName());
+        codec.release();
+
+        return isDefault;
     }
 
     // TODO: add similar tests for other audio and video formats
+    @Test
     public void testBug11696552() throws Exception {
         MediaCodec mMediaCodec = MediaCodec.createDecoderByType(MediaFormat.MIMETYPE_AUDIO_AAC);
         MediaFormat mFormat = MediaFormat.createAudioFormat(
@@ -165,78 +213,96 @@ public class DecoderTest extends MediaPlayerTestBase {
     // errors with the standard decoders, plus 10%.
     // This should allow for some variation in decoders, while still detecting
     // phase and delay errors, channel swap, etc.
+    @Test
     public void testDecodeMp3Lame() throws Exception {
         decode("sinesweepmp3lame.mp3", 804.f);
         testTimeStampOrdering("sinesweepmp3lame.mp3");
     }
+    @Test
     public void testDecodeMp3Smpb() throws Exception {
         decode("sinesweepmp3smpb.mp3", 413.f);
         testTimeStampOrdering("sinesweepmp3smpb.mp3");
     }
+    @Test
     public void testDecodeM4a() throws Exception {
         decode("sinesweepm4a.m4a", 124.f);
         testTimeStampOrdering("sinesweepm4a.m4a");
     }
+    @Test
     public void testDecodeOgg() throws Exception {
         decode("sinesweepogg.ogg", 168.f);
         testTimeStampOrdering("sinesweepogg.ogg");
     }
+    @Test
     public void testDecodeOggMkv() throws Exception {
         decode("sinesweepoggmkv.mkv", 168.f);
         testTimeStampOrdering("sinesweepoggmkv.mkv");
     }
+    @Test
     public void testDecodeOggMp4() throws Exception {
         decode("sinesweepoggmp4.mp4", 168.f);
         testTimeStampOrdering("sinesweepoggmp4.mp4");
     }
+    @Test
     public void testDecodeWav() throws Exception {
         decode("sinesweepwav.wav", 0.0f);
         testTimeStampOrdering("sinesweepwav.wav");
     }
+    @Test
     public void testDecodeWav24() throws Exception {
         decode("sinesweepwav24.wav", 0.0f);
         testTimeStampOrdering("sinesweepwav24.wav");
     }
+    @Test
     public void testDecodeFlacMkv() throws Exception {
         decode("sinesweepflacmkv.mkv", 0.0f);
         testTimeStampOrdering("sinesweepflacmkv.mkv");
     }
+    @Test
     public void testDecodeFlac() throws Exception {
         decode("sinesweepflac.flac", 0.0f);
         testTimeStampOrdering("sinesweepflac.flac");
     }
+    @Test
     public void testDecodeFlac24() throws Exception {
         decode("sinesweepflac24.flac", 0.0f);
         testTimeStampOrdering("sinesweepflac24.flac");
     }
+    @Test
     public void testDecodeFlacMp4() throws Exception {
         decode("sinesweepflacmp4.mp4", 0.0f);
         testTimeStampOrdering("sinesweepflacmp4.mp4");
     }
 
+    @Test
     public void testDecodeMonoMp3() throws Exception {
         monoTest("monotestmp3.mp3", 44100);
         testTimeStampOrdering("monotestmp3.mp3");
     }
 
+    @Test
     public void testDecodeMonoM4a() throws Exception {
         monoTest("monotestm4a.m4a", 44100);
         testTimeStampOrdering("monotestm4a.m4a");
     }
 
+    @Test
     public void testDecodeMonoOgg() throws Exception {
         monoTest("monotestogg.ogg", 44100);
         testTimeStampOrdering("monotestogg.ogg");
     }
+    @Test
     public void testDecodeMonoOggMkv() throws Exception {
         monoTest("monotestoggmkv.mkv", 44100);
         testTimeStampOrdering("monotestoggmkv.mkv");
     }
+    @Test
     public void testDecodeMonoOggMp4() throws Exception {
         monoTest("monotestoggmp4.mp4", 44100);
         testTimeStampOrdering("monotestoggmp4.mp4");
     }
 
+    @Test
     public void testDecodeMonoGsm() throws Exception {
         String fileName = "monotestgsm.wav";
         Preconditions.assertTestFileExists(mInpPrefix + fileName);
@@ -248,25 +314,31 @@ public class DecoderTest extends MediaPlayerTestBase {
         }
     }
 
+    @Test
     public void testDecodeAacTs() throws Exception {
         testTimeStampOrdering("sinesweeptsaac.m4a");
     }
 
+    @Test
     public void testDecodeVorbis() throws Exception {
         testTimeStampOrdering("sinesweepvorbis.mkv");
     }
+    @Test
     public void testDecodeVorbisMp4() throws Exception {
         testTimeStampOrdering("sinesweepvorbismp4.mp4");
     }
 
+    @Test
     public void testDecodeOpus() throws Exception {
         testTimeStampOrdering("sinesweepopus.mkv");
     }
+    @Test
     public void testDecodeOpusMp4() throws Exception {
         testTimeStampOrdering("sinesweepopusmp4.mp4");
     }
 
     @CddTest(requirement="5.1.3")
+    @Test
     public void testDecodeG711ChannelsAndRates() throws Exception {
         String[] mimetypes = { MediaFormat.MIMETYPE_AUDIO_G711_ALAW,
                                MediaFormat.MIMETYPE_AUDIO_G711_MLAW };
@@ -279,6 +351,7 @@ public class DecoderTest extends MediaPlayerTestBase {
     }
 
     @CddTest(requirement="5.1.3")
+    @Test
     public void testDecodeOpusChannelsAndRates() throws Exception {
         String[] mimetypes = { MediaFormat.MIMETYPE_AUDIO_OPUS };
         int[] sampleRates = { 8000, 12000, 16000, 24000, 48000 };
@@ -306,9 +379,9 @@ public class DecoderTest extends MediaPlayerTestBase {
                                 channelCount);
                     String codecname = mcl.findDecoderForFormat(desiredFormat);
 
-                    assertTrue("findDecoderForFormat() failed for mime=" + mimetype
-                               + " sampleRate=" + sampleRate + " channelCount=" + channelCount,
-                               codecname != null);
+                    assertNotNull("findDecoderForFormat() failed for mime=" + mimetype
+                                    + " sampleRate=" + sampleRate + " channelCount=" + channelCount,
+                            codecname);
                 }
             }
 
@@ -369,6 +442,7 @@ public class DecoderTest extends MediaPlayerTestBase {
         return false;
     }
 
+    @Test
     public void testDecode51M4a() throws Exception {
         for (String codecName : codecsFor("sinesweep51m4a.m4a")) {
             decodeToMemory(codecName, "sinesweep51m4a.m4a", RESET_MODE_NONE, CONFIG_MODE_NONE, -1,
@@ -390,6 +464,7 @@ public class DecoderTest extends MediaPlayerTestBase {
         }
     }
 
+    @Test
     public void testTrackSelection() throws Exception {
         testTrackSelection("video_480x360_mp4_h264_1350kbps_30fps_aac_stereo_128kbps_44100hz.mp4");
         testTrackSelection(
@@ -398,6 +473,7 @@ public class DecoderTest extends MediaPlayerTestBase {
                 "video_480x360_mp4_h264_1350kbps_30fps_aac_stereo_128kbps_44100hz_dash.mp4");
     }
 
+    @Test
     public void testTrackSelectionMkv() throws Exception {
         Log.d(TAG, "testTrackSelectionMkv!!!!!! ");
         testTrackSelection("mkv_avc_adpcm_ima.mkv");
@@ -410,6 +486,7 @@ public class DecoderTest extends MediaPlayerTestBase {
         Log.d(TAG, "mkv_avc_mp2 finished!!!!!! ");
     }
 
+    @Test
     public void testBFrames() throws Exception {
         int testsRun =
             testBFrames("video_h264_main_b_frames.mp4") +
@@ -491,6 +568,7 @@ public class DecoderTest extends MediaPlayerTestBase {
      *  color_176x144_bt601_525_lr_sdr_h264 |  6  5  4  0  |  2  6  6  0
      *  color_176x144_srgb_lr_sdr_h264      |  2  0  2  1  |  1  13 1  0
      */
+    @Test
     public void testH264ColorAspects() throws Exception {
         testColorAspects(
                 "color_176x144_bt709_lr_sdr_h264.mp4", 1 /* testId */,
@@ -526,6 +604,7 @@ public class DecoderTest extends MediaPlayerTestBase {
      *  color_176x144_bt601_525_lr_sdr_h265 |  6  5  4  0  |  2  6  6  0
      *  color_176x144_srgb_lr_sdr_h265      |  2  0  2  1  |  1  13 1  0
      */
+    @Test
     public void testH265ColorAspects() throws Exception {
         testColorAspects(
                 "color_176x144_bt709_lr_sdr_h265.mp4", 1 /* testId */,
@@ -573,6 +652,7 @@ public class DecoderTest extends MediaPlayerTestBase {
      *  color_176x144_bt601_525_lr_sdr_mpeg2 |  6  5  4  0  |  2  6  6  0
      *  color_176x144_srgb_lr_sdr_mpeg2      |  2  0  2  0  |  1  13 1  0
      */
+    @Test
     public void testMPEG2ColorAspectsTV() throws Exception {
         testColorAspects(
                 "color_176x144_bt709_lr_sdr_mpeg2.mp4", 1 /* testId */,
@@ -674,7 +754,7 @@ public class DecoderTest extends MediaPlayerTestBase {
                 break;
             } else if (status >= 0) {
                 // Test should get at least one format changed event before getting first frame.
-                assertTrue(getOutputFormat == true);
+                assertTrue(getOutputFormat);
                 break;
             } else {
                 assertFalse(
@@ -959,30 +1039,35 @@ public class DecoderTest extends MediaPlayerTestBase {
     };
 
     @CddTest(requirement="5.3.7")
+    @Test
     public void testVp9HdrStaticMetadata() throws Exception {
         testHdrStaticMetadata(VP9_HDR_RES, VP9_HDR_STATIC_INFO,
                 true /*metadataInContainer*/);
     }
 
     @CddTest(requirement="5.3.9")
+    @Test
     public void testAV1HdrStaticMetadata() throws Exception {
         testHdrStaticMetadata(AV1_HDR_RES, AV1_HDR_STATIC_INFO,
                 false /*metadataInContainer*/);
     }
 
     @CddTest(requirement="5.3.5")
+    @Test
     public void testH265HDR10StaticMetadata() throws Exception {
         testHdrStaticMetadata(H265_HDR10_RES, H265_HDR10_STATIC_INFO,
                 false /*metadataInContainer*/);
     }
 
     @CddTest(requirement="5.3.7")
+    @Test
     public void testVp9Hdr10PlusMetadata() throws Exception {
         testHdrMetadata(VP9_HDR10PLUS_RES, VP9_HDR10PLUS_STATIC_INFO,
                 VP9_HDR10PLUS_DYNAMIC_INFO, true /*metadataInContainer*/);
     }
 
     @CddTest(requirement="5.3.5")
+    @Test
     public void testH265Hdr10PlusMetadata() throws Exception {
         testHdrMetadata(H265_HDR10PLUS_RES, H265_HDR10PLUS_STATIC_INFO,
                 H265_HDR10PLUS_DYNAMIC_INFO, false /*metadataInContainer*/);
@@ -1208,26 +1293,31 @@ public class DecoderTest extends MediaPlayerTestBase {
         return Arrays.copyOfRange(tempArray, 0, i);
     }
 
+    @Test
     public void testVp9HdrToSdr() throws Exception {
         testHdrToSdr(VP9_HDR_RES, null /* dynamicInfo */,
                 true /*metadataInContainer*/);
     }
 
+    @Test
     public void testAV1HdrToSdr() throws Exception {
         testHdrToSdr(AV1_HDR_RES, null /* dynamicInfo */,
                 false /*metadataInContainer*/);
     }
 
+    @Test
     public void testH265HDR10ToSdr() throws Exception {
         testHdrToSdr(H265_HDR10_RES, null /* dynamicInfo */,
                 false /*metadataInContainer*/);
     }
 
+    @Test
     public void testVp9Hdr10PlusToSdr() throws Exception {
         testHdrToSdr(VP9_HDR10PLUS_RES, VP9_HDR10PLUS_DYNAMIC_INFO,
                 true /*metadataInContainer*/);
     }
 
+    @Test
     public void testH265Hdr10PlusToSdr() throws Exception {
         testHdrToSdr(H265_HDR10PLUS_RES, H265_HDR10PLUS_DYNAMIC_INFO,
                 false /*metadataInContainer*/);
@@ -1337,8 +1427,13 @@ public class DecoderTest extends MediaPlayerTestBase {
                                     Arrays.equals(loadByteArrayFromString(INVALID_HDR_STATIC_INFO),
                                                   staticInfo.array()));
                         }
-                        assertFalse("Buffer should not have dynamic HDR metadata present",
-                                bufferFormat.containsKey(MediaFormat.KEY_HDR10_PLUS_INFO));
+                        ByteBuffer hdr10PlusInfo = bufferFormat.getByteBuffer(
+                                MediaFormat.KEY_HDR10_PLUS_INFO, null);
+                        if (hdr10PlusInfo != null) {
+                            assertEquals(
+                                    "Buffer should not have a valid dynamic HDR metadata present",
+                                    0, hdr10PlusInfo.remaining());
+                        }
 
                         if (!dynamic) {
                             codec.releaseOutputBuffer(index,  true);
@@ -1443,6 +1538,7 @@ public class DecoderTest extends MediaPlayerTestBase {
         }
     }
 
+    @Test
     public void testDecodeFragmented() throws Exception {
         testDecodeFragmented("video_480x360_mp4_h264_1350kbps_30fps_aac_stereo_128kbps_44100hz.mp4",
                 "video_480x360_mp4_h264_1350kbps_30fps_aac_stereo_128kbps_44100hz_fragmented.mp4");
@@ -1508,6 +1604,7 @@ public class DecoderTest extends MediaPlayerTestBase {
     /**
      * Verify correct decoding of MPEG-4 AAC-LC mono and stereo streams
      */
+    @Test
     public void testDecodeAacLcM4a() throws Exception {
         // mono
         decodeNtest("sinesweep1_1ch_8khz_aot2_mp4.m4a", 40.f);
@@ -1534,6 +1631,7 @@ public class DecoderTest extends MediaPlayerTestBase {
     /**
      * Verify correct decoding of MPEG-4 AAC-LC 5.0 and 5.1 channel streams
      */
+    @Test
     public void testDecodeAacLcMcM4a() throws Exception {
         for (String codecName : codecsFor("noise_6ch_48khz_aot2_mp4.m4a")) {
             AudioParameter decParams = new AudioParameter();
@@ -1553,6 +1651,7 @@ public class DecoderTest extends MediaPlayerTestBase {
     /**
      * Verify correct decoding of MPEG-4 HE-AAC mono and stereo streams
      */
+    @Test
     public void testDecodeHeAacM4a() throws Exception {
         Object [][] samples = {
                 //  {resource, numChannels},
@@ -1568,7 +1667,7 @@ public class DecoderTest extends MediaPlayerTestBase {
         };
 
         for (Object [] sample: samples) {
-            for (String codecName : codecsFor((String)sample[0])) {
+            for (String codecName : codecsFor((String)sample[0], CODEC_DEFAULT)) {
                 AudioParameter decParams = new AudioParameter();
                 short[] decSamples = decodeToMemory(codecName, decParams,
                         (String)sample[0] /* resource */, RESET_MODE_NONE, CONFIG_MODE_NONE,
@@ -1582,6 +1681,7 @@ public class DecoderTest extends MediaPlayerTestBase {
     /**
      * Verify correct decoding of MPEG-4 HE-AAC 5.0 and 5.1 channel streams
      */
+    @Test
     public void testDecodeHeAacMcM4a() throws Exception {
         Object [][] samples = {
                 //  {resource, numChannels},
@@ -1589,7 +1689,7 @@ public class DecoderTest extends MediaPlayerTestBase {
                 {"noise_6ch_44khz_aot5_dr_sbr_sig2_mp4.m4a", 6},
         };
         for (Object [] sample: samples) {
-            for (String codecName : codecsFor((String)sample[0] /* resource */)) {
+            for (String codecName : codecsFor((String)sample[0] /* resource */, CODEC_DEFAULT)) {
                 AudioParameter decParams = new AudioParameter();
                 short[] decSamples = decodeToMemory(codecName, decParams,
                         (String)sample[0] /* resource */, RESET_MODE_NONE, CONFIG_MODE_NONE,
@@ -1603,6 +1703,7 @@ public class DecoderTest extends MediaPlayerTestBase {
     /**
      * Verify correct decoding of MPEG-4 HE-AAC v2 stereo streams
      */
+    @Test
     public void testDecodeHeAacV2M4a() throws Exception {
         String [] samples = {
                 "noise_2ch_24khz_aot29_dr_sbr_sig0_mp4.m4a",
@@ -1610,7 +1711,7 @@ public class DecoderTest extends MediaPlayerTestBase {
                 "noise_2ch_48khz_aot29_dr_sbr_sig2_mp4.m4a"
         };
         for (String sample: samples) {
-            for (String codecName : codecsFor(sample)) {
+            for (String codecName : codecsFor(sample, CODEC_DEFAULT)) {
                 AudioParameter decParams = new AudioParameter();
                 short[] decSamples = decodeToMemory(codecName, decParams, sample,
                         RESET_MODE_NONE, CONFIG_MODE_NONE, -1, null);
@@ -1622,22 +1723,23 @@ public class DecoderTest extends MediaPlayerTestBase {
     /**
      * Verify correct decoding of MPEG-4 AAC-ELD mono and stereo streams
      */
+    @Test
     public void testDecodeAacEldM4a() throws Exception {
         // mono
-        decodeNtest("sinesweep1_1ch_16khz_aot39_fl480_mp4.m4a", 40.f);
-        decodeNtest("sinesweep1_1ch_22khz_aot39_fl512_mp4.m4a", 40.f);
-        decodeNtest("sinesweep1_1ch_24khz_aot39_fl480_mp4.m4a", 40.f);
-        decodeNtest("sinesweep1_1ch_32khz_aot39_fl512_mp4.m4a", 40.f);
-        decodeNtest("sinesweep1_1ch_44khz_aot39_fl480_mp4.m4a", 40.f);
-        decodeNtest("sinesweep1_1ch_48khz_aot39_fl512_mp4.m4a", 40.f);
+        decodeNtest("sinesweep1_1ch_16khz_aot39_fl480_mp4.m4a", 40.f, CODEC_DEFAULT);
+        decodeNtest("sinesweep1_1ch_22khz_aot39_fl512_mp4.m4a", 40.f, CODEC_DEFAULT);
+        decodeNtest("sinesweep1_1ch_24khz_aot39_fl480_mp4.m4a", 40.f, CODEC_DEFAULT);
+        decodeNtest("sinesweep1_1ch_32khz_aot39_fl512_mp4.m4a", 40.f, CODEC_DEFAULT);
+        decodeNtest("sinesweep1_1ch_44khz_aot39_fl480_mp4.m4a", 40.f, CODEC_DEFAULT);
+        decodeNtest("sinesweep1_1ch_48khz_aot39_fl512_mp4.m4a", 40.f, CODEC_DEFAULT);
 
         // stereo
-        decodeNtest("sinesweep_2ch_16khz_aot39_fl512_mp4.m4a", 40.f);
-        decodeNtest("sinesweep_2ch_22khz_aot39_fl480_mp4.m4a", 40.f);
-        decodeNtest("sinesweep_2ch_24khz_aot39_fl512_mp4.m4a", 40.f);
-        decodeNtest("sinesweep_2ch_32khz_aot39_fl480_mp4.m4a", 40.f);
-        decodeNtest("sinesweep_2ch_44khz_aot39_fl512_mp4.m4a", 40.f);
-        decodeNtest("sinesweep_2ch_48khz_aot39_fl480_mp4.m4a", 40.f);
+        decodeNtest("sinesweep_2ch_16khz_aot39_fl512_mp4.m4a", 40.f, CODEC_DEFAULT);
+        decodeNtest("sinesweep_2ch_22khz_aot39_fl480_mp4.m4a", 40.f, CODEC_DEFAULT);
+        decodeNtest("sinesweep_2ch_24khz_aot39_fl512_mp4.m4a", 40.f, CODEC_DEFAULT);
+        decodeNtest("sinesweep_2ch_32khz_aot39_fl480_mp4.m4a", 40.f, CODEC_DEFAULT);
+        decodeNtest("sinesweep_2ch_44khz_aot39_fl512_mp4.m4a", 40.f, CODEC_DEFAULT);
+        decodeNtest("sinesweep_2ch_48khz_aot39_fl480_mp4.m4a", 40.f, CODEC_DEFAULT);
 
         AudioParameter decParams = new AudioParameter();
 
@@ -1655,7 +1757,7 @@ public class DecoderTest extends MediaPlayerTestBase {
                 {"noise_2ch_48khz_aot39_ds_sbr_fl512_mp4.m4a", 2},
         };
         for (Object [] sample: samples) {
-            for (String codecName : codecsFor((String)sample[0])) {
+            for (String codecName : codecsFor((String)sample[0], CODEC_DEFAULT)) {
                 short[] decSamples = decodeToMemory(codecName, decParams,
                         (String)sample[0] /* resource */, RESET_MODE_NONE, CONFIG_MODE_NONE,
                         -1, null);
@@ -1897,9 +1999,14 @@ public class DecoderTest extends MediaPlayerTestBase {
      * @throws Exception
      */
     private void decodeNtest(final String testinput, float maxerror) throws Exception {
+        decodeNtest(testinput, maxerror, CODEC_ALL);
+    }
+
+    private void decodeNtest(final String testinput, float maxerror, int codecSupportMode)
+            throws Exception {
         String localTag = TAG + "#decodeNtest";
 
-        for (String codecName: codecsFor(testinput)) {
+        for (String codecName: codecsFor(testinput, codecSupportMode)) {
             AudioParameter decParams = new AudioParameter();
             short[] decoded = decodeToMemory(codecName, decParams, testinput,
                     RESET_MODE_NONE, CONFIG_MODE_NONE, -1, null);
@@ -1946,6 +2053,11 @@ public class DecoderTest extends MediaPlayerTestBase {
     }
 
     protected static List<String> codecsFor(String resource) throws IOException {
+        return codecsFor(resource, CODEC_ALL);
+    }
+
+    protected static List<String> codecsFor(String resource, int codecSupportMode)
+            throws IOException {
         MediaExtractor ex = new MediaExtractor();
         AssetFileDescriptor fd = getAssetFileDescriptorFor(resource);
         try {
@@ -1965,7 +2077,18 @@ public class DecoderTest extends MediaPlayerTestBase {
             try {
                 MediaCodecInfo.CodecCapabilities caps = info.getCapabilitiesForType(mime);
                 if (caps != null) {
-                    matchingCodecs.add(info.getName());
+                    if (codecSupportMode == CODEC_ALL) {
+                        matchingCodecs.add(info.getName());
+                    } else if (codecSupportMode == CODEC_DEFAULT) {
+                        if (caps.isFormatSupported(format)) {
+                            matchingCodecs.add(info.getName());
+                        } else if (isDefaultCodec(info.getName(), mime)) {
+                            fail(info.getName() + " which is a default decoder for mime " + mime
+                                   + ", does not declare support for " + format.toString());
+                        }
+                    } else {
+                        fail("Unhandled codec support mode " + codecSupportMode);
+                    }
                 }
             } catch (IllegalArgumentException e) {
                 // type is not supported
@@ -2321,6 +2444,7 @@ public class DecoderTest extends MediaPlayerTestBase {
         }
     }
 
+    @Test
     public void testDecodeWithEOSOnLastBuffer() throws Exception {
         testDecodeWithEOSOnLastBuffer("sinesweepm4a.m4a");
         testDecodeWithEOSOnLastBuffer("sinesweepmp3lame.mp3");
@@ -2413,47 +2537,58 @@ public class DecoderTest extends MediaPlayerTestBase {
         assertEquals("different number of frames when using Surface", frames1, frames2);
     }
 
+    @Test
     public void testCodecBasicH264() throws Exception {
         testDecode("video_480x360_mp4_h264_1000kbps_25fps_aac_stereo_128kbps_44100hz.mp4", 240);
     }
 
+    @Test
     public void testCodecBasicHEVC() throws Exception {
         testDecode(
                 "bbb_s1_720x480_mp4_hevc_mp3_1600kbps_30fps_aac_he_6ch_240kbps_48000hz.mp4", 300);
     }
 
+    @Test
     public void testCodecBasicH263() throws Exception {
         testDecode("video_176x144_3gp_h263_300kbps_12fps_aac_stereo_128kbps_22050hz.3gp", 122);
     }
 
+    @Test
     public void testCodecBasicMpeg2() throws Exception {
         testDecode("video_480x360_mp4_mpeg2_1500kbps_30fps_aac_stereo_128kbps_48000hz.mp4", 300);
     }
 
+    @Test
     public void testCodecBasicMpeg4() throws Exception {
         testDecode("video_480x360_mp4_mpeg4_860kbps_25fps_aac_stereo_128kbps_44100hz.mp4", 249);
     }
 
+    @Test
     public void testCodecBasicVP8() throws Exception {
         testDecode("video_480x360_webm_vp8_333kbps_25fps_vorbis_stereo_128kbps_48000hz.webm", 240);
     }
 
+    @Test
     public void testCodecBasicVP9() throws Exception {
         testDecode("video_480x360_webm_vp9_333kbps_25fps_vorbis_stereo_128kbps_48000hz.webm", 240);
     }
 
+    @Test
     public void testCodecBasicAV1() throws Exception {
         testDecode("video_480x360_webm_av1_400kbps_30fps_vorbis_stereo_128kbps_48000hz.webm", 300);
     }
 
+    @Test
     public void testH264Decode320x240() throws Exception {
         testDecode("bbb_s1_320x240_mp4_h264_mp2_800kbps_30fps_aac_lc_5ch_240kbps_44100hz.mp4", 300);
     }
 
+    @Test
     public void testH264Decode720x480() throws Exception {
         testDecode("bbb_s1_720x480_mp4_h264_mp3_2mbps_30fps_aac_lc_5ch_320kbps_48000hz.mp4", 300);
     }
 
+    @Test
     public void testH264Decode30fps1280x720Tv() throws Exception {
         if (checkTv()) {
             assertTrue(MediaUtils.canDecodeVideo(
@@ -2462,6 +2597,7 @@ public class DecoderTest extends MediaPlayerTestBase {
         }
     }
 
+    @Test
     public void testH264SecureDecode30fps1280x720Tv() throws Exception {
         if (checkTv()) {
             verifySecureVideoDecodeSupport(
@@ -2470,10 +2606,12 @@ public class DecoderTest extends MediaPlayerTestBase {
         }
     }
 
+    @Test
     public void testH264Decode30fps1280x720() throws Exception {
         testDecode("bbb_s4_1280x720_mp4_h264_mp31_8mbps_30fps_aac_he_mono_40kbps_44100hz.mp4", 300);
     }
 
+    @Test
     public void testH264Decode60fps1280x720Tv() throws Exception {
         if (checkTv()) {
             assertTrue(MediaUtils.canDecodeVideo(
@@ -2485,6 +2623,7 @@ public class DecoderTest extends MediaPlayerTestBase {
         }
     }
 
+    @Test
     public void testH264SecureDecode60fps1280x720Tv() throws Exception {
         if (checkTv()) {
             verifySecureVideoDecodeSupport(
@@ -2493,11 +2632,13 @@ public class DecoderTest extends MediaPlayerTestBase {
         }
     }
 
+    @Test
     public void testH264Decode60fps1280x720() throws Exception {
         testDecode("bbb_s3_1280x720_mp4_h264_mp32_8mbps_60fps_aac_he_v2_6ch_144kbps_44100hz.mp4",
                 600);
     }
 
+    @Test
     public void testH264Decode30fps1920x1080Tv() throws Exception {
         if (checkTv()) {
             assertTrue(MediaUtils.canDecodeVideo(
@@ -2509,6 +2650,7 @@ public class DecoderTest extends MediaPlayerTestBase {
         }
     }
 
+    @Test
     public void testH264SecureDecode30fps1920x1080Tv() throws Exception {
         if (checkTv()) {
             verifySecureVideoDecodeSupport(
@@ -2517,11 +2659,13 @@ public class DecoderTest extends MediaPlayerTestBase {
         }
     }
 
+    @Test
     public void testH264Decode30fps1920x1080() throws Exception {
         testDecode("bbb_s4_1920x1080_wide_mp4_h264_mp4_20mbps_30fps_aac_he_5ch_200kbps_44100hz.mp4",
                 150);
     }
 
+    @Test
     public void testH264Decode60fps1920x1080Tv() throws Exception {
         if (checkTv()) {
             assertTrue(MediaUtils.canDecodeVideo(
@@ -2532,6 +2676,7 @@ public class DecoderTest extends MediaPlayerTestBase {
         }
     }
 
+    @Test
     public void testH264SecureDecode60fps1920x1080Tv() throws Exception {
         if (checkTv()) {
             verifySecureVideoDecodeSupport(
@@ -2540,6 +2685,7 @@ public class DecoderTest extends MediaPlayerTestBase {
         }
     }
 
+    @Test
     public void testH264Decode60fps1920x1080() throws Exception {
         testDecode("bbb_s2_1920x1080_mp4_h264_mp42_20mbps_60fps_aac_he_v2_5ch_160kbps_48000hz.mp4",
                 300);
@@ -2547,133 +2693,160 @@ public class DecoderTest extends MediaPlayerTestBase {
                 300);
     }
 
+    @Test
     public void testH265Decode25fps1280x720() throws Exception {
         testDecode("video_1280x720_mkv_h265_500kbps_25fps_aac_stereo_128kbps_44100hz.mkv", 240);
     }
 
+    @Test
     public void testVP8Decode320x180() throws Exception {
         testDecode("bbb_s1_320x180_webm_vp8_800kbps_30fps_opus_5ch_320kbps_48000hz.webm", 300);
     }
 
+    @Test
     public void testVP8Decode640x360() throws Exception {
         testDecode("bbb_s1_640x360_webm_vp8_2mbps_30fps_vorbis_5ch_320kbps_48000hz.webm", 300);
     }
 
+    @Test
     public void testVP8Decode30fps1280x720Tv() throws Exception {
         if (checkTv()) {
             assertTrue(MediaUtils.canDecodeVideo(MediaFormat.MIMETYPE_VIDEO_VP8, 1280, 720, 30));
         }
     }
 
+    @Test
     public void testVP8Decode30fps1280x720() throws Exception {
         testDecode("bbb_s4_1280x720_webm_vp8_8mbps_30fps_opus_mono_64kbps_48000hz.webm", 300);
     }
 
+    @Test
     public void testVP8Decode60fps1280x720Tv() throws Exception {
         if (checkTv()) {
             assertTrue(MediaUtils.canDecodeVideo(MediaFormat.MIMETYPE_VIDEO_VP8, 1280, 720, 60));
         }
     }
 
+    @Test
     public void testVP8Decode60fps1280x720() throws Exception {
         testDecode("bbb_s3_1280x720_webm_vp8_8mbps_60fps_opus_6ch_384kbps_48000hz.webm", 600);
     }
 
+    @Test
     public void testVP8Decode30fps1920x1080Tv() throws Exception {
         if (checkTv()) {
             assertTrue(MediaUtils.canDecodeVideo(MediaFormat.MIMETYPE_VIDEO_VP8, 1920, 1080, 30));
         }
     }
 
+    @Test
     public void testVP8Decode30fps1920x1080() throws Exception {
         testDecode("bbb_s4_1920x1080_wide_webm_vp8_20mbps_30fps_vorbis_6ch_384kbps_44100hz.webm",
                 150);
     }
 
+    @Test
     public void testVP8Decode60fps1920x1080Tv() throws Exception {
         if (checkTv()) {
             assertTrue(MediaUtils.canDecodeVideo(MediaFormat.MIMETYPE_VIDEO_VP8, 1920, 1080, 60));
         }
     }
 
+    @Test
     public void testVP8Decode60fps1920x1080() throws Exception {
         testDecode("bbb_s2_1920x1080_webm_vp8_20mbps_60fps_vorbis_6ch_384kbps_48000hz.webm", 300);
     }
 
+    @Test
     public void testVP9Decode320x180() throws Exception {
         testDecode("bbb_s1_320x180_webm_vp9_0p11_600kbps_30fps_vorbis_mono_64kbps_48000hz.webm",
                 300);
     }
 
+    @Test
     public void testVP9Decode640x360() throws Exception {
         testDecode("bbb_s1_640x360_webm_vp9_0p21_1600kbps_30fps_vorbis_stereo_128kbps_48000hz.webm",
                 300);
     }
 
+    @Test
     public void testVP9Decode30fps1280x720Tv() throws Exception {
         if (checkTv()) {
             assertTrue(MediaUtils.canDecodeVideo(MediaFormat.MIMETYPE_VIDEO_VP9, 1280, 720, 30));
         }
     }
 
+    @Test
     public void testVP9Decode30fps1280x720() throws Exception {
         testDecode("bbb_s4_1280x720_webm_vp9_0p31_4mbps_30fps_opus_stereo_128kbps_48000hz.webm",
                 300);
     }
 
+    @Test
     public void testVP9Decode60fps1920x1080() throws Exception {
         testDecode("bbb_s2_1920x1080_webm_vp9_0p41_10mbps_60fps_vorbis_6ch_384kbps_22050hz.webm",
                 300);
     }
 
+    @Test
     public void testVP9Decode30fps3840x2160() throws Exception {
         testDecode("bbb_s4_3840x2160_webm_vp9_0p5_20mbps_30fps_vorbis_6ch_384kbps_24000hz.webm",
                 150);
     }
 
+    @Test
     public void testVP9Decode60fps3840x2160() throws Exception {
         testDecode("bbb_s2_3840x2160_webm_vp9_0p51_20mbps_60fps_vorbis_6ch_384kbps_32000hz.webm",
                 300);
     }
 
+    @Test
     public void testAV1Decode320x180() throws Exception {
         testDecode("video_320x180_webm_av1_200kbps_30fps_vorbis_stereo_128kbps_48000hz.webm", 300);
     }
 
+    @Test
     public void testAV1Decode640x360() throws Exception {
         testDecode("video_640x360_webm_av1_470kbps_30fps_vorbis_stereo_128kbps_48000hz.webm", 300);
     }
 
+    @Test
     public void testAV1Decode30fps1280x720() throws Exception {
         testDecode("video_1280x720_webm_av1_2000kbps_30fps_vorbis_stereo_128kbps_48000hz.webm",
                 300);
     }
 
+    @Test
     public void testAV1Decode60fps1920x1080() throws Exception {
         testDecode("video_1920x1080_webm_av1_7000kbps_60fps_vorbis_stereo_128kbps_48000hz.webm",
                 300);
     }
 
+    @Test
     public void testAV1Decode30fps3840x2160() throws Exception {
         testDecode("video_3840x2160_webm_av1_11000kbps_30fps_vorbis_stereo_128kbps_48000hz.webm",
                 150);
     }
 
+    @Test
     public void testAV1Decode60fps3840x2160() throws Exception {
         testDecode("video_3840x2160_webm_av1_18000kbps_60fps_vorbis_stereo_128kbps_48000hz.webm",
                 300);
     }
 
+    @Test
     public void testHEVCDecode352x288() throws Exception {
         testDecode("bbb_s1_352x288_mp4_hevc_mp2_600kbps_30fps_aac_he_stereo_96kbps_48000hz.mp4",
                 300);
     }
 
+    @Test
     public void testHEVCDecode720x480() throws Exception {
         testDecode("bbb_s1_720x480_mp4_hevc_mp3_1600kbps_30fps_aac_he_6ch_240kbps_48000hz.mp4",
                 300);
     }
 
+    @Test
     public void testHEVCDecode30fps1280x720Tv() throws Exception {
         if (checkTv()) {
             assertTrue(MediaUtils.canDecodeVideo(
@@ -2682,11 +2855,13 @@ public class DecoderTest extends MediaPlayerTestBase {
         }
     }
 
+    @Test
     public void testHEVCDecode30fps1280x720() throws Exception {
         testDecode("bbb_s4_1280x720_mp4_hevc_mp31_4mbps_30fps_aac_he_stereo_80kbps_32000hz.mp4",
                 300);
     }
 
+    @Test
     public void testHEVCDecode30fps1920x1080Tv() throws Exception {
         if (checkTv()) {
             assertTrue(MediaUtils.canDecodeVideo(
@@ -2695,49 +2870,59 @@ public class DecoderTest extends MediaPlayerTestBase {
         }
     }
 
+    @Test
     public void testHEVCDecode60fps1920x1080() throws Exception {
         testDecode("bbb_s2_1920x1080_mp4_hevc_mp41_10mbps_60fps_aac_lc_6ch_384kbps_22050hz.mp4",
                 300);
     }
 
+    @Test
     public void testHEVCDecode30fps3840x2160() throws Exception {
         testDecode("bbb_s4_3840x2160_mp4_hevc_mp5_20mbps_30fps_aac_lc_6ch_384kbps_24000hz.mp4",
                 150);
     }
 
+    @Test
     public void testHEVCDecode60fps3840x2160() throws Exception {
         testDecode("bbb_s2_3840x2160_mp4_hevc_mp51_20mbps_60fps_aac_lc_6ch_384kbps_32000hz.mp4",
                 300);
     }
 
+    @Test
     public void testMpeg2Decode352x288() throws Exception {
         testDecode("video_352x288_mp4_mpeg2_1000kbps_30fps_aac_stereo_128kbps_48000hz.mp4", 300);
     }
 
+    @Test
     public void testMpeg2Decode720x480() throws Exception {
         testDecode("video_720x480_mp4_mpeg2_2000kbps_30fps_aac_stereo_128kbps_48000hz.mp4", 300);
     }
 
+    @Test
     public void testMpeg2Decode30fps1280x720Tv() throws Exception {
         if (checkTv()) {
             assertTrue(MediaUtils.canDecodeVideo(MediaFormat.MIMETYPE_VIDEO_MPEG2, 1280, 720, 30));
         }
     }
 
+    @Test
     public void testMpeg2Decode30fps1280x720() throws Exception {
         testDecode("video_1280x720_mp4_mpeg2_6000kbps_30fps_aac_stereo_128kbps_48000hz.mp4", 150);
     }
 
+    @Test
     public void testMpeg2Decode30fps1920x1080Tv() throws Exception {
         if (checkTv()) {
             assertTrue(MediaUtils.canDecodeVideo(MediaFormat.MIMETYPE_VIDEO_MPEG2, 1920, 1080, 30));
         }
     }
 
+    @Test
     public void testMpeg2Decode30fps1920x1080() throws Exception {
         testDecode("video_1920x1080_mp4_mpeg2_12000kbps_30fps_aac_stereo_128kbps_48000hz.mp4", 150);
     }
 
+    @Test
     public void testMpeg2Decode30fps3840x2160() throws Exception {
         testDecode("video_3840x2160_mp4_mpeg2_20000kbps_30fps_aac_stereo_128kbps_48000hz.mp4", 150);
     }
@@ -2751,124 +2936,148 @@ public class DecoderTest extends MediaPlayerTestBase {
         assertEquals("wrong number of frames decoded", eosFrame, frames1);
     }
 
+    @Test
     public void testCodecEarlyEOSH263() throws Exception {
         testCodecEarlyEOS("video_176x144_3gp_h263_300kbps_12fps_aac_stereo_128kbps_22050hz.3gp",
                 64 /* eosframe */);
     }
 
+    @Test
     public void testCodecEarlyEOSH264() throws Exception {
         testCodecEarlyEOS("video_480x360_mp4_h264_1000kbps_25fps_aac_stereo_128kbps_44100hz.mp4",
                 120 /* eosframe */);
     }
 
+    @Test
     public void testCodecEarlyEOSHEVC() throws Exception {
         testCodecEarlyEOS("video_480x360_mp4_hevc_650kbps_30fps_aac_stereo_128kbps_48000hz.mp4",
                 120 /* eosframe */);
     }
 
+    @Test
     public void testCodecEarlyEOSMpeg2() throws Exception {
         testCodecEarlyEOS("vdeo_480x360_mp4_mpeg2_1500kbps_30fps_aac_stereo_128kbps_48000hz.mp4",
                 120 /* eosframe */);
     }
 
+    @Test
     public void testCodecEarlyEOSMpeg4() throws Exception {
         testCodecEarlyEOS("video_480x360_mp4_mpeg4_860kbps_25fps_aac_stereo_128kbps_44100hz.mp4",
                 120 /* eosframe */);
     }
 
+    @Test
     public void testCodecEarlyEOSVP8() throws Exception {
         testCodecEarlyEOS("video_480x360_webm_vp8_333kbps_25fps_vorbis_stereo_128kbps_48000hz.webm",
                 120 /* eosframe */);
     }
 
+    @Test
     public void testCodecEarlyEOSVP9() throws Exception {
         testCodecEarlyEOS(
                 "video_480x360_webm_vp9_333kbps_25fps_vorbis_stereo_128kbps_48000hz.webm",
                 120 /* eosframe */);
     }
 
+    @Test
     public void testCodecEarlyEOSAV1() throws Exception {
         testCodecEarlyEOS("video_480x360_webm_av1_400kbps_30fps_vorbis_stereo_128kbps_48000hz.webm",
                 120 /* eosframe */);
     }
 
+    @Test
     public void testCodecResetsH264WithoutSurface() throws Exception {
         testCodecResets("video_480x360_mp4_h264_1000kbps_25fps_aac_stereo_128kbps_44100hz.mp4",
                 null);
     }
 
+    @Test
     public void testCodecResetsH264WithSurface() throws Exception {
         Surface s = getActivity().getSurfaceHolder().getSurface();
         testCodecResets("video_480x360_mp4_h264_1000kbps_25fps_aac_stereo_128kbps_44100hz.mp4", s);
     }
 
+    @Test
     public void testCodecResetsHEVCWithoutSurface() throws Exception {
         testCodecResets("bbb_s1_720x480_mp4_hevc_mp3_1600kbps_30fps_aac_he_6ch_240kbps_48000hz.mp4",
                 null);
     }
 
+    @Test
     public void testCodecResetsHEVCWithSurface() throws Exception {
         Surface s = getActivity().getSurfaceHolder().getSurface();
         testCodecResets("bbb_s1_720x480_mp4_hevc_mp3_1600kbps_30fps_aac_he_6ch_240kbps_48000hz.mp4",
                 s);
     }
 
+    @Test
     public void testCodecResetsMpeg2WithoutSurface() throws Exception {
         testCodecResets("video_1280x720_mp4_mpeg2_6000kbps_30fps_aac_stereo_128kbps_48000hz.mp4",
                 null);
     }
 
+    @Test
     public void testCodecResetsMpeg2WithSurface() throws Exception {
         Surface s = getActivity().getSurfaceHolder().getSurface();
         testCodecResets("video_176x144_mp4_mpeg2_105kbps_25fps_aac_stereo_128kbps_44100hz.mp4", s);
     }
 
+    @Test
     public void testCodecResetsH263WithoutSurface() throws Exception {
         testCodecResets("video_176x144_3gp_h263_300kbps_12fps_aac_stereo_128kbps_22050hz.3gp",null);
     }
 
+    @Test
     public void testCodecResetsH263WithSurface() throws Exception {
         Surface s = getActivity().getSurfaceHolder().getSurface();
         testCodecResets("video_176x144_3gp_h263_300kbps_12fps_aac_stereo_128kbps_22050hz.3gp", s);
     }
 
+    @Test
     public void testCodecResetsMpeg4WithoutSurface() throws Exception {
         testCodecResets("video_480x360_mp4_mpeg4_860kbps_25fps_aac_stereo_128kbps_44100hz.mp4",
                 null);
     }
 
+    @Test
     public void testCodecResetsMpeg4WithSurface() throws Exception {
         Surface s = getActivity().getSurfaceHolder().getSurface();
         testCodecResets("video_480x360_mp4_mpeg4_860kbps_25fps_aac_stereo_128kbps_44100hz.mp4", s);
     }
 
+    @Test
     public void testCodecResetsVP8WithoutSurface() throws Exception {
         testCodecResets("video_480x360_webm_vp8_333kbps_25fps_vorbis_stereo_128kbps_48000hz.webm",
                 null);
     }
 
+    @Test
     public void testCodecResetsVP8WithSurface() throws Exception {
         Surface s = getActivity().getSurfaceHolder().getSurface();
         testCodecResets("video_480x360_webm_vp8_333kbps_25fps_vorbis_stereo_128kbps_48000hz.webm",
                 s);
     }
 
+    @Test
     public void testCodecResetsVP9WithoutSurface() throws Exception {
         testCodecResets("video_480x360_webm_vp9_333kbps_25fps_vorbis_stereo_128kbps_48000hz.webm",
                 null);
     }
 
+    @Test
     public void testCodecResetsAV1WithoutSurface() throws Exception {
         testCodecResets("video_480x360_webm_av1_400kbps_30fps_vorbis_stereo_128kbps_48000hz.webm",
                 null);
     }
 
+    @Test
     public void testCodecResetsVP9WithSurface() throws Exception {
         Surface s = getActivity().getSurfaceHolder().getSurface();
         testCodecResets("video_480x360_webm_vp9_333kbps_25fps_vorbis_stereo_128kbps_48000hz.webm",
                 s);
     }
 
+    @Test
     public void testCodecResetsAV1WithSurface() throws Exception {
         Surface s = getActivity().getSurfaceHolder().getSurface();
         testCodecResets("video_480x360_webm_av1_400kbps_30fps_vorbis_stereo_128kbps_48000hz.webm",
@@ -2879,12 +3088,14 @@ public class DecoderTest extends MediaPlayerTestBase {
 //        testCodecResets("sinesweepogg.ogg", null);
 //    }
 
+    @Test
     public void testCodecResetsMp3() throws Exception {
         testCodecReconfig("sinesweepmp3lame.mp3");
         // NOTE: replacing testCodecReconfig call soon
 //        testCodecResets("sinesweepmp3lame.mp3, null);
     }
 
+    @Test
     public void testCodecResetsM4a() throws Exception {
         testCodecReconfig("sinesweepm4a.m4a");
         // NOTE: replacing testCodecReconfig call soon
@@ -3287,16 +3498,19 @@ public class DecoderTest extends MediaPlayerTestBase {
                         0;
     }
 
+    @Test
     public void testEOSBehaviorH264() throws Exception {
         // this video has an I frame at 44
         testEOSBehavior("video_480x360_mp4_h264_1000kbps_25fps_aac_stereo_128kbps_44100hz.mp4",
                 new int[]{1, 44, 45, 55});
     }
+    @Test
     public void testEOSBehaviorHEVC() throws Exception {
         testEOSBehavior("video_480x360_mp4_hevc_650kbps_30fps_aac_stereo_128kbps_48000hz.mp4",
                 new int[]{1, 17, 23, 49});
     }
 
+    @Test
     public void testEOSBehaviorMpeg2() throws Exception {
         testEOSBehavior("video_480x360_mp4_mpeg2_1500kbps_30fps_aac_stereo_128kbps_48000hz.mp4",
                 17);
@@ -3306,30 +3520,35 @@ public class DecoderTest extends MediaPlayerTestBase {
                 49);
     }
 
+    @Test
     public void testEOSBehaviorH263() throws Exception {
         // this video has an I frame every 12 frames.
         testEOSBehavior("video_176x144_3gp_h263_300kbps_12fps_aac_stereo_128kbps_22050hz.3gp",
                 new int[]{1, 24, 25, 48, 50});
     }
 
+    @Test
     public void testEOSBehaviorMpeg4() throws Exception {
         // this video has an I frame every 12 frames
         testEOSBehavior("video_480x360_mp4_mpeg4_860kbps_25fps_aac_stereo_128kbps_44100hz.mp4",
                 new int[]{1, 24, 25, 48, 50, 2});
     }
 
+    @Test
     public void testEOSBehaviorVP8() throws Exception {
         // this video has an I frame at 46
         testEOSBehavior("video_480x360_webm_vp8_333kbps_25fps_vorbis_stereo_128kbps_48000hz.webm",
                 new int[]{1, 46, 47, 57, 45});
     }
 
+    @Test
     public void testEOSBehaviorVP9() throws Exception {
         // this video has an I frame at 44
         testEOSBehavior("video_480x360_webm_vp9_333kbps_25fps_vorbis_stereo_128kbps_48000hz.webm",
                 new int[]{1, 44, 45, 55, 43});
     }
 
+    @Test
     public void testEOSBehaviorAV1() throws Exception {
         // this video has an I frame at 44
         testEOSBehavior("video_480x360_webm_av1_400kbps_30fps_vorbis_stereo_128kbps_48000hz.webm",
@@ -3493,6 +3712,7 @@ public class DecoderTest extends MediaPlayerTestBase {
         return crc.getValue();
     }
 
+    @Test
     public void testFlush() throws Exception {
         testFlush("loudsoftwav.wav");
         testFlush("loudsoftogg.ogg");
@@ -3655,6 +3875,8 @@ public class DecoderTest extends MediaPlayerTestBase {
     /**
      * Test tunneled video playback mode with HEVC if supported
      */
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
+    @Test
     public void testTunneledVideoPlaybackHevc() throws Exception {
         tunneledVideoPlayback(MediaFormat.MIMETYPE_VIDEO_HEVC,
                     "video_1280x720_mkv_h265_500kbps_25fps_aac_stereo_128kbps_44100hz.mkv");
@@ -3663,6 +3885,8 @@ public class DecoderTest extends MediaPlayerTestBase {
     /**
      * Test tunneled video playback mode with AVC if supported
      */
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
+    @Test
     public void testTunneledVideoPlaybackAvc() throws Exception {
         tunneledVideoPlayback(MediaFormat.MIMETYPE_VIDEO_AVC,
                 "video_480x360_mp4_h264_1000kbps_25fps_aac_stereo_128kbps_44100hz.mp4");
@@ -3671,6 +3895,8 @@ public class DecoderTest extends MediaPlayerTestBase {
     /**
      * Test tunneled video playback mode with VP9 if supported
      */
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
+    @Test
     public void testTunneledVideoPlaybackVp9() throws Exception {
         tunneledVideoPlayback(MediaFormat.MIMETYPE_VIDEO_VP9,
                     "bbb_s1_640x360_webm_vp9_0p21_1600kbps_30fps_vorbis_stereo_128kbps_48000hz.webm");
@@ -3711,6 +3937,8 @@ public class DecoderTest extends MediaPlayerTestBase {
     /**
      * Test tunneled video playback flush with HEVC if supported
      */
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
+    @Test
     public void testTunneledVideoFlushHevc() throws Exception {
         testTunneledVideoFlush(MediaFormat.MIMETYPE_VIDEO_HEVC,
                 "video_1280x720_mkv_h265_500kbps_25fps_aac_stereo_128kbps_44100hz.mkv");
@@ -3719,6 +3947,8 @@ public class DecoderTest extends MediaPlayerTestBase {
     /**
      * Test tunneled video playback flush with AVC if supported
      */
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
+    @Test
     public void testTunneledVideoFlushAvc() throws Exception {
         testTunneledVideoFlush(MediaFormat.MIMETYPE_VIDEO_AVC,
                 "video_480x360_mp4_h264_1000kbps_25fps_aac_stereo_128kbps_44100hz.mp4");
@@ -3727,6 +3957,8 @@ public class DecoderTest extends MediaPlayerTestBase {
     /**
      * Test tunneled video playback flush with VP9 if supported
      */
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
+    @Test
     public void testTunneledVideoFlushVp9() throws Exception {
         testTunneledVideoFlush(MediaFormat.MIMETYPE_VIDEO_VP9,
                 "bbb_s1_640x360_webm_vp9_0p21_1600kbps_30fps_vorbis_stereo_128kbps_48000hz.webm");
@@ -3768,8 +4000,9 @@ public class DecoderTest extends MediaPlayerTestBase {
                         waitTimeMs),
                 mMediaCodecPlayer.isFirstTunnelFrameReady());
         // Assert that video peek is enabled and working
-        assertTrue(String.format("First frame not rendered within %d milliseconds", waitTimeMs),
-                mMediaCodecPlayer.getCurrentPosition() != 0);
+        assertNotEquals(String.format("First frame not rendered within %d milliseconds",
+                        waitTimeMs), CodecState.UNINITIALIZED_TIMESTAMP,
+                mMediaCodecPlayer.getCurrentPosition());
 
         // mMediaCodecPlayer.reset() handled in TearDown();
     }
@@ -3777,6 +4010,8 @@ public class DecoderTest extends MediaPlayerTestBase {
     /**
      * Test default tunneled video peek with HEVC if supported
      */
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
+    @Test
     public void testTunneledVideoPeekDefaultHevc() throws Exception {
         testTunneledVideoPeekDefault(MediaFormat.MIMETYPE_VIDEO_HEVC,
                 "video_1280x720_mkv_h265_500kbps_25fps_aac_stereo_128kbps_44100hz.mkv");
@@ -3785,6 +4020,8 @@ public class DecoderTest extends MediaPlayerTestBase {
     /**
      * Test default tunneled video peek with AVC if supported
      */
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
+    @Test
     public void testTunneledVideoPeekDefaultAvc() throws Exception {
         testTunneledVideoPeekDefault(MediaFormat.MIMETYPE_VIDEO_AVC,
                 "video_480x360_mp4_h264_1000kbps_25fps_aac_stereo_128kbps_44100hz.mp4");
@@ -3793,6 +4030,8 @@ public class DecoderTest extends MediaPlayerTestBase {
     /**
      * Test default tunneled video peek with VP9 if supported
      */
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
+    @Test
     public void testTunneledVideoPeekDefaultVp9() throws Exception {
         testTunneledVideoPeekDefault(MediaFormat.MIMETYPE_VIDEO_VP9,
                 "bbb_s1_640x360_webm_vp9_0p21_1600kbps_30fps_vorbis_stereo_128kbps_48000hz.webm");
@@ -3836,16 +4075,16 @@ public class DecoderTest extends MediaPlayerTestBase {
                         waitTimeMsStep1),
                 mMediaCodecPlayer.isFirstTunnelFrameReady());
         // Assert that video peek is disabled
-        assertEquals("First frame rendered while peek disabled",
-                mMediaCodecPlayer.getCurrentPosition(), 0);
+        assertEquals("First frame rendered while peek disabled", CodecState.UNINITIALIZED_TIMESTAMP,
+                mMediaCodecPlayer.getCurrentPosition());
         mMediaCodecPlayer.setVideoPeek(true); // Reenable video peek
         final int waitTimeMsStep2 = 150;
         Thread.sleep(waitTimeMsStep2);
         // Assert that video peek is enabled
-        assertTrue(String.format(
+        assertNotEquals(String.format(
                         "First frame not rendered within %d milliseconds while peek enabled",
-                        waitTimeMsStep2),
-                mMediaCodecPlayer.getCurrentPosition() != 0);
+                        waitTimeMsStep2), CodecState.UNINITIALIZED_TIMESTAMP,
+                mMediaCodecPlayer.getCurrentPosition());
 
         // mMediaCodecPlayer.reset() handled in TearDown();
     }
@@ -3853,6 +4092,8 @@ public class DecoderTest extends MediaPlayerTestBase {
     /**
      * Test tunneled video peek can be turned off then on with HEVC if supported
      */
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
+    @Test
     public void testTunneledVideoPeekOffHevc() throws Exception {
         testTunneledVideoPeekOff(MediaFormat.MIMETYPE_VIDEO_HEVC,
                 "video_1280x720_mkv_h265_500kbps_25fps_aac_stereo_128kbps_44100hz.mkv");
@@ -3861,6 +4102,8 @@ public class DecoderTest extends MediaPlayerTestBase {
     /**
      * Test tunneled video peek can be turned off then on with AVC if supported
      */
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
+    @Test
     public void testTunneledVideoPeekOffAvc() throws Exception {
         testTunneledVideoPeekOff(MediaFormat.MIMETYPE_VIDEO_AVC,
                 "video_480x360_mp4_h264_1000kbps_25fps_aac_stereo_128kbps_44100hz.mp4");
@@ -3869,9 +4112,191 @@ public class DecoderTest extends MediaPlayerTestBase {
     /**
      * Test tunneled video peek can be turned off then on with VP9 if supported
      */
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
+    @Test
     public void testTunneledVideoPeekOffVp9() throws Exception {
         testTunneledVideoPeekOff(MediaFormat.MIMETYPE_VIDEO_VP9,
                 "bbb_s1_640x360_webm_vp9_0p21_1600kbps_30fps_vorbis_stereo_128kbps_48000hz.webm");
+    }
+
+    /**
+     * Test tunneled audio PTS gaps with HEVC if supported.
+     * If there exist PTS Gaps in AudioTrack playback, the framePosition returned by
+     * AudioTrack#getTimestamp must not advance for any silent frames rendered to fill the
+     * gap.
+     */
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
+    @Test
+    public void testTunneledAudioPtsGapsHevc() throws Exception {
+        testTunneledAudioPtsGaps(MediaFormat.MIMETYPE_VIDEO_HEVC,
+                "video_1280x720_mkv_h265_500kbps_25fps_aac_stereo_128kbps_44100hz.mkv");
+    }
+
+    /**
+     * Test tunneled audio PTS gaps with AVC if supported
+     * If there exist PTS Gaps in AudioTrack playback, the framePosition returned by
+     * AudioTrack#getTimestamp must not advance for any silent frames rendered to fill the
+     * gap.
+     */
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
+    @Test
+    public void testTunneledAudioPtsGapsAvc() throws Exception {
+        testTunneledAudioPtsGaps(MediaFormat.MIMETYPE_VIDEO_AVC,
+                "video_480x360_mp4_h264_1000kbps_25fps_aac_stereo_128kbps_44100hz.mp4");
+    }
+
+    /**
+     * Test tunneled audio PTS gaps with VP9 if supported
+     * If there exist PTS Gaps in AudioTrack playback, the framePosition returned by
+     * AudioTrack#getTimestamp must not advance for any silent frames rendered to fill the
+     * gap.
+     */
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
+    @Test
+    public void testTunneledAudioPtsGapsVp9() throws Exception {
+        testTunneledAudioPtsGaps(MediaFormat.MIMETYPE_VIDEO_VP9,
+                "bbb_s1_640x360_webm_vp9_0p21_1600kbps_30fps_vorbis_stereo_128kbps_48000hz.webm");
+    }
+
+    private void testTunneledAudioPtsGaps(String mimeType, String fileName) throws Exception {
+        if (!MediaUtils.check(isVideoFeatureSupported(mimeType,
+                CodecCapabilities.FEATURE_TunneledPlayback),
+                "No tunneled video playback codec found for MIME " + mimeType)) {
+            return;
+        }
+
+        AudioManager am = mContext.getSystemService(AudioManager.class);
+
+        mMediaCodecPlayer = new MediaCodecTunneledPlayer(mContext,
+                getActivity().getSurfaceHolder(), true, am.generateAudioSessionId());
+
+        final Uri mediaUri = Uri.fromFile(new File(mInpPrefix, fileName));
+        mMediaCodecPlayer.setAudioDataSource(mediaUri, null);
+
+        assertTrue("MediaCodecPlayer.start() failed!", mMediaCodecPlayer.start());
+        assertTrue("MediaCodecPlayer.prepare() failed!", mMediaCodecPlayer.prepare());
+
+        mMediaCodecPlayer.startThread();
+        sleepUntil(() -> mMediaCodecPlayer.getTimestamp() != null
+                && mMediaCodecPlayer.getTimestamp().framePosition > 0,  Duration.ofSeconds(1));
+        // After 30 ms, Changing the presentation offset for audio track
+        Thread.sleep(30);
+
+        // Requirement: If the audio presentation timestamp header sent by the app is greater than
+        // the current audio clock by less than 100ms, the framePosition returned by
+        // AudioTrack#getTimestamp (per get_presentation_position) must not advance for any silent
+        // frames rendered to fill the gap.
+        // TODO: add link to documentation when available
+        mMediaCodecPlayer.setAudioTrackOffsetMs(100);
+        // Wait for 20 ms so that whatever was buffered before offset is played
+        Thread.sleep(20);
+        long initialFramePosition = mMediaCodecPlayer.getTimestamp().framePosition;
+
+        // Verify that the framePosition did not advance after 30 ms. This ensures framePosition
+        // returned by AudioTrack#getTimestamp did not advance for any silent frames rendered to
+        // fill PTS gaps.
+        Thread.sleep(30);
+        assertEquals(
+                "Initial frame position != Final frame position after introducing PTS gaps",
+                initialFramePosition, mMediaCodecPlayer.getTimestamp().framePosition);
+
+        Thread.sleep(500);
+        mMediaCodecPlayer.stopWritingToAudioTrack(true);
+
+        // Sleep till framePosition stabilizes, i.e. playback is complete or till max 3 seconds.
+        long framePosCurrent = 0;
+        int totalSleepMs = 0;
+        while (totalSleepMs < 3000
+                && framePosCurrent != mMediaCodecPlayer.getTimestamp().framePosition) {
+            framePosCurrent = mMediaCodecPlayer.getTimestamp().framePosition;
+            Thread.sleep(500);
+            totalSleepMs += 500;
+        }
+
+        // Verify if number of frames written and played are same even if PTS Gaps were present
+        // in the playback.
+        assertEquals("Number of frames written != Number of frames played",
+                mMediaCodecPlayer.getAudioFramesWritten(),
+                mMediaCodecPlayer.getTimestamp().framePosition);
+    }
+
+    /**
+     * Test tunneled audioTimestamp progress with underrun, with HEVC if supported
+     */
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
+    @Test
+    public void testTunneledAudioTimestampProgressWithUnderrunHevc() throws Exception {
+        testTunneledAudioTimestampProgressWithUnderrun(MediaFormat.MIMETYPE_VIDEO_HEVC,
+                "video_1280x720_mkv_h265_500kbps_25fps_aac_stereo_128kbps_44100hz.mkv");
+    }
+
+    /**
+     * Test tunneled audioTimestamp progress with underrun, with AVC if supported.
+     */
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
+    @Test
+    public void testTunneledAudioTimestampProgressWithUnderrunAvc() throws Exception {
+        testTunneledAudioTimestampProgressWithUnderrun(MediaFormat.MIMETYPE_VIDEO_AVC,
+                "video_480x360_mp4_h264_1000kbps_25fps_aac_stereo_128kbps_44100hz.mp4");
+    }
+
+    /**
+     *  Test tunneled audioTimestamp progress with underrun, with VP9 if supported.
+     */
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
+    @Test
+    public void testTunneledAudioTimestampProgressWithUnderrunVp9() throws Exception {
+        testTunneledAudioTimestampProgressWithUnderrun(MediaFormat.MIMETYPE_VIDEO_VP9,
+                "bbb_s1_640x360_webm_vp9_0p21_1600kbps_30fps_vorbis_stereo_128kbps_48000hz.webm");
+    }
+
+    private void testTunneledAudioTimestampProgressWithUnderrun(
+            String mimeType, String fileName) throws Exception {
+        if (!MediaUtils.check(isVideoFeatureSupported(mimeType,
+                CodecCapabilities.FEATURE_TunneledPlayback),
+                "No tunneled video playback codec found for MIME " + mimeType)) {
+            return;
+        }
+
+        AudioManager am = mContext.getSystemService(AudioManager.class);
+
+        mMediaCodecPlayer = new MediaCodecTunneledPlayer(mContext,
+                getActivity().getSurfaceHolder(), true, am.generateAudioSessionId());
+
+        final Uri mediaUri = Uri.fromFile(new File(mInpPrefix, fileName));
+        mMediaCodecPlayer.setAudioDataSource(mediaUri, null);
+
+        assertTrue("MediaCodecPlayer.start() failed!", mMediaCodecPlayer.start());
+        assertTrue("MediaCodecPlayer.prepare() failed!", mMediaCodecPlayer.prepare());
+
+        mMediaCodecPlayer.startThread();
+
+        // Stop writing to the AudioTrack after 200 ms.
+        Thread.sleep(200);
+        mMediaCodecPlayer.stopWritingToAudioTrack(true);
+
+        // Resume writing to the audioTrack after 1 sec. Write only for 200 ms.
+        Thread.sleep(1000);
+        mMediaCodecPlayer.stopWritingToAudioTrack(false);
+        Thread.sleep(200);
+        mMediaCodecPlayer.stopWritingToAudioTrack(true);
+
+        // Sleep till framePosition stabilizes, i.e. playback is complete or till max 3 seconds.
+        long framePosCurrent = 0;
+        int totalSleepMs = 0;
+        while (totalSleepMs < 3000
+                && framePosCurrent != mMediaCodecPlayer.getTimestamp().framePosition) {
+            framePosCurrent = mMediaCodecPlayer.getTimestamp().framePosition;
+            Thread.sleep(500);
+            totalSleepMs += 500;
+        }
+
+        // Verify if number of frames written and played are same. This ensures the
+        // framePosition returned by AudioTrack#getTimestamp progresses correctly in case of
+        // underrun
+        assertEquals("Number of frames written != Number of frames played",
+                mMediaCodecPlayer.getAudioFramesWritten(),
+                mMediaCodecPlayer.getTimestamp().framePosition);
     }
 
     /**
@@ -3909,22 +4334,25 @@ public class DecoderTest extends MediaPlayerTestBase {
         // start video playback
         mMediaCodecPlayer.startThread();
         Thread.sleep(100);
-        assertTrue("Video playback stalled", mMediaCodecPlayer.getCurrentPosition() != 0);
+        assertNotEquals("Video playback stalled", CodecState.UNINITIALIZED_TIMESTAMP,
+                mMediaCodecPlayer.getCurrentPosition());
         mMediaCodecPlayer.pause();
         Thread.sleep(50);
         assertTrue("Video is ahead of audio", mMediaCodecPlayer.getCurrentPosition() <=
                 mMediaCodecPlayer.getAudioTrackPositionUs());
         mMediaCodecPlayer.videoFlush();
         Thread.sleep(50);
-        assertEquals("Video frame rendered after flush", mMediaCodecPlayer.getCurrentPosition(), 0);
+        assertEquals("Video frame rendered after flush", CodecState.UNINITIALIZED_TIMESTAMP,
+                mMediaCodecPlayer.getCurrentPosition());
         // We queue one frame, but expect it not to be rendered
         Long queuedVideoTimestamp = mMediaCodecPlayer.queueOneVideoFrame();
         assertNotNull("Failed to queue a video frame", queuedVideoTimestamp);
         Thread.sleep(50); // longer wait to account for buffer manipulation
-        assertEquals("Video frame rendered during pause", mMediaCodecPlayer.getCurrentPosition(), 0);
+        assertEquals("Video frame rendered during pause", CodecState.UNINITIALIZED_TIMESTAMP,
+                mMediaCodecPlayer.getCurrentPosition());
         mMediaCodecPlayer.resume();
         Thread.sleep(100);
-        ArrayList<Long> renderedVideoTimestamps =
+        ImmutableList<Long> renderedVideoTimestamps =
                 mMediaCodecPlayer.getRenderedVideoFrameTimestampList();
         assertFalse("No new video timestamps", renderedVideoTimestamps.isEmpty());
         assertEquals("First rendered video frame does not match first queued video frame",
@@ -3935,6 +4363,8 @@ public class DecoderTest extends MediaPlayerTestBase {
     /**
      * Test accurate video rendering after a video MediaCodec flush with HEVC if supported
      */
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
+    @Test
     public void testTunneledAccurateVideoFlushHevc() throws Exception {
         testTunneledAccurateVideoFlush(MediaFormat.MIMETYPE_VIDEO_HEVC,
                 "video_1280x720_mkv_h265_500kbps_25fps_aac_stereo_128kbps_44100hz.mkv");
@@ -3943,6 +4373,8 @@ public class DecoderTest extends MediaPlayerTestBase {
     /**
      * Test accurate video rendering after a video MediaCodec flush with AVC if supported
      */
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
+    @Test
     public void testTunneledAccurateVideoFlushAvc() throws Exception {
         testTunneledAccurateVideoFlush(MediaFormat.MIMETYPE_VIDEO_AVC,
                 "video_480x360_mp4_h264_1000kbps_25fps_aac_stereo_128kbps_44100hz.mp4");
@@ -3951,6 +4383,8 @@ public class DecoderTest extends MediaPlayerTestBase {
     /**
      * Test accurate video rendering after a video MediaCodec flush with VP9 if supported
      */
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
+    @Test
     public void testTunneledAccurateVideoFlushVp9() throws Exception {
         testTunneledAccurateVideoFlush(MediaFormat.MIMETYPE_VIDEO_VP9,
                 "bbb_s1_640x360_webm_vp9_0p21_1600kbps_30fps_vorbis_stereo_128kbps_48000hz.webm");
@@ -3959,6 +4393,8 @@ public class DecoderTest extends MediaPlayerTestBase {
     /**
      * Test tunneled audioTimestamp progress with HEVC if supported
      */
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
+    @Test
     public void testTunneledAudioTimestampProgressHevc() throws Exception {
         testTunneledAudioTimestampProgress(MediaFormat.MIMETYPE_VIDEO_HEVC,
                 "video_1280x720_mkv_h265_500kbps_25fps_aac_stereo_128kbps_44100hz.mkv");
@@ -3967,6 +4403,8 @@ public class DecoderTest extends MediaPlayerTestBase {
     /**
      * Test tunneled audioTimestamp progress with AVC if supported
      */
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
+    @Test
     public void testTunneledAudioTimestampProgressAvc() throws Exception {
         testTunneledAudioTimestampProgress(MediaFormat.MIMETYPE_VIDEO_AVC,
                 "video_480x360_mp4_h264_1000kbps_25fps_aac_stereo_128kbps_44100hz.mp4");
@@ -3975,6 +4413,8 @@ public class DecoderTest extends MediaPlayerTestBase {
     /**
      * Test tunneled audioTimestamp progress with VP9 if supported
      */
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
+    @Test
     public void testTunneledAudioTimestampProgressVp9() throws Exception {
         testTunneledAudioTimestampProgress(MediaFormat.MIMETYPE_VIDEO_VP9,
                 "bbb_s1_640x360_webm_vp9_0p21_1600kbps_30fps_vorbis_stereo_128kbps_48000hz.webm");
@@ -4005,11 +4445,12 @@ public class DecoderTest extends MediaPlayerTestBase {
         // starts video playback
         mMediaCodecPlayer.startThread();
 
-        sleepUntil(() -> mMediaCodecPlayer.getCurrentPosition() > 0, Duration.ofSeconds(1));
+        sleepUntil(() ->
+                mMediaCodecPlayer.getCurrentPosition() > CodecState.UNINITIALIZED_TIMESTAMP,
+                Duration.ofSeconds(1));
         final int firstPosition = mMediaCodecPlayer.getCurrentPosition();
-        assertTrue(
-                "On frame rendered not called after playback start!",
-                firstPosition > 0);
+        assertNotEquals("On frame rendered not called after playback start!",
+                CodecState.UNINITIALIZED_TIMESTAMP, firstPosition);
         AudioTimestamp firstTimestamp = mMediaCodecPlayer.getTimestamp();
         assertTrue("Timestamp is null!", firstTimestamp != null);
 
@@ -4031,11 +4472,163 @@ public class DecoderTest extends MediaPlayerTestBase {
         assertEquals(timeStampAfterPause.nanoTime, mMediaCodecPlayer.getTimestamp().nanoTime);
     }
 
+    /**
+     * Test tunneled audio underrun, if supported.
+     *
+     * Underrun test with lower pts after underrun.
+     *
+     * TODO(b/182915887): Test all the codecs advertised by the DUT for the provided test content
+     */
+    private void tunneledAudioUnderrun(String mimeType, String videoName, int frameRate)
+            throws Exception {
+        if (!isVideoFeatureSupported(mimeType,
+                        CodecCapabilities.FEATURE_TunneledPlayback)) {
+            MediaUtils.skipTest(
+                    TAG,
+                    "No tunneled video playback codec found for MIME " + mimeType);
+            return;
+        }
+
+        AudioManager am = mContext.getSystemService(AudioManager.class);
+        mMediaCodecPlayer = new MediaCodecTunneledPlayer(
+                mContext, getActivity().getSurfaceHolder(), true, am.generateAudioSessionId());
+
+        Uri mediaUri = Uri.fromFile(new File(mInpPrefix, videoName));
+        mMediaCodecPlayer.setAudioDataSource(mediaUri, null);
+        mMediaCodecPlayer.setVideoDataSource(mediaUri, null);
+        assertTrue("MediaCodecPlayer.start() failed!", mMediaCodecPlayer.start());
+        assertTrue("MediaCodecPlayer.prepare() failed!", mMediaCodecPlayer.prepare());
+
+        // Start media playback
+        mMediaCodecPlayer.startThread();
+        final int waitStartMs = 50;
+        Thread.sleep(waitStartMs);
+        assertTrue(String.format("Playback has not started after %d milliseconds", waitStartMs),
+                mMediaCodecPlayer.getVideoTimeUs() != 0);
+        // Keep buffering video content but stop buffering audio content -> audio underrun
+        mMediaCodecPlayer.simulateAudioUnderrun(true);
+        // Loop to wait for audio underrun
+        // TODO(b/200280965): Find a more appropriate delay based on partner feedback
+        final int audioUnderrunTimeoutMs = 1000; // Arbitrary upper time limit on loop time duration
+        long startTimeMs = System.currentTimeMillis();
+        AudioTimestamp previousTimestamp = mMediaCodecPlayer.getTimestamp();
+        AudioTimestamp underrunAudioTimestamp;
+        while ((underrunAudioTimestamp = mMediaCodecPlayer.getTimestamp()) != previousTimestamp) {
+            assertTrue(String.format("No audio underrun after %d milliseconds",
+                            audioUnderrunTimeoutMs),
+                    System.currentTimeMillis() - startTimeMs < audioUnderrunTimeoutMs);
+            previousTimestamp = underrunAudioTimestamp;
+            Thread.sleep(50);
+        }
+        // Loop to wait until video playback stalls
+        long previousVideoTimeUs = mMediaCodecPlayer.getVideoTimeUs();
+        long underrunVideoTimeUs;
+        startTimeMs = System.currentTimeMillis();
+        // TODO(b/200280965): Find a more appropriate delay based on partner feedback
+        final int videoUnderrunTimeoutMs = 1000;
+        while ((underrunVideoTimeUs = mMediaCodecPlayer.getVideoTimeUs()) != previousVideoTimeUs) {
+            assertTrue(String.format("No video underrun after %d milliseconds",
+                            videoUnderrunTimeoutMs),
+                    System.currentTimeMillis() - startTimeMs < videoUnderrunTimeoutMs);
+            previousVideoTimeUs = underrunVideoTimeUs;
+            Thread.sleep(50);
+        }
+
+        final int underrunVideoRenderedTimestampIndex =
+                mMediaCodecPlayer.getRenderedVideoFrameTimestampList().size() - 1;
+        // Resume audio buffering with a negative offset, in order to simulate a desynchronisation.
+        // TODO(b/202710709): Use timestamp relative to last played video frame before pause
+        mMediaCodecPlayer.setAudioTrackOffsetMs(-100);
+        mMediaCodecPlayer.simulateAudioUnderrun(false);
+
+        // Loop to wait until audio playback resumes
+        startTimeMs = System.currentTimeMillis();
+        AudioTimestamp postResumeTimestamp;
+        while ((postResumeTimestamp = mMediaCodecPlayer.getTimestamp()) == underrunAudioTimestamp) {
+            assertTrue(String.format("Audio has not resumed after %d milliseconds",
+                            audioUnderrunTimeoutMs),
+                    System.currentTimeMillis() - startTimeMs < audioUnderrunTimeoutMs);
+            Thread.sleep(50);
+        }
+
+        long resumeAudioSystemTime = interpolateSystemTimeAt(
+                underrunAudioTimestamp.framePosition + 1, postResumeTimestamp,
+                mMediaCodecPlayer.getAudioTrack());
+
+        // Now that audio playback has resumed, loop to wait until video playback resumes
+        // We care about the timestamp of the first output frame, rather than the exact time the
+        // video resumed, which is why we only start polling after we are sure audio playback has
+        // resumed.
+        long resumeVideoTimeUs = 0;
+        startTimeMs = System.currentTimeMillis();
+        while ((resumeVideoTimeUs = mMediaCodecPlayer.getVideoTimeUs()) == underrunVideoTimeUs) {
+            assertTrue(String.format("Video has not resumed after %d milliseconds",
+                            videoUnderrunTimeoutMs),
+                    System.currentTimeMillis() - startTimeMs < videoUnderrunTimeoutMs);
+            Thread.sleep(50);
+        }
+
+        final ImmutableList<Long> renderedSystemTimeList =
+                mMediaCodecPlayer.getRenderedVideoFrameSystemTimeList();
+        final long resumeVideoFrameSystemTime = mMediaCodecPlayer
+                .getRenderedVideoFrameSystemTimeList().get(underrunVideoRenderedTimestampIndex + 1);
+        final long vsync = (long) (1000 / frameRate);
+        final long avSyncOffset = resumeAudioSystemTime + 100 - resumeVideoFrameSystemTime;
+        assertTrue(String.format("Audio and video tracks are more than %d milliseconds out of sync",
+                        vsync),
+                Math.abs(avSyncOffset) <= vsync);
+    }
+
+    /**
+     * Test tunneled audio underrun with HEVC if supported
+     */
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
+    @Test
+    public void testTunneledAudioUnderrunHevc() throws Exception {
+        tunneledAudioUnderrun(MediaFormat.MIMETYPE_VIDEO_HEVC,
+                "video_1280x720_mkv_h265_500kbps_25fps_aac_stereo_128kbps_44100hz.mkv",
+                25);
+    }
+
+    /**
+     * Test tunneled audio underrun with AVC if supported
+     */
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
+    @Test
+    public void testTunneledAudioUnderrunAvc() throws Exception {
+        tunneledAudioUnderrun(MediaFormat.MIMETYPE_VIDEO_AVC,
+                "video_480x360_mp4_h264_1000kbps_25fps_aac_stereo_128kbps_44100hz.mp4",
+                25);
+    }
+
+    /**
+     * Test tunneled audio underrun with VP9 if supported
+     */
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
+    @Test
+    public void testTunneledAudioUnderrunVp9() throws Exception {
+        tunneledAudioUnderrun(MediaFormat.MIMETYPE_VIDEO_VP9,
+                "bbb_s1_640x360_webm_vp9_0p21_1600kbps_30fps_vorbis_stereo_128kbps_48000hz.webm",
+                30);
+    }
+
     private void sleepUntil(Supplier<Boolean> supplier, Duration maxWait) throws Exception {
         final long deadLineMs = System.currentTimeMillis() + maxWait.toMillis();
         do {
             Thread.sleep(50);
         } while (!supplier.get() && System.currentTimeMillis() < deadLineMs);
+    }
+
+    /**
+     * Returns the system time of the frame {@code framePosition} from {@code timestamp}, for a
+     * specific {@code AudioTrack}.
+     */
+    private static long interpolateSystemTimeAt(long framePosition, AudioTimestamp timestamp,
+            AudioTrack audioTrack) {
+        final long playbackRateFps = audioTrack.getPlaybackRate();  // Frames per second
+        final long playedFrames = timestamp.framePosition - framePosition;
+        final double elapsedTimeNs = playedFrames * (1000000000.0 / playbackRateFps);
+        return timestamp.nanoTime - (long) elapsedTimeNs;
     }
 
     /**
@@ -4120,6 +4713,7 @@ public class DecoderTest extends MediaPlayerTestBase {
         return false;
     }
 
+    @Test
     public void testVrHighPerformanceH264() throws Exception {
         if (!supportsVrHighPerformance()) {
             MediaUtils.skipTest(TAG, "FEATURE_VR_MODE_HIGH_PERFORMANCE not present");
@@ -4130,6 +4724,7 @@ public class DecoderTest extends MediaPlayerTestBase {
         assertTrue("Did not find a VR ready H.264 decoder", h264IsReady);
     }
 
+    @Test
     public void testVrHighPerformanceHEVC() throws Exception {
         if (!supportsVrHighPerformance()) {
             MediaUtils.skipTest(TAG, "FEATURE_VR_MODE_HIGH_PERFORMANCE not present");
@@ -4146,6 +4741,7 @@ public class DecoderTest extends MediaPlayerTestBase {
         }
     }
 
+    @Test
     public void testVrHighPerformanceVP9() throws Exception {
         if (!supportsVrHighPerformance()) {
             MediaUtils.skipTest(TAG, "FEATURE_VR_MODE_HIGH_PERFORMANCE not present");
@@ -4168,6 +4764,7 @@ public class DecoderTest extends MediaPlayerTestBase {
     }
 
     @SdkSuppress(minSdkVersion = Build.VERSION_CODES.R)
+    @Test
     public void testLowLatencyVp9At1280x720() throws Exception {
         testLowLatencyVideo(
                 "video_1280x720_webm_vp9_csd_309kbps_25fps_vorbis_stereo_128kbps_48000hz.webm", 300,
@@ -4178,6 +4775,7 @@ public class DecoderTest extends MediaPlayerTestBase {
     }
 
     @SdkSuppress(minSdkVersion = Build.VERSION_CODES.R)
+    @Test
     public void testLowLatencyVp9At1920x1080() throws Exception {
         testLowLatencyVideo(
                 "bbb_s2_1920x1080_webm_vp9_0p41_10mbps_60fps_vorbis_6ch_384kbps_22050hz.webm", 300,
@@ -4188,6 +4786,7 @@ public class DecoderTest extends MediaPlayerTestBase {
     }
 
     @SdkSuppress(minSdkVersion = Build.VERSION_CODES.R)
+    @Test
     public void testLowLatencyVp9At3840x2160() throws Exception {
         testLowLatencyVideo(
                 "bbb_s2_3840x2160_webm_vp9_0p51_20mbps_60fps_vorbis_6ch_384kbps_32000hz.webm", 300,
@@ -4198,6 +4797,7 @@ public class DecoderTest extends MediaPlayerTestBase {
     }
 
     @NonMediaMainlineTest
+    @Test
     public void testLowLatencyAVCAt1280x720() throws Exception {
         testLowLatencyVideo(
                 "video_1280x720_mp4_h264_1000kbps_25fps_aac_stereo_128kbps_44100hz.mp4", 300,
@@ -4208,6 +4808,7 @@ public class DecoderTest extends MediaPlayerTestBase {
     }
 
     @NonMediaMainlineTest
+    @Test
     public void testLowLatencyHEVCAt480x360() throws Exception {
         testLowLatencyVideo(
                 "video_480x360_mp4_hevc_650kbps_30fps_aac_stereo_128kbps_48000hz.mp4", 300,
