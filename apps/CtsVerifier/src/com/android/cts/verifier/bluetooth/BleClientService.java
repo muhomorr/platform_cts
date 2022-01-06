@@ -116,6 +116,8 @@ public class BleClientService extends Service {
             "com.android.cts.verifier.bluetooth.BLE_RELIABLE_WRITE_BAD_RESP_COMPLETED";
     public static final String BLE_READ_REMOTE_RSSI =
             "com.android.cts.verifier.bluetooth.BLE_READ_REMOTE_RSSI";
+    public static final String BLE_PHY_READ =
+            "com.android.cts.verifier.bluetooth.BLE_PHY_READ";
     public static final String BLE_ON_SERVICE_CHANGED =
             "com.android.cts.verifier.bluetooth.BLE_ON_SERVICE_CHANGED";
     public static final String BLE_CHARACTERISTIC_READ_NOPERMISSION =
@@ -174,6 +176,8 @@ public class BleClientService extends Service {
             "com.android.cts.verifier.bluetooth.BLE_CLIENT_ACTION_WRITE_DESCRIPTOR";
     public static final String BLE_CLIENT_ACTION_READ_RSSI =
             "com.android.cts.verifier.bluetooth.BLE_CLIENT_ACTION_READ_RSSI";
+    public static final String BLE_CLIENT_ACTION_READ_PHY =
+            "com.android.cts.verifier.bluetooth.BLE_CLIENT_ACTION_READ_PHY";
     public static final String BLE_CLIENT_ACTION_TRIGGER_SERVICE_CHANGED =
             "com.android.cts.verifier.bluetooth.BLE_CLIENT_ACTION_TRIGGER_SERVICE_CHANGED";
     public static final String BLE_CLIENT_ACTION_CLIENT_DISCONNECT =
@@ -201,6 +205,10 @@ public class BleClientService extends Service {
             "com.android.cts.verifier.bluetooth.EXTRA_DESCRIPTOR_VALUE";
     public static final String EXTRA_RSSI_VALUE =
             "com.android.cts.verifier.bluetooth.EXTRA_RSSI_VALUE";
+    public static final String EXTRA_TX_PHY_VALUE =
+            "com.android.cts.verifier.bluetooth.EXTRA_TX_PHY_VALUE";
+    public static final String EXTRA_RX_PHY_VALUE =
+            "com.android.cts.verifier.bluetooth.EXTRA_RX_PHY_VALUE";
     public static final String EXTRA_ERROR_MESSAGE =
             "com.android.cts.verifier.bluetooth.EXTRA_ERROR_MESSAGE";
 
@@ -479,6 +487,11 @@ public class BleClientService extends Service {
                     break;
                 case BLE_CLIENT_ACTION_WRITE_AUTHENTICATED_DESCRIPTOR:
                     writeDescriptor(CHARACTERISTIC_RESULT_UUID, DESCRIPTOR_NEED_ENCRYPTED_WRITE_UUID, WRITE_VALUE);
+                    break;
+                case BLE_CLIENT_ACTION_READ_PHY:
+                    if (mBluetoothGatt != null) {
+                        mBluetoothGatt.readPhy();
+                    }
                     break;
                 case BLE_CLIENT_ACTION_TRIGGER_SERVICE_CHANGED:
                     initializeServiceChangedEvent();
@@ -835,6 +848,14 @@ public class BleClientService extends Service {
         sendBroadcast(intent);
     }
 
+    private void notifyPhyRead(int txPhy, int rxPhy) {
+        showMessage("Phy read: txPhy=" + txPhy + ", rxPhy=" + rxPhy);
+        Intent intent = new Intent(BLE_PHY_READ);
+        intent.putExtra(EXTRA_TX_PHY_VALUE, txPhy);
+        intent.putExtra(EXTRA_RX_PHY_VALUE, rxPhy);
+        sendBroadcast(intent);
+    }
+
     private void notifyServiceChanged() {
         showMessage("Remote service changed");
         Intent intent = new Intent(BLE_ON_SERVICE_CHANGED);
@@ -956,6 +977,7 @@ public class BleClientService extends Service {
     private final BluetoothGattCallback mGattCallbacks = new BluetoothGattCallback() {
         @Override
         public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
+            super.onConnectionStateChange(gatt, status, newState);
             if (DEBUG) Log.d(TAG, "onConnectionStateChange: status= " + status + ", newState= " + newState);
             if (status == BluetoothGatt.GATT_SUCCESS) {
                 if (newState == BluetoothProfile.STATE_CONNECTED) {
@@ -998,6 +1020,7 @@ public class BleClientService extends Service {
 
         @Override
         public void onServicesDiscovered(BluetoothGatt gatt, int status) {
+            super.onServicesDiscovered(gatt, status);
             if (DEBUG){
                 Log.d(TAG, "onServiceDiscovered");
             }
@@ -1037,6 +1060,7 @@ public class BleClientService extends Service {
 
         @Override
         public void onCharacteristicWrite(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, final int status) {
+            super.onCharacteristicWrite(gatt, characteristic, status);
             String value = characteristic.getStringValue(0);
             final UUID uid = characteristic.getUuid();
             if (DEBUG) {
@@ -1132,6 +1156,7 @@ public class BleClientService extends Service {
 
         @Override
         public void onCharacteristicRead(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
+            super.onCharacteristicRead(gatt, characteristic, status);
             UUID uid = characteristic.getUuid();
             if (DEBUG) {
                 Log.d(TAG, "onCharacteristicRead: status=" + status);
@@ -1164,6 +1189,7 @@ public class BleClientService extends Service {
 
         @Override
         public void onDescriptorWrite(BluetoothGatt gatt, BluetoothGattDescriptor descriptor, int status) {
+            super.onDescriptorWrite(gatt, descriptor, status);
             if (DEBUG) {
                 Log.d(TAG, "onDescriptorWrite");
             }
@@ -1198,6 +1224,7 @@ public class BleClientService extends Service {
 
         @Override
         public void onDescriptorRead(BluetoothGatt gatt, BluetoothGattDescriptor descriptor, int status) {
+            super.onDescriptorRead(gatt, descriptor, status);
             if (DEBUG) {
                 Log.d(TAG, "onDescriptorRead");
             }
@@ -1228,6 +1255,7 @@ public class BleClientService extends Service {
 
         @Override
         public void onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
+            super.onCharacteristicChanged(gatt, characteristic);
             UUID uid = characteristic.getUuid();
             if (DEBUG) {
                 Log.d(TAG, "onCharacteristicChanged: " + uid);
@@ -1248,6 +1276,7 @@ public class BleClientService extends Service {
 
         @Override
         public void onReliableWriteCompleted(BluetoothGatt gatt, int status) {
+            super.onReliableWriteCompleted(gatt, status);
             if (DEBUG) {
                 Log.d(TAG, "onReliableWriteComplete: " + status);
             }
@@ -1264,6 +1293,7 @@ public class BleClientService extends Service {
 
         @Override
         public void onReadRemoteRssi(BluetoothGatt gatt, int rssi, int status) {
+            super.onReadRemoteRssi(gatt, rssi, status);
             if (DEBUG) {
                 Log.d(TAG, "onReadRemoteRssi");
             }
@@ -1275,7 +1305,21 @@ public class BleClientService extends Service {
         }
 
         @Override
+        public void onPhyRead(BluetoothGatt gatt, int txPhy, int rxPhy, int status) {
+            super.onPhyRead(gatt, txPhy, rxPhy, status);
+            if (DEBUG) {
+                Log.d(TAG, "onPhyRead");
+            }
+            if (status == BluetoothGatt.GATT_SUCCESS) {
+                notifyPhyRead(txPhy, rxPhy);
+            } else {
+                notifyError("Failed to read phy");
+            }
+        }
+
+        @Override
         public void onServiceChanged(BluetoothGatt gatt) {
+            super.onServiceChanged(gatt);
             if (DEBUG) {
                 Log.d(TAG, "onServiceChanged");
             }

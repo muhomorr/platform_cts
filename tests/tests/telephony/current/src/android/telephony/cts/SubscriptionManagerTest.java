@@ -49,6 +49,7 @@ import android.telephony.SubscriptionInfo;
 import android.telephony.SubscriptionManager;
 import android.telephony.SubscriptionPlan;
 import android.telephony.TelephonyManager;
+import android.telephony.cts.util.CarrierPrivilegeUtils;
 import android.telephony.ims.ImsException;
 import android.telephony.ims.ImsManager;
 import android.telephony.ims.ImsMmTelManager;
@@ -89,11 +90,18 @@ import java.util.stream.Collectors;
 public class SubscriptionManagerTest {
     private static final String TAG = "SubscriptionManagerTest";
     private static final String MODIFY_PHONE_STATE = "android.permission.MODIFY_PHONE_STATE";
+    private static final String READ_PRIVILEGED_PHONE_STATE =
+            "android.permission.READ_PRIVILEGED_PHONE_STATE";
     private static final List<Uri> CONTACTS = new ArrayList<>();
     static {
         CONTACTS.add(Uri.fromParts("tel", "+16505551212", null));
         CONTACTS.add(Uri.fromParts("tel", "+16505552323", null));
     }
+
+    // time to wait when testing APIs which enable or disable subscriptions. The time waiting
+    // to enable is longer because enabling a subscription can take longer than disabling
+    private static final int SUBSCRIPTION_DISABLE_WAIT_MS = 5000;
+    private static final int SUBSCRIPTION_ENABLE_WAIT_MS = 50000;
 
     private int mSubId;
     private int mDefaultVoiceSubId;
@@ -737,19 +745,81 @@ public class SubscriptionManagerTest {
     }
 
     @Test
-    public void testSetUiccApplicationsEnabled() {
+    public void testSetUiccApplicationsEnabled() throws Exception {
         if (!isSupported()) return;
 
         boolean canDisable = ShellIdentityUtils.invokeMethodWithShellPermissions(mSm,
                 (sm) -> sm.canDisablePhysicalSubscription());
         if (canDisable) {
+            Object lock = new Object();
+            AtomicBoolean functionCallCompleted = new AtomicBoolean(false);
+            // enabled starts off as true
+            AtomicBoolean valueToWaitFor = new AtomicBoolean(false);
+            TestThread t = new TestThread(new Runnable() {
+                @Override
+                public void run() {
+                    Looper.prepare();
+
+                    SubscriptionManager.OnSubscriptionsChangedListener listener =
+                            new SubscriptionManager.OnSubscriptionsChangedListener() {
+                                @Override
+                                public void onSubscriptionsChanged() {
+                                    if (valueToWaitFor.get() == mSm.getActiveSubscriptionInfo(
+                                            mSubId).areUiccApplicationsEnabled()) {
+                                        synchronized (lock) {
+                                            functionCallCompleted.set(true);
+                                            lock.notifyAll();
+                                        }
+                                    }
+                                }
+                            };
+                    mSm.addOnSubscriptionsChangedListener(listener);
+
+                    Looper.loop();
+                }
+            });
+
+            // Disable the UICC application and wait until we detect the subscription change to
+            // verify
+            t.start();
             ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mSm,
                     (sm) -> sm.setUiccApplicationsEnabled(mSubId, false));
-            assertFalse(mSm.getActiveSubscriptionInfo(mSubId).areUiccApplicationsEnabled());
 
+            synchronized (lock) {
+                if (!functionCallCompleted.get()) {
+                    lock.wait(SUBSCRIPTION_DISABLE_WAIT_MS);
+                }
+            }
+            if (!functionCallCompleted.get()) {
+                fail("testSetUiccApplicationsEnabled was not able to disable the UICC app on time");
+            }
+
+            // Enable the UICC application and wait again
+            functionCallCompleted.set(false);
+            valueToWaitFor.set(true);
             ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mSm,
                     (sm) -> sm.setUiccApplicationsEnabled(mSubId, true));
-            assertTrue(mSm.getActiveSubscriptionInfo(mSubId).areUiccApplicationsEnabled());
+
+            synchronized (lock) {
+                if (!functionCallCompleted.get()) {
+                    lock.wait(SUBSCRIPTION_ENABLE_WAIT_MS);
+                }
+            }
+            if (!functionCallCompleted.get()) {
+                fail("testSetUiccApplicationsEnabled was not able to enable to UICC app on time");
+            }
+
+            // Reset default data and voice subId as it may have been changed as part of the
+            // calls above
+            ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mSm,
+                    (sm) -> sm.setDefaultDataSubId(mSubId));
+            ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mSm,
+                    (sm) -> sm.setDefaultVoiceSubscriptionId(mDefaultVoiceSubId));
+
+            // Other tests also expect that cellular data must be available if telephony is
+            // supported. Wait for that before returning.
+            final CountDownLatch latch = waitForCellularNetwork();
+            latch.await(10, TimeUnit.SECONDS);
         }
     }
 
@@ -829,7 +899,7 @@ public class SubscriptionManagerTest {
 
             synchronized (lock) {
                 if (!setSubscriptionEnabledCallCompleted.get()) {
-                    lock.wait(5000);
+                    lock.wait(SUBSCRIPTION_DISABLE_WAIT_MS);
                 }
             }
             if (!setSubscriptionEnabledCallCompleted.get()) {
@@ -851,8 +921,7 @@ public class SubscriptionManagerTest {
             // the test
             synchronized (lock) {
                 if (!setSubscriptionEnabledCallCompleted.get()) {
-                    // longer wait time on purpose as re-enabling can take a longer time
-                    lock.wait(50000);
+                    lock.wait(SUBSCRIPTION_ENABLE_WAIT_MS);
                 }
             }
             if (!setSubscriptionEnabledCallCompleted.get()) {
@@ -1047,6 +1116,93 @@ public class SubscriptionManagerTest {
         assertEquals(CONTACTS, mSm.getDeviceToDeviceStatusSharingContacts(mSubId));
         mSm.setDeviceToDeviceStatusSharingContacts(mSubId, originalD2DSharingContacts);
         uiAutomation.dropShellPermissionIdentity();
+    }
+
+    @Test
+    public void tetsSetAndGetPhoneNumber() throws Exception {
+        if (!isSupported()) return;
+
+        // The phone number may be anything depends on the state of SIM and device.
+        // Simply call the getter and make sure no exception.
+
+        // Getters accessiable with READ_PRIVILEGED_PHONE_STATE
+        try {
+            InstrumentationRegistry.getInstrumentation().getUiAutomation()
+                    .adoptShellPermissionIdentity(READ_PRIVILEGED_PHONE_STATE);
+
+            mSm.getPhoneNumber(mSubId);
+            mSm.getPhoneNumber(mSubId, SubscriptionManager.PHONE_NUMBER_SOURCE_UICC);
+            mSm.getPhoneNumber(mSubId, SubscriptionManager.PHONE_NUMBER_SOURCE_CARRIER);
+            mSm.getPhoneNumber(mSubId, SubscriptionManager.PHONE_NUMBER_SOURCE_IMS);
+
+        } finally {
+            InstrumentationRegistry.getInstrumentation().getUiAutomation()
+                    .dropShellPermissionIdentity();
+        }
+
+        // Getters accessiable with READ_PHONE_NUMBERS
+        try {
+            InstrumentationRegistry.getInstrumentation().getUiAutomation()
+                    .adoptShellPermissionIdentity(android.Manifest.permission.READ_PHONE_NUMBERS);
+
+            mSm.getPhoneNumber(mSubId);
+            mSm.getPhoneNumber(mSubId, SubscriptionManager.PHONE_NUMBER_SOURCE_UICC);
+            mSm.getPhoneNumber(mSubId, SubscriptionManager.PHONE_NUMBER_SOURCE_CARRIER);
+            mSm.getPhoneNumber(mSubId, SubscriptionManager.PHONE_NUMBER_SOURCE_IMS);
+
+        } finally {
+            InstrumentationRegistry.getInstrumentation().getUiAutomation()
+                    .dropShellPermissionIdentity();
+        }
+
+        // Getters and the setter accessiable with carrier privilege
+        final String carrierNumber = "1234567890";
+        CarrierPrivilegeUtils.withCarrierPrivileges(
+                InstrumentationRegistry.getContext(),
+                mSubId,
+                () -> {
+                    mSm.getPhoneNumber(mSubId);
+                    mSm.getPhoneNumber(mSubId, SubscriptionManager.PHONE_NUMBER_SOURCE_UICC);
+                    mSm.getPhoneNumber(mSubId, SubscriptionManager.PHONE_NUMBER_SOURCE_IMS);
+
+                    mSm.setCarrierPhoneNumber(mSubId, carrierNumber);
+                    assertEquals(
+                            carrierNumber,
+                            mSm.getPhoneNumber(
+                                    mSubId, SubscriptionManager.PHONE_NUMBER_SOURCE_CARRIER));
+                });
+
+        // Otherwise, getter and setter will hit SecurityException
+        try {
+            mSm.getPhoneNumber(mSubId);
+            fail("Expect SecurityException from getPhoneNumber()");
+        } catch (SecurityException e) {
+            // expected
+        }
+        try {
+            mSm.getPhoneNumber(mSubId, SubscriptionManager.PHONE_NUMBER_SOURCE_UICC);
+            fail("Expect SecurityException from getPhoneNumber()");
+        } catch (SecurityException e) {
+            // expected
+        }
+        try {
+            mSm.getPhoneNumber(mSubId, SubscriptionManager.PHONE_NUMBER_SOURCE_IMS);
+            fail("Expect SecurityException from getPhoneNumber()");
+        } catch (SecurityException e) {
+            // expected
+        }
+        try {
+            mSm.getPhoneNumber(mSubId, SubscriptionManager.PHONE_NUMBER_SOURCE_CARRIER);
+            fail("Expect SecurityException from getPhoneNumber()");
+        } catch (SecurityException e) {
+            // expected
+        }
+        try {
+            mSm.setCarrierPhoneNumber(mSubId, "987");
+            fail("Expect SecurityException from setCarrierPhoneNumber()");
+        } catch (SecurityException e) {
+            // expected
+        }
     }
 
     @Nullable

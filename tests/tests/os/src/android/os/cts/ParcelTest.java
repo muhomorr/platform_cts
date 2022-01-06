@@ -248,6 +248,21 @@ public class ParcelTest extends AndroidTestCase {
         p.recycle();
     }
 
+    public void testEnforceNoDataAvail(){
+        final Parcel p = Parcel.obtain();
+        p.writeInt(1);
+        p.writeString("test");
+
+        p.setDataPosition(0);
+        p.readInt();
+        Throwable error = assertThrows(BadParcelableException.class, () -> p.enforceNoDataAvail());
+        assertTrue(error.getMessage().contains("Parcel data not fully consumed"));
+
+        p.readString();
+        p.enforceNoDataAvail();
+        p.recycle();
+    }
+
     public void testMarshall() {
         final byte[] c = {Byte.MAX_VALUE, (byte) 111, (byte) 11, (byte) 1, (byte) 0,
                     (byte) -1, (byte) -11, (byte) -111, Byte.MIN_VALUE};
@@ -2063,6 +2078,17 @@ public class ParcelTest extends AndroidTestCase {
         p.recycle();
     }
 
+    public void testReadSerializableWithClass_whenNullClassLoader(){
+        Parcel p = Parcel.obtain();
+        TestSubException testSubException = new TestSubException("test");
+        p.writeSerializable(testSubException);
+        p.setDataPosition(0);
+        Throwable error = assertThrows(BadParcelableException.class, () ->
+                p.readSerializable(null, TestSubException.class));
+        assertTrue(error.getMessage().contains("ClassNotFoundException reading a Serializable"));
+        p.recycle();
+    }
+
     public void testReadSerializableWithClass_whenSameClass(){
         Parcel p = Parcel.obtain();
         MockClassLoader mcl = new MockClassLoader();
@@ -2098,6 +2124,12 @@ public class ParcelTest extends AndroidTestCase {
         assertTrue(object1 instanceof Exception);
         Exception e2 = (Exception) object1;
         assertEquals("test", e2.getMessage());
+
+        p.setDataPosition(0);
+        Object object2 = p.readSerializable(null, Object.class);
+        assertTrue(object1 instanceof Exception);
+        Exception e3 = (Exception) object2;
+        assertEquals("test", e3.getMessage());
 
         p.setDataPosition(0);
         assertThrows(BadParcelableException.class, () -> p.readSerializable(mcl, String.class));
@@ -2149,6 +2181,9 @@ public class ParcelTest extends AndroidTestCase {
         p.writeParcelable(testSubIntent, 0);
         p.setDataPosition(0);
         assertEquals(testSubIntent, (p.readParcelable(getClass().getClassLoader(), Intent.class)));
+
+        p.setDataPosition(0);
+        assertEquals(testSubIntent, (p.readParcelable(getClass().getClassLoader(), Object.class)));
         p.recycle();
     }
 
@@ -4161,6 +4196,64 @@ public class ParcelTest extends AndroidTestCase {
         assertEquals(56, list.get(1).getValue());
     }
 
+    public void testReadParcelableListWithClass_whenNull(){
+        final Parcel p = Parcel.obtain();
+        ArrayList<Intent> list = new ArrayList<>();
+        list.add(new Intent("test"));
+
+        p.writeParcelableList(null, 0);
+        p.setDataPosition(0);
+        p.readParcelableList(list, getClass().getClassLoader(), Intent.class);
+        assertEquals(0, list.size());
+        p.recycle();
+    }
+
+    public void testReadParcelableListWithClass_whenMismatchingClass(){
+        final Parcel p = Parcel.obtain();
+        ArrayList<Signature> list = new ArrayList<>();
+        ArrayList<Intent> list1 = new ArrayList<>();
+        list.add(new Signature("1234"));
+        p.writeParcelableList(list, 0);
+        p.setDataPosition(0);
+        assertThrows(BadParcelableException.class, () ->
+                p.readParcelableList(list1, getClass().getClassLoader(), Intent.class));
+
+        p.recycle();
+    }
+
+    public void testReadParcelableListWithClass_whenSameClass(){
+        final Parcel p = Parcel.obtain();
+        ArrayList<Signature> list = new ArrayList<>();
+        ArrayList<Signature> list1 = new ArrayList<>();
+        list.add(new Signature("1234"));
+        list.add(new Signature("4321"));
+        p.writeParcelableList(list, 0);
+        p.setDataPosition(0);
+        p.readParcelableList(list1, getClass().getClassLoader(), Signature.class);
+
+        assertEquals(list, list1);
+        p.recycle();
+    }
+
+    public void testReadParcelableListWithClass_whenSubClass(){
+        final Parcel p = Parcel.obtain();
+        final Intent baseIntent = new Intent();
+
+        ArrayList<Intent> intentArrayList = new ArrayList<>();
+        ArrayList<Intent> intentArrayList1 = new ArrayList<>();
+
+        intentArrayList.add(new TestSubIntent(baseIntent, "1234567890abcdef"));
+        intentArrayList.add(null);
+        intentArrayList.add(new TestSubIntent(baseIntent, "abcdef1234567890"));
+
+        p.writeParcelableList(intentArrayList, 0);
+        p.setDataPosition(0);
+        p.readParcelableList(intentArrayList1, getClass().getClassLoader(), Intent.class);
+
+        assertEquals(intentArrayList, intentArrayList1);
+        p.recycle();
+    }
+
     // http://b/35384981
     public void testCreateArrayWithTruncatedParcel() {
         Parcel parcel = Parcel.obtain();
@@ -4329,6 +4422,12 @@ public class ParcelTest extends AndroidTestCase {
         @Override
         public int hashCode() {
             return mString.hashCode();
+        }
+    }
+
+    private static class TestSubException extends Exception{
+        public TestSubException(String msg) {
+            super(msg);
         }
     }
 
