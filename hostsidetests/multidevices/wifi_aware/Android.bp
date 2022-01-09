@@ -1,4 +1,4 @@
-// Copyright (C) 2016 The Android Open Source Project
+// Copyright (C) 2021 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,31 +16,19 @@ package {
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
-android_test {
-    name: "CtsLibcoreOjTestCases",
-    defaults: ["cts_support_defaults"],
-    platform_apis: true,
-    static_libs: [
-        "core-ojtests-public",
-
-        // Jar containing expectations files.
-        "libcore-expectations-knownfailures-jar",
-    ],
-    libs: ["testng"],
-    dxflags: ["--core-library"],
-    dex_preopt: {
-        enabled: false,
-    },
-    optimize: {
-        enabled: false,
-    },
-    // Include both the 32 and 64 bit versions of libjavacoretests,
-    // where applicable.
-    compile_multilib: "both",
-    // Tag this module as a cts test artifact
+python_test_host {
+    name: "WifiAwareTestCases",
+    main: "wifi_aware_test.py",
+    srcs: ["wifi_aware_test.py"],
     test_suites: [
         "cts",
         "general-tests",
-        "mts-art",
+    ],
+    test_options: {
+        unit_test: false,
+    },
+    data: [
+    	// Package the snippet with the mobly test
+        ":wifi_aware_snippet",
     ],
 }

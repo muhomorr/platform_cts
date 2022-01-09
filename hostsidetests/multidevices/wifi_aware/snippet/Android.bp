@@ -1,4 +1,4 @@
-// Copyright (C) 2016 The Android Open Source Project
+// Copyright (C) 2022 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,26 +17,17 @@ package {
 }
 
 android_test {
-    name: "CtsLibcoreJsr166TestCases",
-    defaults: ["cts_support_defaults"],
-    platform_apis: true,
-    static_libs: [
-        "cts-core-test-runner-axt",
-        "jsr166-tests",
-
-        // Jar containing expectations files.
-        "libcore-expectations-knownfailures-jar",
+    name: "wifi_aware_snippet",
+    sdk_version: "current",
+    srcs: [
+        "CallbackUtils.java",
+        "WifiAwareSnippet.java",
     ],
-    dex_preopt: {
-        enabled: false,
-    },
-    optimize: {
-        enabled: false,
-    },
-    // Tag this module as a cts test artifact
-    test_suites: [
-        "cts",
-        "general-tests",
-        "mts-art",
+    manifest: "AndroidManifest.xml",
+    static_libs: [
+        "androidx.test.runner",
+        "guava",
+        "mobly-snippet-lib",
     ],
 }
+
