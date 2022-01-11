@@ -17,9 +17,9 @@ package {
 }
 
 python_test_host {
-    name: "CtsSampleMoblyTestCases",
-    main: "multidevice_test.py",
-    srcs: ["multidevice_test.py",],
+    name: "CtsWifiAwareTestCases",
+    main: "wifi_aware_test.py",
+    srcs: ["wifi_aware_test.py"],
     test_suites: [
         "cts",
         "general-tests",
@@ -27,5 +27,8 @@ python_test_host {
     test_options: {
         unit_test: false,
     },
-    data: ["CtsSampleMoblyTestCases_config.yaml"],
+    data: [
+    	// Package the snippet with the mobly test
+        ":wifi_aware_snippet",
+    ],
 }

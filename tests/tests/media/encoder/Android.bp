@@ -23,29 +23,8 @@ package {
     default_applicable_licenses: ["cts_license"],
 }
 
-cc_test_library {
-    name: "libctsmediamuxertest_jni",
-    srcs: [
-        "jni/native_muxer_jni.cpp",
-    ],
-    shared_libs: [
-        "liblog",
-        "libmediandk",
-    ],
-    header_libs: ["liblog_headers"],
-    stl: "libc++_static",
-    cflags: [
-        "-Werror",
-        "-Wall",
-    ],
-    gtest: false,
-    // this test suite will run on sdk 29 as part of MTS, make sure it's compatible
-    // (revisit if/when we add features to this library that require newer sdk.
-    sdk_version: "29",
-}
-
 android_test {
-    name: "CtsMediaMuxerTestCases",
+    name: "CtsMediaEncoderTestCases",
     defaults: ["cts_defaults"],
     // include both the 32 and 64 bit versions
     compile_multilib: "both",
@@ -54,10 +33,10 @@ android_test {
         "cts-media-common",
     ],
     jni_libs: [
-        "libctsmediamuxertest_jni",
+        "libctscodecutils_jni"
     ],
-    // do not compress media files
     aaptflags: [
+      // Do not compress these files:
         "-0 .vp9",
         "-0 .ts",
         "-0 .heic",
@@ -67,10 +46,13 @@ android_test {
     ],
     srcs: [
         "src/**/*.java",
+        "aidl/**/*.aidl",
     ],
+    // This test uses private APIs
     platform_apis: true,
     jni_uses_sdk_apis: true,
     libs: [
+        "org.apache.http.legacy",
         "android.test.base",
         "android.test.runner",
     ],
