@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 The Android Open Source Project
+ * Copyright (C) 2021 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,21 +14,12 @@
  * limitations under the License.
  */
 
-#include <jni.h>
-#include <stdio.h>
+package android.media.encoder.cts;
 
-extern int register_android_media_player_cts_NativeMediaDrmClearkeyTest(JNIEnv*);
+import android.media.cts.WorkDirBase;
 
-jint JNI_OnLoad(JavaVM *vm, void */*reserved*/) {
-    JNIEnv *env = NULL;
-
-    if (vm->GetEnv((void **) &env, JNI_VERSION_1_4) != JNI_OK) {
-        return JNI_ERR;
+class WorkDir extends WorkDirBase {
+    public static final String getMediaDirString() {
+        return getMediaDirString("CtsMediaTestCases-1.4");
     }
-
-    if (register_android_media_player_cts_NativeMediaDrmClearkeyTest(env)) {
-        return JNI_ERR;
-    }
-
-    return JNI_VERSION_1_4;
 }
