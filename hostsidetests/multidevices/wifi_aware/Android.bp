@@ -17,7 +17,7 @@ package {
 }
 
 python_test_host {
-    name: "WifiAwareTestCases",
+    name: "CtsWifiAwareTestCases",
     main: "wifi_aware_test.py",
     srcs: ["wifi_aware_test.py"],
     test_suites: [
@@ -28,7 +28,7 @@ python_test_host {
         unit_test: false,
     },
     data: [
-    	// Package the snippet with the mobly test
+        // Package the snippet with the mobly test
         ":wifi_aware_snippet",
     ],
 }
