@@ -29,8 +29,10 @@ import static android.scopedstorage.cts.lib.TestUtils.STR_DATA2;
 import static android.scopedstorage.cts.lib.TestUtils.allowAppOpsToUid;
 import static android.scopedstorage.cts.lib.TestUtils.assertCanRenameDirectory;
 import static android.scopedstorage.cts.lib.TestUtils.assertCanRenameFile;
+import static android.scopedstorage.cts.lib.TestUtils.assertCantInsertToOtherPrivateAppDirectories;
 import static android.scopedstorage.cts.lib.TestUtils.assertCantRenameDirectory;
 import static android.scopedstorage.cts.lib.TestUtils.assertCantRenameFile;
+import static android.scopedstorage.cts.lib.TestUtils.assertCantUpdateToOtherPrivateAppDirectories;
 import static android.scopedstorage.cts.lib.TestUtils.assertDirectoryContains;
 import static android.scopedstorage.cts.lib.TestUtils.assertFileContent;
 import static android.scopedstorage.cts.lib.TestUtils.assertMountMode;
@@ -43,6 +45,7 @@ import static android.scopedstorage.cts.lib.TestUtils.createFileAs;
 import static android.scopedstorage.cts.lib.TestUtils.deleteFileAs;
 import static android.scopedstorage.cts.lib.TestUtils.deleteFileAsNoThrow;
 import static android.scopedstorage.cts.lib.TestUtils.deleteRecursively;
+import static android.scopedstorage.cts.lib.TestUtils.deleteRecursivelyAs;
 import static android.scopedstorage.cts.lib.TestUtils.deleteWithMediaProvider;
 import static android.scopedstorage.cts.lib.TestUtils.deleteWithMediaProviderNoThrow;
 import static android.scopedstorage.cts.lib.TestUtils.denyAppOpsToUid;
@@ -208,7 +211,7 @@ public class ScopedStorageDeviceTest extends ScopedStorageBaseDeviceTest {
             "CtsScopedStorageTestAppFileManager.apk");
     // A legacy targeting app with RES and WES permissions
     private static final TestApp APP_D_LEGACY_HAS_RW = new TestApp("TestAppDLegacy",
-            "android.scopedstorage.cts.testapp.D", 1, false, "CtsScopedStorageTestAppCLegacy.apk");
+            "android.scopedstorage.cts.testapp.D", 1, false, "CtsScopedStorageTestAppDLegacy.apk");
 
     // The following apps are not installed at test startup - please install before using.
     private static final TestApp APP_C = new TestApp("TestAppC",
@@ -1159,7 +1162,7 @@ public class ScopedStorageDeviceTest extends ScopedStorageBaseDeviceTest {
         try {
             // Delete the directory if it already exists
             if (podcastsDir.exists()) {
-                deleteAsLegacyApp(podcastsDir);
+                deleteRecursivelyAsLegacyApp(podcastsDir);
             }
             assertThat(podcastsDir.exists()).isFalse();
             assertThat(podcastsDirLowerCase.exists()).isFalse();
@@ -2786,18 +2789,57 @@ public class ScopedStorageDeviceTest extends ScopedStorageBaseDeviceTest {
         }
     }
 
+    /**
+     * Tests that System Gallery apps cannot insert files in other app's private directories.
+     */
+    @Test
+    public void testCantInsertFilesInOtherAppPrivateDir_hasSystemGallery() throws Exception {
+        int uid = Process.myUid();
+        try {
+            setAppOpsModeForUid(uid, AppOpsManager.MODE_ALLOWED, SYSTEM_GALERY_APPOPS);
+            assertCantInsertToOtherPrivateAppDirectories(IMAGE_FILE_NAME,
+                    /* throwsExceptionForDataValue */ false, APP_B_NO_PERMS, THIS_PACKAGE_NAME);
+        } finally {
+            setAppOpsModeForUid(uid, AppOpsManager.MODE_ERRORED, SYSTEM_GALERY_APPOPS);
+        }
+    }
+
+    /**
+     * Tests that System Gallery apps cannot update files in other app's private directories.
+     */
+    @Test
+    public void testCantUpdateFilesInOtherAppPrivateDir_hasSystemGallery() throws Exception {
+        int uid = Process.myUid();
+        try {
+            setAppOpsModeForUid(uid, AppOpsManager.MODE_ALLOWED, SYSTEM_GALERY_APPOPS);
+            assertCantUpdateToOtherPrivateAppDirectories(IMAGE_FILE_NAME,
+                    /* throwsExceptionForDataValue */ false, APP_B_NO_PERMS, THIS_PACKAGE_NAME);
+        } finally {
+            setAppOpsModeForUid(uid, AppOpsManager.MODE_ERRORED, SYSTEM_GALERY_APPOPS);
+        }
+    }
+
+    /**
+     * This test is for operations to the calling app's own private packages.
+     */
     @Test
     public void testInsertFromExternalDirsViaRelativePath() throws Exception {
         verifyInsertFromExternalMediaDirViaRelativePath_allowed();
         verifyInsertFromExternalPrivateDirViaRelativePath_denied();
     }
 
+    /**
+     * This test is for operations to the calling app's own private packages.
+     */
     @Test
     public void testUpdateToExternalDirsViaRelativePath() throws Exception {
         verifyUpdateToExternalMediaDirViaRelativePath_allowed();
         verifyUpdateToExternalPrivateDirsViaRelativePath_denied();
     }
 
+    /**
+     * This test is for operations to the calling app's own private packages.
+     */
     @Test
     public void testInsertFromExternalDirsViaRelativePathAsSystemGallery() throws Exception {
         int uid = Process.myUid();
@@ -2810,6 +2852,9 @@ public class ScopedStorageDeviceTest extends ScopedStorageBaseDeviceTest {
         }
     }
 
+    /**
+     * This test is for operations to the calling app's own private packages.
+     */
     @Test
     public void testUpdateToExternalDirsViaRelativePathAsSystemGallery() throws Exception {
         int uid = Process.myUid();
@@ -3335,5 +3380,15 @@ public class ScopedStorageDeviceTest extends ScopedStorageBaseDeviceTest {
         // Use a legacy app to delete this file, since it could be outside shared storage.
         Log.d(TAG, "Deleting file " + file);
         deleteFileAs(APP_D_LEGACY_HAS_RW, file.getAbsolutePath());
+    }
+
+    /**
+     * Deletes the given file/directory recursively. If the file is a directory, then deletes all
+     * of its children (files or directories) recursively.
+     */
+    private void deleteRecursivelyAsLegacyApp(File dir) throws Exception {
+        // Use a legacy app to delete this directory, since it could be outside shared storage.
+        Log.d(TAG, "Deleting directory " + dir);
+        deleteRecursivelyAs(APP_D_LEGACY_HAS_RW, dir.getAbsolutePath());
     }
 }
