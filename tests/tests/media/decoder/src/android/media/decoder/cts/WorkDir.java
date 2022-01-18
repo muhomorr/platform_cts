@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018 The Android Open Source Project
+ * Copyright (C) 2021 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,17 +14,12 @@
  * limitations under the License.
  */
 
-package android.signature.cts.api;
+package android.media.decoder.cts;
 
-import android.signature.cts.DexMemberChecker;
+import android.media.cts.WorkDirBase;
 
-public class DebugClassHiddenApiTest extends HiddenApiTest {
-    @Override
-    protected void setUp() throws Exception {
-        super.setUp();
-
-        // Try to exempt DexMemberChecker class from hidden API checks.
-        // This should fail as this process is not debuggable.
-        assertFalse(DexMemberChecker.requestExemptionFromHiddenApiChecks());
+class WorkDir extends WorkDirBase {
+    public static final String getMediaDirString() {
+        return getMediaDirString("CtsMediaTestCases-1.4");
     }
 }
