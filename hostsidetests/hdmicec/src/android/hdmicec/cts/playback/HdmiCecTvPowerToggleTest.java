@@ -46,8 +46,6 @@ public final class HdmiCecTvPowerToggleTest extends BaseHdmiCecCtsTest {
     private static final int OFF = 0x1;
 
     private static final LogicalAddress PLAYBACK_DEVICE = LogicalAddress.PLAYBACK_1;
-    private static final String POWER_CONTROL_MODE =
-            "hdmi_control_send_standby_on_sleep";
 
     @Rule
     public RuleChain ruleChain =
@@ -62,15 +60,6 @@ public final class HdmiCecTvPowerToggleTest extends BaseHdmiCecCtsTest {
         super(HdmiCecConstants.CEC_DEVICE_TYPE_PLAYBACK_DEVICE);
     }
 
-    private String setPowerControlMode(String valToSet) throws Exception {
-        ITestDevice device = getDevice();
-        String val = device.executeShellCommand("settings get global " +
-                POWER_CONTROL_MODE).trim();
-        device.executeShellCommand("settings put global "
-                + POWER_CONTROL_MODE + " " + valToSet);
-        return val;
-    }
-
     /**
      * Tests that KEYCODE_TV_POWER functions as a TV power toggle.
      * Device is awake and not active source. TV is on.
@@ -80,7 +69,8 @@ public final class HdmiCecTvPowerToggleTest extends BaseHdmiCecCtsTest {
         ITestDevice device = getDevice();
         // Make sure the device is not booting up/in standby
         device.waitForBootComplete(HdmiCecConstants.REBOOT_TIMEOUT);
-        String previousPowerControlMode = setPowerControlMode("to_tv");
+        String previousPowerControlMode =
+                setPowerControlMode(HdmiCecConstants.POWER_CONTROL_MODE_TV);
         try {
             device.executeShellCommand("cmd hdmi_control cec_setting set hdmi_cec_enabled 0");
             device.executeShellCommand("cmd hdmi_control cec_setting set hdmi_cec_enabled 1");
@@ -116,7 +106,8 @@ public final class HdmiCecTvPowerToggleTest extends BaseHdmiCecCtsTest {
         ITestDevice device = getDevice();
         // Make sure the device is not booting up/in standby
         device.waitForBootComplete(HdmiCecConstants.REBOOT_TIMEOUT);
-        String previousPowerControlMode = setPowerControlMode("to_tv");
+        String previousPowerControlMode =
+                setPowerControlMode(HdmiCecConstants.POWER_CONTROL_MODE_TV);
         try {
             device.executeShellCommand("cmd hdmi_control cec_setting set hdmi_cec_enabled 0");
             device.executeShellCommand("cmd hdmi_control cec_setting set hdmi_cec_enabled 1");
@@ -151,7 +142,8 @@ public final class HdmiCecTvPowerToggleTest extends BaseHdmiCecCtsTest {
         ITestDevice device = getDevice();
         // Make sure the device is not booting up/in standby
         device.waitForBootComplete(HdmiCecConstants.REBOOT_TIMEOUT);
-        String previousPowerControlMode = setPowerControlMode("to_tv");
+        String previousPowerControlMode =
+                setPowerControlMode(HdmiCecConstants.POWER_CONTROL_MODE_TV);
         try {
             device.executeShellCommand("cmd hdmi_control cec_setting set hdmi_cec_enabled 0");
             device.executeShellCommand("cmd hdmi_control cec_setting set hdmi_cec_enabled 1");
@@ -184,7 +176,8 @@ public final class HdmiCecTvPowerToggleTest extends BaseHdmiCecCtsTest {
         ITestDevice device = getDevice();
         // Make sure the device is not booting up/in standby
         device.waitForBootComplete(HdmiCecConstants.REBOOT_TIMEOUT);
-        String previousPowerControlMode = setPowerControlMode("to_tv");
+        String previousPowerControlMode =
+                setPowerControlMode(HdmiCecConstants.POWER_CONTROL_MODE_TV);
         try {
             device.executeShellCommand("cmd hdmi_control cec_setting set hdmi_cec_enabled 0");
             device.executeShellCommand("cmd hdmi_control cec_setting set hdmi_cec_enabled 1");
