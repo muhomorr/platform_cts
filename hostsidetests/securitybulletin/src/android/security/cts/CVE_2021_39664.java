@@ -17,30 +17,40 @@
 package android.security.cts;
 
 import android.platform.test.annotations.AsbSecurityTest;
+
 import com.android.compatibility.common.util.CrashUtils;
-import com.android.tradefed.device.ITestDevice;
+import com.android.compatibility.common.util.CrashUtils.Config.BacktraceFilterPattern;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
-import org.junit.Test;
+
 import org.junit.runner.RunWith;
+import org.junit.Test;
+
+import java.util.Arrays;
+import java.util.regex.Pattern;
 
 @RunWith(DeviceJUnit4ClassRunner.class)
-public class CVE_2018_9558 extends SecurityTestCase {
+public class CVE_2021_39664 extends SecurityTestCase {
 
     /**
-     * b/112161557
-     * Vulnerability Behaviour: SIGABRT in self
+     * b/203938029
+     * Vulnerability Behaviour: SIGSEGV in self
+     * Vulnerable Library: libandroidfw (As per AOSP code)
+     * Vulnerable Function: android::LoadedPackage::Load (As per AOSP code)
      */
+    @AsbSecurityTest(cveBugId = 203938029)
     @Test
-    @AsbSecurityTest(cveBugId = 112161557)
-    public void testPocCVE_2018_9558() throws Exception {
-        AdbUtils.assumeHasNfc(getDevice());
-        assumeIsSupportedNfcDevice(getDevice());
-        pocPusher.only64();
-        String binaryName = "CVE-2018-9558";
-        String signals[] = {CrashUtils.SIGABRT};
+    public void testPocCVE_2021_39664() throws Exception {
+        String inputFiles[] = {"cve_2021_39664"};
+        String signals[] = {CrashUtils.SIGSEGV};
+        String binaryName = "CVE-2021-39664";
         AdbUtils.pocConfig testConfig = new AdbUtils.pocConfig(binaryName, getDevice());
-        testConfig.config = new CrashUtils.Config().setProcessPatterns(binaryName);
+        testConfig.config = new CrashUtils.Config().setProcessPatterns(Pattern.compile(binaryName))
+                .setBacktraceIncludes(new BacktraceFilterPattern("libandroidfw",
+                        "android::LoadedPackage::Load"));
         testConfig.config.setSignals(signals);
+        testConfig.arguments = AdbUtils.TMP_PATH + inputFiles[0];
+        testConfig.inputFiles = Arrays.asList(inputFiles);
+        testConfig.inputFilesDestination = AdbUtils.TMP_PATH;
         AdbUtils.runPocAssertNoCrashesNotVulnerable(testConfig);
     }
 }
