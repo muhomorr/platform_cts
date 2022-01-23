@@ -323,7 +323,7 @@ public class BleClientService extends Service {
     private static final int SERVICE_CHANGED_FLAG_TRIGGER_ACTION = 0x01;
     private static final int SERVICE_CHANGED_FLAG_ON_SERVICE_CHANGED = 0x02;
     private static final int SERVICE_CHANGED_FLAG_ALL = 0x03;
-    private static final int SERVOCE_CHANGED_FLAG_IGNORE = 0xFF;
+    private static final int SERVICE_CHANGED_FLAG_IGNORE = 0xFF;
     private int mServiceChangedFlag;
 
     private enum ReliableWriteState {
@@ -568,8 +568,13 @@ public class BleClientService extends Service {
 
     private void writeCharacteristic(BluetoothGattCharacteristic characteristic, String writeValue) {
         if (characteristic != null) {
+            // Note: setValue() should not be necessary when using writeCharacteristic(byte[]) which
+            // is added on Android T, but here we call the method in order to make the test
+            // easier to read. Otherwise, we should verify the written value by calling
+            // readCharacteristic() but that makes the whole test hard to read.
             characteristic.setValue(writeValue);
-            mBluetoothGatt.writeCharacteristic(characteristic);
+            mBluetoothGatt.writeCharacteristic(characteristic, writeValue.getBytes(),
+                    characteristic.getWriteType());
         }
     }
 
@@ -590,8 +595,12 @@ public class BleClientService extends Service {
     private void writeDescriptor(UUID uid, String writeValue) {
         BluetoothGattDescriptor descriptor = getDescriptor(uid);
         if (descriptor != null) {
+            // Note: setValue() should not be necessary when using writeDescriptor(byte[]) which
+            // is added on Android T, but here we call the method in order to make the test
+            // easier to read. Otherwise, we should verify the written value by calling
+            // readDescriptor() but that makes the whole test hard to read.
             descriptor.setValue(writeValue.getBytes());
-            mBluetoothGatt.writeDescriptor(descriptor);
+            mBluetoothGatt.writeDescriptor(descriptor, writeValue.getBytes());
         }
     }
 
@@ -605,8 +614,12 @@ public class BleClientService extends Service {
     private void writeDescriptor(UUID cuid, UUID duid, String writeValue) {
         BluetoothGattDescriptor descriptor = getDescriptor(cuid, duid);
         if (descriptor != null) {
+            // Note: setValue() should not be necessary when using writeDescriptor(byte[]) which
+            // is added on Android T, but here we call the method in order to make the test
+            // easier to read. Otherwise, we should verify the written value by calling
+            // readDescriptor() but that makes the whole test hard to read.
             descriptor.setValue(writeValue.getBytes());
-            mBluetoothGatt.writeDescriptor(descriptor);
+            mBluetoothGatt.writeDescriptor(descriptor, writeValue.getBytes());
         }
     }
 
@@ -644,15 +657,15 @@ public class BleClientService extends Service {
         synchronized (mServiceChangedLock) {
             mServiceChangedFlag |= flag;
             if (mServiceChangedFlag == SERVICE_CHANGED_FLAG_ALL) {
-                mServiceChangedFlag |= SERVOCE_CHANGED_FLAG_IGNORE;
+                mServiceChangedFlag |= SERVICE_CHANGED_FLAG_IGNORE;
                 shouldSend = true;
             }
         }
 
         if (shouldSend) {
+            // This is to send result to the connected GATT server.
             writeCharacteristic(getCharacteristic(CHARACTERISTIC_RESULT_UUID),
                 SERVICE_CHANGED_VALUE);
-            notifyServiceChanged();
         }
     }
 
@@ -1068,7 +1081,20 @@ public class BleClientService extends Service {
             }
 
             if (BLE_CLIENT_ACTION_TRIGGER_SERVICE_CHANGED.equals(mCurrentAction)) {
-                sendServiceChangedEventIfReady(SERVICE_CHANGED_FLAG_TRIGGER_ACTION);
+                if (SERVICE_CHANGED_VALUE.equals(value)) {
+                    if (status == BluetoothGatt.GATT_SUCCESS) {
+                        // Waits until the GATT server sends the response, we can then do notify.
+                        notifyServiceChanged();
+                    } else {
+                        notifyError("Failed to send result for service changed event");
+                    }
+                } else {
+                    // The reason not to check the status code is that we know there is a service
+                    // changed event coming later, sometimes the status code will be modified by
+                    // bt stack (133), but it's ok, as long as onServiceChanged is called, we then
+                    // know the request is successfully sent during this test session.
+                    sendServiceChangedEventIfReady(SERVICE_CHANGED_FLAG_TRIGGER_ACTION);
+                }
             } else if (BLE_CLIENT_ACTION_REQUEST_MTU_512.equals(mCurrentAction) ||
                     BLE_CLIENT_ACTION_REQUEST_MTU_23.equals(mCurrentAction)) {
                 if (status == BluetoothGatt.GATT_SUCCESS) {
@@ -1351,6 +1377,17 @@ public class BleClientService extends Service {
                 notifyPhyRead(txPhy, rxPhy);
             } else {
                 notifyError("Failed to read phy");
+            }
+        }
+
+        @Override
+        public void onPhyUpdate(BluetoothGatt gatt, int txPhy, int rxPhy, int status) {
+            // TODO: Currently this is not called when BluetoothGatt.setPreferredPhy() is called.
+            // It is because the path is not wired in native code. (acl_legacy_interface.cc)
+            // Add a proper implementation and related test.
+            super.onPhyUpdate(gatt, txPhy, rxPhy, status);
+            if (DEBUG) {
+                Log.d(TAG, "onPhyUpdate");
             }
         }
 
