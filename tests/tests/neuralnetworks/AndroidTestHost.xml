@@ -1,4 +1,5 @@
-<!-- Copyright (C) 2021 The Android Open Source Project
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copyright (C) 2022 The Android Open Source Project
 
      Licensed under the Apache License, Version 2.0 (the "License");
      you may not use this file except in compliance with the License.
@@ -12,9 +13,10 @@
      See the License for the specific language governing permissions and
      limitations under the License.
 -->
+<configuration description="Runs CtsNNAPITestCases.">
+    <test class="com.android.tradefed.testtype.HostGTest" >
+        <option name="module-name" value="CtsNNAPITestCases" />
+        <option name="native-test-timeout" value="10m" />
+    </test>
+</configuration>
 
-<dynamicConfig>
-    <entry key="media_files_url">
-    <value>https://storage.googleapis.com/android_media/cts/tests/tests/media/CtsMediaTestCases-1.4.zip</value>
-    </entry>
-</dynamicConfig>

@@ -14,13 +14,16 @@
 
 package {
     // See: http://go/android-license-faq
-    // A large-scale-change added 'default_applicable_licenses' to import
-    // all of the 'license_kinds' from "cts_license"
-    // to get the below license kinds:
-    //   SPDX-license-identifier-Apache-2.0
-    //   SPDX-license-identifier-CC-BY
-    //   legacy_unencumbered
-    default_applicable_licenses: ["cts_license"],
+    default_applicable_licenses: [
+        "Android-Apache-2.0",
+        "cts_tests_tests_media_license",
+    ],
+}
+
+license {
+    name: "cts_tests_tests_media_license",
+    license_kinds: ["SPDX-license-identifier-CC-BY-3.0"],
+    license_text: ["LICENSE_CC_BY"],
 }
 
 java_library {
@@ -41,6 +44,55 @@ java_library {
     platform_apis: true,
     min_sdk_version: "29",
     target_sdk_version: "31",
+}
+
+cc_test_library {
+    name: "libctscodecutils_jni",
+    srcs: [
+        "common/jni/codec-utils-jni.cpp",
+        "common/jni/md5_utils.cpp",
+    ],
+    shared_libs: [
+        "libnativehelper_compat_libc++",
+        "liblog",
+    ],
+    header_libs: ["liblog_headers"],
+    // this test suite will run on sdk 29 as part of MTS, make sure it's compatible
+    // (revisit if/when we add features to this library that require newer sdk.
+    sdk_version: "29",
+    cflags: [
+        "-Werror",
+        "-Wall",
+        "-DEGL_EGLEXT_PROTOTYPES",
+    ],
+    stl: "libc++_static",
+    gtest: false,
+}
+
+cc_test_library {
+    name: "libctsmediacommon_jni",
+    srcs: [
+        "common/jni/NdkInputSurface-jni.cpp",
+        "common/jni/NdkMediaCodec-jni.cpp",
+    ],
+    shared_libs: [
+        "libandroid",
+        "libnativehelper_compat_libc++",
+        "liblog",
+        "libmediandk",
+        "libEGL",
+    ],
+    header_libs: ["liblog_headers"],
+    stl: "libc++_static",
+    cflags: [
+        "-Werror",
+        "-Wall",
+        "-DEGL_EGLEXT_PROTOTYPES",
+    ],
+    gtest: false,
+    // this test suite will run on sdk 29 as part of MTS, make sure it's compatible
+    // (revisit if/when we add features to this library that require newer sdk.
+    sdk_version: "29",
 }
 
 android_library {
@@ -93,6 +145,7 @@ android_test {
         "libctscodecutils_jni",
         "libctsimagereader_jni",
         "libctsmediacodec_jni",
+        "libctsmediacommon_jni",
         "libnativehelper_compat_libc++",
     ],
     asset_dirs: ["assets"],
