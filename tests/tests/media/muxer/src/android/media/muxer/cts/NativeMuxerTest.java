@@ -26,7 +26,7 @@ import android.content.res.AssetFileDescriptor;
 import android.media.MediaExtractor;
 import android.media.MediaFormat;
 import android.media.MediaPlayer;
-import android.media.cts.MediaPlayerTestBase;
+import android.media.cts.MediaTestBase;
 import android.media.cts.NonMediaMainlineTest;
 import android.media.cts.Preconditions;
 import android.net.Uri;
@@ -60,12 +60,12 @@ import java.util.Set;
 @RequiresDevice
 @AppModeFull(reason = "TODO: evaluate and port to instant")
 @RunWith(AndroidJUnit4.class)
-public class NativeMuxerTest extends MediaPlayerTestBase {
+public class NativeMuxerTest extends MediaTestBase {
     private static final String TAG = "NativeMuxerTest";
 
     private static final boolean sIsAtLeastS = ApiLevelUtil.isAtLeast(Build.VERSION_CODES.S);
 
-    private static final String mInpPrefix = WorkDir.getMediaDirString();
+    private static final String MEDIA_DIR = WorkDir.getMediaDirString();
 
     static {
         // Load jni on initialization.
@@ -88,8 +88,8 @@ public class NativeMuxerTest extends MediaPlayerTestBase {
 
     private static AssetFileDescriptor getAssetFileDescriptorFor(final String res)
             throws FileNotFoundException {
-        Preconditions.assertTestFileExists(mInpPrefix + res);
-        File inpFile = new File(mInpPrefix + res);
+        Preconditions.assertTestFileExists(MEDIA_DIR + res);
+        File inpFile = new File(MEDIA_DIR + res);
         ParcelFileDescriptor parcelFD =
                 ParcelFileDescriptor.open(inpFile, ParcelFileDescriptor.MODE_READ_ONLY);
         return new AssetFileDescriptor(parcelFD, 0, parcelFD.getStatSize());
@@ -160,8 +160,8 @@ public class NativeMuxerTest extends MediaPlayerTestBase {
     }
 
     private void testMuxer(final String res, boolean webm) throws Exception {
-        Preconditions.assertTestFileExists(mInpPrefix + res);
-        if (!MediaUtils.checkCodecsForResource(mInpPrefix + res)) {
+        Preconditions.assertTestFileExists(MEDIA_DIR + res);
+        if (!MediaUtils.checkCodecsForResource(MEDIA_DIR + res)) {
             return; // skip
         }
 
@@ -201,9 +201,9 @@ public class NativeMuxerTest extends MediaPlayerTestBase {
         org.release();
         remux.release();
 
-        Preconditions.assertTestFileExists(mInpPrefix + res);
+        Preconditions.assertTestFileExists(MEDIA_DIR + res);
         MediaPlayer player1 =
-                MediaPlayer.create(mContext, Uri.fromFile(new File(mInpPrefix + res)));
+                MediaPlayer.create(mContext, Uri.fromFile(new File(MEDIA_DIR + res)));
         MediaPlayer player2 = MediaPlayer.create(mContext, Uri.parse("file://" + tmpFile));
         assertEquals("duration is different",
                 player1.getDuration(), player2.getDuration(), maxDurationDiffUs * 0.001);
