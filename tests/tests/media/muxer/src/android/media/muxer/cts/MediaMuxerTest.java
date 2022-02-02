@@ -16,6 +16,8 @@
 
 package android.media.muxer.cts;
 
+import static org.junit.Assert.assertArrayEquals;
+
 import android.content.Context;
 import android.content.res.AssetFileDescriptor;
 import android.media.MediaCodec.BufferInfo;
@@ -39,6 +41,8 @@ import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Vector;
+import java.util.concurrent.ExecutionException;
+import java.util.function.Function;
 import java.util.stream.IntStream;
 
 @AppModeFull(reason = "No interaction with system server")
@@ -52,8 +56,8 @@ public class MediaMuxerTest extends AndroidTestCase {
     private static final float BAD_LONGITUDE = -181.0f;
     private static final float TOLERANCE = 0.0002f;
     private static final long OFFSET_TIME_US = 29 * 60 * 1000000L; // 29 minutes
+    private static final String MEDIA_DIR = WorkDir.getMediaDirString();
 
-    private final String mInpPrefix = WorkDir.getMediaDirString();
     private final boolean mAndroid11 = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R;
 
     @Override
@@ -63,8 +67,8 @@ public class MediaMuxerTest extends AndroidTestCase {
 
     protected AssetFileDescriptor getAssetFileDescriptorFor(final String res)
             throws FileNotFoundException {
-        Preconditions.assertTestFileExists(mInpPrefix + res);
-        File inpFile = new File(mInpPrefix + res);
+        Preconditions.assertTestFileExists(MEDIA_DIR + res);
+        File inpFile = new File(MEDIA_DIR + res);
         ParcelFileDescriptor parcelFD =
                 ParcelFileDescriptor.open(inpFile, ParcelFileDescriptor.MODE_READ_ONLY);
         return new AssetFileDescriptor(parcelFD, 0, parcelFD.getStatSize());
@@ -430,8 +434,13 @@ public class MediaMuxerTest extends AndroidTestCase {
     private void cloneAndVerify(final String srcMedia, String outputMediaFile,
             int expectedTrackCount, int degrees, int fmt) throws IOException {
         try {
-            cloneMediaUsingMuxer(srcMedia, outputMediaFile, expectedTrackCount,
-                    degrees, fmt);
+            cloneMediaUsingMuxer(
+                    srcMedia,
+                    outputMediaFile,
+                    expectedTrackCount,
+                    degrees,
+                    fmt,
+                    Function.identity());
             if (fmt == MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4 ||
                     fmt == MediaMuxer.OutputFormat.MUXER_OUTPUT_3GPP) {
                 verifyAttributesMatch(srcMedia, outputMediaFile, degrees);
@@ -445,11 +454,14 @@ public class MediaMuxerTest extends AndroidTestCase {
         }
     }
 
-    /**
-     * Using the MediaMuxer to clone a media file.
-     */
-    private void cloneMediaUsingMuxer(final String  srcMedia, String dstMediaPath,
-            int expectedTrackCount, int degrees, int fmt)
+    /** Using the MediaMuxer to clone a media file. */
+    private void cloneMediaUsingMuxer(
+            final String srcMedia,
+            String dstMediaPath,
+            int expectedTrackCount,
+            int degrees,
+            int fmt,
+            Function<MediaFormat, MediaFormat> muxerInputTrackFormatTransformer)
             throws IOException {
         // Set up MediaExtractor to read from the source.
         AssetFileDescriptor srcFd = getAssetFileDescriptorFor(srcMedia);
@@ -469,7 +481,7 @@ public class MediaMuxerTest extends AndroidTestCase {
         for (int i = 0; i < trackCount; i++) {
             extractor.selectTrack(i);
             MediaFormat format = extractor.getTrackFormat(i);
-            int dstIndex = muxer.addTrack(format);
+            int dstIndex = muxer.addTrack(muxerInputTrackFormatTransformer.apply(format));
             indexMap.put(i, dstIndex);
         }
 
