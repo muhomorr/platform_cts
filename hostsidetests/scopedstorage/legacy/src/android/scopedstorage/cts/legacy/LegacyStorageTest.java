@@ -23,7 +23,9 @@ import static android.scopedstorage.cts.lib.TestUtils.STR_DATA2;
 import static android.scopedstorage.cts.lib.TestUtils.allowAppOpsToUid;
 import static android.scopedstorage.cts.lib.TestUtils.assertCanRenameDirectory;
 import static android.scopedstorage.cts.lib.TestUtils.assertCanRenameFile;
+import static android.scopedstorage.cts.lib.TestUtils.assertCantInsertToOtherPrivateAppDirectories;
 import static android.scopedstorage.cts.lib.TestUtils.assertCantRenameFile;
+import static android.scopedstorage.cts.lib.TestUtils.assertCantUpdateToOtherPrivateAppDirectories;
 import static android.scopedstorage.cts.lib.TestUtils.assertDirectoryContains;
 import static android.scopedstorage.cts.lib.TestUtils.assertFileContent;
 import static android.scopedstorage.cts.lib.TestUtils.canOpenFileAs;
@@ -31,6 +33,7 @@ import static android.scopedstorage.cts.lib.TestUtils.checkPermission;
 import static android.scopedstorage.cts.lib.TestUtils.createFileAs;
 import static android.scopedstorage.cts.lib.TestUtils.createImageEntryAs;
 import static android.scopedstorage.cts.lib.TestUtils.deleteFileAsNoThrow;
+import static android.scopedstorage.cts.lib.TestUtils.deleteRecursively;
 import static android.scopedstorage.cts.lib.TestUtils.deleteWithMediaProviderNoThrow;
 import static android.scopedstorage.cts.lib.TestUtils.denyAppOpsToUid;
 import static android.scopedstorage.cts.lib.TestUtils.executeShellCommand;
@@ -47,8 +50,10 @@ import static android.scopedstorage.cts.lib.TestUtils.insertFile;
 import static android.scopedstorage.cts.lib.TestUtils.insertFileFromExternalMedia;
 import static android.scopedstorage.cts.lib.TestUtils.listAs;
 import static android.scopedstorage.cts.lib.TestUtils.pollForExternalStorageState;
+import static android.scopedstorage.cts.lib.TestUtils.pollForManageExternalStorageAllowed;
 import static android.scopedstorage.cts.lib.TestUtils.pollForPermission;
 import static android.scopedstorage.cts.lib.TestUtils.resetDefaultExternalStorageVolume;
+import static android.scopedstorage.cts.lib.TestUtils.setAppOpsModeForUid;
 import static android.scopedstorage.cts.lib.TestUtils.setupDefaultDirectories;
 import static android.scopedstorage.cts.lib.TestUtils.trashFileAndAssert;
 import static android.scopedstorage.cts.lib.TestUtils.untrashFileAndAssert;
@@ -347,7 +352,7 @@ public class LegacyStorageTest {
         try {
             assertThat(newDir.mkdir()).isFalse();
         } finally {
-            newDir.delete();
+            deleteRecursively(newDir);
         }
     }
 
@@ -432,8 +437,8 @@ public class LegacyStorageTest {
 
             pdfFile1.delete();
             pdfFile2.delete();
-            nonMediaDir1.delete();
-            nonMediaDir2.delete();
+            deleteRecursively(nonMediaDir1);
+            deleteRecursively(nonMediaDir2);
         }
     }
 
@@ -544,8 +549,8 @@ public class LegacyStorageTest {
             // UNIQUE constraint error.
             TestUtils.renameWithMediaProvider(directoryOldPath, directoryNewPath);
         } finally {
-            directoryOldPath.delete();
-            directoryNewPath.delete();
+            deleteRecursively(directoryOldPath);
+            deleteRecursively(directoryNewPath);
         }
     }
 
@@ -721,7 +726,7 @@ public class LegacyStorageTest {
             imageInNoMediaDir.delete();
             renamedImageInDCIM.delete();
             noMediaFile.delete();
-            directoryNoMedia.delete();
+            deleteRecursively(directoryNoMedia);
         }
     }
 
@@ -905,7 +910,7 @@ public class LegacyStorageTest {
         } finally {
             imageFile.delete();
             imageFileInTopLevelDir.delete();
-            topLevelTestDirectory.delete();
+            deleteRecursively(topLevelTestDirectory);
             denyAppOpsToUid(Process.myUid(), SYSTEM_GALERY_APPOPS);
         }
     }
@@ -993,6 +998,82 @@ public class LegacyStorageTest {
             }
         } finally {
             jpgFile.delete();
+        }
+    }
+
+    /**
+     * Tests that legacy apps cannot insert in other app private directory
+     */
+    @Test
+    public void testCantInsertFilesInOtherAppPrivateDir_hasRW() throws Exception {
+        pollForPermission(Manifest.permission.READ_EXTERNAL_STORAGE, /* granted */ true);
+        pollForPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE, /* granted */ true);
+
+        assertCantInsertToOtherPrivateAppDirectories(IMAGE_FILE_NAME,
+                /* respectDataContentValue */ true, APP_B_NO_PERMS, THIS_PACKAGE_NAME);
+    }
+
+    /**
+     * Tests that legacy apps cannot update in other app private directory
+     */
+    @Test
+    public void testCantUpdateFilesInOtherAppPrivateDir_hasRW() throws Exception {
+        pollForPermission(Manifest.permission.READ_EXTERNAL_STORAGE, /* granted */ true);
+        pollForPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE, /* granted */ true);
+
+        TestUtils.assertCantUpdateToOtherPrivateAppDirectories(IMAGE_FILE_NAME,
+                /* respectDataContentValue */ true, APP_B_NO_PERMS, THIS_PACKAGE_NAME);
+    }
+
+    /**
+     * Tests that legacy apps with MANAGE_EXTERNAL_STORAGE cannot insert in other app private
+     * directory
+     */
+    @Test
+    public void testCantInsertFilesInOtherAppPrivateDir_hasMES() throws Exception {
+        pollForManageExternalStorageAllowed();
+        assertCantInsertToOtherPrivateAppDirectories(IMAGE_FILE_NAME,
+                /* respectDataContentValue */ true, APP_B_NO_PERMS, THIS_PACKAGE_NAME);
+    }
+
+    /**
+     * Tests that legacy apps with MANAGE_EXTERNAL_STORAGE cannot update in other app private
+     * directory
+     */
+    @Test
+    public void testCantUpdateFilesInOtherAppPrivateDir_hasMES() throws Exception {
+        pollForManageExternalStorageAllowed();
+        assertCantUpdateToOtherPrivateAppDirectories(IMAGE_FILE_NAME,
+                /* respectDataContentValue */ true, APP_B_NO_PERMS, THIS_PACKAGE_NAME);
+    }
+
+    /**
+     * Tests that legacy System Gallery apps cannot insert in other app private directory
+     */
+    @Test
+    public void testCantInsertFilesInOtherAppPrivateDir_hasSystemGallery() throws Exception {
+        int uid = Process.myUid();
+        try {
+            setAppOpsModeForUid(uid, AppOpsManager.MODE_ALLOWED, SYSTEM_GALERY_APPOPS);
+            assertCantInsertToOtherPrivateAppDirectories(IMAGE_FILE_NAME,
+                    /* respectDataContentValue */ true, APP_B_NO_PERMS, THIS_PACKAGE_NAME);
+        } finally {
+            setAppOpsModeForUid(uid, AppOpsManager.MODE_ERRORED, SYSTEM_GALERY_APPOPS);
+        }
+    }
+
+    /**
+     * Tests that legacy System Gallery apps cannot update in other app private directory
+     */
+    @Test
+    public void testCantUpdateFilesInOtherAppPrivateDir_hasSystemGallery() throws Exception {
+        int uid = Process.myUid();
+        try {
+            setAppOpsModeForUid(uid, AppOpsManager.MODE_ALLOWED, SYSTEM_GALERY_APPOPS);
+            assertCantUpdateToOtherPrivateAppDirectories(IMAGE_FILE_NAME,
+                    /* respectDataContentValue */ true, APP_B_NO_PERMS, THIS_PACKAGE_NAME);
+        } finally {
+            setAppOpsModeForUid(uid, AppOpsManager.MODE_ERRORED, SYSTEM_GALERY_APPOPS);
         }
     }
 

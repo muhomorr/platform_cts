@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 2021 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,23 +14,24 @@
  * limitations under the License.
  */
 
-package android.security.cts;
+package android.mediastress.cts;
 
-import android.platform.test.annotations.AsbSecurityTest;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
+import java.io.File;
 
-@RunWith(DeviceJUnit4ClassRunner.class)
-public class CVE_2021_0684 extends SecurityTestCase {
+import junit.framework.Assert;
 
-    /**
-     * b/179839665
-     * Vulnerability Behaviour: SIGSEGV in Self
-     */
-    @AsbSecurityTest(cveBugId = 179839665)
-    @Test
-    public void testPocCVE_2021_0684() throws Exception {
-        AdbUtils.runPocAssertNoCrashesNotVulnerable("CVE-2021-0684", null, getDevice());
+/**
+ * Static methods used to validate preconditions in the media CTS suite
+ * to simplify failure diagnosis.
+ */
+
+public final class Preconditions {
+    private static final String TAG = "Preconditions";
+
+    public static void assertTestFileExists(String pathName) {
+        File testFile = new File(pathName);
+        Assert.assertTrue("Test Setup Error, missing file: " + pathName, testFile.exists());
     }
+
+    private Preconditions() {}
 }

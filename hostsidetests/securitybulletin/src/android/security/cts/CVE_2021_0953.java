@@ -16,27 +16,28 @@
 
 package android.security.cts;
 
-import static org.junit.Assert.assertTrue;
 import android.platform.test.annotations.AsbSecurityTest;
+import com.android.tradefed.device.ITestDevice;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
+import com.android.tradefed.testtype.junit4.BaseHostJUnit4Test;
+
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
 @RunWith(DeviceJUnit4ClassRunner.class)
-public class CVE_2021_0922 extends SecurityTestCase {
+public class CVE_2021_0953 extends BaseHostJUnit4Test {
 
-    /**
-     * b/195630721
-     */
-    @AsbSecurityTest(cveBugId = 195630721)
+    @AsbSecurityTest(cveBugId = 184046278)
     @Test
-    public void testPocCVE_2021_0922() throws Exception {
-        String packageName = "com.android.managedprovisioning";
-        String queryStr = "dumpsys package " + packageName;
-        String permissions = AdbUtils.runCommandLine(queryStr, getDevice());
-
-        // MANAGE_APP_OPS_MODES permission must be enforced for
-        // package com.android.managedprovisioning
-        assertTrue(permissions.contains("android.permission.MANAGE_APP_OPS_MODES"));
+    public void testPocCVE_2021_0953() throws Exception {
+        final String TEST_PKG = "android.security.cts.CVE_2021_0953";
+        final String TEST_CLASS = TEST_PKG + "." + "DeviceTest";
+        final String TEST_APP = "CVE-2021-0953.apk";
+        ITestDevice device = getDevice();
+        AdbUtils.runCommandLine("input keyevent KEYCODE_WAKEUP", device);
+        AdbUtils.runCommandLine("input keyevent KEYCODE_MENU", device);
+        AdbUtils.runCommandLine("input keyevent KEYCODE_HOME", device);
+        installPackage(TEST_APP);
+        runDeviceTests(TEST_PKG, TEST_CLASS, "testMutablePendingIntent");
     }
 }
