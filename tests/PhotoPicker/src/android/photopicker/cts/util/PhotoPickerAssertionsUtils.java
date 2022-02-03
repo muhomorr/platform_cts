@@ -16,9 +16,8 @@
 
 package android.photopicker.cts.util;
 
-import static android.photopicker.cts.util.PhotoPickerFilesUtils.DISPLAY_NAME_PREFIX;
-import static android.provider.MediaStore.Files.FileColumns.MEDIA_TYPE_IMAGE;
-import static android.provider.MediaStore.Files.FileColumns.MEDIA_TYPE_VIDEO;
+import static android.os.SystemProperties.getBoolean;
+import static android.provider.MediaStore.Files.FileColumns;
 
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
@@ -32,8 +31,6 @@ import android.media.ExifInterface;
 import android.net.Uri;
 import android.os.FileUtils;
 import android.os.ParcelFileDescriptor;
-import android.provider.MediaStore;
-import android.util.Log;
 
 import androidx.test.InstrumentationRegistry;
 
@@ -65,57 +62,50 @@ public class PhotoPickerAssertionsUtils {
 
     public static void assertRedactedReadOnlyAccess(Uri uri) throws Exception {
         assertThat(uri).isNotNull();
-        final String[] projection = new String[]{MediaStore.Files.FileColumns.TITLE,
-                MediaStore.Files.FileColumns.MEDIA_TYPE};
+        // TODO(b/205291616): Replace FileColumns.MIME_TYPE with PickerMediaColumns.MIME_TYPE
+        final String[] projection = new String[]{ FileColumns.MIME_TYPE };
         final Context context = InstrumentationRegistry.getTargetContext();
         final ContentResolver resolver = context.getContentResolver();
-        final Cursor c = resolver.query(uri, projection, null, null);
-        assertThat(c).isNotNull();
-        assertThat(c.moveToFirst()).isTrue();
+        try (Cursor c = resolver.query(uri, projection, null, null)) {
+            assertThat(c).isNotNull();
+            assertThat(c.moveToFirst()).isTrue();
 
-        boolean canCheckRedacted = false;
-        // If the file is inserted by this test case, we can check the redaction.
-        // To avoid checking the redaction on the other media file.
-        if (c.getString(0).startsWith(DISPLAY_NAME_PREFIX)) {
-            canCheckRedacted = true;
-        } else {
-            Log.d(TAG, uri + " is not the test file we expected, don't check the redaction");
-        }
+            final String mimeType;
+            if (getBoolean("sys.photopicker.pickerdb.enabled", true)) {
+                // TODO(b/205291616): Replace FileColumns.MIME_TYPE with
+                // PickerMediaColumns.MIME_TYPE
+                mimeType = c.getString(c.getColumnIndex(FileColumns.MIME_TYPE));
+            } else {
+                mimeType = c.getString(c.getColumnIndex(FileColumns.MIME_TYPE));
+            }
 
-        final int mediaType = c.getInt(1);
-        switch (mediaType) {
-            case MEDIA_TYPE_IMAGE:
-                assertImageRedactedReadOnlyAccess(uri, canCheckRedacted, resolver);
-                break;
-            case MEDIA_TYPE_VIDEO:
-                assertVideoRedactedReadOnlyAccess(uri, canCheckRedacted, resolver);
-                break;
-            default:
-                fail("The media type is not as expected: " + mediaType);
+            if (mimeType.startsWith("image")) {
+                assertImageRedactedReadOnlyAccess(uri, resolver);
+            } else if (mimeType.startsWith("video")) {
+                assertVideoRedactedReadOnlyAccess(uri, resolver);
+            } else {
+                fail("The mime type is not as expected: " + mimeType);
+            }
         }
     }
 
-    private static void assertVideoRedactedReadOnlyAccess(Uri uri, boolean shouldCheckRedacted,
-            ContentResolver resolver) throws Exception {
-        if (shouldCheckRedacted) {
-            // The location is redacted
-            try (InputStream in = resolver.openInputStream(uri);
-                 ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-                FileUtils.copy(in, out);
-                byte[] bytes = out.toByteArray();
-                byte[] xmpBytes = Arrays.copyOfRange(bytes, 3269, 3269 + 13197);
-                String xmp = new String(xmpBytes);
-                assertWithMessage("Failed to redact XMP longitude")
-                        .that(xmp.contains("10,41.751000E")).isFalse();
-                assertWithMessage("Failed to redact XMP latitude")
-                        .that(xmp.contains("53,50.070500N")).isFalse();
-                assertWithMessage("Redacted non-location XMP")
-                        .that(xmp.contains("13166/7763")).isTrue();
-            }
-        }
-
-        try (ParcelFileDescriptor pfd = resolver.openFileDescriptor(uri, "r")) {
-            // this should pass
+    private static void assertVideoRedactedReadOnlyAccess(Uri uri, ContentResolver resolver)
+            throws Exception {
+        // The location is redacted
+        // TODO(b/201505595): Make this method work for test_video.mp4. Currently it works only for
+        //  test_video_dng.mp4
+        try (InputStream in = resolver.openInputStream(uri);
+                ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            FileUtils.copy(in, out);
+            byte[] bytes = out.toByteArray();
+            byte[] xmpBytes = Arrays.copyOfRange(bytes, 3269, 3269 + 13197);
+            String xmp = new String(xmpBytes);
+            assertWithMessage("Failed to redact XMP longitude")
+                    .that(xmp.contains("10,41.751000E")).isFalse();
+            assertWithMessage("Failed to redact XMP latitude")
+                    .that(xmp.contains("53,50.070500N")).isFalse();
+            assertWithMessage("Redacted non-location XMP")
+                    .that(xmp.contains("13166/7763")).isTrue();
         }
 
         // assert no write access
@@ -125,31 +115,25 @@ public class PhotoPickerAssertionsUtils {
         }
     }
 
-    private static void assertImageRedactedReadOnlyAccess(Uri uri, boolean shouldCheckRedacted,
-            ContentResolver resolver) throws Exception {
-        if (shouldCheckRedacted) {
-            // The location is redacted
-            try (InputStream is = resolver.openInputStream(uri)) {
-                final ExifInterface exif = new ExifInterface(is);
-                final float[] latLong = new float[2];
-                exif.getLatLong(latLong);
-                assertWithMessage("Failed to redact latitude")
-                        .that(latLong[0]).isWithin(0.001f).of(0);
-                assertWithMessage("Failed to redact longitude")
-                        .that(latLong[1]).isWithin(0.001f).of(0);
+    private static void assertImageRedactedReadOnlyAccess(Uri uri, ContentResolver resolver)
+            throws Exception {
+        // The location is redacted
+        try (InputStream is = resolver.openInputStream(uri)) {
+            final ExifInterface exif = new ExifInterface(is);
+            final float[] latLong = new float[2];
+            exif.getLatLong(latLong);
+            assertWithMessage("Failed to redact latitude")
+                    .that(latLong[0]).isWithin(0.001f).of(0);
+            assertWithMessage("Failed to redact longitude")
+                    .that(latLong[1]).isWithin(0.001f).of(0);
 
-                String xmp = exif.getAttribute(ExifInterface.TAG_XMP);
-                assertWithMessage("Failed to redact XMP longitude")
-                        .that(xmp.contains("10,41.751000E")).isFalse();
-                assertWithMessage("Failed to redact XMP latitude")
-                        .that(xmp.contains("53,50.070500N")).isFalse();
-                assertWithMessage("Redacted non-location XMP")
-                        .that(xmp.contains("LensDefaults")).isTrue();
-            }
-        }
-
-        try (ParcelFileDescriptor pfd = resolver.openFileDescriptor(uri, "r")) {
-            // this should pass
+            String xmp = exif.getAttribute(ExifInterface.TAG_XMP);
+            assertWithMessage("Failed to redact XMP longitude")
+                    .that(xmp.contains("10,41.751000E")).isFalse();
+            assertWithMessage("Failed to redact XMP latitude")
+                    .that(xmp.contains("53,50.070500N")).isFalse();
+            assertWithMessage("Redacted non-location XMP")
+                    .that(xmp.contains("LensDefaults")).isTrue();
         }
 
         // assert no write access

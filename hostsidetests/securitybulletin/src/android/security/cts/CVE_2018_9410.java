@@ -17,20 +17,20 @@
 package android.security.cts;
 
 import android.platform.test.annotations.AsbSecurityTest;
+import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
 
 @RunWith(DeviceJUnit4ClassRunner.class)
-public class CVE_2021_0684 extends SecurityTestCase {
+public class CVE_2018_9410 extends SecurityTestCase {
 
     /**
-     * b/179839665
-     * Vulnerability Behaviour: SIGSEGV in Self
+     * b/77822336
+     * Vulnerability Behaviour: SIGSEGV in self
      */
-    @AsbSecurityTest(cveBugId = 179839665)
+    @AsbSecurityTest(cveBugId = 77822336)
     @Test
-    public void testPocCVE_2021_0684() throws Exception {
-        AdbUtils.runPocAssertNoCrashesNotVulnerable("CVE-2021-0684", null, getDevice());
+    public void testPocCVE_2018_9410() throws Exception {
+        AdbUtils.runPocAssertNoCrashesNotVulnerable("CVE-2018-9410", null, getDevice());
     }
 }

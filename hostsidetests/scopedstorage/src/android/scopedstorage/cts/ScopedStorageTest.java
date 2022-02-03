@@ -21,6 +21,8 @@ import static android.scopedstorage.cts.lib.TestUtils.adoptShellPermissionIdenti
 import static android.scopedstorage.cts.lib.TestUtils.assertCanAccessPrivateAppAndroidDataDir;
 import static android.scopedstorage.cts.lib.TestUtils.assertCanAccessPrivateAppAndroidObbDir;
 import static android.scopedstorage.cts.lib.TestUtils.assertCanRenameFile;
+import static android.scopedstorage.cts.lib.TestUtils.assertCantInsertToOtherPrivateAppDirectories;
+import static android.scopedstorage.cts.lib.TestUtils.assertCantUpdateToOtherPrivateAppDirectories;
 import static android.scopedstorage.cts.lib.TestUtils.assertDirectoryContains;
 import static android.scopedstorage.cts.lib.TestUtils.assertFileContent;
 import static android.scopedstorage.cts.lib.TestUtils.assertMountMode;
@@ -30,6 +32,7 @@ import static android.scopedstorage.cts.lib.TestUtils.canReadAndWriteAs;
 import static android.scopedstorage.cts.lib.TestUtils.createFileAs;
 import static android.scopedstorage.cts.lib.TestUtils.deleteFileAs;
 import static android.scopedstorage.cts.lib.TestUtils.deleteFileAsNoThrow;
+import static android.scopedstorage.cts.lib.TestUtils.deleteRecursively;
 import static android.scopedstorage.cts.lib.TestUtils.dropShellPermissionIdentity;
 import static android.scopedstorage.cts.lib.TestUtils.executeShellCommand;
 import static android.scopedstorage.cts.lib.TestUtils.getAndroidDir;
@@ -142,7 +145,7 @@ public class ScopedStorageTest {
             "CtsScopedStorageTestAppB.apk");
     // A legacy targeting app with RES and WES permissions
     private static final TestApp APP_D_LEGACY_HAS_RW = new TestApp("TestAppDLegacy",
-            "android.scopedstorage.cts.testapp.D", 1, false, "CtsScopedStorageTestAppCLegacy.apk");
+            "android.scopedstorage.cts.testapp.D", 1, false, "CtsScopedStorageTestAppDLegacy.apk");
 
     @Before
     public void setup() throws Exception {
@@ -228,6 +231,28 @@ public class ScopedStorageTest {
                 });
     }
 
+    /**
+     * Tests that apps with MANAGE_EXTERNAL_STORAGE permission cannot insert files in other app's
+     * private directories.
+     */
+    @Test
+    public void testManageExternalStorageCantInsertFilesInOtherAppPrivateDir() throws Exception {
+        pollForManageExternalStorageAllowed();
+        assertCantInsertToOtherPrivateAppDirectories(IMAGE_FILE_NAME,
+                /* throwsExceptionForDataValue */ true, APP_B_NO_PERMS, THIS_PACKAGE_NAME);
+    }
+
+    /**
+     * Tests that apps with MANAGE_EXTERNAL_STORAGE permission cannot update files in other app's
+     * private directories.
+     */
+    @Test
+    public void testManageExternalStorageCantUpdateFilesInOtherAppPrivateDir() throws Exception {
+        pollForManageExternalStorageAllowed();
+        assertCantUpdateToOtherPrivateAppDirectories(IMAGE_FILE_NAME,
+                /* throwsExceptionForDataValue */ false, APP_B_NO_PERMS, THIS_PACKAGE_NAME);
+    }
+
     @Test
     public void testManageExternalStorageCanDeleteOtherAppsContents() throws Exception {
         pollForManageExternalStorageAllowed();
@@ -305,7 +330,8 @@ public class ScopedStorageTest {
             final File otherAppExternalDataDir = new File(getExternalFilesDir().getPath().replace(
                     THIS_PACKAGE_NAME, APP_B_NO_PERMS.getPackageName()));
             final File otherAppExternalDataSubDir = new File(otherAppExternalDataDir, "subdir");
-            final File otherAppExternalDataFile = new File(otherAppExternalDataSubDir, "abc.jpg");
+            final File otherAppExternalDataFile =
+                    new File(otherAppExternalDataSubDir, IMAGE_FILE_NAME);
             assertThat(createFileAs(APP_B_NO_PERMS, otherAppExternalDataFile.getAbsolutePath()))
                     .isTrue();
 
@@ -495,7 +521,7 @@ public class ScopedStorageTest {
             nomediaFile.delete();
             mediaFile.delete();
             renamedMediaFile.delete();
-            nomediaDir.delete();
+            deleteRecursively(nomediaDir);
         }
     }
 
@@ -532,8 +558,8 @@ public class ScopedStorageTest {
             mediaFile1InSubDir.delete();
             mediaFile2InSubDir.delete();
             topLevelNomediaFile.delete();
-            nomediaSubDir.delete();
-            nomediaDir.delete();
+            deleteRecursively(nomediaSubDir);
+            deleteRecursively(nomediaDir);
             // Scan the directory to remove stale db rows.
             MediaStore.scanFile(getContentResolver(), nomediaDir);
         }
@@ -880,8 +906,8 @@ public class ScopedStorageTest {
             imageFile.delete();
             renamedImageFile.delete();
             imageFileInRenamedDir.delete();
-            dir.delete();
-            renamedDir.delete();
+            deleteRecursively(dir);
+            deleteRecursively(renamedDir);
         }
     }
 
