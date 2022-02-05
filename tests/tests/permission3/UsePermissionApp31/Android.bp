@@ -1,3 +1,4 @@
+//
 // Copyright (C) 2021 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -11,30 +12,21 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+//
 
 package {
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
-android_test {
-    name: "CtsPhotoPickerTest",
-    manifest: "AndroidManifest.xml",
-    test_config: "AndroidTest.xml",
-    srcs: ["src/**/*.java", "helper/**/*.java", ":CtsProviderTestUtils",],
-    compile_multilib: "both",
-    test_suites: ["general-tests", "mts-mediaprovider", "cts"],
-    sdk_version: "core_current",
-    min_sdk_version: "30",
-    libs: [
-            "android.test.base",
-            "android.test.runner",
-            "framework-mediaprovider.impl",
-            "framework-res",
-            "android_test_stubs_current"],
-    static_libs: [
-            "androidx.test.rules",
-            "cts-install-lib",
-            "androidx.test.uiautomator_uiautomator",
-            "Harrier",
+android_test_helper_app {
+    name: "CtsUsePermissionApp31",
+    srcs: [
+        ":CtsUsePermissionAppSrc",
     ],
+    static_libs: [
+        "kotlin-stdlib",
+    ],
+    certificate: ":cts-testkey2",
+    target_sdk_version: "31",
+    min_sdk_version: "31",
 }
