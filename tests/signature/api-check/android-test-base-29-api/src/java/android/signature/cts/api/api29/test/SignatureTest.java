@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 The Android Open Source Project
+ * Copyright (C) 2019 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,13 +14,7 @@
  * limitations under the License.
  */
 
-package android.telephony.cts;
+package android.signature.cts.api.api29.test;
 
-import android.telecom.InCallService;
-
-/**
- * A in call service that does nothing except allowing CTS telephony to be set as a default dialer
- */
-public class StubInCallService extends InCallService {
-
+public class SignatureTest extends android.signature.cts.api.SignatureTest {
 }
