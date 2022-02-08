@@ -27,6 +27,7 @@ import android.media.tv.interactive.TvInteractiveAppManager;
 import android.media.tv.interactive.TvInteractiveAppView;
 import android.os.ConditionVariable;
 import android.tv.cts.R;
+import android.view.InputEvent;
 
 import androidx.test.core.app.ActivityScenario;
 import androidx.test.platform.app.InstrumentationRegistry;
@@ -70,6 +71,7 @@ public class TvInteractiveAppViewTest {
 
         @Override
         public void onStateChanged(String interactiveAppServiceId, int state, int err) {
+            super.onStateChanged(interactiveAppServiceId, state, err);
             mInteractiveAppServiceId = interactiveAppServiceId;
             mState = state;
             mErr = err;
@@ -132,12 +134,21 @@ public class TvInteractiveAppViewTest {
         }
         assertNotNull(mStubInfo);
         mTvInteractiveAppView.setCallback(getExecutor(), mCallback);
+        mTvInteractiveAppView.setOnUnhandledInputEventListener(getExecutor(),
+                new TvInteractiveAppView.OnUnhandledInputEventListener() {
+                    @Override
+                    public boolean onUnhandledInputEvent(InputEvent event) {
+                        return true;
+                    }
+                });
     }
 
     @After
     public void tearDown() throws Throwable {
         runTestOnUiThread(new Runnable() {
             public void run() {
+                mTvInteractiveAppView.clearCallback();
+                mTvInteractiveAppView.clearOnUnhandledInputEventListener();
                 mTvInteractiveAppView.reset();
             }
         });
