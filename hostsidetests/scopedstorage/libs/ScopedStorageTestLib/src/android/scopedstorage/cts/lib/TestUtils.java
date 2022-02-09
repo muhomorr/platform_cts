@@ -99,6 +99,7 @@ public class TestUtils {
     public static final String CREATE_IMAGE_ENTRY_QUERY =
             "android.scopedstorage.cts.createimageentry";
     public static final String DELETE_FILE_QUERY = "android.scopedstorage.cts.deletefile";
+    public static final String DELETE_RECURSIVE_QUERY = "android.scopedstorage.cts.deleteRecursive";
     public static final String CAN_OPEN_FILE_FOR_READ_QUERY =
             "android.scopedstorage.cts.can_openfile_read";
     public static final String CAN_OPEN_FILE_FOR_WRITE_QUERY =
@@ -293,6 +294,17 @@ public class TestUtils {
      */
     public static boolean deleteFileAs(TestApp testApp, String path) throws Exception {
         return getResultFromTestApp(testApp, path, DELETE_FILE_QUERY);
+    }
+
+    /**
+     * Makes the given {@code testApp} delete a file or directory.
+     * If the file is a directory, then deletes all of its children (file or directories)
+     * recursively.
+     *
+     * <p>This method drops shell permission identity.
+     */
+    public static boolean deleteRecursivelyAs(TestApp testApp, String path) throws Exception {
+        return getResultFromTestApp(testApp, path, DELETE_RECURSIVE_QUERY);
     }
 
     /**
@@ -966,8 +978,9 @@ public class TestUtils {
         final File otherAppExternalDataDir = new File(getExternalFilesDir().getPath().replace(
                 callingPackageName, otherApp.getPackageName()));
         final File file = new File(otherAppExternalDataDir, fileName);
-        assertThat(createFileAs(otherApp, file.getPath())).isTrue();
         try {
+            assertThat(createFileAs(otherApp, file.getPath())).isTrue();
+
             final ContentValues valuesWithData = new ContentValues();
             valuesWithData.put(MediaStore.MediaColumns.DATA, file.getAbsolutePath());
             try {
@@ -999,7 +1012,7 @@ public class TestUtils {
             } catch (IllegalArgumentException expected) {
             }
         } finally {
-            assertThat(deleteFileAs(otherApp, file.getPath())).isTrue();
+            deleteFileAsNoThrow(otherApp, file.getPath());
         }
     }
 
@@ -1019,33 +1032,38 @@ public class TestUtils {
         final File otherAppExternalDataDir = new File(getExternalFilesDir().getPath().replace(
                 callingPackageName, otherApp.getPackageName()));
         final File file = new File(otherAppExternalDataDir, fileName);
-        assertThat(createFileAs(otherApp, file.getPath())).isTrue();
-        MediaStore.scanFile(getContentResolver(), file);
-
-        final ContentValues valuesWithData = new ContentValues();
-        valuesWithData.put(MediaStore.MediaColumns.DATA, file.getAbsolutePath());
         try {
-            int res = getContentResolver().update(MediaStore.Files.getContentUri(VOLUME_EXTERNAL),
-                    valuesWithData, Bundle.EMPTY);
+            assertThat(createFileAs(otherApp, file.getPath())).isTrue();
+            MediaStore.scanFile(getContentResolver(), file);
 
-            if (throwsExceptionForDataValue) {
-                fail("File update expected to fail: " + file);
-            } else {
-                assertThat(res).isEqualTo(0);
+            final ContentValues valuesWithData = new ContentValues();
+            valuesWithData.put(MediaStore.MediaColumns.DATA, file.getAbsolutePath());
+            try {
+                int res = getContentResolver().update(
+                        MediaStore.Files.getContentUri(VOLUME_EXTERNAL),
+                        valuesWithData, Bundle.EMPTY);
+
+                if (throwsExceptionForDataValue) {
+                    fail("File update expected to fail: " + file);
+                } else {
+                    assertThat(res).isEqualTo(0);
+                }
+            } catch (IllegalArgumentException expected) {
             }
-        } catch (IllegalArgumentException expected) {
-        }
 
-        final ContentValues valuesWithRelativePath = new ContentValues();
-        final String path = file.getAbsolutePath();
-        valuesWithRelativePath.put(MediaStore.MediaColumns.RELATIVE_PATH,
-                path.substring(path.indexOf("Android")));
-        valuesWithRelativePath.put(MediaStore.MediaColumns.DISPLAY_NAME, fileName);
-        try {
-            getContentResolver().update(MediaStore.Files.getContentUri(VOLUME_EXTERNAL),
-                    valuesWithRelativePath, Bundle.EMPTY);
-            fail("File update expected to fail: " + file);
-        } catch (IllegalArgumentException expected) {
+            final ContentValues valuesWithRelativePath = new ContentValues();
+            final String path = file.getAbsolutePath();
+            valuesWithRelativePath.put(MediaStore.MediaColumns.RELATIVE_PATH,
+                    path.substring(path.indexOf("Android")));
+            valuesWithRelativePath.put(MediaStore.MediaColumns.DISPLAY_NAME, fileName);
+            try {
+                getContentResolver().update(MediaStore.Files.getContentUri(VOLUME_EXTERNAL),
+                        valuesWithRelativePath, Bundle.EMPTY);
+                fail("File update expected to fail: " + file);
+            } catch (IllegalArgumentException expected) {
+            }
+        } finally {
+            deleteFileAsNoThrow(otherApp, file.getPath());
         }
     }
 
