@@ -39,7 +39,7 @@ import java.util.concurrent.TimeUnit;
 public class HdmiCecTvOneTouchPlayTest extends BaseHdmiCecCtsTest {
 
     private static final LogicalAddress TV_DEVICE = LogicalAddress.TV;
-    private static final int WAIT_TIME_MS = 300;
+    private static final int WAIT_TIME_MS = 1000;
     List<LogicalAddress> testDevices = new ArrayList<>();
 
     public HdmiCecTvOneTouchPlayTest() {
@@ -125,8 +125,7 @@ public class HdmiCecTvOneTouchPlayTest extends BaseHdmiCecCtsTest {
             TimeUnit.MILLISECONDS.sleep(WAIT_TIME_MS);
         }
         // Make the TV device the active source.
-        HdmiControlManagerUtility.setActiveSource(
-                getDevice(), LogicalAddress.TV.getLogicalAddressAsInt());
+        HdmiControlManagerUtility.setActiveSource(this, getDevice(), LogicalAddress.TV.toString());
         hdmiCecClient.checkExpectedOutput(LogicalAddress.BROADCAST, CecOperand.ACTIVE_SOURCE);
     }
 }
