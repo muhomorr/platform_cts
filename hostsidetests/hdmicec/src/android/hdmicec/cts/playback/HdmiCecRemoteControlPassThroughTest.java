@@ -16,15 +16,21 @@
 
 package android.hdmicec.cts.playback;
 
+import static com.google.common.truth.Truth.assertThat;
+import static com.google.common.truth.Truth.assertWithMessage;
+
 import android.hdmicec.cts.BaseHdmiCecCtsTest;
 import android.hdmicec.cts.CecMessage;
 import android.hdmicec.cts.CecOperand;
 import android.hdmicec.cts.HdmiCecConstants;
+import android.hdmicec.cts.HdmiControlManagerUtility;
 import android.hdmicec.cts.LogicalAddress;
 import android.hdmicec.cts.RemoteControlPassthrough;
 
+import com.android.tradefed.device.ITestDevice;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
 
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.RuleChain;
@@ -140,5 +146,103 @@ public final class HdmiCecRemoteControlPassThroughTest extends BaseHdmiCecCtsTes
                 dutLogicalAddress,
                 cecKeycode,
                 androidKeycode);
+    }
+
+    /**
+     * Test HF4-8-9 (CEC 2.0)
+     *
+     * <p>Tests that the DUT sends multiple {@code <USER_CONTROL_PRESSED>[KEYCODE]} when there is a
+     * long press keyevent.
+     */
+    @Test
+    public void cect_hf4_8_9_SendLongPress() throws Exception {
+        setCec20();
+        String message;
+        int i;
+
+        HdmiControlManagerUtility.sendLongPressKeyevent(getDevice());
+        // The above command should send 5 <UCP>[KEYCODE_UP] messages followed by 1 <UCR> message
+        // and finally, a <UCP>[KEYCODE_DOWN].
+        for (i = 0; i < 5; i++) {
+            message =
+                    hdmiCecClient.checkExpectedOutput(
+                            LogicalAddress.TV, CecOperand.USER_CONTROL_PRESSED);
+            assertThat(CecMessage.getParams(message)).isEqualTo(HdmiCecConstants.CEC_KEYCODE_UP);
+        }
+        message =
+                hdmiCecClient.checkExpectedOutput(
+                        LogicalAddress.TV, CecOperand.USER_CONTROL_RELEASED);
+        message =
+                hdmiCecClient.checkExpectedOutput(
+                        LogicalAddress.TV, CecOperand.USER_CONTROL_PRESSED);
+        assertThat(CecMessage.getParams(message)).isEqualTo(HdmiCecConstants.CEC_KEYCODE_DOWN);
+    }
+
+    /**
+     * Test HF4-8-13 (CEC 2.0)
+     *
+     * <p>Tests that the device responds with a {@code <FEATURE_ABORT>[Not in correct mode]} when it
+     * is not in a mode to action the message.
+     */
+    @Test
+    public void cect_hf4_8_13_AbortIncorrectMode() throws Exception {
+        setCec20();
+        try {
+            sendDeviceToSleep();
+            hdmiCecClient.sendUserControlPressAndRelease(
+                    LogicalAddress.TV, HdmiCecConstants.CEC_KEYCODE_ROOT_MENU, false);
+            String message =
+                    hdmiCecClient.checkExpectedOutput(LogicalAddress.TV, CecOperand.FEATURE_ABORT);
+            int reason = CecMessage.getParams(message) & 0xFF;
+            assertThat(reason).isEqualTo(HdmiCecConstants.ABORT_NOT_IN_CORRECT_MODE);
+        } finally {
+            wakeUpDevice();
+        }
+    }
+
+    /*
+     * Test to check that the DUT sends volume key press events to the TV when system audio mode is
+     * not turned on.
+     */
+    @Test
+    @Ignore("b/218266432")
+    public void cect_sendVolumeKeyPressToTv() throws Exception {
+        ITestDevice device = getDevice();
+        String ucpMessage;
+        String command = "cmd hdmi_control setsam ";
+
+        simulateCecSinkConnected(device, getTargetLogicalAddress());
+
+        boolean wasSystemAudioModeOn = isSystemAudioModeOn(device);
+        if (wasSystemAudioModeOn) {
+            device.executeShellCommand(command + "off");
+            assertWithMessage("System audio mode is not off")
+                    .that(isSystemAudioModeOn(device))
+                    .isFalse();
+        }
+        try {
+            device.executeShellCommand("input keyevent KEYCODE_VOLUME_UP");
+            ucpMessage =
+                    hdmiCecClient.checkExpectedOutput(
+                            LogicalAddress.TV, CecOperand.USER_CONTROL_PRESSED);
+            assertThat(CecMessage.getParams(ucpMessage))
+                    .isEqualTo(HdmiCecConstants.CEC_KEYCODE_VOLUME_UP);
+            device.executeShellCommand("input keyevent KEYCODE_VOLUME_DOWN");
+            ucpMessage =
+                    hdmiCecClient.checkExpectedOutput(
+                            LogicalAddress.TV, CecOperand.USER_CONTROL_PRESSED);
+            assertThat(CecMessage.getParams(ucpMessage))
+                    .isEqualTo(HdmiCecConstants.CEC_KEYCODE_VOLUME_DOWN);
+            device.executeShellCommand("input keyevent KEYCODE_VOLUME_MUTE");
+            ucpMessage =
+                    hdmiCecClient.checkExpectedOutput(
+                            LogicalAddress.TV, CecOperand.USER_CONTROL_PRESSED);
+            assertThat(CecMessage.getParams(ucpMessage))
+                    .isEqualTo(HdmiCecConstants.CEC_KEYCODE_MUTE);
+        } finally {
+            if (wasSystemAudioModeOn) {
+                device.executeShellCommand(command + "on");
+            }
+        }
     }
 }
