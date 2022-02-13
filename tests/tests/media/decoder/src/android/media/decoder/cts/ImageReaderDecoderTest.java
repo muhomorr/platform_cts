@@ -78,7 +78,8 @@ import static org.junit.Assume.assumeTrue;
  * test. For decoder test, hw and sw decoders are tested,
  * </p>
  */
-@Presubmit
+// TODO(b/210947256) Enable presubmit once this test works on Pixel 4
+//@Presubmit
 @SmallTest
 @RequiresDevice
 @AppModeFull(reason = "Instant apps cannot access the SD card")
