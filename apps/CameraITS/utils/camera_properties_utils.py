@@ -834,9 +834,8 @@ def linear_tonemap(props):
     Boolean. True if android.tonemap.availableToneMapModes has
              CONTRAST_CURVE (0) or GAMMA_VALUE (3).
   """
-  return ('android.tonemap.availableToneMapModes' in props and
-         (0 in props.get('android.tonemap.availableToneMapModes') or
-          3 in props.get('android.tonemap.availableToneMapModes')))
+  return (0 in props.get('android.tonemap.availableToneMapModes') or
+          3 in props.get('android.tonemap.availableToneMapModes'))
 
 
 if __name__ == '__main__':

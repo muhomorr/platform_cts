@@ -18,15 +18,13 @@ package android.security.cts;
 
 import android.platform.test.annotations.AppModeFull;
 import android.platform.test.annotations.AsbSecurityTest;
-
 import com.android.tradefed.device.ITestDevice;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
 import com.android.tradefed.testtype.junit4.BaseHostJUnit4Test;
-
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.junit.Test;
 
 @RunWith(DeviceJUnit4ClassRunner.class)
 public class CVE_2021_0523 extends BaseHostJUnit4Test {

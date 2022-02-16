@@ -16,7 +16,6 @@
 
 package com.android.cts.deviceandprofileowner;
 
-import android.os.UserHandle;
 import android.service.notification.NotificationListenerService;
 import android.service.notification.StatusBarNotification;
 import android.util.Log;
@@ -31,9 +30,6 @@ import java.util.function.Consumer;
  * A {@link NotificationListenerService} that allows tests to register to respond to notifications.
  */
 public class NotificationListener extends NotificationListenerService {
-
-    private static final String TAG = NotificationListener.class.getSimpleName();
-
     private static final int TIMEOUT_SECONDS = 120;
 
     private static NotificationListener instance;
@@ -41,12 +37,7 @@ public class NotificationListener extends NotificationListenerService {
 
     public static NotificationListener getInstance() {
         try {
-            Log.d(TAG, "getInstance(): waiting " + TIMEOUT_SECONDS + "s for connection");
-            if (!connectedLatch.await(TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
-                throw new IllegalStateException("notification listener didn't connect in "
-                        + TIMEOUT_SECONDS + "s");
-            }
-            Log.v(TAG, "wait no more...");
+            connectedLatch.await(TIMEOUT_SECONDS, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
             throw new RuntimeException("NotificationListener not connected.", e);
         }
@@ -66,7 +57,6 @@ public class NotificationListener extends NotificationListenerService {
 
     @Override
     public void onNotificationPosted(StatusBarNotification sbn) {
-        Log.d(TAG, "Notification posted: " + sbn);
         for (Consumer<StatusBarNotification> listener : mListeners) {
             listener.accept(sbn);
         }
@@ -74,7 +64,6 @@ public class NotificationListener extends NotificationListenerService {
 
     @Override
     public void onListenerConnected() {
-        Log.d(TAG, "onListenerConnected() on user " + UserHandle.myUserId());
         instance = this;
         connectedLatch.countDown();
     }

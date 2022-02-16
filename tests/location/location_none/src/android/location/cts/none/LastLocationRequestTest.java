@@ -33,7 +33,6 @@ public class LastLocationRequestTest {
     public void testBuild_Defaults() {
         LastLocationRequest request = new LastLocationRequest.Builder().build();
         assertThat(request.isHiddenFromAppOps()).isEqualTo(false);
-        assertThat(request.isAdasGnssBypass()).isEqualTo(false);
         assertThat(request.isLocationSettingsIgnored()).isEqualTo(false);
     }
 
@@ -41,11 +40,9 @@ public class LastLocationRequestTest {
     public void testBuild_Explicit() {
         LastLocationRequest request = new LastLocationRequest.Builder()
                 .setHiddenFromAppOps(true)
-                .setAdasGnssBypass(true)
                 .setLocationSettingsIgnored(true)
                 .build();
         assertThat(request.isHiddenFromAppOps()).isEqualTo(true);
-        assertThat(request.isAdasGnssBypass()).isEqualTo(true);
         assertThat(request.isLocationSettingsIgnored()).isEqualTo(true);
     }
 
@@ -53,12 +50,10 @@ public class LastLocationRequestTest {
     public void testBuild_Copy() {
         LastLocationRequest original = new LastLocationRequest.Builder()
                 .setHiddenFromAppOps(true)
-                .setAdasGnssBypass(true)
                 .setLocationSettingsIgnored(true)
                 .build();
         LastLocationRequest copy = new LastLocationRequest.Builder(original).build();
         assertThat(copy.isHiddenFromAppOps()).isEqualTo(true);
-        assertThat(copy.isAdasGnssBypass()).isEqualTo(true);
         assertThat(copy.isLocationSettingsIgnored()).isEqualTo(true);
         assertThat(copy).isEqualTo(original);
     }
@@ -73,7 +68,6 @@ public class LastLocationRequestTest {
     public void testParcelRoundtrip() {
         LastLocationRequest request = new LastLocationRequest.Builder()
                 .setHiddenFromAppOps(true)
-                .setAdasGnssBypass(true)
                 .setLocationSettingsIgnored(true)
                 .build();
 

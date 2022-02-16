@@ -49,9 +49,8 @@ public abstract class WifiJUnit3TestBase extends AndroidTestCase {
     @Override
     protected void tearDown() throws Exception {
         if (mWasLocationEnabledForTest) {
-            ShellIdentityUtils.invokeWithShellPermissions(() ->
-                    mLocationManager.setLocationEnabledForUser(
-                            false, UserHandle.getUserHandleForUid(Process.myUid())));
+            mLocationManager.setLocationEnabledForUser(
+                    false, UserHandle.getUserHandleForUid(Process.myUid()));
         }
 
         super.tearDown();
