@@ -52,28 +52,21 @@ def do_capture_and_extract_rgb_means(req, cam, size, img_type, log_path, debug):
   out_surface = {'width': size[0], 'height': size[1], 'format': img_type}
   cap = cam.do_capture(req, out_surface)
   if img_type == 'jpg':
-    if cap['format'] != 'jpeg':
-      raise AssertionError(f"{cap['format']} != jpeg")
+    assert cap['format'] == 'jpeg'
     img = image_processing_utils.decompress_jpeg_to_rgb_image(cap['data'])
   else:
-    if cap['format'] != img_type:
-      raise AssertionError(f"{cap['format']} != {img_type}")
+    assert cap['format'] == img_type
     img = image_processing_utils.convert_capture_to_rgb_image(cap)
-  if cap['width'] != size[0]:
-    raise AssertionError(f"{cap['width']} != {size[0]}")
-  if cap['height'] != size[1]:
-    raise AssertionError(f"{cap['height']} != {size[1]}")
+  assert cap['width'] == size[0]
+  assert cap['height'] == size[1]
 
   if debug:
     image_processing_utils.write_image(img, '%s_%s_w%d_h%d.jpg'%(
         os.path.join(log_path, NAME), img_type, size[0], size[1]))
   if img_type == 'jpg':
-    if img.shape[0] != size[1]:
-      raise AssertionError(f'{img.shape[0]} != {size[1]}')
-    if img.shape[1] != size[0]:
-      raise AssertionError(f'{img.shape[1]} != {size[0]}')
-    if img.shape[2] != 3:
-      raise AssertionError(f'{img.shape[2]} != 3')
+    assert img.shape[0] == size[1]
+    assert img.shape[1] == size[0]
+    assert img.shape[2] == 3
   patch = image_processing_utils.get_image_patch(
       img, PATCH_X, PATCH_Y, PATCH_W, PATCH_H)
   rgb = image_processing_utils.compute_image_means(patch)
@@ -140,8 +133,8 @@ class YuvJpegAllTest(its_base_test.ItsBaseTest):
         max_diff = max(max_diff, rms_diff)
       msg = 'Max RMS difference: %.4f' % max_diff
       logging.debug('%s', msg)
-      if max_diff >= THRESHOLD_MAX_RMS_DIFF:
-        raise AssertionError(f'{msg} spec: {THRESHOLD_MAX_RMS_DIFF}')
+      e_msg = msg + ' spec: %.3f' % THRESHOLD_MAX_RMS_DIFF
+      assert max_diff < THRESHOLD_MAX_RMS_DIFF, e_msg
 
 if __name__ == '__main__':
   test_runner.main()

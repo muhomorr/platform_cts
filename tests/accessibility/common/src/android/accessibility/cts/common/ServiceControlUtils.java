@@ -52,7 +52,7 @@ public class ServiceControlUtils {
                 lock.notifyAll();
             }
         };
-        manager.addAccessibilityServicesStateChangeListener(listener);
+        manager.addAccessibilityServicesStateChangeListener(listener, null);
         try {
             waitOn(lock, condition, timeoutMs, conditionName);
         } finally {

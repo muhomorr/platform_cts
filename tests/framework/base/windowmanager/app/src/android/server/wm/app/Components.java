@@ -192,22 +192,6 @@ public class Components extends ComponentsBase {
     public static final ComponentName ALIAS_TEST_ACTIVITY = component("AliasTestActivity");
     public static final ComponentName DISPLAY_ACCESS_CHECK_EMBEDDING_ACTIVITY = component(
             "DisplayAccessCheckEmbeddingActivity");
-    public static final ComponentName MAX_ASPECT_RATIO_ACTIVITY =
-            component("MaxAspectRatioActivity");
-    public static final ComponentName MAX_ASPECT_RATIO_RESIZABLE_ACTIVITY =
-            component("MaxAspectRatioResizableActivity");
-    public static final ComponentName MAX_ASPECT_RATIO_UNSET_ACTIVITY =
-            component("MaxAspectRatioUnsetActivity");
-    public static final ComponentName META_DATA_MAX_ASPECT_RATIO_ACTIVITY =
-            component("MetaDataMaxAspectRatioActivity");
-    public static final ComponentName MIN_ASPECT_RATIO_ACTIVITY =
-            component("MinAspectRatioActivity");
-    public static final ComponentName MIN_ASPECT_RATIO_LANDSCAPE_ACTIVITY =
-            component("MinAspectRatioLandscapeActivity");
-    public static final ComponentName MIN_ASPECT_RATIO_PORTRAIT_ACTIVITY =
-            component("MinAspectRatioPortraitActivity");
-    public static final ComponentName MIN_ASPECT_RATIO_UNSET_ACTIVITY =
-            component("MinAspectRatioUnsetActivity");
 
     public static final ComponentName ASSISTANT_VOICE_INTERACTION_SERVICE =
             component("AssistantVoiceInteractionService");
@@ -256,8 +240,6 @@ public class Components extends ComponentsBase {
             component("SplashScreenReplaceIconActivity");
     public static final ComponentName SPLASH_SCREEN_REPLACE_THEME_ACTIVITY =
             component("SplashScreenReplaceThemeActivity");
-    public static final ComponentName SPLASH_SCREEN_STYLE_THEME_ACTIVITY =
-            component("SplashScreenStyleThemeActivity");
 
     public static final ComponentName TEST_DREAM_SERVICE =
             component("TestDream");
@@ -279,31 +261,6 @@ public class Components extends ComponentsBase {
 
     public static final ComponentName BAD_BLUR_ACTIVITY =
             component("BadBlurActivity");
-
-    public static final ComponentName CUSTOM_TRANSITION_EXIT_ACTIVITY =
-            component("CustomTransitionExitActivity");
-
-    public static final ComponentName CUSTOM_TRANSITION_ENTER_ACTIVITY =
-            component("CustomTransitionEnterActivity");
-
-    public static final ComponentName KEEP_CLEAR_RECTS_ACTIVITY =
-            component("KeepClearRectsActivity");
-
-    /**
-     * The keys used by {@link CustomTransitionExitActivity} to select the animation to run.
-     */
-    public static class CustomTransitionAnimations {
-        /** see @anim/show_background_hide_window_animation.xml */
-        public static final String BACKGROUND_COLOR = "backgroundColor";
-        /** see @anim/edge_extension_right_window_animation.xml */
-        public static final String LEFT_EDGE_EXTENSION = "leftEdgeExtension";
-        /** see @anim/edge_extension_top_window_animation.xml */
-        public static final String TOP_EDGE_EXTENSION = "topEdgeExtension";
-        /** see @anim/edge_extension_left_window_animation.xml */
-        public static final String RIGHT_EDGE_EXTENSION = "rightEdgeExtension";
-        /** see @anim/edge_extension_bottom_window_animation.xml */
-        public static final String BOTTOM_EDGE_EXTENSION = "bottomExtension";
-    }
 
     /**
      * The keys are used for {@link TestJournalProvider} when testing starting window.
@@ -329,7 +286,7 @@ public class Components extends ComponentsBase {
         public static final String OVERRIDE_THEME_ENABLED = "override_theme_enabled";
         public static final String OVERRIDE_THEME_COLOR = "override_theme_color";
         public static final String OVERRIDE_THEME_COMPONENT = "override_theme_component";
-        public static final String STYLE_THEME_COMPONENT = "style_theme_component";
+
     }
 
     /**
@@ -362,7 +319,6 @@ public class Components extends ComponentsBase {
         public static final String COMMAND_NAVIGATE_UP_TO = "navigate_up_to";
         public static final String COMMAND_START_ACTIVITY = "start_activity";
         public static final String COMMAND_START_ACTIVITIES = "start_activities";
-        public static final String EXTRA_OPTION = "option";
     }
 
     /**
@@ -540,10 +496,6 @@ public class Components extends ComponentsBase {
         // Calls requestAutoEnterPictureInPicture() with the value provided
         public static final String EXTRA_ENTER_PIP_ON_PIP_REQUESTED =
                 "enter_pip_on_pip_requested";
-        public static final String EXTRA_EXPANDED_PIP_ASPECT_RATIO_NUMERATOR =
-                "expanded_pip_numerator";
-        public static final String EXTRA_EXPANDED_PIP_ASPECT_RATIO_DENOMINATOR =
-                "expanded_pip_denomenator";
         // Sets auto PIP allowed on the activity picture-in-picture params.
         public static final String EXTRA_ALLOW_AUTO_PIP = "enter_pip_auto_pip_allowed";
         // Sets seamless resize enabled on the activity picture-in-picture params.
@@ -611,12 +563,6 @@ public class Components extends ComponentsBase {
 
     public static class RenderService {
         public static final String PROCESS_NAME = ".render_process";
-        public static final String EXTRAS_BUNDLE = "EXTRAS_BUNDLE";
-        public static final String EXTRAS_DISPLAY_ID = "EXTRAS_DISPLAY_ID";
-        public static final String EXTRAS_HOST_TOKEN = "EXTRAS_HOST_TOKEN";
-        public static final String BROADCAST_EMBED_CONTENT =
-                "android.server.wm.app.RenderService.EMBED_CONTENT";
-        public static final String EXTRAS_SURFACE_PACKAGE = "surfacePackage";
     }
 
     /**
@@ -668,17 +614,6 @@ public class Components extends ComponentsBase {
         public static final String ACTION = "hide_action";
         public static final String PONG = "pong_action";
         public static final String SHOULD_HIDE = "should_hide";
-    }
-
-    public static class BackgroundActivityTransition {
-        public static final String TRANSITION_REQUESTED = "transition_requested";
-    }
-
-    /**
-     * Extra constants for {@link android.server.wm.app.KeepClearRectsActivity}.
-     */
-    public static class KeepClearRectsActivity {
-        public static final String EXTRA_KEEP_CLEAR_RECTS = "keep_clear_rects";
     }
 
     private static ComponentName component(String className) {

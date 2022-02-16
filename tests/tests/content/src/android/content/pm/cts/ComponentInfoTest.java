@@ -16,7 +16,6 @@
 
 package android.content.pm.cts;
 
-import android.content.cts.R;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.ComponentInfo;
 import android.content.pm.PackageManager;
@@ -30,6 +29,8 @@ import android.util.Printer;
 import android.util.StringBuilderPrinter;
 
 import com.android.compatibility.common.util.WidgetTestUtils;
+
+import android.content.cts.R;
 
 
 /**
@@ -204,8 +205,7 @@ public class ComponentInfoTest extends AndroidTestCase {
         assertEquals("name", mComponentInfo.loadLabel(pm));
 
         mComponentInfo.applicationInfo =
-                mContext.getPackageManager().getApplicationInfo(PACKAGE_NAME,
-                        PackageManager.ApplicationInfoFlags.of(0));
+                mContext.getPackageManager().getApplicationInfo(PACKAGE_NAME, 0);
 
         mComponentInfo.nonLocalizedLabel = null;
         mComponentInfo.labelRes = R.string.hello_android;

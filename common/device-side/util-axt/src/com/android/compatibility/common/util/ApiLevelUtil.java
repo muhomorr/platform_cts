@@ -17,7 +17,6 @@
 package com.android.compatibility.common.util;
 
 import android.os.Build;
-import android.os.SystemProperties;
 
 import java.lang.reflect.Field;
 
@@ -60,10 +59,6 @@ public class ApiLevelUtil {
 
     public static int getApiLevel() {
         return Build.VERSION.SDK_INT;
-    }
-
-    public static boolean isFirstApiAtLeast(int version) {
-        return SystemProperties.getInt("ro.product.first_api_level", 0) >= version;
     }
 
     public static boolean codenameEquals(String name) {

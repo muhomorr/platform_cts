@@ -52,8 +52,6 @@ public final class CtsTextClassifierService extends TextClassifierService {
     private static final String TAG = "CtsTextClassifierService";
     public static final String MY_PACKAGE = "android.view.textclassifier.cts";
 
-    public static final int DEFAULT_API_WAIT_TIMEOUT = 1_000;
-
     private static final Icon ICON_RES =
             Icon.createWithResource("android", android.R.drawable.btn_star);
     static final Icon ICON_URI =
@@ -66,7 +64,7 @@ public final class CtsTextClassifierService extends TextClassifierService {
 
     private final Map<String, List<TextClassificationSessionId>> mRequestSessions =
             new ArrayMap<>();
-    private CountDownLatch mRequestLatch = new CountDownLatch(1);
+    private final CountDownLatch mRequestLatch = new CountDownLatch(1);
 
     /**
      * Returns the TestWatcher that was used for the testing.
@@ -82,14 +80,6 @@ public final class CtsTextClassifierService extends TextClassifierService {
     @NonNull
     Map<String, List<TextClassificationSessionId>> getRequestSessions() {
         return Collections.unmodifiableMap(mRequestSessions);
-    }
-
-    void resetRequestLatch(int count) {
-        mRequestLatch = new CountDownLatch(count);
-    }
-
-    void awaitQuery() {
-        awaitQuery(DEFAULT_API_WAIT_TIMEOUT);
     }
 
     void awaitQuery(long timeoutMillis) {

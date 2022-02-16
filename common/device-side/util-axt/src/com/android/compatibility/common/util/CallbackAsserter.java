@@ -101,8 +101,7 @@ public class CallbackAsserter {
                     mLatch.countDown();
                 }
             };
-            InstrumentationRegistry.getContext().registerReceiver(mReceiver, filter,
-                    Context.RECEIVER_EXPORTED_UNAUDITED);
+            InstrumentationRegistry.getContext().registerReceiver(mReceiver, filter);
         }
 
         @Override

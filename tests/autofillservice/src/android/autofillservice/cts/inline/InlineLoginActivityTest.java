@@ -374,72 +374,6 @@ public class InlineLoginActivityTest extends LoginActivityCommonTestCase {
     }
 
     @Test
-    public void testImeDisableServiceSuggestions_fallbackDropdownUi() throws Exception {
-        // Set service.
-        enableService();
-
-        final MockImeSession mockImeSession = sMockImeSessionRule.getMockImeSession();
-        assumeTrue("MockIME not available", mockImeSession != null);
-
-        // Disable inline suggestions for the default service.
-        final Bundle bundle = new Bundle();
-        bundle.putBoolean("ServiceSuggestions", false);
-        mockImeSession.callSetInlineSuggestionsExtras(bundle);
-
-        final CannedFillResponse.Builder builder = new CannedFillResponse.Builder()
-                .addDataset(new CannedFillResponse.CannedDataset.Builder()
-                        .setField(ID_USERNAME, "dude")
-                        .setPresentation(createPresentation("The Username"))
-                        .setInlinePresentation(createInlinePresentation("The Username"))
-                        .build());
-        sReplier.addResponse(builder.build());
-
-        // Trigger auto-fill.
-        mUiBot.selectByRelativeId(ID_USERNAME);
-        mUiBot.waitForIdleSync();
-
-        // Check that no inline requests are sent to the service.
-        final InstrumentedAutoFillService.FillRequest request = sReplier.getNextFillRequest();
-        assertThat(request.inlineRequest).isNull();
-
-        // Check dropdown UI shown.
-        getDropdownUiBot().assertDatasets("The Username");
-    }
-
-    @Test
-    public void testImeDisableInlineSuggestions_fallbackDropdownUi() throws Exception {
-        // Set service.
-        enableService();
-
-        final MockImeSession mockImeSession = sMockImeSessionRule.getMockImeSession();
-        assumeTrue("MockIME not available", mockImeSession != null);
-
-        // Disable inline suggestions for the default service.
-        final Bundle bundle = new Bundle();
-        bundle.putBoolean("InlineSuggestions", false);
-        mockImeSession.callSetInlineSuggestionsExtras(bundle);
-
-        final CannedFillResponse.Builder builder = new CannedFillResponse.Builder()
-                .addDataset(new CannedFillResponse.CannedDataset.Builder()
-                        .setField(ID_USERNAME, "dude")
-                        .setPresentation(createPresentation("The Username"))
-                        .setInlinePresentation(createInlinePresentation("The Username"))
-                        .build());
-        sReplier.addResponse(builder.build());
-
-        // Trigger auto-fill.
-        mUiBot.selectByRelativeId(ID_USERNAME);
-        mUiBot.waitForIdleSync();
-
-        // Check that no inline requests are sent to the service.
-        final InstrumentedAutoFillService.FillRequest request = sReplier.getNextFillRequest();
-        assertThat(request.inlineRequest).isNull();
-
-        // Check dropdown UI shown.
-        getDropdownUiBot().assertDatasets("The Username");
-    }
-
-    @Test
     public void testScrollSuggestionView() throws Exception {
         // Set service.
         enableService();
@@ -463,7 +397,7 @@ public class InlineLoginActivityTest extends LoginActivityCommonTestCase {
         mUiBot.assertSuggestion("Username" + firstDataset);
 
         // Scroll the suggestion view
-        mUiBot.scrollSuggestionView(Direction.RIGHT, /* speed */ 3000);
+        mUiBot.scrollSuggestionView(Direction.RIGHT, /* speed */ 5000);
         mUiBot.waitForIdleSync();
 
         mUiBot.assertNoSuggestion("Username" + firstDataset);

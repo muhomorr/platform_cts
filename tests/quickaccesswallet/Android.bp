@@ -41,8 +41,5 @@ android_test {
         "cts",
         "general-tests",
     ],
-    data: [
-        ":CtsQuickAccessWalletSampleApp",
-    ],
     sdk_version: "test_current",
 }

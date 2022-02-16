@@ -19,7 +19,5 @@
           package="android.appenumeration.stub">
     <application>
         <uses-library android:name="android.test.runner" />
-        <activity android:name="android.appenumeration.cts.TestActivity"
-                  android:exported="true" />
     </application>
 </manifest>

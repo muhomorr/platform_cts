@@ -194,7 +194,6 @@ public class BaseMovementMethodTest {
         mActivityRule.runOnUiThread(() -> {
             activity.setContentView(layout, new ViewGroup.LayoutParams(MATCH_PARENT,
                     MATCH_PARENT));
-            textView.setFocusableInTouchMode(true);
             textView.requestFocus();
         });
         mInstrumentation.waitForIdleSync();

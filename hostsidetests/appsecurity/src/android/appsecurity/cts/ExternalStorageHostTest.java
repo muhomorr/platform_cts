@@ -22,8 +22,6 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
-import android.platform.test.annotations.Presubmit;
-
 import com.android.compatibility.common.tradefed.build.CompatibilityBuildHelper;
 import com.android.ddmlib.Log;
 import com.android.role.RoleProto;
@@ -31,7 +29,6 @@ import com.android.role.RoleServiceDumpProto;
 import com.android.role.RoleUserStateProto;
 import com.android.tradefed.device.CollectingByteOutputReceiver;
 import com.android.tradefed.device.DeviceNotAvailableException;
-import com.android.tradefed.device.ITestDevice;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
 import com.android.tradefed.testtype.junit4.BaseHostJUnit4Test;
 import com.android.tradefed.util.AbiUtils;
@@ -42,6 +39,7 @@ import com.google.protobuf.Parser;
 import org.junit.After;
 import org.junit.Assume;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -53,7 +51,6 @@ import java.util.List;
 /**
  * Set of tests that verify behavior of external storage devices.
  */
-@Presubmit
 @RunWith(DeviceJUnit4ClassRunner.class)
 public class ExternalStorageHostTest extends BaseHostJUnit4Test {
     private static final String TAG = "ExternalStorageHostTest";
@@ -114,7 +111,6 @@ public class ExternalStorageHostTest extends BaseHostJUnit4Test {
     private static final String FEATURE_WATCH = "android.hardware.type.watch";
 
     private int[] mUsers;
-    private boolean mAdbWasRoot;
 
     private File getTestAppFile(String fileName) throws FileNotFoundException {
         CompatibilityBuildHelper buildHelper = new CompatibilityBuildHelper(getBuild());
@@ -126,16 +122,6 @@ public class ExternalStorageHostTest extends BaseHostJUnit4Test {
         mUsers = Utils.prepareMultipleUsers(getDevice());
         assertNotNull(getAbi());
         assertNotNull(getBuild());
-
-        ITestDevice device = getDevice();
-        mAdbWasRoot = device.isAdbRoot();
-        if (mAdbWasRoot) {
-            // This test assumes that the test is not run with root privileges. But this test runs
-            // as a part of appsecurity test suite which contains a lot of other tests. Some of
-            // which may enable adb root, make sure that this test is run without root access.
-            device.disableAdbRoot();
-            assertFalse("adb root is enabled", device.isAdbRoot());
-        }
     }
 
     @Before
@@ -147,16 +133,6 @@ public class ExternalStorageHostTest extends BaseHostJUnit4Test {
         getDevice().uninstallPackage(MULTIUSER_PKG);
 
         wipePrimaryExternalStorage();
-    }
-
-    @After
-    public void tearDown() throws DeviceNotAvailableException {
-        ITestDevice device = getDevice();
-        if (mAdbWasRoot) {
-            device.enableAdbRoot();
-        } else {
-            device.disableAdbRoot();
-        }
     }
 
     @Test
@@ -539,54 +515,6 @@ public class ExternalStorageHostTest extends BaseHostJUnit4Test {
         }
     }
 
-    /**
-     * b/197302116. The apps can't be granted prefix UriPermissions to the uri, when the query
-     * result of the uri is 1.
-     */
-    @Test
-    public void testOwningOneFileNotGrantPrefixUriPermission() throws Exception {
-        installPackage(MEDIA.apk);
-
-        int user = getDevice().getCurrentUser();
-
-        // revoke permissions
-        updatePermissions(MEDIA.pkg, user, new String[] {
-                PERM_READ_EXTERNAL_STORAGE,
-                PERM_WRITE_EXTERNAL_STORAGE,
-        }, false);
-
-
-        // revoke the app ops permission
-        updateAppOp(MEDIA.pkg, user, APP_OPS_MANAGE_EXTERNAL_STORAGE, false);
-
-        runDeviceTests(MEDIA.pkg, MEDIA.clazz,
-                "testOwningOneFileNotGrantPrefixUriPermission", user);
-    }
-
-    /**
-     * If the app grants read UriPermission to the uri without id (E.g.
-     * MediaStore.Audio.Media.EXTERNAL_CONTENT_URI), the query result of the uri should be the same
-     * without granting permission.
-     */
-    @Test
-    public void testReadUriPermissionOnUriWithoutId_sameQueryResult() throws Exception {
-        installPackage(MEDIA.apk);
-
-        int user = getDevice().getCurrentUser();
-
-        // revoke permissions
-        updatePermissions(MEDIA.pkg, user, new String[] {
-                PERM_READ_EXTERNAL_STORAGE,
-                PERM_WRITE_EXTERNAL_STORAGE,
-        }, false);
-
-
-        // revoke the app ops permission
-        updateAppOp(MEDIA.pkg, user, APP_OPS_MANAGE_EXTERNAL_STORAGE, false);
-
-        runDeviceTests(MEDIA.pkg, MEDIA.clazz,
-                "testReadUriPermissionOnUriWithoutId_sameQueryResult", user);
-    }
 
     @Test
     public void testGrantUriPermission() throws Exception {
@@ -699,22 +627,19 @@ public class ExternalStorageHostTest extends BaseHostJUnit4Test {
     }
 
     @Test
+    @Ignore("Enable after b/197701722 is fixed")
     public void testMediaEscalation_RequestWriteFilePathSupport() throws Exception {
         // Not adding tests for MEDIA_28 and MEDIA_29 as they need W_E_S for write access via file
         // path for shared files, and will always have access as they have W_E_S.
         installPackage(MEDIA.apk);
 
         int user = getDevice().getCurrentUser();
-        // revoke all permissions
         updatePermissions(MEDIA.pkg, user, new String[] {
-                PERM_ACCESS_MEDIA_LOCATION,
                 PERM_READ_EXTERNAL_STORAGE,
+        }, true);
+        updatePermissions(MEDIA.pkg, user, new String[] {
                 PERM_WRITE_EXTERNAL_STORAGE,
         }, false);
-
-        // revoke the app ops permission
-        updateAppOp(MEDIA.pkg, user, APP_OPS_MANAGE_MEDIA, false);
-        updateAppOp(MEDIA.pkg, user, APP_OPS_MANAGE_EXTERNAL_STORAGE, false);
 
         runDeviceTests(MEDIA.pkg, MEDIA.clazz, "testMediaEscalation_RequestWriteFilePathSupport",
                 user);
