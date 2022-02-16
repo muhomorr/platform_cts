@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package android.view.cts.input;
+package android.view.cts;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
@@ -32,7 +32,7 @@ import androidx.test.filters.MediumTest;
 import androidx.test.platform.app.InstrumentationRegistry;
 import androidx.test.rule.ActivityTestRule;
 
-import com.android.compatibility.common.util.WindowUtil;
+import com.android.compatibility.common.util.PollingCheck;
 import com.android.cts.input.UinputDevice;
 
 import org.json.JSONArray;
@@ -91,7 +91,7 @@ public class InputDeviceMultiDeviceKeyEventTest {
     @Before
     public void setup() {
         mInstrumentation = InstrumentationRegistry.getInstrumentation();
-        WindowUtil.waitForFocus(mActivityRule.getActivity());
+        PollingCheck.waitFor(mActivityRule.getActivity()::hasWindowFocus);
         for (int i = 0; i < NUM_DEVICES; i++) {
             final int jsonDeviceId = i + 1;
             mUinputDevices[i] = new UinputDevice(mInstrumentation, jsonDeviceId,

@@ -16,17 +16,13 @@
 package com.android.cts.deviceadmin;
 
 import android.app.admin.DevicePolicyManager;
+import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
-import android.util.Log;
 
 /**
  * Device admin device side tests with enterprise policies disallowed.
  */
 public class DeviceAdminWithEnterprisePoliciesBlockedTest extends DeviceAdminTest {
-
-    private static final String TAG = DeviceAdminWithEnterprisePoliciesBlockedTest.class
-            .getSimpleName();
-
     public void testCameraDisabled() {
         boolean originalValue = dpm.getCameraDisabled(mAdminComponent);
         assertSecurityException(() -> dpm.setCameraDisabled(mAdminComponent, true));
@@ -56,49 +52,49 @@ public class DeviceAdminWithEnterprisePoliciesBlockedTest extends DeviceAdminTes
 
     public void testPasswordMinimumLength() {
         int originalValue = dpm.getPasswordMinimumLength(mAdminComponent);
-        runDeprecatedPasswordQualityApi(() -> dpm.setPasswordMinimumLength(mAdminComponent, 4));
+        assertSecurityException(() -> dpm.setPasswordMinimumLength(mAdminComponent, 4));
         assertEquals(originalValue, dpm.getPasswordMinimumLength(mAdminComponent));
     }
 
     public void testPasswordMinimumLetters() {
         int originalValue = dpm.getPasswordMinimumLetters(mAdminComponent);
-        runDeprecatedPasswordQualityApi(() -> dpm.setPasswordMinimumLetters(mAdminComponent, 3));
+        assertSecurityException(() -> dpm.setPasswordMinimumLetters(mAdminComponent, 3));
         assertEquals(originalValue, dpm.getPasswordMinimumLetters(mAdminComponent));
     }
 
     public void testPasswordMinimumLowerCase() {
         int originalValue = dpm.getPasswordMinimumLowerCase(mAdminComponent);
-        runDeprecatedPasswordQualityApi(() -> dpm.setPasswordMinimumLowerCase(mAdminComponent, 3));
+        assertSecurityException(() -> dpm.setPasswordMinimumLowerCase(mAdminComponent, 3));
         assertEquals(originalValue, dpm.getPasswordMinimumLowerCase(mAdminComponent));
     }
 
     public void testPasswordMinimumNonLetter() {
         int originalValue = dpm.getPasswordMinimumNonLetter(mAdminComponent);
-        runDeprecatedPasswordQualityApi(() -> dpm.setPasswordMinimumNonLetter(mAdminComponent, 3));
+        assertSecurityException(() -> dpm.setPasswordMinimumNonLetter(mAdminComponent, 3));
         assertEquals(originalValue, dpm.getPasswordMinimumNonLetter(mAdminComponent));
     }
 
     public void testPasswordMinimumNumeric() {
         int originalValue = dpm.getPasswordMinimumNumeric(mAdminComponent);
-        runDeprecatedPasswordQualityApi(() -> dpm.setPasswordMinimumNumeric(mAdminComponent, 2));
+        assertSecurityException(() -> dpm.setPasswordMinimumNumeric(mAdminComponent, 2));
         assertEquals(originalValue, dpm.getPasswordMinimumNumeric(mAdminComponent));
     }
 
     public void testPasswordMinimumSymbols() {
         int originalValue = dpm.getPasswordMinimumSymbols(mAdminComponent);
-        runDeprecatedPasswordQualityApi(() -> dpm.setPasswordMinimumSymbols(mAdminComponent, 2));
+        assertSecurityException(() -> dpm.setPasswordMinimumSymbols(mAdminComponent, 2));
         assertEquals(originalValue, dpm.getPasswordMinimumSymbols(mAdminComponent));
     }
 
     public void testPasswordMinimumUpperCase() {
         int originalValue = dpm.getPasswordMinimumUpperCase(mAdminComponent);
-        runDeprecatedPasswordQualityApi(() -> dpm.setPasswordMinimumUpperCase(mAdminComponent, 3));
+        assertSecurityException(() -> dpm.setPasswordMinimumUpperCase(mAdminComponent, 3));
         assertEquals(originalValue, dpm.getPasswordMinimumUpperCase(mAdminComponent));
     }
 
     public void testPasswordQuality() {
         int originalValue = dpm.getPasswordQuality(mAdminComponent);
-        runDeprecatedPasswordQualityApi(() -> dpm.setPasswordQuality(mAdminComponent,
+        assertSecurityException(() -> dpm.setPasswordQuality(mAdminComponent,
             DevicePolicyManager.PASSWORD_QUALITY_ALPHABETIC));
         assertEquals(originalValue, dpm.getPasswordQuality(mAdminComponent));
     }
@@ -122,20 +118,5 @@ public class DeviceAdminWithEnterprisePoliciesBlockedTest extends DeviceAdminTes
         }
 
         assertTrue("Expected SecurityException was not thrown", securityExceptionThrown);
-    }
-
-    private void runDeprecatedPasswordQualityApi(Runnable r) {
-        if (supportDeprecatedPasswordQualityApis()) {
-            Log.v(TAG, "Running operation and expecting a SecurityException");
-            assertSecurityException(r);
-        } else {
-            Log.v(TAG, "Running operation without expecting exception - it should just be ignored");
-            r.run();
-        }
-    }
-
-    private boolean supportDeprecatedPasswordQualityApis() {
-        return !getContext().getPackageManager()
-                .hasSystemFeature(PackageManager.FEATURE_AUTOMOTIVE);
     }
 }

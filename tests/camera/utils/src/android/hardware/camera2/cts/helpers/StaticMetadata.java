@@ -24,10 +24,8 @@ import android.hardware.camera2.CameraMetadata;
 import android.hardware.camera2.CaptureRequest;
 import android.hardware.camera2.CaptureResult;
 import android.hardware.camera2.cts.CameraTestUtils;
-import android.hardware.camera2.params.DynamicRangeProfiles;
 import android.hardware.camera2.params.StreamConfigurationMap;
 import android.hardware.camera2.params.Capability;
-import android.util.ArraySet;
 import android.util.Range;
 import android.util.Size;
 import android.util.Log;
@@ -79,7 +77,7 @@ public class StaticMetadata {
 
     // Last defined capability enum, for iterating over all of them
     public static final int LAST_CAPABILITY_ENUM =
-            CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES_STREAM_USE_CASE;
+            CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES_REMOSAIC_REPROCESSING;
 
     // Access via getAeModeName() to account for vendor extensions
     public static final String[] AE_MODE_NAMES = new String[] {
@@ -794,22 +792,6 @@ public class StaticMetadata {
     }
 
     /**
-     * Get and check the available dynamic range profiles.
-     *
-     * @return the available dynamic range profiles
-     */
-    public Set<Integer> getAvailableDynamicRangeProfilesChecked() {
-        DynamicRangeProfiles profiles = mCharacteristics.get(
-                CameraCharacteristics.REQUEST_AVAILABLE_DYNAMIC_RANGE_PROFILES);
-
-        if (profiles == null) {
-            return new ArraySet<Integer>();
-        }
-
-        return profiles.getSupportedProfiles();
-    }
-
-    /**
      * Get and check the available tone map modes.
      *
      * @return the available tone map modes
@@ -925,13 +907,6 @@ public class StaticMetadata {
                 activeArray.height() <= pixelArraySize.getHeight());
 
         return activeArray;
-    }
-
-    public StreamConfigurationMap getStreamConfigMap() {
-        Key<StreamConfigurationMap> key =
-                CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP;
-        StreamConfigurationMap config = getValueFromKeyNonNull(key);
-        return config;
     }
 
     /**
@@ -1846,7 +1821,7 @@ public class StaticMetadata {
                 modeList.contains(CameraMetadata.CONTROL_VIDEO_STABILIZATION_MODE_OFF));
         checkArrayValuesInRange(key, modes,
                 CameraMetadata.CONTROL_VIDEO_STABILIZATION_MODE_OFF,
-                CameraMetadata.CONTROL_VIDEO_STABILIZATION_MODE_PREVIEW_STABILIZATION);
+                CameraMetadata.CONTROL_VIDEO_STABILIZATION_MODE_ON);
 
         return modes;
     }
@@ -2583,13 +2558,6 @@ public class StaticMetadata {
     public boolean isDepthOutputSupported() {
         return isCapabilitySupported(
                 CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES_DEPTH_OUTPUT);
-    }
-
-    /* Check if this is a depth only camera (no color output is supported AND depth output is
-     * supported)
-     */
-    public boolean isDepthOnlyCamera() {
-        return isDepthOutputSupported() && !isColorOutputSupported();
     }
 
     /**

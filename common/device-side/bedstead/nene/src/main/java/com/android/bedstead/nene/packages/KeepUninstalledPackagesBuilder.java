@@ -41,8 +41,10 @@ import java.util.stream.Collectors;
 public final class KeepUninstalledPackagesBuilder {
 
     private final List<String> mPackages = new ArrayList<>();
+    private final TestApis mTestApis;
 
-    KeepUninstalledPackagesBuilder() {
+    KeepUninstalledPackagesBuilder(TestApis testApis) {
+        mTestApis = testApis;
     }
 
     /**
@@ -56,10 +58,10 @@ public final class KeepUninstalledPackagesBuilder {
         //  APK files and keeping them (either as a file or in memory) until needed to resolve or
         //  re-install
         PackageManager packageManager =
-                TestApis.context().instrumentedContext().getPackageManager();
+                mTestApis.context().instrumentedContext().getPackageManager();
 
         try (PermissionContext p =
-                    TestApis.permissions().withPermission(KEEP_UNINSTALLED_PACKAGES)) {
+                    mTestApis.permissions().withPermission(KEEP_UNINSTALLED_PACKAGES)) {
             packageManager.setKeepUninstalledPackages(mPackages);
         }
     }
@@ -79,7 +81,7 @@ public final class KeepUninstalledPackagesBuilder {
      * Add a package to the list of those which will not be cleaned up.
      */
     @CheckResult
-    public KeepUninstalledPackagesBuilder add(Package pkg) {
+    public KeepUninstalledPackagesBuilder add(PackageReference pkg) {
         mPackages.add(pkg.packageName());
         return this;
     }
@@ -89,15 +91,15 @@ public final class KeepUninstalledPackagesBuilder {
      */
     @CheckResult
     public KeepUninstalledPackagesBuilder add(String pkg) {
-        return add(TestApis.packages().find(pkg));
+        return add(mTestApis.packages().find(pkg));
     }
 
     /**
      * Add a collection of packages to the list of those which will not be cleaned up.
      */
     @CheckResult
-    public KeepUninstalledPackagesBuilder add(Collection<Package> packages) {
-        for (Package pkg : packages) {
+    public KeepUninstalledPackagesBuilder add(Collection<PackageReference> packages) {
+        for (PackageReference pkg : packages) {
             add(pkg);
         }
         return this;
@@ -109,6 +111,6 @@ public final class KeepUninstalledPackagesBuilder {
     @CheckResult
     public KeepUninstalledPackagesBuilder addPackageNames(Collection<String> packages) {
         return add(packages.stream().map(
-                (s) -> TestApis.packages().find(s)).collect(Collectors.toSet()));
+                (s) -> mTestApis.packages().find(s)).collect(Collectors.toSet()));
     }
 }

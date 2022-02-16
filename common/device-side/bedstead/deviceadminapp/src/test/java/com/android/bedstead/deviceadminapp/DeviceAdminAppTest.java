@@ -40,7 +40,8 @@ import org.junit.runners.JUnit4;
 @RunWith(JUnit4.class)
 public class DeviceAdminAppTest {
 
-    private static final Context sContext = TestApis.context().instrumentedContext();
+    private static final TestApis sTestApis = new TestApis();
+    private static final Context sContext = sTestApis.context().instrumentedContext();
 
     @ClassRule @Rule
     public static final DeviceState sDeviceState = new DeviceState();
@@ -56,8 +57,8 @@ public class DeviceAdminAppTest {
     @RequireRunOnPrimaryUser
     // TODO(scottjonathan): Add annotations to ensure no accounts and no users
     public void setAsDeviceOwner_isEnabled() throws Exception {
-        try (DeviceOwner deviceOwner = TestApis.devicePolicy().setDeviceOwner(
-                DeviceAdminApp.deviceAdminComponentName(sContext))) {
+        try (DeviceOwner deviceOwner = sTestApis.devicePolicy().setDeviceOwner(
+                sDeviceState.primaryUser(), DeviceAdminApp.deviceAdminComponentName(sContext))) {
 
             EventLogs<DeviceAdminEnabledEvent> logs =
                     DeviceAdminEnabledEvent.queryPackage(sContext.getPackageName());
@@ -69,13 +70,13 @@ public class DeviceAdminAppTest {
     @RequireRunOnPrimaryUser
     @EnsureHasNoWorkProfile
     public void setAsProfileOwner_isEnabled() {
-        try (UserReference profile = TestApis.users().createUser()
-                .parent(TestApis.users().instrumented())
-                .type(TestApis.users().supportedType(UserType.MANAGED_PROFILE_TYPE_NAME))
+        try (UserReference profile = sTestApis.users().createUser()
+                .parent(sTestApis.users().instrumented())
+                .type(sTestApis.users().supportedType(UserType.MANAGED_PROFILE_TYPE_NAME))
                 .createAndStart()) {
-            TestApis.packages().find(sContext.getPackageName()).installExisting(profile);
+            sTestApis.packages().find(sContext.getPackageName()).install(profile);
 
-            TestApis.devicePolicy().setProfileOwner(
+            sTestApis.devicePolicy().setProfileOwner(
                     profile, DeviceAdminApp.deviceAdminComponentName(sContext));
 
             EventLogs<DeviceAdminEnabledEvent> logs =

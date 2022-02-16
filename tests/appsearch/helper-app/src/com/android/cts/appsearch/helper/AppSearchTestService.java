@@ -15,28 +15,26 @@
  */
 package com.android.cts.appsearch.helper;
 
-import static android.app.appsearch.testutil.AppSearchTestUtils.checkIsBatchResultSuccess;
-import static android.app.appsearch.testutil.AppSearchTestUtils.convertSearchResultsToDocuments;
+import static com.android.server.appsearch.testing.AppSearchTestUtils.checkIsBatchResultSuccess;
+import static com.android.server.appsearch.testing.AppSearchTestUtils.convertSearchResultsToDocuments;
 
 import android.app.Service;
-import android.app.appsearch.AppSearchBatchResult;
 import android.app.appsearch.AppSearchManager;
 import android.app.appsearch.AppSearchSessionShim;
 import android.app.appsearch.GenericDocument;
-import android.app.appsearch.GetByDocumentIdRequest;
 import android.app.appsearch.GlobalSearchSessionShim;
 import android.app.appsearch.PutDocumentsRequest;
 import android.app.appsearch.SearchResultsShim;
 import android.app.appsearch.SearchSpec;
 import android.app.appsearch.SetSchemaRequest;
-import android.app.appsearch.testutil.AppSearchEmail;
-import android.app.appsearch.testutil.AppSearchSessionShimImpl;
-import android.app.appsearch.testutil.GlobalSearchSessionShimImpl;
 import android.content.Intent;
 import android.os.IBinder;
 import android.util.Log;
 
 import com.android.cts.appsearch.ICommandReceiver;
+import com.android.server.appsearch.testing.AppSearchEmail;
+import com.android.server.appsearch.testing.AppSearchSessionShimImpl;
+import com.android.server.appsearch.testing.GlobalSearchSessionShimImpl;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -47,6 +45,7 @@ public class AppSearchTestService extends Service {
 
     private static final String TAG = "AppSearchTestService";
     private GlobalSearchSessionShim mGlobalSearchSessionShim;
+    private AppSearchSessionShim mAppSearchSessionShim;
 
     @Override
     public void onCreate() {
@@ -57,6 +56,12 @@ public class AppSearchTestService extends Service {
             mGlobalSearchSessionShim =
                     GlobalSearchSessionShimImpl.createGlobalSearchSession(this).get();
 
+            mAppSearchSessionShim =
+                    AppSearchSessionShimImpl.createSearchSession(
+                                    this,
+                                    new AppSearchManager.SearchContext.Builder("database").build(),
+                                    Executors.newCachedThreadPool())
+                            .get();
         } catch (Exception e) {
             Log.e(TAG, "Error starting service.", e);
         }
@@ -93,48 +98,15 @@ public class AppSearchTestService extends Service {
         }
 
         @Override
-        public List<String> globalGet(
-                String packageName, String databaseName, String namespace, String id) {
+        public boolean indexGloballySearchableDocument() {
             try {
-                AppSearchBatchResult<String, GenericDocument> getResult =
-                        mGlobalSearchSessionShim.getByDocumentId(
-                                packageName,
-                                databaseName,
-                                new GetByDocumentIdRequest.Builder(namespace)
-                                        .addIds(id)
-                                        .build())
-                                .get();
-
-                List<String> resultStrings = new ArrayList<>();
-                for (String docKey : getResult.getSuccesses().keySet()) {
-                    resultStrings.add(getResult.getSuccesses().get(docKey).toString());
-                }
-
-                return resultStrings;
-            } catch (Exception e) {
-                Log.e(TAG, "Error issuing global get.", e);
-                return Collections.emptyList();
-            }
-        }
-
-        @Override
-        public boolean indexGloballySearchableDocument(
-                String databaseName, String namespace, String id) {
-            try {
-                AppSearchSessionShim db =
-                        AppSearchSessionShimImpl.createSearchSession(
-                                AppSearchTestService.this,
-                                new AppSearchManager.SearchContext.Builder(databaseName).build(),
-                                Executors.newCachedThreadPool())
-                                .get();
-
                 // By default, schemas/documents are globally searchable. We don't purposely set
-                // setSchemaTypeDisplayedBySystem(false) for this schema
-                db.setSchema(
-                        new SetSchemaRequest.Builder()
-                                .setForceOverride(true)
-                                .addSchemas(AppSearchEmail.SCHEMA)
-                                .build())
+                // setSchemaTypeDisplayedBySystem(false) for this schema.
+                mAppSearchSessionShim
+                        .setSchema(
+                                new SetSchemaRequest.Builder()
+                                        .addSchemas(AppSearchEmail.SCHEMA)
+                                        .build())
                         .get();
 
                 AppSearchEmail emailDocument =
@@ -145,7 +117,7 @@ public class AppSearchTestService extends Service {
                                 .setBody("this is the body of the email")
                                 .build();
                 checkIsBatchResultSuccess(
-                        db.put(
+                        mAppSearchSessionShim.put(
                                 new PutDocumentsRequest.Builder()
                                         .addGenericDocuments(emailDocument)
                                         .build()));
@@ -157,34 +129,26 @@ public class AppSearchTestService extends Service {
         }
 
         @Override
-        public boolean indexNotGloballySearchableDocument(
-                String databaseName, String namespace, String id) {
+        public boolean indexNotGloballySearchableDocument() {
             try {
-                AppSearchSessionShim db =
-                        AppSearchSessionShimImpl.createSearchSession(
-                                AppSearchTestService.this,
-                                new AppSearchManager.SearchContext.Builder(databaseName).build(),
-                                Executors.newCachedThreadPool())
-                                .get();
-
-                db.setSchema(
-                        new SetSchemaRequest.Builder()
-                                .addSchemas(AppSearchEmail.SCHEMA)
-                                .setForceOverride(true)
-                                .setSchemaTypeDisplayedBySystem(
-                                        AppSearchEmail.SCHEMA_TYPE, /*displayed=*/ false)
-                                .build())
+                mAppSearchSessionShim
+                        .setSchema(
+                                new SetSchemaRequest.Builder()
+                                        .addSchemas(AppSearchEmail.SCHEMA)
+                                        .setSchemaTypeDisplayedBySystem(
+                                                AppSearchEmail.SCHEMA_TYPE, /*displayed=*/ false)
+                                        .build())
                         .get();
 
                 AppSearchEmail emailDocument =
-                        new AppSearchEmail.Builder(namespace, id)
+                        new AppSearchEmail.Builder("namespace", "id1")
                                 .setFrom("from@example.com")
                                 .setTo("to1@example.com", "to2@example.com")
                                 .setSubject("subject")
                                 .setBody("this is the body of the email")
                                 .build();
                 checkIsBatchResultSuccess(
-                        db.put(
+                        mAppSearchSessionShim.put(
                                 new PutDocumentsRequest.Builder()
                                         .addGenericDocuments(emailDocument)
                                         .build()));
@@ -195,19 +159,13 @@ public class AppSearchTestService extends Service {
             return false;
         }
 
-        public boolean clearData(String databaseName) {
+        public boolean clearData() {
             try {
                 // Force override with empty schema will clear all previous schemas and their
                 // documents.
-                AppSearchSessionShim db =
-                        AppSearchSessionShimImpl.createSearchSession(
-                                AppSearchTestService.this,
-                                new AppSearchManager.SearchContext.Builder(databaseName).build(),
-                                Executors.newCachedThreadPool())
-                                .get();
-
-                db.setSchema(new SetSchemaRequest.Builder().setForceOverride(true).build()).get();
-
+                mAppSearchSessionShim
+                        .setSchema(new SetSchemaRequest.Builder().setForceOverride(true).build())
+                        .get();
                 return true;
             } catch (Exception e) {
                 Log.e(TAG, "Failed to clear data.", e);

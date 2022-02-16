@@ -18,7 +18,6 @@ package android.signature.cts;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -76,12 +75,12 @@ public class ApiPresenceChecker {
             }
 
             return runtimeClass;
-        } catch (Error|Exception e) {
+        } catch (Exception e) {
+            LogHelper.loge("Got exception when checking class compliance", e);
             resultObserver.notifyFailure(
                     FailureType.CAUGHT_EXCEPTION,
                     classDescription.getAbsoluteClassName(),
-                    "Exception while checking class compliance!",
-                    e);
+                    "Exception while checking class compliance!");
             return null;
         }
     }
@@ -123,12 +122,12 @@ public class ApiPresenceChecker {
                 } else {
                     checkField(classDescription, runtimeClass, field, f);
                 }
-            } catch (Error|Exception e) {
+            } catch (Exception e) {
+                LogHelper.loge("Got exception when checking field compliance", e);
                 resultObserver.notifyFailure(
                         FailureType.CAUGHT_EXCEPTION,
                         field.toReadableString(classDescription.getAbsoluteClassName()),
-                        "Exception while checking field compliance",
-                        e);
+                        "Exception while checking field compliance");
             }
         }
     }
@@ -139,24 +138,15 @@ public class ApiPresenceChecker {
      * @return a {@link Map} of fieldName to {@link Field}
      */
     private static Map<String, Field> buildFieldMap(Class<?> testClass) {
-        try {
-            return buildFieldMapImpl(testClass);
-        } catch (NoClassDefFoundError e) {
-            LogHelper.loge("AbstractApiChecker: Could not retrieve fields of " + testClass, e);
-            return Collections.emptyMap();
-        }
-    }
-
-    private static Map<String, Field> buildFieldMapImpl(Class<?> testClass) {
         Map<String, Field> fieldMap = new HashMap<>();
         // Scan the superclass
         if (testClass.getSuperclass() != null) {
-            fieldMap.putAll(buildFieldMapImpl(testClass.getSuperclass()));
+            fieldMap.putAll(buildFieldMap(testClass.getSuperclass()));
         }
 
         // Scan the interfaces
         for (Class<?> interfaceClass : testClass.getInterfaces()) {
-            fieldMap.putAll(buildFieldMapImpl(interfaceClass));
+            fieldMap.putAll(buildFieldMap(interfaceClass));
         }
 
         // Check the fields in the test class
@@ -201,12 +191,11 @@ public class ApiPresenceChecker {
                 } else {
                     checkConstructor(classDescription, runtimeClass, con, c);
                 }
-            } catch (Error|Exception e) {
-                resultObserver.notifyFailure(
-                        FailureType.CAUGHT_EXCEPTION,
+            } catch (Exception e) {
+                LogHelper.loge("Got exception when checking constructor compliance", e);
+                resultObserver.notifyFailure(FailureType.CAUGHT_EXCEPTION,
                         con.toReadableString(classDescription.getAbsoluteClassName()),
-                        "Exception while checking constructor compliance!",
-                        e);
+                        "Exception while checking constructor compliance!");
             }
         }
     }
@@ -246,12 +235,11 @@ public class ApiPresenceChecker {
                 }
                 // Clear the list.
                 mismatchReasons.clear();
-            } catch (Error|Exception e) {
-                resultObserver.notifyFailure(
-                        FailureType.CAUGHT_EXCEPTION,
+            } catch (Exception e) {
+                LogHelper.loge("Got exception when checking method compliance", e);
+                resultObserver.notifyFailure(FailureType.CAUGHT_EXCEPTION,
                         method.toReadableString(classDescription.getAbsoluteClassName()),
-                        "Exception while checking method compliance!",
-                        e);
+                        "Exception while checking method compliance!");
             }
         }
     }

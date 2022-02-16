@@ -32,7 +32,7 @@ java_test_host {
         "arcts",
         "cts",
         "general-tests",
-        "mts-permission",
+        "mts",
     ],
     static_libs: [
         "cts-statsd-atom-host-test-utils",

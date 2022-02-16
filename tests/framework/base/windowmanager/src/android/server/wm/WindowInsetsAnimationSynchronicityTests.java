@@ -62,7 +62,6 @@ import androidx.test.rule.ActivityTestRule;
 
 import com.android.compatibility.common.util.PollingCheck;
 import com.android.compatibility.common.util.SystemUtil;
-import com.android.compatibility.common.util.WindowUtil;
 
 import org.junit.Rule;
 import org.junit.Test;
@@ -97,7 +96,7 @@ public class WindowInsetsAnimationSynchronicityTests {
         try (ImeSession imeSession = new ImeSession(SimpleIme.getName(mContext))) {
             TestActivity activity = launchActivity();
             activity.setUseControlApi(useControlApi);
-            WindowUtil.waitForFocus(activity);
+            PollingCheck.waitFor(activity::hasWindowFocus);
             activity.setEvaluator(() -> {
                 // This runs from time to time on the UI thread.
                 Bitmap screenshot = getInstrumentation().getUiAutomation().takeScreenshot();

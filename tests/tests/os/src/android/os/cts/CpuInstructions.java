@@ -24,5 +24,6 @@ public class CpuInstructions {
 
     public static native boolean canReadCntvct();
     public static native boolean hasSwp();
+    public static native boolean hasSetend();
     public static native boolean hasCp15Barriers();
 }

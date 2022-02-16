@@ -18,6 +18,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
      package="android.inputmethodservice.cts.provider">
 
+    <uses-sdk android:minSdkVersion="26"
+         android:targetSdkVersion="26"/>
+
     <application android:label="CtsInputMethodServiceEventProvider">
         <provider android:authorities="android.inputmethodservice.cts.provider"
              android:name="android.inputmethodservice.cts.provider.EventProvider"
@@ -25,7 +28,7 @@
         <receiver android:name="android.inputmethodservice.cts.receiver.EventReceiver"
              android:exported="true">
             <intent-filter>
-                <action android:name="android.inputmethodservice.cts.action.DEVICE_EVENT"/>
+                <action android:name="android.inputmethodservice.cts.action.IME_EVENT"/>
             </intent-filter>
         </receiver>
     </application>

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package android.view.cts.input;
+package android.view.cts;
 
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.fail;

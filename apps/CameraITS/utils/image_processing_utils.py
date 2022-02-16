@@ -45,21 +45,19 @@ NUM_FRAMES = 4
 TEST_IMG_DIR = os.path.join(os.environ['CAMERA_ITS_TOP'], 'test_images')
 
 
-def assert_props_is_not_none(props):
-  if not props:
-    raise AssertionError('props is None')
-
-
+# pylint: disable=unused-argument
 def convert_capture_to_rgb_image(cap,
-                                 props=None,
-                                 apply_ccm_raw_to_rgb=True):
+                                 ccm_yuv_to_rgb=DEFAULT_YUV_TO_RGB_CCM,
+                                 yuv_off=DEFAULT_YUV_OFFSETS,
+                                 props=None):
   """Convert a captured image object to a RGB image.
 
   Args:
      cap: A capture object as returned by its_session_utils.do_capture.
+     ccm_yuv_to_rgb: (Optional) the 3x3 CCM to convert from YUV to RGB.
+     yuv_off: (Optional) offsets to subtract from each of Y,U,V values.
      props: (Optional) camera properties object (of static values);
             required for processing raw images.
-     apply_ccm_raw_to_rgb: (Optional) boolean to apply color correction matrix.
 
   Returns:
         RGB float-3 image array, with pixel values in [0.0, 1.0].
@@ -67,11 +65,11 @@ def convert_capture_to_rgb_image(cap,
   w = cap['width']
   h = cap['height']
   if cap['format'] == 'raw10':
-    assert_props_is_not_none(props)
+    assert props is not None
     cap = unpack_raw10_capture(cap)
 
   if cap['format'] == 'raw12':
-    assert_props_is_not_none(props)
+    assert props is not None
     cap = unpack_raw12_capture(cap)
 
   if cap['format'] == 'yuv':
@@ -82,10 +80,9 @@ def convert_capture_to_rgb_image(cap,
   elif cap['format'] == 'jpeg':
     return decompress_jpeg_to_rgb_image(cap['data'])
   elif cap['format'] == 'raw' or cap['format'] == 'rawStats':
-    assert_props_is_not_none(props)
+    assert props is not None
     r, gr, gb, b = convert_capture_to_planes(cap, props)
-    return convert_raw_to_rgb_image(
-        r, gr, gb, b, props, cap['metadata'], apply_ccm_raw_to_rgb)
+    return convert_raw_to_rgb_image(r, gr, gb, b, props, cap['metadata'])
   elif cap['format'] == 'y8':
     y = cap['data'][0: w * h]
     return convert_y8_to_rgb_image(y, w, h)
@@ -276,10 +273,10 @@ def convert_capture_to_planes(cap, props=None):
   w = cap['width']
   h = cap['height']
   if cap['format'] == 'raw10':
-    assert_props_is_not_none(props)
+    assert props is not None
     cap = unpack_raw10_capture(cap)
   if cap['format'] == 'raw12':
-    assert_props_is_not_none(props)
+    assert props is not None
     cap = unpack_raw12_capture(cap)
   if cap['format'] == 'yuv':
     y = cap['data'][0:w * h]
@@ -293,7 +290,7 @@ def convert_capture_to_planes(cap, props=None):
     return (rgb[::3].reshape(h, w, 1), rgb[1::3].reshape(h, w, 1),
             rgb[2::3].reshape(h, w, 1))
   elif cap['format'] == 'raw':
-    assert_props_is_not_none(props)
+    assert props is not None
     white_level = float(props['android.sensor.info.whiteLevel'])
     img = numpy.ndarray(
         shape=(h * w,), dtype='<u2', buffer=cap['data'][0:w * h * 2])
@@ -314,14 +311,10 @@ def convert_capture_to_planes(cap, props=None):
           'right'] - xcrop
       hcrop = props['android.sensor.info.preCorrectionActiveArraySize'][
           'bottom'] - ycrop
-      if not wfull >= wcrop >= 0:
-        raise AssertionError(f'wcrop: {wcrop} not in wfull: {wfull}')
-      if not  hfull >= hcrop >= 0:
-        raise AssertionError(f'hcrop: {hcrop} not in hfull: {hfull}')
-      if not wfull - wcrop >= xcrop >= 0:
-        raise AssertionError(f'xcrop: {xcrop} not in wfull-crop: {wfull-wcrop}')
-      if not hfull - hcrop >= ycrop >= 0:
-        raise AssertionError(f'ycrop: {ycrop} not in hfull-crop: {hfull-hcrop}')
+      assert wfull >= wcrop >= 0
+      assert hfull >= hcrop >= 0
+      assert wfull - wcrop >= xcrop >= 0
+      assert hfull - hcrop >= ycrop >= 0
       if w == wfull and h == hfull:
         # Crop needed; extract the center region.
         img = img[ycrop:ycrop + hcrop, xcrop:xcrop + wcrop]
@@ -343,7 +336,7 @@ def convert_capture_to_planes(cap, props=None):
     idxs = get_canonical_cfa_order(props)
     return [imgs[i] for i in idxs]
   elif cap['format'] == 'rawStats':
-    assert_props_is_not_none(props)
+    assert props is not None
     white_level = float(props['android.sensor.info.whiteLevel'])
     # pylint: disable=unused-variable
     mean_image, var_image = unpack_rawstats_capture(cap)
@@ -388,7 +381,7 @@ def downscale_image(img, f):
 
 
 def convert_raw_to_rgb_image(r_plane, gr_plane, gb_plane, b_plane, props,
-                             cap_res, apply_ccm_raw_to_rgb=True):
+                             cap_res):
   """Convert a Bayer raw-16 image to an RGB image.
 
   Includes some extremely rudimentary demosaicking and color processing
@@ -403,13 +396,12 @@ def convert_raw_to_rgb_image(r_plane, gr_plane, gb_plane, b_plane, props,
             in the Bayer image, with pixels in the [0.0, 1.0] range.
    props: Camera properties object.
    cap_res: Capture result (metadata) object.
-   apply_ccm_raw_to_rgb: (Optional) boolean to apply color correction matrix.
 
   Returns:
-   RGB float-3 image array, with pixel values in [0.0, 1.0]
+    RGB float-3 image array, with pixel values in [0.0, 1.0]
   """
     # Values required for the RAW to RGB conversion.
-  assert_props_is_not_none(props)
+  assert props is not None
   white_level = float(props['android.sensor.info.whiteLevel'])
   black_levels = props['android.sensor.blackLevelPattern']
   gains = cap_res['android.colorCorrection.gains']
@@ -437,9 +429,7 @@ def convert_raw_to_rgb_image(r_plane, gr_plane, gb_plane, b_plane, props,
   h, w = r_plane.shape[:2]
   img = numpy.dstack([r_plane, (gr_plane + gb_plane) / 2.0, b_plane])
   img = (((img.reshape(h, w, 3) - black_levels) * scale) * gains).clip(0.0, 1.0)
-  if apply_ccm_raw_to_rgb:
-    img = numpy.dot(
-        img.reshape(w * h, 3), ccm.T).reshape(h, w, 3).clip(0.0, 1.0)
+  img = numpy.dot(img.reshape(w * h, 3), ccm.T).reshape(h, w, 3).clip(0.0, 1.0)
   return img
 
 
@@ -617,8 +607,7 @@ def unpack_rawstats_capture(cap):
     Tuple (mean_image var_image) of float-4 images, with non-normalized
     pixel values computed from the RAW16 images on the device
   """
-  if cap['format'] != 'rawStats':
-    raise AssertionError(f"Unpack fmt != rawStats: {cap['format']}")
+  assert cap['format'] == 'rawStats'
   w = cap['width']
   h = cap['height']
   img = numpy.ndarray(shape=(2 * h * w * 4,), dtype='<f', buffer=cap['data'])
@@ -696,8 +685,7 @@ def compute_image_sharpness(img):
     Larger value means the image is sharper.
   """
   chans = img.shape[2]
-  if chans != 1 and chans != 3:
-    raise AssertionError(f'Not RGB or MONO image! depth: {chans}')
+  assert chans == 1 or chans == 3
   if chans == 1:
     luma = img[:, :, 0]
   else:
@@ -747,9 +735,7 @@ def convert_rgb_to_grayscale(img):
   Returns:
     2-D grayscale image
   """
-  chans = img.shape[2]
-  if chans != 3:
-    raise AssertionError(f'Not an RGB image! Depth: {chans}')
+  assert img.shape[2] == 3, 'Not an RGB image'
   return 0.299*img[:, :, 0] + 0.587*img[:, :, 1] + 0.114*img[:, :, 2]
 
 
@@ -776,6 +762,22 @@ def rotate_img_per_argv(img):
   if 'rotate180' in sys.argv:
     img_out = numpy.fliplr(numpy.flipud(img_out))
   return img_out
+
+
+def chart_located_per_argv(chart_loc_arg):
+  """Determine if chart already located outside of test.
+
+  If chart info provided, return location and size. If not, return None.
+  Args:
+   chart_loc_arg: chart_loc arg value.
+
+  Returns:
+    chart_loc:  float converted xnorm,ynorm,wnorm,hnorm,scale from argv
+    text.argv is of form 'chart_loc=0.45,0.45,0.1,0.1,1.0'
+  """
+  if chart_loc_arg:
+    return map(float, chart_loc_arg)
+  return None, None, None, None, None
 
 
 def stationary_lens_cap(cam, req, fmt):
@@ -815,10 +817,7 @@ def compute_image_rms_difference(rgb_x, rgb_y):
     rms_diff
   """
   len_rgb_x = len(rgb_x)
-  len_rgb_y = len(rgb_y)
-  if len_rgb_y != len_rgb_x:
-    raise AssertionError('RGB images have different number of planes! '
-                         f'x: {len_rgb_x}, y: {len_rgb_y}')
+  assert len(rgb_y) == len_rgb_x, 'The images have different number of planes.'
   return math.sqrt(sum([pow(rgb_x[i] - rgb_y[i], 2.0)
                         for i in range(len_rgb_x)]) / len_rgb_x)
 

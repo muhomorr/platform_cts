@@ -20,7 +20,6 @@ android_test {
     name: "CtsDreamsTestCases",
     defaults: ["cts_defaults"],
     static_libs: [
-        "compatibility-device-util-axt",
         "ctstestrunner-axt",
         "junit",
     ],
@@ -36,8 +35,5 @@ android_test {
     test_suites: [
         "cts",
         "general-tests",
-    ],
-    data: [
-        ":CtsDreamOverlayTestApp",
     ],
 }

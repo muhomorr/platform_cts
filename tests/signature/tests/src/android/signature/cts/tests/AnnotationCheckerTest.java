@@ -54,6 +54,27 @@ public class AnnotationCheckerTest extends ApiPresenceCheckerTest<AnnotationChec
                 excludedRuntimeClasses);
     }
 
+    private static void addConstructor(JDiffClassDescription clz, String... paramTypes) {
+        JDiffClassDescription.JDiffConstructor constructor = new JDiffClassDescription.JDiffConstructor(
+                clz.getShortClassName(), Modifier.PUBLIC);
+        if (paramTypes != null) {
+            for (String type : paramTypes) {
+                constructor.addParam(type);
+            }
+        }
+        clz.addConstructor(constructor);
+    }
+
+    private static void addPublicVoidMethod(JDiffClassDescription clz, String name) {
+        clz.addMethod(method(name, Modifier.PUBLIC, "void"));
+    }
+
+    private static void addPublicBooleanField(JDiffClassDescription clz, String name) {
+        JDiffClassDescription.JDiffField field = new JDiffClassDescription.JDiffField(
+                name, "boolean", Modifier.PUBLIC, VALUE);
+        clz.addField(field);
+    }
+
     /**
      * Documented API and runtime classes are exactly matched.
      */
@@ -83,7 +104,7 @@ public class AnnotationCheckerTest extends ApiPresenceCheckerTest<AnnotationChec
      */
     @Test
     public void testDetectUnauthorizedConstructorApi() {
-        ExpectFailure observer = new ExpectFailure(FailureType.EXTRA_CONSTRUCTOR);
+        ExpectFailure observer = new ExpectFailure(FailureType.EXTRA_METHOD);
 
         JDiffClassDescription clz = createClass("SystemApiClass");
         // (omitted) addConstructor(clz);
@@ -95,7 +116,7 @@ public class AnnotationCheckerTest extends ApiPresenceCheckerTest<AnnotationChec
                 "android.signature.cts.tests.data.ForciblyPublicizedPrivateClass");
         observer.validate();
 
-        observer = new ExpectFailure(FailureType.EXTRA_CONSTRUCTOR);
+        observer = new ExpectFailure(FailureType.EXTRA_METHOD);
 
         clz = createClass("PublicApiClass");
         // (omitted) addConstructor(clz);

@@ -15,11 +15,6 @@
  */
 package android.app.usage.cts;
 
-import android.app.Notification;
-
 interface ITestReceiver {
     boolean isAppInactive(String pkg);
-    void createNotificationChannel(String channelId, String channelName, String channelDescription);
-    void postNotification(int notificationId, in Notification notification);
-    void cancelNotification(int notificationId);
 }

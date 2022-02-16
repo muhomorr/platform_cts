@@ -17,13 +17,11 @@
 package com.android.cts.verifier.audio;
 
 import android.app.AlertDialog;
-import android.content.Context;
 import android.content.DialogInterface;
+import android.content.pm.PackageManager;
 import android.content.res.Resources;
-import android.media.AudioDeviceCallback;
 import android.media.AudioDeviceInfo;
 import android.media.AudioFormat;
-import android.media.AudioManager;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
@@ -69,7 +67,6 @@ public class ProAudioActivity
     private static final String INFO_DIALOG_MESSAGE_ID = "infoDialogMessageId";
 
     // ReportLog Schema
-    private static final String SECTION_PRO_AUDIO_ACTIVITY = "pro_audio_activity";
     private static final String KEY_CLAIMS_PRO = "claims_pro_audio";
     private static final String KEY_CLAIMS_LOW_LATENCY = "claims_low_latency_audio";
     private static final String KEY_CLAIMS_MIDI = "claims_midi";
@@ -82,10 +79,6 @@ public class ProAudioActivity
     }
 
     // HDMI Stuff
-    private boolean isHDMIConnected() {
-        return mHDMIDeviceInfo != null;
-    }
-
     private boolean isHDMIValid() {
         if (mHDMIDeviceInfo == null) {
             return false;
@@ -136,21 +129,21 @@ public class ProAudioActivity
         return true;
     }
 
-    protected void handleDeviceConnection(AudioDeviceInfo[] addedDevices) {
+    protected void handleDeviceConnection(AudioDeviceInfo devInfo) {
         mHDMIDeviceInfo = null;
-        for (AudioDeviceInfo deviceInfo : addedDevices) {
-            Log.i(TAG, "  " + deviceInfo.getProductName() + " type:" + deviceInfo.getType());
-            if (deviceInfo.isSink() && deviceInfo.getType() == AudioDeviceInfo.TYPE_HDMI) {
-                mHDMIDeviceInfo = deviceInfo;
-                break;
-            }
+
+        if (devInfo.isSink() && devInfo.getType() == AudioDeviceInfo.TYPE_HDMI) {
+            mHDMIDeviceInfo = devInfo;
         }
 
         if (mHDMIDeviceInfo != null) {
             mClaimsHDMICheckBox.setChecked(true);
+            mHDMISupportLbl.setText(getResources().getString(
+                    isHDMIValid() ? R.string.pass_button_text : R.string.fail_button_text));
         }
+        mHDMISupportLbl.setText(getResources().getString(R.string.audio_proaudio_NA));
 
-        displayTestResults();
+        calculatePass();
     }
 
     private boolean calculatePass() {
@@ -180,12 +173,8 @@ public class ProAudioActivity
         } else if (!mClaimsUSBPeripheralMode) {
             mTestStatusLbl.setText(strings.getString(
                     R.string.audio_proaudio_usbperipheralnotreported));
-        } else if (mClaimsHDMI) {
-            if (!isHDMIConnected()) {
-                mTestStatusLbl.setText(strings.getString(R.string.audio_proaudio_hdmiNotFound));
-            } else if (!isHDMIValid()) {
-                mTestStatusLbl.setText(strings.getString(R.string.hdmi_insufficient));
-            }
+        } else if (mClaimsHDMI && isHDMIValid()) {
+            mTestStatusLbl.setText(strings.getString(R.string.audio_proaudio_hdminotvalid));
         }
     }
 
@@ -228,10 +217,7 @@ public class ProAudioActivity
 
         mTestStatusLbl = (TextView)findViewById(R.id.proAudioTestStatusLbl);
 
-        AudioManager audioManager = getSystemService(AudioManager.class);
-        audioManager.registerAudioDeviceCallback(new TestAudioDeviceCallback(), null);
-
-        displayTestResults();
+        calculatePass();
     }
 
     /**
@@ -245,14 +231,6 @@ public class ProAudioActivity
     //
     // PassFailButtons Overrides
     //
-    @Override
-    public String getReportFileName() { return PassFailButtons.AUDIO_TESTS_REPORT_LOG_NAME; }
-
-    @Override
-    public final String getReportSectionName() {
-        return setTestNameSuffix(sCurrentDisplayMode, SECTION_PRO_AUDIO_ACTIVITY);
-    }
-
     @Override
     public void recordTestResults() {
 
@@ -299,39 +277,27 @@ public class ProAudioActivity
     @Override
     public void onClick(View view) {
         switch (view.getId()) {
-            case R.id.proAudioHasHDMICheckBox:
-                if (mClaimsHDMICheckBox.isChecked()) {
-                    AlertDialog.Builder builder = new AlertDialog.Builder(
-                            this, android.R.style.Theme_Material_Dialog_Alert);
-                    builder.setTitle(getResources().getString(R.string.proaudio_hdmi_infotitle));
-                    builder.setMessage(getResources().getString(R.string.proaudio_hdmi_message));
-                    builder.setPositiveButton(android.R.string.yes,
-                            new DialogInterface.OnClickListener() {
-                                public void onClick(DialogInterface dialog, int which) {
-                                }
-                            });
-                    builder.setIcon(android.R.drawable.ic_dialog_alert);
-                    builder.show();
+        case R.id.proAudioHasHDMICheckBox:
+            if (mClaimsHDMICheckBox.isChecked()) {
+                AlertDialog.Builder builder =
+                        new AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert);
+                builder.setTitle(getResources().getString(R.string.proaudio_hdmi_infotitle));
+                builder.setMessage(getResources().getString(R.string.proaudio_hdmi_message));
+                builder.setPositiveButton(android.R.string.yes,
+                    new DialogInterface.OnClickListener() {
+                        public void onClick(DialogInterface dialog, int which) {}
+                 });
+                builder.setIcon(android.R.drawable.ic_dialog_alert);
+                builder.show();
 
-                    mClaimsHDMI = true;
-                    mHDMISupportLbl.setText(
-                            getResources().getString(R.string.audio_proaudio_hdmiPending));
-                } else {
-                    mClaimsHDMI = false;
-                    mHDMISupportLbl.setText(getResources().getString(R.string.audio_proaudio_NA));
-                }
-                displayTestResults();
-                break;
-        }
-    }
-
-    private class TestAudioDeviceCallback extends AudioDeviceCallback {
-        public void onAudioDevicesAdded(AudioDeviceInfo[] addedDevices) {
-            handleDeviceConnection(addedDevices);
-        }
-
-        public void onAudioDevicesRemoved(AudioDeviceInfo[] removedDevices) {
-            // NOP
+                mClaimsHDMI = true;
+                mHDMISupportLbl.setText(getResources().getString(R.string.audio_proaudio_pending));
+            } else {
+                mClaimsHDMI = false;
+                mHDMISupportLbl.setText(getResources().getString(R.string.audio_proaudio_NA));
+            }
+            calculatePass();
+            break;
         }
     }
 }
