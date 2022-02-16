@@ -105,10 +105,11 @@ public class WebViewSyncLoader {
         mWebView.setWebChromeClient(null);
         mWebView.setWebViewClient(null);
         mWebView.setPictureListener(null);
+        mWebView = null;
     }
 
     /**
-     * Detach listeners.
+     * Detach listeners, and destroy this webview.
      */
     public void destroy() {
         if (!isUiThread()) {
@@ -119,6 +120,7 @@ public class WebViewSyncLoader {
         detach();
         webView.clearHistory();
         webView.clearCache(true);
+        webView.destroy();
     }
 
     /**

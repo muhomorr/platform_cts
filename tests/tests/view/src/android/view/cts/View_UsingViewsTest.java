@@ -37,7 +37,6 @@ import android.app.Activity;
 import android.app.Instrumentation;
 import android.graphics.Bitmap;
 import android.graphics.Color;
-import android.support.test.uiautomator.UiDevice;
 import android.view.View;
 import android.view.View.OnClickListener;
 import android.widget.Button;
@@ -52,7 +51,6 @@ import androidx.test.rule.ActivityTestRule;
 import androidx.test.runner.AndroidJUnit4;
 
 import com.android.compatibility.common.util.CtsTouchUtils;
-import com.android.compatibility.common.util.WindowUtil;
 
 import org.junit.Before;
 import org.junit.Rule;
@@ -110,8 +108,6 @@ public class View_UsingViewsTest {
     public void setup() {
         mInstrumentation = InstrumentationRegistry.getInstrumentation();
         mActivity = mActivityRule.getActivity();
-        WindowUtil.waitForFocus(mActivity);
-        mInstrumentation.setInTouchMode(false);
 
         mEditText = (EditText) mActivity.findViewById(R.id.entry);
         mButtonOk = (Button) mActivity.findViewById(R.id.ok);
@@ -401,11 +397,6 @@ public class View_UsingViewsTest {
 
         CtsTouchUtils.emulateTapOnViewCenter(mInstrumentation, mActivityRule, mButtonCancel);
         assertEquals("", mEditText.getText().toString());
-
-        // Wait for the UI Thread to become idle.
-        final UiDevice device = UiDevice.getInstance(mInstrumentation);
-        mInstrumentation.waitForIdleSync();
-        device.waitForIdle();
 
         // click the OK button
         mActivityRule.runOnUiThread(() -> mEditText.setText(ARGENTINA));

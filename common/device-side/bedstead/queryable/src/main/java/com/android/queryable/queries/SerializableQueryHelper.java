@@ -19,17 +19,13 @@ package com.android.queryable.queries;
 import com.android.queryable.Queryable;
 
 import java.io.Serializable;
-import java.util.ArrayList;
-import java.util.List;
 
 /** Implementation of {@link SerializableQuery}. */
 public final class SerializableQueryHelper<E extends Queryable>
         implements SerializableQuery<E>, Serializable {
 
-    private static final long serialVersionUID = 1;
-
     private final E mQuery;
-    private Serializable mEqualsValue;
+    private Serializable mEqualsValue = null;
 
     SerializableQueryHelper() {
         mQuery = (E) this;
@@ -52,15 +48,5 @@ public final class SerializableQueryHelper<E extends Queryable>
         }
 
         return true;
-    }
-
-    @Override
-    public String describeQuery(String fieldName) {
-        List<String> queryStrings = new ArrayList<>();
-        if (mEqualsValue != null) {
-            queryStrings.add(fieldName + "=" + mEqualsValue);
-        }
-
-        return Queryable.joinQueryStrings(queryStrings);
     }
 }

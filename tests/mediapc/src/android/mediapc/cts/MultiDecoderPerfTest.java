@@ -16,16 +16,9 @@
 
 package android.mediapc.cts;
 import android.media.MediaFormat;
-import android.os.Build;
 import android.util.Pair;
 
 import androidx.test.filters.LargeTest;
-import androidx.test.platform.app.InstrumentationRegistry;
-
-import com.android.compatibility.common.util.CddTest;
-import com.android.compatibility.common.util.DeviceReportLog;
-import com.android.compatibility.common.util.ResultType;
-import com.android.compatibility.common.util.ResultUnit;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -82,7 +75,6 @@ public class MultiDecoderPerfTest extends MultiCodecPerfTestBase {
      */
     @LargeTest
     @Test(timeout = CodecTestBase.PER_TEST_TIMEOUT_LARGE_TEST_MS)
-    @CddTest(requirement="2.2.7.1/5.1/H-1-1,H-1-2")
     public void test720p() throws Exception {
         ArrayList<Pair<String, String>> mimeDecoderPairs = new ArrayList<>();
         mimeDecoderPairs.add(Pair.create(mMime, mDecoderName));
@@ -91,39 +83,21 @@ public class MultiDecoderPerfTest extends MultiCodecPerfTestBase {
         if (mMime.equals(MediaFormat.MIMETYPE_VIDEO_VP9)) {
             requiredMinInstances = REQUIRED_MIN_CONCURRENT_INSTANCES_FOR_VP9;
         }
+        assertTrue("Decoder " + mDecoderName + " unable to support minimum concurrent " +
+                "instances. act/exp: " + maxInstances + "/" + requiredMinInstances,
+                maxInstances >= requiredMinInstances);
+        ExecutorService pool = Executors.newFixedThreadPool(maxInstances);
+        List<Decode> testList = new ArrayList<>();
+        for (int i = 0; i < maxInstances; i++) {
+            testList.add(new Decode(mMime, mTestFile, mDecoderName, mIsAsync));
+        }
+        List<Future<Double>> resultList = pool.invokeAll(testList);
         double achievedFrameRate = 0.0;
-        if (maxInstances >= requiredMinInstances) {
-            ExecutorService pool = Executors.newFixedThreadPool(maxInstances);
-            List<Decode> testList = new ArrayList<>();
-            for (int i = 0; i < maxInstances; i++) {
-                testList.add(new Decode(mMime, mTestFile, mDecoderName, mIsAsync));
-            }
-            List<Future<Double>> resultList = pool.invokeAll(testList);
-            for (Future<Double> result : resultList) {
-                achievedFrameRate += result.get();
-            }
+        for (Future<Double> result : resultList) {
+            achievedFrameRate += result.get();
         }
-        if (Utils.isPerfClass()) {
-            assertTrue("Decoder " + mDecoderName + " unable to support minimum concurrent " +
-                            "instances. act/exp: " + maxInstances + "/" + requiredMinInstances,
-                    maxInstances >= requiredMinInstances);
-            assertTrue("Unable to achieve the maxFrameRate supported. act/exp: " + achievedFrameRate
-                            + "/" + mMaxFrameRate + " for " + maxInstances + " instances.",
-                    achievedFrameRate >= mMaxFrameRate);
-        } else {
-            int pc = maxInstances >= requiredMinInstances && achievedFrameRate >= mMaxFrameRate
-                    ? Build.VERSION_CODES.R : 0;
-            DeviceReportLog log = new DeviceReportLog("MediaPerformanceClassLogs",
-                    "MultiDecoderPerf_" + mDecoderName);
-            log.addValue("decoders", mMime + "_" + mDecoderName, ResultType.NEUTRAL,
-                    ResultUnit.NONE);
-            log.addValue("achieved_framerate", achievedFrameRate, ResultType.HIGHER_BETTER,
-                    ResultUnit.NONE);
-            log.addValue("expected_framerate", mMaxFrameRate, ResultType.NEUTRAL, ResultUnit.NONE);
-            log.setSummary("CDD 2.2.7.1/5.1/H-1-1,H-1-2 performance_class", pc, ResultType.NEUTRAL,
-                    ResultUnit.NONE);
-            log.submit(InstrumentationRegistry.getInstrumentation());
-        }
-
+        assertTrue("Unable to achieve the maxFrameRate supported. act/exp: " + achievedFrameRate
+                + "/" + mMaxFrameRate + " for " + maxInstances + " instances.",
+                achievedFrameRate >= mMaxFrameRate);
     }
 }

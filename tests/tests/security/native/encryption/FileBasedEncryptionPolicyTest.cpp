@@ -37,6 +37,17 @@
 #define R_API_LEVEL 30
 #define S_API_LEVEL 31
 
+static int getFirstApiLevel(void) {
+    int level = property_get_int32("ro.product.first_api_level", 0);
+    if (level == 0) {
+        level = property_get_int32("ro.build.version.sdk", 0);
+    }
+    if (level == 0) {
+        ADD_FAILURE() << "Failed to determine first API level";
+    }
+    return level;
+}
+
 #ifdef __arm__
 // For ARM32, assemble the 'aese.8' instruction as an .inst, since otherwise
 // clang does not accept it.  It would be allowed in a separate file compiled
@@ -162,15 +173,9 @@ static void validateEncryptionModes(int contents_mode, int filenames_mode,
 // Ideally we'd check whether /data is on eMMC, but that is hard to do from a
 // CTS test.  To keep things simple we just check whether the system knows about
 // at least one eMMC device.
-//
-// virtio devices may provide inline encryption support that is backed by eMMC
-// inline encryption on the host, thus inheriting the DUN size limitation.  So
-// virtio devices must be allowed here too.  TODO(b/207390665): check the
-// maximum DUN size directly instead.
-static bool mightBeUsingEmmcStorage() {
+static bool usingEmmcStorage() {
     struct stat stbuf;
-    return lstat("/sys/class/block/mmcblk0", &stbuf) == 0 ||
-            lstat("/sys/class/block/vda", &stbuf) == 0;
+    return lstat("/sys/class/block/mmcblk0", &stbuf) == 0;
 }
 
 // CDD 9.9.3/C-1-15: must not reuse IVs for file contents encryption except when
@@ -181,7 +186,7 @@ static bool mightBeUsingEmmcStorage() {
 // used on a non-eMMC based device.  CTS can test for that, so we do so below.
 static void validateEncryptionFlags(int flags) {
     if (flags & FSCRYPT_POLICY_FLAG_IV_INO_LBLK_32) {
-        EXPECT_TRUE(mightBeUsingEmmcStorage());
+        EXPECT_TRUE(usingEmmcStorage());
     }
 }
 
@@ -198,7 +203,6 @@ static void validateEncryptionFlags(int flags) {
 // https://source.android.com/security/encryption/file-based.html
 TEST(FileBasedEncryptionPolicyTest, allowedPolicy) {
     int first_api_level = getFirstApiLevel();
-    int vendor_api_level = getVendorApiLevel();
     char crypto_type[PROPERTY_VALUE_MAX];
     struct fscrypt_get_policy_ex_arg arg;
     int res;
@@ -215,13 +219,10 @@ TEST(FileBasedEncryptionPolicyTest, allowedPolicy) {
     property_get("ro.crypto.type", crypto_type, "");
     GTEST_LOG_(INFO) << "ro.crypto.type is '" << crypto_type << "'";
     GTEST_LOG_(INFO) << "First API level is " << first_api_level;
-    GTEST_LOG_(INFO) << "Vendor API level is " << vendor_api_level;
 
     // This feature name check only applies to devices that first shipped with
     // SC or later.
-    int min_api_level = (first_api_level < vendor_api_level) ? first_api_level
-                                                             : vendor_api_level;
-    if (min_api_level >= S_API_LEVEL &&
+    if(first_api_level >= S_API_LEVEL &&
        !deviceSupportsFeature("android.hardware.security.model.compatible")) {
         GTEST_SKIP()
             << "Skipping test: FEATURE_SECURITY_MODEL_COMPATIBLE missing.";

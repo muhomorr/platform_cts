@@ -16,31 +16,18 @@
 
 package android.keystore.cts;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
-
 import android.security.GateKeeper;
 import android.security.keystore.KeyGenParameterSpec;
 import android.security.keystore.KeyProperties;
 import android.security.keystore.KeyProtection;
 import android.test.MoreAsserts;
 
-import androidx.test.runner.AndroidJUnit4;
-
 import junit.framework.TestCase;
 
 import java.util.Arrays;
 import java.util.Date;
 
-import org.junit.Test;
-import org.junit.runner.RunWith;
-
-@RunWith(AndroidJUnit4.class)
-public class KeyProtectionTest {
-    @Test
+public class KeyProtectionTest extends TestCase {
     public void testDefaults() {
         // Set only the mandatory parameters and assert values returned by getters.
 
@@ -69,7 +56,6 @@ public class KeyProtectionTest {
         assertEquals(spec.isStrongBoxBacked(), false);
     }
 
-    @Test
     public void testSettersReflectedInGetters() {
         // Set all parameters to non-default values and then assert that getters reflect that.
 
@@ -124,7 +110,6 @@ public class KeyProtectionTest {
         assertEquals(spec.isStrongBoxBacked(), true);
     }
 
-    @Test
     public void testSetKeyValidityEndDateAppliesToBothEndDates() {
         Date date = new Date(System.currentTimeMillis() + 555555);
         KeyProtection spec = new KeyProtection.Builder(
@@ -135,7 +120,6 @@ public class KeyProtectionTest {
         assertEquals(date, spec.getKeyValidityForConsumptionEnd());
     }
 
-    @Test
     public void testSetUserAuthenticationValidityDurationSecondsValidityCheck() {
         KeyProtection.Builder builder = new KeyProtection.Builder(0);
         try {
@@ -164,7 +148,6 @@ public class KeyProtectionTest {
         } catch (IllegalArgumentException expected) {}
     }
 
-    @Test
     public void testImmutabilityViaSetterParams() {
         // Assert that all mutable parameters provided to setters are copied to ensure that values
         // returned by getters never change.
@@ -236,7 +219,6 @@ public class KeyProtectionTest {
                 Arrays.asList(spec.getSignaturePaddings()));
     }
 
-    @Test
     public void testImmutabilityViaGetterReturnValues() {
         // Assert that none of the mutable return values from getters modify the state of the spec.
 
@@ -290,7 +272,6 @@ public class KeyProtectionTest {
                 Arrays.asList(spec.getSignaturePaddings()));
     }
 
-    @Test
     public void testIllegalMaxUsageCountNotPermitted() {
         try {
             new KeyProtection.Builder(KeyProperties.PURPOSE_ENCRYPT).setMaxUsageCount(0);

@@ -16,12 +16,10 @@
 
 package android.view.inputmethod.cts.util;
 
-import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 import android.app.Instrumentation;
 import android.app.UiAutomation;
-import android.graphics.Bitmap;
 import android.os.SystemClock;
 
 import androidx.annotation.NonNull;
@@ -49,14 +47,12 @@ public final class InputMethodVisibilityVerifier {
 
     @NonNull
     private static boolean containsWatermark(@NonNull UiAutomation uiAutomation) {
-        final Bitmap screenshot = uiAutomation.takeScreenshot();
-        assertNotNull(screenshot);
-        return Watermark.detect(screenshot);
+        return Watermark.detect(uiAutomation.takeScreenshot());
     }
 
     @NonNull
     private static boolean notContainsWatermark(@NonNull UiAutomation uiAutomation) {
-        return !containsWatermark(uiAutomation);
+        return !Watermark.detect(uiAutomation.takeScreenshot());
     }
 
     private static boolean waitUntil(long timeout, @NonNull Predicate<UiAutomation> condition) {

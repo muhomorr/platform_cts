@@ -53,10 +53,7 @@ class CompanionTestAppMainActivity : Activity() {
     val notificationsStatus by lazy { TextView(this) }
     val bypassStatus by lazy { TextView(this) }
 
-    val nameFilter by lazy { EditText(this).apply {
-        hint = "Name Filter"
-        contentDescription = "name filter" // Do not change: used in the tests.
-    } }
+    val nameFilter by lazy { EditText(this).apply { hint = "Name Filter" } }
     val singleCheckbox by lazy { CheckBox(this).apply { text = "Single Device" } }
     val watchCheckbox by lazy { CheckBox(this).apply { text = "Watch" } }
 

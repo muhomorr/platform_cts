@@ -22,6 +22,7 @@ import android.os.Build;
 
 import androidx.annotation.RequiresApi;
 
+import com.android.bedstead.nene.TestApis;
 import com.android.bedstead.nene.exceptions.AdbParseException;
 
 import java.util.HashMap;
@@ -256,8 +257,8 @@ public class AdbUserParser30 extends AdbUserParser26 {
 
     private Map<String, UserType> mUserTypes;
 
-    AdbUserParser30() {
-        super();
+    AdbUserParser30(TestApis testApis) {
+        super(testApis);
     }
 
     @Override
@@ -271,9 +272,9 @@ public class AdbUserParser30 extends AdbUserParser26 {
     }
 
     @Override
-    AdbUser.MutableUser parseUser(String userString) throws AdbParseException {
+    User.MutableUser parseUser(String userString) throws AdbParseException {
         // This will be called after parseUserTypes, so the user types are already accessible
-        AdbUser.MutableUser user = super.parseUser(userString);
+        User.MutableUser user = super.parseUser(userString);
 
         try {
             user.mIsPrimary = Boolean.parseBoolean(

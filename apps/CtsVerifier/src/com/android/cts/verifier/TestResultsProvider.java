@@ -33,8 +33,6 @@ import android.database.sqlite.SQLiteQueryBuilder;
 import android.net.Uri;
 import android.os.ParcelFileDescriptor;
 
-import androidx.annotation.NonNull;
-
 import com.android.compatibility.common.util.ReportLog;
 
 import java.io.ByteArrayOutputStream;
@@ -45,6 +43,8 @@ import java.io.IOException;
 import java.io.ObjectOutputStream;
 import java.util.Arrays;
 import java.util.Comparator;
+
+import androidx.annotation.NonNull;
 
 /**
  * {@link ContentProvider} that provides read and write access to the test results.
@@ -104,16 +104,7 @@ public class TestResultsProvider extends ContentProvider {
     public static Uri getTestNameUri(Context context) {
         String name = context.getClass().getName();
         name = setTestNameSuffix(sCurrentDisplayMode, name);
-        return getTestNameUri(context, name);
-    }
-
-    /**
-     * Gets the URI from the context and test name.
-     * @param context current context
-     * @param testName name of the test which needs to get the URI
-     * @return the URI for the test result
-     */
-    public static Uri getTestNameUri(Context context, String testName) {
+        final String testName = name;
         return Uri.withAppendedPath(getResultContentUri(context), testName);
     }
 
