@@ -25,7 +25,6 @@ import static org.junit.Assert.fail;
 
 import android.database.CharArrayBuffer;
 import android.database.CursorWindow;
-import android.database.CursorWindowAllocationException;
 import android.database.MatrixCursor;
 import android.database.sqlite.SQLiteException;
 import android.os.Parcel;
@@ -439,11 +438,15 @@ public class CursorWindowTest {
         Exception actual = null;
         try {
             new CursorWindow("test", -1);
-        } catch (IllegalArgumentException caught) {
+        } catch (RuntimeException caught) {
             Log.i(TAG, "Received: " + caught);
-            return;
+            actual = caught;
+            // CursorWindowAllocationException is hidden, so let's just check the message.
+            if (actual.getMessage().contains("Could not allocate CursorWindow")) {
+                return;
+            }
         }
-        fail("Didn't catch IllegalArgumentException: actual=" + actual);
+        fail("Didn't catch CursorWindowAllocationException: actual=" + actual);
     }
 
     @Test
@@ -451,9 +454,13 @@ public class CursorWindowTest {
         Exception actual = null;
         try {
             CursorWindow.CREATOR.createFromParcel(Parcel.obtain());
-        } catch (CursorWindowAllocationException caught) {
+        } catch (RuntimeException caught) {
             Log.i(TAG, "Received: " + caught);
-            return;
+            actual = caught;
+            // CursorWindowAllocationException is hidden, so let's just check the message.
+            if (actual.getMessage().contains("Could not create CursorWindow")) {
+                return;
+            }
         }
         fail("Didn't catch CursorWindowAllocationException: actual=" + actual);
     }

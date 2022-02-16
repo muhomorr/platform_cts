@@ -23,7 +23,6 @@ import android.util.Log;
 
 import androidx.test.InstrumentationRegistry;
 
-import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -40,8 +39,7 @@ public class GeneralDelegateTest extends BaseJUnit3TestCase {
         String[] expectedScopes = arguments.getString(PARAM_SCOPES).split(",");
         List<String> delegatedScopes = mDpm.getDelegatedScopes(/* admin= */ null,
                 mContext.getPackageName());
-        Log.v(TAG, "delegatedScopes: " + delegatedScopes
-                + " expected: " + Arrays.toString(expectedScopes));
+        Log.v(TAG, "delegatedScopes: " + delegatedScopes);
 
         assertNotNull("Received null scopes", delegatedScopes);
         MoreAsserts.assertContentsInAnyOrder("Delegated scopes do not match expected scopes",
@@ -58,7 +56,7 @@ public class GeneralDelegateTest extends BaseJUnit3TestCase {
                     expected.getMessage());
         }
     }
-  
+
     public void testSettingAdminComponentNameThrowsException() {
         final String myPackageName = getInstrumentation().getContext().getPackageName();
         final ComponentName myComponentName = new ComponentName(myPackageName,
@@ -68,8 +66,7 @@ public class GeneralDelegateTest extends BaseJUnit3TestCase {
             mDpm.setUninstallBlocked(myComponentName, myPackageName, true);
             fail("Expected SecurityException not thrown");
         } catch (SecurityException expected) {
-            MoreAsserts.assertContainsRegex("does not exist or is not owned by uid",
-                    expected.getMessage());
+            MoreAsserts.assertContainsRegex("No active admin", expected.getMessage());
         }
     }
 }

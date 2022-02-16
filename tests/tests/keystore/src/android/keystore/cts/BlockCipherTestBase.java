@@ -16,25 +16,12 @@
 
 package android.keystore.cts;
 
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertSame;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
-
-import android.keystore.cts.util.EmptyArray;
-import android.keystore.cts.util.TestUtils;
 import android.security.keystore.KeyProperties;
 import android.security.keystore.KeyProtection;
-
-import androidx.test.runner.AndroidJUnit4;
+import android.test.AndroidTestCase;
 
 import junit.framework.AssertionFailedError;
 
-import java.io.ByteArrayOutputStream;
 import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.security.AlgorithmParameters;
@@ -62,13 +49,7 @@ import javax.crypto.ShortBufferException;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-
-@RunWith(AndroidJUnit4.class)
-abstract class BlockCipherTestBase {
+abstract class BlockCipherTestBase extends AndroidTestCase {
 
     private static final String EXPECTED_PROVIDER_NAME = TestUtils.EXPECTED_CRYPTO_OP_PROVIDER_NAME;
     private static final int LARGE_MESSAGE_SIZE = 100 * 1024;
@@ -77,11 +58,9 @@ abstract class BlockCipherTestBase {
     private int mNextKeyId;
     private SecureRandom mRand = new SecureRandom();
 
-    @Before
-    public void setUp() throws Exception {
-        if (isStrongbox()) {
-            TestUtils.assumeStrongBox();
-        }
+    @Override
+    protected void setUp() throws Exception {
+        super.setUp();
         mAndroidKeyStore = KeyStore.getInstance("AndroidKeyStore");
         mAndroidKeyStore.load(null);
         for (Enumeration<String> e = mAndroidKeyStore.aliases(); e.hasMoreElements();) {
@@ -89,12 +68,14 @@ abstract class BlockCipherTestBase {
         }
     }
 
-    @After
-    public void tearDown() throws Exception {
-        if (mAndroidKeyStore != null) {
+    @Override
+    protected void tearDown() throws Exception {
+        try {
             for (Enumeration<String> e = mAndroidKeyStore.aliases(); e.hasMoreElements();) {
                 mAndroidKeyStore.deleteEntry(e.nextElement());
             }
+        } finally {
+            super.tearDown();
         }
     }
 
@@ -112,8 +93,6 @@ abstract class BlockCipherTestBase {
 
     protected abstract byte[] getIv(AlgorithmParameters params)
             throws InvalidParameterSpecException;
-
-    abstract protected boolean isStrongbox();
 
     private byte[] getKatInput(int opmode) {
         switch (opmode) {
@@ -140,32 +119,27 @@ abstract class BlockCipherTestBase {
     private Cipher mCipher;
     private int mOpmode;
 
-    @Test
     public void testGetAlgorithm() throws Exception {
         createCipher();
         assertEquals(getTransformation(), mCipher.getAlgorithm());
     }
 
-    @Test
     public void testGetProvider() throws Exception {
         createCipher();
         Provider expectedProvider = Security.getProvider(EXPECTED_PROVIDER_NAME);
         assertSame(expectedProvider, mCipher.getProvider());
     }
 
-    @Test
     public void testGetBlockSize() throws Exception {
         createCipher();
         assertEquals(getBlockSize(), mCipher.getBlockSize());
     }
 
-    @Test
     public void testGetExemptionMechanism() throws Exception {
         createCipher();
         assertNull(mCipher.getExemptionMechanism());
     }
 
-    @Test
     public void testGetParameters() throws Exception {
         createCipher();
         assertAlgoritmParametersIv(null);
@@ -188,11 +162,10 @@ abstract class BlockCipherTestBase {
             assertNull(actualParameters);
         } else {
             byte[] actualIv = getIv(actualParameters);
-            assertArrayEquals(expectedIv, actualIv);
+            assertEquals(expectedIv, actualIv);
         }
     }
 
-    @Test
     public void testGetOutputSizeInEncryptionMode() throws Exception {
         int blockSize = getBlockSize();
         createCipher();
@@ -259,7 +232,6 @@ abstract class BlockCipherTestBase {
         }
     }
 
-    @Test
     public void testGetOutputSizeInDecryptionMode() throws Exception {
         int blockSize = getBlockSize();
         createCipher();
@@ -337,7 +309,6 @@ abstract class BlockCipherTestBase {
         }
     }
 
-    @Test
     public void testInitRequiresIvInDecryptMode() throws Exception {
         if (getKatIv() == null) {
             // IV not used in this transformation.
@@ -381,26 +352,24 @@ abstract class BlockCipherTestBase {
         } catch (InvalidAlgorithmParameterException expected) {}
     }
 
-    @Test
     public void testGetIV() throws Exception {
         createCipher();
         assertNull(mCipher.getIV());
 
         initKat(Cipher.ENCRYPT_MODE);
-        assertArrayEquals(getKatIv(), mCipher.getIV());
+        assertEquals(getKatIv(), mCipher.getIV());
 
         byte[] ciphertext = doFinal(new byte[getBlockSize()]);
-        assertArrayEquals(getKatIv(), mCipher.getIV());
+        assertEquals(getKatIv(), mCipher.getIV());
 
         createCipher();
         initKat(Cipher.DECRYPT_MODE);
-        assertArrayEquals(getKatIv(), mCipher.getIV());
+        assertEquals(getKatIv(), mCipher.getIV());
 
         doFinal(ciphertext);
-        assertArrayEquals(getKatIv(), mCipher.getIV());
+        assertEquals(getKatIv(), mCipher.getIV());
     }
 
-    @Test
     public void testIvGeneratedAndUsedWhenEncryptingWithoutExplicitIv() throws Exception {
         createCipher();
         SecretKey key = getKey();
@@ -416,7 +385,7 @@ abstract class BlockCipherTestBase {
             assertNotNull(generatedIv);
             assertEquals(getKatIv().length, generatedIv.length);
             assertNotNull(generatedParams);
-            assertArrayEquals(generatedIv, getIv(generatedParams));
+            assertEquals(generatedIv, getIv(generatedParams));
         }
 
         // Assert that encrypting then decrypting using the above IV (or null) results in the
@@ -426,10 +395,9 @@ abstract class BlockCipherTestBase {
         createCipher();
         init(Cipher.DECRYPT_MODE, key, generatedParams);
         byte[] decryptedPlaintext = mCipher.doFinal(ciphertext);
-        assertArrayEquals(plaintext, decryptedPlaintext);
+        assertEquals(plaintext, decryptedPlaintext);
     }
 
-    @Test
     public void testGeneratedIvSurvivesReset() throws Exception {
         if (getKatIv() == null) {
             // This transformation does not use an IV
@@ -442,7 +410,7 @@ abstract class BlockCipherTestBase {
         AlgorithmParameters generatedParams = mCipher.getParameters();
         byte[] ciphertext = mCipher.doFinal(getKatPlaintext());
         // Assert that the IV is still there
-        assertArrayEquals(iv, mCipher.getIV());
+        assertEquals(iv, mCipher.getIV());
         assertAlgoritmParametersIv(iv);
 
         if (getKatIv() != null) {
@@ -451,18 +419,17 @@ abstract class BlockCipherTestBase {
         }
 
         // Assert that encrypting the same input after the above reset produces the same ciphertext.
-        assertArrayEquals(ciphertext, mCipher.doFinal(getKatPlaintext()));
+        assertEquals(ciphertext, mCipher.doFinal(getKatPlaintext()));
 
-        assertArrayEquals(iv, mCipher.getIV());
+        assertEquals(iv, mCipher.getIV());
         assertAlgoritmParametersIv(iv);
 
         // Just in case, test with a new instance of Cipher with the same parameters
         createCipher();
         init(Cipher.ENCRYPT_MODE, getKey(), generatedParams);
-        assertArrayEquals(ciphertext, mCipher.doFinal(getKatPlaintext()));
+        assertEquals(ciphertext, mCipher.doFinal(getKatPlaintext()));
     }
 
-    @Test
     public void testGeneratedIvDoesNotSurviveReinitialization() throws Exception {
         if (getKatIv() == null) {
             // This transformation does not use an IV
@@ -482,7 +449,6 @@ abstract class BlockCipherTestBase {
         }
     }
 
-    @Test
     public void testExplicitlySetIvDoesNotSurviveReinitialization() throws Exception {
         if (getKatIv() == null) {
             // This transformation does not use an IV
@@ -500,7 +466,6 @@ abstract class BlockCipherTestBase {
         }
     }
 
-    @Test
     public void testReinitializingInDecryptModeDoesNotUsePreviouslyUsedIv() throws Exception {
         if (getKatIv() == null) {
             // This transformation does not use an IV
@@ -561,7 +526,6 @@ abstract class BlockCipherTestBase {
         } catch (InvalidAlgorithmParameterException expected) {}
     }
 
-    @Test
     public void testKeyDoesNotSurviveReinitialization() throws Exception {
         assertKeyDoesNotSurviveReinitialization(Cipher.ENCRYPT_MODE);
         assertKeyDoesNotSurviveReinitialization(Cipher.DECRYPT_MODE);
@@ -580,19 +544,13 @@ abstract class BlockCipherTestBase {
         SecretKey key2 = importKey(katKeyBytes);
 
         init(opmode, key2, getKatAlgorithmParameterSpec());
-        byte[] output2 = null;
+        byte[] output2;
         try {
             output2 = doFinal(input);
         } catch (BadPaddingException expected) {
             // Padding doesn't decode probably because the new key is being used. This can only
             // occur if padding is used.
             return;
-        } catch (IllegalBlockSizeException notExpected) {
-            if (isStrongbox()) {
-                fail("Should throw BadPaddingException (b/194126736)");
-            } else {
-                throw notExpected;
-            }
         }
 
         // Either padding wasn't used or the old key was used.
@@ -601,7 +559,6 @@ abstract class BlockCipherTestBase {
         }
     }
 
-    @Test
     public void testDoFinalResets() throws Exception {
         assertDoFinalResetsCipher(Cipher.DECRYPT_MODE);
         assertDoFinalResetsCipher(Cipher.ENCRYPT_MODE);
@@ -613,7 +570,7 @@ abstract class BlockCipherTestBase {
 
         createCipher();
         initKat(opmode);
-        assertArrayEquals(expectedOutput, doFinal(input));
+        assertEquals(expectedOutput, doFinal(input));
 
         if ((opmode == Cipher.ENCRYPT_MODE) && (getKatIv() != null)) {
             // Assert that this cipher cannot be reused (thus making IV reuse harder)
@@ -625,28 +582,27 @@ abstract class BlockCipherTestBase {
         }
 
         // Assert that the same output is produced after the above reset
-        assertArrayEquals(expectedOutput, doFinal(input));
+        assertEquals(expectedOutput, doFinal(input));
 
         // Assert that the same output is produced after the above reset. This time, make update()
         // buffer half a block of input.
         if (input.length < getBlockSize() * 2) {
             fail("This test requires an input which is at least two blocks long");
         }
-        assertArrayEquals(expectedOutput, concat(
+        assertEquals(expectedOutput, concat(
                 update(subarray(input, 0, getBlockSize() * 3 / 2)),
                 doFinal(subarray(input, getBlockSize() * 3 / 2, input.length))));
 
         // Assert that the same output is produced after the above reset, despite half of the block
         // having been buffered prior to the reset. This is in case the implementation does not
         // empty that buffer when resetting.
-        assertArrayEquals(expectedOutput, doFinal(input));
+        assertEquals(expectedOutput, doFinal(input));
 
         // Assert that the IV with which the cipher was initialized is still there after the resets.
-        assertArrayEquals(getKatIv(), mCipher.getIV());
+        assertEquals(getKatIv(), mCipher.getIV());
         assertAlgoritmParametersIv(getKatIv());
     }
 
-    @Test
     public void testUpdateWithEmptyInputReturnsCorrectValue() throws Exception {
         // Test encryption
         createCipher();
@@ -676,7 +632,6 @@ abstract class BlockCipherTestBase {
         assertEquals(null, update(new byte[getBlockSize()], 0, 0));
     }
 
-    @Test
     public void testUpdateDoesNotProduceOutputWhenInsufficientInput() throws Exception {
         if (isStreamCipher()) {
             // Stream ciphers always produce output for non-empty input.
@@ -707,15 +662,7 @@ abstract class BlockCipherTestBase {
 
         // Complete the current block. There are blockSize - 4 bytes left to fill.
         byte[] output = update(new byte[getBlockSize() - 4]);
-
-        try {
-            assertEquals(getBlockSize(), output.length);
-        } catch (NullPointerException e) {
-            if (isStrongbox() && output == null) {
-                fail("b/194134359");
-            }
-            throw e;
-        }
+        assertEquals(getBlockSize(), output.length);
 
         assertEquals(null, update(new byte[1]));
         assertEquals(null, update(new byte[1], 0, 1));
@@ -724,14 +671,12 @@ abstract class BlockCipherTestBase {
         assertEquals(0, update(ByteBuffer.allocate(1), ByteBuffer.allocate(getBlockSize())));
     }
 
-    @Test
     public void testKatOneShotEncryptUsingDoFinal() throws Exception {
         createCipher();
         assertKatOneShotTransformUsingDoFinal(
                 Cipher.ENCRYPT_MODE, getKatPlaintext(), getKatCiphertext());
     }
 
-    @Test
     public void testKatOneShotDecryptUsingDoFinal() throws Exception {
         createCipher();
         assertKatOneShotTransformUsingDoFinal(
@@ -747,11 +692,11 @@ abstract class BlockCipherTestBase {
                 new byte[4]);
 
         initKat(opmode);
-        assertArrayEquals(expectedOutput, doFinal(input));
+        assertEquals(expectedOutput, doFinal(input));
         initKat(opmode);
-        assertArrayEquals(expectedOutput, doFinal(input, 0, input.length));
+        assertEquals(expectedOutput, doFinal(input, 0, input.length));
         initKat(opmode);
-        assertArrayEquals(expectedOutput,
+        assertEquals(expectedOutput,
                 doFinal(bufferWithInputInTheMiddle,
                         bufferWithInputInTheMiddleCleartextOffset,
                         input.length));
@@ -769,7 +714,6 @@ abstract class BlockCipherTestBase {
                 actualOutputBuffer);
     }
 
-    @Test
     public void testKatEncryptOneByteAtATime() throws Exception {
         createCipher();
         initKat(Cipher.ENCRYPT_MODE);
@@ -777,41 +721,22 @@ abstract class BlockCipherTestBase {
         byte[] expectedCiphertext = getKatCiphertext();
         int blockSize = getBlockSize();
         if (isStreamCipher()) {
-            ByteArrayOutputStream actualCiphertext = new ByteArrayOutputStream();
             // Stream cipher -- one byte in, one byte out
             for (int plaintextIndex = 0; plaintextIndex < plaintext.length; plaintextIndex++) {
                 byte[] output = update(new byte[] {plaintext[plaintextIndex]});
-                if (output != null) {
-                    actualCiphertext.write(output);
-                }
-                // Some StrongBox implementations cannot support 1:1 input:output lengths, so
-                // we relax this API restriction for them.
-                if (!isStrongbox()) {
-                    assertEquals("plaintext index: " + plaintextIndex, 1, output.length);
-                    assertEquals("plaintext index: " + plaintextIndex,
-                            expectedCiphertext[plaintextIndex], output[0]);
-                }
+                assertEquals("plaintext index: " + plaintextIndex, 1, output.length);
+                assertEquals("plaintext index: " + plaintextIndex,
+                        expectedCiphertext[plaintextIndex], output[0]);
             }
             byte[] finalOutput = doFinal();
-            if (!isStrongbox()) {
-                byte[] expectedFinalOutput;
-                if (isAuthenticatedCipher()) {
-                    expectedFinalOutput =
-                            subarray(expectedCiphertext, plaintext.length,
-                                    expectedCiphertext.length);
-                } else {
-                    expectedFinalOutput = EmptyArray.BYTE;
-                }
-                assertArrayEquals(expectedFinalOutput, finalOutput);
+            byte[] expectedFinalOutput;
+            if (isAuthenticatedCipher()) {
+                expectedFinalOutput =
+                        subarray(expectedCiphertext, plaintext.length, expectedCiphertext.length);
+            } else {
+                expectedFinalOutput = EmptyArray.BYTE;
             }
-
-            // StrongBox doesn't require 1:1 in:out, so just compare the full ciphertext. We perform
-            // this check on non-StrongBox implementations as well to ensure the test logic is
-            // exercised on non-StrongBox platforms.
-            if (finalOutput != null) {
-                actualCiphertext.write(finalOutput);
-            }
-            assertArrayEquals(expectedCiphertext, actualCiphertext.toByteArray());
+            assertEquals(expectedFinalOutput, finalOutput);
         } else {
             // Not a stream cipher -- operates on full blocks only.
 
@@ -821,13 +746,9 @@ abstract class BlockCipherTestBase {
             for (int plaintextIndex = 0; plaintextIndex < plaintext.length; plaintextIndex++) {
                 byte[] output = update(new byte[] {plaintext[plaintextIndex]});
                 if ((plaintextIndex % blockSize) == blockSize - 1) {
-                    String additionalInformation = "";
-                    if (isStrongbox() && output == null) {
-                        additionalInformation = " (b/194134359)";
-                    }
                     // Cipher.update is expected to have output a new block
-                    assertArrayEquals(
-                            "plaintext index: " + plaintextIndex + additionalInformation,
+                    assertEquals(
+                            "plaintext index: " + plaintextIndex,
                             subarray(
                                     expectedCiphertext,
                                     ciphertextIndex,
@@ -835,7 +756,7 @@ abstract class BlockCipherTestBase {
                             output);
                 } else {
                     // Cipher.update is expected to have produced no output
-                    assertArrayEquals("plaintext index: " + plaintextIndex, null, output);
+                    assertEquals("plaintext index: " + plaintextIndex, null, output);
                 }
                 if (output != null) {
                     ciphertextIndex += output.length;
@@ -845,11 +766,10 @@ abstract class BlockCipherTestBase {
             byte[] actualFinalOutput = doFinal();
             byte[] expectedFinalOutput =
                     subarray(expectedCiphertext, ciphertextIndex, expectedCiphertext.length);
-            assertArrayEquals(expectedFinalOutput, actualFinalOutput);
+            assertEquals(expectedFinalOutput, actualFinalOutput);
         }
     }
 
-    @Test
     public void testKatDecryptOneByteAtATime() throws Exception {
         createCipher();
         initKat(Cipher.DECRYPT_MODE);
@@ -866,35 +786,17 @@ abstract class BlockCipherTestBase {
                         0, (output != null) ? output.length : 0);
             }
             byte[] finalOutput = doFinal();
-            assertArrayEquals(expectedPlaintext, finalOutput);
+            assertEquals(expectedPlaintext, finalOutput);
         } else if (isStreamCipher()) {
-            ByteArrayOutputStream actualPlaintext = new ByteArrayOutputStream();
             // Unauthenticated stream cipher -- one byte in, one byte out
             for (int ciphertextIndex = 0; ciphertextIndex < ciphertext.length; ciphertextIndex++) {
                 byte[] output = update(new byte[] {ciphertext[ciphertextIndex]});
-                if (output != null) {
-                    actualPlaintext.write(output);
-                }
-                // Some StrongBox implementations cannot support 1:1 input:output lengths, so
-                // we relax this API restriction for them.
-                if (!isStrongbox()) {
-                    assertEquals("ciphertext index: " + ciphertextIndex, 1, output.length);
-                    assertEquals("ciphertext index: " + ciphertextIndex,
-                            expectedPlaintext[ciphertextIndex], output[0]);
-                }
+                assertEquals("ciphertext index: " + ciphertextIndex, 1, output.length);
+                assertEquals("ciphertext index: " + ciphertextIndex,
+                        expectedPlaintext[ciphertextIndex], output[0]);
             }
             byte[] finalOutput = doFinal();
-            if (!isStrongbox()) {
-                assertEquals(0, finalOutput.length);
-            }
-
-            // StrongBox doesn't require 1:1 in:out, so just compare the full ciphertext. We perform
-            // this check on non-StrongBox implementations as well to ensure the test logic is
-            // exercised on non-StrongBox platforms.
-            if (finalOutput != null) {
-                actualPlaintext.write(finalOutput);
-            }
-            assertArrayEquals(expectedPlaintext, actualPlaintext.toByteArray());
+            assertEquals(0, finalOutput.length);
         } else {
             // Unauthenticated block cipher -- operates in full blocks only
 
@@ -909,12 +811,8 @@ abstract class BlockCipherTestBase {
                         || ((!paddingEnabled) && ((ciphertextIndex % blockSize) == blockSize - 1));
 
                 if (outputExpected) {
-                    String additionalInformation = "";
-                    if (isStrongbox()) {
-                        additionalInformation = " (b/194134040)";
-                    }
-                    assertArrayEquals(
-                            "ciphertext index: " + ciphertextIndex + additionalInformation,
+                    assertEquals(
+                            "ciphertext index: " + ciphertextIndex,
                             subarray(expectedPlaintext, plaintextIndex, plaintextIndex + blockSize),
                             output);
                 } else {
@@ -929,11 +827,10 @@ abstract class BlockCipherTestBase {
             byte[] actualFinalOutput = doFinal();
             byte[] expectedFinalOutput =
                     subarray(expectedPlaintext, plaintextIndex, expectedPlaintext.length);
-            assertArrayEquals(expectedFinalOutput, actualFinalOutput);
+            assertEquals(expectedFinalOutput, actualFinalOutput);
         }
     }
 
-    @Test
     public void testUpdateAADNotSupported() throws Exception {
         if (isAuthenticatedCipher()) {
             // Not applicable to authenticated ciphers where updateAAD is supported.
@@ -949,7 +846,6 @@ abstract class BlockCipherTestBase {
         assertUpdateAADNotSupported();
     }
 
-    @Test
     public void testUpdateAADSupported() throws Exception {
         if (!isAuthenticatedCipher()) {
             // Not applicable to unauthenticated ciphers where updateAAD is not supported.
@@ -993,7 +889,6 @@ abstract class BlockCipherTestBase {
 
     // TODO: Add tests for WRAP and UNWRAP
 
-    @Test
     public void testUpdateAndDoFinalNotSupportedInWrapAndUnwrapModes() throws Exception {
         createCipher();
         assertUpdateAndDoFinalThrowIllegalStateExceprtion(
@@ -1086,7 +981,6 @@ abstract class BlockCipherTestBase {
         } catch (IllegalStateException expected) {}
     }
 
-    @Test
     public void testGeneratedPadding() throws Exception {
         // Assert that the Cipher under test correctly handles plaintexts of various lengths.
         if (isStreamCipher()) {
@@ -1119,7 +1013,7 @@ abstract class BlockCipherTestBase {
             }
             byte[] ciphertext = doFinal(plaintext);
 
-            assertArrayEquals(
+            assertEquals(
                     "lastInputBlockUnusedByteCount: " + lastInputBlockUnusedByteCount,
                     baseCiphertext,
                     subarray(ciphertext, 0, baseCiphertext.length));
@@ -1137,14 +1031,13 @@ abstract class BlockCipherTestBase {
                     "lastInputBlockUnusedByteCount: " + lastInputBlockUnusedByteCount,
                     expectedDecryptedPlaintextLength,
                     decryptedPlaintext.length);
-            assertArrayEquals(
+            assertEquals(
                     "lastInputBlockUnusedByteCount: " + lastInputBlockUnusedByteCount,
                     basePlaintext,
                     subarray(decryptedPlaintext, 0, basePlaintext.length));
         }
     }
 
-    @Test
     public void testDecryptWithMangledPadding() throws Exception {
         if (!isPaddingEnabled()) {
             // Test not applicable when padding not in use
@@ -1161,16 +1054,8 @@ abstract class BlockCipherTestBase {
             doFinal(ciphertext);
             fail();
         } catch (BadPaddingException expected) {}
-        catch (IllegalBlockSizeException e) {
-            if (isStrongbox()) {
-                fail("Should throw BadPaddingException (b/194126736)");
-            } else {
-                fail();
-            }
-        }
     }
 
-    @Test
     public void testDecryptWithMissingPadding() throws Exception {
         if (!isPaddingEnabled()) {
             // Test not applicable when padding not in use
@@ -1184,16 +1069,8 @@ abstract class BlockCipherTestBase {
             doFinal(ciphertext);
             fail();
         } catch (BadPaddingException expected) {}
-        catch (IllegalBlockSizeException e) {
-            if (isStrongbox()) {
-                fail("Should throw BadPaddingException (b/194126736)");
-            } else {
-                fail();
-            }
-        }
     }
 
-    @Test
     public void testUpdateCopySafe() throws Exception {
         // Assert that when input and output buffers passed to Cipher.update reference the same
         // byte array, then no input data is overwritten before it's consumed.
@@ -1269,69 +1146,42 @@ abstract class BlockCipherTestBase {
         int inputEndIndexInBuffer = inputOffsetInBuffer + input.length;
         int outputEndIndexInBuffer = outputOffsetInBuffer + expectedOutput.length;
 
-        assertTrue("StrongBox output assumptions below need input to be at least a block.",
-                input.length >= blockSize);
-
         // Test the update(byte[], int, int, byte[], int) variant
         byte[] buffer = new byte[Math.max(inputEndIndexInBuffer, outputEndIndexInBuffer)];
         System.arraycopy(input, 0, buffer, inputOffsetInBuffer, input.length);
         createCipher();
         initKat(opmode);
-        String additionalInformation = "";
-        int outputLength = update(buffer, inputOffsetInBuffer, input.length,
-                buffer, outputOffsetInBuffer);
-        if (isStrongbox()) {
-            // StrongBox does not have to support one byte of output per byte of input.
-            assertTrue("output length: " + outputLength,
-                    outputLength >= blockSize || (expectedOutput.length == 0 && outputLength == 0));
-            outputEndIndexInBuffer = outputOffsetInBuffer + outputLength;
-        } else {
-            assertEquals(expectedOutput.length, outputLength);
-        }
-        assertArrayEquals(subarray(expectedOutput, 0, outputLength),
+        assertEquals(expectedOutput.length,
+                update(buffer, inputOffsetInBuffer, input.length,
+                        buffer, outputOffsetInBuffer));
+        assertEquals(expectedOutput,
                 subarray(buffer, outputOffsetInBuffer, outputEndIndexInBuffer));
 
         if (outputOffsetInBuffer == 0) {
             // We can use the update variant which assumes that output offset is 0.
-            Arrays.fill(buffer, (byte)0);
+            buffer = new byte[Math.max(inputEndIndexInBuffer, outputEndIndexInBuffer)];
             System.arraycopy(input, 0, buffer, inputOffsetInBuffer, input.length);
             createCipher();
             initKat(opmode);
-            outputLength = update(buffer, inputOffsetInBuffer, input.length, buffer, outputOffsetInBuffer);
-            if (isStrongbox()) {
-                // StrongBox does not have to support one byte of output per byte of input.
-                assertTrue("output length: " + outputLength,
-                        outputLength >= blockSize || (expectedOutput.length == 0 && outputLength == 0));
-                outputEndIndexInBuffer = outputOffsetInBuffer + outputLength;
-            } else {
-                assertEquals(expectedOutput.length, outputLength);
-            }
-            assertArrayEquals(subarray(expectedOutput, 0, outputLength),
+            assertEquals(expectedOutput.length,
+                    update(buffer, inputOffsetInBuffer, input.length, buffer));
+            assertEquals(expectedOutput,
                     subarray(buffer, outputOffsetInBuffer, outputEndIndexInBuffer));
         }
 
         // Test the update(ByteBuffer, ByteBuffer) variant
-        Arrays.fill(buffer, (byte)0);
+        buffer = new byte[Math.max(inputEndIndexInBuffer, outputEndIndexInBuffer)];
         System.arraycopy(input, 0, buffer, inputOffsetInBuffer, input.length);
         ByteBuffer inputBuffer = ByteBuffer.wrap(buffer, inputOffsetInBuffer, input.length);
         ByteBuffer outputBuffer =
                 ByteBuffer.wrap(buffer, outputOffsetInBuffer, expectedOutput.length);
         createCipher();
         initKat(opmode);
-        outputLength = update(inputBuffer, outputBuffer);
-        if (isStrongbox()) {
-            // StrongBox does not have to support one byte of output per byte of input.
-            assertTrue("output length: " + outputLength,
-                    outputLength >= blockSize || (expectedOutput.length == 0 && outputLength == 0));
-            outputEndIndexInBuffer = outputOffsetInBuffer + outputLength;
-        } else {
-            assertEquals(expectedOutput.length, outputLength);
-        }
-        assertArrayEquals(subarray(expectedOutput, 0, outputLength),
+        assertEquals(expectedOutput.length, update(inputBuffer, outputBuffer));
+        assertEquals(expectedOutput,
                 subarray(buffer, outputOffsetInBuffer, outputEndIndexInBuffer));
     }
 
-    @Test
     public void testDoFinalCopySafe() throws Exception {
         // Assert that when input and output buffers passed to Cipher.doFinal reference the same
         // byte array, then no input data is overwritten before it's consumed.
@@ -1373,7 +1223,7 @@ abstract class BlockCipherTestBase {
         assertEquals(expectedOutput.length,
                 doFinal(buffer, inputOffsetInBuffer, input.length,
                         buffer, outputOffsetInBuffer));
-        assertArrayEquals(expectedOutput,
+        assertEquals(expectedOutput,
                 subarray(buffer, outputOffsetInBuffer, outputEndIndexInBuffer));
 
         if (outputOffsetInBuffer == 0) {
@@ -1384,7 +1234,7 @@ abstract class BlockCipherTestBase {
             initKat(opmode);
             assertEquals(expectedOutput.length,
                     doFinal(buffer, inputOffsetInBuffer, input.length, buffer));
-            assertArrayEquals(expectedOutput,
+            assertEquals(expectedOutput,
                     subarray(buffer, outputOffsetInBuffer, outputEndIndexInBuffer));
         }
 
@@ -1397,11 +1247,10 @@ abstract class BlockCipherTestBase {
         createCipher();
         initKat(opmode);
         assertEquals(expectedOutput.length, doFinal(inputBuffer, outputBuffer));
-        assertArrayEquals(expectedOutput,
+        assertEquals(expectedOutput,
                 subarray(buffer, outputOffsetInBuffer, outputEndIndexInBuffer));
     }
 
-    @Test
     public void testVeryLargeBlock() throws Exception {
         createCipher();
         Key key = importKey(getKatKey());
@@ -1473,7 +1322,6 @@ abstract class BlockCipherTestBase {
                             .setBlockModes(getBlockMode())
                             .setEncryptionPaddings(getPadding())
                             .setRandomizedEncryptionRequired(false)
-                            .setIsStrongBoxBacked(isStrongbox())
                             .build());
             return (SecretKey) mAndroidKeyStore.getKey(keyAlias, null);
         } catch (Exception e) {
@@ -1590,9 +1438,7 @@ abstract class BlockCipherTestBase {
         }
 
         if (isStreamCipher()) {
-            // Some StrongBox implementations cannot support 1:1 input:output lengths, so
-            // we relax this API restriction for them.
-            if (outputLength != inputLength && !isStrongbox()) {
+            if (outputLength != inputLength) {
                 fail("Output of update (" + outputLength + ") not same size as input ("
                         + inputLength + ")");
             }
@@ -1662,6 +1508,13 @@ abstract class BlockCipherTestBase {
 
     protected void updateAAD(ByteBuffer input) {
         mCipher.updateAAD(input);
+    }
+
+    @SuppressWarnings("unused")
+    protected static void assertEquals(Buffer expected, Buffer actual) {
+        throw new RuntimeException(
+                "Comparing ByteBuffers using their .equals is probably not what you want"
+                + " -- use assertByteBufferEquals instead.");
     }
 
     /**
@@ -1738,6 +1591,33 @@ abstract class BlockCipherTestBase {
             }
         }
         return result;
+    }
+
+    protected static void assertEquals(byte[] expected, byte[] actual) {
+        assertEquals(null, expected, actual);
+    }
+
+    protected static void assertEquals(String message, byte[] expected, byte[] actual) {
+        if (!Arrays.equals(expected, actual)) {
+            StringBuilder detail = new StringBuilder();
+            if (expected != null) {
+                detail.append("Expected (" + expected.length + " bytes): <"
+                        + HexEncoding.encode(expected) + ">");
+            } else {
+                detail.append("Expected: null");
+            }
+            if (actual != null) {
+                detail.append(", actual (" + actual.length + " bytes): <"
+                        + HexEncoding.encode(actual) + ">");
+            } else {
+                detail.append(", actual: null");
+            }
+            if (message != null) {
+                fail(message + ": " + detail);
+            } else {
+                fail(detail.toString());
+            }
+        }
     }
 
     protected final void assertInitRejectsIvParameterSpec(byte[] iv) throws Exception {

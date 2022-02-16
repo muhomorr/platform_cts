@@ -17,10 +17,10 @@ package android.input.cts
 
 import android.view.MotionEvent
 import android.view.View
-import androidx.test.ext.junit.rules.ActivityScenarioRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.MediumTest
 import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.rule.ActivityTestRule
 import com.android.compatibility.common.util.PollingCheck
 import com.android.compatibility.common.util.ShellUtils
 import com.google.common.truth.Truth.assertThat
@@ -44,17 +44,15 @@ private fun getViewCenterOnScreen(v: View): Pair<Int, Int> {
 @RunWith(AndroidJUnit4::class)
 class InputShellCommandTest {
     @get:Rule
-    val activityRule = ActivityScenarioRule(CaptureEventActivity::class.java)
-    private val instrumentation = InstrumentationRegistry.getInstrumentation()
-    private lateinit var activity: CaptureEventActivity
+    var mActivityRule: ActivityTestRule<CaptureEventActivity> =
+            ActivityTestRule(CaptureEventActivity::class.java)
+    lateinit var mActivity: CaptureEventActivity
+    val mInstrumentation = InstrumentationRegistry.getInstrumentation()
 
     @Before
     fun setUp() {
-        activityRule.getScenario().onActivity {
-            activity = it
-        }
-        PollingCheck.waitFor { activity.hasWindowFocus() }
-        instrumentation.uiAutomation.syncInputTransactions()
+        mActivity = mActivityRule.getActivity()
+        PollingCheck.waitFor { mActivity.hasWindowFocus() }
     }
 
     /**
@@ -62,7 +60,7 @@ class InputShellCommandTest {
      */
     @Test
     fun testDefaultToolType() {
-        val (x, y) = getViewCenterOnScreen(activity.window.decorView)
+        val (x, y) = getViewCenterOnScreen(mActivity.window.decorView)
 
         ShellUtils.runShellCommand("input tap $x $y")
         assertTapToolType(MotionEvent.TOOL_TYPE_FINGER)
@@ -73,7 +71,7 @@ class InputShellCommandTest {
      */
     @Test
     fun testToolType() {
-        val (x, y) = getViewCenterOnScreen(activity.window.decorView)
+        val (x, y) = getViewCenterOnScreen(mActivity.window.decorView)
 
         ShellUtils.runShellCommand("input touchscreen tap $x $y")
         assertTapToolType(MotionEvent.TOOL_TYPE_FINGER)
@@ -98,7 +96,7 @@ class InputShellCommandTest {
     }
 
     private fun getMotionEvent(): MotionEvent {
-        val event = activity.getInputEvent()
+        val event = mActivity.getLastInputEvent()
         assertThat(event).isNotNull()
         assertThat(event).isInstanceOf(MotionEvent::class.java)
         return event as MotionEvent
@@ -113,12 +111,12 @@ class InputShellCommandTest {
     }
 
     private fun assertTapToolType(toolType: Int) {
-        val downEvent = getMotionEvent()
-        assertThat(downEvent.action).isEqualTo(MotionEvent.ACTION_DOWN)
-        assertToolType(downEvent, toolType)
+        var event = getMotionEvent()
+        assertThat(event.action).isEqualTo(MotionEvent.ACTION_DOWN)
+        assertToolType(event, toolType)
 
-        val upEvent = getMotionEvent()
-        assertThat(upEvent.action).isEqualTo(MotionEvent.ACTION_UP)
-        assertToolType(upEvent, toolType)
+        event = getMotionEvent()
+        assertThat(event.action).isEqualTo(MotionEvent.ACTION_UP)
+        assertToolType(event, toolType)
     }
 }

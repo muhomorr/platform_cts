@@ -32,8 +32,7 @@ filegroup {
         "src/android/telephony/ims/cts/ImsUtils.java",
         "src/android/telephony/ims/cts/SipDialogAttributes.java",
         "src/android/telephony/ims/cts/SipMessageUtils.java",
-        "src/android/telephony/ims/cts/TestAcsClient.java",
-        "src/android/telephony/ims/cts/TestImsCallSessionImpl.java",
+	    "src/android/telephony/ims/cts/TestAcsClient.java",
     ],
     path: "src/",
 }
@@ -55,13 +54,6 @@ android_test {
         "hamcrest-library",
         "compatibility-device-util-axt",
         "truth-prebuilt",
-        "android.hardware.radio.config-V1-java",
-        "android.hardware.radio.modem-V1-java",
-        "android.hardware.radio.sim-V1-java",
-        "android.hardware.radio.network-V1-java",
-        "android.hardware.radio.data-V1-java",
-        "android.hardware.radio.messaging-V1-java",
-        "android.hardware.radio.voice-V1-java",
     ],
     srcs: [
         "src/**/*.java",
@@ -76,7 +68,7 @@ android_test {
         local_include_dirs: [
             "EmbmsMiddlewareTestApp/aidl/",
             "TestExternalImsServiceApp/aidl/",
-        ],
+        ]
     },
     test_suites: [
         "cts",
@@ -93,5 +85,6 @@ filegroup {
     name: "cts-telephony-utils",
     srcs: [
         "src/android/telephony/cts/TelephonyUtils.java",
-    ],
+    ]
 }
+

@@ -33,7 +33,6 @@ import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
 
 import android.app.Activity;
-import android.app.Instrumentation;
 import android.app.PendingIntent;
 import android.app.assist.AssistStructure;
 import android.app.assist.AssistStructure.ViewNode;
@@ -759,9 +758,10 @@ public final class Helper {
     /**
      * Asserts the number of children in the Assist structure.
      */
-    public static void assertNumberOfChildrenWithWindowTitle(AssistStructure structure,
-            int expected, CharSequence windowTitle) {
-        final int actual = getNumberNodes(structure, windowTitle);
+    public static void assertNumberOfChildren(AssistStructure structure, int expected) {
+        assertWithMessage("wrong number of nodes").that(structure.getWindowNodeCount())
+                .isEqualTo(1);
+        final int actual = getNumberNodes(structure);
         if (actual != expected) {
             dumpStructure("assertNumberOfChildren()", structure);
             throw new AssertionError("assertNumberOfChildren() for structure failed: expected "
@@ -772,28 +772,15 @@ public final class Helper {
     /**
      * Gets the total number of nodes in an structure.
      */
-    public static int getNumberNodes(AssistStructure structure,
-            CharSequence windowTitle) {
+    public static int getNumberNodes(AssistStructure structure) {
         int count = 0;
         final int nodes = structure.getWindowNodeCount();
         for (int i = 0; i < nodes; i++) {
             final WindowNode windowNode = structure.getWindowNodeAt(i);
-            if (windowNode.getTitle().equals(windowTitle)) {
-                final ViewNode rootNode = windowNode.getRootViewNode();
-                count += getNumberNodes(rootNode);
-            }
+            final ViewNode rootNode = windowNode.getRootViewNode();
+            count += getNumberNodes(rootNode);
         }
         return count;
-    }
-
-    /**
-     * Gets the activity title.
-     */
-    public static CharSequence getActivityTitle(Instrumentation instrumentation,
-            Activity activity) {
-        final StringBuilder titleBuilder = new StringBuilder();
-        instrumentation.runOnMainSync(() -> titleBuilder.append(activity.getTitle()));
-        return titleBuilder;
     }
 
     /**
@@ -814,16 +801,36 @@ public final class Helper {
      * Creates an array of {@link AutofillId} mapped from the {@code structure} nodes with the given
      * {@code resourceIds}.
      */
-    public static AutofillId[] getAutofillIds(Function<String, AutofillId> autofillIdResolver,
+    public static AutofillId[] getAutofillIds(Function<String, ViewNode> nodeResolver,
             String[] resourceIds) {
         if (resourceIds == null) return null;
 
         final AutofillId[] requiredIds = new AutofillId[resourceIds.length];
         for (int i = 0; i < resourceIds.length; i++) {
             final String resourceId = resourceIds[i];
-            requiredIds[i] = autofillIdResolver.apply(resourceId);
+            final ViewNode node = nodeResolver.apply(resourceId);
+            if (node == null) {
+                throw new AssertionError("No node with resourceId " + resourceId);
+            }
+            requiredIds[i] = node.getAutofillId();
+
         }
         return requiredIds;
+    }
+
+    /**
+     * Get an {@link AutofillId} mapped from the {@code structure} node with the given
+     * {@code resourceId}.
+     */
+    public static AutofillId getAutofillId(Function<String, ViewNode> nodeResolver,
+            String resourceId) {
+        if (resourceId == null) return null;
+
+        final ViewNode node = nodeResolver.apply(resourceId);
+        if (node == null) {
+            throw new AssertionError("No node with resourceId " + resourceId);
+        }
+        return node.getAutofillId();
     }
 
     /**

@@ -16,8 +16,6 @@
 
 package android.server.wm;
 
-import static android.server.wm.ActivityManagerTestBase.createFullscreenActivityScenarioRule;
-
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 
@@ -25,12 +23,11 @@ import android.app.Instrumentation;
 import android.util.DisplayMetrics;
 
 import androidx.test.InstrumentationRegistry;
-import androidx.test.ext.junit.rules.ActivityScenarioRule;
+import androidx.test.rule.ActivityTestRule;
 import androidx.test.runner.AndroidJUnit4;
 
 import com.android.compatibility.common.util.ShellUtils;
 
-import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -42,15 +39,8 @@ import org.junit.runner.RunWith;
 public class CloseOnOutsideTests {
 
     @Rule
-    public final ActivityScenarioRule<CloseOnOutsideTestActivity> mScenarioRule =
-            createFullscreenActivityScenarioRule(CloseOnOutsideTestActivity.class);
-
-    private CloseOnOutsideTestActivity mTestActivity;
-
-    @Before
-    public void setup() {
-        mScenarioRule.getScenario().onActivity(activity -> mTestActivity = activity);
-    }
+    public final ActivityTestRule<CloseOnOutsideTestActivity> mTestActivity =
+            new ActivityTestRule<>(CloseOnOutsideTestActivity.class, true, true);
 
     @Test
     public void withDefaults() {
@@ -59,30 +49,31 @@ public class CloseOnOutsideTests {
 
     @Test
     public void finishTrue() {
-        mTestActivity.setFinishOnTouchOutside(true);
+        mTestActivity.getActivity().setFinishOnTouchOutside(true);
         touchAndAssert(true /* shouldBeFinishing */);
     }
 
     @Test
     public void finishFalse() {
-        mTestActivity.setFinishOnTouchOutside(false);
+        mTestActivity.getActivity().setFinishOnTouchOutside(false);
         touchAndAssert(false /* shouldBeFinishing */);
     }
 
     // Tap the bottom right and check the Activity is finishing
     private void touchAndAssert(boolean shouldBeFinishing) {
-        DisplayMetrics displayMetrics = mTestActivity.getResources().getDisplayMetrics();
+        DisplayMetrics displayMetrics =
+                mTestActivity.getActivity().getResources().getDisplayMetrics();
         int width = (int) (displayMetrics.widthPixels * 0.875f);
         int height = (int) (displayMetrics.heightPixels * 0.875f);
 
         Instrumentation instrumentation = InstrumentationRegistry.getInstrumentation();
 
         // To be safe, make sure nothing else is finishing the Activity
-        instrumentation.runOnMainSync(() -> assertFalse(mTestActivity.isFinishing()));
+        instrumentation.runOnMainSync(() -> assertFalse(mTestActivity.getActivity().isFinishing()));
 
         ShellUtils.runShellCommand("input tap %d %d", width, height);
 
         instrumentation.runOnMainSync(
-                () -> assertEquals(shouldBeFinishing, mTestActivity.isFinishing()));
+                () -> assertEquals(shouldBeFinishing, mTestActivity.getActivity().isFinishing()));
     }
 }

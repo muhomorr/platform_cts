@@ -20,16 +20,16 @@ import static androidx.test.platform.app.InstrumentationRegistry.getInstrumentat
 
 import static org.junit.Assert.assertTrue;
 
-import android.Manifest;
+import android.app.UiAutomation;
 import android.content.Context;
-import android.hardware.display.DisplayManager;
+import android.util.Log;
 import android.view.Surface;
+import android.view.SurfaceControl;
 
 import androidx.test.filters.MediumTest;
 import androidx.test.rule.ActivityTestRule;
 import androidx.test.runner.AndroidJUnit4;
 
-import com.android.compatibility.common.util.AdoptShellPermissionsRule;
 import com.android.compatibility.common.util.DisplayUtil;
 
 import org.junit.After;
@@ -46,39 +46,38 @@ public class SetFrameRateTest {
     @Rule
     public ActivityTestRule<FrameRateCtsActivity> mActivityRule =
             new ActivityTestRule<>(FrameRateCtsActivity.class);
-
-    @Rule
-    public final AdoptShellPermissionsRule mShellPermissionsRule =
-            new AdoptShellPermissionsRule(getInstrumentation().getUiAutomation(),
-                    Manifest.permission.HDMI_CEC,
-                    Manifest.permission.OVERRIDE_DISPLAY_MODE_REQUESTS,
-                    Manifest.permission.MODIFY_REFRESH_RATE_SWITCHING_TYPE);
-
-    private DisplayManager mDisplayManager;
-    private int mInitialRefreshRateSwitchingType;
+    private long mFrameRateFlexibilityToken;
 
     @Before
     public void setUp() throws Exception {
+        // Surface flinger requires the ACCESS_SURFACE_FLINGER permission to acquire a frame
+        // rate flexibility token. Switch to shell permission identity so we'll have the
+        // necessary permission when surface flinger checks.
+        UiAutomation uiAutomation = getInstrumentation().getUiAutomation();
+        uiAutomation.adoptShellPermissionIdentity();
+
         Context context = getInstrumentation().getTargetContext();
         assertTrue("Physical display is expected.", DisplayUtil.isDisplayConnected(context));
 
-        FrameRateCtsActivity activity = mActivityRule.getActivity();
+        try {
+            // Take ownership of the frame rate flexibility token, if we were able
+            // to get one - we'll release it in tearDown().
+            mFrameRateFlexibilityToken = SurfaceControl.acquireFrameRateFlexibilityToken();
+        } finally {
+            uiAutomation.dropShellPermissionIdentity();
+        }
 
-        // Prevent DisplayManager from limiting the allowed refresh rate range based on
-        // non-app policies (e.g. low battery, user settings, etc).
-        mDisplayManager = activity.getSystemService(DisplayManager.class);
-        mDisplayManager.setShouldAlwaysRespectAppRequestedMode(true);
-
-        mInitialRefreshRateSwitchingType = DisplayUtil.getRefreshRateSwitchingType(mDisplayManager);
-        mDisplayManager.setRefreshRateSwitchingType(
-                DisplayManager.SWITCHING_TYPE_ACROSS_AND_WITHIN_GROUPS);
+        if (mFrameRateFlexibilityToken == 0) {
+            Log.e(TAG, "Failed to acquire frame rate flexibility token."
+                    + " SetFrameRate tests may fail.");
+        }
     }
 
     @After
     public void tearDown() {
-        if (mDisplayManager != null) {
-            mDisplayManager.setRefreshRateSwitchingType(mInitialRefreshRateSwitchingType);
-            mDisplayManager.setShouldAlwaysRespectAppRequestedMode(false);
+        if (mFrameRateFlexibilityToken != 0) {
+            SurfaceControl.releaseFrameRateFlexibilityToken(mFrameRateFlexibilityToken);
+            mFrameRateFlexibilityToken = 0;
         }
     }
 

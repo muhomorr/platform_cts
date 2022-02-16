@@ -16,72 +16,38 @@
 
 package com.android.bedstead.nene.users;
 
-import static android.Manifest.permission.CREATE_USERS;
-import static android.Manifest.permission.INTERACT_ACROSS_USERS;
 import static android.Manifest.permission.INTERACT_ACROSS_USERS_FULL;
-import static android.os.Build.VERSION_CODES.R;
-import static android.os.Build.VERSION_CODES.S;
 
-import static com.android.bedstead.nene.permissions.CommonPermissions.MANAGE_PROFILE_AND_DEVICE_OWNERS;
-import static com.android.bedstead.nene.users.Users.users;
-
-import android.app.KeyguardManager;
-import android.app.admin.DevicePolicyManager;
 import android.content.Intent;
-import android.content.pm.UserInfo;
 import android.os.UserHandle;
-import android.os.UserManager;
-import android.util.Log;
-
-import androidx.annotation.Nullable;
 
 import com.android.bedstead.nene.TestApis;
-import com.android.bedstead.nene.annotations.Experimental;
 import com.android.bedstead.nene.exceptions.AdbException;
 import com.android.bedstead.nene.exceptions.NeneException;
 import com.android.bedstead.nene.permissions.PermissionContext;
-import com.android.bedstead.nene.utils.Poll;
+import com.android.bedstead.nene.users.User.UserState;
 import com.android.bedstead.nene.utils.ShellCommand;
 import com.android.bedstead.nene.utils.ShellCommandUtils;
-import com.android.bedstead.nene.utils.Versions;
 import com.android.compatibility.common.util.BlockingBroadcastReceiver;
 
-import java.time.Duration;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Set;
+import javax.annotation.Nullable;
 
 /**
  * A representation of a User on device which may or may not exist.
+ *
+ * <p>To resolve the user into a {@link User}, see {@link #resolve()}.
  */
-public class UserReference implements AutoCloseable {
+public abstract class UserReference implements AutoCloseable {
 
-    private static final Set<AdbUser.UserState> RUNNING_STATES = new HashSet<>(
-            Arrays.asList(AdbUser.UserState.RUNNING_LOCKED,
-                    AdbUser.UserState.RUNNING_UNLOCKED,
-                    AdbUser.UserState.RUNNING_UNLOCKING)
-    );
-
-    private static final String LOG_TAG = "UserReference";
-
-    private static final String USER_SETUP_COMPLETE_KEY = "user_setup_complete";
-
+    private final TestApis mTestApis;
     private final int mId;
 
-    private final UserManager mUserManager;
-
-    private Long mSerialNo;
-    private String mName;
-    private UserType mUserType;
-    private Boolean mIsPrimary;
-    private boolean mParentCached = false;
-    private UserReference mParent;
-    private @Nullable String mPassword;
-
-    UserReference(int id) {
+    UserReference(TestApis testApis, int id) {
+        if (testApis == null) {
+            throw new NullPointerException();
+        }
+        mTestApis = testApis;
         mId = id;
-        mUserManager = TestApis.context().androidContextAsUser(this)
-                .getSystemService(UserManager.class);
     }
 
     public final int id() {
@@ -96,25 +62,30 @@ public class UserReference implements AutoCloseable {
     }
 
     /**
+     * Get the current state of the {@link User} from the device, or {@code null} if the user does
+     * not exist.
+     */
+    @Nullable
+    public final User resolve() {
+        return mTestApis.users().fetchUser(mId);
+    }
+
+    /**
      * Remove the user from the device.
      *
      * <p>If the user does not exist, or the removal fails for any other reason, a
      * {@link NeneException} will be thrown.
      */
     public final void remove() {
+        // TODO(scottjonathan): There's a potential issue here as when the user is marked as
+        //  "is removing" the DPC still can't be uninstalled because it's set as the profile owner.
         try {
             // Expected success string is "Success: removed user"
             ShellCommand.builder("pm remove-user")
                     .addOperand(mId)
                     .validate(ShellCommandUtils::startsWithSuccess)
                     .execute();
-
-            Poll.forValue("User exists", this::exists)
-                    .toBeEqualTo(false)
-                    // TODO(b/203630556): Reduce timeout once we have a faster way of removing users
-                    .timeout(Duration.ofMinutes(1))
-                    .errorOnFail()
-                    .await();
+            mTestApis.users().waitForUserToNotExistOrMatch(this, User::isRemoving);
         } catch (AdbException e) {
             throw new NeneException("Could not remove user " + this, e);
         }
@@ -123,7 +94,8 @@ public class UserReference implements AutoCloseable {
     /**
      * Start the user.
      *
-     * <p>After calling this command, the user will be running unlocked.
+     * <p>After calling this command, the user will be in the {@link UserState#RUNNING_UNLOCKED}
+     * state.
      *
      * <p>If the user does not exist, or the start fails for any other reason, a
      * {@link NeneException} will be thrown.
@@ -137,12 +109,11 @@ public class UserReference implements AutoCloseable {
                     .addOperand("-w")
                     .validate(ShellCommandUtils::startsWithSuccess)
                     .execute();
-
-            Poll.forValue("User running unlocked", () -> isRunning() && isUnlocked())
-                    .toBeEqualTo(true)
-                    .errorOnFail()
-                    .timeout(Duration.ofMinutes(1))
-                    .await();
+            User waitedUser = mTestApis.users().waitForUserToNotExistOrMatch(
+                    this, (user) -> user.state() == UserState.RUNNING_UNLOCKED);
+            if (waitedUser == null) {
+                throw new NeneException("User does not exist " + this);
+            }
         } catch (AdbException e) {
             throw new NeneException("Could not start user " + this, e);
         }
@@ -153,7 +124,7 @@ public class UserReference implements AutoCloseable {
     /**
      * Stop the user.
      *
-     * <p>After calling this command, the user will be not running.
+     * <p>After calling this command, the user will be in the {@link UserState#NOT_RUNNING} state.
      */
     public UserReference stop() {
         try {
@@ -164,13 +135,11 @@ public class UserReference implements AutoCloseable {
                     .allowEmptyOutput(true)
                     .validate(String::isEmpty)
                     .execute();
-
-            Poll.forValue("User running", this::isRunning)
-                    .toBeEqualTo(false)
-                    // TODO(b/203630556): Replace stopping with something faster
-                    .timeout(Duration.ofMinutes(10))
-                    .errorOnFail()
-                    .await();
+            User waitedUser = mTestApis.users().waitForUserToNotExistOrMatch(
+                    this, (user) -> user.state() == UserState.NOT_RUNNING);
+            if (waitedUser == null) {
+                throw new NeneException("User does not exist " + this);
+            }
         } catch (AdbException e) {
             throw new NeneException("Could not stop user " + this, e);
         }
@@ -180,37 +149,19 @@ public class UserReference implements AutoCloseable {
 
     /**
      * Make the user the foreground user.
-     *
-     * <p>If the user is a profile, then this will make the parent the foreground user. It will
-     * still return the {@link UserReference} of the profile in that case.
      */
     public UserReference switchTo() {
-        UserReference parent = parent();
-        if (parent != null) {
-            parent.switchTo();
-            return this;
-        }
-
-        if (TestApis.users().current().equals(this)) {
-            // Already switched to
-            return this;
-        }
-
-        // This is created outside of the try because we don't want to wait for the broadcast
-        // on versions less than R
         BlockingBroadcastReceiver broadcastReceiver =
-                new BlockingBroadcastReceiver(TestApis.context().instrumentedContext(),
+                new BlockingBroadcastReceiver(mTestApis.context().instrumentedContext(),
                         Intent.ACTION_USER_FOREGROUND,
                         (intent) ->((UserHandle)
                                 intent.getParcelableExtra(Intent.EXTRA_USER))
                                 .getIdentifier() == mId);
 
         try {
-            if (Versions.meetsMinimumSdkVersionRequirement(R)) {
-                try (PermissionContext p =
-                             TestApis.permissions().withPermission(INTERACT_ACROSS_USERS_FULL)) {
-                    broadcastReceiver.registerForAllUsers();
-                }
+            try (PermissionContext p =
+                         mTestApis.permissions().withPermission(INTERACT_ACROSS_USERS_FULL)) {
+                broadcastReceiver.registerForAllUsers();
             }
 
             // Expects no output on success or failure
@@ -220,264 +171,14 @@ public class UserReference implements AutoCloseable {
                     .validate(String::isEmpty)
                     .execute();
 
-            if (Versions.meetsMinimumSdkVersionRequirement(R)) {
-                broadcastReceiver.awaitForBroadcast();
-            } else {
-                Thread.sleep(20000);
-            }
+            broadcastReceiver.awaitForBroadcast();
         } catch (AdbException e) {
             throw new NeneException("Could not switch to user", e);
-        } catch (InterruptedException e) {
-            Log.e(LOG_TAG, "Interrupted while switching user", e);
         } finally {
             broadcastReceiver.unregisterQuietly();
         }
 
         return this;
-    }
-
-    /** Get the serial number of the user. */
-    public long serialNo() {
-        if (mSerialNo == null) {
-            mSerialNo = TestApis.context().instrumentedContext().getSystemService(UserManager.class)
-                    .getSerialNumberForUser(userHandle());
-
-            if (mSerialNo == -1) {
-                mSerialNo = null;
-                throw new NeneException("User does not exist " + this);
-            }
-        }
-
-        return mSerialNo;
-    }
-
-    /** Get the name of the user. */
-    public String name() {
-        if (mName == null) {
-            if (!Versions.meetsMinimumSdkVersionRequirement(S)) {
-                mName = adbUser().name();
-            } else {
-                try (PermissionContext p = TestApis.permissions().withPermission(CREATE_USERS)) {
-                    mName = TestApis.context().androidContextAsUser(this)
-                            .getSystemService(UserManager.class)
-                            .getUserName();
-                }
-                if (mName.equals("")) {
-                    if (!exists()) {
-                        mName = null;
-                        throw new NeneException("User does not exist " + this);
-                    }
-                }
-            }
-        }
-
-        return mName;
-    }
-
-    /** Is the user running? */
-    public boolean isRunning() {
-        if (!Versions.meetsMinimumSdkVersionRequirement(S)) {
-            AdbUser adbUser = adbUserOrNull();
-            if (adbUser == null) {
-                return false;
-            }
-            return RUNNING_STATES.contains(adbUser().state());
-        }
-        try (PermissionContext p = TestApis.permissions().withPermission(INTERACT_ACROSS_USERS)) {
-            return mUserManager.isUserRunning(userHandle());
-        }
-    }
-
-    /** Is the user unlocked? */
-    public boolean isUnlocked() {
-        if (!Versions.meetsMinimumSdkVersionRequirement(S)) {
-            AdbUser adbUser = adbUserOrNull();
-            if (adbUser == null) {
-                return false;
-            }
-            return adbUser.state().equals(AdbUser.UserState.RUNNING_UNLOCKED);
-        }
-        try (PermissionContext p = TestApis.permissions().withPermission(INTERACT_ACROSS_USERS)) {
-            return mUserManager.isUserUnlocked(userHandle());
-        }
-    }
-
-    /**
-     * Get the user type.
-     */
-    public UserType type() {
-        if (mUserType == null) {
-            if (!Versions.meetsMinimumSdkVersionRequirement(S)) {
-                mUserType = adbUser().type();
-            } else {
-                try (PermissionContext p = TestApis.permissions().withPermission(CREATE_USERS)) {
-                    String userTypeName = mUserManager.getUserType();
-                    if (userTypeName.equals("")) {
-                        throw new NeneException("User does not exist " + this);
-                    }
-                    mUserType = TestApis.users().supportedType(userTypeName);
-                }
-            }
-        }
-        return mUserType;
-    }
-
-    /**
-     * Return {@code true} if this is the primary user.
-     */
-    public Boolean isPrimary() {
-        if (mIsPrimary == null) {
-            if (!Versions.meetsMinimumSdkVersionRequirement(S)) {
-                mIsPrimary = adbUser().isPrimary();
-            } else {
-                mIsPrimary = userInfo().isPrimary();
-            }
-        }
-
-        return mIsPrimary;
-    }
-
-    /**
-     * Return the parent of this profile.
-     *
-     * <p>Returns {@code null} if this user is not a profile.
-     */
-    @Nullable
-    public UserReference parent() {
-        if (!mParentCached) {
-            if (!Versions.meetsMinimumSdkVersionRequirement(S)) {
-                mParent = adbUser().parent();
-            } else {
-                try (PermissionContext p =
-                             TestApis.permissions().withPermission(INTERACT_ACROSS_USERS)) {
-                    UserHandle parentHandle = mUserManager.getProfileParent(userHandle());
-                    if (parentHandle == null) {
-                        if (!exists()) {
-                            throw new NeneException("User does not exist " + this);
-                        }
-
-                        mParent = null;
-                    } else {
-                        mParent = TestApis.users().find(parentHandle);
-                    }
-                }
-            }
-            mParentCached = true;
-        }
-
-        return mParent;
-    }
-
-    /**
-     * Return {@code true} if a user with this ID exists.
-     */
-    public boolean exists() {
-        if (!Versions.meetsMinimumSdkVersionRequirement(S)) {
-            return TestApis.users().all().stream().anyMatch(u -> u.equals(this));
-        }
-        return users().anyMatch(ui -> ui.id == id());
-    }
-
-    /**
-     * Sets the value of {@code user_setup_complete} in secure settings to {@code complete}.
-     */
-    @Experimental
-    public void setSetupComplete(boolean complete) {
-        if (!Versions.meetsMinimumSdkVersionRequirement(S)) {
-            return;
-        }
-        DevicePolicyManager devicePolicyManager =
-                TestApis.context().androidContextAsUser(this)
-                        .getSystemService(DevicePolicyManager.class);
-        TestApis.settings().secure().putInt(
-                /* user= */ this, USER_SETUP_COMPLETE_KEY, complete ? 1 : 0);
-        try (PermissionContext p =
-                     TestApis.permissions().withPermission(MANAGE_PROFILE_AND_DEVICE_OWNERS)) {
-            devicePolicyManager.forceUpdateUserSetupComplete(id());
-        }
-    }
-
-    /**
-     * Gets the value of {@code user_setup_complete} from secure settings.
-     */
-    @Experimental
-    public boolean getSetupComplete() {
-        try (PermissionContext p = TestApis.permissions().withPermission(CREATE_USERS)) {
-            return TestApis.settings().secure()
-                    .getInt(/*user= */ this, USER_SETUP_COMPLETE_KEY, /* def= */ 0) == 1;
-        }
-    }
-
-    /**
-     * True if the user has a password.
-     */
-    public boolean hasPassword() {
-        return TestApis.context().androidContextAsUser(this)
-                .getSystemService(KeyguardManager.class).isDeviceSecure();
-    }
-
-    /**
-     * Set a password for the user.
-     */
-    public void setPassword(String password) {
-        try {
-            ShellCommand.builder("cmd lock_settings")
-                    .addOperand("set-password")
-                    .addOperand(password)
-                    .addOption("--user", mId)
-                    .validate(s -> s.startsWith("Password set to "))
-                    .execute();
-        } catch (AdbException e) {
-            throw new NeneException("Error setting password", e);
-        }
-        mPassword = password;
-    }
-
-    /**
-     * Clear the password for the user, using the password that was last set using Nene.
-     */
-    public void clearPassword() {
-        if (mPassword == null) {
-            throw new NeneException(
-                    "clearPassword() can only be called when setPassword was used to set the"
-                            + " password");
-        }
-        clearPassword(mPassword);
-    }
-
-    /**
-     * Clear the password for the user.
-     */
-    public void clearPassword(String password) {
-
-        try {
-            ShellCommand.builder("cmd lock_settings")
-                    .addOperand("clear")
-                    .addOption("--old", password)
-                    .addOption("--user", mId)
-                    .validate(s -> s.startsWith("Lock credential cleared"))
-                    .execute();
-        } catch (AdbException e) {
-            if (e.output().contains("user has no password")) {
-                // No password anyway, fine
-                mPassword = null;
-                return;
-            }
-            throw new NeneException("Error clearing password", e);
-        }
-
-        mPassword = null;
-    }
-
-    /**
-     * Returns the password for this user if that password was set using Nene.
-     *
-     *
-     * <p>If there is no password, or the password was not set using Nene, then this will
-     * return {@code null}.
-     */
-    public @Nullable String password() {
-        return mPassword;
     }
 
     @Override
@@ -500,27 +201,5 @@ public class UserReference implements AutoCloseable {
     @Override
     public void close() {
         remove();
-    }
-
-    private AdbUser adbUserOrNull() {
-        return TestApis.users().fetchUser(mId);
-    }
-
-    private AdbUser adbUser() {
-        AdbUser user = adbUserOrNull();
-        if (user == null) {
-            throw new NeneException("User does not exist " + this);
-        }
-        return user;
-    }
-
-    private UserInfo userInfo() {
-        return users().filter(ui -> ui.id == id()).findFirst()
-                .orElseThrow(() -> new NeneException("User does not exist " + this));
-    }
-
-    @Override
-    public String toString() {
-        return "User{id=" + id() + "}";
     }
 }

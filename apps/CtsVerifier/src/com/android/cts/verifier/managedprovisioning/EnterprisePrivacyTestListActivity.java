@@ -16,14 +16,13 @@
 
 package com.android.cts.verifier.managedprovisioning;
 
-import static com.android.cts.verifier.managedprovisioning.Utils.createInteractiveTestItem;
-
 import android.Manifest;
 import android.app.admin.DevicePolicyManager;
+import android.content.ComponentName;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.database.DataSetObserver;
 import android.os.Bundle;
-import android.os.UserManager;
 import android.provider.Settings;
 
 import com.android.cts.verifier.ArrayTestListAdapter;
@@ -31,7 +30,8 @@ import com.android.cts.verifier.IntentDrivenTestActivity.ButtonInfo;
 import com.android.cts.verifier.PassFailButtons;
 import com.android.cts.verifier.R;
 import com.android.cts.verifier.TestListAdapter.TestListItem;
-import com.android.cts.verifier.features.FeatureUtil;
+
+import static com.android.cts.verifier.managedprovisioning.Utils.createInteractiveTestItem;
 
 /**
  * Test class to verify privacy information is shown for devices managed by a Device Owner.
@@ -92,12 +92,6 @@ public class EnterprisePrivacyTestListActivity extends PassFailButtons.TestListA
                 .putExtra(CommandReceiverActivity.EXTRA_COMMAND, command);
     }
 
-    private Intent buildCommandIntentForCurrentUser(String command) {
-        return buildCommandIntent(command)
-                .putExtra(CommandReceiverActivity.EXTRA_USE_CURRENT_USER_DPM, true);
-    }
-
-
     private TestListItem buildCommandTest(String id, int titleRes, int infoRes,
             int commandButtonRes, String command) {
         return createInteractiveTestItem(this, id, titleRes, infoRes,
@@ -111,14 +105,12 @@ public class EnterprisePrivacyTestListActivity extends PassFailButtons.TestListA
             String permission) {
         return createInteractiveTestItem(this, id, titleRes, infoRes,
                 new ButtonInfo[] {
-                        new ButtonInfo(R.string.enterprise_privacy_reset,
-                                buildCommandIntentForCurrentUser(
+                        new ButtonInfo(R.string.enterprise_privacy_reset, buildCommandIntent(
                                 CommandReceiverActivity.COMMAND_SET_PERMISSION_GRANT_STATE)
                                 .putExtra(CommandReceiverActivity.EXTRA_PERMISSION, permission)
                                 .putExtra(CommandReceiverActivity.EXTRA_GRANT_STATE,
                                         DevicePolicyManager.PERMISSION_GRANT_STATE_DEFAULT)),
-                        new ButtonInfo(R.string.enterprise_privacy_grant,
-                                buildCommandIntentForCurrentUser(
+                        new ButtonInfo(R.string.enterprise_privacy_grant, buildCommandIntent(
                                 CommandReceiverActivity.COMMAND_SET_PERMISSION_GRANT_STATE)
                                 .putExtra(CommandReceiverActivity.EXTRA_PERMISSION, permission)
                                 .putExtra(CommandReceiverActivity.EXTRA_GRANT_STATE,
@@ -147,17 +139,15 @@ public class EnterprisePrivacyTestListActivity extends PassFailButtons.TestListA
                 R.string.enterprise_privacy_security_logging_info,
                 R.string.enterprise_privacy_retrieve_security_logs,
                 CommandReceiverActivity.COMMAND_RETRIEVE_SECURITY_LOGS));
-        int installedAppsInfoResId = UserManager.isHeadlessSystemUserMode()
-                ? R.string.enterprise_privacy_enterprise_installed_apps_info_headless_system_user
-                : R.string.enterprise_privacy_enterprise_installed_apps_info;
         adapter.add(createInteractiveTestItem(this, ENTERPRISE_PRIVACY_ENTERPRISE_INSTALLED_APPS,
-                R.string.enterprise_privacy_enterprise_installed_apps, installedAppsInfoResId,
+                R.string.enterprise_privacy_enterprise_installed_apps,
+                R.string.enterprise_privacy_enterprise_installed_apps_info,
                 new ButtonInfo[] {
                         new ButtonInfo(R.string.enterprise_privacy_install,
-                                buildCommandIntentForCurrentUser(
+                                buildCommandIntent(
                                         CommandReceiverActivity.COMMAND_INSTALL_HELPER_PACKAGE)),
                         new ButtonInfo(R.string.enterprise_privacy_uninstall,
-                                buildCommandIntentForCurrentUser(CommandReceiverActivity
+                                buildCommandIntent(CommandReceiverActivity
                                         .COMMAND_UNINSTALL_HELPER_PACKAGE)),
                         new ButtonInfo(R.string.enterprise_privacy_open_settings,
                                 new Intent(Settings.ACTION_ENTERPRISE_PRIVACY_SETTINGS))}));
@@ -179,11 +169,11 @@ public class EnterprisePrivacyTestListActivity extends PassFailButtons.TestListA
                 new ButtonInfo[] {
                         new ButtonInfo(R.string.enterprise_privacy_open_settings,
                                 new Intent(Settings.ACTION_ENTERPRISE_PRIVACY_SETTINGS)),
-                        new ButtonInfo(R.string.enterprise_privacy_reset,
-                                buildCommandIntentForCurrentUser(CommandReceiverActivity
+                        new ButtonInfo(R.string.enterprise_privacy_reset, buildCommandIntent(
+                                CommandReceiverActivity
                                         .COMMAND_CLEAR_PERSISTENT_PREFERRED_ACTIVITIES)),
                         new ButtonInfo(R.string.enterprise_privacy_set_default_apps,
-                                buildCommandIntentForCurrentUser(CommandReceiverActivity
+                                buildCommandIntent(CommandReceiverActivity
                                         .COMMAND_ADD_PERSISTENT_PREFERRED_ACTIVITIES))}));
         adapter.add(createInteractiveTestItem(this, ENTERPRISE_PRIVACY_DEFAULT_IME,
                 R.string.enterprise_privacy_default_ime,
@@ -192,12 +182,11 @@ public class EnterprisePrivacyTestListActivity extends PassFailButtons.TestListA
                         new ButtonInfo(R.string.enterprise_privacy_open_settings,
                                 new Intent(Settings.ACTION_ENTERPRISE_PRIVACY_SETTINGS)),
                         new ButtonInfo(R.string.enterprise_privacy_set_keyboard,
-                                buildCommandIntentForCurrentUser(
-                                        CommandReceiverActivity.COMMAND_SET_DEFAULT_IME)),
+                                buildCommandIntent(CommandReceiverActivity
+                                        .COMMAND_SET_DEFAULT_IME)),
                         new ButtonInfo(R.string.enterprise_privacy_finish,
-                                buildCommandIntentForCurrentUser(
-                                        CommandReceiverActivity.COMMAND_CLEAR_DEFAULT_IME))
-                }));
+                                buildCommandIntent(CommandReceiverActivity
+                                        .COMMAND_CLEAR_DEFAULT_IME))}));
         adapter.add(createInteractiveTestItem(this, ENTERPRISE_PRIVACY_ALWAYS_ON_VPN,
                 R.string.enterprise_privacy_always_on_vpn,
                 R.string.enterprise_privacy_always_on_vpn_info,
@@ -243,10 +232,10 @@ public class EnterprisePrivacyTestListActivity extends PassFailButtons.TestListA
                             new ButtonInfo(R.string.enterprise_privacy_open_settings,
                                     new Intent(Settings.ACTION_ENTERPRISE_PRIVACY_SETTINGS)),
                             new ButtonInfo(R.string.enterprise_privacy_set_limit,
-                                    buildCommandIntentForCurrentUser(CommandReceiverActivity
+                                    buildCommandIntent(CommandReceiverActivity
                                             .COMMAND_SET_MAXIMUM_PASSWORD_ATTEMPTS)),
                             new ButtonInfo(R.string.enterprise_privacy_finish,
-                                    buildCommandIntentForCurrentUser(CommandReceiverActivity
+                                    buildCommandIntent(CommandReceiverActivity
                                             .COMMAND_CLEAR_MAXIMUM_PASSWORD_ATTEMPTS))}));
         }
         adapter.add(createInteractiveTestItem(this, ENTERPRISE_PRIVACY_QUICK_SETTINGS,
@@ -261,8 +250,7 @@ public class EnterprisePrivacyTestListActivity extends PassFailButtons.TestListA
                                         CommandReceiverActivity.COMMAND_SET_ORGANIZATION_NAME)
                                         .putExtra(CommandReceiverActivity.EXTRA_ORGANIZATION_NAME,
                                                 "Foo, Inc."))}));
-        if (Utils.isLockscreenSupported(this)
-                && FeatureUtil.isKeyguardShownWhenUserDoesntHaveCredentials(this)) {
+        if (Utils.isLockscreenSupported(this)) {
             adapter.add(createInteractiveTestItem(this, ENTERPRISE_PRIVACY_KEYGUARD,
                     R.string.enterprise_privacy_keyguard,
                     R.string.enterprise_privacy_keyguard_info,

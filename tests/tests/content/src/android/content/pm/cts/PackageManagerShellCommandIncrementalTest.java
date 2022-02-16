@@ -78,7 +78,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -104,16 +103,6 @@ public class PackageManagerShellCommandIncrementalTest {
     private static final String TEST_APK_SPLIT2 = "HelloWorld5_xhdpi-v4.apk";
     private static final String TEST_APK_SPLIT2_IDSIG = "HelloWorld5_xhdpi-v4.apk.idsig";
     private static final String TEST_APK_MALFORMED = "malformed.apk";
-
-    private static final String TEST_HW7 = "HelloWorld7.apk";
-    private static final String TEST_HW7_IDSIG = "HelloWorld7.apk.idsig";
-    private static final String TEST_HW7_SPLIT0 = "HelloWorld7_hdpi-v4.apk";
-    private static final String TEST_HW7_SPLIT0_IDSIG = "HelloWorld7_hdpi-v4.apk.idsig";
-    private static final String TEST_HW7_SPLIT1 = "HelloWorld7_mdpi-v4.apk";
-    private static final String TEST_HW7_SPLIT1_IDSIG = "HelloWorld7_mdpi-v4.apk.idsig";
-    private static final String TEST_HW7_SPLIT2 = "HelloWorld7_xhdpi-v4.apk";
-    private static final String TEST_HW7_SPLIT3 = "HelloWorld7_xxhdpi-v4.apk";
-    private static final String TEST_HW7_SPLIT4 = "HelloWorld7_xxxhdpi-v4.apk";
 
     private static final long EXPECTED_READ_TIME = 1000L;
 
@@ -213,8 +202,6 @@ public class PackageManagerShellCommandIncrementalTest {
         final long blockSize = Os.statvfs("/data/incremental").f_bsize;
         final long preAllocatedBlocks = Os.statvfs("/data/incremental").f_bfree;
 
-        final AtomicLong freeSpaceDifference = new AtomicLong(-1L);
-
         mSession =
                 new IncrementalInstallSession.Builder()
                         .addApk(Paths.get(apk), Paths.get(idsig))
@@ -229,8 +216,10 @@ public class PackageManagerShellCommandIncrementalTest {
                             try {
                                 final long postAllocatedBlocks =
                                         Os.statvfs("/data/incremental").f_bfree;
-                                freeSpaceDifference.set(
-                                        (preAllocatedBlocks - postAllocatedBlocks) * blockSize);
+                                final long freeSpaceDifference =
+                                        (preAllocatedBlocks - postAllocatedBlocks) * blockSize;
+                                assertTrue(freeSpaceDifference
+                                        >= ((appFileSize * 1.015) + blockSize * 8));
                             } catch (Exception e) {
                                 Log.i(TAG, "ErrnoException: ", e);
                                 throw new AssertionError(e);
@@ -249,10 +238,6 @@ public class PackageManagerShellCommandIncrementalTest {
         }
 
         assertTrue(isAppInstalled(TEST_APP_PACKAGE));
-
-        final double freeSpaceExpectedDifference = ((appFileSize * 1.015) + blockSize * 8);
-        assertTrue(freeSpaceDifference.get() + " >= " + freeSpaceExpectedDifference,
-                freeSpaceDifference.get() >= freeSpaceExpectedDifference);
 
         String installPath = executeShellCommand(String.format("pm path %s", TEST_APP_PACKAGE))
                                         .replaceFirst("package:", "")
@@ -760,12 +745,12 @@ public class PackageManagerShellCommandIncrementalTest {
 
         mSession =
                 new IncrementalInstallSession.Builder()
-                        .addApk(Paths.get(createApkPath(TEST_HW7)),
-                                Paths.get(createApkPath(TEST_HW7_IDSIG)))
-                        .addApk(Paths.get(createApkPath(TEST_HW7_SPLIT0)),
-                                Paths.get(createApkPath(TEST_HW7_SPLIT0_IDSIG)))
-                        .addApk(Paths.get(createApkPath(TEST_HW7_SPLIT1)),
-                                Paths.get(createApkPath(TEST_HW7_SPLIT1_IDSIG)))
+                        .addApk(Paths.get(createApkPath(TEST_APK)),
+                                Paths.get(createApkPath(TEST_APK_IDSIG)))
+                        .addApk(Paths.get(createApkPath(TEST_APK_SPLIT0)),
+                                Paths.get(createApkPath(TEST_APK_SPLIT0_IDSIG)))
+                        .addApk(Paths.get(createApkPath(TEST_APK_SPLIT1)),
+                                Paths.get(createApkPath(TEST_APK_SPLIT1_IDSIG)))
                         .addExtraArgs("-t", "-i", CTS_PACKAGE_NAME)
                         .setLogger(new IncrementalDeviceConnection.Logger())
                         .build();
@@ -793,9 +778,6 @@ public class PackageManagerShellCommandIncrementalTest {
             final File apkToRead = getSplit("split_config.mdpi.apk");
             final long readTime0 = readAndReportTime(apkToRead, 1000);
 
-            if (readTime0 < EXPECTED_READ_TIME) {
-                executeShellCommand("atrace --async-dump");
-            }
             assertTrue(
                     "Must take longer than " + EXPECTED_READ_TIME + "ms: time0=" + readTime0 + "ms",
                     readTime0 >= EXPECTED_READ_TIME);

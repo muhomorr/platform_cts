@@ -30,7 +30,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.HandlerThread;
@@ -46,11 +45,8 @@ import android.view.inputmethod.ExtractedTextRequest;
 import android.view.inputmethod.InputConnection;
 import android.view.inputmethod.InputContentInfo;
 import android.view.inputmethod.InputMethodManager;
-import android.view.inputmethod.TextAttribute;
 
-import androidx.annotation.AnyThread;
 import androidx.annotation.GuardedBy;
-import androidx.annotation.IntRange;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
@@ -79,9 +75,6 @@ public class MockImeSession implements AutoCloseable {
     private final Context mContext;
     @NonNull
     private final UiAutomation mUiAutomation;
-
-    @NonNull
-    private final AtomicBoolean mActive = new AtomicBoolean(true);
 
     private final HandlerThread mHandlerThread = new HandlerThread("EventReceiver");
 
@@ -218,15 +211,9 @@ public class MockImeSession implements AutoCloseable {
         writeMockImeSettings(mContext, mImeEventActionName, imeSettings);
 
         mHandlerThread.start();
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            mContext.registerReceiver(mEventReceiver,
-                    new IntentFilter(mImeEventActionName), null /* broadcastPermission */,
-                    new Handler(mHandlerThread.getLooper()), Context.RECEIVER_EXPORTED);
-        } else {
-            mContext.registerReceiver(mEventReceiver,
-                    new IntentFilter(mImeEventActionName), null /* broadcastPermission */,
-                    new Handler(mHandlerThread.getLooper()));
-        }
+        mContext.registerReceiver(mEventReceiver,
+                new IntentFilter(mImeEventActionName), null /* broadcastPermission */,
+                new Handler(mHandlerThread.getLooper()));
 
         executeShellCommand(mUiAutomation, "ime enable " + getMockImeId());
         executeShellCommand(mUiAutomation, "ime set " + getMockImeId());
@@ -305,20 +292,10 @@ public class MockImeSession implements AutoCloseable {
     }
 
     /**
-     * @return {@code true} until {@link #close()} gets called.
-     */
-    @AnyThread
-    public boolean isActive() {
-        return mActive.get();
-    }
-
-    /**
      * Closes the active session and de-selects {@link MockIme}. Currently which IME will be
      * selected next is up to the system.
      */
     public void close() throws Exception {
-        mActive.set(false);
-
         executeShellCommand(mUiAutomation, "ime reset");
 
         PollingCheck.check("Make sure that MockIME becomes unavailable", TIMEOUT, () ->
@@ -463,36 +440,6 @@ public class MockImeSession implements AutoCloseable {
     }
 
     /**
-     * Lets {@link MockIme} to call {@link InputConnection#getSurroundingText(int, int, int)} with
-     * the given parameters.
-     *
-     * <p>This triggers {@code getCurrentInputConnection().getSurroundingText(int, int, int)}.</p>
-     *
-     * <p>Use {@link ImeEvent#getReturnParcelableValue()} for {@link ImeEvent} returned from
-     * {@link ImeEventStreamTestUtils#expectCommand(ImeEventStream, ImeCommand, long)} to see the
-     * value returned from the API.</p>
-     *
-     * <p>This can be affected by {@link #memorizeCurrentInputConnection()}.</p>
-     *
-     * @param beforeLength The expected length of the text before the cursor.
-     * @param afterLength The expected length of the text after the cursor.
-     * @param flags Supplies additional options controlling how the text is returned. May be either
-     *              {@code 0} or {@link InputConnection#GET_TEXT_WITH_STYLES}.
-     * @return {@link ImeCommand} object that can be passed to
-     *         {@link ImeEventStreamTestUtils#expectCommand(ImeEventStream, ImeCommand, long)} to
-     *         wait until this event is handled by {@link MockIme}.
-     */
-    @NonNull
-    public ImeCommand callGetSurroundingText(@IntRange(from = 0) int beforeLength,
-            @IntRange(from = 0) int afterLength, int flags) {
-        final Bundle params = new Bundle();
-        params.putInt("beforeLength", beforeLength);
-        params.putInt("afterLength", afterLength);
-        params.putInt("flags", flags);
-        return callCommandInternal("getSurroundingText", params);
-    }
-
-    /**
      * Lets {@link MockIme} to call {@link InputConnection#getCursorCapsMode(int)} with the given
      * parameters.
      *
@@ -622,39 +569,7 @@ public class MockImeSession implements AutoCloseable {
         final Bundle params = new Bundle();
         params.putCharSequence("text", text);
         params.putInt("newCursorPosition", newCursorPosition);
-        return callCommandInternal("setComposingText(CharSequence,int)", params);
-    }
-
-    /**
-     * Lets {@link MockIme} to call
-     * {@link InputConnection#setComposingText(CharSequence, int, TextAttribute)} with the given
-     * parameters.
-     *
-     * <p>This triggers
-     * {@code getCurrentInputConnection().setComposingText(text, newCursorPosition, textAttribute)}.
-     * </p>
-     *
-     * <p>Use {@link ImeEvent#getReturnBooleanValue()} for {@link ImeEvent} returned from
-     * {@link ImeEventStreamTestUtils#expectCommand(ImeEventStream, ImeCommand, long)} to see the
-     * value returned from the API.</p>
-     *
-     * <p>This can be affected by {@link #memorizeCurrentInputConnection()}.</p>
-     *
-     * @param text to be passed as the {@code text} parameter
-     * @param newCursorPosition to be passed as the {@code newCursorPosition} parameter
-     * @param textAttribute to be passed as the {@code textAttribute} parameter
-     * @return {@link ImeCommand} object that can be passed to
-     *         {@link ImeEventStreamTestUtils#expectCommand(ImeEventStream, ImeCommand, long)} to
-     *         wait until this event is handled by {@link MockIme}
-     */
-    @NonNull
-    public ImeCommand callSetComposingText(@Nullable CharSequence text, int newCursorPosition,
-            @Nullable TextAttribute textAttribute) {
-        final Bundle params = new Bundle();
-        params.putCharSequence("text", text);
-        params.putInt("newCursorPosition", newCursorPosition);
-        params.putParcelable("textAttribute", textAttribute);
-        return callCommandInternal("setComposingText(CharSequence,int,TextAttribute)", params);
+        return callCommandInternal("setComposingText", params);
     }
 
     /**
@@ -680,37 +595,7 @@ public class MockImeSession implements AutoCloseable {
         final Bundle params = new Bundle();
         params.putInt("start", start);
         params.putInt("end", end);
-        return callCommandInternal("setComposingRegion(int,int)", params);
-    }
-
-    /**
-     * Lets {@link MockIme} to call
-     * {@link InputConnection#setComposingRegion(int, int, TextAttribute)} with the given
-     * parameters.
-     *
-     * <p>This triggers
-     * {@code getCurrentInputConnection().setComposingRegion(start, end, TextAttribute)}.</p>
-     *
-     * <p>Use {@link ImeEvent#getReturnBooleanValue()} for {@link ImeEvent} returned from
-     * {@link ImeEventStreamTestUtils#expectCommand(ImeEventStream, ImeCommand, long)} to see the
-     * value returned from the API.</p>
-     *
-     * <p>This can be affected by {@link #memorizeCurrentInputConnection()}.</p>
-     *
-     * @param start to be passed as the {@code start} parameter
-     * @param end to be passed as the {@code end} parameter
-     * @return {@link ImeCommand} object that can be passed to
-     *         {@link ImeEventStreamTestUtils#expectCommand(ImeEventStream, ImeCommand, long)} to
-     *         wait until this event is handled by {@link MockIme}.
-     */
-    @NonNull
-    public ImeCommand callSetComposingRegion(int start, int end,
-            @Nullable TextAttribute textAttribute) {
-        final Bundle params = new Bundle();
-        params.putInt("start", start);
-        params.putInt("end", end);
-        params.putParcelable("textAttribute", textAttribute);
-        return callCommandInternal("setComposingRegion(int,int,TextAttribute)", params);
+        return callCommandInternal("setComposingRegion", params);
     }
 
     /**
@@ -758,37 +643,7 @@ public class MockImeSession implements AutoCloseable {
         final Bundle params = new Bundle();
         params.putCharSequence("text", text);
         params.putInt("newCursorPosition", newCursorPosition);
-        return callCommandInternal("commitText(CharSequence,int)", params);
-    }
-
-    /**
-     * Lets {@link MockIme} to call
-     * {@link InputConnection#commitText(CharSequence, int, TextAttribute)} with the given
-     * parameters.
-     *
-     * <p>This triggers
-     * {@code getCurrentInputConnection().commitText(text, newCursorPosition, TextAttribute)}.</p>
-     *
-     * <p>Use {@link ImeEvent#getReturnBooleanValue()} for {@link ImeEvent} returned from
-     * {@link ImeEventStreamTestUtils#expectCommand(ImeEventStream, ImeCommand, long)} to see the
-     * value returned from the API.</p>
-     *
-     * <p>This can be affected by {@link #memorizeCurrentInputConnection()}.</p>
-     *
-     * @param text to be passed as the {@code text} parameter
-     * @param newCursorPosition to be passed as the {@code newCursorPosition} parameter
-     * @return {@link ImeCommand} object that can be passed to
-     *         {@link ImeEventStreamTestUtils#expectCommand(ImeEventStream, ImeCommand, long)} to
-     *         wait until this event is handled by {@link MockIme}
-     */
-    @NonNull
-    public ImeCommand callCommitText(@Nullable CharSequence text, int newCursorPosition,
-            @Nullable TextAttribute textAttribute) {
-        final Bundle params = new Bundle();
-        params.putCharSequence("text", text);
-        params.putInt("newCursorPosition", newCursorPosition);
-        params.putParcelable("textAttribute", textAttribute);
-        return callCommandInternal("commitText(CharSequence,int,TextAttribute)", params);
+        return callCommandInternal("commitText", params);
     }
 
     /**
@@ -998,22 +853,6 @@ public class MockImeSession implements AutoCloseable {
     }
 
     /**
-     * Lets {@link MockIme} to call {@link InputConnection#takeSnapshot()}.
-     *
-     * <p>This triggers {@code getCurrentInputConnection().takeSnapshot()}.</p>
-     *
-     * <p>This can be affected by {@link #memorizeCurrentInputConnection()}.</p>
-
-     * @return {@link ImeCommand} object that can be passed to
-     *         {@link ImeEventStreamTestUtils#expectCommand(ImeEventStream, ImeCommand, long)} to
-     *         wait until this event is handled by {@link MockIme}
-     */
-    @NonNull
-    public ImeCommand callTakeSnapshot() {
-        return callCommandInternal("takeSnapshot", new Bundle());
-    }
-
-    /**
      * Lets {@link MockIme} to call {@link InputConnection#clearMetaKeyStates(int)} with the given
      * parameters.
      *
@@ -1185,30 +1024,6 @@ public class MockImeSession implements AutoCloseable {
     }
 
     /**
-     * Lets {@link MockIme} to call {@link InputConnection#setImeConsumesInput(boolean)} with the
-     * given parameters.
-     *
-     * <p>This triggers {@code getCurrentInputConnection().setImeConsumesInput(boolean)}.</p>
-     *
-     * <p>Use {@link ImeEvent#getReturnBooleanValue()} for {@link ImeEvent} returned from
-     * {@link ImeEventStreamTestUtils#expectCommand(ImeEventStream, ImeCommand, long)} to see the
-     * value returned from the API.</p>
-     *
-     * <p>This can be affected by {@link #memorizeCurrentInputConnection()}.</p>
-     *
-     * @param imeConsumesInput to be passed as the {@code imeConsumesInput} parameter
-     * @return {@link ImeCommand} object that can be passed to
-     *         {@link ImeEventStreamTestUtils#expectCommand(ImeEventStream, ImeCommand, long)} to
-     *         wait until this event is handled by {@link MockIme}
-     */
-    @NonNull
-    public ImeCommand callSetImeConsumesInput(boolean imeConsumesInput) {
-        final Bundle params = new Bundle();
-        params.putBoolean("imeConsumesInput", imeConsumesInput);
-        return callCommandInternal("setImeConsumesInput", params);
-    }
-
-    /**
      * Lets {@link MockIme} to call
      * {@link android.inputmethodservice.InputMethodService#setBackDisposition(int)} with the given
      * parameters.
@@ -1336,18 +1151,8 @@ public class MockImeSession implements AutoCloseable {
     }
 
     @NonNull
-    public ImeCommand callVerifyExtractViewNotNull() {
-        return callCommandInternal("verifyExtractViewNotNull", new Bundle());
-    }
-
-    @NonNull
     public ImeCommand callVerifyGetDisplay() {
         return callCommandInternal("verifyGetDisplay", new Bundle());
-    }
-
-    @NonNull
-    public ImeCommand callVerifyIsUiContext() {
-        return callCommandInternal("verifyIsUiContext", new Bundle());
     }
 
     @NonNull
@@ -1378,30 +1183,5 @@ public class MockImeSession implements AutoCloseable {
     @NonNull
     public ImeCommand callVerifyGetGestureDetectorOnDisplayContext() {
         return callCommandInternal("verifyGetGestureDetectorOnDisplayContext", new Bundle());
-    }
-
-    @NonNull
-    public ImeCommand callGetStylusHandwritingWindowVisibility() {
-        return callCommandInternal("getStylusHandwritingWindowVisibility", new Bundle());
-    }
-
-    @NonNull
-    public ImeCommand callSetStylusHandwritingWindowTouchListener() {
-        return callCommandInternal("setStylusHandwritingWindowTouchListener", new Bundle());
-    }
-
-    @NonNull
-    public ImeCommand callGetStylusHandwritingWindowEvents() {
-        return callCommandInternal("getStylusHandwritingWindowEvents", new Bundle());
-    }
-
-    @NonNull
-    public ImeCommand callFinishStylusHandwriting() {
-        return callCommandInternal("finishStylusHandwriting", new Bundle());
-    }
-
-    @NonNull
-    public ImeCommand callGetCurrentWindowMetricsBounds() {
-        return callCommandInternal("getCurrentWindowMetricsBounds", new Bundle());
     }
 }

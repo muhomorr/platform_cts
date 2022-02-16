@@ -109,10 +109,6 @@ public class WindowTest {
     private ProjectedPresentation mPresentation;
     private VirtualDisplay mVirtualDisplay;
 
-    /** Used by {@link #setMayAffectDisplayRotation()}. */
-    private WindowManagerStateHelper mWmState;
-    private int mOriginalRotation = -1;
-
     @Rule
     public ActivityTestRule<WindowCtsActivity> mActivityRule =
             new ActivityTestRule<>(WindowCtsActivity.class);
@@ -134,16 +130,9 @@ public class WindowTest {
     }
 
     @After
-    public void tearDown() {
+    public void teardown() {
         if (mActivity != null) {
             mActivity.setFlagFalse();
-        }
-        if (mOriginalRotation >= 0) {
-            // The test might launch an activity that changes display rotation. Finish the
-            // activity explicitly and wait for the original rotation to avoid the rotation
-            // affects the next test.
-            mActivityRule.finishActivity();
-            mWmState.waitForRotation(mOriginalRotation);
         }
     }
 
@@ -315,7 +304,7 @@ public class WindowTest {
         v.clearFocus();
         assertNull(mWindow.getCurrentFocus());
 
-        v.setFocusableInTouchMode(true);
+        v.setFocusable(true);
         assertTrue(v.isFocusable());
         assertTrue(v.requestFocus());
         View focus = mWindow.getCurrentFocus();
@@ -676,7 +665,6 @@ public class WindowTest {
     @Test
     public void testSetFitsContentForInsets_displayCutoutInsets_areApplied()
             throws Throwable {
-        setMayAffectDisplayRotation();
         mActivityRule.runOnUiThread(() -> {
             mActivity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
             mWindow.setDecorFitsSystemWindows(true);
@@ -809,16 +797,6 @@ public class WindowTest {
                 x, y, 0);
         upEvent.setSource(InputDevice.SOURCE_TOUCHSCREEN);
         window.injectInputEvent(upEvent);
-    }
-
-    /**
-     * Stores the current rotation of device so {@link #tearDown()} can wait for the device to
-     * restore to its previous rotation.
-     */
-    private void setMayAffectDisplayRotation() {
-        mWmState = new WindowManagerStateHelper();
-        mWmState.computeState();
-        mOriginalRotation = mWmState.getRotation();
     }
 
     private void createPresentation(final Surface surface, final int width,

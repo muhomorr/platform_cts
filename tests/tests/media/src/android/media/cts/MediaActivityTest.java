@@ -17,17 +17,19 @@
 package android.media.cts;
 
 import static androidx.test.platform.app.InstrumentationRegistry.getInstrumentation;
+import static junit.framework.Assert.assertEquals;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
+import static org.junit.Assert.assertTrue;
+import static org.testng.Assert.assertFalse;
 
 import android.Manifest;
 import android.app.Activity;
 import android.app.Instrumentation;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.content.res.Resources;
 import android.hardware.hdmi.HdmiControlManager;
 import android.media.AudioAttributes;
 import android.media.AudioManager;
@@ -99,10 +101,11 @@ public class MediaActivityTest {
             Manifest.permission.HDMI_CEC);
         mInstrumentation = InstrumentationRegistry.getInstrumentation();
         mContext = mInstrumentation.getContext();
+        mUseFixedVolume = mContext.getResources().getBoolean(
+                Resources.getSystem().getIdentifier("config_useFixedVolume", "bool", "android"));
         mAudioManager = (AudioManager) mContext.getSystemService(Context.AUDIO_SERVICE);
-        mUseFixedVolume = mAudioManager.isVolumeFixed();
         mHdmiControlManager = mContext.getSystemService(HdmiControlManager.class);
-        if(mHdmiControlManager != null) {
+        if (mHdmiControlManager != null) {
             mHdmiEnableStatus = mHdmiControlManager.getHdmiCecEnabled();
             mHdmiControlManager.setHdmiCecEnabled(HdmiControlManager.HDMI_CEC_CONTROL_DISABLED);
         }
@@ -171,7 +174,6 @@ public class MediaActivityTest {
     @Test
     public void testVolumeKey_whileSessionAlive() throws Exception {
         if (mUseFixedVolume) {
-            Log.i(TAG, "testVolumeKey_whileSessionAlive skipped due to full volume device");
             return;
         }
 
@@ -200,7 +202,6 @@ public class MediaActivityTest {
     @Test
     public void testVolumeKey_afterSessionReleased() throws Exception {
         if (mUseFixedVolume) {
-            Log.i(TAG, "testVolumeKey_afterSessionReleased skipped due to full volume device");
             return;
         }
 

@@ -17,10 +17,6 @@
 package com.android.queryable.info;
 
 import android.app.Activity;
-import android.content.IntentFilter;
-
-import java.util.HashSet;
-import java.util.Set;
 
 
 /**
@@ -31,7 +27,6 @@ import java.util.Set;
 public final class ActivityInfo extends ClassInfo {
 
     private final boolean mExported;
-    private final Set<IntentFilter> mIntentFilters;
 
     public static Builder builder() {
         return new Builder();
@@ -43,39 +38,27 @@ public final class ActivityInfo extends ClassInfo {
                 .exported(activityInfo.exported);
     }
 
-    private ActivityInfo(String activityClass, boolean exported,
-            Set<IntentFilter> intentFilters) {
+    private ActivityInfo(String activityClass, boolean exported) {
         super(activityClass);
         mExported = exported;
-        if (intentFilters == null) {
-            mIntentFilters = new HashSet<>();
-        } else {
-            mIntentFilters = intentFilters;
-        }
     }
 
     public boolean exported() {
         return mExported;
     }
 
-    /** Return the intent filters of this activity.*/
-    public Set<IntentFilter> intentFilters() {
-        return mIntentFilters;
-    }
 
     @Override
     public String toString() {
         return "Activity{"
                 + "class=" + super.toString()
                 + ", exported=" + mExported
-                + ", intentFilters=" + mIntentFilters
                 + "}";
     }
 
     public static final class Builder {
         String mActivityClass;
         boolean mExported;
-        Set<IntentFilter> mIntentFilters;
 
         public Builder activityClass(String activityClassName) {
             mActivityClass = activityClassName;
@@ -95,17 +78,10 @@ public final class ActivityInfo extends ClassInfo {
             return this;
         }
 
-        /** Set the intent filters with the set of intent filters provided */
-        public Builder intentFilters(Set<IntentFilter> intentFilters) {
-            mIntentFilters = intentFilters;
-            return this;
-        }
-
         public ActivityInfo build() {
             return new ActivityInfo(
                     mActivityClass,
-                    mExported,
-                    mIntentFilters
+                    mExported
             );
         }
     }

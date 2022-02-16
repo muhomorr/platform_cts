@@ -46,7 +46,6 @@ import static android.view.WindowManager.LayoutParams.TYPE_WALLPAPER;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
 
 import android.content.ComponentName;
@@ -188,8 +187,6 @@ public class KeyguardTests extends KeyguardTestBase {
      */
     @Test
     public void testTranslucentShowWhenLockedActivity() {
-        // TODO(b/209906849) remove assumeFalse after issue fix.
-        assumeFalse(ENABLE_SHELL_TRANSITIONS);
         final LockScreenSession lockScreenSession = createManagedLockScreenSession();
         launchActivity(SHOW_WHEN_LOCKED_TRANSLUCENT_ACTIVITY);
         mWmState.computeState(SHOW_WHEN_LOCKED_TRANSLUCENT_ACTIVITY);
@@ -222,8 +219,6 @@ public class KeyguardTests extends KeyguardTestBase {
 
     @Test
     public void testDialogShowWhenLockedActivity() {
-        // TODO(b/209906849) remove assumeFalse after issue fix.
-        assumeFalse(ENABLE_SHELL_TRANSITIONS);
         final LockScreenSession lockScreenSession = createManagedLockScreenSession();
         launchActivity(SHOW_WHEN_LOCKED_DIALOG_ACTIVITY);
         mWmState.computeState(SHOW_WHEN_LOCKED_DIALOG_ACTIVITY);
@@ -448,7 +443,7 @@ public class KeyguardTests extends KeyguardTestBase {
     }
 
     @Test
-    public void testTurnScreenOnActivityOnAod() {
+    public void testTurnScreenOnOnActivityOnAod() {
         final AodSession aodSession = createManagedAodSession();
         assumeTrue(aodSession.isAodAvailable());
         aodSession.setAodEnabled(true);
@@ -465,13 +460,10 @@ public class KeyguardTests extends KeyguardTestBase {
                             false);
                 }).setTargetActivity(TURN_SCREEN_ON_ACTIVITY));
 
-        mWmState.waitForAllStoppedActivities();
-        // An activity without set showWhenLocked or dismissKeyguard cannot wakeup device and/or
-        // unlock insecure keyguard even if it has setTurnScreenOn, so the device should stay
-        // invisible and the display stay in dozing.
-        mWmState.assertVisibility(TURN_SCREEN_ON_ACTIVITY, false);
-        assertTrue(mWmState.getKeyguardControllerState().keyguardShowing);
-        assertFalse(isDisplayOn(DEFAULT_DISPLAY));
+        mWmState.computeState(TURN_SCREEN_ON_ACTIVITY);
+        mWmState.assertVisibility(TURN_SCREEN_ON_ACTIVITY, true);
+        assertFalse(mWmState.getKeyguardControllerState().keyguardShowing);
+        assertTrue(isDisplayOn(DEFAULT_DISPLAY));
     }
     /**
      * Tests whether a FLAG_DISMISS_KEYGUARD activity occludes Keyguard.
