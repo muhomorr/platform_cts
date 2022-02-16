@@ -17,42 +17,43 @@
 package com.android.bedstead.nene.activities;
 
 import static android.Manifest.permission.REAL_GET_TASKS;
-import static android.os.Build.VERSION_CODES.Q;
 
 import android.app.ActivityManager;
-import android.content.ComponentName;
 
 import com.android.bedstead.nene.TestApis;
 import com.android.bedstead.nene.annotations.Experimental;
-import com.android.bedstead.nene.exceptions.AdbException;
-import com.android.bedstead.nene.exceptions.NeneException;
 import com.android.bedstead.nene.packages.ComponentReference;
 import com.android.bedstead.nene.permissions.PermissionContext;
-import com.android.bedstead.nene.utils.ShellCommand;
-import com.android.bedstead.nene.utils.Versions;
 
 import java.util.List;
 
 public final class Activities {
 
-    public static final Activities sInstance = new Activities();
+    private final TestApis mTestApis;
 
-    private Activities() {
+    public Activities(TestApis testApis) {
+        mTestApis = testApis;
     }
 
+    /**
+     * Wrap the given {@link NeneActivity} to use Nene APIs.
+     */
+    public Activity<NeneActivity> wrap(NeneActivity activity) {
+        return new Activity<>(mTestApis, activity, activity);
+    }
 
     /**
      * Wrap the given {@link NeneActivity} subclass to use Nene APIs.
      */
     public <E extends NeneActivity> Activity<E> wrap(Class<E> clazz, E activity) {
-        return new Activity<>(activity, activity);
+        return new Activity<>(mTestApis, activity, activity);
     }
 
     /**
      * Wrap the given {@link android.app.Activity} to use Nene APIs.
      */
     public LocalActivity wrap(android.app.Activity activity) {
-        return new LocalActivity(activity);
+        return new LocalActivity(mTestApis, activity);
     }
 
     /**
@@ -60,35 +61,16 @@ public final class Activities {
      */
     @Experimental
     public ComponentReference foregroundActivity() {
-        if (!Versions.meetsMinimumSdkVersionRequirement(Q)) {
-            return foregroundActivityPreQ();
-        }
-        try (PermissionContext p = TestApis.permissions().withPermission(REAL_GET_TASKS)) {
+        try (PermissionContext p = mTestApis.permissions().withPermission(REAL_GET_TASKS)) {
             ActivityManager activityManager =
-                    TestApis.context().instrumentedContext().getSystemService(
+                    mTestApis.context().instrumentedContext().getSystemService(
                             ActivityManager.class);
             List<ActivityManager.RunningTaskInfo> runningTasks = activityManager.getRunningTasks(1);
             if (runningTasks.isEmpty()) {
                 return null;
             }
 
-            return new ComponentReference(runningTasks.get(0).topActivity);
-        }
-    }
-
-    private ComponentReference foregroundActivityPreQ() {
-        try {
-            return ShellCommand.builder("dumpsys activity top")
-                    .executeAndParseOutput((dumpsysOutput) -> {
-                        // The final ACTIVITY is the one on top
-                        String[] activitySplits = dumpsysOutput.split("ACTIVITY ");
-                        String component = activitySplits[activitySplits.length - 1]
-                                .split(" ", 2)[0];
-                        ComponentName componentName = ComponentName.unflattenFromString(component);
-                        return new ComponentReference(componentName);
-                    });
-        } catch (AdbException | RuntimeException e) {
-            throw new NeneException("Error getting foreground activity pre Q", e);
+            return new ComponentReference(mTestApis, runningTasks.get(0).topActivity);
         }
     }
 
@@ -101,7 +83,7 @@ public final class Activities {
     @Experimental
     public int getLockTaskModeState() {
         ActivityManager activityManager =
-                TestApis.context().instrumentedContext().getSystemService(
+                mTestApis.context().instrumentedContext().getSystemService(
                         ActivityManager.class);
 
         return activityManager.getLockTaskModeState();

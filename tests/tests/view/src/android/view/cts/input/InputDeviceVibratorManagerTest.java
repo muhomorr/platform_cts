@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package android.view.cts.input;
+package android.view.cts;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -29,7 +29,6 @@ import android.os.Vibrator;
 import android.os.VibratorManager;
 import android.util.Log;
 import android.view.InputDevice;
-import android.view.cts.R;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
@@ -62,7 +61,6 @@ public class InputDeviceVibratorManagerTest {
     private InputJsonParser mParser;
     private Instrumentation mInstrumentation;
     private VibratorManager mVibratorManager;
-    /** The device id inside the resource file (register command) */
     private int mDeviceId;
 
     /**
@@ -87,16 +85,18 @@ public class InputDeviceVibratorManagerTest {
 
     @Before
     public void setup() {
+        final int resourceId = R.raw.google_gamepad_register;
         mInstrumentation = InstrumentationRegistry.getInstrumentation();
         mInputManager = mInstrumentation.getTargetContext().getSystemService(InputManager.class);
         assertNotNull(mInputManager);
         mParser = new InputJsonParser(mInstrumentation.getTargetContext());
-
-        mUinputDevice = UinputDevice.create(mInstrumentation, R.raw.google_gamepad_register,
-                InputDevice.SOURCE_KEYBOARD);
-        mDeviceId = mUinputDevice.getRegisterCommandDeviceId();
-        mVibratorManager = getVibratorManager(mUinputDevice.getVendorId(),
-                mUinputDevice.getProductId());
+        mDeviceId = mParser.readDeviceId(resourceId);
+        String registerCommand = mParser.readRegisterCommand(resourceId);
+        mUinputDevice = new UinputDevice(mInstrumentation, mDeviceId,
+                mParser.readVendorId(resourceId), mParser.readProductId(resourceId),
+                InputDevice.SOURCE_KEYBOARD, registerCommand);
+        mVibratorManager = getVibratorManager(mParser.readVendorId(resourceId),
+                mParser.readProductId(resourceId));
         assertTrue(mVibratorManager != null);
     }
 

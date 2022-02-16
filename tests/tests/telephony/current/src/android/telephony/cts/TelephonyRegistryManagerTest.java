@@ -2,7 +2,6 @@ package android.telephony.cts;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.junit.Assume.assumeTrue;
@@ -14,7 +13,6 @@ import android.telephony.ServiceState;
 import android.telephony.SignalStrength;
 import android.telephony.SubscriptionManager;
 import android.telephony.TelephonyManager;
-import android.telephony.TelephonyManager.CarrierPrivilegesListener;
 import android.telephony.TelephonyRegistryManager;
 import android.text.TextUtils;
 import android.util.Pair;
@@ -26,8 +24,6 @@ import com.android.compatibility.common.util.ShellIdentityUtils;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.util.Arrays;
-import java.util.List;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
@@ -57,19 +53,6 @@ public class TelephonyRegistryManagerTest {
             fail("Expected SecurityException for notifyCarrierNetworkChange");
         } catch (SecurityException ex) {
             /* Expected */
-        }
-    }
-
-    /**
-     * expect security exception as there is no carrier privilege permission.
-     */
-    @Test
-    public void testNotifyCarrierNetworkChangeWithSubscription() {
-        try {
-            mTelephonyRegistryMgr.notifyCarrierNetworkChange(
-                    SubscriptionManager.getDefaultSubscriptionId(), /*active=*/ true);
-            fail("Expected SecurityException for notifyCarrierNetworkChange with subscription");
-        } catch (SecurityException expected) {
         }
     }
 
@@ -270,74 +253,4 @@ public class TelephonyRegistryManagerTest {
         assertEquals(testValue, result);
     }
 
-    @Test
-    public void testNotifyCarrierPrivilegesChanged() throws Exception {
-        Context context = InstrumentationRegistry.getContext();
-
-        LinkedBlockingQueue<Pair<List<String>, int[]>> queue = new LinkedBlockingQueue(2);
-        CarrierPrivilegesListener cpl =
-                new CarrierPrivilegesListener() {
-                    @Override
-                    public void onCarrierPrivilegesChanged(
-                            List<String> privilegedPackageNames, int[] privilegedUids) {
-                        queue.offer(new Pair<>(privilegedPackageNames, privilegedUids));
-                    }
-                };
-        CarrierPrivilegesListener cpl2 =
-                (packageNames, uids) -> queue.offer(new Pair<>(packageNames, uids));
-        TelephonyManager telephonyManager = context.getSystemService(TelephonyManager.class);
-        try {
-            ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(
-                    telephonyManager,
-                    tm -> tm.addCarrierPrivilegesListener(0, context.getMainExecutor(), cpl));
-            // Clear the initial result from registering the listener. We can't necessarily
-            // guarantee this is empty so don't assert on it other than the fact we got _something_.
-            // We restore this at the end of the test.
-            Pair<List<String>, int[]> initialState =
-                    queue.poll(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
-            assertNotNull(initialState);
-
-            // Update state
-            List<String> privilegedPackageNames =
-                    Arrays.asList("com.carrier.package1", "com.carrier.package2");
-            int[] privilegedUids = new int[] {12345, 54321};
-            ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(
-                    mTelephonyRegistryMgr,
-                    trm ->
-                            trm.notifyCarrierPrivilegesChanged(
-                                    0, privilegedPackageNames, privilegedUids));
-            Pair<List<String>, int[]> result = queue.poll(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
-            assertEquals(privilegedPackageNames, result.first);
-            assertTrue(Arrays.equals(privilegedUids, result.second));
-
-            // Registering cpl2 now immediately gets us the most recent state
-            ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(
-                    telephonyManager,
-                    tm -> tm.addCarrierPrivilegesListener(0, context.getMainExecutor(), cpl2));
-            result = queue.poll(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
-            assertEquals(privilegedPackageNames, result.first);
-            assertTrue(Arrays.equals(privilegedUids, result.second));
-
-            // Removing cpl means it won't get the final callback when we restore the original state
-            ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(
-                    telephonyManager, tm -> tm.removeCarrierPrivilegesListener(cpl));
-            ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(
-                    mTelephonyRegistryMgr,
-                    trm ->
-                            trm.notifyCarrierPrivilegesChanged(
-                                    0, initialState.first, initialState.second));
-            result = queue.poll(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
-            assertEquals(initialState.first, result.first);
-            assertTrue(Arrays.equals(initialState.second, result.second));
-            // No further callbacks received
-            assertNull(queue.poll(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS));
-        } finally {
-            ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(
-                    telephonyManager,
-                    tm -> {
-                        tm.removeCarrierPrivilegesListener(cpl); // redundant, but still allowed
-                        tm.removeCarrierPrivilegesListener(cpl2);
-                    });
-        }
-    }
 }

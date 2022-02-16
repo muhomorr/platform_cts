@@ -16,11 +16,6 @@
 
 package android.keystore.cts;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
-
 import java.security.GeneralSecurityException;
 import java.security.InvalidKeyException;
 import java.security.KeyFactory;
@@ -35,19 +30,16 @@ import javax.crypto.KeyAgreement;
 import junit.framework.TestCase;
 
 import org.junit.Assert;
-import org.junit.Test;
 
 import android.content.Context;
-import android.keystore.cts.util.TestUtils;
 import android.security.keystore.KeyGenParameterSpec;
 import android.security.keystore.KeyProperties;
 import android.security.keystore.KeyInfo;
 import androidx.test.InstrumentationRegistry;
 
-public class KeyAgreementTest {
+public class KeyAgreementTest extends TestCase {
     private static final String PRIVATE_KEY_ALIAS = "TemporaryPrivateKey";
 
-    @Test
     public void testGenerateSecret_succeeds() throws Exception {
         KeyAgreement ka = getKeyStoreKeyAgreement();
         ka.init(generateEphemeralAndroidKeyPair(PRIVATE_KEY_ALIAS).getPrivate());
@@ -56,7 +48,6 @@ public class KeyAgreementTest {
         assertNotNull(sharedSecret);
     }
 
-    @Test
     public void testGenerateSecret_forTwoParties_returnsSameSharedSecret() throws Exception {
         KeyPair ourKeyPair = generateEphemeralAndroidKeyPair(PRIVATE_KEY_ALIAS);
         KeyPair theirKeyPair = generateEphemeralServerKeyPair();
@@ -75,7 +66,6 @@ public class KeyAgreementTest {
         Assert.assertArrayEquals(ourSharedSecret, theirSharedSecret);
     }
 
-    @Test
     public void testGenerateSecret_preservesPrivateKeyAndNothingElse() throws Exception {
         KeyPair otherPartyKey = generateEphemeralServerKeyPair();
         KeyAgreement ka = getKeyStoreKeyAgreement();
@@ -97,7 +87,6 @@ public class KeyAgreementTest {
         Assert.assertArrayEquals(sharedSecret1, sharedSecret2);
     }
 
-    @Test
     public void testInit_withNonPrivateKey_fails() throws Exception {
         KeyAgreement ka = getKeyStoreKeyAgreement();
         try {
@@ -108,7 +97,6 @@ public class KeyAgreementTest {
         }
     }
 
-    @Test
     public void testInit_withNonEcKey_fails() throws Exception {
         KeyPairGenerator kpg =
                 KeyPairGenerator.getInstance(KeyProperties.KEY_ALGORITHM_RSA, "AndroidKeyStore");
@@ -125,7 +113,6 @@ public class KeyAgreementTest {
         }
     }
 
-    @Test
     public void testDoPhase_withoutInitialization_fails() throws Exception {
         KeyAgreement ka = getKeyStoreKeyAgreement();
         try {
@@ -136,7 +123,6 @@ public class KeyAgreementTest {
         }
     }
 
-    @Test
     public void testGenerateSecret_withoutSecondPartyKey_fails() throws Exception {
         KeyAgreement ka = getKeyStoreKeyAgreement();
         ka.init(generateEphemeralAndroidKeyPair(PRIVATE_KEY_ALIAS).getPrivate());
@@ -148,7 +134,6 @@ public class KeyAgreementTest {
         }
     }
 
-    @Test
     public void testDoPhase_multiparty_fails() throws Exception {
         // Multi-party key agreement is not supported by Keymint
         KeyAgreement ka = getKeyStoreKeyAgreement();

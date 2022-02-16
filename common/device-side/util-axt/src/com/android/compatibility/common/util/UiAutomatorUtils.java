@@ -98,15 +98,9 @@ public class UiAutomatorUtils {
                     } else {
                         Rect boundsBeforeScroll = scrollable.getBounds();
                         boolean scrollAtStartOrEnd = !scrollable.scrollForward();
-                        // The scrollable view may no longer be scrollable after the toolbar is
-                        // collapsed.
-                        if (scrollable.exists()) {
-                            Rect boundsAfterScroll = scrollable.getBounds();
-                            isAtEnd = scrollAtStartOrEnd && boundsBeforeScroll.equals(
-                                    boundsAfterScroll);
-                        } else {
-                            isAtEnd = scrollAtStartOrEnd;
-                        }
+                        Rect boundsAfterScroll = scrollable.getBounds();
+                        isAtEnd = scrollAtStartOrEnd && boundsBeforeScroll.equals(
+                                boundsAfterScroll);
                     }
                 } else {
                     // There might be a collapsing toolbar, but no scrollable view. Try to collapse

@@ -21,12 +21,7 @@ import android.signature.cts.AnnotationChecker;
 import android.signature.cts.ApiDocumentParser;
 import android.signature.cts.JDiffClassDescription;
 
-import android.signature.cts.LogHelper;
-import android.util.Log;
-import androidx.test.InstrumentationRegistry;
-import com.android.compatibility.common.util.DynamicConfigDeviceSide;
 import com.android.compatibility.common.util.PropertyUtil;
-import java.util.List;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;

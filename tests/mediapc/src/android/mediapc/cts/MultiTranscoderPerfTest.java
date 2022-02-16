@@ -16,18 +16,11 @@
 
 package android.mediapc.cts;
 import android.media.MediaFormat;
-import android.os.Build;
 import android.util.Pair;
 import android.view.Surface;
 
 import androidx.test.filters.LargeTest;
 import androidx.test.rule.ActivityTestRule;
-import androidx.test.platform.app.InstrumentationRegistry;
-
-import com.android.compatibility.common.util.CddTest;
-import com.android.compatibility.common.util.DeviceReportLog;
-import com.android.compatibility.common.util.ResultType;
-import com.android.compatibility.common.util.ResultUnit;
 
 import org.junit.Rule;
 import org.junit.Test;
@@ -105,7 +98,6 @@ public class MultiTranscoderPerfTest extends MultiCodecPerfTestBase {
      */
     @LargeTest
     @Test(timeout = CodecTestBase.PER_TEST_TIMEOUT_LARGE_TEST_MS)
-    @CddTest(requirement="2.2.7.1/5.1/H-1-5,H-1-6")
     public void test720p() throws Exception {
         ArrayList<Pair<String, String>> mimeCodecPairs = new ArrayList<>();
         mimeCodecPairs.add(mDecoderPair);
@@ -116,63 +108,40 @@ public class MultiTranscoderPerfTest extends MultiCodecPerfTestBase {
                 || mEncoderPair.first.equals(MediaFormat.MIMETYPE_VIDEO_VP9)) {
             requiredMinInstances = REQUIRED_MIN_CONCURRENT_INSTANCES_FOR_VP9 / 2;
         }
+        assertTrue("DecodeMime: " + mDecoderPair.first + ", Decoder " + mDecoderPair.second +
+                ", EncodeMime: " + mEncoderPair.first + ", Encoder: " + mEncoderPair.second +
+                ", unable to support minimum concurrent instances. act/exp: " + maxInstances +
+                "/" + requiredMinInstances, maxInstances >= requiredMinInstances);
+        ExecutorService pool = Executors.newFixedThreadPool(maxInstances / 2 + maxInstances % 2);
+        List<Transcode> transcodeList = new ArrayList<>();
+        for (int i = 0; i < maxInstances / 2 ; i++) {
+            transcodeList.add(new Transcode(mEncoderPair.first, mTestFiles.get(mDecoderPair.first),
+                    mDecoderPair.second, mEncoderPair.second, mIsAsync));
+        }
         double achievedFrameRate = 0.0;
-        if (maxInstances >= requiredMinInstances) {
-            ExecutorService pool = Executors.newFixedThreadPool(
-                    maxInstances / 2 + maxInstances % 2);
-            List<Transcode> transcodeList = new ArrayList<>();
-            for (int i = 0; i < maxInstances / 2; i++) {
-                transcodeList.add(
-                        new Transcode(mEncoderPair.first, mTestFiles.get(mDecoderPair.first),
-                                mDecoderPair.second, mEncoderPair.second, mIsAsync));
-            }
-            List<Future<Double>> decodeResultList = null;
-            if (maxInstances % 2 == 1) {
-                List<DecodeToSurface> decodeList = new ArrayList<>();
-                mActivityRule.getActivity().waitTillSurfaceIsCreated();
-                Surface surface = mActivityRule.getActivity().getSurface();
-                assertTrue("Surface created is null.", surface != null);
-                assertTrue("Surface created is invalid.", surface.isValid());
-                mActivityRule.getActivity().setScreenParams(1280, 720, true);
-                decodeList.add(new DecodeToSurface(mDecoderPair.first,
-                        mTestFiles.get(mDecoderPair.first), mDecoderPair.second, surface,
-                        mIsAsync));
-                decodeResultList = pool.invokeAll(decodeList);
-            }
-            List<Future<Double>> transcodeResultList = pool.invokeAll(transcodeList);
-            for (Future<Double> result : transcodeResultList) {
+        List<Future<Double>> decodeResultList = null;
+        if (maxInstances % 2 == 1) {
+            List<DecodeToSurface> decodeList = new ArrayList<>();
+            mActivityRule.getActivity().waitTillSurfaceIsCreated();
+            Surface surface = mActivityRule.getActivity().getSurface();
+            assertTrue("Surface created is null.", surface != null);
+            assertTrue("Surface created is invalid.", surface.isValid());
+            mActivityRule.getActivity().setScreenParams(1280, 720, true);
+            decodeList.add(new DecodeToSurface(mDecoderPair.first,
+                    mTestFiles.get(mDecoderPair.first), mDecoderPair.second, surface, mIsAsync));
+            decodeResultList = pool.invokeAll(decodeList);
+        }
+        List<Future<Double>> transcodeResultList = pool.invokeAll(transcodeList);
+        for (Future<Double> result : transcodeResultList) {
+            achievedFrameRate += result.get();
+        }
+        if (decodeResultList != null) {
+            for (Future<Double> result : decodeResultList) {
                 achievedFrameRate += result.get();
             }
-            if (decodeResultList != null) {
-                for (Future<Double> result : decodeResultList) {
-                    achievedFrameRate += result.get();
-                }
-            }
         }
-        if (Utils.isPerfClass()) {
-            assertTrue("DecodeMime: " + mDecoderPair.first + ", Decoder " + mDecoderPair.second +
-                    ", EncodeMime: " + mEncoderPair.first + ", Encoder: " + mEncoderPair.second +
-                    ", unable to support minimum concurrent instances. act/exp: " + maxInstances +
-                    "/" + requiredMinInstances, maxInstances >= requiredMinInstances);
-
-            assertTrue("Unable to achieve the maxFrameRate supported. act/exp: " + achievedFrameRate
-                            + "/" + mMaxFrameRate / 2 + " for " + maxInstances + " instances.",
-                    achievedFrameRate >= mMaxFrameRate / 2);
-        } else {
-            int pc = maxInstances >= requiredMinInstances && achievedFrameRate >= mMaxFrameRate / 2
-                    ? Build.VERSION_CODES.R : 0;
-            DeviceReportLog log = new DeviceReportLog("MediaPerformanceClassLogs",
-                    "MultiTranscoderPairPerf_" + mDecoderPair.second);
-            log.addValue("decoders", mDecoderPair.first + "_" + mDecoderPair.second + "_"
-                            + mEncoderPair.first + "_" + mEncoderPair.second, ResultType.NEUTRAL,
-                    ResultUnit.NONE);
-            log.addValue("achieved_framerate", achievedFrameRate, ResultType.HIGHER_BETTER,
-                    ResultUnit.NONE);
-            log.addValue("expected_framerate", mMaxFrameRate, ResultType.NEUTRAL, ResultUnit.NONE);
-            log.setSummary("CDD 2.2.7.1/5.1/H-1-5,H-1-6 performance_class", pc, ResultType.NEUTRAL,
-                    ResultUnit.NONE);
-            log.submit(InstrumentationRegistry.getInstrumentation());
-        }
-
+        assertTrue("Unable to achieve the maxFrameRate supported. act/exp: " + achievedFrameRate
+                + "/" + mMaxFrameRate / 2 + " for " + maxInstances + " instances.",
+                achievedFrameRate >= mMaxFrameRate / 2);
     }
 }

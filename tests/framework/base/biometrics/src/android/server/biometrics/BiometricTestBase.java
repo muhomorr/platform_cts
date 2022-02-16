@@ -376,7 +376,19 @@ abstract class BiometricTestBase extends ActivityManagerTestBase {
                 .setAllowBackgroundAuthentication(true)
                 .setAllowedSensorIds(new ArrayList<>(Collections.singletonList(sensorId)))
                 .build();
-        prompt.authenticate(new CancellationSignal(), executor, callback);
+        prompt.authenticate(new CancellationSignal(), executor,
+                new BiometricPrompt.AuthenticationCallback() {
+                    @Override
+                    public void onAuthenticationError(int errorCode, CharSequence errString) {
+                        Log.d(TAG, "onAuthenticationError: " + errorCode);
+                    }
+
+                    @Override
+                    public void onAuthenticationSucceeded(
+                            BiometricPrompt.AuthenticationResult result) {
+                        Log.d(TAG, "onAuthenticationSucceeded");
+                    }
+                });
 
         waitForState(STATE_AUTH_STARTED_UI_SHOWING);
     }
