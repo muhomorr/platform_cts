@@ -19,7 +19,6 @@ package android.appsecurity.cts;
 import static org.junit.Assert.assertNotNull;
 
 import android.platform.test.annotations.AppModeFull;
-import android.platform.test.annotations.Presubmit;
 
 import com.android.ddmlib.Log;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
@@ -31,7 +30,6 @@ import org.junit.runner.RunWith;
 /**
  * Set of tests that verify behavior related to apps with shared user IDs
  */
-@Presubmit
 @RunWith(DeviceJUnit4ClassRunner.class)
 public class SharedUserIdTest extends BaseAppSecurityTest {
 

@@ -39,7 +39,6 @@ import android.view.contentcapture.DataRemovalRequest;
 import android.view.contentcapture.DataShareRequest;
 import android.view.contentcapture.ViewNode;
 
-import androidx.annotation.GuardedBy;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
@@ -54,7 +53,6 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
-import java.util.stream.Collectors;
 
 // TODO(b/123540602): if we don't move this service to a separate package, we need to handle the
 // onXXXX methods in a separate thread
@@ -73,9 +71,6 @@ public class CtsContentCaptureService extends ContentCaptureService {
 
     private static int sIdCounter;
 
-    private static Object sLock = new Object();
-
-    @GuardedBy("sLock")
     private static ServiceWatcher sServiceWatcher;
 
     private final int mId = ++sIdCounter;
@@ -162,13 +157,11 @@ public class CtsContentCaptureService extends ContentCaptureService {
 
     @NonNull
     public static ServiceWatcher setServiceWatcher() {
-        synchronized (sLock) {
-            if (sServiceWatcher != null) {
-                throw new IllegalStateException("There Can Be Only One!");
-            }
-            sServiceWatcher = new ServiceWatcher();
-            return sServiceWatcher;
+        if (sServiceWatcher != null) {
+            throw new IllegalStateException("There Can Be Only One!");
         }
+        sServiceWatcher = new ServiceWatcher();
+        return sServiceWatcher;
     }
 
     public static void resetStaticState() {
@@ -179,29 +172,20 @@ public class CtsContentCaptureService extends ContentCaptureService {
         // TODO(b/123540602): each test should use a different service instance, but we need
         // to provide onConnected() / onDisconnected() methods first and then change the infra so
         // we can wait for those
-        synchronized (sLock) {
-            if (sServiceWatcher != null) {
-                Log.wtf(TAG, "resetStaticState(): should not have sServiceWatcher");
-                sServiceWatcher = null;
-            }
-        }
-    }
 
-    private static ServiceWatcher getServiceWatcher() {
-        synchronized (sLock) {
-            return sServiceWatcher;
+        if (sServiceWatcher != null) {
+            Log.wtf(TAG, "resetStaticState(): should not have sServiceWatcher");
+            sServiceWatcher = null;
         }
     }
 
     public static void clearServiceWatcher() {
-        synchronized (sLock) {
-            if (sServiceWatcher != null) {
-                if (sServiceWatcher.mReadyToClear) {
-                    sServiceWatcher.mService = null;
-                    sServiceWatcher = null;
-                } else {
-                    sServiceWatcher.mReadyToClear = true;
-                }
+        if (sServiceWatcher != null) {
+            if (sServiceWatcher.mReadyToClear) {
+                sServiceWatcher.mService = null;
+                sServiceWatcher = null;
+            } else {
+                sServiceWatcher.mReadyToClear = true;
             }
         }
     }
@@ -219,22 +203,21 @@ public class CtsContentCaptureService extends ContentCaptureService {
 
     @Override
     public void onConnected() {
-        final ServiceWatcher sw = getServiceWatcher();
-        Log.i(TAG, "onConnected(id=" + mId + "): sServiceWatcher=" + sw);
+        Log.i(TAG, "onConnected(id=" + mId + "): sServiceWatcher=" + sServiceWatcher);
 
-        if (sw == null) {
+        if (sServiceWatcher == null) {
             addException("onConnected() without a watcher");
             return;
         }
 
-        if (!sw.mReadyToClear && sw.mService != null) {
-            addException("onConnected(): already created: %s", sw);
+        if (!sServiceWatcher.mReadyToClear && sServiceWatcher.mService != null) {
+            addException("onConnected(): already created: %s", sServiceWatcher);
             return;
         }
 
-        sw.mService = this;
-        sw.mCreated.countDown();
-        sw.mReadyToClear = false;
+        sServiceWatcher.mService = this;
+        sServiceWatcher.mCreated.countDown();
+        sServiceWatcher.mReadyToClear = false;
 
         if (mConnectedLatch.getCount() == 0) {
             addException("already connected: %s", mConnectedLatch);
@@ -244,20 +227,19 @@ public class CtsContentCaptureService extends ContentCaptureService {
 
     @Override
     public void onDisconnected() {
-        final ServiceWatcher sw = getServiceWatcher();
-        Log.i(TAG, "onDisconnected(id=" + mId + "): sServiceWatcher=" + sw);
+        Log.i(TAG, "onDisconnected(id=" + mId + "): sServiceWatcher=" + sServiceWatcher);
 
         if (mDisconnectedLatch.getCount() == 0) {
             addException("already disconnected: %s", mConnectedLatch);
         }
         mDisconnectedLatch.countDown();
 
-        if (sw == null) {
+        if (sServiceWatcher == null) {
             addException("onDisconnected() without a watcher");
             return;
         }
-        if (sw.mService == null) {
-            addException("onDisconnected(): no service on %s", sw);
+        if (sServiceWatcher.mService == null) {
+            addException("onDisconnected(): no service on %s", sServiceWatcher);
             return;
         }
         // Notify test case as well
@@ -266,7 +248,7 @@ public class CtsContentCaptureService extends ContentCaptureService {
             mOnDisconnectListener = null;
             latch.countDown();
         }
-        sw.mDestroyed.countDown();
+        sServiceWatcher.mDestroyed.countDown();
         clearServiceWatcher();
     }
 
@@ -466,7 +448,7 @@ public class CtsContentCaptureService extends ContentCaptureService {
     protected void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
         super.dump(fd, pw, args);
 
-        pw.print("sServiceWatcher: "); pw.println(getServiceWatcher());
+        pw.print("sServiceWatcher: "); pw.println(sServiceWatcher);
         pw.print("sExceptions: "); pw.println(sExceptions);
         pw.print("sIdCounter: "); pw.println(sIdCounter);
         pw.print("mId: "); pw.println(mId);
@@ -578,14 +560,7 @@ public class CtsContentCaptureService extends ContentCaptureService {
         // TODO(b/123540602): currently we're only interested on all events, but eventually we
         // should track individual requests as well to make sure they're probably batch (it will
         // require adding a Settings to tune the buffer parameters.
-        // TODO: remove filtering of TYPE_WINDOW_BOUNDS_CHANGED events.
         public List<ContentCaptureEvent> getEvents() {
-            return Collections.unmodifiableList(mEvents).stream().filter(
-                    e -> e.getType() != ContentCaptureEvent.TYPE_WINDOW_BOUNDS_CHANGED
-            ).collect(Collectors.toList());
-        }
-
-        public List<ContentCaptureEvent> getUnfilteredEvents() {
             return Collections.unmodifiableList(mEvents);
         }
 

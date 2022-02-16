@@ -112,9 +112,7 @@ public class SystemMediaRouter2Test {
     public void setUp() throws Exception {
         mContext = InstrumentationRegistry.getTargetContext();
         mUiAutomation = InstrumentationRegistry.getInstrumentation().getUiAutomation();
-        mUiAutomation.adoptShellPermissionIdentity(Manifest.permission.MEDIA_CONTENT_CONTROL,
-                Manifest.permission.MODIFY_AUDIO_ROUTING,
-                Manifest.permission.QUERY_AUDIO_STATE);
+        mUiAutomation.adoptShellPermissionIdentity(Manifest.permission.MEDIA_CONTENT_CONTROL);
 
         mExecutor = Executors.newSingleThreadExecutor();
         mAudioManager = (AudioManager) mContext.getSystemService(AUDIO_SERVICE);
@@ -336,7 +334,7 @@ public class SystemMediaRouter2Test {
 
     @Test
     public void testRouteCallbackOnRoutesChanged_whenLocalVolumeChanged() throws Exception {
-        if (mAudioManager.isVolumeFixed() || mAudioManager.isFullVolumeDevice()) {
+        if (mAudioManager.isVolumeFixed()) {
             return;
         }
 
@@ -1024,7 +1022,7 @@ public class SystemMediaRouter2Test {
 
     private void releaseAllSessions() {
         MediaRouter2Manager manager = MediaRouter2Manager.getInstance(mContext);
-        for (RoutingSessionInfo session : manager.getRemoteSessions()) {
+        for (RoutingSessionInfo session : manager.getActiveSessions()) {
             manager.releaseSession(session);
         }
     }

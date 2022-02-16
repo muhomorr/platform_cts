@@ -23,13 +23,12 @@ import static android.net.wifi.WifiEnterpriseConfig.Eap.WAPI_CERT;
 import static android.os.Process.myUid;
 
 import static com.google.common.truth.Truth.assertThat;
+import static com.google.common.truth.Truth.assertWithMessage;
 
-import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.junit.Assume.assumeTrue;
@@ -43,12 +42,10 @@ import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiEnterpriseConfig;
 import android.net.wifi.WifiManager;
 import android.net.wifi.WifiNetworkSuggestion;
-import android.net.wifi.WifiSsid;
 import android.net.wifi.hotspot2.PasspointConfiguration;
 import android.net.wifi.hotspot2.pps.Credential;
 import android.net.wifi.hotspot2.pps.HomeSp;
 import android.os.Build;
-import android.os.ParcelUuid;
 import android.platform.test.annotations.AppModeFull;
 import android.support.test.uiautomator.UiDevice;
 import android.telephony.TelephonyManager;
@@ -71,7 +68,6 @@ import org.junit.runner.RunWith;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
-import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyFactory;
 import java.security.NoSuchAlgorithmException;
@@ -97,11 +93,6 @@ public class WifiNetworkSuggestionTest extends WifiJUnit4TestBase {
     private static final int TEST_PRIORITY = 5;
     private static final int TEST_PRIORITY_GROUP = 1;
     private static final int TEST_SUB_ID = 1;
-    private static final ParcelUuid GROUP_UUID = ParcelUuid
-            .fromString("0000110B-0000-1000-8000-00805F9B34FB");
-    private static final int DURATION_NETWORK_DISCONNECT_MILLIS = 3_000;
-    private static final int DURATION_NETWORK_LINGER_MILLIS = 30_000;
-    private static final int DURATION_NETWORK_UPDATE = 10_000;
 
     private static boolean sWasVerboseLoggingEnabled;
     private static boolean sWasScanThrottleEnabled;
@@ -1002,20 +993,6 @@ public class WifiNetworkSuggestionTest extends WifiJUnit4TestBase {
     }
 
     /**
-     * Tests {@link android.net.wifi.WifiNetworkSuggestion.Builder} class, with SubscriptionGroup
-     */
-    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.TIRAMISU, codeName = "Tiramisu")
-    @Test
-    public void testBuilderWithSubscriptionGroup() throws Exception {
-        WifiNetworkSuggestion suggestion =
-                new WifiNetworkSuggestion.Builder()
-                        .setSsid(TEST_SSID)
-                        .setSubscriptionGroup(GROUP_UUID)
-                        .build();
-        assertEquals(GROUP_UUID, suggestion.getSubscriptionGroup());
-    }
-
-    /**
      * Helper function for creating a {@link PasspointConfiguration} for testing.
      *
      * @return {@link PasspointConfiguration}
@@ -1124,29 +1101,11 @@ public class WifiNetworkSuggestionTest extends WifiJUnit4TestBase {
     }
 
     /**
-     * Tests {@link android.net.wifi.WifiNetworkSuggestion.Builder} class with non-unicode ssid
-     */
-    @Test
-    public void testBuilderWithNonUnicodeSsid() {
-        byte[] ssid = "服務集識別碼".getBytes(Charset.forName("GBK"));
-        WifiNetworkSuggestion suggestion = new WifiNetworkSuggestion.Builder()
-                .setWifiSsid(WifiSsid.fromBytes(ssid))
-                .build();
-        assertArrayEquals(ssid, suggestion.getWifiSsid().getBytes());
-        assertNull(suggestion.getSsid());
-
-        // If WifiSsid is empty, will throw an exception.
-        assertThrows(IllegalArgumentException.class,
-                () -> new WifiNetworkSuggestion.Builder().setWifiSsid(WifiSsid.fromBytes(null)));
-    }
-
-    /**
-     * Connect to a network using suggestion API then remove with
-     * {@link WifiManager#ACTION_REMOVE_SUGGESTION_DISCONNECT}
+     * Connect to a network using suggestion API.
      */
     @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
     @Test
-    public void testConnectToSuggestionThenRemoveWithImmediateDisconnect() throws Exception {
+    public void testConnectToSuggestion() throws Exception {
         assertNotNull(sTestNetwork);
         WifiNetworkSuggestion suggestion =
                 TestHelper.createSuggestionBuilderWithCredentialFromSavedNetworkWithBssid(
@@ -1154,60 +1113,7 @@ public class WifiNetworkSuggestionTest extends WifiJUnit4TestBase {
                         .build();
         sNsNetworkCallback = sTestHelper.testConnectionFlowWithSuggestion(
                 sTestNetwork, suggestion, mExecutorService,
-                Set.of()/* restrictedNetworkCapability */, false/* restrictedNetwork */);
-        TestHelper.TestNetworkCallback callback = (TestHelper.TestNetworkCallback)
-                sNsNetworkCallback;
-        while (callback.waitForAnyCallback(DURATION_NETWORK_UPDATE));
-        sWifiManager.removeNetworkSuggestions(List.of(suggestion),
-                WifiManager.ACTION_REMOVE_SUGGESTION_DISCONNECT);
-        callback.waitForAnyCallback(DURATION_NETWORK_DISCONNECT_MILLIS);
-        assertTrue(callback.onLostCalled);
-    }
-
-    /**
-     * Connect to a network using suggestion API, then remove with
-     * {@link WifiManager#ACTION_REMOVE_SUGGESTION_LINGER}
-     */
-    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
-    @Test
-    public void testConnectToSuggestionThenRemoveWithLingering() throws Exception {
-        assertNotNull(sTestNetwork);
-        WifiNetworkSuggestion suggestion =
-                TestHelper.createSuggestionBuilderWithCredentialFromSavedNetworkWithBssid(
-                                sTestNetwork)
-                        .build();
-        sNsNetworkCallback = sTestHelper.testConnectionFlowWithSuggestion(
-                sTestNetwork, suggestion, mExecutorService,
-                Set.of()/* restrictedNetworkCapability */, false/* restrictedNetwork */);
-        TestHelper.TestNetworkCallback callback = (TestHelper.TestNetworkCallback)
-                sNsNetworkCallback;
-        while (callback.waitForAnyCallback(DURATION_NETWORK_UPDATE));
-        sWifiManager.removeNetworkSuggestions(List.of(suggestion),
-                WifiManager.ACTION_REMOVE_SUGGESTION_LINGER);
-        callback.waitForAnyCallback(DURATION_NETWORK_DISCONNECT_MILLIS);
-        // Should not disconnect immediately
-        assertFalse(callback.onLostCalled);
-        // After linger time out, should disconnect.
-        Thread.sleep(DURATION_NETWORK_LINGER_MILLIS);
-        assertTrue(callback.onLostCalled);
-    }
-
-    /**
-     * Connect to a restricted network using suggestion API.
-     */
-    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
-    @Test
-    public void testConnectToRestrictedSuggestion() throws Exception {
-        assertNotNull(sTestNetwork);
-        WifiNetworkSuggestion suggestion =
-                TestHelper.createSuggestionBuilderWithCredentialFromSavedNetworkWithBssid(
-                        sTestNetwork)
-                        .setRestricted(true)
-                        .build();
-        assertTrue(suggestion.isRestricted());
-        sNsNetworkCallback = sTestHelper.testConnectionFlowWithSuggestion(
-                sTestNetwork, suggestion, mExecutorService,
-                Set.of()/* restrictedNetworkCapability */, true);
+                Set.of() /* restrictedNetworkCapability */);
     }
 
     /**
@@ -1223,7 +1129,7 @@ public class WifiNetworkSuggestionTest extends WifiJUnit4TestBase {
                         .setOemPaid(true)
                         .build();
         sNsNetworkCallback = sTestHelper.testConnectionFlowWithSuggestion(
-                sTestNetwork, suggestion, mExecutorService, Set.of(NET_CAPABILITY_OEM_PAID), false);
+                sTestNetwork, suggestion, mExecutorService, Set.of(NET_CAPABILITY_OEM_PAID));
     }
 
     /**
@@ -1241,7 +1147,7 @@ public class WifiNetworkSuggestionTest extends WifiJUnit4TestBase {
                         .build();
         sNsNetworkCallback = sTestHelper.testConnectionFlowWithSuggestion(
                 sTestNetwork, suggestion, mExecutorService,
-                Set.of(NET_CAPABILITY_OEM_PAID, NET_CAPABILITY_OEM_PRIVATE), false);
+                Set.of(NET_CAPABILITY_OEM_PAID, NET_CAPABILITY_OEM_PRIVATE));
     }
 
     /**
@@ -1257,8 +1163,7 @@ public class WifiNetworkSuggestionTest extends WifiJUnit4TestBase {
                         .setOemPrivate(true)
                         .build();
         sNsNetworkCallback = sTestHelper.testConnectionFlowWithSuggestion(
-                sTestNetwork, suggestion, mExecutorService, Set.of(NET_CAPABILITY_OEM_PRIVATE),
-                false);
+                sTestNetwork, suggestion, mExecutorService, Set.of(NET_CAPABILITY_OEM_PRIVATE));
     }
 
     /**

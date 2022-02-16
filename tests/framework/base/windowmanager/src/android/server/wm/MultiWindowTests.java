@@ -206,7 +206,7 @@ public class MultiWindowTests extends ActivityManagerTestBase {
         int displayWindowingMode = mWmState.getDisplay(
                 mWmState.getDisplayByActivity(TEST_ACTIVITY)).getWindowingMode();
         separateTestJournal();
-        mTaskOrganizer.dismissSplitScreen(true /* primaryOnTop */);
+        mTaskOrganizer.dismissSplitScreen();
         if (displayWindowingMode == WINDOWING_MODE_FULLSCREEN) {
             // Exit split-screen mode and ensure we only get 1 multi-window mode changed callback.
             final ActivityLifecycleCounts lifecycleCounts = waitForOnMultiWindowModeChanged(
@@ -256,7 +256,7 @@ public class MultiWindowTests extends ActivityManagerTestBase {
                 mTaskOrganizer.getTaskInfo(noRelaunchTaskId).getToken();
         WindowContainerTransaction t = new WindowContainerTransaction()
                 .setWindowingMode(noRelaunchTaskToken, WINDOWING_MODE_FULLSCREEN);
-        mTaskOrganizer.dismissSplitScreen(t, true /* primaryOnTop */);
+        mTaskOrganizer.dismissSplitScreen(t, false /* primaryOnTop */);
 
         lifecycleCounts = waitForOnMultiWindowModeChanged(NO_RELAUNCH_ACTIVITY);
         assertEquals("mMultiWindowModeChangedCount",
@@ -343,7 +343,7 @@ public class MultiWindowTests extends ActivityManagerTestBase {
             mWmState.waitFor("Waiting for new activity to come up.",
                     state -> state.getTaskByActivity(targetActivityName, excludeTaskIds) != null);
         }
-        WindowManagerState.Task task = mWmState.getTaskByActivity(targetActivityName,
+        WindowManagerState.ActivityTask task = mWmState.getTaskByActivity(targetActivityName,
                 excludeTaskIds);
         final int secondaryTaskId2;
         if (task != null) {
@@ -377,7 +377,7 @@ public class MultiWindowTests extends ActivityManagerTestBase {
             mWmState.waitFor("Waiting for the second new activity to come up.",
                     state -> state.getTaskByActivity(targetActivityName, excludeTaskIds) != null);
         }
-        WindowManagerState.Task taskFinal =
+        WindowManagerState.ActivityTask taskFinal =
                 mWmState.getTaskByActivity(targetActivityName, excludeTaskIds);
         if (taskFinal != null) {
             int secondaryTaskId3 = taskFinal.mTaskId;
@@ -446,7 +446,7 @@ public class MultiWindowTests extends ActivityManagerTestBase {
     @Test
     public void testDisallowUpdateWindowingModeWhenInLockedTask() {
         launchActivity(TEST_ACTIVITY, WINDOWING_MODE_FULLSCREEN);
-        final WindowManagerState.Task task =
+        final WindowManagerState.ActivityTask task =
                 mWmState.getStandardRootTaskByWindowingMode(
                         WINDOWING_MODE_FULLSCREEN).getTopTask();
 
@@ -482,9 +482,9 @@ public class MultiWindowTests extends ActivityManagerTestBase {
     public void testDisallowHierarchyOperationWhenInLockedTask() {
         launchActivity(TEST_ACTIVITY, WINDOWING_MODE_FULLSCREEN);
         launchActivity(LAUNCHING_ACTIVITY, WINDOWING_MODE_MULTI_WINDOW);
-        final WindowManagerState.Task task = mWmState
+        final WindowManagerState.ActivityTask task = mWmState
                 .getStandardRootTaskByWindowingMode(WINDOWING_MODE_FULLSCREEN).getTopTask();
-        final WindowManagerState.Task root = mWmState
+        final WindowManagerState.ActivityTask root = mWmState
                 .getStandardRootTaskByWindowingMode(WINDOWING_MODE_MULTI_WINDOW).getTopTask();
 
         try {

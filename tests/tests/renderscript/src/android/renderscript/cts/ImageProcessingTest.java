@@ -119,8 +119,9 @@ public class ImageProcessingTest extends RSBaseCompute {
         byte[] srcData = new byte[w * h * 4];
         byte[] dstData = new byte[w * h * 4];
         byte[] resultData = new byte[w * h * 4];
-
-        for (int i = 0; i < 14; i++) {
+        Script.LaunchOptions opt = new Script.LaunchOptions();
+        // unclipped but with options
+        for (int i = 0; i < 28; i++) {
             buildSrc(srcData, w, h);
             buildDst(dstData, w, h);
             src.copyFromUnchecked(srcData);
@@ -169,71 +170,51 @@ public class ImageProcessingTest extends RSBaseCompute {
                 case 13:
                     mBlend.forEachMultiply(src, dst);
                     break;
-            }
-            dst.copyTo(resultData);
-            String name = javaBlend(i, srcData, dstData, 0, w, 0, h, w);
-            assertTrue(name, similar(resultData,dstData));
-            Log.v("BlendUnit", name + " " + similar(resultData, dstData));
-        }
-
-        // Do the same but passing LaunchOptions
-        int xStart = 10;
-        int xEnd = 20;
-        int yStart = 3;
-        int yEnd = 6;
-        Script.LaunchOptions opt = new Script.LaunchOptions();
-        opt.setX(xStart, xEnd).setY(yStart, yEnd);
-        for (int i = 0; i < 14; i++) {
-            buildSrc(srcData, w, h);
-            buildDst(dstData, w, h);
-            src.copyFromUnchecked(srcData);
-            dst.copyFromUnchecked(dstData);
-            switch (i) {
-                case 0:
+                case 14:
                     mBlend.forEachSrc(src, dst, opt);
                     break;
-                case 1:
+                case 15:
                     mBlend.forEachDst(src, dst, opt);
                     break;
-                case 2:
+                case 16:
                     mBlend.forEachSrcOver(src, dst, opt);
                     break;
-                case 3:
+                case 17:
                     mBlend.forEachDstOver(src, dst, opt);
                     break;
-                case 4:
+                case 18:
                     mBlend.forEachSrcIn(src, dst, opt);
                     break;
-                case 5:
+                case 19:
                     mBlend.forEachDstIn(src, dst, opt);
                     break;
-                case 6:
+                case 20:
                     mBlend.forEachSrcOut(src, dst, opt);
                     break;
-                case 7:
+                case 21:
                     mBlend.forEachDstOut(src, dst, opt);
                     break;
-                case 8:
+                case 22:
                     mBlend.forEachSrcAtop(src, dst, opt);
                     break;
-                case 9:
+                case 23:
                     mBlend.forEachDstAtop(src, dst, opt);
                     break;
-                case 10:
+                case 24:
                     mBlend.forEachXor(src, dst, opt);
                     break;
-                case 11:
+                case 25:
                     mBlend.forEachAdd(src, dst, opt);
                     break;
-                case 12:
+                case 26:
                     mBlend.forEachSubtract(src, dst, opt);
                     break;
-                case 13:
+                case 27:
                     mBlend.forEachMultiply(src, dst, opt);
                     break;
             }
             dst.copyTo(resultData);
-            String name = javaBlend(i, srcData, dstData, xStart, xEnd, yStart, yEnd, w);
+            String name = javaBlend(i%14, srcData, dstData);
             assertTrue(name, similar(resultData,dstData));
             Log.v("BlendUnit", name + " " + similar(resultData, dstData));
 
@@ -279,18 +260,6 @@ public class ImageProcessingTest extends RSBaseCompute {
             srcData[i * 4 + 2] = (byte) 0; // blue
             srcData[i * 4 + 3] = (byte) y; // alpha
         }
-        // Manually set a few known problematic values.
-        // These created problems for SRC_OVER, SRC_ATOP
-        srcData[0] = 230 - 256;
-        srcData[1] = 200 - 256;
-        srcData[2] = 210 - 256;
-        srcData[3] = 7;
-
-        // These created problems for DST_OVER, DST_ATOP,
-        srcData[4] = 230 - 255;
-        srcData[5] = 200 - 256;
-        srcData[6] = 210 - 256;
-        srcData[7] = 245 - 256;
     }
 
     // Build a test pattern to be the destination pattern designed to provide a wide range of values
@@ -304,29 +273,18 @@ public class ImageProcessingTest extends RSBaseCompute {
             dstData[i * 4 + 2] = (byte) y; // blue
             dstData[i * 4 + 3] = (byte) x; // alpha
         }
-        // Manually set a few known problematic values
-        dstData[0] = 170 - 256;
-        dstData[1] = 180 - 256;
-        dstData[2] = 230 - 256;
-        dstData[3] = 245 - 256;
 
-        dstData[4] = 170 - 256;
-        dstData[5] = 180 - 256;
-        dstData[6] = 230 - 256;
-        dstData[7] = 9;
     }
 
-    public String javaBlend(int type, byte[] src, byte[] dst, int xStart, int xEnd, int yStart, int yEnd, int width) {
-        for (int y = yStart; y < yEnd; y++) {
-            for (int x = xStart; x < xEnd; x++) {
-                int i = (y * width + x) * 4;
-                byte[] rgba = func[type].filter(src[i], src[i + 1], src[i + 2], src[i + 3],
-                        dst[i], dst[i + 1], dst[i + 2], dst[i + 3]);
-                dst[i] = rgba[0];
-                dst[i + 1] = rgba[1];
-                dst[i + 2] = rgba[2];
-                dst[i + 3] = rgba[3];
-            }
+    public String javaBlend(int type, byte[] src, byte[] dst) {
+
+        for (int i = 0; i < dst.length; i += 4) {
+            byte[] rgba = func[type].filter(src[i], src[i + 1], src[i + 2], src[i + 3],
+                    dst[i], dst[i + 1], dst[i + 2], dst[i + 3]);
+            dst[i] = rgba[0];
+            dst[i + 1] = rgba[1];
+            dst[i + 2] = rgba[2];
+            dst[i + 3] = rgba[3];
         }
         return func[type].name;
     }

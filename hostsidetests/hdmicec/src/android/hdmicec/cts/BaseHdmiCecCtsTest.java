@@ -16,16 +16,10 @@
 
 package android.hdmicec.cts;
 
-import static com.google.common.truth.Truth.assertWithMessage;
-
 import static org.junit.Assume.assumeTrue;
-
-import android.hdmicec.cts.HdmiCecConstants.CecDeviceType;
-import android.hdmicec.cts.error.DumpsysParseException;
 
 import com.android.tradefed.config.Option;
 import com.android.tradefed.config.OptionClass;
-import com.android.tradefed.device.DeviceNotAvailableException;
 import com.android.tradefed.device.ITestDevice;
 import com.android.tradefed.testtype.junit4.BaseHostJUnit4Test;
 
@@ -33,7 +27,6 @@ import org.junit.Before;
 import org.junit.rules.TestRule;
 
 import java.io.BufferedReader;
-import java.io.IOException;
 import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.List;
@@ -46,11 +39,6 @@ import java.util.regex.Pattern;
 public class BaseHdmiCecCtsTest extends BaseHostJUnit4Test {
 
     public static final String PROPERTY_LOCALE = "persist.sys.locale";
-    private static final String POWER_CONTROL_MODE = "power_control_mode";
-    private static final String POWER_STATE_CHANGE_ON_ACTIVE_SOURCE_LOST =
-            "power_state_change_on_active_source_lost";
-    private static final String SET_MENU_LANGUAGE = "set_menu_language";
-    private static final String SET_MENU_LANGUAGE_ENABLED = "1";
 
     /** Enum contains the list of possible address types. */
     private enum AddressType {
@@ -70,7 +58,7 @@ public class BaseHdmiCecCtsTest extends BaseHostJUnit4Test {
 
     public final HdmiCecClientWrapper hdmiCecClient;
     public List<LogicalAddress> mDutLogicalAddresses = new ArrayList<>();
-    public @CecDeviceType int mTestDeviceType;
+    public int mTestDeviceType = HdmiCecConstants.CEC_DEVICE_TYPE_UNKNOWN;
 
     /**
      * Constructor for BaseHdmiCecCtsTest.
@@ -92,10 +80,10 @@ public class BaseHdmiCecCtsTest extends BaseHostJUnit4Test {
      * Constructor for BaseHdmiCecCtsTest.
      *
      * @param testDeviceType The primary test device type. This is used to determine to which
-     *     logical address of the DUT messages should be sent.
+     * logical address of the DUT messages should be sent.
      * @param clientParams Extra parameters to use when launching cec-client
      */
-    public BaseHdmiCecCtsTest(@CecDeviceType int testDeviceType, String... clientParams) {
+    public BaseHdmiCecCtsTest(int testDeviceType, String... clientParams) {
         this.hdmiCecClient = new HdmiCecClientWrapper(clientParams);
         mTestDeviceType = testDeviceType;
     }
@@ -121,17 +109,16 @@ public class BaseHdmiCecCtsTest extends BaseHostJUnit4Test {
             return new RequiredFeatureRule(testPointer, HdmiCecConstants.LEANBACK_FEATURE);
         }
 
-        public static TestRule requiresDeviceType(
-                BaseHostJUnit4Test testPointer, @CecDeviceType int dutDeviceType) {
+        public static TestRule requiresDeviceType(BaseHostJUnit4Test testPointer,
+                                                  LogicalAddress dutLogicalAddress) {
             return RequiredPropertyRule.asCsvContainsValue(
-                    testPointer,
-                    HdmiCecConstants.HDMI_DEVICE_TYPE_PROPERTY,
-                    Integer.toString(dutDeviceType));
+                        testPointer,
+                        HdmiCecConstants.HDMI_DEVICE_TYPE_PROPERTY,
+                        dutLogicalAddress.getDeviceTypeString());
         }
 
         /** This rule will skip the test if the DUT belongs to the HDMI device type deviceType. */
-        public static TestRule skipDeviceType(
-                BaseHostJUnit4Test testPointer, @CecDeviceType int deviceType) {
+        public static TestRule skipDeviceType(BaseHostJUnit4Test testPointer, int deviceType) {
             return RequiredPropertyRule.asCsvDoesNotContainsValue(
                     testPointer,
                     HdmiCecConstants.HDMI_DEVICE_TYPE_PROPERTY,
@@ -145,31 +132,31 @@ public class BaseHdmiCecCtsTest extends BaseHostJUnit4Test {
     public static int dutPhysicalAddress = HdmiCecConstants.DEFAULT_PHYSICAL_ADDRESS;
 
     /** Gets the physical address of the DUT by parsing the dumpsys hdmi_control. */
-    public int getDumpsysPhysicalAddress() throws DumpsysParseException {
+    public int getDumpsysPhysicalAddress() throws Exception {
         return getDumpsysPhysicalAddress(getDevice());
     }
 
     /** Gets the physical address of the specified device by parsing the dumpsys hdmi_control. */
-    public static int getDumpsysPhysicalAddress(ITestDevice device) throws DumpsysParseException {
+    public static int getDumpsysPhysicalAddress(ITestDevice device) throws Exception {
         return parseRequiredAddressFromDumpsys(device, AddressType.DUMPSYS_PHYSICAL_ADDRESS);
     }
 
     /** Gets the list of logical addresses of the DUT by parsing the dumpsys hdmi_control. */
-    public List<LogicalAddress> getDumpsysLogicalAddresses() throws DumpsysParseException {
+    public List<LogicalAddress> getDumpsysLogicalAddresses() throws Exception {
         return getDumpsysLogicalAddresses(getDevice());
     }
 
     /** Gets the list of logical addresses of the device by parsing the dumpsys hdmi_control. */
     public static List<LogicalAddress> getDumpsysLogicalAddresses(ITestDevice device)
-            throws DumpsysParseException {
+            throws Exception {
         List<LogicalAddress> logicalAddressList = new ArrayList<>();
         String line;
         String pattern =
                 "(.*?)"
-                        + "(mDeviceInfo:)(.*)(logical_address: )"
+                        + "(mAddress: )"
                         + "(?<"
                         + "logicalAddress"
-                        + ">0x\\p{XDigit}{2})"
+                        + ">\\p{Digit}{1,2})"
                         + "(.*?)";
         Pattern p = Pattern.compile(pattern);
         try {
@@ -186,51 +173,19 @@ public class BaseHdmiCecCtsTest extends BaseHostJUnit4Test {
             if (!logicalAddressList.isEmpty()) {
                 return logicalAddressList;
             }
-        } catch (IOException | DeviceNotAvailableException e) {
-            throw new DumpsysParseException(
-                    "Could not parse logicalAddress from dumpsys.", e);
+        } catch (Exception e) {
+            throw new Exception("Parsing dumpsys for logicalAddress failed.", e);
         }
-        throw new DumpsysParseException(
-                "Could not parse logicalAddress from dumpsys.");
-    }
-
-    /**
-     * Gets the system audio mode status of the device by parsing the dumpsys hdmi_control. Returns
-     * true when system audio mode is on and false when system audio mode is off
-     */
-    public boolean isSystemAudioModeOn(ITestDevice device) throws DumpsysParseException {
-        List<LogicalAddress> logicalAddressList = new ArrayList<>();
-        String line;
-        String pattern =
-                "(.*?)"
-                        + "(mSystemAudioActivated: )"
-                        + "(?<"
-                        + "systemAudioModeStatus"
-                        + ">[true|false])"
-                        + "(.*?)";
-        Pattern p = Pattern.compile(pattern);
-        try {
-            String dumpsys = device.executeShellCommand("dumpsys hdmi_control");
-            BufferedReader reader = new BufferedReader(new StringReader(dumpsys));
-            while ((line = reader.readLine()) != null) {
-                Matcher m = p.matcher(line);
-                if (m.matches()) {
-                    return m.group("systemAudioModeStatus").equals("true");
-                }
-            }
-        } catch (IOException | DeviceNotAvailableException e) {
-            throw new DumpsysParseException("Could not parse system audio mode from dumpsys.", e);
-        }
-        throw new DumpsysParseException("Could not parse system audio mode from dumpsys.");
+        throw new Exception("Could not parse logicalAddress from dumpsys.");
     }
 
     /** Gets the DUT's logical address to which messages should be sent */
-    public LogicalAddress getTargetLogicalAddress() throws DumpsysParseException {
+    public LogicalAddress getTargetLogicalAddress() throws Exception {
         return getTargetLogicalAddress(getDevice(), mTestDeviceType);
     }
 
     /** Gets the given device's logical address to which messages should be sent */
-    public static LogicalAddress getTargetLogicalAddress(ITestDevice device) throws DumpsysParseException {
+    public static LogicalAddress getTargetLogicalAddress(ITestDevice device) throws Exception {
         return getTargetLogicalAddress(device, HdmiCecConstants.CEC_DEVICE_TYPE_UNKNOWN);
     }
 
@@ -242,7 +197,7 @@ public class BaseHdmiCecCtsTest extends BaseHostJUnit4Test {
      *
      */
     public static LogicalAddress getTargetLogicalAddress(ITestDevice device, int testDeviceType)
-            throws DumpsysParseException {
+            throws Exception {
         List<LogicalAddress> logicalAddressList = getDumpsysLogicalAddresses(device);
         for (LogicalAddress address : logicalAddressList) {
             if (address.getDeviceType() == testDeviceType) {
@@ -256,7 +211,7 @@ public class BaseHdmiCecCtsTest extends BaseHostJUnit4Test {
      * Parses the dumpsys hdmi_control to get the logical address of the current device registered
      * as active source.
      */
-    public LogicalAddress getDumpsysActiveSourceLogicalAddress() throws DumpsysParseException {
+    public LogicalAddress getDumpsysActiveSourceLogicalAddress() throws Exception {
         ITestDevice device = getDevice();
         int address =
                 parseRequiredAddressFromDumpsys(device, AddressType.DUMPSYS_AS_LOGICAL_ADDRESS);
@@ -264,7 +219,7 @@ public class BaseHdmiCecCtsTest extends BaseHostJUnit4Test {
     }
 
     private static int parseRequiredAddressFromDumpsys(ITestDevice device, AddressType addressType)
-            throws DumpsysParseException {
+            throws Exception {
         Matcher m;
         String line;
         String pattern;
@@ -293,8 +248,7 @@ public class BaseHdmiCecCtsTest extends BaseHostJUnit4Test {
                                 + "(.*?)";
                 break;
             default:
-                throw new DumpsysParseException(
-                        "Incorrect parameters", new IllegalArgumentException());
+                throw new IllegalArgumentException("Incorrect parameters");
         }
 
         try {
@@ -308,15 +262,14 @@ public class BaseHdmiCecCtsTest extends BaseHostJUnit4Test {
                     return address;
                 }
             }
-        } catch (IOException | DeviceNotAvailableException e) {
-            throw new DumpsysParseException(
-                    "Could not parse " + addressType.getAddressType() + " from dumpsys.", e);
+        } catch (Exception e) {
+            throw new Exception(
+                    "Parsing dumpsys for " + addressType.getAddressType() + " failed.", e);
         }
-        throw new DumpsysParseException(
-                "Could not parse " + addressType.getAddressType() + " from dumpsys.");
+        throw new Exception("Could not parse " + addressType.getAddressType() + " from dumpsys.");
     }
 
-    public boolean hasDeviceType(@CecDeviceType int deviceType) {
+    public boolean hasDeviceType(int deviceType) {
         for (LogicalAddress address : mDutLogicalAddresses) {
             if (address.getDeviceType() == deviceType) {
                 return true;
@@ -371,7 +324,9 @@ public class BaseHdmiCecCtsTest extends BaseHostJUnit4Test {
     }
 
     public boolean isLanguageEditable() throws Exception {
-        return getSettingsValue(SET_MENU_LANGUAGE).equals(SET_MENU_LANGUAGE_ENABLED);
+        String val = getDevice().executeShellCommand(
+                "getprop ro.hdmi.set_menu_language");
+        return val.trim().equals("true") ? true : false;
     }
 
     public static String getSettingsValue(ITestDevice device, String setting) throws Exception {
@@ -383,190 +338,13 @@ public class BaseHdmiCecCtsTest extends BaseHostJUnit4Test {
         return getSettingsValue(getDevice(), setting);
     }
 
-    public static String setSettingsValue(ITestDevice device, String setting, String value)
+    public static void setSettingsValue(ITestDevice device, String setting, String value)
             throws Exception {
-        String val = getSettingsValue(device, setting);
         device.executeShellCommand("cmd hdmi_control cec_setting set " + setting + " " +
                 value);
-        return val;
     }
 
-    public String setSettingsValue(String setting, String value) throws Exception {
-        return setSettingsValue(getDevice(), setting, value);
-    }
-
-    public String getDeviceList() throws Exception {
-        return getDevice().executeShellCommand(
-                "dumpsys hdmi_control | sed -n '/mDeviceInfos/,/mCecController/{//!p;}'");
-    }
-
-    public void sendDeviceToSleepAndValidate() throws Exception {
-        sendDeviceToSleep();
-        assertDeviceWakefulness(HdmiCecConstants.WAKEFULNESS_ASLEEP);
-    }
-
-    public void waitForTransitionTo(int finalState) throws Exception {
-        int powerStatus;
-        int waitTimeSeconds = 0;
-        LogicalAddress cecClientDevice = hdmiCecClient.getSelfDevice();
-        int transitionState;
-        if (finalState == HdmiCecConstants.CEC_POWER_STATUS_STANDBY) {
-            transitionState = HdmiCecConstants.CEC_POWER_STATUS_IN_TRANSITION_TO_STANDBY;
-        } else if (finalState == HdmiCecConstants.CEC_POWER_STATUS_ON) {
-            transitionState = HdmiCecConstants.CEC_POWER_STATUS_IN_TRANSITION_TO_ON;
-        } else {
-            throw new Exception("Unsupported final power state!");
-        }
-        do {
-            TimeUnit.SECONDS.sleep(HdmiCecConstants.SLEEP_TIMESTEP_SECONDS);
-            waitTimeSeconds += HdmiCecConstants.SLEEP_TIMESTEP_SECONDS;
-            hdmiCecClient.sendCecMessage(cecClientDevice, CecOperand.GIVE_POWER_STATUS);
-            powerStatus =
-                    CecMessage.getParams(
-                            hdmiCecClient.checkExpectedOutput(
-                                    cecClientDevice, CecOperand.REPORT_POWER_STATUS));
-            if (powerStatus == finalState) {
-                return;
-            }
-        } while (powerStatus == transitionState
-                && waitTimeSeconds <= HdmiCecConstants.MAX_SLEEP_TIME_SECONDS);
-        if (powerStatus != finalState) {
-            // Transition not complete even after wait, throw an Exception.
-            throw new Exception("Power status did not change to expected state.");
-        }
-    }
-
-    public void sendDeviceToSleepWithoutWait() throws Exception {
-        ITestDevice device = getDevice();
-        WakeLockHelper.acquirePartialWakeLock(device);
-        device.executeShellCommand("input keyevent KEYCODE_SLEEP");
-    }
-
-    public void sendDeviceToSleep() throws Exception {
-        sendDeviceToSleepWithoutWait();
-        assertDeviceWakefulness(HdmiCecConstants.WAKEFULNESS_ASLEEP);
-        waitForTransitionTo(HdmiCecConstants.CEC_POWER_STATUS_STANDBY);
-    }
-
-    public void sendDeviceToSleepAndValidateUsingStandbyMessage(boolean directlyAddressed)
-            throws Exception {
-        ITestDevice device = getDevice();
-        WakeLockHelper.acquirePartialWakeLock(device);
-        if (directlyAddressed) {
-            hdmiCecClient.sendCecMessage(LogicalAddress.TV, CecOperand.STANDBY);
-        } else {
-            hdmiCecClient.sendCecMessage(
-                    LogicalAddress.TV, LogicalAddress.BROADCAST, CecOperand.STANDBY);
-        }
-        waitForTransitionTo(HdmiCecConstants.CEC_POWER_STATUS_STANDBY);
-    }
-
-    public void wakeUpDevice() throws Exception {
-        ITestDevice device = getDevice();
-        device.executeShellCommand("input keyevent KEYCODE_WAKEUP");
-        assertDeviceWakefulness(HdmiCecConstants.WAKEFULNESS_AWAKE);
-        waitForTransitionTo(HdmiCecConstants.CEC_POWER_STATUS_ON);
-        WakeLockHelper.releasePartialWakeLock(device);
-    }
-
-    public void checkStandbyAndWakeUp() throws Exception {
-        assertDeviceWakefulness(HdmiCecConstants.WAKEFULNESS_ASLEEP);
-        wakeUpDevice();
-    }
-
-    public void assertDeviceWakefulness(String wakefulness) throws Exception {
-        ITestDevice device = getDevice();
-        String actualWakefulness;
-        int waitTimeSeconds = 0;
-
-        do {
-            TimeUnit.SECONDS.sleep(HdmiCecConstants.SLEEP_TIMESTEP_SECONDS);
-            waitTimeSeconds += HdmiCecConstants.SLEEP_TIMESTEP_SECONDS;
-            actualWakefulness =
-                    device.executeShellCommand("dumpsys power | grep mWakefulness=")
-                            .trim().replace("mWakefulness=", "");
-        } while (!actualWakefulness.equals(wakefulness)
-                && waitTimeSeconds <= HdmiCecConstants.MAX_SLEEP_TIME_SECONDS);
-        assertWithMessage(
-                "Device wakefulness is "
-                        + actualWakefulness
-                        + " but expected to be "
-                        + wakefulness)
-                .that(actualWakefulness)
-                .isEqualTo(wakefulness);
-    }
-
-    public void sendOtp() throws Exception {
-        ITestDevice device = getDevice();
-        device.executeShellCommand("cmd hdmi_control onetouchplay");
-    }
-
-    public String setPowerControlMode(String valToSet) throws Exception {
-        return setSettingsValue(POWER_CONTROL_MODE, valToSet);
-    }
-
-    public String setPowerStateChangeOnActiveSourceLost(String valToSet) throws Exception {
-        return setSettingsValue(POWER_STATE_CHANGE_ON_ACTIVE_SOURCE_LOST, valToSet);
-    }
-
-    public boolean isDeviceActiveSource(ITestDevice device) throws DumpsysParseException {
-        final String activeSource = "activeSource";
-        final String pattern =
-                "(.*?)"
-                        + "(isActiveSource\\(\\): )"
-                        + "(?<"
-                        + activeSource
-                        + ">\\btrue\\b|\\bfalse\\b)"
-                        + "(.*?)";
-        try {
-            Pattern p = Pattern.compile(pattern);
-            String dumpsys = device.executeShellCommand("dumpsys hdmi_control");
-            BufferedReader reader = new BufferedReader(new StringReader(dumpsys));
-            String line;
-            while ((line = reader.readLine()) != null) {
-                Matcher matcher = p.matcher(line);
-                if (matcher.matches()) {
-                    return matcher.group(activeSource).equals("true");
-                }
-            }
-        } catch (IOException | DeviceNotAvailableException e) {
-            throw new DumpsysParseException("Could not fetch 'dumpsys hdmi_control' output.", e);
-        }
-        throw new DumpsysParseException("Could not parse isActiveSource() from dumpsys.");
-    }
-
-    /**
-     * For source devices, simulate that a sink is connected by responding to the
-     * {@code Give Power Status} message that is sent when re-enabling CEC.
-     * Validate that HdmiControlService#mIsCecAvailable is set to true as a result.
-     */
-    public void simulateCecSinkConnected(ITestDevice device, LogicalAddress source)
-            throws Exception {
-        hdmiCecClient.clearClientOutput();
-        device.executeShellCommand("cmd hdmi_control cec_setting set hdmi_cec_enabled 0");
-        device.executeShellCommand("cmd hdmi_control cec_setting set hdmi_cec_enabled 1");
-        // When a CEC device has just become available, the CEC adapter isn't able to send it
-        // messages right away. Therefore we let the first <Give Power Status> message time-out, and
-        // only respond to the retry.
-        hdmiCecClient.checkExpectedOutput(LogicalAddress.TV, CecOperand.GIVE_POWER_STATUS);
-        hdmiCecClient.clearClientOutput();
-        hdmiCecClient.checkExpectedOutput(LogicalAddress.TV, CecOperand.GIVE_POWER_STATUS);
-        hdmiCecClient.sendCecMessage(LogicalAddress.TV, source, CecOperand.REPORT_POWER_STATUS,
-                CecMessage.formatParams(HdmiCecConstants.CEC_POWER_STATUS_STANDBY));
-        checkIsCecAvailable(device);
-    }
-
-    private void checkIsCecAvailable(ITestDevice device) throws Exception {
-        boolean isCecAvailable;
-        int waitTimeSeconds = 0;
-        do {
-            TimeUnit.SECONDS.sleep(HdmiCecConstants.SLEEP_TIMESTEP_SECONDS);
-            waitTimeSeconds += HdmiCecConstants.SLEEP_TIMESTEP_SECONDS;
-            isCecAvailable =
-                    device.executeShellCommand("dumpsys hdmi_control | grep mIsCecAvailable:")
-                            .replace("mIsCecAvailable:", "").trim().equals("true");
-        } while (!isCecAvailable && waitTimeSeconds <= HdmiCecConstants.MAX_SLEEP_TIME_SECONDS);
-        assertWithMessage("Simulating that a sink is connected, failed.")
-                .that(isCecAvailable).isTrue();
+    public void setSettingsValue(String setting, String value) throws Exception {
+        setSettingsValue(getDevice(), setting, value);
     }
 }

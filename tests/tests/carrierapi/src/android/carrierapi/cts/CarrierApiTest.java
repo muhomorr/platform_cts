@@ -21,9 +21,6 @@ import static android.carrierapi.cts.IccUtils.bytesToHexString;
 import static android.carrierapi.cts.IccUtils.hexStringToBytes;
 import static android.telephony.IccOpenLogicalChannelResponse.INVALID_CHANNEL;
 import static android.telephony.IccOpenLogicalChannelResponse.STATUS_NO_ERROR;
-import static android.telephony.SubscriptionManager.PHONE_NUMBER_SOURCE_CARRIER;
-import static android.telephony.TelephonyManager.DATA_ENABLED_REASON_THERMAL;
-import static android.telephony.TelephonyManager.DATA_ENABLED_REASON_USER;
 
 import static com.android.compatibility.common.util.UiccUtil.UiccCertificate.CTS_UICC_2021;
 
@@ -523,10 +520,6 @@ public class CarrierApiTest extends BaseCarrierApiTest {
             mTelephonyManager.getServiceState();
             mTelephonyManager.getManualNetworkSelectionPlmn();
             mTelephonyManager.setForbiddenPlmns(new ArrayList<String>());
-            int activeModemCount = mTelephonyManager.getActiveModemCount();
-            for (int i = 0; i < activeModemCount; i++) {
-                mTelephonyManager.isModemEnabledForSlot(i);
-            }
         } catch (SecurityException e) {
             fail(NO_CARRIER_PRIVILEGES_FAILURE_MESSAGE);
         }
@@ -991,12 +984,10 @@ public class CarrierApiTest extends BaseCarrierApiTest {
 
     /**
      * This test verifies that {@link TelephonyManager#setLine1NumberForDisplay(String, String)}
-     * correctly sets the Line 1 alpha tag and number when called, and the phone number
-     * of {@link SubscriptionManager#PHONE_NUMBER_SOURCE_CARRIER}.
+     * correctly sets the Line 1 alpha tag and number when called.
      */
     @Test
     public void testLine1NumberForDisplay() {
-        int subId = SubscriptionManager.getDefaultSubscriptionId();
         // Cache original alpha tag and number values.
         String originalAlphaTag = mTelephonyManager.getLine1AlphaTag();
         String originalNumber = mTelephonyManager.getLine1Number();
@@ -1010,21 +1001,15 @@ public class CarrierApiTest extends BaseCarrierApiTest {
             assertThat(mTelephonyManager.setLine1NumberForDisplay(ALPHA_TAG_A, NUMBER_A)).isTrue();
             assertThat(mTelephonyManager.getLine1AlphaTag()).isEqualTo(ALPHA_TAG_A);
             assertThat(mTelephonyManager.getLine1Number()).isEqualTo(NUMBER_A);
-            assertThat(mSubscriptionManager.getPhoneNumber(subId, PHONE_NUMBER_SOURCE_CARRIER))
-                    .isEqualTo(NUMBER_A);
 
             assertThat(mTelephonyManager.setLine1NumberForDisplay(ALPHA_TAG_B, NUMBER_B)).isTrue();
             assertThat(mTelephonyManager.getLine1AlphaTag()).isEqualTo(ALPHA_TAG_B);
             assertThat(mTelephonyManager.getLine1Number()).isEqualTo(NUMBER_B);
-            assertThat(mSubscriptionManager.getPhoneNumber(subId, PHONE_NUMBER_SOURCE_CARRIER))
-                    .isEqualTo(NUMBER_B);
 
             // null is used to clear the Line 1 alpha tag and number values.
             assertThat(mTelephonyManager.setLine1NumberForDisplay(null, null)).isTrue();
             assertThat(mTelephonyManager.getLine1AlphaTag()).isEqualTo(defaultAlphaTag);
             assertThat(mTelephonyManager.getLine1Number()).isEqualTo(defaultNumber);
-            assertThat(mSubscriptionManager.getPhoneNumber(subId, PHONE_NUMBER_SOURCE_CARRIER))
-                    .isEqualTo("");
         } finally {
             // Reset original alpha tag and number values.
             mTelephonyManager.setLine1NumberForDisplay(originalAlphaTag, originalNumber);
@@ -1101,8 +1086,7 @@ public class CarrierApiTest extends BaseCarrierApiTest {
         try {
             // Get all active subscriptions.
             List<SubscriptionInfo> activeSubInfos =
-                    ShellIdentityUtils.invokeMethodWithShellPermissions(mSubscriptionManager,
-                    (sm) -> sm.getActiveSubscriptionInfoList());
+                    mSubscriptionManager.getActiveSubscriptionInfoList();
 
             List<Integer> activeSubGroup = getSubscriptionIdList(activeSubInfos);
             activeSubGroup.removeIf(id -> id == subId);
@@ -1278,17 +1262,13 @@ public class CarrierApiTest extends BaseCarrierApiTest {
     }
 
     private void removeSubscriptionsFromGroup(ParcelUuid uuid) {
-        List<SubscriptionInfo> infoList = ShellIdentityUtils.invokeMethodWithShellPermissions(
-                mSubscriptionManager,
-                (sm) -> (sm.getSubscriptionsInGroup(uuid)));
+        List<SubscriptionInfo> infoList = mSubscriptionManager.getSubscriptionsInGroup(uuid);
         if (!infoList.isEmpty()) {
             List<Integer> subscriptionIdList = getSubscriptionIdList(infoList);
             ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mSubscriptionManager,
                     (sm) -> sm.removeSubscriptionsFromGroup(subscriptionIdList, uuid));
         }
-        infoList = ShellIdentityUtils.invokeMethodWithShellPermissions(
-                mSubscriptionManager,
-                (sm) -> (sm.getSubscriptionsInGroup(uuid)));
+        infoList = mSubscriptionManager.getSubscriptionsInGroup(uuid);
         assertThat(infoList).isEmpty();
     }
 
@@ -1382,22 +1362,5 @@ public class CarrierApiTest extends BaseCarrierApiTest {
         assertWithMessage("Results for AUTHTYPE_EAP_AKA failed")
                 .that(akaResponse)
                 .isEqualTo(hexStringToBytes(EXPECTED_EAP_AKA_RESULT));
-    }
-
-    /**
-     * This test checks that applications with carrier privilege can set/get data enable
-     * state.
-     */
-    @Test
-    public void testDataEnableRequest() {
-        for (int i = DATA_ENABLED_REASON_USER; i <= DATA_ENABLED_REASON_THERMAL; i++) {
-            mTelephonyManager.isDataEnabledForReason(i);
-        }
-        boolean isDataEnabled = mTelephonyManager.isDataEnabledForReason(
-                TelephonyManager.DATA_ENABLED_REASON_CARRIER);
-        mTelephonyManager.setDataEnabledForReason(
-                TelephonyManager.DATA_ENABLED_REASON_CARRIER, !isDataEnabled);
-        mTelephonyManager.setDataEnabledForReason(
-                TelephonyManager.DATA_ENABLED_REASON_CARRIER, isDataEnabled);
     }
 }

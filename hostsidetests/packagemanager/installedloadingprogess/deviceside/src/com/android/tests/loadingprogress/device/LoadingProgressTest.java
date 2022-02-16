@@ -21,7 +21,6 @@ import static org.junit.Assert.assertTrue;
 
 import android.annotation.NonNull;
 import android.content.Context;
-import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.LauncherActivityInfo;
 import android.content.pm.LauncherApps;
@@ -54,8 +53,6 @@ import java.util.function.Predicate;
 @LargeTest
 public class LoadingProgressTest {
     private static final String TEST_PACKAGE_NAME = "com.android.tests.loadingprogress.app";
-    private static final String REGISTER_APP_NAME = "com.android.tests.loadingprogress.registerapp";
-
     protected Context mContext;
     private PackageManager mPackageManager;
     private UserHandle mUser;
@@ -81,14 +78,6 @@ public class LoadingProgressTest {
         if (mCallback != null) {
             mLauncherApps.unregisterCallback(mCallback);
         }
-    }
-
-    @Test
-    public void registerFirstLauncherAppsCallback() {
-        final Intent intent = mPackageManager.getLaunchIntentForPackage(REGISTER_APP_NAME);
-        assertNotNull(intent);
-        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
-        mContext.startActivity(intent);
     }
 
     @Test

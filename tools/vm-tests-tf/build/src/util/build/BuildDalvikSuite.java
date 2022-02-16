@@ -76,8 +76,8 @@ public class BuildDalvikSuite extends BuildUtilBase {
     }
 
     private static void printUsage() {
-        System.out.println("usage: $(JAVA) -cp $(CLASSPATH) util.build.BuildDalvikSuite" +
-                " JAVASRC_FOLDER OUTPUT_FOLDER COMPILED_CLASSES_FOLDER");
+        System.out.println("usage: java-src-folder output-folder classpath " +
+                           "generated-main-files compiled_output");
     }
 
     class MyTestHandler implements TestHandler {

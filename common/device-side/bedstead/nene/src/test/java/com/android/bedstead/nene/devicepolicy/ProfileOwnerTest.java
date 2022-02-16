@@ -20,113 +20,78 @@ import static com.google.common.truth.Truth.assertThat;
 
 import android.content.ComponentName;
 
-import com.android.bedstead.harrier.BedsteadJUnit4;
-import com.android.bedstead.harrier.DeviceState;
-import com.android.bedstead.harrier.annotations.EnsureHasSecondaryUser;
-import com.android.bedstead.harrier.annotations.RequireRunNotOnSecondaryUser;
-import com.android.bedstead.harrier.annotations.RequireRunOnWorkProfile;
-import com.android.bedstead.harrier.annotations.enterprise.EnsureHasNoDpc;
-import com.android.bedstead.harrier.annotations.enterprise.EnsureHasProfileOwner;
 import com.android.bedstead.nene.TestApis;
 import com.android.bedstead.nene.users.UserReference;
-import com.android.bedstead.remotedpc.RemoteDpc;
+import com.android.bedstead.nene.users.UserType;
 import com.android.bedstead.testapp.TestApp;
-import com.android.bedstead.testapp.TestAppInstance;
 import com.android.bedstead.testapp.TestAppProvider;
+import com.android.eventlib.premade.EventLibDeviceAdminReceiver;
 
-import org.junit.Before;
-import org.junit.ClassRule;
-import org.junit.Rule;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.junit.runners.JUnit4;
 
-@RunWith(BedsteadJUnit4.class)
+@RunWith(JUnit4.class)
 public class ProfileOwnerTest {
 
-    private static final ComponentName DPC_COMPONENT_NAME = RemoteDpc.DPC_COMPONENT_NAME;
-    private static final TestAppProvider sTestAppProvider = new TestAppProvider();
-    private static final TestApp sNonTestOnlyDpc = sTestAppProvider.query()
-            .whereIsDeviceAdmin().isTrue()
-            .whereTestOnly().isFalse()
-            .get();
-    private static final ComponentName NON_TEST_ONLY_DPC_COMPONENT_NAME = new ComponentName(
-            sNonTestOnlyDpc.packageName(),
-            "com.android.bedstead.testapp.DeviceAdminTestApp.DeviceAdminReceiver"
-    );
+    //  TODO(180478924): We shouldn't need to hardcode this
+    private static final String DEVICE_ADMIN_TESTAPP_PACKAGE_NAME = "android.DeviceAdminTestApp";
+    private static final ComponentName DPC_COMPONENT_NAME =
+            new ComponentName(DEVICE_ADMIN_TESTAPP_PACKAGE_NAME,
+                    EventLibDeviceAdminReceiver.class.getName());
 
+    private static final TestApis sTestApis = new TestApis();
+    private static final UserReference sUser = sTestApis.users().instrumented();
     private static UserReference sProfile;
 
-    @ClassRule @Rule
-    public static final DeviceState sDeviceState = new DeviceState();
+    private static TestApp sTestApp;
+    private static ProfileOwner sProfileOwner;
 
-    @Before
-    public void setUp() {
-        sProfile = TestApis.users().instrumented();
+    @BeforeClass
+    public static void setupClass() {
+        sProfile = sTestApis.users().createUser()
+                .parent(sUser)
+                .type(sTestApis.users().supportedType(UserType.MANAGED_PROFILE_TYPE_NAME))
+                .createAndStart();
+
+        sTestApp = new TestAppProvider().query()
+                .wherePackageName().isEqualTo(DEVICE_ADMIN_TESTAPP_PACKAGE_NAME)
+                .get();
+
+        sTestApp.install(sProfile);
+
+        sProfileOwner = sTestApis.devicePolicy().setProfileOwner(sProfile, DPC_COMPONENT_NAME);
+    }
+
+    @AfterClass
+    public static void teardownClass() {
+        sProfile.remove();
     }
 
     @Test
-    @EnsureHasProfileOwner
     public void user_returnsUser() {
-        assertThat(sDeviceState.profileOwner().devicePolicyController().user()).isEqualTo(sProfile);
+        assertThat(sProfileOwner.user()).isEqualTo(sProfile);
     }
 
     @Test
-    @EnsureHasProfileOwner
     public void pkg_returnsPackage() {
-        assertThat(sDeviceState.profileOwner().devicePolicyController().pkg()).isNotNull();
+        assertThat(sProfileOwner.pkg()).isEqualTo(sTestApp.reference());
     }
 
     @Test
-    @EnsureHasProfileOwner
     public void componentName_returnsComponentName() {
-        assertThat(sDeviceState.profileOwner().devicePolicyController().componentName())
-                .isEqualTo(DPC_COMPONENT_NAME);
+        assertThat(sProfileOwner.componentName()).isEqualTo(DPC_COMPONENT_NAME);
     }
 
     @Test
-    @EnsureHasProfileOwner
     public void remove_removesProfileOwner() {
-        sDeviceState.profileOwner().devicePolicyController().remove();
+        sProfileOwner.remove();
         try {
-            assertThat(TestApis.devicePolicy().getProfileOwner(sProfile)).isNull();
+            assertThat(sTestApis.devicePolicy().getProfileOwner(sProfile)).isNull();
         } finally {
-            TestApis.devicePolicy().setProfileOwner(sProfile, DPC_COMPONENT_NAME);
+            sProfileOwner = sTestApis.devicePolicy().setProfileOwner(sProfile, DPC_COMPONENT_NAME);
         }
-    }
-
-    @Test
-    @EnsureHasNoDpc
-    public void remove_nonTestOnlyDpc_removesProfileOwner() {
-        try (TestAppInstance dpc = sNonTestOnlyDpc.install()) {
-            ProfileOwner profileOwner = TestApis.devicePolicy().setProfileOwner(
-                    TestApis.users().instrumented(), NON_TEST_ONLY_DPC_COMPONENT_NAME);
-
-            profileOwner.remove();
-
-            assertThat(TestApis.devicePolicy().getProfileOwner()).isNull();
-        }
-    }
-
-    @Test
-    @EnsureHasSecondaryUser
-    @RequireRunNotOnSecondaryUser
-    public void remove_onOtherUser_removesProfileOwner() {
-        try (TestAppInstance dpc = sNonTestOnlyDpc.install(sDeviceState.secondaryUser())) {
-            ProfileOwner profileOwner = TestApis.devicePolicy().setProfileOwner(
-                    sDeviceState.secondaryUser(), NON_TEST_ONLY_DPC_COMPONENT_NAME);
-
-            profileOwner.remove();
-
-            assertThat(TestApis.devicePolicy().getProfileOwner(sDeviceState.secondaryUser()))
-                    .isNull();
-        }
-    }
-
-    @Test
-    @RequireRunOnWorkProfile
-    public void remove_onWorkProfile_testDpc_removesProfileOwner() {
-        TestApis.devicePolicy().getProfileOwner().remove();
-
-        assertThat(TestApis.devicePolicy().getProfileOwner()).isNull();
     }
 }

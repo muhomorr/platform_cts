@@ -46,7 +46,8 @@ public class EventLibBroadcastReceiverTest {
     private static final String GENERATED_BROADCAST_RECEIVER_ACTION =
             "com.android.eventlib.GENERATED_BROADCAST_RECEIVER";
 
-    private static final Context sContext = TestApis.context().instrumentedContext();
+    private static final TestApis sTestApis = new TestApis();
+    private static final Context sContext = sTestApis.context().instrumentedContext();
 
     @Before
     public void setUp() {

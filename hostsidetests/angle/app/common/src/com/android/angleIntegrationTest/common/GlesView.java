@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.android.angleintegrationtest.common;
+package com.android.angleIntegrationTest.common;
 
 import static javax.microedition.khronos.egl.EGL10.EGL_STENCIL_SIZE;
 
@@ -23,7 +23,6 @@ import android.opengl.EGL14;
 import android.opengl.GLES20;
 import android.os.Build.VERSION_CODES;
 import android.util.Log;
-
 import javax.microedition.khronos.egl.EGL10;
 import javax.microedition.khronos.egl.EGLConfig;
 import javax.microedition.khronos.egl.EGLContext;

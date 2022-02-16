@@ -21,6 +21,7 @@ java_test_host {
     defaults: ["cts_defaults"],
     srcs: ["src/**/*.java"],
     libs: [
+        "cts-tradefed",
         "tradefed",
         "compatibility-host-util",
     ],
@@ -34,6 +35,4 @@ java_test_host {
         "general-tests",
         "mts-mainline-infra",
     ],
-    data: [":SharedLibraryInfoTestApp"],
-    per_testcase_directory: true,
 }

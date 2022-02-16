@@ -35,7 +35,6 @@ android_test_helper_app {
         "general-tests",
     ],
     manifest: "AndroidManifest.xml",
-    sdk_version: "current",
 }
 
 android_test_helper_app {
@@ -57,7 +56,6 @@ android_test_helper_app {
         "general-tests",
     ],
     manifest: "AndroidManifestTestOnly.xml",
-    sdk_version: "current",
 }
 
 android_test_helper_app {
@@ -79,7 +77,6 @@ android_test_helper_app {
         "general-tests",
     ],
     manifest: "AndroidManifestTargetQ.xml",
-    sdk_version: "current",
 }
 
 android_test_helper_app {
@@ -101,7 +98,6 @@ android_test_helper_app {
         "general-tests",
     ],
     manifest: "AndroidManifestTargetR.xml",
-    sdk_version: "current",
 }
 
 android_test_helper_app {
@@ -123,5 +119,4 @@ android_test_helper_app {
         "general-tests",
     ],
     manifest: "AndroidManifestTargetS.xml",
-    sdk_version: "current",
 }

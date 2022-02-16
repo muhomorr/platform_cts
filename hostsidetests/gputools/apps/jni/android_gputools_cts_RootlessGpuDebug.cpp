@@ -17,16 +17,15 @@
 
 #define LOG_TAG "RootlessGpuDebug"
 
+#include <string>
+#include <vector>
+
 #include <EGL/egl.h>
 #include <GLES3/gl3.h>
 #include <android/log.h>
 #include <android/native_window.h>
 #include <jni.h>
 #include <vulkan/vulkan.h>
-
-#include <sstream>
-#include <string>
-#include <vector>
 
 #define ALOGI(msg, ...) \
     __android_log_print(ANDROID_LOG_INFO, LOG_TAG, (msg), __VA_ARGS__)
@@ -40,7 +39,7 @@ namespace {
 typedef __eglMustCastToProperFunctionPointerType EGLFuncPointer;
 
 std::string initVulkan() {
-    std::stringstream result;
+    std::string result = "";
 
     {
       uint32_t count = 0;
@@ -79,13 +78,13 @@ std::string initVulkan() {
     };
     VkInstance instance;
     VkResult vkResult = vkCreateInstance(&instance_info, nullptr, &instance);
-    if (vkResult == VK_SUCCESS) {
-        result << "vkCreateInstance succeeded.";
+    if (vkResult == VK_ERROR_INITIALIZATION_FAILED) {
+        result = "vkCreateInstance failed, meaning layers could not be chained.";
     } else {
-        result << "vkCreateInstance failed with VkResult: " << vkResult;
+        result = "vkCreateInstance succeeded.";
     }
 
-    return result.str();
+    return result;
 }
 
 std::string initGLES() {
@@ -164,7 +163,8 @@ static JNINativeMethod gMethods[] = {
 }  // anonymous namespace
 
 int register_android_gputools_cts_RootlessGpuDebug(JNIEnv* env) {
-    jclass clazz = env->FindClass("android/rootlessgpudebug/app/RootlessGpuDebugService");
+    jclass clazz = env->FindClass(
+        "android/rootlessgpudebug/app/RootlessGpuDebugDeviceActivity");
     return env->RegisterNatives(clazz, gMethods,
                                 sizeof(gMethods) / sizeof(JNINativeMethod));
 }

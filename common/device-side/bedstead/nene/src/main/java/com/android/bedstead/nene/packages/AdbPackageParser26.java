@@ -44,7 +44,13 @@ public class AdbPackageParser26 implements AdbPackageParser {
 
     private static final int PACKAGE_LIST_BASE_INDENTATION = 2;
 
-    AdbPackageParser26() {
+    private final TestApis mTestApis;
+
+    AdbPackageParser26(TestApis testApis) {
+        if (testApis == null) {
+            throw new NullPointerException();
+        }
+        mTestApis = testApis;
     }
 
     @Override
@@ -72,13 +78,13 @@ public class AdbPackageParser26 implements AdbPackageParser {
         }
     }
 
-    Map<String, AdbPackage> parsePackages(String dumpsysUsersOutput) throws AdbParseException {
+    Map<String, Package> parsePackages(String dumpsysUsersOutput) throws AdbParseException {
         String packagesList = extractPackagesList(dumpsysUsersOutput);
 
         Set<String> packageStrings = extractPackageStrings(packagesList);
-        Map<String, AdbPackage> packages = new HashMap<>();
+        Map<String, Package> packages = new HashMap<>();
         for (String packageString : packageStrings) {
-            AdbPackage pkg = new AdbPackage(parsePackage(packageString));
+            Package pkg = new Package(mTestApis, parsePackage(packageString));
             packages.put(pkg.packageName(), pkg);
         }
         return packages;
@@ -99,10 +105,10 @@ public class AdbPackageParser26 implements AdbPackageParser {
     private static final Pattern USER_INSTALLED_PATTERN =
             Pattern.compile("User (\\d+):.*?installed=(\\w+)");
 
-    AdbPackage.MutablePackage parsePackage(String packageString) throws AdbParseException {
+    Package.MutablePackage parsePackage(String packageString) throws AdbParseException {
         try {
             String packageName = packageString.split("\\[", 2)[1].split("]", 2)[0];
-            AdbPackage.MutablePackage pkg = new AdbPackage.MutablePackage();
+            Package.MutablePackage pkg = new Package.MutablePackage();
             pkg.mPackageName = packageName;
             pkg.mInstalledOnUsers = new HashMap<>();
             pkg.mInstallPermissions = new HashSet<>();
@@ -125,7 +131,7 @@ public class AdbPackageParser26 implements AdbPackageParser {
         }
     }
 
-    void parseInstallPermissions(String section, AdbPackage.MutablePackage pkg) {
+    void parseInstallPermissions(String section, Package.MutablePackage pkg) {
         String list = section.split("\n", 2)[1]; // remove header
         for (String item : list.split("\n")) {
             String[] trimmed = item.trim().split(":", 2);
@@ -137,7 +143,7 @@ public class AdbPackageParser26 implements AdbPackageParser {
         }
     }
 
-    void parseUser(String section, AdbPackage.MutablePackage pkg) throws AdbParseException {
+    void parseUser(String section, Package.MutablePackage pkg) throws AdbParseException {
         Matcher userInstalledMatcher = USER_INSTALLED_PATTERN.matcher(section);
         if (!userInstalledMatcher.find()) {
             throw new AdbParseException("Error parsing user section in package", section);
@@ -149,8 +155,8 @@ public class AdbPackageParser26 implements AdbPackageParser {
             return;
         }
 
-        UserReference user = TestApis.users().find(userId);
-        AdbPackage.MutableUserPackage userPackage = new AdbPackage.MutableUserPackage();
+        UserReference user = mTestApis.users().find(userId);
+        Package.MutableUserPackage userPackage = new Package.MutableUserPackage();
         userPackage.mGrantedPermissions = new HashSet<>();
         pkg.mInstalledOnUsers.put(user, userPackage);
 

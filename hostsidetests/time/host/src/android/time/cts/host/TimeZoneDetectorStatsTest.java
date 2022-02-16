@@ -17,7 +17,6 @@
 package android.time.cts.host;
 
 import static android.app.time.cts.shell.DeviceConfigKeys.NAMESPACE_SYSTEM_TIME;
-import static android.app.time.cts.shell.DeviceConfigShellHelper.SYNC_DISABLED_MODE_UNTIL_REBOOT;
 
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
@@ -25,8 +24,8 @@ import static com.google.common.truth.Truth.assertWithMessage;
 import android.app.time.cts.shell.DeviceConfigShellHelper;
 import android.app.time.cts.shell.DeviceShellCommandExecutor;
 import android.app.time.cts.shell.LocationShellHelper;
-import android.app.time.cts.shell.TimeZoneDetectorShellHelper;
 import android.app.time.cts.shell.host.HostShellCommandExecutor;
+import android.app.time.cts.shell.TimeZoneDetectorShellHelper;
 import android.cts.statsdatom.lib.AtomTestUtils;
 import android.cts.statsdatom.lib.ConfigUtils;
 import android.cts.statsdatom.lib.DeviceUtils;
@@ -60,7 +59,7 @@ public class TimeZoneDetectorStatsTest extends BaseHostJUnit4Test {
         mLocationShellHelper = new LocationShellHelper(shellCommandExecutor);
         mDeviceConfigShellHelper = new DeviceConfigShellHelper(shellCommandExecutor);
         mDeviceConfigPreTestState = mDeviceConfigShellHelper.setSyncModeForTest(
-                SYNC_DISABLED_MODE_UNTIL_REBOOT, NAMESPACE_SYSTEM_TIME);
+                DeviceConfigShellHelper.SYNC_DISABLED_MODE_UNTIL_REBOOT, NAMESPACE_SYSTEM_TIME);
 
         ConfigUtils.removeConfig(getDevice());
         ReportUtils.clearReports(getDevice());
