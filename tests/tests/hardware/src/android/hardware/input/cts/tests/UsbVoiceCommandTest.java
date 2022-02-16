@@ -93,7 +93,8 @@ public class UsbVoiceCommandTest extends InputHidTestCase {
 
         for (int i = 0; i < list.size(); i++) {
             ResolveInfo info = list.get(i);
-            if (!info.activityInfo.packageName.equals(mTestActivity.getPackageName())) {
+            if (!info.activityInfo.packageName.equals(
+                    mActivityRule.getActivity().getPackageName())) {
                 mExcludedPackages.add(info.activityInfo.packageName);
             }
         }
@@ -145,7 +146,7 @@ public class UsbVoiceCommandTest extends InputHidTestCase {
 
         /* InputAssistantActivity should be visible */
         final ComponentName inputAssistant =
-                new ComponentName(mTestActivity.getPackageName(),
+                new ComponentName(mActivityRule.getActivity().getPackageName(),
                         InputAssistantActivity.class.getName());
         wmStateHelper.waitForValidState(inputAssistant);
         wmStateHelper.assertActivityDisplayed(inputAssistant);

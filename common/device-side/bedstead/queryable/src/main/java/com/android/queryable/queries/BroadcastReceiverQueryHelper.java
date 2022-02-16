@@ -46,11 +46,4 @@ public final class BroadcastReceiverQueryHelper<E extends Queryable>
     public boolean matches(BroadcastReceiverInfo value) {
         return mReceiverClassQueryHelper.matches(value);
     }
-
-    @Override
-    public String describeQuery(String fieldName) {
-        return Queryable.joinQueryStrings(
-                mReceiverClassQueryHelper.describeQuery(fieldName + ".receiverClass")
-        );
-    }
 }

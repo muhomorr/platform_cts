@@ -20,11 +20,7 @@ java_test_host {
     name: "CtsCarHostTestCases",
     defaults: ["cts_defaults"],
     // Only compile source java files in this apk.
-    srcs: [
-        "src/**/*.java",
-        "app/src/android/car/cts/app/PowerPolicyTestCommandStatus.java",
-        "app/src/android/car/cts/app/PowerPolicyTestCommandType.java",
-    ],
+    srcs: ["src/**/*.java"],
     libs: [
         "cts-tradefed",
         "tradefed",
@@ -38,11 +34,9 @@ java_test_host {
         "general-tests",
     ],
     static_libs: [
-        "cts-statsd-atom-host-test-utils",
+    	"cts-statsd-atom-host-test-utils",
     ],
     data: [
         ":CtsCarApp",
-        ":CtsCarWatchdogSharedApp",
-        ":CtsCarWatchdogSecondSharedApp",
     ],
 }

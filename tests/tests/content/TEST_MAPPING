@@ -1,5 +1,5 @@
 {
-  "presubmit-large": [
+  "presubmit": [
     {
       "name": "CtsContentTestCases",
       "options": [
@@ -11,6 +11,17 @@
         },
         {
           "include-filter": "android.content.pm.cts"
+        }
+      ]
+    },
+    {
+      "name": "FrameworksCoreTests",
+      "options": [
+        {
+          "include-filter": "android.content.pm.PackageManagerTests"
+        },
+        {
+          "exclude-annotation": "androidx.test.filters.Suppress"
         }
       ]
     }

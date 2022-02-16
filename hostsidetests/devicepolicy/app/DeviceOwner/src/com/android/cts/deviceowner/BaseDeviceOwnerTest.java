@@ -52,7 +52,6 @@ public abstract class BaseDeviceOwnerTest extends AndroidTestCase {
 
     protected DevicePolicyManager mDevicePolicyManager;
     protected WifiManager mWifiManager;
-    protected WifiManager mCurrentUserWifiManager;
     protected WifiConfigCreator mWifiConfigCreator;
     protected Instrumentation mInstrumentation;
     protected UiDevice mDevice;
@@ -66,18 +65,21 @@ public abstract class BaseDeviceOwnerTest extends AndroidTestCase {
     protected void setUp() throws Exception {
         super.setUp();
 
-        mUserId = mContext.getUserId();
-        Log.v(TAG, getClass().getSimpleName() + ".setUp(): test=" + getClass() + ", userId="
-                + mUserId);
-
         mInstrumentation = InstrumentationRegistry.getInstrumentation();
         mDevice = UiDevice.getInstance(mInstrumentation);
         mDevicePolicyManager = TestAppSystemServiceFactory.getDevicePolicyManager(mContext,
-                BasicAdminReceiver.class, /* forDeviceOwner= */ true);
+                BasicAdminReceiver.class);
         mWifiManager = TestAppSystemServiceFactory.getWifiManager(mContext,
                 BasicAdminReceiver.class);
-        mCurrentUserWifiManager = mContext.getSystemService(WifiManager.class);
-        mWifiConfigCreator = new WifiConfigCreator(mContext, mWifiManager);
+        WifiManager currentUserWifiManager = mContext.getSystemService(WifiManager.class);
+        mWifiConfigCreator = new WifiConfigCreator(mContext, mWifiManager) {
+            @Override
+            public List<WifiConfiguration> getConfiguredNetworks() {
+                // Must always use the current user's wifi manager, otherwise it would fail on
+                // headless system user (as the device owner is not the current user).
+                return currentUserWifiManager.getConfiguredNetworks();
+            }
+        };
 
         mHasSecureLockScreen = mContext.getPackageManager().hasSystemFeature(
                 PackageManager.FEATURE_SECURE_LOCK_SCREEN);
@@ -85,8 +87,10 @@ public abstract class BaseDeviceOwnerTest extends AndroidTestCase {
                 PackageManager.FEATURE_TELEPHONY);
         mIsAutomotive = mContext.getPackageManager().hasSystemFeature(
                 PackageManager.FEATURE_AUTOMOTIVE);
+        mUserId = mContext.getUserId();
 
-        Log.v(TAG, "dpm=" + mDevicePolicyManager + ", wifiManager=" + mWifiManager);
+        Log.v(TAG, getClass() + ".setUp(): userId=" + mUserId + ", dpm=" + mDevicePolicyManager
+                + ", wifiManager=" + mWifiManager);
 
         assertDeviceOwner();
     }
@@ -119,16 +123,6 @@ public abstract class BaseDeviceOwnerTest extends AndroidTestCase {
     }
 
     protected final UserHandle getCurrentUser() {
-        UserHandle currentUser = UserHandle.of(ActivityManager.getCurrentUser());
-        Log.v(TAG, "getCurrentUser(): returning " + currentUser);
-        return currentUser;
-    }
-
-    protected final List<WifiConfiguration> getConfiguredNetworks() {
-        // Must use a the WifiManager of the current user to list networks, as
-        // getConfiguredNetworks() would return empty on systems using headless system
-        // mode as that method "Return a list of all the networks configured for the current
-        // foreground user", and the system user is running in the background in this case.
-        return mCurrentUserWifiManager.getConfiguredNetworks();
+        return UserHandle.of(ActivityManager.getCurrentUser());
     }
 }

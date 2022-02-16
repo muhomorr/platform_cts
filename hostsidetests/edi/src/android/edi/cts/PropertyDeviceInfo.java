@@ -37,12 +37,13 @@ public class PropertyDeviceInfo extends DeviceInfo {
             ITestDevice device = getDevice();
             CommandResult commandResult = device.executeShellV2Command("getprop");
             if (commandResult.getExitCode() == null) {
-                throw new NullPointerException("getprop exit code is null");
+                CLog.e("getprop exit code is null");
+                return;
             }
             if (commandResult.getExitCode() != 0) {
-                throw new IllegalStateException(
-                        String.format("getprop returns %d: %s", commandResult.getExitCode(),
-                                commandResult.getStderr()));
+                CLog.e("getprop returns %d: %s", commandResult.getExitCode(),
+                        commandResult.getStderr());
+                return;
             }
             if (commandResult.getExitCode() == 0 && !commandResult.getStderr().isEmpty()) {
                 CLog.w("Warnings occur when running getprop:\n%s",
@@ -58,7 +59,6 @@ public class PropertyDeviceInfo extends DeviceInfo {
     private void parseProps(String stdout, HostInfoStore store) throws Exception {
         Pattern pattern = Pattern.compile("\\[(ro.+)\\]: \\[(.+)\\]");
         if (stdout == null) stdout = "";
-        boolean hasMatched = false;
         try (Scanner scanner = new Scanner(stdout)) {
             while (scanner.hasNextLine()) {
                 String line = scanner.nextLine();
@@ -71,13 +71,8 @@ public class PropertyDeviceInfo extends DeviceInfo {
                     store.addResult("name", name);
                     store.addResult("value", value);
                     store.endGroup();
-                    hasMatched = true;
                 }
             }
-        }
-        if (!hasMatched) {
-            throw new IllegalStateException(
-                    "Unable to find any read-only properties. Output is " + stdout);
         }
     }
 }

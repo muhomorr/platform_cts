@@ -35,7 +35,10 @@ public class AdbDevicePolicyParser27 implements AdbDevicePolicyParser {
 
     static final int DEFAULT_INDENTATION = 2;
 
-    AdbDevicePolicyParser27() {
+    private final TestApis mTestApis;
+
+    AdbDevicePolicyParser27(TestApis testApis) {
+        mTestApis = testApis;
     }
 
     @Override
@@ -68,8 +71,8 @@ public class AdbDevicePolicyParser27 implements AdbDevicePolicyParser {
                         "ComponentInfo\\{", 2)[1].split("\\}", 2)[0]);
         int userId = Integer.parseInt(deviceOwnerSection.split(
                 "User ID: ", 2)[1].split("\n", 2)[0]);
-        return new DeviceOwner(TestApis.users().find(userId),
-                TestApis.packages().find(componentName.getPackageName()), componentName);
+        return new DeviceOwner(mTestApis, mTestApis.users().find(userId),
+                mTestApis.packages().find(componentName.getPackageName()), componentName);
     }
 
     String getDeviceOwnerSection(Set<String> devicePolicySections) {
@@ -111,7 +114,7 @@ public class AdbDevicePolicyParser27 implements AdbDevicePolicyParser {
                         "ComponentInfo\\{", 2)[1].split("\\}", 2)[0]);
         int userId = Integer.parseInt(
                 profileOwnerSection.split("\\(User ", 2)[1].split("\\)", 2)[0]);
-        return new ProfileOwner(TestApis.users().find(userId),
-                TestApis.packages().find(componentName.getPackageName()), componentName);
+        return new ProfileOwner(mTestApis, mTestApis.users().find(userId),
+                mTestApis.packages().find(componentName.getPackageName()), componentName);
     }
 }

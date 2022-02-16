@@ -25,8 +25,6 @@ import android.media.MediaCodec;
 import android.media.MediaFormat;
 import android.media.MediaParser;
 import android.media.metrics.LogSessionId;
-import android.media.metrics.MediaMetricsManager;
-import android.media.metrics.PlaybackSession;
 import android.os.Build;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
@@ -58,24 +56,12 @@ public class MediaParserTest {
     }
 
     @Test
-    public void testDefaultLogSessionId() {
+    public void testLogSessionId() {
         assumeTrue(Build.VERSION.SDK_INT >= Build.VERSION_CODES.S);
         MediaParser mediaParser = MediaParser.create(new MockMediaParserOutputConsumer());
         assertThat(mediaParser.getLogSessionId())
                 .isSameInstanceAs(LogSessionId.LOG_SESSION_ID_NONE);
-        mediaParser.release();
-    }
-
-    @Test
-    public void testSetLogSessionId() {
-        assumeTrue(Build.VERSION.SDK_INT >= Build.VERSION_CODES.S);
-        MediaParser mediaParser = MediaParser.create(new MockMediaParserOutputConsumer());
-        MediaMetricsManager mediaMetricsManager =
-                InstrumentationRegistry.getInstrumentation()
-                        .getTargetContext()
-                        .getSystemService(MediaMetricsManager.class);
-        PlaybackSession playbackSession = mediaMetricsManager.createPlaybackSession();
-        LogSessionId logSessionId = playbackSession.getSessionId();
+        LogSessionId logSessionId = new LogSessionId("FakeLogSessionId");
         mediaParser.setLogSessionId(logSessionId);
         assertThat(mediaParser.getLogSessionId()).isSameInstanceAs(logSessionId);
         mediaParser.release();

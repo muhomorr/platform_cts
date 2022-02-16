@@ -16,6 +16,8 @@
 
 package com.android.bedstead.nene;
 
+import static com.google.common.truth.Truth.assertThat;
+
 import com.google.common.truth.Truth;
 
 import org.junit.Test;
@@ -25,13 +27,15 @@ import org.junit.runners.JUnit4;
 @RunWith(JUnit4.class)
 public class TestApisTest {
 
+    private final TestApis mTestApis = new TestApis();
+
     @Test
     public void users_returnsInstance() {
-        Truth.assertThat(TestApis.users()).isNotNull();
+        Truth.assertThat(mTestApis.users()).isNotNull();
     }
 
     @Test
     public void users_multipleCalls_returnsSameInstance() {
-        Truth.assertThat(TestApis.users()).isEqualTo(TestApis.users());
+        Truth.assertThat(mTestApis.users()).isEqualTo(mTestApis.users());
     }
 }

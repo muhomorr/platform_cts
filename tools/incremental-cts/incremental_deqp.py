@@ -34,7 +34,6 @@ python3 incremental_deqp.py -s [device serial] -t [test directory]
 """
 import argparse
 import importlib
-import json
 import logging
 import os
 import pkgutil
@@ -69,8 +68,6 @@ INCREMENTAL_DEQP_XML = ('<?xml version="1.0" encoding="utf-8"?>\n'
                         'value="CtsDeqpTestCases" />\n'
                         '   <option name="plan" value="cts" />\n'
                         '</configuration>\n')
-
-REPORT_FILENAME = 'incremental_dEQP_report.json'
 
 logger = logging.getLogger()
 
@@ -118,7 +115,6 @@ class BuildHelper(object):
       base_build_file: base build's file name.
     Returns:
       True if current build could skip dEQP, otherwise False.
-      Dictionary of changed dependencies and their details.
     """
     print('Comparing base build and current build...')
     current_build_handler = self._build_file_handler(current_build_file)
@@ -142,7 +138,6 @@ class BuildHelper(object):
       base_build_file: base build file name.
     Returns:
       True if current build could skip dEQP, otherwise False.
-      Dictionary of changed dependencies and their details.
     """
     print('Comparing base build and current build on the device...')
     # Get current build's hash.
@@ -156,14 +151,6 @@ class BuildHelper(object):
 
     return self._compare_build_hash(current_build_hash, base_build_hash)
 
-  def get_system_fingerprint(self, build_file):
-    """Get build fingerprint in SYSTEM partition.
-
-    Returns:
-      String of build fingerprint.
-    """
-    return self._build_file_handler(build_file).get_system_fingerprint()
-
 
   def _compare_build_hash(self, current_build_hash, base_build_hash):
     """Compare the hash value of current build and base build.
@@ -172,28 +159,21 @@ class BuildHelper(object):
       current_build_hash: map of current build where key is file name, and value is content hash.
       base_build_hash: map of base build where key is file name and value is content hash.
     Returns:
-      Boolean about if two builds' hash is the same.
-      Dictionary of changed dependencies and their details.
+      boolean about if two builds' hash is the same.
     """
-    changes = {}
     if current_build_hash == base_build_hash:
       print('Done!')
-      return True, changes
+      return True
 
     for key, val in current_build_hash.items():
       if key not in base_build_hash:
-        detail = 'File:{build_file} was not found in base build'.format(build_file=key)
-        changes[key] = detail
-        logger.info(detail)
+        logger.info('File:{build_file} was not found in base build'.format(build_file=key))
       elif base_build_hash[key] != val:
-        detail = ('Detected dEQP dependency file difference:{deps}. Base build hash:{base}, '
-                  'current build hash:{current}'.format(deps=key, base=base_build_hash[key],
-                                                        current=val))
-        changes[key] = detail
-        logger.info(detail)
-
+        logger.info('Detected dEQP dependency file difference:{deps}. Base build hash:{base}, '
+                    'current build hash:{current}'.format(deps=key, base=base_build_hash[key],
+                                                          current=val))
     print('Done!')
-    return False, changes
+    return False
 
 
 class AdbHelper(object):
@@ -239,10 +219,6 @@ class AdbHelper(object):
     """
     return self._run_adb_command('pull', source_file, destination_file)
 
-  def get_fingerprint(self):
-    """Get fingerprint of the device."""
-    return self._run_adb_command('shell', 'getprop ro.build.fingerprint').decode("utf-8").strip()
-
   def run_shell_command(self, command):
     """Run a adb shell command.
 
@@ -250,7 +226,6 @@ class AdbHelper(object):
       command: A string of command to run, executed through 'adb shell'
     """
     return self._run_adb_command('shell', command)
-
 
 class DeqpDependencyCollector(object):
   """Collect dEQP dependency from device under test."""
@@ -421,6 +396,7 @@ class DeqpDependencyCollector(object):
     test_list = ['vk-32', 'vk-64', 'gles3-32', 'gles3-64']
 
     # Clean up the device.
+    self._adb.run_shell_command('rm -rRf ' + device_deqp_dir + '/*')
     self._adb.run_shell_command('mkdir -p ' + device_deqp_out_dir)
 
     # Copy test resources to device.
@@ -489,12 +465,10 @@ def _get_parser():
   parser.add_argument('--generate_deps_only', action='store_true',
                       help=('Run test and generate dEQP dependency list only '
                             'without comparing build.'))
-  parser.add_argument('--custom_handler', action='store_true',
-                      help='Use custome build file handler')
   parser.add_argument('--ats_mode', action='store_true',
                       help=('Run incremental dEQP with Android Test Station.'))
-  parser.add_argument('--userdebug_build', action='store_true',
-                      help=('ATS mode option. Current build on device is userdebug.'))
+  parser.add_argument('--custom_handler', action='store_true',
+                      help='Use custome build file handler')
   return parser
 
 def _create_logger(log_file_name):
@@ -523,36 +497,6 @@ def _save_deqp_deps(deqp_deps, file_name):
     for dep in sorted(deqp_deps):
       f.write(dep+'\n')
   return file_name
-
-def _generate_report(
-    report_name,
-    base_build_fingerprint,
-    current_build_fingerprint,
-    deqp_deps,
-    extra_deqp_deps,
-    deqp_deps_changes):
-  """Generate a json report.
-
-  Args:
-    report_name: absolute file name of report.
-    base_build_fingerprint: fingerprint of the base build.
-    current_build_fingerprint: fingerprint of the current build.
-    deqp_deps: list of dEQP dependencies generated by the tool.
-    extra_deqp_deps: list of extra dEQP dependencies.
-    deqp_deps_changes: dictionary of dependency changes.
-  """
-  data = {}
-  data['base_build_fingerprint'] = base_build_fingerprint
-  data['current_build_fingerprint'] = current_build_fingerprint
-  data['deqp_deps'] = sorted(list(deqp_deps))
-  data['extra_deqp_deps'] = sorted(list(extra_deqp_deps))
-  data['deqp_deps_changes'] = deqp_deps_changes
-
-  with open(report_name, 'w') as f:
-    json.dump(data, f, indent=4)
-
-  print('Incremental dEQP report is generated at: ' + report_name)
-
 
 def _local_run(args, work_dir):
   """Run incremental dEQP locally.
@@ -585,9 +529,9 @@ def _local_run(args, work_dir):
 
   dependency_collector = DeqpDependencyCollector(work_dir, test_dir, adb)
   deqp_deps = dependency_collector.get_deqp_dependency()
-  aggregated_deqp_deps = deqp_deps.union(extra_deqp_deps)
+  deqp_deps.update(extra_deqp_deps)
 
-  deqp_deps_file_name = _save_deqp_deps(aggregated_deqp_deps,
+  deqp_deps_file_name = _save_deqp_deps(deqp_deps,
                                         os.path.join(work_dir, 'dEQP-dependency.txt'))
   print('dEQP dependency list has been generated in: ' + deqp_deps_file_name)
 
@@ -595,13 +539,13 @@ def _local_run(args, work_dir):
     return
 
   # Compare the build difference with dEQP dependency
-  valid_deqp_deps = [dep for dep in aggregated_deqp_deps if _is_deqp_dependency(dep)]
+  valid_deqp_deps = [dep for dep in deqp_deps if _is_deqp_dependency(dep)]
   build_helper = BuildHelper(args.custom_handler)
   if args.current_build:
-    skip_dEQP, changes = build_helper.compare_base_build_with_current_build(
+    skip_dEQP = build_helper.compare_base_build_with_current_build(
         valid_deqp_deps, args.current_build, args.base_build)
   else:
-    skip_dEQP, changes = build_helper.compare_base_build_with_device_files(
+    skip_dEQP = build_helper.compare_base_build_with_device_files(
         valid_deqp_deps, adb, args.base_build)
   if skip_dEQP:
     print('Congratulations, current build could skip dEQP test.\n'
@@ -610,13 +554,6 @@ def _local_run(args, work_dir):
   else:
     print('Sorry, current build can\'t skip dEQP test because dEQP dependency has been '
           'changed.\nPlease check logs for more details.')
-
-  _generate_report(os.path.join(work_dir, REPORT_FILENAME),
-                   build_helper.get_system_fingerprint(args.base_build),
-                   adb.get_fingerprint(),
-                   deqp_deps,
-                   extra_deqp_deps,
-                   changes)
 
 def _generate_cts_xml(out_dir, content):
   """Generate cts configuration for Android Test Station.
@@ -652,9 +589,9 @@ def _ats_run(args, work_dir):
   dependency_collector = DeqpDependencyCollector(work_dir,
                                                  os.path.join(work_dir, 'test_resources'), adb)
   deqp_deps = dependency_collector.get_deqp_dependency()
-  aggregated_deqp_deps = deqp_deps.union(extra_deqp_deps)
+  deqp_deps.update(extra_deqp_deps)
 
-  deqp_deps_file_name = _save_deqp_deps(aggregated_deqp_deps,
+  deqp_deps_file_name = _save_deqp_deps(deqp_deps,
                                         os.path.join(work_dir, 'dEQP-dependency.txt'))
 
   if args.generate_deps_only:
@@ -662,31 +599,14 @@ def _ats_run(args, work_dir):
     return
 
   # Compare the build difference with dEQP dependency
-  valid_deqp_deps = [dep for dep in aggregated_deqp_deps if _is_deqp_dependency(dep)]
-
   # base build target file is from test resources.
   base_build_target = os.path.join(work_dir, 'base_build_target_files')
-  build_helper = BuildHelper(args.custom_handler)
-  if args.userdebug_build:
-    current_build_fingerprint = adb.get_fingerprint()
-    skip_dEQP, changes = build_helper.compare_base_build_with_device_files(
-        valid_deqp_deps, adb, base_build_target)
-  else:
-    current_build_target = os.path.join(work_dir, 'current_build_target_files')
-    current_build_fingerprint = build_helper.get_system_fingerprint(current_build_target)
-    skip_dEQP, changes = build_helper.compare_base_build_with_current_build(
-        valid_deqp_deps, current_build_target, base_build_target)
+  build_helper = BuildHelper(base_build_target, deqp_deps)
+  skip_dEQP = build_helper.compare_build(adb)
   if skip_dEQP:
     _generate_cts_xml(work_dir, INCREMENTAL_DEQP_XML)
   else:
     _generate_cts_xml(work_dir, DEFAULT_CTS_XML)
-
-  _generate_report(os.path.join(*[work_dir, 'logs', REPORT_FILENAME]),
-                   build_helper.get_system_fingerprint(base_build_target),
-                   current_build_fingerprint,
-                   deqp_deps,
-                   extra_deqp_deps,
-                   changes)
 
 def main():
   parser = _get_parser()
@@ -699,7 +619,7 @@ def main():
   log_file_name = ''
   if args.ats_mode:
     work_dir = os.getenv('TF_WORK_DIR')
-    log_file_name = os.path.join(*[work_dir, 'logs', 'incremental-deqp-log-'+str(uuid.uuid4())])
+    log_file_name = os.path.join('/data/tmp', 'incremental-deqp-log-'+str(uuid.uuid4()))
   else:
     work_dir = tempfile.mkdtemp(prefix='incremental-deqp-'
                                 + time.strftime("%Y%m%d-%H%M%S"))
