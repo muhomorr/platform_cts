@@ -18,7 +18,7 @@ package {
 
 android_library {
     name: "CtsTvTestCases_lib",
-    srcs: ["src/**/*.java", "src/**/*.aidl"],
+    srcs: ["src/**/*.java"],
     libs: [
         "platform-test-annotations",
         "android.test.runner",

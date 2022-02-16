@@ -22,7 +22,6 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import com.android.bedstead.harrier.BedsteadJUnit4
 import com.android.bedstead.harrier.DeviceState
-import com.android.bedstead.harrier.UserType
 import com.android.bedstead.harrier.annotations.AfterClass
 import com.android.bedstead.harrier.annotations.BeforeClass
 import com.android.bedstead.harrier.annotations.EnsureHasWorkProfile
@@ -54,7 +53,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
-@EnsureHasWorkProfile(forUser = UserType.PRIMARY_USER)
+@EnsureHasWorkProfile(forUser = DeviceState.UserType.PRIMARY_USER)
 @RunWith(BedsteadJUnit4::class)
 abstract class DomainVerificationWorkProfileTestsBase {
 
@@ -65,6 +64,7 @@ abstract class DomainVerificationWorkProfileTestsBase {
         @Rule
         val deviceState = DeviceState()
 
+        private val testApis = TestApis()
         private val TARGET_INTENT = Intent(Intent.ACTION_VIEW, Uri.parse("https://$DOMAIN_1"))
         private val BROWSER_INTENT =
             Intent(Intent.ACTION_VIEW, Uri.parse("https://$DOMAIN_UNHANDLED"))
@@ -102,10 +102,10 @@ abstract class DomainVerificationWorkProfileTestsBase {
         @BeforeClass
         fun installApks() {
             personalUser = deviceState.primaryUser()
-            workUser = deviceState.workProfile(UserType.PRIMARY_USER)
+            workUser = deviceState.workProfile(DeviceState.UserType.PRIMARY_USER)
             personalBrowsers = collectBrowsers(personalUser)
             workBrowsers = collectBrowsers(workUser)
-            TestApis.packages().run {
+            testApis.packages().run {
                 install(personalUser, Packages.JavaResource.javaResource(DECLARING_PKG_APK_1.value))
                 install(workUser, Packages.JavaResource.javaResource(DECLARING_PKG_APK_2.value))
             }
@@ -114,14 +114,14 @@ abstract class DomainVerificationWorkProfileTestsBase {
         @JvmStatic
         @AfterClass
         fun uninstallApks() {
-            TestApis.packages().run {
+            testApis.packages().run {
                 find(PERSONAL_APP).uninstallFromAllUsers()
                 find(WORK_APP).uninstallFromAllUsers()
             }
         }
 
         private fun collectBrowsers(user: UserReference) =
-            withUserContext(user) { context ->
+            testApis.withUserContext(user) { context ->
                 context.packageManager
                     .queryIntentActivities(BROWSER_INTENT, PackageManager.MATCH_DEFAULT_ONLY)
                     .map { it.activityInfo }
@@ -135,7 +135,7 @@ abstract class DomainVerificationWorkProfileTestsBase {
 
         @JvmStatic
         protected fun assertResolvesTo(components: Collection<ComponentName>) {
-            val results = TestApis.context()
+            val results = testApis.context()
                 .instrumentedContext()
                 .packageManager
                 .queryIntentActivities(TARGET_INTENT, PackageManager.MATCH_DEFAULT_ONLY)
@@ -156,7 +156,7 @@ abstract class DomainVerificationWorkProfileTestsBase {
     @After
     fun resetState() {
         listOf(personalUser, workUser).forEach {
-            withUserContext(it) {
+            testApis.withUserContext(it) {
                 SharedVerifications.reset(it, resetEnable = true)
             }
         }

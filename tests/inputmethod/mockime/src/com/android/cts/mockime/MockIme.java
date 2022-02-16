@@ -47,7 +47,6 @@ import android.view.Display;
 import android.view.GestureDetector;
 import android.view.Gravity;
 import android.view.KeyEvent;
-import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewConfiguration;
 import android.view.Window;
@@ -65,7 +64,6 @@ import android.view.inputmethod.InputBinding;
 import android.view.inputmethod.InputConnection;
 import android.view.inputmethod.InputContentInfo;
 import android.view.inputmethod.InputMethod;
-import android.view.inputmethod.TextAttribute;
 import android.widget.FrameLayout;
 import android.widget.HorizontalScrollView;
 import android.widget.ImageView;
@@ -101,9 +99,6 @@ public final class MockIme extends InputMethodService {
     private static final String TAG = "MockIme";
 
     private static final String PACKAGE_NAME = "com.android.cts.mockime";
-    private ArrayList<MotionEvent> mEvents;
-
-    private View mExtractView;
 
     static ComponentName getComponentName() {
         return new ComponentName(PACKAGE_NAME, MockIme.class.getName());
@@ -120,8 +115,6 @@ public final class MockIme extends InputMethodService {
     private final HandlerThread mHandlerThread = new HandlerThread("CommandReceiver");
 
     private final Handler mMainHandler = new Handler();
-
-    private final Configuration mLastDispatchedConfiguration = new Configuration();
 
     private static final class CommandReceiver extends BroadcastReceiver {
         @NonNull
@@ -215,13 +208,6 @@ public final class MockIme extends InputMethodService {
                         final int flag = command.getExtras().getInt("flag");
                         return getMemorizedOrCurrentInputConnection().getSelectedText(flag);
                     }
-                    case "getSurroundingText": {
-                        final int beforeLength = command.getExtras().getInt("beforeLength");
-                        final int afterLength = command.getExtras().getInt("afterLength");
-                        final int flags = command.getExtras().getInt("flags");
-                        return getMemorizedOrCurrentInputConnection().getSurroundingText(
-                                beforeLength, afterLength, flags);
-                    }
                     case "getCursorCapsMode": {
                         final int reqModes = command.getExtras().getInt("reqModes");
                         return getMemorizedOrCurrentInputConnection().getCursorCapsMode(reqModes);
@@ -245,53 +231,27 @@ public final class MockIme extends InputMethodService {
                         return getMemorizedOrCurrentInputConnection()
                                 .deleteSurroundingTextInCodePoints(beforeLength, afterLength);
                     }
-                    case "setComposingText(CharSequence,int)": {
+                    case "setComposingText": {
                         final CharSequence text = command.getExtras().getCharSequence("text");
                         final int newCursorPosition =
                                 command.getExtras().getInt("newCursorPosition");
                         return getMemorizedOrCurrentInputConnection().setComposingText(
                                 text, newCursorPosition);
                     }
-                    case "setComposingText(CharSequence,int,TextAttribute)": {
-                        final CharSequence text = command.getExtras().getCharSequence("text");
-                        final int newCursorPosition =
-                                command.getExtras().getInt("newCursorPosition");
-                        final TextAttribute textAttribute =
-                                command.getExtras().getParcelable("textAttribute");
-                        return getMemorizedOrCurrentInputConnection()
-                                .setComposingText(text, newCursorPosition, textAttribute);
-                    }
-                    case "setComposingRegion(int,int)": {
+                    case "setComposingRegion": {
                         final int start = command.getExtras().getInt("start");
                         final int end = command.getExtras().getInt("end");
                         return getMemorizedOrCurrentInputConnection().setComposingRegion(start,
                                 end);
                     }
-                    case "setComposingRegion(int,int,TextAttribute)": {
-                        final int start = command.getExtras().getInt("start");
-                        final int end = command.getExtras().getInt("end");
-                        final TextAttribute textAttribute =
-                                command.getExtras().getParcelable("textAttribute");
-                        return getMemorizedOrCurrentInputConnection()
-                                .setComposingRegion(start, end, textAttribute);
-                    }
                     case "finishComposingText":
                         return getMemorizedOrCurrentInputConnection().finishComposingText();
-                    case "commitText(CharSequence,int)": {
+                    case "commitText": {
                         final CharSequence text = command.getExtras().getCharSequence("text");
                         final int newCursorPosition =
                                 command.getExtras().getInt("newCursorPosition");
                         return getMemorizedOrCurrentInputConnection().commitText(text,
                                 newCursorPosition);
-                    }
-                    case "commitText(CharSequence,int,TextAttribute)": {
-                        final CharSequence text = command.getExtras().getCharSequence("text");
-                        final int newCursorPosition =
-                                command.getExtras().getInt("newCursorPosition");
-                        final TextAttribute textAttribute =
-                                command.getExtras().getParcelable("textAttribute");
-                        return getMemorizedOrCurrentInputConnection()
-                                .commitText(text, newCursorPosition, textAttribute);
                     }
                     case "commitCompletion": {
                         final CompletionInfo text = command.getExtras().getParcelable("text");
@@ -336,9 +296,6 @@ public final class MockIme extends InputMethodService {
                     case "performSpellCheck": {
                         return getMemorizedOrCurrentInputConnection().performSpellCheck();
                     }
-                    case "takeSnapshot": {
-                        return getMemorizedOrCurrentInputConnection().takeSnapshot();
-                    }
                     case "performPrivateCommand": {
                         final String action = command.getExtras().getString("action");
                         final Bundle data = command.getExtras().getBundle("data");
@@ -362,12 +319,6 @@ public final class MockIme extends InputMethodService {
                         final Bundle opts = command.getExtras().getBundle("opts");
                         return getMemorizedOrCurrentInputConnection().commitContent(
                                 inputContentInfo, flags, opts);
-                    }
-                    case "setImeConsumesInput": {
-                        final boolean imeConsumesInput =
-                                command.getExtras().getBoolean("imeConsumesInput");
-                        return getMemorizedOrCurrentInputConnection().setImeConsumesInput(
-                                imeConsumesInput);
                     }
                     case "setBackDisposition": {
                         final int backDisposition =
@@ -410,25 +361,12 @@ public final class MockIme extends InputMethodService {
                     case "setInlineSuggestionsExtras":
                         mInlineSuggestionsExtras = command.getExtras();
                         return ImeEvent.RETURN_VALUE_UNAVAILABLE;
-                    case "verifyExtractViewNotNull":
-                        if (mExtractView == null) {
-                            return false;
-                        } else {
-                            return mExtractView.findViewById(android.R.id.inputExtractAction)
-                                    != null
-                                    && mExtractView.findViewById(
-                                            android.R.id.inputExtractAccessories) != null
-                                    && mExtractView.findViewById(
-                                            android.R.id.inputExtractEditText) != null;
-                        }
                     case "verifyGetDisplay":
                         try {
                             return verifyGetDisplay();
                         } catch (UnsupportedOperationException e) {
                             return e;
                         }
-                    case "verifyIsUiContext":
-                        return verifyIsUiContext();
                     case "verifyGetWindowManager": {
                         final WindowManager imsWm = getSystemService(WindowManager.class);
                         final WindowManager configContextWm =
@@ -482,32 +420,6 @@ public final class MockIme extends InputMethodService {
 
                         return ImeEvent.RETURN_VALUE_UNAVAILABLE;
                     }
-                    case "getStylusHandwritingWindowVisibility": {
-                        View decorView = getStylusHandwritingWindow().getDecorView();
-                        return decorView != null && decorView.isAttachedToWindow()
-                                && decorView.getVisibility() == View.VISIBLE;
-                    }
-                    case "setStylusHandwritingWindowTouchListener": {
-                        View decorView = getStylusHandwritingWindow().getDecorView();
-                        if (decorView != null && decorView.getVisibility() == View.VISIBLE) {
-                            mEvents = new ArrayList<>();
-                            decorView.setOnTouchListener((view, event) ->
-                                    mEvents.add(MotionEvent.obtain(event)));
-                            return true;
-                        }
-                        return false;
-                    }
-                    case "getStylusHandwritingWindowEvents": {
-                        return mEvents;
-                    }
-                    case "finishStylusHandwriting": {
-                        finishStylusHandwriting();
-                        return ImeEvent.RETURN_VALUE_UNAVAILABLE;
-                    }
-                    case "getCurrentWindowMetricsBounds": {
-                        return getSystemService(WindowManager.class)
-                                .getCurrentWindowMetrics().getBounds();
-                    }
                 }
             }
             return ImeEvent.RETURN_VALUE_UNAVAILABLE;
@@ -523,19 +435,6 @@ public final class MockIme extends InputMethodService {
         display = getDisplay();
         configContextDisplay = configContext.getDisplay();
         return display != null && configContextDisplay != null;
-    }
-
-    private boolean verifyIsUiContext() {
-        final Configuration config = new Configuration();
-        config.setToDefaults();
-        final Context configContext = createConfigurationContext(config);
-        // The value must be true because ConfigurationContext is derived from InputMethodService,
-        // which is a UI Context.
-        final boolean imeDerivedConfigContext = configContext.isUiContext();
-        // The value must be false because DisplayContext won't receive any config update from
-        // server.
-        final boolean imeDerivedDisplayContext = createDisplayContext(getDisplay()).isUiContext();
-        return isUiContext() && imeDerivedConfigContext && !imeDerivedDisplayContext;
     }
 
     @Nullable
@@ -621,12 +520,11 @@ public final class MockIme extends InputMethodService {
             final Handler handler = new Handler(mHandlerThread.getLooper());
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 registerReceiver(mCommandReceiver, filter, null /* broadcastPermission */, handler,
-                        Context.RECEIVER_VISIBLE_TO_INSTANT_APPS | Context.RECEIVER_EXPORTED);
+                        Context.RECEIVER_VISIBLE_TO_INSTANT_APPS);
             } else {
                 registerReceiver(mCommandReceiver, filter, null /* broadcastPermission */, handler);
             }
-            if (mSettings.isVerifyContextApisInOnCreate()) {
-                getTracer().onVerify("isUiContext", this::verifyIsUiContext);
+            if (mSettings.isVerifyGetDisplayOnCreate()) {
                 getTracer().onVerify("getDisplay", this::verifyGetDisplay);
             }
             final int windowFlags = mSettings.getWindowFlags(0);
@@ -654,10 +552,6 @@ public final class MockIme extends InputMethodService {
             if (mSettings.hasNavigationBarColor()) {
                 getWindow().getWindow().setNavigationBarColor(mSettings.getNavigationBarColor());
             }
-
-            // Initialize to current Configuration to prevent unexpected configDiff value dispatched
-            // in IME event.
-            mLastDispatchedConfiguration.setTo(getResources().getConfiguration());
         });
     }
 
@@ -669,26 +563,8 @@ public final class MockIme extends InputMethodService {
 
     @Override
     public boolean onEvaluateFullscreenMode() {
-        return getTracer().onEvaluateFullscreenMode(() -> {
-            final int policy = mSettings.fullscreenModePolicy();
-            switch (policy) {
-                case ImeSettings.FullscreenModePolicy.NO_FULLSCREEN:
-                    return false;
-                case ImeSettings.FullscreenModePolicy.FORCE_FULLSCREEN:
-                    return true;
-                case ImeSettings.FullscreenModePolicy.OS_DEFAULT:
-                    return super.onEvaluateFullscreenMode();
-                default:
-                    Log.e(TAG, "unknown FullscreenModePolicy=" + policy);
-                    return false;
-            }
-        });
-    }
-
-    @Override
-    public View onCreateExtractTextView() {
-        mExtractView =  super.onCreateExtractTextView();
-        return mExtractView;
+        return getTracer().onEvaluateFullscreenMode(() ->
+                mSettings.fullscreenModeAllowed(false) && super.onEvaluateFullscreenMode());
     }
 
     private static final class KeyboardLayoutView extends LinearLayout {
@@ -891,24 +767,6 @@ public final class MockIme extends InputMethodService {
                 () -> super.onStartInputView(editorInfo, restarting));
     }
 
-
-    @Override
-    public void onPrepareStylusHandwriting() {
-        getTracer().onPrepareStylusHandwriting(() -> super.onPrepareStylusHandwriting());
-    }
-
-    @Override
-    public boolean onStartStylusHandwriting() {
-        getTracer().onStartStylusHandwriting(() -> super.onStartStylusHandwriting());
-        return true;
-    }
-
-    @Override
-    public void onFinishStylusHandwriting() {
-        getTracer().onFinishStylusHandwriting(() -> super.onFinishStylusHandwriting());
-    }
-
-
     @Override
     public void onFinishInputView(boolean finishingInput) {
         getTracer().onFinishInputView(finishingInput,
@@ -1033,25 +891,8 @@ public final class MockIme extends InputMethodService {
         stylesBuilder.addStyle(InlineSuggestionUi.newStyleBuilder().build());
         Bundle styles = stylesBuilder.build();
 
-        final boolean supportedClientInlineSuggestions;
-        final boolean supportedServiceInlineSuggestions;
-        final boolean supportedInlineSuggestions;
         if (mInlineSuggestionsExtras != null) {
             styles.putAll(mInlineSuggestionsExtras);
-            supportedClientInlineSuggestions =
-                    mInlineSuggestionsExtras.getBoolean("ClientSuggestions", true);
-            supportedServiceInlineSuggestions =
-                    mInlineSuggestionsExtras.getBoolean("ServiceSuggestions", true);
-            supportedInlineSuggestions =
-                    mInlineSuggestionsExtras.getBoolean("InlineSuggestions", true);
-        } else {
-            supportedClientInlineSuggestions = true;
-            supportedServiceInlineSuggestions = true;
-            supportedInlineSuggestions = true;
-        }
-
-        if (!supportedInlineSuggestions) {
-            return null;
         }
 
         return getTracer().onCreateInlineSuggestionsRequest(() -> {
@@ -1067,8 +908,6 @@ public final class MockIme extends InputMethodService {
             final InlineSuggestionsRequest.Builder builder =
                     new InlineSuggestionsRequest.Builder(presentationSpecs)
                             .setInlineTooltipPresentationSpec(tooltipSpec)
-                            .setClientSupported(supportedClientInlineSuggestions)
-                            .setServiceSupported(supportedServiceInlineSuggestions)
                             .setMaxSuggestionCount(6);
             if (mInlineSuggestionsExtras != null) {
                 builder.setExtras(mInlineSuggestionsExtras.deepCopy());
@@ -1126,12 +965,6 @@ public final class MockIme extends InputMethodService {
             }
             return true;
         });
-    }
-
-    @Override
-    public void onConfigurationChanged(Configuration configuration) {
-        getTracer().onConfigurationChanged(() -> {}, configuration);
-        mLastDispatchedConfiguration.setTo(configuration);
     }
 
     /**
@@ -1276,24 +1109,6 @@ public final class MockIme extends InputMethodService {
             recordEventInternal("onStartInputView", runnable, arguments);
         }
 
-        void onPrepareStylusHandwriting(@NonNull Runnable runnable) {
-            final Bundle arguments = new Bundle();
-            arguments.putParcelable("editorInfo", mIme.getCurrentInputEditorInfo());
-            recordEventInternal("onPrepareStylusHandwriting", runnable, arguments);
-        }
-
-        void onStartStylusHandwriting(@NonNull Runnable runnable) {
-            final Bundle arguments = new Bundle();
-            arguments.putParcelable("editorInfo", mIme.getCurrentInputEditorInfo());
-            recordEventInternal("onStartStylusHandwriting", runnable, arguments);
-        }
-
-        void onFinishStylusHandwriting(@NonNull Runnable runnable) {
-            final Bundle arguments = new Bundle();
-            arguments.putParcelable("editorInfo", mIme.getCurrentInputEditorInfo());
-            recordEventInternal("onFinishStylusHandwriting", runnable, arguments);
-        }
-
         void onFinishInputView(boolean finishingInput, @NonNull Runnable runnable) {
             final Bundle arguments = new Bundle();
             arguments.putBoolean("finishingInput", finishingInput);
@@ -1428,14 +1243,6 @@ public final class MockIme extends InputMethodService {
         void onInlineSuggestionLongClickedEvent(@NonNull Runnable runnable) {
             final Bundle arguments = new Bundle();
             recordEventInternal("onInlineSuggestionLongClickedEvent", runnable, arguments);
-        }
-
-        void onConfigurationChanged(@NonNull Runnable runnable, Configuration configuration) {
-            final Bundle arguments = new Bundle();
-            arguments.putParcelable("Configuration", configuration);
-            arguments.putInt("ConfigUpdates", configuration.diff(
-                    mIme.mLastDispatchedConfiguration));
-            recordEventInternal("onConfigurationChanged", runnable, arguments);
         }
     }
 }

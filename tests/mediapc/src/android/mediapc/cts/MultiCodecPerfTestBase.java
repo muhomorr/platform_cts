@@ -21,7 +21,7 @@ import android.media.MediaCodecInfo;
 import android.media.MediaCodecInfo.VideoCapabilities.PerformancePoint;
 import android.media.MediaFormat;
 import android.util.Pair;
-import android.util.Log;
+
 import org.junit.Before;
 
 import java.io.IOException;
@@ -70,8 +70,8 @@ public class MultiCodecPerfTestBase {
     double mMaxFrameRate;
 
     @Before
-    public void isPerformanceClassCandidate() {
-        Utils.assumeDeviceMeetsPerformanceClassPreconditions();
+    public void isPerformanceClass() {
+        assumeTrue("Test requires performance class.", Utils.isPerfClass());
     }
 
     public MultiCodecPerfTestBase(String mime, String testFile, boolean isAsync) {
@@ -125,11 +125,8 @@ public class MultiCodecPerfTestBase {
                 }
             }
             codec.release();
-            if (!supports720pPerformance) {
-                Log.e(LOG_TAG, "Codec " + mimeCodecPair.second + " doesn't support 720p " +
-                        requiredFrameRate + " performance point");
-                return 0;
-            }
+            assertTrue("Codec " + mimeCodecPair.second + " doesn't support 720p " +
+                    requiredFrameRate + " performance point", supports720pPerformance);
             loopCount++;
         }
         Arrays.sort(maxInstances);

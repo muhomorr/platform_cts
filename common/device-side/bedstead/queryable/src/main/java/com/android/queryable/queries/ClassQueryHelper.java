@@ -25,8 +25,6 @@ import java.io.Serializable;
 public final class ClassQueryHelper<E extends Queryable>
         implements ClassQuery<E>, Serializable {
 
-    private static final long serialVersionUID = 1;
-
     private final E mQuery;
     private final StringQueryHelper<E> mClassName;
     private final StringQueryHelper<E> mSimpleName;
@@ -69,13 +67,5 @@ public final class ClassQueryHelper<E extends Queryable>
         }
 
         return true;
-    }
-
-    @Override
-    public String describeQuery(String fieldName) {
-        return Queryable.joinQueryStrings(
-                mClassName.describeQuery(fieldName + ".className"),
-                mSimpleName.describeQuery(fieldName + ".simpleName")
-        );
     }
 }

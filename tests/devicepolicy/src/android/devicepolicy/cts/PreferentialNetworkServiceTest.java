@@ -23,6 +23,7 @@ import static android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET;
 import static android.net.NetworkCapabilities.NET_CAPABILITY_NOT_RESTRICTED;
 import static android.net.NetworkCapabilities.NET_CAPABILITY_NOT_VCN_MANAGED;
 
+import android.app.Instrumentation;
 import android.content.Context;
 import android.net.ConnectivityManager;
 import android.net.Network;
@@ -34,10 +35,13 @@ import android.os.HandlerThread;
 import android.os.Process;
 import android.util.Range;
 
+import androidx.test.platform.app.InstrumentationRegistry;
+
 import com.android.bedstead.harrier.BedsteadJUnit4;
 import com.android.bedstead.harrier.DeviceState;
 import com.android.bedstead.harrier.annotations.EnsureHasPermission;
-import com.android.bedstead.harrier.annotations.enterprise.PolicyAppliesTest;
+import com.android.bedstead.harrier.annotations.Postsubmit;
+import com.android.bedstead.harrier.annotations.enterprise.PositivePolicyTest;
 import com.android.bedstead.harrier.policies.PreferentialNetworkService;
 import com.android.bedstead.nene.TestApis;
 import com.android.testutils.TestableNetworkCallback;
@@ -55,7 +59,7 @@ import java.util.Set;
 
 // TODO(b/190797743): Move this test to to net test folder.
 @RunWith(BedsteadJUnit4.class)
-public final class PreferentialNetworkServiceTest {
+public class PreferentialNetworkServiceTest {
     @ClassRule @Rule
     public static final DeviceState sDeviceState = new DeviceState();
 
@@ -63,7 +67,8 @@ public final class PreferentialNetworkServiceTest {
     private final long NO_CALLBACK_TIMEOUT_MS = 100L;
     private final String TAG = PreferentialNetworkServiceTest.class.getSimpleName();
 
-    private static final Context sContext = TestApis.context().instrumentedContext();
+    private static final TestApis sTestApis = new TestApis();
+    private static final Context sContext = sTestApis.context().instrumentedContext();
     private static final ConnectivityManager sCm =
             sContext.getSystemService(ConnectivityManager.class);
     private final HandlerThread mHandlerThread = new HandlerThread(TAG + " handler thread");
@@ -92,8 +97,9 @@ public final class PreferentialNetworkServiceTest {
      * see the enterprise slice requests.
      */
     @Test
+    @Postsubmit(reason = "New test")
     @EnsureHasPermission({ACCESS_NETWORK_STATE, NETWORK_SETTINGS})
-    @PolicyAppliesTest(policy = PreferentialNetworkService.class)
+    @PositivePolicyTest(policy = PreferentialNetworkService.class)
     public void setPreferentialNetworkServiceEnabled_enableService_issueRequest() {
         // Expect a regular default network.
         final Network defaultNetwork = Objects.requireNonNull(sCm.getActiveNetwork(),
@@ -130,8 +136,9 @@ public final class PreferentialNetworkServiceTest {
      * see the enterprise slice requests.
      */
     @Test
+    @Postsubmit(reason = "New test")
     @EnsureHasPermission({ACCESS_NETWORK_STATE, NETWORK_SETTINGS})
-    @PolicyAppliesTest(policy = PreferentialNetworkService.class)
+    @PositivePolicyTest(policy = PreferentialNetworkService.class)
     public void setPreferentialNetworkServiceEnabled_disableService_noIssueRequest() {
         // Expect a regular default network.
         final Network defaultNetwork = Objects.requireNonNull(sCm.getActiveNetwork(),

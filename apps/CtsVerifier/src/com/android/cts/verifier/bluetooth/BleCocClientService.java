@@ -709,15 +709,11 @@ public class BleCocClientService extends Service {
                         if (mBluetoothGatt == null) {
                             if (DEBUG) {
                                 Log.d(TAG, "onReceive:BOND_BONDED: calling connectGatt. device="
-                                             + device + ", mSecure=" + mSecure
-                                             + ", mDevice=" + mDevice);
+                                             + device + ", mSecure=" + mSecure);
                             }
-                            if (mDevice == null) {
-                                mDevice = device;
-                            }
-
-                            mBluetoothGatt = connectGatt(mDevice, BleCocClientService.this, false,
-                                                         mSecure, mGattCallbacks);
+                            mDevice = device;
+                            mBluetoothGatt = connectGatt(device, BleCocClientService.this, false, mSecure,
+                                                         mGattCallbacks);
                         }
                         break;
                     case BluetoothDevice.BOND_NONE:

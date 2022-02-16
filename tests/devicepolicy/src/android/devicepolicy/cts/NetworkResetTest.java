@@ -21,8 +21,6 @@ import static android.Manifest.permission.WRITE_SECURE_SETTINGS;
 import static android.os.UserManager.DISALLOW_CONFIG_PRIVATE_DNS;
 import static android.os.UserManager.DISALLOW_NETWORK_RESET;
 
-import static com.android.bedstead.remotedpc.RemoteDpc.DPC_COMPONENT_NAME;
-
 import static com.google.common.truth.Truth.assertThat;
 
 import android.content.Context;
@@ -35,7 +33,7 @@ import com.android.bedstead.harrier.BedsteadJUnit4;
 import com.android.bedstead.harrier.DeviceState;
 import com.android.bedstead.harrier.annotations.EnsureHasPermission;
 import com.android.bedstead.harrier.annotations.Postsubmit;
-import com.android.bedstead.harrier.annotations.enterprise.PolicyAppliesTest;
+import com.android.bedstead.harrier.annotations.enterprise.PositivePolicyTest;
 import com.android.bedstead.harrier.policies.DisallowNetworkReset;
 import com.android.bedstead.harrier.policies.DisallowPrivateDnsConfig;
 import com.android.bedstead.nene.TestApis;
@@ -49,11 +47,12 @@ import org.junit.runner.RunWith;
 
 // TODO(b/189280629): Move this test to to net test folder to live with other network reset tests.
 @RunWith(BedsteadJUnit4.class)
-public final class NetworkResetTest {
+public class NetworkResetTest {
     @ClassRule @Rule
     public static final DeviceState sDeviceState = new DeviceState();
 
-    private static final Context sContext = TestApis.context().instrumentedContext();
+    private static final TestApis sTestApis = new TestApis();
+    private static final Context sContext = sTestApis.context().instrumentedContext();
     private static final UserManager sUserManager = sContext.getSystemService(UserManager.class);
     private static final ConnectivityManager sConnectivityManager =
             sContext.getSystemService(ConnectivityManager.class);
@@ -73,18 +72,16 @@ public final class NetworkResetTest {
         restoreSettings(mOriginalAirplaneMode, mOriginalPrivateDnsMode, mOriginalAvoidBadWifi);
     }
 
-    // TODO: Add @PolicyDoesNotApplyTest
-
     @Test
-    @PolicyAppliesTest(policy = DisallowNetworkReset.class)
+    @Postsubmit(reason = "New test")
+    @PositivePolicyTest(policy = DisallowNetworkReset.class)
     @EnsureHasPermission({NETWORK_SETTINGS, WRITE_SECURE_SETTINGS})
-    @Postsubmit(reason = "b/181993922 automatically marked flaky")
     public void factoryReset_disallowedByNetworkResetPolicy_doesNotFactoryReset() throws Exception {
         final boolean originalUserRestriction =
                 sUserManager.hasUserRestriction(DISALLOW_NETWORK_RESET);
         try {
             sConnectivityManager.setAirplaneMode(true);
-            sDeviceState.dpc().devicePolicyManager().addUserRestriction(DPC_COMPONENT_NAME, DISALLOW_NETWORK_RESET);
+            sDeviceState.dpc().devicePolicyManager().addUserRestriction(DISALLOW_NETWORK_RESET);
 
             sConnectivityManager.factoryReset();
 
@@ -96,18 +93,20 @@ public final class NetworkResetTest {
         }
     }
 
+
     @Test
-    @PolicyAppliesTest(policy = DisallowPrivateDnsConfig.class)
+    @Postsubmit(reason = "New test")
+    @PositivePolicyTest(policy = DisallowPrivateDnsConfig.class)
     @EnsureHasPermission({NETWORK_SETTINGS, WRITE_SECURE_SETTINGS})
-    @Postsubmit(reason = "b/181993922 automatically marked flaky")
-    public void factoryReset_disallowedByConfigPrivateDnsPolicy_doesPartialFactoryReset() {
+    public void factoryReset_disallowedByConfigPrivateDnsPolicy_doesPartialFactoryReset()
+            throws Exception {
         final boolean originalUserRestriction =
                 sUserManager.hasUserRestriction(DISALLOW_CONFIG_PRIVATE_DNS);
         try {
             ConnectivitySettingsManager.setPrivateDnsMode(sContext,
                     ConnectivitySettingsManager.PRIVATE_DNS_MODE_OFF);
             sDeviceState.dpc().devicePolicyManager()
-                    .addUserRestriction(DPC_COMPONENT_NAME, DISALLOW_CONFIG_PRIVATE_DNS);
+                    .addUserRestriction(DISALLOW_CONFIG_PRIVATE_DNS);
 
             sConnectivityManager.factoryReset();
 
@@ -121,9 +120,9 @@ public final class NetworkResetTest {
     }
 
     @Test
-    @PolicyAppliesTest(policy = DisallowNetworkReset.class)
+    @Postsubmit(reason = "New test")
+    @PositivePolicyTest(policy = DisallowNetworkReset.class)
     @EnsureHasPermission({NETWORK_SETTINGS, WRITE_SECURE_SETTINGS})
-    @Postsubmit(reason = "b/181993922 automatically marked flaky")
     public void factoryReset_noPolicyRestrictions_resetsToDefault() throws Exception {
         final boolean originalPrivateDnsUserRestriction =
                 sUserManager.hasUserRestriction(DISALLOW_CONFIG_PRIVATE_DNS);
@@ -135,9 +134,9 @@ public final class NetworkResetTest {
                     ConnectivitySettingsManager.PRIVATE_DNS_MODE_OFF);
             // Ensure no policy set.
             sDeviceState.dpc().devicePolicyManager()
-                    .clearUserRestriction(DPC_COMPONENT_NAME, DISALLOW_CONFIG_PRIVATE_DNS);
+                    .clearUserRestriction(DISALLOW_CONFIG_PRIVATE_DNS);
             sDeviceState.dpc().devicePolicyManager()
-                    .clearUserRestriction(DPC_COMPONENT_NAME, DISALLOW_NETWORK_RESET);
+                    .clearUserRestriction(DISALLOW_NETWORK_RESET);
 
             sConnectivityManager.factoryReset();
 
@@ -172,9 +171,9 @@ public final class NetworkResetTest {
 
     private void restoreUserRestriction(boolean originalUserRestriction, String policy) {
         if (originalUserRestriction) {
-            sDeviceState.dpc().devicePolicyManager().addUserRestriction(DPC_COMPONENT_NAME, policy);
+            sDeviceState.dpc().devicePolicyManager().addUserRestriction(policy);
         } else {
-            sDeviceState.dpc().devicePolicyManager().clearUserRestriction(DPC_COMPONENT_NAME, policy);
+            sDeviceState.dpc().devicePolicyManager().clearUserRestriction(policy);
         }
     }
 }

@@ -22,7 +22,6 @@ import static org.junit.Assert.fail;
 import com.android.tradefed.testtype.suite.TestSuiteInfo;
 import com.android.tradefed.util.AaptParser;
 import com.android.tradefed.util.AbiUtils;
-import com.android.tradefed.util.FileUtil;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -30,7 +29,6 @@ import org.junit.runners.JUnit4;
 
 import java.io.File;
 import java.io.FilenameFilter;
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -170,22 +168,15 @@ public class ValidateTestsAbi {
                 List<String> supportedAbiApk = result.getNativeCode();
                 Set<String> buildTarget = AbiUtils.getAbisForArch(
                         TestSuiteInfo.getInstance().getTargetArchs().get(0));
-                // first check, all the abis in the buildTarget are supported
-                for (String abiBT : buildTarget) {
-                    Boolean findMatch = false;
-                    for (String abiApk : supportedAbiApk) {
-                        if (abiApk.equals(abiBT)) {
-                            findMatch = true;
-                            break;
-                        }
-                    }
-                    if (!findMatch) {
+                // first check, all the abis are supported
+                for (String abi : supportedAbiApk) {
+                    if (!buildTarget.contains(abi)) {
                         fail(String.format("apk %s %s does not support our abis [%s]",
                                 testApk.getName(), supportedAbiApk, buildTarget));
                     }
                 }
                 apkToAbi.put(testApk.getName(), supportedAbiApk.size());
-                maxAbi = Math.max(maxAbi, buildTarget.size());
+                maxAbi = Math.max(maxAbi, supportedAbiApk.size());
             }
         }
 
@@ -232,14 +223,6 @@ public class ValidateTestsAbi {
                 }
                 if (!file.canExecute()) {
                     return false;
-                }
-                try {
-                    // Ignore python binaries
-                    if (FileUtil.readStringFromFile(file).startsWith("#!/usr/bin/env python")) {
-                        return false;
-                    }
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
                 }
                 for(String pattern: BINARY_EXCEPTIONS_REGEX) {
                     Matcher matcher = Pattern.compile(pattern).matcher(name);

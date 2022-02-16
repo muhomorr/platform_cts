@@ -105,11 +105,7 @@ public class WebViewHostSideMultipleProfileTest extends BaseHostJUnit4Test {
             // before tests are executed.
             // See b/178367954.
             File file = getTestInformation().getDependencyFile(DEVICE_TEST_APK, true);
-
-            // --dont-kill is to avoid the test app being killed if ActivityManager is slow to
-            // respond to the install event.
-            // See b/202824003.
-            String output = mDevice.installPackageForUser(file, true, false, userId, "--dont-kill");
+            String output = mDevice.installPackageForUser(file, true, false, userId);
             if (output != null) {
                 stopAndRemoveUser(userId);
                 Assert.fail("Failed to install test apk " + output);

@@ -292,9 +292,6 @@ public class KernelConfigTest extends BaseHostJUnit4Test {
         put("ATOLL-AB", null);
         put("SDM660", new String[]{"CONFIG_HARDEN_BRANCH_PREDICTOR=y"});
         put("BENGAL", new String[]{"CONFIG_HARDEN_BRANCH_PREDICTOR=y"});
-        put("KHAJE", new String[]{"CONFIG_HARDEN_BRANCH_PREDICTOR=y"});
-        put("BENGAL-IOT", new String[]{"CONFIG_HARDEN_BRANCH_PREDICTOR=y"});
-        put("BENGALP-IOT", new String[]{"CONFIG_HARDEN_BRANCH_PREDICTOR=y"});
         put("DEFAULT", new String[]{"CONFIG_HARDEN_BRANCH_PREDICTOR=y",
             "CONFIG_UNMAP_KERNEL_AT_EL0=y"});
     }};
@@ -411,51 +408,9 @@ public class KernelConfigTest extends BaseHostJUnit4Test {
     private void assumeSecurityModelCompat() throws Exception {
         // This feature name check only applies to devices that first shipped with
         // SC or later.
-        final int firstApiLevel = Math.min(PropertyUtil.getFirstApiLevel(mDevice),
-                PropertyUtil.getVendorApiLevel(mDevice));
-        if (firstApiLevel >= 31) {
+        if (PropertyUtil.getFirstApiLevel(mDevice) >= 31) {
             assumeTrue("Skipping test: FEATURE_SECURITY_MODEL_COMPATIBLE missing.",
                     getDevice().hasFeature("feature:android.hardware.security.model.compatible"));
         }
-    }
-
-    /**
-     * Test that the kernel is using kASLR.
-     *
-     * @throws Exception
-     */
-    @CddTest(requirement="9.7")
-    @Test
-    public void testConfigRandomizeBase() throws Exception {
-        if (PropertyUtil.getFirstApiLevel(mDevice) < 33) {
-            return;
-        }
-
-        if (CpuFeatures.isArm32(mDevice)) {
-            return;
-        }
-
-        assertTrue("The kernel's base address must be randomized",
-                configSet.contains("CONFIG_RANDOMIZE_BASE=y"));
-    }
-
-    /**
-     * Test that CONFIG_VMAP_STACK is enabled on architectures that support it.
-     *
-     * @throws Exception
-     */
-    @CddTest(requirement="9.7")
-    @Test
-    public void testConfigVmapStack() throws Exception {
-        if (PropertyUtil.getFirstApiLevel(mDevice) < 33) {
-            return;
-        }
-
-        if (!configSet.contains("CONFIG_HAVE_ARCH_VMAP_STACK=y")) {
-            return;
-        }
-
-        assertTrue("CONFIG_VMAP_STACK must be enabled on architectures that support it.",
-                configSet.contains("CONFIG_VMAP_STACK=y"));
     }
 }

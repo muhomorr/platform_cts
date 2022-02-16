@@ -16,28 +16,19 @@
 
 package android.view.inputmethod.cts.util;
 
-import static android.view.ViewGroup.LayoutParams.MATCH_PARENT;
-import static android.view.WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE;
 import static android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_UNCHANGED;
-import static android.view.WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY;
 
 import android.app.Activity;
-import android.app.ActivityOptions;
-import android.content.Context;
 import android.content.Intent;
-import android.graphics.PixelFormat;
 import android.os.Bundle;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
-import android.widget.TextView;
 
 import androidx.annotation.AnyThread;
 import androidx.annotation.NonNull;
 import androidx.annotation.UiThread;
 import androidx.test.platform.app.InstrumentationRegistry;
-
-import com.android.compatibility.common.util.SystemUtil;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -45,7 +36,6 @@ import java.util.function.Function;
 
 public class TestActivity extends Activity {
 
-    public static final String OVERLAY_WINDOW_NAME = "TestActivity.APP_OVERLAY_WINDOW";
     private static final AtomicReference<Function<TestActivity, View>> sInitializer =
             new AtomicReference<>();
 
@@ -54,8 +44,6 @@ public class TestActivity extends Activity {
     private AtomicBoolean mIgnoreBackKey = new AtomicBoolean();
 
     private long mOnBackPressedCallCount;
-
-    private TextView mOverlayView;
 
     /**
      * Controls how {@link #onBackPressed()} behaves.
@@ -94,16 +82,6 @@ public class TestActivity extends Activity {
         setContentView(mInitializer.apply(this));
     }
 
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        if (mOverlayView != null) {
-            mOverlayView.getContext()
-                    .getSystemService(WindowManager.class).removeView(mOverlayView);
-            mOverlayView = null;
-        }
-    }
-
     /**
      * {@inheritDoc}
      */
@@ -114,23 +92,6 @@ public class TestActivity extends Activity {
             return;
         }
         super.onBackPressed();
-    }
-
-    public void showOverlayWindow() {
-        if (mOverlayView != null) {
-            throw new IllegalStateException("can only show one overlay at a time.");
-        }
-        Context overlayContext = getApplicationContext().createWindowContext(getDisplay(),
-                TYPE_APPLICATION_OVERLAY, null);
-        mOverlayView = new TextView(overlayContext);
-        WindowManager.LayoutParams params =
-                new WindowManager.LayoutParams(MATCH_PARENT, MATCH_PARENT,
-                        TYPE_APPLICATION_OVERLAY, FLAG_NOT_FOCUSABLE, PixelFormat.TRANSLUCENT);
-        params.setTitle(OVERLAY_WINDOW_NAME);
-        mOverlayView.setLayoutParams(params);
-        mOverlayView.setText("IME CTS TestActivity OverlayView");
-        mOverlayView.setBackgroundColor(0x77FFFF00);
-        overlayContext.getSystemService(WindowManager.class).addView(mOverlayView, params);
     }
 
     /**
@@ -147,30 +108,6 @@ public class TestActivity extends Activity {
     public static TestActivity startSync(
             @NonNull Function<TestActivity, View> activityInitializer) {
         return startSync(activityInitializer, 0 /* noAnimation */);
-    }
-
-    /**
-     * Similar to {@link TestActivity#startSync(Function)}, but with the given display ID to
-     * specify the launching target display.
-     * @param displayId The ID of the display
-     * @param activityInitializer initializer to supply {@link View} to be passed to
-     *                            {@link Activity#setContentView(View)}
-     * @return {@link TestActivity} launched
-     */
-    public static TestActivity startSync(int displayId,
-            @NonNull Function<TestActivity, View> activityInitializer) throws Exception {
-        sInitializer.set(activityInitializer);
-        final ActivityOptions options = ActivityOptions.makeBasic();
-        options.setLaunchDisplayId(displayId);
-        final Intent intent = new Intent()
-                .setAction(Intent.ACTION_MAIN)
-                .setClass(InstrumentationRegistry.getInstrumentation().getContext(),
-                        TestActivity.class)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK);
-        return SystemUtil.callWithShellPermissionIdentity(
-                () -> (TestActivity) InstrumentationRegistry.getInstrumentation().startActivitySync(
-                        intent, options.toBundle()));
     }
 
     /**

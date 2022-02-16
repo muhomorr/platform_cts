@@ -95,7 +95,6 @@ public class PrivacyDeviceOwnerTest extends DeviceTestCase implements IBuildRece
         installPackage(mDeviceOwnerUserId, DEVICE_OWNER_APK);
 
         if (isHeadlessSystemUserMode()) {
-            installPackage(mTestUserId, DEVICE_OWNER_APK);
             grantDpmWrapperPermissions(mTestUserId);
         }
     }

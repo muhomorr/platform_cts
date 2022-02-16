@@ -22,7 +22,6 @@ import static org.junit.Assert.fail;
 
 import com.android.cts.devicepolicy.DeviceAdminFeaturesCheckerRule.RequiresAdditionalFeatures;
 import com.android.cts.devicepolicy.DeviceAdminFeaturesCheckerRule.RequiresProfileOwnerSupport;
-import com.android.tradefed.log.LogUtil.CLog;
 
 import org.junit.Test;
 
@@ -43,7 +42,7 @@ public class ProfileOwnerTest extends BaseDevicePolicyTest {
     public void setUp() throws Exception {
         super.setUp();
 
-        mUserId = isHeadlessSystemUserMode() ? getCurrentUser() : getPrimaryUser();
+        mUserId = getPrimaryUser();
 
 
         installAppAsUser(PROFILE_OWNER_APK, mUserId);
@@ -110,14 +109,11 @@ public class ProfileOwnerTest extends BaseDevicePolicyTest {
 
     private void executeProfileOwnerTest(String testClassName) throws Exception {
         String testClass = PROFILE_OWNER_PKG + "." + testClassName;
-        CLog.d("executeProfileOwnerTest(): running %s on user %d", testClassName, mUserId);
-        runDeviceTestsAsUser(PROFILE_OWNER_PKG, testClass, mUserId);
+        runDeviceTestsAsUser(PROFILE_OWNER_PKG, testClass, mPrimaryUserId);
     }
 
     protected void executeProfileOwnerTestMethod(String className, String testName)
             throws Exception {
-        CLog.d("executeProfileOwnerTestMethod(): running %s.%s on user %d", className, testName,
-                mUserId);
         runDeviceTestsAsUser(PROFILE_OWNER_PKG, className, testName, mUserId);
     }
 

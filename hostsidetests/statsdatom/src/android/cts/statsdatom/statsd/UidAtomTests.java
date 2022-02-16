@@ -37,6 +37,7 @@ import com.android.os.AtomsProto.Atom;
 import com.android.os.AtomsProto.AttributionNode;
 import com.android.os.AtomsProto.AudioStateChanged;
 import com.android.os.AtomsProto.CameraStateChanged;
+import com.android.os.AtomsProto.DeviceCalculatedPowerBlameUid;
 import com.android.os.AtomsProto.FlashlightStateChanged;
 import com.android.os.AtomsProto.ForegroundServiceAppOpSessionEnded;
 import com.android.os.AtomsProto.ForegroundServiceStateChanged;
@@ -56,7 +57,6 @@ import com.android.tradefed.testtype.DeviceTestCase;
 import com.android.tradefed.testtype.IBuildReceiver;
 import com.android.tradefed.util.Pair;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
@@ -150,38 +150,34 @@ public class UidAtomTests extends DeviceTestCase implements IBuildReceiver {
 
         // Start the victim process (service running in process :lmk_victim)
         // We rely on a victim process (instead of expecting the allocating process to die)
-        // because 1. it is likely to be less flaky (higher oom score processes will be killed
-        // faster, making less likely for the OOM reaper to trigger and 2. we need two processes
-        // to be able to force evictions on 32-bit userspace devices with > 4 GB RAM.
+        // because it can be flaky and dependent on lmkd configuration
+        // (e.g. the OOM reaper can get to it first, depending on the allocation timings)
         DeviceUtils.executeServiceAction(getDevice(), "LmkVictimBackgroundService",
-                "action.allocate_memory");
+                "action.end_immediately");
         // Start fg activity and allocate
         try (AutoCloseable a = DeviceUtils.withActivity(
                 getDevice(), DeviceUtils.STATSD_ATOM_TEST_PKG,
                 "StatsdCtsForegroundActivity", "action", "action.lmk")) {
             // Sorted list of events in order in which they occurred.
-            List<LmkKillOccurred> atoms = null;
+            List<EventMetricData> data = null;
             for (int i = 0; i < 60; ++i) {
                 Thread.sleep(1_000);
-                atoms = ReportUtils.getEventMetricDataList(getDevice()).stream()
-                        .map(EventMetricData::getAtom)
-                        .filter(Atom::hasLmkKillOccurred)
-                        .map(Atom::getLmkKillOccurred)
-                        .filter(atom -> atom.getUid() == appUid)
-                        .collect(Collectors.toList());
-                if (!atoms.isEmpty()) {
+                data = ReportUtils.getEventMetricDataList(getDevice());
+                if (!data.isEmpty()) {
                   break;
                 }
             }
 
-            assertThat(atoms).isNotEmpty();
+            assertThat(data).isNotEmpty();
             // Even though both processes might have died, the non-fg one (victim)
             // must have been first.
-            assertThat(atoms.get(0).getProcessName())
+            assertThat(data.get(0).getAtom().hasLmkKillOccurred()).isTrue();
+            LmkKillOccurred atom = data.get(0).getAtom().getLmkKillOccurred();
+            assertThat(atom.getUid()).isEqualTo(appUid);
+            assertThat(atom.getProcessName())
                     .isEqualTo(DeviceUtils.STATSD_ATOM_TEST_PKG + ":lmk_victim");
-            assertThat(atoms.get(0).getOomAdjScore()).isGreaterThan(0);
-            assertThat(atoms.get(0).getRssInBytes() + atoms.get(0).getSwapInBytes())
-                    .isGreaterThan(0);
+            assertThat(atom.getOomAdjScore()).isAtLeast(500);
+            assertThat(atom.getRssInBytes() + atom.getSwapInBytes()).isGreaterThan(0);
       }
     }
 
@@ -270,15 +266,12 @@ public class UidAtomTests extends DeviceTestCase implements IBuildReceiver {
         Thread.sleep(AtomTestUtils.WAIT_TIME_SHORT);
         // Sorted list of events in order in which they occurred.
         List<EventMetricData> data = ReportUtils.getEventMetricDataList(getDevice());
-        List<Integer> atomStates = data.stream().map(
-                eventMetricData -> eventMetricData.getAtom().getAudioStateChanged()
-                        .getState().getNumber())
-                .collect(Collectors.toList());
+
         // Because the timestamp is truncated, we skip checking time differences between state
         // changes.
-        assertThat(data.size()).isEqualTo(2);
-        assertThat(new ArrayList<>(Arrays.asList(AudioStateChanged.State.ON_VALUE,
-                AudioStateChanged.State.OFF_VALUE))).containsExactlyElementsIn(atomStates);
+        AtomTestUtils.assertStatesOccurred(stateSet, data, 0,
+                atom -> atom.getAudioStateChanged().getState().getNumber());
+
         // Check that timestamp is truncated
         for (EventMetricData metric : data) {
             long elapsedTimestampNs = metric.getElapsedTimestampNanos();
@@ -307,15 +300,11 @@ public class UidAtomTests extends DeviceTestCase implements IBuildReceiver {
         List<EventMetricData> data = ReportUtils.getEventMetricDataList(getDevice());
 
         // Assert that the events happened in the expected order.
-        AtomTestUtils.assertStatesOccurredInOrder(stateSet, data, AtomTestUtils.WAIT_TIME_LONG,
+        AtomTestUtils.assertStatesOccurred(stateSet, data, AtomTestUtils.WAIT_TIME_LONG,
                 atom -> atom.getCameraStateChanged().getState().getNumber());
     }
 
     public void testDeviceCalculatedPowerUse() throws Exception {
-        if (DeviceUtils.hasFeature(getDevice(), FEATURE_TV)) {
-            // Skip TVs because they do not have batteries.
-            return;
-        }
         if (!DeviceUtils.hasFeature(getDevice(), FEATURE_LEANBACK_ONLY)) return;
 
         ConfigUtils.uploadConfigForPulledAtom(getDevice(), DeviceUtils.STATSD_ATOM_TEST_PKG,
@@ -331,6 +320,46 @@ public class UidAtomTests extends DeviceTestCase implements IBuildReceiver {
         Atom atom = ReportUtils.getGaugeMetricAtoms(getDevice()).get(0);
         assertThat(atom.getDeviceCalculatedPowerUse().getComputedPowerNanoAmpSecs())
                 .isGreaterThan(0L);
+        DeviceUtils.resetBatteryStatus(getDevice());
+    }
+
+
+    public void testDeviceCalculatedPowerBlameUid() throws Exception {
+        if (!DeviceUtils.hasFeature(getDevice(), FEATURE_LEANBACK_ONLY)) return;
+        if (!DeviceUtils.hasBattery(getDevice())) {
+            return;
+        }
+        String kernelVersion = getDevice().executeShellCommand("uname -r");
+        if (kernelVersion.contains("3.18")) {
+            LogUtil.CLog.d("Skipping calculated power blame uid test.");
+            return;
+        }
+        ConfigUtils.uploadConfigForPulledAtom(getDevice(), DeviceUtils.STATSD_ATOM_TEST_PKG,
+                Atom.DEVICE_CALCULATED_POWER_BLAME_UID_FIELD_NUMBER);
+        DeviceUtils.unplugDevice(getDevice());
+
+        Thread.sleep(AtomTestUtils.WAIT_TIME_LONG);
+        DeviceUtils.runDeviceTestsOnStatsdApp(getDevice(), ".AtomTests", "testSimpleCpu");
+        Thread.sleep(AtomTestUtils.WAIT_TIME_SHORT);
+        AtomTestUtils.sendAppBreadcrumbReportedAtom(getDevice());
+        Thread.sleep(AtomTestUtils.WAIT_TIME_LONG);
+
+        List<Atom> atomList = ReportUtils.getGaugeMetricAtoms(getDevice());
+        boolean uidFound = false;
+        int uid = DeviceUtils.getStatsdTestAppUid(getDevice());
+        long uidPower = 0;
+        for (Atom atom : atomList) {
+            DeviceCalculatedPowerBlameUid item = atom.getDeviceCalculatedPowerBlameUid();
+            if (item.getUid() == uid) {
+                assertWithMessage(String.format("Found multiple power values for uid %d", uid))
+                        .that(uidFound).isFalse();
+                uidFound = true;
+                uidPower = item.getPowerNanoAmpSecs();
+            }
+        }
+        assertWithMessage(String.format("No power value for uid %d", uid)).that(uidFound).isTrue();
+        assertWithMessage(String.format("Non-positive power value for uid %d", uid))
+                .that(uidPower).isGreaterThan(0L);
         DeviceUtils.resetBatteryStatus(getDevice());
     }
 
@@ -357,7 +386,7 @@ public class UidAtomTests extends DeviceTestCase implements IBuildReceiver {
         List<EventMetricData> data = ReportUtils.getEventMetricDataList(getDevice());
 
         // Assert that the events happened in the expected order.
-        AtomTestUtils.assertStatesOccurredInOrder(stateSet, data, AtomTestUtils.WAIT_TIME_SHORT,
+        AtomTestUtils.assertStatesOccurred(stateSet, data, AtomTestUtils.WAIT_TIME_SHORT,
                 atom -> atom.getFlashlightStateChanged().getState().getNumber());
     }
 
@@ -382,7 +411,7 @@ public class UidAtomTests extends DeviceTestCase implements IBuildReceiver {
         List<EventMetricData> data = ReportUtils.getEventMetricDataList(getDevice());
 
         // Assert that the events happened in the expected order.
-        AtomTestUtils.assertStatesOccurredInOrder(stateSet, data, AtomTestUtils.WAIT_TIME_SHORT,
+        AtomTestUtils.assertStatesOccurred(stateSet, data, AtomTestUtils.WAIT_TIME_SHORT,
                 atom -> atom.getForegroundServiceStateChanged().getState().getNumber());
     }
 
@@ -503,7 +532,7 @@ public class UidAtomTests extends DeviceTestCase implements IBuildReceiver {
         List<EventMetricData> data = ReportUtils.getEventMetricDataList(getDevice());
 
         // Assert that the events happened in the expected order.
-        AtomTestUtils.assertStatesOccurredInOrder(stateSet, data, videoDuration,
+        AtomTestUtils.assertStatesOccurred(stateSet, data, videoDuration,
                 atom -> atom.getMediaCodecStateChanged().getState().getNumber());
     }
 
@@ -531,7 +560,7 @@ public class UidAtomTests extends DeviceTestCase implements IBuildReceiver {
 
         // Assert that the events happened in the expected order.
         // The overlay box should appear about 2sec after the app start
-        AtomTestUtils.assertStatesOccurredInOrder(stateSet, data, 0,
+        AtomTestUtils.assertStatesOccurred(stateSet, data, 0,
                 atom -> atom.getOverlayStateChanged().getState().getNumber());
     }
 
@@ -622,7 +651,7 @@ public class UidAtomTests extends DeviceTestCase implements IBuildReceiver {
         AtomTestUtils.popUntilFindFromEnd(data, screen140,
                 atom -> atom.getScreenBrightnessChanged().getLevel());
         // Assert that the events happened in the expected order.
-        AtomTestUtils.assertStatesOccurredInOrder(stateSet, data, AtomTestUtils.WAIT_TIME_SHORT,
+        AtomTestUtils.assertStatesOccurred(stateSet, data, AtomTestUtils.WAIT_TIME_SHORT,
                 atom -> atom.getScreenBrightnessChanged().getLevel());
     }
 
@@ -643,7 +672,7 @@ public class UidAtomTests extends DeviceTestCase implements IBuildReceiver {
         List<EventMetricData> data = ReportUtils.getEventMetricDataList(getDevice());
 
         // Assert that the events happened in the expected order.
-        AtomTestUtils.assertStatesOccurredInOrder(stateSet, data,
+        AtomTestUtils.assertStatesOccurred(stateSet, data,
                 /* wait = */ 0 /* don't verify time differences between state changes */,
                 atom -> atom.getSyncStateChanged().getState().getNumber());
     }
@@ -671,7 +700,7 @@ public class UidAtomTests extends DeviceTestCase implements IBuildReceiver {
         // Sorted list of events in order in which they occurred.
         List<EventMetricData> data = ReportUtils.getEventMetricDataList(getDevice());
 
-        AtomTestUtils.assertStatesOccurredInOrder(stateSet, data, 300,
+        AtomTestUtils.assertStatesOccurred(stateSet, data, 300,
                 atom -> atom.getVibratorStateChanged().getState().getNumber());
     }
 
@@ -698,7 +727,7 @@ public class UidAtomTests extends DeviceTestCase implements IBuildReceiver {
         List<EventMetricData> data = ReportUtils.getEventMetricDataList(getDevice());
 
         // Assert that the events happened in the expected order.
-        AtomTestUtils.assertStatesOccurredInOrder(stateSet, data, AtomTestUtils.WAIT_TIME_SHORT,
+        AtomTestUtils.assertStatesOccurred(stateSet, data, AtomTestUtils.WAIT_TIME_SHORT,
                 atom -> atom.getWakelockStateChanged().getState().getNumber());
 
         for (EventMetricData event : data) {
@@ -769,14 +798,6 @@ public class UidAtomTests extends DeviceTestCase implements IBuildReceiver {
         assertThat(atom.getBytesField().getExperimentIdList())
                 .containsExactly(1L, 2L, 3L).inOrder();
 
-        assertThat(atom.getRepeatedIntFieldList()).containsExactly(3, 6).inOrder();
-        assertThat(atom.getRepeatedLongFieldList()).containsExactly(1000L, 1002L).inOrder();
-        assertThat(atom.getRepeatedFloatFieldList()).containsExactly(0.3f, 0.09f).inOrder();
-        assertThat(atom.getRepeatedStringFieldList()).containsExactly("str1", "str2").inOrder();
-        assertThat(atom.getRepeatedBooleanFieldList()).containsExactly(true, false).inOrder();
-        assertThat(atom.getRepeatedEnumFieldList())
-                .containsExactly(TestAtomReported.State.OFF, TestAtomReported.State.ON)
-                .inOrder();
 
         atom = data.get(1).getAtom().getTestAtomReported();
         attrChain = atom.getAttributionNodeList();
@@ -796,15 +817,6 @@ public class UidAtomTests extends DeviceTestCase implements IBuildReceiver {
         assertThat(atom.getBytesField().getExperimentIdList())
                 .containsExactly(1L, 2L, 3L).inOrder();
 
-        assertThat(atom.getRepeatedIntFieldList()).containsExactly(3, 6).inOrder();
-        assertThat(atom.getRepeatedLongFieldList()).containsExactly(1000L, 1002L).inOrder();
-        assertThat(atom.getRepeatedFloatFieldList()).containsExactly(0.3f, 0.09f).inOrder();
-        assertThat(atom.getRepeatedStringFieldList()).containsExactly("str1", "str2").inOrder();
-        assertThat(atom.getRepeatedBooleanFieldList()).containsExactly(true, false).inOrder();
-        assertThat(atom.getRepeatedEnumFieldList())
-                .containsExactly(TestAtomReported.State.OFF, TestAtomReported.State.ON)
-                .inOrder();
-
         atom = data.get(2).getAtom().getTestAtomReported();
         attrChain = atom.getAttributionNodeList();
         assertThat(attrChain).hasSize(1);
@@ -821,13 +833,6 @@ public class UidAtomTests extends DeviceTestCase implements IBuildReceiver {
         assertThat(atom.getBytesField().getExperimentIdList())
                 .containsExactly(1L, 2L, 3L).inOrder();
 
-        assertThat(atom.getRepeatedIntFieldList()).isEmpty();
-        assertThat(atom.getRepeatedLongFieldList()).isEmpty();
-        assertThat(atom.getRepeatedFloatFieldList()).isEmpty();
-        assertThat(atom.getRepeatedStringFieldList()).isEmpty();
-        assertThat(atom.getRepeatedBooleanFieldList()).isEmpty();
-        assertThat(atom.getRepeatedEnumFieldList()).isEmpty();
-
         atom = data.get(3).getAtom().getTestAtomReported();
         attrChain = atom.getAttributionNodeList();
         assertThat(attrChain).hasSize(1);
@@ -842,13 +847,6 @@ public class UidAtomTests extends DeviceTestCase implements IBuildReceiver {
         assertThat(atom.getBooleanField()).isTrue();
         assertThat(atom.getState().getNumber()).isEqualTo(TestAtomReported.State.OFF_VALUE);
         assertThat(atom.getBytesField().getExperimentIdList()).isEmpty();
-
-        assertThat(atom.getRepeatedIntFieldList()).isEmpty();
-        assertThat(atom.getRepeatedLongFieldList()).isEmpty();
-        assertThat(atom.getRepeatedFloatFieldList()).isEmpty();
-        assertThat(atom.getRepeatedStringFieldList()).isEmpty();
-        assertThat(atom.getRepeatedBooleanFieldList()).isEmpty();
-        assertThat(atom.getRepeatedEnumFieldList()).isEmpty();
     }
 
     public void testAppForegroundBackground() throws Exception {
@@ -871,7 +869,7 @@ public class UidAtomTests extends DeviceTestCase implements IBuildReceiver {
                 atom -> atom.getAppUsageEventOccurred().getEventType().getNumber();
         // clear out initial appusage states
         AtomTestUtils.popUntilFind(data, onStates, appUsageStateFunction);
-        AtomTestUtils.assertStatesOccurredInOrder(stateSet, data, 0, appUsageStateFunction);
+        AtomTestUtils.assertStatesOccurred(stateSet, data, 0, appUsageStateFunction);
     }
 /*
     public void testAppForceStopUsageEvent() throws Exception {

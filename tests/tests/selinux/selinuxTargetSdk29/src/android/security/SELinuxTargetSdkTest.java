@@ -42,16 +42,13 @@ public class SELinuxTargetSdkTest extends SELinuxTargetSdkTestBase
             checkDex2oatAccess(false);
         }
     }
-    public void testNoNetlinkRouteGetlink() throws IOException {
-        noNetlinkRouteGetlink();
+
+    public void testNetlinkRouteGetlinkSucceeds() throws IOException {
+        checkNetlinkRouteGetlink(true);
     }
 
-    public void testNoNetlinkRouteBind() throws IOException {
-        noNetlinkRouteBind();
-    }
-
-    public void testNetlinkRouteGetneigh() throws IOException {
-        checkNetlinkRouteGetneigh(true);
+    public void testNetlinkRouteBindSucceeds() throws IOException {
+        checkNetlinkRouteBind(true);
     }
 
     public void testCanNotExecuteFromHomeDir() throws Exception {
@@ -89,6 +86,6 @@ public class SELinuxTargetSdkTest extends SELinuxTargetSdkTestBase
     }
 
     public void testNetworkInterface() throws Exception {
-        checkNetworkInterface_returnsAnonymizedHardwareAddresses();
+        checkNetworkInterface_returnsHardwareAddresses();
     }
 }
