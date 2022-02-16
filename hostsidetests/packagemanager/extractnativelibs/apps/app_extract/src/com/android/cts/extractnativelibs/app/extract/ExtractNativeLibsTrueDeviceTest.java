@@ -47,9 +47,7 @@ public class ExtractNativeLibsTrueDeviceTest {
         File nativeLibDir = new File(mContext.getApplicationInfo().nativeLibraryDir);
         Assert.assertTrue(nativeLibDir.exists());
         Assert.assertTrue(nativeLibDir.isDirectory());
-        Assert.assertTrue("Native lib dir: " + nativeLibDir.getAbsolutePath()
-                        + " does not end with: " + expectedSubDir,
-                nativeLibDir.getAbsolutePath().endsWith(expectedSubDir));
+        Assert.assertTrue(nativeLibDir.getAbsolutePath().endsWith(expectedSubDir));
         Assert.assertEquals(1, nativeLibDir.list().length);
     }
 

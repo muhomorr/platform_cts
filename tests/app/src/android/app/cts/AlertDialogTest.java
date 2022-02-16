@@ -35,7 +35,6 @@ import androidx.test.filters.SmallTest;
 import androidx.test.platform.app.InstrumentationRegistry;
 
 import com.android.compatibility.common.util.PollingCheck;
-import com.android.compatibility.common.util.WindowUtil;
 
 import org.junit.After;
 import org.junit.Before;
@@ -76,7 +75,7 @@ public class AlertDialogTest {
         });
 
         PollingCheck.waitFor(mActivity.getDialog()::isShowing);
-        WindowUtil.waitForFocus(mActivity.getDialog().getWindow());
+        PollingCheck.waitFor(mActivity.getDialog().getWindow().getDecorView()::hasWindowFocus);
     }
 
     @Test

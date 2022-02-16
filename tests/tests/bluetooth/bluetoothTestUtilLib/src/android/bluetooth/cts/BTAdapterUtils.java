@@ -16,17 +16,21 @@
 
 package android.bluetooth.cts;
 
-import android.app.UiAutomation;
 import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.le.ScanRecord;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.pm.PackageManager;
+import android.provider.Settings;
 import android.util.Log;
 
-import androidx.test.InstrumentationRegistry;
+import junit.framework.Assert;
 
-import java.util.Set;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.util.Arrays;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
@@ -91,11 +95,6 @@ public class BTAdapterUtils {
         if (bluetoothAdapter.isEnabled()) return true;
 
         Log.d(TAG, "Enabling bluetooth adapter");
-        UiAutomation auto = InstrumentationRegistry.getInstrumentation().getUiAutomation();
-        Set<String> permissions = auto.getAdoptedShellPermissions();
-        Set<String> savedPermissions = Set.copyOf(permissions);
-        permissions.add(android.Manifest.permission.NETWORK_SETTINGS);
-        auto.adoptShellPermissionIdentity(permissions.toArray(new String[permissions.size()]));
         bluetoothAdapter.enable();
         mAdapterStateEnablinglock.lock();
         try {
@@ -111,11 +110,8 @@ public class BTAdapterUtils {
         } catch(InterruptedException e) {
             Log.e(TAG, "enableAdapter: interrrupted");
         } finally {
-            auto.adoptShellPermissionIdentity(savedPermissions.toArray(
-                    new String[savedPermissions.size()]));
             mAdapterStateEnablinglock.unlock();
         }
-
         return bluetoothAdapter.isEnabled();
     }
 
@@ -128,11 +124,6 @@ public class BTAdapterUtils {
         if (bluetoothAdapter.getState() == BluetoothAdapter.STATE_OFF) return true;
 
         Log.d(TAG, "Disabling bluetooth adapter");
-        UiAutomation auto = InstrumentationRegistry.getInstrumentation().getUiAutomation();
-        Set<String> permissions = auto.getAdoptedShellPermissions();
-        Set<String> savedPermissions = Set.copyOf(permissions);
-        permissions.add(android.Manifest.permission.NETWORK_SETTINGS);
-        auto.adoptShellPermissionIdentity(permissions.toArray(new String[permissions.size()]));
         bluetoothAdapter.disable();
         mAdapterStateDisablinglock.lock();
         try {
@@ -148,8 +139,6 @@ public class BTAdapterUtils {
         } catch(InterruptedException e) {
             Log.e(TAG, "enableAdapter: interrrupted");
         } finally {
-            auto.adoptShellPermissionIdentity(savedPermissions.toArray(
-                    new String[savedPermissions.size()]));
             mAdapterStateDisablinglock.unlock();
         }
         return bluetoothAdapter.getState() == BluetoothAdapter.STATE_OFF;

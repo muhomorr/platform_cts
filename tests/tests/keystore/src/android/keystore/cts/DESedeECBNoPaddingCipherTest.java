@@ -1,7 +1,5 @@
 package android.keystore.cts;
 
-import static org.junit.Assert.fail;
-
 import java.security.AlgorithmParameters;
 import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.InvalidParameterSpecException;
@@ -35,7 +33,4 @@ public class DESedeECBNoPaddingCipherTest extends DESedeCipherTestBase {
     protected byte[] getKatIv() {
         return null;
     }
-
-    @Override
-    protected boolean isStrongbox() { return false; }
 }

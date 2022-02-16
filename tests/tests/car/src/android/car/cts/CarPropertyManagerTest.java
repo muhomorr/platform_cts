@@ -29,7 +29,6 @@ import android.car.VehicleAreaSeat;
 import android.car.VehicleAreaType;
 import android.car.VehicleAreaWheel;
 import android.car.VehicleGear;
-import android.car.VehicleIgnitionState;
 import android.car.VehiclePropertyIds;
 import android.car.cts.utils.VehiclePropertyVerifier;
 import android.car.hardware.CarPropertyConfig;
@@ -626,10 +625,13 @@ public class CarPropertyManagerTest extends CarApiTestBase {
                     assertWithMessage(
                             "IGNITION_STATE must be a defined ignition state: "
                                     + ignitionState).that(
-                            ignitionState).isIn(ImmutableSet.of(VehicleIgnitionState.UNDEFINED,
-                            VehicleIgnitionState.LOCK, VehicleIgnitionState.OFF,
-                            VehicleIgnitionState.ACC, VehicleIgnitionState.ON,
-                            VehicleIgnitionState.START));
+                            ignitionState).isIn(ImmutableSet.of(
+                            /*VehicleIgnitionState.UNDEFINED=*/0,
+                            /*VehicleIgnitionState.LOCK=*/1,
+                            /*VehicleIgnitionState.OFF=*/2,
+                            /*VehicleIgnitionState.ACC=*/3,
+                            /*VehicleIgnitionState.ON=*/4,
+                            /*VehicleIgnitionState.START=*/5));
                 }).build().verify(mCarPropertyManager);
     }
 
@@ -679,7 +681,8 @@ public class CarPropertyManagerTest extends CarApiTestBase {
 
     @Test
     public void testVehicleSpeedDisplayUnitsIfSupported() {
-        VehiclePropertyVerifier.newBuilder(VehiclePropertyIds.VEHICLE_SPEED_DISPLAY_UNITS,
+        VehiclePropertyVerifier.newBuilder(/*VehiclePropertyIds.VEHICLE_SPEED_DISPLAY_UNITS=*/
+                289408516,
                 CarPropertyConfig.VEHICLE_PROPERTY_ACCESS_READ_WRITE,
                 VehicleAreaType.VEHICLE_AREA_TYPE_GLOBAL,
                 CarPropertyConfig.VEHICLE_PROPERTY_CHANGE_MODE_ONCHANGE,

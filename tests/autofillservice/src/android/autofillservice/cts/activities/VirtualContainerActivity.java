@@ -43,7 +43,6 @@ public class VirtualContainerActivity extends AbstractAutoFillActivity {
     public static final String BLANK_VALUE = "        ";
     public static final String INITIAL_URL_BAR_VALUE = "ftp://dev.null/4/8/15/16/23/42";
 
-    // TODO: Make these private and expose getters.
     public EditText mUrlBar;
     public EditText mUrlBar2;
     public VirtualContainerView mCustomView;
@@ -52,14 +51,6 @@ public class VirtualContainerActivity extends AbstractAutoFillActivity {
     public Line mPassword;
 
     private FillExpectation mExpectation;
-
-    public VirtualContainerView getVirtualViewHolder() {
-        return mCustomView;
-    }
-
-    public int getUsernameVirtualId() {
-        return mUsername.text.id;
-    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022 The Android Open Source Project
+ * Copyright (C) 2021 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,11 +18,14 @@ package com.android.cts.appcloning;
 
 import static com.google.common.truth.Truth.assertThat;
 
+import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
 
 import android.platform.test.annotations.AppModeFull;
 
+import com.android.tradefed.device.DeviceNotAvailableException;
 import com.android.tradefed.device.contentprovider.ContentProviderHandler;
+import com.android.tradefed.targetprep.TargetSetupError;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
 import com.android.tradefed.util.CommandResult;
 
@@ -31,31 +34,38 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import java.util.HashMap;
-import java.util.Map;
-
 /**
  * Runs the AppCloning tests.
  */
 @RunWith(DeviceJUnit4ClassRunner.class)
 @AppModeFull
-public class AppCloningHostTest extends AppCloningBaseHostTest {
+public class AppCloningHostTest extends BaseHostTestCase {
 
+    private static final String APP_A = "CtsAppCloningTestApp.apk";
+    private static final String APP_A_PACKAGE = "com.android.cts.appcloningtestapp";
+
+    private static final String CONTENT_PROVIDER_URL = "content://android.tradefed.contentprovider";
     private static final int CLONE_PROFILE_DIRECTORY_CREATION_TIMEOUT_MS = 20000;
 
-    private static final String IMAGE_NAME_TO_BE_CREATED_KEY = "imageNameToBeCreated";
-    private static final String IMAGE_NAME_TO_BE_DISPLAYED_KEY = "imageNameToBeDisplayed";
-    private static final String IMAGE_NAME_TO_BE_VERIFIED_IN_OWNER_PROFILE_KEY =
-            "imageNameToBeVerifiedInOwnerProfile";
-    private static final String IMAGE_NAME_TO_BE_VERIFIED_IN_CLONE_PROFILE_KEY =
-            "imageNameToBeVerifiedInCloneProfile";
-    private static final String CLONE_USER_ID = "cloneUserId";
-
+    private String mCloneUserId;
     private ContentProviderHandler mContentProviderHandler;
 
     @Before
     public void setup() throws Exception {
-        super.baseHostSetup();
+        assumeFalse("Device is in headless system user mode", isHeadlessSystemUserMode());
+        assumeTrue(isAtLeastS());
+        assumeFalse("Device uses sdcardfs", usesSdcardFs());
+
+        // create clone user
+        String output = executeShellCommand(
+                "pm create-user --profileOf 0 --user-type android.os.usertype.profile.CLONE "
+                        + "testUser");
+        mCloneUserId = output.substring(output.lastIndexOf(' ') + 1).replaceAll("[^0-9]",
+                "");
+        assertThat(mCloneUserId).isNotEmpty();
+
+        CommandResult out = executeShellV2Command("am start-user -w %s", mCloneUserId);
+        assertThat(out.getStderr()).isEmpty();
 
         mContentProviderHandler = new ContentProviderHandler(getDevice());
         mContentProviderHandler.setUp();
@@ -63,11 +73,20 @@ public class AppCloningHostTest extends AppCloningBaseHostTest {
 
     @After
     public void tearDown() throws Exception {
-        super.baseHostTeardown();
-
+        if (isHeadlessSystemUserMode() || !isAtLeastS() || usesSdcardFs()) return;
         if (mContentProviderHandler != null) {
             mContentProviderHandler.tearDown();
         }
+
+        // remove the clone user
+        executeShellCommand("pm remove-user %s", mCloneUserId);
+    }
+
+    @Test
+    public void testInstallAppTwice() throws Exception {
+        installAppAsUser(APP_A, getCurrentUserId());
+        installAppAsUser(APP_A, Integer.valueOf(mCloneUserId));
+        uninstallPackage(APP_A_PACKAGE);
     }
 
     @Test
@@ -106,53 +125,34 @@ public class AppCloningHostTest extends AppCloningBaseHostTest {
 
     @Test
     public void testPrivateAppDataDirectoryForCloneUser() throws Exception {
+        installAppAsUser(APP_A, Integer.valueOf(mCloneUserId));
         eventually(() -> {
             // Wait for finish.
             assertThat(isPackageInstalled(APP_A_PACKAGE, mCloneUserId)).isTrue();
         }, CLONE_PROFILE_DIRECTORY_CREATION_TIMEOUT_MS);
     }
 
-    @Test
-    public void testCrossUserMediaAccess() throws Exception {
-        // Run save image test in owner user space
-        Map<String, String> ownerArgs = new HashMap<>();
-        ownerArgs.put(IMAGE_NAME_TO_BE_DISPLAYED_KEY, "WeirdOwnerProfileImage");
-        ownerArgs.put(IMAGE_NAME_TO_BE_CREATED_KEY, "owner_profile_image");
-
-        runDeviceTestAsUserInPkgA("testMediaStoreManager_writeImageToSharedStorage",
-                getCurrentUserId(), ownerArgs);
-
-        // Run save image test in clone user space
-        Map<String, String> cloneArgs = new HashMap<>();
-        cloneArgs.put(IMAGE_NAME_TO_BE_DISPLAYED_KEY, "WeirdCloneProfileImage");
-        cloneArgs.put(IMAGE_NAME_TO_BE_CREATED_KEY, "clone_profile_image");
-
-        runDeviceTestAsUserInPkgA("testMediaStoreManager_writeImageToSharedStorage",
-                Integer.valueOf(mCloneUserId), cloneArgs);
-
-        // Run cross user access test
-        Map<String, String> args = new HashMap<>();
-        args.put(IMAGE_NAME_TO_BE_VERIFIED_IN_OWNER_PROFILE_KEY, "WeirdOwnerProfileImage");
-        args.put(IMAGE_NAME_TO_BE_VERIFIED_IN_CLONE_PROFILE_KEY, "WeirdCloneProfileImage");
-        args.put(CLONE_USER_ID, mCloneUserId);
-
-        // From owner user space
-        runDeviceTestAsUserInPkgA(
-                "testMediaStoreManager_verifyCrossUserImagesInSharedStorage",
-                getCurrentUserId(), args);
-
-        // From clone user space
-        runDeviceTestAsUserInPkgA(
-                "testMediaStoreManager_verifyCrossUserImagesInSharedStorage",
-                Integer.valueOf(mCloneUserId), args);
+    private void installAppAsUser(String packageFile, int userId)
+            throws TargetSetupError, DeviceNotAvailableException {
+        installPackageAsUser(packageFile, false, userId, "-t");
     }
 
-    @Test
-    public void testGetStorageVolumesIncludingSharedProfiles() throws Exception {
-        assumeTrue(isAtLeastT());
-        Map<String, String> args = new HashMap<>();
-        args.put(CLONE_USER_ID, mCloneUserId);
-        runDeviceTestAsUserInPkgA("testStorageManager_verifyInclusionOfSharedProfileVolumes",
-                getCurrentUserId(), args);
+    private CommandResult runContentProviderCommand(String commandType, String userId,
+            String relativePath, String args) throws Exception {
+        String fullUri = CONTENT_PROVIDER_URL + relativePath;
+        return executeShellV2Command("content %s --user %s --uri %s %s",
+                commandType, userId, fullUri, args);
+    }
+
+    private boolean usesSdcardFs() throws Exception {
+        CommandResult out = executeShellV2Command("cat /proc/mounts");
+        assertThat(isSuccessful(out)).isTrue();
+        for (String line : out.getStdout().split("\n")) {
+            String[] split = line.split(" ");
+            if (split.length >= 3 && split[2].equals("sdcardfs")) {
+                return true;
+            }
+        }
+        return false;
     }
 }

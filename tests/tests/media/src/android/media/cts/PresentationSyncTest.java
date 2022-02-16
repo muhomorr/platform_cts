@@ -41,7 +41,7 @@ public class PresentationSyncTest extends ActivityInstrumentationTestCase2<Media
         implements SurfaceHolder.Callback {
     private static final String TAG = "PresentationSyncTest";
     private static final boolean VERBOSE = false;           // lots of logging
-    private static final int FRAME_COUNT = 512;             // ~10 sec @ 60fps
+    private static final int FRAME_COUNT = 128;             // ~2 sec @ 60fps
 
     // message values
     private static final int START_TEST = 0;
@@ -160,6 +160,7 @@ public class PresentationSyncTest extends ActivityInstrumentationTestCase2<Media
         if (true) {
             // Output a frame that creates a "marker" in the --latency output
             drawFrame(0, mult);
+            output.setPresentationTime(startNsec - 16700000L * 100);
             Trace.beginSection("TEST BEGIN");
             output.swapBuffers();
             Trace.endSection();
@@ -171,9 +172,7 @@ public class PresentationSyncTest extends ActivityInstrumentationTestCase2<Media
                 showNsec = startNsec + (long) (frameNum * frameTimeNsec * mult);
             }
             drawFrame(frameNum, mult);
-            if (mult != -1.0f) {
-                output.setPresentationTime(showNsec);
-            }
+            output.setPresentationTime(showNsec);
             Trace.beginSection("swapbuf " + frameNum);
             output.swapBuffers();
             Trace.endSection();

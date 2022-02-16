@@ -16,34 +16,32 @@
 
 package com.android.cts.deviceowner.wificonfigcreator;
 
-import static com.android.compatibility.common.util.WifiConfigCreator.ACTION_CREATE_WIFI_CONFIG;
-import static com.android.compatibility.common.util.WifiConfigCreator.ACTION_REMOVE_WIFI_CONFIG;
-import static com.android.compatibility.common.util.WifiConfigCreator.ACTION_UPDATE_WIFI_CONFIG;
-import static com.android.compatibility.common.util.WifiConfigCreator.EXTRA_NETID;
-import static com.android.compatibility.common.util.WifiConfigCreator.EXTRA_PASSWORD;
-import static com.android.compatibility.common.util.WifiConfigCreator.EXTRA_SECURITY_TYPE;
-import static com.android.compatibility.common.util.WifiConfigCreator.EXTRA_SSID;
-import static com.android.compatibility.common.util.WifiConfigCreator.SECURITY_TYPE_NONE;
-
 import android.app.Activity;
 import android.content.Intent;
 import android.os.Bundle;
 import android.util.Log;
 
 import com.android.compatibility.common.util.WifiConfigCreator;
+import static com.android.compatibility.common.util.WifiConfigCreator.ACTION_CREATE_WIFI_CONFIG;
+import static com.android.compatibility.common.util.WifiConfigCreator.EXTRA_NETID;
+import static com.android.compatibility.common.util.WifiConfigCreator.EXTRA_PASSWORD;
+import static com.android.compatibility.common.util.WifiConfigCreator.EXTRA_SECURITY_TYPE;
+import static com.android.compatibility.common.util.WifiConfigCreator.EXTRA_SSID;
+import static com.android.compatibility.common.util.WifiConfigCreator.ACTION_REMOVE_WIFI_CONFIG;
+import static com.android.compatibility.common.util.WifiConfigCreator.SECURITY_TYPE_NONE;
+import static com.android.compatibility.common.util.WifiConfigCreator.ACTION_UPDATE_WIFI_CONFIG;
 
 /**
  * A simple activity to create and manage wifi configurations.
  */
-public final class WifiConfigCreatorActivity extends Activity {
+public class WifiConfigCreatorActivity extends Activity {
     private static final String TAG = "WifiConfigCreatorActivity";
 
     @Override
     public void onCreate(Bundle icicle) {
         super.onCreate(icicle);
+        Log.i(TAG, "Created for user " + android.os.Process.myUserHandle());
         WifiConfigCreator configCreator = new WifiConfigCreator(this);
-        Log.i(TAG, "onCreate(): user=" + android.os.Process.myUserHandle() + " creator="
-                + configCreator);
         try {
             Intent intent = getIntent();
             String action = intent.getAction();
@@ -51,15 +49,12 @@ public final class WifiConfigCreatorActivity extends Activity {
                 String ssid = intent.getStringExtra(EXTRA_SSID);
                 int securityType = intent.getIntExtra(EXTRA_SECURITY_TYPE, SECURITY_TYPE_NONE);
                 String password = intent.getStringExtra(EXTRA_PASSWORD);
-                Log.d(TAG, "Creating network " + ssid);
-                int netId = configCreator.addNetwork(ssid, false, securityType, password);
-                Log.d(TAG, "new id : " + netId);
+                configCreator.addNetwork(ssid, false, securityType, password);
             } else if (ACTION_UPDATE_WIFI_CONFIG.equals(action)) {
                 int netId = intent.getIntExtra(EXTRA_NETID, -1);
                 String ssid = intent.getStringExtra(EXTRA_SSID);
                 int securityType = intent.getIntExtra(EXTRA_SECURITY_TYPE, SECURITY_TYPE_NONE);
                 String password = intent.getStringExtra(EXTRA_PASSWORD);
-                Log.d(TAG, "Updating network " + ssid + " (id " + netId + ")");
                 configCreator.updateNetwork(netId, ssid, false, securityType, password);
             } else if (ACTION_REMOVE_WIFI_CONFIG.equals(action)) {
                 int netId = intent.getIntExtra(EXTRA_NETID, -1);
@@ -70,7 +65,6 @@ public final class WifiConfigCreatorActivity extends Activity {
                 Log.i(TAG, "Unknown command: " + action);
             }
         } catch (InterruptedException ie) {
-            Thread.currentThread().interrupt();
             Log.e(TAG, "Interrupted while changing wifi settings", ie);
         } finally {
             finish();

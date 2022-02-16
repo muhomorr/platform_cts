@@ -69,7 +69,6 @@ public class EuiccServiceTest {
     private static final int CALLBACK_TIMEOUT_MILLIS = 2000 /* 2 sec */;
 
     private static final int MOCK_SLOT_ID = 1;
-    private static final int MOCK_PORT_ID = 0;
     private static final String MOCK_ICCID = "12345";
     private static final String MOCK_NICK_NAME = "nick name";
 
@@ -127,12 +126,6 @@ public class EuiccServiceTest {
 
         @Override
         public int onSwitchToSubscription(int slotId, String iccid, boolean forceDeactivateSim) {
-            return 0;
-        }
-
-        @Override
-        public int onSwitchToSubscriptionWithPort(int slotId, int portIndex, String iccid,
-                boolean forceDeactivateSim) {
             return 0;
         }
 
@@ -324,7 +317,6 @@ public class EuiccServiceTest {
 
         mEuiccServiceBinder.downloadSubscription(
                 MOCK_SLOT_ID,
-                MOCK_PORT_ID,
                 subscription,
                 true /*switchAfterDownload*/,
                 true /*forceDeactivateSim*/,
@@ -424,7 +416,6 @@ public class EuiccServiceTest {
 
         mEuiccServiceBinder.switchToSubscription(
                 MOCK_SLOT_ID,
-                MOCK_PORT_ID,
                 MOCK_ICCID,
                 true /*forceDeactivateSim*/,
                 new ISwitchToSubscriptionCallback.Stub() {
@@ -432,34 +423,7 @@ public class EuiccServiceTest {
                     public void onComplete(int result) {
                         assertEquals(EuiccService.RESULT_OK, result);
                     }
-                },
-                false /* usePortIndex */);
-
-        try {
-            mCountDownLatch.await(CALLBACK_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
-        } catch (InterruptedException e) {
-            fail(e.toString());
-        }
-
-        assertTrue(mCallback.isMethodCalled());
-    }
-
-    @Test
-    public void testOnSwitchToSubscriptionWithPort() throws Exception {
-        mCountDownLatch = new CountDownLatch(1);
-
-        mEuiccServiceBinder.switchToSubscription(
-                MOCK_SLOT_ID,
-                MOCK_PORT_ID,
-                MOCK_ICCID,
-                true /*forceDeactivateSim*/,
-                new ISwitchToSubscriptionCallback.Stub() {
-                    @Override
-                    public void onComplete(int result) {
-                        assertEquals(EuiccService.RESULT_OK, result);
-                    }
-                },
-                true /* usePortIndex */);
+                });
 
         try {
             mCountDownLatch.await(CALLBACK_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);

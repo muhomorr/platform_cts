@@ -35,12 +35,7 @@ import android.os.HandlerThread;
 import com.android.compatibility.common.util.ShellIdentityUtils;
 import com.android.compatibility.common.util.SystemUtil;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.Random;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
@@ -247,8 +242,7 @@ public class TestBase extends WifiJUnit3TestBase {
 
     /**
      * Start a scan and return a test AP which supports IEEE 802.11mc and which has the highest
-     * RSSI. Will perform N (parameterized) scans and get a random AP which qualify the RSSI. Will
-     * prefer 5G over 2.4G.
+     * RSSI. Will perform N (parameterized) scans and get the best AP across both scans.
      *
      * Returns null if test AP is not found in the specified number of scans.
      *
@@ -257,33 +251,23 @@ public class TestBase extends WifiJUnit3TestBase {
     protected ScanResult scanForTest11mcCapableAp(int numScanRetries)
             throws InterruptedException {
         int scanCount = 0;
-
-        Map<String, ScanResult> ap24Ghz = new HashMap<>();
-        Map<String, ScanResult> ap5Ghz = new HashMap<>();
+        ScanResult bestTestAp = null;
         while (scanCount <= numScanRetries) {
             for (ScanResult scanResult : scanAps()) {
                 if (!scanResult.is80211mcResponder()) {
                     continue;
                 }
-                if (scanResult.level < -70) {
-                    continue;
-                }
-                if (is24Ghz(scanResult.frequency)) {
-                    ap24Ghz.put(scanResult.BSSID, scanResult);
-                } else if (is5Ghz(scanResult.frequency)) {
-                    ap5Ghz.put(scanResult.BSSID, scanResult);
+                if (bestTestAp == null || scanResult.level > bestTestAp.level) {
+                    bestTestAp = scanResult;
                 }
             }
-
+            if (bestTestAp == null) {
+                // Ongoing connection may cause scan failure, wait for a while before next scan.
+                Thread.sleep(INTERVAL_BETWEEN_FAILURE_SCAN_MILLIS);
+            }
             scanCount++;
         }
-        if (!ap5Ghz.isEmpty()) {
-            return getRandomScanResult(ap5Ghz.values());
-        }
-        if (!ap24Ghz.isEmpty()) {
-            return getRandomScanResult(ap24Ghz.values());
-        }
-        return null;
+        return bestTestAp;
     }
 
     /**
@@ -317,18 +301,5 @@ public class TestBase extends WifiJUnit3TestBase {
             scanCount++;
         }
         return bestTestAp;
-    }
-
-    private boolean is24Ghz(int freq) {
-        return freq >= 2142 && freq <= 2484;
-    }
-
-    private boolean is5Ghz(int freq) {
-        return freq >= 5160 && freq <= 5885;
-    }
-
-    private ScanResult getRandomScanResult(Collection<ScanResult> scanResults) {
-        int index = new Random().nextInt(scanResults.size());
-        return new ArrayList<>(scanResults).get(index);
     }
 }

@@ -16,14 +16,6 @@
 
 package android.keystore.cts;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertSame;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
-
 import static org.testng.Assert.assertThrows;
 
 import android.os.Process;
@@ -43,16 +35,13 @@ import java.util.Date;
 import javax.crypto.KeyGenerator;
 import javax.security.auth.x500.X500Principal;
 
-import org.junit.Test;
-
-public class KeyGenParameterSpecTest {
+public class KeyGenParameterSpecTest extends TestCase {
 
     private static final X500Principal DEFAULT_CERT_SUBJECT = new X500Principal("CN=fake");
     private static final BigInteger DEFAULT_CERT_SERIAL_NUMBER = new BigInteger("1");
     private static final Date DEFAULT_CERT_NOT_BEFORE = new Date(0L); // Jan 1 1970
     private static final Date DEFAULT_CERT_NOT_AFTER = new Date(2461449600000L); // Jan 1 2048
 
-    @Test
     public void testDefaults() {
         // Set only the mandatory parameters and assert values returned by getters.
 
@@ -87,7 +76,6 @@ public class KeyGenParameterSpecTest {
         assertEquals(KeyProperties.UNRESTRICTED_USAGE_COUNT, spec.getMaxUsageCount());
     }
 
-    @Test
     public void testSettersReflectedInGetters() {
         // Set all parameters to non-default values and then assert that getters reflect that.
 
@@ -154,7 +142,6 @@ public class KeyGenParameterSpecTest {
         assertEquals(maxUsageCount, spec.getMaxUsageCount());
     }
 
-    @Test
     public void testNullAliasNotPermitted() {
         try {
             new KeyGenParameterSpec.Builder(null, KeyProperties.PURPOSE_ENCRYPT);
@@ -162,7 +149,6 @@ public class KeyGenParameterSpecTest {
         } catch (NullPointerException expected) {}
     }
 
-    @Test
     public void testEmptyAliasNotPermitted() {
         try {
             new KeyGenParameterSpec.Builder("", KeyProperties.PURPOSE_ENCRYPT);
@@ -170,7 +156,6 @@ public class KeyGenParameterSpecTest {
         } catch (IllegalArgumentException expected) {}
     }
 
-    @Test
     public void testSetKeyValidityEndDateAppliesToBothEndDates() {
         Date date = new Date(System.currentTimeMillis() + 555555);
         KeyGenParameterSpec spec = new KeyGenParameterSpec.Builder(
@@ -181,7 +166,6 @@ public class KeyGenParameterSpecTest {
         assertEquals(date, spec.getKeyValidityForConsumptionEnd());
     }
 
-    @Test
     public void testSetUserAuthenticationValidityDurationSecondsValidityCheck() {
         KeyGenParameterSpec.Builder builder = new KeyGenParameterSpec.Builder("alias", 0);
         try {
@@ -210,7 +194,6 @@ public class KeyGenParameterSpecTest {
         } catch (IllegalArgumentException expected) {}
     }
 
-    @Test
     public void testImmutabilityViaSetterParams() {
         // Assert that all mutable parameters provided to setters are copied to ensure that values
         // returned by getters never change.
@@ -296,7 +279,6 @@ public class KeyGenParameterSpecTest {
                 Arrays.asList(spec.getSignaturePaddings()));
     }
 
-    @Test
     public void testImmutabilityViaGetterReturnValues() {
         // Assert that none of the mutable return values from getters modify the state of the spec.
 
@@ -364,7 +346,6 @@ public class KeyGenParameterSpecTest {
      * Test that generating a key with UID throws an exception since CTS doesn't have the necessary
      * permissions.
      */
-    @Test
     public void testBuilderSetUidGenerateKeyThrowsException() throws Exception {
         KeyGenerator keyGenerator = KeyGenerator.getInstance(
                 KeyProperties.KEY_ALGORITHM_HMAC_SHA256, "AndroidKeyStore");
@@ -375,7 +356,6 @@ public class KeyGenParameterSpecTest {
         assertThrows(ProviderException.class, keyGenerator::generateKey);
     }
 
-    @Test
     public void testIllegalMaxUsageCountNotPermitted() {
         try {
             new KeyGenParameterSpec.Builder("LimitedUseKey", KeyProperties.PURPOSE_ENCRYPT)

@@ -33,7 +33,6 @@ import android.hardware.Camera.Size;
 import android.hardware.cts.helpers.CameraUtils;
 import android.media.CamcorderProfile;
 import android.media.ExifInterface;
-import android.media.MediaActionSound;
 import android.media.MediaRecorder;
 import android.os.Build;
 import android.os.ConditionVariable;
@@ -3482,20 +3481,6 @@ public class CameraTest extends Assert {
         assertTrue(result);
 
         terminateMessageLooper();
-    }
-
-    @Test
-    public void testMustPlayShutterSound() throws Exception {
-        for(int id: mCameraIds){
-            Log.v(TAG, "Camera id=" + id);
-            testMustPlayShutterSoundByCamera(id);
-        }
-    }
-
-    private void testMustPlayShutterSoundByCamera(int id) throws Exception {
-        CameraInfo info = new CameraInfo();
-        Camera.getCameraInfo(id, info);
-        assertEquals(info.canDisableShutterSound, !MediaActionSound.mustPlayShutterSound());
     }
 
     @Test

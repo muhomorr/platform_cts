@@ -219,10 +219,7 @@ public class AllocationTest extends RSBaseCompute {
         Allocation.createFromBitmap(mRS, B).destroy();
         Allocation.createCubemapFromBitmap(mRS, B).destroy();
         for (Allocation.MipmapControl mc : Allocation.MipmapControl.values()) {
-            if (mc != Allocation.MipmapControl.MIPMAP_FULL) {
-                // MIPMAP_FULL is not tested because of http://b/184904346
-                helperCreateFromBitmap(B, mc);
-            }
+            helperCreateFromBitmap(B, mc);
         }
 
         try {
@@ -886,3 +883,5 @@ public class AllocationTest extends RSBaseCompute {
     a.destroy();
    }
 }
+
+
