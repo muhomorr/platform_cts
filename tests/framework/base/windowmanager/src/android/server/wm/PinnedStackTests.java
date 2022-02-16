@@ -51,6 +51,7 @@ import static android.server.wm.app.Components.PipActivity.ACTION_MOVE_TO_BACK;
 import static android.server.wm.app.Components.PipActivity.ACTION_ON_PIP_REQUESTED;
 import static android.server.wm.app.Components.PipActivity.EXTRA_ALLOW_AUTO_PIP;
 import static android.server.wm.app.Components.PipActivity.EXTRA_ASSERT_NO_ON_STOP_BEFORE_PIP;
+import static android.server.wm.app.Components.PipActivity.EXTRA_CLOSE_ACTION;
 import static android.server.wm.app.Components.PipActivity.EXTRA_ENTER_PIP;
 import static android.server.wm.app.Components.PipActivity.EXTRA_ENTER_PIP_ASPECT_RATIO_DENOMINATOR;
 import static android.server.wm.app.Components.PipActivity.EXTRA_ENTER_PIP_ASPECT_RATIO_NUMERATOR;
@@ -67,7 +68,9 @@ import static android.server.wm.app.Components.PipActivity.EXTRA_PIP_ORIENTATION
 import static android.server.wm.app.Components.PipActivity.EXTRA_SET_ASPECT_RATIO_DENOMINATOR;
 import static android.server.wm.app.Components.PipActivity.EXTRA_SET_ASPECT_RATIO_NUMERATOR;
 import static android.server.wm.app.Components.PipActivity.EXTRA_START_ACTIVITY;
+import static android.server.wm.app.Components.PipActivity.EXTRA_SUBTITLE;
 import static android.server.wm.app.Components.PipActivity.EXTRA_TAP_TO_FINISH;
+import static android.server.wm.app.Components.PipActivity.EXTRA_TITLE;
 import static android.server.wm.app.Components.PipActivity.PIP_CALLBACK_RESULT_KEY;
 import static android.server.wm.app.Components.RESUME_WHILE_PAUSING_ACTIVITY;
 import static android.server.wm.app.Components.TEST_ACTIVITY;
@@ -95,11 +98,13 @@ import static org.junit.Assert.fail;
 import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
 
+import android.app.Activity;
 import android.app.ActivityTaskManager;
 import android.app.PictureInPictureParams;
 import android.app.TaskInfo;
 import android.content.ComponentName;
 import android.content.Context;
+import android.content.Intent;
 import android.content.pm.ActivityInfo;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
@@ -490,6 +495,45 @@ public class PinnedStackTests extends ActivityManagerTestBase {
         Rect pinnedStackBounds = getPinnedStackBounds();
         assertFloatEquals((float) pinnedStackBounds.width() / pinnedStackBounds.height(),
                 (float) MAX_ASPECT_RATIO_NUMERATOR / MAX_ASPECT_RATIO_DENOMINATOR);
+    }
+
+    @Test
+    public void testPreferDockBigOverlaysWithExpandedPip() {
+        testPreferDockBigOverlaysWithExpandedPip(true);
+    }
+
+    @Test
+    public void testNotPreferDockBigOverlaysWithExpandedPip() {
+        testPreferDockBigOverlaysWithExpandedPip(false);
+    }
+
+    private void testPreferDockBigOverlaysWithExpandedPip(boolean preferDock) {
+        assumeTrue(supportsExpandedPip());
+        TestActivitySession<TestActivity> testSession = createManagedTestActivitySession();
+        final Intent intent = new Intent(mContext, TestActivity.class);
+        testSession.launchTestActivityOnDisplaySync(null, intent, DEFAULT_DISPLAY);
+        final TestActivity activity = testSession.getActivity();
+        mWmState.assertResumedActivity("Activity must be resumed", activity.getComponentName());
+
+        launchActivity(PIP_ACTIVITY,
+                extraString(EXTRA_ENTER_PIP, "true"),
+                extraString(EXTRA_ENTER_PIP_ASPECT_RATIO_NUMERATOR, Integer.toString(2)),
+                extraString(EXTRA_ENTER_PIP_ASPECT_RATIO_DENOMINATOR, Integer.toString(1)),
+                extraString(EXTRA_EXPANDED_PIP_ASPECT_RATIO_NUMERATOR, Integer.toString(1)),
+                extraString(EXTRA_EXPANDED_PIP_ASPECT_RATIO_DENOMINATOR, Integer.toString(4)));
+        waitForEnterPipAnimationComplete(PIP_ACTIVITY);
+        assertPinnedStackExists();
+
+        testSession.runOnMainSyncAndWait(() -> activity.setPreferDockBigOverlays(preferDock));
+
+        mWmState.assertResumedActivity("Activity must be resumed", activity.getComponentName());
+        assertPinnedStackExists();
+        runWithShellPermission(() -> {
+            final Task task = mWmState.getTaskByActivity(activity.getComponentName());
+            final TaskInfo info = mTaskOrganizer.getTaskInfo(task.getTaskId());
+
+            assertEquals(preferDock, info.getPreferDockBigOverlays());
+        });
     }
 
     @Test
@@ -1411,6 +1455,20 @@ public class PinnedStackTests extends ActivityManagerTestBase {
     }
 
     @Test
+    public void testCloseActionIsSet() {
+        launchActivity(PIP_ACTIVITY, extraBool(EXTRA_CLOSE_ACTION, true));
+        enterPipAndAssertPinnedTaskExists(PIP_ACTIVITY);
+
+        runWithShellPermission(() -> {
+            final Task task = mWmState.getTaskByActivity(PIP_ACTIVITY);
+            final TaskInfo info = mTaskOrganizer.getTaskInfo(task.getTaskId());
+            final PictureInPictureParams params = info.getPictureInPictureParams();
+
+            assertNotNull(params.getCloseAction());
+        });
+    }
+
+    @Test
     public void testIsSeamlessResizeEnabledDefaultToTrue() {
         // Launch the PIP activity with some random param without setting isSeamlessResizeEnabled
         // so the PictureInPictureParams acquired from TaskInfo is not null
@@ -1459,6 +1517,40 @@ public class PinnedStackTests extends ActivityManagerTestBase {
             final PictureInPictureParams params = info.getPictureInPictureParams();
 
             assertEquals(expected, params.isSeamlessResizeEnabled());
+        });
+    }
+
+    @Test
+    public void testTitleIsSet() {
+        // Launch the PIP activity with given title
+        String title = "PipTitle";
+        launchActivity(PIP_ACTIVITY, extraString(EXTRA_TITLE, title));
+        enterPipAndAssertPinnedTaskExists(PIP_ACTIVITY);
+
+        // Assert the title was set.
+        runWithShellPermission(() -> {
+            final Task task = mWmState.getTaskByActivity(PIP_ACTIVITY);
+            final TaskInfo info = mTaskOrganizer.getTaskInfo(task.getTaskId());
+            final PictureInPictureParams params = info.getPictureInPictureParams();
+
+            assertEquals(title, params.getTitle().toString());
+        });
+    }
+
+    @Test
+    public void testSubtitleIsSet() {
+        // Launch the PIP activity with given subtitle
+        String subtitle = "PipSubtitle";
+        launchActivity(PIP_ACTIVITY, extraString(EXTRA_SUBTITLE, subtitle));
+        enterPipAndAssertPinnedTaskExists(PIP_ACTIVITY);
+
+        // Assert the subtitle was set.
+        runWithShellPermission(() -> {
+            final Task task = mWmState.getTaskByActivity(PIP_ACTIVITY);
+            final TaskInfo info = mTaskOrganizer.getTaskInfo(task.getTaskId());
+            final PictureInPictureParams params = info.getPictureInPictureParams();
+
+            assertEquals(subtitle, params.getSubtitle().toString());
         });
     }
 
@@ -1789,4 +1881,6 @@ public class PinnedStackTests extends ActivityManagerTestBase {
                     WINDOWING_MODE_PINNED, ACTIVITY_TYPE_STANDARD);
         }
     }
+
+    public static class TestActivity extends Activity { }
 }

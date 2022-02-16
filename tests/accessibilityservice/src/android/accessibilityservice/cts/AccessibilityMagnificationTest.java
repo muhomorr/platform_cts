@@ -19,6 +19,7 @@ package android.accessibilityservice.cts;
 import static android.accessibilityservice.MagnificationConfig.MAGNIFICATION_MODE_FULLSCREEN;
 import static android.accessibilityservice.MagnificationConfig.MAGNIFICATION_MODE_WINDOW;
 import static android.accessibilityservice.cts.utils.ActivityLaunchUtils.launchActivityAndWaitForItToBeOnscreen;
+import static android.content.pm.PackageManager.FEATURE_WINDOW_MAGNIFICATION;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -44,6 +45,7 @@ import android.accessibilityservice.cts.activities.AccessibilityWindowQueryActiv
 import android.app.Activity;
 import android.app.Instrumentation;
 import android.app.UiAutomation;
+import android.content.Context;
 import android.graphics.Point;
 import android.graphics.Rect;
 import android.graphics.Region;
@@ -63,6 +65,7 @@ import androidx.test.runner.AndroidJUnit4;
 import com.android.compatibility.common.util.TestUtils;
 
 import org.junit.AfterClass;
+import org.junit.Assume;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Rule;
@@ -196,8 +199,10 @@ public class AccessibilityMagnificationTest {
         final float y = windowManager.getCurrentWindowMetrics().getBounds().centerY();
         final AtomicBoolean setConfig = new AtomicBoolean();
 
+        final int targetMode = isWindowModeSupported(mInstrumentation.getContext())
+                ? MAGNIFICATION_MODE_WINDOW : MAGNIFICATION_MODE_FULLSCREEN;
         final MagnificationConfig config = new MagnificationConfig.Builder()
-                .setMode(MAGNIFICATION_MODE_WINDOW)
+                .setMode(targetMode)
                 .setScale(scale)
                 .setCenterX(x)
                 .setCenterY(y).build();
@@ -229,6 +234,87 @@ public class AccessibilityMagnificationTest {
     }
 
     @Test
+    public void testSetConfigWithDefaultModeAndCenter_expectedConfig() throws Exception {
+        final MagnificationController controller = mService.getMagnificationController();
+        final WindowManager windowManager = mInstrumentation.getContext().getSystemService(
+                WindowManager.class);
+        final float scale = 3.0f;
+        final float x = windowManager.getCurrentWindowMetrics().getBounds().centerX();
+        final float y = windowManager.getCurrentWindowMetrics().getBounds().centerY();
+        final AtomicBoolean setConfig = new AtomicBoolean();
+
+        final int targetMode = isWindowModeSupported(mInstrumentation.getContext())
+                ? MAGNIFICATION_MODE_WINDOW : MAGNIFICATION_MODE_FULLSCREEN;
+        final MagnificationConfig config = new MagnificationConfig.Builder()
+                .setMode(targetMode)
+                .setScale(scale)
+                .setCenterX(x)
+                .setCenterY(y)
+                .build();
+
+        mService.runOnServiceSync(
+                () -> setConfig.set(controller.setMagnificationConfig(config, false)));
+        waitUntilMagnificationConfig(controller, config);
+
+        assertTrue("Failed to set config", setConfig.get());
+        assertConfigEquals(config, controller.getMagnificationConfig());
+
+        final float newScale = scale + 1;
+        final MagnificationConfig newConfig = new MagnificationConfig.Builder()
+                .setScale(newScale).build();
+        final MagnificationConfig expectedConfig = obtainConfigBuilder(config).setScale(
+                newScale).build();
+
+        mService.runOnServiceSync(
+                () -> setConfig.set(controller.setMagnificationConfig(newConfig, false)));
+        waitUntilMagnificationConfig(controller, expectedConfig);
+
+        assertTrue("Failed to set config", setConfig.get());
+        assertConfigEquals(expectedConfig, controller.getMagnificationConfig());
+    }
+
+    @Test
+    public void testSetFullScreenConfigWithDefaultValues_windowModeEnabled_expectedConfig()
+            throws Exception {
+        final boolean windowModeSupported = isWindowModeSupported(mInstrumentation.getContext());
+        Assume.assumeTrue("window mode is not available", windowModeSupported);
+
+        final MagnificationController controller = mService.getMagnificationController();
+        final WindowManager windowManager = mInstrumentation.getContext().getSystemService(
+                WindowManager.class);
+        final float scale = 3.0f;
+        final float x = windowManager.getCurrentWindowMetrics().getBounds().centerX();
+        final float y = windowManager.getCurrentWindowMetrics().getBounds().centerY();
+        final AtomicBoolean setConfig = new AtomicBoolean();
+
+        final MagnificationConfig config = new MagnificationConfig.Builder()
+                .setMode(MAGNIFICATION_MODE_WINDOW)
+                .setScale(scale)
+                .setCenterX(x)
+                .setCenterY(y).build();
+
+        mService.runOnServiceSync(
+                () -> setConfig.set(controller.setMagnificationConfig(config, false)));
+        waitUntilMagnificationConfig(controller, config);
+
+        assertTrue("Failed to set config", setConfig.get());
+        assertConfigEquals(config, controller.getMagnificationConfig());
+
+        final MagnificationConfig newConfig = new MagnificationConfig.Builder()
+                .setMode(MAGNIFICATION_MODE_FULLSCREEN)
+                .build();
+
+        mService.runOnServiceSync(
+                () -> setConfig.set(controller.setMagnificationConfig(newConfig, false)));
+        final MagnificationConfig expectedConfig = obtainConfigBuilder(config).setMode(
+                MAGNIFICATION_MODE_FULLSCREEN).build();
+
+        waitUntilMagnificationConfig(controller, expectedConfig);
+        assertTrue("Failed to set config", setConfig.get());
+        assertConfigEquals(expectedConfig, controller.getMagnificationConfig());
+    }
+
+    @Test
     public void testSetMagnificationConfig_legacyApiExpectedResult() {
         final MagnificationController controller = mService.getMagnificationController();
         final Region region = controller.getMagnificationRegion();
@@ -251,16 +337,14 @@ public class AccessibilityMagnificationTest {
             assertEquals("Failed to apply center X", x, controller.getCenterX(), 5.0f);
             assertEquals("Failed to apply center Y", y, controller.getCenterY(), 5.0f);
         } finally {
-            final MagnificationConfig resetConfig = new MagnificationConfig.Builder()
-                    .setScale(1).build();
-            mService.runOnServiceSync(() -> {
-                controller.setMagnificationConfig(resetConfig, false);
-            });
+            mService.runOnServiceSync(() -> controller.resetCurrentMagnification(false));
         }
     }
 
     @Test
     public void testSetWindowModeConfig_hasMagnificationOverlay() throws TimeoutException {
+        Assume.assumeTrue(isWindowModeSupported(mInstrumentation.getContext()));
+
         final MagnificationController controller = mService.getMagnificationController();
         final MagnificationConfig config = new MagnificationConfig.Builder()
                 .setMode(MAGNIFICATION_MODE_WINDOW)
@@ -368,19 +452,20 @@ public class AccessibilityMagnificationTest {
         controller.addListener(listener);
         final WindowManager windowManager = mInstrumentation.getContext().getSystemService(
                 WindowManager.class);
+        final int targetMode = isWindowModeSupported(mInstrumentation.getContext())
+                ? MAGNIFICATION_MODE_WINDOW : MAGNIFICATION_MODE_FULLSCREEN;
         final float scale = 2.0f;
         final float x = windowManager.getCurrentWindowMetrics().getBounds().centerX();
         final float y = windowManager.getCurrentWindowMetrics().getBounds().centerY();
         final MagnificationConfig config = new MagnificationConfig.Builder()
-                .setMode(MAGNIFICATION_MODE_WINDOW)
+                .setMode(targetMode)
                 .setScale(scale)
                 .setCenterX(x)
-                .setCenterY(y).build();
+                .setCenterY(y)
+                .build();
 
         try {
-            mService.runOnServiceSync(() -> {
-                controller.setMagnificationConfig(config, false);
-            });
+            mService.runOnServiceSync(() -> controller.setMagnificationConfig(config, false));
             waitUntilMagnificationConfig(controller, config);
 
             final ArgumentCaptor<MagnificationConfig> configCaptor = ArgumentCaptor.forClass(
@@ -408,10 +493,8 @@ public class AccessibilityMagnificationTest {
                     eq(controller), any(Region.class), configCaptor.capture());
             assertConfigEquals(fullscreenConfig, configCaptor.getValue());
         } finally {
-            final MagnificationConfig resetConfig = new MagnificationConfig.Builder()
-                    .setScale(1).build();
             mService.runOnServiceSync(() -> {
-                controller.setMagnificationConfig(resetConfig, false);
+                controller.resetCurrentMagnification(false);
                 controller.removeListener(listener);
             });
         }
@@ -422,15 +505,16 @@ public class AccessibilityMagnificationTest {
         final MagnificationController controller = mService.getMagnificationController();
         final OnMagnificationChangedListener listener = mock(OnMagnificationChangedListener.class);
         controller.addListener(listener);
+        final int targetMode = isWindowModeSupported(mInstrumentation.getContext())
+                ? MAGNIFICATION_MODE_WINDOW : MAGNIFICATION_MODE_FULLSCREEN;
         final float scale = 2.0f;
         final MagnificationConfig config = new MagnificationConfig.Builder()
-                .setMode(MAGNIFICATION_MODE_WINDOW)
+                .setMode(targetMode)
                 .setScale(scale).build();
 
         try {
-            mService.runOnServiceSync(() -> {
-                controller.setMagnificationConfig(config, /* animate= */ true);
-            });
+            mService.runOnServiceSync(
+                    () -> controller.setMagnificationConfig(config, /* animate= */ true));
 
             verify(listener, timeout(LISTENER_ANIMATION_TIMEOUT_MILLIS)).onMagnificationChanged(
                     eq(controller), any(Region.class), any(MagnificationConfig.class));
@@ -448,10 +532,8 @@ public class AccessibilityMagnificationTest {
             verify(listener, timeout(LISTENER_ANIMATION_TIMEOUT_MILLIS)).onMagnificationChanged(
                     eq(controller), any(Region.class), any(MagnificationConfig.class));
         } finally {
-            final MagnificationConfig resetConfig = new MagnificationConfig.Builder()
-                    .setScale(1).build();
             mService.runOnServiceSync(() -> {
-                controller.setMagnificationConfig(resetConfig, false);
+                controller.resetCurrentMagnification(false);
                 controller.removeListener(listener);
             });
         }
@@ -474,6 +556,8 @@ public class AccessibilityMagnificationTest {
     @Test
     public void testMagnificationServiceShutsDownWhileMagnifying_windowMode_shouldReturnTo1x()
             throws Exception {
+        Assume.assumeTrue(isWindowModeSupported(mInstrumentation.getContext()));
+
         final MagnificationController controller = mService.getMagnificationController();
         final WindowManager windowManager = mInstrumentation.getContext().getSystemService(
                 WindowManager.class);
@@ -573,6 +657,8 @@ public class AccessibilityMagnificationTest {
 
     @Test
     public void testGetCurrentMagnificationRegion_windowMode_exactRegionCenter() throws Exception {
+        Assume.assumeTrue(isWindowModeSupported(mInstrumentation.getContext()));
+
         final MagnificationController controller = mService.getMagnificationController();
         final WindowManager windowManager = mInstrumentation.getContext().getSystemService(
                 WindowManager.class);
@@ -603,7 +689,9 @@ public class AccessibilityMagnificationTest {
     }
 
     @Test
-    public void testResetCurrentMagnificationRegion_resetWindowMode() throws Exception {
+    public void testResetCurrentMagnificationRegion_WindowMode_regionIsEmpty() throws Exception {
+        Assume.assumeTrue(isWindowModeSupported(mInstrumentation.getContext()));
+
         final MagnificationController controller = mService.getMagnificationController();
         final WindowManager windowManager = mInstrumentation.getContext().getSystemService(
                 WindowManager.class);
@@ -795,11 +883,11 @@ public class AccessibilityMagnificationTest {
                 "Failed to apply the config. expected: " + config + " , actual: "
                         + controller.getMagnificationConfig(), 5,
                 () -> {
-                    final MagnificationConfig tmpConfig = controller.getMagnificationConfig();
-                    return tmpConfig.getMode() == config.getMode()
-                            && tmpConfig.getScale() == config.getScale()
-                            && tmpConfig.getCenterX() == config.getCenterX()
-                            && tmpConfig.getCenterY() == config.getCenterY();
+                    final MagnificationConfig actualConfig = controller.getMagnificationConfig();
+                    return actualConfig.getMode() == config.getMode()
+                            && Float.compare(actualConfig.getScale(), config.getScale()) == 0
+                            && Float.compare(actualConfig.getCenterX(), config.getCenterX()) == 0
+                            && Float.compare(actualConfig.getCenterY(), config.getCenterY()) == 0;
                 });
     }
 
@@ -812,5 +900,18 @@ public class AccessibilityMagnificationTest {
                 result.getCenterX(), 5.0f);
         assertEquals("Failed to apply center Y", expected.getCenterY(),
                 result.getCenterY(), 5.0f);
+    }
+
+    private static boolean isWindowModeSupported(Context context) {
+        return context.getPackageManager().hasSystemFeature(FEATURE_WINDOW_MAGNIFICATION);
+    }
+
+    private static MagnificationConfig.Builder obtainConfigBuilder(MagnificationConfig config) {
+        MagnificationConfig.Builder builder = new MagnificationConfig.Builder();
+        builder.setMode(config.getMode())
+                .setScale(config.getScale())
+                .setCenterX(config.getCenterX())
+                .setCenterY(config.getCenterY());
+        return builder;
     }
 }

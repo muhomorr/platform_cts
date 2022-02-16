@@ -19,15 +19,18 @@ package android.safetycenter.cts
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.os.Build.VERSION_CODES.TIRAMISU
 import android.os.Parcel
 import android.safetycenter.SafetyCenterIssue
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.filters.SdkSuppress
 import com.google.common.truth.Truth.assertThat
 import org.junit.Test
 import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
+@SdkSuppress(minSdkVersion = TIRAMISU, codeName = "Tiramisu")
 class SafetyCenterIssueTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
 
@@ -45,6 +48,7 @@ class SafetyCenterIssueTest {
     val action1 = SafetyCenterIssue.Action.Builder()
             .setLabel("an action")
             .setPendingIntent(pendingIntent1)
+            .setResolving(true)
             .setSuccessMessage("a success message")
             .build()
     val action2 = SafetyCenterIssue.Action.Builder()
@@ -299,6 +303,12 @@ class SafetyCenterIssueTest {
     }
 
     @Test
+    fun action_isResolving_returnsIsResolving() {
+        assertThat(action1.isResolving).isTrue()
+        assertThat(action2.isResolving).isFalse()
+    }
+
+    @Test
     fun action_getSuccessMessage_returnsSuccessMessage() {
         assertThat(action1.successMessage).isEqualTo("a success message")
         assertThat(action2.successMessage).isNull()
@@ -373,6 +383,25 @@ class SafetyCenterIssueTest {
         val differentAction = SafetyCenterIssue.Action.Builder()
                 .setLabel("a label")
                 .setPendingIntent(pendingIntent2)
+                .setSuccessMessage("a success message")
+                .build()
+
+        assertThat(action).isNotEqualTo(differentAction)
+        assertThat(action.toString()).isNotEqualTo(differentAction.toString())
+    }
+
+    @Test
+    fun action_equals_toString_differentResovlingValues_areNotEqual() {
+        val action = SafetyCenterIssue.Action.Builder()
+                .setLabel("a label")
+                .setPendingIntent(pendingIntent1)
+                .setResolving(true)
+                .setSuccessMessage("a success message")
+                .build()
+        val differentAction = SafetyCenterIssue.Action.Builder()
+                .setLabel("a label")
+                .setPendingIntent(pendingIntent1)
+                .setResolving(false)
                 .setSuccessMessage("a success message")
                 .build()
 
