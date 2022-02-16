@@ -60,7 +60,7 @@ public class DisplayTest extends ActivityInstrumentationTestCase2<DisplayTestAct
 
         // Capture the originally reported width and heights
         final Point origSize = new Point();
-        origDisplay.getRealSize(origSize);
+        origDisplay.getSize(origSize);
 
         // Change orientation
         mActivity.configurationChangeObserver.startObserving();
@@ -75,12 +75,12 @@ public class DisplayTest extends ActivityInstrumentationTestCase2<DisplayTestAct
         }
 
         final Point newOrigSize = new Point();
-        origDisplay.getRealSize(newOrigSize);
+        origDisplay.getSize(newOrigSize);
 
         // Get a {@link Display} instance after rotation.
         final Display updatedDisplay = mActivity.getDisplay();
         final Point updatedSize = new Point();
-        updatedDisplay.getRealSize(updatedSize);
+        updatedDisplay.getSize(updatedSize);
 
         // For square screens the following assertions do not make sense and will always fail.
         if (!closeToSquareDisplay) {

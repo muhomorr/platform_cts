@@ -19,7 +19,10 @@ package android.server.wm;
 import static android.server.wm.app.Components.ClickableToastActivity.ACTION_TOAST_DISPLAYED;
 import static android.server.wm.app.Components.ClickableToastActivity.ACTION_TOAST_TAP_DETECTED;
 
+import static com.google.common.truth.Truth.assertThat;
+
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
@@ -89,7 +92,7 @@ public class ToastWindowTest extends ActivityManagerTestBase {
         IntentFilter filter = new IntentFilter();
         filter.addAction(ACTION_TOAST_DISPLAYED);
         filter.addAction(ACTION_TOAST_TAP_DETECTED);
-        mContext.registerReceiver(mAppCommunicator, filter, Context.RECEIVER_EXPORTED);
+        mContext.registerReceiver(mAppCommunicator, filter);
     }
 
     @After
@@ -131,7 +134,7 @@ public class ToastWindowTest extends ActivityManagerTestBase {
         WindowState toastWindow = wmState.findFirstWindowWithType(LayoutParams.TYPE_TOAST);
         assertNotNull("Couldn't retrieve toast window", toastWindow);
 
-        tapOnCenter(toastWindow.getParentFrame(), toastWindow.getDisplayId());
+        tapOnCenter(toastWindow.getContainingFrame(), toastWindow.getDisplayId());
 
         boolean toastClicked = getBroadcastReceivedVariable(ACTION_TOAST_TAP_DETECTED).block(
                 TOAST_TAP_TIMEOUT_MS);

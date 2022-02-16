@@ -16,19 +16,11 @@
 
 package android.keystore.cts;
 
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertSame;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
-
 import android.content.Context;
-import android.keystore.cts.R;
-import android.keystore.cts.util.ImportedKey;
-import android.keystore.cts.util.TestUtils;
 import android.security.keystore.KeyProtection;
+import android.test.AndroidTestCase;
 
-import androidx.test.InstrumentationRegistry;
-import androidx.test.runner.AndroidJUnit4;
+import android.keystore.cts.R;
 
 import java.security.KeyPair;
 import java.security.Security;
@@ -36,17 +28,8 @@ import java.security.Signature;
 import java.util.Arrays;
 import java.util.Collection;
 
-import org.junit.Test;
-import org.junit.runner.RunWith;
+public class ECDSASignatureTest extends AndroidTestCase {
 
-@RunWith(AndroidJUnit4.class)
-public class ECDSASignatureTest {
-
-    private Context getContext() {
-        return InstrumentationRegistry.getInstrumentation().getTargetContext();
-    }
-
-    @Test
     public void testNONEwithECDSATruncatesInputToFieldSize() throws Exception {
         for (ImportedKey key : importKatKeyPairs("NONEwithECDSA")) {
             try {
@@ -60,6 +43,12 @@ public class ECDSASignatureTest {
     private void assertNONEwithECDSATruncatesInputToFieldSize(KeyPair keyPair)
             throws Exception {
         int keySizeBits = TestUtils.getKeySizeBits(keyPair.getPublic());
+        if (keySizeBits == 521) {
+            /*
+             * Skip P521 test until b/184307265 is fixed.
+             */
+            return;
+        }
         byte[] message = new byte[(keySizeBits * 3) / 8];
         for (int i = 0; i < message.length; i++) {
             message[i] = (byte) (i + 1);
@@ -88,7 +77,6 @@ public class ECDSASignatureTest {
         assertFalse(signature.verify(sigBytes));
     }
 
-    @Test
     public void testNONEwithECDSASupportsMessagesShorterThanFieldSize() throws Exception {
         for (ImportedKey key : importKatKeyPairs("NONEwithECDSA")) {
             try {

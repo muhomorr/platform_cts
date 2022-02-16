@@ -22,7 +22,6 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 import android.content.Context;
-import android.content.pm.PackageManager;
 import android.os.Looper;
 import android.net.ConnectivityManager;
 import android.telephony.CellLocation;
@@ -41,7 +40,6 @@ public class CellLocationTest {
     private boolean mOnCellLocationChangedCalled;
     private final Object mLock = new Object();
     private TelephonyManager mTelephonyManager;
-    private PackageManager mPackageManager;
     private PhoneStateListener mListener;
     private static ConnectivityManager mCm;
     private static final String TAG = "android.telephony.cts.CellLocationTest";
@@ -51,7 +49,6 @@ public class CellLocationTest {
         mTelephonyManager =
                 (TelephonyManager)getContext().getSystemService(Context.TELEPHONY_SERVICE);
         mCm = (ConnectivityManager)getContext().getSystemService(Context.CONNECTIVITY_SERVICE);
-        mPackageManager = getContext().getPackageManager();
     }
 
     @After
@@ -64,8 +61,8 @@ public class CellLocationTest {
 
     @Test
     public void testCellLocation() throws Throwable {
-        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
-            Log.d(TAG, "Skipping test that requires FEATURE_TELEPHONY");
+        if (mCm.getNetworkInfo(ConnectivityManager.TYPE_MOBILE) == null) {
+            Log.d(TAG, "Skipping test that requires ConnectivityManager.TYPE_MOBILE");
             return;
         }
 

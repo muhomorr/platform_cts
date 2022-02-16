@@ -19,25 +19,16 @@ package com.android.queryable.queries;
 import com.android.queryable.Queryable;
 
 import java.io.Serializable;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 public final class SetQueryHelper<E extends Queryable, F, G extends Query<F>> implements SetQuery<E, F, G>, Serializable {
 
-    private static final long serialVersionUID = 1;
-
     private E mQuery;
     private final IntegerQueryHelper<E> mSizeQuery;
-    private final Set<G> mContainsByQuery = new HashSet<>();
-    private final Set<F> mContainsByType = new HashSet<>();
-    private final Set<G> mDoesNotContainByQuery = new HashSet<>();
-    private final Set<F> mDoesNotContainByType = new HashSet<>();
+    private final Set<G> mContains = new HashSet<>();
+    private final Set<G> mDoesNotContain = new HashSet<>();
 
     SetQueryHelper() {
         mQuery = (E) this;
@@ -55,60 +46,15 @@ public final class SetQueryHelper<E extends Queryable, F, G extends Query<F>> im
     }
 
     @Override
-    public E isEmpty() {
-        return size().isEqualTo(0);
-    }
-
-    @Override
-    public E isNotEmpty() {
-        return size().isGreaterThanOrEqualTo(1);
-    }
-
-
-    @Override
     public E contains(G... objects) {
-        mContainsByQuery.addAll(Arrays.asList(objects));
-        return mQuery;
-    }
-
-    @Override
-    public E contains(F... objects) {
-        mContainsByType.addAll(Arrays.asList(objects));
+        mContains.addAll(Arrays.asList(objects));
         return mQuery;
     }
 
     @Override
     public E doesNotContain(G... objects) {
-        mDoesNotContainByQuery.addAll(Arrays.asList(objects));
+        mDoesNotContain.addAll(Arrays.asList(objects));
         return mQuery;
-    }
-
-    @Override
-    public E doesNotContain(F... objects) {
-        mDoesNotContainByType.addAll(Arrays.asList(objects));
-        return mQuery;
-    }
-
-    @Override
-    public <H extends Collection<F>> E containsAll(H... collections) {
-        for (H collection : collections) {
-            Iterator<F> iterator = collection.iterator();
-            while (iterator.hasNext()) {
-                contains(iterator.next());
-            }
-        }
-        return  mQuery;
-    }
-
-    @Override
-    public <H extends Collection<F>> E doesNotContainAny(H... collections) {
-        for (H collection : collections) {
-            Iterator<F> iterator = collection.iterator();
-            while (iterator.hasNext()) {
-                doesNotContain(iterator.next());
-            }
-        }
-        return  mQuery;
     }
 
     @Override
@@ -128,23 +74,10 @@ public final class SetQueryHelper<E extends Queryable, F, G extends Query<F>> im
         return true;
     }
 
-    public static <F> boolean matches(SetQuery<?, F, ?> query, Set<F> value) {
-        return query.matches(value);
-    }
-
     private boolean checkContainsAtLeast(Set<F> value) {
         Set<F> v = new HashSet<>(value);
 
-        for (F containsAtLeast : mContainsByType) {
-            F match = findMatch(containsAtLeast, v);
-
-            if (match == null) {
-                return false;
-            }
-            v.remove(match);
-        }
-
-        for (G containsAtLeast : mContainsByQuery) {
+        for (G containsAtLeast : mContains) {
             F match = findMatch(containsAtLeast, v);
 
             if (match == null) {
@@ -157,13 +90,7 @@ public final class SetQueryHelper<E extends Queryable, F, G extends Query<F>> im
     }
 
     private boolean checkDoesNotContain(Set<F> value) {
-        for (F doesNotContain : mDoesNotContainByType) {
-            if (findMatch(doesNotContain, value) != null) {
-                return false;
-            }
-        }
-
-        for (G doesNotContain : mDoesNotContainByQuery) {
+        for (G doesNotContain : mDoesNotContain) {
             if (findMatch(doesNotContain, value) != null) {
                 return false;
             }
@@ -180,37 +107,5 @@ public final class SetQueryHelper<E extends Queryable, F, G extends Query<F>> im
         }
 
         return null;
-    }
-
-    private F findMatch(F object, Set<F> values) {
-        return values.contains(object) ? object : null;
-    }
-
-    @Override
-    public String describeQuery(String fieldName) {
-        List<String> queryStrings = new ArrayList<>();
-        queryStrings.add(mSizeQuery.describeQuery(fieldName + ".size"));
-        if (!mContainsByQuery.isEmpty()) {
-            queryStrings.add(fieldName + " contains matches of ["
-                    + mContainsByQuery.stream().map(t -> "{" + t.describeQuery("")
-                    + "}").collect(Collectors.joining(", ")) + "]");
-        }
-        if (!mContainsByType.isEmpty()) {
-            queryStrings.add(fieldName + " contains ["
-                    + mContainsByType.stream().map(Object::toString)
-                    .collect(Collectors.joining(", ")) + "]");
-        }
-
-        if (!mDoesNotContainByQuery.isEmpty()) {
-            queryStrings.add(fieldName + " does not contain anything matching any of ["
-                    + mDoesNotContainByQuery.stream().map(t -> "{" + t.describeQuery("")
-                    + "}").collect(Collectors.joining(", ")) + "]");
-        }
-        if (!mDoesNotContainByType.isEmpty()) {
-            queryStrings.add(fieldName + " does not contain ["
-                    + mDoesNotContainByType.stream().map(Object::toString)
-                    .collect(Collectors.joining(", ")) + "]");
-        }
-        return Queryable.joinQueryStrings(queryStrings);
     }
 }

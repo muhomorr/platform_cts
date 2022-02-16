@@ -92,7 +92,9 @@ public class CompatChangesSelinuxTest extends CompatChangeGatingTestCase {
         try {
             startApp();
             Map<String, String> packageToDomain = getPackageToDomain();
-            assertThat(packageToDomain).containsEntry(TEST_PKG, "untrusted_app_30");
+            // TODO(b/168782947): Update domain if/when an R specific one is created to
+            // differentiate from untrusted_app.
+            assertThat(packageToDomain).containsEntry(TEST_PKG, "untrusted_app");
 
         } finally {
             resetCompatConfig(TEST_PKG, enabledChanges, disabledChanges);
@@ -106,7 +108,7 @@ public class CompatChangesSelinuxTest extends CompatChangeGatingTestCase {
             startApp();
             Map<String, String> packageToDomain = getPackageToDomain();
 
-            assertThat(packageToDomain).containsEntry(TEST_PKG, "untrusted_app_30");
+            assertThat(packageToDomain).containsEntry(TEST_PKG, "untrusted_app");
         } finally {
             uninstallPackage(TEST_PKG, true);
         }
@@ -147,7 +149,8 @@ public class CompatChangesSelinuxTest extends CompatChangeGatingTestCase {
     }
 
     private void startApp() throws Exception {
-        runCommand("am start-activity -W -n " + TEST_PKG + "/" + TEST_PKG + ".Empty");
+        runCommand("am start -n " + TEST_PKG + "/" + TEST_PKG + ".Empty");
+        Thread.currentThread().sleep(5000);
     }
 
 

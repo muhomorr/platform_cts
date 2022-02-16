@@ -16,18 +16,10 @@
 
 package android.keystore.cts;
 
-import static org.junit.Assert.assertTrue;
-
-import androidx.test.runner.AndroidJUnit4;
-
+import android.test.AndroidTestCase;
 import java.lang.reflect.Method;
 
-import org.junit.Test;
-import org.junit.runner.RunWith;
-
-@RunWith(AndroidJUnit4.class)
-public class PutOverflowTest {
-    @Test
+public class PutOverflowTest extends AndroidTestCase {
     public void testCrash() throws Exception {
         try {
             Class<?> keystoreClass = Class.forName("android.security.KeyStore");
