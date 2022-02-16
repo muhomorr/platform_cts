@@ -61,15 +61,12 @@ public final class HdmiCecPollingTest extends BaseHdmiCecCtsTest {
         setCec20();
 
         ITestDevice device = getDevice();
-        try {
-            sendDeviceToSleep();
-            String expectedOutput = "POLL message sent";
-            hdmiCecClient.sendPoll();
-            if (!hdmiCecClient.checkConsoleOutput(expectedOutput)) {
-                throw new Exception("Could not find " + expectedOutput);
-            }
-        } finally {
-            wakeUpDevice();
+        device.executeShellCommand("input keyevent KEYCODE_SLEEP");
+
+        String expectedOutput = "POLL message sent";
+        hdmiCecClient.sendPoll();
+        if (!hdmiCecClient.checkConsoleOutput(expectedOutput)) {
+            throw new Exception("Could not find " + expectedOutput);
         }
     }
 }

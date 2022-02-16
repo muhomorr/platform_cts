@@ -47,8 +47,7 @@ public class ExitAnimationActivity extends Activity {
     protected void onStart() {
         super.onStart();
         registerReceiver(mReceiver,
-                new IntentFilter(Components.ExitAnimationActivityReceiver.ACTION_FINISH),
-                Context.RECEIVER_EXPORTED);
+                new IntentFilter(Components.ExitAnimationActivityReceiver.ACTION_FINISH));
     }
 
     @Override

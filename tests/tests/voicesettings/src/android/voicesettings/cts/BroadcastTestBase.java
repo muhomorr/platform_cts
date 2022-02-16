@@ -130,8 +130,7 @@ public abstract class BroadcastTestBase {
         mLatch = new CountDownLatch(1);
         mActivityDoneReceiver = new ActivityDoneReceiver();
         mContext.registerReceiver(mActivityDoneReceiver,
-                new IntentFilter(BroadcastUtils.BROADCAST_INTENT + testCaseType.toString()),
-                Context.RECEIVER_EXPORTED);
+                new IntentFilter(BroadcastUtils.BROADCAST_INTENT + testCaseType.toString()));
     }
 
     protected boolean startTestAndWaitForBroadcast(BroadcastUtils.TestcaseType testCaseType,

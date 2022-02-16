@@ -170,7 +170,6 @@ public class ViewTest {
         mMockParent = new MockViewParent(mActivity);
         PollingCheck.waitFor(5 * DateUtils.SECOND_IN_MILLIS, mActivity::hasWindowFocus);
         assertTrue(mActivity.hasWindowFocus());
-        mInstrumentation.setInTouchMode(false);
     }
 
     @Test
@@ -521,10 +520,6 @@ public class ViewTest {
     public void testAccessPointerIcon() {
         View view = mActivity.findViewById(R.id.pointer_icon_layout);
         MotionEvent event = MotionEvent.obtain(0, 0, MotionEvent.ACTION_HOVER_MOVE, 0, 0, 0);
-        // Only pointer sources (SOURCE_CLASS_POINTER) will have translation applied, since only
-        // they refer to locations on the screen. We need to set the source to get
-        // "setLocation" to work.
-        event.setSource(InputDevice.SOURCE_MOUSE);
 
         // First view has pointerIcon="help"
         assertEquals(PointerIcon.getSystemIcon(mActivity, PointerIcon.TYPE_HELP),

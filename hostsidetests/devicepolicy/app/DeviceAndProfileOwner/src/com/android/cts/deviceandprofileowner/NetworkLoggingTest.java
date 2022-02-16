@@ -176,7 +176,8 @@ public class NetworkLoggingTest {
 
     @Test
     public void testSetDelegateScope_delegationNetworkLogging() {
-        setDelegatedScopes(DELEGATE_APP_PKG, Arrays.asList(DELEGATION_NETWORK_LOGGING));
+        mDpm.setDelegatedScopes(ADMIN_RECEIVER_COMPONENT, DELEGATE_APP_PKG,
+                Arrays.asList(DELEGATION_NETWORK_LOGGING));
 
         assertThat(mDpm.getDelegatedScopes(ADMIN_RECEIVER_COMPONENT, DELEGATE_APP_PKG))
                 .contains(DELEGATION_NETWORK_LOGGING);
@@ -184,7 +185,8 @@ public class NetworkLoggingTest {
 
     @Test
     public void testSetDelegateScope_noDelegation() {
-        setDelegatedScopes(DELEGATE_APP_PKG, Arrays.asList());
+        mDpm.setDelegatedScopes(ADMIN_RECEIVER_COMPONENT, DELEGATE_APP_PKG,
+                Arrays.asList());
 
         assertThat(mDpm.getDelegatedScopes(ADMIN_RECEIVER_COMPONENT, DELEGATE_APP_PKG))
                 .doesNotContain(DELEGATION_NETWORK_LOGGING);
@@ -205,12 +207,6 @@ public class NetworkLoggingTest {
                 urlConnection.disconnect();
             }
         }
-    }
-
-    protected void setDelegatedScopes(String delegatePackage, List<String> scopes) {
-        Log.v(TAG, "Calling setDelegatedScopes(" + ADMIN_RECEIVER_COMPONENT.flattenToShortString()
-                + ", " + delegatePackage + ", " + scopes + ") using " + mDpm);
-        mDpm.setDelegatedScopes(ADMIN_RECEIVER_COMPONENT, delegatePackage, scopes);
     }
 
     private class NetworkLogsReceiver extends BroadcastReceiver {

@@ -243,9 +243,7 @@ public class InstrumentedAutoFillService extends AutofillService {
         mHandler.post(
                 () -> sReplier.onFillRequest(request.getFillContexts(), request.getClientState(),
                         cancellationSignal, callback, request.getFlags(),
-                        request.getInlineSuggestionsRequest(),
-                        request.getDelayedFillIntentSender(),
-                        request.getId()));
+                        request.getInlineSuggestionsRequest(), request.getId()));
     }
 
     @Override
@@ -389,14 +387,10 @@ public class InstrumentedAutoFillService extends AutofillService {
         public final FillCallback callback;
         public final int flags;
         public final InlineSuggestionsRequest inlineRequest;
-        public final IntentSender delayFillIntentSender;
-        public final int requestId;
 
         private FillRequest(List<FillContext> contexts, Bundle data,
                 CancellationSignal cancellationSignal, FillCallback callback, int flags,
-                InlineSuggestionsRequest inlineRequest,
-                IntentSender delayFillIntentSender,
-                int requestId) {
+                InlineSuggestionsRequest inlineRequest) {
             this.contexts = contexts;
             this.data = data;
             this.cancellationSignal = cancellationSignal;
@@ -404,8 +398,6 @@ public class InstrumentedAutoFillService extends AutofillService {
             this.flags = flags;
             this.structure = contexts.get(contexts.size() - 1).getStructure();
             this.inlineRequest = inlineRequest;
-            this.delayFillIntentSender = delayFillIntentSender;
-            this.requestId = requestId;
         }
 
         @Override
@@ -644,8 +636,7 @@ public class InstrumentedAutoFillService extends AutofillService {
 
         private void onFillRequest(List<FillContext> contexts, Bundle data,
                 CancellationSignal cancellationSignal, FillCallback callback, int flags,
-                InlineSuggestionsRequest inlineRequest, IntentSender delayFillIntentSender,
-                int requestId) {
+                InlineSuggestionsRequest inlineRequest, int requestId) {
             try {
                 CannedFillResponse response = null;
                 try {
@@ -721,8 +712,7 @@ public class InstrumentedAutoFillService extends AutofillService {
                         // Add a fill request to let test case know response was sent.
                         Helper.offer(mFillRequests,
                                 new FillRequest(contexts, data, cancellationSignal, callback,
-                                        flags, inlineRequest, delayFillIntentSender, requestId),
-                                CONNECTION_TIMEOUT.ms());
+                                        flags, inlineRequest), CONNECTION_TIMEOUT.ms());
                     }, RESPONSE_DELAY_MS);
                 } else {
                     Log.v(TAG, "onFillRequest(" + requestId + "): fillResponse = " + fillResponse);
@@ -732,8 +722,7 @@ public class InstrumentedAutoFillService extends AutofillService {
                 addException(t);
             } finally {
                 Helper.offer(mFillRequests, new FillRequest(contexts, data, cancellationSignal,
-                        callback, flags, inlineRequest, delayFillIntentSender, requestId),
-                        CONNECTION_TIMEOUT.ms());
+                        callback, flags, inlineRequest), CONNECTION_TIMEOUT.ms());
             }
         }
 

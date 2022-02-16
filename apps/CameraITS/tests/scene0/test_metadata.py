@@ -23,8 +23,6 @@ import camera_properties_utils
 import capture_request_utils
 import its_session_utils
 
-_HYPERFOCAL_MIN = 0.02
-
 
 class MetadataTest(its_base_test.ItsBaseTest):
   """Test the validity of some metadata entries.
@@ -121,8 +119,7 @@ class MetadataTest(its_base_test.ItsBaseTest):
         check(self, props['android.sensor.blackLevelPattern'] is not None,
               'props["android.sensor.blackLevelPattern"] is not None')
 
-      if self.failed:
-        raise AssertionError('props failure. Check test_log.DEBUG.')
+      assert not self.failed
 
       if not camera_properties_utils.legacy(props):
         # Test: pixel_pitch, FOV, and hyperfocal distance are reasonable
@@ -135,27 +132,23 @@ class MetadataTest(its_base_test.ItsBaseTest):
         pixel_pitch_w = (sensor_size['width'] / fmts[0]['width'] * 1E3)
         logging.debug('Assert pixel_pitch WxH: %.2f um, %.2f um', pixel_pitch_w,
                       pixel_pitch_h)
-        if (not 0.7 <= pixel_pitch_w <= 10 or
-            not 0.7 <= pixel_pitch_h <= 10 or
-            not 0.333 <= pixel_pitch_w/pixel_pitch_h <= 3.0):
-          raise AssertionError(
-              f'Pixel pitch error! w: {pixel_pitch_w}, h: {pixel_pitch_h}')
+        assert 0.7 <= pixel_pitch_w <= 10
+        assert 0.7 <= pixel_pitch_h <= 10
+        assert 0.333 <= pixel_pitch_w/pixel_pitch_h <= 3.0
 
         diag = math.sqrt(sensor_size['height']**2 + sensor_size['width']**2)
         fl = md['android.lens.focalLength']
         logging.debug('Focal length: %.3f', fl)
         fov = 2 * math.degrees(math.atan(diag / (2 * fl)))
         logging.debug('Assert field of view: %.1f degrees', fov)
-        if not 10 <= fov <= 130:
-          raise AssertionError(f'FoV error: {fov:.1f}')
+        assert 10 <= fov <= 130
 
         if camera_properties_utils.lens_approx_calibrated(props):
           diopter_hyperfocal = props['android.lens.info.hyperfocalDistance']
           if diopter_hyperfocal != 0.0:
             hyperfocal = 1.0 / diopter_hyperfocal
-            if _HYPERFOCAL_MIN > hyperfocal:
-              raise AssertionError('hyperfocal distance error: '
-                                   f'{hyperfocal:.2f}, MIN: {_HYPERFOCAL_MIN}')
+            logging.debug('Assert hyperfocal distance: %.2f m', hyperfocal)
+            assert 0.02 <= hyperfocal
 
         logging.debug('Minimum focus distance: %3.f',
                       props['android.lens.info.minimumFocusDistance'])

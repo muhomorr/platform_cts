@@ -20,11 +20,9 @@ import static com.google.common.truth.Truth.assertThat;
 
 import static org.junit.Assume.assumeTrue;
 
-import com.android.tradefed.invoker.TestInformation;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
-import com.android.tradefed.testtype.junit4.AfterClassWithInfo;
-import com.android.tradefed.testtype.junit4.BeforeClassWithInfo;
 
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -47,100 +45,79 @@ import java.util.Map;
 @RunWith(DeviceJUnit4ClassRunner.class)
 public class AppSearchMultiUserTest extends AppSearchHostTestBase {
 
-    private static int sInitialUserId;
-    private static int sSecondaryUserId;
-
-    @BeforeClassWithInfo
-    public static void setUpClass(TestInformation testInfo) throws Exception {
-        assumeTrue("Multi-user is not supported on this device",
-                testInfo.getDevice().isMultiUserSupported());
-
-        sInitialUserId = testInfo.getDevice().getPrimaryUserId();
-        sSecondaryUserId = testInfo.getDevice().createUser("Test_User");
-        assertThat(testInfo.getDevice().startUser(sSecondaryUserId)).isTrue();
-    }
+    private int mInitialUserId;
+    private int mSecondaryUserId;
 
     @Before
     public void setUp() throws Exception {
-        if (!getDevice().isUserRunning(sSecondaryUserId)) {
-            getDevice().startUser(sSecondaryUserId, /*waitFlag=*/true);
-        }
-        installPackageAsUser(TARGET_APK_A, /* grantPermission= */true, sInitialUserId);
-        installPackageAsUser(TARGET_APK_A, /* grantPermission= */true, sSecondaryUserId);
+        assumeTrue("Multi-user is not supported on this device",
+                getDevice().isMultiUserSupported());
 
-        runDeviceTestAsUserInPkgA("clearTestData", sInitialUserId);
-        runDeviceTestAsUserInPkgA("clearTestData", sSecondaryUserId);
+        mInitialUserId = getDevice().getCurrentUser();
+        mSecondaryUserId = getDevice().createUser("Test_User");
+        assertThat(getDevice().startUser(mSecondaryUserId)).isTrue();
+
+        installPackageAsUser(TARGET_APK_A, /* grantPermission= */true, mInitialUserId);
+        installPackageAsUser(TARGET_APK_A, /* grantPermission= */true, mSecondaryUserId);
+
+        runDeviceTestAsUserInPkgA("clearTestData", mInitialUserId);
+        runDeviceTestAsUserInPkgA("clearTestData", mSecondaryUserId);
     }
 
-    @AfterClassWithInfo
-    public static void tearDownClass(TestInformation testInfo) throws Exception {
-        if (sSecondaryUserId > 0) {
-            testInfo.getDevice().removeUser(sSecondaryUserId);
+    @After
+    public void tearDown() throws Exception {
+        if (getDevice().getInstalledPackageNames().contains(TARGET_PKG_A)) {
+            runDeviceTestAsUserInPkgA("clearTestData", mInitialUserId);
+        }
+        if (mSecondaryUserId > 0) {
+            getDevice().removeUser(mSecondaryUserId);
         }
     }
 
     @Test
-    public void testMultiUser_cantAccessOtherUsersData() throws Exception {
-        runDeviceTestAsUserInPkgA("testPutDocuments", sSecondaryUserId);
-        runDeviceTestAsUserInPkgA("testGetDocuments_exist", sSecondaryUserId);
+    public void testMultiUser_documentAccess() throws Exception {
+        runDeviceTestAsUserInPkgA("testPutDocuments", mSecondaryUserId);
+        runDeviceTestAsUserInPkgA("testGetDocuments_exist", mSecondaryUserId);
         // Cannot get the document from another user.
-        runDeviceTestAsUserInPkgA("testGetDocuments_nonexist", sInitialUserId);
-    }
-
-    @Test
-    public void testMultiUser_canInteractAsAnotherUser() throws Exception {
-        Map<String, String> args =
-                Collections.singletonMap(USER_ID_KEY, String.valueOf(sSecondaryUserId));
-
-        // We can do the normal set of operations while pretending to be another user.
-        runDeviceTestAsUserInPkgA("testPutDocumentsAsAnotherUser", sInitialUserId, args);
-        runDeviceTestAsUserInPkgA("testGetDocumentsAsAnotherUser_exist", sInitialUserId, args);
-    }
-
-    @Test
-    public void testCreateSessionInStoppedUser() throws Exception {
-        Map<String, String> args =
-                Collections.singletonMap(USER_ID_KEY, String.valueOf(sSecondaryUserId));
-        getDevice().stopUser(sSecondaryUserId, /*waitFlag=*/true, /*forceFlag=*/true);
-        runDeviceTestAsUserInPkgA("createSessionInStoppedUser", sInitialUserId, args);
+        runDeviceTestAsUserInPkgA("testGetDocuments_nonexist", mInitialUserId);
     }
 
     @Test
     public void testStopUser_persistData() throws Exception {
-        runDeviceTestAsUserInPkgA("testPutDocuments", sSecondaryUserId);
-        runDeviceTestAsUserInPkgA("testGetDocuments_exist", sSecondaryUserId);
-        getDevice().stopUser(sSecondaryUserId, /*waitFlag=*/true, /*forceFlag=*/true);
-        getDevice().startUser(sSecondaryUserId, /*waitFlag=*/true);
-        runDeviceTestAsUserInPkgA("testGetDocuments_exist", sSecondaryUserId);
+        runDeviceTestAsUserInPkgA("testPutDocuments", mSecondaryUserId);
+        runDeviceTestAsUserInPkgA("testGetDocuments_exist", mSecondaryUserId);
+        getDevice().stopUser(mSecondaryUserId, /*waitFlag=*/true, /*forceFlag=*/true);
+        getDevice().startUser(mSecondaryUserId, /*waitFlag=*/true);
+        runDeviceTestAsUserInPkgA("testGetDocuments_exist", mSecondaryUserId);
     }
 
     @Test
     public void testPackageUninstall_onLockedUser() throws Exception {
-        installPackageAsUser(TARGET_APK_B, /* grantPermission= */true, sSecondaryUserId);
+        installPackageAsUser(TARGET_APK_B, /* grantPermission= */true, mSecondaryUserId);
         // package A grants visibility to package B.
-        runDeviceTestAsUserInPkgA("testPutDocuments", sSecondaryUserId);
+        runDeviceTestAsUserInPkgA("testPutDocuments", mSecondaryUserId);
         // query the document from another package.
-        runDeviceTestAsUserInPkgB("testGlobalGetDocuments_exist", sSecondaryUserId);
-        getDevice().stopUser(sSecondaryUserId, /*waitFlag=*/true, /*forceFlag=*/true);
+        runDeviceTestAsUserInPkgB("testGlobalGetDocuments_exist", mSecondaryUserId);
+        getDevice().stopUser(mSecondaryUserId, /*waitFlag=*/true, /*forceFlag=*/true);
         uninstallPackage(TARGET_PKG_A);
-        getDevice().startUser(sSecondaryUserId, /*waitFlag=*/true);
-        runDeviceTestAsUserInPkgB("testGlobalGetDocuments_nonexist", sSecondaryUserId);
+        getDevice().startUser(mSecondaryUserId, /*waitFlag=*/true);
+        runDeviceTestAsUserInPkgB("testGlobalGetDocuments_nonexist", mSecondaryUserId);
     }
 
     @Test
     public void testReadStorageInfoFromFile() throws Exception {
-        runDeviceTestAsUserInPkgA("testPutDocuments", sSecondaryUserId);
+        runDeviceTestAsUserInPkgA("testPutDocuments", mSecondaryUserId);
 
-        getDevice().stopUser(sSecondaryUserId, /*waitFlag=*/true, /*forceFlag=*/true);
-        getDevice().startUser(sSecondaryUserId, /*waitFlag=*/true);
+        getDevice().stopUser(mSecondaryUserId, /*waitFlag=*/true, /*forceFlag=*/true);
+        getDevice().startUser(mSecondaryUserId, /*waitFlag=*/true);
         // Write user's storage info into file while initializing AppSearchImpl.
-        runStorageAugmenterDeviceTestAsUserInPkgA("connectToAppSearch", sSecondaryUserId);
+        runStorageAugmenterDeviceTestAsUserInPkgA("connectToAppSearch", mSecondaryUserId);
 
         // Disconnect user from AppSearch. While AppSearchImpl doesn't exist for the user, user's
         // storage info would be read from file.
-        getDevice().stopUser(sSecondaryUserId, /*waitFlag=*/true, /*forceFlag=*/true);
-        getDevice().startUser(sSecondaryUserId, /*waitFlag=*/true);
+        getDevice().stopUser(mSecondaryUserId, /*waitFlag=*/true, /*forceFlag=*/true);
+        getDevice().startUser(mSecondaryUserId, /*waitFlag=*/true);
 
-        runStorageAugmenterDeviceTestAsUserInPkgA("testReadStorageInfo", sSecondaryUserId);
+        runStorageAugmenterDeviceTestAsUserInPkgA("testReadStorageInfo", mSecondaryUserId);
     }
 }

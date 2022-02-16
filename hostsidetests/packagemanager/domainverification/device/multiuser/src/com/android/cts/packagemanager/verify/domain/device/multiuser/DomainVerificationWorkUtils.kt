@@ -19,29 +19,25 @@ package com.android.cts.packagemanager.verify.domain.device.multiuser
 import android.content.Context
 import android.os.UserManager
 import com.android.bedstead.harrier.DeviceState
-import com.android.bedstead.harrier.UserType
 import com.android.bedstead.nene.TestApis
 import com.android.bedstead.nene.users.UserReference
-import android.app.admin.RemoteDevicePolicyManager
-import android.content.ComponentName
+import com.android.bedstead.remotedpc.managers.RemoteDevicePolicyManager
 
-internal fun RemoteDevicePolicyManager.getAppLinkPolicy(admin: ComponentName) =
-    getUserRestrictions(admin)?.getBoolean(
-            UserManager.ALLOW_PARENT_PROFILE_APP_LINKING, false) ?: false
+internal fun RemoteDevicePolicyManager.getAppLinkPolicy() =
+    getUserRestrictions()?.getBoolean(UserManager.ALLOW_PARENT_PROFILE_APP_LINKING, false) ?: false
 
-internal fun RemoteDevicePolicyManager.setAppLinkPolicy(admin: ComponentName, allow: Boolean) {
+internal fun RemoteDevicePolicyManager.setAppLinkPolicy(allow: Boolean) {
     if (allow) {
-        addUserRestriction(admin, UserManager.ALLOW_PARENT_PROFILE_APP_LINKING)
+        addUserRestriction(UserManager.ALLOW_PARENT_PROFILE_APP_LINKING)
     } else {
-        clearUserRestriction(admin, UserManager.ALLOW_PARENT_PROFILE_APP_LINKING)
+        clearUserRestriction(UserManager.ALLOW_PARENT_PROFILE_APP_LINKING)
     }
 }
 
 internal fun DeviceState.getWorkDevicePolicyManager() =
-    profileOwner(workProfile(UserType.PRIMARY_USER))!!
-            .devicePolicyManager()
+    profileOwner(workProfile(DeviceState.UserType.PRIMARY_USER))!!.devicePolicyManager()
 
-internal fun <T> withUserContext(user: UserReference, block: (context: Context) -> T) =
-    TestApis.permissions()
+internal fun <T> TestApis.withUserContext(user: UserReference, block: (context: Context) -> T) =
+    permissions()
         .withPermission("android.permission.INTERACT_ACROSS_USERS_FULL")
-        .use { block(TestApis.context().androidContextAsUser(user)) }
+        .use { block(context().androidContextAsUser(user)) }

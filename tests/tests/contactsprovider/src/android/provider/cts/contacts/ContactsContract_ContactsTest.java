@@ -142,8 +142,8 @@ public class ContactsContract_ContactsTest extends AndroidTestCase {
         DatabaseAsserts.ContactIdPair ids = assertContactCreateDelete();
 
         String[] projection = new String[] {
-                RawContacts.DIRTY,
-                RawContacts.DELETED
+                ContactsContract.RawContacts.DIRTY,
+                ContactsContract.RawContacts.DELETED
         };
         List<String[]> records = RawContactUtil.queryByContactId(mResolver, ids.mContactId,
                 projection);
@@ -229,8 +229,8 @@ public class ContactsContract_ContactsTest extends AndroidTestCase {
 
         // Assert that the non-local raw contact was marked DELETED=1
         String[] projection = new String[]{
-                RawContacts.DIRTY,
-                RawContacts.DELETED
+                ContactsContract.RawContacts.DIRTY,
+                ContactsContract.RawContacts.DELETED
         };
         List<String[]> records = RawContactUtil.queryByContactId(mResolver, ids2.mContactId,
                 projection);
@@ -333,20 +333,6 @@ public class ContactsContract_ContactsTest extends AndroidTestCase {
 
         assertEquals(0, rawContact.getLong(Contacts.LAST_TIME_CONTACTED));
         assertEquals(0, rawContact.getLong(Contacts.TIMES_CONTACTED));
-    }
-
-    /** Make sure local contacts are visible by default. */
-    public void testContactQuery_localContactVisibleByDefault() throws Exception {
-        // Raw contacts without an account specified are created in the local account
-        final TestRawContact localRawContact = mBuilder.newRawContact().insert().load();
-        final TestContact contact = localRawContact.getContact().load();
-
-        assertEquals(RawContacts.getLocalAccountName(mContext),
-                localRawContact.getString(RawContacts.ACCOUNT_NAME));
-        assertEquals(RawContacts.getLocalAccountType(mContext),
-                localRawContact.getString(RawContacts.ACCOUNT_TYPE));
-        assertNull(localRawContact.getString(RawContacts.DATA_SET));
-        assertEquals(1, contact.getLong(Contacts.IN_VISIBLE_GROUP));
     }
 
     public void testProjection() throws Exception {

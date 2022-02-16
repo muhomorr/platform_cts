@@ -24,8 +24,6 @@ import android.hdmicec.cts.CecOperand;
 import android.hdmicec.cts.HdmiCecConstants;
 import android.hdmicec.cts.HdmiControlManagerUtility;
 import android.hdmicec.cts.LogicalAddress;
-import android.hdmicec.cts.error.CecClientWrapperException;
-import android.hdmicec.cts.error.ErrorCodes;
 
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
 
@@ -41,13 +39,11 @@ import java.util.concurrent.TimeUnit;
 @RunWith(DeviceJUnit4ClassRunner.class)
 public final class HdmiCecRoutingControlTest extends BaseHdmiCecCtsTest {
 
-    private static final int WAIT_TIME_MS = 1000;
-
     @Rule
     public RuleChain ruleChain =
             RuleChain.outerRule(CecRules.requiresCec(this))
                     .around(CecRules.requiresLeanback(this))
-                    .around(CecRules.requiresDeviceType(this, HdmiCecConstants.CEC_DEVICE_TYPE_TV))
+                    .around(CecRules.requiresDeviceType(this, LogicalAddress.TV))
                     .around(hdmiCecClient);
 
     public HdmiCecRoutingControlTest() {
@@ -55,7 +51,7 @@ public final class HdmiCecRoutingControlTest extends BaseHdmiCecCtsTest {
     }
 
     @Before
-    public void checkForInitialActiveSourceMessage() throws CecClientWrapperException {
+    public void checkForInitialActiveSourceMessage() throws Exception {
         try {
             /*
              * Check for the broadcasted <ACTIVE_SOURCE> message from Recorder_1, which was sent as
@@ -64,23 +60,14 @@ public final class HdmiCecRoutingControlTest extends BaseHdmiCecCtsTest {
             String message =
                     hdmiCecClient.checkExpectedMessageFromClient(
                             LogicalAddress.RECORDER_1, CecOperand.ACTIVE_SOURCE);
-        } catch (CecClientWrapperException e) {
-            if (e.getErrorCode() != ErrorCodes.CecMessageNotFound) {
-                throw e;
-            } else {
-                /*
-                 * In case the TV does not send <Set Stream Path> to CEC adapter, or the client does
-                 * not make recorder active source, broadcast an <Active Source> message from the
-                 * adapter.
-                 */
-                hdmiCecClient.broadcastActiveSource(
-                        hdmiCecClient.getSelfDevice(), hdmiCecClient.getPhysicalAddress());
-                try {
-                    TimeUnit.MILLISECONDS.sleep(WAIT_TIME_MS);
-                } catch (InterruptedException ex) {
-                    // Do nothing
-                }
-            }
+        } catch (Exception e) {
+            /*
+             * In case the TV does not send <Set Stream Path> to CEC adapter, or the client does
+             * not make recorder active source, broadcast an <Active Source> message from the
+             * adapter.
+             */
+            hdmiCecClient.broadcastActiveSource(
+                    hdmiCecClient.getSelfDevice(), hdmiCecClient.getPhysicalAddress());
         }
     }
 
@@ -98,8 +85,8 @@ public final class HdmiCecRoutingControlTest extends BaseHdmiCecCtsTest {
         hdmiCecClient.broadcastReportPhysicalAddress(LogicalAddress.PLAYBACK_1, 0x2200);
         TimeUnit.SECONDS.sleep(2);
         // Make the device with LA 4 as the active source.
-        HdmiControlManagerUtility.selectDevice(
-                this, getDevice(), LogicalAddress.PLAYBACK_1.toString());
+        HdmiControlManagerUtility.setActiveSource(
+                getDevice(), LogicalAddress.PLAYBACK_1.getLogicalAddressAsInt());
         String message = hdmiCecClient.checkExpectedOutput(CecOperand.SET_STREAM_PATH);
         assertWithMessage("Device has not sent a Set Stream Path message to the selected device")
                 .that(CecMessage.getParams(message))
@@ -115,7 +102,8 @@ public final class HdmiCecRoutingControlTest extends BaseHdmiCecCtsTest {
     @Test
     public void cect_11_1_2_2_DutDoesNotRespondToRequestActiveSourceMessage() throws Exception {
         // Ensure that DUT is the active source.
-        HdmiControlManagerUtility.selectDevice(this, getDevice(), LogicalAddress.TV.toString());
+        HdmiControlManagerUtility.setActiveSource(
+                getDevice(), LogicalAddress.TV.getLogicalAddressAsInt());
         hdmiCecClient.checkExpectedOutput(CecOperand.ACTIVE_SOURCE);
         // Broadcast an active source from the client device.
         hdmiCecClient.broadcastActiveSource(hdmiCecClient.getSelfDevice());
@@ -136,7 +124,8 @@ public final class HdmiCecRoutingControlTest extends BaseHdmiCecCtsTest {
     @Test
     public void cect_11_1_2_3_DutDoesRespondToRequestActiveSourceMessage() throws Exception {
         // Make the TV device the active source.
-        HdmiControlManagerUtility.selectDevice(this, getDevice(), LogicalAddress.TV.toString());
+        HdmiControlManagerUtility.setActiveSource(
+                getDevice(), LogicalAddress.TV.getLogicalAddressAsInt());
         hdmiCecClient.sendCecMessage(
                 hdmiCecClient.getSelfDevice(),
                 LogicalAddress.BROADCAST,

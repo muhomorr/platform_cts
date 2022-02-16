@@ -22,6 +22,7 @@ import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.provider.Settings
 import android.support.test.uiautomator.By
 import android.support.test.uiautomator.BySelector
@@ -52,7 +53,6 @@ abstract class BaseUsePermissionTest : BasePermissionTest() {
         const val APP_APK_PATH_29 = "$APK_DIRECTORY/CtsUsePermissionApp29.apk"
         const val APP_APK_PATH_30 = "$APK_DIRECTORY/CtsUsePermissionApp30.apk"
         const val APP_APK_PATH_31 = "$APK_DIRECTORY/CtsUsePermissionApp31.apk"
-        const val APP_APK_PATH_32 = "$APK_DIRECTORY/CtsUsePermissionApp32.apk"
 
         const val APP_APK_PATH_30_WITH_BACKGROUND =
                 "$APK_DIRECTORY/CtsUsePermissionApp30WithBackground.apk"
@@ -61,10 +61,6 @@ abstract class BaseUsePermissionTest : BasePermissionTest() {
         const val APP_APK_PATH_LATEST = "$APK_DIRECTORY/CtsUsePermissionAppLatest.apk"
         const val APP_APK_PATH_LATEST_NONE = "$APK_DIRECTORY/CtsUsePermissionAppLatestNone.apk"
         const val APP_APK_PATH_WITH_OVERLAY = "$APK_DIRECTORY/CtsUsePermissionAppWithOverlay.apk"
-        const val APP_APK_PATH_CREATE_NOTIFICATION_CHANNELS_31 =
-            "$APK_DIRECTORY/CtsCreateNotificationChannelsApp31.apk"
-        const val APP_APK_PATH_CREATE_NOTIFICATION_CHANNELS_33 =
-            "$APK_DIRECTORY/CtsCreateNotificationChannelsApp33.apk"
         const val APP_PACKAGE_NAME = "android.permission3.cts.usepermission"
 
         const val ALLOW_BUTTON =
@@ -88,8 +84,6 @@ abstract class BaseUsePermissionTest : BasePermissionTest() {
         const val ASK_RADIO_BUTTON = "com.android.permissioncontroller:id/ask_radio_button"
         const val DENY_RADIO_BUTTON = "com.android.permissioncontroller:id/deny_radio_button"
 
-        const val NOTIF_TEXT = "permgrouprequest_notifications"
-        const val NOTIF_CONTINUE_TEXT = "permgrouprequestcontinue_notifications"
         const val ALLOW_BUTTON_TEXT = "grant_dialog_button_allow"
         const val ALLOW_FOREGROUND_BUTTON_TEXT = "grant_dialog_button_allow_foreground"
         const val ALLOW_FOREGROUND_PREFERENCE_TEXT = "permission_access_only_foreground"
@@ -99,8 +93,6 @@ abstract class BaseUsePermissionTest : BasePermissionTest() {
         const val DENY_AND_DONT_ASK_AGAIN_BUTTON_TEXT =
                 "grant_dialog_button_deny_and_dont_ask_again"
         const val NO_UPGRADE_AND_DONT_ASK_AGAIN_BUTTON_TEXT = "grant_dialog_button_no_upgrade"
-
-        const val REQUEST_LOCATION_MESSAGE = "permgrouprequest_location"
     }
 
     enum class PermissionState {
@@ -159,8 +151,6 @@ abstract class BaseUsePermissionTest : BasePermissionTest() {
             android.Manifest.permission.CAMERA to "@android:string/permgrouplab_camera",
             // Body sensors
             android.Manifest.permission.BODY_SENSORS to "@android:string/permgrouplab_sensors",
-            android.Manifest.permission.BODY_SENSORS_BACKGROUND
-                    to "@android:string/permgrouplab_sensors",
             // Bluetooth
             android.Manifest.permission.BLUETOOTH_CONNECT to
                     "@android:string/permgrouplab_nearby_devices",
@@ -259,8 +249,6 @@ abstract class BaseUsePermissionTest : BasePermissionTest() {
             }
         )
         waitForIdle()
-        // Notification permission prompt is shown first, so get it out of the way
-        clickNotificationPermissionRequestAllowButton()
         // Perform the post-request action
         block()
         return future.get(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS)
@@ -307,22 +295,6 @@ abstract class BaseUsePermissionTest : BasePermissionTest() {
             click(By.text(getPermissionControllerString(ALLOW_BUTTON_TEXT)))
         } else {
             click(By.res(ALLOW_BUTTON))
-        }
-    }
-
-    /**
-     * Only for use in tests that are not testing the notification permission popup
-     */
-    protected fun clickNotificationPermissionRequestAllowButton() {
-        if (waitFindObjectOrNull(By.text(getPermissionControllerString(
-                NOTIF_CONTINUE_TEXT, APP_PACKAGE_NAME)), 1000) != null
-                || waitFindObjectOrNull(By.text(getPermissionControllerString(
-                        NOTIF_TEXT, APP_PACKAGE_NAME)), 1000) != null) {
-            if (isAutomotive) {
-                click(By.text(getPermissionControllerString(ALLOW_BUTTON_TEXT)))
-            } else {
-                click(By.res(ALLOW_BUTTON))
-            }
         }
     }
 
@@ -487,12 +459,15 @@ abstract class BaseUsePermissionTest : BasePermissionTest() {
                 // won't show an "Ask every time" message
                 !waitFindObject(By.text(
                         getPermissionControllerString("app_permission_button_deny"))).isChecked
-            } else if (isTv || isWatch) {
+            } else if (isTv) {
                 !(waitFindObject(
                     By.text(getPermissionControllerString(DENY_BUTTON_TEXT))).isChecked ||
                     (!isLegacyApp && hasAskButton(permission) && waitFindObject(
                         By.text(getPermissionControllerString(ASK_BUTTON_TEXT))).isChecked))
             } else {
+                if (isWatch) {
+                    click(By.text("Deny"))
+                }
                 !(waitFindObject(By.res(DENY_RADIO_BUTTON)).isChecked ||
                     (!isLegacyApp && hasAskButton(permission) &&
                         waitFindObject(By.res(ASK_RADIO_BUTTON)).isChecked))
@@ -509,14 +484,14 @@ abstract class BaseUsePermissionTest : BasePermissionTest() {
                                         "app_permission_button_allow_foreground"))
                             } else {
                                 By.text(getPermissionControllerString(
-                                        "app_permission_button_allow"))
+                                                "app_permission_button_allow"))
                             }
                         PermissionState.DENIED -> By.text(
                                 getPermissionControllerString("app_permission_button_deny"))
                         PermissionState.DENIED_WITH_PREJUDICE -> By.text(
                                 getPermissionControllerString("app_permission_button_deny"))
                     }
-                } else if (isTv || isWatch) {
+                } else if (isTv) {
                     when (state) {
                         PermissionState.ALLOWED ->
                             if (showsForegroundOnlyButton(permission)) {
@@ -541,6 +516,12 @@ abstract class BaseUsePermissionTest : BasePermissionTest() {
                                 By.res(ALLOW_FOREGROUND_RADIO_BUTTON)
                             } else if (showsAlwaysButton(permission)) {
                                 By.res(ALLOW_ALWAYS_RADIO_BUTTON)
+                            } else if (isMediaStorageButton(permission, targetSdk)) {
+                                // Uses "allow_foreground_only_radio_button" as id
+                                byTextRes(R.string.allow_media_storage)
+                            } else if (isAllStorageButton(permission, targetSdk)) {
+                                // Uses "allow_always_radio_button" as id
+                                byTextRes(R.string.allow_external_storage)
                             } else {
                                 By.res(ALLOW_RADIO_BUTTON)
                             }
@@ -562,22 +543,15 @@ abstract class BaseUsePermissionTest : BasePermissionTest() {
                 if (!isTv) {
                     scrollToBottom()
                 }
-
-                // Due to the limited real estate, Wear uses buttons with icons instead of text
-                // for dialogs
-                if (isWatch) {
-                    click(By.res(
-                        "com.android.permissioncontroller:id/wear_alertdialog_positive_button"))
-                } else {
-                    val resources = context.createPackageContext(
-                        packageManager.permissionControllerPackageName, 0
-                    ).resources
-                    val confirmTextRes = resources.getIdentifier(
-                        "com.android.permissioncontroller:string/grant_dialog_button_deny_anyway",
-                        null, null
-                    )
-
-                    val confirmText = resources.getString(confirmTextRes)
+                val resources = context.createPackageContext(
+                    packageManager.permissionControllerPackageName, 0
+                ).resources
+                val confirmTextRes = resources.getIdentifier(
+                    "com.android.permissioncontroller:string/grant_dialog_button_deny_anyway", null,
+                    null
+                )
+                val confirmText = resources.getString(confirmTextRes)
+                if (!isWatch) {
                     click(byTextStartsWithCaseInsensitive(confirmText))
                 }
             }
@@ -617,13 +591,38 @@ abstract class BaseUsePermissionTest : BasePermissionTest() {
             else -> false
         }
 
+    private fun isMediaStorageButton(permission: String, targetSdk: Int): Boolean =
+            if (isTv || isWatch) {
+                false
+            } else {
+                when (permission) {
+                    android.Manifest.permission.READ_EXTERNAL_STORAGE,
+                    android.Manifest.permission.WRITE_EXTERNAL_STORAGE,
+                    android.Manifest.permission.ACCESS_MEDIA_LOCATION ->
+                        // Default behavior, can cause issues if OPSTR_LEGACY_STORAGE is set
+                        targetSdk >= Build.VERSION_CODES.P
+                    else -> false
+                }
+            }
+
+    private fun isAllStorageButton(permission: String, targetSdk: Int): Boolean =
+            if (isTv || isWatch) {
+                false
+            } else {
+                when (permission) {
+                    android.Manifest.permission.READ_EXTERNAL_STORAGE,
+                    android.Manifest.permission.WRITE_EXTERNAL_STORAGE,
+                    android.Manifest.permission.ACCESS_MEDIA_LOCATION ->
+                        // Default behavior, can cause issues if OPSTR_LEGACY_STORAGE is set
+                        targetSdk < Build.VERSION_CODES.P
+                    android.Manifest.permission.MANAGE_EXTERNAL_STORAGE -> true
+                    else -> false
+                }
+            }
+
     private fun scrollToBottom() {
         val scrollable = UiScrollable(UiSelector().scrollable(true)).apply {
-            if (isWatch) {
-                swipeDeadZonePercentage = 0.1
-            } else {
-                swipeDeadZonePercentage = 0.25
-            }
+            swipeDeadZonePercentage = 0.25
         }
         waitForIdle()
         if (scrollable.exists()) {
@@ -655,8 +654,6 @@ abstract class BaseUsePermissionTest : BasePermissionTest() {
                 )
             }
         )
-        waitForIdle()
-        clickNotificationPermissionRequestAllowButton()
         val result = future.get(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS)
         assertEquals(Activity.RESULT_OK, result.resultCode)
         assertTrue(result.resultData!!.hasExtra("$APP_PACKAGE_NAME.HAS_ACCESS"))

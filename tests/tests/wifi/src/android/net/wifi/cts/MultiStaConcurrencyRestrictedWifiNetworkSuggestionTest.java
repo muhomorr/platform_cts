@@ -244,7 +244,7 @@ public class MultiStaConcurrencyRestrictedWifiNetworkSuggestionTest extends Wifi
                         .build();
         mNsNetworkCallback = mTestHelper.testConnectionFlowWithSuggestion(
                 mTestNetworkForRestrictedConnection, suggestion, mExecutorService,
-                Set.of(NET_CAPABILITY_OEM_PAID), false/* restrictedNetwork */);
+                Set.of(NET_CAPABILITY_OEM_PAID));
 
         // Ensure that there are 2 wifi connections available for apps.
         assertThat(mTestHelper.getNumWifiConnections()).isEqualTo(2);
@@ -266,7 +266,7 @@ public class MultiStaConcurrencyRestrictedWifiNetworkSuggestionTest extends Wifi
                         .build();
         mNsNetworkCallback = mTestHelper.testConnectionFlowWithSuggestion(
                 mTestNetworkForRestrictedConnection, suggestion, mExecutorService,
-                Set.of(NET_CAPABILITY_OEM_PAID), false);
+                Set.of(NET_CAPABILITY_OEM_PAID));
 
         // Now trigger internet connectivity.
         mNetworkCallback = mTestHelper.testConnectionFlowWithConnect(
@@ -296,7 +296,7 @@ public class MultiStaConcurrencyRestrictedWifiNetworkSuggestionTest extends Wifi
                         .build();
         mNsNetworkCallback = mTestHelper.testConnectionFlowWithSuggestion(
                 mTestNetworkForRestrictedConnection, suggestion, mExecutorService,
-                Set.of(NET_CAPABILITY_OEM_PRIVATE), false/* restrictedNetwork */);
+                Set.of(NET_CAPABILITY_OEM_PRIVATE));
 
         // Ensure that there are 2 wifi connections available for apps.
         assertThat(mTestHelper.getNumWifiConnections()).isEqualTo(2);
@@ -318,7 +318,7 @@ public class MultiStaConcurrencyRestrictedWifiNetworkSuggestionTest extends Wifi
                         .build();
         mNsNetworkCallback = mTestHelper.testConnectionFlowWithSuggestion(
                 mTestNetworkForRestrictedConnection, suggestion, mExecutorService,
-                Set.of(NET_CAPABILITY_OEM_PRIVATE), false/* restrictedNetwork */);
+                Set.of(NET_CAPABILITY_OEM_PRIVATE));
 
         // Now trigger internet connectivity.
         mNetworkCallback = mTestHelper.testConnectionFlowWithConnect(
