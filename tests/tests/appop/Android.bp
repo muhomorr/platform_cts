@@ -79,11 +79,9 @@ android_test {
 
     jni_libs: [
         "ld-android",
-        "libbacktrace",
         "libbase",
         "libbinder",
         "libbpf_bcc",
-        "libbpf_android",
         "libc++",
         "libcgrouprc",
         "libcrypto",
@@ -95,8 +93,8 @@ android_test {
         "liblog",
         "liblzma",
         "libnativehelper",
-        "libnetdbpf",
         "libnetdutils",
+        "libnetworkstats",
         "libnetworkstatsfactorytestjni",
         "libpackagelistparser",
         "libpermission",
