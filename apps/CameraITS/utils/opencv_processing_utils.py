@@ -23,7 +23,6 @@ import numpy
 
 
 import cv2
-import camera_properties_utils
 import capture_request_utils
 import image_processing_utils
 
@@ -64,7 +63,7 @@ SCALE_TELE40_IN_RFOV_BOX = 0.5
 SCALE_TELE25_IN_RFOV_BOX = 0.33
 
 SQUARE_AREA_MIN_REL = 0.05  # Minimum size for square relative to image area
-SQUARE_TOL = 0.1  # Square W vs H mismatch RTOL
+SQUARE_TOL = 0.05  # Square W vs H mismatch RTOL
 
 VGA_HEIGHT = 480
 VGA_WIDTH = 640
@@ -72,6 +71,7 @@ VGA_WIDTH = 640
 
 def find_all_contours(img):
   cv2_version = cv2.__version__
+  logging.debug('cv2_version: %s', cv2_version)
   if cv2_version.startswith('3.'):  # OpenCV 3.x
     _, contours, _ = cv2.findContours(img, cv2.RETR_TREE,
                                       cv2.CHAIN_APPROX_SIMPLE)
@@ -139,7 +139,6 @@ class Chart(object):
       cam,
       props,
       log_path,
-      chart_loc=None,
       chart_file=None,
       height=None,
       distance=None,
@@ -152,7 +151,6 @@ class Chart(object):
      cam: open ITS session
      props: camera properties object
      log_path: log path to store the captured images.
-     chart_loc: chart locator arg.
      chart_file: str; absolute path to png file of chart
      height: float; height in cm of displayed chart
      distance: float; distance in cm from camera of displayed chart
@@ -166,14 +164,7 @@ class Chart(object):
     self._scale_start = scale_start or CHART_SCALE_START
     self._scale_stop = scale_stop or CHART_SCALE_STOP
     self._scale_step = scale_step or CHART_SCALE_STEP
-    self.xnorm, self.ynorm, self.wnorm, self.hnorm, self.scale = (
-        image_processing_utils.chart_located_per_argv(chart_loc))
-    if not self.xnorm:
-      if camera_properties_utils.read_3a(props):
-        self.locate(cam, props, log_path)
-      else:
-        logging.debug('Chart locator skipped.')
-        self._set_scale_factors_to_one()
+    self.locate(cam, props, log_path)
 
   def _set_scale_factors_to_one(self):
     """Set scale factors to 1.0 for skipped tests."""
@@ -183,18 +174,13 @@ class Chart(object):
     self.ynorm = 0.0
     self.scale = 1.0
 
-  def _calc_scale_factors(self, cam, props, fmt, s, e, fd, log_path):
+  def _calc_scale_factors(self, cam, props, fmt, log_path):
     """Take an image with s, e, & fd to find the chart location.
 
     Args:
      cam: An open its session.
      props: Properties of cam
      fmt: Image format for the capture
-     s: Sensitivity for the AF request as defined in
-                            android.sensor.sensitivity
-     e: Exposure time for the AF request as defined in
-                            android.sensor.exposureTime
-     fd: float; autofocus lens position
      log_path: log path to save the captured images.
 
     Returns:
@@ -202,8 +188,7 @@ class Chart(object):
       img_3a: numpy array; RGB image for chart location
       scale_factor: float; scaling factor for chart search
     """
-    req = capture_request_utils.manual_capture_request(s, e)
-    req['android.lens.focusDistance'] = fd
+    req = capture_request_utils.auto_capture_request()
     cap_chart = image_processing_utils.stationary_lens_cap(cam, req, fmt)
     img_3a = image_processing_utils.convert_capture_to_rgb_image(
         cap_chart, props)
@@ -239,15 +224,9 @@ class Chart(object):
     hnorm: float; [0, 1] height of chart in scene
     scale: float; scale factor to extract chart
     """
-    if camera_properties_utils.read_3a(props):
-      s, e, _, _, fd = cam.do_3a(get_results=True)
-      fmt = {'format': 'yuv', 'width': VGA_WIDTH, 'height': VGA_HEIGHT}
-      chart, scene, s_factor = self._calc_scale_factors(cam, props, fmt, s, e,
-                                                        fd, log_path)
-    else:
-      logging.debug('Chart locator skipped.')
-      self._set_scale_factors_to_one()
-      return
+    fmt = {'format': 'yuv', 'width': VGA_WIDTH, 'height': VGA_HEIGHT}
+    cam.do_3a()
+    chart, scene, s_factor = self._calc_scale_factors(cam, props, fmt, log_path)
     scale_start = self._scale_start * s_factor
     scale_stop = self._scale_stop * s_factor
     scale_step = self._scale_step * s_factor

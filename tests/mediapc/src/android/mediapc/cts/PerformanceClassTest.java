@@ -16,11 +16,15 @@
 
 package android.mediapc.cts;
 
+import static android.mediapc.cts.Utils.MIN_MEMORY_PERF_CLASS_CANDIDATE_MB;
+import static android.mediapc.cts.Utils.MIN_MEMORY_PERF_CLASS_T_MB;
 import static android.util.DisplayMetrics.DENSITY_400;
+import static org.junit.Assert.assertTrue;
 
 import android.app.ActivityManager;
 import android.content.Context;
 import android.content.pm.PackageManager;
+import android.os.Build;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.WindowManager;
@@ -28,12 +32,13 @@ import android.view.WindowManager;
 import androidx.test.filters.SmallTest;
 import androidx.test.platform.app.InstrumentationRegistry;
 
+import com.android.compatibility.common.util.CddTest;
+import com.android.compatibility.common.util.DeviceReportLog;
+import com.android.compatibility.common.util.ResultType;
+import com.android.compatibility.common.util.ResultUnit;
+
 import org.junit.Assume;
 import org.junit.Test;
-import org.junit.experimental.runners.Enclosed;
-import org.junit.runner.RunWith;
-
-import static org.junit.Assert.assertTrue;
 
 /**
  * Tests the basic aspects of the media performance class.
@@ -58,24 +63,20 @@ public class PerformanceClassTest {
         // if device is not of a performance class, we are done.
         Assume.assumeTrue("not a device of a valid media performance class", Utils.isPerfClass());
 
-        if (Utils.isRPerfClass()
-                || Utils.isSPerfClass()) {
-            assertTrue("performance class is only defined for Handheld devices",
-                       isHandheld());
+        if (Utils.isPerfClass()) {
+            assertTrue("performance class is only defined for Handheld devices", isHandheld());
         }
     }
 
     @Test
+    @CddTest(requirement="2.2.7.3/7.1.1.1,7.1.1.3,7.6.1/H-1-1,H-2-1")
     public void testMinimumMemory() {
+        Context context = InstrumentationRegistry.getInstrumentation().getContext();
 
-        if (Utils.isSPerfClass()) {
-            Context context = InstrumentationRegistry.getInstrumentation().getContext();
-
-            // Verify minimum screen density and resolution
-            assertMinDpiAndPixels(context, DENSITY_400, 1920, 1080);
-            // Verify minimum memory
-            assertMinMemoryMb(context, 6 * 1024);
-        }
+        // Verify minimum screen density and resolution
+        assertMinDpiAndPixels(context, DENSITY_400, 1920, 1080);
+        // Verify minimum memory
+        assertMinMemoryMb(context);
     }
 
     /** Asserts that the given values conform to the specs in CDD */
@@ -92,24 +93,49 @@ public class PerformanceClassTest {
         Log.i(TAG, String.format("minDpi=%d minSize=%dx%dpix", minDpi, minLong, minShort));
         Log.i(TAG, String.format("dpi=%d size=%dx%dpix", density, longPix, shortPix));
 
-        assertTrue("Display density " + density + " must be at least " + minDpi + "dpi",
-                   density >= minDpi);
-        assertTrue("Display resolution " + longPix + "x" + shortPix + "pix must be at least " +
-                   minLong + "x" + minShort + "pix",
-                   longPix >= minLong && shortPix >= minShort);
+        if (Utils.isPerfClass()) {
+            assertTrue("Display density " + density + " must be at least " + minDpi + "dpi",
+                    density >= minDpi);
+            assertTrue("Display resolution " + longPix + "x" + shortPix + "pix must be at least " +
+                            minLong + "x" + minShort + "pix",
+                    longPix >= minLong && shortPix >= minShort);
+        } else {
+            int pc = density >= minDpi && longPix >= minLong && shortPix >= minShort
+                    ? Build.VERSION_CODES.S : 0;
+            DeviceReportLog log = new DeviceReportLog("MediaPerformanceClassLogs",  "Display");
+            log.addValue("DisplayDensity", density, ResultType.HIGHER_BETTER, ResultUnit.NONE);
+            log.addValue("ResolutionLong", longPix, ResultType.HIGHER_BETTER, ResultUnit.NONE);
+            log.addValue("ResolutionShort", shortPix, ResultType.HIGHER_BETTER, ResultUnit.NONE);
+            log.setSummary("CDD 2.2.7.3/7.1.1.1,7.1.1.3/H-1-1,H-2-1 performance_class", pc,
+                    ResultType.HIGHER_BETTER, ResultUnit.NONE);
+            log.submit(InstrumentationRegistry.getInstrumentation());
+        }
     }
 
     /** Asserts that the given values conform to the specs in CDD 7.6.1 */
-    private void assertMinMemoryMb(Context context, long minMb) {
-        ActivityManager activityManager =
-                    (ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
+    private void assertMinMemoryMb(Context context) {
+        ActivityManager activityManager = context.getSystemService(ActivityManager.class);
         long totalMemoryMb = getTotalMemory(activityManager) / 1024 / 1024;
 
-        Log.i(TAG, String.format("minMb=%,d", minMb));
-        Log.i(TAG, String.format("totalMemoryMb=%,d", totalMemoryMb));
-
-        assertTrue(String.format("Does not meet minimum memory requirements (CDD 7.6.1)."
-                + "Found = %d, Minimum = %d", totalMemoryMb, minMb), totalMemoryMb >= minMb);
+        Log.i(TAG, String.format("Total device memory = %,d MB", totalMemoryMb));
+        if (Utils.isPerfClass()) {
+            long minMb = Utils.isTPerfClass() ? MIN_MEMORY_PERF_CLASS_T_MB :
+                    Utils.MIN_MEMORY_PERF_CLASS_CANDIDATE_MB;
+            Log.i(TAG, String.format("Minimum required memory = %,d MB", minMb));
+            assertTrue(String.format("Does not meet minimum memory requirements (CDD 7.6.1)."
+                    + "Found = %d, Minimum = %d", totalMemoryMb, minMb), totalMemoryMb >= minMb);
+        } else {
+            int pc = 0;
+            if (totalMemoryMb >= MIN_MEMORY_PERF_CLASS_T_MB)
+                pc = Build.VERSION_CODES.TIRAMISU;
+            else if (totalMemoryMb >= MIN_MEMORY_PERF_CLASS_CANDIDATE_MB)
+                pc = Build.VERSION_CODES.S;
+            DeviceReportLog log = new DeviceReportLog("MediaPerformanceClassLogs", "MinMemory");
+            log.addValue("MemoryMB", totalMemoryMb, ResultType.HIGHER_BETTER, ResultUnit.NONE);
+            log.setSummary("CDD 2.2.7.3/7.6.1/H-1-1,H-2-1  performance_class", pc,
+                    ResultType.HIGHER_BETTER, ResultUnit.NONE);
+            log.submit(InstrumentationRegistry.getInstrumentation());
+        }
     }
 
     /**

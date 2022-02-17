@@ -72,6 +72,7 @@ public class DocumentsClientTest extends DocumentsClientTestCase {
     private static final String TEST_TARGET_DIRECTORY_PATH =
             TEST_SOURCE_DIRECTORY_PATH + File.separatorChar + TEST_TARGET_DIRECTORY_NAME;
     private static final String STORAGE_AUTHORITY = "com.android.externalstorage.documents";
+    private static final String DEFAULT_DEVICE_NAME = "Internal storage";
 
     private UiSelector findRootListSelector() throws UiObjectNotFoundException {
         return new UiSelector().resourceId(
@@ -174,19 +175,19 @@ public class DocumentsClientTest extends DocumentsClientTestCase {
         return new UiObject(new UiSelector().resourceId("android:id/button1"));
     }
 
-    private void assertToolbarTitleEquals(String label) throws UiObjectNotFoundException {
+    private boolean checkToolbarTitleEquals(String label) throws UiObjectNotFoundException {
         final UiObject title = new UiObject(new UiSelector().resourceId(
                 getDocumentsUiPackageId() + ":id/toolbar").childSelector(
                 new UiSelector().className("android.widget.TextView").text(label)));
 
-        assertTrue(title.waitForExists(TIMEOUT));
+        return title.waitForExists(TIMEOUT);
     }
 
     private String getDeviceName() {
         final String deviceName = Settings.Global.getString(
                 mActivity.getContentResolver(), Settings.Global.DEVICE_NAME);
-        // Device name should always be set. In case it isn't, fall back to "Internal Storage"
-        return !TextUtils.isEmpty(deviceName) ? deviceName : "Internal Storage";
+        // Device name should always be set. In case it isn't, fall back to "Internal storage"
+        return !TextUtils.isEmpty(deviceName) ? deviceName : DEFAULT_DEVICE_NAME;
     }
 
     @Override
@@ -443,8 +444,14 @@ public class DocumentsClientTest extends DocumentsClientTestCase {
             assertFalse(findSaveButton().isEnabled());
         }
 
-        findRoot(getDeviceName()).click();
-        mDevice.waitForIdle();
+        try {
+            findRoot(getDeviceName()).click();
+            mDevice.waitForIdle();
+        } catch(UiObjectNotFoundException e) {
+            // It might be possible that OEMs customize storage root to "Internal storage".
+            findRoot(DEFAULT_DEVICE_NAME).click();
+            mDevice.waitForIdle();
+        }
 
         try {
             findDocument("Download").click();
@@ -491,8 +498,14 @@ public class DocumentsClientTest extends DocumentsClientTestCase {
         // save button is enabled for Android folder
         assertTrue(findSaveButton().isEnabled());
 
-        findRoot(getDeviceName()).click();
-        mDevice.waitForIdle();
+        try {
+            findRoot(getDeviceName()).click();
+            mDevice.waitForIdle();
+        } catch(UiObjectNotFoundException e) {
+            // It might be possible that OEMs customize storage root to "Internal storage".
+            findRoot(DEFAULT_DEVICE_NAME).click();
+            mDevice.waitForIdle();
+        }
 
         try {
             findDocument("Download").click();
@@ -561,11 +574,25 @@ public class DocumentsClientTest extends DocumentsClientTestCase {
 
         mDevice.waitForIdle();
 
-        assertTrue(findDocument(queryString).exists());
-
         UiObject textField = findSearchViewTextField();
+        int tryLimit = 3;
+
+        textField.waitForExists(TIMEOUT);
         assertTrue(textField.exists());
+
+        while (tryLimit-- > 0) {
+            if (queryString.equals(textField.getText())) {
+                // start search, hide IME
+                mDevice.pressEnter();
+                break;
+            } else {
+                SystemClock.sleep(500);
+            }
+        }
+
         assertEquals(queryString, textField.getText());
+
+        assertTrue(findDocument(queryString).exists());
     }
 
     public void testGetContent_returnsResultToCallingActivity() throws Exception {
@@ -795,8 +822,9 @@ public class DocumentsClientTest extends DocumentsClientTestCase {
         mActivity.startActivityForResult(intent, REQUEST_CODE);
         mDevice.waitForIdle();
 
-        // assert the default root is internal storage root
-        assertToolbarTitleEquals(getDeviceName());
+        // assert toolbar title should be set to either device name or "Internal storage".
+        assertTrue(checkToolbarTitleEquals(getDeviceName())
+            || checkToolbarTitleEquals(DEFAULT_DEVICE_NAME));
 
         // no Downloads root
         assertFalse(findRoot("Downloads").exists());
