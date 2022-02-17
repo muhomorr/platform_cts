@@ -81,6 +81,13 @@ public abstract class BaseDefaultPermissionGrantPolicyTest extends BusinessLogic
     public abstract Set<String> getRuntimePermissionNames(List<PackageInfo> packageInfos);
 
     /**
+     * Return the names of all the packages whose permissions can always be granted as fixed.
+     */
+    public Set<String> getGrantAsFixedPackageNames(ArrayMap<String, PackageInfo> packagesToVerify) {
+        return Collections.emptySet();
+    }
+
+    /**
      * Returns whether the permission name, as defined in
      * {@link PermissionManager.SplitPermissionInfo#getNewPermissions()}
      * should be considered a violation.
@@ -103,6 +110,12 @@ public abstract class BaseDefaultPermissionGrantPolicyTest extends BusinessLogic
         // Add split permissions that were split from non-runtime permissions
         if (ApiLevelUtil.isAtLeast(Build.VERSION_CODES.Q)) {
             addSplitFromNonDangerousPermissions(packagesToVerify, pregrantUidStates);
+        }
+
+        if (ApiLevelUtil.isAtLeast(Build.VERSION_CODES.TIRAMISU)
+                || ApiLevelUtil.codenameStartsWith("T")) {
+            addImplicitlyGrantedPermission(Manifest.permission.POST_NOTIFICATIONS,
+                    Build.VERSION_CODES.TIRAMISU, packagesToVerify, pregrantUidStates);
         }
 
         // Add exceptions
@@ -507,6 +520,37 @@ public abstract class BaseDefaultPermissionGrantPolicyTest extends BusinessLogic
         }
     }
 
+    /**
+     * Add a permission which is granted, if it is implicitly added to a package
+     * @param permissionToAdd The permission to be added
+     * @param targetSdk The targetSDK below which the permission is added in
+     * @param packageInfos The packageInfos to be checked
+     * @param outUidStates The state to be modified
+     */
+    public static void addImplicitlyGrantedPermission(String permissionToAdd, int targetSdk,
+            Map<String, PackageInfo> packageInfos, SparseArray<UidState> outUidStates) {
+        for (PackageInfo pkg : packageInfos.values()) {
+            if (pkg.applicationInfo.targetSdkVersion >= targetSdk) {
+                continue;
+            }
+            for (String perm: pkg.requestedPermissions) {
+                if (perm.equals(permissionToAdd)) {
+                    int uid = pkg.applicationInfo.uid;
+                    UidState uidState = outUidStates.get(uid);
+                    if (uidState != null
+                            && uidState.grantedPermissions.containsKey(permissionToAdd)) {
+                        // permission is already granted. Don't override the grant-state.
+                        continue;
+                    }
+
+                    appendPackagePregrantedPerms(pkg, "permission " + permissionToAdd
+                                    + " is granted to pre-" + targetSdk + " apps", false,
+                            Collections.singleton(permissionToAdd), outUidStates);
+                }
+            }
+        }
+    }
+
     public static void appendPackagePregrantedPerms(PackageInfo packageInfo, String reason,
             boolean fixed, Set<String> pregrantedPerms, SparseArray<UidState> outUidStates) {
         final int uid = packageInfo.applicationInfo.uid;
@@ -532,9 +576,10 @@ public abstract class BaseDefaultPermissionGrantPolicyTest extends BusinessLogic
         }
     }
 
-    public void checkDefaultGrantsInCorrectState(Map<String, PackageInfo> packagesToVerify,
+    public void checkDefaultGrantsInCorrectState(ArrayMap<String, PackageInfo> packagesToVerify,
             SparseArray<UidState> pregrantUidStates,
             Map<String, ArrayMap<String, ArraySet<String>>> violations) {
+        Set<String> grantAsFixedPackageNames = getGrantAsFixedPackageNames(packagesToVerify);
         PackageManager packageManager = getInstrumentation().getContext().getPackageManager();
         for (PackageInfo packageInfo : packagesToVerify.values()) {
             final int uid = packageInfo.applicationInfo.uid;
@@ -576,7 +621,8 @@ public abstract class BaseDefaultPermissionGrantPolicyTest extends BusinessLogic
 
                 setPermissionGrantState(packageInfo.packageName, permission, false);
 
-                Boolean fixed = uidState.grantedPermissions.valueAt(i);
+                Boolean fixed = grantAsFixedPackageNames.contains(packageInfo.packageName)
+                        || uidState.grantedPermissions.valueAt(i);
 
                 // Weaker grant is fine, e.g. not-fixed instead of fixed.
                 if (!fixed && packageManager.checkPermission(permission, packageInfo.packageName)

@@ -16,27 +16,60 @@
 
 package android.content.pm.cts;
 
+import static android.content.Context.RECEIVER_EXPORTED;
+import static android.content.pm.Checksum.TYPE_PARTIAL_MERKLE_ROOT_1M_SHA256;
+import static android.content.pm.Checksum.TYPE_WHOLE_MERKLE_ROOT_4K_SHA256;
 import static android.content.pm.PackageInstaller.DATA_LOADER_TYPE_INCREMENTAL;
 import static android.content.pm.PackageInstaller.DATA_LOADER_TYPE_NONE;
 import static android.content.pm.PackageInstaller.DATA_LOADER_TYPE_STREAMING;
+import static android.content.pm.PackageInstaller.EXTRA_DATA_LOADER_TYPE;
+import static android.content.pm.PackageInstaller.EXTRA_SESSION_ID;
 import static android.content.pm.PackageInstaller.LOCATION_DATA_APP;
+import static android.content.pm.PackageManager.EXTRA_VERIFICATION_ID;
+import static android.content.pm.PackageManager.EXTRA_VERIFICATION_ROOT_HASH;
+import static android.content.pm.PackageManager.GET_SHARED_LIBRARY_FILES;
+import static android.content.pm.PackageManager.GET_SIGNING_CERTIFICATES;
+import static android.content.pm.PackageManager.MATCH_STATIC_SHARED_AND_SDK_LIBRARIES;
+import static android.content.pm.PackageManager.VERIFICATION_ALLOW;
+import static android.content.pm.PackageManager.VERIFICATION_REJECT;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import android.app.UiAutomation;
+import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
+import android.content.pm.ApkChecksum;
+import android.content.pm.ApplicationInfo;
 import android.content.pm.DataLoaderParams;
+import android.content.pm.PackageInfo;
 import android.content.pm.PackageInstaller;
 import android.content.pm.PackageInstaller.SessionParams;
 import android.content.pm.PackageManager;
+import android.content.pm.SharedLibraryInfo;
+import android.content.pm.Signature;
+import android.content.pm.SigningInfo;
 import android.content.pm.cts.util.AbandonAllPackageSessionsRule;
+import android.os.ConditionVariable;
 import android.os.ParcelFileDescriptor;
+import android.os.Process;
+import android.os.UserHandle;
 import android.platform.test.annotations.AppModeFull;
+import android.util.PackageUtils;
 
 import androidx.test.InstrumentationRegistry;
+
+import com.android.internal.util.ConcurrentUtils;
+import com.android.internal.util.HexDump;
+
+import libcore.util.HexEncoding;
 
 import org.junit.After;
 import org.junit.Before;
@@ -54,15 +87,23 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.security.cert.CertificateEncodingException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Optional;
 import java.util.Random;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 @RunWith(Parameterized.class)
 @AppModeFull
 public class PackageManagerShellCommandTest {
     private static final String TEST_APP_PACKAGE = "com.example.helloworld";
+
+    private static final String CTS_PACKAGE_NAME = "android.content.cts";
 
     private static final String TEST_APK_PATH = "/data/local/tmp/cts/content/";
     private static final String TEST_HW5 = "HelloWorld5.apk";
@@ -77,6 +118,35 @@ public class PackageManagerShellCommandTest {
     private static final String TEST_HW7_SPLIT2 = "HelloWorld7_xhdpi-v4.apk";
     private static final String TEST_HW7_SPLIT3 = "HelloWorld7_xxhdpi-v4.apk";
     private static final String TEST_HW7_SPLIT4 = "HelloWorld7_xxxhdpi-v4.apk";
+
+    private static final String TEST_SDK1_PACKAGE = "com.test.sdk1_1";
+    private static final String TEST_SDK1_MAJOR_VERSION2_PACKAGE = "com.test.sdk1_2";
+    private static final String TEST_SDK2_PACKAGE = "com.test.sdk2_2";
+    private static final String TEST_SDK3_PACKAGE = "com.test.sdk3_3";
+    private static final String TEST_SDK_USER_PACKAGE = "com.test.sdk.user";
+
+    private static final String TEST_SDK1_NAME = "com.test.sdk1";
+    private static final String TEST_SDK2_NAME = "com.test.sdk2";
+    private static final String TEST_SDK3_NAME = "com.test.sdk3";
+
+    private static final String TEST_SDK1 = "HelloWorldSdk1.apk";
+    private static final String TEST_SDK1_UPDATED = "HelloWorldSdk1Updated.apk";
+    private static final String TEST_SDK1_MAJOR_VERSION2 = "HelloWorldSdk1MajorVersion2.apk";
+    private static final String TEST_SDK1_DIFFERENT_SIGNER = "HelloWorldSdk1DifferentSigner.apk";
+    private static final String TEST_SDK2 = "HelloWorldSdk2.apk";
+    private static final String TEST_SDK2_UPDATED = "HelloWorldSdk2Updated.apk";
+    private static final String TEST_USING_SDK1 = "HelloWorldUsingSdk1.apk";
+    private static final String TEST_USING_SDK1_AND_SDK2 = "HelloWorldUsingSdk1And2.apk";
+
+    private static final String TEST_SDK3_USING_SDK1 = "HelloWorldSdk3UsingSdk1.apk";
+    private static final String TEST_SDK3_USING_SDK1_AND_SDK2 = "HelloWorldSdk3UsingSdk1And2.apk";
+    private static final String TEST_USING_SDK3 = "HelloWorldUsingSdk3.apk";
+
+    private static final String TEST_HW_NO_APP_STORAGE = "HelloWorldNoAppStorage.apk";
+
+    private static final String PACKAGE_MIME_TYPE = "application/vnd.android.package-archive";
+
+    private static final long DEFAULT_STREAMING_VERIFICATION_TIMEOUT = 3 * 1000;
 
     @Rule
     public AbandonAllPackageSessionsRule mAbandonSessionsRule = new AbandonAllPackageSessionsRule();
@@ -94,9 +164,20 @@ public class PackageManagerShellCommandTest {
     private boolean mIncremental = false;
     private String mInstall = "";
     private String mPackageVerifier = null;
+    private String mUnusedStaticSharedLibsMinCachePeriod = null;
+    private long mStreamingVerificationTimeoutMs = DEFAULT_STREAMING_VERIFICATION_TIMEOUT;
+    private int mSecondUser = -1;
 
     private static PackageInstaller getPackageInstaller() {
-        return InstrumentationRegistry.getContext().getPackageManager().getPackageInstaller();
+        return getPackageManager().getPackageInstaller();
+    }
+
+    private static PackageManager getPackageManager() {
+        return InstrumentationRegistry.getContext().getPackageManager();
+    }
+
+    private static Context getContext() {
+        return InstrumentationRegistry.getContext();
     }
 
     private static UiAutomation getUiAutomation() {
@@ -170,9 +251,25 @@ public class PackageManagerShellCommandTest {
         uninstallPackageSilently(TEST_APP_PACKAGE);
         assertFalse(isAppInstalled(TEST_APP_PACKAGE));
 
-        // Disable the package verifier to avoid the dialog when installing an app.
+        uninstallPackageSilently(TEST_SDK_USER_PACKAGE);
+        uninstallPackageSilently(TEST_SDK3_PACKAGE);
+        uninstallPackageSilently(TEST_SDK2_PACKAGE);
+        uninstallPackageSilently(TEST_SDK1_PACKAGE);
+        uninstallPackageSilently(TEST_SDK1_MAJOR_VERSION2_PACKAGE);
+
         mPackageVerifier = executeShellCommand("settings get global verifier_verify_adb_installs");
+        // Disable the package verifier for non-incremental installations to avoid the dialog
+        // when installing an app.
         executeShellCommand("settings put global verifier_verify_adb_installs 0");
+
+        mUnusedStaticSharedLibsMinCachePeriod = executeShellCommand(
+                "settings get global unused_static_shared_lib_min_cache_period");
+
+        try {
+            mStreamingVerificationTimeoutMs = Long.parseUnsignedLong(
+                    executeShellCommand("settings get global streaming_verifier_timeout"));
+        } catch (NumberFormatException ignore) {
+        }
     }
 
     @After
@@ -181,8 +278,26 @@ public class PackageManagerShellCommandTest {
         assertFalse(isAppInstalled(TEST_APP_PACKAGE));
         assertEquals(null, getSplits(TEST_APP_PACKAGE));
 
-        // Reset the package verifier setting to its original value.
+        uninstallPackageSilently(TEST_SDK_USER_PACKAGE);
+        uninstallPackageSilently(TEST_SDK3_PACKAGE);
+        uninstallPackageSilently(TEST_SDK2_PACKAGE);
+        uninstallPackageSilently(TEST_SDK1_PACKAGE);
+        uninstallPackageSilently(TEST_SDK1_MAJOR_VERSION2_PACKAGE);
+
+        // Reset the global settings to their original values.
         executeShellCommand("settings put global verifier_verify_adb_installs " + mPackageVerifier);
+        executeShellCommand("settings put global unused_static_shared_lib_min_cache_period "
+                + mUnusedStaticSharedLibsMinCachePeriod);
+
+        // Set the test override to invalid.
+        setSystemProperty("debug.pm.uses_sdk_library_default_cert_digest", "invalid");
+        setSystemProperty("debug.pm.prune_unused_shared_libraries_delay", "invalid");
+        setSystemProperty("debug.pm.adb_verifier_override_package", "invalid");
+
+        if (mSecondUser != -1) {
+            stopUser(mSecondUser);
+            removeUser(mSecondUser);
+        }
     }
 
     private boolean checkIncrementalDeliveryFeature() {
@@ -575,6 +690,870 @@ public class PackageManagerShellCommandTest {
         }
     }
 
+    @Test
+    public void testSdkInstallAndUpdate() throws Exception {
+        installPackage(TEST_SDK1);
+        assertTrue(isSdkInstalled(TEST_SDK1_NAME, 1));
+
+        // Same APK.
+        installPackage(TEST_SDK1);
+
+        // Updated APK.
+        installPackage(TEST_SDK1_UPDATED);
+
+        // Reverted APK.
+        installPackage(TEST_SDK1);
+
+        assertTrue(isSdkInstalled(TEST_SDK1_NAME, 1));
+    }
+
+    @Test
+    public void testSdkInstallMultipleMajorVersions() throws Exception {
+        // Major version 1.
+        installPackage(TEST_SDK1);
+        assertTrue(isSdkInstalled(TEST_SDK1_NAME, 1));
+
+        // Major version 2.
+        installPackage(TEST_SDK1_MAJOR_VERSION2);
+
+        assertTrue(isSdkInstalled(TEST_SDK1_NAME, 1));
+        assertTrue(isSdkInstalled(TEST_SDK1_NAME, 2));
+    }
+
+    @Test
+    public void testSdkInstallMultipleMinorVersionsWrongSignature() throws Exception {
+        // Major version 1.
+        installPackage(TEST_SDK1);
+        assertTrue(isSdkInstalled(TEST_SDK1_NAME, 1));
+
+        // Major version 1, different signer.
+        installPackage(TEST_SDK1_DIFFERENT_SIGNER,
+                "Failure [INSTALL_FAILED_UPDATE_INCOMPATIBLE: Existing package com.test.sdk1_1 "
+                        + "signatures do not match newer version");
+        assertTrue(isSdkInstalled(TEST_SDK1_NAME, 1));
+    }
+
+    @Test
+    public void testSdkInstallMultipleMajorVersionsWrongSignature() throws Exception {
+        // Major version 1.
+        installPackage(TEST_SDK1_DIFFERENT_SIGNER);
+        assertTrue(isSdkInstalled(TEST_SDK1_NAME, 1));
+
+        // Major version 2.
+        installPackage(TEST_SDK1_MAJOR_VERSION2,
+                "Failure [INSTALL_FAILED_UPDATE_INCOMPATIBLE: Existing package com.test.sdk1_1 "
+                        + "signatures do not match newer version");
+
+        assertTrue(isSdkInstalled(TEST_SDK1_NAME, 1));
+    }
+
+    @Test
+    public void testSdkInstallAndUpdateTwoMajorVersions() throws Exception {
+        installPackage(TEST_SDK1);
+        assertTrue(isSdkInstalled(TEST_SDK1_NAME, 1));
+
+        installPackage(TEST_SDK2);
+        assertTrue(isSdkInstalled(TEST_SDK1_NAME, 1));
+        assertTrue(isSdkInstalled(TEST_SDK2_NAME, 2));
+
+        // Same APK.
+        installPackage(TEST_SDK1);
+        installPackage(TEST_SDK2);
+
+        // Updated APK.
+        installPackage(TEST_SDK1_UPDATED);
+        installPackage(TEST_SDK2_UPDATED);
+
+        // Reverted APK.
+        installPackage(TEST_SDK1);
+        installPackage(TEST_SDK2);
+
+        assertTrue(isSdkInstalled(TEST_SDK1_NAME, 1));
+        assertTrue(isSdkInstalled(TEST_SDK2_NAME, 2));
+    }
+
+    @Test
+    public void testAppUsingSdkInstallAndUpdate() throws Exception {
+        // Try to install without required SDK1.
+        installPackage(TEST_USING_SDK1, "Failure [INSTALL_FAILED_MISSING_SHARED_LIBRARY");
+        assertFalse(isAppInstalled(TEST_SDK_USER_PACKAGE));
+
+        // Now install the required SDK1.
+        installPackage(TEST_SDK1);
+        assertTrue(isSdkInstalled(TEST_SDK1_NAME, 1));
+
+        setSystemProperty("debug.pm.uses_sdk_library_default_cert_digest",
+                getPackageCertDigest(TEST_SDK1_PACKAGE));
+
+        // Install and uninstall.
+        installPackage(TEST_USING_SDK1);
+        uninstallPackageSilently(TEST_SDK_USER_PACKAGE);
+
+        // Update SDK1.
+        installPackage(TEST_SDK1_UPDATED);
+
+        // Install again.
+        installPackage(TEST_USING_SDK1);
+
+        // Check resolution API.
+        getUiAutomation().adoptShellPermissionIdentity();
+        try {
+            ApplicationInfo appInfo = getPackageManager().getApplicationInfo(TEST_SDK_USER_PACKAGE,
+                    PackageManager.ApplicationInfoFlags.of(GET_SHARED_LIBRARY_FILES));
+            assertEquals(1, appInfo.sharedLibraryInfos.size());
+            SharedLibraryInfo libInfo = appInfo.sharedLibraryInfos.get(0);
+            assertEquals("com.test.sdk1", libInfo.getName());
+            assertEquals(1, libInfo.getLongVersion());
+        } finally {
+            getUiAutomation().dropShellPermissionIdentity();
+        }
+
+        // Try to install without required SDK2.
+        installPackage(TEST_USING_SDK1_AND_SDK2, "Failure [INSTALL_FAILED_MISSING_SHARED_LIBRARY");
+
+        // Now install the required SDK2.
+        installPackage(TEST_SDK2);
+        assertTrue(isSdkInstalled(TEST_SDK1_NAME, 1));
+        assertTrue(isSdkInstalled(TEST_SDK2_NAME, 2));
+
+        // Install and uninstall.
+        installPackage(TEST_USING_SDK1_AND_SDK2);
+        uninstallPackageSilently(TEST_SDK_USER_PACKAGE);
+
+        // Update both SDKs.
+        installPackage(TEST_SDK1_UPDATED);
+        installPackage(TEST_SDK2_UPDATED);
+        assertTrue(isSdkInstalled(TEST_SDK1_NAME, 1));
+        assertTrue(isSdkInstalled(TEST_SDK2_NAME, 2));
+
+        // Install again.
+        installPackage(TEST_USING_SDK1_AND_SDK2);
+
+        // Check resolution API.
+        getUiAutomation().adoptShellPermissionIdentity();
+        try {
+            ApplicationInfo appInfo = getPackageManager().getApplicationInfo(TEST_SDK_USER_PACKAGE,
+                    PackageManager.ApplicationInfoFlags.of(GET_SHARED_LIBRARY_FILES));
+            assertEquals(2, appInfo.sharedLibraryInfos.size());
+            assertEquals("com.test.sdk1", appInfo.sharedLibraryInfos.get(0).getName());
+            assertEquals(1, appInfo.sharedLibraryInfos.get(0).getLongVersion());
+            assertEquals("com.test.sdk2", appInfo.sharedLibraryInfos.get(1).getName());
+            assertEquals(2, appInfo.sharedLibraryInfos.get(1).getLongVersion());
+        } finally {
+            getUiAutomation().dropShellPermissionIdentity();
+        }
+    }
+
+    @Test
+    public void testInstallFailsMismatchingCertificate() throws Exception {
+        // Install the required SDK1.
+        installPackage(TEST_SDK1);
+        assertTrue(isSdkInstalled(TEST_SDK1_NAME, 1));
+
+        // Try to install the package with empty digest.
+        installPackage(TEST_USING_SDK1, "Failure [INSTALL_FAILED_MISSING_SHARED_LIBRARY");
+    }
+
+    @Test
+    public void testUninstallSdkWhileAppUsing() throws Exception {
+        // Install the required SDK1.
+        installPackage(TEST_SDK1);
+        assertTrue(isSdkInstalled(TEST_SDK1_NAME, 1));
+
+        setSystemProperty("debug.pm.uses_sdk_library_default_cert_digest",
+                getPackageCertDigest(TEST_SDK1_PACKAGE));
+
+        // Install the package.
+        installPackage(TEST_USING_SDK1);
+
+        uninstallPackage(TEST_SDK1_PACKAGE, "Failure [DELETE_FAILED_USED_SHARED_LIBRARY]");
+    }
+
+    @Test
+    public void testGetSharedLibraries() throws Exception {
+        // Install the SDK1.
+        installPackage(TEST_SDK1);
+        {
+            List<SharedLibraryInfo> libs = getSharedLibraries();
+            SharedLibraryInfo sdk1 = findLibrary(libs, "com.test.sdk1", 1);
+            assertNotNull(sdk1);
+            SharedLibraryInfo sdk2 = findLibrary(libs, "com.test.sdk2", 2);
+            assertNull(sdk2);
+        }
+
+        // Install the SDK2.
+        installPackage(TEST_SDK2);
+        {
+            List<SharedLibraryInfo> libs = getSharedLibraries();
+            SharedLibraryInfo sdk1 = findLibrary(libs, "com.test.sdk1", 1);
+            assertNotNull(sdk1);
+            SharedLibraryInfo sdk2 = findLibrary(libs, "com.test.sdk2", 2);
+            assertNotNull(sdk2);
+        }
+
+        // Install and uninstall the user package.
+        {
+            setSystemProperty("debug.pm.uses_sdk_library_default_cert_digest",
+                    getPackageCertDigest(TEST_SDK1_PACKAGE));
+
+            installPackage(TEST_USING_SDK1_AND_SDK2);
+
+            List<SharedLibraryInfo> libs = getSharedLibraries();
+            SharedLibraryInfo sdk1 = findLibrary(libs, "com.test.sdk1", 1);
+            assertNotNull(sdk1);
+            SharedLibraryInfo sdk2 = findLibrary(libs, "com.test.sdk2", 2);
+            assertNotNull(sdk2);
+
+            assertEquals(TEST_SDK_USER_PACKAGE,
+                    sdk1.getDependentPackages().get(0).getPackageName());
+            assertEquals(TEST_SDK_USER_PACKAGE,
+                    sdk2.getDependentPackages().get(0).getPackageName());
+
+            uninstallPackageSilently(TEST_SDK_USER_PACKAGE);
+        }
+
+        // Uninstall the SDK1.
+        uninstallPackageSilently(TEST_SDK1_PACKAGE);
+        {
+            List<SharedLibraryInfo> libs = getSharedLibraries();
+            SharedLibraryInfo sdk1 = findLibrary(libs, "com.test.sdk1", 1);
+            assertNull(sdk1);
+            SharedLibraryInfo sdk2 = findLibrary(libs, "com.test.sdk2", 2);
+            assertNotNull(sdk2);
+        }
+
+        // Uninstall the SDK2.
+        uninstallPackageSilently(TEST_SDK2_PACKAGE);
+        {
+            List<SharedLibraryInfo> libs = getSharedLibraries();
+            SharedLibraryInfo sdk1 = findLibrary(libs, "com.test.sdk1", 1);
+            assertNull(sdk1);
+            SharedLibraryInfo sdk2 = findLibrary(libs, "com.test.sdk2", 2);
+            assertNull(sdk2);
+        }
+    }
+
+    @Test
+    public void testUninstallUnusedSdks() throws Exception {
+        installPackage(TEST_SDK1);
+        installPackage(TEST_SDK2);
+
+        setSystemProperty("debug.pm.uses_sdk_library_default_cert_digest",
+                getPackageCertDigest(TEST_SDK1_PACKAGE));
+        installPackage(TEST_USING_SDK1_AND_SDK2);
+
+        setSystemProperty("debug.pm.prune_unused_shared_libraries_delay", "0");
+        executeShellCommand("settings put global unused_static_shared_lib_min_cache_period 0");
+        uninstallPackageSilently(TEST_SDK_USER_PACKAGE);
+
+        // Wait for 3secs max.
+        for (int i = 0; i < 30; ++i) {
+            if (!isSdkInstalled(TEST_SDK1_NAME, 1) && !isSdkInstalled(TEST_SDK2_NAME, 2)) {
+                break;
+            }
+            final int beforeRetryDelayMs = 100;
+            Thread.currentThread().sleep(beforeRetryDelayMs);
+        }
+        assertFalse(isSdkInstalled(TEST_SDK1_NAME, 1));
+        assertFalse(isSdkInstalled(TEST_SDK2_NAME, 2));
+    }
+
+    @Test
+    public void testAppUsingSdkUsingSdkInstallAndUpdate() throws Exception {
+        // Try to install without required SDK1.
+        installPackage(TEST_USING_SDK3, "Failure [INSTALL_FAILED_MISSING_SHARED_LIBRARY");
+        assertFalse(isAppInstalled(TEST_SDK_USER_PACKAGE));
+
+        // Try to install SDK3 without required SDK1.
+        installPackage(TEST_SDK3_USING_SDK1, "Failure [INSTALL_FAILED_MISSING_SHARED_LIBRARY");
+        assertFalse(isSdkInstalled(TEST_SDK3_NAME, 3));
+
+        // Now install the required SDK1.
+        installPackage(TEST_SDK1);
+        assertTrue(isSdkInstalled(TEST_SDK1_NAME, 1));
+
+        setSystemProperty("debug.pm.uses_sdk_library_default_cert_digest",
+                getPackageCertDigest(TEST_SDK1_PACKAGE));
+
+        // Now install the required SDK3.
+        installPackage(TEST_SDK3_USING_SDK1);
+        assertTrue(isSdkInstalled(TEST_SDK3_NAME, 3));
+
+        // Install and uninstall.
+        installPackage(TEST_USING_SDK3);
+        uninstallPackageSilently(TEST_SDK_USER_PACKAGE);
+
+        // Update SDK1.
+        installPackage(TEST_SDK1_UPDATED);
+
+        // Install again.
+        installPackage(TEST_USING_SDK3);
+
+        // Check resolution API.
+        getUiAutomation().adoptShellPermissionIdentity();
+        try {
+            ApplicationInfo appInfo = getPackageManager().getApplicationInfo(TEST_SDK_USER_PACKAGE,
+                    PackageManager.ApplicationInfoFlags.of(GET_SHARED_LIBRARY_FILES));
+            assertEquals(1, appInfo.sharedLibraryInfos.size());
+            SharedLibraryInfo libInfo = appInfo.sharedLibraryInfos.get(0);
+            assertEquals("com.test.sdk3", libInfo.getName());
+            assertEquals(3, libInfo.getLongVersion());
+        } finally {
+            getUiAutomation().dropShellPermissionIdentity();
+        }
+
+        // Try to install updated SDK3 without required SDK2.
+        installPackage(TEST_SDK3_USING_SDK1_AND_SDK2,
+                "Failure [INSTALL_FAILED_MISSING_SHARED_LIBRARY");
+
+        // Now install the required SDK2.
+        installPackage(TEST_SDK2);
+        assertTrue(isSdkInstalled(TEST_SDK1_NAME, 1));
+        assertTrue(isSdkInstalled(TEST_SDK2_NAME, 2));
+
+        installPackage(TEST_SDK3_USING_SDK1_AND_SDK2);
+        assertTrue(isSdkInstalled(TEST_SDK3_NAME, 3));
+
+        // Install and uninstall.
+        installPackage(TEST_USING_SDK3);
+        uninstallPackageSilently(TEST_SDK_USER_PACKAGE);
+
+        // Update both SDKs.
+        installPackage(TEST_SDK1_UPDATED);
+        installPackage(TEST_SDK2_UPDATED);
+        assertTrue(isSdkInstalled(TEST_SDK1_NAME, 1));
+        assertTrue(isSdkInstalled(TEST_SDK2_NAME, 2));
+
+        // Install again.
+        installPackage(TEST_USING_SDK3);
+
+        // Check resolution API.
+        getUiAutomation().adoptShellPermissionIdentity();
+        try {
+            ApplicationInfo appInfo = getPackageManager().getApplicationInfo(TEST_SDK_USER_PACKAGE,
+                    PackageManager.ApplicationInfoFlags.of(GET_SHARED_LIBRARY_FILES));
+            assertEquals(1, appInfo.sharedLibraryInfos.size());
+            assertEquals("com.test.sdk3", appInfo.sharedLibraryInfos.get(0).getName());
+            assertEquals(3, appInfo.sharedLibraryInfos.get(0).getLongVersion());
+        } finally {
+            getUiAutomation().dropShellPermissionIdentity();
+        }
+    }
+
+    @Test
+    public void testSdkUsingSdkInstallAndUpdate() throws Exception {
+        // Try to install without required SDK1.
+        installPackage(TEST_SDK3_USING_SDK1, "Failure [INSTALL_FAILED_MISSING_SHARED_LIBRARY");
+        assertFalse(isSdkInstalled(TEST_SDK3_NAME, 3));
+
+        // Now install the required SDK1.
+        installPackage(TEST_SDK1);
+        assertTrue(isSdkInstalled(TEST_SDK1_NAME, 1));
+
+        setSystemProperty("debug.pm.uses_sdk_library_default_cert_digest",
+                getPackageCertDigest(TEST_SDK1_PACKAGE));
+
+        // Install and uninstall.
+        installPackage(TEST_SDK3_USING_SDK1);
+        uninstallPackageSilently(TEST_SDK3_PACKAGE);
+
+        // Update SDK1.
+        installPackage(TEST_SDK1_UPDATED);
+
+        // Install again.
+        installPackage(TEST_SDK3_USING_SDK1);
+
+        // Check resolution API.
+        {
+            List<SharedLibraryInfo> libs = getSharedLibraries();
+            SharedLibraryInfo sdk3 = findLibrary(libs, "com.test.sdk3", 3);
+            assertNotNull(sdk3);
+            List<SharedLibraryInfo> deps = sdk3.getDependencies();
+            assertEquals(1, deps.size());
+            SharedLibraryInfo libInfo = deps.get(0);
+            assertEquals("com.test.sdk1", libInfo.getName());
+            assertEquals(1, libInfo.getLongVersion());
+        }
+
+        // Try to install without required SDK2.
+        installPackage(TEST_SDK3_USING_SDK1_AND_SDK2,
+                "Failure [INSTALL_FAILED_MISSING_SHARED_LIBRARY");
+
+        // Now install the required SDK2.
+        installPackage(TEST_SDK2);
+        assertTrue(isSdkInstalled(TEST_SDK1_NAME, 1));
+        assertTrue(isSdkInstalled(TEST_SDK2_NAME, 2));
+
+        // Install and uninstall.
+        installPackage(TEST_SDK3_USING_SDK1_AND_SDK2);
+        uninstallPackageSilently(TEST_SDK3_PACKAGE);
+
+        // Update both SDKs.
+        installPackage(TEST_SDK1_UPDATED);
+        installPackage(TEST_SDK2_UPDATED);
+        assertTrue(isSdkInstalled(TEST_SDK1_NAME, 1));
+        assertTrue(isSdkInstalled(TEST_SDK2_NAME, 2));
+
+        // Install again.
+        installPackage(TEST_SDK3_USING_SDK1_AND_SDK2);
+
+        // Check resolution API.
+        {
+            List<SharedLibraryInfo> libs = getSharedLibraries();
+            SharedLibraryInfo sdk3 = findLibrary(libs, "com.test.sdk3", 3);
+            assertNotNull(sdk3);
+            List<SharedLibraryInfo> deps = sdk3.getDependencies();
+            assertEquals(2, deps.size());
+            assertEquals("com.test.sdk1", deps.get(0).getName());
+            assertEquals(1, deps.get(0).getLongVersion());
+            assertEquals("com.test.sdk2", deps.get(1).getName());
+            assertEquals(2, deps.get(1).getLongVersion());
+        }
+    }
+
+    private void runPackageVerifierTest(BiConsumer<Context, Intent> onBroadcast)
+            throws Exception {
+        runPackageVerifierTest("Success", onBroadcast);
+    }
+
+    private void runPackageVerifierTest(String expectedResultStartsWith,
+            BiConsumer<Context, Intent> onBroadcast) throws Exception {
+        AtomicReference<Thread> onBroadcastThread = new AtomicReference<>();
+
+        runPackageVerifierTestSync(expectedResultStartsWith, (context, intent) -> {
+            Thread thread = new Thread(() -> onBroadcast.accept(context, intent));
+            thread.start();
+            onBroadcastThread.set(thread);
+        });
+
+        onBroadcastThread.get().join();
+    }
+
+    private void runPackageVerifierTestSync(String expectedResultStartsWith,
+            BiConsumer<Context, Intent> onBroadcast) throws Exception {
+        // Install a package.
+        installPackage(TEST_HW5);
+        assertTrue(isAppInstalled(TEST_APP_PACKAGE));
+
+        getUiAutomation().adoptShellPermissionIdentity(
+                android.Manifest.permission.PACKAGE_VERIFICATION_AGENT);
+
+        // Create a single-use broadcast receiver
+        BroadcastReceiver broadcastReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                context.unregisterReceiver(this);
+                onBroadcast.accept(context, intent);
+            }
+        };
+        // Create an intent-filter and register the receiver
+        IntentFilter intentFilter = new IntentFilter();
+        intentFilter.addAction(Intent.ACTION_PACKAGE_NEEDS_VERIFICATION);
+        intentFilter.addDataType(PACKAGE_MIME_TYPE);
+        getContext().registerReceiver(broadcastReceiver, intentFilter, RECEIVER_EXPORTED);
+
+        // Enable verification.
+        executeShellCommand("settings put global verifier_verify_adb_installs 1");
+        // Override verifier for updates of debuggable apps.
+        setSystemProperty("debug.pm.adb_verifier_override_package", CTS_PACKAGE_NAME);
+
+        // Update the package, should trigger verifier override.
+        installPackage(TEST_HW7, expectedResultStartsWith);
+    }
+
+    @Test
+    public void testPackageVerifierAllow() throws Exception {
+        AtomicInteger dataLoaderType = new AtomicInteger(-1);
+
+        runPackageVerifierTest((context, intent) -> {
+            int verificationId = intent.getIntExtra(EXTRA_VERIFICATION_ID, -1);
+            assertNotEquals(-1, verificationId);
+
+            dataLoaderType.set(intent.getIntExtra(EXTRA_DATA_LOADER_TYPE, -1));
+            int sessionId = intent.getIntExtra(EXTRA_SESSION_ID, -1);
+            assertNotEquals(-1, sessionId);
+
+            getPackageManager().verifyPendingInstall(verificationId, VERIFICATION_ALLOW);
+        });
+
+        assertEquals(mDataLoaderType, dataLoaderType.get());
+    }
+
+    @Test
+    public void testPackageVerifierReject() throws Exception {
+        AtomicInteger dataLoaderType = new AtomicInteger(-1);
+
+        runPackageVerifierTest("Failure [INSTALL_FAILED_VERIFICATION_FAILURE: Install not allowed]",
+                (context, intent) -> {
+                    int verificationId = intent.getIntExtra(EXTRA_VERIFICATION_ID, -1);
+                    assertNotEquals(-1, verificationId);
+
+                    dataLoaderType.set(intent.getIntExtra(EXTRA_DATA_LOADER_TYPE, -1));
+                    int sessionId = intent.getIntExtra(EXTRA_SESSION_ID, -1);
+                    assertNotEquals(-1, sessionId);
+
+                    getPackageManager().verifyPendingInstall(verificationId, VERIFICATION_REJECT);
+                });
+
+        assertEquals(mDataLoaderType, dataLoaderType.get());
+    }
+
+    @Test
+    public void testPackageVerifierRejectAfterTimeout() throws Exception {
+        AtomicInteger dataLoaderType = new AtomicInteger(-1);
+
+        runPackageVerifierTestSync("Success", (context, intent) -> {
+            int verificationId = intent.getIntExtra(EXTRA_VERIFICATION_ID, -1);
+            assertNotEquals(-1, verificationId);
+
+            dataLoaderType.set(intent.getIntExtra(EXTRA_DATA_LOADER_TYPE, -1));
+            int sessionId = intent.getIntExtra(EXTRA_SESSION_ID, -1);
+            assertNotEquals(-1, sessionId);
+
+            try {
+                if (mDataLoaderType == DATA_LOADER_TYPE_INCREMENTAL) {
+                    // For streaming installations, the timeout is fixed at 3secs and always
+                    // allow the install. Try to extend the timeout and then reject after
+                    // much shorter time.
+                    getPackageManager().extendVerificationTimeout(verificationId,
+                            VERIFICATION_REJECT, mStreamingVerificationTimeoutMs * 3);
+                    Thread.sleep(mStreamingVerificationTimeoutMs * 2);
+                    getPackageManager().verifyPendingInstall(verificationId,
+                            VERIFICATION_REJECT);
+                } else {
+                    getPackageManager().verifyPendingInstall(verificationId,
+                            VERIFICATION_ALLOW);
+                }
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        });
+
+        assertEquals(mDataLoaderType, dataLoaderType.get());
+    }
+
+    @Test
+    public void testPackageVerifierWithExtensionAndTimeout() throws Exception {
+        AtomicInteger dataLoaderType = new AtomicInteger(-1);
+
+        runPackageVerifierTest((context, intent) -> {
+            int verificationId = intent.getIntExtra(EXTRA_VERIFICATION_ID, -1);
+            assertNotEquals(-1, verificationId);
+
+            dataLoaderType.set(intent.getIntExtra(EXTRA_DATA_LOADER_TYPE, -1));
+            int sessionId = intent.getIntExtra(EXTRA_SESSION_ID, -1);
+            assertNotEquals(-1, sessionId);
+
+            try {
+                if (mDataLoaderType == DATA_LOADER_TYPE_INCREMENTAL) {
+                    // For streaming installations, the timeout is fixed at 3secs and always
+                    // allow the install. Try to extend the timeout and then reject after
+                    // much shorter time.
+                    getPackageManager().extendVerificationTimeout(verificationId,
+                            VERIFICATION_REJECT, mStreamingVerificationTimeoutMs * 3);
+                    Thread.sleep(mStreamingVerificationTimeoutMs * 2);
+                    getPackageManager().verifyPendingInstall(verificationId,
+                            VERIFICATION_REJECT);
+                } else {
+                    getPackageManager().verifyPendingInstall(verificationId,
+                            VERIFICATION_ALLOW);
+                }
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        });
+
+        assertEquals(mDataLoaderType, dataLoaderType.get());
+    }
+
+    @Test
+    public void testPackageVerifierWithChecksums() throws Exception {
+        AtomicInteger dataLoaderType = new AtomicInteger(-1);
+        List<ApkChecksum> checksums = new ArrayList<>();
+        StringBuilder rootHash = new StringBuilder();
+
+        runPackageVerifierTest((context, intent) -> {
+            int verificationId = intent.getIntExtra(EXTRA_VERIFICATION_ID, -1);
+            assertNotEquals(-1, verificationId);
+
+            dataLoaderType.set(intent.getIntExtra(EXTRA_DATA_LOADER_TYPE, -1));
+            int sessionId = intent.getIntExtra(EXTRA_SESSION_ID, -1);
+            assertNotEquals(-1, sessionId);
+
+            try {
+                PackageInstaller.Session session = getPackageInstaller().openSession(sessionId);
+                assertNotNull(session);
+
+                rootHash.append(intent.getStringExtra(EXTRA_VERIFICATION_ROOT_HASH));
+
+                String[] names = session.getNames();
+                assertEquals(1, names.length);
+                session.requestChecksums(names[0], 0, PackageManager.TRUST_ALL,
+                        ConcurrentUtils.DIRECT_EXECUTOR,
+                        result -> checksums.addAll(result));
+            } catch (IOException | CertificateEncodingException e) {
+                throw new RuntimeException(e);
+            }
+        });
+
+        assertEquals(mDataLoaderType, dataLoaderType.get());
+
+        assertEquals(1, checksums.size());
+
+        if (mDataLoaderType == DATA_LOADER_TYPE_INCREMENTAL) {
+            assertEquals(TYPE_WHOLE_MERKLE_ROOT_4K_SHA256, checksums.get(0).getType());
+            assertEquals(rootHash.toString(),
+                    "base.apk:" + HexDump.toHexString(checksums.get(0).getValue()));
+        } else {
+            assertEquals(TYPE_PARTIAL_MERKLE_ROOT_1M_SHA256, checksums.get(0).getType());
+        }
+    }
+
+    @Test
+    public void testGetFirstInstallTime() throws Exception {
+        final int currentUser = getContext().getUserId();
+        final long startTimeMillisForCurrentUser = System.currentTimeMillis();
+        installPackage(TEST_HW5);
+        assertTrue(isAppInstalledForUser(TEST_APP_PACKAGE, currentUser));
+        final long origFirstInstallTimeForCurrentUser = getFirstInstallTimeAsUser(
+                TEST_APP_PACKAGE, currentUser);
+        // Validate the timestamp
+        assertTrue(origFirstInstallTimeForCurrentUser > 0);
+        assertTrue(startTimeMillisForCurrentUser < origFirstInstallTimeForCurrentUser);
+        assertTrue(System.currentTimeMillis() > origFirstInstallTimeForCurrentUser);
+
+        // Install again with replace and the firstInstallTime should remain the same
+        installPackage(TEST_HW5);
+        long firstInstallTimeForCurrentUser = getFirstInstallTimeAsUser(
+                TEST_APP_PACKAGE, currentUser);
+        assertEquals(origFirstInstallTimeForCurrentUser, firstInstallTimeForCurrentUser);
+
+        // Start another user and install this test itself for that user
+        mSecondUser = createUser("Another User");
+        assertTrue(startUser(mSecondUser));
+        long startTimeMillisForSecondUser = System.currentTimeMillis();
+        installExistingPackageAsUser(getContext().getPackageName(), mSecondUser);
+        assertTrue(isAppInstalledForUser(getContext().getPackageName(), mSecondUser));
+        // Install test package with replace
+        installPackageAsUser(TEST_HW5, mSecondUser);
+        assertTrue(isAppInstalledForUser(TEST_APP_PACKAGE, mSecondUser));
+        firstInstallTimeForCurrentUser = getFirstInstallTimeAsUser(
+                TEST_APP_PACKAGE, currentUser);
+        // firstInstallTime should remain unchanged for the current user
+        assertEquals(origFirstInstallTimeForCurrentUser, firstInstallTimeForCurrentUser);
+
+        long firstInstallTimeForSecondUser = getFirstInstallTimeAsUser(
+                TEST_APP_PACKAGE, mSecondUser);
+        // firstInstallTime for the other user should be different
+        assertNotEquals(firstInstallTimeForCurrentUser, firstInstallTimeForSecondUser);
+        assertTrue(startTimeMillisForSecondUser < firstInstallTimeForSecondUser);
+        assertTrue(System.currentTimeMillis() > firstInstallTimeForSecondUser);
+
+        // Uninstall for the other user
+        uninstallPackageAsUser(TEST_APP_PACKAGE, mSecondUser);
+        assertFalse(isAppInstalledForUser(TEST_APP_PACKAGE, mSecondUser));
+        // Install test package as an existing package
+        startTimeMillisForSecondUser = System.currentTimeMillis();
+        installExistingPackageAsUser(TEST_APP_PACKAGE, mSecondUser);
+        assertTrue(isAppInstalledForUser(TEST_APP_PACKAGE, mSecondUser));
+
+        firstInstallTimeForCurrentUser = getFirstInstallTimeAsUser(
+                TEST_APP_PACKAGE, currentUser);
+        // firstInstallTime still remains unchanged for the current user
+        assertEquals(origFirstInstallTimeForCurrentUser, firstInstallTimeForCurrentUser);
+        firstInstallTimeForSecondUser = getFirstInstallTimeAsUser(TEST_APP_PACKAGE, mSecondUser);
+        // firstInstallTime for the other user should be different
+        assertNotEquals(firstInstallTimeForCurrentUser, firstInstallTimeForSecondUser);
+        assertTrue(startTimeMillisForSecondUser < firstInstallTimeForSecondUser);
+        assertTrue(System.currentTimeMillis() > firstInstallTimeForSecondUser);
+
+        // Uninstall for all users
+        uninstallPackageSilently(TEST_APP_PACKAGE);
+        assertFalse(isAppInstalledForUser(TEST_APP_PACKAGE, currentUser));
+        assertFalse(isAppInstalledForUser(TEST_APP_PACKAGE, mSecondUser));
+        // Reinstall for all users
+        installPackage(TEST_HW5);
+        assertTrue(isAppInstalledForUser(TEST_APP_PACKAGE, currentUser));
+        assertTrue(isAppInstalledForUser(TEST_APP_PACKAGE, mSecondUser));
+        firstInstallTimeForCurrentUser = getFirstInstallTimeAsUser(TEST_APP_PACKAGE, currentUser);
+        // First install time is now different because the package was fully uninstalled
+        assertNotEquals(origFirstInstallTimeForCurrentUser, firstInstallTimeForCurrentUser);
+        firstInstallTimeForSecondUser = getFirstInstallTimeAsUser(TEST_APP_PACKAGE, mSecondUser);
+        // Same firstInstallTime because package was installed for both users at the same time
+        assertEquals(firstInstallTimeForCurrentUser, firstInstallTimeForSecondUser);
+    }
+
+    private long getFirstInstallTimeAsUser(String packageName, int userId)
+            throws PackageManager.NameNotFoundException {
+        final Context contextAsUser = getContext().createContextAsUser(UserHandle.of(userId), 0);
+        final PackageManager packageManager = contextAsUser.getPackageManager();
+        final PackageInfo packageInfo = packageManager.getPackageInfo(packageName,
+                PackageManager.PackageInfoFlags.of(0));
+        return packageInfo.firstInstallTime;
+    }
+
+    @Test
+    public void testAppWithNoAppStorageUpdateSuccess() throws Exception {
+        installPackage(TEST_HW_NO_APP_STORAGE);
+        assertTrue(isAppInstalled(TEST_APP_PACKAGE));
+        // Updates that don't change value of NO_APP_DATA_STORAGE property are allowed.
+        installPackage(TEST_HW_NO_APP_STORAGE);
+        assertTrue(isAppInstalled(TEST_APP_PACKAGE));
+    }
+
+    @Test
+    public void testAppUpdateAddsNoAppDataStorageProperty() throws Exception {
+        installPackage(TEST_HW5);
+        assertTrue(isAppInstalled(TEST_APP_PACKAGE));
+        installPackage(
+                TEST_HW_NO_APP_STORAGE,
+                "Failure [INSTALL_FAILED_UPDATE_INCOMPATIBLE: Update "
+                        + "attempted to change value of "
+                        + "android.internal.PROPERTY_NO_APP_DATA_STORAGE");
+    }
+
+    @Test
+    public void testAppUpdateRemovesNoAppDataStorageProperty() throws Exception {
+        installPackage(TEST_HW_NO_APP_STORAGE);
+        assertTrue(isAppInstalled(TEST_APP_PACKAGE));
+        installPackage(
+                TEST_HW5,
+                "Failure [INSTALL_FAILED_UPDATE_INCOMPATIBLE: Update "
+                        + "attempted to change value of "
+                        + "android.internal.PROPERTY_NO_APP_DATA_STORAGE");
+    }
+
+    @Test
+    public void testNoAppDataStoragePropertyCanChangeAfterUninstall() throws Exception {
+        installPackage(TEST_HW_NO_APP_STORAGE);
+        assertTrue(isAppInstalled(TEST_APP_PACKAGE));
+        uninstallPackageSilently(TEST_APP_PACKAGE);
+        // After app is uninstalled new install can change the value of the property.
+        installPackage(TEST_HW5);
+        assertTrue(isAppInstalled(TEST_APP_PACKAGE));
+    }
+
+    @Test
+    public void testPackageFullyRemovedBroadcastAfterUninstall() throws IOException {
+        final int currentUser = getContext().getUserId();
+        // Start another user and install this test itself for that user
+        mSecondUser = createUser("Another User");
+        assertTrue(startUser(mSecondUser));
+        installExistingPackageAsUser(getContext().getPackageName(), mSecondUser);
+        installPackage(TEST_HW5);
+        assertTrue(isAppInstalledForUser(getContext().getPackageName(), currentUser));
+        assertTrue(isAppInstalledForUser(getContext().getPackageName(), mSecondUser));
+        assertTrue(isAppInstalledForUser(TEST_APP_PACKAGE, currentUser));
+        assertTrue(isAppInstalledForUser(TEST_APP_PACKAGE, mSecondUser));
+        final FullyRemovedBroadcastReceiver broadcastReceiverForCurrentUser =
+                new FullyRemovedBroadcastReceiver(TEST_APP_PACKAGE, currentUser);
+        final FullyRemovedBroadcastReceiver broadcastReceiverForSecondUser =
+                new FullyRemovedBroadcastReceiver(TEST_APP_PACKAGE, mSecondUser);
+        IntentFilter intentFilter = new IntentFilter();
+        intentFilter.addAction(Intent.ACTION_PACKAGE_FULLY_REMOVED);
+        intentFilter.addDataScheme("package");
+        getContext().registerReceiver(
+                broadcastReceiverForCurrentUser, intentFilter, RECEIVER_EXPORTED);
+        getUiAutomation().adoptShellPermissionIdentity(
+                android.Manifest.permission.INTERACT_ACROSS_USERS,
+                android.Manifest.permission.INTERACT_ACROSS_USERS_FULL);
+        try {
+            getContext().createContextAsUser(UserHandle.of(mSecondUser), 0).registerReceiver(
+                    broadcastReceiverForSecondUser, intentFilter, RECEIVER_EXPORTED);
+        } finally {
+            getUiAutomation().dropShellPermissionIdentity();
+        }
+        // Verify that uninstall with "keep data" doesn't send the broadcast
+        uninstallPackageWithKeepData(TEST_APP_PACKAGE, mSecondUser);
+        assertFalse(broadcastReceiverForSecondUser.isBroadcastReceived());
+        installExistingPackageAsUser(TEST_APP_PACKAGE, mSecondUser);
+        // Verify that uninstall on a specific user only sends the broadcast to the user
+        uninstallPackageAsUser(TEST_APP_PACKAGE, mSecondUser);
+        assertTrue(broadcastReceiverForSecondUser.isBroadcastReceived());
+        assertFalse(broadcastReceiverForCurrentUser.isBroadcastReceived());
+        uninstallPackageSilently(TEST_APP_PACKAGE);
+        assertTrue(broadcastReceiverForCurrentUser.isBroadcastReceived());
+    }
+
+    @Test
+    public void testQuerySupplementalProcessPackageName() throws Exception {
+        final PackageManager pm = getPackageManager();
+        final String name = pm.getSupplementalProcessPackageName();
+        assertNotNull(name);
+        final ApplicationInfo info = pm.getApplicationInfo(
+                name, PackageManager.ApplicationInfoFlags.of(PackageManager.MATCH_SYSTEM_ONLY));
+        assertEquals(ApplicationInfo.FLAG_SYSTEM, info.flags & ApplicationInfo.FLAG_SYSTEM);
+        assertTrue(info.sourceDir.startsWith("/apex/com.android.supplementalprocess"));
+    }
+
+    @Test
+    public void testGetPackagesForUid_supplementalProcessUid() throws Exception {
+        final PackageManager pm = getPackageManager();
+        final String[] pkgs = pm.getPackagesForUid(Process.toSupplementalUid(10239));
+        assertEquals(1, pkgs.length);
+        assertEquals(pm.getSupplementalProcessPackageName(), pkgs[0]);
+    }
+
+    @Test
+    public void testGetNameForUid_supplementalProcessUid() throws Exception {
+        final PackageManager pm = getPackageManager();
+        final String pkgName = pm.getNameForUid(Process.toSupplementalUid(11543));
+        assertEquals(pm.getSupplementalProcessPackageName(), pkgName);
+    }
+
+    @Test
+    public void testGetNamesForUids_supplementalProcessUids() throws Exception {
+        final PackageManager pm = getPackageManager();
+        final int[] uids = new int[]{Process.toSupplementalUid(10101)};
+        final String[] names = pm.getNamesForUids(uids);
+        assertEquals(1, names.length);
+        assertEquals(pm.getSupplementalProcessPackageName(), names[0]);
+    }
+
+    private static class FullyRemovedBroadcastReceiver extends BroadcastReceiver {
+        private final String mTargetPackage;
+        private final int mTargetUserId;
+        private final ConditionVariable mUserReceivedBroadcast;
+        FullyRemovedBroadcastReceiver(String packageName, int targetUserId) {
+            mTargetPackage = packageName;
+            mTargetUserId = targetUserId;
+            mUserReceivedBroadcast = new ConditionVariable();
+            mUserReceivedBroadcast.close();
+        }
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            context.unregisterReceiver(this);
+            final String packageName = intent.getData().getEncodedSchemeSpecificPart();
+            final int userId = context.getUserId();
+            if (intent.getAction().equals(Intent.ACTION_PACKAGE_FULLY_REMOVED)
+                    && packageName.equals(mTargetPackage) && userId == mTargetUserId) {
+                mUserReceivedBroadcast.open();
+            }
+        }
+        public boolean isBroadcastReceived() {
+            return mUserReceivedBroadcast.block(2000);
+        }
+    }
+
+    private List<SharedLibraryInfo> getSharedLibraries() {
+        getUiAutomation().adoptShellPermissionIdentity();
+        try {
+            return getPackageManager().getSharedLibraries(PackageManager.PackageInfoFlags.of(0));
+        } finally {
+            getUiAutomation().dropShellPermissionIdentity();
+        }
+    }
+
+    private SharedLibraryInfo findLibrary(List<SharedLibraryInfo> libs, String name, long version) {
+        for (int i = 0, size = libs.size(); i < size; ++i) {
+            SharedLibraryInfo lib = libs.get(i);
+            if (name.equals(lib.getName()) && version == lib.getLongVersion()) {
+                return lib;
+            }
+        }
+        return null;
+    }
+
     private String createUpdateSession(String packageName) throws IOException {
         return createSession("-p " + packageName);
     }
@@ -631,6 +1610,39 @@ public class PackageManagerShellCommandTest {
                 .anyMatch(line -> line.substring(prefixLength).equals(packageName));
     }
 
+    private boolean isAppInstalledForUser(String packageName, int userId) throws IOException {
+        final String commandResult = executeShellCommand(
+                String.format("pm list packages --user %d %s", userId, packageName)
+        );
+        return Arrays.stream(commandResult.split("\\r?\\n"))
+                .anyMatch(line -> line.equals("package:" + packageName));
+    }
+
+    private boolean isSdkInstalled(String name, int versionMajor) throws IOException {
+        final String sdkString = name + ":" + versionMajor;
+        final String commandResult = executeShellCommand("pm list sdks");
+        final int prefixLength = "sdk:".length();
+        return Arrays.stream(commandResult.split("\\r?\\n"))
+                .anyMatch(line -> line.length() > prefixLength && line.substring(
+                        prefixLength).equals(sdkString));
+    }
+
+    private String getPackageCertDigest(String packageName) throws Exception {
+        getUiAutomation().adoptShellPermissionIdentity();
+        try {
+            PackageInfo sdkPackageInfo = getPackageManager().getPackageInfo(packageName,
+                    PackageManager.PackageInfoFlags.of(
+                            GET_SIGNING_CERTIFICATES | MATCH_STATIC_SHARED_AND_SDK_LIBRARIES));
+            SigningInfo signingInfo = sdkPackageInfo.signingInfo;
+            Signature[] signatures =
+                    signingInfo != null ? signingInfo.getSigningCertificateHistory() : null;
+            byte[] digest = PackageUtils.computeSha256DigestBytes(signatures[0].toByteArray());
+            return new String(HexEncoding.encode(digest));
+        } finally {
+            getUiAutomation().dropShellPermissionIdentity();
+        }
+    }
+
     private String getSplits(String packageName) throws IOException {
         final String commandResult = executeShellCommand("pm dump " + packageName);
         final String prefix = "    splits=[";
@@ -648,10 +1660,32 @@ public class PackageManagerShellCommandTest {
         return TEST_APK_PATH + baseName;
     }
 
+    /* Install for all the users */
     private void installPackage(String baseName) throws IOException {
         File file = new File(createApkPath(baseName));
         assertEquals("Success\n", executeShellCommand(
                 "pm " + mInstall + " -t -g " + file.getPath()));
+    }
+
+    private void installPackage(String baseName, String expectedResultStartsWith)
+            throws IOException {
+        File file = new File(createApkPath(baseName));
+        String result = executeShellCommand("pm " + mInstall + " -t -g " + file.getPath());
+        assertTrue(result, result.startsWith(expectedResultStartsWith));
+    }
+
+    /* Install a package for a new user; this would replace the old package */
+    private void installPackageAsUser(String baseName, int userId) throws IOException {
+        File file = new File(createApkPath(baseName));
+        assertEquals("Success\n", executeShellCommand(
+                "pm " + mInstall + " -t -g --user " + userId + " " + file.getPath()));
+    }
+
+    /* Install an existing package for a new user */
+    private void installExistingPackageAsUser(String packageName, int userId) throws IOException {
+        String result = executeShellCommand(
+                String.format("pm install-existing --user %d %s", userId, packageName));
+        assertEquals("Package " + packageName + " installed for user: " + userId + "\n", result);
     }
 
     private void updatePackage(String packageName, String baseName) throws IOException {
@@ -730,8 +1764,23 @@ public class PackageManagerShellCommandTest {
                         splits)));
     }
 
+    private void uninstallPackage(String packageName, String expectedResultStartsWith)
+            throws IOException {
+        String result = uninstallPackageSilently(packageName);
+        assertTrue(result, result.startsWith(expectedResultStartsWith));
+    }
+
     private String uninstallPackageSilently(String packageName) throws IOException {
         return executeShellCommand("pm uninstall " + packageName);
+    }
+
+    /* Uninstall for one user */
+    private void uninstallPackageAsUser(String packageName, int userId) throws IOException {
+        executeShellCommand(String.format("pm uninstall --user %d %s", userId, packageName));
+    }
+
+    private void uninstallPackageWithKeepData(String packageName, int userId) throws IOException {
+        executeShellCommand(String.format("pm uninstall -k --user %d %s", userId, packageName));
     }
 
     private void uninstallSplits(String packageName, String[] splitNames) throws IOException {
@@ -744,6 +1793,36 @@ public class PackageManagerShellCommandTest {
     private void uninstallSplitsBatch(String packageName, String[] splitNames) throws IOException {
         assertEquals("Success\n", executeShellCommand(
                 "pm uninstall " + packageName + " " + String.join(" ", splitNames)));
+    }
+
+    private void setSystemProperty(String name, String value) throws Exception {
+        assertEquals("", executeShellCommand("setprop " + name + " " + value));
+    }
+
+    private int createUser(String name) throws IOException {
+        final String output = executeShellCommand("pm create-user " + name);
+        if (output.startsWith("Success")) {
+            return Integer.parseInt(output.substring(output.lastIndexOf(" ")).trim());
+        }
+        throw new IllegalStateException(String.format("Failed to create user: %s", output));
+    }
+
+    private void removeUser(int userId) throws IOException {
+        executeShellCommand("pm remove-user " + userId);
+    }
+
+    private boolean startUser(int userId) throws IOException {
+        String cmd = "am start-user -w " + userId;
+        final String output = executeShellCommand(cmd);
+        if (output.startsWith("Error")) {
+            return false;
+        }
+        String state = executeShellCommand("am get-started-user-state " + userId);
+        return state.contains("RUNNING_UNLOCKED");
+    }
+
+    private void stopUser(int userId) throws IOException {
+        executeShellCommand("am stop-user -w -f " + userId);
     }
 }
 
