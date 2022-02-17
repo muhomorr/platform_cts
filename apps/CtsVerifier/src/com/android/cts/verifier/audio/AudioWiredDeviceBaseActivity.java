@@ -16,31 +16,24 @@
 
 package com.android.cts.verifier.audio;
 
-import com.android.cts.verifier.PassFailButtons;
-import com.android.cts.verifier.R;
-
-import com.android.compatibility.common.util.ReportLog;
-import com.android.compatibility.common.util.ResultType;
-import com.android.compatibility.common.util.ResultUnit;
-
-import android.content.Context;
-
-import android.os.Bundle;
-import android.os.Handler;
-
 import android.util.Log;
-
 import android.view.View;
 import android.view.View.OnClickListener;
-
 import android.widget.Button;
+
+import com.android.compatibility.common.util.ResultType;
+import com.android.compatibility.common.util.ResultUnit;
+import com.android.cts.verifier.PassFailButtons;
+import com.android.cts.verifier.R;
 
 abstract class AudioWiredDeviceBaseActivity extends PassFailButtons.Activity {
     private static final String TAG = AudioWiredDeviceBaseActivity.class.getSimpleName();
 
     private OnBtnClickListener mBtnClickListener = new OnBtnClickListener();
 
-    abstract protected void enableTestButtons(boolean enabled);
+    protected void enableTestButtons(boolean enabled) {
+        // NOP by default
+    }
 
     private void recordWiredPortFound(boolean found) {
         getReportLog().addValue(
@@ -56,23 +49,24 @@ abstract class AudioWiredDeviceBaseActivity extends PassFailButtons.Activity {
         ((Button)findViewById(R.id.audio_wired_yes)).setOnClickListener(mBtnClickListener);
 
         enableTestButtons(false);
+
+        getPassButton().setEnabled(false);
     }
 
     private class OnBtnClickListener implements OnClickListener {
         @Override
         public void onClick(View v) {
-            switch (v.getId()) {
-                case R.id.audio_wired_no:
-                    Log.i(TAG, "User denies wired device existence");
-                    enableTestButtons(false);
-                    recordWiredPortFound(false);
-                    break;
-
-                case R.id.audio_wired_yes:
-                    Log.i(TAG, "User confirms wired device existence");
-                    enableTestButtons(true);
-                    recordWiredPortFound(true);
-                    break;
+            int id = v.getId();
+            if (id == R.id.audio_wired_no) {
+                Log.i(TAG, "User denies wired device existence");
+                enableTestButtons(false);
+                recordWiredPortFound(false);
+                getPassButton().setEnabled(true);
+            } else if (id == R.id.audio_wired_yes) {
+                Log.i(TAG, "User confirms wired device existence");
+                enableTestButtons(true);
+                recordWiredPortFound(true);
+                getPassButton().setEnabled(false);
             }
         }
     }
