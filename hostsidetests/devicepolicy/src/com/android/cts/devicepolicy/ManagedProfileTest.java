@@ -163,39 +163,6 @@ public class ManagedProfileTest extends BaseManagedProfileTest {
                 addRestrictionCommandOutput.contains("SecurityException"));
     }
 
-    // Test the bluetooth API from a managed profile.
-    @Test
-    public void testBluetooth() throws Exception {
-        assumeHasBluetoothFeature();
-
-        runDeviceTestsAsUser(MANAGED_PROFILE_PKG, ".BluetoothTest",
-                "testEnableDisable", mProfileUserId);
-        runDeviceTestsAsUser(MANAGED_PROFILE_PKG, ".BluetoothTest",
-                "testGetAddress", mProfileUserId);
-        runDeviceTestsAsUser(MANAGED_PROFILE_PKG, ".BluetoothTest",
-                "testListenUsingRfcommWithServiceRecord", mProfileUserId);
-        runDeviceTestsAsUser(MANAGED_PROFILE_PKG, ".BluetoothTest",
-                "testGetRemoteDevice", mProfileUserId);
-    }
-
-    @Test
-    public void testCameraPolicy() throws Exception {
-        assumeHasCameraFeature();
-
-        try {
-            runDeviceTestsAsUser(MANAGED_PROFILE_PKG, ".CameraPolicyTest",
-                    "testDisableCameraInManagedProfile",
-                    mProfileUserId);
-            runDeviceTestsAsUser(MANAGED_PROFILE_PKG, ".CameraPolicyTest",
-                    "testEnableCameraInManagedProfile",
-                    mProfileUserId);
-        } finally {
-            final String adminHelperClass = ".PrimaryUserAdminHelper";
-            runDeviceTestsAsUser(MANAGED_PROFILE_PKG,
-                    adminHelperClass, "testClearDeviceAdmin", mParentUserId);
-        }
-    }
-
     @Test
     public void testOrganizationInfo() throws Exception {
         runDeviceTestsAsUser(MANAGED_PROFILE_PKG, ".OrganizationInfoTest",

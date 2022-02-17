@@ -1086,7 +1086,7 @@ public class LegacyStorageTest {
 
         ContentValues values = new ContentValues();
         final String androidObbDir =
-                getContext().getObbDir().toString() + "/" + System.currentTimeMillis();
+                TestUtils.getExternalObbDir().toString() + "/" + System.currentTimeMillis();
         values.put(MediaStore.MediaColumns.DATA, androidObbDir);
         insertFile(values);
 
@@ -1120,7 +1120,7 @@ public class LegacyStorageTest {
         assertNotEquals(0, updateFile(uri, values));
 
         final String androidObbDir =
-                getContext().getObbDir().toString() + "/" + System.currentTimeMillis();
+                TestUtils.getExternalObbDir().toString() + "/" + System.currentTimeMillis();
         values.put(MediaStore.MediaColumns.DATA, androidObbDir);
         assertNotEquals(0, updateFile(uri, values));
 

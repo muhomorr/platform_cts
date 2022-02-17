@@ -430,10 +430,8 @@ public class TestUtils {
     }
 
     public static void verifyInsertFromExternalPrivateDirViaRelativePath_denied() throws Exception {
-        resetDefaultExternalStorageVolume();
-
         // Test that inserting files from Android/obb/.. is not allowed.
-        final String androidObbDir = getContext().getObbDir().toString();
+        final String androidObbDir = getExternalObbDir().toString();
         ContentValues values = new ContentValues();
         values.put(
                 MediaStore.MediaColumns.RELATIVE_PATH,
@@ -449,8 +447,6 @@ public class TestUtils {
     }
 
     public static void verifyInsertFromExternalMediaDirViaRelativePath_allowed() throws Exception {
-        resetDefaultExternalStorageVolume();
-
         // Test that inserting files from Android/media/.. is allowed.
         final String androidMediaDir = getExternalMediaDir().toString();
         final ContentValues values = new ContentValues();
@@ -461,13 +457,11 @@ public class TestUtils {
     }
 
     public static void verifyInsertFromExternalPrivateDirViaData_denied() throws Exception {
-        resetDefaultExternalStorageVolume();
-
         ContentValues values = new ContentValues();
 
         // Test that inserting files from Android/obb/.. is not allowed.
         final String androidObbDir =
-                getContext().getObbDir().toString() + "/" + System.currentTimeMillis();
+                getExternalObbDir().toString() + "/" + System.currentTimeMillis();
         values.put(MediaStore.MediaColumns.DATA, androidObbDir);
         assertThrows(IllegalArgumentException.class, () -> insertFile(values));
 
@@ -478,8 +472,6 @@ public class TestUtils {
     }
 
     public static void verifyInsertFromExternalMediaDirViaData_allowed() throws Exception {
-        resetDefaultExternalStorageVolume();
-
         // Test that inserting files from Android/media/.. is allowed.
         ContentValues values = new ContentValues();
         final String androidMediaDirFile =
@@ -490,7 +482,6 @@ public class TestUtils {
 
     // NOTE: While updating, DATA field should be ignored for all the apps including file manager.
     public static void verifyUpdateToExternalDirsViaData_denied() throws Exception {
-        resetDefaultExternalStorageVolume();
         Uri uri = insertFileFromExternalMedia(false);
 
         final String androidMediaDirFile =
@@ -500,7 +491,7 @@ public class TestUtils {
         assertEquals(0, updateFile(uri, values));
 
         final String androidObbDir =
-                getContext().getObbDir().toString() + "/" + System.currentTimeMillis();
+                getExternalObbDir().toString() + "/" + System.currentTimeMillis();
         values.put(MediaStore.MediaColumns.DATA, androidObbDir);
         assertEquals(0, updateFile(uri, values));
 
@@ -511,7 +502,6 @@ public class TestUtils {
 
     public static void verifyUpdateToExternalMediaDirViaRelativePath_allowed()
             throws IOException {
-        resetDefaultExternalStorageVolume();
         Uri uri = insertFileFromExternalMedia(true);
 
         // Test that update to files from Android/media/.. is allowed.
@@ -525,11 +515,10 @@ public class TestUtils {
 
     public static void verifyUpdateToExternalPrivateDirsViaRelativePath_denied()
             throws Exception {
-        resetDefaultExternalStorageVolume();
         Uri uri = insertFileFromExternalMedia(true);
 
         // Test that update to files from Android/obb/.. is not allowed.
-        final String androidObbDir = getContext().getObbDir().toString();
+        final String androidObbDir = getExternalObbDir().toString();
         ContentValues values = new ContentValues();
         values.put(
                 MediaStore.MediaColumns.RELATIVE_PATH,
@@ -1311,6 +1300,18 @@ public class TestUtils {
     }
 
     /**
+     * Creates and returns the Android obb sub-directory belonging to the calling package.
+     */
+    public static File getExternalObbDir() {
+        final String packageName = getContext().getPackageName();
+        final File res = new File(getAndroidObbDir(), packageName);
+        if (!res.equals(getContext().getObbDirs()[0])) {
+            res.mkdirs();
+        }
+        return res;
+    }
+
+    /**
      * Creates and returns the Android media sub-directory belonging to the calling package.
      */
     public static File getExternalMediaDir() {
@@ -1388,6 +1389,10 @@ public class TestUtils {
 
     public static File getAndroidDataDir() {
         return new File(getAndroidDir(), "data");
+    }
+
+    public static File getAndroidObbDir() {
+        return new File(getAndroidDir(), "obb");
     }
 
     public static File getAndroidMediaDir() {
@@ -1473,7 +1478,8 @@ public class TestUtils {
         final IntentFilter intentFilter = new IntentFilter();
         intentFilter.addAction(actionName);
         intentFilter.addCategory(Intent.CATEGORY_DEFAULT);
-        getContext().registerReceiver(broadcastReceiver, intentFilter);
+        getContext().registerReceiver(broadcastReceiver, intentFilter,
+                Context.RECEIVER_EXPORTED_UNAUDITED);
 
         // Launch the test app.
         intent.setPackage(testApp.getPackageName());
@@ -1693,16 +1699,64 @@ public class TestUtils {
         return true;
     }
 
+    private static boolean isVolumeMounted(String type) {
+        try {
+            final String volume = executeShellCommand("sm list-volumes " + type).trim();
+            return volume != null && volume.contains("mounted");
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private static boolean isPublicVolumeMounted() {
+        return isVolumeMounted("public");
+    }
+
+    private static boolean isEmulatedVolumeMounted() {
+        return isVolumeMounted("emulated");
+    }
+
+    /**
+     * Prepare or create a public volume for testing
+     */
+    public static void preparePublicVolume() throws Exception {
+        if (getCurrentPublicVolumeName() == null) {
+            createNewPublicVolume();
+            return;
+        }
+
+        if (!Boolean.parseBoolean(executeShellCommand("sm has-adoptable").trim())) {
+            unmountAppDirs();
+            // ensure the volume is visible
+            executeShellCommand("sm set-force-adoptable on");
+            Thread.sleep(2000);
+            pollForCondition(TestUtils::isPublicVolumeMounted,
+                    "Timed out while waiting for public volume");
+            pollForCondition(TestUtils::isEmulatedVolumeMounted,
+                    "Timed out while waiting for emulated volume");
+        }
+    }
+
+    /**
+     * Unmount app's obb and data dirs.
+     */
+    public static void unmountAppDirs() throws Exception {
+        if (TestUtils.isObbDirUnmounted()) {
+            return;
+        }
+        executeShellCommand("sm unmount-app-data-dirs " + getContext().getPackageName() + " "
+                + android.os.Process.myPid() + " " + android.os.UserHandle.myUserId());
+        pollForCondition(TestUtils::isObbDirUnmounted,
+                "Timed out while waiting for unmounting obb dir");
+    }
+
     /**
      * Creates a new virtual public volume and returns the volume's name.
      */
     public static void createNewPublicVolume() throws Exception {
         // Unmount data and obb dirs for test app first so test app won't be killed during
         // volume unmount.
-        executeShellCommand("sm unmount-app-data-dirs " + getContext().getPackageName() + " "
-                    + android.os.Process.myPid() + " " + android.os.UserHandle.myUserId());
-        pollForCondition(TestUtils::isObbDirUnmounted,
-                "Timed out while waiting for unmounting obb dir");
+        unmountAppDirs();
         executeShellCommand("sm set-force-adoptable on");
         executeShellCommand("sm set-virtual-disk true");
         Thread.sleep(2000);
