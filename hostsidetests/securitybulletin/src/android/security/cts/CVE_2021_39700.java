@@ -1,5 +1,5 @@
-/*
- * Copyright (C) 2021 The Android Open Source Project
+/**
+ * Copyright (C) 2022 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,28 +16,36 @@
 
 package android.security.cts;
 
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assume.assumeTrue;
+
 import android.platform.test.annotations.AsbSecurityTest;
+
 import com.android.tradefed.device.ITestDevice;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
-import com.android.sts.common.tradefed.testtype.StsExtraBusinessLogicHostTestBase;
+import com.android.tradefed.testtype.junit4.BaseHostJUnit4Test;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-@RunWith(DeviceJUnit4ClassRunner.class)
-public class CVE_2021_0953 extends StsExtraBusinessLogicHostTestBase {
+import java.io.File;
 
-    @AsbSecurityTest(cveBugId = 184046278)
+@RunWith(DeviceJUnit4ClassRunner.class)
+public class CVE_2021_39700 extends BaseHostJUnit4Test {
+
+    /**
+     * b/201645790
+     * This test is related to
+     * "hostsidetests/appsecurity/src/android/appsecurity/cts/ListeningPortsTest.java"
+     */
+    @AsbSecurityTest(cveBugId = 201645790)
     @Test
-    public void testPocCVE_2021_0953() throws Exception {
-        final String TEST_PKG = "android.security.cts.CVE_2021_0953";
-        final String TEST_CLASS = TEST_PKG + "." + "DeviceTest";
-        final String TEST_APP = "CVE-2021-0953.apk";
+    public void testPocCVE_2021_39700() throws Exception {
         ITestDevice device = getDevice();
-        AdbUtils.runCommandLine("input keyevent KEYCODE_WAKEUP", device);
-        AdbUtils.runCommandLine("input keyevent KEYCODE_MENU", device);
-        AdbUtils.runCommandLine("input keyevent KEYCODE_HOME", device);
-        installPackage(TEST_APP);
-        runDeviceTests(TEST_PKG, TEST_CLASS, "testMutablePendingIntent");
+        assumeTrue("Failed to unroot the device", device.disableAdbRoot());
+        String procUdp6File = "/proc/net/udp6";
+        File tempFile = File.createTempFile("CVE_2021_39700", "temp");
+        assertTrue("Vulnerable to b/201645790 !!", device.pullFile(procUdp6File, tempFile));
+        tempFile.deleteOnExit();
     }
 }
