@@ -31,13 +31,16 @@ import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeNotNull;
 
 import android.content.Context;
 import android.content.cts.R;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
 import android.content.pm.PackageManager.NameNotFoundException;
+import android.os.Build;
 import android.os.Environment;
 import android.os.Parcel;
 import android.os.Process;
@@ -65,6 +68,8 @@ public class ApplicationInfoTest {
             "android.content.cts.directbootunaware";
     private static final String PARTIALLY_DIRECT_BOOT_AWARE_PACKAGE_NAME =
             "android.content.cts.partiallydirectbootaware";
+    private static final String NO_APPLICATION_PACKAGE_NAME =
+            "android.content.cts.emptytestapp.stub";
 
     private ApplicationInfo mApplicationInfo;
     private String mPackageName;
@@ -90,7 +95,8 @@ public class ApplicationInfoTest {
 
     @Test
     public void testWriteToParcel() throws NameNotFoundException {
-        mApplicationInfo = getContext().getPackageManager().getApplicationInfo(mPackageName, 0);
+        mApplicationInfo = getContext().getPackageManager().getApplicationInfo(mPackageName,
+                PackageManager.ApplicationInfoFlags.of(0));
 
         Parcel p = Parcel.obtain();
         mApplicationInfo.writeToParcel(p, 0);
@@ -121,7 +127,8 @@ public class ApplicationInfoTest {
 
     @Test
     public void testDescribeContents() throws NameNotFoundException {
-       mApplicationInfo = getContext().getPackageManager().getApplicationInfo(mPackageName, 0);
+        mApplicationInfo = getContext().getPackageManager().getApplicationInfo(mPackageName,
+               PackageManager.ApplicationInfoFlags.of(0));
 
         assertEquals(0, mApplicationInfo.describeContents());
     }
@@ -142,7 +149,8 @@ public class ApplicationInfoTest {
 
     @Test
     public void testLoadDescription() throws NameNotFoundException {
-        mApplicationInfo = getContext().getPackageManager().getApplicationInfo(mPackageName, 0);
+        mApplicationInfo = getContext().getPackageManager().getApplicationInfo(mPackageName,
+                PackageManager.ApplicationInfoFlags.of(0));
 
         assertNull(mApplicationInfo.loadDescription(getContext().getPackageManager()));
 
@@ -153,7 +161,8 @@ public class ApplicationInfoTest {
 
     @Test
     public void verifyOwnInfo() throws NameNotFoundException {
-        mApplicationInfo = getContext().getPackageManager().getApplicationInfo(mPackageName, 0);
+        mApplicationInfo = getContext().getPackageManager().getApplicationInfo(mPackageName,
+                PackageManager.ApplicationInfoFlags.of(0));
 
         assertEquals("Android TestCase", mApplicationInfo.nonLocalizedLabel);
         assertEquals(R.drawable.size_48x48, mApplicationInfo.icon);
@@ -167,7 +176,7 @@ public class ApplicationInfoTest {
     public void verifyDefaultValues() throws NameNotFoundException {
         // The application "com.android.cts.stub" does not have any attributes set
         mApplicationInfo = getContext().getPackageManager().getApplicationInfo(
-                SYNC_ACCOUNT_ACCESS_STUB_PACKAGE_NAME, 0);
+                SYNC_ACCOUNT_ACCESS_STUB_PACKAGE_NAME, PackageManager.ApplicationInfoFlags.of(0));
         int currentUserId = Process.myUserHandle().getIdentifier();
 
         assertNull(mApplicationInfo.className);
@@ -213,21 +222,29 @@ public class ApplicationInfoTest {
     @Test
     public void testDirectBootUnawareAppIsNotEncryptionAware() throws Exception {
         ApplicationInfo applicationInfo = getContext().getPackageManager().getApplicationInfo(
-                DIRECT_BOOT_UNAWARE_PACKAGE_NAME, 0);
+                DIRECT_BOOT_UNAWARE_PACKAGE_NAME, PackageManager.ApplicationInfoFlags.of(0));
         assertFalse(applicationInfo.isEncryptionAware());
     }
 
     @Test
     public void testDirectBootUnawareAppCategoryIsAccessibility() throws Exception {
         mApplicationInfo = getContext().getPackageManager().getApplicationInfo(
-                DIRECT_BOOT_UNAWARE_PACKAGE_NAME, 0);
+                DIRECT_BOOT_UNAWARE_PACKAGE_NAME, PackageManager.ApplicationInfoFlags.of(0));
         assertEquals(CATEGORY_ACCESSIBILITY, mApplicationInfo.category);
+    }
+
+    @Test
+    public void testDefaultAppCategoryIsUndefined() throws Exception {
+        final ApplicationInfo applicationInfo = getContext().getPackageManager().getApplicationInfo(
+                NO_APPLICATION_PACKAGE_NAME, PackageManager.ApplicationInfoFlags.of(0));
+        assertEquals(CATEGORY_UNDEFINED, applicationInfo.category);
     }
 
     @Test
     public void testPartiallyDirectBootAwareAppIsEncryptionAware() throws Exception {
         ApplicationInfo applicationInfo = getContext().getPackageManager().getApplicationInfo(
-                PARTIALLY_DIRECT_BOOT_AWARE_PACKAGE_NAME, 0);
+                PARTIALLY_DIRECT_BOOT_AWARE_PACKAGE_NAME,
+                PackageManager.ApplicationInfoFlags.of(0));
         assertTrue(applicationInfo.isEncryptionAware());
     }
 
@@ -236,7 +253,8 @@ public class ApplicationInfoTest {
         // Make sure ApplicationInfo.writeToParcel() doesn't do the "squashing",
         // because Parcel.allowSquashing() isn't called.
 
-        mApplicationInfo = getContext().getPackageManager().getApplicationInfo(mPackageName, 0);
+        mApplicationInfo = getContext().getPackageManager().getApplicationInfo(mPackageName,
+                PackageManager.ApplicationInfoFlags.of(0));
 
         final Parcel p = Parcel.obtain();
         mApplicationInfo.writeToParcel(p, 0);
@@ -268,7 +286,8 @@ public class ApplicationInfoTest {
         // Make sure ApplicationInfo.writeToParcel() does the "squashing", after
         // Parcel.allowSquashing() is called.
 
-        mApplicationInfo = getContext().getPackageManager().getApplicationInfo(mPackageName, 0);
+        mApplicationInfo = getContext().getPackageManager().getApplicationInfo(mPackageName,
+                PackageManager.ApplicationInfoFlags.of(0));
 
         final Parcel p = Parcel.obtain();
 
@@ -291,6 +310,10 @@ public class ApplicationInfoTest {
 
     @Test
     public void testIsProduct() throws Exception {
+        // The product flag is supported since P. Suppose that devices lauch on Android P may not
+        // have product partition.
+        assumeFalse(Build.VERSION.DEVICE_INITIAL_SDK_INT <= Build.VERSION_CODES.P);
+
         final String systemPath = Environment.getRootDirectory().getAbsolutePath();
         final String productPath = Environment.getProductDirectory().getAbsolutePath();
         final String packageName = getPartitionFirstPackageName(systemPath, productPath);
@@ -311,7 +334,7 @@ public class ApplicationInfoTest {
                 + systemPath + vendorPath, packageName);
 
         final PackageInfo info = getContext().getPackageManager().getPackageInfo(
-                packageName.trim(), 0 /* flags */);
+                packageName.trim(), PackageManager.PackageInfoFlags.of(0));
         assertTrue(packageName + " is not vendor package.", info.applicationInfo.isVendor());
     }
 
@@ -324,7 +347,7 @@ public class ApplicationInfoTest {
         assumeNotNull(packageName);
 
         final PackageInfo info = getContext().getPackageManager().getPackageInfo(
-                packageName.trim(), 0 /* flags */);
+                packageName.trim(), PackageManager.PackageInfoFlags.of(0));
         assertTrue(packageName + " is not oem package.", info.applicationInfo.isOem());
     }
 

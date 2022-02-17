@@ -14,27 +14,16 @@
 
 package {
     // See: http://go/android-license-faq
-    // A large-scale-change added 'default_applicable_licenses' to import
-    // all of the 'license_kinds' from "cts_license"
-    // to get the below license kinds:
-    //   SPDX-license-identifier-Apache-2.0
-    //   SPDX-license-identifier-CC-BY
-    //   legacy_unencumbered
-    default_applicable_licenses: ["cts_license"],
+    default_applicable_licenses: [
+        "Android-Apache-2.0",
+        "cts_tests_tests_media_license",
+    ],
 }
 
-java_library {
-    name: "ctsmediautil",
-    srcs: [
-        "src/android/media/cts/CodecImage.java",
-        "src/android/media/cts/YUVImage.java",
-        "src/android/media/cts/CodecUtils.java",
-        "src/android/media/cts/CodecState.java",
-        "src/android/media/cts/MediaCodecTunneledPlayer.java",
-        "src/android/media/cts/MediaTimeProvider.java",
-        "src/android/media/cts/NonBlockingAudioTrack.java",
-    ],
-    sdk_version: "current",
+license {
+    name: "cts_tests_tests_media_license",
+    license_kinds: ["SPDX-license-identifier-CC-BY-3.0"],
+    license_text: ["LICENSE_CC_BY"],
 }
 
 android_test {
@@ -51,9 +40,9 @@ android_test {
         "ctstestrunner-axt",
         "hamcrest-library",
         "ctstestserver",
+        "cts-media-common",
         "junit",
         "junit-params",
-        "ndkaudio",
         "testng",
         "truth-prebuilt",
         "mockito-target-minus-junit4",
@@ -61,16 +50,18 @@ android_test {
         "CtsCameraUtils",
     ],
     jni_libs: [
-        "libaudio_jni",
         "libctscodecutils_jni",
         "libctsimagereader_jni",
-        "libctsmediadrm_jni",
         "libctsmediacodec_jni",
+        "libctsmediacommon_jni",
         "libnativehelper_compat_libc++",
-        "libndkaudioLib",
     ],
-    // do not compress VP9 video files
+    asset_dirs: ["assets"],
+    resource_dirs: ["res"],
     aaptflags: [
+        "--auto-add-overlay",
+
+        // Do not compress these files:
         "-0 .vp9",
         "-0 .ts",
         "-0 .heic",
@@ -83,7 +74,6 @@ android_test {
         "aidl/**/*.aidl",
     ],
     // This test uses private APIs
-    //sdk_version: "current",
     platform_apis: true,
     jni_uses_sdk_apis: true,
     libs: [
@@ -99,4 +89,5 @@ android_test {
     ],
     host_required: ["cts-dynamic-config"],
     min_sdk_version: "29",
+    target_sdk_version: "31",
 }
