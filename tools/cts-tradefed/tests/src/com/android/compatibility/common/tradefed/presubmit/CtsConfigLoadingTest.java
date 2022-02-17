@@ -27,11 +27,14 @@ import com.android.tradefed.config.ConfigurationDescriptor;
 import com.android.tradefed.config.ConfigurationException;
 import com.android.tradefed.config.ConfigurationFactory;
 import com.android.tradefed.config.IConfiguration;
+import com.android.tradefed.config.IDeviceConfiguration;
 import com.android.tradefed.invoker.ExecutionFiles.FilesKey;
 import com.android.tradefed.invoker.TestInformation;
 import com.android.tradefed.invoker.shard.token.TokenProperty;
+import com.android.tradefed.targetprep.DeviceSetup;
 import com.android.tradefed.targetprep.ITargetPreparer;
 import com.android.tradefed.testtype.AndroidJUnitTest;
+import com.android.tradefed.testtype.GTest;
 import com.android.tradefed.testtype.HostTest;
 import com.android.tradefed.testtype.IRemoteTest;
 import com.android.tradefed.testtype.ITestFilterReceiver;
@@ -134,7 +137,8 @@ public class CtsConfigLoadingTest {
             // Tradefed runners
             "com.android.tradefed.testtype.AndroidJUnitTest",
             "com.android.tradefed.testtype.HostTest",
-            "com.android.tradefed.testtype.GTest"
+            "com.android.tradefed.testtype.GTest",
+            "com.android.tradefed.testtype.mobly.MoblyBinaryHostTest"
     ));
 
     /**
@@ -212,21 +216,36 @@ public class CtsConfigLoadingTest {
         for (File config : listConfig) {
             IConfiguration c = ConfigurationFactory.getInstance()
                     .createConfigurationFromArgs(new String[] {config.getAbsolutePath()});
-            // Ensure the deprecated ApkInstaller is not used anymore.
-            for (ITargetPreparer prep : c.getTargetPreparers()) {
-                if (prep.getClass().isAssignableFrom(ApkInstaller.class)) {
-                    throw new ConfigurationException(
-                            String.format("%s: Use com.android.tradefed.targetprep.suite."
-                                    + "SuiteApkInstaller instead of com.android.compatibility."
-                                    + "common.tradefed.targetprep.ApkInstaller, options will be "
-                                    + "the same.", config));
-                }
-                if (prep.getClass().isAssignableFrom(PreconditionPreparer.class)) {
-                    throw new ConfigurationException(
-                            String.format(
-                                    "%s: includes a PreconditionPreparer (%s) which is not allowed"
-                                            + " in modules.",
-                                    config.getName(), prep.getClass()));
+            if (c.getDeviceConfig().size() > 2) {
+                throw new ConfigurationException(String.format("%s declares more than 2 devices.", config));
+            }
+            for (IDeviceConfiguration dConfig : c.getDeviceConfig()) {
+                // Ensure the deprecated ApkInstaller is not used anymore.
+                for (ITargetPreparer prep : dConfig.getTargetPreparers()) {
+                    if (prep.getClass().isAssignableFrom(ApkInstaller.class)) {
+                        throw new ConfigurationException(
+                                String.format("%s: Use com.android.tradefed.targetprep.suite."
+                                        + "SuiteApkInstaller instead of com.android.compatibility."
+                                        + "common.tradefed.targetprep.ApkInstaller, options will be "
+                                        + "the same.", config));
+                    }
+                    if (prep.getClass().isAssignableFrom(PreconditionPreparer.class)) {
+                        throw new ConfigurationException(
+                                String.format(
+                                        "%s: includes a PreconditionPreparer (%s) which is not "
+                                                + "allowed in modules.",
+                                        config.getName(), prep.getClass()));
+                    }
+                    if (prep.getClass().isAssignableFrom(DeviceSetup.class)) {
+                       DeviceSetup deviceSetup = (DeviceSetup) prep;
+                       if (!deviceSetup.isForceSkipSystemProps()) {
+                           throw new ConfigurationException(
+                                   String.format("%s: %s needs to be configured with "
+                                           + "<option name=\"force-skip-system-props\" "
+                                           + "value=\"true\" /> in CTS.",
+                                                 config.getName(), prep.getClass()));
+                       }
+                    }
                 }
             }
             // We can ensure that Host side tests are not empty.
@@ -251,6 +270,13 @@ public class CtsConfigLoadingTest {
                                         config.getName(), test));
                     }
                 }
+                if (test instanceof GTest) {
+                    if (((GTest) test).isRebootBeforeTestEnabled()) {
+                        throw new ConfigurationException(String.format(
+                                "%s: instead of reboot-before-test use a RebootTargetPreparer "
+                                + "which is more optimized during sharding.", config.getName()));
+                    }
+                }
                 // Tests are expected to implement that interface.
                 if (!(test instanceof ITestFilterReceiver)) {
                     throw new IllegalArgumentException(String.format(
@@ -272,6 +298,7 @@ public class CtsConfigLoadingTest {
                     }
                 }
             }
+
             ConfigurationDescriptor cd = c.getConfigurationDescription();
             Assert.assertNotNull(config + ": configuration descriptor is null", cd);
             List<String> component = cd.getMetaData(METADATA_COMPONENT);
