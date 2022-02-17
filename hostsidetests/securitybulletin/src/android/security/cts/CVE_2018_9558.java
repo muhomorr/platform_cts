@@ -17,9 +17,10 @@
 package android.security.cts;
 
 import android.platform.test.annotations.AsbSecurityTest;
+
 import com.android.compatibility.common.util.CrashUtils;
-import com.android.tradefed.device.ITestDevice;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
+
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -37,10 +38,10 @@ public class CVE_2018_9558 extends SecurityTestCase {
         assumeIsSupportedNfcDevice(getDevice());
         pocPusher.only64();
         String binaryName = "CVE-2018-9558";
-        String signals[] = {CrashUtils.SIGABRT};
+        String[] signals = {CrashUtils.SIGABRT};
         AdbUtils.pocConfig testConfig = new AdbUtils.pocConfig(binaryName, getDevice());
         testConfig.config = new CrashUtils.Config().setProcessPatterns(binaryName);
-        testConfig.config.setSignals(signals);
+        testConfig.config.setSignals(CrashUtils.SIGABRT);
         AdbUtils.runPocAssertNoCrashesNotVulnerable(testConfig);
     }
 }
