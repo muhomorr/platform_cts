@@ -22,7 +22,9 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.Formatter;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -46,6 +48,46 @@ public class ApiComplianceChecker extends ApiPresenceChecker {
         IGNORE_METHOD_ABSTRACT_MODIFIER_WHITE_LIST.add(
                 "public int android.service.euicc.EuiccService.onDownloadSubscription("
                         + "int,android.telephony.euicc.DownloadableSubscription,boolean,boolean)");
+    }
+
+    /**
+     * A set of field values signatures whose value modifier should be ignored.
+     *
+     * <p>If a field value is intended to be changed to correct its value, that change should be
+     * allowed. The field name is the key of the ignoring map, and a FieldValuePair which is a pair
+     * of the old value and the new value is the value of the ignoring map.
+     * WARNING: Entries should only be added after consulting API council.
+     */
+    private static class FieldValuePair {
+        private String oldValue;
+        private String newValue;
+
+        private FieldValuePair(String oldValue, String newValue) {
+            this.oldValue = oldValue;
+            this.newValue = newValue;
+        }
+    };
+    private static final Map<String, FieldValuePair> IGNORE_FIELD_VALUES_MODIFIER_ALLOWED_LIST =
+            new HashMap<String, FieldValuePair>();
+    static {
+        // This field value was previously wrong. As the CtsSystemApiSignatureTestCases package
+        // tests both the old and new specifications with both old and new values, this needs to be
+        // ignored.
+        IGNORE_FIELD_VALUES_MODIFIER_ALLOWED_LIST.put(
+                "android.media.tv.tuner.frontend.FrontendSettings#FEC_28_45(long)",
+                new FieldValuePair("-2147483648", "2147483648"));
+        IGNORE_FIELD_VALUES_MODIFIER_ALLOWED_LIST.put(
+                "android.media.tv.tuner.frontend.FrontendSettings#FEC_29_45(long)",
+                new FieldValuePair("1", "4294967296"));
+        IGNORE_FIELD_VALUES_MODIFIER_ALLOWED_LIST.put(
+                "android.media.tv.tuner.frontend.FrontendSettings#FEC_31_45(long)",
+                new FieldValuePair("2", "8589934592"));
+        IGNORE_FIELD_VALUES_MODIFIER_ALLOWED_LIST.put(
+                "android.media.tv.tuner.frontend.FrontendSettings#FEC_32_45(long)",
+                new FieldValuePair("4", "17179869184"));
+        IGNORE_FIELD_VALUES_MODIFIER_ALLOWED_LIST.put(
+                "android.media.tv.tuner.frontend.FrontendSettings#FEC_77_90(long)",
+                new FieldValuePair("8", "34359738368"));
     }
 
     /** Indicates that the class is an annotation. */
@@ -149,22 +191,11 @@ public class ApiComplianceChecker extends ApiPresenceChecker {
         int reflectionModifiers = runtimeClass.getModifiers();
         int apiModifiers = classDescription.getModifier();
 
-        // If the api class isn't abstract
-        if (((apiModifiers & Modifier.ABSTRACT) == 0) &&
-                // but the reflected class is
-                ((reflectionModifiers & Modifier.ABSTRACT) != 0) &&
-                // interfaces are implicitly abstract (JLS 9.1.1.1)
-                classDescription.getClassType() != JDiffClassDescription.JDiffType.INTERFACE &&
-                // and it isn't an enum
-                !classDescription.isEnumType() &&
-                // and it isn't allowed previous api final class with no visible ctor
-                !isAllowedClassAbstractionFromPreviousSystemApi(classDescription, runtimeClass)) {
-            // that is a problem
-            return "description is abstract but class is not and is not an enum";
+        // If the api class is an interface then always treat it as abstract.
+        // interfaces are implicitly abstract (JLS 9.1.1.1)
+        if (classDescription.getClassType() == JDiffClassDescription.JDiffType.INTERFACE) {
+            apiModifiers |= Modifier.ABSTRACT;
         }
-        // ABSTRACT check passed, so mask off ABSTRACT
-        reflectionModifiers &= ~Modifier.ABSTRACT;
-        apiModifiers &= ~Modifier.ABSTRACT;
 
         if (classDescription.isAnnotation()) {
             reflectionModifiers &= ~CLASS_MODIFIER_ANNOTATION;
@@ -179,21 +210,44 @@ public class ApiComplianceChecker extends ApiPresenceChecker {
             // override a method from the class cannot be marked as final because those constants
             // are represented as a subclass. As enum classes cannot be extended (except for its own
             // constants) there is no benefit in checking final modifier so just ignore them.
-            reflectionModifiers &= ~Modifier.FINAL;
-            apiModifiers &= ~Modifier.FINAL;
+            //
+            // Ditto for abstract.
+            reflectionModifiers &= ~(Modifier.FINAL | Modifier.ABSTRACT);
+            apiModifiers &= ~(Modifier.FINAL | Modifier.ABSTRACT);
         }
 
-        // Allow previous final API to be changed to abstract or static, and other modifiers should
-        // not be changed.
-        boolean isAllowedPreviousApiModifierChange =
-                isAllowedClassAbstractionFromPreviousSystemApi(classDescription, runtimeClass)
-                && (apiModifiers & ~Modifier.FINAL) != 0
-                && (reflectionModifiers & ~(Modifier.ABSTRACT | Modifier.STATIC))
-                == (apiModifiers & ~Modifier.FINAL);
+        if (classDescription.isPreviousApi()) {
+
+            // Changing a class from being previously abstract to concrete is forwards compatible.
+            if ((apiModifiers & Modifier.ABSTRACT) != 0
+                    && (reflectionModifiers & Modifier.ABSTRACT) == 0) {
+                // Ignore abstract modifiers.
+                reflectionModifiers &= ~Modifier.ABSTRACT;
+                apiModifiers &= ~Modifier.ABSTRACT;
+            }
+
+            if (isAllowedClassAbstractionFromPreviousSystemApi(classDescription, runtimeClass)) {
+                // A previously final class with no accessible constructors has been converted to an
+                // abstract class. So, clear the appropriate modifiers.
+                //
+                // If the final class was an inner class of another then it is also ok for it to
+                // become static as it had no accessible constructors so ignore that modifier too.
+                apiModifiers &= ~Modifier.FINAL;
+                reflectionModifiers &= ~(Modifier.ABSTRACT | Modifier.STATIC);
+            }
+
+            // Changing a class from being previously final to not being final is forwards
+            // compatible.
+            if ((apiModifiers & Modifier.FINAL) != 0
+                    && (reflectionModifiers & Modifier.FINAL) == 0) {
+                // Ignore final modifiers.
+                reflectionModifiers &= ~Modifier.FINAL;
+                apiModifiers &= ~Modifier.FINAL;
+            }
+        }
 
         if ((reflectionModifiers == apiModifiers)
-                && (classDescription.isEnumType() == runtimeClass.isEnum())
-                || isAllowedPreviousApiModifierChange) {
+                && (classDescription.isEnumType() == runtimeClass.isEnum())) {
             return null;
         } else {
             return String.format("modifier mismatch - description (%s), class (%s)",
@@ -311,7 +365,7 @@ public class ApiComplianceChecker extends ApiPresenceChecker {
                             expectedFieldType, actualFieldType));
         }
 
-        String message = checkFieldValueCompliance(fieldDescription, field);
+        String message = checkFieldValueCompliance(classDescription, fieldDescription, field);
         if (message != null) {
             resultObserver.notifyFailure(FailureType.MISMATCH_FIELD,
                     fieldDescription.toReadableString(classDescription.getAbsoluteClassName()),
@@ -363,7 +417,8 @@ public class ApiComplianceChecker extends ApiPresenceChecker {
      * @param apiField The field as defined by the platform API.
      * @param deviceField The field as defined by the device under test.
      */
-    private static String checkFieldValueCompliance(JDiffField apiField, Field deviceField) {
+    private static String checkFieldValueCompliance(
+            JDiffClassDescription classDescription, JDiffField apiField, Field deviceField) {
         if ((apiField.mModifier & Modifier.FINAL) == 0 ||
                 (apiField.mModifier & Modifier.STATIC) == 0) {
             // Only final static fields can have fixed values.
@@ -383,6 +438,14 @@ public class ApiComplianceChecker extends ApiPresenceChecker {
 
         String deviceFieldValue = getFieldValueAsString(deviceField);
         if (!Objects.equals(apiFieldValue, deviceFieldValue)) {
+            String fieldName = apiField.toReadableString(classDescription.getAbsoluteClassName());
+            if (IGNORE_FIELD_VALUES_MODIFIER_ALLOWED_LIST.containsKey(fieldName)
+                    && IGNORE_FIELD_VALUES_MODIFIER_ALLOWED_LIST.get(fieldName).oldValue.equals(
+                            apiFieldValue)
+                    && IGNORE_FIELD_VALUES_MODIFIER_ALLOWED_LIST.get(fieldName).newValue.equals(
+                            deviceFieldValue)) {
+                return null;
+            }
             return String.format("Incorrect field value, expected <%s>, found <%s>",
                     apiFieldValue, deviceFieldValue);
 
