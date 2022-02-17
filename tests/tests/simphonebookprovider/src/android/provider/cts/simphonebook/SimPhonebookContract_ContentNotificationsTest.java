@@ -22,6 +22,7 @@ import static com.google.common.truth.Truth.assertThat;
 
 import static org.hamcrest.Matchers.oneOf;
 import static org.junit.Assume.assumeThat;
+import static org.junit.Assume.assumeTrue;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
 
@@ -30,6 +31,7 @@ import android.content.ContentResolver;
 import android.content.ContentValues;
 import android.content.Context;
 import android.content.pm.PackageManager;
+import android.content.res.Resources;
 import android.database.ContentObserver;
 import android.net.Uri;
 import android.os.Handler;
@@ -155,6 +157,10 @@ public class SimPhonebookContract_ContentNotificationsTest {
 
     @Test
     public void subscriptionsChange_notifiesObserver() throws Exception {
+        Resources resources = ApplicationProvider.getApplicationContext().getResources();
+        int id = resources.getIdentifier("config_hotswapCapable", "bool", "android");
+        boolean hotswapCapable = resources.getBoolean(id);
+        assumeTrue("Device does not support SIM hot swap", hotswapCapable);
         assumeThat(mSubscriptionInfo, Matchers.notNullValue());
         try {
             setSimPower(0);
@@ -190,12 +196,17 @@ public class SimPhonebookContract_ContentNotificationsTest {
                 result, oneOf(
                         TelephonyManager.SET_SIM_POWER_STATE_ALREADY_IN_STATE,
                         TelephonyManager.SET_SIM_POWER_STATE_SUCCESS));
+        Thread.sleep(DEFAULT_TIMEOUT);
         int simState = SystemUtil.runWithShellPermissionIdentity(() ->
                         telephonyManager.getSimState(slotIndex),
                 Manifest.permission.READ_PHONE_STATE);
         // This doesn't work on Cuttlefish so confirm the SIM was actually powered off.
-        assumeThat(simState, Matchers.not(oneOf(
-                TelephonyManager.SIM_STATE_PRESENT, TelephonyManager.SIM_STATE_READY)));
+        if(powerState == 1) {
+            assumeThat(simState, Matchers.is(TelephonyManager.SIM_STATE_READY));
+        } else {
+            assumeThat(simState, Matchers.is(oneOf(TelephonyManager.SIM_STATE_ABSENT,
+                TelephonyManager.SIM_STATE_NOT_READY)));
+        }
     }
 
     private static class RecordingContentObserver extends ContentObserver {

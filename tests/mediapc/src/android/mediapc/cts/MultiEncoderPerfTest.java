@@ -16,9 +16,16 @@
 
 package android.mediapc.cts;
 import android.media.MediaFormat;
+import android.os.Build;
 import android.util.Pair;
 
 import androidx.test.filters.LargeTest;
+import androidx.test.platform.app.InstrumentationRegistry;
+
+import com.android.compatibility.common.util.CddTest;
+import com.android.compatibility.common.util.DeviceReportLog;
+import com.android.compatibility.common.util.ResultType;
+import com.android.compatibility.common.util.ResultUnit;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -74,6 +81,7 @@ public class MultiEncoderPerfTest extends MultiCodecPerfTestBase {
      */
     @LargeTest
     @Test(timeout = CodecTestBase.PER_TEST_TIMEOUT_LARGE_TEST_MS)
+    @CddTest(requirement="2.2.7.1/5.1/H-1-3,H-1-4")
     public void test720p() throws Exception {
         ArrayList<Pair<String, String>> mimeEncoderPairs = new ArrayList<>();
         mimeEncoderPairs.add(Pair.create(mMime, mEncoderName));
@@ -82,19 +90,32 @@ public class MultiEncoderPerfTest extends MultiCodecPerfTestBase {
         if (mMime.equals(MediaFormat.MIMETYPE_VIDEO_VP9)) {
             requiredMinInstances = REQUIRED_MIN_CONCURRENT_INSTANCES_FOR_VP9;
         }
-        assertTrue("Encoder " + mEncoderName + " unable to support minimum concurrent " +
-                "instances. act/exp: " + maxInstances + "/" + requiredMinInstances,
-                maxInstances >= requiredMinInstances);
-        ExecutorService pool = Executors.newFixedThreadPool(maxInstances);
-        List<Encode> testList = new ArrayList<>();
-        for (int i = 0; i < maxInstances; i++) {
-            testList.add(new Encode(mMime, mEncoderName, mIsAsync));
-        }
-        List<Future<Double>> resultList = pool.invokeAll(testList);
-        double achievedFrameRate = 0.0;
-        for (Future<Double> result : resultList) {
-            achievedFrameRate += result.get();
+        if (maxInstances >= requiredMinInstances) {
+            ExecutorService pool = Executors.newFixedThreadPool(maxInstances);
+            List<Encode> testList = new ArrayList<>();
+            for (int i = 0; i < maxInstances; i++) {
+                testList.add(new Encode(mMime, mEncoderName, mIsAsync));
+            }
+            List<Future<Double>> resultList = pool.invokeAll(testList);
+            double achievedFrameRate = 0.0;
+            for (Future<Double> result : resultList) {
+                achievedFrameRate += result.get();
+            }
         }
         // Achieved frame rate is not compared as this test runs in byte buffer mode.
+        if (Utils.isPerfClass()) {
+            assertTrue("Encoder " + mEncoderName + " unable to support minimum concurrent " +
+                            "instances. act/exp: " + maxInstances + "/" + requiredMinInstances,
+                    maxInstances >= requiredMinInstances);
+        } else {
+            int pc = maxInstances >= requiredMinInstances ? Build.VERSION_CODES.R : 0;
+            DeviceReportLog log = new DeviceReportLog("MediaPerformanceClassLogs",
+                    "MultiEncoderPerf_" + mEncoderName);
+            log.addValue("encoder", mMime + "_" + mEncoderName, ResultType.NEUTRAL,
+                    ResultUnit.NONE);
+            log.setSummary("CDD 2.2.7.1/5.1/H-1-3,H-1-4 performance_class", pc, ResultType.NEUTRAL,
+                    ResultUnit.NONE);
+            log.submit(InstrumentationRegistry.getInstrumentation());
+        }
     }
 }

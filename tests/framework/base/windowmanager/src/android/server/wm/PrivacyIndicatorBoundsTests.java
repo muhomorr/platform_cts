@@ -16,6 +16,8 @@
 
 package android.server.wm;
 
+import static android.app.WindowConfiguration.WINDOWING_MODE_FULLSCREEN;
+import static android.app.WindowConfiguration.WINDOWING_MODE_UNDEFINED;
 import static android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE;
 import static android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT;
 import static android.content.pm.ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE;
@@ -28,12 +30,11 @@ import static android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_M
 import static androidx.test.platform.app.InstrumentationRegistry.getInstrumentation;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assume.assumeFalse;
 
 import android.app.Activity;
-import android.app.AppOpsManager;
 import android.content.Intent;
 import android.graphics.Rect;
 import android.os.Bundle;
@@ -56,7 +57,7 @@ import org.junit.runners.Parameterized;
 
 @Presubmit
 @RunWith(Parameterized.class)
-public class PrivacyIndicatorBoundsTests {
+public class PrivacyIndicatorBoundsTests extends ActivityManagerTestBase {
 
     private static final String TAG = PrivacyIndicatorBoundsTests.class.getSimpleName();
     private static final long TIMEOUT_MS = 1000;
@@ -85,6 +86,10 @@ public class PrivacyIndicatorBoundsTests {
 
     @Test
     public void testStaticBoundsAreNotNull() {
+        // TODO(b/187757919): Allow Automotive to skip this test until privacy chip is implemented
+        // in immersive mode
+        assumeFalse(isCar());
+
         final PrivacyIndicatorBoundsTests.TestActivity activity = mTestActivity.launchActivity(
                 new Intent().putExtra(EXTRA_ORIENTATION, orientation));
         getInstrumentation().runOnMainSync(() -> {
@@ -94,13 +99,24 @@ public class PrivacyIndicatorBoundsTests {
         final View childWindowRoot = activity.getChildWindowRoot();
         PollingCheck.waitFor(TIMEOUT_MS, () -> childWindowRoot.getWidth() > 0);
         PollingCheck.waitFor(TIMEOUT_MS, () -> activity.getDispatchedInsets() != null);
+        mWmState.waitForValidState(mTestActivity.getActivity().getComponentName());
         WindowInsets insets = activity.getDispatchedInsets();
         assertNotNull(insets);
         Rect screenBounds = activity.getScreenBounds();
         assertNotNull(screenBounds);
         Rect bounds = insets.getPrivacyIndicatorBounds();
         assertNotNull(bounds);
-        assertEquals(bounds.top, 0);
+        final int windowingMode = mWmState
+                .getTaskDisplayArea(mTestActivity.getActivity().getComponentName())
+                .getWindowingMode();
+        final boolean inMultiWindowMode = windowingMode != WINDOWING_MODE_FULLSCREEN
+                && windowingMode != WINDOWING_MODE_UNDEFINED;
+        if (!inMultiWindowMode) {
+            // Multi-window environments may place the indicator bounds somewhere other than the
+            // top (e.g. desktops may decide that the bottom-right corner has the highest visual
+            // priority). Other windowing modes
+            assertEquals(bounds.top, 0);
+        }
         // TODO 188788786: Figure out why the screen bounds are different in cuttlefish,
         // causing failures
         // assertTrue(bounds + " not contained in " + screenBounds, screenBounds.contains(bounds));
