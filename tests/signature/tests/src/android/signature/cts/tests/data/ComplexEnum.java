@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009 The Android Open Source Project
+ * Copyright (C) 2022 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,21 +13,22 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package android.signature.cts.tests.data;
 
 /**
-* This class is used as reference data for the JDiffClassDescriptionTest tests.
-*/
-public abstract class AbstractClass {
-    public abstract void abstractMethod();
-    public final void finalMethod() {};
+ * A complex enum that looks like it is concrete and final but is actually implemented at runtime
+ * as an abstract class.
+ */
+public enum ComplexEnum {
 
-    public static class StaticNestedClass {
-    }
+    ONE() {
+        @Override
+        public void doSomething() {}
+    },
+    TWO() {
+        @Override
+        public void doSomething() {}
+    };
 
-    public static class StaticNestedClassWithCtor {
-        public StaticNestedClassWithCtor() {
-        }
-    }
+    public abstract void doSomething();
 }

@@ -19,15 +19,8 @@ package android.signature.cts.tests.data;
 /**
 * This class is used as reference data for the JDiffClassDescriptionTest tests.
 */
-public abstract class AbstractClass {
+public abstract class AbstractClassWithCtor {
+    public AbstractClassWithCtor() {}
     public abstract void abstractMethod();
     public final void finalMethod() {};
-
-    public static class StaticNestedClass {
-    }
-
-    public static class StaticNestedClassWithCtor {
-        public StaticNestedClassWithCtor() {
-        }
-    }
 }
