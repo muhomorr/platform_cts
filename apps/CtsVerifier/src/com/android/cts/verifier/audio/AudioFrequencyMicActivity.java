@@ -19,7 +19,6 @@ package com.android.cts.verifier.audio;
 import com.android.cts.verifier.R;
 
 import com.android.cts.verifier.CtsVerifierReportLog;
-import com.android.cts.verifier.audio.soundio.SoundPlayerObject;
 import com.android.cts.verifier.audio.wavelib.*;
 import com.android.compatibility.common.util.ResultType;
 import com.android.compatibility.common.util.ResultUnit;
@@ -267,8 +266,8 @@ public class AudioFrequencyMicActivity extends AudioFrequencyActivity implements
     }
 
     private void setButtonPlayStatus(int playResId) {
-        String play = getResources().getText(R.string.frequency_mic_play).toString();
-        String stop = getResources().getText(R.string.frequency_mic_stop).toString();
+        String play = getResources().getText(R.string.audio_general_play).toString();
+        String stop = getResources().getText(R.string.audio_general_stop).toString();
 
         mButtonPlayNoise.setText(playResId == R.id.frequency_mic_play_noise_btn ? stop : play);
         mButtonPlayUsbNoise.setText(playResId ==
