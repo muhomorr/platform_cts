@@ -110,8 +110,7 @@ public class PhotoPickerTest extends PhotoPickerBaseTest {
     @Test
     public void testMultiSelect_invalidParam() throws Exception {
         final Intent intent = new Intent(MediaStore.ACTION_PICK_IMAGES);
-        // TODO(b/205291616): Replace 101 with MediaStore.getPickImagesMaxLimit() + 1
-        intent.putExtra(MediaStore.EXTRA_PICK_IMAGES_MAX, 101);
+        intent.putExtra(MediaStore.EXTRA_PICK_IMAGES_MAX, MediaStore.getPickImagesMaxLimit() + 1);
         mActivity.startActivityForResult(intent, REQUEST_CODE);
         final GetResultActivity.Result res = mActivity.getResult();
         assertThat(res.resultCode).isEqualTo(Activity.RESULT_CANCELED);
@@ -182,8 +181,7 @@ public class PhotoPickerTest extends PhotoPickerBaseTest {
         final int imageCount = 4;
         createImages(imageCount, mContext.getUserId(), mUriList);
         final Intent intent = new Intent(MediaStore.ACTION_PICK_IMAGES);
-        // TODO(b/205291616): Replace 100 with MediaStore.getPickImagesMaxLimit()
-        intent.putExtra(MediaStore.EXTRA_PICK_IMAGES_MAX, 100);
+        intent.putExtra(MediaStore.EXTRA_PICK_IMAGES_MAX, MediaStore.getPickImagesMaxLimit());
         mActivity.startActivityForResult(intent, REQUEST_CODE);
 
         final List<UiObject> itemList = findItemList(imageCount);
@@ -210,8 +208,7 @@ public class PhotoPickerTest extends PhotoPickerBaseTest {
         final int videoCount = 3;
         createDNGVideos(videoCount, mContext.getUserId(), mUriList);
         final Intent intent = new Intent(MediaStore.ACTION_PICK_IMAGES);
-        // TODO(b/205291616): Replace 100 with MediaStore.getPickImagesMaxLimit()
-        intent.putExtra(MediaStore.EXTRA_PICK_IMAGES_MAX, 100);
+        intent.putExtra(MediaStore.EXTRA_PICK_IMAGES_MAX, MediaStore.getPickImagesMaxLimit());
         intent.setType("video/*");
         mActivity.startActivityForResult(intent, REQUEST_CODE);
 
@@ -257,8 +254,7 @@ public class PhotoPickerTest extends PhotoPickerBaseTest {
         final int imageCount = 4;
         createImages(imageCount, mContext.getUserId(), mUriList);
         final Intent intent = new Intent(MediaStore.ACTION_PICK_IMAGES);
-        // TODO(b/205291616): Replace 100 with MediaStore.getPickImagesMaxLimit()
-        intent.putExtra(MediaStore.EXTRA_PICK_IMAGES_MAX, 100);
+        intent.putExtra(MediaStore.EXTRA_PICK_IMAGES_MAX, MediaStore.getPickImagesMaxLimit());
         mActivity.startActivityForResult(intent, REQUEST_CODE);
 
         final List<UiObject> itemList = findItemList(imageCount);
@@ -276,7 +272,7 @@ public class PhotoPickerTest extends PhotoPickerBaseTest {
         swipeLeftAndWait();
 
         // Deselect one item
-        clickAndWait(findPreviewSelectCheckButton());
+        clickAndWait(findPreviewSelectedCheckButton());
 
         // Return selected items
         clickAndWait(findPreviewAddButton());
@@ -437,8 +433,7 @@ public class PhotoPickerTest extends PhotoPickerBaseTest {
         final String mimeType = "video/dng";
 
         final Intent intent = new Intent(MediaStore.ACTION_PICK_IMAGES);
-        // TODO(b/205291616): Replace 100 with MediaStore.getPickImagesMaxLimit()
-        intent.putExtra(MediaStore.EXTRA_PICK_IMAGES_MAX, 100);
+        intent.putExtra(MediaStore.EXTRA_PICK_IMAGES_MAX, MediaStore.getPickImagesMaxLimit());
         intent.setType(mimeType);
         mActivity.startActivityForResult(intent, REQUEST_CODE);
 
@@ -488,8 +483,7 @@ public class PhotoPickerTest extends PhotoPickerBaseTest {
     private void launchPreviewMultipleWithVideos(int videoCount) throws  Exception {
         createVideos(videoCount, mContext.getUserId(), mUriList);
         final Intent intent = new Intent(MediaStore.ACTION_PICK_IMAGES);
-        // TODO(b/205291616): Replace 100 with MediaStore.getPickImagesMaxLimit()
-        intent.putExtra(MediaStore.EXTRA_PICK_IMAGES_MAX, 100);
+        intent.putExtra(MediaStore.EXTRA_PICK_IMAGES_MAX, MediaStore.getPickImagesMaxLimit());
         intent.setType("video/*");
         mActivity.startActivityForResult(intent, REQUEST_CODE);
 
@@ -556,9 +550,9 @@ public class PhotoPickerTest extends PhotoPickerBaseTest {
                 REGEX_PACKAGE_NAME + ":id/button_view_selected"));
     }
 
-    private static UiObject findPreviewSelectCheckButton() {
+    private static UiObject findPreviewSelectedCheckButton() {
         return new UiObject(new UiSelector().resourceIdMatches(
-                REGEX_PACKAGE_NAME + ":id/preview_select_check_button"));
+                REGEX_PACKAGE_NAME + ":id/preview_selected_check_button"));
     }
 
 

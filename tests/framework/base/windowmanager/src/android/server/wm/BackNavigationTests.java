@@ -24,7 +24,7 @@ import android.os.RemoteException;
 import android.platform.test.annotations.Presubmit;
 import android.support.test.uiautomator.UiDevice;
 import android.view.KeyEvent;
-import android.view.OnBackInvokedCallback;
+import android.window.OnBackInvokedCallback;
 
 import androidx.lifecycle.Lifecycle;
 import androidx.test.core.app.ActivityScenario;
@@ -34,6 +34,8 @@ import androidx.test.platform.app.InstrumentationRegistry;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+
+import org.junit.Ignore;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -61,6 +63,7 @@ public class BackNavigationTests {
         mInstrumentation.getUiAutomation().adoptShellPermissionIdentity();
     }
 
+    @Ignore ("b/222208384")
     @Test
     public void registerCallback_initialized() {
         CountDownLatch latch = registerBackCallback();
@@ -68,6 +71,7 @@ public class BackNavigationTests {
         invokeBackAndAssertCallbackIsCalled(latch);
     }
 
+    @Ignore ("b/222208384")
     @Test
     public void registerCallback_created() {
         mScenario.moveToState(Lifecycle.State.CREATED);
@@ -77,6 +81,7 @@ public class BackNavigationTests {
         invokeBackAndAssertCallbackIsCalled(latch);
     }
 
+    @Ignore ("b/222208384")
     @Test
     public void registerCallback_resumed() {
         mScenario.moveToState(Lifecycle.State.CREATED);
@@ -86,6 +91,7 @@ public class BackNavigationTests {
         invokeBackAndAssertCallbackIsCalled(latch);
     }
 
+    @Ignore ("b/222208384")
     @Test
     public void onBackPressedNotCalled() {
         mScenario.moveToState(Lifecycle.State.CREATED)
