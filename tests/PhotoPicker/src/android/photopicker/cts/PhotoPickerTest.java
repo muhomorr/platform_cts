@@ -17,6 +17,7 @@
 package android.photopicker.cts;
 
 import static android.photopicker.cts.util.PhotoPickerAssertionsUtils.assertMimeType;
+import static android.photopicker.cts.util.PhotoPickerAssertionsUtils.assertPersistedGrant;
 import static android.photopicker.cts.util.PhotoPickerAssertionsUtils.assertPickerUriFormat;
 import static android.photopicker.cts.util.PhotoPickerAssertionsUtils.assertRedactedReadOnlyAccess;
 import static android.photopicker.cts.util.PhotoPickerFilesUtils.createDNGVideos;
@@ -83,6 +84,7 @@ public class PhotoPickerTest extends PhotoPickerBaseTest {
 
         final Uri uri = mActivity.getResult().data.getData();
         assertPickerUriFormat(uri, mContext.getUserId());
+        assertPersistedGrant(uri, mContext.getContentResolver());
         assertRedactedReadOnlyAccess(uri);
     }
 
@@ -110,8 +112,7 @@ public class PhotoPickerTest extends PhotoPickerBaseTest {
     @Test
     public void testMultiSelect_invalidParam() throws Exception {
         final Intent intent = new Intent(MediaStore.ACTION_PICK_IMAGES);
-        // TODO(b/205291616): Replace 101 with MediaStore.getPickImagesMaxLimit() + 1
-        intent.putExtra(MediaStore.EXTRA_PICK_IMAGES_MAX, 101);
+        intent.putExtra(MediaStore.EXTRA_PICK_IMAGES_MAX, MediaStore.getPickImagesMaxLimit() + 1);
         mActivity.startActivityForResult(intent, REQUEST_CODE);
         final GetResultActivity.Result res = mActivity.getResult();
         assertThat(res.resultCode).isEqualTo(Activity.RESULT_CANCELED);
@@ -174,6 +175,7 @@ public class PhotoPickerTest extends PhotoPickerBaseTest {
 
         final Uri uri = mActivity.getResult().data.getData();
         assertPickerUriFormat(uri, mContext.getUserId());
+        assertPersistedGrant(uri, mContext.getContentResolver());
         assertRedactedReadOnlyAccess(uri);
     }
 
@@ -182,8 +184,7 @@ public class PhotoPickerTest extends PhotoPickerBaseTest {
         final int imageCount = 4;
         createImages(imageCount, mContext.getUserId(), mUriList);
         final Intent intent = new Intent(MediaStore.ACTION_PICK_IMAGES);
-        // TODO(b/205291616): Replace 100 with MediaStore.getPickImagesMaxLimit()
-        intent.putExtra(MediaStore.EXTRA_PICK_IMAGES_MAX, 100);
+        intent.putExtra(MediaStore.EXTRA_PICK_IMAGES_MAX, MediaStore.getPickImagesMaxLimit());
         mActivity.startActivityForResult(intent, REQUEST_CODE);
 
         final List<UiObject> itemList = findItemList(imageCount);
@@ -201,6 +202,7 @@ public class PhotoPickerTest extends PhotoPickerBaseTest {
         for (int i = 0; i < count; i++) {
             final Uri uri = clipData.getItemAt(i).getUri();
             assertPickerUriFormat(uri, mContext.getUserId());
+            assertPersistedGrant(uri, mContext.getContentResolver());
             assertRedactedReadOnlyAccess(uri);
         }
     }
@@ -210,8 +212,7 @@ public class PhotoPickerTest extends PhotoPickerBaseTest {
         final int videoCount = 3;
         createDNGVideos(videoCount, mContext.getUserId(), mUriList);
         final Intent intent = new Intent(MediaStore.ACTION_PICK_IMAGES);
-        // TODO(b/205291616): Replace 100 with MediaStore.getPickImagesMaxLimit()
-        intent.putExtra(MediaStore.EXTRA_PICK_IMAGES_MAX, 100);
+        intent.putExtra(MediaStore.EXTRA_PICK_IMAGES_MAX, MediaStore.getPickImagesMaxLimit());
         intent.setType("video/*");
         mActivity.startActivityForResult(intent, REQUEST_CODE);
 
@@ -248,6 +249,7 @@ public class PhotoPickerTest extends PhotoPickerBaseTest {
         for (int i = 0; i < count; i++) {
             final Uri uri = clipData.getItemAt(i).getUri();
             assertPickerUriFormat(uri, mContext.getUserId());
+            assertPersistedGrant(uri, mContext.getContentResolver());
             assertRedactedReadOnlyAccess(uri);
         }
     }
@@ -257,8 +259,7 @@ public class PhotoPickerTest extends PhotoPickerBaseTest {
         final int imageCount = 4;
         createImages(imageCount, mContext.getUserId(), mUriList);
         final Intent intent = new Intent(MediaStore.ACTION_PICK_IMAGES);
-        // TODO(b/205291616): Replace 100 with MediaStore.getPickImagesMaxLimit()
-        intent.putExtra(MediaStore.EXTRA_PICK_IMAGES_MAX, 100);
+        intent.putExtra(MediaStore.EXTRA_PICK_IMAGES_MAX, MediaStore.getPickImagesMaxLimit());
         mActivity.startActivityForResult(intent, REQUEST_CODE);
 
         final List<UiObject> itemList = findItemList(imageCount);
@@ -287,6 +288,7 @@ public class PhotoPickerTest extends PhotoPickerBaseTest {
         for (int i = 0; i < count; i++) {
             final Uri uri = clipData.getItemAt(i).getUri();
             assertPickerUriFormat(uri, mContext.getUserId());
+            assertPersistedGrant(uri, mContext.getContentResolver());
             assertRedactedReadOnlyAccess(uri);
         }
     }
@@ -437,8 +439,7 @@ public class PhotoPickerTest extends PhotoPickerBaseTest {
         final String mimeType = "video/dng";
 
         final Intent intent = new Intent(MediaStore.ACTION_PICK_IMAGES);
-        // TODO(b/205291616): Replace 100 with MediaStore.getPickImagesMaxLimit()
-        intent.putExtra(MediaStore.EXTRA_PICK_IMAGES_MAX, 100);
+        intent.putExtra(MediaStore.EXTRA_PICK_IMAGES_MAX, MediaStore.getPickImagesMaxLimit());
         intent.setType(mimeType);
         mActivity.startActivityForResult(intent, REQUEST_CODE);
 
@@ -458,6 +459,7 @@ public class PhotoPickerTest extends PhotoPickerBaseTest {
         for (int i = 0; i < count; i++) {
             final Uri uri = clipData.getItemAt(i).getUri();
             assertPickerUriFormat(uri, mContext.getUserId());
+            assertPersistedGrant(uri, mContext.getContentResolver());
             assertRedactedReadOnlyAccess(uri);
             assertMimeType(uri, mimeType);
         }
@@ -488,8 +490,7 @@ public class PhotoPickerTest extends PhotoPickerBaseTest {
     private void launchPreviewMultipleWithVideos(int videoCount) throws  Exception {
         createVideos(videoCount, mContext.getUserId(), mUriList);
         final Intent intent = new Intent(MediaStore.ACTION_PICK_IMAGES);
-        // TODO(b/205291616): Replace 100 with MediaStore.getPickImagesMaxLimit()
-        intent.putExtra(MediaStore.EXTRA_PICK_IMAGES_MAX, 100);
+        intent.putExtra(MediaStore.EXTRA_PICK_IMAGES_MAX, MediaStore.getPickImagesMaxLimit());
         intent.setType("video/*");
         mActivity.startActivityForResult(intent, REQUEST_CODE);
 

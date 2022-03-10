@@ -130,14 +130,14 @@ public class PhotoPickerCrossProfileTest extends PhotoPickerBaseTest {
      */
     @Test
     @EnsureHasWorkProfile
+    @SdkSuppress(minSdkVersion = 31, codeName = "S")
     public void testPersonalApp_cannotAccessWorkProfile_default() throws Exception {
         assertBlockedByAdmin(/* isInvokedFromWorkProfile */ false);
     }
 
     private void assertBlockedByAdmin(boolean isInvokedFromWorkProfile) throws Exception {
         Intent intent = new Intent(MediaStore.ACTION_PICK_IMAGES);
-        // TODO(b/205291616): Replace 100 with MediaStore.getPickImagesMaxLimit()
-        intent.putExtra(MediaStore.EXTRA_PICK_IMAGES_MAX, 100);
+        intent.putExtra(MediaStore.EXTRA_PICK_IMAGES_MAX, MediaStore.getPickImagesMaxLimit());
         mActivity.startActivityForResult(intent, REQUEST_CODE);
 
         // Click the profile button to change to work profile
