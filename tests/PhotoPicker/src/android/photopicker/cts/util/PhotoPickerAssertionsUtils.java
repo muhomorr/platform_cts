@@ -16,9 +16,6 @@
 
 package android.photopicker.cts.util;
 
-import static android.os.SystemProperties.getBoolean;
-import static android.provider.MediaStore.Files.FileColumns;
-
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
 
@@ -26,18 +23,23 @@ import static org.junit.Assert.fail;
 
 import android.content.ContentResolver;
 import android.content.Context;
+import android.content.Intent;
+import android.content.UriPermission;
 import android.database.Cursor;
 import android.media.ExifInterface;
 import android.net.Uri;
 import android.os.FileUtils;
 import android.os.ParcelFileDescriptor;
+import android.provider.MediaStore.PickerMediaColumns;
 
 import androidx.test.InstrumentationRegistry;
 
 import java.io.ByteArrayOutputStream;
 import java.io.FileNotFoundException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
 /**
  * Photo Picker Utility methods for test assertions.
@@ -54,6 +56,20 @@ public class PhotoPickerAssertionsUtils {
         assertThat(auth).isEqualTo("picker");
     }
 
+    public static void assertPersistedGrant(Uri uri, ContentResolver resolver) {
+        resolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+
+        final List<UriPermission> uriPermissions = resolver.getPersistedUriPermissions();
+        final List<Uri> uris = new ArrayList<>();
+        for (UriPermission perm : uriPermissions) {
+            if (perm.isReadPermission()) {
+                uris.add(perm.getUri());
+            }
+        }
+
+        assertThat(uris).contains(uri);
+    }
+
     public static void assertMimeType(Uri uri, String expectedMimeType) throws Exception {
         final Context context = InstrumentationRegistry.getTargetContext();
         final String resultMimeType = context.getContentResolver().getType(uri);
@@ -62,22 +78,14 @@ public class PhotoPickerAssertionsUtils {
 
     public static void assertRedactedReadOnlyAccess(Uri uri) throws Exception {
         assertThat(uri).isNotNull();
-        // TODO(b/205291616): Replace FileColumns.MIME_TYPE with PickerMediaColumns.MIME_TYPE
-        final String[] projection = new String[]{ FileColumns.MIME_TYPE };
+        final String[] projection = new String[]{ PickerMediaColumns.MIME_TYPE };
         final Context context = InstrumentationRegistry.getTargetContext();
         final ContentResolver resolver = context.getContentResolver();
         try (Cursor c = resolver.query(uri, projection, null, null)) {
             assertThat(c).isNotNull();
             assertThat(c.moveToFirst()).isTrue();
 
-            final String mimeType;
-            if (getBoolean("sys.photopicker.pickerdb.enabled", true)) {
-                // TODO(b/205291616): Replace FileColumns.MIME_TYPE with
-                // PickerMediaColumns.MIME_TYPE
-                mimeType = c.getString(c.getColumnIndex(FileColumns.MIME_TYPE));
-            } else {
-                mimeType = c.getString(c.getColumnIndex(FileColumns.MIME_TYPE));
-            }
+            final String mimeType = c.getString(c.getColumnIndex(PickerMediaColumns.MIME_TYPE));
 
             if (mimeType.startsWith("image")) {
                 assertImageRedactedReadOnlyAccess(uri, resolver);
