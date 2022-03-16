@@ -62,6 +62,9 @@ _CV2_LK_PARAMS = dict(winSize=(15, 15),
                                 10, 0.03))  # cv2.calcOpticalFlowPyrLK params.
 
 _NAME = os.path.splitext(os.path.basename(__file__))[0]
+_ARDUINO_ANGLES = (0, 90)
+_ARDUINO_MOVE_TIME = 2
+_ARDUINO_SERVO_SPEED = 20
 _NUM_ROTATIONS = 10
 _START_FRAME = 1
 _FRAME_DELTA_TOL = 1.5  # 50% margin over nominal FPS of captures
@@ -88,7 +91,6 @@ _GYRO_INIT_WAIT_TIME = 0.5  # Seconds to wait for gyro to stabilize.
 _GYRO_POST_WAIT_TIME = 0.2  # Seconds to wait to capture some extra gyro data.
 _IMG_SIZE_MAX = 640 * 480  # Maximum image size.
 _NUM_FRAMES_MAX = 300  # fps*test_length should be < this for smooth captures.
-_NUM_GYRO_PTS_TO_AVG = 20  # Number of gyroscope events to average.
 
 
 def _collect_data(cam, fps, w, h, test_length, rot_rig, chart_dist, log_path):
@@ -120,7 +122,8 @@ def _collect_data(cam, fps, w, h, test_length, rot_rig, chart_dist, log_path):
   # Start camera rotation.
   p = multiprocessing.Process(
       target=sensor_fusion_utils.rotation_rig,
-      args=(rot_rig['cntl'], rot_rig['ch'], _NUM_ROTATIONS,))
+      args=(rot_rig['cntl'], rot_rig['ch'], _NUM_ROTATIONS,
+            _ARDUINO_ANGLES, _ARDUINO_SERVO_SPEED, _ARDUINO_MOVE_TIME,))
   p.start()
 
   cam.start_sensor_events()
@@ -188,51 +191,6 @@ def _collect_data(cam, fps, w, h, test_length, rot_rig, chart_dist, log_path):
     image_processing_utils.write_image(img, '%s_frame%03d.png' % (
         os.path.join(log_path, _NAME), i))
   return events, frames
-
-
-def _plot_gyro_events(gyro_events, log_path):
-  """Plot x, y, and z on the gyro events.
-
-  Samples are grouped into NUM_GYRO_PTS_TO_AVG groups and averaged to minimize
-  random spikes in data.
-
-  Args:
-    gyro_events: List of gyroscope events.
-    log_path: Text to location to save data.
-  """
-
-  nevents = (len(gyro_events) // _NUM_GYRO_PTS_TO_AVG) * _NUM_GYRO_PTS_TO_AVG
-  gyro_events = gyro_events[:nevents]
-  times = np.array([(e['time'] - gyro_events[0]['time']) * _NSEC_TO_SEC
-                    for e in gyro_events])
-  x = np.array([e['x'] for e in gyro_events])
-  y = np.array([e['y'] for e in gyro_events])
-  z = np.array([e['z'] for e in gyro_events])
-
-  # Group samples into size-N groups & average each together to minimize random
-  # spikes in data.
-  times = times[_NUM_GYRO_PTS_TO_AVG//2::_NUM_GYRO_PTS_TO_AVG]
-  x = x.reshape(nevents//_NUM_GYRO_PTS_TO_AVG, _NUM_GYRO_PTS_TO_AVG).mean(1)
-  y = y.reshape(nevents//_NUM_GYRO_PTS_TO_AVG, _NUM_GYRO_PTS_TO_AVG).mean(1)
-  z = z.reshape(nevents//_NUM_GYRO_PTS_TO_AVG, _NUM_GYRO_PTS_TO_AVG).mean(1)
-
-  pylab.figure(_NAME)
-  # x & y on same axes
-  pylab.subplot(2, 1, 1)
-  pylab.title(_NAME + ' (mean of %d pts)' % _NUM_GYRO_PTS_TO_AVG)
-  pylab.plot(times, x, 'r', label='x')
-  pylab.plot(times, y, 'g', label='y')
-  pylab.ylabel('gyro x & y movement (rads/s)')
-  pylab.legend()
-
-  # z on separate axes
-  pylab.subplot(2, 1, 2)
-  pylab.plot(times, z, 'b', label='z')
-  pylab.xlabel('time (seconds)')
-  pylab.ylabel('gyro z movement (rads/s)')
-  pylab.legend()
-  matplotlib.pyplot.savefig(
-      '%s_gyro_events.png' % (os.path.join(log_path, _NAME)))
 
 
 def _get_cam_times(cam_events, fps):
@@ -539,7 +497,7 @@ class SensorFusionTest(its_base_test.ItsBaseTest):
                                        rot_rig, chart_distance, log_path)
     logging.debug('Start frame: %d', _START_FRAME)
 
-    _plot_gyro_events(events['gyro'], log_path)
+    sensor_fusion_utils.plot_gyro_events(events['gyro'], _NAME, log_path)
 
     # Validity check on gyro/camera timestamps
     cam_times = _get_cam_times(

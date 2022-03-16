@@ -82,6 +82,9 @@ class ItsSession(object):
 
   # Seconds timeout on each socket operation.
   SOCK_TIMEOUT = 20.0
+  # Seconds timeout on performance measurement socket operation
+  SOCK_TIMEOUT_FOR_PERF_MEASURE = 40.0
+
   # Additional timeout in seconds when ITS service is doing more complicated
   # operations, for example: issuing warmup requests before actual capture.
   EXTRA_SOCK_TIMEOUT = 5.0
@@ -1144,7 +1147,11 @@ class ItsSession(object):
     cmd['cameraId'] = self._camera_id
     self.sock.send(json.dumps(cmd).encode() + '\n'.encode())
 
+    timeout = self.SOCK_TIMEOUT_FOR_PERF_MEASURE
+    self.sock.settimeout(timeout)
     data, _ = self.__read_response_from_socket()
+    self.sock.settimeout(self.SOCK_TIMEOUT)
+
     if data['tag'] != 'cameraLaunchMs':
       raise error_util.CameraItsError('Failed to measure camera launch latency')
     return float(data['strValue'])
@@ -1160,7 +1167,11 @@ class ItsSession(object):
     cmd['cameraId'] = self._camera_id
     self.sock.send(json.dumps(cmd).encode() + '\n'.encode())
 
+    timeout = self.SOCK_TIMEOUT_FOR_PERF_MEASURE
+    self.sock.settimeout(timeout)
     data, _ = self.__read_response_from_socket()
+    self.sock.settimeout(self.SOCK_TIMEOUT)
+
     if data['tag'] != 'camera1080pJpegCaptureMs':
       raise error_util.CameraItsError(
           'Failed to measure camera 1080p jpeg capture latency')

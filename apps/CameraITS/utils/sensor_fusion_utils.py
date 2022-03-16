@@ -17,10 +17,13 @@
 import bisect
 import codecs
 import logging
+import os
 import struct
 import time
 import unittest
 
+from matplotlib import pylab
+import matplotlib.pyplot
 import numpy as np
 import scipy.spatial
 import serial
@@ -28,11 +31,9 @@ from serial.tools import list_ports
 
 # Constants for Rotation Rig
 ARDUINO_ANGLE_MAX = 180.0  # degrees
-ARDUINO_ANGLES = [0]*5 +list(range(0, 90, 3)) + [90]*5 +list(range(90, -1, -3))
 ARDUINO_BAUDRATE = 9600
 ARDUINO_CMD_LENGTH = 3
 ARDUINO_CMD_TIME = 2.0 * ARDUINO_CMD_LENGTH / ARDUINO_BAUDRATE  # round trip
-ARDUINO_MOVE_TIME = 0.06 - ARDUINO_CMD_TIME  # seconds
 ARDUINO_PID = 0x0043
 ARDUINO_SERVO_SPEED_MAX = 255
 ARDUINO_SERVO_SPEED_MIN = 1
@@ -64,6 +65,8 @@ _CORR_TIME_OFFSET_STEP = 0.5  # ms step for shifts.
 _MSEC_TO_NSEC = 1000000
 _NSEC_TO_SEC = 1E-9
 _SEC_TO_NSEC = int(1/_NSEC_TO_SEC)
+
+_NUM_GYRO_PTS_TO_AVG = 20
 
 
 def serial_port_def(name):
@@ -175,14 +178,14 @@ def convert_to_hex(cmd):
           for x in cmd]
 
 
-def arduino_rotate_servo_to_angle(ch, angle, serial_port, delay=0):
+def arduino_rotate_servo_to_angle(ch, angle, serial_port, move_time):
   """Rotate servo to the specified angle.
 
   Args:
     ch: str; servo to rotate in ARDUINO_VALID_CH
     angle: int; servo angle to move to
     serial_port: object; serial port
-    delay: int; time in seconds
+    move_time: int; time in seconds
   """
   if angle < 0 or angle > ARDUINO_ANGLE_MAX:
     logging.debug('Angle must be between 0 and %d.', ARDUINO_ANGLE_MAX)
@@ -192,23 +195,27 @@ def arduino_rotate_servo_to_angle(ch, angle, serial_port, delay=0):
 
   cmd = [struct.pack('B', i) for i in [ARDUINO_START_BYTE, int(ch), angle]]
   arduino_send_cmd(serial_port, cmd)
-  time.sleep(delay)
+  time.sleep(move_time)
 
 
-def arduino_rotate_servo(ch, serial_port):
-  """Rotate servo between 0 --> 90 --> 0.
+def arduino_rotate_servo(ch, angles, servo_speed, move_time, serial_port):
+  """Rotate servo through 'angles'.
 
   Args:
     ch: str; servo to rotate
+    angles: list of ints; servo angles to move to
+    servo_speed: int; move speed between [1, 255]
+    move_time: int; time required to allow for arduino movement
     serial_port: object; serial port
   """
-  for angle in ARDUINO_ANGLES:
+
+  for angle in angles:
     angle_norm = int(round(angle*ARDUINO_ANGLE_MAX/HS755HB_ANGLE_MAX, 0))
-    arduino_rotate_servo_to_angle(
-        ch, angle_norm, serial_port, ARDUINO_MOVE_TIME)
+    arduino_rotate_servo_to_angle(ch, angle_norm, serial_port, move_time)
 
 
-def rotation_rig(rotate_cntl, rotate_ch, num_rotations):
+def rotation_rig(rotate_cntl, rotate_ch, num_rotations, angles, servo_speed,
+                 move_time):
   """Rotate the phone n times using rotate_cntl and rotate_ch defined.
 
   rotate_ch is hard wired and must be determined from physical setup.
@@ -220,6 +227,9 @@ def rotation_rig(rotate_cntl, rotate_ch, num_rotations):
     rotate_cntl: str to identify as 'arduino' or 'canakit' controller.
     rotate_ch: str to identify rotation channel number.
     num_rotations: int number of rotations.
+    angles: list of ints; servo angle to move to.
+    servo_speed: int number of move speed between [1, 255].
+    move_time: int time required to allow for arduino movement.
   """
 
   logging.debug('Controller: %s, ch: %s', rotate_cntl, rotate_ch)
@@ -234,6 +244,9 @@ def rotation_rig(rotate_cntl, rotate_ch, num_rotations):
     logging.debug('Moving servo to origin')
     arduino_rotate_servo_to_angle(rotate_ch, 0, arduino_serial_port, 1)
 
+    # set servo speed
+    set_servo_speed(rotate_ch, servo_speed, arduino_serial_port, delay=0)
+
   elif rotate_cntl.lower() == 'canakit':
     canakit_serial_port = serial_port_def('Canakit')
 
@@ -244,11 +257,15 @@ def rotation_rig(rotate_cntl, rotate_ch, num_rotations):
   logging.debug('Rotating phone %dx', num_rotations)
   for _ in range(num_rotations):
     if rotate_cntl == 'arduino':
-      arduino_rotate_servo(rotate_ch, arduino_serial_port)
+      arduino_rotate_servo(rotate_ch, angles, servo_speed, move_time,
+                           arduino_serial_port)
     elif rotate_cntl == 'canakit':
       canakit_set_relay_channel_state(canakit_serial_port, rotate_ch, 'ON')
       canakit_set_relay_channel_state(canakit_serial_port, rotate_ch, 'OFF')
   logging.debug('Finished rotations')
+  if rotate_cntl == 'arduino':
+    logging.debug('Moving servo to origin')
+    arduino_rotate_servo_to_angle(rotate_ch, 0, arduino_serial_port, 1)
 
 
 def set_servo_speed(ch, servo_speed, serial_port, delay=0):
@@ -260,6 +277,7 @@ def set_servo_speed(ch, servo_speed, serial_port, delay=0):
     serial_port: object; serial port
     delay: int; time in seconds
   """
+  logging.debug('Servo speed: %d', servo_speed)
   if servo_speed < ARDUINO_SERVO_SPEED_MIN:
     logging.debug('Servo speed must be >= %d.', ARDUINO_SERVO_SPEED_MIN)
     servo_speed = ARDUINO_SERVO_SPEED_MIN
@@ -267,7 +285,8 @@ def set_servo_speed(ch, servo_speed, serial_port, delay=0):
     logging.debug('Servo speed must be <= %d.', ARDUINO_SERVO_SPEED_MAX)
     servo_speed = ARDUINO_SERVO_SPEED_MAX
 
-  cmd = [struct.pack('B', i) for i in [ARDUINO_SPEED_START_BYTE, int(ch), servo_speed]]
+  cmd = [struct.pack('B', i) for i in [ARDUINO_SPEED_START_BYTE,
+                                       int(ch), servo_speed]]
   arduino_send_cmd(serial_port, cmd)
   time.sleep(delay)
 
@@ -389,6 +408,52 @@ def get_best_alignment_offset(cam_times, cam_rots, gyro_events):
         f'Coefficients are < 0: a: {fit_coeffs[0]}, c: {fit_coeffs[2]}.')
 
   return exact_best_shift, fit_coeffs, shift_candidates, spatial_distances
+
+
+def plot_gyro_events(gyro_events, plot_name, log_path):
+  """Plot x, y, and z on the gyro events.
+
+  Samples are grouped into NUM_GYRO_PTS_TO_AVG groups and averaged to minimize
+  random spikes in data.
+
+  Args:
+    gyro_events: List of gyroscope events.
+    plot_name:  name of plot(s).
+    log_path: location to save data.
+  """
+
+  nevents = (len(gyro_events) // _NUM_GYRO_PTS_TO_AVG) * _NUM_GYRO_PTS_TO_AVG
+  gyro_events = gyro_events[:nevents]
+  times = np.array([(e['time'] - gyro_events[0]['time']) * _NSEC_TO_SEC
+                    for e in gyro_events])
+  x = np.array([e['x'] for e in gyro_events])
+  y = np.array([e['y'] for e in gyro_events])
+  z = np.array([e['z'] for e in gyro_events])
+
+  # Group samples into size-N groups & average each together to minimize random
+  # spikes in data.
+  times = times[_NUM_GYRO_PTS_TO_AVG//2::_NUM_GYRO_PTS_TO_AVG]
+  x = x.reshape(nevents//_NUM_GYRO_PTS_TO_AVG, _NUM_GYRO_PTS_TO_AVG).mean(1)
+  y = y.reshape(nevents//_NUM_GYRO_PTS_TO_AVG, _NUM_GYRO_PTS_TO_AVG).mean(1)
+  z = z.reshape(nevents//_NUM_GYRO_PTS_TO_AVG, _NUM_GYRO_PTS_TO_AVG).mean(1)
+
+  pylab.figure(plot_name)
+  # x & y on same axes
+  pylab.subplot(2, 1, 1)
+  pylab.title(f'{plot_name}(mean of {_NUM_GYRO_PTS_TO_AVG} pts)')
+  pylab.plot(times, x, 'r', label='x')
+  pylab.plot(times, y, 'g', label='y')
+  pylab.ylabel('gyro x & y movement (rads/s)')
+  pylab.legend()
+
+  # z on separate axes
+  pylab.subplot(2, 1, 2)
+  pylab.plot(times, z, 'b', label='z')
+  pylab.xlabel('time (seconds)')
+  pylab.ylabel('gyro z movement (rads/s)')
+  pylab.legend()
+  file_name = os.path.join(log_path, plot_name)
+  matplotlib.pyplot.savefig(f'{file_name}_gyro_events.png')
 
 
 class SensorFusionUtilsTests(unittest.TestCase):

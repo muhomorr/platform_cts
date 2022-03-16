@@ -334,13 +334,13 @@ public class PinnedStackTests extends ActivityManagerTestBase {
                 extraString(EXTRA_ENTER_PIP_ASPECT_RATIO_NUMERATOR, Integer.toString(2)),
                 extraString(EXTRA_ENTER_PIP_ASPECT_RATIO_DENOMINATOR, Integer.toString(1)),
                 extraString(EXTRA_EXPANDED_PIP_ASPECT_RATIO_NUMERATOR, Integer.toString(1)),
-                extraString(EXTRA_EXPANDED_PIP_ASPECT_RATIO_DENOMINATOR, Integer.toString(5)));
+                extraString(EXTRA_EXPANDED_PIP_ASPECT_RATIO_DENOMINATOR, Integer.toString(4)));
         // Wait for animation complete since we are comparing aspect ratio
         waitForEnterPipAnimationComplete(PIP_ACTIVITY);
         assertPinnedStackExists();
         // Assert that we have entered PIP and that the aspect ratio is correct
         final Rect bounds = getPinnedStackBounds();
-        assertFloatEquals((float) bounds.width() / bounds.height(), (float) 1.0f / 5.0f);
+        assertFloatEquals((float) bounds.width() / bounds.height(), (float) 1.0f / 4.0f);
     }
 
     @Test
@@ -397,6 +397,19 @@ public class PinnedStackTests extends ActivityManagerTestBase {
                 extraString(EXTRA_EXPANDED_PIP_ASPECT_RATIO_NUMERATOR, Integer.toString(2)),
                 extraString(EXTRA_EXPANDED_PIP_ASPECT_RATIO_DENOMINATOR, Integer.toString(1)));
         assertPinnedStackDoesNotExist();
+    }
+
+    @Test
+    public void testChangeAspectRationWhenInPipMode() {
+        // Enter PiP mode with a 2:1 aspect ratio
+        testEnterPipAspectRatio(2, 1);
+
+        // Change the aspect ratio to 1:2
+        final int newNumerator = 1;
+        final int newDenominator = 2;
+        mBroadcastActionTrigger.changeAspectRatio(newNumerator, newDenominator);
+
+        waitForValidAspectRatio(newNumerator, newDenominator);
     }
 
     private void testEnterPipAspectRatio(int num, int denom) {
@@ -502,16 +515,16 @@ public class PinnedStackTests extends ActivityManagerTestBase {
     }
 
     @Test
-    public void testPreferDockBigOverlaysWithExpandedPip() {
-        testPreferDockBigOverlaysWithExpandedPip(true);
+    public void testShouldDockBigOverlaysWithExpandedPip() {
+        testShouldDockBigOverlaysWithExpandedPip(true);
     }
 
     @Test
-    public void testNotPreferDockBigOverlaysWithExpandedPip() {
-        testPreferDockBigOverlaysWithExpandedPip(false);
+    public void testShouldNotDockBigOverlaysWithExpandedPip() {
+        testShouldDockBigOverlaysWithExpandedPip(false);
     }
 
-    private void testPreferDockBigOverlaysWithExpandedPip(boolean preferDock) {
+    private void testShouldDockBigOverlaysWithExpandedPip(boolean shouldDock) {
         assumeTrue(supportsExpandedPip());
         TestActivitySession<TestActivity> testSession = createManagedTestActivitySession();
         final Intent intent = new Intent(mContext, TestActivity.class);
@@ -528,7 +541,7 @@ public class PinnedStackTests extends ActivityManagerTestBase {
         waitForEnterPipAnimationComplete(PIP_ACTIVITY);
         assertPinnedStackExists();
 
-        testSession.runOnMainSyncAndWait(() -> activity.setPreferDockBigOverlays(preferDock));
+        testSession.runOnMainSyncAndWait(() -> activity.setShouldDockBigOverlays(shouldDock));
 
         mWmState.assertResumedActivity("Activity must be resumed", activity.getComponentName());
         assertPinnedStackExists();
@@ -536,8 +549,15 @@ public class PinnedStackTests extends ActivityManagerTestBase {
             final Task task = mWmState.getTaskByActivity(activity.getComponentName());
             final TaskInfo info = mTaskOrganizer.getTaskInfo(task.getTaskId());
 
-            assertEquals(preferDock, info.getPreferDockBigOverlays());
+            assertEquals(shouldDock, info.shouldDockBigOverlays());
         });
+
+        final boolean[] actual = new boolean[] {!shouldDock};
+        testSession.runOnMainSyncAndWait(() -> {
+            actual[0] = activity.shouldDockBigOverlays();
+        });
+
+        assertEquals(shouldDock, actual[0]);
     }
 
     @Test

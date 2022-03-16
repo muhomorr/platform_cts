@@ -35,6 +35,7 @@ import android.telephony.euicc.DownloadableSubscription;
 import android.telephony.euicc.EuiccCardManager;
 import android.telephony.euicc.EuiccInfo;
 import android.telephony.euicc.EuiccManager;
+import android.text.TextUtils;
 
 import androidx.test.InstrumentationRegistry;
 import androidx.test.runner.AndroidJUnit4;
@@ -43,6 +44,7 @@ import com.android.compatibility.common.util.ShellIdentityUtils;
 
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -189,6 +191,7 @@ public class EuiccManagerTest {
                 EuiccManager.EMBEDDED_SUBSCRIPTION_RESULT_ERROR, mCallbackReceiver.getResultCode());
     }
 
+    @Ignore("b/221887933") // TODO: Enable the test case after framework code is uncommented
     @Test
     public void testSwitchToSubscritionDisableWithNoPortAndChangesCompatDisabled()
             throws Exception {
@@ -229,6 +232,7 @@ public class EuiccManagerTest {
                 SWITCH_WITHOUT_PORT_INDEX_EXCEPTION_ON_DISABLE_STRING);
     }
 
+    @Ignore("b/221887933") // TODO: Enable the test case after framework code is uncommented
     @Test
     public void testSwitchToSubscriptionDisableWithNoPort() throws Exception {
         // test disabled state only for now
@@ -592,20 +596,10 @@ public class EuiccManagerTest {
             if (cardInfo.isEuicc()) {
                 for (UiccPortInfo portInfo : portInfoList) {
                     // Check if port is active and no profile install on it.
-                    if (portInfo.isActive() && portInfo.getIccId() == null) {
+                    if (portInfo.isActive() && TextUtils.isEmpty(portInfo.getIccId())) {
                         boolean result = mEuiccManager.isSimPortAvailable(portInfo.getPortIndex());
                         assertTrue(result);
-                    } else {
-                        // Port is not available.
-                        boolean result = mEuiccManager.isSimPortAvailable(portInfo.getPortIndex());
-                        assertFalse(result);
                     }
-                }
-            } else {
-                for (UiccPortInfo portInfo : portInfoList) {
-                    // Port is not Euicc.
-                    boolean result = mEuiccManager.isSimPortAvailable(portInfo.getPortIndex());
-                    assertFalse(result);
                 }
             }
         }

@@ -104,6 +104,7 @@ import java.text.MessageFormat;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -177,6 +178,10 @@ public class UsageStatsTest {
             "broadcast_response_fg_threshold_state";
 
     private static final int DEFAULT_TIMEOUT_MS = 10_000;
+    // For tests that are verifying a certain event doesn't occur, wait for some time
+    // to ensure the event doesn't really occur. Otherwise, we cannot be sure if the event didn't
+    // occur or the verification was done too early before the event occurred.
+    private static final int WAIT_TIME_FOR_NEGATIVE_TESTS_MS = 500;
 
     private static final long TIMEOUT = TimeUnit.SECONDS.toMillis(5);
     private static final long MINUTE = TimeUnit.MINUTES.toMillis(1);
@@ -1619,7 +1624,8 @@ public class UsageStatsTest {
         final long broadcastResponseWindowDurationMs = TimeUnit.MINUTES.toMillis(2);
         try (DeviceConfigStateHelper deviceConfigStateHelper =
                 new DeviceConfigStateHelper(NAMESPACE_APP_STANDBY)) {
-            deviceConfigStateHelper.set(KEY_BROADCAST_RESPONSE_WINDOW_DURATION_MS,
+            updateFlagWithDelay(deviceConfigStateHelper,
+                    KEY_BROADCAST_RESPONSE_WINDOW_DURATION_MS,
                     String.valueOf(broadcastResponseWindowDurationMs));
 
             assertResponseStats(TEST_APP_PKG, TEST_RESPONSE_STATS_ID_1,
@@ -1747,7 +1753,8 @@ public class UsageStatsTest {
                      new DeviceConfigStateHelper(NAMESPACE_APP_STANDBY)) {
             final TestServiceConnection connection = bindToTestServiceAndGetConnection();
             try {
-                deviceConfigStateHelper.set(KEY_BROADCAST_RESPONSE_FG_THRESHOLD_STATE,
+                updateFlagWithDelay(deviceConfigStateHelper,
+                        KEY_BROADCAST_RESPONSE_FG_THRESHOLD_STATE,
                         String.valueOf(ActivityManager.PROCESS_STATE_TOP));
 
                 ITestReceiver testReceiver = connection.getITestReceiver();
@@ -1790,7 +1797,8 @@ public class UsageStatsTest {
 
                 // Change the threshold to something lower than TOP, send the broadcast again
                 // and verify that counts get incremented.
-                deviceConfigStateHelper.set(KEY_BROADCAST_RESPONSE_FG_THRESHOLD_STATE,
+                updateFlagWithDelay(deviceConfigStateHelper,
+                        KEY_BROADCAST_RESPONSE_FG_THRESHOLD_STATE,
                         String.valueOf(ActivityManager.PROCESS_STATE_PERSISTENT));
                 sendBroadcastAndWaitForReceipt(intent, options.toBundle());
 
@@ -1808,7 +1816,8 @@ public class UsageStatsTest {
                 mUiDevice.pressHome();
                 // Change the threshold to a process state higher than RECEIVER, send the
                 // broadcast again and verify that counts do not change.
-                deviceConfigStateHelper.set(KEY_BROADCAST_RESPONSE_FG_THRESHOLD_STATE,
+                updateFlagWithDelay(deviceConfigStateHelper,
+                        KEY_BROADCAST_RESPONSE_FG_THRESHOLD_STATE,
                         String.valueOf(ActivityManager.PROCESS_STATE_HOME));
                 sendBroadcastAndWaitForReceipt(intent, options.toBundle());
 
@@ -1999,6 +2008,7 @@ public class UsageStatsTest {
             assertResponseStats(TEST_RESPONSE_STATS_ID_1, expectedStatsForId1);
             assertResponseStats(TEST_RESPONSE_STATS_ID_2, expectedStatsForId2);
 
+            mUsageStatsManager.clearBroadcastEvents();
             // Trigger a notification from test-pkg4 and verify notification-posted count gets
             // incremented.
             testReceiver4.createNotificationChannel(TEST_NOTIFICATION_CHANNEL_ID,
@@ -2318,6 +2328,13 @@ public class UsageStatsTest {
         }
     }
 
+    private void updateFlagWithDelay(DeviceConfigStateHelper deviceConfigStateHelper,
+            String key, String value) throws Exception {
+        deviceConfigStateHelper.set(key, value);
+        // TODO (221176951): Add a way to check the value of the flag in AppStandbyController
+        SystemClock.sleep(1_000);
+    }
+
     private Notification buildNotification(String channelId, int notificationId,
             String notificationText) {
         return new Notification.Builder(mContext, channelId)
@@ -2348,28 +2365,36 @@ public class UsageStatsTest {
 
     private void assertResponseStats(String packageName, long id,
             BroadcastResponseStats expectedStats) {
-
-        final List<BroadcastResponseStats> actualStats = PollingCheck.waitFor(DEFAULT_TIMEOUT_MS,
-                () -> mUsageStatsManager.queryBroadcastResponseStats(packageName, id),
-                result -> {
-                    final BroadcastResponseStats stats = (result == null || result.isEmpty())
-                            ? new BroadcastResponseStats(packageName, id) : result.get(0);
-                    return Objects.equals(expectedStats, stats);
-                });
-        if (actualStats != null && actualStats.size() > 1) {
-            fail("More than one object returned; expected=" + expectedStats
-                    + ", actual=" + Arrays.toString(actualStats.toArray()));
+        List<BroadcastResponseStats> actualStats = mUsageStatsManager
+                .queryBroadcastResponseStats(packageName, id);
+        if (compareStats(expectedStats, actualStats)) {
+            SystemClock.sleep(WAIT_TIME_FOR_NEGATIVE_TESTS_MS);
         }
-        final BroadcastResponseStats stats = (actualStats == null || actualStats.isEmpty())
-                ? new BroadcastResponseStats(packageName, id) : actualStats.get(0);
-        assertEquals(expectedStats, stats);
+
+        actualStats = PollingCheck.waitFor(DEFAULT_TIMEOUT_MS,
+                () -> mUsageStatsManager.queryBroadcastResponseStats(packageName, id),
+                result -> compareStats(expectedStats, result));
+        actualStats.sort(Comparator.comparing(BroadcastResponseStats::getPackageName));
+        final String errorMsg = String.format("\nEXPECTED(%d)=%s\nACTUAL(%d)=%s\n",
+                1, expectedStats,
+                actualStats.size(), Arrays.toString(actualStats.toArray()));
+        assertTrue(errorMsg, compareStats(expectedStats, actualStats));
     }
 
     private void assertResponseStats(long id,
             ArrayMap<String, BroadcastResponseStats> expectedStats) {
-        final List<BroadcastResponseStats> actualStats = PollingCheck.waitFor(DEFAULT_TIMEOUT_MS,
+        // TODO: Call into the above assertResponseStats() method instead of duplicating
+        // the logic.
+        List<BroadcastResponseStats> actualStats = mUsageStatsManager
+                .queryBroadcastResponseStats(null /* packageName */, id);
+        if (compareStats(expectedStats, actualStats)) {
+            SystemClock.sleep(WAIT_TIME_FOR_NEGATIVE_TESTS_MS);
+        }
+
+        actualStats = PollingCheck.waitFor(DEFAULT_TIMEOUT_MS,
                 () -> mUsageStatsManager.queryBroadcastResponseStats(null /* packageName */, id),
                 result -> compareStats(expectedStats, result));
+        actualStats.sort(Comparator.comparing(BroadcastResponseStats::getPackageName));
         final String errorMsg = String.format("\nEXPECTED(%d)=%s\nACTUAL(%d)=%s\n",
                 expectedStats.size(), expectedStats,
                 actualStats.size(), Arrays.toString(actualStats.toArray()));
@@ -2389,6 +2414,17 @@ public class UsageStatsTest {
             }
         }
         return true;
+    }
+
+    private boolean compareStats(BroadcastResponseStats expectedStats,
+            List<BroadcastResponseStats> actualStats) {
+        if (actualStats.size() > 1) {
+            return false;
+        }
+        final BroadcastResponseStats stats = (actualStats == null || actualStats.isEmpty())
+                ? new BroadcastResponseStats(expectedStats.getPackageName(), expectedStats.getId())
+                : actualStats.get(0);
+        return expectedStats.equals(stats);
     }
 
     @AppModeFull(reason = "No usage events access in instant apps")

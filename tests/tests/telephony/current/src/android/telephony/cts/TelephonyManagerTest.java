@@ -3581,6 +3581,7 @@ public class TelephonyManagerTest {
                 (tm) -> tm.setDataEnabledForReason(TelephonyManager.DATA_ENABLED_REASON_THERMAL,
                         false));
 
+        waitForMs(500);
         boolean isDataEnabledForReason = ShellIdentityUtils.invokeMethodWithShellPermissions(
                 mTelephonyManager, (tm) -> tm.isDataEnabledForReason(
                         TelephonyManager.DATA_ENABLED_REASON_THERMAL));
@@ -3595,6 +3596,7 @@ public class TelephonyManagerTest {
                 (tm) -> tm.setDataEnabledForReason(TelephonyManager.DATA_ENABLED_REASON_THERMAL,
                         true));
 
+        waitForMs(500);
         isDataEnabledForReason = ShellIdentityUtils.invokeMethodWithShellPermissions(
                 mTelephonyManager, (tm) -> tm.isDataEnabledForReason(
                         TelephonyManager.DATA_ENABLED_REASON_THERMAL));
@@ -3617,6 +3619,7 @@ public class TelephonyManagerTest {
                 (tm) -> tm.setDataEnabledForReason(TelephonyManager.DATA_ENABLED_REASON_POLICY,
                         false));
 
+        waitForMs(500);
         boolean isDataEnabledForReason = ShellIdentityUtils.invokeMethodWithShellPermissions(
                 mTelephonyManager, (tm) -> tm.isDataEnabledForReason(
                         TelephonyManager.DATA_ENABLED_REASON_POLICY));
@@ -3631,6 +3634,7 @@ public class TelephonyManagerTest {
                 (tm) -> tm.setDataEnabledForReason(TelephonyManager.DATA_ENABLED_REASON_POLICY,
                         true));
 
+        waitForMs(500);
         isDataEnabledForReason = ShellIdentityUtils.invokeMethodWithShellPermissions(
                 mTelephonyManager, (tm) -> tm.isDataEnabledForReason(
                         TelephonyManager.DATA_ENABLED_REASON_POLICY));
@@ -3728,6 +3732,7 @@ public class TelephonyManagerTest {
                         TelephonyManager.MOBILE_DATA_POLICY_DATA_ON_NON_DEFAULT_DURING_VOICE_CALL,
                         !allowDataDuringVoiceCall));
 
+        waitForMs(500);
         assertNotEquals(allowDataDuringVoiceCall,
                 ShellIdentityUtils.invokeMethodWithShellPermissions(
                         mTelephonyManager, getPolicyHelper));
@@ -3737,6 +3742,7 @@ public class TelephonyManagerTest {
                         TelephonyManager.MOBILE_DATA_POLICY_DATA_ON_NON_DEFAULT_DURING_VOICE_CALL,
                         allowDataDuringVoiceCall));
 
+        waitForMs(500);
         assertEquals(allowDataDuringVoiceCall,
                 ShellIdentityUtils.invokeMethodWithShellPermissions(
                         mTelephonyManager, getPolicyHelper));
@@ -3758,6 +3764,7 @@ public class TelephonyManagerTest {
                         TelephonyManager.MOBILE_DATA_POLICY_MMS_ALWAYS_ALLOWED,
                         !mmsAlwaysAllowed));
 
+        waitForMs(500);
         assertNotEquals(mmsAlwaysAllowed,
                 ShellIdentityUtils.invokeMethodWithShellPermissions(
                         mTelephonyManager, getPolicyHelper));
@@ -3767,6 +3774,7 @@ public class TelephonyManagerTest {
                         TelephonyManager.MOBILE_DATA_POLICY_MMS_ALWAYS_ALLOWED,
                         mmsAlwaysAllowed));
 
+        waitForMs(500);
         assertEquals(mmsAlwaysAllowed,
                 ShellIdentityUtils.invokeMethodWithShellPermissions(
                         mTelephonyManager, getPolicyHelper));
@@ -4237,7 +4245,7 @@ public class TelephonyManagerTest {
         TelephonyUtils.executeShellCommand(InstrumentationRegistry.getInstrumentation(),
                 cmdBuilder.toString());
 
-        long arbitraryCompletionWindowSecs = 1L;
+        long arbitraryCompletionWindowMillis = 60000L;
 
         boolean isDataThrottlingSupported = ShellIdentityUtils.invokeMethodWithShellPermissions(
                 mTelephonyManager, (tm) -> tm.isRadioInterfaceCapabilitySupported(
@@ -4254,7 +4262,7 @@ public class TelephonyManagerTest {
                                 .setDataThrottlingRequest(new DataThrottlingRequest.Builder()
                                         .setDataThrottlingAction(DataThrottlingRequest
                                                 .DATA_THROTTLING_ACTION_THROTTLE_SECONDARY_CARRIER)
-                                        .setCompletionDurationMillis(arbitraryCompletionWindowSecs)
+                                        .setCompletionDurationMillis(arbitraryCompletionWindowMillis)
                                         .build())
                                 .build()));
 
@@ -4290,7 +4298,7 @@ public class TelephonyManagerTest {
                                                     DataThrottlingRequest
                                                             .DATA_THROTTLING_ACTION_HOLD)
                                             .setCompletionDurationMillis(
-                                                    arbitraryCompletionWindowSecs)
+                                                    arbitraryCompletionWindowMillis)
                                             .build())
                                     .build()));
         } catch (IllegalArgumentException e) {
@@ -4821,9 +4829,22 @@ public class TelephonyManagerTest {
 
         try {
             mTelephonyManager.checkCarrierPrivilegesForPackageAnyPhone(mSelfPackageName);
+            fail("TelephonyManager#checkCarrierPrivilegesForPackageAnyPhone must be protected "
+                    + "with READ_PRIVILEGED_PHONE_STATE");
+        } catch (SecurityException expected) {
+        }
+
+        try {
+            InstrumentationRegistry.getInstrumentation().getUiAutomation()
+                    .adoptShellPermissionIdentity(
+                            "android.permission.READ_PRIVILEGED_PHONE_STATE");
+            mTelephonyManager.checkCarrierPrivilegesForPackageAnyPhone(mSelfPackageName);
         } catch (SecurityException e) {
-            fail("TelephonyManager#checkCarrierPrivilegesForPackageAnyPhone shouldn't require "
-                    + "READ_PRIVILEGED_PHONE_STATE");
+            fail("TelephonyManager#checkCarrierPrivilegesForPackageAnyPhone should not throw "
+                    + "SecurityException with READ_PRIVILEGED_PHONE_STATE permission");
+        } finally {
+            InstrumentationRegistry.getInstrumentation().getUiAutomation()
+                    .dropShellPermissionIdentity();
         }
     }
 

@@ -16,16 +16,12 @@
 
 package android.photopicker.cts;
 
-import android.Manifest;
 import android.app.Instrumentation;
 import android.content.Context;
 import android.content.Intent;
-import android.provider.DeviceConfig;
 
 import androidx.test.InstrumentationRegistry;
 import androidx.test.uiautomator.UiDevice;
-
-import com.android.modules.utils.build.SdkLevel;
 
 import org.junit.Before;
 
@@ -45,7 +41,9 @@ public class PhotoPickerBaseTest {
         final Instrumentation inst = InstrumentationRegistry.getInstrumentation();
         mDevice = UiDevice.getInstance(inst);
 
-        enablePhotoPickerFlag(inst);
+        final String setSyncDelayCommand =
+                "setprop  persist.sys.photopicker.pickerdb.default_sync_delay_ms 0";
+        mDevice.executeShellCommand(setSyncDelayCommand);
 
         mContext = inst.getContext();
         final Intent intent = new Intent(mContext, GetResultActivity.class);
@@ -60,19 +58,5 @@ public class PhotoPickerBaseTest {
         inst.waitForIdleSync();
         mActivity.clearResult();
         mDevice.waitForIdle();
-    }
-
-    private void enablePhotoPickerFlag(Instrumentation inst) throws Exception {
-        if (SdkLevel.isAtLeastS()) {
-            inst.getUiAutomation().adoptShellPermissionIdentity(
-                    Manifest.permission.WRITE_DEVICE_CONFIG);
-            DeviceConfig.setProperty(
-                    DeviceConfig.NAMESPACE_STORAGE_NATIVE_BOOT,
-                    "picker_intent_enabled" /* name */,
-                    "true" /* value */,
-                    false /* makeDefault */);
-        } else {
-            mDevice.executeShellCommand("setprop persist.sys.storage_picker_enabled true");
-        }
     }
 }

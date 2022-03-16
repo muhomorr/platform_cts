@@ -35,6 +35,8 @@ import static org.junit.Assert.assertThrows;
 
 import android.annotation.NonNull;
 import android.app.UiAutomation;
+import android.app.admin.DevicePolicyManager;
+import android.app.admin.WifiSsidPolicy;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -132,6 +134,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 @AppModeFull(reason = "Cannot get WifiManager in instant app mode")
@@ -4697,6 +4700,57 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
     }
 
     /**
+     * Verify the invalid and valid usages of {@code WifiManager#queryAutojoinGlobal}.
+     */
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.TIRAMISU, codeName = "Tiramisu")
+    public void testQueryAutojoinGlobal() throws Exception {
+        if (!WifiFeature.isWifiSupported(getContext())) {
+            // skip the test if WiFi is not supported
+            return;
+        }
+
+        AtomicBoolean enabled = new AtomicBoolean(false);
+        Consumer<Boolean> listener = new Consumer<Boolean>() {
+            @Override
+            public void accept(Boolean value) {
+                synchronized (mLock) {
+                    enabled.set(value);
+                    mLock.notify();
+                }
+            }
+        };
+        // Test invalid inputs trigger IllegalArgumentException
+        assertThrows("null executor should trigger exception", NullPointerException.class,
+                () -> mWifiManager.queryAutojoinGlobal(null, listener));
+        assertThrows("null listener should trigger exception", NullPointerException.class,
+                () -> mWifiManager.queryAutojoinGlobal(mExecutor, null));
+
+        // Test caller with no permission triggers SecurityException.
+        assertThrows("No permission should trigger SecurityException", SecurityException.class,
+                () -> mWifiManager.queryAutojoinGlobal(mExecutor, listener));
+
+        // Test get/set autojoin global enabled
+        ShellIdentityUtils.invokeWithShellPermissions(
+                () -> mWifiManager.allowAutojoinGlobal(true));
+        ShellIdentityUtils.invokeWithShellPermissions(
+                () -> mWifiManager.queryAutojoinGlobal(mExecutor, listener));
+        synchronized (mLock) {
+            mLock.wait(TEST_WAIT_DURATION_MS);
+        }
+        assertTrue(enabled.get());
+
+        // Test get/set autojoin global disabled
+        ShellIdentityUtils.invokeWithShellPermissions(
+                () -> mWifiManager.allowAutojoinGlobal(false));
+        ShellIdentityUtils.invokeWithShellPermissions(
+                () -> mWifiManager.queryAutojoinGlobal(mExecutor, listener));
+        synchronized (mLock) {
+            mLock.wait(TEST_WAIT_DURATION_MS);
+        }
+        assertFalse(enabled.get());
+    }
+
+    /**
      * Tests {@link WifiManager#isWapiSupported()} does not crash.
      */
     public void testIsWapiSupported() throws Exception {
@@ -5462,8 +5516,64 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
     }
 
     /**
-     * Tests
-     * {@link WifiManager#reportImpactToCreateIfaceRequest(int, boolean, Executor, BiConsumer)}.
+     * Tests {@link WifiManager#notifyMinimumRequiredWifiSecurityLevelChanged(int)}
+     * raise security exception without permission.
+     */
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.TIRAMISU, codeName = "Tiramisu")
+    public void testNotifyMinimumRequiredWifiSecurityLevelChangedWithoutPermission()
+            throws Exception {
+        if (!WifiFeature.isWifiSupported(getContext())) {
+            // skip the test if WiFi is not supported.
+            return;
+        }
+        assertThrows(SecurityException.class,
+                () -> mWifiManager.notifyMinimumRequiredWifiSecurityLevelChanged(
+                        DevicePolicyManager.WIFI_SECURITY_PERSONAL));
+    }
+
+    /**
+     * Tests {@link WifiManager#notifyMinimumRequiredWifiSecurityLevelChanged(int)}
+     * raise security exception without permission.
+     */
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.TIRAMISU, codeName = "Tiramisu")
+    public void testNotifyWifiSsidPolicyChangedWithoutPermission() throws Exception {
+        if (!WifiFeature.isWifiSupported(getContext())) {
+            // skip the test if WiFi is not supported.
+            return;
+        }
+        WifiSsidPolicy policy = new WifiSsidPolicy(
+                WifiSsidPolicy.WIFI_SSID_POLICY_TYPE_ALLOWLIST, new ArraySet<>(Arrays.asList(
+                WifiSsid.fromBytes("ssid".getBytes(StandardCharsets.UTF_8)))));
+        try {
+            mWifiManager.notifyWifiSsidPolicyChanged(policy);
+            fail("Expected security exception due to lack of permission");
+        } catch (SecurityException e) {
+            // expected
+        }
+    }
+
+    /**
+     * Verifies that
+     * {@link WifiManager#reportCreateInterfaceImpact(int, boolean, Executor, BiConsumer)} raises
+     * a security exception without permission.
+     */
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.TIRAMISU, codeName = "Tiramisu")
+    public void testIsItPossibleToCreateInterfaceNotAllowed() throws Exception {
+        if (!WifiFeature.isWifiSupported(getContext())) {
+            // skip the test if WiFi is not supported
+            return;
+        }
+
+        assertThrows(SecurityException.class, () -> mWifiManager.reportCreateInterfaceImpact(
+                WifiManager.WIFI_INTERFACE_TYPE_AP, false, mExecutor,
+                (canBeCreatedLocal, interfacesWhichWillBeDeletedLocal) -> {
+                    // should not get here (security exception!)
+                }));
+    }
+
+    /**
+     * Verifies
+     * {@link WifiManager#reportCreateInterfaceImpact(int, boolean, Executor, BiConsumer)} .
      */
     @SdkSuppress(minSdkVersion = Build.VERSION_CODES.TIRAMISU, codeName = "Tiramisu")
     public void testIsItPossibleToCreateInterface() throws Exception {
@@ -5474,17 +5584,35 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
 
         AtomicBoolean called = new AtomicBoolean(false);
         AtomicBoolean canBeCreated = new AtomicBoolean(false);
-        assertThrows(SecurityException.class, () -> mWifiManager.reportImpactToCreateIfaceRequest(
-                WifiManager.WIFI_INTERFACE_TYPE_AP, false, mExecutor,
-                (canBeCreatedLocal, interfacesWhichWillBeDeleted) -> {
-                    synchronized (mLock) {
-                        canBeCreated.set(canBeCreatedLocal);
-                        called.set(true);
-                        mLock.notify();
-                    }
-                }));
+        AtomicReference<Set<WifiManager.InterfaceCreationImpact>>
+                interfacesWhichWillBeDeleted = new AtomicReference<>(null);
+        ShellIdentityUtils.invokeWithShellPermissions(
+                () -> mWifiManager.reportCreateInterfaceImpact(
+                        WifiManager.WIFI_INTERFACE_TYPE_AP, false, mExecutor,
+                        (canBeCreatedLocal, interfacesWhichWillBeDeletedLocal) -> {
+                            synchronized (mLock) {
+                                canBeCreated.set(canBeCreatedLocal);
+                                called.set(true);
+                                interfacesWhichWillBeDeleted.set(interfacesWhichWillBeDeletedLocal);
+                                mLock.notify();
+                            }
+                        }));
         synchronized (mLock) {
             mLock.wait(TEST_WAIT_DURATION_MS);
+        }
+        assertTrue(called.get());
+        if (canBeCreated.get()) {
+            for (WifiManager.InterfaceCreationImpact entry : interfacesWhichWillBeDeleted.get()) {
+                int interfaceType = entry.getInterfaceType();
+                assertTrue(interfaceType == WifiManager.WIFI_INTERFACE_TYPE_STA
+                        || interfaceType == WifiManager.WIFI_INTERFACE_TYPE_AP
+                        || interfaceType == WifiManager.WIFI_INTERFACE_TYPE_DIRECT
+                        || interfaceType == WifiManager.WIFI_INTERFACE_TYPE_AWARE);
+                Set<String> packages = entry.getPackages();
+                for (String p : packages) {
+                    assertNotNull(p);
+                }
+            }
         }
     }
 }

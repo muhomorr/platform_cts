@@ -21,6 +21,7 @@ import android.content.pm.PackageManager;
 import android.graphics.ImageFormat;
 import android.graphics.Rect;
 import android.hardware.display.DisplayManager;
+import android.media.AudioFormat;
 import android.media.Image;
 import android.media.MediaCodec;
 import android.media.MediaCodecInfo;
@@ -65,6 +66,7 @@ import com.android.compatibility.common.util.MediaUtils;
 
 import static android.media.MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface;
 import static android.media.MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Flexible;
+import static android.media.MediaCodecInfo.CodecCapabilities.COLOR_FormatYUVP010;
 import static android.media.MediaCodecInfo.CodecProfileLevel.*;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -292,36 +294,37 @@ class OutputManager {
     }
 
     void checksum(ByteBuffer buf, int size) {
-        checksum(buf, size, 0, 0, 0);
+        checksum(buf, size, 0, 0, 0, 0);
     }
 
-    void checksum(ByteBuffer buf, int size, int width, int height, int stride) {
+    void checksum(ByteBuffer buf, int size, int width, int height, int stride, int bytesPerSample) {
         int cap = buf.capacity();
         assertTrue("checksum() params are invalid: size = " + size + " cap = " + cap,
                 size > 0 && size <= cap);
         if (buf.hasArray()) {
-            if (width > 0 && height > 0 && stride > 0) {
+            if (width > 0 && height > 0 && stride > 0 && bytesPerSample > 0) {
                 int offset = buf.position() + buf.arrayOffset();
-                byte[] bb = new byte[width * height];
+                byte[] bb = new byte[width * height * bytesPerSample];
                 for (int i = 0; i < height; ++i) {
-                    System.arraycopy(buf.array(), offset, bb, i * width, width);
+                    System.arraycopy(buf.array(), offset, bb, i * width * bytesPerSample,
+                            width * bytesPerSample);
                     offset += stride;
                 }
-                mCrc32UsingBuffer.update(bb, 0, width * height);
+                mCrc32UsingBuffer.update(bb, 0, width * height * bytesPerSample);
             } else {
                 mCrc32UsingBuffer.update(buf.array(), buf.position() + buf.arrayOffset(), size);
             }
-        } else if (width > 0 && height > 0 && stride > 0) {
+        } else if (width > 0 && height > 0 && stride > 0 && bytesPerSample > 0) {
             // Checksum only the Y plane
             int pos = buf.position();
             int offset = pos;
-            byte[] bb = new byte[width * height];
+            byte[] bb = new byte[width * height * bytesPerSample];
             for (int i = 0; i < height; ++i) {
                 buf.position(offset);
-                buf.get(bb, i * width, width);
+                buf.get(bb, i * width * bytesPerSample, width * bytesPerSample);
                 offset += stride;
             }
-            mCrc32UsingBuffer.update(bb, 0, width * height);
+            mCrc32UsingBuffer.update(bb, 0, width * height * bytesPerSample);
             buf.position(pos);
         } else {
             int pos = buf.position();
@@ -339,7 +342,9 @@ class OutputManager {
 
     void checksum(Image image) {
         int format = image.getFormat();
-        assertEquals("unexpected image format", ImageFormat.YUV_420_888, format);
+        assertTrue("unexpected image format",
+                format == ImageFormat.YUV_420_888 || format == ImageFormat.YCBCR_P010);
+        int bytesPerSample = (ImageFormat.getBitsPerPixel(format) * 2) / (8 * 3);  // YUV420
 
         Rect cropRect = image.getCropRect();
         int imageWidth = cropRect.width();
@@ -355,6 +360,7 @@ class OutputManager {
             rowStride = planes[i].getRowStride();
             pixelStride = planes[i].getPixelStride();
             if (i == 0) {
+                assertEquals(bytesPerSample, pixelStride);
                 width = imageWidth;
                 height = imageHeight;
                 left = imageLeft;
@@ -365,32 +371,37 @@ class OutputManager {
                 left = imageLeft / 2;
                 top = imageTop / 2;
             }
-            int cropOffset = left + top * rowStride;
+            int cropOffset = (left * pixelStride) + top * rowStride;
             // local contiguous pixel buffer
-            byte[] bb = new byte[width * height];
+            byte[] bb = new byte[width * height * bytesPerSample];
+
             if (buf.hasArray()) {
                 byte[] b = buf.array();
                 int offs = buf.arrayOffset() + cropOffset;
-                if (pixelStride == 1) {
+                if (pixelStride == bytesPerSample) {
                     for (y = 0; y < height; ++y) {
-                        System.arraycopy(b, offs + y * rowStride, bb, y * width, width);
+                        System.arraycopy(b, offs + y * rowStride, bb, y * width * bytesPerSample,
+                                width * bytesPerSample);
                     }
                 } else {
                     // do it pixel-by-pixel
                     for (y = 0; y < height; ++y) {
                         int lineOffset = offs + y * rowStride;
                         for (x = 0; x < width; ++x) {
-                            bb[y * width + x] = b[lineOffset + x * pixelStride];
+                            for (int bytePos = 0; bytePos < bytesPerSample; ++bytePos) {
+                                bb[y * width * bytesPerSample + x * bytesPerSample + bytePos] =
+                                        b[lineOffset + x * pixelStride + bytePos];
+                            }
                         }
                     }
                 }
             } else { // almost always ends up here due to direct buffers
                 int base = buf.position();
                 int pos = base + cropOffset;
-                if (pixelStride == 1) {
+                if (pixelStride == bytesPerSample) {
                     for (y = 0; y < height; ++y) {
                         buf.position(pos + y * rowStride);
-                        buf.get(bb, y * width, width);
+                        buf.get(bb, y * width * bytesPerSample, width * bytesPerSample);
                     }
                 } else {
                     // local line buffer
@@ -398,16 +409,20 @@ class OutputManager {
                     // do it pixel-by-pixel
                     for (y = 0; y < height; ++y) {
                         buf.position(pos + y * rowStride);
-                        // we're only guaranteed to have pixelStride * (width - 1) + 1 bytes
-                        buf.get(lb, 0, pixelStride * (width - 1) + 1);
+                        // we're only guaranteed to have pixelStride * (width - 1) +
+                        // bytesPerSample bytes
+                        buf.get(lb, 0, pixelStride * (width - 1) + bytesPerSample);
                         for (x = 0; x < width; ++x) {
-                            bb[y * width + x] = lb[x * pixelStride];
+                            for (int bytePos = 0; bytePos < bytesPerSample; ++bytePos) {
+                                bb[y * width * bytesPerSample + x * bytesPerSample + bytePos] =
+                                        lb[x * pixelStride + bytePos];
+                            }
                         }
                     }
                 }
                 buf.position(base);
             }
-            mCrc32UsingImage.update(bb, 0, width * height);
+            mCrc32UsingImage.update(bb, 0, width * height * bytesPerSample);
         }
     }
 
@@ -437,18 +452,70 @@ class OutputManager {
         outPtsList.clear();
     }
 
-    float getRmsError(short[] refData) {
-        long totalErrorSquared = 0;
-        assertTrue(0 == (memIndex & 1));
-        short[] shortData = new short[memIndex / 2];
-        ByteBuffer.wrap(memory, 0, memIndex).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer()
-                .get(shortData);
-        if (refData.length != shortData.length) return Float.MAX_VALUE;
-        for (int i = 0; i < shortData.length; i++) {
-            int d = shortData[i] - refData[i];
-            totalErrorSquared += d * d;
+    float getRmsError(Object refObject, int audioFormat) {
+        double totalErrorSquared = 0;
+        double avgErrorSquared;
+        int bytesPerSample = AudioFormat.getBytesPerSample(audioFormat);
+        if (refObject instanceof float[]) {
+            if (audioFormat != AudioFormat.ENCODING_PCM_FLOAT) return Float.MAX_VALUE;
+            float[] refData = (float[]) refObject;
+            if (refData.length != memIndex / bytesPerSample) return Float.MAX_VALUE;
+            float[] floatData = new float[refData.length];
+            ByteBuffer.wrap(memory, 0, memIndex).order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer()
+                    .get(floatData);
+            for (int i = 0; i < refData.length; i++) {
+                float d = floatData[i] - refData[i];
+                totalErrorSquared += d * d;
+            }
+            avgErrorSquared = (totalErrorSquared / refData.length);
+        } else if (refObject instanceof int[]) {
+            int[] refData = (int[]) refObject;
+            int[] intData;
+            if (audioFormat == AudioFormat.ENCODING_PCM_24BIT_PACKED) {
+                if (refData.length != (memIndex / bytesPerSample)) return Float.MAX_VALUE;
+                intData = new int[refData.length];
+                for (int i = 0, j = 0; i < memIndex; i += 3, j++) {
+                    intData[j] =  memory[j] | (memory[j + 1] << 8) | (memory[j + 2] << 16);
+                }
+            } else if (audioFormat == AudioFormat.ENCODING_PCM_32BIT) {
+                if (refData.length != memIndex / bytesPerSample) return Float.MAX_VALUE;
+                intData = new int[refData.length];
+                ByteBuffer.wrap(memory, 0, memIndex).order(ByteOrder.LITTLE_ENDIAN).asIntBuffer()
+                        .get(intData);
+            } else {
+                return Float.MAX_VALUE;
+            }
+            for (int i = 0; i < intData.length; i++) {
+                float d = intData[i] - refData[i];
+                totalErrorSquared += d * d;
+            }
+            avgErrorSquared = (totalErrorSquared / refData.length);
+        } else if (refObject instanceof short[]) {
+            short[] refData = (short[]) refObject;
+            if (refData.length != memIndex / bytesPerSample) return Float.MAX_VALUE;
+            if (audioFormat != AudioFormat.ENCODING_PCM_16BIT) return Float.MAX_VALUE;
+            short[] shortData = new short[refData.length];
+            ByteBuffer.wrap(memory, 0, memIndex).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer()
+                    .get(shortData);
+            for (int i = 0; i < shortData.length; i++) {
+                float d = shortData[i] - refData[i];
+                totalErrorSquared += d * d;
+            }
+            avgErrorSquared = (totalErrorSquared / refData.length);
+        } else if (refObject instanceof byte[]) {
+            byte[] refData = (byte[]) refObject;
+            if (refData.length != memIndex / bytesPerSample) return Float.MAX_VALUE;
+            if (audioFormat != AudioFormat.ENCODING_PCM_8BIT) return Float.MAX_VALUE;
+            byte[] byteData = new byte[refData.length];
+            ByteBuffer.wrap(memory, 0, memIndex).get(byteData);
+            for (int i = 0; i < byteData.length; i++) {
+                float d = byteData[i] - refData[i];
+                totalErrorSquared += d * d;
+            }
+            avgErrorSquared = (totalErrorSquared / refData.length);
+        } else {
+            return Float.MAX_VALUE;
         }
-        long avgErrorSquared = (totalErrorSquared / shortData.length);
         return (float) Math.sqrt(avgErrorSquared);
     }
 
@@ -628,6 +695,35 @@ abstract class CodecTestBase {
         boolean isSupported = codecCapabilities.isFeatureSupported(feature);
         codec.release();
         return isSupported;
+    }
+
+    static boolean doesAnyFormatHaveHBDProfile(String mime, ArrayList<MediaFormat> formats) {
+        // check for HLG profiles
+        for (MediaFormat format : formats) {
+            assertEquals(mime, format.getString(MediaFormat.KEY_MIME));
+            switch (mime) {
+                case MediaFormat.MIMETYPE_VIDEO_VP9: {
+                    int profile = format.getInteger(MediaFormat.KEY_PROFILE, VP9Profile0);
+                    if (profile == VP9Profile2 || profile == VP9Profile3) {
+                        return true;
+                    }
+                }
+                case MediaFormat.MIMETYPE_VIDEO_HEVC: {
+                    int profile = format.getInteger(MediaFormat.KEY_PROFILE, HEVCProfileMain);
+                    if (profile == HEVCProfileMain10) {
+                        return true;
+                    }
+                }
+                case MediaFormat.MIMETYPE_VIDEO_AV1: {
+                    int profile = format.getInteger(MediaFormat.KEY_PROFILE, AV1ProfileMain8);
+                    if (profile == AV1ProfileMain10) {
+                        return true;
+                    }
+                }
+            }
+        }
+        // check for HDR profiles (if necessary)
+        return doesAnyFormatHaveHDRProfile(mime, formats);
     }
 
     static boolean doesAnyFormatHaveHDRProfile(String mime, ArrayList<MediaFormat> formats) {
@@ -1172,6 +1268,7 @@ class CodecDecoderTestBase extends CodecTestBase {
     String mMime;
     String mTestFile;
     boolean mIsInterlaced;
+    boolean mSkipChecksumVerification;
 
     ArrayList<ByteBuffer> mCsdBuffers;
     private int mCurrCsdIdx;
@@ -1195,18 +1292,33 @@ class CodecDecoderTestBase extends CodecTestBase {
     }
 
     MediaFormat setUpSource(String prefix, String srcFile) throws IOException {
+        Preconditions.assertTestFileExists(prefix + srcFile);
         mExtractor = new MediaExtractor();
         mExtractor.setDataSource(prefix + srcFile);
         for (int trackID = 0; trackID < mExtractor.getTrackCount(); trackID++) {
             MediaFormat format = mExtractor.getTrackFormat(trackID);
             if (mMime.equalsIgnoreCase(format.getString(MediaFormat.KEY_MIME))) {
                 mExtractor.selectTrack(trackID);
-                if (!mIsAudio) {
-                    if (mSurface == null) {
-                        // COLOR_FormatYUV420Flexible must be supported by all components
-                        format.setInteger(MediaFormat.KEY_COLOR_FORMAT, COLOR_FormatYUV420Flexible);
-                    } else {
-                        format.setInteger(MediaFormat.KEY_COLOR_FORMAT, COLOR_FormatSurface);
+                if (mIsAudio) {
+                    // as per cdd, pcm/wave must support PCM_{8, 16, 24, 32, float} and flac must
+                    // support PCM_{16, float}. For raw media type let extractor manage the
+                    // encoding type directly. For flac, basing on bits-per-sample select the type
+                    if (mMime.equals(MediaFormat.MIMETYPE_AUDIO_FLAC)) {
+                        if (format.getInteger("bits-per-sample", 16) > 16) {
+                            format.setInteger(MediaFormat.KEY_PCM_ENCODING,
+                                    AudioFormat.ENCODING_PCM_FLOAT);
+                        }
+                    }
+                } else {
+                    ArrayList<MediaFormat> formatList = new ArrayList<>();
+                    formatList.add(format);
+                    boolean selectHBD = doesAnyFormatHaveHBDProfile(mMime, formatList) ||
+                            srcFile.contains("10bit");
+                    format.setInteger(MediaFormat.KEY_COLOR_FORMAT,
+                            getColorFormat(mCodecName, mMime, mSurface != null, selectHBD));
+                    if (selectHBD && (format.getInteger(MediaFormat.KEY_COLOR_FORMAT) !=
+                            COLOR_FormatYUVP010)) {
+                        mSkipChecksumVerification = true;
                     }
                 }
                 // TODO: determine this from the extractor format when it becomes exposed.
@@ -1216,6 +1328,23 @@ class CodecDecoderTestBase extends CodecTestBase {
         }
         fail("No track with mime: " + mMime + " found in file: " + srcFile);
         return null;
+    }
+
+    int getColorFormat(String name, String mediaType, boolean surfaceMode, boolean hbdMode)
+            throws IOException {
+        if (surfaceMode) return COLOR_FormatSurface;
+        if (hbdMode) {
+            MediaCodec codec = MediaCodec.createByCodecName(name);
+            MediaCodecInfo.CodecCapabilities cap =
+                    codec.getCodecInfo().getCapabilitiesForType(mediaType);
+            codec.release();
+            for (int c : cap.colorFormats) {
+                if (c == COLOR_FormatYUVP010) {
+                    return c;
+                }
+            }
+        }
+        return COLOR_FormatYUV420Flexible;
     }
 
     boolean hasCSD(MediaFormat format) {
@@ -1308,15 +1437,18 @@ class CodecDecoderTestBase extends CodecTestBase {
             } else {
                 // tests both getOutputImage and getOutputBuffer. Can do time division
                 // multiplexing but lets allow it for now
-                MediaFormat format = mCodec.getOutputFormat();
-                int width = format.getInteger(MediaFormat.KEY_WIDTH);
-                int height = format.getInteger(MediaFormat.KEY_HEIGHT);
-                int stride = format.getInteger(MediaFormat.KEY_STRIDE);
-                mOutputBuff.checksum(buf, info.size, width, height, stride);
-
                 Image img = mCodec.getOutputImage(bufferIndex);
                 assertTrue(img != null);
                 mOutputBuff.checksum(img);
+                int imgFormat = img.getFormat();
+                int bytesPerSample = (ImageFormat.getBitsPerPixel(imgFormat) * 2) / (8 * 3);
+
+                MediaFormat format = mCodec.getOutputFormat();
+                buf = mCodec.getOutputBuffer(bufferIndex);
+                int width = format.getInteger(MediaFormat.KEY_WIDTH);
+                int height = format.getInteger(MediaFormat.KEY_HEIGHT);
+                int stride = format.getInteger(MediaFormat.KEY_STRIDE);
+                mOutputBuff.checksum(buf, info.size, width, height, stride, bytesPerSample);
             }
         }
         if ((info.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
@@ -1444,8 +1576,8 @@ class CodecEncoderTestBase extends CodecTestBase {
     private static final String LOG_TAG = CodecEncoderTestBase.class.getSimpleName();
 
     // files are in WorkDir.getMediaDirString();
-    private static final String mInputAudioFile = "bbb_2ch_44kHz_s16le.raw";
-    private static final String mInputVideoFile = "bbb_cif_yuv420p_30fps.yuv";
+    private static final String INPUT_AUDIO_FILE = "bbb_2ch_44kHz_s16le.raw";
+    private static final String INPUT_VIDEO_FILE = "bbb_cif_yuv420p_30fps.yuv";
     private final int INP_FRM_WIDTH = 352;
     private final int INP_FRM_HEIGHT = 288;
 
@@ -1487,7 +1619,7 @@ class CodecEncoderTestBase extends CodecTestBase {
         mSampleRate = 8000;
         mAsyncHandle = new CodecAsyncHandler();
         mIsAudio = mMime.startsWith("audio/");
-        mInputFile = mIsAudio ? mInputAudioFile : mInputVideoFile;
+        mInputFile = mIsAudio ? INPUT_AUDIO_FILE : INPUT_VIDEO_FILE;
     }
 
     /**
