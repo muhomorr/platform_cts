@@ -17,6 +17,7 @@
 package android.photopicker.cts;
 
 import static android.photopicker.cts.util.PhotoPickerAssertionsUtils.assertMimeType;
+import static android.photopicker.cts.util.PhotoPickerAssertionsUtils.assertPersistedGrant;
 import static android.photopicker.cts.util.PhotoPickerAssertionsUtils.assertPickerUriFormat;
 import static android.photopicker.cts.util.PhotoPickerAssertionsUtils.assertRedactedReadOnlyAccess;
 import static android.photopicker.cts.util.PhotoPickerFilesUtils.createDNGVideos;
@@ -44,7 +45,6 @@ import androidx.test.uiautomator.UiObject;
 import androidx.test.uiautomator.UiSelector;
 
 import org.junit.After;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -83,7 +83,63 @@ public class PhotoPickerTest extends PhotoPickerBaseTest {
 
         final Uri uri = mActivity.getResult().data.getData();
         assertPickerUriFormat(uri, mContext.getUserId());
+        assertPersistedGrant(uri, mContext.getContentResolver());
         assertRedactedReadOnlyAccess(uri);
+    }
+
+    @Test
+    public void testSingleSelectForFavoritesAlbum() throws Exception {
+        final int itemCount = 1;
+        createImages(itemCount, mContext.getUserId(), mUriList, true);
+
+        final Intent intent = new Intent(MediaStore.ACTION_PICK_IMAGES);
+        mActivity.startActivityForResult(intent, REQUEST_CODE);
+
+        UiObject albumsTab = mDevice.findObject(new UiSelector().text(
+                "Albums"));
+        clickAndWait(albumsTab);
+        final UiObject album = findItemList(1).get(0);
+        clickAndWait(album);
+
+        final UiObject item = findItemList(itemCount).get(0);
+        clickAndWait(item);
+
+        final Uri uri = mActivity.getResult().data.getData();
+        assertPickerUriFormat(uri, mContext.getUserId());
+        assertRedactedReadOnlyAccess(uri);
+    }
+
+    @Test
+    public void testLaunchPreviewMultipleForVideoAlbum() throws Exception {
+        final int videoCount = 2;
+        createVideos(videoCount, mContext.getUserId(), mUriList);
+
+        final Intent intent = new Intent(MediaStore.ACTION_PICK_IMAGES);
+        intent.setType("video/*");
+        intent.putExtra(MediaStore.EXTRA_PICK_IMAGES_MAX, MediaStore.getPickImagesMaxLimit());
+        mActivity.startActivityForResult(intent, REQUEST_CODE);
+
+        UiObject albumsTab = mDevice.findObject(new UiSelector().text(
+                "Albums"));
+        clickAndWait(albumsTab);
+        final UiObject album = findItemList(1).get(0);
+        clickAndWait(album);
+
+        final List<UiObject> itemList = findItemList(videoCount);
+        final int itemCount = itemList.size();
+
+        assertThat(itemCount).isEqualTo(videoCount);
+
+        for (int i = 0; i < itemCount; i++) {
+            clickAndWait(itemList.get(i));
+        }
+
+        clickAndWait(findViewSelectedButton());
+
+        // Wait for playback to start. This is needed in some devices where playback
+        // buffering -> ready state takes around 10s.
+        final long playbackStartTimeout = 10000;
+        (findPreviewVideoImageView()).waitUntilGone(playbackStartTimeout);
     }
 
     @Test
@@ -110,8 +166,7 @@ public class PhotoPickerTest extends PhotoPickerBaseTest {
     @Test
     public void testMultiSelect_invalidParam() throws Exception {
         final Intent intent = new Intent(MediaStore.ACTION_PICK_IMAGES);
-        // TODO(b/205291616): Replace 101 with MediaStore.getPickImagesMaxLimit() + 1
-        intent.putExtra(MediaStore.EXTRA_PICK_IMAGES_MAX, 101);
+        intent.putExtra(MediaStore.EXTRA_PICK_IMAGES_MAX, MediaStore.getPickImagesMaxLimit() + 1);
         mActivity.startActivityForResult(intent, REQUEST_CODE);
         final GetResultActivity.Result res = mActivity.getResult();
         assertThat(res.resultCode).isEqualTo(Activity.RESULT_CANCELED);
@@ -174,6 +229,7 @@ public class PhotoPickerTest extends PhotoPickerBaseTest {
 
         final Uri uri = mActivity.getResult().data.getData();
         assertPickerUriFormat(uri, mContext.getUserId());
+        assertPersistedGrant(uri, mContext.getContentResolver());
         assertRedactedReadOnlyAccess(uri);
     }
 
@@ -182,8 +238,7 @@ public class PhotoPickerTest extends PhotoPickerBaseTest {
         final int imageCount = 4;
         createImages(imageCount, mContext.getUserId(), mUriList);
         final Intent intent = new Intent(MediaStore.ACTION_PICK_IMAGES);
-        // TODO(b/205291616): Replace 100 with MediaStore.getPickImagesMaxLimit()
-        intent.putExtra(MediaStore.EXTRA_PICK_IMAGES_MAX, 100);
+        intent.putExtra(MediaStore.EXTRA_PICK_IMAGES_MAX, MediaStore.getPickImagesMaxLimit());
         mActivity.startActivityForResult(intent, REQUEST_CODE);
 
         final List<UiObject> itemList = findItemList(imageCount);
@@ -201,6 +256,7 @@ public class PhotoPickerTest extends PhotoPickerBaseTest {
         for (int i = 0; i < count; i++) {
             final Uri uri = clipData.getItemAt(i).getUri();
             assertPickerUriFormat(uri, mContext.getUserId());
+            assertPersistedGrant(uri, mContext.getContentResolver());
             assertRedactedReadOnlyAccess(uri);
         }
     }
@@ -210,8 +266,7 @@ public class PhotoPickerTest extends PhotoPickerBaseTest {
         final int videoCount = 3;
         createDNGVideos(videoCount, mContext.getUserId(), mUriList);
         final Intent intent = new Intent(MediaStore.ACTION_PICK_IMAGES);
-        // TODO(b/205291616): Replace 100 with MediaStore.getPickImagesMaxLimit()
-        intent.putExtra(MediaStore.EXTRA_PICK_IMAGES_MAX, 100);
+        intent.putExtra(MediaStore.EXTRA_PICK_IMAGES_MAX, MediaStore.getPickImagesMaxLimit());
         intent.setType("video/*");
         mActivity.startActivityForResult(intent, REQUEST_CODE);
 
@@ -248,6 +303,7 @@ public class PhotoPickerTest extends PhotoPickerBaseTest {
         for (int i = 0; i < count; i++) {
             final Uri uri = clipData.getItemAt(i).getUri();
             assertPickerUriFormat(uri, mContext.getUserId());
+            assertPersistedGrant(uri, mContext.getContentResolver());
             assertRedactedReadOnlyAccess(uri);
         }
     }
@@ -257,8 +313,7 @@ public class PhotoPickerTest extends PhotoPickerBaseTest {
         final int imageCount = 4;
         createImages(imageCount, mContext.getUserId(), mUriList);
         final Intent intent = new Intent(MediaStore.ACTION_PICK_IMAGES);
-        // TODO(b/205291616): Replace 100 with MediaStore.getPickImagesMaxLimit()
-        intent.putExtra(MediaStore.EXTRA_PICK_IMAGES_MAX, 100);
+        intent.putExtra(MediaStore.EXTRA_PICK_IMAGES_MAX, MediaStore.getPickImagesMaxLimit());
         mActivity.startActivityForResult(intent, REQUEST_CODE);
 
         final List<UiObject> itemList = findItemList(imageCount);
@@ -287,39 +342,31 @@ public class PhotoPickerTest extends PhotoPickerBaseTest {
         for (int i = 0; i < count; i++) {
             final Uri uri = clipData.getItemAt(i).getUri();
             assertPickerUriFormat(uri, mContext.getUserId());
+            assertPersistedGrant(uri, mContext.getContentResolver());
             assertRedactedReadOnlyAccess(uri);
         }
     }
 
     @Test
-    @Ignore("Re-enable once b/218794887 is fixed")
-    public void testMultiSelect_PreviewVideoPlayPause() throws Exception {
-        launchPreviewMultipleWithVideos(/* videoCount */ 4);
+    public void testMultiSelect_previewVideoPlayPause() throws Exception {
+        launchPreviewMultipleWithVideos(/* videoCount */ 3);
 
         // Check Play/Pause in first video
         testVideoPreviewPlayPause();
 
-        // Move to second video
+        // Move to third video
         swipeLeftAndWait();
-        // Check Play/Pause in second video
+        swipeLeftAndWait();
+        // Check Play/Pause in third video
         testVideoPreviewPlayPause();
 
-        // Move to fourth video
-        swipeLeftAndWait();
-        swipeLeftAndWait();
-        // Check Play/Pause in fourth video
-        testVideoPreviewPlayPause();
-
-        final UiObject addButton = findPreviewAddButton();
-        addButton.click();
         // We don't test the result of the picker here because the intention of the test is only to
         // test the video controls
     }
 
     @Test
-    @Ignore("Re-enable once b/218794887 is fixed")
-    public void testMultiSelect_PreviewVideoMuteButton() throws Exception {
-        launchPreviewMultipleWithVideos(/* videoCount */ 4);
+    public void testMultiSelect_previewVideoMuteButtonInitial() throws Exception {
+        launchPreviewMultipleWithVideos(/* videoCount */ 1);
 
         final UiObject playPauseButton = findPlayPauseButton();
         final UiObject muteButton = findMuteButton();
@@ -340,8 +387,42 @@ public class PhotoPickerTest extends PhotoPickerBaseTest {
         // Click on the muteButton and check that mute button status is now `selected`
         clickAndWait(muteButton);
         assertThat(muteButton.isSelected()).isTrue();
+        // Click on the muteButton and check that mute button status is now `not selected`
+        clickAndWait(muteButton);
+        assertThat(muteButton.isSelected()).isFalse();
 
-        // Test 3: Swipe resumes mute state, with state of mute button = `not selected`
+        // Test 3: Next preview resumes mute state
+        // Go back and launch preview again
+        mDevice.pressBack();
+        clickAndWait(findViewSelectedButton());
+        // set-up and wait for player controls to be sticky
+        setUpAndAssertStickyPlayerControls(playerView, playPauseButton, muteButton);
+        assertThat(muteButton.isSelected()).isFalse();
+
+        // We don't test the result of the picker here because the intention of the test is only to
+        // test the video controls
+    }
+
+    @Test
+    public void testMultiSelect_previewVideoMuteButtonOnSwipe() throws Exception {
+        launchPreviewMultipleWithVideos(/* videoCount */ 3);
+
+        final UiObject playPauseButton = findPlayPauseButton();
+        final UiObject muteButton = findMuteButton();
+        final UiObject playerView = findPlayerView();
+
+        // set-up and wait for player controls to be sticky
+        setUpAndAssertStickyPlayerControls(playerView, playPauseButton, muteButton);
+
+        // Test 1: Swipe resumes mute state, with state of the button = `selected`
+        assertThat(muteButton.isSelected()).isTrue();
+        // Swipe to next page and check that muteButton is selected
+        swipeLeftAndWait();
+        // set-up and wait for player controls to be sticky
+        setUpAndAssertStickyPlayerControls(playerView, playPauseButton, muteButton);
+        assertThat(muteButton.isSelected()).isTrue();
+
+        // Test 2: Swipe resumes mute state, with state of mute button = `not selected`
         // Click muteButton again to check the next video resumes the previous video's mute state
         clickAndWait(muteButton);
         assertThat(muteButton.isSelected()).isFalse();
@@ -351,44 +432,18 @@ public class PhotoPickerTest extends PhotoPickerBaseTest {
         setUpAndAssertStickyPlayerControls(playerView, playPauseButton, muteButton);
         assertThat(muteButton.isSelected()).isFalse();
 
-        // Test 4: Swipe resumes mute state, with state of the button = `selected`
-        // Click muteButton again to check the next video resumes the previous video's mute state
-        clickAndWait(muteButton);
-        assertThat(muteButton.isSelected()).isTrue();
-        // Swipe to next page and check that muteButton is selected
-        swipeLeftAndWait();
-        // set-up and wait for player controls to be sticky
-        setUpAndAssertStickyPlayerControls(playerView, playPauseButton, muteButton);
-        assertThat(muteButton.isSelected()).isTrue();
-
-        // Test 5: Next preview resumes mute state
-        // Click muteButton again to check if next Preview launch resumes the muteButton state
-        clickAndWait(muteButton);
-        assertThat(muteButton.isSelected()).isFalse();
-        // Go back and launch preview again
-        mDevice.pressBack();
-        // set-up and wait for player controls to be sticky
-        clickAndWait(findViewSelectedButton());
-        setUpAndAssertStickyPlayerControls(playerView, playPauseButton, muteButton);
-        assertThat(muteButton.isSelected()).isFalse();
-
-        clickAndWait(findPreviewAddButton());
         // We don't test the result of the picker here because the intention of the test is only to
         // test the video controls
     }
 
     @Test
-    @Ignore("Re-enable once b/218794887 is fixed")
-    public void testMultiSelect_PreviewVideoControlsVisibility() throws Exception {
+    public void testMultiSelect_previewVideoControlsVisibility() throws Exception {
         launchPreviewMultipleWithVideos(/* videoCount */ 3);
 
         mDevice.waitForIdle();
 
         final UiObject playPauseButton = findPlayPauseButton();
         final UiObject muteButton = findMuteButton();
-        // Check that the player controls are visible
-        assertPlayerControlsVisible(playPauseButton, muteButton);
-
         // Check that buttons auto hide.
         assertPlayerControlsAutoHide(playPauseButton, muteButton);
 
@@ -421,8 +476,6 @@ public class PhotoPickerTest extends PhotoPickerBaseTest {
         // Check that the player controls are auto hidden in 1s
         assertPlayerControlsAutoHide(playPauseButton, muteButton);
 
-        final UiObject addButton = findPreviewAddButton();
-        addButton.click();
         // We don't test the result of the picker here because the intention of the test is only to
         // test the video controls
     }
@@ -437,8 +490,7 @@ public class PhotoPickerTest extends PhotoPickerBaseTest {
         final String mimeType = "video/dng";
 
         final Intent intent = new Intent(MediaStore.ACTION_PICK_IMAGES);
-        // TODO(b/205291616): Replace 100 with MediaStore.getPickImagesMaxLimit()
-        intent.putExtra(MediaStore.EXTRA_PICK_IMAGES_MAX, 100);
+        intent.putExtra(MediaStore.EXTRA_PICK_IMAGES_MAX, MediaStore.getPickImagesMaxLimit());
         intent.setType(mimeType);
         mActivity.startActivityForResult(intent, REQUEST_CODE);
 
@@ -458,6 +510,7 @@ public class PhotoPickerTest extends PhotoPickerBaseTest {
         for (int i = 0; i < count; i++) {
             final Uri uri = clipData.getItemAt(i).getUri();
             assertPickerUriFormat(uri, mContext.getUserId());
+            assertPersistedGrant(uri, mContext.getContentResolver());
             assertRedactedReadOnlyAccess(uri);
             assertMimeType(uri, mimeType);
         }
@@ -488,8 +541,7 @@ public class PhotoPickerTest extends PhotoPickerBaseTest {
     private void launchPreviewMultipleWithVideos(int videoCount) throws  Exception {
         createVideos(videoCount, mContext.getUserId(), mUriList);
         final Intent intent = new Intent(MediaStore.ACTION_PICK_IMAGES);
-        // TODO(b/205291616): Replace 100 with MediaStore.getPickImagesMaxLimit()
-        intent.putExtra(MediaStore.EXTRA_PICK_IMAGES_MAX, 100);
+        intent.putExtra(MediaStore.EXTRA_PICK_IMAGES_MAX, MediaStore.getPickImagesMaxLimit());
         intent.setType("video/*");
         mActivity.startActivityForResult(intent, REQUEST_CODE);
 
@@ -512,8 +564,8 @@ public class PhotoPickerTest extends PhotoPickerBaseTest {
 
     private void setUpAndAssertStickyPlayerControls(UiObject playerView, UiObject playPauseButton,
             UiObject muteButton) throws Exception {
-        // Check that buttons auto hide.
-        assertPlayerControlsAutoHide(playPauseButton, muteButton);
+        // Wait for 1s or Play/Pause button to hide
+        playPauseButton.waitUntilGone(1000);
         // Click on StyledPlayerView to make the video controls visible
         clickAndWait(playerView);
         assertPlayerControlsVisible(playPauseButton, muteButton);
@@ -590,7 +642,7 @@ public class PhotoPickerTest extends PhotoPickerBaseTest {
     private void swipeLeftAndWait() {
         final int width = mDevice.getDisplayWidth();
         final int height = mDevice.getDisplayHeight();
-        mDevice.swipe(15 * width / 20, height / 2, width / 20, height / 2, 20);
+        mDevice.swipe(15 * width / 20, height / 2, width / 20, height / 2, 10);
         mDevice.waitForIdle();
     }
 }
