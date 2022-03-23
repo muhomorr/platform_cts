@@ -48,7 +48,6 @@ public class BiometricServiceTests extends BiometricTestBase {
         // On devices with multiple strong sensors, adding enrollments to one strong sensor
         // must cause authenticatorIds for all other strong sensors to be invalidated, if they
         // (the other strong sensors) have enrollments.
-        assumeTrue(Utils.isFirstApiLevel29orGreater());
         final List<Integer> strongSensors = new ArrayList<>();
         for (SensorProperties prop : mSensorProperties) {
             if (prop.getSensorStrength() == SensorProperties.STRENGTH_STRONG) {
@@ -119,7 +118,6 @@ public class BiometricServiceTests extends BiometricTestBase {
         // ResetLockout only really needs to be applied when enrollments exist. Furthermore, some
         // interfaces may take this a step further and ignore resetLockout requests when no
         // enrollments exist.
-        assumeTrue(Utils.isFirstApiLevel29orGreater());
         List<BiometricTestSession> biometricSessions = new ArrayList<>();
         for (SensorProperties prop : mSensorProperties) {
             BiometricTestSession session = mBiometricManager.createTestSession(prop.getSensorId());
@@ -163,7 +161,6 @@ public class BiometricServiceTests extends BiometricTestBase {
 
     @Test
     public void testLockoutResetRequestedAfterBiometricUnlock_whenStrong() throws Exception {
-        assumeTrue(Utils.isFirstApiLevel29orGreater());
         assumeTrue(mSensorProperties.size() > 1);
 
         // ResetLockout only really needs to be applied when enrollments exist. Furthermore, some
@@ -258,7 +255,6 @@ public class BiometricServiceTests extends BiometricTestBase {
 
     @Test
     public void testLockoutResetNotRequestedAfterBiometricUnlock_whenNotStrong() throws Exception {
-        assumeTrue(Utils.isFirstApiLevel29orGreater());
         assumeTrue(mSensorProperties.size() > 1);
 
         // ResetLockout only really needs to be applied when enrollments exist. Furthermore, some
@@ -322,7 +318,6 @@ public class BiometricServiceTests extends BiometricTestBase {
     public void testBiometricsRemovedWhenCredentialRemoved() throws Exception {
         // Manually keep track of sessions and do not use autocloseable, since we do not want the
         // test session to automatically cleanup and remove enrollments once we leave scope.
-        assumeTrue(Utils.isFirstApiLevel29orGreater());
         final List<BiometricTestSession> biometricSessions = new ArrayList<>();
 
         try (CredentialSession session = new CredentialSession()) {

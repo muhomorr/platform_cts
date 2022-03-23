@@ -30,7 +30,7 @@ import android.view.KeyEvent;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.rule.ActivityTestRule;
 
-import com.android.compatibility.common.util.WindowUtil;
+import com.android.compatibility.common.util.PollingCheck;
 
 import org.junit.Before;
 import org.junit.Rule;
@@ -54,7 +54,7 @@ public class KeyguardInputTests extends KeyguardTestBase {
         assumeTrue(supportsInsecureLock());
 
         mActivity = mActivityRule.getActivity();
-        WindowUtil.waitForFocus(mActivity);
+        PollingCheck.waitFor(mActivity::hasWindowFocus);
     }
 
     /**

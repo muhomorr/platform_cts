@@ -404,7 +404,6 @@ public class OrgOwnedProfileOwnerTest extends BaseDevicePolicyTest {
     @Test
     public void testPersonalAppsSuspensionSms() throws Exception {
         assumeHasTelephonyFeature();
-        assumeSupportsSms();
 
         // Install an SMS app and make it the default.
         installAppAsUser(SIMPLE_SMS_APP_APK, mPrimaryUserId);

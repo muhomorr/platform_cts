@@ -21,12 +21,10 @@ import static org.junit.Assert.assertNotNull;
 
 import com.android.tradefed.device.ITestDevice;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
-import com.android.tradefed.testtype.DeviceJUnit4ClassRunner.TestMetrics;
 import com.android.tradefed.testtype.IDeviceTest;
 
-import org.junit.Rule;
-import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.junit.Test;
 
 import java.util.Scanner;
 
@@ -69,11 +67,6 @@ public class SampleHostJUnit4Test implements IDeviceTest {
      */
     private static final String TEST_STRING = "SampleTestString";
 
-    /**
-     * A rule annotation that allows to log metrics in test cases.
-     */
-    @Rule public TestMetrics mMetrics = new TestMetrics();
-
     private ITestDevice mDevice;
 
     @Override
@@ -115,13 +108,5 @@ public class SampleHostJUnit4Test implements IDeviceTest {
         in.close();
         // Assert the logged string matches the test string.
         assertEquals("Incorrect test string", TEST_STRING, testString);
-    }
-
-    /**
-     * Documentation: https://source.android.com/devices/tech/test_infra/tradefed/testing/through-tf/report-metrics
-     */
-    @Test
-    public void testMetrics() {
-        mMetrics.addTestMetric("somekey", "some_values");
     }
 }

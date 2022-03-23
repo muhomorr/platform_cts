@@ -30,12 +30,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
-import java.util.concurrent.TimeUnit;
 
 public class MockInCallService extends InCallService {
-    private static final long TEST_TIMEOUT = 5000L;
     private static String LOG_TAG = "MockInCallService";
     private final List<Call> mCalls = Collections.synchronizedList(new ArrayList<>());
     private final List<Call> mConferenceCalls = Collections.synchronizedList(new ArrayList<>());
@@ -45,8 +42,6 @@ public class MockInCallService extends InCallService {
 
     protected static final Object sLock = new Object();
     private static boolean mIsServiceBound = false;
-    private static CountDownLatch sBindLatch = new CountDownLatch(1);
-    private static CountDownLatch sUnbindLatch = new CountDownLatch(1);
 
     public static abstract class InCallServiceCallbacks {
         private MockInCallService mService;
@@ -84,19 +79,6 @@ public class MockInCallService extends InCallService {
 
         public void resetLock() {
             lock = new Semaphore(0);
-        }
-
-        public void resetLatch() {
-            sBindLatch = new CountDownLatch(1);
-            sUnbindLatch = new CountDownLatch(1);
-        }
-
-        public boolean waitForUnbind() {
-            try {
-                return sUnbindLatch.await(TEST_TIMEOUT, TimeUnit.MILLISECONDS);
-            } catch (InterruptedException e) {
-                return false;
-            }
         }
     }
 

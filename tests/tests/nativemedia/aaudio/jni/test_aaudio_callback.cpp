@@ -142,28 +142,6 @@ class AAudioStreamCallbackTest : public ::testing::TestWithParam<CbTestParams> {
         }
     };
 
-    void createAndVerifyHonoringMMap() {
-        aaudio_policy_t originalPolicy = AAUDIO_POLICY_AUTO;
-
-        // Turn off MMap if requested.
-        bool allowMMap = std::get<PARAM_ALLOW_MMAP>(GetParam()) == MMAP_ALLOWED;
-        if (AAudioExtensions::getInstance().isMMapSupported()) {
-            originalPolicy = AAudioExtensions::getInstance().getMMapPolicy();
-            AAudioExtensions::getInstance().setMMapEnabled(allowMMap);
-        }
-
-        mHelper->createAndVerifyStream(&mSetupSuccessful);
-
-        // Restore policy for next test.
-        if (AAudioExtensions::getInstance().isMMapSupported()) {
-            AAudioExtensions::getInstance().setMMapPolicy(originalPolicy);
-        }
-        // Make sure we do not get MMAP when we disable it.
-        if (mSetupSuccessful && !allowMMap) {
-            ASSERT_FALSE(AAudioExtensions::getInstance().isMMapUsed(mHelper->stream()));
-        }
-    }
-
     static void MyErrorCallbackProc(AAudioStream *stream, void *userData, aaudio_result_t error);
 
     AAudioStreamBuilder* builder() const { return mHelper->builder(); }
@@ -171,7 +149,7 @@ class AAudioStreamCallbackTest : public ::testing::TestWithParam<CbTestParams> {
     const StreamBuilderHelper::Parameters& actual() const { return mHelper->actual(); }
 
     std::unique_ptr<T> mHelper;
-    bool mSetupSuccessful = false;
+    bool mSetupSuccesful = false;
     std::unique_ptr<AAudioCallbackTestData> mCbData;
 };
 
@@ -201,8 +179,9 @@ aaudio_data_callback_result_t AAudioInputStreamCallbackTest::MyDataCallbackProc(
 }
 
 void AAudioInputStreamCallbackTest::SetUp() {
+    aaudio_policy_t originalPolicy = AAUDIO_POLICY_AUTO;
 
-    mSetupSuccessful = false;
+    mSetupSuccesful = false;
     if (!deviceSupportsFeature(FEATURE_RECORDING)) return;
     mHelper.reset(new InputStreamBuilderHelper(
                     std::get<PARAM_SHARING_MODE>(GetParam()),
@@ -219,12 +198,28 @@ void AAudioInputStreamCallbackTest::SetUp() {
         AAudioStreamBuilder_setFramesPerDataCallback(builder(), framesPerDataCallback);
     }
 
-    createAndVerifyHonoringMMap();
+    // Turn off MMap if requested.
+    int allowMMap = std::get<PARAM_ALLOW_MMAP>(GetParam()) == MMAP_ALLOWED;
+    if (AAudioExtensions::getInstance().isMMapSupported()) {
+        originalPolicy = AAudioExtensions::getInstance().getMMapPolicy();
+        AAudioExtensions::getInstance().setMMapEnabled(allowMMap);
+    }
+
+    mHelper->createAndVerifyStream(&mSetupSuccesful);
+
+    // Restore policy for next test.
+    if (AAudioExtensions::getInstance().isMMapSupported()) {
+        AAudioExtensions::getInstance().setMMapPolicy(originalPolicy);
+    }
+    if (!allowMMap) {
+        ASSERT_FALSE(AAudioExtensions::getInstance().isMMapUsed(mHelper->stream()));
+    }
+
 }
 
 // Test starting and stopping an INPUT AAudioStream that uses a Callback
 TEST_P(AAudioInputStreamCallbackTest, testRecording) {
-    if (!mSetupSuccessful) return;
+    if (!mSetupSuccesful) return;
 
     const int32_t framesPerDataCallback = std::get<PARAM_FRAMES_PER_CB>(GetParam());
     const int32_t streamFramesPerDataCallback = AAudioStream_getFramesPerDataCallback(stream());
@@ -351,7 +346,7 @@ aaudio_data_callback_result_t AAudioOutputStreamCallbackTest::MyDataCallbackProc
 }
 
 void AAudioOutputStreamCallbackTest::SetUp() {
-    mSetupSuccessful = false;
+    mSetupSuccesful = false;
     if (!deviceSupportsFeature(FEATURE_PLAYBACK)) return;
     mHelper.reset(new OutputStreamBuilderHelper(
                     std::get<PARAM_SHARING_MODE>(GetParam()),
@@ -368,13 +363,13 @@ void AAudioOutputStreamCallbackTest::SetUp() {
         AAudioStreamBuilder_setFramesPerDataCallback(builder(), framesPerDataCallback);
     }
 
-    createAndVerifyHonoringMMap();
+    mHelper->createAndVerifyStream(&mSetupSuccesful);
 
 }
 
 // Test starting and stopping an OUTPUT AAudioStream that uses a Callback
 TEST_P(AAudioOutputStreamCallbackTest, testPlayback) {
-    if (!mSetupSuccessful) return;
+    if (!mSetupSuccesful) return;
 
     const int32_t framesPerDataCallback = std::get<PARAM_FRAMES_PER_CB>(GetParam());
     const int32_t streamFramesPerDataCallback = AAudioStream_getFramesPerDataCallback(stream());

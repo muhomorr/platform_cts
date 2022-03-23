@@ -14,11 +14,6 @@
 
 package android.keystore.cts;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
-
 import java.security.InvalidKeyException;
 import java.security.KeyPair;
 import java.security.PrivateKey;
@@ -33,20 +28,14 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
-import android.content.Context;
 import android.keystore.cts.R;
-import android.keystore.cts.util.ImportedKey;
-import android.keystore.cts.util.TestUtils;
+
+import android.content.Context;
 import android.security.keystore.KeyProperties;
 import android.security.keystore.KeyProtection;
-import androidx.test.InstrumentationRegistry;
-import androidx.test.runner.AndroidJUnit4;
+import android.test.AndroidTestCase;
 
-import org.junit.Test;
-import org.junit.runner.RunWith;
-
-@RunWith(AndroidJUnit4.class)
-public class RSASignatureTest {
+public class RSASignatureTest extends AndroidTestCase {
 
     private static final String EXPECTED_PROVIDER_NAME = SignatureTest.EXPECTED_PROVIDER_NAME;
 
@@ -63,11 +52,6 @@ public class RSASignatureTest {
         SIGNATURE_ALGORITHMS = sigAlgs.toArray(new String[sigAlgs.size()]);
     }
 
-    private Context getContext() {
-        return InstrumentationRegistry.getInstrumentation().getTargetContext();
-    }
-
-    @Test
     public void testMaxMessageSizeWhenNoDigestUsed() throws Exception {
         Provider provider = Security.getProvider(EXPECTED_PROVIDER_NAME);
         assertNotNull(provider);
@@ -118,7 +102,6 @@ public class RSASignatureTest {
         }
     }
 
-    @Test
     public void testSmallKeyRejected() throws Exception {
         // Use a 512 bit key which should prevent the use of any digests larger than SHA-256
         // because the padded form of the digested message will be larger than modulus size.

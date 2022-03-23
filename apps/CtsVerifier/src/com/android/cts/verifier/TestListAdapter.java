@@ -16,7 +16,6 @@
 
 package com.android.cts.verifier;
 
-import static com.android.cts.verifier.ReportExporter.LOGS_DIRECTORY;
 import static com.android.cts.verifier.TestListActivity.sCurrentDisplayMode;
 import static com.android.cts.verifier.TestListActivity.sInitialLaunch;
 
@@ -26,7 +25,6 @@ import android.content.Intent;
 import android.database.ContentObserver;
 import android.database.Cursor;
 import android.os.AsyncTask;
-import android.os.Environment;
 import android.os.Handler;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -39,14 +37,12 @@ import com.android.compatibility.common.util.ReportLog;
 import com.android.cts.verifier.TestListActivity.DisplayMode;
 
 import java.io.ByteArrayInputStream;
-import java.io.File;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * {@link BaseAdapter} that handles loading, refreshing, and setting test
@@ -85,15 +81,22 @@ public abstract class TestListAdapter extends BaseAdapter {
     /** Map from test name to {@link TestResultHistoryCollection}. */
     private final Map<String, TestResultHistoryCollection> mHistories = new HashMap<>();
 
-    /** Flag to identify whether the mHistories has been loaded. */
-    private final AtomicBoolean mHasLoadedResultHistory = new AtomicBoolean(false);
-
     private final LayoutInflater mLayoutInflater;
 
     /** Map from display mode to the list of {@link TestListItem}.
      *  Records the TestListItem from main view only, including unfolded mode and folded mode
      *  respectively. */
     protected Map<String, List<TestListItem>> mDisplayModesTests = new HashMap<>();
+
+    /** Flag to identify the test data from {@link ManifestTestListAdapter}.
+     *  The source of data for the adapter is various, such as ManifestTestListAdapter and
+     *  ArrayTestListAdapter, and the data of foldable tests are from ManifestTestListAdapter. */
+    protected static boolean adapterFromManifest;
+
+    /** Flag to identify the test data in main view from {@link ManifestTestListAdapter}.
+     *  ManifestTestListAdapter provides test data for main view and subtests.
+     *  Getting foldable tests is from main view only. */
+    protected static boolean hasTestParentInManifestAdapter;
 
     /** {@link ListView} row that is either a test category header or a test. */
     public static class TestListItem {
@@ -234,7 +237,7 @@ public abstract class TestListAdapter extends BaseAdapter {
     }
 
     public void loadTestResults() {
-        new RefreshTestResultsTask(false).execute();
+        new RefreshTestResultsTask().execute();
     }
 
     public void clearTestResults() {
@@ -253,26 +256,21 @@ public abstract class TestListAdapter extends BaseAdapter {
     }
 
     class RefreshTestResultsTask extends AsyncTask<Void, Void, RefreshResult> {
-
-        private boolean mIsFromMainView;
-
-        RefreshTestResultsTask(boolean isFromMainView) {
-            mIsFromMainView = isFromMainView;
-        }
-
         @Override
         protected RefreshResult doInBackground(Void... params) {
-            List<TestListItem> rows = getRows();
+            List<TestListItem> rows;
             // When initial launch, needs to fetch tests in the unfolded/folded mode
             // to be stored in mDisplayModesTests as the basis for the future switch.
             if (sInitialLaunch) {
+                getRows();
                 sInitialLaunch = false;
             }
 
-            if (mIsFromMainView) {
+            if (checkTestsFromMainView()) {
                 rows = mDisplayModesTests.get(sCurrentDisplayMode);
+            }else {
+                rows = getRows();
             }
-
             return getRefreshResults(rows);
         }
 
@@ -289,7 +287,6 @@ public abstract class TestListAdapter extends BaseAdapter {
             mReportLogs.putAll(result.mReportLogs);
             mHistories.clear();
             mHistories.putAll(result.mHistories);
-            mHasLoadedResultHistory.set(true);
             notifyDataSetChanged();
         }
     }
@@ -360,27 +357,10 @@ public abstract class TestListAdapter extends BaseAdapter {
 
     class ClearTestResultsTask extends AsyncTask<Void, Void, Void> {
 
-        private void deleteDirectory(File file) {
-            for (File subfile : file.listFiles()) {
-                if (subfile.isDirectory()) {
-                    deleteDirectory(subfile);
-                }
-                subfile.delete();
-            }
-        }
-
         @Override
         protected Void doInBackground(Void... params) {
             ContentResolver resolver = mContext.getContentResolver();
             resolver.delete(TestResultsProvider.getResultContentUri(mContext), "1", null);
-
-            // Apart from deleting metadata from content resolver database, need to delete
-            // files generated in LOGS_DIRECTORY. For example screenshots.
-            File resFolder = new File(
-                    Environment.getExternalStorageDirectory().getAbsolutePath()
-                            + File.separator + LOGS_DIRECTORY);
-            deleteDirectory(resFolder);
-
             return null;
         }
     }
@@ -408,29 +388,8 @@ public abstract class TestListAdapter extends BaseAdapter {
 
         @Override
         protected Void doInBackground(Void... params) {
-            if (mHasLoadedResultHistory.get()) {
-                mHistoryCollection.merge(null, mHistories.get(mTestName));
-            } else {
-                // Loads history from ContentProvider directly if it has not been loaded yet.
-                ContentResolver resolver = mContext.getContentResolver();
-
-                try (Cursor cursor = resolver.query(
-                        TestResultsProvider.getTestNameUri(mContext, mTestName),
-                        new String[] {TestResultsProvider.COLUMN_TEST_RESULT_HISTORY},
-                        null,
-                        null,
-                        null)) {
-                    if (cursor.moveToFirst()) {
-                        do {
-                            TestResultHistoryCollection historyCollection =
-                                    (TestResultHistoryCollection) deserialize(cursor.getBlob(0));
-                            mHistoryCollection.merge(null, historyCollection);
-                        } while (cursor.moveToNext());
-                    }
-                }
-            }
             TestResultsProvider.setTestResult(
-                    mContext, mTestName, mResult, mDetails, mReportLog, mHistoryCollection);
+                mContext, mTestName, mResult, mDetails, mReportLog, mHistoryCollection);
             return null;
         }
     }
@@ -471,11 +430,17 @@ public abstract class TestListAdapter extends BaseAdapter {
 
     @Override
     public int getCount() {
+        if (!sInitialLaunch && checkTestsFromMainView()) {
+            return mDisplayModesTests.get(sCurrentDisplayMode).size();
+        }
         return mRows.size();
     }
 
     @Override
     public TestListItem getItem(int position) {
+        if (checkTestsFromMainView()) {
+            return mDisplayModesTests.get(sCurrentDisplayMode).get(position);
+        }
         return mRows.get(position);
     }
 
@@ -536,7 +501,7 @@ public abstract class TestListAdapter extends BaseAdapter {
      * @return A count of test items.
      */
     public int getCount(String mode){
-        return mDisplayModesTests.getOrDefault(mode, new ArrayList<>()).size();
+        return mDisplayModesTests.get(mode).size();
     }
 
     /**
@@ -705,5 +670,14 @@ public abstract class TestListAdapter extends BaseAdapter {
             return name + DisplayMode.FOLDED.asSuffix();
         }
         return name;
+    }
+
+    /**
+     * Checks if the tests are from main view for foldable tests.
+     *
+     * @return True if the tests from main view, otherwise, return false.
+     */
+    private static boolean checkTestsFromMainView() {
+        return adapterFromManifest && !hasTestParentInManifestAdapter;
     }
 }

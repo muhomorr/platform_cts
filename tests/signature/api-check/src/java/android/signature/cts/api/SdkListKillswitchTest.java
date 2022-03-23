@@ -18,7 +18,7 @@ package android.signature.cts.api;
 
 public class SdkListKillswitchTest extends BaseKillswitchTest {
     @Override
-    public void setUp() throws Exception {
+    protected void setUp() throws Exception {
         super.setUp();
         mErrorMessageAppendix = " when global setting hidden_api_blacklist_exemptions is \"L\"";
     }

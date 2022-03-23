@@ -61,23 +61,10 @@ public class PreSimpleSaveActivity extends AbstractAutoFillActivity {
         });
     }
 
-    /**
-     * Set the EditText input or password value and wait until text change.
-     */
-    public void setTextAndWaitTextChange(String input) throws Exception {
-        final FillExpectation expectation = expectInputTextChange(input);
-        syncRunOnUiThread(() -> mPreInput.setText(input));
-        expectation.assertTextChange();
-    }
-
-    public FillExpectation expectInputTextChange(String input) {
+    public FillExpectation expectAutoFill(String input) {
         final FillExpectation expectation = new FillExpectation(input);
         mPreInput.addTextChangedListener(expectation.mInputWatcher);
         return expectation;
-    }
-
-    public FillExpectation expectAutoFill(String input) {
-        return expectInputTextChange(input);
     }
 
     public EditText getPreInput() {
@@ -89,10 +76,6 @@ public class PreSimpleSaveActivity extends AbstractAutoFillActivity {
 
         private FillExpectation(String input) {
             mInputWatcher = new OneTimeTextWatcher("input", mPreInput, input);
-        }
-
-        public void assertTextChange() throws Exception {
-            mInputWatcher.assertAutoFilled();
         }
 
         public void assertAutoFilled() throws Exception {

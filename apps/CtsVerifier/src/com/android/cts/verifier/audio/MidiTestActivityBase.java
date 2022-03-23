@@ -19,9 +19,9 @@ package com.android.cts.verifier.audio;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
-import android.content.ServiceConnection;
 import android.content.pm.PackageManager;
 import android.content.res.Resources;
+import android.content.ServiceConnection;
 import android.media.midi.MidiDeviceInfo;
 import android.media.midi.MidiManager;
 import android.os.Bundle;
@@ -32,9 +32,10 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
 
-import com.android.cts.verifier.PassFailButtons;
-import com.android.cts.verifier.R;
 import com.android.cts.verifier.audio.midilib.MidiIODevice;
+import com.android.cts.verifier.PassFailButtons;
+import com.android.cts.verifier.R;  // needed to access resource in CTSVerifier project namespace.
+
 import com.android.midi.VerifierMidiEchoService;
 
 import java.util.Timer;
@@ -320,14 +321,20 @@ public abstract class MidiTestActivityBase
     //
     @Override
     public void onClick(View view) {
-        int id = view.getId();
-        if (id == R.id.midiTestUSBInterfaceBtn) {
+        switch (view.getId()) {
+        case R.id.midiTestUSBInterfaceBtn:
             startWiredLoopbackTest();
-        } else if (id == R.id.midiTestVirtInterfaceBtn) {
+            break;
+
+        case R.id.midiTestVirtInterfaceBtn:
             startVirtualLoopbackTest();
-        } else if (id == R.id.midiTestBTInterfaceBtn) {
+            break;
+
+        case R.id.midiTestBTInterfaceBtn:
             startBTLoopbackTest();
-        } else {
+            break;
+
+        default:
             assert false : "Unhandled button click";
         }
     }

@@ -464,7 +464,7 @@ public class AccessibilityTextActionTest {
     public void testEditableTextView_shouldExposeAndRespondToImeEnterAction() throws Throwable {
         final TextView textView = (TextView) mActivity.findViewById(R.id.editText);
         makeTextViewVisibleAndSetText(textView, mActivity.getString(R.string.a_b));
-        sInstrumentation.runOnMainSync(() -> textView.requestFocus());
+        textView.requestFocus();
         assertTrue(textView.isFocused());
 
         final TextView.OnEditorActionListener mockOnEditorActionListener =
@@ -481,13 +481,10 @@ public class AccessibilityTextActionTest {
                 textView, EditorInfo.IME_ACTION_UNSPECIFIED, null);
 
         // Testing custom ime action : IME_ACTION_DONE.
-        sInstrumentation.runOnMainSync(() -> textView.requestFocus());
         textView.setImeActionLabel("pinyin", EditorInfo.IME_ACTION_DONE);
-
-        final AccessibilityNodeInfo textNode = sUiAutomation.getRootInActiveWindow()
-                .findAccessibilityNodeInfosByText(mActivity.getString(R.string.a_b)).get(0);
-        verifyImeActionLabel(textNode, "pinyin");
-        textNode.performAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_IME_ENTER.getId());
+        text.refresh();
+        verifyImeActionLabel(text, "pinyin");
+        text.performAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_IME_ENTER.getId());
         verify(mockOnEditorActionListener, times(1)).onEditorAction(
                 textView, EditorInfo.IME_ACTION_DONE, null);
     }

@@ -1,3 +1,7 @@
 # Bug component: 544200
-
-include platform/frameworks/base:/core/java/android/view/contentcapture/OWNERS
+adamhe@google.com
+augale@google.com
+joannechung@google.com
+lpeter@google.com
+svetoslavganov@google.com
+tymtsai@google.com

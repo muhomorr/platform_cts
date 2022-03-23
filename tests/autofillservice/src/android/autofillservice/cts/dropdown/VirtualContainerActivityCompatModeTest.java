@@ -26,8 +26,10 @@ import static android.autofillservice.cts.testcore.Helper.findNodeByResourceId;
 import static android.autofillservice.cts.testcore.Helper.getContext;
 import static android.autofillservice.cts.testcore.InstrumentedAutoFillServiceCompatMode.SERVICE_NAME;
 import static android.autofillservice.cts.testcore.InstrumentedAutoFillServiceCompatMode.SERVICE_PACKAGE;
+import static android.provider.Settings.Global.AUTOFILL_COMPAT_MODE_ALLOWED_PACKAGES;
 import static android.service.autofill.SaveInfo.SAVE_DATA_TYPE_PASSWORD;
-import static android.view.autofill.AutofillManager.DEVICE_CONFIG_AUTOFILL_COMPAT_MODE_ALLOWED_PACKAGES;
+
+import static com.android.compatibility.common.util.SettingsUtils.NAMESPACE_GLOBAL;
 
 import static com.google.common.truth.Truth.assertThat;
 
@@ -43,13 +45,13 @@ import android.content.AutofillOptions;
 import android.os.SystemClock;
 import android.platform.test.annotations.AppModeFull;
 import android.platform.test.annotations.Presubmit;
-import android.provider.DeviceConfig;
 import android.service.autofill.SaveInfo;
 
-import com.android.compatibility.common.util.DeviceConfigStateHelper;
+import com.android.compatibility.common.util.SettingsStateChangerRule;
+import com.android.compatibility.common.util.SettingsUtils;
 
 import org.junit.After;
-import org.junit.Before;
+import org.junit.ClassRule;
 import org.junit.Test;
 
 /**
@@ -58,23 +60,18 @@ import org.junit.Test;
  */
 public class VirtualContainerActivityCompatModeTest extends VirtualContainerActivityTest {
 
-    private final DeviceConfigStateHelper mAutofillDeviceConfig =
-            new DeviceConfigStateHelper(DeviceConfig.NAMESPACE_AUTOFILL);
+    @ClassRule
+    public static final SettingsStateChangerRule sCompatModeChanger = new SettingsStateChangerRule(
+            sContext, NAMESPACE_GLOBAL, AUTOFILL_COMPAT_MODE_ALLOWED_PACKAGES,
+            SERVICE_PACKAGE + "[my_url_bar]");
 
     public VirtualContainerActivityCompatModeTest() {
         super(true);
     }
 
-    @Before
-    public void setCompatMode() {
-        mAutofillDeviceConfig.set(DEVICE_CONFIG_AUTOFILL_COMPAT_MODE_ALLOWED_PACKAGES,
-                SERVICE_PACKAGE + "[my_url_bar]");
-    }
-
     @After
     public void resetCompatMode() {
         sContext.getApplicationContext().setAutofillOptions(null);
-        mAutofillDeviceConfig.restoreOriginalValues();
     }
 
     @Override
@@ -109,7 +106,7 @@ public class VirtualContainerActivityCompatModeTest extends VirtualContainerActi
     @Presubmit
     @Test
     public void testMultipleUrlBars_firstDoesNotExist() throws Exception {
-        mAutofillDeviceConfig.set(DEVICE_CONFIG_AUTOFILL_COMPAT_MODE_ALLOWED_PACKAGES,
+        SettingsUtils.syncSet(sContext, NAMESPACE_GLOBAL, AUTOFILL_COMPAT_MODE_ALLOWED_PACKAGES,
                 SERVICE_PACKAGE + "[first_am_i,my_url_bar]");
 
         // Set service.
@@ -134,7 +131,7 @@ public class VirtualContainerActivityCompatModeTest extends VirtualContainerActi
     @Test
     @AppModeFull(reason = "testMultipleUrlBars_firstDoesNotExist() is enough")
     public void testMultipleUrlBars_bothExist() throws Exception {
-        mAutofillDeviceConfig.set(DEVICE_CONFIG_AUTOFILL_COMPAT_MODE_ALLOWED_PACKAGES,
+        SettingsUtils.syncSet(sContext, NAMESPACE_GLOBAL, AUTOFILL_COMPAT_MODE_ALLOWED_PACKAGES,
                 SERVICE_PACKAGE + "[my_url_bar,my_url_bar2]");
 
         // Set service.
@@ -289,7 +286,6 @@ public class VirtualContainerActivityCompatModeTest extends VirtualContainerActi
         // Fill in some stuff
         mActivity.mUsername.setText("foo");
         sReplier.addResponse(CannedFillResponse.NO_RESPONSE);
-        SystemClock.sleep(Timeouts.FILL_TIMEOUT.ms());
         focusToPasswordExpectNoWindowEvent();
         sReplier.getNextFillRequest();
         mActivity.mPassword.setText("bar");

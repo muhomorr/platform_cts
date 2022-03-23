@@ -26,12 +26,11 @@ cc_test_library {
     ],
     include_dirs: [
         "frameworks/base/media/native/midi/include",
+        "frameworks/av/media/ndk/include",
         "system/core/include/cutils",
     ],
-    header_libs: [
-        "jni_headers",
-        "media_ndk_headers",
-    ],
+    header_libs: ["jni_headers"],
+    sdk_version: "current",
     stl: "libc++_static",
     shared_libs: [
         "liblog",

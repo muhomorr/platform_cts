@@ -110,7 +110,7 @@ public class BluetoothRestrictionTest extends BaseDeviceOwnerTest {
      * disallowed anymore.
      */
     public void testOppDisabledWhenRestrictionSet() throws Exception {
-        if (mBluetoothAdapter == null || UserManager.isHeadlessSystemUserMode()) {
+        if (mBluetoothAdapter == null) {
             return;
         }
 

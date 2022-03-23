@@ -59,6 +59,7 @@ public class StatsdCtsForegroundActivity extends Activity {
 
     static {
         System.loadLibrary("crashhelper");
+        System.loadLibrary("lmkhelper_statsdatom");
     }
 
     @Override
@@ -103,7 +104,7 @@ public class StatsdCtsForegroundActivity extends Activity {
                 doPollNetworkStats();
                 break;
             case ACTION_LMK:
-                new Thread(MemoryHogger::allocate).start();
+                new Thread(this::cmain).start();
                 break;
             case ACTION_DRAIN_POWER:
                 doBusyWork();
@@ -241,4 +242,9 @@ public class StatsdCtsForegroundActivity extends Activity {
     }
 
     private native void segfault();
+
+    /**
+     *  Keep allocating memory until the process is killed by LMKD.
+     **/
+    public native void cmain();
 }

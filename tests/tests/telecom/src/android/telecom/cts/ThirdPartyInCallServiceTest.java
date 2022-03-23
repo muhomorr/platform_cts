@@ -19,17 +19,22 @@ package android.telecom.cts;
 import static android.telecom.cts.TestUtils.WAIT_FOR_STATE_CHANGE_TIMEOUT_MS;
 
 import android.Manifest;
+import android.app.UiModeManager;
 import android.app.role.RoleManager;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.os.IBinder;
+import android.os.RemoteException;
+import android.telecom.TelecomManager;
 import android.telecom.cts.thirdptydialer.CtsThirdPtyDialerInCallServiceControl;
+import android.telecom.cts.thirdptyincallservice.CtsThirdPartyInCallService;
 import android.telecom.cts.thirdptyincallservice.CtsThirdPartyInCallServiceControl;
 import android.telecom.cts.thirdptyincallservice.ICtsThirdPartyInCallServiceControl;
 import android.util.Log;
 
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -66,11 +71,7 @@ public class ThirdPartyInCallServiceTest extends BaseTelecomTestWithMockServices
     public void tearDown() throws Exception {
         if (mIsDialerRoleAvailable) {
             mICtsThirdPartyInCallServiceControl.resetCalls();
-            if (mPreviousRoleHolder == null) {
-                mCtsRoleManagerAdapter.removeDialerRoleHolder(mThirdPartyPackageName);
-            } else {
-                mCtsRoleManagerAdapter.setDialerRoleHolder(mPreviousRoleHolder);
-            }
+            mCtsRoleManagerAdapter.setDialerRoleHolder(mPreviousRoleHolder);
         }
         super.tearDown();
     }
