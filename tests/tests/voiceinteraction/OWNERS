@@ -1,3 +1,7 @@
 # Bug component: 533220
-
-include platform/frameworks/base:/core/java/android/service/voice/OWNERS
+adamhe@google.com
+augale@google.com
+joannechung@google.com
+lpeter@google.com
+svetoslavganov@google.com
+tymtsai@google.com

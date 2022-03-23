@@ -16,23 +16,15 @@
 package android.sample.cts;
 
 import android.sample.SampleDeviceActivity;
-
-import androidx.test.rule.ActivityTestRule;
-import androidx.test.runner.AndroidJUnit4;
-
-import org.junit.Assert;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.runner.RunWith;
+import android.test.ActivityInstrumentationTestCase2;
 
 /**
  * A simple compatibility test which tests the SharedPreferences API.
  *
- * This test uses {@link ActivityTestRule} to instrument the
+ * This test uses {@link android.test.ActivityInstrumentationTestCase2} to instrument the
  * {@link android.sample.SampleDeviceActivity}.
  */
-@RunWith(AndroidJUnit4.class)
-public class SampleDeviceTest {
+public class SampleDeviceTest extends ActivityInstrumentationTestCase2<SampleDeviceActivity> {
 
     private static final String KEY = "foo";
 
@@ -41,9 +33,28 @@ public class SampleDeviceTest {
     /**
      * A reference to the activity whose shared preferences are being tested.
      */
-    @Rule
-    public ActivityTestRule<SampleDeviceActivity> mActivityRule =
-        new ActivityTestRule(SampleDeviceActivity.class);
+    private SampleDeviceActivity mActivity;
+
+    public SampleDeviceTest() {
+        super(SampleDeviceActivity.class);
+    }
+
+    @Override
+    protected void setUp() throws Exception {
+        super.setUp();
+        // Start the activity and get a reference to it.
+        mActivity = getActivity();
+        // Wait for the UI Thread to become idle.
+        getInstrumentation().waitForIdleSync();
+    }
+
+    @Override
+    protected void tearDown() throws Exception {
+        // Scrub the activity so it can be freed. The next time the setUp will create a new activity
+        // rather than reusing the old one.
+        mActivity = null;
+        super.tearDown();
+    }
 
     /**
      * Tests the SharedPreferences API.
@@ -53,16 +64,13 @@ public class SampleDeviceTest {
      *
      * @throws Exception
      */
-    @Test
     public void testSharedPreferences() throws Exception {
         // Save the key value pair to the preferences and assert they were saved.
-        mActivityRule.getActivity().savePreference(KEY, VALUE);
-        Assert.assertEquals("Preferences were not saved", VALUE,
-            mActivityRule.getActivity().getPreference(KEY));
+        mActivity.savePreference(KEY, VALUE);
+        assertEquals("Preferences were not saved", VALUE, mActivity.getPreference(KEY));
 
         // Clear the shared preferences and assert the data was removed.
-        mActivityRule.getActivity().clearPreferences();
-        Assert.assertNull("Preferences were not cleared",
-            mActivityRule.getActivity().getPreference(KEY));
+        mActivity.clearPreferences();
+        assertNull("Preferences were not cleared", mActivity.getPreference(KEY));
     }
 }

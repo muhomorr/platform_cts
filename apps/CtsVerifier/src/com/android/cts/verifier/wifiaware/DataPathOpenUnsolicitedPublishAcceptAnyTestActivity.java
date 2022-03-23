@@ -29,8 +29,7 @@ public class DataPathOpenUnsolicitedPublishAcceptAnyTestActivity extends BaseTes
     @Override
     protected BaseTestCase getTestCase(Context context) {
         return new DataPathInBandTestCase(context, /* isSecurityOpen */ true, /* isPublish */ true,
-                /* isUnsolicited */ true, /* usePmk */ false, /* acceptAny */ true,
-                /* forceChannel */false);
+                /* isUnsolicited */ true, /* usePmk */ false, /* acceptAny */ true);
     }
 
     @Override

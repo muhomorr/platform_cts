@@ -30,7 +30,6 @@ import static com.google.common.truth.Truth.assertWithMessage;
 
 import android.content.Intent;
 import android.net.wifi.WifiConfiguration;
-import android.os.Process;
 import android.provider.Settings;
 import android.util.Log;
 
@@ -55,12 +54,6 @@ public final class WifiConfigLockdownTest extends BaseDeviceOwnerTest {
                 Settings.Global.WIFI_DEVICE_OWNER_CONFIGS_LOCKDOWN, "1");
         mWifiConfigCreator.addNetwork(ORIGINAL_DEVICE_OWNER_SSID, true, SECURITY_TYPE_WPA,
                 ORIGINAL_PASSWORD);
-
-        Log.d(TAG, "setUp: user=" + Process.myUserHandle() + ", creator=" + mWifiConfigCreator
-                + ", dpm=" + mDevicePolicyManager + ", wifiMgr=" + mWifiManager
-                + ", mCurrentUserWifiManager= " + mCurrentUserWifiManager);
-        logConfigs("setup()", getConfiguredNetworks());
-
         startRegularActivity(ACTION_CREATE_WIFI_CONFIG, -1, ORIGINAL_REGULAR_SSID,
                 SECURITY_TYPE_WPA, ORIGINAL_PASSWORD);
     }
@@ -69,7 +62,7 @@ public final class WifiConfigLockdownTest extends BaseDeviceOwnerTest {
     protected void tearDown() throws Exception {
         mDevicePolicyManager.setGlobalSetting(getWho(),
                 Settings.Global.WIFI_DEVICE_OWNER_CONFIGS_LOCKDOWN, "0");
-        List<WifiConfiguration> configs = getConfiguredNetworks();
+        List<WifiConfiguration> configs = mWifiConfigCreator.getConfiguredNetworks();
         logConfigs("tearDown()", configs);
         for (WifiConfiguration config : configs) {
             if (areMatchingSsids(ORIGINAL_DEVICE_OWNER_SSID, config.SSID) ||
@@ -84,7 +77,7 @@ public final class WifiConfigLockdownTest extends BaseDeviceOwnerTest {
     }
 
     public void testDeviceOwnerCanUpdateConfig() throws Exception {
-        List<WifiConfiguration> configs = getConfiguredNetworks();
+        List<WifiConfiguration> configs = mWifiConfigCreator.getConfiguredNetworks();
         logConfigs("testDeviceOwnerCanUpdateConfig()", configs);
         int updateCount = 0;
         for (WifiConfiguration config : configs) {
@@ -111,37 +104,8 @@ public final class WifiConfigLockdownTest extends BaseDeviceOwnerTest {
                 .that(updateCount).isAtLeast(2);
     }
 
-    public void testDeviceOwnerCanRemoveConfig() throws Exception {
-        List<WifiConfiguration> configs = getConfiguredNetworks();
-        logConfigs("testDeviceOwnerCanRemoveConfig()", configs);
-        int removeCount = 0;
-        for (WifiConfiguration config : configs) {
-            if (areMatchingSsids(ORIGINAL_DEVICE_OWNER_SSID, config.SSID)
-                    || areMatchingSsids(ORIGINAL_REGULAR_SSID, config.SSID)) {
-                // On some devices a wpa3-sae configuration is auto-created for every wpa2
-                // config, and they are auto-removed when the corresponding config is removed.
-                // Recheck every config against the latest list of wifi configurations and skip
-                // those which is already auto-removed.
-                Log.d(TAG, "Checking if SSID " + config.SSID + " / id " + config.networkId
-                        + " should be removed");
-                if (getConfiguredNetworks().stream()
-                        .noneMatch(c -> c.networkId == config.networkId)) {
-                    Log.d(TAG, "Skipping it");
-                    continue;
-                }
-                Log.d(TAG, "Removing using " + mWifiManager);
-                assertWithMessage("removeNetwork(%s)", config.networkId)
-                        .that(mWifiManager.removeNetwork(config.networkId)).isTrue();
-                ++removeCount;
-            }
-        }
-        logConfigs("After removing " + removeCount, configs);
-        assertWithMessage("number of removed configs (the DO created one and the regular one)")
-                .that(removeCount).isEqualTo(2);
-    }
-
     public void testRegularAppCannotUpdateDeviceOwnerConfig() throws Exception {
-        List<WifiConfiguration> configs = getConfiguredNetworks();
+        List<WifiConfiguration> configs = mWifiConfigCreator.getConfiguredNetworks();
         logConfigs("testRegularAppCannotUpdateDeviceOwnerConfig()", configs);
         int updateCount = 0;
         for (WifiConfiguration config : configs) {
@@ -157,7 +121,7 @@ public final class WifiConfigLockdownTest extends BaseDeviceOwnerTest {
                 .that(updateCount).isAtLeast(1);
 
         // Assert nothing has changed
-        configs = getConfiguredNetworks();
+        configs = mWifiConfigCreator.getConfiguredNetworks();
         int notChangedCount = 0;
         for (WifiConfiguration config : configs) {
             Log.d(TAG, "testRegularAppCannotUpdateDeviceOwnerConfig(): testing " + config.SSID);
@@ -172,7 +136,7 @@ public final class WifiConfigLockdownTest extends BaseDeviceOwnerTest {
     }
 
     public void testRegularAppCannotRemoveDeviceOwnerConfig() throws Exception {
-        List<WifiConfiguration> configs = getConfiguredNetworks();
+        List<WifiConfiguration> configs = mWifiConfigCreator.getConfiguredNetworks();
         logConfigs("testRegularAppCannotUpdateDeviceOwnerConfig()", configs);
         int removeCount = 0;
         for (WifiConfiguration config : configs) {
@@ -189,7 +153,7 @@ public final class WifiConfigLockdownTest extends BaseDeviceOwnerTest {
                 .that(removeCount).isAtLeast(1);
 
         // Assert nothing has changed
-        configs = getConfiguredNetworks();
+        configs = mWifiConfigCreator.getConfiguredNetworks();
         int notChangedCount = 0;
         for (WifiConfiguration config : configs) {
             Log.d(TAG, "testRegularAppCannotRemoveDeviceOwnerConfig(): testing " + config.SSID);
@@ -230,7 +194,6 @@ public final class WifiConfigLockdownTest extends BaseDeviceOwnerTest {
             return;
         }
         Log.d(TAG, prefix + ": " + configs.size() + " configs: "
-                + configs.stream().map((c) -> c.SSID + "/" + c.networkId)
-                        .collect(Collectors.toList()));
+                + configs.stream().map((c) -> c.SSID).collect(Collectors.toList()));
     }
 }

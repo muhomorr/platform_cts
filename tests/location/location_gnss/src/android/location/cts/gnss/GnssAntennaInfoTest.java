@@ -9,7 +9,6 @@ import android.content.Context;
 import android.location.GnssAntennaInfo;
 import android.location.LocationListener;
 import android.location.LocationManager;
-import android.location.cts.common.TestGnssStatusCallback;
 import android.location.cts.common.TestLocationManager;
 import android.location.cts.common.TestMeasurementUtil;
 import android.os.Looper;

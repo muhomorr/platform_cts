@@ -287,15 +287,9 @@ public class RecordingTest extends Camera2SurfaceViewTestCase {
         for (int i = 0; i < mCameraIdsUnderTest.length; i++) {
             try {
                 Log.i(TAG, "Testing supported video size recording for camera " + mCameraIdsUnderTest[i]);
-                StaticMetadata staticInfo = mAllStaticInfo.get(mCameraIdsUnderTest[i]);
-                if (!staticInfo.isColorOutputSupported()) {
+                if (!mAllStaticInfo.get(mCameraIdsUnderTest[i]).isColorOutputSupported()) {
                     Log.i(TAG, "Camera " + mCameraIdsUnderTest[i] +
                             " does not support color outputs, skipping");
-                    continue;
-                }
-                if (staticInfo.isExternalCamera()) {
-                    Log.i(TAG, "Camera " + mCameraIdsUnderTest[i] +
-                            " does not support CamcorderProfile, skipping");
                     continue;
                 }
                 // Re-use the MediaRecorder object for the same camera device.
@@ -578,11 +572,6 @@ public class RecordingTest extends Camera2SurfaceViewTestCase {
                 if (!staticInfo.isColorOutputSupported()) {
                     Log.i(TAG, "Camera " + mCameraIdsUnderTest[i] +
                             " does not support color outputs, skipping");
-                    continue;
-                }
-                if (staticInfo.isExternalCamera()) {
-                    Log.i(TAG, "Camera " + mCameraIdsUnderTest[i] +
-                            " does not support CamcorderProfile, skipping");
                     continue;
                 }
                 // Re-use the MediaRecorder object for the same camera device.
@@ -905,36 +894,15 @@ public class RecordingTest extends Camera2SurfaceViewTestCase {
                         mStaticInfo.getValueFromKeyNonNull(
                                 CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
                 Size[] highSpeedVideoSizes = config.getHighSpeedVideoSizes();
-                Log.v(TAG, "highSpeedVideoSizes:" + Arrays.toString(highSpeedVideoSizes));
-                int previewFrameRate = Integer.MAX_VALUE;
                 for (Size size : highSpeedVideoSizes) {
                     List<Range<Integer>> fixedFpsRanges =
                             getHighSpeedFixedFpsRangeForSize(config, size);
-                    Range<Integer>[] highSpeedFpsRangesForSize =
-                            config.getHighSpeedVideoFpsRangesFor(size);
-
-                    Log.v(TAG, "highSpeedFpsRangesForSize for size - " + size + " : " +
-                            Arrays.toString(highSpeedFpsRangesForSize));
-                    // Map to store  max_fps and preview fps for each video size
-                    HashMap<Integer, Integer> previewRateMap = new HashMap();
-                    for (Range<Integer> r : highSpeedFpsRangesForSize ) {
-                        if (r.getLower() != r.getUpper()) {
-                            if (previewRateMap.containsKey(r.getUpper())) {
-                                Log.w(TAG, "previewFps for max_fps already exists.");
-                            } else {
-                                previewRateMap.put(r.getUpper(), r.getLower());
-                            }
-                        }
-                    }
-
                     mCollector.expectTrue("Unable to find the fixed frame rate fps range for " +
                             "size " + size, fixedFpsRanges.size() > 0);
                     // Test recording for each FPS range
                     for (Range<Integer> fpsRange : fixedFpsRanges) {
                         int captureRate = fpsRange.getLower();
-                        previewFrameRate = previewRateMap.get(captureRate);
-                        Log.v(TAG, "previewFrameRate: " + previewFrameRate + " captureRate: " +
-                                captureRate);
+                        final int VIDEO_FRAME_RATE = 30;
                         // Skip the test if the highest recording FPS supported by CamcorderProfile
                         if (fpsRange.getUpper() > getFpsFromHighSpeedProfileForSize(size)) {
                             Log.w(TAG, "high speed recording " + size + "@" + captureRate + "fps"
@@ -951,8 +919,8 @@ public class RecordingTest extends Camera2SurfaceViewTestCase {
 
                         mOutMediaFileName = mDebugFileNameBase + "/test_cslowMo_video_" +
                             captureRate + "fps_" + id + "_" + size.toString() + ".mp4";
-                        Log.v(TAG, "previewFrameRate:" + previewFrameRate);
-                        prepareRecording(size, previewFrameRate, captureRate);
+
+                        prepareRecording(size, VIDEO_FRAME_RATE, captureRate);
 
                         SystemClock.sleep(PREVIEW_DURATION_MS);
 
@@ -960,7 +928,7 @@ public class RecordingTest extends Camera2SurfaceViewTestCase {
 
                         SimpleCaptureCallback resultListener = new SimpleCaptureCallback();
                         // Start recording
-                        startSlowMotionRecording(/*useMediaRecorder*/true, previewFrameRate,
+                        startSlowMotionRecording(/*useMediaRecorder*/true, VIDEO_FRAME_RATE,
                                 captureRate, fpsRange, resultListener,
                                 /*useHighSpeedSession*/true);
 
@@ -973,7 +941,7 @@ public class RecordingTest extends Camera2SurfaceViewTestCase {
                         startConstrainedPreview(fpsRange, previewResultListener);
 
                         // Convert number of frames camera produced into the duration in unit of ms.
-                        float frameDurationMs = 1000.0f / previewFrameRate;
+                        float frameDurationMs = 1000.0f / VIDEO_FRAME_RATE;
                         float durationMs = resultListener.getTotalNumFrames() * frameDurationMs;
 
                         // Validation.
@@ -1399,16 +1367,13 @@ public class RecordingTest extends Camera2SurfaceViewTestCase {
      * Initialize the supported video sizes.
      */
     private void initSupportedVideoSize(String cameraId)  throws Exception {
-        int id = Integer.valueOf(cameraId);
-        Size maxVideoSize = SIZE_BOUND_720P;
-        if (CamcorderProfile.hasProfile(id, CamcorderProfile.QUALITY_2160P)) {
+        Size maxVideoSize = SIZE_BOUND_1080P;
+        if (CamcorderProfile.hasProfile(CamcorderProfile.QUALITY_2160P)) {
             maxVideoSize = SIZE_BOUND_2160P;
-        } else if (CamcorderProfile.hasProfile(id, CamcorderProfile.QUALITY_QHD)) {
+        } else if (CamcorderProfile.hasProfile(CamcorderProfile.QUALITY_QHD)) {
             maxVideoSize = SIZE_BOUND_QHD;
-        } else if (CamcorderProfile.hasProfile(id, CamcorderProfile.QUALITY_2K)) {
+        } else if (CamcorderProfile.hasProfile(CamcorderProfile.QUALITY_2K)) {
             maxVideoSize = SIZE_BOUND_2K;
-        } else if (CamcorderProfile.hasProfile(id, CamcorderProfile.QUALITY_1080P)) {
-            maxVideoSize = SIZE_BOUND_1080P;
         }
 
         mSupportedVideoSizes =

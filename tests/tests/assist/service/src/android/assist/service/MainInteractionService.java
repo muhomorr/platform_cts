@@ -87,8 +87,7 @@ public class MainInteractionService extends VoiceInteractionService {
                         IntentFilter filter = new IntentFilter();
                         filter.addAction(Utils.BROADCAST_INTENT_START_ASSIST);
                         registerReceiver(mBroadcastReceiver, filter,
-                                Context.RECEIVER_VISIBLE_TO_INSTANT_APPS
-                                | Context.RECEIVER_EXPORTED);
+                                Context.RECEIVER_VISIBLE_TO_INSTANT_APPS);
                         Log.i(TAG, "Registered receiver to start session later");
                     }
                     notify(Utils.ASSIST_RECEIVER_REGISTERED);

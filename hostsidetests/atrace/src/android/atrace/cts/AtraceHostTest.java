@@ -183,12 +183,11 @@ public class AtraceHostTest extends AtraceHostTestBase {
         assertNotNull(result.getModel());
         ThreadModel thread = findThread(result.getModel(), result.getTid());
         assertNotNull(thread);
-        Slice sdkSlice = SliceQueriesKt.selectFirst(thread,
-                slice1 -> "AtraceDeviceTest::beginEndSection".equals(slice1.getName()));
-        assertNotNull(sdkSlice);
-        Slice ndkSlice = SliceQueriesKt.selectFirst(thread,
-                slice -> "ndk::beginEndSection".equals(slice.getName()));
-        assertNotNull(ndkSlice);
+        assertEquals(2, thread.getSlices().size());
+        Slice sdkSlice = thread.getSlices().get(0);
+        assertEquals("AtraceDeviceTest::beginEndSection", sdkSlice.getName());
+        Slice ndkSlice = thread.getSlices().get(1);
+        assertEquals("ndk::beginEndSection", ndkSlice.getName());
     }
 
     public void testAsyncBeginEndSection() {
@@ -284,5 +283,4 @@ public class AtraceHostTest extends AtraceHostTestBase {
         assertEquals("Didn't find all async sections",
                 0, requiredAsyncSections.size());
     }
-
 }

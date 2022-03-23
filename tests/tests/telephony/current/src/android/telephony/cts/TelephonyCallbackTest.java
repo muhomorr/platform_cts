@@ -28,7 +28,6 @@ import static org.junit.Assert.assertTrue;
 
 import android.annotation.NonNull;
 import android.content.Context;
-import android.content.pm.PackageManager;
 import android.net.ConnectivityManager;
 import android.os.Handler;
 import android.os.HandlerThread;
@@ -40,7 +39,6 @@ import android.telephony.CellIdentity;
 import android.telephony.CellInfo;
 import android.telephony.CellLocation;
 import android.telephony.LinkCapacityEstimate;
-import android.telephony.NetworkRegistrationInfo;
 import android.telephony.PhysicalChannelConfig;
 import android.telephony.PreciseCallState;
 import android.telephony.PreciseDataConnectionState;
@@ -53,7 +51,6 @@ import android.telephony.TelephonyManager;
 import android.telephony.TelephonyManager.DataEnabledReason;
 import android.telephony.emergency.EmergencyNumber;
 import android.telephony.ims.ImsReasonInfo;
-import android.text.TextUtils;
 import android.util.Log;
 
 import androidx.test.InstrumentationRegistry;
@@ -103,7 +100,6 @@ public class TelephonyCallbackTest {
     private int mRadioPowerState;
     @SimActivationState
     private int mVoiceActivationState;
-    private ServiceState mServiceState;
     private boolean mOnAllowedNetworkTypesChangedCalled;
     private int mAllowedNetworkTypeReason = -1;
     private long mAllowedNetworkTypeValue = -1;
@@ -117,7 +113,6 @@ public class TelephonyCallbackTest {
     private static ConnectivityManager mCm;
     private HandlerThread mHandlerThread;
     private Handler mHandler;
-    private PackageManager mPackageManager;
     private static final List<Integer> DATA_CONNECTION_STATE = Arrays.asList(
             TelephonyManager.DATA_CONNECTED,
             TelephonyManager.DATA_DISCONNECTED,
@@ -153,7 +148,6 @@ public class TelephonyCallbackTest {
         mHandlerThread = new HandlerThread("TelephonyCallbackTest");
         mHandlerThread.start();
         mHandler = new Handler(mHandlerThread.getLooper());
-        mPackageManager = getContext().getPackageManager();
     }
 
     @After
@@ -183,12 +177,6 @@ public class TelephonyCallbackTest {
         mTelephonyManager.registerTelephonyCallback(mSimpleExecutor, callback);
     }
 
-    private void registerTelephonyCallback(@NonNull TelephonyCallback callback,
-            boolean renounceFine, boolean renounceCoarse) {
-        mTelephonyManager.registerTelephonyCallback(renounceFine, renounceCoarse, mSimpleExecutor,
-                callback);
-    }
-
     private void unRegisterTelephonyCallback(boolean condition,
                                              @NonNull TelephonyCallback callback) throws Exception {
         synchronized (mLock) {
@@ -208,7 +196,6 @@ public class TelephonyCallbackTest {
         public void onServiceStateChanged(ServiceState serviceState) {
             synchronized (mLock) {
                 mOnServiceStateChangedCalled = true;
-                mServiceState = serviceState;
                 mLock.notify();
             }
         }
@@ -237,103 +224,6 @@ public class TelephonyCallbackTest {
 
         // Test unregister
         unRegisterTelephonyCallback(mOnServiceStateChangedCalled, mServiceStateCallback);
-    }
-
-    @Test
-    public void testOnServiceStateChangedByRegisterTelephonyCallbackWithLocationRenounce()
-            throws Throwable {
-        if (mCm.getNetworkInfo(ConnectivityManager.TYPE_MOBILE) == null) {
-            Log.d(TAG, "Skipping test that requires ConnectivityManager.TYPE_MOBILE");
-            return;
-        }
-
-        assertFalse(mOnServiceStateChangedCalled);
-
-        mHandler.post(() -> {
-            mServiceStateCallback = new ServiceStateListener();
-            registerTelephonyCallback(mServiceStateCallback, true, true);
-        });
-        synchronized (mLock) {
-            if (!mOnServiceStateChangedCalled) {
-                mLock.wait(WAIT_TIME);
-            }
-        }
-
-        assertTrue(mOnServiceStateChangedCalled);
-        assertServiceStateLocationSanitization(mServiceState);
-
-        // Test unregister
-        unRegisterTelephonyCallback(mOnServiceStateChangedCalled, mServiceStateCallback);
-    }
-
-    @Test
-    public void testOnServiceStateChangedByRegisterTelephonyCallbackWithCoarseRenounce()
-            throws Throwable {
-        if (mCm.getNetworkInfo(ConnectivityManager.TYPE_MOBILE) == null) {
-            Log.d(TAG, "Skipping test that requires ConnectivityManager.TYPE_MOBILE");
-            return;
-        }
-
-        assertFalse(mOnServiceStateChangedCalled);
-        mHandler.post(() -> {
-            mServiceStateCallback = new ServiceStateListener();
-            registerTelephonyCallback(mServiceStateCallback, false, true);
-        });
-        synchronized (mLock) {
-            if (!mOnServiceStateChangedCalled) {
-                mLock.wait(WAIT_TIME);
-            }
-        }
-
-        assertTrue(mOnServiceStateChangedCalled);
-
-        // Test unregister
-        unRegisterTelephonyCallback(mOnServiceStateChangedCalled, mServiceStateCallback);
-    }
-
-    @Test
-    public void testOnServiceStateChangedByRegisterTelephonyCallbackWithFineOnlyRenounce()
-            throws Throwable {
-        if (mCm.getNetworkInfo(ConnectivityManager.TYPE_MOBILE) == null) {
-            Log.d(TAG, "Skipping test that requires ConnectivityManager.TYPE_MOBILE");
-            return;
-        }
-
-        assertFalse(mOnServiceStateChangedCalled);
-
-        mHandler.post(() -> {
-            mServiceStateCallback = new ServiceStateListener();
-            registerTelephonyCallback(mServiceStateCallback, true, false);
-        });
-        synchronized (mLock) {
-            if (!mOnServiceStateChangedCalled) {
-                mLock.wait(WAIT_TIME);
-            }
-        }
-
-        assertTrue(mOnServiceStateChangedCalled);
-        assertServiceStateFineLocationSanitization(mServiceState);
-
-        // Test unregister
-        unRegisterTelephonyCallback(mOnServiceStateChangedCalled, mServiceStateCallback);
-    }
-
-    private void assertServiceStateFineLocationSanitization(ServiceState state) {
-        if (state == null) return;
-
-        if (state.getNetworkRegistrationInfoList() != null) {
-            for (NetworkRegistrationInfo nrs : state.getNetworkRegistrationInfoList()) {
-                assertNull(nrs.getCellIdentity());
-            }
-        }
-    }
-
-    private void assertServiceStateLocationSanitization(ServiceState state) {
-        if (state == null) return;
-        assertServiceStateFineLocationSanitization(state);
-        assertTrue(TextUtils.isEmpty(state.getOperatorAlphaLong()));
-        assertTrue(TextUtils.isEmpty(state.getOperatorAlphaShort()));
-        assertTrue(TextUtils.isEmpty(state.getOperatorNumeric()));
     }
 
     @Test
@@ -490,8 +380,8 @@ public class TelephonyCallbackTest {
 
     @Test
     public void testOnPreciseCallStateChangedByRegisterTelephonyCallback() throws Throwable {
-        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
-            Log.d(TAG, "Skipping test that requires FEATURE_TELEPHONY");
+        if (mCm.getNetworkInfo(ConnectivityManager.TYPE_MOBILE) == null) {
+            Log.d(TAG, "Skipping test that requires ConnectivityManager.TYPE_MOBILE");
             return;
         }
         assertThat(mOnPreciseCallStateChangedCalled).isFalse();
@@ -534,8 +424,8 @@ public class TelephonyCallbackTest {
 
     @Test
     public void testOnCallDisconnectCauseChangedByRegisterTelephonyCallback() throws Throwable {
-        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
-            Log.d(TAG, "Skipping test that requires FEATURE_TELEPHONY");
+        if (mCm.getNetworkInfo(ConnectivityManager.TYPE_MOBILE) == null) {
+            Log.d(TAG, "Skipping test that requires ConnectivityManager.TYPE_MOBILE");
             return;
         }
         assertThat(mOnCallDisconnectCauseChangedCalled).isFalse();
@@ -573,8 +463,8 @@ public class TelephonyCallbackTest {
 
     @Test
     public void testOnImsCallDisconnectCauseChangedByRegisterTelephonyCallback() throws Throwable {
-        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
-            Log.d(TAG, "Skipping test that requires FEATURE_TELEPHONY");
+        if (mCm.getNetworkInfo(ConnectivityManager.TYPE_MOBILE) == null) {
+            Log.d(TAG, "Skipping test that requires ConnectivityManager.TYPE_MOBILE");
             return;
         }
         assertThat(mOnImsCallDisconnectCauseChangedCalled).isFalse();
@@ -612,8 +502,8 @@ public class TelephonyCallbackTest {
 
     @Test
     public void testOSrvccStateChangedByRegisterTelephonyCallback() throws Throwable {
-        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
-            Log.d(TAG, "Skipping test that requires FEATURE_TELEPHONY");
+        if (mCm.getNetworkInfo(ConnectivityManager.TYPE_MOBILE) == null) {
+            Log.d(TAG, "Skipping test that requires ConnectivityManager.TYPE_MOBILE");
             return;
         }
         assertThat(mSrvccStateChangedCalled).isFalse();
@@ -652,8 +542,8 @@ public class TelephonyCallbackTest {
 
     @Test
     public void testOnRadioPowerStateChangedByRegisterTelephonyCallback() throws Throwable {
-        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
-            Log.d(TAG, "Skipping test that requires FEATURE_TELEPHONY");
+        if (mCm.getNetworkInfo(ConnectivityManager.TYPE_MOBILE) == null) {
+            Log.d(TAG, "Skipping test that requires ConnectivityManager.TYPE_MOBILE");
             return;
         }
         assertThat(mOnRadioPowerStateChangedCalled).isFalse();
@@ -760,8 +650,8 @@ public class TelephonyCallbackTest {
     @Test
     public void testOnPreciseDataConnectionStateChangedByRegisterTelephonyCallback()
             throws Throwable {
-        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
-            Log.d(TAG, "Skipping test that requires FEATURE_TELEPHONY");
+        if (mCm.getNetworkInfo(ConnectivityManager.TYPE_MOBILE) == null) {
+            Log.d(TAG, "Skipping test that requires ConnectivityManager.TYPE_MOBILE");
             return;
         }
         assertThat(mOnCallDisconnectCauseChangedCalled).isFalse();
@@ -1368,8 +1258,8 @@ public class TelephonyCallbackTest {
 
     @Test
     public void testOnPhysicalChannelConfigChanged() throws Throwable {
-        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
-            Log.d(TAG, "Skipping test that requires FEATURE_TELEPHONY");
+        if (mCm.getNetworkInfo(ConnectivityManager.TYPE_MOBILE) == null) {
+            Log.d(TAG, "Skipping test that requires ConnectivityManager.TYPE_MOBILE");
             return;
         }
 
@@ -1407,8 +1297,8 @@ public class TelephonyCallbackTest {
 
     @Test
     public void testOnDataEnabledChangedByRegisterTelephonyCallback() throws Throwable {
-        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
-            Log.d(TAG, "Skipping test that requires FEATURE_TELEPHONY");
+        if (mCm.getNetworkInfo(ConnectivityManager.TYPE_MOBILE) == null) {
+            Log.d(TAG, "Skipping test that requires ConnectivityManager.TYPE_MOBILE");
             return;
         }
 
@@ -1448,8 +1338,8 @@ public class TelephonyCallbackTest {
 
     @Test
     public void testOnAllowedNetworkTypesChangedByRegisterPhoneStateListener() throws Throwable {
-        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
-            Log.d(TAG, "Skipping test that requires FEATURE_TELEPHONY");
+        if (mCm.getNetworkInfo(ConnectivityManager.TYPE_MOBILE) == null) {
+            Log.d(TAG, "Skipping test that requires ConnectivityManager.TYPE_MOBILE");
             return;
         }
         long originalAllowedNetworkTypeUser = ShellIdentityUtils.invokeMethodWithShellPermissions(

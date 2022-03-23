@@ -79,8 +79,6 @@ static void sanitizeMessage(const InputMessage& msg, InputMessage* outMsg) {
         case InputMessage::Type::MOTION: {
             // int32_t eventId
             outMsg->body.motion.eventId = msg.body.key.eventId;
-            // uint32_t pointerCount
-            outMsg->body.motion.pointerCount = msg.body.motion.pointerCount;
             // nsecs_t eventTime
             outMsg->body.motion.eventTime = msg.body.motion.eventTime;
             // int32_t deviceId
@@ -127,18 +125,12 @@ static void sanitizeMessage(const InputMessage& msg, InputMessage* outMsg) {
             outMsg->body.motion.xCursorPosition = msg.body.motion.xCursorPosition;
             // float yCursorPosition
             outMsg->body.motion.yCursorPosition = msg.body.motion.yCursorPosition;
-            // float dsdxDisplay
-            outMsg->body.motion.dsdxRaw = msg.body.motion.dsdxRaw;
-            // float dtdxDisplay
-            outMsg->body.motion.dtdxRaw = msg.body.motion.dtdxRaw;
-            // float dtdyDisplay
-            outMsg->body.motion.dtdyRaw = msg.body.motion.dtdyRaw;
-            // float dsdyDisplay
-            outMsg->body.motion.dsdyRaw = msg.body.motion.dsdyRaw;
-            // float txDisplay
-            outMsg->body.motion.txRaw = msg.body.motion.txRaw;
-            // float tyDisplay
-            outMsg->body.motion.tyRaw = msg.body.motion.tyRaw;
+            // int32_t displayW
+            outMsg->body.motion.displayWidth = msg.body.motion.displayWidth;
+            // int32_t displayH
+            outMsg->body.motion.displayHeight = msg.body.motion.displayHeight;
+            // uint32_t pointerCount
+            outMsg->body.motion.pointerCount = msg.body.motion.pointerCount;
             //struct Pointer pointers[MAX_POINTERS]
             for (size_t i = 0; i < msg.body.motion.pointerCount; i++) {
                 // PointerProperties properties
@@ -164,6 +156,7 @@ static void sanitizeMessage(const InputMessage& msg, InputMessage* outMsg) {
         case InputMessage::Type::FOCUS: {
             outMsg->body.focus.eventId = msg.body.focus.eventId;
             outMsg->body.focus.hasFocus = msg.body.focus.hasFocus;
+            outMsg->body.focus.inTouchMode = msg.body.focus.inTouchMode;
             break;
         }
         case InputMessage::Type::CAPTURE: {
@@ -182,10 +175,6 @@ static void sanitizeMessage(const InputMessage& msg, InputMessage* outMsg) {
             outMsg->body.timeline.eventId = msg.body.timeline.eventId;
             outMsg->body.timeline.graphicsTimeline = msg.body.timeline.graphicsTimeline;
             break;
-        }
-        case InputMessage::Type::TOUCH_MODE: {
-            outMsg->body.touchMode.eventId = msg.body.timeline.eventId;
-            outMsg->body.touchMode.isInTouchMode = msg.body.touchMode.isInTouchMode;
         }
     }
 }
@@ -260,10 +249,9 @@ int main() {
     }
 
     InputMessage::Type types[] = {
-            InputMessage::Type::KEY,      InputMessage::Type::MOTION,
-            InputMessage::Type::FINISHED, InputMessage::Type::FOCUS,
-            InputMessage::Type::CAPTURE,  InputMessage::Type::DRAG,
-            InputMessage::Type::TIMELINE, InputMessage::Type::TOUCH_MODE,
+            InputMessage::Type::KEY,      InputMessage::Type::MOTION,  InputMessage::Type::FINISHED,
+            InputMessage::Type::FOCUS,    InputMessage::Type::CAPTURE, InputMessage::Type::DRAG,
+            InputMessage::Type::TIMELINE,
     };
     for (InputMessage::Type type : types) {
         bool success = checkMessage(*server, *client, type);

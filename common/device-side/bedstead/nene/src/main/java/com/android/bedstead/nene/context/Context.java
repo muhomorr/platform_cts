@@ -20,6 +20,7 @@ import android.content.pm.PackageManager;
 
 import androidx.test.platform.app.InstrumentationRegistry;
 
+import com.android.bedstead.nene.TestApis;
 import com.android.bedstead.nene.exceptions.NeneException;
 import com.android.bedstead.nene.users.UserReference;
 
@@ -32,11 +33,10 @@ public final class Context {
             InstrumentationRegistry.getInstrumentation().getTargetContext();
     private static final android.content.Context sInstrumentationContext =
             InstrumentationRegistry.getInstrumentation().getContext();
+    private final TestApis mTestApis;
 
-    public static final Context sInstance = new Context();
-
-    private Context() {
-
+    public Context(TestApis testApis) {
+        mTestApis = testApis;
     }
 
     /**

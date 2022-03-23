@@ -17,7 +17,6 @@
 package android.appsecurity.cts;
 
 import android.platform.test.annotations.AsbSecurityTest;
-
 import com.android.compatibility.common.tradefed.build.CompatibilityBuildHelper;
 import com.android.tradefed.build.IBuildInfo;
 import com.android.tradefed.device.DeviceNotAvailableException;

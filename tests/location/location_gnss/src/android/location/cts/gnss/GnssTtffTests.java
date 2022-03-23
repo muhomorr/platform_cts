@@ -2,7 +2,6 @@ package android.location.cts.gnss;
 
 import android.location.cts.common.GnssTestCase;
 import android.location.cts.common.SoftAssert;
-import android.location.cts.common.TestGnssStatusCallback;
 import android.location.cts.common.TestLocationListener;
 import android.location.cts.common.TestLocationManager;
 import android.location.cts.common.TestUtils;
@@ -130,9 +129,8 @@ public class GnssTtffTests extends GnssTestCase {
     TestLocationListener networkLocationListener
         = new TestLocationListener(LOCATION_TO_COLLECT_COUNT);
     // fetch the networklocation first to make sure the ttff is not flaky
-    if (mTestLocationManager.requestNetworkLocationUpdates(networkLocationListener)) {
-        networkLocationListener.await();
-    }
+    mTestLocationManager.requestNetworkLocationUpdates(networkLocationListener);
+    networkLocationListener.await();
 
     TestGnssStatusCallback testGnssStatusCallback =
         new TestGnssStatusCallback(TAG, STATUS_TO_COLLECT_COUNT);
