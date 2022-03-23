@@ -64,7 +64,6 @@ import org.junit.Assert.assertThat
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeFalse
 import org.junit.Before
-import org.junit.Ignore;
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -134,7 +133,6 @@ class AutoRevokeTest {
 
     @AppModeFull(reason = "Uses separate apps for testing")
     @Test
-    @Ignore("b/201545116")
     fun testUnusedApp_getsPermissionRevoked() {
         assumeFalse(
                 "Watch doesn't provide a unified way to check notifications. it depends on UX",

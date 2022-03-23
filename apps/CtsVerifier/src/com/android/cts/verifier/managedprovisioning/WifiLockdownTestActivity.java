@@ -159,12 +159,16 @@ public class WifiLockdownTestActivity extends PassFailButtons.TestListActivity {
     }
 
     private int convertKeyManagement(int radioButtonId) {
-        if (radioButtonId == NONE) {
-            return SECURITY_TYPE_NONE;
-        } else if (radioButtonId == WPA) {
-            return SECURITY_TYPE_WPA;
-        } else if (radioButtonId == WEP) {
-            return SECURITY_TYPE_WEP;
+        switch (radioButtonId) {
+            case NONE: {
+                return SECURITY_TYPE_NONE;
+            }
+            case WPA: {
+                return SECURITY_TYPE_WPA;
+            }
+            case WEP: {
+                return SECURITY_TYPE_WEP;
+            }
         }
         return SECURITY_TYPE_NONE;
     }

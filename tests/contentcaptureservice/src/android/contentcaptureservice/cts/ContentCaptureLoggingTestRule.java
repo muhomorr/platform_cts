@@ -21,9 +21,7 @@ import static android.contentcaptureservice.cts.Helper.TAG;
 
 import static com.android.compatibility.common.util.ShellUtils.runShellCommand;
 
-import android.app.Activity;
 import android.util.Log;
-import android.view.contentcapture.ContentCaptureManager;
 
 import androidx.annotation.NonNull;
 
@@ -80,9 +78,8 @@ public class ContentCaptureLoggingTestRule implements TestRule, SafeCleanerRule.
         Log.e(TAG, "Dumping after exception on " + testName, t);
         final String serviceDump = runShellCommand("dumpsys content_capture");
         Log.e(TAG, "content_capture dump: \n" + serviceDump);
-        final String activityDump = runShellCommand("dumpsys activity %s %s %s",
-                MY_PACKAGE, Activity.DUMP_ARG_DUMP_DUMPABLE, ContentCaptureManager.DUMPABLE_NAME);
-
+        final String activityDump = runShellCommand("dumpsys activity %s --contentcapture",
+                MY_PACKAGE);
         Log.e(TAG, "activity dump: \n" + activityDump);
         mDumped = true;
     }

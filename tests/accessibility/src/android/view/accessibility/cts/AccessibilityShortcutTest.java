@@ -229,16 +229,14 @@ public class AccessibilityShortcutTest {
     @Test
     public void testAccessibilityButtonService_disableSelf_shortcutRemoved() {
         mA11yButtonServiceRule.enableService();
-        // Add one service into the shortcut list to avoid falling back to default accessibility
-        // service when the settings value is empty.
         mShortcutSettingsRule.configureAccessibilityShortcut(
-                sUiAutomation, mA11yButtonServiceName, mSpeakingA11yServiceName);
+                sUiAutomation, mA11yButtonServiceName);
         mShortcutSettingsRule.waitForAccessibilityShortcutStateChange(
-                sUiAutomation, Arrays.asList(mA11yButtonServiceName, mSpeakingA11yServiceName));
+                sUiAutomation, Arrays.asList(mA11yButtonServiceName));
 
         mA11yButtonServiceRule.getService().disableSelfAndRemove();
         mShortcutSettingsRule.waitForAccessibilityShortcutStateChange(sUiAutomation,
-                Arrays.asList(mSpeakingA11yServiceName));
+                Collections.emptyList());
     }
 
     /**

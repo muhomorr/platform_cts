@@ -16,7 +16,6 @@
 
 package com.android.cts.appcloning;
 
-import com.android.modules.utils.build.testing.DeviceSdkLevel;
 import com.android.tradefed.device.DeviceNotAvailableException;
 import com.android.tradefed.device.ITestDevice;
 import com.android.tradefed.device.NativeDevice;
@@ -50,13 +49,7 @@ abstract class BaseHostTestCase extends BaseHostJUnit4Test {
     }
 
     protected boolean isAtLeastS() throws DeviceNotAvailableException {
-        DeviceSdkLevel deviceSdkLevel = new DeviceSdkLevel(getDevice());
-        return deviceSdkLevel.isDeviceAtLeastS();
-    }
-
-    protected boolean isAtLeastT() throws DeviceNotAvailableException {
-        DeviceSdkLevel deviceSdkLevel = new DeviceSdkLevel(getDevice());
-        return deviceSdkLevel.isDeviceAtLeastT();
+        return getDevice().getApiLevel() >= 31 /* BUILD.VERSION_CODES.S */;
     }
 
     protected static void eventually(ThrowingRunnable r, long timeoutMillis) {

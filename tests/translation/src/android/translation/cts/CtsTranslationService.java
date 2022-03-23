@@ -65,8 +65,6 @@ public class CtsTranslationService extends TranslationService {
 
     private final CountDownLatch mSessionDestroyedLatch = new CountDownLatch(1);
 
-    private TranslationContext mTranslationContext;
-
     /**
      * Timeout for Translation cts.
      */
@@ -111,7 +109,6 @@ public class CtsTranslationService extends TranslationService {
     public void onCreateTranslationSession(@NonNull TranslationContext translationContext,
             int sessionId, @NonNull Consumer<Boolean> callback) {
         Log.v(TAG, "onCreateTranslationSession");
-        mTranslationContext = translationContext;
         callback.accept(true);
     }
 
@@ -119,7 +116,6 @@ public class CtsTranslationService extends TranslationService {
     public void onFinishTranslationSession(int sessionId) {
         Log.v(TAG, "onFinishTranslationSession");
         mSessionDestroyedLatch.countDown();
-        mTranslationContext = null;
     }
 
     @Override
@@ -151,10 +147,6 @@ public class CtsTranslationService extends TranslationService {
         }
         sServiceWatcher = new ServiceWatcher();
         return sServiceWatcher;
-    }
-
-    TranslationContext getTranslationContext() {
-        return mTranslationContext;
     }
 
     /**

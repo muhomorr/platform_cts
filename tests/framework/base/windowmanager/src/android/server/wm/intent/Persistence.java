@@ -453,10 +453,10 @@ public class Persistence {
          */
         private final List<TaskState> mTasks;
 
-        public static StateDump fromTasks(List<WindowManagerState.Task> activityTasks,
-                List<WindowManagerState.Task> baseStacks) {
+        public static StateDump fromTasks(List<WindowManagerState.ActivityTask> activityTasks,
+                List<WindowManagerState.ActivityTask> baseStacks) {
             List<TaskState> tasks = new ArrayList<>();
-            for (WindowManagerState.Task task : trimTasks(activityTasks, baseStacks)) {
+            for (WindowManagerState.ActivityTask task : trimTasks(activityTasks, baseStacks)) {
                 tasks.add(new TaskState(task));
             }
             return new StateDump(tasks);
@@ -491,11 +491,11 @@ public class Persistence {
          * in the system before recording, by their ID. For example a task containing the launcher
          * activity.
          */
-        public static List<WindowManagerState.Task> trimTasks(
-                List<WindowManagerState.Task> toTrim,
-                List<WindowManagerState.Task> trimFrom) {
+        public static List<WindowManagerState.ActivityTask> trimTasks(
+                List<WindowManagerState.ActivityTask> toTrim,
+                List<WindowManagerState.ActivityTask> trimFrom) {
 
-            for (WindowManagerState.Task task : trimFrom) {
+            for (WindowManagerState.ActivityTask task : trimFrom) {
                 toTrim.removeIf(t -> t.getRootTaskId() == task.getRootTaskId());
             }
 
@@ -547,7 +547,7 @@ public class Persistence {
             mResumedActivity = resumedActivity;
         }
 
-        public TaskState(WindowManagerState.Task state) {
+        public TaskState(WindowManagerState.ActivityTask state) {
             final String resumedActivity = state.getResumedActivity();
             mResumedActivity = resumedActivity != null ? resumedActivity : "";
             for (WindowManagerState.Activity activity : state.getActivities()) {

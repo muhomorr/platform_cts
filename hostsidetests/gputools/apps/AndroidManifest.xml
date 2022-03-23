@@ -19,13 +19,13 @@
      package="android.rootlessgpudebug.app">
 
     <application android:extractNativeLibs="true">
-        <service android:name=".RootlessGpuDebugService"
-             android:process=":target_api_service"
+        <activity android:name=".RootlessGpuDebugDeviceActivity"
              android:exported="true">
             <intent-filter>
-                <action android:name="android.service.action.TARGET_API_SERVICE"/>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
-        </service>
+        </activity>
     </application>
 
 </manifest>

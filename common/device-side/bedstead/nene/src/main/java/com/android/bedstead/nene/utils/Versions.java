@@ -16,31 +16,17 @@
 
 package com.android.bedstead.nene.utils;
 
-import static android.os.Build.VERSION.CODENAME;
-
-import static com.android.compatibility.common.util.VersionCodes.CUR_DEVELOPMENT;
-import static com.android.compatibility.common.util.VersionCodes.R;
-
 import android.os.Build;
-import android.os.Build.VERSION;
-import android.util.Log;
-
-import com.google.common.collect.ImmutableSet;
 
 import java.lang.reflect.Field;
 
 /** SDK Version checks. */
 public final class Versions {
 
-    private static final String TAG = "Versions";
-
-    public static final int T = CUR_DEVELOPMENT;
-
     /** Any version. */
     public static final int ANY = -1;
 
-    private static final ImmutableSet<String> DEVELOPMENT_CODENAMES =
-            ImmutableSet.of("Sv2", "T", "Tiramisu");
+    private static final String DEVELOPMENT_CODENAME = "S";
 
     private Versions() {
 
@@ -51,12 +37,10 @@ public final class Versions {
      */
     public static void requireMinimumVersion(int min) {
         if (!meetsSdkVersionRequirements(min, ANY)) {
-            String currentVersion = meetsMinimumSdkVersionRequirement(R)
-                    ? Build.VERSION.RELEASE_OR_CODENAME : Integer.toString(Build.VERSION.SDK_INT);
             throw new UnsupportedOperationException(
-                    "This feature is only available on "
+                    "Thie feature is only available on "
                             + versionToLetter(min)
-                            + "+ (currently " + currentVersion + ")");
+                            + "+ (currently " + Build.VERSION.CODENAME + ")");
         }
     }
 
@@ -79,7 +63,7 @@ public final class Versions {
             }
         }
 
-        return Integer.toString(version);
+        throw new IllegalStateException("Could not find version with code " + version);
     }
 
     /**
@@ -97,46 +81,20 @@ public final class Versions {
     public static boolean meetsSdkVersionRequirements(int min, int max) {
         if (min != ANY) {
             if (min == Build.VERSION_CODES.CUR_DEVELOPMENT) {
-                if (!DEVELOPMENT_CODENAMES.contains(CODENAME)) {
-                    Log.e(TAG, "meetsSdkVersionRequirements(" + min + "," + max
-                            + "): false1 (Current: " + CODENAME + ", sdk: "
-                            + VERSION.SDK_INT + ")");
+                if (!Build.VERSION.CODENAME.equals(DEVELOPMENT_CODENAME)) {
                     return false;
                 }
             } else if (min > Build.VERSION.SDK_INT) {
-                Log.e(TAG, "meetsSdkVersionRequirements(" + min + ","
-                        + max + "): false2 (Current: " + CODENAME + ", sdk: "
-                        + VERSION.SDK_INT + ")");
                 return false;
             }
         }
 
-        if (max != ANY && max != Integer.MAX_VALUE
-                && max != Build.VERSION_CODES.CUR_DEVELOPMENT) {
-            if (max < Build.VERSION.SDK_INT) {
-                Log.e(TAG, "meetsSdkVersionRequirements(" + min + ","
-                        + max + "): false3 (Current: " + CODENAME + ", sdk: "
-                        + VERSION.SDK_INT + ")");
-                return false;
-            }
-            if (DEVELOPMENT_CODENAMES.contains(CODENAME)) {
-                Log.e(TAG, "meetsSdkVersionRequirements(" + min + ","
-                        + max + "): false4 (Current: " + CODENAME + ", sdk: "
-                        + VERSION.SDK_INT + ")");
-                return false;
-            }
+        if (max != ANY
+                && max != Build.VERSION_CODES.CUR_DEVELOPMENT
+                && max < Build.VERSION.SDK_INT) {
+            return false;
         }
 
-        Log.e(TAG, "meetsSdkVersionRequirements(" + min + "," + max
-                + "): true (Current: " + CODENAME + ", sdk: " + VERSION.SDK_INT + ")");
         return true;
-    }
-
-    /**
-     * {@code true} if the current running version is the latest in-development version.
-     */
-    public static boolean isDevelopmentVersion() {
-        return Build.VERSION.SDK_INT == Build.VERSION_CODES.CUR_DEVELOPMENT
-                && DEVELOPMENT_CODENAMES.contains(CODENAME);
     }
 }

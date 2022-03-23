@@ -36,7 +36,6 @@ import com.android.os.AtomsProto.AppBreadcrumbReported;
 import com.android.os.AtomsProto.Atom;
 import com.android.os.AtomsProto.PerfettoTrigger;
 import com.android.os.AtomsProto.PerfettoUploaded;
-import com.android.os.AtomsProto.TracingServiceReportEvent;
 import com.android.os.StatsLog.EventMetricData;
 import com.android.tradefed.build.IBuildInfo;
 import com.android.tradefed.testtype.DeviceTestCase;
@@ -46,18 +45,17 @@ import com.android.tradefed.util.CommandStatus;
 
 import com.google.protobuf.ByteString;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Random;
-import java.util.stream.Collectors;
-
 import perfetto.protos.PerfettoConfig.DataSourceConfig;
 import perfetto.protos.PerfettoConfig.FtraceConfig;
 import perfetto.protos.PerfettoConfig.TraceConfig;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Random;
+
 public class PerfettoTests extends DeviceTestCase implements IBuildReceiver {
 
-    private static final int WAIT_AFTER_START_PERFETTO_MS = 3000;
+    private static final int WAIT_AFTER_START_PERFETTO_MS = 2000;
 
     // Config constants
     // These were chosen to match the statsd <-> Perfetto CTS integration
@@ -86,11 +84,11 @@ public class PerfettoTests extends DeviceTestCase implements IBuildReceiver {
     public void setBuild(IBuildInfo buildInfo) {
     }
 
-    public void testPerfettoUploadedIncidentdAtoms() throws Exception {
+    public void testPerfettoUploadedAtoms() throws Exception {
         if (DeviceUtils.hasFeature(getDevice(), DeviceUtils.FEATURE_WATCH)) return;
         resetPerfettoGuardrails();
 
-        StatsdConfig.Builder config = getStatsdConfig(getPerfettoIncidentConfig());
+        StatsdConfig.Builder config = getStatsdConfig();
         ConfigUtils.addEventMetric(config, AtomsProto.Atom.PERFETTO_UPLOADED_FIELD_NUMBER);
         ConfigUtils.uploadConfig(getDevice(), config);
 
@@ -106,49 +104,6 @@ public class PerfettoTests extends DeviceTestCase implements IBuildReceiver {
                         PerfettoUploaded.Event.PERFETTO_ON_CONNECT,
                         PerfettoUploaded.Event.PERFETTO_TRACED_ENABLE_TRACING,
                         PerfettoUploaded.Event.PERFETTO_TRACED_START_TRACING);
-    }
-
-    public void testSkipReportAtoms() throws Exception {
-        if (DeviceUtils.hasFeature(getDevice(), DeviceUtils.FEATURE_WATCH)) return;
-        resetPerfettoGuardrails();
-
-        StatsdConfig.Builder config = getStatsdConfig(getPerfettoReportConfig(true));
-        ConfigUtils.addEventMetric(config, AtomsProto.Atom.PERFETTO_UPLOADED_FIELD_NUMBER);
-        ConfigUtils.uploadConfig(getDevice(), config);
-
-        startPerfettoTrace();
-        Thread.sleep(WAIT_AFTER_START_PERFETTO_MS);
-
-        List<EventMetricData> data = ReportUtils.getEventMetricDataList(getDevice());
-        assertThat(extractPerfettoUploadedEvents(data))
-                .containsAtLeast(
-                        PerfettoUploaded.Event.PERFETTO_TRACE_BEGIN,
-                        PerfettoUploaded.Event.PERFETTO_ON_CONNECT,
-                        PerfettoUploaded.Event.PERFETTO_TRACED_ENABLE_TRACING,
-                        PerfettoUploaded.Event.PERFETTO_TRACED_START_TRACING);
-    }
-
-    public void testReportAtoms() throws Exception {
-        if (DeviceUtils.hasFeature(getDevice(), DeviceUtils.FEATURE_WATCH)) return;
-        resetPerfettoGuardrails();
-
-        StatsdConfig.Builder config = getStatsdConfig(getPerfettoReportConfig(false));
-        ConfigUtils.addEventMetric(config, AtomsProto.Atom.PERFETTO_UPLOADED_FIELD_NUMBER);
-        ConfigUtils.addEventMetric(config, Atom.TRACING_SERVICE_REPORT_EVENT_FIELD_NUMBER);
-        ConfigUtils.uploadConfig(getDevice(), config);
-
-        startPerfettoTrace();
-        Thread.sleep(WAIT_AFTER_START_PERFETTO_MS);
-
-        List<EventMetricData> data = ReportUtils.getEventMetricDataList(getDevice());
-        assertThat(extractPerfettoUploadedEvents(data))
-                .containsAtLeast(
-                        PerfettoUploaded.Event.PERFETTO_CMD_FW_REPORT_BEGIN,
-                        PerfettoUploaded.Event.PERFETTO_CMD_FW_REPORT_HANDOFF);
-        assertThat(extractReportEvents(data))
-                .containsExactly(
-                        TracingServiceReportEvent.Event.TRACING_SERVICE_REPORT_BEGIN,
-                        TracingServiceReportEvent.Event.TRACING_SERVICE_REPORT_BIND_PERM_INCORRECT);
     }
 
     public void testPerfettoTriggerAtoms() throws Exception {
@@ -168,31 +123,11 @@ public class PerfettoTests extends DeviceTestCase implements IBuildReceiver {
                         PerfettoTrigger.Event.PERFETTO_TRIGGER_PERFETTO_TRIGGER);
     }
 
-    private ByteString getPerfettoIncidentConfig() {
-        TraceConfig.IncidentReportConfig incident =
-                TraceConfig.IncidentReportConfig.newBuilder()
-                        .setSkipIncidentd(true)
-                        .build();
-        return getBasePerfettoConfigBuilder()
-                .setIncidentReportConfig(incident)
-                .build()
-                .toByteString();
-    }
-
-    private ByteString getPerfettoReportConfig(boolean skipReport) {
-        TraceConfig.AndroidReportConfig config = TraceConfig.AndroidReportConfig.newBuilder()
-                .setSkipReport(skipReport)
-                .setReporterServicePackage("android.cts")
-                .setReporterServiceClass("android.cts.class")
-                .setUsePipeInFrameworkForTesting(true)
-                .build();
-        return getBasePerfettoConfigBuilder()
-                .setAndroidReportConfig(config)
-                .build()
-                .toByteString();
-    }
-
-    private TraceConfig.Builder getBasePerfettoConfigBuilder() {
+    /**
+     * Returns a protobuf-encoded perfetto config that enables the kernel ftrace tracer with
+     * sched_switch for 10 seconds.
+     */
+    private ByteString getPerfettoConfig() {
         TraceConfig.Builder builder = TraceConfig.newBuilder();
 
         TraceConfig.BufferConfig buffer =
@@ -211,8 +146,14 @@ public class PerfettoTests extends DeviceTestCase implements IBuildReceiver {
                 TraceConfig.DataSource.newBuilder().setConfig(dataSourceConfig).build();
         builder.addDataSources(dataSource);
 
-        builder.setDurationMs(500);
+        builder.setDurationMs(3000);
         builder.setAllowUserBuildTracing(true);
+
+        TraceConfig.IncidentReportConfig incident =
+                TraceConfig.IncidentReportConfig.newBuilder()
+                        .setSkipIncidentd(true)
+                        .build();
+        builder.setIncidentReportConfig(incident);
 
         // To avoid being hit with guardrails firing in multiple test runs back
         // to back, we set a unique session key for each config.
@@ -221,16 +162,14 @@ public class PerfettoTests extends DeviceTestCase implements IBuildReceiver {
         sessionNameBuilder.append(random.nextInt() & Integer.MAX_VALUE);
         builder.setUniqueSessionName(sessionNameBuilder.toString());
 
-        return builder;
+        return builder.build().toByteString();
     }
 
     private List<PerfettoUploaded.Event> extractPerfettoUploadedEvents(
             List<EventMetricData> input) {
         List<PerfettoUploaded.Event> output = new ArrayList<>();
         for (EventMetricData data : input) {
-            if (data.getAtom().hasPerfettoUploaded()) {
-                output.add(data.getAtom().getPerfettoUploaded().getEvent());
-            }
+            output.add(data.getAtom().getPerfettoUploaded().getEvent());
         }
         return output;
     }
@@ -239,20 +178,7 @@ public class PerfettoTests extends DeviceTestCase implements IBuildReceiver {
             List<EventMetricData> input) {
         List<PerfettoTrigger.Event> output = new ArrayList<>();
         for (EventMetricData data : input) {
-            if (data.getAtom().hasPerfettoTrigger()) {
-                output.add(data.getAtom().getPerfettoTrigger().getEvent());
-            }
-        }
-        return output;
-    }
-
-    private List<TracingServiceReportEvent.Event> extractReportEvents(
-            List<EventMetricData> input) {
-        List<TracingServiceReportEvent.Event> output = new ArrayList<>();
-        for (EventMetricData data : input) {
-            if (data.getAtom().hasTracingServiceReportEvent()) {
-                output.add(data.getAtom().getTracingServiceReportEvent().getEvent());
-            }
+            output.add(data.getAtom().getPerfettoTrigger().getEvent());
         }
         return output;
     }
@@ -264,12 +190,11 @@ public class PerfettoTests extends DeviceTestCase implements IBuildReceiver {
     private void runTriggerPerfetto() throws Exception {
         final String cmd = "trigger_perfetto cts.test.trigger";
         CommandResult cr = getDevice().executeShellV2Command(cmd);
-        if (cr.getStatus() != CommandStatus.SUCCESS) {
+        if (cr.getStatus() != CommandStatus.SUCCESS)
             throw new Exception(
                     String.format(
                             "Error while executing %s: %s %s",
                             cmd, cr.getStdout(), cr.getStderr()));
-        }
     }
 
     /**
@@ -279,12 +204,11 @@ public class PerfettoTests extends DeviceTestCase implements IBuildReceiver {
     private void resetPerfettoGuardrails() throws Exception {
         final String cmd = "perfetto --reset-guardrails";
         CommandResult cr = getDevice().executeShellV2Command(cmd);
-        if (cr.getStatus() != CommandStatus.SUCCESS) {
+        if (cr.getStatus() != CommandStatus.SUCCESS)
             throw new Exception(
                     String.format(
                             "Error while executing %s: %s %s",
                             cmd, cr.getStdout(), cr.getStderr()));
-        }
     }
 
     private void startPerfettoTrace() throws Exception {
@@ -295,7 +219,7 @@ public class PerfettoTests extends DeviceTestCase implements IBuildReceiver {
                                 1, AppBreadcrumbReported.State.START.ordinal()));
     }
 
-    private final StatsdConfig.Builder getStatsdConfig(ByteString config) throws Exception {
+    private final StatsdConfig.Builder getStatsdConfig() throws Exception {
         return ConfigUtils.createConfigBuilder("AID_NOBODY")
                 .addSubscription(
                         Subscription.newBuilder()
@@ -304,7 +228,7 @@ public class PerfettoTests extends DeviceTestCase implements IBuildReceiver {
                                 .setRuleId(ALERT_ID)
                                 .setPerfettoDetails(
                                         PerfettoDetails.newBuilder()
-                                                .setTraceConfig(config)))
+                                                .setTraceConfig(getPerfettoConfig())))
                 .addValueMetric(
                         ValueMetric.newBuilder()
                                 .setId(METRIC_ID)

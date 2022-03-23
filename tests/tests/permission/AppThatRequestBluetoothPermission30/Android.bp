@@ -34,7 +34,7 @@ android_test_helper_app {
         "cts",
         "general-tests",
         "sts",
-        "mts-permission",
+        "mts",
     ],
     srcs: [":AppThatRequestBluetoothPermission"],
 }

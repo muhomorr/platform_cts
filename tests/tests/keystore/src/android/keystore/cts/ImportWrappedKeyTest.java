@@ -25,24 +25,16 @@ import static android.security.keymaster.KeymasterDefs.KM_PAD_NONE;
 import static android.security.keymaster.KeymasterDefs.KM_PAD_PKCS7;
 import static android.security.keymaster.KeymasterDefs.KM_PURPOSE_DECRYPT;
 import static android.security.keymaster.KeymasterDefs.KM_PURPOSE_ENCRYPT;
+import static android.security.keystore.KeyProperties.PURPOSE_WRAP_KEY;
 
-import static com.google.common.truth.Truth.assertThat;
-import static com.google.common.truth.Truth.assertWithMessage;
-
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
-
-import android.content.Context;
-import android.keystore.cts.util.TestUtils;
+import android.content.pm.PackageManager;
+import android.os.SystemProperties;
 import android.security.keystore.KeyGenParameterSpec;
 import android.security.keystore.KeyProperties;
 import android.security.keystore.SecureKeyImportUnavailableException;
 import android.security.keystore.StrongBoxUnavailableException;
 import android.security.keystore.WrappedKeyEntry;
-
-import androidx.test.InstrumentationRegistry;
-import androidx.test.runner.AndroidJUnit4;
+import android.test.AndroidTestCase;
 
 import org.bouncycastle.asn1.ASN1Encoding;
 import org.bouncycastle.asn1.DEREncodableVector;
@@ -52,8 +44,6 @@ import org.bouncycastle.asn1.DEROctetString;
 import org.bouncycastle.asn1.DERSequence;
 import org.bouncycastle.asn1.DERSet;
 import org.bouncycastle.asn1.DERTaggedObject;
-import org.junit.Test;
-import org.junit.runner.RunWith;
 
 import java.security.Key;
 import java.security.KeyPair;
@@ -65,6 +55,7 @@ import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.MGF1ParameterSpec;
+import java.security.spec.RSAKeyGenParameterSpec;
 import java.util.Arrays;
 
 import javax.crypto.Cipher;
@@ -75,8 +66,14 @@ import javax.crypto.spec.OAEPParameterSpec;
 import javax.crypto.spec.PSource;
 import javax.crypto.spec.SecretKeySpec;
 
-@RunWith(AndroidJUnit4.class)
-public class ImportWrappedKeyTest {
+import java.lang.Process;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.lang.InterruptedException;
+
+public class ImportWrappedKeyTest extends AndroidTestCase {
     private static final String TAG = "ImportWrappedKeyTest";
 
     private static final String ALIAS = "my key";
@@ -87,11 +84,6 @@ public class ImportWrappedKeyTest {
 
     SecureRandom random = new SecureRandom();
 
-    private Context getContext() {
-        return InstrumentationRegistry.getInstrumentation().getTargetContext();
-    }
-
-    @Test
     public void testKeyStore_ImportWrappedKey() throws Exception {
         random.setSeed(0);
 
@@ -134,30 +126,24 @@ public class ImportWrappedKeyTest {
         assertEquals(new String(c.doFinal(encrypted)), "hello, world");
     }
 
-    @Test
     public void testKeyStore_ImportWrappedKeyWrappingKeyMissing() throws Exception {
         final String EXPECTED_FAILURE = "Failed to import wrapped key. Keystore error code: 7";
-        KeyStoreException exception = null;
+        String failureMessage = null;
 
         try {
             byte [] fakeWrappedKey = new byte[1];
             importWrappedKey(fakeWrappedKey, WRAPPING_KEY_ALIAS + "_Missing");
         } catch (KeyStoreException e) {
-            exception = e;
-
+            failureMessage = e.getMessage();
         }
 
-        assertWithMessage("Did not hit a failure but expected one").that(exception).isNotNull();
+        if (failureMessage == null) {
+            fail("Did not hit a failure but expected one");
+        }
 
-        assertThat(exception.getMessage()).isEqualTo(EXPECTED_FAILURE);
-        assertThat(exception.getCause()).isInstanceOf(android.security.KeyStoreException.class);
-        android.security.KeyStoreException ksException =
-                (android.security.KeyStoreException) exception.getCause();
-        assertThat(ksException.getNumericErrorCode()).isEqualTo(
-                android.security.KeyStoreException.ERROR_KEY_DOES_NOT_EXIST);
+        assertEquals(failureMessage, EXPECTED_FAILURE);
     }
 
-    @Test
     public void testKeyStore_ImportWrappedKey_3DES() throws Exception {
       if (!TestUtils.supports3DES()) {
           return;
@@ -204,7 +190,6 @@ public class ImportWrappedKeyTest {
         assertEquals(new String(c.doFinal(encrypted)), "hello, world");
     }
 
-    @Test
     public void testKeyStore_ImportWrappedKey_3DES_StrongBox() throws Exception {
       if (!TestUtils.supports3DES()) {
           return;
@@ -249,7 +234,6 @@ public class ImportWrappedKeyTest {
         }
     }
 
-    @Test
     public void testKeyStore_ImportWrappedKey_AES_StrongBox() throws Exception {
         if (TestUtils.hasStrongBox(getContext())) {
             random.setSeed(0);

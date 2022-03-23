@@ -27,7 +27,6 @@ import android.net.ProxyInfo;
 import android.net.Uri;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiManager;
-import android.os.Process;
 import android.text.TextUtils;
 import android.util.Log;
 
@@ -62,7 +61,6 @@ public class WifiConfigCreator {
 
     private final Context mContext;
     private final WifiManager mWifiManager;
-    private WifiManager mCurrentUserWifiManager;
 
     public WifiConfigCreator(Context context) {
         this(context, context.getApplicationContext().getSystemService(WifiManager.class));
@@ -71,15 +69,6 @@ public class WifiConfigCreator {
     public WifiConfigCreator(Context context, WifiManager wifiManager) {
         mContext = context;
         mWifiManager = wifiManager;
-        mCurrentUserWifiManager = mContext.getSystemService(WifiManager.class);
-        Log.d(TAG, "WifiConfigCreator: user=" + Process.myUserHandle() + ", ctx=" + context
-                + ", mgr=" + mWifiManager + ", currentUserMgr=" + mCurrentUserWifiManager);
-    }
-
-    @Override
-    public String toString() {
-        return "WifiConfigCreator[mWifiManager=" + mWifiManager
-                + ",mCurrentUserWifiManager=" + mCurrentUserWifiManager + "]";
     }
 
     /**
@@ -92,7 +81,6 @@ public class WifiConfigCreator {
 
         WifiConfiguration wifiConf = createConfig(ssid, hidden, securityType, password);
 
-        Log.i(TAG, "Adding SSID " + ssid + " using " + mWifiManager);
         int netId = mWifiManager.addNetwork(wifiConf);
 
         if (netId != -1) {
@@ -315,17 +303,15 @@ public class WifiConfigCreator {
     }
 
     private List<WifiConfiguration> getConfiguredNetworksWithLogging() {
-        Log.d(TAG, "calling getConfiguredNetworks() using " + mCurrentUserWifiManager);
-        // Must use a the WifiManager of the current user to list networks, as
-        // getConfiguredNetworks() would return empty on systems using headless system
-        // mode as that method "Return a list of all the networks configured for the current
-        // foreground user", and the system user is running in the background in this case.
-        List<WifiConfiguration> configuredNetworks = mCurrentUserWifiManager
-                .getConfiguredNetworks();
+        Log.d(TAG, "calling getConfiguredNetworks()");
+        List<WifiConfiguration> configuredNetworks = getConfiguredNetworks();
         Log.d(TAG, "Got " + configuredNetworks.size() + " networks: "
-                + configuredNetworks.stream().map((c) -> c.SSID + "/" + c.networkId)
-                        .collect(Collectors.toList()));
+                + configuredNetworks.stream().map((c) -> c.SSID).collect(Collectors.toList()));
         return configuredNetworks;
+    }
+
+    public List<WifiConfiguration> getConfiguredNetworks() {
+        return mWifiManager.getConfiguredNetworks();
     }
 }
 

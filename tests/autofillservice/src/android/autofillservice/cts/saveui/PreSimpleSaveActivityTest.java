@@ -69,7 +69,7 @@ public class PreSimpleSaveActivityTest
     @Override
     protected void saveUiRestoredAfterTappingLinkTest(PostSaveLinkTappedAction type)
             throws Exception {
-        startActivity(/* remainOnRecents= */ false);
+        startActivity(false);
         // Set service.
         enableService();
 
@@ -85,9 +85,10 @@ public class PreSimpleSaveActivityTest
         sReplier.getNextFillRequest();
 
         // Trigger save.
-        mActivity.setTextAndWaitTextChange("108");
-        mActivity.syncRunOnUiThread(() -> mActivity.mSubmit.performClick());
-
+        mActivity.syncRunOnUiThread(() -> {
+            mActivity.mPreInput.setText("108");
+            mActivity.mSubmit.performClick();
+        });
         // Make sure post-save activity is shown...
         mUiBot.assertShownByRelativeId(ID_INPUT);
 
@@ -127,7 +128,7 @@ public class PreSimpleSaveActivityTest
     @Override
     protected void tapLinkThenTapBackThenStartOverTest(PostSaveLinkTappedAction action,
             boolean manualRequest) throws Exception {
-        startActivity(/* remainOnRecents= */ false);
+        startActivity(false);
         // Set service.
         enableService();
 
@@ -143,9 +144,10 @@ public class PreSimpleSaveActivityTest
         sReplier.getNextFillRequest();
 
         // Trigger save.
-        mActivity.setTextAndWaitTextChange("108");
-        mActivity.syncRunOnUiThread(() -> mActivity.mSubmit.performClick());
-
+        mActivity.syncRunOnUiThread(() -> {
+            mActivity.mPreInput.setText("108");
+            mActivity.mSubmit.performClick();
+        });
         // Make sure post-save activity is shown...
         mUiBot.assertShownByRelativeId(ID_INPUT);
 
@@ -201,9 +203,10 @@ public class PreSimpleSaveActivityTest
         sReplier.getNextFillRequest();
 
         // Trigger save.
-        newActivty.setTextAndWaitTextChange(/* input= */ "42", /* password= */  null);
-        newActivty.syncRunOnUiThread(() -> newActivty.mCommit.performClick());
-
+        newActivty.syncRunOnUiThread(() -> {
+            newActivty.mInput.setText("42");
+            newActivty.mCommit.performClick();
+        });
         // Make sure post-save activity is shown...
         mUiBot.assertShownByRelativeId(ID_INPUT);
 
@@ -218,7 +221,7 @@ public class PreSimpleSaveActivityTest
     @Override
     protected void saveUiCancelledAfterTappingLinkTest(PostSaveLinkTappedAction type)
             throws Exception {
-        startActivity(/* remainOnRecents= */ false);
+        startActivity(false);
         // Set service.
         enableService();
 
@@ -234,9 +237,10 @@ public class PreSimpleSaveActivityTest
         sReplier.getNextFillRequest();
 
         // Trigger save.
-        mActivity.setTextAndWaitTextChange("108");
-        mActivity.syncRunOnUiThread(() -> mActivity.mSubmit.performClick());
-
+        mActivity.syncRunOnUiThread(() -> {
+            mActivity.mPreInput.setText("108");
+            mActivity.mSubmit.performClick();
+        });
         // Make sure post-save activity is shown...
         mUiBot.assertShownByRelativeId(ID_INPUT);
 
@@ -272,7 +276,7 @@ public class PreSimpleSaveActivityTest
     protected void tapLinkLaunchTrampolineActivityThenTapBackAndStartNewSessionTest()
             throws Exception {
         // Prepare activity.
-        startActivity(/* remainOnRecents= */ false);
+        startActivity(false);
         mActivity.mPreInput.getRootView()
                 .setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS);
 
@@ -291,9 +295,10 @@ public class PreSimpleSaveActivityTest
         sReplier.getNextFillRequest();
 
         // Trigger save.
-        mActivity.setTextAndWaitTextChange("108");
-        mActivity.syncRunOnUiThread(() -> mActivity.mSubmit.performClick());
-
+        mActivity.syncRunOnUiThread(() -> {
+            mActivity.mPreInput.setText("108");
+            mActivity.mSubmit.performClick();
+        });
         final UiObject2 saveUi = assertSaveUiWithLinkIsShown(SAVE_DATA_TYPE_PASSWORD);
 
         // Tap the link.
@@ -324,8 +329,10 @@ public class PreSimpleSaveActivityTest
         sReplier.getNextFillRequest();
 
         // Trigger save.
-        newActivty.setTextAndWaitTextChange(/* input= */ "42", /* password= */  null);
-        newActivty.syncRunOnUiThread(() -> newActivty.mCommit.performClick());
+        newActivty.syncRunOnUiThread(() -> {
+            newActivty.mInput.setText("42");
+            newActivty.mCommit.performClick();
+        });
         // Make sure post-save activity is shown...
         mUiBot.assertShownByRelativeId(ID_INPUT);
 
@@ -339,7 +346,7 @@ public class PreSimpleSaveActivityTest
 
     @Override
     protected void tapLinkAfterUpdateAppliedTest(boolean updateLinkView) throws Exception {
-        startActivity(/* remainOnRecents= */ false);
+        startActivity(false);
         // Set service.
         enableService();
 
@@ -368,9 +375,10 @@ public class PreSimpleSaveActivityTest
         sReplier.getNextFillRequest();
 
         // Trigger save.
-        mActivity.setTextAndWaitTextChange("108");
-        mActivity.syncRunOnUiThread(() -> mActivity.mSubmit.performClick());
-
+        mActivity.syncRunOnUiThread(() -> {
+            mActivity.mPreInput.setText("108");
+            mActivity.mSubmit.performClick();
+        });
         // Make sure post-save activity is shown...
         mUiBot.assertShownByRelativeId(ID_INPUT);
 

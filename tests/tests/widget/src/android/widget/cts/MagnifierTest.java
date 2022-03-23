@@ -48,12 +48,11 @@ import android.widget.ScrollView;
 
 import androidx.test.annotation.UiThreadTest;
 import androidx.test.filters.SmallTest;
-import androidx.test.InstrumentationRegistry;
 import androidx.test.rule.ActivityTestRule;
 import androidx.test.runner.AndroidJUnit4;
 
+import com.android.compatibility.common.util.PollingCheck;
 import com.android.compatibility.common.util.WidgetTestUtils;
-import com.android.compatibility.common.util.WindowUtil;
 
 import org.junit.Before;
 import org.junit.Rule;
@@ -92,7 +91,7 @@ public class MagnifierTest {
     @Before
     public void setup() throws Throwable {
         mActivity = mActivityRule.getActivity();
-        WindowUtil.waitForFocus(mActivity);
+        PollingCheck.waitFor(mActivity::hasWindowFocus);
 
         mDisplayMetrics = mActivity.getResources().getDisplayMetrics();
         // Do not run the tests, unless the device screen is big enough to fit a magnifier
@@ -726,7 +725,6 @@ public class MagnifierTest {
 
     @Test
     public void testSourcePosition_respectsMaxInSurfaceBounds_forSurfaceView() throws Throwable {
-        InstrumentationRegistry.getInstrumentation().waitForIdleSync();
         WidgetTestUtils.runOnMainAndLayoutSync(mActivityRule, () -> {
             mActivity.setContentView(R.layout.magnifier_activity_centered_surfaceview_layout);
         }, false /* forceLayout */);

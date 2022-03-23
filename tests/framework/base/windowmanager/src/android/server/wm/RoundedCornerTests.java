@@ -22,13 +22,14 @@ import static android.content.pm.ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCA
 import static android.content.pm.ActivityInfo.SCREEN_ORIENTATION_REVERSE_PORTRAIT;
 import static android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED;
 import static android.server.wm.RoundedCornerTests.TestActivity.EXTRA_ORIENTATION;
-import static android.view.Display.DEFAULT_DISPLAY;
 import static android.view.RoundedCorner.POSITION_BOTTOM_LEFT;
 import static android.view.RoundedCorner.POSITION_BOTTOM_RIGHT;
 import static android.view.RoundedCorner.POSITION_TOP_LEFT;
 import static android.view.RoundedCorner.POSITION_TOP_RIGHT;
+import static android.view.ViewGroup.LayoutParams.MATCH_PARENT;
 import static android.view.WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE;
 import static android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS;
+import static android.view.WindowManager.LayoutParams.TYPE_APPLICATION_PANEL;
 
 import static androidx.test.platform.app.InstrumentationRegistry.getInstrumentation;
 
@@ -55,7 +56,6 @@ import androidx.test.rule.ActivityTestRule;
 import com.android.compatibility.common.util.PollingCheck;
 
 import org.junit.After;
-import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -63,7 +63,7 @@ import org.junit.runners.Parameterized;
 
 @Presubmit
 @RunWith(Parameterized.class)
-public class RoundedCornerTests extends ActivityManagerTestBase {
+public class RoundedCornerTests {
     private static final String TAG = "RoundedCornerTests";
     private final static int POSITION_LENGTH = 4;
     private final static long TIMEOUT = 1000; // milliseconds
@@ -83,14 +83,6 @@ public class RoundedCornerTests extends ActivityManagerTestBase {
 
     @Parameterized.Parameter(1)
     public String orientationName;
-
-    @Before
-    public void setUp() {
-        // On devices with ignore_orientation_request set to true, the test activity will be
-        // letterboxed in a landscape display which make the activity not a fullscreen one.
-        // We should set it to false while testing.
-        mObjectTracker.manage(new IgnoreOrientationRequestSession(DEFAULT_DISPLAY, false));
-    }
 
     @After
     public void tearDown() {
@@ -163,8 +155,6 @@ public class RoundedCornerTests extends ActivityManagerTestBase {
             getWindow().requestFeature(Window.FEATURE_NO_TITLE);
             getWindow().getAttributes().layoutInDisplayCutoutMode =
                     LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS;
-            getWindow().getDecorView().getWindowInsetsController().hide(
-                    WindowInsets.Type.systemBars());
             if (getIntent() != null) {
                 setRequestedOrientation(getIntent().getIntExtra(
                         EXTRA_ORIENTATION, SCREEN_ORIENTATION_UNSPECIFIED));

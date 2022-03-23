@@ -23,47 +23,50 @@ import static org.testng.Assert.assertThrows;
 import android.content.Context;
 import android.os.UserHandle;
 
-import com.android.bedstead.harrier.BedsteadJUnit4;
-import com.android.bedstead.harrier.DeviceState;
-import com.android.bedstead.harrier.annotations.EnsureHasWorkProfile;
-import com.android.bedstead.harrier.annotations.enterprise.EnsureHasDeviceOwner;
 import com.android.bedstead.nene.TestApis;
+import com.android.bedstead.nene.packages.Package;
 import com.android.bedstead.nene.users.UserReference;
 
-import org.junit.ClassRule;
-import org.junit.Rule;
+import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.junit.runners.JUnit4;
 
 import java.io.File;
 
-@RunWith(BedsteadJUnit4.class)
+@RunWith(JUnit4.class)
 public class TestAppTest {
 
-    @ClassRule @Rule
-    public static final DeviceState sDeviceState = new DeviceState();
-
-    private static final UserReference sUser = TestApis.users().instrumented();
+    private static final TestApis sTestApis = new TestApis();
+    private static final UserReference sUser = sTestApis.users().instrumented();
     private static final UserHandle sUserHandle = sUser.userHandle();
-    private static final UserReference sNonExistingUser = TestApis.users().find(9999);
+    private static final UserReference sNonExistingUser = sTestApis.users().find(9999);
     private static final UserHandle sNonExistingUserHandle = sNonExistingUser.userHandle();
-    private static final Context sContext = TestApis.context().instrumentedContext();
+    private static final Context sContext = sTestApis.context().instrumentedContext();
 
-    @Test
-    public void reference_returnsNeneReference() {
-        TestApp testApp = sDeviceState.testApps().any();
+    private TestAppProvider mTestAppProvider;
 
-        assertThat(testApp.pkg()).isEqualTo(TestApis.packages().find(testApp.packageName()));
+    @Before
+    public void setup() {
+        mTestAppProvider = new TestAppProvider();
     }
 
     @Test
-    public void install_noUserSpecified_installsInInstrumentedUser() {
-        TestApp testApp = sDeviceState.testApps().any();
+    public void reference_returnsNeneReference() {
+        TestApp testApp = mTestAppProvider.any();
 
-        testApp.install();
+        assertThat(testApp.reference()).isEqualTo(sTestApis.packages().find(testApp.packageName()));
+    }
+
+    @Test
+    public void resolve_returnsNenePackage() {
+        TestApp testApp = mTestAppProvider.any();
+        testApp.install(sUser);
 
         try {
-            assertThat(testApp.pkg().installedOnUser(sUser)).isTrue();
+            Package pkg = testApp.resolve();
+
+            assertThat(pkg.packageName()).isEqualTo(testApp.packageName());
         } finally {
             testApp.uninstall(sUser);
         }
@@ -71,12 +74,12 @@ public class TestAppTest {
 
     @Test
     public void install_userReference_installs() {
-        TestApp testApp = sDeviceState.testApps().any();
+        TestApp testApp = mTestAppProvider.any();
 
         testApp.install(sUser);
 
         try {
-            assertThat(testApp.pkg().installedOnUser(sUser)).isTrue();
+            assertThat(testApp.resolve().installedOnUsers()).contains(sUser);
         } finally {
             testApp.uninstall(sUser);
         }
@@ -84,10 +87,10 @@ public class TestAppTest {
 
     @Test
     public void install_userReference_returnsReferenceToInstance() {
-        TestApp testApp = sDeviceState.testApps().any();
+        TestApp testApp = mTestAppProvider.any();
 
         try {
-            TestAppInstance testAppInstance = testApp.install(sUser);
+            TestAppInstanceReference testAppInstance = testApp.install(sUser);
 
             assertThat(testAppInstance.testApp()).isEqualTo(testApp);
             assertThat(testAppInstance.user()).isEqualTo(sUser);
@@ -98,12 +101,12 @@ public class TestAppTest {
 
     @Test
     public void install_userHandle_installs() {
-        TestApp testApp = sDeviceState.testApps().any();
+        TestApp testApp = mTestAppProvider.any();
 
         testApp.install(sUserHandle);
 
         try {
-            assertThat(testApp.pkg().installedOnUser(sUser)).isTrue();
+            assertThat(testApp.resolve().installedOnUsers()).contains(sUser);
         } finally {
             testApp.uninstall(sUser);
         }
@@ -111,10 +114,10 @@ public class TestAppTest {
 
     @Test
     public void install_userHandle_returnsReferenceToInstance() {
-        TestApp testApp = sDeviceState.testApps().any();
+        TestApp testApp = mTestAppProvider.any();
 
         try {
-            TestAppInstance testAppInstance = testApp.install(sUserHandle);
+            TestAppInstanceReference testAppInstance = testApp.install(sUserHandle);
 
             assertThat(testAppInstance.testApp()).isEqualTo(testApp);
             assertThat(testAppInstance.user()).isEqualTo(sUser);
@@ -125,23 +128,23 @@ public class TestAppTest {
 
     @Test
     public void install_nullUserReference_throwsException() {
-        TestApp testApp = sDeviceState.testApps().any();
+        TestApp testApp = mTestAppProvider.any();
 
         assertThrows(NullPointerException.class, () -> testApp.install((UserReference) null));
     }
 
     @Test
     public void install_nullUserHandle_throwsException() {
-        TestApp testApp = sDeviceState.testApps().any();
+        TestApp testApp = mTestAppProvider.any();
 
         assertThrows(NullPointerException.class, () -> testApp.install((UserHandle) null));
     }
 
     @Test
     public void instance_userHandle_instanceIsNotInstalled_stillReturnsInstance() {
-        TestApp testApp = sDeviceState.testApps().any();
+        TestApp testApp = mTestAppProvider.any();
 
-        TestAppInstance testAppInstance = testApp.instance(sUserHandle);
+        TestAppInstanceReference testAppInstance = testApp.instance(sUserHandle);
 
         assertThat(testAppInstance.testApp()).isEqualTo(testApp);
         assertThat(testAppInstance.user()).isEqualTo(sUser);
@@ -149,9 +152,9 @@ public class TestAppTest {
 
     @Test
     public void instance_userReference_instanceIsNotInstalled_stillReturnsInstance() {
-        TestApp testApp = sDeviceState.testApps().any();
+        TestApp testApp = mTestAppProvider.any();
 
-        TestAppInstance testAppInstance = testApp.instance(sNonExistingUserHandle);
+        TestAppInstanceReference testAppInstance = testApp.instance(sNonExistingUserHandle);
 
         assertThat(testAppInstance.testApp()).isEqualTo(testApp);
         assertThat(testAppInstance.user()).isEqualTo(sNonExistingUser);
@@ -159,9 +162,9 @@ public class TestAppTest {
 
     @Test
     public void instance_userHandle_nonExistingUser_stillReturnsInstance() {
-        TestApp testApp = sDeviceState.testApps().any();
+        TestApp testApp = mTestAppProvider.any();
 
-        TestAppInstance testAppInstance = testApp.instance(sUserHandle);
+        TestAppInstanceReference testAppInstance = testApp.instance(sUserHandle);
 
         assertThat(testAppInstance.testApp()).isEqualTo(testApp);
         assertThat(testAppInstance.user()).isEqualTo(sUser);
@@ -169,16 +172,16 @@ public class TestAppTest {
 
     @Test
     public void instance_nullUserHandle_throwsException() {
-        TestApp testApp = sDeviceState.testApps().any();
+        TestApp testApp = mTestAppProvider.any();
 
         assertThrows(NullPointerException.class, () -> testApp.instance((UserHandle) null));
     }
 
     @Test
     public void instance_userReference_nonExistingUser_stillReturnsInstance() {
-        TestApp testApp = sDeviceState.testApps().any();
+        TestApp testApp = mTestAppProvider.any();
 
-        TestAppInstance testAppInstance = testApp.instance(sNonExistingUser);
+        TestAppInstanceReference testAppInstance = testApp.instance(sNonExistingUser);
 
         assertThat(testAppInstance.testApp()).isEqualTo(testApp);
         assertThat(testAppInstance.user()).isEqualTo(sNonExistingUser);
@@ -186,42 +189,42 @@ public class TestAppTest {
 
     @Test
     public void instance_nullUserReference_throwsException() {
-        TestApp testApp = sDeviceState.testApps().any();
+        TestApp testApp = mTestAppProvider.any();
 
         assertThrows(NullPointerException.class, () -> testApp.instance((UserReference) null));
     }
 
     @Test
     public void uninstall_nullUserReference_throwsException() {
-        TestApp testApp = sDeviceState.testApps().any();
+        TestApp testApp = mTestAppProvider.any();
 
         assertThrows(NullPointerException.class, () -> testApp.uninstall((UserReference) null));
     }
 
     @Test
     public void uninstall_nullUserHandle_throwsException() {
-        TestApp testApp = sDeviceState.testApps().any();
+        TestApp testApp = mTestAppProvider.any();
 
         assertThrows(NullPointerException.class, () -> testApp.uninstall((UserHandle) null));
     }
 
     @Test
     public void uninstall_userReference_nonExistingUser_doesNothing() {
-        TestApp testApp = sDeviceState.testApps().any();
+        TestApp testApp = mTestAppProvider.any();
 
         testApp.uninstall(sNonExistingUser);
     }
 
     @Test
     public void uninstall_userHandle_nonExistingUser_doesNothing() {
-        TestApp testApp = sDeviceState.testApps().any();
+        TestApp testApp = mTestAppProvider.any();
 
         testApp.uninstall(sNonExistingUserHandle);
     }
 
     @Test
     public void uninstall_userReference_notInstalled_doesNothing() {
-        TestApp testApp = sDeviceState.testApps().any();
+        TestApp testApp = mTestAppProvider.any();
         testApp.uninstall(sUser);
 
         testApp.uninstall(sUser);
@@ -229,45 +232,41 @@ public class TestAppTest {
 
     @Test
     public void uninstall_userHandle_notInstalled_doesNothing() {
-        TestApp testApp = sDeviceState.testApps().any();
+        TestApp testApp = mTestAppProvider.any();
         testApp.uninstall(sUser);
 
         testApp.uninstall(sUserHandle);
-    }
-
-    @Test
-    public void uninstall_noUserSpecified_uninstallsFromInstrumentedUser() {
-        TestApp testApp = sDeviceState.testApps().any();
-        testApp.install(sUser);
-
-        testApp.uninstall();
-
-        assertThat(testApp.pkg().installedOnUser(sUser)).isFalse();
     }
 
     @Test
     public void uninstall_userHandle_uninstalls() {
-        TestApp testApp = sDeviceState.testApps().any();
+        TestApp testApp = mTestAppProvider.any();
         testApp.install(sUser);
 
         testApp.uninstall(sUserHandle);
 
-        assertThat(testApp.pkg().installedOnUser(sUser)).isFalse();
+        Package testAppPackage = testApp.reference().resolve();
+        if (testAppPackage != null) {
+            assertThat(testAppPackage.installedOnUsers()).doesNotContain(sUser);
+        }
     }
 
     @Test
     public void uninstall_userReference_uninstalls() {
-        TestApp testApp = sDeviceState.testApps().any();
+        TestApp testApp = mTestAppProvider.any();
         testApp.install(sUser);
 
         testApp.uninstall(sUser);
 
-        assertThat(testApp.pkg().installedOnUser(sUser)).isFalse();
+        Package testAppPackage = testApp.reference().resolve();
+        if (testAppPackage != null) {
+            assertThat(testAppPackage.installedOnUsers()).doesNotContain(sUser);
+        }
     }
 
     @Test
     public void writeApkFile_writesFile() throws Exception {
-        TestApp testApp = sDeviceState.testApps().any();
+        TestApp testApp = mTestAppProvider.any();
         File filesDir = sContext.getExternalFilesDir(/* type= */ null);
         File outputFile = new File(filesDir, "test.apk");
         outputFile.delete();
@@ -278,46 +277,6 @@ public class TestAppTest {
             assertThat(outputFile.exists()).isTrue();
         } finally {
             outputFile.delete();
-        }
-    }
-
-    @Test
-    @EnsureHasDeviceOwner
-    public void install_repeated_hasRemoteDpcDeviceOwner_doesNotFailVerification() {
-        TestApp testApp = sDeviceState.testApps().any();
-        try (TestAppInstance t = testApp.install()) {
-            // Intentionally empty
-        }
-        try (TestAppInstance t = testApp.install()) {
-            // Intentionally empty
-        }
-    }
-
-    @Test
-    @EnsureHasWorkProfile(dpcIsPrimary = true)
-    public void install_repeated_hasRemoteDpcWorkProfile_doesNotFailVerification() {
-        TestApp testApp = sDeviceState.testApps().any();
-
-        // The first install can be into the parent or the work profile and it will succeed
-        try (TestAppInstance t = testApp.install()) {
-            // Intentionally empty
-        }
-
-        // The second will fail 100% of the time if DISALLOW_INSTALL_UNKNOWN_SOURCES is enabled
-        try (TestAppInstance t = testApp.install(sDeviceState.workProfile())) {
-            // Intentionally empty
-        }
-    }
-
-    @Test
-    @EnsureHasWorkProfile
-    public void install_repeated_hasRemoteDpcWorkProfile_installsInParent_doesNotFailVerification() {
-        TestApp testApp = sDeviceState.testApps().any();
-        try (TestAppInstance t = testApp.install()) {
-            // Intentionally empty
-        }
-        try (TestAppInstance t = testApp.install()) {
-            // Intentionally empty
         }
     }
 }
