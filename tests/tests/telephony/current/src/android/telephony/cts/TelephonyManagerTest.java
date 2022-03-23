@@ -121,6 +121,7 @@ import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -2044,14 +2045,16 @@ public class TelephonyManagerTest {
         }
         String[] originalFplmns = mTelephonyManager.getForbiddenPlmns();
         try {
-            int numFplmnsSet = mTelephonyManager.setForbiddenPlmns(FPLMN_TEST);
+            int numFplmnsSet = ShellIdentityUtils.invokeMethodWithShellPermissions(
+                mTelephonyManager, (tm) -> tm.setForbiddenPlmns(FPLMN_TEST));
             String[] writtenFplmns = mTelephonyManager.getForbiddenPlmns();
             assertEquals("Wrong return value for setFplmns with less than required fplmns: "
                     + numFplmnsSet, FPLMN_TEST.size(), numFplmnsSet);
             assertEquals("Wrong Fplmns content written", FPLMN_TEST, Arrays.asList(writtenFplmns));
         } finally {
             // Restore
-            mTelephonyManager.setForbiddenPlmns(Arrays.asList(originalFplmns));
+            ShellIdentityUtils.invokeMethodWithShellPermissions(
+                mTelephonyManager, (tm) -> tm.setForbiddenPlmns(Arrays.asList(originalFplmns)));
         }
     }
 
@@ -2073,7 +2076,8 @@ public class TelephonyManagerTest {
             for (int i = MIN_FPLMN_NUM; i < MAX_FPLMN_NUM; i++) {
                 targetFplmns.add(PLMN_B);
             }
-            int numFplmnsSet = mTelephonyManager.setForbiddenPlmns(targetFplmns);
+            int numFplmnsSet = ShellIdentityUtils.invokeMethodWithShellPermissions(
+                mTelephonyManager, (tm) -> tm.setForbiddenPlmns(targetFplmns));
             String[] writtenFplmns = mTelephonyManager.getForbiddenPlmns();
             assertTrue("Wrong return value for setFplmns with overflowing fplmns: " + numFplmnsSet,
                     numFplmnsSet < MAX_FPLMN_NUM);
@@ -2083,7 +2087,8 @@ public class TelephonyManagerTest {
                     Arrays.asList(writtenFplmns));
         } finally {
             // Restore
-            mTelephonyManager.setForbiddenPlmns(Arrays.asList(originalFplmns));
+            ShellIdentityUtils.invokeMethodWithShellPermissions(
+                mTelephonyManager, (tm) -> tm.setForbiddenPlmns(Arrays.asList(originalFplmns)));
         }
     }
 
@@ -2102,19 +2107,22 @@ public class TelephonyManagerTest {
             for (int i = 0; i < MIN_FPLMN_NUM; i++) {
                 targetDummyFplmns.add(PLMN_A);
             }
-            mTelephonyManager.setForbiddenPlmns(targetDummyFplmns);
+            ShellIdentityUtils.invokeMethodWithShellPermissions(
+                mTelephonyManager, (tm) -> tm.setForbiddenPlmns(targetDummyFplmns));
             String[] writtenDummyFplmns = mTelephonyManager.getForbiddenPlmns();
             assertEquals(targetDummyFplmns, Arrays.asList(writtenDummyFplmns));
 
             List<String> targetFplmns = new ArrayList<>();
-            int numFplmnsSet = mTelephonyManager.setForbiddenPlmns(targetFplmns);
+            int numFplmnsSet = ShellIdentityUtils.invokeMethodWithShellPermissions(
+                mTelephonyManager, (tm) -> tm.setForbiddenPlmns(targetFplmns));
             String[] writtenFplmns = mTelephonyManager.getForbiddenPlmns();
             assertEquals("Wrong return value for setFplmns with empty list", 0, numFplmnsSet);
             assertEquals("Wrong number of Fplmns written", 0, writtenFplmns.length);
             // TODO wait for 10 minutes or so for the FPLMNS list to grow back
         } finally {
             // Restore
-            mTelephonyManager.setForbiddenPlmns(Arrays.asList(originalFplmns));
+            ShellIdentityUtils.invokeMethodWithShellPermissions(
+                mTelephonyManager, (tm) -> tm.setForbiddenPlmns(Arrays.asList(originalFplmns)));
         }
     }
 
@@ -2129,12 +2137,14 @@ public class TelephonyManagerTest {
         }
         String[] originalFplmns = mTelephonyManager.getForbiddenPlmns();
         try {
-            mTelephonyManager.setForbiddenPlmns(null);
+            ShellIdentityUtils.invokeMethodWithShellPermissions(
+                mTelephonyManager, (tm) -> tm.setForbiddenPlmns(null));
             fail("Expected IllegalArgumentException. Null input is not allowed");
         } catch (IllegalArgumentException expected) {
         } finally {
             // Restore
-            mTelephonyManager.setForbiddenPlmns(Arrays.asList(originalFplmns));
+            ShellIdentityUtils.invokeMethodWithShellPermissions(
+                mTelephonyManager, (tm) -> tm.setForbiddenPlmns(Arrays.asList(originalFplmns)));
         }
     }
 
@@ -3434,6 +3444,19 @@ public class TelephonyManagerTest {
                 TelephonyManager.SIM_STATE_NOT_READY,
                 TelephonyManager.SIM_STATE_PERM_DISABLED,
                 TelephonyManager.SIM_STATE_LOADED).contains(simApplicationState));
+
+        for (int i = 0; i <= mTelephonyManager.getPhoneCount(); i++) {
+            final int slotId = i;
+            simApplicationState = ShellIdentityUtils.invokeMethodWithShellPermissions(
+                    mTelephonyManager, (tm) -> tm.getSimApplicationState(slotId));
+            assertTrue(Arrays.asList(TelephonyManager.SIM_STATE_UNKNOWN,
+                    TelephonyManager.SIM_STATE_PIN_REQUIRED,
+                    TelephonyManager.SIM_STATE_PUK_REQUIRED,
+                    TelephonyManager.SIM_STATE_NETWORK_LOCKED,
+                    TelephonyManager.SIM_STATE_NOT_READY,
+                    TelephonyManager.SIM_STATE_PERM_DISABLED,
+                    TelephonyManager.SIM_STATE_LOADED).contains(simApplicationState));
+        }
     }
 
     @Test
@@ -3447,6 +3470,28 @@ public class TelephonyManagerTest {
                 TelephonyManager.SIM_STATE_CARD_IO_ERROR,
                 TelephonyManager.SIM_STATE_CARD_RESTRICTED,
                 TelephonyManager.SIM_STATE_PRESENT).contains(simCardState));
+    }
+    @Test
+    public void getSimCardStateTest() {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            return;
+        }
+        InstrumentationRegistry.getInstrumentation().getUiAutomation()
+                .adoptShellPermissionIdentity("android.permission.READ_PRIVILEGED_PHONE_STATE");
+        List<UiccCardInfo> cardsInfo = mTelephonyManager.getUiccCardsInfo();
+        InstrumentationRegistry.getInstrumentation().getUiAutomation()
+                .dropShellPermissionIdentity();
+        for (UiccCardInfo cardInfo : cardsInfo) {
+            for (UiccPortInfo portInfo : cardInfo.getPorts()) {
+                int simCardState = mTelephonyManager.getSimCardState(cardInfo
+                        .getPhysicalSlotIndex(), portInfo.getPortIndex());
+                assertTrue(Arrays.asList(TelephonyManager.SIM_STATE_UNKNOWN,
+                        TelephonyManager.SIM_STATE_ABSENT,
+                        TelephonyManager.SIM_STATE_CARD_IO_ERROR,
+                        TelephonyManager.SIM_STATE_CARD_RESTRICTED,
+                        TelephonyManager.SIM_STATE_PRESENT).contains(simCardState));
+            }
+        }
     }
 
     private boolean isDataEnabled() {
@@ -3465,6 +3510,7 @@ public class TelephonyManagerTest {
                 (tm) -> tm.setDataEnabledForReason(TelephonyManager.DATA_ENABLED_REASON_THERMAL,
                         false));
 
+        waitForMs(500);
         boolean isDataEnabledForReason = ShellIdentityUtils.invokeMethodWithShellPermissions(
                 mTelephonyManager, (tm) -> tm.isDataEnabledForReason(
                         TelephonyManager.DATA_ENABLED_REASON_THERMAL));
@@ -3479,6 +3525,7 @@ public class TelephonyManagerTest {
                 (tm) -> tm.setDataEnabledForReason(TelephonyManager.DATA_ENABLED_REASON_THERMAL,
                         true));
 
+        waitForMs(500);
         isDataEnabledForReason = ShellIdentityUtils.invokeMethodWithShellPermissions(
                 mTelephonyManager, (tm) -> tm.isDataEnabledForReason(
                         TelephonyManager.DATA_ENABLED_REASON_THERMAL));
@@ -3500,6 +3547,7 @@ public class TelephonyManagerTest {
                 (tm) -> tm.setDataEnabledForReason(TelephonyManager.DATA_ENABLED_REASON_POLICY,
                         false));
 
+        waitForMs(500);
         boolean isDataEnabledForReason = ShellIdentityUtils.invokeMethodWithShellPermissions(
                 mTelephonyManager, (tm) -> tm.isDataEnabledForReason(
                         TelephonyManager.DATA_ENABLED_REASON_POLICY));
@@ -3514,6 +3562,7 @@ public class TelephonyManagerTest {
                 (tm) -> tm.setDataEnabledForReason(TelephonyManager.DATA_ENABLED_REASON_POLICY,
                         true));
 
+        waitForMs(500);
         isDataEnabledForReason = ShellIdentityUtils.invokeMethodWithShellPermissions(
                 mTelephonyManager, (tm) -> tm.isDataEnabledForReason(
                         TelephonyManager.DATA_ENABLED_REASON_POLICY));
@@ -3614,6 +3663,7 @@ public class TelephonyManagerTest {
                         TelephonyManager.MOBILE_DATA_POLICY_DATA_ON_NON_DEFAULT_DURING_VOICE_CALL,
                         !allowDataDuringVoiceCall));
 
+        waitForMs(500);
         assertNotEquals(allowDataDuringVoiceCall,
                 ShellIdentityUtils.invokeMethodWithShellPermissions(
                         mTelephonyManager, getPolicyHelper));
@@ -3623,6 +3673,7 @@ public class TelephonyManagerTest {
                         TelephonyManager.MOBILE_DATA_POLICY_DATA_ON_NON_DEFAULT_DURING_VOICE_CALL,
                         allowDataDuringVoiceCall));
 
+        waitForMs(500);
         assertEquals(allowDataDuringVoiceCall,
                 ShellIdentityUtils.invokeMethodWithShellPermissions(
                         mTelephonyManager, getPolicyHelper));
@@ -3646,6 +3697,7 @@ public class TelephonyManagerTest {
                         TelephonyManager.MOBILE_DATA_POLICY_MMS_ALWAYS_ALLOWED,
                         !mmsAlwaysAllowed));
 
+        waitForMs(500);
         assertNotEquals(mmsAlwaysAllowed,
                 ShellIdentityUtils.invokeMethodWithShellPermissions(
                         mTelephonyManager, getPolicyHelper));
@@ -3655,6 +3707,7 @@ public class TelephonyManagerTest {
                         TelephonyManager.MOBILE_DATA_POLICY_MMS_ALWAYS_ALLOWED,
                         mmsAlwaysAllowed));
 
+        waitForMs(500);
         assertEquals(mmsAlwaysAllowed,
                 ShellIdentityUtils.invokeMethodWithShellPermissions(
                         mTelephonyManager, getPolicyHelper));
@@ -4168,7 +4221,7 @@ public class TelephonyManagerTest {
         TelephonyUtils.executeShellCommand(InstrumentationRegistry.getInstrumentation(),
                 cmdBuilder.toString());
 
-        long arbitraryCompletionWindowSecs = 1L;
+        long arbitraryCompletionWindowMillis = 60000L;
 
         boolean isDataThrottlingSupported = ShellIdentityUtils.invokeMethodWithShellPermissions(
                 mTelephonyManager, (tm) -> tm.isRadioInterfaceCapabilitySupported(
@@ -4185,7 +4238,7 @@ public class TelephonyManagerTest {
                                 .setDataThrottlingRequest(new DataThrottlingRequest.Builder()
                                         .setDataThrottlingAction(DataThrottlingRequest
                                                 .DATA_THROTTLING_ACTION_THROTTLE_SECONDARY_CARRIER)
-                                        .setCompletionDurationMillis(arbitraryCompletionWindowSecs)
+                                        .setCompletionDurationMillis(arbitraryCompletionWindowMillis)
                                         .build())
                                 .build()));
 
@@ -4221,7 +4274,7 @@ public class TelephonyManagerTest {
                                                     DataThrottlingRequest
                                                             .DATA_THROTTLING_ACTION_HOLD)
                                             .setCompletionDurationMillis(
-                                                    arbitraryCompletionWindowSecs)
+                                                    arbitraryCompletionWindowMillis)
                                             .build())
                                     .build()));
         } catch (IllegalArgumentException e) {
@@ -4906,6 +4959,46 @@ public class TelephonyManagerTest {
                 portInfo.getPortIndex();
             }
         }
+    }
+
+    @Test
+    public void getSimSlotMappingTestReadPermission() {
+        if (!hasCellular()) return;
+        try {
+            Collection<UiccSlotMapping> simSlotMapping = mTelephonyManager.getSimSlotMapping();
+            fail("Expected SecurityException, no READ_PRIVILEGED_PHONE_STATE permission");
+        } catch (SecurityException e) {
+            // expected
+        }
+    }
+    @Test
+    public void getSimSlotMappingTest() {
+        if (!hasCellular()) return;
+        InstrumentationRegistry.getInstrumentation().getUiAutomation()
+                .adoptShellPermissionIdentity("android.permission.READ_PRIVILEGED_PHONE_STATE");
+        try {
+            Collection<UiccSlotMapping> simSlotMapping = mTelephonyManager.getSimSlotMapping();
+            assertTrue(isSlotMappingValid(simSlotMapping));
+        } catch (IllegalArgumentException e) {
+            fail("IllegalArgumentException, Duplicate UiccSlotMapping data found");
+        } finally {
+            InstrumentationRegistry.getInstrumentation().getUiAutomation()
+                    .dropShellPermissionIdentity();
+        }
+    }
+    private static boolean isSlotMappingValid(@NonNull Collection<UiccSlotMapping> slotMapping) {
+        // Grouping the collection by logicalSlotIndex, finding different entries mapping to the
+        // same logical slot
+        Map<Integer, List<UiccSlotMapping>> slotMappingInfo = slotMapping.stream().collect(
+                Collectors.groupingBy(UiccSlotMapping::getLogicalSlotIndex));
+        for (Map.Entry<Integer, List<UiccSlotMapping>> entry : slotMappingInfo.entrySet()) {
+            List<UiccSlotMapping> logicalSlotMap = entry.getValue();
+            if (logicalSlotMap.size() > 1) {
+                // duplicate logicalSlotIndex found
+                return false;
+            }
+        }
+        return true;
     }
 }
 

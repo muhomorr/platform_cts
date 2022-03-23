@@ -41,9 +41,9 @@ import android.telephony.SmsMessage;
 import android.telephony.SubscriptionManager;
 import android.telephony.TelephonyManager;
 import android.telephony.cts.AsyncSmsMessageListener;
+import android.telephony.cts.CarrierCapability;
 import android.telephony.cts.SmsReceiverHelper;
 import android.telephony.cts.TelephonyUtils;
-import android.telephony.cts.CarrierCapability;
 import android.telephony.ims.ImsException;
 import android.telephony.ims.ImsManager;
 import android.telephony.ims.ImsMmTelManager;
@@ -60,6 +60,7 @@ import android.telephony.ims.RtpHeaderExtensionType;
 import android.telephony.ims.SipDelegateManager;
 import android.telephony.ims.feature.ImsFeature;
 import android.telephony.ims.feature.MmTelFeature;
+import android.telephony.ims.feature.RcsFeature;
 import android.telephony.ims.feature.RcsFeature.RcsImsCapabilities;
 import android.telephony.ims.stub.CapabilityExchangeEventListener;
 import android.telephony.ims.stub.ImsConfigImplBase;
@@ -87,13 +88,12 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
-
-import android.util.Log;
 
 /**
  * CTS tests for ImsService API.
@@ -103,9 +103,35 @@ public class ImsServiceTest {
 
     private static ImsServiceConnector sServiceConnector;
 
+    private static final int KEY_VOLTE_PROVISIONING_STATUS =
+            ProvisioningManager.KEY_VOLTE_PROVISIONING_STATUS;
+    private static final int KEY_VT_PROVISIONING_STATUS =
+            ProvisioningManager.KEY_VT_PROVISIONING_STATUS;
+    private static final int KEY_VOICE_OVER_WIFI_ENABLED_OVERRIDE =
+            ProvisioningManager.KEY_VOICE_OVER_WIFI_ENABLED_OVERRIDE;
+    private static final int KEY_EAB_PROVISIONING_STATUS =
+            ProvisioningManager.KEY_EAB_PROVISIONING_STATUS;
+
+    private static final int MMTEL_CAP_VOICE = MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VOICE;
+    private static final int MMTEL_CAP_VIDEO = MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VIDEO;
+    private static final int MMTEL_CAP_UT = MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_UT;
+    private static final int MMTEL_CAP_SMS = MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_SMS;
+    private static final int MMTEL_CAP_COMPOSER =
+            MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_CALL_COMPOSER;
+
     private static final int RCS_CAP_NONE = RcsImsCapabilities.CAPABILITY_TYPE_NONE;
     private static final int RCS_CAP_OPTIONS = RcsImsCapabilities.CAPABILITY_TYPE_OPTIONS_UCE;
     private static final int RCS_CAP_PRESENCE = RcsImsCapabilities.CAPABILITY_TYPE_PRESENCE_UCE;
+
+    private static final int IMS_REGI_TECH_NONE = ImsRegistrationImplBase.REGISTRATION_TECH_NONE;
+    private static final int IMS_REGI_TECH_LTE = ImsRegistrationImplBase.REGISTRATION_TECH_LTE;
+    private static final int IMS_REGI_TECH_IWLAN = ImsRegistrationImplBase.REGISTRATION_TECH_IWLAN;
+    private static final int IMS_REGI_TECH_CROSS_SIM =
+            ImsRegistrationImplBase.REGISTRATION_TECH_CROSS_SIM;
+    private static final int IMS_REGI_TECH_NR = ImsRegistrationImplBase.REGISTRATION_TECH_NR;
+
+    private static final String SUPPORT_PROVISION_STATUS_FOR_CAPABILITY_STRING =
+            "SUPPORT_PROVISION_STATUS_FOR_CAPABILITY";
 
     private static final String MSG_CONTENTS = "hi";
     private static final String EXPECTED_RECEIVED_MESSAGE = "foo5";
@@ -361,12 +387,14 @@ public class ImsServiceTest {
     @After
     public void afterTest() throws Exception {
         TelephonyUtils.resetCompatCommand(InstrumentationRegistry.getInstrumentation(),
-                TelephonyUtils.CTS_APP_PACKAGE,
-                SUPPORT_PUBLISHING_STATE_STRING);
+                TelephonyUtils.CTS_APP_PACKAGE, SUPPORT_PUBLISHING_STATE_STRING);
+        TelephonyUtils.resetCompatCommand(InstrumentationRegistry.getInstrumentation(),
+                TelephonyUtils.CTS_APP_PACKAGE, SUPPORT_PROVISION_STATUS_FOR_CAPABILITY_STRING);
+
         if (!ImsUtils.shouldTestImsService()) {
             return;
         }
-        // Unbind the GTS ImsService after the test completes.
+        // Unbind the ImsService after the test completes.
         if (sServiceConnector != null) {
             sServiceConnector.setSingleRegistrationTestModeEnabled(false);
             sServiceConnector.disconnectCarrierImsService();
@@ -379,6 +407,26 @@ public class ImsServiceTest {
         if (!ImsUtils.shouldTestImsService()) {
             return;
         }
+        // Connect to the ImsService with the RCS feature.
+        assertTrue(sServiceConnector.connectCarrierImsService(new ImsFeatureConfiguration.Builder()
+                .addFeature(sTestSlot, ImsFeature.FEATURE_RCS)
+                .build()));
+        // The RcsFeature is created when the ImsService is bound. If it wasn't created, then the
+        // Framework did not call it.
+        sServiceConnector.getCarrierService().waitForLatchCountdown(
+                TestImsService.LATCH_CREATE_RCS);
+        assertNotNull("ImsService created, but ImsService#createRcsFeature was not called!",
+                sServiceConnector.getCarrierService().getRcsFeature());
+        assertTrue("Not expected subId received!",
+                isExpectedSubId(sServiceConnector.getCarrierService().getSubIDs()));
+    }
+
+    @Test
+    public void testCarrierImsServiceBindRcsFeatureForExecutor() throws Exception {
+        if (!ImsUtils.shouldTestImsService()) {
+            return;
+        }
+        sServiceConnector.setExecutorTestType(true);
         // Connect to the ImsService with the RCS feature.
         assertTrue(sServiceConnector.connectCarrierImsService(new ImsFeatureConfiguration.Builder()
                 .addFeature(sTestSlot, ImsFeature.FEATURE_RCS)
@@ -409,6 +457,8 @@ public class ImsServiceTest {
         // Wait for the framework to set the capabilities on the ImsService
         sServiceConnector.getCarrierService().waitForLatchCountdown(
                 TestImsService.LATCH_MMTEL_CAP_SET);
+        assertTrue("Not expected subId received!",
+                isExpectedSubId(sServiceConnector.getCarrierService().getSubIDs()));
     }
 
     @Test
@@ -438,6 +488,8 @@ public class ImsServiceTest {
         assertTrue(sServiceConnector.getCarrierService().waitForLatchCountdown(
                 TestImsService.LATCH_DISABLE_IMS));
         assertFalse(sServiceConnector.getCarrierService().isEnabled());
+        assertTrue("Not expected subId received!",
+                isExpectedSubId(sServiceConnector.getCarrierService().getSubIDs()));
     }
 
     @Test
@@ -456,6 +508,41 @@ public class ImsServiceTest {
 
         // Change the supported feature to MMTEl
         sServiceConnector.getCarrierService().getImsService().onUpdateSupportedImsFeatures(
+                new ImsFeatureConfiguration.Builder()
+                .addFeature(sTestSlot, ImsFeature.FEATURE_MMTEL).build());
+
+        // createMmTelFeature should be called.
+        assertTrue(sServiceConnector.getCarrierService().waitForLatchCountdown(
+                TestImsService.LATCH_CREATE_MMTEL));
+
+        // Wait for the framework to set the capabilities on the ImsService
+        sServiceConnector.getCarrierService().waitForLatchCountdown(
+                TestImsService.LATCH_MMTEL_CAP_SET);
+        assertTrue("Not expected subId received!",
+                isExpectedSubId(sServiceConnector.getCarrierService().getSubIDs()));
+    }
+
+    @Test
+    public void testCarrierImsServiceBindRcsChangeToMmtelCompat() throws Exception {
+        if (!ImsUtils.shouldTestImsService()) {
+            return;
+        }
+        // Connect to the ImsService with the RCS feature.
+        ImsFeatureConfiguration config = new ImsFeatureConfiguration.Builder()
+                .addFeature(sTestSlot, ImsFeature.FEATURE_RCS)
+                .build();
+        assertTrue(sServiceConnector.connectCarrierImsServiceLocally());
+        sServiceConnector.getCarrierService().resetState();
+        // Set the flag for ImsService compatibility test.
+        sServiceConnector.getCarrierService().setImsServiceCompat();
+        assertTrue(sServiceConnector.triggerFrameworkConnectionToCarrierImsService(config));
+        // The RcsFeature is created when the ImsService is bound. If it wasn't created, then the
+        // Framework did not call it.
+        assertTrue(sServiceConnector.getCarrierService().waitForLatchCountdown(
+                TestImsService.LATCH_CREATE_RCS));
+
+        // Change the supported feature to MMTEl
+        sServiceConnector.getCarrierService().getImsServiceCompat().onUpdateSupportedImsFeatures(
                 new ImsFeatureConfiguration.Builder()
                 .addFeature(sTestSlot, ImsFeature.FEATURE_MMTEL).build());
 
@@ -503,6 +590,8 @@ public class ImsServiceTest {
         // Wait for the framework to set the capabilities on the ImsService
         sServiceConnector.getCarrierService().waitForLatchCountdown(
                 TestImsService.LATCH_MMTEL_CAP_SET);
+        assertTrue("Not expected subId received!",
+                isExpectedSubId(sServiceConnector.getCarrierService().getSubIDs()));
     }
 
     @Test
@@ -946,28 +1035,28 @@ public class ImsServiceTest {
         assertEquals(ImsReasonInfo.CODE_LOCAL_NOT_REGISTERED, deregResult.getCode());
 
         // Start registration
-        verifyRegistering(ImsRegistrationImplBase.REGISTRATION_TECH_LTE, featureTags, mRegQueue,
+        verifyRegistering(IMS_REGI_TECH_LTE, featureTags, mRegQueue,
                 AccessNetworkConstants.TRANSPORT_TYPE_WWAN, 0 /*expected flags*/);
 
         // move to NR
-        verifyRegistering(ImsRegistrationImplBase.REGISTRATION_TECH_NR, featureTags, mRegQueue,
+        verifyRegistering(IMS_REGI_TECH_NR, featureTags, mRegQueue,
                 AccessNetworkConstants.TRANSPORT_TYPE_WWAN, 0 /*expected flags*/);
 
         // move to cross sim
-        verifyRegistering(ImsRegistrationImplBase.REGISTRATION_TECH_CROSS_SIM, featureTags,
+        verifyRegistering(IMS_REGI_TECH_CROSS_SIM, featureTags,
                 mRegQueue, AccessNetworkConstants.TRANSPORT_TYPE_WLAN,
                 ImsRegistrationAttributes.ATTR_EPDG_OVER_CELL_INTERNET);
 
         // Complete registration
-        verifyRegistered(ImsRegistrationImplBase.REGISTRATION_TECH_LTE, featureTags, mRegQueue,
+        verifyRegistered(IMS_REGI_TECH_LTE, featureTags, mRegQueue,
                 AccessNetworkConstants.TRANSPORT_TYPE_WWAN, 0 /*expected flags*/);
 
         // move to NR
-        verifyRegistered(ImsRegistrationImplBase.REGISTRATION_TECH_NR, featureTags, mRegQueue,
+        verifyRegistered(IMS_REGI_TECH_NR, featureTags, mRegQueue,
                 AccessNetworkConstants.TRANSPORT_TYPE_WWAN, 0 /*expected flags*/);
 
         // move to cross sim
-        verifyRegistered(ImsRegistrationImplBase.REGISTRATION_TECH_CROSS_SIM, featureTags,
+        verifyRegistered(IMS_REGI_TECH_CROSS_SIM, featureTags,
                 mRegQueue, AccessNetworkConstants.TRANSPORT_TYPE_WLAN,
                 ImsRegistrationAttributes.ATTR_EPDG_OVER_CELL_INTERNET);
 
@@ -1055,17 +1144,17 @@ public class ImsServiceTest {
 
         // Start registration
         sServiceConnector.getCarrierService().getImsRegistration().onRegistering(
-                ImsRegistrationImplBase.REGISTRATION_TECH_LTE);
+                IMS_REGI_TECH_LTE);
         assertEquals(AccessNetworkConstants.TRANSPORT_TYPE_WWAN, waitForIntResult(mQueue));
 
         // Complete registration
         sServiceConnector.getCarrierService().getImsRegistration().onRegistered(
-                ImsRegistrationImplBase.REGISTRATION_TECH_LTE);
+                IMS_REGI_TECH_LTE);
         assertEquals(AccessNetworkConstants.TRANSPORT_TYPE_WWAN, waitForIntResult(mQueue));
 
         // Fail handover to IWLAN
         sServiceConnector.getCarrierService().getImsRegistration().onTechnologyChangeFailed(
-                ImsRegistrationImplBase.REGISTRATION_TECH_IWLAN,
+                IMS_REGI_TECH_IWLAN,
                 new ImsReasonInfo(ImsReasonInfo.CODE_LOCAL_HO_NOT_FEASIBLE,
                         ImsReasonInfo.CODE_UNSPECIFIED, ""));
         assertEquals(AccessNetworkConstants.TRANSPORT_TYPE_WLAN, waitForIntResult(mQueue));
@@ -1073,7 +1162,7 @@ public class ImsServiceTest {
 
         // Ensure null ImsReasonInfo still results in non-null callback value.
         sServiceConnector.getCarrierService().getImsRegistration().onTechnologyChangeFailed(
-                ImsRegistrationImplBase.REGISTRATION_TECH_IWLAN, null);
+                IMS_REGI_TECH_IWLAN, null);
         assertEquals(AccessNetworkConstants.TRANSPORT_TYPE_WLAN, waitForIntResult(mQueue));
         assertEquals(ImsReasonInfo.CODE_UNSPECIFIED, waitForIntResult(mQueue));
 
@@ -1195,7 +1284,7 @@ public class ImsServiceTest {
 
         // IMS registers
         sServiceConnector.getCarrierService().getImsRegistration().onRegistered(
-                ImsRegistrationImplBase.REGISTRATION_TECH_LTE);
+                IMS_REGI_TECH_LTE);
 
         // Framework should not trigger the device capabilities publish when the framework doesn't
         // receive that the RcsUceAdapter.CAPABILITY_TYPE_PRESENCE_UCE is enabled.
@@ -1273,6 +1362,23 @@ public class ImsServiceTest {
 
         // ImsService triggers to notify framework publish updated.
         eventListener.onPublishUpdated(200, "", 0, "");
+        assertEquals(RcsUceAdapter.PUBLISH_STATE_OK, waitForIntResult(publishStateQueue));
+        publishStateQueue.clear();
+
+        // Setup the operation of the publish request.
+        capExchangeImpl.setPublishOperator((listener, pidfXml, cb) -> {
+            int networkResp = 999;
+            String reason = "";
+            cb.onNetworkResponse(networkResp, reason);
+            listener.onPublish();
+        });
+        eventListener.onRequestPublishCapabilities(
+                RcsUceAdapter.CAPABILITY_UPDATE_TRIGGER_MOVE_TO_WLAN);
+
+        assertTrue(sServiceConnector.getCarrierService().waitForLatchCountdown(
+                TestImsService.LATCH_UCE_REQUEST_PUBLISH));
+
+        assertEquals(RcsUceAdapter.PUBLISH_STATE_PUBLISHING, waitForIntResult(publishStateQueue));
         assertEquals(RcsUceAdapter.PUBLISH_STATE_OK, waitForIntResult(publishStateQueue));
         publishStateQueue.clear();
 
@@ -1366,14 +1472,8 @@ public class ImsServiceTest {
                 ImsException.class);
 
         // IMS registers
-        ArraySet<String> featureTags = new ArraySet<>();
-        // Chat Session
-        featureTags.add(CHAT_FEATURE_TAG);
-        featureTags.add(FILE_TRANSFER_FEATURE_TAG);
-        ImsRegistrationAttributes attr = new ImsRegistrationAttributes.Builder(
-                ImsRegistrationImplBase.REGISTRATION_TECH_LTE).setFeatureTags(featureTags).build();
-        sServiceConnector.getCarrierService().getImsRegistration().onRegistered(attr);
-        waitForParam(mQueue, attr);
+        sServiceConnector.getCarrierService().getImsRegistration().onRegistered(
+                IMS_REGI_TECH_LTE);
 
         // Notify framework that the RCS capability status is changed and PRESENCE UCE is enabled.
         RcsImsCapabilities capabilities =
@@ -1391,6 +1491,20 @@ public class ImsServiceTest {
         // Verify that the publish is triggered and receive the publish state changed callback.
         assertTrue(sServiceConnector.getCarrierService().waitForLatchCountdown(
                 TestImsService.LATCH_UCE_REQUEST_PUBLISH));
+
+        assertEquals(RcsUceAdapter.PUBLISH_STATE_PUBLISHING, waitForIntResult(publishStateQueue));
+        assertEquals(RcsUceAdapter.PUBLISH_STATE_OK, waitForIntResult(publishStateQueue));
+        publishStateQueue.clear();
+
+        // IMS registers
+        ArraySet<String> featureTags = new ArraySet<>();
+        // Chat Session
+        featureTags.add(CHAT_FEATURE_TAG);
+        featureTags.add(FILE_TRANSFER_FEATURE_TAG);
+        ImsRegistrationAttributes attr = new ImsRegistrationAttributes.Builder(
+                IMS_REGI_TECH_LTE).setFeatureTags(featureTags).build();
+        sServiceConnector.getCarrierService().getImsRegistration().onRegistered(attr);
+        waitForParam(mQueue, attr);
 
         assertEquals(RcsUceAdapter.PUBLISH_STATE_PUBLISHING, waitForIntResult(publishStateQueue));
         assertEquals(RcsUceAdapter.PUBLISH_STATE_OK, waitForIntResult(publishStateQueue));
@@ -1485,7 +1599,7 @@ public class ImsServiceTest {
 
         // IMS registers
         sServiceConnector.getCarrierService().getImsRegistration().onRegistered(
-                ImsRegistrationImplBase.REGISTRATION_TECH_LTE);
+                IMS_REGI_TECH_LTE);
 
         // Notify framework that the RCS capability status is changed and PRESENCE UCE is enabled.
         RcsImsCapabilities capabilities =
@@ -1595,7 +1709,7 @@ public class ImsServiceTest {
 
         // IMS registers
         sServiceConnector.getCarrierService().getImsRegistration().onRegistered(
-                ImsRegistrationImplBase.REGISTRATION_TECH_LTE);
+                IMS_REGI_TECH_LTE);
 
         // Notify framework that the RCS capability status is changed and PRESENCE UCE is enabled.
         RcsImsCapabilities capabilities =
@@ -1720,7 +1834,7 @@ public class ImsServiceTest {
 
         // IMS registers
         sServiceConnector.getCarrierService().getImsRegistration().onRegistered(
-                ImsRegistrationImplBase.REGISTRATION_TECH_LTE);
+                IMS_REGI_TECH_LTE);
 
         // Verify the PUBLISH request should not be triggered and the publish state is still
         // NOT_PUBLISHED even the IMS is registered.
@@ -1848,7 +1962,7 @@ public class ImsServiceTest {
 
         // IMS registers
         sServiceConnector.getCarrierService().getImsRegistration().onRegistered(
-                ImsRegistrationImplBase.REGISTRATION_TECH_LTE);
+                IMS_REGI_TECH_LTE);
 
         // Verify the PUBLISH request should not be triggered and the publish state is still
         // OK even the IMS is registered.
@@ -1987,7 +2101,7 @@ public class ImsServiceTest {
 
         // IMS registers
         sServiceConnector.getCarrierService().getImsRegistration().onRegistered(
-                ImsRegistrationImplBase.REGISTRATION_TECH_LTE);
+                IMS_REGI_TECH_LTE);
 
         // Notify framework that the RCS capability status is changed and PRESENCE UCE is enabled.
         RcsImsCapabilities capabilities =
@@ -2406,17 +2520,17 @@ public class ImsServiceTest {
 
         // Start registration
         sServiceConnector.getCarrierService().getImsRegistration().onRegistering(
-                ImsRegistrationImplBase.REGISTRATION_TECH_LTE);
+                IMS_REGI_TECH_LTE);
         assertEquals(AccessNetworkConstants.TRANSPORT_TYPE_WWAN, waitForIntResult(mQueue));
 
         // Complete registration
         sServiceConnector.getCarrierService().getImsRegistration().onRegistered(
-                ImsRegistrationImplBase.REGISTRATION_TECH_LTE);
+                IMS_REGI_TECH_LTE);
         assertEquals(AccessNetworkConstants.TRANSPORT_TYPE_WWAN, waitForIntResult(mQueue));
 
         // Fail handover to IWLAN
         sServiceConnector.getCarrierService().getImsRegistration().onTechnologyChangeFailed(
-                ImsRegistrationImplBase.REGISTRATION_TECH_IWLAN,
+                IMS_REGI_TECH_IWLAN,
                 new ImsReasonInfo(ImsReasonInfo.CODE_LOCAL_HO_NOT_FEASIBLE,
                         ImsReasonInfo.CODE_UNSPECIFIED, ""));
         assertEquals(AccessNetworkConstants.TRANSPORT_TYPE_WLAN, waitForIntResult(mQueue));
@@ -2490,14 +2604,14 @@ public class ImsServiceTest {
 
         // Start registration
         sServiceConnector.getCarrierService().getImsRegistration().onRegistering(
-                ImsRegistrationImplBase.REGISTRATION_TECH_LTE);
+                IMS_REGI_TECH_LTE);
         assertEquals(AccessNetworkConstants.TRANSPORT_TYPE_WWAN, waitForIntResult(mQueue));
         verifyRegistrationState(regManager, RegistrationManager.REGISTRATION_STATE_REGISTERING);
         verifyRegistrationTransportType(regManager, AccessNetworkConstants.TRANSPORT_TYPE_WWAN);
 
         // Complete registration
         sServiceConnector.getCarrierService().getImsRegistration().onRegistered(
-                ImsRegistrationImplBase.REGISTRATION_TECH_LTE);
+                IMS_REGI_TECH_LTE);
         assertEquals(AccessNetworkConstants.TRANSPORT_TYPE_WWAN, waitForIntResult(mQueue));
         verifyRegistrationState(regManager, RegistrationManager.REGISTRATION_STATE_REGISTERED);
         verifyRegistrationTransportType(regManager, AccessNetworkConstants.TRANSPORT_TYPE_WWAN);
@@ -2505,7 +2619,7 @@ public class ImsServiceTest {
 
         // Fail handover to IWLAN
         sServiceConnector.getCarrierService().getImsRegistration().onTechnologyChangeFailed(
-                ImsRegistrationImplBase.REGISTRATION_TECH_IWLAN,
+                IMS_REGI_TECH_IWLAN,
                 new ImsReasonInfo(ImsReasonInfo.CODE_LOCAL_HO_NOT_FEASIBLE,
                         ImsReasonInfo.CODE_UNSPECIFIED, ""));
         assertEquals(AccessNetworkConstants.TRANSPORT_TYPE_WLAN, waitForIntResult(mQueue));
@@ -2514,7 +2628,7 @@ public class ImsServiceTest {
 
         // handover to IWLAN
         sServiceConnector.getCarrierService().getImsRegistration().onRegistered(
-                ImsRegistrationImplBase.REGISTRATION_TECH_IWLAN);
+                IMS_REGI_TECH_IWLAN);
         assertEquals(AccessNetworkConstants.TRANSPORT_TYPE_WLAN, waitForIntResult(mQueue));
         verifyRegistrationTransportType(regManager, AccessNetworkConstants.TRANSPORT_TYPE_WLAN);
 
@@ -2605,35 +2719,35 @@ public class ImsServiceTest {
 
         // Start registration
         sServiceConnector.getCarrierService().getImsRegistration().onRegistering(
-                ImsRegistrationImplBase.REGISTRATION_TECH_LTE);
+                IMS_REGI_TECH_LTE);
         assertEquals(AccessNetworkConstants.TRANSPORT_TYPE_WWAN, waitForIntResult(mQueue));
         verifyRegistrationState(imsRcsManager, RegistrationManager.REGISTRATION_STATE_REGISTERING);
         verifyRegistrationTransportType(imsRcsManager, AccessNetworkConstants.TRANSPORT_TYPE_WWAN);
 
         // Complete registration
         sServiceConnector.getCarrierService().getImsRegistration().onRegistered(
-                ImsRegistrationImplBase.REGISTRATION_TECH_LTE);
+                IMS_REGI_TECH_LTE);
         assertEquals(AccessNetworkConstants.TRANSPORT_TYPE_WWAN, waitForIntResult(mQueue));
         verifyRegistrationState(imsRcsManager, RegistrationManager.REGISTRATION_STATE_REGISTERED);
         verifyRegistrationTransportType(imsRcsManager, AccessNetworkConstants.TRANSPORT_TYPE_WWAN);
 
         // Start registration over NR
         sServiceConnector.getCarrierService().getImsRegistration().onRegistering(
-                ImsRegistrationImplBase.REGISTRATION_TECH_NR);
+                IMS_REGI_TECH_NR);
         assertEquals(AccessNetworkConstants.TRANSPORT_TYPE_WWAN, waitForIntResult(mQueue));
         verifyRegistrationState(imsRcsManager, RegistrationManager.REGISTRATION_STATE_REGISTERING);
         verifyRegistrationTransportType(imsRcsManager, AccessNetworkConstants.TRANSPORT_TYPE_WWAN);
 
         // Complete registration over NR
         sServiceConnector.getCarrierService().getImsRegistration().onRegistered(
-                ImsRegistrationImplBase.REGISTRATION_TECH_NR);
+                IMS_REGI_TECH_NR);
         assertEquals(AccessNetworkConstants.TRANSPORT_TYPE_WWAN, waitForIntResult(mQueue));
         verifyRegistrationState(imsRcsManager, RegistrationManager.REGISTRATION_STATE_REGISTERED);
         verifyRegistrationTransportType(imsRcsManager, AccessNetworkConstants.TRANSPORT_TYPE_WWAN);
 
         // Fail handover to IWLAN
         sServiceConnector.getCarrierService().getImsRegistration().onTechnologyChangeFailed(
-                ImsRegistrationImplBase.REGISTRATION_TECH_IWLAN,
+                IMS_REGI_TECH_IWLAN,
                 new ImsReasonInfo(ImsReasonInfo.CODE_LOCAL_HO_NOT_FEASIBLE,
                         ImsReasonInfo.CODE_UNSPECIFIED, ""));
         assertEquals(AccessNetworkConstants.TRANSPORT_TYPE_WLAN, waitForIntResult(mQueue));
@@ -2642,7 +2756,7 @@ public class ImsServiceTest {
 
         // handover to IWLAN
         sServiceConnector.getCarrierService().getImsRegistration().onRegistered(
-                ImsRegistrationImplBase.REGISTRATION_TECH_IWLAN);
+                IMS_REGI_TECH_IWLAN);
         assertEquals(AccessNetworkConstants.TRANSPORT_TYPE_WLAN, waitForIntResult(mQueue));
         verifyRegistrationTransportType(imsRcsManager, AccessNetworkConstants.TRANSPORT_TYPE_WLAN);
         ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(imsRcsManager,
@@ -2669,7 +2783,7 @@ public class ImsServiceTest {
                 .getMmTelFeature().getCapabilities();
         // Make sure we start off with every capability unavailable
         sServiceConnector.getCarrierService().getImsRegistration().onRegistered(
-                ImsRegistrationImplBase.REGISTRATION_TECH_LTE);
+                IMS_REGI_TECH_LTE);
         sServiceConnector.getCarrierService().getMmTelFeature()
                 .notifyCapabilitiesStatusChanged(new MmTelFeature.MmTelCapabilities());
 
@@ -2681,7 +2795,7 @@ public class ImsServiceTest {
             // Make sure we are tracking voice capability over LTE properly.
             assertEquals(fwCaps.isCapable(MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VOICE),
                     mmTelManager.isCapable(MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VOICE,
-                            ImsRegistrationImplBase.REGISTRATION_TECH_LTE));
+                            IMS_REGI_TECH_LTE));
         } finally {
             automan.dropShellPermissionIdentity();
         }
@@ -2730,7 +2844,7 @@ public class ImsServiceTest {
             automan.adoptShellPermissionIdentity();
             assertTrue(ImsUtils.retryUntilTrue(() -> mmTelManager.isAvailable(
                     MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VOICE,
-                    ImsRegistrationImplBase.REGISTRATION_TECH_LTE)));
+                    IMS_REGI_TECH_LTE)));
 
             mmTelManager.unregisterMmTelCapabilityCallback(callback);
         } finally {
@@ -2763,7 +2877,7 @@ public class ImsServiceTest {
                 .getMmTelFeature().getCapabilities();
         // Make sure we start off with every capability unavailable
         sServiceConnector.getCarrierService().getImsRegistration().onRegistered(
-                ImsRegistrationImplBase.REGISTRATION_TECH_LTE);
+                IMS_REGI_TECH_LTE);
         sServiceConnector.getCarrierService().getMmTelFeature()
                 .notifyCapabilitiesStatusChanged(new MmTelFeature.MmTelCapabilities());
 
@@ -2775,7 +2889,7 @@ public class ImsServiceTest {
             // Make sure we are tracking voice capability over LTE properly.
             assertEquals(fwCaps.isCapable(MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VOICE),
                     mmTelManager.isCapable(MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VOICE,
-                    ImsRegistrationImplBase.REGISTRATION_TECH_LTE));
+                    IMS_REGI_TECH_LTE));
         } finally {
             automan.dropShellPermissionIdentity();
         }
@@ -2820,7 +2934,7 @@ public class ImsServiceTest {
             automan.adoptShellPermissionIdentity();
             assertTrue(ImsUtils.retryUntilTrue(() -> mmTelManager.isAvailable(
                     MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_CALL_COMPOSER,
-                    ImsRegistrationImplBase.REGISTRATION_TECH_LTE)));
+                    IMS_REGI_TECH_LTE)));
 
             mmTelManager.unregisterMmTelCapabilityCallback(callback);
         } finally {
@@ -2857,7 +2971,7 @@ public class ImsServiceTest {
 
         // Make sure we start off with every capability unavailable
         sServiceConnector.getCarrierService().getImsRegistration().onRegistered(
-                ImsRegistrationImplBase.REGISTRATION_TECH_LTE);
+                IMS_REGI_TECH_LTE);
         MmTelFeature.MmTelCapabilities stdCapabilities = new MmTelFeature.MmTelCapabilities();
         sServiceConnector.getCarrierService().getMmTelFeature()
                 .notifyCapabilitiesStatusChanged(stdCapabilities);
@@ -2875,7 +2989,7 @@ public class ImsServiceTest {
                 automan.adoptShellPermissionIdentity();
                 boolean isAvailableBeforeStatusChange = mmTelManager.isAvailable(
                         MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VOICE,
-                        ImsRegistrationImplBase.REGISTRATION_TECH_LTE);
+                        IMS_REGI_TECH_LTE);
                 assertFalse(isAvailableBeforeStatusChange);
             } finally {
                 automan.dropShellPermissionIdentity();
@@ -2892,7 +3006,7 @@ public class ImsServiceTest {
                         automan.adoptShellPermissionIdentity();
                         boolean isVoiceAvailable = mmTelManager
                                 .isAvailable(MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_VOICE,
-                                        ImsRegistrationImplBase.REGISTRATION_TECH_LTE);
+                                        IMS_REGI_TECH_LTE);
 
                         voiceIsAvailable.offer(isVoiceAvailable);
                     } finally {
@@ -2948,12 +3062,12 @@ public class ImsServiceTest {
         // Connect to device ImsService with RcsFeature
         triggerFrameworkConnectToLocalImsServiceBindRcsFeature();
 
-        int registrationTech = ImsRegistrationImplBase.REGISTRATION_TECH_LTE;
+        int registrationTech = IMS_REGI_TECH_LTE;
         ImsRcsManager imsRcsManager = imsManager.getImsRcsManager(sTestSub);
 
         // Make sure we start off with none-capability
         sServiceConnector.getCarrierService().getImsRegistration().onRegistered(
-                ImsRegistrationImplBase.REGISTRATION_TECH_LTE);
+                IMS_REGI_TECH_LTE);
         RcsImsCapabilities noCapabilities = new RcsImsCapabilities(RCS_CAP_NONE);
         sServiceConnector.getCarrierService().getRcsFeature()
                 .notifyCapabilitiesStatusChanged(noCapabilities);
@@ -3015,7 +3129,7 @@ public class ImsServiceTest {
 
         // Verify the callback and the api isAvailable that the capabilities is NONE in the
         // beginning.
-        int radioTechLTE = ImsRegistrationImplBase.REGISTRATION_TECH_LTE;
+        int radioTechLTE = IMS_REGI_TECH_LTE;
         int capCb = waitForResult(availabilityChanged);
         assertEquals(capCb, RCS_CAP_NONE);
         availabilityChanged.clear();
@@ -3126,6 +3240,537 @@ public class ImsServiceTest {
             automan.adoptShellPermissionIdentity();
             provisioningManager.unregisterProvisioningChangedCallback(callback);
         } finally {
+            automan.dropShellPermissionIdentity();
+        }
+    }
+
+    @Test
+    public void testProvisioningManagerWhenMmtelProvisionIsRequired() throws Exception {
+        if (!ImsUtils.shouldTestImsService()) {
+            return;
+        }
+
+        // test in case provision for mmtel is required
+        PersistableBundle bundle = new PersistableBundle();
+
+        PersistableBundle innerBundle = new PersistableBundle();
+        innerBundle.putIntArray(
+                CarrierConfigManager.Ims.KEY_CAPABILITY_TYPE_VOICE_INT_ARRAY,
+                new int[]{IMS_REGI_TECH_LTE, IMS_REGI_TECH_IWLAN}
+        );
+        innerBundle.putIntArray(
+                CarrierConfigManager.Ims.KEY_CAPABILITY_TYPE_VIDEO_INT_ARRAY,
+                new int[]{IMS_REGI_TECH_LTE}
+        );
+
+        bundle.putPersistableBundle(
+                CarrierConfigManager.Ims.KEY_MMTEL_REQUIRES_PROVISIONING_BUNDLE,
+                innerBundle);
+
+        overrideCarrierConfig(bundle);
+
+        triggerFrameworkConnectToCarrierImsService();
+        ProvisioningManager provisioningManager =
+                ProvisioningManager.createForSubscriptionId(sTestSub);
+
+        LinkedBlockingQueue<Pair<Integer, Integer>> mIntQueue = new LinkedBlockingQueue<>();
+        LinkedBlockingQueue<Pair<Integer, Pair<Integer, Boolean>>> mOnFeatureChangedQueue =
+                new LinkedBlockingQueue<>();
+
+        ProvisioningManager.Callback callback = new ProvisioningManager.Callback() {
+            @Override
+            public void onProvisioningIntChanged(int item, int value) {
+                mIntQueue.offer(new Pair<>(item, value));
+            }
+        };
+
+        ProvisioningManager.FeatureProvisioningCallback featureProvisioningCallback =
+                new ProvisioningManager.FeatureProvisioningCallback() {
+            @Override
+            public void onFeatureProvisioningChanged(
+                    @MmTelFeature.MmTelCapabilities.MmTelCapability int capability,
+                    @ImsRegistrationImplBase.ImsRegistrationTech int tech,
+                    boolean isProvisioned) {
+                mOnFeatureChangedQueue.offer(new Pair<>(capability,
+                        new Pair<>(tech, isProvisioned)));
+            }
+        };
+
+        final UiAutomation automan = InstrumentationRegistry.getInstrumentation().getUiAutomation();
+        try {
+            automan.adoptShellPermissionIdentity();
+            provisioningManager.registerProvisioningChangedCallback(getContext().getMainExecutor(),
+                    callback);
+            provisioningManager.registerFeatureProvisioningChangedCallback(
+                    getContext().getMainExecutor(), featureProvisioningCallback);
+
+            TelephonyUtils.enableCompatCommand(InstrumentationRegistry.getInstrumentation(),
+                    TelephonyUtils.CTS_APP_PACKAGE,
+                    SUPPORT_PROVISION_STATUS_FOR_CAPABILITY_STRING);
+
+            // test get/setProvisioningStatusForCapability for VoLTE
+            assertTrue(provisioningManager.isProvisioningRequiredForCapability(
+                    MMTEL_CAP_VOICE, IMS_REGI_TECH_LTE));
+            boolean isProvisioned = provisioningManager
+                    .getProvisioningStatusForCapability(MMTEL_CAP_VOICE, IMS_REGI_TECH_LTE);
+            provisioningManager.setProvisioningStatusForCapability(MMTEL_CAP_VOICE,
+                    IMS_REGI_TECH_LTE, !isProvisioned);
+            assertTrue(waitForParam(mOnFeatureChangedQueue,
+                    new Pair<>(MMTEL_CAP_VOICE, new Pair<>(IMS_REGI_TECH_LTE, !isProvisioned))));
+            assertTrue(waitForParam(mIntQueue,
+                    new Pair<>(KEY_VOLTE_PROVISIONING_STATUS, !isProvisioned ? 1 : 0)));
+            assertEquals(!isProvisioned, provisioningManager
+                    .getProvisioningStatusForCapability(MMTEL_CAP_VOICE, IMS_REGI_TECH_LTE));
+            mIntQueue.clear();
+            mOnFeatureChangedQueue.clear();
+            provisioningManager.setProvisioningStatusForCapability(MMTEL_CAP_VOICE,
+                    IMS_REGI_TECH_LTE, isProvisioned);
+            assertTrue(waitForParam(mOnFeatureChangedQueue,
+                    new Pair<>(MMTEL_CAP_VOICE, new Pair<>(IMS_REGI_TECH_LTE, isProvisioned))));
+            assertTrue(waitForParam(mIntQueue,
+                    new Pair<>(KEY_VOLTE_PROVISIONING_STATUS, isProvisioned ? 1 : 0)));
+            assertEquals(isProvisioned, provisioningManager
+                    .getProvisioningStatusForCapability(MMTEL_CAP_VOICE, IMS_REGI_TECH_LTE));
+
+            // test get/setProvisioningStatusForCapability for VoWIFI
+            assertTrue(provisioningManager.isProvisioningRequiredForCapability(
+                    MMTEL_CAP_VOICE, IMS_REGI_TECH_IWLAN));
+            isProvisioned = provisioningManager
+                    .getProvisioningStatusForCapability(MMTEL_CAP_VOICE, IMS_REGI_TECH_IWLAN);
+            mIntQueue.clear();
+            mOnFeatureChangedQueue.clear();
+            provisioningManager.setProvisioningStatusForCapability(MMTEL_CAP_VOICE,
+                    IMS_REGI_TECH_IWLAN, !isProvisioned);
+            assertTrue(waitForParam(mOnFeatureChangedQueue,
+                    new Pair<>(MMTEL_CAP_VOICE, new Pair<>(IMS_REGI_TECH_IWLAN, !isProvisioned))));
+            assertTrue(waitForParam(mIntQueue,
+                    new Pair<>(KEY_VOICE_OVER_WIFI_ENABLED_OVERRIDE, !isProvisioned ? 1 : 0)));
+            assertEquals(!isProvisioned, provisioningManager
+                    .getProvisioningStatusForCapability(MMTEL_CAP_VOICE, IMS_REGI_TECH_IWLAN));
+            mIntQueue.clear();
+            mOnFeatureChangedQueue.clear();
+            provisioningManager.setProvisioningStatusForCapability(MMTEL_CAP_VOICE,
+                    IMS_REGI_TECH_IWLAN, isProvisioned);
+            assertTrue(waitForParam(mOnFeatureChangedQueue,
+                    new Pair<>(MMTEL_CAP_VOICE, new Pair<>(IMS_REGI_TECH_IWLAN, isProvisioned))));
+            assertTrue(waitForParam(mIntQueue,
+                    new Pair<>(KEY_VOICE_OVER_WIFI_ENABLED_OVERRIDE, isProvisioned ? 1 : 0)));
+            assertEquals(isProvisioned, provisioningManager
+                    .getProvisioningStatusForCapability(MMTEL_CAP_VOICE, IMS_REGI_TECH_IWLAN));
+
+            // test get/setProvisioningStatusForCapability for VT
+            assertTrue(provisioningManager.isProvisioningRequiredForCapability(
+                    MMTEL_CAP_VIDEO, IMS_REGI_TECH_LTE));
+            isProvisioned = provisioningManager
+                    .getProvisioningStatusForCapability(MMTEL_CAP_VIDEO, IMS_REGI_TECH_LTE);
+            mIntQueue.clear();
+            mOnFeatureChangedQueue.clear();
+            provisioningManager.setProvisioningStatusForCapability(MMTEL_CAP_VIDEO,
+                    IMS_REGI_TECH_LTE, !isProvisioned);
+            assertTrue(waitForParam(mOnFeatureChangedQueue,
+                    new Pair<>(MMTEL_CAP_VIDEO, new Pair<>(IMS_REGI_TECH_LTE, !isProvisioned))));
+            assertTrue(waitForParam(mIntQueue,
+                    new Pair<>(KEY_VT_PROVISIONING_STATUS, !isProvisioned ? 1 : 0)));
+            assertEquals(!isProvisioned, provisioningManager
+                    .getProvisioningStatusForCapability(MMTEL_CAP_VIDEO, IMS_REGI_TECH_LTE));
+            mIntQueue.clear();
+            mOnFeatureChangedQueue.clear();
+            provisioningManager.setProvisioningStatusForCapability(MMTEL_CAP_VIDEO,
+                    IMS_REGI_TECH_LTE, isProvisioned);
+            assertTrue(waitForParam(mOnFeatureChangedQueue,
+                    new Pair<>(MMTEL_CAP_VIDEO, new Pair<>(IMS_REGI_TECH_LTE, isProvisioned))));
+            assertTrue(waitForParam(mIntQueue,
+                    new Pair<>(KEY_VT_PROVISIONING_STATUS, isProvisioned ? 1 : 0)));
+            assertEquals(isProvisioned, provisioningManager
+                    .getProvisioningStatusForCapability(MMTEL_CAP_VIDEO, IMS_REGI_TECH_LTE));
+
+            TelephonyUtils.disableCompatCommand(InstrumentationRegistry.getInstrumentation(),
+                    TelephonyUtils.CTS_APP_PACKAGE,
+                    SUPPORT_PROVISION_STATUS_FOR_CAPABILITY_STRING);
+
+            // test get/setProvisioningStatusForCapability with lower bounding parameters
+            // when callback is not supported
+
+            isProvisioned = provisioningManager.getProvisioningStatusForCapability(
+                    MMTEL_CAP_VOICE, IMS_REGI_TECH_LTE);
+            mIntQueue.clear();
+            mOnFeatureChangedQueue.clear();
+            provisioningManager.setProvisioningStatusForCapability(
+                    MMTEL_CAP_VOICE, IMS_REGI_TECH_LTE, !isProvisioned);
+            assertTrue(waitForParam(mIntQueue,
+                    new Pair<>(KEY_VOLTE_PROVISIONING_STATUS, !isProvisioned ? 1 : 0)));
+            assertEquals(!isProvisioned,
+                    provisioningManager.getProvisioningStatusForCapability(
+                            MMTEL_CAP_VOICE, IMS_REGI_TECH_LTE));
+            isProvisioned = provisioningManager.getProvisioningStatusForCapability(
+                    MMTEL_CAP_VOICE, IMS_REGI_TECH_IWLAN);
+            mIntQueue.clear();
+            mOnFeatureChangedQueue.clear();
+            provisioningManager.setProvisioningStatusForCapability(
+                    MMTEL_CAP_VOICE, IMS_REGI_TECH_IWLAN, !isProvisioned);
+            assertTrue(waitForParam(mIntQueue,
+                    new Pair<>(KEY_VOICE_OVER_WIFI_ENABLED_OVERRIDE, !isProvisioned ? 1 : 0)));
+            assertEquals(!isProvisioned,
+                    provisioningManager.getProvisioningStatusForCapability(
+                            MMTEL_CAP_VOICE, IMS_REGI_TECH_IWLAN));
+
+            isProvisioned = provisioningManager.getProvisioningStatusForCapability(
+                    MMTEL_CAP_VIDEO, IMS_REGI_TECH_LTE);
+            mIntQueue.clear();
+            mOnFeatureChangedQueue.clear();
+            provisioningManager.setProvisioningStatusForCapability(
+                    MMTEL_CAP_VIDEO, IMS_REGI_TECH_LTE, !isProvisioned);
+            assertTrue(waitForParam(mIntQueue,
+                    new Pair<>(KEY_VT_PROVISIONING_STATUS, !isProvisioned ? 1 : 0)));
+            assertEquals(!isProvisioned,
+                    provisioningManager.getProvisioningStatusForCapability(
+                            MMTEL_CAP_VIDEO, IMS_REGI_TECH_LTE));
+
+            automan.adoptShellPermissionIdentity();
+            provisioningManager.unregisterProvisioningChangedCallback(callback);
+            provisioningManager.unregisterFeatureProvisioningChangedCallback(
+                    featureProvisioningCallback);
+        } finally {
+            TelephonyUtils.resetCompatCommand(InstrumentationRegistry.getInstrumentation(),
+                    TelephonyUtils.CTS_APP_PACKAGE,
+                    SUPPORT_PROVISION_STATUS_FOR_CAPABILITY_STRING);
+            automan.dropShellPermissionIdentity();
+        }
+    }
+
+    @Test
+    public void testProvisioningManagerWhenMmtelProvisionIsNotRequired() throws Exception {
+        if (!ImsUtils.shouldTestImsService()) {
+            return;
+        }
+
+        // test in case provision for mmtel is required
+        PersistableBundle bundle = new PersistableBundle();
+        PersistableBundle innerBundle = new PersistableBundle();
+
+        bundle.putPersistableBundle(
+                CarrierConfigManager.Ims.KEY_MMTEL_REQUIRES_PROVISIONING_BUNDLE,
+                innerBundle);
+        overrideCarrierConfig(bundle);
+
+        triggerFrameworkConnectToCarrierImsService();
+        ProvisioningManager provisioningManager =
+                ProvisioningManager.createForSubscriptionId(sTestSub);
+
+        LinkedBlockingQueue<Pair<Integer, Integer>> mIntQueue = new LinkedBlockingQueue<>();
+        LinkedBlockingQueue<Pair<Integer, Pair<Integer, Boolean>>> mOnFeatureChangedQueue =
+                new LinkedBlockingQueue<>();
+
+
+        ProvisioningManager.Callback callback = new ProvisioningManager.Callback() {};
+
+        ProvisioningManager.FeatureProvisioningCallback featureProvisioningCallback =
+                new ProvisioningManager.FeatureProvisioningCallback() {};
+
+        final UiAutomation automan = InstrumentationRegistry.getInstrumentation().getUiAutomation();
+        try {
+            automan.adoptShellPermissionIdentity();
+            provisioningManager.registerProvisioningChangedCallback(getContext().getMainExecutor(),
+                    callback);
+            provisioningManager.registerFeatureProvisioningChangedCallback(
+                    getContext().getMainExecutor(), featureProvisioningCallback);
+
+            // In case provisioning is not required
+            // true will be returned regardless of stored value
+            // ignore set value whatever value is set by app
+            // therefore set different value from current then check if the value has changed
+            // test get/setProvisioningStatusForCapability for VoLTE
+
+            // isProvisioningRequiredForCapability should return false because provision is not
+            // required
+            assertTrue(!provisioningManager.isProvisioningRequiredForCapability(
+                    MMTEL_CAP_VOICE, IMS_REGI_TECH_LTE));
+            // However, getProvisioningStatusForCapability() should return true because it does not
+            // require provision
+            assertTrue(provisioningManager.getProvisioningStatusForCapability(
+                    MMTEL_CAP_VOICE, IMS_REGI_TECH_LTE));
+            // put opposite value to check if the key is changed or not
+            provisioningManager.setProvisioningStatusForCapability(
+                    MMTEL_CAP_VOICE, IMS_REGI_TECH_LTE, false);
+            // key value should not be changed whatever value is set
+            assertTrue(provisioningManager.getProvisioningStatusForCapability(
+                    MMTEL_CAP_VOICE, IMS_REGI_TECH_LTE));
+
+            // test case for VoWIFI
+            assertTrue(!provisioningManager.isProvisioningRequiredForCapability(
+                    MMTEL_CAP_VOICE, IMS_REGI_TECH_IWLAN));
+            assertTrue(provisioningManager.getProvisioningStatusForCapability(
+                    MMTEL_CAP_VOICE, IMS_REGI_TECH_IWLAN));
+            provisioningManager.setProvisioningStatusForCapability(
+                    MMTEL_CAP_VOICE, IMS_REGI_TECH_IWLAN, false);
+            assertTrue(provisioningManager.getProvisioningStatusForCapability(
+                    MMTEL_CAP_VOICE, IMS_REGI_TECH_IWLAN));
+
+            // test case for VT
+            assertTrue(!provisioningManager.isProvisioningRequiredForCapability(
+                    MMTEL_CAP_VIDEO, IMS_REGI_TECH_LTE));
+            assertTrue(provisioningManager.getProvisioningStatusForCapability(
+                    MMTEL_CAP_VIDEO, IMS_REGI_TECH_LTE));
+            provisioningManager.setProvisioningStatusForCapability(
+                    MMTEL_CAP_VIDEO, IMS_REGI_TECH_LTE, false);
+            assertTrue(provisioningManager.getProvisioningStatusForCapability(
+                    MMTEL_CAP_VIDEO, IMS_REGI_TECH_LTE));
+
+            automan.adoptShellPermissionIdentity();
+            provisioningManager.unregisterProvisioningChangedCallback(callback);
+            provisioningManager.unregisterFeatureProvisioningChangedCallback(
+                    featureProvisioningCallback);
+        } finally {
+            automan.dropShellPermissionIdentity();
+        }
+    }
+
+    @Test
+    public void testProvisioningManagerWhenRcsProvisionIsRequired() throws Exception {
+        if (!ImsUtils.shouldTestImsSingleRegistration()) {
+            return;
+        }
+
+        PersistableBundle bundle = new PersistableBundle();
+        bundle.putBoolean(CarrierConfigManager.Ims.KEY_IMS_SINGLE_REGISTRATION_REQUIRED_BOOL,
+                true);
+
+        PersistableBundle innerBundle = new PersistableBundle();
+        innerBundle.putIntArray(
+                CarrierConfigManager.Ims.KEY_CAPABILITY_TYPE_PRESENCE_UCE_INT_ARRAY,
+                new int[]{IMS_REGI_TECH_LTE, IMS_REGI_TECH_IWLAN, IMS_REGI_TECH_CROSS_SIM,
+                        IMS_REGI_TECH_NR}
+        );
+        bundle.putPersistableBundle(
+                CarrierConfigManager.Ims.KEY_RCS_REQUIRES_PROVISIONING_BUNDLE,
+                innerBundle);
+
+        overrideCarrierConfig(bundle);
+
+        triggerFrameworkConnectToImsServiceBindMmTelAndRcsFeature();
+
+        ProvisioningManager provisioningManager =
+                ProvisioningManager.createForSubscriptionId(sTestSub);
+
+        LinkedBlockingQueue<Pair<Integer, Integer>> mIntQueue = new LinkedBlockingQueue<>();
+        LinkedBlockingQueue<Pair<Integer, Pair<Integer, Boolean>>> mOnRcsFeatureChangedQueue =
+                new LinkedBlockingQueue<>();
+
+        ProvisioningManager.Callback callback = new ProvisioningManager.Callback() {
+            @Override
+            public void onProvisioningIntChanged(int item, int value) {
+                mIntQueue.offer(new Pair<>(item, value));
+            }
+
+        };
+
+        ProvisioningManager.FeatureProvisioningCallback featureProvisioningCallback =
+                new ProvisioningManager.FeatureProvisioningCallback() {
+            @Override
+            public void onRcsFeatureProvisioningChanged(
+                    @RcsFeature.RcsImsCapabilities.RcsImsCapabilityFlag int capability,
+                    @ImsRegistrationImplBase.ImsRegistrationTech int tech,
+                    boolean isProvisioned) {
+                mOnRcsFeatureChangedQueue.offer(new Pair<>(capability,
+                        new Pair<>(tech, isProvisioned)));
+            }
+        };
+
+        final UiAutomation automan = InstrumentationRegistry.getInstrumentation().getUiAutomation();
+        try {
+            automan.adoptShellPermissionIdentity();
+            provisioningManager.registerProvisioningChangedCallback(getContext().getMainExecutor(),
+                    callback);
+            provisioningManager.registerFeatureProvisioningChangedCallback(
+                    getContext().getMainExecutor(), featureProvisioningCallback);
+
+            TelephonyUtils.enableCompatCommand(InstrumentationRegistry.getInstrumentation(),
+                    TelephonyUtils.CTS_APP_PACKAGE,
+                    SUPPORT_PROVISION_STATUS_FOR_CAPABILITY_STRING);
+
+            assertTrue(provisioningManager.isRcsProvisioningRequiredForCapability(
+                    RCS_CAP_PRESENCE, IMS_REGI_TECH_LTE));
+            assertTrue(provisioningManager.isRcsProvisioningRequiredForCapability(
+                    RCS_CAP_PRESENCE, IMS_REGI_TECH_IWLAN));
+            assertTrue(provisioningManager.isRcsProvisioningRequiredForCapability(
+                    RCS_CAP_PRESENCE, IMS_REGI_TECH_CROSS_SIM));
+            assertTrue(provisioningManager.isRcsProvisioningRequiredForCapability(
+                    RCS_CAP_PRESENCE, IMS_REGI_TECH_NR));
+
+            // test get/setRcsProvisioningStatusForCapability for PRESENCE over LTE
+            boolean isProvisioned = provisioningManager.getRcsProvisioningStatusForCapability(
+                    RCS_CAP_PRESENCE, IMS_REGI_TECH_LTE);
+            provisioningManager.setRcsProvisioningStatusForCapability(RCS_CAP_PRESENCE,
+                    IMS_REGI_TECH_LTE, !isProvisioned);
+            assertTrue(waitForParam(mOnRcsFeatureChangedQueue,
+                    new Pair<>(RCS_CAP_PRESENCE, new Pair<>(IMS_REGI_TECH_LTE, !isProvisioned))));
+            assertTrue(waitForParam(mIntQueue,
+                    new Pair<>(KEY_EAB_PROVISIONING_STATUS, !isProvisioned ? 1 : 0)));
+
+            provisioningManager.setRcsProvisioningStatusForCapability(RCS_CAP_PRESENCE,
+                    IMS_REGI_TECH_LTE, isProvisioned);
+            assertTrue(waitForParam(mOnRcsFeatureChangedQueue,
+                    new Pair<>(RCS_CAP_PRESENCE, new Pair<>(IMS_REGI_TECH_LTE, isProvisioned))));
+            assertTrue(waitForParam(mIntQueue,
+                    new Pair<>(KEY_EAB_PROVISIONING_STATUS, isProvisioned ? 1 : 0)));
+
+            // test get/setRcsProvisioningStatusForCapability for PRESENCE over IWLAN
+            isProvisioned = provisioningManager.getRcsProvisioningStatusForCapability(
+                    RCS_CAP_PRESENCE, IMS_REGI_TECH_IWLAN);
+            provisioningManager.setRcsProvisioningStatusForCapability(RCS_CAP_PRESENCE,
+                    IMS_REGI_TECH_IWLAN, !isProvisioned);
+            assertTrue(waitForParam(mOnRcsFeatureChangedQueue,
+                    new Pair<>(RCS_CAP_PRESENCE, new Pair<>(IMS_REGI_TECH_IWLAN, !isProvisioned))));
+            assertTrue(waitForParam(mIntQueue,
+                    new Pair<>(KEY_EAB_PROVISIONING_STATUS, !isProvisioned ? 1 : 0)));
+
+            provisioningManager.setRcsProvisioningStatusForCapability(RCS_CAP_PRESENCE,
+                    IMS_REGI_TECH_IWLAN, isProvisioned);
+            assertTrue(waitForParam(mOnRcsFeatureChangedQueue,
+                    new Pair<>(RCS_CAP_PRESENCE, new Pair<>(IMS_REGI_TECH_IWLAN, isProvisioned))));
+            assertTrue(waitForParam(mIntQueue,
+                    new Pair<>(KEY_EAB_PROVISIONING_STATUS, isProvisioned ? 1 : 0)));
+
+            // test get/setRcsProvisioningStatusForCapability for PRESENCE over CROSS SIM
+            isProvisioned = provisioningManager.getRcsProvisioningStatusForCapability(
+                    RCS_CAP_PRESENCE, IMS_REGI_TECH_CROSS_SIM);
+            provisioningManager.setRcsProvisioningStatusForCapability(RCS_CAP_PRESENCE,
+                    IMS_REGI_TECH_CROSS_SIM, !isProvisioned);
+            assertTrue(waitForParam(mOnRcsFeatureChangedQueue,
+                    new Pair<>(RCS_CAP_PRESENCE,
+                            new Pair<>(IMS_REGI_TECH_CROSS_SIM, !isProvisioned))));
+            assertTrue(waitForParam(mIntQueue,
+                    new Pair<>(KEY_EAB_PROVISIONING_STATUS, !isProvisioned ? 1 : 0)));
+
+            provisioningManager.setRcsProvisioningStatusForCapability(RCS_CAP_PRESENCE,
+                    IMS_REGI_TECH_CROSS_SIM, isProvisioned);
+            assertTrue(waitForParam(mOnRcsFeatureChangedQueue,
+                    new Pair<>(RCS_CAP_PRESENCE,
+                            new Pair<>(IMS_REGI_TECH_CROSS_SIM, isProvisioned))));
+            assertTrue(waitForParam(mIntQueue,
+                    new Pair<>(KEY_EAB_PROVISIONING_STATUS, isProvisioned ? 1 : 0)));
+
+            // test get/setRcsProvisioningStatusForCapability for PRESENCE over NR
+            isProvisioned = provisioningManager.getRcsProvisioningStatusForCapability(
+                    RCS_CAP_PRESENCE, IMS_REGI_TECH_NR);
+            provisioningManager.setRcsProvisioningStatusForCapability(RCS_CAP_PRESENCE,
+                    IMS_REGI_TECH_NR, !isProvisioned);
+            assertTrue(waitForParam(mOnRcsFeatureChangedQueue,
+                    new Pair<>(RCS_CAP_PRESENCE, new Pair<>(IMS_REGI_TECH_NR, !isProvisioned))));
+            assertTrue(waitForParam(mIntQueue,
+                    new Pair<>(KEY_EAB_PROVISIONING_STATUS, !isProvisioned ? 1 : 0)));
+
+            provisioningManager.setRcsProvisioningStatusForCapability(RCS_CAP_PRESENCE,
+                    IMS_REGI_TECH_NR, isProvisioned);
+            assertTrue(waitForParam(mOnRcsFeatureChangedQueue,
+                    new Pair<>(RCS_CAP_PRESENCE, new Pair<>(IMS_REGI_TECH_NR, isProvisioned))));
+            assertTrue(waitForParam(mIntQueue,
+                    new Pair<>(KEY_EAB_PROVISIONING_STATUS, isProvisioned ? 1 : 0)));
+
+            // TODO : work for OPTIONS case
+
+            automan.adoptShellPermissionIdentity();
+            provisioningManager.unregisterProvisioningChangedCallback(callback);
+            provisioningManager.unregisterFeatureProvisioningChangedCallback(
+                    featureProvisioningCallback);
+        } finally {
+            TelephonyUtils.resetCompatCommand(InstrumentationRegistry.getInstrumentation(),
+                    TelephonyUtils.CTS_APP_PACKAGE,
+                    SUPPORT_PROVISION_STATUS_FOR_CAPABILITY_STRING);
+
+            automan.dropShellPermissionIdentity();
+        }
+    }
+
+    @Test
+    public void testProvisioningManagerWhenRcsProvisionIsNotRequired() throws Exception {
+        if (!ImsUtils.shouldTestImsSingleRegistration()) {
+            return;
+        }
+
+        PersistableBundle bundle = new PersistableBundle();
+        bundle.putBoolean(CarrierConfigManager.Ims.KEY_IMS_SINGLE_REGISTRATION_REQUIRED_BOOL,
+                true);
+
+        PersistableBundle innerBundle = new PersistableBundle();
+        bundle.putPersistableBundle(
+                CarrierConfigManager.Ims.KEY_RCS_REQUIRES_PROVISIONING_BUNDLE,
+                innerBundle);
+
+        overrideCarrierConfig(bundle);
+
+        triggerFrameworkConnectToImsServiceBindMmTelAndRcsFeature();
+
+        ProvisioningManager provisioningManager =
+                ProvisioningManager.createForSubscriptionId(sTestSub);
+        ProvisioningManager.Callback callback = new ProvisioningManager.Callback() {};
+        ProvisioningManager.FeatureProvisioningCallback featureProvisioningCallback =
+                new ProvisioningManager.FeatureProvisioningCallback() {};
+
+        final UiAutomation automan = InstrumentationRegistry.getInstrumentation().getUiAutomation();
+        try {
+            automan.adoptShellPermissionIdentity();
+            provisioningManager.registerProvisioningChangedCallback(getContext().getMainExecutor(),
+                    callback);
+            provisioningManager.registerFeatureProvisioningChangedCallback(
+                    getContext().getMainExecutor(), featureProvisioningCallback);
+
+            TelephonyUtils.enableCompatCommand(InstrumentationRegistry.getInstrumentation(),
+                    TelephonyUtils.CTS_APP_PACKAGE,
+                    SUPPORT_PROVISION_STATUS_FOR_CAPABILITY_STRING);
+
+            assertTrue(!provisioningManager.isRcsProvisioningRequiredForCapability(
+                    RCS_CAP_PRESENCE, IMS_REGI_TECH_LTE));
+            assertTrue(!provisioningManager.isRcsProvisioningRequiredForCapability(
+                    RCS_CAP_PRESENCE, IMS_REGI_TECH_IWLAN));
+            assertTrue(!provisioningManager.isRcsProvisioningRequiredForCapability(
+                    RCS_CAP_PRESENCE, IMS_REGI_TECH_CROSS_SIM));
+            assertTrue(!provisioningManager.isRcsProvisioningRequiredForCapability(
+                    RCS_CAP_PRESENCE, IMS_REGI_TECH_NR));
+
+            // However, getProvisioningStatusForCapability() should return true because it does not
+            // require provision
+            assertTrue(provisioningManager.getProvisioningStatusForCapability(
+                    RCS_CAP_PRESENCE, IMS_REGI_TECH_LTE));
+            // put opposite value to check if the key is changed or not
+            provisioningManager.setProvisioningStatusForCapability(
+                    RCS_CAP_PRESENCE, IMS_REGI_TECH_LTE, false);
+            // key value should not be changed whatever value is set
+            assertTrue(provisioningManager.getProvisioningStatusForCapability(
+                    RCS_CAP_PRESENCE, IMS_REGI_TECH_LTE));
+
+            assertTrue(provisioningManager.getProvisioningStatusForCapability(
+                    RCS_CAP_PRESENCE, IMS_REGI_TECH_IWLAN));
+            provisioningManager.setProvisioningStatusForCapability(
+                    RCS_CAP_PRESENCE, IMS_REGI_TECH_IWLAN, false);
+            assertTrue(provisioningManager.getProvisioningStatusForCapability(
+                    RCS_CAP_PRESENCE, IMS_REGI_TECH_IWLAN));
+
+            assertTrue(provisioningManager.getProvisioningStatusForCapability(
+                    RCS_CAP_PRESENCE, IMS_REGI_TECH_CROSS_SIM));
+            provisioningManager.setProvisioningStatusForCapability(
+                    RCS_CAP_PRESENCE, IMS_REGI_TECH_CROSS_SIM, false);
+            assertTrue(provisioningManager.getProvisioningStatusForCapability(
+                    RCS_CAP_PRESENCE, IMS_REGI_TECH_CROSS_SIM));
+
+            assertTrue(provisioningManager.getProvisioningStatusForCapability(
+                    RCS_CAP_PRESENCE, IMS_REGI_TECH_NR));
+            provisioningManager.setProvisioningStatusForCapability(
+                    RCS_CAP_PRESENCE, IMS_REGI_TECH_NR, false);
+            assertTrue(provisioningManager.getProvisioningStatusForCapability(
+                    RCS_CAP_PRESENCE, IMS_REGI_TECH_NR));
+
+            // TODO : work for OPTIONS case
+
+            automan.adoptShellPermissionIdentity();
+            provisioningManager.unregisterProvisioningChangedCallback(callback);
+            provisioningManager.unregisterFeatureProvisioningChangedCallback(
+                    featureProvisioningCallback);
+        } finally {
+            TelephonyUtils.resetCompatCommand(InstrumentationRegistry.getInstrumentation(),
+                    TelephonyUtils.CTS_APP_PACKAGE,
+                    SUPPORT_PROVISION_STATUS_FOR_CAPABILITY_STRING);
+
             automan.dropShellPermissionIdentity();
         }
     }
@@ -3327,7 +3972,15 @@ public class ImsServiceTest {
 
         PersistableBundle bundle = new PersistableBundle();
         bundle.putBoolean(CarrierConfigManager.KEY_CARRIER_SUPPORTS_SS_OVER_UT_BOOL, true);
-        bundle.putBoolean(CarrierConfigManager.KEY_CARRIER_UT_PROVISIONING_REQUIRED_BOOL, true);
+
+        PersistableBundle innerBundle = new PersistableBundle();
+        innerBundle.putIntArray(
+                CarrierConfigManager.Ims.KEY_CAPABILITY_TYPE_UT_INT_ARRAY,
+                new int[]{IMS_REGI_TECH_LTE}); // UT/LTE
+        bundle.putPersistableBundle(
+                CarrierConfigManager.Ims.KEY_MMTEL_REQUIRES_PROVISIONING_BUNDLE,
+                innerBundle);
+
         overrideCarrierConfig(bundle);
 
         ProvisioningManager provisioningManager =
@@ -3338,22 +3991,22 @@ public class ImsServiceTest {
             automan.adoptShellPermissionIdentity();
             boolean provisioningStatus = provisioningManager.getProvisioningStatusForCapability(
                     MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_UT,
-                    ImsRegistrationImplBase.REGISTRATION_TECH_LTE);
+                    IMS_REGI_TECH_LTE);
             provisioningManager.setProvisioningStatusForCapability(
                     MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_UT,
-                    ImsRegistrationImplBase.REGISTRATION_TECH_LTE, !provisioningStatus);
+                    IMS_REGI_TECH_LTE, !provisioningStatus);
             // Make sure the change in provisioning status is correctly returned.
             assertEquals(!provisioningStatus,
                     provisioningManager.getProvisioningStatusForCapability(
                             MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_UT,
-                            ImsRegistrationImplBase.REGISTRATION_TECH_LTE));
+                            IMS_REGI_TECH_LTE));
             // TODO: Enhance test to make sure the provisioning change is also sent to the
             // ImsService
 
             // set back to current status
             provisioningManager.setProvisioningStatusForCapability(
                     MmTelFeature.MmTelCapabilities.CAPABILITY_TYPE_UT,
-                    ImsRegistrationImplBase.REGISTRATION_TECH_LTE, provisioningStatus);
+                    IMS_REGI_TECH_LTE, provisioningStatus);
         } finally {
             automan.dropShellPermissionIdentity();
         }
@@ -3363,7 +4016,7 @@ public class ImsServiceTest {
 
     @Test
     public void testProvisioningManagerRcsProvisioningCaps() throws Exception {
-        if (!ImsUtils.shouldTestImsService()) {
+        if (!ImsUtils.shouldTestImsSingleRegistration()) {
             return;
         }
 
@@ -3375,7 +4028,19 @@ public class ImsServiceTest {
                 true);
         bundle.putBoolean(CarrierConfigManager.Ims.KEY_RCS_BULK_CAPABILITY_EXCHANGE_BOOL, true);
         bundle.putBoolean(CarrierConfigManager.KEY_CARRIER_RCS_PROVISIONING_REQUIRED_BOOL, true);
+        bundle.putBoolean(CarrierConfigManager.Ims.KEY_IMS_SINGLE_REGISTRATION_REQUIRED_BOOL,
+                true);
+        PersistableBundle innerBundle = new PersistableBundle();
+        innerBundle.putIntArray(
+                CarrierConfigManager.Ims.KEY_CAPABILITY_TYPE_PRESENCE_UCE_INT_ARRAY,
+                new int[]{IMS_REGI_TECH_LTE, IMS_REGI_TECH_IWLAN, IMS_REGI_TECH_CROSS_SIM,
+                        IMS_REGI_TECH_NR}
+        );
+        bundle.putPersistableBundle(
+                CarrierConfigManager.Ims.KEY_RCS_REQUIRES_PROVISIONING_BUNDLE,
+                innerBundle);
         overrideCarrierConfig(bundle);
+
 
         ProvisioningManager provisioningManager =
                 ProvisioningManager.createForSubscriptionId(sTestSub);
@@ -3391,7 +4056,7 @@ public class ImsServiceTest {
             assertEquals(!provisioningStatus,
                     provisioningManager.getRcsProvisioningStatusForCapability(RCS_CAP_PRESENCE));
             // TODO: Enhance test to make sure the provisioning change is also sent to the
-            // ImsService
+            //  ImsService
 
             // set back to current status
             provisioningManager.setRcsProvisioningStatusForCapability(RCS_CAP_PRESENCE,
@@ -4377,5 +5042,9 @@ public class ImsServiceTest {
         if (c >= 'a' && c <= 'f') return (c - 'a' + 10);
 
         throw new RuntimeException("Invalid hex char '" + c + "'");
+    }
+
+    private boolean isExpectedSubId(HashSet<Integer> subIDs) {
+        return (subIDs.size() == 1) && subIDs.contains(sTestSub);
     }
 }

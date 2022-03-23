@@ -17,7 +17,6 @@
 package android.hdmicec.cts.common;
 
 import static com.google.common.truth.Truth.assertThat;
-import static com.google.common.truth.Truth.assertWithMessage;
 
 import android.hdmicec.cts.BaseHdmiCecCtsTest;
 import android.hdmicec.cts.CecMessage;
@@ -315,17 +314,9 @@ public final class HdmiCecPowerStatusTest extends BaseHdmiCecCtsTest {
         for (Integer operand : powerControlOperands) {
             try {
                 sendDeviceToSleep();
-                String wakeStateBefore = device.executeShellCommand(
-                        "dumpsys power | grep mWakefulness=");
-                assertThat(wakeStateBefore.trim()).isEqualTo("mWakefulness=Asleep");
-
                 hdmiCecClient.sendUserControlPressAndRelease(source, operand, false);
-
                 TimeUnit.SECONDS.sleep(HdmiCecConstants.DEVICE_WAIT_TIME_SECONDS);
-                String wakeStateAfter = device.executeShellCommand(
-                        "dumpsys power | grep mWakefulness=");
-                assertWithMessage("Device should wake up on <User Control Pressed> %s", operand)
-                        .that(wakeStateAfter.trim()).isEqualTo("mWakefulness=Awake");
+                assertDeviceWakefulness(HdmiCecConstants.WAKEFULNESS_AWAKE);
             } finally {
                 wakeUpDevice();
             }
@@ -352,19 +343,10 @@ public final class HdmiCecPowerStatusTest extends BaseHdmiCecCtsTest {
         for (Integer operand : powerControlOperands) {
             try {
                 wakeUpDevice();
-                String wakeStateBefore = device.executeShellCommand(
-                        "dumpsys power | grep mWakefulness=");
-                assertThat(wakeStateBefore.trim()).isEqualTo("mWakefulness=Awake");
-
                 WakeLockHelper.acquirePartialWakeLock(device);
                 hdmiCecClient.sendUserControlPressAndRelease(source, operand, false);
-
                 TimeUnit.SECONDS.sleep(HdmiCecConstants.DEVICE_WAIT_TIME_SECONDS);
-                String wakeStateAfter = device.executeShellCommand(
-                        "dumpsys power | grep mWakefulness=");
-                assertWithMessage("Device should go to standby on <User Control Pressed> %s",
-                        operand)
-                        .that(wakeStateAfter.trim()).isEqualTo("mWakefulness=Asleep");
+                assertDeviceWakefulness(HdmiCecConstants.WAKEFULNESS_ASLEEP);
             } finally {
                 wakeUpDevice();
             }
@@ -390,6 +372,34 @@ public final class HdmiCecPowerStatusTest extends BaseHdmiCecCtsTest {
         } finally {
             wakeUpDevice();
             setPowerControlMode(previousPowerControlMode);
+        }
+    }
+
+    /**
+     * Test HF4-6-27 (CEC 2.0)
+     *
+     * <p>Verify that action of a {@code <Standby>} message can only be used to send a device to
+     * the standby state.
+     */
+    @Test
+    public void cect_hf4_6_27_standby_action_20() throws Exception {
+        ITestDevice device = getDevice();
+        /* Make sure the device is not booting up/in standby */
+        device.waitForBootComplete(HdmiCecConstants.REBOOT_TIMEOUT);
+        setCec20();
+        try {
+            // Directly addressed standby message to DUT.
+            sendDeviceToSleepAndValidateUsingStandbyMessage(true);
+            // Resending Standby message and validate device stays in standby mode
+            sendDeviceToSleepAndValidateUsingStandbyMessage(true);
+            wakeUpDevice();
+
+            // Broadcast standby message.
+            sendDeviceToSleepAndValidateUsingStandbyMessage(false);
+            // Resending Standby message and validate device stays in standby mode
+            sendDeviceToSleepAndValidateUsingStandbyMessage(false);
+        } finally {
+            wakeUpDevice();
         }
     }
 

@@ -130,6 +130,10 @@ public final class HdmiCecConstants {
     public static final int CEC_POWER_STATUS_IN_TRANSITION_TO_ON = 0x2;
     public static final int CEC_POWER_STATUS_IN_TRANSITION_TO_STANDBY = 0x3;
 
+    /** PowerManager wakefulness states */
+    public static final String WAKEFULNESS_AWAKE = "Awake";
+    public static final String WAKEFULNESS_ASLEEP = "Asleep";
+
     /** Poll Message Success */
     public static final String POLL_SUCCESS = "POLL message sent";
 
@@ -139,6 +143,7 @@ public final class HdmiCecConstants {
 
     // CEC Device property list
     public static final String HDMI_DEVICE_TYPE_PROPERTY = "ro.hdmi.device_type";
+    public static final String PROPERTY_ARC_SUPPORT = "persist.sys.hdmi.property_arc_support";
 
     /*
      * The default name of local directory into which the port to device mapping files are stored.
@@ -146,12 +151,22 @@ public final class HdmiCecConstants {
     public static final File CEC_MAP_FOLDER =
             new File(System.getProperty("java.io.tmpdir"), "cec-cts-temp");
 
+    // CEC Settings
+    public static final String SETTING_VOLUME_CONTROL_ENABLED = "volume_control_enabled";
+
+    // CEC Settings Values
+    public static final String VOLUME_CONTROL_ENABLED = "1";
 
     // Power Control Modes for source devices
     public static final String POWER_CONTROL_MODE_BROADCAST = "broadcast";
     public static final String POWER_CONTROL_MODE_NONE = "none";
     public static final String POWER_CONTROL_MODE_TV = "to_tv";
 
+    // Power State Change on Active Source Lost Settings values
+    public static final String POWER_STATE_CHANGE_ON_ACTIVE_SOURCE_LOST_NONE = "none";
+    public static final String POWER_STATE_CHANGE_ON_ACTIVE_SOURCE_LOST_STANDBY_NOW = "standby_now";
+
     // CEC 2.0 Report Feature Bits
     public static final int FEATURES_SINK_SUPPORTS_ARC_TX_BIT = 0x4;
+    public static final int FEATURES_SINK_SUPPORTS_ARC_RX_BIT = 0x2;
 }
