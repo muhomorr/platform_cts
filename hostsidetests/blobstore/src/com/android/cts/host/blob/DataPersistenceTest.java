@@ -31,7 +31,7 @@ public class DataPersistenceTest extends BaseBlobStoreHostTest {
         rebootAndWaitUntilReady();
         runDeviceTest(TARGET_PKG, TEST_CLASS, "testOpenSessionAndWrite");
         rebootAndWaitUntilReady();
-        runDeviceTest(TARGET_PKG, TEST_CLASS, "testCommitSessionAndAcquireLease");
+        runDeviceTest(TARGET_PKG, TEST_CLASS, "testCommitSession");
         rebootAndWaitUntilReady();
         runDeviceTest(TARGET_PKG, TEST_CLASS, "testOpenBlob");
     }

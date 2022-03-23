@@ -60,27 +60,6 @@ public abstract class ApiPresenceCheckerTest<T extends ApiPresenceChecker> {
         return clz;
     }
 
-    protected static void addConstructor(JDiffClassDescription clz, String... paramTypes) {
-        JDiffClassDescription.JDiffConstructor constructor =
-            new JDiffClassDescription.JDiffConstructor(clz.getShortClassName(), Modifier.PUBLIC);
-        if (paramTypes != null) {
-            for (String type : paramTypes) {
-                constructor.addParam(type);
-            }
-        }
-        clz.addConstructor(constructor);
-    }
-
-    protected static void addPublicVoidMethod(JDiffClassDescription clz, String name) {
-        clz.addMethod(method(name, Modifier.PUBLIC, "void"));
-    }
-
-    protected static void addPublicBooleanField(JDiffClassDescription clz, String name) {
-        JDiffClassDescription.JDiffField field = new JDiffClassDescription.JDiffField(
-                name, "boolean", Modifier.PUBLIC, VALUE);
-        clz.addField(field);
-    }
-
     void checkSignatureCompliance(JDiffClassDescription classDescription,
             String... excludedRuntimeClassNames) {
         ResultObserver resultObserver = new NoFailures();
@@ -112,10 +91,6 @@ public abstract class ApiPresenceCheckerTest<T extends ApiPresenceChecker> {
         return clz;
     }
 
-    protected static JDiffClassDescription.JDiffConstructor ctor(String name, int modifiers) {
-        return new JDiffClassDescription.JDiffConstructor(name, modifiers);
-    }
-
     protected static JDiffClassDescription.JDiffMethod method(
             String name, int modifiers, String returnType) {
         return new JDiffClassDescription.JDiffMethod(name, modifiers, returnType);
@@ -124,14 +99,13 @@ public abstract class ApiPresenceCheckerTest<T extends ApiPresenceChecker> {
     protected static class NoFailures implements ResultObserver {
 
         @Override
-        public void notifyFailure(FailureType type, String name, String errmsg,
-                Throwable throwable) {
+        public void notifyFailure(FailureType type, String name, String errmsg) {
             Assert.fail("Saw unexpected test failure: " + name + " failure type: " + type
-                    + " error message: " + errmsg + " throwable: " + throwable);
+                    + " error message: " + errmsg);
         }
     }
 
-    protected static class ExpectFailure implements ResultObserver, AutoCloseable {
+    protected static class ExpectFailure implements ResultObserver {
 
         private FailureType expectedType;
 
@@ -142,8 +116,7 @@ public abstract class ApiPresenceCheckerTest<T extends ApiPresenceChecker> {
         }
 
         @Override
-        public void notifyFailure(FailureType type, String name, String errMsg,
-                Throwable throwable) {
+        public void notifyFailure(FailureType type, String name, String errMsg) {
             if (type == expectedType) {
                 if (failureSeen) {
                     Assert.fail("Saw second test failure: " + name + " failure type: " + type);
@@ -154,11 +127,6 @@ public abstract class ApiPresenceCheckerTest<T extends ApiPresenceChecker> {
             } else {
                 Assert.fail("Saw unexpected test failure: " + name + " failure type: " + type);
             }
-        }
-
-        @Override
-        public void close() {
-            validate();
         }
 
         void validate() {

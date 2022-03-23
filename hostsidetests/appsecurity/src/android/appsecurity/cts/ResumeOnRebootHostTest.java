@@ -40,8 +40,6 @@ import org.junit.runner.RunWith;
 
 import java.util.ArrayList;
 import java.util.concurrent.TimeUnit;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * Set of tests that verify behavior of Resume on Reboot, if supported.
@@ -57,7 +55,7 @@ public class ResumeOnRebootHostTest extends BaseHostJUnit4Test {
     private static final String CLASS = PKG + ".EncryptionAppTest";
     private static final String APK = "CtsEncryptionApp.apk";
 
-    private static final String OTHER_APK = "CtsSplitApp.apk";
+    private static final String OTHER_APK = "CtsSplitApp29.apk";
     private static final String OTHER_PKG = "com.android.cts.splitapp";
 
     private static final String FEATURE_REBOOT_ESCROW = "feature:android.hardware.reboot_escrow";
@@ -70,7 +68,6 @@ public class ResumeOnRebootHostTest extends BaseHostJUnit4Test {
 
     private static final int USER_SWITCH_TIMEOUT_SECONDS = 10;
     private static final long USER_SWITCH_WAIT = TimeUnit.SECONDS.toMillis(10);
-    private static final int UNLOCK_BROADCAST_WAIT_SECONDS = 10;
 
     private boolean mSupportsMultiUser;
 
@@ -86,7 +83,6 @@ public class ResumeOnRebootHostTest extends BaseHostJUnit4Test {
 
         removeTestPackages();
         deviceDisableDeviceConfigSync();
-        deviceSetupServerBasedParameter();
     }
 
     @After
@@ -96,8 +92,46 @@ public class ResumeOnRebootHostTest extends BaseHostJUnit4Test {
     }
 
     @Test
+    public void resumeOnReboot_SingleUser_Success() throws Exception {
+        if (!isSupportedDevice()) {
+            CLog.v(TAG, "Device not supported; skipping test");
+            return;
+        }
+
+        int[] users = Utils.prepareSingleUser(getDevice());
+        int initialUser = users[0];
+
+        // Clean up the server based parameters for HAL based test.
+        deviceCleanupServerBasedParameter();
+
+        try {
+            installTestPackages();
+
+            deviceSetup(initialUser);
+            deviceRequestLskf();
+            deviceLock(initialUser);
+            deviceEnterLskf(initialUser);
+            deviceRebootAndApply();
+
+            runDeviceTestsAsUser("testVerifyUnlockedAndDismiss", initialUser);
+        } finally {
+            try {
+                // Remove secure lock screens and tear down test app
+                runDeviceTestsAsUser("testTearDown", initialUser);
+
+                deviceClearLskf();
+            } finally {
+                removeTestPackages();
+            }
+        }
+    }
+
+    @Test
     public void resumeOnReboot_ManagedProfile_Success() throws Exception {
-        assumeTrue("Device isn't at least S or has no lock screen", isSupportedSDevice());
+        if (!isSupportedDevice()) {
+            CLog.v(TAG, "Device not supported; skipping test");
+            return;
+        }
 
         if (!getDevice().hasFeature("android.software.managed_users")) {
             CLog.v(TAG, "Device doesn't support managed users; skipping test");
@@ -108,6 +142,8 @@ public class ResumeOnRebootHostTest extends BaseHostJUnit4Test {
         int initialUser = users[0];
 
         int managedUserId = createManagedProfile(initialUser);
+
+        deviceCleanupServerBasedParameter();
 
         try {
             // Set up test app and secure lock screens
@@ -138,7 +174,10 @@ public class ResumeOnRebootHostTest extends BaseHostJUnit4Test {
 
     @Test
     public void resumeOnReboot_TwoUsers_SingleUserUnlock_Success() throws Exception {
-        assumeTrue("Device isn't at least S or has no lock screen", isSupportedSDevice());
+        if (!isSupportedDevice()) {
+            CLog.v(TAG, "Device not supported; skipping test");
+            return;
+        }
 
         if (!mSupportsMultiUser) {
             CLog.v(TAG, "Device doesn't support multi-user; skipping test");
@@ -148,6 +187,8 @@ public class ResumeOnRebootHostTest extends BaseHostJUnit4Test {
         int[] users = Utils.prepareMultipleUsers(getDevice(), 2);
         int initialUser = users[0];
         int secondaryUser = users[1];
+
+        deviceCleanupServerBasedParameter();
 
         try {
             // Set up test app and secure lock screens
@@ -190,7 +231,10 @@ public class ResumeOnRebootHostTest extends BaseHostJUnit4Test {
 
     @Test
     public void resumeOnReboot_TwoUsers_BothUserUnlock_Success() throws Exception {
-        assumeTrue("Device isn't at least S or has no lock screen", isSupportedSDevice());
+        if (!isSupportedDevice()) {
+            CLog.v(TAG, "Device not supported; skipping test");
+            return;
+        }
 
         if (!mSupportsMultiUser) {
             CLog.v(TAG, "Device doesn't support multi-user; skipping test");
@@ -200,6 +244,8 @@ public class ResumeOnRebootHostTest extends BaseHostJUnit4Test {
         int[] users = Utils.prepareMultipleUsers(getDevice(), 2);
         int initialUser = users[0];
         int secondaryUser = users[1];
+
+        deviceCleanupServerBasedParameter();
 
         try {
             installTestPackages();
@@ -242,12 +288,22 @@ public class ResumeOnRebootHostTest extends BaseHostJUnit4Test {
         }
     }
 
+    private boolean isSupportedSDevice() throws Exception {
+        // The following tests targets API level >= S.
+        boolean isAtleastS = ApiLevelUtil.isAfter(getDevice(), 30 /* BUILD.VERSION_CODES.R */)
+                || ApiLevelUtil.codenameEquals(getDevice(), "S");
+
+        return isAtleastS && getDevice().hasFeature(FEATURE_SECURE_LOCK_SCREEN);
+    }
+
     @Test
     public void resumeOnReboot_SingleUser_ServerBased_Success() throws Exception {
-        assumeTrue("Device isn't at least S or has no lock screen", isSupportedSDevice());
+        assumeTrue("Device isn't at least S or have no lock screen", isSupportedSDevice());
 
         int[] users = Utils.prepareSingleUser(getDevice());
         int initialUser = users[0];
+
+        deviceSetupServerBasedParameter();
 
         try {
             installTestPackages();
@@ -268,6 +324,7 @@ public class ResumeOnRebootHostTest extends BaseHostJUnit4Test {
                 deviceClearLskf();
             } finally {
                 removeTestPackages();
+                deviceCleanupServerBasedParameter();
 
                 getDevice().rebootUntilOnline();
                 getDevice().waitForDeviceAvailable();
@@ -277,10 +334,12 @@ public class ResumeOnRebootHostTest extends BaseHostJUnit4Test {
 
     @Test
     public void resumeOnReboot_SingleUser_MultiClient_ClientASuccess() throws Exception {
-        assumeTrue("Device isn't at least S or has no lock screen", isSupportedSDevice());
+        assumeTrue("Device isn't at least S or have no lock screen", isSupportedSDevice());
 
         int[] users = Utils.prepareSingleUser(getDevice());
         int initialUser = users[0];
+
+        deviceSetupServerBasedParameter();
 
         final String clientA = "ClientA";
         final String clientB = "ClientB";
@@ -308,6 +367,7 @@ public class ResumeOnRebootHostTest extends BaseHostJUnit4Test {
                 deviceClearLskf();
             } finally {
                 removeTestPackages();
+                deviceCleanupServerBasedParameter();
 
                 getDevice().rebootUntilOnline();
                 getDevice().waitForDeviceAvailable();
@@ -317,10 +377,12 @@ public class ResumeOnRebootHostTest extends BaseHostJUnit4Test {
 
     @Test
     public void resumeOnReboot_SingleUser_MultiClient_ClientBSuccess() throws Exception {
-        assumeTrue("Device isn't at least S or has no lock screen", isSupportedSDevice());
+        assumeTrue("Device isn't at least S or have no lock screen", isSupportedSDevice());
 
         int[] users = Utils.prepareSingleUser(getDevice());
         int initialUser = users[0];
+
+        deviceSetupServerBasedParameter();
 
         final String clientA = "ClientA";
         final String clientB = "ClientB";
@@ -347,6 +409,7 @@ public class ResumeOnRebootHostTest extends BaseHostJUnit4Test {
                 deviceClearLskf();
             } finally {
                 removeTestPackages();
+                deviceCleanupServerBasedParameter();
 
                 getDevice().rebootUntilOnline();
                 getDevice().waitForDeviceAvailable();
@@ -356,8 +419,8 @@ public class ResumeOnRebootHostTest extends BaseHostJUnit4Test {
 
     private void deviceDisableDeviceConfigSync() throws Exception {
         getDevice().executeShellCommand("device_config set_sync_disabled_for_tests persistent");
-        String res = getDevice().executeShellCommand("device_config get_sync_disabled_for_tests");
-        if (res == null || !res.contains("persistent")) {
+        String res = getDevice().executeShellCommand("device_config is_sync_disabled_for_tests");
+        if (res == null || !res.contains("true")) {
             CLog.w(TAG, "Could not disable device config for test");
         }
     }
@@ -452,32 +515,11 @@ public class ResumeOnRebootHostTest extends BaseHostJUnit4Test {
         runDeviceTestsAsUser("testUnlockScreen", userId);
     }
 
-    private void verifyLskfCaptured(String clientName) throws Exception {
-        HostSideTestUtils.waitUntil("Lskf isn't captured after "
-                        + UNLOCK_BROADCAST_WAIT_SECONDS + " seconds for " + clientName,
-                UNLOCK_BROADCAST_WAIT_SECONDS, () -> isLskfCapturedForClient(clientName));
-    }
-
-    private boolean isLskfCapturedForClient(String clientName) throws Exception {
-        Pattern pattern = Pattern.compile(".*LSKF capture status: (\\w+)");
-        String status = getDevice().executeShellCommand(
-                "cmd recovery is-lskf-captured " + clientName);
-        Matcher matcher = pattern.matcher(status);
-        if (!matcher.find()) {
-            CLog.i(TAG, "is-lskf-captured isn't implemented on build, assuming captured");
-            return true;
-        }
-
-        return "true".equalsIgnoreCase(matcher.group(1));
-    }
-
     private void deviceRebootAndApply() throws Exception {
         deviceRebootAndApply(PKG);
     }
 
     private void deviceRebootAndApply(String clientName) throws Exception {
-        verifyLskfCaptured(clientName);
-
         String res = getDevice().executeShellCommand("cmd recovery reboot-and-apply " + clientName
                 + " cts-test");
         if (res != null && res.contains("Reboot and apply status: failure")) {
@@ -565,12 +607,9 @@ public class ResumeOnRebootHostTest extends BaseHostJUnit4Test {
         Utils.runDeviceTestsAsCurrentUser(getDevice(), PKG, CLASS, testMethodName);
     }
 
-    private boolean isSupportedSDevice() throws Exception {
-        // The following tests targets API level >= S.
-        boolean isAtleastS = ApiLevelUtil.isAfter(getDevice(), 30 /* BUILD.VERSION_CODES.R */)
-                || ApiLevelUtil.codenameEquals(getDevice(), "S");
-
-        return isAtleastS && getDevice().hasFeature(FEATURE_SECURE_LOCK_SCREEN);
+    private boolean isSupportedDevice() throws Exception {
+        return getDevice().hasFeature(FEATURE_DEVICE_ADMIN)
+                && getDevice().hasFeature(FEATURE_REBOOT_ESCROW);
     }
 
     private class InstallMultiple extends BaseInstallMultiple<InstallMultiple> {

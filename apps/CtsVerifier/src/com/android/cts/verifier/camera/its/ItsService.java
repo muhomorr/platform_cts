@@ -150,6 +150,8 @@ public class ItsService extends Service implements SensorEventListener {
 
     // Performance class R version number
     private static final int PERFORMANCE_CLASS_R = Build.VERSION_CODES.R;
+    // Performance class S version number
+    private static final int PERFORMANCE_CLASS_S = Build.VERSION_CODES.R + 1;
 
     public static final int SERVERPORT = 6000;
 
@@ -165,7 +167,6 @@ public class ItsService extends Service implements SensorEventListener {
     public static final String TRIGGER_AF_KEY = "af";
     public static final String VIB_PATTERN_KEY = "pattern";
     public static final String EVCOMP_KEY = "evComp";
-    public static final String AUTO_FLASH_KEY = "autoFlash";
     public static final String AUDIO_RESTRICTION_MODE_KEY = "mode";
 
     private CameraManager mCameraManager = null;
@@ -177,7 +178,6 @@ public class ItsService extends Service implements SensorEventListener {
     private CameraCaptureSession mSession = null;
     private ImageReader[] mOutputImageReaders = null;
     private SparseArray<String> mPhysicalStreamMap = new SparseArray<String>();
-    private SparseArray<Long> mStreamUseCaseMap = new SparseArray<Long>();
     private ImageReader mInputImageReader = null;
     private CameraCharacteristics mCameraCharacteristics = null;
     private HashMap<String, CameraCharacteristics> mPhysicalCameraChars =
@@ -737,11 +737,9 @@ public class ItsService extends Service implements SensorEventListener {
                     doCheckStreamCombination(cmdObj);
                 } else if ("isCameraPrivacyModeSupported".equals(cmdObj.getString("cmdName"))) {
                     doCheckCameraPrivacyModeSupport();
-                } else if ("isPrimaryCamera".equals(cmdObj.getString("cmdName"))) {
+                } else if ("getPerformanceClassLevel".equals(cmdObj.getString("cmdName"))) {
                     String cameraId = cmdObj.getString("cameraId");
-                    doCheckPrimaryCamera(cameraId);
-                } else if ("isPerformanceClass".equals(cmdObj.getString("cmdName"))) {
-                    doCheckPerformanceClass();
+                    doGetPerformanceClassLevel(cameraId);
                 } else if ("measureCameraLaunchMs".equals(cmdObj.getString("cmdName"))) {
                     String cameraId = cmdObj.getString("cameraId");
                     doMeasureCameraLaunchMs(cameraId);
@@ -1056,9 +1054,6 @@ public class ItsService extends Service implements SensorEventListener {
                 if (mPhysicalStreamMap.get(i) != null) {
                     config.setPhysicalCameraId(mPhysicalStreamMap.get(i));
                 }
-                if (mStreamUseCaseMap.get(i) != null) {
-                    config.setStreamUseCase(mStreamUseCaseMap.get(i));
-                }
                 outputConfigs.add(config);
             }
 
@@ -1087,7 +1082,10 @@ public class ItsService extends Service implements SensorEventListener {
                 hasPrivacySupport ? "true" : "false");
     }
 
-    private void doCheckPrimaryCamera(String cameraId) throws ItsException {
+    private void doGetPerformanceClassLevel(String cameraId) throws ItsException {
+        boolean isSPerfClass = (Build.VERSION.MEDIA_PERFORMANCE_CLASS == PERFORMANCE_CLASS_S);
+        boolean isRPerfClass = (Build.VERSION.MEDIA_PERFORMANCE_CLASS == PERFORMANCE_CLASS_R);
+
         if (mItsCameraIdList == null) {
             mItsCameraIdList = ItsUtils.getItsCompatibleCameraIds(mCameraManager);
         }
@@ -1118,15 +1116,9 @@ public class ItsService extends Service implements SensorEventListener {
             throw new ItsException("Failed to get camera characteristics", e);
         }
 
-        mSocketRunnableObj.sendResponse("primaryCamera",
-                isPrimaryCamera ? "true" : "false");
-    }
-
-    private void doCheckPerformanceClass() throws ItsException {
-        boolean  isPerfClass = (Build.VERSION.MEDIA_PERFORMANCE_CLASS >= PERFORMANCE_CLASS_R);
-
-        mSocketRunnableObj.sendResponse("performanceClass",
-                isPerfClass ? "true" : "false");
+        mSocketRunnableObj.sendResponse("performanceClassLevel",
+                (isSPerfClass && isPrimaryCamera) ? "12" :
+                ((isRPerfClass && isPrimaryCamera) ? "11" : "0"));
     }
 
     private double invokeCameraPerformanceTest(Class testClass, String testName,
@@ -1298,12 +1290,6 @@ public class ItsService extends Service implements SensorEventListener {
                 Logt.i(TAG, String.format("Running 3A with AE exposure compensation value: %d", evComp));
             }
 
-            // Auto flash can be specified as part of AE convergence.
-            boolean autoFlash = params.optBoolean(AUTO_FLASH_KEY, false);
-            if (autoFlash == true) {
-                Logt.i(TAG, String.format("Running with auto flash mode."));
-            }
-
             // By default, AE and AF both get triggered, but the user can optionally override this.
             // Also, AF won't get triggered if the lens is fixed-focus.
             boolean doAE = true;
@@ -1377,6 +1363,8 @@ public class ItsService extends Service implements SensorEventListener {
                         req.set(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO);
                         req.set(CaptureRequest.CONTROL_CAPTURE_INTENT,
                                 CaptureRequest.CONTROL_CAPTURE_INTENT_PREVIEW);
+                        req.set(CaptureRequest.CONTROL_AE_MODE,
+                                CaptureRequest.CONTROL_AE_MODE_ON);
                         req.set(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION, 0);
                         req.set(CaptureRequest.CONTROL_AE_LOCK, false);
                         req.set(CaptureRequest.CONTROL_AE_REGIONS, regionAE);
@@ -1393,14 +1381,6 @@ public class ItsService extends Service implements SensorEventListener {
 
                         if (evComp != 0) {
                             req.set(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION, evComp);
-                        }
-
-                        if (autoFlash == false) {
-                            req.set(CaptureRequest.CONTROL_AE_MODE,
-                                    CaptureRequest.CONTROL_AE_MODE_ON);
-                        } else {
-                            req.set(CaptureRequest.CONTROL_AE_MODE,
-                                    CaptureRequest.CONTROL_AE_MODE_ON_AUTO_FLASH);
                         }
 
                         if (mConvergedAE && mNeedsLockedAE) {
@@ -1513,7 +1493,6 @@ public class ItsService extends Service implements SensorEventListener {
         int outputFormats[];
         int numSurfaces = 0;
         mPhysicalStreamMap.clear();
-        mStreamUseCaseMap.clear();
 
         if (jsonOutputSpecs != null) {
             try {
@@ -1603,9 +1582,6 @@ public class ItsService extends Service implements SensorEventListener {
                     }
 
                     outputSizes[i] = new Size(width, height);
-                    if (!surfaceObj.isNull("useCase")) {
-                        mStreamUseCaseMap.put(i, surfaceObj.optLong("useCase"));
-                    }
                 }
             } catch (org.json.JSONException e) {
                 throw new ItsException("JSON error", e);
@@ -1693,9 +1669,6 @@ public class ItsService extends Service implements SensorEventListener {
                             mOutputImageReaders[i].getSurface());
                     if (mPhysicalStreamMap.get(i) != null) {
                         config.setPhysicalCameraId(mPhysicalStreamMap.get(i));
-                    }
-                    if (mStreamUseCaseMap.get(i) != null) {
-                        config.setStreamUseCase(mStreamUseCaseMap.get(i));
                     }
                     outputConfigs.add(config);
                 }

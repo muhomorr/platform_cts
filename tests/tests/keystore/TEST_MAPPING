@@ -10,6 +10,15 @@
           "exclude-filter": "android.keystore.cts.SignatureTest"
         },
         {
+          "exclude-filter": "android.keystore.cts.RsaSignaturePerformanceTest"
+        },
+        {
+          "exclude-filter": "android.keystore.cts.RsaKeyGenPerformanceTest"
+        },
+        {
+          "exclude-filter": "android.keystore.cts.RsaCipherPerformanceTest"
+        },
+        {
           "exclude-filter": "android.keystore.cts.MacTest#testLargeMsgKat"
         },
         {
@@ -19,10 +28,28 @@
           "exclude-filter": "android.keystore.cts.KeyGeneratorTest#testHmacKeySupportedSizes"
         },
         {
+          "exclude-filter": "android.keystore.cts.HmacMacPerformanceTest"
+        },
+        {
+          "exclude-filter": "android.keystore.cts.EcdsaSignaturePerformanceTest"
+        },
+        {
+          "exclude-filter": "android.keystore.cts.EcKeyGenPerformanceTest"
+        },
+        {
+          "exclude-filter": "android.keystore.cts.DesCipherPerformanceTest"
+        },
+        {
           "exclude-filter": "android.keystore.cts.CipherTest"
         },
         {
+          "exclude-filter": "android.keystore.cts.AttestationPerformanceTest"
+        },
+        {
           "exclude-filter": "android.keystore.cts.AndroidKeyStoreTest"
+        },
+        {
+          "exclude-filter": "android.keystore.cts.AesCipherPerformanceTest"
         },
         {
           "exclude-filter": "android.keystore.cts.AESCipherNistCavpKatTest"
@@ -42,9 +69,6 @@
   "postsubmit": [
     {
       "name": "CtsKeystoreTestCases"
-    },
-    {
-      "name": "CtsKeystorePerformanceTestCases"
     }
   ]
 }

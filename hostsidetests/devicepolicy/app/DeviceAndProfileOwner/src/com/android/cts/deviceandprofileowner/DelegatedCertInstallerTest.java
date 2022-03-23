@@ -77,6 +77,7 @@ public class DelegatedCertInstallerTest extends BaseDeviceAdminTest {
 
     private static final List<String> CERT_INSTALL_SCOPES = Arrays.asList(DELEGATION_CERT_INSTALL);
 
+    private DevicePolicyManager mDpm;
     private volatile boolean mReceivedResult;
     private volatile Exception mReceivedException;
     private Semaphore mAvailableResultSemaphore;
@@ -98,7 +99,7 @@ public class DelegatedCertInstallerTest extends BaseDeviceAdminTest {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-
+        mDpm = (DevicePolicyManager) mContext.getSystemService(Context.DEVICE_POLICY_SERVICE);
         mAvailableResultSemaphore = new Semaphore(0);
         mReceivedResult = false;
         mReceivedException = null;
@@ -110,11 +111,10 @@ public class DelegatedCertInstallerTest extends BaseDeviceAdminTest {
     @Override
     public void tearDown() throws Exception {
         mContext.unregisterReceiver(receiver);
-        mDevicePolicyManager.uninstallCaCert(ADMIN_RECEIVER_COMPONENT,
-                TestCertificates.TEST_CA.getBytes());
+        mDpm.uninstallCaCert(ADMIN_RECEIVER_COMPONENT, TestCertificates.TEST_CA.getBytes());
         // Installed private key pair will be removed once the lockscreen password is cleared,
         // which is done in the hostside test.
-        mDevicePolicyManager.setCertInstallerPackage(ADMIN_RECEIVER_COMPONENT, null);
+        mDpm.setCertInstallerPackage(ADMIN_RECEIVER_COMPONENT, null);
         super.tearDown();
     }
 
@@ -125,10 +125,9 @@ public class DelegatedCertInstallerTest extends BaseDeviceAdminTest {
                 .generateCertificate(new ByteArrayInputStream(cert));
 
 
-        mDevicePolicyManager.setCertInstallerPackage(ADMIN_RECEIVER_COMPONENT,
-                CERT_INSTALLER_PACKAGE);
+        mDpm.setCertInstallerPackage(ADMIN_RECEIVER_COMPONENT, CERT_INSTALLER_PACKAGE);
         assertEquals(CERT_INSTALLER_PACKAGE,
-                mDevicePolicyManager.getCertInstallerPackage(ADMIN_RECEIVER_COMPONENT));
+                mDpm.getCertInstallerPackage(ADMIN_RECEIVER_COMPONENT));
 
         // Exercise installCaCert()
         KeyStore keyStore = KeyStore.getInstance("AndroidCAStore");
@@ -136,7 +135,7 @@ public class DelegatedCertInstallerTest extends BaseDeviceAdminTest {
         assertNull(keyStore.getCertificateAlias(caCert));
         installCaCert(cert);
         assertResult("installCaCert", true);
-        assertTrue("Certificate is not installed properly", mDevicePolicyManager.hasCaCertInstalled(
+        assertTrue("Certificate is not installed properly", mDpm.hasCaCertInstalled(
                 ADMIN_RECEIVER_COMPONENT, cert));
 
         // Exercise getInstalledCaCerts()
@@ -151,7 +150,7 @@ public class DelegatedCertInstallerTest extends BaseDeviceAdminTest {
         // Exercise uninstallCaCert()
         removeCaCert(cert);
         assertResult("uninstallCaCert()", true);
-        assertFalse("Certificate is not removed properly", mDevicePolicyManager.hasCaCertInstalled(
+        assertFalse("Certificate is not removed properly", mDpm.hasCaCertInstalled(
                 ADMIN_RECEIVER_COMPONENT, cert));
 
         // Verify that the CA cert is no longer reported as installed by the Device Owner / Profile
@@ -160,7 +159,7 @@ public class DelegatedCertInstallerTest extends BaseDeviceAdminTest {
 
         // Clear delegated cert installer.
         // Tests after this are expected to fail.
-        mDevicePolicyManager.setCertInstallerPackage(ADMIN_RECEIVER_COMPONENT, null);
+        mDpm.setCertInstallerPackage(ADMIN_RECEIVER_COMPONENT, null);
 
         installCaCert(cert);
         assertResult("installCaCert", false);
@@ -170,17 +169,16 @@ public class DelegatedCertInstallerTest extends BaseDeviceAdminTest {
         final String alias = "delegated-cert-installer-test-key";
 
         // Clear delegated cert installer.
-        mDevicePolicyManager.setCertInstallerPackage(ADMIN_RECEIVER_COMPONENT, null);
+        mDpm.setCertInstallerPackage(ADMIN_RECEIVER_COMPONENT, null);
         // The app is not the cert installer , it shouldn't have have privilege to call
         // installKeyPair().
         installKeyPair(TestCertificates.TEST_KEY, TestCertificates.TEST_CERT, alias);
         assertResult("installKeyPair", false);
 
         // Set the app to be cert installer.
-        mDevicePolicyManager.setCertInstallerPackage(ADMIN_RECEIVER_COMPONENT,
-                CERT_INSTALLER_PACKAGE);
+        mDpm.setCertInstallerPackage(ADMIN_RECEIVER_COMPONENT, CERT_INSTALLER_PACKAGE);
         assertEquals(CERT_INSTALLER_PACKAGE,
-                mDevicePolicyManager.getCertInstallerPackage(ADMIN_RECEIVER_COMPONENT));
+                mDpm.getCertInstallerPackage(ADMIN_RECEIVER_COMPONENT));
 
         // Exercise installKeyPair()
         installKeyPair(TestCertificates.TEST_KEY, TestCertificates.TEST_CERT, alias);
@@ -194,7 +192,7 @@ public class DelegatedCertInstallerTest extends BaseDeviceAdminTest {
     public void testSetNotExistCertInstallerPackage() throws Exception {
         boolean shouldThrowException = getTargetApiLevel() >= Build.VERSION_CODES.N;
         try {
-            mDevicePolicyManager.setCertInstallerPackage(
+            mDpm.setCertInstallerPackage(
                     ADMIN_RECEIVER_COMPONENT, NOT_EXIST_CERT_INSTALLER_PACKAGE);
             if (shouldThrowException) {
                 fail("Did not throw IllegalArgumentException");
@@ -209,53 +207,53 @@ public class DelegatedCertInstallerTest extends BaseDeviceAdminTest {
         if (!shouldThrowException) {
             assertTrue("Cert install delegate was not set on uninstalled package",
                     NOT_EXIST_CERT_INSTALLER_PACKAGE.equals(
-                            mDevicePolicyManager
-                                    .getCertInstallerPackage(ADMIN_RECEIVER_COMPONENT)));
+                            mDpm.getCertInstallerPackage(ADMIN_RECEIVER_COMPONENT)));
         }
     }
 
     public void testSettingDelegatedCertInstallerAPICompatibility_oldSetNewGet() {
         // Set a delegated cert installer using the deprecated API and verify that the same
         // package is considered as the delegated cert installer using the new API.
-        mDevicePolicyManager.setCertInstallerPackage(ADMIN_RECEIVER_COMPONENT,
+        mDpm.setCertInstallerPackage(ADMIN_RECEIVER_COMPONENT, CERT_INSTALLER_PACKAGE);
+        assertThat(mDpm.getCertInstallerPackage(ADMIN_RECEIVER_COMPONENT)).isEqualTo(
                 CERT_INSTALLER_PACKAGE);
-        assertThat(mDevicePolicyManager.getCertInstallerPackage(ADMIN_RECEIVER_COMPONENT))
-                .isEqualTo(CERT_INSTALLER_PACKAGE);
-        assertThat(mDevicePolicyManager.getDelegatePackages(ADMIN_RECEIVER_COMPONENT,
+        assertThat(mDpm.getDelegatePackages(ADMIN_RECEIVER_COMPONENT,
                 DELEGATION_CERT_INSTALL)).containsExactly(CERT_INSTALLER_PACKAGE);
 
         // Remove a delegate using the old API, make sure no delegates are found using
         // the new API.
-        mDevicePolicyManager.setCertInstallerPackage(ADMIN_RECEIVER_COMPONENT, null);
-        assertThat(mDevicePolicyManager.getCertInstallerPackage(ADMIN_RECEIVER_COMPONENT)).isNull();
-        assertThat(mDevicePolicyManager.getDelegatePackages(ADMIN_RECEIVER_COMPONENT,
+        mDpm.setCertInstallerPackage(ADMIN_RECEIVER_COMPONENT, null);
+        assertThat(mDpm.getCertInstallerPackage(ADMIN_RECEIVER_COMPONENT)).isNull();
+        assertThat(mDpm.getDelegatePackages(ADMIN_RECEIVER_COMPONENT,
                 DELEGATION_CERT_INSTALL)).isEmpty();
     }
 
     public void testSettingDelegatedCertInstallerAPICompatibility_newSetOldGet() {
         // Set a delegate using the new API, verify that the deprecated API returns the same
         // delegate.
-        setDelegatedScopes(CERT_INSTALLER_PACKAGE, CERT_INSTALL_SCOPES);
-        assertThat(mDevicePolicyManager.getDelegatePackages(ADMIN_RECEIVER_COMPONENT,
+        mDpm.setDelegatedScopes(ADMIN_RECEIVER_COMPONENT, CERT_INSTALLER_PACKAGE,
+                CERT_INSTALL_SCOPES);
+        assertThat(mDpm.getDelegatePackages(ADMIN_RECEIVER_COMPONENT,
                 DELEGATION_CERT_INSTALL)).containsExactly(CERT_INSTALLER_PACKAGE);
-        assertThat(mDevicePolicyManager.getCertInstallerPackage(ADMIN_RECEIVER_COMPONENT))
-                .isEqualTo(CERT_INSTALLER_PACKAGE);
+        assertThat(mDpm.getCertInstallerPackage(ADMIN_RECEIVER_COMPONENT)).isEqualTo(
+                CERT_INSTALLER_PACKAGE);
 
         // Remove the delegate using the new API, verify that the deprecated API returns null
         // as the current delegated cert installer.
-        setDelegatedScopes(CERT_INSTALLER_PACKAGE, Arrays.asList());
-        assertThat(mDevicePolicyManager.getDelegatePackages(ADMIN_RECEIVER_COMPONENT,
+        mDpm.setDelegatedScopes(ADMIN_RECEIVER_COMPONENT, CERT_INSTALLER_PACKAGE, Arrays.asList());
+        assertThat(mDpm.getDelegatePackages(ADMIN_RECEIVER_COMPONENT,
                 DELEGATION_CERT_INSTALL)).isEmpty();
-        assertThat(mDevicePolicyManager.getCertInstallerPackage(ADMIN_RECEIVER_COMPONENT)).isNull();
+        assertThat(mDpm.getCertInstallerPackage(ADMIN_RECEIVER_COMPONENT)).isNull();
     }
 
     public void testCanReadEnrollmentSpecificId() throws InterruptedException {
         // Set the organization ID only if not already set, to avoid potential conflict
         // with other tests.
-        if (mDevicePolicyManager.getEnrollmentSpecificId().isEmpty()) {
-            mDevicePolicyManager.setOrganizationId("SOME_ID");
+        if (mDpm.getEnrollmentSpecificId().isEmpty()) {
+            mDpm.setOrganizationId("SOME_ID");
         }
-        setDelegatedScopes(CERT_INSTALLER_PACKAGE, CERT_INSTALL_SCOPES);
+        mDpm.setDelegatedScopes(ADMIN_RECEIVER_COMPONENT, CERT_INSTALLER_PACKAGE,
+                CERT_INSTALL_SCOPES);
 
         readEnrollmentId();
         assertResult("testCanReadEnrollmentSpecificId", true);
@@ -290,7 +288,7 @@ public class DelegatedCertInstallerTest extends BaseDeviceAdminTest {
 
     private void verifyOwnerInstalledStatus(String alias, boolean expectOwnerInstalled) {
         final List<String> ownerInstalledCerts =
-                mDevicePolicyManager.getOwnerInstalledCaCerts(Process.myUserHandle());
+                mDpm.getOwnerInstalledCaCerts(Process.myUserHandle());
         assertNotNull(ownerInstalledCerts);
         assertEquals(expectOwnerInstalled, ownerInstalledCerts.contains(alias));
     }

@@ -55,9 +55,8 @@ public abstract class WifiJUnit4TestBase {
     @After
     public void disableLocationIfOriginallyDisabled() throws Exception {
         if (mWasLocationEnabledForTest) {
-            ShellIdentityUtils.invokeWithShellPermissions(() ->
-                    mLocationManager.setLocationEnabledForUser(
-                            false, UserHandle.getUserHandleForUid(Process.myUid())));
+            mLocationManager.setLocationEnabledForUser(
+                    false, UserHandle.getUserHandleForUid(Process.myUid()));
         }
     }
 }

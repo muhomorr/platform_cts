@@ -18,6 +18,10 @@ package {
 
 java_library {
     name: "CtsAppEnumerationTestLib",
-    defaults: ["cts_support_defaults"],
+    srcs: ["src/**/*.java"],
+}
+
+java_library_host {
+    name: "CtsAppEnumerationTestLibHost",
     srcs: ["src/**/*.java"],
 }

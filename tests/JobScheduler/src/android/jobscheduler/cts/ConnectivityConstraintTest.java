@@ -31,7 +31,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
-import android.location.LocationManager;
 import android.net.ConnectivityManager;
 import android.net.Network;
 import android.net.NetworkCapabilities;
@@ -102,8 +101,6 @@ public class ConnectivityConstraintTest extends BaseJobSchedulerTest {
     private boolean mInitialAirplaneMode;
     /** Track whether the restricted bucket was enabled in case we toggle it. */
     private String mInitialRestrictedBucketEnabled;
-    /** Track the location mode in case we change it. */
-    private String mInitialLocationMode;
 
     private JobInfo.Builder mBuilder;
 
@@ -122,8 +119,6 @@ public class ConnectivityConstraintTest extends BaseJobSchedulerTest {
         mHasEthernet = packageManager.hasSystemFeature(PackageManager.FEATURE_ETHERNET);
         mBuilder = new JobInfo.Builder(CONNECTIVITY_JOB_ID, kJobServiceComponent);
 
-        mInitialLocationMode = Settings.Secure.getString(mContext.getContentResolver(),
-                Settings.Secure.LOCATION_MODE);
         if (mHasWifi) {
             mInitialWiFiState = mWifiManager.isWifiEnabled();
             ensureSavedWifiNetwork(mWifiManager);
@@ -176,8 +171,6 @@ public class ConnectivityConstraintTest extends BaseJobSchedulerTest {
         // Restore initial airplane mode status. Do it after setting wifi in case wifi was
         // originally metered.
         setAirplaneMode(mInitialAirplaneMode);
-
-        setLocationMode(mInitialLocationMode);
 
         super.tearDown();
     }
@@ -878,7 +871,8 @@ public class ConnectivityConstraintTest extends BaseJobSchedulerTest {
         if (!mHasEthernet) return false;
         Network[] networks = mCm.getAllNetworks();
         for (Network network : networks) {
-            if (mCm.getNetworkCapabilities(network).hasTransport(TRANSPORT_ETHERNET)) {
+            if (mCm.getNetworkCapabilities(network)
+                    .hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)) {
                 return true;
             }
         }
@@ -895,23 +889,12 @@ public class ConnectivityConstraintTest extends BaseJobSchedulerTest {
         }
     }
 
-    private String getWifiSSID() throws Exception {
-        // Location needs to be enabled to get the WiFi information.
-        setLocationMode(String.valueOf(Settings.Secure.LOCATION_MODE_ON));
+    private String getWifiSSID() {
         final AtomicReference<String> ssid = new AtomicReference<>();
         SystemUtil.runWithShellPermissionIdentity(() -> {
             ssid.set(mWifiManager.getConnectionInfo().getSSID());
         }, Manifest.permission.ACCESS_FINE_LOCATION);
         return unquoteSSID(ssid.get());
-    }
-
-    private void setLocationMode(String mode) throws Exception {
-        Settings.Secure.putString(mContext.getContentResolver(),
-                Settings.Secure.LOCATION_MODE, mode);
-        final LocationManager locationManager = mContext.getSystemService(LocationManager.class);
-        final boolean wantEnabled = !String.valueOf(Settings.Secure.LOCATION_MODE_OFF).equals(mode);
-        waitUntil("Location " + (wantEnabled ? "not enabled" : "still enabled"),
-                () -> wantEnabled == locationManager.isLocationEnabled());
     }
 
     // Returns "true", "false" or "none"
@@ -943,7 +926,7 @@ public class ConnectivityConstraintTest extends BaseJobSchedulerTest {
     }
 
     // metered should be "true", "false" or "none"
-    private void setWifiMeteredState(String ssid, String metered) throws Exception {
+    private void setWifiMeteredState(String ssid, String metered) {
         if (metered.equals(getWifiMeteredStatus(ssid))) {
             return;
         }
@@ -954,14 +937,16 @@ public class ConnectivityConstraintTest extends BaseJobSchedulerTest {
     /**
      * Ensure WiFi is enabled, and block until we've verified that we are in fact connected.
      */
-    private void connectToWifi() throws Exception {
+    private void connectToWifi()
+            throws InterruptedException {
         setWifiState(true, mCm, mWifiManager);
     }
 
     /**
      * Ensure WiFi is disabled, and block until we've verified that we are in fact disconnected.
      */
-    private void disconnectFromWifi() throws Exception {
+    private void disconnectFromWifi()
+            throws InterruptedException {
         setWifiState(false, mCm, mWifiManager);
     }
 
@@ -979,7 +964,7 @@ public class ConnectivityConstraintTest extends BaseJobSchedulerTest {
      * Taken from {@link android.net.http.cts.ApacheHttpClientTest}.
      */
     static void setWifiState(final boolean enable,
-            final ConnectivityManager cm, final WifiManager wm) throws Exception {
+            final ConnectivityManager cm, final WifiManager wm) throws InterruptedException {
         if (enable != isWiFiConnected(cm, wm)) {
             NetworkRequest nr = new NetworkRequest.Builder().clearCapabilities().build();
             NetworkCapabilities nc = new NetworkCapabilities.Builder()
@@ -990,7 +975,6 @@ public class ConnectivityConstraintTest extends BaseJobSchedulerTest {
 
             if (enable) {
                 SystemUtil.runShellCommand("svc wifi enable");
-                waitUntil("Failed to enable Wifi", 30 /* seconds */, () -> wm.isWifiEnabled());
                 //noinspection deprecation
                 SystemUtil.runWithShellPermissionIdentity(wm::reconnect,
                         android.Manifest.permission.NETWORK_SETTINGS);

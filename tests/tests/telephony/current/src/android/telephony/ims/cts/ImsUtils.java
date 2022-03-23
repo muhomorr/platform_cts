@@ -25,7 +25,6 @@ import android.service.carrier.CarrierService;
 import android.telephony.SubscriptionInfo;
 import android.telephony.SubscriptionManager;
 import android.telephony.TelephonyManager;
-import android.util.Log;
 
 import androidx.test.platform.app.InstrumentationRegistry;
 
@@ -51,8 +50,6 @@ public class ImsUtils {
     // Id for compressed auto configuration xml.
     public static final int ITEM_COMPRESSED = 2001;
 
-    private static final String TAG = "ImsUtils";
-
     public static boolean shouldTestTelephony() {
         final PackageManager pm = InstrumentationRegistry.getInstrumentation().getContext()
                 .getPackageManager();
@@ -62,13 +59,18 @@ public class ImsUtils {
     public static boolean shouldTestImsService() {
         final PackageManager pm = InstrumentationRegistry.getInstrumentation().getContext()
                 .getPackageManager();
-        return pm.hasSystemFeature(PackageManager.FEATURE_TELEPHONY_IMS);
+        boolean hasTelephony = pm.hasSystemFeature(PackageManager.FEATURE_TELEPHONY);
+        boolean hasIms = pm.hasSystemFeature(PackageManager.FEATURE_TELEPHONY_IMS);
+        return hasTelephony && hasIms;
     }
 
     public static boolean shouldTestImsSingleRegistration() {
         final PackageManager pm = InstrumentationRegistry.getInstrumentation().getContext()
                 .getPackageManager();
-        return pm.hasSystemFeature(PackageManager.FEATURE_TELEPHONY_IMS_SINGLE_REGISTRATION);
+        boolean hasIms = pm.hasSystemFeature(PackageManager.FEATURE_TELEPHONY_IMS);
+        boolean hasSingleReg = pm.hasSystemFeature(
+                PackageManager.FEATURE_TELEPHONY_IMS_SINGLE_REGISTRATION);
+        return hasIms && hasSingleReg;
     }
 
     public static int getPreferredActiveSubId() {
@@ -127,19 +129,12 @@ public class ImsUtils {
             Binder.restoreCallingIdentity(token);
         }
 
+        if (carrierPackages == null || carrierPackages.size() == 0) {
+            return true;
+        }
         final PackageManager packageManager = context.getPackageManager();
         Intent intent = new Intent("android.service.carrier.CarrierMessagingService");
         List<ResolveInfo> resolveInfos = packageManager.queryIntentServices(intent, 0);
-        boolean detected = resolveInfos != null && !resolveInfos.isEmpty();
-        Log.i(TAG, "resolveInfos are detected: " + detected);
-
-        boolean exist = carrierPackages != null && !carrierPackages.isEmpty();
-        Log.i(TAG, "carrierPackages exist: " + exist);
-
-        if (!exist) {
-            return true;
-        }
-
         for (ResolveInfo info : resolveInfos) {
             if (carrierPackages.contains(info.serviceInfo.packageName)) {
                 return false;

@@ -394,7 +394,7 @@ bool CodecEncoderTest::testSimpleEncode(const char* encoder, const char* srcPath
     bool isPass = true;
     setUpSource(srcPath);
     if (!mInputData) return false;
-    setUpParams(1);
+    setUpParams(INT32_MAX);
     /* TODO(b/149027258) */
     if (true) mSaveToMem = false;
     else mSaveToMem = true;

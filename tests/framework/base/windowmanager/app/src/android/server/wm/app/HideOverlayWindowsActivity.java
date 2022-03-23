@@ -37,7 +37,7 @@ public class HideOverlayWindowsActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        registerReceiver(mBroadcastReceiver, new IntentFilter(ACTION), Context.RECEIVER_EXPORTED);
+        registerReceiver(mBroadcastReceiver, new IntentFilter(ACTION));
     }
 
     BroadcastReceiver mBroadcastReceiver = new BroadcastReceiver() {

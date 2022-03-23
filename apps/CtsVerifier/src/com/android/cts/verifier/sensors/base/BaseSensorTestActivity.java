@@ -593,14 +593,17 @@ public abstract class BaseSensorTestActivity
      */
     private void setNextButtonText(int waitMessageResId) {
         int nextButtonText;
-        if (waitMessageResId == R.string.snsr_wait_to_retry) {
-            nextButtonText = R.string.fail_and_next_button_text;
-        } else if (waitMessageResId == R.string.snsr_wait_to_finish) {
-            nextButtonText = R.string.finish_button_text;
-        } else {
+        switch (waitMessageResId) {
+            case R.string.snsr_wait_to_retry:
+                nextButtonText = R.string.fail_and_next_button_text;
+                break;
+            case R.string.snsr_wait_to_finish:
+                nextButtonText = R.string.finish_button_text;
+                break;
+            default:
                 nextButtonText = R.string.next_button_text;
+                break;
         }
-
         runOnUiThread(new Runnable() {
             @Override
             public void run() {

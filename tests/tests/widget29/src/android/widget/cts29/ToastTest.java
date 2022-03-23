@@ -284,7 +284,7 @@ public class ToastTest {
                 lock.notifyAll();
             }
         };
-        manager.addAccessibilityServicesStateChangeListener(listener);
+        manager.addAccessibilityServicesStateChangeListener(listener, null);
         try {
             TestUtils.waitOn(lock,
                     () -> manager.getRecommendedTimeoutMillis(0,

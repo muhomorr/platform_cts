@@ -216,6 +216,40 @@ public class KeyguardLockedTests extends KeyguardTestBase {
     }
 
     @Test
+    public void testTurnScreenOnActivity_withSecureKeyguardAndAod() {
+        final AodSession aodSession = createManagedAodSession();
+        final LockScreenSession lockScreenSession = createManagedLockScreenSession();
+        lockScreenSession.setLockCredential();
+        testTurnScreenOnActivity_withSecureKeyguard(aodSession, lockScreenSession,
+                false /* enableAod */);
+        testTurnScreenOnActivity_withSecureKeyguard(aodSession, lockScreenSession,
+                true /* enableAod */);
+    }
+
+    private void testTurnScreenOnActivity_withSecureKeyguard(AodSession aodSession,
+            LockScreenSession lockScreenSession, boolean enableAod) {
+        if (enableAod) {
+            assumeTrue(aodSession.isAodAvailable());
+        }
+        aodSession.setAodEnabled(enableAod);
+        lockScreenSession.sleepDevice();
+        mWmState.computeState();
+        assertTrue(mWmState.getKeyguardControllerState().keyguardShowing);
+
+        final CommandSession.ActivitySessionClient activityClient =
+                createManagedActivityClientSession();
+        final CommandSession.ActivitySession activity = activityClient.startActivity(
+                getLaunchActivityBuilder().setUseInstrumentation().setIntentExtra(extra -> {
+                    extra.putBoolean(Components.TurnScreenOnActivity.EXTRA_SHOW_WHEN_LOCKED, false);
+                }).setTargetActivity(TURN_SCREEN_ON_ACTIVITY));
+        mWmState.waitForKeyguardShowingAndNotOccluded();
+        mWmState.assertVisibility(TURN_SCREEN_ON_ACTIVITY, false);
+        assertTrue(mWmState.getKeyguardControllerState().keyguardShowing);
+        assertFalse(isDisplayOn(DEFAULT_DISPLAY));
+        activity.finish();
+    }
+
+    @Test
     public void testDismissKeyguardAttrActivity_method_turnScreenOn_withSecureKeyguard() {
         final LockScreenSession lockScreenSession = createManagedLockScreenSession();
         lockScreenSession.setLockCredential().sleepDevice();
@@ -394,7 +428,7 @@ public class KeyguardLockedTests extends KeyguardTestBase {
 
         lockScreenSession.setLockCredential().gotoKeyguard();
         assertTrue("Keyguard is showing", mWmState.getKeyguardControllerState().keyguardShowing);
-        lockScreenSession.unlockDevice().enterAndConfirmLockCredential();
+        lockScreenSession.enterAndConfirmLockCredential();
         mWmState.waitAndAssertKeyguardGone();
 
         final ImeEventStream stream = mockImeSession.openEventStream();

@@ -29,4 +29,5 @@ public class HiddenApiTest extends android.signature.cts.api.HiddenApiTest {
         Set<String> flags = member.getHiddenapiFlags();
         return flags.contains("test-api") && flags.contains("blocked");
     }
+
 }
