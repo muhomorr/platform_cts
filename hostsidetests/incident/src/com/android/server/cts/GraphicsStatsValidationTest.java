@@ -89,7 +89,6 @@ public class GraphicsStatsValidationTest extends ProtoDumpTestCase {
     }
 
     public void testJankyDrawFrame() throws Exception {
-        String origRefreshRate[] = setRefreshRate(new String[]{"60", "60"});
         GraphicsStatsProto[] results = runDrawTest("testDrawJankyFrames");
         GraphicsStatsProto statsBefore = results[0];
         GraphicsStatsProto statsAfter = results[1];
@@ -156,7 +155,7 @@ public class GraphicsStatsValidationTest extends ProtoDumpTestCase {
     }
 
     public void testDaveyDrawFrame() throws Exception {
-        String origRefreshRate[] = setRefreshRate(new String[]{"60", "60"});
+        String origRefreshRate[] = setRefreshRate(new String[]{"61", "60"});
         GraphicsStatsProto[] results = runDrawTest("testDrawDaveyFrames");
         setRefreshRate(origRefreshRate);
         GraphicsStatsProto statsBefore = results[0];

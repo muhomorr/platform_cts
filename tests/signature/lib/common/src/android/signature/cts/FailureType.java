@@ -18,7 +18,6 @@ public enum FailureType {
     UNEXPECTED_CLASS,
     EXTRA_CLASS,
     EXTRA_INTERFACE,
-    EXTRA_CONSTRUCTOR,
     EXTRA_METHOD,
     EXTRA_FIELD,
     CAUGHT_EXCEPTION;
@@ -33,7 +32,4 @@ public enum FailureType {
                 ? FailureType.MISSING_INTERFACE : FailureType.MISSING_CLASS;
     }
 
-    static FailureType extra(Class<?> clazz) {
-        return clazz.isInterface() ? FailureType.EXTRA_INTERFACE : FailureType.EXTRA_CLASS;
-    }
 }

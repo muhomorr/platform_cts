@@ -21,7 +21,8 @@ import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 
-import com.android.cts.verifier.R;
+import com.android.cts.verifier.audio.peripheralprofile.PeripheralProfile;
+import com.android.cts.verifier.R;  // needed to access resource in CTSVerifier project namespace.
 
 public class USBAudioPeripheralPlayActivity extends USBAudioPeripheralPlayerActivity {
     private static final String TAG = "USBAudioPeripheralPlayActivity";
@@ -68,7 +69,8 @@ public class USBAudioPeripheralPlayActivity extends USBAudioPeripheralPlayerActi
     public class LocalClickListener implements View.OnClickListener {
         @Override
         public void onClick(View view) {
-            if (view.getId() == R.id.uap_playPlayBtn) {
+            switch (view.getId()) {
+            case R.id.uap_playPlayBtn:
                 Log.i(TAG, "Play Button Pressed");
                 if (!isPlaying()) {
                     startPlay();
@@ -77,6 +79,7 @@ public class USBAudioPeripheralPlayActivity extends USBAudioPeripheralPlayerActi
                     stopPlay();
                     mPlayBtn.setText(getString(R.string.audio_uap_play_playBtn));
                 }
+                break;
             }
         }
     }

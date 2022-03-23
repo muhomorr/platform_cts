@@ -18,14 +18,10 @@ package android.server.wm.app;
 
 import static android.app.UiModeManager.MODE_NIGHT_AUTO;
 import static android.server.wm.app.Components.TestStartingWindowKeys.CANCEL_HANDLE_EXIT;
-import static android.server.wm.app.Components.TestStartingWindowKeys.CENTER_VIEW_IS_SURFACE_VIEW;
 import static android.server.wm.app.Components.TestStartingWindowKeys.CONTAINS_BRANDING_VIEW;
 import static android.server.wm.app.Components.TestStartingWindowKeys.CONTAINS_CENTER_VIEW;
-import static android.server.wm.app.Components.TestStartingWindowKeys.DELAY_RESUME;
 import static android.server.wm.app.Components.TestStartingWindowKeys.GET_NIGHT_MODE_ACTIVITY_CHANGED;
 import static android.server.wm.app.Components.TestStartingWindowKeys.HANDLE_SPLASH_SCREEN_EXIT;
-import static android.server.wm.app.Components.TestStartingWindowKeys.ICON_ANIMATION_DURATION;
-import static android.server.wm.app.Components.TestStartingWindowKeys.ICON_ANIMATION_START;
 import static android.server.wm.app.Components.TestStartingWindowKeys.ICON_BACKGROUND_COLOR;
 import static android.server.wm.app.Components.TestStartingWindowKeys.RECEIVE_SPLASH_SCREEN_EXIT;
 import static android.server.wm.app.Components.TestStartingWindowKeys.REQUEST_HANDLE_EXIT_ON_CREATE;
@@ -41,20 +37,14 @@ import android.graphics.Color;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.os.Bundle;
-import android.os.SystemClock;
 import android.server.wm.TestJournalProvider;
-import android.view.SurfaceView;
+import android.util.Log;
 import android.window.SplashScreen;
 
 public class HandleSplashScreenExitActivity extends Activity {
     private SplashScreen mSSM;
     private UiModeManager mUiModeManager;
     private boolean mReportSplashScreenNightMode;
-
-    /** Gets the key to indicate the owner for test journal. */
-    protected String getOwnerKey() {
-        return HANDLE_SPLASH_SCREEN_EXIT;
-    }
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -70,9 +60,6 @@ public class HandleSplashScreenExitActivity extends Activity {
             mUiModeManager.setApplicationNightMode(setNightMode);
             mReportSplashScreenNightMode = true;
         }
-        if (getIntent().getBooleanExtra(DELAY_RESUME, false)) {
-            SystemClock.sleep(5000);
-        }
     }
 
     private final SplashScreen.OnExitAnimationListener mSplashScreenExitHandler =
@@ -81,8 +68,7 @@ public class HandleSplashScreenExitActivity extends Activity {
                 final boolean containsCenter = view.getIconView() != null;
                 final boolean containsBranding = view.getBrandingView() != null
                         && view.getBrandingView().getBackground() != null;
-                final Drawable background = containsCenter
-                        ? view.getIconView().getBackground() : null;
+                Drawable background = view.getIconView().getBackground();
                 final int iconBackground;
                 if (background != null) {
                     Bitmap bitmap = ((BitmapDrawable) background).getBitmap();
@@ -90,17 +76,11 @@ public class HandleSplashScreenExitActivity extends Activity {
                 } else {
                     iconBackground = Color.TRANSPARENT;
                 }
-                TestJournalProvider.putExtras(baseContext, getOwnerKey(), bundle -> {
+                TestJournalProvider.putExtras(baseContext, HANDLE_SPLASH_SCREEN_EXIT, bundle -> {
                     bundle.putBoolean(RECEIVE_SPLASH_SCREEN_EXIT, true);
                     bundle.putBoolean(CONTAINS_CENTER_VIEW, containsCenter);
                     bundle.putBoolean(CONTAINS_BRANDING_VIEW, containsBranding);
                     bundle.putInt(ICON_BACKGROUND_COLOR, iconBackground);
-                    bundle.putLong(ICON_ANIMATION_DURATION, view.getIconAnimationDuration() != null
-                            ? view.getIconAnimationDuration().toMillis() : 0);
-                    bundle.putLong(ICON_ANIMATION_START, view.getIconAnimationStart() != null
-                            ? view.getIconAnimationStart().toEpochMilli() : 0);
-                    bundle.putBoolean(CENTER_VIEW_IS_SURFACE_VIEW,
-                            view.getIconView() instanceof SurfaceView);
                 });
                 view.postDelayed(view::remove, 500);
             };
@@ -122,7 +102,7 @@ public class HandleSplashScreenExitActivity extends Activity {
         if (mReportSplashScreenNightMode) {
             final int configNightMode = newConfig.uiMode & Configuration.UI_MODE_NIGHT_MASK;
             final Context baseContext = getBaseContext();
-            TestJournalProvider.putExtras(baseContext, getOwnerKey(), bundle -> {
+            TestJournalProvider.putExtras(baseContext, HANDLE_SPLASH_SCREEN_EXIT, bundle -> {
                 bundle.putInt(GET_NIGHT_MODE_ACTIVITY_CHANGED, configNightMode);
             });
             // reset after test done

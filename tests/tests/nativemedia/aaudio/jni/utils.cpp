@@ -214,6 +214,13 @@ void OutputStreamBuilderHelper::initBuilder() {
     AAudioStreamBuilder_setBufferCapacityInFrames(mBuilder, kBufferCapacityFrames);
 }
 
+void OutputStreamBuilderHelper::createAndVerifyStream(bool *success) {
+    StreamBuilderHelper::createAndVerifyStream(success);
+    if (*success) {
+        ASSERT_GE(AAudioStream_getBufferCapacityInFrames(mStream), kBufferCapacityFrames);
+    }
+}
+
 AAudioExtensions::AAudioExtensions()
     : mMMapSupported(isPolicyEnabled(getMMapPolicyProperty()))
     , mMMapExclusiveSupported(isPolicyEnabled(getIntegerProperty(
@@ -261,4 +268,3 @@ bool AAudioExtensions::loadLibrary() {
     mFunctionsLoaded = true;
     return mFunctionsLoaded;
 }
-

@@ -16,15 +16,14 @@
 
 package android.hardware.cts;
 
+import static android.os.Build.VERSION;
 import static android.os.Build.VERSION_CODES;
-
-import static com.android.compatibility.common.util.PropertyUtil.getFirstApiLevel;
-import static com.android.compatibility.common.util.PropertyUtil.getVendorApiLevel;
 
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assume.assumeTrue;
 
 import android.content.pm.PackageManager;
+import android.os.SystemProperties;
 
 import androidx.test.InstrumentationRegistry;
 import androidx.test.runner.AndroidJUnit4;
@@ -48,7 +47,8 @@ public class SecurityModelFeatureTest {
 
     @Before
     public void setUp() throws Exception {
-        final int firstApiLevel = Math.min(getFirstApiLevel(), getVendorApiLevel());
+        final int firstApiLevel =
+                SystemProperties.getInt("ro.product.first_api_level", VERSION.SDK_INT);
         assumeTrue("Skipping test: it only applies to devices that first shipped with S or later.",
                    firstApiLevel >= VERSION_CODES.S);
 

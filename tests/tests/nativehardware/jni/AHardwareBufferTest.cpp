@@ -356,7 +356,8 @@ TEST(AHardwareBufferTest, LockAndGetInfoAndUnlockSucceed) {
         EXPECT_LE(0, bytesPerStride);
         EXPECT_TRUE(bufferData != NULL);
 
-        err = AHardwareBuffer_unlock(buffer, nullptr);
+        int32_t fence = -1;
+        err = AHardwareBuffer_unlock(buffer, &fence);
         EXPECT_EQ(NO_ERROR, err);
     }
     AHardwareBuffer_release(buffer);
@@ -386,7 +387,8 @@ TEST(AHardwareBufferTest, LockAndUnlockSucceed) {
           NULL, &bufferData);
     EXPECT_EQ(NO_ERROR, err);
     EXPECT_TRUE(bufferData != NULL);
-    err = AHardwareBuffer_unlock(buffer, nullptr);
+    int32_t fence = -1;
+    err = AHardwareBuffer_unlock(buffer, &fence);
 
     AHardwareBuffer_release(buffer);
 }
@@ -433,7 +435,8 @@ TEST(AHardwareBufferTest, PlanarLockAndUnlockYuvSucceed) {
     EXPECT_TRUE(planes.planes[2].rowStride >= 8);
 
     // Unlock
-    err = AHardwareBuffer_unlock(buffer, nullptr);
+    int32_t fence = -1;
+    err = AHardwareBuffer_unlock(buffer, &fence);
     EXPECT_EQ(NO_ERROR, err);
 
     AHardwareBuffer_release(buffer);
@@ -473,7 +476,8 @@ TEST(AHardwareBufferTest, PlanarLockAndUnlockRgbaSucceed) {
     EXPECT_TRUE(planes.planes[0].rowStride >= 64);
 
     // Unlock
-    err = AHardwareBuffer_unlock(buffer, nullptr);
+    int32_t fence = -1;
+    err = AHardwareBuffer_unlock(buffer, &fence);
     EXPECT_EQ(NO_ERROR, err);
 
     AHardwareBuffer_release(buffer);

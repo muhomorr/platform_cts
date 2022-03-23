@@ -153,11 +153,10 @@ def test_test_patterns_impl(cam, props, af_fd, name):
                                          True)
 
       # Check pattern for correctness
-      if not check_pattern(cap, props, pattern):
-        raise AssertionError(f'Pattern {pattern} failed')
+      assert check_pattern(cap, props, pattern)
     else:
       logging.debug('%d not in android.sensor.availableTestPatternModes.',
-                    pattern)
+                    (pattern))
 
 
 class TestPatterns(its_base_test.ItsBaseTest):

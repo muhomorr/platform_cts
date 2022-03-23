@@ -96,58 +96,6 @@ public class SensorBatchingTests extends SensorTestCase {
         runFlushSensorTest(Sensor.TYPE_ACCELEROMETER_UNCALIBRATED, RATE_50HZ, BATCHING_PERIOD);
     }
 
-    public void testAccelerometerLimitedAxes_fastest_batching() throws Throwable {
-        runBatchingSensorTest(
-                Sensor.TYPE_ACCELEROMETER_LIMITED_AXES,
-                RATE_FASTEST,
-                BATCHING_PERIOD);
-    }
-
-    public void testAccelerometerLimitedAxes_50hz_batching() throws Throwable {
-        runBatchingSensorTest(Sensor.TYPE_ACCELEROMETER_LIMITED_AXES, RATE_50HZ, BATCHING_PERIOD);
-    }
-
-    public void testAccelerometerLimitedAxes_fastest_flush() throws Throwable {
-        runFlushSensorTest(Sensor.TYPE_ACCELEROMETER_LIMITED_AXES, RATE_FASTEST, BATCHING_PERIOD);
-    }
-
-    public void testAccelerometerLimitedAxes_50hz_flush() throws Throwable {
-        runFlushSensorTest(Sensor.TYPE_ACCELEROMETER_LIMITED_AXES, RATE_50HZ, BATCHING_PERIOD);
-    }
-
-    public void testAccelerometerLimitedAxesUncalibrated_fastest_batching() throws Throwable {
-        runBatchingSensorTest(Sensor.TYPE_ACCELEROMETER_LIMITED_AXES_UNCALIBRATED,
-                              RATE_FASTEST,
-                              BATCHING_PERIOD);
-    }
-
-    public void testAccelerometerLimitedAxesUncalibrated() throws Throwable {
-        runBatchingSensorTest(Sensor.TYPE_ACCELEROMETER_LIMITED_AXES_UNCALIBRATED,
-                              RATE_FASTEST,
-                              BATCHING_PERIOD);
-    }
-
-    public void testAccelerometerLimitedAxesUncalibrated_50hz_batching() throws Throwable {
-        runBatchingSensorTest(
-                Sensor.TYPE_ACCELEROMETER_LIMITED_AXES_UNCALIBRATED,
-                RATE_50HZ,
-                BATCHING_PERIOD);
-    }
-
-    public void testAccelerometerLimitedAxesUncalibrated_fastest_flush() throws Throwable {
-        runFlushSensorTest(
-                Sensor.TYPE_ACCELEROMETER_LIMITED_AXES_UNCALIBRATED,
-                RATE_FASTEST,
-                BATCHING_PERIOD);
-    }
-
-    public void testAccelerometerLimitedAxesUncalibrated_50hz_flush() throws Throwable {
-        runFlushSensorTest(
-                Sensor.TYPE_ACCELEROMETER_LIMITED_AXES_UNCALIBRATED,
-                RATE_50HZ,
-                BATCHING_PERIOD);
-    }
-
     public void testMagneticField_fastest_batching() throws Throwable {
         runBatchingSensorTest(Sensor.TYPE_MAGNETIC_FIELD, RATE_FASTEST, BATCHING_PERIOD);
     }
@@ -193,33 +141,11 @@ public class SensorBatchingTests extends SensorTestCase {
     }
 
     public void testGyroscope_fastest_flush() throws Throwable {
-        runFlushSensorTest(
-                Sensor.TYPE_GYROSCOPE,
-                SensorManager.SENSOR_DELAY_FASTEST,
-                BATCHING_PERIOD);
+        runFlushSensorTest(Sensor.TYPE_GYROSCOPE, SensorManager.SENSOR_DELAY_FASTEST, BATCHING_PERIOD);
     }
 
     public void testGyroscope_50hz_flush() throws Throwable {
         runFlushSensorTest(Sensor.TYPE_GYROSCOPE, RATE_50HZ, BATCHING_PERIOD);
-    }
-
-    public void testGyroscopeLimitedAxes_fastest_batching() throws Throwable {
-        runBatchingSensorTest(Sensor.TYPE_GYROSCOPE_LIMITED_AXES, RATE_FASTEST, BATCHING_PERIOD);
-    }
-
-    public void testGyroscopeLimitedAxes_50hz_batching() throws Throwable {
-        runBatchingSensorTest(Sensor.TYPE_GYROSCOPE_LIMITED_AXES, RATE_50HZ, BATCHING_PERIOD);
-    }
-
-    public void testGyroscopeLimitedAxes_fastest_flush() throws Throwable {
-        runFlushSensorTest(
-                Sensor.TYPE_GYROSCOPE_LIMITED_AXES,
-                SensorManager.SENSOR_DELAY_FASTEST,
-                BATCHING_PERIOD);
-    }
-
-    public void testGyroscopeLimitedAxes_50hz_flush() throws Throwable {
-        runFlushSensorTest(Sensor.TYPE_GYROSCOPE_LIMITED_AXES, RATE_50HZ, BATCHING_PERIOD);
     }
 
     public void testPressure_fastest_batching() throws Throwable {
@@ -231,10 +157,7 @@ public class SensorBatchingTests extends SensorTestCase {
     }
 
     public void testPressure_fastest_flush() throws Throwable {
-        runFlushSensorTest(
-                Sensor.TYPE_PRESSURE,
-                SensorManager.SENSOR_DELAY_FASTEST,
-                BATCHING_PERIOD);
+        runFlushSensorTest(Sensor.TYPE_PRESSURE, SensorManager.SENSOR_DELAY_FASTEST, BATCHING_PERIOD);
     }
 
     public void testPressure_50hz_flush() throws Throwable {
@@ -250,10 +173,7 @@ public class SensorBatchingTests extends SensorTestCase {
     }
 
     public void testGravity_fastest_flush() throws Throwable {
-        runFlushSensorTest(
-                Sensor.TYPE_GRAVITY,
-                SensorManager.SENSOR_DELAY_FASTEST,
-                BATCHING_PERIOD);
+        runFlushSensorTest(Sensor.TYPE_GRAVITY, SensorManager.SENSOR_DELAY_FASTEST, BATCHING_PERIOD);
     }
 
     public void testGravity_50hz_flush() throws Throwable {
@@ -277,10 +197,7 @@ public class SensorBatchingTests extends SensorTestCase {
     }
 
     public void testMagneticFieldUncalibrated_fastest_batching() throws Throwable {
-        runBatchingSensorTest(
-                Sensor.TYPE_MAGNETIC_FIELD_UNCALIBRATED,
-                RATE_FASTEST,
-                BATCHING_PERIOD);
+        runBatchingSensorTest(Sensor.TYPE_MAGNETIC_FIELD_UNCALIBRATED, RATE_FASTEST, BATCHING_PERIOD);
     }
 
     public void testMagneticFieldUncalibrated_50hz_batching() throws Throwable {
@@ -327,34 +244,6 @@ public class SensorBatchingTests extends SensorTestCase {
         runFlushSensorTest(Sensor.TYPE_GYROSCOPE_UNCALIBRATED, RATE_50HZ, BATCHING_PERIOD);
     }
 
-    public void testGyroscopeLimitedAxesUncalibrated_fastest_batching() throws Throwable {
-        runBatchingSensorTest(
-                Sensor.TYPE_GYROSCOPE_LIMITED_AXES_UNCALIBRATED,
-                RATE_FASTEST,
-                BATCHING_PERIOD);
-    }
-
-    public void testGyroscopeLimitedAxesUncalibrated_50hz_batching() throws Throwable {
-        runBatchingSensorTest(
-                Sensor.TYPE_GYROSCOPE_LIMITED_AXES_UNCALIBRATED,
-                RATE_50HZ,
-                BATCHING_PERIOD);
-    }
-
-    public void testGyroscopeLimitedAxesUncalibrated_fastest_flush() throws Throwable {
-        runFlushSensorTest(
-                Sensor.TYPE_GYROSCOPE_LIMITED_AXES_UNCALIBRATED,
-                RATE_FASTEST,
-                BATCHING_PERIOD);
-    }
-
-    public void testGyroscopeLimitedAxesUncalibrated_50hz_flush() throws Throwable {
-        runFlushSensorTest(
-                Sensor.TYPE_GYROSCOPE_LIMITED_AXES_UNCALIBRATED,
-                RATE_50HZ,
-                BATCHING_PERIOD);
-    }
-
     public void testLinearAcceleration_fastest_batching() throws Throwable {
         runBatchingSensorTest(Sensor.TYPE_LINEAR_ACCELERATION, RATE_FASTEST, BATCHING_PERIOD);
     }
@@ -372,10 +261,7 @@ public class SensorBatchingTests extends SensorTestCase {
     }
 
     public void testGeomagneticRotationVector_fastest_batching() throws Throwable {
-        runBatchingSensorTest(
-                Sensor.TYPE_GEOMAGNETIC_ROTATION_VECTOR,
-                RATE_FASTEST,
-                BATCHING_PERIOD);
+        runBatchingSensorTest(Sensor.TYPE_GEOMAGNETIC_ROTATION_VECTOR, RATE_FASTEST, BATCHING_PERIOD);
     }
 
     public void testGeomagneticRotationVector_50hz_batching() throws Throwable {

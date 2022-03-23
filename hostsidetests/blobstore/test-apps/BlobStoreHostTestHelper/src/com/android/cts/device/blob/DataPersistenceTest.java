@@ -75,7 +75,7 @@ public class DataPersistenceTest extends BaseBlobStoreDeviceTest {
     }
 
     @Test
-    public void testCommitSessionAndAcquireLease() throws Exception {
+    public void testCommitSession() throws Exception {
         final long sessionId = readSessionIdFromDisk();
         try (BlobStoreManager.Session session = mBlobStoreManager.openSession(sessionId)) {
             final CompletableFuture<Integer> callback = new CompletableFuture<>();
@@ -83,8 +83,6 @@ public class DataPersistenceTest extends BaseBlobStoreDeviceTest {
             assertThat(callback.get(TIMEOUT_COMMIT_CALLBACK_MS, TimeUnit.MILLISECONDS))
                     .isEqualTo(0);
         }
-        final BlobHandle blobHandle = readBlobHandleFromDisk();
-        mBlobStoreManager.acquireLease(blobHandle, "test desc");
     }
 
     @Test

@@ -28,7 +28,6 @@ import android.graphics.Paint;
 import android.graphics.Picture;
 import android.graphics.Rect;
 import android.os.Handler;
-import android.os.Looper;
 import android.uirendering.cts.R;
 import android.uirendering.cts.bitmapcomparers.MSSIMComparer;
 import android.uirendering.cts.bitmapverifiers.BitmapVerifier;
@@ -50,7 +49,6 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import java.util.Arrays;
-import java.util.function.Function;
 
 @LargeTest
 @RunWith(AndroidJUnit4.class)
@@ -90,7 +88,6 @@ public class BitmapTests extends ActivityTestBase {
     public void testChangeDuringRtAnimation() {
         class RtOnlyFrameCounter implements Window.OnFrameMetricsAvailableListener {
             private int count = 0;
-            Function<Integer, Void> onCountChanged = null;
 
             @Override
             public void onFrameMetricsAvailable(Window window, FrameMetrics frameMetrics,
@@ -99,9 +96,6 @@ public class BitmapTests extends ActivityTestBase {
                         && frameMetrics.getMetric(FrameMetrics.INPUT_HANDLING_DURATION) == 0
                         && frameMetrics.getMetric(FrameMetrics.LAYOUT_MEASURE_DURATION) == 0) {
                     count++;
-                    if (onCountChanged != null) {
-                        onCountChanged.apply(count);
-                    }
                 };
             }
 
@@ -127,15 +121,19 @@ public class BitmapTests extends ActivityTestBase {
                 mAnimator.setDuration(3000);
                 mAnimator.start();
 
-                Handler handler = new Handler(Looper.getMainLooper());
-                counter.onCountChanged = (Integer count) -> {
-                    // Ensure we've produced a couple frames and should now be in the RenderThread
-                    // animation. So bitmap changes shouldn't be observed.
-                    if (count >= 2) {
+                Handler handler = new Handler();
+                handler.postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
                         child.setColor(Color.RED);
+                        try {
+                            Thread.sleep(1000);
+                        } catch (Exception e) {
+                            // do nothing
+                        }
+                        child.setColor(Color.BLUE);
                     }
-                    return null;
-                };
+                }, 1000);
                 getActivity().getWindow().addOnFrameMetricsAvailableListener(counter, handler);
             }
 

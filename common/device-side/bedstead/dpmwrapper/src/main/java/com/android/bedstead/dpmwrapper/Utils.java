@@ -19,7 +19,6 @@ import android.app.ActivityManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.HandlerThread;
@@ -62,17 +61,12 @@ public final class Utils {
     @GuardedBy("LOCK")
     private static Handler sHandler;
 
-    static boolean isHeadlessSystemUserMode() {
-        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
-                && UserManager.isHeadlessSystemUserMode();
-    }
-
     static boolean isHeadlessSystemUser() {
-        return isHeadlessSystemUserMode() && MY_USER_ID == UserHandle.USER_SYSTEM;
+        return UserManager.isHeadlessSystemUserMode() && MY_USER_ID == UserHandle.USER_SYSTEM;
     }
 
     static boolean isCurrentUserOnHeadlessSystemUser(Context context) {
-        return isHeadlessSystemUserMode()
+        return UserManager.isHeadlessSystemUserMode()
                 && context.getSystemService(UserManager.class).isUserForeground();
     }
 
