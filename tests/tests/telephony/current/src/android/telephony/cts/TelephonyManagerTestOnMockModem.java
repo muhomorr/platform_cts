@@ -22,8 +22,12 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assume.assumeTrue;
 
 import android.content.Context;
+import android.content.pm.PackageManager;
+import android.os.Build;
+import android.os.SystemProperties;
 import android.telephony.TelephonyManager;
 import android.util.Log;
 
@@ -32,6 +36,7 @@ import androidx.test.InstrumentationRegistry;
 import com.android.compatibility.common.util.ShellIdentityUtils;
 
 import org.junit.AfterClass;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -42,13 +47,20 @@ import java.util.concurrent.TimeUnit;
 public class TelephonyManagerTestOnMockModem {
     private static final String TAG = "TelephonyManagerTestOnMockModem";
     private static MockModemManager sMockModemManager;
-    private TelephonyManager mTelephonyManager =
-            (TelephonyManager) getContext().getSystemService(Context.TELEPHONY_SERVICE);
+    private static TelephonyManager sTelephonyManager;
+    private static final String ALLOW_MOCK_MODEM_PROPERTY = "persist.radio.allow_mock_modem";
+    private static final boolean DEBUG = !"user".equals(Build.TYPE);
 
     @BeforeClass
     public static void beforeAllTests() throws Exception {
-
         Log.d(TAG, "TelephonyManagerTestOnMockModem#beforeAllTests()");
+
+        if (!hasTelephonyFeature() || !isAllowedMockModem()) {
+            return;
+        }
+
+        sTelephonyManager =
+                (TelephonyManager) getContext().getSystemService(Context.TELEPHONY_SERVICE);
 
         sMockModemManager = new MockModemManager();
         assertNotNull(sMockModemManager);
@@ -59,46 +71,85 @@ public class TelephonyManagerTestOnMockModem {
     public static void afterAllTests() throws Exception {
         Log.d(TAG, "TelephonyManagerTestOnMockModem#afterAllTests()");
 
+        if (!hasTelephonyFeature() || !isAllowedMockModem()) {
+            return;
+        }
+
         // Rebind all interfaces which is binding to MockModemService to default.
         assertNotNull(sMockModemManager);
         assertTrue(sMockModemManager.disconnectMockModemService());
         sMockModemManager = null;
     }
 
+    @Before
+    public void beforeTest() {
+        assumeTrue(hasTelephonyFeature());
+        assumeTrue(isAllowedMockModem());
+    }
+
     private static Context getContext() {
         return InstrumentationRegistry.getInstrumentation().getContext();
+    }
+
+    private static boolean hasTelephonyFeature() {
+        final PackageManager pm = getContext().getPackageManager();
+        if (!pm.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            Log.d(TAG, "Skipping test that requires FEATURE_TELEPHONY");
+            return false;
+        }
+        return true;
+    }
+
+    private static boolean isAllowedMockModem() {
+        boolean isAllowed = SystemProperties.getBoolean(ALLOW_MOCK_MODEM_PROPERTY, false);
+        if (!isAllowed && !DEBUG) {
+            Log.d(TAG, "Skipping MockModem tests in USER rom that requires mock modem permission"
+                    + " ,Developer options => Allow Mock Modem");
+            return false;
+        }
+        return true;
     }
 
     @Test
     public void testSimStateChange() throws Throwable {
         Log.d(TAG, "TelephonyManagerTestOnMockModem#testSimStateChange");
 
-        int simCardState = mTelephonyManager.getSimCardState();
+        int slotId = 0;
+        int simCardState = sTelephonyManager.getSimCardState();
         Log.d(TAG, "Current SIM card state: " + simCardState);
 
         assertTrue(
                 Arrays.asList(TelephonyManager.SIM_STATE_UNKNOWN, TelephonyManager.SIM_STATE_ABSENT)
                         .contains(simCardState));
 
-        int slotId = 0;
-        sMockModemManager.setSimPresent(slotId);
-
-        simCardState = mTelephonyManager.getSimCardState();
-        Log.d(TAG, "New SIM card state: " + simCardState);
+        // Insert a SIM
+        assertTrue(
+                sMockModemManager.insertSimCard(
+                        slotId, MockSimService.MOCK_SIM_PROFILE_ID_TWN_CHT));
+        simCardState = sTelephonyManager.getSimCardState();
         assertEquals(TelephonyManager.SIM_STATE_PRESENT, simCardState);
+
+        // Check SIM state ready
+        simCardState = sTelephonyManager.getSimState();
+        assertEquals(TelephonyManager.SIM_STATE_READY, simCardState);
+
+        // Remove the SIM
+        assertTrue(sMockModemManager.removeSimCard(slotId));
+        simCardState = sTelephonyManager.getSimCardState();
+        assertEquals(TelephonyManager.SIM_STATE_ABSENT, simCardState);
     }
 
     @Test
     public void testRadioPowerToggle() throws Throwable {
         Log.d(TAG, "TelephonyManagerTestOnMockModem#testRadioPowerToggle");
 
-        int radioState = mTelephonyManager.getRadioPowerState();
+        int radioState = sTelephonyManager.getRadioPowerState();
         Log.d(TAG, "Radio state: " + radioState);
 
         // Toggle radio power
         try {
             ShellIdentityUtils.invokeThrowableMethodWithShellPermissionsNoReturn(
-                    mTelephonyManager,
+                    sTelephonyManager,
                     (tm) -> tm.toggleRadioOnOff(),
                     SecurityException.class,
                     "android.permission.MODIFY_PHONE_STATE");
@@ -112,12 +163,12 @@ public class TelephonyManagerTestOnMockModem {
                 radioState == TelephonyManager.RADIO_POWER_ON
                         ? TelephonyManager.RADIO_POWER_OFF
                         : TelephonyManager.RADIO_POWER_ON;
-        assertEquals(mTelephonyManager.getRadioPowerState(), toggleRadioState);
+        assertEquals(sTelephonyManager.getRadioPowerState(), toggleRadioState);
 
         // Toggle radio power again back to original radio state
         try {
             ShellIdentityUtils.invokeThrowableMethodWithShellPermissionsNoReturn(
-                    mTelephonyManager,
+                    sTelephonyManager,
                     (tm) -> tm.toggleRadioOnOff(),
                     SecurityException.class,
                     "android.permission.MODIFY_PHONE_STATE");
@@ -127,7 +178,7 @@ public class TelephonyManagerTestOnMockModem {
 
         // Wait the radio state update in Framework
         TimeUnit.SECONDS.sleep(1);
-        assertEquals(mTelephonyManager.getRadioPowerState(), radioState);
+        assertEquals(sTelephonyManager.getRadioPowerState(), radioState);
 
         Log.d(TAG, "Test Done ");
     }
@@ -136,7 +187,7 @@ public class TelephonyManagerTestOnMockModem {
     public void testRadioPowerWithFailureResults() throws Throwable {
         Log.d(TAG, "TelephonyManagerTestOnMockModem#testRadioPowerWithFailureResults");
 
-        int radioState = mTelephonyManager.getRadioPowerState();
+        int radioState = sTelephonyManager.getRadioPowerState();
         Log.d(TAG, "Radio state: " + radioState);
 
         int slotId = 0;
@@ -153,7 +204,7 @@ public class TelephonyManagerTestOnMockModem {
             boolean state = (toggleRadioState == TelephonyManager.RADIO_POWER_ON) ? true : false;
             result =
                     ShellIdentityUtils.invokeThrowableMethodWithShellPermissions(
-                            mTelephonyManager,
+                            sTelephonyManager,
                             (tm) -> tm.setRadioPower(state),
                             SecurityException.class,
                             "android.permission.MODIFY_PHONE_STATE");
@@ -163,7 +214,7 @@ public class TelephonyManagerTestOnMockModem {
 
         TimeUnit.SECONDS.sleep(1);
         assertTrue(result);
-        assertNotEquals(mTelephonyManager.getRadioPowerState(), toggleRadioState);
+        assertNotEquals(sTelephonyManager.getRadioPowerState(), toggleRadioState);
 
         // Reset the modified error response of RIL_REQUEST_RADIO_POWER to the original behavior
         // and -1 means to disable the modifed mechanism in mock modem
@@ -174,7 +225,7 @@ public class TelephonyManagerTestOnMockModem {
             boolean state = (radioState == TelephonyManager.RADIO_POWER_ON) ? true : false;
             result =
                     ShellIdentityUtils.invokeThrowableMethodWithShellPermissions(
-                            mTelephonyManager,
+                            sTelephonyManager,
                             (tm) -> tm.setRadioPower(state),
                             SecurityException.class,
                             "android.permission.MODIFY_PHONE_STATE");
@@ -183,6 +234,6 @@ public class TelephonyManagerTestOnMockModem {
         }
         TimeUnit.SECONDS.sleep(1);
         assertTrue(result);
-        assertEquals(mTelephonyManager.getRadioPowerState(), radioState);
+        assertEquals(sTelephonyManager.getRadioPowerState(), radioState);
     }
 }
