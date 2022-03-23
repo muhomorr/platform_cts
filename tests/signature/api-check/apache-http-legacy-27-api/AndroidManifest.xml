@@ -23,11 +23,9 @@
 
     <uses-sdk android:minSdkVersion="27" android:targetSdkVersion="27"/>
 
-    <application android:debuggable="true"
-                 android:extractNativeLibs="true"
-                 android:largeHeap="true"/>
+    <application android:extractNativeLibs="true" android:largeHeap="true"/>
 
-    <instrumentation android:name="androidx.test.runner.AndroidJUnitRunner"
+    <instrumentation android:name="repackaged.android.test.InstrumentationTestRunner"
                      android:targetPackage="android.signature.cts.api.apache_http_legacy_27"
                      android:label="Apache Http Legacy 27 API Signature Test"/>
 

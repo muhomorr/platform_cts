@@ -21,6 +21,7 @@ import android.content.pm.PackageManager;
 import android.media.midi.MidiDevice;
 import android.media.midi.MidiDeviceInfo;
 import android.media.midi.MidiManager;
+import android.os.Bundle;
 import android.util.Log;
 
 import androidx.test.InstrumentationRegistry;
@@ -99,7 +100,7 @@ public class NativeMidiEchoTest {
         for(int buffIndex = 0; buffIndex < numMessages; buffIndex++) {
             messageLen = (int)(mRandom.nextFloat() * (maxMessageLen-1)) + 1;
             buffers[buffIndex] = generateRandomMessage(messageLen);
-            timestamps[buffIndex] = Math.abs(mRandom.nextLong());
+            timestamps[buffIndex] = mRandom.nextLong();
         }
     }
 
@@ -473,20 +474,6 @@ public class NativeMidiEchoTest {
         Assert.assertEquals("failed pure native latency test.", 0, result);
     }
 
-    /**
-     * Checks that getDefaultProtocol returns a valid value.
-     */
-    @Test
-    public void test_J_GetDefaultProtocol() throws Exception {
-        if (!hasMidiSupport()) {
-            return;
-        }
-
-        int defaultProtocol = getDefaultProtocol(mTestContext);
-        Assert.assertEquals("default protocol incorrect.",
-                MidiDeviceInfo.PROTOCOL_UNKNOWN, defaultProtocol);
-    }
-
     // Native Routines
     public static native void initN();
 
@@ -520,7 +507,4 @@ public class NativeMidiEchoTest {
     // Pure Native Checks
     public native int matchNativeMessages(long ctx);
     public native int checkNativeLatency(long ctx, long maxLatencyNanos);
-
-    // AMidiDevice getters
-    public native int getDefaultProtocol(long ctx);
 }

@@ -592,11 +592,7 @@ public class CameraBokehActivity extends PassFailButtons.Activity
         shutdownCamera();
 
         mCurrentCameraIndex = index;
-
-        Set<String> cameraIdSet = mTestCases.keySet();
-        List<String> stringsList = new ArrayList<>(cameraIdSet);
-
-        mCameraId = stringsList.get(index);
+        mCameraId = mCameraIdList[index];
         try {
             mCameraCharacteristics = mCameraManager.getCameraCharacteristics(mCameraId);
             mCameraDevice = mBlockingCameraManager.openCamera(mCameraId,

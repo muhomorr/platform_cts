@@ -18,11 +18,9 @@ package android.signature.cts.api;
 
 import android.signature.cts.DexMemberChecker;
 
-import static org.junit.Assert.assertTrue;
-
 public class DebugClassKillswitchTest extends BaseKillswitchTest {
     @Override
-    public void setUp() throws Exception {
+    protected void setUp() throws Exception {
         super.setUp();
 
         mErrorMessageAppendix = " to exempted DexMemberChecker class";

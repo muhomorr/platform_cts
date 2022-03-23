@@ -16,12 +16,6 @@
 
 package android.keystore.cts;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertSame;
-import static org.junit.Assert.fail;
-
-import android.keystore.cts.util.TestUtils;
 import android.security.keystore.KeyGenParameterSpec;
 import android.security.keystore.KeyInfo;
 import android.security.keystore.KeyProperties;
@@ -49,9 +43,7 @@ import javax.crypto.SecretKey;
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.SecretKeySpec;
 
-import org.junit.Test;
-
-public class SecretKeyFactoryTest {
+public class SecretKeyFactoryTest extends TestCase {
     private static final String EXPECTED_PROVIDER_NAME = TestUtils.EXPECTED_PROVIDER_NAME;
 
     private static String[] EXPECTED_ALGORITHMS = {
@@ -69,7 +61,6 @@ public class SecretKeyFactoryTest {
         }
     }
 
-    @Test
     public void testAlgorithmList() {
         // Assert that Android Keystore Provider exposes exactly the expected SecretKeyFactory
         // algorithms. We don't care whether the algorithms are exposed via aliases, as long as
@@ -93,7 +84,6 @@ public class SecretKeyFactoryTest {
                 expectedAlgsLowerCase.toArray(new String[0]));
     }
 
-    @Test
     public void testGetKeySpecWithKeystoreKeyAndKeyInfoReflectsAllAuthorizations()
             throws Exception {
         Date keyValidityStart = new Date(System.currentTimeMillis() - TestUtils.DAY_IN_MILLIS);
@@ -152,7 +142,6 @@ public class SecretKeyFactoryTest {
         }
     }
 
-    @Test
     public void testTranslateKeyWithNullKeyThrowsInvalidKeyException() throws Exception {
         for (String algorithm : EXPECTED_ALGORITHMS) {
             try {
@@ -167,7 +156,6 @@ public class SecretKeyFactoryTest {
         }
     }
 
-    @Test
     public void testTranslateKeyRejectsNonAndroidKeystoreKeys() throws Exception {
         for (String algorithm : EXPECTED_ALGORITHMS) {
             try {
@@ -183,7 +171,6 @@ public class SecretKeyFactoryTest {
         }
     }
 
-    @Test
     public void testTranslateKeyAcceptsAndroidKeystoreKeys() throws Exception {
         for (String algorithm : EXPECTED_ALGORITHMS) {
             try {
@@ -210,7 +197,6 @@ public class SecretKeyFactoryTest {
         }
     }
 
-    @Test
     public void testGenerateSecretWithNullSpecThrowsInvalidKeySpecException() throws Exception {
         for (String algorithm : EXPECTED_ALGORITHMS) {
             try {
@@ -225,7 +211,6 @@ public class SecretKeyFactoryTest {
         }
     }
 
-    @Test
     public void testGenerateSecretRejectsSecretKeySpec() throws Exception {
         for (String algorithm : EXPECTED_ALGORITHMS) {
             try {
@@ -240,7 +225,6 @@ public class SecretKeyFactoryTest {
         }
     }
 
-    @Test
     public void testGenerateSecretRejectsKeyInfo() throws Exception {
         for (String algorithm : EXPECTED_ALGORITHMS) {
             try {

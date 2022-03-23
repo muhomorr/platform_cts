@@ -20,17 +20,12 @@ import static android.app.WindowConfiguration.ACTIVITY_TYPE_HOME;
 import static android.app.WindowConfiguration.ACTIVITY_TYPE_RECENTS;
 import static android.app.WindowConfiguration.ACTIVITY_TYPE_STANDARD;
 import static android.app.WindowConfiguration.ACTIVITY_TYPE_UNDEFINED;
-import static android.app.WindowConfiguration.WINDOWING_MODE_FREEFORM;
 import static android.app.WindowConfiguration.WINDOWING_MODE_FULLSCREEN;
 import static android.app.WindowConfiguration.WINDOWING_MODE_MULTI_WINDOW;
 import static android.app.WindowConfiguration.WINDOWING_MODE_UNDEFINED;
 import static android.view.Display.DEFAULT_DISPLAY;
-import static android.view.WindowManager.LayoutParams.TYPE_APPLICATION;
-
-import static androidx.test.platform.app.InstrumentationRegistry.getInstrumentation;
 
 import android.app.ActivityManager;
-import android.app.WindowConfiguration;
 import android.content.Context;
 import android.graphics.Rect;
 import android.hardware.display.DisplayManager;
@@ -66,11 +61,11 @@ public class TestTaskOrganizer extends TaskOrganizer {
     private IBinder mPrimaryCookie;
     private IBinder mSecondaryCookie;
     private final HashMap<Integer, ActivityManager.RunningTaskInfo> mKnownTasks = new HashMap<>();
-    private final HashMap<Integer, SurfaceControl> mTaskLeashes = new HashMap<>();
     private final ArraySet<Integer> mPrimaryChildrenTaskIds = new ArraySet<>();
     private final ArraySet<Integer> mSecondaryChildrenTaskIds = new ArraySet<>();
     private final Rect mPrimaryBounds = new Rect();
     private final Rect mSecondaryBounds = new Rect();
+    private final Context mContext;
 
     private static final int[] CONTROLLED_ACTIVITY_TYPES = {
             ACTIVITY_TYPE_STANDARD,
@@ -84,16 +79,21 @@ public class TestTaskOrganizer extends TaskOrganizer {
             WINDOWING_MODE_UNDEFINED
     };
 
+    public TestTaskOrganizer(Context context) {
+        super();
+        //TODO(b/192572357): Verify if the context is a UI context when b/190019118 is fixed.
+        mContext = context;
+    }
+
     @Override
     public List<TaskAppearedInfo> registerOrganizer() {
-        final Context context = getInstrumentation().getContext();
-        final Rect bounds = context.createDisplayContext(
-                context.getSystemService(DisplayManager.class).getDisplay(DEFAULT_DISPLAY))
-                .createWindowContext(TYPE_APPLICATION, null /* options */)
-                .getSystemService(WindowManager.class)
-                .getCurrentWindowMetrics()
+        //TODO(b/192572357): Replace createDisplayContext with createWindowContext and
+        // getMaximumWindowMetrics with getCurrentWindowMetrics when b/190019118 is fixed.
+        final Rect bounds = mContext.createDisplayContext(
+                mContext.getSystemService(DisplayManager.class)
+                        .getDisplay(DEFAULT_DISPLAY)).getSystemService(WindowManager.class)
+                .getMaximumWindowMetrics()
                 .getBounds();
-
         final boolean isLandscape = bounds.width() > bounds.height();
         if (isLandscape) {
             bounds.splitVertically(mPrimaryBounds, mSecondaryBounds);
@@ -130,8 +130,7 @@ public class TestTaskOrganizer extends TaskOrganizer {
 
             // Set the roots as adjacent to each other.
             final WindowContainerTransaction wct = new WindowContainerTransaction();
-            wct.setAdjacentRoots(mRootPrimary.getToken(), mRootSecondary.getToken(),
-                    true /* moveTogether */);
+            wct.setAdjacentRoots(mRootPrimary.getToken(), mRootSecondary.getToken());
             applyTransaction(wct);
         }
     }
@@ -357,11 +356,7 @@ public class TestTaskOrganizer extends TaskOrganizer {
     @Override
     public void onTaskInfoChanged(ActivityManager.RunningTaskInfo taskInfo) {
         synchronized (this) {
-            notifyOnEnd(() -> {
-                SurfaceControl.Transaction t = new SurfaceControl.Transaction();
-                addTask(taskInfo, null /* leash */, t);
-                t.apply();
-            });
+            notifyOnEnd(() -> addTask(taskInfo));
         }
     }
 
@@ -372,25 +367,13 @@ public class TestTaskOrganizer extends TaskOrganizer {
     private void addTask(ActivityManager.RunningTaskInfo taskInfo, SurfaceControl leash,
             SurfaceControl.Transaction t) {
         mKnownTasks.put(taskInfo.taskId, taskInfo);
-        if (leash != null) {
-            mTaskLeashes.put(taskInfo.taskId, leash);
-        } else {
-            leash = mTaskLeashes.get(taskInfo.taskId);
-        }
-        if (taskInfo.hasParentTask()) {
-            Rect sourceCrop = null;
+        if (taskInfo.hasParentTask()){
             if (mRootPrimary != null
                     && mRootPrimary.taskId == taskInfo.getParentTaskId()) {
-                sourceCrop = new Rect(mPrimaryBounds);
                 mPrimaryChildrenTaskIds.add(taskInfo.taskId);
             } else if (mRootSecondary != null
                     && mRootSecondary.taskId == taskInfo.getParentTaskId()) {
-                sourceCrop = new Rect(mSecondaryBounds);
                 mSecondaryChildrenTaskIds.add(taskInfo.taskId);
-            }
-            if (t != null && leash != null && sourceCrop != null) {
-                sourceCrop.offsetTo(0, 0);
-                t.setGeometry(leash, sourceCrop, sourceCrop, Surface.ROTATION_0);
             }
             return;
         }
@@ -400,9 +383,7 @@ public class TestTaskOrganizer extends TaskOrganizer {
                 && taskInfo.containsLaunchCookie(mPrimaryCookie)) {
             mRootPrimary = taskInfo;
             if (t != null && leash != null) {
-                Rect sourceCrop = new Rect(mPrimaryBounds);
-                sourceCrop.offsetTo(0, 0);
-                t.setGeometry(leash, sourceCrop, mPrimaryBounds, Surface.ROTATION_0);
+                t.setGeometry(leash, null, mPrimaryBounds, Surface.ROTATION_0);
             }
             return;
         }
@@ -412,24 +393,9 @@ public class TestTaskOrganizer extends TaskOrganizer {
                 && taskInfo.containsLaunchCookie(mSecondaryCookie)) {
             mRootSecondary = taskInfo;
             if (t != null && leash != null) {
-                Rect sourceCrop = new Rect(mSecondaryBounds);
-                sourceCrop.offsetTo(0, 0);
-                t.setGeometry(leash, sourceCrop, mSecondaryBounds, Surface.ROTATION_0);
+                t.setGeometry(leash, null, mSecondaryBounds, Surface.ROTATION_0);
             }
-            return;
         }
-
-        if (t == null || leash == null) {
-            return;
-        }
-        WindowConfiguration config = taskInfo.getConfiguration().windowConfiguration;
-        Rect bounds = config.getBounds();
-        Rect sourceCrop = null;
-        if (config.getWindowingMode() != WINDOWING_MODE_FULLSCREEN) {
-            sourceCrop = new Rect(bounds);
-            sourceCrop.offsetTo(0, 0);
-        }
-        t.setGeometry(leash, sourceCrop, bounds, Surface.ROTATION_0);
     }
 
     private void removeTask(ActivityManager.RunningTaskInfo taskInfo) {
@@ -438,7 +404,6 @@ public class TestTaskOrganizer extends TaskOrganizer {
         if (mKnownTasks.remove(taskId) == null) {
             return;
         }
-        mTaskLeashes.remove(taskId);
         mPrimaryChildrenTaskIds.remove(taskId);
         mSecondaryChildrenTaskIds.remove(taskId);
 

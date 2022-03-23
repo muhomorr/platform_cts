@@ -65,9 +65,6 @@
     <!-- b/183654427 Remove CtsTelecomTestCases from cts-on-gsi -->
     <option name="compatibility:exclude-filter" value="CtsTelecomTestCases" />
 
-    <!-- b/183655483 Remove CtsTelephonySdk28TestCases from cts-on-gsi -->
-    <option name="compatibility:exclude-filter" value="CtsTelephonySdk28TestCases" />
-
     <!-- b/183234756, b/80388296, b/110260628, b/159295445, b/159294948 CtsDevicePolicyManagerTestCases -->
     <option name="compatibility:exclude-filter" value="CtsDevicePolicyManagerTestCases" />
 
@@ -76,6 +73,9 @@
     <option name="compatibility:module-arg" value="CtsDeqpTestCases:include-filter:dEQP-GLES2.functional.prerequisite#*" />
     <option name="compatibility:module-arg" value="CtsDeqpTestCases:include-filter:dEQP-GLES3.functional.prerequisite#*" />
     <option name="compatibility:module-arg" value="CtsDeqpTestCases:include-filter:dEQP-VK.api.smoke#*" />
+
+    <!-- b/183659262 Remove CtsPreferenceTestCases from cts-on-gsi -->
+    <option name="compatibility:exclude-filter" value="CtsPreferenceTestCases" />
 
     <!-- b/183636777 Remove CtsShortcutManagerPackage4 from cts-on-gsi -->
     <option name="compatibility:exclude-filter" value="CtsShortcutManagerPackage4" />
@@ -95,12 +95,4 @@
 
     <!-- b/183653612: CtsTransitionTestCases -->
     <option name="compatibility:exclude-filter" value="CtsTransitionTestCases" />
-
-    <!-- b/198226244 -->
-    <option name="compatibility:exclude-filter" value="CtsVideoTestCases android.video.cts.CodecEncoderPerformanceTest#testPerformanceOfHardwareVideoEncoders" />
-
-    <!-- b/203177211 -->
-    <option name="compatibility:exclude-filter" value="CtsAppSecurityHostTestCases android.appsecurity.cts.ListeningPortsTest#testNoRemotelyAccessibleListeningUdpPorts" />
-
-
 </configuration>

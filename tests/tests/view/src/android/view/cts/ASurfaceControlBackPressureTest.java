@@ -64,7 +64,7 @@ public class ASurfaceControlBackPressureTest {
         private final CountDownLatch mCountDownLatch = new CountDownLatch(1);
 
         @Override
-        public void onTransactionComplete(long latchTime, long presentTime) {
+        public void onTransactionComplete(long latchTime) {
             mCountDownLatch.countDown();
         }
 
@@ -136,8 +136,7 @@ public class ASurfaceControlBackPressureTest {
                         nSurfaceTransaction_setBuffer(mSurfaceControl, surfaceTransaction,
                                 getNextBuffer());
                         if (i == 0) {
-                            nSurfaceTransaction_setOnCompleteCallback(surfaceTransaction,
-                                    false /* waitForFence */, listener);
+                            nSurfaceTransaction_setOnCompleteCallback(surfaceTransaction, listener);
                         }
                         applyAndDeleteSurfaceTransaction(surfaceTransaction);
                     }

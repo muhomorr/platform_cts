@@ -34,7 +34,6 @@ import android.graphics.BitmapFactory;
 import android.graphics.BitmapFactory.Options;
 import android.graphics.Color;
 import android.graphics.Rect;
-import android.media.MediaFormat;
 import android.os.Parcel;
 import android.os.ParcelFileDescriptor;
 import android.platform.test.annotations.LargeTest;
@@ -48,7 +47,6 @@ import androidx.test.filters.SmallTest;
 
 import com.android.compatibility.common.util.BitmapUtils;
 import com.android.compatibility.common.util.CddTest;
-import com.android.compatibility.common.util.MediaUtils;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -62,8 +60,6 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.RandomAccessFile;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.concurrent.CountDownLatch;
 
 import junitparams.JUnitParamsRunner;
@@ -88,18 +84,13 @@ public class BitmapFactoryTest {
     }
 
     private Object[] testImages() {
-        ArrayList<Object> testImages = new ArrayList<>(Arrays.asList(new Object[] {
+        return new Object[] {
                 new TestImage(R.drawable.baseline_jpeg, 1280, 960),
                 new TestImage(R.drawable.png_test, 640, 480),
                 new TestImage(R.drawable.gif_test, 320, 240),
                 new TestImage(R.drawable.bmp_test, 320, 240),
-                new TestImage(R.drawable.webp_test, 640, 480)
-        }));
-        if (MediaUtils.hasDecoder(MediaFormat.MIMETYPE_VIDEO_HEVC)) {
-            // HEIF support is optional when HEVC decoder is not supported.
-            testImages.add(new TestImage(R.raw.heifwriter_input, 1920, 1080));
-        }
-        return testImages.toArray(new Object[] {});
+                new TestImage(R.drawable.webp_test, 640, 480),
+        };
     }
 
     private static final int[] RAW_COLORS = new int[] {

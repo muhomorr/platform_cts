@@ -17,7 +17,7 @@
 #ifndef MEDIACTSNATIVE_NATIVE_CODEC_TEST_BASE_H
 #define MEDIACTSNATIVE_NATIVE_CODEC_TEST_BASE_H
 
-#include <media/NdkMediaCodec.h>
+#include <NdkMediaCodec.h>
 #include <zlib.h>
 
 #include <cmath>
@@ -106,11 +106,10 @@ class OutputManager {
         memory.insert(memory.end(), buf, buf + info->size);
     }
     void updateChecksum(uint8_t* buf, AMediaCodecBufferInfo* info) {
-        updateChecksum(buf, info, 0, 0, 0, 0);
+        updateChecksum(buf, info, 0, 0, 0);
     }
-
-    void updateChecksum(uint8_t* buf, AMediaCodecBufferInfo* info, int width, int height,
-                        int stride, int bytesPerSample);
+    void updateChecksum(
+            uint8_t* buf, AMediaCodecBufferInfo* info, int width, int height, int stride);
     uLong getChecksum() { return crc32value; }
     void reset() {
         inpPtsArray.clear();
@@ -137,7 +136,6 @@ class CodecTestBase {
     int64_t mPrevOutputPts;
     bool mSignalledOutFormatChanged;
     AMediaFormat* mOutFormat;
-    int mBytesPerSample;
 
     bool mSaveToMem;
     OutputManager* mOutputBuff;

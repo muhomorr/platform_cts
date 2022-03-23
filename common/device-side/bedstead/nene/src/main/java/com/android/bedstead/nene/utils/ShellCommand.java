@@ -59,6 +59,7 @@ public final class ShellCommand {
     }
 
     public static final class Builder {
+        private String mLinuxUser;
         private final StringBuilder commandBuilder;
         @Nullable
         private byte[] mStdInBytes = null;
@@ -125,9 +126,29 @@ public final class ShellCommand {
         }
 
         /**
+         * Run the command as a given linux user.
+         */
+        @CheckResult
+        public Builder asLinuxUser(String user) {
+            mLinuxUser = user;
+            return this;
+        }
+
+        /**
+         * Run the command as the root linux user.
+         */
+        @CheckResult
+        public Builder asRoot() {
+            return asLinuxUser("root");
+        }
+
+        /**
          * Build the full command including all options and operands.
          */
         public String build() {
+            if (mLinuxUser != null) {
+                return "su " + mLinuxUser + " " + commandBuilder.toString();
+            }
             return commandBuilder.toString();
         }
 

@@ -27,7 +27,6 @@ import android.security.identity.IdentityCredentialException;
 import android.security.identity.IdentityCredentialStore;
 import android.security.identity.WritableIdentityCredential;
 import android.security.identity.ResultData;
-import com.android.security.identity.internal.Util;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -198,7 +197,7 @@ public class UserAuthTest {
     }
 
     void doTestUserAuth(DeviceLockSession dl, KeyguardManager keyguardManager) throws Exception {
-        assumeTrue("IC HAL is not implemented", TestUtil.isHalImplemented());
+        assumeTrue("IC HAL is not implemented", Util.isHalImplemented());
 
         // This test creates two different access control profiles:
         //

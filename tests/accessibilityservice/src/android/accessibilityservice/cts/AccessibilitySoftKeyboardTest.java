@@ -18,13 +18,10 @@ import static android.accessibility.cts.common.InstrumentedAccessibilityService.
 import static android.accessibilityservice.AccessibilityService.SHOW_MODE_AUTO;
 import static android.accessibilityservice.AccessibilityService.SHOW_MODE_HIDDEN;
 import static android.accessibilityservice.AccessibilityService.SHOW_MODE_IGNORE_HARD_KEYBOARD;
-import static android.accessibilityservice.AccessibilityService.SoftKeyboardController.ENABLE_IME_SUCCESS;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 import android.accessibility.cts.common.AccessibilityDumpOnFailureRule;
 import android.accessibility.cts.common.InstrumentedAccessibilityService;
@@ -139,71 +136,16 @@ public class AccessibilitySoftKeyboardTest {
         String currentIME = Settings.Secure.getString(
                 mService.getContentResolver(), Settings.Secure.DEFAULT_INPUT_METHOD);
         assertNotEquals(Ime1Constants.IME_ID, currentIME);
-        // Enable a placeholder IME for this test.
-        try (TestImeSession imeSession = new TestImeSession(Ime1Constants.IME_ID, true)) {
-            // Switch to the placeholder IME.
+        // Enable a dummy IME for this test.
+        try (TestImeSession imeSession = new TestImeSession(Ime1Constants.IME_ID)) {
+            // Switch to the dummy IME.
             final boolean success = controller.switchToInputMethod(Ime1Constants.IME_ID);
             currentIME = Settings.Secure.getString(
                     mService.getContentResolver(), Settings.Secure.DEFAULT_INPUT_METHOD);
 
-            // The current IME should be set to the placeholder IME successfully.
+            // The current IME should be set to the dummy IME successfully.
             assertTrue(success);
             assertEquals(Ime1Constants.IME_ID, currentIME);
-        }
-    }
-
-    @Test
-    public void testSetInputMethodEnabled_differentPackage() throws Exception {
-        // Disable a placeholder IME for this test.
-        try (TestImeSession imeSession = new TestImeSession(Ime1Constants.IME_ID, false)) {
-            final SoftKeyboardController controller = mService.getSoftKeyboardController();
-
-            String enabledIMEs = Settings.Secure.getString(
-                    mService.getContentResolver(), Settings.Secure.ENABLED_INPUT_METHODS);
-            assertFalse(enabledIMEs.contains(Ime1Constants.IME_ID));
-
-            // Enable the placeholder IME.
-            try {
-                int result = controller.setInputMethodEnabled(Ime1Constants.IME_ID, true);
-                fail("should have thrown SecurityException");
-            } catch (SecurityException ignored) {
-            }
-
-            enabledIMEs = Settings.Secure.getString(
-                    mService.getContentResolver(), Settings.Secure.ENABLED_INPUT_METHODS);
-            // The placeholder IME should not be enabled;
-            assertFalse(enabledIMEs.contains(Ime1Constants.IME_ID));
-        }
-    }
-
-    @Test
-    public void testSetInputMethodEnabled_success() throws Exception {
-        String ImeId = "android.accessibilityservice.cts/.StubInputMethod";
-        // Disable a placeholder IME for this test.
-        try (TestImeSession imeSession = new TestImeSession(ImeId, false)) {
-            final SoftKeyboardController controller = mService.getSoftKeyboardController();
-
-            String enabledIMEs = Settings.Secure.getString(
-                    mService.getContentResolver(), Settings.Secure.ENABLED_INPUT_METHODS);
-            assertFalse(enabledIMEs.contains(ImeId));
-
-            // Enable the placeholder IME.
-            int result = controller.setInputMethodEnabled(ImeId, true);
-            enabledIMEs = Settings.Secure.getString(
-                    mService.getContentResolver(), Settings.Secure.ENABLED_INPUT_METHODS);
-
-            // The placeholder IME should be enabled;
-            assertEquals(ENABLE_IME_SUCCESS, result);
-            assertTrue(enabledIMEs.contains(ImeId));
-
-            // Disable the placeholder IME.
-            result = controller.setInputMethodEnabled(ImeId, false);
-            enabledIMEs = Settings.Secure.getString(
-                    mService.getContentResolver(), Settings.Secure.ENABLED_INPUT_METHODS);
-
-            // The placeholder IME should be disabled;
-            assertEquals(ENABLE_IME_SUCCESS, result);
-            assertFalse(enabledIMEs.contains(ImeId));
         }
     }
 
@@ -255,14 +197,9 @@ public class AccessibilitySoftKeyboardTest {
     }
 
     private class TestImeSession implements AutoCloseable {
-        TestImeSession(String imeId, boolean enabled) {
-            // Enable/disable the placeholder IME by shell command.
-            final String enableImeCommand;
-            if (enabled) {
-                enableImeCommand = ShellCommandUtils.enableIme(imeId);
-            } else {
-                enableImeCommand = ShellCommandUtils.disableIme(imeId);
-            }
+        TestImeSession(String imeId) {
+            // Enable the dummy IME by shell command.
+            final String enableImeCommand = ShellCommandUtils.enableIme(imeId);
             ShellCommandBuilder.create(mInstrumentation)
                     .addCommand(enableImeCommand)
                     .run();

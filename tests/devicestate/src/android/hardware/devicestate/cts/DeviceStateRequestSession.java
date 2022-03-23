@@ -20,7 +20,6 @@ import static android.hardware.devicestate.cts.DeviceStateUtils.runWithControlDe
 
 import android.hardware.devicestate.DeviceStateManager;
 import android.hardware.devicestate.DeviceStateRequest;
-
 import androidx.annotation.NonNull;
 
 /**
@@ -57,7 +56,8 @@ public final class DeviceStateRequestSession implements AutoCloseable {
     @Override
     public void close() {
         try {
-            runWithControlDeviceStatePermission(mDeviceStateManager::cancelStateRequest);
+            runWithControlDeviceStatePermission(() ->
+                    mDeviceStateManager.cancelRequest(mRequest));
         } catch (Throwable t) {
             throw new RuntimeException(t);
         }

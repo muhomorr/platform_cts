@@ -16,9 +16,6 @@
 
 package android.keystore.cts;
 
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.fail;
-
 import java.nio.ByteBuffer;
 import java.security.AlgorithmParameters;
 import java.security.Key;
@@ -28,8 +25,6 @@ import java.security.spec.InvalidParameterSpecException;
 import javax.crypto.AEADBadTagException;
 import javax.crypto.Cipher;
 import javax.crypto.spec.GCMParameterSpec;
-
-import org.junit.Test;
 
 abstract class AESGCMCipherTestBase extends BlockCipherTestBase {
 
@@ -67,7 +62,6 @@ abstract class AESGCMCipherTestBase extends BlockCipherTestBase {
         return spec.getIV();
     }
 
-    @Test
     public void testKatEncryptWithAadProvidedInOneGo() throws Exception {
         createCipher();
         assertKatTransformWithAadProvidedInOneGo(
@@ -77,7 +71,6 @@ abstract class AESGCMCipherTestBase extends BlockCipherTestBase {
                 getKatCiphertextWhenKatAadPresent());
     }
 
-    @Test
     public void testKatDecryptWithAadProvidedInOneGo() throws Exception {
         createCipher();
         assertKatTransformWithAadProvidedInOneGo(
@@ -87,7 +80,6 @@ abstract class AESGCMCipherTestBase extends BlockCipherTestBase {
                 getKatPlaintext());
     }
 
-    @Test
     public void testKatEncryptWithAadProvidedInChunks() throws Exception {
         createCipher();
         assertKatTransformWithAadProvidedInChunks(
@@ -122,7 +114,6 @@ abstract class AESGCMCipherTestBase extends BlockCipherTestBase {
                 23);
     }
 
-    @Test
     public void testKatDecryptWithAadProvidedInChunks() throws Exception {
         createCipher();
         assertKatTransformWithAadProvidedInChunks(
@@ -161,15 +152,15 @@ abstract class AESGCMCipherTestBase extends BlockCipherTestBase {
             byte[] aad, byte[] input, byte[] expectedOutput) throws Exception {
         initKat(opmode);
         updateAAD(aad);
-        assertArrayEquals(expectedOutput, doFinal(input));
+        assertEquals(expectedOutput, doFinal(input));
 
         initKat(opmode);
         updateAAD(aad, 0, aad.length);
-        assertArrayEquals(expectedOutput, doFinal(input));
+        assertEquals(expectedOutput, doFinal(input));
 
         initKat(opmode);
         updateAAD(ByteBuffer.wrap(aad));
-        assertArrayEquals(expectedOutput, doFinal(input));
+        assertEquals(expectedOutput, doFinal(input));
     }
 
     private void assertKatTransformWithAadProvidedInChunks(int opmode,
@@ -182,10 +173,9 @@ abstract class AESGCMCipherTestBase extends BlockCipherTestBase {
             updateAAD(aad, aadOffset, chunkSize);
             aadOffset += chunkSize;
         }
-        assertArrayEquals(expectedOutput, doFinal(input));
+        assertEquals(expectedOutput, doFinal(input));
     }
 
-    @Test
     public void testCiphertextBitflipDetectedWhenDecrypting() throws Exception {
         createCipher();
         Key key = importKey(getKatKey());
@@ -198,7 +188,6 @@ abstract class AESGCMCipherTestBase extends BlockCipherTestBase {
         } catch (AEADBadTagException expected) {}
     }
 
-    @Test
     public void testAadBitflipDetectedWhenDecrypting() throws Exception {
         createCipher();
         Key key = importKey(getKatKey());
@@ -213,7 +202,6 @@ abstract class AESGCMCipherTestBase extends BlockCipherTestBase {
         } catch (AEADBadTagException expected) {}
     }
 
-    @Test
     public void testInitRejectsIvParameterSpec() throws Exception {
         assertInitRejectsIvParameterSpec(getKatIv());
     }

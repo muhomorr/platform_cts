@@ -19,8 +19,7 @@ import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothServerSocket;
 import android.test.AndroidTestCase;
 import android.test.suitebuilder.annotation.SmallTest;
-
-import androidx.test.InstrumentationRegistry;
+import android.util.Log;
 
 import java.io.IOException;
 
@@ -36,8 +35,6 @@ public class LeL2capSocketTest extends AndroidTestCase {
         if (!TestUtils.isBleSupported(getContext())) {
             return;
         }
-        InstrumentationRegistry.getInstrumentation().getUiAutomation()
-            .adoptShellPermissionIdentity(android.Manifest.permission.BLUETOOTH_CONNECT);
         mAdapter = BluetoothAdapter.getDefaultAdapter();
         assertNotNull("BluetoothAdapter.getDefaultAdapter() returned null. "
                 + "Does this device have a Bluetooth adapter?", mAdapter);
@@ -53,8 +50,6 @@ public class LeL2capSocketTest extends AndroidTestCase {
         }
         assertTrue(BTAdapterUtils.disableAdapter(mAdapter, mContext));
         mAdapter = null;
-        InstrumentationRegistry.getInstrumentation().getUiAutomation()
-            .dropShellPermissionIdentity();
         super.tearDown();
     }
 

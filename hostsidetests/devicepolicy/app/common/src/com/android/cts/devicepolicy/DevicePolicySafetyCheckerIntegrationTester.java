@@ -76,17 +76,11 @@ public class DevicePolicySafetyCheckerIntegrationTester {
             OPERATION_SET_ALWAYS_ON_VPN_PACKAGE
     };
 
-    private final boolean mForDeviceOwner;
-
-    public DevicePolicySafetyCheckerIntegrationTester(boolean forDeviceOwner) {
-        mForDeviceOwner = forDeviceOwner;
-    }
-
     /**
      * Tests that all safety-aware operations are properly implemented.
      */
     public final void testAllOperations(DevicePolicyManager dpm, ComponentName admin) {
-        Log.d(TAG, "testAllOperations(): dpm=" + dpm + ", admin=" + admin);
+        Log.d(TAG, "testAllOperations: dpm=" + dpm + ", admin=" + admin);
         Objects.requireNonNull(dpm);
 
         List<String> failures = new ArrayList<>();
@@ -115,7 +109,6 @@ public class DevicePolicySafetyCheckerIntegrationTester {
      * Tests {@link DevicePolicyManager#isSafeOperation(int)}.
      */
     public void testIsSafeOperation(DevicePolicyManager dpm) {
-        Log.d(TAG, "testIsSafeOperation(): dpm=" + dpm);
         // Currently there's just one reason...
         int reason = OPERATION_SAFETY_REASON_DRIVING_DISTRACTION;
         Log.d(TAG, "testIsSafeOperation(): dpm=" + dpm + ", reason="
@@ -137,7 +130,6 @@ public class DevicePolicySafetyCheckerIntegrationTester {
      * Tests {@link UnsafeStateException} properties.
      */
     public void testUnsafeStateException(DevicePolicyManager dpm, ComponentName admin) {
-        Log.d(TAG, "testUnsafeStateException(): dpm=" + dpm + ", admin=" + admin);
         // Currently there's just one reason...
         int reason = OPERATION_SAFETY_REASON_DRIVING_DISTRACTION;
         // Operation doesn't really matter
@@ -164,7 +156,6 @@ public class DevicePolicySafetyCheckerIntegrationTester {
      * Tests {@link android.app.admin.DeviceAdminReceiver#onOperationSafetyStateChanged()}.
      */
     public void testOnOperationSafetyStateChanged(Context context, DevicePolicyManager dpm) {
-        Log.d(TAG, "testOnOperationSafetyStateChanged(): dpm=" + dpm);
         // Currently there's just one reason...
         int reason = OPERATION_SAFETY_REASON_DRIVING_DISTRACTION;
         // Operation doesn't really matter
@@ -172,28 +163,27 @@ public class DevicePolicySafetyCheckerIntegrationTester {
         Log.d(TAG, "testOnOperationSafetyStateChanged(): dpm=" + dpm
                 + ", reason=" + operationSafetyReasonToString(reason)
                 + ", operation=" + operationToString(operation));
-        OperationSafetyChangedCallback receiver = OperationSafetyChangedCallback.register(context,
-                mForDeviceOwner);
+        OperationSafetyChangedCallback receiver = OperationSafetyChangedCallback.register(context);
         try {
             setOperationUnsafe(dpm, operation, reason);
             // Must force OneTimeSafetyChecker to generate the event by calling the unsafe operation
             assertThrows(UnsafeStateException.class, () -> dpm.lockNow());
 
             Log.d(TAG, "Waiting isSafe=false event");
-            assertNextEvent(receiver, operation, reason, /* isSafe= */ false);
+            assertNextEvent(receiver, reason, /* isSafe= */ false);
 
             // OneTimeSafetyChecker automatically disables itself after one operation, which in turn
             // triggers another event
             Log.d(TAG, "Waiting isSafe=true event");
-            assertNextEvent(receiver, operation, reason, /* isSafe= */ true);
+            assertNextEvent(receiver, reason, /* isSafe= */ true);
         } finally {
             receiver.unregister(context);
         }
     }
 
-    private void assertNextEvent(OperationSafetyChangedCallback receiver, int operation,
+    private void assertNextEvent(OperationSafetyChangedCallback receiver,
             int reason, boolean isSafe) {
-        OperationSafetyChangedEvent event = receiver.getNextEvent(operation);
+        OperationSafetyChangedEvent event = receiver.getNextEvent();
         Log.v(TAG, "Received event: " + event);
         assertWithMessage("event (%s) reason", event).that(event.reason).isEqualTo(reason);
         assertWithMessage("event (%s) safety state", event).that(event.isSafe).isEqualTo(isSafe);

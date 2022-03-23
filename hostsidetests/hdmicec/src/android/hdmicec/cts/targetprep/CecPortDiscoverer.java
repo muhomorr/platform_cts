@@ -20,9 +20,6 @@ import android.hdmicec.cts.BaseHdmiCecCtsTest;
 import android.hdmicec.cts.CecMessage;
 import android.hdmicec.cts.HdmiCecClientWrapper;
 import android.hdmicec.cts.HdmiCecConstants;
-import android.hdmicec.cts.LogicalAddress;
-import android.hdmicec.cts.error.CecClientWrapperException;
-import android.hdmicec.cts.error.ErrorCodes;
 
 import com.android.tradefed.device.DeviceNotAvailableException;
 import com.android.tradefed.device.ITestDevice;
@@ -37,7 +34,6 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.InputStreamReader;
-import java.io.OutputStreamWriter;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.concurrent.TimeUnit;
@@ -52,15 +48,6 @@ public class CecPortDiscoverer extends BaseTargetPreparer {
     private File mCecMapDir = HdmiCecConstants.CEC_MAP_FOLDER;
     private File mDeviceEntry = null;
     private File mPortEntry = null;
-
-    private String instructionsOnError =
-            "\nIn case the setup is valid according to the README and "
-                    + "the test should have run, please verify that\n"
-                    + "1. cec-client is not running already on the port the DUT is connected to\n"
-                    + "2. "
-                    + HdmiCecConstants.CEC_MAP_FOLDER
-                    + " has been cleared of stale mappings (in case a"
-                    + " test was interrupted)\n";
 
     /** {@inheritDoc} */
     @Override
@@ -109,17 +96,15 @@ public class CecPortDiscoverer extends BaseTargetPreparer {
                 throw new TargetSetupError("No adapters connected to host.");
             }
 
-            int targetDeviceType =
-                    BaseHdmiCecCtsTest.getTargetLogicalAddress(device).getDeviceType();
+            int targetDevice =
+                    BaseHdmiCecCtsTest.getTargetLogicalAddress(device).getLogicalAddressAsInt();
             int toDevice;
             launchCommand.add("-t");
-            launchCommand.add("r");
-            launchCommand.add("-t");
-            if (targetDeviceType == HdmiCecConstants.CEC_DEVICE_TYPE_TV) {
-                toDevice = LogicalAddress.PLAYBACK_1.getLogicalAddressAsInt();
+            if (targetDevice == 0) {
+                toDevice = 4;
                 launchCommand.add("p");
             } else {
-                toDevice = LogicalAddress.TV.getLogicalAddressAsInt();
+                toDevice = 0;
                 launchCommand.add("x");
             }
 
@@ -132,7 +117,7 @@ public class CecPortDiscoverer extends BaseTargetPreparer {
              */
             serialNoParam = serialNoParam.substring(1);
             StringBuilder sendVendorCommand = new StringBuilder("cmd hdmi_control vendorcommand ");
-            sendVendorCommand.append(" -t " + targetDeviceType);
+            sendVendorCommand.append(" -t " + targetDevice);
             sendVendorCommand.append(" -d " + toDevice);
             sendVendorCommand.append(" -a " + serialNoParam);
 
@@ -164,27 +149,6 @@ public class CecPortDiscoverer extends BaseTargetPreparer {
                             device.executeShellCommand(sendVendorCommand.toString());
                             if (cecClientWrapper.checkConsoleOutput(
                                     serialNoParam, TIMEOUT_MILLIS, inputConsole)) {
-                                if (targetDeviceType != HdmiCecConstants.CEC_DEVICE_TYPE_TV) {
-                                    // Timeout in milliseconds
-                                    long getVersionTimeout = 3000;
-                                    BufferedWriter outputConsole =
-                                            new BufferedWriter(
-                                                    new OutputStreamWriter(
-                                                            mCecClient.getOutputStream()));
-
-                                    String getVersionMessage = "tx 10:9f";
-                                    cecClientWrapper.sendConsoleMessage(
-                                            getVersionMessage, outputConsole);
-                                    String getVersionResponse = "01:9e";
-                                    if (cecClientWrapper.checkConsoleOutput(
-                                            getVersionResponse, getVersionTimeout, inputConsole)) {
-                                        throw new Exception(
-                                                "Setup error! The sink device (TV) in the test setup"
-                                                    + " seems to have CEC enabled. Please disable"
-                                                    + " and retry tests.");
-                                    }
-                                }
-
                                 writeMapping(port, serialNo);
                                 return;
                             }
@@ -192,14 +156,10 @@ public class CecPortDiscoverer extends BaseTargetPreparer {
                             portBeingRetried = false;
                         } else {
                             CLog.e("Console did not get ready!");
-                            throw new CecClientWrapperException(ErrorCodes.CecPortBusy);
+                            throw new HdmiCecClientWrapper.CecPortBusyException();
                         }
-                    } catch (CecClientWrapperException cwe) {
-                        if (cwe.getErrorCode() != ErrorCodes.CecPortBusy) {
-                            retryCount = MAX_RETRY_COUNT;
-                        } else {
-                            retryCount++;
-                        }
+                    } catch (HdmiCecClientWrapper.CecPortBusyException cpbe) {
+                        retryCount++;
                         if (retryCount >= MAX_RETRY_COUNT) {
                             /* We have retried enough number of times. Check another port */
                             portBeingRetried = false;
@@ -222,8 +182,7 @@ public class CecPortDiscoverer extends BaseTargetPreparer {
                             + ". "
                             + "Could not get adapter mapping for device"
                             + serialNo
-                            + "."
-                            + instructionsOnError,
+                            + ".",
                     e);
         } catch (Exception generic) {
             throw new TargetSetupError(
@@ -232,12 +191,10 @@ public class CecPortDiscoverer extends BaseTargetPreparer {
                             + "'. "
                             + "Could not get adapter mapping for device"
                             + serialNo
-                            + "."
-                            + instructionsOnError,
+                            + ".",
                     generic);
         }
-        throw new TargetSetupError(
-                "Device " + serialNo + " not connected to any adapter!" + instructionsOnError);
+        throw new TargetSetupError("Device " + serialNo + " not connected to any adapter!");
     }
 
     private String getPortFilename(String port) {

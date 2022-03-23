@@ -16,9 +16,10 @@
 
 package com.android.bedstead.nene.activities;
 
-public class LocalActivity extends Activity<android.app.Activity> {
+import com.android.bedstead.nene.TestApis;
 
-    LocalActivity(android.app.Activity activity) {
-        super(activity, new ActivityWrapper(activity));
+public class LocalActivity extends Activity<android.app.Activity> {
+    LocalActivity(TestApis testApis, android.app.Activity activity) {
+        super(testApis, activity, new ActivityWrapper(activity));
     }
 }

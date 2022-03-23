@@ -2427,6 +2427,11 @@ public class StagefrightTest extends StsExtraBusinessLogicTestCase {
                 } catch (Exception e) {
                     // local exceptions ignored, not security issues
                 } finally {
+                    try {
+                        codec.stop();
+                    } catch (Exception e) {
+                        // local exceptions ignored, not security issues
+                    }
                     codec.release();
                     renderTarget.destroy();
                 }

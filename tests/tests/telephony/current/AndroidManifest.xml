@@ -17,8 +17,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
      package="android.telephony.cts">
 
-    <uses-permission android:name="android.permission.CALL_PHONE"/>
-    <uses-permission android:name="android.permission.ANSWER_PHONE_CALLS"/>
     <uses-permission android:name="android.permission.DISABLE_KEYGUARD"/>
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
@@ -48,9 +46,7 @@
 
     <permission android:name="android.telephony.embms.cts.permission.TEST_BROADCAST"
          android:protectionLevel="signature"/>
-    <!-- Must be debuggable for compat shell commands to work on user builds -->
-    <application android:debuggable="true">
-
+    <application>
         <provider android:name="android.telephony.cts.MmsPduProvider"
              android:authorities="telephonyctstest"
              android:grantUriPermissions="true"/>
@@ -108,7 +104,7 @@
             </intent-filter>
         </service>
 
-        <service android:name="android.telephony.cts.InCallServiceStateValidator"
+        <service android:name="android.telephony.cts.StubInCallService"
              android:permission="android.permission.BIND_INCALL_SERVICE"
              android:exported="true">
             <intent-filter>
@@ -159,21 +155,6 @@
              android:exported="true">
             <intent-filter>
                 <action android:name="android.telephony.ims.ImsService"/>
-            </intent-filter>
-        </service>
-
-        <service android:name="android.telephony.cts.MockModemService"
-             android:directBootAware="true"
-             android:persistent="true"
-             android:exported="true">
-            <intent-filter>
-                <action android:name="android.telephony.cts.iradioconfig"/>
-                <action android:name="android.telephony.cts.iradiomodem"/>
-                <action android:name="android.telephony.cts.iradiosim"/>
-                <action android:name="android.telephony.cts.iradionetwork"/>
-                <action android:name="android.telephony.cts.iradiodata"/>
-                <action android:name="android.telephony.cts.iradiomessaging"/>
-                <action android:name="android.telephony.cts.iradiovoice"/>
             </intent-filter>
         </service>
 

@@ -25,7 +25,6 @@ android_test {
         "ub-uiautomator",
         "androidx.test.rules",
         "androidx.legacy_legacy-support-v4",
-        "cts-install-lib",
     ],
     libs: ["android.test.base"],
     sdk_version: "test_current",
