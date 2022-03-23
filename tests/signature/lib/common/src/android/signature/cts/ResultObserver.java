@@ -26,15 +26,6 @@ public interface ResultObserver {
      * @param name Name of the failed element (interface/class/method/field)
      * @param errorMessage a descriptive message indicating why it failed.
      */
-    default void notifyFailure(FailureType type, String name, String errorMessage) {
-        notifyFailure(type, name, errorMessage, null);
-    }
+    void notifyFailure(FailureType type, String name, String errorMessage);
 
-    /**
-     * Notify failure with throwable.
-     * @param type Failure type.
-     * @param name Name of the failed element (interface/class/method/field)
-     * @param errorMessage a descriptive message indicating why it failed.
-     */
-    void notifyFailure(FailureType type, String name, String errorMessage, Throwable throwable);
 }

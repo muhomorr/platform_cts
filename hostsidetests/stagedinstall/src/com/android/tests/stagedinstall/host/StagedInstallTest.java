@@ -736,10 +736,7 @@ public class StagedInstallTest extends BaseHostJUnit4Test {
 
         // Check that content of /apex/apex-info-list.xml matches output of
         // `adb shell pm list packages --apex-only --show-versioncode -f`.
-        List<ApexInfo> apexInfoList =
-                readApexInfoList().stream()
-                    .filter(a -> a.getIsActive())
-                    .collect(Collectors.toList());
+        List<ApexInfo> apexInfoList = readApexInfoList();
         Set<ITestDevice.ApexInfo> activeApexes = getDevice().getActiveApexes();
         assertThat(apexInfoList.size()).isEqualTo(activeApexes.size());
         for (ITestDevice.ApexInfo apex : activeApexes) {
@@ -760,7 +757,6 @@ public class StagedInstallTest extends BaseHostJUnit4Test {
     }
 
     @Test
-    @LargeTest
     public void testApexInfoListAfterUpdate() throws Exception {
         assumeTrue("Device does not support updating APEX", mHostUtils.isApexUpdateSupported());
 
@@ -824,7 +820,6 @@ public class StagedInstallTest extends BaseHostJUnit4Test {
     }
 
     @Test
-    @LargeTest
     public void testRebootlessUpdate_fromV2ToV3_sameBoot() throws Exception {
         assumeTrue("Device does not support updating APEX", mHostUtils.isApexUpdateSupported());
 
@@ -909,16 +904,6 @@ public class StagedInstallTest extends BaseHostJUnit4Test {
         assumeTrue("Device does not support updating APEX", mHostUtils.isApexUpdateSupported());
 
         runPhase("testRebootlessUpdate_targetsOlderSdk_fails");
-    }
-
-    @Test
-    @LargeTest
-    public void testGetInactiveApexFactoryPackagesAfterApexInstall_containsNoDuplicates()
-            throws Exception {
-        assumeTrue("Device does not support updating APEX", mHostUtils.isApexUpdateSupported());
-
-        installV2Apex();
-        runPhase("testGetInactiveApexFactoryPackagesAfterApexInstall_containsNoDuplicates");
     }
 
     private List<ApexInfo> readApexInfoList() throws Exception {

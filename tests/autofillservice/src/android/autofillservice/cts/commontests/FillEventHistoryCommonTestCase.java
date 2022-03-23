@@ -39,8 +39,6 @@ import static android.service.autofill.FillEventHistory.Event.NO_SAVE_UI_REASON_
 import static android.service.autofill.FillEventHistory.Event.NO_SAVE_UI_REASON_NO_SAVE_INFO;
 import static android.service.autofill.FillEventHistory.Event.NO_SAVE_UI_REASON_NO_VALUE_CHANGED;
 import static android.service.autofill.FillEventHistory.Event.NO_SAVE_UI_REASON_WITH_DELAY_SAVE_FLAG;
-import static android.service.autofill.FillEventHistory.Event.UI_TYPE_INLINE;
-import static android.service.autofill.FillEventHistory.Event.UI_TYPE_MENU;
 import static android.service.autofill.SaveInfo.SAVE_DATA_TYPE_GENERIC;
 import static android.service.autofill.SaveInfo.SAVE_DATA_TYPE_PASSWORD;
 
@@ -131,9 +129,7 @@ public abstract class FillEventHistoryCommonTestCase extends AbstractLoginActivi
 
         // Verify fill selection
         final List<Event> events = InstrumentedAutoFillService.getFillEvents(2);
-        int presentationType = isInlineMode() ? UI_TYPE_INLINE : UI_TYPE_MENU;
-        assertFillEventForDatasetShown(events.get(0), "clientStateKey",
-                "clientStateValue", presentationType);
+        assertFillEventForDatasetShown(events.get(0), "clientStateKey", "clientStateValue");
         assertFillEventForDatasetAuthenticationSelected(events.get(1), "name",
                 "clientStateKey", "clientStateValue");
     }
@@ -176,13 +172,10 @@ public abstract class FillEventHistoryCommonTestCase extends AbstractLoginActivi
         final FillEventHistory selection = InstrumentedAutoFillService.getFillEventHistory(4);
         assertDeprecatedClientState(selection, "clientStateKey", "clientStateValue");
         List<Event> events = selection.getEvents();
-        int presentationType = isInlineMode() ? UI_TYPE_INLINE : UI_TYPE_MENU;
-        assertFillEventForDatasetShown(events.get(0), "clientStateKey",
-                "clientStateValue", presentationType);
+        assertFillEventForDatasetShown(events.get(0), "clientStateKey", "clientStateValue");
         assertFillEventForAuthenticationSelected(events.get(1), NULL_DATASET_ID,
                 "clientStateKey", "clientStateValue");
-        assertFillEventForDatasetShown(events.get(2), "clientStateKey",
-                "clientStateValue", presentationType);
+        assertFillEventForDatasetShown(events.get(2), "clientStateKey", "clientStateValue");
         assertFillEventForDatasetSelected(events.get(3), "name",
                 "clientStateKey", "clientStateValue");
     }
@@ -212,14 +205,12 @@ public abstract class FillEventHistoryCommonTestCase extends AbstractLoginActivi
         mUiBot.waitForIdle();
         mActivity.assertAutoFilled();
 
-        int presentationType = isInlineMode() ? UI_TYPE_INLINE : UI_TYPE_MENU;
         {
             // Verify fill selection
             final FillEventHistory selection = InstrumentedAutoFillService.getFillEventHistory(2);
             assertDeprecatedClientState(selection, "clientStateKey", "Value1");
             final List<Event> events = selection.getEvents();
-            assertFillEventForDatasetShown(events.get(0), "clientStateKey",
-                    "Value1", presentationType);
+            assertFillEventForDatasetShown(events.get(0), "clientStateKey", "Value1");
             assertFillEventForDatasetSelected(events.get(1), NULL_DATASET_ID,
                     "clientStateKey", "Value1");
         }
@@ -257,8 +248,7 @@ public abstract class FillEventHistoryCommonTestCase extends AbstractLoginActivi
             final FillEventHistory selection = InstrumentedAutoFillService.getFillEventHistory(2);
             assertDeprecatedClientState(selection, "clientStateKey", "Value2");
             final List<Event> events = selection.getEvents();
-            assertFillEventForDatasetShown(events.get(0), "clientStateKey",
-                    "Value2", presentationType);
+            assertFillEventForDatasetShown(events.get(0), "clientStateKey", "Value2");
             assertFillEventForDatasetSelected(events.get(1), "name3",
                     "clientStateKey", "Value2");
         }
@@ -273,12 +263,10 @@ public abstract class FillEventHistoryCommonTestCase extends AbstractLoginActivi
             assertDeprecatedClientState(selection, "clientStateKey", "Value2");
 
             final List<Event> events = selection.getEvents();
-            assertFillEventForDatasetShown(events.get(0), "clientStateKey",
-                    "Value2", presentationType);
+            assertFillEventForDatasetShown(events.get(0), "clientStateKey", "Value2");
             assertFillEventForDatasetSelected(events.get(1), "name3",
                     "clientStateKey", "Value2");
-            assertFillEventForDatasetShown(events.get(2), "clientStateKey",
-                    "Value2", presentationType);
+            assertFillEventForDatasetShown(events.get(2), "clientStateKey", "Value2");
             assertFillEventForSaveShown(events.get(3), NULL_DATASET_ID,
                     "clientStateKey", "Value2");
         }
@@ -307,12 +295,10 @@ public abstract class FillEventHistoryCommonTestCase extends AbstractLoginActivi
 
         {
             // Verify fill selection
-            int presentationType =
-                    isInlineMode() ? UI_TYPE_INLINE : UI_TYPE_MENU;
             final FillEventHistory selection = InstrumentedAutoFillService.getFillEventHistory(2);
             assertNoDeprecatedClientState(selection);
             final List<Event> events = selection.getEvents();
-            assertFillEventForDatasetShown(events.get(0), presentationType);
+            assertFillEventForDatasetShown(events.get(0));
             assertFillEventForDatasetSelected(events.get(1), NULL_DATASET_ID);
         }
 
@@ -351,12 +337,10 @@ public abstract class FillEventHistoryCommonTestCase extends AbstractLoginActivi
 
         {
             // Verify fill selection
-            int presentationType =
-                    isInlineMode() ? UI_TYPE_INLINE : UI_TYPE_MENU;
             final FillEventHistory selection = InstrumentedAutoFillService.getFillEventHistory(2);
             assertNoDeprecatedClientState(selection);
             final List<Event> events = selection.getEvents();
-            assertFillEventForDatasetShown(events.get(0), presentationType);
+            assertFillEventForDatasetShown(events.get(0));
             assertFillEventForDatasetSelected(events.get(1), NULL_DATASET_ID);
         }
 
@@ -393,12 +377,10 @@ public abstract class FillEventHistoryCommonTestCase extends AbstractLoginActivi
 
         {
             // Verify fill selection
-            int presentationType =
-                    isInlineMode() ? UI_TYPE_INLINE : UI_TYPE_MENU;
             final FillEventHistory selection = InstrumentedAutoFillService.getFillEventHistory(2);
             assertNoDeprecatedClientState(selection);
             final List<Event> events = selection.getEvents();
-            assertFillEventForDatasetShown(events.get(0), presentationType);
+            assertFillEventForDatasetShown(events.get(0));
             assertFillEventForDatasetSelected(events.get(1), NULL_DATASET_ID);
         }
 
@@ -460,11 +442,9 @@ public abstract class FillEventHistoryCommonTestCase extends AbstractLoginActivi
         sReplier.getNextFillRequest();
 
         // Verify fill selection for Activity B
-        int presentationType = isInlineMode() ? UI_TYPE_INLINE : UI_TYPE_MENU;
         final FillEventHistory selectionB = InstrumentedAutoFillService.getFillEventHistory(1);
         assertDeprecatedClientState(selectionB, "activity", "B");
-        assertFillEventForDatasetShown(selectionB.getEvents().get(0), "activity",
-                "B", presentationType);
+        assertFillEventForDatasetShown(selectionB.getEvents().get(0), "activity", "B");
 
         // Set response for back to activity A
         sReplier.addResponse(new CannedFillResponse.Builder()
@@ -523,10 +503,8 @@ public abstract class FillEventHistoryCommonTestCase extends AbstractLoginActivi
         mActivity.assertAutoFilled();
         // Verify fill history
         {
-            int presentationType =
-                    isInlineMode() ? UI_TYPE_INLINE : UI_TYPE_MENU;
             final List<Event> events = InstrumentedAutoFillService.getFillEvents(2);
-            assertFillEventForDatasetShown(events.get(0), presentationType);
+            assertFillEventForDatasetShown(events.get(0));
             assertFillEventForDatasetSelected(events.get(1), "id1");
         }
 
@@ -546,10 +524,8 @@ public abstract class FillEventHistoryCommonTestCase extends AbstractLoginActivi
         mActivity.assertAutoFilled();
         // Verify fill history
         {
-            int presentationType =
-                    isInlineMode() ? UI_TYPE_INLINE : UI_TYPE_MENU;
             final List<Event> events = InstrumentedAutoFillService.getFillEvents(2);
-            assertFillEventForDatasetShown(events.get(0), presentationType);
+            assertFillEventForDatasetShown(events.get(0));
             assertFillEventForDatasetSelected(events.get(1), "id2");
         }
 
@@ -561,10 +537,8 @@ public abstract class FillEventHistoryCommonTestCase extends AbstractLoginActivi
 
         {
             // Verify fill history
-            int presentationType =
-                    isInlineMode() ? UI_TYPE_INLINE : UI_TYPE_MENU;
             final List<Event> events = InstrumentedAutoFillService.getFillEvents(2);
-            assertFillEventForDatasetShown(events.get(0), presentationType);
+            assertFillEventForDatasetShown(events.get(0));
             assertFillEventForDatasetSelected(events.get(1), "id2");
         }
     }

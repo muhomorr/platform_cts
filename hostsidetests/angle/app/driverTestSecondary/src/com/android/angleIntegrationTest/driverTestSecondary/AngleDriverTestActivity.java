@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
-package com.android.angleintegrationtest.drivertestsecondary;
+package com.android.angleIntegrationTest.driverTestSecondary;
 
 import static org.junit.Assert.fail;
 
 import androidx.test.runner.AndroidJUnit4;
 
-import com.android.angleintegrationtest.common.GlesView;
+import com.android.angleIntegrationTest.common.GlesView;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -46,6 +46,7 @@ public class AngleDriverTestActivity {
 
     @Test
     public void testUseDefaultDriver() throws Exception {
+        // The rules file does not enable ANGLE for this app
         validateDeveloperOption(false);
     }
 

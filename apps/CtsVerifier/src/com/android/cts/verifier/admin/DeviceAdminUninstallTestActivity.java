@@ -27,7 +27,6 @@ import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Bundle;
 import android.provider.Settings;
-import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
@@ -68,13 +67,9 @@ public class DeviceAdminUninstallTestActivity extends PassFailButtons.Activity i
     private final BroadcastReceiver mPackageAddedListener = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
-            Log.d(TAG, "onReceive(): " + intent);
-            Uri uri = intent.getData();
+            final Uri uri = intent.getData();
             if (uri != null && ADMIN_PACKAGE_NAME.equals(uri.getSchemeSpecificPart())) {
                 onAdminPackageInstalled();
-            } else {
-                Log.d(TAG, "ignoring intent with URI " + uri + " (expecting it to be for "
-                        + ADMIN_PACKAGE_NAME + ")");
             }
         }
     };
@@ -96,9 +91,6 @@ public class DeviceAdminUninstallTestActivity extends PassFailButtons.Activity i
             mAdminInstalled = isPackageInstalled(ADMIN_PACKAGE_NAME);
             mAdminActivated = mDevicePolicyManager.isAdminActive(mAdmin);
         }
-        Log.d(TAG, "onCreate(): mAdmin=" + mAdmin + ", pkg= " + ADMIN_PACKAGE_NAME
-                + ", mAdminInstalled=" + mAdminInstalled + ", mAdminRemoved=" + mAdminRemoved
-                + ", mAdminActivated=" + mAdminActivated);
         mInstallStatus = findViewById(R.id.install_admin_status);
         mInstallAdminText = findViewById(R.id.install_admin_instructions);
         if (!mAdminInstalled) {
@@ -117,7 +109,6 @@ public class DeviceAdminUninstallTestActivity extends PassFailButtons.Activity i
     }
 
     private void onAdminPackageInstalled() {
-        Log.d(TAG, "onAdminPackageInstalled()");
         mAdminInstalled = true;
         updateWidgets();
         unregisterReceiver(mPackageAddedListener);
@@ -129,7 +120,6 @@ public class DeviceAdminUninstallTestActivity extends PassFailButtons.Activity i
             packageInfo = getPackageManager().getPackageInfo(packageName, 0);
         } catch (PackageManager.NameNotFoundException exc) {
             // Expected.
-            Log.d(TAG, "getPackageInfo(" + packageName + ") failed: " + exc);
         }
         return packageInfo != null;
     }

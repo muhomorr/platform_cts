@@ -16,39 +16,20 @@
 
 package android.net.cts;
 
-import static com.android.testutils.DevSdkIgnoreRuleKt.SC_V2;
-import static com.android.testutils.MiscAsserts.assertThrows;
-
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
-
 import android.net.Credentials;
 import android.net.LocalServerSocket;
 import android.net.LocalSocket;
 import android.net.LocalSocketAddress;
 import android.os.ParcelFileDescriptor;
-import android.os.SystemClock;
 import android.system.Os;
 import android.system.OsConstants;
-import android.system.StructTimeval;
-import android.system.UnixSocketAddress;
 
-import androidx.test.runner.AndroidJUnit4;
-
-import com.android.testutils.DevSdkIgnoreRule;
-import com.android.testutils.DevSdkIgnoreRule.IgnoreUpTo;
+import junit.framework.TestCase;
 
 import java.io.FileDescriptor;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.net.SocketAddress;
-import java.util.Arrays;
-import java.util.Random;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -56,18 +37,9 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-
-@RunWith(AndroidJUnit4.class)
-public class LocalSocketTest {
+public class LocalSocketTest extends TestCase {
     private final static String ADDRESS_PREFIX = "com.android.net.LocalSocketTest";
 
-    @Rule
-    public final DevSdkIgnoreRule mIgnoreRule = new DevSdkIgnoreRule();
-
-    @Test
     public void testLocalConnections() throws IOException {
         String address = ADDRESS_PREFIX + "_testLocalConnections";
         // create client and server socket
@@ -83,12 +55,16 @@ public class LocalSocketTest {
         LocalSocket serverSocket = localServerSocket.accept();
         assertTrue(serverSocket.isConnected());
         assertTrue(serverSocket.isBound());
-        assertThrows(IOException.class, () -> {
+        try {
             serverSocket.bind(localServerSocket.getLocalSocketAddress());
-        });
-        assertThrows(IOException.class, () -> {
+            fail("Cannot bind a LocalSocket from accept()");
+        } catch (IOException expected) {
+        }
+        try {
             serverSocket.connect(locSockAddr);
-        });
+            fail("Cannot connect a LocalSocket from accept()");
+        } catch (IOException expected) {
+        }
 
         Credentials credent = clientSocket.getPeerCredentials();
         assertTrue(0 != credent.getPid());
@@ -121,9 +97,12 @@ public class LocalSocketTest {
 
         //shutdown output stream of client
         clientSocket.shutdownOutput();
-        assertThrows(IOException.class, () -> {
+        try {
             clientOutStream.write(10);
-        });
+            fail("testLocalSocket shouldn't come to here");
+        } catch (IOException e) {
+            // expected
+        }
 
         //shutdown input stream of server
         serverSocket.shutdownInput();
@@ -131,24 +110,32 @@ public class LocalSocketTest {
 
         //shutdown output stream of server
         serverSocket.shutdownOutput();
-        assertThrows(IOException.class, () -> {
+        try {
             serverOutStream.write(10);
-        });
+            fail("testLocalSocket shouldn't come to here");
+        } catch (IOException e) {
+            // expected
+        }
 
         //close client socket
         clientSocket.close();
-        assertThrows(IOException.class, () -> {
+        try {
             clientInStream.read();
-        });
+            fail("testLocalSocket shouldn't come to here");
+        } catch (IOException e) {
+            // expected
+        }
 
         //close server socket
         serverSocket.close();
-        assertThrows(IOException.class, () -> {
+        try {
             serverInStream.read();
-        });
+            fail("testLocalSocket shouldn't come to here");
+        } catch (IOException e) {
+            // expected
+        }
     }
 
-    @Test
     public void testAccessors() throws IOException {
         String address = ADDRESS_PREFIX + "_testAccessors";
         LocalSocket socket = new LocalSocket();
@@ -172,31 +159,45 @@ public class LocalSocketTest {
         socket.setSoTimeout(1996);
         assertTrue(socket.getSoTimeout() > 0);
 
-        assertThrows(UnsupportedOperationException.class, () -> {
+        try {
             socket.getRemoteSocketAddress();
-        });
+            fail("testLocalSocketSecondary shouldn't come to here");
+        } catch (UnsupportedOperationException e) {
+            // expected
+        }
 
-        assertThrows(UnsupportedOperationException.class, () -> {
+        try {
             socket.isClosed();
-        });
+            fail("testLocalSocketSecondary shouldn't come to here");
+        } catch (UnsupportedOperationException e) {
+            // expected
+        }
 
-        assertThrows(UnsupportedOperationException.class, () -> {
+        try {
             socket.isInputShutdown();
-        });
+            fail("testLocalSocketSecondary shouldn't come to here");
+        } catch (UnsupportedOperationException e) {
+            // expected
+        }
 
-        assertThrows(UnsupportedOperationException.class, () -> {
+        try {
             socket.isOutputShutdown();
-        });
+            fail("testLocalSocketSecondary shouldn't come to here");
+        } catch (UnsupportedOperationException e) {
+            // expected
+        }
 
-        assertThrows(UnsupportedOperationException.class, () -> {
+        try {
             socket.connect(addr, 2005);
-        });
+            fail("testLocalSocketSecondary shouldn't come to here");
+        } catch (UnsupportedOperationException e) {
+            // expected
+        }
 
         socket.close();
     }
 
     // http://b/31205169
-    @Test
     public void testSetSoTimeout_readTimeout() throws Exception {
         String address = ADDRESS_PREFIX + "_testSetSoTimeout_readTimeout";
 
@@ -227,7 +228,6 @@ public class LocalSocketTest {
     }
 
     // http://b/31205169
-    @Test
     public void testSetSoTimeout_writeTimeout() throws Exception {
         String address = ADDRESS_PREFIX + "_testSetSoTimeout_writeTimeout";
 
@@ -263,7 +263,6 @@ public class LocalSocketTest {
         }
     }
 
-    @Test
     public void testAvailable() throws Exception {
         String address = ADDRESS_PREFIX + "_testAvailable";
 
@@ -290,7 +289,6 @@ public class LocalSocketTest {
     }
 
     // http://b/34095140
-    @Test @IgnoreUpTo(SC_V2)
     public void testLocalSocketCreatedFromFileDescriptor() throws Exception {
         String address = ADDRESS_PREFIX + "_testLocalSocketCreatedFromFileDescriptor";
 
@@ -302,7 +300,8 @@ public class LocalSocketTest {
             assertTrue(fileDescriptor.valid());
 
             // Create the LocalSocket we want to test.
-            LocalSocket clientSocketCreatedFromFileDescriptor = new LocalSocket(fileDescriptor);
+            LocalSocket clientSocketCreatedFromFileDescriptor =
+                    LocalSocket.createConnectedLocalSocket(fileDescriptor);
             assertTrue(clientSocketCreatedFromFileDescriptor.isConnected());
             assertTrue(clientSocketCreatedFromFileDescriptor.isBound());
 
@@ -325,7 +324,6 @@ public class LocalSocketTest {
         }
     }
 
-    @Test
     public void testFlush() throws Exception {
         String address = ADDRESS_PREFIX + "_testFlush";
 
@@ -364,116 +362,6 @@ public class LocalSocketTest {
         inputStreamReader.waitForCompletion(5000);
         inputStreamReader.assertBytesRead(bytesToTransfer);
         assertEquals(0, inputStream.available());
-    }
-
-    private void sendAndReceiveBytes(LocalSocket s1, LocalSocket s2) throws Exception {
-        final Random random = new Random();
-        final byte[] sendBytes = new byte[random.nextInt(511) + 1];  // Avoid 0-byte writes.
-        random.nextBytes(sendBytes);
-        final int numBytes = sendBytes.length;
-        final OutputStream os = s1.getOutputStream();
-        os.write(sendBytes);
-        os.flush();
-
-        final InputStream is = s2.getInputStream();
-        final byte[] recvBytes = new byte[1024];
-        assertEquals(numBytes, is.read(recvBytes, 0, recvBytes.length));
-
-        final byte[] received = Arrays.copyOfRange(recvBytes, 0, numBytes);
-        assertArrayEquals(received, sendBytes);
-    }
-
-    /**
-     * Keeps track of the highest-numbered FD that is passed in.
-     */
-    private class MaxFdTracker{
-        private int mMax = -1;
-
-        public int get() {
-            return mMax;
-        }
-
-        private void noteFd(int fd) {
-            mMax = Math.max(mMax, fd);
-        }
-
-        public void noteFd(FileDescriptor fd) {
-            noteFd(fd.getInt$());
-        }
-
-        public void noteFd(LocalSocket s) {
-            noteFd(s.getFileDescriptor().getInt$());
-        }
-    }
-
-    @Test @IgnoreUpTo(SC_V2)
-    public void testCreateFromFd() throws Exception {
-        String address = ADDRESS_PREFIX + "_testClosingConnectedSocket";
-        LocalServerSocket server = new LocalServerSocket(address);
-
-        final int TIMEOUT_MS = 1000;
-
-        final int NUM_ITERATIONS = 1000;
-        int firstFd = -1;
-        MaxFdTracker maxFd = new MaxFdTracker();
-
-        for (int i = 0; i < NUM_ITERATIONS; i++) {
-            FileDescriptor fd = Os.socket(OsConstants.AF_UNIX, OsConstants.SOCK_STREAM, 0);
-            if (firstFd == -1) {
-                firstFd = fd.getInt$();
-            } else  {
-                maxFd.noteFd(fd);
-            }
-
-            // Ensure the test doesn't hang by setting a reasonably short timeout.
-            // This seems easier than polling on non-blocking socket.
-            Os.setsockoptTimeval(fd, OsConstants.SOL_SOCKET, OsConstants.SO_RCVTIMEO,
-                    StructTimeval.fromMillis(TIMEOUT_MS));
-            Os.setsockoptTimeval(fd, OsConstants.SOL_SOCKET, OsConstants.SO_SNDTIMEO,
-                    StructTimeval.fromMillis(TIMEOUT_MS));
-
-            final SocketAddress sockAddr = Os.getsockname(server.getFileDescriptor());
-            Os.connect(fd, sockAddr);
-
-            LocalSocket accepted = server.accept();
-            accepted.setSoTimeout(TIMEOUT_MS);
-            maxFd.noteFd(accepted);
-
-            LocalSocket ls = new LocalSocket(fd);
-            assertEquals(ls.getFileDescriptor().getInt$(), fd.getInt$());
-            maxFd.noteFd(ls);
-
-            sendAndReceiveBytes(accepted, ls);
-            sendAndReceiveBytes(ls, accepted);
-
-            accepted.close();
-            assertNull(accepted.getFileDescriptor());
-            Os.close(fd);
-        }
-        server.close();
-
-        assertTrue("No FDs created!", firstFd != -1);
-        assertTrue("Only one FD created?", maxFd.get() != -1);
-        int fdsConsumed = maxFd.get() - firstFd;
-        assertTrue(
-                "FD leak! Opened " + NUM_ITERATIONS + " sockets, FD int went up by " + fdsConsumed,
-            fdsConsumed < NUM_ITERATIONS / 2);
-    }
-
-    @Test @IgnoreUpTo(SC_V2)
-    public void testCreateFromFd_notConnected() throws Exception {
-        FileDescriptor fd = Os.socket(OsConstants.AF_UNIX, OsConstants.SOCK_STREAM, 0);
-        assertThrows(IllegalArgumentException.class, () -> {
-            LocalSocket ls = new LocalSocket(fd);
-        });
-    }
-
-    @Test @IgnoreUpTo(SC_V2)
-    public void testCreateFromFd_notSocket() throws Exception {
-        FileDescriptor fd = Os.open("/dev/null", 0 /* flags */, OsConstants.O_WRONLY);
-        assertThrows(IllegalArgumentException.class, () -> {
-            LocalSocket ls = new LocalSocket(fd);
-        });
     }
 
     private static class StreamReader extends Thread {

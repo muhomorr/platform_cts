@@ -144,7 +144,6 @@ public class FingerprintServiceTest extends ActivityManagerTestBase {
 
     @Test
     public void testEnroll() throws Exception {
-        assumeTrue(Utils.isFirstApiLevel29orGreater());
         for (SensorProperties prop : mSensorProperties) {
             try (BiometricTestSession session
                          = mFingerprintManager.createTestSession(prop.getSensorId())){
@@ -173,7 +172,6 @@ public class FingerprintServiceTest extends ActivityManagerTestBase {
 
     @Test
     public void testAuthenticateFromForegroundActivity() throws Exception {
-        assumeTrue(Utils.isFirstApiLevel29orGreater());
         // Turn screen on and dismiss keyguard
         UiDeviceUtils.pressWakeupButton();
         UiDeviceUtils.pressUnlockButton();
@@ -233,7 +231,6 @@ public class FingerprintServiceTest extends ActivityManagerTestBase {
 
     @Test
     public void testRejectThenErrorFromForegroundActivity() throws Exception {
-        assumeTrue(Utils.isFirstApiLevel29orGreater());
         // Turn screen on and dismiss keyguard
         UiDeviceUtils.pressWakeupButton();
         UiDeviceUtils.pressUnlockButton();

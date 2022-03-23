@@ -48,8 +48,8 @@ import androidx.test.filters.FlakyTest;
 import androidx.test.rule.ActivityTestRule;
 
 import com.android.compatibility.common.util.BitmapUtils;
+import com.android.compatibility.common.util.PollingCheck;
 import com.android.compatibility.common.util.WidgetTestUtils;
-import com.android.compatibility.common.util.WindowUtil;
 
 import org.junit.Rule;
 import org.junit.Test;
@@ -92,7 +92,7 @@ public class AnimatedImageDrawableTest {
 
     private void setupActivity() {
         mActivity = mActivityRule.getActivity();
-        WindowUtil.waitForFocus(mActivity);
+        PollingCheck.waitFor(mActivity::hasWindowFocus);
         mImageView = mActivity.findViewById(R.id.animated_image);
     }
 

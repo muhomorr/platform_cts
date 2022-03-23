@@ -16,15 +16,7 @@
 package android.sample.cts;
 
 import android.sample.SampleDeviceActivity;
-
-import androidx.test.platform.app.InstrumentationRegistry;
-import androidx.test.rule.ActivityTestRule;
-import androidx.test.runner.AndroidJUnit4;
-
-import org.junit.Assert;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.runner.RunWith;
+import android.test.ActivityInstrumentationTestCase2;
 
 import com.android.compatibility.common.util.DeviceReportLog;
 import com.android.compatibility.common.util.MeasureRun;
@@ -41,8 +33,7 @@ import java.util.Random;
  *
  * This test measures the time taken to run a workload and adds in the report.
  */
-@RunWith(AndroidJUnit4.class)
-public class SampleDeviceResultTest {
+public class SampleDeviceResultTest extends ActivityInstrumentationTestCase2<SampleDeviceActivity> {
 
     /**
      * Name of the report log to store test metrics.
@@ -60,9 +51,15 @@ public class SampleDeviceResultTest {
     private static final Random random = new Random(12345);
 
     /**
+     * Constructor which passes the class of the activity to be instrumented.
+     */
+    public SampleDeviceResultTest() {
+        super(SampleDeviceActivity.class);
+    }
+
+    /**
      * Measures the time taken to sort an array.
      */
-    @Test
     public void testSort() throws Exception {
         // MeasureTime runs the workload N times and records the time taken by each run.
         double[] result = MeasureTime.measure(REPEAT, new MeasureRun() {
@@ -78,7 +75,7 @@ public class SampleDeviceResultTest {
             @Override
             public void run(int i) throws Exception {
                 Arrays.sort(array);
-                Assert.assertTrue("Array not sorted", isSorted(array));
+                assertTrue("Array not sorted", isSorted(array));
             }
         });
         // Compute the stats.
@@ -93,7 +90,7 @@ public class SampleDeviceResultTest {
         // Set a summary.
         reportLog.setSummary("average", stat.mAverage, ResultType.LOWER_BETTER, ResultUnit.MS);
         // Submit the report to the given instrumentation.
-        reportLog.submit(InstrumentationRegistry.getInstrumentation());
+        reportLog.submit(getInstrumentation());
     }
 
     /**

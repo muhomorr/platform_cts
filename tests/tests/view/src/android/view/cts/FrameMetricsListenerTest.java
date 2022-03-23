@@ -19,7 +19,6 @@ package android.view.cts;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-import android.animation.ValueAnimator;
 import android.app.Activity;
 import android.app.Instrumentation;
 import android.os.Handler;
@@ -38,7 +37,6 @@ import androidx.test.runner.AndroidJUnit4;
 import com.android.compatibility.common.util.PollingCheck;
 import com.android.compatibility.common.util.WidgetTestUtils;
 
-import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -52,7 +50,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class FrameMetricsListenerTest {
     private Instrumentation mInstrumentation;
     private Activity mActivity;
-    private float mPreviousDurationScale;
 
     @Rule
     public ActivityTestRule<MockActivity> mActivityRule =
@@ -62,14 +59,6 @@ public class FrameMetricsListenerTest {
     public void setup() {
         mInstrumentation = InstrumentationRegistry.getInstrumentation();
         mActivity = mActivityRule.getActivity();
-        mPreviousDurationScale = ValueAnimator.getDurationScale();
-        ValueAnimator.setDurationScale(0.0f); // Disable animations during frame metrics tests
-    }
-
-    @After
-    public void tearDown() {
-        // Restore animations to previous animation scale after tests are run
-        ValueAnimator.setDurationScale(mPreviousDurationScale);
     }
 
     private void layout(final int layoutId) throws Throwable {

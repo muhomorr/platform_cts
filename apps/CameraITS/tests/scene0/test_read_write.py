@@ -56,8 +56,7 @@ class ReadWriteTest(its_base_test.ItsBaseTest):
       logging.debug('sensor sensitivity range: %s', sens_range)
 
       # determine if exposure test range is within sensor reported range
-      if sensor_exp_range[0] == 0:
-        raise AssertionError('Min expsoure == 0')
+      assert sensor_exp_range[0] != 0
       exp_range = []
       if sensor_exp_range[0] < TEST_EXP_RANGE[0]:
         exp_range.append(TEST_EXP_RANGE[0])
@@ -136,11 +135,8 @@ class ReadWriteTest(its_base_test.ItsBaseTest):
             logging.debug('e_write: %d, e_read: %d, RTOL: %.2f',
                           fail['e_write'], fail['e_read'], RTOL_EXP_GAIN)
 
-        # PASS/FAIL
-        if e_failed:
-          raise AssertionError(f'Exposure fails: {e_failed}')
-        if s_failed:
-          raise AssertionError(f'Sensitivity fails: {s_failed}')
+        # assert PASS/FAIL
+        assert not e_failed + s_failed
 
 
 if __name__ == '__main__':

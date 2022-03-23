@@ -23,7 +23,8 @@ import static org.junit.Assert.assertThrows;
 import android.app.appsearch.AppSearchSchema;
 import android.app.appsearch.AppSearchSchema.PropertyConfig;
 import android.app.appsearch.AppSearchSchema.StringPropertyConfig;
-import android.app.appsearch.testutil.AppSearchEmail;
+
+import com.android.server.appsearch.testing.AppSearchEmail;
 
 import org.junit.Test;
 

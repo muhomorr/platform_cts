@@ -17,7 +17,11 @@
   -->
 
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-          package="com.android.bedstead.testapp.EmptyTestApp">
-    <application>
+          package="android.EmptyTestApp">
+    <application
+        android:appComponentFactory="com.android.bedstead.testapp.TestAppAppComponentFactory">
+
+        <activity android:name="android.testapp.activity" android:exported="true" />
     </application>
+    <uses-sdk android:minSdkVersion="28" android:targetSdkVersion="28"/>
 </manifest>

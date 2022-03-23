@@ -15,6 +15,10 @@
  */
 package com.android.cts.verifier.p2p;
 
+import java.util.Collection;
+import java.util.Timer;
+import java.util.TimerTask;
+
 import android.app.AlertDialog;
 import android.content.Context;
 import android.content.DialogInterface;
@@ -35,10 +39,6 @@ import com.android.cts.verifier.R.id;
 import com.android.cts.verifier.p2p.testcase.ReqTestCase;
 import com.android.cts.verifier.p2p.testcase.TestCase;
 import com.android.cts.verifier.p2p.testcase.TestCase.TestCaseListener;
-
-import java.util.Collection;
-import java.util.Timer;
-import java.util.TimerTask;
 
 /**
  * A base class for requester test activity.
@@ -135,8 +135,8 @@ public abstract class RequesterTestActivity  extends PassFailButtons.Activity
     }
 
     @Override
-    protected void onStart() {
-        super.onStart();
+    protected void onResume() {
+        super.onResume();
         /*
          * If the target device is NOT set, search targets and show
          * the target device list on the dialog.
@@ -152,8 +152,8 @@ public abstract class RequesterTestActivity  extends PassFailButtons.Activity
     }
 
     @Override
-    protected void onStop() {
-        super.onStop();
+    protected void onPause() {
+        super.onPause();
         if (mTimer != null) {
             mTimer.cancel();
             mTimer = null;

@@ -27,6 +27,8 @@ import com.android.compatibility.common.util.PollingCheck;
 
 public class WebBackForwardListTest extends ActivityInstrumentationTestCase2<WebViewCtsActivity> {
 
+    private static final int TEST_TIMEOUT = 10000;
+
     private WebViewOnUiThread mOnUiThread;
 
     public WebBackForwardListTest() {
@@ -83,7 +85,7 @@ public class WebBackForwardListTest extends ActivityInstrumentationTestCase2<Web
     }
 
     private void checkBackForwardList(final String... url) {
-        new PollingCheck(WebkitUtils.TEST_TIMEOUT_MS) {
+        new PollingCheck(TEST_TIMEOUT) {
             @Override
             protected boolean check() {
                 if (mOnUiThread.getProgress() < 100) {

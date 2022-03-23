@@ -126,13 +126,13 @@ final class DataFormatter {
             return;
         }
         if (value instanceof PrivateKey) {
-            if (!(value instanceof Serializable)) {
-                throw new IllegalArgumentException("PrivateKey is not Serializable: "  + value);
+            if (!(value instanceof Parcelable)) {
+                throw new IllegalArgumentException("PrivateKey is not Parcelable: "  + value);
             }
             logMarshalling("Adding PrivateKey", index, extraTypeName, TYPE_PRIVATE_KEY,
                     extraValueName, value);
             intent.putExtra(extraTypeName, TYPE_PRIVATE_KEY);
-            intent.putExtra(extraValueName, (Serializable) value);
+            intent.putExtra(extraValueName, (Parcelable) value);
             return;
         }
         if ((value instanceof Parcelable)) {
@@ -144,9 +144,6 @@ final class DataFormatter {
         }
 
         if (value instanceof Certificate) {
-            if (!(value instanceof Serializable)) {
-                throw new IllegalArgumentException("Certificate is not Serializable: "  + value);
-            }
             logMarshalling("Adding Certificate", index, extraTypeName, TYPE_CERTIFICATE,
                     extraValueName, value);
             intent.putExtra(extraTypeName, TYPE_CERTIFICATE);

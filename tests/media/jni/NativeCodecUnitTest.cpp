@@ -16,10 +16,9 @@
 
 //#define LOG_NDEBUG 0
 #define LOG_TAG "NativeCodecUnitTest"
-#include <log/log.h>
-
+#include <NdkMediaExtractor.h>
 #include <jni.h>
-#include <media/NdkMediaExtractor.h>
+#include <log/log.h>
 #include <sys/stat.h>
 
 #include <thread>
