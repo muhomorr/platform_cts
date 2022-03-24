@@ -82,6 +82,9 @@ class ItsSession(object):
 
   # Seconds timeout on each socket operation.
   SOCK_TIMEOUT = 20.0
+  # Seconds timeout on performance measurement socket operation
+  SOCK_TIMEOUT_FOR_PERF_MEASURE = 40.0
+
   # Additional timeout in seconds when ITS service is doing more complicated
   # operations, for example: issuing warmup requests before actual capture.
   EXTRA_SOCK_TIMEOUT = 5.0
@@ -473,9 +476,11 @@ class ItsSession(object):
     "dng", "raw", "raw10", "raw12", "rawStats" or "y8". The default is a
     YUV420 frame ("yuv") corresponding to a full sensor frame.
 
-    Optionally the out_surfaces field can specify physical camera id(s) if
+    1. Optionally the out_surfaces field can specify physical camera id(s) if
     the current camera device is a logical multi-camera. The physical camera
     id must refer to a physical camera backing this logical camera device.
+    2. Optionally The output_surfaces field can also specify the use case(s) if
+    the current camera device has STREAM_USE_CASE capability.
 
     Note that one or more surfaces can be specified, allowing a capture to
     request images back in multiple formats (e.g.) raw+yuv, raw+jpeg,
@@ -876,6 +881,7 @@ class ItsSession(object):
             lock_awb=False,
             get_results=False,
             ev_comp=0,
+            auto_flash=False,
             mono_camera=False):
     """Perform a 3A operation on the device.
 
@@ -896,6 +902,7 @@ class ItsSession(object):
       lock_awb: Request AWB lock after convergence, and wait for it.
       get_results: Return the 3A results from this function.
       ev_comp: An EV compensation value to use when running AE.
+      auto_flash: AE control boolean to enable auto flash.
       mono_camera: Boolean for monochrome camera.
 
       Region format in args:
@@ -930,6 +937,8 @@ class ItsSession(object):
       cmd['awbLock'] = True
     if ev_comp != 0:
       cmd['evComp'] = ev_comp
+    if auto_flash:
+      cmd['autoFlash'] = True
     if self._hidden_physical_id:
       cmd['physicalId'] = self._hidden_physical_id
     self.sock.send(json.dumps(cmd).encode() + '\n'.encode())
@@ -1093,24 +1102,39 @@ class ItsSession(object):
                                       ' support')
     return data['strValue'] == 'true'
 
-  def get_performance_class_level(self):
-    """Query whether the camera device is an R or S performance class primary camera.
+  def is_primary_camera(self):
+    """Query whether the camera device is a primary rear/front camera.
 
     A primary rear/front facing camera is a camera device with the lowest
     camera Id for that facing.
 
     Returns:
-      Performance class level in integer. R: 11. S: 12.
+      Boolean
     """
     cmd = {}
-    cmd['cmdName'] = 'getPerformanceClassLevel'
+    cmd['cmdName'] = 'isPrimaryCamera'
     cmd['cameraId'] = self._camera_id
     self.sock.send(json.dumps(cmd).encode() + '\n'.encode())
 
     data, _ = self.__read_response_from_socket()
-    if data['tag'] != 'performanceClassLevel':
-      raise error_util.CameraItsError('Failed to query performance class level')
-    return int(data['strValue'])
+    if data['tag'] != 'primaryCamera':
+      raise error_util.CameraItsError('Failed to query primary camera')
+    return data['strValue'] == 'true'
+
+  def is_performance_class(self):
+    """Query whether the mobile device is an R or S performance class device.
+
+    Returns:
+      Boolean
+    """
+    cmd = {}
+    cmd['cmdName'] = 'isPerformanceClass'
+    self.sock.send(json.dumps(cmd).encode() + '\n'.encode())
+
+    data, _ = self.__read_response_from_socket()
+    if data['tag'] != 'performanceClass':
+      raise error_util.CameraItsError('Failed to query performance class')
+    return data['strValue'] == 'true'
 
   def measure_camera_launch_ms(self):
     """Measure camera launch latency in millisecond, from open to first frame.
@@ -1123,7 +1147,11 @@ class ItsSession(object):
     cmd['cameraId'] = self._camera_id
     self.sock.send(json.dumps(cmd).encode() + '\n'.encode())
 
+    timeout = self.SOCK_TIMEOUT_FOR_PERF_MEASURE
+    self.sock.settimeout(timeout)
     data, _ = self.__read_response_from_socket()
+    self.sock.settimeout(self.SOCK_TIMEOUT)
+
     if data['tag'] != 'cameraLaunchMs':
       raise error_util.CameraItsError('Failed to measure camera launch latency')
     return float(data['strValue'])
@@ -1139,7 +1167,11 @@ class ItsSession(object):
     cmd['cameraId'] = self._camera_id
     self.sock.send(json.dumps(cmd).encode() + '\n'.encode())
 
+    timeout = self.SOCK_TIMEOUT_FOR_PERF_MEASURE
+    self.sock.settimeout(timeout)
     data, _ = self.__read_response_from_socket()
+    self.sock.settimeout(self.SOCK_TIMEOUT)
+
     if data['tag'] != 'camera1080pJpegCaptureMs':
       raise error_util.CameraItsError(
           'Failed to measure camera 1080p jpeg capture latency')
@@ -1194,7 +1226,7 @@ def do_capture_with_latency(cam, req, sync_latency, fmt=None):
   return caps[-1]
 
 
-def load_scene(cam, props, scene, tablet, chart_distance):
+def load_scene(cam, props, scene, tablet, chart_distance, lighting_check=True):
   """Load the scene for the camera based on the FOV.
 
   Args:
@@ -1203,6 +1235,7 @@ def load_scene(cam, props, scene, tablet, chart_distance):
     scene: scene to be loaded
     tablet: tablet to load scene on
     chart_distance: distance to tablet
+    lighting_check: Boolean for lighting check enabled
   """
   if not tablet:
     logging.info('Manual run: no tablet to load scene on.')
@@ -1227,7 +1260,7 @@ def load_scene(cam, props, scene, tablet, chart_distance):
           chart_distance,
           opencv_processing_utils.CHART_DISTANCE_WFOV, rtol=0.1) and
       float(camera_fov) > opencv_processing_utils.FOV_THRESH_WFOV)
-  if rfov_camera_in_rfov_box or wfov_camera_in_wfov_box:
+  if (rfov_camera_in_rfov_box or wfov_camera_in_wfov_box) and lighting_check:
     cam.do_3a()
     cap = cam.do_capture(
         capture_request_utils.auto_capture_request(), cam.CAP_YUV)
@@ -1235,12 +1268,14 @@ def load_scene(cam, props, scene, tablet, chart_distance):
     validate_lighting(y_plane, scene)
 
 
-def validate_lighting(y_plane, scene):
+def validate_lighting(y_plane, scene, state='ON'):
   """Validates the lighting level in scene corners based on empirical values.
 
   Args:
     y_plane: Y plane of YUV image
     scene: scene name
+    state: string 'ON' or 'OFF'
+
   Returns:
     boolean True if lighting validated, else raise AssertionError
   """
@@ -1253,11 +1288,25 @@ def validate_lighting(y_plane, scene):
         _VALIDATE_LIGHTING_PATCH_W, _VALIDATE_LIGHTING_PATCH_H)
     y_mean = image_processing_utils.compute_image_means(patch)[0]
     logging.debug('%s corner Y mean: %.3f', location, y_mean)
-    if y_mean > _VALIDATE_LIGHTING_THRESH:
-      logging.debug('Lights ON in test rig.')
-      return True
-  image_processing_utils.write_image(y_plane, f'validate_lighting_{scene}.jpg')
-  raise AssertionError('Lights OFF in test rig. Please turn ON and retry.')
+    if state == 'ON':
+      if y_mean > _VALIDATE_LIGHTING_THRESH:
+        logging.debug('Lights ON in test rig.')
+        return True
+      else:
+        image_processing_utils.write_image(
+            y_plane, f'validate_lighting_{scene}.jpg')
+        raise AssertionError('Lights OFF in test rig. Turn ON and retry.')
+    elif state == 'OFF':
+      if y_mean < _VALIDATE_LIGHTING_THRESH:
+        logging.debug('Lights OFF in test rig.')
+        return True
+      else:
+        image_processing_utils.write_image(
+            y_plane, f'validate_lighting_{scene}.jpg')
+        raise AssertionError('Lights ON in test rig. Turn OFF and retry.')
+    else:
+      raise AssertionError('Invalid lighting state string. '
+                           "Valid strings: 'ON', 'OFF'.")
 
 
 def get_build_sdk_version(device_id):

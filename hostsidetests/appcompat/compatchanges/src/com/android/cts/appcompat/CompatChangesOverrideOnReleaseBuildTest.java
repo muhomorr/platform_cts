@@ -29,22 +29,26 @@ public class CompatChangesOverrideOnReleaseBuildTest extends CompatChangeGatingT
     private static final String TEST_PKG = "com.android.cts.appcompat.compatchanges";
 
     private static final String OVERRIDE_PKG = "com.android.cts.appcompat.preinstalloverride";
+    private static final String OVERRIDE_PKG2 = "com.android.cts.appcompat.preinstalloverride2";
 
-    private static final long CTS_CHANGE_ID = 149391281L;
     private static final long CTS_OVERRIDABLE_CHANGE_ID = 174043039L;
+    private static final long UNKNOWN_CHANGEID = 123L;
 
     @Override
     protected void setUp() throws Exception {
         installPackage(TEST_APK, true);
         runCommand("am compat reset-all " + OVERRIDE_PKG);
+        runCommand("am compat reset-all " + OVERRIDE_PKG2);
         runCommand("settings put global force_non_debuggable_final_build_for_compat 1");
     }
 
     @Override
     protected void tearDown() throws Exception {
         runCommand("am compat reset-all " + OVERRIDE_PKG);
+        runCommand("am compat reset-all " + OVERRIDE_PKG2);
         uninstallPackage(TEST_PKG, true);
         uninstallPackage(OVERRIDE_PKG, false);
+        uninstallPackage(OVERRIDE_PKG2, false);
         runCommand("settings put global force_non_debuggable_final_build_for_compat 0");
     }
 
@@ -76,6 +80,19 @@ public class CompatChangesOverrideOnReleaseBuildTest extends CompatChangeGatingT
                 .that(ctsChange).isNotNull();
         assertThat(ctsChange.hasRawOverrides).isFalse();
         assertThat(ctsChange.hasOverrides).isFalse();
+    }
+
+    public void testPutPackageOverridesWhenChangeIdUnknown() throws Exception {
+        installPackage("appcompat_preinstall_override_versioncode1_release.apk", false);
+
+        runDeviceCompatTest(TEST_PKG, ".CompatChangesTest",
+                "putPackageOverrides_doesNothingIfChangeIsUnknown",
+                /*enabledChanges*/ImmutableSet.of(),
+                /*disabledChanges*/ ImmutableSet.of());
+
+        Change ctsChange = getOnDeviceChangeIdConfig(UNKNOWN_CHANGEID);
+        assertWithMessage("Unknown change %s is found on device", UNKNOWN_CHANGEID)
+                .that(ctsChange).isNull();
     }
 
     public void testPutPackageOverridesForAllVersions() throws Exception {
@@ -163,6 +180,26 @@ public class CompatChangesOverrideOnReleaseBuildTest extends CompatChangeGatingT
         assertThat(ctsChange.hasOverrides).isFalse();
     }
 
+    public void testPutAllPackageOverrides() throws Exception {
+        installPackage("appcompat_preinstall_override_versioncode1_release.apk", false);
+        installPackage("appcompat_preinstall_override2_versioncode1_release.apk", false);
+
+        runDeviceCompatTest(TEST_PKG, ".CompatChangesTest",
+                "putAllPackageOverrides_success",
+                /*enabledChanges*/ImmutableSet.of(),
+                /*disabledChanges*/ ImmutableSet.of());
+
+        Change ctsChange = getOnDeviceChangeIdConfig(CTS_OVERRIDABLE_CHANGE_ID);
+        assertWithMessage("CTS specific change %s not found on device", CTS_OVERRIDABLE_CHANGE_ID)
+                .that(ctsChange).isNotNull();
+        assertThat(ctsChange.hasRawOverrides).isTrue();
+        assertThat(ctsChange.rawOverrideStr).isEqualTo(
+                "{" + OVERRIDE_PKG + "=true, " + OVERRIDE_PKG2 + "=true}");
+        assertThat(ctsChange.hasOverrides).isTrue();
+        assertThat(ctsChange.overridesStr).isEqualTo(
+                "{" + OVERRIDE_PKG + "=true, " + OVERRIDE_PKG2 + "=true}");
+    }
+
     public void testRemovePackageOverridesSecurityExceptionNonOverridableChangeId()
             throws Exception {
         installPackage("appcompat_preinstall_override_versioncode1_release.apk", false);
@@ -203,11 +240,40 @@ public class CompatChangesOverrideOnReleaseBuildTest extends CompatChangeGatingT
         assertThat(ctsChange.hasOverrides).isFalse();
     }
 
+    public void testRemovePackageOverridesWhenChangeIdUnknown() throws Exception {
+        installPackage("appcompat_preinstall_override_versioncode1_release.apk", false);
+
+        runDeviceCompatTest(TEST_PKG, ".CompatChangesTest",
+                "removePackageOverrides_doesNothingIfChangeIsUnknown",
+                /*enabledChanges*/ImmutableSet.of(),
+                /*disabledChanges*/ ImmutableSet.of());
+
+        Change ctsChange = getOnDeviceChangeIdConfig(UNKNOWN_CHANGEID);
+        assertWithMessage("Unknown change %s is found on device", UNKNOWN_CHANGEID)
+                .that(ctsChange).isNull();
+    }
+
     public void testRemovePackageOverridesWhenOverridePresent() throws Exception {
         installPackage("appcompat_preinstall_override_versioncode1_release.apk", false);
 
         runDeviceCompatTest(TEST_PKG, ".CompatChangesTest",
                 "removePackageOverrides_overridePresentSuccess",
+                /*enabledChanges*/ImmutableSet.of(),
+                /*disabledChanges*/ ImmutableSet.of());
+
+        Change ctsChange = getOnDeviceChangeIdConfig(CTS_OVERRIDABLE_CHANGE_ID);
+        assertWithMessage("CTS specific change %s not found on device", CTS_OVERRIDABLE_CHANGE_ID)
+                .that(ctsChange).isNotNull();
+        assertThat(ctsChange.hasRawOverrides).isFalse();
+        assertThat(ctsChange.hasOverrides).isFalse();
+    }
+
+    public void testRemoveAllPackageOverridesWhenOverridePresent() throws Exception {
+        installPackage("appcompat_preinstall_override_versioncode1_release.apk", false);
+        installPackage("appcompat_preinstall_override2_versioncode1_release.apk", false);
+
+        runDeviceCompatTest(TEST_PKG, ".CompatChangesTest",
+                "removeAllPackageOverrides_overridePresentSuccess",
                 /*enabledChanges*/ImmutableSet.of(),
                 /*disabledChanges*/ ImmutableSet.of());
 

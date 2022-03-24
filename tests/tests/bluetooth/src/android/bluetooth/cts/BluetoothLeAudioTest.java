@@ -16,9 +16,13 @@
 
 package android.bluetooth.cts;
 
+import static org.junit.Assert.assertThrows;
+
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothLeAudio;
+import android.bluetooth.BluetoothLeAudioCodecStatus;
+import android.bluetooth.BluetoothLeAudioCodecConfig;
 import android.bluetooth.BluetoothManager;
 import android.bluetooth.BluetoothProfile;
 import android.content.pm.PackageManager;
@@ -27,9 +31,12 @@ import android.os.Build;
 import android.test.AndroidTestCase;
 import android.util.Log;
 
+import androidx.test.InstrumentationRegistry;
+
 import com.android.compatibility.common.util.ApiLevelUtil;
 
 import java.util.List;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
@@ -58,6 +65,9 @@ public class BluetoothLeAudioTest extends AndroidTestCase {
                     PackageManager.FEATURE_BLUETOOTH);
 
             if (!mHasBluetooth) return;
+            InstrumentationRegistry.getInstrumentation().getUiAutomation()
+                .adoptShellPermissionIdentity(android.Manifest.permission.BLUETOOTH_CONNECT);
+
             BluetoothManager manager = getContext().getSystemService(BluetoothManager.class);
             mAdapter = manager.getAdapter();
             assertTrue(BTAdapterUtils.enableAdapter(mAdapter, mContext));
@@ -90,6 +100,8 @@ public class BluetoothLeAudioTest extends AndroidTestCase {
                 mIsProfileReady = false;
             }
             assertTrue(BTAdapterUtils.disableAdapter(mAdapter, mContext));
+            InstrumentationRegistry.getInstrumentation().getUiAutomation()
+                .dropShellPermissionIdentity();
             mAdapter = null;
         }
     }
@@ -138,6 +150,61 @@ public class BluetoothLeAudioTest extends AndroidTestCase {
         // Verify returns false if bluetooth is not enabled
         assertEquals(BluetoothProfile.STATE_DISCONNECTED,
                 mBluetoothLeAudio.getConnectionState(testDevice));
+    }
+
+    public void testGetAudioLocation() {
+        if (!(mHasBluetooth && mIsLeAudioSupported)) return;
+
+        assertTrue(waitForProfileConnect());
+        assertNotNull(mBluetoothLeAudio);
+
+        BluetoothDevice testDevice = mAdapter.getRemoteDevice("00:11:22:AA:BB:CC");
+
+        assertTrue(BTAdapterUtils.disableAdapter(mAdapter, mContext));
+
+        // Verify returns false if bluetooth is not enabled
+        assertEquals(BluetoothLeAudio.AUDIO_LOCATION_INVALID,
+                mBluetoothLeAudio.getAudioLocation(testDevice));
+    }
+
+    public void test_setgetConnectionPolicy() {
+        if (!(mHasBluetooth && mIsLeAudioSupported)) return;
+
+        assertTrue(waitForProfileConnect());
+        assertNotNull(mBluetoothLeAudio);
+
+        assertFalse(mBluetoothLeAudio.setConnectionPolicy(null, 0));
+        assertEquals(BluetoothProfile.CONNECTION_POLICY_FORBIDDEN,
+                mBluetoothLeAudio.getConnectionPolicy(null));
+    }
+
+    public void testRegisterCallback() {
+        if (!(mHasBluetooth && mIsLeAudioSupported)) return;
+
+        assertTrue(waitForProfileConnect());
+        assertNotNull(mBluetoothLeAudio);
+
+        Executor executor = mContext.getMainExecutor();
+        BluetoothLeAudio.Callback callback =
+                new BluetoothLeAudio.Callback() {
+                    @Override
+                    public void onCodecConfigChanged(int groupId,
+                                                     BluetoothLeAudioCodecStatus status) {}
+                    @Override
+                    public void onGroupNodeAdded(BluetoothDevice device, int groupId) {}
+                    @Override
+                    public void onGroupNodeRemoved(BluetoothDevice device, int groupId) {}
+                    @Override
+                    public void onGroupStatusChanged(int groupId, int groupStatus) {}
+                };
+
+        // Verify parameter
+        assertThrows(NullPointerException.class, () ->
+                mBluetoothLeAudio.registerCallback(null, callback));
+        assertThrows(NullPointerException.class, () ->
+                mBluetoothLeAudio.registerCallback(executor, null));
+        assertThrows(NullPointerException.class, () ->
+                mBluetoothLeAudio.unregisterCallback(null));
     }
 
     private boolean waitForProfileConnect() {

@@ -16,6 +16,8 @@
 
 package android.os.cts.companiontestapp
 
+import android.Manifest.permission.ACCESS_COARSE_LOCATION
+import android.Manifest.permission.ACCESS_FINE_LOCATION
 import android.Manifest.permission.CALL_PHONE
 import android.app.Activity
 import android.bluetooth.BluetoothAdapter
@@ -53,7 +55,10 @@ class CompanionTestAppMainActivity : Activity() {
     val notificationsStatus by lazy { TextView(this) }
     val bypassStatus by lazy { TextView(this) }
 
-    val nameFilter by lazy { EditText(this).apply { hint = "Name Filter" } }
+    val nameFilter by lazy { EditText(this).apply {
+        hint = "Name Filter"
+        contentDescription = "name filter" // Do not change: used in the tests.
+    } }
     val singleCheckbox by lazy { CheckBox(this).apply { text = "Single Device" } }
     val watchCheckbox by lazy { CheckBox(this).apply { text = "Watch" } }
 
@@ -124,6 +129,21 @@ class CompanionTestAppMainActivity : Activity() {
                         toast("startObservingDevicePresence $address")
                         cdm.startObservingDevicePresence(address)
                     }
+                }
+            })
+
+            addView(Button(ctx).apply {
+                text = "Check location permission"
+                setOnClickListener {
+                    val locationAccess = ctx.checkSelfPermission(ACCESS_FINE_LOCATION)
+                    toast("location access: $locationAccess")
+                }
+            })
+
+            addView(Button(ctx).apply {
+                text = "Request location permission"
+                setOnClickListener {
+                    requestPermissions(arrayOf(ACCESS_FINE_LOCATION, ACCESS_COARSE_LOCATION), 10)
                 }
             })
         })

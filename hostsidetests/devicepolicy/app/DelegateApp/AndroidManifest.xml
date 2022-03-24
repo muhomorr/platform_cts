@@ -24,12 +24,6 @@
 
     <application android:usesCleartextTraffic="true">
         <uses-library android:name="android.test.runner"/>
-        <activity android:name="com.android.cts.delegate.DelegatedScopesReceiverActivity"
-             android:exported="true">
-        </activity>
-        <service android:name="com.android.cts.delegate.DelegatedScopesReceiverService"
-             android:exported="true">
-        </service>
         <receiver android:name=".DelegateTestUtils$DelegatedLogsReceiver"
              android:permission="android.permission.BIND_DEVICE_ADMIN"
              android:exported="true">
@@ -40,7 +34,13 @@
         </receiver>
         <!--  TODO(b/176993670): remove if DpmWrapper goes away -->
         <receiver android:name="com.android.bedstead.dpmwrapper.IpcBroadcastReceiver"
-             android:exported="true"/>
+             android:exported="true">
+        <!--  TODO(b/213348113, b/213331396) - might need to explicitly set the filter below:
+            <intent-filter>
+               <action android:name="com.android.bedstead.dpmwrapper.action.WRAPPED_MANAGER_CALL"/>
+            </intent-filter>
+         -->
+        </receiver>
         <!--  TODO(b/176993670): remove if DpmWrapper goes away -->
         <receiver android:name="com.android.bedstead.dpmwrapper.TestAppCallbacksReceiver"
              android:exported="true"/>

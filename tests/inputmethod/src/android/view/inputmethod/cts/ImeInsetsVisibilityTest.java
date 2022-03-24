@@ -22,8 +22,6 @@ import static android.view.ViewGroup.LayoutParams.MATCH_PARENT;
 import static android.view.WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM;
 import static android.view.WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN;
 import static android.view.WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE;
-import static android.view.WindowManager.LayoutParams.TYPE_APPLICATION;
-import static android.view.WindowManager.LayoutParams.TYPE_APPLICATION_PANEL;
 import static android.view.inputmethod.cts.util.InputMethodVisibilityVerifier.expectImeInvisible;
 import static android.view.inputmethod.cts.util.InputMethodVisibilityVerifier.expectImeVisible;
 
@@ -56,6 +54,7 @@ import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
+import androidx.annotation.AnyThread;
 import androidx.annotation.NonNull;
 import androidx.test.filters.MediumTest;
 import androidx.test.platform.app.InstrumentationRegistry;
@@ -78,6 +77,7 @@ import java.util.concurrent.atomic.AtomicReference;
 @RunWith(AndroidJUnit4.class)
 public class ImeInsetsVisibilityTest extends EndToEndImeTestBase {
     private static final long TIMEOUT = TimeUnit.SECONDS.toMillis(5);
+    private static final long NOT_EXPECT_TIMEOUT = TimeUnit.SECONDS.toMillis(2);
     private static final int NEW_KEYBOARD_HEIGHT = 300;
 
     private static final String TEST_MARKER_PREFIX =
@@ -121,26 +121,19 @@ public class ImeInsetsVisibilityTest extends EndToEndImeTestBase {
                     () -> editText.getRootWindowInsets().isVisible(WindowInsets.Type.ime()));
             expectImeVisible(TIMEOUT);
 
-            final View[] childViewRoot = new View[1];
-            TestUtils.runOnMainSync(() -> {
-                final WindowManager.LayoutParams attrs = new WindowManager.LayoutParams();
-                attrs.token = activity.getWindow().getAttributes().token;
-                attrs.type = TYPE_APPLICATION;
-                attrs.width = 200;
-                attrs.height = 200;
-                attrs.format = PixelFormat.TRANSPARENT;
-                attrs.flags = FLAG_NOT_FOCUSABLE | FLAG_ALT_FOCUSABLE_IM;
-                attrs.setFitInsetsTypes(WindowInsets.Type.ime() | WindowInsets.Type.statusBars()
-                        | WindowInsets.Type.navigationBars());
-                childViewRoot[0] = addChildWindow(activity, attrs);
-                childViewRoot[0].setVisibility(View.VISIBLE);
-            });
-            TestUtils.waitOnMainUntil(() -> childViewRoot[0] != null
-                    && childViewRoot[0].getVisibility() == View.VISIBLE, TIMEOUT);
-
-            PollingCheck.check("Ime insets should be visible", TIMEOUT,
-                    () -> editText.getRootWindowInsets().isVisible(WindowInsets.Type.ime()));
-            expectImeVisible(TIMEOUT);
+            try (ChildWindowHolder childWindow = createChildTransparentApplicationWindowOnMain(
+                    activity, 200 /* width */, 200 /* height */,
+                    FLAG_NOT_FOCUSABLE | FLAG_ALT_FOCUSABLE_IM,
+                    WindowInsets.Type.ime() | WindowInsets.Type.statusBars()
+                            | WindowInsets.Type.navigationBars())) {
+                // The window will be shown above (in y-axis) the IME.
+                TestUtils.runOnMainSync(
+                        () -> childWindow.getRootView().setVisibility(View.VISIBLE));
+                TestUtils.waitOnMainUntil(
+                        () -> editText.getRootWindowInsets().isVisible(WindowInsets.Type.ime()),
+                        TIMEOUT, "Ime insets should be visible");
+                expectImeVisible(TIMEOUT);
+            }
         }
     }
 
@@ -170,26 +163,22 @@ public class ImeInsetsVisibilityTest extends EndToEndImeTestBase {
                     () -> editText.getRootWindowInsets().isVisible(WindowInsets.Type.ime()));
             expectImeVisible(TIMEOUT);
 
-            final View[] childViewRoot = new View[1];
-            TestUtils.runOnMainSync(() -> {
-                final WindowManager.LayoutParams attrs = new WindowManager.LayoutParams();
-                attrs.type = TYPE_APPLICATION_PANEL;
-                attrs.width = MATCH_PARENT;
-                attrs.height = NEW_KEYBOARD_HEIGHT;
-                attrs.gravity = Gravity.BOTTOM;
-                attrs.flags = FLAG_NOT_FOCUSABLE | FLAG_ALT_FOCUSABLE_IM;
-                childViewRoot[0] = addChildWindow(activity, attrs);
-                childViewRoot[0].setBackgroundColor(Color.RED);
-                childViewRoot[0].setVisibility(View.VISIBLE);
-            });
-            // The window will be shown above (in y-axis) the IME.
-            TestUtils.waitOnMainUntil(() -> childViewRoot[0] != null
-                    && childViewRoot[0].getVisibility() == View.VISIBLE, TIMEOUT);
-            // IME should be on screen without reset.
-            notExpectEvent(stream, editorMatcher("onStartInputView", marker), TIMEOUT);
-            PollingCheck.check("Ime insets should be visible", TIMEOUT,
-                    () -> editText.getRootWindowInsets().isVisible(WindowInsets.Type.ime()));
-            expectImeVisible(TIMEOUT);
+            try (ChildWindowHolder childWindow = createChildBottomPanelWindowOnMain(activity,
+                    MATCH_PARENT /* width */, NEW_KEYBOARD_HEIGHT /* height */,
+                    FLAG_NOT_FOCUSABLE | FLAG_ALT_FOCUSABLE_IM)) {
+                // The window will be shown above (in y-axis) the IME.
+                TestUtils.runOnMainSync(() -> {
+                    childWindow.getRootView().setBackgroundColor(Color.RED);
+                    childWindow.getRootView().setVisibility(View.VISIBLE);
+                });
+                // IME should be on screen without reset.
+                notExpectEvent(stream, editorMatcher("onStartInputView", marker), TIMEOUT);
+
+                TestUtils.waitOnMainUntil(
+                        () -> editText.getRootWindowInsets().isVisible(WindowInsets.Type.ime()),
+                        TIMEOUT, "Ime insets should be visible");
+                expectImeVisible(TIMEOUT);
+            }
         }
     }
 
@@ -219,26 +208,22 @@ public class ImeInsetsVisibilityTest extends EndToEndImeTestBase {
                     () -> editText.getRootWindowInsets().isVisible(WindowInsets.Type.ime()));
             expectImeVisible(TIMEOUT);
 
-            final View[] childViewRoot = new View[1];
-            TestUtils.runOnMainSync(() -> {
-                final WindowManager.LayoutParams attrs = new WindowManager.LayoutParams();
-                attrs.type = TYPE_APPLICATION_PANEL;
-                attrs.width = MATCH_PARENT;
-                attrs.height = NEW_KEYBOARD_HEIGHT;
-                attrs.gravity = Gravity.BOTTOM;
-                attrs.flags = FLAG_NOT_FOCUSABLE | FLAG_ALT_FOCUSABLE_IM | FLAG_LAYOUT_IN_SCREEN;
-                childViewRoot[0] = addChildWindow(activity, attrs);
-                childViewRoot[0].setBackgroundColor(Color.RED);
-                childViewRoot[0].setVisibility(View.VISIBLE);
-            });
-            // The window will be shown behind (in z-axis) the IME.
-            TestUtils.waitOnMainUntil(() -> childViewRoot[0] != null
-                    && childViewRoot[0].getVisibility() == View.VISIBLE, TIMEOUT);
-            // IME should be on screen without reset.
-            notExpectEvent(stream, editorMatcher("onStartInputView", marker), TIMEOUT);
-            PollingCheck.check("Ime insets should be visible", TIMEOUT,
-                    () -> editText.getRootWindowInsets().isVisible(WindowInsets.Type.ime()));
-            expectImeVisible(TIMEOUT);
+            try (ChildWindowHolder childWindow = createChildBottomPanelWindowOnMain(activity,
+                    MATCH_PARENT /* width */, NEW_KEYBOARD_HEIGHT /* height */,
+                    FLAG_NOT_FOCUSABLE | FLAG_ALT_FOCUSABLE_IM | FLAG_LAYOUT_IN_SCREEN)) {
+                // The window will be shown behind (in z-axis) the IME.
+                TestUtils.runOnMainSync(() -> {
+                    childWindow.getRootView().setBackgroundColor(Color.RED);
+                    childWindow.getRootView().setVisibility(View.VISIBLE);
+                });
+                // IME should be on screen without reset.
+                notExpectEvent(stream, editorMatcher("onStartInputView", marker), TIMEOUT);
+
+                TestUtils.waitOnMainUntil(
+                        () -> editText.getRootWindowInsets().isVisible(WindowInsets.Type.ime()),
+                        TIMEOUT, "Ime insets should be visible");
+                expectImeVisible(TIMEOUT);
+            }
         }
     }
 
@@ -320,6 +305,86 @@ public class ImeInsetsVisibilityTest extends EndToEndImeTestBase {
         }
     }
 
+    /**
+     * Test the IME window won't cover the editor when the app creates a panel window to receive
+     * the IME insets.
+     *
+     * <p>Regression test for Bug 195765264 and Bug 152304051.</p>
+     */
+    @Test
+    public void testEditorWontCoveredByImeWhenInputWindowBehindPanel() throws Exception {
+        try (MockImeSession imeSession = MockImeSession.create(
+                InstrumentationRegistry.getInstrumentation().getContext(),
+                InstrumentationRegistry.getInstrumentation().getUiAutomation(),
+                new ImeSettings.Builder())) {
+            final ImeEventStream stream = imeSession.openEventStream();
+            final String marker = getTestMarker();
+            // Launch a test activity with SOFT_INPUT_ADJUST_NOTHING to not resize by IME insets.
+            final AtomicReference<EditText> editTextRef = new AtomicReference<>();
+            final TestActivity testActivity = TestActivity.startSync(activity -> {
+                final LinearLayout layout = new LinearLayout(activity);
+                layout.setOrientation(LinearLayout.VERTICAL);
+                layout.setGravity(Gravity.BOTTOM);
+                final EditText editText = new EditText(activity);
+                editText.setHint("focused editText");
+                editText.setPrivateImeOptions(marker);
+                // Initial editor visibility as GONE for testing IME visibility controlled by panel.
+                editText.setVisibility(View.GONE);
+                editTextRef.set(editText);
+                layout.addView(editText);
+                activity.getWindow().setSoftInputMode(
+                        WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING);
+                return layout;
+            });
+            final EditText editText = editTextRef.get();
+            // Create a panel window to receive IME insets for adjusting editText position.
+            final View panelView = TestUtils.getOnMainSync(() -> {
+                final View panel = new View(testActivity);
+                panel.setOnApplyWindowInsetsListener((v, insets) -> {
+                    if (insets.isVisible(WindowInsets.Type.ime())) {
+                        // Request editText focused when IME insets visible.
+                        editText.setVisibility(View.VISIBLE);
+                        editText.requestFocus();
+                        LinearLayout.LayoutParams lp =
+                                (LinearLayout.LayoutParams) editText.getLayoutParams();
+                        lp.setMargins(0, 0, 0, editText.getRootView().getMeasuredHeight()
+                                - panel.getMeasuredHeight());
+                        editText.requestLayout();
+                    } else {
+                        // Clear editText focused when IME insets invisible.
+                        editText.clearFocus();
+                        editText.setVisibility(View.GONE);
+                    }
+                    return insets;
+                });
+                final WindowManager.LayoutParams lp = new WindowManager.LayoutParams(
+                        1, MATCH_PARENT,
+                        0, 0, WindowManager.LayoutParams.TYPE_APPLICATION_ATTACHED_DIALOG,
+                        WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+                                | WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                                | WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM,
+                        PixelFormat.TRANSLUCENT);
+                lp.setFitInsetsTypes(WindowInsets.Type.ime() | WindowInsets.Type.systemBars());
+                lp.softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE;
+                lp.token = testActivity.getWindow().getDecorView().getWindowToken();
+                testActivity.getWindowManager().addView(panel, lp);
+                return panel;
+            });
+            notExpectEvent(stream, editorMatcher("onStartInputView", marker), NOT_EXPECT_TIMEOUT);
+            expectImeInvisible(TIMEOUT);
+            // Show IME by using WindowInsets API.
+            testActivity.getWindow().getInsetsController().show(WindowInsets.Type.ime());
+            TestUtils.waitOnMainUntil(() -> isInsetsVisible(panelView.getRootWindowInsets(),
+                    WindowInsets.Type.ime()), TIMEOUT, "The panel should receive IME insets");
+            TestUtils.waitOnMainUntil(
+                    () -> editText.getVisibility() == View.VISIBLE && editText.hasFocus(),
+                    TIMEOUT, "The editor should be shown and visible");
+            expectEvent(stream, editorMatcher("onStartInput", marker), TIMEOUT);
+            expectEvent(stream, editorMatcher("onStartInputView", marker), TIMEOUT);
+            expectImeVisible(TIMEOUT);
+        }
+    }
+
     private boolean isInsetsVisible(WindowInsets winInsets, int type) {
         if (winInsets == null) {
             return false;
@@ -367,11 +432,64 @@ public class ImeInsetsVisibilityTest extends EndToEndImeTestBase {
         return new Pair<>(focusedEditTextRef.get(), testActivityRef.get());
     }
 
-    private View addChildWindow(Activity activity, WindowManager.LayoutParams attrs) {
-        final WindowManager wm = activity.getSystemService(WindowManager.class);
-        final View childViewRoot = new View(activity);
-        childViewRoot.setVisibility(View.GONE);
-        wm.addView(childViewRoot, attrs);
-        return childViewRoot;
+    /**
+     * A utility class to pack the root {@link View} and its clean-up operation that is compatible
+     * with {@link AutoCloseable} protocol.
+     */
+    private static final class ChildWindowHolder implements AutoCloseable {
+        @NonNull
+        private final View mRootView;
+
+        private ChildWindowHolder(@NonNull View rootView) {
+            mRootView = rootView;
+        }
+
+        @NonNull
+        @AnyThread
+        View getRootView() {
+            return mRootView;
+        }
+
+        @Override
+        public void close() {
+            TestUtils.runOnMainSync(() -> mRootView.getContext()
+                    .getSystemService(WindowManager.class).removeView(mRootView));
+        }
+    }
+
+    @NonNull
+    private ChildWindowHolder createChildBottomPanelWindowOnMain(Activity activity, int width,
+            int height, int windowFlags) {
+        return TestUtils.getOnMainSync(() -> {
+            final WindowManager.LayoutParams attrs = new WindowManager.LayoutParams();
+            attrs.token = null;
+            attrs.type = WindowManager.LayoutParams.TYPE_APPLICATION_PANEL;
+            attrs.width = width;
+            attrs.height = height;
+            attrs.gravity = Gravity.BOTTOM;
+            attrs.flags = windowFlags;
+            final View childViewRoot = new View(activity);
+            activity.getSystemService(WindowManager.class).addView(childViewRoot, attrs);
+            return new ChildWindowHolder(childViewRoot);
+        });
+    }
+
+    @NonNull
+    private ChildWindowHolder createChildTransparentApplicationWindowOnMain(Activity activity,
+            int width, int height, int windowFlags, int fitInsetsTypes) {
+        return TestUtils.getOnMainSync(() -> {
+            final WindowManager.LayoutParams attrs = new WindowManager.LayoutParams();
+            attrs.token = activity.getWindow().getAttributes().token;
+            attrs.type = WindowManager.LayoutParams.TYPE_APPLICATION;
+            attrs.width = width;
+            attrs.height = height;
+            attrs.format = PixelFormat.TRANSPARENT;
+            attrs.gravity = Gravity.NO_GRAVITY;
+            attrs.flags = windowFlags;
+            attrs.setFitInsetsTypes(fitInsetsTypes);
+            final View childViewRoot = new View(activity);
+            activity.getSystemService(WindowManager.class).addView(childViewRoot, attrs);
+            return new ChildWindowHolder(childViewRoot);
+        });
     }
 }

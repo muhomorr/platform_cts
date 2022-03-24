@@ -26,6 +26,7 @@ import static android.service.autofill.FillEventHistory.Event.TYPE_DATASETS_SHOW
 import static android.service.autofill.FillEventHistory.Event.TYPE_DATASET_AUTHENTICATION_SELECTED;
 import static android.service.autofill.FillEventHistory.Event.TYPE_DATASET_SELECTED;
 import static android.service.autofill.FillEventHistory.Event.TYPE_SAVE_SHOWN;
+import static android.service.autofill.FillEventHistory.Event.UI_TYPE_UNKNOWN;
 
 import static com.android.compatibility.common.util.ShellUtils.runShellCommand;
 
@@ -33,6 +34,7 @@ import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
 
 import android.app.Activity;
+import android.app.Instrumentation;
 import android.app.PendingIntent;
 import android.app.assist.AssistStructure;
 import android.app.assist.AssistStructure.ViewNode;
@@ -758,10 +760,9 @@ public final class Helper {
     /**
      * Asserts the number of children in the Assist structure.
      */
-    public static void assertNumberOfChildren(AssistStructure structure, int expected) {
-        assertWithMessage("wrong number of nodes").that(structure.getWindowNodeCount())
-                .isEqualTo(1);
-        final int actual = getNumberNodes(structure);
+    public static void assertNumberOfChildrenWithWindowTitle(AssistStructure structure,
+            int expected, CharSequence windowTitle) {
+        final int actual = getNumberNodes(structure, windowTitle);
         if (actual != expected) {
             dumpStructure("assertNumberOfChildren()", structure);
             throw new AssertionError("assertNumberOfChildren() for structure failed: expected "
@@ -771,28 +772,46 @@ public final class Helper {
 
     /**
      * Gets the total number of nodes in an structure.
+     * A node that has a non-null IdPackage which does not match the test package is not counted.
      */
-    public static int getNumberNodes(AssistStructure structure) {
+    public static int getNumberNodes(AssistStructure structure,
+            CharSequence windowTitle) {
         int count = 0;
         final int nodes = structure.getWindowNodeCount();
         for (int i = 0; i < nodes; i++) {
             final WindowNode windowNode = structure.getWindowNodeAt(i);
-            final ViewNode rootNode = windowNode.getRootViewNode();
-            count += getNumberNodes(rootNode);
+            if (windowNode.getTitle().equals(windowTitle)) {
+                final ViewNode rootNode = windowNode.getRootViewNode();
+                count += getNumberNodes(rootNode);
+            }
         }
         return count;
     }
 
     /**
+     * Gets the activity title.
+     */
+    public static CharSequence getActivityTitle(Instrumentation instrumentation,
+            Activity activity) {
+        final StringBuilder titleBuilder = new StringBuilder();
+        instrumentation.runOnMainSync(() -> titleBuilder.append(activity.getTitle()));
+        return titleBuilder;
+    }
+
+    /**
      * Gets the total number of nodes in an node, including all descendants and the node itself.
+     * A node that has a non-null IdPackage which does not match the test package is not counted.
      */
     public static int getNumberNodes(ViewNode node) {
+        if (node.getIdPackage() != null && !node.getIdPackage().equals(MY_PACKAGE)) {
+            Log.w(TAG, "ViewNode ignored in getNumberNodes because of mismatched package: "
+                    + node.getIdPackage());
+            return 0;
+        }
         int count = 1;
         final int childrenSize = node.getChildCount();
-        if (childrenSize > 0) {
-            for (int i = 0; i < childrenSize; i++) {
-                count += getNumberNodes(node.getChildAt(i));
-            }
+        for (int i = 0; i < childrenSize; i++) {
+            count += getNumberNodes(node.getChildAt(i));
         }
         return count;
     }
@@ -1091,6 +1110,13 @@ public final class Helper {
              .that(clientState).isNull();
     }
 
+    private static void assertFillEventPresentationType(FillEventHistory.Event event,
+            int expectedType) {
+        // TODO: assert UI_TYPE_UNKNOWN in other event type
+        assertThat(event.getUiType()).isNotEqualTo(UI_TYPE_UNKNOWN);
+        assertThat(event.getUiType()).isEqualTo(expectedType);
+    }
+
     /**
      * Asserts the content of a {@link android.service.autofill.FillEventHistory.Event}.
      *
@@ -1219,10 +1245,12 @@ public final class Helper {
      * @param event event to be asserted
      * @param key the only key expected in the client state bundle
      * @param value the only value expected in the client state bundle
+     * @param expectedPresentation the exptected ui presentation type
      */
     public static void assertFillEventForDatasetShown(@NonNull FillEventHistory.Event event,
-            @NonNull String key, @NonNull String value) {
+            @NonNull String key, @NonNull String value, int expectedPresentation) {
         assertFillEvent(event, TYPE_DATASETS_SHOWN, NULL_DATASET_ID, key, value, null);
+        assertFillEventPresentationType(event, expectedPresentation);
     }
 
     /**
@@ -1231,8 +1259,10 @@ public final class Helper {
      *
      * @param event event to be asserted
      */
-    public static void assertFillEventForDatasetShown(@NonNull FillEventHistory.Event event) {
+    public static void assertFillEventForDatasetShown(@NonNull FillEventHistory.Event event,
+            int expectedPresentation) {
         assertFillEvent(event, TYPE_DATASETS_SHOWN, NULL_DATASET_ID, null, null, null);
+        assertFillEventPresentationType(event, expectedPresentation);
     }
 
     /**
