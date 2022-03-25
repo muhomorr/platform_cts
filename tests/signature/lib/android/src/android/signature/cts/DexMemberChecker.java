@@ -17,7 +17,7 @@
 package android.signature.cts;
 
 import android.util.Log;
-import java.lang.reflect.Constructor;
+
 import java.lang.reflect.Executable;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
@@ -97,12 +97,9 @@ public class DexMemberChecker {
             if (jni) {
                 try {
                     observer.fieldAccessibleViaJni(hasMatchingField_JNI(klass, field), field);
-                } catch (ExceptionInInitializerError | UnsatisfiedLinkError
-                        | NoClassDefFoundError e) {
-                    if ((e instanceof NoClassDefFoundError)
-                            && !(e.getCause() instanceof ExceptionInInitializerError)
-                            && !(e.getCause() instanceof UnsatisfiedLinkError)) {
-                        throw e;
+                } catch (ClassNotFoundException | Error e) {
+                    if ((e instanceof NoClassDefFoundError) && !(e.getCause() instanceof Error)) {
+                        throw (NoClassDefFoundError) e;
                     }
 
                     // Could not initialize the class. Skip JNI test.
@@ -112,17 +109,18 @@ public class DexMemberChecker {
         } else if (dexMember instanceof DexMethod) {
             DexMethod method = (DexMethod) dexMember;
             if (reflection) {
-                observer.methodAccessibleViaReflection(hasMatchingMethod_Reflection(klass, method),
-                        method);
+                try {
+                    observer.methodAccessibleViaReflection(
+                            hasMatchingMethod_Reflection(klass, method), method);
+                } catch (ClassNotFoundException e) {
+                    Log.w(TAG, "Failed resolution of " + dexMember.toString(), e);
+                }
             }
             if (jni) {
                 try {
                     observer.methodAccessibleViaJni(hasMatchingMethod_JNI(klass, method), method);
-                } catch (ExceptionInInitializerError | UnsatisfiedLinkError
-                        | NoClassDefFoundError e) {
-                    if ((e instanceof NoClassDefFoundError)
-                            && !(e.getCause() instanceof ExceptionInInitializerError)
-                            && !(e.getCause() instanceof UnsatisfiedLinkError)) {
+                } catch (Error e) {
+                    if ((e instanceof NoClassDefFoundError) && !(e.getCause() instanceof Error)) {
                         throw e;
                     }
 
@@ -164,10 +162,17 @@ public class DexMemberChecker {
             return true;
         } catch (NoSuchFieldException ex) {
             return false;
+        } catch (NoClassDefFoundError ex) {
+            // The field has a type that cannot be loaded.
+            return true;
         }
     }
 
-    private static boolean hasMatchingField_JNI(Class<?> klass, DexField dexField) {
+    private static boolean hasMatchingField_JNI(Class<?> klass, DexField dexField)
+            throws ClassNotFoundException {
+        // If we fail to resolve the type of the field, we will throw a ClassNotFoundException.
+        DexMember.typeToClass(dexField.getDexType());
+
         try {
             Field ifield = getField_JNI(klass, dexField.getName(), dexField.getDexType());
             if (ifield.getDeclaringClass() == klass) {
@@ -189,22 +194,57 @@ public class DexMemberChecker {
         return false;
     }
 
-    private static boolean hasMatchingMethod_Reflection(Class<?> klass, DexMethod dexMethod) {
-        List<String> methodParams = dexMethod.getJavaParameterTypes();
+    private static boolean hasMatchingMethod_Reflection(Class<?> klass, DexMethod dexMethod)
+                throws ClassNotFoundException {
+        // If we fail to resolve all parameters or return type, we will throw
+        // ClassNotFoundException.
+        Class<?>[] parameterClasses = dexMethod.getJavaParameterClasses();
+        Class<?> returnClass = DexMember.typeToClass(dexMethod.getDexType());
 
         if (dexMethod.isConstructor()) {
-            for (Constructor<?> constructor : klass.getDeclaredConstructors()) {
-                if (typesMatch(constructor.getParameterTypes(), methodParams)) {
+            try {
+                if (klass.getDeclaredConstructor(parameterClasses) != null) {
                     return true;
                 }
+            } catch (NoSuchMethodException e) {
+              return false;
             }
-        } else {
+        } else if (!dexMethod.isStaticConstructor()) {
+            List<String> methodParams = dexMethod.getJavaParameterTypes();
             String methodReturnType = dexMethod.getJavaType();
-            for (Method method : klass.getDeclaredMethods()) {
-                if (method.getName().equals(dexMethod.getName())
-                        && method.getReturnType().getTypeName().equals(methodReturnType)
-                        && typesMatch(method.getParameterTypes(), methodParams)) {
-                    return true;
+            try {
+                // First try with getDeclaredMethods, hoping all parameter and return types can be
+                // resolved.
+                for (Method method : klass.getDeclaredMethods()) {
+                    if (method.getName().equals(dexMethod.getName())
+                            && method.getReturnType().getTypeName().equals(methodReturnType)
+                            && typesMatch(method.getParameterTypes(), methodParams)) {
+                        return true;
+                    }
+                }
+            } catch (NoClassDefFoundError ncdfe) {
+                // Try with getMethods, which does not check parameter and return types are
+                // resolved, but only returns public methods.
+                for (Method method : klass.getMethods()) {
+                    if (method.getName().equals(dexMethod.getName())
+                            && method.getClass() == klass
+                            && method.getReturnType().getTypeName().equals(methodReturnType)
+                            && typesMatch(method.getParameterTypes(), methodParams)) {
+                        return true;
+                    }
+                }
+                // Last chance, try with getDeclaredMethod.
+                try {
+                    Method m = klass.getDeclaredMethod(dexMethod.getName(), parameterClasses);
+                    if (m.getReturnType().getTypeName().equals(dexMethod.getJavaType())) {
+                        return true;
+                    }
+                    // This means we found a method with a different return type. We cannot make
+                    // any conclusion here: the method may exisit or not. However, given we have
+                    // not found the method through getMethods and getDeclaredMethods, we know
+                    // this method won't be accessible through reflection.
+                } catch (NoSuchMethodException nsme) {
+                  return false;
                 }
             }
         }

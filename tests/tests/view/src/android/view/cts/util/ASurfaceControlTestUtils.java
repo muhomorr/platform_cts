@@ -19,6 +19,7 @@ package android.view.cts.util;
 import static org.junit.Assert.assertTrue;
 
 import android.graphics.Rect;
+import android.hardware.HardwareBuffer;
 import android.view.Surface;
 
 public class ASurfaceControlTestUtils {
@@ -27,7 +28,7 @@ public class ASurfaceControlTestUtils {
     }
 
     public interface TransactionCompleteListener {
-        void onTransactionComplete(long latchTime);
+        void onTransactionComplete(long latchTime, long presentTime);
     }
 
     public static long createSurfaceTransaction() {
@@ -152,9 +153,6 @@ public class ASurfaceControlTestUtils {
             long surfaceControl, long surfaceTransaction, int right, int top, int left, int bottom);
     public static native void nSurfaceTransaction_setZOrder(
             long surfaceControl, long surfaceTransaction, int z);
-    public static native long nSurfaceTransaction_setOnComplete(long surfaceTransaction);
-    public static native void nSurfaceTransaction_checkOnComplete(long context,
-            long desiredPresentTime);
     public static native long nSurfaceTransaction_setDesiredPresentTime(long surfaceTransaction,
             long desiredPresentTimeOffset);
     public static native void nSurfaceTransaction_setBufferAlpha(long surfaceControl,
@@ -166,11 +164,18 @@ public class ASurfaceControlTestUtils {
     public static native void nSurfaceTransaction_setEnableBackPressure(long surfaceControl,
             long surfaceTransaction, boolean enableBackPressure);
     public static native void nSurfaceTransaction_setOnCompleteCallback(long surfaceTransaction,
-            TransactionCompleteListener listener);
+            boolean waitForFence, TransactionCompleteListener listener);
     public static native void nSurfaceTransaction_setOnCommitCallback(long surfaceTransaction,
             TransactionCompleteListener listener);
     public static native void nSurfaceTransaction_setOnCompleteCallbackWithoutContext(
-            long surfaceTransaction, TransactionCompleteListener listener);
+            long surfaceTransaction, boolean waitForFence, TransactionCompleteListener listener);
     public static native void nSurfaceTransaction_setOnCommitCallbackWithoutContext(
             long surfaceTransaction, TransactionCompleteListener listener);
+    public static native void nSurfaceTransaction_setFrameTimeline(long surfaceTransaction,
+            long vsyncId);
+
+    public static native HardwareBuffer getSolidBuffer(int width, int height, int color);
+    public static native HardwareBuffer getQuadrantBuffer(int width, int height,
+            int colorTopLeft, int colorTopRight, int colorBottomRight, int colorBottomLeft);
+    public static native long getBufferId(HardwareBuffer buffer);
 }

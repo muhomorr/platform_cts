@@ -21,13 +21,15 @@ import android.os.Build;
 import android.os.SystemProperties;
 import android.util.Log;
 
+import com.android.compatibility.common.util.ApiLevelUtil;
+
 /**
  * Test utilities.
  */
 /* package private */ class MediaPerformanceClassUtils {
-    private static final int sPc = SystemProperties.getInt(
-        "ro.odm.build.media_performance_class", 0);
-
+    private static final int sPc = ApiLevelUtil.isAtLeast(Build.VERSION_CODES.S) ?
+            Build.VERSION.MEDIA_PERFORMANCE_CLASS :
+            SystemProperties.getInt("ro.odm.build.media_performance_class", 0);
     private static final String TAG = "PerformanceClassTestUtils";
 
     /**
@@ -38,8 +40,7 @@ import android.util.Log;
     /**
      * Latest defined media performance class.
      */
-    /* TODO: make this S */
-    private static final int LAST_PERFORMANCE_CLASS = Build.VERSION_CODES.R + 1;
+    private static final int LAST_PERFORMANCE_CLASS = Build.VERSION_CODES.TIRAMISU;
 
     static {
         if (sPc > 0) {
@@ -52,7 +53,11 @@ import android.util.Log;
     }
 
     public static boolean isSPerfClass() {
-        return sPc == Build.VERSION_CODES.R + 1; /* TODO: make this S */
+        return sPc == Build.VERSION_CODES.S;
+    }
+
+    public static boolean isTPerfClass() {
+        return sPc == Build.VERSION_CODES.TIRAMISU;
     }
 
     public static int getPerfClass() {

@@ -26,13 +26,17 @@ import com.android.eventlib.EventLogsQuery;
 import com.android.queryable.info.ActivityInfo;
 import com.android.queryable.queries.ActivityQuery;
 import com.android.queryable.queries.ActivityQueryHelper;
+import com.android.queryable.queries.IntegerQuery;
+import com.android.queryable.queries.IntegerQueryHelper;
 
 /**
  * Event logged when {@link Activity#onPause()} is called.
  */
 public final class ActivityPausedEvent extends Event {
 
-    /** Begin a query for {@link ActivityPausedEvent} events. */
+    private static final long serialVersionUID = 1;
+
+    /** Begins a query for {@link ActivityPausedEvent} events. */
     public static ActivityPausedEventQuery queryPackage(String packageName) {
         return new ActivityPausedEventQuery(packageName);
     }
@@ -40,8 +44,12 @@ public final class ActivityPausedEvent extends Event {
     /** {@link EventLogsQuery} for {@link ActivityPausedEvent}. */
     public static final class ActivityPausedEventQuery
             extends EventLogsQuery<ActivityPausedEvent, ActivityPausedEventQuery> {
+
+        private static final long serialVersionUID = 1;
+
         ActivityQueryHelper<ActivityPausedEventQuery> mActivity =
                 new ActivityQueryHelper<>(this);
+        IntegerQuery<ActivityPausedEventQuery> mTaskId = new IntegerQueryHelper<>(this);
 
         private ActivityPausedEventQuery(String packageName) {
             super(ActivityPausedEvent.class, packageName);
@@ -53,16 +61,33 @@ public final class ActivityPausedEvent extends Event {
             return mActivity;
         }
 
+        /** Query {@code taskId}. */
+        @CheckResult
+        public IntegerQuery<ActivityPausedEventQuery> whereTaskId() {
+            return mTaskId;
+        }
+
         @Override
         protected boolean filter(ActivityPausedEvent event) {
             if (!mActivity.matches(event.mActivity)) {
                 return false;
             }
+            if (!mTaskId.matches(event.mTaskId)) {
+                return false;
+            }
             return true;
+        }
+
+        @Override
+        public String describeQuery(String fieldName) {
+            return toStringBuilder(ActivityPausedEvent.class, this)
+                    .field("activity", mActivity)
+                    .field("taskId", mTaskId)
+                    .toString();
         }
     }
 
-    /** Begin logging a {@link ActivityPausedEvent}. */
+    /** Begins logging a {@link ActivityPausedEvent}. */
     public static ActivityPausedEventLogger logger(Activity activity, android.content.pm.ActivityInfo activityInfo) {
         return new ActivityPausedEventLogger(activity, activityInfo);
     }
@@ -73,26 +98,40 @@ public final class ActivityPausedEvent extends Event {
         private ActivityPausedEventLogger(Activity activity, android.content.pm.ActivityInfo activityInfo) {
             super(activity, new ActivityPausedEvent());
             setActivity(activityInfo);
+            setTaskId(activity.getTaskId());
         }
 
-        /** Set the {@link Activity} being destroyed. */
+        /** Sets the {@link Activity} being destroyed. */
         public ActivityPausedEventLogger setActivity(android.content.pm.ActivityInfo activity) {
             mEvent.mActivity = ActivityInfo.builder(activity).build();
+            return this;
+        }
+
+        /** Sets the task ID for the activity. */
+        public ActivityPausedEventLogger setTaskId(int taskId) {
+            mEvent.mTaskId = taskId;
             return this;
         }
     }
 
     protected ActivityInfo mActivity;
+    protected int mTaskId;
 
     /** Information about the {@link Activity} destroyed. */
     public ActivityInfo activity() {
         return mActivity;
     }
 
+    /** The Task ID of the Activity. */
+    public int taskId() {
+        return mTaskId;
+    }
+
     @Override
     public String toString() {
         return "ActivityPausedEvent{"
                 + ", activity=" + mActivity
+                + ", taskId=" + mTaskId
                 + ", packageName='" + mPackageName + "'"
                 + ", timestamp=" + mTimestamp
                 + "}";

@@ -21,18 +21,22 @@ java_test_host {
     srcs: [
         "hostside/src/**/AppCloningHostTest.java",
         "hostside/src/**/BaseHostTestCase.java",
+        "hostside/src/**/AppCloningBaseHostTest.java",
     ],
     libs: [
         "cts-tradefed",
         "tradefed",
         "testng",
     ],
-    // tag the module as cts a test artifact
+    static_libs: ["modules-utils-build-testing"],
+    // tag this module as a cts test artifact
     test_suites: [
         "general-tests",
         "mts-mediaprovider",
         "cts",
     ],
     test_config: "AndroidTestAppCloning.xml",
-    data: [":CtsAppCloningTestApp"],
+    data: [
+        ":CtsAppCloningTestApp",
+    ],
 }
