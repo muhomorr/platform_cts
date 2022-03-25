@@ -21,6 +21,22 @@ android_test_helper_app {
     manifest: "ScopedStorageTestHelper/TestAppA.xml",
     static_libs: ["cts-scopedstorage-lib"],
     sdk_version: "test_current",
+    target_sdk_version: "Tiramisu",
+    min_sdk_version: "30",
+    srcs: ["ScopedStorageTestHelper/src/**/*.java"],
+    // Tag as a CTS artifact
+    test_suites: [
+        "general-tests",
+        "mts-mediaprovider",
+        "cts",
+    ],
+}
+
+android_test_helper_app {
+    name: "CtsScopedStorageTestAppA31",
+    manifest: "ScopedStorageTestHelper/TestAppA31.xml",
+    static_libs: ["cts-scopedstorage-lib"],
+    sdk_version: "test_current",
     target_sdk_version: "31",
     min_sdk_version: "30",
     srcs: ["ScopedStorageTestHelper/src/**/*.java"],
@@ -37,7 +53,7 @@ android_test_helper_app {
     manifest: "ScopedStorageTestHelper/TestAppB.xml",
     static_libs: ["cts-scopedstorage-lib"],
     sdk_version: "test_current",
-    target_sdk_version: "31",
+    target_sdk_version: "Tiramisu",
     min_sdk_version: "30",
     srcs: ["ScopedStorageTestHelper/src/**/*.java"],
     // Tag as a CTS artifact
@@ -53,7 +69,7 @@ android_test_helper_app {
     manifest: "ScopedStorageTestHelper/TestAppC.xml",
     static_libs: ["cts-scopedstorage-lib"],
     sdk_version: "test_current",
-    target_sdk_version: "31",
+    target_sdk_version: "Tiramisu",
     min_sdk_version: "30",
     srcs: ["ScopedStorageTestHelper/src/**/*.java"],
     // Tag as a CTS artifact
@@ -117,7 +133,7 @@ android_test_helper_app {
     manifest: "ScopedStorageTestHelper/TestAppFileManager.xml",
     static_libs: ["cts-scopedstorage-lib"],
     sdk_version: "test_current",
-    target_sdk_version: "31",
+    target_sdk_version: "Tiramisu",
     min_sdk_version: "30",
     srcs: ["ScopedStorageTestHelper/src/**/*.java"],
     // Tag as a CTS artifact
@@ -133,7 +149,7 @@ android_test_helper_app {
     manifest: "ScopedStorageTestHelper/TestAppFileManagerBypassDB.xml",
     static_libs: ["cts-scopedstorage-lib"],
     sdk_version: "test_current",
-    target_sdk_version: "31",
+    target_sdk_version: "Tiramisu",
     min_sdk_version: "30",
     srcs: ["ScopedStorageTestHelper/src/**/*.java"],
     // Tag as a CTS artifact
@@ -149,7 +165,7 @@ android_test_helper_app {
     manifest: "ScopedStorageTestHelper/TestAppSystemGalleryBypassDB.xml",
     static_libs: ["cts-scopedstorage-lib"],
     sdk_version: "test_current",
-    target_sdk_version: "31",
+    target_sdk_version: "Tiramisu",
     min_sdk_version: "30",
     srcs: ["ScopedStorageTestHelper/src/**/*.java"],
     // Tag as a CTS artifact
@@ -209,10 +225,11 @@ android_test {
         "cts",
     ],
     sdk_version: "test_current",
-    target_sdk_version: "31",
+    target_sdk_version: "Tiramisu",
     min_sdk_version: "30",
     java_resources: [
         ":CtsScopedStorageTestAppA",
+        ":CtsScopedStorageTestAppA31",
         ":CtsScopedStorageTestAppB",
         ":CtsScopedStorageTestAppC",
         ":CtsScopedStorageTestAppCLegacy",
@@ -285,6 +302,32 @@ java_test_host {
 }
 
 java_test_host {
+    name: "GtsPreserveLegacyStorageHostTest",
+    srcs: [
+        "host/src/android/scopedstorage/cts/host/PreserveLegacyStorageHostTest.java",
+        "host/src/android/scopedstorage/cts/host/BaseHostTestCase.java",
+    ],
+    libs: [
+        "cts-tradefed",
+        "tradefed",
+        "testng",
+    ],
+    static_libs: [
+        "modules-utils-build-testing",
+        "compatibility-host-util",
+    ],
+    test_suites: [
+        "general-tests",
+        "gts",
+    ],
+    test_config: "AndroidPreserveLegacyTest.xml",
+    data: [
+        ":CtsLegacyStorageTestAppRequestLegacy",
+        ":CtsLegacyStorageTestAppPreserveLegacy",
+    ],
+}
+
+java_test_host {
     name: "CtsScopedStoragePublicVolumeHostTest",
     srcs: ["host/src/**/*.java"],
     libs: [
@@ -311,6 +354,7 @@ android_test {
     static_libs: [
         "truth-prebuilt",
         "cts-scopedstorage-lib",
+        "androidx.test.uiautomator_uiautomator",
     ],
     compile_multilib: "both",
     test_suites: [
@@ -319,7 +363,7 @@ android_test {
         "cts",
     ],
     sdk_version: "test_current",
-    target_sdk_version: "31",
+    target_sdk_version: "Tiramisu",
     min_sdk_version: "30",
     libs: [
         "android.test.base",

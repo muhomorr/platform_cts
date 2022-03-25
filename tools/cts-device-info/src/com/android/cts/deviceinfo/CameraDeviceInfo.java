@@ -24,6 +24,8 @@ import android.hardware.camera2.CameraManager;
 import android.hardware.camera2.params.BlackLevelPattern;
 import android.hardware.camera2.params.ColorSpaceTransform;
 import android.hardware.camera2.params.StreamConfigurationMap;
+import android.hardware.camera2.params.MultiResolutionStreamConfigurationMap;
+import android.hardware.camera2.params.MultiResolutionStreamInfo;
 import android.media.CamcorderProfile;
 import android.os.Build;
 import android.util.Log;
@@ -42,6 +44,7 @@ import java.lang.reflect.Modifier;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -232,6 +235,18 @@ public final class CameraDeviceInfo extends DeviceInfo {
             mStore.endGroup();
         }
 
+        private void storeRangeFloat(
+                Range<Float> range, String protoName) throws Exception {
+            if (protoName == null) {
+                mStore.startGroup();
+            } else {
+                mStore.startGroup(protoName);
+            }
+            mStore.addResult("lower", range.getLower());
+            mStore.addResult("upper", range.getUpper());
+            mStore.endGroup();
+        }
+
         private void storeRangeInt(
                 Range<Integer> range, String protoName) throws Exception {
             if (protoName == null) {
@@ -284,6 +299,55 @@ public final class CameraDeviceInfo extends DeviceInfo {
             int patVals[] = new int[4];
             pat.copyTo(patVals, 0);
             mStore.addArrayResult("black_level_pattern", patVals);
+            mStore.endGroup();
+        }
+
+        private void storeMultiResStreamConfigurationMap(
+                MultiResolutionStreamConfigurationMap map, String protoName) throws Exception {
+            if (protoName == null) {
+                mStore.startGroup();
+            } else {
+                mStore.startGroup(protoName);
+            }
+
+            mStore.startArray("availableMultiResolutionConfigurations");
+            int[] fmts = map.getOutputFormats();
+            if (fmts != null) {
+                for (int fi = 0; fi < Array.getLength(fmts); fi++) {
+                    Collection<MultiResolutionStreamInfo> streamInfo = map.getOutputInfo(fmts[fi]);
+                    if (streamInfo != null) {
+                        for (MultiResolutionStreamInfo oneStream : streamInfo) {
+                            mStore.startGroup();
+                            mStore.addResult("format", fmts[fi]);
+                            mStore.addResult("width", oneStream.getWidth());
+                            mStore.addResult("height", oneStream.getHeight());
+                            mStore.addResult("cameraId", oneStream.getPhysicalCameraId());
+                            mStore.addResult("input", false);
+                            mStore.endGroup();
+                        }
+                    }
+                }
+            }
+
+            int[] inputFmts = map.getInputFormats();
+            if (inputFmts != null) {
+                for (int fi = 0; fi < Array.getLength(inputFmts); fi++) {
+                    Collection<MultiResolutionStreamInfo> streamInfo =
+                            map.getInputInfo(inputFmts[fi]);
+                    if (streamInfo != null) {
+                        for (MultiResolutionStreamInfo oneStream : streamInfo) {
+                            mStore.startGroup();
+                            mStore.addResult("format", inputFmts[fi]);
+                            mStore.addResult("width", oneStream.getWidth());
+                            mStore.addResult("height", oneStream.getHeight());
+                            mStore.addResult("cameraId", oneStream.getPhysicalCameraId());
+                            mStore.addResult("input", true);
+                            mStore.endGroup();
+                        }
+                    }
+                }
+            }
+            mStore.endArray();
             mStore.endGroup();
         }
 
@@ -342,6 +406,11 @@ public final class CameraDeviceInfo extends DeviceInfo {
                 return;
             } else if (keyType instanceof ParameterizedType &&
                     ((ParameterizedType) keyType).getRawType() == Range.class &&
+                    ((ParameterizedType) keyType).getActualTypeArguments()[0] == Float.class) {
+                storeRangeFloat((Range<Float>) keyValue, protoName);
+                return;
+            } else if (keyType instanceof ParameterizedType &&
+                    ((ParameterizedType) keyType).getRawType() == Range.class &&
                     ((ParameterizedType) keyType).getActualTypeArguments()[0] == Integer.class) {
                 storeRangeInt((Range<Integer>) keyValue, protoName);
                 return;
@@ -356,6 +425,9 @@ public final class CameraDeviceInfo extends DeviceInfo {
             } else if (keyType == BlackLevelPattern.class) {
                 storeBlackLevelPattern((BlackLevelPattern) keyValue, protoName);
                 return;
+            } else if (keyType == MultiResolutionStreamConfigurationMap.class) {
+                storeMultiResStreamConfigurationMap(
+                        (MultiResolutionStreamConfigurationMap) keyValue, protoName);
             } else {
                 Log.w(TAG, "Storing unsupported key type: " + keyType +
                         " for keyName: " + keyName);
@@ -565,6 +637,8 @@ public final class CameraDeviceInfo extends DeviceInfo {
         charsKeyNames.add(CameraCharacteristics.CONTROL_ZOOM_RATIO_RANGE.getName());
         charsKeyNames.add(CameraCharacteristics.EDGE_AVAILABLE_EDGE_MODES.getName());
         charsKeyNames.add(CameraCharacteristics.FLASH_INFO_AVAILABLE.getName());
+        charsKeyNames.add(CameraCharacteristics.FLASH_INFO_STRENGTH_MAXIMUM_LEVEL.getName());
+        charsKeyNames.add(CameraCharacteristics.FLASH_INFO_STRENGTH_DEFAULT_LEVEL.getName());
         charsKeyNames.add(CameraCharacteristics.HOT_PIXEL_AVAILABLE_HOT_PIXEL_MODES.getName());
         charsKeyNames.add(CameraCharacteristics.JPEG_AVAILABLE_THUMBNAIL_SIZES.getName());
         charsKeyNames.add(CameraCharacteristics.LENS_FACING.getName());
@@ -586,6 +660,8 @@ public final class CameraDeviceInfo extends DeviceInfo {
         charsKeyNames.add(CameraCharacteristics.REQUEST_PIPELINE_MAX_DEPTH.getName());
         charsKeyNames.add(CameraCharacteristics.REQUEST_PARTIAL_RESULT_COUNT.getName());
         charsKeyNames.add(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES.getName());
+        charsKeyNames.add(CameraCharacteristics.REQUEST_AVAILABLE_DYNAMIC_RANGE_PROFILES.getName());
+        charsKeyNames.add(CameraCharacteristics.REQUEST_RECOMMENDED_TEN_BIT_DYNAMIC_RANGE_PROFILE.getName());
         charsKeyNames.add(CameraCharacteristics.SCALER_AVAILABLE_MAX_DIGITAL_ZOOM.getName());
         charsKeyNames.add(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP.getName());
         charsKeyNames.add(CameraCharacteristics.SCALER_CROPPING_TYPE.getName());
@@ -596,6 +672,10 @@ public final class CameraDeviceInfo extends DeviceInfo {
         charsKeyNames.add(CameraCharacteristics.SCALER_MULTI_RESOLUTION_STREAM_CONFIGURATION_MAP.getName());
         charsKeyNames.add(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP_MAXIMUM_RESOLUTION.getName());
         charsKeyNames.add(CameraCharacteristics.SCALER_MANDATORY_MAXIMUM_RESOLUTION_STREAM_COMBINATIONS.getName());
+        charsKeyNames.add(CameraCharacteristics.SCALER_MANDATORY_TEN_BIT_OUTPUT_STREAM_COMBINATIONS.getName());
+        charsKeyNames.add(CameraCharacteristics.SCALER_MANDATORY_PREVIEW_STABILIZATION_OUTPUT_STREAM_COMBINATIONS.getName());
+        charsKeyNames.add(CameraCharacteristics.SCALER_AVAILABLE_STREAM_USE_CASES.getName());
+        charsKeyNames.add(CameraCharacteristics.SCALER_MANDATORY_USE_CASE_STREAM_COMBINATIONS.getName());
         charsKeyNames.add(CameraCharacteristics.SENSOR_REFERENCE_ILLUMINANT1.getName());
         charsKeyNames.add(CameraCharacteristics.SENSOR_REFERENCE_ILLUMINANT2.getName());
         charsKeyNames.add(CameraCharacteristics.SENSOR_CALIBRATION_TRANSFORM1.getName());
@@ -634,11 +714,14 @@ public final class CameraDeviceInfo extends DeviceInfo {
         charsKeyNames.add(CameraCharacteristics.TONEMAP_AVAILABLE_TONE_MAP_MODES.getName());
         charsKeyNames.add(CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL.getName());
         charsKeyNames.add(CameraCharacteristics.INFO_VERSION.getName());
+        charsKeyNames.add(CameraCharacteristics.INFO_DEVICE_STATE_SENSOR_ORIENTATION_MAP.getName());
         charsKeyNames.add(CameraCharacteristics.SYNC_MAX_LATENCY.getName());
         charsKeyNames.add(CameraCharacteristics.REPROCESS_MAX_CAPTURE_STALL.getName());
         charsKeyNames.add(CameraCharacteristics.DEPTH_DEPTH_IS_EXCLUSIVE.getName());
         charsKeyNames.add(CameraCharacteristics.LOGICAL_MULTI_CAMERA_SENSOR_SYNC_TYPE.getName());
         charsKeyNames.add(CameraCharacteristics.DISTORTION_CORRECTION_AVAILABLE_MODES.getName());
+        charsKeyNames.add(CameraCharacteristics.AUTOMOTIVE_LOCATION.getName());
+        charsKeyNames.add(CameraCharacteristics.AUTOMOTIVE_LENS_FACING.getName());
 
         return charsKeyNames;
     }

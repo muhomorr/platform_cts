@@ -36,6 +36,7 @@ import android.graphics.RecordingCanvas;
 import android.graphics.Rect;
 import android.graphics.RenderEffect;
 import android.graphics.RenderNode;
+import android.graphics.RuntimeShader;
 import android.graphics.Shader;
 import android.graphics.drawable.Drawable;
 import android.uirendering.cts.R;
@@ -58,6 +59,7 @@ import org.junit.runner.RunWith;
 
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 
 @MediumTest
 @RunWith(AndroidJUnit4.class)
@@ -620,6 +622,36 @@ public class RenderNodeTests extends ActivityTestBase {
             );
     }
 
+    @Test
+    public void testRenderEffectOnParentInvalidatesWhenChildChanges() {
+        final CountDownLatch latch = new CountDownLatch(1);
+        createTest()
+                .addLayout(R.layout.frame_layout, (view) -> {
+                    FrameLayout root = view.findViewById(R.id.frame_layout);
+                    root.setRenderEffect(
+                            RenderEffect.createBlurEffect(
+                                    30f, 30f, null, Shader.TileMode.CLAMP)
+                    );
+                    View innerView = new View(view.getContext());
+                    innerView.setLayoutParams(
+                            new FrameLayout.LayoutParams(TEST_WIDTH, TEST_HEIGHT));
+                    innerView.setBackgroundColor(Color.BLUE);
+                    root.addView(innerView);
+                    root.getViewTreeObserver().registerFrameCommitCallback(
+                            new Runnable() {
+                                @Override
+                                public void run() {
+                                    innerView.setBackgroundColor(Color.RED);
+                                    latch.countDown();
+                                    root.getViewTreeObserver().unregisterFrameCommitCallback(this);
+                                }
+                            }
+                    );
+                }, true, latch)
+                .runWithVerifier(new ColorVerifier(Color.RED)
+            );
+    }
+
     private static class TestDrawable extends Drawable {
 
         private final Paint mPaint = new Paint();
@@ -841,6 +873,42 @@ public class RenderNodeTests extends ActivityTestBase {
             );
     }
 
+    private static String sRedBlueInversionShader = ""
+            + "uniform shader inputShader;"
+            +  "vec4 main(vec2 coord) { "
+            + "  vec4 color = inputShader.eval(coord);"
+            + "  return vec4(color.b, color.g, color.r, color.a);"
+            + "}";
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testRuntimeShaderRenderEffectInvalidUinformName() {
+        RuntimeShader shader = new RuntimeShader(sRedBlueInversionShader);
+        RenderEffect runtimeEffect = RenderEffect.createRuntimeShaderEffect(
+                shader, "invalidUniformName");
+    }
+
+    @Test
+    public void testRuntimeShaderRenderEffect() {
+        RuntimeShader shader = new RuntimeShader(sRedBlueInversionShader);
+        RenderEffect runtimeEffect = RenderEffect.createRuntimeShaderEffect(
+                shader, "inputShader");
+        final RenderNode renderNode = new RenderNode(null);
+        renderNode.setRenderEffect(runtimeEffect);
+        renderNode.setPosition(0, 0, TEST_WIDTH, TEST_HEIGHT);
+        {
+            Canvas recordingCanvas = renderNode.beginRecording();
+            Paint paint = new Paint();
+            paint.setColor(Color.BLUE);
+            recordingCanvas.drawRect(0, 0, TEST_WIDTH, TEST_HEIGHT, paint);
+            renderNode.endRecording();
+        }
+
+        createTest()
+                .addCanvasClientWithoutUsingPicture((canvas, width, height) -> {
+                    canvas.drawRenderNode(renderNode);
+                }, true)
+                .runWithVerifier(new ColorVerifier(Color.RED));
+    }
 
     @Test
     public void testBlurShaderLargeRadiiEdgeReplication() {
