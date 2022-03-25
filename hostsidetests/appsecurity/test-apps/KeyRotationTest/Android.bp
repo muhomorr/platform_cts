@@ -1,5 +1,5 @@
 //
-// Copyright (C) 2021 The Android Open Source Project
+// Copyright (C) 2020 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,13 +15,16 @@
 //
 
 package {
+    // See: http://go/android-license-faq
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
 java_library {
     name: "cts_signature_query_service",
-
-    srcs: ["src/**/*.java"] + ["src/**/I*.aidl"],
+    srcs: [
+        "src/**/*.java",
+        "src/**/I*.aidl",
+    ],
     sdk_version: "current",
 }
 
@@ -34,12 +37,12 @@ android_test {
     compile_multilib: "both",
     sdk_version: "current",
     static_libs: ["cts_signature_query_service"],
-    certificate: ":cts-ec-p256",
-    v4_signature: true,
     test_suites: [
         "cts",
         "general-tests",
     ],
+    certificate: ":ec-p256",
+    v4_signature: true,
 }
 
 // This is the second version of the test app signed with the rotated signing
@@ -52,14 +55,14 @@ android_test {
     compile_multilib: "both",
     sdk_version: "current",
     static_libs: ["cts_signature_query_service"],
-    certificate: ":cts-ec-p256_2",
-    additional_certificates: [":cts-ec-p256"],
-    lineage: ":cts-ec-p256-por_1_2-default-caps.lineage",
-    v4_signature: true,
     test_suites: [
         "cts",
         "general-tests",
     ],
+    certificate: ":ec-p256_2",
+    additional_certificates: [":ec-p256"],
+    lineage: ":ec-p256-por_1_2-default-caps",
+    v4_signature: true,
 }
 
 // This is the third version of the test app signed with the same rotated
@@ -72,12 +75,12 @@ android_test {
     compile_multilib: "both",
     sdk_version: "current",
     static_libs: ["cts_signature_query_service"],
-    certificate: ":cts-ec-p256_2",
-    additional_certificates: [":cts-ec-p256"],
-    lineage: ":cts-ec-p256-por_1_2-default-caps.lineage",
-    v4_signature: true,
     test_suites: [
         "cts",
         "general-tests",
     ],
+    certificate: ":ec-p256_2",
+    additional_certificates: [":ec-p256"],
+    lineage: ":ec-p256-por_1_2-default-caps",
+    v4_signature: true,
 }

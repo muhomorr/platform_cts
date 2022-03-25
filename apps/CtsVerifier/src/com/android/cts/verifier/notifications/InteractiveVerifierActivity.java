@@ -453,7 +453,7 @@ public abstract class InteractiveVerifierActivity extends PassFailButtons.Activi
         if (Arrays.equals(expected, actual)) {
             return true;
         }
-        logWithStack(String.format(message, expected, actual));
+        logWithStack(String.format(message, Arrays.toString(expected), Arrays.toString(actual)));
         return false;
     }
 
@@ -461,7 +461,7 @@ public abstract class InteractiveVerifierActivity extends PassFailButtons.Activi
         if (Arrays.equals(expected, actual)) {
             return true;
         }
-        logWithStack(String.format(message, expected, actual));
+        logWithStack(String.format(message, Arrays.toString(expected), Arrays.toString(actual)));
         return false;
     }
 

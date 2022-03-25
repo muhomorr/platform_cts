@@ -109,7 +109,7 @@ public final class AutoFillServiceTestCase {
         }
 
         protected static InlineUiBot getInlineUiBot() {
-            return sDefaultUiBot2;
+            return new InlineUiBot(getContext());
         }
 
         protected static UiBot getDropdownUiBot() {
@@ -291,6 +291,11 @@ public final class AutoFillServiceTestCase {
         protected final Context mContext = sContext;
         protected final String mPackageName;
         protected final UiBot mUiBot;
+
+        public BaseTestCase() {
+            mPackageName = mContext.getPackageName();
+            mUiBot = sDefaultUiBot;
+        }
 
         private BaseTestCase(@NonNull UiBot uiBot) {
             mPackageName = mContext.getPackageName();
@@ -480,7 +485,6 @@ public final class AutoFillServiceTestCase {
     }
 
     protected static final UiBot sDefaultUiBot = new UiBot();
-    protected static final InlineUiBot sDefaultUiBot2 = new InlineUiBot();
 
     private AutoFillServiceTestCase() {
         throw new UnsupportedOperationException("Contain static stuff only");

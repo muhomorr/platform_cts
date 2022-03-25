@@ -76,6 +76,7 @@ import javax.annotation.Nullable;
 @RunWith(DeviceJUnit4ClassRunner.class)
 public abstract class BaseDevicePolicyTest extends BaseHostJUnit4Test {
 
+    private static final String FEATURE_AUTOMOTIVE = "android.hardware.type.automotive";
     private static final String FEATURE_BLUETOOTH = "android.hardware.bluetooth";
     private static final String FEATURE_CAMERA = "android.hardware.camera";
     private static final String FEATURE_CONNECTION_SERVICE = "android.software.connectionservice";
@@ -83,11 +84,11 @@ public abstract class BaseDevicePolicyTest extends BaseHostJUnit4Test {
     private static final String FEATURE_LEANBACK = "android.software.leanback";
     private static final String FEATURE_NFC = "android.hardware.nfc";
     private static final String FEATURE_NFC_BEAM = "android.software.nfc.beam";
-
     private static final String FEATURE_PRINT = "android.software.print";
     private static final String FEATURE_TELEPHONY = "android.hardware.telephony";
     private static final String FEATURE_SECURE_LOCK_SCREEN = "android.software.secure_lock_screen";
     private static final String FEATURE_WIFI = "android.hardware.wifi";
+    private static final String FEATURE_WATCH = "android.hardware.type.watch";
 
     //The maximum time to wait for user to be unlocked.
     private static final long USER_UNLOCK_TIMEOUT_SEC = 30;
@@ -177,6 +178,9 @@ public abstract class BaseDevicePolicyTest extends BaseHostJUnit4Test {
     protected int mDeviceOwnerUserId;
     protected int mPrimaryUserId;
 
+    /** Is test running on a watch */
+    protected boolean mIsWatch;
+
     /** Record the initial user ID. */
     protected int mInitialUserId;
 
@@ -185,6 +189,8 @@ public abstract class BaseDevicePolicyTest extends BaseHostJUnit4Test {
 
     /** Users we shouldn't delete in the tests */
     private ArrayList<Integer> mFixedUsers;
+
+    protected boolean mHasAttestation;
 
     private static final String VERIFY_CREDENTIAL_CONFIRMATION = "Lock credential verified";
 
@@ -204,7 +210,12 @@ public abstract class BaseDevicePolicyTest extends BaseHostJUnit4Test {
         mSupportsMultiUser = getMaxNumberOfUsersSupported() > 1;
         mFixedPackages = getDevice().getInstalledPackageNames();
         mBuildHelper = new CompatibilityBuildHelper(getBuild());
+        mIsWatch = hasDeviceFeature(FEATURE_WATCH);
 
+        String propertyValue = getDevice().getProperty("ro.product.first_api_level");
+        if (propertyValue != null && !propertyValue.isEmpty()) {
+            mHasAttestation = Integer.parseInt(propertyValue) >= 26;
+        }
         if (hasDeviceFeature(FEATURE_SECURE_LOCK_SCREEN)) {
             ensurePrimaryUserHasNoPassword();
         }
@@ -375,23 +386,26 @@ public abstract class BaseDevicePolicyTest extends BaseHostJUnit4Test {
         executeShellCommand("am force-stop --user " + userId + " " + packageName);
     }
 
-    protected void executeShellCommand(String commandTemplate, Object...args) throws Exception {
-        executeShellCommand(String.format(commandTemplate, args));
+    protected String executeShellCommand(String commandTemplate, Object...args) throws Exception {
+        return executeShellCommand(String.format(commandTemplate, args));
     }
 
-    protected void executeShellCommand(String command) throws Exception {
-        CLog.d("Starting command " + command);
+    protected String executeShellCommand(String command) throws Exception {
+        CLog.d("Starting command %s", command);
         String commandOutput = getDevice().executeShellCommand(command);
-        CLog.d("Output for command " + command + ": " + commandOutput);
+        CLog.d("Output for command %s: %s", command, commandOutput);
+        return commandOutput;
     }
 
     /** Initializes the user with the given id. This is required so that apps can run on it. */
     protected void startUser(int userId) throws Exception {
+        CLog.d("Starting user %d", userId);
         getDevice().startUser(userId);
     }
 
     /** Initializes the user with waitFlag. This is required so that apps can run on it. */
     protected void startUserAndWait(int userId) throws Exception {
+        CLog.d("Starting user %d and waiting", userId);
         getDevice().startUser(userId, /* waitFlag= */ true);
     }
 
@@ -415,6 +429,7 @@ public abstract class BaseDevicePolicyTest extends BaseHostJUnit4Test {
     protected void switchUser(int userId) throws Exception {
         // TODO Move this logic to ITestDevice
         int retries = 10;
+        CLog.i("switching to user %d", userId);
         executeShellCommand("am switch-user " + userId);
         while (getDevice().getCurrentUser() != userId && (--retries) >= 0) {
             // am switch-user can be ignored if a previous user-switching operation
@@ -606,7 +621,7 @@ public abstract class BaseDevicePolicyTest extends BaseHostJUnit4Test {
     /** Reboots the device and block until the boot complete flag is set. */
     protected void rebootAndWaitUntilReady() throws Exception {
         getDevice().rebootUntilOnline();
-        assertTrue("Device failed to boot", getDevice().waitForBootComplete(120000));
+        assertTrue("Device failed to boot", getDevice().waitForBootComplete(120_000));
     }
 
     /** Returns a boolean value of the system property with the specified key. */
@@ -738,6 +753,10 @@ public abstract class BaseDevicePolicyTest extends BaseHostJUnit4Test {
         assumeHasDeviceFeature(FEATURE_TELEPHONY);
     }
 
+    protected final void assumeSupportsSms() throws Exception {
+        assumeTrue("device doesn't support SMS", isSmsCapable());
+    }
+
     protected final void assumeHasNfcFeatures() throws DeviceNotAvailableException {
         assumeHasDeviceFeature(FEATURE_NFC);
         assumeHasDeviceFeature(FEATURE_NFC_BEAM);
@@ -801,6 +820,10 @@ public abstract class BaseDevicePolicyTest extends BaseHostJUnit4Test {
 
     protected int getPrimaryUser() throws DeviceNotAvailableException {
         return getDevice().getPrimaryUserId();
+    }
+
+    protected int getCurrentUser() throws DeviceNotAvailableException {
+        return getDevice().getCurrentUser();
     }
 
     protected int getUserSerialNumber(int userId) throws DeviceNotAvailableException{
@@ -1057,10 +1080,15 @@ public abstract class BaseDevicePolicyTest extends BaseHostJUnit4Test {
                 + " -c android.intent.category.DEFAULT "
                 + " --es extra-command " + command
                 + " " + extras
+                + getAdditionalExtrasForSetPolicyActivity()
                 + " " + packageName + "/.SetPolicyActivity";
         String commandOutput = getDevice().executeShellCommand(adbCommand);
         CLog.d("Output for command " + adbCommand + ": " + commandOutput);
         return commandOutput;
+    }
+
+    protected String getAdditionalExtrasForSetPolicyActivity() {
+        return "";
     }
 
     /**
@@ -1237,9 +1265,15 @@ public abstract class BaseDevicePolicyTest extends BaseHostJUnit4Test {
         allowTestApiAccess(deviceAdminPkg);
     }
 
-    protected void allowTestApiAccess(String deviceAdminPkg) throws Exception {
-        CLog.i("Granting ALLOW_TEST_API_ACCESS to package %s", deviceAdminPkg);
-        executeShellCommand("am compat enable ALLOW_TEST_API_ACCESS %s", deviceAdminPkg);
+    /**
+     * Grants access to APIs marked as {@code @TestApi}.
+     *
+     * <p><b>Note:</b> the {@code application} tag of the app's manifest must contain
+     * {@code android:debuggable="true"}, otherwise it won't work on {@code user} builds.
+     */
+    protected void allowTestApiAccess(String pgkName) throws Exception {
+        CLog.i("Granting ALLOW_TEST_API_ACCESS to package %s", pgkName);
+        executeShellCommand("am compat enable ALLOW_TEST_API_ACCESS %s", pgkName);
     }
 
     protected void grantPermission(String pkg, String permission, int userId, String reason)
@@ -1318,6 +1352,10 @@ public abstract class BaseDevicePolicyTest extends BaseHostJUnit4Test {
         return hasDeviceFeature(FEATURE_LEANBACK);
     }
 
+    boolean isAutomotive() throws DeviceNotAvailableException {
+        return hasDeviceFeature(FEATURE_AUTOMOTIVE);
+    }
+
     void pushUpdateFileToDevice(String fileName)
             throws IOException, DeviceNotAvailableException {
         File file = File.createTempFile(
@@ -1343,7 +1381,17 @@ public abstract class BaseDevicePolicyTest extends BaseHostJUnit4Test {
     }
 
     void sleep(int timeMs) throws InterruptedException {
-        CLog.d("Sleeping %d ms");
+        CLog.d("Sleeping %d ms", timeMs);
         Thread.sleep(timeMs);
+    }
+
+    private boolean isSmsCapable() throws Exception {
+        String output = getDevice().executeShellCommand("dumpsys phone");
+        if (output.contains("isSmsCapable=true")) {
+            CLog.d("Device is SMS capable");
+            return true;
+        }
+        CLog.d("Device is not SMS capable");
+        return false;
     }
 }

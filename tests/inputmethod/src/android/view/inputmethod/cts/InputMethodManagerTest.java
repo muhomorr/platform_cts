@@ -207,7 +207,7 @@ public class InputMethodManagerTest {
                 PackageManager.FEATURE_INPUT_METHODS));
         enableImes(MOCK_IME_ID, HIDDEN_FROM_PICKER_IME_ID);
 
-        final TestActivity testActivity = TestActivity.startSync(activity -> {
+        TestActivity.startSync(activity -> {
             final View view = new View(activity);
             view.setLayoutParams(new LayoutParams(
                     LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
@@ -222,9 +222,8 @@ public class InputMethodManagerTest {
 
         // Test InputMethodManager#showInputMethodPicker() works as expected.
         mImManager.showInputMethodPicker();
-        waitOnMainUntil(() -> mImManager.isInputMethodPickerShown()
-                        && !testActivity.hasWindowFocus(), TIMEOUT,
-                "InputMethod picker should be shown and test activity lost focus");
+        waitOnMainUntil(() -> mImManager.isInputMethodPickerShown(), TIMEOUT,
+                "InputMethod picker should be shown");
         final UiDevice uiDevice =
                 UiDevice.getInstance(InstrumentationRegistry.getInstrumentation());
         assertThat(uiDevice.wait(Until.hasObject(By.text(MOCK_IME_LABEL)), TIMEOUT)).isTrue();
@@ -235,8 +234,6 @@ public class InputMethodManagerTest {
                 new Intent(ACTION_CLOSE_SYSTEM_DIALOGS).setFlags(FLAG_RECEIVER_FOREGROUND));
         waitOnMainUntil(() -> !mImManager.isInputMethodPickerShown(), TIMEOUT,
                 "InputMethod picker should be closed");
-        waitOnMainUntil(() -> testActivity.hasWindowFocus(), TIMEOUT,
-                "Activity should be focused after picker dismissed");
     }
 
     private void enableImes(String... ids) {

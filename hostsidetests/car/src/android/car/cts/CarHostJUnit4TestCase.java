@@ -77,7 +77,7 @@ public abstract class CarHostJUnit4TestCase extends BaseHostJUnit4Test {
 
     /**
      * User's package permission pattern string format in the output of "dumpsys package PKG_NAME"
-    */
+     */
     protected static final String APP_APK = "CtsCarApp.apk";
     protected static final String APP_PKG = "android.car.cts.app";
 
@@ -89,6 +89,10 @@ public abstract class CarHostJUnit4TestCase extends BaseHostJUnit4Test {
 
     private int mInitialUserId;
     private Integer mInitialMaximumNumberOfUsers;
+
+    // It is possible that during test initial user is deleted and it is not possible to switch
+    // to the initial User. This boolean controls if test should switch to initial user on clean up.
+    private boolean mSwitchToInitialUser = true;
 
     /**
      * Saves multi-user state so it can be restored after the test.
@@ -109,7 +113,7 @@ public abstract class CarHostJUnit4TestCase extends BaseHostJUnit4Test {
         CLog.d("restoreUsersState(): initial user: %d, current user: %d, created users: %s "
                 + "max number of users: %d",
                 mInitialUserId, currentUserId, mUsersToBeRemoved, mInitialMaximumNumberOfUsers);
-        if (currentUserId != mInitialUserId) {
+        if (currentUserId != mInitialUserId && mSwitchToInitialUser) {
             CLog.i("Switching back from %d to %d", currentUserId, mInitialUserId);
             switchUser(mInitialUserId);
         }
@@ -128,6 +132,23 @@ public abstract class CarHostJUnit4TestCase extends BaseHostJUnit4Test {
             CLog.i("Restoring max number of users to %d", mInitialMaximumNumberOfUsers);
             setMaxNumberUsers(mInitialMaximumNumberOfUsers);
         }
+    }
+
+    /**
+     * It is possible that during test initial user is deleted and it is not possible to switch to
+     * the initial User. This method controls if test should switch to initial user on clean up.
+     */
+    public void doNotSwitchToInitialUserAfterTest() {
+        mSwitchToInitialUser = false;
+    }
+
+    /**
+     * Returns whether device is in headless system user mode.
+     */
+    boolean isHeadlessSystemUserMode() throws Exception {
+        String result = getDevice()
+                .executeShellCommand("getprop ro.fw.mu.headless_system_user").trim();
+        return Boolean.valueOf(result);
     }
 
     /**
@@ -270,14 +291,14 @@ public abstract class CarHostJUnit4TestCase extends BaseHostJUnit4Test {
      * Creates a full user with car service shell command.
      */
     protected int createFullUser(String name) throws Exception {
-        return createUser(name, /* flags= */ 0, "android.os.usertype.full.SECONDARY");
+        return createUser(name, /* flags= */ 0, /* isGuest= */ false);
     }
 
     /**
      * Creates a full guest with car service shell command.
      */
     protected int createGuestUser(String name) throws Exception {
-        return createUser(name, /* flags= */ 0, "android.os.usertype.full.GUEST");
+        return createUser(name, /* flags= */ 0, /* isGuest= */ true);
     }
 
     /**
@@ -285,14 +306,15 @@ public abstract class CarHostJUnit4TestCase extends BaseHostJUnit4Test {
      *
      * <p><b>NOTE: </b>it uses User HAL flags, not core Android's.
      */
-    protected int createUser(String name, int flags, String type) throws Exception {
+    protected int createUser(String name, int flags, boolean isGuest) throws Exception {
         name = USER_PREFIX + "." + name;
         waitForCarServiceReady();
         int userId = executeAndParseCommand(CREATE_USER_OUTPUT_PATTERN,
-                "Could not create user with name " + name + ", flags " + flags + ", type" + type,
+                "Could not create user with name " + name
+                        + ", flags " + flags + ", guest " + isGuest,
                 matcher -> Integer.parseInt(matcher.group(1)),
-                "cmd car_service create-user --flags %d --type %s %s",
-                flags, type, name);
+                "cmd car_service create-user --flags %d %s%s",
+                flags, (isGuest ? "--guest " : ""), name);
         markUserForRemovalAfterTest(userId);
         return userId;
     }
@@ -437,6 +459,13 @@ public abstract class CarHostJUnit4TestCase extends BaseHostJUnit4Test {
     }
 
     /**
+     * Reboots the device.
+     */
+    protected void reboot() throws Exception {
+        getDevice().reboot();
+    }
+
+    /**
      * Gets mapping of package and permissions granted for requested user id.
      *
      * @return Map<String, List<String>> where key is the package name and
@@ -462,6 +491,13 @@ public abstract class CarHostJUnit4TestCase extends BaseHostJUnit4Test {
             }
         }
         return pkgMap;
+    }
+
+    /**
+     * Checks if the given package has a process running on the device.
+     */
+    protected boolean isPackageRunning(String packageName) throws Exception {
+        return !executeCommand("pidof %s", packageName).isEmpty();
     }
 
     /**

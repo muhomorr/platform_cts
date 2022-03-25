@@ -136,6 +136,10 @@ public abstract class BaseMultiUserTest extends BaseHostJUnit4Test {
         return -1;
     }
 
+    protected void assumeGuestDoesNotExist() throws Exception {
+        assumeTrue("Device already has a guest user", getGuestUser() == -1);
+    }
+
     protected void assumeIsAutomotive() throws Exception {
         assumeTrue("Device does not have " + FEATURE_AUTOMOTIVE,
                 getDevice().hasFeature(FEATURE_AUTOMOTIVE));
@@ -214,7 +218,7 @@ public abstract class BaseMultiUserTest extends BaseHostJUnit4Test {
         long ti = System.currentTimeMillis();
         while (System.currentTimeMillis() - ti < USER_SWITCH_COMPLETE_TIMEOUT_MS) {
             String logs = getDevice().executeAdbCommand("logcat", "-b", "all", "-d",
-                    "ActivityManager:D", "AndroidRuntime:E", "*:I");
+                    "ActivityManager:D", "AndroidRuntime:E", "SystemServiceManager:E", "*:I");
             Scanner in = new Scanner(logs);
             while (in.hasNextLine()) {
                 String line = in.nextLine();
@@ -225,6 +229,8 @@ public abstract class BaseMultiUserTest extends BaseHostJUnit4Test {
                     mExitFound = true;
                 } else if (line.contains("FATAL EXCEPTION IN SYSTEM PROCESS")) {
                     throw new IllegalStateException("System process crashed - " + line);
+                } else if (line.contains("SystemService failure: Failure reporting")) {
+                    throw new IllegalStateException("A system service crashed:\n" + line);
                 }
             }
             in.close();
