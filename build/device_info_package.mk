@@ -19,7 +19,8 @@
 DEVICE_INFO_PACKAGE := com.android.compatibility.common.deviceinfo
 DEVICE_INFO_INSTRUMENT := androidx.test.runner.AndroidJUnitRunner
 DEVICE_INFO_USES_LIBRARY := android.test.runner
-DEVICE_INFO_USES_OPTIONAL_LIBRARIES := \
+DEVICE_INFO_USES_OPTIONAL_LIBRARIES += \
+  androidx.window.extensions \
   androidx.window.sidecar
 DEVICE_INFO_PERMISSIONS += \
   android.permission.READ_PHONE_STATE \
@@ -33,6 +34,8 @@ DEVICE_INFO_ACTIVITIES += \
   $(DEVICE_INFO_PACKAGE).GenericDeviceInfo \
   $(DEVICE_INFO_PACKAGE).GlesStubActivity \
   $(DEVICE_INFO_PACKAGE).GraphicsDeviceInfo \
+  $(DEVICE_INFO_PACKAGE).HapticsDeviceInfo \
+  $(DEVICE_INFO_PACKAGE).InputDeviceInfo \
   $(DEVICE_INFO_PACKAGE).LocaleDeviceInfo \
   $(DEVICE_INFO_PACKAGE).MediaDeviceInfo \
   $(DEVICE_INFO_PACKAGE).MemoryDeviceInfo \

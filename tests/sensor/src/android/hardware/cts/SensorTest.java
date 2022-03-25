@@ -45,9 +45,11 @@ import android.os.SystemClock;
 import android.platform.test.annotations.AppModeFull;
 import android.platform.test.annotations.Presubmit;
 import android.util.Log;
+
+import com.android.compatibility.common.util.PropertyUtil;
+
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
-import com.android.compatibility.common.util.PropertyUtil;
 
 import junit.framework.Assert;
 
@@ -223,6 +225,54 @@ public class SensorTest extends SensorTestCase {
                 + " " + sensor.getName(), sensor.getMaximumRange() <= 360);
         } else {
             assertNull(sensor);
+        }
+
+        validateLimitedAxesImuSensorType(Sensor.TYPE_ACCELEROMETER_LIMITED_AXES,
+                PackageManager.FEATURE_SENSOR_ACCELEROMETER_LIMITED_AXES);
+
+        validateLimitedAxesImuSensorType(Sensor.TYPE_GYROSCOPE_LIMITED_AXES,
+                PackageManager.FEATURE_SENSOR_GYROSCOPE_LIMITED_AXES);
+
+        validateLimitedAxesImuSensorType(Sensor.TYPE_ACCELEROMETER_LIMITED_AXES_UNCALIBRATED,
+                PackageManager.FEATURE_SENSOR_ACCELEROMETER_LIMITED_AXES_UNCALIBRATED);
+
+        validateLimitedAxesImuSensorType(Sensor.TYPE_GYROSCOPE_LIMITED_AXES_UNCALIBRATED,
+                PackageManager.FEATURE_SENSOR_GYROSCOPE_LIMITED_AXES_UNCALIBRATED);
+
+        sensor =  mSensorManager.getDefaultSensor(Sensor.TYPE_HEADING);
+        boolean hasHeadingSensor = getContext().getPackageManager().hasSystemFeature(
+                PackageManager.FEATURE_SENSOR_HEADING);
+        boolean isAutomotive = mContext.getPackageManager().hasSystemFeature(
+                PackageManager.FEATURE_AUTOMOTIVE);
+        if (isAutomotive && hasHeadingSensor) {
+            assertNotNull(sensor);
+            assertEquals(Sensor.TYPE_HEADING, sensor.getType());
+            assertSensorValues(sensor);
+            assertTrue("Max range must not be greater or equal to 360. Range="
+                    + sensor.getMaximumRange() + " " + sensor.getName(),
+                    sensor.getMaximumRange() < 360);
+        } else if (isAutomotive) {
+            assertNull(sensor);
+        } else {
+            // There isn't good test coverage for heading, particularly for non-automotive devices.
+            // So if a non-automotive device wants to implement this, requirements for the sensor
+            // and how to test for those requirements should be re-discussed.
+            assertNull("If the heading sensor is being implemented on a non-automotive device, "
+                    + "the team would love to hear from you. Please reach out!", sensor);
+        }
+    }
+
+    private void validateLimitedAxesImuSensorType(int sensorType, String systemFeature) {
+        Sensor sensor = mSensorManager.getDefaultSensor(sensorType);
+        boolean hasSensorFeature = getContext().getPackageManager().hasSystemFeature(systemFeature);
+        if (hasSensorFeature) {
+            assertNotNull(sensor);
+        }
+
+        // Virtual sensors might exist but not have a package manager feature defined.
+        if (sensor != null) {
+            assertEquals(sensorType, sensor.getType());
+            assertSensorValues(sensor);
         }
     }
 
