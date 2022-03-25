@@ -38,15 +38,6 @@ public class ManagedProfilePasswordTest extends BaseManagedProfileTest {
 
     @FlakyTest
     @Test
-    public void testLockNowWithKeyEviction() throws Exception {
-        assumeHasFileBasedEncryptionAndSecureLockScreenFeatures();
-
-        changeUserCredential(TEST_PASSWORD, null, mProfileUserId);
-        lockProfile();
-    }
-
-    @FlakyTest
-    @Test
     public void testResetPasswordWithTokenBeforeUnlock() throws Exception {
         assumeHasFileBasedEncryptionAndSecureLockScreenFeatures();
 
@@ -127,7 +118,7 @@ public class ManagedProfilePasswordTest extends BaseManagedProfileTest {
     @LockSettingsTest
     @Test
     public void testUnlockWorkProfile_deviceWidePassword() throws Exception {
-        assumeHasSecureLockScreenFeature();
+        assumeHasFileBasedEncryptionAndSecureLockScreenFeatures();
 
         try {
             // Add a device password after the work profile has been created.

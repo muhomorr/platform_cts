@@ -16,7 +16,18 @@
 
 package android.keystore.cts;
 
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+
 import android.keystore.cts.R;
+import android.keystore.cts.util.EmptyArray;
+import android.keystore.cts.util.ImportedKey;
+import android.keystore.cts.util.TestUtils;
 
 import java.security.InvalidKeyException;
 import java.security.Key;
@@ -44,14 +55,18 @@ import android.security.keystore.KeyInfo;
 import android.security.keystore.KeyPermanentlyInvalidatedException;
 import android.security.keystore.KeyProperties;
 import android.security.keystore.KeyProtection;
-import android.test.AndroidTestCase;
-import android.test.MoreAsserts;
+import androidx.test.InstrumentationRegistry;
+import androidx.test.runner.AndroidJUnit4;
+
+import org.junit.Test;
+import org.junit.runner.RunWith;
 
 /**
  * Tests for algorithm-agnostic functionality of {@code Signature} implementations backed by Android
  * Keystore.
  */
-public class SignatureTest extends AndroidTestCase {
+@RunWith(AndroidJUnit4.class)
+public class SignatureTest {
 
     static final String EXPECTED_PROVIDER_NAME = TestUtils.EXPECTED_CRYPTO_OP_PROVIDER_NAME;
 
@@ -333,6 +348,11 @@ public class SignatureTest extends AndroidTestCase {
 
     private static final long DAY_IN_MILLIS = TestUtils.DAY_IN_MILLIS;
 
+    private Context getContext() {
+        return InstrumentationRegistry.getInstrumentation().getTargetContext();
+    }
+
+    @Test
     public void testAlgorithmList() {
         // Assert that Android Keystore Provider exposes exactly the expected signature algorithms.
         // We don't care whether the algorithms are exposed via aliases, as long as the canonical
@@ -366,6 +386,7 @@ public class SignatureTest extends AndroidTestCase {
                 expectedSigAlgsLowerCase.toArray(new String[0]));
     }
 
+    @Test
     public void testAndroidKeyStoreKeysHandledByAndroidKeyStoreProviderWhenSigning()
             throws Exception {
         Provider provider = Security.getProvider(EXPECTED_PROVIDER_NAME);
@@ -382,6 +403,7 @@ public class SignatureTest extends AndroidTestCase {
         }
     }
 
+    @Test
     public void testAndroidKeyStorePublicKeysAcceptedByHighestPriorityProviderWhenVerifying()
             throws Exception {
         Provider provider = Security.getProvider(EXPECTED_PROVIDER_NAME);
@@ -397,6 +419,7 @@ public class SignatureTest extends AndroidTestCase {
         }
     }
 
+    @Test
     public void testValidSignatureGeneratedForEmptyMessage()
             throws Exception {
         Provider provider = Security.getProvider(EXPECTED_PROVIDER_NAME);
@@ -426,6 +449,7 @@ public class SignatureTest extends AndroidTestCase {
         }
     }
 
+    @Test
     public void testValidSignatureGeneratedForEmptyMessageByLimitedUseKey()
             throws Exception {
         Provider provider = Security.getProvider(EXPECTED_PROVIDER_NAME);
@@ -482,6 +506,7 @@ public class SignatureTest extends AndroidTestCase {
         }
     }
 
+    @Test
     public void testEmptySignatureDoesNotVerify()
             throws Exception {
         Provider provider = Security.getProvider(EXPECTED_PROVIDER_NAME);
@@ -505,6 +530,7 @@ public class SignatureTest extends AndroidTestCase {
         }
     }
 
+    @Test
     public void testSignatureGeneratedByAndroidKeyStoreVerifiesByAndroidKeyStore()
             throws Exception {
         Provider provider = Security.getProvider(EXPECTED_PROVIDER_NAME);
@@ -536,6 +562,7 @@ public class SignatureTest extends AndroidTestCase {
         }
     }
 
+    @Test
     public void testSignatureGeneratedByAndroidKeyStoreVerifiesByHighestPriorityProvider()
             throws Exception {
         Provider keystoreProvider = Security.getProvider(EXPECTED_PROVIDER_NAME);
@@ -580,6 +607,7 @@ public class SignatureTest extends AndroidTestCase {
         }
     }
 
+    @Test
     public void testSignatureGeneratedByHighestPriorityProviderVerifiesByAndroidKeyStore()
             throws Exception {
 
@@ -623,6 +651,7 @@ public class SignatureTest extends AndroidTestCase {
         }
     }
 
+    @Test
     public void testSmallMsgKat() throws Exception {
         byte[] message = SHORT_MSG_KAT_MESSAGE;
 
@@ -659,7 +688,7 @@ public class SignatureTest extends AndroidTestCase {
                 boolean deterministicSignatureScheme =
                         algorithm.toLowerCase().endsWith("withrsa");
                 if (deterministicSignatureScheme) {
-                    MoreAsserts.assertEquals(goodSigBytes, generatedSigBytes);
+                    assertArrayEquals(goodSigBytes, generatedSigBytes);
                 } else {
                     if (Math.abs(goodSigBytes.length - generatedSigBytes.length) > 2) {
                         fail("Generated signature expected to be between "
@@ -692,7 +721,7 @@ public class SignatureTest extends AndroidTestCase {
                 }
                 generatedSigBytes = signature.sign();
                 if (deterministicSignatureScheme) {
-                    MoreAsserts.assertEquals(goodSigBytes, generatedSigBytes);
+                    assertArrayEquals(goodSigBytes, generatedSigBytes);
                 } else {
                     if (Math.abs(goodSigBytes.length - generatedSigBytes.length) > 2) {
                         fail("Generated signature expected to be between "
@@ -721,6 +750,7 @@ public class SignatureTest extends AndroidTestCase {
         }
     }
 
+    @Test
     public void testLongMsgKat() throws Exception {
         byte[] message = TestUtils.generateLargeKatMsg(LONG_MSG_KAT_SEED, LONG_MSG_KAT_SIZE_BYTES);
 
@@ -778,7 +808,7 @@ public class SignatureTest extends AndroidTestCase {
                 boolean deterministicSignatureScheme =
                         KeyProperties.SIGNATURE_PADDING_RSA_PKCS1.equalsIgnoreCase(paddingScheme);
                 if (deterministicSignatureScheme) {
-                    MoreAsserts.assertEquals(goodSigBytes, generatedSigBytes);
+                    assertArrayEquals(goodSigBytes, generatedSigBytes);
                 } else {
                     if (Math.abs(goodSigBytes.length - generatedSigBytes.length) > 2) {
                         fail("Generated signature expected to be between "
@@ -805,7 +835,7 @@ public class SignatureTest extends AndroidTestCase {
                 generatedSigBytes = generateSignatureFedUsingFixedSizeChunks(
                         algorithm, provider, keyPair.getPrivate(), message, 444307);
                 if (deterministicSignatureScheme) {
-                    MoreAsserts.assertEquals(goodSigBytes, generatedSigBytes);
+                    assertArrayEquals(goodSigBytes, generatedSigBytes);
                 } else {
                     if (Math.abs(goodSigBytes.length - generatedSigBytes.length) > 2) {
                         fail("Generated signature expected to be between "
@@ -832,6 +862,7 @@ public class SignatureTest extends AndroidTestCase {
         }
     }
 
+    @Test
     public void testInitVerifySucceedsDespiteMissingAuthorizations() throws Exception {
         KeyProtection spec = new KeyProtection.Builder(0).build();
 
@@ -844,6 +875,7 @@ public class SignatureTest extends AndroidTestCase {
         }
     }
 
+    @Test
     public void testInitSignFailsWhenNotAuthorizedToSign() throws Exception {
         int badPurposes = KeyProperties.PURPOSE_ENCRYPT | KeyProperties.PURPOSE_DECRYPT
                 | KeyProperties.PURPOSE_VERIFY;
@@ -860,6 +892,7 @@ public class SignatureTest extends AndroidTestCase {
         }
     }
 
+    @Test
     public void testInitVerifyIgnoresThatNotAuthorizedToVerify() throws Exception {
         int badPurposes = KeyProperties.PURPOSE_ENCRYPT | KeyProperties.PURPOSE_DECRYPT
                 | KeyProperties.PURPOSE_SIGN;
@@ -876,6 +909,7 @@ public class SignatureTest extends AndroidTestCase {
         }
     }
 
+    @Test
     public void testInitSignFailsWhenDigestNotAuthorized() throws Exception {
         for (String algorithm : EXPECTED_SIGNATURE_ALGORITHMS) {
             try {
@@ -902,6 +936,7 @@ public class SignatureTest extends AndroidTestCase {
         }
     }
 
+    @Test
     public void testInitVerifyIgnoresThatDigestNotAuthorized() throws Exception {
         for (String algorithm : EXPECTED_SIGNATURE_ALGORITHMS) {
             try {
@@ -920,6 +955,7 @@ public class SignatureTest extends AndroidTestCase {
         }
     }
 
+    @Test
     public void testInitSignFailsWhenPaddingNotAuthorized() throws Exception {
         for (String algorithm : EXPECTED_SIGNATURE_ALGORITHMS) {
             try {
@@ -948,6 +984,7 @@ public class SignatureTest extends AndroidTestCase {
         }
     }
 
+    @Test
     public void testInitVerifyIgnoresThatPaddingNotAuthorized() throws Exception {
         for (String algorithm : EXPECTED_SIGNATURE_ALGORITHMS) {
             try {
@@ -976,6 +1013,7 @@ public class SignatureTest extends AndroidTestCase {
         }
     }
 
+    @Test
     public void testInitSignFailsWhenKeyNotYetValid() throws Exception {
         Date badStartDate = new Date(System.currentTimeMillis() + DAY_IN_MILLIS);
         for (String algorithm : EXPECTED_SIGNATURE_ALGORITHMS) {
@@ -990,6 +1028,7 @@ public class SignatureTest extends AndroidTestCase {
         }
     }
 
+    @Test
     public void testInitVerifyIgnoresThatKeyNotYetValid() throws Exception {
         Date badStartDate = new Date(System.currentTimeMillis() + DAY_IN_MILLIS);
         for (String algorithm : EXPECTED_SIGNATURE_ALGORITHMS) {
@@ -1004,6 +1043,7 @@ public class SignatureTest extends AndroidTestCase {
         }
     }
 
+    @Test
     public void testInitSignFailsWhenKeyNoLongerValidForOrigination() throws Exception {
         Date badEndDate = new Date(System.currentTimeMillis() - DAY_IN_MILLIS);
         for (String algorithm : EXPECTED_SIGNATURE_ALGORITHMS) {
@@ -1020,6 +1060,7 @@ public class SignatureTest extends AndroidTestCase {
         }
     }
 
+    @Test
     public void testInitVerifyIgnoresThatKeyNoLongerValidForOrigination() throws Exception {
         Date badEndDate = new Date(System.currentTimeMillis() - DAY_IN_MILLIS);
         for (String algorithm : EXPECTED_SIGNATURE_ALGORITHMS) {
@@ -1036,6 +1077,7 @@ public class SignatureTest extends AndroidTestCase {
         }
     }
 
+    @Test
     public void testInitSignIgnoresThatKeyNoLongerValidForConsumption() throws Exception {
         Date badEndDate = new Date(System.currentTimeMillis() - DAY_IN_MILLIS);
         for (String algorithm : EXPECTED_SIGNATURE_ALGORITHMS) {
@@ -1052,6 +1094,7 @@ public class SignatureTest extends AndroidTestCase {
         }
     }
 
+    @Test
     public void testInitVerifyIgnoresThatKeyNoLongerValidForConsumption() throws Exception {
         Date badEndDate = new Date(System.currentTimeMillis() - DAY_IN_MILLIS);
         for (String algorithm : EXPECTED_SIGNATURE_ALGORITHMS) {

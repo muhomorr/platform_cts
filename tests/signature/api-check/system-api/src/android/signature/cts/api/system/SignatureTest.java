@@ -16,5 +16,5 @@
 
 package android.signature.cts.api.system;
 
-public class SignatureTest extends android.signature.cts.api.SignatureTest {
+public class SignatureTest extends android.signature.cts.api.SignatureTest  {
 }

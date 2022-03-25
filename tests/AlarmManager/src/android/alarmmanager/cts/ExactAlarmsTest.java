@@ -26,10 +26,11 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assume.assumeFalse;
 
+import android.alarmmanager.alarmtestapp.cts.PermissionStateChangedReceiver;
+import android.alarmmanager.alarmtestapp.cts.policy_permission.RequestReceiver;
 import android.alarmmanager.alarmtestapp.cts.sdk30.TestReceiver;
 import android.alarmmanager.util.AlarmManagerDeviceConfigHelper;
 import android.app.Activity;
-import android.alarmmanager.alarmtestapp.cts.PermissionStateChangedReceiver;
 import android.app.AlarmManager;
 import android.app.AppOpsManager;
 import android.app.PendingIntent;
@@ -49,15 +50,15 @@ import android.platform.test.annotations.AppModeFull;
 import android.provider.Settings;
 import android.util.Log;
 
+import androidx.test.InstrumentationRegistry;
+import androidx.test.runner.AndroidJUnit4;
+
 import com.android.compatibility.common.util.AppOpsUtils;
 import com.android.compatibility.common.util.AppStandbyUtils;
 import com.android.compatibility.common.util.FeatureUtil;
 import com.android.compatibility.common.util.ShellUtils;
 import com.android.compatibility.common.util.SystemUtil;
 import com.android.compatibility.common.util.TestUtils;
-
-import androidx.test.InstrumentationRegistry;
-import androidx.test.runner.AndroidJUnit4;
 
 import org.junit.After;
 import org.junit.Before;
@@ -303,6 +304,32 @@ public class ExactAlarmsTest {
         assertTrue("canScheduleExactAlarm returned false", apiResult.get());
     }
 
+    @Test
+    public void canScheduleExactAlarmWithPolicyPermissionOnly() throws Exception {
+        final CountDownLatch resultLatch = new CountDownLatch(1);
+        final AtomicBoolean apiResult = new AtomicBoolean(false);
+        final AtomicInteger result = new AtomicInteger(-1);
+
+        final Intent requestToTestApp = new Intent(
+                RequestReceiver.ACTION_GET_CAN_SCHEDULE_EXACT_ALARM)
+                .setClassName(RequestReceiver.PACKAGE_NAME, RequestReceiver.class.getName())
+                .addFlags(Intent.FLAG_RECEIVER_FOREGROUND);
+        sContext.sendOrderedBroadcast(requestToTestApp, null, new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                result.set(getResultCode());
+                final String resultStr = getResultData();
+                apiResult.set(Boolean.parseBoolean(resultStr));
+                resultLatch.countDown();
+            }
+        }, null, Activity.RESULT_CANCELED, null, null);
+
+        assertTrue("Timed out waiting for response from helper app",
+                resultLatch.await(10, TimeUnit.SECONDS));
+        assertEquals(Activity.RESULT_OK, result.get());
+        assertTrue("canScheduleExactAlarm returned false", apiResult.get());
+    }
+
     @Test(expected = SecurityException.class)
     public void setAlarmClockWithoutPermission() throws IOException {
         revokeAppOp();
@@ -530,7 +557,7 @@ public class ExactAlarmsTest {
                         PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
                         PackageManager.DONT_KILL_APP));
         Log.d(TAG, "Un-force-stoppping the test app");
-        Intent i = new Intent("ACTION_PING"); // any action
+        Intent i = new Intent("android.app.action.cts.ACTION_PING");
         i.setComponent(mPermissionChangeReceiver);
         i.setFlags(Intent.FLAG_RECEIVER_FOREGROUND);
         sContext.sendBroadcast(i);
