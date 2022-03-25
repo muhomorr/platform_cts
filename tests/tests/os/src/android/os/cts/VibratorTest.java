@@ -16,23 +16,30 @@
 
 package android.os.cts;
 
+import static android.os.VibrationEffect.VibrationParameter.targetAmplitude;
+import static android.os.VibrationEffect.VibrationParameter.targetFrequency;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
-import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.junit.Assume.assumeNotNull;
+import static org.junit.Assume.assumeTrue;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.after;
+import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 
 import android.media.AudioAttributes;
 import android.os.SystemClock;
+import android.os.VibrationAttributes;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
 import android.os.Vibrator.OnVibratorStateChangedListener;
+import android.os.vibrator.VibratorFrequencyProfile;
 
 import androidx.test.filters.LargeTest;
 import androidx.test.platform.app.InstrumentationRegistry;
@@ -50,6 +57,9 @@ import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.Executors;
 
 @RunWith(AndroidJUnit4.class)
@@ -67,10 +77,20 @@ public class VibratorTest {
     @Rule
     public final MockitoRule mMockitoRule = MockitoJUnit.rule();
 
+    private static final float TEST_TOLERANCE = 1e-5f;
+
+    private static final float MINIMUM_ACCEPTED_MEASUREMENT_INTERVAL_FREQUENCY = 1f;
+    private static final float MINIMUM_ACCEPTED_FREQUENCY = 1f;
+    private static final float MAXIMUM_ACCEPTED_FREQUENCY = 1_000f;
+
     private static final AudioAttributes AUDIO_ATTRIBUTES =
             new AudioAttributes.Builder()
                     .setUsage(AudioAttributes.USAGE_MEDIA)
                     .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                    .build();
+    private static final VibrationAttributes VIBRATION_ATTRIBUTES =
+            new VibrationAttributes.Builder()
+                    .setUsage(VibrationAttributes.USAGE_TOUCH)
                     .build();
     private static final long CALLBACK_TIMEOUT_MILLIS = 5000;
     private static final int[] PREDEFINED_EFFECTS = new int[]{
@@ -92,10 +112,29 @@ public class VibratorTest {
             VibrationEffect.Composition.PRIMITIVE_SPIN,
             VibrationEffect.Composition.PRIMITIVE_THUD,
     };
+    private static final int[] VIBRATION_USAGES = new int[] {
+            VibrationAttributes.USAGE_UNKNOWN,
+            VibrationAttributes.USAGE_ACCESSIBILITY,
+            VibrationAttributes.USAGE_ALARM,
+            VibrationAttributes.USAGE_COMMUNICATION_REQUEST,
+            VibrationAttributes.USAGE_HARDWARE_FEEDBACK,
+            VibrationAttributes.USAGE_MEDIA,
+            VibrationAttributes.USAGE_NOTIFICATION,
+            VibrationAttributes.USAGE_PHYSICAL_EMULATION,
+            VibrationAttributes.USAGE_RINGTONE,
+            VibrationAttributes.USAGE_TOUCH,
+    };
 
-    private Vibrator mVibrator;
+    /**
+     * This listener is used for test helper methods like asserting it starts/stops vibrating.
+     * It's not strongly required that the interactions with this mock are validated by all tests.
+     */
     @Mock
     private OnVibratorStateChangedListener mStateListener;
+
+    private Vibrator mVibrator;
+    /** Keep track of any listener created to be added to the vibrator, for cleanup purposes. */
+    private List<OnVibratorStateChangedListener> mStateListenersCreated = new ArrayList<>();
 
     @Before
     public void setUp() {
@@ -103,12 +142,43 @@ public class VibratorTest {
                 Vibrator.class);
 
         mVibrator.addVibratorStateListener(mStateListener);
-        reset(mStateListener);
+        // Adding a listener to the Vibrator should trigger the callback once with the current
+        // vibrator state, so reset mocks to clear it for tests.
+        assertVibratorState(false);
+        clearInvocations(mStateListener);
     }
 
     @After
     public void cleanUp() {
+        // Clearing invocations so we can use this listener to wait for the vibrator to
+        // asynchronously cancel the ongoing vibration, if any was left pending by a test.
+        clearInvocations(mStateListener);
         mVibrator.cancel();
+
+        // Wait for cancel to take effect, if device is still vibrating.
+        if (mVibrator.isVibrating()) {
+            assertStopsVibrating();
+        }
+
+        // Remove all listeners added by the tests.
+        mVibrator.removeVibratorStateListener(mStateListener);
+        for (OnVibratorStateChangedListener listener : mStateListenersCreated) {
+            mVibrator.removeVibratorStateListener(listener);
+        }
+    }
+
+    @Test
+    public void getDefaultVibrationIntensity_returnsValidIntensityForAllUsages() {
+        for (int usage : VIBRATION_USAGES) {
+            int intensity = mVibrator.getDefaultVibrationIntensity(usage);
+            assertTrue("Error for usage " + usage + " with default intensity " + intensity,
+                    (intensity >= Vibrator.VIBRATION_INTENSITY_OFF)
+                            && (intensity <= Vibrator.VIBRATION_INTENSITY_HIGH));
+        }
+
+        assertEquals("Invalid usage expected to have same default as USAGE_UNKNOWN",
+                mVibrator.getDefaultVibrationIntensity(VibrationAttributes.USAGE_UNKNOWN),
+                mVibrator.getDefaultVibrationIntensity(-1));
     }
 
     @Test
@@ -156,34 +226,46 @@ public class VibratorTest {
 
     @LargeTest
     @Test
-    public void testVibrateOneShot() {
+    public void testVibrateOneShotStartsAndFinishesVibration() {
         VibrationEffect oneShot =
                 VibrationEffect.createOneShot(300, VibrationEffect.DEFAULT_AMPLITUDE);
         mVibrator.vibrate(oneShot);
         assertStartsThenStopsVibrating(300);
+    }
 
-        oneShot = VibrationEffect.createOneShot(10_000, 255 /* Max amplitude */);
+    @Test
+    public void testVibrateOneShotMaxAmplitude() {
+        VibrationEffect oneShot = VibrationEffect.createOneShot(10_000, 255 /* Max amplitude */);
         mVibrator.vibrate(oneShot);
         assertStartsVibrating();
 
         mVibrator.cancel();
         assertStopsVibrating();
+    }
 
-        oneShot = VibrationEffect.createOneShot(300, 1 /* Min amplitude */);
+    @Test
+    public void testVibrateOneShotMinAmplitude() {
+        VibrationEffect oneShot = VibrationEffect.createOneShot(300, 1 /* Min amplitude */);
         mVibrator.vibrate(oneShot, AUDIO_ATTRIBUTES);
         assertStartsVibrating();
     }
 
     @LargeTest
     @Test
-    public void testVibrateWaveform() {
-        final long[] timings = new long[] {100, 200, 300, 400, 500};
-        final int[] amplitudes = new int[] {64, 128, 255, 128, 64};
+    public void testVibrateWaveformStartsAndFinishesVibration() {
+        final long[] timings = new long[]{100, 200, 300, 400, 500};
+        final int[] amplitudes = new int[]{64, 128, 255, 128, 64};
         VibrationEffect waveform = VibrationEffect.createWaveform(timings, amplitudes, -1);
         mVibrator.vibrate(waveform);
         assertStartsThenStopsVibrating(1500);
+    }
 
-        waveform = VibrationEffect.createWaveform(timings, amplitudes, 0);
+    @LargeTest
+    @Test
+    public void testVibrateWaveformRepeats() {
+        final long[] timings = new long[] {100, 200, 300, 400, 500};
+        final int[] amplitudes = new int[] {64, 128, 255, 128, 64};
+        VibrationEffect waveform = VibrationEffect.createWaveform(timings, amplitudes, 0);
         mVibrator.vibrate(waveform, AUDIO_ATTRIBUTES);
         assertStartsVibrating();
 
@@ -192,6 +274,46 @@ public class VibratorTest {
 
         mVibrator.cancel();
         assertStopsVibrating();
+    }
+
+    @LargeTest
+    @Test
+    public void testVibrateWaveformWithFrequencyStartsAndFinishesVibration() {
+        assumeTrue(mVibrator.hasFrequencyControl());
+        VibratorFrequencyProfile frequencyProfile = mVibrator.getFrequencyProfile();
+        assumeNotNull(frequencyProfile);
+
+        float minFrequency = Math.max(1f, frequencyProfile.getMinFrequency());
+        float maxFrequency = frequencyProfile.getMaxFrequency();
+        float resonantFrequency = mVibrator.getResonantFrequency();
+        float sustainFrequency = Float.isNaN(resonantFrequency)
+                ? (maxFrequency - minFrequency) / 2
+                : resonantFrequency;
+
+        // Ramp from min to max frequency and from zero to max amplitude.
+        // Then ramp to a fixed frequency at max amplitude.
+        // Then ramp to zero amplitude at fixed frequency.
+        VibrationEffect waveform =
+                VibrationEffect.startWaveform(targetAmplitude(0), targetFrequency(minFrequency))
+                        // Ramp from min to max frequency and from zero to max amplitude.
+                        .addTransition(Duration.ofMillis(10),
+                                targetAmplitude(1), targetFrequency(maxFrequency))
+                        // Ramp back to min frequency and zero amplitude.
+                        .addTransition(Duration.ofMillis(10),
+                                targetAmplitude(0), targetFrequency(minFrequency))
+                        // Then sustain at a fixed frequency and half amplitude.
+                        .addTransition(Duration.ZERO,
+                                targetAmplitude(0.5f), targetFrequency(sustainFrequency))
+                        .addSustain(Duration.ofMillis(20))
+                        // Ramp from min to max frequency and at max amplitude.
+                        .addTransition(Duration.ZERO,
+                                targetAmplitude(1), targetFrequency(minFrequency))
+                        .addTransition(Duration.ofMillis(10), targetFrequency(maxFrequency))
+                        // Ramp from max to min amplitude at max frequency.
+                        .addTransition(Duration.ofMillis(10), targetAmplitude(0))
+                        .build();
+        mVibrator.vibrate(waveform);
+        assertStartsThenStopsVibrating(50);
     }
 
     @Test
@@ -221,6 +343,12 @@ public class VibratorTest {
     }
 
     @Test
+    public void testVibrateWithAttributes() {
+        mVibrator.vibrate(VibrationEffect.createOneShot(10, 10), VIBRATION_ATTRIBUTES);
+        assertStartsVibrating();
+    }
+
+    @Test
     public void testGetId() {
         // The system vibrator should not be mapped to any physical vibrator and use a default id.
         assertEquals(-1, mVibrator.getId());
@@ -238,6 +366,13 @@ public class VibratorTest {
         // Just make sure it doesn't crash when this is called; we don't really have a way to test
         // if the amplitude control works or not.
         mVibrator.hasAmplitudeControl();
+    }
+
+    @Test
+    public void testVibratorHasFrequencyControl() {
+        // Just make sure it doesn't crash when this is called; we don't really have a way to test
+        // if the frequency control works or not.
+        mVibrator.hasFrequencyControl();
     }
 
     @Test
@@ -289,10 +424,87 @@ public class VibratorTest {
     }
 
     @Test
-    public void testVibratorIsVibrating() {
-        if (!mVibrator.hasVibrator()) {
-            return;
+    public void testVibratorResonantFrequency() {
+        // Check that the resonant frequency provided is NaN, or if it's a reasonable value.
+        float resonantFrequency = mVibrator.getResonantFrequency();
+        assertTrue(Float.isNaN(resonantFrequency)
+                || (resonantFrequency > 0 && resonantFrequency < MAXIMUM_ACCEPTED_FREQUENCY));
+    }
+
+    @Test
+    public void testVibratorQFactor() {
+        // Just make sure it doesn't crash when this is called;
+        // We don't really have a way to test if the device provides the Q-factor or not.
+        mVibrator.getQFactor();
+    }
+
+    @Test
+    public void testVibratorVibratorFrequencyProfileFrequencyControl() {
+        assumeNotNull(mVibrator.getFrequencyProfile());
+
+        // If the frequency profile is present then the vibrator must have frequency control.
+        // The other implication is not true if the default vibrator represents multiple vibrators.
+        assertTrue(mVibrator.hasFrequencyControl());
+    }
+
+    @Test
+    public void testVibratorFrequencyProfileMeasurementInterval() {
+        VibratorFrequencyProfile frequencyProfile = mVibrator.getFrequencyProfile();
+        assumeNotNull(frequencyProfile);
+
+        float measurementIntervalHz = frequencyProfile.getMaxAmplitudeMeasurementInterval();
+        assertTrue(measurementIntervalHz >= MINIMUM_ACCEPTED_MEASUREMENT_INTERVAL_FREQUENCY);
+    }
+
+    @Test
+    public void testVibratorFrequencyProfileSupportedFrequencyRange() {
+        VibratorFrequencyProfile frequencyProfile = mVibrator.getFrequencyProfile();
+        assumeNotNull(frequencyProfile);
+
+        float resonantFrequency = mVibrator.getResonantFrequency();
+        float minFrequencyHz = frequencyProfile.getMinFrequency();
+        float maxFrequencyHz = frequencyProfile.getMaxFrequency();
+
+        assertTrue(minFrequencyHz >= MINIMUM_ACCEPTED_FREQUENCY);
+        assertTrue(maxFrequencyHz > minFrequencyHz);
+        assertTrue(maxFrequencyHz <= MAXIMUM_ACCEPTED_FREQUENCY);
+
+        if (!Float.isNaN(resonantFrequency)) {
+            // If the device has a resonant frequency, then it should be within the supported
+            // frequency range described by the profile.
+            assertTrue(resonantFrequency >= minFrequencyHz);
+            assertTrue(resonantFrequency <= maxFrequencyHz);
         }
+    }
+
+    @Test
+    public void testVibratorFrequencyProfileOutputAccelerationMeasurements() {
+        VibratorFrequencyProfile frequencyProfile = mVibrator.getFrequencyProfile();
+        assumeNotNull(frequencyProfile);
+
+        float minFrequencyHz = frequencyProfile.getMinFrequency();
+        float maxFrequencyHz = frequencyProfile.getMaxFrequency();
+        float measurementIntervalHz = frequencyProfile.getMaxAmplitudeMeasurementInterval();
+        float[] measurements = frequencyProfile.getMaxAmplitudeMeasurements();
+
+        // There should be at least 3 points for a valid profile: min, center and max frequencies.
+        assertTrue(measurements.length > 2);
+        assertEquals(maxFrequencyHz,
+                minFrequencyHz + ((measurements.length - 1) * measurementIntervalHz),
+                TEST_TOLERANCE);
+
+        boolean hasPositiveMeasurement = false;
+        for (float measurement : measurements) {
+            assertTrue(measurement >= 0);
+            assertTrue(measurement <= 1);
+            hasPositiveMeasurement |= measurement > 0;
+        }
+        assertTrue(hasPositiveMeasurement);
+    }
+
+    @Test
+    public void testVibratorIsVibrating() {
+        assumeTrue(mVibrator.hasVibrator());
 
         assertFalse(mVibrator.isVibrating());
 
@@ -308,9 +520,7 @@ public class VibratorTest {
     @LargeTest
     @Test
     public void testVibratorVibratesNoLongerThanDuration() {
-        if (!mVibrator.hasVibrator()) {
-            return;
-        }
+        assumeTrue(mVibrator.hasVibrator());
 
         mVibrator.vibrate(1000);
         assertStartsVibrating();
@@ -322,12 +532,10 @@ public class VibratorTest {
     @LargeTest
     @Test
     public void testVibratorStateCallback() {
-        if (!mVibrator.hasVibrator()) {
-            return;
-        }
+        assumeTrue(mVibrator.hasVibrator());
 
-        OnVibratorStateChangedListener listener1 = mock(OnVibratorStateChangedListener.class);
-        OnVibratorStateChangedListener listener2 = mock(OnVibratorStateChangedListener.class);
+        OnVibratorStateChangedListener listener1 = newMockStateListener();
+        OnVibratorStateChangedListener listener2 = newMockStateListener();
         // Add listener1 on executor
         mVibrator.addVibratorStateListener(Executors.newSingleThreadExecutor(), listener1);
         // Add listener2 on main thread.
@@ -335,33 +543,52 @@ public class VibratorTest {
         verify(listener1, timeout(CALLBACK_TIMEOUT_MILLIS).times(1)).onVibratorStateChanged(false);
         verify(listener2, timeout(CALLBACK_TIMEOUT_MILLIS).times(1)).onVibratorStateChanged(false);
 
-        mVibrator.vibrate(1000);
+        mVibrator.vibrate(10);
+        assertStartsVibrating();
 
         verify(listener1, timeout(CALLBACK_TIMEOUT_MILLIS).times(1)).onVibratorStateChanged(true);
         verify(listener2, timeout(CALLBACK_TIMEOUT_MILLIS).times(1)).onVibratorStateChanged(true);
+        // The state changes back to false after vibration ends.
+        verify(listener1, timeout(CALLBACK_TIMEOUT_MILLIS).times(2)).onVibratorStateChanged(false);
+        verify(listener2, timeout(CALLBACK_TIMEOUT_MILLIS).times(2)).onVibratorStateChanged(false);
+    }
 
-        mVibrator.cancel();
-        assertStopsVibrating();
+    @LargeTest
+    @Test
+    public void testVibratorStateCallbackRemoval() {
+        assumeTrue(mVibrator.hasVibrator());
+
+        OnVibratorStateChangedListener listener1 = newMockStateListener();
+        OnVibratorStateChangedListener listener2 = newMockStateListener();
+        // Add listener1 on executor
+        mVibrator.addVibratorStateListener(Executors.newSingleThreadExecutor(), listener1);
+        // Add listener2 on main thread.
+        mVibrator.addVibratorStateListener(listener2);
+        verify(listener1, timeout(CALLBACK_TIMEOUT_MILLIS).times(1)).onVibratorStateChanged(false);
+        verify(listener2, timeout(CALLBACK_TIMEOUT_MILLIS).times(1)).onVibratorStateChanged(false);
 
         // Remove listener1 & listener2
         mVibrator.removeVibratorStateListener(listener1);
         mVibrator.removeVibratorStateListener(listener2);
-        reset(listener1);
-        reset(listener2);
 
         mVibrator.vibrate(1000);
         assertStartsVibrating();
 
-        verify(listener1, timeout(CALLBACK_TIMEOUT_MILLIS).times(0))
-                .onVibratorStateChanged(anyBoolean());
-        verify(listener2, timeout(CALLBACK_TIMEOUT_MILLIS).times(0))
-                .onVibratorStateChanged(anyBoolean());
+        // Wait the timeout to assert there was no more interactions with the removed listeners.
+        verify(listener1, after(CALLBACK_TIMEOUT_MILLIS).never()).onVibratorStateChanged(true);
+        // Previous call was blocking, so no need to wait for a timeout here as well.
+        verify(listener2, never()).onVibratorStateChanged(true);
+    }
+
+    private OnVibratorStateChangedListener newMockStateListener() {
+        OnVibratorStateChangedListener listener = mock(OnVibratorStateChangedListener.class);
+        mStateListenersCreated.add(listener);
+        return listener;
     }
 
     private void assertStartsThenStopsVibrating(long duration) {
         if (mVibrator.hasVibrator()) {
-            verify(mStateListener, timeout(CALLBACK_TIMEOUT_MILLIS).atLeastOnce())
-                    .onVibratorStateChanged(true);
+            assertVibratorState(true);
             SystemClock.sleep(duration);
             assertVibratorState(false);
         }
@@ -379,7 +606,6 @@ public class VibratorTest {
         if (mVibrator.hasVibrator()) {
             verify(mStateListener, timeout(CALLBACK_TIMEOUT_MILLIS).atLeastOnce())
                     .onVibratorStateChanged(eq(expected));
-            reset(mStateListener);
         }
     }
 }

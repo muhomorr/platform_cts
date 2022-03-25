@@ -28,6 +28,7 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import org.junit.Test;
 
 /**
  * Performs the signature check via a JUnit test.
@@ -42,7 +43,7 @@ public class SignatureTest extends AbstractApiTest {
     private String[] unexpectedApiFiles;
 
     @Override
-    protected void initializeFromArgs(Bundle instrumentationArgs) {
+    protected void initializeFromArgs(Bundle instrumentationArgs) throws Exception {
         expectedApiFiles = getCommaSeparatedListOptional(instrumentationArgs, "expected-api-files");
         baseApiFiles = getCommaSeparatedListOptional(instrumentationArgs, "base-api-files");
         unexpectedApiFiles = getCommaSeparatedListOptional(instrumentationArgs, "unexpected-api-files");
@@ -60,6 +61,7 @@ public class SignatureTest extends AbstractApiTest {
      * <p/>
      * Will check the entire API, and then report the complete list of failures
      */
+    @Test
     public void testSignature() {
         runWithTestResultObserver(mResultObserver -> {
             Set<JDiffClassDescription> unexpectedClasses = loadUnexpectedClasses();

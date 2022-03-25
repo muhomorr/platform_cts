@@ -29,19 +29,14 @@ import android.support.test.uiautomator.UiDevice;
 import android.support.test.uiautomator.UiObject2;
 import android.support.test.uiautomator.Until;
 
-import com.android.compatibility.common.util.RequiredServiceRule;
-
 import androidx.test.InstrumentationRegistry;
 import androidx.test.filters.MediumTest;
 import androidx.test.runner.AndroidJUnit4;
 
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-
-import java.util.Arrays;
 
 /**
  * Tests related SettingsPanels:
@@ -100,16 +95,6 @@ public class SettingsPanelTest {
 
     // Check correct package is opened
 
-    @Ignore
-    @Test
-    public void internetPanel_correctPackage() {
-        launchInternetPanel();
-
-        String currentPackage = mDevice.getCurrentPackageName();
-
-        assertThat(currentPackage).isEqualTo(mSettingsPackage);
-    }
-
     @Test
     public void volumePanel_correctPackage() {
         assumeTrue(mHasTouchScreen);
@@ -136,22 +121,6 @@ public class SettingsPanelTest {
         String currentPackage = mDevice.getCurrentPackageName();
 
         assertThat(currentPackage).isEqualTo(mSettingsPackage);
-    }
-
-    @Ignore
-    @Test
-    public void internetPanel_doneClosesPanel() {
-        // Launch panel
-        launchInternetPanel();
-        String currentPackage = mDevice.getCurrentPackageName();
-        assertThat(currentPackage).isEqualTo(mSettingsPackage);
-
-        // Click the done button
-        pressDone();
-
-        // Assert that we have left the panel
-        currentPackage = mDevice.getCurrentPackageName();
-        assertThat(currentPackage).isNotEqualTo(mSettingsPackage);
     }
 
     @Test
@@ -253,10 +222,6 @@ public class SettingsPanelTest {
 
     private void launchVolumePanel() {
         launchPanel(Settings.Panel.ACTION_VOLUME);
-    }
-
-    private void launchInternetPanel() {
-        launchPanel(Settings.Panel.ACTION_INTERNET_CONNECTIVITY);
     }
 
     private void launchNfcPanel() {

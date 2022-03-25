@@ -19,13 +19,14 @@
     <option name="config-descriptor:metadata" key="parameter" value="instant_app" />
     <option name="config-descriptor:metadata" key="parameter" value="not_multi_abi" />
     <option name="config-descriptor:metadata" key="parameter" value="secondary_user" />
+    <option name="config-descriptor:metadata" key="parameter" value="no_foldable_states" />
     <target_preparer class="com.android.tradefed.targetprep.suite.SuiteApkInstaller">
         <option name="cleanup-apks" value="true" />
         <option name="test-file-name" value="CtsApacheHttpLegacyCurrentApiSignatureTestCases.apk" />
     </target_preparer>
     <test class="com.android.tradefed.testtype.AndroidJUnitTest" >
         <option name="package" value="android.signature.cts.api.apache_http_legacy_current" />
-        <option name="runner" value="repackaged.android.test.InstrumentationTestRunner" />
+        <option name="runner" value="androidx.test.runner.AndroidJUnitRunner" />
         <option name="class" value="android.signature.cts.api.current.http.SignatureTest" />
         <option name="instrumentation-arg" key="unexpected-api-files" value="apache-http-legacy-current.api.gz" />
         <option name="runtime-hint" value="5s" />
