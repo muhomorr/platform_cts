@@ -51,6 +51,7 @@ import android.graphics.Bitmap;
 import android.icu.util.Calendar;
 import android.os.Bundle;
 import android.os.Environment;
+import android.provider.DeviceConfig;
 import android.provider.Settings;
 import android.service.autofill.FieldClassification;
 import android.service.autofill.FieldClassification.Match;
@@ -78,6 +79,7 @@ import androidx.autofill.inline.v1.InlineSuggestionUi;
 import androidx.test.platform.app.InstrumentationRegistry;
 
 import com.android.compatibility.common.util.BitmapUtils;
+import com.android.compatibility.common.util.DeviceConfigStateManager;
 import com.android.compatibility.common.util.OneTimeSettingsListener;
 import com.android.compatibility.common.util.SettingsUtils;
 import com.android.compatibility.common.util.ShellUtils;
@@ -820,16 +822,36 @@ public final class Helper {
      * Creates an array of {@link AutofillId} mapped from the {@code structure} nodes with the given
      * {@code resourceIds}.
      */
-    public static AutofillId[] getAutofillIds(Function<String, AutofillId> autofillIdResolver,
+    public static AutofillId[] getAutofillIds(Function<String, ViewNode> nodeResolver,
             String[] resourceIds) {
         if (resourceIds == null) return null;
 
         final AutofillId[] requiredIds = new AutofillId[resourceIds.length];
         for (int i = 0; i < resourceIds.length; i++) {
             final String resourceId = resourceIds[i];
-            requiredIds[i] = autofillIdResolver.apply(resourceId);
+            final ViewNode node = nodeResolver.apply(resourceId);
+            if (node == null) {
+                throw new AssertionError("No node with resourceId " + resourceId);
+            }
+            requiredIds[i] = node.getAutofillId();
+
         }
         return requiredIds;
+    }
+
+    /**
+     * Get an {@link AutofillId} mapped from the {@code structure} node with the given
+     * {@code resourceId}.
+     */
+    public static AutofillId getAutofillId(Function<String, ViewNode> nodeResolver,
+            String resourceId) {
+        if (resourceId == null) return null;
+
+        final ViewNode node = nodeResolver.apply(resourceId);
+        if (node == null) {
+            throw new AssertionError("No node with resourceId " + resourceId);
+        }
+        return node.getAutofillId();
     }
 
     /**
@@ -1620,6 +1642,16 @@ public final class Helper {
      */
     public static void clearApplicationAutofillOptions(@NonNull Context context) {
         context.getApplicationContext().setAutofillOptions(null);
+    }
+
+    /**
+     * Enable fill dialog feature
+     */
+    public static  void enableFillDialogFeature(@NonNull Context context) {
+        DeviceConfigStateManager deviceConfigStateManager =
+                new DeviceConfigStateManager(context, DeviceConfig.NAMESPACE_AUTOFILL,
+                        AutofillManager.DEVICE_CONFIG_AUTOFILL_DIALOG_ENABLED);
+        deviceConfigStateManager.set("true");
     }
 
     private Helper() {
