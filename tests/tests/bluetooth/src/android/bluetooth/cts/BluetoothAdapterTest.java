@@ -330,10 +330,10 @@ public class BluetoothAdapterTest extends AndroidTestCase {
         int maxConnectedAudioDevicesConfig = 0;
         try {
             Resources bluetoothRes = mContext.getPackageManager()
-                    .getResourcesForApplication("com.android.bluetooth");
+                    .getResourcesForApplication("com.android.bluetooth.services");
             maxConnectedAudioDevicesConfig = bluetoothRes.getInteger(
                     bluetoothRes.getIdentifier("config_bluetooth_max_connected_audio_devices",
-                    "integer", "com.android.bluetooth"));
+                    "integer", "com.android.bluetooth.services"));
         } catch (PackageManager.NameNotFoundException e) {
             e.printStackTrace();
         }
@@ -493,21 +493,21 @@ public class BluetoothAdapterTest extends AndroidTestCase {
                 () -> mAdapter.requestControllerActivityEnergyInfo(null, listener));
     }
 
-    public void test_factoryReset() {
+    public void test_clearBluetooth() {
         if (!mHasBluetooth) return;
 
         assertTrue(BTAdapterUtils.enableAdapter(mAdapter, mContext));
 
         // Verify throws SecurityException without permission.BLUETOOTH_PRIVILEGED
-        assertThrows(SecurityException.class, () -> mAdapter.factoryReset());
+        assertThrows(SecurityException.class, () -> mAdapter.clearBluetooth());
         mUiAutomation.dropShellPermissionIdentity();
         // Verify throws SecurityException without permission.BLUETOOTH_CONNECT
-        assertThrows(SecurityException.class, () -> mAdapter.factoryReset());
+        assertThrows(SecurityException.class, () -> mAdapter.clearBluetooth());
 
         mUiAutomation.adoptShellPermissionIdentity(BLUETOOTH_CONNECT);
         assertTrue(BTAdapterUtils.disableAdapter(mAdapter, mContext));
         // Verify throws RuntimeException when trying to save sysprop for later (permission denied)
-        assertThrows(RuntimeException.class, () -> mAdapter.factoryReset());
+        assertThrows(RuntimeException.class, () -> mAdapter.clearBluetooth());
     }
 
     public void test_BluetoothProfile_getConnectionStateName() {

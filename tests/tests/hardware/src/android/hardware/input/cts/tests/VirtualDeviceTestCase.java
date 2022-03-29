@@ -16,7 +16,10 @@
 
 package android.hardware.input.cts.tests;
 
+import static android.content.pm.PackageManager.FEATURE_COMPANION_DEVICE_SETUP;
+
 import static org.junit.Assert.fail;
+import static org.junit.Assume.assumeTrue;
 
 import android.app.ActivityOptions;
 import android.companion.AssociationInfo;
@@ -24,6 +27,7 @@ import android.companion.CompanionDeviceManager;
 import android.companion.virtual.VirtualDeviceManager;
 import android.companion.virtual.VirtualDeviceParams;
 import android.content.Context;
+import android.content.pm.PackageManager;
 import android.graphics.Point;
 import android.graphics.SurfaceTexture;
 import android.hardware.display.VirtualDisplay;
@@ -42,6 +46,8 @@ import androidx.test.InstrumentationRegistry;
 
 import com.android.compatibility.common.util.AdoptShellPermissionsRule;
 import com.android.compatibility.common.util.SystemUtil;
+
+import com.google.common.collect.ImmutableList;
 
 import org.junit.Rule;
 
@@ -87,6 +93,10 @@ public abstract class VirtualDeviceTestCase extends InputTestCase {
     @Override
     void onBeforeLaunchActivity() {
         final Context context = InstrumentationRegistry.getTargetContext();
+        final PackageManager packageManager = context.getPackageManager();
+        // TVs do not support companion
+        assumeTrue(packageManager.hasSystemFeature(PackageManager.FEATURE_COMPANION_DEVICE_SETUP));
+
         final String packageName = context.getPackageName();
         associateCompanionDevice(packageName);
         AssociationInfo associationInfo = null;
@@ -181,7 +191,7 @@ public abstract class VirtualDeviceTestCase extends InputTestCase {
     }
 
     private void tapActivityToFocus() {
-        final Point p = getCenterOfActivityOnScreen(mTestActivity.getWindow().getDecorView());
+        final Point p = getViewCenterOnScreen(mTestActivity.getWindow().getDecorView());
         final int displayId = mTestActivity.getDisplayId();
 
         final long downTime = SystemClock.elapsedRealtime();
@@ -193,9 +203,11 @@ public abstract class VirtualDeviceTestCase extends InputTestCase {
                 MotionEvent.ACTION_UP, p.x, p.y, 0 /* metaState */);
         upEvent.setDisplayId(displayId);
         mInstrumentation.sendPointerSync(upEvent);
+
+        verifyEvents(ImmutableList.of(downEvent, upEvent));
     }
 
-    private static Point getCenterOfActivityOnScreen(@NonNull View view) {
+    private static Point getViewCenterOnScreen(@NonNull View view) {
         final int[] location = new int[2];
         view.getLocationOnScreen(location);
         return new Point(location[0] + view.getWidth() / 2,

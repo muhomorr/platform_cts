@@ -22,6 +22,7 @@ import android.media.MediaFormat;
 
 import androidx.test.filters.LargeTest;
 
+import org.junit.Assume;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -35,12 +36,15 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static android.media.MediaCodecInfo.CodecCapabilities.COLOR_FormatYUVP010;
 import static android.mediav2.cts.CodecTestBase.SupportClass.*;
 import static org.junit.Assert.*;
 
 @RunWith(Parameterized.class)
 public class CodecEncoderValidationTest extends CodecEncoderTestBase {
     private static final String INPUT_AUDIO_FILE_HBD = "audio/sd_2ch_48kHz_f32le.raw";
+    private static final String INPUT_VIDEO_FILE_HBD = "cosmat_cif_24fps_yuv420p16le.yuv";
+
     private final boolean mUseHBD;
     private final SupportClass mSupportRequirements;
     // Key: mediaType, Value: tolerance duration in ms
@@ -67,9 +71,10 @@ public class CodecEncoderValidationTest extends CodecEncoderTestBase {
         final boolean isEncoder = true;
         final boolean needAudio = true;
         final boolean needVideo = true;
-        final List<Object[]> defArgsList = Arrays.asList(new Object[][]{
+        List<Object[]> defArgsList = new ArrayList<>(Arrays.asList(new Object[][]{
                 // Audio tests covering cdd sec 5.1.3
-                // mediaType, arrays of bit-rates, sample rates, channel counts, usefloat
+                // mediaType, arrays of bit-rates, sample rates, channel counts, useHBD,
+                // SupportClass
                 {MediaFormat.MIMETYPE_AUDIO_AAC, new int[]{64000, 128000}, new int[]{8000, 12000,
                         16000, 22050, 24000, 32000, 44100, 48000}, new int[]{1, 2}, false,
                         CODEC_ALL},
@@ -88,7 +93,7 @@ public class CodecEncoderValidationTest extends CodecEncoderTestBase {
                         new int[]{8000, 16000, 32000, 48000, 96000, 192000}, new int[]{1, 2},
                         true, CODEC_ALL},
 
-                // mediaType, arrays of bit-rates, width, height, Invalid Arg
+                // mediaType, arrays of bit-rates, width, height, useHBD, SupportClass
                 {MediaFormat.MIMETYPE_VIDEO_H263, new int[]{32000, 64000}, new int[]{176},
                         new int[]{144}, false, CODEC_ALL},
                 {MediaFormat.MIMETYPE_VIDEO_MPEG4, new int[]{32000, 64000}, new int[]{176},
@@ -103,11 +108,29 @@ public class CodecEncoderValidationTest extends CodecEncoderTestBase {
                         new int[]{240, 360}, false, CODEC_ALL},
                 {MediaFormat.MIMETYPE_VIDEO_AV1, new int[]{256000}, new int[]{352, 480},
                         new int[]{240, 360}, false, CODEC_ALL},
-        });
+        }));
+        // P010 support was added in Android T, hence limit the following tests to Android T and
+        // above
+        if (IS_AT_LEAST_T) {
+            defArgsList.addAll(Arrays.asList(new Object[][]{
+                    {MediaFormat.MIMETYPE_VIDEO_AVC, new int[]{256000}, new int[]{352, 480},
+                            new int[]{240, 360}, true, CODEC_OPTIONAL},
+                    {MediaFormat.MIMETYPE_VIDEO_HEVC, new int[]{256000}, new int[]{352, 480},
+                            new int[]{240, 360}, true, CODEC_OPTIONAL},
+                    {MediaFormat.MIMETYPE_VIDEO_VP9, new int[]{256000}, new int[]{352, 480},
+                            new int[]{240, 360}, true, CODEC_OPTIONAL},
+                    {MediaFormat.MIMETYPE_VIDEO_AV1, new int[]{256000}, new int[]{352, 480},
+                            new int[]{240, 360}, true, CODEC_OPTIONAL},
+            }));
+        }
         return prepareParamList(defArgsList, isEncoder, needAudio, needVideo, false);
     }
 
     void encodeAndValidate(String inputFile) throws IOException, InterruptedException {
+        if (!mIsAudio) {
+            int colorFormat = mFormats.get(0).getInteger(MediaFormat.KEY_COLOR_FORMAT);
+            Assume.assumeTrue(hasSupportForColorFormat(mCodecName, mMime, colorFormat));
+        }
         checkFormatSupport(mCodecName, mMime, true, mFormats, null, mSupportRequirements);
         setUpSource(inputFile);
         mOutputBuff = new OutputManager();
@@ -199,12 +222,22 @@ public class CodecEncoderValidationTest extends CodecEncoderTestBase {
     @Test(timeout = PER_TEST_TIMEOUT_LARGE_TEST_MS)
     public void testEncodeAndValidate() throws IOException, InterruptedException {
         setUpParams(Integer.MAX_VALUE);
-        if (mIsAudio && mUseHBD) {
-            for (MediaFormat format : mFormats) {
-                format.setInteger(MediaFormat.KEY_PCM_ENCODING, AudioFormat.ENCODING_PCM_FLOAT);
+        String inputFile = mInputFile;
+        if (mUseHBD) {
+            if (mIsAudio) {
+                for (MediaFormat format : mFormats) {
+                    format.setInteger(MediaFormat.KEY_PCM_ENCODING, AudioFormat.ENCODING_PCM_FLOAT);
+                }
+                mBytesPerSample = 4;
+                inputFile = INPUT_AUDIO_FILE_HBD;
+            } else {
+                for (MediaFormat format : mFormats) {
+                    format.setInteger(MediaFormat.KEY_COLOR_FORMAT, COLOR_FormatYUVP010);
+                }
+                mBytesPerSample = 2;
+                inputFile = INPUT_VIDEO_FILE_HBD;
             }
-            mBytesPerSample = 4;
         }
-        encodeAndValidate(mIsAudio && mUseHBD ? INPUT_AUDIO_FILE_HBD : mInputFile);
+        encodeAndValidate(inputFile);
     }
 }

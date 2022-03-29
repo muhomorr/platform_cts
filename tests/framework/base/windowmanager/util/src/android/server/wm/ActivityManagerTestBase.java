@@ -76,6 +76,7 @@ import static android.server.wm.UiDeviceUtils.pressUnlockButton;
 import static android.server.wm.UiDeviceUtils.pressWakeupButton;
 import static android.server.wm.UiDeviceUtils.waitForDeviceIdle;
 import static android.server.wm.WindowManagerState.STATE_RESUMED;
+import static android.server.wm.WindowManagerState.STATE_STOPPED;
 import static android.server.wm.app.Components.BROADCAST_RECEIVER_ACTIVITY;
 import static android.server.wm.app.Components.BroadcastReceiverActivity.ACTION_TRIGGER_BROADCAST;
 import static android.server.wm.app.Components.BroadcastReceiverActivity.EXTRA_BROADCAST_ORIENTATION;
@@ -103,6 +104,7 @@ import static android.server.wm.third.Components.THIRD_ACTIVITY;
 import static android.view.Display.DEFAULT_DISPLAY;
 import static android.view.Display.INVALID_DISPLAY;
 import static android.view.Surface.ROTATION_0;
+import static android.view.WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY;
 import static android.view.WindowManager.LayoutParams.TYPE_BASE_APPLICATION;
 
 import static androidx.test.platform.app.InstrumentationRegistry.getInstrumentation;
@@ -164,6 +166,7 @@ import android.view.WindowManager;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.rules.ActivityScenarioRule;
 
 import com.android.compatibility.common.util.AppOpsUtils;
@@ -242,6 +245,7 @@ public abstract class ActivityManagerTestBase {
     private static Boolean sSupportsSystemDecorsOnSecondaryDisplays = null;
     private static Boolean sSupportsInsecureLockScreen = null;
     private static Boolean sIsAssistantOnTop = null;
+    private static Boolean sIsTablet = null;
     private static boolean sIllegalTaskStateFound;
 
     protected static final int INVALID_DEVICE_ROTATION = -1;
@@ -326,6 +330,11 @@ public abstract class ActivityManagerTestBase {
 
     protected static String getAmStartCmdOverHome(final ComponentName activityName) {
         return "am start --activity-task-on-home -n " + getActivityName(activityName);
+    }
+
+    protected static String getAmStartCmdWithDismissKeyguardIfInsecure(
+            final ComponentName activityName) {
+        return "am start --dismiss-keyguard-if-insecure -n " + getActivityName(activityName);
     }
 
     protected WindowManagerStateHelper mWmState = new WindowManagerStateHelper();
@@ -792,6 +801,11 @@ public abstract class ActivityManagerTestBase {
         mWmState.waitForValidState(activityName);
     }
 
+    protected void launchActivityWithDismissKeyguardIfInsecure(final ComponentName activityName) {
+        executeShellCommand(getAmStartCmdWithDismissKeyguardIfInsecure(activityName));
+        mWmState.waitForValidState(activityName);
+    }
+
     protected static void waitForIdle() {
         getInstrumentation().waitForIdleSync();
     }
@@ -1053,9 +1067,20 @@ public abstract class ActivityManagerTestBase {
         return hasDeviceFeature(FEATURE_TELEVISION);
     }
 
-    protected boolean isTablet() {
-        // Larger than approx 7" tablets
-        return mContext.getResources().getConfiguration().smallestScreenWidthDp >= 600;
+    public static boolean isTablet() {
+        if (sIsTablet == null) {
+            // Use WindowContext with type application overlay to prevent the metrics overridden by
+            // activity bounds. Note that process configuration may still be overridden by
+            // foreground Activity.
+            final Context appContext = ApplicationProvider.getApplicationContext();
+            final Display defaultDisplay = appContext.getSystemService(DisplayManager.class)
+                    .getDisplay(DEFAULT_DISPLAY);
+            final Context windowContext = appContext.createWindowContext(defaultDisplay,
+                    TYPE_APPLICATION_OVERLAY, null /* options */);
+            sIsTablet = windowContext.getResources()
+                    .getConfiguration().smallestScreenWidthDp >= 600;
+        }
+        return sIsTablet;
     }
 
     protected boolean isOperatorTierDevice() {
@@ -1112,6 +1137,21 @@ public abstract class ActivityManagerTestBase {
         mWmState.assertValidity();
         assertTrue(message, mWmState.hasActivityState(activityName, STATE_RESUMED));
         mWmState.assertVisibility(activityName, true /* visible */);
+    }
+
+    /**
+     * Waits and asserts that the activity represented by the given activity name is stopped and
+     * invisible.
+     *
+     * @param activityName the activity name
+     * @param message the error message
+     */
+    public void waitAndAssertStoppedActivity(ComponentName activityName, String message) {
+        mWmState.waitForValidState(activityName);
+        mWmState.waitForActivityState(activityName, STATE_STOPPED);
+        mWmState.assertValidity();
+        assertTrue(message, mWmState.hasActivityState(activityName, STATE_STOPPED));
+        mWmState.assertVisibility(activityName, false /* visible */);
     }
 
     // TODO: Switch to using a feature flag, when available.
@@ -1315,6 +1355,11 @@ public abstract class ActivityManagerTestBase {
     /** @see ObjectTracker#manage(AutoCloseable) */
     protected FontScaleSession createManagedFontScaleSession() {
         return mObjectTracker.manage(new FontScaleSession());
+    }
+
+    /** Allows requesting orientation in case ignore_orientation_request is set to true. */
+    protected void disableIgnoreOrientationRequest() {
+        mObjectTracker.manage(new IgnoreOrientationRequestSession(DEFAULT_DISPLAY, false));
     }
 
     /**
