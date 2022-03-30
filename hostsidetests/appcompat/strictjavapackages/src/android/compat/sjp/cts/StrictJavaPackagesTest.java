@@ -512,6 +512,78 @@ public class StrictJavaPackagesTest extends BaseHostJUnit4Test {
     }
 
     /**
+     * Ensure that no apk-in-apex bundles classes that could be eclipsed by jars in
+     * BOOTCLASSPATH, SYSTEMSERVERCLASSPATH.
+     */
+    @Test
+    public void testApkInApex_nonClasspathClasses() throws Exception {
+        HashMultimap<String, Multimap<String, String>> perApkClasspathDuplicates =
+                HashMultimap.create();
+        Arrays.stream(collectApkInApexPaths())
+                .parallel()
+                .forEach(apk -> {
+                    try {
+                        final ImmutableSet<String> apkClasses =
+                                Classpaths.getClassDefsFromJar(getDevice(), apk).stream()
+                                        .map(ClassDef::getType)
+                                        .collect(ImmutableSet.toImmutableSet());
+                        // b/226559955: The directory paths containing APKs contain the build ID,
+                        // so strip out the @BUILD_ID portion.
+                        // e.g. /apex/com.android.bluetooth/app/Bluetooth@SC-DEV/Bluetooth.apk ->
+                        //      /apex/com.android.bluetooth/app/Bluetooth/Bluetooth.apk
+                        apk = apk.replaceFirst("@[^/]*", "");
+                        final ImmutableSet<String> burndownClasses =
+                                FULL_APK_IN_APEX_BURNDOWN.getOrDefault(apk, ImmutableSet.of());
+                        final Multimap<String, String> duplicates =
+                                Multimaps.filterValues(sJarsToClasses, apkClasses::contains);
+                        final Multimap<String, String> filteredDuplicates =
+                                Multimaps.filterValues(duplicates,
+                                    className -> !burndownClasses.contains(className)
+                                            // TODO: b/225341497
+                                            && !className.equals("Landroidx/annotation/Keep;"));
+                        if (!filteredDuplicates.isEmpty()) {
+                            synchronized (perApkClasspathDuplicates) {
+                                perApkClasspathDuplicates.put(apk, filteredDuplicates);
+                            }
+                        }
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                });
+        assertThat(perApkClasspathDuplicates).isEmpty();
+    }
+
+    private String[] collectApkInApexPaths() {
+        try {
+            final CompatibilityBuildHelper buildHelper = new CompatibilityBuildHelper(getBuild());
+            final String installError = getDevice().installPackage(
+                    buildHelper.getTestFile(TEST_HELPER_APK), false);
+            assertWithMessage("Failed to install %s due to: %s", TEST_HELPER_APK, installError)
+                    .that(installError).isNull();
+            runDeviceTests(new DeviceTestRunOptions(TEST_HELPER_PACKAGE)
+                    .setDevice(getDevice())
+                    .setTestClassName(TEST_HELPER_PACKAGE + ".ApexDeviceTest")
+                    .setTestMethodName("testCollectApkInApexPaths"));
+            final String remoteFile = "/sdcard/apk-in-apex-paths.txt";
+            String content;
+            try {
+                content = getDevice().pullFileContents(remoteFile);
+            } finally {
+                getDevice().deleteFile(remoteFile);
+            }
+            return content.split("\n");
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        } finally {
+            try {
+                getDevice().uninstallPackage(TEST_HELPER_PACKAGE);
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }
+    }
+
+    /**
      * Gets the duplicate classes within a list of jar files.
      *
      * @param jars a list of jar files.
