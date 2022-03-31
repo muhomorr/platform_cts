@@ -158,11 +158,11 @@ public class VideoEncodingStatisticsTest extends VideoCodecTestBase {
                     FPS,
                     bitRateMode,
                     TEST_BITRATES_SET[i],
-                    true);
+                    false);
             // Enable encoding statistics at VIDEO_ENCODING_STATISTICS_LEVEL_1
             params.encodingStatisticsLevel = MediaFormat.VIDEO_ENCODING_STATISTICS_LEVEL_1;
             ArrayList<ByteBuffer> codecConfigs = new ArrayList<>();
-            VideoEncodeOutput videoEncodeOutput = encode(params, codecConfigs);
+            VideoEncodeOutput videoEncodeOutput = encodeAsync(params, codecConfigs);
             bufInfos = videoEncodeOutput.bufferInfo;
             if (bufInfos == null) {
                 // parameters not supported, try other bitrates
@@ -193,7 +193,7 @@ public class VideoEncodingStatisticsTest extends VideoCodecTestBase {
                 }
                 double differenceBitrate = TEST_BITRATES_SET[i] - TEST_BITRATES_SET[j];
                 double differenceAvgQp = avgSeqQp[i] - avgSeqQp[j];
-                if (differenceBitrate * differenceAvgQp > 0) {
+                if (differenceBitrate * differenceAvgQp >= 0) {
                     throw new RuntimeException("Target bitrates: " +
                             TEST_BITRATES_SET[j] + ", " + TEST_BITRATES_SET[i] +
                             ". Average QP: "
