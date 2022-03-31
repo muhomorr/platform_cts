@@ -3549,8 +3549,6 @@ public class TelephonyManagerTest {
         InstrumentationRegistry.getInstrumentation().getUiAutomation()
                 .adoptShellPermissionIdentity("android.permission.READ_PRIVILEGED_PHONE_STATE");
         List<UiccCardInfo> cardsInfo = mTelephonyManager.getUiccCardsInfo();
-        InstrumentationRegistry.getInstrumentation().getUiAutomation()
-                .dropShellPermissionIdentity();
         for (UiccCardInfo cardInfo : cardsInfo) {
             for (UiccPortInfo portInfo : cardInfo.getPorts()) {
                 int simCardState = mTelephonyManager.getSimCardState(cardInfo
@@ -3562,6 +3560,8 @@ public class TelephonyManagerTest {
                         TelephonyManager.SIM_STATE_PRESENT).contains(simCardState));
             }
         }
+        InstrumentationRegistry.getInstrumentation().getUiAutomation()
+                .dropShellPermissionIdentity();
     }
 
     private boolean isDataEnabled() {
@@ -4372,6 +4372,7 @@ public class TelephonyManagerTest {
             return;
         }
 
+        boolean connectedToNrCell = false;
         for (CellInfo cellInfo : mTelephonyManager.getAllCellInfo()) {
             CellIdentity cellIdentity = cellInfo.getCellIdentity();
             int[] bands;
@@ -4389,10 +4390,18 @@ public class TelephonyManagerTest {
                             || (band >= AccessNetworkConstants.NgranBands.BAND_257
                             && band <= AccessNetworkConstants.NgranBands.BAND_261));
                 }
+                connectedToNrCell = true;
             } else {
                 continue;
             }
             assertTrue(bands.length > 0);
+        }
+
+        if (connectedToNrCell) {
+            assertEquals(TelephonyManager.NETWORK_TYPE_NR, mTelephonyManager.getDataNetworkType());
+        } else {
+            assertNotEquals(TelephonyManager.NETWORK_TYPE_NR,
+                    mTelephonyManager.getDataNetworkType());
         }
     }
 
