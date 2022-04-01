@@ -13,7 +13,7 @@
   ~ See the License for the specific language governing permissions and
   ~ limitations under the License.
   -->
-
-<quickaccesswallet-service
-    xmlns:android="http://schemas.android.com/apk/res/android"
-    android:useTargetActivityForQuickAccess="true"/>
+<resources>
+  <string name="attribution_label">Attribution label.</string>
+  <string name="summary_label">Services summary.</string>
+</resources>

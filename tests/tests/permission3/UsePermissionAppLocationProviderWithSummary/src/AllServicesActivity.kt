@@ -13,10 +13,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+import android.app.Activity
+import android.os.Bundle
 
-package android.quickaccesswallet;
+class AllServicesActivity : Activity() {
 
-/**
- * Extends {@link TestQuickAccessWalletService} to allow for a different manifest configuration.
- */
-public class UseTargetActivityForQuickAccessWalletService extends TestQuickAccessWalletService {}
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+    }
+}
