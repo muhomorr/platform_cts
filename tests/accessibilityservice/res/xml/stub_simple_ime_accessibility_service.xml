@@ -14,7 +14,9 @@
   ~ limitations under the License.
   -->
 
-<quickaccesswallet-service
-    xmlns:android="http://schemas.android.com/apk/res/android"
-    android:targetActivity="android.quickaccesswallet.QuickAccessWalletActivity"
-    android:useTargetActivityForQuickAccess="true"/>
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+                       android:description="@string/stub_simple_ime_accessibility_service_description"
+                       android:accessibilityEventTypes="typeAllMask"
+                       android:accessibilityFeedbackType="feedbackGeneric"
+                       android:accessibilityFlags="flagInputMethodEditor"
+                       android:notificationTimeout="0" />
