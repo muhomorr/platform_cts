@@ -59,6 +59,7 @@ import java.util.Set;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.stream.IntStream;
 import java.util.zip.CRC32;
 
 import com.android.compatibility.common.util.ApiLevelUtil;
@@ -580,6 +581,15 @@ class OutputManager {
 
 abstract class CodecTestBase {
     public static final boolean IS_AT_LEAST_R = ApiLevelUtil.isAtLeast(Build.VERSION_CODES.R);
+    // Checking for CODENAME helps in cases when build version on the development branch isn't
+    // updated yet but CODENAME is updated.
+    public static final boolean IS_AT_LEAST_T =
+            ApiLevelUtil.isAtLeast(Build.VERSION_CODES.TIRAMISU) ||
+                    ApiLevelUtil.codenameEquals("Tiramisu");
+    // TODO (b/223868241) Update the following to check for Build.VERSION_CODES.TIRAMISU once
+    // TIRAMISU is set correctly
+    public static final boolean FIRST_SDK_IS_AT_LEAST_T =
+            ApiLevelUtil.isFirstApiAfter(Build.VERSION_CODES.S_V2);
     private static final String LOG_TAG = CodecTestBase.class.getSimpleName();
     enum SupportClass {
         CODEC_ALL, // All codecs must support
@@ -589,10 +599,14 @@ abstract class CodecTestBase {
     }
 
     static final String CODEC_PREFIX_KEY = "codec-prefix";
+    static final String MEDIA_TYPE_PREFIX_KEY = "media-type-prefix";
     static final String MIME_SEL_KEY = "mime-sel";
     static final Map<String, String> codecSelKeyMimeMap = new HashMap<>();
     static final Map<String, String> mDefaultEncoders = new HashMap<>();
     static final Map<String, String> mDefaultDecoders = new HashMap<>();
+    static final HashMap<String, int[]> mProfileMap = new HashMap<>();
+    static final HashMap<String, int[]> mProfileSdrMap = new HashMap<>();
+    static final HashMap<String, int[]> mProfileHdrMap = new HashMap<>();
     static final boolean ENABLE_LOGS = false;
     static final int PER_TEST_TIMEOUT_LARGE_TEST_MS = 300000;
     static final int PER_TEST_TIMEOUT_SMALL_TEST_MS = 60000;
@@ -601,11 +615,46 @@ abstract class CodecTestBase {
     static final long Q_DEQ_TIMEOUT_US = 5000; // block at most 5ms while looking for io buffers
     static final int RETRY_LIMIT = 100; // max poll counter before test aborts and returns error
     static final String INVALID_CODEC = "unknown.codec_";
+    static final int[] MPEG2_PROFILES = new int[]{MPEG2ProfileSimple, MPEG2ProfileMain,
+            MPEG2Profile422, MPEG2ProfileSNR, MPEG2ProfileSpatial, MPEG2ProfileHigh};
+    static final int[] MPEG4_PROFILES = new int[]{MPEG4ProfileSimple, MPEG4ProfileSimpleScalable,
+            MPEG4ProfileCore, MPEG4ProfileMain, MPEG4ProfileNbit, MPEG4ProfileScalableTexture,
+            MPEG4ProfileSimpleFace, MPEG4ProfileSimpleFBA, MPEG4ProfileBasicAnimated,
+            MPEG4ProfileHybrid, MPEG4ProfileAdvancedRealTime, MPEG4ProfileCoreScalable,
+            MPEG4ProfileAdvancedCoding, MPEG4ProfileAdvancedCore, MPEG4ProfileAdvancedScalable,
+            MPEG4ProfileAdvancedSimple};
+    static final int[] H263_PROFILES = new int[]{H263ProfileBaseline, H263ProfileH320Coding,
+            H263ProfileBackwardCompatible, H263ProfileISWV2, H263ProfileISWV3,
+            H263ProfileHighCompression, H263ProfileInternet, H263ProfileInterlace,
+            H263ProfileHighLatency};
+    static final int[] VP8_PROFILES = new int[] {VP8ProfileMain};
+    static final int[] AVC_SDR_PROFILES = new int[]{AVCProfileBaseline, AVCProfileMain,
+            AVCProfileExtended, AVCProfileHigh, AVCProfileConstrainedBaseline,
+            AVCProfileConstrainedHigh};
+    static final int[] AVC_HDR_PROFILES = new int[]{AVCProfileHigh10, AVCProfileHigh422,
+            AVCProfileHigh444};
+    static final int[] AVC_PROFILES = combine(AVC_SDR_PROFILES, AVC_HDR_PROFILES);
+    static final int[] VP9_SDR_PROFILES = new int[]{VP9Profile0, VP9Profile1};
+    static final int[] VP9_HDR_PROFILES = new int[]{VP9Profile2, VP9Profile3,
+            VP9Profile2HDR, VP9Profile3HDR, VP9Profile2HDR10Plus, VP9Profile3HDR10Plus};
+    static final int[] VP9_PROFILES = combine(VP9_SDR_PROFILES, VP9_HDR_PROFILES);
+    static final int[] HEVC_SDR_PROFILES = new int[]{HEVCProfileMain, HEVCProfileMainStill};
+    static final int[] HEVC_HDR_PROFILES = new int[]{HEVCProfileMain10,
+            HEVCProfileMain10HDR10, HEVCProfileMain10HDR10Plus};
+    static final int[] HEVC_PROFILES = combine(HEVC_SDR_PROFILES, HEVC_HDR_PROFILES);
+    static final int[] AV1_SDR_PROFILES = new int[]{AV1ProfileMain8};
+    static final int[] AV1_HDR_PROFILES = new int[]{AV1ProfileMain10,
+            AV1ProfileMain10HDR10, AV1ProfileMain10HDR10Plus};
+    static final int[] AV1_PROFILES = combine(AV1_SDR_PROFILES, AV1_HDR_PROFILES);
+    static final int[] AAC_PROFILES = new int[]{AACObjectMain, AACObjectLC, AACObjectSSR,
+            AACObjectLTP, AACObjectHE, AACObjectScalable, AACObjectERLC, AACObjectERScalable,
+            AACObjectLD, AACObjectELD, AACObjectXHE};
     static final String mInpPrefix = WorkDir.getMediaDirString();
     static final Context mContext = InstrumentationRegistry.getInstrumentation().getTargetContext();
     static final PackageManager pm = mContext.getPackageManager();
     static String mimeSelKeys;
     static String codecPrefix;
+    static String mediaTypePrefix;
 
     CodecAsyncHandler mAsyncHandle;
     boolean mIsCodecInAsyncMode;
@@ -653,6 +702,43 @@ abstract class CodecTestBase {
         android.os.Bundle args = InstrumentationRegistry.getArguments();
         mimeSelKeys = args.getString(MIME_SEL_KEY);
         codecPrefix = args.getString(CODEC_PREFIX_KEY);
+        mediaTypePrefix = args.getString(MEDIA_TYPE_PREFIX_KEY);
+
+        mProfileSdrMap.put(MediaFormat.MIMETYPE_VIDEO_AVC, AVC_SDR_PROFILES);
+        mProfileSdrMap.put(MediaFormat.MIMETYPE_VIDEO_HEVC, HEVC_SDR_PROFILES);
+        mProfileSdrMap.put(MediaFormat.MIMETYPE_VIDEO_H263, H263_PROFILES);
+        mProfileSdrMap.put(MediaFormat.MIMETYPE_VIDEO_MPEG2, MPEG2_PROFILES);
+        mProfileSdrMap.put(MediaFormat.MIMETYPE_VIDEO_MPEG4, MPEG4_PROFILES);
+        mProfileSdrMap.put(MediaFormat.MIMETYPE_VIDEO_VP8, VP8_PROFILES);
+        mProfileSdrMap.put(MediaFormat.MIMETYPE_VIDEO_VP9, VP9_SDR_PROFILES);
+        mProfileSdrMap.put(MediaFormat.MIMETYPE_VIDEO_AV1, AV1_SDR_PROFILES);
+        mProfileSdrMap.put(MediaFormat.MIMETYPE_AUDIO_AAC, AAC_PROFILES);
+
+        mProfileHdrMap.put(MediaFormat.MIMETYPE_VIDEO_AVC, AVC_HDR_PROFILES);
+        mProfileHdrMap.put(MediaFormat.MIMETYPE_VIDEO_HEVC, HEVC_HDR_PROFILES);
+        mProfileHdrMap.put(MediaFormat.MIMETYPE_VIDEO_VP9, VP9_HDR_PROFILES);
+        mProfileHdrMap.put(MediaFormat.MIMETYPE_VIDEO_AV1, AV1_HDR_PROFILES);
+
+        mProfileMap.put(MediaFormat.MIMETYPE_VIDEO_AVC, AVC_PROFILES);
+        mProfileMap.put(MediaFormat.MIMETYPE_VIDEO_HEVC, HEVC_PROFILES);
+        mProfileMap.put(MediaFormat.MIMETYPE_VIDEO_H263, H263_PROFILES);
+        mProfileMap.put(MediaFormat.MIMETYPE_VIDEO_MPEG2, MPEG2_PROFILES);
+        mProfileMap.put(MediaFormat.MIMETYPE_VIDEO_MPEG4, MPEG4_PROFILES);
+        mProfileMap.put(MediaFormat.MIMETYPE_VIDEO_VP8, VP8_PROFILES);
+        mProfileMap.put(MediaFormat.MIMETYPE_VIDEO_VP9, VP9_PROFILES);
+        mProfileMap.put(MediaFormat.MIMETYPE_VIDEO_AV1, AV1_PROFILES);
+        mProfileMap.put(MediaFormat.MIMETYPE_AUDIO_AAC, AAC_PROFILES);
+    }
+
+    static int[] combine(int[] first, int[] second) {
+        int[] result = Arrays.copyOf(first, first.length + second.length);
+        System.arraycopy(second, 0, result, first.length, second.length);
+        return result;
+    }
+
+    static boolean isCodecLossless(String mime) {
+        return mime.equals(MediaFormat.MIMETYPE_AUDIO_FLAC) ||
+                mime.equals(MediaFormat.MIMETYPE_AUDIO_RAW);
     }
 
     static boolean hasDecoder(String mime) {
@@ -663,7 +749,7 @@ abstract class CodecTestBase {
         return CodecTestBase.selectCodecs(mime, null, null, true).size() != 0;
     }
 
-    public static void checkFormatSupport(String codecName, String mime,
+    public static void checkFormatSupport(String codecName, String mime, boolean isEncoder,
             ArrayList<MediaFormat> formats, String[] features, SupportClass supportRequirements)
             throws IOException {
         if (!areFormatsSupported(codecName, mime, formats)) {
@@ -672,11 +758,11 @@ abstract class CodecTestBase {
                     fail("format(s) not supported by codec: " + codecName + " for mime : " + mime);
                     break;
                 case CODEC_ANY:
-                    if (selectCodecs(mime, formats, features, false).isEmpty())
+                    if (selectCodecs(mime, formats, features, isEncoder).isEmpty())
                         fail("format(s) not supported by any component for mime : " + mime);
                     break;
                 case CODEC_DEFAULT:
-                    if (isDefaultCodec(codecName, mime, false))
+                    if (isDefaultCodec(codecName, mime, isEncoder))
                         fail("format(s) not supported by default codec : " + codecName +
                                 "for mime : " + mime);
                     break;
@@ -697,66 +783,13 @@ abstract class CodecTestBase {
         return isSupported;
     }
 
-    static boolean doesAnyFormatHaveHBDProfile(String mime, ArrayList<MediaFormat> formats) {
-        // check for HLG profiles
-        for (MediaFormat format : formats) {
-            assertEquals(mime, format.getString(MediaFormat.KEY_MIME));
-            switch (mime) {
-                case MediaFormat.MIMETYPE_VIDEO_VP9: {
-                    int profile = format.getInteger(MediaFormat.KEY_PROFILE, VP9Profile0);
-                    if (profile == VP9Profile2 || profile == VP9Profile3) {
-                        return true;
-                    }
-                }
-                case MediaFormat.MIMETYPE_VIDEO_HEVC: {
-                    int profile = format.getInteger(MediaFormat.KEY_PROFILE, HEVCProfileMain);
-                    if (profile == HEVCProfileMain10) {
-                        return true;
-                    }
-                }
-                case MediaFormat.MIMETYPE_VIDEO_AV1: {
-                    int profile = format.getInteger(MediaFormat.KEY_PROFILE, AV1ProfileMain8);
-                    if (profile == AV1ProfileMain10) {
-                        return true;
-                    }
-                }
-            }
-        }
-        // check for HDR profiles (if necessary)
-        return doesAnyFormatHaveHDRProfile(mime, formats);
-    }
-
     static boolean doesAnyFormatHaveHDRProfile(String mime, ArrayList<MediaFormat> formats) {
-        for (MediaFormat format : formats) {
-            assertEquals(mime, format.getString(MediaFormat.KEY_MIME));
-            switch (mime) {
-                case MediaFormat.MIMETYPE_VIDEO_AVC: {
-                    int profile = format.getInteger(MediaFormat.KEY_PROFILE);
-                    if (profile == AVCProfileHigh10 || profile == AVCProfileHigh422 ||
-                            profile == AVCProfileHigh444) {
-                        return true;
-                    }
-                }
-                case MediaFormat.MIMETYPE_VIDEO_VP9: {
-                    int profile = format.getInteger(MediaFormat.KEY_PROFILE, VP9Profile0);
-                    if (profile == VP9Profile2HDR || profile == VP9Profile3HDR ||
-                            profile == VP9Profile2HDR10Plus || profile == VP9Profile3HDR10Plus) {
-                        return true;
-                    }
-                }
-                case MediaFormat.MIMETYPE_VIDEO_HEVC: {
-                    int profile = format.getInteger(MediaFormat.KEY_PROFILE, HEVCProfileMain);
-                    if (profile == HEVCProfileMain10HDR10 ||
-                            profile == HEVCProfileMain10HDR10Plus) {
-                        return true;
-                    }
-                }
-                case MediaFormat.MIMETYPE_VIDEO_AV1: {
-                    int profile = format.getInteger(MediaFormat.KEY_PROFILE, AV1ProfileMain8);
-                    if (profile == AV1ProfileMain10HDR10 || profile == AV1ProfileMain10HDR10Plus) {
-                        return true;
-                    }
-                }
+        int[] profileArray = mProfileHdrMap.get(mime);
+        if (profileArray != null) {
+            for (MediaFormat format : formats) {
+                assertEquals(mime, format.getString(MediaFormat.KEY_MIME));
+                int profile = format.getInteger(MediaFormat.KEY_PROFILE, -1);
+                if (IntStream.of(profileArray).anyMatch(x -> x == profile)) return true;
             }
         }
         return false;
@@ -781,6 +814,22 @@ abstract class CodecTestBase {
         }
         codec.release();
         return isSupported;
+    }
+
+    static boolean hasSupportForColorFormat(String name, String mime, int colorFormat)
+            throws IOException {
+        MediaCodec codec = MediaCodec.createByCodecName(name);
+        MediaCodecInfo.CodecCapabilities cap =
+                codec.getCodecInfo().getCapabilitiesForType(mime);
+        boolean hasSupport = false;
+        for (int c : cap.colorFormats) {
+            if (c == colorFormat) {
+                hasSupport = true;
+                break;
+            }
+        }
+        codec.release();
+        return hasSupport;
     }
 
     static boolean isDefaultCodec(String codecName, String mime, boolean isEncoder)
@@ -880,12 +929,18 @@ abstract class CodecTestBase {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && codecInfo.isAlias()) continue;
                 String[] types = codecInfo.getSupportedTypes();
                 for (String type : types) {
+                    if (mediaTypePrefix != null && !type.startsWith(mediaTypePrefix)) {
+                        continue;
+                    }
                     if (!needAudio && type.startsWith("audio/")) continue;
                     if (!needVideo && type.startsWith("video/")) continue;
                     if (!mimes.contains(type)) {
                         mimes.add(type);
                     }
                 }
+            }
+            if (mediaTypePrefix != null) {
+                return mimes;
             }
             // feature_video_output is not exposed to package manager. Testing for video output
             // ports, such as VGA, HDMI, DisplayPort, or a wireless port for display is also not
@@ -1312,7 +1367,7 @@ class CodecDecoderTestBase extends CodecTestBase {
                 } else {
                     ArrayList<MediaFormat> formatList = new ArrayList<>();
                     formatList.add(format);
-                    boolean selectHBD = doesAnyFormatHaveHBDProfile(mMime, formatList) ||
+                    boolean selectHBD = doesAnyFormatHaveHDRProfile(mMime, formatList) ||
                             srcFile.contains("10bit");
                     format.setInteger(MediaFormat.KEY_COLOR_FORMAT,
                             getColorFormat(mCodecName, mMime, mSurface != null, selectHBD));
@@ -1599,6 +1654,7 @@ class CodecEncoderTestBase extends CodecTestBase {
     int mMaxBFrames;
     int mChannels;
     int mSampleRate;
+    int mBytesPerSample;
 
     CodecEncoderTestBase(String encoder, String mime, int[] bitrates, int[] encoderInfo1,
             int[] encoderInfo2) {
@@ -1619,6 +1675,7 @@ class CodecEncoderTestBase extends CodecTestBase {
         mSampleRate = 8000;
         mAsyncHandle = new CodecAsyncHandler();
         mIsAudio = mMime.startsWith("audio/");
+        mBytesPerSample = mIsAudio ? 2 : 1;
         mInputFile = mIsAudio ? INPUT_AUDIO_FILE : INPUT_VIDEO_FILE;
     }
 
@@ -1654,8 +1711,8 @@ class CodecEncoderTestBase extends CodecTestBase {
     void flushCodec() {
         super.flushCodec();
         if (mIsAudio) {
-            mInputOffsetPts =
-                    (mNumBytesSubmitted + 1024) * 1000000L / (2 * mChannels * mSampleRate);
+            mInputOffsetPts = (mNumBytesSubmitted + 1024) * 1000000L /
+                    (mBytesPerSample * mChannels * mSampleRate);
         } else {
             mInputOffsetPts = (mInputCount + 5) * 1000000L / mFrameRate;
         }
@@ -1673,7 +1730,12 @@ class CodecEncoderTestBase extends CodecTestBase {
     }
 
     void fillImage(Image image) {
-        Assert.assertTrue(image.getFormat() == ImageFormat.YUV_420_888);
+        int format = image.getFormat();
+        assertTrue("unexpected image format",
+                format == ImageFormat.YUV_420_888 || format == ImageFormat.YCBCR_P010);
+        int bytesPerSample = (ImageFormat.getBitsPerPixel(format) * 2) / (8 * 3);  // YUV420
+        assertEquals("Invalid bytes per sample", bytesPerSample, mBytesPerSample);
+
         int imageWidth = image.getWidth();
         int imageHeight = image.getHeight();
         Image.Plane[] planes = image.getPlanes();
@@ -1692,17 +1754,18 @@ class CodecEncoderTestBase extends CodecTestBase {
                 tileWidth = INP_FRM_WIDTH / 2;
                 tileHeight = INP_FRM_HEIGHT / 2;
             }
-            if (pixelStride == 1) {
+            if (pixelStride == bytesPerSample) {
                 if (width == rowStride && width == tileWidth && height == tileHeight) {
-                    buf.put(mInputData, offset, width * height);
+                    buf.put(mInputData, offset, width * height * bytesPerSample);
                 } else {
                     for (int z = 0; z < height; z += tileHeight) {
                         int rowsToCopy = Math.min(height - z, tileHeight);
                         for (int y = 0; y < rowsToCopy; y++) {
                             for (int x = 0; x < width; x += tileWidth) {
                                 int colsToCopy = Math.min(width - x, tileWidth);
-                                buf.position((z + y) * rowStride + x);
-                                buf.put(mInputData, offset + y * tileWidth, colsToCopy);
+                                buf.position((z + y) * rowStride + x * bytesPerSample);
+                                buf.put(mInputData, offset + y * tileWidth * bytesPerSample,
+                                        colsToCopy * bytesPerSample);
                             }
                         }
                     }
@@ -1716,14 +1779,17 @@ class CodecEncoderTestBase extends CodecTestBase {
                         for (int x = 0; x < width; x += tileWidth) {
                             int colsToCopy = Math.min(width - x, tileWidth);
                             for (int w = 0; w < colsToCopy; w++) {
-                                buf.position(lineOffset + (x + w) * pixelStride);
-                                buf.put(mInputData[offset + y * tileWidth + w]);
+                                for (int bytePos = 0; bytePos < bytesPerSample; bytePos++) {
+                                    buf.position(lineOffset + (x + w) * pixelStride + bytePos);
+                                    buf.put(mInputData[offset + y * tileWidth * bytesPerSample +
+                                            w * bytesPerSample + bytePos]);
+                                }
                             }
                         }
                     }
                 }
             }
-            offset += tileWidth * tileHeight;
+            offset += tileWidth * tileHeight * bytesPerSample;
         }
     }
 
@@ -1745,13 +1811,15 @@ class CodecEncoderTestBase extends CodecTestBase {
                 for (int j = 0; j < rowsToCopy; j++) {
                     for (int i = 0; i < width; i += tileWidth) {
                         int colsToCopy = Math.min(width - i, tileWidth);
-                        inputBuffer.position(offset + (k + j) * width + i);
-                        inputBuffer.put(mInputData, frmOffset + j * tileWidth, colsToCopy);
+                        inputBuffer.position(
+                                offset + (k + j) * width * mBytesPerSample + i * mBytesPerSample);
+                        inputBuffer.put(mInputData, frmOffset + j * tileWidth * mBytesPerSample,
+                                colsToCopy * mBytesPerSample);
                     }
                 }
             }
-            offset += width * height;
-            frmOffset += tileWidth * tileHeight;
+            offset += width * height * mBytesPerSample;
+            frmOffset += tileWidth * tileHeight * mBytesPerSample;
         }
     }
 
@@ -1764,8 +1832,9 @@ class CodecEncoderTestBase extends CodecTestBase {
             int flags = 0;
             long pts = mInputOffsetPts;
             if (mIsAudio) {
-                pts += mNumBytesSubmitted * 1000000L / (2 * mChannels * mSampleRate);
+                pts += mNumBytesSubmitted * 1000000L / (mBytesPerSample * mChannels * mSampleRate);
                 size = Math.min(inputBuffer.capacity(), mInputData.length - mNumBytesSubmitted);
+                assertTrue(size % (mBytesPerSample * mChannels) == 0);
                 inputBuffer.put(mInputData, mNumBytesSubmitted, size);
                 if (mNumBytesSubmitted + size >= mInputData.length && mSignalEOSWithLastFrame) {
                     flags |= MediaCodec.BUFFER_FLAG_END_OF_STREAM;
@@ -1774,8 +1843,8 @@ class CodecEncoderTestBase extends CodecTestBase {
                 mNumBytesSubmitted += size;
             } else {
                 pts += mInputCount * 1000000L / mFrameRate;
-                size = mWidth * mHeight * 3 / 2;
-                int frmSize = INP_FRM_WIDTH * INP_FRM_HEIGHT * 3 / 2;
+                size = mBytesPerSample * mWidth * mHeight * 3 / 2;
+                int frmSize = mBytesPerSample * INP_FRM_WIDTH * INP_FRM_HEIGHT * 3 / 2;
                 if (mNumBytesSubmitted + frmSize > mInputData.length) {
                     fail("received partial frame to encode");
                 } else {

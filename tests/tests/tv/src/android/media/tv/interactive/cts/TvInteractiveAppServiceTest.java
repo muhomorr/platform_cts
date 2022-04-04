@@ -51,8 +51,8 @@ import android.media.tv.TvInputInfo;
 import android.media.tv.TvInputManager;
 import android.media.tv.TvTrackInfo;
 import android.media.tv.TvView;
-import android.media.tv.interactive.TvInteractiveAppInfo;
 import android.media.tv.interactive.TvInteractiveAppManager;
+import android.media.tv.interactive.TvInteractiveAppServiceInfo;
 import android.media.tv.interactive.TvInteractiveAppView;
 import android.net.Uri;
 import android.os.Bundle;
@@ -98,7 +98,7 @@ public class TvInteractiveAppServiceTest {
 
     private TvView mTvView;
     private TvInteractiveAppManager mManager;
-    private TvInteractiveAppInfo mStubInfo;
+    private TvInteractiveAppServiceInfo mStubInfo;
     private StubTvInteractiveAppService.StubSessionImpl mSession;
     private TvInputManager mTvInputManager;
     private TvInputInfo mTvInputInfo;
@@ -115,6 +115,7 @@ public class TvInteractiveAppServiceTest {
         private int mRequestCurrentChannelUriCount = 0;
         private int mStateChangedCount = 0;
         private int mBiIAppCreatedCount = 0;
+        private int mRequestSigningCount = 0;
 
         private String mIAppServiceId = null;
         private Integer mState = null;
@@ -126,6 +127,7 @@ public class TvInteractiveAppServiceTest {
             mRequestCurrentChannelUriCount = 0;
             mStateChangedCount = 0;
             mBiIAppCreatedCount = 0;
+            mRequestSigningCount = 0;
 
             mIAppServiceId = null;
             mState = null;
@@ -138,6 +140,13 @@ public class TvInteractiveAppServiceTest {
         public void onRequestCurrentChannelUri(String iAppServiceId) {
             super.onRequestCurrentChannelUri(iAppServiceId);
             mRequestCurrentChannelUriCount++;
+        }
+
+        @Override
+        public void onRequestSigning(String iAppServiceId, String signingId,
+                String algorithm, String alias, byte[] data) {
+            super.onRequestSigning(iAppServiceId, signingId, algorithm, alias, data);
+            mRequestSigningCount++;
         }
 
         @Override
@@ -212,8 +221,8 @@ public class TvInteractiveAppServiceTest {
             mAitInfoUpdatedCount++;
             mAitInfo = aitInfo;
         }
-        public void onSignalStrength(String inputId, int strength) {
-            super.onSignalStrength(inputId, strength);
+        public void onSignalStrengthUpdated(String inputId, int strength) {
+            super.onSignalStrengthUpdated(inputId, strength);
         }
         public void onTuned(String inputId, Uri uri) {
             super.onTuned(inputId, uri);
@@ -299,7 +308,7 @@ public class TvInteractiveAppServiceTest {
                 Context.TV_INTERACTIVE_APP_SERVICE);
         assertNotNull("Failed to get TvInteractiveAppManager.", mManager);
 
-        for (TvInteractiveAppInfo info : mManager.getTvInteractiveAppServiceList()) {
+        for (TvInteractiveAppServiceInfo info : mManager.getTvInteractiveAppServiceList()) {
             if (info.getServiceInfo().name.equals(StubTvInteractiveAppService.class.getName())) {
                 mStubInfo = info;
             }
@@ -350,6 +359,43 @@ public class TvInteractiveAppServiceTest {
         PollingCheck.waitFor(TIME_OUT_MS, () -> mCallback.mRequestCurrentChannelUriCount > 0);
 
         assertThat(mCallback.mRequestCurrentChannelUriCount).isEqualTo(1);
+    }
+
+    @Test
+    public void testRequestSigning() throws Throwable {
+        assertNotNull(mSession);
+        mCallback.resetValues();
+        mSession.requestSigning("id", "algo", "alias", new byte[1]);
+        PollingCheck.waitFor(TIME_OUT_MS, () -> mCallback.mRequestSigningCount > 0);
+
+        assertThat(mCallback.mRequestSigningCount).isEqualTo(1);
+        // TODO: check values
+    }
+
+    @Test
+    public void testSendSigningResult() {
+        assertNotNull(mSession);
+        mSession.resetValues();
+
+        mTvIAppView.sendSigningResult("id", new byte[1]);
+        mInstrumentation.waitForIdleSync();
+        PollingCheck.waitFor(TIME_OUT_MS, () -> mSession.mSigningResultCount > 0);
+
+        assertThat(mSession.mSigningResultCount).isEqualTo(1);
+        // TODO: check values
+    }
+
+    @Test
+    public void testNotifyError() {
+        assertNotNull(mSession);
+        mSession.resetValues();
+
+        mTvIAppView.notifyError("msg", new Bundle());
+        mInstrumentation.waitForIdleSync();
+        PollingCheck.waitFor(TIME_OUT_MS, () -> mSession.mErrorCount > 0);
+
+        assertThat(mSession.mErrorCount).isEqualTo(1);
+        // TODO: check values
     }
 
     @Test
@@ -578,13 +624,13 @@ public class TvInteractiveAppServiceTest {
         mTvInputCallback.resetValues();
 
         mInputSession.notifyAitInfoUpdated(
-                new AitInfo(TvInteractiveAppInfo.INTERACTIVE_APP_TYPE_HBBTV, 2));
+                new AitInfo(TvInteractiveAppServiceInfo.INTERACTIVE_APP_TYPE_HBBTV, 2));
         mInstrumentation.waitForIdleSync();
         PollingCheck.waitFor(TIME_OUT_MS, () -> mTvInputCallback.mAitInfoUpdatedCount > 0);
 
         assertThat(mTvInputCallback.mAitInfoUpdatedCount).isEqualTo(1);
         assertThat(mTvInputCallback.mAitInfo.getType())
-                .isEqualTo(TvInteractiveAppInfo.INTERACTIVE_APP_TYPE_HBBTV);
+                .isEqualTo(TvInteractiveAppServiceInfo.INTERACTIVE_APP_TYPE_HBBTV);
         assertThat(mTvInputCallback.mAitInfo.getVersion()).isEqualTo(2);
     }
 

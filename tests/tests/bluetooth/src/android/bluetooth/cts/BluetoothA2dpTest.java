@@ -73,9 +73,9 @@ public class BluetoothA2dpTest extends AndroidTestCase {
         mBluetoothA2dp = null;
 
         Resources bluetoothResources = mContext.getPackageManager().getResourcesForApplication(
-                "com.android.bluetooth");
+                "com.android.bluetooth.services");
         int a2dpSupportId = bluetoothResources.getIdentifier(
-                PROFILE_SUPPORTED_A2DP, "bool", "com.android.bluetooth");
+                PROFILE_SUPPORTED_A2DP, "bool", "com.android.bluetooth.services");
         assertTrue("resource profile_supported_a2dp not found", a2dpSupportId != 0);
         mIsA2dpSupported = bluetoothResources.getBoolean(a2dpSupportId);
         if (!mIsA2dpSupported) return;
@@ -151,7 +151,7 @@ public class BluetoothA2dpTest extends AndroidTestCase {
 
         BluetoothDevice testDevice = mAdapter.getRemoteDevice("00:11:22:AA:BB:CC");
 
-        assertNull(mBluetoothA2dp.getCodecStatus(testDevice));
+        assertThrows(SecurityException.class, () -> mBluetoothA2dp.getCodecStatus(testDevice));
         assertThrows(IllegalArgumentException.class, () -> {
             mBluetoothA2dp.getCodecStatus(null);
         });
@@ -163,14 +163,6 @@ public class BluetoothA2dpTest extends AndroidTestCase {
         assertTrue(waitForProfileConnect());
         assertNotNull(mBluetoothA2dp);
 
-        BluetoothDevice testDevice = mAdapter.getRemoteDevice("00:11:22:AA:BB:CC");
-
-        BluetoothCodecConfig codecConfig = new BluetoothCodecConfig.Builder()
-                .setCodecType(BluetoothCodecConfig.SOURCE_CODEC_TYPE_SBC)
-                .setCodecPriority(0)
-                .build();
-        mBluetoothA2dp.setCodecConfigPreference(testDevice, codecConfig);
-        assertNull(mBluetoothA2dp.getCodecStatus(testDevice));
         assertThrows(IllegalArgumentException.class, () -> {
             mBluetoothA2dp.setCodecConfigPreference(null, null);
         });

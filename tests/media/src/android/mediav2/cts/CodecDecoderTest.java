@@ -132,7 +132,7 @@ public class CodecDecoderTest extends CodecDecoderTestBase {
         final boolean needVideo = true;
         // mediaType, testClip, referenceClip, reconfigureTestClip, refRmsError, refCRC32,
         // SupportClass
-        final List<Object[]> exhaustiveArgsList = Arrays.asList(new Object[][]{
+        final List<Object[]> exhaustiveArgsList = new ArrayList<>(Arrays.asList(new Object[][]{
                 {MediaFormat.MIMETYPE_AUDIO_MPEG, "bbb_1ch_8kHz_lame_cbr.mp3",
                         "bbb_1ch_8kHz_s16le.raw", "bbb_2ch_44kHz_lame_vbr.mp3", 91.026749f, -1L,
                         CODEC_ALL},
@@ -185,7 +185,49 @@ public class CodecDecoderTest extends CodecDecoderTestBase {
                         "bbb_520x390_1mbps_30fps_vp9.webm", -1.0f, 4122701060L, CODEC_ALL},
                 {MediaFormat.MIMETYPE_VIDEO_AV1, "bbb_340x280_768kbps_30fps_av1.mp4", null,
                         "bbb_520x390_1mbps_30fps_av1.mp4", -1.0f, 400672933L, CODEC_ALL},
-        });
+        }));
+        // P010 support was added in Android T, hence limit the following tests to Android T and
+        // above
+        if (IS_AT_LEAST_T) {
+            exhaustiveArgsList.addAll(Arrays.asList(new Object[][]{
+                    {MediaFormat.MIMETYPE_VIDEO_AVC, "cosmat_340x280_24fps_crf22_avc_10bit.mkv",
+                            null, "cosmat_520x390_24fps_crf22_avc_10bit.mkv", -1.0f, 1462636611L,
+                            CODEC_OPTIONAL},
+                    {MediaFormat.MIMETYPE_VIDEO_HEVC, "cosmat_340x280_24fps_crf22_hevc_10bit.mkv",
+                            null, "cosmat_520x390_24fps_crf22_hevc_10bit.mkv", -1.0f, 2611796790L,
+                            CODEC_OPTIONAL},
+                    {MediaFormat.MIMETYPE_VIDEO_VP9, "cosmat_340x280_24fps_crf22_vp9_10bit.mkv",
+                            null, "cosmat_520x390_24fps_crf22_vp9_10bit.mkv", -1.0f, 2419292938L,
+                            CODEC_OPTIONAL},
+                    {MediaFormat.MIMETYPE_VIDEO_AV1, "cosmat_340x280_24fps_512kbps_av1_10bit.mkv",
+                            null, "cosmat_520x390_24fps_768kbps_av1_10bit.mkv", -1.0f, 1021109556L,
+                            CODEC_ALL},
+                    {MediaFormat.MIMETYPE_VIDEO_AVC, "cosmat_340x280_24fps_crf22_avc_10bit.mkv",
+                            null, "bbb_520x390_1mbps_30fps_avc.mp4", -1.0f, 1462636611L,
+                            CODEC_OPTIONAL},
+                    {MediaFormat.MIMETYPE_VIDEO_HEVC, "cosmat_340x280_24fps_crf22_hevc_10bit.mkv",
+                            null, "bbb_520x390_1mbps_30fps_hevc.mp4", -1.0f, 2611796790L,
+                            CODEC_OPTIONAL},
+                    {MediaFormat.MIMETYPE_VIDEO_VP9, "cosmat_340x280_24fps_crf22_vp9_10bit.mkv",
+                            null, "bbb_520x390_1mbps_30fps_vp9.webm", -1.0f, 2419292938L,
+                            CODEC_OPTIONAL},
+                    {MediaFormat.MIMETYPE_VIDEO_AV1, "cosmat_340x280_24fps_512kbps_av1_10bit.mkv",
+                            null, "bbb_520x390_1mbps_30fps_av1.mp4", -1.0f, 1021109556L,
+                            CODEC_ALL},
+                    {MediaFormat.MIMETYPE_VIDEO_AVC, "cosmat_520x390_24fps_crf22_avc_10bit.mkv",
+                            null, "bbb_340x280_768kbps_30fps_avc.mp4", -1.0f, 2245243696L,
+                            CODEC_OPTIONAL},
+                    {MediaFormat.MIMETYPE_VIDEO_HEVC, "cosmat_520x390_24fps_crf22_hevc_10bit.mkv"
+                            , null, "bbb_340x280_768kbps_30fps_hevc.mp4", -1.0f, 2486118612L,
+                            CODEC_OPTIONAL},
+                    {MediaFormat.MIMETYPE_VIDEO_VP9, "cosmat_520x390_24fps_crf22_vp9_10bit.mkv",
+                            null, "bbb_340x280_768kbps_30fps_vp9.webm", -1.0f, 3677982654L,
+                            CODEC_OPTIONAL},
+                    {MediaFormat.MIMETYPE_VIDEO_AV1, "cosmat_520x390_24fps_768kbps_av1_10bit.mkv",
+                            null, "bbb_340x280_768kbps_30fps_av1.mp4", -1.0f, 1139081423L,
+                            CODEC_ALL},
+            }));
+        }
         return prepareParamList(exhaustiveArgsList, isEncoder, needAudio, needVideo, true);
     }
 
@@ -247,7 +289,7 @@ public class CodecDecoderTest extends CodecDecoderTestBase {
         mExtractor.release();
         ArrayList<MediaFormat> formatList = new ArrayList<>();
         formatList.add(format);
-        checkFormatSupport(mCodecName, mMime, formatList, null, mSupportRequirements);
+        checkFormatSupport(mCodecName, mMime, false, formatList, null, mSupportRequirements);
     }
 
     /**
@@ -310,9 +352,15 @@ public class CodecDecoderTest extends CodecDecoderTestBase {
                             assertTrue(log + " pts is not strictly increasing",
                                     ref.isPtsStrictlyIncreasing(mPrevOutputPts));
                         } else {
-                            assertTrue(
-                                    log + " input pts list and output pts list are not identical",
-                                    ref.isOutPtsListIdenticalToInpPtsList(false));
+                            // TODO: Timestamps for deinterlaced content are under review.
+                            // (E.g. can decoders produce multiple progressive frames?)
+                            // For now, do not verify timestamps.
+                            if (!mIsInterlaced) {
+                                    assertTrue(
+                                        log +
+                                        " input pts list and output pts list are not identical",
+                                        ref.isOutPtsListIdenticalToInpPtsList(false));
+                            }
                         }
                     }
                     if (validateFormat) {
@@ -369,8 +417,12 @@ public class CodecDecoderTest extends CodecDecoderTestBase {
                 assertTrue("reference output pts is not strictly increasing",
                         ref.isPtsStrictlyIncreasing(mPrevOutputPts));
             } else {
-                assertTrue("input pts list and output pts list are not identical",
-                        ref.isOutPtsListIdenticalToInpPtsList(false));
+                // TODO: Timestamps for deinterlaced content are under review. (E.g. can decoders
+                // produce multiple progressive frames?) For now, do not verify timestamps.
+                if (!mIsInterlaced) {
+                    assertTrue("input pts list and output pts list are not identical",
+                            ref.isOutPtsListIdenticalToInpPtsList(false));
+                }
             }
             mOutputBuff = test;
             setUpSource(mTestFile);
@@ -403,8 +455,10 @@ public class CodecDecoderTest extends CodecDecoderTestBase {
                 mExtractor.seekTo(0, mode);
                 test.reset();
                 doWork(23);
-                assertTrue(log + " pts is not strictly increasing",
-                        test.isPtsStrictlyIncreasing(mPrevOutputPts));
+                if (!mIsInterlaced) {
+                    assertTrue(log + " pts is not strictly increasing",
+                                test.isPtsStrictlyIncreasing(mPrevOutputPts));
+                }
 
                 boolean checkMetrics = (mOutputCount != 0);
 
@@ -485,7 +539,7 @@ public class CodecDecoderTest extends CodecDecoderTestBase {
         mExtractor.release();
         ArrayList<MediaFormat> formatList = new ArrayList<>();
         formatList.add(newFormat);
-        checkFormatSupport(mCodecName, mMime, formatList, null, mSupportRequirements);
+        checkFormatSupport(mCodecName, mMime, false, formatList, null, mSupportRequirements);
         final long startTs = 0;
         final long seekTs = 500000;
         final int mode = MediaExtractor.SEEK_TO_CLOSEST_SYNC;
@@ -502,10 +556,14 @@ public class CodecDecoderTest extends CodecDecoderTestBase {
                 assertTrue("config reference output pts is not strictly increasing",
                         configRef.isPtsStrictlyIncreasing(mPrevOutputPts));
             } else {
-                assertTrue("input pts list and reference pts list are not identical",
-                        ref.isOutPtsListIdenticalToInpPtsList(false));
-                assertTrue("input pts list and reconfig ref output pts list are not identical",
-                        ref.isOutPtsListIdenticalToInpPtsList(false));
+                // TODO: Timestamps for deinterlaced content are under review. (E.g. can decoders
+                // produce multiple progressive frames?) For now, do not verify timestamps.
+                if (!mIsInterlaced) {
+                    assertTrue("input pts list and reference pts list are not identical",
+                            ref.isOutPtsListIdenticalToInpPtsList(false));
+                    assertTrue("input pts list and reconfig ref output pts list are not identical",
+                            ref.isOutPtsListIdenticalToInpPtsList(false));
+                }
             }
             mOutputBuff = test;
             mCodec = MediaCodec.createByCodecName(mCodecName);
@@ -671,9 +729,14 @@ public class CodecDecoderTest extends CodecDecoderTestBase {
                         assertTrue(log + " pts is not strictly increasing",
                                 ref.isPtsStrictlyIncreasing(mPrevOutputPts));
                     } else {
-                        assertTrue(
-                                log + " input pts list and output pts list are not identical",
-                                ref.isOutPtsListIdenticalToInpPtsList(false));
+                        // TODO: Timestamps for deinterlaced content are under review.
+                        // (E.g. can decoders produce multiple progressive frames?)
+                        // For now, do not verify timestamps.
+                        if (!mIsInterlaced) {
+                            assertTrue(
+                                    log + " input pts list and output pts list are not identical",
+                                    ref.isOutPtsListIdenticalToInpPtsList(false));
+                        }
                     }
                 }
                 loopCounter++;
@@ -765,9 +828,15 @@ public class CodecDecoderTest extends CodecDecoderTestBase {
                                 assertTrue(log + " pts is not strictly increasing",
                                         ref.isPtsStrictlyIncreasing(mPrevOutputPts));
                             } else {
-                                assertTrue(
-                                        log + " input pts list and output pts list are not identical",
-                                        ref.isOutPtsListIdenticalToInpPtsList(false));
+                                // TODO: Timestamps for deinterlaced content are under review.
+                                // (E.g. can decoders produce multiple progressive frames?)
+                                // For now, do not verify timestamps.
+                                if (!mIsInterlaced) {
+                                    assertTrue(
+                                           log +
+                                           " input pts list and output pts list are not identical",
+                                           ref.isOutPtsListIdenticalToInpPtsList(false));
+                                }
                             }
                         }
                         if (validateFormat) {
@@ -827,8 +896,12 @@ public class CodecDecoderTest extends CodecDecoderTestBase {
                 assertTrue("reference output pts is not strictly increasing",
                         ref.isPtsStrictlyIncreasing(mPrevOutputPts));
             } else {
-                assertTrue("input pts list and output pts list are not identical",
-                        ref.isOutPtsListIdenticalToInpPtsList(false));
+                // TODO: Timestamps for deinterlaced content are under review. (E.g. can decoders
+                // produce multiple progressive frames?) For now, do not verify timestamps.
+                if (!mIsInterlaced) {
+                    assertTrue("input pts list and output pts list are not identical",
+                            ref.isOutPtsListIdenticalToInpPtsList(false));
+                }
             }
             mSaveToMem = true;
             mOutputBuff = test;

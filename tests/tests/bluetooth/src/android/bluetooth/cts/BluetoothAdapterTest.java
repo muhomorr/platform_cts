@@ -22,6 +22,7 @@ import static org.junit.Assert.assertThrows;
 
 import android.annotation.NonNull;
 import android.app.UiAutomation;
+import android.bluetooth.BluetoothActivityEnergyInfo;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothManager;
@@ -54,7 +55,7 @@ import java.util.concurrent.locks.ReentrantLock;
  * BluetoothAdapter}.
  */
 public class BluetoothAdapterTest extends AndroidTestCase {
-    private static final String TAG = "BasicAdapterTest";
+    private static final String TAG = "BluetoothAdapterTest";
     private static final int SET_NAME_TIMEOUT = 5000; // ms timeout for setting adapter name
 
     private boolean mHasBluetooth;
@@ -329,10 +330,10 @@ public class BluetoothAdapterTest extends AndroidTestCase {
         int maxConnectedAudioDevicesConfig = 0;
         try {
             Resources bluetoothRes = mContext.getPackageManager()
-                    .getResourcesForApplication("com.android.bluetooth");
+                    .getResourcesForApplication("com.android.bluetooth.services");
             maxConnectedAudioDevicesConfig = bluetoothRes.getInteger(
                     bluetoothRes.getIdentifier("config_bluetooth_max_connected_audio_devices",
-                    "integer", "com.android.bluetooth"));
+                    "integer", "com.android.bluetooth.services"));
         } catch (PackageManager.NameNotFoundException e) {
             e.printStackTrace();
         }
@@ -407,14 +408,14 @@ public class BluetoothAdapterTest extends AndroidTestCase {
 
         // Verify return value without permission.BLUETOOTH_CONNECT
         mUiAutomation.dropShellPermissionIdentity();
-        assertThrows(SecurityException.class, () -> mAdapter.getUuids());
+        assertThrows(SecurityException.class, () -> mAdapter.getUuidsList());
         mUiAutomation.adoptShellPermissionIdentity(BLUETOOTH_CONNECT);
 
-        assertNotNull(mAdapter.getUuids());
+        assertNotNull(mAdapter.getUuidsList());
         assertTrue(BTAdapterUtils.disableAdapter(mAdapter, mContext));
 
         // Verify return value if Bluetooth is not enabled
-        assertEquals(mAdapter.getUuids().length, 0);
+        assertEquals(0, mAdapter.getUuidsList().size());
 
     }
 
@@ -482,26 +483,38 @@ public class BluetoothAdapterTest extends AndroidTestCase {
     public void test_requestControllerActivityEnergyInfo() {
         if (!mHasBluetooth) return;
 
+        BluetoothAdapter.OnBluetoothActivityEnergyInfoCallback callback =
+                new BluetoothAdapter.OnBluetoothActivityEnergyInfoCallback() {
+                    @Override
+                    public void onBluetoothActivityEnergyInfoAvailable(
+                            BluetoothActivityEnergyInfo info) {
+                        assertNotNull(info);
+                    }
+
+                    @Override
+                    public void onBluetoothActivityEnergyInfoError(int errorCode) {}
+                };
+
         // Verify parameter
         assertThrows(NullPointerException.class,
-                () -> mAdapter.requestControllerActivityEnergyInfo(null));
+                () -> mAdapter.requestControllerActivityEnergyInfo(null, callback));
     }
 
-    public void test_factoryReset() {
+    public void test_clearBluetooth() {
         if (!mHasBluetooth) return;
 
         assertTrue(BTAdapterUtils.enableAdapter(mAdapter, mContext));
 
         // Verify throws SecurityException without permission.BLUETOOTH_PRIVILEGED
-        assertThrows(SecurityException.class, () -> mAdapter.factoryReset());
+        assertThrows(SecurityException.class, () -> mAdapter.clearBluetooth());
         mUiAutomation.dropShellPermissionIdentity();
         // Verify throws SecurityException without permission.BLUETOOTH_CONNECT
-        assertThrows(SecurityException.class, () -> mAdapter.factoryReset());
+        assertThrows(SecurityException.class, () -> mAdapter.clearBluetooth());
 
         mUiAutomation.adoptShellPermissionIdentity(BLUETOOTH_CONNECT);
         assertTrue(BTAdapterUtils.disableAdapter(mAdapter, mContext));
         // Verify throws RuntimeException when trying to save sysprop for later (permission denied)
-        assertThrows(RuntimeException.class, () -> mAdapter.factoryReset());
+        assertThrows(RuntimeException.class, () -> mAdapter.clearBluetooth());
     }
 
     public void test_BluetoothProfile_getConnectionStateName() {
