@@ -169,6 +169,8 @@ public class StrictJavaPackagesTest extends BaseHostJUnit4Test {
                     "Landroid/gsi/IProgressCallback;",
                     "Landroid/gsi/MappedImage;",
                     "Landroid/gui/TouchOcclusionMode;",
+                    // TODO(b/227752875): contexthub V1 APIs can be removed
+                    // from T+ with the fix in aosp/2050305.
                     "Landroid/hardware/contexthub/V1_0/AsyncEventType;",
                     "Landroid/hardware/contexthub/V1_0/ContextHub;",
                     "Landroid/hardware/contexthub/V1_0/ContextHubMsg;",
@@ -949,6 +951,11 @@ public class StrictJavaPackagesTest extends BaseHostJUnit4Test {
                                 Classpaths.getClassDefsFromJar(getDevice(), apk).stream()
                                         .map(ClassDef::getType)
                                         .collect(ImmutableSet.toImmutableSet());
+                        // b/226559955: The directory paths containing APKs contain the build ID,
+                        // so strip out the @BUILD_ID portion.
+                        // e.g. /apex/com.android.bluetooth/app/Bluetooth@SC-DEV/Bluetooth.apk ->
+                        //      /apex/com.android.bluetooth/app/Bluetooth/Bluetooth.apk
+                        apk = apk.replaceFirst("@[^/]*", "");
                         final ImmutableSet<String> burndownClasses =
                                 FULL_APK_IN_APEX_BURNDOWN.getOrDefault(apk, ImmutableSet.of());
                         final Multimap<String, String> duplicates =

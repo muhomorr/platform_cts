@@ -14,9 +14,17 @@
  * limitations under the License.
  */
 
-package android.quickaccesswallet;
+package android.taskfpscallback.cts;
 
-/**
- * Extends {@link TestQuickAccessWalletService} to allow for a different manifest configuration.
- */
-public class UseTargetActivityForQuickAccessWalletService extends TestQuickAccessWalletService {}
+import android.app.Activity;
+import android.os.Bundle;
+
+public class TaskFpsCallbackCtsActivity extends Activity {
+
+    private static final String TAG = "TaskFpsCallbackCtsActivity";
+
+    @Override
+    public void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+    }
+}
