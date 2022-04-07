@@ -24,6 +24,7 @@ java_test_host {
         "cts-tradefed",
         "tradefed",
         "compatibility-host-util",
+        "cts-tradefed",
     ],
     static_libs: [
         "compat-classpaths-testing",
@@ -33,6 +34,6 @@ java_test_host {
     test_suites: [
         "cts",
         "general-tests",
-        "mts",
+        "mts-mainline-infra",
     ],
 }

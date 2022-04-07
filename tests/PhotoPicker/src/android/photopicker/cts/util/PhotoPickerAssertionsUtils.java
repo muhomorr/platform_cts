@@ -16,10 +16,6 @@
 
 package android.photopicker.cts.util;
 
-import static android.os.SystemProperties.getBoolean;
-import static android.provider.MediaStore.Files.FileColumns.MEDIA_TYPE_IMAGE;
-import static android.provider.MediaStore.Files.FileColumns.MEDIA_TYPE_VIDEO;
-
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
 
@@ -27,20 +23,23 @@ import static org.junit.Assert.fail;
 
 import android.content.ContentResolver;
 import android.content.Context;
+import android.content.Intent;
+import android.content.UriPermission;
 import android.database.Cursor;
 import android.media.ExifInterface;
 import android.net.Uri;
 import android.os.FileUtils;
 import android.os.ParcelFileDescriptor;
-import android.provider.CloudMediaProviderContract;
-import android.provider.MediaStore;
+import android.provider.MediaStore.PickerMediaColumns;
 
 import androidx.test.InstrumentationRegistry;
 
 import java.io.ByteArrayOutputStream;
 import java.io.FileNotFoundException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
 /**
  * Photo Picker Utility methods for test assertions.
@@ -57,6 +56,20 @@ public class PhotoPickerAssertionsUtils {
         assertThat(auth).isEqualTo("picker");
     }
 
+    public static void assertPersistedGrant(Uri uri, ContentResolver resolver) {
+        resolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+
+        final List<UriPermission> uriPermissions = resolver.getPersistedUriPermissions();
+        final List<Uri> uris = new ArrayList<>();
+        for (UriPermission perm : uriPermissions) {
+            if (perm.isReadPermission()) {
+                uris.add(perm.getUri());
+            }
+        }
+
+        assertThat(uris).contains(uri);
+    }
+
     public static void assertMimeType(Uri uri, String expectedMimeType) throws Exception {
         final Context context = InstrumentationRegistry.getTargetContext();
         final String resultMimeType = context.getContentResolver().getType(uri);
@@ -65,17 +78,15 @@ public class PhotoPickerAssertionsUtils {
 
     public static void assertRedactedReadOnlyAccess(Uri uri) throws Exception {
         assertThat(uri).isNotNull();
-        final String[] projection = new String[]{MediaStore.Files.FileColumns.TITLE,
-            MediaStore.Files.FileColumns.MEDIA_TYPE};
+        final String[] projection = new String[]{ PickerMediaColumns.MIME_TYPE };
         final Context context = InstrumentationRegistry.getTargetContext();
         final ContentResolver resolver = context.getContentResolver();
-        final Cursor c = resolver.query(uri, projection, null, null);
-        assertThat(c).isNotNull();
-        assertThat(c.moveToFirst()).isTrue();
+        try (Cursor c = resolver.query(uri, projection, null, null)) {
+            assertThat(c).isNotNull();
+            assertThat(c.moveToFirst()).isTrue();
 
-        if (getBoolean("sys.photopicker.pickerdb.enabled", true)) {
-            final String mimeType = c.getString(c.getColumnIndex(
-                            CloudMediaProviderContract.MediaColumns.MIME_TYPE));
+            final String mimeType = c.getString(c.getColumnIndex(PickerMediaColumns.MIME_TYPE));
+
             if (mimeType.startsWith("image")) {
                 assertImageRedactedReadOnlyAccess(uri, resolver);
             } else if (mimeType.startsWith("video")) {
@@ -83,24 +94,14 @@ public class PhotoPickerAssertionsUtils {
             } else {
                 fail("The mime type is not as expected: " + mimeType);
             }
-        } else {
-            final int mediaType = c.getInt(1);
-            switch (mediaType) {
-                case MEDIA_TYPE_IMAGE:
-                    assertImageRedactedReadOnlyAccess(uri, resolver);
-                    break;
-                case MEDIA_TYPE_VIDEO:
-                    assertVideoRedactedReadOnlyAccess(uri, resolver);
-                    break;
-                default:
-                    fail("The media type is not as expected: " + mediaType);
-            }
         }
     }
 
     private static void assertVideoRedactedReadOnlyAccess(Uri uri, ContentResolver resolver)
             throws Exception {
         // The location is redacted
+        // TODO(b/201505595): Make this method work for test_video.mp4. Currently it works only for
+        //  test_video_dng.mp4
         try (InputStream in = resolver.openInputStream(uri);
                 ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             FileUtils.copy(in, out);

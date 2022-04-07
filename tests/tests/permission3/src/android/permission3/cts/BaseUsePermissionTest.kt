@@ -52,6 +52,8 @@ abstract class BaseUsePermissionTest : BasePermissionTest() {
         const val APP_APK_PATH_28 = "$APK_DIRECTORY/CtsUsePermissionApp28.apk"
         const val APP_APK_PATH_29 = "$APK_DIRECTORY/CtsUsePermissionApp29.apk"
         const val APP_APK_PATH_30 = "$APK_DIRECTORY/CtsUsePermissionApp30.apk"
+        const val APP_APK_PATH_31 = "$APK_DIRECTORY/CtsUsePermissionApp31.apk"
+
         const val APP_APK_PATH_30_WITH_BACKGROUND =
                 "$APK_DIRECTORY/CtsUsePermissionApp30WithBackground.apk"
         const val APP_APK_PATH_30_WITH_BLUETOOTH =
@@ -449,7 +451,7 @@ abstract class BaseUsePermissionTest : BasePermissionTest() {
             if (isWatch) {
                 click(By.text(permissionLabel), 40_000)
             } else {
-                click(By.text(permissionLabel))
+                clickPermissionControllerUi(By.text(permissionLabel))
             }
 
             val wasGranted = if (isAutomotive) {
