@@ -42,9 +42,11 @@ import android.provider.MediaStore;
 
 import androidx.test.runner.AndroidJUnit4;
 import androidx.test.uiautomator.UiObject;
+import androidx.test.uiautomator.UiObjectNotFoundException;
 import androidx.test.uiautomator.UiSelector;
 
 import org.junit.After;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -348,6 +350,7 @@ public class PhotoPickerTest extends PhotoPickerBaseTest {
     }
 
     @Test
+    @Ignore("Re-enable once we find work around for b/226318844")
     public void testMultiSelect_previewVideoPlayPause() throws Exception {
         launchPreviewMultipleWithVideos(/* videoCount */ 3);
 
@@ -370,34 +373,34 @@ public class PhotoPickerTest extends PhotoPickerBaseTest {
 
         final UiObject playPauseButton = findPlayPauseButton();
         final UiObject muteButton = findMuteButton();
-        final UiObject playerView = findPlayerView();
 
-        // set-up and wait for player controls to be sticky
-        setUpAndAssertStickyPlayerControls(playerView, playPauseButton, muteButton);
+        // check that player controls are visible
+        assertPlayerControlsVisible(playPauseButton, muteButton);
 
         // Test 1: Initial state of the mute Button
-        // Check that initial state of mute button is `selected`, i.e., volume off
-        assertThat(muteButton.isSelected()).isTrue();
+        // Check that initial state of mute button is mute, i.e., volume off
+        assertMuteButtonState(muteButton, /* isMuted */ true);
 
         // Test 2: Click Mute Button
         // Click to unmute the audio
         clickAndWait(muteButton);
-        // Check that mute button state is `not selected`, i.e., it shows `volume up` icon
-        assertThat(muteButton.isSelected()).isFalse();
-        // Click on the muteButton and check that mute button status is now `selected`
+        // Check that mute button state is unmute, i.e., it shows `volume up` icon
+        assertMuteButtonState(muteButton, /* isMuted */ false);
+        // Click on the muteButton and check that mute button status is now 'mute'
         clickAndWait(muteButton);
-        assertThat(muteButton.isSelected()).isTrue();
-        // Click on the muteButton and check that mute button status is now `not selected`
+        assertMuteButtonState(muteButton, /* isMuted */ true);
+        // Click on the muteButton and check that mute button status is now unmute
         clickAndWait(muteButton);
-        assertThat(muteButton.isSelected()).isFalse();
+        assertMuteButtonState(muteButton, /* isMuted */ false);
 
         // Test 3: Next preview resumes mute state
         // Go back and launch preview again
         mDevice.pressBack();
         clickAndWait(findViewSelectedButton());
-        // set-up and wait for player controls to be sticky
-        setUpAndAssertStickyPlayerControls(playerView, playPauseButton, muteButton);
-        assertThat(muteButton.isSelected()).isFalse();
+
+        // check that player controls are visible
+        assertPlayerControlsVisible(playPauseButton, muteButton);
+        assertMuteButtonState(muteButton, /* isMuted */ false);
 
         // We don't test the result of the picker here because the intention of the test is only to
         // test the video controls
@@ -411,32 +414,33 @@ public class PhotoPickerTest extends PhotoPickerBaseTest {
         final UiObject muteButton = findMuteButton();
         final UiObject playerView = findPlayerView();
 
-        // set-up and wait for player controls to be sticky
-        setUpAndAssertStickyPlayerControls(playerView, playPauseButton, muteButton);
+        // check that player controls are visible
+        assertPlayerControlsVisible(playPauseButton, muteButton);
 
-        // Test 1: Swipe resumes mute state, with state of the button = `selected`
-        assertThat(muteButton.isSelected()).isTrue();
-        // Swipe to next page and check that muteButton is selected
+        // Test 1: Swipe resumes mute state, with state of the button is 'volume off' / 'mute'
+        assertMuteButtonState(muteButton, /* isMuted */ true);
+        // Swipe to next page and check that muteButton is in mute state.
         swipeLeftAndWait();
         // set-up and wait for player controls to be sticky
         setUpAndAssertStickyPlayerControls(playerView, playPauseButton, muteButton);
-        assertThat(muteButton.isSelected()).isTrue();
+        assertMuteButtonState(muteButton, /* isMuted */ true);
 
-        // Test 2: Swipe resumes mute state, with state of mute button = `not selected`
+        // Test 2: Swipe resumes mute state, with state of mute button 'volume up' / 'unmute'
         // Click muteButton again to check the next video resumes the previous video's mute state
         clickAndWait(muteButton);
-        assertThat(muteButton.isSelected()).isFalse();
+        assertMuteButtonState(muteButton, /* isMuted */ false);
         // check that next video resumed previous video's mute state
         swipeLeftAndWait();
-        // set-up and wait for player controls to be sticky
-        setUpAndAssertStickyPlayerControls(playerView, playPauseButton, muteButton);
-        assertThat(muteButton.isSelected()).isFalse();
+        // check that player controls are visible
+        assertPlayerControlsVisible(playPauseButton, muteButton);
+        assertMuteButtonState(muteButton, /* isMuted */ false);
 
         // We don't test the result of the picker here because the intention of the test is only to
         // test the video controls
     }
 
     @Test
+    @Ignore("Re-enable once we find work around for b/226318844")
     public void testMultiSelect_previewVideoControlsVisibility() throws Exception {
         launchPreviewMultipleWithVideos(/* videoCount */ 3);
 
@@ -514,6 +518,17 @@ public class PhotoPickerTest extends PhotoPickerBaseTest {
             assertRedactedReadOnlyAccess(uri);
             assertMimeType(uri, mimeType);
         }
+    }
+
+    private void assertMuteButtonState(UiObject muteButton, boolean isMuted)
+            throws UiObjectNotFoundException {
+        // We use content description to assert the state of the mute button, there is no other way
+        // to test this.
+        final String expectedContentDescription = isMuted ? "Unmute video" : "Mute video";
+        final String assertMessage =
+                "Expected mute button content description to be " + expectedContentDescription;
+        assertWithMessage(assertMessage).that(muteButton.getContentDescription())
+                .isEqualTo(expectedContentDescription);
     }
 
     private void testVideoPreviewPlayPause() throws Exception {
