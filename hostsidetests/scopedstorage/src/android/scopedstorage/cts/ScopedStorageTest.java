@@ -18,12 +18,9 @@ package android.scopedstorage.cts;
 
 import static android.scopedstorage.cts.lib.TestUtils.BYTES_DATA1;
 import static android.scopedstorage.cts.lib.TestUtils.adoptShellPermissionIdentity;
-import static android.scopedstorage.cts.lib.TestUtils.assertCanAccessPrivateAppAndroidDataDir;
-import static android.scopedstorage.cts.lib.TestUtils.assertCanAccessPrivateAppAndroidObbDir;
 import static android.scopedstorage.cts.lib.TestUtils.assertCanRenameFile;
 import static android.scopedstorage.cts.lib.TestUtils.assertDirectoryContains;
 import static android.scopedstorage.cts.lib.TestUtils.assertFileContent;
-import static android.scopedstorage.cts.lib.TestUtils.assertMountMode;
 import static android.scopedstorage.cts.lib.TestUtils.assertThrows;
 import static android.scopedstorage.cts.lib.TestUtils.canOpen;
 import static android.scopedstorage.cts.lib.TestUtils.canReadAndWriteAs;
@@ -52,13 +49,6 @@ import static android.scopedstorage.cts.lib.TestUtils.pollForExternalStorageStat
 import static android.scopedstorage.cts.lib.TestUtils.pollForManageExternalStorageAllowed;
 import static android.scopedstorage.cts.lib.TestUtils.pollForPermission;
 import static android.scopedstorage.cts.lib.TestUtils.setupDefaultDirectories;
-import static android.scopedstorage.cts.lib.TestUtils.verifyInsertFromExternalMediaDirViaData_allowed;
-import static android.scopedstorage.cts.lib.TestUtils.verifyInsertFromExternalMediaDirViaRelativePath_allowed;
-import static android.scopedstorage.cts.lib.TestUtils.verifyInsertFromExternalPrivateDirViaData_denied;
-import static android.scopedstorage.cts.lib.TestUtils.verifyInsertFromExternalPrivateDirViaRelativePath_denied;
-import static android.scopedstorage.cts.lib.TestUtils.verifyUpdateToExternalDirsViaData_denied;
-import static android.scopedstorage.cts.lib.TestUtils.verifyUpdateToExternalMediaDirViaRelativePath_allowed;
-import static android.scopedstorage.cts.lib.TestUtils.verifyUpdateToExternalPrivateDirsViaRelativePath_denied;
 import static android.system.OsConstants.F_OK;
 import static android.system.OsConstants.R_OK;
 import static android.system.OsConstants.W_OK;
@@ -77,10 +67,7 @@ import static org.junit.Assume.assumeTrue;
 import android.Manifest;
 import android.app.WallpaperManager;
 import android.net.Uri;
-import android.os.Build;
-import android.os.Environment;
 import android.os.ParcelFileDescriptor;
-import android.os.storage.StorageManager;
 import android.platform.test.annotations.AppModeInstant;
 import android.provider.MediaStore;
 import android.system.ErrnoException;
@@ -159,24 +146,24 @@ public class ScopedStorageTest {
      */
     @Test
     public void testCheckInstallerAppAccessToObbDirs() throws Exception {
-        assertCanAccessPrivateAppAndroidObbDir(true /*canAccess*/, APP_B_NO_PERMS,
-                THIS_PACKAGE_NAME, NONMEDIA_FILE_NAME);
-        final int uid = getContext().getPackageManager().getPackageUid(THIS_PACKAGE_NAME, 0);
-        if (isAtLeastS()) {
-            assertMountMode(THIS_PACKAGE_NAME, uid, StorageManager.MOUNT_MODE_EXTERNAL_INSTALLER);
-        }
-    }
+        File[] obbDirs = getContext().getObbDirs();
+        for (File obbDir : obbDirs) {
+            final File otherAppExternalObbDir = new File(obbDir.getPath().replace(
+                    THIS_PACKAGE_NAME, APP_B_NO_PERMS.getPackageName()));
+            final File file = new File(otherAppExternalObbDir, NONMEDIA_FILE_NAME);
+            try {
+                assertThat(file.exists()).isFalse();
 
-    /**
-     * Test that Installer packages cannot access app's private directories in Android/data
-     */
-    @Test
-    public void testCheckInstallerAppCannotAccessDataDirs() throws Exception {
-        assertCanAccessPrivateAppAndroidDataDir(false /*canAccess*/, APP_B_NO_PERMS,
-                THIS_PACKAGE_NAME, NONMEDIA_FILE_NAME);
-        final int uid = getContext().getPackageManager().getPackageUid(THIS_PACKAGE_NAME, 0);
-        if (isAtLeastS()) {
-            assertMountMode(THIS_PACKAGE_NAME, uid, StorageManager.MOUNT_MODE_EXTERNAL_INSTALLER);
+                assertThat(createFileAs(APP_B_NO_PERMS, file.getPath())).isTrue();
+                assertFileAccess_readWrite(file);
+
+                assertThat(file.delete()).isTrue();
+                assertThat(file.exists()).isFalse();
+                assertThat(file.createNewFile()).isTrue();
+                assertThat(file.exists()).isTrue();
+            } finally {
+                deleteFileAsNoThrow(APP_B_NO_PERMS, file.getAbsolutePath());
+            }
         }
     }
 
@@ -331,20 +318,7 @@ public class ScopedStorageTest {
             createDirectoryAsLegacyApp(topLevelDir);
             assertDirectoryAccess(topLevelDir, true, false);
 
-            // We can see "/storage/emulated" exists, but not read/write to it, since it's
-            // outside the scope of external storage.
-            assertAccess(new File("/storage/emulated"), true, false, false);
-
-            // Verify we can enter "/storage/emulated/<userId>" and read
-            int userId = getContext().getUserId();
-            assertAccess(new File("/storage/emulated/" + userId), true, true, false);
-
-            // Verify we can't get another userId
-            int otherUserId = userId + 1;
-            assertAccess(new File("/storage/emulated/" + otherUserId), false, false, false);
-
-            // Or an obviously invalid userId (b/172629984)
-            assertAccess(new File("/storage/emulated/100000000000"), false, false, false);
+            assertCannotReadOrWrite(new File("/storage/emulated"));
         } finally {
             deleteAsLegacyApp(topLevelDir);
         }
@@ -535,11 +509,6 @@ public class ScopedStorageTest {
 
     @Test
     public void testAndroidMedia() throws Exception {
-        // Check that the app does not have legacy external storage access
-        if (isAtLeastS()) {
-            assertThat(Environment.isExternalStorageLegacy()).isFalse();
-        }
-
         pollForPermission(Manifest.permission.READ_EXTERNAL_STORAGE, /*granted*/ true);
 
         final File myMediaDir = getExternalMediaDir();
@@ -593,41 +562,6 @@ public class ScopedStorageTest {
         } finally {
             dropShellPermissionIdentity();
         }
-    }
-
-    /**
-     * Test that File Manager can't insert files from private directories.
-     */
-    @Test
-    public void testInsertExternalFilesViaData() throws Exception {
-        verifyInsertFromExternalMediaDirViaData_allowed();
-        verifyInsertFromExternalPrivateDirViaData_denied();
-    }
-
-    /**
-     * Test that File Manager can't update file path to private directories.
-     */
-    @Test
-    public void testUpdateExternalFilesViaData() throws Exception {
-        verifyUpdateToExternalDirsViaData_denied();
-    }
-
-    /**
-     * Test that File Manager can't insert files from private directories.
-     */
-    @Test
-    public void testInsertExternalFilesViaRelativePath() throws Exception {
-        verifyInsertFromExternalMediaDirViaRelativePath_allowed();
-        verifyInsertFromExternalPrivateDirViaRelativePath_denied();
-    }
-
-    /**
-     * Test that File Manager can't update file path to private directories.
-     */
-    @Test
-    public void testUpdateExternalFilesViaRelativePath() throws Exception {
-        verifyUpdateToExternalMediaDirViaRelativePath_allowed();
-        verifyUpdateToExternalPrivateDirsViaRelativePath_denied();
     }
 
     private void assertCreateFileAndScanNomediaDirDoesntNoOp(File newFile, File scanDir)
@@ -688,9 +622,6 @@ public class ScopedStorageTest {
 
     @Test
     public void testNoIsolatedStorageCanCreateFilesAnywhere() throws Exception {
-        if (isAtLeastS()) {
-            assertThat(Environment.isExternalStorageLegacy()).isTrue();
-        }
         final File topLevelPdf = new File(getExternalStorageDir(), NONMEDIA_FILE_NAME);
         final File musicFileInMovies = new File(getMoviesDir(), AUDIO_FILE_NAME);
         final File imageFileInDcim = new File(getDcimDir(), IMAGE_FILE_NAME);
@@ -705,9 +636,6 @@ public class ScopedStorageTest {
 
     @Test
     public void testNoIsolatedStorageCantReadWriteOtherAppExternalDir() throws Exception {
-        if (isAtLeastS()) {
-            assertThat(Environment.isExternalStorageLegacy()).isTrue();
-        }
         // Let app A create a file in its data dir
         final File otherAppExternalDataDir = new File(getExternalFilesDir().getPath().replace(
                 THIS_PACKAGE_NAME, APP_A_HAS_RES.getPackageName()));
@@ -731,9 +659,6 @@ public class ScopedStorageTest {
 
     @Test
     public void testNoIsolatedStorageStorageReaddir() throws Exception {
-        if (isAtLeastS()) {
-            assertThat(Environment.isExternalStorageLegacy()).isTrue();
-        }
         final File otherAppPdf = new File(getDownloadDir(), "other" + NONMEDIA_FILE_NAME);
         final File otherAppImg = new File(getDcimDir(), "other" + IMAGE_FILE_NAME);
         final File otherAppMusic = new File(getMusicDir(), "other" + AUDIO_FILE_NAME);
@@ -760,9 +685,6 @@ public class ScopedStorageTest {
 
     @Test
     public void testNoIsolatedStorageQueryOtherAppsFile() throws Exception {
-        if (isAtLeastS()) {
-            assertThat(Environment.isExternalStorageLegacy()).isTrue();
-        }
         final File otherAppPdf = new File(getDownloadDir(), "other" + NONMEDIA_FILE_NAME);
         final File otherAppImg = new File(getDcimDir(), "other" + IMAGE_FILE_NAME);
         final File otherAppMusic = new File(getMusicDir(), "other" + AUDIO_FILE_NAME);
@@ -825,11 +747,6 @@ public class ScopedStorageTest {
 
     @Test
     public void testClearPackageData() throws Exception {
-        // Check that the app does not have legacy external storage access
-        if (isAtLeastS()) {
-            assertThat(Environment.isExternalStorageLegacy()).isFalse();
-        }
-
         pollForPermission(Manifest.permission.READ_EXTERNAL_STORAGE, /*granted*/ true);
 
         File fileToRemain = new File(getPicturesDir(), IMAGE_FILE_NAME);
@@ -848,7 +765,7 @@ public class ScopedStorageTest {
             createAndCheckFileAsApp(APP_B_NO_PERMS, fileToBeDeleted);
             createAndCheckFileAsApp(APP_B_NO_PERMS, nestedFileToBeDeleted);
 
-            executeShellCommand("pm clear --user " + getCurrentUser() + " " + testAppPackageName);
+            executeShellCommand("pm clear " + testAppPackageName);
 
             // Wait a max of 5 seconds for the cleaning after "pm clear" command to complete.
             int i = 0;
@@ -883,9 +800,6 @@ public class ScopedStorageTest {
                 getContext().getPackageManager().isInstantApp());
         assertThat(getContext().getPackageManager().isInstantApp()).isTrue();
 
-        // Check that the app does not have legacy external storage access
-        assertThat(Environment.isExternalStorageLegacy()).isFalse();
-
         // Can't read ExternalStorageDir
         assertThat(getExternalStorageDir().list()).isNull();
 
@@ -913,10 +827,6 @@ public class ScopedStorageTest {
         // Can't read/write app specific dir
         assertThat(getExternalFilesDir().list()).isNull();
         assertThat(getExternalFilesDir().exists()).isFalse();
-    }
-
-    private static boolean isAtLeastS() {
-        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.S;
     }
 
     private void createAndCheckFileAsApp(TestApp testApp, File newFile) throws Exception {

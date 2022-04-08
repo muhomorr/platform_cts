@@ -26,16 +26,16 @@ public class BluetoothIntentsTest extends AndroidTestCase {
   /**
    * b/35258579
    */
-  @AsbSecurityTest(cveBugId = 35258579)
-  public void testAcceptIntent() {
+    @AsbSecurityTest(cveBugId = 35258579)
+    public void testAcceptIntent() {
     genericIntentTest("ACCEPT");
   }
 
   /**
    * b/35258579
    */
-  @AsbSecurityTest(cveBugId = 35258579)
-  public void testDeclineIntent() {
+    @AsbSecurityTest(cveBugId = 35258579)
+    public void testDeclineIntent() {
       genericIntentTest("DECLINE");
   }
 

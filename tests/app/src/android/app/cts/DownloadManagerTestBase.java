@@ -18,24 +18,19 @@ package android.app.cts;
 import static android.content.Intent.FLAG_ACTIVITY_NEW_TASK;
 
 import static com.android.compatibility.common.util.SystemUtil.runShellCommand;
-import static com.android.compatibility.common.util.SystemUtil.runWithShellPermissionIdentity;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import android.app.DownloadManager;
-import android.app.Instrumentation;
 import android.content.BroadcastReceiver;
 import android.content.ContentUris;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
-import android.net.ConnectivityManager;
 import android.net.Uri;
-import android.net.wifi.WifiManager;
 import android.os.Bundle;
 import android.os.FileUtils;
 import android.os.ParcelFileDescriptor;
@@ -43,7 +38,6 @@ import android.os.Process;
 import android.os.RemoteCallback;
 import android.os.SystemClock;
 import android.provider.MediaStore;
-import android.support.test.uiautomator.UiDevice;
 import android.text.TextUtils;
 import android.text.format.DateUtils;
 import android.util.Log;
@@ -52,7 +46,6 @@ import android.webkit.cts.CtsTestServer;
 import androidx.test.InstrumentationRegistry;
 
 import com.android.compatibility.common.util.PollingCheck;
-import com.android.compatibility.common.util.SystemUtil;
 
 import org.junit.After;
 import org.junit.Before;
@@ -84,7 +77,6 @@ public class DownloadManagerTestBase {
     protected static final int MINIMUM_DOWNLOAD_BYTES = 100 * 1024 * 1024;
 
     protected static final long SHORT_TIMEOUT = 5 * DateUtils.SECOND_IN_MILLIS;
-    protected static final long MEDIUM_TIMEOUT = 30 * DateUtils.SECOND_IN_MILLIS;
     protected static final long LONG_TIMEOUT = 3 * DateUtils.MINUTE_IN_MILLIS;
     private static final String ACTION_CREATE_FILE_WITH_CONTENT =
             "com.android.cts.action.CREATE_FILE_WITH_CONTENT";
@@ -93,29 +85,18 @@ public class DownloadManagerTestBase {
     private static final String EXTRA_CALLBACK = "callback";
     private static final String KEY_ERROR = "error";
     private static final String STORAGE_DELEGATOR_PACKAGE = "com.android.test.storagedelegator";
-    protected static final int REQUEST_CODE = 42;
 
     protected Context mContext;
     protected DownloadManager mDownloadManager;
-    protected UiDevice mDevice;
-    protected String mDocumentsUiPackageId;
-    protected Instrumentation mInstrumentation;
 
-    private WifiManager mWifiManager;
-    private ConnectivityManager mCm;
     private CtsTestServer mWebServer;
 
     @Before
     public void setUp() throws Exception {
         mContext = InstrumentationRegistry.getTargetContext();
         mDownloadManager = (DownloadManager) mContext.getSystemService(Context.DOWNLOAD_SERVICE);
-        mWifiManager = mContext.getSystemService(WifiManager.class);
-        mCm = mContext.getSystemService(ConnectivityManager.class);
         mWebServer = new CtsTestServer(mContext);
-        mInstrumentation = InstrumentationRegistry.getInstrumentation();
-        mDevice = UiDevice.getInstance(mInstrumentation);
         clearDownloads();
-        checkConnection();
     }
 
     @After
@@ -221,23 +202,6 @@ public class DownloadManagerTestBase {
 
     protected static String getRawFilePath(Uri uri) throws Exception {
         return getFileData(uri, "_data");
-    }
-
-    private void checkConnection() throws Exception {
-        if (!hasConnectedNetwork(mCm)) {
-            Log.d(TAG, "Enabling WiFi to ensure connectivity for this test");
-            runShellCommand("svc wifi enable");
-            runWithShellPermissionIdentity(mWifiManager::reconnect,
-                    android.Manifest.permission.NETWORK_SETTINGS);
-            final long startTime = SystemClock.elapsedRealtime();
-            while (!hasConnectedNetwork(mCm)
-                && (SystemClock.elapsedRealtime() - startTime) < MEDIUM_TIMEOUT) {
-                Thread.sleep(500);
-            }
-            if (!hasConnectedNetwork(mCm)) {
-                fail("Unable to connect to any network");
-            }
-        }
     }
 
     private static String getFileData(Uri uri, String projection) throws Exception {
@@ -418,10 +382,6 @@ public class DownloadManagerTestBase {
         }.run();
     }
 
-    private static boolean hasConnectedNetwork(final ConnectivityManager cm) {
-        return cm.getActiveNetwork() != null;
-    }
-
     protected void assertSuccessfulDownload(long id, File location) throws Exception {
         Cursor cursor = null;
         try {
@@ -432,13 +392,7 @@ public class DownloadManagerTestBase {
                     cursor.getColumnIndex(DownloadManager.COLUMN_STATUS)));
             assertEquals(Uri.fromFile(expectedLocation).toString(),
                     cursor.getString(cursor.getColumnIndex(DownloadManager.COLUMN_LOCAL_URI)));
-
-            // Use shell to check if file is created as normal app doesn't have
-            // visibility to see other packages dirs.
-            String result = SystemUtil.runShellCommand(InstrumentationRegistry.getInstrumentation(),
-                    "file " + expectedLocation.getCanonicalPath());
-            assertFalse("Cannot create file in other packages",
-                    result.contains("No such file or directory"));
+            assertTrue(expectedLocation.exists());
         } finally {
             if (cursor != null) {
                 cursor.close();

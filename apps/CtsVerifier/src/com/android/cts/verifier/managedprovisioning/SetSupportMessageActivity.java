@@ -16,7 +16,6 @@
 
 package com.android.cts.verifier.managedprovisioning;
 
-import android.app.ActionBar;
 import android.app.Activity;
 import android.app.admin.DevicePolicyManager;
 import android.content.ComponentName;
@@ -47,12 +46,7 @@ public class SetSupportMessageActivity extends Activity implements View.OnClickL
         findViewById(R.id.set_default_message).setOnClickListener(this);
         findViewById(R.id.set_message).setOnClickListener(this);
         findViewById(R.id.clear_message).setOnClickListener(this);
-        mSupportMessage = findViewById(R.id.message_view);
-
-        ActionBar actBar = getActionBar();
-        if (actBar != null) {
-            actBar.setDisplayHomeAsUpEnabled(true);
-        }
+        mSupportMessage = (EditText) findViewById(R.id.message_view);
 
         mType = getIntent().getStringExtra(EXTRA_SUPPORT_MSG_TYPE);
         setTitle(TYPE_SHORT_MSG.equals(mType)

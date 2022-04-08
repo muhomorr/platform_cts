@@ -20,6 +20,6 @@
     android:isFeatureSplit="true"
     split="feature_x">
     <application>
-        <activity android:name=".feature_x.EmptyActivity"/>
+        <activity android:name=".feature_x.DummyActivity"/>
     </application>
 </manifest>

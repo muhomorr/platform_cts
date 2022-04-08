@@ -56,7 +56,6 @@ public class DiscretePathEffectTest {
         paint.setStyle(Style.STROKE);
         paint.setStrokeWidth(0);
         paint.setPathEffect(effect);
-        paint.setAntiAlias(false);
 
         Path path = new Path();
         path.moveTo(START_X, COORD_Y);

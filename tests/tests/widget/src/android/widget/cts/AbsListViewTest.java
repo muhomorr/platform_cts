@@ -225,7 +225,6 @@ public class AbsListViewTest {
     @LargeTest
     @Test
     public void testSetOnScrollListener() throws Throwable {
-        mListView.setOverScrollMode(View.OVER_SCROLL_NEVER);
         AbsListView.OnScrollListener mockScrollListener =
                 mock(AbsListView.OnScrollListener.class);
 
@@ -529,7 +528,7 @@ public class AbsListViewTest {
 
         mListView.setRecyclerListener(mockRecyclerListener);
         List<View> views = new ArrayList<>();
-        mActivityRule.runOnUiThread(() -> mListView.reclaimViews(views));
+        mListView.reclaimViews(views);
 
         assertTrue(views.size() > 0);
 
@@ -1088,7 +1087,6 @@ public class AbsListViewTest {
             return; // watch type devices do not support multichoice action mode
         }
         configureMultiChoiceModalState();
-        mListView.setOverScrollMode(View.OVER_SCROLL_NEVER);
 
         final int firstVisiblePosition = mListView.getFirstVisiblePosition();
         final int lastVisiblePosition = mListView.getLastVisiblePosition();

@@ -33,7 +33,6 @@ public final class SomeActivityWithLocus extends Activity {
 
     @Override
     protected void onStart() {
-        super.onStart();
         setLocusContext(new LocusId("Locus11"), null);
     }
 }

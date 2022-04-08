@@ -18,23 +18,16 @@ package com.android.cts.devicepolicy;
 
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
-import static org.junit.Assume.assumeTrue;
 
 import android.platform.test.annotations.LargeTest;
 
 import com.android.tradefed.log.LogUtil.CLog;
 
-import org.junit.Test;
-
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/**
- * Set of tests to test setting DO and PO when there is account on the user.
- *
- * <p>For example, setting DO or PO shall fail at DPMS.hasIncompatibleAccountsOrNonAdbNoLock when
- * there was incompatible account on the user.
- */
+import org.junit.Test;
+
 public class AccountCheckHostSideTest extends BaseDevicePolicyTest {
     private static final String APK_NON_TEST_ONLY = "CtsAccountCheckNonTestOnlyOwnerApp.apk";
     private static final String APK_TEST_ONLY = "CtsAccountCheckTestOnlyOwnerApp.apk";
@@ -55,72 +48,36 @@ public class AccountCheckHostSideTest extends BaseDevicePolicyTest {
     private static final String TEST_CLASS =
             "com.android.cts.devicepolicy.accountcheck.AccountCheckTest";
 
-    private static final String DISALLOW_MODIFY_ACCOUNTS = "no_modify_accounts";
-
-    private boolean mDeviceOwnerCanHaveAccounts;
-    private boolean mProfileOwnerCanHaveAccounts;
-    private int mProfileOwnerUserId;
-
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
-        mProfileOwnerUserId = mPrimaryUserId;
-        mDeviceOwnerCanHaveAccounts = !isRestrictionSetOnUser(mDeviceOwnerUserId,
-                DISALLOW_MODIFY_ACCOUNTS);
-        // Optimization to avoid running dumpsys again
-        if (mProfileOwnerUserId == mDeviceOwnerUserId) {
-            mProfileOwnerCanHaveAccounts = mDeviceOwnerCanHaveAccounts;
-        } else {
-            mProfileOwnerCanHaveAccounts = !isRestrictionSetOnUser(mProfileOwnerUserId,
-                    DISALLOW_MODIFY_ACCOUNTS);
-        }
-        CLog.d("mDeviceOwnerUserId: " +  mDeviceOwnerUserId
-                + " mDeviceOwnerCanHaveAccounts: " + mDeviceOwnerCanHaveAccounts
-                + " mProfileOwnerUserId: " + mProfileOwnerUserId
-                + " mProfileOwnerCanHaveAccounts: " + mProfileOwnerCanHaveAccounts);
-        assumeTrue("Neither primary user or device owner user is allowed to add accounts",
-                mDeviceOwnerCanHaveAccounts || mProfileOwnerCanHaveAccounts);
-    }
-
     @Override
     public void tearDown() throws Exception {
-        if (getDevice().getInstalledPackageNames().contains(PACKAGE_AUTH)) {
-            runCleanupTestOnlyOwnerAllowingFailure(mProfileOwnerUserId);
-            if (mDeviceOwnerUserId != mProfileOwnerUserId) {
-                runCleanupTestOnlyOwnerAllowingFailure(mDeviceOwnerUserId);
+        if (mHasFeature) {
+            if (getDevice().getInstalledPackageNames().contains(PACKAGE_AUTH)) {
+                runCleanupTestOnlyOwnerAllowingFailure();
+                runCleanupNonTestOnlyOwnerAllowingFailure();
+
+                // This shouldn't be needed since we're uninstalling the authenticator,
+                // but sometimes the account manager fails to clean up?
+                removeAllAccountsAllowingFailure();
             }
-            runCleanupNonTestOnlyOwnerAllowingFailure();
 
-            // This shouldn't be needed since we're uninstalling the authenticator,
-            // but sometimes the account manager fails to clean up?
-            removeAllAccountsAllowingFailure();
+            getDevice().uninstallPackage(PACKAGE_AUTH);
+            getDevice().uninstallPackage(PACKAGE_TEST_ONLY);
+            getDevice().uninstallPackage(PACKAGE_NON_TEST_ONLY);
         }
-
-        getDevice().uninstallPackage(PACKAGE_AUTH);
-        getDevice().uninstallPackage(PACKAGE_TEST_ONLY);
-        getDevice().uninstallPackage(PACKAGE_NON_TEST_ONLY);
-
         super.tearDown();
     }
 
     private void runTest(String method) throws Exception {
-        runTestAsUser(method, mProfileOwnerUserId);
-        if (mDeviceOwnerCanHaveAccounts && mProfileOwnerUserId != mDeviceOwnerUserId) {
-            runTestAsUser(method, mDeviceOwnerUserId);
-        }
+        runDeviceTests(PACKAGE_AUTH, TEST_CLASS, method);
     }
 
-    private void runTestAsUser(String method, int userId) throws Exception {
-        runDeviceTestsAsUser(PACKAGE_AUTH, TEST_CLASS, method, userId);
+    private void runCleanupTestOnlyOwner() throws Exception {
+        assertTrue(removeAdmin(OWNER_TEST_ONLY, mPrimaryUserId));
     }
 
-    private void runCleanupTestOnlyOwner(int userId) throws Exception {
-        assertTrue(removeAdmin(OWNER_TEST_ONLY, userId));
-    }
-
-    private void runCleanupTestOnlyOwnerAllowingFailure(int userId) throws Exception {
+    private void runCleanupTestOnlyOwnerAllowingFailure() throws Exception {
         try {
-            runCleanupTestOnlyOwner(userId);
+            runCleanupTestOnlyOwner();
         } catch (AssertionError ignore) {
         }
     }
@@ -148,47 +105,35 @@ public class AccountCheckHostSideTest extends BaseDevicePolicyTest {
     }
 
     private void assertTestOnlyInstallable() throws Exception {
-        if (mDeviceOwnerCanHaveAccounts) {
-            setDeviceOwnerOrFail(OWNER_TEST_ONLY, mDeviceOwnerUserId);
-            runCleanupTestOnlyOwner(mDeviceOwnerUserId);
-        }
-        if (mProfileOwnerCanHaveAccounts) {
-            setProfileOwnerOrFail(OWNER_TEST_ONLY, mProfileOwnerUserId);
-            runCleanupTestOnlyOwner(mProfileOwnerUserId);
-        }
+        setDeviceOwnerOrFail(OWNER_TEST_ONLY, mPrimaryUserId);
+        runCleanupTestOnlyOwner();
+
+        setProfileOwnerOrFail(OWNER_TEST_ONLY, mPrimaryUserId);
+        runCleanupTestOnlyOwner();
     }
 
     private void assertNonTestOnlyInstallable() throws Exception {
-        if (mDeviceOwnerCanHaveAccounts) {
-            setDeviceOwnerOrFail(OWNER_NON_TEST_ONLY, mDeviceOwnerUserId);
-            runCleanupNonTestOnlyOwner();
-        }
-        if (mProfileOwnerCanHaveAccounts) {
-            setProfileOwnerOrFail(OWNER_NON_TEST_ONLY, mProfileOwnerUserId);
-            runCleanupNonTestOnlyOwner();
-        }
+        setDeviceOwnerOrFail(OWNER_NON_TEST_ONLY, mPrimaryUserId);
+        runCleanupNonTestOnlyOwner();
+
+        setProfileOwnerOrFail(OWNER_NON_TEST_ONLY, mPrimaryUserId);
+        runCleanupNonTestOnlyOwner();
     }
 
     private void assertTestOnlyNotInstallable() throws Exception {
-        if (mDeviceOwnerCanHaveAccounts) {
-            setDeviceOwnerExpectingFailure(OWNER_TEST_ONLY, mDeviceOwnerUserId);
-            runCleanupTestOnlyOwnerAllowingFailure(mDeviceOwnerUserId);
-        }
-        if (mProfileOwnerCanHaveAccounts) {
-            setProfileOwnerExpectingFailure(OWNER_TEST_ONLY, mProfileOwnerUserId);
-            runCleanupTestOnlyOwnerAllowingFailure(mProfileOwnerUserId);
-        }
+        setDeviceOwnerExpectingFailure(OWNER_TEST_ONLY, mPrimaryUserId);
+        runCleanupTestOnlyOwnerAllowingFailure();
+
+        setProfileOwnerExpectingFailure(OWNER_TEST_ONLY, mPrimaryUserId);
+        runCleanupTestOnlyOwnerAllowingFailure();
     }
 
     private void assertNonTestOnlyNotInstallable() throws Exception {
-        if (mDeviceOwnerCanHaveAccounts) {
-            setDeviceOwnerExpectingFailure(OWNER_NON_TEST_ONLY, mDeviceOwnerUserId);
-            runCleanupNonTestOnlyOwnerAllowingFailure();
-        }
-        if (mProfileOwnerCanHaveAccounts) {
-            setProfileOwnerExpectingFailure(OWNER_NON_TEST_ONLY, mProfileOwnerUserId);
-            runCleanupNonTestOnlyOwnerAllowingFailure();
-        }
+        setDeviceOwnerExpectingFailure(OWNER_NON_TEST_ONLY, mPrimaryUserId);
+        runCleanupNonTestOnlyOwnerAllowingFailure();
+
+        setProfileOwnerExpectingFailure(OWNER_NON_TEST_ONLY, mPrimaryUserId);
+        runCleanupNonTestOnlyOwnerAllowingFailure();
     }
 
     private boolean hasAccounts() throws Exception {
@@ -207,28 +152,17 @@ public class AccountCheckHostSideTest extends BaseDevicePolicyTest {
         return Integer.parseInt(count) > 0;
     }
 
-    /**
-     * This set of tests will test whether DO and PO can be set on the user when
-     * there is/are different types of accounts added on the target test user.
-     */
     @Test
     @LargeTest
     public void testAccountCheck() throws Exception {
-        installAppAsUser(APK_AUTH, mProfileOwnerUserId);
-        installAppAsUser(APK_NON_TEST_ONLY, mProfileOwnerUserId);
-        installAppAsUser(APK_TEST_ONLY, mProfileOwnerUserId);
-        runCleanupTestOnlyOwnerAllowingFailure(mProfileOwnerUserId);
-
-        // For tests in headless system user mode, test packages need to be installed for
-        // system user even for PO tests since PO will be set via adb command which will require
-        // TestAuthenticator installed on system user.
-        if (mDeviceOwnerUserId != mProfileOwnerUserId) {
-            installAppAsUser(APK_AUTH, mDeviceOwnerUserId);
-            installAppAsUser(APK_NON_TEST_ONLY, mDeviceOwnerUserId);
-            installAppAsUser(APK_TEST_ONLY, mDeviceOwnerUserId);
-            runCleanupTestOnlyOwnerAllowingFailure(mDeviceOwnerUserId);
+        if (!mHasFeature) {
+            return;
         }
+        installAppAsUser(APK_AUTH, mPrimaryUserId);
+        installAppAsUser(APK_NON_TEST_ONLY, mPrimaryUserId);
+        installAppAsUser(APK_TEST_ONLY, mPrimaryUserId);
 
+        runCleanupTestOnlyOwnerAllowingFailure();
         runCleanupNonTestOnlyOwnerAllowingFailure();
         removeAllAccountsAllowingFailure();
         try {
@@ -314,11 +248,14 @@ public class AccountCheckHostSideTest extends BaseDevicePolicyTest {
      */
     @Test
     public void testInheritTestOnly() throws Exception {
-        installAppAsUser(APK_TEST_ONLY, mDeviceOwnerUserId);
+        if (!mHasFeature) {
+            return;
+        }
+        installAppAsUser(APK_TEST_ONLY, mPrimaryUserId);
 
         // Set as DO.
         try {
-            setDeviceOwnerOrFail(OWNER_TEST_ONLY, mDeviceOwnerUserId);
+            setDeviceOwnerOrFail(OWNER_TEST_ONLY, mPrimaryUserId);
         } catch (Throwable e) {
             CLog.e("Unable to install DO, can't continue the test. Skipping.  hasAccounts="
                     + hasAccounts());
@@ -327,17 +264,17 @@ public class AccountCheckHostSideTest extends BaseDevicePolicyTest {
         try {
 
             // Override with a package that's not test-only.
-            installAppAsUser(APK_TEST_ONLY_UPDATE, mDeviceOwnerUserId);
+            installAppAsUser(APK_TEST_ONLY_UPDATE, mPrimaryUserId);
 
             // But DPMS keeps the original test-only flag, so it's still removable.
-            runCleanupTestOnlyOwner(mDeviceOwnerUserId);
+            runCleanupTestOnlyOwner();
 
             return;
         } catch (Throwable e) {
             // If failed, re-install the APK with test-only=true.
             try {
-                installAppAsUser(APK_TEST_ONLY, mDeviceOwnerUserId);
-                runCleanupTestOnlyOwner(mDeviceOwnerUserId);
+                installAppAsUser(APK_TEST_ONLY, mPrimaryUserId);
+                runCleanupTestOnlyOwner();
             } catch (Exception inner) {
                 CLog.e("Unable to clean up after a failure: " + e.getMessage());
             }

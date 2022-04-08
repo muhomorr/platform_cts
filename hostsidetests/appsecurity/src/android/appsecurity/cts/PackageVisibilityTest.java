@@ -125,18 +125,13 @@ public class PackageVisibilityTest extends BaseAppSecurityTest {
         assertFalse(isAppVisibleForUser(TINY_PKG, mPrimaryUserId, MATCH_NORMAL));
         assertFalse(isAppVisibleForUser(TINY_PKG, mPrimaryUserId, MATCH_UNINSTALLED));
 
-        // Uninstall with keep data and reboot
+        // Uninstall with keep data
         uninstallWithKeepDataForUser(TINY_PKG, userId);
-        getDevice().rebootUntilOnline();
-        waitForBootCompleted();
-        getDevice().startUser(userId);
 
         // It is visible for the installed user, but only if match uninstalled
         assertFalse(isAppVisibleForUser(TINY_PKG, userId, MATCH_NORMAL));
         assertTrue(isAppVisibleForUser(TINY_PKG, userId, MATCH_UNINSTALLED));
 
-        Utils.runDeviceTests(getDevice(), TEST_PKG,
-                ".PackageAccessTest", "testPackageAccess_notInOtherUser", userId);
         Utils.runDeviceTests(getDevice(), TEST_PKG,
                 ".PackageAccessTest", "testPackageAccess_getPackagesCanSeeTiny", userId);
 
@@ -153,19 +148,5 @@ public class PackageVisibilityTest extends BaseAppSecurityTest {
     private void uninstallWithKeepDataForUser(String packageName, int userId) throws Exception {
         final String command = "pm uninstall -k --user " + userId + " " + packageName;
         getDevice().executeShellCommand(command);
-    }
-
-    private void waitForBootCompleted() throws Exception {
-        for (int i = 0; i < 45; i++) {
-            if (isBootCompleted()) {
-                return;
-            }
-            Thread.sleep(1000);
-        }
-        throw new AssertionError("System failed to become ready!");
-    }
-
-    private boolean isBootCompleted() throws Exception {
-        return "1".equals(getDevice().executeShellCommand("getprop sys.boot_completed").trim());
     }
 }

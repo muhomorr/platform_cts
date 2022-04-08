@@ -25,12 +25,8 @@ import static org.junit.Assert.*;
 @RunWith(DeviceJUnit4ClassRunner.class)
 public class CVE_2020_29661 extends SecurityTestCase {
 
-   /**
-     * b/182917768
-     *
-     */
-    @Test
     @AsbSecurityTest(cveBugId = 175451802)
+    @Test
     public void testPocCVE_2020_29661() throws Exception {
         AdbUtils.runPocNoOutput("CVE-2020-29661", getDevice(),60);
     }

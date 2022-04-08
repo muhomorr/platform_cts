@@ -268,7 +268,7 @@ public class MockJobService extends JobService {
     @Override
     public boolean onStopJob(JobParameters params) {
         Log.i(TAG, "Received stop callback");
-        TestEnvironment.getTestEnvironment().notifyStopped(params);
+        TestEnvironment.getTestEnvironment().notifyStopped();
         return mWaitingForStop;
     }
 
@@ -379,7 +379,6 @@ public class MockJobService extends JobService {
         private int mExecutedPermCheckWrite;
         private ArrayList<JobWorkItem> mExecutedReceivedWork;
         private String mExecutedErrorMessage;
-        private JobParameters mStopJobParameters;
 
         public static TestEnvironment getTestEnvironment() {
             if (kTestEnvironment == null) {
@@ -392,12 +391,8 @@ public class MockJobService extends JobService {
             return mExpectedWork;
         }
 
-        public JobParameters getLastStartJobParameters() {
+        public JobParameters getLastJobParameters() {
             return mExecutedJobParameters;
-        }
-
-        public JobParameters getLastStopJobParameters() {
-            return mStopJobParameters;
         }
 
         public int getLastPermCheckRead() {
@@ -472,17 +467,14 @@ public class MockJobService extends JobService {
             mExecutedPermCheckWrite = permCheckWrite;
             mExecutedReceivedWork = receivedWork;
             mExecutedErrorMessage = errorMsg;
-            if (mLatch != null) {
-                mLatch.countDown();
-            }
+            mLatch.countDown();
         }
 
         private void notifyWaitingForStop() {
             mWaitingForStopLatch.countDown();
         }
 
-        private void notifyStopped(JobParameters params) {
-            mStopJobParameters = params;
+        private void notifyStopped() {
             if (mStoppedLatch != null) {
                 mStoppedLatch.countDown();
             }
@@ -542,7 +534,6 @@ public class MockJobService extends JobService {
         public void setUp() {
             mLatch = null;
             mExecutedJobParameters = null;
-            mStopJobParameters = null;
         }
 
     }

@@ -33,9 +33,6 @@
         <uses-library android:name="android.test.runner" />
         <activity android:name=".ScreenOnActivity" />
         <activity android:name=".DisplayTestActivity" />
-        <activity
-            android:name=".RetainedDisplayTestActivity"
-            android:configChanges="density|orientation|screenLayout|screenSize" />
     </application>
 
     <!--  self-instrumenting test package. -->

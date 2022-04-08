@@ -12,10 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package {
-    default_applicable_licenses: ["Android-Apache-2.0"],
-}
-
 java_test_helper_library {
     name: "cts-opengl-util",
 
@@ -43,8 +39,8 @@ android_test {
         "compatibility-device-util-axt",
     ],
     libs: [
-        "android.test.runner",
-        "android.test.base",
+        "android.test.runner.stubs",
+        "android.test.base.stubs",
     ],
     srcs: ["src/**/*.java"],
     // Using EGL_RECORDABLE_ANDROID requires latest
@@ -52,6 +48,7 @@ android_test {
     // Tag this module as a cts test artifact
     test_suites: [
         "cts",
+        "vts10",
         "general-tests",
     ],
 }

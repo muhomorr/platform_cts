@@ -21,6 +21,7 @@ import static com.google.common.truth.Truth.assertThat;
 import android.app.Service;
 import android.content.Intent;
 import android.content.LocusId;
+import android.os.Binder;
 import android.os.IBinder;
 import android.os.ParcelFileDescriptor;
 import android.os.Process;
@@ -48,14 +49,7 @@ public class OutOfProcessDataSharingService extends Service {
     String mLocusId = "DataShare_CTSTest";
     String mMimeType = "application/octet-stream";
 
-    private final IBinder mBinder = new IOutOfProcessDataSharingService.Stub() {
-        @Override
-        public boolean isContentCaptureManagerAvailable() {
-            ContentCaptureManager manager =
-                    getApplicationContext().getSystemService(ContentCaptureManager.class);
-            return manager != null && manager.isContentCaptureEnabled();
-        }
-    };
+    private final IBinder mBinder = new LocalBinder();
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
@@ -117,4 +111,11 @@ public class OutOfProcessDataSharingService extends Service {
                     }
                 });
     }
+
+    public class LocalBinder extends Binder {
+        OutOfProcessDataSharingService getService() {
+            return OutOfProcessDataSharingService.this;
+        }
+    }
+
 }

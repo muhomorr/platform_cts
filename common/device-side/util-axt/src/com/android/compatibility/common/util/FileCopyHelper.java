@@ -19,7 +19,6 @@ package com.android.compatibility.common.util;
 import android.content.Context;
 
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -66,12 +65,6 @@ public class FileCopyHelper {
         copyFile(source, target);
         mFilesList.add(fileName);
         return mContext.getFileStreamPath(fileName).getAbsolutePath();
-    }
-
-    public void copyToExternalStorage(final String res, File path) throws IOException {
-        InputStream source = new FileInputStream(res);
-        OutputStream target = new FileOutputStream(path);
-        copyFile(source, target);
     }
 
     public void copyToExternalStorage(int resId, File path) throws IOException {

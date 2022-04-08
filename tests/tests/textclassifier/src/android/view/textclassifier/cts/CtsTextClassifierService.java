@@ -34,7 +34,6 @@ import android.view.textclassifier.TextLanguage;
 import android.view.textclassifier.TextLinks;
 import android.view.textclassifier.TextSelection;
 
-import androidx.core.os.BuildCompat;
 import androidx.annotation.NonNull;
 
 import java.util.ArrayList;
@@ -95,12 +94,7 @@ public final class CtsTextClassifierService extends TextClassifierService {
             TextSelection.Request request, CancellationSignal cancellationSignal,
             Callback<TextSelection> callback) {
         handleRequest(sessionId, "onSuggestSelection");
-        TextSelection.Builder textSelection =
-                new TextSelection.Builder(request.getStartIndex(), request.getEndIndex());
-        if (BuildCompat.isAtLeastS() && request.shouldIncludeTextClassification()) {
-            textSelection.setTextClassification(createTextClassification());
-        }
-        callback.onSuccess(textSelection.build());
+        callback.onSuccess(TextClassifier.NO_OP.suggestSelection(request));
     }
 
     @Override
@@ -108,21 +102,14 @@ public final class CtsTextClassifierService extends TextClassifierService {
             TextClassification.Request request, CancellationSignal cancellationSignal,
             Callback<TextClassification> callback) {
         handleRequest(sessionId, "onClassifyText");
-        callback.onSuccess(createTextClassification());
-    }
-
-    private TextClassification createTextClassification() {
-        return new TextClassification.Builder()
+        final TextClassification classification = new TextClassification.Builder()
                 .addAction(new RemoteAction(
                         ICON_RES,
                         "Test Action",
                         "Test Action",
-                        PendingIntent.getActivity(
-                                this,
-                                0,
-                                new Intent(),
-                                PendingIntent.FLAG_IMMUTABLE)))
+                        PendingIntent.getActivity(this, 0, new Intent(), 0)))
                 .build();
+        callback.onSuccess(classification);
     }
 
     @Override

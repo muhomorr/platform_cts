@@ -22,9 +22,6 @@ import android.graphics.Rect
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.test.InstrumentationRegistry
 
-val UI_ROOT: AccessibilityNodeInfo get() =
-    InstrumentationRegistry.getInstrumentation().uiAutomation.rootInActiveWindow
-
 val AccessibilityNodeInfo.bounds: Rect get() = Rect().also { getBoundsInScreen(it) }
 
 fun AccessibilityNodeInfo.click() {
@@ -52,12 +49,13 @@ fun AccessibilityNodeInfo.lowestCommonAncestor(
     }
 }
 
-val AccessibilityNodeInfo.children: List<AccessibilityNodeInfo> get() =
+val AccessibilityNodeInfo.children: List<AccessibilityNodeInfo?> get() =
     List(childCount) { i -> getChild(i) }
 
 val AccessibilityNodeInfo.textAsString: String? get() = (text as CharSequence?).toString()
 
 @JvmOverloads
-fun uiDump(ui: AccessibilityNodeInfo? = UI_ROOT) = buildString {
-    UiDumpUtils.dumpNodes(ui, this)
-}
+fun uiDump(
+    ui: AccessibilityNodeInfo? =
+        InstrumentationRegistry.getInstrumentation().uiAutomation.rootInActiveWindow
+) = buildString { UiDumpUtils.dumpNodes(ui, this) }

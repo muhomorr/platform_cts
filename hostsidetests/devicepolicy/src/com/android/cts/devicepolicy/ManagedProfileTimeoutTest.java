@@ -33,11 +33,12 @@ public class ManagedProfileTimeoutTest extends BaseManagedProfileTest {
     @FlakyTest
     @Test
     public void testWorkProfileTimeoutBackground() throws Exception {
-        assumeHasSecureLockScreenFeature();
-
+        if (!mHasFeature || !mHasSecureLockScreen) {
+            return;
+        }
         setUpWorkProfileTimeout();
 
-        startTestActivity(mPrimaryUserId, true);
+        startDummyActivity(mPrimaryUserId, true);
         simulateUserInteraction(PROFILE_TIMEOUT_DELAY_MS);
 
         verifyOnlyProfileLocked(true);
@@ -47,11 +48,12 @@ public class ManagedProfileTimeoutTest extends BaseManagedProfileTest {
     @LargeTest
     @Test
     public void testWorkProfileTimeoutIdleActivity() throws Exception {
-        assumeHasSecureLockScreenFeature();
-
+        if (!mHasFeature || !mHasSecureLockScreen) {
+            return;
+        }
         setUpWorkProfileTimeout();
 
-        startTestActivity(mProfileUserId, false);
+        startDummyActivity(mProfileUserId, false);
         Thread.sleep(PROFILE_TIMEOUT_DELAY_MS);
 
         verifyOnlyProfileLocked(true);
@@ -61,11 +63,12 @@ public class ManagedProfileTimeoutTest extends BaseManagedProfileTest {
     @FlakyTest
     @Test
     public void testWorkProfileTimeoutUserActivity() throws Exception {
-        assumeHasSecureLockScreenFeature();
-
+        if (!mHasFeature || !mHasSecureLockScreen) {
+            return;
+        }
         setUpWorkProfileTimeout();
 
-        startTestActivity(mProfileUserId, false);
+        startDummyActivity(mProfileUserId, false);
         simulateUserInteraction(PROFILE_TIMEOUT_DELAY_MS);
 
         verifyOnlyProfileLocked(false);
@@ -75,11 +78,12 @@ public class ManagedProfileTimeoutTest extends BaseManagedProfileTest {
     @FlakyTest
     @Test
     public void testWorkProfileTimeoutKeepScreenOnWindow() throws Exception {
-        assumeHasSecureLockScreenFeature();
-
+        if (!mHasFeature || !mHasSecureLockScreen) {
+            return;
+        }
         setUpWorkProfileTimeout();
 
-        startTestActivity(mProfileUserId, true);
+        startDummyActivity(mProfileUserId, true);
         Thread.sleep(PROFILE_TIMEOUT_DELAY_MS);
 
         verifyOnlyProfileLocked(false);
@@ -119,7 +123,7 @@ public class ManagedProfileTimeoutTest extends BaseManagedProfileTest {
                 method, userId);
     }
 
-    private void startTestActivity(int profileUserId, boolean keepScreenOn) throws Exception {
+    private void startDummyActivity(int profileUserId, boolean keepScreenOn) throws Exception {
         getDevice().executeShellCommand(String.format(
                 "am start-activity -W --user %d --ez keep_screen_on %s %s/.TimeoutActivity",
                 profileUserId, keepScreenOn, MANAGED_PROFILE_PKG));

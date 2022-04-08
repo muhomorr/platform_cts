@@ -24,7 +24,8 @@ import com.google.common.truth.Truth;
 
 import javax.annotation.Nullable;
 
-final class PackageInstallerSessionInfoSubject extends Subject {
+final class PackageInstallerSessionInfoSubject extends
+        Subject<PackageInstallerSessionInfoSubject, PackageInstaller.SessionInfo> {
     private final PackageInstaller.SessionInfo mActual;
 
     private PackageInstallerSessionInfoSubject(FailureMetadata failureMetadata,

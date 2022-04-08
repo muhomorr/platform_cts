@@ -17,7 +17,6 @@
 package android.server.wm.app;
 
 import static android.app.WindowConfiguration.ACTIVITY_TYPE_ASSISTANT;
-import static android.app.WindowConfiguration.WINDOWING_MODE_FULLSCREEN;
 import static android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK;
 import static android.content.Intent.FLAG_ACTIVITY_NEW_TASK;
 import static android.server.wm.app.Components.AssistantActivity.EXTRA_ASSISTANT_DISPLAY_ID;
@@ -47,13 +46,14 @@ public class AssistantActivity extends Activity {
             final Intent launchIntent = new Intent();
             launchIntent.setComponent(launchActivity)
                     .setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
-            final ActivityOptions activityOptions = ActivityOptions.makeBasic();
-            activityOptions.setLaunchWindowingMode(WINDOWING_MODE_FULLSCREEN);
             if (getIntent().hasExtra(EXTRA_ASSISTANT_DISPLAY_ID)) {
-                activityOptions.setLaunchDisplayId(Integer.parseInt(getIntent()
+                ActivityOptions displayOptions = ActivityOptions.makeBasic();
+                displayOptions.setLaunchDisplayId(Integer.parseInt(getIntent()
                         .getStringExtra(EXTRA_ASSISTANT_DISPLAY_ID)));
+                startActivity(launchIntent, displayOptions.toBundle());
+            } else {
+                startActivity(launchIntent);
             }
-            startActivity(launchIntent, activityOptions.toBundle());
         }
 
         // Enter pip if requested
@@ -84,7 +84,6 @@ public class AssistantActivity extends Activity {
 
         final ActivityOptions options = ActivityOptions.makeBasic();
         options.setLaunchActivityType(ACTIVITY_TYPE_ASSISTANT);
-        options.setLaunchWindowingMode(WINDOWING_MODE_FULLSCREEN);
         caller.startActivity(intent, options.toBundle());
     }
 }

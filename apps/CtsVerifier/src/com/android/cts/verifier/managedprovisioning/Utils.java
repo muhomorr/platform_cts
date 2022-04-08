@@ -27,7 +27,6 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
-import android.content.pm.PackageManager;
 import android.util.Log;
 import android.widget.Toast;
 import com.android.cts.verifier.IntentDrivenTestActivity;
@@ -95,7 +94,6 @@ public class Utils {
                         R.string.device_owner_requesting_bugreport_tests))
                 .setContentText(msg)
                 .setStyle(new Notification.BigTextStyle().bigText(msg))
-                .extend(new Notification.TvExtender())
                 .build();
         mNotificationManager.notify(notificationId, notification);
     }
@@ -139,10 +137,5 @@ public class Utils {
                 .setPositiveButton(R.string.go_button_text, (DialogInterface dialog, int which) ->
                         activity.startActivity(intent))
                 .show();
-    }
-
-    static boolean isLockscreenSupported(Context context) {
-        return context.getPackageManager().hasSystemFeature(
-                PackageManager.FEATURE_SECURE_LOCK_SCREEN);
     }
 }

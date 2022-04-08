@@ -12,10 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package {
-    default_applicable_licenses: ["Android-Apache-2.0"],
-}
-
 filegroup {
     name: "telephony-cts-ims-common-srcs",
     srcs: [
@@ -24,15 +20,7 @@ filegroup {
         "src/android/telephony/ims/cts/TestMmTelFeature.java",
         "src/android/telephony/ims/cts/TestImsSmsImpl.java",
         "src/android/telephony/ims/cts/TestImsConfig.java",
-        "src/android/telephony/ims/cts/TestImsRegistration.java",
-        "src/android/telephony/ims/cts/TestRcsCapabilityExchangeImpl.java",
-        "src/android/telephony/ims/cts/TestSipTransport.java",
-        "src/android/telephony/ims/cts/TestSipDelegate.java",
-        "src/android/telephony/ims/cts/TestSipDelegateConnection.java",
         "src/android/telephony/ims/cts/ImsUtils.java",
-        "src/android/telephony/ims/cts/SipDialogAttributes.java",
-        "src/android/telephony/ims/cts/SipMessageUtils.java",
-	    "src/android/telephony/ims/cts/TestAcsClient.java",
     ],
     path: "src/",
 }
@@ -42,8 +30,8 @@ android_test {
     defaults: ["cts_defaults"],
     libs: [
         "telephony-common",
-        "android.test.runner",
-        "android.test.base",
+        "android.test.runner.stubs",
+        "android.test.base.stubs",
         "voip-common",
     ],
     // uncomment when EuiccService tests do not use hidden APIs (Binder instances)
@@ -72,6 +60,7 @@ android_test {
     },
     test_suites: [
         "cts",
+        "vts10",
         "general-tests",
     ],
     platform_apis: true,
@@ -80,11 +69,3 @@ android_test {
         "cts-tradefed",
     ],
 }
-
-filegroup {
-    name: "cts-telephony-utils",
-    srcs: [
-        "src/android/telephony/cts/TelephonyUtils.java",
-    ]
-}
-

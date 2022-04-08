@@ -31,7 +31,6 @@ import android.content.Intent;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.content.res.Resources;
-import android.platform.test.annotations.AppModeFull;
 import android.platform.test.annotations.AsbSecurityTest;
 import android.support.test.uiautomator.By;
 import android.support.test.uiautomator.UiDevice;
@@ -164,7 +163,6 @@ public class PermissionGroupChange {
     }
 
     @Test
-    @AppModeFull
     @AsbSecurityTest(cveBugId = 72710897)
     public void permissionGroupShouldNotBeAutoGrantedIfNewMember() throws Throwable {
         installApp("CtsAppThatRequestsPermissionAandB");

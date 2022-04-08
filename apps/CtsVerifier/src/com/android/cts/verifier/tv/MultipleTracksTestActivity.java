@@ -137,24 +137,24 @@ public class MultipleTracksTestActivity extends TvAppVerifierActivity
 
     @Override
     protected void createTestItems() {
-        mSupportThirdPartyInputYesItem = createAndAttachUserItem(
+        mSupportThirdPartyInputYesItem = createUserItem(
                 R.string.tv_input_discover_test_third_party_tif_input_support,
                 R.string.tv_yes, this);
         setButtonEnabled(mSupportThirdPartyInputYesItem, true);
-        mSupportThirdPartyInputNoItem = createAndAttachButtonItem(R.string.tv_no, this);
+        mSupportThirdPartyInputNoItem = createButtonItem(R.string.tv_no, this);
         setButtonEnabled(mSupportThirdPartyInputNoItem, true);
-        mSelectSubtitleItem = createAndAttachUserItem(
+        mSelectSubtitleItem = createUserItem(
                 R.string.tv_multiple_tracks_test_select_subtitle,
                 R.string.tv_launch_tv_app, this);
-        mVerifySetCaptionEnabledItem = createAndAttachAutoItem(
+        mVerifySetCaptionEnabledItem = createAutoItem(
                 R.string.tv_multiple_tracks_test_verify_set_caption_enabled);
-        mVerifySelectSubtitleItem = createAndAttachAutoItem(
+        mVerifySelectSubtitleItem = createAutoItem(
                 R.string.tv_multiple_tracks_test_verify_select_subtitle);
-        mSelectAudioItem = createAndAttachUserItem(
+        mSelectAudioItem = createUserItem(
                 R.string.tv_multiple_tracks_test_select_audio,
                 R.string.tv_launch_tv_app, this);
         mSelectAudioItem.setTag(Integer.valueOf(0));
-        mVerifySelectAudioItem = createAndAttachAutoItem(
+        mVerifySelectAudioItem = createAutoItem(
                 R.string.tv_multiple_tracks_test_verify_select_audio);
     }
 

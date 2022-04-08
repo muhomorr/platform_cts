@@ -41,19 +41,12 @@ public class SessionCommitBroadcastTest extends BasePackageInstallTest {
 
     private ComponentName mDefaultLauncher;
     private ComponentName mThisAppLauncher;
-    private SessionCommitReceiver mReceiver;
 
     @Override
     protected void setUp() throws Exception {
         super.setUp();
         mDefaultLauncher = ComponentName.unflattenFromString(getDefaultLauncher());
         mThisAppLauncher = new ComponentName(mContext, LauncherActivity.class);
-        mReceiver = new SessionCommitReceiver();
-    }
-
-    @Override
-    protected void tearDown() throws Exception {
-        mContext.unregisterReceiver(mReceiver);
     }
 
     public void testBroadcastNotReceivedForDifferentLauncher() throws Exception {
@@ -76,10 +69,11 @@ public class SessionCommitBroadcastTest extends BasePackageInstallTest {
         }
 
         assertFalse("No default launcher found", mDefaultLauncher.equals(mThisAppLauncher));
+        SessionCommitReceiver receiver = new SessionCommitReceiver();
         // install the app
         assertInstallPackage();
         // Broadcast not received
-        assertNull(mReceiver.blockingGetIntent());
+        assertNull(receiver.blockingGetIntent());
 
         tryUninstallPackage();
     }
@@ -97,15 +91,16 @@ public class SessionCommitBroadcastTest extends BasePackageInstallTest {
         }
         setLauncher(mThisAppLauncher.flattenToString());
 
+        SessionCommitReceiver receiver = new SessionCommitReceiver();
         // install the app
         assertInstallPackage();
 
-        verifySessionIntent(mReceiver.blockingGetIntent());
-        mContext.unregisterReceiver(mReceiver);
+        verifySessionIntent(receiver.blockingGetIntent());
+
         forceUninstall();
-        mReceiver = new SessionCommitReceiver();
+        receiver = new SessionCommitReceiver();
         assertInstallPackage();
-        verifySessionIntent(mReceiver.blockingGetIntent());
+        verifySessionIntent(receiver.blockingGetIntent());
 
         tryUninstallPackage();
         // Revert to default launcher
@@ -132,9 +127,10 @@ public class SessionCommitBroadcastTest extends BasePackageInstallTest {
                 .toLowerCase().contains("success"));
 
         // Enable the app for this user
+        SessionCommitReceiver receiver = new SessionCommitReceiver();
         runShellCommand("cmd package install-existing --user " +
                 Process.myUserHandle().getIdentifier() + "  " + TEST_APP_PKG);
-        verifySessionIntent(mReceiver.blockingGetIntent());
+        verifySessionIntent(receiver.blockingGetIntent());
 
         // Cleanup
         setLauncher(mDefaultLauncher.flattenToString());
@@ -177,6 +173,7 @@ public class SessionCommitBroadcastTest extends BasePackageInstallTest {
 
         public Intent blockingGetIntent() throws Exception {
             mLatch.await(BROADCAST_TIMEOUT_SECS, TimeUnit.SECONDS);
+            mContext.unregisterReceiver(this);
             return mIntent;
         }
     }

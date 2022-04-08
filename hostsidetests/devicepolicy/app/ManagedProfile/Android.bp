@@ -12,18 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package {
-    default_applicable_licenses: ["Android-Apache-2.0"],
-}
-
 android_test_helper_app {
     name: "CtsManagedProfileApp",
     defaults: ["cts_defaults"],
     srcs: ["src/**/*.java"],
     libs: [
-        "android.test.runner",
+        "android.test.runner.stubs",
         "junit",
-        "android.test.base",
+        "android.test.base.stubs",
     ],
     static_libs: [
         "ctstestrunner-axt",
@@ -34,15 +30,15 @@ android_test_helper_app {
         "truth-prebuilt",
         "testng",
         "androidx.legacy_legacy-support-v4",
-        "devicepolicy-deviceside-common",
     ],
     min_sdk_version: "27",
     // tag this module as a cts test artifact
     test_suites: [
         "arcts",
         "cts",
+        "vts10",
         "general-tests",
-        "mts",
+        "mts-permission",
     ],
     platform_apis: true,
 }

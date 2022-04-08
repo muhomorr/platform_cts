@@ -49,16 +49,12 @@ public class LocationUtils {
     }
 
     public static Location createLocation(String provider, double latitude, double longitude, float accuracy) {
-        return createLocation(provider, latitude, longitude, accuracy, SystemClock.elapsedRealtimeNanos());
-    }
-
-    public static Location createLocation(String provider, double latitude, double longitude, float accuracy, long elapsedRealTimeNanos) {
         Location location = new Location(provider);
         location.setLatitude(latitude);
         location.setLongitude(longitude);
         location.setAccuracy(accuracy);
         location.setTime(System.currentTimeMillis());
-        location.setElapsedRealtimeNanos(elapsedRealTimeNanos);
+        location.setElapsedRealtimeNanos(SystemClock.elapsedRealtimeNanos());
         return location;
     }
 }

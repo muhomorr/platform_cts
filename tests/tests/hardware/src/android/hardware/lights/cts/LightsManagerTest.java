@@ -28,6 +28,7 @@ import android.hardware.lights.Light;
 import android.hardware.lights.LightState;
 import android.hardware.lights.LightsManager;
 
+import androidx.annotation.ColorInt;
 import androidx.test.InstrumentationRegistry;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
@@ -47,7 +48,6 @@ public class LightsManagerTest {
     private static final int ON_RED = 0xffff0000;
     private static final LightState STATE_TAN = new LightState(ON_TAN);
     private static final LightState STATE_RED = new LightState(ON_RED);
-    private static final int HIGH_PRIORITY = Integer.MAX_VALUE;
 
     private LightsManager mManager;
     private List<Light> mLights;
@@ -89,10 +89,10 @@ public class LightsManagerTest {
     public void testControlSingleLight() {
         assumeTrue(mLights.size() >= 1);
 
-        try (LightsManager.LightsSession session = mManager.openSession(HIGH_PRIORITY)) {
+        try (LightsManager.LightsSession session = mManager.openSession()) {
             // When the session requests to turn a single light on:
             session.requestLights(new Builder()
-                    .addLight(mLights.get(0), STATE_RED)
+                    .setLight(mLights.get(0), STATE_RED)
                     .build());
 
             // Then the light should turn on.
@@ -104,26 +104,20 @@ public class LightsManagerTest {
     public void testControlMultipleLights() {
         assumeTrue(mLights.size() >= 2);
 
-        int[] initialColors = new int[mLights.size()];
-        for (int i = 0; i < mLights.size(); i++) {
-            initialColors[i] = mManager.getLightState(mLights.get(i)).getColor();
-        }
-
-        try (LightsManager.LightsSession session = mManager.openSession(HIGH_PRIORITY)) {
+        try (LightsManager.LightsSession session = mManager.openSession()) {
             // When the session requests to turn two of the lights on:
             session.requestLights(new Builder()
-                    .addLight(mLights.get(0), new LightState(0xffaaaaff))
-                    .addLight(mLights.get(1), new LightState(0xffbbbbff))
+                    .setLight(mLights.get(0), new LightState(0xffaaaaff))
+                    .setLight(mLights.get(1), new LightState(0xffbbbbff))
                     .build());
 
             // Then both should turn on.
             assertThat(mManager.getLightState(mLights.get(0)).getColor()).isEqualTo(0xffaaaaff);
             assertThat(mManager.getLightState(mLights.get(1)).getColor()).isEqualTo(0xffbbbbff);
 
-            // Any others should remain in their initial state.
+            // Any others should remain off.
             for (int i = 2; i < mLights.size(); i++) {
-                assertThat(mManager.getLightState(mLights.get(i)).getColor()).isEqualTo(
-                        initialColors[i]);
+                assertThat(mManager.getLightState(mLights.get(i)).getColor()).isEqualTo(0x00);
             }
         }
     }
@@ -132,18 +126,19 @@ public class LightsManagerTest {
     public void testControlLights_onlyEffectiveForLifetimeOfClient() {
         assumeTrue(mLights.size() >= 1);
 
-        int initialColor = mManager.getLightState(mLights.get(0)).getColor();
+        // The light should begin by being off.
+        assertThat(mManager.getLightState(mLights.get(0)).getColor()).isEqualTo(0x00);
 
-        try (LightsManager.LightsSession session = mManager.openSession(HIGH_PRIORITY)) {
+        try (LightsManager.LightsSession session = mManager.openSession()) {
             // When a session commits changes:
-            session.requestLights(new Builder().addLight(mLights.get(0), STATE_TAN).build());
+            session.requestLights(new Builder().setLight(mLights.get(0), STATE_TAN).build());
             // Then the light should turn on.
             assertThat(mManager.getLightState(mLights.get(0)).getColor()).isEqualTo(ON_TAN);
 
             // When the session goes away:
             session.close();
-            // Then the light should return to its initial state.
-            assertThat(mManager.getLightState(mLights.get(0)).getColor()).isEqualTo(initialColor);
+            // Then the light should turn off.
+            assertThat(mManager.getLightState(mLights.get(0)).getColor()).isEqualTo(0x00);
         }
     }
 
@@ -151,14 +146,12 @@ public class LightsManagerTest {
     public void testControlLights_firstCallerWinsContention() {
         assumeTrue(mLights.size() >= 1);
 
-        int initialColor = mManager.getLightState(mLights.get(0)).getColor();
-
-        try (LightsManager.LightsSession session1 = mManager.openSession(HIGH_PRIORITY);
-                LightsManager.LightsSession session2 = mManager.openSession(HIGH_PRIORITY)) {
+        try (LightsManager.LightsSession session1 = mManager.openSession();
+                LightsManager.LightsSession session2 = mManager.openSession()) {
 
             // When session1 and session2 both request the same light:
-            session1.requestLights(new Builder().addLight(mLights.get(0), STATE_TAN).build());
-            session2.requestLights(new Builder().addLight(mLights.get(0), STATE_RED).build());
+            session1.requestLights(new Builder().setLight(mLights.get(0), STATE_TAN).build());
+            session2.requestLights(new Builder().setLight(mLights.get(0), STATE_RED).build());
             // Then session1 should win because it was created first.
             assertThat(mManager.getLightState(mLights.get(0)).getColor()).isEqualTo(ON_TAN);
 
@@ -169,8 +162,8 @@ public class LightsManagerTest {
 
             // When session2 goes away:
             session2.close();
-            // Then the light should return to its initial state because there are no more sessions.
-            assertThat(mManager.getLightState(mLights.get(0)).getColor()).isEqualTo(initialColor);
+            // Then the light should turn off because there are no more sessions.
+            assertThat(mManager.getLightState(mLights.get(0)).getColor()).isEqualTo(0);
         }
     }
 
@@ -178,15 +171,13 @@ public class LightsManagerTest {
     public void testClearLight() {
         assumeTrue(mLights.size() >= 1);
 
-        int initialColor = mManager.getLightState(mLights.get(0)).getColor();
-
-        try (LightsManager.LightsSession session = mManager.openSession(HIGH_PRIORITY)) {
+        try (LightsManager.LightsSession session = mManager.openSession()) {
             // When the session turns a light on:
-            session.requestLights(new Builder().addLight(mLights.get(0), STATE_RED).build());
+            session.requestLights(new Builder().setLight(mLights.get(0), STATE_RED).build());
             // And then the session clears it again:
             session.requestLights(new Builder().clearLight(mLights.get(0)).build());
-            // Then the light should return to its initial state.
-            assertThat(mManager.getLightState(mLights.get(0)).getColor()).isEqualTo(initialColor);
+            // Then the light should turn back off.
+            assertThat(mManager.getLightState(mLights.get(0)).getColor()).isEqualTo(0);
         }
     }
 }

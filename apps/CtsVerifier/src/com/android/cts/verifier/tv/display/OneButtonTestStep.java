@@ -16,15 +16,12 @@
 
 package com.android.cts.verifier.tv.display;
 
-import android.app.Activity;
 import android.view.View;
 
 import androidx.annotation.StringRes;
 
 import com.android.cts.verifier.tv.TestStepBase;
 import com.android.cts.verifier.tv.TvAppVerifierActivity;
-
-import java.util.List;
 
 /** Test step containing instruction to the user and a button. */
 public abstract class OneButtonTestStep extends TestStepBase {
@@ -45,7 +42,7 @@ public abstract class OneButtonTestStep extends TestStepBase {
      * @param buttonStringId Id of a string resource containing the text of the button.
      */
     public OneButtonTestStep(
-            Activity context,
+            TvAppVerifierActivity context,
             @StringRes int stepNameStringId,
             String instructionText,
             @StringRes int buttonStringId) {
@@ -55,25 +52,21 @@ public abstract class OneButtonTestStep extends TestStepBase {
     }
 
     @Override
-    public List<View> createUiElements() {
-        List<View> list = super.createUiElements();
+    public void createUiElements() {
+        super.createUiElements();
         mButtonView =
-                TvAppVerifierActivity.createButtonItem(mContext.getLayoutInflater(),
-                        null,
+                mContext.createButtonItem(
                         mButtonStringId,
                         (View view) -> {
                             String stepName = mContext.getString(mStepNameStringId);
                             appendInfoDetails("Running test step %s...", stepName);
                             onButtonClickRunTest();
                         });
-        list.add(mButtonView);
-        return list;
     }
 
     @Override
     public void enableInteractivity() {
         TvAppVerifierActivity.setButtonEnabled(mButtonView, true);
-        mButtonView.requestFocus();
     }
 
     @Override

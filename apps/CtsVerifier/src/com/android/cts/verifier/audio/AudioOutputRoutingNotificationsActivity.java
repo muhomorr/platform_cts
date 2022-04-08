@@ -36,20 +36,11 @@ import android.view.View.OnClickListener;
 import android.widget.Button;
 import android.widget.TextView;
 
-import org.hyphonate.megaaudio.player.AudioSource;
-import org.hyphonate.megaaudio.player.AudioSourceProvider;
-import org.hyphonate.megaaudio.player.JavaPlayer;
-import org.hyphonate.megaaudio.player.PlayerBuilder;
-import org.hyphonate.megaaudio.player.sources.SinAudioSourceProvider;
-
 /**
  * Tests AudioTrack and AudioRecord (re)Routing messages.
  */
-public class AudioOutputRoutingNotificationsActivity extends AudioWiredDeviceBaseActivity {
+public class AudioOutputRoutingNotificationsActivity extends HeadsetHonorSystemActivity {
     private static final String TAG = "AudioOutputRoutingNotificationsActivity";
-
-    static final int NUM_CHANNELS = 2;
-    static final int SAMPLE_RATE = 48000;
 
     Context mContext;
 
@@ -60,27 +51,18 @@ public class AudioOutputRoutingNotificationsActivity extends AudioWiredDeviceBas
 
     int mNumTrackNotifications = 0;
 
-    // Mega Player
-    JavaPlayer mAudioPlayer;
+    TrivialPlayer mAudioPlayer = new TrivialPlayer();
 
     private class OnBtnClickListener implements OnClickListener {
         @Override
         public void onClick(View v) {
-            if (mAudioPlayer == null) {
-                return; // failed to create the player
-            }
             switch (v.getId()) {
                 case R.id.audio_routingnotification_playBtn:
-                {
-                    mAudioPlayer.startStream();
-                    AudioTrack audioTrack = mAudioPlayer.getAudioTrack();
-                    audioTrack.addOnRoutingChangedListener(
-                            new AudioTrackRoutingChangeListener(), new Handler());
-                }
+                    mAudioPlayer.start();
                     break;
 
                 case R.id.audio_routingnotification_playStopBtn:
-                    mAudioPlayer.stopStream();
+                    mAudioPlayer.stop();
                     break;
             }
         }
@@ -120,24 +102,9 @@ public class AudioOutputRoutingNotificationsActivity extends AudioWiredDeviceBas
         stopBtn = (Button)findViewById(R.id.audio_routingnotification_playStopBtn);
         stopBtn.setOnClickListener(mBtnClickListener);
 
-        // Setup Player
-        //
-        // Allocate the source provider for the sort of signal we want to play
-        //
-        AudioSourceProvider sourceProvider = new SinAudioSourceProvider();
-        try {
-            PlayerBuilder builder = new PlayerBuilder();
-            mAudioPlayer = (JavaPlayer)builder
-                    // choose one or the other of these for a Java or an Oboe player
-                    .setPlayerType(PlayerBuilder.TYPE_JAVA)
-                    // .setPlayerType(PlayerBuilder.PLAYER_OBOE)
-                    .setSourceProvider(sourceProvider)
-                    .build();
-            //TODO - explain the choice of 96 here.
-            mAudioPlayer.setupStream(NUM_CHANNELS, SAMPLE_RATE, 96);
-        } catch (PlayerBuilder.BadStateException ex) {
-            Log.e(TAG, "Failed MegaPlayer build.");
-        }
+        AudioTrack audioTrack = mAudioPlayer.getAudioTrack();
+        audioTrack.addOnRoutingChangedListener(
+            new AudioTrackRoutingChangeListener(), new Handler());
 
         // "Honor System" buttons
         super.setup();
@@ -147,9 +114,7 @@ public class AudioOutputRoutingNotificationsActivity extends AudioWiredDeviceBas
 
     @Override
     public void onBackPressed () {
-        if (mAudioPlayer != null) {
-            mAudioPlayer.stopStream();
-        }
+        mAudioPlayer.shutDown();
         super.onBackPressed();
     }
 }

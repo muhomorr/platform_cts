@@ -53,7 +53,6 @@ public class ImeSettings {
     private static final String INLINE_SUGGESTION_VIEW_CONTENT_DESC =
             "InlineSuggestionViewContentDesc";
     private static final String STRICT_MODE_ENABLED = "StrictModeEnabled";
-    private static final String VERIFY_GET_DISPLAY_ON_CREATE = "VerifyGetDisplayOnCreate";
 
     @NonNull
     private final PersistableBundle mBundle;
@@ -131,10 +130,6 @@ public class ImeSettings {
 
     public boolean isStrictModeEnabled() {
         return mBundle.getBoolean(STRICT_MODE_ENABLED, false);
-    }
-
-    public boolean isVerifyGetDisplayOnCreate() {
-        return mBundle.getBoolean(VERIFY_GET_DISPLAY_ON_CREATE, false);
     }
 
     static Bundle serializeToBundle(@NonNull String eventCallbackActionName,
@@ -293,15 +288,6 @@ public class ImeSettings {
         /** Sets whether to enable {@link android.os.StrictMode} or not. */
         public Builder setStrictModeEnabled(boolean enabled) {
             mBundle.putBoolean(STRICT_MODE_ENABLED, enabled);
-            return this;
-        }
-
-        /**
-         * Sets whether to verify {@link android.inputmethodservice.InputMethodService#getDisplay()}
-         * or not.
-         */
-        public Builder setVerifyGetDisplayOnCreate(boolean enabled) {
-            mBundle.putBoolean(VERIFY_GET_DISPLAY_ON_CREATE, enabled);
             return this;
         }
     }

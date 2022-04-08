@@ -146,7 +146,7 @@ open class PackageInstallerTestBase {
         // Commit session
         val dialog = FutureResultActivity.doAndAwaitStart {
             val pendingIntent = PendingIntent.getBroadcast(context, 0, Intent(INSTALL_ACTION_CB),
-                    FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE)
+                    FLAG_UPDATE_CURRENT)
             session.commit(pendingIntent.intentSender)
         }
 

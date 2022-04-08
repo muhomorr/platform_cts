@@ -33,12 +33,10 @@ import android.graphics.ColorSpace;
 import android.graphics.ColorSpace.Named;
 import android.graphics.ImageDecoder;
 import android.graphics.Rect;
-import android.graphics.drawable.cts.AnimatedImageDrawableTest;
 import android.net.Uri;
 import android.os.ParcelFileDescriptor;
 import android.system.ErrnoException;
 import android.system.Os;
-import android.util.DisplayMetrics;
 
 import androidx.test.InstrumentationRegistry;
 
@@ -298,20 +296,6 @@ public class AImageDecoderTest {
         }
     }
 
-    private static Bitmap decode(int resId, boolean unpremul) {
-        // This test relies on ImageDecoder *not* scaling to account for density.
-        // Temporarily change the DisplayMetrics to prevent that scaling.
-        Resources res = getResources();
-        final int originalDensity = res.getDisplayMetrics().densityDpi;
-        try {
-            res.getDisplayMetrics().densityDpi = DisplayMetrics.DENSITY_DEFAULT;
-            ImageDecoder.Source src = ImageDecoder.createSource(res, resId);
-            return decode(src, unpremul);
-        } finally {
-            res.getDisplayMetrics().densityDpi = originalDensity;
-        }
-    }
-
     @Test
     @Parameters(method = "getAssetRecordsUnpremul")
     public void testDecode(ImageDecoderTest.AssetRecord record, boolean unpremul) {
@@ -330,7 +314,9 @@ public class AImageDecoderTest {
     @Parameters(method = "getRecordsUnpremul")
     public void testDecodeResources(ImageDecoderTest.Record record, boolean unpremul)
             throws IOException {
-        Bitmap bm = decode(record.resId, unpremul);
+        ImageDecoder.Source src = ImageDecoder.createSource(getResources(),
+                record.resId);
+        Bitmap bm = decode(src, unpremul);
         try (ParcelFileDescriptor pfd = open(record.resId)) {
             long aimagedecoder = nCreateFromFd(pfd.getFd());
 
@@ -363,20 +349,6 @@ public class AImageDecoderTest {
         }
     }
 
-    private static Bitmap decode(int resId, Bitmap.Config config) {
-        // This test relies on ImageDecoder *not* scaling to account for density.
-        // Temporarily change the DisplayMetrics to prevent that scaling.
-        Resources res = getResources();
-        final int originalDensity = res.getDisplayMetrics().densityDpi;
-        try {
-            res.getDisplayMetrics().densityDpi = DisplayMetrics.DENSITY_DEFAULT;
-            ImageDecoder.Source src = ImageDecoder.createSource(res, resId);
-            return decode(src, config);
-        } finally {
-            res.getDisplayMetrics().densityDpi = originalDensity;
-        }
-    }
-
     @Test
     @Parameters(method = "getAssetRecords")
     public void testDecode565(ImageDecoderTest.AssetRecord record) {
@@ -399,7 +371,9 @@ public class AImageDecoderTest {
     @Parameters(method = "getRecords")
     public void testDecode565Resources(ImageDecoderTest.Record record)
             throws IOException {
-        Bitmap bm = decode(record.resId, Bitmap.Config.RGB_565);
+        ImageDecoder.Source src = ImageDecoder.createSource(getResources(),
+                record.resId);
+        Bitmap bm = decode(src, Bitmap.Config.RGB_565);
 
         if (bm.getConfig() != Bitmap.Config.RGB_565) {
             bm = null;
@@ -436,7 +410,9 @@ public class AImageDecoderTest {
     public void testDecodeA8Resources()
             throws IOException {
         final int resId = R.drawable.grayscale_jpg;
-        Bitmap bm = decode(resId, Bitmap.Config.ALPHA_8);
+        ImageDecoder.Source src = ImageDecoder.createSource(getResources(),
+                resId);
+        Bitmap bm = decode(src, Bitmap.Config.ALPHA_8);
 
         assertNotNull(bm);
         assertNull(bm.getColorSpace());
@@ -601,34 +577,19 @@ public class AImageDecoderTest {
             // SkRawCodec does not support sampling.
             return;
         }
-        testComputeSampledSizeInternal(record.resId, sampleSize);
-    }
-
-    private void testComputeSampledSizeInternal(int resId, int sampleSize)
-            throws IOException {
-        ImageDecoder.Source src = ImageDecoder.createSource(getResources(), resId);
-        String name = Utils.getAsResourceUri(resId).toString();
+        ImageDecoder.Source src = ImageDecoder.createSource(getResources(),
+                record.resId);
+        String name = Utils.getAsResourceUri(record.resId).toString();
         Bitmap bm = decodeSampled(name, src, sampleSize);
         assertNotNull(bm);
 
-        try (ParcelFileDescriptor pfd = open(resId)) {
+        try (ParcelFileDescriptor pfd = open(record.resId)) {
             long aimagedecoder = nCreateFromFd(pfd.getFd());
 
             nTestComputeSampledSize(aimagedecoder, bm, sampleSize);
         } catch (FileNotFoundException e) {
             fail("Could not open " + name + ": " + e);
         }
-    }
-
-    private static Object[] getExifsSample() {
-        return Utils.crossProduct(getExifImages(), new Object[] { 2, 3, 4, 8, 16 });
-    }
-
-    @Test
-    @Parameters(method = "getExifsSample")
-    public void testComputeSampledSizeExif(int resId, int sampleSize)
-            throws IOException {
-        testComputeSampledSizeInternal(resId, sampleSize);
     }
 
     private Bitmap decodeScaled(String name, ImageDecoder.Source src) {
@@ -790,20 +751,6 @@ public class AImageDecoderTest {
         }
     }
 
-    private static Bitmap decodeCropped(String name, Cropper cropper, int resId) {
-        // This test relies on ImageDecoder *not* scaling to account for density.
-        // Temporarily change the DisplayMetrics to prevent that scaling.
-        Resources res = getResources();
-        final int originalDensity = res.getDisplayMetrics().densityDpi;
-        try {
-            res.getDisplayMetrics().densityDpi = DisplayMetrics.DENSITY_DEFAULT;
-            ImageDecoder.Source src = ImageDecoder.createSource(res, resId);
-            return decodeCropped(name, cropper, src);
-        } finally {
-            res.getDisplayMetrics().densityDpi = originalDensity;
-        }
-    }
-
     @Test
     @Parameters(method = "getAssetRecords")
     public void testCrop(ImageDecoderTest.AssetRecord record) {
@@ -824,9 +771,11 @@ public class AImageDecoderTest {
     @Parameters(method = "getRecords")
     public void testCropResource(ImageDecoderTest.Record record)
             throws IOException {
+        ImageDecoder.Source src = ImageDecoder.createSource(getResources(),
+                record.resId);
         String name = Utils.getAsResourceUri(record.resId).toString();
         Cropper cropper = new Cropper(false /* scale */);
-        Bitmap bm = decodeCropped(name, cropper, record.resId);
+        Bitmap bm = decodeCropped(name, cropper, src);
         assertNotNull(bm);
 
         try (ParcelFileDescriptor pfd = open(record.resId)) {
@@ -909,20 +858,6 @@ public class AImageDecoderTest {
         assertNotNull(bm);
         assertEquals(100, bm.getWidth());
         assertEquals(80,  bm.getHeight());
-
-        // First verify that the info (and in particular, the width and height)
-        // are correct. This uses a separate ParcelFileDescriptor/aimagedecoder
-        // because the native methods delete the aimagedecoder.
-        try (ParcelFileDescriptor pfd = open(resId)) {
-            long aimagedecoder = nCreateFromFd(pfd.getFd());
-
-            String mimeType = uri.toString().contains("webp") ? "image/webp" : "image/jpeg";
-            nTestInfo(aimagedecoder, 100, 80, mimeType, false,
-                    DataSpace.fromColorSpace(bm.getColorSpace()));
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
-            fail("Could not open " + uri + " to check info");
-        }
 
         try (ParcelFileDescriptor pfd = open(resId)) {
             long aimagedecoder = nCreateFromFd(pfd.getFd());
@@ -1093,78 +1028,6 @@ public class AImageDecoderTest {
         nCloseAsset(asset);
     }
 
-    @Test
-    @Parameters(method = "getAssetRecords")
-    public void testNotAnimatedAssets(ImageDecoderTest.AssetRecord record) {
-        long asset = nOpenAsset(getAssetManager(), record.name);
-        long aimagedecoder = nCreateFromAsset(asset);
-
-        nTestIsAnimated(aimagedecoder, false);
-        nCloseAsset(asset);
-    }
-
-    @Test
-    @Parameters(method = "getRecords")
-    public void testNotAnimated(ImageDecoderTest.Record record) throws IOException {
-        try (ParcelFileDescriptor pfd = open(record.resId)) {
-            long aimagedecoder = nCreateFromFd(pfd.getFd());
-
-            nTestIsAnimated(aimagedecoder, false);
-        } catch (FileNotFoundException e) {
-            fail("Could not open " + Utils.getAsResourceUri(record.resId));
-        }
-    }
-
-    private static Object[] getAnimatedImagesPlusRepeatCounts() {
-        return AnimatedImageDrawableTest.parametersForTestEncodedRepeats();
-    }
-
-    // Although these images have an encoded repeat count, they have only one frame,
-    // so they are not considered animated.
-    @Test
-    @Parameters({"still_with_loop_count.gif", "webp_still_with_loop_count.webp"})
-    public void testStill(String name) {
-        long asset = nOpenAsset(getAssetManager(), name);
-        long aimagedecoder = nCreateFromAsset(asset);
-
-        nTestIsAnimated(aimagedecoder, false);
-        nCloseAsset(asset);
-    }
-
-    @Test
-    @Parameters(method = "getAnimatedImagesPlusRepeatCounts")
-    public void testAnimated(int resId, int unused) throws IOException {
-        try (ParcelFileDescriptor pfd = open(resId)) {
-            long aimagedecoder = nCreateFromFd(pfd.getFd());
-
-            nTestIsAnimated(aimagedecoder, true);
-        } catch (FileNotFoundException e) {
-            fail("Could not open " + Utils.getAsResourceUri(resId));
-        }
-    }
-
-    @Test
-    @Parameters(method = "getAnimatedImagesPlusRepeatCounts")
-    public void testRepeatCount(int resId, int repeatCount) throws IOException {
-        try (ParcelFileDescriptor pfd = open(resId)) {
-            long aimagedecoder = nCreateFromFd(pfd.getFd());
-
-            nTestRepeatCount(aimagedecoder, repeatCount);
-        } catch (FileNotFoundException e) {
-            fail("Could not open " + Utils.getAsResourceUri(resId));
-        }
-    }
-
-    @Test
-    @Parameters({"still_with_loop_count.gif, 1", "webp_still_with_loop_count.webp,31999"})
-    public void testRepeatCountStill(String name, int repeatCount) {
-        long asset = nOpenAsset(getAssetManager(), name);
-        long aimagedecoder = nCreateFromAsset(asset);
-
-        nTestRepeatCount(aimagedecoder, repeatCount);
-        nCloseAsset(asset);
-    }
-
     // Return a pointer to the native AAsset named |file|. Must be closed with nCloseAsset.
     // Throws an Exception on failure.
     private static native long nOpenAsset(AssetManager assets, String file);
@@ -1207,6 +1070,4 @@ public class AImageDecoderTest {
             int cropLeft, int cropTop, int cropRight, int cropBottom);
     private static native void nTestScalePlusUnpremul(long aimagedecoder);
     private static native void nTestDecode(long aimagedecoder, Bitmap bm, int dataSpace);
-    private static native void nTestIsAnimated(long aimagedecoder, boolean animated);
-    private static native void nTestRepeatCount(long aimagedecoder, int repeatCount);
 }

@@ -17,11 +17,9 @@
 package com.android.cts.install.lib;
 
 import static com.google.common.truth.Truth.assertThat;
-import static com.google.common.truth.Truth.assertWithMessage;
 
 import static org.junit.Assert.fail;
 
-import android.app.UiAutomation;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
@@ -33,7 +31,6 @@ import android.content.pm.PackageInstaller;
 import android.content.pm.PackageManager;
 import android.os.Handler;
 import android.os.HandlerThread;
-import android.os.SystemClock;
 
 import androidx.test.InstrumentationRegistry;
 
@@ -44,7 +41,6 @@ import java.lang.reflect.Field;
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Utilities to facilitate installation in tests.
@@ -52,38 +48,32 @@ import java.util.concurrent.TimeUnit;
 public class InstallUtils {
     private static final int NUM_MAX_POLLS = 5;
     private static final int POLL_WAIT_TIME_MILLIS = 200;
-    private static final long GET_UIAUTOMATION_TIMEOUT_MS = 60000;
-
-    private static UiAutomation getUiAutomation() {
-        final long start = SystemClock.uptimeMillis();
-        while (SystemClock.uptimeMillis() - start < GET_UIAUTOMATION_TIMEOUT_MS) {
-            UiAutomation ui = InstrumentationRegistry.getInstrumentation().getUiAutomation();
-            if (ui != null) {
-                return ui;
-            }
-        }
-        throw new AssertionError("Failed to get UiAutomation");
-    }
 
     /**
      * Adopts the given shell permissions.
      */
     public static void adoptShellPermissionIdentity(String... permissions) {
-        getUiAutomation().adoptShellPermissionIdentity(permissions);
+        InstrumentationRegistry
+                .getInstrumentation()
+                .getUiAutomation()
+                .adoptShellPermissionIdentity(permissions);
     }
 
     /**
      * Drops all shell permissions.
      */
     public static void dropShellPermissionIdentity() {
-        getUiAutomation().dropShellPermissionIdentity();
+        InstrumentationRegistry
+                .getInstrumentation()
+                .getUiAutomation()
+                .dropShellPermissionIdentity();
     }
     /**
      * Returns the version of the given package installed on device.
      * Returns -1 if the package is not currently installed.
      */
     public static long getInstalledVersion(String packageName) {
-        Context context = InstrumentationRegistry.getTargetContext();
+        Context context = InstrumentationRegistry.getContext();
         PackageManager pm = context.getPackageManager();
         try {
             PackageInfo info = pm.getPackageInfo(packageName, PackageManager.MATCH_APEX);
@@ -94,9 +84,10 @@ public class InstallUtils {
     }
 
     /**
-     * Waits for the given session to be marked as ready or failed and returns it.
+     * Waits for the given session to be marked as ready.
+     * Throws an assertion if the session fails.
      */
-    public static PackageInstaller.SessionInfo waitForSession(int sessionId) {
+    public static void waitForSessionReady(int sessionId) {
         BlockingQueue<PackageInstaller.SessionInfo> sessionStatus = new LinkedBlockingQueue<>();
         BroadcastReceiver sessionUpdatedReceiver = new BroadcastReceiver() {
             @Override
@@ -117,7 +108,7 @@ public class InstallUtils {
         IntentFilter sessionUpdatedFilter =
                 new IntentFilter(PackageInstaller.ACTION_SESSION_UPDATED);
 
-        Context context = InstrumentationRegistry.getTargetContext();
+        Context context = InstrumentationRegistry.getContext();
         context.registerReceiver(sessionUpdatedReceiver, sessionUpdatedFilter);
 
         PackageInstaller installer = getPackageInstaller();
@@ -127,26 +118,14 @@ public class InstallUtils {
             if (info.isStagedSessionReady() || info.isStagedSessionFailed()) {
                 sessionStatus.put(info);
             }
-            info = sessionStatus.poll(60, TimeUnit.SECONDS);
+
+            info = sessionStatus.take();
             context.unregisterReceiver(sessionUpdatedReceiver);
-            assertWithMessage("Timed out while waiting for session to get ready/failed")
-                    .that(info).isNotNull();
-            assertThat(info.getSessionId()).isEqualTo(sessionId);
-            return info;
+            if (info.isStagedSessionFailed()) {
+                throw new AssertionError(info.getStagedSessionErrorMessage());
+            }
         } catch (InterruptedException e) {
             throw new AssertionError(e);
-        }
-    }
-
-    /**
-     * Waits for the given session to be marked as ready.
-     * Throws an assertion if the session fails.
-     */
-    public static void waitForSessionReady(int sessionId) {
-        PackageInstaller.SessionInfo info = waitForSession(sessionId);
-        // TODO: migrate to PackageInstallerSessionInfoSubject
-        if (info.isStagedSessionFailed()) {
-            throw new AssertionError(info.getStagedSessionErrorMessage());
         }
     }
 
@@ -154,7 +133,7 @@ public class InstallUtils {
      * Returns the info for the given package name.
      */
     public static PackageInfo getPackageInfo(String packageName) {
-        Context context = InstrumentationRegistry.getTargetContext();
+        Context context = InstrumentationRegistry.getContext();
         PackageManager pm = context.getPackageManager();
         try {
             return pm.getPackageInfo(packageName, PackageManager.MATCH_APEX);
@@ -167,7 +146,7 @@ public class InstallUtils {
      * Returns the PackageInstaller instance of the current {@code Context}
      */
     public static PackageInstaller getPackageInstaller() {
-        return InstrumentationRegistry.getTargetContext().getPackageManager().getPackageInstaller();
+        return InstrumentationRegistry.getContext().getPackageManager().getPackageInstaller();
     }
 
     /**
@@ -190,33 +169,6 @@ public class InstallUtils {
         } else if (status > 0) {
             String message = result.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE);
             throw new AssertionError(message == null ? "UNKNOWN FAILURE" : message);
-        }
-    }
-
-    /**
-     * Asserts that {@code result} intent has a failure status.
-     */
-    public static void assertStatusFailure(Intent result) {
-        // Pass SUCCESS as default to ensure that this doesn't accidentally pass
-        int status = result.getIntExtra(PackageInstaller.EXTRA_STATUS,
-                PackageInstaller.STATUS_SUCCESS);
-        switch (status) {
-            case -2: // PackageInstaller.STATUS_PENDING_STREAMING
-            case PackageInstaller.STATUS_PENDING_USER_ACTION:
-                throw new AssertionError("PENDING " + status);
-            case PackageInstaller.STATUS_SUCCESS:
-                throw new AssertionError("INCORRECT SUCCESS ");
-            case PackageInstaller.STATUS_FAILURE:
-            case PackageInstaller.STATUS_FAILURE_BLOCKED:
-            case PackageInstaller.STATUS_FAILURE_ABORTED:
-            case PackageInstaller.STATUS_FAILURE_INVALID:
-            case PackageInstaller.STATUS_FAILURE_CONFLICT:
-            case PackageInstaller.STATUS_FAILURE_STORAGE:
-            case PackageInstaller.STATUS_FAILURE_INCOMPATIBLE:
-                break;
-            default:
-                String message = result.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE);
-                throw new AssertionError(message == null ? "UNKNOWN STATUS" : message);
         }
     }
 
@@ -268,7 +220,7 @@ public class InstallUtils {
         intent.setComponent(new ComponentName(packageName,
                 "com.android.cts.install.lib.testapp.ProcessUserData"));
         intent.setAction("PROCESS_USER_DATA");
-        Context context = InstrumentationRegistry.getTargetContext();
+        Context context = InstrumentationRegistry.getContext();
 
         HandlerThread handlerThread = new HandlerThread("RollbackTestHandlerThread");
         handlerThread.start();
@@ -317,7 +269,7 @@ public class InstallUtils {
         intent.setComponent(new ComponentName(packageName,
                 "com.android.cts.install.lib.testapp.ProcessUserData"));
         intent.setAction("GET_USER_DATA_VERSION");
-        Context context = InstrumentationRegistry.getTargetContext();
+        Context context = InstrumentationRegistry.getContext();
 
         HandlerThread handlerThread = new HandlerThread("RollbackTestHandlerThread");
         handlerThread.start();
@@ -373,7 +325,7 @@ public class InstallUtils {
      */
     public static boolean isOnlyInstalledForUser(String packageName, int userIdToCheck,
             List<Integer> userIds) {
-        Context context = InstrumentationRegistry.getTargetContext();
+        Context context = InstrumentationRegistry.getContext();
         PackageManager pm = context.getPackageManager();
         for (int userId: userIds) {
             List<PackageInfo> installedPackages;
@@ -388,28 +340,7 @@ public class InstallUtils {
             }
         }
         return true;
-    }
 
-    /**
-     * Returns the session by session Id, or null if no session is found.
-     */
-    public static PackageInstaller.SessionInfo getStagedSessionInfo(int sessionId) {
-        PackageInstaller packageInstaller = getPackageInstaller();
-        for (PackageInstaller.SessionInfo session : packageInstaller.getStagedSessions()) {
-            if (session.getSessionId() == sessionId) {
-                return session;
-            }
-        }
-        return null;
-    }
-
-    /**
-     * Assert that the given staged session is abandoned. The method assumes that the given session
-     * is staged.
-     * @param sessionId of the staged session
-     */
-    public static void assertStagedSessionIsAbandoned(int sessionId) {
-        assertThat(getStagedSessionInfo(sessionId)).isNull();
     }
 
     /**

@@ -17,33 +17,22 @@
 package com.android.compatibility.common.util;
 
 import java.util.concurrent.Callable;
-import java.util.function.BooleanSupplier;
 
 import junit.framework.Assert;
 
 public abstract class PollingCheck {
     private static final long TIME_SLICE = 50;
-    private static final long DEFAULT_TIMEOUT = 3_000;
-    private static final String DEFAULT_ERROR_MESSAGE = "unexpected timeout";
-
-    private final long mTimeout;
-    private final String mErrorMessage;
+    private long mTimeout = 3000;
 
     public static interface PollingCheckCondition {
         boolean canProceed();
     }
 
     public PollingCheck() {
-        this(DEFAULT_TIMEOUT, DEFAULT_ERROR_MESSAGE);
     }
 
     public PollingCheck(long timeout) {
-        this(timeout, DEFAULT_ERROR_MESSAGE);
-    }
-
-    public PollingCheck(long timeout, String errorMessage) {
         mTimeout = timeout;
-        mErrorMessage = errorMessage;
     }
 
     protected abstract boolean check();
@@ -68,7 +57,7 @@ public abstract class PollingCheck {
             timeout -= TIME_SLICE;
         }
 
-        Assert.assertTrue(mErrorMessage, check());
+        Assert.fail("unexpected timeout");
     }
 
     public static void check(CharSequence message, long timeout, Callable<Boolean> condition)
@@ -99,15 +88,6 @@ public abstract class PollingCheck {
             @Override
             protected boolean check() {
                 return condition.canProceed();
-            }
-        }.run();
-    }
-
-    public static void waitFor(long timeout, BooleanSupplier condition, String errorMessage) {
-        new PollingCheck(timeout, errorMessage) {
-            @Override
-            protected boolean check() {
-                return condition.getAsBoolean();
             }
         }.run();
     }

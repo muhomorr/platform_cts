@@ -16,15 +16,13 @@
 
 package com.android.compatibility.common.util;
 
-import android.app.usage.UsageStatsManager;
 import android.util.Log;
 
-import androidx.test.InstrumentationRegistry;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class AppStandbyUtils {
     private static final String TAG = "CtsAppStandbyUtils";
-    private static final UsageStatsManager sUsageStatsManager = InstrumentationRegistry
-            .getTargetContext().getSystemService(UsageStatsManager.class);
 
     /**
      * Returns if app standby is enabled.
@@ -64,15 +62,5 @@ public class AppStandbyUtils {
         final boolean boolResult = result.equals("1") || result.equals("null");
         Log.d(TAG, "AppStandby is " + (boolResult ? "enabled" : "disabled") + " at runtime.");
         return boolResult;
-    }
-
-    /** Returns the current standby-bucket of the package on the device */
-    public static int getAppStandbyBucket(String packageName) {
-        try {
-            return SystemUtil.callWithShellPermissionIdentity(
-                    () -> sUsageStatsManager.getAppStandbyBucket(packageName));
-        } catch (Exception e) {
-            throw new RuntimeException("Could not get standby-bucket for " + packageName, e);
-        }
     }
 }

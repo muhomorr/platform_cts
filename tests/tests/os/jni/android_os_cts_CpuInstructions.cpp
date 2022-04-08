@@ -28,6 +28,11 @@ static void sigill_handler(int signum __attribute__((unused)))
     siglongjmp(jmpenv, 1);
 }
 
+static int do_sigsetjmp()
+{
+    return sigsetjmp(jmpenv, 1);
+}
+
 static jboolean test_instruction(void (*func)())
 {
     struct sigaction sigill_act;
@@ -44,7 +49,7 @@ static jboolean test_instruction(void (*func)())
         goto err_sigaction;
     }
 
-    if (sigsetjmp(jmpenv, 1)) {
+    if (do_sigsetjmp()) {
         ret = false;
         goto err_segill;
     }

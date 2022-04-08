@@ -32,14 +32,12 @@ import android.view.WindowManager;
 public class FeatureTest extends AndroidTestCase {
 
     private static final String TAG = "FeatureTest";
-    private static final long TWO_GB = 1536000000; // 2 GB
 
     private PackageManager mPackageManager;
     private ActivityManager mActivityManager;
     private WindowManager mWindowManager;
     private boolean mSupportsDeviceAdmin;
     private boolean mSupportsManagedProfiles;
-    private long mTotalMemory;
 
     @Override
     protected void setUp() throws Exception {
@@ -51,9 +49,6 @@ public class FeatureTest extends AndroidTestCase {
                 mPackageManager.hasSystemFeature(PackageManager.FEATURE_DEVICE_ADMIN);
         mSupportsManagedProfiles =
                 mPackageManager.hasSystemFeature(PackageManager.FEATURE_MANAGED_USERS);
-        ActivityManager.MemoryInfo memInfo = new ActivityManager.MemoryInfo();
-        mActivityManager.getMemoryInfo(memInfo);
-        mTotalMemory = memInfo.totalMem;
     }
 
     /**
@@ -81,8 +76,8 @@ public class FeatureTest extends AndroidTestCase {
             return;
         }
 
-        // Skip the tests for devices with less than 2GB of ram available
-        if (lessThanTwoGbDevice()) {
+        // Skip the tests for low-RAM devices
+        if (mActivityManager.isLowRamDevice()) {
             return;
         }
 
@@ -111,10 +106,5 @@ public class FeatureTest extends AndroidTestCase {
         double widthInInchesSquared = Math.pow(dm.widthPixels/dm.xdpi,2);
         double heightInInchesSquared = Math.pow(dm.heightPixels/dm.ydpi,2);
         return Math.sqrt(widthInInchesSquared + heightInInchesSquared);
-    }
-
-    // Implementation copied from CoreGmsAppsTest#twoGbDevice()
-    private boolean lessThanTwoGbDevice() {
-        return mTotalMemory < TWO_GB;
     }
 }

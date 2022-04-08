@@ -53,7 +53,6 @@ import androidx.test.runner.AndroidJUnit4;
 
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -71,6 +70,7 @@ import java.util.concurrent.TimeUnit;
  * when the process is in background state.
  */
 @RunWith(AndroidJUnit4.class)
+//@Suppress
 public class ActivityManagerApi29Test {
     private static final String PACKAGE_NAME = "android.app.cts.activitymanager.api29";
     private static final String SIMPLE_ACTIVITY = ".SimpleActivity";
@@ -174,8 +174,6 @@ public class ActivityManagerApi29Test {
      * @throws Exception
      */
     @Test
-    @Ignore("because ag/13230961, FGS started in instrumentation are not subject to while-in-use "
-            + "restriction")
     public void testTopActivityWithAppOps() throws Exception {
         startSimpleActivity();
         mUidWatcher.waitFor(WatchUidRunner.CMD_PROCSTATE, WatchUidRunner.STATE_TOP,
@@ -202,8 +200,6 @@ public class ActivityManagerApi29Test {
      * @throws Exception
      */
     @Test
-    @Ignore("because ag/13230961, FGS started in instrumentation are not subject to while-in-use "
-            + "restriction")
     public void testFgsLocationWithAppOps() throws Exception {
         // Start a foreground service with location
         startSimpleService();
@@ -242,8 +238,6 @@ public class ActivityManagerApi29Test {
      * @throws Exception
      */
     @Test
-    @Ignore("because ag/13230961, FGS started in instrumentation are not subject to while-in-use "
-            + "restriction")
     public void testAppOpsHistoricalOps() throws Exception {
         runWithShellPermissionIdentity(
                 () ->  sAppOps.setHistoryParameters(AppOpsManager.HISTORICAL_MODE_ENABLED_ACTIVE,
@@ -308,8 +302,6 @@ public class ActivityManagerApi29Test {
      * @throws Exception
      */
     @Test
-    @Ignore("because ag/13230961, FGS started in instrumentation are not subject to while-in-use "
-            + "restriction")
     public void testCameraWithAppOps() throws Exception {
         startSimpleService();
         // Wait for state and capability change.

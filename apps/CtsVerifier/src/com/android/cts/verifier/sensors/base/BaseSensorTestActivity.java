@@ -17,6 +17,12 @@
 
 package com.android.cts.verifier.sensors.base;
 
+import com.android.cts.verifier.PassFailButtons;
+import com.android.cts.verifier.R;
+import com.android.cts.verifier.TestResult;
+import com.android.cts.verifier.sensors.helpers.SensorFeaturesDeactivator;
+import com.android.cts.verifier.sensors.reporting.SensorTestDetails;
+
 import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.Intent;
@@ -37,14 +43,7 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
-import com.android.cts.verifier.PassFailButtons;
-import com.android.cts.verifier.R;
-import com.android.cts.verifier.TestResult;
-import com.android.cts.verifier.sensors.helpers.SensorFeaturesDeactivator;
-import com.android.cts.verifier.sensors.reporting.SensorTestDetails;
-
 import junit.framework.Assert;
-
 import java.util.ArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -512,7 +511,6 @@ public abstract class BaseSensorTestActivity
                 TestResult.setPassedResult(this, name, summary);
                 break;
             case PASS:
-            case WARNING:
                 TestResult.setPassedResult(this, name, summary);
                 break;
             case FAIL:
@@ -702,7 +700,6 @@ public abstract class BaseSensorTestActivity
                     logTestSkip(name, summary);
                     break;
                 case PASS:
-                case WARNING:
                     mShouldRetry = false;
                     logTestPass(name, summary);
                     break;

@@ -23,7 +23,6 @@ import static android.app.AppOpsManager.MODE_ALLOWED;
 import static android.app.AppOpsManager.MODE_FOREGROUND;
 import static android.app.AppOpsManager.MODE_IGNORED;
 import static android.content.pm.PermissionInfo.PROTECTION_DANGEROUS;
-import static android.content.pm.PermissionInfo.PROTECTION_INTERNAL;
 import static android.permission.cts.PermissionUtils.getAppOp;
 import static android.permission.cts.PermissionUtils.grantPermission;
 import static android.permission.cts.PermissionUtils.install;
@@ -88,11 +87,8 @@ public class BackgroundPermissionsTest {
         for (int i = 0; i < numPermissions; i++) {
             PermissionInfo permission = pkg.permissions[i];
 
-            // background permissions must be dangerous or ungrantable or role
-            if ((permission.getProtection() & PROTECTION_DANGEROUS) != 0
-                    || (permission.getProtection() == PROTECTION_INTERNAL
-                            && (permission.getProtectionFlags() == 0
-                    || permission.getProtectionFlags() == PermissionInfo.PROTECTION_FLAG_ROLE))) {
+            // background permissions must be dangerous
+            if ((permission.getProtection() & PROTECTION_DANGEROUS) != 0) {
                 potentialBackgroundPermissionsToGroup.put(permission.name, permission.group);
             }
         }

@@ -21,17 +21,16 @@ import static org.junit.Assert.fail;
 import android.app.Activity;
 import android.content.Context;
 import android.content.pm.ActivityInfo;
+import android.content.pm.PackageManager;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Point;
 import android.graphics.Rect;
 import android.os.Bundle;
-import android.util.Log;
 import android.view.View;
 import android.view.ViewTreeObserver.OnDrawListener;
 import android.view.WindowInsets;
-import android.view.cts.util.DisplayUtils;
 import android.widget.FrameLayout;
 
 import java.util.concurrent.CountDownLatch;
@@ -45,14 +44,11 @@ public class PixelCopyViewProducerActivity extends Activity implements OnDrawLis
             ActivityInfo.SCREEN_ORIENTATION_REVERSE_PORTRAIT,
             ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE,
     };
-    // TODO: Lower this (or remove it entirely) by leveraging things like
-    //  ViewTreeObserver#registerFrameCommitCallback (and possibly display orientation listeners?)
-    private static final int DRAW_FRAME_COUNT_BEFORE_CAPTURE = 10;
     private int mCurrentOrientation = 0;
     private View mContent;
     private Rect mContentBounds = new Rect();
     private Rect mOutsets = new Rect();
-    private CountDownLatch mFence = new CountDownLatch(DRAW_FRAME_COUNT_BEFORE_CAPTURE);
+    private CountDownLatch mFence = new CountDownLatch(3);
     private boolean mSupportsRotation;
 
     @Override
@@ -60,9 +56,10 @@ public class PixelCopyViewProducerActivity extends Activity implements OnDrawLis
         super.onCreate(savedInstanceState);
 
         // Check if the device supports both of portrait and landscape orientation screens.
-        mSupportsRotation = DisplayUtils.supportOrientationRequest(this);
+        final PackageManager pm = getPackageManager();
+        mSupportsRotation = pm.hasSystemFeature(PackageManager.FEATURE_SCREEN_LANDSCAPE)
+                    && pm.hasSystemFeature(PackageManager.FEATURE_SCREEN_PORTRAIT);
         if (mSupportsRotation) {
-            Log.d("PixelCopyTest", "Setting orientation index = " + mCurrentOrientation);
             setRequestedOrientation(ORIENTATIONS[mCurrentOrientation]);
         }
 
@@ -77,10 +74,11 @@ public class PixelCopyViewProducerActivity extends Activity implements OnDrawLis
     @Override
     public void onDraw() {
         final int requestedOrientation = ORIENTATIONS[mCurrentOrientation];
-        boolean isRequestingPortrait =
+        boolean screenPortrait =
                 requestedOrientation == ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
                 || requestedOrientation == ActivityInfo.SCREEN_ORIENTATION_REVERSE_PORTRAIT;
-        if (mSupportsRotation && (isRequestingPortrait != DisplayUtils.isDevicePortrait(this))) {
+        boolean contentPortrait = mContent.getHeight() > mContent.getWidth();
+        if (mSupportsRotation && (screenPortrait != contentPortrait)) {
             return;
         }
         mContent.post(() -> {
@@ -126,10 +124,9 @@ public class PixelCopyViewProducerActivity extends Activity implements OnDrawLis
             // Do not rotate the screen if it is not supported.
             return false;
         }
-        mFence = new CountDownLatch(DRAW_FRAME_COUNT_BEFORE_CAPTURE);
+        mFence = new CountDownLatch(3);
         runOnUiThread(() -> {
             mCurrentOrientation = (mCurrentOrientation + 1) % ORIENTATIONS.length;
-            Log.d("PixelCopyTest", "Setting orientation index = " + mCurrentOrientation);
             setRequestedOrientation(ORIENTATIONS[mCurrentOrientation]);
         });
         waitForFirstDrawCompleted(10, TimeUnit.SECONDS);

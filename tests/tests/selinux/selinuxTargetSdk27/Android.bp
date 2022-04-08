@@ -13,10 +13,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package {
-    default_applicable_licenses: ["Android-Apache-2.0"],
-}
-
 android_test {
     name: "CtsSelinuxTargetSdk27TestCases",
     defaults: ["cts_defaults"],
@@ -26,8 +22,8 @@ android_test {
         "compatibility-device-util-axt",
     ],
     libs: [
-        "android.test.base",
-        "android.test.runner",
+        "android.test.base.stubs",
+        "android.test.runner.stubs",
     ],
     jni_libs: [
         "libbase",
@@ -48,6 +44,7 @@ android_test {
     platform_apis: true,
     test_suites: [
         "cts",
+        "vts10",
         "general-tests",
     ],
     min_sdk_version: "21",

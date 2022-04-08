@@ -23,62 +23,44 @@ import android.test.AndroidTestCase;
 @AppModeFull // TODO(Instant) Figure out which APIs should work.
 public class PermissionFeatureTest extends AndroidTestCase {
     public void testPermissionRequiredFeatureDefined() {
-        assertPermissionGranted("android.content.cts.REQUIRED_FEATURE_DEFINED");
-    }
-
-    public void testPermissionRequiredFeatureDefined_usingTags() {
-        assertPermissionGranted("android.content.cts.REQUIRED_FEATURE_DEFINED_2");
+        PackageManager pm = getContext().getPackageManager();
+        assertEquals(PackageManager.PERMISSION_GRANTED,
+                pm.checkPermission("android.content.cts.REQUIRED_FEATURE_DEFINED",
+                        getContext().getPackageName()));
     }
 
     public void testPermissionRequiredFeatureUndefined() {
-        assertPermissionDenied("android.content.cts.REQUIRED_FEATURE_UNDEFINED");
+        PackageManager pm = getContext().getPackageManager();
+        assertEquals(PackageManager.PERMISSION_DENIED,
+                pm.checkPermission("android.content.cts.REQUIRED_FEATURE_UNDEFINED",
+                        getContext().getPackageName()));
     }
 
     public void testPermissionRequiredNotFeatureDefined() {
-        assertPermissionDenied("android.content.cts.REQUIRED_NOT_FEATURE_DEFINED");
+        PackageManager pm = getContext().getPackageManager();
+        assertEquals(PackageManager.PERMISSION_DENIED,
+                pm.checkPermission("android.content.cts.REQUIRED_NOT_FEATURE_DEFINED",
+                        getContext().getPackageName()));
     }
 
     public void testPermissionRequiredNotFeatureUndefined() {
-        assertPermissionGranted("android.content.cts.REQUIRED_NOT_FEATURE_UNDEFINED");
-    }
-
-    public void testPermissionRequiredNotFeatureUndefined_usingTags() {
-        assertPermissionGranted("android.content.cts.REQUIRED_NOT_FEATURE_UNDEFINED_2");
+        PackageManager pm = getContext().getPackageManager();
+        assertEquals(PackageManager.PERMISSION_GRANTED,
+                pm.checkPermission("android.content.cts.REQUIRED_NOT_FEATURE_UNDEFINED",
+                        getContext().getPackageName()));
     }
 
     public void testPermissionRequiredMultiDeny() {
-        assertPermissionDenied("android.content.cts.REQUIRED_MULTI_DENY");
-    }
-
-    public void testPermissionRequiredMultiDeny_usingTags() {
-        assertPermissionDenied("android.content.cts.REQUIRED_MULTI_DENY_2");
-    }
-
-    public void testPermissionRequiredMultiDeny_usingTagsAndAttributes() {
-        assertPermissionDenied("android.content.cts.REQUIRED_MULTI_DENY_3");
+        PackageManager pm = getContext().getPackageManager();
+        assertEquals(PackageManager.PERMISSION_DENIED,
+                pm.checkPermission("android.content.cts.REQUIRED_MULTI_DENY",
+                        getContext().getPackageName()));
     }
 
     public void testPermissionRequiredMultiGrant() {
-        assertPermissionGranted("android.content.cts.REQUIRED_MULTI_GRANT");
-    }
-
-    public void testPermissionRequiredMultiGrant_usingTags() {
-        assertPermissionGranted("android.content.cts.REQUIRED_MULTI_GRANT_2");
-    }
-
-    public void testPermissionRequiredMultiGrant_usingTagsAndAttributes() {
-        assertPermissionGranted("android.content.cts.REQUIRED_MULTI_GRANT_3");
-    }
-
-    public void assertPermissionGranted(String permName) {
-        final PackageManager pm = getContext().getPackageManager();
+        PackageManager pm = getContext().getPackageManager();
         assertEquals(PackageManager.PERMISSION_GRANTED,
-                pm.checkPermission(permName, getContext().getPackageName()));
-    }
-
-    public void assertPermissionDenied(String permName) {
-        final PackageManager pm = getContext().getPackageManager();
-        assertEquals(PackageManager.PERMISSION_DENIED,
-                pm.checkPermission(permName, getContext().getPackageName()));
+                pm.checkPermission("android.content.cts.REQUIRED_MULTI_GRANT",
+                        getContext().getPackageName()));
     }
 }

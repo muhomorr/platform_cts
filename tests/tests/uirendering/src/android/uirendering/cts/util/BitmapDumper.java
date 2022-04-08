@@ -87,16 +87,6 @@ public final class BitmapDumper {
         return new File(testDirectory, testName + "_" + type + ".png");
     }
 
-    private static String bypassContentProvider(File file) {
-        // TradeFed currently insists on bouncing off of a content provider for the path
-        // we are using, but that content provider will never have permissions
-        // Since we want to avoid needing to use requestLegacyStorage & there's currently no
-        // option to tell TF to not use the content provider, just break its file
-        // detection pattern
-        // b/183140644
-        return "/." + file.getAbsolutePath();
-    }
-
     /**
      * Saves two files, one the capture of an ideal drawing, and one the capture of the tested
      * drawing. The third file saved is a bitmap that is returned from the given visualizer's
@@ -126,25 +116,9 @@ public final class BitmapDumper {
         saveBitmap(visualizerBitmap, visualizerFile);
 
         Bundle report = new Bundle();
-        report.putString(KEY_PREFIX + TYPE_IDEAL_RENDERING, bypassContentProvider(idealFile));
-        report.putString(KEY_PREFIX + TYPE_TESTED_RENDERING, bypassContentProvider(testedFile));
-        report.putString(KEY_PREFIX + TYPE_VISUALIZER_RENDERING,
-                bypassContentProvider(visualizerFile));
-        sInstrumentation.sendStatus(INST_STATUS_IN_PROGRESS, report);
-    }
-
-    public static void dumpBitmaps(Bitmap testedBitmap, Bitmap visualizerBitmap, String testName,
-            String className) {
-
-        File testedFile = getFile(className, testName, TYPE_TESTED_RENDERING);
-        File visualizerFile = getFile(className, testName, TYPE_VISUALIZER_RENDERING);
-        saveBitmap(testedBitmap, testedFile);
-        saveBitmap(visualizerBitmap, visualizerFile);
-
-        Bundle report = new Bundle();
-        report.putString(KEY_PREFIX + TYPE_TESTED_RENDERING, bypassContentProvider(testedFile));
-        report.putString(KEY_PREFIX + TYPE_VISUALIZER_RENDERING,
-                bypassContentProvider(visualizerFile));
+        report.putString(KEY_PREFIX + TYPE_IDEAL_RENDERING, idealFile.getAbsolutePath());
+        report.putString(KEY_PREFIX + TYPE_TESTED_RENDERING, testedFile.getAbsolutePath());
+        report.putString(KEY_PREFIX + TYPE_VISUALIZER_RENDERING, visualizerFile.getAbsolutePath());
         sInstrumentation.sendStatus(INST_STATUS_IN_PROGRESS, report);
     }
 
@@ -156,7 +130,7 @@ public final class BitmapDumper {
         File capture = getFile(className, testName, TYPE_SINGULAR);
         saveBitmap(bitmap, capture);
         Bundle report = new Bundle();
-        report.putString(KEY_PREFIX + TYPE_SINGULAR, bypassContentProvider(capture));
+        report.putString(KEY_PREFIX + TYPE_SINGULAR, capture.getAbsolutePath());
         sInstrumentation.sendStatus(INST_STATUS_IN_PROGRESS, report);
     }
 

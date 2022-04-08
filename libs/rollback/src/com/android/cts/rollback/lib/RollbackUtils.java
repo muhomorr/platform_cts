@@ -32,7 +32,6 @@ import android.util.Log;
 
 import androidx.test.InstrumentationRegistry;
 
-import com.android.cts.install.lib.InstallUtils;
 import com.android.cts.install.lib.LocalIntentSender;
 import com.android.cts.install.lib.TestApp;
 
@@ -116,8 +115,7 @@ public class RollbackUtils {
     }
 
     /**
-     * Commit the given rollback. This method won't return until the committed session is made
-     * ready or failed. The caller is safe to immediately reboot the device right after the call.
+     * Commit the given rollback.
      * @throws AssertionError if the rollback fails.
      */
     public static void rollback(int rollbackId, TestApp... causePackages)
@@ -128,19 +126,13 @@ public class RollbackUtils {
         }
 
         RollbackManager rm = getRollbackManager();
-        LocalIntentSender sender = new LocalIntentSender();
-        rm.commitRollback(rollbackId, causes, sender.getIntentSender());
-        Intent result = sender.getResult();
+        rm.commitRollback(rollbackId, causes, LocalIntentSender.getIntentSender());
+        Intent result = LocalIntentSender.getIntentSenderResult();
         int status = result.getIntExtra(RollbackManager.EXTRA_STATUS,
                 RollbackManager.STATUS_FAILURE);
         if (status != RollbackManager.STATUS_SUCCESS) {
             String message = result.getStringExtra(RollbackManager.EXTRA_STATUS_MESSAGE);
             throw new AssertionError(message);
-        }
-
-        RollbackInfo committed = getCommittedRollbackById(rollbackId);
-        if (committed.isStaged()) {
-            InstallUtils.waitForSessionReady(committed.getCommittedSessionId());
         }
     }
 

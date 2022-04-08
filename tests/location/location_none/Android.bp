@@ -12,10 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package {
-    default_applicable_licenses: ["Android-Apache-2.0"],
-}
-
 android_test {
     name: "CtsLocationNoneTestCases",
     defaults: ["cts_defaults"],
@@ -26,16 +22,15 @@ android_test {
         "androidx.test.rules",
         "compatibility-device-util-axt",
         "ctstestrunner-axt",
-        // TODO: remove once Android migrates to JUnit 4.12, which provides assertThrows:
-        "testng",
         "truth-prebuilt",
     ],
     libs: [
-        "android.test.base",
+        "android.test.base.stubs",
     ],
     srcs: ["src/**/*.java"],
     test_suites: [
         "cts",
+        "vts10",
         "general-tests",
     ],
 }

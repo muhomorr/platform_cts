@@ -41,7 +41,6 @@ import android.os.Bundle;
 import android.service.chooser.ChooserTarget;
 import android.support.test.uiautomator.By;
 import android.support.test.uiautomator.BySelector;
-import android.support.test.uiautomator.StaleObjectException;
 import android.support.test.uiautomator.UiDevice;
 import android.support.test.uiautomator.UiObject2;
 import android.support.test.uiautomator.Until;
@@ -217,7 +216,7 @@ public class CtsSharesheetDeviceTest {
             showsApplicationLabel();
             showsAppAndActivityLabel();
             showsAppAndIntentFilterLabel();
-            isChooserTargetServiceDirectShareDisabled();
+            isChooserTargetServiceDirectShareEnabled();
 
             // Must be run last, partial completion closes the Sharesheet
             firesIntentSenderWithExtraChosenComponent();
@@ -410,16 +409,19 @@ public class CtsSharesheetDeviceTest {
     /**
      * Tests API behavior compliance for ChooserTargetService
      */
-    public void isChooserTargetServiceDirectShareDisabled() {
+    public void isChooserTargetServiceDirectShareEnabled() {
         // ChooserTargets can take time to load. To account for this:
         // * All non-test ChooserTargetServices shouldn't be loaded because of blacklist
         // * waitAndAssert operations have lengthy timeout periods
         // * Last time to run in suite so prior operations reduce wait time
 
-
-    	// ChooserTargetService was deprecated as of API level 30, results should not
-    	// appear in the list of results.
-    	waitAndAssertNoTextContains(mChooserTargetServiceLabel);
+        if (mActivityManager.isLowRamDevice()) {
+            // Ensure direct share is disabled on low ram devices
+            waitAndAssertNoTextContains(mChooserTargetServiceLabel);
+        } else {
+            // Ensure direct share is enabled
+            waitAndAssertTextContains(mChooserTargetServiceLabel);
+        }
     }
 
     /**
@@ -505,13 +507,7 @@ public class CtsSharesheetDeviceTest {
 
     private boolean isSharesheetVisible() {
         // This method intentionally does not wait, looks to see if visible on method call
-        try {
-            return mDevice.findObject(By.pkg(mSharesheetPkg).depth(0)) != null;
-        } catch (StaleObjectException e) {
-            // If we get a StaleObjectException, it means that the underlying View has
-            // already been destroyed, meaning the sharesheet is no longer visible.
-            return false;
-        }
+        return mDevice.findObject(By.pkg(mSharesheetPkg).depth(0)) != null;
     }
 
     private Intent createMatchingIntent() {
@@ -535,7 +531,7 @@ public class CtsSharesheetDeviceTest {
                 mContext,
                 9384 /* number not relevant */ ,
                 new Intent(ACTION_INTENT_SENDER_FIRED_ON_CLICK),
-                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_MUTABLE_UNAUDITED);
+                PendingIntent.FLAG_UPDATE_CURRENT);
 
         Intent shareIntent = Intent.createChooser(intent, null, pi.getIntentSender());
 

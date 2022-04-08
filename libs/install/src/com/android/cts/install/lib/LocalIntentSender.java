@@ -16,16 +16,12 @@
 
 package com.android.cts.install.lib;
 
-import static android.app.PendingIntent.FLAG_MUTABLE;
-
 import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
-import android.content.IntentFilter;
 import android.content.IntentSender;
 import android.content.pm.PackageInstaller;
-import android.os.SystemClock;
 import android.util.Log;
 
 import androidx.test.InstrumentationRegistry;
@@ -39,34 +35,47 @@ import java.util.concurrent.LinkedBlockingQueue;
  */
 public class LocalIntentSender extends BroadcastReceiver {
     private static final String TAG = "cts.install.lib";
-    private final BlockingQueue<Intent> mResults = new LinkedBlockingQueue<>();
+
+    private static final BlockingQueue<Intent> sIntentSenderResults = new LinkedBlockingQueue<>();
 
     @Override
     public void onReceive(Context context, Intent intent) {
         Log.i(TAG, "Received intent " + prettyPrint(intent));
-        mResults.add(intent);
+        sIntentSenderResults.add(intent);
     }
 
     /**
      * Get a LocalIntentSender.
      */
-    public IntentSender getIntentSender() {
-        Context context = InstrumentationRegistry.getTargetContext();
-        // Generate a unique string to ensure each LocalIntentSender gets its own results.
-        String action = LocalIntentSender.class.getName() + SystemClock.elapsedRealtime();
-        context.registerReceiver(this, new IntentFilter(action));
-        Intent intent = new Intent(action);
-        PendingIntent pending = PendingIntent.getBroadcast(context, 0, intent, FLAG_MUTABLE);
+    public static IntentSender getIntentSender() {
+        Context context = InstrumentationRegistry.getContext();
+        Intent intent = new Intent(context, LocalIntentSender.class);
+        PendingIntent pending = PendingIntent.getBroadcast(context, 0, intent, 0);
         return pending.getIntentSender();
     }
 
     /**
-     * Returns and remove the most early Intent received by this LocalIntentSender.
+     * Returns the most recent Intent sent by a LocalIntentSender.
      */
-    public Intent getResult() throws InterruptedException {
-        Intent intent = mResults.take();
+    public static Intent getIntentSenderResult() throws InterruptedException {
+        Intent intent = sIntentSenderResults.take();
         Log.i(TAG, "Taking intent " + prettyPrint(intent));
         return intent;
+    }
+
+    /**
+     * Returns an Intent that targets the given {@code sessionId}, while discarding others.
+     */
+    public static Intent getIntentSenderResult(int sessionId) throws InterruptedException {
+        while (true) {
+            Intent intent = sIntentSenderResults.take();
+            if (intent.getIntExtra(PackageInstaller.EXTRA_SESSION_ID, -1) == sessionId) {
+                Log.i(TAG, "Taking intent " + prettyPrint(intent));
+                return intent;
+            } else {
+                Log.i(TAG, "Discarding intent " + prettyPrint(intent));
+            }
+        }
     }
 
     private static String prettyPrint(Intent intent) {

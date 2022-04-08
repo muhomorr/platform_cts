@@ -81,7 +81,4 @@ public class AudioUtils {
     public static int calcFrameSizeInBytes(int encoding, int numChannels) {
         return sampleSizeInBytes(encoding) * numChannels;
     }
-
-    public static native boolean isMMapSupported();
-    public static native boolean isMMapExclusiveSupported();
 }

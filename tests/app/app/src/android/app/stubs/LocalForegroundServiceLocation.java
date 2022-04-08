@@ -16,7 +16,6 @@
 
 package android.app.stubs;
 
-import android.app.ForegroundServiceStartNotAllowedException;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -33,18 +32,18 @@ public class LocalForegroundServiceLocation extends LocalForegroundService {
     private static final String TAG = "LocalForegroundServiceLocation";
     private static final String NOTIFICATION_CHANNEL_ID = "cts/" + TAG;
     public static final String EXTRA_FOREGROUND_SERVICE_TYPE = "ForegroundService.type";
-    public static final int COMMAND_START_FOREGROUND_WITH_TYPE = 1;
     public static String ACTION_START_FGSL_RESULT =
             "android.app.stubs.LocalForegroundServiceLocation.RESULT";
     private int mNotificationId = 10;
 
     /** Returns the channel id for this service */
-    public static String getNotificationChannelId() {
+    @Override
+    protected String getNotificationChannelId() {
         return NOTIFICATION_CHANNEL_ID;
     }
 
     @Override
-    public int onStartCommand(Intent intent, int flags, int startId) {
+    public void onStart(Intent intent, int startId) {
         String notificationChannelId = getNotificationChannelId();
         NotificationManager notificationManager = getSystemService(NotificationManager.class);
         notificationManager.createNotificationChannel(new NotificationChannel(
@@ -63,13 +62,17 @@ public class LocalForegroundServiceLocation extends LocalForegroundService {
                         .setContentTitle(getNotificationTitle(mNotificationId))
                         .setSmallIcon(R.drawable.black)
                         .build();
-                try {
-                    startForeground(mNotificationId, notification);
-                } catch (ForegroundServiceStartNotAllowedException e) {
-                    Log.d(TAG, "startForeground gets an "
-                            + " ForegroundServiceStartNotAllowedException", e);
-                }
+                startForeground(mNotificationId, notification);
                 //assertEquals(type, getForegroundServiceType());
+                break;
+            case COMMAND_START_FOREGROUND:
+                mNotificationId ++;
+                final Notification notification2 =
+                        new Notification.Builder(context, NOTIFICATION_CHANNEL_ID)
+                                .setContentTitle(getNotificationTitle(mNotificationId))
+                                .setSmallIcon(R.drawable.black)
+                                .build();
+                startForeground(mNotificationId, notification2);
                 break;
             case COMMAND_STOP_FOREGROUND_REMOVE_NOTIFICATION:
                 Log.d(TAG, "Stopping foreground removing notification");
@@ -84,6 +87,5 @@ public class LocalForegroundServiceLocation extends LocalForegroundService {
 
         sendBroadcast(new Intent(ACTION_START_FGSL_RESULT)
                 .setFlags(Intent.FLAG_RECEIVER_FOREGROUND));
-        return START_NOT_STICKY;
     }
 }

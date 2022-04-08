@@ -16,14 +16,16 @@
 package com.android.cts.delegate;
 
 import static android.app.admin.DevicePolicyManager.DELEGATION_PERMISSION_GRANT;
-import static android.app.admin.DevicePolicyManager.PERMISSION_GRANT_STATE_DENIED;
-import static android.app.admin.DevicePolicyManager.PERMISSION_GRANT_STATE_GRANTED;
-import static android.app.admin.DevicePolicyManager.PERMISSION_POLICY_AUTO_DENY;
 import static android.app.admin.DevicePolicyManager.PERMISSION_POLICY_AUTO_GRANT;
-
+import static android.app.admin.DevicePolicyManager.PERMISSION_POLICY_AUTO_DENY;
+import static android.app.admin.DevicePolicyManager.PERMISSION_GRANT_STATE_GRANTED;
+import static android.app.admin.DevicePolicyManager.PERMISSION_GRANT_STATE_DENIED;
 import static com.android.cts.delegate.DelegateTestUtils.assertExpectException;
 
 import android.app.admin.DevicePolicyManager;
+import android.content.Context;
+import android.test.InstrumentationTestCase;
+import android.test.MoreAsserts;
 
 import java.util.List;
 
@@ -32,10 +34,20 @@ import java.util.List;
  * {@link DevicePolicyManager#setDelegatedScopes} can grant permissions and check permission grant
  * state.
  */
-public class PermissionGrantDelegateTest extends BaseJUnit3TestCase {
+public class PermissionGrantDelegateTest extends InstrumentationTestCase {
 
     private static final String TEST_APP_PKG = "com.android.cts.launcherapps.simpleapp";
     private static final String TEST_PERMISSION = "android.permission.READ_CONTACTS";
+
+    private DevicePolicyManager mDpm;
+
+    @Override
+    protected void setUp() throws Exception {
+        super.setUp();
+
+        Context context = getInstrumentation().getContext();
+        mDpm = context.getSystemService(DevicePolicyManager.class);
+    }
 
     public void testCannotAccessApis() {
         assertFalse("DelegateApp should not be a permisssion grant delegate",
@@ -43,7 +55,7 @@ public class PermissionGrantDelegateTest extends BaseJUnit3TestCase {
 
         // Exercise setPermissionPolicy.
         assertExpectException(SecurityException.class,
-                "Calling identity is not authorized", () -> {
+                "Caller with uid \\d+ is not a delegate of scope", () -> {
                     mDpm.setPermissionPolicy(null, PERMISSION_POLICY_AUTO_GRANT);
                 });
         assertFalse("Permission policy should not have been set",
@@ -51,14 +63,14 @@ public class PermissionGrantDelegateTest extends BaseJUnit3TestCase {
 
         // Exercise setPermissionGrantState.
         assertExpectException(SecurityException.class,
-                "Calling identity is not authorized", () -> {
+                "Caller with uid \\d+ is not a delegate of scope", () -> {
                     mDpm.setPermissionGrantState(null, TEST_APP_PKG, TEST_PERMISSION,
                             PERMISSION_GRANT_STATE_GRANTED);
                 });
 
         // Exercise getPermissionGrantState.
         assertExpectException(SecurityException.class,
-                "Calling identity is not authorized", () -> {
+                "Caller with uid \\d+ is not a delegate of scope", () -> {
                     mDpm.getPermissionGrantState(null, TEST_APP_PKG, TEST_PERMISSION);
                 });
     }

@@ -207,7 +207,6 @@ public class KeyStoreTest extends TestCase {
         // Don't bother testing BC on RI
         // TODO enable AndroidKeyStore when CTS can set up the keystore
         return (StandardNames.IS_RI && ks.getProvider().getName().equals("BC"))
-                || "AndroidKeyStoreLegacy".equalsIgnoreCase(ks.getType())
                 || "AndroidKeyStore".equalsIgnoreCase(ks.getType())
                 || "TimaKeyStore".equalsIgnoreCase(ks.getType())
                 || "KnoxAndroidKeyStore".equalsIgnoreCase(ks.getType());
@@ -220,7 +219,7 @@ public class KeyStoreTest extends TestCase {
                   || ks.getType().equals("PKCS12")));
     }
     private static boolean isKeyPasswordSupported(KeyStore ks) {
-        return !ks.getType().startsWith("AndroidKeyStore");
+        return !ks.getType().equals("AndroidKeyStore");
     }
     private static boolean isKeyPasswordIgnored(KeyStore ks) {
         // BouncyCastle's PKCS12 ignores the key password unlike the RI which requires it
@@ -233,11 +232,11 @@ public class KeyStoreTest extends TestCase {
     }
 
     private static boolean isPersistentStorage(KeyStore ks) {
-        return ks.getType().toLowerCase().startsWith("AndroidKeyStore".toLowerCase());
+        return ks.getType().equalsIgnoreCase("AndroidKeyStore");
     }
 
     private static boolean isLoadStoreUnsupported(KeyStore ks) {
-        return ks.getType().toLowerCase().startsWith("AndroidKeyStore".toLowerCase());
+        return ks.getType().equalsIgnoreCase("AndroidKeyStore");
     }
 
     private static boolean isSetKeyByteArrayUnimplemented(KeyStore ks) {
@@ -815,15 +814,20 @@ public class KeyStoreTest extends TestCase {
             try {
                 keyStore.setKeyEntry(null, null, null, null);
                 fail(keyStore.getType());
-            } catch (NullPointerException | KeyStoreException expected) {
-              // ignored
+            } catch (Exception e) {
+                if (e.getClass() != NullPointerException.class
+                    && e.getClass() != KeyStoreException.class) {
+                    throw e;
+                }
             }
-
             try {
                 keyStore.setKeyEntry(null, null, PASSWORD_KEY, null);
                 fail(keyStore.getType());
-            } catch (NullPointerException | KeyStoreException expected) {
-              // ignored
+            } catch (Exception e) {
+                if (e.getClass() != NullPointerException.class
+                    && e.getClass() != KeyStoreException.class) {
+                    throw e;
+                }
             }
             try {
                 keyStore.setKeyEntry(ALIAS_PRIVATE,

@@ -27,8 +27,6 @@ import android.os.RemoteException;
 
 import com.android.compatibility.common.util.IBinderParcelable;
 
-import java.util.concurrent.atomic.AtomicReference;
-
 public class LocalService extends Service {
     public static final String SERVICE_LOCAL =
             "android.app.cts.activity.SERVICE_LOCAL";
@@ -55,8 +53,6 @@ public class LocalService extends Service {
     public static final int STOP_SELF_SUCCESS_UNBIND_CODE = 14;
 
     public static Context sServiceContext = null;
-
-    private static final AtomicReference<String> sLastAttributionTag = new AtomicReference<>();
 
     private IBinder mReportObject;
     private int mStartCount = 1;
@@ -98,9 +94,7 @@ public class LocalService extends Service {
                     reply.writeBoolean(ZygotePreload.preloadCalled());
                     return true;
                 case STOP_SELF_RESULT_CODE:
-                    synchronized (LocalService.this) {
-                        mIsStoppedSelfSuccess = stopSelfResult(mStartId);
-                    }
+                    mIsStoppedSelfSuccess = stopSelfResult(mStartId);
                     return true;
                 case STOP_SELF_CODE:
                     stopSelf(mStartId);
@@ -112,16 +106,6 @@ public class LocalService extends Service {
     };
 
     public LocalService() {
-    }
-
-    @Override
-    public void onCreate() {
-        super.onCreate();
-        sLastAttributionTag.set(getAttributionTag());
-    }
-
-    public static String getAndClearLastAttributionTag() {
-        return sLastAttributionTag.getAndSet(null);
     }
 
     @Override
@@ -158,12 +142,10 @@ public class LocalService extends Service {
     @Override
     public boolean onUnbind(Intent intent) {
         if (mReportObject != null) {
-            synchronized (this) {
-                if (mIsStoppedSelfSuccess) {
-                    bindAction(STOP_SELF_SUCCESS_UNBIND_CODE);
-                } else {
-                    bindAction(UNBIND_CODE);
-                }
+            if (mIsStoppedSelfSuccess) {
+                bindAction(STOP_SELF_SUCCESS_UNBIND_CODE);
+            } else {
+                bindAction(UNBIND_CODE);
             }
         }
         return true;

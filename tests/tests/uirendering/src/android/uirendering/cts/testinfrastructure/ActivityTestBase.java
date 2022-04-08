@@ -218,16 +218,12 @@ public abstract class ActivityTestBase {
 
             Bitmap idealBitmap = captureRenderSpec(mTestCases.remove(0));
 
-            try {
-                for (TestCase testCase : mTestCases) {
-                    Bitmap testCaseBitmap = captureRenderSpec(testCase);
-                    mBitmapAsserter.assertBitmapsAreSimilar(idealBitmap, testCaseBitmap,
-                            bitmapComparer,
-                            getName(), testCase.getDebugString());
-                }
-            } finally {
-                getActivity().reset();
+            for (TestCase testCase : mTestCases) {
+                Bitmap testCaseBitmap = captureRenderSpec(testCase);
+                mBitmapAsserter.assertBitmapsAreSimilar(idealBitmap, testCaseBitmap, bitmapComparer,
+                        getName(), testCase.getDebugString());
             }
+            getActivity().reset();
         }
 
         /**
@@ -239,15 +235,12 @@ public abstract class ActivityTestBase {
                 throw new IllegalStateException("Need at least one test to run");
             }
 
-            try {
-                for (TestCase testCase : mTestCases) {
-                    Bitmap testCaseBitmap = captureRenderSpec(testCase);
-                    mBitmapAsserter.assertBitmapIsVerified(testCaseBitmap, bitmapVerifier,
-                            getName(), testCase.getDebugString());
-                }
-            } finally {
-                getActivity().reset();
+            for (TestCase testCase : mTestCases) {
+                Bitmap testCaseBitmap = captureRenderSpec(testCase);
+                mBitmapAsserter.assertBitmapIsVerified(testCaseBitmap, bitmapVerifier,
+                        getName(), testCase.getDebugString());
             }
+            getActivity().reset();
         }
 
         private static final int VERIFY_ANIMATION_LOOP_COUNT = 20;
@@ -265,24 +258,21 @@ public abstract class ActivityTestBase {
                 throw new IllegalStateException("Need at least one test to run");
             }
 
-            try {
-                for (TestCase testCase : mTestCases) {
-                    TestPositionInfo testPositionInfo = runRenderSpec(testCase);
+            for (TestCase testCase : mTestCases) {
+                TestPositionInfo testPositionInfo = runRenderSpec(testCase);
 
-                    for (int i = 0; i < VERIFY_ANIMATION_LOOP_COUNT; i++) {
-                        try {
-                            Thread.sleep(VERIFY_ANIMATION_SLEEP_MS);
-                        } catch (InterruptedException e) {
-                            e.printStackTrace();
-                        }
-                        Bitmap testCaseBitmap = takeScreenshot(testPositionInfo);
-                        mBitmapAsserter.assertBitmapIsVerified(testCaseBitmap, bitmapVerifier,
-                                getName(), testCase.getDebugString());
+                for (int i = 0; i < VERIFY_ANIMATION_LOOP_COUNT; i++) {
+                    try {
+                        Thread.sleep(VERIFY_ANIMATION_SLEEP_MS);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
                     }
+                    Bitmap testCaseBitmap = takeScreenshot(testPositionInfo);
+                    mBitmapAsserter.assertBitmapIsVerified(testCaseBitmap, bitmapVerifier,
+                            getName(), testCase.getDebugString());
                 }
-            } finally {
-                getActivity().reset();
             }
+            getActivity().reset();
         }
 
         /**

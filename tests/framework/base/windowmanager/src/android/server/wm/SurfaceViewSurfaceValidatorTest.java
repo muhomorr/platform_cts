@@ -18,9 +18,6 @@ package android.server.wm;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-import static android.server.wm.ActivityManagerTestBase.createFullscreenActivityScenarioRule;
-import static android.server.wm.WindowManagerState.getLogicalDisplaySize;
-
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Color;
@@ -36,7 +33,7 @@ import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.widget.FrameLayout;
 
-import androidx.test.ext.junit.rules.ActivityScenarioRule;
+import androidx.test.rule.ActivityTestRule;
 
 import org.junit.After;
 import org.junit.Before;
@@ -51,8 +48,8 @@ public class SurfaceViewSurfaceValidatorTest {
     private static final int DEFAULT_BUFFER_HEIGHT = 480;
 
     @Rule
-    public final ActivityScenarioRule<CapturedActivity> mActivityRule =
-                createFullscreenActivityScenarioRule(CapturedActivity.class);
+    public ActivityTestRule<CapturedActivity> mActivityRule =
+            new ActivityTestRule<>(CapturedActivity.class);
 
     @Rule
     public TestName mName = new TestName();
@@ -60,9 +57,8 @@ public class SurfaceViewSurfaceValidatorTest {
 
     @Before
     public void setup() {
-        mActivityRule.getScenario().onActivity(activity -> mActivity = activity);
+        mActivity = mActivityRule.getActivity();
         mActivity.dismissPermissionDialog();
-        mActivity.setLogicalDisplaySize(getLogicalDisplaySize());
     }
 
     /**

@@ -17,7 +17,6 @@
 package android.telecom.cts;
 
 import android.content.Intent;
-import android.os.Process;
 import android.telecom.Call;
 import android.telecom.Connection;
 import android.telecom.DisconnectCause;
@@ -29,8 +28,6 @@ public class MissedCallTest extends BaseTelecomTestWithMockServices {
 
     TestUtils.InvokeCounter mShowMissedCallNotificationIntentCounter =
             new TestUtils.InvokeCounter("ShowMissedCallNotificationIntent");
-
-    private static final String CMD_DEVICE_IDLE_TEMP_EXEMPTIONS = "cmd deviceidle tempwhitelist";
 
     @Override
     protected void setUp() throws Exception {
@@ -74,15 +71,6 @@ public class MissedCallTest extends BaseTelecomTestWithMockServices {
         connection.setDisconnected(new DisconnectCause(DisconnectCause.MISSED));
         connection.destroy();
         mShowMissedCallNotificationIntentCounter.waitForCount(1);
-        assertTrue("After missing a call, if the default dialer is handling the missed call "
-                + "notification, then it must be in the temporary power exemption list.",
-                isOnTemporaryPowerExemption());
     }
 
-    private boolean isOnTemporaryPowerExemption() throws Exception {
-        String exemptions = TestUtils.executeShellCommand(
-                getInstrumentation(), CMD_DEVICE_IDLE_TEMP_EXEMPTIONS);
-        // Just check that this process's UID is in the result.
-        return exemptions.contains(String.valueOf(Process.myUid()));
-    }
 }

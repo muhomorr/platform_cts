@@ -17,16 +17,14 @@
 package android.server.wm;
 
 import static android.app.WindowConfiguration.WINDOWING_MODE_FREEFORM;
-import static android.server.wm.ComponentNameUtils.getWindowName;
+import static android.app.WindowConfiguration.WINDOWING_MODE_SPLIT_SCREEN_PRIMARY;
 import static android.server.wm.WindowManagerState.dpToPx;
+import static android.server.wm.ComponentNameUtils.getWindowName;
 import static android.server.wm.app.Components.BOTTOM_LEFT_LAYOUT_ACTIVITY;
 import static android.server.wm.app.Components.BOTTOM_RIGHT_LAYOUT_ACTIVITY;
 import static android.server.wm.app.Components.TEST_ACTIVITY;
 import static android.server.wm.app.Components.TOP_LEFT_LAYOUT_ACTIVITY;
 import static android.server.wm.app.Components.TOP_RIGHT_LAYOUT_ACTIVITY;
-import static android.view.Display.DEFAULT_DISPLAY;
-import static android.view.WindowInsets.Type.captionBar;
-import static android.view.WindowInsets.Type.systemBars;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -36,8 +34,6 @@ import android.content.ComponentName;
 import android.graphics.Rect;
 import android.platform.test.annotations.Presubmit;
 import android.server.wm.WindowManagerState.WindowState;
-import android.view.DisplayCutout;
-import android.view.WindowMetrics;
 
 import org.junit.Test;
 
@@ -92,7 +88,7 @@ public class ManifestLayoutTests extends ActivityManagerTestBase {
     public void testMinimalSizeFreeform() throws Exception {
         assumeTrue("Skipping test: no freeform support", supportsFreeform());
 
-        testMinimalSize(true /* freeform */);
+        testMinimalSize(WINDOWING_MODE_FREEFORM);
     }
 
     @Test
@@ -100,30 +96,28 @@ public class ManifestLayoutTests extends ActivityManagerTestBase {
     public void testMinimalSizeDocked() throws Exception {
         assumeTrue("Skipping test: no multi-window support", supportsSplitScreenMultiWindow());
 
-        testMinimalSize(false /* freeform */);
+        testMinimalSize(WINDOWING_MODE_SPLIT_SCREEN_PRIMARY);
     }
 
-    private void testMinimalSize(boolean freeform) throws Exception {
+    private void testMinimalSize(int windowingMode) throws Exception {
         // Issue command to resize to <0,0,1,1>. We expect the size to be floored at
         // MIN_WIDTH_DPxMIN_HEIGHT_DP.
-        if (freeform) {
+        if (windowingMode == WINDOWING_MODE_FREEFORM) {
             launchActivity(BOTTOM_RIGHT_LAYOUT_ACTIVITY, WINDOWING_MODE_FREEFORM);
             resizeActivityTask(BOTTOM_RIGHT_LAYOUT_ACTIVITY, 0, 0, 1, 1);
         } else { // stackId == DOCKED_STACK_ID
             launchActivitiesInSplitScreen(
                     getLaunchActivityBuilder().setTargetActivity(BOTTOM_RIGHT_LAYOUT_ACTIVITY),
                     getLaunchActivityBuilder().setTargetActivity(TEST_ACTIVITY));
-            mTaskOrganizer.setRootPrimaryTaskBounds(new Rect(0, 0, 1, 1));
+            resizeDockedStack(1, 1, 1, 1);
         }
         getDisplayAndWindowState(BOTTOM_RIGHT_LAYOUT_ACTIVITY, false);
 
         final int minWidth = dpToPx(MIN_WIDTH_DP, mDisplay.getDpi());
         final int minHeight = dpToPx(MIN_HEIGHT_DP, mDisplay.getDpi());
         final Rect containingRect = mWindowState.getContainingFrame();
-        final int cutoutSize = getCutoutSizeByHorGravity(GRAVITY_HOR_LEFT);
 
-        assertEquals("Min width is incorrect", minWidth,
-                containingRect.width() + cutoutSize);
+        assertEquals("Min width is incorrect", minWidth, containingRect.width());
         assertEquals("Min height is incorrect", minHeight, containingRect.height());
     }
 
@@ -146,10 +140,7 @@ public class ManifestLayoutTests extends ActivityManagerTestBase {
         getDisplayAndWindowState(activityName, true);
 
         final Rect containingRect = mWindowState.getContainingFrame();
-        final WindowMetrics windowMetrics = mWm.getMaximumWindowMetrics();
-        final Rect stableBounds = new Rect(windowMetrics.getBounds());
-        stableBounds.inset(windowMetrics.getWindowInsets().getInsetsIgnoringVisibility(
-                systemBars() & ~captionBar()));
+        final Rect stableBounds = mDisplay.getStableBounds();
         final int expectedWidthPx, expectedHeightPx;
         // Evaluate the expected window size in px. If we're using fraction dimensions,
         // calculate the size based on the app rect size. Otherwise, convert the expected
@@ -195,9 +186,7 @@ public class ManifestLayoutTests extends ActivityManagerTestBase {
     private void verifyFrameSizeAndPosition(
             int vGravity, int hGravity, int expectedWidthPx, int expectedHeightPx,
             Rect containingFrame, Rect parentFrame) {
-        final int cutoutSize = getCutoutSizeByHorGravity(hGravity);
-        assertEquals("Width is incorrect",
-                expectedWidthPx, containingFrame.width() + cutoutSize);
+        assertEquals("Width is incorrect", expectedWidthPx, containingFrame.width());
         assertEquals("Height is incorrect", expectedHeightPx, containingFrame.height());
 
         if (vGravity == GRAVITY_VER_TOP) {
@@ -207,29 +196,9 @@ public class ManifestLayoutTests extends ActivityManagerTestBase {
         }
 
         if (hGravity == GRAVITY_HOR_LEFT) {
-            assertEquals("Should be on the left",
-                    parentFrame.left, containingFrame.left - cutoutSize);
+            assertEquals("Should be on the left", parentFrame.left, containingFrame.left);
         } else if (hGravity == GRAVITY_HOR_RIGHT){
-            assertEquals("Should be on the right",
-                    parentFrame.right, containingFrame.right + cutoutSize);
-        }
-    }
-
-    private int getCutoutSizeByHorGravity(int hGravity) {
-        DisplayCutout cutout = mDm.getDisplay(DEFAULT_DISPLAY).getCutout();
-        if (cutout == null) {
-            return 0;
-        }
-
-        // When the layoutInDisplayCutoutMode is default, the status bar & navigation bar already
-        // take top and bottom cutout into account.
-        // Here we only need to account for left & right cutout areas.
-        if (hGravity == GRAVITY_HOR_LEFT) {
-            return cutout.getSafeInsetLeft();
-        } else if (hGravity == GRAVITY_HOR_RIGHT) {
-            return cutout.getSafeInsetRight();
-        } else {
-            return 0;
+            assertEquals("Should be on the right", parentFrame.right, containingFrame.right);
         }
     }
 }

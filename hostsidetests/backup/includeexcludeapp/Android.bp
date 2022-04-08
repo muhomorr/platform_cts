@@ -12,17 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package {
-    default_applicable_licenses: ["Android-Apache-2.0"],
-}
-
-java_library {
-    name: "CtsFullBackupRulesLib",
-    srcs: ["src/**/*.java"],
+android_test_helper_app {
+    name: "CtsIncludeExcludeApp",
+    defaults: ["cts_defaults"],
     static_libs: [
         "androidx.test.rules",
         "platform-test-annotations",
-        "truth-prebuilt",
+    ],
+    srcs: ["src/**/*.java"],
+    // tag this module as a cts test artifact
+    test_suites: [
+        "arcts",
+        "cts",
+        "vts10",
+        "general-tests",
     ],
     sdk_version: "current",
 }

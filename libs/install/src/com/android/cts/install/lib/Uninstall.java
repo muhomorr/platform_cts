@@ -43,11 +43,10 @@ public class Uninstall {
             return;
         }
 
-        Context context = InstrumentationRegistry.getTargetContext();
+        Context context = InstrumentationRegistry.getContext();
         PackageManager packageManager = context.getPackageManager();
         PackageInstaller packageInstaller = packageManager.getPackageInstaller();
-        LocalIntentSender sender = new LocalIntentSender();
-        packageInstaller.uninstall(packageName, sender.getIntentSender());
-        InstallUtils.assertStatusSuccess(sender.getResult());
+        packageInstaller.uninstall(packageName, LocalIntentSender.getIntentSender());
+        InstallUtils.assertStatusSuccess(LocalIntentSender.getIntentSenderResult());
     }
 }

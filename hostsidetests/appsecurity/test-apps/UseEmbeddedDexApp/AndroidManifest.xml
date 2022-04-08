@@ -20,17 +20,7 @@
     <uses-sdk android:minSdkVersion="27" android:targetSdkVersion="27" />
 
     <application android:useEmbeddedDex="true">
-        <activity android:name=".EmptyActivity"/>
-
-      <service
-            android:name=".IsolatedService"
-            android:isolatedProcess="true"
-            android:useAppZygote="true" />
-      <uses-library android:name="android.test.runner" />
+        <activity android:name=".DummyActivity"/>
     </application>
-
-    <instrumentation
-        android:name="androidx.test.runner.AndroidJUnitRunner"
-        android:targetPackage="com.android.cts.useembeddeddex" />
 
 </manifest>

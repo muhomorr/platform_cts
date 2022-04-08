@@ -67,8 +67,6 @@ public class ShortcutManagerMultiuserTest extends BaseShortcutManagerHostTest {
         getDevice().startUser(secondUserID, true);
         getDevice().switchUser(secondUserID);
         installAppAsUser(TARGET_APK, secondUserID);
-        waitForBroadcastIdle();
-        Thread.sleep(5000);
 
         runDeviceTestsAsUser(TARGET_PKG, ".ShortcutManagerSecondaryUserTest", secondUserID);
 

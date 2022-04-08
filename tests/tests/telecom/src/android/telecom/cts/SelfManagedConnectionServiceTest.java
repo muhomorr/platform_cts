@@ -20,6 +20,7 @@ import android.content.Context;
 import android.database.Cursor;
 import android.media.AudioManager;
 import android.net.Uri;
+import android.os.Bundle;
 import android.provider.CallLog;
 import android.telecom.Call;
 import android.telecom.CallAudioState;
@@ -37,7 +38,6 @@ import java.util.function.Predicate;
 
 import static android.media.AudioManager.MODE_IN_COMMUNICATION;
 import static android.telecom.cts.TestUtils.TEST_SELF_MANAGED_HANDLE_1;
-import static android.telecom.cts.TestUtils.TEST_SELF_MANAGED_HANDLE_4;
 import static android.telecom.cts.TestUtils.WAIT_FOR_STATE_CHANGE_TIMEOUT_MS;
 import static android.telecom.cts.TestUtils.waitOnAllHandlers;
 
@@ -68,7 +68,6 @@ public class SelfManagedConnectionServiceTest extends BaseTelecomTestWithMockSer
             mTelecomManager.registerPhoneAccount(TestUtils.TEST_SELF_MANAGED_PHONE_ACCOUNT_1);
             mTelecomManager.registerPhoneAccount(TestUtils.TEST_SELF_MANAGED_PHONE_ACCOUNT_2);
             mTelecomManager.registerPhoneAccount(TestUtils.TEST_SELF_MANAGED_PHONE_ACCOUNT_3);
-            mTelecomManager.registerPhoneAccount(TestUtils.TEST_SELF_MANAGED_PHONE_ACCOUNT_4);
         }
     }
 
@@ -457,7 +456,7 @@ public class SelfManagedConnectionServiceTest extends BaseTelecomTestWithMockSer
             }
         }, WAIT_FOR_STATE_CHANGE_TIMEOUT_MS);
         if (TestUtils.HAS_BLUETOOTH) {
-            // Call requestBluetoothAudio on a device. This will be a noop since no devices are
+            // Call requestBluetoothAudio on a dummy device. This will be a noop since no devices are
             // connected.
             connection.requestBluetoothAudio(TestUtils.BLUETOOTH_DEVICE1);
         }
@@ -535,7 +534,6 @@ public class SelfManagedConnectionServiceTest extends BaseTelecomTestWithMockSer
                 CtsSelfManagedConnectionService.FOCUS_GAINED_LOCK));
 
         // WHEN place a managed call
-        mInCallCallbacks.resetLock();
         placeAndVerifyCall();
         verifyConnectionForOutgoingCall().setActive();
         assertTrue(connectionService.waitForEvent(
@@ -634,7 +632,6 @@ public class SelfManagedConnectionServiceTest extends BaseTelecomTestWithMockSer
         assertEquals(connection.getOnShowIncomingUiInvokeCounter().getInvokeCount(), 0);
         setActiveAndVerify(connection);
 
-        mInCallCallbacks.resetLock();
         placeAndVerifyEmergencyCall(true /*supportsHold*/);
         Call eCall = getInCallService().getLastCall();
 

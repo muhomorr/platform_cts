@@ -28,7 +28,6 @@ import static android.server.wm.lifecycle.LifecycleLog.ActivityCallback.ON_STOP;
 import static org.junit.Assume.assumeTrue;
 
 import android.app.Activity;
-import android.content.pm.PackageManager;
 import android.platform.test.annotations.Presubmit;
 
 import androidx.test.filters.MediumTest;
@@ -77,15 +76,8 @@ public class ActivityLifecycleKeyguardTests extends ActivityLifecycleClientTestB
         } // keyguard hidden
 
         // Verify that activity was resumed
-        if (isCar()) {
-            LifecycleVerifier.assertRestartAndResumeSubSequence(FirstActivity.class,
-                    getLifecycleLog());
-            waitAndAssertActivityCurrentState(activity.getClass(), ON_RESUME);
-        } else {
-            waitAndAssertActivityStates(state(activity, ON_RESUME));
-            LifecycleVerifier.assertRestartAndResumeSequence(FirstActivity.class,
-                    getLifecycleLog());
-        }
+        waitAndAssertActivityStates(state(activity, ON_RESUME));
+        LifecycleVerifier.assertRestartAndResumeSequence(FirstActivity.class, getLifecycleLog());
     }
 
     @Test
@@ -93,28 +85,39 @@ public class ActivityLifecycleKeyguardTests extends ActivityLifecycleClientTestB
         assumeTrue(supportsSecureLock());
         assumeTrue(supportsSplitScreenMultiWindow());
 
-        final Activity secondaryActivity = launchActivityAndWait(SideActivity.class);
+        // TODO(b/149338177): Fix test to pass with organizer API.
+        mUseTaskOrganizer = false;
+
         final Activity firstActivity = launchActivityAndWait(FirstActivity.class);
 
         // Enter split screen
-        moveTaskToPrimarySplitScreenAndVerify(firstActivity, secondaryActivity);
+        moveTaskToPrimarySplitScreenAndVerify(firstActivity);
+
+        // Launch second activity to side
+        final Activity secondActivity = new Launcher(SecondActivity.class)
+                .setFlags(FLAG_ACTIVITY_NEW_TASK | FLAG_ACTIVITY_MULTIPLE_TASK)
+                .launch();
+
+        // Leaving the minimized dock, the stack state on the primary split screen should change
+        // from Paused to Resumed.
+        waitAndAssertActivityStates(state(firstActivity, ON_RESUME));
 
         // Show and hide lock screen
         getLifecycleLog().clear();
         try (final LockScreenSession lockScreenSession = new LockScreenSession()) {
             lockScreenSession.setLockCredential().gotoKeyguard();
             waitAndAssertActivityStates(state(firstActivity, ON_STOP));
-            waitAndAssertActivityStates(state(secondaryActivity, ON_STOP));
+            waitAndAssertActivityStates(state(secondActivity, ON_STOP));
 
             LifecycleVerifier.assertResumeToStopSequence(FirstActivity.class, getLifecycleLog());
-            LifecycleVerifier.assertResumeToStopSequence(SideActivity.class, getLifecycleLog());
+            LifecycleVerifier.assertResumeToStopSequence(SecondActivity.class, getLifecycleLog());
             getLifecycleLog().clear();
         } // keyguard hidden
 
         waitAndAssertActivityStates(state(firstActivity, ON_RESUME),
-                state(secondaryActivity, ON_RESUME));
+                state(secondActivity, ON_RESUME));
         LifecycleVerifier.assertRestartAndResumeSequence(FirstActivity.class, getLifecycleLog());
-        LifecycleVerifier.assertRestartAndResumeSequence(SideActivity.class, getLifecycleLog());
+        LifecycleVerifier.assertRestartAndResumeSequence(SecondActivity.class, getLifecycleLog());
     }
 
     @Test

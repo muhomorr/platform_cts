@@ -63,7 +63,7 @@ def gen_random(inputData, inputTypes):
     output = []
     outputData = []
     outputTypes = []
-    # basic validate
+    # basic sanity check
     inputError = False
     if (inputTypes[0] != TYPE_I64):
         inputError = True

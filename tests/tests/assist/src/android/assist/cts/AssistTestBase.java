@@ -65,6 +65,7 @@ import com.android.compatibility.common.util.Timeout;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.rules.RuleChain;
 import org.junit.runner.RunWith;
@@ -73,7 +74,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 
 @RunWith(AndroidJUnit4.class)
 abstract class AssistTestBase {
@@ -120,7 +120,6 @@ abstract class AssistTestBase {
 
     protected ActivityManager mActivityManager;
     private TestStartActivity mTestActivity;
-    protected boolean mIsActivityIdNull;
     protected AssistContent mAssistContent;
     protected AssistStructure mAssistStructure;
     protected boolean mScreenshot;
@@ -141,8 +140,7 @@ abstract class AssistTestBase {
 
     @Nullable
     protected RemoteCallback m3pActivityCallback;
-    @Nullable
-    protected RemoteCallback mSecondary3pActivityCallback;
+    private RemoteCallback m3pCallbackReceiving;
 
     protected boolean mScreenshotMatches;
     private Point mDisplaySize;
@@ -165,11 +163,11 @@ abstract class AssistTestBase {
         mAssistStructure = null;
         mAssistContent = null;
         mAssistBundle = null;
-        mIsActivityIdNull = false;
 
         mActionLatchReceiver = new ActionLatchReceiver();
 
         prepareDevice();
+        registerForAsyncReceivingCallback();
 
         customSetup();
     }
@@ -186,13 +184,9 @@ abstract class AssistTestBase {
         mTestActivity.finish();
         mContext.sendBroadcast(new Intent(Utils.HIDE_SESSION));
 
+
         if (m3pActivityCallback != null) {
             m3pActivityCallback.sendResult(Utils.bundleOfRemoteAction(Utils.ACTION_END_OF_TEST));
-        }
-
-        if (mSecondary3pActivityCallback != null) {
-            mSecondary3pActivityCallback
-                    .sendResult(Utils.bundleOfRemoteAction(Utils.ACTION_END_OF_TEST));
         }
 
         mSessionCompletedLatch.await(3, TimeUnit.SECONDS);
@@ -212,6 +206,19 @@ abstract class AssistTestBase {
 
         // Dismiss keyguard, in case it's set as "Swipe to unlock".
         runShellCommand("wm dismiss-keyguard");
+    }
+
+    private void registerForAsyncReceivingCallback() {
+        HandlerThread handlerThread = new HandlerThread("AssistTestCallbackReceivingThread");
+        handlerThread.start();
+        Handler handler = new Handler(handlerThread.getLooper());
+
+        m3pCallbackReceiving = new RemoteCallback((results) -> {
+            String action = results.getString(Utils.EXTRA_REMOTE_CALLBACK_ACTION);
+            if (action.equals(Utils.EXTRA_REMOTE_CALLBACK_RECEIVING_ACTION)) {
+                m3pActivityCallback = results.getParcelable(Utils.EXTRA_REMOTE_CALLBACK_RECEIVING);
+            }
+        }, handler);
     }
 
     protected void startTest(String testName) throws Exception {
@@ -236,40 +243,13 @@ abstract class AssistTestBase {
         Utils.setTestAppAction(intent, testCaseName);
         intent.putExtra(Utils.EXTRA_REMOTE_CALLBACK, mRemoteCallback);
         intent.addFlags(Intent.FLAG_ACTIVITY_MATCH_EXTERNAL);
-
-        // In devices which support multi-window Activity positioning by default (such as foldables)
-        // it is necessary to launch additional activities ("screen fillers") so we may validate the
-        // entire screenshot captured by the Assistant (full display, not individual DisplayAreas)
-        if (m3pActivityCallback == null) { // first time start3pApp is called
-            intent.putExtra(Utils.EXTRA_REMOTE_CALLBACK_RECEIVING,
-                    createRemoteCallbackReceiver(callback -> m3pActivityCallback = callback));
-        } else if (mSecondary3pActivityCallback == null) { // second time
-            // launch 3pApp on adjacent screen in test cases that need a "screen filler".
-            // necessary configuration to ensure Activity can be launched in another DisplayArea
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_LAUNCH_ADJACENT
-                    // as we are reusing this intent setup, unconditionally start a new task
-                    | Intent.FLAG_ACTIVITY_MULTIPLE_TASK);
-            intent.putExtra(Utils.EXTRA_REMOTE_CALLBACK_RECEIVING, createRemoteCallbackReceiver(
-                    remoteCallback -> mSecondary3pActivityCallback = remoteCallback));
-        } else {
-            throw new IllegalStateException("start3pApp supports a maximum of two App instances.");
-        }
-
+        intent.putExtra(Utils.EXTRA_REMOTE_CALLBACK_RECEIVING, m3pCallbackReceiving);
         if (extras != null) {
             intent.putExtras(extras);
         }
 
         mTestActivity.startActivity(intent);
         waitForOnResume();
-    }
-
-    private RemoteCallback createRemoteCallbackReceiver(Consumer<RemoteCallback> consumer) {
-        return new RemoteCallback((results) -> {
-            String action = results.getString(Utils.EXTRA_REMOTE_CALLBACK_ACTION);
-            if (action.equals(Utils.EXTRA_REMOTE_CALLBACK_RECEIVING_ACTION)) {
-                consumer.accept(results.getParcelable(Utils.EXTRA_REMOTE_CALLBACK_RECEIVING));
-            }
-        }, new Handler(mContext.getMainLooper()));
     }
 
     /**
@@ -313,11 +293,7 @@ abstract class AssistTestBase {
      * Send broadcast to MainInteractionService to start a session
      */
     protected AutoResetLatch startSession() {
-        return startSession(new Bundle());
-    }
-
-    protected AutoResetLatch startSession(Bundle extras) {
-        return startSession(mTestName, extras);
+        return startSession(mTestName, new Bundle());
     }
 
     protected AutoResetLatch startSession(String testName, Bundle extras) {
@@ -338,8 +314,9 @@ abstract class AssistTestBase {
      */
     private void addDimensionsToIntent(Intent intent) {
         if (mDisplaySize == null) {
-            Display.Mode dMode = mTestActivity.getWindowManager().getDefaultDisplay().getMode();
-            mDisplaySize = new Point(dMode.getPhysicalWidth(), dMode.getPhysicalHeight());
+            Display display = mTestActivity.getWindowManager().getDefaultDisplay();
+            mDisplaySize = new Point();
+            display.getRealSize(mDisplaySize);
         }
         intent.putExtra(Utils.DISPLAY_WIDTH_KEY, mDisplaySize.x);
         intent.putExtra(Utils.DISPLAY_HEIGHT_KEY, mDisplaySize.y);
@@ -351,19 +328,6 @@ abstract class AssistTestBase {
         }
         Log.i(TAG, "Received broadcast with all information.");
         return true;
-    }
-
-    /**
-     * Checks the nullness of the received
-     * {@link android.service.voice.VoiceInteractionSession.ActivityId}.
-     *
-     * @param isActivityIdNull True if activityId should be null.
-     */
-    protected void verifyActivityIdNullness(boolean isActivityIdNull) {
-        if (mIsActivityIdNull != isActivityIdNull) {
-            fail(String.format("Should %s have been null - ActivityId: %s",
-                    isActivityIdNull ? "" : "not", mIsActivityIdNull));
-        }
     }
 
     /**
@@ -681,7 +645,6 @@ abstract class AssistTestBase {
     }
 
     protected void setAssistResults(Bundle assistData) {
-        mIsActivityIdNull = assistData.getBoolean(Utils.ASSIST_IS_ACTIVITY_ID_NULL);;
         mAssistBundle = assistData.getBundle(Utils.ASSIST_BUNDLE_KEY);
         mAssistStructure = assistData.getParcelable(Utils.ASSIST_STRUCTURE_KEY);
         mAssistContent = assistData.getParcelable(Utils.ASSIST_CONTENT_KEY);

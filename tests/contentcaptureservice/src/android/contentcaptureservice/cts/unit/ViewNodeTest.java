@@ -133,7 +133,7 @@ public class ViewNodeTest {
 
         ViewStructureImpl structure = new ViewStructureImpl(view);
         ViewNode node = structure.getNode();
-        assertThat(node.getAutofillId()).isEqualTo(initialId); // confidence check
+        assertThat(node.getAutofillId()).isEqualTo(initialId); // sanity check
 
         assertThrows(NullPointerException.class, () -> structure.setAutofillId(null));
         assertThat(node.getAutofillId()).isEqualTo(initialId); // invariant
@@ -159,7 +159,7 @@ public class ViewNodeTest {
     public void testValidProperties_throughParcel() {
         ViewStructureImpl structure = newSimpleStructure();
         final ViewNode node = structure.getNode();
-        assertSimpleNode(node); // confidence check
+        assertSimpleNode(node); // sanity check
 
         final ViewNode clone = cloneThroughParcel(node);
         assertSimpleNode(clone);
@@ -176,7 +176,7 @@ public class ViewNodeTest {
     public void testComplexText_throughParcel() {
         ViewStructureImpl structure = newStructureWithComplexText();
         final ViewNode node = structure.getNode();
-        assertNodeWithComplexText(node); // confidence check
+        assertNodeWithComplexText(node); // sanity check
 
         ViewNode clone = cloneThroughParcel(node);
         assertNodeWithComplexText(clone);
@@ -237,7 +237,6 @@ public class ViewNodeTest {
         structure.setClassName("Classy!");
         structure.setContentDescription("Described I am!");
         structure.setVisibility(View.INVISIBLE);
-        structure.setReceiveContentMimeTypes(new String[]{"text/*", "image/*"});
 
         // Autofill properties
         structure.setAutofillType(View.AUTOFILL_TYPE_TEXT);
@@ -294,8 +293,6 @@ public class ViewNodeTest {
         assertThat(node.getClassName()).isEqualTo("Classy!");
         assertThat(node.getContentDescription().toString()).isEqualTo("Described I am!");
         assertThat(node.getVisibility()).isEqualTo(View.INVISIBLE);
-        assertThat(node.getReceiveContentMimeTypes()).isEqualTo(
-                new String[]{"text/*", "image/*"});
 
         // Autofill properties
         assertThat(node.getAutofillType()).isEqualTo(View.AUTOFILL_TYPE_TEXT);
@@ -409,7 +406,7 @@ public class ViewNodeTest {
 
         try {
             // Write to parcel
-            parcel.setDataPosition(0); // Confidence check
+            parcel.setDataPosition(0); // Sanity / paranoid check
             ViewNode.writeToParcel(parcel, node, 0);
 
             // Read from parcel

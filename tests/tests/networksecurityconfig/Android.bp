@@ -13,10 +13,6 @@
 // limitations under the License.
 //
 
-package {
-    default_applicable_licenses: ["Android-Apache-2.0"],
-}
-
 java_library {
     name: "tests-tests-networksecurityconfig-lib",
     srcs: ["src/**/*.java"],
@@ -24,6 +20,6 @@ java_library {
     libs: [
         "compatibility-device-util-axt",
         "org.apache.http.legacy",
-        "android.test.base",
+        "android.test.base.stubs",
     ],
 }

@@ -16,10 +16,8 @@
 
 package com.android.cts.verifier;
 
-import static com.android.cts.verifier.TestListActivity.sCurrentDisplayMode;
-import static com.android.cts.verifier.TestListAdapter.setTestNameSuffix;
+import com.android.compatibility.common.util.ReportLog;
 
-import android.app.ActionBar;
 import android.app.AlertDialog;
 import android.app.Dialog;
 import android.content.ContentResolver;
@@ -32,15 +30,13 @@ import android.database.Cursor;
 import android.os.Bundle;
 import android.os.PowerManager;
 import android.os.PowerManager.WakeLock;
-import android.util.Log;
 import android.view.LayoutInflater;
-import android.view.MenuItem;
 import android.view.View;
 import android.view.View.OnClickListener;
 import android.widget.ImageButton;
 import android.widget.Toast;
-
-import com.android.compatibility.common.util.ReportLog;
+import android.app.ActionBar;
+import android.view.MenuItem;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -61,16 +57,12 @@ import java.util.stream.IntStream;
  * </ol>
  */
 public class PassFailButtons {
-    private static final String TAG = PassFailButtons.class.getSimpleName();
 
     private static final int INFO_DIALOG_ID = 1337;
 
     private static final String INFO_DIALOG_VIEW_ID = "infoDialogViewId";
     private static final String INFO_DIALOG_TITLE_ID = "infoDialogTitleId";
     private static final String INFO_DIALOG_MESSAGE_ID = "infoDialogMessageId";
-
-    // ReportLog file for CTS-Verifier. The "stream" name gets mapped to the test class name.
-    private static final String REPORT_LOG_NAME = "CTS-Verifier-Log";
 
     // Interface mostly for making documentation and refactoring easier...
     public interface PassFailActivity {
@@ -111,35 +103,23 @@ public class PassFailButtons {
          */
         void setTestResultAndFinish(boolean passed);
 
-        /**
-         * @return A unique name (derived from the test class name) to serve as a section
-         * header in the CtsVerifierReportLog file.
-         */
-        String getReportSectionName();
-
-        /**
-         * Test subclasses can override this to record their CtsVerifierReportLogs.
-         * This is called when the test is exited
-         */
-        void recordTestResults();
-
         /** @return A {@link ReportLog} that is used to record test metric data. */
-        CtsVerifierReportLog getReportLog();
+        ReportLog getReportLog();
 
         /**
          * @return A {@link TestResultHistoryCollection} that is used to record test execution time.
          */
         TestResultHistoryCollection getHistoryCollection();
-    }   /* class PassFailButtons.PassFailActivity */
+    }
 
     public static class Activity extends android.app.Activity implements PassFailActivity {
         private WakeLock mWakeLock;
-        private final CtsVerifierReportLog mReportLog;
+        private final ReportLog reportLog;
         private final TestResultHistoryCollection mHistoryCollection;
 
         public Activity() {
-            this.mReportLog = new CtsVerifierReportLog(REPORT_LOG_NAME, getReportSectionName());
-            this.mHistoryCollection = new TestResultHistoryCollection();
+           this.reportLog = new CtsVerifierReportLog();
+           this.mHistoryCollection = new TestResultHistoryCollection();
         }
 
         @Override
@@ -182,7 +162,7 @@ public class PassFailButtons {
 
         @Override
         public String getTestId() {
-            return setTestNameSuffix(sCurrentDisplayMode, getClass().getName());
+            return getClass().getName();
         }
 
         @Override
@@ -198,14 +178,7 @@ public class PassFailButtons {
         }
 
         @Override
-        public CtsVerifierReportLog getReportLog() {
-            return mReportLog;
-        }
-
-        @Override
-        public final String getReportSectionName() {
-            return setTestNameSuffix(sCurrentDisplayMode, getClass().getName());
-        }
+        public ReportLog getReportLog() { return reportLog; }
 
         @Override
         public TestResultHistoryCollection getHistoryCollection() { return mHistoryCollection; }
@@ -228,19 +201,15 @@ public class PassFailButtons {
             return super.onOptionsItemSelected(item);
         }
 
-        @Override
-        public void recordTestResults() {
-            // default - NOP
-        }
-    }   /* class PassFailButtons.Activity */
+    }
 
     public static class ListActivity extends android.app.ListActivity implements PassFailActivity {
 
-        private final CtsVerifierReportLog mReportLog;
+        private final ReportLog reportLog;
         private final TestResultHistoryCollection mHistoryCollection;
 
         public ListActivity() {
-            this.mReportLog = new CtsVerifierReportLog(REPORT_LOG_NAME, getReportSectionName());
+            this.reportLog = new CtsVerifierReportLog();
             this.mHistoryCollection = new TestResultHistoryCollection();
         }
 
@@ -266,7 +235,7 @@ public class PassFailButtons {
 
         @Override
         public String getTestId() {
-            return setTestNameSuffix(sCurrentDisplayMode, getClass().getName());
+            return getClass().getName();
         }
 
         @Override
@@ -282,17 +251,11 @@ public class PassFailButtons {
         }
 
         @Override
-        public CtsVerifierReportLog getReportLog() {
-            return mReportLog;
-        }
-
-        @Override
-        public final String getReportSectionName() {
-            return setTestNameSuffix(sCurrentDisplayMode, getClass().getName());
-        }
+        public ReportLog getReportLog() { return reportLog; }
 
         @Override
         public TestResultHistoryCollection getHistoryCollection() { return mHistoryCollection; }
+
 
         @Override
         protected void onCreate(Bundle savedInstanceState) {
@@ -311,24 +274,15 @@ public class PassFailButtons {
             }
             return super.onOptionsItemSelected(item);
         }
-
-        @Override
-        public void recordTestResults() {
-            // default - NOP
-        }
-    } // class PassFailButtons.ListActivity
+    }
 
     public static class TestListActivity extends AbstractTestListActivity
             implements PassFailActivity {
 
-        private final CtsVerifierReportLog mReportLog;
+        private final ReportLog reportLog;
 
         public TestListActivity() {
-            // TODO(b/186555602): temporary hack^H^H^H^H workaround to fix crash
-            // This DOES NOT in fact fix that bug.
-            // if (true) this.mReportLog = new CtsVerifierReportLog(REPORT_LOG_NAME, "42"); else
-
-            this.mReportLog = new CtsVerifierReportLog(REPORT_LOG_NAME, getReportSectionName());
+            this.reportLog = new CtsVerifierReportLog();
         }
 
         @Override
@@ -353,7 +307,7 @@ public class PassFailButtons {
 
         @Override
         public String getTestId() {
-            return setTestNameSuffix(sCurrentDisplayMode, getClass().getName());
+            return getClass().getName();
         }
 
         @Override
@@ -369,14 +323,7 @@ public class PassFailButtons {
         }
 
         @Override
-        public CtsVerifierReportLog getReportLog() {
-            return mReportLog;
-        }
-
-        @Override
-        public final String getReportSectionName() {
-            return setTestNameSuffix(sCurrentDisplayMode, getClass().getName());
-        }
+        public ReportLog getReportLog() { return reportLog; }
 
         /**
          * Get existing test history to aggregate.
@@ -396,6 +343,7 @@ public class PassFailButtons {
             getPassButton().setEnabled(mAdapter.allTestsPassed());
         }
 
+
         @Override
         protected void onCreate(Bundle savedInstanceState) {
             super.onCreate(savedInstanceState);
@@ -413,12 +361,7 @@ public class PassFailButtons {
             }
             return super.onOptionsItemSelected(item);
         }
-
-        @Override
-        public void recordTestResults() {
-            // default - NOP
-        }
-    } // class PassFailButtons.TestListActivity
+    }
 
     protected static <T extends android.app.Activity & PassFailActivity>
             void setPassFailClickListeners(final T activity) {
@@ -449,7 +392,7 @@ public class PassFailButtons {
                 return true;
             }
         });
-    } // class PassFailButtons.<T extends android.app.Activity & PassFailActivity>
+    }
 
     protected static void setInfo(final android.app.Activity activity, final int titleId,
             final int messageId, final int viewId) {
@@ -540,8 +483,7 @@ public class PassFailButtons {
     protected static void markSeenInfoDialog(android.app.Activity activity) {
         ContentResolver resolver = activity.getContentResolver();
         ContentValues values = new ContentValues(2);
-        String activityName = setTestNameSuffix(sCurrentDisplayMode, activity.getClass().getName());
-        values.put(TestResultsProvider.COLUMN_TEST_NAME, activityName);
+        values.put(TestResultsProvider.COLUMN_TEST_NAME, activity.getClass().getName());
         values.put(TestResultsProvider.COLUMN_TEST_INFO_SEEN, 1);
         int numUpdated = resolver.update(
                 TestResultsProvider.getTestNameUri(activity), values, null, null);
@@ -554,7 +496,6 @@ public class PassFailButtons {
     protected static void setTestResultAndFinish(android.app.Activity activity, String testId,
             String testDetails, ReportLog reportLog, TestResultHistoryCollection historyCollection,
             View target) {
-
         boolean passed;
         if (target.getId() == R.id.pass_button) {
             passed = true;
@@ -563,9 +504,6 @@ public class PassFailButtons {
         } else {
             throw new IllegalArgumentException("Unknown id: " + target.getId());
         }
-
-        // Let test classes record their CTSVerifierReportLogs
-        ((PassFailActivity) activity).recordTestResults();
 
         setTestResultAndFinishHelper(activity, testId, testDetails, passed, reportLog, historyCollection);
     }
@@ -587,4 +525,7 @@ public class PassFailButtons {
         return (ImageButton) activity.findViewById(R.id.pass_button);
     }
 
-} // class PassFailButtons
+    public static class CtsVerifierReportLog extends ReportLog {
+
+    }
+}

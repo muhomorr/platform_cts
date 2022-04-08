@@ -18,16 +18,13 @@ package android.media.session.cts;
 
 import static android.media.cts.MediaSessionTestHelperConstants.MEDIA_SESSION_TEST_HELPER_PKG;
 
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import android.content.ComponentName;
 import android.content.Context;
 import android.media.session.MediaController;
-import android.media.session.MediaSessionManager.RemoteUserInfo;
 import android.media.session.MediaSessionManager;
-import android.os.Process;
 import android.service.notification.NotificationListenerService;
 
 import androidx.test.InstrumentationRegistry;
@@ -45,16 +42,15 @@ import java.util.List;
  */
 @SmallTest
 public class MediaSessionManagerTest extends NotificationListenerService {
-    private Context mContext;
-    private MediaSessionManager mMediaSessionManager;
     private ComponentName mComponentName;
+    private MediaSessionManager mMediaSessionManager;
 
     @Before
     public void setUp() throws Exception {
-        mContext = InstrumentationRegistry.getTargetContext();
-        mMediaSessionManager =
-                mContext.getSystemService(MediaSessionManager.class);
-        mComponentName = new ComponentName(mContext, MediaSessionManagerTest.class);
+        Context context = InstrumentationRegistry.getTargetContext();
+        mMediaSessionManager = (MediaSessionManager) context.getSystemService(
+                Context.MEDIA_SESSION_SERVICE);
+        mComponentName = new ComponentName(context, MediaSessionManagerTest.class);
     }
 
     /**
@@ -98,25 +94,5 @@ public class MediaSessionManagerTest extends NotificationListenerService {
     public void testGetActiveSessions_noMediaSession() throws Exception {
         List<MediaController> controllers = mMediaSessionManager.getActiveSessions(mComponentName);
         assertTrue(controllers.isEmpty());
-    }
-
-    /**
-     * Tests if this application is trusted.
-     */
-    @Test
-    public void testIsTrusted_returnsTrue() throws Exception {
-        RemoteUserInfo userInfo = new RemoteUserInfo(
-                mContext.getPackageName(), Process.myPid(), Process.myUid());
-        assertTrue(mMediaSessionManager.isTrustedForMediaControl(userInfo));
-    }
-
-    /**
-     * Tests if this application isn't trusted.
-     */
-    @Test
-    public void testIsTrusted_returnsFalse() throws Exception {
-        RemoteUserInfo userInfo = new RemoteUserInfo(
-                mContext.getPackageName(), Process.myPid(), Process.myUid());
-        assertFalse(mMediaSessionManager.isTrustedForMediaControl(userInfo));
     }
 }

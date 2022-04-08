@@ -15,15 +15,12 @@
  */
 package com.android.cts.verifier.tv.audio;
 
-import android.app.Activity;
 import android.view.View;
 
 import androidx.annotation.StringRes;
 
 import com.android.cts.verifier.tv.TestStepBase;
 import com.android.cts.verifier.tv.TvAppVerifierActivity;
-
-import java.util.List;
 
 /** Test step containing instruction to the user and a button. */
 public abstract class TestStep extends TestStepBase {
@@ -36,27 +33,24 @@ public abstract class TestStep extends TestStepBase {
      *
      * @param context The test activity which this test step is part of.
      * @param instructionText Text of the test instruction visible to the user.
-     * @param buttonStringId Id of a string resource containing the text of the button.
+     * @param buttonTextId Id of a string resource containing the text of the button.
      */
     public TestStep(
-            Activity context, String instructionText, @StringRes int buttonStringId) {
+            TvAppVerifierActivity context, String instructionText, @StringRes int buttonStringId) {
         super(context, instructionText);
         mButtonStringId = buttonStringId;
     }
 
     /** Creates the View for this test step in the context {@link TvAppVerifierActivity}. */
     @Override
-    public List<View> createUiElements() {
-        List<View> list = super.createUiElements();
+    public void createUiElements() {
+        super.createUiElements();
         mButtonView =
-                TvAppVerifierActivity.createButtonItem(mContext.getLayoutInflater(),
-                        null,
+                mContext.createButtonItem(
                         mButtonStringId,
                         (View view) -> {
                             onButtonClickRunTest();
                         });
-        list.add(mButtonView);
-        return list;
     }
 
     @Override

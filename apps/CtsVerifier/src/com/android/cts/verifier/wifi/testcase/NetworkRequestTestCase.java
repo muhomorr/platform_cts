@@ -248,7 +248,7 @@ public class NetworkRequestTestCase extends BaseTestCase {
     @Override
     protected void setUp() {
         super.setUp();
-        mConnectivityManager = mContext.getSystemService(ConnectivityManager.class);
+        mConnectivityManager = ConnectivityManager.from(mContext);
     }
 
     @Override

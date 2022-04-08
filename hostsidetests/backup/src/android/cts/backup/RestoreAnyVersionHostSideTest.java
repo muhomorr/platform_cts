@@ -59,7 +59,14 @@ public class RestoreAnyVersionHostSideTest extends BaseBackupHostSideTest {
             "CtsBackupRestoreAnyVersionNoRestoreApp.apk";
 
     @After
+    @Override
     public void tearDown() throws Exception {
+        super.tearDown();
+
+        if (!mIsBackupSupported) {
+            return;
+        }
+
         // Clear backup data and uninstall the package (in that order!)
         clearBackupDataInLocalTransport(RESTORE_ANY_VERSION_APP_PACKAGE);
         assertNull(uninstallPackage(RESTORE_ANY_VERSION_APP_PACKAGE));
@@ -71,6 +78,11 @@ public class RestoreAnyVersionHostSideTest extends BaseBackupHostSideTest {
      */
     @Test
     public void testRestoreAnyVersion_False() throws Exception {
+        if (!mIsBackupSupported) {
+            CLog.i("android.software.backup feature is not supported on this device");
+            return;
+        }
+
         installNewVersionApp();
 
         saveSharedPreferenceValue();
@@ -92,6 +104,11 @@ public class RestoreAnyVersionHostSideTest extends BaseBackupHostSideTest {
      */
     @Test
     public void testRestoreAnyVersion_True() throws Exception {
+        if (!mIsBackupSupported) {
+            CLog.i("android.software.backup feature is not supported on this device");
+            return;
+        }
+
         installNewVersionApp();
 
         saveSharedPreferenceValue();
@@ -113,6 +130,11 @@ public class RestoreAnyVersionHostSideTest extends BaseBackupHostSideTest {
      */
     @Test
     public void testRestoreAnyVersion_OldBackupToNewApp() throws Exception {
+        if (!mIsBackupSupported) {
+            CLog.i("android.software.backup feature is not supported on this device");
+            return;
+        }
+
         installNoRestoreAnyVersionApp();
 
         saveSharedPreferenceValue();

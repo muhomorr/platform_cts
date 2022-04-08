@@ -43,9 +43,6 @@ import androidx.test.uiautomator.BySelector;
 import androidx.test.uiautomator.Direction;
 import androidx.test.uiautomator.UiDevice;
 import androidx.test.uiautomator.UiObject2;
-import androidx.test.uiautomator.UiObjectNotFoundException;
-import androidx.test.uiautomator.UiScrollable;
-import androidx.test.uiautomator.UiSelector;
 import androidx.test.uiautomator.Until;
 
 import org.junit.After;
@@ -54,40 +51,19 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import java.util.concurrent.TimeUnit;
-import java.util.regex.Pattern;
 
 @RunWith(AndroidJUnit4.class)
 public class PreferredActivitiesTest extends BaseDynamicMimeTest {
     private static final String ACTION = "android.dynamicmime.preferred.TEST_ACTION";
 
-    private static final String NAV_BAR_INTERACTION_MODE_RES_NAME = "config_navBarInteractionMode";
-    private static final int NAV_BAR_INTERACTION_MODE_GESTURAL = 2;
-
-    private static final String BUTTON_ALWAYS_RES_ID = "android:id/button_always";
-    private static final BySelector BUTTON_ALWAYS = By.res(BUTTON_ALWAYS_RES_ID);
-    private static final UiSelector BUTTON_ALWAYS_UI_SELECTOR =
-            new UiSelector().resourceId(BUTTON_ALWAYS_RES_ID);
-    private static final BySelector RESOLVER_DIALOG = By.res(Pattern.compile(".*:id/contentPanel.*"));
+    private static final BySelector BUTTON_ALWAYS = By.res("android:id/button_always");
 
     private static final long TIMEOUT = TimeUnit.SECONDS.toMillis(60L);
-
-    private static final String FEATURE_WEARABLE = "android.hardware.type.watch";
 
     private TestStrategy mTest;
 
     public PreferredActivitiesTest() {
         super(MimeGroupCommands.preferredApp(context()), MimeGroupAssertions.notUsed());
-        assumeNavigationMode();
-    }
-
-    private void assumeNavigationMode() {
-        Resources res = context().getResources();
-        int navModeResId = res.getIdentifier(NAV_BAR_INTERACTION_MODE_RES_NAME, "integer",
-            "android");
-        int navMode = res.getInteger(navModeResId);
-
-        assumeTrue("Non-gesture navigation mode required",
-            navMode != NAV_BAR_INTERACTION_MODE_GESTURAL);
     }
 
     @Before
@@ -282,9 +258,6 @@ public class PreferredActivitiesTest extends BaseDynamicMimeTest {
     }
 
     private void verifyDialogIsShown(boolean shouldBeShown) {
-        if (Utils.hasFeature(FEATURE_WEARABLE)) {
-            scrollToSelectorOnWatch(BUTTON_ALWAYS_UI_SELECTOR);
-        }
         UiObject2 buttonAlways = getUiDevice().wait(Until.findObject(BUTTON_ALWAYS), TIMEOUT);
 
         if (shouldBeShown) {
@@ -302,51 +275,13 @@ public class PreferredActivitiesTest extends BaseDynamicMimeTest {
     }
 
     private UiObject2 findActivityInDialog(String label) {
-        if (!Utils.hasFeature(FEATURE_WEARABLE)) {
-            getUiDevice()
-                .wait(Until.findObject(RESOLVER_DIALOG), TIMEOUT)
-                .swipe(Direction.UP, 1f);
-        } else {
-            scrollToSelectorOnWatch(new UiSelector().text(label));
-        }
         return getUiDevice().findObject(By.text(label));
     }
 
     private void chooseUseAlways() {
-        if (Utils.hasFeature(FEATURE_WEARABLE)) {
-            scrollToSelectorOnWatch(BUTTON_ALWAYS_UI_SELECTOR);
-        }
         getUiDevice()
                 .wait(Until.findObject(BUTTON_ALWAYS), TIMEOUT)
                 .click();
-    }
-
-    private void scrollToSelectorOnWatch(UiSelector selector) {
-        try {
-            int resId = Resources.getSystem().getIdentifier(
-                    "config_customResolverActivity", "string", "android");
-            String customResolverActivity = context().getString(resId);
-            String customResolverPackageName;
-            if (customResolverActivity.isEmpty()) {
-                // If custom resolver is not in use, it'll be using the Android default
-                customResolverPackageName = "android";
-            } else {
-                customResolverPackageName = customResolverActivity.split("/")[0];
-            }
-
-            UiSelector scrollableSelector =
-                    new UiSelector()
-                            .scrollable(true)
-                            .packageName(customResolverPackageName);
-            UiScrollable scrollable = new UiScrollable(scrollableSelector);
-            scrollable.waitForExists(TIMEOUT);
-            if (scrollable.exists()) {
-                scrollable.scrollToBeginning(Integer.MAX_VALUE);
-                scrollable.scrollIntoView(selector);
-            }
-        } catch (UiObjectNotFoundException ignore) {
-            throw new AssertionError("Scrollable view was lost.");
-        }
     }
 
     private interface TestStrategy {

@@ -202,10 +202,6 @@ double NativeAudioAnalyzer::getConfidence() {
     return mPulseLatencyAnalyzer.getMeasuredConfidence();
 }
 
-bool NativeAudioAnalyzer::isLowLatencyStream() {
-    return mIsLowLatencyStream;
-}
-
 int NativeAudioAnalyzer::getSampleRate() {
     return mOutputSampleRate;
 }
@@ -238,10 +234,6 @@ aaudio_result_t NativeAudioAnalyzer::openAudio() {
                AAudio_convertResultToText(result));
         return result;
     }
-
-    // Did we get a low-latency stream?
-    mIsLowLatencyStream =
-        AAudioStream_getPerformanceMode(mOutputStream) == AAUDIO_PERFORMANCE_MODE_LOW_LATENCY;
 
     int32_t outputFramesPerBurst = AAudioStream_getFramesPerBurst(mOutputStream);
     (void) AAudioStream_setBufferSizeInFrames(mOutputStream, outputFramesPerBurst * kDefaultOutputSizeBursts);

@@ -15,27 +15,20 @@
  */
 package com.android.compatibility.tradefed;
 
-import static org.junit.Assert.assertEquals;
-
 import com.android.compatibility.common.tradefed.build.CompatibilityBuildHelper;
 import com.android.compatibility.common.tradefed.build.CompatibilityBuildProvider;
 import com.android.tradefed.build.IBuildInfo;
 import com.android.tradefed.config.OptionSetter;
 import com.android.tradefed.util.FileUtil;
 
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.JUnit4;
+import junit.framework.TestCase;
 
 import java.io.File;
 
 /**
  * Tests for cts-tradefed.
  */
-@RunWith(JUnit4.class)
-public class CtsTradefedTest {
+public class CtsTradefedTest extends TestCase {
 
     private static final String PROPERTY_NAME = "CTS_ROOT";
     private static final String SUITE_FULL_NAME = "Compatibility Test Suite";
@@ -45,19 +38,20 @@ public class CtsTradefedTest {
 
     private String mOriginalProperty = null;
 
-    @Before
-    public void setUp() throws Exception {
+    @Override
+    protected void setUp() throws Exception {
+        super.setUp();
         mOriginalProperty = System.getProperty(PROPERTY_NAME);
     }
 
-    @After
-    public void tearDown() throws Exception {
+    @Override
+    protected void tearDown() throws Exception {
         if (mOriginalProperty != null) {
             System.setProperty(PROPERTY_NAME, mOriginalProperty);
         }
+        super.tearDown();
     }
 
-    @Test
     public void testSuiteInfoLoad() throws Exception {
         // Test the values in the manifest can be loaded
         File root = FileUtil.createTempDir("root");

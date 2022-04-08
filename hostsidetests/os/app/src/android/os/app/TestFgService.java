@@ -42,7 +42,6 @@ public class TestFgService extends Service {
                 .setContentTitle("Foreground service")
                 .setContentText("Ongoing test app foreground service is live")
                 .setSmallIcon(NOTIFICATION_ID)
-                .setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE)
                 .build();
 
         Log.i(TAG, "TestFgService starting foreground: pid=" + Process.myPid());

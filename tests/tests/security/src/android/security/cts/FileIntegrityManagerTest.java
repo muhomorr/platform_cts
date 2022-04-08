@@ -16,26 +16,17 @@
 
 package android.security.cts;
 
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assume.assumeTrue;
-
 import android.content.Context;
-import android.content.pm.PackageManager;
-import android.os.Build;
+import android.security.FileIntegrityManager;
 import android.platform.test.annotations.AppModeFull;
 import android.platform.test.annotations.RestrictedBuildTest;
-import android.security.FileIntegrityManager;
+import android.util.Log;
 
 import androidx.test.platform.app.InstrumentationRegistry;
-import androidx.test.runner.AndroidJUnit4;
 
 import com.android.compatibility.common.util.CddTest;
+import com.android.compatibility.common.util.CtsAndroidTestCase;
 import com.android.compatibility.common.util.PropertyUtil;
-
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -45,10 +36,8 @@ import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 
-
 @AppModeFull
-@RunWith(AndroidJUnit4.class)
-public class FileIntegrityManagerTest {
+public class FileIntegrityManagerTest extends CtsAndroidTestCase {
 
     private static final String TAG = "FileIntegrityManagerTest";
     private static final int MIN_REQUIRED_API_LEVEL = 30;
@@ -57,25 +46,17 @@ public class FileIntegrityManagerTest {
     private FileIntegrityManager mFileIntegrityManager;
     private CertificateFactory mCertFactory;
 
-    @Before
-    public void setUp() throws Exception {
-        mContext = InstrumentationRegistry.getInstrumentation().getContext();
-        // This feature name check only applies to devices that first shipped with
-        // SC or later.
-        if (PropertyUtil.getFirstApiLevel() >= Build.VERSION_CODES.S) {
-            // Assumes every test in this file asserts a requirement of CDD section 9.
-            assumeTrue("Skipping test: FEATURE_SECURITY_MODEL_COMPATIBLE missing.",
-                    mContext.getPackageManager()
-                    .hasSystemFeature(PackageManager.FEATURE_SECURITY_MODEL_COMPATIBLE));
-        }
+    @Override
+    protected void setUp() throws Exception {
+        super.setUp();
 
+        mContext = InstrumentationRegistry.getInstrumentation().getContext();
         mFileIntegrityManager = mContext.getSystemService(FileIntegrityManager.class);
         mCertFactory = CertificateFactory.getInstance("X.509");
     }
 
 
     @CddTest(requirement="9.10/C-0-3,C-1-1")
-    @Test
     public void testSupportedOnDevicesFirstLaunchedWithR() throws Exception {
         if (PropertyUtil.getFirstApiLevel() >= MIN_REQUIRED_API_LEVEL) {
             assertTrue(mFileIntegrityManager.isApkVeritySupported());
@@ -83,7 +64,6 @@ public class FileIntegrityManagerTest {
     }
 
     @CddTest(requirement="9.10/C-0-3,C-1-1")
-    @Test
     public void testCtsReleaseCertificateTrusted() throws Exception {
         boolean isReleaseCertTrusted = mFileIntegrityManager.isAppSourceCertificateTrusted(
                 readAssetAsX509Certificate("fsverity-release.x509.der"));
@@ -96,7 +76,6 @@ public class FileIntegrityManagerTest {
 
     @CddTest(requirement="9.10/C-0-3,C-1-1")
     @RestrictedBuildTest
-    @Test
     public void testPlatformDebugCertificateNotTrusted() throws Exception {
         boolean isDebugCertTrusted = mFileIntegrityManager.isAppSourceCertificateTrusted(
                 readAssetAsX509Certificate("fsverity-debug.x509.der"));

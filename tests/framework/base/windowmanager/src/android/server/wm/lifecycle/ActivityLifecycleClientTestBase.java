@@ -16,8 +16,6 @@
 
 package android.server.wm.lifecycle;
 
-import static android.app.WindowConfiguration.WINDOWING_MODE_FULLSCREEN;
-import static android.content.Intent.FLAG_ACTIVITY_FORWARD_RESULT;
 import static android.content.Intent.FLAG_ACTIVITY_MULTIPLE_TASK;
 import static android.content.Intent.FLAG_ACTIVITY_NEW_TASK;
 import static android.server.wm.StateLogger.log;
@@ -35,7 +33,7 @@ import static android.server.wm.lifecycle.LifecycleLog.ActivityCallback.ON_START
 import static android.server.wm.lifecycle.LifecycleLog.ActivityCallback.ON_STOP;
 import static android.server.wm.lifecycle.LifecycleLog.ActivityCallback.ON_TOP_POSITION_GAINED;
 import static android.server.wm.lifecycle.LifecycleLog.ActivityCallback.ON_TOP_POSITION_LOST;
-import static android.server.wm.lifecycle.LifecycleLog.ActivityCallback.ON_USER_LEAVE_HINT;
+import static android.server.wm.lifecycle.LifecycleLog.ActivityCallback.PRE_ON_CREATE;
 
 import static androidx.test.platform.app.InstrumentationRegistry.getInstrumentation;
 
@@ -71,7 +69,6 @@ import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -92,7 +89,6 @@ public class ActivityLifecycleClientTestBase extends MultiDisplayTestBase {
     static final String EXTRA_FINISH_IN_ON_STOP = "finish_in_on_stop";
     static final String EXTRA_START_ACTIVITY_IN_ON_CREATE = "start_activity_in_on_create";
     static final String EXTRA_START_ACTIVITY_WHEN_IDLE = "start_activity_when_idle";
-    static final String EXTRA_ACTIVITY_ON_USER_LEAVE_HINT = "activity_on_user_leave_hint";
 
     static final ComponentName CALLBACK_TRACKING_ACTIVITY =
             getComponentName(CallbackTrackingActivity.class);
@@ -251,10 +247,8 @@ public class ActivityLifecycleClientTestBase extends MultiDisplayTestBase {
      * time.
      * @return The launched Activity instance.
      */
-    @SuppressWarnings("unchecked")
-    <T extends Activity> T launchActivityAndWait(Class<? extends Activity> activityClass)
-            throws Exception {
-        return (T) new Launcher(activityClass).launch();
+    Activity launchActivityAndWait(Class<? extends Activity> activityClass) throws Exception {
+        return new Launcher(activityClass).launch();
     }
 
     /**
@@ -265,16 +259,6 @@ public class ActivityLifecycleClientTestBase extends MultiDisplayTestBase {
             Pair<Class<? extends Activity>, ActivityCallback>... activityCallbacks) {
         log("Start waitAndAssertActivityCallbacks");
         mLifecycleTracker.waitAndAssertActivityStates(activityCallbacks);
-    }
-
-    /**
-     * Blocking call that will wait and verify that the activity transition settles with the
-     * expected state.
-     */
-    final void waitAndAssertActivityCurrentState(
-            Class<? extends Activity> activityClass, ActivityCallback expectedState) {
-        log("Start waitAndAssertActivityCurrentState");
-        mLifecycleTracker.waitAndAssertActivityCurrentState(activityClass, expectedState);
     }
 
     /**
@@ -352,6 +336,7 @@ public class ActivityLifecycleClientTestBase extends MultiDisplayTestBase {
         protected void onCreate(Bundle savedInstanceState) {
             super.onCreate(savedInstanceState);
             mLifecycleLogClient = LifecycleLog.LifecycleLogClient.create(this);
+            mLifecycleLogClient.onActivityCallback(PRE_ON_CREATE);
             mLifecycleLogClient.onActivityCallback(ON_CREATE);
 
             final Intent intent = getIntent();
@@ -427,15 +412,6 @@ public class ActivityLifecycleClientTestBase extends MultiDisplayTestBase {
             super.onRestart();
             mLifecycleLogClient.onActivityCallback(ON_RESTART);
         }
-
-        @Override
-        protected void onUserLeaveHint() {
-            super.onUserLeaveHint();
-
-            if (getIntent().getBooleanExtra(EXTRA_ACTIVITY_ON_USER_LEAVE_HINT, false)) {
-                mLifecycleLogClient.onActivityCallback(ON_USER_LEAVE_HINT);
-            }
-        }
     }
 
     // Test activity
@@ -448,10 +424,6 @@ public class ActivityLifecycleClientTestBase extends MultiDisplayTestBase {
 
     // Test activity
     public static class ThirdActivity extends LifecycleTrackingActivity {
-    }
-
-    // Test activity
-    public static class SideActivity extends LifecycleTrackingActivity {
     }
 
     // Translucent test activity
@@ -515,29 +487,6 @@ public class ActivityLifecycleClientTestBase extends MultiDisplayTestBase {
     }
 
     /**
-     * Test activity that launches {@link TrampolineActivity} for result.
-     */
-    public static class LaunchForwardResultActivity extends CallbackTrackingActivity {
-        @Override
-        protected void onCreate(Bundle savedInstanceState) {
-            super.onCreate(savedInstanceState);
-            final Intent intent = new Intent(this, TrampolineActivity.class);
-            startActivityForResult(intent, 1 /* requestCode */);
-        }
-    }
-
-    public static class TrampolineActivity extends CallbackTrackingActivity {
-        @Override
-        protected void onCreate(Bundle savedInstanceState) {
-            super.onCreate(savedInstanceState);
-            final Intent intent = new Intent(this, ResultActivity.class);
-            intent.setFlags(FLAG_ACTIVITY_FORWARD_RESULT);
-            startActivity(intent);
-            finish();
-        }
-    }
-
-    /**
      * Test activity that launches {@link ResultActivity} for result.
      */
     public static class LaunchForResultActivity extends CallbackTrackingActivity {
@@ -545,8 +494,6 @@ public class ActivityLifecycleClientTestBase extends MultiDisplayTestBase {
         public static final String EXTRA_LAUNCH_ON_RESULT = "LAUNCH_ON_RESULT";
         public static final String EXTRA_LAUNCH_ON_RESUME_AFTER_RESULT =
                 "LAUNCH_ON_RESUME_AFTER_RESULT";
-        public static final String EXTRA_USE_TRANSLUCENT_RESULT =
-                "USE_TRANSLUCENT_RESULT";
 
         boolean mReceivedResultOk;
 
@@ -562,14 +509,7 @@ public class ActivityLifecycleClientTestBase extends MultiDisplayTestBase {
         @Override
         protected void onCreate(Bundle savedInstanceState) {
             super.onCreate(savedInstanceState);
-
-            final Intent intent;
-            if (getIntent().hasExtra(EXTRA_USE_TRANSLUCENT_RESULT)) {
-                intent = new Intent(this, TranslucentResultActivity.class);
-            } else {
-                intent = new Intent(this, ResultActivity.class);
-            }
-
+            final Intent intent = new Intent(this, ResultActivity.class);
             final Bundle forwardExtras = getIntent().getBundleExtra(EXTRA_FORWARD_EXTRAS);
             if (forwardExtras != null) {
                 intent.putExtras(forwardExtras);
@@ -594,10 +534,6 @@ public class ActivityLifecycleClientTestBase extends MultiDisplayTestBase {
                 startActivity(new Intent(this, CallbackTrackingActivity.class));
             }
         }
-    }
-
-    /** Translucent activity that is started for result. */
-    public static class TranslucentResultActivity extends ResultActivity {
     }
 
     /** Test activity that is started for result. */
@@ -630,26 +566,12 @@ public class ActivityLifecycleClientTestBase extends MultiDisplayTestBase {
 
     /** Test activity that can call {@link Activity#recreate()} if requested in a new intent. */
     public static class SingleTopActivity extends CallbackTrackingActivity {
-        static final String EXTRA_LAUNCH_ACTIVITY = "extra_launch_activity";
-        static final String EXTRA_NEW_TASK = "extra_new_task";
+
         @Override
         protected void onNewIntent(Intent intent) {
             super.onNewIntent(intent);
             if (intent != null && intent.getBooleanExtra(EXTRA_RECREATE, false)) {
                 recreate();
-            }
-        }
-
-        @Override
-        protected void onCreate(Bundle savedInstanceState) {
-            super.onCreate(savedInstanceState);
-
-            if (getIntent().getBooleanExtra(EXTRA_LAUNCH_ACTIVITY, false)) {
-                final Intent intent = new Intent(this, SingleTopActivity.class);
-                if (getIntent().getBooleanExtra(EXTRA_NEW_TASK, false)) {
-                    intent.setFlags(FLAG_ACTIVITY_NEW_TASK);
-                }
-                startActivityForResult(intent, 1 /* requestCode */);
             }
         }
     }
@@ -673,12 +595,8 @@ public class ActivityLifecycleClientTestBase extends MultiDisplayTestBase {
 
             // Enter picture in picture with the given aspect ratio if provided
             if (getIntent().hasExtra(EXTRA_ENTER_PIP)) {
-                enterPip();
+                enterPictureInPictureMode(new PictureInPictureParams.Builder().build());
             }
-        }
-
-        void enterPip() {
-            enterPictureInPictureMode(new PictureInPictureParams.Builder().build());
         }
     }
 
@@ -765,42 +683,14 @@ public class ActivityLifecycleClientTestBase extends MultiDisplayTestBase {
         return new ComponentName(getInstrumentation().getContext(), activity);
     }
 
-    void moveTaskToPrimarySplitScreenAndVerify(Activity primaryActivity,
-            Activity secondaryActivity) throws Exception {
+    void moveTaskToPrimarySplitScreenAndVerify(Activity activity) {
         getLifecycleLog().clear();
 
-        mWmState.computeState(secondaryActivity.getComponentName());
-        moveActivitiesToSplitScreen(primaryActivity.getComponentName(),
-                secondaryActivity.getComponentName());
+        moveTaskToPrimarySplitScreen(activity.getTaskId());
 
-        final Class<? extends Activity> activityClass = primaryActivity.getClass();
-
-        final List<LifecycleLog.ActivityCallback> expectedTransitions =
-                new ArrayList<LifecycleLog.ActivityCallback>(
-                        LifecycleVerifier.getSplitScreenTransitionSequence(activityClass));
-        final List<LifecycleLog.ActivityCallback> expectedTransitionForMinimizedDock =
-                LifecycleVerifier.appendMinimizedDockTransitionTrail(expectedTransitions);
-
-        final int displayWindowingMode =
-                getDisplayWindowingModeByActivity(getComponentName(activityClass));
-        if (displayWindowingMode != WINDOWING_MODE_FULLSCREEN) {
-            // For non-fullscreen display mode, there won't be a multi-window callback.
-            expectedTransitions.removeAll(Collections.singleton(ON_MULTI_WINDOW_MODE_CHANGED));
-            expectedTransitionForMinimizedDock.removeAll(
-                    Collections.singleton(ON_MULTI_WINDOW_MODE_CHANGED));
-        }
-
-        mLifecycleTracker.waitForActivityTransitions(activityClass, expectedTransitions);
-        LifecycleVerifier.assertSequenceMatchesOneOf(
-                activityClass,
-                getLifecycleLog(),
-                Arrays.asList(expectedTransitions, expectedTransitionForMinimizedDock),
+        final Class<? extends Activity> activityClass = activity.getClass();
+        waitAndAssertActivityTransitions(activityClass,
+                LifecycleVerifier.getSplitScreenTransitionSequence(activityClass),
                 "enterSplitScreen");
-    }
-
-    final ActivityOptions getLaunchOptionsForFullscreen() {
-        final ActivityOptions launchOptions = ActivityOptions.makeBasic();
-        launchOptions.setLaunchWindowingMode(WINDOWING_MODE_FULLSCREEN);
-        return launchOptions;
     }
 }

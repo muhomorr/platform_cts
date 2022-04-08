@@ -18,25 +18,18 @@
 
 <manifest
     xmlns:android="http://schemas.android.com/apk/res/android"
-    package="android.permission3.cts.accessmicrophoneapplocationprovider">
+    package="android.permission3.cts.usepermission">
 
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
-    <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
-    <attribution
-        android:label="@string/attribution_label"
-        android:tag="test.tag" />
-
-    <application
-        android:attributionsAreUserVisible="true"
-        android:label="LocationProviderWithMicApp">
-        <activity android:name=".AddLocationProviderActivity" android:exported="true">
+    <application>
+        <activity android:name=".AddLocationProviderActivity" android:exported="true" />
+        <activity android:name=".FinishOnCreateActivity" android:exported="true"
+                  android:permission="android.permission.START_VIEW_PERMISSION_USAGE">
             <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
+                <action android:name="android.intent.action.VIEW_PERMISSION_USAGE"/>
+                <category android:name="android.intent.category.DEFAULT"/>
             </intent-filter>
         </activity>
-        <activity android:name=".UseMicrophoneActivity" android:exported="true"/>
     </application>
 </manifest>

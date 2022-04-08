@@ -277,8 +277,7 @@ public class BluetoothLeScanTest extends AndroidTestCase {
         }
         Intent broadcastIntent = new Intent();
         broadcastIntent.setClass(mContext, BluetoothScanReceiver.class);
-        PendingIntent pi = PendingIntent.getBroadcast(mContext, 1, broadcastIntent,
-            PendingIntent.FLAG_IMMUTABLE);
+        PendingIntent pi = PendingIntent.getBroadcast(mContext, 1, broadcastIntent, 0);
         CountDownLatch latch = BluetoothScanReceiver.createCountDownLatch();
         mScanner.startScan(null, null, pi);
         boolean gotResults = latch.await(20, TimeUnit.SECONDS);
@@ -308,8 +307,7 @@ public class BluetoothLeScanTest extends AndroidTestCase {
         }
         Intent broadcastIntent = new Intent();
         broadcastIntent.setClass(mContext, BluetoothScanReceiver.class);
-        PendingIntent pi = PendingIntent.getBroadcast(mContext, 1, broadcastIntent,
-            PendingIntent.FLAG_IMMUTABLE);
+        PendingIntent pi = PendingIntent.getBroadcast(mContext, 1, broadcastIntent, 0);
         CountDownLatch latch = BluetoothScanReceiver.createCountDownLatch();
         mScanner.startScan(filters, batchScanSettings, pi);
         boolean gotResults = latch.await(20, TimeUnit.SECONDS);

@@ -66,8 +66,7 @@ public class DeviceTest {
             final Field serviceField = roleManager.getClass().getDeclaredField("mService");
             serviceField.setAccessible(true);
             final Object roleService = serviceField.get(roleManager);
-            final String getSmsRoleHolderMethodName = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
-                    ? "getSmsRoleHolder" : "getDefaultSmsPackage";
+            final String getSmsRoleHolderMethodName = "getDefaultSmsPackage";
             final Method getSmsRoleHolderMethod = roleService.getClass().getMethod(
                     getSmsRoleHolderMethodName, int.class);
             getSmsRoleHolderMethod.invoke(roleService, UserHandle.USER_SYSTEM);

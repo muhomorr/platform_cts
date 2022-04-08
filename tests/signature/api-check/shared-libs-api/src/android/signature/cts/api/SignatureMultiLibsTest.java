@@ -42,13 +42,11 @@ public class SignatureMultiLibsTest extends SignatureTest {
         runWithTestResultObserver(mResultObserver -> {
 
             ApiComplianceChecker complianceChecker =
-                    new ApiComplianceChecker(mResultObserver, mClassProvider);
+                    new ApiComplianceChecker(mResultObserver, classProvider);
 
             ApiDocumentParser apiDocumentParser = new ApiDocumentParser(TAG);
 
-            parseApiResourcesAsStream(apiDocumentParser,
-                    Stream.concat(Arrays.stream(expectedApiFiles), Arrays.stream(previousApiFiles))
-                    .toArray(String[]::new))
+            parseApiResourcesAsStream(apiDocumentParser, expectedApiFiles)
                     .forEach(complianceChecker::checkSignatureCompliance);
 
             // After done parsing all expected API files, perform any deferred checks.

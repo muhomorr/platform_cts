@@ -14,10 +14,6 @@
 // limitations under the License.
 //
 
-package {
-    default_applicable_licenses: ["Android-Apache-2.0"],
-}
-
 android_test {
     name: "CtsDpiTestCases2",
     defaults: ["cts_defaults"],
@@ -27,13 +23,14 @@ android_test {
         "ctstestrunner-axt",
         "junit",
     ],
-    libs: ["android.test.base"],
+    libs: ["android.test.base.stubs"],
     srcs: ["src/**/*.java"],
     sdk_version: "test_current",
     min_sdk_version: "3",
     // Tag this module as a cts test artifact
     test_suites: [
         "cts",
+        "vts10",
         "general-tests",
     ],
 }

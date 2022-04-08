@@ -102,7 +102,6 @@ class PermissionTest29 : BaseUsePermissionTest() {
         }
     }
 
-    @FlakyTest
     @Test
     fun testDenyBackgroundWithPrejudice() {
         // Step 1: deny the first time

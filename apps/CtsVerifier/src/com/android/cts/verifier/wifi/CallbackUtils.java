@@ -17,6 +17,7 @@
 package com.android.cts.verifier.wifi;
 
 import android.net.ConnectivityManager;
+import android.net.LinkProperties;
 import android.net.Network;
 import android.net.NetworkCapabilities;
 import android.util.Log;
@@ -58,9 +59,11 @@ public class CallbackUtils {
         }
 
         @Override
-        public void onAvailable(Network network) {
+        public void onAvailable(Network network, NetworkCapabilities networkCapabilities,
+                LinkProperties linkProperties, boolean isBlocked) {
             if (DBG) Log.v(TAG, "onAvailable");
             mNetwork = network;
+            mNetworkCapabilities = networkCapabilities;
             mOnAvailableBlocker.countDown();
         }
 

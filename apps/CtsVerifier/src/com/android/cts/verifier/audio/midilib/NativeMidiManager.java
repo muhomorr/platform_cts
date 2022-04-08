@@ -18,7 +18,7 @@ package com.android.cts.verifier.audio.midilib;
 
 import android.media.midi.MidiDevice;
 
-import com.android.cts.verifier.audio.MidiNativeTestActivity;
+import com.android.cts.verifier.audio.NDKMidiActivity;
 
 public class NativeMidiManager {
     //
@@ -30,6 +30,6 @@ public class NativeMidiManager {
 
     public static native void initN();
 
-    public native void startTest(MidiNativeTestActivity.NativeMidiTestModule testModule,
-            MidiDevice midiDevice, boolean throttleData);
+    public native void startTest(NDKMidiActivity.NDKMidiTestModule testModule,
+            MidiDevice midiDevice);
 }

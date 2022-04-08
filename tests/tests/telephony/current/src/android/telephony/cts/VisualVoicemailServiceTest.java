@@ -18,8 +18,6 @@ package android.telephony.cts;
 
 import static androidx.test.InstrumentationRegistry.getInstrumentation;
 
-import static junit.framework.Assert.assertNotNull;
-
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -103,9 +101,7 @@ public class VisualVoicemailServiceTest {
             TelecomManager telecomManager = mContext.getSystemService(TelecomManager.class);
             mPhoneAccountHandle = telecomManager
                     .getDefaultOutgoingPhoneAccount(PhoneAccount.SCHEME_TEL);
-            assertNotNull(mPhoneAccountHandle);
             mPhoneNumber = telecomManager.getLine1Number(mPhoneAccountHandle);
-            assertNotNull(mPhoneNumber, "Tests require a line1 number for the active SIM.");
 
             mTelephonyManager = mContext.getSystemService(TelephonyManager.class)
                     .createForPhoneAccountHandle(mPhoneAccountHandle);

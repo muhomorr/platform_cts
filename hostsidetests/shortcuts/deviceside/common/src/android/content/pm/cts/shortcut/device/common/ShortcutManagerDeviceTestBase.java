@@ -87,8 +87,9 @@ public abstract class ShortcutManagerDeviceTestBase extends InstrumentationTestC
         return android.os.Process.myUserHandle();
     }
 
-    protected void setAsDefaultLauncher() {
-        setDefaultLauncher(getInstrumentation(), getContext());
+    protected void setAsDefaultLauncher(Class<?> clazz) {
+        setDefaultLauncher(getInstrumentation(),
+                getContext().getPackageName() + "/" + clazz.getName());
     }
 
     protected Drawable getIconAsLauncher(String packageName, String shortcutId) {

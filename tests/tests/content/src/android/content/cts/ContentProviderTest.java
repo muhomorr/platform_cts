@@ -16,22 +16,11 @@
 
 package android.content.cts;
 
-import static com.google.common.truth.Truth.assertThat;
-
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertSame;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
-import static org.testng.Assert.assertThrows;
-
 import android.content.ContentProvider;
-import android.content.ContentProvider.CallingIdentity;
 import android.content.ContentResolver;
 import android.content.ContentValues;
 import android.content.Context;
+import android.content.ContentProvider.CallingIdentity;
 import android.content.pm.PackageManager;
 import android.content.pm.ProviderInfo;
 import android.database.Cursor;
@@ -39,22 +28,9 @@ import android.database.sqlite.SQLiteDatabase;
 import android.net.Uri;
 import android.os.Binder;
 import android.os.ParcelFileDescriptor;
-import android.os.UserHandle;
-import android.platform.test.annotations.AppModeFull;
-import android.provider.MediaStore;
+import android.test.AndroidTestCase;
 
-import androidx.test.core.app.ApplicationProvider;
-
-import com.android.bedstead.harrier.BedsteadJUnit4;
-import com.android.bedstead.harrier.DeviceState;
-import com.android.bedstead.harrier.annotations.EnsureHasWorkProfile;
-import com.android.bedstead.nene.TestApis;
-
-import org.junit.After;
-import org.junit.ClassRule;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.runner.RunWith;
+import android.content.cts.R;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -63,26 +39,18 @@ import java.io.IOException;
 /**
  * Test {@link ContentProvider}.
  */
-@RunWith(BedsteadJUnit4.class)
-public class ContentProviderTest {
+public class ContentProviderTest extends AndroidTestCase {
     private static final String TEST_PACKAGE_NAME = "android.content.cts";
     private static final String TEST_FILE_NAME = "testFile.tmp";
     private static final String TEST_DB_NAME = "test.db";
 
-    @ClassRule
-    @Rule
-    public static final DeviceState sDeviceState = new DeviceState();
-
-    private static final Context sContext = ApplicationProvider.getApplicationContext();
-    private static final TestApis sTestApis = new TestApis();
-
-    @After
-    public void tearDown() throws Exception {
-        sContext.deleteDatabase(TEST_DB_NAME);
-        sContext.deleteFile(TEST_FILE_NAME);
+    @Override
+    protected void tearDown() throws Exception {
+        mContext.deleteDatabase(TEST_DB_NAME);
+        mContext.deleteFile(TEST_FILE_NAME);
+        super.tearDown();
     }
 
-    @Test
     public void testOpenAssetFile() throws IOException {
         MockContentProvider mockContentProvider = new MockContentProvider();
         Uri uri = Uri.parse(ContentResolver.SCHEME_ANDROID_RESOURCE +
@@ -101,15 +69,14 @@ public class ContentProviderTest {
         }
     }
 
-    @Test
     public void testAttachInfo() {
         MockContentProvider mockContentProvider = new MockContentProvider();
 
         ProviderInfo info1 = new ProviderInfo();
         info1.readPermission = "android.permission.READ_SMS";
         info1.writePermission = null; // Guarded by an app op not a permission.
-        mockContentProvider.attachInfo(sContext, info1);
-        assertSame(sContext, mockContentProvider.getContext());
+        mockContentProvider.attachInfo(getContext(), info1);
+        assertSame(getContext(), mockContentProvider.getContext());
         assertEquals(info1.readPermission, mockContentProvider.getReadPermission());
         assertEquals(info1.writePermission, mockContentProvider.getWritePermission());
 
@@ -117,7 +84,7 @@ public class ContentProviderTest {
         info2.readPermission = "android.permission.READ_CONTACTS";
         info2.writePermission = "android.permission.WRITE_CONTACTS";
         mockContentProvider.attachInfo(null, info2);
-        assertSame(sContext, mockContentProvider.getContext());
+        assertSame(getContext(), mockContentProvider.getContext());
         assertEquals(info1.readPermission, mockContentProvider.getReadPermission());
         assertEquals(info1.writePermission, mockContentProvider.getWritePermission());
 
@@ -132,13 +99,12 @@ public class ContentProviderTest {
         assertEquals(info2.readPermission, mockContentProvider.getReadPermission());
         assertEquals(info2.writePermission, mockContentProvider.getWritePermission());
 
-        mockContentProvider.attachInfo(sContext, info1);
-        assertSame(sContext, mockContentProvider.getContext());
+        mockContentProvider.attachInfo(getContext(), info1);
+        assertSame(getContext(), mockContentProvider.getContext());
         assertEquals(info1.readPermission, mockContentProvider.getReadPermission());
         assertEquals(info1.writePermission, mockContentProvider.getWritePermission());
     }
 
-    @Test
     public void testBulkInsert() {
         MockContentProvider mockContentProvider = new MockContentProvider();
 
@@ -159,18 +125,16 @@ public class ContentProviderTest {
         }
     }
 
-    @Test
     public void testGetContext() {
         MockContentProvider mockContentProvider = new MockContentProvider();
         assertNull(mockContentProvider.getContext());
 
-        mockContentProvider.attachInfo(sContext, null);
-        assertSame(sContext, mockContentProvider.getContext());
+        mockContentProvider.attachInfo(getContext(), null);
+        assertSame(getContext(), mockContentProvider.getContext());
         mockContentProvider.attachInfo(null, null);
-        assertSame(sContext, mockContentProvider.getContext());
+        assertSame(getContext(), mockContentProvider.getContext());
     }
 
-    @Test
     public void testAccessReadPermission() {
         MockContentProvider mockContentProvider = new MockContentProvider();
         assertNull(mockContentProvider.getReadPermission());
@@ -187,7 +151,6 @@ public class ContentProviderTest {
         assertNull(mockContentProvider.getReadPermission());
     }
 
-    @Test
     public void testAccessWritePermission() {
         MockContentProvider mockContentProvider = new MockContentProvider();
         assertNull(mockContentProvider.getWritePermission());
@@ -200,13 +163,11 @@ public class ContentProviderTest {
         assertNull(mockContentProvider.getWritePermission());
     }
 
-    @Test
     public void testIsTemporary() {
         MockContentProvider mockContentProvider = new MockContentProvider();
         assertFalse(mockContentProvider.isTemporary());
     }
 
-    @Test
     public void testOpenFile() {
         MockContentProvider mockContentProvider = new MockContentProvider();
 
@@ -224,12 +185,11 @@ public class ContentProviderTest {
         }
     }
 
-    @Test
     public void testOpenFileHelper() throws IOException {
 
         // create a temporary File
-        sContext.openFileOutput(TEST_FILE_NAME, Context.MODE_PRIVATE).close();
-        File file = sContext.getFileStreamPath(TEST_FILE_NAME);
+        mContext.openFileOutput(TEST_FILE_NAME, Context.MODE_PRIVATE).close();
+        File file = mContext.getFileStreamPath(TEST_FILE_NAME);
         assertTrue(file.exists());
 
         ContentProvider cp = new OpenFileContentProvider(file.getAbsolutePath(), TEST_DB_NAME);
@@ -261,33 +221,28 @@ public class ContentProviderTest {
         }
     }
 
-    @Test
     public void testOnConfigurationChanged() {
         // cannot trigger this callback reliably
     }
 
-    @Test
     public void testOnLowMemory() {
         // cannot trigger this callback reliably
     }
 
-    @Test
     public void testRefresh_DefaultImplReturnsFalse() {
         MockContentProvider provider = new MockContentProvider();
         assertFalse(provider.refresh(null, null, null));
     }
 
-    @Test
     public void testGetIContentProvider() {
         MockContentProvider mockContentProvider = new MockContentProvider();
 
         assertNotNull(mockContentProvider.getIContentProvider());
     }
 
-    @Test
     public void testClearCallingIdentity() {
         final MockContentProvider provider = new MockContentProvider();
-        provider.attachInfo(sContext, new ProviderInfo());
+        provider.attachInfo(getContext(), new ProviderInfo());
 
         final CallingIdentity ident = provider.clearCallingIdentity();
         try {
@@ -298,85 +253,11 @@ public class ContentProviderTest {
         }
     }
 
-    @Test
     public void testCheckUriPermission() {
         MockContentProvider provider = new MockContentProvider();
         final Uri uri = Uri.parse("content://test");
         assertEquals(PackageManager.PERMISSION_DENIED,
                 provider.checkUriPermission(uri, android.os.Process.myUid(), 0));
-    }
-
-    @Test
-    public void testCreateContentUriForUser_nullUri_throwsNPE() {
-        assertThrows(
-                NullPointerException.class,
-                () -> ContentProvider.createContentUriForUser(null, UserHandle.of(7)));
-    }
-
-    @Test
-    public void testCreateContentUriForUser_nonContentUri_throwsIAE() {
-        final Uri uri = Uri.parse("notcontent://test");
-        assertThrows(
-                IllegalArgumentException.class,
-                () -> ContentProvider.createContentUriForUser(uri, UserHandle.of(7)));
-    }
-
-    @Test
-    public void testCreateContentUriForUser_UriWithDifferentUserID_throwsIAE() {
-        final Uri uri = Uri.parse("content://07@Test");
-        assertThrows(
-                IllegalArgumentException.class,
-                () -> ContentProvider.createContentUriForUser(uri, UserHandle.of(7)));
-    }
-
-    @Test
-    public void testCreateContentUriForUser_UriWithUserID_unchanged() {
-        final Uri uri = Uri.parse("content://7@Test");
-        assertEquals(uri, ContentProvider.createContentUriForUser(uri, UserHandle.of(7)));
-    }
-
-    @Test
-    @EnsureHasWorkProfile
-    @AppModeFull
-    public void createContentUriForUser_returnsCorrectUri() {
-        final ContentResolver profileContentResolver =
-                sTestApis.context().androidContextAsUser(sDeviceState.workProfile())
-                        .getContentResolver();
-        final String testContentDisplayName = "testContent.mp3";
-        final Uri workProfileUriWithoutUserId = createAndInsertTestAudioFile(
-                profileContentResolver, testContentDisplayName);
-
-        final Uri workProfileUriWithUserId = ContentProvider.createContentUriForUser(
-                workProfileUriWithoutUserId, sDeviceState.workProfile().userHandle());
-
-        assertThat(getAudioContentDisplayName(
-                sContext.getContentResolver(), workProfileUriWithUserId))
-                .isEqualTo(testContentDisplayName);
-    }
-
-    private Uri createAndInsertTestAudioFile(ContentResolver resolver, String displayName) {
-        final Uri audioCollection = MediaStore.Audio.Media.getContentUri(
-                MediaStore.VOLUME_EXTERNAL_PRIMARY);
-        final ContentValues testContent = new ContentValues();
-        testContent.put(MediaStore.Audio.Media.DISPLAY_NAME, displayName);
-        return resolver.insert(audioCollection, testContent);
-    }
-
-    private String getAudioContentDisplayName(ContentResolver resolver, Uri uri) {
-        String name = null;
-        try (Cursor cursor = resolver.query(
-                uri,
-                /* projection = */ null,
-                /* selection = */ null,
-                /* selectionArgs = */ null,
-                /* sortOrder = */ null)) {
-            final int nameColumn =
-                    cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DISPLAY_NAME);
-            if (cursor.moveToNext()) {
-                name = cursor.getString(nameColumn);
-            }
-        }
-        return name;
     }
 
     private class MockContentProvider extends ContentProvider {
@@ -447,8 +328,8 @@ public class ContentProviderTest {
 
         OpenFileContentProvider(String fileName, String dbName) {
             // delete the database if it already exists
-            sContext.deleteDatabase(dbName);
-            mDb = sContext.openOrCreateDatabase(dbName, Context.MODE_PRIVATE, null);
+            mContext.deleteDatabase(dbName);
+            mDb = mContext.openOrCreateDatabase(dbName, Context.MODE_PRIVATE, null);
             mDb.execSQL("CREATE TABLE files ( _data TEXT );");
             mDb.execSQL("INSERT INTO files VALUES ( \"" + fileName + "\");");
         }

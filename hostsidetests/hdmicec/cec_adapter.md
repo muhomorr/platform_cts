@@ -21,7 +21,7 @@
     sudo apt-get install cec-utils
     ```
 
-    *   macOS (using [MacPorts](https://guide.macports.org/#installing))
+    *   mac (using [MacPorts](https://guide.macports.org/#installing))
 
     ```shell
      sudo /opt/local/bin/port install libcec

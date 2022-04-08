@@ -84,8 +84,6 @@ import org.mockito.ArgumentCaptor;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.ArrayList;
-import java.util.Collections;
 
 @FlakyTest
 @SmallTest
@@ -1744,23 +1742,21 @@ public class PopupWindowTest {
 
     @Test
     public void testClipToScreenClipsToInsets() throws Throwable {
-        final ArrayList<Integer> orientations = new ArrayList();
-
-        // test landscape orientation if device support it
-        if (hasDeviceFeature(PackageManager.FEATURE_SCREEN_LANDSCAPE)) {
-            orientations.add(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
-        }
-        // test portrait orientation if device support it
-        if (hasDeviceFeature(PackageManager.FEATURE_SCREEN_PORTRAIT)) {
-            orientations.add(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
-        }
-        // if device support both orientations and current is landscape, test portrait first
+        int[] orientationValues = {ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE,
+                ActivityInfo.SCREEN_ORIENTATION_PORTRAIT};
         int currentOrientation = mActivity.getResources().getConfiguration().orientation;
-        if (currentOrientation == Configuration.ORIENTATION_LANDSCAPE && orientations.size() > 1) {
-            Collections.swap(orientations, 0, 1);
+        if (currentOrientation == Configuration.ORIENTATION_LANDSCAPE) {
+            orientationValues[0] = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT;
+            orientationValues[1] = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE;
         }
 
-        for (int orientation : orientations) {
+        for (int i = 0; i < 2; i++) {
+            final int orientation = orientationValues[i];
+            if (orientation == ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+                    && !hasDeviceFeature(PackageManager.FEATURE_SCREEN_PORTRAIT)) {
+                // skip test for devices not supporting portrait orientation
+                continue;
+            }
             mActivity.runOnUiThread(() ->
                     mActivity.setRequestedOrientation(orientation));
             mActivity.waitForConfigurationChanged();

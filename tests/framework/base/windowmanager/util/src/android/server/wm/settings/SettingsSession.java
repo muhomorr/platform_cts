@@ -21,7 +21,6 @@ import static androidx.test.platform.app.InstrumentationRegistry.getInstrumentat
 import android.content.ContentResolver;
 import android.net.Uri;
 import android.provider.Settings.SettingNotFoundException;
-import android.server.wm.NestedShellPermission;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
@@ -143,7 +142,7 @@ public class SettingsSession<T> implements AutoCloseable {
     }
 
     private static <T> void put(final Uri uri, final SettingsSetter<T> setter, T value) {
-        NestedShellPermission.run(() -> {
+        SystemUtil.runWithShellPermissionIdentity(() -> {
             setter.set(getContentResolver(), uri.getLastPathSegment(), value);
         });
     }
@@ -153,7 +152,7 @@ public class SettingsSession<T> implements AutoCloseable {
         return getter.get(getContentResolver(), uri.getLastPathSegment());
     }
 
-    public static void delete(final Uri uri) {
+    protected static void delete(final Uri uri) {
         final List<String> segments = uri.getPathSegments();
         if (segments.size() != 2) {
             Log.w(TAG, "Unsupported uri for deletion: " + uri, new Throwable());

@@ -12,16 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package {
-    default_applicable_licenses: ["Android-Apache-2.0"],
-}
-
 android_test_import {
     name: "CtsCorruptApkTests_Compressed_Q",
     apk: "compressed_Q.apk",
     presigned: true,
     test_suites: [
         "cts",
+        "vts10",
         "general-tests",
     ]
 }
@@ -32,6 +29,7 @@ android_test_import {
     presigned: true,
     test_suites: [
         "cts",
+        "vts10",
         "general-tests",
     ]
 }
@@ -43,6 +41,7 @@ android_test_import {
     preprocessed: true,
     test_suites: [
         "cts",
+        "vts10",
         "general-tests",
     ]
 }
@@ -54,6 +53,7 @@ android_test_import {
     preprocessed: true,
     test_suites: [
         "cts",
+        "vts10",
         "general-tests",
     ]
 }

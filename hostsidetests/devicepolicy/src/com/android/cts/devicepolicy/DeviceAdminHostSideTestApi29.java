@@ -32,6 +32,9 @@ public class DeviceAdminHostSideTestApi29 extends DeviceAdminHostSideTestApi24 {
     @Override
     @Test
     public void testRunDeviceAdminTest() throws Exception {
+        if (!mHasFeature) {
+            return;
+        }
         runTests(getDeviceAdminApkPackage(), "DeviceAdminWithEnterprisePoliciesBlockedTest");
     }
 }

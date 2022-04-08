@@ -15,13 +15,8 @@
  */
 package com.android.cts.devicepolicy;
 
-import static com.android.cts.devicepolicy.DeviceAdminFeaturesCheckerRule.FEATURE_MANAGED_USERS;
-
 import android.platform.test.annotations.FlakyTest;
 
-import com.android.cts.devicepolicy.DeviceAdminFeaturesCheckerRule.RequiresAdditionalFeatures;
-
-import org.junit.Ignore;
 import org.junit.Test;
 
 /**
@@ -29,8 +24,6 @@ import org.junit.Test;
  * BIND_DEVICE_ADMIN permissions, which was a requirement for the app sending the
  * ACTION_PROVISION_MANAGED_PROFILE intent before Android M.
  */
-// We need multi user to be supported in order to create a profile of the user owner.
-@RequiresAdditionalFeatures({FEATURE_MANAGED_USERS})
 public class ManagedProfileProvisioningSingleAdminTest extends BaseDevicePolicyTest {
 
     private static final String SINGLE_ADMIN_PKG = "com.android.cts.devicepolicy.singleadmin";
@@ -42,26 +35,34 @@ public class ManagedProfileProvisioningSingleAdminTest extends BaseDevicePolicyT
     public void setUp() throws Exception {
         super.setUp();
 
+        // We need multi user to be supported in order to create a profile of the user owner.
+        mHasFeature = mHasFeature && hasDeviceFeature("android.software.managed_users");
 
-        removeTestUsers();
-        installAppAsUser(SINGLE_ADMIN_APP_APK, mPrimaryUserId);
-        mProfileUserId = 0;
+        if (mHasFeature) {
+            removeTestUsers();
+            installAppAsUser(SINGLE_ADMIN_APP_APK, mPrimaryUserId);
+            mProfileUserId = 0;
+        }
     }
 
     @Override
     public void tearDown() throws Exception {
-        if (mProfileUserId != 0) {
-            removeUser(mProfileUserId);
+        if (mHasFeature) {
+            if (mProfileUserId != 0) {
+                removeUser(mProfileUserId);
+            }
+            getDevice().uninstallPackage(SINGLE_ADMIN_PKG);
         }
-        getDevice().uninstallPackage(SINGLE_ADMIN_PKG);
-
         super.tearDown();
     }
 
     @FlakyTest
     @Test
-    @Ignore("b/183395856 Figure out if it should be removed or converted to a device side test.")
     public void testEXTRA_PROVISIONING_DEVICE_ADMIN_PACKAGE_NAME() throws Exception {
+        if (!mHasFeature) {
+            return;
+        }
+
         runDeviceTestsAsUser(SINGLE_ADMIN_PKG, ".ProvisioningSingleAdminTest",
                 "testManagedProfileProvisioning", mPrimaryUserId);
 

@@ -19,7 +19,6 @@ import static android.content.pm.PackageManager.PERMISSION_DENIED;
 import static android.content.pm.PackageManager.PERMISSION_GRANTED;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assume.assumeFalse;
 
 import android.app.slice.SliceManager;
 import android.content.Context;
@@ -48,7 +47,9 @@ public class SlicePermissionsTest {
 
     @Before
     public void setup() throws NameNotFoundException {
-        assumeFalse(isSliceDisabled);
+        if(isSliceDisabled) {
+          return;
+        }
         mSliceManager = mContext.getSystemService(SliceManager.class);
         mTestPkg = mContext.getPackageName();
         mTestUid = mContext.getPackageManager().getPackageUid(mTestPkg, 0);
@@ -65,7 +66,9 @@ public class SlicePermissionsTest {
 
     @Test
     public void testGrant() {
-        assumeFalse(isSliceDisabled);
+        if (isSliceDisabled) {
+            return;
+        }
         assertEquals(PERMISSION_DENIED,
                 mSliceManager.checkSlicePermission(BASE_URI, mTestPid, mTestUid));
 
@@ -77,7 +80,9 @@ public class SlicePermissionsTest {
 
     @Test
     public void testGrantParent() {
-        assumeFalse(isSliceDisabled);
+        if (isSliceDisabled) {
+            return;
+        }
         Uri uri = BASE_URI.buildUpon()
                 .appendPath("something")
                 .build();
@@ -93,7 +98,9 @@ public class SlicePermissionsTest {
 
     @Test
     public void testGrantParentExpands() {
-        assumeFalse(isSliceDisabled);
+        if (isSliceDisabled) {
+            return;
+        }
         Uri uri = BASE_URI.buildUpon()
                 .appendPath("something")
                 .build();
@@ -120,7 +127,9 @@ public class SlicePermissionsTest {
 
     @Test
     public void testGrantChild() {
-        assumeFalse(isSliceDisabled);
+        if (isSliceDisabled) {
+            return;
+        }
         Uri uri = BASE_URI.buildUpon()
                 .appendPath("something")
                 .build();
@@ -137,7 +146,9 @@ public class SlicePermissionsTest {
 
     @Test
     public void testRevoke() {
-        assumeFalse(isSliceDisabled);
+        if (isSliceDisabled) {
+            return;
+        }
         assertEquals(PERMISSION_DENIED,
                 mSliceManager.checkSlicePermission(BASE_URI, mTestPid, mTestUid));
 
@@ -154,7 +165,9 @@ public class SlicePermissionsTest {
 
     @Test
     public void testRevokeParent() {
-        assumeFalse(isSliceDisabled);
+        if (isSliceDisabled) {
+            return;
+        }
         Uri uri = BASE_URI.buildUpon()
                 .appendPath("something")
                 .build();
@@ -175,7 +188,9 @@ public class SlicePermissionsTest {
 
     @Test
     public void testRevokeChild() {
-        assumeFalse(isSliceDisabled);
+        if (isSliceDisabled) {
+            return;
+        }
         Uri uri = BASE_URI.buildUpon()
                 .appendPath("something")
                 .build();

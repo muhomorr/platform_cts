@@ -16,15 +16,13 @@
 
 package android.autofillservice.cts.augmented;
 
-import static android.autofillservice.cts.testcore.AugmentedHelper.assertBasicRequestInfo;
-import static android.autofillservice.cts.testcore.AugmentedHelper.resetAugmentedService;
+import static android.autofillservice.cts.augmented.AugmentedHelper.assertBasicRequestInfo;
+import static android.autofillservice.cts.augmented.AugmentedHelper.resetAugmentedService;
 
-import android.autofillservice.cts.activities.PreSimpleSaveActivity;
-import android.autofillservice.cts.activities.SimpleSaveActivity;
-import android.autofillservice.cts.commontests.AugmentedAutofillManualActivityLaunchTestCase;
-import android.autofillservice.cts.testcore.CannedAugmentedFillResponse;
-import android.autofillservice.cts.testcore.CannedFillResponse;
-import android.autofillservice.cts.testcore.CtsAugmentedAutofillService.AugmentedFillRequest;
+import android.autofillservice.cts.CannedFillResponse;
+import android.autofillservice.cts.PreSimpleSaveActivity;
+import android.autofillservice.cts.SimpleSaveActivity;
+import android.autofillservice.cts.augmented.CtsAugmentedAutofillService.AugmentedFillRequest;
 import android.platform.test.annotations.AppModeFull;
 import android.support.test.uiautomator.UiObject2;
 import android.view.autofill.AutofillId;
@@ -75,7 +73,7 @@ public class DisableAutofillTest extends AugmentedAutofillManualActivityLaunchTe
         autofillExpectation.assertAutoFilled();
         mAugmentedUiBot.assertUiGone();
 
-        // Validation check - make sure standard autofill was not requested
+        // Sanity check - make sure standard autofill was not requested
         sReplier.assertNoUnhandledFillRequests();
     }
 
@@ -129,7 +127,7 @@ public class DisableAutofillTest extends AugmentedAutofillManualActivityLaunchTe
         autofillExpectation.assertAutoFilled();
         mAugmentedUiBot.assertUiGone();
 
-        // Validation check - make sure standard autofill was not requested
+        // Sanity check - make sure standard autofill was not requested
         sReplier.assertNoUnhandledFillRequests();
     }
 }

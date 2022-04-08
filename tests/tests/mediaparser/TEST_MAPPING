@@ -1,9 +1,4 @@
 {
-  "mainline-presubmit": [
-    {
-      "name": "CtsMediaParserTestCases[com.google.android.media.apex]"
-    }
-  ],
   "presubmit": [
     {
       "name": "CtsMediaParserTestCases"

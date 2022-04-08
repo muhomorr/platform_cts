@@ -22,8 +22,8 @@ import android.location.cts.common.SoftAssert;
 import android.location.cts.common.TestLocationListener;
 import android.location.cts.common.TestLocationManager;
 import android.location.cts.common.TestMeasurementUtil;
+import android.os.Build;
 import android.os.Parcel;
-import android.util.Log;
 
 import java.util.List;
 
@@ -77,12 +77,9 @@ public class GnssNavigationMessageTest extends GnssTestCase {
      */
     public void testGnssNavigationMessageMandatoryFieldRanges() throws Exception {
         // Checks if GPS hardware feature is present, skips test (pass) if not
-        if (!TestMeasurementUtil.canTestRunOnCurrentDevice(mTestLocationManager, TAG)) {
-            return;
-        }
-
-        if (TestMeasurementUtil.isAutomotiveDevice(getContext())) {
-            Log.i(TAG, "Test is being skipped because the system has the AUTOMOTIVE feature.");
+        if (!TestMeasurementUtil.canTestRunOnCurrentDevice(Build.VERSION_CODES.N,
+                mTestLocationManager,
+                TAG)) {
             return;
         }
 
@@ -97,12 +94,9 @@ public class GnssNavigationMessageTest extends GnssTestCase {
 
         boolean success = mTestGnssNavigationMessageListener.await();
 
-        if (!mTestLocationManager.getLocationManager().getGnssCapabilities()
-                .hasNavigationMessages()) {
-            Log.i(TAG, "Skip the test since NavigationMessage is not supported.");
+        if (!mTestGnssNavigationMessageListener.verifyState()) {
             return;
         }
-
         SoftAssert softAssert = new SoftAssert(TAG);
         softAssert.assertTrue(
             "Time elapsed without getting enough navigation messages."

@@ -15,19 +15,22 @@
  */
 package android.carrierapi.cts;
 
-import static com.google.common.truth.Truth.assertWithMessage;
+import static junit.framework.TestCase.assertEquals;
 
-import static org.junit.Assert.assertThrows;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.fail;
 
 import android.content.ContentResolver;
 import android.content.ContentValues;
+import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteException;
 import android.net.Uri;
 import android.provider.Telephony.Carriers;
 import android.util.Log;
 
+import androidx.test.InstrumentationRegistry;
 import androidx.test.runner.AndroidJUnit4;
 
 import org.junit.Before;
@@ -39,16 +42,17 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Unit tests for the APN database exposed by {@link Carriers}.
- *
- * <p>Test using `atest CtsCarrierApiTestCases:ApnDatabaseTest` or `make cts -j64 && cts-tradefed
- * run cts -m CtsCarrierApiTestCases --test android.carrierapi.cts.ApnDatabaseTest`
+ * Build, install and run the tests by running the commands below:
+ *  make cts -j64
+ *  cts-tradefed run cts -m CtsCarrierApiTestCases --test android.carrierapi.cts.ApnDatabaseTest
  */
 @RunWith(AndroidJUnit4.class)
-public class ApnDatabaseTest extends BaseCarrierApiTest {
+public class ApnDatabaseTest {
     private static final String TAG = "ApnDatabaseTest";
 
     private ContentResolver mContentResolver;
+    private PackageManager mPackageManager;
+    private boolean mHasCellular;
 
     private static final String NAME = "carrierName";
     private static final String APN = "apn";
@@ -68,28 +72,25 @@ public class ApnDatabaseTest extends BaseCarrierApiTest {
     private static final String NETWORK_TYPE_BITMASK = "0";
     private static final String BEARER = "0";
 
-    private static final Map<String, String> APN_MAP =
-            new HashMap<String, String>() {
-                {
-                    put(Carriers.NAME, NAME);
-                    put(Carriers.APN, APN);
-                    put(Carriers.PROXY, PROXY);
-                    put(Carriers.PORT, PORT);
-                    put(Carriers.MMSC, MMSC);
-                    put(Carriers.MMSPROXY, MMSPROXY);
-                    put(Carriers.MMSPORT, MMSPORT);
-                    put(Carriers.NUMERIC, NUMERIC);
-                    put(Carriers.USER, USER);
-                    put(Carriers.PASSWORD, PASSWORD);
-                    put(Carriers.AUTH_TYPE, AUTH_TYPE);
-                    put(Carriers.TYPE, TYPE);
-                    put(Carriers.PROTOCOL, PROTOCOL);
-                    put(Carriers.ROAMING_PROTOCOL, ROAMING_PROTOCOL);
-                    put(Carriers.CARRIER_ENABLED, CARRIER_ENABLED);
-                    put(Carriers.NETWORK_TYPE_BITMASK, NETWORK_TYPE_BITMASK);
-                    put(Carriers.BEARER, BEARER);
-                }
-            };
+    private static final Map<String, String> APN_MAP = new HashMap<String,String>() {{
+        put(Carriers.NAME, NAME);
+        put(Carriers.APN, APN);
+        put(Carriers.PROXY, PROXY);
+        put(Carriers.PORT, PORT);
+        put(Carriers.MMSC, MMSC);
+        put(Carriers.MMSPROXY, MMSPROXY);
+        put(Carriers.MMSPORT, MMSPORT);
+        put(Carriers.NUMERIC, NUMERIC);
+        put(Carriers.USER, USER);
+        put(Carriers.PASSWORD, PASSWORD);
+        put(Carriers.AUTH_TYPE, AUTH_TYPE);
+        put(Carriers.TYPE, TYPE);
+        put(Carriers.PROTOCOL, PROTOCOL);
+        put(Carriers.ROAMING_PROTOCOL, ROAMING_PROTOCOL);
+        put(Carriers.CARRIER_ENABLED, CARRIER_ENABLED);
+        put(Carriers.NETWORK_TYPE_BITMASK, NETWORK_TYPE_BITMASK);
+        put(Carriers.BEARER, BEARER);
+    }};
 
     // Faked network type bitmask and its compatible bearer bitmask.
     private static final int NETWORK_TYPE_BITMASK_NUMBER = 1 << (13 - 1);
@@ -97,16 +98,29 @@ public class ApnDatabaseTest extends BaseCarrierApiTest {
 
     @Before
     public void setUp() throws Exception {
-        mContentResolver = getContext().getContentResolver();
+        mContentResolver = InstrumentationRegistry.getContext().getContentResolver();
+        mPackageManager = InstrumentationRegistry.getContext().getPackageManager();
+        // Checks whether the cellular stack should be running on this device.
+        mHasCellular = mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY);
+        if (!mHasCellular) {
+            Log.e(TAG, "No cellular support, all tests will be skipped.");
+        }
+    }
+
+    private void failMessage() {
+        fail("This test requires a SIM card with carrier privilege rule on it.\n" +
+                "Visit https://source.android.com/devices/tech/config/uicc.html");
     }
 
     /**
-     * Test inserting, querying, updating and deleting values in carriers table. Verify that the
-     * inserted values match the result of the query and are deleted.
+     * Test inserting, querying, updating and deleting values in carriers table.
+     * Verify that the inserted values match the result of the query and are deleted.
      */
     @Test
     public void testValidCase() {
+        if (!mHasCellular) return;
         Uri uri = Carriers.CONTENT_URI;
+        // CONTENT_URI = Uri.parse("content://telephony/carriers");
         // Create A set of column_name/value pairs to add to the database.
         ContentValues contentValues = makeDefaultContentValues();
 
@@ -114,84 +128,69 @@ public class ApnDatabaseTest extends BaseCarrierApiTest {
             // Insert the value into database.
             Log.d(TAG, "testInsertCarriers Inserting contentValues: " + contentValues.toString());
             Uri newUri = mContentResolver.insert(uri, contentValues);
-            assertWithMessage("Failed to insert to table").that(newUri).isNotNull();
+            assertNotNull("Failed to insert to table", newUri);
 
             // Get the values in table.
             final String selection = Carriers.NUMERIC + "=?";
-            String[] selectionArgs = {NUMERIC};
+            String[] selectionArgs = { NUMERIC };
             String[] apnProjection = APN_MAP.keySet().toArray(new String[APN_MAP.size()]);
-            Log.d(
-                    TAG,
-                    "testInsertCarriers query projection: "
-                            + Arrays.toString(apnProjection)
-                            + "\ntestInsertCarriers selection: "
-                            + selection
-                            + "\ntestInsertCarriers selectionArgs: "
-                            + Arrays.toString(selectionArgs));
-            Cursor cursor =
-                    mContentResolver.query(uri, apnProjection, selection, selectionArgs, null);
+            Log.d(TAG, "testInsertCarriers query projection: " + Arrays.toString(apnProjection)
+                    + "\ntestInsertCarriers selection: " + selection
+                    + "\ntestInsertCarriers selectionArgs: " + Arrays.toString(selectionArgs));
+            Cursor cursor = mContentResolver.query(
+                    uri, apnProjection, selection, selectionArgs, null);
 
             // Verify that the inserted value match the results of the query
-            assertWithMessage("Failed to query the table").that(cursor).isNotNull();
-            assertWithMessage("Unexpected number of APNs returned by cursor")
-                    .that(cursor.getCount())
-                    .isEqualTo(1);
+            assertNotNull("Failed to query the table", cursor);
+            assertEquals("Unexpected number of APNs returned by cursor",
+                    1, cursor.getCount());
             cursor.moveToFirst();
-            for (Map.Entry<String, String> entry : APN_MAP.entrySet()) {
-                assertWithMessage("Unexpected value returned by cursor")
-                        .that(cursor.getString(cursor.getColumnIndex(entry.getKey())))
-                        .isEqualTo(entry.getValue());
+            for (Map.Entry<String, String> entry: APN_MAP.entrySet()) {
+                assertEquals(
+                        "Unexpected value returned by cursor",
+                        cursor.getString(cursor.getColumnIndex(entry.getKey())), entry.getValue());
             }
 
             // update the apn
             final String newApn = "newapn";
             Log.d(TAG, "Update the APN field to: " + newApn);
             contentValues.put(Carriers.APN, newApn);
-            final int updateCount =
-                    mContentResolver.update(uri, contentValues, selection, selectionArgs);
-            assertWithMessage("Unexpected number of rows updated").that(updateCount).isEqualTo(1);
+            final int updateCount = mContentResolver.update(uri, contentValues, selection,
+                    selectionArgs);
+            assertEquals("Unexpected number of rows updated", 1, updateCount);
 
             // Verify the updated value
             cursor = mContentResolver.query(uri, apnProjection, selection, selectionArgs, null);
-            assertWithMessage("Failed to query the table").that(cursor).isNotNull();
-            assertWithMessage("Unexpected number of APNs returned by cursor")
-                    .that(cursor.getCount())
-                    .isEqualTo(1);
+            assertNotNull("Failed to query the table", cursor);
+            assertEquals("Unexpected number of APNs returned by cursor", 1, cursor.getCount());
             cursor.moveToFirst();
-            assertWithMessage("Unexpected value returned by cursor")
-                    .that(cursor.getString(cursor.getColumnIndex(Carriers.APN)))
-                    .isEqualTo(newApn);
+            assertEquals("Unexpected value returned by cursor",
+                    cursor.getString(cursor.getColumnIndex(Carriers.APN)), newApn);
 
             // delete test content
             final String selectionToDelete = Carriers.NUMERIC + "=?";
-            String[] selectionArgsToDelete = {NUMERIC};
-            Log.d(
-                    TAG,
-                    "testInsertCarriers deleting selection: "
-                            + selectionToDelete
-                            + "testInsertCarriers selectionArgs: "
-                            + Arrays.toString(selectionArgs));
-            int numRowsDeleted =
-                    mContentResolver.delete(uri, selectionToDelete, selectionArgsToDelete);
-            assertWithMessage("Unexpected number of rows deleted")
-                    .that(numRowsDeleted)
-                    .isEqualTo(1);
+            String[] selectionArgsToDelete = { NUMERIC };
+            Log.d(TAG, "testInsertCarriers deleting selection: " + selectionToDelete
+                    + "testInsertCarriers selectionArgs: " + Arrays.toString(selectionArgs));
+            int numRowsDeleted = mContentResolver.delete(
+                    uri, selectionToDelete, selectionArgsToDelete);
+            assertEquals("Unexpected number of rows deleted",1, numRowsDeleted);
 
             // verify that deleted values are gone
             cursor = mContentResolver.query(uri, apnProjection, selection, selectionArgs, null);
-            assertWithMessage("Unexpected number of rows deleted")
-                    .that(cursor.getCount())
-                    .isEqualTo(0);
+            assertEquals("Unexpected number of rows deleted", 0, cursor.getCount());
         } catch (SecurityException e) {
-            fail(NO_CARRIER_PRIVILEGES_FAILURE_MESSAGE);
+            failMessage();
         }
     }
 
     @Test
     public void testQueryConflictCase() {
+        if (!mHasCellular) return;
         String invalidColumn = "random";
         Uri uri = Carriers.CONTENT_URI;
-        // Create a set of column_name/value pairs to add to the database.
+        // CONTENT_URI = Uri.parse("content://telephony/carriers");
+        // Create A set of column_name/value pairs to add to the database.
         ContentValues contentValues = new ContentValues();
         contentValues.put(Carriers.NAME, NAME);
         contentValues.put(Carriers.APN, APN);
@@ -203,57 +202,50 @@ public class ApnDatabaseTest extends BaseCarrierApiTest {
             // Insert the value into database.
             Log.d(TAG, "testInsertCarriers Inserting contentValues: " + contentValues.toString());
             Uri newUri = mContentResolver.insert(uri, contentValues);
-            assertWithMessage("Failed to insert to table").that(newUri).isNotNull();
+            assertNotNull("Failed to insert to table", newUri);
 
             // Try to get the value with invalid selection
-            final String[] testProjection = {
-                Carriers.NAME, Carriers.APN, Carriers.PORT, Carriers.PROTOCOL, Carriers.NUMERIC,
-            };
+            final String[] testProjection =
+                    {
+                            Carriers.NAME,
+                            Carriers.APN,
+                            Carriers.PORT,
+                            Carriers.PROTOCOL,
+                            Carriers.NUMERIC,
+                    };
             final String selection = invalidColumn + "=?";
-            String[] selectionArgs = {invalidColumn};
-            Log.d(
-                    TAG,
-                    "testInsertCarriers query projection: "
-                            + Arrays.toString(testProjection)
-                            + "\ntestInsertCarriers selection: "
-                            + selection
-                            + "\ntestInsertCarriers selectionArgs: "
-                            + Arrays.toString(selectionArgs));
-            Cursor cursor =
-                    mContentResolver.query(uri, testProjection, selection, selectionArgs, null);
-            assertWithMessage("Failed to query the table").that(cursor).isNull();
+            String[] selectionArgs = { invalidColumn };
+            Log.d(TAG, "testInsertCarriers query projection: " + Arrays.toString(testProjection)
+                    + "\ntestInsertCarriers selection: " + selection
+                    + "\ntestInsertCarriers selectionArgs: " + Arrays.toString(selectionArgs));
+            Cursor cursor = mContentResolver.query(
+                    uri, testProjection, selection, selectionArgs, null);
+            assertNull("Failed to query the table",cursor);
 
             // delete test content
             final String selectionToDelete = Carriers.NAME + "=?";
-            String[] selectionArgsToDelete = {NAME};
-            Log.d(
-                    TAG,
-                    "testInsertCarriers deleting selection: "
-                            + selectionToDelete
-                            + "testInsertCarriers selectionArgs: "
-                            + Arrays.toString(selectionArgs));
-            int numRowsDeleted =
-                    mContentResolver.delete(uri, selectionToDelete, selectionArgsToDelete);
-            assertWithMessage("Unexpected number of rows deleted")
-                    .that(numRowsDeleted)
-                    .isEqualTo(1);
+            String[] selectionArgsToDelete = { NAME };
+            Log.d(TAG, "testInsertCarriers deleting selection: " + selectionToDelete
+                    + "testInsertCarriers selectionArgs: " + Arrays.toString(selectionArgs));
+            int numRowsDeleted = mContentResolver.delete(
+                    uri, selectionToDelete, selectionArgsToDelete);
+            assertEquals("Unexpected number of rows deleted", 1, numRowsDeleted);
 
             // verify that deleted values are gone
-            cursor =
-                    mContentResolver.query(
-                            uri, testProjection, selectionToDelete, selectionArgsToDelete, null);
-            assertWithMessage("Unexpected number of rows deleted")
-                    .that(cursor.getCount())
-                    .isEqualTo(0);
+            cursor = mContentResolver.query(
+                    uri, testProjection, selectionToDelete, selectionArgsToDelete, null);
+            assertEquals("Unexpected number of rows deleted", 0, cursor.getCount());
         } catch (SecurityException e) {
-            fail(NO_CARRIER_PRIVILEGES_FAILURE_MESSAGE);
+            failMessage();
         }
     }
 
     @Test
     public void testUpdateConflictCase() {
+        if (!mHasCellular) return;
         Uri uri = Carriers.CONTENT_URI;
-        // Create a set of column_name/value pairs to add to the database.
+        // CONTENT_URI = Uri.parse("content://telephony/carriers");
+        // Create A set of column_name/value pairs to add to the database.
         ContentValues contentValues = new ContentValues();
         contentValues.put(Carriers.NAME, NAME);
         contentValues.put(Carriers.APN, APN);
@@ -265,69 +257,63 @@ public class ApnDatabaseTest extends BaseCarrierApiTest {
             // Insert the value into database.
             Log.d(TAG, "testInsertCarriers Inserting contentValues: " + contentValues.toString());
             Uri newUri = mContentResolver.insert(uri, contentValues);
-            assertWithMessage("Failed to insert to table").that(newUri).isNotNull();
+            assertNotNull("Failed to insert to table", newUri);
 
             // Try to get the value with invalid selection
-            final String[] testProjection = {
-                Carriers.NAME, Carriers.APN, Carriers.PORT, Carriers.PROTOCOL, Carriers.NUMERIC,
-            };
+            final String[] testProjection =
+                    {
+                            Carriers.NAME,
+                            Carriers.APN,
+                            Carriers.PORT,
+                            Carriers.PROTOCOL,
+                            Carriers.NUMERIC,
+                    };
             String selection = Carriers.NAME + "=?";
-            String[] selectionArgs = {NAME};
-            Log.d(
-                    TAG,
-                    "testInsertCarriers query projection: "
-                            + Arrays.toString(testProjection)
-                            + "\ntestInsertCarriers selection: "
-                            + selection
-                            + "\ntestInsertCarriers selectionArgs: "
-                            + Arrays.toString(selectionArgs));
-            Cursor cursor =
-                    mContentResolver.query(uri, testProjection, selection, selectionArgs, null);
-            assertWithMessage("Unexpected number of APNs returned by cursor")
-                    .that(cursor.getCount())
-                    .isEqualTo(1);
+            String[] selectionArgs = { NAME };
+            Log.d(TAG, "testInsertCarriers query projection: " + Arrays.toString(testProjection)
+                    + "\ntestInsertCarriers selection: " + selection
+                    + "\ntestInsertCarriers selectionArgs: " + Arrays.toString(selectionArgs));
+            Cursor cursor = mContentResolver.query(
+                    uri, testProjection, selection, selectionArgs, null);
+            assertEquals("Unexpected number of APNs returned by cursor",
+                    1, cursor.getCount());
 
             // Update the table with invalid column
             String invalidColumn = "random";
             contentValues.put(invalidColumn, invalidColumn);
-            // Expected: If there's no such a column, an exception will be thrown and
-            // ActivityManager will kill this process shortly.
-            assertThrows(
-                    SQLiteException.class,
-                    () -> mContentResolver.update(uri, contentValues, selection, selectionArgs));
+            try {
+                mContentResolver.update(uri, contentValues, selection, selectionArgs);
+                fail();
+            } catch (SQLiteException e) {
+                // Expected: If there's no such a column, an exception will be thrown and the
+                // Activity Manager will kill this process shortly.
+            }
 
             // delete test content
             final String selectionToDelete = Carriers.NAME + "=?";
-            String[] selectionArgsToDelete = {NAME};
-            Log.d(
-                    TAG,
-                    "testInsertCarriers deleting selection: "
-                            + selectionToDelete
-                            + "testInsertCarriers selectionArgs: "
-                            + Arrays.toString(selectionArgs));
-            int numRowsDeleted =
-                    mContentResolver.delete(uri, selectionToDelete, selectionArgsToDelete);
-            assertWithMessage("Unexpected number of rows deleted")
-                    .that(numRowsDeleted)
-                    .isEqualTo(1);
+            String[] selectionArgsToDelete = { NAME };
+            Log.d(TAG, "testInsertCarriers deleting selection: " + selectionToDelete
+                    + "testInsertCarriers selectionArgs: " + Arrays.toString(selectionArgs));
+            int numRowsDeleted = mContentResolver.delete(
+                    uri, selectionToDelete, selectionArgsToDelete);
+            assertEquals("Unexpected number of rows deleted", 1, numRowsDeleted);
 
             // verify that deleted values are gone
-            cursor =
-                    mContentResolver.query(
-                            uri, testProjection, selectionToDelete, selectionArgsToDelete, null);
-            assertWithMessage("Unexpected number of rows deleted")
-                    .that(cursor.getCount())
-                    .isEqualTo(0);
+            cursor = mContentResolver.query(
+                    uri, testProjection, selectionToDelete, selectionArgsToDelete, null);
+            assertEquals("Unexpected number of rows deleted", 0, cursor.getCount());
         } catch (SecurityException e) {
-            fail(NO_CARRIER_PRIVILEGES_FAILURE_MESSAGE);
+            failMessage();
         }
     }
 
     @Test
     public void testDeleteConflictCase() {
+        if (!mHasCellular) return;
         String invalidColumn = "random";
         Uri uri = Carriers.CONTENT_URI;
-        // Create a set of column_name/value pairs to add to the database.
+        // CONTENT_URI = Uri.parse("content://telephony/carriers");
+        // Create A set of column_name/value pairs to add to the database.
         ContentValues contentValues = new ContentValues();
         contentValues.put(Carriers.NAME, NAME);
         contentValues.put(Carriers.APN, APN);
@@ -339,82 +325,66 @@ public class ApnDatabaseTest extends BaseCarrierApiTest {
             // Insert the value into database.
             Log.d(TAG, "testInsertCarriers Inserting contentValues: " + contentValues.toString());
             Uri newUri = mContentResolver.insert(uri, contentValues);
-            assertWithMessage("Failed to insert to table").that(newUri).isNotNull();
+            assertNotNull("Failed to insert to table", newUri);
 
             // Get the values in table.
-            final String[] testProjection = {
-                Carriers.NAME, Carriers.APN, Carriers.PORT, Carriers.PROTOCOL, Carriers.NUMERIC,
-            };
+            final String[] testProjection =
+                    {
+                            Carriers.NAME,
+                            Carriers.APN,
+                            Carriers.PORT,
+                            Carriers.PROTOCOL,
+                            Carriers.NUMERIC,
+                    };
             String selection = Carriers.NAME + "=?";
-            String[] selectionArgs = {NAME};
-            Log.d(
-                    TAG,
-                    "testInsertCarriers query projection: "
-                            + Arrays.toString(testProjection)
-                            + "\ntestInsertCarriers selection: "
-                            + selection
-                            + "\ntestInsertCarriers selectionArgs: "
-                            + Arrays.toString(selectionArgs));
-            Cursor cursor =
-                    mContentResolver.query(uri, testProjection, selection, selectionArgs, null);
-            assertWithMessage("Unexpected number of APNs returned by cursor")
-                    .that(cursor.getCount())
-                    .isEqualTo(1);
+            String[] selectionArgs = { NAME };
+            Log.d(TAG, "testInsertCarriers query projection: " + Arrays.toString(testProjection)
+                    + "\ntestInsertCarriers selection: " + selection
+                    + "\ntestInsertCarriers selectionArgs: " + Arrays.toString(selectionArgs));
+            Cursor cursor = mContentResolver.query(
+                    uri, testProjection, selection, selectionArgs, null);
+            assertEquals("Unexpected number of APNs returned by cursor", 1, cursor.getCount());
 
             // try to delete with invalid selection
-            String invalidSelectionToDelete = invalidColumn + "=?";
-            String[] invalidSelectionArgsToDelete = {invalidColumn};
-            Log.d(
-                    TAG,
-                    "testInsertCarriers deleting selection: "
-                            + invalidSelectionToDelete
-                            + "testInsertCarriers selectionArgs: "
-                            + Arrays.toString(selectionArgs));
+            String selectionToDelete = invalidColumn + "=?";
+            String[] selectionArgsToDelete = { invalidColumn };
+            Log.d(TAG, "testInsertCarriers deleting selection: " + selectionToDelete
+                    + "testInsertCarriers selectionArgs: " + Arrays.toString(selectionArgs));
 
-            // Expected: If there's no such a column, an exception will be thrown and
-            // ActivityManager will kill this process shortly.
-            assertThrows(
-                    SQLiteException.class,
-                    () ->
-                            mContentResolver.delete(
-                                    uri, invalidSelectionToDelete, invalidSelectionArgsToDelete));
+            try {
+                mContentResolver.delete(uri, selectionToDelete, selectionArgsToDelete);
+                fail();
+            } catch (SQLiteException e) {
+                // Expected: If there's no such a column, an exception will be thrown and the
+                // Activity Manager will kill this process shortly.
+            }
 
             // verify that deleted value is still there
             selection = Carriers.NAME + "=?";
             selectionArgs[0] = NAME;
             cursor = mContentResolver.query(uri, testProjection, selection, selectionArgs, null);
-            assertWithMessage("Unexpected number of APNs returned by cursor")
-                    .that(cursor.getCount())
-                    .isEqualTo(1);
+            assertEquals("Unexpected number of APNs returned by cursor", 1, cursor.getCount());
 
             // delete test content
-            String selectionToDelete = Carriers.NAME + "=?";
-            String[] selectionArgsToDelete = {NAME};
-            Log.d(
-                    TAG,
-                    "testInsertCarriers deleting selection: "
-                            + selectionToDelete
-                            + "testInsertCarriers selectionArgs: "
-                            + Arrays.toString(selectionArgs));
-            int numRowsDeleted =
-                    mContentResolver.delete(uri, selectionToDelete, selectionArgsToDelete);
-            assertWithMessage("Unexpected number of rows deleted")
-                    .that(numRowsDeleted)
-                    .isEqualTo(1);
+            selectionToDelete = Carriers.NAME + "=?";
+            selectionArgsToDelete[0] = NAME;
+            Log.d(TAG, "testInsertCarriers deleting selection: " + selectionToDelete
+                    + "testInsertCarriers selectionArgs: " + Arrays.toString(selectionArgs));
+            int numRowsDeleted = mContentResolver.delete(
+                    uri, selectionToDelete, selectionArgsToDelete);
+            assertEquals("Unexpected number of rows deleted", 1, numRowsDeleted);
 
             // verify that deleted values are gone
             cursor = mContentResolver.query(uri, testProjection, selection, selectionArgs, null);
-            assertWithMessage("Unexpected number of rows deleted")
-                    .that(cursor.getCount())
-                    .isEqualTo(0);
+            assertEquals("Unexpected number of rows deleted", 0, cursor.getCount());
         } catch (SecurityException e) {
-            fail(NO_CARRIER_PRIVILEGES_FAILURE_MESSAGE);
+            failMessage();
         }
     }
 
     private ContentValues makeDefaultContentValues() {
         ContentValues contentValues = new ContentValues();
-        for (Map.Entry<String, String> entry : APN_MAP.entrySet()) {
+        for (Map.Entry<String, String> entry: APN_MAP.entrySet()) {
             contentValues.put(entry.getKey(), entry.getValue());
         }
         return contentValues;

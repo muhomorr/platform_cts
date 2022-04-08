@@ -17,7 +17,6 @@
 package android.hardware.camera2.cts;
 
 import static android.hardware.camera2.cts.CameraTestUtils.*;
-import static android.hardware.cts.helpers.CameraUtils.*;
 
 import android.graphics.Bitmap;
 import android.graphics.ImageFormat;

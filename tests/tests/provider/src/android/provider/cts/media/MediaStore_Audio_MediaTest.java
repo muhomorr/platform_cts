@@ -157,7 +157,6 @@ public class MediaStore_Audio_MediaTest {
             assertEquals(Audio1.IS_MUSIC, c.getInt(c.getColumnIndex(Media.IS_MUSIC)));
             assertEquals(Audio1.IS_NOTIFICATION, c.getInt(c.getColumnIndex(Media.IS_NOTIFICATION)));
             assertEquals(Audio1.IS_RINGTONE, c.getInt(c.getColumnIndex(Media.IS_RINGTONE)));
-            assertEquals(Audio1.IS_RECORDING, c.getInt(c.getColumnIndex(Media.IS_RECORDING)));
             assertEquals(Audio1.TRACK, c.getInt(c.getColumnIndex(Media.TRACK)));
             assertEquals(Audio1.YEAR, c.getInt(c.getColumnIndex(Media.YEAR)));
             String titleKey = c.getString(c.getColumnIndex(Media.TITLE_KEY));
@@ -186,7 +185,7 @@ public class MediaStore_Audio_MediaTest {
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
     public void testCanonicalize() throws Exception {
         // Remove all audio left over from other tests
         ProviderTestUtils.executeShellCommand("content delete"

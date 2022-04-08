@@ -33,12 +33,9 @@ import android.view.WindowManager;
 import android.view.accessibility.AccessibilityWindowInfo;
 import android.widget.Button;
 
-import androidx.test.platform.app.InstrumentationRegistry;
+import androidx.test.InstrumentationRegistry;
 import androidx.test.runner.AndroidJUnit4;
 
-import com.android.compatibility.common.util.TestUtils;
-
-import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Rule;
@@ -57,7 +54,7 @@ public class AccessibilityOverlayTest {
 
     private InstrumentedAccessibilityServiceTestRule<StubAccessibilityButtonService>
             mServiceRule = new InstrumentedAccessibilityServiceTestRule<>(
-            StubAccessibilityButtonService.class);
+                    StubAccessibilityButtonService.class);
 
     private AccessibilityDumpOnFailureRule mDumpOnFailureRule =
             new AccessibilityDumpOnFailureRule();
@@ -76,11 +73,6 @@ public class AccessibilityOverlayTest {
         sUiAutomation.setServiceInfo(info);
     }
 
-    @AfterClass
-    public static void postTestTearDown() {
-        sUiAutomation.destroy();
-    }
-
     @Before
     public void setUp() {
         mService = mServiceRule.getService();
@@ -89,6 +81,7 @@ public class AccessibilityOverlayTest {
     @Test
     public void testA11yServiceShowsOverlay_shouldAppear() throws Exception {
         final String overlayTitle = "Overlay title";
+
         sUiAutomation.executeAndWaitForEvent(() -> mService.runOnServiceSync(() -> {
             addOverlayWindow(mService, overlayTitle);
         }), (event) -> findOverlayWindow(Display.DEFAULT_DISPLAY) != null, AsyncUtils.DEFAULT_TIMEOUT_MS);
@@ -98,23 +91,13 @@ public class AccessibilityOverlayTest {
 
     @Test
     public void testA11yServiceShowsOverlayOnVirtualDisplay_shouldAppear() throws Exception {
-        try (final DisplayUtils.VirtualDisplaySession displaySession =
+        try (DisplayUtils.VirtualDisplaySession displaySession =
                      new DisplayUtils.VirtualDisplaySession()) {
-            final Display newDisplay = displaySession.createDisplayWithDefaultDisplayMetricsAndWait(
+            Display newDisplay = displaySession.createDisplayWithDefaultDisplayMetricsAndWait(
                     mService, false);
             final int displayId = newDisplay.getDisplayId();
-            final String overlayTitle = "Overlay title on virtualDisplay";
-            // Make sure the onDisplayAdded callback of a11y framework handled by checking if the
-            // accessibilityWindowInfo list of the virtual display has been added.
-            // And the a11y default token is available after the onDisplayAdded callback handled.
-            TestUtils.waitUntil("AccessibilityWindowInfo list of the virtual display are not ready",
-                    () -> {
-                        final SparseArray<List<AccessibilityWindowInfo>> allWindows =
-                                sUiAutomation.getWindowsOnAllDisplays();
-                        return allWindows.get(displayId) != null;
-                    }
-            );
             final Context newDisplayContext = mService.createDisplayContext(newDisplay);
+            final String overlayTitle = "Overlay title on virtualDisplay";
 
             sUiAutomation.executeAndWaitForEvent(() -> mService.runOnServiceSync(() -> {
                 addOverlayWindow(newDisplayContext, overlayTitle);
@@ -140,8 +123,8 @@ public class AccessibilityOverlayTest {
     private AccessibilityWindowInfo findOverlayWindow(int displayId) {
         final SparseArray<List<AccessibilityWindowInfo>> allWindows =
                 sUiAutomation.getWindowsOnAllDisplays();
-        final List<AccessibilityWindowInfo> windows = allWindows.get(displayId);
-
+        final int index = allWindows.indexOfKey(displayId);
+        final List<AccessibilityWindowInfo> windows = allWindows.valueAt(index);
         if (windows != null) {
             for (AccessibilityWindowInfo window : windows) {
                 if (window.getType() == AccessibilityWindowInfo.TYPE_ACCESSIBILITY_OVERLAY) {

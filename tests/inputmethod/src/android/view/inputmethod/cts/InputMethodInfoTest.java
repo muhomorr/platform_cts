@@ -16,8 +16,6 @@
 
 package android.view.inputmethod.cts;
 
-import static com.google.common.truth.Truth.assertThat;
-
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
@@ -42,7 +40,6 @@ import android.view.inputmethod.InputMethodInfo;
 import android.view.inputmethod.InputMethodManager;
 import android.view.inputmethod.InputMethodSubtype;
 
-import androidx.annotation.Nullable;
 import androidx.test.filters.SmallTest;
 import androidx.test.platform.app.InstrumentationRegistry;
 import androidx.test.runner.AndroidJUnit4;
@@ -61,12 +58,7 @@ import java.util.List;
 @SmallTest
 @RunWith(AndroidJUnit4.class)
 public class InputMethodInfoTest {
-    private static final String MOCK_IME_ID = "com.android.cts.mockime/.MockIme";
-    private static final String HIDDEN_FROM_PICKER_IME_ID =
-            "com.android.cts.hiddenfrompickerime/.HiddenFromPickerIme";
-
     private Context mContext;
-    private InputMethodManager mImManager;
 
     private InputMethodInfo mInputMethodInfo;
     private String mPackageName;
@@ -89,7 +81,6 @@ public class InputMethodInfoTest {
     @Before
     public void setup() {
         mContext = InstrumentationRegistry.getInstrumentation().getTargetContext();
-        mImManager = mContext.getSystemService(InputMethodManager.class);
         mPackageName = mContext.getPackageName();
         mClassName = InputMethodSettingsActivityStub.class.getName();
         mLabel = "test";
@@ -245,7 +236,8 @@ public class InputMethodInfoTest {
             return;
         }
 
-        final List<InputMethodInfo> imis = mImManager.getInputMethodList();
+        final InputMethodManager imm = mContext.getSystemService(InputMethodManager.class);
+        final List<InputMethodInfo> imis = imm.getInputMethodList();
         boolean hasEncryptionAwareInputMethod = false;
         for (final InputMethodInfo imi : imis) {
             final ServiceInfo serviceInfo = imi.getServiceInfo();
@@ -279,28 +271,5 @@ public class InputMethodInfoTest {
         } catch (IOException e) {
             return "";
         }
-    }
-
-    @Test
-    public void testShowInInputMethodPicker() {
-        final List<InputMethodInfo> imis = mImManager.getInputMethodList();
-
-        final InputMethodInfo shown = getImi(imis, MOCK_IME_ID);
-        assertThat(shown).isNotNull();
-        assertThat(shown.shouldShowInInputMethodPicker()).isTrue();
-
-        final InputMethodInfo hidden = getImi(imis, HIDDEN_FROM_PICKER_IME_ID);
-        assertThat(hidden).isNotNull();
-        assertThat(hidden.shouldShowInInputMethodPicker()).isFalse();
-    }
-
-    @Nullable
-    private static InputMethodInfo getImi(List<InputMethodInfo> imis, String id) {
-        for (final InputMethodInfo imi : imis) {
-            if (id.equals(imi.getId())) {
-                return imi;
-            }
-        }
-        return null;
     }
 }

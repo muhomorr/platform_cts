@@ -16,8 +16,6 @@
 
 package android.hardware.camera2.cts;
 
-import static android.hardware.camera2.cts.CameraTestUtils.REPORT_LOG_NAME;
-
 import static com.android.ex.camera2.blocking.BlockingSessionCallback.SESSION_CLOSED;
 
 import static org.junit.Assert.assertNotNull;
@@ -80,6 +78,7 @@ import java.util.concurrent.TimeUnit;
 @RunWith(JUnit4.class)
 public class PerformanceTest {
     private static final String TAG = "PerformanceTest";
+    private static final String REPORT_LOG_NAME = "CtsCameraTestCases";
     private static final boolean VERBOSE = Log.isLoggable(TAG, Log.VERBOSE);
     private static final int NUM_TEST_LOOPS = 10;
     private static final int NUM_MAX_IMAGES = 4;
@@ -153,11 +152,9 @@ public class PerformanceTest {
             double[] cameraCloseTimes = new double[NUM_TEST_LOOPS];
             double[] cameraLaunchTimes = new double[NUM_TEST_LOOPS];
             try {
-                CameraCharacteristics ch =
-                        mTestRule.getCameraManager().getCameraCharacteristics(id);
-                mTestRule.setStaticInfo(new StaticMetadata(ch));
-                boolean isColorOutputSupported = mTestRule.getStaticInfo().isColorOutputSupported();
-                if (isColorOutputSupported) {
+                mTestRule.setStaticInfo(new StaticMetadata(
+                        mTestRule.getCameraManager().getCameraCharacteristics(id)));
+                if (mTestRule.getStaticInfo().isColorOutputSupported()) {
                     initializeImageReader(id, ImageFormat.YUV_420_888);
                 } else {
                     assertTrue("Depth output must be supported if regular output isn't!",
@@ -182,15 +179,14 @@ public class PerformanceTest {
                         cameraOpenTimes[i] = openTimeMs - startTimeMs;
 
                         // Blocking configure outputs.
-                        CaptureRequest previewRequest =
-                                configureReaderAndPreviewOutputs(id, isColorOutputSupported);
+                        configureReaderAndPreviewOutputs();
                         configureTimeMs = SystemClock.elapsedRealtime();
                         configureStreamTimes[i] = configureTimeMs - openTimeMs;
 
                         // Blocking start preview (start preview to first image arrives)
                         SimpleCaptureCallback resultListener =
                                 new SimpleCaptureCallback();
-                        blockingStartPreview(id, resultListener, previewRequest, imageListener);
+                        blockingStartPreview(id, resultListener, imageListener);
                         previewStartedTimeMs = SystemClock.elapsedRealtime();
                         startPreviewTimes[i] = previewStartedTimeMs - configureTimeMs;
                         cameraLaunchTimes[i] = previewStartedTimeMs - startTimeMs;
@@ -201,7 +197,7 @@ public class PerformanceTest {
 
                         // Blocking stop preview
                         startTimeMs = SystemClock.elapsedRealtime();
-                        blockingStopRepeating();
+                        blockingStopPreview();
                         stopPreviewTimes[i] = SystemClock.elapsedRealtime() - startTimeMs;
                     }
                     finally {
@@ -296,7 +292,7 @@ public class PerformanceTest {
         testSingleCaptureForFormat(JPEG_FORMAT, "jpeg", /*addPreviewDelay*/ true);
         if (!mTestRule.isPerfMeasure()) {
             int[] YUV_FORMAT = {ImageFormat.YUV_420_888};
-            testSingleCaptureForFormat(YUV_FORMAT, null, /*addPreviewDelay*/ true);
+            testSingleCaptureForFormat(YUV_FORMAT, null, /*addPreviewDelay*/ false);
             int[] PRIVATE_FORMAT = {ImageFormat.PRIVATE};
             testSingleCaptureForFormat(PRIVATE_FORMAT, "private", /*addPreviewDelay*/ true);
             int[] RAW_FORMAT = {ImageFormat.RAW_SENSOR};
@@ -322,7 +318,6 @@ public class PerformanceTest {
     private void testSingleCaptureForFormat(int[] formats, String formatDescription,
             boolean addPreviewDelay) throws Exception {
         double[] avgResultTimes = new double[mTestRule.getCameraIdsUnderTest().length];
-        double[] avgCaptureTimes = new double[mTestRule.getCameraIdsUnderTest().length];
 
         int counter = 0;
         for (String id : mTestRule.getCameraIdsUnderTest()) {
@@ -378,12 +373,11 @@ public class PerformanceTest {
                     SimpleImageListener[] imageListeners = new SimpleImageListener[formats.length];
                     Size[] imageSizes = new Size[formats.length];
                     for (int j = 0; j < formats.length; j++) {
-                        Size sizeBound = mTestRule.isPerfClassTest() ? new Size(1920, 1080) : null;
                         imageSizes[j] = CameraTestUtils.getSortedSizesForFormat(
                                 id,
                                 mTestRule.getCameraManager(),
                                 formats[j],
-                                sizeBound).get(0);
+                                /*bound*/null).get(0);
                         imageListeners[j] = new SimpleImageListener();
                     }
 
@@ -436,7 +430,7 @@ public class PerformanceTest {
                     CameraTestUtils.waitForNumResults(previewResultListener, NUM_RESULTS_WAIT,
                             WAIT_FOR_RESULT_TIMEOUT_MS);
 
-                    blockingStopRepeating();
+                    stopPreviewAndDrain();
 
                     CameraTestUtils.closeImageReaders(readers);
                     readers = null;
@@ -457,7 +451,6 @@ public class PerformanceTest {
                         ResultUnit.MS);
 
                 avgResultTimes[counter] = Stat.getAverage(getResultTimes);
-                avgCaptureTimes[counter] = Stat.getAverage(captureTimes);
             }
             finally {
                 CameraTestUtils.closeImageReaders(readers);
@@ -474,19 +467,10 @@ public class PerformanceTest {
             String streamName = appendFormatDescription("test_single_capture_average",
                     formatDescription);
             mReportLog = new DeviceReportLog(REPORT_LOG_NAME, streamName);
-            // In performance measurement mode, capture the buffer latency rather than result
-            // latency.
-            if (mTestRule.isPerfMeasure()) {
-                String message = appendFormatDescription(
-                        "camera_capture_average_latency_for_all_cameras", formatDescription);
-                mReportLog.setSummary(message, Stat.getAverage(avgCaptureTimes),
-                        ResultType.LOWER_BETTER, ResultUnit.MS);
-            } else {
-                String message = appendFormatDescription(
-                        "camera_capture_result_average_latency_for_all_cameras", formatDescription);
-                mReportLog.setSummary(message, Stat.getAverage(avgResultTimes),
-                        ResultType.LOWER_BETTER, ResultUnit.MS);
-            }
+            String message = appendFormatDescription(
+                    "camera_capture_result_average_latency_for_all_cameras", formatDescription);
+            mReportLog.setSummary(message, Stat.getAverage(avgResultTimes),
+                    ResultType.LOWER_BETTER, ResultUnit.MS);
             mReportLog.submit(mInstrumentation);
         }
     }
@@ -562,12 +546,10 @@ public class PerformanceTest {
             double[] getResultTimes = new double[NUM_MAX_IMAGES];
             double[] frameDurationMs = new double[NUM_MAX_IMAGES-1];
             try {
-                StaticMetadata staticMetadata = mTestRule.getAllStaticInfo().get(id);
-                if (!staticMetadata.isColorOutputSupported()) {
+                if (!mTestRule.getAllStaticInfo().get(id).isColorOutputSupported()) {
                     Log.i(TAG, "Camera " + id + " does not support color outputs, skipping");
                     continue;
                 }
-                boolean useSessionKeys = isFpsRangeASessionKey(staticMetadata.getCharacteristics());
 
                 mTestRule.openDevice(id);
                 for (int i = 0; i < NUM_TEST_LOOPS; i++) {
@@ -607,8 +589,7 @@ public class PerformanceTest {
                     prepareCaptureAndStartPreview(previewBuilder, captureBuilder,
                             mTestRule.getOrderedPreviewSizes().get(0), maxYuvSize,
                             ImageFormat.YUV_420_888, previewResultListener,
-                            sessionListener, NUM_MAX_IMAGES, imageListener,
-                            useSessionKeys);
+                            sessionListener, NUM_MAX_IMAGES, imageListener);
 
                     // Converge AE
                     CameraTestUtils.waitForAeStable(previewResultListener,
@@ -668,7 +649,7 @@ public class PerformanceTest {
                     CameraTestUtils.waitForNumResults(previewResultListener, NUM_RESULTS_WAIT,
                             WAIT_FOR_RESULT_TIMEOUT_MS);
 
-                    stopRepeating();
+                    stopPreview();
                 }
 
                 for (int i = 0; i < getResultTimes.length; i++) {
@@ -942,7 +923,7 @@ public class PerformanceTest {
             maxCaptureGapsMs[i] = maxTimestampGapMs;
         }
 
-        blockingStopRepeating();
+        stopZslStreaming();
 
         String reprocessType = "YUV reprocessing";
         if (reprocessInputFormat == ImageFormat.PRIVATE) {
@@ -1039,7 +1020,7 @@ public class PerformanceTest {
             }
         }
 
-        blockingStopRepeating();
+        stopZslStreaming();
 
         String reprocessType = "YUV reprocessing";
         if (reprocessInputFormat == ImageFormat.PRIVATE) {
@@ -1087,6 +1068,12 @@ public class PerformanceTest {
         zslBuilder.addTarget(mCameraZslReader.getSurface());
         mTestRule.getCameraSession().setRepeatingRequest(
                 zslBuilder.build(), mZslResultListener, mTestRule.getHandler());
+    }
+
+    private void stopZslStreaming() throws Exception {
+        mTestRule.getCameraSession().stopRepeating();
+        mTestRule.getCameraSessionListener().getStateWaiter().waitForState(
+                BlockingSessionCallback.SESSION_READY, CameraTestUtils.CAMERA_IDLE_TIMEOUT_MS);
     }
 
     /**
@@ -1161,21 +1148,38 @@ public class PerformanceTest {
                 /*listener*/null, /*handler*/null);
     }
 
-    /**
-     * Stop repeating requests for current camera and waiting for it to go back to idle, resulting
-     * in an idle device.
-     */
-    private void blockingStopRepeating() throws Exception {
-        stopRepeating();
+    private void blockingStopPreview() throws Exception {
+        stopPreview();
         mTestRule.getCameraSessionListener().getStateWaiter().waitForState(
-                BlockingSessionCallback.SESSION_READY, CameraTestUtils.CAMERA_IDLE_TIMEOUT_MS);
+                BlockingSessionCallback.SESSION_CLOSED, CameraTestUtils.SESSION_CLOSE_TIMEOUT_MS);
     }
 
     private void blockingStartPreview(String id, CaptureCallback listener,
-            CaptureRequest previewRequest, SimpleImageListener imageListener)
-            throws Exception {
+            SimpleImageListener imageListener) throws Exception {
+        if (mPreviewSurface == null || mTestRule.getReaderSurface() == null) {
+            throw new IllegalStateException("preview and reader surface must be initilized first");
+        }
+
+        StreamConfigurationMap config =
+                mTestRule.getStaticInfo().getCharacteristics().get(
+                CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
+        CaptureRequest.Builder previewBuilder =
+                mTestRule.getCamera().createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
+        long minFrameDuration = Math.max(FRAME_DURATION_NS_30FPS,
+                config.getOutputMinFrameDuration(mImageReaderFormat, mPreviewSize));
+        if (mTestRule.getStaticInfo().isColorOutputSupported()) {
+            previewBuilder.addTarget(mPreviewSurface);
+            minFrameDuration = Math.max(minFrameDuration,
+                    config.getOutputMinFrameDuration(SurfaceTexture.class, mPreviewSize));
+        }
+        previewBuilder.addTarget(mTestRule.getReaderSurface());
+
+        Range<Integer> targetRange =
+                CameraTestUtils.getSuitableFpsRangeForDuration(id,
+                        minFrameDuration, mTestRule.getStaticInfo());
+        previewBuilder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, targetRange);
         mTestRule.getCameraSession().setRepeatingRequest(
-                previewRequest, listener, mTestRule.getHandler());
+                previewBuilder.build(), listener, mTestRule.getHandler());
         imageListener.waitForImageAvailable(CameraTestUtils.CAPTURE_IMAGE_TIMEOUT_MS);
     }
 
@@ -1183,8 +1187,8 @@ public class PerformanceTest {
      * Setup still capture configuration and start preview.
      *
      * @param id The camera id under test
-     * @param previewBuilder The capture request builder to be used for preview
-     * @param stillBuilder The capture request builder to be used for still capture
+     * @param previewRequest The capture request to be used for preview
+     * @param stillRequest The capture request to be used for still capture
      * @param previewSz Preview size
      * @param captureSizes Still capture sizes
      * @param formats The single capture image formats
@@ -1194,7 +1198,7 @@ public class PerformanceTest {
      * @param isHeic Capture HEIC image if true, JPEG image if false
      */
     private ImageReader[] prepareStillCaptureAndStartPreview(String id,
-            CaptureRequest.Builder previewBuilder, CaptureRequest.Builder stillBuilder,
+            CaptureRequest.Builder previewRequest, CaptureRequest.Builder stillRequest,
             Size previewSz, Size[] captureSizes, int[] formats, CaptureCallback resultListener,
             int maxNumImages, ImageReader.OnImageAvailableListener[] imageListeners,
             boolean isHeic)
@@ -1214,80 +1218,55 @@ public class PerformanceTest {
         // Update preview size.
         updatePreviewSurface(previewSz);
 
+        StreamConfigurationMap config =
+                mTestRule.getStaticInfo().getCharacteristics().get(
+                CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
         ImageReader[] readers = new ImageReader[captureSizes.length];
         List<Surface> outputSurfaces = new ArrayList<Surface>();
         outputSurfaces.add(mPreviewSurface);
+        long minFrameDuration = FRAME_DURATION_NS_30FPS;
         for (int i = 0; i < captureSizes.length; i++) {
+            long minFrameDurationForCapture =
+                    config.getOutputMinFrameDuration(formats[i], captureSizes[i]);
+            if (minFrameDurationForCapture > minFrameDuration) {
+                minFrameDuration = minFrameDurationForCapture;
+            }
             readers[i] = CameraTestUtils.makeImageReader(captureSizes[i], formats[i], maxNumImages,
                     imageListeners[i], mTestRule.getHandler());
             outputSurfaces.add(readers[i].getSurface());
         }
 
-        // Configure the requests.
-        previewBuilder.addTarget(mPreviewSurface);
-        stillBuilder.addTarget(mPreviewSurface);
-        for (int i = 0; i < readers.length; i++) {
-            stillBuilder.addTarget(readers[i].getSurface());
-        }
-
-        // Update target fps based on the min frame duration of preview.
-        CameraCharacteristics ch = mTestRule.getStaticInfo().getCharacteristics();
-        StreamConfigurationMap config = ch.get(
-                CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
-        long minFrameDuration = Math.max(FRAME_DURATION_NS_30FPS, config.getOutputMinFrameDuration(
-                SurfaceTexture.class, previewSz));
+        // Update target fps based on min frame durations
         Range<Integer> targetRange =
                 CameraTestUtils.getSuitableFpsRangeForDuration(id,
                 minFrameDuration, mTestRule.getStaticInfo());
-        previewBuilder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, targetRange);
-        stillBuilder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, targetRange);
+        previewRequest.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, targetRange);
+        stillRequest.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, targetRange);
 
-        CaptureRequest previewRequest = previewBuilder.build();
         mTestRule.setCameraSessionListener(new BlockingSessionCallback());
-        boolean useSessionKeys = isFpsRangeASessionKey(ch);
-        configureAndSetCameraSession(outputSurfaces, useSessionKeys, previewRequest);
+        mTestRule.setCameraSession(CameraTestUtils.configureCameraSession(
+                mTestRule.getCamera(), outputSurfaces,
+                mTestRule.getCameraSessionListener(), mTestRule.getHandler()));
+
+        // Configure the requests.
+        previewRequest.addTarget(mPreviewSurface);
+        stillRequest.addTarget(mPreviewSurface);
+        for (int i = 0; i < readers.length; i++) {
+            stillRequest.addTarget(readers[i].getSurface());
+        }
 
         // Start preview.
         mTestRule.getCameraSession().setRepeatingRequest(
-                previewRequest, resultListener, mTestRule.getHandler());
+                previewRequest.build(), resultListener, mTestRule.getHandler());
 
         return readers;
     }
 
     /**
-     * Helper function to check if TARGET_FPS_RANGE is a session parameter
-     */
-    private boolean isFpsRangeASessionKey(CameraCharacteristics ch) {
-        List<CaptureRequest.Key<?>> sessionKeys = ch.getAvailableSessionKeys();
-        return sessionKeys != null &&
-                sessionKeys.contains(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE);
-    }
-
-    /**
-     * Helper function to configure camera session using parameters provided.
-     */
-    private void configureAndSetCameraSession(List<Surface> surfaces,
-            boolean useInitialRequest, CaptureRequest initialRequest)
-            throws CameraAccessException {
-        CameraCaptureSession cameraSession;
-        if (useInitialRequest) {
-            cameraSession = CameraTestUtils.configureCameraSessionWithParameters(
-                mTestRule.getCamera(), surfaces,
-                mTestRule.getCameraSessionListener(), mTestRule.getHandler(),
-                initialRequest);
-        } else {
-            cameraSession = CameraTestUtils.configureCameraSession(
-                mTestRule.getCamera(), surfaces,
-                mTestRule.getCameraSessionListener(), mTestRule.getHandler());
-        }
-        mTestRule.setCameraSession(cameraSession);
-    }
-
-    /**
      * Setup single capture configuration and start preview.
      *
-     * @param previewBuilder The capture request builder to be used for preview
-     * @param stillBuilder The capture request builder to be used for still capture
+     * @param previewRequest The capture request to be used for preview
+     * @param stillRequest The capture request to be used for still capture
      * @param previewSz Preview size
      * @param captureSz Still capture size
      * @param format The single capture image format
@@ -1295,13 +1274,11 @@ public class PerformanceTest {
      * @param sessionListener Session listener
      * @param maxNumImages The max number of images set to the image reader
      * @param imageListener The single capture capture image listener
-     * @param useSessionKeys Create capture session using session keys from previewRequest
      */
-    private void prepareCaptureAndStartPreview(CaptureRequest.Builder previewBuilder,
-            CaptureRequest.Builder stillBuilder, Size previewSz, Size captureSz, int format,
+    private void prepareCaptureAndStartPreview(CaptureRequest.Builder previewRequest,
+            CaptureRequest.Builder stillRequest, Size previewSz, Size captureSz, int format,
             CaptureCallback resultListener, CameraCaptureSession.StateCallback sessionListener,
-            int maxNumImages, ImageReader.OnImageAvailableListener imageListener,
-            boolean  useSessionKeys) throws Exception {
+            int maxNumImages, ImageReader.OnImageAvailableListener imageListener) throws Exception {
         if ((captureSz == null) || (imageListener == null)) {
             throw new IllegalArgumentException("Invalid capture size or image listener!");
         }
@@ -1326,18 +1303,18 @@ public class PerformanceTest {
         } else {
             mTestRule.setCameraSessionListener(new BlockingSessionCallback(sessionListener));
         }
+        mTestRule.setCameraSession(CameraTestUtils.configureCameraSession(
+                mTestRule.getCamera(), outputSurfaces,
+                mTestRule.getCameraSessionListener(), mTestRule.getHandler()));
 
         // Configure the requests.
-        previewBuilder.addTarget(mPreviewSurface);
-        stillBuilder.addTarget(mPreviewSurface);
-        stillBuilder.addTarget(mTestRule.getReaderSurface());
-        CaptureRequest previewRequest = previewBuilder.build();
-
-        configureAndSetCameraSession(outputSurfaces, useSessionKeys, previewRequest);
+        previewRequest.addTarget(mPreviewSurface);
+        stillRequest.addTarget(mPreviewSurface);
+        stillRequest.addTarget(mTestRule.getReaderSurface());
 
         // Start preview.
         mTestRule.getCameraSession().setRepeatingRequest(
-                previewRequest, resultListener, mTestRule.getHandler());
+                previewRequest.build(), resultListener, mTestRule.getHandler());
     }
 
     /**
@@ -1388,64 +1365,48 @@ public class PerformanceTest {
     }
 
     /**
-     * Stop the repeating requests of current camera.
+     * Stop preview for current camera device by closing the session.
      * Does _not_ wait for the device to go idle
      */
-    private void stopRepeating() throws Exception {
+    private void stopPreview() throws Exception {
         // Stop repeat, wait for captures to complete, and disconnect from surfaces
         if (mTestRule.getCameraSession() != null) {
             if (VERBOSE) Log.v(TAG, "Stopping preview");
-            mTestRule.getCameraSession().stopRepeating();
+            mTestRule.getCameraSession().close();
+        }
+    }
+
+    /**
+     * Stop preview for current camera device by closing the session and waiting for it to close,
+     * resulting in an idle device.
+     */
+    private void stopPreviewAndDrain() throws Exception {
+        // Stop repeat, wait for captures to complete, and disconnect from surfaces
+        if (mTestRule.getCameraSession() != null) {
+            if (VERBOSE) Log.v(TAG, "Stopping preview and waiting for idle");
+            mTestRule.getCameraSession().close();
+            mTestRule.getCameraSessionListener().getStateWaiter().waitForState(
+                    BlockingSessionCallback.SESSION_CLOSED,
+                    /*timeoutMs*/WAIT_FOR_RESULT_TIMEOUT_MS);
         }
     }
 
     /**
      * Configure reader and preview outputs and wait until done.
-     *
-     * @return The preview capture request
      */
-    private CaptureRequest configureReaderAndPreviewOutputs(
-            String id, boolean isColorOutputSupported)
-            throws Exception {
+    private void configureReaderAndPreviewOutputs() throws Exception {
         if (mPreviewSurface == null || mTestRule.getReaderSurface() == null) {
             throw new IllegalStateException("preview and reader surface must be initilized first");
         }
-
-        // Create previewBuilder
-        CaptureRequest.Builder previewBuilder =
-                mTestRule.getCamera().createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
-        if (isColorOutputSupported) {
-            previewBuilder.addTarget(mPreviewSurface);
-        }
-        previewBuilder.addTarget(mTestRule.getReaderSurface());
-
-
-        // Figure out constant target FPS range no larger than 30fps
-        CameraCharacteristics ch = mTestRule.getStaticInfo().getCharacteristics();
-        StreamConfigurationMap config =
-                ch.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
-        long minFrameDuration = Math.max(FRAME_DURATION_NS_30FPS,
-                config.getOutputMinFrameDuration(mImageReaderFormat, mPreviewSize));
-
-        List<Surface> outputSurfaces = new ArrayList<>();
-        outputSurfaces.add(mTestRule.getReaderSurface());
-        if (isColorOutputSupported) {
-            outputSurfaces.add(mPreviewSurface);
-            minFrameDuration = Math.max(minFrameDuration,
-                    config.getOutputMinFrameDuration(SurfaceTexture.class, mPreviewSize));
-        }
-        Range<Integer> targetRange =
-                CameraTestUtils.getSuitableFpsRangeForDuration(id,
-                        minFrameDuration, mTestRule.getStaticInfo());
-        previewBuilder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, targetRange);
-
-        // Create capture session
-        boolean useSessionKeys = isFpsRangeASessionKey(ch);
-        CaptureRequest previewRequest = previewBuilder.build();
         mTestRule.setCameraSessionListener(new BlockingSessionCallback());
-        configureAndSetCameraSession(outputSurfaces, useSessionKeys, previewRequest);
-
-        return previewRequest;
+        List<Surface> outputSurfaces = new ArrayList<>();
+        if (mTestRule.getStaticInfo().isColorOutputSupported()) {
+            outputSurfaces.add(mPreviewSurface);
+        }
+        outputSurfaces.add(mTestRule.getReaderSurface());
+        mTestRule.setCameraSession(CameraTestUtils.configureCameraSession(
+                mTestRule.getCamera(), outputSurfaces,
+                mTestRule.getCameraSessionListener(), mTestRule.getHandler()));
     }
 
     /**

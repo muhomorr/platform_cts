@@ -16,15 +16,11 @@
 
 package com.android.cts.verifier;
 
-import static com.android.cts.verifier.TestListActivity.sCurrentDisplayMode;
-import static com.android.cts.verifier.TestListAdapter.setTestNameSuffix;
-
 import com.android.compatibility.common.util.ReportLog;
 import com.android.compatibility.common.util.TestResultHistory;
 
 import android.app.Activity;
 import android.content.Intent;
-import android.util.Log;
 
 /**
  * Object representing the result of a test activity like whether it succeeded or failed.
@@ -34,8 +30,6 @@ import android.util.Log;
  * will persist the test result and update its adapter and thus the list view.
  */
 public class TestResult {
-
-    private static final String TAG = TestResult.class.getSimpleName();
 
     public static final int TEST_RESULT_NOT_EXECUTED = 0;
     public static final int TEST_RESULT_PASSED = 1;
@@ -61,8 +55,6 @@ public class TestResult {
     /** Sets the test activity's result to pass including a test report log result. */
     public static void setPassedResult(Activity activity, String testId, String testDetails,
             ReportLog reportLog) {
-        Log.i(TAG, "setPassedResult(activity=" + activity + ", testId=" + testId
-                + ", testDetails=" + testDetails);
         activity.setResult(Activity.RESULT_OK, createResult(activity, TEST_RESULT_PASSED, testId,
             testDetails, reportLog, null /*history*/));
     }
@@ -70,8 +62,6 @@ public class TestResult {
     /** Sets the test activity's result to pass including a test report log result and history. */
     public static void setPassedResult(Activity activity, String testId, String testDetails,
             ReportLog reportLog, TestResultHistoryCollection historyCollection) {
-        Log.i(TAG, "setPassedResult(activity=" + activity + ", testId=" + testId
-                + ", testDetails=" + testDetails);
         activity.setResult(Activity.RESULT_OK, createResult(activity, TEST_RESULT_PASSED, testId,
                 testDetails, reportLog, historyCollection));
     }
@@ -84,8 +74,6 @@ public class TestResult {
     /** Sets the test activity's result to failed including a test report log result. */
     public static void setFailedResult(Activity activity, String testId, String testDetails,
             ReportLog reportLog) {
-        Log.e(TAG, "setFailedResult(activity=" + activity + ", testId=" + testId
-                + ", testDetails=" + testDetails);
         activity.setResult(Activity.RESULT_OK, createResult(activity, TEST_RESULT_FAILED, testId,
                 testDetails, reportLog, null /*history*/));
     }
@@ -93,8 +81,6 @@ public class TestResult {
     /** Sets the test activity's result to failed including a test report log result and history. */
     public static void setFailedResult(Activity activity, String testId, String testDetails,
             ReportLog reportLog, TestResultHistoryCollection historyCollection) {
-        Log.e(TAG, "setFailedResult(activity=" + activity + ", testId=" + testId
-                + ", testDetails=" + testDetails);
         activity.setResult(Activity.RESULT_OK, createResult(activity, TEST_RESULT_FAILED, testId,
             testDetails, reportLog, historyCollection));
     }
@@ -108,7 +94,6 @@ public class TestResult {
 
     public static void addResultData(Intent intent, int testResult, String testName,
             String testDetails, ReportLog reportLog, TestResultHistoryCollection historyCollection) {
-        testName = setTestNameSuffix(sCurrentDisplayMode, testName);
         intent.putExtra(TEST_NAME, testName);
         intent.putExtra(TEST_RESULT, testResult);
         intent.putExtra(TEST_DETAILS, testDetails);

@@ -16,8 +16,6 @@
 
 package android.graphics.fonts;
 
-import static com.google.common.truth.Truth.assertThat;
-
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -61,7 +59,15 @@ public class NativeSystemFontTest {
         Set<NativeSystemFontHelper.FontDescriptor> nativeFonts =
                 NativeSystemFontHelper.getAvailableFonts();
 
-        assertThat(javaFonts).containsExactlyElementsIn(nativeFonts);
+        assertEquals(javaFonts.size(), nativeFonts.size());
+
+        for (NativeSystemFontHelper.FontDescriptor f : nativeFonts) {
+            assertTrue(javaFonts.contains(f));
+        }
+
+        for (NativeSystemFontHelper.FontDescriptor f : javaFonts) {
+            assertTrue(nativeFonts.contains(f));
+        }
     }
 
     @Test

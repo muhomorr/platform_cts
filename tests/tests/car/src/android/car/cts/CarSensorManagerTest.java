@@ -21,7 +21,6 @@ import static org.junit.Assert.assertTrue;
 
 import android.car.Car;
 import android.car.hardware.CarSensorManager;
-import android.platform.test.annotations.AppModeFull;
 import android.platform.test.annotations.RequiresDevice;
 import android.test.suitebuilder.annotation.SmallTest;
 
@@ -38,7 +37,6 @@ import java.util.stream.IntStream;
 @SmallTest
 @RequiresDevice
 @RunWith(AndroidJUnit4.class)
-@AppModeFull(reason = "Instant apps cannot get car related permissions.")
 public class CarSensorManagerTest extends CarApiTestBase {
 
     private int[] mSupportedSensors;

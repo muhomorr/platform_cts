@@ -17,7 +17,6 @@
 package android.server.wm.lifecycle;
 
 import static android.app.WindowConfiguration.WINDOWING_MODE_FREEFORM;
-import static android.app.WindowConfiguration.WINDOWING_MODE_FULLSCREEN;
 import static android.content.Intent.FLAG_ACTIVITY_MULTIPLE_TASK;
 import static android.content.Intent.FLAG_ACTIVITY_NEW_TASK;
 import static android.server.wm.WindowManagerState.STATE_PAUSED;
@@ -38,6 +37,7 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.platform.test.annotations.Presubmit;
 
+import androidx.test.filters.FlakyTest;
 import androidx.test.filters.MediumTest;
 
 import org.junit.Before;
@@ -51,6 +51,7 @@ import java.util.Arrays;
  */
 @MediumTest
 @Presubmit
+@FlakyTest(bugId=137329632)
 @android.server.wm.annotation.Group3
 public class ActivityLifecycleFreeformTests extends ActivityLifecycleClientTestBase {
 
@@ -63,7 +64,7 @@ public class ActivityLifecycleFreeformTests extends ActivityLifecycleClientTestB
     @Test
     public void testLaunchInFreeform() throws Exception {
         // Launch a fullscreen activity, mainly to prevent setting pending due to task switching.
-        launchActivityInFullscreenAndWait(CallbackTrackingActivity.class);
+        launchActivityAndWait(CallbackTrackingActivity.class);
 
         // Launch an activity in freeform
         final ActivityOptions launchOptions = ActivityOptions.makeBasic();
@@ -84,7 +85,7 @@ public class ActivityLifecycleFreeformTests extends ActivityLifecycleClientTestB
     @Test
     public void testMultiLaunchInFreeform() throws Exception {
         // Launch a fullscreen activity, mainly to prevent setting pending due to task switching.
-        launchActivityInFullscreenAndWait(CallbackTrackingActivity.class);
+        launchActivityAndWait(CallbackTrackingActivity.class);
 
         final ActivityOptions launchOptions = ActivityOptions.makeBasic();
         launchOptions.setLaunchWindowingMode(WINDOWING_MODE_FREEFORM);
@@ -122,7 +123,7 @@ public class ActivityLifecycleFreeformTests extends ActivityLifecycleClientTestB
     @Test
     public void testLaunchOccludingInFreeform() throws Exception {
         // Launch a fullscreen activity, mainly to prevent setting pending due to task switching.
-        launchActivityInFullscreenAndWait(CallbackTrackingActivity.class);
+        launchActivityAndWait(CallbackTrackingActivity.class);
 
         final ActivityOptions launchOptions = ActivityOptions.makeBasic();
         launchOptions.setLaunchWindowingMode(WINDOWING_MODE_FREEFORM);
@@ -180,7 +181,7 @@ public class ActivityLifecycleFreeformTests extends ActivityLifecycleClientTestB
     @Test
     public void testLaunchTranslucentInFreeform() throws Exception {
         // Launch a fullscreen activity, mainly to prevent setting pending due to task switching.
-        launchActivityInFullscreenAndWait(CallbackTrackingActivity.class);
+        launchActivityAndWait(CallbackTrackingActivity.class);
 
         final ActivityOptions launchOptions = ActivityOptions.makeBasic();
         launchOptions.setLaunchWindowingMode(WINDOWING_MODE_FREEFORM);
@@ -265,14 +266,5 @@ public class ActivityLifecycleFreeformTests extends ActivityLifecycleClientTestB
                 "Activity must be paused since another activity started.");
         waitAndAssertActivityState(SDK_27_LAUNCHING_ACTIVITY, STATE_RESUMED,
                 "Activity must be resumed.");
-    }
-
-    private Activity launchActivityInFullscreenAndWait(Class<? extends Activity> activityClass)
-        throws Exception {
-        final ActivityOptions launchOptions = ActivityOptions.makeBasic();
-        launchOptions.setLaunchWindowingMode(WINDOWING_MODE_FULLSCREEN);
-        return new Launcher(activityClass)
-            .setOptions(launchOptions)
-            .launch();
     }
 }

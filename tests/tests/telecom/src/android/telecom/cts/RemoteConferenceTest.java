@@ -29,7 +29,6 @@ import android.telecom.PhoneAccountHandle;
 import android.telecom.RemoteConference;
 import android.telecom.RemoteConnection;
 import android.telecom.TelecomManager;
-import android.util.Log;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -59,14 +58,19 @@ public class RemoteConferenceTest extends BaseRemoteTelecomTest {
     MockConference mConference, mRemoteConference;
     RemoteConference mRemoteConferenceObject;
 
+    @Override
+    protected void setUp() throws Exception {
+        super.setUp();
+        if (mShouldTestTelecom) {
+            addRemoteConferenceCall();
+            verifyRemoteConferenceObject(mRemoteConferenceObject, mRemoteConference, mConference);
+        }
+    }
+
     public void testRemoteConferenceCreate() {
         if (!mShouldTestTelecom) {
             return;
         }
-
-        addRemoteConferenceCall();
-        verifyRemoteConferenceObject(mRemoteConferenceObject, mRemoteConference, mConference);
-
         final Call confCall = mInCallCallbacks.getService().getLastConferenceCall();
         assertCallState(confCall, Call.STATE_ACTIVE);
 
@@ -90,10 +94,6 @@ public class RemoteConferenceTest extends BaseRemoteTelecomTest {
         if (!mShouldTestTelecom) {
             return;
         }
-
-        addRemoteConferenceCall();
-        verifyRemoteConferenceObject(mRemoteConferenceObject, mRemoteConference, mConference);
-
         final Call confCall = mInCallCallbacks.getService().getLastConferenceCall();
         assertCallState(confCall, Call.STATE_ACTIVE);
 
@@ -116,10 +116,6 @@ public class RemoteConferenceTest extends BaseRemoteTelecomTest {
         if (!mShouldTestTelecom) {
             return;
         }
-
-        addRemoteConferenceCall();
-        verifyRemoteConferenceObject(mRemoteConferenceObject, mRemoteConference, mConference);
-
         final Call confCall = mInCallCallbacks.getService().getLastConferenceCall();
         assertCallState(confCall, Call.STATE_ACTIVE);
 
@@ -152,10 +148,6 @@ public class RemoteConferenceTest extends BaseRemoteTelecomTest {
         if (!mShouldTestTelecom) {
             return;
         }
-
-        addRemoteConferenceCall();
-        verifyRemoteConferenceObject(mRemoteConferenceObject, mRemoteConference, mConference);
-
         final Call confCall = mInCallCallbacks.getService().getLastConferenceCall();
         assertCallState(confCall, Call.STATE_ACTIVE);
 
@@ -188,10 +180,6 @@ public class RemoteConferenceTest extends BaseRemoteTelecomTest {
         if (!mShouldTestTelecom) {
             return;
         }
-
-        addRemoteConferenceCall();
-        verifyRemoteConferenceObject(mRemoteConferenceObject, mRemoteConference, mConference);
-
         final Call confCall = mInCallCallbacks.getService().getLastConferenceCall();
         assertCallState(confCall, Call.STATE_ACTIVE);
 
@@ -215,10 +203,6 @@ public class RemoteConferenceTest extends BaseRemoteTelecomTest {
         if (!mShouldTestTelecom) {
             return;
         }
-
-        addRemoteConferenceCall();
-        verifyRemoteConferenceObject(mRemoteConferenceObject, mRemoteConference, mConference);
-
         Handler handler = setupRemoteConferenceCallbacksTest();
 
         final InvokeCounter callbackInvoker =
@@ -245,10 +229,6 @@ public class RemoteConferenceTest extends BaseRemoteTelecomTest {
         if (!mShouldTestTelecom) {
             return;
         }
-
-        addRemoteConferenceCall();
-        verifyRemoteConferenceObject(mRemoteConferenceObject, mRemoteConference, mConference);
-
         Handler handler = setupRemoteConferenceCallbacksTest();
 
         final InvokeCounter callbackInvoker =
@@ -276,10 +256,6 @@ public class RemoteConferenceTest extends BaseRemoteTelecomTest {
         if (!mShouldTestTelecom) {
             return;
         }
-
-        addRemoteConferenceCall();
-        verifyRemoteConferenceObject(mRemoteConferenceObject, mRemoteConference, mConference);
-
         Handler handler = setupRemoteConferenceCallbacksTest();
 
         final InvokeCounter callbackInvoker =
@@ -311,10 +287,6 @@ public class RemoteConferenceTest extends BaseRemoteTelecomTest {
         if (!mShouldTestTelecom) {
             return;
         }
-
-        addRemoteConferenceCall();
-        verifyRemoteConferenceObject(mRemoteConferenceObject, mRemoteConference, mConference);
-
         Handler handler = setupRemoteConferenceCallbacksTest();
 
         final InvokeCounter callbackInvoker =
@@ -347,10 +319,6 @@ public class RemoteConferenceTest extends BaseRemoteTelecomTest {
         if (!mShouldTestTelecom) {
             return;
         }
-
-        addRemoteConferenceCall();
-        verifyRemoteConferenceObject(mRemoteConferenceObject, mRemoteConference, mConference);
-
         Handler handler = setupRemoteConferenceCallbacksTest();
 
         final InvokeCounter callbackInvoker =
@@ -379,10 +347,6 @@ public class RemoteConferenceTest extends BaseRemoteTelecomTest {
         if (!mShouldTestTelecom) {
             return;
         }
-
-        addRemoteConferenceCall();
-        verifyRemoteConferenceObject(mRemoteConferenceObject, mRemoteConference, mConference);
-
         Handler handler = setupRemoteConferenceCallbacksTest();
 
         final InvokeCounter callbackInvoker =
@@ -412,10 +376,6 @@ public class RemoteConferenceTest extends BaseRemoteTelecomTest {
         if (!mShouldTestTelecom) {
             return;
         }
-
-        addRemoteConferenceCall();
-        verifyRemoteConferenceObject(mRemoteConferenceObject, mRemoteConference, mConference);
-
         Handler handler = setupRemoteConferenceCallbacksTest();
 
         final InvokeCounter callbackInvoker =
@@ -451,10 +411,6 @@ public class RemoteConferenceTest extends BaseRemoteTelecomTest {
         if (!mShouldTestTelecom) {
             return;
         }
-
-        addRemoteConferenceCall();
-        verifyRemoteConferenceObject(mRemoteConferenceObject, mRemoteConference, mConference);
-
         Handler handler = setupRemoteConferenceCallbacksTest();
 
         final InvokeCounter callbackInvoker =
@@ -480,10 +436,6 @@ public class RemoteConferenceTest extends BaseRemoteTelecomTest {
         if (!mShouldTestTelecom) {
             return;
         }
-
-        addRemoteConferenceCall();
-        verifyRemoteConferenceObject(mRemoteConferenceObject, mRemoteConference, mConference);
-
         Handler handler = setupRemoteConferenceCallbacksTest();
 
         final InvokeCounter callbackInvoker =
@@ -508,17 +460,14 @@ public class RemoteConferenceTest extends BaseRemoteTelecomTest {
         mRemoteConferenceObject.unregisterCallback(callback);
     }
 
-    public static void verifyRemoteConferenceObject(RemoteConference remoteConferenceObject,
+    private void verifyRemoteConferenceObject(RemoteConference remoteConferenceObject,
             MockConference remoteConference, MockConference conference) {
         assertEquals(remoteConference.getConnectionCapabilities(),
                 remoteConferenceObject.getConnectionCapabilities());
         assertTrue(remoteConferenceObject.getConferenceableConnections().isEmpty());
         List<RemoteConnection> remoteConnections = new ArrayList<>();
         for (Connection c: conference.getConnections()) {
-            RemoteConnection remoteConnection = ((MockConnection) c).getRemoteConnection();
-            if (remoteConnection != null) {
-                remoteConnections.add(remoteConnection);
-            }
+            remoteConnections.add(((MockConnection)c).getRemoteConnection());
         }
         assertEquals(remoteConnections, remoteConferenceObject.getConnections());
         assertEquals(remoteConference.getDisconnectCause(),

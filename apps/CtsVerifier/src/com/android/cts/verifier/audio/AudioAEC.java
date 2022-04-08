@@ -28,7 +28,6 @@ import android.widget.ProgressBar;
 import android.widget.TextView;
 import com.android.compatibility.common.util.ResultType;
 import com.android.compatibility.common.util.ResultUnit;
-import com.android.cts.verifier.CtsVerifierReportLog;
 import com.android.cts.verifier.R;
 import com.android.cts.verifier.audio.wavelib.*;
 
@@ -293,7 +292,7 @@ public class AudioAEC extends AudioFrequencyActivity implements View.OnClickList
                         msg = "Warning. AEC not implemented.";
                         sendMessage(AudioTestRunner.TEST_ENDED_OK, msg);
                     }
-                    storeTestResults(mMandatory, 0, 0, msg);
+                    recordTestResults(mMandatory, 0, 0, msg);
                     return;
                 }
 
@@ -342,7 +341,7 @@ public class AudioAEC extends AudioFrequencyActivity implements View.OnClickList
                 } catch (Exception e) {
                     mSRecorder.stopRecording();
                     String msg = "Could not create AEC Effect. " + e.toString();
-                    storeTestResults(mMandatory, 0, 0, msg);
+                    recordTestResults(mMandatory, 0, 0, msg);
                     am.setSpeakerphoneOn(originalSpeakerPhone);
                     am.setMode(originalMode);
                     sendMessage(AudioTestRunner.TEST_ENDED_ERROR, msg);
@@ -352,7 +351,7 @@ public class AudioAEC extends AudioFrequencyActivity implements View.OnClickList
                 if (mAec == null) {
                     mSRecorder.stopRecording();
                     String msg = "Could not create AEC Effect (AEC Null)";
-                    storeTestResults(mMandatory,0, 0, msg);
+                    recordTestResults(mMandatory,0, 0, msg);
                     am.setSpeakerphoneOn(originalSpeakerPhone);
                     am.setMode(originalMode);
                     sendMessage(AudioTestRunner.TEST_ENDED_ERROR, msg);
@@ -363,7 +362,7 @@ public class AudioAEC extends AudioFrequencyActivity implements View.OnClickList
                     String msg = "AEC is not enabled by default.";
                     if (mMandatory) {
                         mSRecorder.stopRecording();
-                        storeTestResults(mMandatory,0, 0, msg);
+                        recordTestResults(mMandatory,0, 0, msg);
                         am.setSpeakerphoneOn(originalSpeakerPhone);
                         am.setMode(originalMode);
                         sendMessage(AudioTestRunner.TEST_ENDED_ERROR, msg);
@@ -476,7 +475,7 @@ public class AudioAEC extends AudioFrequencyActivity implements View.OnClickList
                     }
                 }
 
-                storeTestResults(mMandatory, maxAEC, maxNoAEC, sb.toString());
+                recordTestResults(mMandatory, maxAEC, maxNoAEC, sb.toString());
 
                 //compute results.
                 sendMessage(AudioTestRunner.TEST_ENDED_OK, "\n" + sb.toString());
@@ -485,37 +484,32 @@ public class AudioAEC extends AudioFrequencyActivity implements View.OnClickList
         mTestThread.start();
     }
 
-    private void storeTestResults(boolean aecMandatory, double maxAEC, double maxNoAEC,
-                                  String msg) {
+    private void recordTestResults(boolean aecMandatory, double maxAEC, double maxNoAEC,
+                                   String msg) {
 
-        CtsVerifierReportLog reportLog = getReportLog();
-        reportLog.addValue("AEC_mandatory",
+        getReportLog().addValue("AEC_mandatory",
                 aecMandatory,
                 ResultType.NEUTRAL,
                 ResultUnit.NONE);
 
-        reportLog.addValue("max_with_AEC",
+        getReportLog().addValue("max_with_AEC",
                 maxAEC,
                 ResultType.LOWER_BETTER,
                 ResultUnit.SCORE);
 
-        reportLog.addValue("max_without_AEC",
+        getReportLog().addValue("max_without_AEC",
                 maxNoAEC,
                 ResultType.HIGHER_BETTER,
                 ResultUnit.SCORE);
 
-        reportLog.addValue("result_string",
+        getReportLog().addValue("result_string",
                 msg,
                 ResultType.NEUTRAL,
                 ResultUnit.NONE);
+
     }
 
-    @Override // PassFailButtons
-    public void recordTestResults() {
-        getReportLog().submit();
-    }
-
-    // TestMessageHandler
+    //TestMessageHandler
     private AudioTestRunner.AudioTestRunnerMessageHandler mMessageHandler =
             new AudioTestRunner.AudioTestRunnerMessageHandler() {
         @Override

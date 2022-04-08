@@ -157,26 +157,26 @@ public class ParentalControlTestActivity extends TvAppVerifierActivity
 
     @Override
     protected void createTestItems() {
-        mSupportThirdPartyInputYesItem = createAndAttachUserItem(
+        mSupportThirdPartyInputYesItem = createUserItem(
                 R.string.tv_input_discover_test_third_party_tif_input_support,
                 R.string.tv_yes, this);
         setButtonEnabled(mSupportThirdPartyInputYesItem, true);
-        mSupportThirdPartyInputNoItem = createAndAttachButtonItem(R.string.tv_no, this);
+        mSupportThirdPartyInputNoItem = createButtonItem(R.string.tv_no, this);
         setButtonEnabled(mSupportThirdPartyInputNoItem, true);
-        mParentalControlsSwitchYesItem = createAndAttachUserItem(
+        mParentalControlsSwitchYesItem = createUserItem(
                 R.string.tv_parental_control_test_check_parental_controls_switch,
                 R.string.tv_yes, this);
-        mParentalControlsSwitchNoItem = createAndAttachButtonItem(R.string.tv_no, this);
-        mTurnOnParentalControlItem = createAndAttachUserItem(
+        mParentalControlsSwitchNoItem = createButtonItem(R.string.tv_no, this);
+        mTurnOnParentalControlItem = createUserItem(
                 R.string.tv_parental_control_test_turn_on_parental_control,
                 R.string.tv_launch_tv_app, this);
-        mVerifyReceiveBroadcast1Item = createAndAttachAutoItem(
+        mVerifyReceiveBroadcast1Item = createAutoItem(
                 R.string.tv_parental_control_test_verify_receive_broadcast1);
-        mBlockTvMaItem = createAndAttachUserItem(R.string.tv_parental_control_test_block_tv_ma,
+        mBlockTvMaItem = createUserItem(R.string.tv_parental_control_test_block_tv_ma,
                 R.string.tv_launch_tv_app, this);
-        mVerifyReceiveBroadcast2Item = createAndAttachAutoItem(
+        mVerifyReceiveBroadcast2Item = createAutoItem(
                 R.string.tv_parental_control_test_verify_receive_broadcast2);
-        mBlockUnblockItem = createAndAttachUserItem(R.string.tv_parental_control_test_block_unblock,
+        mBlockUnblockItem = createUserItem(R.string.tv_parental_control_test_block_unblock,
                 R.string.tv_launch_tv_app, this);
         mTurnOnParentalControlItem.setVisibility(View.GONE);
         mVerifyReceiveBroadcast1Item.setVisibility(View.GONE);

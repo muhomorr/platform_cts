@@ -18,6 +18,7 @@ package android.server.wm;
 
 import static android.app.ActivityTaskManager.INVALID_STACK_ID;
 import static android.app.WindowConfiguration.ACTIVITY_TYPE_UNDEFINED;
+import static android.app.WindowConfiguration.WINDOWING_MODE_SPLIT_SCREEN_PRIMARY;
 import static android.app.WindowConfiguration.WINDOWING_MODE_UNDEFINED;
 import static android.server.wm.ComponentNameUtils.getActivityName;
 import static android.server.wm.ComponentNameUtils.getWindowName;
@@ -45,16 +46,14 @@ import android.util.SparseArray;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.Predicate;
 
 /** Window Manager State helper class with assert and wait functions. */
 public class WindowManagerStateHelper extends WindowManagerState {
 
     /**
-     * Compute AM and WM state of device, check validity and bounds.
+     * Compute AM and WM state of device, check sanity and bounds.
      * WM state will include only visible windows, stack and task bounds will be compared.
      *
      * @param componentNames array of activity names to wait for.
@@ -66,7 +65,7 @@ public class WindowManagerStateHelper extends WindowManagerState {
     }
 
     /**
-     * Compute AM and WM state of device, check validity and bounds.
+     * Compute AM and WM state of device, check sanity and bounds.
      * WM state will include only visible windows, stack and task bounds will be compared.
      *
      * @param waitForActivitiesVisible array of activity names to wait for.
@@ -91,12 +90,12 @@ public class WindowManagerStateHelper extends WindowManagerState {
      * Wait for the activities to appear in proper stacks and for valid state in AM and WM.
      * @param waitForActivitiesVisible  array of activity states to wait for.
      */
-    public void waitForValidState(WaitForValidActivityState... waitForActivitiesVisible) {
+    void waitForValidState(WaitForValidActivityState... waitForActivitiesVisible) {
         if (!Condition.waitFor("valid stacks and activities states", () -> {
             // TODO: Get state of AM and WM at the same time to avoid mismatches caused by
             // requesting dump in some intermediate state.
             computeState();
-            return !(shouldWaitForValidityCheck()
+            return !(shouldWaitForSanityCheck()
                     || shouldWaitForValidStacks()
                     || shouldWaitForActivities(waitForActivitiesVisible)
                     || shouldWaitForWindows());
@@ -105,7 +104,7 @@ public class WindowManagerStateHelper extends WindowManagerState {
         }
     }
 
-    public void waitForAllStoppedActivities() {
+    void waitForAllStoppedActivities() {
         if (!Condition.waitFor("all started activities have been removed", () -> {
             computeState();
             return !containsStartedActivities();
@@ -122,7 +121,7 @@ public class WindowManagerStateHelper extends WindowManagerState {
      * waiting-for-debugger window, but real activity window won't show up since we're waiting
      * for debugger.
      */
-    public void waitForDebuggerWindowVisible(ComponentName activityName) {
+    void waitForDebuggerWindowVisible(ComponentName activityName) {
         Condition.waitFor("debugger window", () -> {
             computeState();
             return !shouldWaitForDebuggerWindow(activityName)
@@ -130,7 +129,7 @@ public class WindowManagerStateHelper extends WindowManagerState {
         });
     }
 
-    public void waitForHomeActivityVisible() {
+    void waitForHomeActivityVisible() {
         ComponentName homeActivity = getHomeActivityName();
         // Sometimes this function is called before we know what Home Activity is
         if (homeActivity == null) {
@@ -142,48 +141,37 @@ public class WindowManagerStateHelper extends WindowManagerState {
         waitForValidState(homeActivity);
     }
 
-    /** @return {@code true} if the recents is visible; {@code false} if timeout occurs. */
-    public boolean waitForRecentsActivityVisible() {
+    void waitForRecentsActivityVisible() {
         if (isHomeRecentsComponent()) {
             waitForHomeActivityVisible();
-            return true;
         } else {
-            return waitForWithAmState(WindowManagerState::isRecentsActivityVisible,
+            waitForWithAmState(WindowManagerState::isRecentsActivityVisible,
                     "recents activity to be visible");
         }
     }
 
-    public void waitForDreamGone() {
-        assertTrue("Dream must be gone",
-                waitForWithAmState(state -> state.getDreamTask() == null, "DreamActivity gone"));
-    }
-
-    public static boolean isKeyguardShowingAndNotOccluded(WindowManagerState state) {
-        return state.getKeyguardControllerState().keyguardShowing
-                && !state.getKeyguardControllerState().isKeyguardOccluded(DEFAULT_DISPLAY);
-    }
-
-    public void waitForKeyguardShowingAndNotOccluded() {
-        waitForWithAmState(WindowManagerStateHelper::isKeyguardShowingAndNotOccluded,
+    void waitForKeyguardShowingAndNotOccluded() {
+        waitForWithAmState(state -> state.getKeyguardControllerState().keyguardShowing
+                        && !state.getKeyguardControllerState().isKeyguardOccluded(DEFAULT_DISPLAY),
                 "Keyguard showing");
     }
 
-    public void waitForKeyguardShowingAndOccluded() {
+    void waitForKeyguardShowingAndOccluded() {
         waitForWithAmState(state -> state.getKeyguardControllerState().keyguardShowing
                         && state.getKeyguardControllerState().isKeyguardOccluded(DEFAULT_DISPLAY),
                 "Keyguard showing and occluded");
     }
 
-    public void waitForAodShowing() {
+    void waitForAodShowing() {
         waitForWithAmState(state -> state.getKeyguardControllerState().aodShowing, "AOD showing");
     }
 
-    public void waitForKeyguardGone() {
+    void waitForKeyguardGone() {
         waitForWithAmState(state -> !state.getKeyguardControllerState().keyguardShowing,
                 "Keyguard gone");
     }
 
-    public void waitAndAssertKeyguardGone() {
+    void waitAndAssertKeyguardGone() {
         assertTrue("Keyguard must be gone",
                 waitForWithAmState(
                         state -> !state.getKeyguardControllerState().keyguardShowing,
@@ -191,7 +179,7 @@ public class WindowManagerStateHelper extends WindowManagerState {
     }
 
     /** Wait for specific rotation for the default display. Values are Surface#Rotation */
-    public void waitForRotation(int rotation) {
+    void waitForRotation(int rotation) {
         waitForWithAmState(state -> state.getRotation() == rotation, "Rotation: " + rotation);
     }
 
@@ -199,12 +187,12 @@ public class WindowManagerStateHelper extends WindowManagerState {
      * Wait for specific orientation for the default display.
      * Values are ActivityInfo.ScreenOrientation
      */
-    public void waitForLastOrientation(int orientation) {
+    void waitForLastOrientation(int orientation) {
         waitForWithAmState(state -> state.getLastOrientation() == orientation,
                 "LastOrientation: " + orientation);
     }
 
-    public void waitAndAssertLastOrientation(String message, int screenOrientation) {
+    void waitAndAssertLastOrientation(String message, int screenOrientation) {
         if (screenOrientation != getLastOrientation()) {
             waitForLastOrientation(screenOrientation);
         }
@@ -214,7 +202,7 @@ public class WindowManagerStateHelper extends WindowManagerState {
     /**
      * Wait for orientation for the Activity
      */
-    public void waitForActivityOrientation(ComponentName activityName, int orientation) {
+    void waitForActivityOrientation(ComponentName activityName, int orientation) {
         waitForWithAmState(amState -> {
             final ActivityTask task = amState.getTaskByActivity(activityName);
             if (task == null) {
@@ -224,7 +212,7 @@ public class WindowManagerStateHelper extends WindowManagerState {
         }, "orientation of " + getActivityName(activityName) + " to be " + orientation);
     }
 
-    public void waitForDisplayUnfrozen() {
+    void waitForDisplayUnfrozen() {
         waitForWithAmState(state -> !state.isDisplayFrozen(), "Display unfrozen");
     }
 
@@ -239,12 +227,12 @@ public class WindowManagerStateHelper extends WindowManagerState {
                 getActivityName(activityName) + " to be removed");
     }
 
-    public void waitAndAssertActivityRemoved(ComponentName activityName) {
+    void waitAndAssertActivityRemoved(ComponentName activityName) {
         waitForActivityRemoved(activityName);
         assertNotExist(activityName);
     }
 
-    public void waitForFocusedStack(int windowingMode, int activityType) {
+    void waitForFocusedStack(int windowingMode, int activityType) {
         waitForWithAmState(state ->
                         (activityType == ACTIVITY_TYPE_UNDEFINED
                                 || state.getFocusedStackActivityType() == activityType)
@@ -253,46 +241,32 @@ public class WindowManagerStateHelper extends WindowManagerState {
                 "focused stack");
     }
 
-    public void waitForPendingActivityContain(ComponentName activity) {
+    void waitForPendingActivityContain(ComponentName activity) {
         waitForWithAmState(state -> state.pendingActivityContain(activity),
                 getActivityName(activity) + " in pending list");
     }
 
-    public boolean waitForAppTransitionRunningOnDisplay(int displayId) {
-        return waitForWithAmState(
-                state -> WindowManagerState.APP_STATE_RUNNING.equals(
-                        state.getDisplay(displayId).getAppTransitionState()),
-                "app transition running on Display " + displayId);
-    }
-
-    public boolean waitForAppTransitionIdleOnDisplay(int displayId) {
-        return waitForWithAmState(
+    void waitForAppTransitionIdleOnDisplay(int displayId) {
+        waitForWithAmState(
                 state -> WindowManagerState.APP_STATE_IDLE.equals(
                         state.getDisplay(displayId).getAppTransitionState()),
                 "app transition idle on Display " + displayId);
     }
 
     void waitAndAssertNavBarShownOnDisplay(int displayId) {
-        waitAndAssertNavBarShownOnDisplay(displayId, 1 /* expectedNavBarCount */);
+        assertTrue(waitForWithAmState(
+                state -> state.getAndAssertSingleNavBarWindowOnDisplay(displayId) != null,
+                "navigation bar #" + displayId + " show"));
     }
 
-    void waitAndAssertNavBarShownOnDisplay(int displayId, int expectedNavBarCount) {
-        assertTrue(waitForWithAmState(state -> {
-            List<WindowState> navWindows = state
-                    .getAndAssertNavBarWindowsOnDisplay(displayId, expectedNavBarCount);
-
-            return navWindows != null;
-        }, "navigation bar #" + displayId + " show"));
-    }
-
-    public void waitAndAssertKeyguardShownOnSecondaryDisplay(int displayId) {
+    void waitAndAssertKeyguardShownOnSecondaryDisplay(int displayId) {
         assertTrue("KeyguardDialog must be shown on secondary display " + displayId,
                 waitForWithAmState(
                         state -> isKeyguardOnSecondaryDisplay(state, displayId),
                         "keyguard window to show"));
     }
 
-    public void waitAndAssertKeyguardGoneOnSecondaryDisplay(int displayId) {
+    void waitAndAssertKeyguardGoneOnSecondaryDisplay(int displayId) {
         assertTrue("KeyguardDialog must be gone on secondary display " + displayId,
                 waitForWithAmState(
                         state -> !isKeyguardOnSecondaryDisplay(state, displayId),
@@ -303,17 +277,6 @@ public class WindowManagerStateHelper extends WindowManagerState {
         waitForWithAmState(state -> {
             return !state.isWindowSurfaceShown(windowName);
         }, windowName + "'s surface is disappeared");
-    }
-
-    void waitAndAssertWindowSurfaceShown(String windowName, boolean shown) {
-        assertTrue(
-                waitForWithAmState(state -> state.isWindowSurfaceShown(windowName) == shown,
-                        windowName + "'s  isWindowSurfaceShown to return " + shown));
-    }
-
-    /** A variant of waitForWithAmState with different parameter order for better Kotlin interop. */
-    public boolean waitForWithAmState(String message, Predicate<WindowManagerState> waitCondition) {
-        return waitForWithAmState(waitCondition, message);
     }
 
     public boolean waitForWithAmState(Predicate<WindowManagerState> waitCondition,
@@ -329,38 +292,12 @@ public class WindowManagerStateHelper extends WindowManagerState {
         }, message);
     }
 
-    public void waitForFocusedActivity(final String msg, final ComponentName activityName) {
-        final String activityComponentName = getActivityName(activityName);
-        waitFor(msg, wmState -> Objects.equals(activityComponentName, wmState.getFocusedActivity())
-                && Objects.equals(activityComponentName, wmState.getFocusedApp()));
-    }
-
-    /** A variant of waitFor with different parameter order for better Kotlin interop. */
-    public boolean waitFor(String message, Predicate<WindowManagerState> waitCondition) {
-        return waitFor(waitCondition, message);
-    }
-
     /** @return {@code true} if the wait is successful; {@code false} if timeout occurs. */
-    public boolean waitFor(Predicate<WindowManagerState> waitCondition, String message) {
+    boolean waitFor(Predicate<WindowManagerState> waitCondition, String message) {
         return Condition.waitFor(message, () -> {
             computeState();
             return waitCondition.test(this);
         });
-    }
-
-    /** Waits for non-null result from {@code function} and returns it. */
-    public <T> T waitForResult(String message, Function<WindowManagerState, T> function) {
-        return waitForResult(message, function, Objects::nonNull);
-    }
-
-    public <T> T waitForResult(String message, Function<WindowManagerState, T> function,
-            Predicate<T> validator) {
-        return Condition.waitForResult(new Condition<T>(message)
-                .setResultSupplier(() -> {
-                    computeState();
-                    return function.apply(this);
-                })
-                .setResultValidator(validator));
     }
 
     /**
@@ -384,7 +321,7 @@ public class WindowManagerStateHelper extends WindowManagerState {
         return false;
     }
 
-    public void waitAndAssertAppFocus(String appPackageName, long waitTime) {
+    void waitAndAssertAppFocus(String appPackageName, long waitTime) {
         final Condition<String> condition = new Condition<>(appPackageName + " to be focused");
         Condition.waitFor(condition.setResultSupplier(() -> {
             computeState();
@@ -497,17 +434,17 @@ public class WindowManagerStateHelper extends WindowManagerState {
         return false;
     }
 
-    private boolean shouldWaitForValidityCheck() {
+    private boolean shouldWaitForSanityCheck() {
         try {
-            assertValidity();
+            assertSanity();
         } catch (Throwable t) {
-            logAlways("Waiting for validity check: " + t.toString());
+            logAlways("Waiting for sanity check: " + t.toString());
             return true;
         }
         return false;
     }
 
-    void assertValidity() {
+    void assertSanity() {
         assertThat("Must have stacks", getStackCount(), greaterThan(0));
         // TODO: Update when keyguard will be shown on multiple displays
         if (!getKeyguardControllerState().keyguardShowing) {
@@ -528,11 +465,11 @@ public class WindowManagerStateHelper extends WindowManagerState {
         assertNotNull("Must have app.", getFocusedApp());
     }
 
-    public void assertContainsStack(String msg, int windowingMode, int activityType) {
+    void assertContainsStack(String msg, int windowingMode, int activityType) {
         assertTrue(msg, containsStack(windowingMode, activityType));
     }
 
-    public void assertDoesNotContainStack(String msg, int windowingMode, int activityType) {
+    void assertDoesNotContainStack(String msg, int windowingMode, int activityType) {
         assertFalse(msg, containsStack(windowingMode, activityType));
     }
 
@@ -540,8 +477,7 @@ public class WindowManagerStateHelper extends WindowManagerState {
         assertFrontStackOnDisplay(msg, windowingMode, activityType, DEFAULT_DISPLAY);
     }
 
-    public void assertFrontStackOnDisplay(String msg, int windowingMode, int activityType,
-            int displayId) {
+    void assertFrontStackOnDisplay(String msg, int windowingMode, int activityType, int displayId) {
         if (windowingMode != WINDOWING_MODE_UNDEFINED) {
             assertEquals(msg, windowingMode,
                     getFrontStackWindowingMode(displayId));
@@ -551,7 +487,7 @@ public class WindowManagerStateHelper extends WindowManagerState {
         }
     }
 
-    public void assertFrontStackActivityType(String msg, int activityType) {
+    void assertFrontStackActivityType(String msg, int activityType) {
         assertEquals(msg, activityType, getFrontStackActivityType(DEFAULT_DISPLAY));
     }
 
@@ -574,13 +510,13 @@ public class WindowManagerStateHelper extends WindowManagerState {
         assertEquals(msg, activityComponentName, getFocusedApp());
     }
 
-    public void assertFocusedAppOnDisplay(final String msg, final ComponentName activityName,
+    void assertFocusedAppOnDisplay(final String msg, final ComponentName activityName,
             final int displayId) {
         final String activityComponentName = getActivityName(activityName);
         assertEquals(msg, activityComponentName, getDisplay(displayId).getFocusedApp());
     }
 
-    public void assertNotFocusedActivity(String msg, ComponentName activityName) {
+    void assertNotFocusedActivity(String msg, ComponentName activityName) {
         assertNotEquals(msg, getFocusedActivity(), getActivityName(activityName));
         assertNotEquals(msg, getFocusedApp(), getActivityName(activityName));
     }
@@ -604,19 +540,19 @@ public class WindowManagerStateHelper extends WindowManagerState {
         }
     }
 
-    public void assertNotResumedActivity(String msg, ComponentName activityName) {
+    void assertNotResumedActivity(String msg, ComponentName activityName) {
         assertNotEquals(msg, getFocusedActivity(), getActivityName(activityName));
     }
 
-    public void assertFocusedWindow(String msg, String windowName) {
+    void assertFocusedWindow(String msg, String windowName) {
         assertEquals(msg, windowName, getFocusedWindow());
     }
 
-    public void assertNotFocusedWindow(String msg, String windowName) {
+    void assertNotFocusedWindow(String msg, String windowName) {
         assertNotEquals(msg, getFocusedWindow(), windowName);
     }
 
-    public void assertNotExist(final ComponentName activityName) {
+    void assertNotExist(final ComponentName activityName) {
         final String windowName = getWindowName(activityName);
         assertFalse("Activity=" + getActivityName(activityName) + " must NOT exist.",
                 containsActivity(activityName));
@@ -646,7 +582,7 @@ public class WindowManagerStateHelper extends WindowManagerState {
                 visible, isWindowSurfaceShown(windowName));
     }
 
-    public void assertHomeActivityVisible(boolean visible) {
+    void assertHomeActivityVisible(boolean visible) {
         final ComponentName homeActivity = getHomeActivityName();
         assertNotNull(homeActivity);
         assertVisibility(homeActivity, visible);
@@ -655,26 +591,12 @@ public class WindowManagerStateHelper extends WindowManagerState {
     /**
      * Asserts that the device default display minimim width is larger than the minimum task width.
      */
-    void assertDeviceDefaultDisplaySizeForMultiWindow(String errorMessage) {
+    void assertDeviceDefaultDisplaySize(String errorMessage) {
         computeState();
         final int minTaskSizePx = defaultMinimalTaskSize(DEFAULT_DISPLAY);
         final WindowManagerState.DisplayContent display = getDisplay(DEFAULT_DISPLAY);
         final Rect displayRect = display.getDisplayRect();
         if (Math.min(displayRect.width(), displayRect.height()) < minTaskSizePx) {
-            fail(errorMessage);
-        }
-    }
-
-    /**
-     * Asserts that the device default display minimum width is not smaller than the minimum width
-     * for split-screen required by CDD.
-     */
-    void assertDeviceDefaultDisplaySizeForSplitScreen(String errorMessage) {
-        computeState();
-        final int minDisplaySizePx = defaultMinimalDisplaySizeForSplitScreen(DEFAULT_DISPLAY);
-        final WindowManagerState.DisplayContent display = getDisplay(DEFAULT_DISPLAY);
-        final Rect displayRect = display.getDisplayRect();
-        if (Math.max(displayRect.width(), displayRect.height()) < minDisplaySizePx) {
             fail(errorMessage);
         }
     }
@@ -718,17 +640,12 @@ public class WindowManagerStateHelper extends WindowManagerState {
                 getKeyguardControllerState().aodShowing);
     }
 
-    public void assertIllegalTaskState() {
+    public void assertNoneEmptyTasks() {
         computeState();
         final List<ActivityTask> tasks = getRootTasks();
         for (ActivityTask task : tasks) {
             task.forAllTasks((t) -> assertWithMessage("Empty task was found, id = " + t.mTaskId)
                     .that(t.mTasks.size() + t.mActivities.size()).isGreaterThan(0));
-            if (task.isLeafTask()) {
-                continue;
-            }
-            assertWithMessage("Non-leaf task cannot have affinity set, id = " + task.mTaskId)
-                    .that(task.mAffinity).isEmpty();
         }
     }
 
@@ -742,7 +659,7 @@ public class WindowManagerStateHelper extends WindowManagerState {
 
     public void assertWindowDisplayed(final String windowName) {
         waitForValidState(WaitForValidActivityState.forWindow(windowName));
-        assertTrue(windowName + " is visible", isWindowSurfaceShown(windowName));
+        assertTrue(windowName + "is visible", isWindowSurfaceShown(windowName));
     }
 
     void waitAndAssertImeWindowShownOnDisplay(int displayId) {
@@ -762,6 +679,12 @@ public class WindowManagerStateHelper extends WindowManagerState {
     WindowState getImeWindowState() {
         computeState();
         return getInputMethodWindowState();
+    }
+
+    boolean isScreenPortrait() {
+        final int displayId = getStandardStackByWindowingMode(
+            WINDOWING_MODE_SPLIT_SCREEN_PRIMARY).mDisplayId;
+        return isScreenPortrait(displayId);
     }
 
     boolean isScreenPortrait(int displayId) {

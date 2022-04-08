@@ -16,7 +16,6 @@
 
 package com.android.cts.verifier.tv;
 
-import android.app.Activity;
 import android.view.View;
 import android.widget.TextView;
 
@@ -25,12 +24,9 @@ import com.android.cts.verifier.R;
 import com.google.common.truth.FailureStrategy;
 import com.google.common.truth.StandardSubjectBuilder;
 
-import java.util.ArrayList;
-import java.util.List;
-
 /** Encapsulates the logic of a test step, which displays human instructions. */
 public abstract class TestStepBase {
-    protected final Activity mContext;
+    protected final TvAppVerifierActivity mContext;
 
     private boolean mHasPassed;
     private Runnable mOnDoneListener;
@@ -45,7 +41,7 @@ public abstract class TestStepBase {
      * @param context The test activity which this test step is part of.
      * @param instructionText The text of the test instruction visible to the user.
      */
-    public TestStepBase(Activity context, String instructionText) {
+    public TestStepBase(TvAppVerifierActivity context, String instructionText) {
         this.mContext = context;
 
         FailureStrategy failureStrategy =
@@ -63,12 +59,8 @@ public abstract class TestStepBase {
     }
 
     /** Creates the View for this test step in the context {@link TvAppVerifierActivity}. */
-    public List<View> createUiElements() {
-        mInstructionView = TvAppVerifierActivity
-                .createAutoItem(mContext.getLayoutInflater(), mInstructionText, null);
-        List<View> list = new ArrayList<>();
-        list.add(mInstructionView);
-        return list;
+    public void createUiElements() {
+        mInstructionView = mContext.createAutoItem(mInstructionText);
     }
 
     /** Enables interactivity for this test step - for example, it enables buttons. */

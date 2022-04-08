@@ -17,7 +17,6 @@
 package android.inputmethodservice.cts.ime;
 
 import android.graphics.Bitmap;
-import android.graphics.Color;
 
 import androidx.annotation.AnyThread;
 import androidx.annotation.ColorInt;
@@ -27,13 +26,6 @@ import androidx.annotation.NonNull;
  * A utility class that represents A8R8G8B bitmap as an integer array.
  */
 final class BitmapImage {
-    /**
-     * Tolerance level between the expected color and the actual color in each color channel.
-     *
-     * <p>See Bug 174534092 about why we ended up having this.</p>
-     */
-    private static final int TOLERANCE = 4;
-
     @NonNull
     private final int[] mPixels;
     private final int mWidth;
@@ -99,22 +91,7 @@ final class BitmapImage {
     }
 
     /**
-     * Compares two given pixels to determine whether those two pixels are considered to be
-     * the same within {@link #TOLERANCE}.
-     *
-     * @param lhs a color integer to be compared.
-     * @param rhs another color integer to be compared.
-     * @return {@true} if two given pixels are the same within {@link #TOLERANCE}.
-     */
-    private static boolean robustMatchInternal(@ColorInt int lhs, @ColorInt int rhs) {
-        return lhs == rhs || (Math.abs(Color.red(lhs) - Color.red(rhs)) <= TOLERANCE
-                && Math.abs(Color.green(lhs) - Color.green(rhs)) <= TOLERANCE
-                && Math.abs(Color.blue(lhs) - Color.blue(rhs)) <= TOLERANCE);
-    }
-
-    /**
-     * Checks if the same image can be found in the specified {@link BitmapImage} within a certain
-     * error margin.
+     * Checks if the same image can be found in the specified {@link BitmapImage}
      *
      * @param targetImage {@link BitmapImage} to be checked.
      * @param offsetX X offset in the {@code targetImage} used when comparing.
@@ -122,7 +99,7 @@ final class BitmapImage {
      * @return
      */
     @AnyThread
-    boolean robustMatch(@NonNull BitmapImage targetImage, int offsetX, int offsetY) {
+    boolean match(@NonNull BitmapImage targetImage, int offsetX, int offsetY) {
         final int targetWidth = targetImage.getWidth();
         final int targetHeight = targetImage.getHeight();
 
@@ -136,7 +113,7 @@ final class BitmapImage {
                 if (targetY < 0 || targetHeight <= targetY) {
                     return false;
                 }
-                if (!robustMatchInternal(targetImage.getPixel(targetX, targetY), getPixel(x, y))) {
+                if (targetImage.getPixel(targetX, targetY) != getPixel(x, y)) {
                     return false;
                 }
             }

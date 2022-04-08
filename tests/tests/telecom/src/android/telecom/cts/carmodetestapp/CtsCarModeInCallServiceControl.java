@@ -55,18 +55,12 @@ public class CtsCarModeInCallServiceControl extends Service {
 
         @Override
         public void disconnectCalls() {
-            if (CtsCarModeInCallService.getInstance() != null) {
-                CtsCarModeInCallService.getInstance().disconnectCalls();
-            }
+            CtsCarModeInCallService.getInstance().disconnectCalls();
         }
 
         @Override
         public int getCallCount() {
-            if (CtsCarModeInCallService.getInstance() != null) {
-                return CtsCarModeInCallService.getInstance().getCallCount();
-            }
-            // if there's no instance, there's no calls
-            return 0;
+            return CtsCarModeInCallService.getInstance().getCallCount();
         }
 
         @Override
@@ -79,23 +73,6 @@ public class CtsCarModeInCallServiceControl extends Service {
         public void disableCarMode() {
             UiModeManager uiModeManager = getSystemService(UiModeManager.class);
             uiModeManager.disableCarMode(0);
-        }
-
-        @Override
-        public boolean requestAutomotiveProjection() {
-            UiModeManager uiModeManager = getSystemService(UiModeManager.class);
-            return uiModeManager.requestProjection(UiModeManager.PROJECTION_TYPE_AUTOMOTIVE);
-        }
-
-        @Override
-        public void releaseAutomotiveProjection() {
-            UiModeManager uiModeManager = getSystemService(UiModeManager.class);
-            uiModeManager.releaseProjection(UiModeManager.PROJECTION_TYPE_AUTOMOTIVE);
-        }
-
-        @Override
-        public boolean checkBindStatus(boolean bind) {
-            return CtsCarModeInCallService.checkBindStatus(bind);
         }
     };
 

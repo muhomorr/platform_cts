@@ -91,9 +91,8 @@ public class RSASignatureTest extends AndroidTestCase {
                 signature.initVerify(publicKey);
                 try {
                     signature.update(msg, 0, expectedMaxMessageSizeBytes + 1);
-                    if (signature.verify(sigBytes)) {
-                        fail();
-                    }
+                    signature.verify(sigBytes);
+                    fail();
                 } catch (SignatureException expected) {
                 }
             } catch (Throwable e) {

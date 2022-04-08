@@ -74,7 +74,7 @@ public class DeviceSuspendTestActivity
                                             new IntentFilter(ACTION_ALARM));
 
             Intent intent = new Intent(this, AlarmReceiver.class);
-            mPendingIntent = PendingIntent.getBroadcast(this, 0, intent, PendingIntent.FLAG_MUTABLE_UNAUDITED);
+            mPendingIntent = PendingIntent.getBroadcast(this, 0, intent, 0);
 
             mAlarmManager = (AlarmManager) getSystemService(ALARM_SERVICE);
 
@@ -111,9 +111,6 @@ public class DeviceSuspendTestActivity
         @Override
         protected void onDestroy() {
             super.onDestroy();
-            if (mDeviceSuspendLock != null && mDeviceSuspendLock.isHeld()) {
-                mDeviceSuspendLock.release();
-            }
             if (mScreenManipulator != null) {
                 mScreenManipulator.releaseScreenOn();
                 mScreenManipulator.close();

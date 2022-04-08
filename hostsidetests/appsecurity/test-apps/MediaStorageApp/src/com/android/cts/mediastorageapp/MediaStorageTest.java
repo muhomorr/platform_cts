@@ -18,9 +18,6 @@ package com.android.cts.mediastorageapp;
 
 import static com.android.compatibility.common.util.SystemUtil.runShellCommand;
 
-import static com.google.common.truth.Truth.assertThat;
-import static com.google.common.truth.Truth.assertWithMessage;
-
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -37,7 +34,6 @@ import android.content.ContentUris;
 import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
-import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.net.Uri;
@@ -48,8 +44,6 @@ import android.provider.MediaStore;
 import android.provider.MediaStore.MediaColumns;
 import android.support.test.uiautomator.UiDevice;
 import android.support.test.uiautomator.UiObject;
-import android.support.test.uiautomator.UiObjectNotFoundException;
-import android.support.test.uiautomator.UiScrollable;
 import android.support.test.uiautomator.UiSelector;
 
 import androidx.test.InstrumentationRegistry;
@@ -58,23 +52,18 @@ import androidx.test.runner.AndroidJUnit4;
 import com.android.cts.mediastorageapp.MediaStoreUtils.PendingParams;
 import com.android.cts.mediastorageapp.MediaStoreUtils.PendingSession;
 
-import com.google.common.io.ByteStreams;
-
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.concurrent.Callable;
-import java.util.concurrent.TimeoutException;
 
 @RunWith(AndroidJUnit4.class)
 public class MediaStorageTest {
@@ -100,8 +89,33 @@ public class MediaStorageTest {
     }
 
     @Test
-    public void testLegacy() throws Exception {
-        assertTrue(Environment.isExternalStorageLegacy());
+    public void testSandboxed() throws Exception {
+        doSandboxed(true);
+    }
+
+    @Test
+    public void testNotSandboxed() throws Exception {
+        doSandboxed(false);
+    }
+
+    @Test
+    public void testStageFiles() throws Exception {
+        final File jpg = stageFile(TEST_JPG);
+        assertTrue(jpg.exists());
+        final File pdf = stageFile(TEST_PDF);
+        assertTrue(pdf.exists());
+    }
+
+    @Test
+    public void testClearFiles() throws Exception {
+        TEST_JPG.delete();
+        assertNull(MediaStore.scanFile(mContentResolver, TEST_JPG));
+        TEST_PDF.delete();
+        assertNull(MediaStore.scanFile(mContentResolver, TEST_PDF));
+    }
+
+    private void doSandboxed(boolean sandboxed) throws Exception {
+        assertEquals(!sandboxed, Environment.isExternalStorageLegacy());
 
         // We can always see mounted state
         assertEquals(Environment.MEDIA_MOUNTED, Environment.getExternalStorageState());
@@ -109,8 +123,10 @@ public class MediaStorageTest {
         // We might have top-level access
         final File probe = new File(Environment.getExternalStorageDirectory(),
                 "cts" + System.nanoTime());
-        assertTrue(probe.createNewFile());
-        assertNotNull(Environment.getExternalStorageDirectory().list());
+        if (!sandboxed) {
+            assertTrue(probe.createNewFile());
+            assertNotNull(Environment.getExternalStorageDirectory().list());
+        }
 
         // We always have our package directories
         final File probePackage = new File(mContext.getExternalFilesDir(null),
@@ -132,24 +148,15 @@ public class MediaStorageTest {
             }
         }
 
-        assertTrue(seen.contains(ContentUris.parseId(jpgUri)));
-        assertTrue(seen.contains(ContentUris.parseId(pdfUri)));
-    }
-
-    @Test
-    public void testStageFiles() throws Exception {
-        final File jpg = stageFile(TEST_JPG);
-        assertTrue(jpg.exists());
-        final File pdf = stageFile(TEST_PDF);
-        assertTrue(pdf.exists());
-    }
-
-    @Test
-    public void testClearFiles() throws Exception {
-        TEST_JPG.delete();
-        assertNull(MediaStore.scanFile(mContentResolver, TEST_JPG));
-        TEST_PDF.delete();
-        assertNull(MediaStore.scanFile(mContentResolver, TEST_PDF));
+        if (sandboxed) {
+            // If we're sandboxed, we should only see the image
+            assertTrue(seen.contains(ContentUris.parseId(jpgUri)));
+            assertFalse(seen.contains(ContentUris.parseId(pdfUri)));
+        } else {
+            // If we're not sandboxed, we should see both
+            assertTrue(seen.contains(ContentUris.parseId(jpgUri)));
+            assertTrue(seen.contains(ContentUris.parseId(pdfUri)));
+        }
     }
 
     @Test
@@ -202,18 +209,6 @@ public class MediaStorageTest {
         try (ParcelFileDescriptor pfd = mContentResolver.openFileDescriptor(blue, "w")) {
             fail("Expected write access to be blocked");
         } catch (SecurityException | FileNotFoundException expected) {
-        }
-
-        // Verify that we can't grant ourselves access
-        for (int flag : new int[] {
-                Intent.FLAG_GRANT_READ_URI_PERMISSION,
-                Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-        }) {
-            try {
-                mContext.grantUriPermission(mContext.getPackageName(), blue, flag);
-                fail("Expected granting to be blocked for flag 0x" + Integer.toHexString(flag));
-            } catch (SecurityException expected) {
-            }
         }
     }
 
@@ -410,11 +405,16 @@ public class MediaStorageTest {
 
     @Test
     public void testMediaEscalation_RequestWriteFilePathSupport() throws Exception {
-        doMediaEscalation_RequestWrite_withFilePathSupport(MediaStorageTest::createAudio);
-        doMediaEscalation_RequestWrite_withFilePathSupport(MediaStorageTest::createVideo);
-        doMediaEscalation_RequestWrite_withFilePathSupport(MediaStorageTest::createImage);
-        doMediaEscalation_RequestWrite_withFilePathSupport(MediaStorageTest::createPlaylist);
-        doMediaEscalation_RequestWrite_withFilePathSupport(MediaStorageTest::createSubtitle);
+        doMediaEscalation_RequestWrite_withFilePathSupport(
+                MediaStorageTest::createAudio);
+        doMediaEscalation_RequestWrite_withFilePathSupport(
+                MediaStorageTest::createVideo);
+        doMediaEscalation_RequestWrite_withFilePathSupport(
+                MediaStorageTest::createImage);
+        doMediaEscalation_RequestWrite_withFilePathSupport(
+                MediaStorageTest::createPlaylist);
+        doMediaEscalation_RequestWrite_withFilePathSupport(
+                MediaStorageTest::createSubtitle);
     }
 
     private void doMediaEscalation_RequestWrite_withFilePathSupport(
@@ -423,12 +423,12 @@ public class MediaStorageTest {
         assertNotNull(red);
         String path = queryForSingleColumn(red, MediaColumns.DATA);
         File file = new File(path);
-        assertThat(file.exists()).isTrue();
-        assertThat(file.canRead()).isTrue();
-        assertThat(file.canWrite()).isTrue();
+        assertTrue(file.exists());
+        assertTrue(file.canRead());
+        assertTrue(file.canWrite());
 
         clearMediaOwner(red, mUserId);
-        assertThat(file.canWrite()).isFalse();
+        assertFalse(file.canWrite());
 
         try (ParcelFileDescriptor pfd = mContentResolver.openFileDescriptor(red, "w")) {
             fail("Expected write access to be blocked");
@@ -439,132 +439,26 @@ public class MediaStorageTest {
 
         try (ParcelFileDescriptor pfd = mContentResolver.openFileDescriptor(red, "w")) {
         }
-        // Wait for MediaStore to be idle to avoid flakiness due to race conditions between
-        // MediaStore.scanFile (which is called above in #openFileDescriptor) and rename (which is
-        // called below). This is a known issue: b/158982091
-        MediaStore.waitForIdle(mContentResolver);
 
-        // Check File API support
-        assertAccessFileAPISupport(file);
-        assertReadWriteFileAPISupport(file);
-        assertRenameFileAPISupport(file);
-        assertRenameAndReplaceFileAPISupport(file, create);
-        assertDeleteFileAPISupport(file);
-    }
-
-    private void assertAccessFileAPISupport(File file) throws Exception {
-        assertThat(file.canRead()).isTrue();
-        assertThat(file.canWrite()).isTrue();
-    }
-
-    private void assertReadWriteFileAPISupport(File file) throws Exception {
-        final String str = "Just some random text";
-        final byte[] bytes = str.getBytes();
-        // Write to file
-        try (FileOutputStream fos = new FileOutputStream(file)) {
-            fos.write(bytes);
-        }
-        // Read the same data from file
-        try (FileInputStream fis = new FileInputStream(file)) {
-            assertThat(ByteStreams.toByteArray(fis)).isEqualTo(bytes);
-        }
-    }
-
-    public void assertRenameFileAPISupport(File oldFile) throws Exception {
-        final String oldName = oldFile.getAbsolutePath();
-        final String extension = oldName.substring(oldName.lastIndexOf('.')).trim();
-        // Rename to same extension so test app does not lose access to file.
-        final String newRelativeName = "cts" + System.nanoTime() + extension;
-        final File newFile = Environment.buildPath(
-            Environment.getExternalStorageDirectory(),
-            Environment.DIRECTORY_DOWNLOADS,
-            newRelativeName);
-        final String newName = newFile.getAbsolutePath();
-        assertWithMessage("Rename from oldName [%s] to newName [%s]", oldName, newName)
-            .that(oldFile.renameTo(newFile))
-            .isTrue();
-        // Rename back to oldFile for other ops like delete
-        assertWithMessage("Rename back from newName [%s] to oldName [%s]", newName, oldName)
-            .that(newFile.renameTo(oldFile))
-            .isTrue();
-    }
-
-    public void assertRenameAndReplaceFileAPISupport(File oldFile, Callable<Uri> create)
-            throws Exception {
-        final String oldName = oldFile.getAbsolutePath();
-
-        // Create new file to which we do not have any access.
-        final Uri newUri = create.call();
-        assertWithMessage("Check newFile created").that(newUri).isNotNull();
-        File newFile = new File(queryForSingleColumn(newUri, MediaColumns.DATA));
-        final String newName = newFile.getAbsolutePath();
-        clearMediaOwner(newUri, mUserId);
-
-        assertWithMessage(
-            "Rename should fail without newFile grant from oldName [%s] to newName [%s]",
-            oldName, newName)
-            .that(oldFile.renameTo(newFile))
-            .isFalse();
-
-        // Grant access to newFile and rename should succeed.
-        doEscalation(MediaStore.createWriteRequest(mContentResolver, Arrays.asList(newUri)));
-        assertWithMessage("Rename from oldName [%s] to newName [%s]", oldName, newName)
-            .that(oldFile.renameTo(newFile))
-            .isTrue();
-
-        // We need to request grant on newUri again, since the rename above caused the URI grant
-        // to be revoked.
-        doEscalation(MediaStore.createWriteRequest(mContentResolver, Arrays.asList(newUri)));
-        // Rename back to oldFile for other ops like delete
-        assertWithMessage("Rename back from newName [%s] to oldName [%s]", newName, oldName)
-            .that(newFile.renameTo(oldFile))
-            .isTrue();
-    }
-
-    private void assertDeleteFileAPISupport(File file) throws Exception {
-        assertThat(file.delete()).isTrue();
+        final Instrumentation inst = InstrumentationRegistry.getInstrumentation();
+        final UiDevice device = UiDevice.getInstance(inst);
+        device.executeShellCommand("setprop sys.filepathsupport.mediauri true");
+        assertTrue(file.canRead());
+        assertTrue(file.canWrite());
+        // TODO(b/173648980): Write to file and read back to verify.
+        device.executeShellCommand("setprop sys.filepathsupport.mediauri false");
     }
 
     @Test
     public void testMediaEscalation_RequestWrite() throws Exception {
-        doMediaEscalation_RequestWrite(true /* allowAccess */,
-                false /* shouldCheckDialogShownValue */, false /* isDialogShownExpected */);
+        doMediaEscalation_RequestWrite(MediaStorageTest::createAudio);
+        doMediaEscalation_RequestWrite(MediaStorageTest::createVideo);
+        doMediaEscalation_RequestWrite(MediaStorageTest::createImage);
+        doMediaEscalation_RequestWrite(MediaStorageTest::createPlaylist);
+        doMediaEscalation_RequestWrite(MediaStorageTest::createSubtitle);
     }
 
-    @Test
-    public void testMediaEscalationWithDenied_RequestWrite() throws Exception {
-        doMediaEscalation_RequestWrite(false /* allowAccess */,
-                false /* shouldCheckDialogShownValue */, false /* isDialogShownExpected */);
-    }
-
-    @Test
-    public void testMediaEscalation_RequestWrite_showConfirmDialog() throws Exception {
-        doMediaEscalation_RequestWrite(true /* allowAccess */,
-                true /* shouldCheckDialogShownValue */, true /* isDialogShownExpected */);
-    }
-
-    @Test
-    public void testMediaEscalation_RequestWrite_notShowConfirmDialog() throws Exception {
-        doMediaEscalation_RequestWrite(true /* allowAccess */,
-                true /* shouldCheckDialogShownValue */, false /* isDialogShownExpected */);
-    }
-
-    private void doMediaEscalation_RequestWrite(boolean allowAccess,
-            boolean shouldCheckDialogShownValue, boolean isDialogShownExpected) throws Exception {
-        doMediaEscalation_RequestWrite(MediaStorageTest::createAudio, allowAccess,
-                shouldCheckDialogShownValue, isDialogShownExpected);
-        doMediaEscalation_RequestWrite(MediaStorageTest::createVideo, allowAccess,
-                shouldCheckDialogShownValue, isDialogShownExpected);
-        doMediaEscalation_RequestWrite(MediaStorageTest::createImage, allowAccess,
-                shouldCheckDialogShownValue, isDialogShownExpected);
-        doMediaEscalation_RequestWrite(MediaStorageTest::createPlaylist, allowAccess,
-                shouldCheckDialogShownValue, isDialogShownExpected);
-        doMediaEscalation_RequestWrite(MediaStorageTest::createSubtitle, allowAccess,
-                shouldCheckDialogShownValue, isDialogShownExpected);
-    }
-
-    private void doMediaEscalation_RequestWrite(Callable<Uri> create, boolean allowAccess,
-            boolean shouldCheckDialogShownValue, boolean isDialogShownExpected) throws Exception {
+    private void doMediaEscalation_RequestWrite(Callable<Uri> create) throws Exception {
         final Uri red = create.call();
         clearMediaOwner(red, mUserId);
 
@@ -573,102 +467,30 @@ public class MediaStorageTest {
         } catch (SecurityException expected) {
         }
 
-        if (allowAccess) {
-            doEscalation(MediaStore.createWriteRequest(mContentResolver, Arrays.asList(red)),
-                    true /* allowAccess */, shouldCheckDialogShownValue, isDialogShownExpected);
+        doEscalation(MediaStore.createWriteRequest(mContentResolver, Arrays.asList(red)));
 
-            try (ParcelFileDescriptor pfd = mContentResolver.openFileDescriptor(red, "w")) {
-            }
-        } else {
-            doEscalation(MediaStore.createWriteRequest(mContentResolver, Arrays.asList(red)),
-                    false /* allowAccess */, shouldCheckDialogShownValue, isDialogShownExpected);
-            try (ParcelFileDescriptor pfd = mContentResolver.openFileDescriptor(red, "w")) {
-                fail("Expected write access to be blocked");
-            } catch (SecurityException expected) {
-            }
+        try (ParcelFileDescriptor pfd = mContentResolver.openFileDescriptor(red, "w")) {
         }
-    }
-
-    @Test
-    public void testMediaEscalationWithDenied_RequestUnTrash() throws Exception {
-        doMediaEscalationWithDenied_RequestUnTrash(MediaStorageTest::createAudio);
-        doMediaEscalationWithDenied_RequestUnTrash(MediaStorageTest::createVideo);
-        doMediaEscalationWithDenied_RequestUnTrash(MediaStorageTest::createImage);
-        doMediaEscalationWithDenied_RequestUnTrash(MediaStorageTest::createPlaylist);
-        doMediaEscalationWithDenied_RequestUnTrash(MediaStorageTest::createSubtitle);
-    }
-
-    private void doMediaEscalationWithDenied_RequestUnTrash(Callable<Uri> create) throws Exception {
-        final Uri red = create.call();
-        clearMediaOwner(red, mUserId);
-
-        assertEquals("0", queryForSingleColumn(red, MediaColumns.IS_TRASHED));
-        doEscalation(
-                MediaStore.createTrashRequest(mContentResolver, Arrays.asList(red), true));
-        assertEquals("1", queryForSingleColumn(red, MediaColumns.IS_TRASHED));
-        doEscalation(MediaStore.createTrashRequest(mContentResolver, Arrays.asList(red), false),
-                false /* allowAccess */, false /* shouldCheckDialogShownValue */,
-                false /* isDialogShownExpected */);
-        assertEquals("1", queryForSingleColumn(red, MediaColumns.IS_TRASHED));
     }
 
     @Test
     public void testMediaEscalation_RequestTrash() throws Exception {
-        doMediaEscalation_RequestTrash(true /* allowAccess */,
-                false /* shouldCheckDialogShownValue */, false /* isDialogShownExpected */);
+        doMediaEscalation_RequestTrash(MediaStorageTest::createAudio);
+        doMediaEscalation_RequestTrash(MediaStorageTest::createVideo);
+        doMediaEscalation_RequestTrash(MediaStorageTest::createImage);
+        doMediaEscalation_RequestTrash(MediaStorageTest::createPlaylist);
+        doMediaEscalation_RequestTrash(MediaStorageTest::createSubtitle);
     }
 
-    @Test
-    public void testMediaEscalationWithDenied_RequestTrash() throws Exception {
-        doMediaEscalation_RequestTrash(false /* allowAccess */,
-                false /* shouldCheckDialogShownValue */, false /* isDialogShownExpected */);
-    }
-
-    @Test
-    public void testMediaEscalation_RequestTrash_showConfirmDialog() throws Exception {
-        doMediaEscalation_RequestTrash(true /* allowAccess */,
-                true /* shouldCheckDialogShownValue */, true /* isDialogShownExpected */);
-    }
-
-    @Test
-    public void testMediaEscalation_RequestTrash_notShowConfirmDialog() throws Exception {
-        doMediaEscalation_RequestTrash(true /* allowAccess */,
-                true /* shouldCheckDialogShownValue */, false /* isDialogShownExpected */);
-    }
-
-    private void doMediaEscalation_RequestTrash(boolean allowAccess,
-            boolean shouldCheckDialogShownValue, boolean isDialogShownExpected) throws Exception {
-        doMediaEscalation_RequestTrash(MediaStorageTest::createAudio, allowAccess,
-                shouldCheckDialogShownValue, isDialogShownExpected);
-        doMediaEscalation_RequestTrash(MediaStorageTest::createVideo, allowAccess,
-                shouldCheckDialogShownValue, isDialogShownExpected);
-        doMediaEscalation_RequestTrash(MediaStorageTest::createImage, allowAccess,
-                shouldCheckDialogShownValue, isDialogShownExpected);
-        doMediaEscalation_RequestTrash(MediaStorageTest::createPlaylist, allowAccess,
-                shouldCheckDialogShownValue, isDialogShownExpected);
-        doMediaEscalation_RequestTrash(MediaStorageTest::createSubtitle, allowAccess,
-                shouldCheckDialogShownValue, isDialogShownExpected);
-    }
-
-    private void doMediaEscalation_RequestTrash(Callable<Uri> create, boolean allowAccess,
-            boolean shouldCheckDialogShownValue, boolean isDialogShownExpected) throws Exception {
+    private void doMediaEscalation_RequestTrash(Callable<Uri> create) throws Exception {
         final Uri red = create.call();
         clearMediaOwner(red, mUserId);
 
         assertEquals("0", queryForSingleColumn(red, MediaColumns.IS_TRASHED));
-
-        if (allowAccess) {
-            doEscalation(MediaStore.createTrashRequest(mContentResolver, Arrays.asList(red), true),
-                    true /* allowAccess */, shouldCheckDialogShownValue, isDialogShownExpected);
-            assertEquals("1", queryForSingleColumn(red, MediaColumns.IS_TRASHED));
-            doEscalation(MediaStore.createTrashRequest(mContentResolver, Arrays.asList(red), false),
-                    true /* allowAccess */, shouldCheckDialogShownValue, isDialogShownExpected);
-            assertEquals("0", queryForSingleColumn(red, MediaColumns.IS_TRASHED));
-        } else {
-            doEscalation(MediaStore.createTrashRequest(mContentResolver, Arrays.asList(red), true),
-                    false /* allowAccess */, shouldCheckDialogShownValue, isDialogShownExpected);
-            assertEquals("0", queryForSingleColumn(red, MediaColumns.IS_TRASHED));
-        }
+        doEscalation(MediaStore.createTrashRequest(mContentResolver, Arrays.asList(red), true));
+        assertEquals("1", queryForSingleColumn(red, MediaColumns.IS_TRASHED));
+        doEscalation(MediaStore.createTrashRequest(mContentResolver, Arrays.asList(red), false));
+        assertEquals("0", queryForSingleColumn(red, MediaColumns.IS_TRASHED));
     }
 
     @Test
@@ -693,63 +515,23 @@ public class MediaStorageTest {
 
     @Test
     public void testMediaEscalation_RequestDelete() throws Exception {
-        doMediaEscalation_RequestDelete(true /* allowAccess */,
-                false /* shouldCheckDialogShownValue */, false /* isDialogShownExpected */);
+        doMediaEscalation_RequestDelete(MediaStorageTest::createAudio);
+        doMediaEscalation_RequestDelete(MediaStorageTest::createVideo);
+        doMediaEscalation_RequestDelete(MediaStorageTest::createImage);
+        doMediaEscalation_RequestDelete(MediaStorageTest::createPlaylist);
+        doMediaEscalation_RequestDelete(MediaStorageTest::createSubtitle);
     }
 
-    @Test
-    public void testMediaEscalationWithDenied_RequestDelete() throws Exception {
-        doMediaEscalation_RequestDelete(false /* allowAccess */,
-                false /* shouldCheckDialogShownValue */, false /* isDialogShownExpected */);
-    }
-
-    @Test
-    public void testMediaEscalation_RequestDelete_showConfirmDialog() throws Exception {
-        doMediaEscalation_RequestDelete(true /* allowAccess */,
-                true /* shouldCheckDialogShownValue */, true /* isDialogShownExpected */);
-    }
-
-    @Test
-    public void testMediaEscalation_RequestDelete_notShowConfirmDialog() throws Exception {
-        doMediaEscalation_RequestDelete(true /* allowAccess */,
-                true /* shouldCheckDialogShownValue */, false /* isDialogShownExpected */);
-    }
-
-    private void doMediaEscalation_RequestDelete(boolean allowAccess,
-            boolean shouldCheckDialogShownValue, boolean isDialogShownExpected) throws Exception {
-        doMediaEscalation_RequestDelete(MediaStorageTest::createAudio, allowAccess,
-                shouldCheckDialogShownValue, isDialogShownExpected);
-        doMediaEscalation_RequestDelete(MediaStorageTest::createVideo, allowAccess,
-                shouldCheckDialogShownValue, isDialogShownExpected);
-        doMediaEscalation_RequestDelete(MediaStorageTest::createImage, allowAccess,
-                shouldCheckDialogShownValue, isDialogShownExpected);
-        doMediaEscalation_RequestDelete(MediaStorageTest::createPlaylist, allowAccess,
-                shouldCheckDialogShownValue, isDialogShownExpected);
-        doMediaEscalation_RequestDelete(MediaStorageTest::createSubtitle, allowAccess,
-                shouldCheckDialogShownValue, isDialogShownExpected);
-    }
-
-    private void doMediaEscalation_RequestDelete(Callable<Uri> create, boolean allowAccess,
-            boolean shouldCheckDialogShownValue, boolean isDialogShownExpected) throws Exception {
+    private void doMediaEscalation_RequestDelete(Callable<Uri> create) throws Exception {
         final Uri red = create.call();
         clearMediaOwner(red, mUserId);
 
         try (Cursor c = mContentResolver.query(red, null, null, null)) {
             assertEquals(1, c.getCount());
         }
-
-        if (allowAccess) {
-            doEscalation(MediaStore.createDeleteRequest(mContentResolver, Arrays.asList(red)),
-                    true /* allowAccess */, shouldCheckDialogShownValue, isDialogShownExpected);
-            try (Cursor c = mContentResolver.query(red, null, null, null)) {
-                assertEquals(0, c.getCount());
-            }
-        } else {
-            doEscalation(MediaStore.createDeleteRequest(mContentResolver, Arrays.asList(red)),
-                    false /* allowAccess */, shouldCheckDialogShownValue, isDialogShownExpected);
-            try (Cursor c = mContentResolver.query(red, null, null, null)) {
-                assertEquals(1, c.getCount());
-            }
+        doEscalation(MediaStore.createDeleteRequest(mContentResolver, Arrays.asList(red)));
+        try (Cursor c = mContentResolver.query(red, null, null, null)) {
+            assertEquals(0, c.getCount());
         }
     }
 
@@ -758,12 +540,6 @@ public class MediaStorageTest {
     }
 
     private void doEscalation(PendingIntent pi) throws Exception {
-        doEscalation(pi, true /* allowAccess */, false /* shouldCheckDialogShownValue */,
-                false /* isDialogShownExpectedExpected */);
-    }
-
-    private void doEscalation(PendingIntent pi, boolean allowAccess,
-            boolean shouldCheckDialogShownValue, boolean isDialogShownExpected) throws Exception {
         // Try launching the action to grant ourselves access
         final Instrumentation inst = InstrumentationRegistry.getInstrumentation();
         final Intent intent = new Intent(inst.getContext(), GetResultActivity.class);
@@ -775,51 +551,22 @@ public class MediaStorageTest {
         device.executeShellCommand("wm dismiss-keyguard");
 
         final GetResultActivity activity = (GetResultActivity) inst.startActivitySync(intent);
-        // Wait for the UI Thread to become idle.
-        inst.waitForIdleSync();
-        activity.clearResult();
         device.waitForIdle();
+        activity.clearResult();
         activity.startIntentSenderForResult(pi.getIntentSender(), 42, null, 0, 0, 0);
 
         device.waitForIdle();
-        final long timeout = 5_000;
-        if (allowAccess) {
-            // Some dialogs may have granted access automatically, so we're willing
-            // to keep rolling forward if we can't find our grant button
-            final UiSelector grant = new UiSelector().textMatches("(?i)Allow");
-            if (isWatch()) {
-                UiScrollable uiScrollable = new UiScrollable(new UiSelector().scrollable(true));
-                try {
-                    uiScrollable.scrollIntoView(grant);
-                } catch (UiObjectNotFoundException e) {
-                    // Scrolling can fail if the UI is not scrollable
-                }
-            }
-            final boolean grantExists = new UiObject(grant).waitForExists(timeout);
 
-            if (shouldCheckDialogShownValue) {
-                assertThat(grantExists).isEqualTo(isDialogShownExpected);
-            }
-
-            if (grantExists) {
-                device.findObject(grant).click();
-            }
-            final GetResultActivity.Result res = activity.getResult();
-            // Verify that we now have access
-            assertEquals(Activity.RESULT_OK, res.resultCode);
-        } else {
-            // fine the Deny button
-            final UiSelector deny = new UiSelector().textMatches("(?i)Deny");
-            final boolean denyExists = new UiObject(deny).waitForExists(timeout);
-
-            assertThat(denyExists).isTrue();
-
-            device.findObject(deny).click();
-
-            final GetResultActivity.Result res = activity.getResult();
-            // Verify that we don't have access
-            assertEquals(Activity.RESULT_CANCELED, res.resultCode);
+        // Some dialogs may have granted access automatically, so we're willing
+        // to keep rolling forward if we can't find our grant button
+        final UiSelector grant = new UiSelector().textMatches("(?i)Allow");
+        if (new UiObject(grant).waitForExists(2_000)) {
+            device.findObject(grant).click();
         }
+
+        // Verify that we now have access
+        final GetResultActivity.Result res = activity.getResult();
+        assertEquals(Activity.RESULT_OK, res.resultCode);
     }
 
     private static Uri createAudio() throws IOException {
@@ -898,7 +645,7 @@ public class MediaStorageTest {
         final ContentResolver resolver = InstrumentationRegistry.getTargetContext()
                 .getContentResolver();
         try (Cursor c = resolver.query(uri, new String[] { column }, null, null)) {
-            assertEquals(1, c.getCount());
+            assertEquals(c.getCount(), 1);
             assertTrue(c.moveToFirst());
             return c.getString(0);
         }
@@ -912,7 +659,7 @@ public class MediaStorageTest {
     }
 
     static File stageFile(File file) throws Exception {
-        // Sometimes file creation fails due to slow permission update, try more times
+        // Sometimes file creation fails due to slow permission update, try more times 
         while(currentAttempt < MAX_NUMBER_OF_ATTEMPT) {
             try {
                 file.getParentFile().mkdirs();
@@ -923,15 +670,7 @@ public class MediaStorageTest {
                 // wait 500ms
                 Thread.sleep(500);
             }
-        }
-        throw new TimeoutException("File creation failed due to slow permission update");
-    }
-
-    private boolean isWatch() {
-        return hasFeature(PackageManager.FEATURE_WATCH);
-    }
-
-    private boolean hasFeature(String feature) {
-        return mContext.getPackageManager().hasSystemFeature(feature);
+        } 
+        return file;
     }
 }

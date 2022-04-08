@@ -59,6 +59,15 @@ device_permissions {
   }
 }
 device_permissions {
+  key: "system-user-whitelisted-app"
+  value {
+    name: "system-user-whitelisted-app"
+    permissions {
+      name: "com.android.settings"
+    }
+  }
+}
+device_permissions {
   key: "permission"
   value {
     name: "permission"

@@ -19,13 +19,15 @@ package android.mediav2.cts;
 import android.media.MediaCodec;
 import android.media.MediaExtractor;
 import android.media.MediaFormat;
+import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.Surface;
+import android.view.SurfaceView;
+import android.view.ViewGroup;
 
 import androidx.test.filters.LargeTest;
 import androidx.test.rule.ActivityTestRule;
 
-import org.junit.Assume;
 import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
@@ -33,22 +35,47 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 @RunWith(Parameterized.class)
 public class CodecDecoderSurfaceTest extends CodecDecoderTestBase {
     private static final String LOG_TAG = CodecDecoderSurfaceTest.class.getSimpleName();
 
     private final String mReconfigFile;
+    private SurfaceView mSurfaceView;
 
-    public CodecDecoderSurfaceTest(String decoder, String mime, String testFile,
-            String reconfigFile) {
-        super(decoder, mime, testFile);
+    public CodecDecoderSurfaceTest(String mime, String testFile, String reconfigFile) {
+        super(mime, testFile);
         mReconfigFile = reconfigFile;
+    }
+
+    private void setScreenParams(int width, int height, boolean noStretch) {
+        ViewGroup.LayoutParams lp = mSurfaceView.getLayoutParams();
+        final DisplayMetrics dm = mActivityRule.getActivity().getResources().getDisplayMetrics();
+        if (noStretch && width <= dm.widthPixels && height <= dm.heightPixels) {
+            lp.width = width;
+            lp.height = height;
+        } else {
+            int a = dm.widthPixels * height / width;
+            if (a <= dm.heightPixels) {
+                lp.width = dm.widthPixels;
+                lp.height = a;
+            } else {
+                lp.width = dm.heightPixels * width / height;
+                lp.height = dm.heightPixels;
+            }
+        }
+        assertTrue(lp.width <= dm.widthPixels);
+        assertTrue(lp.height <= dm.heightPixels);
+        mActivityRule.getActivity().runOnUiThread(() -> mSurfaceView.setLayoutParams(lp));
     }
 
     void dequeueOutput(int bufferIndex, MediaCodec.BufferInfo info) {
@@ -68,8 +95,6 @@ public class CodecDecoderSurfaceTest extends CodecDecoderTestBase {
 
     private void decodeAndSavePts(String file, String decoder, long pts, int mode, int frameLimit)
             throws IOException, InterruptedException {
-        Surface sf = mSurface;
-        mSurface = null; // for reference, decode in non-surface mode
         mOutputBuff = new OutputManager();
         mCodec = MediaCodec.createByCodecName(decoder);
         MediaFormat format = setUpSource(file);
@@ -82,18 +107,46 @@ public class CodecDecoderSurfaceTest extends CodecDecoderTestBase {
         mCodec.stop();
         mCodec.release();
         mExtractor.release();
-        mSurface = sf; // restore surface
     }
 
     @Rule
     public ActivityTestRule<CodecTestActivity> mActivityRule =
             new ActivityTestRule<>(CodecTestActivity.class);
 
-    @Parameterized.Parameters(name = "{index}({0}_{1})")
+    public void setUpSurface() {
+        CodecTestActivity activity = mActivityRule.getActivity();
+        mSurfaceView = activity.findViewById(R.id.surface);
+        mSurface = mSurfaceView.getHolder().getSurface();
+    }
+
+    public void tearDownSurface() {
+        if (mSurface != null) {
+            mSurface.release();
+            mSurface = null;
+        }
+    }
+
+    @Parameterized.Parameters(name = "{index}({0})")
     public static Collection<Object[]> input() {
-        final boolean isEncoder = false;
-        final boolean needAudio = false;
-        final boolean needVideo = true;
+        Set<String> list = new HashSet<>();
+        if (isHandheld() || isTv() || isAutomotive()) {
+            // sec 2.2.2, 2.3.2, 2.5.2
+            list.add(MediaFormat.MIMETYPE_VIDEO_AVC);
+            list.add(MediaFormat.MIMETYPE_VIDEO_MPEG4);
+            list.add(MediaFormat.MIMETYPE_VIDEO_H263);
+            list.add(MediaFormat.MIMETYPE_VIDEO_VP8);
+            list.add(MediaFormat.MIMETYPE_VIDEO_VP9);
+        }
+        if (isHandheld()) {
+            // sec 2.2.2
+            list.add(MediaFormat.MIMETYPE_VIDEO_HEVC);
+        }
+        if (isTv()) {
+            // sec 2.3.2
+            list.add(MediaFormat.MIMETYPE_VIDEO_HEVC);
+            list.add(MediaFormat.MIMETYPE_VIDEO_MPEG2);
+        }
+        ArrayList<String> cddRequiredMimeList = new ArrayList<>(list);
         final List<Object[]> exhaustiveArgsList = Arrays.asList(new Object[][]{
                 {MediaFormat.MIMETYPE_VIDEO_MPEG2, "bbb_340x280_768kbps_30fps_mpeg2.mp4",
                         "bbb_520x390_1mbps_30fps_mpeg2.mp4"},
@@ -126,11 +179,8 @@ public class CodecDecoderSurfaceTest extends CodecDecoderTestBase {
                         "bbb_520x390_1mbps_30fps_split_non_display_frame_vp9.webm"},
                 {MediaFormat.MIMETYPE_VIDEO_AV1, "bbb_340x280_768kbps_30fps_av1.mp4",
                         "bbb_520x390_1mbps_30fps_av1.mp4"},
-                {MediaFormat.MIMETYPE_VIDEO_AV1,
-                        "bikes_qcif_color_bt2020_smpte2086Hlg_bt2020Ncl_fr_av1.mp4",
-                        "bbb_520x390_1mbps_30fps_av1.mp4"},
         });
-        return prepareParamList(exhaustiveArgsList, isEncoder, needAudio, needVideo, true);
+        return prepareParamList(cddRequiredMimeList, exhaustiveArgsList, false);
     }
 
     /**
@@ -140,28 +190,27 @@ public class CodecDecoderSurfaceTest extends CodecDecoderTestBase {
     @LargeTest
     @Test(timeout = PER_TEST_TIMEOUT_LARGE_TEST_MS)
     public void testSimpleDecodeToSurface() throws IOException, InterruptedException {
+        ArrayList<String> listOfDecoders = selectCodecs(mMime, null, null, false);
+        if (listOfDecoders.isEmpty()) {
+            fail("no suitable codecs found for mime: " + mMime);
+        }
         boolean[] boolStates = {true, false};
         OutputManager ref;
         OutputManager test = new OutputManager();
         final long pts = 0;
         final int mode = MediaExtractor.SEEK_TO_CLOSEST_SYNC;
-        CodecTestActivity activity = mActivityRule.getActivity();
-        setUpSurface(activity);
-        {
-            decodeAndSavePts(mTestFile, mCodecName, pts, mode, Integer.MAX_VALUE);
+        for (String decoder : listOfDecoders) {
+            decodeAndSavePts(mTestFile, decoder, pts, mode, Integer.MAX_VALUE);
             ref = mOutputBuff;
-            // TODO: Timestamps for deinterlaced content are under review. (E.g. can decoders
-            // produce multiple progressive frames?) For now, do not verify timestamps.
-            if (!mIsInterlaced) {
-                assertTrue("input pts list and output pts list are not identical",
-                        ref.isOutPtsListIdenticalToInpPtsList(false));
-            }
+            assertTrue("input pts list and output pts list are not identical",
+                    ref.isOutPtsListIdenticalToInpPtsList(false));
             MediaFormat format = setUpSource(mTestFile);
-            mCodec = MediaCodec.createByCodecName(mCodecName);
-            activity.setScreenParams(getWidth(format), getHeight(format), true);
+            mCodec = MediaCodec.createByCodecName(decoder);
+            setUpSurface();
+            setScreenParams(getWidth(format), getHeight(format), true);
             for (boolean isAsync : boolStates) {
-                String log = String.format("codec: %s, file: %s, mode: %s:: ", mCodecName,
-                        mTestFile, (isAsync ? "async" : "sync"));
+                String log = String.format("codec: %s, file: %s, mode: %s:: ", decoder, mTestFile,
+                        (isAsync ? "async" : "sync"));
                 mOutputBuff = test;
                 mOutputBuff.reset();
                 mExtractor.seekTo(pts, mode);
@@ -176,16 +225,11 @@ public class CodecDecoderSurfaceTest extends CodecDecoderTestBase {
                 assertTrue(log + " unexpected error", !mAsyncHandle.hasSeenError());
                 assertTrue(log + "no input sent", 0 != mInputCount);
                 assertTrue(log + "output received", 0 != mOutputCount);
-                // TODO: Timestamps for deinterlaced content are under review. (E.g. can decoders
-                // produce multiple progressive frames?) For now, do not verify timestamps.
-                if (mIsInterlaced) {
-                    assertTrue(log + "decoder output is flaky", ref.equalsInterlaced(test));
-                } else {
-                    assertTrue(log + "decoder output is flaky", ref.equals(test));
-                }
+                assertTrue(log + "decoder output is flaky", ref.equals(test));
             }
             mCodec.release();
             mExtractor.release();
+            mSurface = null;
         }
         tearDownSurface();
     }
@@ -200,6 +244,10 @@ public class CodecDecoderSurfaceTest extends CodecDecoderTestBase {
     public void testFlush() throws IOException, InterruptedException {
         MediaFormat format = setUpSource(mTestFile);
         mExtractor.release();
+        ArrayList<String> listOfDecoders = selectCodecs(mMime, null, null, false);
+        if (listOfDecoders.isEmpty()) {
+            fail("no suitable codecs found for mime: " + mMime);
+        }
         mCsdBuffers.clear();
         for (int i = 0; ; i++) {
             String csdKey = "csd-" + i;
@@ -211,23 +259,18 @@ public class CodecDecoderSurfaceTest extends CodecDecoderTestBase {
         final int mode = MediaExtractor.SEEK_TO_CLOSEST_SYNC;
         boolean[] boolStates = {true, false};
         OutputManager test = new OutputManager();
-        CodecTestActivity activity = mActivityRule.getActivity();
-        setUpSurface(activity);
-        {
-            decodeAndSavePts(mTestFile, mCodecName, pts, mode, Integer.MAX_VALUE);
+        for (String decoder : listOfDecoders) {
+            decodeAndSavePts(mTestFile, decoder, pts, mode, Integer.MAX_VALUE);
             OutputManager ref = mOutputBuff;
-            // TODO: Timestamps for deinterlaced content are under review. (E.g. can decoders
-            // produce multiple progressive frames?) For now, do not verify timestamps.
-            if (!mIsInterlaced) {
-                assertTrue("input pts list and output pts list are not identical",
-                        ref.isOutPtsListIdenticalToInpPtsList(false));
-            }
+            assertTrue("input pts list and output pts list are not identical",
+                    ref.isOutPtsListIdenticalToInpPtsList(false));
             mOutputBuff = test;
             setUpSource(mTestFile);
-            mCodec = MediaCodec.createByCodecName(mCodecName);
-            activity.setScreenParams(getWidth(format), getHeight(format), false);
+            mCodec = MediaCodec.createByCodecName(decoder);
+            setUpSurface();
+            setScreenParams(getWidth(format), getHeight(format), false);
             for (boolean isAsync : boolStates) {
-                String log = String.format("decoder: %s, input file: %s, mode: %s:: ", mCodecName,
+                String log = String.format("decoder: %s, input file: %s, mode: %s:: ", decoder,
                         mTestFile, (isAsync ? "async" : "sync"));
                 mExtractor.seekTo(0, mode);
                 configureCodec(format, isAsync, true, false);
@@ -260,13 +303,7 @@ public class CodecDecoderSurfaceTest extends CodecDecoderTestBase {
                 assertTrue(log + " unexpected error", !mAsyncHandle.hasSeenError());
                 assertTrue(log + "no input sent", 0 != mInputCount);
                 assertTrue(log + "output received", 0 != mOutputCount);
-                // TODO: Timestamps for deinterlaced content are under review. (E.g. can decoders
-                // produce multiple progressive frames?) For now, do not verify timestamps.
-                if (mIsInterlaced) {
-                    assertTrue(log + "decoder output is flaky", ref.equalsInterlaced(test));
-                } else {
-                    assertTrue(log + "decoder output is flaky", ref.equals(test));
-                }
+                assertTrue(log + "decoder output is flaky", ref.equals(test));
 
                 /* test flush in eos state */
                 flushCodec();
@@ -282,16 +319,11 @@ public class CodecDecoderSurfaceTest extends CodecDecoderTestBase {
                 assertTrue(log + " unexpected error", !mAsyncHandle.hasSeenError());
                 assertTrue(log + "no input sent", 0 != mInputCount);
                 assertTrue(log + "output received", 0 != mOutputCount);
-                // TODO: Timestamps for deinterlaced content are under review. (E.g. can decoders
-                // produce multiple progressive frames?) For now, do not verify timestamps.
-                if (mIsInterlaced) {
-                    assertTrue(log + "decoder output is flaky", ref.equalsInterlaced(test));
-                } else {
-                    assertTrue(log + "decoder output is flaky", ref.equals(test));
-                }
+                assertTrue(log + "decoder output is flaky", ref.equals(test));
             }
             mCodec.release();
             mExtractor.release();
+            mSurface = null;
         }
         tearDownSurface();
     }
@@ -300,42 +332,38 @@ public class CodecDecoderSurfaceTest extends CodecDecoderTestBase {
      * Tests reconfigure when codec is in sync and async mode with surface. In these scenarios,
      * Timestamp and the ordering is verified.
      */
+    @Ignore("TODO(b/148523403)")
     @LargeTest
     @Test(timeout = PER_TEST_TIMEOUT_LARGE_TEST_MS)
     public void testReconfigure() throws IOException, InterruptedException {
-        Assume.assumeTrue("Test needs Android 11", IS_AT_LEAST_R);
-
         MediaFormat format = setUpSource(mTestFile);
         mExtractor.release();
         MediaFormat newFormat = setUpSource(mReconfigFile);
         mExtractor.release();
+        ArrayList<String> listOfDecoders = selectCodecs(mMime, null, null, false);
+        if (listOfDecoders.isEmpty()) {
+            fail("no suitable codecs found for mime: " + mMime);
+        }
         final long pts = 500000;
         final int mode = MediaExtractor.SEEK_TO_CLOSEST_SYNC;
         boolean[] boolStates = {true, false};
         OutputManager test = new OutputManager();
-        CodecTestActivity activity = mActivityRule.getActivity();
-        setUpSurface(activity);
-        {
-            decodeAndSavePts(mTestFile, mCodecName, pts, mode, Integer.MAX_VALUE);
+        for (String decoder : listOfDecoders) {
+            decodeAndSavePts(mTestFile, decoder, pts, mode, Integer.MAX_VALUE);
             OutputManager ref = mOutputBuff;
-            if (!mIsInterlaced) {
-                assertTrue("input pts list and reference pts list are not identical",
-                        ref.isOutPtsListIdenticalToInpPtsList(false));
-            }
-            decodeAndSavePts(mReconfigFile, mCodecName, pts, mode, Integer.MAX_VALUE);
+            decodeAndSavePts(mReconfigFile, decoder, pts, mode, Integer.MAX_VALUE);
             OutputManager configRef = mOutputBuff;
-            // TODO: Timestamps for deinterlaced content are under review. (E.g. can decoders
-            // produce multiple progressive frames?) For now, do not verify timestamps.
-            if (!mIsInterlaced) {
-                assertTrue("input pts list and reconfig ref output pts list are not identical",
-                        configRef.isOutPtsListIdenticalToInpPtsList(false));
-            }
+            assertTrue("input pts list and reference pts list are not identical",
+                    ref.isOutPtsListIdenticalToInpPtsList(false));
+            assertTrue("input pts list and reconfig ref output pts list are not identical",
+                    configRef.isOutPtsListIdenticalToInpPtsList(false));
             mOutputBuff = test;
-            mCodec = MediaCodec.createByCodecName(mCodecName);
-            activity.setScreenParams(getWidth(format), getHeight(format), false);
+            mCodec = MediaCodec.createByCodecName(decoder);
+            setUpSurface();
+            setScreenParams(getWidth(format), getHeight(format), false);
             for (boolean isAsync : boolStates) {
                 setUpSource(mTestFile);
-                String log = String.format("decoder: %s, input file: %s, mode: %s:: ", mCodecName,
+                String log = String.format("decoder: %s, input file: %s, mode: %s:: ", decoder,
                         mTestFile, (isAsync ? "async" : "sync"));
                 mExtractor.seekTo(0, MediaExtractor.SEEK_TO_CLOSEST_SYNC);
                 configureCodec(format, isAsync, true, false);
@@ -363,13 +391,8 @@ public class CodecDecoderSurfaceTest extends CodecDecoderTestBase {
                 assertTrue(log + " unexpected error", !mAsyncHandle.hasSeenError());
                 assertTrue(log + "no input sent", 0 != mInputCount);
                 assertTrue(log + "output received", 0 != mOutputCount);
-                // TODO: Timestamps for deinterlaced content are under review. (E.g. can decoders
-                // produce multiple progressive frames?) For now, do not verify timestamps.
-                if (mIsInterlaced) {
-                    assertTrue(log + "decoder output is flaky", ref.equalsInterlaced(test));
-                } else {
-                    assertTrue(log + "decoder output is flaky", ref.equals(test));
-                }
+                assertTrue(log + "decoder output is flaky", ref.equals(test));
+
                 /* test reconfigure codec at eos state */
                 reConfigureCodec(format, !isAsync, false, false);
                 mCodec.start();
@@ -384,20 +407,14 @@ public class CodecDecoderSurfaceTest extends CodecDecoderTestBase {
                 assertTrue(log + " unexpected error", !mAsyncHandle.hasSeenError());
                 assertTrue(log + "no input sent", 0 != mInputCount);
                 assertTrue(log + "output received", 0 != mOutputCount);
-                // TODO: Timestamps for deinterlaced content are under review. (E.g. can decoders
-                // produce multiple progressive frames?) For now, do not verify timestamps.
-                if (mIsInterlaced) {
-                    assertTrue(log + "decoder output is flaky", ref.equalsInterlaced(test));
-                } else {
-                    assertTrue(log + "decoder output is flaky", ref.equals(test));
-                }
+                assertTrue(log + "decoder output is flaky", ref.equals(test));
                 mExtractor.release();
 
                 /* test reconfigure codec for new file */
                 setUpSource(mReconfigFile);
-                log = String.format("decoder: %s, input file: %s, mode: %s:: ", mCodecName,
+                log = String.format("decoder: %s, input file: %s, mode: %s:: ", decoder,
                         mReconfigFile, (isAsync ? "async" : "sync"));
-                activity.setScreenParams(getWidth(newFormat), getHeight(newFormat), true);
+                setScreenParams(getWidth(newFormat), getHeight(newFormat), true);
                 reConfigureCodec(newFormat, isAsync, false, false);
                 mCodec.start();
                 test.reset();
@@ -411,34 +428,32 @@ public class CodecDecoderSurfaceTest extends CodecDecoderTestBase {
                 assertTrue(log + " unexpected error", !mAsyncHandle.hasSeenError());
                 assertTrue(log + "no input sent", 0 != mInputCount);
                 assertTrue(log + "output received", 0 != mOutputCount);
-                // TODO: Timestamps for deinterlaced content are under review. (E.g. can decoders
-                // produce multiple progressive frames?) For now, do not verify timestamps.
-                if (mIsInterlaced) {
-                    assertTrue(log + "decoder output is flaky", configRef.equalsInterlaced(test));
-                } else {
-                    assertTrue(log + "decoder output is flaky", configRef.equals(test));
-                }
+                assertTrue(log + "decoder output is flaky", configRef.equals(test));
                 mExtractor.release();
             }
             mCodec.release();
+            mSurface = null;
         }
         tearDownSurface();
     }
 
     private native boolean nativeTestSimpleDecode(String decoder, Surface surface, String mime,
-            String testFile, String refFile, float rmsError, long checksum);
+            String testFile, String refFile, float rmsError);
 
     @LargeTest
     @Test(timeout = PER_TEST_TIMEOUT_LARGE_TEST_MS)
-    public void testSimpleDecodeToSurfaceNative() throws IOException, InterruptedException {
+    public void testSimpleDecodeToSurfaceNative() throws IOException {
+        ArrayList<String> listOfDecoders = selectCodecs(mMime, null, null, false);
+        if (listOfDecoders.isEmpty()) {
+            fail("no suitable codecs found for mime: " + mMime);
+        }
         MediaFormat format = setUpSource(mTestFile);
         mExtractor.release();
-        CodecTestActivity activity = mActivityRule.getActivity();
-        setUpSurface(activity);
-        activity.setScreenParams(getWidth(format), getHeight(format), false);
-        {
-            assertTrue(nativeTestSimpleDecode(mCodecName, mSurface, mMime, mInpPrefix + mTestFile,
-                    mInpPrefix + mReconfigFile, -1.0f, 0L));
+        setUpSurface();
+        setScreenParams(getWidth(format), getHeight(format), false);
+        for (String decoder : listOfDecoders) {
+            assertTrue(nativeTestSimpleDecode(decoder, mSurface, mMime, mInpPrefix + mTestFile,
+                    mInpPrefix + mReconfigFile, -1.0f));
         }
         tearDownSurface();
     }
@@ -448,14 +463,17 @@ public class CodecDecoderSurfaceTest extends CodecDecoderTestBase {
 
     @LargeTest
     @Test(timeout = PER_TEST_TIMEOUT_LARGE_TEST_MS)
-    public void testFlushNative() throws IOException, InterruptedException {
+    public void testFlushNative() throws IOException {
+        ArrayList<String> listOfDecoders = selectCodecs(mMime, null, null, false);
+        if (listOfDecoders.isEmpty()) {
+            fail("no suitable codecs found for mime: " + mMime);
+        }
         MediaFormat format = setUpSource(mTestFile);
         mExtractor.release();
-        CodecTestActivity activity = mActivityRule.getActivity();
-        setUpSurface(activity);
-        activity.setScreenParams(getWidth(format), getHeight(format), true);
-        {
-            assertTrue(nativeTestFlush(mCodecName, mSurface, mMime, mInpPrefix + mTestFile));
+        setUpSurface();
+        setScreenParams(getWidth(format), getHeight(format), true);
+        for (String decoder : listOfDecoders) {
+            assertTrue(nativeTestFlush(decoder, mSurface, mMime, mInpPrefix + mTestFile));
         }
         tearDownSurface();
     }

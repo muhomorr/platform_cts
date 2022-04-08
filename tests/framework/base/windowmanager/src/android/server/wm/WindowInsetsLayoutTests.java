@@ -16,7 +16,6 @@
 
 package android.server.wm;
 
-import static android.app.WindowConfiguration.WINDOWING_MODE_FULLSCREEN;
 import static android.view.ViewGroup.LayoutParams.MATCH_PARENT;
 import static android.view.WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE;
 import static android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS;
@@ -27,21 +26,20 @@ import static androidx.test.InstrumentationRegistry.getInstrumentation;
 import static org.junit.Assert.assertEquals;
 
 import android.graphics.Insets;
-import android.graphics.Rect;
-import android.os.Bundle;
+import android.graphics.Point;
 import android.platform.test.annotations.Presubmit;
+import android.view.Display;
 import android.view.View;
 import android.view.WindowInsets;
 import android.view.WindowInsets.Side;
 import android.view.WindowInsets.Type;
 import android.view.WindowManager;
-import android.view.WindowMetrics;
 
-import androidx.annotation.Nullable;
 import androidx.test.filters.FlakyTest;
 
 import com.android.compatibility.common.util.PollingCheck;
 
+import org.junit.Ignore;
 import org.junit.Test;
 
 /**
@@ -59,16 +57,14 @@ public class WindowInsetsLayoutTests extends WindowManagerTestBase {
 
     @Test
     public void testSetFitInsetsTypes() {
-        // Start the Activity in fullscreen windowing mode for its bounds to match display bounds.
-        final TestActivity activity =
-                startActivityInWindowingMode(TestActivity.class, WINDOWING_MODE_FULLSCREEN);
+        final TestActivity activity = startActivity(TestActivity.class);
 
         // Make sure the main window has been laid out.
         final View mainWindowRoot = activity.getWindow().getDecorView();
         PollingCheck.waitFor(TIMEOUT, () -> mainWindowRoot.getWidth() > 0);
 
         getInstrumentation().runOnMainSync(() -> {
-            activity.assertMatchesWindowBounds();
+            activity.assertMatchDisplay();
         });
 
         testSetFitInsetsTypesInner(Type.statusBars(), activity, mainWindowRoot);
@@ -103,16 +99,14 @@ public class WindowInsetsLayoutTests extends WindowManagerTestBase {
 
     @Test
     public void testSetFitInsetsSides() {
-        // Start the Activity in fullscreen windowing mode for its bounds to match display bounds.
-        final TestActivity activity =
-                startActivityInWindowingMode(TestActivity.class, WINDOWING_MODE_FULLSCREEN);
+        final TestActivity activity = startActivity(TestActivity.class);
 
         // Make sure the main window has been laid out.
         final View mainWindowRoot = activity.getWindow().getDecorView();
         PollingCheck.waitFor(TIMEOUT, () -> mainWindowRoot.getWidth() > 0);
 
         getInstrumentation().runOnMainSync(() -> {
-            activity.assertMatchesWindowBounds();
+            activity.assertMatchDisplay();
         });
 
         testSetFitInsetsSidesInner(Side.LEFT, activity, mainWindowRoot);
@@ -149,9 +143,7 @@ public class WindowInsetsLayoutTests extends WindowManagerTestBase {
 
     @Test
     public void testSetFitInsetsIgnoringVisibility() {
-        // Start the Activity in fullscreen windowing mode for its bounds to match display bounds.
-        final TestActivity activity =
-                startActivityInWindowingMode(TestActivity.class, WINDOWING_MODE_FULLSCREEN);
+        final TestActivity activity = startActivity(TestActivity.class);
 
         // Make sure the main window has been laid out.
         final View mainWindowRoot = activity.getWindow().getDecorView();
@@ -163,7 +155,7 @@ public class WindowInsetsLayoutTests extends WindowManagerTestBase {
         final int[] locationAndSize2 = new int[4];
 
         getInstrumentation().runOnMainSync(() -> {
-            activity.assertMatchesWindowBounds();
+            activity.assertMatchDisplay();
             activity.addChildWindow(types, sides, false);
         });
 
@@ -202,14 +194,6 @@ public class WindowInsetsLayoutTests extends WindowManagerTestBase {
 
         private View mChildWindowRoot;
 
-        @Override
-        protected void onCreate(@Nullable Bundle savedInstanceState) {
-            super.onCreate(savedInstanceState);
-            WindowManager.LayoutParams lp = getWindow().getAttributes();
-            lp.layoutInDisplayCutoutMode = LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS;
-            getWindow().setAttributes(lp);
-        }
-
         void addChildWindow(int types, int sides, boolean ignoreVis) {
             final WindowManager.LayoutParams attrs = new WindowManager.LayoutParams();
             attrs.type = TYPE_APPLICATION_PANEL;
@@ -232,16 +216,17 @@ public class WindowInsetsLayoutTests extends WindowManagerTestBase {
             return mChildWindowRoot;
         }
 
-        void assertMatchesWindowBounds() {
+        void assertMatchDisplay() {
             final View rootView = getWindow().getDecorView();
-            final Rect windowMetricsBounds =
-                    getWindowManager().getCurrentWindowMetrics().getBounds();
-            assertEquals(windowMetricsBounds.width(), rootView.getWidth());
-            assertEquals(windowMetricsBounds.height(), rootView.getHeight());
+            final Display display = rootView.getDisplay();
+            final Point size = new Point();
+            display.getRealSize(size);
+            assertEquals(size.x, rootView.getWidth());
+            assertEquals(size.y, rootView.getHeight());
             final int[] locationOnScreen = new int[2];
             rootView.getLocationOnScreen(locationOnScreen);
-            assertEquals(locationOnScreen[0] /* expected x */, windowMetricsBounds.left);
-            assertEquals(locationOnScreen[1] /* expected y */, windowMetricsBounds.top);
+            assertEquals(0 /* expected x */, locationOnScreen[0]);
+            assertEquals(0 /* expected y */, locationOnScreen[1]);
         }
     }
 }

@@ -16,7 +16,6 @@
 
 package android.permission3.cts
 
-import org.junit.Assume
 import org.junit.Test
 
 /**
@@ -26,8 +25,6 @@ class PermissionUpgradeTest : BaseUsePermissionTest() {
 
     @Test
     fun testUpgradeKeepsPermissions() {
-        Assume.assumeFalse(packageManager.arePermissionsIndividuallyControlled())
-
         installPackage(APP_APK_PATH_22)
 
         approvePermissionReview()
@@ -83,8 +80,6 @@ class PermissionUpgradeTest : BaseUsePermissionTest() {
 
     @Test
     fun testRevokePropagatedOnUpgradeOldToNewModel() {
-        Assume.assumeFalse(packageManager.arePermissionsIndividuallyControlled())
-
         installPackage(APP_APK_PATH_22)
 
         approvePermissionReview()

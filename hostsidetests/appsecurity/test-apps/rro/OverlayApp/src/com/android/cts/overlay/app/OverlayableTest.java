@@ -16,7 +16,6 @@
 package com.android.cts.overlay.app;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
 import android.content.Context;
@@ -26,7 +25,6 @@ import androidx.test.InstrumentationRegistry;
 import androidx.test.runner.AndroidJUnit4;
 
 import java.io.InputStreamReader;
-import java.util.Objects;
 import java.util.concurrent.Executor;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
@@ -69,11 +67,10 @@ public class OverlayableTest {
         return InstrumentationRegistry.getTargetContext().createPackageContext(TARGET_PACKAGE, 0);
     }
 
-    private void assertOverlayEnabled(String overlayPackage) throws Exception {
+    private void assertOverlayEnabled(Context context, String overlayPackage) throws Exception {
         // Wait for the overlay changes to propagate
         FutureTask<Boolean> task = new FutureTask<>(() -> {
             while (true) {
-                Context context = getTargetContext();
                 for (String path : context.getAssets().getApkPaths()) {
                     if (path.contains(overlayPackage)) {
                         return true;
@@ -88,8 +85,8 @@ public class OverlayableTest {
 
     @Test
     public void testOverlayPolicyAll() throws Exception {
-        assertOverlayEnabled(POLICY_ALL_PACKAGE);
         Context context = getTargetContext();
+        assertOverlayEnabled(context, POLICY_ALL_PACKAGE);
 
         String result = context.getResources().getString(R.string.not_overlayable);
         assertEquals(NOT_OVERLAID, result);
@@ -114,22 +111,9 @@ public class OverlayableTest {
     }
 
     @Test
-    public void testOverlayCodeNotLoaded() throws Exception {
-        assertOverlayEnabled(POLICY_ALL_PACKAGE);
-        Context context = getTargetContext();
-
-        String result = context.getResources().getString(R.string.policy_public);
-        assertEquals(OVERLAID, result);
-
-        final String overlayClassName = "com.android.cts.overlay.all.InjectedOverlay";
-        assertThrows(ClassNotFoundException.class, () -> Objects.requireNonNull(
-                getClass().getClassLoader()).loadClass(overlayClassName));
-    }
-
-    @Test
     public void testSameSignatureNoOverlayableSucceeds() throws Exception {
-        assertOverlayEnabled(POLICY_ALL_PACKAGE);
         Context context = getTargetContext();
+        assertOverlayEnabled(context, POLICY_ALL_PACKAGE);
 
         String result = context.getResources().getString(R.string.not_overlayable);
         assertEquals(OVERLAID, result);

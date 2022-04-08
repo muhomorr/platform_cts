@@ -19,6 +19,7 @@ package com.android.cts.deviceandprofileowner;
 import static com.android.cts.deviceandprofileowner.vpn.VpnTestHelper.TEST_ADDRESS;
 import static com.android.cts.deviceandprofileowner.vpn.VpnTestHelper.VPN_PACKAGE;
 
+import android.net.VpnService;
 import android.os.Bundle;
 import android.os.UserManager;
 import android.util.Log;
@@ -48,7 +49,6 @@ public class AlwaysOnVpnTest extends BaseDeviceAdminTest {
     private static final String RESTRICTION_DONT_ESTABLISH = "vpn.dont_establish";
     private static final String CONNECTIVITY_CHECK_HOST = "connectivitycheck.gstatic.com";
     private static final int VPN_ON_START_TIMEOUT_MS = 5_000;
-    private static final long CONNECTIVITY_WAIT_TIME_NS = 30_000_000_000L;
 
     private String mPackageName;
 
@@ -73,7 +73,7 @@ public class AlwaysOnVpnTest extends BaseDeviceAdminTest {
         assertNull(mDevicePolicyManager.getAlwaysOnVpnPackage(ADMIN_RECEIVER_COMPONENT));
 
         VpnTestHelper.waitForVpn(mContext, VPN_PACKAGE,
-                /* usable */ true, /* lockdown */ true, /* allowlist */ false);
+                /* usable */ true, /* lockdown */ true, /* whitelist */ false);
 
         VpnTestHelper.checkPing(TEST_ADDRESS);
     }
@@ -96,7 +96,7 @@ public class AlwaysOnVpnTest extends BaseDeviceAdminTest {
         mDevicePolicyManager.setApplicationRestrictions(ADMIN_RECEIVER_COMPONENT, VPN_PACKAGE,
                 restrictions);
         VpnTestHelper.waitForVpn(mContext, VPN_PACKAGE,
-                /* usable */ true,  /* lockdown */ true, /* allowlist */ false);
+                /* usable */ true,  /* lockdown */ true, /* whitelist */ false);
         assertTrue(VpnTestHelper.isNetworkVpn(mContext));
     }
 
@@ -106,13 +106,13 @@ public class AlwaysOnVpnTest extends BaseDeviceAdminTest {
         mDevicePolicyManager.setApplicationRestrictions(ADMIN_RECEIVER_COMPONENT, VPN_PACKAGE,
                 restrictions);
         VpnTestHelper.waitForVpn(mContext, VPN_PACKAGE,
-                /* usable */ false,  /* lockdown */ true, /* allowlist */ false);
+                /* usable */ false,  /* lockdown */ true, /* whitelist */ false);
         assertFalse(VpnTestHelper.isNetworkVpn(mContext));
     }
 
-    // Tests that changes to lockdown allowlist are applied correctly.
-    public void testVpnLockdownUpdateAllowlist() throws Exception {
-        waitForConnectivity("VPN is off");
+    // Tests that changes to lockdown whitelist are applied correctly.
+    public void testVpnLockdownUpdateWhitelist() throws Exception {
+        assertConnectivity(true, "VPN is off");
 
         // VPN won't start.
         final Bundle restrictions = new Bundle();
@@ -125,35 +125,31 @@ public class AlwaysOnVpnTest extends BaseDeviceAdminTest {
         final BlockingBroadcastReceiver receiver = VpnTestHelper.registerOnStartReceiver(mContext);
 
         VpnTestHelper.setAlwaysOnVpn(
-                mContext, VPN_PACKAGE, /* lockdown */ false, /* allowlist */ false);
+                mContext, VPN_PACKAGE, /* lockdown */ false, /* whitelist */ false);
         assertConnectivity(true, "VPN service not started, no lockdown");
         assertNotNull(receiver.awaitForBroadcast(VPN_ON_START_TIMEOUT_MS));
 
         VpnTestHelper.setAlwaysOnVpn(
-                mContext, VPN_PACKAGE, /* lockdown */ true, /* allowlist */ false);
-        // Wait for loss of connectivity instead of assertConnectivity(false)
-        // to mitigate flakiness due to asynchronicity.
-        waitForNoConnectivity("VPN in lockdown, service not started");
+                mContext, VPN_PACKAGE, /* lockdown */ true, /* whitelist */ false);
+        assertConnectivity(false, "VPN in lockdown, service not started");
         assertNotNull(receiver.awaitForBroadcast(VPN_ON_START_TIMEOUT_MS));
 
         VpnTestHelper.setAlwaysOnVpn(
-                mContext, VPN_PACKAGE, /* lockdown */ true, /* allowlist */ true);
-        assertConnectivity(true, "VPN in lockdown, service not started, app allowlisted");
+                mContext, VPN_PACKAGE, /* lockdown */ true, /* whitelist */ true);
+        assertConnectivity(true, "VPN in lockdown, service not started, app whitelisted");
         assertNotNull(receiver.awaitForBroadcast(VPN_ON_START_TIMEOUT_MS));
 
         VpnTestHelper.setAlwaysOnVpn(
-                mContext, VPN_PACKAGE, /* lockdown */ true, /* allowlist */ false);
-        // Wait for loss of connectivity instead of assertConnectivity(false)
-        // to mitigate flakiness due to asynchronicity.
-        waitForNoConnectivity("VPN in lockdown, service not started");
+                mContext, VPN_PACKAGE, /* lockdown */ true, /* whitelist */ false);
+        assertConnectivity(false, "VPN in lockdown, service not started");
         assertNotNull(receiver.awaitForBroadcast(VPN_ON_START_TIMEOUT_MS));
 
         receiver.unregisterQuietly();
     }
 
-    // Tests that when VPN comes up, allowlisted app switches over to it.
-    public void testVpnLockdownAllowlistVpnComesUp() throws Exception {
-        waitForConnectivity("VPN is off");
+    // Tests that when VPN comes up, whitelisted app switches over to it.
+    public void testVpnLockdownWhitelistVpnComesUp() throws Exception {
+        assertConnectivity(true, "VPN is off");
 
         // VPN won't start initially.
         final Bundle restrictions = new Bundle();
@@ -166,15 +162,15 @@ public class AlwaysOnVpnTest extends BaseDeviceAdminTest {
         final BlockingBroadcastReceiver receiver = VpnTestHelper.registerOnStartReceiver(mContext);
 
         VpnTestHelper.setAlwaysOnVpn(
-                mContext, VPN_PACKAGE,  /* lockdown */ true, /* allowlist */ true);
-        assertConnectivity(true, "VPN in lockdown, service not started, app allowlisted");
+                mContext, VPN_PACKAGE,  /* lockdown */ true, /* whitelist */ true);
+        assertConnectivity(true, "VPN in lockdown, service not started, app whitelisted");
         assertNotNull(receiver.awaitForBroadcast(VPN_ON_START_TIMEOUT_MS));
 
         // Make VPN workable again and restart.
         mDevicePolicyManager.setApplicationRestrictions(
                 ADMIN_RECEIVER_COMPONENT, VPN_PACKAGE, null);
         VpnTestHelper.waitForVpn(mContext, VPN_PACKAGE,
-                /* usable */ true,  /* lockdown */ true, /* allowlist */ true);
+                /* usable */ true,  /* lockdown */ true, /* whitelist */ true);
 
         // Now we should be on VPN.
         VpnTestHelper.checkPing(TEST_ADDRESS);
@@ -193,38 +189,6 @@ public class AlwaysOnVpnTest extends BaseDeviceAdminTest {
             // success
         }
         assertNull(mDevicePolicyManager.getAlwaysOnVpnPackage(ADMIN_RECEIVER_COMPONENT));
-    }
-
-    private void waitForConnectivity(String message) throws InterruptedException {
-        long deadline = System.nanoTime() + CONNECTIVITY_WAIT_TIME_NS;
-        while (System.nanoTime() < deadline) {
-            try {
-                new Socket(CONNECTIVITY_CHECK_HOST, 80);
-                // Domain resolved, we have connectivity.
-                return;
-            } catch (IOException e) {
-                // Log.e(String, String, Throwable) will swallow UnknownHostException,
-                // so manually print it out here.
-                Log.e(TAG, "No connectivity yet: " + e.toString());
-                Thread.sleep(2000);
-            }
-        }
-        fail("Connectivity isn't available: " + message);
-    }
-
-    private void waitForNoConnectivity(String message) throws Exception {
-        long deadline = System.nanoTime() + CONNECTIVITY_WAIT_TIME_NS;
-        while (System.nanoTime() < deadline) {
-            try {
-                new Socket(CONNECTIVITY_CHECK_HOST, 80);
-                // Domain resolved, we have connectivity.
-            } catch (IOException e) {
-                // No connectivity
-                return;
-            }
-            Thread.sleep(2000);
-        }
-        fail("Connectivity still available after deadline: " + message);
     }
 
     private void assertConnectivity(boolean shouldHaveConnectivity, String message) {

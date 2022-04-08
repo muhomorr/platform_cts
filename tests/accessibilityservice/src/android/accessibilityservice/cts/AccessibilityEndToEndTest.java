@@ -18,7 +18,6 @@ package android.accessibilityservice.cts;
 
 import static android.accessibility.cts.common.InstrumentedAccessibilityService.enableService;
 import static android.accessibilityservice.cts.utils.AccessibilityEventFilterUtils.filterForEventType;
-import static android.accessibilityservice.cts.utils.AccessibilityEventFilterUtils.filterForEventTypeWithAction;
 import static android.accessibilityservice.cts.utils.AccessibilityEventFilterUtils.filterForEventTypeWithResource;
 import static android.accessibilityservice.cts.utils.ActivityLaunchUtils.findWindowByTitle;
 import static android.accessibilityservice.cts.utils.ActivityLaunchUtils.getActivityTitle;
@@ -459,7 +458,7 @@ public class AccessibilityEndToEndTest {
                             .setSmallIcon(android.R.drawable.stat_notify_call_mute)
                             .setContentIntent(PendingIntent.getActivity(mActivity, 0,
                                     new Intent(),
-            PendingIntent.FLAG_CANCEL_CURRENT | PendingIntent.FLAG_IMMUTABLE))
+                                    PendingIntent.FLAG_CANCEL_CURRENT))
                             .setTicker(message)
                             .setContentTitle("")
                             .setContentText("")
@@ -700,11 +699,9 @@ public class AccessibilityEndToEndTest {
         assertFalse(hasTooltipShowing(R.id.buttonWithTooltip));
         assertThat(ACTION_SHOW_TOOLTIP, in(buttonNode.getActionList()));
         assertThat(ACTION_HIDE_TOOLTIP, not(in(buttonNode.getActionList())));
-        sUiAutomation.executeAndWaitForEvent(
-                () -> buttonNode.performAction(ACTION_SHOW_TOOLTIP.getId()),
-                filterForEventTypeWithAction(
-                        AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED,
-                        ACTION_SHOW_TOOLTIP.getId()),
+        sUiAutomation.executeAndWaitForEvent(() -> buttonNode.performAction(
+                ACTION_SHOW_TOOLTIP.getId()),
+                filterForEventType(AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED),
                 DEFAULT_TIMEOUT_MS);
 
         // The button should now be showing the tooltip, so it should have the option to hide it.
@@ -816,9 +813,7 @@ public class AccessibilityEndToEndTest {
         // Perform an action and wait for an event
         sUiAutomation.executeAndWaitForEvent(
                 () -> button.performAction(AccessibilityNodeInfo.ACTION_CLICK),
-                filterForEventTypeWithAction(
-                        AccessibilityEvent.TYPE_VIEW_CLICKED, AccessibilityNodeInfo.ACTION_CLICK),
-                DEFAULT_TIMEOUT_MS);
+                filterForEventType(AccessibilityEvent.TYPE_VIEW_CLICKED), DEFAULT_TIMEOUT_MS);
 
         // Make sure the MotionEvent.ACTION_OUTSIDE is received.
         verify(listener, timeout(DEFAULT_TIMEOUT_MS).atLeastOnce()).onTouch(any(View.class),

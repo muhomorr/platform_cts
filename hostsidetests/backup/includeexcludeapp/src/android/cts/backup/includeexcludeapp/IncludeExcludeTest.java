@@ -228,8 +228,7 @@ public class IncludeExcludeTest {
         }
     }
 
-    @Test
-    public void checkNoFilesExist() {
+    private void checkNoFilesExist() {
         for (File file: mIncludeFiles) {
             assertFalse("File did unexpectedly exist: " + file.getAbsolutePath(), file.exists());
         }

@@ -16,5 +16,4 @@
 
 <tv-input xmlns:android="http://schemas.android.com/apk/res/android"
     android:setupActivity="android.media.tv.cts.TvInputSetupActivityStub"
-    android:settingsActivity="android.media.tv.cts.TvInputSettingsActivityStub"
-    android:canPauseRecording="true" />
+    android:settingsActivity="android.media.tv.cts.TvInputSettingsActivityStub" />

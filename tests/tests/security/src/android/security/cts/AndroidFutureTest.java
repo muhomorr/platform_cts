@@ -36,7 +36,7 @@ import java.lang.reflect.Field;
 @RunWith(AndroidJUnit4.class)
 public class AndroidFutureTest {
 
-    @AsbSecurityTest(cveBugId = 186530450)
+    @AsbSecurityTest(cveBugId = 197228210)
     @Test
     public void testAndroidFutureReadThrowable() throws Exception {
         String filePath = "/data/system/" + System.currentTimeMillis();

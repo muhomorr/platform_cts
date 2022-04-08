@@ -70,7 +70,7 @@ def check_spectrum_playback(inputData, inputTypes):
     output = []
     outputData = []
     outputTypes = []
-    # basic validate
+    # basic sanity check
     inputError = False
     if (inputTypes[0] != TYPE_MONO):
         inputError = True

@@ -14,10 +14,6 @@
 // limitations under the License.
 //
 
-package {
-    default_applicable_licenses: ["Android-Apache-2.0"],
-}
-
 android_test_helper_app {
     name: "CtsOverlayTarget",
     defaults: ["cts_support_defaults"],
@@ -29,6 +25,7 @@ android_test_helper_app {
     ],
     test_suites: [
         "cts",
+        "vts10",
         "general-tests",
     ],
 }
@@ -43,6 +40,7 @@ android_test_helper_app {
     ],
     test_suites: [
         "cts",
+        "vts10",
         "general-tests",
     ],
 }

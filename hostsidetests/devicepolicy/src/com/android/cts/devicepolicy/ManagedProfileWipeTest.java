@@ -17,6 +17,7 @@
 package com.android.cts.devicepolicy;
 
 import static com.android.cts.devicepolicy.metrics.DevicePolicyEventLogVerifier.assertMetricsLogged;
+import static com.android.cts.devicepolicy.metrics.DevicePolicyEventLogVerifier.isStatsdEnabled;
 
 import static org.junit.Assert.assertTrue;
 
@@ -53,6 +54,9 @@ public class ManagedProfileWipeTest extends BaseManagedProfileTest {
     @FlakyTest
     @Test
     public void testWipeDataWithReason() throws Exception {
+        if (!mHasFeature) {
+            return;
+        }
         assertTrue(listUsers().contains(mProfileUserId));
 
         // testWipeDataWithReason() removes the managed profile,
@@ -75,6 +79,9 @@ public class ManagedProfileWipeTest extends BaseManagedProfileTest {
     @FlakyTest
     @Test
     public void testWipeDataLogged() throws Exception {
+        if (!mHasFeature || !isStatsdEnabled(getDevice())) {
+            return;
+        }
         assertTrue(listUsers().contains(mProfileUserId));
 
         // Both the profile wipe and notification verification are done on the device side test
@@ -97,6 +104,9 @@ public class ManagedProfileWipeTest extends BaseManagedProfileTest {
     @FlakyTest
     @Test
     public void testWipeDataWithoutReason() throws Exception {
+        if (!mHasFeature) {
+            return;
+        }
         assertTrue(listUsers().contains(mProfileUserId));
 
         // testWipeDataWithoutReason() removes the managed profile,
@@ -122,6 +132,9 @@ public class ManagedProfileWipeTest extends BaseManagedProfileTest {
      */
     @Test
     public void testWipeData() throws Exception {
+        if (!mHasFeature) {
+            return;
+        }
         assertTrue(listUsers().contains(mProfileUserId));
 
         runDeviceTestsAsUser(

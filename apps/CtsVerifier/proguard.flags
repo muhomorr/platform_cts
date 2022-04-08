@@ -56,6 +56,3 @@
 -dontwarn androidx.test.internal.runner.hidden.ExposedInstrumentationApi
 
 -dontwarn java.lang.management.**
-
-# keep androidplot methods
--keep class com.androidplot.** { *; }

@@ -12,10 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package {
-    default_applicable_licenses: ["Android-Apache-2.0"],
-}
-
 java_test_host {
     name: "CtsJdwpTunnelHostTestCases",
     defaults: ["cts_defaults"],
@@ -31,16 +27,15 @@ java_test_host {
     data: [
         // Include the JDI classes in the testcases directory.
         ":jdi-support",
-        ":CtsJdwpTunnelDebuggableSampleApp",
-        ":CtsJdwpTunnelProfileableSampleApp",
-        ":CtsJdwpTunnelDdmsSampleApp",
+        ":CtsJdwpTunnelSampleApp",
     ],
 
     // Tag this module as a cts test artifact
     test_suites: [
         "cts",
+        "vts10",
         "general-tests",
     ],
 
-    // LOCAL_CTS_TEST_PACKAGE := android.host.jdwptunnel.*
+    // LOCAL_CTS_TEST_PACKAGE := android.host.jdwptunnel
 }

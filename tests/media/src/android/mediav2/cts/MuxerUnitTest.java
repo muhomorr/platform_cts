@@ -53,7 +53,6 @@ public class MuxerUnitTest {
     // duplicate definitions of hide fields of MediaMuxer.OutputFormat.
     private static final int MUXER_OUTPUT_LAST = MediaMuxer.OutputFormat.MUXER_OUTPUT_OGG;
 
-    @NonMediaMainlineTest
     @SmallTest
     public static class TestApi {
         @Rule
@@ -740,7 +739,6 @@ public class MuxerUnitTest {
         }
     }
 
-    @NonMediaMainlineTest
     @SmallTest
     public static class TestApiNative {
         @Rule

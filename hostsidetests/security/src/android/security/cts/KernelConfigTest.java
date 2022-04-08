@@ -16,30 +16,25 @@
 
 package android.security.cts;
 
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assume.assumeTrue;
-
+import com.android.tradefed.build.IBuildInfo;
+import com.android.tradefed.device.ITestDevice;
+import com.android.tradefed.testtype.DeviceTestCase;
+import com.android.tradefed.testtype.IBuildReceiver;
+import com.android.tradefed.testtype.IDeviceTest;
 import com.android.compatibility.common.util.CddTest;
 import com.android.compatibility.common.util.CpuFeatures;
 import com.android.compatibility.common.util.PropertyUtil;
-import com.android.tradefed.build.IBuildInfo;
-import com.android.tradefed.device.ITestDevice;
-import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
-import com.android.tradefed.testtype.junit4.BaseHostJUnit4Test;
-
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
 
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.InputStreamReader;
+import java.lang.String;
+import java.util.stream.Collectors;
+import java.util.Set;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
 import java.util.zip.GZIPInputStream;
 
 /**
@@ -47,8 +42,7 @@ import java.util.zip.GZIPInputStream;
  *
  * These tests analyze /proc/config.gz to verify that certain kernel config options are set.
  */
-@RunWith(DeviceJUnit4ClassRunner.class)
-public class KernelConfigTest extends BaseHostJUnit4Test {
+public class KernelConfigTest extends DeviceTestCase implements IBuildReceiver, IDeviceTest {
 
     private static final Map<ITestDevice, HashSet<String>> cachedConfigGzSet = new HashMap<>(1);
 
@@ -57,13 +51,27 @@ public class KernelConfigTest extends BaseHostJUnit4Test {
     private ITestDevice mDevice;
     private IBuildInfo mBuild;
 
-    @Before
-    public void setUp() throws Exception {
-        mDevice = getDevice();
-        mBuild = getBuild();
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void setBuild(IBuildInfo build) {
+        mBuild = build;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void setDevice(ITestDevice device) {
+        super.setDevice(device);
+        mDevice = device;
+    }
+
+    @Override
+    protected void setUp() throws Exception {
+        super.setUp();
         configSet = getDeviceConfig(mDevice, cachedConfigGzSet);
-        // Assumes every test in this file asserts a requirement of CDD section 9.
-        assumeSecurityModelCompat();
     }
 
     /*
@@ -102,7 +110,6 @@ public class KernelConfigTest extends BaseHostJUnit4Test {
      * @throws Exception
      */
     @CddTest(requirement="9.7")
-    @Test
     public void testConfigStackProtectorStrong() throws Exception {
         assertTrue("Linux kernel must have Stack Protector enabled: " +
                 "CONFIG_STACKPROTECTOR_STRONG=y or CONFIG_CC_STACKPROTECTOR_STRONG=y",
@@ -117,7 +124,6 @@ public class KernelConfigTest extends BaseHostJUnit4Test {
      * @throws Exception
      */
     @CddTest(requirement="9.7")
-    @Test
     public void testConfigROData() throws Exception {
         if (configSet.contains("CONFIG_UH_RKP=y"))
             return;
@@ -142,7 +148,6 @@ public class KernelConfigTest extends BaseHostJUnit4Test {
      * @throws Exception
      */
     @CddTest(requirement="9.7")
-    @Test
     public void testConfigHardenedUsercopy() throws Exception {
         if (PropertyUtil.getFirstApiLevel(mDevice) < 28) {
             return;
@@ -158,7 +163,6 @@ public class KernelConfigTest extends BaseHostJUnit4Test {
      * @throws Exception
      */
     @CddTest(requirement="9.7")
-    @Test
     public void testConfigPAN() throws Exception {
         if (PropertyUtil.getFirstApiLevel(mDevice) < 28) {
             return;
@@ -170,25 +174,14 @@ public class KernelConfigTest extends BaseHostJUnit4Test {
                     (configSet.contains("CONFIG_ARM64_SW_TTBR0_PAN=y") ||
                     configSet.contains("CONFIG_ARM64_PAN=y")));
         } else if (CpuFeatures.isArm32(mDevice)) {
-            assertTrue("Linux kernel must have PAN emulation enabled: " +
-                    "CONFIG_CPU_SW_DOMAIN_PAN=y or CONFIG_CPU_TTBR0_PAN=y",
-                    (configSet.contains("CONFIG_CPU_SW_DOMAIN_PAN=y") ||
-                    configSet.contains("CONFIG_CPU_TTBR0_PAN=y")));
+            assertTrue("Linux kernel must have PAN emulation enabled: CONFIG_CPU_SW_DOMAIN_PAN=y",
+                    configSet.contains("CONFIG_CPU_SW_DOMAIN_PAN=y"));
         }
     }
 
     private String getHardware() throws Exception {
         String hardware = "DEFAULT";
         String[] pathList = new String[]{"/proc/cpuinfo", "/sys/devices/soc0/soc_id"};
-        String mitigationInfoMeltdown =
-                mDevice.pullFileContents("/sys/devices/system/cpu/vulnerabilities/meltdown");
-        String mitigationInfoSpectreV2 =
-                mDevice.pullFileContents("/sys/devices/system/cpu/vulnerabilities/spectre_v2");
-
-        if (mitigationInfoMeltdown != null && mitigationInfoSpectreV2 != null &&
-            !mitigationInfoMeltdown.contains("Vulnerable") &&
-            !mitigationInfoSpectreV2.contains("Vulnerable"))
-                return "VULN_SAFE";
 
         for (String nodeInfo : pathList) {
             if (!mDevice.doesFileExist(nodeInfo))
@@ -223,7 +216,6 @@ public class KernelConfigTest extends BaseHostJUnit4Test {
 
     private Map<String, String[]> hardwareMitigations = new HashMap<String, String[]>() {
     {
-        put("VULN_SAFE", null);
         put("EXYNOS990", null);
         put("EXYNOS980", null);
         put("EXYNOS850", null);
@@ -240,57 +232,16 @@ public class KernelConfigTest extends BaseHostJUnit4Test {
         put("Kirin970", new String[]{"CONFIG_HARDEN_BRANCH_PREDICTOR=y"});
         put("Kirin810", null);
         put("Kirin710", new String[]{"CONFIG_HARDEN_BRANCH_PREDICTOR=y"});
-        put("MT6889Z/CZA", new String[]{"CONFIG_HARDEN_BRANCH_PREDICTOR=y"});
-        put("MT6889Z/CIZA", new String[]{"CONFIG_HARDEN_BRANCH_PREDICTOR=y"});
-        put("mt6873", new String[]{"CONFIG_HARDEN_BRANCH_PREDICTOR=y"});
-        put("MT6853V/TZA", new String[]{"CONFIG_HARDEN_BRANCH_PREDICTOR=y"});
-        put("MT6853V/TNZA", new String[]{"CONFIG_HARDEN_BRANCH_PREDICTOR=y"});
-        put("MT6833V/ZA", new String[]{"CONFIG_HARDEN_BRANCH_PREDICTOR=y"});
-        put("MT6833V/NZA", new String[]{"CONFIG_HARDEN_BRANCH_PREDICTOR=y"});
-        put("MT6833V/TZA", new String[]{"CONFIG_HARDEN_BRANCH_PREDICTOR=y"});
-        put("MT6833V/TNZA", new String[]{"CONFIG_HARDEN_BRANCH_PREDICTOR=y"});
-        put("MT6833V/MZA", new String[]{"CONFIG_HARDEN_BRANCH_PREDICTOR=y"});
-        put("MT6833V/MNZA", new String[]{"CONFIG_HARDEN_BRANCH_PREDICTOR=y"});
-        put("MT6877V/ZA", new String[]{"CONFIG_HARDEN_BRANCH_PREDICTOR=y"});
-        put("MT6877V/NZA", new String[]{"CONFIG_HARDEN_BRANCH_PREDICTOR=y"});
-        put("MT6877V/TZA", new String[]{"CONFIG_HARDEN_BRANCH_PREDICTOR=y"});
-        put("MT6877V/TNZA", new String[]{"CONFIG_HARDEN_BRANCH_PREDICTOR=y"});
-        put("MT6768V/WA", new String[]{"CONFIG_HARDEN_BRANCH_PREDICTOR=y"});
-        put("MT6768V/CA", new String[]{"CONFIG_HARDEN_BRANCH_PREDICTOR=y"});
-        put("MT6768V/WB", new String[]{"CONFIG_HARDEN_BRANCH_PREDICTOR=y"});
-        put("MT6768V/CB", new String[]{"CONFIG_HARDEN_BRANCH_PREDICTOR=y"});
-        put("MT6767V/WA", new String[]{"CONFIG_HARDEN_BRANCH_PREDICTOR=y"});
-        put("MT6767V/CA", new String[]{"CONFIG_HARDEN_BRANCH_PREDICTOR=y"});
-        put("MT6767V/WB", new String[]{"CONFIG_HARDEN_BRANCH_PREDICTOR=y"});
-        put("MT6767V/CB", new String[]{"CONFIG_HARDEN_BRANCH_PREDICTOR=y"});
-        put("MT6769V/WA", new String[]{"CONFIG_HARDEN_BRANCH_PREDICTOR=y"});
-        put("MT6769V/CA", new String[]{"CONFIG_HARDEN_BRANCH_PREDICTOR=y"});
-        put("MT6769V/WB", new String[]{"CONFIG_HARDEN_BRANCH_PREDICTOR=y"});
-        put("MT6769V/CB", new String[]{"CONFIG_HARDEN_BRANCH_PREDICTOR=y"});
-        put("MT6769V/WT", new String[]{"CONFIG_HARDEN_BRANCH_PREDICTOR=y"});
-        put("MT6769V/CT", new String[]{"CONFIG_HARDEN_BRANCH_PREDICTOR=y"});
-        put("MT6769V/WU", new String[]{"CONFIG_HARDEN_BRANCH_PREDICTOR=y"});
-        put("MT6769V/CU", new String[]{"CONFIG_HARDEN_BRANCH_PREDICTOR=y"});
-        put("MT6769V/WZ", new String[]{"CONFIG_HARDEN_BRANCH_PREDICTOR=y"});
-        put("MT6769V/CZ", new String[]{"CONFIG_HARDEN_BRANCH_PREDICTOR=y"});
-        put("MT6769V/WY", new String[]{"CONFIG_HARDEN_BRANCH_PREDICTOR=y"});
-        put("MT6769V/CY", new String[]{"CONFIG_HARDEN_BRANCH_PREDICTOR=y"});
         put("SDMMAGPIE", new String[]{"CONFIG_HARDEN_BRANCH_PREDICTOR=y"});
         put("SM6150", new String[]{"CONFIG_HARDEN_BRANCH_PREDICTOR=y"});
         put("SM7150", new String[]{"CONFIG_HARDEN_BRANCH_PREDICTOR=y"});
-        put("SM7250", null);
         put("LITO", null);
-        put("LAGOON", null);
         put("SM8150", new String[]{"CONFIG_HARDEN_BRANCH_PREDICTOR=y"});
         put("SM8150P", new String[]{"CONFIG_HARDEN_BRANCH_PREDICTOR=y"});
-        put("SM8250", null);
         put("KONA", null);
         put("SDM429", null);
         put("SDM439", null);
         put("QM215", null);
-        put("ATOLL", null);
-        put("ATOLL-AB", null);
-        put("SDM660", new String[]{"CONFIG_HARDEN_BRANCH_PREDICTOR=y"});
         put("BENGAL", new String[]{"CONFIG_HARDEN_BRANCH_PREDICTOR=y"});
         put("DEFAULT", new String[]{"CONFIG_HARDEN_BRANCH_PREDICTOR=y",
             "CONFIG_UNMAP_KERNEL_AT_EL0=y"});
@@ -307,7 +258,6 @@ public class KernelConfigTest extends BaseHostJUnit4Test {
      * @throws Exception
      */
     @CddTest(requirement="9.7")
-    @Test
     public void testConfigHardwareMitigations() throws Exception {
         String mitigations[];
 
@@ -336,7 +286,6 @@ public class KernelConfigTest extends BaseHostJUnit4Test {
      * @throws Exception
      */
     @CddTest(requirement="9.7")
-    @Test
     public void testConfigDisableUsermodehelper() throws Exception {
         if (PropertyUtil.getFirstApiLevel(mDevice) < 30) {
             return;
@@ -392,7 +341,6 @@ public class KernelConfigTest extends BaseHostJUnit4Test {
      * Test that the kernel enables fs-verity and its built-in signature support.
      */
     @CddTest(requirement="9.10")
-    @Test
     public void testConfigFsVerity() throws Exception {
         if (PropertyUtil.getFirstApiLevel(mDevice) < 30 &&
                 PropertyUtil.getPropertyInt(mDevice, "ro.apk_verity.mode") != 2) {
@@ -403,14 +351,5 @@ public class KernelConfigTest extends BaseHostJUnit4Test {
         assertTrue("Linux kernel must have fs-verity's builtin signature enabled: "
                 + "CONFIG_FS_VERITY_BUILTIN_SIGNATURES=y",
                 configSet.contains("CONFIG_FS_VERITY_BUILTIN_SIGNATURES=y"));
-    }
-
-    private void assumeSecurityModelCompat() throws Exception {
-        // This feature name check only applies to devices that first shipped with
-        // SC or later.
-        if (PropertyUtil.getFirstApiLevel(mDevice) >= 31) {
-            assumeTrue("Skipping test: FEATURE_SECURITY_MODEL_COMPATIBLE missing.",
-                    getDevice().hasFeature("feature:android.hardware.security.model.compatible"));
-        }
     }
 }

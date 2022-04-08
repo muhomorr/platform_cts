@@ -16,16 +16,16 @@
 
 package com.android.cts.verifier.tv.display;
 
-import android.app.Activity;
-
 import androidx.annotation.StringRes;
+
+import com.android.cts.verifier.tv.TvAppVerifierActivity;
 
 /**
  * Encapsulates the logic of a synchronously running test step, which displays human instructions
  * and a button to start the test. For asynchronous steps see {@link AsyncTestStep}.
  */
 public abstract class SyncTestStep extends OneButtonTestStep {
-    public SyncTestStep(Activity context, @StringRes int stepNameStringId,
+    public SyncTestStep(TvAppVerifierActivity context, @StringRes int stepNameStringId,
             String instructionText, @StringRes int buttonStringId) {
         super(context, stepNameStringId, instructionText, buttonStringId);
     }

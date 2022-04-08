@@ -38,6 +38,7 @@ import java.util.List;
 public class LifecycleLog extends ContentProvider {
 
     public enum ActivityCallback {
+        PRE_ON_CREATE,
         ON_CREATE,
         ON_START,
         ON_RESUME,
@@ -50,8 +51,7 @@ public class LifecycleLog extends ContentProvider {
         ON_NEW_INTENT,
         ON_MULTI_WINDOW_MODE_CHANGED,
         ON_TOP_POSITION_GAINED,
-        ON_TOP_POSITION_LOST,
-        ON_USER_LEAVE_HINT
+        ON_TOP_POSITION_LOST
     }
 
     interface LifecycleTrackerCallback {

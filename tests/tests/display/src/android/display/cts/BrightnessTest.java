@@ -36,7 +36,6 @@ import android.hardware.display.BrightnessCorrection;
 import android.hardware.display.DisplayManager;
 import android.os.ParcelFileDescriptor;
 import android.os.PowerManager;
-import android.platform.test.annotations.AppModeFull;
 import android.provider.Settings;
 import android.util.Pair;
 
@@ -57,7 +56,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Scanner;
 
-@AppModeFull
 @MediumTest
 @RunWith(AndroidJUnit4.class)
 public class BrightnessTest {
@@ -410,8 +408,7 @@ public class BrightnessTest {
      */
     private int numberOfSystemAppsWithPermission(String permission) {
         List<PackageInfo> packages = mContext.getPackageManager().getPackagesHoldingPermissions(
-                new String[]{permission}, PackageManager.MATCH_SYSTEM_ONLY);
-        packages.removeIf(packageInfo -> packageInfo.packageName.equals("com.android.shell"));
+                new String[] {permission}, PackageManager.MATCH_SYSTEM_ONLY);
         return packages.size();
     }
 

@@ -17,10 +17,6 @@
 // package name which does not conflict with the CallScreeningService
 // associated with the CTS InCallService.
 
-package {
-    default_applicable_licenses: ["Android-Apache-2.0"],
-}
-
 android_test_helper_app {
     name: "CallScreeningServiceTestApp",
     srcs: [
@@ -30,7 +26,7 @@ android_test_helper_app {
     sdk_version: "test_current",
     test_suites: [
         "cts",
-        "general-tests",
+        "vts10",
     ],
     optimize: {
         enabled: false,

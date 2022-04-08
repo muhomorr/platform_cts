@@ -15,29 +15,27 @@
 -->
 
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-     package="android.suspendapps.cts">
+          package="android.suspendapps.cts">
 
     <application android:label="CTS Suspend Apps Test">
         <activity android:name=".SuspendedDetailsActivity"
-             android:permission="android.permission.SEND_SHOW_SUSPENDED_APP_DETAILS"
-             android:exported="true">
+                  android:permission="android.permission.SEND_SHOW_SUSPENDED_APP_DETAILS">
             <intent-filter>
-                <action android:name="android.intent.action.SHOW_SUSPENDED_APP_DETAILS"/>
-                <category android:name="android.intent.category.DEFAULT"/>
+                <action android:name="android.intent.action.SHOW_SUSPENDED_APP_DETAILS" />
+                <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
 
-        <receiver android:name=".UnsuspendReceiver"
-             android:exported="true">
+        <receiver android:name=".UnsuspendReceiver">
             <intent-filter>
-                <action android:name="android.intent.action.PACKAGE_UNSUSPENDED_MANUALLY"/>
+                <action android:name="android.intent.action.PACKAGE_UNSUSPENDED_MANUALLY" />
             </intent-filter>
         </receiver>
 
     </application>
 
     <instrumentation android:name="androidx.test.runner.AndroidJUnitRunner"
-         android:functionalTest="true"
-         android:targetPackage="android.suspendapps.cts"
-         android:label="CTS Suspend Apps Test"/>
+                     android:functionalTest="true"
+                     android:targetPackage="android.suspendapps.cts"
+                     android:label="CTS Suspend Apps Test"/>
 </manifest>

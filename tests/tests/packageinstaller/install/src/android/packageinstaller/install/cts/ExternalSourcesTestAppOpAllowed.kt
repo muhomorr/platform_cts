@@ -75,13 +75,11 @@ class ExternalSourcesTestAppOpAllowed : PackageInstallerTestBase() {
 
     @Test
     fun allowedSourceTestViaIntent() {
-        assumeNotWatch()
         allowedSourceTest { startInstallationViaIntent() }
     }
 
     @Test
     fun allowedSourceTestViaSession() {
-        assumeNotWatch()
         allowedSourceTest { startInstallationViaSession() }
     }
 

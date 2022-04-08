@@ -101,7 +101,7 @@ implements OnClickListener, SurfaceHolder.Callback {
         Camera.ACTION_NEW_VIDEO,
         null,
         null,
-        null
+        Camera.ACTION_NEW_VIDEO
     };
 
     private ImageButton mPassButton;
@@ -204,8 +204,7 @@ implements OnClickListener, SurfaceHolder.Callback {
     }
 
     private void updateSuccessState() {
-        // Last stage requires additional step to switch on location permission
-        if (mActionSuccess && mUriSuccess && getStageIndex() < NUM_STAGES - 1) {
+        if (mActionSuccess && mUriSuccess) {
             mState = STATE_SUCCESSFUL;
         }
 
@@ -309,7 +308,7 @@ implements OnClickListener, SurfaceHolder.Callback {
         // Only the last one uses the PassFailButtons click callback function,
         // which gracefully terminates the activity.
         if (stageIndex + 1 < NUM_STAGES) {
-            setPassButtonGoesToNextStage();
+            setPassButtonGoesToNextStage(stageIndex);
         }
         resetButtons();
 
@@ -380,7 +379,7 @@ implements OnClickListener, SurfaceHolder.Callback {
         Boolean locationEnabled = (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) ==
                 PackageManager.PERMISSION_GRANTED);
 
-        if (getStageIndex() == NUM_STAGES - 1) {
+        if (getStageIndex() == STAGE_INTENT_VIDEO) {
                 /**
                  * Don't enable the pass /fail button till the user grants CTS verifier location
                  * access again.
@@ -413,7 +412,7 @@ implements OnClickListener, SurfaceHolder.Callback {
     public void onPause() {
         super.onPause();
         /*
-        When testing INTENT_PICTURE, INTENT_PICTURE_SECURE, INTENT_VIDEO,
+        When testing INTENT_PICTURE, INTENT_VIDEO,
         do not allow user to cheat by going to camera app and re-firing
         the intents by taking a photo/video
         */
@@ -447,9 +446,6 @@ implements OnClickListener, SurfaceHolder.Callback {
                             break;
                         case STAGE_INTENT_VIDEO:
                             handleIntentVideoResult();
-                            // No broadcast should be received because EXTRA_OUTPUT is set.
-                            // Proceed to update test result
-                            updateSuccessState();
                             break;
                         default:
                             return;
@@ -550,6 +546,14 @@ implements OnClickListener, SurfaceHolder.Callback {
                             mState = STATE_FAILED;
                         }
 
+                        // For STAGE_INTENT_PICTURE test, if EXTRA_OUTPUT is not assigned in intent,
+                        // file should NOT be saved so triggering this is a test failure.
+                        if (getStageIndex() == STAGE_INTENT_PICTURE ||
+                            getStageIndex() == STAGE_INTENT_PICTURE_SECURE) {
+                            Log.e(TAG, "FAIL: STAGE_INTENT_PICTURE or STAGE_INTENT_PICTURE_SECURE test should not create file");
+                            mState = STATE_FAILED;
+                        }
+
                         if (mState != STATE_FAILED) {
                             return true;
                         } else {
@@ -561,8 +565,14 @@ implements OnClickListener, SurfaceHolder.Callback {
                 e.printStackTrace();
             }
 
-            Log.e(TAG, "FAIL: timeout waiting for URI trigger");
-            return false;
+            if (getStageIndex() == STAGE_INTENT_PICTURE ||
+                getStageIndex() == STAGE_INTENT_PICTURE_SECURE) {
+                // STAGE_INTENT_PICTURE or STAGE_INTENT_PICTURE_SECURE should timeout
+                return true;
+            } else {
+                Log.e(TAG, "FAIL: timeout waiting for URI trigger");
+                return false;
+            }
         }
 
         protected void onPostExecute(Boolean pass) {
@@ -604,7 +614,7 @@ implements OnClickListener, SurfaceHolder.Callback {
             mTestEnv.setUp();
 
             /**
-             * Intent stages do not need to wait on a ContentProvider broadcast since we're starting
+             * Video intents do not need to wait on a ContentProvider broadcast since we're starting
              * the intent activity with EXTRA_OUTPUT set
              */
             if (stageIndex != STAGE_INTENT_VIDEO &&
@@ -757,7 +767,7 @@ implements OnClickListener, SurfaceHolder.Callback {
         // Auto-generated method stub
     }
 
-    private void setPassButtonGoesToNextStage() {
+    private void setPassButtonGoesToNextStage(final int stageIndex) {
         findViewById(R.id.pass_button).setOnClickListener(this);
     }
 

@@ -16,17 +16,6 @@
 
 package android.display.cts;
 
-import static android.hardware.display.DisplayManager.VIRTUAL_DISPLAY_FLAG_SHOULD_SHOW_SYSTEM_DECORATIONS;
-import static android.hardware.display.DisplayManager.VIRTUAL_DISPLAY_FLAG_TRUSTED;
-
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
-
-import android.Manifest;
 import android.app.Presentation;
 import android.content.Context;
 import android.graphics.Color;
@@ -43,26 +32,13 @@ import android.os.HandlerThread;
 import android.os.Looper;
 import android.os.SystemClock;
 import android.platform.test.annotations.AsbSecurityTest;
-import android.provider.Settings;
+import android.test.AndroidTestCase;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.Display;
 import android.view.Surface;
 import android.view.ViewGroup.LayoutParams;
 import android.widget.ImageView;
-
-import androidx.test.InstrumentationRegistry;
-import androidx.test.runner.AndroidJUnit4;
-
-import com.android.compatibility.common.util.AdoptShellPermissionsRule;
-import com.android.compatibility.common.util.SettingsStateKeeperRule;
-
-import org.junit.After;
-import org.junit.Before;
-import org.junit.ClassRule;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.runner.RunWith;
 
 import java.nio.ByteBuffer;
 import java.util.concurrent.locks.Lock;
@@ -74,8 +50,7 @@ import java.util.concurrent.locks.ReentrantLock;
  * This CTS test is unable to test public virtual displays since special permissions
  * are required.  See also framework VirtualDisplayTest unit tests.
  */
-@RunWith(AndroidJUnit4.class)
-public class VirtualDisplayTest {
+public class VirtualDisplayTest extends AndroidTestCase {
     private static final String TAG = "VirtualDisplayTest";
 
     private static final String NAME = TAG;
@@ -92,7 +67,6 @@ public class VirtualDisplayTest {
     private static final int BLUEISH = 0xff1122ee;
     private static final int GREENISH = 0xff33dd44;
 
-    private Context mContext;
     private DisplayManager mDisplayManager;
     private Handler mHandler;
     private final Lock mImageReaderLock = new ReentrantLock(true /*fair*/);
@@ -102,24 +76,13 @@ public class VirtualDisplayTest {
     private HandlerThread mCheckThread;
     private Handler mCheckHandler;
 
-    @Rule
-    public AdoptShellPermissionsRule mAdoptShellPermissionsRule = new AdoptShellPermissionsRule(
-            InstrumentationRegistry.getInstrumentation().getUiAutomation(),
-            Manifest.permission.WRITE_SECURE_SETTINGS);
+    private static final int VIRTUAL_DISPLAY_FLAG_SHOULD_SHOW_SYSTEM_DECORATIONS = 1 << 9;
+    private static final int VIRTUAL_DISPLAY_FLAG_TRUSTED = 1 << 10;
 
-    @ClassRule
-    public static final SettingsStateKeeperRule mAreUserDisabledHdrFormatsAllowedSettingsKeeper =
-            new SettingsStateKeeperRule(InstrumentationRegistry.getTargetContext(),
-                    Settings.Global.ARE_USER_DISABLED_HDR_FORMATS_ALLOWED);
+    @Override
+    protected void setUp() throws Exception {
+        super.setUp();
 
-    @ClassRule
-    public static final SettingsStateKeeperRule mUserDisabledHdrFormatsSettingsKeeper =
-            new SettingsStateKeeperRule(InstrumentationRegistry.getTargetContext(),
-                    Settings.Global.USER_DISABLED_HDR_FORMATS);
-
-    @Before
-    public void setUp() throws Exception {
-        mContext = InstrumentationRegistry.getInstrumentation().getContext();
         mDisplayManager = (DisplayManager)mContext.getSystemService(Context.DISPLAY_SERVICE);
         mHandler = new Handler(Looper.getMainLooper());
         mImageListener = new ImageListener();
@@ -138,8 +101,9 @@ public class VirtualDisplayTest {
         }
     }
 
-    @After
-    public void tearDown() throws Exception {
+    @Override
+    protected void tearDown() throws Exception {
+        super.tearDown();
         mImageReaderLock.lock();
         try {
             mImageReader.close();
@@ -155,7 +119,6 @@ public class VirtualDisplayTest {
      * Ensures that an application can create a private virtual display and show
      * its own windows on it.
      */
-    @Test
     @AsbSecurityTest(cveBugId = 141745510)
     public void testPrivateVirtualDisplay() throws Exception {
         VirtualDisplay virtualDisplay = mDisplayManager.createVirtualDisplay(NAME,
@@ -180,7 +143,6 @@ public class VirtualDisplayTest {
      * Ensures that an application can create a private presentation virtual display and show
      * its own windows on it.
      */
-    @Test
     @AsbSecurityTest(cveBugId = 141745510)
     public void testPrivatePresentationVirtualDisplay() throws Exception {
         VirtualDisplay virtualDisplay = mDisplayManager.createVirtualDisplay(NAME,
@@ -206,7 +168,6 @@ public class VirtualDisplayTest {
      * Ensures that an application can create a private virtual display and show
      * its own windows on it where the surface is attached or detached dynamically.
      */
-    @Test
     @AsbSecurityTest(cveBugId = 141745510)
     public void testPrivateVirtualDisplayWithDynamicSurface() throws Exception {
         VirtualDisplay virtualDisplay = mDisplayManager.createVirtualDisplay(NAME,
@@ -240,7 +201,6 @@ public class VirtualDisplayTest {
      * be clear if an application creates an virtual display without the
      * flag {@link DisplayManager#VIRTUAL_DISPLAY_FLAG_TRUSTED}.
      */
-    @Test
     public void testUntrustedSysDecorVirtualDisplay() throws Exception {
         VirtualDisplay virtualDisplay = mDisplayManager.createVirtualDisplay(NAME,
                 WIDTH, HEIGHT, DENSITY, mSurface,
@@ -267,7 +227,6 @@ public class VirtualDisplayTest {
      * Ensures that throws {@link SecurityException} when an application creates a trusted virtual
      * display without holding the permission {@code ADD_TRUSTED_DISPLAY}.
      */
-    @Test
     public void testTrustedVirtualDisplay() throws Exception {
         try {
             VirtualDisplay virtualDisplay = mDisplayManager.createVirtualDisplay(NAME,
@@ -278,36 +237,6 @@ public class VirtualDisplayTest {
         }
         fail("SecurityException must be thrown if a trusted virtual display is created without"
                 + "holding the permission ADD_TRUSTED_DISPLAY.");
-    }
-
-    @Test
-    public void testHdrApiMethods() {
-        VirtualDisplay virtualDisplay = mDisplayManager.createVirtualDisplay(NAME,
-                WIDTH, HEIGHT, DENSITY, mSurface, /*flags*/ 0);
-        try {
-            assertFalse(virtualDisplay.getDisplay().isHdr());
-            assertNull(virtualDisplay.getDisplay().getHdrCapabilities());
-        } finally {
-            virtualDisplay.release();
-        }
-    }
-
-    @Test
-    public void testGetHdrCapabilitiesWithUserDisabledFormats() {
-        VirtualDisplay virtualDisplay = mDisplayManager.createVirtualDisplay(NAME,
-                WIDTH, HEIGHT, DENSITY, mSurface, /*flags*/ 0);
-        mDisplayManager.setAreUserDisabledHdrTypesAllowed(false);
-        int[] userDisabledHdrTypes = {
-                Display.HdrCapabilities.HDR_TYPE_DOLBY_VISION,
-                Display.HdrCapabilities.HDR_TYPE_HLG};
-        mDisplayManager.setUserDisabledHdrTypes(userDisabledHdrTypes);
-
-        try {
-            assertFalse(virtualDisplay.getDisplay().isHdr());
-            assertNull(virtualDisplay.getDisplay().getHdrCapabilities());
-        } finally {
-            virtualDisplay.release();
-        }
     }
 
     private void assertDisplayRegistered(Display display, int flags) {
@@ -355,7 +284,7 @@ public class VirtualDisplayTest {
             runOnUiThread(new Runnable() {
                 @Override
                 public void run() {
-                    presentation[0] = new TestPresentation(mContext, display,
+                    presentation[0] = new TestPresentation(getContext(), display,
                             color, windowFlags);
                     presentation[0].show();
                 }

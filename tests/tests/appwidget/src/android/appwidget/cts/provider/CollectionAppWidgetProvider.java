@@ -107,7 +107,7 @@ public class CollectionAppWidgetProvider  extends AppWidgetProvider {
         // to create unique before on an item to item basis.
         Intent viewIntent = new Intent(BROADCAST_ACTION);
         PendingIntent pendingIntent = PendingIntent.getBroadcast(context, 0, viewIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_MUTABLE_UNAUDITED);
+                PendingIntent.FLAG_UPDATE_CURRENT);
 
         widgetAdapterView.setPendingIntentTemplate(R.id.remoteViews_stack, pendingIntent);
 

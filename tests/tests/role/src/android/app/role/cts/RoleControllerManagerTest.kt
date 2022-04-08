@@ -18,15 +18,14 @@ package android.app.role.cts
 
 import android.app.Instrumentation
 
+import android.app.role.RoleControllerManager
 import android.app.role.RoleManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.os.Build
 import android.os.Process
 import android.provider.Settings
 import androidx.test.InstrumentationRegistry
-import androidx.test.filters.SdkSuppress
 import androidx.test.runner.AndroidJUnit4
 import com.android.compatibility.common.util.SystemUtil.runShellCommand
 import com.android.compatibility.common.util.SystemUtil.runWithShellPermissionIdentity
@@ -43,15 +42,15 @@ import java.util.concurrent.TimeUnit
 import java.util.function.Consumer
 
 /**
- * Tests RoleControllerManager APIs exposed on [RoleManager].
+ * Tests [RoleControllerManager].
  */
 @RunWith(AndroidJUnit4::class)
-@SdkSuppress(minSdkVersion = Build.VERSION_CODES.S, codeName = "S")
 class RoleControllerManagerTest {
     private val instrumentation: Instrumentation = InstrumentationRegistry.getInstrumentation()
     private val context: Context = instrumentation.context
     private val packageManager: PackageManager = context.packageManager
-    private val roleManager: RoleManager = context.getSystemService(RoleManager::class.java)!!
+    private val roleControllerManager: RoleControllerManager =
+        context.getSystemService(RoleControllerManager::class.java)!!
 
     @Before
     fun installApp() {
@@ -96,7 +95,7 @@ class RoleControllerManagerTest {
     ) {
         runWithShellPermissionIdentity {
             val future = CompletableFuture<Boolean>()
-            roleManager.isApplicationVisibleForRole(
+            roleControllerManager.isApplicationVisibleForRole(
                 roleName, packageName, context.mainExecutor, Consumer { future.complete(it) }
             )
             val isVisible = future.get(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS)
@@ -122,7 +121,7 @@ class RoleControllerManagerTest {
     private fun isRoleVisible(roleName: String): Boolean =
         runWithShellPermissionIdentity(ThrowingSupplier {
             val future = CompletableFuture<Boolean>()
-            roleManager.isRoleVisible(
+            roleControllerManager.isRoleVisible(
                 roleName, context.mainExecutor, Consumer { future.complete(it) }
             )
             future.get(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS)

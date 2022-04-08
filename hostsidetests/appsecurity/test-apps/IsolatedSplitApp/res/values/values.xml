@@ -16,5 +16,4 @@
 
 <resources>
     <string name="base_string">Base String Default</string>
-    <string name="theme_name">Base Theme</string>
 </resources>

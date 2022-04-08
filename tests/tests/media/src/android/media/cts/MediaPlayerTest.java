@@ -36,11 +36,11 @@ import android.media.SyncParams;
 import android.media.TimedText;
 import android.media.audiofx.AudioEffect;
 import android.media.audiofx.Visualizer;
+import android.media.cts.R;
 import android.media.cts.TestUtils.Monitor;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
-import android.os.ParcelFileDescriptor;
 import android.os.PowerManager;
 import android.os.SystemClock;
 import android.platform.test.annotations.AppModeFull;
@@ -57,8 +57,6 @@ import junit.framework.AssertionFailedError;
 
 import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
@@ -83,14 +81,11 @@ import java.util.stream.Stream;
  */
 @SmallTest
 @RequiresDevice
-@NonMediaMainlineTest
 @AppModeFull(reason = "TODO: evaluate and port to instant")
 public class MediaPlayerTest extends MediaPlayerTestBase {
 
     private String RECORDED_FILE;
     private static final String LOG_TAG = "MediaPlayerTest";
-
-    static final String mInpPrefix = WorkDir.getMediaDirString();
 
     private static final int  RECORDED_VIDEO_WIDTH  = 176;
     private static final int  RECORDED_VIDEO_HEIGHT = 144;
@@ -129,19 +124,10 @@ public class MediaPlayerTest extends MediaPlayerTestBase {
 
     @Presubmit
     public void testFlacHeapOverflow() throws Exception {
-        testIfMediaServerDied("heap_oob_flac.mp3");
+        testIfMediaServerDied(R.raw.heap_oob_flac);
     }
 
-    protected static AssetFileDescriptor getAssetFileDescriptorFor(final String res)
-            throws FileNotFoundException {
-        Preconditions.assertTestFileExists(mInpPrefix + res);
-        File inpFile = new File(mInpPrefix + res);
-        ParcelFileDescriptor parcelFD =
-                ParcelFileDescriptor.open(inpFile, ParcelFileDescriptor.MODE_READ_ONLY);
-        return new AssetFileDescriptor(parcelFD, 0, parcelFD.getStatSize());
-    }
-
-    private void testIfMediaServerDied(final String res) throws Exception {
+    private void testIfMediaServerDied(int res) throws Exception {
         mMediaPlayer.setOnErrorListener(new MediaPlayer.OnErrorListener() {
             @Override
             public boolean onError(MediaPlayer mp, int what, int extra) {
@@ -160,7 +146,7 @@ public class MediaPlayerTest extends MediaPlayerTestBase {
             }
         });
 
-        AssetFileDescriptor afd = getAssetFileDescriptorFor(res);
+        AssetFileDescriptor afd = mResources.openRawResourceFd(res);
         mMediaPlayer.setDataSource(afd.getFileDescriptor(), afd.getStartOffset(), afd.getLength());
         afd.close();
         try {
@@ -180,7 +166,7 @@ public class MediaPlayerTest extends MediaPlayerTestBase {
     public void testVorbisCrash() throws Exception {
         MediaPlayer mp = mMediaPlayer;
         MediaPlayer mp2 = mMediaPlayer2;
-        AssetFileDescriptor afd2 = getAssetFileDescriptorFor("testmp3_2.mp3");
+        AssetFileDescriptor afd2 = mResources.openRawResourceFd(R.raw.testmp3_2);
         mp2.setDataSource(afd2.getFileDescriptor(), afd2.getStartOffset(), afd2.getLength());
         afd2.close();
         mp2.prepare();
@@ -189,7 +175,7 @@ public class MediaPlayerTest extends MediaPlayerTestBase {
 
         for (int i = 0; i < 20; i++) {
             try {
-                AssetFileDescriptor afd = getAssetFileDescriptorFor("bug13652927.ogg");
+                AssetFileDescriptor afd = mResources.openRawResourceFd(R.raw.bug13652927);
                 mp.setDataSource(afd.getFileDescriptor(), afd.getStartOffset(), afd.getLength());
                 afd.close();
                 mp.prepare();
@@ -220,10 +206,9 @@ public class MediaPlayerTest extends MediaPlayerTestBase {
         final int seekDuration = 100;
 
         // This is "R.raw.testmp3_2", base64-encoded.
-        final String res = "testmp3_3.raw";
+        final int resid = R.raw.testmp3_3;
 
-        Preconditions.assertTestFileExists(mInpPrefix + res);
-        InputStream is = new FileInputStream(mInpPrefix + res);
+        InputStream is = mContext.getResources().openRawResource(resid);
         BufferedReader reader = new BufferedReader(new InputStreamReader(is));
 
         StringBuilder builder = new StringBuilder();
@@ -279,24 +264,24 @@ public class MediaPlayerTest extends MediaPlayerTestBase {
     }
 
     public void testPlayAudioMp3() throws Exception {
-        testPlayAudio("testmp3_2.mp3",
+        testPlayAudio(R.raw.testmp3_2,
                 34909 /* duration */, 70 /* tolerance */, 100 /* seekDuration */);
     }
 
     public void testPlayAudioOpus() throws Exception {
-        testPlayAudio("testopus.opus",
+        testPlayAudio(R.raw.testopus,
                 34909 /* duration */, 70 /* tolerance */, 100 /* seekDuration */);
     }
 
     public void testPlayAudioAmr() throws Exception {
-        testPlayAudio("testamr.amr",
+        testPlayAudio(R.raw.testamr,
                 34909 /* duration */, 70 /* tolerance */, 100 /* seekDuration */);
     }
 
-    public void testPlayAudio(final String res,
+    public void testPlayAudio(int resid,
             int mp3Duration, int tolerance, int seekDuration) throws Exception {
-        Preconditions.assertTestFileExists(mInpPrefix + res);
-        MediaPlayer mp = MediaPlayer.create(mContext, Uri.fromFile(new File(mInpPrefix + res)));
+
+        MediaPlayer mp = MediaPlayer.create(mContext, resid);
         try {
             mp.setAudioStreamType(AudioManager.STREAM_MUSIC);
             mp.setWakeMode(mContext, PowerManager.PARTIAL_WAKE_LOCK);
@@ -327,7 +312,7 @@ public class MediaPlayerTest extends MediaPlayerTestBase {
             // test stop and restart
             mp.stop();
             mp.reset();
-            AssetFileDescriptor afd = getAssetFileDescriptorFor(res);
+            AssetFileDescriptor afd = mResources.openRawResourceFd(resid);
             mp.setDataSource(afd.getFileDescriptor(), afd.getStartOffset(), afd.getLength());
             afd.close();
             mp.prepare();
@@ -345,12 +330,10 @@ public class MediaPlayerTest extends MediaPlayerTestBase {
     }
 
     public void testConcurentPlayAudio() throws Exception {
-        final String res = "test1m1s.mp3"; // MP3 longer than 1m are usualy offloaded
+        final int resid = R.raw.test1m1s; // MP3 longer than 1m are usualy offloaded
         final int tolerance = 70;
 
-        Preconditions.assertTestFileExists(mInpPrefix + res);
-        List<MediaPlayer> mps = Stream.generate(
-                () -> MediaPlayer.create(mContext, Uri.fromFile(new File(mInpPrefix + res))))
+        List<MediaPlayer> mps = Stream.generate(() -> MediaPlayer.create(mContext, resid))
                                       .limit(5).collect(Collectors.toList());
 
         try {
@@ -383,10 +366,9 @@ public class MediaPlayerTest extends MediaPlayerTestBase {
     }
 
     public void testPlayAudioLooping() throws Exception {
-        final String res = "testmp3.mp3";
+        final int resid = R.raw.testmp3;
 
-        Preconditions.assertTestFileExists(mInpPrefix + res);
-        MediaPlayer mp = MediaPlayer.create(mContext, Uri.fromFile(new File(mInpPrefix + res)));
+        MediaPlayer mp = MediaPlayer.create(mContext, resid);
         try {
             mp.setAudioStreamType(AudioManager.STREAM_MUSIC);
             mp.setWakeMode(mContext, PowerManager.PARTIAL_WAKE_LOCK);
@@ -421,19 +403,18 @@ public class MediaPlayerTest extends MediaPlayerTestBase {
     }
 
     public void testPlayMidi() throws Exception {
-        runMidiTest("midi8sec.mid", 8000 /* duration */);
-        runMidiTest("testrtttl.rtttl", 30000 /* duration */);
-        runMidiTest("testimy.imy", 5625 /* duration */);
-        runMidiTest("testota.ota", 5906 /* duration */);
-        runMidiTest("testmxmf.mxmf", 29095 /* duration */);
+        runMidiTest(R.raw.midi8sec, 8000 /* duration */);
+        runMidiTest(R.raw.testrtttl, 30000 /* duration */);
+        runMidiTest(R.raw.testimy, 5625 /* duration */);
+        runMidiTest(R.raw.testota, 5906 /* duration */);
+        runMidiTest(R.raw.testmxmf, 29095 /* duration */);
     }
 
-    private void runMidiTest(final String res, int midiDuration) throws Exception {
+    private void runMidiTest(int resid, int midiDuration) throws Exception {
         final int tolerance = 70;
         final int seekDuration = 1000;
 
-        Preconditions.assertTestFileExists(mInpPrefix + res);
-        MediaPlayer mp = MediaPlayer.create(mContext, Uri.fromFile(new File(mInpPrefix + res)));
+        MediaPlayer mp = MediaPlayer.create(mContext, resid);
         try {
             mp.setAudioStreamType(AudioManager.STREAM_MUSIC);
             mp.setWakeMode(mContext, PowerManager.PARTIAL_WAKE_LOCK);
@@ -455,7 +436,7 @@ public class MediaPlayerTest extends MediaPlayerTestBase {
             // test stop and restart
             mp.stop();
             mp.reset();
-            AssetFileDescriptor afd = getAssetFileDescriptorFor(res);
+            AssetFileDescriptor afd = mResources.openRawResourceFd(resid);
             mp.setDataSource(afd.getFileDescriptor(), afd.getStartOffset(), afd.getLength());
             afd.close();
             mp.prepare();
@@ -595,10 +576,9 @@ public class MediaPlayerTest extends MediaPlayerTestBase {
 
     public void testPlayAudioTwice() throws Exception {
 
-        final String res = "camera_click.ogg";
+        final int resid = R.raw.camera_click;
 
-        Preconditions.assertTestFileExists(mInpPrefix + res);
-        MediaPlayer mp = MediaPlayer.create(mContext, Uri.fromFile(new File(mInpPrefix + res)));
+        MediaPlayer mp = MediaPlayer.create(mContext, resid);
         try {
             mp.setAudioStreamType(AudioManager.STREAM_MUSIC);
             mp.setWakeMode(mContext, PowerManager.PARTIAL_WAKE_LOCK);
@@ -624,11 +604,11 @@ public class MediaPlayerTest extends MediaPlayerTestBase {
     }
 
     public void testPlayVideo() throws Exception {
-        playLoadedVideoTest("testvideo.3gp", 352, 288);
+        playVideoTest(R.raw.testvideo, 352, 288);
     }
 
     private void initMediaPlayer(MediaPlayer player) throws Exception {
-        AssetFileDescriptor afd = getAssetFileDescriptorFor("test1m1s.mp3");
+        AssetFileDescriptor afd = mResources.openRawResourceFd(R.raw.test1m1s);
         try {
             player.reset();
             player.setDataSource(afd.getFileDescriptor(), afd.getStartOffset(), afd.getLength());
@@ -808,7 +788,7 @@ public class MediaPlayerTest extends MediaPlayerTestBase {
     // will also result in zeroes being detected.
     // Note that this test does NOT guarantee that the correct data is played
     public void testGapless1() throws Exception {
-        flakyTestWrapper("monodcpos.mp3", "monodcneg.mp3");
+        flakyTestWrapper(R.raw.monodcpos, R.raw.monodcneg);
     }
 
     // This test is similar, but uses two identical m4a files that have some noise
@@ -816,21 +796,21 @@ public class MediaPlayerTest extends MediaPlayerTestBase {
     // a gap in playback
     // Note that this test does NOT guarantee that the correct data is played
     public void testGapless2() throws Exception {
-        flakyTestWrapper("stereonoisedcpos.m4a", "stereonoisedcpos.m4a");
+        flakyTestWrapper(R.raw.stereonoisedcpos, R.raw.stereonoisedcpos);
     }
 
     // same as above, but with a mono file
     public void testGapless3() throws Exception {
-        flakyTestWrapper("mononoisedcpos.m4a", "mononoisedcpos.m4a");
+        flakyTestWrapper(R.raw.mononoisedcpos, R.raw.mononoisedcpos);
     }
 
-    private void flakyTestWrapper(final String res1, final String res2) throws Exception {
+    private void flakyTestWrapper(int resid1, int resid2) throws Exception {
         boolean success = false;
         // test usually succeeds within a few tries, but occasionally may fail
         // many times in a row, so be aggressive and try up to 20 times
         for (int i = 0; i < 20 && !success; i++) {
             try {
-                testGapless(res1, res2);
+                testGapless(resid1, resid2);
                 success = true;
             } catch (Throwable t) {
                 SystemClock.sleep(1000);
@@ -839,11 +819,11 @@ public class MediaPlayerTest extends MediaPlayerTestBase {
         // Try one more time. If this succeeds, we'll consider the test a success,
         // otherwise the exception gets thrown
         if (!success) {
-            testGapless(res1, res2);
+            testGapless(resid1, resid2);
         }
     }
 
-    private void testGapless(final String res1, final String res2) throws Exception {
+    private void testGapless(int resid1, int resid2) throws Exception {
         MediaPlayer mp1 = null;
         MediaPlayer mp2 = null;
         AudioEffect vc = null;
@@ -860,7 +840,7 @@ public class MediaPlayerTest extends MediaPlayerTestBase {
             mp1 = new MediaPlayer();
             mp1.setAudioStreamType(AudioManager.STREAM_MUSIC);
 
-            AssetFileDescriptor afd = getAssetFileDescriptorFor(res1);
+            AssetFileDescriptor afd = mContext.getResources().openRawResourceFd(resid1);
             mp1.setDataSource(afd.getFileDescriptor(), afd.getStartOffset(), afd.getLength());
             afd.close();
             mp1.prepare();
@@ -871,7 +851,7 @@ public class MediaPlayerTest extends MediaPlayerTestBase {
             mp2.setAudioSessionId(session);
             mp2.setAudioStreamType(AudioManager.STREAM_MUSIC);
 
-            afd = getAssetFileDescriptorFor(res2);
+            afd = mContext.getResources().openRawResourceFd(resid2);
             mp2.setDataSource(afd.getFileDescriptor(), afd.getStartOffset(), afd.getLength());
             afd.close();
             mp2.prepare();
@@ -980,7 +960,7 @@ public class MediaPlayerTest extends MediaPlayerTestBase {
             }
         });
 
-        if (!checkLoadResource("testvideo.3gp")) {
+        if (!checkLoadResource(R.raw.testvideo)) {
             return; // skip;
         }
         playLoadedVideo(352, 288, -1);
@@ -1146,7 +1126,7 @@ public class MediaPlayerTest extends MediaPlayerTestBase {
     // setPlaybackParams() with non-zero speed should start playback.
     public void testSetPlaybackParamsPositiveSpeed() throws Exception {
         if (!checkLoadResource(
-                "video_480x360_mp4_h264_1000kbps_30fps_aac_stereo_128kbps_44100hz.mp4")) {
+                R.raw.video_480x360_mp4_h264_1000kbps_30fps_aac_stereo_128kbps_44100hz)) {
             return; // skip
         }
 
@@ -1202,7 +1182,7 @@ public class MediaPlayerTest extends MediaPlayerTestBase {
     // setPlaybackParams() with zero speed should pause playback.
     public void testSetPlaybackParamsZeroSpeed() throws Exception {
         if (!checkLoadResource(
-                "video_480x360_mp4_h264_1000kbps_30fps_aac_stereo_128kbps_44100hz.mp4")) {
+                R.raw.video_480x360_mp4_h264_1000kbps_30fps_aac_stereo_128kbps_44100hz)) {
             return; // skip
         }
 
@@ -1224,13 +1204,13 @@ public class MediaPlayerTest extends MediaPlayerTestBase {
         mMediaPlayer.seekTo(0);
         mOnSeekCompleteCalled.waitForSignal();
         Thread.sleep(playTime);
-        assertFalse("MediaPlayer should not be playing", mMediaPlayer.isPlaying());
-        assertTrue("MediaPlayer position should be 0", mMediaPlayer.getCurrentPosition() == 0);
+        assertTrue("MediaPlayer should not be playing",
+                !mMediaPlayer.isPlaying() && mMediaPlayer.getCurrentPosition() == 0);
 
         mMediaPlayer.start();
         Thread.sleep(playTime);
-        assertTrue("MediaPlayer should be playing", mMediaPlayer.isPlaying());
-        assertTrue("MediaPlayer position should be > 0", mMediaPlayer.getCurrentPosition() > 0);
+        assertTrue("MediaPlayer should be playing",
+                mMediaPlayer.isPlaying() && mMediaPlayer.getCurrentPosition() > 0);
 
         mMediaPlayer.setPlaybackParams(new PlaybackParams().setSpeed(0.0f));
         assertFalse("MediaPlayer should not be playing", mMediaPlayer.isPlaying());
@@ -1245,7 +1225,7 @@ public class MediaPlayerTest extends MediaPlayerTestBase {
     public void testPlaybackRate() throws Exception {
         final int toleranceMs = 1000;
         if (!checkLoadResource(
-                "video_480x360_mp4_h264_1000kbps_30fps_aac_stereo_128kbps_44100hz.mp4")) {
+                R.raw.video_480x360_mp4_h264_1000kbps_30fps_aac_stereo_128kbps_44100hz)) {
             return; // skip
         }
 
@@ -1286,7 +1266,7 @@ public class MediaPlayerTest extends MediaPlayerTestBase {
     public void testSeekModes() throws Exception {
         // This clip has 2 I frames at 66687us and 4299687us.
         if (!checkLoadResource(
-                "bbb_s1_320x240_mp4_h264_mp2_800kbps_30fps_aac_lc_5ch_240kbps_44100hz.mp4")) {
+                R.raw.bbb_s1_320x240_mp4_h264_mp2_800kbps_30fps_aac_lc_5ch_240kbps_44100hz)) {
             return; // skip
         }
 
@@ -1361,7 +1341,7 @@ public class MediaPlayerTest extends MediaPlayerTestBase {
         final int toleranceUs = 100000;
         final float playbackRate = 1.0f;
         if (!checkLoadResource(
-                "video_480x360_mp4_h264_1000kbps_30fps_aac_stereo_128kbps_44100hz.mp4")) {
+                R.raw.video_480x360_mp4_h264_1000kbps_30fps_aac_stereo_128kbps_44100hz)) {
             return; // skip
         }
 
@@ -1405,7 +1385,7 @@ public class MediaPlayerTest extends MediaPlayerTestBase {
 
     public void testMediaTimeDiscontinuity() throws Exception {
         if (!checkLoadResource(
-                "bbb_s1_320x240_mp4_h264_mp2_800kbps_30fps_aac_lc_5ch_240kbps_44100hz.mp4")) {
+                R.raw.bbb_s1_320x240_mp4_h264_mp2_800kbps_30fps_aac_lc_5ch_240kbps_44100hz)) {
             return; // skip
         }
 
@@ -1470,220 +1450,220 @@ public class MediaPlayerTest extends MediaPlayerTestBase {
 
     public void testLocalVideo_MKV_H265_1280x720_500kbps_25fps_AAC_Stereo_128kbps_44100Hz()
             throws Exception {
-        playLoadedVideoTest("video_1280x720_mkv_h265_500kbps_25fps_aac_stereo_128kbps_44100hz.mkv",
-                1280, 720);
+        playVideoTest(
+                R.raw.video_1280x720_mkv_h265_500kbps_25fps_aac_stereo_128kbps_44100hz, 1280, 720);
     }
     public void testLocalVideo_MP4_H264_480x360_500kbps_25fps_AAC_Stereo_128kbps_44110Hz()
             throws Exception {
-        playLoadedVideoTest("video_480x360_mp4_h264_500kbps_25fps_aac_stereo_128kbps_44100hz.mp4",
-                480, 360);
+        playVideoTest(
+                R.raw.video_480x360_mp4_h264_500kbps_25fps_aac_stereo_128kbps_44100hz, 480, 360);
     }
 
     public void testLocalVideo_MP4_H264_480x360_500kbps_30fps_AAC_Stereo_128kbps_44110Hz()
             throws Exception {
-        playLoadedVideoTest("video_480x360_mp4_h264_500kbps_30fps_aac_stereo_128kbps_44100hz.mp4",
-                480, 360);
+        playVideoTest(
+                R.raw.video_480x360_mp4_h264_500kbps_30fps_aac_stereo_128kbps_44100hz, 480, 360);
     }
 
     public void testLocalVideo_MP4_H264_480x360_1000kbps_25fps_AAC_Stereo_128kbps_44110Hz()
             throws Exception {
-        playLoadedVideoTest("video_480x360_mp4_h264_1000kbps_25fps_aac_stereo_128kbps_44100hz.mp4",
-                480, 360);
+        playVideoTest(
+                R.raw.video_480x360_mp4_h264_1000kbps_25fps_aac_stereo_128kbps_44100hz, 480, 360);
     }
 
     public void testLocalVideo_MP4_H264_480x360_1000kbps_30fps_AAC_Stereo_128kbps_44110Hz()
             throws Exception {
-        playLoadedVideoTest("video_480x360_mp4_h264_1000kbps_30fps_aac_stereo_128kbps_44100hz.mp4",
-                480, 360);
+        playVideoTest(
+                R.raw.video_480x360_mp4_h264_1000kbps_30fps_aac_stereo_128kbps_44100hz, 480, 360);
     }
 
     public void testLocalVideo_MP4_H264_480x360_1350kbps_25fps_AAC_Stereo_128kbps_44110Hz()
             throws Exception {
-        playLoadedVideoTest("video_480x360_mp4_h264_1350kbps_25fps_aac_stereo_128kbps_44100hz.mp4",
-                480, 360);
+        playVideoTest(
+                R.raw.video_480x360_mp4_h264_1350kbps_25fps_aac_stereo_128kbps_44100hz, 480, 360);
     }
 
     public void testLocalVideo_MP4_H264_480x360_1350kbps_30fps_AAC_Stereo_128kbps_44110Hz()
             throws Exception {
-        playLoadedVideoTest("video_480x360_mp4_h264_1350kbps_30fps_aac_stereo_128kbps_44100hz.mp4",
-                480, 360);
+        playVideoTest(
+                R.raw.video_480x360_mp4_h264_1350kbps_30fps_aac_stereo_128kbps_44100hz, 480, 360);
     }
 
     public void testLocalVideo_MP4_H264_480x360_1350kbps_30fps_AAC_Stereo_128kbps_44110Hz_frag()
             throws Exception {
-        playLoadedVideoTest(
-                "video_480x360_mp4_h264_1350kbps_30fps_aac_stereo_128kbps_44100hz_fragmented.mp4",
+        playVideoTest(
+                R.raw.video_480x360_mp4_h264_1350kbps_30fps_aac_stereo_128kbps_44100hz_fragmented,
                 480, 360);
     }
 
 
     public void testLocalVideo_MP4_H264_480x360_1350kbps_30fps_AAC_Stereo_192kbps_44110Hz()
             throws Exception {
-        playLoadedVideoTest("video_480x360_mp4_h264_1350kbps_30fps_aac_stereo_192kbps_44100hz.mp4",
-                480, 360);
+        playVideoTest(
+                R.raw.video_480x360_mp4_h264_1350kbps_30fps_aac_stereo_192kbps_44100hz, 480, 360);
     }
 
     public void testLocalVideo_3gp_H263_176x144_56kbps_12fps_AAC_Mono_24kbps_11025Hz()
             throws Exception {
-        playLoadedVideoTest("video_176x144_3gp_h263_56kbps_12fps_aac_mono_24kbps_11025hz.3gp", 176,
-                144);
+        playVideoTest(
+                R.raw.video_176x144_3gp_h263_56kbps_12fps_aac_mono_24kbps_11025hz, 176, 144);
     }
 
     public void testLocalVideo_3gp_H263_176x144_56kbps_12fps_AAC_Mono_24kbps_22050Hz()
             throws Exception {
-        playLoadedVideoTest("video_176x144_3gp_h263_56kbps_12fps_aac_mono_24kbps_22050hz.3gp", 176,
-                144);
+        playVideoTest(
+                R.raw.video_176x144_3gp_h263_56kbps_12fps_aac_mono_24kbps_22050hz, 176, 144);
     }
 
     public void testLocalVideo_3gp_H263_176x144_56kbps_12fps_AAC_Stereo_24kbps_11025Hz()
             throws Exception {
-        playLoadedVideoTest("video_176x144_3gp_h263_56kbps_12fps_aac_stereo_24kbps_11025hz.3gp",
-                176, 144);
+        playVideoTest(
+                R.raw.video_176x144_3gp_h263_56kbps_12fps_aac_stereo_24kbps_11025hz, 176, 144);
     }
 
     public void testLocalVideo_3gp_H263_176x144_56kbps_12fps_AAC_Stereo_24kbps_22050Hz()
             throws Exception {
-        playLoadedVideoTest("video_176x144_3gp_h263_56kbps_12fps_aac_stereo_24kbps_22050hz.3gp",
-                176, 144);
+        playVideoTest(
+                R.raw.video_176x144_3gp_h263_56kbps_12fps_aac_stereo_24kbps_22050hz, 176, 144);
     }
 
     public void testLocalVideo_3gp_H263_176x144_56kbps_12fps_AAC_Stereo_128kbps_11025Hz()
             throws Exception {
-        playLoadedVideoTest("video_176x144_3gp_h263_56kbps_12fps_aac_stereo_128kbps_11025hz.3gp",
-                176, 144);
+        playVideoTest(
+                R.raw.video_176x144_3gp_h263_56kbps_12fps_aac_stereo_128kbps_11025hz, 176, 144);
     }
 
     public void testLocalVideo_3gp_H263_176x144_56kbps_12fps_AAC_Stereo_128kbps_22050Hz()
             throws Exception {
-        playLoadedVideoTest("video_176x144_3gp_h263_56kbps_12fps_aac_stereo_128kbps_22050hz.3gp",
-                176, 144);
+        playVideoTest(
+                R.raw.video_176x144_3gp_h263_56kbps_12fps_aac_stereo_128kbps_22050hz, 176, 144);
     }
 
     public void testLocalVideo_3gp_H263_176x144_56kbps_25fps_AAC_Mono_24kbps_11025Hz()
             throws Exception {
-        playLoadedVideoTest("video_176x144_3gp_h263_56kbps_25fps_aac_mono_24kbps_11025hz.3gp", 176,
-                144);
+        playVideoTest(
+                R.raw.video_176x144_3gp_h263_56kbps_25fps_aac_mono_24kbps_11025hz, 176, 144);
     }
 
     public void testLocalVideo_3gp_H263_176x144_56kbps_25fps_AAC_Mono_24kbps_22050Hz()
             throws Exception {
-        playLoadedVideoTest("video_176x144_3gp_h263_56kbps_25fps_aac_mono_24kbps_22050hz.3gp", 176,
-                144);
+        playVideoTest(
+                R.raw.video_176x144_3gp_h263_56kbps_25fps_aac_mono_24kbps_22050hz, 176, 144);
     }
 
     public void testLocalVideo_3gp_H263_176x144_56kbps_25fps_AAC_Stereo_24kbps_11025Hz()
             throws Exception {
-        playLoadedVideoTest("video_176x144_3gp_h263_56kbps_25fps_aac_stereo_24kbps_11025hz.3gp",
-                176, 144);
+        playVideoTest(
+                R.raw.video_176x144_3gp_h263_56kbps_25fps_aac_stereo_24kbps_11025hz, 176, 144);
     }
 
     public void testLocalVideo_3gp_H263_176x144_56kbps_25fps_AAC_Stereo_24kbps_22050Hz()
             throws Exception {
-        playLoadedVideoTest("video_176x144_3gp_h263_56kbps_25fps_aac_stereo_24kbps_22050hz.3gp",
-                176, 144);
+        playVideoTest(
+                R.raw.video_176x144_3gp_h263_56kbps_25fps_aac_stereo_24kbps_22050hz, 176, 144);
     }
 
     public void testLocalVideo_3gp_H263_176x144_56kbps_25fps_AAC_Stereo_128kbps_11025Hz()
             throws Exception {
-        playLoadedVideoTest("video_176x144_3gp_h263_56kbps_25fps_aac_stereo_128kbps_11025hz.3gp",
-                176, 144);
+        playVideoTest(
+                R.raw.video_176x144_3gp_h263_56kbps_25fps_aac_stereo_128kbps_11025hz, 176, 144);
     }
 
     public void testLocalVideo_3gp_H263_176x144_56kbps_25fps_AAC_Stereo_128kbps_22050Hz()
             throws Exception {
-        playLoadedVideoTest("video_176x144_3gp_h263_56kbps_25fps_aac_stereo_128kbps_22050hz.3gp",
-                176, 144);
+        playVideoTest(
+                R.raw.video_176x144_3gp_h263_56kbps_25fps_aac_stereo_128kbps_22050hz, 176, 144);
     }
 
     public void testLocalVideo_3gp_H263_176x144_300kbps_12fps_AAC_Mono_24kbps_11025Hz()
             throws Exception {
-        playLoadedVideoTest("video_176x144_3gp_h263_300kbps_12fps_aac_mono_24kbps_11025hz.3gp", 176,
-                144);
+        playVideoTest(
+                R.raw.video_176x144_3gp_h263_300kbps_12fps_aac_mono_24kbps_11025hz, 176, 144);
     }
 
     public void testLocalVideo_3gp_H263_176x144_300kbps_12fps_AAC_Mono_24kbps_22050Hz()
             throws Exception {
-        playLoadedVideoTest("video_176x144_3gp_h263_300kbps_12fps_aac_mono_24kbps_22050hz.3gp", 176,
-                144);
+        playVideoTest(
+                R.raw.video_176x144_3gp_h263_300kbps_12fps_aac_mono_24kbps_22050hz, 176, 144);
     }
 
     public void testLocalVideo_3gp_H263_176x144_300kbps_12fps_AAC_Stereo_24kbps_11025Hz()
             throws Exception {
-        playLoadedVideoTest("video_176x144_3gp_h263_300kbps_12fps_aac_stereo_24kbps_11025hz.3gp",
-                176, 144);
+        playVideoTest(
+                R.raw.video_176x144_3gp_h263_300kbps_12fps_aac_stereo_24kbps_11025hz, 176, 144);
     }
 
     public void testLocalVideo_3gp_H263_176x144_300kbps_12fps_AAC_Stereo_24kbps_22050Hz()
             throws Exception {
-        playLoadedVideoTest("video_176x144_3gp_h263_300kbps_12fps_aac_stereo_24kbps_22050hz.3gp",
-                176, 144);
+        playVideoTest(
+                R.raw.video_176x144_3gp_h263_300kbps_12fps_aac_stereo_24kbps_22050hz, 176, 144);
     }
 
     public void testLocalVideo_3gp_H263_176x144_300kbps_12fps_AAC_Stereo_128kbps_11025Hz()
             throws Exception {
-        playLoadedVideoTest("video_176x144_3gp_h263_300kbps_12fps_aac_stereo_128kbps_11025hz.3gp",
-                176, 144);
+        playVideoTest(
+                R.raw.video_176x144_3gp_h263_300kbps_12fps_aac_stereo_128kbps_11025hz, 176, 144);
     }
 
     public void testLocalVideo_3gp_H263_176x144_300kbps_12fps_AAC_Stereo_128kbps_22050Hz()
             throws Exception {
-        playLoadedVideoTest("video_176x144_3gp_h263_300kbps_12fps_aac_stereo_128kbps_22050hz.3gp",
-                176, 144);
+        playVideoTest(
+                R.raw.video_176x144_3gp_h263_300kbps_12fps_aac_stereo_128kbps_22050hz, 176, 144);
     }
 
     public void testLocalVideo_3gp_H263_176x144_300kbps_25fps_AAC_Mono_24kbps_11025Hz()
             throws Exception {
-        playLoadedVideoTest("video_176x144_3gp_h263_300kbps_25fps_aac_mono_24kbps_11025hz.3gp", 176,
-                144);
+        playVideoTest(
+                R.raw.video_176x144_3gp_h263_300kbps_25fps_aac_mono_24kbps_11025hz, 176, 144);
     }
 
     public void testLocalVideo_3gp_H263_176x144_300kbps_25fps_AAC_Mono_24kbps_22050Hz()
             throws Exception {
-        playLoadedVideoTest("video_176x144_3gp_h263_300kbps_25fps_aac_mono_24kbps_22050hz.3gp", 176,
-                144);
+        playVideoTest(
+                R.raw.video_176x144_3gp_h263_300kbps_25fps_aac_mono_24kbps_22050hz, 176, 144);
     }
 
     public void testLocalVideo_3gp_H263_176x144_300kbps_25fps_AAC_Stereo_24kbps_11025Hz()
             throws Exception {
-        playLoadedVideoTest("video_176x144_3gp_h263_300kbps_25fps_aac_stereo_24kbps_11025hz.3gp",
-                176, 144);
+        playVideoTest(
+                R.raw.video_176x144_3gp_h263_300kbps_25fps_aac_stereo_24kbps_11025hz, 176, 144);
     }
 
     public void testLocalVideo_3gp_H263_176x144_300kbps_25fps_AAC_Stereo_24kbps_22050Hz()
             throws Exception {
-        playLoadedVideoTest("video_176x144_3gp_h263_300kbps_25fps_aac_stereo_24kbps_22050hz.3gp",
-                176, 144);
+        playVideoTest(
+                R.raw.video_176x144_3gp_h263_300kbps_25fps_aac_stereo_24kbps_22050hz, 176, 144);
     }
 
     public void testLocalVideo_3gp_H263_176x144_300kbps_25fps_AAC_Stereo_128kbps_11025Hz()
             throws Exception {
-        playLoadedVideoTest("video_176x144_3gp_h263_300kbps_25fps_aac_stereo_128kbps_11025hz.3gp",
-                176, 144);
+        playVideoTest(
+                R.raw.video_176x144_3gp_h263_300kbps_25fps_aac_stereo_128kbps_11025hz, 176, 144);
     }
 
     public void testLocalVideo_3gp_H263_176x144_300kbps_25fps_AAC_Stereo_128kbps_22050Hz()
             throws Exception {
-        playLoadedVideoTest("video_176x144_3gp_h263_300kbps_25fps_aac_stereo_128kbps_22050hz.3gp",
-                176, 144);
+        playVideoTest(
+                R.raw.video_176x144_3gp_h263_300kbps_25fps_aac_stereo_128kbps_22050hz, 176, 144);
     }
 
     public void testLocalVideo_cp1251_3_a_ms_acm_mp3() throws Exception {
-        playLoadedVideoTest("cp1251_3_a_ms_acm_mp3.mkv", -1, -1);
+        playVideoTest(R.raw.cp1251_3_a_ms_acm_mp3, -1, -1);
     }
 
     public void testLocalVideo_mkv_audio_pcm_be() throws Exception {
-        playLoadedVideoTest("mkv_audio_pcms16be.mkv", -1, -1);
+        playVideoTest(R.raw.mkv_audio_pcms16be, -1, -1);
     }
 
     public void testLocalVideo_mkv_audio_pcm_le() throws Exception {
-        playLoadedVideoTest("mkv_audio_pcms16le.mkv", -1, -1);
+        playVideoTest(R.raw.mkv_audio_pcms16le, -1, -1);
     }
 
     public void testLocalVideo_segment000001_m2ts()
             throws Exception {
-        if (checkLoadResource("segment000001.ts")) {
+        if (checkLoadResource(R.raw.segment000001)) {
             mMediaPlayer.stop();
-            assertTrue(checkLoadResource("segment000001_m2ts.mp4"));
+            assertTrue(checkLoadResource(R.raw.segment000001_m2ts));
             playLoadedVideo(320, 240, 0);
         } else {
             MediaUtils.skipTest("no mp2 support, skipping m2ts");
@@ -1723,7 +1703,7 @@ public class MediaPlayerTest extends MediaPlayerTestBase {
     }
 
     public void testDeselectTrackForSubtitleTracks() throws Throwable {
-        if (!checkLoadResource("testvideo_with_2_subtitle_tracks.mp4")) {
+        if (!checkLoadResource(R.raw.testvideo_with_2_subtitle_tracks)) {
             return; // skip;
         }
 
@@ -1789,7 +1769,7 @@ public class MediaPlayerTest extends MediaPlayerTestBase {
     }
 
     public void testChangeSubtitleTrack() throws Throwable {
-        if (!checkLoadResource("testvideo_with_2_subtitle_tracks.mp4")) {
+        if (!checkLoadResource(R.raw.testvideo_with_2_subtitle_tracks)) {
             return; // skip;
         }
 
@@ -1840,7 +1820,7 @@ public class MediaPlayerTest extends MediaPlayerTestBase {
     }
 
     public void testOnSubtitleDataListener() throws Throwable {
-        if (!checkLoadResource("testvideo_with_2_subtitle_tracks.mp4")) {
+        if (!checkLoadResource(R.raw.testvideo_with_2_subtitle_tracks)) {
             return; // skip;
         }
 
@@ -1897,7 +1877,7 @@ public class MediaPlayerTest extends MediaPlayerTestBase {
 
     @Presubmit
     public void testGetTrackInfoForVideoWithSubtitleTracks() throws Throwable {
-        if (!checkLoadResource("testvideo_with_2_subtitle_tracks.mp4")) {
+        if (!checkLoadResource(R.raw.testvideo_with_2_subtitle_tracks)) {
             return; // skip;
         }
 
@@ -1978,13 +1958,13 @@ public class MediaPlayerTest extends MediaPlayerTestBase {
     }
 
     public void testDeselectTrackForTimedTextTrack() throws Throwable {
-        if (!checkLoadResource("testvideo_with_2_timedtext_tracks.3gp")) {
+        if (!checkLoadResource(R.raw.testvideo_with_2_timedtext_tracks)) {
             return; // skip;
         }
         runTestOnUiThread(new Runnable() {
             public void run() {
                 try {
-                    loadSubtitleSource("test_subtitle1_srt.3gp");
+                    loadSubtitleSource(R.raw.test_subtitle1_srt);
                 } catch (Exception e) {
                     throw new AssertionFailedError(e.getMessage());
                 }
@@ -2059,8 +2039,8 @@ public class MediaPlayerTest extends MediaPlayerTestBase {
     }
 
     private void testChangeTimedTextTrackWithSpeed(float speed) throws Throwable {
-        testTimedText("testvideo_with_2_timedtext_tracks.3gp", 2,
-                new String[] {"test_subtitle1_srt.3gp", "test_subtitle2_srt.3gp"},
+        testTimedText(R.raw.testvideo_with_2_timedtext_tracks, 2,
+                new int[] {R.raw.test_subtitle1_srt, R.raw.test_subtitle2_srt},
                 new VerifyAndSignalTimedText(),
                 new Callable<Void>() {
                     @Override
@@ -2109,7 +2089,7 @@ public class MediaPlayerTest extends MediaPlayerTestBase {
         } catch (Exception e) {
             Log.w(LOG_TAG, "bad num/iteration arguments, using default", e);
         }
-        testTimedText("testvideo_with_2_timedtext_tracks.3gp", 2, new String [] {},
+        testTimedText(R.raw.testvideo_with_2_timedtext_tracks, 2, new int[] {},
                 new VerifyAndSignalTimedText(num.get(), true),
                 new Callable<Void>() {
                     @Override
@@ -2141,7 +2121,7 @@ public class MediaPlayerTest extends MediaPlayerTestBase {
     }
 
     private void testTimedText(
-            String resource, int numInternalTracks, String[] subtitleResources,
+            int resource, int numInternalTracks, int[] subtitleResources,
             OnTimedTextListener onTimedTextListener, Callable<?> testBody) throws Throwable {
         if (!checkLoadResource(resource)) {
             return; // skip;
@@ -2171,7 +2151,7 @@ public class MediaPlayerTest extends MediaPlayerTestBase {
             public void run() {
                 try {
                     // Adds two more external subtitle files.
-                    for (String subRes : subtitleResources) {
+                    for (int subRes : subtitleResources) {
                         loadSubtitleSource(subRes);
                     }
                     readTimedTextTracks();
@@ -2188,14 +2168,14 @@ public class MediaPlayerTest extends MediaPlayerTestBase {
 
     @Presubmit
     public void testGetTrackInfoForVideoWithTimedText() throws Throwable {
-        if (!checkLoadResource("testvideo_with_2_timedtext_tracks.3gp")) {
+        if (!checkLoadResource(R.raw.testvideo_with_2_timedtext_tracks)) {
             return; // skip;
         }
         runTestOnUiThread(new Runnable() {
             public void run() {
                 try {
-                    loadSubtitleSource("test_subtitle1_srt.3gp");
-                    loadSubtitleSource("test_subtitle2_srt.3gp");
+                    loadSubtitleSource(R.raw.test_subtitle1_srt);
+                    loadSubtitleSource(R.raw.test_subtitle2_srt);
                 } catch (Exception e) {
                     throw new AssertionFailedError(e.getMessage());
                 }
@@ -2233,21 +2213,23 @@ public class MediaPlayerTest extends MediaPlayerTestBase {
      */
     public void testResumeAtEnd() throws Throwable {
         int testsRun =
-            testResumeAtEnd("loudsoftmp3.mp3") +
-            testResumeAtEnd("loudsoftwav.wav") +
-            testResumeAtEnd("loudsoftogg.ogg") +
-            testResumeAtEnd("loudsoftitunes.m4a") +
-            testResumeAtEnd("loudsoftfaac.m4a") +
-            testResumeAtEnd("loudsoftaac.aac");
+            testResumeAtEnd(R.raw.loudsoftmp3) +
+            testResumeAtEnd(R.raw.loudsoftwav) +
+            testResumeAtEnd(R.raw.loudsoftogg) +
+            testResumeAtEnd(R.raw.loudsoftitunes) +
+            testResumeAtEnd(R.raw.loudsoftfaac) +
+            testResumeAtEnd(R.raw.loudsoftaac);
         if (testsRun == 0) {
             MediaUtils.skipTest("no decoder found");
         }
     }
 
     // returns 1 if test was run, 0 otherwise
-    private int testResumeAtEnd(final String res) throws Throwable {
+    private int testResumeAtEnd(int res) throws Throwable {
         if (!loadResource(res)) {
-            Log.i(LOG_TAG, "testResumeAtEnd: No decoder found for " + res + " --- skipping.");
+            Log.i(LOG_TAG, "testResumeAtEnd: No decoder found for " +
+                mContext.getResources().getResourceEntryName(res) +
+                " --- skipping.");
             return 0; // skip
         }
         mMediaPlayer.prepare();
@@ -2272,21 +2254,23 @@ public class MediaPlayerTest extends MediaPlayerTestBase {
 
     public void testPositionAtEnd() throws Throwable {
         int testsRun =
-            testPositionAtEnd("test1m1shighstereo.mp3") +
-            testPositionAtEnd("loudsoftmp3.mp3") +
-            testPositionAtEnd("loudsoftwav.wav") +
-            testPositionAtEnd("loudsoftogg.ogg") +
-            testPositionAtEnd("loudsoftitunes.m4a") +
-            testPositionAtEnd("loudsoftfaac.m4a") +
-            testPositionAtEnd("loudsoftaac.aac");
+            testPositionAtEnd(R.raw.test1m1shighstereo) +
+            testPositionAtEnd(R.raw.loudsoftmp3) +
+            testPositionAtEnd(R.raw.loudsoftwav) +
+            testPositionAtEnd(R.raw.loudsoftogg) +
+            testPositionAtEnd(R.raw.loudsoftitunes) +
+            testPositionAtEnd(R.raw.loudsoftfaac) +
+            testPositionAtEnd(R.raw.loudsoftaac);
         if (testsRun == 0) {
             MediaUtils.skipTest(LOG_TAG, "no decoder found");
         }
     }
 
-    private int testPositionAtEnd(final String res) throws Throwable {
+    private int testPositionAtEnd(int res) throws Throwable {
         if (!loadResource(res)) {
-            Log.i(LOG_TAG, "testPositionAtEnd: No decoder found for " + res + " --- skipping.");
+            Log.i(LOG_TAG, "testPositionAtEnd: No decoder found for " +
+                mContext.getResources().getResourceEntryName(res) +
+                " --- skipping.");
             return 0; // skip
         }
         mMediaPlayer.setAudioStreamType(AudioManager.STREAM_MUSIC);
@@ -2315,7 +2299,7 @@ public class MediaPlayerTest extends MediaPlayerTestBase {
     public void testCallback() throws Throwable {
         final int mp4Duration = 8484;
 
-        if (!checkLoadResource("testvideo.3gp")) {
+        if (!checkLoadResource(R.raw.testvideo)) {
             return; // skip;
         }
 
@@ -2475,16 +2459,15 @@ public class MediaPlayerTest extends MediaPlayerTestBase {
 
     // Smoke test playback from a MediaDataSource.
     public void testPlaybackFromAMediaDataSource() throws Exception {
-        final String res = "video_480x360_mp4_h264_1350kbps_30fps_aac_stereo_192kbps_44100hz.mp4";
+        final int resid = R.raw.video_480x360_mp4_h264_1350kbps_30fps_aac_stereo_192kbps_44100hz;
         final int duration = 10000;
 
-        Preconditions.assertTestFileExists(mInpPrefix + res);
-        if (!MediaUtils.hasCodecsForResource(mInpPrefix + res)) {
+        if (!MediaUtils.hasCodecsForResource(mContext, resid)) {
             return;
         }
 
         TestMediaDataSource dataSource =
-                TestMediaDataSource.fromAssetFd(getAssetFileDescriptorFor(res));
+                TestMediaDataSource.fromAssetFd(mResources.openRawResourceFd(resid));
         // Test returning -1 from getSize() to indicate unknown size.
         dataSource.returnFromGetSize(-1);
         mMediaPlayer.setDataSource(dataSource);
@@ -2534,15 +2517,14 @@ public class MediaPlayerTest extends MediaPlayerTestBase {
 
     @Presubmit
     public void testPlaybackFailsIfMediaDataSourceThrows() throws Exception {
-        final String res = "video_480x360_mp4_h264_1350kbps_30fps_aac_stereo_192kbps_44100hz.mp4";
-        Preconditions.assertTestFileExists(mInpPrefix + res);
-        if (!MediaUtils.hasCodecsForResource(mInpPrefix + res)) {
+        final int resid = R.raw.video_480x360_mp4_h264_1350kbps_30fps_aac_stereo_192kbps_44100hz;
+        if (!MediaUtils.hasCodecsForResource(mContext, resid)) {
             return;
         }
 
         setOnErrorListener();
         TestMediaDataSource dataSource =
-                TestMediaDataSource.fromAssetFd(getAssetFileDescriptorFor(res));
+                TestMediaDataSource.fromAssetFd(mResources.openRawResourceFd(resid));
         mMediaPlayer.setDataSource(dataSource);
         mMediaPlayer.prepare();
 
@@ -2553,42 +2535,19 @@ public class MediaPlayerTest extends MediaPlayerTestBase {
 
     @Presubmit
     public void testPlaybackFailsIfMediaDataSourceReturnsAnError() throws Exception {
-        final String res = "video_480x360_mp4_h264_1350kbps_30fps_aac_stereo_192kbps_44100hz.mp4";
-        Preconditions.assertTestFileExists(mInpPrefix + res);
-        if (!MediaUtils.hasCodecsForResource(mInpPrefix + res)) {
+        final int resid = R.raw.video_480x360_mp4_h264_1350kbps_30fps_aac_stereo_192kbps_44100hz;
+        if (!MediaUtils.hasCodecsForResource(mContext, resid)) {
             return;
         }
 
         setOnErrorListener();
         TestMediaDataSource dataSource =
-                TestMediaDataSource.fromAssetFd(getAssetFileDescriptorFor(res));
+                TestMediaDataSource.fromAssetFd(mResources.openRawResourceFd(resid));
         mMediaPlayer.setDataSource(dataSource);
         mMediaPlayer.prepare();
 
         dataSource.returnFromReadAt(-2);
         mMediaPlayer.start();
         assertTrue(mOnErrorCalled.waitForSignal());
-    }
-
-    @Presubmit
-    public void testSetOnRtpRxNoticeListenerWithoutPermission() {
-        try {
-            mMediaPlayer.setOnRtpRxNoticeListener(
-                    mContext, Runnable::run, (mp, noticeType, params) -> {});
-            fail();
-        } catch (IllegalArgumentException e) {
-            // Expected. We don't have the required permission.
-        }
-    }
-
-    @Presubmit
-    public void testSetOnRtpRxNoticeListenerWithPermission() {
-        try {
-            getInstrumentation().getUiAutomation().adoptShellPermissionIdentity();
-            mMediaPlayer.setOnRtpRxNoticeListener(
-                    mContext, Runnable::run, (mp, noticeType, params) -> {});
-        } finally {
-            getInstrumentation().getUiAutomation().dropShellPermissionIdentity();
-        }
     }
 }

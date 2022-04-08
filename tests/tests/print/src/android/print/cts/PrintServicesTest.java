@@ -120,7 +120,7 @@ public class PrintServicesTest extends BasePrintTest {
 
                 PendingIntent infoPendingIntent = PendingIntent.getActivity(getActivity(),
                         0,
-                        infoIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_MUTABLE_UNAUDITED);
+                        infoIntent, PendingIntent.FLAG_UPDATE_CURRENT);
 
                 sPrinter = new PrinterInfo.Builder(printerId, printerName,
                         PrinterInfo.STATUS_IDLE)
@@ -591,7 +591,7 @@ public class PrintServicesTest extends BasePrintTest {
                     infoIntent.putExtra("PRINTER_NAME", "Printer2");
 
                     PendingIntent infoPendingIntent = PendingIntent.getActivity(getActivity(), 0,
-                            infoIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_MUTABLE_UNAUDITED);
+                            infoIntent, PendingIntent.FLAG_UPDATE_CURRENT);
 
                     PrinterInfo printer2 = new PrinterInfo.Builder(printer2Id, "Printer2",
                             PrinterInfo.STATUS_IDLE)

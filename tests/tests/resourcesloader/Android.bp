@@ -14,10 +14,6 @@
 // limitations under the License.
 //
 
-package {
-    default_applicable_licenses: ["Android-Apache-2.0"],
-}
-
 android_test {
     name: "CtsResourcesLoaderTests",
     defaults: ["cts_defaults"],
@@ -25,14 +21,15 @@ android_test {
     test_suites: [
         "cts",
         "vts",
+        "vts10",
         "general-tests",
     ],
     srcs: [
         "src/**/*.kt"
     ],
     libs: [
-        "android.test.runner",
-        "android.test.base"
+        "android.test.runner.stubs",
+        "android.test.base.stubs"
     ],
     static_libs: [
         "CtsResourcesLoaderTests_Providers",

@@ -19,6 +19,7 @@ package com.android.cts.verifier.managedprovisioning;
 import static android.keystore.cts.CertificateUtils.createCertificate;
 
 import android.app.admin.DevicePolicyManager;
+import android.content.Context;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.security.AttestedKeyPair;
@@ -27,18 +28,19 @@ import android.security.KeyChainAliasCallback;
 import android.security.KeyChainException;
 import android.security.keystore.KeyGenParameterSpec;
 import android.security.keystore.KeyProperties;
+import android.text.method.ScrollingMovementMethod;
 import android.util.Log;
 import android.view.View;
-
+import android.widget.Button;
+import android.widget.TextView;
+import com.android.cts.verifier.PassFailButtons;
 import com.android.cts.verifier.R;
-
 import java.security.GeneralSecurityException;
 import java.security.Principal;
 import java.security.PrivateKey;
 import java.security.Signature;
 import java.security.cert.X509Certificate;
 import java.util.Arrays;
-
 import javax.security.auth.x500.X500Principal;
 
 /**
@@ -53,7 +55,7 @@ import javax.security.auth.x500.X500Principal;
  * <p>After the visibility is set to not-user-visible, the prompt is shown again, this time the
  * testes is asked to verify no keys are selectable and cancel the dialog.
  */
-public class KeyChainTestActivity extends ByodTestActivityWithPrepare {
+public class KeyChainTestActivity extends PassFailButtons.Activity {
     private static final String TAG = "ByodKeyChainActivity";
 
     public static final String ACTION_KEYCHAIN =
@@ -65,6 +67,10 @@ public class KeyChainTestActivity extends ByodTestActivityWithPrepare {
     private DevicePolicyManager mDevicePolicyManager;
     private AttestedKeyPair mAttestedKeyPair;
     private X509Certificate mCert;
+    private TextView mLogView;
+    private TextView mInstructionsView;
+    private Button mSetupButton;
+    private Button mGoButton;
 
     // Callback interface for when a key is generated.
     static interface KeyGenerationListener {
@@ -91,13 +97,13 @@ public class KeyChainTestActivity extends ByodTestActivityWithPrepare {
                                 specs[0],
                                 0);
                 if (kp != null) {
-                    getLogView().setText("Key generated successfully.");
+                    mLogView.setText("Key generated successfully.");
                 } else {
-                    getLogView().setText("Failed generating key.");
+                    mLogView.setText("Failed generating key.");
                 }
                 return kp;
             } catch (SecurityException e) {
-                getLogView().setText("Security exception while generating key.");
+                mLogView.setText("Security exception while generating key.");
                 Log.w(TAG, "Security exception", e);
             }
 
@@ -125,16 +131,15 @@ public class KeyChainTestActivity extends ByodTestActivityWithPrepare {
                 boolean installResult = installCertificate(mCert, true);
                 // called from onPostExecute so safe to interact with the UI here.
                 if (installResult) {
-                    getLogView().setText("Test ready");
-                    getInstructionsView().setText(
-                            R.string.provisioning_byod_keychain_info_first_test);
-                    getGoButton().setEnabled(true);
+                    mLogView.setText("Test ready");
+                    mInstructionsView.setText(R.string.provisioning_byod_keychain_info_first_test);
+                    mGoButton.setEnabled(true);
                 } else {
-                    getLogView().setText("FAILED certificate installation.");
+                    mLogView.setText("FAILED certificate installation.");
                 }
             } catch (Exception e) {
                 Log.w(TAG, "Failed installing certificate", e);
-                getLogView().setText("Error generating a certificate.");
+                mLogView.setText("Error generating a certificate.");
             }
         }
     }
@@ -167,7 +172,7 @@ public class KeyChainTestActivity extends ByodTestActivityWithPrepare {
     class TestPreparator implements View.OnClickListener {
         @Override
         public void onClick(View v) {
-            getLogView().setText("Starting key generation");
+            mLogView.setText("Starting key generation");
             KeyGenParameterSpec spec =
                     new KeyGenParameterSpec.Builder(
                                     ALIAS,
@@ -186,7 +191,7 @@ public class KeyChainTestActivity extends ByodTestActivityWithPrepare {
         @Override
         public void onClick(View v) {
             Log.i(TAG, "Selecting certificate");
-            getLogView().setText("Waiting for prompt");
+            mLogView.setText("Waiting for prompt");
             selectCertificate(this);
         }
 
@@ -228,7 +233,7 @@ public class KeyChainTestActivity extends ByodTestActivityWithPrepare {
         @Override
         public void onClick(View v) {
             Log.i(TAG, "Selecting certificate");
-            getLogView().setText("Prompt should not appear.");
+            mLogView.setText("Prompt should not appear.");
             selectCertificate(this);
         }
 
@@ -250,11 +255,25 @@ public class KeyChainTestActivity extends ByodTestActivityWithPrepare {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        setContentView(R.layout.keychain_test);
+        setPassFailButtonClickListeners();
+        mDevicePolicyManager =
+                (DevicePolicyManager) getSystemService(Context.DEVICE_POLICY_SERVICE);
 
-        mDevicePolicyManager = getSystemService(DevicePolicyManager.class);
-        getInstructionsView().setText(R.string.provisioning_byod_keychain_info_start);
-        getPrepareButton().setOnClickListener(new TestPreparator());
-        getGoButton().setOnClickListener(new SelectCertificate());
+        mLogView = (TextView) findViewById(R.id.provisioning_byod_keychain_test_log);
+        mLogView.setMovementMethod(new ScrollingMovementMethod());
+
+        mInstructionsView = (TextView) findViewById(R.id.provisioning_byod_keychain_instructions);
+
+        mSetupButton = (Button) findViewById(R.id.prepare_test_button);
+        mSetupButton.setOnClickListener(new TestPreparator());
+
+        mGoButton = (Button) findViewById(R.id.run_test_button);
+        mGoButton.setOnClickListener(new SelectCertificate());
+        mGoButton.setEnabled(false);
+
+        // Disable the pass button here, only enable it when the 2nd test passes.
+        getPassButton().setEnabled(false);
     }
 
     protected void prepareSecondTest() {
@@ -262,17 +281,17 @@ public class KeyChainTestActivity extends ByodTestActivityWithPrepare {
         if (installCertificate(mCert, false)) {
             uiChanges =
                     () -> {
-                        getLogView().setText("Second test ready.");
-                        getInstructionsView().setText(
+                        mLogView.setText("Second test ready.");
+                        mInstructionsView.setText(
                                 R.string.provisioning_byod_keychain_info_second_test);
-                        getGoButton().setText("Run 2nd test");
-                        getGoButton().setOnClickListener(new SelectCertificateExpectingNone());
+                        mGoButton.setText("Run 2nd test");
+                        mGoButton.setOnClickListener(new SelectCertificateExpectingNone());
                     };
         } else {
             uiChanges =
                     () -> {
-                        getLogView().setText("FAILED second test setup.");
-                        getGoButton().setEnabled(false);
+                        mLogView.setText("FAILED second test setup.");
+                        mGoButton.setEnabled(false);
                     };
         }
 
@@ -294,7 +313,7 @@ public class KeyChainTestActivity extends ByodTestActivityWithPrepare {
     private void logStatus(String status) {
         runOnUiThread(
                 () -> {
-                    getLogView().setText(status);
+                    mLogView.setText(status);
                 });
     }
 }

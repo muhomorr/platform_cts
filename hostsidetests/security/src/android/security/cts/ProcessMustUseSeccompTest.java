@@ -130,13 +130,7 @@ public class ProcessMustUseSeccompTest extends DeviceTestCase {
         assertSeccompFilter("media.extractor", PS_CMD, false);
     }
 
-    public void testMediaSwcodecHasSeccompFilter() throws DeviceNotAvailableException {
-        // non-mainline devices might not have this process
-        assertSeccompFilter("media.swcodec", PS_CMD, false, false /* mustHaveProcess */);
-    }
-
     public void testOmxHalHasSeccompFilter() throws DeviceNotAvailableException {
-        // 64bit only devices don't have 32bit only media.codec (omx)
-        assertSeccompFilter("media.codec", PS_CMD, false, false /* mustHaveProcess */);
+        assertSeccompFilter("media.codec", PS_CMD, false);
     }
 }

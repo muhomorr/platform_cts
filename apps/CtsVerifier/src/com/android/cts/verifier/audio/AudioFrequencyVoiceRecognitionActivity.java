@@ -16,7 +16,6 @@
 
 package com.android.cts.verifier.audio;
 
-import com.android.cts.verifier.CtsVerifierReportLog;
 import com.android.cts.verifier.R;
 import com.android.cts.verifier.audio.wavelib.*;
 import com.android.compatibility.common.util.ResultType;
@@ -267,7 +266,7 @@ public class AudioFrequencyVoiceRecognitionActivity extends AudioFrequencyActivi
 
         //Init bands for Mic test
         mBandSpecsMic[0] = new AudioBandSpecs(
-                30, 100,         /* frequency start,stop */
+                5, 100,          /* frequency start,stop */
                 20.0, -20.0,     /* start top,bottom value */
                 20.0, -20.0      /* stop top,bottom value */);
 
@@ -639,8 +638,8 @@ public class AudioFrequencyVoiceRecognitionActivity extends AudioFrequencyActivi
         }
         sb.append("\n");
 
-        storeTestResults(mResultsTone);
-        storeTestResults(mResultsMic);
+        recordTestResults(mResultsTone);
+        recordTestResults(mResultsMic);
 
         boolean allTestsPassed = false;
         if (mResultsMic.testAll() && mResultsTone.testAll() && toneTestSuccess &&
@@ -907,42 +906,36 @@ public class AudioFrequencyVoiceRecognitionActivity extends AudioFrequencyActivi
     /**
      * Store test results in log
      */
-    private void storeTestResults(Results results) {
+    private void recordTestResults(Results results) {
         String channelLabel = "channel_" + results.mLabel;
 
-        CtsVerifierReportLog reportLog = getReportLog();
         for (int b = 0; b < results.mBandCount; b++) {
             String bandLabel = String.format(channelLabel + "_%d", b);
-            reportLog.addValue(
+            getReportLog().addValue(
                     bandLabel + "_Level",
                     results.mAverageEnergyPerBand[b],
                     ResultType.HIGHER_BETTER,
                     ResultUnit.NONE);
 
-            reportLog.addValue(
+            getReportLog().addValue(
                     bandLabel + "_pointsinbound",
                     results.mInBoundPointsPerBand[b],
                     ResultType.HIGHER_BETTER,
                     ResultUnit.COUNT);
 
-            reportLog.addValue(
+            getReportLog().addValue(
                     bandLabel + "_pointstotal",
                     results.mPointsPerBand[b],
                     ResultType.NEUTRAL,
                     ResultUnit.COUNT);
         }
 
-        reportLog.addValues(channelLabel + "_magnitudeSpectrumLog",
+        getReportLog().addValues(channelLabel + "_magnitudeSpectrumLog",
                 results.mValuesLog,
                 ResultType.NEUTRAL,
                 ResultUnit.NONE);
 
-        Log.v(TAG, "Results Stored");
-    }
-
-    @Override // PassFailButtons
-    public void recordTestResults() {
-        getReportLog().submit();
+        Log.v(TAG, "Results Recorded");
     }
 
     private void recordHeasetPortFound(boolean found) {

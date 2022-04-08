@@ -46,22 +46,22 @@ public class CrossProfileCalendarTest extends AndroidTestCase {
     public void testCrossProfileCalendarPackage() {
         requireRunningOnManagedProfile();
 
-        Set<String> allowlist = mDevicePolicyManager.getCrossProfileCalendarPackages(
+        Set<String> whitelist = mDevicePolicyManager.getCrossProfileCalendarPackages(
                 ADMIN_RECEIVER_COMPONENT);
-        assertThat(allowlist).isEmpty();
+        assertThat(whitelist).isEmpty();
 
         mDevicePolicyManager.setCrossProfileCalendarPackages(
                 ADMIN_RECEIVER_COMPONENT, new ArraySet<String>(Arrays.asList(MANAGED_PROFILE_PKG)));
-        allowlist = mDevicePolicyManager.getCrossProfileCalendarPackages(
+        whitelist = mDevicePolicyManager.getCrossProfileCalendarPackages(
                 ADMIN_RECEIVER_COMPONENT);
-        assertThat(allowlist.size()).isEqualTo(1);
-        assertThat(allowlist.contains(MANAGED_PROFILE_PKG)).isTrue();
+        assertThat(whitelist.size()).isEqualTo(1);
+        assertThat(whitelist.contains(MANAGED_PROFILE_PKG)).isTrue();
 
         mDevicePolicyManager.setCrossProfileCalendarPackages(
                 ADMIN_RECEIVER_COMPONENT, Collections.emptySet());
-        allowlist = mDevicePolicyManager.getCrossProfileCalendarPackages(
+        whitelist = mDevicePolicyManager.getCrossProfileCalendarPackages(
                 ADMIN_RECEIVER_COMPONENT);
-        assertThat(allowlist).isEmpty();
+        assertThat(whitelist).isEmpty();
     }
 
     // This method is to guard that particular tests are supposed to run on managed profile.

@@ -31,6 +31,8 @@ public class CVE_2021_0484 extends SecurityTestCase {
     @Test
     @AsbSecurityTest(cveBugId = 173720767)
     public void testPocCVE_2021_0484() throws Exception {
-        AdbUtils.runPocAssertNoCrashesNotVulnerable("CVE-2021-0484", null, getDevice());
+        AdbUtils.pocConfig testConfig = new AdbUtils.pocConfig("CVE-2021-0484", getDevice());
+        testConfig.checkCrash = false;
+        AdbUtils.runPocAssertNoCrashesNotVulnerable(testConfig);
     }
 }

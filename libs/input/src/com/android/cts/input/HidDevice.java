@@ -16,97 +16,97 @@
 
 package com.android.cts.input;
 
+import static android.os.FileUtils.closeQuietly;
 
 import android.app.Instrumentation;
-import android.util.Log;
-
-import androidx.annotation.GuardedBy;
+import android.app.UiAutomation;
+import android.hardware.input.InputManager;
+import android.os.ParcelFileDescriptor;
+import android.os.SystemClock;
 
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
+import java.io.OutputStream;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Represents a virtual HID device registered through /dev/uhid.
  */
-public final class HidDevice extends VirtualInputDevice {
+public final class HidDevice implements InputManager.InputDeviceListener {
     private static final String TAG = "HidDevice";
     // hid executable expects "-" argument to read from stdin instead of a file
     private static final String HID_COMMAND = "hid -";
 
-    @GuardedBy("mLock")
-    private List<HidResultData> mResults = new ArrayList<HidResultData>();
+    private final int mId; // // initialized from the json file
 
-    @Override
-    protected String getShellCommand() {
-        return HID_COMMAND;
+    private OutputStream mOutputStream;
+    private Instrumentation mInstrumentation;
+
+    private volatile CountDownLatch mDeviceAddedSignal; // to wait for onInputDeviceAdded signal
+
+    public HidDevice(Instrumentation instrumentation, int deviceId, String registerCommand) {
+        mInstrumentation = instrumentation;
+        setupPipes();
+
+        mInstrumentation.runOnMainSync(new Runnable(){
+            @Override
+            public void run() {
+                InputManager inputManager =
+                        mInstrumentation.getContext().getSystemService(InputManager.class);
+                inputManager.registerInputDeviceListener(HidDevice.this, null);
+            }
+        });
+
+        mId = deviceId;
+        registerInputDevice(registerCommand);
     }
 
-    @Override
-    protected void readResults() {
+    /**
+     * Register an input device. May cause a failure if the device added notification
+     * is not received within the timeout period
+     *
+     * @param registerCommand The full json command that specifies how to register this device
+     */
+    private void registerInputDevice(String registerCommand) {
+        mDeviceAddedSignal = new CountDownLatch(1);
+        writeHidCommands(registerCommand.getBytes());
         try {
-            mReader.beginObject();
-            HidResultData result = new HidResultData();
-            while (mReader.hasNext()) {
-                String fieldName = mReader.nextName();
-                if (fieldName.equals("eventId")) {
-                    result.eventId = Byte.decode(mReader.nextString());
-                }
-                if (fieldName.equals("deviceId")) {
-                    result.deviceId = Integer.decode(mReader.nextString());
-                }
-                if (fieldName.equals("reportType")) {
-                    result.reportType = Byte.decode(mReader.nextString());
-                }
-                if (fieldName.equals("reportData")) {
-                    result.reportData = readData();
-                }
+            // Found that in kernel 3.10, the device registration takes a very long time
+            // The wait can be decreased to 2 seconds after kernel 3.10 is no longer supported
+            mDeviceAddedSignal.await(20L, TimeUnit.SECONDS);
+            if (mDeviceAddedSignal.getCount() != 0) {
+                throw new RuntimeException("Did not receive device added notification in time");
             }
-            mReader.endObject();
-            addResult(result);
-        } catch (IOException ex) {
-            Log.w(TAG, "Exiting JSON Result reader. " + ex);
+        } catch (InterruptedException ex) {
+            throw new RuntimeException(
+                    "Unexpectedly interrupted while waiting for device added notification.");
         }
-    }
-
-    public HidDevice(Instrumentation instrumentation, int id,
-            int vendorId, int productId, int sources, String registerCommand) {
-        super(instrumentation, id, vendorId, productId, sources, registerCommand);
+        // Even though the device has been added, it still may not be ready to process the events
+        // right away. This seems to be a kernel bug.
+        // Add a small delay here to ensure device is "ready".
+        SystemClock.sleep(500);
     }
 
     /**
-     * Get hid command return results as list of HidResultData
+     * Add a delay between processing events.
      *
-     * @return List of HidResultData results
+     * @param milliSeconds The delay in milliseconds.
      */
-    public synchronized List<HidResultData> getResults(int deviceId, byte eventId)
-            throws IOException {
-        List<HidResultData> results = new ArrayList<HidResultData>();
-        synchronized (mLock) {
-            for (HidResultData result : mResults) {
-                if (deviceId == result.deviceId && eventId == result.eventId) {
-                    results.add(result);
-                }
-            }
+    public void delay(int milliSeconds) {
+        JSONObject json = new JSONObject();
+        try {
+            json.put("command", "delay");
+            json.put("id", mId);
+            json.put("duration", milliSeconds);
+        } catch (JSONException e) {
+            throw new RuntimeException(
+                    "Could not create JSON object to delay " + milliSeconds + " milliseconds");
         }
-        return results;
-    }
-
-    /**
-     * Add hid command returned HidResultData result
-     *
-     * @param result HidResultData result
-     */
-    public synchronized void addResult(HidResultData result) {
-        synchronized (mLock) {
-            if (mId == result.deviceId && mResults != null) {
-                mResults.add(result);
-            }
-        }
+        writeHidCommands(json.toString().getBytes());
     }
 
     /**
@@ -126,7 +126,44 @@ public final class HidDevice extends VirtualInputDevice {
         } catch (JSONException e) {
             throw new RuntimeException("Could not process HID report: " + report);
         }
-        writeCommands(json.toString().getBytes());
+        writeHidCommands(json.toString().getBytes());
     }
 
+    /**
+     * Close the device, which would cause the associated input device to unregister.
+     */
+    public void close() {
+        closeQuietly(mOutputStream);
+    }
+
+    private void setupPipes() {
+        UiAutomation ui = mInstrumentation.getUiAutomation();
+        ParcelFileDescriptor[] pipes = ui.executeShellCommandRw(HID_COMMAND);
+
+        mOutputStream = new ParcelFileDescriptor.AutoCloseOutputStream(pipes[1]);
+        closeQuietly(pipes[0]); // hid command is write-only
+    }
+
+    private void writeHidCommands(byte[] bytes) {
+        try {
+            mOutputStream.write(bytes);
+            mOutputStream.flush();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    // InputManager.InputDeviceListener functions
+    @Override
+    public void onInputDeviceAdded(int deviceId) {
+        mDeviceAddedSignal.countDown();
+    }
+
+    @Override
+    public void onInputDeviceChanged(int deviceId) {
+    }
+
+    @Override
+    public void onInputDeviceRemoved(int deviceId) {
+    }
 }

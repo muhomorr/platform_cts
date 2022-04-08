@@ -50,7 +50,6 @@ public class AppMimeGroupsReceiver extends BroadcastReceiver {
         Intent response = new Intent(ACTION_RESPONSE);
         try {
             handleRequest(context, mimeGroup, mimeTypes, requestCode, response);
-            response.addFlags(Intent.FLAG_RECEIVER_FOREGROUND);
             context.sendBroadcast(response);
         } catch (IllegalArgumentException ignored) {
         }

@@ -14,10 +14,6 @@
 // limitations under the License.
 //
 
-package {
-    default_applicable_licenses: ["Android-Apache-2.0"],
-}
-
 android_test_helper_app {
     name: "com.android.cts.helpers.aosp",
     defaults: ["cts_defaults"],
@@ -30,7 +26,7 @@ android_test_helper_app {
     srcs: ["src/**/*.java"],
 
     static_libs: [
-        "androidx.test.rules",
+        "android-support-test",
         "cts-helpers-core",
         "cts-helpers-interfaces",
         "ub-uiautomator",

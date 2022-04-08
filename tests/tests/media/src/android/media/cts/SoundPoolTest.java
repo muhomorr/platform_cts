@@ -16,36 +16,26 @@
 
 package android.media.cts;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import android.media.cts.R;
+
 
 import android.content.Context;
 import android.content.res.AssetFileDescriptor;
 import android.media.AudioAttributes;
 import android.media.AudioManager;
 import android.media.SoundPool;
-import android.media.cts.R;
-import android.os.Build;
 import android.platform.test.annotations.AppModeFull;
-import android.util.Log;
-import androidx.test.InstrumentationRegistry;
-import com.android.compatibility.common.util.ApiLevelUtil;
+import android.test.AndroidTestCase;
+
 import java.io.File;
 import java.io.FileDescriptor;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.util.Arrays;
-import junitparams.JUnitParamsRunner;
-import junitparams.Parameters;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @AppModeFull(reason = "TODO: evaluate and port to instant")
-@RunWith(JUnitParamsRunner.class)
-abstract class SoundPoolTest {
-    private static final String TAG = "SoundPoolTest(Base)";
+abstract class SoundPoolTest extends AndroidTestCase {
 
     private static final int SOUNDPOOL_STREAMS = 4;
     private static final int PRIORITY = 1;
@@ -81,22 +71,20 @@ abstract class SoundPoolTest {
         return sounds;
     }
 
-    private static Context getContext() {
-        return InstrumentationRegistry.getInstrumentation().getTargetContext();
-    }
-
     protected AudioAttributes getAudioAttributes() {
         return new AudioAttributes.Builder()
                 .setLegacyStreamType(AudioManager.STREAM_MUSIC).build();
     }
 
-    @Before
-    public void setUp() throws Exception {
-        mFile = new File(getContext().getFilesDir(), getFileName());
+    @Override
+    protected void setUp() throws Exception {
+        super.setUp();
+        mFile = new File(mContext.getFilesDir(), getFileName());
     }
 
-    @After
-    public void tearDown() throws Exception {
+    @Override
+    protected void tearDown() throws Exception {
+        super.tearDown();
         if (mFile.exists()) {
             mFile.delete();
         }
@@ -107,16 +95,15 @@ abstract class SoundPoolTest {
         }
     }
 
-    @Test
     public void testLoad() throws Exception {
         mSoundPool = new SoundPool.Builder().setMaxStreams(SOUNDPOOL_STREAMS)
                 .setAudioAttributes(getAudioAttributes()).build();
-        int sampleId1 = mSoundPool.load(getContext(), getSoundA(), PRIORITY);
+        int sampleId1 = mSoundPool.load(mContext, getSoundA(), PRIORITY);
         waitUntilLoaded(sampleId1);
         // should return true, but returns false
         mSoundPool.unload(sampleId1);
 
-        AssetFileDescriptor afd = getContext().getResources().openRawResourceFd(getSoundCs());
+        AssetFileDescriptor afd = mContext.getResources().openRawResourceFd(getSoundCs());
         int sampleId2;
         sampleId2 = mSoundPool.load(afd, PRIORITY);
         waitUntilLoaded(sampleId2);
@@ -142,7 +129,7 @@ abstract class SoundPoolTest {
         FileOutputStream fOutput = null;
         try {
             fOutput = new FileOutputStream(f);
-            InputStream is = getContext().getResources().openRawResource(getSoundA());
+            InputStream is = mContext.getResources().openRawResource(getSoundA());
             byte[] buffer = new byte[1024];
             int length = is.read(buffer);
             while (length != -1) {
@@ -157,20 +144,8 @@ abstract class SoundPoolTest {
         }
     }
 
-    /**
-     * Parameterized tests consider 1, 2, 4 streams in the SoundPool.
-     */
-
-    @Test
-    @Parameters({"1", "2", "4"})
-    public void testSoundPoolOp(int streamCount) throws Exception {
-        // Mainline compatibility
-        if (!ApiLevelUtil.isAtLeast(Build.VERSION_CODES.S) && streamCount < 4) {
-            Log.d(TAG, "API before S: Skipping testSoundPoolOp(" + streamCount + ")");
-            return;
-        }
-
-        mSoundPool = new SoundPool.Builder().setMaxStreams(streamCount)
+    public void testSoundPoolOp() throws Exception {
+        mSoundPool = new SoundPool.Builder().setMaxStreams(SOUNDPOOL_STREAMS)
                 .setAudioAttributes(getAudioAttributes()).build();
         int sampleID = loadSampleSync(getSoundA(), PRIORITY);
 
@@ -212,16 +187,8 @@ abstract class SoundPoolTest {
         mSoundPool.unload(sampleID);
     }
 
-    @Test
-    @Parameters({"1", "2", "4"})
-    public void testMultiSound(int streamCount) throws Exception {
-        // Mainline compatibility
-        if (!ApiLevelUtil.isAtLeast(Build.VERSION_CODES.S) && streamCount < 4) {
-            Log.d(TAG, "API before S: Skipping testMultiSound(" + streamCount + ")");
-            return;
-        }
-
-        mSoundPool = new SoundPool.Builder().setMaxStreams(streamCount)
+    public void testMultiSound() throws Exception {
+        mSoundPool = new SoundPool.Builder().setMaxStreams(SOUNDPOOL_STREAMS)
                 .setAudioAttributes(getAudioAttributes()).build();
         int sampleID1 = loadSampleSync(getSoundA(), PRIORITY);
         int sampleID2 = loadSampleSync(getSoundCs(), PRIORITY);
@@ -250,16 +217,8 @@ abstract class SoundPoolTest {
         mSoundPool = null;
     }
 
-    @Test
-    @Parameters({"1", "2", "4"})
-    public void testLoadMore(int streamCount) throws Exception {
-        // Mainline compatibility
-        if (!ApiLevelUtil.isAtLeast(Build.VERSION_CODES.S) && streamCount < 4) {
-            Log.d(TAG, "API before S: Skipping testLoadMore(" + streamCount + ")");
-            return;
-        }
-
-        mSoundPool = new SoundPool.Builder().setMaxStreams(streamCount)
+    public void testLoadMore() throws Exception {
+        mSoundPool = new SoundPool.Builder().setMaxStreams(SOUNDPOOL_STREAMS)
                 .setAudioAttributes(getAudioAttributes()).build();
         int[] sounds = getSounds();
         int[] soundIds = new int[sounds.length];
@@ -282,7 +241,6 @@ abstract class SoundPoolTest {
         mSoundPool.release();
     }
 
-    @Test
     public void testAutoPauseResume() throws Exception {
         // The number of possible SoundPool streams simultaneously active is limited by
         // track resources. Generally this is no greater than 32, but the actual
@@ -325,7 +283,7 @@ abstract class SoundPoolTest {
             // initiate loading
             final int[] soundIds = new int[TEST_STREAMS];
             for (int i = 0; i < soundIds.length; i++) {
-                soundIds[i] = soundPool.load(getContext(), sounds[i % sounds.length], PRIORITY);
+                soundIds[i] = soundPool.load(mContext, sounds[i % sounds.length], PRIORITY);
             }
 
             // wait for all sounds to load,
@@ -388,7 +346,7 @@ abstract class SoundPoolTest {
      * @throws InterruptedException
      */
     private int loadSampleSync(int sampleId, int prio) throws InterruptedException {
-        int sample = mSoundPool.load(getContext(), sampleId, prio);
+        int sample = mSoundPool.load(mContext, sampleId, prio);
         waitUntilLoaded(sample);
         return sample;
     }

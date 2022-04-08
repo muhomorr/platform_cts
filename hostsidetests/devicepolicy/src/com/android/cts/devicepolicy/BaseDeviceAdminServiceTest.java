@@ -47,17 +47,29 @@ public abstract class BaseDeviceAdminServiceTest extends BaseDevicePolicyTest {
 
     private static final int TIMEOUT_SECONDS = 3 * 60;
 
+    private boolean mMultiUserSupported;
+
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+
+        mMultiUserSupported = getMaxNumberOfUsersSupported() > 1 && getDevice().getApiLevel() >= 21;
+    }
+
     @Override
     public void tearDown() throws Exception {
-        removeAdmin(OWNER_COMPONENT, getUserId());
-        removeAdmin(OWNER_COMPONENT_B, getUserId());
-        getDevice().uninstallPackage(OWNER_PKG);
-        getDevice().uninstallPackage(OWNER_PKG_B);
-
+        if (isTestEnabled()) {
+            removeAdmin(OWNER_COMPONENT, getUserId());
+            removeAdmin(OWNER_COMPONENT_B, getUserId());
+            getDevice().uninstallPackage(OWNER_PKG);
+            getDevice().uninstallPackage(OWNER_PKG_B);
+        }
         super.tearDown();
     }
 
     protected abstract int getUserId();
+
+    protected abstract boolean isTestEnabled();
 
     protected void executeDeviceTestMethod(String className, String testName) throws Exception {
         runDeviceTestsAsUser(OWNER_PKG, className, testName, getUserId());
@@ -70,7 +82,7 @@ public abstract class BaseDeviceAdminServiceTest extends BaseDevicePolicyTest {
     protected void withRetry(RunnableWithThrowable test) throws Throwable {
         final long until = System.nanoTime() + TimeUnit.SECONDS.toNanos(TIMEOUT_SECONDS);
 
-        sleep(500);
+        Thread.sleep(500);
 
         Throwable lastThrowable = null;
         while (System.nanoTime() < until) {
@@ -81,61 +93,61 @@ public abstract class BaseDeviceAdminServiceTest extends BaseDevicePolicyTest {
             } catch (Throwable th) {
                 lastThrowable = th;
             }
-            sleep(3000);
+            Thread.sleep(3000);
         }
         if (lastThrowable != null) {
             throw lastThrowable;
         }
-        fail("Internal error: test " + test + " didn't run, exception not thrown.");
+        fail("Internal error: test didn't run, exception not thrown.");
     }
-
-    protected abstract void installOwnerApp(String apk) throws Exception;
-
-    protected abstract void removeAdmin(String ownerComponent) throws Exception;
 
     protected abstract void setAsOwnerOrFail(String component) throws Exception;
 
     @Test
     public void testAll() throws Throwable {
-        // Install
-        CLog.i("Installing apk1 (%s)...", OWNER_APK_1);
-        installOwnerApp(OWNER_APK_1);
+        if (!isTestEnabled()) {
+            return;
+        }
 
-        CLog.i("Making it (%s) a device/profile owner...", OWNER_COMPONENT);
+        // Install
+        CLog.i("Installing apk1...");
+        installAppAsUser(OWNER_APK_1, getUserId());
+
+        CLog.i("Making it a device/profile owner...");
         setAsOwnerOrFail(OWNER_COMPONENT);
 
         withRetry(() -> assertServiceBound(OWNER_SERVICE));
 
         // Remove admin.
         CLog.i("Removing admin...");
-        removeAdmin(OWNER_COMPONENT);
+        removeAdmin(OWNER_COMPONENT, getUserId());
         withRetry(() -> assertServiceNotBound(OWNER_SERVICE));
 
         // Overwrite -> update.
         CLog.i("Re-installing apk1...");
-        installOwnerApp(OWNER_APK_1);
+        installAppAsUser(OWNER_APK_1, getUserId());
 
         CLog.i("Making it a device/profile owner...");
         setAsOwnerOrFail(OWNER_COMPONENT);
         withRetry(() -> assertServiceBound(OWNER_SERVICE));
 
-        CLog.i("Installing apk2 (%s)...", OWNER_APK_2);
-        installOwnerApp(OWNER_APK_2);
+        CLog.i("Installing apk2...");
+        installAppAsUser(OWNER_APK_2, getUserId());
         withRetry(() -> assertServiceBound(OWNER_SERVICE)); // Should still be bound.
 
         // Service exported -> not bound.
-        CLog.i("Installing apk3 (%s)...", OWNER_APK_3);
-        installOwnerApp(OWNER_APK_3);
+        CLog.i("Installing apk3...");
+        installAppAsUser(OWNER_APK_3, getUserId());
         withRetry(() -> assertServiceNotBound(OWNER_SERVICE));
 
         // Recover.
         CLog.i("Installing apk2 again...");
-        installOwnerApp(OWNER_APK_2);
+        installAppAsUser(OWNER_APK_2, getUserId());
         withRetry(() -> assertServiceBound(OWNER_SERVICE));
 
         // Multiple service found -> not bound.
-        CLog.i("Installing apk4 (%s)...", OWNER_APK_4);
-        installOwnerApp(OWNER_APK_4);
+        CLog.i("Installing apk4...");
+        installAppAsUser(OWNER_APK_4, getUserId());
         withRetry(() -> assertServiceNotBound(OWNER_SERVICE));
         withRetry(() -> assertServiceNotBound(OWNER_SERVICE2));
 
@@ -162,25 +174,25 @@ public abstract class BaseDeviceAdminServiceTest extends BaseDevicePolicyTest {
 
         // Remove admin.
         CLog.i("Removing admin again...");
-        removeAdmin(OWNER_COMPONENT);
+        removeAdmin(OWNER_COMPONENT, getUserId());
         withRetry(() -> assertServiceNotBound(OWNER_SERVICE));
 
         // Retry with package 1 and remove admin.
         CLog.i("Installing apk1 again...");
-        installOwnerApp(OWNER_APK_1);
+        installAppAsUser(OWNER_APK_1, getUserId());
 
         CLog.i("Making it a device/profile owner again...");
         setAsOwnerOrFail(OWNER_COMPONENT);
         withRetry(() -> assertServiceBound(OWNER_SERVICE));
 
         CLog.i("Removing admin again...");
-        removeAdmin(OWNER_COMPONENT);
+        removeAdmin(OWNER_COMPONENT, getUserId());
         withRetry(() -> assertServiceNotBound(OWNER_SERVICE));
 
         // Now install package B and make it the owner.  OWNER_APK_1 still exists, but it shouldn't
         // interfere.
-        CLog.i("Installing apk B (%s)...", OWNER_APK_B);
-        installOwnerApp(OWNER_APK_B);
+        CLog.i("Installing apk B...");
+        installAppAsUser(OWNER_APK_B, getUserId());
 
         CLog.i("Making it a device/profile owner...");
         setAsOwnerOrFail(OWNER_COMPONENT_B);
@@ -191,7 +203,7 @@ public abstract class BaseDeviceAdminServiceTest extends BaseDevicePolicyTest {
     private String rumpDumpSysService(String component) throws Exception {
         final String command = "dumpsys activity services " + component;
         final String commandOutput = getDevice().executeShellCommand(command);
-        CLog.d("Output for command %s: \n%s", command, commandOutput);
+        CLog.d("Output for command " + command + ":\n" + commandOutput);
         return commandOutput;
     }
 

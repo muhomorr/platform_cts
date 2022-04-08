@@ -15,21 +15,15 @@
  */
 package com.android.cts.deviceadmin;
 
-import android.util.Log;
-
-public final class WipeDataTest extends BaseDeviceAdminTest {
-
-    private static final String TAG = WipeDataTest.class.getSimpleName();
+public class WipeDataTest extends BaseDeviceAdminTest {
 
     // Caution: this test will wipe the device's data if it fails
     public void testWipeDataThrowsSecurityException() {
         try {
-            Log.i(TAG, "Calling wipeData() on " + dpm);
-            dpm.wipeData(/* flags= */ 0);
+            dpm.wipeData(0);
             fail("wipeData didn't throw expected SecurityException. Managed to kick off factory"
                     + " reset process");
         } catch (SecurityException expected) {
-            Log.v(TAG, "Got exception as expected: " + expected);
         }
     }
 }

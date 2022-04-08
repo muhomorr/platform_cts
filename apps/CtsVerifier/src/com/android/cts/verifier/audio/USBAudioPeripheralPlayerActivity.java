@@ -17,68 +17,60 @@
 package com.android.cts.verifier.audio;
 
 import android.content.Context;
+import android.media.AudioManager;
 import android.util.Log;
 
-import com.android.cts.verifier.audio.audiolib.AudioSystemParams;
-
-// MegaAudio imports
-import org.hyphonate.megaaudio.player.AudioSource;
-import org.hyphonate.megaaudio.player.AudioSourceProvider;
-import org.hyphonate.megaaudio.player.JavaPlayer;
-import org.hyphonate.megaaudio.player.PlayerBuilder;
-import org.hyphonate.megaaudio.player.sources.SinAudioSourceProvider;
+import com.android.cts.verifier.audio.audiolib.SignalGenerator;
+import com.android.cts.verifier.audio.audiolib.StreamPlayer;
+import com.android.cts.verifier.audio.audiolib.WaveTableFloatFiller;
+import com.android.cts.verifier.audio.peripheralprofile.USBDeviceInfoHelper;
 
 public abstract class USBAudioPeripheralPlayerActivity extends USBAudioPeripheralActivity {
     private static final String TAG = "USBAudioPeripheralPlayerActivity";
 
-    // MegaPlayer
-    static final int NUM_CHANNELS = 2;
-    JavaPlayer mAudioPlayer;
+    protected  int mSystemBufferSize;
 
+    // Player
     protected boolean mIsPlaying = false;
+    protected StreamPlayer mPlayer = null;
+    protected WaveTableFloatFiller mFiller = null;
+
+    protected float[] mWavBuffer = null;
 
     protected boolean mOverridePlayFlag = true;
+
+    private static final int WAVBUFF_SIZE_IN_SAMPLES = 2048;
 
     public USBAudioPeripheralPlayerActivity(boolean requiresMandatePeripheral) {
         super(requiresMandatePeripheral); // Mandated peripheral is NOT required
     }
 
     protected void setupPlayer() {
-        AudioSystemParams audioSystemParams = new AudioSystemParams();
-        audioSystemParams.init(this);
+        mSystemBufferSize =
+            StreamPlayer.calcNumBurstFrames((AudioManager)getSystemService(Context.AUDIO_SERVICE));
 
-        int systemSampleRate = audioSystemParams.getSystemSampleRate();
-        int numBufferFrames = audioSystemParams.getSystemBufferFrames();
+        // the +1 is so we can repeat the 0th sample and simplify the interpolation calculation.
+        mWavBuffer = new float[WAVBUFF_SIZE_IN_SAMPLES + 1];
 
-        //
-        // Allocate the source provider for the sort of signal we want to play
-        //
-        AudioSourceProvider sourceProvider = new SinAudioSourceProvider();
-        try {
-            PlayerBuilder builder = new PlayerBuilder();
-            mAudioPlayer = (JavaPlayer)builder
-                    // choose one or the other of these for a Java or an Oboe player
-                    .setPlayerType(PlayerBuilder.TYPE_JAVA)
-                    // .setPlayerType(PlayerBuilder.PLAYER_OBOE)
-                    .setSourceProvider(sourceProvider)
-                    .build();
-            mAudioPlayer.setupStream(NUM_CHANNELS, systemSampleRate, numBufferFrames);
-        } catch (PlayerBuilder.BadStateException ex) {
-            Log.e(TAG, "Failed MegaPlayer build.");
-        }
+        SignalGenerator.fillFloatSine(mWavBuffer);
+        mFiller = new WaveTableFloatFiller(mWavBuffer);
+
+        mPlayer = new StreamPlayer();
     }
 
     protected void startPlay() {
         if (mOutputDevInfo != null && !mIsPlaying) {
-            mAudioPlayer.startStream();
-
+            int numChans = USBDeviceInfoHelper.calcMaxChannelCount(mOutputDevInfo);
+            mPlayer.open(numChans, mSystemSampleRate, mSystemBufferSize, mFiller);
+            mPlayer.start();
             mIsPlaying = true;
         }
     }
 
     protected void stopPlay() {
         if (mIsPlaying) {
-            mAudioPlayer.stopStream();
+            mPlayer.stop();
+            mPlayer.close();
             mIsPlaying = false;
         }
     }

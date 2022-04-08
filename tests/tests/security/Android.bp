@@ -12,17 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package {
-    default_applicable_licenses: ["Android-Apache-2.0"],
-}
-
 android_test {
     name: "CtsSecurityTestCases",
     defaults: ["cts_defaults"],
     // Include both the 32 and 64 bit versions
     compile_multilib: "both",
     static_libs: [
+        "androidx.test.ext.junit",
         "androidx.test.rules",
+        "androidx.test.runner",
         "android-common",
         "ctstestserver",
         "ctstestrunner-axt",
@@ -34,9 +32,9 @@ android_test {
         "hamcrest-library",
     ],
     libs: [
-        "android.test.runner",
+        "android.test.runner.stubs",
         "org.apache.http.legacy",
-        "android.test.base",
+        "android.test.base.stubs",
     ],
     java_resources: [
         ":PackageInstallerTestApp",
@@ -56,6 +54,7 @@ android_test {
     ],
     srcs: [
         "src/**/*.java",
+        "src/**/*.kt",
         "src/android/security/cts/activity/ISecureRandomService.aidl",
         "aidl/android/security/cts/IIsolatedService.aidl",
         "aidl/android/security/cts/CVE_2021_0327/IBadProvider.aidl",
@@ -65,6 +64,7 @@ android_test {
     // Tag this module as a cts test artifact
     test_suites: [
         "cts",
+        "vts10",
         "general-tests",
         "sts",
     ],

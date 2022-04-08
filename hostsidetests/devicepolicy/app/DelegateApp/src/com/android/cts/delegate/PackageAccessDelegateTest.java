@@ -16,21 +16,34 @@
 package com.android.cts.delegate;
 
 import static android.app.admin.DevicePolicyManager.DELEGATION_PACKAGE_ACCESS;
-
 import static com.android.cts.delegate.DelegateTestUtils.assertExpectException;
 
 import android.app.admin.DevicePolicyManager;
+import android.content.Context;
 import android.content.pm.PackageManager.NameNotFoundException;
+import android.test.InstrumentationTestCase;
+import android.test.MoreAsserts;
 
+import java.util.Arrays;
 import java.util.List;
 
 /**
  * Test that an app given the {@link DevicePolicyManager#DELEGATION_PACKAGE_ACCESS} scope via
  * {@link DevicePolicyManager#setDelegatedScopes} can manage package hide and suspend status.
  */
-public class PackageAccessDelegateTest extends BaseJUnit3TestCase {
+public class PackageAccessDelegateTest extends InstrumentationTestCase {
 
     private static final String TEST_APP_PKG = "com.android.cts.launcherapps.simpleapp";
+
+    private DevicePolicyManager mDpm;
+
+    @Override
+    protected void setUp() throws Exception {
+        super.setUp();
+
+        Context context = getInstrumentation().getContext();
+        mDpm = context.getSystemService(DevicePolicyManager.class);
+    }
 
     public void testCannotAccessApis() throws NameNotFoundException {
         assertFalse("DelegateApp should not be a package access delegate",
@@ -38,25 +51,25 @@ public class PackageAccessDelegateTest extends BaseJUnit3TestCase {
 
         // Exercise isApplicationHidden.
         assertExpectException(SecurityException.class,
-                "Calling identity is not authorized", () -> {
+                "Caller with uid \\d+ is not a delegate of scope", () -> {
                     mDpm.isApplicationHidden(null, TEST_APP_PKG);
                 });
 
         // Exercise setApplicationHidden.
         assertExpectException(SecurityException.class,
-                "Calling identity is not authorized", () -> {
+                "Caller with uid \\d+ is not a delegate of scope", () -> {
                     mDpm.setApplicationHidden(null, TEST_APP_PKG, true /* hide */);
                 });
 
         // Exercise isPackageSuspended.
         assertExpectException(SecurityException.class,
-                "Calling identity is not authorized", () -> {
+                "Caller with uid \\d+ is not a delegate of scope", () -> {
                     mDpm.isPackageSuspended(null, TEST_APP_PKG);
                 });
 
         // Exercise setPackagesSuspended.
         assertExpectException(SecurityException.class,
-                "Calling identity is not authorized", () -> {
+                "Caller with uid \\d+ is not a delegate of scope", () -> {
                     mDpm.setPackagesSuspended(null, new String[] {TEST_APP_PKG}, true /* suspend */);
                 });
     }

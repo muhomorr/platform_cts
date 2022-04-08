@@ -18,7 +18,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assume.assumeFalse;
 
 import android.app.PendingIntent.CanceledException;
 import android.app.slice.Slice;
@@ -60,7 +59,9 @@ public class SliceBindingTest {
 
     @Test
     public void testProcess() {
-        assumeFalse(isSliceDisabled);
+        if (isSliceDisabled) {
+            return;
+        }
         sFlag = false;
         mSliceManager.bindSlice(BASE_URI.buildUpon().appendPath("set_flag").build(),
                 Collections.emptySet());
@@ -75,7 +76,9 @@ public class SliceBindingTest {
 
     @Test
     public void testSliceUri() {
-        assumeFalse(isSliceDisabled);
+        if (isSliceDisabled) {
+            return;
+        }
         Slice s = mSliceManager.bindSlice(BASE_URI,
                 Collections.emptySet());
         assertEquals(BASE_URI, s.getUri());
@@ -83,7 +86,9 @@ public class SliceBindingTest {
 
     @Test
     public void testSubSlice() {
-        assumeFalse(isSliceDisabled);
+        if (isSliceDisabled) {
+            return;
+        }
         Uri uri = BASE_URI.buildUpon().appendPath("subslice").build();
         Slice s = mSliceManager.bindSlice(uri, Collections.emptySet());
         assertEquals(uri, s.getUri());
@@ -99,7 +104,9 @@ public class SliceBindingTest {
 
     @Test
     public void testText() {
-        assumeFalse(isSliceDisabled);
+        if (isSliceDisabled) {
+            return;
+        }
         Uri uri = BASE_URI.buildUpon().appendPath("text").build();
         Slice s = mSliceManager.bindSlice(uri,
                 Collections.emptySet());
@@ -114,7 +121,9 @@ public class SliceBindingTest {
 
     @Test
     public void testIcon() {
-        assumeFalse(isSliceDisabled);
+        if (isSliceDisabled) {
+            return;
+        }
         Uri uri = BASE_URI.buildUpon().appendPath("icon").build();
         Slice s = mSliceManager.bindSlice(uri,
                 Collections.emptySet());
@@ -129,7 +138,9 @@ public class SliceBindingTest {
 
     @Test
     public void testAction() {
-        assumeFalse(isSliceDisabled);
+        if (isSliceDisabled) {
+            return;
+        }
         sFlag = false;
         CountDownLatch latch = new CountDownLatch(1);
         BroadcastReceiver receiver = new BroadcastReceiver() {
@@ -164,7 +175,9 @@ public class SliceBindingTest {
 
     @Test
     public void testInt() {
-        assumeFalse(isSliceDisabled);
+        if (isSliceDisabled) {
+            return;
+        }
         Uri uri = BASE_URI.buildUpon().appendPath("int").build();
         Slice s = mSliceManager.bindSlice(uri, Collections.emptySet());
         assertEquals(uri, s.getUri());
@@ -177,7 +190,9 @@ public class SliceBindingTest {
 
     @Test
     public void testTimestamp() {
-        assumeFalse(isSliceDisabled);
+        if (isSliceDisabled) {
+            return;
+        }
         Uri uri = BASE_URI.buildUpon().appendPath("timestamp").build();
         Slice s = mSliceManager.bindSlice(uri,
                 Collections.emptySet());
@@ -191,7 +206,9 @@ public class SliceBindingTest {
 
     @Test
     public void testHints() {
-        assumeFalse(isSliceDisabled);
+        if (isSliceDisabled) {
+            return;
+        }
         // Note this tests that hints are propagated through to the client but not that any specific
         // hints have any effects.
         Uri uri = BASE_URI.buildUpon().appendPath("hints").build();
@@ -206,7 +223,9 @@ public class SliceBindingTest {
 
     @Test
     public void testHasHints() {
-        assumeFalse(isSliceDisabled);
+        if (isSliceDisabled) {
+            return;
+        }
         Uri uri = BASE_URI.buildUpon().appendPath("hints").build();
         Slice s = mSliceManager.bindSlice(uri, Collections.emptySet());
 
@@ -216,7 +235,9 @@ public class SliceBindingTest {
 
     @Test
     public void testBundle() {
-        assumeFalse(isSliceDisabled);
+        if (isSliceDisabled) {
+            return;
+        }
         Uri uri = BASE_URI.buildUpon().appendPath("bundle").build();
         Slice s = mSliceManager.bindSlice(uri, Collections.emptySet());
         assertEquals(uri, s.getUri());
@@ -231,7 +252,9 @@ public class SliceBindingTest {
 
     @Test
     public void testGetDescendants() {
-        assumeFalse(isSliceDisabled);
+        if (isSliceDisabled) {
+            return;
+        }
         Collection<Uri> allUris = mSliceManager.getSliceDescendants(BASE_URI);
         assertEquals(SliceProvider.PATHS.length, allUris.size());
         Iterator<Uri> it = allUris.iterator();
@@ -245,7 +268,9 @@ public class SliceBindingTest {
 
     @Test
     public void testGetSliceSpec() {
-        assumeFalse(isSliceDisabled);
+        if (isSliceDisabled) {
+            return;
+        }
         Uri uri = BASE_URI.buildUpon().appendPath("spec").build();
         Slice s = mSliceManager.bindSlice(uri, Collections.emptySet());
         assertEquals(new SliceSpec(SliceProvider.SPEC_TYPE, SliceProvider.SPEC_REV), s.getSpec());

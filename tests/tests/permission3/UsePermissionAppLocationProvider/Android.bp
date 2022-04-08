@@ -19,13 +19,13 @@ package {
 }
 
 android_test_helper_app {
-    name: "CtsAccessMicrophoneAppLocationProvider",
-    defaults: ["mts-target-sdk-version-current"],
-    min_sdk_version: "31",
+    name: "CtsUsePermissionAppLocationProvider",
     srcs: [
+        ":CtsUsePermissionAppSrc",
         "src/**/*.kt",
     ],
     static_libs: [
         "kotlin-stdlib",
     ],
+    certificate: ":cts-testkey2",
 }

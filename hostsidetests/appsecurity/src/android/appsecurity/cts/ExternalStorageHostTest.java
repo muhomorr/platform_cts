@@ -24,9 +24,9 @@ import static org.junit.Assert.assertTrue;
 
 import com.android.compatibility.common.tradefed.build.CompatibilityBuildHelper;
 import com.android.ddmlib.Log;
-import com.android.role.RoleProto;
-import com.android.role.RoleServiceDumpProto;
-import com.android.role.RoleUserStateProto;
+import com.android.server.role.RoleManagerServiceDumpProto;
+import com.android.server.role.RoleProto;
+import com.android.server.role.RoleUserStateProto;
 import com.android.tradefed.device.CollectingByteOutputReceiver;
 import com.android.tradefed.device.DeviceNotAvailableException;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
@@ -39,7 +39,6 @@ import com.google.protobuf.Parser;
 import org.junit.After;
 import org.junit.Assume;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -94,15 +93,8 @@ public class ExternalStorageHostTest extends BaseHostJUnit4Test {
     private static final Config MEDIA_29 = new Config("CtsMediaStorageApp29.apk",
             "com.android.cts.mediastorageapp29", MEDIA_CLAZZ);
 
-    private static final String PERM_ACCESS_MEDIA_LOCATION =
-            "android.permission.ACCESS_MEDIA_LOCATION";
-    private static final String PERM_READ_EXTERNAL_STORAGE =
-            "android.permission.READ_EXTERNAL_STORAGE";
-    private static final String PERM_WRITE_EXTERNAL_STORAGE =
-            "android.permission.WRITE_EXTERNAL_STORAGE";
-
-    private static final String APP_OPS_MANAGE_EXTERNAL_STORAGE = "android:manage_external_storage";
-    private static final String APP_OPS_MANAGE_MEDIA = "android:manage_media";
+    private static final String PERM_READ_EXTERNAL_STORAGE = "android.permission.READ_EXTERNAL_STORAGE";
+    private static final String PERM_WRITE_EXTERNAL_STORAGE = "android.permission.WRITE_EXTERNAL_STORAGE";
 
     /** Copied from PackageManager*/
     private static final String FEATURE_AUTOMOTIVE = "android.hardware.type.automotive";
@@ -142,9 +134,6 @@ public class ExternalStorageHostTest extends BaseHostJUnit4Test {
 
             getDevice().uninstallPackage(WRITE_PKG);
             installPackage(WRITE_APK);
-
-            // Make sure user initialization is complete before testing
-            waitForBroadcastIdle();
 
             for (int user : mUsers) {
                 runDeviceTests(WRITE_PKG, WRITE_CLASS, "testExternalStorageRename", user);
@@ -484,15 +473,19 @@ public class ExternalStorageHostTest extends BaseHostJUnit4Test {
     }
 
     @Test
-    public void testMediaLegacy28() throws Exception {
-        doMediaLegacy(MEDIA_28);
+    public void testMediaSandboxed() throws Exception {
+        doMediaSandboxed(MEDIA, true);
     }
     @Test
-    public void testMediaLegacy29() throws Exception {
-        doMediaLegacy(MEDIA_29);
+    public void testMediaSandboxed28() throws Exception {
+        doMediaSandboxed(MEDIA_28, false);
+    }
+    @Test
+    public void testMediaSandboxed29() throws Exception {
+        doMediaSandboxed(MEDIA_29, false);
     }
 
-    private void doMediaLegacy(Config config) throws Exception {
+    private void doMediaSandboxed(Config config, boolean sandboxed) throws Exception {
         installPackage(config.apk);
         installPackage(MEDIA_29.apk);
         // Make sure user initialization is complete before updating permission
@@ -510,7 +503,13 @@ public class ExternalStorageHostTest extends BaseHostJUnit4Test {
             // Create the files needed for the test from MEDIA_29 pkg since shell
             // can't access secondary user's storage.
             runDeviceTests(MEDIA_29.pkg, MEDIA_29.clazz, "testStageFiles", user);
-            runDeviceTests(config.pkg, config.clazz, "testLegacy", user);
+
+            if (sandboxed) {
+                runDeviceTests(config.pkg, config.clazz, "testSandboxed", user);
+            } else {
+                runDeviceTests(config.pkg, config.clazz, "testNotSandboxed", user);
+            }
+
             runDeviceTests(MEDIA_29.pkg, MEDIA_29.clazz, "testClearFiles", user);
         }
     }
@@ -627,7 +626,6 @@ public class ExternalStorageHostTest extends BaseHostJUnit4Test {
     }
 
     @Test
-    @Ignore("Enable after b/197701722 is fixed")
     public void testMediaEscalation_RequestWriteFilePathSupport() throws Exception {
         // Not adding tests for MEDIA_28 and MEDIA_29 as they need W_E_S for write access via file
         // path for shared files, and will always have access as they have W_E_S.
@@ -636,7 +634,7 @@ public class ExternalStorageHostTest extends BaseHostJUnit4Test {
         int user = getDevice().getCurrentUser();
         updatePermissions(MEDIA.pkg, user, new String[] {
                 PERM_READ_EXTERNAL_STORAGE,
-        }, true);
+        }, false);
         updatePermissions(MEDIA.pkg, user, new String[] {
                 PERM_WRITE_EXTERNAL_STORAGE,
         }, false);
@@ -730,165 +728,6 @@ public class ExternalStorageHostTest extends BaseHostJUnit4Test {
         }
     }
 
-    /**
-     * Check the behavior when the app calls MediaStore#createTrashRequest,
-     * MediaStore#createDeleteRequest or MediaStore#createWriteRequest, the user
-     * click the deny button on confirmation dialog.
-     *
-     * @throws Exception
-     */
-    @Test
-    public void testCreateRequest_userDenied() throws Exception {
-        installPackage(MEDIA.apk);
-
-        int user = getDevice().getCurrentUser();
-
-        runDeviceTests(MEDIA.pkg, MEDIA.clazz,
-                "testMediaEscalationWithDenied_RequestWrite", user);
-        runDeviceTests(MEDIA.pkg, MEDIA.clazz,
-                "testMediaEscalationWithDenied_RequestDelete", user);
-        runDeviceTests(MEDIA.pkg, MEDIA.clazz,
-                "testMediaEscalationWithDenied_RequestTrash", user);
-        runDeviceTests(MEDIA.pkg, MEDIA.clazz,
-                "testMediaEscalationWithDenied_RequestUnTrash", user);
-    }
-
-    /**
-     * If the app is NOT granted {@link android.Manifest.permission#READ_EXTERNAL_STORAGE}
-     * and {@link android.Manifest.permission#MANAGE_EXTERNAL_STORAGE}
-     * when it calls MediaStore#createTrashRequest,
-     * MediaStore#createDeleteRequest, or MediaStore#createWriteRequest,
-     * the system will show the user confirmation dialog.
-     *
-     * @throws Exception
-     */
-    @Test
-    public void testCreateRequest_noRESAndMES_showConfirmDialog() throws Exception {
-        installPackage(MEDIA.apk);
-
-        int user = getDevice().getCurrentUser();
-
-        // grant permissions
-        updatePermissions(MEDIA.pkg, user, new String[] {
-                PERM_ACCESS_MEDIA_LOCATION,
-        }, true);
-        // revoke permissions
-        updatePermissions(MEDIA.pkg, user, new String[] {
-                PERM_READ_EXTERNAL_STORAGE,
-                PERM_WRITE_EXTERNAL_STORAGE,
-        }, false);
-
-
-        // revoke the app ops permission
-        updateAppOp(MEDIA.pkg, user, APP_OPS_MANAGE_EXTERNAL_STORAGE, false);
-
-        // grant the app ops permission
-        updateAppOp(MEDIA.pkg, user, APP_OPS_MANAGE_MEDIA, true);
-
-        runDeviceTests(MEDIA.pkg, MEDIA.clazz,
-                "testMediaEscalation_RequestWrite_showConfirmDialog", user);
-    }
-
-    /**
-     * If the app is NOT granted {@link android.Manifest.permission#MANAGE_MEDIA},
-     * when it calls MediaStore#createTrashRequest,
-     * MediaStore#createDeleteRequest, or MediaStore#createWriteRequest,
-     * the system will show the user confirmation dialog.
-     *
-     * @throws Exception
-     */
-    @Test
-    public void testCreateRequest_noMANAGEMEDIA_showConfirmDialog() throws Exception {
-        installPackage(MEDIA.apk);
-
-        int user = getDevice().getCurrentUser();
-        // grant permissions
-        updatePermissions(MEDIA.pkg, user, new String[] {
-                PERM_READ_EXTERNAL_STORAGE,
-                PERM_ACCESS_MEDIA_LOCATION,
-        }, true);
-
-        // revoke the app ops permission
-        updateAppOp(MEDIA.pkg, user, APP_OPS_MANAGE_MEDIA, false);
-
-        runDeviceTests(MEDIA.pkg, MEDIA.clazz,
-                "testMediaEscalation_RequestWrite_showConfirmDialog", user);
-        runDeviceTests(MEDIA.pkg, MEDIA.clazz,
-                "testMediaEscalation_RequestTrash_showConfirmDialog", user);
-        runDeviceTests(MEDIA.pkg, MEDIA.clazz,
-                "testMediaEscalation_RequestDelete_showConfirmDialog", user);
-    }
-
-    /**
-     * If the app is granted {@link android.Manifest.permission#MANAGE_MEDIA},
-     * {@link android.Manifest.permission#READ_EXTERNAL_STORAGE}, without
-     * {@link android.Manifest.permission#ACCESS_MEDIA_LOCATION},
-     * when it calls MediaStore#createTrashRequest or
-     * MediaStore#createDeleteRequest, The system will NOT show the user
-     * confirmation dialog. When it calls MediaStore#createWriteRequest, the
-     * system will show the user confirmation dialog.
-     *
-     * @throws Exception
-     */
-    @Test
-    public void testCreateRequest_withNoAML_showConfirmDialog() throws Exception {
-        installPackage(MEDIA.apk);
-
-        int user = getDevice().getCurrentUser();
-        // grant permissions
-        updatePermissions(MEDIA.pkg, user, new String[] {
-                PERM_READ_EXTERNAL_STORAGE,
-        }, true);
-        // revoke permission
-        updatePermissions(MEDIA.pkg, user, new String[] {
-                PERM_ACCESS_MEDIA_LOCATION,
-        }, false);
-
-        // grant the app ops permission
-        updateAppOp(MEDIA.pkg, user, APP_OPS_MANAGE_MEDIA, true);
-
-        // show confirm dialog in requestWrite
-        runDeviceTests(MEDIA.pkg, MEDIA.clazz,
-                "testMediaEscalation_RequestWrite_showConfirmDialog", user);
-
-        // not show confirm dialog in requestTrash and requestDelete
-        runDeviceTests(MEDIA.pkg, MEDIA.clazz,
-                "testMediaEscalation_RequestTrash_notShowConfirmDialog", user);
-        runDeviceTests(MEDIA.pkg, MEDIA.clazz,
-                "testMediaEscalation_RequestDelete_notShowConfirmDialog", user);
-    }
-
-    /**
-     * If the app is granted {@link android.Manifest.permission#MANAGE_MEDIA},
-     * {@link android.Manifest.permission#READ_EXTERNAL_STORAGE}, and
-     * {@link android.Manifest.permission#ACCESS_MEDIA_LOCATION},
-     * when it calls MediaStore#createWriteRequest, MediaStore#createTrashRequest or
-     * MediaStore#createDeleteRequest, the system will NOT show the user confirmation dialog.
-     *
-     * @throws Exception
-     */
-    @Test
-    public void testCreateRequest_withPermission_notShowConfirmDialog() throws Exception {
-        installPackage(MEDIA.apk);
-
-        int user = getDevice().getCurrentUser();
-        // grant permissions
-        updatePermissions(MEDIA.pkg, user, new String[] {
-                PERM_READ_EXTERNAL_STORAGE,
-                PERM_ACCESS_MEDIA_LOCATION,
-        }, true);
-
-        // revoke the app ops permission
-        updateAppOp(MEDIA.pkg, user, APP_OPS_MANAGE_MEDIA, true);
-
-        runDeviceTests(MEDIA.pkg, MEDIA.clazz,
-                "testMediaEscalation_RequestWrite_notShowConfirmDialog", user);
-        runDeviceTests(MEDIA.pkg, MEDIA.clazz,
-                "testMediaEscalation_RequestTrash_notShowConfirmDialog", user);
-        runDeviceTests(MEDIA.pkg, MEDIA.clazz,
-                "testMediaEscalation_RequestDelete_notShowConfirmDialog", user);
-    }
-
     private <T extends MessageLite> T getDump(Parser<T> parser, String command) throws Exception {
         final CollectingByteOutputReceiver receiver = new CollectingByteOutputReceiver();
         getDevice().executeShellCommand(command, receiver);
@@ -896,8 +735,8 @@ public class ExternalStorageHostTest extends BaseHostJUnit4Test {
     }
 
     private List<RoleUserStateProto> getAllUsersRoleStates() throws Exception {
-        final RoleServiceDumpProto dumpProto =
-                getDump(RoleServiceDumpProto.parser(), "dumpsys role --proto");
+        final RoleManagerServiceDumpProto dumpProto =
+                getDump(RoleManagerServiceDumpProto.parser(), "dumpsys role --proto");
         final List<RoleUserStateProto> res = new ArrayList<>();
         for (RoleUserStateProto userState : dumpProto.getUserStatesList()) {
             for (int i : mUsers) {

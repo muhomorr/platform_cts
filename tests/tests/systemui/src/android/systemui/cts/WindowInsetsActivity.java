@@ -46,8 +46,7 @@ public class WindowInsetsActivity extends LightBarBaseActivity implements View.O
     private WindowInsets mContentWindowInsets;
     private WindowInsets mDecorViewWindowInsets;
     private Rect mDecorBound;
-    private Rect mContentBoundOnScreen;
-    private Rect mContentBoundInWindow;
+    private Rect mContentBound;
 
     private Consumer<Boolean> mInitialFinishCallBack;
     private int mClickCount;
@@ -125,13 +124,6 @@ public class WindowInsetsActivity extends LightBarBaseActivity implements View.O
         return mDecorViewWindowInsets;
     }
 
-    Rect getContentBoundOnScreen() {
-        return mContentBoundOnScreen;
-    }
-
-    Rect getContentBoundInWindow() {
-        return mContentBoundInWindow;
-    }
 
     /**
      * To catch the WindowInsets that passwd to the content view.
@@ -157,9 +149,8 @@ public class WindowInsetsActivity extends LightBarBaseActivity implements View.O
         super.onAttachedToWindow();
 
         mContent.post(() -> {
-            mContentBoundOnScreen = getViewBoundOnScreen(mContent);
-            mContentBoundInWindow = getViewBoundInWindow(mContent);
-            mDecorBound = getViewBoundOnScreen(getWindow().getDecorView());
+            mContentBound = getViewBound(mContent);
+            mDecorBound = getViewBound(getWindow().getDecorView());
             showInfoInTextView();
 
             if (mInitialFinishCallBack != null) {
@@ -215,8 +206,7 @@ public class WindowInsetsActivity extends LightBarBaseActivity implements View.O
                     + mContentWindowInsets.getMandatorySystemGestureInsets()).append("\n");
             sb.append("getTappableElementInsets = "
                     + mContentWindowInsets.getTappableElementInsets()).append("\n");
-            sb.append("content boundary on screen = ").append(mContentBoundOnScreen).append("\n");
-            sb.append("content boundary in window = ").append(mContentBoundInWindow).append("\n");
+            sb.append("content boundary = ").append(mContentBound).append("\n");
         }
 
         Display display = getDisplay();
@@ -242,44 +232,19 @@ public class WindowInsetsActivity extends LightBarBaseActivity implements View.O
         return mContent;
     }
 
-    Rect getViewBoundOnScreen(View view) {
-        int [] location = new int[2];
-        view.getLocationOnScreen(location);
-        return new Rect(location[0], location[1],
-                location[0] + view.getWidth(),
-                location[1] + view.getHeight());
-    }
-
-    Rect getViewBoundInWindow(View view) {
-        int [] location = new int[2];
-        view.getLocationInWindow(location);
-        return new Rect(location[0], location[1],
-                location[0] + view.getWidth(),
-                location[1] + view.getHeight());
-    }
-
-    @MainThread
-    public Rect getActionBounds(Insets insets, WindowInsets windowInsets) {
-        return calculateBoundsWithInsets(insets, windowInsets, mContentBoundOnScreen);
-    }
-
-    @MainThread
-    public Rect getSystemGestureExclusionBounds(Insets insets, WindowInsets windowInsets) {
-        return calculateBoundsWithInsets(insets, windowInsets, mContentBoundInWindow);
+    Rect getViewBound(View view) {
+        int [] screenlocation = new int[2];
+        view.getLocationOnScreen(screenlocation);
+        return new Rect(screenlocation[0], screenlocation[1],
+                screenlocation[0] + view.getWidth(),
+                screenlocation[1] + view.getHeight());
     }
 
     /**
-     * Calculate the bounds for performing actions(click, tap or swipe) or for setting the exclusion
-     * rect and the coordinate space of the return Rect could be the display or window coordinate
-     * space which is determined by the passed in refRect.
-     *
-     * @param insets the insets to be tested.
-     * @param windowInsets the WindowInsets that pass to the activity.
-     * @param refRect the rect which determines whether the return rect is the display or the window
-     *                coordinate space.
-     * @return the bounds for performing actions or for setting the exclusion rect.
+     * To count the draggable boundary that has consume the related insets.
      **/
-    private Rect calculateBoundsWithInsets(Insets insets, WindowInsets windowInsets, Rect refRect) {
+    @MainThread
+    public Rect getOperationArea(Insets insets, WindowInsets windowInsets) {
         int left = insets.left;
         int top = insets.top;
         int right = insets.right;
@@ -302,7 +267,8 @@ public class WindowInsetsActivity extends LightBarBaseActivity implements View.O
             }
         }
 
-        Rect rect = new Rect(refRect);
+        Rect windowBoundary = getViewBound(getContentView());
+        Rect rect = new Rect(windowBoundary);
         rect.left += left;
         rect.top += top;
         rect.right -= right;

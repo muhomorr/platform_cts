@@ -35,8 +35,7 @@ public class EasyEditSpanTest {
     public void testConstructor() {
         new EasyEditSpan();
         new EasyEditSpan(PendingIntent.getActivity(
-                InstrumentationRegistry.getTargetContext(), 0, new Intent(),
-                PendingIntent.FLAG_IMMUTABLE));
+                InstrumentationRegistry.getTargetContext(), 0, new Intent(), 0));
 
         Parcel p = Parcel.obtain();
         try {

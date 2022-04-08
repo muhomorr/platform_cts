@@ -18,12 +18,13 @@ package android.media.cts;
 
 import android.media.cts.R;
 
+import android.content.Context;
 import android.content.res.AssetFileDescriptor;
+import android.content.res.Resources;
 import android.media.MediaCodec;
 import android.media.MediaCodecInfo;
 import android.media.MediaExtractor;
 import android.media.MediaFormat;
-import android.os.ParcelFileDescriptor;
 import android.platform.test.annotations.AppModeFull;
 import android.util.Log;
 import android.util.Range;
@@ -35,9 +36,6 @@ import com.android.compatibility.common.util.ResultUnit;
 import com.android.compatibility.common.util.Stat;
 
 import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.Arrays;
@@ -64,11 +62,10 @@ public class DecoderConformanceTest extends MediaPlayerTestBase {
 
     private static final String REPORT_LOG_NAME = "CtsMediaTestCases";
     private static final String TAG = "DecoderConformanceTest";
-    private static final String CONFORMANCE_SUBDIR = "conformance_vectors/";
+    private Resources mResources;
     private DeviceReportLog mReportLog;
     private MediaCodec mDecoder;
     private MediaExtractor mExtractor;
-    static final String mInpPrefix = WorkDir.getMediaDirString() + CONFORMANCE_SUBDIR;
 
     private static final Map<String, String> MIMETYPE_TO_TAG = new HashMap <String, String>() {{
         put(MediaFormat.MIMETYPE_VIDEO_VP9, "vp9");
@@ -77,6 +74,7 @@ public class DecoderConformanceTest extends MediaPlayerTestBase {
     @Override
     protected void setUp() throws Exception {
         super.setUp();
+        mResources = mContext.getResources();
     }
 
     @Override
@@ -86,8 +84,8 @@ public class DecoderConformanceTest extends MediaPlayerTestBase {
 
 
     private List<String> readResourceLines(String fileName) throws Exception {
-        Preconditions.assertTestFileExists(mInpPrefix + fileName);
-        InputStream is = new FileInputStream(mInpPrefix + fileName);
+        int resId = mResources.getIdentifier(fileName, "raw", mContext.getPackageName());
+        InputStream is = mContext.getResources().openRawResource(resId);
         BufferedReader in = new BufferedReader(new InputStreamReader(is, "UTF-8"));
 
         // Read the file line by line.
@@ -133,22 +131,11 @@ public class DecoderConformanceTest extends MediaPlayerTestBase {
         mExtractor = null;
     }
 
-    protected static AssetFileDescriptor getAssetFileDescriptorFor(final String res, String mime)
-            throws FileNotFoundException {
-        String tag = MIMETYPE_TO_TAG.get(mime);
-        Preconditions.assertTestFileExists(mInpPrefix + res + "." + tag);
-        File inpFile = new File(mInpPrefix + res + "." + tag);
-        ParcelFileDescriptor parcelFD =
-                ParcelFileDescriptor.open(inpFile, ParcelFileDescriptor.MODE_READ_ONLY);
-        return new AssetFileDescriptor(parcelFD, 0, parcelFD.getStatSize());
-    }
-
-    private Status decodeTestVector(String mime, String decoderName, String vectorName)
-            throws Exception {
-        AssetFileDescriptor testFd = getAssetFileDescriptorFor(vectorName, mime);
+    private Status decodeTestVector(String mime, String decoderName, String vectorName) throws Exception {
+        int resId = mResources.getIdentifier(vectorName, "raw", mContext.getPackageName());
+        AssetFileDescriptor testFd = mResources.openRawResourceFd(resId);
         mExtractor = new MediaExtractor();
-        mExtractor.setDataSource(testFd.getFileDescriptor(), testFd.getStartOffset(),
-                testFd.getLength());
+        mExtractor.setDataSource(testFd.getFileDescriptor(), testFd.getStartOffset(), testFd.getLength());
         mExtractor.selectTrack(0);
 
         mDecoder = MediaCodec.createByCodecName(decoderName);
@@ -191,12 +178,10 @@ public class DecoderConformanceTest extends MediaPlayerTestBase {
                     if (stat == Status.PASS) {
                         pass = true;
                     } else if (stat == Status.SKIP) {
-                        release();
                         continue;
                     }
                 } catch (Exception e) {
                     Log.e(TAG, "Decode " + vectorName + " fail");
-                    fail("Received exception " + e);
                 }
 
                 String streamName = "decoder_conformance_test";

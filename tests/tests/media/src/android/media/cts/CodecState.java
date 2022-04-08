@@ -15,18 +15,15 @@
  */
 package android.media.cts;
 
-import android.media.AudioTimestamp;
 import android.media.AudioTrack;
 import android.media.MediaCodec;
 import android.media.MediaExtractor;
 import android.media.MediaFormat;
-import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
 import android.view.Surface;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.LinkedList;
 
 /**
@@ -45,13 +42,11 @@ public class CodecState {
     private ByteBuffer[] mCodecInputBuffers;
     private ByteBuffer[] mCodecOutputBuffers;
     private int mTrackIndex;
-    private int mAvailableInputBufferIndex;
+    private LinkedList<Integer> mAvailableInputBufferIndices;
     private LinkedList<Integer> mAvailableOutputBufferIndices;
     private LinkedList<MediaCodec.BufferInfo> mAvailableOutputBufferInfos;
     private volatile long mPresentationTimeUs;
-    private long mFirstSampleTimeUs;
-    private long mPlaybackStartTimeUs;
-    private long mLastPresentTimeUs;
+    private long mSampleBaseTimeUs;
     private MediaCodec mCodec;
     private MediaTimeProvider mMediaTimeProvider;
     private MediaExtractor mExtractor;
@@ -59,14 +54,6 @@ public class CodecState {
     private MediaFormat mOutputFormat;
     private NonBlockingAudioTrack mAudioTrack;
     private volatile OnFrameRenderedListener mOnFrameRenderedListener;
-    /** A list of reported rendered video frames' timestamps. */
-    private ArrayList<Long> mRenderedVideoFrameTimestampList;
-    private boolean mFirstTunnelFrameReady;
-    private volatile OnFirstTunnelFrameReadyListener mOnFirstTunnelFrameReadyListener;
-
-
-    /** If true the video/audio will start from the beginning when it reaches the end. */
-    private boolean mLoopEnabled = false;
 
     /**
      * Manages audio and video playback using MediaCodec and AudioTrack.
@@ -88,20 +75,15 @@ public class CodecState {
         mLimitQueueDepth = limitQueueDepth;
         mTunneled = tunneled;
         mAudioSessionId = audioSessionId;
-        mFirstSampleTimeUs = -1;
-        mPlaybackStartTimeUs = 0;
-        mLastPresentTimeUs = 0;
+        mSampleBaseTimeUs = -1;
 
         mCodec = codec;
 
-        mAvailableInputBufferIndex = -1;
+        mAvailableInputBufferIndices = new LinkedList<Integer>();
         mAvailableOutputBufferIndices = new LinkedList<Integer>();
         mAvailableOutputBufferInfos = new LinkedList<MediaCodec.BufferInfo>();
-        mRenderedVideoFrameTimestampList = new ArrayList<Long>();
 
         mPresentationTimeUs = 0;
-
-        mFirstTunnelFrameReady = false;
 
         String mime = mFormat.getString(MediaFormat.KEY_MIME);
         Log.d(TAG, "CodecState::CodecState " + mime);
@@ -111,9 +93,6 @@ public class CodecState {
             mOnFrameRenderedListener = new OnFrameRenderedListener();
             codec.setOnFrameRenderedListener(mOnFrameRenderedListener,
                                              new Handler(Looper.getMainLooper()));
-            mOnFirstTunnelFrameReadyListener = new OnFirstTunnelFrameReadyListener();
-            codec.setOnFirstTunnelFrameReadyListener(new Handler(Looper.getMainLooper()),
-                    mOnFirstTunnelFrameReadyListener);
         }
     }
 
@@ -123,20 +102,17 @@ public class CodecState {
         mCodecOutputBuffers = null;
         mOutputFormat = null;
 
+        mAvailableInputBufferIndices.clear();
         mAvailableOutputBufferIndices.clear();
         mAvailableOutputBufferInfos.clear();
 
-        mAvailableInputBufferIndex = -1;
+        mAvailableInputBufferIndices = null;
         mAvailableOutputBufferIndices = null;
         mAvailableOutputBufferInfos = null;
 
         if (mOnFrameRenderedListener != null) {
             mCodec.setOnFrameRenderedListener(null, null);
             mOnFrameRenderedListener = null;
-        }
-        if (mOnFirstTunnelFrameReadyListener != null) {
-            mCodec.setOnFirstTunnelFrameReadyListener(null, null);
-            mOnFirstTunnelFrameReadyListener = null;
         }
 
         mCodec.release();
@@ -171,12 +147,12 @@ public class CodecState {
     }
 
     public void flush() {
+        mAvailableInputBufferIndices.clear();
         if (!mTunneled || mIsAudio) {
             mAvailableOutputBufferIndices.clear();
             mAvailableOutputBufferInfos.clear();
         }
 
-        mAvailableInputBufferIndex = -1;
         mSawInputEOS = false;
         mSawOutputEOS = false;
 
@@ -186,47 +162,28 @@ public class CodecState {
         }
 
         mCodec.flush();
-        mPresentationTimeUs = 0;
-        mRenderedVideoFrameTimestampList = new ArrayList<Long>();
-        mFirstTunnelFrameReady = false;
     }
 
     public boolean isEnded() {
         return mSawInputEOS && mSawOutputEOS;
     }
 
-    /** @see #doSomeWork(Boolean) */
-    public Long doSomeWork() {
-        return doSomeWork(false /* mustWait */);
-    }
-
     /**
-     * {@code doSomeWork} is the worker function that does all buffer handling and decoding works.
-     * It first reads data from {@link MediaExtractor} and pushes it into {@link MediaCodec}; it
-     * then dequeues buffer from {@link MediaCodec}, consumes it and pushes back to its own buffer
-     * queue for next round reading data from {@link MediaExtractor}.
-     *
-     * @param boolean  Whether to block on input buffer retrieval
-     *
-     * @return timestamp of the queued frame, if any.
+     * doSomeWork() is the worker function that does all buffer handling and decoding works.
+     * It first reads data from {@link MediaExtractor} and pushes it into {@link MediaCodec};
+     * it then dequeues buffer from {@link MediaCodec}, consumes it and pushes back to its own
+     * buffer queue for next round reading data from {@link MediaExtractor}.
      */
-    public Long doSomeWork(boolean mustWait) {
-        // Extract input data, if relevant
-        Long sampleTime = null;
-        if (mAvailableInputBufferIndex == -1) {
-            int indexInput = mCodec.dequeueInputBuffer(mustWait ? -1 : 0 /* timeoutUs */);
-            if (indexInput != MediaCodec.INFO_TRY_AGAIN_LATER) {
-                mAvailableInputBufferIndex = indexInput;
-            }
-        }
-        if (mAvailableInputBufferIndex != -1) {
-            sampleTime = feedInputBuffer(mAvailableInputBufferIndex);
-            if (sampleTime != null) {
-                mAvailableInputBufferIndex = -1;
-            }
+    public void doSomeWork() {
+        int indexInput = mCodec.dequeueInputBuffer(0 /* timeoutUs */);
+
+        if (indexInput != MediaCodec.INFO_TRY_AGAIN_LATER) {
+            mAvailableInputBufferIndices.add(indexInput);
         }
 
-        // Queue output data, if relevant
+        while (feedInputBuffer()) {
+        }
+
         if (mIsAudio || !mTunneled) {
             MediaCodec.BufferInfo info = new MediaCodec.BufferInfo();
             int indexOutput = mCodec.dequeueOutputBuffer(info, 0 /* timeoutUs */);
@@ -244,34 +201,23 @@ public class CodecState {
             while (drainOutputBuffer()) {
             }
         }
-
-        return sampleTime;
     }
 
-    public void setLoopEnabled(boolean enabled) {
-        mLoopEnabled = enabled;
-    }
-
-    /**
-     * Extracts some data from the configured MediaExtractor and feeds it to the configured
-     * MediaCodec.
-     *
-     * Returns the timestamp of the queued buffer, if any.
-     * Returns null once all data has been extracted and queued.
-     */
-    private Long feedInputBuffer(int inputBufferIndex)
-            throws MediaCodec.CryptoException, IllegalStateException {
-        if (mSawInputEOS || inputBufferIndex == -1) {
-            return null;
+    /** Returns true if more input data could be fed. */
+    private boolean feedInputBuffer() throws MediaCodec.CryptoException, IllegalStateException {
+        if (mSawInputEOS || mAvailableInputBufferIndices.isEmpty()) {
+            return false;
         }
 
         // stalls read if audio queue is larger than 2MB full so we will not occupy too much heap
         if (mLimitQueueDepth && mAudioTrack != null &&
                 mAudioTrack.getNumBytesQueued() > 2 * 1024 * 1024) {
-            return null;
+            return false;
         }
 
-        ByteBuffer codecData = mCodecInputBuffers[inputBufferIndex];
+        int index = mAvailableInputBufferIndices.peekFirst().intValue();
+
+        ByteBuffer codecData = mCodecInputBuffers[index];
 
         int trackIndex = mExtractor.getSampleTrackIndex();
 
@@ -287,48 +233,44 @@ public class CodecState {
                 Log.d(TAG, "sampleSize: " + sampleSize + " trackIndex:" + trackIndex +
                         " sampleTime:" + sampleTime + " sampleFlags:" + sampleFlags);
                 mSawInputEOS = true;
-                return null;
+                return false;
             }
 
             if (mTunneled && !mIsAudio) {
-                if (mFirstSampleTimeUs == -1) {
-                    mFirstSampleTimeUs = sampleTime;
+                if (mSampleBaseTimeUs == -1) {
+                    mSampleBaseTimeUs = sampleTime;
                 }
-                sampleTime -= mFirstSampleTimeUs;
+                sampleTime -= mSampleBaseTimeUs;
             }
-
-            mLastPresentTimeUs = mPlaybackStartTimeUs + sampleTime;
 
             if ((sampleFlags & MediaExtractor.SAMPLE_FLAG_ENCRYPTED) != 0) {
                 MediaCodec.CryptoInfo info = new MediaCodec.CryptoInfo();
                 mExtractor.getSampleCryptoInfo(info);
 
                 mCodec.queueSecureInputBuffer(
-                        inputBufferIndex, 0 /* offset */, info, mLastPresentTimeUs, 0 /* flags */);
+                        index, 0 /* offset */, info, sampleTime, 0 /* flags */);
             } else {
                 mCodec.queueInputBuffer(
-                        inputBufferIndex, 0 /* offset */, sampleSize, mLastPresentTimeUs, 0 /* flags */);
+                        index, 0 /* offset */, sampleSize, sampleTime, 0 /* flags */);
             }
 
+            mAvailableInputBufferIndices.removeFirst();
             mExtractor.advance();
-            return mLastPresentTimeUs;
+
+            return true;
         } else if (trackIndex < 0) {
             Log.d(TAG, "saw input EOS on track " + mTrackIndex);
 
-            if (mLoopEnabled) {
-                Log.d(TAG, "looping from the beginning");
-                mExtractor.seekTo(0, MediaExtractor.SEEK_TO_CLOSEST_SYNC);
-                mPlaybackStartTimeUs = mLastPresentTimeUs;
-                return null;
-            }
-
             mSawInputEOS = true;
+
             mCodec.queueInputBuffer(
-                    inputBufferIndex, 0 /* offset */, 0 /* sampleSize */,
+                    index, 0 /* offset */, 0 /* sampleSize */,
                     0 /* sampleTime */, MediaCodec.BUFFER_FLAG_END_OF_STREAM);
+
+            mAvailableInputBufferIndices.removeFirst();
         }
 
-        return null;
+        return false;
     }
 
     private void onOutputFormatChanged() {
@@ -347,9 +289,9 @@ public class CodecState {
 
             Log.d(TAG, "CodecState::onOutputFormatChanged Audio" +
                     " sampleRate:" + sampleRate + " channels:" + channelCount);
-            // We do a check here after we receive data from MediaExtractor and before
+            // We do sanity check here after we receive data from MediaExtractor and before
             // we pass them down to AudioTrack. If MediaExtractor works properly, this
-            // check is not necessary, however, in our tests, we found that there
+            // sanity-check is not necessary, however, in our tests, we found that there
             // are a few cases where ch=0 and samplerate=0 were returned by MediaExtractor.
             if (channelCount < 1 || channelCount > 8 ||
                     sampleRate < 8000 || sampleRate > 128000) {
@@ -383,7 +325,7 @@ public class CodecState {
             mSawOutputEOS = true;
 
             // Do not stop audio track here. Video presentation may not finish
-            // yet, stopping the audio track now would result in getAudioTimeUs
+            // yet, stopping the auido track now would result in getAudioTimeUs
             // returning 0 and prevent video samples from being presented.
             // We stop the audio track before the playback thread exits.
             return false;
@@ -449,7 +391,6 @@ public class CodecState {
             } else {
                  mPresentationTimeUs = presentationTimeUs;
             }
-            mRenderedVideoFrameTimestampList.add(presentationTimeUs);
         }
     }
 
@@ -461,54 +402,15 @@ public class CodecState {
         return mAudioTrack.getAudioTimeUs();
     }
 
-    /** Callback called in tunnel mode when video peek is ready */
-    private class OnFirstTunnelFrameReadyListener
-        implements MediaCodec.OnFirstTunnelFrameReadyListener {
-
-        @Override
-        public void onFirstTunnelFrameReady(MediaCodec codec) {
-            if (this != mOnFirstTunnelFrameReadyListener) {
-                return; // stale event
-            }
-            mFirstTunnelFrameReady = true;
-        }
-    }
-
-    /**
-     * If a video codec, returns the list of rendered frames' timestamps.
-     * Otherwise, returns an empty list.
-     */
-    public ArrayList<Long> getRenderedVideoFrameTimestampList() {
-        return new ArrayList<Long>(mRenderedVideoFrameTimestampList);
-    }
-
-    /** Process the attached {@link AudioTrack}, if any. */
-    public void processAudioTrack() {
+    public void process() {
         if (mAudioTrack != null) {
             mAudioTrack.process();
         }
     }
 
-    public AudioTimestamp getTimestamp() {
-        if (mAudioTrack == null) {
-            return null;
-        }
-
-        return mAudioTrack.getTimestamp();
-    }
-
-
-    /** Stop the attached {@link AudioTrack}, if any. */
-    public void stopAudioTrack() {
+    public void stop() {
         if (mAudioTrack != null) {
             mAudioTrack.stop();
-        }
-    }
-
-    /** Start associated audio track, if any. */
-    public void playAudioTrack() {
-        if (mAudioTrack != null) {
-            mAudioTrack.play();
         }
     }
 
@@ -517,17 +419,5 @@ public class CodecState {
             throw new UnsupportedOperationException("Cannot set surface on audio codec");
         }
         mCodec.setOutputSurface(surface);
-    }
-
-    /** Configure video peek. */
-    public void setVideoPeek(boolean enable) {
-        Bundle parameters = new Bundle();
-        parameters.putInt(MediaCodec.PARAMETER_KEY_TUNNEL_PEEK, enable ? 1 : 0);
-        mCodec.setParameters(parameters);
-    }
-
-    /** In tunnel mode, queries whether the first video frame is ready for video peek. */
-    public boolean isFirstTunnelFrameReady() {
-        return mFirstTunnelFrameReady;
     }
 }

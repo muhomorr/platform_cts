@@ -27,7 +27,6 @@ import android.view.contentcapture.ContentCaptureEvent;
 import android.view.contentcapture.ContentCaptureSessionId;
 
 import androidx.annotation.NonNull;
-import androidx.test.filters.FlakyTest;
 import androidx.test.rule.ActivityTestRule;
 
 import com.android.compatibility.common.util.ActivitiesWatcher.ActivityWatcher;
@@ -79,7 +78,6 @@ public class ResizingEditActivityTest
         ResizingEditActivity.onRootView(null);
     }
 
-    @FlakyTest(bugId = 162372863)
     @Test
     public void testInsetsChangedOnImeAction() throws Exception {
         final CtsContentCaptureService service = enableService();

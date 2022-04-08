@@ -24,9 +24,7 @@ import android.content.Context;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.os.Process;
-import android.os.UserHandle;
 import android.platform.test.annotations.AppModeFull;
-import android.platform.test.annotations.SystemUserOnly;
 import android.util.Log;
 
 import androidx.test.InstrumentationRegistry;
@@ -50,7 +48,6 @@ public class ShellPermissionTest {
     private static final String[] BLACKLISTED_PERMISSIONS = {
             "android.permission.MANAGE_USERS",
             "android.permission.NETWORK_STACK",
-            "android.permission.MANAGE_WIFI_COUNTRY_CODE",
     };
 
     private static final Context sContext = InstrumentationRegistry.getTargetContext();
@@ -66,10 +63,7 @@ public class ShellPermissionTest {
         final Set<String> blacklist = new HashSet<>(Arrays.asList(BLACKLISTED_PERMISSIONS));
 
         final PackageManager pm = sContext.getPackageManager();
-        int uid = UserHandle.getUid(UserHandle.myUserId(), UserHandle.getAppId(Process.SHELL_UID));
-        final String[] pkgs = pm.getPackagesForUid(uid);
-        Log.d(LOG_TAG, "SHELL_UID: " + Process.SHELL_UID + " myUserId: "
-                + UserHandle.myUserId() + " uid: " + uid + " pkgs.length: " + pkgs.length);
+        final String[] pkgs = pm.getPackagesForUid(Process.SHELL_UID);
         assertNotNull("No SHELL packages were found", pkgs);
         assertNotEquals("SHELL package list had 0 size", 0, pkgs.length);
         String pkg = pkgs[0];
@@ -78,18 +72,9 @@ public class ShellPermissionTest {
         assertNotNull("No permissions found for " + pkg, packageInfo.requestedPermissions);
 
         for (String permission : packageInfo.requestedPermissions) {
-            Log.d(LOG_TAG, "SHELL as " + pkg + " uses permission " + permission + " uid: "
-                    + uid);
+            Log.d(LOG_TAG, "SHELL as " + pkg + " uses permission " + permission);
             assertFalse("SHELL as " + pkg + " contains the illegal permission " + permission,
                     blacklist.contains(permission));
         }
-    }
-
-    @Test
-    @SystemUserOnly
-    @AppModeFull(reason = "Instant apps cannot read properties of other packages. Also the shell "
-            + "is never an instant app, hence this test does not matter for instant apps.")
-    public void testBlacklistedPermissionsForSystemUser() throws Exception {
-        testBlacklistedPermissions();
     }
 }

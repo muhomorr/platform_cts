@@ -18,8 +18,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="android.server.wm.app27">
 
-    <application android:label="App27"
-                 android:debuggable="true">
+    <application android:label="App27">
         <activity android:name="android.server.wm.app.LaunchingActivity"
                   android:resizeableActivity="true"
                   android:supportsPictureInPicture="true"

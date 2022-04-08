@@ -36,6 +36,10 @@
                     {
                         "name": "android.server.wm.cts/android.server.wm.intent.Activities$RegularActivity",
                         "state": "RESUMED"
+                    },
+                    {
+                        "name": "android.server.wm.cts/android.server.wm.intent.Activities$RegularActivity",
+                        "state": "STOPPED"
                     }
                 ]
             }

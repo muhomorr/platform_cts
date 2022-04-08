@@ -13,10 +13,6 @@
 // limitations under the License.
 
 // A rule to collect apps for debugging purpose. See ApkVerityTestAppPrebuilt/README.md.
-package {
-    default_applicable_licenses: ["Android-Apache-2.0"],
-}
-
 genrule {
     name: "CtsApkVerityTestDebugFiles",
     srcs: [
@@ -31,19 +27,6 @@ genrule {
     ],
     cmd: "echo $(in) > $(out)",
     out: ["CtsApkVerityTestDebugFiles.txt"],
-}
-
-// This is a rather complicated way to keep only APKs.
-// exclude_srcs does not work because it uses paths local to Android.bp.
-genrule {
-    name: "CtsApkVerityTestAppApk",
-    srcs: [":CtsApkVerityTestApp"],
-    cmd: "for file in $(in); do " +
-         "   if [[ $$file == *.apk ]]; then " +
-         "     cp $$file $(out); " +
-         "   fi " +
-         " done",
-    out: ["CtsApkVerityTestApp.apk"],
 }
 
 filegroup {
@@ -82,7 +65,7 @@ genrule_defaults {
 genrule {
     name: "CtsApkVerityTestAppFsvSig",
     defaults: ["cts_apk_verity_sig_gen_default"],
-    srcs: [":CtsApkVerityTestAppApk"],
+    srcs: [":CtsApkVerityTestApp"],
     out: ["CtsApkVerityTestApp.apk.fsv_sig"],
 }
 

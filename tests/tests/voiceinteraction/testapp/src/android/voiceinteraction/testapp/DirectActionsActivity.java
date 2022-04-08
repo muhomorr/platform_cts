@@ -29,10 +29,6 @@ import android.voiceinteraction.common.Utils;
 
 import androidx.annotation.NonNull;
 
-import com.android.compatibility.common.util.PollingCheck;
-
-import com.google.common.truth.Truth;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -90,7 +86,6 @@ public final class DirectActionsActivity extends Activity {
             callback.accept(Collections.emptyList());
             return;
         }
-        Log.v(TAG, "onGetDirectActions()");
         final DirectAction action = new DirectAction.Builder(Utils.DIRECT_ACTIONS_ACTION_ID)
                 .setExtras(Utils.DIRECT_ACTIONS_ACTION_EXTRAS)
                 .setLocusId(Utils.DIRECT_ACTIONS_LOCUS_ID)
@@ -104,7 +99,6 @@ public final class DirectActionsActivity extends Activity {
     @Override
     public void onPerformDirectAction(String actionId, Bundle arguments,
             CancellationSignal cancellationSignal, Consumer<Bundle> callback) {
-        Log.v(TAG, "onPerformDirectAction(): " + Utils.toBundleString(arguments));
         if (arguments == null || !arguments.getString(Utils.DIRECT_ACTIONS_KEY_ARGUMENTS)
                 .equals(Utils.DIRECT_ACTIONS_KEY_ARGUMENTS)) {
             reportActionFailed(callback);
@@ -122,30 +116,19 @@ public final class DirectActionsActivity extends Activity {
     }
 
     private void detectDestroyedInteractor(@NonNull RemoteCallback callback) {
+        final Bundle result = new Bundle();
         final CountDownLatch latch = new CountDownLatch(1);
+
         final VoiceInteractor interactor = getVoiceInteractor();
-        interactor.registerOnDestroyedCallback(AsyncTask.THREAD_POOL_EXECUTOR, latch::countDown);
+        interactor.registerOnDestroyedCallback(AsyncTask.THREAD_POOL_EXECUTOR, () -> {
+            if (interactor.isDestroyed() && getVoiceInteractor() == null) {
+                result.putBoolean(Utils.DIRECT_ACTIONS_KEY_RESULT, true);
+            }
+            latch.countDown();
+        });
+
         Utils.await(latch);
 
-        try {
-            // Check that the interactor is properly marked destroyed. Polls the values since
-            // there's no synchronization between destroy() and these methods.
-            long pollingTimeoutMs = 3000;
-            PollingCheck.check(
-                    "onDestroyedCallback called but interactor isn't destroyed",
-                    pollingTimeoutMs,
-                    interactor::isDestroyed);
-            PollingCheck.check(
-                    "onDestroyedCallback called but activity still has an interactor",
-                    pollingTimeoutMs,
-                    () -> getVoiceInteractor() == null);
-        } catch (Exception e) {
-            Truth.assertWithMessage("Unexpected exception: " + e).fail();
-        }
-
-        final Bundle result = new Bundle();
-        result.putBoolean(Utils.DIRECT_ACTIONS_KEY_RESULT, true);
-        Log.v(TAG, "detectDestroyedInteractor(): " + Utils.toBundleString(result));
         callback.sendResult(result);
     }
 

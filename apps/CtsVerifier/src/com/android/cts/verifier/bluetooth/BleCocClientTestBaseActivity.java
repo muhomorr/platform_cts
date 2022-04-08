@@ -101,12 +101,6 @@ public class BleCocClientTestBaseActivity extends PassFailButtons.Activity {
     @Override
     public void onPause() {
         super.onPause();
-        closeDialog();
-    }
-
-    @Override
-    public void onDestroy() {
-        super.onDestroy();
         unregisterReceiver(mBroadcast);
         closeDialog();
     }

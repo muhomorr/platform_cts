@@ -151,32 +151,31 @@ public class TvInputDiscoveryTestActivity extends TvAppVerifierActivity
 
     @Override
     protected void createTestItems() {
-        mSupportThirdPartyInputYesItem = createAndAttachUserItem(
+        mSupportThirdPartyInputYesItem = createUserItem(
                 R.string.tv_input_discover_test_third_party_tif_input_support,
                 R.string.tv_yes, this);
         setButtonEnabled(mSupportThirdPartyInputYesItem, true);
-        mSupportThirdPartyInputNoItem = createAndAttachButtonItem(R.string.tv_no, this);
+        mSupportThirdPartyInputNoItem = createButtonItem(R.string.tv_no, this);
         setButtonEnabled(mSupportThirdPartyInputNoItem, true);
-        mGoToSetupItem = createAndAttachUserItem(R.string.tv_input_discover_test_go_to_setup,
+        mGoToSetupItem = createUserItem(R.string.tv_input_discover_test_go_to_setup,
                 R.string.tv_launch_tv_app, this);
-        mVerifySetupItem = createAndAttachAutoItem(R.string.tv_input_discover_test_verify_setup);
-        mTuneToChannelItem = createAndAttachUserItem(
-                R.string.tv_input_discover_test_tune_to_channel,
+        mVerifySetupItem = createAutoItem(R.string.tv_input_discover_test_verify_setup);
+        mTuneToChannelItem = createUserItem(R.string.tv_input_discover_test_tune_to_channel,
                 R.string.tv_launch_tv_app, this);
-        mVerifyTuneItem = createAndAttachAutoItem(R.string.tv_input_discover_test_verify_tune);
-        mVerifyOverlayViewItem = createAndAttachAutoItem(
+        mVerifyTuneItem = createAutoItem(R.string.tv_input_discover_test_verify_tune);
+        mVerifyOverlayViewItem = createAutoItem(
                 R.string.tv_input_discover_test_verify_overlay_view);
-        mVerifyOverlayViewSizeChanged = createAndAttachAutoItem(
+        mVerifyOverlayViewSizeChanged = createAutoItem(
                 R.string.tv_input_discover_test_verify_size_changed);
-        mVerifyGlobalSearchItem = createAndAttachAutoItem(
+        mVerifyGlobalSearchItem = createAutoItem(
                 R.string.tv_input_discover_test_verify_global_search);
-        mGoToEpgItem = createAndAttachUserItem(R.string.tv_input_discover_test_go_to_epg,
+        mGoToEpgItem = createUserItem(R.string.tv_input_discover_test_go_to_epg,
                 R.string.tv_launch_epg, this);
-        mVerifyEpgItem = createAndAttachUserItem(R.string.tv_input_discover_test_verify_epg,
+        mVerifyEpgItem = createUserItem(R.string.tv_input_discover_test_verify_epg,
                 R.string.tv_yes, this);
-        mTriggerSetupItem = createAndAttachUserItem(R.string.tv_input_discover_test_trigger_setup,
+        mTriggerSetupItem = createUserItem(R.string.tv_input_discover_test_trigger_setup,
                 R.string.tv_launch_setup, this);
-        mVerifyTriggerSetupItem = createAndAttachUserItem(
+        mVerifyTriggerSetupItem = createUserItem(
                 R.string.tv_input_discover_test_verify_trigger_setup, R.string.tv_yes, this);
     }
 

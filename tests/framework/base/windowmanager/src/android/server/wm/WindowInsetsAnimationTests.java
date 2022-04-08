@@ -100,10 +100,8 @@ public class WindowInsetsAnimationTests extends WindowInsetsAnimationTestBase {
 
     @Test
     public void testAnimationCallbacks_overlapping() {
-        assumeTrue(
-                "Test requires navBar and statusBar to create overlapping animations.",
-                hasWindowInsets(mRootView, navigationBars())
-                        && hasWindowInsets(mRootView, statusBars()));
+        // Test requires navbar to create overlapping animations.
+        assumeTrue(hasWindowInsets(mRootView, navigationBars()));
 
         WindowInsets before = mActivity.mLastWindowInsets;
         MultiAnimCallback callbackInner = new MultiAnimCallback();

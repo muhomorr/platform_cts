@@ -19,6 +19,7 @@ package android.graphics.fonts;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNotSame;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
 import android.content.res.AssetManager;
@@ -45,7 +46,7 @@ public class FontFamilyTest {
         FontFamily family = new FontFamily.Builder(font).build();
         assertNotNull(family);
         assertEquals(1, family.getSize());
-        assertEquals(font, family.getFont(0));
+        assertSame(font, family.getFont(0));
     }
 
     @Test
@@ -59,8 +60,8 @@ public class FontFamilyTest {
         assertNotNull(family);
         assertEquals(2, family.getSize());
         assertNotSame(family.getFont(0), family.getFont(1));
-        assertTrue(family.getFont(0).equals(regularFont) || family.getFont(0).equals(boldFont));
-        assertTrue(family.getFont(1).equals(regularFont) || family.getFont(1).equals(boldFont));
+        assertTrue(family.getFont(0) == regularFont || family.getFont(0) == boldFont);
+        assertTrue(family.getFont(1) == regularFont || family.getFont(1) == boldFont);
     }
 
     @Test
@@ -74,8 +75,8 @@ public class FontFamilyTest {
         assertNotNull(family);
         assertEquals(2, family.getSize());
         assertNotSame(family.getFont(0), family.getFont(1));
-        assertTrue(family.getFont(0).equals(regularFont) || family.getFont(0).equals(boldFont));
-        assertTrue(family.getFont(1).equals(regularFont) || family.getFont(1).equals(boldFont));
+        assertTrue(family.getFont(0) == regularFont || family.getFont(0) == boldFont);
+        assertTrue(family.getFont(1) == regularFont || family.getFont(1) == boldFont);
     }
 
     @Test
@@ -89,8 +90,8 @@ public class FontFamilyTest {
         assertNotNull(family);
         assertEquals(2, family.getSize());
         assertNotSame(family.getFont(0), family.getFont(1));
-        assertTrue(family.getFont(0).equals(regularFont) || family.getFont(0).equals(italicFont));
-        assertTrue(family.getFont(1).equals(regularFont) || family.getFont(1).equals(italicFont));
+        assertTrue(family.getFont(0) == regularFont || family.getFont(0) == italicFont);
+        assertTrue(family.getFont(1) == regularFont || family.getFont(1) == italicFont);
     }
 
     @Test(expected = IllegalArgumentException.class)

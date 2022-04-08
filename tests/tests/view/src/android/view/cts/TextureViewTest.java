@@ -49,7 +49,6 @@ import com.android.compatibility.common.util.WidgetTestUtils;
 
 import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TestName;
 import org.junit.runner.RunWith;
 
 import java.nio.ByteBuffer;
@@ -71,9 +70,6 @@ public class TextureViewTest {
     @Rule
     public ActivityTestRule<TextureViewCtsActivity> mActivityRule =
             new ActivityTestRule<>(TextureViewCtsActivity.class, false, false);
-
-    @Rule
-    public TestName mTestName = new TestName();
 
     @Test
     public void testFirstFrames() throws Throwable {
@@ -123,7 +119,7 @@ public class TextureViewTest {
         mActivityRule.runOnUiThread(() -> {
             activity.getTextureView().getBitmap(bitmap);
         });
-        assertBitmapQuadColor(bitmap,
+        PixelCopyTest.assertBitmapQuadColor(bitmap,
                 Color.RED, Color.GREEN, Color.BLUE, Color.BLACK);
     }
 
@@ -140,7 +136,7 @@ public class TextureViewTest {
             activity.getTextureView().getBitmap(bitmap);
         });
         // Verify the matrix did not rotate content of getTextureView.getBitmap().
-        assertBitmapQuadColor(bitmap,
+        PixelCopyTest.assertBitmapQuadColor(bitmap,
                 Color.RED, Color.GREEN, Color.BLUE, Color.BLACK);
 
         // Remove cover and calculate TextureView position on the screen.
@@ -162,7 +158,7 @@ public class TextureViewTest {
         int result = new SynchronousPixelCopy().request(window, viewPos, screenshot);
         assertEquals("Copy request failed", PixelCopy.SUCCESS, result);
         // Verify the matrix rotated the TextureView content drawn on the screen.
-        assertBitmapQuadColor(screenshot,
+        PixelCopyTest.assertBitmapQuadColor(screenshot,
                 Color.BLACK, Color.BLUE, Color.GREEN, Color.RED);
     }
 
@@ -182,7 +178,7 @@ public class TextureViewTest {
             activity.getTextureView().getBitmap(bitmap);
         });
         // Verify the matrix did not affect the content of getTextureView.getBitmap().
-        assertBitmapQuadColor(bitmap,
+        PixelCopyTest.assertBitmapQuadColor(bitmap,
                 Color.RED, Color.GREEN, Color.BLUE, Color.BLACK);
 
         // Remove cover and calculate TextureView position on the screen.
@@ -586,11 +582,5 @@ public class TextureViewTest {
             Thread.sleep(16);
         }
         throw new TimeoutException();
-    }
-
-    private void assertBitmapQuadColor(Bitmap bitmap,
-            int topLeft, int topRight, int bottomLeft, int bottomRight) {
-        PixelCopyTest.assertBitmapQuadColor(mTestName.getMethodName(), "TextureViewTest",
-                bitmap, topLeft, topRight, bottomLeft, bottomRight);
     }
 }

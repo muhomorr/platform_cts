@@ -49,7 +49,7 @@ public class CrossProfileWidgetTest extends BaseManagedProfileTest {
     }
 
     /**
-     * This test checks that the widget provider was successfully allowlisted and verifies that
+     * This test checks that the widget provider was successfully whitelisted and verifies that
      * if was added successfully and can be found inside the profile.
      */
     public void testCrossProfileWidgetProviderAdded() {
@@ -62,7 +62,7 @@ public class CrossProfileWidgetTest extends BaseManagedProfileTest {
     }
 
     /**
-     * This test verifies that the widget provider was successfully removed from the allowlist.
+     * This test verifies that the widget provider was successfully removed from the whitelist.
      */
     public void testCrossProfileWidgetProviderRemoved() {
         List<String> providers = mDevicePolicyManager.getCrossProfileWidgetProviders(

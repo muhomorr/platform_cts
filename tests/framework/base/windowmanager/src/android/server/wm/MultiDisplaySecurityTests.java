@@ -41,9 +41,6 @@ import static android.server.wm.second.Components.SecondActivity.EXTRA_DISPLAY_A
 import static android.server.wm.third.Components.THIRD_ACTIVITY;
 import static android.view.Display.DEFAULT_DISPLAY;
 import static android.view.ViewGroup.LayoutParams.WRAP_CONTENT;
-import static android.view.WindowManager.DISPLAY_IME_POLICY_FALLBACK_DISPLAY;
-import static android.view.WindowManager.DISPLAY_IME_POLICY_HIDE;
-import static android.view.WindowManager.DISPLAY_IME_POLICY_LOCAL;
 
 import static androidx.test.platform.app.InstrumentationRegistry.getInstrumentation;
 
@@ -632,14 +629,13 @@ public class MultiDisplaySecurityTests extends MultiDisplayTestBase {
 
         // Verify setting show IME flag without internal system permission.
         try {
-            wm.setDisplayImePolicy(trustedDisplay.mId, DISPLAY_IME_POLICY_LOCAL);
+            wm.setShouldShowIme(trustedDisplay.mId, true);
 
             // Unexpected result, restore flag to avoid affecting other tests.
-            wm.setDisplayImePolicy(trustedDisplay.mId, DISPLAY_IME_POLICY_FALLBACK_DISPLAY);
+            wm.setShouldShowIme(trustedDisplay.mId, false);
             TestUtils.waitUntil("Waiting for show IME flag to be set",
                     5 /* timeoutSecond */,
-                    () -> (wm.getDisplayImePolicy(trustedDisplay.mId)
-                            == DISPLAY_IME_POLICY_FALLBACK_DISPLAY));
+                    () -> !wm.shouldShowIme(trustedDisplay.mId));
             fail("Should not allow setting show IME flag without internal system permission");
         } catch (SecurityException e) {
             // Expected security exception.
@@ -668,7 +664,7 @@ public class MultiDisplaySecurityTests extends MultiDisplayTestBase {
 
         // Verify getting show IME flag without internal system permission.
         try {
-            wm.getDisplayImePolicy(trustedDisplay.mId);
+            wm.shouldShowIme(trustedDisplay.mId);
             fail("Only allow internal system to get show IME flag");
         } catch (SecurityException e) {
             // Expected security exception.
@@ -705,14 +701,13 @@ public class MultiDisplaySecurityTests extends MultiDisplayTestBase {
         // Verify setting show IME flag to an untrusted display.
         getInstrumentation().getUiAutomation().adoptShellPermissionIdentity();
         try {
-            wm.setDisplayImePolicy(untrustedDisplay.mId, DISPLAY_IME_POLICY_LOCAL);
+            wm.setShouldShowIme(untrustedDisplay.mId, true);
 
             // Unexpected result, restore flag to avoid affecting other tests.
-            wm.setDisplayImePolicy(untrustedDisplay.mId, DISPLAY_IME_POLICY_FALLBACK_DISPLAY);
+            wm.setShouldShowIme(untrustedDisplay.mId, false);
             TestUtils.waitUntil("Waiting for show IME flag to be set",
                     5 /* timeoutSecond */,
-                    () -> (wm.getDisplayImePolicy(untrustedDisplay.mId)
-                            == DISPLAY_IME_POLICY_FALLBACK_DISPLAY));
+                    () -> !wm.shouldShowIme(untrustedDisplay.mId));
             fail("Should not allow setting show IME flag to the untrusted virtual display");
         } catch (SecurityException e) {
             // Expected security exception.
@@ -736,10 +731,9 @@ public class MultiDisplaySecurityTests extends MultiDisplayTestBase {
                 wm.shouldShowSystemDecors(untrustedDisplay.mId)));
 
         // Verify getting show IME flag from an untrusted display.
-        SystemUtil.runWithShellPermissionIdentity(() -> assertEquals(
+        SystemUtil.runWithShellPermissionIdentity(() -> assertFalse(
                 "Display should not support showing IME window",
-                wm.getDisplayImePolicy(untrustedDisplay.mId),
-                DISPLAY_IME_POLICY_FALLBACK_DISPLAY));
+                wm.shouldShowIme(untrustedDisplay.mId)));
     }
 
     /**
@@ -776,32 +770,21 @@ public class MultiDisplaySecurityTests extends MultiDisplayTestBase {
         // Verify setting show IME flag to a trusted display.
         SystemUtil.runWithShellPermissionIdentity(() -> {
             // Assume the display should not show IME window by default.
-            assertEquals(DISPLAY_IME_POLICY_FALLBACK_DISPLAY,
-                    wm.getDisplayImePolicy(trustedDisplay.mId));
+            assertFalse(wm.shouldShowIme(trustedDisplay.mId));
 
             try {
-                wm.setDisplayImePolicy(trustedDisplay.mId, DISPLAY_IME_POLICY_LOCAL);
+                wm.setShouldShowIme(trustedDisplay.mId, true);
                 TestUtils.waitUntil("Waiting for show IME flag to be set",
                         5 /* timeoutSecond */,
-                        () -> (wm.getDisplayImePolicy(trustedDisplay.mId)
-                                == DISPLAY_IME_POLICY_LOCAL));
+                        () -> wm.shouldShowIme(trustedDisplay.mId));
 
-                assertEquals(DISPLAY_IME_POLICY_LOCAL, wm.getDisplayImePolicy(trustedDisplay.mId));
-
-                wm.setDisplayImePolicy(trustedDisplay.mId, DISPLAY_IME_POLICY_HIDE);
-                TestUtils.waitUntil("Waiting for show IME flag to be set",
-                        5 /* timeoutSecond */,
-                        () -> (wm.getDisplayImePolicy(trustedDisplay.mId)
-                                == DISPLAY_IME_POLICY_HIDE));
-
-                assertEquals(DISPLAY_IME_POLICY_HIDE, wm.getDisplayImePolicy(trustedDisplay.mId));
+                assertTrue(wm.shouldShowIme(trustedDisplay.mId));
             } finally {
                 // Restore flag to avoid affecting other tests.
-                wm.setDisplayImePolicy(trustedDisplay.mId, DISPLAY_IME_POLICY_FALLBACK_DISPLAY);
+                wm.setShouldShowIme(trustedDisplay.mId, false);
                 TestUtils.waitUntil("Waiting for show IME flag to be set",
                         5 /* timeoutSecond */,
-                        () -> (wm.getDisplayImePolicy(trustedDisplay.mId)
-                                == DISPLAY_IME_POLICY_FALLBACK_DISPLAY));
+                        () -> !wm.shouldShowIme(trustedDisplay.mId));
             }
         });
     }
@@ -837,9 +820,9 @@ public class MultiDisplaySecurityTests extends MultiDisplayTestBase {
 
         // Expect onStartInput / showSoftInput would be executed when user tapping on the
         // untrusted display intentionally.
-        final int[] location = new int[2];
-        editText.getLocationOnScreen(location);
-        tapOnDisplaySync(location[0], location[1], newDisplay.mId);
+        final Rect drawRect = new Rect();
+        editText.getDrawingRect(drawRect);
+        tapOnDisplaySync(drawRect.left, drawRect.top, newDisplay.mId);
         imeTestActivitySession.runOnMainSyncAndWait(
                 imeTestActivitySession.getActivity()::showSoftInput);
         waitOrderedImeEventsThenAssertImeShown(stream, DEFAULT_DISPLAY,

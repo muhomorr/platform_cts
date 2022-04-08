@@ -21,7 +21,6 @@ import static junit.framework.Assert.assertFalse;
 import static junit.framework.Assert.assertNotNull;
 import static junit.framework.Assert.assertNull;
 import static junit.framework.Assert.assertTrue;
-import static junit.framework.Assert.fail;
 
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertThrows;
@@ -31,6 +30,7 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
+import android.os.SystemClock;
 import android.os.UserHandle;
 import android.os.UserManager;
 import android.support.test.uiautomator.UiDevice;
@@ -46,13 +46,8 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import java.util.Arrays;
-import java.util.Set;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 /**
  * Test that runs {@link UserManager#trySetQuietModeEnabled(boolean, UserHandle)} API
@@ -109,6 +104,7 @@ public class QuietModeTest {
             return;
         }
         setDefaultLauncher(InstrumentationRegistry.getInstrumentation(), mOriginalLauncher);
+        startActivitySync(mOriginalLauncher);
     }
 
     @Test
@@ -151,7 +147,7 @@ public class QuietModeTest {
         assertNotNull("Failed to receive ACTION_MANAGED_PROFILE_UNAVAILABLE broadcast", intent);
         assertTrue(mUserManager.isQuietModeEnabled(mTargetUser));
 
-        waitForUserLocked();
+        waitForUserNotRunning(30);
 
         intent = trySetQuietModeEnabled(false,
                 UserManager.QUIET_MODE_DISABLE_ONLY_IF_CREDENTIAL_NOT_REQUIRED, false);
@@ -159,24 +155,15 @@ public class QuietModeTest {
         assertTrue(mUserManager.isQuietModeEnabled(mTargetUser));
     }
 
-    private void waitForUserLocked() throws Exception {
-        // Should match a line in "dumpsys mount" output like this:
-        // Local unlocked users: [0, 10]
-        final Pattern p = Pattern.compile("Local unlocked users: \\[(.*)\\]");
-        final long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(60);
-        while (System.nanoTime() < deadline) {
-            final String output = mUiDevice.executeShellCommand("dumpsys mount");
-            final Matcher matcher = p.matcher(output);
-            assertTrue("Unexpected dupmsys mount output: " + output, matcher.find());
-            final Set<Integer> unlockedUsers = Arrays.stream(matcher.group(1).split(", "))
-                    .map(Integer::valueOf)
-                    .collect(Collectors.toSet());
-            if (!unlockedUsers.contains(mTargetUser.getIdentifier())) {
-                return;
+    // Note: The timeout is in seconds.
+    private void waitForUserNotRunning(int timeout) {
+        for(int i = 0 ; i < 2 * timeout ; i++) {
+            if (!mUserManager.isUserRunning(mTargetUser)) {
+                break;
             }
-            Thread.sleep(500);
+            SystemClock.sleep(500);
         }
-        fail("Cannot get the profile locked");
+        assertFalse("Cannot get the profile stopped.", mUserManager.isUserRunning(mTargetUser));
     }
 
     private Intent trySetQuietModeEnabled(boolean enabled, int flags,
@@ -294,8 +281,9 @@ public class QuietModeTest {
     }
 
     private void setTestAppAsDefaultLauncher() {
-        setDefaultLauncher(InstrumentationRegistry.getInstrumentation(),
-                LAUNCHER_ACTIVITY.getPackageName());
+        setDefaultLauncher(
+                InstrumentationRegistry.getInstrumentation(),
+                LAUNCHER_ACTIVITY.flattenToString());
     }
 }
 

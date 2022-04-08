@@ -15,9 +15,14 @@
  */
 package android.view.textclassifier.cts;
 
+
 import static com.google.common.truth.Truth.assertThat;
 
+import android.app.PendingIntent;
 import android.app.Person;
+import android.app.RemoteAction;
+import android.content.Intent;
+import android.graphics.drawable.Icon;
 import android.os.Bundle;
 import android.os.Parcel;
 import android.os.Parcelable;
@@ -25,6 +30,7 @@ import android.view.textclassifier.ConversationAction;
 import android.view.textclassifier.ConversationActions;
 import android.view.textclassifier.TextClassifier;
 
+import androidx.test.InstrumentationRegistry;
 import androidx.test.filters.SmallTest;
 import androidx.test.runner.AndroidJUnit4;
 
@@ -35,7 +41,9 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 
 @SmallTest
 @RunWith(AndroidJUnit4.class)
@@ -45,7 +53,18 @@ public class ConversationActionsTest {
     private static final Person PERSON = new Person.Builder().setKey(TEXT).build();
     private static final ZonedDateTime TIME =
             ZonedDateTime.ofInstant(Instant.now(), ZoneId.systemDefault());
+    private static final float FLOAT_TOLERANCE = 0.01f;
+
     private static final Bundle EXTRAS = new Bundle();
+    private static final PendingIntent PENDING_INTENT = PendingIntent.getActivity(
+            InstrumentationRegistry.getTargetContext(), 0, new Intent(), 0);
+
+    private static final RemoteAction REMOTE_ACTION = new RemoteAction(
+            Icon.createWithData(new byte[0], 0, 0),
+            TEXT,
+            TEXT,
+            PENDING_INTENT);
+
     static {
         EXTRAS.putString(TEXT, TEXT);
     }
@@ -76,6 +95,53 @@ public class ConversationActionsTest {
 
         assertMinimalMessage(message);
         assertMinimalMessage(recovered);
+    }
+
+    @Test
+    public void testTypeConfig_full() {
+        TextClassifier.EntityConfig typeConfig =
+                new TextClassifier.EntityConfig.Builder()
+                        .setIncludedTypes(
+                                Collections.singletonList(ConversationAction.TYPE_OPEN_URL))
+                        .setExcludedTypes(
+                                Collections.singletonList(ConversationAction.TYPE_CALL_PHONE))
+                        .build();
+
+        TextClassifier.EntityConfig recovered =
+                parcelizeDeparcelize(typeConfig, TextClassifier.EntityConfig.CREATOR);
+
+        assertFullTypeConfig(typeConfig);
+        assertFullTypeConfig(recovered);
+    }
+
+    @Test
+    public void testTypeConfig_full_notIncludeTypesFromTextClassifier() {
+        TextClassifier.EntityConfig typeConfig =
+                new TextClassifier.EntityConfig.Builder()
+                        .includeTypesFromTextClassifier(false)
+                        .setIncludedTypes(
+                                Collections.singletonList(ConversationAction.TYPE_OPEN_URL))
+                        .setExcludedTypes(
+                                Collections.singletonList(ConversationAction.TYPE_CALL_PHONE))
+                        .build();
+
+        TextClassifier.EntityConfig recovered =
+                parcelizeDeparcelize(typeConfig, TextClassifier.EntityConfig.CREATOR);
+
+        assertFullTypeConfig_notIncludeTypesFromTextClassifier(typeConfig);
+        assertFullTypeConfig_notIncludeTypesFromTextClassifier(recovered);
+    }
+
+    @Test
+    public void testTypeConfig_minimal() {
+        TextClassifier.EntityConfig typeConfig =
+                new TextClassifier.EntityConfig.Builder().build();
+
+        TextClassifier.EntityConfig recovered =
+                parcelizeDeparcelize(typeConfig, TextClassifier.EntityConfig.CREATOR);
+
+        assertMinimalTypeConfig(typeConfig);
+        assertMinimalTypeConfig(recovered);
     }
 
     @Test
@@ -123,7 +189,39 @@ public class ConversationActionsTest {
         assertFullRequest(recovered);
     }
 
+    @Test
+    public void testConversationAction_minimal() {
+        ConversationAction conversationAction =
+                new ConversationAction.Builder(
+                        ConversationAction.TYPE_CALL_PHONE)
+                        .build();
 
+        ConversationAction recovered =
+                parcelizeDeparcelize(conversationAction,
+                        ConversationAction.CREATOR);
+
+        assertMinimalConversationAction(conversationAction);
+        assertMinimalConversationAction(recovered);
+    }
+
+    @Test
+    public void testConversationAction_full() {
+        ConversationAction conversationAction =
+                new ConversationAction.Builder(
+                        ConversationAction.TYPE_CALL_PHONE)
+                        .setConfidenceScore(1.0f)
+                        .setTextReply(TEXT)
+                        .setAction(REMOTE_ACTION)
+                        .setExtras(EXTRAS)
+                        .build();
+
+        ConversationAction recovered =
+                parcelizeDeparcelize(conversationAction,
+                        ConversationAction.CREATOR);
+
+        assertFullConversationAction(conversationAction);
+        assertFullConversationAction(recovered);
+    }
 
     @Test
     public void testConversationActions_full() {
@@ -159,7 +257,7 @@ public class ConversationActionsTest {
         assertMinimalConversationActions(recovered);
     }
 
-    private static void assertFullMessage(ConversationActions.Message message) {
+    private void assertFullMessage(ConversationActions.Message message) {
         assertThat(message.getText().toString()).isEqualTo(TEXT);
         assertThat(message.getAuthor()).isEqualTo(PERSON);
         assertThat(message.getExtras().keySet()).containsExactly(TEXT);
@@ -172,7 +270,45 @@ public class ConversationActionsTest {
         assertThat(message.getReferenceTime()).isNull();
     }
 
-    private static void assertMinimalRequest(ConversationActions.Request request) {
+    private void assertFullTypeConfig(TextClassifier.EntityConfig typeConfig) {
+        List<String> extraTypesFromTextClassifier = Arrays.asList(
+                ConversationAction.TYPE_CALL_PHONE,
+                ConversationAction.TYPE_CREATE_REMINDER);
+
+        Collection<String> resolvedTypes =
+                typeConfig.resolveEntityListModifications(extraTypesFromTextClassifier);
+
+        assertThat(typeConfig.shouldIncludeTypesFromTextClassifier()).isTrue();
+        assertThat(typeConfig.resolveEntityListModifications(Collections.emptyList()))
+                .containsExactly(ConversationAction.TYPE_OPEN_URL);
+        assertThat(resolvedTypes).containsExactly(
+                ConversationAction.TYPE_OPEN_URL, ConversationAction.TYPE_CREATE_REMINDER);
+    }
+
+    private void assertFullTypeConfig_notIncludeTypesFromTextClassifier(
+            TextClassifier.EntityConfig typeConfig) {
+        List<String> extraTypesFromTextClassifier = Arrays.asList(
+                ConversationAction.TYPE_CALL_PHONE,
+                ConversationAction.TYPE_CREATE_REMINDER);
+
+        Collection<String> resolvedTypes =
+                typeConfig.resolveEntityListModifications(extraTypesFromTextClassifier);
+
+        assertThat(typeConfig.shouldIncludeTypesFromTextClassifier()).isFalse();
+        assertThat(typeConfig.resolveEntityListModifications(Collections.emptyList()))
+                .containsExactly(ConversationAction.TYPE_OPEN_URL);
+        assertThat(resolvedTypes).containsExactly(ConversationAction.TYPE_OPEN_URL);
+    }
+
+    private void assertMinimalTypeConfig(TextClassifier.EntityConfig typeConfig) {
+        assertThat(typeConfig.shouldIncludeTypesFromTextClassifier()).isTrue();
+        assertThat(typeConfig.resolveEntityListModifications(Collections.emptyList())).isEmpty();
+        assertThat(typeConfig.resolveEntityListModifications(
+                Collections.singletonList(ConversationAction.TYPE_OPEN_URL))).containsExactly(
+                ConversationAction.TYPE_OPEN_URL);
+    }
+
+    private void assertMinimalRequest(ConversationActions.Request request) {
         assertThat(request.getConversation()).hasSize(1);
         assertThat(request.getConversation().get(0).getText().toString()).isEqualTo(TEXT);
         assertThat(request.getConversation().get(0).getAuthor()).isEqualTo(PERSON);
@@ -182,7 +318,7 @@ public class ConversationActionsTest {
         assertThat(request.getExtras().size()).isEqualTo(0);
     }
 
-    private static void assertFullRequest(ConversationActions.Request request) {
+    private void assertFullRequest(ConversationActions.Request request) {
         assertThat(request.getConversation()).hasSize(1);
         assertThat(request.getConversation().get(0).getText().toString()).isEqualTo(TEXT);
         assertThat(request.getConversation().get(0).getAuthor()).isEqualTo(PERSON);
@@ -192,21 +328,37 @@ public class ConversationActionsTest {
         assertThat(request.getExtras().keySet()).containsExactly(TEXT);
     }
 
-    private static void assertMinimalConversationActions(ConversationActions conversationActions) {
+    private void assertMinimalConversationAction(
+            ConversationAction conversationAction) {
+        assertThat(conversationAction.getAction()).isNull();
+        assertThat(conversationAction.getConfidenceScore()).isWithin(FLOAT_TOLERANCE).of(0.0f);
+        assertThat(conversationAction.getType()).isEqualTo(ConversationAction.TYPE_CALL_PHONE);
+    }
+
+    private void assertFullConversationAction(
+            ConversationAction conversationAction) {
+        assertThat(conversationAction.getAction().getTitle()).isEqualTo(TEXT);
+        assertThat(conversationAction.getConfidenceScore()).isWithin(FLOAT_TOLERANCE).of(1.0f);
+        assertThat(conversationAction.getType()).isEqualTo(ConversationAction.TYPE_CALL_PHONE);
+        assertThat(conversationAction.getTextReply()).isEqualTo(TEXT);
+        assertThat(conversationAction.getExtras().keySet()).containsExactly(TEXT);
+    }
+
+    private void assertMinimalConversationActions(ConversationActions conversationActions) {
         assertThat(conversationActions.getConversationActions()).hasSize(1);
         assertThat(conversationActions.getConversationActions().get(0).getType())
                 .isEqualTo(ConversationAction.TYPE_CALL_PHONE);
         assertThat(conversationActions.getId()).isNull();
     }
 
-    private static void assertFullConversationActions(ConversationActions conversationActions) {
+    private void assertFullConversationActions(ConversationActions conversationActions) {
         assertThat(conversationActions.getConversationActions()).hasSize(1);
         assertThat(conversationActions.getConversationActions().get(0).getType())
                 .isEqualTo(ConversationAction.TYPE_CALL_PHONE);
         assertThat(conversationActions.getId()).isEqualTo(ID);
     }
 
-    private static <T extends Parcelable> T parcelizeDeparcelize(
+    private <T extends Parcelable> T parcelizeDeparcelize(
             T parcelable, Parcelable.Creator<T> creator) {
         Parcel parcel = Parcel.obtain();
         parcelable.writeToParcel(parcel, 0);

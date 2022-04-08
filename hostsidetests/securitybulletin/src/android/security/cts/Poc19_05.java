@@ -25,6 +25,37 @@ import static org.junit.Assert.*;
 
 @RunWith(DeviceJUnit4ClassRunner.class)
 public class Poc19_05 extends SecurityTestCase {
+
+    /**
+     * b/129556464
+     */
+    @Test
+    @AsbSecurityTest(cveBugId = 117556606)
+    public void testPocCVE_2019_2052() throws Exception {
+        int code = AdbUtils.runProxyAutoConfig("CVE-2019-2052", getDevice());
+        assertTrue(code != 139); // 128 + signal 11
+    }
+
+    /**
+     * b/129556111
+     */
+    @Test
+    @AsbSecurityTest(cveBugId = 117554758)
+    public void testPocCVE_2019_2045() throws Exception {
+        int code = AdbUtils.runProxyAutoConfig("CVE-2019-2045", getDevice());
+        assertTrue(code != 139); // 128 + signal 11
+    }
+
+    /*
+     * b/129556718
+     */
+    @Test
+    @AsbSecurityTest(cveBugId = 117607414)
+    public void testPocCVE_2019_2047() throws Exception {
+        int code = AdbUtils.runProxyAutoConfig("CVE-2019-2047", getDevice());
+        assertTrue(code != 139); // 128 + signal 11
+    }
+
     /**
      * CVE-2019-2257
      */
@@ -35,5 +66,15 @@ public class Poc19_05 extends SecurityTestCase {
                                 "dumpsys package com.qualcomm.qti.telephonyservice", getDevice());
         assertFalse(result.contains(
                             "permission com.qualcomm.permission.USE_QTI_TELEPHONY_SERVICE"));
+    }
+
+    /**
+     * b/117555811
+     */
+    @Test
+    @AsbSecurityTest(cveBugId = 117555811)
+    public void testPocCVE_2019_2051() throws Exception {
+        int code = AdbUtils.runProxyAutoConfig("CVE-2019-2051", getDevice());
+        assertTrue(code != 139); // 128 + signal 11
     }
 }

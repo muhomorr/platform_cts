@@ -22,7 +22,6 @@ import android.scopedstorage.cts.lib.TestUtils;
 
 import androidx.test.runner.AndroidJUnit4;
 
-import org.junit.After;
 import org.junit.Before;
 import org.junit.runner.RunWith;
 
@@ -38,10 +37,5 @@ public class PublicVolumeTest extends ScopedStorageTest {
         assertThat(volumeName).isNotNull();
         TestUtils.setExternalStorageVolume(volumeName);
         super.setup();
-    }
-
-    @After
-    public void resetExternalStorageVolume() {
-        TestUtils.resetDefaultExternalStorageVolume();
     }
 }

@@ -26,7 +26,6 @@ import static android.inputmethodservice.cts.common.DeviceEventConstants.RECEIVE
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assume.assumeTrue;
 
-import android.inputmethodservice.cts.common.ComponentNameUtils;
 import android.inputmethodservice.cts.common.EditTextAppConstants;
 import android.inputmethodservice.cts.common.EventProviderConstants.EventTableConstants;
 import android.inputmethodservice.cts.common.Ime1Constants;
@@ -37,7 +36,6 @@ import android.inputmethodservice.cts.common.test.TestInfo;
 import android.platform.test.annotations.AppModeFull;
 import android.platform.test.annotations.AppModeInstant;
 
-import com.android.compatibility.common.util.FeatureUtil;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
 import com.android.tradefed.testtype.junit4.BaseHostJUnit4Test;
 
@@ -58,8 +56,6 @@ public class InputMethodServiceLifecycleTest extends BaseHostJUnit4Test {
     private static final long WAIT_TIMEOUT = TimeUnit.SECONDS.toMillis(1);
     private static final long PACKAGE_OP_TIMEOUT = TimeUnit.SECONDS.toMillis(7);
     private static final long POLLING_INTERVAL = 100;
-    private static final String COMPAT_CHANGE_DO_NOT_DOWNSCALE_TO_1080P_ON_TV =
-            "DO_NOT_DOWNSCALE_TO_1080P_ON_TV";
 
     /**
      * {@code true} if {@link #tearDown()} needs to be fully executed.
@@ -130,25 +126,6 @@ public class InputMethodServiceLifecycleTest extends BaseHostJUnit4Test {
     private void installImePackageSync(String apkFileName, String imeId) throws Exception {
         installPackage(apkFileName, "-r");
         waitUntilImesAreAvailable(imeId);
-
-        // Compatibility scaling may affect how watermarks are rendered in such a way so that we
-        // won't be able to detect them on screenshots.
-        disableAppCompatScalingForPackageIfNeeded(ComponentNameUtils.retrievePackageName(imeId));
-    }
-
-    private void disableAppCompatScalingForPackageIfNeeded(String packageName) throws Exception {
-        if (FeatureUtil.isTV(getDevice())) {
-            // On 4K TV devices packages that target API levels below S run in a compat mode where
-            // they render UI to a 1080p surface which then gets scaled up x2 (to the device's
-            // "native" 4K resolution).
-            // When a test IME package runs in such compatibility mode, the watermarks it renders
-            // would be scaled up x2 as well, thus we won't be able detect them on (4K) screenshots
-            // we take during tests.
-            // Note, that this command will have no effect if the device is not a 4K TV, or if the
-            // package's "targetSdk" level is S or above.
-            shell(ShellCommandUtils.enableCompatChange(
-                    COMPAT_CHANGE_DO_NOT_DOWNSCALE_TO_1080P_ON_TV, packageName));
-        }
     }
 
     private void installPossibleInstantPackage(
@@ -456,47 +433,6 @@ public class InputMethodServiceLifecycleTest extends BaseHostJUnit4Test {
     @Test
     public void testImeVisibilityAfterImeSwitchingInstant() throws Exception {
         testImeVisibilityAfterImeSwitching(true);
-    }
-
-    private void testImeSwitchingWithoutWindowFocusAfterDisplayOffOn(boolean instant)
-            throws Exception {
-        sendTestStartEvent(
-                DeviceTestConstants.TEST_IME_SWITCHING_WITHOUT_WINDOW_FOCUS_AFTER_DISPLAY_OFF_ON);
-        installPossibleInstantPackage(
-                EditTextAppConstants.APK, EditTextAppConstants.PACKAGE, instant);
-        installImePackageSync(Ime1Constants.APK, Ime1Constants.IME_ID);
-        installImePackageSync(Ime2Constants.APK, Ime2Constants.IME_ID);
-        shell(ShellCommandUtils.enableIme(Ime1Constants.IME_ID));
-        shell(ShellCommandUtils.enableIme(Ime2Constants.IME_ID));
-        waitUntilImesAreEnabled(Ime1Constants.IME_ID, Ime2Constants.IME_ID);
-        shell(ShellCommandUtils.setCurrentImeSync(Ime1Constants.IME_ID));
-
-        assertTrue(runDeviceTestMethod(
-                DeviceTestConstants.TEST_IME_SWITCHING_WITHOUT_WINDOW_FOCUS_AFTER_DISPLAY_OFF_ON));
-    }
-
-    /**
-     * Test IME switching while another window (e.g. IME switcher dialog) is focused on top of the
-     * IME target window after turning off/on the screen.
-     *
-     * <p>Regression test for Bug 160391516.</p>
-     */
-    @AppModeFull
-    @Test
-    public void testImeSwitchingWithoutWindowFocusAfterDisplayOffOnFull() throws Exception {
-        testImeSwitchingWithoutWindowFocusAfterDisplayOffOn(false);
-    }
-
-    /**
-     * Test IME switching while another window (e.g. IME switcher dialog) is focused on top of the
-     * IME target window after turning off/on the screen.
-     *
-     * <p>Regression test for Bug 160391516.</p>
-     */
-    @AppModeInstant
-    @Test
-    public void testImeSwitchingWithoutWindowFocusAfterDisplayOffOnInstant() throws Exception {
-        testImeSwitchingWithoutWindowFocusAfterDisplayOffOn(true);
     }
 
     private void sendTestStartEvent(TestInfo deviceTest) throws Exception {

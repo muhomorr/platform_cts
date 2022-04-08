@@ -17,13 +17,12 @@
 
 package com.android.cts.verifier.sensors.reporting;
 
-import android.content.Context;
-import android.hardware.cts.helpers.SensorTestStateNotSupportedException;
-import android.hardware.cts.helpers.SensorTestWarningException;
-
 import com.android.cts.verifier.R;
 
 import org.junit.runner.Result;
+
+import android.content.Context;
+import android.hardware.cts.helpers.SensorTestStateNotSupportedException;
 
 /**
  * A class that holds the result of a Sensor test execution.
@@ -37,8 +36,7 @@ public class SensorTestDetails {
         SKIPPED,
         PASS,
         FAIL,
-        INTERRUPTED,
-        WARNING
+        INTERRUPTED
     }
 
     public SensorTestDetails(String name, ResultCode resultCode) {
@@ -85,9 +83,6 @@ public class SensorTestDetails {
             Thread.currentThread().interrupt();
         } else if (cause instanceof SensorTestStateNotSupportedException) {
             resultCode = ResultCode.SKIPPED;
-        } else if (cause instanceof SensorTestWarningException) {
-            resultCode = ResultCode.WARNING;
-            tag = "TestWarning";
         }
 
         mName = name;

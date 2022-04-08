@@ -22,9 +22,6 @@ import android.security.keystore.KeyInfo;
 import android.security.keystore.KeyProperties;
 import android.test.AndroidTestCase;
 import android.test.MoreAsserts;
-import android.util.Log;
-
-import com.android.internal.util.HexDump;
 
 import java.math.BigInteger;
 import java.net.InetAddress;
@@ -882,6 +879,7 @@ public class KeyPairGeneratorTest extends AndroidTestCase {
                 .setCertificateSubject(certSubject)
                 .setCertificateNotBefore(certNotBefore)
                 .setCertificateNotAfter(certNotAfter)
+                .setUnlockedDeviceRequired(true)
                 .build());
         KeyPair keyPair = generator.generateKeyPair();
         assertGeneratedKeyPairAndSelfSignedCertificate(
@@ -951,6 +949,7 @@ public class KeyPairGeneratorTest extends AndroidTestCase {
                 .setCertificateSubject(certSubject)
                 .setCertificateNotBefore(certNotBefore)
                 .setCertificateNotAfter(certNotAfter)
+                .setUnlockedDeviceRequired(true)
                 .setIsStrongBoxBacked(true)
                 .build());
         KeyPair keyPair = generator.generateKeyPair();
@@ -1021,6 +1020,7 @@ public class KeyPairGeneratorTest extends AndroidTestCase {
                 .setCertificateSubject(certSubject)
                 .setCertificateNotBefore(certNotBefore)
                 .setCertificateNotAfter(certNotAfter)
+                .setUnlockedDeviceRequired(true)
                 .build());
         KeyPair keyPair = generator.generateKeyPair();
         assertGeneratedKeyPairAndSelfSignedCertificate(
@@ -1094,7 +1094,7 @@ public class KeyPairGeneratorTest extends AndroidTestCase {
                 KeyProperties.PURPOSE_SIGN | KeyProperties.PURPOSE_VERIFY
                         | KeyProperties.PURPOSE_ENCRYPT)
                 .setAlgorithmParameterSpec(
-                        new RSAKeyGenParameterSpec(2048, RSAKeyGenParameterSpec.F4))
+                        new RSAKeyGenParameterSpec(2048, RSAKeyGenParameterSpec.F0))
                 .setKeySize(2048)
                 .setDigests(KeyProperties.DIGEST_SHA256)
                 .setSignaturePaddings(KeyProperties.SIGNATURE_PADDING_RSA_PSS,
@@ -1109,6 +1109,7 @@ public class KeyPairGeneratorTest extends AndroidTestCase {
                 .setCertificateSubject(certSubject)
                 .setCertificateNotBefore(certNotBefore)
                 .setCertificateNotAfter(certNotAfter)
+                .setUnlockedDeviceRequired(true)
                 .setIsStrongBoxBacked(true)
                 .build());
         KeyPair keyPair = generator.generateKeyPair();
@@ -1121,7 +1122,7 @@ public class KeyPairGeneratorTest extends AndroidTestCase {
                 certSerialNumber,
                 certNotBefore,
                 certNotAfter);
-        assertEquals(RSAKeyGenParameterSpec.F4,
+        assertEquals(RSAKeyGenParameterSpec.F0,
                 ((RSAPublicKey) keyPair.getPublic()).getPublicExponent());
         KeyInfo keyInfo = TestUtils.getKeyInfo(keyPair.getPrivate());
         assertEquals(2048, keyInfo.getKeySize());
@@ -1646,7 +1647,6 @@ public class KeyPairGeneratorTest extends AndroidTestCase {
 
     private static void assertSelfSignedCertificateSignatureVerifies(Certificate certificate) {
         try {
-            Log.i("KeyPairGeneratorTest", HexDump.dumpHexString(certificate.getEncoded()));
             certificate.verify(certificate.getPublicKey());
         } catch (Exception e) {
             throw new RuntimeException("Failed to verify self-signed certificate signature", e);
@@ -1669,8 +1669,7 @@ public class KeyPairGeneratorTest extends AndroidTestCase {
         TestUtils.assertKeyStoreKeyPair(mKeyStore, alias, keyPair);
 
         X509Certificate cert = (X509Certificate) mKeyStore.getCertificate(alias);
-        assertTrue(Arrays.equals(keyPair.getPublic().getEncoded(),
-                cert.getPublicKey().getEncoded()));
+        assertEquals(keyPair.getPublic(), cert.getPublicKey());
         assertX509CertificateParameters(cert,
                 expectedCertSubject,
                 expectedCertSerialNumber,
@@ -1816,7 +1815,7 @@ public class KeyPairGeneratorTest extends AndroidTestCase {
         @Override
         public String chooseEngineClientAlias(String[] keyType, Principal[] issuers,
             SSLEngine engine) {
-            throw new IllegalStateException();
+            return "fake";
         }
 
         @Override
@@ -1827,7 +1826,7 @@ public class KeyPairGeneratorTest extends AndroidTestCase {
         @Override
         public String chooseEngineServerAlias(String keyType, Principal[] issuers,
             SSLEngine engine) {
-            throw new IllegalStateException();
+            return "fake";
         }
 
         @Override

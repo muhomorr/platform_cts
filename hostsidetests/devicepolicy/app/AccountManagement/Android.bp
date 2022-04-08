@@ -12,10 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package {
-    default_applicable_licenses: ["Android-Apache-2.0"],
-}
-
 android_test_helper_app {
     name: "CtsAccountManagementDevicePolicyApp",
     defaults: ["cts_defaults"],
@@ -23,8 +19,9 @@ android_test_helper_app {
     test_suites: [
         "arcts",
         "cts",
+        "vts10",
         "general-tests",
-        "mts",
+        "mts-permission",
     ],
     srcs: ["src/**/*.java"],
     static_libs: [
@@ -33,9 +30,6 @@ android_test_helper_app {
         "ub-uiautomator",
         "androidx.test.rules",
     ],
-
-    libs: [
-        "android.test.base",
-        "android.test.runner",],
-    sdk_version: "test_current",
+    libs: ["android.test.base.stubs"],
+    sdk_version: "current",
 }

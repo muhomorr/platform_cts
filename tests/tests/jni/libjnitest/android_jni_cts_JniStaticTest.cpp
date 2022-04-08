@@ -19,6 +19,7 @@
  */
 
 #include <jni.h>
+#include <nativehelper/JNIHelp.h>
 
 extern "C" JNIEXPORT jint JNICALL Java_android_jni_cts_ClassLoaderHelper_nativeGetHashCode(
         JNIEnv* env,

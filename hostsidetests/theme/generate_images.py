@@ -27,10 +27,7 @@ from avd import *
 from queue import Queue, Empty
 
 
-# This dict should contain one entry for every density listed in DisplayMetrics.
-# See CDD 7.1.1.3 for more information on densities at which CTS can run. If you
-# are only generating reference images for a single density, you can comment out
-# the other densities and then run the script.
+# This dict should contain one entry for every density listed in CDD 7.1.1.3.
 CTS_THEME_dict = {
     120: "ldpi",
     140: "140dpi",
@@ -52,7 +49,6 @@ CTS_THEME_dict = {
     450: "450dpi",
     480: "xxhdpi",
     560: "560dpi",
-    600: "600dpi",
     640: "xxxhdpi",
 }
 

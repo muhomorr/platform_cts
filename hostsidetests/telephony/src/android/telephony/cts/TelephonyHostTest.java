@@ -20,8 +20,6 @@ import android.compat.cts.CompatChangeGatingTestCase;
 
 import com.google.common.collect.ImmutableSet;
 
-import java.util.Collections;
-
 /**
  * Tests for {@link android.telephony.TelephonyManager} and related APIs
  */
@@ -39,11 +37,8 @@ public class TelephonyHostTest extends CompatChangeGatingTestCase {
     }
 
     public void testWithChangeEnabled() throws Exception {
-        runDeviceCompatTestReported(TEST_PKG, ".TelephonyTest",
-                "testListenerRegistrationWithChangeEnabled",
+        runDeviceCompatTest(TEST_PKG, ".TelephonyTest", "testListenerRegistrationWithChangeEnabled",
                 /*enabledChanges*/ImmutableSet.of(PHONE_STATE_LISTENER_LIMIT_CHANGE_ID),
-                /*disabledChanges*/ ImmutableSet.of(),
-                Collections.emptySet(),
-                Collections.emptySet());
+                /*disabledChanges*/ ImmutableSet.of());
     }
 }

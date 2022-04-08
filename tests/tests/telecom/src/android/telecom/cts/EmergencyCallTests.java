@@ -85,9 +85,7 @@ public class EmergencyCallTests extends BaseTelecomTestWithMockServices {
 
         Uri normalCallNumber = createRandomTestNumber();
         addAndVerifyNewIncomingCall(normalCallNumber, null);
-        MockConnection incomingConnection = verifyConnectionForIncomingCall();
-        // Ensure destroy happens after emergency call is placed to prevent unbind -> rebind.
-        incomingConnection.disableAutoDestroy();
+        Connection incomingConnection = verifyConnectionForIncomingCall();
         Call incomingCall = getInCallService().getLastCall();
         assertCallState(incomingCall, Call.STATE_RINGING);
 
@@ -96,7 +94,6 @@ public class EmergencyCallTests extends BaseTelecomTestWithMockServices {
         Call eCall = getInCallService().getLastCall();
         assertCallState(eCall, Call.STATE_DIALING);
 
-        incomingConnection.destroy();
         assertConnectionState(incomingConnection, Connection.STATE_DISCONNECTED);
         assertCallState(incomingCall, Call.STATE_DISCONNECTED);
 
@@ -126,9 +123,7 @@ public class EmergencyCallTests extends BaseTelecomTestWithMockServices {
 
         Uri normalIncomingCallNumber = createRandomTestNumber();
         addAndVerifyNewIncomingCall(normalIncomingCallNumber, null);
-        MockConnection incomingConnection = verifyConnectionForIncomingCall();
-        // Ensure destroy happens after emergency call is placed to prevent unbind -> rebind.
-        incomingConnection.disableAutoDestroy();
+        Connection incomingConnection = verifyConnectionForIncomingCall();
         Call incomingCall = getInCallService().getLastCall();
         assertCallState(incomingCall, Call.STATE_RINGING);
 
@@ -137,7 +132,6 @@ public class EmergencyCallTests extends BaseTelecomTestWithMockServices {
         Call eCall = getInCallService().getLastCall();
         assertCallState(eCall, Call.STATE_DIALING);
 
-        incomingConnection.destroy();
         assertConnectionState(incomingConnection, Connection.STATE_DISCONNECTED);
         assertCallState(incomingCall, Call.STATE_DISCONNECTED);
 

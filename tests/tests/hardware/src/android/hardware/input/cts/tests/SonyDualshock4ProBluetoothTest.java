@@ -16,8 +16,6 @@
 
 package android.hardware.input.cts.tests;
 
-import static org.junit.Assume.assumeTrue;
-
 import android.hardware.cts.R;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
@@ -28,7 +26,7 @@ import org.junit.runner.RunWith;
 
 @SmallTest
 @RunWith(AndroidJUnit4.class)
-public class SonyDualshock4ProBluetoothTest extends InputHidTestCase {
+public class SonyDualshock4ProBluetoothTest extends InputTestCase {
 
     // Simulates the behavior of PlayStation DualShock4 Pro gamepad (model CUH-ZCT2U)
     public SonyDualshock4ProBluetoothTest() {
@@ -44,11 +42,4 @@ public class SonyDualshock4ProBluetoothTest extends InputHidTestCase {
     public void testAllMotions() {
         testInputEvents(R.raw.sony_dualshock4_bluetooth_motioneventtests);
     }
-
-    @Test
-    public void testVibrator() throws Exception {
-        assumeTrue("Requires kernel > 4.19", isKernelVersionGreaterThan("4.19"));
-        testInputVibratorEvents(R.raw.sony_dualshock4_bluetooth_vibratortests);
-    }
-
 }

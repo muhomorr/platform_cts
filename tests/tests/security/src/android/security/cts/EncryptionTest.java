@@ -16,62 +16,40 @@
 
 package android.security.cts;
 
-import static org.junit.Assert.fail;
-import static org.junit.Assume.assumeTrue;
-
-import android.content.Context;
-import android.content.pm.PackageManager;
-import android.os.Build;
-import android.platform.test.annotations.AppModeFull;
-import android.util.Log;
-
-import androidx.test.platform.app.InstrumentationRegistry;
-import androidx.test.runner.AndroidJUnit4;
-
 import com.android.compatibility.common.util.CddTest;
-import com.android.compatibility.common.util.FeatureUtil;
 import com.android.compatibility.common.util.PropertyUtil;
 
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
+import android.platform.test.annotations.AppModeFull;
+import android.test.AndroidTestCase;
+import junit.framework.TestCase;
 
-@RunWith(AndroidJUnit4.class)
-public class EncryptionTest {
+import android.os.Build;
+import android.util.Log;
+
+public class EncryptionTest extends AndroidTestCase {
     static {
         System.loadLibrary("ctssecurity_jni");
     }
+
+    private static final int MIN_ENCRYPTION_REQUIRED_API_LEVEL = 23;
+
+    // First API level where there are no speed exemptions.
+    private static final int MIN_ALL_SPEEDS_API_LEVEL = Build.VERSION_CODES.Q;
+
+    // First API level at which file based encryption must be used.
+    private static final int MIN_FBE_REQUIRED_API_LEVEL = Build.VERSION_CODES.Q;
 
     private static final String TAG = "EncryptionTest";
 
     private static native boolean aesIsFast();
 
-    @Before
-    public void setUp() throws Exception {
-        Context context = InstrumentationRegistry.getInstrumentation().getContext();
-        // This feature name check only applies to devices that first shipped with
-        // SC or later.
-        if (PropertyUtil.getFirstApiLevel() >= Build.VERSION_CODES.S) {
-            // Assumes every test in this file asserts a requirement of CDD section 9.
-            assumeTrue("Skipping test: FEATURE_SECURITY_MODEL_COMPATIBLE missing.",
-                    !context.getPackageManager()
-                    .hasSystemFeature(PackageManager.FEATURE_SECURITY_MODEL_COMPATIBLE));
-        }
-    }
-
     private void handleUnencryptedDevice() {
-        // Prior to Android M, encryption wasn't required at all.
-        if (PropertyUtil.getFirstApiLevel() < Build.VERSION_CODES.M) {
+        if (PropertyUtil.getFirstApiLevel() < MIN_ENCRYPTION_REQUIRED_API_LEVEL) {
             Log.d(TAG, "Exempt from encryption due to an old starting API level.");
             return;
         }
-        // Prior to Android Q, encryption wasn't required if AES performance is
-        // too low or if the device is "typically shared (e.g. Television)".
-        if (PropertyUtil.getFirstApiLevel() < Build.VERSION_CODES.Q) {
-            if (FeatureUtil.isTV()) {
-                Log.d(TAG, "Exempt from encryption because because device is TV.");
-                return;
-            }
+        // In older API levels, we grant an exemption if AES is not fast enough.
+        if (PropertyUtil.getFirstApiLevel() < MIN_ALL_SPEEDS_API_LEVEL) {
             // Note: aesIsFast() takes ~2 second to run, so it's worth rearranging
             //     test logic to delay calling this.
             if (!aesIsFast()) {
@@ -91,9 +69,7 @@ public class EncryptionTest {
             // CtsNativeEncryptionTestCases.
             return;
         }
-        // Prior to Android Q, file-based encryption wasn't required
-        // (full-disk encryption was also allowed).
-        if (PropertyUtil.getFirstApiLevel() < Build.VERSION_CODES.Q) {
+        if (PropertyUtil.getFirstApiLevel() < MIN_FBE_REQUIRED_API_LEVEL) {
             Log.d(TAG, "Device is encrypted.");
             return;
         }
@@ -104,7 +80,6 @@ public class EncryptionTest {
     // to instant apps
     @AppModeFull
     @CddTest(requirement="9.9.2/C-0-1,C-0-2,C-0-3")
-    @Test
     public void testEncryption() throws Exception {
         if ("encrypted".equals(PropertyUtil.getProperty("ro.crypto.state"))) {
             handleEncryptedDevice();

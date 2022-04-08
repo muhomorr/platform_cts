@@ -19,8 +19,7 @@
     package="com.android.cts.nolauncheractivityapp">
     <uses-permission android:name="android.permission.INTERNET" />
     <application>
-        <activity android:name="com.android.cts.haslauncheractivityapp.MainActivity"
-                  android:exported="true">
+        <activity android:name="com.android.cts.haslauncheractivityapp.MainActivity">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
             </intent-filter>

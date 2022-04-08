@@ -137,18 +137,6 @@ public class ScopedStorageHostTest extends BaseHostTestCase {
     }
 
     @Test
-    public void testCheckInstallerAppCannotAccessDataDirs() throws Exception {
-        allowAppOps("android:request_install_packages");
-        grantPermissions("android.permission.WRITE_EXTERNAL_STORAGE");
-        try {
-            runDeviceTest("testCheckInstallerAppCannotAccessDataDirs");
-        } finally {
-            denyAppOps("android:request_install_packages");
-            revokePermissions("android.permission.WRITE_EXTERNAL_STORAGE");
-        }
-    }
-
-    @Test
     public void testManageExternalStorageQueryOtherAppsFile() throws Exception {
         allowAppOps("android:manage_external_storage");
         try {
@@ -229,18 +217,11 @@ public class ScopedStorageHostTest extends BaseHostTestCase {
 
     @Test
     public void testNoIsolatedStorageInstrumentationFlag() throws Exception {
-        grantPermissions("android.permission.READ_EXTERNAL_STORAGE",
-                "android.permission.WRITE_EXTERNAL_STORAGE");
-        try {
-            runDeviceTestWithDisabledIsolatedStorage("testNoIsolatedStorageCanCreateFilesAnywhere");
-            runDeviceTestWithDisabledIsolatedStorage(
-                    "testNoIsolatedStorageCantReadWriteOtherAppExternalDir");
-            runDeviceTestWithDisabledIsolatedStorage("testNoIsolatedStorageStorageReaddir");
-            runDeviceTestWithDisabledIsolatedStorage("testNoIsolatedStorageQueryOtherAppsFile");
-        } finally {
-            revokePermissions("android.permission.READ_EXTERNAL_STORAGE",
-                    "android.permission.WRITE_EXTERNAL_STORAGE");
-        }
+        runDeviceTestWithDisabledIsolatedStorage("testNoIsolatedStorageCanCreateFilesAnywhere");
+        runDeviceTestWithDisabledIsolatedStorage(
+                "testNoIsolatedStorageCantReadWriteOtherAppExternalDir");
+        runDeviceTestWithDisabledIsolatedStorage("testNoIsolatedStorageStorageReaddir");
+        runDeviceTestWithDisabledIsolatedStorage("testNoIsolatedStorageQueryOtherAppsFile");
     }
 
     @Test
@@ -269,65 +250,12 @@ public class ScopedStorageHostTest extends BaseHostTestCase {
         }
     }
 
-    @Test
-    public void testInsertExternalFilesViaDataAsFileManager() throws Exception {
-        allowAppOps("android:manage_external_storage");
-        try {
-            runDeviceTest("testInsertExternalFilesViaData");
-        } finally {
-            denyAppOps("android:manage_external_storage");
-        }
-    }
-
-    /**
-     * Test that File Manager can't update file path to private directories.
-     */
-    @Test
-    public void testUpdateExternalFilesViaDataAsFileManager() throws Exception {
-        allowAppOps("android:manage_external_storage");
-        try {
-            runDeviceTest("testUpdateExternalFilesViaData");
-        } finally {
-            denyAppOps("android:manage_external_storage");
-        }
-    }
-
-    /**
-     * Test that File Manager can't insert files from private directories.
-     */
-    @Test
-    public void testInsertExternalFilesViaRelativePathAsFileManager() throws Exception {
-        allowAppOps("android:manage_external_storage");
-        try {
-            runDeviceTest("testInsertExternalFilesViaRelativePath");
-        } finally {
-            denyAppOps("android:manage_external_storage");
-        }
-    }
-
-    /**
-     * Test that File Manager can't update file path to private directories.
-     */
-    @Test
-    public void testUpdateExternalFilesViaRelativePathAsFileManager() throws Exception {
-        allowAppOps("android:manage_external_storage");
-        try {
-            runDeviceTest("testUpdateExternalFilesViaRelativePath");
-        } finally {
-            denyAppOps("android:manage_external_storage");
-        }
-    }
-
-    private void grantPermissionsToPackage(String packageName, String... perms) throws Exception {
+    private void grantPermissions(String... perms) throws Exception {
         int currentUserId = getCurrentUserId();
         for (String perm : perms) {
-            executeShellCommand("pm grant --user %d %s %s",
-                    currentUserId, packageName, perm);
+            executeShellCommand("pm grant --user %d android.scopedstorage.cts %s",
+                    currentUserId, perm);
         }
-    }
-
-    private void grantPermissions(String... perms) throws Exception {
-        grantPermissionsToPackage("android.scopedstorage.cts", perms);
     }
 
     private void revokePermissions(String... perms) throws Exception {

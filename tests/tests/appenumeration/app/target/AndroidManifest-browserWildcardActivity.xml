@@ -19,8 +19,7 @@
     package="android.appenumeration.browser.wildcard.activity">
     <application>
         <uses-library android:name="android.test.runner" />
-        <activity android:name="android.appenumeration.WebBrowser"
-            android:exported="true">
+        <activity android:name="android.appenumeration.WebBrowser">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />

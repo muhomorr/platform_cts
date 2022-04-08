@@ -81,7 +81,7 @@ public class HwRngTest extends CtsAndroidTestCase {
             return;
         }
 
-        // Quick check based on https://www.kernel.org/doc/Documentation/hw_random.txt.
+        // Sanity check based on https://www.kernel.org/doc/Documentation/hw_random.txt.
 
         // In short, assert that:
         // 1. hwrng kernel driver is using MAJOR 10 and MINOR 183,

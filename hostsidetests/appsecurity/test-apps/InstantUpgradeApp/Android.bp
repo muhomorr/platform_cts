@@ -14,16 +14,12 @@
 // limitations under the License.
 //
 
-package {
-    default_applicable_licenses: ["Android-Apache-2.0"],
-}
-
 android_test_helper_app {
     name: "CtsInstantUpgradeApp",
     defaults: ["cts_support_defaults"],
     libs: [
-        "android.test.runner",
-        "android.test.base",
+        "android.test.runner.stubs",
+        "android.test.base.stubs",
     ],
     static_libs: [
         "cts-aia-util",
@@ -34,6 +30,7 @@ android_test_helper_app {
     // tag this module as a cts test artifact
     test_suites: [
         "cts",
+        "vts10",
         "general-tests",
     ],
     srcs: ["src/**/*.java"],

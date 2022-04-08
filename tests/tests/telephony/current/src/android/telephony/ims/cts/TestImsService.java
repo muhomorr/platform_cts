@@ -27,11 +27,8 @@ import android.telephony.ims.feature.RcsFeature;
 import android.telephony.ims.stub.ImsConfigImplBase;
 import android.telephony.ims.stub.ImsFeatureConfiguration;
 import android.telephony.ims.stub.ImsRegistrationImplBase;
-import android.telephony.ims.stub.SipTransportImplBase;
 import android.util.Log;
 
-
-import androidx.annotation.Nullable;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -43,18 +40,13 @@ public class TestImsService extends Service {
 
     private static final String TAG = "GtsImsTestImsService";
 
-    private static final TestImsRegistration sImsRegistrationImplBase =
-            new TestImsRegistration();
+    private static ImsRegistrationImplBase sImsRegistrationImplBase = new ImsRegistrationImplBase();
 
     private TestRcsFeature mTestRcsFeature;
     private TestMmTelFeature mTestMmTelFeature;
     private TestImsConfig mTestImsConfig;
-    private TestSipTransport mTestSipTransport;
     private ImsService mTestImsService;
     private boolean mIsEnabled = false;
-    private boolean mSetNullRcsBinding = false;
-    private boolean mIsSipTransportImplemented = false;
-    private long mCapabilities = 0;
     private ImsFeatureConfiguration mFeatureConfig;
     private final Object mLock = new Object();
 
@@ -69,9 +61,7 @@ public class TestImsService extends Service {
     public static final int LATCH_RCS_READY = 8;
     public static final int LATCH_MMTEL_CAP_SET = 9;
     public static final int LATCH_RCS_CAP_SET = 10;
-    public static final int LATCH_UCE_LISTENER_SET = 11;
-    public static final int LATCH_UCE_REQUEST_PUBLISH = 12;
-    private static final int LATCH_MAX = 13;
+    private static final int LATCH_MAX = 11;
     protected static final CountDownLatch[] sLatches = new CountDownLatch[LATCH_MAX];
     static {
         for (int i = 0; i < LATCH_MAX; i++) {
@@ -88,12 +78,6 @@ public class TestImsService extends Service {
     interface CapabilitiesSetListener {
         void onSet();
     }
-    interface RcsCapabilityExchangeEventListener {
-        void onSet();
-    }
-    interface DeviceCapPublishListener {
-        void onPublish();
-    }
 
     // This is defined here instead TestImsService extending ImsService directly because the GTS
     // tests were failing to run on pre-P devices. Not sure why, but TestImsService is loaded
@@ -107,18 +91,11 @@ public class TestImsService extends Service {
                 attachBaseContext(context);
             }
             mTestImsConfig = new TestImsConfig();
-            // For testing, just run on binder thread until required otherwise.
-            mTestSipTransport = new TestSipTransport(Runnable::run);
         }
 
         @Override
         public ImsFeatureConfiguration querySupportedImsFeatures() {
             return getFeatureConfig();
-        }
-
-        @Override
-        public long getImsServiceCapabilities() {
-            return mCapabilities;
         }
 
         @Override
@@ -148,7 +125,7 @@ public class TestImsService extends Service {
         public RcsFeature createRcsFeature(int slotId) {
             synchronized (mLock) {
                 countDownLatch(LATCH_CREATE_RCS);
-                mTestRcsFeature = new TestRcsFeature(getBaseContext(),
+                mTestRcsFeature = new TestRcsFeature(
                         //onReady
                         () -> {
                             synchronized (mLock) {
@@ -167,23 +144,8 @@ public class TestImsService extends Service {
                             synchronized (mLock) {
                                 countDownLatch(LATCH_RCS_CAP_SET);
                             }
-                        },
-                        () -> {
-                            synchronized (mLock) {
-                                countDownLatch(LATCH_UCE_LISTENER_SET);
                         }
-                        });
-
-                // Setup UCE request listener
-                mTestRcsFeature.setDeviceCapPublishListener(() -> {
-                    synchronized (mLock) {
-                        countDownLatch(LATCH_UCE_REQUEST_PUBLISH);
-                    }
-                });
-
-                if (mSetNullRcsBinding) {
-                    return null;
-                }
+                        );
                 return mTestRcsFeature;
             }
         }
@@ -226,16 +188,6 @@ public class TestImsService extends Service {
         public ImsRegistrationImplBase getRegistration(int slotId) {
             return sImsRegistrationImplBase;
         }
-
-        @Nullable
-        @Override
-        public SipTransportImplBase getSipTransport(int slotId) {
-            if (mIsSipTransportImplemented) {
-                return mTestSipTransport;
-            } else {
-                return null;
-            }
-        }
     }
 
     private final LocalBinder mBinder = new LocalBinder();
@@ -275,9 +227,6 @@ public class TestImsService extends Service {
             mTestMmTelFeature = null;
             mTestRcsFeature = null;
             mIsEnabled = false;
-            mSetNullRcsBinding = false;
-            mIsSipTransportImplemented = false;
-            mCapabilities = 0;
             for (int i = 0; i < LATCH_MAX; i++) {
                 sLatches[i] = new CountDownLatch(1);
             }
@@ -304,27 +253,9 @@ public class TestImsService extends Service {
         }
     }
 
-    public void setNullRcsBinding() {
-        synchronized (mLock) {
-            mSetNullRcsBinding = true;
-        }
-    }
-
     public void setIsEnabled(boolean isEnabled) {
         synchronized (mLock) {
             mIsEnabled = isEnabled;
-        }
-    }
-
-    public void addCapabilities(long capabilities) {
-        synchronized (mLock) {
-            mCapabilities |= capabilities;
-        }
-    }
-
-    public void setSipTransportImplemented() {
-        synchronized (mLock) {
-            mIsSipTransportImplemented = true;
         }
     }
 
@@ -336,23 +267,6 @@ public class TestImsService extends Service {
                 latch = sLatches[latchIndex];
             }
             complete = latch.await(ImsUtils.TEST_TIMEOUT_MS, TimeUnit.MILLISECONDS);
-        } catch (InterruptedException e) {
-            // complete == false
-        }
-        synchronized (mLock) {
-            sLatches[latchIndex] = new CountDownLatch(1);
-        }
-        return complete;
-    }
-
-    public boolean waitForLatchCountdown(int latchIndex, long waitMs) {
-        boolean complete = false;
-        try {
-            CountDownLatch latch;
-            synchronized (mLock) {
-                latch = sLatches[latchIndex];
-            }
-            complete = latch.await(waitMs, TimeUnit.MILLISECONDS);
         } catch (InterruptedException e) {
             // complete == false
         }
@@ -380,13 +294,7 @@ public class TestImsService extends Service {
         }
     }
 
-    public TestSipTransport getSipTransport() {
-        synchronized (mLock) {
-            return mTestSipTransport;
-        }
-    }
-
-    public TestImsRegistration getImsRegistration() {
+    public ImsRegistrationImplBase getImsRegistration() {
         synchronized (mLock) {
             return sImsRegistrationImplBase;
         }

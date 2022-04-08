@@ -30,9 +30,6 @@ import android.provider.Settings;
 import android.support.test.uiautomator.By;
 import android.support.test.uiautomator.UiDevice;
 import android.support.test.uiautomator.UiObject2;
-import android.support.test.uiautomator.UiObjectNotFoundException;
-import android.support.test.uiautomator.UiScrollable;
-import android.support.test.uiautomator.UiSelector;
 import android.support.test.uiautomator.Until;
 import android.test.AndroidTestCase;
 
@@ -66,8 +63,7 @@ public class ScanningSettingsTest extends AndroidTestCase {
     private PackageManager mPackageManager;
 
     @Override
-    protected void setUp() throws Exception {
-        super.setUp();
+    protected void setUp() {
         // Can't use assumeTrue / assumeFalse because this is not a junit test, and so doesn't
         // support using these keywords to trigger assumption failure and skip test.
         if (FeatureUtil.isTV() || FeatureUtil.isAutomotive() || FeatureUtil.isWatch()) {
@@ -90,8 +86,7 @@ public class ScanningSettingsTest extends AndroidTestCase {
         if (FeatureUtil.isTV() || FeatureUtil.isAutomotive() || FeatureUtil.isWatch()) {
             return;
         }
-        launchLocationServicesSettings();
-        launchScanningSettingsFragment(WIFI_SCANNING_TITLE_RES);
+        launchScanningSettings();
 
         final Resources res = mPackageManager.getResourcesForApplication(SETTINGS_PACKAGE);
         final int resId = res.getIdentifier(WIFI_SCANNING_TITLE_RES, "string", SETTINGS_PACKAGE);
@@ -123,14 +118,12 @@ public class ScanningSettingsTest extends AndroidTestCase {
         if (FeatureUtil.isTV() || FeatureUtil.isAutomotive() || FeatureUtil.isWatch()) {
             return;
         }
-        launchLocationServicesSettings();
-        launchScanningSettingsFragment(BLUETOOTH_SCANNING_TITLE_RES);
-
+        launchScanningSettings();
         toggleSettingAndVerify(BLUETOOTH_SCANNING_TITLE_RES,
                 Settings.Global.BLE_SCAN_ALWAYS_AVAILABLE);
     }
 
-    private void launchLocationServicesSettings() {
+    private void launchScanningSettings() {
         // Start from the home screen
         mDevice.pressHome();
         mDevice.wait(Until.hasObject(By.pkg(mLauncherPackage).depth(0)), TIMEOUT);
@@ -142,25 +135,6 @@ public class ScanningSettingsTest extends AndroidTestCase {
 
         // Wait for the app to appear
         mDevice.wait(Until.hasObject(By.pkg(SETTINGS_PACKAGE).depth(0)), TIMEOUT);
-    }
-
-    private void launchScanningSettingsFragment(String name)
-            throws PackageManager.NameNotFoundException {
-        final Resources res = mPackageManager.getResourcesForApplication(SETTINGS_PACKAGE);
-        int resId = res.getIdentifier(name, "string", SETTINGS_PACKAGE);
-        UiScrollable uiScrollable = new UiScrollable(new UiSelector().scrollable(true));
-        try {
-            uiScrollable.scrollTextIntoView(res.getString(resId));
-        } catch (UiObjectNotFoundException e) {
-            // Scrolling can fail if the UI is not scrollable
-        }
-
-        UiObject2 pref = mDevice.findObject(By.text(res.getString(resId)));
-        // Click the preference to show the Scanning fragment
-        pref.click();
-
-        // Wait for the Scanning fragment to appear
-        mDevice.wait(Until.hasObject(By.pkg(SETTINGS_PACKAGE).depth(1)), TIMEOUT);
     }
 
     private void clickAndWaitForSettingChange(UiObject2 pref, ContentResolver resolver,

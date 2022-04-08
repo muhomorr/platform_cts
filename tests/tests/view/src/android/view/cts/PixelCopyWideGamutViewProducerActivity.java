@@ -16,11 +16,10 @@
 
 package android.view.cts;
 
-import static org.junit.Assert.fail;
-
 import android.app.Activity;
 import android.content.Context;
 import android.content.pm.ActivityInfo;
+import android.content.pm.PackageManager;
 import android.content.res.AssetManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -30,12 +29,13 @@ import android.graphics.Rect;
 import android.os.Bundle;
 import android.view.View;
 import android.view.ViewTreeObserver.OnDrawListener;
-import android.view.cts.util.DisplayUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+
+import static org.junit.Assert.fail;
 
 public class PixelCopyWideGamutViewProducerActivity extends Activity implements OnDrawListener {
     private static final int[] ORIENTATIONS = {
@@ -55,7 +55,9 @@ public class PixelCopyWideGamutViewProducerActivity extends Activity implements 
         super.onCreate(savedInstanceState);
 
         // Check if the device supports both of portrait and landscape orientation screens.
-        mSupportsRotation = DisplayUtils.supportOrientationRequest(this);
+        final PackageManager pm = getPackageManager();
+        mSupportsRotation = pm.hasSystemFeature(PackageManager.FEATURE_SCREEN_LANDSCAPE)
+                    && pm.hasSystemFeature(PackageManager.FEATURE_SCREEN_PORTRAIT);
         if (mSupportsRotation) {
             setRequestedOrientation(ORIENTATIONS[mCurrentOrientation]);
         }
@@ -70,10 +72,11 @@ public class PixelCopyWideGamutViewProducerActivity extends Activity implements 
     @Override
     public void onDraw() {
         final int requestedOrientation = ORIENTATIONS[mCurrentOrientation];
-        boolean isRequestingPortrait =
+        boolean screenPortrait =
                 requestedOrientation == ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
                 || requestedOrientation == ActivityInfo.SCREEN_ORIENTATION_REVERSE_PORTRAIT;
-        if (mSupportsRotation && (isRequestingPortrait != DisplayUtils.isDevicePortrait(this))) {
+        boolean contentPortrait = mContent.getHeight() > mContent.getWidth();
+        if (mSupportsRotation && (screenPortrait != contentPortrait)) {
             return;
         }
         mContent.post(() -> {

@@ -57,14 +57,18 @@ public abstract class BaseDeviceAdminHostSideTest extends BaseDevicePolicyTest {
 
         mUserId = mPrimaryUserId;
 
-        installAppAsUser(getDeviceAdminApkFileName(), mUserId);
-        setDeviceAdmin(getAdminReceiverComponent(), mUserId);
+        if (mHasFeature) {
+            installAppAsUser(getDeviceAdminApkFileName(), mUserId);
+            setDeviceAdmin(getAdminReceiverComponent(), mUserId);
+        }
     }
 
     @Override
     public void tearDown() throws Exception {
-        assertTrue("Failed to remove admin", removeAdmin(getAdminReceiverComponent(), mUserId));
-        getDevice().uninstallPackage(getDeviceAdminApkPackage());
+        if (mHasFeature) {
+            assertTrue("Failed to remove admin", removeAdmin(getAdminReceiverComponent(), mUserId));
+            getDevice().uninstallPackage(getDeviceAdminApkPackage());
+        }
 
         super.tearDown();
     }
@@ -85,12 +89,17 @@ public abstract class BaseDeviceAdminHostSideTest extends BaseDevicePolicyTest {
      */
     @Test
     public void testRunDeviceAdminTest() throws Exception {
+        if (!mHasFeature) {
+            return;
+        }
         runTests(getDeviceAdminApkPackage(), "DeviceAdminTest");
     }
 
     @Test
     public void testResetPasswordDeprecated() throws Exception {
-        assumeHasSecureLockScreenFeature();
+        if (!mHasFeature || !mHasSecureLockScreen) {
+            return;
+        }
 
         runTests(getDeviceAdminApkPackage(), "DeviceAdminPasswordTest",
                         "testResetPasswordDeprecated");

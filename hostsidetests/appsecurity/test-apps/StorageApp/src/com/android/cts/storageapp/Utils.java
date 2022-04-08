@@ -145,7 +145,9 @@ public class Utils {
         for (File f : files) {
             if (f.isDirectory()) {
                 if (excludeObb && f.getName().equalsIgnoreCase("obb")
-                        && f.getParentFile().getName().equalsIgnoreCase("Android")) {
+                        && f.getParentFile().getName().equalsIgnoreCase("Android")
+                        && !f.getParentFile().getParentFile().getParentFile().getName()
+                                .equalsIgnoreCase("sandbox")) {
                     Log.d(TAG, "Ignoring OBB directory " + f);
                 } else {
                     size += getSizeManual(f, excludeObb);

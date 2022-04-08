@@ -25,7 +25,6 @@ import android.content.pm.PackageManager;
 import android.os.IBinder;
 import android.os.Parcel;
 import android.os.RemoteException;
-import android.os.UserHandle;
 
 import androidx.test.InstrumentationRegistry;
 
@@ -50,7 +49,6 @@ public final class ServiceProcessController {
     final Parcel mData;
     final ServiceConnectionHandler[] mConnections;
     final int mUid;
-    final int mUserId;
     final UidImportanceListener mUidForegroundListener;
     final UidImportanceListener mUidGoneListener;
     final WatchUidRunner mUidWatcher;
@@ -91,7 +89,6 @@ public final class ServiceProcessController {
         ApplicationInfo appInfo = mContext.getPackageManager().getApplicationInfo(
                 mServicePackage, 0);
         mUid = appInfo.uid;
-        mUserId = UserHandle.getUserId(mUid);
 
         mUidForegroundListener = new UidImportanceListener(mContext, appInfo.uid,
                 ActivityManager.RunningAppProcessInfo.IMPORTANCE_SERVICE, mDefaultWaitTime);
@@ -108,8 +105,7 @@ public final class ServiceProcessController {
     }
 
     public void denyBackgroundOp(long timeout) throws IOException {
-        String cmd = "appops set --user " + mUserId + " "
-                + mServicePackage + " RUN_IN_BACKGROUND deny";
+        String cmd = "appops set " + mServicePackage + " RUN_IN_BACKGROUND deny";
         String result = SystemUtil.runShellCommand(mInstrumentation, cmd);
 
         // This is a side-effect of the app op command.
@@ -118,21 +114,18 @@ public final class ServiceProcessController {
     }
 
     public void allowBackgroundOp() throws IOException {
-        String cmd = "appops set --user " + mUserId + " "
-                + mServicePackage + " RUN_IN_BACKGROUND allow";
+        String cmd = "appops set " + mServicePackage + " RUN_IN_BACKGROUND allow";
         String result = SystemUtil.runShellCommand(mInstrumentation, cmd);
     }
 
     /** The "battery restriction" forced app standby app-op */
     public void denyAnyInBackgroundOp() throws IOException {
-        String cmd = "appops set --user " + mUserId + " "
-                + mServicePackage + " RUN_ANY_IN_BACKGROUND deny";
+        String cmd = "appops set " + mServicePackage + " RUN_ANY_IN_BACKGROUND deny";
         String result = SystemUtil.runShellCommand(mInstrumentation, cmd);
     }
 
     public void allowAnyInBackgroundOp() throws IOException {
-        String cmd = "appops set --user " + mUserId + " "
-                + mServicePackage + " RUN_ANY_IN_BACKGROUND allow";
+        String cmd = "appops set " + mServicePackage + " RUN_ANY_IN_BACKGROUND allow";
         String result = SystemUtil.runShellCommand(mInstrumentation, cmd);
     }
 
@@ -152,20 +145,17 @@ public final class ServiceProcessController {
     }
 
     public void tempWhitelist(long duration) throws IOException {
-        String cmd = "cmd deviceidle tempwhitelist -u " + mUserId
-                + " -d " + duration + " " + mServicePackage;
+        String cmd = "cmd deviceidle tempwhitelist -d " + duration + " " + mServicePackage;
         String result = SystemUtil.runShellCommand(mInstrumentation, cmd);
     }
 
     public void removeFromTempWhitelist() throws IOException {
-        String cmd = "cmd deviceidle tempwhitelist -u " + mUserId
-                + " -r " + mServicePackage;
+        String cmd = "cmd deviceidle tempwhitelist -r " + mServicePackage;
         SystemUtil.runShellCommand(mInstrumentation, cmd);
     }
 
     public void setAppOpMode(String opStr, String mode) throws IOException {
-        String cmd = "cmd appops set --user " + mUserId + " "
-                + mServicePackage + " " + opStr + "  " + mode;
+        String cmd = "cmd appops set " + mServicePackage + " " + opStr + "  " + mode;
         SystemUtil.runShellCommand(mInstrumentation, cmd);
     }
 

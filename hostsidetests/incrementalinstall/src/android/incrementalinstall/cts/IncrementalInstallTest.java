@@ -28,7 +28,6 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assume.assumeTrue;
 
 import android.incrementalinstall.common.Consts;
-import android.platform.test.annotations.LargeTest;
 
 import com.android.compatibility.common.tradefed.build.CompatibilityBuildHelper;
 import com.android.ddmlib.Log;
@@ -42,7 +41,6 @@ import com.android.tradefed.util.zip.CentralDirectoryInfo;
 import com.android.tradefed.util.zip.EndCentralDirectoryInfo;
 
 import com.google.common.collect.Lists;
-import com.google.common.truth.Truth;
 
 import org.junit.After;
 import org.junit.Before;
@@ -86,8 +84,6 @@ public class IncrementalInstallTest extends BaseHostJUnit4Test {
     private static final String TEST_APP_DYNAMIC_CODE_NAME = "IncrementalTestAppDynamicCode.apk";
     private static final String TEST_APP_COMPRESSED_NATIVE_NAME =
             "IncrementalTestAppCompressedNativeLib.apk";
-    private static final String TEST_APP_UNCOMPRESSED_BASE_NAME =
-            "IncrementalTestAppUncompressed.apk";
     private static final String TEST_APP_UNCOMPRESSED_NATIVE_NAME =
             "IncrementalTestAppUncompressedNativeLib.apk";
 
@@ -116,7 +112,8 @@ public class IncrementalInstallTest extends BaseHostJUnit4Test {
 
     @Test
     public void testBaseApkAdbInstall() throws Exception {
-        verifyInstallCommandSuccess(installWithAdbInstaller(TEST_APP_BASE_APK_NAME));
+        assertTrue(
+                installWithAdbInstaller(TEST_APP_BASE_APK_NAME).contains(INSTALL_SUCCESS_OUTPUT));
         verifyPackageInstalled(TEST_APP_PACKAGE_NAME);
         verifyInstallationTypeAndVersion(TEST_APP_PACKAGE_NAME, /* isIncfs= */ true,
                 TEST_APP_V1_VERSION);
@@ -208,7 +205,7 @@ public class IncrementalInstallTest extends BaseHostJUnit4Test {
         assertTrue(checkNativeLibInApkCompression(TEST_APP_COMPRESSED_NATIVE_NAME,
                 "libuncompressednativeincrementaltest.so", false));
         verifyInstallCommandSuccess(
-                installWithAdbInstaller(TEST_APP_UNCOMPRESSED_BASE_NAME, TEST_APP_UNCOMPRESSED_NATIVE_NAME));
+                installWithAdbInstaller(TEST_APP_BASE_APK_NAME, TEST_APP_UNCOMPRESSED_NATIVE_NAME));
         verifyPackageInstalled(TEST_APP_PACKAGE_NAME);
         verifyInstallationTypeAndVersion(TEST_APP_PACKAGE_NAME, /* isIncfs= */ true,
                 TEST_APP_V1_VERSION);
@@ -232,33 +229,6 @@ public class IncrementalInstallTest extends BaseHostJUnit4Test {
                 deviceLocalPath + TEST_APP_DYNAMIC_CODE_NAME));
         // Verify IFS->NonIFS migration.
         verifyInstallationTypeAndVersion(TEST_APP_PACKAGE_NAME, /* isIncfs= */ false,
-                TEST_APP_V1_VERSION);
-        validateAppLaunch(TEST_APP_PACKAGE_NAME, ON_CREATE_COMPONENT, DYNAMIC_CODE_COMPONENT);
-    }
-
-    @LargeTest
-    @Test
-    public void testAddSplitToExistingInstallAfterReboot() throws Exception {
-        verifyInstallCommandSuccess(installWithAdbInstaller(TEST_APP_BASE_APK_NAME));
-        verifyPackageInstalled(TEST_APP_PACKAGE_NAME);
-        verifyInstallationTypeAndVersion(TEST_APP_PACKAGE_NAME, /* isIncfs= */ true,
-                TEST_APP_V1_VERSION);
-        validateAppLaunch(TEST_APP_PACKAGE_NAME, ON_CREATE_COMPONENT);
-        // Reboot!
-        getDevice().reboot();
-        // Adb cannot add a split to an existing install, so we'll use pm to install just the
-        // dynamic code split.
-        String deviceLocalPath = "/data/local/tmp/";
-        getDevice().executeAdbCommand("push", getFilePathFromBuildInfo(TEST_APP_DYNAMIC_CODE_NAME),
-                deviceLocalPath);
-        getDevice().executeAdbCommand("push",
-                getFilePathFromBuildInfo(TEST_APP_DYNAMIC_CODE_NAME + SIG_SUFFIX),
-                deviceLocalPath);
-        getDevice().executeShellCommand(
-                String.format("pm install-incremental -p %s %s", TEST_APP_PACKAGE_NAME,
-                        deviceLocalPath + TEST_APP_DYNAMIC_CODE_NAME));
-        // Verify still on Incremental.
-        verifyInstallationTypeAndVersion(TEST_APP_PACKAGE_NAME, /* isIncfs= */ true,
                 TEST_APP_V1_VERSION);
         validateAppLaunch(TEST_APP_PACKAGE_NAME, ON_CREATE_COMPONENT, DYNAMIC_CODE_COMPONENT);
     }
@@ -348,18 +318,18 @@ public class IncrementalInstallTest extends BaseHostJUnit4Test {
     private String installWithAdbInstaller(boolean shouldUpdate, String... filenames)
             throws Exception {
         assertTrue(filenames.length > 0);
+        String installMultipleArg =
+                filenames.length > 1 ? "install-multiple" : "";
+        String updateArg =
+                shouldUpdate ? "-r" : "";
         List<String> adbCmd = new ArrayList<>();
         adbCmd.add("adb");
         adbCmd.add("-s");
         adbCmd.add(getDevice().getSerialNumber());
         adbCmd.add("install");
-        if (shouldUpdate) {
-            adbCmd.add("-r");
-        }
+        adbCmd.add(updateArg);
         adbCmd.add(INCREMENTAL_ARG);
-        if (filenames.length > 1) {
-            adbCmd.add("install-multiple");
-        }
+        adbCmd.add(installMultipleArg);
         adbCmd.addAll(getFilePathsFromBuildInfo(filenames));
 
         // Using runUtil instead of executeAdbCommand() because the latter doesn't provide the
@@ -417,12 +387,12 @@ public class IncrementalInstallTest extends BaseHostJUnit4Test {
 
     private void verifyInstallCommandSuccess(String adbOutput) {
         logInstallCommandOutput(adbOutput);
-        Truth.assertThat(adbOutput).contains(INSTALL_SUCCESS_OUTPUT);
+        assertTrue(adbOutput.contains(INSTALL_SUCCESS_OUTPUT));
     }
 
     private void verifyInstallCommandFailure(String adbOutput) {
         logInstallCommandOutput(adbOutput);
-        Truth.assertThat(adbOutput).doesNotContain(INSTALL_SUCCESS_OUTPUT);
+        assertFalse(adbOutput.contains(INSTALL_SUCCESS_OUTPUT));
     }
 
     private void logInstallCommandOutput(String adbOutput) {
@@ -436,8 +406,7 @@ public class IncrementalInstallTest extends BaseHostJUnit4Test {
     }
 
     private boolean hasIncrementalFeature() throws Exception {
-        return "true\n".equals(getDevice().executeShellCommand(
-                "pm has-feature android.software.incremental_delivery"));
+        return hasDeviceFeature(FEATURE_INCREMENTAL_DELIVERY);
     }
 
     private boolean adbBinarySupportsIncremental() throws Exception {

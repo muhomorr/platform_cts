@@ -17,12 +17,8 @@
 package android.permission3.cts
 
 import android.Manifest.permission.ACCESS_FINE_LOCATION
-import android.content.Intent
 import android.content.pm.PackageManager
-import android.graphics.Point
-import android.os.Build
 import android.support.test.uiautomator.By
-import androidx.test.filters.SdkSuppress
 import com.android.compatibility.common.util.SystemUtil
 import org.junit.Assume.assumeFalse
 import org.junit.Before
@@ -39,97 +35,33 @@ class PermissionTapjackingTest : BaseUsePermissionTest() {
     }
 
     @Test
-    fun testTapjackGrantDialog_fullOverlay() {
+    fun testTapjackGrantDialog() {
         // PermissionController for television uses a floating window.
         assumeFalse(isTv)
 
         assertAppHasPermission(ACCESS_FINE_LOCATION, false)
         requestAppPermissionsForNoResult(ACCESS_FINE_LOCATION) {}
 
-        val buttonCenter = waitFindObject(By.text(
-                getPermissionControllerString(ALLOW_FOREGROUND_BUTTON_TEXT))).visibleCenter
-
         // Wait for overlay to hide the dialog
-        context.sendBroadcast(Intent(ACTION_SHOW_OVERLAY)
-                .putExtra(EXTRA_FULL_OVERLAY, true))
-        waitFindObject(By.res("android.permission3.cts.usepermission:id/overlay"))
-
-        tryClicking(buttonCenter)
-    }
-
-    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
-    @Test
-    fun testTapjackGrantDialog_partialOverlay() {
-        // PermissionController for television uses a floating window.
-        assumeFalse(isTv)
-        // Automotive doesn't support detecting partial overlays yet: b/192088266
-        assumeFalse(isAutomotive)
-
-        assertAppHasPermission(ACCESS_FINE_LOCATION, false)
-        requestAppPermissionsForNoResult(ACCESS_FINE_LOCATION) {}
-
-        val foregroundButtonCenter = waitFindObject(By.text(
-                getPermissionControllerString(ALLOW_FOREGROUND_BUTTON_TEXT))).visibleCenter
-        val oneTimeButton = waitFindObjectOrNull(By.text(
-                getPermissionControllerString(ALLOW_ONE_TIME_BUTTON_TEXT)))
-        // If one-time button is not available, fallback to deny button
-        val overlayButtonBounds = oneTimeButton?.visibleBounds
-                ?: waitFindObject(By.text(getPermissionControllerString(
-                        DENY_BUTTON_TEXT))).visibleBounds
-
-        // Wait for overlay to hide the dialog
-        context.sendBroadcast(Intent(ACTION_SHOW_OVERLAY)
-                .putExtra(EXTRA_FULL_OVERLAY, false)
-                .putExtra(DIALOG_LEFT, overlayButtonBounds.left)
-                .putExtra(DIALOG_TOP, overlayButtonBounds.top)
-                .putExtra(DIALOG_RIGHT, overlayButtonBounds.right)
-                .putExtra(MESSAGE_BOTTOM, overlayButtonBounds.bottom))
-        waitFindObject(By.res("android.permission3.cts.usepermission:id/overlay"))
-
-        tryClicking(foregroundButtonCenter)
-    }
-
-    private fun tryClicking(buttonCenter: Point) {
+        waitFindObject(By.res("android.permission3.cts.usepermission:id/overlay_description"))
         try {
             // Try to grant the permission, this should fail
             SystemUtil.eventually({
                 if (packageManager.checkPermission(ACCESS_FINE_LOCATION, APP_PACKAGE_NAME) ==
                         PackageManager.PERMISSION_DENIED) {
-                    uiDevice.click(buttonCenter.x, buttonCenter.y)
-                    Thread.sleep(100)
+                    clickPermissionRequestAllowForegroundButton(100)
                 }
                 assertAppHasPermission(ACCESS_FINE_LOCATION, true)
             }, 10000)
         } catch (e: RuntimeException) {
             // expected
         }
-        // Permission should not be granted
+        // Permission should not be granted and dialog should still be showing
         assertAppHasPermission(ACCESS_FINE_LOCATION, false)
 
         // On Automotive the dialog gets closed by the tapjacking activity popping up
         if (!isAutomotive) {
-            // Verify that clicking the dialog without the overlay still works
-            context.sendBroadcast(Intent(ACTION_HIDE_OVERLAY))
-            SystemUtil.eventually({
-                if (packageManager.checkPermission(ACCESS_FINE_LOCATION, APP_PACKAGE_NAME) ==
-                        PackageManager.PERMISSION_DENIED) {
-                    uiDevice.click(buttonCenter.x, buttonCenter.y)
-                    Thread.sleep(100)
-                }
-                assertAppHasPermission(ACCESS_FINE_LOCATION, true)
-            }, 10000)
+            clickPermissionRequestAllowForegroundButton()
         }
-    }
-
-    companion object {
-        const val ACTION_SHOW_OVERLAY = "android.permission3.cts.usepermission.ACTION_SHOW_OVERLAY"
-        const val ACTION_HIDE_OVERLAY = "android.permission3.cts.usepermission.ACTION_HIDE_OVERLAY"
-
-        const val EXTRA_FULL_OVERLAY = "android.permission3.cts.usepermission.extra.FULL_OVERLAY"
-
-        const val DIALOG_LEFT = "android.permission3.cts.usepermission.extra.DIALOG_LEFT"
-        const val DIALOG_TOP = "android.permission3.cts.usepermission.extra.DIALOG_TOP"
-        const val DIALOG_RIGHT = "android.permission3.cts.usepermission.extra.DIALOG_RIGHT"
-        const val MESSAGE_BOTTOM = "android.permission3.cts.usepermission.extra.MESSAGE_BOTTOM"
     }
 }

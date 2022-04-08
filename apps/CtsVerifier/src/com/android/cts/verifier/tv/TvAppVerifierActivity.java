@@ -78,8 +78,7 @@ public abstract class TvAppVerifierActivity extends PassFailButtons.Activity {
     /**
      * Call this to create a test step where the user must perform some action.
      */
-    public View createAndAttachUserItem(int instructionTextId, int buttonTextId,
-            View.OnClickListener l) {
+    public View createUserItem(int instructionTextId, int buttonTextId, View.OnClickListener l) {
         View item = mInflater.inflate(R.layout.tv_item, mItemList, false);
         TextView instructions = (TextView) item.findViewById(R.id.instructions);
         instructions.setText(instructionTextId);
@@ -94,12 +93,12 @@ public abstract class TvAppVerifierActivity extends PassFailButtons.Activity {
     /**
      * Call this to create a test step where the user must perform some action.
      */
-    public View createAndAttachUserItem(CharSequence instructionCharSequence,
+    public View createUserItem(CharSequence instructionCharSequence,
                                   int buttonTextId, View.OnClickListener l) {
         View item = mInflater.inflate(R.layout.tv_item, mItemList, false);
-        TextView instructions = item.findViewById(R.id.instructions);
+        TextView instructions = (TextView) item.findViewById(R.id.instructions);
         instructions.setText(instructionCharSequence);
-        Button button = item.findViewById(R.id.user_action_button);
+        Button button = (Button) item.findViewById(R.id.user_action_button);
         button.setVisibility(View.VISIBLE);
         button.setText(buttonTextId);
         button.setOnClickListener(l);
@@ -111,9 +110,9 @@ public abstract class TvAppVerifierActivity extends PassFailButtons.Activity {
      * Call this to create a test step where the test automatically evaluates whether
      * an expected condition is satisfied.
      */
-    public View createAndAttachAutoItem(int stringId) {
+    public View createAutoItem(int stringId) {
         View item = mInflater.inflate(R.layout.tv_item, mItemList, false);
-        TextView instructions = item.findViewById(R.id.instructions);
+        TextView instructions = (TextView) item.findViewById(R.id.instructions);
         instructions.setText(stringId);
         mItemList.addView(item);
         return item;
@@ -123,20 +122,10 @@ public abstract class TvAppVerifierActivity extends PassFailButtons.Activity {
      * Call this to create a test step where the test automatically evaluates whether
      * an expected condition is satisfied.
      */
-    public static View createAutoItem(LayoutInflater inflater,
-            CharSequence instructionCharSequence, ViewGroup root) {
-        View item = inflater.inflate(R.layout.tv_item, root, false);
-        TextView instructions = item.findViewById(R.id.instructions);
+    public View createAutoItem(CharSequence instructionCharSequence) {
+        View item = mInflater.inflate(R.layout.tv_item, mItemList, false);
+        TextView instructions = (TextView) item.findViewById(R.id.instructions);
         instructions.setText(instructionCharSequence);
-        return item;
-    }
-
-    /**
-     * Call this to create a test step where the test automatically evaluates whether
-     * an expected condition is satisfied, and to attach it to the activity.
-     */
-    public View createAndAttachAutoItem(CharSequence instructionCharSequence) {
-        View item = createAutoItem(mInflater, instructionCharSequence, mItemList);
         mItemList.addView(item);
         return item;
     }
@@ -144,35 +133,18 @@ public abstract class TvAppVerifierActivity extends PassFailButtons.Activity {
     /**
      * Call this to create alternative choice for the previous test step.
      */
-    public static View createButtonItem(LayoutInflater inflater, ViewGroup root, int buttonTextId,
-            View.OnClickListener l) {
-        View item = inflater.inflate(R.layout.tv_item, root, false);
-        Button button = item.findViewById(R.id.user_action_button);
+    public View createButtonItem(int buttonTextId, View.OnClickListener l) {
+        View item = mInflater.inflate(R.layout.tv_item, mItemList, false);
+        Button button = (Button) item.findViewById(R.id.user_action_button);
         button.setVisibility(View.VISIBLE);
         button.setText(buttonTextId);
         button.setOnClickListener(l);
-        ImageView status = item.findViewById(R.id.status);
+        ImageView status = (ImageView) item.findViewById(R.id.status);
         status.setVisibility(View.INVISIBLE);
-        TextView instructions = item.findViewById(R.id.instructions);
+        TextView instructions = (TextView) item.findViewById(R.id.instructions);
         instructions.setVisibility(View.GONE);
-        return item;
-    }
-
-    /**
-     * Call this to create alternative choice for the previous test step and to attach it to the
-     * activity.
-     */
-    public View createAndAttachButtonItem(int buttonTextId, View.OnClickListener l) {
-        View item = createButtonItem(mInflater, mItemList, buttonTextId, l);
         mItemList.addView(item);
         return item;
-    }
-
-    /**
-     * Adds an item to the activity.
-     */
-    public void addItem(View item) {
-        mItemList.addView(item);
     }
 
     static boolean containsButton(View item, View button) {

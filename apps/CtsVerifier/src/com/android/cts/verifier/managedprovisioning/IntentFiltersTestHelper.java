@@ -160,8 +160,7 @@ public class IntentFiltersTestHelper {
     private void addIntentsThatDependOnDeviceFeatures() {
         PackageManager pm = mContext.getPackageManager();
 
-        if (pm.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)
-                && pm.hasSystemFeature(PackageManager.FEATURE_CONNECTION_SERVICE)) {
+        if (pm.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
             forwardedIntentsFromManaged.addAll(Arrays.asList(
                     new Intent("android.intent.action.CALL_EMERGENCY").setData(
                             Uri.parse("tel:123")),
@@ -228,7 +227,9 @@ public class IntentFiltersTestHelper {
         }
 
         if (pm.hasSystemFeature(PackageManager.FEATURE_MICROPHONE)) {
-            forwardedIntentsFromManaged.add(new Intent(MediaStore.Audio.Media.RECORD_SOUND_ACTION));
+            forwardedIntentsFromManaged.addAll(Arrays.asList(
+                    new Intent(MediaStore.Audio.Media.RECORD_SOUND_ACTION),
+                    new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)));
         }
 
         if (pm.hasSystemFeature(PackageManager.FEATURE_LOCATION)) {

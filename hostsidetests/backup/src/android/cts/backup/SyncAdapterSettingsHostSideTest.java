@@ -56,11 +56,24 @@ public class SyncAdapterSettingsHostSideTest extends BaseBackupHostSideTest {
     @Before
     @Override
     public void setUp() throws Exception {
+        super.setUp();
+
+        if (!mIsBackupSupported) {
+            return;
+        }
+
         installPackage(APP_APK);
     }
 
     @After
+    @Override
     public void tearDown() throws Exception {
+        super.tearDown();
+
+        if (!mIsBackupSupported) {
+            return;
+        }
+
         // Clear backup data and uninstall the package (in that order!)
         // BackupManagerService won't let us wipe the data if package is uninstalled
         clearBackupDataInLocalTransport(ANDROID_PACKAGE);
@@ -72,6 +85,11 @@ public class SyncAdapterSettingsHostSideTest extends BaseBackupHostSideTest {
      */
     @Test
     public void testMasterSyncAutomatically_whenOn_isRestored() throws Exception {
+        if (!mIsBackupSupported) {
+            CLog.i("android.software.backup feature is not supported on this device");
+            return;
+        }
+
         checkDeviceTest("testMasterSyncAutomatically_whenOn_isRestored");
     }
 
@@ -80,6 +98,11 @@ public class SyncAdapterSettingsHostSideTest extends BaseBackupHostSideTest {
      */
     @Test
     public void testMasterSyncAutomatically_whenOff_isRestored() throws Exception {
+        if (!mIsBackupSupported) {
+            CLog.i("android.software.backup feature is not supported on this device");
+            return;
+        }
+
         checkDeviceTest("testMasterSyncAutomatically_whenOff_isRestored");
     }
 
@@ -89,6 +112,11 @@ public class SyncAdapterSettingsHostSideTest extends BaseBackupHostSideTest {
      */
     @Test
     public void testIsSyncableChanged_ifTurnOnSyncEnabled() throws Exception {
+        if (!mIsBackupSupported) {
+            CLog.i("android.software.backup feature is not supported on this device");
+            return;
+        }
+
         checkDeviceTest("testIsSyncableChanged_ifTurnOnSyncEnabled");
     }
 
@@ -98,6 +126,11 @@ public class SyncAdapterSettingsHostSideTest extends BaseBackupHostSideTest {
      */
     @Test
     public void testIsSyncableIsZero_ifTurnOffSyncEnabled() throws Exception {
+        if (!mIsBackupSupported) {
+            CLog.i("android.software.backup feature is not supported on this device");
+            return;
+        }
+
         checkDeviceTest("testIsSyncableIsZero_ifTurnOffSyncEnabled");
     }
 
@@ -107,6 +140,11 @@ public class SyncAdapterSettingsHostSideTest extends BaseBackupHostSideTest {
      */
     @Test
     public void testIsSyncableIsOne_ifTurnOffSyncEnabled() throws Exception {
+        if (!mIsBackupSupported) {
+            CLog.i("android.software.backup feature is not supported on this device");
+            return;
+        }
+
         checkDeviceTest("testIsSyncableIsOne_ifTurnOffSyncEnabled");
     }
 

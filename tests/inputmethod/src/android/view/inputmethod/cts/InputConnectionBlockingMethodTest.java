@@ -68,8 +68,6 @@ import java.util.function.Function;
 
 /**
  * Ensures that blocking APIs in {@link InputConnection} are working as expected.
- *
- * <p>TODO(b/129012881): Reduce boilerplate code.</p>
  */
 @LargeTest
 @RunWith(AndroidJUnit4.class)
@@ -310,7 +308,7 @@ public class InputConnectionBlockingMethodTest extends EndToEndImeTestBase {
     @Test
     public void testGetTextAfterCursorFailFastAfterUnbindInput() throws Exception {
         final String unexpectedResult = "89";
-        final AtomicBoolean methodCalled = new AtomicBoolean(false);
+        final BlockingMethodVerifier blocker = new BlockingMethodVerifier();
 
         final class Wrapper extends InputConnectionWrapper {
             private Wrapper(InputConnection target) {
@@ -319,28 +317,29 @@ public class InputConnectionBlockingMethodTest extends EndToEndImeTestBase {
 
             @Override
             public CharSequence getTextAfterCursor(int n, int flags) {
-                methodCalled.set(true);
+                blocker.onMethodCalled();
                 return unexpectedResult;
             }
         }
 
         testInputConnection(Wrapper::new, (MockImeSession session, ImeEventStream stream) -> {
-            // Memorize the current InputConnection.
-            expectCommand(stream, session.memorizeCurrentInputConnection(), TIMEOUT);
+            // Schedule to call IC#getTextAfterCursor() twice.
+            final ImeCommand command1 = session.callGetTextAfterCursor(
+                    unexpectedResult.length(), InputConnection.GET_TEXT_WITH_STYLES);
+            final ImeCommand command2 = session.callGetTextAfterCursor(
+                    unexpectedResult.length(), InputConnection.GET_TEXT_WITH_STYLES);
 
-            // Let unbindInput happen.
+            blocker.expectMethodCalled("IC#getTextAfterCursor() must be called back", TIMEOUT);
             triggerUnbindInput();
-            expectEvent(stream, event -> "unbindInput".equals(event.getEventName()), TIMEOUT);
+            final ImeEvent result1 = expectCommand(stream, command1, TIMEOUT);
+            assertTrue("When unbindInput() happens, IC#getTextAfterCursor() returns null",
+                    result1.isNullReturnValue());
 
-            // Now IC#getTextAfterCursor() for the memorized IC should fail fast.
-            final ImeEvent result = expectCommand(stream, session.callGetTextAfterCursor(
-                    unexpectedResult.length(), InputConnection.GET_TEXT_WITH_STYLES), TIMEOUT);
+            final ImeEvent result2 = expectCommand(stream, command2, TIMEOUT);
             assertTrue("Once unbindInput() happened, IC#getTextAfterCursor() returns null",
-                    result.isNullReturnValue());
-            assertFalse("Once unbindInput() happened, IC#getTextAfterCursor() fails fast.",
-                    methodCalled.get());
-            expectElapseTimeLessThan(result, IMMEDIATE_TIMEOUT_NANO);
-        });
+                    result2.isNullReturnValue());
+            expectElapseTimeLessThan(result2, IMMEDIATE_TIMEOUT_NANO);
+        }, blocker);
     }
 
     /**
@@ -411,7 +410,7 @@ public class InputConnectionBlockingMethodTest extends EndToEndImeTestBase {
     @Test
     public void testGetTextBeforeCursorFailFastAfterUnbindInput() throws Exception {
         final String unexpectedResult = "123";
-        final AtomicBoolean methodCalled = new AtomicBoolean(false);
+        final BlockingMethodVerifier blocker = new BlockingMethodVerifier();
 
         final class Wrapper extends InputConnectionWrapper {
             private Wrapper(InputConnection target) {
@@ -420,28 +419,30 @@ public class InputConnectionBlockingMethodTest extends EndToEndImeTestBase {
 
             @Override
             public CharSequence getTextBeforeCursor(int n, int flags) {
-                methodCalled.set(true);
+                blocker.onMethodCalled();
                 return unexpectedResult;
             }
         }
 
         testInputConnection(Wrapper::new, (MockImeSession session, ImeEventStream stream) -> {
-            // Memorize the current InputConnection.
-            expectCommand(stream, session.memorizeCurrentInputConnection(), TIMEOUT);
+            // Schedule to call IC#getTextBeforeCursor() twice.
+            final ImeCommand command1 = session.callGetTextBeforeCursor(
+                    unexpectedResult.length(), InputConnection.GET_TEXT_WITH_STYLES);
+            final ImeCommand command2 = session.callGetTextBeforeCursor(
+                    unexpectedResult.length(), InputConnection.GET_TEXT_WITH_STYLES);
 
-            // Let unbindInput happen.
+            blocker.expectMethodCalled("IC#getTextBeforeCursor() must be called back", TIMEOUT);
+
             triggerUnbindInput();
-            expectEvent(stream, event -> "unbindInput".equals(event.getEventName()), TIMEOUT);
+            final ImeEvent result1 = expectCommand(stream, command1, TIMEOUT);
+            assertTrue("When unbindInput() happens, IC#getTextBeforeCursor() returns null",
+                    result1.isNullReturnValue());
 
-            // Now IC#getTextBeforeCursor() for the memorized IC should fail fast.
-            final ImeEvent result = expectCommand(stream, session.callGetTextBeforeCursor(
-                    unexpectedResult.length(), InputConnection.GET_TEXT_WITH_STYLES), TIMEOUT);
+            final ImeEvent result2 = expectCommand(stream, command2, TIMEOUT);
             assertTrue("Once unbindInput() happened, IC#getTextBeforeCursor() returns null",
-                    result.isNullReturnValue());
-            assertFalse("Once unbindInput() happened, IC#getTextBeforeCursor() fails fast.",
-                    methodCalled.get());
-            expectElapseTimeLessThan(result, IMMEDIATE_TIMEOUT_NANO);
-        });
+                    result2.isNullReturnValue());
+            expectElapseTimeLessThan(result2, IMMEDIATE_TIMEOUT_NANO);
+        }, blocker);
     }
 
     /**
@@ -509,7 +510,7 @@ public class InputConnectionBlockingMethodTest extends EndToEndImeTestBase {
     @Test
     public void testGetSelectedTextFailFastAfterUnbindInput() throws Exception {
         final String unexpectedResult = "4567";
-        final AtomicBoolean methodCalled = new AtomicBoolean(false);
+        final BlockingMethodVerifier blocker = new BlockingMethodVerifier();
 
         final class Wrapper extends InputConnectionWrapper {
             private Wrapper(InputConnection target) {
@@ -518,28 +519,29 @@ public class InputConnectionBlockingMethodTest extends EndToEndImeTestBase {
 
             @Override
             public CharSequence getSelectedText(int flags) {
-                methodCalled.set(true);
+                blocker.onMethodCalled();
                 return unexpectedResult;
             }
         }
 
         testInputConnection(Wrapper::new, (MockImeSession session, ImeEventStream stream) -> {
-            // Memorize the current InputConnection.
-            expectCommand(stream, session.memorizeCurrentInputConnection(), TIMEOUT);
+            // Schedule to call IC#getSelectedText() twice.
+            final ImeCommand firstCommand =
+                    session.callGetSelectedText(InputConnection.GET_TEXT_WITH_STYLES);
+            final ImeCommand secondCommand =
+                    session.callGetSelectedText(InputConnection.GET_TEXT_WITH_STYLES);
 
-            // Let unbindInput happen.
+            blocker.expectMethodCalled("IC#getSelectedText() must be called back", TIMEOUT);
             triggerUnbindInput();
-            expectEvent(stream, event -> "unbindInput".equals(event.getEventName()), TIMEOUT);
+            final ImeEvent firstResult = expectCommand(stream, firstCommand, TIMEOUT);
+            assertTrue("When unbindInput() happens, IC#getSelectedText() returns null",
+                    firstResult.isNullReturnValue());
 
-            // Now IC#getSelectedText() for the memorized IC should fail fast.
-            final ImeEvent result = expectCommand(stream, session.callGetSelectedText(
-                    InputConnection.GET_TEXT_WITH_STYLES), TIMEOUT);
+            final ImeEvent secondResult = expectCommand(stream, secondCommand, TIMEOUT);
             assertTrue("Once unbindInput() happened, IC#getSelectedText() returns null",
-                    result.isNullReturnValue());
-            assertFalse("Once unbindInput() happened, IC#getSelectedText() fails fast.",
-                    methodCalled.get());
-            expectElapseTimeLessThan(result, IMMEDIATE_TIMEOUT_NANO);
-        });
+                    secondResult.isNullReturnValue());
+            expectElapseTimeLessThan(secondResult, IMMEDIATE_TIMEOUT_NANO);
+        }, blocker);
     }
 
     /**
@@ -606,7 +608,7 @@ public class InputConnectionBlockingMethodTest extends EndToEndImeTestBase {
     @Test
     public void testGetCursorCapsModeFailFastAfterUnbindInput() throws Exception {
         final int unexpectedResult = EditorInfo.TYPE_TEXT_FLAG_CAP_WORDS;
-        final AtomicBoolean methodCalled = new AtomicBoolean(false);
+        final BlockingMethodVerifier blocker = new BlockingMethodVerifier();
 
         final class Wrapper extends InputConnectionWrapper {
             private Wrapper(InputConnection target) {
@@ -615,28 +617,29 @@ public class InputConnectionBlockingMethodTest extends EndToEndImeTestBase {
 
             @Override
             public int getCursorCapsMode(int reqModes) {
-                methodCalled.set(true);
+                blocker.onMethodCalled();
                 return unexpectedResult;
             }
         }
 
         testInputConnection(Wrapper::new, (MockImeSession session, ImeEventStream stream) -> {
-            // Memorize the current InputConnection.
-            expectCommand(stream, session.memorizeCurrentInputConnection(), TIMEOUT);
+            // Schedule to call IC#getCursorCapsMode() twice.
+            final ImeCommand firstCommand =
+                    session.callGetCursorCapsMode(TextUtils.CAP_MODE_WORDS);
+            final ImeCommand secondCommand =
+                    session.callGetCursorCapsMode(TextUtils.CAP_MODE_WORDS);
 
-            // Let unbindInput happen.
+            blocker.expectMethodCalled("IC#getCursorCapsMode() must be called back", TIMEOUT);
             triggerUnbindInput();
-            expectEvent(stream, event -> "unbindInput".equals(event.getEventName()), TIMEOUT);
+            final ImeEvent firstResult = expectCommand(stream, firstCommand, TIMEOUT);
+            assertEquals("When unbindInput() happens, IC#getCursorCapsMode() returns 0",
+                    0, firstResult.getReturnIntegerValue());
 
-            // Now IC#getCursorCapsMode() for the memorized IC should fail fast.
-            final ImeEvent result = expectCommand(stream,
-                    session.callGetCursorCapsMode(TextUtils.CAP_MODE_WORDS), TIMEOUT);
+            final ImeEvent secondResult = expectCommand(stream, secondCommand, TIMEOUT);
             assertEquals("Once unbindInput() happened, IC#getCursorCapsMode() returns 0",
-                    0, result.getReturnIntegerValue());
-            assertFalse("Once unbindInput() happened, IC#getCursorCapsMode() fails fast.",
-                    methodCalled.get());
-            expectElapseTimeLessThan(result, IMMEDIATE_TIMEOUT_NANO);
-        });
+                    0, secondResult.getReturnIntegerValue());
+            expectElapseTimeLessThan(secondResult, IMMEDIATE_TIMEOUT_NANO);
+        }, blocker);
     }
 
     /**
@@ -708,7 +711,7 @@ public class InputConnectionBlockingMethodTest extends EndToEndImeTestBase {
     @Test
     public void testGetExtractedTextFailFastAfterUnbindInput() throws Exception {
         final ExtractedText unexpectedResult = ExtractedTextTest.createForTest();
-        final AtomicBoolean methodCalled = new AtomicBoolean(false);
+        final BlockingMethodVerifier blocker = new BlockingMethodVerifier();
 
         final class Wrapper extends InputConnectionWrapper {
             private Wrapper(InputConnection target) {
@@ -717,29 +720,31 @@ public class InputConnectionBlockingMethodTest extends EndToEndImeTestBase {
 
             @Override
             public ExtractedText getExtractedText(ExtractedTextRequest request, int flags) {
-                methodCalled.set(true);
+                blocker.onMethodCalled();
                 return unexpectedResult;
             }
         }
 
         testInputConnection(Wrapper::new, (MockImeSession session, ImeEventStream stream) -> {
-            // Memorize the current InputConnection.
-            expectCommand(stream, session.memorizeCurrentInputConnection(), TIMEOUT);
-
-            // Let unbindInput happen.
-            triggerUnbindInput();
-            expectEvent(stream, event -> "unbindInput".equals(event.getEventName()), TIMEOUT);
-
-            // Now IC#getExtractedText() for the memorized IC should fail fast.
-            final ImeEvent result = expectCommand(stream, session.callGetExtractedText(
+            // Schedule to call IC#getExtractedText() twice.
+            final ImeCommand firstCommand = session.callGetExtractedText(
                     ExtractedTextRequestTest.createForTest(),
-                    InputConnection.GET_EXTRACTED_TEXT_MONITOR), TIMEOUT);
-            assertTrue("Once unbindInput() happened, IC#getExtractedText() returns null",
-                    result.isNullReturnValue());
-            assertFalse("Once unbindInput() happened, IC#getExtractedText() fails fast.",
-                    methodCalled.get());
-            expectElapseTimeLessThan(result, IMMEDIATE_TIMEOUT_NANO);
-        });
+                    InputConnection.GET_EXTRACTED_TEXT_MONITOR);
+            final ImeCommand secondCommand = session.callGetExtractedText(
+                    ExtractedTextRequestTest.createForTest(),
+                    InputConnection.GET_EXTRACTED_TEXT_MONITOR);
+
+            blocker.expectMethodCalled("IC#getExtractedText() must be called back", TIMEOUT);
+            triggerUnbindInput();
+            final ImeEvent firstResult = expectCommand(stream, firstCommand, TIMEOUT);
+            assertTrue("When unbindInput() happens, IC#getExtractedText() returns 0",
+                    firstResult.isNullReturnValue());
+
+            final ImeEvent secondResult = expectCommand(stream, secondCommand, TIMEOUT);
+            assertTrue("Once unbindInput() happened, IC#getExtractedText() returns 0",
+                    firstResult.isNullReturnValue());
+            expectElapseTimeLessThan(secondResult, IMMEDIATE_TIMEOUT_NANO);
+        }, blocker);
     }
 
     /**
@@ -806,7 +811,7 @@ public class InputConnectionBlockingMethodTest extends EndToEndImeTestBase {
     @Test
     public void testRequestCursorUpdatesFailFastAfterUnbindInput() throws Exception {
         final boolean unexpectedResult = true;
-        final AtomicBoolean methodCalled = new AtomicBoolean(false);
+        final BlockingMethodVerifier blocker = new BlockingMethodVerifier();
 
         final class Wrapper extends InputConnectionWrapper {
             private Wrapper(InputConnection target) {
@@ -815,28 +820,29 @@ public class InputConnectionBlockingMethodTest extends EndToEndImeTestBase {
 
             @Override
             public boolean requestCursorUpdates(int cursorUpdateMode) {
-                methodCalled.set(true);
+                blocker.onMethodCalled();
                 return unexpectedResult;
             }
         }
 
         testInputConnection(Wrapper::new, (MockImeSession session, ImeEventStream stream) -> {
-            // Memorize the current InputConnection.
-            expectCommand(stream, session.memorizeCurrentInputConnection(), TIMEOUT);
+            // Schedule to call IC#requestCursorUpdates() twice.
+            final ImeCommand firstCommand = session.callRequestCursorUpdates(
+                    InputConnection.CURSOR_UPDATE_IMMEDIATE);
+            final ImeCommand secondCommand = session.callRequestCursorUpdates(
+                    InputConnection.CURSOR_UPDATE_IMMEDIATE);
 
-            // Let unbindInput happen.
+            blocker.expectMethodCalled("IC#requestCursorUpdates() must be called back", TIMEOUT);
             triggerUnbindInput();
-            expectEvent(stream, event -> "unbindInput".equals(event.getEventName()), TIMEOUT);
+            final ImeEvent firstResult = expectCommand(stream, firstCommand, TIMEOUT);
+            assertFalse("When unbindInput() happens, IC#requestCursorUpdates() returns false",
+                    firstResult.getReturnBooleanValue());
 
-            // Now IC#requestCursorUpdates() for the memorized IC should fail fast.
-            final ImeEvent result = expectCommand(stream, session.callRequestCursorUpdates(
-                    InputConnection.CURSOR_UPDATE_IMMEDIATE), TIMEOUT);
+            final ImeEvent secondResult = expectCommand(stream, secondCommand, TIMEOUT);
             assertFalse("Once unbindInput() happened, IC#requestCursorUpdates() returns false",
-                    result.getReturnBooleanValue());
-            assertFalse("Once unbindInput() happened, IC#requestCursorUpdates() fails fast.",
-                    methodCalled.get());
-            expectElapseTimeLessThan(result, IMMEDIATE_TIMEOUT_NANO);
-        });
+                    firstResult.getReturnBooleanValue());
+            expectElapseTimeLessThan(secondResult, IMMEDIATE_TIMEOUT_NANO);
+        }, blocker);
     }
 
     /**
@@ -919,7 +925,7 @@ public class InputConnectionBlockingMethodTest extends EndToEndImeTestBase {
     @Test
     public void testCommitContentFailFastAfterUnbindInput() throws Exception {
         final boolean unexpectedResult = true;
-        final AtomicBoolean methodCalled = new AtomicBoolean(false);
+        final BlockingMethodVerifier blocker = new BlockingMethodVerifier();
 
         final class Wrapper extends InputConnectionWrapper {
             private Wrapper(InputConnection target) {
@@ -929,29 +935,32 @@ public class InputConnectionBlockingMethodTest extends EndToEndImeTestBase {
             @Override
             public boolean commitContent(InputContentInfo inputContentInfo, int flags,
                     Bundle opts) {
-                methodCalled.set(true);
+                blocker.onMethodCalled();
                 return unexpectedResult;
             }
         }
 
         testInputConnection(Wrapper::new, (MockImeSession session, ImeEventStream stream) -> {
-            // Memorize the current InputConnection.
-            expectCommand(stream, session.memorizeCurrentInputConnection(), TIMEOUT);
-
-            // Let unbindInput happen.
-            triggerUnbindInput();
-            expectEvent(stream, event -> "unbindInput".equals(event.getEventName()), TIMEOUT);
-
-            // Now IC#getTextAfterCursor() for the memorized IC should fail fast.
-            final ImeEvent result = expectCommand(stream, session.callCommitContent(
+            // Schedule to call IC#commitContent() twice.
+            final ImeCommand firstCommand = session.callCommitContent(
                     new InputContentInfo(Uri.parse("content://com.example/path"),
                             new ClipDescription("sample content", new String[]{"image/png"}),
-                            Uri.parse("https://example.com")), 0, null), TIMEOUT);
+                            Uri.parse("https://example.com")), 0, null);
+            final ImeCommand secondCommand = session.callCommitContent(
+                    new InputContentInfo(Uri.parse("content://com.example/path"),
+                            new ClipDescription("sample content", new String[]{"image/png"}),
+                            Uri.parse("https://example.com")), 0, null);
+
+            blocker.expectMethodCalled("IC#commitContent() must be called back", TIMEOUT);
+            triggerUnbindInput();
+            final ImeEvent firstResult = expectCommand(stream, firstCommand, TIMEOUT);
+            assertFalse("When unbindInput() happens, IC#commitContent() returns false",
+                    firstResult.getReturnBooleanValue());
+
+            final ImeEvent secondResult = expectCommand(stream, secondCommand, TIMEOUT);
             assertFalse("Once unbindInput() happened, IC#commitContent() returns false",
-                    result.getReturnBooleanValue());
-            assertFalse("Once unbindInput() happened, IC#commitContent() fails fast.",
-                    methodCalled.get());
-            expectElapseTimeLessThan(result, IMMEDIATE_TIMEOUT_NANO);
-        });
+                    firstResult.getReturnBooleanValue());
+            expectElapseTimeLessThan(secondResult, IMMEDIATE_TIMEOUT_NANO);
+        }, blocker);
     }
 }

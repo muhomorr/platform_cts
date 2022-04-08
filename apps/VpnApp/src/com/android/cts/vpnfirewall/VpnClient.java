@@ -25,8 +25,6 @@ public class VpnClient extends Activity {
 
     public static final String ACTION_CONNECT_AND_FINISH =
             "com.android.cts.vpnfirewall.action.CONNECT_AND_FINISH";
-    public static final String ACTION_DISCONNECT_AND_FINISH =
-            "com.android.cts.vpnfirewall.action.DISCONNECT_AND_FINISH";
 
     private static final int REQUEST_CONNECT = 0;
     private static final int REQUEST_CONNECT_AND_FINISH = 1;
@@ -38,13 +36,6 @@ public class VpnClient extends Activity {
 
         if (ACTION_CONNECT_AND_FINISH.equals(getIntent().getAction())) {
             prepareAndStart(REQUEST_CONNECT_AND_FINISH);
-        }
-        if (ACTION_DISCONNECT_AND_FINISH.equals(getIntent().getAction())) {
-            // the easiest way to stop the VpnService is to to start it with a stop action
-            Intent stopServiceIntent = new Intent(this, ReflectorVpnService.class)
-                    .setAction(ReflectorVpnService.ACTION_STOP_SERVICE);
-            startService(stopServiceIntent);
-            finish();
         }
         findViewById(R.id.connect).setOnClickListener(v -> prepareAndStart(REQUEST_CONNECT));
     }

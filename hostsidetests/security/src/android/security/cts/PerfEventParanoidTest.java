@@ -15,25 +15,16 @@
  */
 package android.security.cts;
 
-import static org.junit.Assert.fail;
-import static org.junit.Assume.assumeTrue;
-
 import com.android.compatibility.common.util.CddTest;
 import com.android.compatibility.common.util.PropertyUtil;
-import com.android.tradefed.device.DeviceNotAvailableException;
 import com.android.tradefed.device.ITestDevice;
-import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
-import com.android.tradefed.testtype.junit4.BaseHostJUnit4Test;
-
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
+import com.android.tradefed.device.DeviceNotAvailableException;
+import com.android.tradefed.testtype.DeviceTestCase;
 
 /**
  * Tests permission/security controls of the perf_event_open syscall.
  */
-@RunWith(DeviceJUnit4ClassRunner.class)
-public class PerfEventParanoidTest extends BaseHostJUnit4Test {
+public class PerfEventParanoidTest extends DeviceTestCase {
 
     // A reference to the device under test.
     private ITestDevice mDevice;
@@ -42,17 +33,15 @@ public class PerfEventParanoidTest extends BaseHostJUnit4Test {
     private static final String PERF_EVENT_LSM_SYSPROP = "sys.init.perf_lsm_hooks";
 
     private static final int ANDROID_R_API_LEVEL = 30;
-    private static final int ANDROID_S_API_LEVEL = 31;
 
-    @Before
-    public void setUp() throws Exception {
+    @Override
+    protected void setUp() throws Exception {
+        super.setUp();
         mDevice = getDevice();
     }
 
     @CddTest(requirement="9.7")
-    @Test
     public void testPerfEventRestricted() throws DeviceNotAvailableException {
-        assumeSecurityModelCompat();
         // Property set to "1" if init detected that the kernel has the perf_event_open SELinux
         // hooks, otherwise left unset.
         long lsmHookPropValue = mDevice.getIntProperty(PERF_EVENT_LSM_SYSPROP, 0);
@@ -83,15 +72,6 @@ public class PerfEventParanoidTest extends BaseHostJUnit4Test {
                         + "Device values: SELinux=" + lsmHookPropValue
                         + ", paranoid=" + paranoidOut);
             }
-        }
-    }
-
-    private void assumeSecurityModelCompat() throws DeviceNotAvailableException {
-        // This feature name check only applies to devices that first shipped with
-        // SC or later.
-        if (PropertyUtil.getFirstApiLevel(mDevice) >= ANDROID_S_API_LEVEL) {
-            assumeTrue("Skipping test: FEATURE_SECURITY_MODEL_COMPATIBLE missing.",
-                    getDevice().hasFeature("feature:android.hardware.security.model.compatible"));
         }
     }
 }

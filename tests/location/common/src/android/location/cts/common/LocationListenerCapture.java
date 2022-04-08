@@ -20,6 +20,7 @@ import android.content.Context;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
+import android.os.Bundle;
 
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
@@ -28,22 +29,16 @@ public class LocationListenerCapture implements LocationListener, AutoCloseable 
 
     private final LocationManager mLocationManager;
     private final LinkedBlockingQueue<Location> mLocations;
-    private final LinkedBlockingQueue<Integer> mFlushes;
     private final LinkedBlockingQueue<Boolean> mProviderChanges;
 
     public LocationListenerCapture(Context context) {
         mLocationManager = context.getSystemService(LocationManager.class);
         mLocations = new LinkedBlockingQueue<>();
-        mFlushes = new LinkedBlockingQueue<>();
         mProviderChanges = new LinkedBlockingQueue<>();
     }
 
     public Location getNextLocation(long timeoutMs) throws InterruptedException {
         return mLocations.poll(timeoutMs, TimeUnit.MILLISECONDS);
-    }
-
-    public Integer getNextFlush(long timeoutMs) throws InterruptedException {
-        return mFlushes.poll(timeoutMs, TimeUnit.MILLISECONDS);
     }
 
     public Boolean getNextProviderChange(long timeoutMs) throws InterruptedException {
@@ -56,8 +51,7 @@ public class LocationListenerCapture implements LocationListener, AutoCloseable 
     }
 
     @Override
-    public void onFlushComplete(int requestCode) {
-        mFlushes.add(requestCode);
+    public void onStatusChanged(String provider, int status, Bundle extras) {
     }
 
     @Override

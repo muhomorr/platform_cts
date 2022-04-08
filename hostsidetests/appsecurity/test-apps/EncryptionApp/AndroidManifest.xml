@@ -16,12 +16,7 @@
 
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
         package="com.android.cts.encryptionapp">
-    <queries>
-        <package android:name="com.android.cts.splitapp" />
-    </queries>
-
-    <uses-sdk android:targetSdkVersion="29"/>
-    <application android:label="EncryptionApp">
+    <application android:label="EncryptionApp" android:forceQueryable="true">
         <activity android:name=".UnawareActivity"
                 android:exported="true">
             <intent-filter>
@@ -83,18 +78,6 @@
                 <action android:name="com.android.cts.encryptionapp.TEST" />
             </intent-filter>
         </provider>
-
-        <service
-            android:name=".RebootEscrowFakeService"
-            android:enabled = "true"
-            android:exported="true"
-            android:permission="android.permission.BIND_RESUME_ON_REBOOT_SERVICE"
-            android:directBootAware="true">
-            <intent-filter>
-                <action android:name="android.service.resumeonreboot.ResumeOnRebootService"/>
-                <category android:name="android.intent.category.DEFAULT" />
-            </intent-filter>
-        </service>
 
         <uses-library android:name="android.test.runner" />
     </application>

@@ -19,7 +19,6 @@ import android.media.MediaDescription;
 import android.media.browse.MediaBrowser.MediaItem;
 import android.os.Parcel;
 import android.test.AndroidTestCase;
-import android.text.TextUtils;
 
 /**
  * Test {@link android.media.browse.MediaBrowser.MediaItem}.
@@ -43,17 +42,14 @@ public class MediaItemTest extends AndroidTestCase {
         assertTrue(mediaItem.isBrowsable());
         assertFalse(mediaItem.isPlayable());
         assertEquals(0, mediaItem.describeContents());
-        assertFalse(TextUtils.isEmpty(mediaItem.toString()));
 
         // Test writeToParcel
         Parcel p = Parcel.obtain();
         mediaItem.writeToParcel(p, 0);
         p.setDataPosition(0);
-
-        MediaItem mediaItemFromParcel = MediaItem.CREATOR.createFromParcel(p);
-        assertNotNull(mediaItemFromParcel);
-        assertEquals(mediaItem.getFlags(), mediaItemFromParcel.getFlags());
-        assertEquals(description.toString(), mediaItem.getDescription().toString());
+        assertEquals(mediaItem.getFlags(), p.readInt());
+        assertEquals(description.toString(),
+                MediaDescription.CREATOR.createFromParcel(p).toString());
         p.recycle();
     }
 
@@ -69,17 +65,14 @@ public class MediaItemTest extends AndroidTestCase {
         assertFalse(mediaItem.isBrowsable());
         assertTrue(mediaItem.isPlayable());
         assertEquals(0, mediaItem.describeContents());
-        assertFalse(TextUtils.isEmpty(mediaItem.toString()));
 
         // Test writeToParcel
         Parcel p = Parcel.obtain();
         mediaItem.writeToParcel(p, 0);
         p.setDataPosition(0);
-
-        MediaItem mediaItemFromParcel = MediaItem.CREATOR.createFromParcel(p);
-        assertNotNull(mediaItemFromParcel);
-        assertEquals(mediaItem.getFlags(), mediaItemFromParcel.getFlags());
-        assertEquals(description.toString(), mediaItem.getDescription().toString());
+        assertEquals(mediaItem.getFlags(), p.readInt());
+        assertEquals(description.toString(),
+                MediaDescription.CREATOR.createFromParcel(p).toString());
         p.recycle();
     }
 }

@@ -53,11 +53,23 @@ public class OtherSoundsSettingsHostSideTest extends BaseBackupHostSideTest {
     @Override
     public void setUp() throws Exception {
         super.setUp();
+
+        if (!mIsBackupSupported) {
+            return;
+        }
+
         installPackage(APP_APK);
     }
 
     @After
+    @Override
     public void tearDown() throws Exception {
+        super.tearDown();
+
+        if (!mIsBackupSupported) {
+            return;
+        }
+
         // Clear backup data and uninstall the package (in that order!)
         clearBackupDataInLocalTransport(APP_PACKAGE);
         assertNull(uninstallPackage(APP_PACKAGE));
@@ -68,6 +80,11 @@ public class OtherSoundsSettingsHostSideTest extends BaseBackupHostSideTest {
      */
     @Test
     public void testOtherSoundsSettings_dialPadTones() throws Exception {
+        if (!mIsBackupSupported) {
+            LogUtil.CLog.i("android.software.backup feature is not supported on this device");
+            return;
+        }
+
         checkDeviceTest("testOtherSoundsSettings_dialPadTones");
     }
 
@@ -76,6 +93,11 @@ public class OtherSoundsSettingsHostSideTest extends BaseBackupHostSideTest {
      */
     @Test
     public void testOtherSoundsSettings_touchSounds() throws Exception {
+        if (!mIsBackupSupported) {
+            LogUtil.CLog.i("android.software.backup feature is not supported on this device");
+            return;
+        }
+
         checkDeviceTest("testOtherSoundsSettings_touchSounds");
     }
 
@@ -84,6 +106,11 @@ public class OtherSoundsSettingsHostSideTest extends BaseBackupHostSideTest {
      */
     @Test
     public void testOtherSoundsSettings_touchVibration() throws Exception {
+        if (!mIsBackupSupported) {
+            LogUtil.CLog.i("android.software.backup feature is not supported on this device");
+            return;
+        }
+
         checkDeviceTest("testOtherSoundsSettings_touchVibration");
     }
 

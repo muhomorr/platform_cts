@@ -16,7 +16,6 @@
 package com.android.server.cts;
 
 import android.service.pm.PackageProto;
-import android.service.pm.PackageProto.UserInfoProto;
 import android.service.pm.PackageServiceDumpProto;
 
 import java.util.regex.Matcher;
@@ -71,7 +70,6 @@ public class PackageIncidentTest extends ProtoDumpTestCase {
                 break;
             }
         }
-
         assertNotNull(testPackage);
         assertEquals(testPackage.getName(), DEVICE_SIDE_TEST_PACKAGE);
         assertEquals(testPackage.getUid(), uid);
@@ -81,16 +79,16 @@ public class PackageIncidentTest extends ProtoDumpTestCase {
         assertEquals(testPackage.getInstallTimeMs(), testPackage.getUpdateTimeMs());
         assertEquals(testPackage.getSplits(0).getName(), "base");
         assertEquals(testPackage.getSplits(0).getRevisionCode(), 0);
-        assertNotNull(testPackage.getUserPermissionsList());
-
-        UserInfoProto testUser = testPackage.getUsers(0);
-        assertEquals(testUser.getId(), 0);
-        assertEquals(testUser.getInstallType(),
+        assertEquals(testPackage.getUsers(0).getId(), 0);
+        assertEquals(
+                testPackage.getUsers(0).getInstallType(),
                 PackageProto.UserInfoProto.InstallType.FULL_APP_INSTALL);
-        assertFalse(testUser.getIsHidden());
-        assertFalse(testUser.getIsLaunched());
-        assertFalse(testUser.getEnabledState() == PackageProto.UserInfoProto
-                .EnabledState.COMPONENT_ENABLED_STATE_DISABLED_USER);
+        assertFalse(testPackage.getUsers(0).getIsHidden());
+        assertFalse(testPackage.getUsers(0).getIsLaunched());
+        assertFalse(
+                testPackage.getUsers(0).getEnabledState()
+                        == PackageProto.UserInfoProto.EnabledState
+                                .COMPONENT_ENABLED_STATE_DISABLED_USER);
 
         verifyPackageServiceDumpProto(dump, PRIVACY_NONE);
     }

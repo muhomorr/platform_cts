@@ -174,10 +174,6 @@ public class SingleSensorTests extends SensorTestCase {
         runSensorTest(Sensor.TYPE_ACCELEROMETER, RATE_1HZ);
     }
 
-    public void testAccelerometer_automotive() throws Throwable {
-        runSensorTest(Sensor.TYPE_ACCELEROMETER, RATE_25HZ, true);
-    }
-
     public void testAccelUncalibrated_fastest() throws Throwable {
         runSensorTest(Sensor.TYPE_ACCELEROMETER_UNCALIBRATED, SensorManager.SENSOR_DELAY_FASTEST);
     }
@@ -583,18 +579,12 @@ public class SingleSensorTests extends SensorTestCase {
     }
 
     private void runSensorTest(int sensorType, int rateUs) throws Throwable {
-        runSensorTest(sensorType, rateUs, false);
-    }
-
-    private void runSensorTest(int sensorType, int rateUs,
-            boolean isAutomotiveSpecificTest) throws Throwable {
         SensorCtsHelper.sleep(3, TimeUnit.SECONDS);
         TestSensorEnvironment environment = new TestSensorEnvironment(
                 getContext(),
                 sensorType,
                 shouldEmulateSensorUnderLoad(),
-                rateUs,
-                isAutomotiveSpecificTest);
+                rateUs);
         TestSensorOperation op =
                 TestSensorOperation.createOperation(environment, 5, TimeUnit.SECONDS);
         op.addDefaultVerifications();

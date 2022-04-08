@@ -38,8 +38,6 @@ import android.webkit.WebViewClient;
 import android.webkit.cts.WebViewSyncLoader.WaitForLoadedClient;
 import android.util.Pair;
 
-import androidx.test.filters.FlakyTest;
-
 import com.android.compatibility.common.util.NullWebViewUtils;
 import com.android.compatibility.common.util.PollingCheck;
 import com.google.common.util.concurrent.SettableFuture;
@@ -144,7 +142,6 @@ public class WebViewClientTest extends ActivityInstrumentationTestCase2<WebViewC
 
     // Verify shouldoverrideurlloading called on webview called via onCreateWindow
     // TODO(sgurun) upstream this test to Aw.
-    @FlakyTest(bugId = 172331117)
     public void testShouldOverrideUrlLoadingOnCreateWindow() throws Exception {
         if (!NullWebViewUtils.isWebViewAvailable()) {
             return;
@@ -324,7 +321,7 @@ public class WebViewClientTest extends ActivityInstrumentationTestCase2<WebViewC
         assertNull(webViewClient.hasOnReceivedResourceError());
         String url = mWebServer.getAssetUrl(TestHtmlConstants.BAD_IMAGE_PAGE_URL);
         mOnUiThread.loadUrlAndWaitForCompletion(url);
-        assertNotNull(webViewClient.hasOnReceivedResourceError());
+        assertTrue(webViewClient.hasOnReceivedResourceError() != null);
         assertEquals(WebViewClient.ERROR_UNSUPPORTED_SCHEME,
                 webViewClient.hasOnReceivedResourceError().getErrorCode());
     }
@@ -340,7 +337,7 @@ public class WebViewClientTest extends ActivityInstrumentationTestCase2<WebViewC
         assertNull(webViewClient.hasOnReceivedHttpError());
         String url = mWebServer.getAssetUrl(TestHtmlConstants.NON_EXISTENT_PAGE_URL);
         mOnUiThread.loadUrlAndWaitForCompletion(url);
-        assertNotNull(webViewClient.hasOnReceivedHttpError());
+        assertTrue(webViewClient.hasOnReceivedHttpError() != null);
         assertEquals(404, webViewClient.hasOnReceivedHttpError().getStatusCode());
     }
 

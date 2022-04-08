@@ -18,9 +18,8 @@ package android.media.cts;
 
 import static org.junit.Assert.assertNotEquals;
 
-import android.content.Context;
 import android.content.res.AssetFileDescriptor;
-import android.hardware.display.DisplayManager;
+import android.content.res.Resources;
 import android.icu.util.ULocale;
 import android.media.AudioFormat;
 import android.media.AudioPresentation;
@@ -31,30 +30,22 @@ import android.media.MediaDataSource;
 import android.media.MediaExtractor;
 import android.media.MediaFormat;
 import static android.media.MediaFormat.MIMETYPE_VIDEO_DOLBY_VISION;
+import android.media.cts.R;
 import android.os.Build;
-import android.os.ParcelFileDescriptor;
 import android.os.PersistableBundle;
 import android.platform.test.annotations.AppModeFull;
 import android.test.AndroidTestCase;
 import android.util.Log;
-import android.view.Display;
-import android.view.Display.HdrCapabilities;
 import android.webkit.cts.CtsTestServer;
 
-import androidx.test.InstrumentationRegistry;
 import androidx.test.filters.SmallTest;
 
 import com.android.compatibility.common.util.ApiLevelUtil;
-import com.android.compatibility.common.util.CddTest;
 import com.android.compatibility.common.util.MediaUtils;
 
 import java.io.BufferedReader;
 import java.io.Closeable;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.io.StreamTokenizer;
@@ -67,20 +58,20 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.UUID;
 
-@AppModeFull(reason = "Instant apps cannot access the SD card")
+
 public class MediaExtractorTest extends AndroidTestCase {
     private static final String TAG = "MediaExtractorTest";
     private static final UUID UUID_WIDEVINE = new UUID(0xEDEF8BA979D64ACEL, 0xA3C827DCD51D21EDL);
     private static final UUID UUID_PLAYREADY = new UUID(0x9A04F07998404286L, 0xAB92E65BE0885F95L);
     private static boolean mIsAtLeastR = ApiLevelUtil.isAtLeast(Build.VERSION_CODES.R);
-    private static final boolean IS_AT_LEAST_S = ApiLevelUtil.isAtLeast(Build.VERSION_CODES.S);
 
-    static final String mInpPrefix = WorkDir.getMediaDirString();
+    protected Resources mResources;
     protected MediaExtractor mExtractor;
 
     @Override
     protected void setUp() throws Exception {
         super.setUp();
+        mResources = getContext().getResources();
         mExtractor = new MediaExtractor();
     }
 
@@ -90,29 +81,18 @@ public class MediaExtractorTest extends AndroidTestCase {
         mExtractor.release();
     }
 
-    protected AssetFileDescriptor getAssetFileDescriptorFor(final String res)
-            throws FileNotFoundException {
-        File inpFile = new File(mInpPrefix + res);
-        Preconditions.assertTestFileExists(mInpPrefix + res);
-        ParcelFileDescriptor parcelFD =
-                ParcelFileDescriptor.open(inpFile, ParcelFileDescriptor.MODE_READ_ONLY);
-        return new AssetFileDescriptor(parcelFD, 0, parcelFD.getStatSize());
-    }
-
-    protected TestMediaDataSource getDataSourceFor(final String res) throws Exception {
-        AssetFileDescriptor afd = getAssetFileDescriptorFor(res);
+    protected TestMediaDataSource getDataSourceFor(int resid) throws Exception {
+        AssetFileDescriptor afd = mResources.openRawResourceFd(resid);
         return TestMediaDataSource.fromAssetFd(afd);
     }
 
-    protected TestMediaDataSource setDataSource(final String res) throws Exception {
-        TestMediaDataSource ds = getDataSourceFor(res);
+    protected TestMediaDataSource setDataSource(int resid) throws Exception {
+        TestMediaDataSource ds = getDataSourceFor(resid);
         mExtractor.setDataSource(ds);
         return ds;
     }
 
-    public void SKIP_testNullMediaDataSourceIsRejected() throws Exception {
-        // duplicate of CtsMediaV2TestCases:ExtractorUnitTest$TestApi
-        // #testIfNullMediaDataSourceIsRejectedBySetDataSource
+    public void testNullMediaDataSourceIsRejected() throws Exception {
         try {
             mExtractor.setDataSource((MediaDataSource)null);
             fail("Expected IllegalArgumentException.");
@@ -121,17 +101,14 @@ public class MediaExtractorTest extends AndroidTestCase {
         }
     }
 
-    public void SKIP_testMediaDataSourceIsClosedOnRelease() throws Exception {
-        // duplicate of CtsMediaV2TestCases:ExtractorTest$SetDataSourceTest#testMediaDataSource
-        TestMediaDataSource dataSource = setDataSource("testvideo.3gp");
+    public void testMediaDataSourceIsClosedOnRelease() throws Exception {
+        TestMediaDataSource dataSource = setDataSource(R.raw.testvideo);
         mExtractor.release();
         assertTrue(dataSource.isClosed());
     }
 
-    public void SKIP_testExtractorFailsIfMediaDataSourceThrows() throws Exception {
-        // duplicate of CtsMediaV2TestCases:ExtractorUnitTest$TestApi
-        // #testIfInvalidDataSourceIsRejectedBySetDataSource
-        TestMediaDataSource dataSource = getDataSourceFor("testvideo.3gp");
+    public void testExtractorFailsIfMediaDataSourceThrows() throws Exception {
+        TestMediaDataSource dataSource = getDataSourceFor(R.raw.testvideo);
         dataSource.throwFromReadAt();
         try {
             mExtractor.setDataSource(dataSource);
@@ -142,7 +119,7 @@ public class MediaExtractorTest extends AndroidTestCase {
     }
 
     public void testExtractorFailsIfMediaDataSourceReturnsAnError() throws Exception {
-        TestMediaDataSource dataSource = getDataSourceFor("testvideo.3gp");
+        TestMediaDataSource dataSource = getDataSourceFor(R.raw.testvideo);
         dataSource.returnFromReadAt(-2);
         try {
             mExtractor.setDataSource(dataSource);
@@ -153,46 +130,22 @@ public class MediaExtractorTest extends AndroidTestCase {
     }
 
     // Smoke test MediaExtractor reading from a DataSource.
-    public void SKIP_testExtractFromAMediaDataSource() throws Exception {
-        // duplicate of CtsMediaV2TestCases:ExtractorTest$SetDataSourceTest#testMediaDataSource and
-        // duplicate of CtsMediaV2TestCases:ExtractorTest$FunctionalityTest#testMetrics
-        TestMediaDataSource dataSource = setDataSource("testvideo.3gp");
+    public void testExtractFromAMediaDataSource() throws Exception {
+        TestMediaDataSource dataSource = setDataSource(R.raw.testvideo);
         checkExtractorSamplesAndMetrics();
     }
 
     // Smoke test MediaExtractor reading from an AssetFileDescriptor.
-    public void SKIP_testExtractFromAssetFileDescriptor() throws Exception {
-        // duplicate of CtsMediaV2TestCases:ExtractorTest$SetDataSourceTest#testAssetFD and
-        // duplicate of CtsMediaV2TestCases:ExtractorTest$FunctionalityTest#testMetrics
-       AssetFileDescriptor afd = getAssetFileDescriptorFor("testvideo.3gp");
+    public void testExtractFromAssetFileDescriptor() throws Exception {
+        AssetFileDescriptor afd = mResources.openRawResourceFd(R.raw.testvideo);
         mExtractor.setDataSource(afd);
         checkExtractorSamplesAndMetrics();
         afd.close();
     }
 
-    private boolean advertisesDolbyVision() {
-        // Device advertises support for DV if 1) it has a DV decoder, OR
-        // 2) it lists DV on the Display HDR capabilities.
-        if (MediaUtils.hasDecoder(MIMETYPE_VIDEO_DOLBY_VISION)) {
-            return true;
-        }
-
-        Context context = InstrumentationRegistry.getInstrumentation().getContext();
-        DisplayManager displayManager = context.getSystemService(DisplayManager.class);
-        Display defaultDisplay = displayManager.getDisplay(Display.DEFAULT_DISPLAY);
-        HdrCapabilities cap = defaultDisplay.getHdrCapabilities();
-        for (int type : cap.getSupportedHdrTypes()) {
-            if (type == HdrCapabilities.HDR_TYPE_DOLBY_VISION) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     // DolbyVisionMediaExtractor for profile-level (DvheDtr/Fhd30).
-    @CddTest(requirement="5.3.8")
     public void testDolbyVisionMediaExtractorProfileDvheDtr() throws Exception {
-        TestMediaDataSource dataSource = setDataSource("video_dovi_1920x1080_30fps_dvhe_04.mp4");
+        TestMediaDataSource dataSource = setDataSource(R.raw.video_dovi_1920x1080_30fps_dvhe_04);
 
         assertTrue("There should be either 1 or 2 tracks",
             0 < mExtractor.getTrackCount() && 3 > mExtractor.getTrackCount());
@@ -210,7 +163,7 @@ public class MediaExtractorTest extends AndroidTestCase {
             }
         }
 
-        if (advertisesDolbyVision()) {
+        if (MediaUtils.hasDecoder(MIMETYPE_VIDEO_DOLBY_VISION)) {
             assertEquals("There must be 2 tracks", 2, mExtractor.getTrackCount());
 
             MediaFormat trackFormatForDolbyVision =
@@ -238,12 +191,10 @@ public class MediaExtractorTest extends AndroidTestCase {
     }
 
     // DolbyVisionMediaExtractor for profile-level (DvheStn/Fhd60).
-    @CddTest(requirement="5.3.8")
-    public void SKIP_testDolbyVisionMediaExtractorProfileDvheStn() throws Exception {
-        // duplicate of CtsMediaV2TestCases:ExtractorTest$ValidateKeyValuePairs[video/dolby-vision]
-        TestMediaDataSource dataSource = setDataSource("video_dovi_1920x1080_60fps_dvhe_05.mp4");
+    public void testDolbyVisionMediaExtractorProfileDvheStn() throws Exception {
+        TestMediaDataSource dataSource = setDataSource(R.raw.video_dovi_1920x1080_60fps_dvhe_05);
 
-        if (advertisesDolbyVision()) {
+        if (MediaUtils.hasDecoder(MIMETYPE_VIDEO_DOLBY_VISION)) {
             // DvheStn exposes only a single non-backward compatible Dolby Vision HDR track.
             assertEquals("There must be 1 track", 1, mExtractor.getTrackCount());
             final MediaFormat trackFormat = mExtractor.getTrackFormat(0);
@@ -262,9 +213,8 @@ public class MediaExtractorTest extends AndroidTestCase {
     }
 
     // DolbyVisionMediaExtractor for profile-level (DvheSt/Fhd60).
-    @CddTest(requirement="5.3.8")
     public void testDolbyVisionMediaExtractorProfileDvheSt() throws Exception {
-        TestMediaDataSource dataSource = setDataSource("video_dovi_1920x1080_60fps_dvhe_08.mp4");
+        TestMediaDataSource dataSource = setDataSource(R.raw.video_dovi_1920x1080_60fps_dvhe_08);
 
         assertTrue("There should be either 1 or 2 tracks",
             0 < mExtractor.getTrackCount() && 3 > mExtractor.getTrackCount());
@@ -282,7 +232,7 @@ public class MediaExtractorTest extends AndroidTestCase {
             }
         }
 
-        if (advertisesDolbyVision()) {
+        if (MediaUtils.hasDecoder(MIMETYPE_VIDEO_DOLBY_VISION)) {
             assertEquals("There must be 2 tracks", 2, mExtractor.getTrackCount());
 
             MediaFormat trackFormatForDolbyVision =
@@ -310,9 +260,8 @@ public class MediaExtractorTest extends AndroidTestCase {
     }
 
     // DolbyVisionMediaExtractor for profile-level (DvavSe/Fhd60).
-    @CddTest(requirement="5.3.8")
     public void testDolbyVisionMediaExtractorProfileDvavSe() throws Exception {
-        TestMediaDataSource dataSource = setDataSource("video_dovi_1920x1080_60fps_dvav_09.mp4");
+        TestMediaDataSource dataSource = setDataSource(R.raw.video_dovi_1920x1080_60fps_dvav_09);
 
         assertTrue("There should be either 1 or 2 tracks",
             0 < mExtractor.getTrackCount() && 3 > mExtractor.getTrackCount());
@@ -330,7 +279,7 @@ public class MediaExtractorTest extends AndroidTestCase {
             }
         }
 
-        if (advertisesDolbyVision()) {
+        if (MediaUtils.hasDecoder(MIMETYPE_VIDEO_DOLBY_VISION)) {
             assertEquals("There must be 2 tracks", 2, mExtractor.getTrackCount());
 
             MediaFormat trackFormatForDolbyVision =
@@ -359,11 +308,10 @@ public class MediaExtractorTest extends AndroidTestCase {
 
     // DolbyVisionMediaExtractor for profile-level (Dvav1 10.0/Uhd30)
     @SmallTest
-    @CddTest(requirement="5.3.8")
     public void testDolbyVisionMediaExtractorProfileDvav1() throws Exception {
-        TestMediaDataSource dataSource = setDataSource("video_dovi_3840x2160_30fps_dav1_10.mp4");
+        TestMediaDataSource dataSource = setDataSource(R.raw.video_dovi_3840x2160_30fps_dav1_10);
 
-        if (advertisesDolbyVision()) {
+        if (MediaUtils.hasDecoder(MIMETYPE_VIDEO_DOLBY_VISION)) {
             assertEquals(1, mExtractor.getTrackCount());
 
             // Dvav1 10 exposes a single backward compatible track.
@@ -384,9 +332,8 @@ public class MediaExtractorTest extends AndroidTestCase {
 
     // DolbyVisionMediaExtractor for profile-level (Dvav1 10.1/Uhd30)
     @SmallTest
-    @CddTest(requirement="5.3.8")
     public void testDolbyVisionMediaExtractorProfileDvav1_2() throws Exception {
-        TestMediaDataSource dataSource = setDataSource("video_dovi_3840x2160_30fps_dav1_10_2.mp4");
+        TestMediaDataSource dataSource = setDataSource(R.raw.video_dovi_3840x2160_30fps_dav1_10_2);
 
         assertTrue("There should be either 1 or 2 tracks",
             0 < mExtractor.getTrackCount() && 3 > mExtractor.getTrackCount());
@@ -404,7 +351,7 @@ public class MediaExtractorTest extends AndroidTestCase {
             }
         }
 
-        if (advertisesDolbyVision()) {
+        if (MediaUtils.hasDecoder(MIMETYPE_VIDEO_DOLBY_VISION)) {
             assertEquals("There must be 2 tracks", 2, mExtractor.getTrackCount());
 
             MediaFormat trackFormatForDolbyVision =
@@ -431,57 +378,9 @@ public class MediaExtractorTest extends AndroidTestCase {
         assertEquals("video/av01", mimeType);
     }
 
-    //MPEG-H 3D Audio single stream (mha1)
-    public void testMpegh3dAudioMediaExtractorMha1() throws Exception {
-        // TODO(b/186267251) move file to cloud storage.
-        AssetFileDescriptor afd = getContext().getResources()
-            .openRawResourceFd(R.raw.sample_mpegh_mha1);
-        mExtractor.setDataSource(afd);
-        assertEquals(1, mExtractor.getTrackCount());
-
-        // The following values below require API Build.VERSION_CODES.S
-        if (!MediaUtils.check(IS_AT_LEAST_S, "test needs Android 12")) return;
-
-        MediaFormat trackFormat = mExtractor.getTrackFormat(0);
-        final String mimeType = trackFormat.getString(MediaFormat.KEY_MIME);
-        assertEquals(MediaFormat.MIMETYPE_AUDIO_MPEGH_MHA1, mimeType);
-
-        final int hpli = trackFormat.getInteger(MediaFormat.KEY_MPEGH_PROFILE_LEVEL_INDICATION);
-        assertEquals(0x0D, hpli);
-
-        final int hrcl = trackFormat.getInteger(MediaFormat.KEY_MPEGH_REFERENCE_CHANNEL_LAYOUT);
-        assertEquals(0x13, hrcl);
-    }
-
-    //MPEG-H 3D Audio single stream encapsulated in MHAS (mhm1)
-    public void testMpegh3dAudioMediaExtractorMhm1() throws Exception {
-        // TODO(b/186267251) move file to cloud storage.
-        AssetFileDescriptor afd = getContext().getResources()
-            .openRawResourceFd(R.raw.sample_mpegh_mhm1);
-        mExtractor.setDataSource(afd);
-        assertEquals(1, mExtractor.getTrackCount());
-
-        // The following values below require API Build.VERSION_CODES.S
-        if (!MediaUtils.check(IS_AT_LEAST_S, "test needs Android 12")) return;
-
-        MediaFormat trackFormat = mExtractor.getTrackFormat(0);
-        final String mimeType = trackFormat.getString(MediaFormat.KEY_MIME);
-        assertEquals(MediaFormat.MIMETYPE_AUDIO_MPEGH_MHM1, mimeType);
-
-        final int hpli = trackFormat.getInteger(MediaFormat.KEY_MPEGH_PROFILE_LEVEL_INDICATION);
-        assertEquals(0x0D, hpli);
-
-        final int hrcl = trackFormat.getInteger(MediaFormat.KEY_MPEGH_REFERENCE_CHANNEL_LAYOUT);
-        assertEquals(0x13, hrcl);
-
-        final ByteBuffer hcos = trackFormat.getByteBuffer(MediaFormat.KEY_MPEGH_COMPATIBLE_SETS);
-        assertEquals(0x12, hcos.get());
-    }
-
     public void testGetDrmInitData() throws Exception {
         if (!MediaUtils.check(mIsAtLeastR, "test needs Android 11")) return;
-        Preconditions.assertTestFileExists(mInpPrefix + "psshtest.mp4");
-        setDataSource("psshtest.mp4");
+        setDataSource(R.raw.psshtest);
         DrmInitData drmInitData = mExtractor.getDrmInitData();
         assertEquals(drmInitData.getSchemeInitDataCount(), 2);
         assertEquals(drmInitData.getSchemeInitDataAt(0).uuid, UUID_WIDEVINE);
@@ -542,9 +441,8 @@ public class MediaExtractorTest extends AndroidTestCase {
     }
 
     public void testGetAudioPresentations() throws Exception {
-        Preconditions.assertTestFileExists(mInpPrefix +
-                        "MultiLangPerso_1PID_PC0_Select_AC4_H265_DVB_50fps_Audio_Only.ts");
-        setDataSource("MultiLangPerso_1PID_PC0_Select_AC4_H265_DVB_50fps_Audio_Only.ts");
+        final int resid = R.raw.MultiLangPerso_1PID_PC0_Select_AC4_H265_DVB_50fps_Audio_Only;
+        TestMediaDataSource dataSource = setDataSource(resid);
         int ac4TrackIndex = -1;
         for (int i = 0; i < mExtractor.getTrackCount(); i++) {
             MediaFormat format = mExtractor.getTrackFormat(i);
@@ -641,8 +539,7 @@ public class MediaExtractorTest extends AndroidTestCase {
     }
 
     @AppModeFull(reason = "Instant apps cannot bind sockets.")
-    public void SKIP_testExtractorGetCachedDuration() throws Exception {
-        // duplicate of CtsMediaV2TestCases:ExtractorTest$SetDataSourceTest#testUrlDataSource
+    public void testExtractorGetCachedDuration() throws Exception {
         CtsTestServer foo = new CtsTestServer(getContext());
         String url = foo.getAssetUrl("ringer.mp3");
         mExtractor.setDataSource(url);
@@ -651,10 +548,9 @@ public class MediaExtractorTest extends AndroidTestCase {
         foo.shutdown();
     }
 
-    public void SKIP_testExtractorHasCacheReachedEndOfStream() throws Exception {
-        // duplicate of CtsMediaV2TestCases:ExtractorTest$SetDataSourceTest#testUrlDataSource
+    public void testExtractorHasCacheReachedEndOfStream() throws Exception {
         // Using file source to get deterministic result.
-        AssetFileDescriptor afd = getAssetFileDescriptorFor("testvideo.3gp");
+        AssetFileDescriptor afd = mResources.openRawResourceFd(R.raw.testvideo);
         mExtractor.setDataSource(afd);
         assertTrue(mExtractor.hasCacheReachedEndOfStream());
         afd.close();
@@ -664,17 +560,16 @@ public class MediaExtractorTest extends AndroidTestCase {
      * Makes sure if PTS(order) of a video file with BFrames matches the expected values in
      * the corresponding text file with just PTS values.
      */
-    public void SKIP_testVideoPresentationTimeStampsMatch() throws Exception {
-        // duplicate of CtsMediaV2TestCases:ExtractorTest$ExtractorTimeStampTest
-        setDataSource("binary_counter_320x240_30fps_600frames.mp4");
+    public void testVideoPresentationTimeStampsMatch() throws Exception {
+        setDataSource(R.raw.binary_counter_320x240_30fps_600frames);
         // Select the only video track present in the file.
         final int trackCount = mExtractor.getTrackCount();
         for (int i = 0; i < trackCount; i++) {
             mExtractor.selectTrack(i);
         }
 
-        Reader txtRdr = new BufferedReader(new InputStreamReader(new FileInputStream(
-                mInpPrefix + "timestamps_binary_counter_320x240_30fps_600frames.txt")));
+        Reader txtRdr = new BufferedReader(new InputStreamReader(mResources.openRawResource(
+                R.raw.timestamps_binary_counter_320x240_30fps_600frames)));
         StreamTokenizer strTok = new StreamTokenizer(txtRdr);
         strTok.parseNumbers();
 
@@ -850,9 +745,7 @@ public class MediaExtractorTest extends AndroidTestCase {
     }
 
     @SmallTest
-    public void SKIP_testFlacIdentity() throws Exception {
-        // duplicate of CtsMediaV2TestCases:CodecEncoderTest$testLosslessEncodeDecode[audio/flac]
-        // duplicate of CtsMediaV2TestCases:ExtractorTest$FusedExtractorDecoderTest[audio/flac]
+    public void testFlacIdentity() throws Exception {
         final int PCM_FRAMES = 1152 * 4; // FIXME: requires 4 flac frames to work with OMX codecs.
         final int CHANNEL_COUNT = 2;
         final int SAMPLES = PCM_FRAMES * CHANNEL_COUNT;
@@ -893,9 +786,9 @@ public class MediaExtractorTest extends AndroidTestCase {
         }
     }
 
-    public void SKIP_testFlacMovExtraction() throws Exception {
-        // duplicate of CtsMediaV2TestCases:ExtractorTest$FusedExtractorDecoderTest[audio/flac]
-        AssetFileDescriptor testFd = getAssetFileDescriptorFor("sinesweepalac.mov");
+    public void testFlacMovExtraction() throws Exception {
+        AssetFileDescriptor testFd = mResources.openRawResourceFd(R.raw.sinesweepalac);
+
         MediaExtractor extractor = new MediaExtractor();
         extractor.setDataSource(testFd.getFileDescriptor(), testFd.getStartOffset(),
                 testFd.getLength());
@@ -918,7 +811,7 @@ public class MediaExtractorTest extends AndroidTestCase {
     }
 
     public void testProgramStreamExtraction() throws Exception {
-        AssetFileDescriptor testFd = getAssetFileDescriptorFor("programstream.mpeg");
+        AssetFileDescriptor testFd = mResources.openRawResourceFd(R.raw.programstream);
 
         MediaExtractor extractor = new MediaExtractor();
         extractor.setDataSource(testFd.getFileDescriptor(), testFd.getStartOffset(),
@@ -949,38 +842,23 @@ public class MediaExtractorTest extends AndroidTestCase {
             // ignore
         }
 
-        final int RETRY_LIMIT = 100;
-        final long INPUTBUFFER_TIMEOUT_US = 10000;
-        int num_retry = 0;
         ByteBuffer buf = ByteBuffer.allocate(2*1024*1024);
         MediaCodec.BufferInfo info = new MediaCodec.BufferInfo();
-        while(num_retry < RETRY_LIMIT) {
+        while(true) {
             for (MediaCodec codec : codecs) {
-                if (codec == null) {
-                    continue;
-                }
-                while (true) {
-                    int idx = codec.dequeueOutputBuffer(info, 0);
-                    if (idx < 0) {
-                        break;
+                if (codec != null) {
+                    int idx = codec.dequeueOutputBuffer(info, 5);
+                    if (idx >= 0) {
+                        codec.releaseOutputBuffer(idx, false);
                     }
-                    codec.releaseOutputBuffer(idx, false);
                 }
             }
-
             int trackIdx = extractor.getSampleTrackIndex();
             MediaCodec codec = codecs[trackIdx];
             ByteBuffer b = buf;
             int bufIdx = -1;
             if (codec != null) {
-                bufIdx = codec.dequeueInputBuffer(INPUTBUFFER_TIMEOUT_US);
-                // No available input buffer now, retry again.
-                if (bufIdx < 0) {
-                    num_retry += 1;
-                    continue;
-                }
-
-                num_retry = 0;
+                bufIdx = codec.dequeueInputBuffer(-1);
                 b = codec.getInputBuffer(bufIdx);
             }
             int n = extractor.readSampleData(b, 0);
@@ -996,15 +874,13 @@ public class MediaExtractorTest extends AndroidTestCase {
                 break;
             }
         }
-        extractor.release();
-
-        assertTrue("dequeueing input buffer exceeded timeout", num_retry < RETRY_LIMIT);
         assertTrue("did not read from track 0", bytesRead[0] > 0);
         assertTrue("did not read from track 1", bytesRead[1] > 0);
+        extractor.release();
     }
 
-    private void doTestAdvance(final String res) throws Exception {
-        AssetFileDescriptor testFd = getAssetFileDescriptorFor(res);
+    private void doTestAdvance(int res) throws Exception {
+        AssetFileDescriptor testFd = mResources.openRawResourceFd(res);
 
         MediaExtractor extractor = new MediaExtractor();
         extractor.setDataSource(testFd.getFileDescriptor(), testFd.getStartOffset(),
@@ -1041,25 +917,23 @@ public class MediaExtractorTest extends AndroidTestCase {
         extractor.release();
     }
 
-    public void SKIP_testAdvance() throws Exception {
-        // duplicate of CtsMediaV2TestCases:ExtractorTest$SetDataSourceTest and
-        // duplicate of CtsMediaV2TestCases:ExtractorTest$FunctionalityTest#testExtract[*]
+    public void testAdvance() throws Exception {
         // audio-only
-        doTestAdvance("sinesweepm4a.m4a");
-        doTestAdvance("sinesweepmp3lame.mp3");
-        doTestAdvance("sinesweepmp3smpb.mp3");
-        doTestAdvance("sinesweepwav.wav");
-        doTestAdvance("sinesweepflac.flac");
-        doTestAdvance("sinesweepogg.ogg");
-        doTestAdvance("sinesweepoggmkv.mkv");
+        doTestAdvance(R.raw.sinesweepm4a);
+        doTestAdvance(R.raw.sinesweepmp3lame);
+        doTestAdvance(R.raw.sinesweepmp3smpb);
+        doTestAdvance(R.raw.sinesweepwav);
+        doTestAdvance(R.raw.sinesweepflac);
+        doTestAdvance(R.raw.sinesweepogg);
+        doTestAdvance(R.raw.sinesweepoggmkv);
 
         // video-only
-        doTestAdvance("swirl_144x136_mpeg4.mp4");
-        doTestAdvance("video_640x360_mp4_hevc_450kbps_no_b.mp4");
+        doTestAdvance(R.raw.swirl_144x136_mpeg4);
+        doTestAdvance(R.raw.video_640x360_mp4_hevc_450kbps_no_b);
 
         // audio+video
-        doTestAdvance("video_480x360_mp4_h264_500kbps_30fps_aac_stereo_128kbps_44100hz.mp4");
-        doTestAdvance("video_1280x720_mkv_h265_500kbps_25fps_aac_stereo_128kbps_44100hz.mkv");
+        doTestAdvance(R.raw.video_480x360_mp4_h264_500kbps_30fps_aac_stereo_128kbps_44100hz);
+        doTestAdvance(R.raw.video_1280x720_mkv_h265_500kbps_25fps_aac_stereo_128kbps_44100hz);
     }
 
     private void readAllData() {
@@ -1079,69 +953,64 @@ public class MediaExtractorTest extends AndroidTestCase {
         } while (mExtractor.advance());
     }
 
-    public void SKIP_testAC3inMP4() throws Exception {
-        // duplicate of CtsMediaV2TestCases:ExtractorTest$FunctionalityTest[audio/ac3]
-        setDataSource("testac3mp4.mp4");
+    public void testAC3inMP4() throws Exception {
+        setDataSource(R.raw.testac3mp4);
         readAllData();
     }
 
-    public void SKIP_testEAC3inMP4() throws Exception {
-        // duplicate of CtsMediaV2TestCases:ExtractorTest$FunctionalityTest[audio/eac3]
-        setDataSource("testeac3mp4.mp4");
+    public void testEAC3inMP4() throws Exception {
+        setDataSource(R.raw.testeac3mp4);
         readAllData();
     }
 
-    public void SKIP_testAC3inTS() throws Exception {
-        // duplicate of CtsMediaV2TestCases:ExtractorTest$FunctionalityTest[audio/ac3]
-        setDataSource("testac3ts.ts");
+    public void testAC3inTS() throws Exception {
+        setDataSource(R.raw.testac3ts);
         readAllData();
     }
 
-    public void SKIP_testEAC3inTS() throws Exception {
-        // duplicate of CtsMediaV2TestCases:ExtractorTest$FunctionalityTest[audio/eac3]
-        setDataSource("testeac3ts.ts");
+    public void testEAC3inTS() throws Exception {
+        setDataSource(R.raw.testeac3ts);
         readAllData();
     }
 
-    public void SKIP_testAC4inMP4() throws Exception {
-        // duplicate of CtsMediaV2TestCases:ExtractorTest$FunctionalityTest[audio/ac4]
-        setDataSource("multi0.mp4");
+    public void testAC4inMP4() throws Exception {
+        setDataSource(R.raw.multi0);
         readAllData();
     }
 
     public void testAV1InMP4() throws Exception {
-        setDataSource("video_dovi_3840x2160_30fps_dav1_10_2.mp4");
+        setDataSource(R.raw.video_dovi_3840x2160_30fps_dav1_10_2);
         readAllData();
     }
 
     public void testDolbyVisionInMP4() throws Exception {
-        setDataSource("video_dovi_3840x2160_30fps_dav1_10.mp4");
+        setDataSource(R.raw.video_dovi_3840x2160_30fps_dav1_10);
         readAllData();
     }
 
     public void testPcmLeInMov() throws Exception {
-        setDataSource("sinesweeppcmlemov.mov");
+        setDataSource(R.raw.sinesweeppcmlemov);
         readAllData();
     }
 
     public void testPcmBeInMov() throws Exception {
-        setDataSource("sinesweeppcmbemov.mov");
+        setDataSource(R.raw.sinesweeppcmbemov);
         readAllData();
     }
 
     public void testFragmentedRead() throws Exception {
-        Preconditions.assertTestFileExists(mInpPrefix + "psshtest.mp4");
-        setDataSource("psshtest.mp4");
+        setDataSource(R.raw.psshtest);
         readAllData();
     }
 
     @AppModeFull(reason = "Instant apps cannot bind sockets.")
     public void testFragmentedHttpRead() throws Exception {
         CtsTestServer server = new CtsTestServer(getContext());
-        Preconditions.assertTestFileExists(mInpPrefix + "psshtest.mp4");
-        String url = server.getAssetUrl(mInpPrefix + "psshtest.mp4");
+        String rname = mResources.getResourceEntryName(R.raw.psshtest);
+        String url = server.getAssetUrl("raw/" + rname);
         mExtractor.setDataSource(url);
         readAllData();
         server.shutdown();
     }
+
 }

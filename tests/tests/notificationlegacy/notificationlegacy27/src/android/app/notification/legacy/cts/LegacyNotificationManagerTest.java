@@ -35,11 +35,9 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.UiAutomation;
-import android.content.pm.PackageManager;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
-import android.os.Build;
 import android.os.ParcelFileDescriptor;
 import android.provider.Telephony.Threads;
 import android.service.notification.NotificationListenerService;
@@ -240,28 +238,21 @@ public class LegacyNotificationManagerTest {
 
     @Test
     public void testResetListenerHints_singleListener() throws Exception {
-      int conditionValue = 0;
-      int condition = NotificationListenerService.HINT_HOST_DISABLE_CALL_EFFECTS;
+        toggleListenerAccess(TestNotificationListener.getId(),
+                InstrumentationRegistry.getInstrumentation(), true);
+        Thread.sleep(500); // wait for listener to be allowed
 
-      toggleListenerAccess(
-          TestNotificationListener.getId(), InstrumentationRegistry.getInstrumentation(), true);
-      Thread.sleep(500); // wait for listener to be allowed
+        mListener = TestNotificationListener.getInstance();
+        Assert.assertNotNull(mListener);
 
-      mListener = TestNotificationListener.getInstance();
-      Assert.assertNotNull(mListener);
-      /*In case of wear os we have some default disable listener registered*/
-      if (isWatch()) {
-        condition |= NotificationListenerService.HINT_HOST_DISABLE_NOTIFICATION_EFFECTS;
-        conditionValue = mListener.getCurrentListenerHints();
-      }
+        mListener.requestListenerHints(NotificationListenerService.HINT_HOST_DISABLE_CALL_EFFECTS);
 
-      mListener.requestListenerHints(NotificationListenerService.HINT_HOST_DISABLE_CALL_EFFECTS);
+        assertEquals(NotificationListenerService.HINT_HOST_DISABLE_CALL_EFFECTS,
+                mListener.getCurrentListenerHints());
 
-      assertEquals(condition, mListener.getCurrentListenerHints());
+        mListener.clearRequestedListenerHints();
 
-      mListener.clearRequestedListenerHints();
-
-      assertEquals(conditionValue, mListener.getCurrentListenerHints());
+        assertEquals(0, mListener.getCurrentListenerHints());
     }
 
     @Test
@@ -287,11 +278,8 @@ public class LegacyNotificationManagerTest {
                 mListener.getCurrentListenerHints());
 
         mSecondaryListener.clearRequestedListenerHints();
-        /*In case of wear os we have some default disable listener registered*/
-        if (!isWatch()) {
-          assertEquals(NotificationListenerService.HINT_HOST_DISABLE_CALL_EFFECTS,
-              mSecondaryListener.getCurrentListenerHints());
-        }
+        assertEquals(NotificationListenerService.HINT_HOST_DISABLE_CALL_EFFECTS,
+                mSecondaryListener.getCurrentListenerHints());
     }
 
     @Test
@@ -315,26 +303,6 @@ public class LegacyNotificationManagerTest {
                 InstrumentationRegistry.getInstrumentation(), false);
     }
 
-    @Test
-    public void testChannelDeletion_cancelReason() throws Exception {
-        assertEquals(Build.VERSION_CODES.O_MR1, mContext.getApplicationInfo().targetSdkVersion);
-        toggleListenerAccess(TestNotificationListener.getId(),
-                InstrumentationRegistry.getInstrumentation(), true);
-        Thread.sleep(500); // wait for listener to be allowed
-        mListener = TestNotificationListener.getInstance();
-
-        sendNotification(566, R.drawable.icon_black);
-
-        Thread.sleep(500); // wait for notification listener to receive notification
-        assertEquals(1, mListener.mPosted.size());
-        String key = mListener.mPosted.get(0).getKey();
-
-        mNotificationManager.deleteNotificationChannel(NOTIFICATION_CHANNEL_ID);
-
-        assertEquals(NotificationListenerService.REASON_CHANNEL_BANNED,
-                getCancellationReason(key));
-    }
-
     private void sendNotification(final int id, final int icon) throws Exception {
         sendNotification(id, null, icon);
     }
@@ -346,7 +314,7 @@ public class LegacyNotificationManagerTest {
                 | Intent.FLAG_ACTIVITY_CLEAR_TOP);
         intent.setAction(Intent.ACTION_MAIN);
 
-        final PendingIntent pendingIntent = PendingIntent.getActivity(mContext, 0, intent, PendingIntent.FLAG_MUTABLE_UNAUDITED);
+        final PendingIntent pendingIntent = PendingIntent.getActivity(mContext, 0, intent, 0);
         final Notification notification =
                 new Notification.Builder(mContext, NOTIFICATION_CHANNEL_ID)
                         .setSmallIcon(icon)
@@ -357,20 +325,6 @@ public class LegacyNotificationManagerTest {
                         .setGroup(groupKey)
                         .build();
         mNotificationManager.notify(id, notification);
-    }
-
-    private int getCancellationReason(String key) {
-        for (int tries = 3; tries-- > 0; ) {
-            if (mListener.mRemoved.containsKey(key)) {
-                return mListener.mRemoved.get(key);
-            }
-            try {
-                Thread.sleep(1000);
-            } catch (InterruptedException ex) {
-                // pass
-            }
-        }
-        return -1;
     }
 
     private void toggleNotificationPolicyAccess(String packageName,
@@ -430,9 +384,5 @@ public class LegacyNotificationManagerTest {
         } finally {
             uiAutomation.destroy();
         }
-    }
-
-    private boolean isWatch() {
-      return mContext.getPackageManager().hasSystemFeature(PackageManager.FEATURE_WATCH);
     }
 }

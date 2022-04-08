@@ -12,10 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package {
-    default_applicable_licenses: ["Android-Apache-2.0"],
-}
-
 android_test {
     name: "CtsBackgroundRestrictionsTestCases",
     defaults: ["cts_defaults"],
@@ -27,11 +23,11 @@ android_test {
         "ctstestrunner-axt",
         "ub-uiautomator",
     ],
-    libs: ["android.test.runner"],
+    libs: ["android.test.runner.stubs"],
     srcs: ["src/**/*.java"],
     test_suites: [
         "cts",
-        "general-tests",
+        "vts10",
     ],
     sdk_version: "test_current",
 }

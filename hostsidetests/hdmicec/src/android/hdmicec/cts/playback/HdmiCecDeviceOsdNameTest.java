@@ -18,17 +18,16 @@ package android.hdmicec.cts.playback;
 
 import static com.google.common.truth.Truth.assertThat;
 
-import android.hdmicec.cts.BaseHdmiCecCtsTest;
 import android.hdmicec.cts.CecMessage;
 import android.hdmicec.cts.CecOperand;
 import android.hdmicec.cts.HdmiCecClientWrapper;
-import android.hdmicec.cts.HdmiCecConstants;
 import android.hdmicec.cts.LogicalAddress;
 import android.hdmicec.cts.RequiredPropertyRule;
 import android.hdmicec.cts.RequiredFeatureRule;
 
 import com.android.tradefed.device.ITestDevice;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
+import com.android.tradefed.testtype.junit4.BaseHostJUnit4Test;
 
 import org.junit.Rule;
 import org.junit.rules.RuleChain;
@@ -37,20 +36,21 @@ import org.junit.Test;
 
 /** HDMI CEC tests related to the device reporting the device OSD name (Section 11.2.11) */
 @RunWith(DeviceJUnit4ClassRunner.class)
-public final class HdmiCecDeviceOsdNameTest extends BaseHdmiCecCtsTest {
+public final class HdmiCecDeviceOsdNameTest extends BaseHostJUnit4Test {
 
     private static final LogicalAddress PLAYBACK_DEVICE = LogicalAddress.PLAYBACK_1;
 
-    public HdmiCecDeviceOsdNameTest() {
-        super(HdmiCecConstants.CEC_DEVICE_TYPE_PLAYBACK_DEVICE);
-    }
+    public HdmiCecClientWrapper hdmiCecClient = new HdmiCecClientWrapper(LogicalAddress.PLAYBACK_1);
 
     @Rule
     public RuleChain ruleChain =
         RuleChain
-            .outerRule(CecRules.requiresCec(this))
-            .around(CecRules.requiresLeanback(this))
-            .around(CecRules.requiresDeviceType(this, PLAYBACK_DEVICE))
+            .outerRule(new RequiredFeatureRule(this, LogicalAddress.HDMI_CEC_FEATURE))
+            .around(new RequiredFeatureRule(this, LogicalAddress.LEANBACK_FEATURE))
+            .around(RequiredPropertyRule.asCsvContainsValue(
+                this,
+                LogicalAddress.HDMI_DEVICE_TYPE_PROPERTY,
+                LogicalAddress.PLAYBACK_1.getDeviceType()))
             .around(hdmiCecClient);
 
     /**
@@ -99,6 +99,9 @@ public final class HdmiCecDeviceOsdNameTest extends BaseHdmiCecCtsTest {
      */
     @Test
     public void cect_11_2_11_2_UnregisteredDeviceGiveOsdNameTest() throws Exception {
+        hdmiCecClient.sendCecMessage(LogicalAddress.PLAYBACK_1, CecOperand.GIVE_OSD_NAME);
+        hdmiCecClient.checkOutputDoesNotContainMessage(LogicalAddress.PLAYBACK_1,
+                CecOperand.SET_OSD_NAME);
         hdmiCecClient.sendCecMessage(LogicalAddress.BROADCAST, CecOperand.GIVE_OSD_NAME);
         hdmiCecClient.checkOutputDoesNotContainMessage(LogicalAddress.BROADCAST,
                 CecOperand.SET_OSD_NAME);

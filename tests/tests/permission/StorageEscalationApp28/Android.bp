@@ -14,17 +14,13 @@
 // limitations under the License.
 //
 
-package {
-    default_applicable_licenses: ["Android-Apache-2.0"],
-}
-
 android_test_helper_app {
     name: "CtsStorageEscalationApp28",
     certificate: ":cts-testkey2",
     test_suites: [
         "cts",
         "general-tests",
-        "mts",
+	"mts-permission",
         "sts",
     ],
 }

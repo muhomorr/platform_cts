@@ -22,12 +22,4 @@ interface ICtsApi29InCallServiceControl {
     int getLocalCallCount();
 
     int getHistoricalCallCount();
-
-    boolean hasReceivedBindRequest();
-
-    void setShouldReturnNullBinding(boolean shouldReturnNullBinding);
-
-    boolean waitForBindRequest();
-
-    void kill();
 }

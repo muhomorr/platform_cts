@@ -54,10 +54,9 @@ public class SessionReferrerUriTest extends BaseAppSecurityTest {
     @Test
     @AppModeFull(reason = "Only full apps may install")
     public void testSessionReferrerUriVisibleToOwner() throws DeviceNotAvailableException {
-        // Device test launches an Activity, so it should run under current user.
-        Utils.runDeviceTestsAsCurrentUser(getDevice(), SESSION_INSPECTOR_PKG_A,
+        Utils.runDeviceTests(getDevice(), SESSION_INSPECTOR_PKG_A,
                 "com.android.cts.sessioninspector.SessionInspectorTest", "testOnlyOwnerCanSee");
-        Utils.runDeviceTestsAsCurrentUser(getDevice(), SESSION_INSPECTOR_PKG_B,
+        Utils.runDeviceTests(getDevice(), SESSION_INSPECTOR_PKG_B,
                 "com.android.cts.sessioninspector.SessionInspectorTest", "testOnlyOwnerCanSee");
     }
 }

@@ -16,6 +16,7 @@
 
 package com.android.cts.deviceowner;
 
+import static android.app.admin.DevicePolicyManager.PRIVATE_DNS_MODE_OFF;
 import static android.app.admin.DevicePolicyManager.PRIVATE_DNS_MODE_OPPORTUNISTIC;
 import static android.app.admin.DevicePolicyManager.PRIVATE_DNS_MODE_PROVIDER_HOSTNAME;
 
@@ -27,7 +28,7 @@ import static com.google.common.truth.Truth.assertThat;
 import static org.testng.Assert.assertThrows;
 
 public class PrivateDnsPolicyTest extends BaseDeviceOwnerTest {
-    private static final String FAKE_PRIVATE_DNS_HOST = "resolver.example.com";
+    private static final String DUMMY_PRIVATE_DNS_HOST = "resolver.example.com";
     private static final String VALID_PRIVATE_DNS_HOST = "dns.google";
 
     private UserManager mUserManager;
@@ -59,10 +60,11 @@ public class PrivateDnsPolicyTest extends BaseDeviceOwnerTest {
     }
 
     private void setUserRestriction(String restriction, boolean add) {
+        DevicePolicyManager dpm = mContext.getSystemService(DevicePolicyManager.class);
         if (add) {
-            mDevicePolicyManager.addUserRestriction(getWho(), restriction);
+            dpm.addUserRestriction(getWho(), restriction);
         } else {
-            mDevicePolicyManager.clearUserRestriction(getWho(), restriction);
+            dpm.clearUserRestriction(getWho(), restriction);
         }
     }
 
@@ -128,7 +130,7 @@ public class PrivateDnsPolicyTest extends BaseDeviceOwnerTest {
 
         // This host does not resolve, so would output an error.
         callSetGlobalPrivateDnsHostModeExpectingResult(
-                FAKE_PRIVATE_DNS_HOST,
+                DUMMY_PRIVATE_DNS_HOST,
                 DevicePolicyManager.PRIVATE_DNS_SET_ERROR_HOST_NOT_SERVING);
     }
 

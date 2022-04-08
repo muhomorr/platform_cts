@@ -19,8 +19,7 @@
 
     <uses-permission android:name="android.permission.DISABLE_KEYGUARD" />
 
-    <!-- Must be debuggable for compat shell commands to work on user builds -->
-    <application android:debuggable="true">
+    <application>
         <uses-library android:name="android.test.runner" />
     </application>
 

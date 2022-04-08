@@ -16,17 +16,16 @@
  -->
 
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-     package="foo.bar.baz"
-     android:targetSandboxVersion="2">
+          package="foo.bar.baz"
+          android:targetSandboxVersion="2">
 
     <application>
-        <receiver android:name="foo.bar.baz.MyAppWidgetProvider"
-             android:exported="true">
+        <receiver android:name="foo.bar.baz.MyAppWidgetProvider" >
             <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
             <meta-data android:name="android.appwidget.provider"
-                 android:resource="@xml/appwidget_info"/>
+                       android:resource="@xml/appwidget_info" />
         </receiver>
     </application>
 

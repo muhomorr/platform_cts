@@ -15,13 +15,7 @@
  */
 package com.android.cts.launchertests;
 
-import static android.os.Process.myUserHandle;
-
-import static com.google.common.truth.Truth.assertThat;
-import static com.google.common.truth.Truth.assertWithMessage;
-
-import static org.junit.Assert.fail;
-import static org.junit.Assume.assumeFalse;
+import static org.junit.Assert.assertNotEquals;
 
 import android.app.Instrumentation;
 import android.content.BroadcastReceiver;
@@ -45,30 +39,20 @@ import android.os.Message;
 import android.os.Messenger;
 import android.os.UserHandle;
 import android.os.UserManager;
-import android.util.Log;
+import android.test.AndroidTestCase;
 
 import androidx.test.InstrumentationRegistry;
-import androidx.test.runner.AndroidJUnit4;
-
 import com.android.compatibility.common.util.SystemUtil;
-
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 /**
  * Tests for LauncherApps service
  */
-@RunWith(AndroidJUnit4.class)
-public class LauncherAppsTests {
-
-    private static final String TAG = LauncherAppsTests.class.getSimpleName();
+public class LauncherAppsTests extends AndroidTestCase {
 
     public static final String SIMPLE_APP_PACKAGE = "com.android.cts.launcherapps.simpleapp";
     private static final String HAS_LAUNCHER_ACTIVITY_APP_PACKAGE =
@@ -98,8 +82,6 @@ public class LauncherAppsTests {
     public static final int RESULT_FAIL = 2;
     public static final int RESULT_TIMEOUT = 3;
 
-    private Context mContext;
-    private UserManager mUserManager;
     private LauncherApps mLauncherApps;
     private UserHandle mUser;
     private Instrumentation mInstrumentation;
@@ -108,36 +90,33 @@ public class LauncherAppsTests {
     private Result mResult;
     private Messenger mResultMessenger;
 
-    @Before
-    public void setUp() throws Exception {
+    @Override
+    protected void setUp() throws Exception {
+        super.setUp();
         mInstrumentation = InstrumentationRegistry.getInstrumentation();
         Bundle arguments = InstrumentationRegistry.getArguments();
-        mContext = mInstrumentation.getContext();
-        mUserManager = mContext.getSystemService(UserManager.class);
-        mUser = getUserHandleArgument("testUser", arguments);
+        UserManager userManager = (UserManager) mInstrumentation.getContext().getSystemService(
+                Context.USER_SERVICE);
+        mUser = getUserHandleArgument(userManager, "testUser", arguments);
+        mLauncherApps = (LauncherApps) mInstrumentation.getContext().getSystemService(
+                Context.LAUNCHER_APPS_SERVICE);
 
-        Log.d(TAG, "Running as user " + myUserHandle() + " and checking for launcher on "
-                + "user " + mUser);
-        mLauncherApps = mContext.getSystemService(LauncherApps.class);
-
-        Intent intent = new Intent();
+        final Intent intent = new Intent();
         intent.setComponent(new ComponentName("com.android.cts.launchertests.support",
                         "com.android.cts.launchertests.support.LauncherCallbackTestsService"));
 
         mConnection = new Connection();
-        mContext.bindService(intent, mConnection, Context.BIND_AUTO_CREATE);
+        mInstrumentation.getContext().bindService(intent, mConnection, Context.BIND_AUTO_CREATE);
         mConnection.waitForService();
         mResult = new Result(Looper.getMainLooper());
         mResultMessenger = new Messenger(mResult);
     }
 
-    @Test
     public void testGetActivitiesForUserFails() throws Exception {
         expectSecurityException(() -> mLauncherApps.getActivityList(null, mUser),
                 "getActivities for non-profile user failed to throw exception");
     }
 
-    @Test
     public void testSimpleAppInstalledForUser() throws Exception {
         List<LauncherActivityInfo> activities =
                 mLauncherApps.getActivityList(null, mUser);
@@ -147,75 +126,67 @@ public class LauncherAppsTests {
             if (activity.getComponentName().getPackageName().equals(
                     SIMPLE_APP_PACKAGE)) {
                 foundSimpleApp = true;
-                assertThat(activity.getLoadingProgress()).isWithin(1.0e-10f).of(1.0f);
             }
-            assertThat(activity.getUser()).isEqualTo(mUser);
+            assertTrue(activity.getUser().equals(mUser));
         }
-        assertThat(foundSimpleApp).isTrue();
+        assertTrue(foundSimpleApp);
 
         // Also make sure getApplicationInfo works too.
-        ApplicationInfo ai =
+        final ApplicationInfo ai =
                 mLauncherApps.getApplicationInfo(SIMPLE_APP_PACKAGE, /* flags= */ 0, mUser);
-        assertThat(ai.packageName).isEqualTo(SIMPLE_APP_PACKAGE);
-        assertThat(UserHandle.getUserHandleForUid(ai.uid)).isEqualTo(mUser);
+        assertEquals(SIMPLE_APP_PACKAGE, ai.packageName);
+        assertEquals(mUser, UserHandle.getUserHandleForUid(ai.uid));
     }
 
-    @Test
     public void testAccessPrimaryProfileFromManagedProfile() throws Exception {
-        assertThat(mLauncherApps.getActivityList(null, mUser)).isEmpty();
+        assertTrue(mLauncherApps.getActivityList(null, mUser).isEmpty());
 
         expectNameNotFoundException(
                 () -> mLauncherApps.getApplicationInfo(SIMPLE_APP_PACKAGE, /* flags= */ 0, mUser),
                 "get applicationInfo failed to throw name not found exception");
-        assertThat(mLauncherApps.isPackageEnabled(SIMPLE_APP_PACKAGE, mUser)).isFalse();
+        assertFalse(mLauncherApps.isPackageEnabled(SIMPLE_APP_PACKAGE, mUser));
 
-        Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse("http://www.android.com/"));
-        assertThat(mLauncherApps.resolveActivity(intent, mUser)).isNull();
+        final Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse("http://www.android.com/"));
+        assertNull(mLauncherApps.resolveActivity(intent, mUser));
     }
 
-    @Test
     public void testGetProfiles_fromMainProfile() {
-        List<UserHandle> profiles = mLauncherApps.getProfiles();
-        assertThat(profiles).hasSize(2);
-        assertThat(profiles).contains(myUserHandle());
-        assertThat(profiles).containsExactlyElementsIn(mUserManager.getUserProfiles());
+        final List<UserHandle> profiles = mLauncherApps.getProfiles();
+        assertEquals(2, profiles.size());
+        assertTrue(profiles.contains(android.os.Process.myUserHandle()));
+        assertEquals(getContext().getSystemService(UserManager.class).getUserProfiles(),
+                profiles);
     }
 
-    @Test
     public void testGetProfiles_fromManagedProfile() {
         final List<UserHandle> profiles = mLauncherApps.getProfiles();
-        assertThat(profiles).containsExactly(myUserHandle());
+        assertEquals(1, profiles.size());
+        assertEquals(android.os.Process.myUserHandle(), profiles.get(0));
     }
 
-    @Test
     public void testPackageAddedCallbackForUser() throws Throwable {
         int result = sendMessageToCallbacksService(MSG_CHECK_PACKAGE_ADDED,
                 mUser, SIMPLE_APP_PACKAGE);
-        assertThat(result).isEqualTo(RESULT_PASS);
+        assertEquals(RESULT_PASS, result);
     }
 
-    @Test
     public void testPackageRemovedCallbackForUser() throws Throwable {
         int result = sendMessageToCallbacksService(MSG_CHECK_PACKAGE_REMOVED,
                 mUser, SIMPLE_APP_PACKAGE);
-        assertThat(result).isEqualTo(RESULT_PASS);
+        assertEquals(RESULT_PASS, result);
     }
-
-    @Test
     public void testPackageChangedCallbackForUser() throws Throwable {
         int result = sendMessageToCallbacksService(MSG_CHECK_PACKAGE_CHANGED,
                 mUser, SIMPLE_APP_PACKAGE);
-        assertThat(result).isEqualTo(RESULT_PASS);
+        assertEquals(RESULT_PASS, result);
     }
 
-    @Test
     public void testNoPackageAddedCallbackForUser() throws Throwable {
         int result = sendMessageToCallbacksService(MSG_CHECK_NO_PACKAGE_ADDED,
                 mUser, SIMPLE_APP_PACKAGE);
-        assertThat(result).isEqualTo(RESULT_PASS);
+        assertEquals(RESULT_PASS, result);
     }
 
-    @Test
     public void testLaunchNonExportActivityFails() throws Exception {
         expectSecurityException(() -> mLauncherApps.startMainActivity(new ComponentName(
                 SIMPLE_APP_PACKAGE, SIMPLE_APP_PACKAGE + ".NonExportedActivity"),
@@ -223,7 +194,6 @@ public class LauncherAppsTests {
                 "starting non-exported activity failed to throw exception");
     }
 
-    @Test
     public void testLaunchNonExportLauncherFails() throws Exception {
         expectSecurityException(() -> mLauncherApps.startMainActivity(new ComponentName(
                 SIMPLE_APP_PACKAGE, SIMPLE_APP_PACKAGE + ".NonLauncherActivity"),
@@ -231,32 +201,26 @@ public class LauncherAppsTests {
                 "starting non-launcher activity failed to throw exception");
     }
 
-    @Test
     public void testLaunchMainActivity() throws Exception {
         ActivityLaunchedReceiver receiver = new ActivityLaunchedReceiver();
         IntentFilter filter = new IntentFilter();
         filter.addAction(ActivityLaunchedReceiver.ACTIVITY_LAUNCHED_ACTION);
-        mContext.registerReceiver(receiver, filter);
-        ComponentName compName = new ComponentName(SIMPLE_APP_PACKAGE, SIMPLE_APP_PACKAGE
-                + ".SimpleActivity");
-        Log.i(TAG, "Launching " + compName.flattenToShortString() + " on user " + mUser);
-        mLauncherApps.startMainActivity(compName, mUser, null, null);
-        assertWithMessage("Activity %s launched for user %s", compName.flattenToShortString(),
-                mUser).that(receiver.waitForActivity()).isEqualTo(RESULT_PASS);
-        mContext.unregisterReceiver(receiver);
+        mInstrumentation.getContext().registerReceiver(receiver, filter);
+        mLauncherApps.startMainActivity(new ComponentName(
+                SIMPLE_APP_PACKAGE,
+                SIMPLE_APP_PACKAGE + ".SimpleActivity"),
+                mUser, null, null);
+        assertEquals(RESULT_PASS, receiver.waitForActivity());
+        mInstrumentation.getContext().unregisterReceiver(receiver);
     }
 
-    @Test
     public void testReverseAccessNoThrow() throws Exception {
         // Trying to access the main profile from a managed profile -> shouldn't throw but
         // should just return false.
-        assertThat(mLauncherApps.isPackageEnabled("android", mUser)).isFalse();
+        assertFalse(mLauncherApps.isPackageEnabled("android", mUser));
     }
 
-    @Test
     public void testHasLauncherActivityAppHasAppDetailsActivityInjected() throws Exception {
-        assumeNotHeadlessSystemUserMode();
-
         // HasLauncherActivityApp is installed for duration of this test - make sure
         // it's present on the activity list, has the synthetic activity generated, and it's
         // enabled and exported
@@ -264,13 +228,10 @@ public class LauncherAppsTests {
         assertActivityInjected(HAS_LAUNCHER_ACTIVITY_APP_PACKAGE);
     }
 
-    @Test
     public void testGetSetSyntheticAppDetailsActivityEnabled() throws Exception {
-        assumeNotHeadlessSystemUserMode();
-
         disableLauncherActivity();
         assertActivityInjected(HAS_LAUNCHER_ACTIVITY_APP_PACKAGE);
-        PackageManager pm = mContext.getPackageManager();
+        PackageManager pm = mInstrumentation.getContext().getPackageManager();
         try {
             pm.setSyntheticAppDetailsActivityEnabled(mContext.getPackageName(), false);
             fail("Should not able to change current app's app details activity state");
@@ -285,17 +246,17 @@ public class LauncherAppsTests {
         }
         mInstrumentation.getUiAutomation().adoptShellPermissionIdentity();
         try {
-            assertThat(pm.getSyntheticAppDetailsActivityEnabled(HAS_LAUNCHER_ACTIVITY_APP_PACKAGE))
-                    .isTrue();
+            assertTrue(
+                    pm.getSyntheticAppDetailsActivityEnabled(HAS_LAUNCHER_ACTIVITY_APP_PACKAGE));
             // Disable app details activity and assert if the change is applied
             pm.setSyntheticAppDetailsActivityEnabled(HAS_LAUNCHER_ACTIVITY_APP_PACKAGE, false);
-            assertThat(pm.getSyntheticAppDetailsActivityEnabled(HAS_LAUNCHER_ACTIVITY_APP_PACKAGE))
-                    .isFalse();
+            assertFalse(
+                    pm.getSyntheticAppDetailsActivityEnabled(HAS_LAUNCHER_ACTIVITY_APP_PACKAGE));
             assertInjectedActivityNotFound(HAS_LAUNCHER_ACTIVITY_APP_PACKAGE);
             // Enable app details activity and assert if the change is applied
             pm.setSyntheticAppDetailsActivityEnabled(HAS_LAUNCHER_ACTIVITY_APP_PACKAGE, true);
-            assertThat(pm.getSyntheticAppDetailsActivityEnabled(HAS_LAUNCHER_ACTIVITY_APP_PACKAGE))
-                    .isTrue();
+            assertTrue(
+                    pm.getSyntheticAppDetailsActivityEnabled(HAS_LAUNCHER_ACTIVITY_APP_PACKAGE));
             assertActivityInjected(HAS_LAUNCHER_ACTIVITY_APP_PACKAGE);
         } finally {
             mInstrumentation.getUiAutomation().dropShellPermissionIdentity();
@@ -303,26 +264,22 @@ public class LauncherAppsTests {
     }
 
 
-    @Test
     public void testProfileOwnerLauncherActivityInjected() throws Exception {
         assertActivityInjected(MANAGED_PROFILE_PKG);
     }
 
-    @Test
     public void testNoLauncherActivityAppNotInjected() throws Exception {
         // NoLauncherActivityApp is installed for duration of this test - make sure
         // it's NOT present on the activity list
         assertInjectedActivityNotFound(NO_LAUNCHER_ACTIVITY_APP_PACKAGE);
     }
 
-    @Test
     public void testNoPermissionAppNotInjected() throws Exception {
         // NoPermissionApp is installed for duration of this test - make sure
         // it's NOT present on the activity list
         assertInjectedActivityNotFound(NO_PERMISSION_APP_PACKAGE);
     }
 
-    @Test
     public void testDoPoNoTestAppInjectedActivityFound() throws Exception {
         // HasLauncherActivityApp is installed for duration of this test - make sure
         // it's NOT present on the activity list For example, DO / PO mode won't show icons.
@@ -331,16 +288,12 @@ public class LauncherAppsTests {
         assertInjectedActivityNotFound(HAS_LAUNCHER_ACTIVITY_APP_PACKAGE);
     }
 
-    @Test
     public void testProfileOwnerInjectedActivityNotFound() throws Exception {
         assertInjectedActivityNotFound(MANAGED_PROFILE_PKG);
     }
 
-    @Test
     public void testNoSystemAppHasSyntheticAppDetailsActivityInjected() throws Exception {
-        Log.d(TAG, "testNoSystemAppHasSyntheticAppDetailsActivityInjected() for user " + mUser);
         List<LauncherActivityInfo> activities = mLauncherApps.getActivityList(null, mUser);
-        logActivities(activities);
         for (LauncherActivityInfo activity : activities) {
             if (!activity.getUser().equals(mUser)) {
                 continue;
@@ -350,18 +303,18 @@ public class LauncherAppsTests {
                     || ((appInfo.flags & ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0);
             if (isSystemApp) {
                 // make sure we haven't generated a synthetic app details activity for it
-                assertWithMessage("Found a system app that had a synthetic activity generated,"
-                        + " package name: %s; activity name: %s",
-                        activity.getComponentName().getPackageName(), activity.getName())
-                                .that(activity.getName())
-                                .isNotEqualTo(SYNTHETIC_APP_DETAILS_ACTIVITY);
+                assertNotEquals("Found a system app that had a synthetic activity generated,"
+                        + " package name: " + activity.getComponentName().getPackageName()
+                        + "; activity name: " + activity.getName(),
+                        activity.getName(),
+                        SYNTHETIC_APP_DETAILS_ACTIVITY);
             }
         }
     }
 
     private void disableLauncherActivity() throws IOException {
-        runShellCommand("pm disable --user %d %s", mUser.getIdentifier(),
-                LAUNCHER_ACTIVITY_COMPONENT);
+        SystemUtil.runShellCommand(mInstrumentation,
+                "pm disable --user " + mUser.getIdentifier() + " " + LAUNCHER_ACTIVITY_COMPONENT);
     }
 
     private void expectSecurityException(ExceptionRunnable action, String failMessage)
@@ -385,38 +338,29 @@ public class LauncherAppsTests {
     }
 
     private void assertActivityInjected(String targetPackage) {
-        Log.d(TAG, "Getting activities for package " + targetPackage + " on user " + mUser);
         List<LauncherActivityInfo> activities = mLauncherApps.getActivityList(null, mUser);
-        logActivities(activities);
-
         boolean noLaunchableActivityAppFound = false;
         for (LauncherActivityInfo activity : activities) {
-            UserHandle user = activity.getUser();
-            if (!user.equals(mUser)) {
-                Log.w(TAG, "Skipping activity " + toString(activity) + " from user " + user);
+            if (!activity.getUser().equals(mUser)) {
                 continue;
             }
             ComponentName compName = activity.getComponentName();
             if (compName.getPackageName().equals(targetPackage)) {
                 noLaunchableActivityAppFound = true;
                 // make sure it points to the synthetic app details activity
-                assertWithMessage("name of synthetic app").that(activity.getName())
-                        .isEqualTo(SYNTHETIC_APP_DETAILS_ACTIVITY);
+                assertEquals(SYNTHETIC_APP_DETAILS_ACTIVITY, activity.getName());
                 // make sure it's both exported and enabled
                 try {
-                    PackageManager pm = mContext.getPackageManager();
-                    ActivityInfo ai = pm.getActivityInfo(compName, /* flags= */ 0);
-                    assertWithMessage("component %s enabled", compName.flattenToShortString())
-                            .that(ai.enabled).isTrue();
-                    assertWithMessage("component %s exported", compName.flattenToShortString())
-                            .that(ai.exported).isTrue();
+                    PackageManager pm = mInstrumentation.getContext().getPackageManager();
+                    ActivityInfo ai = pm.getActivityInfo(compName, /*flags=*/ 0);
+                    assertTrue("Component " + compName + " is not enabled", ai.enabled);
+                    assertTrue("Component " + compName + " is not exported", ai.exported);
                 } catch (NameNotFoundException e) {
-                    fail("Package " + compName.getPackageName() + " not found: " + e);
+                    fail("Package " + compName.getPackageName() + " not found.");
                 }
             }
         }
-        assertWithMessage("user %s has no launchable activity for app %s", mUser, targetPackage)
-                .that(noLaunchableActivityAppFound).isTrue();
+        assertTrue(noLaunchableActivityAppFound);
     }
 
     @FunctionalInterface
@@ -424,16 +368,17 @@ public class LauncherAppsTests {
         void run() throws Exception;
     }
 
-    private UserHandle getUserHandleArgument(String key, Bundle arguments) throws Exception {
+    private UserHandle getUserHandleArgument(UserManager userManager, String key,
+            Bundle arguments) throws Exception {
         String serial = arguments.getString(key);
         if (serial == null) {
             return null;
         }
         int serialNo = Integer.parseInt(serial);
-        return mUserManager.getUserForSerialNumber(serialNo);
+        return userManager.getUserForSerialNumber(serialNo);
     }
 
-    private final class Connection implements ServiceConnection {
+    private class Connection implements ServiceConnection {
         private final Semaphore mSemaphore = new Semaphore(0);
 
         @Override
@@ -458,7 +403,7 @@ public class LauncherAppsTests {
         }
     };
 
-    private static final class Result extends Handler {
+    private static class Result extends Handler {
 
         private final Semaphore mSemaphore = new Semaphore(0);
         public int result = 0;
@@ -488,7 +433,7 @@ public class LauncherAppsTests {
         }
     }
 
-    public final class ActivityLaunchedReceiver extends BroadcastReceiver {
+    public class ActivityLaunchedReceiver extends BroadcastReceiver {
         public static final String ACTIVITY_LAUNCHED_ACTION =
                 "com.android.cts.launchertests.LauncherAppsTests.LAUNCHED_ACTION";
 
@@ -527,9 +472,7 @@ public class LauncherAppsTests {
     }
 
     private void assertInjectedActivityNotFound(String targetPackage) {
-        Log.d(TAG, "Searching for package " + targetPackage + " on user " + mUser);
         List<LauncherActivityInfo> activities = mLauncherApps.getActivityList(null, mUser);
-        logActivities(activities);
         for (LauncherActivityInfo activity : activities) {
             if (!activity.getUser().equals(mUser)) {
                 continue;
@@ -539,29 +482,5 @@ public class LauncherAppsTests {
                 fail("Injected activity found: " + compName.flattenToString());
             }
         }
-    }
-
-    private void logActivities(List<LauncherActivityInfo> activities) {
-        Log.d(TAG, "Got " + activities.size() + " activities: " + activities.stream()
-                .map((info) -> toString(info))
-                .collect(Collectors.toList()));
-    }
-
-    private void runShellCommand(String format, Object...args) throws IOException {
-        String command = String.format(format, args);
-        Log.i(TAG, "Running command: " + command);
-        String output = SystemUtil.runShellCommand(mInstrumentation, command);
-        Log.d(TAG, "Output: " + output);
-    }
-
-    private String toString(LauncherActivityInfo info) {
-        return info == null ? null : info.getComponentName().flattenToShortString();
-    }
-
-    private void assumeNotHeadlessSystemUserMode() {
-        // On headless system user mode, the current user is a profile owner, and hence
-        // the synthetic activity is not listed by LauncherApps.getActivityList()
-        assumeFalse("test skipped on headless system user mode",
-                UserManager.isHeadlessSystemUserMode());
     }
 }

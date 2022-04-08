@@ -12,10 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package {
-    default_applicable_licenses: ["Android-Apache-2.0"],
-}
-
 android_test_helper_app {
     name: "CtsPreservedSettingsApp",
     defaults: ["cts_defaults"],
@@ -29,7 +25,7 @@ android_test_helper_app {
     // tag this module as a cts test artifact
     test_suites: [
         "cts",
-        "general-tests",
+        "vts10",
     ],
     // Uncomment when b/78787392 is fixed
     // sdk_version: "system_test_current",

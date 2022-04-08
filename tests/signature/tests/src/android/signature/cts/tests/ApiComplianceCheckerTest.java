@@ -18,7 +18,6 @@ package android.signature.cts.tests;
 
 import static org.junit.Assert.assertEquals;
 
-import android.signature.cts.AnnotationChecker;
 import android.signature.cts.ApiComplianceChecker;
 import android.signature.cts.ClassProvider;
 import android.signature.cts.FailureType;
@@ -29,8 +28,8 @@ import android.signature.cts.tests.data.ExtendedNormalInterface;
 import android.signature.cts.tests.data.NormalClass;
 import android.signature.cts.tests.data.NormalInterface;
 import java.lang.reflect.Modifier;
-import java.util.function.Consumer;
 
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runners.JUnit4;
 import org.junit.runner.RunWith;
@@ -39,24 +38,12 @@ import org.junit.runner.RunWith;
  * Test class for JDiffClassDescription.
  */
 @RunWith(JUnit4.class)
-public class ApiComplianceCheckerTest extends ApiPresenceCheckerTest<ApiComplianceChecker> {
+public class ApiComplianceCheckerTest extends AbstractApiCheckerTest<ApiComplianceChecker> {
 
     @Override
     protected ApiComplianceChecker createChecker(ResultObserver resultObserver,
             ClassProvider provider) {
         return new ApiComplianceChecker(resultObserver, provider);
-    }
-
-    @Override
-    void runWithApiChecker(
-            ResultObserver resultObserver, Consumer<ApiComplianceChecker> consumer, String... excludedRuntimeClasses) {
-        super.runWithApiChecker(
-                resultObserver,
-                checker -> {
-                    consumer.accept(checker);
-                    checker.checkDeferred();
-                },
-                excludedRuntimeClasses);
     }
 
     @Test

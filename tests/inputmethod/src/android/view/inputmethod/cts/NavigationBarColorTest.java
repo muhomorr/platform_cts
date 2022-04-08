@@ -177,7 +177,7 @@ public class NavigationBarColorTest extends EndToEndImeTestBase {
             case DIMMING_DIALOG_ABOVE_IME: {
                 final AlertDialog alertDialog = getOnMainSync(() -> {
                     final TextView textView = new TextView(activity);
-                    textView.setText("Sample Text");
+                    textView.setText("Dummy");
                     textView.requestFocus();
                     final AlertDialog dialog = new AlertDialog.Builder(activity)
                             .setView(textView)

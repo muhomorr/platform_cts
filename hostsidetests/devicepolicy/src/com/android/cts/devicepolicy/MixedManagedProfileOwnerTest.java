@@ -16,36 +16,24 @@
 
 package com.android.cts.devicepolicy;
 
-import static com.android.cts.devicepolicy.DeviceAdminFeaturesCheckerRule.FEATURE_MANAGED_USERS;
-
 import android.platform.test.annotations.FlakyTest;
 import android.platform.test.annotations.LargeTest;
-import android.stats.devicepolicy.EventId;
 
-import com.android.cts.devicepolicy.DeviceAdminFeaturesCheckerRule.RequiresAdditionalFeatures;
 import com.android.cts.devicepolicy.annotations.LockSettingsTest;
 import com.android.cts.devicepolicy.annotations.PermissionsTest;
-import com.android.cts.devicepolicy.metrics.DevicePolicyEventLogVerifier;
-import com.android.cts.devicepolicy.metrics.DevicePolicyEventWrapper;
 import com.android.tradefed.device.DeviceNotAvailableException;
 
 import org.junit.Test;
-
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * Set of tests for managed profile owner use cases that also apply to device owners.
  * Tests that should be run identically in both cases are added in DeviceAndProfileOwnerTest.
  */
-// We need managed users to be supported in order to create a profile of the user owner.
-@RequiresAdditionalFeatures({FEATURE_MANAGED_USERS})
 public class MixedManagedProfileOwnerTest extends DeviceAndProfileOwnerTest {
 
     private static final String CLEAR_PROFILE_OWNER_NEGATIVE_TEST_CLASS =
             DEVICE_ADMIN_PKG + ".ClearProfileOwnerNegativeTest";
-
-    private static final String DELEGATION_NETWORK_LOGGING = "delegation-network-logging";
+    private static final String FEATURE_WIFI = "android.hardware.wifi";
 
     private int mParentUserId = -1;
 
@@ -53,9 +41,14 @@ public class MixedManagedProfileOwnerTest extends DeviceAndProfileOwnerTest {
     public void setUp() throws Exception {
         super.setUp();
 
-        removeTestUsers();
-        mParentUserId = mPrimaryUserId;
-        createManagedProfile();
+        // We need managed users to be supported in order to create a profile of the user owner.
+        mHasFeature &= hasDeviceFeature("android.software.managed_users");
+
+        if (mHasFeature) {
+            removeTestUsers();
+            mParentUserId = mPrimaryUserId;
+            createManagedProfile();
+        }
     }
 
     private void createManagedProfile() throws Exception {
@@ -70,8 +63,9 @@ public class MixedManagedProfileOwnerTest extends DeviceAndProfileOwnerTest {
 
     @Override
     public void tearDown() throws Exception {
-        removeUser(mUserId);
-
+        if (mHasFeature) {
+            removeUser(mUserId);
+        }
         super.tearDown();
     }
 
@@ -84,6 +78,9 @@ public class MixedManagedProfileOwnerTest extends DeviceAndProfileOwnerTest {
     @LargeTest
     @Test
     public void testScreenCaptureDisabled_allowedPrimaryUser() throws Exception {
+        if (!mHasFeature) {
+            return;
+        }
         // disable screen capture in profile
         setScreenCaptureDisabled(mUserId, true);
 
@@ -96,6 +93,9 @@ public class MixedManagedProfileOwnerTest extends DeviceAndProfileOwnerTest {
     @FlakyTest
     @Test
     public void testScreenCaptureDisabled_assist_allowedPrimaryUser() throws Exception {
+        if (!mHasFeature) {
+            return;
+        }
         // disable screen capture in profile
         executeDeviceTestMethod(".ScreenCaptureDisabledTest", "testSetScreenCaptureDisabled_true");
         try {
@@ -135,27 +135,6 @@ public class MixedManagedProfileOwnerTest extends DeviceAndProfileOwnerTest {
     public void testAudioRestriction() throws Exception {
         // DISALLOW_UNMUTE_MICROPHONE and DISALLOW_ADJUST_VOLUME can only be set by device owners
         // and profile owners on the primary user.
-    }
-
-    @Test
-    public void testSetGetPreferentialNetworkServiceStatus() throws Exception {
-        executeDeviceTestMethod(".PreferentialNetworkServiceStatusTest",
-                "testGetSetPreferentialNetworkServiceStatus");
-    }
-
-    @Test
-    public void testSetPreferentialNetworkServiceStatusLogged() throws Exception {
-        DevicePolicyEventLogVerifier.assertMetricsLogged(getDevice(), () -> {
-            executeDeviceTestMethod(".DevicePolicyLoggingTest",
-                    "testSetPreferentialNetworkServiceEnabledLogged");
-        }, new DevicePolicyEventWrapper.Builder(
-                EventId.SET_PREFERENTIAL_NETWORK_SERVICE_ENABLED_VALUE)
-                .setBoolean(true)
-                .build(),
-        new DevicePolicyEventWrapper.Builder(
-                EventId.SET_PREFERENTIAL_NETWORK_SERVICE_ENABLED_VALUE)
-                .setBoolean(false)
-                .build());
     }
 
     /** VPN tests don't require physical device for managed profile, thus overriding. */
@@ -206,18 +185,19 @@ public class MixedManagedProfileOwnerTest extends DeviceAndProfileOwnerTest {
     @LockSettingsTest
     @Test
     public void testResetPasswordWithToken() throws Exception {
-        assumeHasSecureLockScreenFeature();
-
+        if (!mHasFeature || !mHasSecureLockScreen) {
+            return;
+        }
         // Execute the test method that's guaranteed to succeed. See also test in base class
         // which are tolerant to failure and executed by MixedDeviceOwnerTest and
         // MixedProfileOwnerTest
-        executeResetPasswordWithTokenTests(/* allowFailures */ false);
+        executeResetPasswordWithTokenTests(false);
     }
 
     @Override
     @Test
     public void testSetSystemSetting() {
-        // Managed profile owner cannot set currently allowlisted system settings.
+        // Managed profile owner cannot set currently whitelisted system settings.
     }
 
     @Override
@@ -242,6 +222,9 @@ public class MixedManagedProfileOwnerTest extends DeviceAndProfileOwnerTest {
 
     @Test
     public void testCannotClearProfileOwner() throws Exception {
+        if (!mHasFeature) {
+            return;
+        }
         runDeviceTestsAsUser(DEVICE_ADMIN_PKG, CLEAR_PROFILE_OWNER_NEGATIVE_TEST_CLASS, mUserId);
     }
 
@@ -254,6 +237,9 @@ public class MixedManagedProfileOwnerTest extends DeviceAndProfileOwnerTest {
 
     @Test
     public void testDelegatedCertInstallerDeviceIdAttestation() throws Exception {
+        if (!mHasFeature) {
+            return;
+        }
         setUpDelegatedCertInstallerAndRunTests(() -> {
             runDeviceTestsAsUser("com.android.cts.certinstaller",
                     ".DelegatedDeviceIdAttestationTest",
@@ -262,9 +248,11 @@ public class MixedManagedProfileOwnerTest extends DeviceAndProfileOwnerTest {
             // OrgOwnedProfileOwnerTest#testDelegatedCertInstallerDeviceIdAttestation
         });
     }
-
     @Test
     public void testDeviceIdAttestationForProfileOwner() throws Exception {
+        if (!mHasFeature) {
+            return;
+        }
         // Test that Device ID attestation for the profile owner does not work without grant.
         runDeviceTestsAsUser(DEVICE_ADMIN_PKG, ".DeviceIdAttestationTest",
                 "testFailsWithoutProfileOwnerIdsGrant", mUserId);
@@ -275,6 +263,9 @@ public class MixedManagedProfileOwnerTest extends DeviceAndProfileOwnerTest {
     @Test
     @Override
     public void testSetKeyguardDisabledFeatures() throws Exception {
+        if (!mHasFeature) {
+            return;
+        }
         runDeviceTestsAsUser(DEVICE_ADMIN_PKG, ".KeyguardDisabledFeaturesTest",
                 "testSetKeyguardDisabledFeatures_onParentSilentIgnoreWhenCallerIsNotOrgOwnedPO",
                 mUserId);
@@ -308,6 +299,7 @@ public class MixedManagedProfileOwnerTest extends DeviceAndProfileOwnerTest {
     }
 
     @Override
+    @FlakyTest
     @PermissionsTest
     @Test
     public void testPermissionGrant() throws Exception {
@@ -315,6 +307,7 @@ public class MixedManagedProfileOwnerTest extends DeviceAndProfileOwnerTest {
     }
 
     @Override
+    @FlakyTest
     @PermissionsTest
     @Test
     public void testPermissionMixedPolicies() throws Exception {
@@ -330,6 +323,7 @@ public class MixedManagedProfileOwnerTest extends DeviceAndProfileOwnerTest {
 
     @Override
     @PermissionsTest
+    @FlakyTest(bugId = 145350538)
     @Test
     public void testPermissionPolicy() throws Exception {
         super.testPermissionPolicy();
@@ -344,6 +338,7 @@ public class MixedManagedProfileOwnerTest extends DeviceAndProfileOwnerTest {
 
     @Override
     @PermissionsTest
+    @FlakyTest(bugId = 145350538)
     @Test
     public void testPermissionAppUpdate() throws Exception {
         super.testPermissionAppUpdate();
@@ -351,6 +346,7 @@ public class MixedManagedProfileOwnerTest extends DeviceAndProfileOwnerTest {
 
     @Override
     @PermissionsTest
+    @FlakyTest(bugId = 145350538)
     @Test
     public void testPermissionGrantPreMApp() throws Exception {
         super.testPermissionGrantPreMApp();
@@ -358,81 +354,68 @@ public class MixedManagedProfileOwnerTest extends DeviceAndProfileOwnerTest {
 
     @Override
     @PermissionsTest
+    @FlakyTest(bugId = 145350538)
     @Test
     public void testPermissionGrantOfDisallowedPermissionWhileOtherPermIsGranted()
             throws Exception {
         super.testPermissionGrantOfDisallowedPermissionWhileOtherPermIsGranted();
     }
 
+    @Override
+    @Test
+    public void testLockTask() {
+        // Managed profiles are not allowed to use lock task
+    }
+
+    @Override
+    @Test
+    public void testLockTaskAfterReboot() {
+        // Managed profiles are not allowed to use lock task
+    }
+
+    @Override
+    @Test
+    public void testLockTaskAfterReboot_tryOpeningSettings() {
+        // Managed profiles are not allowed to use lock task
+    }
+
+    @Override
+    @Test
+    public void testLockTask_defaultDialer() {
+        // Managed profiles are not allowed to use lock task
+    }
+
+    @Override
+    @Test
+    public void testLockTask_emergencyDialer() {
+        // Managed profiles are not allowed to use lock task
+    }
+
+    @Override
+    @Test
+    public void testLockTask_exitIfNoLongerWhitelisted() {
+        // Managed profiles are not allowed to use lock task
+    }
+
     @Test
     public void testWifiMacAddress() throws Exception {
-        assumeHasWifiFeature();
+        if (!mHasFeature || !hasDeviceFeature(FEATURE_WIFI)) {
+            return;
+        }
 
         runDeviceTestsAsUser(
                 DEVICE_ADMIN_PKG, ".WifiTest", "testCannotGetWifiMacAddress", mUserId);
     }
 
-    @Override
-    @LockSettingsTest
+    //TODO(b/130844684): Remove when removing profile owner on personal device access to device
+    // identifiers.
     @Test
-    public void testSecondaryLockscreen() throws Exception {
-        // Managed profiles cannot have secondary lockscreens set.
-    }
-
-    @Test
-    public void testNetworkLogging() throws Exception {
-        installAppAsUser(DEVICE_ADMIN_APK, mPrimaryUserId);
-        testNetworkLoggingOnWorkProfile(DEVICE_ADMIN_PKG, ".NetworkLoggingTest");
-    }
-
-    @Test
-    public void testNetworkLoggingDelegate() throws Exception {
-        installAppAsUser(DELEGATE_APP_APK, mUserId);
-        installAppAsUser(DEVICE_ADMIN_APK, mPrimaryUserId);
-        try {
-            runDeviceTestsAsUser(DELEGATE_APP_PKG, ".WorkProfileNetworkLoggingDelegateTest",
-                    "testCannotAccessApis", mUserId);
-            // Set network logging delegate
-            runDeviceTestsAsUser(DEVICE_ADMIN_PKG, ".NetworkLoggingTest",
-                    "testSetDelegateScope_delegationNetworkLogging", mUserId);
-
-            testNetworkLoggingOnWorkProfile(DELEGATE_APP_PKG,
-                    ".WorkProfileNetworkLoggingDelegateTest");
-        } finally {
-            // Remove network logging delegate
-            runDeviceTestsAsUser(DEVICE_ADMIN_PKG, ".NetworkLoggingTest",
-                    "testSetDelegateScope_noDelegation", mUserId);
+    public void testProfileOwnerCanGetDeviceIdentifiers() throws Exception {
+        if (!mHasFeature) {
+            return;
         }
-    }
 
-    private void testNetworkLoggingOnWorkProfile(String packageName, String testClassName)
-            throws Exception {
-        try {
-            // Turn network logging on.
-            runDeviceTestsAsUser(packageName, testClassName,
-                    "testSetNetworkLogsEnabled_true", mUserId);
-
-            // Connect to websites from work profile, should be logged.
-            runDeviceTestsAsUser(packageName, testClassName,
-                    "testConnectToWebsites_shouldBeLogged", mUserId);
-            // Connect to websites from personal profile, should not be logged.
-            runDeviceTestsAsUser(DEVICE_ADMIN_PKG, ".NetworkLoggingTest",
-                    "testConnectToWebsites_shouldNotBeLogged", mPrimaryUserId);
-
-            // Verify all work profile network logs have been received.
-            runDeviceTestsAsUser(packageName, testClassName,
-                    "testRetrieveNetworkLogs_forceNetworkLogs_receiveNetworkLogs", mUserId);
-        } finally {
-            // Turn network logging off.
-            runDeviceTestsAsUser(packageName, testClassName,
-                    "testSetNetworkLogsEnabled_false", mUserId);
-        }
-    }
-
-    @Override
-    List<String> getAdditionalDelegationScopes() {
-        final List<String> result = new ArrayList<>();
-        result.add(DELEGATION_NETWORK_LOGGING);
-        return result;
+        runDeviceTestsAsUser(DEVICE_ADMIN_PKG, ".DeviceIdentifiersTest",
+                "testProfileOwnerCanGetDeviceIdentifiersWithPermission", mUserId);
     }
 }

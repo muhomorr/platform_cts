@@ -16,8 +16,9 @@
 package android.media.cts;
 
 import android.app.ActivityManager;
-import android.content.ContentResolver;
 import android.content.res.AssetFileDescriptor;
+import android.media.cts.R;
+
 
 import android.app.Activity;
 import android.app.Instrumentation;
@@ -42,14 +43,13 @@ public class RingtoneManagerTest
 
     private static final String PKG = "android.media.cts";
     private static final String TAG = "RingtoneManagerTest";
-    static final String mInpPrefix = WorkDir.getMediaDirString();
 
     private RingtonePickerActivity mActivity;
     private Instrumentation mInstrumentation;
     private Context mContext;
     private RingtoneManager mRingtoneManager;
     private AudioManager mAudioManager;
-    private int mOriginalRingerMode;
+    private int mOriginalVolume;
     private Uri mDefaultUri;
 
     public RingtoneManagerTest() {
@@ -66,15 +66,17 @@ public class RingtoneManagerTest
         mRingtoneManager = new RingtoneManager(mActivity);
         mAudioManager = (AudioManager) mContext.getSystemService(Context.AUDIO_SERVICE);
         // backup ringer settings
+        mOriginalVolume = mAudioManager.getStreamVolume(AudioManager.STREAM_RING);
         mDefaultUri = RingtoneManager.getActualDefaultRingtoneUri(mContext,
                 RingtoneManager.TYPE_RINGTONE);
 
-        mOriginalRingerMode = mAudioManager.getRingerMode();
-        if (mAudioManager.getRingerMode() != AudioManager.RINGER_MODE_NORMAL) {
+        if (mAudioManager.getRingerMode() == AudioManager.RINGER_MODE_SILENT) {
             try {
                 Utils.toggleNotificationPolicyAccess(
                         mContext.getPackageName(), getInstrumentation(), true);
-                mAudioManager.setRingerMode(AudioManager.RINGER_MODE_NORMAL);
+                mAudioManager.adjustStreamVolume(AudioManager.STREAM_RING,
+                        AudioManager.ADJUST_RAISE,
+                        AudioManager.FLAG_ALLOW_RINGER_MODES);
             } finally {
                 Utils.toggleNotificationPolicyAccess(
                         mContext.getPackageName(), getInstrumentation(), false);
@@ -89,7 +91,8 @@ public class RingtoneManagerTest
                     mContext.getPackageName(), getInstrumentation(), true);
             // restore original ringer settings
             if (mAudioManager != null) {
-                mAudioManager.setRingerMode(mOriginalRingerMode);
+                mAudioManager.setStreamVolume(AudioManager.STREAM_RING, mOriginalVolume,
+                        AudioManager.FLAG_ALLOW_RINGER_MODES);
             }
         } finally {
             Utils.toggleNotificationPolicyAccess(
@@ -180,10 +183,9 @@ public class RingtoneManagerTest
         Cursor c = mRingtoneManager.getCursor();
         assertTrue("Must have at least one ring tone available", c.getCount() > 0);
 
-        Preconditions.assertTestFileExists(mInpPrefix + "john_cage.ogg");
         mRingtoneManager.setStopPreviousRingtone(true);
         assertTrue(mRingtoneManager.getStopPreviousRingtone());
-        Uri uri = Uri.parse(mInpPrefix + "john_cage.ogg");
+        Uri uri = Uri.parse("android.resource://" + PKG + "/" + R.raw.john_cage);
         Ringtone ringtone = RingtoneManager.getRingtone(mContext, uri);
         ringtone.play();
         assertTrue(ringtone.isPlaying());
@@ -206,18 +208,5 @@ public class RingtoneManagerTest
         assertTrue(c.getString(RingtoneManager.TITLE_COLUMN_INDEX) != null);
         assertTrue(c.getString(RingtoneManager.URI_COLUMN_INDEX),
                 c.getString(RingtoneManager.URI_COLUMN_INDEX).startsWith("content://"));
-    }
-
-    public void testHasHapticChannels() {
-        if (!isSupportedDevice()) return;
-
-        Cursor c = mRingtoneManager.getCursor();
-        assertTrue("Must have at lease one ringtone available", c.getCount() > 0);
-        mRingtoneManager.hasHapticChannels(0);
-
-        final String uriPrefix = ContentResolver.SCHEME_ANDROID_RESOURCE + "://" +
-                mContext.getPackageName() + "/raw/";
-        assertTrue(RingtoneManager.hasHapticChannels(Uri.parse(uriPrefix + "a_4_haptic")));
-        assertFalse(RingtoneManager.hasHapticChannels(Uri.parse(uriPrefix + "a_4")));
     }
 }

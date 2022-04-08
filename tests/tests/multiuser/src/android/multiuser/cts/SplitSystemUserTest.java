@@ -16,13 +16,8 @@
 
 package android.multiuser.cts;
 
-import static android.multiuser.cts.TestingUtils.getBooleanProperty;
-
 import com.android.compatibility.common.util.SystemUtil;
 
-import java.io.IOException;
-
-import android.app.Instrumentation;
 import android.os.UserManager;
 import android.test.InstrumentationTestCase;
 
@@ -30,11 +25,18 @@ public class SplitSystemUserTest extends InstrumentationTestCase {
 
     public void testSplitSystemUserIsDisabled() throws Exception {
         // Check that ro.fw.system_user_split property is not set.
-        boolean splitEnabled = getBooleanProperty(getInstrumentation(),
-            "ro.fw.system_user_split");
+        String splitEnabledStr = trim(SystemUtil.runShellCommand(getInstrumentation(),
+                "getprop ro.fw.system_user_split"));
+        boolean splitEnabled = "y".equals(splitEnabledStr) || "yes".equals(splitEnabledStr)
+                || "1".equals(splitEnabledStr) || "true".equals(splitEnabledStr)
+                || "on".equals(splitEnabledStr);
         assertFalse("ro.fw.system_user_split must not be enabled", splitEnabled);
 
         // Check UserManager.isSplitSystemUser returns false as well.
         assertFalse("UserManager.isSplitSystemUser must be false", UserManager.isSplitSystemUser());
+    }
+
+    private static String trim(String s) {
+        return s == null ? null : s.trim();
     }
 }

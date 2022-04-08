@@ -39,6 +39,7 @@ import com.android.cts.verifier.R;
 import com.android.cts.verifier.TestListActivity;
 import com.android.cts.verifier.TestListAdapter.TestListItem;
 import com.android.cts.verifier.TestResult;
+import com.android.cts.verifier.location.LocationListenerActivity;
 
 /**
  * CTS verifier test for BYOD managed provisioning flow
@@ -110,10 +111,10 @@ public class ByodFlowTestActivity extends DialogTestListActivity {
     private TestListItem mKeyguardDisabledFeaturesTest;
     private DialogTestListItem mDisableNfcBeamTest;
     private TestListItem mAuthenticationBoundKeyTest;
-    private TestListItem mEnableLocationModeTest;
-    private TestListItem mDisableLocationModeThroughMainSwitchTest;
-    private TestListItem mDisableLocationModeThroughWorkSwitchTest;
-    private TestListItem mPrimaryLocationWhenWorkDisabledTest;
+    private DialogTestListItem mEnableLocationModeTest;
+    private DialogTestListItem mDisableLocationModeThroughMainSwitchTest;
+    private DialogTestListItem mDisableLocationModeThroughWorkSwitchTest;
+    private DialogTestListItem mPrimaryLocationWhenWorkDisabledTest;
     private DialogTestListItem mSelectWorkChallenge;
     private DialogTestListItem mConfirmWorkCredentials;
     private DialogTestListItem mPatternWorkChallenge;
@@ -679,26 +680,26 @@ public class ByodFlowTestActivity extends DialogTestListActivity {
         }
 
         if (getPackageManager().hasSystemFeature(PackageManager.FEATURE_LOCATION_GPS)) {
-            mEnableLocationModeTest = TestListItem.newTest(this,
+            mEnableLocationModeTest = new DialogTestListItem(this,
                     R.string.provisioning_byod_location_mode_enable,
-                    LocationTestActivity.TEST_ID_LOCATION_ENABLED,
-                    new Intent(LocationTestActivity.ACTION_TEST_LOCATION_ENABLED),
-                    null);
-            mDisableLocationModeThroughMainSwitchTest = TestListItem.newTest(this,
+                    "BYOD_LocationModeEnableTest",
+                    R.string.provisioning_byod_location_mode_enable_instruction,
+                    new Intent(ByodHelperActivity.ACTION_BYOD_SET_LOCATION_AND_CHECK_UPDATES));
+            mDisableLocationModeThroughMainSwitchTest = new DialogTestListItem(this,
                     R.string.provisioning_byod_location_mode_disable,
-                    LocationTestActivity.TEST_ID_LOCATION_DISABLED,
-                    new Intent(LocationTestActivity.ACTION_TEST_LOCATION_DISABLED),
-                    null);
-            mDisableLocationModeThroughWorkSwitchTest = TestListItem.newTest(this,
+                    "BYOD_LocationModeDisableMainTest",
+                    R.string.provisioning_byod_location_mode_disable_instruction,
+                    new Intent(ByodHelperActivity.ACTION_BYOD_SET_LOCATION_AND_CHECK_UPDATES));
+            mDisableLocationModeThroughWorkSwitchTest = new DialogTestListItem(this,
                     R.string.provisioning_byod_work_location_mode_disable,
-                    LocationTestActivity.TEST_ID_WORK_LOCATION_DISABLED,
-                    new Intent(LocationTestActivity.ACTION_TEST_WORK_LOCATION_DISABLED),
-                    null);
-            mPrimaryLocationWhenWorkDisabledTest = TestListItem.newTest(this,
+                    "BYOD_LocationModeDisableWorkTest",
+                    R.string.provisioning_byod_work_location_mode_disable_instruction,
+                    new Intent(ByodHelperActivity.ACTION_BYOD_SET_LOCATION_AND_CHECK_UPDATES));
+            mPrimaryLocationWhenWorkDisabledTest = new DialogTestListItem(this,
                     R.string.provisioning_byod_primary_location_when_work_disabled,
-                    LocationTestActivity.TEST_ID_WORK_LOCATION_DISABLED_PRIMARY,
-                    new Intent(LocationTestActivity.ACTION_TEST_WORK_LOCATION_DISABLED_PRIMARY),
-                    null);
+                    "BYOD_PrimaryLocationWhenWorkDisabled",
+                    R.string.provisioning_byod_primary_location_when_work_disabled_instruction,
+                    new Intent(LocationListenerActivity.ACTION_SET_LOCATION_AND_CHECK_UPDATES));
             adapter.add(mEnableLocationModeTest);
             adapter.add(mDisableLocationModeThroughMainSwitchTest);
             adapter.add(mDisableLocationModeThroughWorkSwitchTest);

@@ -22,6 +22,6 @@
         android:layout_height="40px"
         android:translationX="25px"
         android:translationY="25px"
-        android:elevation="20px"
+        android:elevation="10dp"
         android:background="#fff" />
 </FrameLayout>

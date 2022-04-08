@@ -27,7 +27,6 @@ import com.android.tradefed.log.LogUtil.CLog;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
 import com.android.tradefed.testtype.IBuildReceiver;
 import com.android.tradefed.testtype.junit4.BaseHostJUnit4Test;
-import com.android.tradefed.testtype.junit4.DeviceTestRunOptions;
 
 import org.junit.After;
 import org.junit.Before;
@@ -62,7 +61,8 @@ public class AppBindingHostTest extends BaseHostJUnit4Test implements IBuildRece
     private static final String SERVICE_2 = "com.android.cts.appbinding.app.MyService2";
 
     private IBuildInfo mCtsBuild;
-    private int mCurrentUserId;
+
+    private static final int USER_SYSTEM = 0;
 
     private static final int DEFAULT_TIMEOUT_SEC = 30;
 
@@ -213,8 +213,6 @@ public class AppBindingHostTest extends BaseHostJUnit4Test implements IBuildRece
         updateConstants(",");
 
         uninstallTestApps(true);
-
-        mCurrentUserId = getDevice().getCurrentUser();
     }
 
     @After
@@ -347,7 +345,7 @@ ACTIVITY MANAGER RUNNING PROCESSES (dumpsys activity processes)
             return;
         }
 
-        installAndCheckBound(APK_1, PACKAGE_A, SERVICE_1, mCurrentUserId);
+        installAndCheckBound(APK_1, PACKAGE_A, SERVICE_1, USER_SYSTEM);
     }
 
     /**
@@ -360,7 +358,7 @@ ACTIVITY MANAGER RUNNING PROCESSES (dumpsys activity processes)
             return;
         }
 
-        installAndCheckBound(APK_2, PACKAGE_A, SERVICE_2, mCurrentUserId);
+        installAndCheckBound(APK_2, PACKAGE_A, SERVICE_2, USER_SYSTEM);
     }
 
     /**
@@ -373,7 +371,7 @@ ACTIVITY MANAGER RUNNING PROCESSES (dumpsys activity processes)
             return;
         }
 
-        installAndCheckBound(APK_B, PACKAGE_B, SERVICE_1, mCurrentUserId);
+        installAndCheckBound(APK_B, PACKAGE_B, SERVICE_1, USER_SYSTEM);
     }
 
     /**
@@ -386,7 +384,7 @@ ACTIVITY MANAGER RUNNING PROCESSES (dumpsys activity processes)
             return;
         }
 
-        installAndCheckNotBound(APK_3, PACKAGE_A, mCurrentUserId,
+        installAndCheckNotBound(APK_3, PACKAGE_A, USER_SYSTEM,
                 "must be protected with android.permission.BIND_CARRIER_MESSAGING_CLIENT_SERVICE");
     }
 
@@ -400,7 +398,7 @@ ACTIVITY MANAGER RUNNING PROCESSES (dumpsys activity processes)
             return;
         }
 
-        installAndCheckNotBound(APK_4, PACKAGE_A, mCurrentUserId, "More than one");
+        installAndCheckNotBound(APK_4, PACKAGE_A, USER_SYSTEM, "More than one");
     }
 
     /**
@@ -413,7 +411,7 @@ ACTIVITY MANAGER RUNNING PROCESSES (dumpsys activity processes)
             return;
         }
 
-        installAndCheckNotBound(APK_5, PACKAGE_A, mCurrentUserId,
+        installAndCheckNotBound(APK_5, PACKAGE_A, USER_SYSTEM,
                 "Service with android.telephony.action.CARRIER_MESSAGING_CLIENT_SERVICE not found");
     }
 
@@ -427,7 +425,7 @@ ACTIVITY MANAGER RUNNING PROCESSES (dumpsys activity processes)
             return;
         }
 
-        installAndCheckNotBound(APK_6, PACKAGE_A, mCurrentUserId,
+        installAndCheckNotBound(APK_6, PACKAGE_A, USER_SYSTEM,
                 "Service must not run on the main process");
     }
 
@@ -442,19 +440,17 @@ ACTIVITY MANAGER RUNNING PROCESSES (dumpsys activity processes)
         }
 
         // Replace existing package without uninstalling.
-        installAndCheckBound(APK_1, PACKAGE_A, SERVICE_1, mCurrentUserId);
-        installAndCheckBound(APK_2, PACKAGE_A, SERVICE_2, mCurrentUserId);
-        installAndCheckNotBound(APK_3, PACKAGE_A, mCurrentUserId,
+        installAndCheckBound(APK_1, PACKAGE_A, SERVICE_1, USER_SYSTEM);
+        installAndCheckBound(APK_2, PACKAGE_A, SERVICE_2, USER_SYSTEM);
+        installAndCheckNotBound(APK_3, PACKAGE_A, USER_SYSTEM,
                 "must be protected with android.permission.BIND_CARRIER_MESSAGING_CLIENT_SERVICE");
-        installAndCheckBound(APK_1, PACKAGE_A, SERVICE_1, mCurrentUserId);
-        installAndCheckNotBound(APK_4, PACKAGE_A, mCurrentUserId, "More than one");
+        installAndCheckBound(APK_1, PACKAGE_A, SERVICE_1, USER_SYSTEM);
+        installAndCheckNotBound(APK_4, PACKAGE_A, USER_SYSTEM, "More than one");
     }
 
     private void enableTargetService(boolean enable) throws DeviceNotAvailableException {
-        runDeviceTests(new DeviceTestRunOptions(PACKAGE_A)
-                .setTestClassName("com.android.cts.appbinding.app.MyEnabler")
-                .setTestMethodName(enable ? "enableService" : "disableService")
-                .setUserId(mCurrentUserId));
+        runDeviceTests(PACKAGE_A, "com.android.cts.appbinding.app.MyEnabler",
+                enable ? "enableService" : "disableService");
     }
 
     /**
@@ -467,7 +463,7 @@ ACTIVITY MANAGER RUNNING PROCESSES (dumpsys activity processes)
             return;
         }
 
-        installAndCheckBound(APK_1, PACKAGE_A, SERVICE_1, mCurrentUserId);
+        installAndCheckBound(APK_1, PACKAGE_A, SERVICE_1, USER_SYSTEM);
 
         // Disable the component and now it should be unbound.
 
@@ -475,7 +471,7 @@ ACTIVITY MANAGER RUNNING PROCESSES (dumpsys activity processes)
 
         Thread.sleep(2); // Technically not needed, but allow the system to handle the broadcast.
 
-        checkNotBoundWithError(PACKAGE_A, mCurrentUserId,
+        checkNotBoundWithError(PACKAGE_A, USER_SYSTEM,
                 "Service with android.telephony.action.CARRIER_MESSAGING_CLIENT_SERVICE not found");
 
         // Enable the component and now it should be bound.
@@ -483,7 +479,7 @@ ACTIVITY MANAGER RUNNING PROCESSES (dumpsys activity processes)
 
         Thread.sleep(2); // Technically not needed, but allow the system to handle the broadcast.
 
-        checkBound(PACKAGE_A, SERVICE_1, mCurrentUserId);
+        checkBound(PACKAGE_A, SERVICE_1, USER_SYSTEM);
     }
 
     /**
@@ -497,7 +493,7 @@ ACTIVITY MANAGER RUNNING PROCESSES (dumpsys activity processes)
         }
 
         // The service is disabled by default, so not bound.
-        installAndCheckNotBound(APK_7, PACKAGE_A, mCurrentUserId,
+        installAndCheckNotBound(APK_7, PACKAGE_A, USER_SYSTEM,
                 "Service with android.telephony.action.CARRIER_MESSAGING_CLIENT_SERVICE not found");
 
         // Enable the component and now it should be bound.
@@ -505,7 +501,7 @@ ACTIVITY MANAGER RUNNING PROCESSES (dumpsys activity processes)
 
         Thread.sleep(2); // Technically not needed, but allow the system to handle the broadcast.
 
-        checkBound(PACKAGE_A, SERVICE_1, mCurrentUserId);
+        checkBound(PACKAGE_A, SERVICE_1, USER_SYSTEM);
 
         // Disable the component and now it should be unbound.
 
@@ -513,7 +509,7 @@ ACTIVITY MANAGER RUNNING PROCESSES (dumpsys activity processes)
 
         Thread.sleep(2); // Technically not needed, but allow the system to handle the broadcast.
 
-        checkNotBoundWithError(PACKAGE_A, mCurrentUserId,
+        checkNotBoundWithError(PACKAGE_A, USER_SYSTEM,
                 "Service with android.telephony.action.CARRIER_MESSAGING_CLIENT_SERVICE not found");
     }
 
@@ -528,18 +524,18 @@ ACTIVITY MANAGER RUNNING PROCESSES (dumpsys activity processes)
         }
 
         // Replace existing package without uninstalling.
-        installAndCheckBound(APK_1, PACKAGE_A, SERVICE_1, mCurrentUserId);
+        installAndCheckBound(APK_1, PACKAGE_A, SERVICE_1, USER_SYSTEM);
         getDevice().uninstallPackage(PACKAGE_A);
-        checkPackageNotBound(PACKAGE_A, mCurrentUserId);
+        checkPackageNotBound(PACKAGE_A, USER_SYSTEM);
 
         // Try with different APKs, just to make sure.
-        installAndCheckBound(APK_B, PACKAGE_B, SERVICE_1, mCurrentUserId);
+        installAndCheckBound(APK_B, PACKAGE_B, SERVICE_1, USER_SYSTEM);
         getDevice().uninstallPackage(PACKAGE_B);
-        checkPackageNotBound(PACKAGE_B, mCurrentUserId);
+        checkPackageNotBound(PACKAGE_B, USER_SYSTEM);
 
-        installAndCheckBound(APK_2, PACKAGE_A, SERVICE_2, mCurrentUserId);
+        installAndCheckBound(APK_2, PACKAGE_A, SERVICE_2, USER_SYSTEM);
         getDevice().uninstallPackage(PACKAGE_A);
-        checkPackageNotBound(PACKAGE_A, mCurrentUserId);
+        checkPackageNotBound(PACKAGE_A, USER_SYSTEM);
     }
 
     /**
@@ -552,9 +548,9 @@ ACTIVITY MANAGER RUNNING PROCESSES (dumpsys activity processes)
             return;
         }
 
-        installAndCheckBound(APK_1, PACKAGE_A, SERVICE_1, mCurrentUserId);
-        installAndCheckBound(APK_B, PACKAGE_B, SERVICE_1, mCurrentUserId);
-        installAndCheckBound(APK_2, PACKAGE_A, SERVICE_2, mCurrentUserId);
+        installAndCheckBound(APK_1, PACKAGE_A, SERVICE_1, USER_SYSTEM);
+        installAndCheckBound(APK_B, PACKAGE_B, SERVICE_1, USER_SYSTEM);
+        installAndCheckBound(APK_2, PACKAGE_A, SERVICE_2, USER_SYSTEM);
     }
 
     private void assertUserHasNoConnection(int userId) throws Throwable {
@@ -583,7 +579,7 @@ ACTIVITY MANAGER RUNNING PROCESSES (dumpsys activity processes)
             return;
         }
 
-        installAndCheckBound(APK_1, PACKAGE_A, SERVICE_1, mCurrentUserId);
+        installAndCheckBound(APK_1, PACKAGE_A, SERVICE_1, USER_SYSTEM);
 
         final int userId = getDevice().createUser("test-user");
         try {
@@ -593,10 +589,10 @@ ACTIVITY MANAGER RUNNING PROCESSES (dumpsys activity processes)
             installAndCheckBound(APK_B, PACKAGE_B, SERVICE_1, userId);
 
             // Package A should still be bound on user-0.
-            checkBound(PACKAGE_A, SERVICE_1, mCurrentUserId);
+            checkBound(PACKAGE_A, SERVICE_1, USER_SYSTEM);
 
             // Replace the app on the primary user with an invalid one.
-            installAndCheckNotBound(APK_3, PACKAGE_A, mCurrentUserId,
+            installAndCheckNotBound(APK_3, PACKAGE_A, USER_SYSTEM,
                     "must be protected with android.permission.BIND_CARRIER_MESSAGING_CLIENT_SERVICE");
 
             // Secondary user should still have a valid connection.
@@ -640,12 +636,12 @@ ACTIVITY MANAGER RUNNING PROCESSES (dumpsys activity processes)
                 + ",service_reconnect_max_backoff_sec=1000"
                 + ",service_stable_connection_threshold_sec=10");
 
-        installAndCheckBound(APK_1, PACKAGE_A, SERVICE_1, mCurrentUserId);
+        installAndCheckBound(APK_1, PACKAGE_A, SERVICE_1, USER_SYSTEM);
 
         // Ensure the expected status.
         runWithRetries(DEFAULT_TIMEOUT_SEC, () -> {
             runCommand("dumpsys app_binding -s",
-                    "^conn,\\[Default\\sSMS\\sapp\\]," + mCurrentUserId + ",.*,bound,connected"
+                    "^conn,\\[Default\\sSMS\\sapp\\],0,.*,bound,connected"
                     + ",\\#con=1,\\#dis=0,\\#died=0,backoff=5000");
         });
 
@@ -656,7 +652,7 @@ ACTIVITY MANAGER RUNNING PROCESSES (dumpsys activity processes)
         // In this case, because binder-died isn't called, so backoff won't increase.
         runWithRetries(DEFAULT_TIMEOUT_SEC, () -> {
             runCommand("dumpsys app_binding -s",
-                    "^conn,\\[Default\\sSMS\\sapp\\]," + mCurrentUserId + ",.*,bound,connected"
+                    "^conn,\\[Default\\sSMS\\sapp\\],0,.*,bound,connected"
                     + ",\\#con=2,\\#dis=1,\\#died=0,backoff=5000");
         });
 
@@ -666,7 +662,7 @@ ACTIVITY MANAGER RUNNING PROCESSES (dumpsys activity processes)
         // Force-stop causes a disconnect and a binder-died. Then it doubles the backoff.
         runWithRetries(DEFAULT_TIMEOUT_SEC, () -> {
             runCommand("dumpsys app_binding -s",
-                    "^conn,\\[Default\\sSMS\\sapp\\]," + mCurrentUserId + ",.*,not-bound,not-connected"
+                    "^conn,\\[Default\\sSMS\\sapp\\],0,.*,not-bound,not-connected"
                     + ",\\#con=2,\\#dis=2,\\#died=1,backoff=10000");
         });
 
@@ -675,7 +671,7 @@ ACTIVITY MANAGER RUNNING PROCESSES (dumpsys activity processes)
         // It should re-bind.
         runWithRetries(10, () -> {
             runCommand("dumpsys app_binding -s",
-                    "^conn,\\[Default\\sSMS\\sapp\\]," + mCurrentUserId + ",.*,bound,connected"
+                    "^conn,\\[Default\\sSMS\\sapp\\],0,.*,bound,connected"
                             + ",\\#con=3,\\#dis=2,\\#died=1,backoff=10000");
         });
 
@@ -684,7 +680,7 @@ ACTIVITY MANAGER RUNNING PROCESSES (dumpsys activity processes)
 
         runWithRetries(10, () -> {
             runCommand("dumpsys app_binding -s",
-                    "^conn,\\[Default\\sSMS\\sapp\\]," + mCurrentUserId + ",.*,not-bound,not-connected"
+                    "^conn,\\[Default\\sSMS\\sapp\\],0,.*,not-bound,not-connected"
                             + ",\\#con=3,\\#dis=3,\\#died=2,backoff=20000");
         });
 
@@ -692,7 +688,7 @@ ACTIVITY MANAGER RUNNING PROCESSES (dumpsys activity processes)
 
         runWithRetries(10, () -> {
             runCommand("dumpsys app_binding -s",
-                    "^conn,\\[Default\\sSMS\\sapp\\]," + mCurrentUserId + ",.*,bound,connected"
+                    "^conn,\\[Default\\sSMS\\sapp\\],0,.*,bound,connected"
                             + ",\\#con=4,\\#dis=3,\\#died=2,backoff=20000");
         });
 
@@ -702,7 +698,7 @@ ACTIVITY MANAGER RUNNING PROCESSES (dumpsys activity processes)
 
         runWithRetries(10, () -> {
             runCommand("dumpsys app_binding -s",
-                    "^conn,\\[Default\\sSMS\\sapp\\]," + mCurrentUserId + ",.*,bound,connected"
+                    "^conn,\\[Default\\sSMS\\sapp\\],0,.*,bound,connected"
                             + ",\\#con=4,\\#dis=3,\\#died=2,backoff=5000");
         });
     }
@@ -717,18 +713,18 @@ ACTIVITY MANAGER RUNNING PROCESSES (dumpsys activity processes)
             return;
         }
 
-        installAndCheckBound(APK_1, PACKAGE_A, SERVICE_1, mCurrentUserId);
+        installAndCheckBound(APK_1, PACKAGE_A, SERVICE_1, USER_SYSTEM);
 
         updateConstants("sms_service_enabled=false");
 
         runWithRetries(DEFAULT_TIMEOUT_SEC, () -> {
-            checkNotBoundWithError("null", mCurrentUserId, "feature disabled");
+            checkNotBoundWithError("null", USER_SYSTEM, "feature disabled");
         });
 
         updateConstants("sms_service_enabled=true");
 
         runWithRetries(DEFAULT_TIMEOUT_SEC, () -> {
-            checkBound(PACKAGE_A, SERVICE_1, mCurrentUserId);
+            checkBound(PACKAGE_A, SERVICE_1, USER_SYSTEM);
         });
     }
 
@@ -739,7 +735,7 @@ ACTIVITY MANAGER RUNNING PROCESSES (dumpsys activity processes)
             return;
         }
 
-        installAndCheckBound(APK_1, PACKAGE_A, SERVICE_1, mCurrentUserId);
+        installAndCheckBound(APK_1, PACKAGE_A, SERVICE_1, USER_SYSTEM);
         assertOomAdjustment(PACKAGE_A, PACKAGE_A_PROC, 200);
     }
 }

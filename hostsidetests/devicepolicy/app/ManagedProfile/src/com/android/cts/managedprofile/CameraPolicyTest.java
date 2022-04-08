@@ -24,8 +24,6 @@ import android.os.Handler;
 import android.os.HandlerThread;
 import android.test.AndroidTestCase;
 
-import com.android.cts.devicepolicy.CameraUtils;
-
 
 public class CameraPolicyTest extends AndroidTestCase {
 

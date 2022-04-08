@@ -23,7 +23,6 @@ import static org.testng.Assert.assertThrows;
 import android.content.Context;
 import android.media.tv.TvTrackInfo;
 import android.os.Bundle;
-import android.platform.test.annotations.Presubmit;
 
 import androidx.test.core.os.Parcelables;
 
@@ -35,12 +34,12 @@ import org.junit.Test;
 /**
  * Test {@link android.media.tv.TvTrackInfo}.
  */
-@Presubmit
 public class TvTrackInfoTest {
 
     @Rule
     public final RequiredServiceRule requiredServiceRule = new RequiredServiceRule(
             Context.TV_INPUT_SERVICE);
+
 
     @Test
     public void newAudioTrack_default() {

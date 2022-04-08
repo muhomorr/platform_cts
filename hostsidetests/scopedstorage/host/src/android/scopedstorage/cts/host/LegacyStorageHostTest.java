@@ -137,11 +137,6 @@ public class LegacyStorageHostTest extends BaseHostTestCase {
     }
 
     @Test
-    public void testInsertHiddenFile() throws Exception {
-        runDeviceTest("testInsertHiddenFile");
-    }
-
-    @Test
     public void testCanRename_hasRW() throws Exception {
         runDeviceTest("testCanRename_hasRW");
     }
@@ -228,25 +223,5 @@ public class LegacyStorageHostTest extends BaseHostTestCase {
     @Test
     public void testScanUpdatesMetadataForNewlyAddedFile_hasRW() throws Exception {
         runDeviceTest("testScanUpdatesMetadataForNewlyAddedFile_hasRW");
-    }
-
-    @Test
-    public void testInsertFromExternalDirsViaData() throws Exception {
-        runDeviceTest("testInsertFromExternalDirsViaData");
-    }
-
-    @Test
-    public void testUpdateToExternalDirsViaData() throws Exception {
-        runDeviceTest("testUpdateToExternalDirsViaData");
-    }
-
-    @Test
-    public void testInsertFromExternalDirsViaRelativePath() throws Exception {
-        runDeviceTest("testInsertFromExternalDirsViaRelativePath");
-    }
-
-    @Test
-    public void testUpdateToExternalDirsViaRelativePath() throws Exception {
-        runDeviceTest("testUpdateToExternalDirsViaRelativePath");
     }
 }

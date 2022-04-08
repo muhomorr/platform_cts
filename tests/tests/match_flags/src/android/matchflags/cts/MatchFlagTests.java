@@ -25,10 +25,7 @@ import android.net.Uri;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
 
-import com.android.compatibility.common.util.ShellUtils;
-
-import org.junit.After;
-import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TestName;
@@ -41,18 +38,12 @@ public class MatchFlagTests {
             "https://nohandler-02xgpcssu1v7xvpek0skc905glnyu7ihjtza3eufox0mauqyri.com";
     private static final String UNIQUE_URI =
             "https://unique-5gle2bs6woovjn8xabwyb3js01xl0ducci3gd3fpe622h48lyg.com";
-
-    private static final String SHARED_PKG_NAME = "android.matchflags.app.shared";
-    private static final String UNIQUE_AND_SHARED_PKG_NAME =
-            "android.matchflags.app.uniqueandshared";
-
     @Rule
     public TestName name = new TestName();
 
-    @Before
-    @After
-    public void removeApprovals() {
-        setDomainUserSelectionApproval(false);
+    @BeforeClass
+    public static void setup() {
+
     }
 
     @Test
@@ -109,17 +100,6 @@ public class MatchFlagTests {
 
     @Test
     public void startNoBrowserRequireDefault() throws Exception {
-        setDomainUserSelectionApproval(true);
-        startNoBrowserRequireDefaultInternal(true);
-    }
-
-    @Test
-    public void startNoBrowserRequireDefaultUnapproved() throws Exception {
-        setDomainUserSelectionApproval(false);
-        startNoBrowserRequireDefaultInternal(false);
-    }
-
-    private void startNoBrowserRequireDefaultInternal(boolean isDomainApproved) {
         Intent uniqueUriIntent = new Intent(Intent.ACTION_VIEW)
                 .addCategory(Intent.CATEGORY_BROWSABLE)
                 .setData(Uri.parse(UNIQUE_URI));
@@ -135,34 +115,14 @@ public class MatchFlagTests {
             // with require default, we'll get activity not found
             try {
                 startActivity(uniqueUriIntentNoBrowserRequireDefault);
-                if (!isDomainApproved) {
-                    fail("Should fail to launch when started with non-browser and require default"
-                            + " when browser present");
-                }
+                fail("Should fail to launch when started with non-browser and require default");
             } catch (ActivityNotFoundException e) {
                 // hooray!
-                if (isDomainApproved) {
-                    // Domain approval should force only the test Activity to be returned, which
-                    // means it should pass the above flags and launch.
-                    fail("Should succeed launch when started with non-browser and require default"
-                            + " when browser present");
-                }
             }
         } else {
             // with non-browser, but no browser present, we'd get a single result
             // with require default, we'll resolve to that single result
-            try {
-                startActivity(uniqueUriIntentNoBrowserRequireDefault);
-                if (!isDomainApproved) {
-                    fail("Should fail to launch when started with non-browser and require default"
-                            + " when browser not present");
-                }
-            } catch (ActivityNotFoundException e) {
-                if (isDomainApproved) {
-                    fail("Should succeed launch when started with non-browser and require default"
-                            + " when browser not present");
-                }
-            }
+            startActivity(uniqueUriIntentNoBrowserRequireDefault);
         }
     }
 
@@ -181,9 +141,4 @@ public class MatchFlagTests {
                 onlyBrowserIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
     }
 
-    private static void setDomainUserSelectionApproval(boolean approved) {
-        String template = "pm set-app-links-user-selection --package %s --user all %b all";
-        ShellUtils.runShellCommand(template, SHARED_PKG_NAME, approved);
-        ShellUtils.runShellCommand(template, UNIQUE_AND_SHARED_PKG_NAME, approved);
-    }
 }

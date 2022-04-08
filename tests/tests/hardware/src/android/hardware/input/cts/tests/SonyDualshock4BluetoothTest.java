@@ -16,8 +16,6 @@
 
 package android.hardware.input.cts.tests;
 
-import static org.junit.Assume.assumeTrue;
-
 import android.hardware.cts.R;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
@@ -28,7 +26,7 @@ import org.junit.runner.RunWith;
 
 @SmallTest
 @RunWith(AndroidJUnit4.class)
-public class SonyDualshock4BluetoothTest extends InputHidTestCase {
+public class SonyDualshock4BluetoothTest extends InputTestCase {
 
     // Simulates the behavior of PlayStation DualShock4 gamepad (model CUH-ZCT1U)
     public SonyDualshock4BluetoothTest() {
@@ -43,28 +41,5 @@ public class SonyDualshock4BluetoothTest extends InputHidTestCase {
     @Test
     public void testAllMotions() {
         testInputEvents(R.raw.sony_dualshock4_bluetooth_motioneventtests);
-    }
-
-    @Test
-    public void testVibrator() throws Exception {
-        assumeTrue("Requires kernel > 4.19", isKernelVersionGreaterThan("4.19"));
-        testInputVibratorEvents(R.raw.sony_dualshock4_bluetooth_vibratortests);
-    }
-
-    @Test
-    public void testBattery() {
-        testInputBatteryEvents(R.raw.sony_dualshock4_bluetooth_batteryeventtests);
-    }
-
-    @Test
-    public void testAllTouch() throws Throwable {
-        try (PointerCaptureSession session = new PointerCaptureSession()) {
-            testInputEvents(R.raw.sony_dualshock4_toucheventtests);
-        }
-    }
-
-    @Test
-    public void testLights() throws Exception {
-        testInputLightsManager(R.raw.sony_dualshock4_bluetooth_lighttests);
     }
 }

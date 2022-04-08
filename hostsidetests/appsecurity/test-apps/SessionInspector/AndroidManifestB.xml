@@ -20,9 +20,8 @@
                      android:targetPackage="com.android.cts.sessioninspector.b" />
 
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
-    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
 
-    <application>
+    <application android:forceQueryable="true">
         <uses-library android:name="android.test.runner" />
         <activity android:name="com.android.cts.sessioninspector.SessionInspectorActivity"
                   android:exported="true"/>

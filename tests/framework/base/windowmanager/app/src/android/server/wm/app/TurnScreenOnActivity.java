@@ -26,18 +26,12 @@ public class TurnScreenOnActivity extends AbstractLifecycleLogActivity {
         super.onCreate(savedInstanceState);
 
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-        final boolean useShowWhenLocked = getIntent().getBooleanExtra(
-                Components.TurnScreenOnActivity.EXTRA_SHOW_WHEN_LOCKED, true /* defaultValue */);
         if (getIntent().getBooleanExtra(Components.TurnScreenOnActivity.EXTRA_USE_WINDOW_FLAGS,
                 false /* defaultValue */)) {
-            getWindow().addFlags(WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON);
-            if (useShowWhenLocked) {
-                getWindow().addFlags(WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED);
-            }
+            getWindow().addFlags(WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED
+                  | WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON);
         } else {
-            if (useShowWhenLocked) {
-                setShowWhenLocked(true);
-            }
+            setShowWhenLocked(true);
             setTurnScreenOn(true);
         }
 

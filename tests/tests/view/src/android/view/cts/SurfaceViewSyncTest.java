@@ -15,8 +15,6 @@
  */
 package android.view.cts;
 
-import static android.server.wm.WindowManagerState.getLogicalDisplaySize;
-
 import android.animation.ObjectAnimator;
 import android.animation.PropertyValuesHolder;
 import android.animation.ValueAnimator;
@@ -72,7 +70,6 @@ public class SurfaceViewSyncTest {
     public void setup() {
         mActivity = mActivityRule.getActivity();
         mMediaPlayer = mActivity.getMediaPlayer();
-        mActivity.setLogicalDisplaySize(getLogicalDisplaySize());
     }
 
     /**

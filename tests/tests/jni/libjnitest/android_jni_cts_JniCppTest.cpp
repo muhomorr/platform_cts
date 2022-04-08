@@ -19,6 +19,7 @@
  */
 
 #include <jni.h>
+#include <nativehelper/JNIHelp.h>
 
 
 /*
@@ -41,7 +42,7 @@ static JNINativeMethod methods[] = {
 };
 
 extern "C" int register_JniCppTest(JNIEnv *env) {
-    return registerJniMethods(
+    return jniRegisterNativeMethods(
             env, "android/jni/cts/JniCppTest",
             methods, sizeof(methods) / sizeof(JNINativeMethod));
 }

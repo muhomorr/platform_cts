@@ -16,6 +16,7 @@
 package com.android.cts.devicepolicy;
 
 import static com.android.cts.devicepolicy.metrics.DevicePolicyEventLogVerifier.assertMetricsLogged;
+import static com.android.cts.devicepolicy.metrics.DevicePolicyEventLogVerifier.isStatsdEnabled;
 
 import static com.google.common.truth.Truth.assertThat;
 
@@ -27,7 +28,7 @@ import android.platform.test.annotations.FlakyTest;
 import android.platform.test.annotations.LargeTest;
 import android.stats.devicepolicy.EventId;
 
-import com.android.cts.devicepolicy.DeviceAdminFeaturesCheckerRule.DoesNotRequireFeature;
+import com.android.compatibility.common.util.LocationModeSetter;
 import com.android.cts.devicepolicy.metrics.DevicePolicyEventWrapper;
 import com.android.ddmlib.Log.LogLevel;
 import com.android.tradefed.device.DeviceNotAvailableException;
@@ -45,6 +46,11 @@ import java.util.Map;
  */
 public class ManagedProfileTest extends BaseManagedProfileTest {
 
+    private static final String FEATURE_TELEPHONY = "android.hardware.telephony";
+    private static final String FEATURE_BLUETOOTH = "android.hardware.bluetooth";
+    private static final String FEATURE_CAMERA = "android.hardware.camera";
+    private static final String FEATURE_WIFI = "android.hardware.wifi";
+    private static final String FEATURE_CONNECTION_SERVICE = "android.software.connectionservice";
     private static final String DEVICE_OWNER_PKG = "com.android.cts.deviceowner";
     private static final String DEVICE_OWNER_APK = "CtsDeviceOwnerApp.apk";
     private static final String DEVICE_OWNER_ADMIN =
@@ -52,12 +58,14 @@ public class ManagedProfileTest extends BaseManagedProfileTest {
 
     @Test
     public void testManagedProfileSetup() throws Exception {
+        if (!mHasFeature) {
+            return;
+        }
         runDeviceTestsAsUser(
                 MANAGED_PROFILE_PKG, MANAGED_PROFILE_PKG + ".ManagedProfileSetupTest",
                 mProfileUserId);
     }
 
-    @DoesNotRequireFeature
     @Test
     public void testMaxOneManagedProfile() throws Exception {
         int newUserId = -1;
@@ -67,9 +75,9 @@ public class ManagedProfileTest extends BaseManagedProfileTest {
         }
         if (newUserId > 0) {
             removeUser(newUserId);
-            if (mFeaturesCheckerRule.hasRequiredFeatures()) {
+            if (mHasFeature) {
                 // Exception is Android TV which can create multiple managed profiles
-                if (!isTv()) {
+                if (!hasDeviceFeature("android.software.leanback")) {
                     fail("Device must allow creating only one managed profile");
                 }
             } else {
@@ -83,7 +91,9 @@ public class ManagedProfileTest extends BaseManagedProfileTest {
      */
     @Test
     public void testProfileWifiCleanup() throws Exception {
-        assumeHasWifiFeature();
+        if (!mHasFeature || !hasDeviceFeature(FEATURE_WIFI)) {
+            return;
+        }
 
         try (LocationModeSetter locationModeSetter = new LocationModeSetter(getDevice())) {
             locationModeSetter.setLocationEnabled(true);
@@ -102,8 +112,105 @@ public class ManagedProfileTest extends BaseManagedProfileTest {
         }
     }
 
+    @LargeTest
+    @Test
+    public void testAppLinks_verificationStatus() throws Exception {
+        if (!mHasFeature) {
+            return;
+        }
+        // Disable all pre-existing browsers in the managed profile so they don't interfere with
+        // intents resolution.
+        runDeviceTestsAsUser(MANAGED_PROFILE_PKG, ".CrossProfileUtils",
+                "testDisableAllBrowsers", mProfileUserId);
+        installAppAsUser(INTENT_RECEIVER_APK, USER_ALL);
+        installAppAsUser(INTENT_SENDER_APK, USER_ALL);
+
+        changeVerificationStatus(mParentUserId, INTENT_RECEIVER_PKG, "ask");
+        changeVerificationStatus(mProfileUserId, INTENT_RECEIVER_PKG, "ask");
+        // We should have two receivers: IntentReceiverActivity and BrowserActivity in the
+        // managed profile
+        assertAppLinkResult("testTwoReceivers");
+
+        changeUserRestrictionOrFail("allow_parent_profile_app_linking", true, mProfileUserId);
+        // Now we should also have one receiver in the primary user, so three receivers in total.
+        assertAppLinkResult("testThreeReceivers");
+
+        changeVerificationStatus(mParentUserId, INTENT_RECEIVER_PKG, "never");
+        // The primary user one has been set to never: we should only have the managed profile ones.
+        assertAppLinkResult("testTwoReceivers");
+
+        changeVerificationStatus(mProfileUserId, INTENT_RECEIVER_PKG, "never");
+        // Now there's only the browser in the managed profile left
+        assertAppLinkResult("testReceivedByBrowserActivityInManaged");
+
+        changeVerificationStatus(mProfileUserId, INTENT_RECEIVER_PKG, "always");
+        changeVerificationStatus(mParentUserId, INTENT_RECEIVER_PKG, "always");
+        // We have one always in the primary user and one always in the managed profile: the managed
+        // profile one should have precedence.
+        assertAppLinkResult("testReceivedByAppLinkActivityInManaged");
+    }
+
+    @LargeTest
+    @Test
+    public void testAppLinks_enabledStatus() throws Exception {
+        if (!mHasFeature) {
+            return;
+        }
+        // Disable all pre-existing browsers in the managed profile so they don't interfere with
+        // intents resolution.
+        runDeviceTestsAsUser(MANAGED_PROFILE_PKG, ".CrossProfileUtils",
+                "testDisableAllBrowsers", mProfileUserId);
+        installAppAsUser(INTENT_RECEIVER_APK, USER_ALL);
+        installAppAsUser(INTENT_SENDER_APK, USER_ALL);
+
+        final String APP_HANDLER_COMPONENT = "com.android.cts.intent.receiver/.AppLinkActivity";
+
+        // allow_parent_profile_app_linking is not set, try different enabled state combinations.
+        // We should not have app link handler in parent user no matter whether it is enabled.
+
+        disableComponentOrPackage(mParentUserId, APP_HANDLER_COMPONENT);
+        disableComponentOrPackage(mProfileUserId, APP_HANDLER_COMPONENT);
+        assertAppLinkResult("testReceivedByBrowserActivityInManaged");
+
+        enableComponentOrPackage(mParentUserId, APP_HANDLER_COMPONENT);
+        disableComponentOrPackage(mProfileUserId, APP_HANDLER_COMPONENT);
+        assertAppLinkResult("testReceivedByBrowserActivityInManaged");
+
+        disableComponentOrPackage(mParentUserId, APP_HANDLER_COMPONENT);
+        enableComponentOrPackage(mProfileUserId, APP_HANDLER_COMPONENT);
+        assertAppLinkResult("testTwoReceivers");
+
+        enableComponentOrPackage(mParentUserId, APP_HANDLER_COMPONENT);
+        enableComponentOrPackage(mProfileUserId, APP_HANDLER_COMPONENT);
+        assertAppLinkResult("testTwoReceivers");
+
+        // We now set allow_parent_profile_app_linking, and hence we should have the app handler
+        // in parent user if it is enabled.
+        changeUserRestrictionOrFail("allow_parent_profile_app_linking", true, mProfileUserId);
+
+        disableComponentOrPackage(mParentUserId, APP_HANDLER_COMPONENT);
+        disableComponentOrPackage(mProfileUserId, APP_HANDLER_COMPONENT);
+        assertAppLinkResult("testReceivedByBrowserActivityInManaged");
+
+        enableComponentOrPackage(mParentUserId, APP_HANDLER_COMPONENT);
+        disableComponentOrPackage(mProfileUserId, APP_HANDLER_COMPONENT);
+        assertAppLinkResult("testTwoReceivers");
+
+        disableComponentOrPackage(mParentUserId, APP_HANDLER_COMPONENT);
+        enableComponentOrPackage(mProfileUserId, APP_HANDLER_COMPONENT);
+        assertAppLinkResult("testTwoReceivers");
+
+        enableComponentOrPackage(mParentUserId, APP_HANDLER_COMPONENT);
+        enableComponentOrPackage(mProfileUserId, APP_HANDLER_COMPONENT);
+        assertAppLinkResult("testThreeReceivers");
+    }
+
     @Test
     public void testSettingsIntents() throws Exception {
+        if (!mHasFeature) {
+            return;
+        }
+
         runDeviceTestsAsUser(MANAGED_PROFILE_PKG, ".SettingsIntentsTest",
                 mProfileUserId);
     }
@@ -111,6 +218,9 @@ public class ManagedProfileTest extends BaseManagedProfileTest {
     /** Tests for the API helper class. */
     @Test
     public void testCurrentApiHelper() throws Exception {
+        if (!mHasFeature) {
+            return;
+        }
         runDeviceTestsAsUser(MANAGED_PROFILE_PKG, ".CurrentApiHelperTest",
                 mProfileUserId);
     }
@@ -118,12 +228,18 @@ public class ManagedProfileTest extends BaseManagedProfileTest {
     /** Test: unsupported public APIs are disabled on a parent profile. */
     @Test
     public void testParentProfileApiDisabled() throws Exception {
+        if (!mHasFeature) {
+            return;
+        }
         runDeviceTestsAsUser(MANAGED_PROFILE_PKG, ".ParentProfileTest",
                 "testParentProfileApiDisabled", mProfileUserId);
     }
 
     @Test
     public void testCannotCallMethodsOnParentProfile() throws Exception {
+        if (!mHasFeature) {
+            return;
+        }
         runDeviceTestsAsUser(MANAGED_PROFILE_PKG, ".ParentProfileTest",
                 "testCannotWipeParentProfile", mProfileUserId);
 
@@ -140,6 +256,9 @@ public class ManagedProfileTest extends BaseManagedProfileTest {
     // of tests (same applies to ComponentDisablingActivity).
     @Test
     public void testNoDebuggingFeaturesRestriction() throws Exception {
+        if (!mHasFeature) {
+            return;
+        }
         // If adb is running as root, then the adb uid is 0 instead of SHELL_UID,
         // so the DISALLOW_DEBUGGING_FEATURES restriction does not work and this test
         // fails.
@@ -166,7 +285,10 @@ public class ManagedProfileTest extends BaseManagedProfileTest {
     // Test the bluetooth API from a managed profile.
     @Test
     public void testBluetooth() throws Exception {
-        assumeHasBluetoothFeature();
+        boolean hasBluetooth = hasDeviceFeature(FEATURE_BLUETOOTH);
+        if (!mHasFeature || !hasBluetooth) {
+            return;
+        }
 
         runDeviceTestsAsUser(MANAGED_PROFILE_PKG, ".BluetoothTest",
                 "testEnableDisable", mProfileUserId);
@@ -180,8 +302,10 @@ public class ManagedProfileTest extends BaseManagedProfileTest {
 
     @Test
     public void testCameraPolicy() throws Exception {
-        assumeHasCameraFeature();
-
+        boolean hasCamera = hasDeviceFeature(FEATURE_CAMERA);
+        if (!mHasFeature || !hasCamera) {
+            return;
+        }
         try {
             runDeviceTestsAsUser(MANAGED_PROFILE_PKG, ".CameraPolicyTest",
                     "testDisableCameraInManagedProfile",
@@ -198,29 +322,40 @@ public class ManagedProfileTest extends BaseManagedProfileTest {
 
     @Test
     public void testOrganizationInfo() throws Exception {
+        if (!mHasFeature) {
+            return;
+        }
         runDeviceTestsAsUser(MANAGED_PROFILE_PKG, ".OrganizationInfoTest",
                 "testDefaultOrganizationColor", mProfileUserId);
         runDeviceTestsAsUser(MANAGED_PROFILE_PKG, ".OrganizationInfoTest",
                 "testDefaultOrganizationNameIsNull", mProfileUserId);
         runDeviceTestsAsUser(MANAGED_PROFILE_PKG, ".OrganizationInfoTest",
                 mProfileUserId);
-        assertMetricsLogged(getDevice(), () -> {
-            runDeviceTestsAsUser(
-                    MANAGED_PROFILE_PKG, MANAGED_PROFILE_PKG + ".OrganizationInfoTest",
-                    "testSetOrganizationColor", mProfileUserId);
-        }, new DevicePolicyEventWrapper.Builder(EventId.SET_ORGANIZATION_COLOR_VALUE)
-                .setAdminPackageName(MANAGED_PROFILE_PKG)
-                .build());
+        if (isStatsdEnabled(getDevice())) {
+            assertMetricsLogged(getDevice(), () -> {
+                runDeviceTestsAsUser(
+                        MANAGED_PROFILE_PKG, MANAGED_PROFILE_PKG + ".OrganizationInfoTest",
+                        "testSetOrganizationColor", mProfileUserId);
+            }, new DevicePolicyEventWrapper.Builder(EventId.SET_ORGANIZATION_COLOR_VALUE)
+                    .setAdminPackageName(MANAGED_PROFILE_PKG)
+                    .build());
+        }
     }
 
     @Test
     public void testDevicePolicyManagerParentSupport() throws Exception {
+        if (!mHasFeature) {
+            return;
+        }
         runDeviceTestsAsUser(
                 MANAGED_PROFILE_PKG, ".DevicePolicyManagerParentSupportTest", mProfileUserId);
     }
 
     @Test
     public void testBluetoothContactSharingDisabled() throws Exception {
+        if (!mHasFeature) {
+            return;
+        }
         assertMetricsLogged(getDevice(), () -> {
             runDeviceTestsAsUser(MANAGED_PROFILE_PKG, ".ContactsTest",
                     "testSetBluetoothContactSharingDisabled_setterAndGetter", mProfileUserId);
@@ -238,6 +373,9 @@ public class ManagedProfileTest extends BaseManagedProfileTest {
 
     @Test
     public void testCannotSetProfileOwnerAgain() throws Exception {
+        if (!mHasFeature) {
+            return;
+        }
         // verify that we can't set the same admin receiver as profile owner again
         assertFalse(setProfileOwner(
                 MANAGED_PROFILE_PKG + "/" + ADMIN_RECEIVER_TEST_CLASS, mProfileUserId,
@@ -252,6 +390,10 @@ public class ManagedProfileTest extends BaseManagedProfileTest {
     @LargeTest
     @Test
     public void testCannotSetDeviceOwnerWhenProfilePresent() throws Exception {
+        if (!mHasFeature) {
+            return;
+        }
+
         try {
             installAppAsUser(DEVICE_OWNER_APK, mParentUserId);
             assertFalse(setDeviceOwner(DEVICE_OWNER_PKG + "/" + DEVICE_OWNER_ADMIN, mParentUserId,
@@ -265,7 +407,9 @@ public class ManagedProfileTest extends BaseManagedProfileTest {
 
     @Test
     public void testNfcRestriction() throws Exception {
-        assumeHasNfcFeatures();
+        if (!mHasFeature || !mHasNfcFeature) {
+            return;
+        }
 
         runDeviceTestsAsUser(MANAGED_PROFILE_PKG, ".NfcTest",
                 "testNfcShareEnabled", mProfileUserId);
@@ -283,19 +427,27 @@ public class ManagedProfileTest extends BaseManagedProfileTest {
 
     @Test
     public void testIsProvisioningAllowed() throws DeviceNotAvailableException {
-        // Not allowed to add a managed profile from another managed profile.
+        if (!mHasFeature) {
+            return;
+        }
+        // In Managed profile user when managed profile is provisioned
         runDeviceTestsAsUser(MANAGED_PROFILE_PKG, ".PreManagedProfileTest",
                 "testIsProvisioningAllowedFalse", mProfileUserId);
 
-        // Not allowed to add a managed profile to the parent user if one already exists.
+        // In parent user when managed profile is provisioned
+        // It's allowed to provision again by removing the previous profile
         runDeviceTestsAsUser(MANAGED_PROFILE_PKG, ".PreManagedProfileTest",
-                "testIsProvisioningAllowedFalse", mParentUserId);
+                "testIsProvisioningAllowedTrue", mParentUserId);
     }
 
     @Test
     public void testPhoneAccountVisibility() throws Exception {
-        assumeHasTelephonyAndConnectionServiceFeatures();
-
+        if (!mHasFeature) {
+            return;
+        }
+        if (!shouldRunTelecomTest()) {
+            return;
+        }
         try {
             // Register phone account in parent user.
             runDeviceTestsAsUser(MANAGED_PROFILE_PKG, ".PhoneAccountTest",
@@ -332,8 +484,12 @@ public class ManagedProfileTest extends BaseManagedProfileTest {
     @LargeTest
     @Test
     public void testManagedCall() throws Exception {
-        assumeHasTelephonyAndConnectionServiceFeatures();
-
+        if (!mHasFeature) {
+            return;
+        }
+        if (!shouldRunTelecomTest()) {
+            return;
+        }
         getDevice().executeShellCommand("telecom set-default-dialer " + MANAGED_PROFILE_PKG);
 
         // Place a outgoing call through work phone account using TelecomManager and verify the
@@ -379,8 +535,9 @@ public class ManagedProfileTest extends BaseManagedProfileTest {
 
     @Test
     public void testTrustAgentInfo() throws Exception {
-        assumeHasSecureLockScreenFeature();
-
+        if (!mHasFeature || !mHasSecureLockScreen) {
+            return;
+        }
         // Set and get trust agent config using child dpm instance.
         runDeviceTestsAsUser(MANAGED_PROFILE_PKG, ".TrustAgentInfoTest",
                 "testSetAndGetTrustAgentConfiguration_child",
@@ -408,15 +565,21 @@ public class ManagedProfileTest extends BaseManagedProfileTest {
     @Test
     @FlakyTest
     @Ignore
-    public void testBasicCheck() throws Exception {
+    public void testSanityCheck() throws Exception {
+        if (!mHasFeature) {
+            return;
+        }
         // Install SimpleApp in work profile only and check activity in it can be launched.
         installAppAsUser(SIMPLE_APP_APK, mProfileUserId);
-        runDeviceTestsAsUser(MANAGED_PROFILE_PKG, ".BasicTest", mProfileUserId);
+        runDeviceTestsAsUser(MANAGED_PROFILE_PKG, ".SanityTest", mProfileUserId);
     }
 
     @Test
     public void testBluetoothSharingRestriction() throws Exception {
-        assumeHasBluetoothFeature();
+        final boolean hasBluetooth = hasDeviceFeature(FEATURE_BLUETOOTH);
+        if (!mHasFeature || !hasBluetooth) {
+            return;
+        }
 
         // Primary profile should be able to use bluetooth sharing.
         runDeviceTestsAsUser(MANAGED_PROFILE_PKG, ".BluetoothSharingRestrictionPrimaryProfileTest",
@@ -427,15 +590,25 @@ public class ManagedProfileTest extends BaseManagedProfileTest {
                 "testOppDisabledWhenRestrictionSet", mProfileUserId);
     }
 
+    //TODO(b/130844684): Re-enable once profile owner on personal device can no longer access
+    //identifiers.
+    @Ignore
     @Test
     public void testProfileOwnerOnPersonalDeviceCannotGetDeviceIdentifiers() throws Exception {
         // The Profile Owner should have access to all device identifiers.
+        if (!mHasFeature) {
+            return;
+        }
+
         runDeviceTestsAsUser(MANAGED_PROFILE_PKG, ".DeviceIdentifiersTest",
                 "testProfileOwnerOnPersonalDeviceCannotGetDeviceIdentifiers", mProfileUserId);
     }
 
     @Test
     public void testSetProfileNameLogged() throws Exception {
+        if (!mHasFeature || !isStatsdEnabled(getDevice())) {
+            return;
+        }
         assertMetricsLogged(getDevice(), () -> {
             runDeviceTestsAsUser(
                     MANAGED_PROFILE_PKG, MANAGED_PROFILE_PKG + ".DevicePolicyLoggingTest",
@@ -447,6 +620,10 @@ public class ManagedProfileTest extends BaseManagedProfileTest {
 
     @Test
     public void userManagerIsManagedProfileReturnsCorrectValues() throws Exception {
+        if (!mHasFeature) {
+            return ;
+        }
+
         runDeviceTestsAsUser(MANAGED_PROFILE_PKG, ".UserManagerTest",
                 "testIsManagedProfileReturnsTrue", mProfileUserId);
 
@@ -457,6 +634,9 @@ public class ManagedProfileTest extends BaseManagedProfileTest {
     @Test
     public void testCanGetWorkShortcutIconDrawableFromPersonalProfile()
             throws DeviceNotAvailableException {
+        if (!mHasFeature) {
+            return;
+        }
         runDeviceTestsAsUser(MANAGED_PROFILE_PKG, ".LauncherAppsTest",
                 "addDynamicShortcuts", mProfileUserId);
         try {
@@ -474,6 +654,9 @@ public class ManagedProfileTest extends BaseManagedProfileTest {
     @Test
     public void testCanGetPersonalShortcutIconDrawableFromWorkProfile()
             throws DeviceNotAvailableException {
+        if (!mHasFeature) {
+            return;
+        }
         runDeviceTestsAsUser(MANAGED_PROFILE_PKG, ".LauncherAppsTest",
                 "addDynamicShortcuts", mPrimaryUserId);
         try {
@@ -493,6 +676,10 @@ public class ManagedProfileTest extends BaseManagedProfileTest {
 
     @Test
     public void testCanGetProfiles() throws Exception {
+        if (!mHasFeature) {
+            return;
+        }
+
         // getAllProfiles should contain both the primary and profile
         runDeviceTestsAsUser(MANAGED_PROFILE_PKG, ".UserManagerTest",
                 "testGetAllProfiles", mPrimaryUserId);
@@ -509,6 +696,10 @@ public class ManagedProfileTest extends BaseManagedProfileTest {
 
     @Test
     public void testCanCreateProfile() throws Exception {
+        if (!mHasFeature) {
+            return;
+        }
+
         // remove pre-created profile
         removeUser(mProfileUserId);
 
@@ -520,6 +711,9 @@ public class ManagedProfileTest extends BaseManagedProfileTest {
     @Test
     public void testResolverActivityLaunchedFromPersonalProfileWithSelectedWorkTab()
             throws Exception {
+        if (!mHasFeature) {
+            return;
+        }
         installAppAsUser(SHARING_APP_1_APK, mPrimaryUserId);
         installAppAsUser(SHARING_APP_2_APK, mPrimaryUserId);
         installAppAsUser(SHARING_APP_1_APK, mProfileUserId);
@@ -540,6 +734,9 @@ public class ManagedProfileTest extends BaseManagedProfileTest {
     @Test
     public void testResolverActivityLaunchedFromWorkProfileWithSelectedPersonalTab()
             throws Exception {
+        if (!mHasFeature) {
+            return;
+        }
         installAppAsUser(SHARING_APP_1_APK, mPrimaryUserId);
         installAppAsUser(SHARING_APP_2_APK, mPrimaryUserId);
         installAppAsUser(SHARING_APP_1_APK, mProfileUserId);
@@ -560,6 +757,9 @@ public class ManagedProfileTest extends BaseManagedProfileTest {
     @Test
     public void testChooserActivityLaunchedFromPersonalProfileWithSelectedWorkTab()
             throws Exception {
+        if (!mHasFeature) {
+            return;
+        }
         installAppAsUser(SHARING_APP_1_APK, mPrimaryUserId);
         installAppAsUser(SHARING_APP_2_APK, mPrimaryUserId);
         installAppAsUser(SHARING_APP_1_APK, mProfileUserId);
@@ -580,6 +780,9 @@ public class ManagedProfileTest extends BaseManagedProfileTest {
     @Test
     public void testChooserActivityLaunchedFromWorkProfileWithSelectedPersonalTab()
             throws Exception {
+        if (!mHasFeature) {
+            return;
+        }
         installAppAsUser(SHARING_APP_1_APK, mPrimaryUserId);
         installAppAsUser(SHARING_APP_2_APK, mPrimaryUserId);
         installAppAsUser(SHARING_APP_1_APK, mProfileUserId);
@@ -626,5 +829,22 @@ public class ManagedProfileTest extends BaseManagedProfileTest {
     private String changeUserRestriction(String key, boolean value, int userId)
             throws DeviceNotAvailableException {
         return changeUserRestriction(key, value, userId, MANAGED_PROFILE_PKG);
+    }
+
+    // status should be one of never, undefined, ask, always
+    private void changeVerificationStatus(int userId, String packageName, String status)
+            throws DeviceNotAvailableException {
+        String command = "pm set-app-link --user " + userId + " " + packageName + " " + status;
+        CLog.d("Output for command " + command + ": "
+                + getDevice().executeShellCommand(command));
+    }
+
+    private void assertAppLinkResult(String methodName) throws DeviceNotAvailableException {
+        runDeviceTestsAsUser(INTENT_SENDER_PKG, ".AppLinkTest", methodName,
+                mProfileUserId);
+    }
+
+    private boolean shouldRunTelecomTest() throws DeviceNotAvailableException {
+        return hasDeviceFeature(FEATURE_TELEPHONY) && hasDeviceFeature(FEATURE_CONNECTION_SERVICE);
     }
 }

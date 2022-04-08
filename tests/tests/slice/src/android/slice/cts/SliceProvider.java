@@ -90,8 +90,7 @@ public class SliceProvider extends android.app.slice.SliceProvider {
                 Builder builder = new Builder(sliceUri, SPEC);
                 Slice subSlice = new Slice.Builder(builder).build();
                 PendingIntent broadcast = PendingIntent.getBroadcast(getContext(), 0,
-                        new Intent(getContext().getPackageName() + ".action"),
-                        PendingIntent.FLAG_IMMUTABLE);
+                        new Intent(getContext().getPackageName() + ".action"), 0);
                 return builder.addAction(broadcast, subSlice, "action").build();
             case "/int":
                 return new Slice.Builder(sliceUri, SPEC).addInt(0xff121212, "int",

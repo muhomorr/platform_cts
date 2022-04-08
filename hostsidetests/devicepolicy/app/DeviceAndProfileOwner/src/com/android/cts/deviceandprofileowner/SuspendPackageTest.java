@@ -16,38 +16,32 @@
 
 package com.android.cts.deviceandprofileowner;
 
-import static com.android.server.pm.shortcutmanagertest.ShortcutManagerTestUtils.getDefaultLauncher;
-
-import static com.google.common.truth.Truth.assertWithMessage;
-
+import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.content.pm.PackageManager.NameNotFoundException;
+import android.content.pm.ResolveInfo;
 import android.content.pm.SuspendDialogInfo;
-import android.util.Log;
 
 import java.util.Arrays;
-import java.util.Collection;
-import java.util.Set;
+import java.util.HashSet;
 
 public class SuspendPackageTest extends BaseDeviceAdminTest {
-
-    private static final String TAG = SuspendPackageTest.class.getSimpleName();
     private static final String INTENT_RECEIVER_PKG = "com.android.cts.intent.receiver";
 
-    @Override
-    protected void setUp() throws Exception {
-        super.setUp();
-
-        Log.d(TAG, "Running test on user " + mContext.getUserId());
-    }
-
-    public void testSetPackagesSuspended() throws Exception {
-        String[] notHandled = setSuspendedPackages(/* suspend= */ true, INTENT_RECEIVER_PKG);
+    public void testSetPackagesSuspended() throws NameNotFoundException {
+        String[] notHandledPackages =
+                mDevicePolicyManager.setPackagesSuspended(ADMIN_RECEIVER_COMPONENT, new String[]
+                        {INTENT_RECEIVER_PKG}, true);
         // all packages should be handled.
-        assertWithMessage("packages not suspended").that(notHandled).isEmpty();
-
-        assertPackageSuspended(INTENT_RECEIVER_PKG);
+        assertEquals(0, notHandledPackages.length);
+        // test isPackageSuspended
+        boolean isSuspended =
+                mDevicePolicyManager.isPackageSuspended(
+                        ADMIN_RECEIVER_COMPONENT, INTENT_RECEIVER_PKG);
+        assertTrue(isSuspended);
     }
 
-    public void testSetPackagesSuspendedWithPackageManager() throws Exception {
+    public void testSetPackagesSuspendedWithPackageManager() throws NameNotFoundException {
         SuspendDialogInfo dialogInfo = new SuspendDialogInfo.Builder()
                 .setMessage("Test message")
                 .build();
@@ -56,81 +50,69 @@ public class SuspendPackageTest extends BaseDeviceAdminTest {
                 mContext.getPackageManager().setPackagesSuspended(
                         new String[] {INTENT_RECEIVER_PKG}, true, null, null, dialogInfo);
         // all packages should be handled.
-        assertWithMessage("notHandlePackages").that(notHandledPackages).isEmpty();
-
-        assertPackageSuspended(INTENT_RECEIVER_PKG);
+        assertEquals(0, notHandledPackages.length);
+        // test isPackageSuspended
+        boolean isSuspended =
+                mDevicePolicyManager.isPackageSuspended(
+                        ADMIN_RECEIVER_COMPONENT, INTENT_RECEIVER_PKG);
+        assertTrue(isSuspended);
     }
 
-    public void testSetPackagesNotSuspendedWithPackageManager() throws Exception {
-        String[] notHandled = mContext.getPackageManager().setPackagesSuspended(
+    public void testSetPackagesNotSuspendedWithPackageManager() throws NameNotFoundException {
+        String[] notHandledPackages = mContext.getPackageManager().setPackagesSuspended(
                 new String[] {INTENT_RECEIVER_PKG}, false, null, null, (SuspendDialogInfo) null);
         // all packages should be handled.
-        assertWithMessage("packages not handled").that(notHandled).isEmpty();
-
+        assertEquals(0, notHandledPackages.length);
         // test isPackageSuspended
-        assertPackageNotSuspended(INTENT_RECEIVER_PKG);
+        boolean isSuspended =
+                mDevicePolicyManager.isPackageSuspended(
+                        ADMIN_RECEIVER_COMPONENT, INTENT_RECEIVER_PKG);
+        assertFalse(isSuspended);
     }
 
-    public void testSetPackagesNotSuspended() throws Exception {
-
-        String[] notHandled = setSuspendedPackages(/* suspend= */ false, INTENT_RECEIVER_PKG);
+    public void testSetPackagesNotSuspended() throws NameNotFoundException {
+        String[] notHandledPackages = mDevicePolicyManager.setPackagesSuspended(
+                ADMIN_RECEIVER_COMPONENT,
+                new String[] {INTENT_RECEIVER_PKG},
+                false);
         // all packages should be handled.
-        assertWithMessage("packages not suspended").that(notHandled).isEmpty();
-
+        assertEquals(0, notHandledPackages.length);
         // test isPackageSuspended
-        assertPackageNotSuspended(INTENT_RECEIVER_PKG);
+        boolean isSuspended =
+                mDevicePolicyManager.isPackageSuspended(
+                        ADMIN_RECEIVER_COMPONENT, INTENT_RECEIVER_PKG);
+        assertFalse(isSuspended);
     }
 
     /**
      * Verify that we cannot suspend launcher and dpc app.
      */
-    public void testSuspendNotSuspendablePackages() throws Exception {
-        String launcherPackage = getDefaultLauncher(getInstrumentation());
+    public void testSuspendNotSuspendablePackages() {
+        String launcherPackage = getLauncherPackage();
         String dpcPackage = ADMIN_RECEIVER_COMPONENT.getPackageName();
-        String[] notHandledPackages = setSuspendedPackages(/* suspend= */ true,
-                launcherPackage, dpcPackage);
+        String[] unsuspendablePackages = new String[] {launcherPackage, dpcPackage};
+        String[] notHandledPackages = mDevicePolicyManager.setPackagesSuspended(
+                ADMIN_RECEIVER_COMPONENT,
+                unsuspendablePackages,
+                true);
         // no package should be handled.
-        assertWithMessage("not handled packages").that(notHandledPackages).asList()
-                .containsExactly(launcherPackage, dpcPackage);
-
-        Set<String> exemptApps = mDevicePolicyManager.getPolicyExemptApps();
-        if (exemptApps.isEmpty()) {
-            Log.v(TAG, "testSuspendNotSuspendablePackages(): no exempt apps");
-            return;
-        }
-
-        Log.v(TAG, "testSuspendNotSuspendablePackages(): testing exempt apps: " + exemptApps);
-        notHandledPackages = setSuspendedPackages(/* suspend= */ true, exemptApps);
-        assertWithMessage("exempt apps not suspended").that(notHandledPackages).asList()
-            .containsExactlyElementsIn(exemptApps);
+        assertArrayEqualIgnoreOrder(unsuspendablePackages, notHandledPackages);
     }
 
-    private String[] setSuspendedPackages(boolean suspend, Collection<String> pkgs) {
-        String[] pkgsArray = new String[pkgs.size()];
-        pkgs.toArray(pkgsArray);
-        return setSuspendedPackages(suspend, pkgsArray);
+    /**
+     * @return the package name of launcher.
+     */
+    private String getLauncherPackage() {
+        Intent intent = new Intent(Intent.ACTION_MAIN);
+        intent.addCategory(Intent.CATEGORY_HOME);
+        ResolveInfo resolveInfo = mContext.getPackageManager().resolveActivity(intent,
+                PackageManager.MATCH_DEFAULT_ONLY);
+        return resolveInfo.activityInfo.packageName;
     }
 
-    private String[] setSuspendedPackages(boolean suspend, String... pkgs) {
-        Log.d(TAG, "Calling setPackagesSuspended(" + suspend + ", " + Arrays.toString(pkgs));
-        String[] notHandled =
-                mDevicePolicyManager.setPackagesSuspended(ADMIN_RECEIVER_COMPONENT, pkgs, suspend);
-        Log.d(TAG, "Returning " + Arrays.toString(notHandled));
-        return notHandled;
+    private static <T> void assertArrayEqualIgnoreOrder(T[] a, T[] b) {
+        assertEquals(a.length, b.length);
+        assertTrue(new HashSet(Arrays.asList(a)).containsAll(new HashSet(Arrays.asList(b))));
     }
 
-    private void assertPackageSuspended(String pkg) throws Exception {
-        assertPackageSuspension(pkg, /* expected= */ true);
-    }
-
-    private void assertPackageNotSuspended(String pkg) throws Exception {
-        assertPackageSuspension(pkg, /* expected= */ false);
-    }
-
-    private void assertPackageSuspension(String pkg, boolean expected) throws Exception {
-        boolean actual =
-                mDevicePolicyManager.isPackageSuspended(ADMIN_RECEIVER_COMPONENT, pkg);
-        Log.d(TAG, "isPackageSuspended(" + pkg + "): " + actual);
-        assertWithMessage("package %s suspension", pkg).that(actual).isEqualTo(expected);
-    }
 }

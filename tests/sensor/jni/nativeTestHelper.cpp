@@ -21,8 +21,6 @@
 
 extern int register_android_hardware_cts_SensorNativeTest(JNIEnv* env);
 extern int register_android_hardware_cts_SensorDirectReportTest(JNIEnv* env);
-extern int register_android_hardware_cts_helpers_SensorRatePermissionDirectReportTestHelper(
-        JNIEnv* env);
 
 void fail(JNIEnv* env, const char* format, ...) {
     va_list args;
@@ -52,9 +50,6 @@ jint JNI_OnLoad(JavaVM *vm, void *) {
         return JNI_ERR;
     }
     if (register_android_hardware_cts_SensorDirectReportTest(env)) {
-        return JNI_ERR;
-    }
-    if (register_android_hardware_cts_helpers_SensorRatePermissionDirectReportTestHelper(env)) {
         return JNI_ERR;
     }
     return JNI_VERSION_1_4;

@@ -142,10 +142,6 @@
     <attr name="themeGravity" />
     <attr name="themeTileMode" />
     <attr name="themeAngle" />
-    <attr name="themeDimension2" />
-    <attr name="themeDimension3" />
-    <attr name="themeDimension4" />
-    <attr name="themeString" />
 
     <attr name="chronometerStyle" format="string" />
 

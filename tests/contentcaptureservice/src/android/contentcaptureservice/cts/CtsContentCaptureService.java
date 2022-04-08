@@ -22,7 +22,6 @@ import static android.contentcaptureservice.cts.Helper.componentNameFor;
 import static com.google.common.truth.Truth.assertWithMessage;
 
 import android.content.ComponentName;
-import android.os.Parcel;
 import android.os.ParcelFileDescriptor;
 import android.service.contentcapture.ActivityEvent;
 import android.service.contentcapture.ContentCaptureService;
@@ -306,20 +305,9 @@ public class CtsContentCaptureService extends ContentCaptureService {
 
     @Override
     public void onContentCaptureEvent(ContentCaptureSessionId sessionId,
-            ContentCaptureEvent originalEvent) {
-        // Parcel and unparcel the event to test the parceling logic and trigger the restoration
-        // of Composing/Selection spans.
-        // TODO: Use a service in another process to make the tests more realistic.
-        Parcel parceled = Parcel.obtain();
-        parceled.setDataPosition(0);
-        originalEvent.writeToParcel(parceled, 0);
-        parceled.setDataPosition(0);
-        final ContentCaptureEvent event = ContentCaptureEvent.CREATOR.createFromParcel(parceled);
-        parceled.recycle();
-
+            ContentCaptureEvent event) {
         Log.i(TAG, "onContentCaptureEventsRequest(id=" + mId + ", ignoreOrpahn="
-                + mIgnoreOrphanSessionEvents + ", session=" + sessionId + "): " + event + " text: "
-                + getEventText(event));
+                + mIgnoreOrphanSessionEvents + ", session=" + sessionId + "): " + event);
         if (mIgnoreOrphanSessionEvents) return;
         final ViewNode node = event.getViewNode();
         if (node != null) {
@@ -516,24 +504,6 @@ public class CtsContentCaptureService extends ContentCaptureService {
         final String msg = String.format(fmt, args);
         Log.e(TAG, msg);
         sExceptions.add(new IllegalStateException(msg));
-    }
-
-    private static @Nullable String getEventText(ContentCaptureEvent event) {
-        CharSequence eventText = event.getText();
-        if (eventText != null) {
-            return eventText.toString();
-        }
-
-        ViewNode viewNode = event.getViewNode();
-        if (viewNode != null) {
-            eventText = viewNode.getText();
-
-            if (eventText != null) {
-                return eventText.toString();
-            }
-        }
-
-        return null;
     }
 
     public final class Session {

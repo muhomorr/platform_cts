@@ -18,7 +18,6 @@ package android.hdmicec.cts.audio;
 
 import static com.google.common.truth.Truth.assertThat;
 
-import android.hdmicec.cts.BaseHdmiCecCtsTest;
 import android.hdmicec.cts.CecMessage;
 import android.hdmicec.cts.CecOperand;
 import android.hdmicec.cts.HdmiCecClientWrapper;
@@ -29,6 +28,7 @@ import android.hdmicec.cts.RequiredFeatureRule;
 
 import com.android.tradefed.device.ITestDevice;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
+import com.android.tradefed.testtype.junit4.BaseHostJUnit4Test;
 
 import org.junit.Ignore;
 import org.junit.Rule;
@@ -39,20 +39,21 @@ import org.junit.Test;
 /** HDMI CEC test to verify logical address after device reboot (Section 10.2.5) */
 @Ignore("b/162820841")
 @RunWith(DeviceJUnit4ClassRunner.class)
-public final class HdmiCecLogicalAddressTest extends BaseHdmiCecCtsTest {
+public final class HdmiCecLogicalAddressTest extends BaseHostJUnit4Test {
 
     private static final LogicalAddress AUDIO_DEVICE = LogicalAddress.AUDIO_SYSTEM;
 
-    public HdmiCecLogicalAddressTest() {
-        super(HdmiCecConstants.CEC_DEVICE_TYPE_AUDIO_SYSTEM);
-    }
+    public HdmiCecClientWrapper hdmiCecClient = new HdmiCecClientWrapper(AUDIO_DEVICE);
 
     @Rule
     public RuleChain ruleChain =
         RuleChain
-            .outerRule(CecRules.requiresCec(this))
-            .around(CecRules.requiresLeanback(this))
-            .around(CecRules.requiresDeviceType(this, AUDIO_DEVICE))
+            .outerRule(new RequiredFeatureRule(this, LogicalAddress.HDMI_CEC_FEATURE))
+            .around(new RequiredFeatureRule(this, LogicalAddress.LEANBACK_FEATURE))
+            .around(RequiredPropertyRule.asCsvContainsValue(
+                this,
+                LogicalAddress.HDMI_DEVICE_TYPE_PROPERTY,
+                AUDIO_DEVICE.getDeviceType()))
             .around(hdmiCecClient);
 
     /**

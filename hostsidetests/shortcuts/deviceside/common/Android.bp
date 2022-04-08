@@ -1,12 +1,8 @@
-package {
-    default_applicable_licenses: ["Android-Apache-2.0"],
-}
-
 java_library {
     name: "hostsidetests-shortcuts-deviceside-common",
     srcs: ["src/**/*.java"],
     libs: [
-        "android.test.base",
+        "android.test.base.stubs",
         "ShortcutManagerTestUtils",
         "compatibility-device-util-axt",
     ],

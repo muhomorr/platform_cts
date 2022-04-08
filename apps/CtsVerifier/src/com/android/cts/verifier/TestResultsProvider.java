@@ -16,9 +16,6 @@
 
 package com.android.cts.verifier;
 
-import static com.android.cts.verifier.TestListActivity.sCurrentDisplayMode;
-import static com.android.cts.verifier.TestListAdapter.setTestNameSuffix;
-
 import android.app.backup.BackupManager;
 import android.content.ContentProvider;
 import android.content.ContentResolver;
@@ -102,9 +99,7 @@ public class TestResultsProvider extends ContentProvider {
      * @return Uri
      */
     public static Uri getTestNameUri(Context context) {
-        String name = context.getClass().getName();
-        name = setTestNameSuffix(sCurrentDisplayMode, name);
-        final String testName = name;
+        final String testName = context.getClass().getName();
         return Uri.withAppendedPath(getResultContentUri(context), testName);
     }
 

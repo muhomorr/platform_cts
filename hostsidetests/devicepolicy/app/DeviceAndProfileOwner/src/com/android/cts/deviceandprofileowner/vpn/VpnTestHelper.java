@@ -102,10 +102,10 @@ public class VpnTestHelper {
      *         this package as the new always-on VPN app and wait for it to connect.
      * @param lockdown Disallow connectivity while VPN is down.
      * @param usable Whether the resulting VPN tunnel is expected to be usable.
-     * @param excludeFromLockdown whether to exclude current package from lockdown.
+     * @param whitelist whether to whitelist current package from lockdown.
      */
     public static void waitForVpn(Context context, String packageName, boolean usable,
-            boolean lockdown, boolean excludeFromLockdown) {
+            boolean lockdown, boolean whitelist) {
         final DevicePolicyManager dpm = context.getSystemService(DevicePolicyManager.class);
         if (packageName == null) {
             assertNotNull(dpm.getAlwaysOnVpnPackage(ADMIN_RECEIVER_COMPONENT));
@@ -130,7 +130,7 @@ public class VpnTestHelper {
 
         try {
             if (packageName != null) {
-                setAlwaysOnVpn(context, packageName, lockdown, excludeFromLockdown);
+                setAlwaysOnVpn(context, packageName, lockdown, whitelist);
             }
             if (!vpnLatch.await(NETWORK_TIMEOUT_MS, TimeUnit.MILLISECONDS)) {
                 if (!isNetworkVpn(context)) {
@@ -154,21 +154,21 @@ public class VpnTestHelper {
     }
 
     public static void setAlwaysOnVpn(
-            Context context, String packageName, boolean lockdown, boolean excludeFromLockdown)
+            Context context, String packageName, boolean lockdown, boolean whitelist)
             throws PackageManager.NameNotFoundException {
         final DevicePolicyManager dpm = context.getSystemService(DevicePolicyManager.class);
-        final Set<String> lockdownAllowlist;
+        final Set<String> lockdownWhitelist;
         if (lockdown) {
-            lockdownAllowlist = excludeFromLockdown ?
+            lockdownWhitelist = whitelist ?
                     Collections.singleton(context.getPackageName()) : Collections.emptySet();
         } else {
-            lockdownAllowlist = null;
+            lockdownWhitelist = null;
         }
         dpm.setAlwaysOnVpnPackage(
-                ADMIN_RECEIVER_COMPONENT, packageName, lockdown, lockdownAllowlist);
+                ADMIN_RECEIVER_COMPONENT, packageName, lockdown, lockdownWhitelist);
         assertEquals(packageName, dpm.getAlwaysOnVpnPackage(ADMIN_RECEIVER_COMPONENT));
         assertEquals(lockdown, dpm.isAlwaysOnVpnLockdownEnabled(ADMIN_RECEIVER_COMPONENT));
-        assertEquals(lockdownAllowlist,
+        assertEquals(lockdownWhitelist,
                 dpm.getAlwaysOnVpnLockdownWhitelist(ADMIN_RECEIVER_COMPONENT));
     }
 

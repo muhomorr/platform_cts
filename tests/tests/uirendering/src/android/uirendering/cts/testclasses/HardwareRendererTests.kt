@@ -483,10 +483,4 @@ class HardwareRendererTests : ActivityTestBase() {
             reader.close()
         }
     }
-
-    @Test
-    fun testSetNullSurface() {
-        HardwareRenderer().setSurface(null)
-        // yay we didn't crash, test over
-    }
 }

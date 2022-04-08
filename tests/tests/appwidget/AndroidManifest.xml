@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
+
 <!--
  * Copyright (C) 2014 The Android Open Source Project
  *
@@ -16,93 +17,81 @@
  -->
 
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-     package="android.appwidget.cts"
-     android:targetSandboxVersion="2">
-
-    <queries>
-        <!-- UpdateProviderInfoTest queries widget providers. -->
-        <package android:name="android.appwidget.cts.widgetprovider"/>
-    </queries>
+    package="android.appwidget.cts"
+    android:targetSandboxVersion="2">
 
   <application>
       <uses-library android:name="android.test.runner"/>
 
-      <receiver android:name="android.appwidget.cts.provider.FirstAppWidgetProvider"
-           android:exported="true">
+      <receiver android:name="android.appwidget.cts.provider.FirstAppWidgetProvider" >
           <intent-filter>
-              <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+              <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
           </intent-filter>
           <meta-data android:name="android.appwidget.provider"
-               android:resource="@xml/first_appwidget_info"/>
+              android:resource="@xml/first_appwidget_info" />
       </receiver>
 
-      <receiver android:name="android.appwidget.cts.provider.SecondAppWidgetProvider"
-           android:exported="true">
+      <receiver android:name="android.appwidget.cts.provider.SecondAppWidgetProvider" >
           <intent-filter>
-              <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+              <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
           </intent-filter>
           <meta-data android:name="android.appwidget.provider"
-               android:resource="@xml/second_appwidget_info"/>
+              android:resource="@xml/second_appwidget_info" />
       </receiver>
 
-      <receiver android:name="android.appwidget.cts.provider.AppWidgetProviderWithFeatures$Provider1"
-           android:exported="true">
+      <receiver android:name="android.appwidget.cts.provider.AppWidgetProviderWithFeatures$Provider1" >
           <intent-filter>
-              <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+              <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
           </intent-filter>
           <meta-data android:name="android.appwidget.provider"
-               android:resource="@xml/appwidget_info_with_feature1"/>
+              android:resource="@xml/appwidget_info_with_feature1" />
       </receiver>
 
-      <receiver android:name="android.appwidget.cts.provider.AppWidgetProviderWithFeatures$Provider2"
-           android:exported="true">
+      <receiver android:name="android.appwidget.cts.provider.AppWidgetProviderWithFeatures$Provider2" >
           <intent-filter>
-              <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+              <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
           </intent-filter>
           <meta-data android:name="android.appwidget.provider"
-               android:resource="@xml/appwidget_info_with_feature2"/>
+              android:resource="@xml/appwidget_info_with_feature2" />
       </receiver>
 
-      <receiver android:name="android.appwidget.cts.provider.AppWidgetProviderWithFeatures$Provider3"
-           android:exported="true">
+      <receiver android:name="android.appwidget.cts.provider.AppWidgetProviderWithFeatures$Provider3" >
           <intent-filter>
-              <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+              <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
           </intent-filter>
           <meta-data android:name="android.appwidget.provider"
-               android:resource="@xml/appwidget_info_with_feature3"/>
+              android:resource="@xml/appwidget_info_with_feature3" />
       </receiver>
 
-      <receiver android:name="android.appwidget.cts.provider.CollectionAppWidgetProvider"
-           android:exported="true">
+      <receiver android:name="android.appwidget.cts.provider.CollectionAppWidgetProvider" >
           <intent-filter>
-              <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+              <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
           </intent-filter>
           <meta-data android:name="android.appwidget.provider"
-               android:resource="@xml/collection_appwidget_info"/>
+              android:resource="@xml/collection_appwidget_info" />
       </receiver>
 
       <service android:name="android.appwidget.cts.service.MyAppWidgetService"
-           android:permission="android.permission.BIND_REMOTEVIEWS">
+          android:permission="android.permission.BIND_REMOTEVIEWS">
       </service>
 
       <activity android:name="android.appwidget.cts.activity.EmptyActivity"
-           android:label="EmptyActivity"
-           android:exported="true">
+                android:label="EmptyActivity">
           <intent-filter>
-              <action android:name="android.intent.action.MAIN"/>
-              <category android:name="android.intent.category.FRAMEWORK_INSTRUMENTATION_TEST"/>
+              <action android:name="android.intent.action.MAIN" />
+              <category android:name="android.intent.category.FRAMEWORK_INSTRUMENTATION_TEST" />
           </intent-filter>
       </activity>
 
       <activity android:name="android.appwidget.cts.activity.TransitionActivity"
-           android:label="TransitionActivity"/>
+          android:label="TransitionActivity" />
   </application>
 
   <instrumentation android:name="androidx.test.runner.AndroidJUnitRunner"
-       android:targetPackage="android.appwidget.cts"
-       android:label="Tests for the app widget APIs.">
+      android:targetPackage="android.appwidget.cts"
+      android:label="Tests for the app widget APIs.">
       <meta-data android:name="listener"
-           android:value="com.android.cts.runner.CtsTestRunListener"/>
+          android:value="com.android.cts.runner.CtsTestRunListener" />
   </instrumentation>
 
 </manifest>

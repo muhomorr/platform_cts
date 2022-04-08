@@ -18,7 +18,6 @@ package android.keystore.cts;
 
 import static org.testng.Assert.assertThrows;
 
-import android.os.Process;
 import android.security.keystore.KeyGenParameterSpec;
 import android.security.keystore.KeyProperties;
 import android.test.MoreAsserts;
@@ -73,7 +72,6 @@ public class KeyGenParameterSpecTest extends TestCase {
         assertEquals(0, spec.getUserAuthenticationValidityDurationSeconds());
         assertEquals(KeyProperties.AUTH_BIOMETRIC_STRONG, spec.getUserAuthenticationType());
         assertFalse(spec.isUnlockedDeviceRequired());
-        assertEquals(KeyProperties.UNRESTRICTED_USAGE_COUNT, spec.getMaxUsageCount());
     }
 
     public void testSettersReflectedInGetters() {
@@ -85,7 +83,6 @@ public class KeyGenParameterSpecTest extends TestCase {
         Date keyValidityEndDateForOrigination = new Date(System.currentTimeMillis() + 11111111);
         Date keyValidityEndDateForConsumption = new Date(System.currentTimeMillis() + 33333333);
         AlgorithmParameterSpec algSpecificParams = new ECGenParameterSpec("secp256r1");
-        int maxUsageCount = 1;
 
         KeyGenParameterSpec spec = new KeyGenParameterSpec.Builder(
                 "arbitrary", KeyProperties.PURPOSE_SIGN | KeyProperties.PURPOSE_ENCRYPT)
@@ -109,7 +106,6 @@ public class KeyGenParameterSpecTest extends TestCase {
                 .setUserAuthenticationParameters(12345,
                         KeyProperties.AUTH_DEVICE_CREDENTIAL | KeyProperties.AUTH_BIOMETRIC_STRONG)
                 .setUnlockedDeviceRequired(true)
-                .setMaxUsageCount(maxUsageCount)
                 .build();
 
         assertEquals("arbitrary", spec.getKeystoreAlias());
@@ -139,7 +135,6 @@ public class KeyGenParameterSpecTest extends TestCase {
         assertEquals(KeyProperties.AUTH_DEVICE_CREDENTIAL | KeyProperties.AUTH_BIOMETRIC_STRONG,
                 spec.getUserAuthenticationType());
         assertTrue(spec.isUnlockedDeviceRequired());
-        assertEquals(maxUsageCount, spec.getMaxUsageCount());
     }
 
     public void testNullAliasNotPermitted() {
@@ -351,16 +346,8 @@ public class KeyGenParameterSpecTest extends TestCase {
                 KeyProperties.KEY_ALGORITHM_HMAC_SHA256, "AndroidKeyStore");
         keyGenerator.init(
                 new KeyGenParameterSpec.Builder("alias", KeyProperties.PURPOSE_SIGN)
-                        .setUid(Process.WIFI_UID)
+                        .setUid(123)
                         .build());
         assertThrows(ProviderException.class, keyGenerator::generateKey);
-    }
-
-    public void testIllegalMaxUsageCountNotPermitted() {
-        try {
-            new KeyGenParameterSpec.Builder("LimitedUseKey", KeyProperties.PURPOSE_ENCRYPT)
-            .setMaxUsageCount(0);
-            fail();
-        } catch (IllegalArgumentException expected) {}
     }
 }

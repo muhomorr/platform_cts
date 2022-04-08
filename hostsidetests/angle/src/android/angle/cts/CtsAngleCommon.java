@@ -16,7 +16,6 @@
 package android.angle.cts;
 
 import com.android.tradefed.device.ITestDevice;
-import com.android.tradefed.device.PackageInfo;
 import com.android.tradefed.testtype.junit4.BaseHostJUnit4Test;
 
 import java.util.HashMap;
@@ -31,10 +30,11 @@ class CtsAngleCommon {
     static final String SETTINGS_GLOBAL_ALL_USE_ANGLE = "angle_gl_driver_all_angle";
     static final String SETTINGS_GLOBAL_DRIVER_PKGS = "angle_gl_driver_selection_pkgs";
     static final String SETTINGS_GLOBAL_DRIVER_VALUES = "angle_gl_driver_selection_values";
-    static final String SETTINGS_GLOBAL_ALLOWLIST = "angle_allowlist";
+    static final String SETTINGS_GLOBAL_WHITELIST = "angle_whitelist";
     static final String SETTINGS_GLOBAL_ANGLE_IN_USE_DIALOG_BOX = "show_angle_in_use_dialog_box";
 
     // System Properties
+    static final String PROPERTY_GFX_ANGLE_SUPPORTED = "ro.gfx.angle.supported";
     static final String PROPERTY_TEMP_RULES_FILE = "debug.angle.rules";
 
     // Rules File
@@ -43,7 +43,6 @@ class CtsAngleCommon {
     static final String DEVICE_TEMP_RULES_FILE_PATH = DEVICE_TEMP_RULES_FILE_DIRECTORY + "/" + DEVICE_TEMP_RULES_FILE_FILENAME;
 
     // ANGLE
-    static final String ANGLE_PACKAGE_NAME = "com.android.angle";
     static final String ANGLE_DRIVER_TEST_PKG = "com.android.angleIntegrationTest.driverTest";
     static final String ANGLE_DRIVER_TEST_SEC_PKG = "com.android.angleIntegrationTest.driverTestSecondary";
     static final String ANGLE_DRIVER_TEST_CLASS = "AngleDriverTestActivity";
@@ -56,6 +55,7 @@ class CtsAngleCommon {
             ANGLE_DRIVER_TEST_PKG + "/com.android.angleIntegrationTest.common.AngleIntegrationTestActivity";
     static final String ANGLE_DRIVER_TEST_SEC_ACTIVITY =
             ANGLE_DRIVER_TEST_SEC_PKG + "/com.android.angleIntegrationTest.common.AngleIntegrationTestActivity";
+    static final String ANGLE_MAIN_ACTIVTY = "android.app.action.ANGLE_FOR_ANDROID";
 
     enum OpenGlDriverChoice {
         DEFAULT,
@@ -98,22 +98,22 @@ class CtsAngleCommon {
         setGlobalSetting(device, SETTINGS_GLOBAL_ANGLE_IN_USE_DIALOG_BOX, "0");
         setGlobalSetting(device, SETTINGS_GLOBAL_DRIVER_PKGS, "\"\"");
         setGlobalSetting(device, SETTINGS_GLOBAL_DRIVER_VALUES, "\"\"");
-        setGlobalSetting(device, SETTINGS_GLOBAL_ALLOWLIST, "\"\"");
+        setGlobalSetting(device, SETTINGS_GLOBAL_WHITELIST, "\"\"");
 
         // Properties
         setProperty(device, PROPERTY_TEMP_RULES_FILE, "\"\"");
     }
 
-    static boolean isAngleInstalled(ITestDevice device) throws Exception {
-        PackageInfo info = device.getAppPackageInfo(ANGLE_PACKAGE_NAME);
+    static boolean isAngleLoadable(ITestDevice device) throws Exception {
+        String angleSupported = device.getProperty(PROPERTY_GFX_ANGLE_SUPPORTED);
 
-        return (info != null);
+        return (angleSupported != null) && (angleSupported.equals("true"));
     }
 
-    static boolean isNativeDriverAngle(ITestDevice device) throws Exception {
-        String driverProp = device.getProperty("ro.hardware.egl");
-
-        return (driverProp != null) && (driverProp.equals("angle"));
+    static void startActivity(ITestDevice device, String action) throws Exception {
+        // Run the ANGLE activity so it'll clear up any 'default' settings.
+        device.executeShellCommand("am start --user " + device.getCurrentUser() +
+                " -S -W -a \"" + action + "\"");
     }
 
     static void stopPackage(ITestDevice device, String pkgName) throws Exception {

@@ -28,7 +28,6 @@ import com.android.cts.verifier.ArrayTestListAdapter;
 import com.android.cts.verifier.PassFailButtons;
 import com.android.cts.verifier.R;
 import com.android.cts.verifier.TestListAdapter.TestListItem;
-import com.android.cts.verifier.features.FeatureUtil;
 
 import java.util.Arrays;
 import java.util.List;
@@ -63,6 +62,7 @@ public class PolicyTransparencyTestListActivity extends PassFailButtons.TestList
             PolicyTransparencyTestActivity.TEST_CHECK_KEYGURAD_UNREDACTED_NOTIFICATION,
             PolicyTransparencyTestActivity.TEST_CHECK_LOCK_SCREEN_INFO,
             PolicyTransparencyTestActivity.TEST_CHECK_MAXIMUM_TIME_TO_LOCK,
+            PolicyTransparencyTestActivity.TEST_CHECK_PASSWORD_QUALITY,
             PolicyTransparencyTestActivity.TEST_CHECK_PERMITTED_ACCESSIBILITY_SERVICE,
             PolicyTransparencyTestActivity.TEST_CHECK_PERMITTED_INPUT_METHOD
         };
@@ -71,6 +71,7 @@ public class PolicyTransparencyTestListActivity extends PassFailButtons.TestList
             Settings.ACTION_SETTINGS,
             Settings.ACTION_DISPLAY_SETTINGS,
             Settings.ACTION_DISPLAY_SETTINGS,
+            Settings.ACTION_SETTINGS,
             Settings.ACTION_ACCESSIBILITY_SETTINGS,
             Settings.ACTION_SETTINGS
         };
@@ -79,6 +80,7 @@ public class PolicyTransparencyTestListActivity extends PassFailButtons.TestList
             R.string.disallow_keyguard_unredacted_notifications,
             R.string.set_lock_screen_info,
             R.string.set_maximum_time_to_lock,
+            R.string.set_password_quality,
             R.string.set_permitted_accessibility_services,
             R.string.set_permitted_input_methods
         };
@@ -141,30 +143,28 @@ public class PolicyTransparencyTestListActivity extends PassFailButtons.TestList
     private void addTestsToAdapter(final ArrayTestListAdapter adapter) {
         for (String restriction :
                 UserRestrictions.getUserRestrictionsForPolicyTransparency(mMode)) {
-            Intent intent =
-                    UserRestrictions.getUserRestrictionTestIntent(this, restriction, mMode);
+            final Intent intent = UserRestrictions.getUserRestrictionTestIntent(this, restriction);
             if (!UserRestrictions.isRestrictionValid(this, restriction)) {
                 continue;
             }
-            String title = UserRestrictions.getRestrictionLabel(this, restriction);
+            final String title = UserRestrictions.getRestrictionLabel(this, restriction);
             String testId = getTestId(title);
             intent.putExtra(PolicyTransparencyTestActivity.EXTRA_TEST_ID, testId);
             adapter.add(TestListItem.newTest(title, testId, intent, null));
         }
         for (Pair<Intent, Integer> policy : POLICIES) {
-            Intent intent = policy.first;
+            final Intent intent = policy.first;
             String test = intent.getStringExtra(PolicyTransparencyTestActivity.EXTRA_TEST);
             if (!isPolicyValid(test)) {
                 continue;
             }
-
             if (mMode == MODE_MANAGED_PROFILE && !ALSO_VALID_FOR_MANAGED_PROFILE.contains(test)) {
                 continue;
             }
             if (mMode == MODE_MANAGED_USER && !ALSO_VALID_FOR_MANAGED_USER.contains(test)) {
                 continue;
             }
-            String title = getString(policy.second);
+            final String title = getString(policy.second);
             String testId = getTestId(title);
             intent.putExtra(PolicyTransparencyTestActivity.EXTRA_TITLE, title);
             intent.putExtra(PolicyTransparencyTestActivity.EXTRA_TEST_ID, testId);
@@ -189,13 +189,9 @@ public class PolicyTransparencyTestListActivity extends PassFailButtons.TestList
             case PolicyTransparencyTestActivity.TEST_CHECK_PERMITTED_INPUT_METHOD:
                 return pm.hasSystemFeature(PackageManager.FEATURE_INPUT_METHODS);
             case PolicyTransparencyTestActivity.TEST_CHECK_PERMITTED_ACCESSIBILITY_SERVICE:
-                return (pm.hasSystemFeature(PackageManager.FEATURE_AUDIO_OUTPUT)
-                        && FeatureUtil.isThirdPartyAccessibilityServiceSupported(this));
-            case PolicyTransparencyTestActivity.TEST_CHECK_KEYGURAD_UNREDACTED_NOTIFICATION:
+                return pm.hasSystemFeature(PackageManager.FEATURE_AUDIO_OUTPUT);
             case PolicyTransparencyTestActivity.TEST_CHECK_LOCK_SCREEN_INFO:
-            case PolicyTransparencyTestActivity.TEST_CHECK_MAXIMUM_TIME_TO_LOCK:
-                return (pm.hasSystemFeature(PackageManager.FEATURE_SECURE_LOCK_SCREEN)
-                        && FeatureUtil.isConfigLockScreenSupported(this));
+                return !pm.hasSystemFeature(PackageManager.FEATURE_WATCH);
             default:
                 return true;
         }

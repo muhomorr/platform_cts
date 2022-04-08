@@ -16,9 +16,11 @@
 
 package android.server.wm.app;
 
+import android.app.Activity;
+import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 
-public class LaunchPipOnPipActivity extends PipActivity {
+public class LaunchPipOnPipActivity extends Activity {
 
     @Override
     public void onPictureInPictureModeChanged(boolean isInPictureInPictureMode,

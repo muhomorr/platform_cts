@@ -26,7 +26,7 @@ import androidx.annotation.Nullable;
  */
 public final class ImeState {
     private final boolean mHasInputBinding;
-    private final boolean mHasFallbackInputConnection;
+    private final boolean mHasDummyInputConnection;
 
     /**
      * @return {@code true} if {@link MockIme#getCurrentInputBinding()} returned non-null
@@ -37,23 +37,23 @@ public final class ImeState {
     }
 
     /**
-     * @return {@code true} if {@link MockIme#getCurrentInputConnection()} returned non-fallback
+     * @return {@code true} if {@link MockIme#getCurrentInputConnection()} returned non-dummy
      *         {@link android.view.inputmethod.InputConnection} when this snapshot was taken.
      */
-    public boolean hasFallbackInputConnection() {
-        return mHasFallbackInputConnection;
+    public boolean hasDummyInputConnection() {
+        return mHasDummyInputConnection;
     }
 
-    ImeState(boolean hasInputBinding, boolean hasFallbackInputConnection) {
+    ImeState(boolean hasInputBinding, boolean hasDummyInputConnection) {
         mHasInputBinding = hasInputBinding;
-        mHasFallbackInputConnection = hasFallbackInputConnection;
+        mHasDummyInputConnection = hasDummyInputConnection;
     }
 
     @NonNull
     Bundle toBundle() {
         final Bundle bundle = new Bundle();
         bundle.putBoolean("mHasInputBinding", mHasInputBinding);
-        bundle.putBoolean("mHasFallbackInputConnection", mHasFallbackInputConnection);
+        bundle.putBoolean("mHasDummyInputConnection", mHasDummyInputConnection);
         return bundle;
     }
 
@@ -63,7 +63,7 @@ public final class ImeState {
             return null;
         }
         final boolean hasInputBinding = bundle.getBoolean("mHasInputBinding");
-        final boolean hasFallbackInputConnection = bundle.getBoolean("mHasFallbackInputConnection");
-        return new ImeState(hasInputBinding, hasFallbackInputConnection);
+        final boolean hasDummyInputConnection = bundle.getBoolean("mHasDummyInputConnection");
+        return new ImeState(hasInputBinding, hasDummyInputConnection);
     }
 }

@@ -18,17 +18,15 @@ package android.media.cts;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.content.res.AssetFileDescriptor;
+import android.content.res.Resources;
 import android.media.MediaPlayer;
 import android.media.cts.TestUtils.Monitor;
 import android.net.Uri;
-import android.os.ParcelFileDescriptor;
 import android.os.PersistableBundle;
 import android.test.ActivityInstrumentationTestCase2;
 
 import com.android.compatibility.common.util.MediaUtils;
 
-import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.HttpCookie;
 import java.util.List;
@@ -41,8 +39,6 @@ import java.util.Set;
  */
 public class MediaPlayerTestBase extends ActivityInstrumentationTestCase2<MediaStubActivity> {
     private static final Logger LOG = Logger.getLogger(MediaPlayerTestBase.class.getName());
-
-    static final String mInpPrefix = WorkDir.getMediaDirString();
 
     protected static final int SLEEP_TIME = 1000;
     protected static final int LONG_SLEEP_TIME = 6000;
@@ -59,6 +55,8 @@ public class MediaPlayerTestBase extends ActivityInstrumentationTestCase2<MediaS
     protected Monitor mOnErrorCalled = new Monitor();
 
     protected Context mContext;
+    protected Resources mResources;
+
 
     protected MediaPlayer mMediaPlayer = null;
     protected MediaPlayer mMediaPlayer2 = null;
@@ -85,6 +83,7 @@ public class MediaPlayerTestBase extends ActivityInstrumentationTestCase2<MediaS
             fail();
         }
         mContext = getInstrumentation().getTargetContext();
+        mResources = mContext.getResources();
     }
 
     @Override
@@ -101,23 +100,13 @@ public class MediaPlayerTestBase extends ActivityInstrumentationTestCase2<MediaS
         super.tearDown();
     }
 
-    protected static AssetFileDescriptor getAssetFileDescriptorFor(final String res)
-            throws FileNotFoundException {
-        Preconditions.assertTestFileExists(mInpPrefix + res);
-        File inpFile = new File(mInpPrefix + res);
-        ParcelFileDescriptor parcelFD =
-                ParcelFileDescriptor.open(inpFile, ParcelFileDescriptor.MODE_READ_ONLY);
-        return new AssetFileDescriptor(parcelFD, 0, parcelFD.getStatSize());
-    }
-
     // returns true on success
-    protected boolean loadResource(final String res) throws Exception {
-        Preconditions.assertTestFileExists(mInpPrefix + res);
-        if (!MediaUtils.hasCodecsForResource(mInpPrefix + res)) {
+    protected boolean loadResource(int resid) throws Exception {
+        if (!MediaUtils.hasCodecsForResource(mContext, resid)) {
             return false;
         }
 
-        AssetFileDescriptor afd = getAssetFileDescriptorFor(res);
+        AssetFileDescriptor afd = mResources.openRawResourceFd(resid);
         try {
             mMediaPlayer.setDataSource(afd.getFileDescriptor(), afd.getStartOffset(),
                     afd.getLength());
@@ -136,12 +125,12 @@ public class MediaPlayerTestBase extends ActivityInstrumentationTestCase2<MediaS
         return true;
     }
 
-    protected boolean checkLoadResource(String res) throws Exception {
-        return MediaUtils.check(loadResource(res), "no decoder found");
+    protected boolean checkLoadResource(int resid) throws Exception {
+        return MediaUtils.check(loadResource(resid), "no decoder found");
     }
 
-    protected void loadSubtitleSource(String res) throws Exception {
-        AssetFileDescriptor afd = getAssetFileDescriptorFor(res);
+    protected void loadSubtitleSource(int resid) throws Exception {
+        AssetFileDescriptor afd = mResources.openRawResourceFd(resid);
         try {
             mMediaPlayer.addTimedTextSource(afd.getFileDescriptor(), afd.getStartOffset(),
                       afd.getLength(), MediaPlayer.MEDIA_MIMETYPE_TEXT_SUBRIP);
@@ -180,8 +169,8 @@ public class MediaPlayerTestBase extends ActivityInstrumentationTestCase2<MediaS
         assertTrue("Stream did not play successfully after all attempts", playedSuccessfully);
     }
 
-    protected void playLoadedVideoTest(final String res, int width, int height) throws Exception {
-        if (!checkLoadResource(res)) {
+    protected void playVideoTest(int resid, int width, int height) throws Exception {
+        if (!checkLoadResource(resid)) {
             return; // skip
         }
 

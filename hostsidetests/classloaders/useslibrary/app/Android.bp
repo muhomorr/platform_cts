@@ -12,17 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package {
-    default_applicable_licenses: ["Android-Apache-2.0"],
-}
-
 android_test {
     name: "CtsUsesLibraryApp",
     defaults: [ "cts_support_defaults" ],
     sdk_version: "current",
     srcs: ["src/**/*.java"],
     libs: [
-        "android.test.base",
+        "android.test.base.stubs",
     ],
     static_libs: [
         "androidx.test.rules",

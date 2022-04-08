@@ -699,7 +699,6 @@ class ResourcesLoaderValuesTest : ResourcesLoaderTestBase() {
 
             // Relaunches the activity.
             at.handleApplicationInfoChanged(activity.applicationInfo)
-            at.handleRelaunchActivityLocally(token)
         })
 
         mTestActivityRule.runOnUiThread(Runnable {

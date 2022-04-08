@@ -47,7 +47,6 @@ class UndefinedGroupPermissionTest {
     private var mContext: Context? = null
     private var mPm: PackageManager? = null
     private var mAllowButtonText: Pattern? = null
-    private var mDenyButtonText: Pattern? = null
 
     @Before
     fun install() {
@@ -67,12 +66,6 @@ class UndefinedGroupPermissionTest {
                 Pattern.quote(requireNotNull(permissionControllerResources?.getString(
                         permissionControllerResources.getIdentifier(
                                 "grant_dialog_button_allow", "string",
-                                "com.android.permissioncontroller")))),
-                Pattern.CASE_INSENSITIVE or Pattern.UNICODE_CASE)
-        mDenyButtonText = Pattern.compile(
-                Pattern.quote(requireNotNull(permissionControllerResources?.getString(
-                        permissionControllerResources.getIdentifier(
-                                "grant_dialog_button_deny", "string",
                                 "com.android.permissioncontroller")))),
                 Pattern.CASE_INSENSITIVE or Pattern.UNICODE_CASE)
     }
@@ -160,7 +153,7 @@ class UndefinedGroupPermissionTest {
             try {
                 if (mContext?.packageManager
                                 ?.hasSystemFeature(PackageManager.FEATURE_AUTOMOTIVE) == true) {
-                    waitFindObject(By.text(mDenyButtonText), 100)
+                    findAllowButton()
                 } else {
                     waitFindObject(By.res("com.android.permissioncontroller:id/grant_dialog"), 100)
                 }

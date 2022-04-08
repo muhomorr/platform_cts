@@ -34,7 +34,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 /**
  * A simple activity to create and manage wifi configurations.
@@ -63,12 +62,9 @@ public class WifiConfigCreator {
     private final WifiManager mWifiManager;
 
     public WifiConfigCreator(Context context) {
-        this(context, context.getApplicationContext().getSystemService(WifiManager.class));
-    }
-
-    public WifiConfigCreator(Context context, WifiManager wifiManager) {
         mContext = context;
-        mWifiManager = wifiManager;
+        mWifiManager = (WifiManager)
+                context.getApplicationContext().getSystemService(Context.WIFI_SERVICE);
     }
 
     /**
@@ -84,9 +80,7 @@ public class WifiConfigCreator {
         int netId = mWifiManager.addNetwork(wifiConf);
 
         if (netId != -1) {
-            Log.i(TAG, "Added SSID '" + ssid + "': netId = " + netId + "; enabling it");
             mWifiManager.enableNetwork(netId, true);
-            Log.i(TAG, "SSID '" + ssid + "' enabled!");
         } else {
             Log.w(TAG, "Unable to add SSID '" + ssid + "': netId = " + netId);
         }
@@ -109,7 +103,6 @@ public class WifiConfigCreator {
             WifiConfiguration conf = getWifiConfigurationBySsid(ssid);
             retrievedPacProxyUrl = getPacProxyUrl(conf);
 
-            Log.d(TAG, "calling removeNetwork(" + netId + ")");
             if (!mWifiManager.removeNetwork(netId)) {
                 throw new IllegalStateException("Failed to remove WifiConfiguration: " + ssid);
             }
@@ -134,9 +127,7 @@ public class WifiConfigCreator {
             conf.setHttpProxy(ProxyInfo.buildPacProxy(Uri.parse(pacProxyUrl)));
         }
 
-        Log.d(TAG, "addNetworkWithProxy(ssid=" + ssid + ", pacProxyUrl=" + pacProxyUrl);
         int netId = mWifiManager.addNetwork(conf);
-        Log.d(TAG, "added: netId=" + netId);
         if (netId == -1) {
             throw new IllegalStateException("Failed to addNetwork: " + ssid);
         }
@@ -146,13 +137,12 @@ public class WifiConfigCreator {
     private WifiConfiguration getWifiConfigurationBySsid(String ssid) {
         WifiConfiguration wifiConfiguration = null;
         String expectedSsid = wrapInQuotes(ssid);
-        List<WifiConfiguration> configuredNetworks = getConfiguredNetworksWithLogging();
-        for (WifiConfiguration w : configuredNetworks) {
+
+        for (final WifiConfiguration w : mWifiManager.getConfiguredNetworks()) {
             if (w.SSID.equals(expectedSsid)) {
                 wifiConfiguration = w;
                 break;
             }
-            Log.v(TAG, "skipping " + w.SSID);
         }
         if (wifiConfiguration == null) {
             throw new IllegalStateException("Failed to get WifiConfiguration for: " + ssid);
@@ -177,11 +167,8 @@ public class WifiConfigCreator {
         int newNetId = mWifiManager.updateNetwork(conf);
 
         if (newNetId != -1) {
-            Log.v(TAG, "calling saveConfiguration()");
             mWifiManager.saveConfiguration();
-            Log.v(TAG, "calling enableNetwork(" + newNetId + ")");
             mWifiManager.enableNetwork(newNetId, true);
-            Log.v(TAG, "enabled");
         } else {
             Log.w(TAG, "Unable to update SSID '" + ssid + "': netId = " + newNetId);
         }
@@ -194,26 +181,21 @@ public class WifiConfigCreator {
      */
     public int updateNetwork(int netId, String ssid, boolean hidden,
             int securityType, String password) throws InterruptedException, SecurityException {
-        Log.d(TAG, "updateNetwork(): netId= " + netId + ", ssid=" + ssid + ", hidden=" + hidden);
         checkAndEnableWifi();
 
         WifiConfiguration wifiConf = null;
-        List<WifiConfiguration> configs = getConfiguredNetworksWithLogging();
+        List<WifiConfiguration> configs = mWifiManager.getConfiguredNetworks();
         for (WifiConfiguration config : configs) {
             if (config.networkId == netId) {
                 wifiConf = config;
                 break;
             }
-            Log.v(TAG, "skipping " + config.networkId);
         }
         return updateNetwork(wifiConf, ssid, hidden, securityType, password);
     }
 
     public boolean removeNetwork(int netId) {
-        Log.v(TAG, "calling removeNetwork(" + netId + ")");
-        boolean removed = mWifiManager.removeNetwork(netId);
-        Log.v(TAG, "removed: " + removed);
-        return removed;
+        return mWifiManager.removeNetwork(netId);
     }
 
     /**
@@ -277,7 +259,6 @@ public class WifiConfigCreator {
         final BroadcastReceiver watcher = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
-                Log.d(TAG, "Received intent " + intent.getAction());
                 if (intent.getIntExtra(EXTRA_WIFI_STATE, -1) == WIFI_STATE_ENABLED) {
                     enabledLatch.countDown();
                 }
@@ -288,9 +269,7 @@ public class WifiConfigCreator {
         try {
             // In case wifi is not already enabled, wait for it to come up
             if (!mWifiManager.isWifiEnabled()) {
-                Log.v(TAG, "Calling setWifiEnabled(true)");
                 mWifiManager.setWifiEnabled(true);
-                Log.v(TAG, "enabled");
                 enabledLatch.await(ENABLE_WIFI_WAIT_SEC, TimeUnit.SECONDS);
             }
         } finally {
@@ -300,18 +279,6 @@ public class WifiConfigCreator {
 
     private String wrapInQuotes(String ssid) {
         return '"' + ssid + '"';
-    }
-
-    private List<WifiConfiguration> getConfiguredNetworksWithLogging() {
-        Log.d(TAG, "calling getConfiguredNetworks()");
-        List<WifiConfiguration> configuredNetworks = getConfiguredNetworks();
-        Log.d(TAG, "Got " + configuredNetworks.size() + " networks: "
-                + configuredNetworks.stream().map((c) -> c.SSID).collect(Collectors.toList()));
-        return configuredNetworks;
-    }
-
-    public List<WifiConfiguration> getConfiguredNetworks() {
-        return mWifiManager.getConfiguredNetworks();
     }
 }
 

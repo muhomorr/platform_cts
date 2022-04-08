@@ -16,9 +16,9 @@
 
 package com.android.cts.deviceowner;
 
-import static com.google.common.truth.Truth.assertWithMessage;
-
 import android.content.pm.PackageManager;
+
+import com.android.compatibility.common.util.WifiConfigCreator;
 
 /**
  * Tests that DeviceOwner can add WifiConfigurations containing a HttpProxy
@@ -37,14 +37,14 @@ public class WifiSetHttpProxyTest extends BaseDeviceOwnerTest {
      * 5. Verifies the added WifiConfiguration has the same proxy
      */
     public void testSetHttpProxy() {
-        PackageManager packageManager = mContext.getPackageManager();
+        PackageManager packageManager = getContext().getPackageManager();
         if (!packageManager.hasSystemFeature(PackageManager.FEATURE_WIFI)) {
             // skip the test if WiFi is not supported
             return;
         }
-        String retrievedPacProxyUrl = mWifiConfigCreator.addHttpProxyNetworkVerifyAndRemove(
+        WifiConfigCreator configCreator = new WifiConfigCreator(getContext());
+        String retreievedPacProxyUrl = configCreator.addHttpProxyNetworkVerifyAndRemove(
                 TEST_SSID, TEST_PAC_URL);
-        assertWithMessage("pacProxyUrl for SSID %s", TEST_SSID).that(retrievedPacProxyUrl)
-                .isEqualTo(TEST_PAC_URL);
+        assertEquals(TEST_PAC_URL, retreievedPacProxyUrl);
     }
 }

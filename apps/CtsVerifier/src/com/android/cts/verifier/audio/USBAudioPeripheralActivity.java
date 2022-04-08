@@ -17,6 +17,9 @@
 package com.android.cts.verifier.audio;
 
 import android.app.AlertDialog;
+import com.android.compatibility.common.util.ReportLog;
+import com.android.compatibility.common.util.ResultType;
+import com.android.compatibility.common.util.ResultUnit;
 import android.media.AudioDeviceCallback;
 import android.media.AudioDeviceInfo;
 import android.media.AudioManager;
@@ -27,12 +30,11 @@ import android.view.View;
 import android.view.View.OnClickListener;
 import android.widget.TextView;
 
-import com.android.compatibility.common.util.ResultType;
-import com.android.compatibility.common.util.ResultUnit;
-import com.android.cts.verifier.PassFailButtons;
-import com.android.cts.verifier.R;
 import com.android.cts.verifier.audio.peripheralprofile.PeripheralProfile;
 import com.android.cts.verifier.audio.peripheralprofile.ProfileManager;
+
+import com.android.cts.verifier.PassFailButtons;
+import com.android.cts.verifier.R;  // needed to access resource in CTSVerifier project namespace.
 
 public abstract class USBAudioPeripheralActivity extends PassFailButtons.Activity {
     private static final String TAG = "USBAudioPeripheralActivity";
@@ -50,6 +52,9 @@ public abstract class USBAudioPeripheralActivity extends PassFailButtons.Activit
 
     protected final boolean mIsMandatedRequired;
 
+    // This will be overriden...
+    protected  int mSystemSampleRate = 48000;
+
     // Widgets
     private TextView mProfileNameTx;
     private TextView mProfileDescriptionTx;
@@ -57,9 +62,6 @@ public abstract class USBAudioPeripheralActivity extends PassFailButtons.Activit
     private TextView mPeripheralNameTx;
 
     private OnBtnClickListener mBtnClickListener = new OnBtnClickListener();
-
-    // ReportLog Schema
-    private static final String KEY_CLAIMS_HOST = "claims_host_mode";
 
     //
     // Common UI Handling
@@ -108,8 +110,8 @@ public abstract class USBAudioPeripheralActivity extends PassFailButtons.Activit
 
     private void recordUSBAudioStatus(boolean has) {
         getReportLog().addValue(
-                KEY_CLAIMS_HOST,
-                has,
+                "User reported USB Host Audio Support: ",
+                has ? 1.0 : 0,
                 ResultType.NEUTRAL,
                 ResultUnit.NONE);
     }
@@ -136,6 +138,9 @@ public abstract class USBAudioPeripheralActivity extends PassFailButtons.Activit
 
         mAudioManager = (AudioManager)getSystemService(AUDIO_SERVICE);
         mAudioManager.registerAudioDeviceCallback(new ConnectListener(), new Handler());
+
+        mSystemSampleRate = Integer.parseInt(
+            mAudioManager.getProperty(AudioManager.PROPERTY_OUTPUT_SAMPLE_RATE));
     }
 
     protected void connectPeripheralStatusWidgets() {

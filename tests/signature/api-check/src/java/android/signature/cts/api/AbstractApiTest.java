@@ -16,7 +16,6 @@
 package android.signature.cts.api;
 
 import android.os.Bundle;
-import android.provider.Settings;
 import android.signature.cts.ApiDocumentParser;
 import android.signature.cts.ClassProvider;
 import android.signature.cts.ExcludingClassProvider;
@@ -26,13 +25,17 @@ import android.signature.cts.VirtualPath;
 import android.signature.cts.VirtualPath.LocalFilePath;
 import android.signature.cts.VirtualPath.ResourcePath;
 import android.util.Log;
-
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import java.util.EnumSet;
 import java.util.stream.Stream;
 import java.util.zip.ZipFile;
 import repackaged.android.test.InstrumentationTestCase;
@@ -46,19 +49,7 @@ public class AbstractApiTest extends InstrumentationTestCase {
 
     private TestResultObserver mResultObserver;
 
-    ClassProvider mClassProvider;
-
-    protected String getGlobalExemptions() {
-        return Settings.Global.getString(
-                getInstrumentation().getContext().getContentResolver(),
-                Settings.Global.HIDDEN_API_BLACKLIST_EXEMPTIONS);
-    }
-
-    protected String getGlobalHiddenApiPolicy() {
-        return Settings.Global.getString(
-                getInstrumentation().getContext().getContentResolver(),
-                Settings.Global.HIDDEN_API_POLICY);
-    }
+    ClassProvider classProvider;
 
     @Override
     protected void setUp() throws Exception {
@@ -69,32 +60,15 @@ public class AbstractApiTest extends InstrumentationTestCase {
         Bundle instrumentationArgs =
                 ((InstrumentationTestRunner) getInstrumentation()).getArguments();
 
-        // Check that the device is in the correct state for running this test.
-        assertEquals(
-                String.format("Device in bad state: %s is not as expected",
-                        Settings.Global.HIDDEN_API_BLACKLIST_EXEMPTIONS),
-                getExpectedBlocklistExemptions(),
-                getGlobalExemptions());
-        assertEquals(
-                String.format("Device in bad state: %s is not as expected",
-                        Settings.Global.HIDDEN_API_POLICY),
-                null,
-                getGlobalHiddenApiPolicy());
-
-
         // Prepare for a class provider that loads classes from bootclasspath but filters
         // out known inaccessible classes.
         // Note that com.android.internal.R.* inner classes are also excluded as they are
         // not part of API though exist in the runtime.
-        mClassProvider = new ExcludingClassProvider(
+        classProvider = new ExcludingClassProvider(
                 new BootClassPathClassesProvider(),
                 name -> name != null && name.startsWith("com.android.internal.R."));
 
         initializeFromArgs(instrumentationArgs);
-    }
-
-    protected String getExpectedBlocklistExemptions() {
-        return null;
     }
 
     protected void initializeFromArgs(Bundle instrumentationArgs) throws Exception {
@@ -116,21 +90,22 @@ public class AbstractApiTest extends InstrumentationTestCase {
             mResultObserver.notifyFailure(FailureType.CAUGHT_EXCEPTION, e.getClass().getName(),
                     writer.toString());
         }
-        mResultObserver.onTestComplete(); // Will throw is there are failures
+        if (mResultObserver.mDidFail) {
+            StringBuilder errorString = mResultObserver.mErrorString;
+            ClassLoader classLoader = getClass().getClassLoader();
+            errorString.append("\nClassLoader hierarchy\n");
+            while (classLoader != null) {
+                errorString.append("    ").append(classLoader).append("\n");
+                classLoader = classLoader.getParent();
+            }
+            fail(errorString.toString());
+        }
     }
 
-    static String[] getCommaSeparatedListOptional(Bundle instrumentationArgs, String key) {
+    static String[] getCommaSeparatedList(Bundle instrumentationArgs, String key) {
         String argument = instrumentationArgs.getString(key);
         if (argument == null) {
             return new String[0];
-        }
-        return argument.split(",");
-    }
-
-    static String[] getCommaSeparatedListRequired(Bundle instrumentationArgs, String key) {
-        String argument = instrumentationArgs.getString(key);
-        if (argument == null) {
-            throw new IllegalStateException("Could not find required argument '" + key + "'");
         }
         return argument.split(",");
     }

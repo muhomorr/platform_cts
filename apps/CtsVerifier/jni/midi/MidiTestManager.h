@@ -15,8 +15,6 @@
  */
 #include <amidi/AMidi.h>
 
-#include <vector>
-
 #include <jni.h>
 
 class TestMessage;
@@ -28,26 +26,24 @@ public:
 
     void jniSetup(JNIEnv* env);
 
-    bool RunTest(jobject testModuleObj, AMidiDevice* sendDevice, AMidiDevice* receiveDevice,
-                    bool throttleData);
+    bool RunTest(jobject testModuleObj, AMidiDevice* sendDevice, AMidiDevice* receiveDevice);
     void EndTest(int testCode);
 
     // Called by the thread routine.
     int ProcessInput();
 
 private:
-    void buildMatchStream();
+   void buildTestStream();
     bool matchStream(uint8_t* bytes, int count);
 
     int sendMessages();
 
     jobject mTestModuleObj;
 
-    // build the stream for matching.
-    std::vector<uint8_t>    mMatchStream;
-
+    // The send messages in a linear stream for matching.
+    uint8_t*   mTestStream;
+    int     mNumTestStreamBytes;
     int     mReceiveStreamPos;
-    static const int MESSAGE_MAX_BYTES = 1024;
 
     AMidiInputPort* mMidiSendPort;
     AMidiOutputPort* mMidiReceivePort;
@@ -55,8 +51,6 @@ private:
     // The array of messages to send/receive
     TestMessage*    mTestMsgs;
     int             mNumTestMsgs;
-
-    bool            mThrottleData;
 
     // JNI
     JavaVM* mJvm;

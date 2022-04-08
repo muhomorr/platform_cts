@@ -26,14 +26,11 @@ import android.os.Bundle;
 import android.os.PowerManager;
 import android.text.method.LinkMovementMethod;
 import android.text.Html;
-import android.util.Log;
 import android.view.View;
 import android.view.View.OnClickListener;
 import android.view.ViewGroup;
 import android.view.ViewGroup.LayoutParams;
 import android.widget.Button;
-import android.widget.CheckBox;
-import android.widget.CompoundButton;
 import android.widget.TextView;
 
 import com.android.compatibility.common.util.ReportLog;
@@ -73,7 +70,6 @@ public class RVCVXCheckTestActivity
 
     private boolean mRecordSuccessful = false;
     private boolean mOpenCVLoadSuccessful = false;
-    private boolean mFlipAxes = false;
 
     private static class Criterion {
         public static final float roll_rms_error = 0.15f;
@@ -135,7 +131,6 @@ public class RVCVXCheckTestActivity
                    "at the same time.\n" +
                 "4. Wait patiently for the analysis to finish.");
 
-            showAxesToggle();
             waitForUserToContinue();
 
             // prepare sync signal
@@ -168,7 +163,7 @@ public class RVCVXCheckTestActivity
                             "its finished by sound and vibration. ");
 
             // Analysis of recorded video and sensor data using RVCXAnalyzer
-            RVCVXCheckAnalyzer analyzer = new RVCVXCheckAnalyzer(mRecPath, mFlipAxes);
+            RVCVXCheckAnalyzer analyzer = new RVCVXCheckAnalyzer(mRecPath);
 
             // acquire a partial wake lock just in case CPU fall asleep
             PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
@@ -416,24 +411,6 @@ public class RVCVXCheckTestActivity
             }
         });
         getTestLogger().logCustomView(btnLicense);
-    }
-
-    private void showAxesToggle() {
-        CheckBox checkBox = new CheckBox(this);
-
-        checkBox.setText(Html.fromHtml(
-            "<b>Flip axes</b>: Only enable this setting if this device has a combination  "+
-            "front/rear camera, and the sensor's positive Z axis is aligned with the camera's " +
-            "field of view"));
-        checkBox.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
-            @Override
-            public void onCheckedChanged(CompoundButton buttonView,
-                                         boolean isChecked) {
-                mFlipAxes = isChecked;
-            }
-        });
-
-        getTestLogger().logCustomView(checkBox);
     }
 
     @Override

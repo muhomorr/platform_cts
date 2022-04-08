@@ -18,37 +18,29 @@ package com.android.cts.verifier.car;
 
 import android.car.Car;
 import android.car.VehicleGear;
-import android.car.VehiclePropertyIds;
 import android.car.hardware.CarPropertyConfig;
 import android.car.hardware.CarPropertyValue;
 import android.car.hardware.property.CarPropertyManager;
+import android.car.VehicleAreaType;
+import android.car.VehiclePropertyIds;
 import android.os.Bundle;
-import android.util.Log;
 import android.widget.TextView;
+import android.util.ArraySet;
+import android.util.Log;
 
 import com.android.cts.verifier.PassFailButtons;
 import com.android.cts.verifier.R;
 
+import java.util.Arrays;
 import java.util.List;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 
 /** A CTS Verifier test case to verify GEAR_SELECTION is implemented correctly.*/
-public final class GearSelectionTestActivity extends PassFailButtons.Activity {
+public class GearSelectionTestActivity extends PassFailButtons.Activity {
     private static final String TAG = GearSelectionTestActivity.class.getSimpleName();
-
-    // Need to finish the test in 10 minutes.
-    private static final long TEST_TIMEOUT_MINUTES = 10;
-
     private List<Integer> mSupportedGears;
-    private Integer mGearsAchievedCount = 0;
+    private int mGearsAchievedCount = 0;
     private TextView mExpectedGearSelectionTextView;
     private TextView mCurrentGearSelectionTextView;
-    private CarPropertyManager mCarPropertyManager;
-    private ExecutorService mExecutor;
-    private GearSelectionCallback mGearSelectionCallback = new GearSelectionCallback();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -62,58 +54,30 @@ public final class GearSelectionTestActivity extends PassFailButtons.Activity {
 
         mExpectedGearSelectionTextView = (TextView) findViewById(R.id.expected_gear_selection);
         mCurrentGearSelectionTextView = (TextView) findViewById(R.id.current_gear_selection);
-        mExecutor = Executors.newSingleThreadExecutor();
-        setUpTest();
+
+        CarPropertyManager carPropertyManager =
+            (CarPropertyManager) Car.createCar(this).getCarManager(Car.PROPERTY_SERVICE);
+
+        // TODO(b/138961351): Verify test works on manual transmission.
+        mSupportedGears = carPropertyManager.getPropertyList(new ArraySet<>(Arrays.asList(new
+                Integer[]{VehiclePropertyIds.GEAR_SELECTION}))).get(0).getConfigArray();
+
+        if(mSupportedGears.size() != 0){
+          Log.i(TAG, "New Expected Gear: " + VehicleGear.toString(mSupportedGears.get(0)));
+          mExpectedGearSelectionTextView.setText(VehicleGear.toString(mSupportedGears.get(0)));
+        } else {
+          Log.e(TAG, "No gears specified in the config array of GEAR_SELECTION property");
+          mExpectedGearSelectionTextView.setText("ERROR");
+        }
+
+        if(!carPropertyManager.registerCallback(mCarPropertyEventCallback,
+            VehiclePropertyIds.GEAR_SELECTION, CarPropertyManager.SENSOR_RATE_ONCHANGE)) {
+          Log.e(TAG, "Failed to register callback for GEAR_SELECTION with CarPropertyManager");
+        }
     }
 
-    private void setUpTest() {
-        mCarPropertyManager =
-                (CarPropertyManager) Car.createCar(this).getCarManager(Car.PROPERTY_SERVICE);
-        if (mCarPropertyManager == null) {
-            Log.e(TAG, "Failed to get CarPropertyManager");
-            mExpectedGearSelectionTextView.setText("CONNECTING ERROR");
-            return;
-        }
-
-        //Verify property config
-        CarPropertyConfig<?> gearConfig = mCarPropertyManager.getCarPropertyConfig(
-                VehiclePropertyIds.GEAR_SELECTION);
-        if (gearConfig == null || gearConfig.getConfigArray().size() == 0) {
-            Log.e(TAG, "No gears specified in the config array of GEAR_SELECTION property");
-            mExpectedGearSelectionTextView.setText("GEAR CONFIG ERROR");
-            return;
-        }
-
-        //Register the callback for testing
-        mSupportedGears = gearConfig.getConfigArray();
-        Log.i(TAG, "New Expected Gear: " + VehicleGear.toString(mSupportedGears.get(0)));
-        mExpectedGearSelectionTextView.setText(VehicleGear.toString(mSupportedGears.get(0)));
-        mGearSelectionCallback = new GearSelectionCallback();
-        mGearSelectionCallback.setSupportedGearCounter(mSupportedGears.size());
-        if (!mCarPropertyManager.registerCallback(mGearSelectionCallback,
-                VehiclePropertyIds.GEAR_SELECTION, CarPropertyManager.SENSOR_RATE_ONCHANGE)) {
-            Log.e(TAG,
-                    "Failed to register callback for GEAR_SELECTION with CarPropertyManager");
-            mExpectedGearSelectionTextView.setText("CONNECTING ERROR");
-            return;
-        }
-
-        //Unregister if test is timeout
-        mExecutor.execute(() -> {
-            try {
-                mGearSelectionCallback.unregisterIfTimeout();
-            } catch (InterruptedException e) {
-                Log.e(TAG, "Test is interrupted: " + e);
-                mExpectedGearSelectionTextView.setText("INTERRUPTED");
-                Thread.currentThread().interrupt();
-            }
-        });
-    }
-
-    private final class GearSelectionCallback implements
-            CarPropertyManager.CarPropertyEventCallback {
-        private CountDownLatch mCountDownLatch;
-        private int mVerifyingIndex;
+    private final CarPropertyManager.CarPropertyEventCallback mCarPropertyEventCallback =
+      new CarPropertyManager.CarPropertyEventCallback() {
         @Override
         public void onChangeEvent(CarPropertyValue value) {
             if(value.getStatus() != CarPropertyValue.STATUS_AVAILABLE) {
@@ -125,23 +89,26 @@ public final class GearSelectionTestActivity extends PassFailButtons.Activity {
             mCurrentGearSelectionTextView.setText(VehicleGear.toString(newGearSelection));
             Log.i(TAG, "New Gear Selection: " + VehicleGear.toString(newGearSelection));
 
+            if (mSupportedGears.size() == 0) {
+                Log.e(TAG, "No gears specified in the config array of GEAR_SELECTION property");
+                return;
+            }
+
             // Check to see if new gear matches the expected gear.
-            if (newGearSelection.equals(mSupportedGears.get(mVerifyingIndex))) {
-                mCountDownLatch.countDown();
-                mVerifyingIndex++;
+            if(newGearSelection == mSupportedGears.get(mGearsAchievedCount)) {
+                mGearsAchievedCount++;
                 Log.i(TAG, "Matched gear: " + VehicleGear.toString(newGearSelection));
-                if (mCountDownLatch.getCount() != 0) {
-                    // Test is not finished so update the expected gear.
-                    mExpectedGearSelectionTextView.setText(
-                            VehicleGear.toString(mSupportedGears.get(mVerifyingIndex)));
-                    Log.i(TAG, "New Expected Gear: "
-                            + VehicleGear.toString(mSupportedGears.get(mVerifyingIndex)));
-                } else {
-                    // Test is finished, unregister the callback
-                    mCarPropertyManager.unregisterCallback(mGearSelectionCallback);
+                // Check to see if the test is finished.
+                if (mGearsAchievedCount >= mSupportedGears.size()) {
                     mExpectedGearSelectionTextView.setText("Finished");
                     getPassButton().setEnabled(true);
                     Log.i(TAG, "Finished Test");
+                } else {
+                    // Test is not finished so update the expected gear.
+                    mExpectedGearSelectionTextView.setText(
+                        VehicleGear.toString(mSupportedGears.get(mGearsAchievedCount)));
+                    Log.i(TAG, "New Expected Gear: " + 
+                        VehicleGear.toString(mSupportedGears.get(mGearsAchievedCount)));
                 }
             }
         }
@@ -150,17 +117,5 @@ public final class GearSelectionTestActivity extends PassFailButtons.Activity {
         public void onErrorEvent(int propId, int zone) {
             Log.e(TAG, "propId: " + propId + " zone: " + zone);
         }
-
-        public void setSupportedGearCounter(int counter) {
-            mCountDownLatch = new CountDownLatch(counter);
-        }
-
-        public void unregisterIfTimeout() throws InterruptedException {
-            if (!mCountDownLatch.await(TEST_TIMEOUT_MINUTES, TimeUnit.MINUTES)) {
-                Log.e(TAG, "Failed to complete tests in 10 minutes");
-                runOnUiThread(() -> mExpectedGearSelectionTextView.setText("Failed(Timeout)"));
-                mCarPropertyManager.unregisterCallback(mGearSelectionCallback);
-            }
-        }
-    }
+      };
 }

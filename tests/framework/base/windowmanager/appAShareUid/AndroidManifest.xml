@@ -19,7 +19,7 @@
           package="android.server.wm.shareuid.a"
           android:sharedUserId="android.server.wm.shareuid">
 
-    <application android:debuggable="true">
+    <application>
         <activity
             android:name=".TestActivityWithSameAffinity"
             android:exported="true"

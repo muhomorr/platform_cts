@@ -62,7 +62,6 @@ public class DashPathEffectTest {
         paint.setStrokeWidth(0);
         paint.setColor(FOREGROUND);
         paint.setPathEffect(effect);
-        paint.setAntiAlias(false);
 
         Canvas canvas = new Canvas(bitmap);
         canvas.drawPath(path, paint);

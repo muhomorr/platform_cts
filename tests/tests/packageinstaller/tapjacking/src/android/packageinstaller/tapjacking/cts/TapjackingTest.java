@@ -23,7 +23,6 @@ import static org.junit.Assert.assertNotNull;
 
 import android.content.Context;
 import android.content.Intent;
-import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.platform.test.annotations.AppModeFull;
 import android.support.test.uiautomator.By;
@@ -41,11 +40,6 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.junit.AssumptionViolatedException;
-import org.junit.Rule;
-import org.junit.rules.TestRule;
-import org.junit.runner.Description;
-import org.junit.runners.model.Statement;
 
 import java.io.IOException;
 
@@ -63,16 +57,13 @@ public class TapjackingTest {
 
     private static final long WAIT_FOR_UI_TIMEOUT = 5000;
 
-    private Context mContext = InstrumentationRegistry.getTargetContext();
+    private Context mContext;
     private String mPackageName;
     private UiDevice mUiDevice;
-    boolean isWatch = mContext.getPackageManager().hasSystemFeature(PackageManager.FEATURE_WATCH);
-
-    @Rule
-    public final RequiredRule mRequiredRule = new RequiredRule(isWatch);
 
     @Before
     public void setUp() throws Exception {
+        mContext = InstrumentationRegistry.getTargetContext();
         mPackageName = mContext.getPackageName();
         mUiDevice = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation());
         if (!mUiDevice.isScreenOn()) {
@@ -122,25 +113,5 @@ public class TapjackingTest {
     @After
     public void tearDown() throws Exception {
         mUiDevice.pressHome();
-    }
-
-    private static final class RequiredRule implements TestRule {
-        boolean mIsWatch;
-        RequiredRule(boolean isWatch) {
-            mIsWatch = isWatch;
-        }
-        @Override
-        public Statement apply(Statement base, Description description) {
-            return new Statement() {
-
-                @Override
-                public void evaluate() throws Throwable {
-                    if (mIsWatch) {
-                        throw new AssumptionViolatedException("Install/uninstall feature is not supported on WearOs");
-                    }
-                    base.evaluate();
-                }
-            };
-        }
     }
 }

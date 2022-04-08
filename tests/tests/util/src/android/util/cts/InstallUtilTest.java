@@ -177,9 +177,8 @@ public class InstallUtilTest {
             assertThat(session).isNotNull();
 
             // Session can be committed directly, but a BroadcastReceiver must be provided.
-            LocalIntentSender sender = new LocalIntentSender();
-            session.commit(sender.getIntentSender());
-            InstallUtils.assertStatusSuccess(sender.getResult());
+            session.commit(LocalIntentSender.getIntentSender());
+            InstallUtils.assertStatusSuccess(LocalIntentSender.getIntentSenderResult());
 
             // Verify app has been installed
             assertThat(InstallUtils.getInstalledVersion(TestApp.A)).isEqualTo(1);

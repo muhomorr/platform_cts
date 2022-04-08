@@ -17,7 +17,6 @@ package android.media.cts;
 
 import android.media.AudioFormat;
 import android.media.AudioManager;
-import android.media.AudioTimestamp;
 import android.media.AudioTrack;
 import android.media.AudioAttributes;
 import android.util.Log;
@@ -102,12 +101,6 @@ public class NonBlockingAudioTrack {
         int numFramesPlayed = mAudioTrack.getPlaybackHeadPosition();
 
         return (numFramesPlayed * 1000000L) / mSampleRate;
-    }
-
-    public AudioTimestamp getTimestamp() {
-        AudioTimestamp timestamp = new AudioTimestamp();
-        mAudioTrack.getTimestamp(timestamp);
-        return timestamp;
     }
 
     public int getNumBytesQueued() {

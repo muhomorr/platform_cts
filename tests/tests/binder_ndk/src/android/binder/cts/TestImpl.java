@@ -20,32 +20,24 @@ import android.os.Binder;
 import android.os.IBinder;
 import android.os.ParcelFileDescriptor;
 import android.os.RemoteException;
-import java.io.FileDescriptor;
 import java.io.IOException;
-import java.io.PrintWriter;
-import java.util.concurrent.CountDownLatch;
-import test_package.Bar;
-import test_package.Baz;
-import test_package.Foo;
-import test_package.GenericBar;
-import test_package.ICompatTest;
+
 import test_package.IEmpty;
 import test_package.ITest;
 import test_package.RegularPolygon;
-import test_package.ExtendableParcelable;
-import test_package.MyExt;
-import test_package.SimpleUnion;
+import test_package.Foo;
+import test_package.Bar;
+
+import java.util.concurrent.CountDownLatch;
+import java.io.FileDescriptor;
+import java.io.PrintWriter;
 
 public class TestImpl extends ITest.Stub {
   @Override
-  public int getInterfaceVersion() {
-    return this.VERSION;
-  }
+  public int getInterfaceVersion() { return TestImpl.VERSION; }
 
   @Override
-  public String getInterfaceHash() {
-    return this.HASH;
-  }
+  public String getInterfaceHash() { return TestImpl.HASH; }
 
   @Override
   protected void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
@@ -63,9 +55,7 @@ public class TestImpl extends ITest.Stub {
   public void TestVoidReturn() {}
 
   @Override
-  public void TestOneway() throws RemoteException {
-    throw new RemoteException("Oneway call errors should be ignored");
-  }
+  public void TestOneway() {}
 
   @Override
   public int GiveMeMyCallingPid() {
@@ -404,57 +394,12 @@ public class TestImpl extends ITest.Stub {
   }
 
   @Override
-  public GenericBar<Integer> repeatGenericBar(GenericBar<Integer> bar) {
-    return bar;
+  public String RepeatStringNullableLater(String in_value) {
+    return in_value;
   }
 
   @Override
-  public void RepeatExtendableParcelable(ExtendableParcelable in, ExtendableParcelable out) {
-    RepeatExtendableParcelableWithoutExtension(in, out);
-    MyExt ext = in.ext.getParcelable(MyExt.class);
-    MyExt ext2 = new MyExt();
-    ext2.a = ext.a;
-    ext2.b = ext.b;
-    out.ext.setParcelable(ext2);
-  }
-
-  @Override
-  public void RepeatExtendableParcelableWithoutExtension(ExtendableParcelable in, ExtendableParcelable out) {
-    out.a = in.a;
-    out.b = in.b;
-    out.c = in.c;
-  }
-
-  public SimpleUnion RepeatSimpleUnion(SimpleUnion in_u) {
-    return in_u;
-  }
-
-  private static class CompatTest extends ICompatTest.Stub {
-    @Override
-    public int getInterfaceVersion() { return CompatTest.VERSION; }
-
-    @Override
-    public String getInterfaceHash() { return CompatTest.HASH; }
-
-    @Override
-    public Baz repeatBaz(Baz inBaz) {
-      return inBaz;
-    }
-
-    @Override
-    public String RepeatStringNullableLater(String in_value) {
-      return in_value;
-    }
-
-    @Override
-    public int NewMethodThatReturns10() {
-      return 10;
-    }
-  }
-
-  @Override
-  public IBinder getICompatTest() {
-    return new CompatTest();
-
+  public int NewMethodThatReturns10() {
+    return 10;
   }
 }

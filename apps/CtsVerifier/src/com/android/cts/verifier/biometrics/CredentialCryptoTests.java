@@ -128,7 +128,7 @@ public class CredentialCryptoTests extends AbstractBaseTest {
             // Expected
             Log.d(TAG, "UserNotAuthenticated (expected)");
         } catch (Exception e) {
-            showToastAndLog("Unexpected exception: " + e, e);
+            showToastAndLog("Unexpected exception: " + e);
         }
 
         // Authenticate with credential
@@ -160,7 +160,7 @@ public class CredentialCryptoTests extends AbstractBaseTest {
                     }
                     updateButton();
                 } catch (Exception e) {
-                    showToastAndLog("Unable to encrypt: " + e, e);
+                    showToastAndLog("Unable to encrypt: " + e);
                 }
             }
         });

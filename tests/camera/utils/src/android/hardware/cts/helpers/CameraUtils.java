@@ -17,32 +17,24 @@
 package android.hardware.cts.helpers;
 
 import android.content.Context;
-import android.graphics.SurfaceTexture;
 import android.hardware.Camera;
 import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraManager;
-import android.hardware.camera2.CameraMetadata;
-import android.hardware.camera2.cts.helpers.StaticMetadata;
 import android.os.Bundle;
-import android.os.SystemClock;
-import android.util.Log;
-import android.view.TextureView;
 
 import androidx.test.InstrumentationRegistry;
 
 import java.util.Comparator;
-import java.util.List;
 import java.util.stream.IntStream;
 
 /**
  * Utility class containing helper functions for the Camera CTS tests.
  */
 public class CameraUtils {
-    private static final float FOCAL_LENGTH_TOLERANCE = .01f;
 
-
-    private static final String TAG = "CameraUtils";
-    private static final long SHORT_SLEEP_WAIT_TIME_MS = 100;
+    private static final String CAMERA_ID_INSTR_ARG_KEY = "camera-id";
+    private static final Bundle mBundle = InstrumentationRegistry.getArguments();
+    public static final String mOverrideCameraId = mBundle.getString(CAMERA_ID_INSTR_ARG_KEY);
 
     /**
      * Returns {@code true} if this device only supports {@code LEGACY} mode operation in the
@@ -75,85 +67,6 @@ public class CameraUtils {
     }
 
     /**
-     * Returns {@code true} if the Camera.Parameter and Camera.Info arguments describe a similar
-     * camera as the CameraCharacteristics.
-     *
-     * @param params Camera.Parameters to use for matching.
-     * @param info Camera.CameraInfo to use for matching.
-     * @param ch CameraCharacteristics to use for matching.
-     * @return {@code true} if the arguments describe similar camera devices.
-     */
-    public static boolean matchParametersToCharacteristics(Camera.Parameters params,
-            Camera.CameraInfo info, CameraCharacteristics ch) {
-        Integer facing = ch.get(CameraCharacteristics.LENS_FACING);
-        switch (facing.intValue()) {
-            case CameraMetadata.LENS_FACING_EXTERNAL:
-                if (info.facing != Camera.CameraInfo.CAMERA_FACING_FRONT &&
-                    info.facing != Camera.CameraInfo.CAMERA_FACING_BACK) {
-                    return false;
-                }
-                break;
-            case CameraMetadata.LENS_FACING_FRONT:
-                if (info.facing != Camera.CameraInfo.CAMERA_FACING_FRONT) {
-                    return false;
-                }
-                break;
-            case CameraMetadata.LENS_FACING_BACK:
-                if (info.facing != Camera.CameraInfo.CAMERA_FACING_BACK) {
-                    return false;
-                }
-                break;
-            default:
-                return false;
-        }
-
-        Integer orientation = ch.get(CameraCharacteristics.SENSOR_ORIENTATION);
-        if (orientation.intValue() != info.orientation) {
-            return false;
-        }
-
-        StaticMetadata staticMeta = new StaticMetadata(ch);
-        boolean legacyHasFlash = params.getSupportedFlashModes() != null;
-        if (staticMeta.hasFlash() != legacyHasFlash) {
-            return false;
-        }
-
-        boolean isExternal = (ch.get(CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL) ==
-                CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_EXTERNAL);
-        boolean hasValidMinFocusDistance = staticMeta.areKeysAvailable(
-                CameraCharacteristics.LENS_INFO_MINIMUM_FOCUS_DISTANCE);
-        boolean fixedFocusExternal = isExternal && !hasValidMinFocusDistance;
-        boolean hasFocuser = staticMeta.hasFocuser() && !fixedFocusExternal;
-        List<String> legacyFocusModes = params.getSupportedFocusModes();
-        boolean legacyHasFocuser = !((legacyFocusModes.size() == 1) &&
-                (legacyFocusModes.contains(Camera.Parameters.FOCUS_MODE_FIXED)));
-        if (hasFocuser != legacyHasFocuser) {
-            return false;
-        }
-
-        if (staticMeta.isVideoStabilizationSupported() != params.isVideoStabilizationSupported()) {
-            return false;
-        }
-
-        float legacyFocalLength = params.getFocalLength();
-        if (ch.get(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS) != null) {
-            float [] focalLengths = staticMeta.getAvailableFocalLengthsChecked();
-            boolean found = false;
-            for (float focalLength : focalLengths) {
-                if (Math.abs(focalLength - legacyFocalLength) <= FOCAL_LENGTH_TOLERANCE) {
-                    found = true;
-                    break;
-                }
-            }
-            return found;
-        } else if (legacyFocalLength != -1.0f) {
-            return false;
-        }
-
-        return true;
-    }
-
-    /**
      * Returns {@code true} if this device only supports {@code EXTERNAL} mode operation in the
      * Camera2 API for the given camera ID.
      *
@@ -163,37 +76,9 @@ public class CameraUtils {
      */
     public static boolean isExternal(Context context, int cameraId) throws Exception {
         CameraManager manager = (CameraManager) context.getSystemService(Context.CAMERA_SERVICE);
-
-        Camera camera = null;
-        Camera.Parameters params = null;
-        Camera.CameraInfo info = new Camera.CameraInfo();
-        try {
-            Camera.getCameraInfo(cameraId, info);
-            camera = Camera.open(cameraId);
-            params = camera.getParameters();
-        } finally {
-            if (camera != null) {
-                camera.release();
-            }
-        }
-
-        String [] cameraIdList = manager.getCameraIdList();
+        String cameraIdStr = manager.getCameraIdListNoLazy()[cameraId];
         CameraCharacteristics characteristics =
-                manager.getCameraCharacteristics(cameraIdList[cameraId]);
-
-        if (!matchParametersToCharacteristics(params, info, characteristics)) {
-            boolean found = false;
-            for (String id : cameraIdList) {
-                characteristics = manager.getCameraCharacteristics(id);
-                if (matchParametersToCharacteristics(params, info, characteristics)) {
-                    found = true;
-                    break;
-                }
-            }
-            if (!found) {
-                return false;
-            }
-        }
+                manager.getCameraCharacteristics(cameraIdStr);
 
         return characteristics.get(CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL) ==
                 CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_EXTERNAL;
@@ -227,19 +112,13 @@ public class CameraUtils {
         }
     }
 
-    public static String getOverrideCameraId() {
-        Bundle bundle = InstrumentationRegistry.getArguments();
-        return bundle.getString("camera-id");
-    }
-
     public static int[] deriveCameraIdsUnderTest() throws Exception {
-        String overrideId = getOverrideCameraId();
         int numberOfCameras = Camera.getNumberOfCameras();
         int[] cameraIds;
-        if (overrideId == null) {
+        if (mOverrideCameraId == null) {
             cameraIds = IntStream.range(0, numberOfCameras).toArray();
         } else {
-            int overrideCameraId = Integer.parseInt(overrideId);
+            int overrideCameraId = Integer.parseInt(mOverrideCameraId);
             if (overrideCameraId >= 0 && overrideCameraId < numberOfCameras) {
                 cameraIds = new int[]{overrideCameraId};
             } else {
@@ -248,29 +127,4 @@ public class CameraUtils {
         }
         return cameraIds;
     }
-
-    /**
-     * Wait until the SurfaceTexture available from the TextureView, then return it.
-     * Return null if the wait times out.
-     *
-     * @param timeOutMs The timeout value for the wait
-     * @return The available SurfaceTexture, return null if the wait times out.
-    */
-    public static SurfaceTexture getAvailableSurfaceTexture(long timeOutMs, TextureView view) {
-        long waitTime = timeOutMs;
-
-        while (!view.isAvailable() && waitTime > 0) {
-            long startTimeMs = SystemClock.elapsedRealtime();
-            SystemClock.sleep(SHORT_SLEEP_WAIT_TIME_MS);
-            waitTime -= (SystemClock.elapsedRealtime() - startTimeMs);
-        }
-
-        if (view.isAvailable()) {
-            return view.getSurfaceTexture();
-        } else {
-            Log.w(TAG, "Wait for SurfaceTexture available timed out after " + timeOutMs + "ms");
-            return null;
-        }
-    }
-
 }

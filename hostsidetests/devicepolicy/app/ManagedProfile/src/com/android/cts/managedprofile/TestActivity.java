@@ -23,7 +23,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Test activity necessary for the tests.
+ * Dummy activity necessary for the tests.
  */
 public class TestActivity extends Activity {
     private static final String TAG = TestActivity.class.getName();

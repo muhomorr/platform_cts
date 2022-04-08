@@ -23,17 +23,14 @@ import android.view.Display;
 
 /**  Base class for window context tests */
 class WindowContextTestBase extends MultiDisplayTestBase {
-    Context createDisplayContext(int displayId) {
-        final Display display = mDm.getDisplay(displayId);
-        return mContext.createDisplayContext(display);
-    }
 
     Context createWindowContext(int displayId) {
         return createWindowContext(displayId, TYPE_APPLICATION_OVERLAY);
     }
 
     Context createWindowContext(int displayId, int type) {
-        return createDisplayContext(displayId).createWindowContext(
+        final Display display = mDm.getDisplay(displayId);
+        return mContext.createDisplayContext(display).createWindowContext(
                 type, null /* options */);
     }
 }

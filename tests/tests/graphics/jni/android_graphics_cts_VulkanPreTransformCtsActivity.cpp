@@ -29,16 +29,14 @@
 
 namespace {
 
-jboolean validatePixelValues(JNIEnv* env, jint width, jint height, jboolean setPreTransform,
-                             jint preTransformHint) {
+jboolean validatePixelValues(JNIEnv* env, jboolean setPreTransform, jint preTransformHint) {
     jclass clazz = env->FindClass("android/graphics/cts/VulkanPreTransformTest");
-    jmethodID mid = env->GetStaticMethodID(clazz, "validatePixelValuesAfterRotation", "(IIZI)Z");
+    jmethodID mid = env->GetStaticMethodID(clazz, "validatePixelValuesAfterRotation", "(ZI)Z");
     if (mid == 0) {
         ALOGE("Failed to find method ID");
         return false;
     }
-    return env->CallStaticBooleanMethod(clazz, mid, width, height, setPreTransform,
-                                        preTransformHint);
+    return env->CallStaticBooleanMethod(clazz, mid, setPreTransform, preTransformHint);
 }
 
 void createNativeTest(JNIEnv* env, jclass /*clazz*/, jobject jAssetManager, jobject jSurface,
@@ -67,17 +65,13 @@ void createNativeTest(JNIEnv* env, jclass /*clazz*/, jobject jAssetManager, jobj
     for (uint32_t i = 0; i < 120; ++i) {
         ret = renderer.drawFrame();
         if (setPreTransform || preTransformHint == 0x1 /*VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR*/) {
-            ASSERT(ret == VK_TEST_SUCCESS, "Failed to draw frame(%u) ret(%d)", i, (int)ret);
+            ASSERT(ret == VK_TEST_SUCCESS, "Failed to draw frame");
         } else {
-            ASSERT(ret == VK_TEST_SUCCESS_SUBOPTIMAL, "Failed to draw suboptimal frame(%u) ret(%d)",
-                   i, (int)ret);
+            ASSERT(ret == VK_TEST_SUCCESS_SUBOPTIMAL, "Failed to draw suboptimal frame");
         }
     }
 
-    const VkExtent2D surfaceSize = swapchainInfo.surfaceSize();
-    ASSERT(validatePixelValues(env, surfaceSize.width, surfaceSize.height, setPreTransform,
-                               preTransformHint),
-           "Not properly rotated");
+    ASSERT(validatePixelValues(env, setPreTransform, preTransformHint), "Not properly rotated");
 }
 
 const std::array<JNINativeMethod, 1> JNI_METHODS = {{

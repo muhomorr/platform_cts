@@ -20,11 +20,9 @@ import static com.android.cts.appdataisolation.common.FileUtils.assertDirDoesNot
 import static com.android.cts.appdataisolation.common.FileUtils.assertDirIsAccessible;
 import static com.android.cts.appdataisolation.common.FileUtils.assertDirIsNotAccessible;
 import static com.android.cts.appdataisolation.common.FileUtils.assertFileIsAccessible;
-import static com.android.cts.appdataisolation.common.UserUtils.getCurrentUserId;
 
 import android.content.Context;
 import android.content.pm.ApplicationInfo;
-import android.os.UserHandle;
 
 import androidx.test.filters.SmallTest;
 import androidx.test.platform.app.InstrumentationRegistry;
@@ -50,9 +48,8 @@ public class AppBTests {
         assertDirDoesNotExist(replacePackageBWithPackageA(applicationInfo.dataDir));
         assertDirDoesNotExist(replacePackageBWithPackageA(applicationInfo.deviceProtectedDataDir));
         assertDirDoesNotExist("/data/data/" + APPA_PKG);
-        assertDirDoesNotExist("/data/misc/profiles/cur/" + getCurrentUserId() + "/"
-                + APPA_PKG);
-        assertDirDoesNotExist("/data/misc/profiles/ref/" + APPA_PKG);
+        assertDirDoesNotExist("/data/misc/profiles/cur/0/" + APPA_PKG);
+        assertDirIsNotAccessible("/data/misc/profiles/ref");
     }
 
     @Test
@@ -60,12 +57,9 @@ public class AppBTests {
         ApplicationInfo applicationInfo = mContext.getApplicationInfo();
         assertDirIsAccessible(replacePackageBWithPackageA(applicationInfo.dataDir));
         assertDirIsAccessible(replacePackageBWithPackageA(applicationInfo.deviceProtectedDataDir));
-        if (getCurrentUserId() == UserHandle.USER_SYSTEM) {
-            assertDirIsAccessible("/data/data/" + APPA_PKG);
-        }
-        assertFileIsAccessible("/data/misc/profiles/cur/" + getCurrentUserId() + "/"
-                + APPA_PKG + "/primary.prof");
-        assertDirIsAccessible("/data/misc/profiles/ref/" + APPA_PKG);
+        assertDirIsAccessible("/data/data/" + APPA_PKG);
+        assertFileIsAccessible("/data/misc/profiles/cur/0/" + APPA_PKG + "/primary.prof");
+        assertDirIsNotAccessible("/data/misc/profiles/ref");
     }
 
     @Test

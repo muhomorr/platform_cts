@@ -41,6 +41,7 @@ import java.lang.reflect.Modifier;
 import java.net.Authenticator;
 import java.net.CookieHandler;
 import java.net.ResponseCache;
+import java.text.DateFormat;
 import java.util.Locale;
 import java.util.Properties;
 import java.util.TimeZone;
@@ -186,72 +187,15 @@ public class CtsTestRunListener extends InstrumentationRunListener {
         }
     }
 
-    private interface TestEnvironmentResetter {
-        Boolean getDateFormatIs24Hour();
-        void setDateFormatIs24Hour(Boolean value);
-        Properties createDefaultProperties();
-    }
-
-    private static class AndroidTestEnvironmentResetter implements TestEnvironmentResetter {
-        private final Field mDateFormatIs24HourField;
-
-        AndroidTestEnvironmentResetter() {
-            try {
-                Class<?> dateFormatClass = Class.forName("java.text.DateFormat");
-                mDateFormatIs24HourField = dateFormatClass.getDeclaredField("is24Hour");
-            } catch (ReflectiveOperationException e) {
-                throw new AssertionError("Missing DateFormat.is24Hour", e);
-            }
-        }
-
-        @Override
-        public Boolean getDateFormatIs24Hour() {
-            try {
-                return (Boolean) mDateFormatIs24HourField.get(null);
-            } catch (ReflectiveOperationException e) {
-                throw new AssertionError("Unable to get java.text.DateFormat.is24Hour", e);
-            }
-        }
-
-        @Override
-        public void setDateFormatIs24Hour(Boolean value) {
-            try {
-                mDateFormatIs24HourField.set(null, value);
-            } catch (ReflectiveOperationException e) {
-                throw new AssertionError("Unable to set java.text.DateFormat.is24Hour", e);
-            }
-        }
-
-        @Override
-        public Properties createDefaultProperties() {
-            return new Properties();
-        }
-    }
-
-    private static class StubTestEnvironmentResetter implements TestEnvironmentResetter {
-        @Override
-        public Boolean getDateFormatIs24Hour() {
-            return false;
-        }
-
-        @Override
-        public void setDateFormatIs24Hour(Boolean value) {
-        }
-
-        @Override
-        public Properties createDefaultProperties() {
-            return System.getProperties();
-        }
-    }
-
     // http://code.google.com/p/vogar/source/browse/trunk/src/vogar/target/TestEnvironment.java
     static class TestEnvironment {
-        private final static TestEnvironmentResetter sTestEnvironmentResetter;
+        private static final Field sDateFormatIs24HourField;
         static {
-            if (System.getProperty("java.vendor").toLowerCase().contains("android")) {
-                sTestEnvironmentResetter = new AndroidTestEnvironmentResetter();
-            } else {
-                sTestEnvironmentResetter = new StubTestEnvironmentResetter();
+            try {
+                Class<?> dateFormatClass = Class.forName("java.text.DateFormat");
+                sDateFormatIs24HourField = dateFormatClass.getDeclaredField("is24Hour");
+            } catch (ReflectiveOperationException e) {
+                throw new AssertionError("Missing DateFormat.is24Hour", e);
             }
         }
 
@@ -259,7 +203,7 @@ public class CtsTestRunListener extends InstrumentationRunListener {
         private final TimeZone mDefaultTimeZone;
         private final HostnameVerifier mHostnameVerifier;
         private final SSLSocketFactory mSslSocketFactory;
-        private final Properties mProperties;
+        private final Properties mProperties = new Properties();
         private final Boolean mDefaultIs24Hour;
 
         TestEnvironment(Context context) {
@@ -268,7 +212,6 @@ public class CtsTestRunListener extends InstrumentationRunListener {
             mHostnameVerifier = HttpsURLConnection.getDefaultHostnameVerifier();
             mSslSocketFactory = HttpsURLConnection.getDefaultSSLSocketFactory();
 
-            mProperties = sTestEnvironmentResetter.createDefaultProperties();
             mProperties.setProperty("user.home", "");
             mProperties.setProperty("java.io.tmpdir", context.getCacheDir().getAbsolutePath());
             // The CDD mandates that devices that support WiFi are the only ones that will have
@@ -276,7 +219,7 @@ public class CtsTestRunListener extends InstrumentationRunListener {
             PackageManager pm = context.getPackageManager();
             mProperties.setProperty("android.cts.device.multicast",
                     Boolean.toString(pm.hasSystemFeature(PackageManager.FEATURE_WIFI)));
-            mDefaultIs24Hour = sTestEnvironmentResetter.getDateFormatIs24Hour();
+            mDefaultIs24Hour = getDateFormatIs24Hour();
 
             // There are tests in libcore that should be disabled for low ram devices. They can't
             // access ActivityManager to call isLowRamDevice, but can read system properties.
@@ -296,7 +239,24 @@ public class CtsTestRunListener extends InstrumentationRunListener {
             ResponseCache.setDefault(null);
             HttpsURLConnection.setDefaultHostnameVerifier(mHostnameVerifier);
             HttpsURLConnection.setDefaultSSLSocketFactory(mSslSocketFactory);
-            sTestEnvironmentResetter.setDateFormatIs24Hour(mDefaultIs24Hour);
+            setDateFormatIs24Hour(mDefaultIs24Hour);
+        }
+
+        private static Boolean getDateFormatIs24Hour() {
+            try {
+                return (Boolean) sDateFormatIs24HourField.get(null);
+            } catch (ReflectiveOperationException e) {
+                throw new AssertionError("Unable to get java.text.DateFormat.is24Hour", e);
+            }
+        }
+
+        private static void setDateFormatIs24Hour(Boolean value) {
+            try {
+                sDateFormatIs24HourField.set(null, value);
+            } catch (ReflectiveOperationException e) {
+                throw new AssertionError("Unable to set java.text.DateFormat.is24Hour", e);
+            }
         }
     }
+
 }

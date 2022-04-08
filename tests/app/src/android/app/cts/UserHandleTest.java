@@ -21,7 +21,6 @@ import android.os.UserHandle;
 import android.test.AndroidTestCase;
 
 public class UserHandleTest extends AndroidTestCase {
-    private static final int TEST_APP_ID = 1234;
     private static void assertSameUserHandle(int userId) {
         assertSame(UserHandle.of(userId), UserHandle.of(userId));
     }
@@ -55,20 +54,5 @@ public class UserHandleTest extends AndroidTestCase {
         for (int i = -1000; i < 100; i++) {
             assertParcel(i);
         }
-    }
-
-    public void testGetUid() {
-        assertEquals(
-                UserHandle.getUid(UserHandle.USER_ALL, TEST_APP_ID),
-                UserHandle.ALL.getUid(TEST_APP_ID));
-        assertEquals(
-                UserHandle.getUid(UserHandle.USER_SYSTEM, TEST_APP_ID),
-                UserHandle.SYSTEM.getUid(TEST_APP_ID));
-        assertEquals(
-                UserHandle.ALL.getUid(TEST_APP_ID),
-                UserHandle.getUid(UserHandle.ALL.getIdentifier(), TEST_APP_ID));
-        assertEquals(
-                UserHandle.SYSTEM.getUid(TEST_APP_ID),
-                UserHandle.getUid(UserHandle.SYSTEM.getIdentifier(), TEST_APP_ID));
     }
 }

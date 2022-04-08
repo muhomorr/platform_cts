@@ -89,7 +89,7 @@ public class ImeInsetsControllerTest extends EndToEndImeTestBase {
     }
 
     private static final int INITIAL_KEYBOARD_HEIGHT = 200;
-    private static final int NEW_KEYBOARD_HEIGHT = 300;
+    private static final int NEW_KEYBOARD_HEIGHT = 400;
 
     @Test
     public void testChangeSizeWhileControlling() throws Exception {
@@ -211,7 +211,7 @@ public class ImeInsetsControllerTest extends EndToEndImeTestBase {
     }
 
     private int getBottomOfWindow(View decorView) {
-        final int[] viewPos = new int[2];
+        int viewPos[] = new int[2];
         decorView.getLocationOnScreen(viewPos);
         return decorView.getHeight() + viewPos[1];
     }

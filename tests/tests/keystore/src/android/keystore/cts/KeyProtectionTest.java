@@ -17,7 +17,6 @@
 package android.keystore.cts;
 
 import android.security.GateKeeper;
-import android.security.keystore.KeyGenParameterSpec;
 import android.security.keystore.KeyProperties;
 import android.security.keystore.KeyProtection;
 import android.test.MoreAsserts;
@@ -52,8 +51,6 @@ public class KeyProtectionTest extends TestCase {
         assertEquals(KeyProperties.AUTH_BIOMETRIC_STRONG, spec.getUserAuthenticationType());
         assertEquals(GateKeeper.INVALID_SECURE_USER_ID, spec.getBoundToSpecificSecureUserId());
         assertFalse(spec.isUnlockedDeviceRequired());
-        assertEquals(KeyProperties.UNRESTRICTED_USAGE_COUNT, spec.getMaxUsageCount());
-        assertEquals(spec.isStrongBoxBacked(), false);
     }
 
     public void testSettersReflectedInGetters() {
@@ -62,7 +59,6 @@ public class KeyProtectionTest extends TestCase {
         Date keyValidityStartDate = new Date(System.currentTimeMillis() - 2222222);
         Date keyValidityEndDateForOrigination = new Date(System.currentTimeMillis() + 11111111);
         Date keyValidityEndDateForConsumption = new Date(System.currentTimeMillis() + 33333333);
-        int maxUsageCount = 1;
 
         KeyProtection spec = new KeyProtection.Builder(
                 KeyProperties.PURPOSE_DECRYPT | KeyProperties.PURPOSE_VERIFY)
@@ -81,8 +77,6 @@ public class KeyProtectionTest extends TestCase {
                         KeyProperties.AUTH_DEVICE_CREDENTIAL | KeyProperties.AUTH_BIOMETRIC_STRONG)
                 .setBoundToSpecificSecureUserId(654321)
                 .setUnlockedDeviceRequired(true)
-                .setMaxUsageCount(maxUsageCount)
-                .setIsStrongBoxBacked(true)
                 .build();
 
         assertEquals(
@@ -106,8 +100,6 @@ public class KeyProtectionTest extends TestCase {
                 spec.getUserAuthenticationType());
         assertEquals(654321, spec.getBoundToSpecificSecureUserId());
         assertTrue(spec.isUnlockedDeviceRequired());
-        assertEquals(spec.getMaxUsageCount(), maxUsageCount);
-        assertEquals(spec.isStrongBoxBacked(), true);
     }
 
     public void testSetKeyValidityEndDateAppliesToBothEndDates() {
@@ -270,12 +262,5 @@ public class KeyProtectionTest extends TestCase {
         spec.getSignaturePaddings()[0] = null;
         assertEquals(Arrays.asList(originalSignaturePaddings),
                 Arrays.asList(spec.getSignaturePaddings()));
-    }
-
-    public void testIllegalMaxUsageCountNotPermitted() {
-        try {
-            new KeyProtection.Builder(KeyProperties.PURPOSE_ENCRYPT).setMaxUsageCount(0);
-            fail();
-        } catch (IllegalArgumentException expected) {}
     }
 }

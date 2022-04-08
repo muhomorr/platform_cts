@@ -80,7 +80,8 @@ public class TelephonyRegistryManagerTest {
         Pair<Integer, String> result = queue.poll(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
         assertNotNull("Timed out waiting for phone state change", result);
         assertEquals(TelephonyManager.CALL_STATE_IDLE, result.first.longValue());
-        assertTrue(!TextUtils.isEmpty(result.second));
+        // This test doesn't have READ_CALL_LOG, so we expect the second arg to be empty.
+        assertTrue(TextUtils.isEmpty(result.second));
     }
 
     @Test
@@ -102,16 +103,16 @@ public class TelephonyRegistryManagerTest {
 
         String dummyNumber = "288124";
         ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mTelephonyRegistryMgr,
-                (trm) -> trm.notifyCallStateChanged(
+                (trm) -> trm.notifyCallStateChanged(SubscriptionManager.getDefaultSubscriptionId(),
                         SubscriptionManager.getSlotIndex(
                                 SubscriptionManager.getDefaultSubscriptionId()),
-                        SubscriptionManager.getDefaultSubscriptionId(),
                         TelephonyManager.CALL_STATE_IDLE, dummyNumber));
 
         Pair<Integer, String> result = queue.poll(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
         assertNotNull("Timed out waiting for phone state change", result);
         assertEquals(TelephonyManager.CALL_STATE_IDLE, result.first.longValue());
-        assertTrue(!TextUtils.isEmpty(result.second));
+        // This test doesn't have READ_CALL_LOG, so we expect the second arg to be empty.
+        assertTrue(TextUtils.isEmpty(result.second));
     }
 
     @Test
@@ -134,9 +135,9 @@ public class TelephonyRegistryManagerTest {
         dummyState.setCdmaSystemAndNetworkId(1234, 5678);
         ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mTelephonyRegistryMgr,
                 (trm) -> trm.notifyServiceStateChanged(
+                        SubscriptionManager.getDefaultSubscriptionId(),
                         SubscriptionManager.getSlotIndex(
                                 SubscriptionManager.getDefaultSubscriptionId()),
-                        SubscriptionManager.getDefaultSubscriptionId(),
                         dummyState));
 
         ServiceState result = queue.poll(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
@@ -163,9 +164,9 @@ public class TelephonyRegistryManagerTest {
         SignalStrength testValue = new SignalStrength();
         ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mTelephonyRegistryMgr,
                 (trm) -> trm.notifySignalStrengthChanged(
+                        SubscriptionManager.getDefaultSubscriptionId(),
                         SubscriptionManager.getSlotIndex(
                                 SubscriptionManager.getDefaultSubscriptionId()),
-                        SubscriptionManager.getDefaultSubscriptionId(),
                         testValue));
 
         SignalStrength result = queue.poll(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
@@ -192,9 +193,9 @@ public class TelephonyRegistryManagerTest {
         boolean testValue = true;
         ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mTelephonyRegistryMgr,
                 (trm) -> trm.notifyMessageWaitingChanged(
+                        SubscriptionManager.getDefaultSubscriptionId(),
                         SubscriptionManager.getSlotIndex(
                                 SubscriptionManager.getDefaultSubscriptionId()),
-                        SubscriptionManager.getDefaultSubscriptionId(),
                         testValue));
 
         boolean result = queue.poll(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);

@@ -284,6 +284,7 @@ public class AudioPlaybackCaptureTest {
             AudioAttributes.USAGE_ASSISTANCE_SONIFICATION,
             AudioAttributes.USAGE_ASSISTANT,
             AudioAttributes.USAGE_NOTIFICATION,
+            AudioAttributes.USAGE_VOICE_COMMUNICATION
     };
 
     @Presubmit

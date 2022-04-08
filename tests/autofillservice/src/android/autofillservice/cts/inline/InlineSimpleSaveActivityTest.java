@@ -16,23 +16,21 @@
 
 package android.autofillservice.cts.inline;
 
-import static android.autofillservice.cts.activities.SimpleSaveActivity.ID_COMMIT;
-import static android.autofillservice.cts.activities.SimpleSaveActivity.ID_INPUT;
-import static android.autofillservice.cts.activities.SimpleSaveActivity.ID_PASSWORD;
-import static android.autofillservice.cts.testcore.Helper.assertTextAndValue;
-import static android.autofillservice.cts.testcore.Helper.findNodeByResourceId;
-import static android.autofillservice.cts.testcore.Helper.getContext;
-import static android.autofillservice.cts.testcore.InstrumentedAutoFillServiceInlineEnabled.SERVICE_NAME;
+import static android.autofillservice.cts.Helper.assertTextAndValue;
+import static android.autofillservice.cts.Helper.findNodeByResourceId;
+import static android.autofillservice.cts.Helper.getContext;
+import static android.autofillservice.cts.SimpleSaveActivity.ID_COMMIT;
+import static android.autofillservice.cts.SimpleSaveActivity.ID_INPUT;
+import static android.autofillservice.cts.SimpleSaveActivity.ID_PASSWORD;
+import static android.autofillservice.cts.inline.InstrumentedAutoFillServiceInlineEnabled.SERVICE_NAME;
 import static android.service.autofill.SaveInfo.SAVE_DATA_TYPE_GENERIC;
 
-import android.autofillservice.cts.activities.SimpleSaveActivity;
-import android.autofillservice.cts.commontests.AutoFillServiceTestCase;
-import android.autofillservice.cts.testcore.AutofillActivityTestRule;
-import android.autofillservice.cts.testcore.CannedFillResponse;
-import android.autofillservice.cts.testcore.Helper;
-import android.autofillservice.cts.testcore.InlineUiBot;
-import android.autofillservice.cts.testcore.InstrumentedAutoFillService;
-import android.platform.test.annotations.Presubmit;
+import android.autofillservice.cts.AutoFillServiceTestCase;
+import android.autofillservice.cts.AutofillActivityTestRule;
+import android.autofillservice.cts.CannedFillResponse;
+import android.autofillservice.cts.Helper;
+import android.autofillservice.cts.InstrumentedAutoFillService;
+import android.autofillservice.cts.SimpleSaveActivity;
 import android.support.test.uiautomator.UiObject2;
 
 import androidx.annotation.NonNull;
@@ -40,7 +38,6 @@ import androidx.annotation.NonNull;
 import org.junit.Test;
 import org.junit.rules.TestRule;
 
-@Presubmit
 public class InlineSimpleSaveActivityTest
         extends AutoFillServiceTestCase.AutoActivityLaunch<SimpleSaveActivity> {
 
@@ -92,10 +89,8 @@ public class InlineSimpleSaveActivityTest
         mUiBot.assertNoDatasetsEver();
 
         // Change input
-        final SimpleSaveActivity.FillExpectation changeExpectation =
-                mActivity.expectInputTextChange("ID");
         mActivity.syncRunOnUiThread(() -> mActivity.getInput().setText("ID"));
-        changeExpectation.assertTextChange();
+        mUiBot.waitForIdle();
 
         // Trigger save UI.
         mUiBot.selectByRelativeId(ID_COMMIT);
@@ -138,19 +133,15 @@ public class InlineSimpleSaveActivityTest
         mUiBot.assertDatasets("YO");
 
         // Select suggestion
-        final SimpleSaveActivity.FillExpectation fillExpectation =
-                mActivity.expectAutoFill("id", "pass");
         mUiBot.selectDataset("YO");
         mUiBot.waitForIdle();
 
         // Check the results.
-        fillExpectation.assertAutoFilled();
+        mActivity.expectAutoFill("id", "pass");
 
         // Change input
-        final SimpleSaveActivity.FillExpectation changeExpectation =
-                mActivity.expectInputTextChange("ID");
         mActivity.syncRunOnUiThread(() -> mActivity.getInput().setText("ID"));
-        changeExpectation.assertTextChange();
+        mUiBot.waitForIdle();
 
         // Trigger save UI.
         mUiBot.selectByRelativeId(ID_COMMIT);

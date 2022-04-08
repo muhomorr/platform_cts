@@ -278,8 +278,6 @@ int TestContext::checkInOutLatency(long maxLatencyNanos) {
 
 JNIEXPORT jlong JNICALL Java_android_nativemidi_cts_NativeMidiEchoTest_allocTestContext(
         JNIEnv* env, jclass) {
-    __android_log_print(ANDROID_LOG_INFO, LOG_TAG, "allocTestContext()");
-
     TestContext* context = new TestContext;
     if (!context->initN(env)) {
         delete context;
@@ -291,7 +289,6 @@ JNIEXPORT jlong JNICALL Java_android_nativemidi_cts_NativeMidiEchoTest_allocTest
 
 JNIEXPORT void JNICALL Java_android_nativemidi_cts_NativeMidiEchoTest_freeTestContext(
         JNIEnv*, jclass, jlong context) {
-    __android_log_print(ANDROID_LOG_INFO, LOG_TAG, "freeTestContext()");
     delete (TestContext*)context;
 }
 
@@ -472,11 +469,6 @@ JNIEXPORT jint JNICALL Java_android_nativemidi_cts_NativeMidiEchoTest_startReadi
 
     // __android_log_print(ANDROID_LOG_INFO, LOG_TAG, "++++ startReadingMidi()");
     TestContext* context = (TestContext*)ctx;
-    if (context == nullptr) {
-        __android_log_print(ANDROID_LOG_INFO, LOG_TAG,
-                "Test Context is null in  startReadingMidi()");
-        return AMEDIA_ERROR_INVALID_OBJECT;
-    }
 
     AMidiOutputPort* outputPort;
     media_status_t status = AMidiOutputPort_open(context->nativeDevice, portNumber, &outputPort);
@@ -502,11 +494,6 @@ JNIEXPORT jint JNICALL Java_android_nativemidi_cts_NativeMidiEchoTest_stopReadin
 
     // __android_log_print(ANDROID_LOG_INFO, LOG_TAG, "++++ stopReadingMidi()");
     TestContext* context = (TestContext*)ctx;
-    if (context == nullptr) {
-        __android_log_print(ANDROID_LOG_INFO, LOG_TAG,
-                "Test Context is null in  stopReadingMidi()");
-        return AMEDIA_ERROR_INVALID_OBJECT;
-    }
     context->mReading = false;
 
     context->mReadThread->join();

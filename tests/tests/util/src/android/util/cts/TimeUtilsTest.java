@@ -16,9 +16,6 @@
 package android.util.cts;
 
 import static android.util.TimeUtils.isTimeBetween;
-
-import static com.google.common.truth.Truth.assertThat;
-
 import static junit.framework.TestCase.assertFalse;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
@@ -29,8 +26,6 @@ import android.util.TimeUtils;
 
 import androidx.test.filters.SmallTest;
 import androidx.test.runner.AndroidJUnit4;
-
-import com.google.common.truth.Truth;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -174,15 +169,6 @@ public class TimeUtilsTest {
         assertEquals(usTimeZones, TimeUtils.getTimeZoneIdsForCountryCode("US"));
         assertEquals(usTimeZones, TimeUtils.getTimeZoneIdsForCountryCode("uS"));
         assertEquals(usTimeZones, TimeUtils.getTimeZoneIdsForCountryCode("Us"));
-    }
-
-    @Test
-    public void getTimeZoneIdsForCountryCode_doesNotShowNoLongerActiveNames() {
-        List<String> usTimeZones = TimeUtils.getTimeZoneIdsForCountryCode("us");
-
-        assertThat(usTimeZones).contains("America/New_York");
-        // America/Detroit was available only till 27 April 1975
-        assertThat(usTimeZones).doesNotContain("America/Detroit");
     }
 
     @Test

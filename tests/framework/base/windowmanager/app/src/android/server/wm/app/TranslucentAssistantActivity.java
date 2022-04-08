@@ -17,7 +17,6 @@
 package android.server.wm.app;
 
 import static android.app.WindowConfiguration.ACTIVITY_TYPE_ASSISTANT;
-import static android.app.WindowConfiguration.WINDOWING_MODE_FULLSCREEN;
 import static android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK;
 import static android.content.Intent.FLAG_ACTIVITY_NEW_TASK;
 
@@ -41,7 +40,6 @@ public class TranslucentAssistantActivity extends AssistantActivity {
 
         final ActivityOptions options = ActivityOptions.makeBasic();
         options.setLaunchActivityType(ACTIVITY_TYPE_ASSISTANT);
-        options.setLaunchWindowingMode(WINDOWING_MODE_FULLSCREEN);
         caller.startActivity(intent, options.toBundle());
     }
 }

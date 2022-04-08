@@ -12,18 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package {
-    default_applicable_licenses: ["Android-Apache-2.0"],
-}
-
 android_test_helper_app {
     name: "SharingApp1",
     defaults: ["cts_defaults"],
     platform_apis: true,
     srcs: ["sharingapp1/src/**/*.java"],
     libs: [
-        "android.test.runner",
-        "android.test.base",
+        "android.test.runner.stubs",
+        "android.test.base.stubs",
     ],
     static_libs: [
         "compatibility-device-util-axt",
@@ -36,8 +32,9 @@ android_test_helper_app {
     // tag this module as a cts test artifact
     test_suites: [
         "cts",
+        "vts10",
         "general-tests",
-        "mts",
+        "mts-permission",
     ],
     manifest: "sharingapp1/AndroidManifest.xml",
 }
@@ -48,8 +45,8 @@ android_test_helper_app {
     platform_apis: true,
     srcs: ["sharingapp2/src/**/*.java"],
     libs: [
-        "android.test.runner",
-        "android.test.base",
+        "android.test.runner.stubs",
+        "android.test.base.stubs",
     ],
     static_libs: [
         "compatibility-device-util-axt",
@@ -62,8 +59,9 @@ android_test_helper_app {
     // tag this module as a cts test artifact
     test_suites: [
         "cts",
+        "vts10",
         "general-tests",
-        "mts",
+        "mts-permission",
     ],
     manifest: "sharingapp2/AndroidManifest.xml",
 }

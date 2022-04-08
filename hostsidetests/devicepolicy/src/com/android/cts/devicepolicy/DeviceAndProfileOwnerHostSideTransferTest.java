@@ -2,8 +2,6 @@ package com.android.cts.devicepolicy;
 
 import static com.android.cts.devicepolicy.metrics.DevicePolicyEventLogVerifier.assertMetricsLogged;
 
-import static com.google.common.truth.Truth.assertThat;
-
 import static org.junit.Assert.fail;
 
 import android.stats.devicepolicy.EventId;
@@ -12,6 +10,8 @@ import com.android.cts.devicepolicy.metrics.DevicePolicyEventWrapper;
 import com.android.tradefed.device.DeviceNotAvailableException;
 
 import org.junit.Test;
+
+import static com.google.common.truth.Truth.assertThat;
 
 public abstract class DeviceAndProfileOwnerHostSideTransferTest extends BaseDevicePolicyTest {
 
@@ -41,6 +41,10 @@ public abstract class DeviceAndProfileOwnerHostSideTransferTest extends BaseDevi
 
     @Test
     public void testTransferOwnership() throws Exception {
+        if (!mHasFeature) {
+            return;
+        }
+
         final boolean hasManagedProfile = (mUserId != mPrimaryUserId);
         final String expectedManagementType = hasManagedProfile ? "profile-owner" : "device-owner";
         assertMetricsLogged(getDevice(), () -> {
@@ -54,6 +58,9 @@ public abstract class DeviceAndProfileOwnerHostSideTransferTest extends BaseDevi
 
     @Test
     public void testTransferSameAdmin() throws Exception {
+        if (!mHasFeature) {
+            return;
+        }
         runDeviceTestsAsUser(TRANSFER_OWNER_OUTGOING_PKG,
                 mOutgoingTestClassName,
                 "testTransferSameAdmin", mUserId);
@@ -61,6 +68,9 @@ public abstract class DeviceAndProfileOwnerHostSideTransferTest extends BaseDevi
 
     @Test
     public void testTransferInvalidTarget() throws Exception {
+        if (!mHasFeature) {
+            return;
+        }
         installAppAsUser(INVALID_TARGET_APK, mUserId);
         runDeviceTestsAsUser(TRANSFER_OWNER_OUTGOING_PKG,
                 mOutgoingTestClassName,
@@ -69,6 +79,9 @@ public abstract class DeviceAndProfileOwnerHostSideTransferTest extends BaseDevi
 
     @Test
     public void testTransferPolicies() throws Exception {
+        if (!mHasFeature) {
+            return;
+        }
         runDeviceTestsAsUser(TRANSFER_OWNER_OUTGOING_PKG,
                 mOutgoingTestClassName,
                 "testTransferWithPoliciesOutgoing", mUserId);
@@ -79,6 +92,9 @@ public abstract class DeviceAndProfileOwnerHostSideTransferTest extends BaseDevi
 
     @Test
     public void testTransferOwnershipChangedBroadcast() throws Exception {
+        if (!mHasFeature) {
+            return;
+        }
         runDeviceTestsAsUser(TRANSFER_OWNER_OUTGOING_PKG,
                 mOutgoingTestClassName,
                 "testTransferOwnershipChangedBroadcast", mUserId);
@@ -86,6 +102,9 @@ public abstract class DeviceAndProfileOwnerHostSideTransferTest extends BaseDevi
 
     @Test
     public void testTransferCompleteCallback() throws Exception {
+        if (!mHasFeature) {
+            return;
+        }
         runDeviceTestsAsUser(TRANSFER_OWNER_OUTGOING_PKG,
                 mOutgoingTestClassName,
                 "testTransferOwnership", mUserId);
@@ -106,6 +125,9 @@ public abstract class DeviceAndProfileOwnerHostSideTransferTest extends BaseDevi
 
     @Test
     public void testTransferOwnershipNoMetadata() throws Exception {
+        if (!mHasFeature) {
+            return;
+        }
         runDeviceTestsAsUser(TRANSFER_OWNER_OUTGOING_PKG,
                 mOutgoingTestClassName,
                 "testTransferOwnershipNoMetadata", mUserId);
@@ -113,6 +135,9 @@ public abstract class DeviceAndProfileOwnerHostSideTransferTest extends BaseDevi
 
     @Test
     public void testIsTransferBundlePersisted() throws DeviceNotAvailableException {
+        if (!mHasFeature) {
+            return;
+        }
         runDeviceTestsAsUser(TRANSFER_OWNER_OUTGOING_PKG,
                 mOutgoingTestClassName,
                 "testTransferOwnershipBundleSaved", mUserId);
@@ -124,6 +149,9 @@ public abstract class DeviceAndProfileOwnerHostSideTransferTest extends BaseDevi
     @Test
     public void testGetTransferOwnershipBundleOnlyCalledFromAdmin()
             throws DeviceNotAvailableException {
+        if (!mHasFeature) {
+            return;
+        }
         runDeviceTestsAsUser(TRANSFER_OWNER_OUTGOING_PKG,
                 mOutgoingTestClassName,
                 "testGetTransferOwnershipBundleOnlyCalledFromAdmin", mUserId);
@@ -131,6 +159,9 @@ public abstract class DeviceAndProfileOwnerHostSideTransferTest extends BaseDevi
 
     @Test
     public void testBundleEmptyAfterTransferWithNullBundle() throws DeviceNotAvailableException {
+        if (!mHasFeature) {
+            return;
+        }
         runDeviceTestsAsUser(TRANSFER_OWNER_OUTGOING_PKG,
                 mOutgoingTestClassName,
                 "testTransferOwnershipNullBundle", mUserId);
@@ -141,6 +172,9 @@ public abstract class DeviceAndProfileOwnerHostSideTransferTest extends BaseDevi
 
     @Test
     public void testIsBundleNullNoTransfer() throws DeviceNotAvailableException {
+        if (!mHasFeature) {
+            return;
+        }
         runDeviceTestsAsUser(TRANSFER_OWNER_OUTGOING_PKG,
                 mOutgoingTestClassName,
                 "testIsBundleNullNoTransfer", mUserId);
@@ -167,6 +201,9 @@ public abstract class DeviceAndProfileOwnerHostSideTransferTest extends BaseDevi
 
     @Test
     public void testTargetDeviceAdminServiceBound() throws Exception {
+        if (!mHasFeature) {
+            return;
+        }
         runDeviceTestsAsUser(TRANSFER_OWNER_OUTGOING_PKG,
             mOutgoingTestClassName,
             "testTransferOwnership", mUserId);

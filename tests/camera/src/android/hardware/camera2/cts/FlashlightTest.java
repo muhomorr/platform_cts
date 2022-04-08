@@ -53,9 +53,7 @@ public class FlashlightTest extends Camera2AndroidTestCase {
 
     @Override
     public void setUp() throws Exception {
-        //Use all camera ids for system camera testing since we count the number of callbacks here
-        // and when mAdoptShellPerm == true, all camera ids will get callbacks.
-        super.setUp(/*useAll*/true);
+        super.setUp();
 
         // initialize the list of cameras that have a flash unit so it won't interfere with
         // flash tests.
@@ -262,14 +260,13 @@ public class FlashlightTest extends Camera2AndroidTestCase {
                                     "opened camera");
                         }
                     } catch (CameraAccessException e) {
-                        int reason = e.getReason();
                         if ((hasFlash(id) &&  id.equals(idToOpen) &&
-                                    reason == CameraAccessException.CAMERA_IN_USE) ||
+                                    e.getReason() == CameraAccessException.CAMERA_IN_USE) ||
                             (hasFlash(id) && !id.equals(idToOpen) &&
-                                    reason == CameraAccessException.MAX_CAMERAS_IN_USE)) {
+                                    e.getReason() == CameraAccessException.MAX_CAMERAS_IN_USE)) {
                             continue;
                         }
-                        fail("(" + id + ") not expecting: " + e.getMessage() + "reason " + reason);
+                        fail("(" + id + ") not expecting: " + e.getMessage());
                     } catch (IllegalArgumentException e) {
                         if (hasFlash(id)) {
                             fail("not expecting IllegalArgumentException");

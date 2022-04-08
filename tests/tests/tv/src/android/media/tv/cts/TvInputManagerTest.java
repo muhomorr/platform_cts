@@ -16,17 +16,11 @@
 
 package android.media.tv.cts;
 
-import android.app.Activity;
-import android.app.Instrumentation;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.pm.PackageManager;
-import android.database.Cursor;
 import android.media.AudioManager;
-import android.media.tv.cts.TvViewTest.MockCallback;
-import android.media.tv.TunedInfo;
 import android.media.tv.TvContentRating;
-import android.media.tv.TvContract;
 import android.media.tv.TvInputHardwareInfo;
 import android.media.tv.TvInputInfo;
 import android.media.tv.TvInputManager;
@@ -34,12 +28,8 @@ import android.media.tv.TvInputManager.Hardware;
 import android.media.tv.TvInputManager.HardwareCallback;
 import android.media.tv.TvInputService;
 import android.media.tv.TvStreamConfig;
-import android.media.tv.TvView;
-import android.net.Uri;
-import android.os.Bundle;
 import android.os.Handler;
 import android.test.ActivityInstrumentationTestCase2;
-import android.tv.cts.R;
 
 import com.android.compatibility.common.util.PollingCheck;
 
@@ -68,26 +58,10 @@ public class TvInputManagerTest extends ActivityInstrumentationTestCase2<TvViewS
     private static final TvContentRating DUMMY_RATING = TvContentRating.createRating(
             "com.android.tv", "US_TV", "US_TV_PG", "US_TV_D", "US_TV_L");
 
-    private static final String PERMISSION_ACCESS_WATCHED_PROGRAMS =
-            "com.android.providers.tv.permission.ACCESS_WATCHED_PROGRAMS";
-    private static final String PERMISSION_WRITE_EPG_DATA =
-            "com.android.providers.tv.permission.WRITE_EPG_DATA";
-    private static final String PERMISSION_ACCESS_TUNED_INFO =
-            "android.permission.ACCESS_TUNED_INFO";
-    private static final String PERMISSION_TV_INPUT_HARDWARE =
-            "android.permission.TV_INPUT_HARDWARE";
-    private static final String PERMISSION_TUNER_RESOURCE_ACCESS =
-            "android.permission.TUNER_RESOURCE_ACCESS";
-
     private String mStubId;
     private TvInputManager mManager;
     private LoggingCallback mCallback = new LoggingCallback();
     private TvInputInfo mStubTvInputInfo;
-    private TvView mTvView;
-    private Activity mActivity;
-    private Instrumentation mInstrumentation;
-    private TvInputInfo mStubTunerTvInputInfo;
-    private final MockCallback mMockCallback = new MockCallback();
 
     private static TvInputInfo getInfoForClassName(List<TvInputInfo> list, String name) {
         for (TvInputInfo info : list) {
@@ -104,140 +78,14 @@ public class TvInputManagerTest extends ActivityInstrumentationTestCase2<TvViewS
 
     @Override
     public void setUp() throws Exception {
-        super.setUp();
-        mActivity = getActivity();
-        if (!Utils.hasTvInputFramework(mActivity)) {
+        if (!Utils.hasTvInputFramework(getActivity())) {
             return;
         }
-
-        InstrumentationRegistry
-                .getInstrumentation()
-                .getUiAutomation()
-                .adoptShellPermissionIdentity(
-                        PERMISSION_ACCESS_WATCHED_PROGRAMS,
-                        PERMISSION_WRITE_EPG_DATA,
-                        PERMISSION_ACCESS_TUNED_INFO,
-                        PERMISSION_TUNER_RESOURCE_ACCESS);
-
-        mInstrumentation = getInstrumentation();
-        mTvView = findTvViewById(R.id.tvview);
-        mManager = (TvInputManager) mActivity.getSystemService(Context.TV_INPUT_SERVICE);
+        mManager = (TvInputManager) getActivity().getSystemService(Context.TV_INPUT_SERVICE);
         mStubId = getInfoForClassName(
                 mManager.getTvInputList(), StubTvInputService2.class.getName()).getId();
         mStubTvInputInfo = getInfoForClassName(
                 mManager.getTvInputList(), StubTvInputService2.class.getName());
-        for (TvInputInfo info : mManager.getTvInputList()) {
-            if (info.getServiceInfo().name.equals(StubTunerTvInputService.class.getName())) {
-                mStubTunerTvInputInfo = info;
-                break;
-            }
-        }
-        assertNotNull(mStubTunerTvInputInfo);
-        mTvView.setCallback(mMockCallback);
-    }
-
-    @Override
-    protected void tearDown() throws Exception {
-        if (!Utils.hasTvInputFramework(getActivity())) {
-            super.tearDown();
-            return;
-        }
-        StubTunerTvInputService.deleteChannels(
-                mActivity.getContentResolver(), mStubTunerTvInputInfo);
-        StubTunerTvInputService.clearTracks();
-        try {
-            runTestOnUiThread(new Runnable() {
-                @Override
-                public void run() {
-                    mTvView.reset();
-                }
-            });
-        } catch (Throwable t) {
-            throw new RuntimeException(t);
-        }
-        mInstrumentation.waitForIdleSync();
-
-        InstrumentationRegistry.getInstrumentation().getUiAutomation()
-                .dropShellPermissionIdentity();
-        super.tearDown();
-    }
-
-    private TvView findTvViewById(int id) {
-        return (TvView) mActivity.findViewById(id);
-    }
-
-    private void tryTuneAllChannels() throws Throwable {
-        StubTunerTvInputService.insertChannels(
-                mActivity.getContentResolver(), mStubTunerTvInputInfo);
-
-        Uri uri = TvContract.buildChannelsUriForInput(mStubTunerTvInputInfo.getId());
-        String[] projection = { TvContract.Channels._ID };
-        try (Cursor cursor = mActivity.getContentResolver().query(
-                uri, projection, null, null, null)) {
-            while (cursor != null && cursor.moveToNext()) {
-                long channelId = cursor.getLong(0);
-                Uri channelUri = TvContract.buildChannelUri(channelId);
-                mCallback.mTunedInfos = null;
-                mTvView.tune(mStubTunerTvInputInfo.getId(), channelUri);
-                mInstrumentation.waitForIdleSync();
-                new PollingCheck(TIME_OUT_MS) {
-                    @Override
-                    protected boolean check() {
-                        return mMockCallback.isVideoAvailable(mStubTunerTvInputInfo.getId());
-                    }
-                }.run();
-                new PollingCheck(TIME_OUT_MS) {
-                    @Override
-                    protected boolean check() {
-                        return mCallback.mTunedInfos != null;
-                    }
-                }.run();
-
-                List<TunedInfo> returnedInfos = mManager.getCurrentTunedInfos();
-                assertEquals(1, returnedInfos.size());
-                TunedInfo returnedInfo = returnedInfos.get(0);
-                TunedInfo expectedInfo = new TunedInfo(
-                        "android.tv.cts/android.media.tv.cts.StubTunerTvInputService",
-                        channelUri,
-                        false,
-                        false,
-                        false,
-                        TunedInfo.APP_TYPE_SELF,
-                        TunedInfo.APP_TAG_SELF);
-                assertEquals(expectedInfo, returnedInfo);
-
-                assertEquals(expectedInfo.getAppTag(), returnedInfo.getAppTag());
-                assertEquals(expectedInfo.getAppType(), returnedInfo.getAppType());
-                assertEquals(expectedInfo.getChannelUri(), returnedInfo.getChannelUri());
-                assertEquals(expectedInfo.getInputId(), returnedInfo.getInputId());
-                assertEquals(expectedInfo.isMainSession(), returnedInfo.isMainSession());
-                assertEquals(expectedInfo.isRecordingSession(), returnedInfo.isRecordingSession());
-                assertEquals(expectedInfo.isVisible(), returnedInfo.isVisible());
-
-                assertEquals(1, mCallback.mTunedInfos.size());
-                TunedInfo callbackInfo = mCallback.mTunedInfos.get(0);
-                assertEquals(expectedInfo, callbackInfo);
-            }
-        }
-    }
-
-    public void testGetCurrentTunedInfos() throws Throwable {
-        if (!Utils.hasTvInputFramework(getActivity())) {
-            return;
-        }
-        mActivity.runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                mManager.registerCallback(mCallback, new Handler());
-            }
-        });
-        tryTuneAllChannels();
-        mActivity.runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                mManager.unregisterCallback(mCallback);
-            }
-        });
     }
 
     public void testGetInputState() throws Exception {
@@ -379,15 +227,14 @@ public class TvInputManagerTest extends ActivityInstrumentationTestCase2<TvViewS
                 new ComponentName(getActivity(), StubTunerTvInputService.class)).build();
         TvInputInfo updatedInfo = new TvInputInfo.Builder(getActivity(),
                 new ComponentName(getActivity(), StubTunerTvInputService.class))
-                        .setTunerCount(10).setCanRecord(true).setCanPauseRecording(false).build();
+                        .setTunerCount(10).setCanRecord(true).build();
 
         mManager.updateTvInputInfo(updatedInfo);
         new PollingCheck(TIME_OUT_MS) {
             @Override
             protected boolean check() {
                 TvInputInfo info = mCallback.getLastUpdatedTvInputInfo();
-                return info !=  null && info.getTunerCount() == 10 && info.canRecord()
-                        && !info.canPauseRecording();
+                return info !=  null && info.getTunerCount() == 10 && info.canRecord();
             }
         }.run();
 
@@ -396,8 +243,7 @@ public class TvInputManagerTest extends ActivityInstrumentationTestCase2<TvViewS
             @Override
             protected boolean check() {
                 TvInputInfo info = mCallback.getLastUpdatedTvInputInfo();
-                return info !=  null && info.getTunerCount() == 1 && !info.canRecord()
-                        && info.canPauseRecording();
+                return info !=  null && info.getTunerCount() == 1 && !info.canRecord();
             }
         }.run();
 
@@ -411,17 +257,12 @@ public class TvInputManagerTest extends ActivityInstrumentationTestCase2<TvViewS
     }
 
     public void testAcquireTvInputHardware() {
+        InstrumentationRegistry.getInstrumentation().getUiAutomation()
+            .adoptShellPermissionIdentity("android.permission.TV_INPUT_HARDWARE",
+                    "android.permission.TUNER_RESOURCE_ACCESS");
         if (mManager == null) {
             return;
         }
-
-        InstrumentationRegistry
-                .getInstrumentation()
-                .getUiAutomation()
-                .adoptShellPermissionIdentity(
-                        PERMISSION_WRITE_EPG_DATA,
-                        PERMISSION_TV_INPUT_HARDWARE);
-
         // Update hardware device list
         int deviceId = 0;
         boolean hardwareDeviceAdded = false;
@@ -461,13 +302,14 @@ public class TvInputManagerTest extends ActivityInstrumentationTestCase2<TvViewS
         if (hardwareDeviceAdded) {
             mManager.removeHardwareDevice(deviceId);
         }
+        InstrumentationRegistry.getInstrumentation().getUiAutomation()
+            .dropShellPermissionIdentity();
     }
 
     private static class LoggingCallback extends TvInputManager.TvInputCallback {
         private final List<String> mAddedInputs = new ArrayList<>();
         private final List<String> mRemovedInputs = new ArrayList<>();
         private TvInputInfo mLastUpdatedTvInputInfo;
-        private List<TunedInfo> mTunedInfos;
 
         @Override
         public synchronized void onInputAdded(String inputId) {
@@ -482,13 +324,6 @@ public class TvInputManagerTest extends ActivityInstrumentationTestCase2<TvViewS
         @Override
         public synchronized void onTvInputInfoUpdated(TvInputInfo info) {
             mLastUpdatedTvInputInfo = info;
-        }
-
-        @Override
-        public synchronized void onCurrentTunedInfosUpdated(
-                List<TunedInfo> tunedInfos) {
-            super.onCurrentTunedInfosUpdated(tunedInfos);
-            mTunedInfos = tunedInfos;
         }
 
         public synchronized void resetLogs() {

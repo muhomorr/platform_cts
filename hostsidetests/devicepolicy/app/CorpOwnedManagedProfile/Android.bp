@@ -18,10 +18,6 @@
 
 // === App 1 ===
 
-package {
-    default_applicable_licenses: ["Android-Apache-2.0"],
-}
-
 android_test_helper_app {
     name: "CtsCorpOwnedManagedProfile",
     defaults: ["cts_defaults"],
@@ -33,9 +29,9 @@ android_test_helper_app {
         local_include_dirs: ["src"],
     },
     libs: [
-        "android.test.runner",
+        "android.test.runner.stubs",
         "junit",
-        "android.test.base",
+        "android.test.base.stubs",
     ],
     static_libs: [
         "ctstestrunner-axt",
@@ -45,8 +41,9 @@ android_test_helper_app {
     // tag this module as a cts test artifact
     test_suites: [
         "cts",
+        "vts10",
         "general-tests",
-        "mts",
+        "mts-permission",
     ],
 }
 
@@ -62,9 +59,9 @@ android_test_helper_app {
         local_include_dirs: ["src"],
     },
     libs: [
-        "android.test.runner",
+        "android.test.runner.stubs",
         "junit",
-        "android.test.base",
+        "android.test.base.stubs",
     ],
     static_libs: [
         "ctstestrunner-axt",
@@ -74,8 +71,9 @@ android_test_helper_app {
     // tag this module as a cts test artifact
     test_suites: [
         "cts",
+        "vts10",
         "general-tests",
-        "mts",
+        "mts-permission",
     ],
     aaptflags: [
         "--rename-manifest-package",

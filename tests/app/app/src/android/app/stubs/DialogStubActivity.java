@@ -37,7 +37,7 @@ import android.view.View;
 import android.widget.DatePicker;
 import android.widget.TimePicker;
 
-import androidx.test.core.app.ActivityScenario;
+import androidx.test.rule.ActivityTestRule;
 
 /*
  * Stub class for  Dialog, AlertDialog, DatePickerDialog, TimePickerDialog etc.
@@ -317,12 +317,11 @@ public class DialogStubActivity extends Activity {
 
     private static final String TEST_DIALOG_NUMBER_EXTRA = "testDialogNumber";
 
-    public static ActivityScenario<DialogStubActivity> startDialogActivity(
-            Context context, int dialogNumber) {
+    public static <T extends Activity> T startDialogActivity(
+            ActivityTestRule<T> rule, int dialogNumber) {
         Intent intent = new Intent(Intent.ACTION_MAIN);
         intent.putExtra(TEST_DIALOG_NUMBER_EXTRA, dialogNumber);
-        intent.setClass(context, DialogStubActivity.class);
-        return ActivityScenario.launch(intent);
+        return rule.launchActivity(intent);
     }
 
     @Override

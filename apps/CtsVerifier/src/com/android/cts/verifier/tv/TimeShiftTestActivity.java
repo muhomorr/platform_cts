@@ -199,32 +199,32 @@ public class TimeShiftTestActivity extends TvAppVerifierActivity
 
     @Override
     protected void createTestItems() {
-        mSupportThirdPartyInputYesItem = createAndAttachUserItem(
+        mSupportThirdPartyInputYesItem = createUserItem(
                 R.string.tv_input_discover_test_third_party_tif_input_support,
                 R.string.tv_yes, this);
         setButtonEnabled(mSupportThirdPartyInputYesItem, true);
-        mSupportThirdPartyInputNoItem = createAndAttachButtonItem(R.string.tv_no, this);
+        mSupportThirdPartyInputNoItem = createButtonItem(R.string.tv_no, this);
         setButtonEnabled(mSupportThirdPartyInputNoItem, true);
-        mPauseResumeItem = createAndAttachUserItem(
+        mPauseResumeItem = createUserItem(
                 R.string.tv_time_shift_test_pause_resume,
                 R.string.tv_launch_tv_app, this);
-        mVerifyResumeAfterPauseItem = createAndAttachAutoItem(
+        mVerifyResumeAfterPauseItem = createAutoItem(
                 R.string.tv_time_shift_test_verify_resume_after_pause);
-        mVerifyPositionTrackingItem = createAndAttachAutoItem(
+        mVerifyPositionTrackingItem = createAutoItem(
                 R.string.tv_time_shift_test_verify_position_tracking);
-        mSetPlaybackParamsItem = createAndAttachUserItem(
+        mSetPlaybackParamsItem = createUserItem(
                 R.string.tv_time_shift_test_speed_rate,
                 R.string.tv_launch_tv_app, this);
-        mVerifyRewindItem = createAndAttachAutoItem(
+        mVerifyRewindItem = createAutoItem(
                 R.string.tv_time_shift_test_verify_rewind);
-        mVerifyFastForwardItem = createAndAttachAutoItem(
+        mVerifyFastForwardItem = createAutoItem(
                 R.string.tv_time_shift_test_verify_fast_forward);
-        mSeekToItem = createAndAttachUserItem(
+        mSeekToItem = createUserItem(
                 R.string.tv_time_shift_test_seek,
                 R.string.tv_launch_tv_app, this);
-        mVerifySeekToPreviousItem = createAndAttachAutoItem(
+        mVerifySeekToPreviousItem = createAutoItem(
                 R.string.tv_time_shift_test_verify_seek_to_previous);
-        mVerifySeekToNextItem = createAndAttachAutoItem(
+        mVerifySeekToNextItem = createAutoItem(
                 R.string.tv_time_shift_test_verify_seek_to_next);
     }
 

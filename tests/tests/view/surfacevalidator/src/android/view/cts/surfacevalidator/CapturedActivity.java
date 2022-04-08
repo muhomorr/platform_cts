@@ -98,8 +98,6 @@ public class CapturedActivity extends Activity {
     private volatile boolean mOnWatch;
     private CountDownLatch mCountDownLatch;
     private boolean mProjectionServiceBound = false;
-    private Point mLogicalDisplaySize = new Point();
-    private long mMinimumCaptureDurationMs = 0;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -132,10 +130,6 @@ public class CapturedActivity extends Activity {
         bindMediaProjectionService();
     }
 
-    public void setLogicalDisplaySize(Point logicalDisplaySize) {
-        mLogicalDisplaySize.set(logicalDisplaySize.x, logicalDisplaySize.y);
-    }
-
     public void dismissPermissionDialog() {
         // The permission dialog will be auto-opened by the activity - find it and accept
         UiDevice uiDevice = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation());
@@ -152,6 +146,7 @@ public class CapturedActivity extends Activity {
         @Override
         public void onServiceConnected(ComponentName className, IBinder service) {
             startActivityForResult(mProjectionManager.createScreenCaptureIntent(), PERMISSION_CODE);
+            dismissPermissionDialog();
             mProjectionServiceBound = true;
         }
 
@@ -179,7 +174,7 @@ public class CapturedActivity extends Activity {
             unbindService(mConnection);
             mProjectionServiceBound = false;
         }
-        restoreSettings();
+        mSettingsSession.close();
     }
 
     @Override
@@ -204,10 +199,6 @@ public class CapturedActivity extends Activity {
         return mOnEmbedded ? 100000 : 50000;
     }
 
-    public void setMinimumCaptureDurationMs(long durationMs) {
-        mMinimumCaptureDurationMs = durationMs;
-    }
-
     public TestResult runTest(ISurfaceValidatorTestCase animationTestCase) throws Throwable {
         TestResult testResult = new TestResult();
         if (mOnWatch) {
@@ -225,7 +216,7 @@ public class CapturedActivity extends Activity {
 
         final long timeOutMs = mOnEmbedded ? 125000 : 62500;
         final long captureDuration = animationTestCase.hasAnimation() ?
-                getCaptureDurationMs() : mMinimumCaptureDurationMs;
+            getCaptureDurationMs() : 0;
         final long endCaptureDelayMs = START_CAPTURE_DELAY_MS + captureDuration;
         final long endDelayMs = endCaptureDelayMs + 1000;
 
@@ -257,6 +248,7 @@ public class CapturedActivity extends Activity {
             Log.d(TAG, "Starting capture");
 
             Display display = getWindow().getDecorView().getDisplay();
+            Point size = new Point();
             DisplayMetrics metrics = new DisplayMetrics();
             display.getMetrics(metrics);
 
@@ -265,19 +257,25 @@ public class CapturedActivity extends Activity {
                     Context.DISPLAY_SERVICE);
             final Display defaultDisplay = displayManager.getDisplay(Display.DEFAULT_DISPLAY);
             final int rotation = defaultDisplay.getRotation();
+            Display.Mode mode = defaultDisplay.getMode();
+            size = new Point(mode.getPhysicalWidth(), mode.getPhysicalHeight());
 
-            Rect boundsToCheck =
-                    animationTestCase.getBoundsToCheck(findViewById(android.R.id.content));
-            if (boundsToCheck.width() < 40 || boundsToCheck.height() < 40) {
+            View testAreaView = findViewById(android.R.id.content);
+            Rect boundsToCheck = new Rect(0, 0, testAreaView.getWidth(), testAreaView.getHeight());
+            int[] topLeft = new int[2];
+            testAreaView.getLocationOnScreen(topLeft);
+            boundsToCheck.offset(topLeft[0], topLeft[1]);
+
+            if (boundsToCheck.width() < 90 || boundsToCheck.height() < 90) {
                 fail("capture bounds too small to be a fullscreen activity: " + boundsToCheck);
             }
 
             mSurfacePixelValidator = new SurfacePixelValidator2(CapturedActivity.this,
-                    mLogicalDisplaySize, boundsToCheck, animationTestCase.getChecker());
-            Log.d("MediaProjection", "Size is " + mLogicalDisplaySize.toString()
+                    size, boundsToCheck, animationTestCase.getChecker());
+            Log.d("MediaProjection", "Size is " + size.toString()
                     + ", bounds are " + boundsToCheck.toShortString());
             mVirtualDisplay = mMediaProjection.createVirtualDisplay("CtsCapturedActivity",
-                    mLogicalDisplaySize.x, mLogicalDisplaySize.y,
+                    size.x, size.y,
                     metrics.densityDpi,
                     DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
                     mSurfacePixelValidator.getSurface(),
@@ -379,12 +377,4 @@ public class CapturedActivity extends Activity {
             }
         }
     }
-
-    public void restoreSettings() {
-        if (mSettingsSession != null) {
-            mSettingsSession.close();
-            mSettingsSession = null;
-        }
-    }
-
 }

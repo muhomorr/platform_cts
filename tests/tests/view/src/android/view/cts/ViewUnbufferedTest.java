@@ -40,7 +40,6 @@ import androidx.test.rule.ActivityTestRule;
 import androidx.test.runner.AndroidJUnit4;
 
 import com.android.compatibility.common.util.PollingCheck;
-import com.android.compatibility.common.util.WindowUtil;
 
 import org.junit.After;
 import org.junit.Before;
@@ -128,10 +127,8 @@ public class ViewUnbufferedTest {
         mSentEvents.clear();
         mReceivedCountPerFrame.set(0);
         mMaxReceivedCountPerFrame = 0;
-        WindowUtil.waitForFocus(mActivity);
+        PollingCheck.waitFor(mActivity::hasWindowFocus);
         mView = mActivity.findViewById(R.id.test_view);
-        // Make sure all window animations are completed.
-        mAutomation.syncInputTransactions(true /* waitForAnimations */);
     }
 
     @After

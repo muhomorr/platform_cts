@@ -15,95 +15,71 @@
  */
 package com.android.cts.deviceandprofileowner;
 
-import static com.google.common.truth.Truth.assertWithMessage;
-
 import android.app.admin.DevicePolicyManager;
-import android.graphics.Bitmap;
 import android.util.Log;
 
 /**
  * Tests for {@link DevicePolicyManager#setScreenCaptureDisabled} and
  * {@link DevicePolicyManager#getScreenCaptureDisabled} APIs.
  */
-public final class ScreenCaptureDisabledTest extends BaseDeviceAdminTest {
+public class ScreenCaptureDisabledTest extends BaseDeviceAdminTest {
     private final int MAX_ATTEMPTS_COUNT = 20;
     private final int WAIT_IN_MILLISECOND = 500;
 
-    private static final String TAG = ScreenCaptureDisabledTest.class.getSimpleName();
+    private static final String TAG = "ScreenCaptureDisabledTest";
+
+    @Override
+    protected void setUp() throws Exception {
+        super.setUp();
+    }
 
     public void testSetScreenCaptureDisabled_false() {
         mDevicePolicyManager.setScreenCaptureDisabled(ADMIN_RECEIVER_COMPONENT, false);
-        assertWithMessage("dpm.getScreenCaptureDisabled(%s)",
-                ADMIN_RECEIVER_COMPONENT.flattenToShortString())
-                    .that(mDevicePolicyManager.getScreenCaptureDisabled(ADMIN_RECEIVER_COMPONENT))
-                    .isFalse();
-        assertWithMessage("dpm.getScreenCaptureDisabled(null)")
-                .that(mDevicePolicyManager.getScreenCaptureDisabled(/* admin= */ null)).isFalse();
+        assertFalse(mDevicePolicyManager.getScreenCaptureDisabled(ADMIN_RECEIVER_COMPONENT));
+        assertFalse(mDevicePolicyManager.getScreenCaptureDisabled(null /* any admin */));
     }
 
     public void testSetScreenCaptureDisabled_true() {
         mDevicePolicyManager.setScreenCaptureDisabled(ADMIN_RECEIVER_COMPONENT, true);
-        assertWithMessage("dpm.getScreenCaptureDisabled(%s)",
-                ADMIN_RECEIVER_COMPONENT.flattenToShortString())
-                     .that(mDevicePolicyManager.getScreenCaptureDisabled(ADMIN_RECEIVER_COMPONENT))
-                     .isTrue();
-        assertWithMessage("dpm.getScreenCaptureDisabled(null)")
-                .that(mDevicePolicyManager.getScreenCaptureDisabled(/* admin= */ null)).isTrue();
+        assertTrue(mDevicePolicyManager.getScreenCaptureDisabled(ADMIN_RECEIVER_COMPONENT));
+        assertTrue(mDevicePolicyManager.getScreenCaptureDisabled(null /* any admin */));
     }
 
     public void testSetScreenCaptureDisabledOnParent_false() {
         DevicePolicyManager parentDevicePolicyManager =
                 mDevicePolicyManager.getParentProfileInstance(ADMIN_RECEIVER_COMPONENT);
         parentDevicePolicyManager.setScreenCaptureDisabled(ADMIN_RECEIVER_COMPONENT, false);
-        assertWithMessage("parentDevicePolicyManager.getScreenCaptureDisabled(%s)",
-                ADMIN_RECEIVER_COMPONENT.flattenToShortString())
-                     .that(parentDevicePolicyManager
-                             .getScreenCaptureDisabled(ADMIN_RECEIVER_COMPONENT))
-                     .isFalse();
-        assertWithMessage("parentDpm.getScreenCaptureDisabled(null)")
-                .that(parentDevicePolicyManager.getScreenCaptureDisabled(/* admin= */ null))
-                .isFalse();
+        assertFalse(parentDevicePolicyManager.getScreenCaptureDisabled(ADMIN_RECEIVER_COMPONENT));
+        assertFalse(parentDevicePolicyManager.getScreenCaptureDisabled(null /* any admin */));
     }
 
     public void testSetScreenCaptureDisabledOnParent_true() {
         DevicePolicyManager parentDevicePolicyManager =
                 mDevicePolicyManager.getParentProfileInstance(ADMIN_RECEIVER_COMPONENT);
         parentDevicePolicyManager.setScreenCaptureDisabled(ADMIN_RECEIVER_COMPONENT, true);
-        assertWithMessage("parentDevicePolicyManager.getScreenCaptureDisabled(%s)",
-                ADMIN_RECEIVER_COMPONENT.flattenToShortString())
-                     .that(parentDevicePolicyManager
-                             .getScreenCaptureDisabled(ADMIN_RECEIVER_COMPONENT))
-                     .isTrue();
-        assertWithMessage("parentDpm.getScreenCaptureDisabled(null)")
-                .that(parentDevicePolicyManager.getScreenCaptureDisabled(/* admin= */ null))
-                .isTrue();
+        assertTrue(parentDevicePolicyManager.getScreenCaptureDisabled(ADMIN_RECEIVER_COMPONENT));
+        assertTrue(parentDevicePolicyManager.getScreenCaptureDisabled(null /* any admin */));
     }
 
     public void testScreenCaptureImpossible() throws Exception {
-        Bitmap screenshot = null;
-        for (int i = 1; i <= MAX_ATTEMPTS_COUNT; i++) {
-            Log.d(TAG, "testScreenCaptureImpossible(): attempt #" + i);
-            sleep(WAIT_IN_MILLISECOND);
-            screenshot = takeScreenshot();
-            if (screenshot == null) break;
+        for (int i = 0; i < MAX_ATTEMPTS_COUNT; i++) {
+            Log.d(TAG, "testScreenCaptureImpossible: " + i + " trials");
+            Thread.sleep(WAIT_IN_MILLISECOND);
+            if (getInstrumentation().getUiAutomation().takeScreenshot() == null) {
+                break;
+            }
         }
-        assertWithMessage("screenshot").that(screenshot).isNull();
+        assertNull(getInstrumentation().getUiAutomation().takeScreenshot());
     }
 
     public void testScreenCapturePossible() throws Exception {
-        Bitmap screenshot = null;
-        for (int i = 1; i <= MAX_ATTEMPTS_COUNT; i++) {
-            Log.d(TAG, "testScreenCapturePossible): attempt #" + i);
-            sleep(WAIT_IN_MILLISECOND);
-            screenshot = takeScreenshot();
-            if (screenshot != null) break;
+        for (int i = 0; i < MAX_ATTEMPTS_COUNT; i++) {
+            Log.d(TAG, "testScreenCapturePossible: " + i + " trials");
+            Thread.sleep(WAIT_IN_MILLISECOND);
+            if (getInstrumentation().getUiAutomation().takeScreenshot() != null) {
+                break;
+            }
         }
-        assertWithMessage("screenshot").that(screenshot).isNotNull();
-    }
-
-    private Bitmap takeScreenshot() {
-        Bitmap screenshot = getInstrumentation().getUiAutomation().takeScreenshot();
-        Log.d(TAG, "takeScreenshot(): got " + screenshot);
-        return screenshot;
+        assertNotNull(getInstrumentation().getUiAutomation().takeScreenshot());
     }
 }

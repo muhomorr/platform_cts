@@ -19,7 +19,6 @@ import static android.telephony.NetworkRegistrationInfo.NR_STATE_CONNECTED;
 
 import static androidx.test.InstrumentationRegistry.getContext;
 
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -74,7 +73,7 @@ public class SignalStrengthTest {
     }
 
     @Test
-    public void testSignalStrength() {
+    public void testSignalStrength() throws Throwable {
         if (!mPm.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
             Log.d(TAG, "Skipping test that requires FEATURE_TELEPHONY");
             return;
@@ -92,10 +91,7 @@ public class SignalStrengthTest {
         long curTime = SystemClock.elapsedRealtime();
         assertTrue("Invalid timestamp in SignalStrength: " + ss.getTimestampMillis(),
                 ss.getTimestampMillis() > 0 && ss.getTimestampMillis() <= curTime);
-        Log.d(TAG, "Timestamp of SignalStrength: " + ss.getTimestampMillis());
-
-        SignalStrength copy = new SignalStrength(ss);
-        assertEquals(ss, copy);
+        Log.d(TAG, "Timestamp of SignalStrength: " + Long.toString(ss.getTimestampMillis()));
 
         List<CellSignalStrength> signalStrengths = ss.getCellSignalStrengths();
 
@@ -179,10 +175,9 @@ public class SignalStrengthTest {
             case TelephonyManager.NETWORK_TYPE_LTE: /* fall through */
             case TelephonyManager.NETWORK_TYPE_LTE_CA:
                 return CellSignalStrengthLte.class;
-            case TelephonyManager.NETWORK_TYPE_NR:
-                return CellSignalStrengthNr.class;
             case TelephonyManager.NETWORK_TYPE_IWLAN: /* fall through */
             case TelephonyManager.NETWORK_TYPE_IDEN: /* fall through */
+            case TelephonyManager.NETWORK_TYPE_NR: /* fall through */
             default:
                 return null;
         }

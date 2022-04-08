@@ -17,24 +17,26 @@
 package com.android.cts.verifier.managedprovisioning;
 
 import android.accessibilityservice.AccessibilityService;
-import android.content.ActivityNotFoundException;
+import android.app.admin.DevicePolicyManager;
 import android.content.Intent;
 import android.inputmethodservice.InputMethodService;
 import android.os.Bundle;
-import android.provider.Settings;
 import android.util.ArrayMap;
-import android.view.View;
 import android.view.accessibility.AccessibilityEvent;
+import android.view.View;
 import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.CompoundButton;
 import android.widget.EditText;
+import android.widget.Spinner;
 import android.widget.Switch;
 import android.widget.TextView;
 
 import com.android.cts.verifier.PassFailButtons;
 import com.android.cts.verifier.R;
 
+import java.util.ArrayList;
 import java.util.Map;
 
 public class PolicyTransparencyTestActivity extends PassFailButtons.Activity implements
@@ -55,6 +57,7 @@ public class PolicyTransparencyTestActivity extends PassFailButtons.Activity imp
             "check-keyguard-unredacted-notification";
     public static final String TEST_CHECK_LOCK_SCREEN_INFO = "check-lock-screen-info";
     public static final String TEST_CHECK_MAXIMUM_TIME_TO_LOCK = "check-maximum-time-to-lock";
+    public static final String TEST_CHECK_PASSWORD_QUALITY = "check-password-quality";
     public static final String TEST_CHECK_PERMITTED_ACCESSIBILITY_SERVICE =
             "check-permitted-accessibility-service";
     public static final String TEST_CHECK_PERMITTED_INPUT_METHOD = "check-permitted-input-method";
@@ -94,6 +97,12 @@ public class PolicyTransparencyTestActivity extends PassFailButtons.Activity imp
                 R.string.set_maximum_time_to_lock_widget_label,
                 R.id.edit_text_widget,
                 CommandReceiverActivity.COMMAND_SET_MAXIMUM_TO_LOCK));
+        POLICY_TEST_ITEMS.put(TEST_CHECK_PASSWORD_QUALITY, new PolicyTestItem(
+                R.string.password_quality_set_step,
+                R.string.set_password_quality_action,
+                R.string.set_password_quality_widget_label,
+                R.id.spinner_widget,
+                CommandReceiverActivity.COMMAND_SET_PASSWORD_QUALITY));
         POLICY_TEST_ITEMS.put(TEST_CHECK_PERMITTED_ACCESSIBILITY_SERVICE, new PolicyTestItem(
                 R.string.permitted_accessibility_services_set_step,
                 R.string.set_permitted_accessibility_services_action,
@@ -108,7 +117,27 @@ public class PolicyTransparencyTestActivity extends PassFailButtons.Activity imp
                 CommandReceiverActivity.COMMAND_ALLOW_ONLY_SYSTEM_INPUT_METHODS));
     }
 
-    private boolean mForceCurrentUserDpm;
+    // IDs of settings for {@link DevicePolicyManager#setPasswordQuality(ComponentName, int)}.
+    private final int[] passwordQualityIds = new int[] {
+        DevicePolicyManager.PASSWORD_QUALITY_UNSPECIFIED,
+        DevicePolicyManager.PASSWORD_QUALITY_SOMETHING,
+        DevicePolicyManager.PASSWORD_QUALITY_NUMERIC,
+        DevicePolicyManager.PASSWORD_QUALITY_NUMERIC_COMPLEX,
+        DevicePolicyManager.PASSWORD_QUALITY_ALPHABETIC,
+        DevicePolicyManager.PASSWORD_QUALITY_ALPHANUMERIC,
+        DevicePolicyManager.PASSWORD_QUALITY_COMPLEX
+    };
+    // Strings to show for each password quality setting.
+    private final int[] passwordQualityLabelResIds = new int[] {
+        R.string.password_quality_unspecified,
+        R.string.password_quality_something,
+        R.string.password_quality_numeric,
+        R.string.password_quality_numeric_complex,
+        R.string.password_quality_alphabetic,
+        R.string.password_quality_alphanumeric,
+        R.string.password_quality_complex
+    };
+
     private String mSettingsIntentAction;
     private String mTestId;
     private String mTitle;
@@ -120,9 +149,6 @@ public class PolicyTransparencyTestActivity extends PassFailButtons.Activity imp
         setContentView(R.layout.policy_transparency_test);
         setPassFailButtonClickListeners();
 
-        mForceCurrentUserDpm =
-                getIntent().getBooleanExtra(
-                        CommandReceiverActivity.EXTRA_USE_CURRENT_USER_DPM, false);
         mTitle = getIntent().getStringExtra(EXTRA_TITLE);
         mTestId = getIntent().getStringExtra(EXTRA_TEST_ID);
         mSettingsIntentAction = getIntent().getStringExtra(EXTRA_SETTINGS_INTENT_ACTION);
@@ -171,6 +197,21 @@ public class PolicyTransparencyTestActivity extends PassFailButtons.Activity imp
                 updateButton.setOnClickListener(this);
                 updateButton.setVisibility(View.VISIBLE);
             } break;
+            case R.id.spinner_widget: {
+                if (TEST_CHECK_PASSWORD_QUALITY.equals(mTest)) {
+                    Spinner spinner = (Spinner) findViewById(R.id.spinner_widget);
+                    spinner.setVisibility(View.VISIBLE);
+                    spinner.setOnItemSelectedListener(this);
+                    final ArrayList<String> passwordQualityLabels = new ArrayList<String>();
+                    for (int resId : passwordQualityLabelResIds) {
+                        passwordQualityLabels.add(getString(resId));
+                    }
+                    ArrayAdapter<String> adapter = new ArrayAdapter(this,
+                            android.R.layout.simple_spinner_item, passwordQualityLabels);
+                    adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+                    spinner.setAdapter(adapter);
+                }
+            } break;
             default: {
                 throw new IllegalArgumentException("Unknown widgetId: " + widgetId);
             }
@@ -180,12 +221,7 @@ public class PolicyTransparencyTestActivity extends PassFailButtons.Activity imp
     @Override
     public void onClick(View view) {
         if (view.getId() == R.id.open_settings_button) {
-            try {
-                startActivity(new Intent(mSettingsIntentAction));
-            } catch (ActivityNotFoundException e) {
-                // If the given settings intent is not handled, use the main settings intent
-                startActivity(new Intent(Settings.ACTION_SETTINGS));
-            }
+            startActivity(new Intent(mSettingsIntentAction));
         } else if (view.getId() == R.id.update_button) {
             final PolicyTestItem testItem = POLICY_TEST_ITEMS.get(mTest);
             final Intent intent = new Intent(CommandReceiverActivity.ACTION_EXECUTE_COMMAND);
@@ -202,11 +238,8 @@ public class PolicyTransparencyTestActivity extends PassFailButtons.Activity imp
         if (TEST_CHECK_USER_RESTRICTION.equals(mTest)) {
             final String userRestriction = getIntent().getStringExtra(
                     CommandReceiverActivity.EXTRA_USER_RESTRICTION);
-            intent = mForceCurrentUserDpm
-                    ? CommandReceiverActivity.createSetCurrentUserRestrictionIntent(
-                            userRestriction, isChecked)
-                    : CommandReceiverActivity.createSetDeviceOwnerUserRestrictionIntent(
-                            userRestriction, isChecked);
+            intent = CommandReceiverActivity.createSetUserRestrictionIntent(
+                    userRestriction, isChecked);
         } else {
             intent = new Intent(CommandReceiverActivity.ACTION_EXECUTE_COMMAND);
             final PolicyTestItem testItem = POLICY_TEST_ITEMS.get(mTest);
@@ -221,6 +254,9 @@ public class PolicyTransparencyTestActivity extends PassFailButtons.Activity imp
         final PolicyTestItem testItem = POLICY_TEST_ITEMS.get(mTest);
         final Intent intent = new Intent(CommandReceiverActivity.ACTION_EXECUTE_COMMAND);
         intent.putExtra(CommandReceiverActivity.EXTRA_COMMAND, testItem.command);
+        if (TEST_CHECK_PASSWORD_QUALITY.equals(mTest)) {
+            intent.putExtra(CommandReceiverActivity.EXTRA_VALUE, passwordQualityIds[(int) id]);
+        }
         startActivity(intent);
     }
 
@@ -234,7 +270,7 @@ public class PolicyTransparencyTestActivity extends PassFailButtons.Activity imp
         return mTestId;
     }
 
-    public static class TestAccessibilityService extends AccessibilityService {
+    public static class DummyAccessibilityService extends AccessibilityService {
 
         @Override
         public void onAccessibilityEvent(AccessibilityEvent event) {
@@ -247,7 +283,7 @@ public class PolicyTransparencyTestActivity extends PassFailButtons.Activity imp
         }
     }
 
-    public static class TestInputMethod extends InputMethodService {
+    public static class DummyInputMethod extends InputMethodService {
         @Override
         public boolean onEvaluateFullscreenMode() {
             return false;

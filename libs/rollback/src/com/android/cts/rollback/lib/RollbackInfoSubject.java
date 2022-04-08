@@ -32,7 +32,7 @@ import java.util.List;
 /**
  * Subject for asserting things about RollbackInfo instances.
  */
-public final class RollbackInfoSubject extends Subject {
+public final class RollbackInfoSubject extends Subject<RollbackInfoSubject, RollbackInfo> {
     private final RollbackInfo mActual;
 
     /**

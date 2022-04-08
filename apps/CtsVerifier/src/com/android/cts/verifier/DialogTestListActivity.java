@@ -32,17 +32,15 @@ import android.view.View.OnClickListener;
 import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.ListView;
-import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import androidx.annotation.Nullable;
+import com.android.cts.verifier.R;
 
 /**
  * Test list activity that supports showing dialogs with pass/fail buttons instead of
  * starting new activities.
- *
- * <p>In addition to that dialogs have a 'go' button that can be configured to launch an intent.
+ * In addition to that dialogs have a 'go' button that can be configured to launch an intent.
  * Instructions are shown on top of the screen and a test preparation button is provided.
  */
 public abstract class DialogTestListActivity extends PassFailButtons.TestListActivity {
@@ -52,29 +50,11 @@ public abstract class DialogTestListActivity extends PassFailButtons.TestListAct
     private final int mInfoStringId;
     private final int mInstructionsStringId;
 
-    /**
-     * The button to prepare the test, populated if the layout ID used to construct the object
-     * contains a {@code prepare_test_button} {@link Button}.
-     */
-    @Nullable protected Button mPrepareTestButton;
-
+    protected Button mPrepareTestButton;
     protected ListView mTestFeaturesList;
 
     protected int mCurrentTestPosition;
 
-    /**
-     * Constructs the activity with the given resources.
-     *
-     * @param layoutId The layout to inflate, which must contain a {@link TextView} with ID {@code
-     * test_instructions} for the test instructions within a {@link ScrollView}, a {@link ListView}
-     * with ID {@code android:list} for the tests, and must include the {@code pass_fail_buttons}
-     * layout. If a custom layout is not required, {@code dialog_test_list_activity} can be used.
-     * @param titleStringId The string resource to use for the title at the top of the screen.
-     * @param infoStringId The string resource to use for the info button between the pass and fail
-     * buttons.
-     * @param instructionsStringId The string resource to use for the explanation that populates the
-     * {@link TextView} with ID {@code test_instructions} in the given layout.
-     */
     protected DialogTestListActivity(int layoutId, int titleStringId, int infoStringId,
             int instructionsStringId) {
         mLayoutId = layoutId;

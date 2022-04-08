@@ -42,4 +42,14 @@ public class Poc18_10 extends SecurityTestCase {
         }
         AdbUtils.runCommandLine("rm -rf /sdcard/Android/data/CVE-2018-9515", getDevice());
     }
+
+    /**
+     *  b/111274046
+     */
+    @Test
+    @AsbSecurityTest(cveBugId = 111274046)
+    public void testPocCVE_2018_9490() throws Exception {
+        int code = AdbUtils.runProxyAutoConfig("CVE-2018-9490", getDevice());
+        assertTrue(code != 139); // 128 + signal 11
+    }
 }

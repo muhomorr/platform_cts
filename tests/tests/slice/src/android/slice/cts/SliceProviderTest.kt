@@ -58,7 +58,7 @@ class SliceProviderTest {
                             .activity
                             .packageManager
                             .hasSystemFeature(
-                                PackageManager.FEATURE_SLICES_DISABLED)
+                                "android.software.slices_disabled")
     }
 
     @Test

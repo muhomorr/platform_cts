@@ -106,19 +106,18 @@ public class TimingConstraintsTest extends BaseJobSchedulerTest {
      * {@link JobParameters#isOverrideDeadlineExpired()} returns the correct value.
      */
     public void testJobParameters_expiredDeadline() throws Exception {
-        // Make sure the storage constraint is *not* met
+        // It is expected that the "device idle" constraint will *not* be met
         // for the duration of the override deadline.
-        setStorageStateLow(true);
         JobInfo deadlineJob =
                 new JobInfo.Builder(EXPIRED_JOB_ID, kJobServiceComponent)
-                        .setRequiresStorageNotLow(true)
+                        .setRequiresDeviceIdle(true)
                         .setOverrideDeadline(2000L)
                         .build();
         kTestEnvironment.setExpectedExecutions(1);
         mJobScheduler.schedule(deadlineJob);
         assertTrue("Failed to execute deadline job", kTestEnvironment.awaitExecution());
         assertTrue("Job does not show its deadline as expired",
-                kTestEnvironment.getLastStartJobParameters().isOverrideDeadlineExpired());
+                kTestEnvironment.getLastJobParameters().isOverrideDeadlineExpired());
     }
 
 
@@ -130,14 +129,16 @@ public class TimingConstraintsTest extends BaseJobSchedulerTest {
         JobInfo deadlineJob =
                 new JobInfo.Builder(UNEXPIRED_JOB_ID, kJobServiceComponent)
                         .setMinimumLatency(500L)
+                        .setRequiresStorageNotLow(true)
                         .build();
         kTestEnvironment.setExpectedExecutions(1);
+        setStorageState(true);
         mJobScheduler.schedule(deadlineJob);
-        Thread.sleep(500L);
-        runSatisfiedJob(UNEXPIRED_JOB_ID);
+        // Run everything by making storage state not-low.
+        setStorageState(false);
         assertTrue("Failed to execute non-deadline job", kTestEnvironment.awaitExecution());
         assertFalse("Job that ran early (unexpired) didn't have" +
                         " JobParameters#isOverrideDeadlineExpired=false",
-                kTestEnvironment.getLastStartJobParameters().isOverrideDeadlineExpired());
+                kTestEnvironment.getLastJobParameters().isOverrideDeadlineExpired());
     }
 }

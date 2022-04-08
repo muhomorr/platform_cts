@@ -16,13 +16,12 @@
  -->
 
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-     package="android.appwidget.cts.packages">
+          package="android.appwidget.cts.packages">
 
     <application>
-        <activity android:name="AppWidgetConfirmPin"
-             android:exported="true">
+        <activity android:name="AppWidgetConfirmPin">
             <intent-filter>
-                <action android:name="android.content.pm.action.CONFIRM_PIN_APPWIDGET"/>
+                <action android:name="android.content.pm.action.CONFIRM_PIN_APPWIDGET" />
             </intent-filter>
         </activity>
     </application>

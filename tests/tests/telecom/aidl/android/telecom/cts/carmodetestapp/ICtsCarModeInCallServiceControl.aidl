@@ -24,7 +24,4 @@ interface ICtsCarModeInCallServiceControl {
     void enableCarMode(int priority);
     void disableCarMode();
     void disconnectCalls();
-    boolean requestAutomotiveProjection();
-    void releaseAutomotiveProjection();
-    boolean checkBindStatus(boolean bind);
 }

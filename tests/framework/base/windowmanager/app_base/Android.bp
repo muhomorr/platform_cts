@@ -12,10 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package {
-    default_applicable_licenses: ["Android-Apache-2.0"],
-}
-
 filegroup {
     name: "cts-wm-components-base",
     srcs: ["**/ComponentsBase.java"],
@@ -31,7 +27,6 @@ java_test_helper_library {
 
     static_libs: [
         "androidx.annotation_annotation",
-        "cts-wm-shared",
     ],
 
     sdk_version: "test_current",

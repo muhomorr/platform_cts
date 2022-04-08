@@ -42,12 +42,6 @@ class PermissionSplitTest : BaseUsePermissionTest() {
     }
 
     @Test
-    fun testPermissionNotSplit30() {
-        installPackage(APP_APK_PATH_30)
-        testLocationPermissionSplit(false)
-    }
-
-    @Test
     fun testPermissionNotSplitLatest() {
         installPackage(APP_APK_PATH_LATEST)
         testLocationPermissionSplit(false)
@@ -58,7 +52,7 @@ class PermissionSplitTest : BaseUsePermissionTest() {
         assertAppHasPermission(android.Manifest.permission.ACCESS_BACKGROUND_LOCATION, false)
 
         requestAppPermissionsAndAssertResult(
-                android.Manifest.permission.ACCESS_FINE_LOCATION to true
+            android.Manifest.permission.ACCESS_FINE_LOCATION to true
         ) {
             if (expectSplit) {
                 clickPermissionRequestSettingsLinkAndAllowAlways()

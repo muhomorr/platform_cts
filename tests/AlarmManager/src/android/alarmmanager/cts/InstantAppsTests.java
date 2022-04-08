@@ -16,13 +16,9 @@
 
 package android.alarmmanager.cts;
 
-import static android.app.AlarmManager.ELAPSED_REALTIME_WAKEUP;
-import static android.app.AlarmManager.RTC_WAKEUP;
-
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assume.assumeTrue;
 
-import android.alarmmanager.util.AlarmManagerDeviceConfigHelper;
 import android.app.AlarmManager;
 import android.content.Context;
 import android.os.SystemClock;
@@ -30,6 +26,8 @@ import android.platform.test.annotations.AppModeInstant;
 
 import androidx.test.InstrumentationRegistry;
 import androidx.test.runner.AndroidJUnit4;
+
+import com.android.compatibility.common.util.SystemUtil;
 
 import org.junit.After;
 import org.junit.Before;
@@ -46,25 +44,16 @@ import java.util.concurrent.TimeUnit;
 @RunWith(AndroidJUnit4.class)
 public class InstantAppsTests {
     private static final String TAG = "AlarmManagerInstantTests";
-    private static final long WINDOW_LENGTH = 500;
-    private static final long WAIT_TIMEOUT = 5_000;
 
     private AlarmManager mAlarmManager;
     private Context mContext;
-    private AlarmManagerDeviceConfigHelper mConfigHelper = new AlarmManagerDeviceConfigHelper();
 
     @Before
     public void setUp() {
         mContext = InstrumentationRegistry.getTargetContext();
         mAlarmManager = mContext.getSystemService(AlarmManager.class);
         assumeTrue(mContext.getPackageManager().isInstantApp());
-    }
-
-    @Before
-    public void updateAlarmManagerSettings() {
-        mConfigHelper.with("min_futurity", 0L)
-                .with("min_window", 0L)
-                .commitAndAwaitPropagation();
+        updateAlarmManagerSettings();
     }
 
     @Test
@@ -72,11 +61,10 @@ public class InstantAppsTests {
         final long futurity = 2500;
         final long triggerElapsed = SystemClock.elapsedRealtime() + futurity;
         final CountDownLatch latch = new CountDownLatch(1);
-        mAlarmManager.setWindow(ELAPSED_REALTIME_WAKEUP, triggerElapsed, WINDOW_LENGTH, TAG,
+        mAlarmManager.setExact(AlarmManager.ELAPSED_REALTIME, triggerElapsed, TAG,
                 () -> latch.countDown(), null);
-        Thread.sleep(futurity + WINDOW_LENGTH);
-        assertTrue("Alarm did not fire as expected",
-                latch.await(WAIT_TIMEOUT, TimeUnit.MILLISECONDS));
+        Thread.sleep(futurity);
+        assertTrue("Alarm did not fire as expected", latch.await(500, TimeUnit.MILLISECONDS));
     }
 
     @Test
@@ -84,15 +72,19 @@ public class InstantAppsTests {
         final long futurity = 2500;
         final long triggerRtc = System.currentTimeMillis() + futurity;
         final CountDownLatch latch = new CountDownLatch(1);
-        mAlarmManager.setWindow(RTC_WAKEUP, triggerRtc, WINDOW_LENGTH, TAG, () -> latch.countDown(),
-                null);
-        Thread.sleep(futurity + WINDOW_LENGTH);
-        assertTrue("Alarm did not fire as expected",
-                latch.await(WAIT_TIMEOUT, TimeUnit.MILLISECONDS));
+        mAlarmManager.setExact(AlarmManager.RTC, triggerRtc, TAG, () -> latch.countDown(), null);
+        Thread.sleep(futurity);
+        assertTrue("Alarm did not fire as expected", latch.await(500, TimeUnit.MILLISECONDS));
     }
 
     @After
     public void deleteAlarmManagerSettings() {
-        mConfigHelper.restoreAll();
+        SystemUtil.runShellCommand("settings delete global alarm_manager_constants");
+    }
+
+    private void updateAlarmManagerSettings() {
+        final StringBuffer cmd = new StringBuffer("settings put global alarm_manager_constants ");
+        cmd.append("min_futurity=0");
+        SystemUtil.runShellCommand(cmd.toString());
     }
 }

@@ -36,13 +36,13 @@ import java.io.InputStreamReader;
  * Neverallow Rules SELinux tests.
  */
 public class SELinuxNeverallowRulesTest extends DeviceTestCase implements IBuildReceiver, IDeviceTest {
+    private static final int Q_SEPOLICY_VERSION = 29;
     private File sepolicyAnalyze;
     private File devicePolicyFile;
     private File deviceSystemPolicyFile;
 
     private IBuildInfo mBuild;
     private int mVendorSepolicyVersion = -1;
-    private int mSystemSepolicyVersion = -1;
 
     /**
      * A reference to the device under test.
@@ -81,11 +81,7 @@ public class SELinuxNeverallowRulesTest extends DeviceTestCase implements IBuild
             // Caching this variable to save time.
             if (mVendorSepolicyVersion == -1) {
                 mVendorSepolicyVersion =
-                        android.security.cts.SELinuxHostTest.getVendorSepolicyVersion(mBuild, mDevice);
-            }
-            if (mSystemSepolicyVersion == -1) {
-                mSystemSepolicyVersion =
-                        android.security.cts.SELinuxHostTest.getSystemSepolicyVersion(mBuild);
+                        android.security.cts.SELinuxHostTest.getVendorSepolicyVersion(mDevice);
             }
         }
     }
@@ -96,10 +92,6 @@ public class SELinuxNeverallowRulesTest extends DeviceTestCase implements IBuild
 
     private boolean isDeviceLaunchingWithR() throws Exception {
         return PropertyUtil.getFirstApiLevel(mDevice) > 29;
-    }
-
-    private boolean isDeviceLaunchingWithS() throws Exception {
-        return PropertyUtil.getFirstApiLevel(mDevice) > 30;
     }
 
     private boolean isCompatiblePropertyEnforcedDevice() throws Exception {
@@ -120,7 +112,6 @@ src_method = """
         String neverallowRule = "$NEVERALLOW_RULE_HERE$";
         boolean fullTrebleOnly = $TREBLE_ONLY_BOOL_HERE$;
         boolean launchingWithROnly = $LAUNCHING_WITH_R_ONLY_BOOL_HERE$;
-        boolean launchingWithSOnly = $LAUNCHING_WITH_S_ONLY_BOOL_HERE$;
         boolean compatiblePropertyOnly = $COMPATIBLE_PROPERTY_ONLY_BOOL_HERE$;
 
         if ((fullTrebleOnly) && (!isFullTrebleDevice())) {
@@ -129,10 +120,6 @@ src_method = """
         }
         if ((launchingWithROnly) && (!isDeviceLaunchingWithR())) {
             // This test applies only to devices launching with R or later but this device isn't one
-            return;
-        }
-        if ((launchingWithSOnly) && (!isDeviceLaunchingWithS())) {
-            // This test applies only to devices launching with S or later but this device isn't one
             return;
         }
         if ((compatiblePropertyOnly) && (!isCompatiblePropertyEnforcedDevice())) {
@@ -144,7 +131,7 @@ src_method = """
         // If sepolicy is split and vendor sepolicy version is behind platform's,
         // only test against platform policy.
         File policyFile =
-                (isSepolicySplit() && mVendorSepolicyVersion < mSystemSepolicyVersion) ?
+                (isSepolicySplit() && mVendorSepolicyVersion < Q_SEPOLICY_VERSION) ?
                 deviceSystemPolicyFile :
                 devicePolicyFile;
 
