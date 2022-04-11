@@ -55,10 +55,11 @@ public class TelephonyManagerTestOnMockModem {
     public static void beforeAllTests() throws Exception {
         Log.d(TAG, "TelephonyManagerTestOnMockModem#beforeAllTests()");
 
-        if (!hasTelephonyFeature() || !isAllowedMockModem()) {
+        if (!hasTelephonyFeature()) {
             return;
         }
 
+        enforceMockModemDeveloperSetting();
         sTelephonyManager =
                 (TelephonyManager) getContext().getSystemService(Context.TELEPHONY_SERVICE);
 
@@ -71,7 +72,7 @@ public class TelephonyManagerTestOnMockModem {
     public static void afterAllTests() throws Exception {
         Log.d(TAG, "TelephonyManagerTestOnMockModem#afterAllTests()");
 
-        if (!hasTelephonyFeature() || !isAllowedMockModem()) {
+        if (!hasTelephonyFeature()) {
             return;
         }
 
@@ -84,7 +85,6 @@ public class TelephonyManagerTestOnMockModem {
     @Before
     public void beforeTest() {
         assumeTrue(hasTelephonyFeature());
-        assumeTrue(isAllowedMockModem());
     }
 
     private static Context getContext() {
@@ -100,14 +100,14 @@ public class TelephonyManagerTestOnMockModem {
         return true;
     }
 
-    private static boolean isAllowedMockModem() {
+    private static void enforceMockModemDeveloperSetting() throws Exception {
         boolean isAllowed = SystemProperties.getBoolean(ALLOW_MOCK_MODEM_PROPERTY, false);
+        // Check for developer settings for user build. Always allow for debug builds
         if (!isAllowed && !DEBUG) {
-            Log.d(TAG, "Skipping MockModem tests in USER rom that requires mock modem permission"
-                    + " ,Developer options => Allow Mock Modem");
-            return false;
+            throw new IllegalStateException(
+                "!! Enable Mock Modem before running this test !! "
+                    + "Developer options => Allow Mock Modem");
         }
-        return true;
     }
 
     @Test
@@ -158,7 +158,7 @@ public class TelephonyManagerTestOnMockModem {
         }
 
         // Wait the radio state update in Framework
-        TimeUnit.SECONDS.sleep(1);
+        TimeUnit.SECONDS.sleep(2);
         int toggleRadioState =
                 radioState == TelephonyManager.RADIO_POWER_ON
                         ? TelephonyManager.RADIO_POWER_OFF
@@ -177,7 +177,7 @@ public class TelephonyManagerTestOnMockModem {
         }
 
         // Wait the radio state update in Framework
-        TimeUnit.SECONDS.sleep(1);
+        TimeUnit.SECONDS.sleep(2);
         assertEquals(sTelephonyManager.getRadioPowerState(), radioState);
 
         Log.d(TAG, "Test Done ");
