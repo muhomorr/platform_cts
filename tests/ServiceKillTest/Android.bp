@@ -1,4 +1,4 @@
-// Copyright (C) 2019 The Android Open Source Project
+// Copyright (C) 2021 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,17 +17,20 @@ package {
 }
 
 android_test {
-    name: "CtsNetTestCasesInternetPermission",
+    name: "CtsServiceKillTestCases",
     defaults: ["cts_defaults"],
-
-    srcs: ["src/**/*.java"],
-
-    static_libs: ["ctstestrunner-axt"],
-
-    // Tag this module as a cts test artifact
+    static_libs: [
+        "androidx.test.rules",
+        "ub-uiautomator",
+        "compatibility-device-util-axt",
+    ],
+    srcs: [
+        "src/**/*.java",
+        "app/src/**/*.java",
+    ],
     test_suites: [
         "cts",
         "general-tests",
     ],
-
+    platform_apis: true,
 }
