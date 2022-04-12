@@ -14,8 +14,26 @@
  * limitations under the License.
  */
 
-package android.permission.cts.appthathasnotificationlistener;
+package android.widget.cts;
 
-import android.service.notification.NotificationListenerService;
+import android.app.Activity;
+import android.os.Bundle;
+import android.widget.FrameLayout;
 
-public class CtsNotificationListenerService extends NotificationListenerService {}
+import androidx.annotation.Nullable;
+
+public class BackInvokedOnWidgetsActivity extends Activity {
+
+    private FrameLayout mContentView;
+
+    public FrameLayout getContentView() {
+        return mContentView;
+    }
+
+    @Override
+    protected void onCreate(@Nullable Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        mContentView = new FrameLayout(this);
+        setContentView(mContentView);
+    }
+}
