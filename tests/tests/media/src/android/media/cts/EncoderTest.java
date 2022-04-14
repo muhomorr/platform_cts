@@ -34,13 +34,16 @@ import com.android.compatibility.common.util.MediaUtils;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.io.InputStream;
 import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -70,10 +73,24 @@ public class EncoderTest extends AndroidTestCase {
      * and remove files left from a previous run.
      */
     private static boolean sSaveResults = false;
+    static final Map<String, String> mDefaultEncoders = new HashMap<>();
 
     @Override
     public void setContext(Context context) {
         super.setContext(context);
+    }
+
+    static boolean isDefaultCodec(String codecName, String mime)
+            throws IOException {
+        if (mDefaultEncoders.containsKey(mime)) {
+            return mDefaultEncoders.get(mime).equalsIgnoreCase(codecName);
+        }
+
+        MediaCodec codec = MediaCodec.createEncoderByType(mime);
+        boolean isDefault = codec.getName().equalsIgnoreCase(codecName);
+        mDefaultEncoders.put(mime, codec.getName());
+        codec.release();
+        return isDefault;
     }
 
     public void testAMRNBEncoders() {
@@ -176,25 +193,28 @@ public class EncoderTest extends AndroidTestCase {
     private void testEncoderWithFormatsParallel(String mime, List<MediaFormat> formats,
             List<String> componentNames, int ThreadCount) {
         int testsStarted = 0;
-        int allowPerTest = 30;
-
+        int totalDurationSeconds = 0;
         ExecutorService pool = Executors.newFixedThreadPool(ThreadCount);
 
         for (String componentName : componentNames) {
             for (MediaFormat format : formats) {
                 assertEquals(mime, format.getString(MediaFormat.KEY_MIME));
                 pool.execute(new EncoderRun(componentName, format));
+                int sampleRate = format.getInteger(MediaFormat.KEY_SAMPLE_RATE);
+                int channelCount = format.getInteger(MediaFormat.KEY_CHANNEL_COUNT);
+                int bytesQueuedPerSecond = 2 * channelCount * sampleRate;
+                int durationSeconds =
+                        (kNumInputBytes + bytesQueuedPerSecond - 1) / bytesQueuedPerSecond;
+                totalDurationSeconds += durationSeconds * kNumEncoderTestsPerRun;
                 testsStarted++;
             }
         }
         try {
             pool.shutdown();
-            int waitingSeconds = ((testsStarted + ThreadCount - 1) / ThreadCount) * allowPerTest;
-            waitingSeconds += 300;
-            Log.i(TAG, "waiting up to " + waitingSeconds + " seconds for "
+            Log.i(TAG, "waiting up to " + totalDurationSeconds + " seconds for "
                             + testsStarted + " sub-tests to finish");
             assertTrue("timed out waiting for encoder threads",
-                    pool.awaitTermination(waitingSeconds, TimeUnit.SECONDS));
+                    pool.awaitTermination(totalDurationSeconds, TimeUnit.SECONDS));
         } catch (InterruptedException e) {
             fail("interrupted while waiting for encoder threads");
         }
@@ -237,7 +257,7 @@ public class EncoderTest extends AndroidTestCase {
     }
 
     // See bug 25843966
-    private long[] mBadSeeds = {
+    private static long[] mBadSeeds = {
             101833462733980l, // fail @ 23680 in all-random mode
             273262699095706l, // fail @ 58880 in all-random mode
             137295510492957l, // fail @ 35840 in zero-lead mode
@@ -323,8 +343,11 @@ public class EncoderTest extends AndroidTestCase {
         }
     }
 
+    // Number of tests called in testEncoder(String componentName, MediaFormat format)
+    private static int kNumEncoderTestsPerRun = 5 + mBadSeeds.length * 2;
     private void testEncoder(String componentName, MediaFormat format)
             throws FileNotFoundException {
+
         Log.i(TAG, "testEncoder " + componentName + "/" + format);
         // test with all zeroes/silence
         testEncoder(componentName, format, 0, null, MODE_SILENT);
@@ -344,7 +367,6 @@ public class EncoderTest extends AndroidTestCase {
 
     private void testEncoder(String componentName, MediaFormat format,
             long startSeed, final String res, int mode) throws FileNotFoundException {
-
         Log.i(TAG, "testEncoder " + componentName + "/" + mode + "/" + format);
         int sampleRate = format.getInteger(MediaFormat.KEY_SAMPLE_RATE);
         int channelCount = format.getInteger(MediaFormat.KEY_CHANNEL_COUNT);
@@ -373,10 +395,30 @@ public class EncoderTest extends AndroidTestCase {
             istream = new FileInputStream(mInpPrefix + res);
         }
 
+        // TODO(b/191447420) WORKAROUND: sleep for 30 msec before starting new codec to allow
+        // previous codec to get deleted.
+        try {
+            Thread.sleep(30);
+        } catch (InterruptedException e) {
+            // ignore interrupted exception for this workaround
+        }
+
         Random random = new Random(startSeed);
         MediaCodec codec;
         try {
             codec = MediaCodec.createByCodecName(componentName);
+            String mime = format.getString(MediaFormat.KEY_MIME);
+            MediaCodecInfo codecInfo = codec.getCodecInfo();
+            MediaCodecInfo.CodecCapabilities caps = codecInfo.getCapabilitiesForType(mime);
+            if (!caps.isFormatSupported(format)) {
+                codec.release();
+                codec = null;
+                assertFalse(
+                    "Default codec doesn't support " + format.toString(),
+                    isDefaultCodec(componentName, mime));
+                MediaUtils.skipTest(componentName + " doesn't support " + format.toString());
+                return;
+            }
         } catch (Exception e) {
             fail("codec '" + componentName + "' failed construction.");
             return; /* does not get here, but avoids warning */
@@ -491,4 +533,3 @@ public class EncoderTest extends AndroidTestCase {
         }
     }
 }
-
