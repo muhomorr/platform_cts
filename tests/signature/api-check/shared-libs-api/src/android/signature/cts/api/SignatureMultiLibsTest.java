@@ -17,21 +17,21 @@
 package android.signature.cts.api;
 
 import android.app.Instrumentation;
+import android.content.Context;
+import android.content.pm.SharedLibraryInfo;
 import android.signature.cts.ApiComplianceChecker;
 import android.signature.cts.ApiDocumentParser;
+import android.signature.cts.JDiffClassDescription;
 import android.signature.cts.VirtualPath;
-import android.signature.cts.VirtualPath.LocalFilePath;
+import android.util.Log;
 import androidx.test.platform.app.InstrumentationRegistry;
-import java.io.IOException;
-import java.util.Arrays;
+import com.google.common.base.Suppliers;
+import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.stream.Collectors;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
-import org.junit.BeforeClass;
 import org.junit.Test;
-
-import static com.android.compatibility.common.util.SystemUtil.runShellCommand;
 
 /**
  * Verifies that any shared library provided by this device and for which this test has a
@@ -45,19 +45,47 @@ public class SignatureMultiLibsTest extends SignatureTest {
 
     private static final String TAG = SignatureMultiLibsTest.class.getSimpleName();
 
-    private static Set<String> libraries;
+    /**
+     * A memoized supplier of the list of shared libraries on the device.
+     */
+    protected static final Supplier<Set<String>> AVAILABLE_SHARED_LIBRARIES =
+            Suppliers.memoize(SignatureMultiLibsTest::retrieveActiveSharedLibraries)::get;
 
     /**
-     * Obtain a list of shared libraries from the device.
+     * Retrieve the names of the shared libraries that are active on the device.
+     *
+     * @return The set of shared library names.
      */
-    @BeforeClass
-    public static void retrieveListOfSharedLibrariesOnDevice() throws Exception {
+    private static Set<String> retrieveActiveSharedLibraries() {
         Instrumentation instrumentation = InstrumentationRegistry.getInstrumentation();
-        String result = runShellCommand(instrumentation, "cmd package list libraries");
-        libraries = Arrays.stream(result.split("\n")).map(line -> line.split(":")[1])
-                .peek(library -> System.out.printf("%s: Found library: %s%n",
-                        SignatureMultiLibsTest.class.getSimpleName(), library))
-                .collect(Collectors.toCollection(TreeSet::new));
+        Context context = instrumentation.getTargetContext();
+
+        List<SharedLibraryInfo> sharedLibraries =
+                context.getPackageManager().getSharedLibraries(0);
+
+        Set<String> sharedLibraryNames = new TreeSet<>();
+        for (SharedLibraryInfo sharedLibrary : sharedLibraries) {
+            String name = sharedLibrary.getName();
+            sharedLibraryNames.add(name);
+            Log.d(TAG, String.format("Found library: %s%n", name));
+        }
+
+        return sharedLibraryNames;
+    }
+
+    /**
+     * Return a stream of {@link JDiffClassDescription} that are expected to be provided by the
+     * shared libraries which are installed on this device.
+     *
+     * @param apiDocumentParser the parser to use.
+     * @param apiResources the list of API resource files.
+     * @return a stream of {@link JDiffClassDescription}.
+     */
+    private Stream<JDiffClassDescription> parseActiveSharedLibraryApis(
+            ApiDocumentParser apiDocumentParser, String[] apiResources) {
+        return retrieveApiResourcesAsStream(getClass().getClassLoader(), apiResources)
+                .filter(this::checkLibrary)
+                .flatMap(apiDocumentParser::parseAsStream);
     }
 
     /**
@@ -66,14 +94,14 @@ public class SignatureMultiLibsTest extends SignatureTest {
      * Will check the entire API, and then report the complete list of failures
      */
     @Test
-    public void testSignature() {
+    public void testRuntimeCompatibilityWithCurrentApi() {
         runWithTestResultObserver(mResultObserver -> {
             ApiComplianceChecker complianceChecker =
                     new ApiComplianceChecker(mResultObserver, mClassProvider);
 
             ApiDocumentParser apiDocumentParser = new ApiDocumentParser(TAG);
 
-            parseApiResourcesAsStream(apiDocumentParser, expectedApiFiles)
+            parseActiveSharedLibraryApis(apiDocumentParser, EXPECTED_API_FILES.get())
                     .forEach(complianceChecker::checkSignatureCompliance);
 
             // After done parsing all expected API files, perform any deferred checks.
@@ -85,14 +113,14 @@ public class SignatureMultiLibsTest extends SignatureTest {
      * Tests that the device's API matches the previous APIs defined in xml.
      */
     @Test
-    public void testPreviousSignatures() {
+    public void testRuntimeCompatibilityWithPreviousApis() {
         runWithTestResultObserver(mResultObserver -> {
             ApiComplianceChecker complianceChecker =
                     new ApiComplianceChecker(mResultObserver, mClassProvider);
 
             ApiDocumentParser apiDocumentParser = new ApiDocumentParser(TAG);
 
-            parseApiResourcesAsStream(apiDocumentParser, previousApiFiles)
+            parseActiveSharedLibraryApis(apiDocumentParser, PREVIOUS_API_FILES.get())
                     .map(clazz -> clazz.setPreviousApiFlag(true))
                     .forEach(complianceChecker::checkSignatureCompliance);
 
@@ -105,12 +133,13 @@ public class SignatureMultiLibsTest extends SignatureTest {
      * Check to see if the supplied name is an API file for a shared library that is available on
      * this device.
      *
-     * @param name the name of the possible API file for a shared library.
-     * @return true if it is, false otherwise.
+     * @param path the path of the API file.
+     * @return true if the API corresponds to a shared library on the device, false otherwise.
      */
-    private boolean checkLibrary (String name) {
+    private boolean checkLibrary (VirtualPath path) {
+        String name = path.toString();
         String libraryName = name.substring(name.lastIndexOf('/') + 1).split("-")[0];
-        boolean matched = libraries.contains(libraryName);
+        boolean matched = AVAILABLE_SHARED_LIBRARIES.get().contains(libraryName);
         if (matched) {
             System.out.printf("%s: Processing API file %s, from library %s as it does match a"
                             + " shared library on this device%n",
@@ -121,20 +150,5 @@ public class SignatureMultiLibsTest extends SignatureTest {
                     getClass().getSimpleName(), name, libraryName);
         }
         return matched;
-    }
-
-    /**
-     * Override the method that gets the files from a supplied zip file to filter out any file that
-     * does not correspond to a shared library available on the device.
-     *
-     * @param path the path to the zip file.
-     * @return a stream of paths in the zip file that contain APIs that should be available to this
-     * tests.
-     * @throws IOException if there was an issue reading the zip file.
-     */
-    @Override
-    protected Stream<VirtualPath> getZipEntryFiles(LocalFilePath path) throws IOException {
-        // Only return entries corresponding to shared libraries.
-        return super.getZipEntryFiles(path).filter(p -> checkLibrary(p.toString()));
     }
 }

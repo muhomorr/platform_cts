@@ -69,18 +69,17 @@ public class BluetoothLeBroadcastChannelTest {
                 mAdapter.isLeAudioBroadcastAssistantSupported() == FEATURE_SUPPORTED;
         if (mIsBroadcastAssistantSupported) {
             boolean isBroadcastAssistantEnabledInConfig =
-                    TestUtils.getProfileConfigValueOrDie(
-                            BluetoothProfile.LE_AUDIO_BROADCAST_ASSISTANT);
+                    TestUtils.isProfileEnabled(BluetoothProfile.LE_AUDIO_BROADCAST_ASSISTANT);
             assertTrue("Config must be true when profile is supported",
                     isBroadcastAssistantEnabledInConfig);
         }
 
         mIsBroadcastSourceSupported =
                 mAdapter.isLeAudioBroadcastSourceSupported() == FEATURE_SUPPORTED;
-        if (!mIsBroadcastSourceSupported) {
+        if (mIsBroadcastSourceSupported) {
             boolean isBroadcastSourceEnabledInConfig =
-                    TestUtils.getProfileConfigValueOrDie(
-                            BluetoothProfile.LE_AUDIO_BROADCAST_ASSISTANT);
+                    TestUtils.isProfileEnabled(
+                            BluetoothProfile.LE_AUDIO_BROADCAST);
             assertTrue("Config must be true when profile is supported",
                     isBroadcastSourceEnabledInConfig);
         }
@@ -89,7 +88,9 @@ public class BluetoothLeBroadcastChannelTest {
     @After
     public void tearDown() {
         if (mHasBluetooth) {
-            assertTrue(BTAdapterUtils.disableAdapter(mAdapter, mContext));
+            if (mAdapter != null) {
+                assertTrue(BTAdapterUtils.disableAdapter(mAdapter, mContext));
+            }
             mAdapter = null;
             TestUtils.dropPermissionAsShellUid();
         }
