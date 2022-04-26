@@ -82,6 +82,9 @@ class ItsSession(object):
 
   # Seconds timeout on each socket operation.
   SOCK_TIMEOUT = 20.0
+  # Seconds timeout on performance measurement socket operation
+  SOCK_TIMEOUT_FOR_PERF_MEASURE = 40.0
+
   # Additional timeout in seconds when ITS service is doing more complicated
   # operations, for example: issuing warmup requests before actual capture.
   EXTRA_SOCK_TIMEOUT = 5.0
@@ -1093,8 +1096,8 @@ class ItsSession(object):
                                       ' support')
     return data['strValue'] == 'true'
 
-  def is_performance_class_primary_camera(self):
-    """Query whether the camera device is an R or S performance class primary camera.
+  def is_primary_camera(self):
+    """Query whether the camera device is a primary rear/front camera.
 
     A primary rear/front facing camera is a camera device with the lowest
     camera Id for that facing.
@@ -1103,14 +1106,28 @@ class ItsSession(object):
       Boolean
     """
     cmd = {}
-    cmd['cmdName'] = 'isPerformanceClassPrimaryCamera'
+    cmd['cmdName'] = 'isPrimaryCamera'
     cmd['cameraId'] = self._camera_id
     self.sock.send(json.dumps(cmd).encode() + '\n'.encode())
 
     data, _ = self.__read_response_from_socket()
-    if data['tag'] != 'performanceClassPrimaryCamera':
-      raise error_util.CameraItsError('Failed to query performance class '
-                                      'primary camera')
+    if data['tag'] != 'primaryCamera':
+      raise error_util.CameraItsError('Failed to query primary camera')
+    return data['strValue'] == 'true'
+
+  def is_performance_class(self):
+    """Query whether the mobile device is an R or S performance class device.
+
+    Returns:
+      Boolean
+    """
+    cmd = {}
+    cmd['cmdName'] = 'isPerformanceClass'
+    self.sock.send(json.dumps(cmd).encode() + '\n'.encode())
+
+    data, _ = self.__read_response_from_socket()
+    if data['tag'] != 'performanceClass':
+      raise error_util.CameraItsError('Failed to query performance class')
     return data['strValue'] == 'true'
 
   def measure_camera_launch_ms(self):
@@ -1124,7 +1141,11 @@ class ItsSession(object):
     cmd['cameraId'] = self._camera_id
     self.sock.send(json.dumps(cmd).encode() + '\n'.encode())
 
+    timeout = self.SOCK_TIMEOUT_FOR_PERF_MEASURE
+    self.sock.settimeout(timeout)
     data, _ = self.__read_response_from_socket()
+    self.sock.settimeout(self.SOCK_TIMEOUT)
+
     if data['tag'] != 'cameraLaunchMs':
       raise error_util.CameraItsError('Failed to measure camera launch latency')
     return float(data['strValue'])
@@ -1140,7 +1161,11 @@ class ItsSession(object):
     cmd['cameraId'] = self._camera_id
     self.sock.send(json.dumps(cmd).encode() + '\n'.encode())
 
+    timeout = self.SOCK_TIMEOUT_FOR_PERF_MEASURE
+    self.sock.settimeout(timeout)
     data, _ = self.__read_response_from_socket()
+    self.sock.settimeout(self.SOCK_TIMEOUT)
+
     if data['tag'] != 'camera1080pJpegCaptureMs':
       raise error_util.CameraItsError(
           'Failed to measure camera 1080p jpeg capture latency')
