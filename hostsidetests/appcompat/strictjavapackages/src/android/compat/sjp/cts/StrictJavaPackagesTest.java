@@ -169,6 +169,8 @@ public class StrictJavaPackagesTest extends BaseHostJUnit4Test {
                     "Landroid/gsi/IProgressCallback;",
                     "Landroid/gsi/MappedImage;",
                     "Landroid/gui/TouchOcclusionMode;",
+                    // TODO(b/227752875): contexthub V1 APIs can be removed
+                    // from T+ with the fix in aosp/2050305.
                     "Landroid/hardware/contexthub/V1_0/AsyncEventType;",
                     "Landroid/hardware/contexthub/V1_0/ContextHub;",
                     "Landroid/hardware/contexthub/V1_0/ContextHubMsg;",
@@ -707,6 +709,8 @@ public class StrictJavaPackagesTest extends BaseHostJUnit4Test {
         new ImmutableMap.Builder<String, ImmutableSet<String>>()
             .put("/apex/com.android.bluetooth/app/Bluetooth/Bluetooth.apk",
                 BLUETOOTH_APK_IN_APEX_BURNDOWN_LIST)
+            .put("/apex/com.android.bluetooth/app/BluetoothGoogle/BluetoothGoogle.apk",
+                BLUETOOTH_APK_IN_APEX_BURNDOWN_LIST)
             .put("/apex/com.android.permission/priv-app/PermissionController/PermissionController.apk",
                 PERMISSION_CONTROLLER_APK_IN_APEX_BURNDOWN_LIST)
             .put("/apex/com.android.permission/priv-app/GooglePermissionController/GooglePermissionController.apk",
@@ -757,6 +761,7 @@ public class StrictJavaPackagesTest extends BaseHostJUnit4Test {
                 .filter(file -> doesFileExist(file, testInfo.getDevice()))
                 // GmsCore should not contribute to *classpath.
                 .filter(file -> !file.contains("GmsCore"))
+                .filter(file -> !file.contains("com.google.android.gms"))
                 .collect(ImmutableList.toImmutableList());
 
         final ImmutableSetMultimap.Builder<String, String> jarsToClasses =
@@ -949,6 +954,11 @@ public class StrictJavaPackagesTest extends BaseHostJUnit4Test {
                                 Classpaths.getClassDefsFromJar(getDevice(), apk).stream()
                                         .map(ClassDef::getType)
                                         .collect(ImmutableSet.toImmutableSet());
+                        // b/226559955: The directory paths containing APKs contain the build ID,
+                        // so strip out the @BUILD_ID portion.
+                        // e.g. /apex/com.android.bluetooth/app/Bluetooth@SC-DEV/Bluetooth.apk ->
+                        //      /apex/com.android.bluetooth/app/Bluetooth/Bluetooth.apk
+                        apk = apk.replaceFirst("@[^/]*", "");
                         final ImmutableSet<String> burndownClasses =
                                 FULL_APK_IN_APEX_BURNDOWN.getOrDefault(apk, ImmutableSet.of());
                         final Multimap<String, String> duplicates =
