@@ -131,11 +131,12 @@ public class WifiNl80211ManagerTest {
         } catch (Exception ignore) {}
     }
 
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.TIRAMISU)
     @Test
-    public void testGetMaxNumScanSsids() {
+    public void testGetMaxSsidsPerScan() {
         try {
             WifiNl80211Manager manager = mContext.getSystemService(WifiNl80211Manager.class);
-            manager.getMaxNumScanSsids("wlan0");
+            manager.getMaxSsidsPerScan("wlan0");
         } catch (Exception ignore) { }
     }
 

@@ -177,6 +177,7 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
     private static final int SCAN_TEST_WAIT_DURATION_MS = 15_000;
     private static final int TEST_WAIT_DURATION_MS = 10_000;
     private static final int WIFI_CONNECT_TIMEOUT_MILLIS = 30_000;
+    private static final int WIFI_PNO_CONNECT_TIMEOUT_MILLIS = 90_000;
     private static final int WAIT_MSEC = 60;
     private static final int DURATION_SCREEN_TOGGLE = 2000;
     private static final int DURATION_SETTINGS_TOGGLE = 1_000;
@@ -459,6 +460,10 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
                 mMySync.wait(WAIT_MSEC);
             assertEquals(state, mNetworkInfo.getState());
         }
+    }
+
+    private void waitForConnection(int timeoutMillis) throws Exception {
+        waitForNetworkInfoState(NetworkInfo.State.CONNECTED, timeoutMillis);
     }
 
     private void waitForConnection() throws Exception {
@@ -1181,7 +1186,7 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
     /**
      * Verify setting the scan schedule.
      */
-    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.TIRAMISU, codeName = "Tiramisu")
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.TIRAMISU)
     public void testSetScreenOnScanSchedule() {
         if (!WifiFeature.isWifiSupported(getContext())) {
             // skip the test if WiFi is not supported
@@ -1209,7 +1214,7 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
     /**
      * Verify a normal app cannot set the scan schedule.
      */
-    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.TIRAMISU, codeName = "Tiramisu")
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.TIRAMISU)
     public void testSetScreenOnScanScheduleNoPermission() {
         if (!WifiFeature.isWifiSupported(getContext())) {
             // skip the test if WiFi is not supported
@@ -1323,7 +1328,7 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
      * Verify {@link WifiManager#setExternalPnoScanRequest(List, int[], Executor,
      * WifiManager.PnoScanResultsCallback)} can be called with proper permissions.
      */
-    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.TIRAMISU, codeName = "Tiramisu")
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.TIRAMISU)
     public void testSetExternalPnoScanRequestSuccess() throws Exception {
         if (!WifiFeature.isWifiSupported(getContext())) {
             // skip the test if WiFi is not supported
@@ -1357,7 +1362,7 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
      * Verify {@link WifiManager#setExternalPnoScanRequest(List, int[], Executor,
      * WifiManager.PnoScanResultsCallback)} can be called with null frequency.
      */
-    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.TIRAMISU, codeName = "Tiramisu")
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.TIRAMISU)
     public void testSetExternalPnoScanRequestSuccessNullFrequency() throws Exception {
         if (!WifiFeature.isWifiSupported(getContext())) {
             // skip the test if WiFi is not supported
@@ -1377,7 +1382,7 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
      * Verify {@link WifiManager#setExternalPnoScanRequest(List, int[], Executor,
      * WifiManager.PnoScanResultsCallback)} throws an Exception if called with too many SSIDs.
      */
-    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.TIRAMISU, codeName = "Tiramisu")
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.TIRAMISU)
     public void testSetExternalPnoScanRequestTooManySsidsException() throws Exception {
         if (!WifiFeature.isWifiSupported(getContext())) {
             // skip the test if WiFi is not supported
@@ -1401,7 +1406,7 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
      * Verify {@link WifiManager#setExternalPnoScanRequest(List, int[], Executor,
      * WifiManager.PnoScanResultsCallback)} throws an Exception if called with too many frequencies.
      */
-    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.TIRAMISU, codeName = "Tiramisu")
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.TIRAMISU)
     public void testSetExternalPnoScanRequestTooManyFrequenciesException() throws Exception {
         if (!WifiFeature.isWifiSupported(getContext())) {
             // skip the test if WiFi is not supported
@@ -1425,7 +1430,7 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
      * Verify {@link WifiManager#setExternalPnoScanRequest(List, int[], Executor,
      * WifiManager.PnoScanResultsCallback)} cannot be called without permission.
      */
-    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.TIRAMISU, codeName = "Tiramisu")
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.TIRAMISU)
     public void testSetExternalPnoScanRequestNoPermission() throws Exception {
         if (!WifiFeature.isWifiSupported(getContext())) {
             // skip the test if WiFi is not supported
@@ -1836,8 +1841,7 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
     }
 
     private SoftApConfiguration.Builder generateSoftApConfigBuilderWithSsid(String ssid) {
-        if (ApiLevelUtil.isAtLeast(Build.VERSION_CODES.TIRAMISU)
-                || ApiLevelUtil.codenameStartsWith("T")) {
+        if (ApiLevelUtil.isAtLeast(Build.VERSION_CODES.TIRAMISU)) {
             return new SoftApConfiguration.Builder().setWifiSsid(
                     WifiSsid.fromBytes(ssid.getBytes(StandardCharsets.UTF_8)));
         }
@@ -1845,8 +1849,7 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
     }
 
     private void assertSsidEquals(SoftApConfiguration config, String expectedSsid) {
-        if (ApiLevelUtil.isAtLeast(Build.VERSION_CODES.TIRAMISU)
-                || ApiLevelUtil.codenameStartsWith("T")) {
+        if (ApiLevelUtil.isAtLeast(Build.VERSION_CODES.TIRAMISU)) {
             assertEquals(WifiSsid.fromBytes(expectedSsid.getBytes(StandardCharsets.UTF_8)),
                     config.getWifiSsid());
         } else {
@@ -1855,15 +1858,14 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
     }
 
     private void unregisterLocalOnlyHotspotSoftApCallback(TestSoftApCallback lohsSoftApCallback) {
-        if (ApiLevelUtil.isAtLeast(Build.VERSION_CODES.TIRAMISU)
-                || ApiLevelUtil.codenameStartsWith("T")) {
+        if (ApiLevelUtil.isAtLeast(Build.VERSION_CODES.TIRAMISU)) {
             mWifiManager.unregisterLocalOnlyHotspotSoftApCallback(lohsSoftApCallback);
         } else {
             mWifiManager.unregisterSoftApCallback(lohsSoftApCallback);
         }
     }
 
-    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.TIRAMISU, codeName = "Tiramisu")
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.TIRAMISU)
     public void testStartLocalOnlyHotspotWithSupportedBand() throws Exception {
         if (!WifiFeature.isWifiSupported(getContext())) {
             // skip the test if WiFi is not supported
@@ -2248,15 +2250,23 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
         if (ri != null) {
             validPkg = ri.activityInfo.packageName;
         }
+        String dpmHolderName = null;
+        if (ApiLevelUtil.isAtLeast(Build.VERSION_CODES.TIRAMISU)) {
+            DevicePolicyManager dpm = getContext().getSystemService(DevicePolicyManager.class);
+            if (dpm != null) {
+                dpmHolderName = dpm.getDevicePolicyManagementRoleHolderPackage();
+            }
+        }
 
         final List<PackageInfo> holding = pm.getPackagesHoldingPermissions(new String[] {
                 android.Manifest.permission.NETWORK_MANAGED_PROVISIONING
         }, PackageManager.MATCH_UNINSTALLED_PACKAGES);
         for (PackageInfo pi : holding) {
-            if (!Objects.equals(pi.packageName, validPkg)) {
+            if (!Objects.equals(pi.packageName, validPkg)
+                    && !Objects.equals(pi.packageName, dpmHolderName)) {
                 fail("The NETWORK_MANAGED_PROVISIONING permission must not be held by "
                         + pi.packageName + " and must be revoked for security reasons ["
-                        + validPkg +"]");
+                        + validPkg + ", " + dpmHolderName + "]");
             }
         }
     }
@@ -2499,8 +2509,7 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
     private void verifyLohsRegisterSoftApCallback(TestExecutor executor,
             TestSoftApCallback callback) throws Exception {
         // Register callback to get SoftApCapability
-        if (ApiLevelUtil.isAtLeast(Build.VERSION_CODES.TIRAMISU)
-                || ApiLevelUtil.codenameStartsWith("T")) {
+        if (ApiLevelUtil.isAtLeast(Build.VERSION_CODES.TIRAMISU)) {
             mWifiManager.registerLocalOnlyHotspotSoftApCallback(executor, callback);
         } else {
             mWifiManager.registerSoftApCallback(executor, callback);
@@ -2527,8 +2536,7 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
         }
         assertNotNull(currentConfig.getPersistentRandomizedMacAddress());
 
-        if (ApiLevelUtil.isAtLeast(Build.VERSION_CODES.TIRAMISU)
-                || ApiLevelUtil.codenameStartsWith("T")) {
+        if (ApiLevelUtil.isAtLeast(Build.VERSION_CODES.TIRAMISU)) {
             // Verify set/get with the deprecated set/getSsid()
             SoftApConfiguration oldSsidConfig = new SoftApConfiguration.Builder(targetConfig)
                     .setWifiSsid(null)
@@ -2541,8 +2549,7 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
 
     private void compareSoftApConfiguration(SoftApConfiguration currentConfig,
         SoftApConfiguration testSoftApConfig) {
-        if (ApiLevelUtil.isAtLeast(Build.VERSION_CODES.TIRAMISU)
-                || ApiLevelUtil.codenameStartsWith("T")) {
+        if (ApiLevelUtil.isAtLeast(Build.VERSION_CODES.TIRAMISU)) {
             assertEquals(currentConfig.getWifiSsid(), testSoftApConfig.getWifiSsid());
         }
         assertEquals(currentConfig.getSsid(), testSoftApConfig.getSsid());
@@ -2573,8 +2580,7 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
                     testSoftApConfig.isBridgedModeOpportunisticShutdownEnabled());
             assertEquals(currentConfig.isIeee80211axEnabled(),
                     testSoftApConfig.isIeee80211axEnabled());
-            if (ApiLevelUtil.isAtLeast(Build.VERSION_CODES.TIRAMISU)
-                    || ApiLevelUtil.codenameStartsWith("T")) {
+            if (ApiLevelUtil.isAtLeast(Build.VERSION_CODES.TIRAMISU)) {
                 assertEquals(currentConfig.getBridgedModeOpportunisticShutdownTimeoutMillis(),
                         testSoftApConfig.getBridgedModeOpportunisticShutdownTimeoutMillis());
                 assertEquals(currentConfig.isIeee80211beEnabled(),
@@ -2846,8 +2852,7 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
                             callback.getCurrentSoftApCapability()).keyAt(0))
                     .setHiddenSsid(false);
 
-            if (ApiLevelUtil.isAtLeast(Build.VERSION_CODES.TIRAMISU)
-                    || ApiLevelUtil.codenameStartsWith("T")) {
+            if (ApiLevelUtil.isAtLeast(Build.VERSION_CODES.TIRAMISU)) {
                 softApConfigBuilder.setBridgedModeOpportunisticShutdownTimeoutMillis(30_000);
                 softApConfigBuilder.setVendorElements(TEST_VENDOR_ELEMENTS);
                 softApConfigBuilder.setAllowedAcsChannels(
@@ -2908,8 +2913,7 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
             }
 
             // Test 11 BE control config
-            if (ApiLevelUtil.isAtLeast(Build.VERSION_CODES.TIRAMISU)
-                    || ApiLevelUtil.codenameStartsWith("T")) {
+            if (ApiLevelUtil.isAtLeast(Build.VERSION_CODES.TIRAMISU)) {
                 if (callback.getCurrentSoftApCapability()
                         .areFeaturesSupported(SoftApCapability.SOFTAP_FEATURE_IEEE80211_BE)) {
                     softApConfigBuilder.setIeee80211beEnabled(true);
@@ -3427,7 +3431,7 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
         }
 
         // make sure we're connected
-        waitForConnection();
+        waitForConnection(WIFI_PNO_CONNECT_TIMEOUT_MILLIS);
 
         WifiInfo currentNetwork = ShellIdentityUtils.invokeWithShellPermissions(
                 mWifiManager::getConnectionInfo);
@@ -3458,7 +3462,7 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
             disabledNetworkIds.remove(currentNetwork.getNetworkId());
 
             // PNO should reconnect us back to the network we disconnected from
-            waitForConnection();
+            waitForConnection(WIFI_PNO_CONNECT_TIMEOUT_MILLIS);
         } finally {
             // re-enable disabled networks
             for (int disabledNetworkId : disabledNetworkIds) {
@@ -3899,7 +3903,7 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
         }
     }
 
-    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.TIRAMISU, codeName = "Tiramisu")
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.TIRAMISU)
     public void testActiveCountryCodeChangedCallback() throws Exception {
         TestActiveCountryCodeChangedCallback testCountryCodeChangedCallback =
                 new TestActiveCountryCodeChangedCallback();
@@ -4702,7 +4706,7 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
     /**
      * Verify the invalid and valid usages of {@code WifiManager#queryAutojoinGlobal}.
      */
-    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.TIRAMISU, codeName = "Tiramisu")
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.TIRAMISU)
     public void testQueryAutojoinGlobal() throws Exception {
         if (!WifiFeature.isWifiSupported(getContext())) {
             // skip the test if WiFi is not supported
@@ -5386,7 +5390,7 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
      * Tests {@link WifiManager#setStaConcurrencyForMultiInternetMode)} raise security exception
      * without permission.
      */
-    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.TIRAMISU, codeName = "Tiramisu")
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.TIRAMISU)
     public void testIsStaConcurrencyForMultiInternetSupported() throws Exception {
         if (!WifiFeature.isWifiSupported(getContext())) {
             // skip the test if WiFi is not supported
@@ -5400,7 +5404,7 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
      * Tests {@link WifiManager#setStaConcurrencyForMultiInternetMode)} raise security exception
      * without permission.
      */
-    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.TIRAMISU, codeName = "Tiramisu")
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.TIRAMISU)
     public void testSetStaConcurrencyForMultiInternetModeWithoutPermission() throws Exception {
         if (!WifiFeature.isWifiSupported(getContext())
                 || !mWifiManager.isStaConcurrencyForMultiInternetSupported()) {
@@ -5419,7 +5423,7 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
     /**
      * Tests {@link WifiManager#setStaConcurrencyForMultiInternetMode)} does not crash.
      */
-    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.TIRAMISU, codeName = "Tiramisu")
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.TIRAMISU)
     public void testSetStaConcurrencyForMultiInternetMode() throws Exception {
         if (!WifiFeature.isWifiSupported(getContext())
                 || !mWifiManager.isStaConcurrencyForMultiInternetSupported()) {
@@ -5519,7 +5523,7 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
      * Tests {@link WifiManager#notifyMinimumRequiredWifiSecurityLevelChanged(int)}
      * raise security exception without permission.
      */
-    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.TIRAMISU, codeName = "Tiramisu")
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.TIRAMISU)
     public void testNotifyMinimumRequiredWifiSecurityLevelChangedWithoutPermission()
             throws Exception {
         if (!WifiFeature.isWifiSupported(getContext())) {
@@ -5535,7 +5539,7 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
      * Tests {@link WifiManager#notifyMinimumRequiredWifiSecurityLevelChanged(int)}
      * raise security exception without permission.
      */
-    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.TIRAMISU, codeName = "Tiramisu")
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.TIRAMISU)
     public void testNotifyWifiSsidPolicyChangedWithoutPermission() throws Exception {
         if (!WifiFeature.isWifiSupported(getContext())) {
             // skip the test if WiFi is not supported.
@@ -5553,10 +5557,29 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
     }
 
     /**
-     * Tests
-     * {@link WifiManager#reportCreateInterfaceImpact(int, boolean, Executor, BiConsumer)}.
+     * Verifies that
+     * {@link WifiManager#reportCreateInterfaceImpact(int, boolean, Executor, BiConsumer)} raises
+     * a security exception without permission.
      */
-    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.TIRAMISU, codeName = "Tiramisu")
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.TIRAMISU)
+    public void testIsItPossibleToCreateInterfaceNotAllowed() throws Exception {
+        if (!WifiFeature.isWifiSupported(getContext())) {
+            // skip the test if WiFi is not supported
+            return;
+        }
+
+        assertThrows(SecurityException.class, () -> mWifiManager.reportCreateInterfaceImpact(
+                WifiManager.WIFI_INTERFACE_TYPE_AP, false, mExecutor,
+                (canBeCreatedLocal, interfacesWhichWillBeDeletedLocal) -> {
+                    // should not get here (security exception!)
+                }));
+    }
+
+    /**
+     * Verifies
+     * {@link WifiManager#reportCreateInterfaceImpact(int, boolean, Executor, BiConsumer)} .
+     */
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.TIRAMISU)
     public void testIsItPossibleToCreateInterface() throws Exception {
         if (!WifiFeature.isWifiSupported(getContext())) {
             // skip the test if WiFi is not supported
@@ -5565,17 +5588,55 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
 
         AtomicBoolean called = new AtomicBoolean(false);
         AtomicBoolean canBeCreated = new AtomicBoolean(false);
-        assertThrows(SecurityException.class, () -> mWifiManager.reportCreateInterfaceImpact(
-                WifiManager.WIFI_INTERFACE_TYPE_AP, false, mExecutor,
-                (canBeCreatedLocal, interfacesWhichWillBeDeleted) -> {
-                    synchronized (mLock) {
-                        canBeCreated.set(canBeCreatedLocal);
-                        called.set(true);
-                        mLock.notify();
-                    }
-                }));
+        AtomicReference<Set<WifiManager.InterfaceCreationImpact>>
+                interfacesWhichWillBeDeleted = new AtomicReference<>(null);
+        ShellIdentityUtils.invokeWithShellPermissions(
+                () -> mWifiManager.reportCreateInterfaceImpact(
+                        WifiManager.WIFI_INTERFACE_TYPE_AP, false, mExecutor,
+                        (canBeCreatedLocal, interfacesWhichWillBeDeletedLocal) -> {
+                            synchronized (mLock) {
+                                canBeCreated.set(canBeCreatedLocal);
+                                called.set(true);
+                                interfacesWhichWillBeDeleted.set(interfacesWhichWillBeDeletedLocal);
+                                mLock.notify();
+                            }
+                        }));
         synchronized (mLock) {
             mLock.wait(TEST_WAIT_DURATION_MS);
         }
+        assertTrue(called.get());
+        if (canBeCreated.get()) {
+            for (WifiManager.InterfaceCreationImpact entry : interfacesWhichWillBeDeleted.get()) {
+                int interfaceType = entry.getInterfaceType();
+                assertTrue(interfaceType == WifiManager.WIFI_INTERFACE_TYPE_STA
+                        || interfaceType == WifiManager.WIFI_INTERFACE_TYPE_AP
+                        || interfaceType == WifiManager.WIFI_INTERFACE_TYPE_DIRECT
+                        || interfaceType == WifiManager.WIFI_INTERFACE_TYPE_AWARE);
+                Set<String> packages = entry.getPackages();
+                for (String p : packages) {
+                    assertNotNull(p);
+                }
+            }
+        }
+
+        // verify the WifiManager.InterfaceCreationImpact APIs
+        int interfaceType = WifiManager.WIFI_INTERFACE_TYPE_STA;
+        Set<String> packages = Set.of("package1", "packages2");
+        WifiManager.InterfaceCreationImpact element = new WifiManager.InterfaceCreationImpact(
+                interfaceType, packages);
+        assertEquals(interfaceType, element.getInterfaceType());
+        assertEquals(packages, element.getPackages());
+    }
+
+    /**
+     * Tests {@link WifiManager#isEasyConnectDppAkmSupported)} does not crash.
+     */
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.TIRAMISU)
+    public void testIsEasyConnectDppAkmSupported() throws Exception {
+        if (!WifiFeature.isWifiSupported(getContext())) {
+            // skip the test if WiFi is not supported
+            return;
+        }
+        mWifiManager.isEasyConnectDppAkmSupported();
     }
 }
