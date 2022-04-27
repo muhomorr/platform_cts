@@ -17,6 +17,7 @@
 package android.location.cts.privileged;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import android.location.GnssExcessPathInfo;
@@ -59,9 +60,40 @@ public class GnssSingleSatCorrectionTest {
         parcel.recycle();
     }
 
-    static GnssSingleSatCorrection createTestSingleSatCorrection() {
-        GnssSingleSatCorrection.Builder singleSatCorrection =
-                new GnssSingleSatCorrection.Builder()
+    @Test
+    public void testWriteToParcelWithoutSomeOptionalFields() {
+        GnssSingleSatCorrection object = new GnssSingleSatCorrection.Builder()
+                .setConstellationType(GnssStatus.CONSTELLATION_GALILEO)
+                .setSatelliteId(12)
+                .setCarrierFrequencyHz(1575420000f)
+                .setProbabilityLineOfSight(0.1f)
+                .build();
+        Parcel parcel = Parcel.obtain();
+        object.writeToParcel(parcel, 0);
+        parcel.setDataPosition(0);
+        GnssSingleSatCorrection fromParcel =
+                GnssSingleSatCorrection.CREATOR.createFromParcel(parcel);
+        assertEquals(object, fromParcel);
+        parcel.recycle();
+    }
+
+    @Test
+    public void testClear() {
+        GnssSingleSatCorrection.Builder builder = createTestSingleSatCorrectionBuilder();
+        builder.clearProbabilityLineOfSight();
+        builder.clearExcessPathLengthMeters();
+        builder.clearExcessPathLengthUncertaintyMeters();
+        builder.clearCombinedAttenuationDb();
+        GnssSingleSatCorrection singleSatCorrection = builder.build();
+
+        assertFalse(singleSatCorrection.hasValidSatelliteLineOfSight());
+        assertFalse(singleSatCorrection.hasExcessPathLength());
+        assertFalse(singleSatCorrection.hasExcessPathLengthUncertainty());
+        assertFalse(singleSatCorrection.hasCombinedAttenuation());
+    }
+
+    private static GnssSingleSatCorrection.Builder createTestSingleSatCorrectionBuilder() {
+        return new GnssSingleSatCorrection.Builder()
                         .setConstellationType(GnssStatus.CONSTELLATION_GALILEO)
                         .setSatelliteId(12)
                         .setCarrierFrequencyHz(1575420000f)
@@ -71,7 +103,10 @@ public class GnssSingleSatCorrectionTest {
                         .setCombinedAttenuationDb(2.1f)
                         .setGnssExcessPathInfoList(List.of(GnssExcessPathInfoTest
                                 .createTestGnssExcessPathInfo()));
-        return singleSatCorrection.build();
+    }
+
+    static GnssSingleSatCorrection createTestSingleSatCorrection() {
+        return createTestSingleSatCorrectionBuilder().build();
     }
 
     static GnssReflectingPlane createTestReflectingPlane() {

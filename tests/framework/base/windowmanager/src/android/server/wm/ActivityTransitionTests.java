@@ -70,14 +70,12 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 @Presubmit
 public class ActivityTransitionTests extends ActivityManagerTestBase {
-    // Duration of the default wallpaper close animation
-    static final long DEFAULT_ANIMATION_DURATION = 275L;
-    // Duration of the R.anim.alpha animation
-    static final long CUSTOM_ANIMATION_DURATION = 2000L;
+    // Duration of the R.anim.alpha animation.
+    private static final long CUSTOM_ANIMATION_DURATION = 2000L;
 
-    // Allowable error for the measured animation duration.
-    static final long EXPECTED_DURATION_TOLERANCE_START = 200;
-    static final long EXPECTED_DURATION_TOLERANCE_FINISH = 1000;
+    // Allowable range with error error for the R.anim.alpha animation duration.
+    private static final Range<Long> CUSTOM_ANIMATION_DURATION_RANGE = new Range<>(
+            CUSTOM_ANIMATION_DURATION - 200L, CUSTOM_ANIMATION_DURATION + 1000L);
 
     private boolean mAnimationScaleResetRequired = false;
     private String mInitialWindowAnimationScale;
@@ -99,21 +97,14 @@ public class ActivityTransitionTests extends ActivityManagerTestBase {
     }
 
     @Test
-    public void testActivityTransitionDurationNoShortenAsExpected() throws Exception {
-        final long minDurationMs = CUSTOM_ANIMATION_DURATION - EXPECTED_DURATION_TOLERANCE_START;
-        final long maxDurationMs = CUSTOM_ANIMATION_DURATION + EXPECTED_DURATION_TOLERANCE_FINISH;
-        final Range<Long> durationRange = new Range<>(minDurationMs, maxDurationMs);
-
+    public void testActivityTransitionOverride() throws Exception {
         final CountDownLatch latch = new CountDownLatch(1);
         AtomicLong transitionStartTime = new AtomicLong();
         AtomicLong transitionEndTime = new AtomicLong();
 
-        final ActivityOptions.OnAnimationStartedListener startedListener = () -> {
-            transitionStartTime.set(SystemClock.elapsedRealtime());
-        };
-
-        final ActivityOptions.OnAnimationFinishedListener finishedListener = () -> {
-            transitionEndTime.set(SystemClock.elapsedRealtime());
+        final ActivityOptions.OnAnimationStartedListener startedListener = transitionStartTime::set;
+        final ActivityOptions.OnAnimationFinishedListener finishedListener = (t) -> {
+            transitionEndTime.set(t);
             latch.countDown();
         };
 
@@ -131,29 +122,23 @@ public class ActivityTransitionTests extends ActivityManagerTestBase {
         waitAndAssertTopResumedActivity(new ComponentName(mContext, TransitionActivity.class),
                 DEFAULT_DISPLAY, "Activity must be launched");
 
-        latch.await(2, TimeUnit.SECONDS);
+        latch.await(3, TimeUnit.SECONDS);
         final long totalTime = transitionEndTime.get() - transitionStartTime.get();
         assertTrue("Actual transition duration should be in the range "
-                + "<" + minDurationMs + ", " + maxDurationMs + "> ms, "
-                + "actual=" + totalTime, durationRange.contains(totalTime));
+                + "<" + CUSTOM_ANIMATION_DURATION_RANGE.getLower() + ", "
+                + CUSTOM_ANIMATION_DURATION_RANGE.getUpper() + "> ms, "
+                + "actual=" + totalTime, CUSTOM_ANIMATION_DURATION_RANGE.contains(totalTime));
     }
 
     @Test
     public void testTaskTransitionOverrideDisabled() throws Exception {
-        final long minDurationMs = DEFAULT_ANIMATION_DURATION - EXPECTED_DURATION_TOLERANCE_START;
-        final long maxDurationMs = DEFAULT_ANIMATION_DURATION + EXPECTED_DURATION_TOLERANCE_FINISH;
-        final Range<Long> durationRange = new Range<>(minDurationMs, maxDurationMs);
-
         final CountDownLatch latch = new CountDownLatch(1);
         AtomicLong transitionStartTime = new AtomicLong();
         AtomicLong transitionEndTime = new AtomicLong();
 
-        final ActivityOptions.OnAnimationStartedListener startedListener = () -> {
-            transitionStartTime.set(SystemClock.elapsedRealtime());
-        };
-
-        final ActivityOptions.OnAnimationFinishedListener finishedListener = () -> {
-            transitionEndTime.set(SystemClock.elapsedRealtime());
+        final ActivityOptions.OnAnimationStartedListener startedListener = transitionStartTime::set;
+        final ActivityOptions.OnAnimationFinishedListener finishedListener = (t) -> {
+            transitionEndTime.set(t);
             latch.countDown();
         };
 
@@ -169,29 +154,23 @@ public class ActivityTransitionTests extends ActivityManagerTestBase {
         waitAndAssertTopResumedActivity(TEST_ACTIVITY, DEFAULT_DISPLAY,
                 "Activity must be launched");
 
-        latch.await(2, TimeUnit.SECONDS);
+        latch.await(5, TimeUnit.SECONDS);
         final long totalTime = transitionEndTime.get() - transitionStartTime.get();
-        assertTrue("Actual transition duration should be in the range "
-                + "<" + minDurationMs + ", " + maxDurationMs + "> ms, "
-                + "actual=" + totalTime, durationRange.contains(totalTime));
+        assertTrue("Actual transition duration should be out of the range "
+                + "<" + CUSTOM_ANIMATION_DURATION_RANGE.getLower() + ", "
+                + CUSTOM_ANIMATION_DURATION_RANGE.getUpper() + "> ms, "
+                + "actual=" + totalTime, !CUSTOM_ANIMATION_DURATION_RANGE.contains(totalTime));
     }
 
     @Test
     public void testTaskTransitionOverride() {
-        final long minDurationMs = CUSTOM_ANIMATION_DURATION - EXPECTED_DURATION_TOLERANCE_START;
-        final long maxDurationMs = CUSTOM_ANIMATION_DURATION + EXPECTED_DURATION_TOLERANCE_FINISH;
-        final Range<Long> durationRange = new Range<>(minDurationMs, maxDurationMs);
-
         final CountDownLatch latch = new CountDownLatch(1);
         AtomicLong transitionStartTime = new AtomicLong();
         AtomicLong transitionEndTime = new AtomicLong();
 
-        final ActivityOptions.OnAnimationStartedListener startedListener = () -> {
-            transitionStartTime.set(SystemClock.elapsedRealtime());
-        };
-
-        final ActivityOptions.OnAnimationFinishedListener finishedListener = () -> {
-            transitionEndTime.set(SystemClock.elapsedRealtime());
+        final ActivityOptions.OnAnimationStartedListener startedListener = transitionStartTime::set;
+        final ActivityOptions.OnAnimationFinishedListener finishedListener = (t) -> {
+            transitionEndTime.set(t);
             latch.countDown();
         };
 
@@ -207,11 +186,12 @@ public class ActivityTransitionTests extends ActivityManagerTestBase {
             waitAndAssertTopResumedActivity(TEST_ACTIVITY, DEFAULT_DISPLAY,
                     "Activity must be launched");
 
-            latch.await(2, TimeUnit.SECONDS);
+            latch.await(5, TimeUnit.SECONDS);
             final long totalTime = transitionEndTime.get() - transitionStartTime.get();
             assertTrue("Actual transition duration should be in the range "
-                    + "<" + minDurationMs + ", " + maxDurationMs + "> ms, "
-                    + "actual=" + totalTime, durationRange.contains(totalTime));
+                    + "<" + CUSTOM_ANIMATION_DURATION_RANGE.getLower() + ", "
+                    + CUSTOM_ANIMATION_DURATION_RANGE.getUpper() + "> ms, "
+                    + "actual=" + totalTime, CUSTOM_ANIMATION_DURATION_RANGE.contains(totalTime));
         });
     }
 
@@ -228,6 +208,22 @@ public class ActivityTransitionTests extends ActivityManagerTestBase {
     }
 
     /**
+     * Checks that the background color set in the animation definition is used as the animation's
+     * background color instead of the theme's background color.
+     *
+     * @see R.anim.alpha_0_with_red_backdrop for animation defintition.
+     */
+    @Test
+    public void testAnimationBackgroundColorIsUsedDuringActivityTransition() {
+        final int backgroundColor = Color.RED;
+        final ActivityOptions activityOptions = ActivityOptions.makeCustomAnimation(mContext,
+                R.anim.alpha_0_with_red_backdrop, R.anim.alpha_0_with_red_backdrop);
+        Bitmap screenshot = runAndScreenshotActivityTransition(activityOptions,
+                TransitionActivityWithWhiteBackground.class);
+        assertAppRegionOfScreenIsColor(screenshot, backgroundColor);
+    }
+
+    /**
      * Checks that we can override the default background color of the animation using the
      * CustomAnimation activityOptions.
      */
@@ -235,7 +231,7 @@ public class ActivityTransitionTests extends ActivityManagerTestBase {
     public void testCustomTransitionCanOverrideBackgroundColor() {
         final int backgroundColor = Color.GREEN;
         final ActivityOptions activityOptions = ActivityOptions.makeCustomAnimation(mContext,
-                R.anim.alpha_0_with_background, R.anim.alpha_0_with_background, backgroundColor
+                R.anim.alpha_0_with_backdrop, R.anim.alpha_0_with_backdrop, backgroundColor
         );
         Bitmap screenshot = runAndScreenshotActivityTransition(activityOptions,
                 TransitionActivity.class);
@@ -251,8 +247,8 @@ public class ActivityTransitionTests extends ActivityManagerTestBase {
         final int backgroundColor = Color.GREEN;
 
         final Bundle extras = new Bundle();
-        extras.putInt(ENTER_ANIM_KEY, R.anim.alpha_0_with_background);
-        extras.putInt(EXIT_ANIM_KEY, R.anim.alpha_0_with_background);
+        extras.putInt(ENTER_ANIM_KEY, R.anim.alpha_0_with_backdrop);
+        extras.putInt(EXIT_ANIM_KEY, R.anim.alpha_0_with_backdrop);
         extras.putInt(BACKGROUND_COLOR_KEY, backgroundColor);
 
         Bitmap screenshot = runAndScreenshotActivityTransition(
@@ -324,10 +320,15 @@ public class ActivityTransitionTests extends ActivityManagerTestBase {
         Optional<WindowManagerState.WindowState> screenDecorOverlayBottom =
                 windows.stream().filter(
                         w -> w.getName().equals("ScreenDecorOverlayBottom")).findFirst();
+        Optional<WindowManagerState.WindowState> navigationBar =
+                windows.stream().filter(
+                        w -> w.getName().equals("NavigationBar0")).findFirst();
 
         final int screenDecorOverlayHeight = screenDecorOverlay.map(
                 WindowManagerState.WindowState::getRequestedHeight).orElse(0);
         final int screenDecorOverlayBottomHeight = screenDecorOverlayBottom.map(
+                WindowManagerState.WindowState::getRequestedHeight).orElse(0);
+        final int navigationBarHeight = navigationBar.map(
                 WindowManagerState.WindowState::getRequestedHeight).orElse(0);
 
         WindowManager windowManager = (WindowManager) androidx.test.InstrumentationRegistry
@@ -335,8 +336,10 @@ public class ActivityTransitionTests extends ActivityManagerTestBase {
         assertNotNull(windowManager);
         final Rect displayBounds = windowManager.getCurrentWindowMetrics().getBounds();
 
+        final int bottomHeightToIgnore =
+                Math.max(screenDecorOverlayBottomHeight, navigationBarHeight);
         return new Rect(displayBounds.left, displayBounds.top + screenDecorOverlayHeight,
-                displayBounds.right, displayBounds.bottom - screenDecorOverlayBottomHeight);
+                displayBounds.right, displayBounds.bottom - bottomHeightToIgnore);
     }
 
     private void setDefaultAnimationScale() {
