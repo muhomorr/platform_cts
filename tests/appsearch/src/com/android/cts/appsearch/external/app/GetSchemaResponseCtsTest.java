@@ -18,8 +18,6 @@ package android.app.appsearch.cts.app;
 
 import static com.google.common.truth.Truth.assertThat;
 
-import static org.junit.Assert.assertThrows;
-
 import android.app.appsearch.AppSearchSchema;
 import android.app.appsearch.GetSchemaResponse;
 import android.app.appsearch.PackageIdentifier;
@@ -76,15 +74,14 @@ public class GetSchemaResponseCtsTest {
                         .addSchemaTypeNotDisplayedBySystem("Email1")
                         .setSchemaTypeVisibleToPackages(
                                 "Email1", ImmutableSet.of(packageIdentifier1))
-                        .setAllowedRolesForSchemaTypeVisibility(
-                                "Email1",
-                                ImmutableSet.of(
-                                        SetSchemaRequest.ROLE_HOME,
-                                        SetSchemaRequest.ROLE_ASSISTANT))
                         .setRequiredPermissionsForSchemaTypeVisibility(
                                 "Email1",
                                 ImmutableSet.of(
-                                        SetSchemaRequest.READ_SMS, SetSchemaRequest.READ_CALENDAR));
+                                        ImmutableSet.of(
+                                                SetSchemaRequest.READ_SMS,
+                                                SetSchemaRequest.READ_CALENDAR),
+                                        ImmutableSet.of(
+                                                SetSchemaRequest.READ_HOME_APP_SEARCH_DATA)));
 
         GetSchemaResponse original = builder.build();
         GetSchemaResponse rebuild =
@@ -93,10 +90,14 @@ public class GetSchemaResponseCtsTest {
                         .addSchemaTypeNotDisplayedBySystem("Email2")
                         .setSchemaTypeVisibleToPackages(
                                 "Email2", ImmutableSet.of(packageIdentifier2))
-                        .setAllowedRolesForSchemaTypeVisibility(
-                                "Email2", ImmutableSet.of(SetSchemaRequest.ROLE_HOME))
                         .setRequiredPermissionsForSchemaTypeVisibility(
-                                "Email2", ImmutableSet.of(SetSchemaRequest.READ_SMS))
+                                "Email2",
+                                ImmutableSet.of(
+                                        ImmutableSet.of(
+                                                SetSchemaRequest.READ_CONTACTS,
+                                                SetSchemaRequest.READ_EXTERNAL_STORAGE),
+                                        ImmutableSet.of(
+                                                SetSchemaRequest.READ_ASSISTANT_APP_SEARCH_DATA)))
                         .build();
 
         // rebuild won't effect the original object
@@ -106,12 +107,13 @@ public class GetSchemaResponseCtsTest {
         assertThat(original.getSchemaTypesVisibleToPackages()).hasSize(1);
         assertThat(original.getSchemaTypesVisibleToPackages().get("Email1"))
                 .containsExactly(packageIdentifier1);
-        assertThat(original.getAllowedRolesForSchemaTypeVisibility()).hasSize(1);
-        assertThat(original.getAllowedRolesForSchemaTypeVisibility().get("Email1"))
-                .containsExactly(SetSchemaRequest.ROLE_HOME, SetSchemaRequest.ROLE_ASSISTANT);
-        assertThat(original.getRequiredPermissionsForSchemaTypeVisibility()).hasSize(1);
-        assertThat(original.getRequiredPermissionsForSchemaTypeVisibility().get("Email1"))
-                .containsExactly(SetSchemaRequest.READ_SMS, SetSchemaRequest.READ_CALENDAR);
+        assertThat(original.getRequiredPermissionsForSchemaTypeVisibility())
+                .containsExactly(
+                        "Email1",
+                        ImmutableSet.of(
+                                ImmutableSet.of(
+                                        SetSchemaRequest.READ_SMS, SetSchemaRequest.READ_CALENDAR),
+                                ImmutableSet.of(SetSchemaRequest.READ_HOME_APP_SEARCH_DATA)));
 
         assertThat(rebuild.getVersion()).isEqualTo(37);
         assertThat(rebuild.getSchemas()).containsExactly(schema1, schema2);
@@ -122,68 +124,19 @@ public class GetSchemaResponseCtsTest {
                 .containsExactly(packageIdentifier1);
         assertThat(rebuild.getSchemaTypesVisibleToPackages().get("Email2"))
                 .containsExactly(packageIdentifier2);
-        assertThat(rebuild.getAllowedRolesForSchemaTypeVisibility()).hasSize(2);
-        assertThat(rebuild.getAllowedRolesForSchemaTypeVisibility().get("Email1"))
-                .containsExactly(SetSchemaRequest.ROLE_HOME, SetSchemaRequest.ROLE_ASSISTANT);
-        assertThat(rebuild.getAllowedRolesForSchemaTypeVisibility().get("Email2"))
-                .containsExactly(SetSchemaRequest.ROLE_HOME);
-        assertThat(rebuild.getRequiredPermissionsForSchemaTypeVisibility()).hasSize(2);
-        assertThat(rebuild.getRequiredPermissionsForSchemaTypeVisibility().get("Email1"))
-                .containsExactly(SetSchemaRequest.READ_SMS, SetSchemaRequest.READ_CALENDAR);
-        assertThat(rebuild.getRequiredPermissionsForSchemaTypeVisibility().get("Email2"))
-                .containsExactly(SetSchemaRequest.READ_SMS);
-    }
-
-    @Test
-    public void testRebuild_noSupportedException() {
-        AppSearchSchema schema1 =
-                new AppSearchSchema.Builder("Email1")
-                        .addProperty(
-                                new AppSearchSchema.StringPropertyConfig.Builder("subject")
-                                        .setCardinality(
-                                                AppSearchSchema.PropertyConfig.CARDINALITY_OPTIONAL)
-                                        .setIndexingType(
-                                                AppSearchSchema.StringPropertyConfig
-                                                        .INDEXING_TYPE_PREFIXES)
-                                        .setTokenizerType(
-                                                AppSearchSchema.StringPropertyConfig
-                                                        .TOKENIZER_TYPE_PLAIN)
-                                        .build())
-                        .build();
-
-        GetSchemaResponse.Builder builder =
-                new GetSchemaResponse.Builder(/*getVisibilitySettingSupported=*/ false)
-                        .setVersion(42)
-                        .addSchema(schema1);
-
-        GetSchemaResponse original = builder.build();
-        assertThrows(
-                UnsupportedOperationException.class,
-                () -> original.getSchemaTypesNotDisplayedBySystem());
-        assertThrows(
-                UnsupportedOperationException.class,
-                () -> original.getSchemaTypesVisibleToPackages());
-        assertThrows(
-                UnsupportedOperationException.class,
-                () -> original.getAllowedRolesForSchemaTypeVisibility());
-        assertThrows(
-                UnsupportedOperationException.class,
-                () -> original.getRequiredPermissionsForSchemaTypeVisibility());
-
-        // rebuild will throw same exception
-        GetSchemaResponse rebuild = builder.setVersion(42).build();
-        assertThrows(
-                UnsupportedOperationException.class,
-                () -> rebuild.getSchemaTypesNotDisplayedBySystem());
-        assertThrows(
-                UnsupportedOperationException.class,
-                () -> rebuild.getSchemaTypesVisibleToPackages());
-        assertThrows(
-                UnsupportedOperationException.class,
-                () -> original.getAllowedRolesForSchemaTypeVisibility());
-        assertThrows(
-                UnsupportedOperationException.class,
-                () -> original.getRequiredPermissionsForSchemaTypeVisibility());
+        assertThat(rebuild.getRequiredPermissionsForSchemaTypeVisibility())
+                .containsExactly(
+                        "Email1",
+                        ImmutableSet.of(
+                                ImmutableSet.of(
+                                        SetSchemaRequest.READ_SMS, SetSchemaRequest.READ_CALENDAR),
+                                ImmutableSet.of(SetSchemaRequest.READ_HOME_APP_SEARCH_DATA)),
+                        "Email2",
+                        ImmutableSet.of(
+                                ImmutableSet.of(
+                                        SetSchemaRequest.READ_CONTACTS,
+                                        SetSchemaRequest.READ_EXTERNAL_STORAGE),
+                                ImmutableSet.of(SetSchemaRequest.READ_ASSISTANT_APP_SEARCH_DATA)));
     }
 
     @Test
@@ -202,15 +155,14 @@ public class GetSchemaResponseCtsTest {
                         .addSchemaTypeNotDisplayedBySystem("Text")
                         .setSchemaTypeVisibleToPackages(
                                 "Email", ImmutableSet.of(packageIdentifier1, packageIdentifier2))
-                        .setAllowedRolesForSchemaTypeVisibility(
-                                "Email",
-                                ImmutableSet.of(
-                                        SetSchemaRequest.ROLE_HOME,
-                                        SetSchemaRequest.ROLE_ASSISTANT))
                         .setRequiredPermissionsForSchemaTypeVisibility(
                                 "Email",
                                 ImmutableSet.of(
-                                        SetSchemaRequest.READ_SMS, SetSchemaRequest.READ_CALENDAR))
+                                        ImmutableSet.of(
+                                                SetSchemaRequest.READ_CONTACTS,
+                                                SetSchemaRequest.READ_EXTERNAL_STORAGE),
+                                        ImmutableSet.of(
+                                                SetSchemaRequest.READ_ASSISTANT_APP_SEARCH_DATA)))
                         .build();
 
         assertThat(getSchemaResponse.getSchemaTypesNotDisplayedBySystem())
@@ -218,9 +170,21 @@ public class GetSchemaResponseCtsTest {
         assertThat(getSchemaResponse.getSchemaTypesVisibleToPackages()).hasSize(1);
         assertThat(getSchemaResponse.getSchemaTypesVisibleToPackages().get("Email"))
                 .containsExactly(packageIdentifier1, packageIdentifier2);
-        assertThat(getSchemaResponse.getAllowedRolesForSchemaTypeVisibility().get("Email"))
-                .containsExactly(SetSchemaRequest.ROLE_HOME, SetSchemaRequest.ROLE_ASSISTANT);
         assertThat(getSchemaResponse.getRequiredPermissionsForSchemaTypeVisibility().get("Email"))
-                .containsExactly(SetSchemaRequest.READ_SMS, SetSchemaRequest.READ_CALENDAR);
+                .containsExactlyElementsIn(
+                        ImmutableSet.of(
+                                ImmutableSet.of(
+                                        SetSchemaRequest.READ_CONTACTS,
+                                        SetSchemaRequest.READ_EXTERNAL_STORAGE),
+                                ImmutableSet.of(SetSchemaRequest.READ_ASSISTANT_APP_SEARCH_DATA)));
+    }
+
+    @Test
+    public void getEmptyVisibility() {
+        GetSchemaResponse getSchemaResponse =
+                new GetSchemaResponse.Builder().setVersion(42).build();
+        assertThat(getSchemaResponse.getSchemaTypesNotDisplayedBySystem()).isEmpty();
+        assertThat(getSchemaResponse.getSchemaTypesVisibleToPackages()).isEmpty();
+        assertThat(getSchemaResponse.getRequiredPermissionsForSchemaTypeVisibility()).isEmpty();
     }
 }

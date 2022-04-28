@@ -289,7 +289,8 @@ public class ConnectedNetworkScorerTest extends WifiJUnit4TestBase {
                     assertEquals(1, contentionStats.getContentionTimeMaxMicros());
                     assertEquals(4, contentionStats.getContentionTimeAvgMicros());
                     assertEquals(10, contentionStats.getContentionNumSamples());
-                    assertThat(statsEntry.getChannelUtilizationRatio()).isIn(Range.closed(0, 255));
+                    // Note that -1 is also a possible returned value for utilization ratio.
+                    assertThat(statsEntry.getChannelUtilizationRatio()).isIn(Range.closed(-1, 255));
                     if (mTelephonyManager != null) {
                         boolean isCellularDataAvailable =
                                 mTelephonyManager.getDataState() == TelephonyManager.DATA_CONNECTED;
@@ -801,7 +802,7 @@ public class ConnectedNetworkScorerTest extends WifiJUnit4TestBase {
      *
      * Verifies that these APIs can be invoked successfully with permissions.
      */
-    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.TIRAMISU, codeName = "Tiramisu")
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.TIRAMISU)
     @Test
     public void testAddAndRemoveCustomDhcpOptions() throws Exception {
         UiAutomation uiAutomation = InstrumentationRegistry.getInstrumentation().getUiAutomation();
@@ -823,7 +824,7 @@ public class ConnectedNetworkScorerTest extends WifiJUnit4TestBase {
      *
      * Verifies that SecurityException is thrown when permissions are missing.
      */
-    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.TIRAMISU, codeName = "Tiramisu")
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.TIRAMISU)
     @Test
     public void testAddCustomDhcpOptionsOnMissingPermissions() throws Exception {
         try {
