@@ -131,24 +131,22 @@ class VideoAspectRatioAndCropTest(its_base_test.ItsBaseTest):
       props = cam.override_with_hidden_physical_camera_props(props)
       fls_physical = props['android.lens.info.availableFocalLengths']
       logging.debug('physical available focal lengths: %s', str(fls_physical))
+
       # Check SKIP conditions.
       first_api_level = its_session_utils.get_first_api_level(self.dut.serial)
       camera_properties_utils.skip_unless(
           first_api_level >= _ANDROID13_API_LEVEL)
+
+      # Load scene.
       its_session_utils.load_scene(cam, props, self.scene,
                                    self.tablet, chart_distance=0)
+
+      # Determine camera capabilities.
       supported_video_qualities = cam.get_supported_video_qualities(
           self.camera_id)
       logging.debug('Supported video qualities: %s', supported_video_qualities)
-
-      # Determine camera capabilities.
       full_or_better = camera_properties_utils.full_or_better(props)
       raw_avlb = camera_properties_utils.raw16(props)
-      fls_logical = props['android.lens.info.availableFocalLengths']
-      logging.debug('logical available focal lengths: %s', str(fls_logical))
-      fls_physical = props['android.lens.info.availableFocalLengths']
-      logging.debug('physical available focal lengths: %s',
-                    str(fls_physical))
 
       req = capture_request_utils.auto_capture_request()
       ref_img_name_stem = f'{os.path.join(self.log_path, _NAME)}'
@@ -187,12 +185,12 @@ class VideoAspectRatioAndCropTest(its_base_test.ItsBaseTest):
                              self.log_path])
           logging.debug('Recorded video is available at: %s',
                         self.log_path)
-          mp4_file_name = video_recording_obj['recordedOutputPath'].split('/')[-1]
-          logging.debug('mp4_file_name: %s', mp4_file_name)
+          video_file_name = video_recording_obj['recordedOutputPath'].split('/')[-1]
+          logging.debug('video_file_name: %s', video_file_name)
 
           key_frame_files = []
           key_frame_files = video_processing_utils.extract_key_frames_from_video(
-              self.log_path, mp4_file_name)
+              self.log_path, video_file_name)
           logging.debug('key_frame_files:%s', key_frame_files)
 
           # Get the key frame file to process.
@@ -210,9 +208,6 @@ class VideoAspectRatioAndCropTest(its_base_test.ItsBaseTest):
           circle = opencv_processing_utils.find_circle(
               np_image, ref_img_name_stem, image_fov_utils.CIRCLE_MIN_AREA,
               image_fov_utils.CIRCLE_COLOR)
-          # img_name = '%s_%s_w%d_h%d' % (
-          #     os.path.join(self.log_path, _NAME), quality, width, height)
-          # TODO(ruchamk): Add part to append circle center to image
 
           # Check pass/fail for fov coverage for all fmts in AR_CHECKED
           fov_chk_msg = image_fov_utils.check_fov(
@@ -244,10 +239,13 @@ class VideoAspectRatioAndCropTest(its_base_test.ItsBaseTest):
                 circle, cc_ct_gt, width, height,
                 f'{quality}', crop_thresh_factor)
             if crop_chk_msg:
-              img_name = '%s_%s_w%d_h%d_crop.png' % (
+              crop_img_name = '%s_%s_w%d_h%d_crop.png' % (
                   os.path.join(self.log_path, _NAME), quality, width, height)
+              opencv_processing_utils.append_circle_center_to_img(
+                  circle, np_image*255, crop_img_name)
               failed_crop.append(crop_chk_msg)
-              image_processing_utils.write_image(np_image/255, img_name, True)
+              image_processing_utils.write_image(np_image/255,
+                                                 crop_img_name, True)
           else:
             logging.debug('Crop test skipped')
 
@@ -257,7 +255,7 @@ class VideoAspectRatioAndCropTest(its_base_test.ItsBaseTest):
       if failed_ar:
         e_msg = 'Aspect ratio '
       if failed_fov:
-        e_msg += 'FoV  '
+        e_msg += 'FoV '
       if failed_crop:
         e_msg += 'Crop '
       if e_msg:
