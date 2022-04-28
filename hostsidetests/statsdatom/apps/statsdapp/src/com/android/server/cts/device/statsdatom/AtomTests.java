@@ -26,6 +26,8 @@ import android.app.ActivityManager;
 import android.app.ActivityManager.RunningServiceInfo;
 import android.app.AlarmManager;
 import android.app.AppOpsManager;
+import android.app.GameManager;
+import android.app.GameState;
 import android.app.PendingIntent;
 import android.app.job.JobInfo;
 import android.app.job.JobScheduler;
@@ -682,8 +684,6 @@ public class AtomTests {
         sleep(500);
         setScreenBrightness(100);
         sleep(500);
-        setScreenBrightness(140);
-        sleep(500);
 
 
         wl.release();
@@ -1217,5 +1217,12 @@ public class AtomTests {
                 }
             }
         }
+    }
+
+    @Test
+    public void testGameState() throws Exception {
+        Context context = InstrumentationRegistry.getContext();
+        GameManager gameManager = context.getSystemService(GameManager.class);
+        gameManager.setGameState(new GameState(true, GameState.MODE_CONTENT, 1, 2));
     }
 }
