@@ -1580,9 +1580,9 @@ public class ImsServiceTest {
         capExchangeImpl.setPublishOperator((listener, pidfXml, cb) -> {
             int networkResp = 200;
             String reason = "";
+            receivedPidfXml.add(pidfXml);
             cb.onNetworkResponse(networkResp, reason);
             listener.onPublish();
-            receivedPidfXml.add(pidfXml);
         });
 
         Uri imsUri;
@@ -1597,9 +1597,35 @@ public class ImsServiceTest {
 
         final String expectedUriString = expectedUriBuilder.toString();
 
-        // IMS registers
-        sServiceConnector.getCarrierService().getImsRegistration().onRegistered(
-                IMS_REGI_TECH_LTE);
+        LinkedBlockingQueue<ImsRegistrationAttributes> mQueue = new LinkedBlockingQueue<>();
+        RegistrationManager.RegistrationCallback callback =
+                new RegistrationManager.RegistrationCallback() {
+                    @Override
+                    public void onRegistered(ImsRegistrationAttributes attr) {
+                        mQueue.offer(attr);
+                    }
+
+                    @Override
+                    public void onRegistering(ImsRegistrationAttributes attr) {}
+
+                    @Override
+                    public void onUnregistered(ImsReasonInfo info) {}
+
+                    @Override
+                    public void onTechnologyChangeFailed(int type, ImsReasonInfo info) {}
+                };
+        ShellIdentityUtils.invokeThrowableMethodWithShellPermissionsNoReturn(imsRcsManager,
+                (m) -> m.registerImsRegistrationCallback(getContext().getMainExecutor(), callback),
+                ImsException.class);
+
+        ArraySet<String> featureTags = new ArraySet<>();
+        // Chat Session
+        featureTags.add(CHAT_FEATURE_TAG);
+        featureTags.add(FILE_TRANSFER_FEATURE_TAG);
+        ImsRegistrationAttributes attr = new ImsRegistrationAttributes.Builder(
+                IMS_REGI_TECH_LTE).setFeatureTags(featureTags).build();
+        sServiceConnector.getCarrierService().getImsRegistration().onRegistered(attr);
+        waitForParam(mQueue, attr);
 
         // Notify framework that the RCS capability status is changed and PRESENCE UCE is enabled.
         RcsImsCapabilities capabilities =
@@ -1646,6 +1672,9 @@ public class ImsServiceTest {
         // contains the associated URI.
         assertFalse(receivedPidfXml.isEmpty());
         assertTrue(receivedPidfXml.get(0).contains(expectedUriString));
+
+        // Reset the received pidf xml data
+        receivedPidfXml.clear();
 
         overrideCarrierConfig(null);
     }
@@ -3325,6 +3354,13 @@ public class ImsServiceTest {
                 mOnFeatureChangedQueue.offer(new Pair<>(capability,
                         new Pair<>(tech, isProvisioned)));
             }
+
+            @Override
+            public void onRcsFeatureProvisioningChanged(
+                    @RcsFeature.RcsImsCapabilities.RcsImsCapabilityFlag int capability,
+                    @ImsRegistrationImplBase.ImsRegistrationTech int tech,
+                    boolean isProvisioned){
+            }
         };
 
         final UiAutomation automan = InstrumentationRegistry.getInstrumentation().getUiAutomation();
@@ -3496,7 +3532,21 @@ public class ImsServiceTest {
         ProvisioningManager.Callback callback = new ProvisioningManager.Callback() {};
 
         ProvisioningManager.FeatureProvisioningCallback featureProvisioningCallback =
-                new ProvisioningManager.FeatureProvisioningCallback() {};
+                new ProvisioningManager.FeatureProvisioningCallback() {
+            @Override
+            public void onFeatureProvisioningChanged(
+                    @MmTelFeature.MmTelCapabilities.MmTelCapability int capability,
+                    @ImsRegistrationImplBase.ImsRegistrationTech int tech,
+                    boolean isProvisioned) {
+            }
+
+            @Override
+            public void onRcsFeatureProvisioningChanged(
+                    @RcsFeature.RcsImsCapabilities.RcsImsCapabilityFlag int capability,
+                    @ImsRegistrationImplBase.ImsRegistrationTech int tech,
+                    boolean isProvisioned){
+            }
+        };
 
         final UiAutomation automan = InstrumentationRegistry.getInstrumentation().getUiAutomation();
         try {
@@ -3597,6 +3647,13 @@ public class ImsServiceTest {
 
         ProvisioningManager.FeatureProvisioningCallback featureProvisioningCallback =
                 new ProvisioningManager.FeatureProvisioningCallback() {
+            @Override
+            public void onFeatureProvisioningChanged(
+                    @MmTelFeature.MmTelCapabilities.MmTelCapability int capability,
+                    @ImsRegistrationImplBase.ImsRegistrationTech int tech,
+                    boolean isProvisioned) {
+            }
+
             @Override
             public void onRcsFeatureProvisioningChanged(
                     @RcsFeature.RcsImsCapabilities.RcsImsCapabilityFlag int capability,
@@ -3736,7 +3793,21 @@ public class ImsServiceTest {
                 ProvisioningManager.createForSubscriptionId(sTestSub);
         ProvisioningManager.Callback callback = new ProvisioningManager.Callback() {};
         ProvisioningManager.FeatureProvisioningCallback featureProvisioningCallback =
-                new ProvisioningManager.FeatureProvisioningCallback() {};
+                new ProvisioningManager.FeatureProvisioningCallback() {
+            @Override
+            public void onFeatureProvisioningChanged(
+                    @MmTelFeature.MmTelCapabilities.MmTelCapability int capability,
+                    @ImsRegistrationImplBase.ImsRegistrationTech int tech,
+                    boolean isProvisioned) {
+            }
+
+            @Override
+            public void onRcsFeatureProvisioningChanged(
+                    @RcsFeature.RcsImsCapabilities.RcsImsCapabilityFlag int capability,
+                    @ImsRegistrationImplBase.ImsRegistrationTech int tech,
+                    boolean isProvisioned){
+            }
+        };
 
         final UiAutomation automan = InstrumentationRegistry.getInstrumentation().getUiAutomation();
         try {

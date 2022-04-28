@@ -23,6 +23,7 @@ import androidx.test.platform.app.InstrumentationRegistry;
 import com.android.compatibility.common.util.DeviceReportLog;
 import com.android.compatibility.common.util.ResultType;
 import com.android.compatibility.common.util.ResultUnit;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 
 import java.util.HashMap;
@@ -36,7 +37,6 @@ public abstract class Requirement {
 
     protected final ImmutableMap<String, RequiredMeasurement<?>> mRequiredMeasurements;
     protected final String id;
-    private int perfClass;
 
     protected Requirement(String id, RequiredMeasurement<?>[] reqs) {
         this.id = id;
@@ -57,7 +57,8 @@ public abstract class Requirement {
      * Finds the highest performance class where at least one RequiremdMeasurement has result
      * RequirementConstants.Result.MET and none have RequirementConstants.Result.UNMET
      */
-    public int computePerformanceClass() {
+    @VisibleForTesting
+    protected int computePerformanceClass() {
         Map<Integer, RequirementConstants.Result> overallPerfClassResults = new HashMap<>();
 
         for (RequiredMeasurement<?> rm: this.mRequiredMeasurements.values()) {
@@ -87,18 +88,36 @@ public abstract class Requirement {
         return perfClass;
     }
 
-    private boolean checkPerformanceClass(String testName) {
-        if (this.perfClass < Utils.getPerfClass()) {
+    @VisibleForTesting
+    protected boolean checkPerformanceClass(String testName, int reportPerfClass,
+            int expectedPerfClass) {
+        if (reportPerfClass < expectedPerfClass) {
             Log.w(Requirement.TAG, "Test: " + testName + " reporting invalid performance class " +
-                this.perfClass + " for requirement " + this.id + " performance class should at " +
-                "least be: " + Utils.getPerfClass());
+                reportPerfClass + " for requirement " + this.id + " performance class should at " +
+                "least be: " + expectedPerfClass);
             for (RequiredMeasurement<?> rm: this.mRequiredMeasurements.values()) {
-                Log.w(Requirement.TAG, rm.toString());
+                Map<Integer, RequirementConstants.Result> perfClasses = rm.getPerformanceClass();
+                int maxMetPerformanceClass = 0;
+                for (int pc: perfClasses.keySet()) {
+                    if (perfClasses.get(pc) == RequirementConstants.Result.MET) {
+                        maxMetPerformanceClass = Math.max(maxMetPerformanceClass, pc);
+                    }
+                }
+
+                if (maxMetPerformanceClass < expectedPerfClass) {
+                    Log.w(Requirement.TAG, rm.toString());
+                } else {
+                    Log.i(Requirement.TAG, rm.toString());
+                }
             }
             return false;
         } else {
             return true;
         }
+    }
+
+    private boolean checkPerformanceClass(String testName, int reportPerfClass) {
+        return this.checkPerformanceClass(testName, reportPerfClass, Utils.getPerfClass());
     }
 
     protected <T> void setMeasuredValue(String measurement, T measuredValue) {
@@ -111,7 +130,7 @@ public abstract class Requirement {
      * @return whether or not the requirement meets the device's specified performance class
      */
     public boolean writeLogAndCheck(String testName) {
-        this.perfClass = this.computePerformanceClass();
+        int perfClass = this.computePerformanceClass();
 
         DeviceReportLog log = new DeviceReportLog(RequirementConstants.REPORT_LOG_NAME, this.id);
         log.addValue(RequirementConstants.TN_FIELD_NAME, testName, ResultType.NEUTRAL,
@@ -119,10 +138,10 @@ public abstract class Requirement {
         for (RequiredMeasurement rm: this.mRequiredMeasurements.values()) {
             rm.writeValue(log);
         }
-        log.addValue(RequirementConstants.PC_FIELD_NAME, this.perfClass, ResultType.NEUTRAL,
+        log.addValue(RequirementConstants.PC_FIELD_NAME, perfClass, ResultType.NEUTRAL,
             ResultUnit.NONE);
         log.submit(InstrumentationRegistry.getInstrumentation());
 
-        return this.checkPerformanceClass(testName);
+        return this.checkPerformanceClass(testName, perfClass);
     }
 }

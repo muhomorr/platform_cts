@@ -18,22 +18,34 @@ package android.permission3.cts
 
 import android.app.Activity
 import android.app.AppOpsManager
-import com.android.compatibility.common.util.AppOpsUtils.setOpMode
 import android.content.ComponentName
 import android.content.Intent
 import android.location.LocationManager
 import android.net.Uri
+import android.os.Build
 import android.provider.Settings
+import android.support.test.uiautomator.By
+import androidx.test.filters.SdkSuppress
+import com.android.compatibility.common.util.AppOpsUtils.setOpMode
 import com.android.compatibility.common.util.SystemUtil.callWithShellPermissionIdentity
-import org.junit.Test
+import com.android.compatibility.common.util.SystemUtil.eventually
+import com.android.compatibility.common.util.CtsDownstreamingTest
 import java.util.concurrent.TimeUnit
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Assert.assertNull
-import android.support.test.uiautomator.By
-import com.android.compatibility.common.util.SystemUtil.eventually
+import org.junit.Assume.assumeFalse
+import org.junit.Before
+import org.junit.Test
 
+@CtsDownstreamingTest
+@SdkSuppress(minSdkVersion = Build.VERSION_CODES.TIRAMISU, codeName = "Tiramisu")
 class PermissionAllServicesTest : BasePermissionTest() {
+
+    // "All services" screen is not supported on Auto in T
+    @Before
+    fun assumeNotAuto() = assumeFalse(isAutomotive)
+
     val locationManager = context.getSystemService(LocationManager::class.java)!!
 
     @Test
@@ -147,7 +159,7 @@ class PermissionAllServicesTest : BasePermissionTest() {
     companion object {
         const val LOCATION_PROVIDER_APP_APK_PATH_1 =
             "$APK_DIRECTORY/CtsAccessMicrophoneAppLocationProvider.apk"
-        const val NON_LOCATION_APP_APK_PATH = "$APK_DIRECTORY/CtsUsePermissionApp22.apk"
+        const val NON_LOCATION_APP_APK_PATH = "$APK_DIRECTORY/CtsUsePermissionAppLatest.apk"
         const val LOCATION_PROVIDER_APP_APK_PATH_2 =
             "$APK_DIRECTORY/CtsAppLocationProviderWithSummary.apk"
         const val NON_LOCATION_APP_PACKAGE_NAME = "android.permission3.cts.usepermission"

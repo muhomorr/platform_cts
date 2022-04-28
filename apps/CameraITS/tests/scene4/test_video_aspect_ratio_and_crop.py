@@ -131,24 +131,22 @@ class VideoAspectRatioAndCropTest(its_base_test.ItsBaseTest):
       props = cam.override_with_hidden_physical_camera_props(props)
       fls_physical = props['android.lens.info.availableFocalLengths']
       logging.debug('physical available focal lengths: %s', str(fls_physical))
+
       # Check SKIP conditions.
       first_api_level = its_session_utils.get_first_api_level(self.dut.serial)
       camera_properties_utils.skip_unless(
           first_api_level >= _ANDROID13_API_LEVEL)
+
+      # Load scene.
       its_session_utils.load_scene(cam, props, self.scene,
                                    self.tablet, chart_distance=0)
+
+      # Determine camera capabilities.
       supported_video_qualities = cam.get_supported_video_qualities(
           self.camera_id)
       logging.debug('Supported video qualities: %s', supported_video_qualities)
-
-      # Determine camera capabilities.
       full_or_better = camera_properties_utils.full_or_better(props)
       raw_avlb = camera_properties_utils.raw16(props)
-      fls_logical = props['android.lens.info.availableFocalLengths']
-      logging.debug('logical available focal lengths: %s', str(fls_logical))
-      fls_physical = props['android.lens.info.availableFocalLengths']
-      logging.debug('physical available focal lengths: %s',
-                    str(fls_physical))
 
       req = capture_request_utils.auto_capture_request()
       ref_img_name_stem = f'{os.path.join(self.log_path, _NAME)}'
@@ -187,12 +185,12 @@ class VideoAspectRatioAndCropTest(its_base_test.ItsBaseTest):
                              self.log_path])
           logging.debug('Recorded video is available at: %s',
                         self.log_path)
-          mp4_file_name = video_recording_obj['recordedOutputPath'].split('/')[-1]
-          logging.debug('mp4_file_name: %s', mp4_file_name)
+          video_file_name = video_recording_obj['recordedOutputPath'].split('/')[-1]
+          logging.debug('video_file_name: %s', video_file_name)
 
           key_frame_files = []
           key_frame_files = video_processing_utils.extract_key_frames_from_video(
-              self.log_path, mp4_file_name)
+              self.log_path, video_file_name)
           logging.debug('key_frame_files:%s', key_frame_files)
 
           # Get the key frame file to process.

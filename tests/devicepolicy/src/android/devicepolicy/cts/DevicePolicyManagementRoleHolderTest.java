@@ -16,25 +16,22 @@
 
 package android.devicepolicy.cts;
 
+import static android.Manifest.permission.LAUNCH_DEVICE_MANAGER_SETUP;
 import static android.app.admin.DevicePolicyManager.ACTION_ROLE_HOLDER_PROVISION_FINALIZATION;
 import static android.app.admin.DevicePolicyManager.ACTION_ROLE_HOLDER_PROVISION_MANAGED_DEVICE_FROM_TRUSTED_SOURCE;
 import static android.app.admin.DevicePolicyManager.ACTION_ROLE_HOLDER_PROVISION_MANAGED_PROFILE;
+import static android.content.Intent.ACTION_MANAGED_PROFILE_AVAILABLE;
+import static android.content.Intent.ACTION_MANAGED_PROFILE_REMOVED;
+import static android.content.Intent.ACTION_MANAGED_PROFILE_UNAVAILABLE;
 import static android.content.pm.PackageManager.FEATURE_MANAGED_USERS;
 
-import static com.android.bedstead.nene.permissions.CommonPermissions.BYPASS_ROLE_QUALIFICATION;
 import static com.android.bedstead.nene.permissions.CommonPermissions.MANAGE_PROFILE_AND_DEVICE_OWNERS;
-import static com.android.bedstead.nene.permissions.CommonPermissions.MANAGE_ROLE_HOLDERS;
 import static com.android.queryable.queries.ActivityQuery.activity;
 import static com.android.queryable.queries.IntentFilterQuery.intentFilter;
-
-import static com.google.common.truth.Truth.assertThat;
-
-import static org.junit.Assert.fail;
 
 import android.app.admin.DevicePolicyManager;
 import android.app.admin.ManagedProfileProvisioningParams;
 import android.app.admin.ProvisioningException;
-import android.app.role.RoleManager;
 import android.content.ComponentName;
 import android.content.Context;
 import android.os.UserHandle;
@@ -42,7 +39,7 @@ import android.os.UserHandle;
 import com.android.bedstead.deviceadminapp.DeviceAdminApp;
 import com.android.bedstead.harrier.BedsteadJUnit4;
 import com.android.bedstead.harrier.DeviceState;
-import com.android.bedstead.harrier.annotations.EnsureHasNoWorkProfile;
+import com.android.bedstead.harrier.annotations.EnsureHasNoSecondaryUser;
 import com.android.bedstead.harrier.annotations.EnsureHasPermission;
 import com.android.bedstead.harrier.annotations.Postsubmit;
 import com.android.bedstead.harrier.annotations.RequireFeature;
@@ -52,10 +49,11 @@ import com.android.bedstead.harrier.annotations.enterprise.EnsureHasNoDpc;
 import com.android.bedstead.nene.TestApis;
 import com.android.bedstead.nene.packages.Package;
 import com.android.bedstead.nene.users.UserReference;
+import com.android.bedstead.nene.utils.Poll;
 import com.android.bedstead.remotedpc.RemoteDpc;
 import com.android.bedstead.testapp.TestApp;
 import com.android.bedstead.testapp.TestAppInstance;
-import com.android.compatibility.common.util.BlockingCallback;
+import com.android.eventlib.truth.EventLogsSubject;
 import com.android.queryable.queries.ActivityQuery;
 
 import org.junit.ClassRule;
@@ -63,8 +61,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import java.util.concurrent.CountDownLatch;
-
+// TODO(b/228016400): replace usages of createAndProvisionManagedProfile with a nene API
 @RunWith(BedsteadJUnit4.class)
 public class DevicePolicyManagementRoleHolderTest {
     @ClassRule
@@ -80,17 +77,23 @@ public class DevicePolicyManagementRoleHolderTest {
     private static final DevicePolicyManager sDevicePolicyManager =
             sContext.getSystemService(DevicePolicyManager.class);
     private static final ActivityQuery<?> sQueryForRoleHolderTrustedSourceAction =
+            (ActivityQuery<?>)
             activity().intentFilters().contains(
                 intentFilter().actions().contains(
-                        ACTION_ROLE_HOLDER_PROVISION_MANAGED_DEVICE_FROM_TRUSTED_SOURCE));
+                        ACTION_ROLE_HOLDER_PROVISION_MANAGED_DEVICE_FROM_TRUSTED_SOURCE))
+                    .permission().isEqualTo(LAUNCH_DEVICE_MANAGER_SETUP);
     private static final ActivityQuery<?> sQueryForRoleHolderManagedProfileAction =
+            (ActivityQuery<?>)
             activity().intentFilters().contains(
                 intentFilter().actions().contains(
-                        ACTION_ROLE_HOLDER_PROVISION_MANAGED_PROFILE));
+                        ACTION_ROLE_HOLDER_PROVISION_MANAGED_PROFILE))
+                    .permission().isEqualTo(LAUNCH_DEVICE_MANAGER_SETUP);
     private static final ActivityQuery<?> sQueryForRoleHolderFinalizationAction =
+            (ActivityQuery<?>)
             activity().intentFilters().contains(
                 intentFilter().actions().contains(
-                        ACTION_ROLE_HOLDER_PROVISION_FINALIZATION));
+                        ACTION_ROLE_HOLDER_PROVISION_FINALIZATION))
+                    .permission().isEqualTo(LAUNCH_DEVICE_MANAGER_SETUP);
     private static final TestApp sRoleHolderApp = sDeviceState.testApps()
             .query()
             .whereActivities()
@@ -106,6 +109,7 @@ public class DevicePolicyManagementRoleHolderTest {
     @EnsureHasPermission(MANAGE_PROFILE_AND_DEVICE_OWNERS)
     @RequireRunOnPrimaryUser
     @EnsureHasNoDpc
+    @EnsureHasNoSecondaryUser
     @Test
     public void createAndProvisionManagedProfile_roleHolderIsInWorkProfile()
             throws ProvisioningException, InterruptedException {
@@ -118,8 +122,11 @@ public class DevicePolicyManagementRoleHolderTest {
             profile = sDevicePolicyManager.createAndProvisionManagedProfile(
                     MANAGED_PROFILE_PROVISIONING_PARAMS);
 
-            assertThat(TestApis.packages().installedForUser(UserReference.of(profile)))
-                    .contains(Package.of(roleHolderApp.packageName()));
+            UserReference userReference = UserReference.of(profile);
+            Poll.forValue(() -> TestApis.packages().installedForUser(userReference))
+                    .toMeet(packages -> packages.contains(Package.of(roleHolderApp.packageName())))
+                    .errorOnFail("Role holder package not installed on the managed profile.")
+                    .await();
         } finally {
             if (profile != null) {
                 TestApis.users().find(profile).remove();
@@ -135,6 +142,7 @@ public class DevicePolicyManagementRoleHolderTest {
     @RequireFeature(FEATURE_MANAGED_USERS)
     @EnsureHasDeviceOwner
     @RequireRunOnPrimaryUser
+    @EnsureHasNoSecondaryUser
     @Test
     public void createAndManageUser_roleHolderIsInManagedUser() throws InterruptedException {
         UserHandle managedUser = null;
@@ -150,8 +158,11 @@ public class DevicePolicyManagementRoleHolderTest {
                     /* adminExtras= */ null,
                     /* flags= */ 0);
 
-            assertThat(TestApis.packages().installedForUser(UserReference.of(managedUser)))
-                    .contains(Package.of(roleHolderApp.packageName()));
+            UserReference userReference = UserReference.of(managedUser);
+            Poll.forValue(() -> TestApis.packages().installedForUser(userReference))
+                    .toMeet(packages -> packages.contains(Package.of(roleHolderApp.packageName())))
+                    .errorOnFail("Role holder package not installed on the managed user.")
+                    .await();
         } finally {
             if (managedUser != null) {
                 TestApis.users().find(managedUser).remove();
@@ -159,6 +170,91 @@ public class DevicePolicyManagementRoleHolderTest {
             if (roleHolderPackageName != null) {
                 TestApis.devicePolicy()
                         .unsetDevicePolicyManagementRoleHolder(roleHolderPackageName);
+            }
+        }
+    }
+
+    @Postsubmit(reason = "new test")
+    @RequireFeature(FEATURE_MANAGED_USERS)
+    @EnsureHasPermission(MANAGE_PROFILE_AND_DEVICE_OWNERS)
+    @RequireRunOnPrimaryUser
+    @EnsureHasNoDpc
+    @EnsureHasNoSecondaryUser
+    @Test
+    public void profileRemoved_roleHolderReceivesBroadcast() throws Exception {
+        String roleHolderPackageName = null;
+        try (TestAppInstance roleHolderApp = sRoleHolderApp.install()) {
+            roleHolderPackageName = roleHolderApp.packageName();
+            TestApis.devicePolicy().setDevicePolicyManagementRoleHolder(roleHolderPackageName);
+            UserHandle profile = sDevicePolicyManager.createAndProvisionManagedProfile(
+                    MANAGED_PROFILE_PROVISIONING_PARAMS);
+
+            TestApis.users().find(profile).remove();
+
+            EventLogsSubject.assertThat(roleHolderApp.events().broadcastReceived()
+                            .whereIntent().action().isEqualTo(ACTION_MANAGED_PROFILE_REMOVED))
+                    .eventOccurred();
+        } finally {
+            if (roleHolderPackageName != null) {
+                TestApis.devicePolicy().unsetDevicePolicyManagementRoleHolder(
+                        roleHolderPackageName);
+            }
+        }
+    }
+
+    @Postsubmit(reason = "new test")
+    @RequireFeature(FEATURE_MANAGED_USERS)
+    @EnsureHasPermission(MANAGE_PROFILE_AND_DEVICE_OWNERS)
+    @RequireRunOnPrimaryUser
+    @EnsureHasNoDpc
+    @EnsureHasNoSecondaryUser
+    @Test
+    public void profilePaused_roleHolderReceivesBroadcast() throws Exception {
+        String roleHolderPackageName = null;
+        try (TestAppInstance roleHolderApp = sRoleHolderApp.install()) {
+            roleHolderPackageName = roleHolderApp.packageName();
+            TestApis.devicePolicy().setDevicePolicyManagementRoleHolder(roleHolderPackageName);
+            UserHandle profile = sDevicePolicyManager.createAndProvisionManagedProfile(
+                    MANAGED_PROFILE_PROVISIONING_PARAMS);
+
+            TestApis.users().find(profile).setQuietMode(true);
+
+            EventLogsSubject.assertThat(roleHolderApp.events().broadcastReceived()
+                            .whereIntent().action().isEqualTo(ACTION_MANAGED_PROFILE_UNAVAILABLE))
+                    .eventOccurred();
+        } finally {
+            if (roleHolderPackageName != null) {
+                TestApis.devicePolicy().unsetDevicePolicyManagementRoleHolder(
+                        roleHolderPackageName);
+            }
+        }
+    }
+
+    @Postsubmit(reason = "new test")
+    @RequireFeature(FEATURE_MANAGED_USERS)
+    @EnsureHasPermission(MANAGE_PROFILE_AND_DEVICE_OWNERS)
+    @RequireRunOnPrimaryUser
+    @EnsureHasNoDpc
+    @EnsureHasNoSecondaryUser
+    @Test
+    public void profileStarted_roleHolderReceivesBroadcast() throws Exception {
+        String roleHolderPackageName = null;
+        try (TestAppInstance roleHolderApp = sRoleHolderApp.install()) {
+            roleHolderPackageName = roleHolderApp.packageName();
+            TestApis.devicePolicy().setDevicePolicyManagementRoleHolder(roleHolderPackageName);
+            UserHandle profile = sDevicePolicyManager.createAndProvisionManagedProfile(
+                    MANAGED_PROFILE_PROVISIONING_PARAMS);
+            TestApis.users().find(profile).setQuietMode(true);
+
+            TestApis.users().find(profile).setQuietMode(false);
+
+            EventLogsSubject.assertThat(roleHolderApp.events().broadcastReceived()
+                            .whereIntent().action().isEqualTo(ACTION_MANAGED_PROFILE_AVAILABLE))
+                    .eventOccurred();
+        } finally {
+            if (roleHolderPackageName != null) {
+                TestApis.devicePolicy().unsetDevicePolicyManagementRoleHolder(
+                        roleHolderPackageName);
             }
         }
     }

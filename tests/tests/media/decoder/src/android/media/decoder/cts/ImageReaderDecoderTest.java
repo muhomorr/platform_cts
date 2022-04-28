@@ -32,6 +32,7 @@ import android.media.MediaExtractor;
 import android.media.MediaFormat;
 import android.media.cts.CodecUtils;
 import android.media.cts.Preconditions;
+import android.media.cts.TestArgs;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.platform.test.annotations.AppModeFull;
@@ -113,6 +114,7 @@ public class ImageReaderDecoderTest {
     public String mCodecName;
     public MediaAsset mMediaAsset;
     public int mMode;
+    public String mTestId;
     MediaCodec mDecoder = null;
     MediaExtractor mExtractor = null;
 
@@ -122,6 +124,7 @@ public class ImageReaderDecoderTest {
         mCodecName = codecName;
         mMediaAsset = asset;
         mMode = mode;
+        mTestId = testId;
     }
 
     @Parameterized.Parameters(name = "{index}({0}_{1}_{4})")
@@ -129,8 +132,14 @@ public class ImageReaderDecoderTest {
         final List<Object[]> argsList = new ArrayList<>();
         for (MediaAssets assets : ASSETS) {
             String mime = assets.getMime();
+            if (TestArgs.shouldSkipMediaType(mime)) {
+                continue;
+            }
             String[] decoders = MediaUtils.getDecoderNamesForMime(mime);
             for (String decoder: decoders) {
+                if (TestArgs.shouldSkipCodec(decoder)) {
+                    continue;
+                }
                 for (MediaAsset asset : assets.getAssets()) {
                     String id = asset.getWidth() + "x" + asset.getHeight();
                     id += "_" + asset.getBitDepth() + "bit";
@@ -513,9 +522,7 @@ public class ImageReaderDecoderTest {
 
                 if (doRender) {
                     outputFrameCount++;
-                    String fileName = DEBUG_FILE_NAME_BASE + MediaUtils.getTestName()
-                            + (mode == MODE_IMAGE ? "_image_" : "_reader_")
-                            + width + "x" + height + "_" + outputFrameCount + ".yuv";
+                    String fileName = DEBUG_FILE_NAME_BASE + mCodecName + "_" + mTestId + ".yuv";
 
                     Image image = null;
                     try {
@@ -595,15 +602,6 @@ public class ImageReaderDecoderTest {
         int[][] colors = new int[][] {
             { 111, 96, 204 }, { 178, 27, 174 }, { 100, 192, 92 }, { 106, 117, 62 }
         };
-
-        // For P010 multiply expected colors by 4 to account for bit-depth 10
-        if (image.getFormat() == ImageFormat.YCBCR_P010) {
-            for (int i = 0; i < colors.length; i++) {
-                for (int j = 0; j < colors[0].length; j++) {
-                    colors[i][j] = colors[i][j] << 2;
-                }
-            }
-        }
 
         // successively accumulate statistics for each layer of the swirl
         // by using overlapping rectangles, and the observation that
