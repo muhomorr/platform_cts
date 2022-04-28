@@ -453,10 +453,7 @@ public class StagedInstallTest {
     public void testStagedInstallDowngrade_DowngradeRequested_Fails_Commit() throws Exception {
         assertThat(getInstalledVersion(TestApp.A)).isEqualTo(-1);
         Install.single(TestApp.A2).commit();
-        int sessionId = stageDowngradeSingleApk(TestApp.A1).assertSuccessful().getSessionId();
-        assertThat(getInstalledVersion(TestApp.A)).isEqualTo(2);
-        PackageInstaller.SessionInfo sessionInfo = getSessionInfo(sessionId);
-        assertThat(sessionInfo).isStagedSessionFailed();
+        stageDowngradeSingleApk(TestApp.A1).assertFailure();
     }
 
     @Test
@@ -673,7 +670,7 @@ public class StagedInstallTest {
     public void testStagedInstallDowngradeApex_DowngradeRequested_UserBuild_Fails_Commit()
             throws Exception {
         assertThat(getInstalledVersion(SHIM_APEX_PACKAGE_NAME)).isEqualTo(3);
-        int sessionId = stageDowngradeSingleApk(TestApp.Apex2).assertSuccessful().getSessionId();
+        int sessionId = stageDowngradeSingleApk(TestApp.Apex2).getSessionId();
         PackageInstaller.SessionInfo sessionInfo = getSessionInfo(sessionId);
         assertThat(sessionInfo).isStagedSessionFailed();
         // Also verify that correct session info is reported by PackageManager.

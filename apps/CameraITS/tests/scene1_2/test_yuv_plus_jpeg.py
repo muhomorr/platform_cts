@@ -84,6 +84,8 @@ class YuvPlusJpegTest(its_base_test.ItsBaseTest):
       else:
         w, h = capture_request_utils.get_available_output_sizes(
             'yuv', props, max_size=MAX_IMG_SIZE)[0]
+      logging.debug('YUV size: (%d, %d)', w, h)
+      logging.debug('JPEG size: %s', max_jpeg_size)
       fmt_yuv = {'format': 'yuv', 'width': w, 'height': h}
       fmt_jpg = {'format': 'jpeg'}
 
@@ -97,7 +99,7 @@ class YuvPlusJpegTest(its_base_test.ItsBaseTest):
       rgb_means_yuv = compute_means_and_save(cap_yuv, 'yuv', log_path)
       rgb_means_jpg = compute_means_and_save(cap_jpg, 'jpg', log_path)
 
-      rms_diff = image_processing_utils.compute_image_rms_difference(
+      rms_diff = image_processing_utils.compute_image_rms_difference_1d(
           rgb_means_yuv, rgb_means_jpg)
       msg = f'RMS diff: {rms_diff:.4f}'
       logging.debug('%s', msg)

@@ -28,17 +28,23 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.telephony.TelephonyManager;
+import android.telephony.UiccCardInfo;
+import android.telephony.UiccPortInfo;
 import android.telephony.cts.TelephonyUtils;
 import android.telephony.euicc.DownloadableSubscription;
 import android.telephony.euicc.EuiccCardManager;
 import android.telephony.euicc.EuiccInfo;
 import android.telephony.euicc.EuiccManager;
+import android.text.TextUtils;
 
 import androidx.test.InstrumentationRegistry;
 import androidx.test.runner.AndroidJUnit4;
 
+import com.android.compatibility.common.util.ShellIdentityUtils;
+
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -185,6 +191,7 @@ public class EuiccManagerTest {
                 EuiccManager.EMBEDDED_SUBSCRIPTION_RESULT_ERROR, mCallbackReceiver.getResultCode());
     }
 
+    @Ignore("b/221887933") // TODO: Enable the test case after framework code is uncommented
     @Test
     public void testSwitchToSubscritionDisableWithNoPortAndChangesCompatDisabled()
             throws Exception {
@@ -225,6 +232,7 @@ public class EuiccManagerTest {
                 SWITCH_WITHOUT_PORT_INDEX_EXCEPTION_ON_DISABLE_STRING);
     }
 
+    @Ignore("b/221887933") // TODO: Enable the test case after framework code is uncommented
     @Test
     public void testSwitchToSubscriptionDisableWithNoPort() throws Exception {
         // test disabled state only for now
@@ -558,6 +566,43 @@ public class EuiccManagerTest {
         // Restore the original country list
         mEuiccManager.setSupportedCountries(originalSupportedCountry);
         mEuiccManager.setUnsupportedCountries(originalUnsupportedCountry);
+    }
+
+    @Test
+    public void testIsSimPortAvailableWithInvalidPortIndex() throws Exception {
+        // Only test it when EuiccManager is enabled.
+        if (!mEuiccManager.isEnabled()) {
+            return;
+        }
+
+        boolean result = mEuiccManager.isSimPortAvailable(/* portIndex= */ -1);
+
+        assertFalse(result);
+    }
+
+    @Test
+    public void testIsSimPortAvailableWithValidPorts() throws Exception {
+        // Only test it when EuiccManager is enabled.
+        if (!mEuiccManager.isEnabled()) {
+            return;
+        }
+        // Get all the available UiccCardInfos.
+        TelephonyManager telephonyManager = getContext().getSystemService(TelephonyManager.class);
+        List<UiccCardInfo> uiccCardInfos =
+                ShellIdentityUtils.invokeMethodWithShellPermissions(telephonyManager,
+                        (tm) -> tm.getUiccCardsInfo());
+        for (UiccCardInfo cardInfo : uiccCardInfos) {
+            List<UiccPortInfo> portInfoList = (List<UiccPortInfo>) cardInfo.getPorts();
+            if (cardInfo.isEuicc()) {
+                for (UiccPortInfo portInfo : portInfoList) {
+                    // Check if port is active and no profile install on it.
+                    if (portInfo.isActive() && TextUtils.isEmpty(portInfo.getIccId())) {
+                        boolean result = mEuiccManager.isSimPortAvailable(portInfo.getPortIndex());
+                        assertTrue(result);
+                    }
+                }
+            }
+        }
     }
 
     private Context getContext() {
