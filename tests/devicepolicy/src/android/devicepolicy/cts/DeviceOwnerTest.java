@@ -43,12 +43,13 @@ import com.android.bedstead.nene.utils.ShellCommand;
 import com.android.bedstead.remotedpc.RemoteDpc;
 import com.android.bedstead.testapp.TestApp;
 import com.android.bedstead.testapp.TestAppInstance;
-import com.android.bedstead.testapp.TestAppProvider;
 
 import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+
+import java.time.Duration;
 
 @RunWith(BedsteadJUnit4.class)
 public final class DeviceOwnerTest {
@@ -57,8 +58,7 @@ public final class DeviceOwnerTest {
     public static final DeviceState sDeviceState = new DeviceState();
 
     private static final Context sContext = TestApis.context().instrumentedContext();
-    private static final TestAppProvider sTestAppProvider = new TestAppProvider();
-    private static final TestApp sAccountManagementApp = sTestAppProvider
+    private static final TestApp sAccountManagementApp = sDeviceState.testApps()
             .query()
             // TODO(b/198417584): Support Querying XML resources in TestApp.
             // TODO(b/198590265) Filter for the correct account type.
@@ -67,7 +67,7 @@ public final class DeviceOwnerTest {
                             .isEqualTo("com.android.bedstead.testapp.AccountManagementApp"
                                     + ".TestAppAccountAuthenticatorService"))
             .get();
-    private static final TestApp sDpcApp = sTestAppProvider
+    private static final TestApp sDpcApp = sDeviceState.testApps()
             .query().whereIsDeviceAdmin().isTrue()
             .get();
 
@@ -120,24 +120,23 @@ public final class DeviceOwnerTest {
             Poll.forValue("Active admins", dpm::getActiveAdmins)
                     .toMeet(i -> i == null || !i.contains(RemoteDpc.DPC_COMPONENT_NAME))
                     .errorOnFail("Expected active admins to not contain RemoteDPC")
+                    .timeout(Duration.ofMinutes(5))
                     .await();
         }
     }
 
-    @UserTest({UserType.PRIMARY_USER, UserType.SECONDARY_USER, UserType.WORK_PROFILE})
+    @UserTest({UserType.PRIMARY_USER, UserType.SECONDARY_USER})
     @EnsureHasDeviceOwner
     @EnsureHasPermission(MANAGE_PROFILE_AND_DEVICE_OWNERS)
-    @Test
     @Postsubmit(reason = "new test")
     public void getDeviceOwnerNameOnAnyUser_returnsDeviceOwnerName() {
         assertThat(sDevicePolicyManager.getDeviceOwnerNameOnAnyUser())
                 .isEqualTo(sDeviceState.dpc().packageName());
     }
 
-    @UserTest({UserType.PRIMARY_USER, UserType.SECONDARY_USER, UserType.WORK_PROFILE})
+    @UserTest({UserType.PRIMARY_USER, UserType.SECONDARY_USER})
     @EnsureHasDeviceOwner
     @EnsureHasPermission(MANAGE_PROFILE_AND_DEVICE_OWNERS)
-    @Test
     @Postsubmit(reason = "new test")
     public void getDeviceOwnerComponentOnAnyUser_returnsDeviceOwnerComponent() {
         assertThat(sDevicePolicyManager.getDeviceOwnerComponentOnAnyUser())

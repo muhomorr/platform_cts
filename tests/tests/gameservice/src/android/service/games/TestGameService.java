@@ -19,9 +19,11 @@ package android.service.games;
 import static androidx.test.platform.app.InstrumentationRegistry.getInstrumentation;
 
 import android.Manifest;
+import android.util.Log;
 
 import androidx.annotation.GuardedBy;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 
 import java.util.Set;
@@ -31,6 +33,8 @@ import java.util.Set;
  * Test implementation of {@link GameService}.
  */
 public final class TestGameService extends GameService {
+    private static final String TAG = "TestGameService";
+
     private static final Object sLock = new Object();
     @GuardedBy("sLock")
     private static boolean sIsConnected = false;
@@ -53,7 +57,11 @@ public final class TestGameService extends GameService {
             sIsConnected = false;
         }
 
-        getInstrumentation().getUiAutomation().dropShellPermissionIdentity();
+        try {
+            getInstrumentation().getUiAutomation().dropShellPermissionIdentity();
+        } catch (IllegalStateException | SecurityException e) {
+            Log.w(TAG, "Failed to drop shell permission identity",  e);
+        }
     }
 
     @Override
@@ -67,13 +75,20 @@ public final class TestGameService extends GameService {
         }
     }
 
-    public static boolean isConnected() {
+    static void reset() {
+        synchronized (sLock) {
+            sIsConnected = false;
+        }
+        setGamePackages(ImmutableList.of());
+    }
+
+    static boolean isConnected() {
         synchronized (sLock) {
             return sIsConnected;
         }
     }
 
-    public static void setGamePackages(Iterable<String> gamePackages) {
+    static void setGamePackages(Iterable<String> gamePackages) {
         synchronized (sLock) {
             sGamePackages = ImmutableSet.copyOf(gamePackages);
         }
