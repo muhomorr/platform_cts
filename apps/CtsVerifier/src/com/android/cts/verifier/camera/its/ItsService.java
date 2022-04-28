@@ -34,8 +34,10 @@ import android.hardware.camera2.CameraManager;
 import android.hardware.camera2.CaptureFailure;
 import android.hardware.camera2.CaptureRequest;
 import android.hardware.camera2.CaptureResult;
+import android.hardware.camera2.CameraMetadata;
 import android.hardware.camera2.DngCreator;
 import android.hardware.camera2.TotalCaptureResult;
+import android.hardware.camera2.cts.CameraTestUtils;
 import android.hardware.camera2.cts.PerformanceTest;
 import android.hardware.camera2.params.InputConfiguration;
 import android.hardware.camera2.params.MeteringRectangle;
@@ -47,6 +49,7 @@ import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
 import android.media.AudioAttributes;
 import android.media.CamcorderProfile;
+import android.media.MediaRecorder;
 import android.media.Image;
 import android.media.ImageReader;
 import android.media.ImageWriter;
@@ -89,6 +92,7 @@ import org.junit.runner.Result;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
@@ -101,8 +105,10 @@ import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
 import java.nio.charset.Charset;
 import java.security.MessageDigest;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -219,6 +225,9 @@ public class ItsService extends Service implements SensorEventListener {
     private int mCaptureStatsGridWidth;
     private int mCaptureStatsGridHeight;
     private CaptureResult mCaptureResults[] = null;
+    private MediaRecorder mMediaRecorder;
+    private Surface mRecordSurface;
+    private CaptureRequest.Builder mCaptureRequestBuilder;
 
     private volatile ConditionVariable mInterlock3A = new ConditionVariable(true);
 
@@ -236,6 +245,23 @@ public class ItsService extends Service implements SensorEventListener {
         public int accuracy;
         public long timestamp;
         public float values[];
+    }
+
+    class VideoRecordingObject {
+        public String recordedOutputPath;
+        public String quality;
+        public Size videoSize;
+        public int videoFrameRate;
+        public int fileFormat;
+
+        public VideoRecordingObject(String recordedOutputPath,
+                String quality, Size videoSize, int videoFrameRate, int fileFormat) {
+            this.recordedOutputPath = recordedOutputPath;
+            this.quality = quality;
+            this.videoSize = videoSize;
+            this.videoFrameRate = videoFrameRate;
+            this.fileFormat = fileFormat;
+        }
     }
 
     // For capturing motion sensor traces.
@@ -752,6 +778,14 @@ public class ItsService extends Service implements SensorEventListener {
                 } else if ("getSupportedVideoQualities".equals(cmdObj.getString("cmdName"))) {
                     String cameraId = cmdObj.getString("cameraId");
                     doGetSupportedVideoQualities(cameraId);
+                } else if ("doBasicRecording".equals(cmdObj.getString("cmdName"))) {
+                    String cameraId = cmdObj.getString("cameraId");
+                    int profileId = cmdObj.getInt("profileId");
+                    String quality = cmdObj.getString("quality");
+                    int recordingDuration = cmdObj.getInt("recordingDuration");
+                    int videoStabilizationMode = cmdObj.getInt("videoStabilizationMode");
+                    doBasicRecording(cameraId, profileId, quality, recordingDuration,
+                            videoStabilizationMode);
                 } else {
                     throw new ItsException("Unknown command: " + cmd);
                 }
@@ -849,6 +883,20 @@ public class ItsService extends Service implements SensorEventListener {
                 mSerializerQueue.put(objs);
             } catch (InterruptedException e) {
                 throw new ItsException("Interrupted: ", e);
+            }
+        }
+
+        public void sendVideoRecordingObject(VideoRecordingObject obj)
+                throws ItsException {
+            try {
+                JSONObject videoJson = new JSONObject();
+                videoJson.put("recordedOutputPath", obj.recordedOutputPath);
+                videoJson.put("quality", obj.quality);
+                videoJson.put("videoFrameRate", obj.videoFrameRate);
+                videoJson.put("videoSize", obj.videoSize);
+                sendResponse("recordingResponse", null, videoJson, null);
+            } catch (org.json.JSONException e) {
+                throw new ItsException("JSON error: ", e);
             }
         }
 
@@ -1661,12 +1709,12 @@ public class ItsService extends Service implements SensorEventListener {
     private void doGetSupportedVideoQualities(String id) throws ItsException {
         int cameraId = Integer.parseInt(id);
         StringBuilder profiles = new StringBuilder();
-        appendSupportProfile(profiles, "480", CamcorderProfile.QUALITY_480P, cameraId);
-        appendSupportProfile(profiles, "1080", CamcorderProfile.QUALITY_1080P, cameraId);
-        appendSupportProfile(profiles, "2160", CamcorderProfile.QUALITY_2160P, cameraId);
+        appendSupportProfile(profiles, "480P", CamcorderProfile.QUALITY_480P, cameraId);
+        appendSupportProfile(profiles, "1080P", CamcorderProfile.QUALITY_1080P, cameraId);
+        appendSupportProfile(profiles, "2160P", CamcorderProfile.QUALITY_2160P, cameraId);
         appendSupportProfile(profiles, "2k", CamcorderProfile.QUALITY_2K, cameraId);
         appendSupportProfile(profiles, "4KDCI", CamcorderProfile.QUALITY_4KDCI, cameraId);
-        appendSupportProfile(profiles, "720", CamcorderProfile.QUALITY_720P, cameraId);
+        appendSupportProfile(profiles, "720P", CamcorderProfile.QUALITY_720P, cameraId);
         appendSupportProfile(profiles, "8KUHD", CamcorderProfile.QUALITY_8KUHD, cameraId);
         appendSupportProfile(profiles, "CIF", CamcorderProfile.QUALITY_CIF, cameraId);
         appendSupportProfile(profiles, "HIGH", CamcorderProfile.QUALITY_HIGH, cameraId);
@@ -1681,10 +1729,164 @@ public class ItsService extends Service implements SensorEventListener {
     private void appendSupportProfile(StringBuilder profiles, String name, int profile,
             int cameraId) {
         if (CamcorderProfile.hasProfile(cameraId, profile)) {
-            profiles.append(name).append(';');
+            profiles.append(name).append(':').append(profile).append(';');
         }
     }
 
+    private boolean isVideoStabilizationModeSupported(int mode) {
+        int[] videoStabilizationModes = mCameraCharacteristics.get(
+                CameraCharacteristics.CONTROL_AVAILABLE_VIDEO_STABILIZATION_MODES);
+        List<Integer> arrList = Arrays.asList(CameraTestUtils.toObject(videoStabilizationModes));
+        assert(videoStabilizationModes != null);
+        assert(arrList.contains(CameraMetadata.CONTROL_VIDEO_STABILIZATION_MODE_OFF));
+        Log.i(TAG, "videoStabilizationModes:" + Arrays.toString(videoStabilizationModes));
+        return arrList.contains(mode);
+    }
+
+    private void doBasicRecording(String cameraId, int profileId, String quality,
+            int recordingDuration, int videoStabilizationMode) throws ItsException {
+        int cameraDeviceId = Integer.parseInt(cameraId);
+        mMediaRecorder = new MediaRecorder();
+        CamcorderProfile camcorderProfile = getCamcorderProfile(cameraDeviceId, profileId);
+        assert(camcorderProfile != null);
+        boolean supportsVideoStabilizationMode = isVideoStabilizationModeSupported(
+                videoStabilizationMode);
+        if (!supportsVideoStabilizationMode) {
+            throw new ItsException("Device does not support video stabilization mode: " +
+                    videoStabilizationMode);
+        }
+        Size videoSize = new Size(camcorderProfile.videoFrameWidth,
+                camcorderProfile.videoFrameHeight);
+        int fileFormat = camcorderProfile.fileFormat;
+        String outputFilePath = getOutputMediaFile(cameraDeviceId, videoSize, quality, fileFormat);
+        assert(outputFilePath != null);
+        Log.i(TAG, "Video recording outputFilePath:"+ outputFilePath);
+        setupMediaRecorderWithProfile(cameraDeviceId, camcorderProfile, outputFilePath);
+        // Prepare MediaRecorder
+        try {
+            mMediaRecorder.prepare();
+        } catch (IOException e) {
+            throw new ItsException("Error preparing the MediaRecorder.");
+        }
+
+        mRecordSurface = mMediaRecorder.getSurface();
+        // Configure and create capture session.
+        try {
+            configureAndCreateCaptureSession(mRecordSurface, videoStabilizationMode);
+        } catch (android.hardware.camera2.CameraAccessException e) {
+            throw new ItsException("Access error: ", e);
+        }
+        // Start Recording
+        if (mMediaRecorder != null) {
+            Log.i(TAG, "Now recording video for quality: " + quality + " profile id: " +
+                profileId + " cameraId: " + cameraDeviceId + " size: " + videoSize);
+            mMediaRecorder.start();
+            try {
+                Thread.sleep(recordingDuration*1000); // recordingDuration is in seconds
+            } catch (InterruptedException e) {
+                throw new ItsException("Unexpected InterruptedException: ", e);
+            }
+            // Stop MediaRecorder
+            mMediaRecorder.stop();
+            mSession.close();
+            mMediaRecorder.reset();
+            mMediaRecorder.release();
+            mMediaRecorder = null;
+            if (mRecordSurface != null) {
+                mRecordSurface.release();
+                mRecordSurface = null;
+            }
+        }
+
+        Log.i(TAG, "Recording Done for quality: " + quality);
+
+        // Send VideoRecordingObject for further processing.
+        VideoRecordingObject obj = new VideoRecordingObject(outputFilePath,
+                quality, videoSize, camcorderProfile.videoFrameRate, fileFormat);
+        mSocketRunnableObj.sendVideoRecordingObject(obj);
+    }
+
+    private void configureAndCreateCaptureSession(Surface recordSurface, int videoStabilizationMode)
+            throws CameraAccessException{
+        assert(recordSurface != null);
+        // Create capture request builder
+        mCaptureRequestBuilder = mCamera.createCaptureRequest(CameraDevice.TEMPLATE_RECORD);
+        if (videoStabilizationMode == CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE_ON) {
+            mCaptureRequestBuilder.set(CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE,
+                    CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE_ON);
+            Log.i(TAG, "Turned ON video stabilization.");
+        }
+        mCaptureRequestBuilder.addTarget(recordSurface);
+        // Create capture session
+        mCamera.createCaptureSession(Arrays.asList(recordSurface),
+            new CameraCaptureSession.StateCallback() {
+                @Override
+                public void onConfigured(CameraCaptureSession session) {
+                    mSession = session;
+                    try {
+                        mSession.setRepeatingRequest(mCaptureRequestBuilder.build(), null, null);
+                    } catch (CameraAccessException e) {
+                        e.printStackTrace();
+                    }
+                }
+
+                @Override
+                public void onConfigureFailed(CameraCaptureSession session) {
+                    Log.i(TAG, "CameraCaptureSession configuration failed.");
+                }
+            }, mCameraHandler);
+    }
+
+    // Returns the default camcorder profile for the given camera at the given quality level
+    // Each CamcorderProfile has duration, quality, fileFormat, videoCodec, videoBitRate,
+    // videoFrameRate,videoWidth, videoHeight, audioCodec, audioBitRate, audioSampleRate
+    // and audioChannels.
+    private CamcorderProfile getCamcorderProfile(int cameraId, int profileId) {
+        CamcorderProfile camcorderProfile = CamcorderProfile.get(cameraId, profileId);
+        return camcorderProfile;
+    }
+
+    // This method should be called before preparing MediaRecorder.
+    // Set video and audio source should be done before setting the CamcorderProfile.
+    // Output file path should be set after setting the CamcorderProfile.
+    // These events should always be done in this particular order.
+    private void setupMediaRecorderWithProfile(int cameraId, CamcorderProfile camcorderProfile,
+            String outputFilePath) {
+        mMediaRecorder.setVideoSource(MediaRecorder.VideoSource.SURFACE);
+        mMediaRecorder.setAudioSource(MediaRecorder.AudioSource.DEFAULT);
+        mMediaRecorder.setProfile(camcorderProfile);
+        mMediaRecorder.setOutputFile(outputFilePath);
+    }
+
+    private String getOutputMediaFile(int cameraId, Size videoSize, String quality,
+            int fileFormat) {
+        // If any quality has file format other than 3gp and webm then the
+        // recording file will have mp4 as default extension.
+        String fileExtension = "";
+        if (fileFormat == MediaRecorder.OutputFormat.THREE_GPP) {
+            fileExtension = ".3gp";
+        } else if (fileFormat == MediaRecorder.OutputFormat.WEBM) {
+            fileExtension = ".webm";
+        } else {
+            fileExtension = ".mp4";
+        }
+        // All the video recordings will be available in VideoITS directory on device.
+        File mediaStorageDir = new File(getExternalFilesDir(null), "VideoITS");
+        if (mediaStorageDir == null) {
+            Log.e(TAG, "Failed to retrieve external files directory.");
+            return null;
+        }
+        if (!mediaStorageDir.exists()) {
+            if (!mediaStorageDir.mkdirs()) {
+                Log.d(TAG, "Failed to create media storage directory.");
+                return null;
+            }
+        }
+        String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
+        File mediaFile = new File(mediaStorageDir.getPath() + File.separator +
+            "VID_" + timestamp + '_' + cameraId + '_' + quality + '_' + videoSize);
+        return mediaFile + fileExtension;
+    }
 
     private void doCapture(JSONObject params) throws ItsException {
         try {
