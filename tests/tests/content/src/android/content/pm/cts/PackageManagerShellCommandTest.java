@@ -61,7 +61,6 @@ import android.content.pm.Signature;
 import android.content.pm.SigningInfo;
 import android.content.pm.cts.util.AbandonAllPackageSessionsRule;
 import android.os.Bundle;
-import android.os.ConditionVariable;
 import android.os.IBinder;
 import android.os.ParcelFileDescriptor;
 import android.os.Process;
@@ -70,6 +69,7 @@ import android.platform.test.annotations.AppModeFull;
 import android.util.PackageUtils;
 
 import androidx.test.InstrumentationRegistry;
+import androidx.test.filters.LargeTest;
 
 import com.android.internal.util.ConcurrentUtils;
 import com.android.internal.util.HexDump;
@@ -99,9 +99,13 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @RunWith(Parameterized.class)
@@ -1213,7 +1217,10 @@ public class PackageManagerShellCommandTest {
             onBroadcastThread.set(thread);
         });
 
-        onBroadcastThread.get().join();
+        final Thread thread = onBroadcastThread.get();
+        if (thread != null) {
+            thread.join();
+        }
     }
 
     private void runPackageVerifierTestSync(String expectedResultStartsWith,
@@ -1472,28 +1479,51 @@ public class PackageManagerShellCommandTest {
         assertEquals(pm.getSdkSandboxPackageName(), names[0]);
     }
 
+    @LargeTest
+    @Test
+    public void testCreateUserCurAsType() throws Exception {
+        Pattern pattern = Pattern.compile("Success: created user id (\\d+)\\R*");
+        String commandResult = executeShellCommand("pm create-user --profileOf cur "
+                + "--user-type android.os.usertype.profile.CLONE test");
+        Matcher matcher = pattern.matcher(commandResult);
+        assertTrue(matcher.find());
+        commandResult = executeShellCommand("pm remove-user " + matcher.group(1));
+        assertEquals("Success: removed user\n", commandResult);
+        commandResult = executeShellCommand("pm create-user --profileOf current "
+                + "--user-type android.os.usertype.profile.CLONE test");
+        matcher = pattern.matcher(commandResult);
+        assertTrue(matcher.find());
+        commandResult = executeShellCommand("pm remove-user " + matcher.group(1));
+        assertEquals("Success: removed user\n", commandResult);
+    }
+
     static class FullyRemovedBroadcastReceiver extends BroadcastReceiver {
         private final String mTargetPackage;
         private final int mTargetUserId;
-        private final ConditionVariable mUserReceivedBroadcast;
+        private final CompletableFuture<Boolean> mUserReceivedBroadcast = new CompletableFuture<>();
         FullyRemovedBroadcastReceiver(String packageName, int targetUserId) {
             mTargetPackage = packageName;
             mTargetUserId = targetUserId;
-            mUserReceivedBroadcast = new ConditionVariable();
-            mUserReceivedBroadcast.close();
         }
         @Override
         public void onReceive(Context context, Intent intent) {
-            context.unregisterReceiver(this);
             final String packageName = intent.getData().getEncodedSchemeSpecificPart();
             final int userId = context.getUserId();
             if (intent.getAction().equals(Intent.ACTION_PACKAGE_FULLY_REMOVED)
                     && packageName.equals(mTargetPackage) && userId == mTargetUserId) {
-                mUserReceivedBroadcast.open();
+                mUserReceivedBroadcast.complete(true);
+                context.unregisterReceiver(this);
             }
         }
-        public boolean isBroadcastReceived() {
-            return mUserReceivedBroadcast.block(2000);
+        public void assertBroadcastReceived() throws Exception {
+            assertTrue(mUserReceivedBroadcast.get(2, TimeUnit.SECONDS));
+        }
+        public void assertBroadcastNotReceived() throws Exception {
+            try {
+                assertFalse(mUserReceivedBroadcast.get(2, TimeUnit.SECONDS));
+            } catch (TimeoutException ignored) {
+                // expected
+            }
         }
     }
 
