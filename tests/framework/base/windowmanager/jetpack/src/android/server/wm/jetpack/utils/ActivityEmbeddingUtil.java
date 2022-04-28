@@ -16,6 +16,7 @@
 
 package android.server.wm.jetpack.utils;
 
+import static android.server.wm.jetpack.utils.ExtensionUtil.getWindowExtensions;
 import static android.server.wm.jetpack.utils.WindowManagerJetpackTestBase.getActivityBounds;
 import static android.server.wm.jetpack.utils.WindowManagerJetpackTestBase.getMaximumActivityBounds;
 import static android.server.wm.jetpack.utils.WindowManagerJetpackTestBase.getResumedActivityById;
@@ -32,6 +33,7 @@ import android.app.Activity;
 import android.content.ComponentName;
 import android.content.Intent;
 import android.graphics.Rect;
+import android.os.Bundle;
 import android.util.LayoutDirection;
 import android.util.Log;
 import android.util.Pair;
@@ -39,9 +41,12 @@ import android.view.WindowMetrics;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.window.extensions.embedding.ActivityEmbeddingComponent;
 import androidx.window.extensions.embedding.SplitInfo;
 import androidx.window.extensions.embedding.SplitPairRule;
 import androidx.window.extensions.embedding.SplitRule;
+
+import com.android.compatibility.common.util.PollingCheck;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -56,6 +61,7 @@ public class ActivityEmbeddingUtil {
     public static final String TAG = "ActivityEmbeddingTests";
     public static final long WAIT_FOR_LIFECYCLE_TIMEOUT_MS = 3000;
     public static final float DEFAULT_SPLIT_RATIO = 0.5f;
+    public static final float UNEVEN_CONTAINERS_DEFAULT_SPLIT_RATIO = 0.7f;
     public static final String EMBEDDED_ACTIVITY_ID = "embedded_activity_id";
 
     @NonNull
@@ -86,7 +92,7 @@ public class ActivityEmbeddingUtil {
         startActivityFromActivity(activityLaunchingFrom, TestActivityWithId.class,
                 secondActivityId);
         // Verify both activities are in the correct lifecycle state
-        waitForResumed(secondActivityId);
+        waitAndAssertResumed(secondActivityId);
         assertFalse(isActivityResumed(activityLaunchingFrom));
         TestActivity secondActivity = getResumedActivityById(secondActivityId);
         // Verify the second activity is not split with the first
@@ -96,16 +102,17 @@ public class ActivityEmbeddingUtil {
 
     public static Activity startActivityAndVerifySplit(@NonNull Activity activityLaunchingFrom,
             @NonNull Activity expectedPrimaryActivity, @NonNull Class secondActivityClass,
-            @NonNull SplitPairRule splitPairRule, @NonNull String secondActivityId,
+            @NonNull SplitPairRule splitPairRule, @NonNull String secondaryActivityId,
             int expectedCallbackCount,
             @NonNull TestValueCountConsumer<List<SplitInfo>> splitInfoConsumer) {
         // Set the expected callback count
         splitInfoConsumer.setCount(expectedCallbackCount);
 
         // Start second activity
-        startActivityFromActivity(activityLaunchingFrom, secondActivityClass, secondActivityId);
+        startActivityFromActivity(activityLaunchingFrom, secondActivityClass, secondaryActivityId);
 
-        // Get updated split info
+        // A split info callback should occur after the new activity is launched because the split
+        // states have changed.
         List<SplitInfo> activeSplitStates = null;
         try {
             activeSplitStates = splitInfoConsumer.waitAndGet();
@@ -113,15 +120,17 @@ public class ActivityEmbeddingUtil {
             fail("startActivityAndVerifySplit() InterruptedException");
         }
 
-        // Get second activity from split info
-        Activity secondActivity = getSecondActivity(activeSplitStates, expectedPrimaryActivity,
-                secondActivityId);
-        assertNotNull(secondActivity);
+        // Wait for secondary activity to be resumed and verify that the newly sent split info
+        // contains the secondary activity.
+        waitAndAssertResumed(secondaryActivityId);
+        final Activity secondaryActivity = getResumedActivityById(secondaryActivityId);
+        assertTrue(splitInfoTopSplitIsCorrect(activeSplitStates, expectedPrimaryActivity,
+                secondaryActivity));
 
-        assertValidSplit(expectedPrimaryActivity, secondActivity, splitPairRule);
+        assertValidSplit(expectedPrimaryActivity, secondaryActivity, splitPairRule);
 
         // Return second activity for easy access in calling method
-        return secondActivity;
+        return secondaryActivity;
     }
 
     public static Activity startActivityAndVerifySplit(@NonNull Activity primaryActivity,
@@ -149,7 +158,8 @@ public class ActivityEmbeddingUtil {
             @NonNull ComponentName secondActivityComponent, @NonNull SplitPairRule splitPairRule,
             @NonNull TestValueCountConsumer<List<SplitInfo>> splitInfoConsumer,
             @NonNull String secondActivityId, boolean verifySplitState) {
-        startActivityFromActivity(primaryActivity, secondActivityComponent, secondActivityId);
+        startActivityFromActivity(primaryActivity, secondActivityComponent, secondActivityId,
+                Bundle.EMPTY);
         if (!verifySplitState) {
             return;
         }
@@ -186,13 +196,22 @@ public class ActivityEmbeddingUtil {
             @NonNull TestValueCountConsumer<List<SplitInfo>> splitInfoConsumer) {
         boolean startExceptionObserved = false;
         try {
-            startActivityFromActivity(primaryActivity, secondActivityComponent, "secondActivityId");
+            startActivityFromActivity(primaryActivity, secondActivityComponent, "secondActivityId",
+                    Bundle.EMPTY);
         } catch (SecurityException e) {
             startExceptionObserved = true;
         }
         assertTrue(startExceptionObserved);
 
         // No split should be active, primary activity should be covered by the new one.
+        assertNoSplit(primaryActivity, splitInfoConsumer);
+    }
+
+    /**
+     * Asserts that there is no split with the provided primary activity.
+     */
+    public static void assertNoSplit(@NonNull Activity primaryActivity,
+            @NonNull TestValueCountConsumer<List<SplitInfo>> splitInfoConsumer) {
         waitForVisible(primaryActivity, false /* visible */);
         List<SplitInfo> activeSplitStates = splitInfoConsumer.getLastReportedValue();
         assertTrue(activeSplitStates == null || activeSplitStates.isEmpty());
@@ -229,7 +248,7 @@ public class ActivityEmbeddingUtil {
      */
     public static void assertValidSplit(@NonNull Activity primaryActivity,
             @Nullable Activity secondaryActivity, SplitRule splitRule) {
-        waitForResumed(secondaryActivity != null
+        waitAndAssertResumed(secondaryActivity != null
                 ? Arrays.asList(primaryActivity, secondaryActivity)
                 : Collections.singletonList(primaryActivity));
 
@@ -239,14 +258,22 @@ public class ActivityEmbeddingUtil {
             layoutDir = primaryActivity.getResources().getConfiguration().getLayoutDirection();
         }
 
+        // Compute the expected bounds
         final float splitRatio = splitRule.getSplitRatio();
         final Rect parentBounds = getMaximumActivityBounds(primaryActivity);
         final Rect expectedPrimaryActivityBounds = new Rect();
         final Rect expectedSecondaryActivityBounds = new Rect();
         getExpectedPrimaryAndSecondaryBounds(layoutDir, splitRatio, parentBounds,
                 expectedPrimaryActivityBounds, expectedSecondaryActivityBounds);
+
+        final ActivityEmbeddingComponent activityEmbeddingComponent = getWindowExtensions()
+                .getActivityEmbeddingComponent();
+
+        // Verify that both activities are embedded and that the bounds are correct
+        assertTrue(activityEmbeddingComponent.isActivityEmbedded(primaryActivity));
         assertEquals(expectedPrimaryActivityBounds, getActivityBounds(primaryActivity));
         if (secondaryActivity != null) {
+            assertTrue(activityEmbeddingComponent.isActivityEmbedded(secondaryActivity));
             assertEquals(expectedSecondaryActivityBounds, getActivityBounds(secondaryActivity));
         }
     }
@@ -255,7 +282,12 @@ public class ActivityEmbeddingUtil {
         assertEquals(getMaximumActivityBounds(activity), getActivityBounds(activity));
     }
 
-    public static boolean waitForResumed(
+    public static void waitForFillsTask(Activity activity) {
+        PollingCheck.waitFor(WAIT_FOR_LIFECYCLE_TIMEOUT_MS, () -> getActivityBounds(activity)
+                .equals(getMaximumActivityBounds(activity)));
+    }
+
+    private static boolean waitForResumed(
             @NonNull List<Activity> activityList) {
         final long startTime = System.currentTimeMillis();
         while (System.currentTimeMillis() - startTime < WAIT_FOR_LIFECYCLE_TIMEOUT_MS) {
@@ -273,7 +305,7 @@ public class ActivityEmbeddingUtil {
         return false;
     }
 
-    public static boolean waitForResumed(@NonNull String activityId) {
+    private static boolean waitForResumed(@NonNull String activityId) {
         final long startTime = System.currentTimeMillis();
         while (System.currentTimeMillis() - startTime < WAIT_FOR_LIFECYCLE_TIMEOUT_MS) {
             if (getResumedActivityById(activityId) != null) {
@@ -281,6 +313,29 @@ public class ActivityEmbeddingUtil {
             }
         }
         return false;
+    }
+
+    private static boolean waitForResumed(@NonNull Activity activity) {
+        return waitForResumed(Arrays.asList(activity));
+    }
+
+    public static void waitAndAssertResumed(@NonNull String activityId) {
+        assertTrue("Activity with id=" + activityId + " should be resumed",
+                waitForResumed(activityId));
+    }
+
+    public static void waitAndAssertResumed(@NonNull Activity activity) {
+        assertTrue(activity + " should be resumed", waitForResumed(activity));
+    }
+
+    public static void waitAndAssertResumed(@NonNull List<Activity> activityList) {
+        assertTrue("All activities in this list should be resumed:" + activityList,
+                waitForResumed(activityList));
+    }
+
+    public static void waitAndAssertNotResumed(@NonNull String activityId) {
+        assertFalse("Activity with id=" + activityId + " should not be resumed",
+                waitForResumed(activityId));
     }
 
     public static boolean waitForVisible(@NonNull Activity activity, boolean visible) {
@@ -293,11 +348,12 @@ public class ActivityEmbeddingUtil {
         return false;
     }
 
-    public static boolean waitForResumed(@NonNull Activity activity) {
-        return waitForResumed(Arrays.asList(activity));
+    public static void waitAndAssertNotVisible(@NonNull Activity activity) {
+        assertTrue(activity + " should not be visible",
+                waitForVisible(activity, false /* visible */));
     }
 
-    public static boolean waitForFinishing(@NonNull Activity activity) {
+    private static boolean waitForFinishing(@NonNull Activity activity) {
         final long startTime = System.currentTimeMillis();
         while (System.currentTimeMillis() - startTime < WAIT_FOR_LIFECYCLE_TIMEOUT_MS) {
             if (activity.isFinishing()) {
@@ -305,6 +361,10 @@ public class ActivityEmbeddingUtil {
             }
         }
         return activity.isFinishing();
+    }
+
+    public static void waitAndAssertFinishing(@NonNull Activity activity) {
+        assertTrue(activity + " should be finishing", waitForFinishing(activity));
     }
 
     @Nullable
@@ -329,23 +389,43 @@ public class ActivityEmbeddingUtil {
     public static void getExpectedPrimaryAndSecondaryBounds(int layoutDir, float splitRatio,
             @NonNull Rect inParentBounds, @NonNull Rect outPrimaryActivityBounds,
             @NonNull Rect outSecondaryActivityBounds) {
-        final int expectedPrimaryWidth = (int) (inParentBounds.width() * splitRatio);
-        final int expectedSecondaryWidth = (int) (inParentBounds.width() * (1 - splitRatio));
+        assertTrue(layoutDir == LayoutDirection.LTR || layoutDir == LayoutDirection.RTL);
 
-        outPrimaryActivityBounds.set(inParentBounds);
-        outSecondaryActivityBounds.set(inParentBounds);
+        // Normalize the split ratio so that parent left + (parent width * split ratio) is always
+        // the position of the split divider in the parent.
+        if (layoutDir == LayoutDirection.RTL) {
+            splitRatio = 1 - splitRatio;
+        }
+
+        // Create the left and right container bounds
+        final Rect leftContainerBounds = new Rect(inParentBounds.left, inParentBounds.top,
+                (int) (inParentBounds.left + inParentBounds.width() * splitRatio),
+                inParentBounds.bottom);
+        final Rect rightContainerBounds = new Rect(
+                (int) (inParentBounds.left + inParentBounds.width() * splitRatio),
+                inParentBounds.top, inParentBounds.right, inParentBounds.bottom);
+
+        // Assign the primary and secondary bounds depending on layout direction
         if (layoutDir == LayoutDirection.LTR) {
             /*******************|*********************
              * primary activity | secondary activity *
              *******************|*********************/
-            outPrimaryActivityBounds.right = inParentBounds.left + expectedPrimaryWidth;
-            outSecondaryActivityBounds.left = inParentBounds.right - expectedSecondaryWidth;
+            outPrimaryActivityBounds.set(leftContainerBounds);
+            outSecondaryActivityBounds.set(rightContainerBounds);
         } else {
             /*********************|*******************
              * secondary activity | primary activity *
              *********************|*******************/
-            outPrimaryActivityBounds.left = inParentBounds.right - expectedPrimaryWidth;
-            outSecondaryActivityBounds.right = inParentBounds.left + expectedSecondaryWidth;
+            outPrimaryActivityBounds.set(rightContainerBounds);
+            outSecondaryActivityBounds.set(leftContainerBounds);
         }
+    }
+
+    private static boolean splitInfoTopSplitIsCorrect(@NonNull List<SplitInfo> splitInfoList,
+            @NonNull Activity primaryActivity, @NonNull Activity secondaryActivity) {
+        assertFalse("Split info callback should not be empty", splitInfoList.isEmpty());
+        final SplitInfo topSplit = splitInfoList.get(splitInfoList.size() - 1);
+        return primaryActivity.equals(getPrimaryStackTopActivity(topSplit))
+                && secondaryActivity.equals(getSecondaryStackTopActivity(topSplit));
     }
 }
