@@ -25,6 +25,8 @@ import android.media.AudioFormat;
 import android.media.Image;
 import android.media.MediaCodec;
 import android.media.MediaCodecInfo;
+import android.media.MediaCodecInfo.CodecCapabilities;
+import android.media.MediaCodecInfo.CodecProfileLevel;
 import android.media.MediaCodecList;
 import android.media.MediaExtractor;
 import android.media.MediaFormat;
@@ -581,9 +583,13 @@ class OutputManager {
 
 abstract class CodecTestBase {
     public static final boolean IS_AT_LEAST_R = ApiLevelUtil.isAtLeast(Build.VERSION_CODES.R);
-    // TODO (b/223868241) Update the following two to check for Build.VERSION_CODES.TIRAMISU once
+    // Checking for CODENAME helps in cases when build version on the development branch isn't
+    // updated yet but CODENAME is updated.
+    public static final boolean IS_AT_LEAST_T =
+            ApiLevelUtil.isAtLeast(Build.VERSION_CODES.TIRAMISU) ||
+                    ApiLevelUtil.codenameEquals("Tiramisu");
+    // TODO (b/223868241) Update the following to check for Build.VERSION_CODES.TIRAMISU once
     // TIRAMISU is set correctly
-    public static final boolean IS_AT_LEAST_T = ApiLevelUtil.isAfter(Build.VERSION_CODES.S_V2);
     public static final boolean FIRST_SDK_IS_AT_LEAST_T =
             ApiLevelUtil.isFirstApiAfter(Build.VERSION_CODES.S_V2);
     private static final String LOG_TAG = CodecTestBase.class.getSimpleName();
@@ -595,6 +601,7 @@ abstract class CodecTestBase {
     }
 
     static final String CODEC_PREFIX_KEY = "codec-prefix";
+    static final String MEDIA_TYPE_PREFIX_KEY = "media-type-prefix";
     static final String MIME_SEL_KEY = "mime-sel";
     static final Map<String, String> codecSelKeyMimeMap = new HashMap<>();
     static final Map<String, String> mDefaultEncoders = new HashMap<>();
@@ -649,6 +656,7 @@ abstract class CodecTestBase {
     static final PackageManager pm = mContext.getPackageManager();
     static String mimeSelKeys;
     static String codecPrefix;
+    static String mediaTypePrefix;
 
     CodecAsyncHandler mAsyncHandle;
     boolean mIsCodecInAsyncMode;
@@ -696,6 +704,7 @@ abstract class CodecTestBase {
         android.os.Bundle args = InstrumentationRegistry.getArguments();
         mimeSelKeys = args.getString(MIME_SEL_KEY);
         codecPrefix = args.getString(CODEC_PREFIX_KEY);
+        mediaTypePrefix = args.getString(MEDIA_TYPE_PREFIX_KEY);
 
         mProfileSdrMap.put(MediaFormat.MIMETYPE_VIDEO_AVC, AVC_SDR_PROFILES);
         mProfileSdrMap.put(MediaFormat.MIMETYPE_VIDEO_HEVC, HEVC_SDR_PROFILES);
@@ -761,9 +770,11 @@ abstract class CodecTestBase {
                     break;
                 case CODEC_OPTIONAL:
                 default:
-                    Assume.assumeTrue("format(s) not supported by codec: " + codecName +
-                            " for mime : " + mime, false);
+                    // the later assumeTrue() ensures we skip the test for unsupported codecs
+                    break;
             }
+            Assume.assumeTrue("format(s) not supported by codec: " + codecName + " for mime : " +
+                    mime, false);
         }
     }
 
@@ -783,6 +794,30 @@ abstract class CodecTestBase {
                 assertEquals(mime, format.getString(MediaFormat.KEY_MIME));
                 int profile = format.getInteger(MediaFormat.KEY_PROFILE, -1);
                 if (IntStream.of(profileArray).anyMatch(x -> x == profile)) return true;
+            }
+        }
+        return false;
+    }
+
+    static boolean doesCodecSupportHDRProfile(String codecName, String mediaType)
+            throws IOException {
+        int[] hdrProfiles = mProfileHdrMap.get(mediaType);
+        if (hdrProfiles == null) {
+            return false;
+        }
+        MediaCodecList mcl = new MediaCodecList(MediaCodecList.REGULAR_CODECS);
+        for (MediaCodecInfo codecInfo : mcl.getCodecInfos()) {
+            if (!codecName.equals(codecInfo.getName())) {
+                continue;
+            }
+            CodecCapabilities caps = codecInfo.getCapabilitiesForType(mediaType);
+            if (caps == null) {
+                return false;
+            }
+            for (CodecProfileLevel pl : caps.profileLevels) {
+                if (IntStream.of(hdrProfiles).anyMatch(x -> x == pl.profile)) {
+                    return true;
+                }
             }
         }
         return false;
@@ -922,12 +957,18 @@ abstract class CodecTestBase {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && codecInfo.isAlias()) continue;
                 String[] types = codecInfo.getSupportedTypes();
                 for (String type : types) {
+                    if (mediaTypePrefix != null && !type.startsWith(mediaTypePrefix)) {
+                        continue;
+                    }
                     if (!needAudio && type.startsWith("audio/")) continue;
                     if (!needVideo && type.startsWith("video/")) continue;
                     if (!mimes.contains(type)) {
                         mimes.add(type);
                     }
                 }
+            }
+            if (mediaTypePrefix != null) {
+                return mimes;
             }
             // feature_video_output is not exposed to package manager. Testing for video output
             // ports, such as VGA, HDMI, DisplayPort, or a wireless port for display is also not
