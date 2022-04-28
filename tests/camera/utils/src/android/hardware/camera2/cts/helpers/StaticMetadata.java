@@ -798,12 +798,12 @@ public class StaticMetadata {
      *
      * @return the available dynamic range profiles
      */
-    public Set<Integer> getAvailableDynamicRangeProfilesChecked() {
+    public Set<Long> getAvailableDynamicRangeProfilesChecked() {
         DynamicRangeProfiles profiles = mCharacteristics.get(
                 CameraCharacteristics.REQUEST_AVAILABLE_DYNAMIC_RANGE_PROFILES);
 
         if (profiles == null) {
-            return new ArraySet<Integer>();
+            return new ArraySet<Long>();
         }
 
         return profiles.getSupportedProfiles();
@@ -2731,6 +2731,24 @@ public class StaticMetadata {
      */
     public boolean isActivePhysicalCameraIdSupported() {
         return areKeysAvailable(CaptureResult.LOGICAL_MULTI_CAMERA_ACTIVE_PHYSICAL_ID);
+    }
+
+    /**
+     * Check if preview stabilization is supported.
+     */
+    public boolean isPreviewStabilizationSupported() {
+        int[] videoStabilizationModes = getAvailableVideoStabilizationModesChecked();
+        return CameraTestUtils.contains(videoStabilizationModes,
+                CameraMetadata.CONTROL_VIDEO_STABILIZATION_MODE_PREVIEW_STABILIZATION);
+    }
+
+    /**
+     * Check if stream use case is supported
+     */
+    public boolean isStreamUseCaseSupported() {
+        List<Integer> availableCapabilities = getAvailableCapabilitiesChecked();
+        return (availableCapabilities.contains(
+                CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES_STREAM_USE_CASE));
     }
 
     /**
