@@ -56,6 +56,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 
@@ -169,6 +170,8 @@ public class StrictJavaPackagesTest extends BaseHostJUnit4Test {
                     "Landroid/gsi/IProgressCallback;",
                     "Landroid/gsi/MappedImage;",
                     "Landroid/gui/TouchOcclusionMode;",
+                    // TODO(b/227752875): contexthub V1 APIs can be removed
+                    // from T+ with the fix in aosp/2050305.
                     "Landroid/hardware/contexthub/V1_0/AsyncEventType;",
                     "Landroid/hardware/contexthub/V1_0/ContextHub;",
                     "Landroid/hardware/contexthub/V1_0/ContextHubMsg;",
@@ -707,6 +710,8 @@ public class StrictJavaPackagesTest extends BaseHostJUnit4Test {
         new ImmutableMap.Builder<String, ImmutableSet<String>>()
             .put("/apex/com.android.bluetooth/app/Bluetooth/Bluetooth.apk",
                 BLUETOOTH_APK_IN_APEX_BURNDOWN_LIST)
+            .put("/apex/com.android.bluetooth/app/BluetoothGoogle/BluetoothGoogle.apk",
+                BLUETOOTH_APK_IN_APEX_BURNDOWN_LIST)
             .put("/apex/com.android.permission/priv-app/PermissionController/PermissionController.apk",
                 PERMISSION_CONTROLLER_APK_IN_APEX_BURNDOWN_LIST)
             .put("/apex/com.android.permission/priv-app/GooglePermissionController/GooglePermissionController.apk",
@@ -732,6 +737,7 @@ public class StrictJavaPackagesTest extends BaseHostJUnit4Test {
             .put("/apex/com.android.cellbroadcast/priv-app/CellBroadcastServiceModule/CellBroadcastServiceModule.apk",
                 CELLBROADCAST_APK_IN_APEX_BURNDOWN_LIST)
             .build();
+
     /**
      * Fetch all jar files in BCP, SSCP and shared libs and extract all the classes.
      *
@@ -757,6 +763,7 @@ public class StrictJavaPackagesTest extends BaseHostJUnit4Test {
                 .filter(file -> doesFileExist(file, testInfo.getDevice()))
                 // GmsCore should not contribute to *classpath.
                 .filter(file -> !file.contains("GmsCore"))
+                .filter(file -> !file.contains("com.google.android.gms"))
                 .collect(ImmutableList.toImmutableList());
 
         final ImmutableSetMultimap.Builder<String, String> jarsToClasses =
@@ -949,6 +956,11 @@ public class StrictJavaPackagesTest extends BaseHostJUnit4Test {
                                 Classpaths.getClassDefsFromJar(getDevice(), apk).stream()
                                         .map(ClassDef::getType)
                                         .collect(ImmutableSet.toImmutableSet());
+                        // b/226559955: The directory paths containing APKs contain the build ID,
+                        // so strip out the @BUILD_ID portion.
+                        // e.g. /apex/com.android.bluetooth/app/Bluetooth@SC-DEV/Bluetooth.apk ->
+                        //      /apex/com.android.bluetooth/app/Bluetooth/Bluetooth.apk
+                        apk = apk.replaceFirst("@[^/]*", "");
                         final ImmutableSet<String> burndownClasses =
                                 FULL_APK_IN_APEX_BURNDOWN.getOrDefault(apk, ImmutableSet.of());
                         final Multimap<String, String> duplicates =
@@ -968,6 +980,45 @@ public class StrictJavaPackagesTest extends BaseHostJUnit4Test {
                     }
                 });
         assertThat(perApkClasspathDuplicates).isEmpty();
+    }
+
+    /**
+     * Ensure that there are no androidx dependencies in BOOTCLASSPATH, SYSTEMSERVERCLASSPATH
+     * and shared library jars.
+     */
+    @Test
+    public void testBootClasspathAndSystemServerClasspathAndSharedLibs_noAndroidxDependencies() {
+        // WARNING: Do not add more exceptions here, no androidx should be in bootclasspath.
+        // See go/androidx-api-guidelines#module-naming for more details.
+        final ImmutableMap<String, ImmutableSet<String>>
+                LegacyExemptAndroidxSharedLibsJarToClasses =
+                new ImmutableMap.Builder<String, ImmutableSet<String>>()
+                .put("/vendor/framework/androidx.camera.extensions.impl.jar",
+                    ImmutableSet.of("Landroidx/camera/extensions/impl/"))
+                .put("/system_ext/framework/androidx.window.extensions.jar",
+                    ImmutableSet.of("Landroidx/window/common/", "Landroidx/window/extensions/",
+                        "Landroidx/window/util/"))
+                .put("/system_ext/framework/androidx.window.sidecar.jar",
+                    ImmutableSet.of("Landroidx/window/common/", "Landroidx/window/sidecar",
+                        "Landroidx/window/util"))
+                .build();
+        assertWithMessage("There must not be any androidx classes on the "
+            + "bootclasspath. Please use alternatives provided by the platform instead. "
+            + "See go/androidx-api-guidelines#module-naming.")
+                .that(sJarsToClasses.entries().stream()
+                        .filter(e -> e.getValue().startsWith("Landroidx/"))
+                        .filter(e -> !isLegacyAndroidxDependency(
+                            LegacyExemptAndroidxSharedLibsJarToClasses, e.getKey(), e.getValue()))
+                        .collect(Collectors.toList())
+                ).isEmpty();
+    }
+
+    private boolean isLegacyAndroidxDependency(
+            ImmutableMap<String, ImmutableSet<String>> legacyExemptAndroidxSharedLibsJarToClasses,
+            String jar, String className) {
+        return legacyExemptAndroidxSharedLibsJarToClasses.containsKey(jar)
+                && legacyExemptAndroidxSharedLibsJarToClasses.get(jar).stream().anyMatch(
+                        v -> className.startsWith(v));
     }
 
     private String[] collectApkInApexPaths() {
