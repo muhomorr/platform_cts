@@ -87,7 +87,9 @@ public final class Processor extends AbstractProcessor {
             "android.app.Activity",
             "android.content.Context",
             "android.content.ContentResolver",
-            "android.security.KeyChain"
+            "android.security.KeyChain",
+            "android.bluetooth.BluetoothManager",
+            "android.bluetooth.BluetoothAdapter"
     };
 
     private static final String PARENT_PROFILE_INSTANCE =
@@ -95,6 +97,10 @@ public final class Processor extends AbstractProcessor {
                     + ".content.ComponentName)";
     private static final String GET_CONTENT_RESOLVER =
             "public android.content.ContentResolver getContentResolver()";
+    private static final String GET_ADAPTER =
+            "public android.bluetooth.BluetoothAdapter getAdapter()";
+    private static final String GET_DEFAULT_ADAPTER =
+            "public static android.bluetooth.BluetoothAdapter getDefaultAdapter()";
 
     private static final Set<String> BLOCKLISTED_METHODS = ImmutableSet.of(
             // DevicePolicyManager
@@ -111,7 +117,38 @@ public final class Processor extends AbstractProcessor {
                     + ".Uri, java.util.concurrent.Executor, android.app.admin.DevicePolicyManager"
                     + ".InstallSystemUpdateCallback)",
 
-            // WifiManager
+            // Uses Drawable
+            "public android.graphics.drawable.Drawable getDrawable(@NonNull String, @NonNull "
+                    + "String, @NonNull java.util.concurrent.Callable<"
+                    + "android.graphics.drawable.Drawable>)",
+            "public android.graphics.drawable.Drawable getDrawable(@NonNull String, @NonNull "
+                    + "String, @NonNull java.util.concurrent.Callable<"
+                    + "android.graphics.drawable.Drawable>)",
+            "public android.graphics.drawable.Drawable getDrawable(@NonNull String, @NonNull "
+                    + "String, @NonNull String, @NonNull java.util.concurrent.Callable<"
+                    + "android.graphics.drawable.Drawable>)",
+            "public android.graphics.drawable.Drawable getDrawableForDensity(@NonNull String, "
+                    + "@NonNull String, int, @NonNull java.util.concurrent.Callable<"
+                    + "android.graphics.drawable.Drawable>)",
+            "public android.graphics.drawable.Drawable getDrawableForDensity(@NonNull String, "
+                    + "@NonNull String, @NonNull String, int, @NonNull "
+                    + "java.util.concurrent.Callable<android.graphics.drawable.Drawable>)",
+            "public android.graphics.drawable.Drawable getDrawable(@NonNull String, "
+                    + "@NonNull String, "
+                    + "@NonNull java.util.function.Supplier<android.graphics.drawable.Drawable>)",
+            "public android.graphics.drawable.Drawable getDrawable(@NonNull String, "
+                    + "@NonNull String, @NonNull String, @NonNull "
+                    + "java.util.function.Supplier<android.graphics.drawable.Drawable>)",
+            "public android.graphics.drawable.Drawable getDrawableForDensity(@NonNull String, "
+                    + "@NonNull String, int, @NonNull "
+                    + "java.util.function.Supplier<android.graphics.drawable.Drawable>)",
+            "public android.graphics.drawable.Drawable getDrawableForDensity(@NonNull String, "
+                    + "@NonNull String, @NonNull String, int, @NonNull "
+                    + "java.util.function.Supplier<android.graphics.drawable.Drawable>)",
+
+
+
+    // WifiManager
 
             // Uses Executor
             "public void addSuggestionConnectionStatusListener(java.util.concurrent.Executor, "
@@ -125,6 +162,14 @@ public final class Processor extends AbstractProcessor {
                     + ".wifi.WifiManager.ScanResultsCallback)",
             "public void registerSubsystemRestartTrackingCallback(java.util.concurrent.Executor, "
                     + "android.net.wifi.WifiManager.SubsystemRestartTrackingCallback)",
+            "public void reportCreateInterfaceImpact(int, boolean, "
+                    + "@NonNull java.util.concurrent.Executor, @NonNull "
+                    + "java.util.function.BiConsumer<java.lang.Boolean,java.util.Set<"
+                    + "android.net.wifi.WifiManager.InterfaceCreationImpact>>)",
+            "public void queryAutojoinGlobal(@NonNull java.util.concurrent.Executor, "
+                    + "@NonNull java.util.function.Consumer<java.lang.Boolean>)",
+
+
             // Uses WpsCallback
             "public void cancelWps(android.net.wifi.WifiManager.WpsCallback)",
             // Uses MulticastLock
@@ -456,6 +501,11 @@ public final class Processor extends AbstractProcessor {
             // Uses java.io.FileDescriptor
             "public void dump(@NonNull String, @Nullable java.io.FileDescriptor, @NonNull java.io"
                     + ".PrintWriter, @Nullable String[])",
+            "public void dumpInternal(@NonNull String, @Nullable java.io.FileDescriptor, @NonNull "
+                    + "java.io.PrintWriter, @Nullable String[])",
+
+            // Uses android.window.OnBackInvokedDispatcher
+            "public android.window.OnBackInvokedDispatcher getOnBackInvokedDispatcher()",
 
             // Uses android.app.Activity
             "@Deprecated public void finishActivityFromChild(@NonNull android.app.Activity, int)",
@@ -583,6 +633,10 @@ public final class Processor extends AbstractProcessor {
             "public void onOptionsMenuClosed(android.view.Menu)",
             "public void onPanelClosed(int, @NonNull android.view.Menu)",
             "public boolean onPrepareOptionsMenu(android.view.Menu)",
+
+            // Uses android.util.Dumpable
+            "public boolean addDumpable(@NonNull android.util.Dumpable)",
+            "public boolean removeDumpable(@NonNull android.util.Dumpable)",
 
             // Uses android.graphics.Canvas
             "@Deprecated public boolean onCreateThumbnail(android.graphics.Bitmap, android"
@@ -874,9 +928,36 @@ public final class Processor extends AbstractProcessor {
                     + ".security.Principal[], @Nullable String, int, @Nullable String)",
             "public static void choosePrivateKeyAlias(@NonNull android.app.Activity, @NonNull "
                     + "android.security.KeyChainAliasCallback, @Nullable String[], @Nullable java"
-                    + ".security.Principal[], @Nullable android.net.Uri, @Nullable String)"
+                    + ".security.Principal[], @Nullable android.net.Uri, @Nullable String)",
 
+            // BluetoothAdapter
 
+            // Uses android.bluetooth.BluetoothProfile
+            "public void closeProfileProxy(int, android.bluetooth.BluetoothProfile)",
+            "public boolean getProfileProxy(android.content.Context, android.bluetooth"
+                    + ".BluetoothProfile.ServiceListener, int)",
+
+            // Uses android.bluetooth.le.BluetoothLeAdvertiser
+            "public android.bluetooth.le.BluetoothLeAdvertiser getBluetoothLeAdvertiser()",
+
+            // Uses android.bluetooth.le.BluetoothLeScanner
+            "public android.bluetooth.le.BluetoothLeScanner getBluetoothLeScanner()",
+
+            // Uses android.bluetooth.BluetoothAdapter.LeScanCallback
+            "public boolean startLeScan(android.bluetooth.BluetoothAdapter.LeScanCallback)",
+            "public boolean startLeScan(java.util.UUID[], android.bluetooth.BluetoothAdapter.LeScanCallback)",
+            "public void stopLeScan(android.bluetooth.BluetoothAdapter.LeScanCallback)",
+
+            // Uses android.bluetooth.BluetoothServerSocket
+            "public android.bluetooth.BluetoothServerSocket listenUsingInsecureL2capChannel() throws java.io.IOException",
+            "public android.bluetooth.BluetoothServerSocket listenUsingInsecureRfcommWithServiceRecord(String, java.util.UUID) throws java.io.IOException",
+            "public android.bluetooth.BluetoothServerSocket listenUsingL2capChannel() throws java.io.IOException",
+            "public android.bluetooth.BluetoothServerSocket listenUsingRfcommWithServiceRecord(String, java.util.UUID) throws java.io.IOException",
+
+            // BluetoothManager
+
+            // Uses android.bluetooth.BluetoothGattServer
+            "public android.bluetooth.BluetoothGattServer openGattServer(android.content.Context, android.bluetooth.BluetoothGattServerCallback)"
     );
 
     private static final ClassName NULL_PARCELABLE_REMOTE_DEVICE_POLICY_MANAGER_CLASSNAME =
@@ -885,6 +966,9 @@ public final class Processor extends AbstractProcessor {
     private static final ClassName NULL_PARCELABLE_REMOTE_CONTENT_RESOLVER_CLASSNAME =
             ClassName.get("com.android.bedstead.remoteframeworkclasses",
                     "NullParcelableRemoteContentResolver");
+    private static final ClassName NULL_PARCELABLE_REMOTE_BLUETOOTH_ADAPTER_CLASSNAME =
+            ClassName.get("com.android.bedstead.remoteframeworkclasses",
+                    "NullParcelableRemoteBluetoothAdapter");
 
     // TODO(b/205562849): These only support passing null, which is fine for existing tests but
     //  will be misleading
@@ -915,8 +999,16 @@ public final class Processor extends AbstractProcessor {
             RoundEnvironment roundEnv) {
         if (!roundEnv.getElementsAnnotatedWith(RemoteFrameworkClasses.class).isEmpty()) {
             Set<MethodSignature> blocklistedMethodSignatures = BLOCKLISTED_METHODS.stream()
-                    .map(m -> MethodSignature.forApiString(
-                            m, processingEnv.getTypeUtils(), processingEnv.getElementUtils()))
+                    .map(m -> {
+                        try {
+                            return MethodSignature.forApiString(
+                                    m, processingEnv.getTypeUtils(),
+                                    processingEnv.getElementUtils());
+                        } catch (Exception e) {
+                            System.out.println("Error parsing blocklistedMethod " + m + ": " + e);
+                            return null;
+                        }
+                    })
                     .filter(Objects::nonNull)
                     .collect(Collectors.toSet());
 
@@ -936,6 +1028,7 @@ public final class Processor extends AbstractProcessor {
     private void generateWrappers() {
         generateWrapper(NULL_PARCELABLE_REMOTE_DEVICE_POLICY_MANAGER_CLASSNAME);
         generateWrapper(NULL_PARCELABLE_REMOTE_CONTENT_RESOLVER_CLASSNAME);
+        generateWrapper(NULL_PARCELABLE_REMOTE_BLUETOOTH_ADAPTER_CLASSNAME);
         generateWrapper(NULL_PARCELABLE_ACTIVITY_CLASSNAME);
         generateWrapper(NULL_PARCELABLE_ACCOUNT_MANAGER_CALLBACK_CLASSNAME);
         generateWrapper(NULL_HANDLER_CALLBACK_CLASSNAME);
@@ -998,12 +1091,22 @@ public final class Processor extends AbstractProcessor {
         MethodSignature getContentResolverSignature =
                 MethodSignature.forApiString(GET_CONTENT_RESOLVER, processingEnv.getTypeUtils(),
                         processingEnv.getElementUtils());
+        MethodSignature getAdapterSignature =
+                MethodSignature.forApiString(GET_ADAPTER, processingEnv.getTypeUtils(),
+                        processingEnv.getElementUtils());
+        MethodSignature getDefaultAdapterSignature =
+                MethodSignature.forApiString(GET_DEFAULT_ADAPTER, processingEnv.getTypeUtils(),
+                        processingEnv.getElementUtils());
 
         Map<MethodSignature, ClassName> signatureReturnOverrides = new HashMap<>();
         signatureReturnOverrides.put(parentProfileInstanceSignature,
                 ClassName.get("android.app.admin", "RemoteDevicePolicyManager"));
         signatureReturnOverrides.put(getContentResolverSignature,
                 ClassName.get("android.content", "RemoteContentResolver"));
+        signatureReturnOverrides.put(getAdapterSignature,
+                ClassName.get("android.bluetooth", "RemoteBluetoothAdapter"));
+        signatureReturnOverrides.put(getDefaultAdapterSignature,
+                ClassName.get("android.bluetooth", "RemoteBluetoothAdapter"));
 
         String packageName = frameworkClass.getEnclosingElement().toString();
         ClassName className = ClassName.get(packageName,
@@ -1023,9 +1126,10 @@ public final class Processor extends AbstractProcessor {
 
         classBuilder.addAnnotation(AnnotationSpec.builder(CrossUser.class)
                 .addMember("parcelableWrappers",
-                        "{$T.class, $T.class, $T.class, $T.class, $T.class}",
+                        "{$T.class, $T.class, $T.class, $T.class, $T.class, $T.class}",
                         NULL_PARCELABLE_REMOTE_DEVICE_POLICY_MANAGER_CLASSNAME,
                         NULL_PARCELABLE_REMOTE_CONTENT_RESOLVER_CLASSNAME,
+                        NULL_PARCELABLE_REMOTE_BLUETOOTH_ADAPTER_CLASSNAME,
                         NULL_PARCELABLE_ACTIVITY_CLASSNAME,
                         NULL_PARCELABLE_ACCOUNT_MANAGER_CALLBACK_CLASSNAME,
                         NULL_HANDLER_CALLBACK_CLASSNAME)
@@ -1081,9 +1185,10 @@ public final class Processor extends AbstractProcessor {
 
         classBuilder.addAnnotation(AnnotationSpec.builder(CrossUser.class)
                 .addMember("parcelableWrappers",
-                        "{$T.class, $T.class, $T.class, $T.class, $T.class}",
+                        "{$T.class, $T.class, $T.class, $T.class, $T.class, $T.class}",
                         NULL_PARCELABLE_REMOTE_DEVICE_POLICY_MANAGER_CLASSNAME,
                         NULL_PARCELABLE_REMOTE_CONTENT_RESOLVER_CLASSNAME,
+                        NULL_PARCELABLE_REMOTE_BLUETOOTH_ADAPTER_CLASSNAME,
                         NULL_PARCELABLE_ACTIVITY_CLASSNAME,
                         NULL_PARCELABLE_ACCOUNT_MANAGER_CALLBACK_CLASSNAME,
                         NULL_HANDLER_CALLBACK_CLASSNAME)
@@ -1164,12 +1269,22 @@ public final class Processor extends AbstractProcessor {
         MethodSignature getContentResolverSignature =
                 MethodSignature.forApiString(GET_CONTENT_RESOLVER, processingEnv.getTypeUtils(),
                         processingEnv.getElementUtils());
+        MethodSignature getAdapterSignature =
+                MethodSignature.forApiString(GET_ADAPTER, processingEnv.getTypeUtils(),
+                        processingEnv.getElementUtils());
+        MethodSignature getDefaultAdapterSignature =
+                MethodSignature.forApiString(GET_DEFAULT_ADAPTER, processingEnv.getTypeUtils(),
+                        processingEnv.getElementUtils());
 
         Map<MethodSignature, ClassName> signatureReturnOverrides = new HashMap<>();
         signatureReturnOverrides.put(parentProfileInstanceSignature,
                 ClassName.get("android.app.admin", "RemoteDevicePolicyManager"));
         signatureReturnOverrides.put(getContentResolverSignature,
                 ClassName.get("android.content", "RemoteContentResolver"));
+        signatureReturnOverrides.put(getAdapterSignature,
+                ClassName.get("android.bluetooth", "RemoteBluetoothAdapter"));
+        signatureReturnOverrides.put(getDefaultAdapterSignature,
+                ClassName.get("android.bluetooth", "RemoteBluetoothAdapter"));
 
         String packageName = frameworkClass.getEnclosingElement().toString();
         ClassName interfaceClassName = ClassName.get(packageName,
