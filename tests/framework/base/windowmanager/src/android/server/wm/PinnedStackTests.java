@@ -37,6 +37,8 @@ import static android.server.wm.WindowManagerState.dpToPx;
 import static android.server.wm.app.Components.ALWAYS_FOCUSABLE_PIP_ACTIVITY;
 import static android.server.wm.app.Components.LAUNCH_ENTER_PIP_ACTIVITY;
 import static android.server.wm.app.Components.LAUNCH_INTO_PINNED_STACK_PIP_ACTIVITY;
+import static android.server.wm.app.Components.LAUNCH_INTO_PIP_CONTAINER_ACTIVITY;
+import static android.server.wm.app.Components.LAUNCH_INTO_PIP_HOST_ACTIVITY;
 import static android.server.wm.app.Components.LAUNCH_PIP_ON_PIP_ACTIVITY;
 import static android.server.wm.app.Components.NON_RESIZEABLE_ACTIVITY;
 import static android.server.wm.app.Components.PIP_ACTIVITY;
@@ -47,8 +49,11 @@ import static android.server.wm.app.Components.PIP_ACTIVITY_WITH_TINY_MINIMAL_SI
 import static android.server.wm.app.Components.PIP_ON_STOP_ACTIVITY;
 import static android.server.wm.app.Components.PipActivity.ACTION_ENTER_PIP;
 import static android.server.wm.app.Components.PipActivity.ACTION_FINISH;
+import static android.server.wm.app.Components.PipActivity.ACTION_FINISH_LAUNCH_INTO_PIP_HOST;
+import static android.server.wm.app.Components.PipActivity.ACTION_LAUNCH_TRANSLUCENT_ACTIVITY;
 import static android.server.wm.app.Components.PipActivity.ACTION_MOVE_TO_BACK;
 import static android.server.wm.app.Components.PipActivity.ACTION_ON_PIP_REQUESTED;
+import static android.server.wm.app.Components.PipActivity.ACTION_START_LAUNCH_INTO_PIP_CONTAINER;
 import static android.server.wm.app.Components.PipActivity.EXTRA_ALLOW_AUTO_PIP;
 import static android.server.wm.app.Components.PipActivity.EXTRA_ASSERT_NO_ON_STOP_BEFORE_PIP;
 import static android.server.wm.app.Components.PipActivity.EXTRA_CLOSE_ACTION;
@@ -71,7 +76,7 @@ import static android.server.wm.app.Components.PipActivity.EXTRA_START_ACTIVITY;
 import static android.server.wm.app.Components.PipActivity.EXTRA_SUBTITLE;
 import static android.server.wm.app.Components.PipActivity.EXTRA_TAP_TO_FINISH;
 import static android.server.wm.app.Components.PipActivity.EXTRA_TITLE;
-import static android.server.wm.app.Components.PipActivity.PIP_CALLBACK_RESULT_KEY;
+import static android.server.wm.app.Components.PipActivity.UI_STATE_STASHED_RESULT;
 import static android.server.wm.app.Components.RESUME_WHILE_PAUSING_ACTIVITY;
 import static android.server.wm.app.Components.TEST_ACTIVITY;
 import static android.server.wm.app.Components.TEST_ACTIVITY_WITH_SAME_AFFINITY;
@@ -330,13 +335,13 @@ public class PinnedStackTests extends ActivityManagerTestBase {
                 extraString(EXTRA_ENTER_PIP_ASPECT_RATIO_NUMERATOR, Integer.toString(2)),
                 extraString(EXTRA_ENTER_PIP_ASPECT_RATIO_DENOMINATOR, Integer.toString(1)),
                 extraString(EXTRA_EXPANDED_PIP_ASPECT_RATIO_NUMERATOR, Integer.toString(1)),
-                extraString(EXTRA_EXPANDED_PIP_ASPECT_RATIO_DENOMINATOR, Integer.toString(5)));
+                extraString(EXTRA_EXPANDED_PIP_ASPECT_RATIO_DENOMINATOR, Integer.toString(4)));
         // Wait for animation complete since we are comparing aspect ratio
         waitForEnterPipAnimationComplete(PIP_ACTIVITY);
         assertPinnedStackExists();
         // Assert that we have entered PIP and that the aspect ratio is correct
         final Rect bounds = getPinnedStackBounds();
-        assertFloatEquals((float) bounds.width() / bounds.height(), (float) 1.0f / 5.0f);
+        assertFloatEquals((float) bounds.width() / bounds.height(), (float) 1.0f / 4.0f);
     }
 
     @Test
@@ -393,6 +398,19 @@ public class PinnedStackTests extends ActivityManagerTestBase {
                 extraString(EXTRA_EXPANDED_PIP_ASPECT_RATIO_NUMERATOR, Integer.toString(2)),
                 extraString(EXTRA_EXPANDED_PIP_ASPECT_RATIO_DENOMINATOR, Integer.toString(1)));
         assertPinnedStackDoesNotExist();
+    }
+
+    @Test
+    public void testChangeAspectRationWhenInPipMode() {
+        // Enter PiP mode with a 2:1 aspect ratio
+        testEnterPipAspectRatio(2, 1);
+
+        // Change the aspect ratio to 1:2
+        final int newNumerator = 1;
+        final int newDenominator = 2;
+        mBroadcastActionTrigger.changeAspectRatio(newNumerator, newDenominator);
+
+        waitForValidAspectRatio(newNumerator, newDenominator);
     }
 
     private void testEnterPipAspectRatio(int num, int denom) {
@@ -498,16 +516,16 @@ public class PinnedStackTests extends ActivityManagerTestBase {
     }
 
     @Test
-    public void testPreferDockBigOverlaysWithExpandedPip() {
-        testPreferDockBigOverlaysWithExpandedPip(true);
+    public void testShouldDockBigOverlaysWithExpandedPip() {
+        testShouldDockBigOverlaysWithExpandedPip(true);
     }
 
     @Test
-    public void testNotPreferDockBigOverlaysWithExpandedPip() {
-        testPreferDockBigOverlaysWithExpandedPip(false);
+    public void testShouldNotDockBigOverlaysWithExpandedPip() {
+        testShouldDockBigOverlaysWithExpandedPip(false);
     }
 
-    private void testPreferDockBigOverlaysWithExpandedPip(boolean preferDock) {
+    private void testShouldDockBigOverlaysWithExpandedPip(boolean shouldDock) {
         assumeTrue(supportsExpandedPip());
         TestActivitySession<TestActivity> testSession = createManagedTestActivitySession();
         final Intent intent = new Intent(mContext, TestActivity.class);
@@ -524,7 +542,7 @@ public class PinnedStackTests extends ActivityManagerTestBase {
         waitForEnterPipAnimationComplete(PIP_ACTIVITY);
         assertPinnedStackExists();
 
-        testSession.runOnMainSyncAndWait(() -> activity.setPreferDockBigOverlays(preferDock));
+        testSession.runOnMainSyncAndWait(() -> activity.setShouldDockBigOverlays(shouldDock));
 
         mWmState.assertResumedActivity("Activity must be resumed", activity.getComponentName());
         assertPinnedStackExists();
@@ -532,8 +550,15 @@ public class PinnedStackTests extends ActivityManagerTestBase {
             final Task task = mWmState.getTaskByActivity(activity.getComponentName());
             final TaskInfo info = mTaskOrganizer.getTaskInfo(task.getTaskId());
 
-            assertEquals(preferDock, info.getPreferDockBigOverlays());
+            assertEquals(shouldDock, info.shouldDockBigOverlays());
         });
+
+        final boolean[] actual = new boolean[] {!shouldDock};
+        testSession.runOnMainSyncAndWait(() -> {
+            actual[0] = activity.shouldDockBigOverlays();
+        });
+
+        assertEquals(shouldDock, actual[0]);
     }
 
     @Test
@@ -546,6 +571,37 @@ public class PinnedStackTests extends ActivityManagerTestBase {
         mWmState.waitForActivityState(PIP_ON_STOP_ACTIVITY, STATE_STOPPED);
 
         // Assert that there is no pinned stack (that enterPictureInPicture() failed)
+        assertPinnedStackDoesNotExist();
+    }
+
+    @Test
+    public void testLaunchIntoPip() {
+        // Launch a Host activity for launch-into-pip
+        launchActivity(LAUNCH_INTO_PIP_HOST_ACTIVITY);
+
+        // Send broadcast to Host activity to start a launch-into-pip container activity
+        mBroadcastActionTrigger.doAction(ACTION_START_LAUNCH_INTO_PIP_CONTAINER);
+
+        // Verify the launch-into-pip container activity enters PiP
+        waitForEnterPipAnimationComplete(LAUNCH_INTO_PIP_CONTAINER_ACTIVITY);
+        assertPinnedStackExists();
+    }
+
+    @Test
+    public void testRemoveLaunchIntoPipHostActivity() {
+        // Launch a Host activity for launch-into-pip
+        launchActivity(LAUNCH_INTO_PIP_HOST_ACTIVITY);
+
+        // Send broadcast to Host activity to start a launch-into-pip container activity
+        mBroadcastActionTrigger.doAction(ACTION_START_LAUNCH_INTO_PIP_CONTAINER);
+
+        // Remove the Host activity / task by finishing the host activity
+        waitForEnterPipAnimationComplete(LAUNCH_INTO_PIP_CONTAINER_ACTIVITY);
+        assertPinnedStackExists();
+        mBroadcastActionTrigger.doAction(ACTION_FINISH_LAUNCH_INTO_PIP_HOST);
+
+        // Verify the launch-into-pip container activity finishes
+        waitForPinnedStackRemoved();
         assertPinnedStackDoesNotExist();
     }
 
@@ -954,17 +1010,23 @@ public class PinnedStackTests extends ActivityManagerTestBase {
         assertFalse(task.mHasChildPipActivity);
     }
 
+    /**
+     * When the activity entering PIP is in a Task with another finishing activity, the Task should
+     * enter PIP instead of reparenting the activity to a new PIP Task.
+     */
     @Test
-    public void testPipFromTaskWithMultipleActivitiesAndFinishOriginalTask() {
-        // Try to enter picture-in-picture from an activity that finished itself and ensure
-        // pinned task is removed when the original task vanishes
+    public void testPipFromTaskWithAnotherFinishingActivity() {
         launchActivity(LAUNCH_ENTER_PIP_ACTIVITY,
                 extraString(EXTRA_FINISH_SELF_ON_RESUME, "true"));
 
         waitForEnterPip(PIP_ACTIVITY);
-        waitForPinnedStackRemoved();
+        mWmState.waitForActivityRemoved(LAUNCH_ENTER_PIP_ACTIVITY);
 
-        assertPinnedStackDoesNotExist();
+        mWmState.assertNotExist(LAUNCH_ENTER_PIP_ACTIVITY);
+        assertPinnedStackExists();
+        final Task pipTask = mWmState.getTaskByActivity(PIP_ACTIVITY);
+        assertEquals(WINDOWING_MODE_PINNED, pipTask.getWindowingMode());
+        assertEquals(1, pipTask.getActivityCount());
     }
 
     @Test
@@ -1414,16 +1476,41 @@ public class PinnedStackTests extends ActivityManagerTestBase {
     }
 
     @Test
-    public void testAutoPipOnLaunchingAnotherActivity() {
+    public void testAutoPipOnLaunchingRegularActivity() {
         // Launch the PIP activity and set its pip params to allow auto-pip.
         launchActivity(PIP_ACTIVITY, extraString(EXTRA_ALLOW_AUTO_PIP, "true"));
         assertPinnedStackDoesNotExist();
 
-        // Launch another and ensure that there is a pinned stack.
+        // Launch a regular activity and ensure that there is a pinned stack.
         launchActivity(TEST_ACTIVITY, WINDOWING_MODE_FULLSCREEN);
         waitForEnterPip(PIP_ACTIVITY);
         assertPinnedStackExists();
         waitAndAssertActivityState(PIP_ACTIVITY, STATE_PAUSED, "activity must be paused");
+    }
+
+    @Test
+    public void testAutoPipOnLaunchingTranslucentActivity() {
+        // Launch the PIP activity and set its pip params to allow auto-pip.
+        launchActivity(PIP_ACTIVITY, extraString(EXTRA_ALLOW_AUTO_PIP, "true"));
+        assertPinnedStackDoesNotExist();
+
+        // Launch a translucent activity from PipActivity itself and
+        // ensure that there is no pinned stack.
+        mBroadcastActionTrigger.doAction(ACTION_LAUNCH_TRANSLUCENT_ACTIVITY);
+        assertPinnedStackDoesNotExist();
+    }
+
+    @Test
+    public void testAutoPipOnLaunchingActivityWithNoUserAction() {
+        // Launch the PIP activity and set its pip params to allow auto-pip.
+        launchActivity(PIP_ACTIVITY, extraString(EXTRA_ALLOW_AUTO_PIP, "true"));
+        assertPinnedStackDoesNotExist();
+
+        // Launch a regular activity with FLAG_ACTIVITY_NO_USER_ACTION and
+        // ensure that there is no pinned stack.
+        launchActivityWithNoUserAction(TEST_ACTIVITY);
+        assertPinnedStackDoesNotExist();
+        waitAndAssertActivityState(PIP_ACTIVITY, STATE_STOPPED, "activity must be stopped");
     }
 
     @Test
@@ -1491,20 +1578,20 @@ public class PinnedStackTests extends ActivityManagerTestBase {
     }
 
     @Test
-    public void testPictureInPictureStateChangeCallback() throws Exception {
+    public void testPictureInPictureUiStateChangedCallback() throws Exception {
         launchActivity(PIP_ACTIVITY);
         enterPipAndAssertPinnedTaskExists(PIP_ACTIVITY);
         waitForEnterPip(PIP_ACTIVITY);
 
         final CompletableFuture<Boolean> callbackReturn = new CompletableFuture<>();
         RemoteCallback cb = new RemoteCallback((Bundle result) ->
-                callbackReturn.complete(result.getBoolean(PIP_CALLBACK_RESULT_KEY)));
+                callbackReturn.complete(result.getBoolean(UI_STATE_STASHED_RESULT)));
         mBroadcastActionTrigger.sendPipStateUpdate(cb, true);
         Truth.assertThat(callbackReturn.get(5000, TimeUnit.MILLISECONDS)).isEqualTo(true);
 
         final CompletableFuture<Boolean> callbackReturnNotStashed = new CompletableFuture<>();
         RemoteCallback cbStashed = new RemoteCallback((Bundle result) ->
-                callbackReturnNotStashed.complete(result.getBoolean(PIP_CALLBACK_RESULT_KEY)));
+                callbackReturnNotStashed.complete(result.getBoolean(UI_STATE_STASHED_RESULT)));
         mBroadcastActionTrigger.sendPipStateUpdate(cbStashed, false);
         Truth.assertThat(callbackReturnNotStashed.get(5000, TimeUnit.MILLISECONDS))
                 .isEqualTo(false);
