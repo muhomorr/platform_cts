@@ -565,7 +565,7 @@ public class TunerTest {
                         TunerVersionChecker.TUNER_VERSION_2_0)) {
                 fail("Get Frontend Status Readiness should throw IllegalStateException.");
             } else {
-                assertFalse(readiness.isEmpty());
+                assertTrue(readiness.isEmpty());
             }
         } catch (IllegalStateException e) {
             // pass
@@ -600,7 +600,7 @@ public class TunerTest {
                     }
                 }
             } else {
-                assertNull(readiness);
+                assertTrue(readiness.isEmpty());
             }
             tuner.cancelTuning();
             tuner.close();
@@ -649,7 +649,7 @@ public class TunerTest {
         TunerTestLnbCallback lnbCB2 = new TunerTestLnbCallback();
 
         // add it as sharee
-        lnb.addCallback(lnbCB2, getExecutor());
+        lnb.addCallback(getExecutor(), lnbCB2);
 
         // check callback
         lnb.sendDiseqcMessage(new byte[] {1, 2});
@@ -1565,7 +1565,7 @@ public class TunerTest {
 
         // add sharee and check the callback
         TunerTestLnbCallback lnbCB2 = new TunerTestLnbCallback();
-        lnbA.addCallback(lnbCB2, getExecutor());
+        lnbA.addCallback(getExecutor(), lnbCB2);
         lnbA.sendDiseqcMessage(new byte[] {1, 2});
         assertTrue(lnbCB1.getOnDiseqcMessageCalled());
         lnbCB1.resetOnDiseqcMessageCalled();

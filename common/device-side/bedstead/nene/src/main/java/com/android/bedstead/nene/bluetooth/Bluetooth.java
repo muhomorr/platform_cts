@@ -47,85 +47,85 @@ public final class Bluetooth {
     private static final BluetoothAdapter sBluetoothAdapter = sBluetoothManager.getAdapter();
 
     private Bluetooth() {
-
     }
 
     /** Enable or disable bluetooth on the device. */
     public void setEnabled(boolean enabled) {
-        if (isEnabled() == enabled) {
-            return;
-        }
+            if (isEnabled() == enabled) {
+                return;
+            }
 
-        if (enabled) {
-            enable();
-        } else {
-            disable();
-        }
+            if (enabled) {
+                enable();
+            } else {
+                disable();
+            }
     }
 
     private void enable() {
-        try (PermissionContext p =
-                     TestApis.permissions()
-                             .withPermission(BLUETOOTH_CONNECT, INTERACT_ACROSS_USERS_FULL)
-                             .withPermissionOnVersionAtLeast(T, NETWORK_SETTINGS)) {
-            BlockingBroadcastReceiver r = BlockingBroadcastReceiver.create(
-                    sContext,
-                    BluetoothAdapter.ACTION_STATE_CHANGED,
-                    this::isStateEnabled).register();
+            try (PermissionContext p =
+                         TestApis.permissions()
+                                 .withPermission(BLUETOOTH_CONNECT, INTERACT_ACROSS_USERS_FULL)
+                                 .withPermissionOnVersionAtLeast(T, NETWORK_SETTINGS)) {
+                BlockingBroadcastReceiver r = BlockingBroadcastReceiver.create(
+                        sContext,
+                        BluetoothAdapter.ACTION_STATE_CHANGED,
+                        this::isStateEnabled).register();
 
-            try {
-                assertThat(sBluetoothAdapter.enable()).isTrue();
+                try {
+                    assertThat(sBluetoothAdapter.enable()).isTrue();
 
-                r.awaitForBroadcast();
-                Poll.forValue("Bluetooth Enabled", this::isEnabled)
-                        .toBeEqualTo(true)
-                        .errorOnFail()
-                        .await();
-            } finally {
-                r.unregisterQuietly();
+                    r.awaitForBroadcast();
+                    Poll.forValue("Bluetooth Enabled", this::isEnabled)
+                            .toBeEqualTo(true)
+                            .errorOnFail()
+                            .await();
+                } finally {
+                    r.unregisterQuietly();
+                }
             }
-        }
+
     }
 
     private void disable() {
-        try (PermissionContext p =
-                     TestApis.permissions()
-                             .withPermission(BLUETOOTH_CONNECT, INTERACT_ACROSS_USERS_FULL)
-                             .withPermissionOnVersionAtLeast(T, NETWORK_SETTINGS)) {
-            BlockingBroadcastReceiver r = BlockingBroadcastReceiver.create(
-                    sContext,
-                    BluetoothAdapter.ACTION_STATE_CHANGED,
-                    this::isStateDisabled).register();
+            try (PermissionContext p =
+                         TestApis.permissions()
+                                 .withPermission(BLUETOOTH_CONNECT, INTERACT_ACROSS_USERS_FULL)
+                                 .withPermissionOnVersionAtLeast(T, NETWORK_SETTINGS)) {
+                BlockingBroadcastReceiver r = BlockingBroadcastReceiver.create(
+                        sContext,
+                        BluetoothAdapter.ACTION_STATE_CHANGED,
+                        this::isStateDisabled).register();
 
-            try {
-                assertThat(sBluetoothAdapter.disable()).isTrue();
+                try {
+                    assertThat(sBluetoothAdapter.disable()).isTrue();
 
-                r.awaitForBroadcast();
-                Poll.forValue("Bluetooth Enabled", this::isEnabled)
-                        .toBeEqualTo(false)
-                        .errorOnFail()
-                        .await();
-            } finally {
-                r.unregisterQuietly();
+                    r.awaitForBroadcast();
+                    Poll.forValue("Bluetooth Enabled", this::isEnabled)
+                            .toBeEqualTo(false)
+                            .errorOnFail()
+                            .await();
+                } finally {
+                    r.unregisterQuietly();
+                }
             }
-        }
     }
 
     /** {@code true} if bluetooth is enabled. */
     public boolean isEnabled() {
-        try (PermissionContext p =
-                     TestApis.permissions().withPermissionOnVersionAtMost(R, BLUETOOTH)) {
-            return sBluetoothAdapter.isEnabled();
-        }
+            try (PermissionContext p =
+                         TestApis.permissions().withPermissionOnVersionAtMost(R, BLUETOOTH)) {
+                return sBluetoothAdapter.isEnabled();
+            }
     }
 
     private boolean isStateEnabled(Intent intent) {
         return intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, -1)
-                == BluetoothAdapter.STATE_ON;
+                        == BluetoothAdapter.STATE_ON;
     }
 
     private boolean isStateDisabled(Intent intent) {
         return intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, -1)
-                == BluetoothAdapter.STATE_OFF;
+                        == BluetoothAdapter.STATE_OFF;
     }
 }

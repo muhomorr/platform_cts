@@ -105,6 +105,8 @@ abstract class BaseUsePermissionTest : BasePermissionTest() {
         const val DENY_AND_DONT_ASK_AGAIN_BUTTON_TEXT =
                 "grant_dialog_button_deny_and_dont_ask_again"
         const val NO_UPGRADE_AND_DONT_ASK_AGAIN_BUTTON_TEXT = "grant_dialog_button_no_upgrade"
+        const val ALERT_DIALOG_MESSAGE = "android:id/message"
+        const val ALERT_DIALOG_OK_BUTTON = "android:id/button1"
 
         const val REQUEST_LOCATION_MESSAGE = "permgrouprequest_location"
 
@@ -113,7 +115,14 @@ abstract class BaseUsePermissionTest : BasePermissionTest() {
             android.Manifest.permission.WRITE_EXTERNAL_STORAGE,
             android.Manifest.permission.ACCESS_MEDIA_LOCATION,
             android.Manifest.permission.READ_MEDIA_AUDIO,
-            android.Manifest.permission.READ_MEDIA_IMAGE,
+            android.Manifest.permission.READ_MEDIA_IMAGES,
+            android.Manifest.permission.READ_MEDIA_VIDEO
+        )
+
+        val MEDIA_PERMISSIONS = setOf(
+            android.Manifest.permission.ACCESS_MEDIA_LOCATION,
+            android.Manifest.permission.READ_MEDIA_AUDIO,
+            android.Manifest.permission.READ_MEDIA_IMAGES,
             android.Manifest.permission.READ_MEDIA_VIDEO
         )
     }
@@ -185,7 +194,7 @@ abstract class BaseUsePermissionTest : BasePermissionTest() {
             android.Manifest.permission.READ_MEDIA_AUDIO to
                 "@android:string/permgrouplab_readMediaAural",
             // Visual
-            android.Manifest.permission.READ_MEDIA_IMAGE to
+            android.Manifest.permission.READ_MEDIA_IMAGES to
                 "@android:string/permgrouplab_readMediaVisual",
             android.Manifest.permission.READ_MEDIA_VIDEO to
                 "@android:string/permgrouplab_readMediaVisual"
@@ -398,8 +407,9 @@ abstract class BaseUsePermissionTest : BasePermissionTest() {
         eventually {
             // UiObject2 doesn't expose CharSequence.
             val node = if (isAutomotive) {
+                // Should match "Allow in settings." (location) and "go to settings." (body sensors)
                 uiAutomation.rootInActiveWindow.findAccessibilityNodeInfosByText(
-                        "Allow in settings."
+                        " settings."
                 )[0]
             } else {
                 uiAutomation.rootInActiveWindow.findAccessibilityNodeInfosByViewId(
@@ -584,13 +594,13 @@ abstract class BaseUsePermissionTest : BasePermissionTest() {
 
             val shouldShowStorageWarning = !isTv && !isWatch &&
                 SdkLevel.isAtLeastT() && targetSdk <= Build.VERSION_CODES.S_V2 &&
-                permission in STORAGE_AND_MEDIA_PERMISSIONS
-            if (shouldShowStorageWarning && state == PermissionState.ALLOWED) {
-                click(By.text(getPermissionControllerString(ALLOW_BUTTON_TEXT)))
-            } else if (shouldShowStorageWarning && state == PermissionState.DENIED) {
-                click(By.text(getPermissionControllerString(DENY_ANYWAY_BUTTON_TEXT)))
+                permission in MEDIA_PERMISSIONS
+            if (shouldShowStorageWarning) {
+                click(By.res(ALERT_DIALOG_OK_BUTTON))
             } else if (!alreadyChecked && isLegacyApp && wasGranted) {
                 if (!isTv) {
+                    // Wait for alert dialog to popup, then scroll to the bottom of it
+                    waitFindObject(By.res(ALERT_DIALOG_MESSAGE))
                     scrollToBottom()
                 }
 
