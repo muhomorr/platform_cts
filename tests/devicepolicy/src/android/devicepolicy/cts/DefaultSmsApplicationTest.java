@@ -40,12 +40,10 @@ import com.android.bedstead.nene.TestApis;
 import com.android.bedstead.remotedpc.RemotePolicyManager;
 import com.android.bedstead.testapp.TestApp;
 import com.android.bedstead.testapp.TestAppInstance;
-import com.android.bedstead.testapp.TestAppProvider;
 
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Rule;
-import org.junit.Test;
 import org.junit.runner.RunWith;
 
 // TODO(b/198442101): Add tests for the COPE case when we can sideload system apps
@@ -56,8 +54,7 @@ public final class DefaultSmsApplicationTest {
     public static DeviceState sDeviceState = new DeviceState();
 
     private static final Context sContext = TestApis.context().instrumentedContext();
-    private static final TestAppProvider sTestAppProvider = new TestAppProvider();
-    private static final TestApp sSmsApp = sTestAppProvider
+    private static final TestApp sSmsApp = sDeviceState.testApps()
             .query()
             .wherePackageName()
             // TODO(b/198420874): Query for the intent filters relevant to the SMS tests
@@ -78,7 +75,6 @@ public final class DefaultSmsApplicationTest {
     }
 
     // TODO(b/198588696): Add support is @RequireSmsCapable and @RequireNotSmsCapable
-    @Test
     @Postsubmit(reason = "new test")
     @PolicyAppliesTest(policy = DefaultSmsApplication.class)
     public void setDefaultSmsApplication_works() {
@@ -94,7 +90,6 @@ public final class DefaultSmsApplicationTest {
     }
 
     // TODO(b/198588696): Add support is @RequireSmsCapable and @RequireNotSmsCapable
-    @Test
     @Postsubmit(reason = "new test")
     @PolicyDoesNotApplyTest(policy = DefaultSmsApplication.class)
     public void setDefaultSmsApplication_unchanged() {
@@ -110,7 +105,6 @@ public final class DefaultSmsApplicationTest {
     }
 
     // TODO(b/198588696): Add support is @RequireSmsCapable and @RequireNotSmsCapable
-    @Test
     @Postsubmit(reason = "new test")
     @CanSetPolicyTest(policy = DefaultSmsApplication.class)
     public void setDefaultSmsApplication_smsPackageDoesNotExist_unchanged() {
@@ -126,7 +120,6 @@ public final class DefaultSmsApplicationTest {
         }
     }
 
-    @Test
     @Postsubmit(reason = "new test")
     @CanSetPolicyTest(policy = DefaultSmsApplication.class)
     public void setDefaultSmsApplication_nullAdmin_throwsException() {
@@ -139,7 +132,6 @@ public final class DefaultSmsApplicationTest {
     }
 
     // TODO(b/198588696): Add support is @RequireSmsCapable and @RequireNotSmsCapable
-    @Test
     @Postsubmit(reason = "new test")
     @CanSetPolicyTest(policy = DefaultSmsApplication.class)
     public void setDefaultSmsApplication_notSmsCapable_unchanged() {
@@ -154,7 +146,6 @@ public final class DefaultSmsApplicationTest {
         }
     }
 
-    @Test
     @Postsubmit(reason = "new test")
     // We don't include non device admin states as passing a null admin is a NullPointerException
     @CannotSetPolicyTest(policy = DefaultSmsApplication.class, includeNonDeviceAdminStates = false)

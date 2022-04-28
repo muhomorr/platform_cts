@@ -39,6 +39,7 @@ import android.content.Intent;
 import android.graphics.Rect;
 import android.os.Bundle;
 import android.os.IBinder;
+import android.view.WindowManager;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -82,8 +83,16 @@ public class WindowManagerJetpackTestBase {
     }
 
     public Activity startActivityNewTask(@NonNull Class activityClass) {
+        return startActivityNewTask(activityClass, null /* activityId */);
+    }
+
+    public Activity startActivityNewTask(@NonNull Class activityClass,
+            @Nullable String activityId) {
         final Intent intent = new Intent(mContext, activityClass);
         intent.addFlags(FLAG_ACTIVITY_NEW_TASK);
+        if (activityId != null) {
+            intent.putExtra(ACTIVITY_ID_LABEL, activityId);
+        }
         final Activity activity = mInstrumentation.startActivitySync(intent);
         return activity;
     }
@@ -113,11 +122,13 @@ public class WindowManagerJetpackTestBase {
      * Starts a specified activity class from {@param activityToLaunchFrom}.
      */
     public static void startActivityFromActivity(@NonNull Activity activityToLaunchFrom,
-            @NonNull ComponentName activityToLaunchComponent, @NonNull String newActivityId) {
+            @NonNull ComponentName activityToLaunchComponent, @NonNull String newActivityId,
+            @NonNull Bundle extras) {
         Intent intent = new Intent();
         intent.setClassName(activityToLaunchComponent.getPackageName(),
                 activityToLaunchComponent.getClassName());
         intent.putExtra(ACTIVITY_ID_LABEL, newActivityId);
+        intent.putExtras(extras);
         activityToLaunchFrom.startActivity(intent);
     }
 
@@ -139,6 +150,14 @@ public class WindowManagerJetpackTestBase {
 
     public static Rect getMaximumActivityBounds(Activity activity) {
         return activity.getWindowManager().getMaximumWindowMetrics().getBounds();
+    }
+
+    /**
+     * Gets the width of a full-screen task.
+     */
+    public int getTaskWidth() {
+        return mContext.getSystemService(WindowManager.class).getMaximumWindowMetrics().getBounds()
+                .width();
     }
 
     public static void setActivityOrientationActivityHandlesOrientationChanges(

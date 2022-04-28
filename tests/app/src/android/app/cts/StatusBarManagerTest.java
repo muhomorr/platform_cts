@@ -34,6 +34,8 @@ import androidx.test.InstrumentationRegistry;
 import androidx.test.filters.SmallTest;
 import androidx.test.runner.AndroidJUnit4;
 
+import com.android.compatibility.common.util.CddTest;
+
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -184,39 +186,40 @@ public class StatusBarManagerTest {
     }
 
     /**
-     * Test StatusBarManager.setNavBarModeOverride(NAV_BAR_MODE_OVERRIDE_KIDS)
+     * Test StatusBarManager.setNavBarMode(NAV_BAR_MODE_KIDS)
+     *
+     * @throws Exception
+     */
+    @CddTest(requirement = "7.2.3/C-9-1")
+    @Test
+    public void testSetNavBarMode_kids_doesNotThrow() throws Exception {
+        int navBarModeKids = StatusBarManager.NAV_BAR_MODE_KIDS;
+        mStatusBarManager.setNavBarMode(navBarModeKids);
+
+        assertEquals(mStatusBarManager.getNavBarMode(), navBarModeKids);
+    }
+
+    /**
+     * Test StatusBarManager.setNavBarMode(NAV_BAR_MODE_NONE)
      *
      * @throws Exception
      */
     @Test
-    public void testSetNavBarModeOverride_kids_doesNotThrow() throws Exception {
-        int navBarModeOverrideKids = StatusBarManager.NAV_BAR_MODE_OVERRIDE_KIDS;
-        mStatusBarManager.setNavBarModeOverride(navBarModeOverrideKids);
+    public void testSetNavBarMode_none_doesNotThrow() throws Exception {
+        int navBarModeNone = StatusBarManager.NAV_BAR_MODE_DEFAULT;
+        mStatusBarManager.setNavBarMode(navBarModeNone);
 
-        assertEquals(mStatusBarManager.getNavBarModeOverride(), navBarModeOverrideKids);
+        assertEquals(mStatusBarManager.getNavBarMode(), navBarModeNone);
     }
 
     /**
-     * Test StatusBarManager.setNavBarModeOverride(NAV_BAR_MODE_OVERRIDE_NONE)
-     *
-     * @throws Exception
-     */
-    @Test
-    public void testSetNavBarModeOverride_none_doesNotThrow() throws Exception {
-        int navBarModeOverrideNone = StatusBarManager.NAV_BAR_MODE_OVERRIDE_NONE;
-        mStatusBarManager.setNavBarModeOverride(navBarModeOverrideNone);
-
-        assertEquals(mStatusBarManager.getNavBarModeOverride(), navBarModeOverrideNone);
-    }
-
-    /**
-     * Test StatusBarManager.setNavBarModeOverride(-1) // invalid input
+     * Test StatusBarManager.setNavBarMode(-1) // invalid input
      *
      * @throws Exception
      */
     @Test(expected = IllegalArgumentException.class)
-    public void testSetNavBarModeOverride_invalid_throws() throws Exception {
+    public void testSetNavBarMode_invalid_throws() throws Exception {
         int invalidInput = -1;
-        mStatusBarManager.setNavBarModeOverride(invalidInput);
+        mStatusBarManager.setNavBarMode(invalidInput);
     }
 }
