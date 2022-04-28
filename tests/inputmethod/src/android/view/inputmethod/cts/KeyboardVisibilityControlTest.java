@@ -17,6 +17,7 @@
 package android.view.inputmethod.cts;
 
 import static android.inputmethodservice.InputMethodService.FINISH_INPUT_NO_FALLBACK_CONNECTION;
+import static android.view.Display.DEFAULT_DISPLAY;
 import static android.view.View.VISIBLE;
 import static android.view.ViewGroup.LayoutParams.MATCH_PARENT;
 import static android.view.WindowInsets.Type.ime;
@@ -44,6 +45,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
 
 import android.app.AlertDialog;
@@ -51,11 +53,11 @@ import android.app.Instrumentation;
 import android.app.compat.CompatChanges;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
-import android.graphics.Insets;
 import android.os.SystemClock;
 import android.os.UserHandle;
 import android.platform.test.annotations.AppModeFull;
 import android.platform.test.annotations.AppModeInstant;
+import android.server.wm.WindowManagerState;
 import android.support.test.uiautomator.UiObject2;
 import android.text.TextUtils;
 import android.util.Log;
@@ -92,18 +94,18 @@ import androidx.test.uiautomator.BySelector;
 import androidx.test.uiautomator.UiDevice;
 import androidx.test.uiautomator.Until;
 
-import com.android.compatibility.common.util.FeatureUtil;
 import com.android.cts.mockime.ImeEvent;
 import com.android.cts.mockime.ImeEventStream;
 import com.android.cts.mockime.ImeLayoutInfo;
 import com.android.cts.mockime.ImeSettings;
 import com.android.cts.mockime.MockImeSession;
 
-import org.junit.Assume;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -332,6 +334,40 @@ public class KeyboardVisibilityControlTest extends EndToEndImeTestBase {
             expectEvent(stream, editorMatcher("onStartInput", marker), TIMEOUT);
             expectEvent(stream, editorMatcher("onStartInputView", marker), TIMEOUT);
             expectImeVisible(TIMEOUT);
+        }
+    }
+
+    @Test
+    public void testShowHideKeyboardWithInterval() throws Exception {
+        final InputMethodManager imm = InstrumentationRegistry.getInstrumentation()
+                .getTargetContext().getSystemService(InputMethodManager.class);
+
+        try (MockImeSession imeSession = MockImeSession.create(
+                InstrumentationRegistry.getInstrumentation().getContext(),
+                InstrumentationRegistry.getInstrumentation().getUiAutomation(),
+                new ImeSettings.Builder())) {
+            final ImeEventStream stream = imeSession.openEventStream();
+            final String marker = getTestMarker();
+            final EditText editText = launchTestActivity(marker);
+            expectImeInvisible(TIMEOUT);
+
+            runOnMainSync(() -> imm.showSoftInput(editText, 0));
+            expectEvent(stream, editorMatcher("onStartInputView", marker), TIMEOUT);
+            expectImeVisible(TIMEOUT);
+
+            // Intervals = 10, 20, 30, ..., 100, 150, 200, ...
+            final List<Integer> intervals = new ArrayList<>();
+            for (int i = 10; i < 100; i += 10) intervals.add(i);
+            for (int i = 100; i < 500; i += 50) intervals.add(i);
+            // Regression test for b/221483132.
+            // WindowInsetsController tries to clean up IME window after IME hide animation is done.
+            // Makes sure that IMM#showSoftInput during IME hide animation cancels the cleanup.
+            for (int intervalMillis : intervals) {
+                runOnMainSync(() -> imm.hideSoftInputFromWindow(editText.getWindowToken(), 0));
+                SystemClock.sleep(intervalMillis);
+                runOnMainSync(() -> imm.showSoftInput(editText, 0));
+                expectImeVisible(TIMEOUT, "IME should be visible. Interval = " + intervalMillis);
+            }
         }
     }
 
@@ -649,16 +685,12 @@ public class KeyboardVisibilityControlTest extends EndToEndImeTestBase {
     @AppModeFull
     @Test
     public void testImeVisibilityWhenImeTransitionBetweenActivities_Full() throws Exception {
-        // TODO(b/210041952): Temporary disable testing on TV platform until realize how to address.
-        Assume.assumeFalse(FeatureUtil.isTV());
         runImeVisibilityWhenImeTransitionBetweenActivities(false /* instant */);
     }
 
     @AppModeInstant
     @Test
     public void testImeVisibilityWhenImeTransitionBetweenActivities_Instant() throws Exception {
-        // TODO(b/210041952): Temporary disable testing on TV platform until realize how to address.
-        Assume.assumeFalse(FeatureUtil.isTV());
         runImeVisibilityWhenImeTransitionBetweenActivities(true /* instant */);
     }
 
@@ -676,6 +708,8 @@ public class KeyboardVisibilityControlTest extends EndToEndImeTestBase {
 
     @Test
     public void testRestoreImeVisibility() throws Exception {
+        // TODO(b/226110728): Remove after we can send ime restore signal to DisplayAreaOrganizer.
+        assumeFalse(isImeOrganized(DEFAULT_DISPLAY));
         runRestoreImeVisibility(TestSoftInputMode.UNCHANGED_WITH_BACKWARD_NAV, true);
     }
 
@@ -887,7 +921,7 @@ public class KeyboardVisibilityControlTest extends EndToEndImeTestBase {
             TestUtils.runOnMainSync(
                     () -> testActivity.getWindow().getDecorView().setOnApplyWindowInsetsListener(
                             (v, insets) -> {
-                                if (insets.getInsets(WindowInsets.Type.ime()) != Insets.NONE) {
+                                if (insets.hasInsets()) {
                                     imeInsetsVisible.set(insets.isVisible(WindowInsets.Type.ime()));
                                     imeVisibilityUpdateLatch.countDown();
                                 }
@@ -899,6 +933,9 @@ public class KeyboardVisibilityControlTest extends EndToEndImeTestBase {
                             && testActivity.getWindow().getDecorView().hasWindowFocus(), TIMEOUT);
             assertTrue("Waiting for onApplyWindowInsets timed out",
                     imeVisibilityUpdateLatch.await(5, TimeUnit.SECONDS));
+            // Wait for layout being stable in case insets visibility might not align with the
+            // input view visibility.
+            waitForInputViewLayoutStable(stream, LAYOUT_STABLE_THRESHOLD);
 
             if (imeInsetsVisible.get()) {
                 expectImeVisible(TIMEOUT);
@@ -972,5 +1009,14 @@ public class KeyboardVisibilityControlTest extends EndToEndImeTestBase {
                 CompatChanges.isChangeEnabled(CLEAR_SHOW_FORCED_FLAG_WHEN_LEAVING, packageName,
                         UserHandle.CURRENT)));
         return result.get();
+    }
+
+    /** Whether the IME DisplayArea is organized by WM Shell. */
+    private static boolean isImeOrganized(int displayId) {
+        final WindowManagerState wmState = new WindowManagerState();
+        wmState.computeState();
+        WindowManagerState.DisplayArea imeContainer =  wmState.getImeContainer(displayId);
+        assertNotNull("ImeContainer not found for display id: " + displayId, imeContainer);
+        return imeContainer.isOrganized();
     }
 }
