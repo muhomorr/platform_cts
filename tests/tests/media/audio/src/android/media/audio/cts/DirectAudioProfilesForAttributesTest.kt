@@ -25,7 +25,6 @@ import android.media.AudioTrack
 import android.media.cts.NonMediaMainlineTest
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Assume.assumeTrue
 import org.junit.Before
@@ -46,29 +45,6 @@ class DirectAudioProfilesForAttributesTest {
         )
 
         audioManager = context.getSystemService(AudioManager::class.java)
-    }
-
-    /**
-     * Test that all returned AudioProfiles from getDirectProfilesForAttributes are contained in
-     * the AudioProfiles from all AudioDeviceInfos from getAudioDevicesForAttributes
-     */
-    @Test
-    fun testNoUnexpectedDirectProfilesForAttributes() {
-        for (usage in AudioAttributes.getSdkUsages()) {
-            val audioAttributes = AudioAttributes.Builder()
-                .setUsage(usage)
-                .build()
-            val allProfilesForAttributes =
-                audioManager.getAudioDevicesForAttributes(audioAttributes).map { it.audioProfiles }
-                    .flatten()
-            val directProfiles = audioManager.getDirectProfilesForAttributes(audioAttributes)
-
-            assertTrue(
-                "Direct AudioProfiles ($directProfiles) not found in AudioDeviceInfos " +
-                        "($allProfilesForAttributes) for attributes ($audioAttributes).",
-                allProfilesForAttributes.includesAll(directProfiles)
-            )
-        }
     }
 
     /**

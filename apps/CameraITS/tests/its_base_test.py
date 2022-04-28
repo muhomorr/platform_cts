@@ -16,13 +16,13 @@
 import logging
 import time
 
+import its_session_utils
+import lighting_control_utils
 from mobly import asserts
 from mobly import base_test
 from mobly import utils
 from mobly.controllers import android_device
 
-import its_session_utils
-import lighting_control_utils
 
 ADAPTIVE_BRIGHTNESS_OFF = '0'
 TABLET_CMD_DELAY_SEC = 0.5  # found empirically
@@ -118,10 +118,10 @@ class ItsBaseTest(base_test.BaseTestClass):
     self._setup_devices(num_devices)
 
     arduino_serial_port = lighting_control_utils.lighting_control(
-      self.lighting_cntl, self.lighting_ch)
+        self.lighting_cntl, self.lighting_ch)
     if arduino_serial_port:
       lighting_control_utils.set_light_brightness(
-      self.lighting_ch, 255, arduino_serial_port)
+          self.lighting_ch, 255, arduino_serial_port)
       logging.debug('Light is turned ON.')
 
   def _setup_devices(self, num):
@@ -186,13 +186,15 @@ class ItsBaseTest(base_test.BaseTestClass):
         # For some tablets the values are in constant forms such as ROTATION_90
         if 'ROTATION_90' in landscape_val:
           landscape_val = '1'
+        elif 'ROTATION_0' in landscape_val:
+          landscape_val = '0'
         logging.debug('Changing the orientation to landscape mode.')
         self.tablet.adb.shell(['settings', 'put', 'system', 'user_rotation',
                                landscape_val])
         break
-    logging.debug(
-        'Reported tablet orientation is: %d',
-        int(self.tablet.adb.shell('settings get system user_rotation')))
+    logging.debug('Reported tablet orientation is: %d',
+                  int(self.tablet.adb.shell(
+                      'settings get system user_rotation')))
 
   def parse_hidden_camera_id(self):
     """Parse the string of camera ID into an array.

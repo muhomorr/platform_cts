@@ -29,6 +29,8 @@ import static android.provider.MediaStore.PickerMediaColumns;
 
 import static com.google.common.truth.Truth.assertThat;
 
+import static org.junit.Assert.assertThrows;
+
 import android.content.ClipData;
 import android.content.ContentResolver;
 import android.content.Intent;
@@ -50,7 +52,6 @@ import androidx.test.uiautomator.UiObject;
 import org.junit.After;
 import org.junit.Assume;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -64,7 +65,6 @@ import java.util.List;
  * Photo Picker Device only tests for common flows.
  */
 @RunWith(AndroidJUnit4.class)
-@SdkSuppress(minSdkVersion = 31, codeName = "S")
 public class CloudPhotoPickerTest extends PhotoPickerBaseTest {
     private final List<Uri> mUriList = new ArrayList<>();
     private MediaGenerator mCloudPrimaryMediaGenerator;
@@ -101,7 +101,7 @@ public class CloudPhotoPickerTest extends PhotoPickerBaseTest {
     @After
     public void tearDown() throws Exception {
         for (Uri uri : mUriList) {
-            deleteMedia(uri, mContext.getUserId());
+            deleteMedia(uri, mContext);
         }
         mActivity.finish();
         mUriList.clear();
@@ -190,10 +190,23 @@ public class CloudPhotoPickerTest extends PhotoPickerBaseTest {
     }
 
     @Test
+    public void testSupportedProviders() throws Exception {
+        assertThat(MediaStore.isSupportedCloudMediaProviderAuthority(mContext.getContentResolver(),
+                        CloudProviderPrimary.AUTHORITY)).isTrue();
+        assertThat(MediaStore.isSupportedCloudMediaProviderAuthority(mContext.getContentResolver(),
+                        CloudProviderSecondary.AUTHORITY)).isTrue();
+
+        assertThat(MediaStore.isSupportedCloudMediaProviderAuthority(mContext.getContentResolver(),
+                        CloudProviderNoPermission.AUTHORITY)).isFalse();
+        assertThat(MediaStore.isSupportedCloudMediaProviderAuthority(mContext.getContentResolver(),
+                        CloudProviderNoIntentFilter.AUTHORITY)).isFalse();
+    }
+
+    @Test
     public void testProviderSwitchSuccess() throws Exception {
         setCloudProvider(mContext, CloudProviderPrimary.AUTHORITY);
-        assertThat(MediaStore.getCloudProvider(mContext.getContentResolver()))
-                .isEqualTo(CloudProviderPrimary.AUTHORITY);
+        assertThat(MediaStore.isCurrentCloudMediaProviderAuthority(mContext.getContentResolver(),
+                        CloudProviderPrimary.AUTHORITY)).isTrue();
 
         addImage(mCloudPrimaryMediaGenerator, /* localId */ null, CLOUD_ID1);
         addImage(mCloudSecondaryMediaGenerator, /* localId */ null, CLOUD_ID2);
@@ -206,8 +219,8 @@ public class CloudPhotoPickerTest extends PhotoPickerBaseTest {
         containsExcept(mediaIds, CLOUD_ID1, CLOUD_ID2);
 
         setCloudProvider(mContext, CloudProviderSecondary.AUTHORITY);
-        assertThat(MediaStore.getCloudProvider(mContext.getContentResolver()))
-                .isEqualTo(CloudProviderSecondary.AUTHORITY);
+        assertThat(MediaStore.isCurrentCloudMediaProviderAuthority(mContext.getContentResolver(),
+                        CloudProviderPrimary.AUTHORITY)).isFalse();
 
         clipData = fetchPickerMedia(2);
         mediaIds = extractMediaIds(clipData, 1);
@@ -218,16 +231,16 @@ public class CloudPhotoPickerTest extends PhotoPickerBaseTest {
     @Test
     public void testProviderSwitchFailure() throws Exception {
         setCloudProvider(mContext, CloudProviderNoIntentFilter.AUTHORITY);
-        assertThat(MediaStore.getCloudProvider(mContext.getContentResolver()))
-                .isEqualTo(null);
+        assertThat(MediaStore.isCurrentCloudMediaProviderAuthority(mContext.getContentResolver(),
+                        CloudProviderPrimary.AUTHORITY)).isFalse();
 
         setCloudProvider(mContext, CloudProviderNoPermission.AUTHORITY);
-        assertThat(MediaStore.getCloudProvider(mContext.getContentResolver()))
-                .isEqualTo(null);
+        assertThat(MediaStore.isCurrentCloudMediaProviderAuthority(mContext.getContentResolver(),
+                        CloudProviderPrimary.AUTHORITY)).isFalse();
     }
 
     @Test
-    public void testUriAccess() throws Exception {
+    public void testUriAccessWithValidProjection() throws Exception {
         initPrimaryCloudProviderWithImage(Pair.create(null, CLOUD_ID1));
 
         final ClipData clipData = fetchPickerMedia(1);
@@ -261,17 +274,38 @@ public class CloudPhotoPickerTest extends PhotoPickerBaseTest {
         assertRedactedReadOnlyAccess(clipData.getItemAt(0).getUri());
     }
 
-    @Ignore("b/215187981: For some reason, it hits a timeout and crashes the other tests on cf")
+    @Test
+    public void testUriAccessWithInvalidProjection() throws Exception {
+        initPrimaryCloudProviderWithImage(Pair.create(null, CLOUD_ID1));
+
+        final ClipData clipData = fetchPickerMedia(1);
+        final List<String> mediaIds = extractMediaIds(clipData, 1);
+
+        assertThat(mediaIds).containsExactly(CLOUD_ID1);
+
+        final ContentResolver resolver = mContext.getContentResolver();
+
+        assertThrows(IllegalArgumentException.class, () -> resolver.query(
+                        clipData.getItemAt(0).getUri(),
+                        new String[] {MediaStore.MediaColumns.RELATIVE_PATH}, null, null));
+    }
+
     @Test
     public void testCloudEventNotification() throws Exception {
+        // Create a placeholder local image to ensure that the picker UI is never empty.
+        // The PhotoPickerUiUtils#findItemList needs to select an item and it times out if the
+        // Picker UI is empty.
+        createImages(1, mContext.getUserId(), mUriList);
+
         // Cloud provider isn't set
-        assertThat(MediaStore.getCloudProvider(mContext.getContentResolver()))
-                .isEqualTo(null);
+        assertThat(MediaStore.isCurrentCloudMediaProviderAuthority(mContext.getContentResolver(),
+                        CloudProviderPrimary.AUTHORITY)).isFalse();
         addImage(mCloudPrimaryMediaGenerator, /* localId */ null, CLOUD_ID1);
 
         // Notification fails because the calling cloud provider isn't enabled
-        assertThat(MediaStore.notifyCloudEvent(mContext.getContentResolver()))
-                .isFalse();
+        assertThrows("Unauthorized cloud media notification", SecurityException.class,
+                () -> MediaStore.notifyCloudMediaChangedEvent(mContext.getContentResolver(),
+                        CloudProviderPrimary.AUTHORITY, COLLECTION_1));
 
         // Sleep because the notification API throttles requests with a 1s delay
         Thread.sleep(1500);
@@ -283,10 +317,15 @@ public class CloudPhotoPickerTest extends PhotoPickerBaseTest {
 
         // Now set the cloud provider and verify that notification succeeds
         setCloudProvider(mContext, CloudProviderPrimary.AUTHORITY);
-        assertThat(MediaStore.getCloudProvider(mContext.getContentResolver()))
-                .isEqualTo(CloudProviderPrimary.AUTHORITY);
-        assertThat(MediaStore.notifyCloudEvent(mContext.getContentResolver()))
-                .isTrue();
+        assertThat(MediaStore.isCurrentCloudMediaProviderAuthority(mContext.getContentResolver(),
+                        CloudProviderPrimary.AUTHORITY)).isTrue();
+
+        MediaStore.notifyCloudMediaChangedEvent(mContext.getContentResolver(),
+                CloudProviderPrimary.AUTHORITY, COLLECTION_1);
+
+        assertThrows("Unauthorized cloud media notification", SecurityException.class,
+                () -> MediaStore.notifyCloudMediaChangedEvent(mContext.getContentResolver(),
+                        CloudProviderSecondary.AUTHORITY, COLLECTION_1));
 
         // Sleep because the notification API throttles requests with a 1s delay
         Thread.sleep(1500);
@@ -328,8 +367,7 @@ public class CloudPhotoPickerTest extends PhotoPickerBaseTest {
 
     private ClipData fetchPickerMedia(int maxCount) throws Exception {
         final Intent intent = new Intent(MediaStore.ACTION_PICK_IMAGES);
-        // TODO(b/205291616): Replace 100 with MediaStore.getPickImagesMaxLimit()
-        intent.putExtra(MediaStore.EXTRA_PICK_IMAGES_MAX, 100);
+        intent.putExtra(MediaStore.EXTRA_PICK_IMAGES_MAX, MediaStore.getPickImagesMaxLimit());
         mActivity.startActivityForResult(intent, REQUEST_CODE);
 
         final List<UiObject> itemList = findItemList(maxCount);
@@ -349,8 +387,8 @@ public class CloudPhotoPickerTest extends PhotoPickerBaseTest {
     private void initPrimaryCloudProviderWithImage(Pair<String, String>... mediaPairs)
             throws Exception {
         setCloudProvider(mContext, CloudProviderPrimary.AUTHORITY);
-        assertThat(MediaStore.getCloudProvider(mContext.getContentResolver()))
-                .isEqualTo(CloudProviderPrimary.AUTHORITY);
+        assertThat(MediaStore.isCurrentCloudMediaProviderAuthority(mContext.getContentResolver(),
+                        CloudProviderPrimary.AUTHORITY)).isTrue();
 
         for (Pair<String, String> pair: mediaPairs) {
             addImage(mCloudPrimaryMediaGenerator, pair.first, pair.second);

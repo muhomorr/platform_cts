@@ -34,7 +34,9 @@
     <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS"/>
 
     <application android:label="CtsWindowManagerDeviceTestCases"
-         android:requestLegacyExternalStorage="true">
+                 android:requestLegacyExternalStorage="true"
+                 android:enableOnBackInvokedCallback="true"
+                 android:testOnly="true">
         <uses-library android:name="android.test.runner"/>
 
         <activity android:name="android.server.wm.ActivityManagerTestBase$ConfigChangeHandlingActivity"
@@ -433,6 +435,13 @@
 
         <activity android:name="android.server.wm.ActivityTransitionTests$TransitionActivity"/>
 
+        <activity android:name="android.server.wm.ActivityTransitionTests$OverridePendingTransitionActivity"/>
+
+        <activity android:name="android.server.wm.ActivityTransitionTests$TransitionActivityWithWhiteBackground"
+            android:theme="@style/Theme.WhiteBackground"
+            android:exported="true"
+            android:colorMode="wideColorGamut"/>
+
         <activity android:name="android.server.wm.WindowUntrustedTouchTest$TestActivity"
                   android:exported="true"
                   android:configChanges="screenSize|screenLayout|orientation"
@@ -533,6 +542,14 @@
             android:theme="@style/WhiteBackgroundTheme"
             android:exported="true">
         </activity>
+        <activity android:name="android.server.wm.BackNavigationActivity"
+                  android:exported="true"/>
+        <activity android:name="android.server.wm.PinnedStackTests$TestActivity"
+                  android:exported="true"/>
+        <activity android:name="android.server.wm.TaskFragmentTrustedModeTest$TranslucentActivity"
+                  android:exported="true"
+                  android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|colorMode|density|touchscreen"
+                  android:theme="@android:style/Theme.Translucent.NoTitleBar" />
     </application>
 
     <instrumentation android:name="androidx.test.runner.AndroidJUnitRunner"

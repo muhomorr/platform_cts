@@ -51,6 +51,9 @@ def do_capture_and_extract_rgb_means(req, cam, size, img_type, log_path, debug):
   """
   out_surface = {'width': size[0], 'height': size[1], 'format': img_type}
   cap = cam.do_capture(req, out_surface)
+  logging.debug('e_cap: %d, s_cap: %d',
+                cap['metadata']['android.sensor.exposureTime'],
+                cap['metadata']['android.sensor.sensitivity'])
   if img_type == 'jpg':
     if cap['format'] != 'jpeg':
       raise AssertionError(f"{cap['format']} != jpeg")
@@ -67,6 +70,7 @@ def do_capture_and_extract_rgb_means(req, cam, size, img_type, log_path, debug):
   if debug:
     image_processing_utils.write_image(img, '%s_%s_w%d_h%d.jpg'%(
         os.path.join(log_path, NAME), img_type, size[0], size[1]))
+
   if img_type == 'jpg':
     if img.shape[0] != size[1]:
       raise AssertionError(f'{img.shape[0]} != {size[1]}')
@@ -107,6 +111,7 @@ class YuvJpegAllTest(its_base_test.ItsBaseTest):
       # should look the same (once converted by the image_processing_utils).
       e, s = target_exposure_utils.get_target_exposure_combos(
           log_path, cam)['midExposureTime']
+      logging.debug('e_req: %d, s_req: %d', e, s)
       req = capture_request_utils.manual_capture_request(s, e, 0.0, True, props)
 
       rgbs = []
@@ -135,7 +140,7 @@ class YuvJpegAllTest(its_base_test.ItsBaseTest):
       # Assert all captured images are similar in RBG space
       max_diff = 0
       for rgb_i in rgbs[1:]:
-        rms_diff = image_processing_utils.compute_image_rms_difference(
+        rms_diff = image_processing_utils.compute_image_rms_difference_1d(
             rgbs[0], rgb_i)  # use first capture as reference
         max_diff = max(max_diff, rms_diff)
       msg = 'Max RMS difference: %.4f' % max_diff

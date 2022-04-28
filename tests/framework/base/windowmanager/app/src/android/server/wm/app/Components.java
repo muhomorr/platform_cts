@@ -88,6 +88,10 @@ public class Components extends ComponentsBase {
     public static final ComponentName PIP_ACTIVITY_WITH_SAME_AFFINITY =
             component("PipActivityWithSameAffinity");
     public static final ComponentName PIP_ON_STOP_ACTIVITY = component("PipOnStopActivity");
+    public static final ComponentName LAUNCH_INTO_PIP_HOST_ACTIVITY =
+            component("LaunchIntoPipHostActivity");
+    public static final ComponentName LAUNCH_INTO_PIP_CONTAINER_ACTIVITY =
+            component("LaunchIntoPipContainerActivity");
     public static final ComponentName PORTRAIT_ORIENTATION_ACTIVITY =
             component("PortraitOrientationActivity");
     public static final ComponentName RECURSIVE_ACTIVITY = component("RecursiveActivity");
@@ -289,11 +293,14 @@ public class Components extends ComponentsBase {
     public static final ComponentName KEEP_CLEAR_RECTS_ACTIVITY =
             component("KeepClearRectsActivity");
 
+    public static final ComponentName KEEP_CLEAR_RECTS_ACTIVITY2 =
+            component("KeepClearRectsActivity2");
+
     /**
      * The keys used by {@link CustomTransitionExitActivity} to select the animation to run.
      */
     public static class CustomTransitionAnimations {
-        /** see @anim/show_background_hide_window_animation.xml */
+        /** see @anim/show_backdrop_hide_window_animation.xml */
         public static final String BACKGROUND_COLOR = "backgroundColor";
         /** see @anim/edge_extension_right_window_animation.xml */
         public static final String LEFT_EDGE_EXTENSION = "leftEdgeExtension";
@@ -520,6 +527,18 @@ public class Components extends ComponentsBase {
         // Intent action that will request that the activity enters picture-in-picture.
         public static final String ACTION_ON_PIP_REQUESTED =
                 "android.server.wm.app.PipActivity.on_pip_requested";
+        // Intent action that will request that the activity initiates launch-into-pip
+        public static final String ACTION_START_LAUNCH_INTO_PIP_CONTAINER =
+                "android.server.wm.app.LaunchIntoPip.start_container_activity";
+        // Intent action that will request the host activity of launch-into-pip to finish itself
+        public static final String ACTION_FINISH_LAUNCH_INTO_PIP_HOST =
+                "android.server.wm.app.LaunchIntoPip.finish_host_activity";
+        // Intent action that will request the activity to change the PiP aspect ratio
+        public static final String ACTION_CHANGE_ASPECT_RATIO =
+                "android.server.wm.app.LaunchIntoPip.change_aspect_ratio";
+        // Intent action that will request the activity to start a new translucent activity
+        public static final String ACTION_LAUNCH_TRANSLUCENT_ACTIVITY =
+                "android.server.wm.app.LaunchIntoPip.launch_translucent_activity";
 
         // Adds an assertion that we do not ever get onStop() before we enter picture in picture
         public static final String EXTRA_ASSERT_NO_ON_STOP_BEFORE_PIP =
@@ -549,6 +568,10 @@ public class Components extends ComponentsBase {
         // Sets seamless resize enabled on the activity picture-in-picture params.
         public static final String EXTRA_IS_SEAMLESS_RESIZE_ENABLED =
                 "enter_pip_is_seamless_resize_enabled";
+        // Sets the given title on the activity picture-in-picture params.
+        public static final String EXTRA_TITLE = "set_pip_title";
+        // Sets the given subtitle on the activity picture-in-picture params.
+        public static final String EXTRA_SUBTITLE = "set_pip_subtitle";
         // Finishes the activity at the end of onResume (after EXTRA_START_ACTIVITY is handled)
         public static final String EXTRA_FINISH_SELF_ON_RESUME = "finish_self_on_resume";
         // Sets the fixed orientation (can be one of {@link ActivityInfo.ScreenOrientation}
@@ -581,10 +604,12 @@ public class Components extends ComponentsBase {
         public static final String EXTRA_DISMISS_KEYGUARD = "dismiss_keyguard";
         // Number of custom actions should be set onto PictureInPictureParams
         public static final String EXTRA_NUMBER_OF_CUSTOM_ACTIONS = "number_of_custom_actions";
+        // Whether a custom close action should be set in the PictureInPictureParams.
+        public static final String EXTRA_CLOSE_ACTION = "set_pip_close_action";
         // Supplied when a callback is expected for pip
         public static final String EXTRA_SET_PIP_CALLBACK = "set_pip_callback";
-        // Key for obtaining the callback's results
-        public static final String PIP_CALLBACK_RESULT_KEY = "pip_callback_result_key";
+        // Result key for obtaining the PictureInPictureUiState#isStashed result
+        public static final String UI_STATE_STASHED_RESULT = "ui_state_stashed_result";
     }
 
     /**
