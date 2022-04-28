@@ -27,7 +27,10 @@ import android.telecom.cts.carmodetestapp.ICtsCarModeInCallServiceControl;
 import android.telecom.cts.carmodetestappselfmanaged.CtsCarModeInCallServiceControlSelfManaged;
 import android.util.Log;
 
+import com.android.compatibility.common.util.ShellIdentityUtils;
+
 import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -36,9 +39,8 @@ public class PhoneAccountRegistrarTest extends BaseTelecomTestWithMockServices {
     private static final String TAG = "PhoneAccountRegistrarTest";
     private static final long TIMEOUT = 3000L;
     public static final long SEED = 52L; // random seed chosen
-
-    // mirrors constant in PhoneAccountRegistrar called MAX_PHONE_ACCOUNT_REGISTRATIONS
-    public static final int MAX_PHONE_ACCOUNT_REGISTRATIONS = 10;
+    public static final int MAX_PHONE_ACCOUNT_REGISTRATIONS = 10; // mirrors constant in...
+    // PhoneAccountRegistrar called MAX_PHONE_ACCOUNT_REGISTRATIONS
 
     @Override
     public void setUp() throws Exception {
@@ -47,6 +49,16 @@ public class PhoneAccountRegistrarTest extends BaseTelecomTestWithMockServices {
         NewOutgoingCallBroadcastReceiver.reset();
         if (!mShouldTestTelecom) return;
         setupConnectionService(null, 0);
+        // cleanup any accounts registered to the test package before starting tests
+        cleanupPhoneAccounts();
+    }
+
+    @Override
+    public void tearDown() throws Exception {
+        // cleanup any accounts registered to the test package after testing to avoid crashing other
+        // tests.
+        cleanupPhoneAccounts();
+        super.tearDown();
     }
 
     /**
@@ -57,15 +69,23 @@ public class PhoneAccountRegistrarTest extends BaseTelecomTestWithMockServices {
     public void testRegisterMaxPhoneAccountsWithoutException() {
         if (!mShouldTestTelecom) return;
 
-        // create MAX_PHONE_ACCOUNT_REGISTRATIONS via helper function
+        // ensure the test starts without any phone accounts registered to the test package
+        cleanupPhoneAccounts();
+
+        //  determine the number of phone accounts that can be registered before hitting limit
+        int numberOfAccountsThatCanBeRegistered = MAX_PHONE_ACCOUNT_REGISTRATIONS
+                - getNumberOfPhoneAccountsRegisteredToTestPackage();
+
+        // create the remaining number of phone accounts via helper function
+        // in order to reach the upper bound MAX_PHONE_ACCOUNT_REGISTRATIONS
         ArrayList<PhoneAccount> accounts = TestUtils.generateRandomPhoneAccounts(SEED,
-                MAX_PHONE_ACCOUNT_REGISTRATIONS, TestUtils.PACKAGE, TestUtils.COMPONENT);
+                numberOfAccountsThatCanBeRegistered, TestUtils.PACKAGE, TestUtils.COMPONENT);
         try {
-            // register MAX_PHONE_ACCOUNT_REGISTRATIONS to PhoneAccountRegistrar
+            // register all accounts created
             accounts.stream().forEach(a -> mTelecomManager.registerPhoneAccount(a));
-            // assert all were successfully registered
+            // assert the maximum accounts that can be registered were registered successfully
             assertEquals(MAX_PHONE_ACCOUNT_REGISTRATIONS,
-                    mTelecomManager.getSelfManagedPhoneAccounts().size());
+                    getNumberOfPhoneAccountsRegisteredToTestPackage());
         } finally {
             // cleanup accounts registered
             accounts.stream().forEach(
@@ -75,11 +95,14 @@ public class PhoneAccountRegistrarTest extends BaseTelecomTestWithMockServices {
 
     /**
      * Tests a scenario where a single package exceeds MAX_PHONE_ACCOUNT_REGISTRATIONS and
-     * an {@link IllegalArgumentException}  is thrown
+     * an {@link IllegalArgumentException}  is thrown. Will fail if no exception is thrown.
      */
-    public void testExceptionThrownDueExceededMaxPhoneAccountsRegistrations()
+    public void testExceptionThrownDueUserExceededMaxPhoneAccountRegistrations()
             throws IllegalArgumentException {
         if (!mShouldTestTelecom) return;
+
+        // ensure the test starts without any phone accounts registered to the test package
+        cleanupPhoneAccounts();
 
         // Create MAX_PHONE_ACCOUNT_REGISTRATIONS + 1 via helper function
         ArrayList<PhoneAccount> accounts = TestUtils.generateRandomPhoneAccounts(SEED,
@@ -116,6 +139,18 @@ public class PhoneAccountRegistrarTest extends BaseTelecomTestWithMockServices {
     public void testTwoPackagesRegisterMax() throws Exception {
         if (!mShouldTestTelecom) return;
 
+        // ensure the test starts without any phone accounts registered to the test package
+        cleanupPhoneAccounts();
+
+        //  determine the number of phone accounts that can be registered to package 1
+        int numberOfAccountsThatCanBeRegisteredToPackage1 = MAX_PHONE_ACCOUNT_REGISTRATIONS
+                - getNumberOfPhoneAccountsRegisteredToTestPackage();
+
+        // Create MAX phone accounts for package 1
+        ArrayList<PhoneAccount> accountsPackage1 = TestUtils.generateRandomPhoneAccounts(SEED,
+                numberOfAccountsThatCanBeRegisteredToPackage1, TestUtils.PACKAGE,
+                TestUtils.COMPONENT);
+
         // Constants for creating a second package to register phone accounts
         final String carPkgSelfManaged =
                 CtsCarModeInCallServiceControlSelfManaged.class
@@ -136,10 +171,6 @@ public class PhoneAccountRegistrarTest extends BaseTelecomTestWithMockServices {
 
         carModeIncallServiceControlSelfManaged.reset(); //... done setting up binding
 
-        // Create MAX phone accounts for package 1
-        ArrayList<PhoneAccount> accountsPackage1 = TestUtils.generateRandomPhoneAccounts(SEED,
-                MAX_PHONE_ACCOUNT_REGISTRATIONS, TestUtils.PACKAGE, TestUtils.COMPONENT);
-
         // Create MAX phone accounts for package 2
         ArrayList<PhoneAccount> accountsPackage2 = TestUtils.generateRandomPhoneAccounts(SEED,
                 MAX_PHONE_ACCOUNT_REGISTRATIONS, carPkgSelfManaged,
@@ -147,42 +178,24 @@ public class PhoneAccountRegistrarTest extends BaseTelecomTestWithMockServices {
 
         try {
 
-            // Register all phone accounts created
+            // register all accounts for package 1
+            accountsPackage1.stream().forEach(a -> mTelecomManager.registerPhoneAccount(a));
+
+
+            // register all phone accounts for package 2
             for (int i = 0; i < MAX_PHONE_ACCOUNT_REGISTRATIONS; i++) {
-                mTelecomManager.registerPhoneAccount(accountsPackage1.get(i));
                 carModeIncallServiceControlSelfManaged.registerPhoneAccount(
                         accountsPackage2.get(i));
             }
 
-            // Get all the self-managed phone accounts registered in PhoneAccountRegistrar
-            int package1Count, package2Count;
-            package1Count = package2Count = 0;
-
-            // Iterate over all phone accounts returned by PhoneAccountRegistrar
-            for (PhoneAccountHandle pah : mTelecomManager.getSelfManagedPhoneAccounts()) {
-                String packageName = pah.getComponentName().getPackageName();
-                if (packageName.equals(TestUtils.PACKAGE)) {
-                    package1Count++;
-                }
-                if (packageName.equals(carPkgSelfManaged)) {
-                    package2Count++;
-                }
-            }
-
-            // assert all accounts were registered successfully to the correct package
-
-            // assert MAX_PHONE_ACCOUNT_REGISTRATIONS were successfully registered to package 1
-            assertEquals(MAX_PHONE_ACCOUNT_REGISTRATIONS,
-                    package1Count);
-
-            // assert MAX_PHONE_ACCOUNT_REGISTRATIONS were successfully registered to package 2
-            assertEquals(MAX_PHONE_ACCOUNT_REGISTRATIONS,
-                    package2Count);
         } finally {
             // cleanup all phone accounts registered. Note, unregisterPhoneAccount will not
             // cause a runtime error if no phone account is found when trying to unregister.
+
+            accountsPackage1.stream().forEach(d -> mTelecomManager.unregisterPhoneAccount(
+                    d.getAccountHandle()));
+
             for (int i = 0; i < MAX_PHONE_ACCOUNT_REGISTRATIONS; i++) {
-                mTelecomManager.unregisterPhoneAccount(accountsPackage1.get(i).getAccountHandle());
                 carModeIncallServiceControlSelfManaged.unregisterPhoneAccount(
                         accountsPackage2.get(i).getAccountHandle());
             }
@@ -191,7 +204,7 @@ public class PhoneAccountRegistrarTest extends BaseTelecomTestWithMockServices {
         mContext.unbindService(control);
     }
 
-    // The following are helper methods for this testing class.
+    // -- The following are helper methods for this testing class. --
 
     private TestServiceConnection setUpControl(String action, ComponentName componentName) {
         Intent bindIntent = new Intent(action);
@@ -237,4 +250,40 @@ public class PhoneAccountRegistrarTest extends BaseTelecomTestWithMockServices {
             }
         }
     }
+
+    /**
+     * Helper that cleans up any phone accounts registered to this testing package.  Requires
+     * the permission READ_PRIVILEGED_PHONE_STATE in order to invoke the
+     * getPhoneAccountsForPackage() method.
+     */
+    private void cleanupPhoneAccounts() {
+        if (mTelecomManager != null) {
+            // Get all handles registered to the testing package
+            List<PhoneAccountHandle> handles = ShellIdentityUtils.invokeMethodWithShellPermissions(
+                    mTelecomManager, (tm) -> tm.getPhoneAccountsForPackage(),
+                    "android.permission.READ_PRIVILEGED_PHONE_STATE");
+
+            // cleanup any extra phone accounts registered to the testing package
+            if (handles.size() > 0 && mTelecomManager != null) {
+                handles.stream().forEach(
+                        d -> mTelecomManager.unregisterPhoneAccount(d));
+            }
+        }
+    }
+
+    /**
+     * Helper that gets the number of phone accounts registered to the testing package. Requires
+     * the permission READ_PRIVILEGED_PHONE_STATE in order to invoke the
+     * getPhoneAccountsForPackage() method.
+     * @return number of phone accounts registered to the testing package.
+     */
+    private int getNumberOfPhoneAccountsRegisteredToTestPackage() {
+        if (mTelecomManager != null) {
+            return ShellIdentityUtils.invokeMethodWithShellPermissions(
+                    mTelecomManager, (tm) -> tm.getPhoneAccountsForPackage(),
+                    "android.permission.READ_PRIVILEGED_PHONE_STATE").size();
+        }
+        return 0;
+    }
 }
+

@@ -22,39 +22,35 @@ import static android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT;
 import static android.content.res.Configuration.ORIENTATION_LANDSCAPE;
 import static android.content.res.Configuration.ORIENTATION_PORTRAIT;
 
-import static androidx.test.platform.app.InstrumentationRegistry.getInstrumentation;
 import static androidx.test.core.app.ApplicationProvider.getApplicationContext;
-
-import static com.google.common.truth.Truth.assertThat;
+import static androidx.test.platform.app.InstrumentationRegistry.getInstrumentation;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assume.assumeTrue;
 
 import android.app.Activity;
 import android.app.Application;
 import android.app.Instrumentation;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.Rect;
 import android.os.Bundle;
 import android.os.IBinder;
+import android.view.WindowManager;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.window.extensions.layout.FoldingFeature;
 import androidx.window.sidecar.SidecarDeviceState;
 
+import org.junit.After;
 import org.junit.Before;
-import org.junit.runner.RunWith;
 
-import java.util.List;
-import java.util.Set;
 import java.util.HashSet;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeoutException;
+import java.util.Set;
 
 /** Base class for all tests in the module. */
 public class WindowManagerJetpackTestBase {
@@ -65,7 +61,8 @@ public class WindowManagerJetpackTestBase {
     public Context mContext;
     public Application mApplication;
 
-    private final static Set<Activity> sResumedActivities = new HashSet<>();
+    private static final Set<Activity> sResumedActivities = new HashSet<>();
+    private static final Set<Activity> sVisibleActivities = new HashSet<>();
 
     @Before
     public void setUp() {
@@ -79,11 +76,35 @@ public class WindowManagerJetpackTestBase {
         registerActivityLifecycleCallbacks();
     }
 
-    public Activity startActivityNewTask(Class activityClass) {
+    @After
+    public void tearDown() {
+        sResumedActivities.clear();
+        sVisibleActivities.clear();
+    }
+
+    public Activity startActivityNewTask(@NonNull Class activityClass) {
+        return startActivityNewTask(activityClass, null /* activityId */);
+    }
+
+    public Activity startActivityNewTask(@NonNull Class activityClass,
+            @Nullable String activityId) {
         final Intent intent = new Intent(mContext, activityClass);
         intent.addFlags(FLAG_ACTIVITY_NEW_TASK);
+        if (activityId != null) {
+            intent.putExtra(ACTIVITY_ID_LABEL, activityId);
+        }
         final Activity activity = mInstrumentation.startActivitySync(intent);
         return activity;
+    }
+
+    /**
+     * Start an activity using a component name. Can be used for activities from a different UIDs.
+     */
+    public void startActivityNewTask(@NonNull ComponentName activityComponent) {
+        final Intent intent = new Intent();
+        intent.setClassName(activityComponent.getPackageName(), activityComponent.getClassName());
+        intent.addFlags(FLAG_ACTIVITY_NEW_TASK);
+        mContext.startActivity(intent);
     }
 
     /**
@@ -94,6 +115,20 @@ public class WindowManagerJetpackTestBase {
             Class<T> activityToLaunchClass, String newActivityId) {
         Intent intent = new Intent(activityToLaunchFrom, activityToLaunchClass);
         intent.putExtra(ACTIVITY_ID_LABEL, newActivityId);
+        activityToLaunchFrom.startActivity(intent);
+    }
+
+    /**
+     * Starts a specified activity class from {@param activityToLaunchFrom}.
+     */
+    public static void startActivityFromActivity(@NonNull Activity activityToLaunchFrom,
+            @NonNull ComponentName activityToLaunchComponent, @NonNull String newActivityId,
+            @NonNull Bundle extras) {
+        Intent intent = new Intent();
+        intent.setClassName(activityToLaunchComponent.getPackageName(),
+                activityToLaunchComponent.getClassName());
+        intent.putExtra(ACTIVITY_ID_LABEL, newActivityId);
+        intent.putExtras(extras);
         activityToLaunchFrom.startActivity(intent);
     }
 
@@ -115,6 +150,14 @@ public class WindowManagerJetpackTestBase {
 
     public static Rect getMaximumActivityBounds(Activity activity) {
         return activity.getWindowManager().getMaximumWindowMetrics().getBounds();
+    }
+
+    /**
+     * Gets the width of a full-screen task.
+     */
+    public int getTaskWidth() {
+        return mContext.getSystemService(WindowManager.class).getMaximumWindowMetrics().getBounds()
+                .width();
     }
 
     public static void setActivityOrientationActivityHandlesOrientationChanges(
@@ -183,6 +226,9 @@ public class WindowManagerJetpackTestBase {
 
                     @Override
                     public void onActivityStarted(@NonNull Activity activity) {
+                        synchronized (sVisibleActivities) {
+                            sVisibleActivities.add(activity);
+                        }
                     }
 
                     @Override
@@ -201,6 +247,9 @@ public class WindowManagerJetpackTestBase {
 
                     @Override
                     public void onActivityStopped(@NonNull Activity activity) {
+                        synchronized (sVisibleActivities) {
+                            sVisibleActivities.remove(activity);
+                        }
                     }
 
                     @Override
@@ -220,6 +269,12 @@ public class WindowManagerJetpackTestBase {
         }
     }
 
+    public static boolean isActivityVisible(Activity activity) {
+        synchronized (sVisibleActivities) {
+            return sVisibleActivities.contains(activity);
+        }
+    }
+
     @Nullable
     public static TestActivityWithId getResumedActivityById(@NonNull String activityId) {
         synchronized (sResumedActivities) {
@@ -230,6 +285,13 @@ public class WindowManagerJetpackTestBase {
                 }
             }
             return null;
+        }
+    }
+
+    @Nullable
+    public static Activity getTopResumedActivity() {
+        synchronized (sResumedActivities) {
+            return !sResumedActivities.isEmpty() ? sResumedActivities.iterator().next() : null;
         }
     }
 }

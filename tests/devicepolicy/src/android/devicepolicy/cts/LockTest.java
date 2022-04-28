@@ -43,7 +43,7 @@ import com.android.bedstead.harrier.annotations.Postsubmit;
 import com.android.bedstead.harrier.annotations.RequireDoesNotHaveFeature;
 import com.android.bedstead.harrier.annotations.RequireFeature;
 import com.android.bedstead.harrier.annotations.RequireTargetSdkVersion;
-import com.android.bedstead.harrier.annotations.enterprise.PositivePolicyTest;
+import com.android.bedstead.harrier.annotations.enterprise.PolicyAppliesTest;
 import com.android.bedstead.harrier.policies.DeprecatedResetPassword;
 import com.android.bedstead.harrier.policies.LockNow;
 import com.android.bedstead.metricsrecorder.EnterpriseMetricsRecorder;
@@ -67,7 +67,7 @@ public class LockTest {
     private static final KeyguardManager sLocalKeyguardManager =
             TestApis.context().instrumentedContext().getSystemService(KeyguardManager.class);
 
-    // TODO(191637162): When @PositivePolicyTest supports permissions, remove
+    // TODO(191637162): When @PolicyAppliesTest supports permissions, remove
     @RequireFeature("android.software.secure_lock_screen")
     @RequireDoesNotHaveFeature(FEATURE_AUTOMOTIVE)
     @EnsureHasPermission(LOCK_DEVICE)
@@ -84,7 +84,7 @@ public class LockTest {
                 .await();
     }
 
-    // TODO(191637162): When @PositivePolicyTest supports permissions, remove
+    // TODO(191637162): When @PolicyAppliesTest supports permissions, remove
     @RequireFeature("android.software.secure_lock_screen")
     @RequireFeature(FEATURE_AUTOMOTIVE)
     @EnsureHasPermission(LOCK_DEVICE)
@@ -99,7 +99,7 @@ public class LockTest {
         assertThat(TestApis.device().isScreenOn()).isTrue();
     }
 
-    // TODO(191637162): When @PositivePolicyTest supports permissions, remove
+    // TODO(191637162): When @PolicyAppliesTest supports permissions, remove
     @RequireFeature("android.software.secure_lock_screen")
     @RequireDoesNotHaveFeature(FEATURE_AUTOMOTIVE)
     @EnsureHasPermission(LOCK_DEVICE)
@@ -116,8 +116,7 @@ public class LockTest {
                 .await();
     }
 
-    @Test
-    @PositivePolicyTest(policy = LockNow.class)
+    @PolicyAppliesTest(policy = LockNow.class)
     @Postsubmit(reason = "New test")
     @EnsurePasswordNotSet
     public void lockNow_logsMetric() {
@@ -136,8 +135,7 @@ public class LockTest {
     @EnsureScreenIsOn
     @EnsurePasswordNotSet
     @Postsubmit(reason = "New test")
-    @Test
-    @PositivePolicyTest(policy = LockNow.class)
+    @PolicyAppliesTest(policy = LockNow.class)
     public void lockNow_noPasswordSet_turnsScreenOff() throws Exception {
         sDeviceState.dpc().devicePolicyManager().lockNow();
 
@@ -151,8 +149,7 @@ public class LockTest {
     @EnsureScreenIsOn
     @EnsurePasswordNotSet
     @Postsubmit(reason = "New test")
-    @Test
-    @PositivePolicyTest(policy = LockNow.class)
+    @PolicyAppliesTest(policy = LockNow.class)
     public void lockNow_automotive_noPasswordSet_doesNotTurnScreenOff() throws Exception {
         sDeviceState.dpc().devicePolicyManager().lockNow();
 
@@ -163,8 +160,7 @@ public class LockTest {
     @EnsureScreenIsOn
     @EnsurePasswordSet
     @Postsubmit(reason = "New test")
-    @Test
-    @PositivePolicyTest(policy = LockNow.class)
+    @PolicyAppliesTest(policy = LockNow.class)
     public void lockNow_passwordSet_locksDevice() throws Exception {
         sDeviceState.dpc().devicePolicyManager().lockNow();
 
@@ -176,8 +172,7 @@ public class LockTest {
 
     @RequireDoesNotHaveFeature(FEATURE_AUTOMOTIVE)
     @RequireTargetSdkVersion(max = N)
-    @Test
-    @PositivePolicyTest(policy = DeprecatedResetPassword.class)
+    @PolicyAppliesTest(policy = DeprecatedResetPassword.class)
     public void resetPassword_targetBeforeN_returnsFalse() {
         assertThat(sDeviceState.dpc()
                 .devicePolicyManager().resetPassword(DEFAULT_PASSWORD, /* flags= */ 0)).isFalse();
@@ -185,8 +180,7 @@ public class LockTest {
 
     @RequireDoesNotHaveFeature(FEATURE_AUTOMOTIVE)
     @RequireTargetSdkVersion(min = O)
-    @Test
-    @PositivePolicyTest(policy = DeprecatedResetPassword.class)
+    @PolicyAppliesTest(policy = DeprecatedResetPassword.class)
     public void resetPassword_targetAfterO_throwsSecurityException() {
         assertThrows(SecurityException.class,
                 () -> sDeviceState.dpc().devicePolicyManager()

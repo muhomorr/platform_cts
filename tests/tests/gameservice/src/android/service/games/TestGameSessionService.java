@@ -17,10 +17,15 @@
 package android.service.games;
 
 import android.content.Context;
+import android.graphics.Color;
+import android.graphics.Rect;
 import android.graphics.Region;
+import android.service.games.testing.OnSystemBarVisibilityChangedInfo;
+import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
+import android.widget.TextView;
 
 import androidx.annotation.GuardedBy;
 import androidx.annotation.Nullable;
@@ -42,7 +47,8 @@ public final class TestGameSessionService extends GameSessionService {
 
     @Override
     public GameSession onNewSession(CreateGameSessionRequest createGameSessionRequest) {
-        return new TestGameSession(this, createGameSessionRequest.getGamePackageName());
+        return new TestGameSession(this, createGameSessionRequest.getGamePackageName(),
+                createGameSessionRequest.getTaskId());
     }
 
     static Set<String> getActiveSessions() {
@@ -61,14 +67,33 @@ public final class TestGameSessionService extends GameSessionService {
     static final class TestGameSession extends GameSession {
         private final Context mContext;
         private final String mPackageName;
+        private final int mTaskId;
+        private final Rect mTouchableBounds = new Rect();
+        private final FrameLayout mRootView;
+        private final OnSystemBarVisibilityChangedInfo mOnSystemBarVisibilityChangedInfo;
 
-        private TestGameSession(Context context, String packageName) {
+        private TestGameSession(Context context, String packageName, int taskId) {
             mContext = context;
             mPackageName = packageName;
+            mTaskId = taskId;
+            mRootView = new FrameLayout(context);
+            mOnSystemBarVisibilityChangedInfo = new OnSystemBarVisibilityChangedInfo();
         }
 
         String getPackageName() {
             return mPackageName;
+        }
+
+        int getTaskId() {
+            return mTaskId;
+        }
+
+        Rect getTouchableBounds() {
+            return new Rect(mTouchableBounds);
+        }
+
+        OnSystemBarVisibilityChangedInfo getOnSystemBarVisibilityChangedInfo() {
+            return mOnSystemBarVisibilityChangedInfo;
         }
 
         @Override
@@ -77,25 +102,50 @@ public final class TestGameSessionService extends GameSessionService {
                 sActiveSessions.add(mPackageName);
             }
 
-            // TODO(b/215706114): Render content in the overlay and verify that it works.
-            //                    The below code just ensures that touches can pass through the
-            //                    overlay.
-            FrameLayout rootView = new FrameLayout(mContext);
-            setTaskOverlayView(rootView,
+            final TextView textView = new TextView(mContext);
+            textView.setText("Overlay was rendered on: " + mPackageName);
+            textView.setBackgroundColor(Color.MAGENTA);
+            final FrameLayout.LayoutParams textViewLayoutParams =
+                    new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
+                            ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER);
+            textViewLayoutParams.leftMargin = 100;
+            textViewLayoutParams.rightMargin = 100;
+            textView.setLayoutParams(textViewLayoutParams);
+            mRootView.addView(textView);
+
+            setTaskOverlayView(mRootView,
                     new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
                             ViewGroup.LayoutParams.MATCH_PARENT));
 
-            rootView.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener() {
+            mRootView.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener() {
                 @Override
                 public void onViewAttachedToWindow(View v) {
-                    // Allow all touches to pass through the overlay.
                     v.getRootSurfaceControl().setTouchableRegion(new Region());
                     v.removeOnAttachStateChangeListener(this);
                 }
 
                 @Override
-                public void onViewDetachedFromWindow(View v) {}
+                public void onViewDetachedFromWindow(View v) {
+                }
             });
+            textView.addOnLayoutChangeListener(
+                    (v, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> {
+                        boolean isViewVisible = v.getGlobalVisibleRect(mTouchableBounds);
+                        if (!isViewVisible) {
+                            mTouchableBounds.setEmpty();
+                        }
+                        v.getRootSurfaceControl().setTouchableRegion(new Region(mTouchableBounds));
+                    });
+        }
+
+        @Override
+        public void onTransientSystemBarVisibilityFromRevealGestureChanged(
+                boolean visibleDueToGesture) {
+            if (visibleDueToGesture) {
+                mOnSystemBarVisibilityChangedInfo.incrementTimesShown();
+            } else {
+                mOnSystemBarVisibilityChangedInfo.incrementTimesHidden();
+            }
         }
 
         @Override

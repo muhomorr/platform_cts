@@ -37,7 +37,6 @@ import com.android.os.AtomsProto.Atom;
 import com.android.os.AtomsProto.AttributionNode;
 import com.android.os.AtomsProto.AudioStateChanged;
 import com.android.os.AtomsProto.CameraStateChanged;
-import com.android.os.AtomsProto.DeviceCalculatedPowerBlameUid;
 import com.android.os.AtomsProto.FlashlightStateChanged;
 import com.android.os.AtomsProto.ForegroundServiceAppOpSessionEnded;
 import com.android.os.AtomsProto.ForegroundServiceStateChanged;
@@ -335,46 +334,6 @@ public class UidAtomTests extends DeviceTestCase implements IBuildReceiver {
         DeviceUtils.resetBatteryStatus(getDevice());
     }
 
-
-    public void testDeviceCalculatedPowerBlameUid() throws Exception {
-        if (!DeviceUtils.hasFeature(getDevice(), FEATURE_LEANBACK_ONLY)) return;
-        if (!DeviceUtils.hasBattery(getDevice())) {
-            return;
-        }
-        String kernelVersion = getDevice().executeShellCommand("uname -r");
-        if (kernelVersion.contains("3.18")) {
-            LogUtil.CLog.d("Skipping calculated power blame uid test.");
-            return;
-        }
-        ConfigUtils.uploadConfigForPulledAtom(getDevice(), DeviceUtils.STATSD_ATOM_TEST_PKG,
-                Atom.DEVICE_CALCULATED_POWER_BLAME_UID_FIELD_NUMBER);
-        DeviceUtils.unplugDevice(getDevice());
-
-        Thread.sleep(AtomTestUtils.WAIT_TIME_LONG);
-        DeviceUtils.runDeviceTestsOnStatsdApp(getDevice(), ".AtomTests", "testSimpleCpu");
-        Thread.sleep(AtomTestUtils.WAIT_TIME_SHORT);
-        AtomTestUtils.sendAppBreadcrumbReportedAtom(getDevice());
-        Thread.sleep(AtomTestUtils.WAIT_TIME_LONG);
-
-        List<Atom> atomList = ReportUtils.getGaugeMetricAtoms(getDevice());
-        boolean uidFound = false;
-        int uid = DeviceUtils.getStatsdTestAppUid(getDevice());
-        long uidPower = 0;
-        for (Atom atom : atomList) {
-            DeviceCalculatedPowerBlameUid item = atom.getDeviceCalculatedPowerBlameUid();
-            if (item.getUid() == uid) {
-                assertWithMessage(String.format("Found multiple power values for uid %d", uid))
-                        .that(uidFound).isFalse();
-                uidFound = true;
-                uidPower = item.getPowerNanoAmpSecs();
-            }
-        }
-        assertWithMessage(String.format("No power value for uid %d", uid)).that(uidFound).isTrue();
-        assertWithMessage(String.format("Non-positive power value for uid %d", uid))
-                .that(uidPower).isGreaterThan(0L);
-        DeviceUtils.resetBatteryStatus(getDevice());
-    }
-
     public void testFlashlightState() throws Exception {
         if (!DeviceUtils.hasFeature(getDevice(), FEATURE_CAMERA_FLASH)) return;
 
@@ -641,11 +600,9 @@ public class UidAtomTests extends DeviceTestCase implements IBuildReceiver {
 
         Set<Integer> screenMin = new HashSet<>(Arrays.asList(47));
         Set<Integer> screen100 = new HashSet<>(Arrays.asList(100));
-        Set<Integer> screen140 = new HashSet<>(Arrays.asList(140));
-        // Set<Integer> screenMax = new HashSet<>(Arrays.asList(255));
 
         // Add state sets to the list in order.
-        List<Set<Integer>> stateSet = Arrays.asList(screenMin, screen100, screen140);
+        List<Set<Integer>> stateSet = Arrays.asList(screenMin, screen100);
 
         ConfigUtils.uploadConfigForPushedAtom(getDevice(), DeviceUtils.STATSD_ATOM_TEST_PKG,
                 atomTag);
@@ -660,7 +617,7 @@ public class UidAtomTests extends DeviceTestCase implements IBuildReceiver {
 
         AtomTestUtils.popUntilFind(data, screenMin,
                 atom -> atom.getScreenBrightnessChanged().getLevel());
-        AtomTestUtils.popUntilFindFromEnd(data, screen140,
+        AtomTestUtils.popUntilFindFromEnd(data, screen100,
                 atom -> atom.getScreenBrightnessChanged().getLevel());
         // Assert that the events happened in the expected order.
         AtomTestUtils.assertStatesOccurredInOrder(stateSet, data, AtomTestUtils.WAIT_TIME_SHORT,

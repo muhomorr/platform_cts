@@ -39,19 +39,17 @@ import com.android.bedstead.harrier.annotations.EnsureHasPermission;
 import com.android.bedstead.harrier.annotations.Postsubmit;
 import com.android.bedstead.harrier.annotations.enterprise.CanSetPolicyTest;
 import com.android.bedstead.harrier.annotations.enterprise.CannotSetPolicyTest;
-import com.android.bedstead.harrier.annotations.enterprise.PositivePolicyTest;
+import com.android.bedstead.harrier.annotations.enterprise.PolicyAppliesTest;
 import com.android.bedstead.harrier.policies.UserControlDisabledPackages;
 import com.android.bedstead.metricsrecorder.EnterpriseMetricsRecorder;
 import com.android.bedstead.nene.TestApis;
 import com.android.bedstead.nene.packages.Package;
 import com.android.bedstead.testapp.TestApp;
 import com.android.bedstead.testapp.TestAppInstance;
-import com.android.bedstead.testapp.TestAppProvider;
 import com.android.queryable.queries.StringQuery;
 
 import org.junit.ClassRule;
 import org.junit.Rule;
-import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import java.util.Arrays;
@@ -62,9 +60,11 @@ import java.util.List;
 public final class UserControlDisabledPackagesTest {
     private static final String TAG = "UserControlDisabledPackagesTest";
 
-    private static final TestAppProvider sTestAppProvider = new TestAppProvider();
+    @ClassRule @Rule
+    public static final DeviceState sDeviceState = new DeviceState();
+
     private static final TestApp sTestApp =
-            sTestAppProvider.query().whereActivities().isNotEmpty().get();
+            sDeviceState.testApps().query().whereActivities().isNotEmpty().get();
 
     private static final ActivityManager sActivityManager =
             TestApis.context().instrumentedContext().getSystemService(ActivityManager.class);
@@ -73,11 +73,6 @@ public final class UserControlDisabledPackagesTest {
 
     private static final String PACKAGE_NAME = "com.android.foo.bar.baz";
 
-    @ClassRule
-    @Rule
-    public static final DeviceState sDeviceState = new DeviceState();
-
-    @Test
     @CanSetPolicyTest(policy = UserControlDisabledPackages.class)
     @Postsubmit(reason = "New test")
     public void setUserControlDisabledPackages_verifyMetricIsLogged() {
@@ -103,8 +98,7 @@ public final class UserControlDisabledPackagesTest {
         }
     }
 
-    @Test
-    @PositivePolicyTest(policy = UserControlDisabledPackages.class)
+    @PolicyAppliesTest(policy = UserControlDisabledPackages.class)
     @Postsubmit(reason = "b/181993922 automatically marked flaky")
     public void setUserControlDisabledPackages_toOneProtectedPackage() {
         List<String> originalDisabledPackages =
@@ -124,8 +118,7 @@ public final class UserControlDisabledPackagesTest {
         }
     }
 
-    @Test
-    @PositivePolicyTest(policy = UserControlDisabledPackages.class)
+    @PolicyAppliesTest(policy = UserControlDisabledPackages.class)
     @Postsubmit(reason = "b/181993922 automatically marked flaky")
     public void setUserControlDisabledPackages_toEmptyProtectedPackages() {
         List<String> originalDisabledPackages =
@@ -145,7 +138,6 @@ public final class UserControlDisabledPackagesTest {
         }
     }
 
-    @Test
     @CannotSetPolicyTest(policy = UserControlDisabledPackages.class)
     public void setUserControlDisabledPackages_notAllowedToSetProtectedPackages_throwsException() {
         assertThrows(SecurityException.class,
@@ -154,8 +146,7 @@ public final class UserControlDisabledPackagesTest {
                         Collections.emptyList()));
     }
 
-    @Test
-    @PositivePolicyTest(policy = UserControlDisabledPackages.class)
+    @PolicyAppliesTest(policy = UserControlDisabledPackages.class)
     @Postsubmit(reason = "b/181993922 automatically marked flaky")
     public void
     getUserControlDisabledPackages_noProtectedPackagesSet_returnsEmptyProtectedPackages() {
@@ -166,7 +157,6 @@ public final class UserControlDisabledPackagesTest {
                 .isEmpty();
     }
 
-    @Test
     @CannotSetPolicyTest(policy = UserControlDisabledPackages.class)
     public void
     getUserControlDisabledPackages_notAllowedToRetrieveProtectedPackages_throwsException() {
@@ -175,9 +165,8 @@ public final class UserControlDisabledPackagesTest {
                         DPC_COMPONENT_NAME));
     }
 
-    @Test
     @EnsureHasPermission(value = permission.FORCE_STOP_PACKAGES)
-    @PositivePolicyTest(policy = UserControlDisabledPackages.class)
+    @PolicyAppliesTest(policy = UserControlDisabledPackages.class)
     @Postsubmit(reason = "b/181993922 automatically marked flaky")
     public void setUserControlDisabledPackages_launchActivity_verifyPackageNotStopped()
             throws Exception {

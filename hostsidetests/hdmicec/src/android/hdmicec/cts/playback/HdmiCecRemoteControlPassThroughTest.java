@@ -17,6 +17,7 @@
 package android.hdmicec.cts.playback;
 
 import static com.google.common.truth.Truth.assertThat;
+import static com.google.common.truth.Truth.assertWithMessage;
 
 import android.hdmicec.cts.BaseHdmiCecCtsTest;
 import android.hdmicec.cts.CecMessage;
@@ -26,9 +27,9 @@ import android.hdmicec.cts.HdmiControlManagerUtility;
 import android.hdmicec.cts.LogicalAddress;
 import android.hdmicec.cts.RemoteControlPassthrough;
 
+import com.android.tradefed.device.ITestDevice;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
 
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.RuleChain;
@@ -158,7 +159,7 @@ public final class HdmiCecRemoteControlPassThroughTest extends BaseHdmiCecCtsTes
         String message;
         int i;
 
-        HdmiControlManagerUtility.sendLongPressKeyevent(getDevice());
+        HdmiControlManagerUtility.sendLongPressKeyevent(this);
         // The above command should send 5 <UCP>[KEYCODE_UP] messages followed by 1 <UCR> message
         // and finally, a <UCP>[KEYCODE_DOWN].
         for (i = 0; i < 5; i++) {
@@ -195,6 +196,59 @@ public final class HdmiCecRemoteControlPassThroughTest extends BaseHdmiCecCtsTes
             assertThat(reason).isEqualTo(HdmiCecConstants.ABORT_NOT_IN_CORRECT_MODE);
         } finally {
             wakeUpDevice();
+        }
+    }
+
+    /*
+     * Test to check that the DUT sends volume key press events to the TV when system audio mode is
+     * not turned on.
+     */
+    @Test
+    public void cect_sendVolumeKeyPressToTv() throws Exception {
+        ITestDevice device = getDevice();
+        String ucpMessage;
+        String command = "cmd hdmi_control setsam ";
+
+        simulateCecSinkConnected(device, getTargetLogicalAddress());
+        String volumeControlEnabled =
+                getSettingsValue(device, HdmiCecConstants.SETTING_VOLUME_CONTROL_ENABLED);
+        setSettingsValue(
+                device,
+                HdmiCecConstants.SETTING_VOLUME_CONTROL_ENABLED,
+                HdmiCecConstants.VOLUME_CONTROL_ENABLED);
+
+        boolean wasSystemAudioModeOn = isSystemAudioModeOn(device);
+        if (wasSystemAudioModeOn) {
+            device.executeShellCommand(command + "off");
+            assertWithMessage("System audio mode is not off")
+                    .that(isSystemAudioModeOn(device))
+                    .isFalse();
+        }
+        try {
+            device.executeShellCommand("input keyevent KEYCODE_VOLUME_UP");
+            ucpMessage =
+                    hdmiCecClient.checkExpectedOutput(
+                            LogicalAddress.TV, CecOperand.USER_CONTROL_PRESSED);
+            assertThat(CecMessage.getParams(ucpMessage))
+                    .isEqualTo(HdmiCecConstants.CEC_KEYCODE_VOLUME_UP);
+            device.executeShellCommand("input keyevent KEYCODE_VOLUME_DOWN");
+            ucpMessage =
+                    hdmiCecClient.checkExpectedOutput(
+                            LogicalAddress.TV, CecOperand.USER_CONTROL_PRESSED);
+            assertThat(CecMessage.getParams(ucpMessage))
+                    .isEqualTo(HdmiCecConstants.CEC_KEYCODE_VOLUME_DOWN);
+            device.executeShellCommand("input keyevent KEYCODE_VOLUME_MUTE");
+            ucpMessage =
+                    hdmiCecClient.checkExpectedOutput(
+                            LogicalAddress.TV, CecOperand.USER_CONTROL_PRESSED);
+            assertThat(CecMessage.getParams(ucpMessage))
+                    .isEqualTo(HdmiCecConstants.CEC_KEYCODE_MUTE);
+        } finally {
+            if (wasSystemAudioModeOn) {
+                device.executeShellCommand(command + "on");
+            }
+            setSettingsValue(
+                    device, HdmiCecConstants.SETTING_VOLUME_CONTROL_ENABLED, volumeControlEnabled);
         }
     }
 }

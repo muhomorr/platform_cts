@@ -44,7 +44,6 @@ public class PropertyUtil {
     private static final String CAMERAX_EXTENSIONS_ENABLED = "ro.camerax.extensions.enabled";
     private static final String MANUFACTURER_PROPERTY = "ro.product.manufacturer";
     private static final String TAG_DEV_KEYS = "dev-keys";
-    private static final String VENDOR_BUILD_VERSION_SDK = "ro.vendor.build.version.sdk";
     private static final String VNDK_VERSION = "ro.vndk.version";
 
     public static final String GOOGLE_SETTINGS_QUERY =
@@ -91,12 +90,12 @@ public class PropertyUtil {
 
     /**
      * Return the API level that the VSR requirement must be fulfilled. It reads
-     * ro.product.first_api_level, ro.board.first_api_level, and ro.board.api_level
-     * to find the minimum required VSR api_level for the DUT.
+     * ro.product.first_api_level and ro.board.first_api_level to find the minimum required VSR
+     * api_level for the DUT.
      */
     public static int getVsrApiLevel() {
         // Api level properties of the board. The order of the properties must be kept.
-        String[] boardApiLevelProps = { BOARD_API_LEVEL, BOARD_FIRST_API_LEVEL, VENDOR_BUILD_VERSION_SDK };
+        String[] boardApiLevelProps = {BOARD_API_LEVEL, BOARD_FIRST_API_LEVEL};
         for (String apiLevelProp : boardApiLevelProps) {
             int apiLevel = getPropertyInt(apiLevelProp);
             if (apiLevel != INT_VALUE_IF_UNSET) {
@@ -263,6 +262,35 @@ public class PropertyUtil {
             return (value.isEmpty()) ? null : value;
         } catch (IOException e) {
             return null;
+        } finally {
+            if (scanner != null) {
+                scanner.close();
+            }
+        }
+    }
+
+    /** Retrieves a map of prop to value for all props with the given prefix */
+    public static Map<String, String> getPropertiesWithPrefix(String prefix) {
+        Map<String, String> result = new HashMap<>();
+        Pattern pattern = Pattern.compile("\\[(.*)\\]: \\[(.*)\\]");
+        Scanner scanner = null;
+        try {
+            Process process = new ProcessBuilder("getprop").start();
+            scanner = new Scanner(process.getInputStream());
+            while (scanner.hasNextLine()) {
+                String line = scanner.nextLine().trim();
+                Matcher matcher = pattern.matcher(line);
+                if (matcher.find()) {
+                    String prop = matcher.group(1);
+                    String value = matcher.group(2);
+                    if (prop.startsWith(prefix)) {
+                        result.put(prop, value);
+                    }
+                }
+            }
+            return result;
+        } catch (IOException e) {
+            return result;
         } finally {
             if (scanner != null) {
                 scanner.close();

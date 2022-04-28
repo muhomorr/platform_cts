@@ -31,23 +31,36 @@ import android.signature.cts.VirtualPath.ResourcePath;
 import android.util.Log;
 
 import androidx.test.platform.app.InstrumentationRegistry;
+import androidx.test.runner.AndroidJUnit4;
+
+import com.android.compatibility.common.util.DynamicConfigDeviceSide;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.EnumSet;
-import java.util.List;
+import java.util.function.Predicate;
 import java.util.stream.Stream;
 import java.util.zip.ZipFile;
-import junit.framework.TestCase;
+import org.junit.Before;
+import org.junit.runner.RunWith;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 
 /**
+ * Base class for the signature tests.
  */
-public class AbstractApiTest extends TestCase {
+@RunWith(AndroidJUnit4.class)
+public abstract class AbstractApiTest {
+
+    /**
+     * The name of the optional instrumentation option that contains the name of the dynamic config
+     * data set that contains the expected failures.
+     */
+    private static final String DYNAMIC_CONFIG_NAME_OPTION = "dynamic-config-name";
 
     private static final String TAG = "SignatureTest";
 
@@ -76,9 +89,8 @@ public class AbstractApiTest extends TestCase {
                 Settings.Global.HIDDEN_API_POLICY);
     }
 
-    @Override
-    protected void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void setUp() throws Exception {
         mResultObserver = new TestResultObserver();
 
         // Get the arguments passed to the instrumentation.
@@ -90,10 +102,9 @@ public class AbstractApiTest extends TestCase {
                         Settings.Global.HIDDEN_API_BLACKLIST_EXEMPTIONS),
                 getExpectedBlocklistExemptions(),
                 getGlobalExemptions());
-        assertEquals(
+        assertNull(
                 String.format("Device in bad state: %s is not as expected",
                         Settings.Global.HIDDEN_API_POLICY),
-                null,
                 getGlobalHiddenApiPolicy());
 
 
@@ -105,17 +116,25 @@ public class AbstractApiTest extends TestCase {
                 new BootClassPathClassesProvider(),
                 name -> name != null && name.startsWith("com.android.internal.R."));
 
+        String dynamicConfigName = instrumentationArgs.getString(DYNAMIC_CONFIG_NAME_OPTION);
+        if (dynamicConfigName != null) {
+            // Get the DynamicConfig.xml contents and extract the expected failures list.
+            DynamicConfigDeviceSide dcds = new DynamicConfigDeviceSide(dynamicConfigName);
+            Collection<String> expectedFailures = dcds.getValues("expected_failures");
+            initExpectedFailures(expectedFailures);
+        }
+
         initializeFromArgs(instrumentationArgs);
     }
 
     /**
      * Initialize the expected failures.
      *
-     * <p>Call from with {@code #initializeFromArgs}</p>
+     * <p>Call from with {@link #setUp()}</p>
      *
      * @param expectedFailures the expected failures.
      */
-    protected void initExpectedFailures(Collection<String> expectedFailures) {
+    private void initExpectedFailures(Collection<String> expectedFailures) {
         this.expectedFailures = expectedFailures;
         String tag = getClass().getName();
         Log.d(tag, "Expected failure count: " + expectedFailures.size());
@@ -129,7 +148,6 @@ public class AbstractApiTest extends TestCase {
     }
 
     protected void initializeFromArgs(Bundle instrumentationArgs) throws Exception {
-
     }
 
     protected interface RunnableWithResultObserver {
@@ -174,10 +192,10 @@ public class AbstractApiTest extends TestCase {
         return argument.split(",");
     }
 
-    private Stream<VirtualPath> readResource(String resourceName) {
+    private static Stream<VirtualPath> readResource(ClassLoader classLoader, String resourceName) {
         try {
             ResourcePath resourcePath =
-                    VirtualPath.get(getClass().getClassLoader(), resourceName);
+                    VirtualPath.get(classLoader, resourceName);
             if (resourceName.endsWith(".zip")) {
                 // Extract to a temporary file and read from there.
                 Path file = extractResourceToFile(resourceName, resourcePath.newInputStream());
@@ -190,7 +208,7 @@ public class AbstractApiTest extends TestCase {
         }
     }
 
-    Path extractResourceToFile(String resourceName, InputStream is) throws IOException {
+    private static Path extractResourceToFile(String resourceName, InputStream is) throws IOException {
         Path tempDirectory = Files.createTempDirectory("signature");
         Path file = tempDirectory.resolve(resourceName);
         Log.i(TAG, "extractResourceToFile: extracting " + resourceName + " to " + file);
@@ -203,7 +221,7 @@ public class AbstractApiTest extends TestCase {
      * Given a path in the local file system (possibly of a zip file) flatten it into a stream of
      * virtual paths.
      */
-    private Stream<VirtualPath> flattenPaths(LocalFilePath path) {
+    private static Stream<VirtualPath> flattenPaths(LocalFilePath path) {
         try {
             if (path.toString().endsWith(".zip")) {
                 return getZipEntryFiles(path);
@@ -215,11 +233,37 @@ public class AbstractApiTest extends TestCase {
         }
     }
 
+    /**
+     * Create a stream of {@link JDiffClassDescription} by parsing a set of API resource files.
+     *
+     * @param apiDocumentParser the parser to use.
+     * @param apiResources the list of API resource files.
+     *
+     * @return the stream of {@link JDiffClassDescription}.
+     */
     Stream<JDiffClassDescription> parseApiResourcesAsStream(
             ApiDocumentParser apiDocumentParser, String[] apiResources) {
-        return Stream.of(apiResources)
-                .flatMap(this::readResource)
+        return retrieveApiResourcesAsStream(getClass().getClassLoader(), apiResources)
                 .flatMap(apiDocumentParser::parseAsStream);
+    }
+
+    /**
+     * Retrieve a stream of {@link VirtualPath} from a list of API resource files.
+     *
+     * <p>Any zip files are flattened, i.e. if a resource name ends with {@code .zip} then it is
+     * unpacked into a temporary directory and the paths to the unpacked files are returned instead
+     * of the path to the zip file.</p>
+     *
+     * @param classLoader the {@link ClassLoader} from which the resources will be loaded.
+     * @param apiResources the list of API resource files.
+     *
+     * @return the stream of {@link VirtualPath}.
+     */
+    static Stream<VirtualPath> retrieveApiResourcesAsStream(
+            ClassLoader classLoader,
+            String[] apiResources) {
+        return Stream.of(apiResources)
+                .flatMap(resourceName -> readResource(classLoader, resourceName));
     }
 
     /**
@@ -228,7 +272,7 @@ public class AbstractApiTest extends TestCase {
      * @param path the path to the zip file.
      * @return paths to zip entries
      */
-    protected Stream<VirtualPath> getZipEntryFiles(LocalFilePath path) throws IOException {
+    private static Stream<VirtualPath> getZipEntryFiles(LocalFilePath path) throws IOException {
         @SuppressWarnings("resource")
         ZipFile zip = new ZipFile(path.toFile());
         return zip.stream().map(entry -> VirtualPath.get(zip, entry));

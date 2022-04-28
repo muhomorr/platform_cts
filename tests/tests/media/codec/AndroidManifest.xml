@@ -23,7 +23,7 @@
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.INSTANT_APP_FOREGROUND_SERVICE"/>
-
+    <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
     <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"/>
@@ -38,6 +38,14 @@
                 <action android:name="android.intent.action.MAIN"/>
             </intent-filter>
         </service>
+
+        <service android:name="android.media.codec.cts.MediaCodecResourceTestLowPriorityService"
+             android:process=":MediaCodecResourceTestLowPriorityProcess">
+        </service>
+        <activity android:name="android.media.codec.cts.MediaCodecResourceTestHighPriorityActivity"
+             android:label="MediaCodecResourceTestHighPriorityActivity"
+             android:process=":MediaCodecResourceTestHighPriorityProcess">
+        </activity>
     </application>
 
     <instrumentation android:name="androidx.test.runner.AndroidJUnitRunner"

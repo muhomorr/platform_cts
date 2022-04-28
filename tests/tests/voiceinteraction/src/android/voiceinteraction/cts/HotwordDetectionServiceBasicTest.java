@@ -40,7 +40,6 @@ import android.service.voice.HotwordDetectionService;
 import android.support.test.uiautomator.By;
 import android.support.test.uiautomator.UiDevice;
 import android.support.test.uiautomator.Until;
-import android.util.Log;
 import android.voiceinteraction.common.Utils;
 import android.voiceinteraction.service.EventPayloadParcelable;
 import android.voiceinteraction.service.MainHotwordDetectionService;
@@ -51,6 +50,7 @@ import androidx.test.filters.RequiresDevice;
 import androidx.test.platform.app.InstrumentationRegistry;
 
 import com.android.compatibility.common.util.BlockingBroadcastReceiver;
+import com.android.compatibility.common.util.DisableAnimationRule;
 import com.android.compatibility.common.util.RequiredFeatureRule;
 import com.android.compatibility.common.util.SystemUtil;
 
@@ -71,6 +71,10 @@ public final class HotwordDetectionServiceBasicTest
 
     @Rule
     public RequiredFeatureRule REQUIRES_MIC_RULE = new RequiredFeatureRule(FEATURE_MICROPHONE);
+
+    // TODO(b/230321933): Use active/noted RECORD_AUDIO app ops instead of checking the Mic icon.
+    @Rule
+    public DisableAnimationRule mDisableAnimationRule = new DisableAnimationRule();
 
     private static final String INDICATORS_FLAG = "camera_mic_icons_enabled";
     private static final String PRIVACY_CHIP_PKG = "com.android.systemui";
@@ -136,20 +140,18 @@ public final class HotwordDetectionServiceBasicTest
         receiver.register();
 
         // Create SoftwareHotwordDetector
-        perform(Utils.HOTWORD_DETECTION_SERVICE_FROM_SOFTWARE_TRIGGER_TEST);
+        testHotwordDetection(Utils.HOTWORD_DETECTION_SERVICE_FROM_SOFTWARE_TRIGGER_TEST,
+                Utils.HOTWORD_DETECTION_SERVICE_SOFTWARE_TRIGGER_RESULT_INTENT,
+                Utils.HOTWORD_DETECTION_SERVICE_TRIGGER_SUCCESS);
+
+        // Destroy detector
+        testHotwordDetection(Utils.HOTWORD_DETECTION_SERVICE_SOFTWARE_DESTROY_DETECTOR,
+                Utils.HOTWORD_DETECTION_SERVICE_SOFTWARE_TRIGGER_RESULT_INTENT,
+                Utils.HOTWORD_DETECTION_SERVICE_TRIGGER_SUCCESS);
+
         // Create AlwaysOnHotwordDetector
-        perform(Utils.HOTWORD_DETECTION_SERVICE_TRIGGER_TEST);
-
-        final Intent softwareIntent = softwareReceiver.awaitForBroadcast(TIMEOUT_MS);
-        softwareReceiver.unregisterQuietly();
-
-        assertThat(softwareIntent).isNull();
-
-        final Intent intent = receiver.awaitForBroadcast(TIMEOUT_MS);
-        receiver.unregisterQuietly();
-
-        assertThat(intent).isNotNull();
-        assertThat(intent.getIntExtra(Utils.KEY_TEST_RESULT, -1)).isEqualTo(
+        testHotwordDetection(Utils.HOTWORD_DETECTION_SERVICE_TRIGGER_TEST,
+                Utils.HOTWORD_DETECTION_SERVICE_TRIGGER_RESULT_INTENT,
                 Utils.HOTWORD_DETECTION_SERVICE_TRIGGER_SUCCESS);
 
         verifyDetectedResult(
@@ -203,22 +205,6 @@ public final class HotwordDetectionServiceBasicTest
         assertThat(performAndGetDetectionResult(Utils.HOTWORD_DETECTION_SERVICE_DSP_ONREJECT_TEST))
                 .isEqualTo(MainHotwordDetectionService.REJECTED_RESULT);
         verifyMicrophoneChip(false);
-    }
-
-    @Test
-    public void testHotwordDetectionService_onDetectFromExternalSource_success()
-            throws Throwable {
-        Thread.sleep(CLEAR_CHIP_MS);
-        // Create AlwaysOnHotwordDetector and wait the HotwordDetectionService ready
-        testHotwordDetection(Utils.HOTWORD_DETECTION_SERVICE_TRIGGER_TEST,
-                Utils.HOTWORD_DETECTION_SERVICE_TRIGGER_RESULT_INTENT,
-                Utils.HOTWORD_DETECTION_SERVICE_TRIGGER_SUCCESS);
-
-        verifyDetectedResult(
-                performAndGetDetectionResult(
-                        Utils.HOTWORD_DETECTION_SERVICE_EXTERNAL_SOURCE_ONDETECT_TEST),
-                MainHotwordDetectionService.DETECTED_RESULT);
-        verifyMicrophoneChip(true);
     }
 
     @Test
@@ -315,6 +301,40 @@ public final class HotwordDetectionServiceBasicTest
         // ActivityManager to restart the HotwordDetectionService, so that the service can be
         // destroyed after finishing this test case.
         Thread.sleep(TIMEOUT_MS);
+    }
+
+    @Test
+    public void testHotwordDetectionService_destroyDspDetector_activeDetectorRemoved() {
+        // Create AlwaysOnHotwordDetector
+        testHotwordDetection(Utils.HOTWORD_DETECTION_SERVICE_TRIGGER_TEST,
+                Utils.HOTWORD_DETECTION_SERVICE_TRIGGER_RESULT_INTENT,
+                Utils.HOTWORD_DETECTION_SERVICE_TRIGGER_SUCCESS);
+
+        testHotwordDetection(Utils.HOTWORD_DETECTION_SERVICE_DSP_DESTROY_DETECTOR,
+                Utils.HOTWORD_DETECTION_SERVICE_TRIGGER_RESULT_INTENT,
+                Utils.HOTWORD_DETECTION_SERVICE_TRIGGER_SUCCESS);
+
+        // Can no longer use the detector because it is in an invalid state
+        testHotwordDetection(Utils.HOTWORD_DETECTION_SERVICE_DSP_ONDETECT_TEST,
+                Utils.HOTWORD_DETECTION_SERVICE_TRIGGER_RESULT_INTENT,
+                Utils.HOTWORD_DETECTION_SERVICE_TRIGGER_ILLEGAL_STATE_EXCEPTION);
+    }
+
+    @Test
+    public void testHotwordDetectionService_destroySoftwareDetector_activeDetectorRemoved() {
+        // Create SoftwareHotwordDetector
+        testHotwordDetection(Utils.HOTWORD_DETECTION_SERVICE_FROM_SOFTWARE_TRIGGER_TEST,
+                Utils.HOTWORD_DETECTION_SERVICE_SOFTWARE_TRIGGER_RESULT_INTENT,
+                Utils.HOTWORD_DETECTION_SERVICE_TRIGGER_SUCCESS);
+
+        testHotwordDetection(Utils.HOTWORD_DETECTION_SERVICE_SOFTWARE_DESTROY_DETECTOR,
+                Utils.HOTWORD_DETECTION_SERVICE_SOFTWARE_TRIGGER_RESULT_INTENT,
+                Utils.HOTWORD_DETECTION_SERVICE_TRIGGER_SUCCESS);
+
+        // Can no longer use the detector because it is in an invalid state
+        testHotwordDetection(Utils.HOTWORD_DETECTION_SERVICE_MIC_ONDETECT_TEST,
+                Utils.HOTWORD_DETECTION_SERVICE_TRIGGER_RESULT_INTENT,
+                Utils.HOTWORD_DETECTION_SERVICE_TRIGGER_ILLEGAL_STATE_EXCEPTION);
     }
 
     private void testHotwordDetection(int testType, String expectedIntent, int expectedResult) {

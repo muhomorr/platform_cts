@@ -26,7 +26,11 @@ android_test {
         ":CtsGameServiceFalsePositiveGame",
         ":CtsGameServiceGame",
         ":CtsGameServiceNotGame",
+        ":CtsGameServiceRestartGameVerifier",
         ":CtsGameServiceStartActivityVerifier",
+        ":CtsGameServiceSystemBarVerifier",
+        ":CtsGameServiceTakeScreenshotVerifier",
+        ":CtsGameServiceTouchVerifier",
     ],
     libs: [
         "android.test.base",

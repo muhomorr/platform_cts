@@ -38,8 +38,8 @@ import com.android.bedstead.harrier.annotations.UserTest;
 import com.android.bedstead.harrier.annotations.enterprise.CanSetPolicyTest;
 import com.android.bedstead.harrier.annotations.enterprise.CannotSetPolicyTest;
 import com.android.bedstead.harrier.annotations.enterprise.EnterprisePolicy;
-import com.android.bedstead.harrier.annotations.enterprise.NegativePolicyTest;
-import com.android.bedstead.harrier.annotations.enterprise.PositivePolicyTest;
+import com.android.bedstead.harrier.annotations.enterprise.PolicyAppliesTest;
+import com.android.bedstead.harrier.annotations.enterprise.PolicyDoesNotApplyTest;
 import com.android.bedstead.harrier.annotations.meta.ParameterizedAnnotation;
 import com.android.bedstead.harrier.annotations.meta.RepeatingAnnotation;
 import com.android.bedstead.harrier.annotations.parameterized.IncludeNone;
@@ -285,11 +285,24 @@ public final class BedsteadJUnit4 extends BlockJUnit4ClassRunner {
         return annotation.annotationType().equals(IncludeNone.class);
     }
 
+    private static List<FrameworkMethod> getBasicTests(TestClass testClass) {
+        Set<FrameworkMethod> methods = new HashSet<>();
+
+        methods.addAll(testClass.getAnnotatedMethods(Test.class));
+        methods.addAll(testClass.getAnnotatedMethods(PolicyAppliesTest.class));
+        methods.addAll(testClass.getAnnotatedMethods(PolicyDoesNotApplyTest.class));
+        methods.addAll(testClass.getAnnotatedMethods(CanSetPolicyTest.class));
+        methods.addAll(testClass.getAnnotatedMethods(CannotSetPolicyTest.class));
+        methods.addAll(testClass.getAnnotatedMethods(UserTest.class));
+        methods.addAll(testClass.getAnnotatedMethods(CrossUserTest.class));
+        methods.addAll(testClass.getAnnotatedMethods(PermissionTest.class));
+
+        return new ArrayList<>(methods);
+    }
+
     @Override
     protected List<FrameworkMethod> computeTestMethods() {
-        TestClass testClass = getTestClass();
-
-        List<FrameworkMethod> basicTests = testClass.getAnnotatedMethods(Test.class);
+        List<FrameworkMethod> basicTests = getBasicTests(getTestClass());
         List<FrameworkMethod> modifiedTests = new ArrayList<>();
 
         for (FrameworkMethod m : basicTests) {
@@ -485,26 +498,26 @@ public final class BedsteadJUnit4 extends BlockJUnit4ClassRunner {
         int index = 0;
         while (index < annotations.size()) {
             Annotation annotation = annotations.get(index);
-            if (annotation instanceof PositivePolicyTest) {
+            if (annotation instanceof PolicyAppliesTest) {
                 annotations.remove(index);
-                Class<?> policy = ((PositivePolicyTest) annotation).policy();
+                Class<?> policy = ((PolicyAppliesTest) annotation).policy();
 
                 EnterprisePolicy enterprisePolicy =
                         policy.getAnnotation(EnterprisePolicy.class);
                 List<Annotation> replacementAnnotations =
-                        Policy.positiveStates(policy.getName(), enterprisePolicy);
+                        Policy.policyAppliesStates(policy.getName(), enterprisePolicy);
                 replacementAnnotations.sort(BedsteadJUnit4::annotationSorter);
 
                 annotations.addAll(index, replacementAnnotations);
                 index += replacementAnnotations.size();
-            } else if (annotation instanceof NegativePolicyTest) {
+            } else if (annotation instanceof PolicyDoesNotApplyTest) {
                 annotations.remove(index);
-                Class<?> policy = ((NegativePolicyTest) annotation).policy();
+                Class<?> policy = ((PolicyDoesNotApplyTest) annotation).policy();
 
                 EnterprisePolicy enterprisePolicy =
                         policy.getAnnotation(EnterprisePolicy.class);
                 List<Annotation> replacementAnnotations =
-                        Policy.negativeStates(policy.getName(), enterprisePolicy);
+                        Policy.policyDoesNotApplyStates(policy.getName(), enterprisePolicy);
                 replacementAnnotations.sort(BedsteadJUnit4::annotationSorter);
 
                 annotations.addAll(index, replacementAnnotations);

@@ -24,7 +24,6 @@ import android.view.MotionEvent;
 import androidx.test.filters.SmallTest;
 import androidx.test.runner.AndroidJUnit4;
 
-import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -46,11 +45,12 @@ public class VirtualTouchscreenTest extends VirtualDeviceTestCase {
 
     @Override
     void onTearDownVirtualInputDevice() {
-        mVirtualTouchscreen.close();
+        if (mVirtualTouchscreen != null) {
+            mVirtualTouchscreen.close();
+        }
     }
 
     @Test
-    @Ignore
     public void sendTouchEvent() {
         final float inputSize = 1f;
         final float x = 50f;

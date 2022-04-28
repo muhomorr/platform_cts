@@ -16,8 +16,10 @@
 package android.service.games.testing;
 
 import android.content.Intent;
+import android.graphics.Rect;
 import android.os.Bundle;
 import android.service.games.testing.ActivityResult;
+import android.service.games.testing.OnSystemBarVisibilityChangedInfo;
 
 interface IGameServiceTestService {
     boolean isGameServiceConnected();
@@ -28,7 +30,21 @@ interface IGameServiceTestService {
 
     void resetState();
 
+    int getFocusedTaskId();
+
     void startGameSessionActivity(in Intent intent, in Bundle options);
 
     ActivityResult getLastActivityResult();
+
+    Rect getTouchableOverlayBounds();
+
+    void restartFocusedGameSession();
+
+    boolean takeScreenshotForFocusedGameSession();
+
+    OnSystemBarVisibilityChangedInfo getOnSystemBarVisibilityChangedInfo();
+
+    void setGameServiceComponentEnabled(boolean enabled);
+
+    void setGameSessionServiceComponentEnabled(boolean enabled);
 }

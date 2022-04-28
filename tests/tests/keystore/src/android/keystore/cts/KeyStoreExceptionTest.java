@@ -16,6 +16,8 @@
 
 package android.keystore.cts;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import android.security.KeyStoreException;
@@ -44,6 +46,37 @@ public class KeyStoreExceptionTest {
         }
     }
 
+    @Test
+    public void testSystemErrorFlaggedCorrectly() {
+        final int[] someSystemErrors = {-4, -6, -7, -9, -28, -64, -66, -67, -72, -1000, 3, 4};
+        for (int i : someSystemErrors) {
+            KeyStoreException systemEx = new KeyStoreException(i, null);
+            assertTrue("Error code " + i + " is not correctly marked as system error.",
+                    systemEx.isSystemError());
+        }
+
+        final int[] someNonSystemErrors = {-3, -5, -8, -11, -29, 6};
+        for (int i : someNonSystemErrors) {
+            KeyStoreException nonSystemEx = new KeyStoreException(i, null);
+            assertFalse("Error code " + i + " is incorrectly marked as system error.",
+                    nonSystemEx.isSystemError());
+        }
+    }
+
+    @Test
+    public void testRequiresUserAuthenticationFlaggedCorrectly() {
+        final int[] errorsRequiringAuthentication = {-26, -72, 2};
+
+        for (int i : errorsRequiringAuthentication) {
+            KeyStoreException ex = new KeyStoreException(i, null);
+            assertTrue("Error code " + i + " is not correctly marked as requiring user auth.",
+                    ex.requiresUserAuthentication());
+        }
+
+        KeyStoreException regularEx = new KeyStoreException(6 /* permission denied */, null);
+        assertFalse(regularEx.requiresUserAuthentication());
+    }
+
     public static ImmutableList<Field> getKeymasterDefsFields() {
         ImmutableList.Builder<Field> errorFieldsBuilder = new ImmutableList.Builder<>();
 
@@ -55,5 +88,53 @@ public class KeyStoreExceptionTest {
         }
 
         return errorFieldsBuilder.build();
+    }
+
+    @Test
+    public void testRkpFailureServerUnavailable() {
+        KeyStoreException ex = new KeyStoreException(22, "RKP failure",
+                1 /* temporarily unavailable */);
+        assertEquals("Error must indicate key exhaustion",
+                KeyStoreException.ERROR_ATTESTATION_KEYS_UNAVAILABLE,
+                ex.getNumericErrorCode());
+        assertTrue("Must indicate a system issue",
+                ex.isSystemError());
+        assertTrue("Must indicate a transient failure",
+                ex.isTransientFailure());
+        assertEquals("Retry policy must be exponential back-off",
+                KeyStoreException.RETRY_WITH_EXPONENTIAL_BACKOFF,
+                ex.getRetryPolicy());
+    }
+
+    @Test
+    public void testRkpFailurePendingConnectivity() {
+        KeyStoreException ex = new KeyStoreException(22, "RKP failure",
+                3 /* fetching pending connectivity */);
+        assertEquals("Error must indicate key exhaustion",
+                KeyStoreException.ERROR_ATTESTATION_KEYS_UNAVAILABLE,
+                ex.getNumericErrorCode());
+        assertTrue("Must indicate a system issue",
+                ex.isSystemError());
+        assertTrue("Must indicate a transient failure",
+                ex.isTransientFailure());
+        assertEquals("Retry policy must be when connectivity is resumed",
+                KeyStoreException.RETRY_WHEN_CONNECTIVITY_AVAILABLE,
+                ex.getRetryPolicy());
+    }
+
+    @Test
+    public void testRkpFailureDeviceNotRegistered() {
+        KeyStoreException ex = new KeyStoreException(22, "RKP failure",
+                2 /* server refused issuance */);
+        assertEquals("Error must indicate key exhaustion",
+                KeyStoreException.ERROR_ATTESTATION_KEYS_UNAVAILABLE,
+                ex.getNumericErrorCode());
+        assertTrue("Must indicate a system issue",
+                ex.isSystemError());
+        assertFalse("Must indicate a permanent failure",
+                ex.isTransientFailure());
+        assertEquals("Retry policy must be never",
+                KeyStoreException.RETRY_NEVER,
+                ex.getRetryPolicy());
     }
 }

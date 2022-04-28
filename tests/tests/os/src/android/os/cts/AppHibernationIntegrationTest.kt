@@ -31,6 +31,7 @@ import android.permission.PermissionControllerManager
 import android.permission.PermissionControllerManager.HIBERNATION_ELIGIBILITY_ELIGIBLE
 import android.permission.PermissionControllerManager.HIBERNATION_ELIGIBILITY_UNKNOWN
 import android.platform.test.annotations.AppModeFull
+import android.provider.DeviceConfig
 import android.provider.DeviceConfig.NAMESPACE_APP_HIBERNATION
 import android.provider.Settings
 import android.support.test.uiautomator.By
@@ -48,12 +49,14 @@ import com.android.compatibility.common.util.SystemUtil
 import com.android.compatibility.common.util.SystemUtil.eventually
 import com.android.compatibility.common.util.SystemUtil.runShellCommandOrThrow
 import com.android.compatibility.common.util.SystemUtil.runWithShellPermissionIdentity
+import com.android.compatibility.common.util.SystemUtil.callWithShellPermissionIdentity
 import com.android.compatibility.common.util.UiAutomatorUtils
 import org.hamcrest.CoreMatchers
 import org.hamcrest.Matchers
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertThat
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeFalse
@@ -68,6 +71,7 @@ import java.util.concurrent.TimeUnit
  * Integration test for app hibernation.
  */
 @RunWith(AndroidJUnit4::class)
+@AppModeFull(reason = "Instant apps cannot access app hibernation")
 @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S, codeName = "S")
 class AppHibernationIntegrationTest {
     companion object {
@@ -76,6 +80,7 @@ class AppHibernationIntegrationTest {
         const val TIMEOUT_TIME_MS = 5000L
         const val MAX_SCROLL_ATTEMPTS = 3
         const val TEST_UNUSED_THRESHOLD = 1L
+        const val HIBERNATION_ENABLED_KEY = "app_hibernation_enabled"
 
         const val CMD_KILL = "am kill %s"
     }
@@ -84,7 +89,7 @@ class AppHibernationIntegrationTest {
 
     private lateinit var packageManager: PackageManager
     private lateinit var permissionControllerManager: PermissionControllerManager
-    private lateinit var appHibernationManager: AppHibernationManager
+    private var oldHibernationValue: String? = null
 
     @get:Rule
     val disableAnimationRule = DisableAnimationRule()
@@ -94,10 +99,16 @@ class AppHibernationIntegrationTest {
 
     @Before
     fun setup() {
+        oldHibernationValue = callWithShellPermissionIdentity {
+            DeviceConfig.getProperty(NAMESPACE_APP_HIBERNATION, HIBERNATION_ENABLED_KEY)
+        }
+        runWithShellPermissionIdentity {
+            DeviceConfig.setProperty(NAMESPACE_APP_HIBERNATION, HIBERNATION_ENABLED_KEY, "true",
+                false /* makeDefault */)
+        }
         packageManager = context.packageManager
         permissionControllerManager =
             context.getSystemService(PermissionControllerManager::class.java)!!
-        appHibernationManager = context.getSystemService(AppHibernationManager::class.java)!!
 
         // Collapse notifications
         assertThat(
@@ -112,37 +123,39 @@ class AppHibernationIntegrationTest {
     @After
     fun cleanUp() {
         goHome()
+        runWithShellPermissionIdentity {
+            DeviceConfig.setProperty(NAMESPACE_APP_HIBERNATION, HIBERNATION_ENABLED_KEY,
+                oldHibernationValue, false /* makeDefault */)
+        }
     }
 
     @Test
     fun testUnusedApp_getsForceStopped() {
-        withDeviceConfig(NAMESPACE_APP_HIBERNATION, "app_hibernation_enabled", "true") {
-            withUnusedThresholdMs(TEST_UNUSED_THRESHOLD) {
-                withApp(APK_PATH_S_APP, APK_PACKAGE_NAME_S_APP) {
-                    // Use app
-                    startApp(APK_PACKAGE_NAME_S_APP)
-                    leaveApp(APK_PACKAGE_NAME_S_APP)
-                    killApp(APK_PACKAGE_NAME_S_APP)
+        withUnusedThresholdMs(TEST_UNUSED_THRESHOLD) {
+            withApp(APK_PATH_S_APP, APK_PACKAGE_NAME_S_APP) {
+                // Use app
+                startApp(APK_PACKAGE_NAME_S_APP)
+                leaveApp(APK_PACKAGE_NAME_S_APP)
+                killApp(APK_PACKAGE_NAME_S_APP)
 
-                    // Wait for the unused threshold time to pass
-                    Thread.sleep(TEST_UNUSED_THRESHOLD)
+                // Wait for the unused threshold time to pass
+                Thread.sleep(TEST_UNUSED_THRESHOLD)
 
-                    // Run job
-                    runAppHibernationJob(context, LOG_TAG)
+                // Run job
+                runAppHibernationJob(context, LOG_TAG)
 
-                    // Verify
-                    val ai =
-                        packageManager.getApplicationInfo(APK_PACKAGE_NAME_S_APP, 0 /* flags */)
-                    val stopped = ((ai.flags and ApplicationInfo.FLAG_STOPPED) != 0)
-                    assertTrue(stopped)
+                // Verify
+                val ai =
+                    packageManager.getApplicationInfo(APK_PACKAGE_NAME_S_APP, 0 /* flags */)
+                val stopped = ((ai.flags and ApplicationInfo.FLAG_STOPPED) != 0)
+                assertTrue(stopped)
 
-                    if (hasFeatureTV()) {
-                        // Skip checking unused apps screen because it may be unavailable on TV
-                        return
-                    }
-                    openUnusedAppsNotification()
-                    waitFindObject(By.text(APK_PACKAGE_NAME_S_APP))
+                if (hasFeatureTV()) {
+                    // Skip checking unused apps screen because it may be unavailable on TV
+                    return
                 }
+                openUnusedAppsNotification()
+                waitFindObject(By.text(APK_PACKAGE_NAME_S_APP))
             }
         }
     }
@@ -235,15 +248,15 @@ class AppHibernationIntegrationTest {
     @Test
     @SdkSuppress(minSdkVersion = Build.VERSION_CODES.TIRAMISU, codeName = "Tiramisu")
     fun testGetHibernationStatsForUser_getsStatsForIndividualPackages() {
-        withDeviceConfig(NAMESPACE_APP_HIBERNATION, "app_hibernation_enabled", "true") {
-            withApp(APK_PATH_S_APP, APK_PACKAGE_NAME_S_APP) {
-                runWithShellPermissionIdentity {
-                    val stats =
-                        appHibernationManager.getHibernationStatsForUser(
-                            setOf(APK_PACKAGE_NAME_S_APP))
+        val appHibernationManager = context.getSystemService(AppHibernationManager::class.java)!!
+        withApp(APK_PATH_S_APP, APK_PACKAGE_NAME_S_APP) {
+            runWithShellPermissionIdentity {
+                val stats =
+                    appHibernationManager.getHibernationStatsForUser(
+                        setOf(APK_PACKAGE_NAME_S_APP))
 
-                    assertEquals("Expected only 1 stat for requested package", 1, stats.size)
-                }
+                assertNotNull(stats[APK_PACKAGE_NAME_S_APP])
+                assertTrue(stats[APK_PACKAGE_NAME_S_APP]!!.diskBytesSaved >= 0)
             }
         }
     }
@@ -251,57 +264,53 @@ class AppHibernationIntegrationTest {
     @Test
     @SdkSuppress(minSdkVersion = Build.VERSION_CODES.TIRAMISU, codeName = "Tiramisu")
     fun testGetHibernationStatsForUser_getsStatsForAllPackages() {
-        withDeviceConfig(NAMESPACE_APP_HIBERNATION, "app_hibernation_enabled", "true") {
-            withApp(APK_PATH_S_APP, APK_PACKAGE_NAME_S_APP) {
-                runWithShellPermissionIdentity {
-                    val stats = appHibernationManager.getHibernationStatsForUser()
+        val appHibernationManager = context.getSystemService(AppHibernationManager::class.java)!!
+        withApp(APK_PATH_S_APP, APK_PACKAGE_NAME_S_APP) {
+            runWithShellPermissionIdentity {
+                val stats = appHibernationManager.getHibernationStatsForUser()
 
-                    assertFalse("Expected non-empty list of hibernation stats", stats.isEmpty())
-                    assertTrue("Expected test package to be in list of returned savings but wasn't",
-                        stats.containsKey(APK_PACKAGE_NAME_S_APP))
-                }
+                assertFalse("Expected non-empty list of hibernation stats", stats.isEmpty())
+                assertTrue("Expected test package to be in list of returned savings but wasn't",
+                    stats.containsKey(APK_PACKAGE_NAME_S_APP))
             }
         }
     }
 
-    @AppModeFull(reason = "Uses application details settings")
     @Test
     fun testAppInfo_RemovePermissionsAndFreeUpSpaceToggleExists() {
         assumeFalse(
             "Remove permissions and free up space toggle may be unavailable on TV",
             hasFeatureTV())
-        withDeviceConfig(NAMESPACE_APP_HIBERNATION, "app_hibernation_enabled", "true") {
-            withApp(APK_PATH_S_APP, APK_PACKAGE_NAME_S_APP) {
-                // Open app info
-                val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
-                val uri = Uri.fromParts("package", APK_PACKAGE_NAME_S_APP, null /* fragment */)
-                intent.data = uri
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                context.startActivity(intent)
+        withApp(APK_PATH_S_APP, APK_PACKAGE_NAME_S_APP) {
+            // Open app info
+            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+            val uri = Uri.fromParts("package", APK_PACKAGE_NAME_S_APP, null /* fragment */)
+            intent.data = uri
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(intent)
 
-                waitForIdle()
-                UiAutomatorUtils.getUiDevice()
+            waitForIdle()
+            UiAutomatorUtils.getUiDevice()
 
-                val packageManager = context.packageManager
-                val settingsPackage = intent.resolveActivity(packageManager).packageName
-                val res = packageManager.getResourcesForApplication(settingsPackage)
-                val title = res.getString(
-                    res.getIdentifier("unused_apps_switch", "string", settingsPackage))
+            val packageManager = context.packageManager
+            val settingsPackage = intent.resolveActivity(packageManager).packageName
+            val res = packageManager.getResourcesForApplication(settingsPackage)
+            val title = res.getString(
+                res.getIdentifier("unused_apps_switch", "string", settingsPackage))
 
-                // Settings can have multiple scrollable containers so all of them should be
-                // searched.
-                var toggleFound = UiDevice.getInstance(instrumentation)
-                    .findObject(UiSelector().text(title))
-                    .waitForExists(WAIT_TIME_MS)
-                var i = 0
-                var scrollableObject = UiScrollable(UiSelector().scrollable(true).instance(i))
-                while (!toggleFound && scrollableObject.waitForExists(WAIT_TIME_MS)) {
-                    toggleFound = scrollableObject.scrollTextIntoView(title)
-                    scrollableObject = UiScrollable(UiSelector().scrollable(true).instance(++i))
-                }
-
-                assertTrue("Remove permissions and free up space toggle not found", toggleFound)
+            // Settings can have multiple scrollable containers so all of them should be
+            // searched.
+            var toggleFound = UiDevice.getInstance(instrumentation)
+                .findObject(UiSelector().text(title))
+                .waitForExists(WAIT_TIME_MS)
+            var i = 0
+            var scrollableObject = UiScrollable(UiSelector().scrollable(true).instance(i))
+            while (!toggleFound && scrollableObject.waitForExists(WAIT_TIME_MS)) {
+                toggleFound = scrollableObject.scrollTextIntoView(title)
+                scrollableObject = UiScrollable(UiSelector().scrollable(true).instance(++i))
             }
+
+            assertTrue("Remove permissions and free up space toggle not found", toggleFound)
         }
     }
 

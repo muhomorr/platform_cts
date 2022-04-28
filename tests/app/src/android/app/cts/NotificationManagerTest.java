@@ -68,6 +68,7 @@ import android.app.role.RoleManager;
 import android.app.stubs.AutomaticZenRuleActivity;
 import android.app.stubs.GetResultActivity;
 import android.app.stubs.R;
+import android.app.stubs.TestNotificationAssistant;
 import android.app.stubs.TestNotificationListener;
 import android.content.ComponentName;
 import android.content.ContentProviderOperation;
@@ -162,11 +163,16 @@ public class NotificationManagerTest extends BaseNotificationManagerTest {
             "com.android.test.notificationtrampoline.current";
     private static final String TRAMPOLINE_APP_API_30 =
             "com.android.test.notificationtrampoline.api30";
+    private static final String TRAMPOLINE_APP_API_32 =
+            "com.android.test.notificationtrampoline.api32";
     private static final ComponentName TRAMPOLINE_SERVICE =
             new ComponentName(TRAMPOLINE_APP,
                     "com.android.test.notificationtrampoline.NotificationTrampolineTestService");
     private static final ComponentName TRAMPOLINE_SERVICE_API_30 =
             new ComponentName(TRAMPOLINE_APP_API_30,
+                    "com.android.test.notificationtrampoline.NotificationTrampolineTestService");
+    private static final ComponentName TRAMPOLINE_SERVICE_API_32 =
+            new ComponentName(TRAMPOLINE_APP_API_32,
                     "com.android.test.notificationtrampoline.NotificationTrampolineTestService");
 
     private static final String STUB_PACKAGE_NAME = "android.app.stubs";
@@ -205,6 +211,8 @@ public class NotificationManagerTest extends BaseNotificationManagerTest {
         PermissionUtils.grantPermission(STUB_PACKAGE_NAME, POST_NOTIFICATIONS);
         PermissionUtils.grantPermission(TEST_APP, POST_NOTIFICATIONS);
         PermissionUtils.grantPermission(TRAMPOLINE_APP, POST_NOTIFICATIONS);
+        PermissionUtils.grantPermission(TRAMPOLINE_APP_API_30, POST_NOTIFICATIONS);
+        PermissionUtils.grantPermission(TRAMPOLINE_APP_API_32, POST_NOTIFICATIONS);
         PermissionUtils.grantPermission(NOTIFICATIONPROVIDER, POST_NOTIFICATIONS);
         // This will leave a set of channels on the device with each test run.
         mId = UUID.randomUUID().toString();
@@ -281,6 +289,7 @@ public class NotificationManagerTest extends BaseNotificationManagerTest {
             builder.withValue(Data.MIMETYPE, Phone.CONTENT_ITEM_TYPE);
             builder.withValue(Phone.TYPE, Phone.TYPE_MOBILE);
             builder.withValue(Phone.NUMBER, phone);
+            builder.withValue(Phone.NORMALIZED_NUMBER, phone);
             builder.withValue(Data.IS_PRIMARY, 1);
             operationList.add(builder.build());
         }
@@ -339,6 +348,14 @@ public class NotificationManagerTest extends BaseNotificationManagerTest {
             }
         }
         return null;
+    }
+
+    // Simple helper function to take a phone number's string representation and make a tel: uri
+    private Uri makePhoneUri(String phone) {
+        return new Uri.Builder()
+                .scheme("tel")
+                .encodedOpaquePart(phone)  // don't re-encode anything passed in
+                .build();
     }
 
     private StatusBarNotification findNotificationNoWait(int id, boolean all) {
@@ -424,6 +441,20 @@ public class NotificationManagerTest extends BaseNotificationManagerTest {
         for (int tries = 3; tries-- > 0; ) {
             if (mListener.mRemoved.containsKey(key)) {
                 return mListener.mRemoved.get(key);
+            }
+            try {
+                Thread.sleep(1000);
+            } catch (InterruptedException ex) {
+                // pass
+            }
+        }
+        return -1;
+    }
+
+    private int getAssistantCancellationReason(String key) {
+        for (int tries = 3; tries-- > 0; ) {
+            if (mAssistant.mRemoved.containsKey(key)) {
+                return mAssistant.mRemoved.get(key);
             }
             try {
                 Thread.sleep(1000);
@@ -2447,6 +2478,8 @@ public class NotificationManagerTest extends BaseNotificationManagerTest {
                 InstrumentationRegistry.getInstrumentation(), true);
         int origFilter = mNotificationManager.getCurrentInterruptionFilter();
         Policy origPolicy = mNotificationManager.getNotificationPolicy();
+
+        // for storing lookup URIs for deleting the contacts afterwards
         Uri aliceUri = null;
         Uri bobUri = null;
         try {
@@ -2454,14 +2487,15 @@ public class NotificationManagerTest extends BaseNotificationManagerTest {
             // starred contact from whom to receive a call
             insertSingleContact(ALICE, ALICE_PHONE, ALICE_EMAIL, true);
             aliceUri = lookupContact(ALICE_PHONE);
+            Uri alicePhoneUri = makePhoneUri(ALICE_PHONE);
 
             // non-starred contact from whom to also receive a call
             insertSingleContact(BOB, BOB_PHONE, BOB_EMAIL, false);
             bobUri = lookupContact(BOB_PHONE);
+            Uri bobPhoneUri = makePhoneUri(BOB_PHONE);
 
             // non-contact phone URI
-            Uri phoneUri = Uri.withAppendedPath(ContactsContract.PhoneLookup.CONTENT_FILTER_URI,
-                    Uri.encode("+16175555656"));
+            Uri phoneUri = makePhoneUri("+16175555656");
 
             // set up: any contacts are allowed to call.
             mNotificationManager.setNotificationPolicy(new NotificationManager.Policy(
@@ -2473,8 +2507,8 @@ public class NotificationManagerTest extends BaseNotificationManagerTest {
             assertExpectedDndState(INTERRUPTION_FILTER_PRIORITY);
 
             // in this case Alice and Bob should get through but not the unknown number.
-            assertTrue(mNotificationManager.matchesCallFilter(aliceUri));
-            assertTrue(mNotificationManager.matchesCallFilter(bobUri));
+            assertTrue(mNotificationManager.matchesCallFilter(alicePhoneUri));
+            assertTrue(mNotificationManager.matchesCallFilter(bobPhoneUri));
             assertFalse(mNotificationManager.matchesCallFilter(phoneUri));
 
             // set up: only starred contacts are allowed to call.
@@ -2484,8 +2518,8 @@ public class NotificationManagerTest extends BaseNotificationManagerTest {
             assertExpectedDndState(INTERRUPTION_FILTER_PRIORITY);
 
             // now only Alice should be allowed to get through
-            assertTrue(mNotificationManager.matchesCallFilter(aliceUri));
-            assertFalse(mNotificationManager.matchesCallFilter(bobUri));
+            assertTrue(mNotificationManager.matchesCallFilter(alicePhoneUri));
+            assertFalse(mNotificationManager.matchesCallFilter(bobPhoneUri));
             assertFalse(mNotificationManager.matchesCallFilter(phoneUri));
         } finally {
             mNotificationManager.setInterruptionFilter(origFilter);
@@ -2508,9 +2542,10 @@ public class NotificationManagerTest extends BaseNotificationManagerTest {
         Policy origPolicy = mNotificationManager.getNotificationPolicy();
         long startTime = System.currentTimeMillis();
         try {
-            // create a phone URI from which to receive a call
-            Uri phoneUri = Uri.withAppendedPath(ContactsContract.PhoneLookup.CONTENT_FILTER_URI,
-                    Uri.encode("+16175551212"));
+            // create phone URIs from which to receive a call; one US, one non-US,
+            // both fully specified
+            Uri phoneUri = makePhoneUri("+16175551212");
+            Uri phoneUri2 = makePhoneUri("+81 75 350 6006");
 
             mNotificationManager.setNotificationPolicy(new NotificationManager.Policy(
                     PRIORITY_CATEGORY_REPEAT_CALLERS, 0, 0));
@@ -2518,16 +2553,40 @@ public class NotificationManagerTest extends BaseNotificationManagerTest {
             mNotificationManager.setInterruptionFilter(INTERRUPTION_FILTER_PRIORITY);
             assertExpectedDndState(INTERRUPTION_FILTER_PRIORITY);
 
-            // not a repeat caller yet, so it shouldn't be allowed
+            // not repeat callers yet, so it shouldn't be allowed
             assertFalse(mNotificationManager.matchesCallFilter(phoneUri));
+            assertFalse(mNotificationManager.matchesCallFilter(phoneUri2));
 
-            // register a call from this number, then cancel the notification, which is when
+            // register a call from number 1, then cancel the notification, which is when
             // a call is actually recorded.
             sendNotification(1, null, R.drawable.blue, true, phoneUri);
             cancelAndPoll(1);
 
             // now this number should count as a repeat caller
             assertTrue(mNotificationManager.matchesCallFilter(phoneUri));
+            assertFalse(mNotificationManager.matchesCallFilter(phoneUri2));
+
+            // also, any other variants of this phone number should also count as a repeat caller
+            Uri[] variants = { makePhoneUri(Uri.encode("+1-617-555-1212")),
+                    makePhoneUri("+1 (617) 555-1212") };
+            for (int i = 0; i < variants.length; i++) {
+                assertTrue("phone variant " + variants[i] + " should still match",
+                        mNotificationManager.matchesCallFilter(variants[i]));
+            }
+
+            // register call 2
+            sendNotification(2, null, R.drawable.blue, true, phoneUri2);
+            cancelAndPoll(2);
+
+            // now this should be a repeat caller
+            assertTrue(mNotificationManager.matchesCallFilter(phoneUri2));
+
+            Uri[] variants2 = { makePhoneUri(Uri.encode("+81 75 350 6006")),
+                    makePhoneUri("+81753506006")};
+            for (int j = 0; j < variants2.length; j++) {
+                assertTrue("phone variant " + variants2[j] + " should still match",
+                        mNotificationManager.matchesCallFilter(variants2[j]));
+            }
         } finally {
             mNotificationManager.setInterruptionFilter(origFilter);
             mNotificationManager.setNotificationPolicy(origPolicy);
@@ -2539,13 +2598,135 @@ public class NotificationManagerTest extends BaseNotificationManagerTest {
         }
     }
 
+    public void testMatchesCallFilter_repeatCallers_fromContact() throws Exception {
+        // set up such that only repeat callers (and not any individuals) are allowed; make sure
+        // that a call registered with a contact's lookup URI will return the correct info
+        // when matchesCallFilter is called with their phone number
+        toggleNotificationPolicyAccess(mContext.getPackageName(),
+                InstrumentationRegistry.getInstrumentation(), true);
+        int origFilter = mNotificationManager.getCurrentInterruptionFilter();
+        Policy origPolicy = mNotificationManager.getNotificationPolicy();
+        Uri aliceUri = null;
+        long startTime = System.currentTimeMillis();
+        try {
+            mNotificationManager.setNotificationPolicy(new NotificationManager.Policy(
+                    PRIORITY_CATEGORY_REPEAT_CALLERS, 0, 0));
+            // turn on manual DND
+            mNotificationManager.setInterruptionFilter(INTERRUPTION_FILTER_PRIORITY);
+            assertExpectedDndState(INTERRUPTION_FILTER_PRIORITY);
+
+            insertSingleContact(ALICE, ALICE_PHONE, ALICE_EMAIL, false);
+            aliceUri = lookupContact(ALICE_PHONE);
+            Uri alicePhoneUri = makePhoneUri(ALICE_PHONE);
+
+            // no one has called; matchesCallFilter should return false for both URIs
+            assertFalse(mNotificationManager.matchesCallFilter(aliceUri));
+            assertFalse(mNotificationManager.matchesCallFilter(alicePhoneUri));
+
+            assertTrue(aliceUri.toString()
+                    .startsWith(ContactsContract.Contacts.CONTENT_LOOKUP_URI.toString()));
+
+            // register a call from Alice via the contact lookup URI, then cancel so the call is
+            // recorded accordingly.
+            sendNotification(1, null, R.drawable.blue, true, aliceUri);
+            // wait for contact lookup of number to finish; this can take a while because it runs
+            // in the background, so give it a fair bit of time
+            Thread.sleep(3000);
+            cancelAndPoll(1);
+
+            // now a phone call from Alice's phone number should match the repeat callers list
+            assertTrue(mNotificationManager.matchesCallFilter(alicePhoneUri));
+        } finally {
+            mNotificationManager.setInterruptionFilter(origFilter);
+            mNotificationManager.setNotificationPolicy(origPolicy);
+            if (aliceUri != null) {
+                // delete the contact
+                deleteSingleContact(aliceUri);
+            }
+
+            // clean up the recorded calls
+            SystemUtil.runWithShellPermissionIdentity(() ->
+                    mNotificationManager.cleanUpCallersAfter(startTime));
+        }
+    }
+
+    public void testRepeatCallers_repeatCallNotIntercepted_contactAfterPhone() throws Exception {
+        toggleListenerAccess(true);
+        Thread.sleep(500); // wait for listener to be allowed
+        mListener = TestNotificationListener.getInstance();
+        assertNotNull(mListener);
+
+        // if a call is recorded with just phone number info (not a contact's uri), which may
+        // happen when the same contact calls across multiple apps (or if the contact uri provided
+        // is otherwise inconsistent), check for the contact's phone number
+        toggleNotificationPolicyAccess(mContext.getPackageName(),
+                InstrumentationRegistry.getInstrumentation(), true);
+        int origFilter = mNotificationManager.getCurrentInterruptionFilter();
+        Policy origPolicy = mNotificationManager.getNotificationPolicy();
+        Uri aliceUri = null;
+        long startTime = System.currentTimeMillis();
+        try {
+            mNotificationManager.setNotificationPolicy(new NotificationManager.Policy(
+                    PRIORITY_CATEGORY_REPEAT_CALLERS, 0, 0));
+            // turn on manual DND
+            mNotificationManager.setInterruptionFilter(INTERRUPTION_FILTER_PRIORITY);
+            assertExpectedDndState(INTERRUPTION_FILTER_PRIORITY);
+
+            insertSingleContact(ALICE, ALICE_PHONE, ALICE_EMAIL, false);
+            aliceUri = lookupContact(ALICE_PHONE);
+            Uri alicePhoneUri = makePhoneUri(ALICE_PHONE);
+
+            // no one has called; matchesCallFilter should return false for both URIs
+            assertFalse(mNotificationManager.matchesCallFilter(aliceUri));
+            assertFalse(mNotificationManager.matchesCallFilter(alicePhoneUri));
+
+            // register a call from Alice via just the phone number
+            sendNotification(1, null, R.drawable.blue, true, alicePhoneUri);
+            Thread.sleep(1000); // give the listener some time to receive info
+
+            // check that the first notification is intercepted
+            StatusBarNotification sbn = findPostedNotification(1, false);
+            assertNotNull(sbn);
+            assertTrue(mListener.mIntercepted.containsKey(sbn.getKey()));
+            assertTrue(mListener.mIntercepted.get(sbn.getKey()));  // should be intercepted
+
+            // cancel first notification
+            cancelAndPoll(1);
+
+            // now send a call with only Alice's contact Uri as the info
+            // Note that this is a test of the repeat caller check, not matchesCallFilter itself
+            sendNotification(2, null, R.drawable.blue, true, aliceUri);
+            // wait for contact lookup, which may take a while
+            Thread.sleep(3000);
+
+            // now check that the second notification is not intercepted
+            StatusBarNotification sbn2 = findPostedNotification(2, true);
+            assertTrue(mListener.mIntercepted.containsKey(sbn2.getKey()));
+            assertFalse(mListener.mIntercepted.get(sbn2.getKey()));  // should not be intercepted
+
+            // cancel second notification
+            cancelAndPoll(2);
+        } finally {
+            mNotificationManager.setInterruptionFilter(origFilter);
+            mNotificationManager.setNotificationPolicy(origPolicy);
+            if (aliceUri != null) {
+                // delete the contact
+                deleteSingleContact(aliceUri);
+            }
+
+            // clean up the recorded calls
+            SystemUtil.runWithShellPermissionIdentity(() ->
+                    mNotificationManager.cleanUpCallersAfter(startTime));
+        }
+    }
+
     public void testMatchesCallFilter_allCallers() throws Exception {
         // allow all callers
         toggleNotificationPolicyAccess(mContext.getPackageName(),
                 InstrumentationRegistry.getInstrumentation(), true);
         int origFilter = mNotificationManager.getCurrentInterruptionFilter();
         Policy origPolicy = mNotificationManager.getNotificationPolicy();
-        Uri aliceUri = null;
+        Uri aliceUri = null;  // for deletion after the test is done
         try {
             NotificationManager.Policy currPolicy = mNotificationManager.getNotificationPolicy();
             NotificationManager.Policy newPolicy = new NotificationManager.Policy(
@@ -2559,9 +2740,10 @@ public class NotificationManagerTest extends BaseNotificationManagerTest {
             assertExpectedDndState(INTERRUPTION_FILTER_PRIORITY);
 
             insertSingleContact(ALICE, ALICE_PHONE, ALICE_EMAIL, false);
-
             aliceUri = lookupContact(ALICE_PHONE);
-            assertTrue(mNotificationManager.matchesCallFilter(aliceUri));
+
+            Uri alicePhoneUri = makePhoneUri(ALICE_PHONE);
+            assertTrue(mNotificationManager.matchesCallFilter(alicePhoneUri));
         } finally {
             mNotificationManager.setInterruptionFilter(origFilter);
             mNotificationManager.setNotificationPolicy(origPolicy);
@@ -2991,6 +3173,27 @@ public class NotificationManagerTest extends BaseNotificationManagerTest {
         }
     }
 
+    public void testNotificationAssistant_cancelNotifications() throws Exception {
+        toggleAssistantAccess(true);
+        Thread.sleep(500); // wait for assistant to be allowed
+
+        mAssistant = TestNotificationAssistant.getInstance();
+        assertNotNull(mAssistant);
+        final int notificationId = 1006;
+
+        sendNotification(notificationId, R.drawable.black);
+        Thread.sleep(500); // wait for notification listener to receive notification
+
+        StatusBarNotification sbn = findPostedNotification(notificationId, false);
+
+        mAssistant.cancelNotifications(new String[]{sbn.getKey()});
+        int gotReason = getAssistantCancellationReason(sbn.getKey());
+        if (gotReason != NotificationListenerService.REASON_ASSISTANT_CANCEL) {
+            fail("Failed cancellation from assistant, notification id=" + notificationId
+                    + "; got reason=" + gotReason);
+        }
+    }
+
     public void testNotificationManagerPolicy_priorityCategoriesToString() {
         String zeroString = NotificationManager.Policy.priorityCategoriesToString(0);
         assertEquals("priorityCategories of 0 produces empty string", "", zeroString);
@@ -3257,7 +3460,7 @@ public class NotificationManagerTest extends BaseNotificationManagerTest {
                 callback.waitFor(EventCallback.ACTIVITY_STARTED, TIMEOUT_MS));
     }
 
-    public void testActivityStartOnBroadcastTrampoline_whenDefaultBrowser_isAllowed()
+    public void testActivityStartOnBroadcastTrampoline_whenDefaultBrowser_isBlocked()
             throws Exception {
         deactivateGracePeriod();
         setDefaultBrowser(TRAMPOLINE_APP);
@@ -3275,11 +3478,33 @@ public class NotificationManagerTest extends BaseNotificationManagerTest {
 
         assertTrue("Broadcast not received on time",
                 callback.waitFor(EventCallback.BROADCAST_RECEIVED, TIMEOUT_LONG_MS));
+        assertFalse("Activity started",
+                callback.waitFor(EventCallback.ACTIVITY_STARTED, TIMEOUT_MS));
+    }
+
+    public void testActivityStartOnBroadcastTrampoline_whenDefaultBrowserApi32_isAllowed()
+            throws Exception {
+        deactivateGracePeriod();
+        setDefaultBrowser(TRAMPOLINE_APP_API_32);
+        setUpNotifListener();
+        mListener.addTestPackage(TRAMPOLINE_APP_API_32);
+        EventCallback callback = new EventCallback();
+        int notificationId = 6005;
+
+        // Post notification and fire its pending intent
+        sendTrampolineMessage(TRAMPOLINE_SERVICE_API_32, MESSAGE_BROADCAST_NOTIFICATION,
+                notificationId, callback);
+        StatusBarNotification statusBarNotification = findPostedNotification(notificationId, true);
+        assertNotNull("Notification not posted on time", statusBarNotification);
+        statusBarNotification.getNotification().contentIntent.send();
+
+        assertTrue("Broadcast not received on time",
+                callback.waitFor(EventCallback.BROADCAST_RECEIVED, TIMEOUT_LONG_MS));
         assertTrue("Activity not started",
                 callback.waitFor(EventCallback.ACTIVITY_STARTED, TIMEOUT_MS));
     }
 
-    public void testActivityStartOnServiceTrampoline_whenDefaultBrowser_isAllowed()
+    public void testActivityStartOnServiceTrampoline_whenDefaultBrowser_isBlocked()
             throws Exception {
         deactivateGracePeriod();
         setDefaultBrowser(TRAMPOLINE_APP);
@@ -3291,6 +3516,28 @@ public class NotificationManagerTest extends BaseNotificationManagerTest {
         // Post notification and fire its pending intent
         sendTrampolineMessage(TRAMPOLINE_SERVICE, MESSAGE_SERVICE_NOTIFICATION, notificationId,
                 callback);
+        StatusBarNotification statusBarNotification = findPostedNotification(notificationId, true);
+        assertNotNull("Notification not posted on time", statusBarNotification);
+        statusBarNotification.getNotification().contentIntent.send();
+
+        assertTrue("Service not started on time",
+                callback.waitFor(EventCallback.SERVICE_STARTED, TIMEOUT_MS));
+        assertFalse("Activity started",
+                callback.waitFor(EventCallback.ACTIVITY_STARTED, TIMEOUT_MS));
+    }
+
+    public void testActivityStartOnServiceTrampoline_whenDefaultBrowserApi32_isAllowed()
+            throws Exception {
+        deactivateGracePeriod();
+        setDefaultBrowser(TRAMPOLINE_APP_API_32);
+        setUpNotifListener();
+        mListener.addTestPackage(TRAMPOLINE_APP_API_32);
+        EventCallback callback = new EventCallback();
+        int notificationId = 6006;
+
+        // Post notification and fire its pending intent
+        sendTrampolineMessage(TRAMPOLINE_SERVICE_API_32, MESSAGE_SERVICE_NOTIFICATION,
+                notificationId, callback);
         StatusBarNotification statusBarNotification = findPostedNotification(notificationId, true);
         assertNotNull("Notification not posted on time", statusBarNotification);
         statusBarNotification.getNotification().contentIntent.send();
@@ -3353,6 +3600,76 @@ public class NotificationManagerTest extends BaseNotificationManagerTest {
 
         assertEquals(NotificationListenerService.REASON_CHANNEL_REMOVED,
                 getCancellationReason(key));
+    }
+
+    public void testMediaStyleRemotePlayback_noPermission() throws Exception {
+        int id = 99;
+        final String deviceName = "device name";
+        final int deviceIcon = 123;
+        final PendingIntent deviceIntent = getPendingIntent();
+        final Notification notification =
+                new Notification.Builder(mContext, NOTIFICATION_CHANNEL_ID)
+                        .setSmallIcon(R.drawable.black)
+                        .setStyle(new Notification.MediaStyle()
+                                .setRemotePlaybackInfo(deviceName, deviceIcon, deviceIntent))
+                        .build();
+        mNotificationManager.notify(id, notification);
+
+        StatusBarNotification sbn = findPostedNotification(id, false);
+        assertNotNull(sbn);
+
+        assertFalse(sbn.getNotification().extras
+                .containsKey(Notification.EXTRA_MEDIA_REMOTE_DEVICE));
+        assertFalse(sbn.getNotification().extras
+                .containsKey(Notification.EXTRA_MEDIA_REMOTE_ICON));
+        assertFalse(sbn.getNotification().extras
+                .containsKey(Notification.EXTRA_MEDIA_REMOTE_INTENT));
+    }
+
+    public void testMediaStyleRemotePlayback_hasPermission() throws Exception {
+        int id = 99;
+        final String deviceName = "device name";
+        final int deviceIcon = 123;
+        final PendingIntent deviceIntent = getPendingIntent();
+        final Notification notification =
+                new Notification.Builder(mContext, NOTIFICATION_CHANNEL_ID)
+                        .setSmallIcon(R.drawable.black)
+                        .setStyle(new Notification.MediaStyle()
+                                .setRemotePlaybackInfo(deviceName, deviceIcon, deviceIntent))
+                        .build();
+
+        SystemUtil.runWithShellPermissionIdentity(() -> {
+            mNotificationManager.notify(id, notification);
+        }, android.Manifest.permission.MEDIA_CONTENT_CONTROL);
+
+        StatusBarNotification sbn = findPostedNotification(id, false);
+        assertNotNull(sbn);
+        assertEquals(deviceName, sbn.getNotification().extras
+                .getString(Notification.EXTRA_MEDIA_REMOTE_DEVICE));
+        assertEquals(deviceIcon, sbn.getNotification().extras
+                .getInt(Notification.EXTRA_MEDIA_REMOTE_ICON));
+        assertEquals(deviceIntent, sbn.getNotification().extras
+                .getParcelable(Notification.EXTRA_MEDIA_REMOTE_INTENT));
+    }
+
+    public void testNoPermission() throws Exception {
+        int id = 7;
+        SystemUtil.runWithShellPermissionIdentity(
+                () -> mContext.getSystemService(PermissionManager.class)
+                        .revokePostNotificationPermissionWithoutKillForTest(
+                                mContext.getPackageName(),
+                                android.os.Process.myUserHandle().getIdentifier()),
+                REVOKE_POST_NOTIFICATIONS_WITHOUT_KILL,
+                REVOKE_RUNTIME_PERMISSIONS);
+
+        final Notification notification =
+                new Notification.Builder(mContext, NOTIFICATION_CHANNEL_ID)
+                        .setSmallIcon(R.drawable.black)
+                        .build();
+        mNotificationManager.notify(id, notification);
+
+        StatusBarNotification sbn = findPostedNotification(id, false);
+        assertNull(sbn);
     }
 
     private static class EventCallback extends Handler {

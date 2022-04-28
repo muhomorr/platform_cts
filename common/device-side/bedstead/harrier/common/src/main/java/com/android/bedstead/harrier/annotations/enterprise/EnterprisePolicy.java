@@ -22,8 +22,8 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Used to annotate an enterprise policy for use with {@link NegativePolicyTest} and
- * {@link PositivePolicyTest}.
+ * Used to annotate an enterprise policy for use with {@link PolicyDoesNotApplyTest} and
+ * {@link PolicyAppliesTest}.
  */
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.RUNTIME)
@@ -47,18 +47,6 @@ public @interface EnterprisePolicy {
     @interface AppOp {
         /** The AppOp required to exercise the policy. */
         String appliedWith();
-        /** Flags indicating who the policy applies to when applied in this way. */
-        int appliesTo();
-        /** Additional modifiers. */
-        int modifiers() default NO;
-    }
-
-    /**
-     * An enterprise policy which can be controlled by an app with a particular delegated scope.
-     */
-    @interface DelegatedScope {
-         /** The delegated scope required to exercise the policy. */
-        String scope();
         /** Flags indicating who the policy applies to when applied in this way. */
         int appliesTo();
         /** Additional modifiers. */
@@ -148,15 +136,15 @@ public @interface EnterprisePolicy {
 
     // Modifiers
     /** Internal use only. Do not use */
-    // This is to be used to mark specific annotations as not generating negative tests
-    int DO_NOT_APPLY_TO_NEGATIVE_TESTS = 1 << 16;
+    // This is to be used to mark specific annotations as not generating PolicyDoesNotApply tests
+    int DO_NOT_APPLY_TO_POLICY_DOES_NOT_APPLY_TESTS = 1 << 16;
 
     /**
      * A policy which applies even when the user is not in the foreground.
      *
      * <p>Note that lacking this flag does not mean a policy does not apply - to indicate that use
      * {@link DOES_NOT_APPLY_IN_BACKGROUND}. */
-    int APPLIES_IN_BACKGROUND = 1 << 17 | (DO_NOT_APPLY_TO_NEGATIVE_TESTS);
+    int APPLIES_IN_BACKGROUND = 1 << 17 | (DO_NOT_APPLY_TO_POLICY_DOES_NOT_APPLY_TESTS);
     /**
      * A policy which does not apply when the user is not in the foreground.
      *
@@ -192,7 +180,7 @@ public @interface EnterprisePolicy {
     AppOp[] appOps() default {};
 
     /**
-     * {@link DelegatedScope} indicating which delegated scopes can control the policy.
+     * Which delegated scopes can control the policy.
      *
      * <p>This applies to {@link #dpc()} entries with the {@link #CAN_BE_DELEGATED} flag.
      */

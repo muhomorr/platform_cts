@@ -18,7 +18,6 @@ package android.photopicker.cts.cloudproviders;
 
 import static android.photopicker.cts.PickerProviderMediaGenerator.MediaGenerator;
 import static android.photopicker.cts.PickerProviderMediaGenerator.QueryExtras;
-import static android.provider.CloudMediaProviderContract.MediaInfo;
 
 import android.content.res.AssetFileDescriptor;
 import android.database.Cursor;
@@ -44,11 +43,6 @@ public class CloudProviderSecondary extends CloudMediaProvider {
     public boolean onCreate() {
         mMediaGenerator = PickerProviderMediaGenerator.getMediaGenerator(getContext(), AUTHORITY);
         return true;
-    }
-
-    @Override
-    public Cursor onQueryMedia(String mediaId) {
-        throw new UnsupportedOperationException("onQueryMedia by id not supported");
     }
 
     @Override
@@ -87,12 +81,7 @@ public class CloudProviderSecondary extends CloudMediaProvider {
     }
 
     @Override
-    public Bundle onGetMediaInfo(Bundle extras) {
-        Bundle bundle = new Bundle();
-        bundle.putString(MediaInfo.MEDIA_VERSION, mMediaGenerator.getVersion());
-        bundle.putLong(MediaInfo.MEDIA_GENERATION, mMediaGenerator.getGeneration());
-        bundle.putLong(MediaInfo.MEDIA_COUNT, mMediaGenerator.getCount());
-
-        return bundle;
+    public Bundle onGetMediaCollectionInfo(Bundle extras) {
+        return mMediaGenerator.getMediaCollectionInfo();
     }
 }

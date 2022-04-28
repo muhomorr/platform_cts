@@ -29,7 +29,6 @@ import static android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_ENABLED;
 import static android.content.pm.PackageManager.DONT_KILL_APP;
 import static android.content.pm.PackageManager.MATCH_DEFAULT_ONLY;
 
-import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -72,6 +71,7 @@ import android.content.pm.ApplicationInfo;
 import android.content.pm.ConfigurationInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
+import android.content.res.Configuration;
 import android.content.res.Resources;
 import android.os.Binder;
 import android.os.Bundle;
@@ -109,9 +109,7 @@ import org.junit.runner.RunWith;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
@@ -124,9 +122,10 @@ import java.util.function.Supplier;
 public class ActivityManagerTest {
     private static final String TAG = ActivityManagerTest.class.getSimpleName();
     private static final String STUB_PACKAGE_NAME = "android.app.stubs";
-    private static final int WAITFOR_MSEC = 5000;
+    private static final long WAITFOR_MSEC = 5000;
     private static final String SERVICE_NAME = "android.app.stubs.MockService";
-    private static final int WAIT_TIME = 2000;
+    private static final long WAIT_TIME = 2000;
+    private static final long WAITFOR_ORDERED_BROADCAST_DRAINED = 60000;
     // A secondary test activity from another APK.
     static final String SIMPLE_PACKAGE_NAME = "com.android.cts.launcherapps.simpleapp";
     static final String SIMPLE_ACTIVITY = ".SimpleActivity";
@@ -155,9 +154,6 @@ public class ActivityManagerTest {
 
     private static final String MCC_TO_UPDATE = "987";
     private static final String MNC_TO_UPDATE = "654";
-    private static final String SHELL_COMMAND_GET_CONFIG = "am get-config";
-    private static final String SHELL_COMMAND_RESULT_CONFIG_NAME_MCC = "mcc";
-    private static final String SHELL_COMMAND_RESULT_CONFIG_NAME_MNC = "mnc";
 
     // Return states of the ActivityReceiverFilter.
     public static final int RESULT_PASS = 1;
@@ -189,6 +185,7 @@ public class ActivityManagerTest {
         mAutomotiveDevice = mPackageManager.hasSystemFeature(PackageManager.FEATURE_AUTOMOTIVE);
         mLeanbackOnly = mPackageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK_ONLY);
         startSubActivity(ScreenOnActivity.class);
+        drainOrderedBroadcastQueue(2);
     }
 
     @After
@@ -205,6 +202,27 @@ public class ActivityManagerTest {
         if (mErrorProcessID != -1) {
             android.os.Process.killProcess(mErrorProcessID);
         }
+    }
+
+    /**
+     * Drain the ordered broadcast queue, it'll be useful when the test runs right after
+     * the device booted, the ordered broadcast queue could be clogged.
+     */
+    private void drainOrderedBroadcastQueue(int loopCount) throws Exception {
+        for (int i = loopCount; i > 0; i--) {
+            final CountDownLatch latch = new CountDownLatch(1);
+            final BroadcastReceiver receiver = new BroadcastReceiver() {
+                @Override
+                public void onReceive(Context context, Intent intent) {
+                    latch.countDown();
+                }
+            };
+            CommandReceiver.sendCommandWithResultReceiver(mTargetContext,
+                    CommandReceiver.COMMAND_EMPTY,
+                    STUB_PACKAGE_NAME, STUB_PACKAGE_NAME, 0, null, receiver);
+            latch.await(WAITFOR_ORDERED_BROADCAST_DRAINED, TimeUnit.MILLISECONDS);
+        }
+        Log.i(TAG, "Ordered broadcast queue drained");
     }
 
     @Test
@@ -699,48 +717,22 @@ public class ActivityManagerTest {
             return;
         }
 
-        // Store the original mcc mnc to set back
-        String[] mccMncConfigOriginal = new String[2];
-        // Store other configs to check they won't be affected
-        Set<String> otherConfigsOriginal = new HashSet<>();
-        getMccMncConfigsAndOthers(mccMncConfigOriginal, otherConfigsOriginal);
-
+        Configuration originalConfig = mTargetContext.getResources().getConfiguration();
         String[] mccMncConfigToUpdate = new String[] {MCC_TO_UPDATE, MNC_TO_UPDATE};
         boolean success = ShellIdentityUtils.invokeMethodWithShellPermissions(mActivityManager,
                 (am) -> am.updateMccMncConfiguration(mccMncConfigToUpdate[0],
                         mccMncConfigToUpdate[1]));
 
         if (success) {
-            String[] mccMncConfigUpdated = new String[2];
-            Set<String> otherConfigsUpdated = new HashSet<>();
-            getMccMncConfigsAndOthers(mccMncConfigUpdated, otherConfigsUpdated);
-            // Check the mcc mnc are updated as expected
-            assertArrayEquals(mccMncConfigToUpdate, mccMncConfigUpdated);
-            // Check other configs are not changed
-            assertEquals(otherConfigsOriginal, otherConfigsUpdated);
+            Configuration changedConfig = mTargetContext.getResources().getConfiguration();
+            assertEquals(MNC_TO_UPDATE, Integer.toString(changedConfig.mnc));
+            assertEquals(MCC_TO_UPDATE, Integer.toString(changedConfig.mcc));
         }
 
-        // Set mcc mnc configs back in the end of the test
+        // Set mcc mnc configs back in the end of the test if they were set to something else.
         ShellIdentityUtils.invokeMethodWithShellPermissions(mActivityManager,
-                (am) -> am.updateMccMncConfiguration(mccMncConfigOriginal[0],
-                        mccMncConfigOriginal[1]));
-    }
-
-    private void getMccMncConfigsAndOthers(String[] mccMncConfigs, Set<String> otherConfigs)
-            throws Exception {
-        String[] configs = SystemUtil.runShellCommand(
-                mInstrumentation, SHELL_COMMAND_GET_CONFIG).split(" |\\-");
-        for (String config : configs) {
-            if (config.startsWith(SHELL_COMMAND_RESULT_CONFIG_NAME_MCC)) {
-                mccMncConfigs[0] = config.substring(
-                        SHELL_COMMAND_RESULT_CONFIG_NAME_MCC.length());
-            } else if (config.startsWith(SHELL_COMMAND_RESULT_CONFIG_NAME_MNC)) {
-                mccMncConfigs[1] = config.substring(
-                        SHELL_COMMAND_RESULT_CONFIG_NAME_MNC.length());
-            } else {
-                otherConfigs.add(config);
-            }
-        }
+                (am) -> am.updateMccMncConfiguration(Integer.toString(originalConfig.mcc),
+                        Integer.toString(originalConfig.mnc)));
     }
 
     /**
@@ -1144,6 +1136,13 @@ public class ActivityManagerTest {
                     remote.pid, remoteProcessName)));
             assertFalse(waitUntilTrue(defaultWaitForKillTimeout, () -> isProcessGone(
                     proc.pid, SIMPLE_PACKAGE_NAME)));
+
+            if (isAtvDevice()) {
+                // On operator tier devices of AndroidTv, Activity is put behind TvLauncher
+                // after turnScreenOff by android.intent.category.HOME intent from
+                // TvRecommendation.
+                return;
+            }
 
             // force device idle
             toggleScreenOn(false);
@@ -1857,8 +1856,7 @@ public class ActivityManagerTest {
         assumeFalse("not testable in leanback device", mLeanbackOnly);
 
         final String[] packageNames = {PACKAGE_NAME_APP1, PACKAGE_NAME_APP2, PACKAGE_NAME_APP3};
-        final WatchUidRunner[] watchers = initWatchUidRunners(packageNames, WAITFOR_MSEC);
-        final long shortTimeout = 2_000;
+        final WatchUidRunner[] watchers = initWatchUidRunners(packageNames, WAITFOR_MSEC * 2);
 
         try {
             // Set the PACKAGE_NAME_APP1 into rare bucket
@@ -1899,7 +1897,7 @@ public class ActivityManagerTest {
             SystemUtil.runShellCommand(mInstrumentation, "am set-standby-bucket "
                     + PACKAGE_NAME_APP1 + " restricted");
             // Sleep a while to let it take effect.
-            Thread.sleep(shortTimeout);
+            Thread.sleep(WAITFOR_MSEC);
 
             final Intent intent = new Intent();
             final CountDownLatch[] latch = new CountDownLatch[] {new CountDownLatch(1)};
@@ -2170,5 +2168,11 @@ public class ActivityManagerTest {
             return new ComponentName(resolveInfo.activityInfo.packageName,
                     resolveInfo.activityInfo.name);
         }
+    }
+
+    private boolean isAtvDevice() {
+        final Context context = mInstrumentation.getTargetContext();
+        return context.getPackageManager()
+                .hasSystemFeature(PackageManager.FEATURE_TELEVISION);
     }
 }

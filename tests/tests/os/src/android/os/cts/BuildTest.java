@@ -322,15 +322,12 @@ public class BuildTest extends TestCase {
                         assertTrue("Expected " + fieldName + " value to be < " + CUR_DEVELOPMENT
                                 + ", got " + fieldValue, fieldValue < CUR_DEVELOPMENT);
                     }
-                    // KNOWN_CODENAMES only tracks Q+ codenames
-                    if (fieldValue >= Build.VERSION_CODES.Q) {
-                        // Remove all underscores to match build level codenames, e.g. S_V2 is Sv2.
-                        String name = fieldName.replaceAll("_", "");
-                        declaredCodenames.add(name);
-                        assertTrue("Expected " + name
+                    // Remove all underscores to match build level codenames, e.g. S_V2 is Sv2.
+                    String name = fieldName.replaceAll("_", "");
+                    declaredCodenames.add(name);
+                    assertTrue("Expected " + name
                                         + " to be declared in Build.VERSION.KNOWN_CODENAMES",
-                                knownCodenames.contains(name));
-                    }
+                            knownCodenames.contains(name));
                 }
             }
         }
@@ -340,6 +337,11 @@ public class BuildTest extends TestCase {
         assertTrue(
                 "Expected all elements in Build.VERSION.KNOWN_CODENAMES to be declared in"
                         + " Build.VERSION_CODES, found " + diff, diff.isEmpty());
+
+        if (!Build.VERSION.CODENAME.equals("REL")) {
+            assertTrue("In-development CODENAME must be declared in Build.VERSION.KNOWN_CODENAMES",
+                Build.VERSION.KNOWN_CODENAMES.contains(Build.VERSION.CODENAME));
+        }
     }
 
     /**

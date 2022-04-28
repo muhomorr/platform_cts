@@ -21,13 +21,20 @@ import android.app.StatusBarManager
 import android.app.UiAutomation
 import android.content.Context
 import android.media.MediaRoute2Info
+import android.net.Uri
+import android.support.test.uiautomator.By
+import android.support.test.uiautomator.UiDevice
 import androidx.test.InstrumentationRegistry
 import androidx.test.InstrumentationRegistry.getInstrumentation
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import java.lang.IllegalArgumentException
-import java.util.function.Consumer
+import com.android.compatibility.common.util.AdoptShellPermissionsRule
+import com.android.compatibility.common.util.SystemUtil.eventually
+import com.android.compatibility.common.util.SystemUtil.runWithShellPermissionIdentity
+import com.google.common.truth.Truth.assertThat
 import org.junit.After
 import org.junit.Before
+import org.junit.Ignore
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -38,9 +45,15 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class UpdateMediaTapToTransferSenderDisplayTest {
+    @Rule
+    fun permissionsRule() = AdoptShellPermissionsRule(
+        getInstrumentation().getUiAutomation(), MEDIA_PERMISSION
+    )
+
     private lateinit var statusBarManager: StatusBarManager
     private lateinit var instrumentation: Instrumentation
     private lateinit var uiAutomation: UiAutomation
+    private lateinit var uiDevice: UiDevice
     private lateinit var context: Context
 
     @Before
@@ -49,12 +62,22 @@ class UpdateMediaTapToTransferSenderDisplayTest {
         context = instrumentation.getTargetContext()
         statusBarManager = context.getSystemService(StatusBarManager::class.java)!!
         uiAutomation = getInstrumentation().getUiAutomation()
-        uiAutomation.adoptShellPermissionIdentity(MEDIA_PERMISSION)
+        uiDevice = UiDevice.getInstance(instrumentation)
+        uiDevice.wakeUp()
     }
 
     @After
     fun tearDown() {
-        uiAutomation.dropShellPermissionIdentity()
+        // Explicitly run with the permission granted since it may have been dropped in the test.
+        runWithShellPermissionIdentity {
+            // Clear any existing chip
+            statusBarManager.updateMediaTapToTransferSenderDisplay(
+                StatusBarManager.MEDIA_TRANSFER_SENDER_STATE_FAR_FROM_RECEIVER,
+                ROUTE_INFO,
+                null,
+                null
+            )
+        }
     }
 
     @Test(expected = IllegalArgumentException::class)
@@ -79,7 +102,7 @@ class UpdateMediaTapToTransferSenderDisplayTest {
     }
 
     @Test(expected = IllegalArgumentException::class)
-    fun undoCallbackButNoExecutor_throwsException() {
+    fun transferToReceiverSucceeded_undoCallbackButNoExecutor_throwsException() {
         statusBarManager.updateMediaTapToTransferSenderDisplay(
             StatusBarManager.MEDIA_TRANSFER_SENDER_STATE_TRANSFER_TO_RECEIVER_SUCCEEDED,
             ROUTE_INFO,
@@ -88,13 +111,12 @@ class UpdateMediaTapToTransferSenderDisplayTest {
         )
     }
 
-    @Test
-    fun succeedStateWithCallbackAndExecutor_noException() {
-        // No assert, just want to check no crash
+    @Test(expected = IllegalArgumentException::class)
+    fun transferToThisDeviceSucceeded_undoCallbackButNoExecutor_throwsException() {
         statusBarManager.updateMediaTapToTransferSenderDisplay(
             StatusBarManager.MEDIA_TRANSFER_SENDER_STATE_TRANSFER_TO_RECEIVER_SUCCEEDED,
             ROUTE_INFO,
-            context.getMainExecutor(),
+            /* executor= */ null,
             Runnable { }
         )
     }
@@ -109,9 +131,201 @@ class UpdateMediaTapToTransferSenderDisplayTest {
             /* callback= */ null
         )
     }
+
+    @Test
+    @Ignore("b/228329159")
+    fun almostCloseToStartCast_displaysChip() {
+        statusBarManager.updateMediaTapToTransferSenderDisplay(
+            StatusBarManager.MEDIA_TRANSFER_SENDER_STATE_ALMOST_CLOSE_TO_START_CAST,
+            ROUTE_INFO,
+            /* executor= */ null,
+            /* callback= */ null
+        )
+
+        eventually {
+            val chip = uiDevice.findObject(By.res(MEDIA_SENDER_CHIP_ID))
+            assertThat(chip).isNotNull()
+        }
+    }
+
+    @Test
+    @Ignore("b/228329159")
+    fun almostCloseToEndCast_displaysChip() {
+        statusBarManager.updateMediaTapToTransferSenderDisplay(
+            StatusBarManager.MEDIA_TRANSFER_SENDER_STATE_ALMOST_CLOSE_TO_END_CAST,
+            ROUTE_INFO,
+            /* executor= */ null,
+            /* callback= */ null
+        )
+
+        eventually {
+            val chip = uiDevice.findObject(By.res(MEDIA_SENDER_CHIP_ID))
+            assertThat(chip).isNotNull()
+        }
+    }
+
+    @Test
+    @Ignore("b/228329159")
+    fun transferToReceiverTriggered_displaysChip() {
+        statusBarManager.updateMediaTapToTransferSenderDisplay(
+            StatusBarManager.MEDIA_TRANSFER_SENDER_STATE_TRANSFER_TO_RECEIVER_TRIGGERED,
+            ROUTE_INFO,
+            /* executor= */ null,
+            /* callback= */ null
+        )
+
+        eventually {
+            val chip = uiDevice.findObject(By.res(MEDIA_SENDER_CHIP_ID))
+            assertThat(chip).isNotNull()
+        }
+    }
+
+    @Test
+    @Ignore("b/228329159")
+    fun transferToThisDeviceTriggered_displaysChip() {
+        statusBarManager.updateMediaTapToTransferSenderDisplay(
+            StatusBarManager.MEDIA_TRANSFER_SENDER_STATE_TRANSFER_TO_THIS_DEVICE_TRIGGERED,
+            ROUTE_INFO,
+            /* executor= */ null,
+            /* callback= */ null
+        )
+
+        eventually {
+            val chip = uiDevice.findObject(By.res(MEDIA_SENDER_CHIP_ID))
+            assertThat(chip).isNotNull()
+        }
+    }
+
+    @Test
+    @Ignore("b/228329159")
+    fun transferToReceiverSucceeded_nullCallback_displaysChip() {
+        statusBarManager.updateMediaTapToTransferSenderDisplay(
+            StatusBarManager.MEDIA_TRANSFER_SENDER_STATE_TRANSFER_TO_RECEIVER_SUCCEEDED,
+            ROUTE_INFO,
+            /* executor= */ null,
+            /* callback= */ null
+        )
+
+        eventually {
+            val chip = uiDevice.findObject(By.res(MEDIA_SENDER_CHIP_ID))
+            assertThat(chip).isNotNull()
+        }
+    }
+
+    @Test
+    @Ignore("b/228329159")
+    fun transferToReceiverSucceeded_withCallbackAndExecutor_displaysChip() {
+        statusBarManager.updateMediaTapToTransferSenderDisplay(
+            StatusBarManager.MEDIA_TRANSFER_SENDER_STATE_TRANSFER_TO_RECEIVER_SUCCEEDED,
+            ROUTE_INFO,
+            context.getMainExecutor(),
+            Runnable { }
+        )
+
+        eventually {
+            val chip = uiDevice.findObject(By.res(MEDIA_SENDER_CHIP_ID))
+            assertThat(chip).isNotNull()
+        }
+    }
+
+    @Test
+    @Ignore("b/228329159")
+    fun transferToThisDeviceSucceeded_nullCallback_displaysChip() {
+        statusBarManager.updateMediaTapToTransferSenderDisplay(
+            StatusBarManager.MEDIA_TRANSFER_SENDER_STATE_TRANSFER_TO_THIS_DEVICE_SUCCEEDED,
+            ROUTE_INFO,
+            /* executor= */ null,
+            /* callback= */ null
+        )
+
+        eventually {
+            val chip = uiDevice.findObject(By.res(MEDIA_SENDER_CHIP_ID))
+            assertThat(chip).isNotNull()
+        }
+    }
+
+    @Test
+    @Ignore("b/228329159")
+    fun transferToThisDeviceSucceeded_withCallbackAndExecutor_displaysChip() {
+        statusBarManager.updateMediaTapToTransferSenderDisplay(
+            StatusBarManager.MEDIA_TRANSFER_SENDER_STATE_TRANSFER_TO_THIS_DEVICE_SUCCEEDED,
+            ROUTE_INFO,
+            context.getMainExecutor(),
+            Runnable { }
+        )
+
+        eventually {
+            val chip = uiDevice.findObject(By.res(MEDIA_SENDER_CHIP_ID))
+            assertThat(chip).isNotNull()
+        }
+    }
+
+    @Test
+    @Ignore("b/228329159")
+    fun transferToReceiverFailed_displaysChip() {
+        statusBarManager.updateMediaTapToTransferSenderDisplay(
+            StatusBarManager.MEDIA_TRANSFER_SENDER_STATE_TRANSFER_TO_RECEIVER_FAILED,
+            ROUTE_INFO,
+            /* executor= */ null,
+            /* callback= */ null
+        )
+
+        eventually {
+            val chip = uiDevice.findObject(By.res(MEDIA_SENDER_CHIP_ID))
+            assertThat(chip).isNotNull()
+        }
+    }
+
+    @Test
+    @Ignore("b/228329159")
+    fun transferToThisDeviceFailed_displaysChip() {
+        statusBarManager.updateMediaTapToTransferSenderDisplay(
+            StatusBarManager.MEDIA_TRANSFER_SENDER_STATE_TRANSFER_TO_THIS_DEVICE_FAILED,
+            ROUTE_INFO,
+            /* executor= */ null,
+            /* callback= */ null
+        )
+
+        eventually {
+            val chip = uiDevice.findObject(By.res(MEDIA_SENDER_CHIP_ID))
+            assertThat(chip).isNotNull()
+        }
+    }
+
+    @Test
+    @Ignore("b/228329159")
+    fun farFromReceiver_hidesChip() {
+        // First, make sure we display the chip
+        statusBarManager.updateMediaTapToTransferSenderDisplay(
+            StatusBarManager.MEDIA_TRANSFER_SENDER_STATE_ALMOST_CLOSE_TO_START_CAST,
+            ROUTE_INFO,
+            /* executor= */ null,
+            /* callback= */ null
+        )
+
+        eventually {
+            val chip = uiDevice.findObject(By.res(MEDIA_SENDER_CHIP_ID))
+            assertThat(chip).isNotNull()
+        }
+
+        // Then, make sure we hide the chip
+        statusBarManager.updateMediaTapToTransferSenderDisplay(
+            StatusBarManager.MEDIA_TRANSFER_SENDER_STATE_FAR_FROM_RECEIVER,
+            ROUTE_INFO,
+            /* executor= */ null,
+            /* callback= */ null
+        )
+
+        eventually {
+            val chip = uiDevice.findObject(By.res(MEDIA_SENDER_CHIP_ID))
+            assertThat(chip).isNull()
+        }
+    }
 }
 
+private const val MEDIA_SENDER_CHIP_ID = "com.android.systemui:id/media_ttt_sender_chip"
 private val MEDIA_PERMISSION: String = android.Manifest.permission.MEDIA_CONTENT_CONTROL
 private val ROUTE_INFO = MediaRoute2Info.Builder("id", "Test Name")
     .addFeature("feature")
+    .setIconUri(Uri.parse("content://ctstest"))
     .build()

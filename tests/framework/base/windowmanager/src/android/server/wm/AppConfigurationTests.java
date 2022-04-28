@@ -69,6 +69,7 @@ import android.server.wm.CommandSession.ConfigInfo;
 import android.server.wm.CommandSession.SizeInfo;
 import android.server.wm.TestJournalProvider.TestJournalContainer;
 import android.view.Display;
+import android.window.WindowContainerTransaction;
 
 import org.junit.Test;
 
@@ -286,9 +287,13 @@ public class AppConfigurationTests extends MultiDisplayTestBase {
         final SizeInfo dockedSizes = getLastReportedSizesForActivity(activityName);
         assertSizesAreSane(initialFullscreenSizes, dockedSizes);
 
-        // Restore to fullscreen.
         separateTestJournal();
-        mTaskOrganizer.dismissSplitScreen();
+        // Restore to fullscreen.
+        final int activityTaskId = mWmState.getTaskByActivity(activityName).mTaskId;
+        final WindowContainerTransaction wct = new WindowContainerTransaction()
+            .setWindowingMode(mTaskOrganizer.getTaskInfo(activityTaskId).getToken(),
+                WINDOWING_MODE_FULLSCREEN);
+        mTaskOrganizer.dismissSplitScreen(wct, false /* primaryOnTop */);
         // Home task could be on top since it was the top-most task while in split-screen mode
         // (dock task was minimized), start the activity again to ensure the activity is at
         // foreground.
@@ -361,6 +366,7 @@ public class AppConfigurationTests extends MultiDisplayTestBase {
     @Test
     public void testTranslucentAppOrientationRequests() {
         assumeTrue("Skipping test: no orientation request support", supportsOrientationRequest());
+        disableIgnoreOrientationRequest();
 
         separateTestJournal();
         launchActivity(PORTRAIT_ORIENTATION_ACTIVITY, WINDOWING_MODE_FULLSCREEN);
@@ -523,9 +529,8 @@ public class AppConfigurationTests extends MultiDisplayTestBase {
                 appConfigInfo.sizeInfo.displayWidth > appConfigInfo.sizeInfo.displayHeight);
         assertEquals("The app display metrics must be landscape", isLandscape,
                 appConfigInfo.sizeInfo.metricsWidth > appConfigInfo.sizeInfo.metricsHeight);
-        assertEquals("The display metrics of system resources must be landscape",
-                new Point(dc.getAppRect().width(), dc.getAppRect().height()),
-                new Point(globalSizeInfo.metricsWidth, globalSizeInfo.metricsHeight));
+        assertEquals("The display metrics of system resources must be landscape", isLandscape,
+                globalSizeInfo.metricsWidth > globalSizeInfo.metricsHeight);
     }
 
     @Test
@@ -533,6 +538,7 @@ public class AppConfigurationTests extends MultiDisplayTestBase {
         assumeTrue("Skipping test: no orientation request support", supportsOrientationRequest());
         // TODO(b/209920544) remove assumeFalse after issue fix.
         assumeFalse(ENABLE_SHELL_TRANSITIONS);
+        disableIgnoreOrientationRequest();
 
         final RotationSession rotationSession = createManagedRotationSession();
         rotationSession.set(ROTATION_0);
@@ -551,6 +557,7 @@ public class AppConfigurationTests extends MultiDisplayTestBase {
     @Test
     public void testTaskCloseRestoreFixedOrientation() {
         assumeTrue("Skipping test: no orientation request support", supportsOrientationRequest());
+        disableIgnoreOrientationRequest();
 
         // Start landscape activity.
         launchActivity(LANDSCAPE_ORIENTATION_ACTIVITY, WINDOWING_MODE_FULLSCREEN);
@@ -756,6 +763,7 @@ public class AppConfigurationTests extends MultiDisplayTestBase {
         // TODO(b/110533226): Fix test on devices with display cutout
         assumeFalse("Skipping test: display cutout present, can't predict exact lifecycle",
                 hasDisplayCutout());
+        disableIgnoreOrientationRequest();
 
         // Start portrait-fixed activity
         separateTestJournal();
@@ -799,6 +807,7 @@ public class AppConfigurationTests extends MultiDisplayTestBase {
     @Test
     public void testTaskMoveToBackOrientation() {
         assumeTrue("Skipping test: no orientation request support", supportsOrientationRequest());
+        disableIgnoreOrientationRequest();
 
         // Start landscape activity.
         launchActivity(LANDSCAPE_ORIENTATION_ACTIVITY, WINDOWING_MODE_FULLSCREEN);

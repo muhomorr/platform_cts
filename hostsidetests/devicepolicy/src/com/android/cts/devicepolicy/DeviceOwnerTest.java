@@ -16,7 +16,6 @@
 
 package com.android.cts.devicepolicy;
 
-import static com.android.cts.devicepolicy.DeviceAdminFeaturesCheckerRule.FEATURE_BACKUP;
 import static com.android.cts.devicepolicy.DeviceAdminFeaturesCheckerRule.FEATURE_MANAGED_USERS;
 import static com.android.cts.devicepolicy.metrics.DevicePolicyEventLogVerifier.assertMetricsLogged;
 
@@ -91,11 +90,6 @@ public class DeviceOwnerTest extends BaseDeviceOwnerTest {
     private static final String GLOBAL_SETTING_DATA_ROAMING = "data_roaming";
     private static final String GLOBAL_SETTING_USB_MASS_STORAGE_ENABLED =
             "usb_mass_storage_enabled";
-
-    @Test
-    public void testDeviceOwnerSetup() throws Exception {
-        executeDeviceOwnerTest("DeviceOwnerSetupTest");
-    }
 
     @Test
     public void testProxyStaticProxyTest() throws Exception {
@@ -359,10 +353,10 @@ public class DeviceOwnerTest extends BaseDeviceOwnerTest {
         int waitingTimeMs = 5_000;
         final int maxAttempts = 10;
         new Thread(() -> {
-            int attempt = 0;
-            boolean granted = false;
-            while (!granted && ++attempt <= maxAttempts) {
-                try {
+            try {
+                int attempt = 0;
+                boolean granted = false;
+                while (!granted && ++attempt <= maxAttempts) {
                     List<Integer> newUsers = getUsersCreatedByTests();
                     if (!newUsers.isEmpty()) {
                         for (int userId : newUsers) {
@@ -375,21 +369,23 @@ public class DeviceOwnerTest extends BaseDeviceOwnerTest {
                                     userId, "to call isNewUserDisclaimerAcknowledged() and "
                                     + "acknowledgeNewUserDisclaimer()");
                             granted = true;
+                            // Needed to access isNewUserDisclaimerAcknowledged()
+                            allowTestApiAccess(DEVICE_OWNER_PKG);
                         }
                     }
 
                     if (!granted) {
                         CLog.i("Waiting %dms until new user is switched and package installed "
                                 + "to grant INTERACT_ACROSS_USERS", waitingTimeMs);
+                        sleep(waitingTimeMs);
                     }
-                    sleep(waitingTimeMs);
-                } catch (Exception e) {
-                    CLog.e(e);
-                    return;
                 }
+                CLog.i("%s says: Good Bye, and thanks for all the fish! BTW, granted=%b in "
+                        + "%d attempts", Thread.currentThread(), granted, attempt);
+            } catch (Exception e) {
+                CLog.e(e);
+                return;
             }
-            CLog.i("%s says: Good Bye, and thanks for all the fish! BTW, granted=%b in %d attempts",
-                    Thread.currentThread(), granted, attempt);
         }, "testCreateAndManageUser_newUserDisclaimer_Thread").start();
 
         executeCreateAndManageUserTest("testCreateAndManageUser_newUserDisclaimer");
@@ -661,14 +657,6 @@ public class DeviceOwnerTest extends BaseDeviceOwnerTest {
             removeAdmin(deviceAdminReceiver, adminUserId);
             getDevice().uninstallPackage(deviceAdminPkg);
         }
-    }
-
-    // The backup service cannot be enabled if the backup feature is not supported.
-    @RequiresAdditionalFeatures({FEATURE_BACKUP})
-    @Test
-    public void testBackupServiceEnabling() throws Exception {
-        executeDeviceTestMethod(".BackupServicePoliciesTest",
-                "testEnablingAndDisablingBackupService");
     }
 
     @Test

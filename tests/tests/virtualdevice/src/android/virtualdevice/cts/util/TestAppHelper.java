@@ -45,6 +45,16 @@ public class TestAppHelper {
             "android.virtualdevice.streamedtestapp.StreamedAppService";
 
     /** @see android.virtualdevice.streamedtestapp.MainActivity */
+    static final String ACTION_TEST_CAMERA =
+            "android.virtualdevice.streamedtestapp.TEST_CAMERA";
+    /** @see android.virtualdevice.streamedtestapp.MainActivity */
+    public static final String EXTRA_CAMERA_ID = "cameraId";
+    /** @see android.virtualdevice.streamedtestapp.MainActivity */
+    public static final String EXTRA_CAMERA_RESULT = "cameraResult";
+    /** @see android.virtualdevice.streamedtestapp.MainActivity */
+    public static final String EXTRA_CAMERA_ON_ERROR_CODE = "cameraOnErrorCode";
+
+    /** @see android.virtualdevice.streamedtestapp.MainActivity */
     static final String ACTION_TEST_CLIPBOARD =
             "android.virtualdevice.streamedtestapp.TEST_CLIPBOARD";
     /** @see android.virtualdevice.streamedtestapp.MainActivity */
@@ -55,8 +65,19 @@ public class TestAppHelper {
     static final String EXTRA_ACTIVITY_LAUNCHED_RECEIVER = "activityLaunchedReceiver";
     public static final String EXTRA_DISPLAY = "display";
 
+    /** @see android.virtualdevice.streamedtestapp.MainActivity */
+    public static final String ACTION_CALL_IS_DEVICE_SECURE =
+            PACKAGE_NAME + ".ACTION_CALL_IS_DEVICE_SECURE";
+
+    public static final String EXTRA_IS_DEVICE_SECURE = "isDeviceSecure";
+
     public static final ComponentName MAIN_ACTIVITY_COMPONENT = new ComponentName(
-            TestAppHelper.PACKAGE_NAME, TestAppHelper.MAIN_ACTIVITY);
+            PACKAGE_NAME, MAIN_ACTIVITY);
+
+    public static Intent createCameraAccessTestIntent() {
+        return new Intent(ACTION_TEST_CAMERA)
+                .setComponent(MAIN_ACTIVITY_COMPONENT);
+    }
 
     public static Intent createClipboardTestIntent(String clipboardString) {
         return new Intent(ACTION_TEST_CLIPBOARD)
@@ -72,16 +93,26 @@ public class TestAppHelper {
         return new Intent().setClassName(PACKAGE_NAME, NO_EMBED_ACTIVITY);
     }
 
-    public static Intent createCannotDisplayOnRemoteIntent(ResultReceiver resultReceiver) {
-        return new Intent(ACTION_CALL_RESULT_RECEIVER)
+    public static Intent createCannotDisplayOnRemoteIntent(boolean newTask,
+            ResultReceiver resultReceiver) {
+        Intent intent = new Intent(ACTION_CALL_RESULT_RECEIVER)
                 .setClassName(PACKAGE_NAME, CANNOT_DISPLAY_ON_REMOTE_ACTIVITY)
                 .putExtra(EXTRA_ACTIVITY_LAUNCHED_RECEIVER, resultReceiver);
+        if (newTask) {
+            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_MULTIPLE_TASK);
+        }
+        return intent;
     }
 
     public static Intent createActivityLaunchedReceiverIntent(ResultReceiver resultReceiver) {
         return new Intent(ACTION_CALL_RESULT_RECEIVER)
                 .setComponent(MAIN_ACTIVITY_COMPONENT)
                 .putExtra(EXTRA_ACTIVITY_LAUNCHED_RECEIVER, resultReceiver);
+    }
+
+    public static Intent createKeyguardManagerIsDeviceSecureTestIntent() {
+        return new Intent(ACTION_CALL_IS_DEVICE_SECURE)
+                .setComponent(MAIN_ACTIVITY_COMPONENT);
     }
 
     public static ServiceConnectionFuture<IStreamedTestApp> createTestAppService() {

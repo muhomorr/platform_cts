@@ -24,13 +24,14 @@ import android.widget.Button;
 import android.widget.RadioButton;
 import android.widget.TextView;
 
+import com.android.compatibility.common.util.CddTest;
 import com.android.compatibility.common.util.ResultType;
 import com.android.compatibility.common.util.ResultUnit;
-import com.android.cts.verifier.audio.audiolib.StatUtils;
 import com.android.cts.verifier.CtsVerifierReportLog;
 import com.android.cts.verifier.PassFailButtons;
 import com.android.cts.verifier.R;
 import com.android.cts.verifier.audio.audiolib.CircularBufferFloat;
+import com.android.cts.verifier.audio.audiolib.StatUtils;
 import com.android.cts.verifier.audio.audiolib.TapLatencyAnalyser;
 import com.android.cts.verifier.audio.audiolib.WaveformView;
 import com.android.cts.verifier.audio.sources.BlipAudioSourceProvider;
@@ -47,6 +48,7 @@ import org.hyphonate.megaaudio.recorder.sinks.AppCallbackAudioSinkProvider;
 /**
  * CtsVerifier test to measure tap-to-tone latency.
  */
+@CddTest(requirement = "5.6")
 public class AudioTap2ToneActivity
         extends PassFailButtons.Activity
         implements View.OnClickListener, AppCallback {
@@ -406,32 +408,23 @@ public class AudioTap2ToneActivity
     //
     @Override
     public void onClick(View v) {
-        switch (v.getId()) {
-            case R.id.tap2tone_startBtn:
-                startAudio();
-                break;
-
-            case R.id.tap2tone_stopBtn:
-                stopAudio();
-                break;
-
-            case R.id.audioJavaApiBtn:
-                stopAudio();
+        int id = v.getId();
+        if (id == R.id.tap2tone_startBtn) {
+            startAudio();
+        } else if (id == R.id.tap2tone_stopBtn) {
+            stopAudio();
+        } else if (id == R.id.audioJavaApiBtn) {
+            stopAudio();
+            clearResults();
+            mPlayerType = BuilderBase.TYPE_JAVA;
+            mActiveTestAPI = TEST_API_JAVA;
+        } else if (id == R.id.audioNativeApiBtn) {
+            stopAudio();
+            clearResults();
+            mPlayerType = BuilderBase.TYPE_OBOE | BuilderBase.SUB_TYPE_OBOE_AAUDIO;
+            mActiveTestAPI = TEST_API_NATIVE;
+        } else if (id == R.id.tap2tone_clearResults) {
                 clearResults();
-                mPlayerType = BuilderBase.TYPE_JAVA;
-                mActiveTestAPI = TEST_API_JAVA;
-                break;
-
-            case R.id.audioNativeApiBtn:
-                stopAudio();
-                clearResults();
-                mPlayerType = BuilderBase.TYPE_OBOE | BuilderBase.SUB_TYPE_OBOE_AAUDIO;
-                mActiveTestAPI = TEST_API_NATIVE;
-                break;
-
-            case R.id.tap2tone_clearResults:
-                clearResults();
-                break;
         }
     }
 

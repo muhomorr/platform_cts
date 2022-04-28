@@ -20,17 +20,23 @@ import static android.accessibilityservice.cts.utils.ActivityLaunchUtils.launchA
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
 import android.accessibility.cts.common.AccessibilityDumpOnFailureRule;
 import android.accessibility.cts.common.InstrumentedAccessibilityService;
 import android.accessibility.cts.common.InstrumentedAccessibilityServiceTestRule;
+import android.accessibilityservice.AccessibilityServiceInfo;
 import android.accessibilityservice.cts.activities.AccessibilityCacheActivity;
 import android.app.Instrumentation;
 import android.app.UiAutomation;
 import android.platform.test.annotations.AppModeFull;
+import android.text.TextUtils;
 import android.view.accessibility.AccessibilityNodeInfo;
+import android.view.accessibility.AccessibilityWindowInfo;
 
 import androidx.test.InstrumentationRegistry;
 import androidx.test.rule.ActivityTestRule;
@@ -43,6 +49,8 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.RuleChain;
 import org.junit.runner.RunWith;
+
+import java.util.List;
 
 @AppModeFull
 @RunWith(AndroidJUnit4.class)
@@ -83,6 +91,9 @@ public class AccessibilityCacheTest {
     @Before
     public void setUp() throws Exception {
         mService = mInstrumentedAccessibilityServiceRule.enableService();
+        AccessibilityServiceInfo info = mService.getServiceInfo();
+        info.flags &= ~AccessibilityServiceInfo.FLAG_INCLUDE_NOT_IMPORTANT_VIEWS;
+        mService.setServiceInfo(info);
         mActivity = launchActivityAndWaitForItToBeOnscreen(
                 sInstrumentation, sUiAutomation, mActivityRule);
     }
@@ -117,27 +128,182 @@ public class AccessibilityCacheTest {
 
     @Test
     public void invalidateNode_subtreeInCacheInvalidated() {
-        // Tree is FrameLayout with 1 TextView child
+        // Tree is FrameLayout with TextView and LinearLayout children.
+        // The LinearLayout has a TextView child.
         AccessibilityNodeInfo root = mService.getRootInActiveWindow();
-        assertThat(root.getChildCount(), is(1));
-        AccessibilityNodeInfo child = root.getChild(0);
+        assertThat(root.getChildCount(), is(2));
+        AccessibilityNodeInfo child0 = root.getChild(0);
+        AccessibilityNodeInfo child1 = root.getChild(1);
+        AccessibilityNodeInfo grandChild = child1.getChild(0);
 
         assertTrue(mService.clearCachedSubtree(root));
 
         assertFalse("Root is in cache", mService.isNodeInCache(root));
-        assertFalse("Child 1 is in cache", mService.isNodeInCache(child));
+        assertFalse("Child0 is in cache", mService.isNodeInCache(child0));
+        assertFalse("Child1 is in cache", mService.isNodeInCache(child1));
+        assertFalse("Grandchild is in cache", mService.isNodeInCache(grandChild));
     }
 
     @Test
     public void clear_cacheInvalidated() {
-        // Tree is FrameLayout with 1 TextView child
+        // Tree is FrameLayout with TextView and LinearLayout children.
+        // The LinearLayout has a TextView child.
         AccessibilityNodeInfo root = mService.getRootInActiveWindow();
-        assertThat(root.getChildCount(), is(1));
-        AccessibilityNodeInfo child = root.getChild(0);
+        assertThat(root.getChildCount(), is(2));
+        AccessibilityNodeInfo child0 = root.getChild(0);
+        AccessibilityNodeInfo child1 = root.getChild(1);
+        AccessibilityNodeInfo grandChild = child1.getChild(0);
 
         assertTrue(mService.clearCache());
 
         assertFalse("Root is in cache", mService.isNodeInCache(root));
-        assertFalse("Child 1 is in cache", mService.isNodeInCache(child));
+        assertFalse("Child0 is in cache", mService.isNodeInCache(child0));
+        assertFalse("Child1 is in cache", mService.isNodeInCache(child1));
+        assertFalse("Grandchild is in cache", mService.isNodeInCache(grandChild));
+    }
+
+    @Test
+    public void getChild_descendantNotPrefetched() {
+        // Tree is FrameLayout with TextView and LinearLayout children.
+        // The LinearLayout has a TextView child.
+        AccessibilityNodeInfo frameRoot = mService.getRootInActiveWindow();
+        assertThat(frameRoot.getChildCount(), is(2));
+        AccessibilityNodeInfo textViewChild = frameRoot.getChild(0);
+        AccessibilityNodeInfo linearLayoutChild = frameRoot.getChild(1);
+        AccessibilityNodeInfo frameGrandChild = linearLayoutChild.getChild(0);
+
+        // Clear cache.
+        assertTrue(mService.clearCachedSubtree(frameRoot));
+        frameRoot.getChild(1, AccessibilityNodeInfo.FLAG_PREFETCH_SIBLINGS
+                | AccessibilityNodeInfo.FLAG_PREFETCH_UNINTERRUPTIBLE);
+        assertTrue("Root is not in cache", mService.isNodeInCache(frameRoot));
+        assertTrue("TextView is not in cache", mService.isNodeInCache(textViewChild));
+        assertTrue("LinearLayout is not in cache", mService.isNodeInCache(linearLayoutChild));
+        // No descendant prefetching
+        assertFalse("Root grandchild is in cache", mService.isNodeInCache(frameGrandChild));
+    }
+
+    @Test
+    public void getChild_descendantPrefetched() {
+        // Tree is FrameLayout with TextView and LinearLayout children.
+        // The LinearLayout has a TextView child.
+        AccessibilityNodeInfo frameRoot = mService.getRootInActiveWindow();
+        assertThat(frameRoot.getChildCount(), is(2));
+        AccessibilityNodeInfo textViewChild = frameRoot.getChild(0);
+        AccessibilityNodeInfo linearLayoutChild = frameRoot.getChild(1);
+        AccessibilityNodeInfo frameGrandChild = linearLayoutChild.getChild(0);
+
+        // Clear cache.
+        assertTrue(mService.clearCachedSubtree(frameRoot));
+
+        frameRoot.getChild(1, AccessibilityNodeInfo.FLAG_PREFETCH_DESCENDANTS_DEPTH_FIRST
+                | AccessibilityNodeInfo.FLAG_PREFETCH_UNINTERRUPTIBLE);
+
+        assertFalse("Root is in cache", mService.isNodeInCache(frameRoot));
+        assertFalse("TextView is in cache", mService.isNodeInCache(textViewChild));
+        assertTrue("LinearLayout is not in cache", mService.isNodeInCache(linearLayoutChild));
+        // Descendant prefetching
+        assertTrue("Root grandchild is not in cache", mService.isNodeInCache(frameGrandChild));
+    }
+
+    @Test
+    public void getParent_ancestorsPrefetched() {
+        // Tree is FrameLayout with TextView and LinearLayout children.
+        // The LinearLayout has a TextView child.
+        AccessibilityNodeInfo frameRoot = mService.getRootInActiveWindow();
+        assertThat(frameRoot.getChildCount(), is(2));
+        AccessibilityNodeInfo textViewChild = frameRoot.getChild(0);
+        AccessibilityNodeInfo linearLayoutChild = frameRoot.getChild(1);
+        AccessibilityNodeInfo frameGrandChild = linearLayoutChild.getChild(0);
+
+        // Clear cache.
+        assertTrue(mService.clearCachedSubtree(frameRoot));
+
+        frameGrandChild.getParent(AccessibilityNodeInfo.FLAG_PREFETCH_ANCESTORS
+                | AccessibilityNodeInfo.FLAG_PREFETCH_UNINTERRUPTIBLE);
+
+        assertTrue("Root is not in cache", mService.isNodeInCache(frameRoot));
+        assertFalse("TextView is in cache", mService.isNodeInCache(textViewChild));
+        assertTrue("linearLayout is not in cache", mService.isNodeInCache(linearLayoutChild));
+        // Grandchild itself isn't in the cache
+        assertFalse("root grandchild is in cache", mService.isNodeInCache(frameGrandChild));
+    }
+
+    /**
+     * Tests a request that prefetches descendants with multiple strategies. This throws an
+     * exception.
+     */
+    @Test
+    public void testRequest_withMultiplePrefetchingStrategies_throwsException() {
+        // Tree is FrameLayout with TextView and LinearLayout children.
+        // The LinearLayout has a TextView child.
+        AccessibilityNodeInfo root = mService.getRootInActiveWindow();
+        assertThat(root.getChildCount(), is(2));
+
+        // Clear cache.
+        mService.clearCachedSubtree(root);
+
+        assertThrows(IllegalArgumentException.class, () -> {
+            root.getChild(0,
+                    AccessibilityNodeInfo.FLAG_PREFETCH_DESCENDANTS_BREADTH_FIRST
+                            | AccessibilityNodeInfo.FLAG_PREFETCH_DESCENDANTS_HYBRID);
+        });
+    }
+
+    @Test
+    public void testRequest_prefetchWithA11yWindowInfo() {
+        List<AccessibilityWindowInfo> windows = mService.getWindows();
+        AccessibilityWindowInfo activityWindowInfo = null;
+        for (AccessibilityWindowInfo window : windows) {
+            if (window.getTitle() != null
+                    && TextUtils.equals(window.getTitle(), mActivity.getTitle())) {
+                activityWindowInfo = window;
+            }
+        }
+
+        assertNotNull(activityWindowInfo);
+        AccessibilityNodeInfo windowRoot = activityWindowInfo.getRoot();
+
+        assertThat(windowRoot.getChildCount(), is(2));
+        AccessibilityNodeInfo textViewChild = windowRoot.getChild(0);
+        AccessibilityNodeInfo linearLayoutChild = windowRoot.getChild(1);
+        AccessibilityNodeInfo frameGrandChild = linearLayoutChild.getChild(0);
+
+        // Clear cache.
+        assertTrue(mService.clearCachedSubtree(windowRoot));
+
+        AccessibilityNodeInfo windowRoot2 = activityWindowInfo.getRoot(
+                AccessibilityNodeInfo.FLAG_PREFETCH_SIBLINGS
+                        | AccessibilityNodeInfo.FLAG_PREFETCH_UNINTERRUPTIBLE);
+        // Confirm roots are the same.
+        assertEquals(windowRoot, windowRoot2);
+        assertFalse("Root is in cache", mService.isNodeInCache(windowRoot));
+        assertFalse("TextView is in cache", mService.isNodeInCache(textViewChild));
+        assertFalse("LinearLayout is in cache", mService.isNodeInCache(linearLayoutChild));
+        assertFalse("Root grandchild is in cache", mService.isNodeInCache(frameGrandChild));
+    }
+
+    @Test
+    public void testRequest_prefetchWithRootInActiveWindow() {
+        // Tree is FrameLayout with TextView and LinearLayout children.
+        // The LinearLayout has a TextView child.
+        AccessibilityNodeInfo frameRoot = mService.getRootInActiveWindow();
+        assertThat(frameRoot.getChildCount(), is(2));
+        AccessibilityNodeInfo textViewChild = frameRoot.getChild(0);
+        AccessibilityNodeInfo linearLayoutChild = frameRoot.getChild(1);
+        AccessibilityNodeInfo frameGrandChild = linearLayoutChild.getChild(0);
+
+        // Clear cache.
+        assertTrue(mService.clearCachedSubtree(frameRoot));
+
+        AccessibilityNodeInfo frameRoot2 = mService.getRootInActiveWindow(
+                AccessibilityNodeInfo.FLAG_PREFETCH_SIBLINGS
+                        | AccessibilityNodeInfo.FLAG_PREFETCH_UNINTERRUPTIBLE);
+        // Confirm roots are the same.
+        assertEquals(frameRoot, frameRoot2);
+        assertTrue("Root is in cache", mService.isNodeInCache(frameRoot2));
+        assertFalse("TextView is in cache", mService.isNodeInCache(textViewChild));
+        assertFalse("LinearLayout is in cache", mService.isNodeInCache(linearLayoutChild));
+        assertFalse("Root grandchild is in cache", mService.isNodeInCache(frameGrandChild));
     }
 }

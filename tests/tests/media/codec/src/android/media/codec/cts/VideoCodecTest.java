@@ -17,18 +17,31 @@
 package android.media.codec.cts;
 
 import android.media.MediaCodec;
-import android.media.MediaCodecInfo;
 import android.media.MediaCodecList;
 import android.media.MediaFormat;
 import android.media.cts.MediaCodecWrapper;
 import android.media.cts.MediaHeavyPresubmitTest;
+import android.media.cts.TestArgs;
 import android.platform.test.annotations.AppModeFull;
 import android.util.Log;
+
+import androidx.test.platform.app.InstrumentationRegistry;
+
+import com.android.compatibility.common.util.MediaUtils;
+
+import org.junit.Assume;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import java.io.File;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.List;
+
+import static org.junit.Assert.assertEquals;
 
 /**
  * Verification test for video encoder and decoder.
@@ -40,6 +53,7 @@ import java.util.Arrays;
  */
 @MediaHeavyPresubmitTest
 @AppModeFull(reason = "TODO: evaluate and port to instant")
+@RunWith(Parameterized.class)
 public class VideoCodecTest extends VideoCodecTestBase {
 
     private static final String ENCODED_IVF_BASE = "football";
@@ -83,6 +97,52 @@ public class VideoCodecTest extends VideoCodecTestBase {
     // Maximum allowed key frame interval variation from the target value.
     private static final int MAX_KEYFRAME_INTERVAL_VARIATION = 3;
 
+    @Parameterized.Parameter(0)
+    public String mCodecName;
+
+    @Parameterized.Parameter(1)
+    public String mCodecMimeType;
+
+    @Parameterized.Parameter(2)
+    public int mBitRateMode;
+
+    static private List<Object[]> prepareParamList(List<Object[]> exhaustiveArgsList) {
+        final List<Object[]> argsList = new ArrayList<>();
+        int argLength = exhaustiveArgsList.get(0).length;
+        for (Object[] arg : exhaustiveArgsList) {
+            String mediaType = (String)arg[0];
+            if (TestArgs.shouldSkipMediaType(mediaType)) {
+                continue;
+            }
+            String[] encodersForMime = MediaUtils.getEncoderNamesForMime(mediaType);
+            for (String encoder : encodersForMime) {
+                if (TestArgs.shouldSkipCodec(encoder)) {
+                    continue;
+                }
+                Object[] testArgs = new Object[argLength + 1];
+                testArgs[0] = encoder;
+                System.arraycopy(arg, 0, testArgs, 1, argLength);
+                argsList.add(testArgs);
+            }
+        }
+        return argsList;
+    }
+
+    @Parameterized.Parameters(name = "{index}({0}:{1}:{2})")
+    public static Collection<Object[]> input() {
+        final List<Object[]> exhaustiveArgsList = Arrays.asList(new Object[][]{
+                {VP8_MIME, VIDEO_ControlRateConstant},
+                {VP8_MIME, VIDEO_ControlRateVariable},
+                {VP9_MIME, VIDEO_ControlRateConstant},
+                {VP9_MIME, VIDEO_ControlRateVariable},
+                {AVC_MIME, VIDEO_ControlRateConstant},
+                {AVC_MIME, VIDEO_ControlRateVariable},
+                {HEVC_MIME, VIDEO_ControlRateConstant},
+                {HEVC_MIME, VIDEO_ControlRateVariable},
+        });
+        return prepareParamList(exhaustiveArgsList);
+    }
+
     /**
      * A basic test for Video encoder.
      *
@@ -91,7 +151,8 @@ public class VideoCodecTest extends VideoCodecTestBase {
      * Verifies the average bitrate is within allowed MAX_BITRATE_VARIATIONS[] of
      * the target value.
      */
-    private void internalTestBasic(String codecMimeType, int bitRateMode) throws Exception {
+    private void internalTestBasic(String codecName, String codecMimeType, int bitRateMode)
+            throws Exception {
         int encodeSeconds = 9;
         boolean skipped = true;
 
@@ -101,6 +162,7 @@ public class VideoCodecTest extends VideoCodecTestBase {
             EncoderOutputStreamParameters params = getDefaultEncodingParameters(
                     INPUT_YUV,
                     ENCODED_IVF_BASE,
+                    codecName,
                     codecMimeType,
                     encodeSeconds,
                     WIDTH,
@@ -110,7 +172,8 @@ public class VideoCodecTest extends VideoCodecTestBase {
                     targetBitrate,
                     true);
             ArrayList<ByteBuffer> codecConfigs = new ArrayList<>();
-            ArrayList<MediaCodec.BufferInfo> bufInfo = encode(params, codecConfigs);
+            VideoEncodeOutput videoEncodeOutput = encode(params, codecConfigs);
+            ArrayList<MediaCodec.BufferInfo> bufInfo = videoEncodeOutput.bufferInfo;
             if (bufInfo == null) {
                 continue;
             }
@@ -137,8 +200,7 @@ public class VideoCodecTest extends VideoCodecTestBase {
                     allowedVariance * targetBitrate);
             }
 
-            decode(params.outputIvfFilename, null, codecMimeType, FPS,
-                    params.forceGoogleEncoder, codecConfigs);
+            decode(params.outputIvfFilename, null, codecMimeType, FPS, codecConfigs);
         }
 
         if (skipped) {
@@ -153,7 +215,8 @@ public class VideoCodecTest extends VideoCodecTestBase {
      * Checks the PSNR difference between the encoded and decoded output and reference yuv input
      * does not change much for two different ways of the encoder call.
      */
-    private void internalTestAsyncEncoding(String codecMimeType, int bitRateMode) throws Exception {
+    private void internalTestAsyncEncoding(String codecName, String codecMimeType, int bitRateMode)
+            throws Exception {
         int encodeSeconds = 9;
 
         // First test the encoder running in a looper thread with buffer callbacks enabled.
@@ -161,6 +224,7 @@ public class VideoCodecTest extends VideoCodecTestBase {
         EncoderOutputStreamParameters params = getDefaultEncodingParameters(
                 INPUT_YUV,
                 ENCODED_IVF_BASE,
+                codecName,
                 codecMimeType,
                 encodeSeconds,
                 WIDTH,
@@ -170,14 +234,14 @@ public class VideoCodecTest extends VideoCodecTestBase {
                 BITRATE,
                 syncEncoding);
         ArrayList<ByteBuffer> codecConfigs = new ArrayList<>();
-        ArrayList<MediaCodec.BufferInfo> bufInfos = encodeAsync(params, codecConfigs);
+        VideoEncodeOutput videoEncodeOutput = encodeAsync(params, codecConfigs);
+        ArrayList<MediaCodec.BufferInfo> bufInfos = videoEncodeOutput.bufferInfo;
         if (bufInfos == null) {
             Log.i(TAG, "SKIPPING testAsyncEncoding(): no suitable encoder found");
             return;
         }
         computeEncodingStatistics(bufInfos);
-        decode(params.outputIvfFilename, OUTPUT_YUV, codecMimeType, FPS,
-                params.forceGoogleEncoder, codecConfigs);
+        decode(params.outputIvfFilename, OUTPUT_YUV, codecMimeType, FPS, codecConfigs);
         VideoDecodingStatistics statisticsAsync = computeDecodingStatistics(
                 params.inputYuvFilename, "football_qvga.yuv", OUTPUT_YUV,
                 params.frameWidth, params.frameHeight);
@@ -188,6 +252,7 @@ public class VideoCodecTest extends VideoCodecTestBase {
         params = getDefaultEncodingParameters(
                 INPUT_YUV,
                 ENCODED_IVF_BASE,
+                codecName,
                 codecMimeType,
                 encodeSeconds,
                 WIDTH,
@@ -197,14 +262,14 @@ public class VideoCodecTest extends VideoCodecTestBase {
                 BITRATE,
                 syncEncoding);
         codecConfigs.clear();
-        bufInfos = encode(params, codecConfigs);
+        videoEncodeOutput = encode(params, codecConfigs);
+        bufInfos = videoEncodeOutput.bufferInfo;
         if (bufInfos == null) {
             Log.i(TAG, "SKIPPING testAsyncEncoding(): no suitable encoder found");
             return;
         }
         computeEncodingStatistics(bufInfos);
-        decode(params.outputIvfFilename, OUTPUT_YUV, codecMimeType, FPS,
-                params.forceGoogleEncoder, codecConfigs);
+        decode(params.outputIvfFilename, OUTPUT_YUV, codecMimeType, FPS, codecConfigs);
         VideoDecodingStatistics statisticsSync = computeDecodingStatistics(
                 params.inputYuvFilename, "football_qvga.yuv", OUTPUT_YUV,
                 params.frameWidth, params.frameHeight);
@@ -228,13 +293,14 @@ public class VideoCodecTest extends VideoCodecTestBase {
      * Encodes 9 seconds of raw stream and requests a sync frame every second (30 frames).
      * The test does not verify the output stream.
      */
-    private void internalTestSyncFrame(
-            String codecMimeType, int bitRateMode, boolean useNdk) throws Exception {
+    private void internalTestSyncFrame(String codecName, String codecMimeType, int bitRateMode,
+            boolean useNdk) throws Exception {
         int encodeSeconds = 9;
 
         EncoderOutputStreamParameters params = getDefaultEncodingParameters(
                 INPUT_YUV,
                 ENCODED_IVF_BASE,
+                codecName,
                 codecMimeType,
                 encodeSeconds,
                 WIDTH,
@@ -246,7 +312,8 @@ public class VideoCodecTest extends VideoCodecTestBase {
         params.syncFrameInterval = encodeSeconds * FPS;
         params.syncForceFrameInterval = FPS;
         params.useNdk = useNdk;
-        ArrayList<MediaCodec.BufferInfo> bufInfo = encode(params);
+        VideoEncodeOutput videoEncodeOutput = encode(params);
+        ArrayList<MediaCodec.BufferInfo> bufInfo = videoEncodeOutput.bufferInfo;
         if (bufInfo == null) {
             Log.i(TAG, "SKIPPING testSyncFrame(): no suitable encoder found");
             return;
@@ -280,14 +347,15 @@ public class VideoCodecTest extends VideoCodecTestBase {
      * Run the the encoder for 12 seconds. Request changes to the
      * bitrate after 6 seconds and ensure the encoder responds.
      */
-    private void internalTestDynamicBitrateChange(
-            String codecMimeType, int bitRateMode, boolean useNdk) throws Exception {
+    private void internalTestDynamicBitrateChange(String codecName, String codecMimeType,
+            int bitRateMode, boolean useNdk) throws Exception {
         int encodeSeconds = 12;    // Encoding sequence duration in seconds.
         int[] bitrateTargetValues = { 400000, 800000 };  // List of bitrates to test.
 
         EncoderOutputStreamParameters params = getDefaultEncodingParameters(
                 INPUT_YUV,
                 ENCODED_IVF_BASE,
+                codecName,
                 codecMimeType,
                 encodeSeconds,
                 WIDTH,
@@ -309,7 +377,8 @@ public class VideoCodecTest extends VideoCodecTestBase {
         }
 
         params.useNdk = useNdk;
-        ArrayList<MediaCodec.BufferInfo> bufInfo = encode(params);
+        VideoEncodeOutput videoEncodeOutput = encode(params);
+        ArrayList<MediaCodec.BufferInfo> bufInfo = videoEncodeOutput.bufferInfo;
         if (bufInfo == null) {
             Log.i(TAG, "SKIPPING testDynamicBitrateChange(): no suitable encoder found");
             return;
@@ -350,7 +419,8 @@ public class VideoCodecTest extends VideoCodecTestBase {
       * and then run parallel encoding and decoding of the same streams.
       * Compares average bitrate and PSNR for sequential and parallel runs.
       */
-     private void internalTestParallelEncodingAndDecoding(String codecMimeType) throws Exception {
+     private void internalTestParallelEncodingAndDecoding(String codecName, String codecMimeType)
+             throws Exception {
          // check for encoder up front, as by the time we detect lack of
          // encoder support, we may have already started decoding.
          MediaCodecList mcl = new MediaCodecList(MediaCodecList.REGULAR_CODECS);
@@ -368,6 +438,7 @@ public class VideoCodecTest extends VideoCodecTestBase {
          final EncoderOutputStreamParameters params = getDefaultEncodingParameters(
                  INPUT_YUV,
                  ENCODED_IVF_BASE,
+                 codecName,
                  codecMimeType,
                  encodeSeconds,
                  WIDTH,
@@ -384,9 +455,11 @@ public class VideoCodecTest extends VideoCodecTestBase {
                  try {
                      ArrayList<MediaCodec.BufferInfo> bufInfo;
                      if (codecConfigs.isEmpty()) {
-                         bufInfo = encode(params, codecConfigs);
+                         VideoEncodeOutput videoEncodeOutput = encode(params, codecConfigs);
+                         bufInfo = videoEncodeOutput.bufferInfo;
                      } else {
-                         bufInfo = encode(params);
+                         VideoEncodeOutput videoEncodeOutput = encode(params);
+                         bufInfo = videoEncodeOutput.bufferInfo;
                      }
                      VideoEncodingStatistics statistics = computeEncodingStatistics(bufInfo);
                      bitrate[0] = statistics.mAverageBitrate;
@@ -399,8 +472,7 @@ public class VideoCodecTest extends VideoCodecTestBase {
          Runnable runDecoder = new Runnable() {
              public void run() {
                  try {
-                     decode(inputIvfFilename, OUTPUT_YUV, codecMimeType, FPS,
-                            params.forceGoogleEncoder, codecConfigs);
+                     decode(inputIvfFilename, OUTPUT_YUV, codecMimeType, FPS, codecConfigs);
                      VideoDecodingStatistics statistics = computeDecodingStatistics(
                             params.inputYuvFilename, "football_qvga.yuv", OUTPUT_YUV,
                             params.frameWidth, params.frameHeight);
@@ -459,7 +531,7 @@ public class VideoCodecTest extends VideoCodecTestBase {
      * Video streams with higher bitrates should have higher PSNRs.
      * Also compares average and minimum PSNR of codec with PSNR values of reference Google codec.
      */
-    private void internalTestEncoderQuality(String codecMimeType, int bitRateMode)
+    private void internalTestEncoderQuality(String codecName, String codecMimeType, int bitRateMode)
             throws Exception {
         int encodeSeconds = 9;      // Encoding sequence duration in seconds for each bitrate.
         double[] psnrPlatformCodecAverage = new double[TEST_BITRATES_SET.length];
@@ -473,6 +545,7 @@ public class VideoCodecTest extends VideoCodecTestBase {
             EncoderOutputStreamParameters params = getDefaultEncodingParameters(
                     INPUT_YUV,
                     ENCODED_IVF_BASE,
+                    codecName,
                     codecMimeType,
                     encodeSeconds,
                     WIDTH,
@@ -490,8 +563,7 @@ public class VideoCodecTest extends VideoCodecTestBase {
             completed[i] = true;
             skipped = false;
 
-            decode(params.outputIvfFilename, OUTPUT_YUV, codecMimeType, FPS,
-                    params.forceGoogleEncoder, codecConfigs);
+            decode(params.outputIvfFilename, OUTPUT_YUV, codecMimeType, FPS, codecConfigs);
             VideoDecodingStatistics statistics = computeDecodingStatistics(
                     params.inputYuvFilename, "football_qvga.yuv", OUTPUT_YUV,
                     params.frameWidth, params.frameHeight);
@@ -554,203 +626,46 @@ public class VideoCodecTest extends VideoCodecTestBase {
         }
     }
 
-    public void testBasicVP8CBR() throws Exception {
-        internalTestBasic(VP8_MIME, VIDEO_ControlRateConstant);
-    }
-    public void testBasicVP8VBR() throws Exception {
-        internalTestBasic(VP8_MIME, VIDEO_ControlRateVariable);
+    @Test
+    public void testBasic() throws Exception {
+        internalTestBasic(mCodecName, mCodecMimeType, mBitRateMode);
     }
 
-    public void testBasicVP9CBR() throws Exception {
-        internalTestBasic(VP9_MIME, VIDEO_ControlRateConstant);
-    }
-    public void testBasicVP9VBR() throws Exception {
-        internalTestBasic(VP9_MIME, VIDEO_ControlRateVariable);
+    @Test
+    public void testAsyncEncode() throws Exception {
+        internalTestAsyncEncoding(mCodecName, mCodecMimeType, mBitRateMode);
     }
 
-    public void testBasicAVCCBR() throws Exception {
-        internalTestBasic(AVC_MIME, VIDEO_ControlRateConstant);
-    }
-    public void testBasicAVCVBR() throws Exception {
-        internalTestBasic(AVC_MIME, VIDEO_ControlRateVariable);
-    }
-    public void testBasicHEVCCBR() throws Exception {
-        internalTestBasic(HEVC_MIME, VIDEO_ControlRateConstant);
-    }
-    public void testBasicHEVCVBR() throws Exception {
-        internalTestBasic(HEVC_MIME, VIDEO_ControlRateVariable);
-    }
-    public void testAsyncEncodingVP8CBR() throws Exception {
-        internalTestAsyncEncoding(VP8_MIME, VIDEO_ControlRateConstant);
-    }
-    public void testAsyncEncodingVP8VBR() throws Exception {
-        internalTestAsyncEncoding(VP8_MIME, VIDEO_ControlRateVariable);
+    @Test
+    public void testSyncFrame() throws Exception {
+        internalTestSyncFrame(mCodecName, mCodecMimeType, mBitRateMode, false);
     }
 
-    public void testAsyncEncodingVP9CBR() throws Exception {
-        internalTestAsyncEncoding(VP9_MIME, VIDEO_ControlRateConstant);
-    }
-    public void testAsyncEncodingVP9VBR() throws Exception {
-        internalTestAsyncEncoding(VP9_MIME, VIDEO_ControlRateVariable);
+    @Test
+    public void testSyncFrameNdk() throws Exception {
+        internalTestSyncFrame(mCodecName, mCodecMimeType, mBitRateMode, true);
     }
 
-    public void testAsyncEncodingAVCCBR() throws Exception {
-        internalTestAsyncEncoding(AVC_MIME, VIDEO_ControlRateConstant);
-    }
-    public void testAsyncEncodingAVCVBR() throws Exception {
-        internalTestAsyncEncoding(AVC_MIME, VIDEO_ControlRateVariable);
-    }
-    public void testAsyncEncodingHEVCCBR() throws Exception {
-        internalTestAsyncEncoding(HEVC_MIME, VIDEO_ControlRateConstant);
-    }
-    public void testAsyncEncodingHEVCVBR() throws Exception {
-        internalTestAsyncEncoding(HEVC_MIME, VIDEO_ControlRateVariable);
+    @Test
+    public void testDynamicBitrateChange() throws Exception {
+        internalTestDynamicBitrateChange(mCodecName, mCodecMimeType, mBitRateMode, false);
     }
 
-    public void testSyncFrameVP8CBR() throws Exception {
-        internalTestSyncFrame(VP8_MIME, VIDEO_ControlRateConstant, false);
-    }
-    public void testSyncFrameVP8VBR() throws Exception {
-        internalTestSyncFrame(VP8_MIME, VIDEO_ControlRateVariable, false);
+    @Test
+    public void testDynamicBitrateChangeNdk() throws Exception {
+        internalTestDynamicBitrateChange(mCodecName, mCodecMimeType, mBitRateMode, true);
     }
 
-    public void testSyncFrameVP8NdkCBR() throws Exception {
-        internalTestSyncFrame(VP8_MIME, VIDEO_ControlRateConstant, true);
-    }
-    public void testSyncFrameVP8NdkVBR() throws Exception {
-        internalTestSyncFrame(VP8_MIME, VIDEO_ControlRateVariable, true);
+    @Test
+    public void testEncoderQuality() throws Exception {
+        internalTestEncoderQuality(mCodecName, mCodecMimeType, mBitRateMode);
     }
 
-    public void testSyncFrameVP9CBR() throws Exception {
-        internalTestSyncFrame(VP9_MIME, VIDEO_ControlRateConstant, false);
-    }
-    public void testSyncFrameVP9VBR() throws Exception {
-        internalTestSyncFrame(VP9_MIME, VIDEO_ControlRateVariable, false);
-    }
-
-    public void testSyncFrameVP9NdkCBR() throws Exception {
-        internalTestSyncFrame(VP9_MIME, VIDEO_ControlRateConstant, true);
-    }
-    public void testSyncFrameVP9NdkVBR() throws Exception {
-        internalTestSyncFrame(VP9_MIME, VIDEO_ControlRateVariable, true);
-    }
-
-    public void testSyncFrameAVCCBR() throws Exception {
-        internalTestSyncFrame(AVC_MIME, VIDEO_ControlRateConstant, false);
-    }
-    public void testSyncFrameAVCVBR() throws Exception {
-        internalTestSyncFrame(AVC_MIME, VIDEO_ControlRateVariable, false);
-    }
-
-    public void testSyncFrameAVCNdkCBR() throws Exception {
-        internalTestSyncFrame(AVC_MIME, VIDEO_ControlRateConstant, true);
-    }
-    public void testSyncFrameAVCNdkVBR() throws Exception {
-        internalTestSyncFrame(AVC_MIME, VIDEO_ControlRateVariable, true);
-    }
-
-    public void testSyncFrameHEVCCBR() throws Exception {
-        internalTestSyncFrame(HEVC_MIME, VIDEO_ControlRateConstant, false);
-    }
-    public void testSyncFrameHEVCVBR() throws Exception {
-        internalTestSyncFrame(HEVC_MIME, VIDEO_ControlRateVariable, false);
-    }
-
-    public void testSyncFrameHEVCNdkCBR() throws Exception {
-        internalTestSyncFrame(HEVC_MIME, VIDEO_ControlRateConstant, true);
-    }
-    public void testSyncFrameHEVCNdkVBR() throws Exception {
-        internalTestSyncFrame(HEVC_MIME, VIDEO_ControlRateVariable, true);
-    }
-
-    public void testDynamicBitrateChangeVP8CBR() throws Exception {
-        internalTestDynamicBitrateChange(VP8_MIME, VIDEO_ControlRateConstant, false);
-    }
-    public void testDynamicBitrateChangeVP8VBR() throws Exception {
-        internalTestDynamicBitrateChange(VP8_MIME, VIDEO_ControlRateVariable, false);
-    }
-    public void testDynamicBitrateChangeVP8NdkCBR() throws Exception {
-        internalTestDynamicBitrateChange(VP8_MIME, VIDEO_ControlRateConstant, true);
-    }
-    public void testDynamicBitrateChangeVP8NdkVBR() throws Exception {
-        internalTestDynamicBitrateChange(VP8_MIME, VIDEO_ControlRateVariable, true);
-    }
-    public void testDynamicBitrateChangeVP9CBR() throws Exception {
-        internalTestDynamicBitrateChange(VP9_MIME, VIDEO_ControlRateConstant, false);
-    }
-    public void testDynamicBitrateChangeVP9VBR() throws Exception {
-        internalTestDynamicBitrateChange(VP9_MIME, VIDEO_ControlRateVariable, false);
-    }
-    public void testDynamicBitrateChangeVP9NdkCBR() throws Exception {
-        internalTestDynamicBitrateChange(VP9_MIME, VIDEO_ControlRateConstant, true);
-    }
-    public void testDynamicBitrateChangeVP9NdkVBR() throws Exception {
-        internalTestDynamicBitrateChange(VP9_MIME, VIDEO_ControlRateVariable, true);
-    }
-    public void testDynamicBitrateChangeAVCCBR() throws Exception {
-        internalTestDynamicBitrateChange(AVC_MIME, VIDEO_ControlRateConstant, false);
-    }
-    public void testDynamicBitrateChangeAVCVBR() throws Exception {
-        internalTestDynamicBitrateChange(AVC_MIME, VIDEO_ControlRateVariable, false);
-    }
-    public void testDynamicBitrateChangeAVCNdkCBR() throws Exception {
-        internalTestDynamicBitrateChange(AVC_MIME, VIDEO_ControlRateConstant, true);
-    }
-    public void testDynamicBitrateChangeAVCNdkVBR() throws Exception {
-        internalTestDynamicBitrateChange(AVC_MIME, VIDEO_ControlRateVariable, true);
-    }
-    public void testDynamicBitrateChangeHEVCCBR() throws Exception {
-        internalTestDynamicBitrateChange(HEVC_MIME, VIDEO_ControlRateConstant, false);
-    }
-    public void testDynamicBitrateChangeHEVCVBR() throws Exception {
-        internalTestDynamicBitrateChange(HEVC_MIME, VIDEO_ControlRateVariable, false);
-    }
-    public void testDynamicBitrateChangeHEVCNdkCBR() throws Exception {
-        internalTestDynamicBitrateChange(HEVC_MIME, VIDEO_ControlRateConstant, true);
-    }
-    public void testDynamicBitrateChangeHEVCNdkVBR() throws Exception {
-        internalTestDynamicBitrateChange(HEVC_MIME, VIDEO_ControlRateVariable, true);
-    }
-
-    public void testEncoderQualityVP8CBR() throws Exception {
-        internalTestEncoderQuality(VP8_MIME, VIDEO_ControlRateConstant);
-    }
-    public void testEncoderQualityVP8VBR() throws Exception {
-        internalTestEncoderQuality(VP8_MIME, VIDEO_ControlRateVariable);
-    }
-
-    public void testEncoderQualityVP9CBR() throws Exception {
-        internalTestEncoderQuality(VP9_MIME, VIDEO_ControlRateConstant);
-    }
-    public void testEncoderQualityVP9VBR() throws Exception {
-        internalTestEncoderQuality(VP9_MIME, VIDEO_ControlRateVariable);
-    }
-
-    public void testEncoderQualityAVCCBR() throws Exception {
-        internalTestEncoderQuality(AVC_MIME, VIDEO_ControlRateConstant);
-    }
-    public void testEncoderQualityAVCVBR() throws Exception {
-        internalTestEncoderQuality(AVC_MIME, VIDEO_ControlRateVariable);
-    }
-
-    public void testEncoderQualityHEVCCBR() throws Exception {
-        internalTestEncoderQuality(HEVC_MIME, VIDEO_ControlRateConstant);
-    }
-    public void testEncoderQualityHEVCVBR() throws Exception {
-        internalTestEncoderQuality(HEVC_MIME, VIDEO_ControlRateVariable);
-    }
-
-    public void testParallelEncodingAndDecodingVP8() throws Exception {
-        internalTestParallelEncodingAndDecoding(VP8_MIME);
-    }
-    public void testParallelEncodingAndDecodingVP9() throws Exception {
-        internalTestParallelEncodingAndDecoding(VP9_MIME);
-    }
-    public void testParallelEncodingAndDecodingAVC() throws Exception {
-        internalTestParallelEncodingAndDecoding(AVC_MIME);
-    }
-    public void testParallelEncodingAndDecodingHEVC() throws Exception {
-        internalTestParallelEncodingAndDecoding(HEVC_MIME);
+    @Test
+    public void testParallelEncodingAndDecoding() throws Exception {
+        Assume.assumeTrue("Parallel Encode Decode test is run only for VBR mode",
+                mBitRateMode == VIDEO_ControlRateVariable);
+        internalTestParallelEncodingAndDecoding(mCodecName, mCodecMimeType);
     }
 }
 

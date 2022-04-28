@@ -359,7 +359,9 @@ public class RobustnessTest extends Camera2AndroidTestCase {
                 for (MandatoryStreamCombination combination : combinations) {
                     Log.i(TAG, "Testing fixed mandatory output combination with stream use case: " +
                             combination.getDescription() + " on camera: " + id);
-                    testMandatoryUseCaseOutputCombination(id, combination);
+                    CaptureRequest.Builder requestBuilder =
+                            mCamera.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
+                    testMandatoryOutputCombinationWithPresetKeys(id, combination, requestBuilder);
                 }
             } finally {
                 closeDevice(id);
@@ -367,8 +369,44 @@ public class RobustnessTest extends Camera2AndroidTestCase {
         }
     }
 
-    private void testMandatoryUseCaseOutputCombination(String cameraId,
-            MandatoryStreamCombination combination) {
+    @Test
+    public void testMandatoryPreviewStabilizationOutputCombinations() throws Exception {
+        for (String id : mCameraIdsUnderTest) {
+            StaticMetadata info = mAllStaticInfo.get(id);
+            CameraCharacteristics chars = info.getCharacteristics();
+            CameraCharacteristics.Key<MandatoryStreamCombination []> ck =
+                    CameraCharacteristics
+                            .SCALER_MANDATORY_PREVIEW_STABILIZATION_OUTPUT_STREAM_COMBINATIONS;
+            MandatoryStreamCombination[] combinations = chars.get(ck);
+
+            if (combinations == null) {
+                assertNull(combinations);
+                Log.i(TAG, "Camera id " + id + " doesn't support preview stabilization, skip test");
+                continue;
+            }
+
+            assertNotNull(combinations);
+            openDevice(id);
+
+            try {
+                for (MandatoryStreamCombination combination : combinations) {
+                    Log.i(TAG, "Testing fixed mandatory output combination with preview"
+                            + "stabilization case: " + combination.getDescription() + " on camera: "
+                                     + id);
+                    CaptureRequest.Builder requestBuilder =
+                            mCamera.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
+                    requestBuilder.set(CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE,
+                            CameraMetadata.CONTROL_VIDEO_STABILIZATION_MODE_PREVIEW_STABILIZATION);
+                    testMandatoryOutputCombinationWithPresetKeys(id, combination, requestBuilder);
+                }
+            } finally {
+                closeDevice(id);
+            }
+        }
+    }
+
+    private void testMandatoryOutputCombinationWithPresetKeys(String cameraId,
+            MandatoryStreamCombination combination, CaptureRequest.Builder requestBuilderWithKeys) {
         final int TIMEOUT_FOR_RESULT_MS = 1000;
         final int MIN_RESULT_COUNT = 3;
 
@@ -395,14 +433,12 @@ public class RobustnessTest extends Camera2AndroidTestCase {
 
             createSessionByConfigs(outputConfigs);
             haveSession = true;
-            CaptureRequest.Builder requestBuilder =
-                    mCamera.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
             for (Surface s : outputSurfaces) {
-                requestBuilder.addTarget(s);
+                requestBuilderWithKeys.addTarget(s);
             }
             CameraCaptureSession.CaptureCallback mockCaptureCallback =
                     mock(CameraCaptureSession.CaptureCallback.class);
-            CaptureRequest request = requestBuilder.build();
+            CaptureRequest request = requestBuilderWithKeys.build();
 
             mCameraSession.setRepeatingRequest(request, mockCaptureCallback, mHandler);
             verify(mockCaptureCallback,
@@ -638,9 +674,9 @@ public class RobustnessTest extends Camera2AndroidTestCase {
 
                     // First we want to make sure that a fixed set of 10-bit streams
                     // is functional
-                    for (Integer profile : profiles.getSupportedProfiles()) {
+                    for (Long profile : profiles.getSupportedProfiles()) {
                         if (profile != DynamicRangeProfiles.STANDARD) {
-                            ArrayList<Integer> testProfiles = new ArrayList<Integer>() {
+                            ArrayList<Long> testProfiles = new ArrayList<Long>() {
                                 { add(profile); } };
                             testMandatory10BitStreamCombination(id, combination, profiles,
                                     testProfiles);
@@ -652,7 +688,7 @@ public class RobustnessTest extends Camera2AndroidTestCase {
                     // Next try out a random mix of standard 8-bit and 10-bit profiles.
                     // The number of possible combinations is quite big and testing them
                     // all on physical hardware can become unfeasible.
-                    ArrayList<Integer> testProfiles = new ArrayList<>(
+                    ArrayList<Long> testProfiles = new ArrayList<>(
                             profiles.getSupportedProfiles());
                     testMandatory10BitStreamCombination(id, combination, profiles, testProfiles);
                 }
@@ -664,7 +700,7 @@ public class RobustnessTest extends Camera2AndroidTestCase {
 
     private void testMandatory10BitStreamCombination(String cameraId,
             MandatoryStreamCombination combination, DynamicRangeProfiles profiles,
-            List<Integer> testProfiles) {
+            List<Long> testProfiles) {
         final int TIMEOUT_FOR_RESULT_MS = 1000;
         final int MIN_RESULT_COUNT = 3;
 
@@ -700,15 +736,15 @@ public class RobustnessTest extends Camera2AndroidTestCase {
                 // the first output surface and respecting the advertised constraints
                 Iterator<OutputConfiguration> it = outputConfigs.iterator();
                 OutputConfiguration config = it.next();
-                HashSet<Integer> currentProfiles = new HashSet<>();
+                HashSet<Long> currentProfiles = new HashSet<>();
                 currentProfiles.add(config.getDynamicRangeProfile());
                 requestBuilder.addTarget(config.getSurface());
                 outputSurfaces.remove(config.getSurface());
                 it.remove();
                 while (it.hasNext()) {
                     config = it.next();
-                    Integer currentProfile = config.getDynamicRangeProfile();
-                    Set<Integer> newLimitations = profiles.getProfileCaptureRequestConstraints(
+                    Long currentProfile = config.getDynamicRangeProfile();
+                    Set<Long> newLimitations = profiles.getProfileCaptureRequestConstraints(
                             currentProfile);
                     if (newLimitations.isEmpty() || (newLimitations.containsAll(currentProfiles))) {
                         currentProfiles.add(currentProfile);

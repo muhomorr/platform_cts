@@ -17,8 +17,10 @@ package android.ambientcontext.cts;
 
 import android.app.ambientcontext.AmbientContextEvent;
 import android.app.ambientcontext.AmbientContextEventRequest;
-import android.app.ambientcontext.AmbientContextEventResponse;
+import android.app.ambientcontext.AmbientContextManager;
+import android.service.ambientcontext.AmbientContextDetectionResult;
 import android.service.ambientcontext.AmbientContextDetectionService;
+import android.service.ambientcontext.AmbientContextDetectionServiceStatus;
 import android.util.Log;
 
 import java.util.concurrent.CountDownLatch;
@@ -26,17 +28,20 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 
-public class CtsAmbientContextDetectionService
-        extends AmbientContextDetectionService {
+public class CtsAmbientContextDetectionService extends AmbientContextDetectionService {
     private static final String TAG = "CtsTestAmbientContextEventProviderService";
+    private static final String FAKE_APP_PACKAGE = "foo.bar.baz";
 
-    private static Consumer<AmbientContextEventResponse> sConsumer;
+    private static Consumer<AmbientContextDetectionResult> sResultConsumer;
+    private static Consumer<AmbientContextDetectionServiceStatus> sQueryConsumer;
     private static CountDownLatch sRespondLatch = new CountDownLatch(1);
 
     @Override
     public void onStartDetection(AmbientContextEventRequest request, String packageName,
-            Consumer<AmbientContextEventResponse> consumer) {
-        sConsumer = consumer;
+            Consumer<AmbientContextDetectionResult> resultConsumer,
+            Consumer<AmbientContextDetectionServiceStatus> statusConsumer) {
+        sResultConsumer = resultConsumer;
+        sQueryConsumer = statusConsumer;
         sRespondLatch.countDown();
     }
 
@@ -44,33 +49,54 @@ public class CtsAmbientContextDetectionService
     public void onStopDetection(String packageName) {
     }
 
+    @Override
+    public void onQueryServiceStatus(int[] eventTypes, String packageName,
+            Consumer<AmbientContextDetectionServiceStatus> consumer) {
+        sQueryConsumer = consumer;
+        sRespondLatch.countDown();
+    }
+
     public static void reset() {
-        sConsumer = null;
+        sResultConsumer = null;
+        sQueryConsumer = null;
+        sRespondLatch = new CountDownLatch(1);
     }
 
     public static void respondSuccess(AmbientContextEvent event) {
-        if (sConsumer != null) {
-            AmbientContextEventResponse response = new AmbientContextEventResponse.Builder()
-                    .setStatusCode(AmbientContextEventResponse.STATUS_SUCCESS)
+        if (sResultConsumer != null) {
+            AmbientContextDetectionResult result = new AmbientContextDetectionResult
+                    .Builder(FAKE_APP_PACKAGE)
                     .addEvent(event)
                     .build();
-            sConsumer.accept(response);
+            sResultConsumer.accept(result);
+        }
+        if (sQueryConsumer != null) {
+            AmbientContextDetectionServiceStatus serviceStatus =
+                    new AmbientContextDetectionServiceStatus.Builder(FAKE_APP_PACKAGE)
+                            .setStatusCode(AmbientContextManager.STATUS_SUCCESS)
+                            .build();
+            sQueryConsumer.accept(serviceStatus);
         }
         reset();
     }
 
     public static void respondFailure(int status) {
-        if (sConsumer != null) {
-            AmbientContextEventResponse response = new AmbientContextEventResponse.Builder()
-                    .setStatusCode(status)
-                    .build();
-            sConsumer.accept(response);
+        if (sQueryConsumer != null) {
+            AmbientContextDetectionServiceStatus serviceStatus =
+                    new AmbientContextDetectionServiceStatus.Builder(FAKE_APP_PACKAGE)
+                            .setStatusCode(status)
+                            .build();
+            sQueryConsumer.accept(serviceStatus);
         }
         reset();
     }
 
     public static boolean hasPendingRequest() {
-        return sConsumer != null;
+        return sResultConsumer != null;
+    }
+
+    public static boolean hasQueryRequest() {
+        return sQueryConsumer != null;
     }
 
     public static void onReceivedResponse() {
@@ -79,12 +105,12 @@ public class CtsAmbientContextDetectionService
                 throw new AssertionError("CtsTestAmbientContextEventProviderService"
                         + " timed out while expecting a call.");
             }
-            //reset for next
+            // reset for next
             sRespondLatch = new CountDownLatch(1);
         } catch (InterruptedException e) {
             Log.e(TAG, e.getMessage());
             Thread.currentThread().interrupt();
-            throw new AssertionError("Got InterruptedException while waiting for response.");
+            throw new AssertionError("Got InterruptedException while waiting for serviceStatus.");
         }
     }
 }

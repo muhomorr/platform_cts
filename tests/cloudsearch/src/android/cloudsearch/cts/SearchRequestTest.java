@@ -45,10 +45,11 @@ public class SearchRequestTest {
         Bundle constraints = new Bundle();
         constraints.putBoolean(SearchRequest.CONSTRAINT_IS_PRESUBMIT_SUGGESTION,
                 true);
+        final String pkgName = "android.cloudsearch.cts";
 
         SearchRequest request = new SearchRequest.Builder("").setResultNumber(rn)
                 .setResultOffset(offset).setSearchConstraints(constraints).setQuery(query)
-                .setMaxLatencyMillis(maxLatency).build();
+                .setMaxLatencyMillis(maxLatency).setCallerPackageName(pkgName).build();
 
         /** Check the original request. */
         assertThat(request.getQuery()).isEqualTo(query);
@@ -58,6 +59,7 @@ public class SearchRequestTest {
         final Bundle sc = request.getSearchConstraints();
         assertThat(sc.getBoolean(SearchRequest.CONSTRAINT_IS_PRESUBMIT_SUGGESTION))
                 .isEqualTo(true);
+        assertThat(request.getCallerPackageName()).isEqualTo(pkgName);
 
         Parcel parcel = Parcel.obtain();
         parcel.setDataPosition(0);
@@ -72,6 +74,7 @@ public class SearchRequestTest {
         final Bundle sccopy = request.getSearchConstraints();
         assertThat(sccopy.getBoolean(SearchRequest.CONSTRAINT_IS_PRESUBMIT_SUGGESTION))
                 .isEqualTo(true);
+        assertThat(copy.getCallerPackageName()).isEqualTo(pkgName);
 
         parcel.recycle();
     }

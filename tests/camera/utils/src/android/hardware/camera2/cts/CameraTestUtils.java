@@ -90,6 +90,7 @@ import java.util.Comparator;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
@@ -190,7 +191,7 @@ public class CameraTestUtils extends Assert {
                     /*gpsLocation*/ sTestLocation2,
                     /* orientation */270,
                     /* jpgQuality */(byte) 100,
-                    /* thumbQuality */(byte) 100)
+                    /* thumbQuality */(byte) 80)
     };
 
     /**
@@ -294,7 +295,7 @@ public class CameraTestUtils extends Assert {
             int format, Size targetSize, int numBuffers, String overridePhysicalCameraId,
             MultiResolutionStreamConfigurationMap multiResStreamConfig,
             boolean createMultiResiStreamConfig, ImageDropperListener listener, Handler handler,
-            int dynamicRangeProfile, int streamUseCase) {
+            long dynamicRangeProfile, long streamUseCase) {
         if (createMultiResiStreamConfig) {
             Collection<MultiResolutionStreamInfo> multiResolutionStreams =
                     multiResStreamConfig.getOutputInfo(format);
@@ -405,7 +406,7 @@ public class CameraTestUtils extends Assert {
             List<Surface> outputSurfaces, List<Surface> uhSurfaces, int numBuffers,
             boolean substituteY8, boolean substituteHeic, String overridePhysicalCameraId,
             MultiResolutionStreamConfigurationMap multiResStreamConfig, Handler handler,
-            List<Integer> dynamicRangeProfiles) {
+            List<Long> dynamicRangeProfiles) {
 
         Random rnd = new Random();
         // 10-bit output capable streams will use a fixed dynamic range profile in case
@@ -434,7 +435,7 @@ public class CameraTestUtils extends Assert {
                 format = ImageFormat.HEIC;
             }
 
-            int dynamicRangeProfile = DynamicRangeProfiles.STANDARD;
+            long dynamicRangeProfile = DynamicRangeProfiles.STANDARD;
             if (streamInfo.is10BitCapable() && use10BitRandomProfile) {
                 boolean override10bit = rnd.nextBoolean();
                 if (!override10bit) {
@@ -1169,6 +1170,24 @@ public class CameraTestUtils extends Assert {
         public boolean hasMoreAbortedSequences()
         {
             return !mAbortQueue.isEmpty();
+        }
+
+        public List<Long> getCaptureStartTimestamps(int count) {
+            Iterator<Pair<CaptureRequest, Long>> iter = mCaptureStartQueue.iterator();
+            List<Long> timestamps = new ArrayList<Long>();
+            try {
+                while (timestamps.size() < count) {
+                    Pair<CaptureRequest, Long> captureStart = mCaptureStartQueue.poll(
+                            CAPTURE_RESULT_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+                    assertNotNull("Wait for a capture start timed out in "
+                            + CAPTURE_RESULT_TIMEOUT_MS + "ms", captureStart);
+
+                    timestamps.add(captureStart.second);
+                }
+                return timestamps;
+            } catch (InterruptedException e) {
+                throw new UnsupportedOperationException("Unhandled interrupted exception", e);
+            }
         }
 
         public void drain() {
@@ -3799,7 +3818,8 @@ public class CameraTestUtils extends Assert {
     public static final int PERFORMANCE_CLASS_NOT_MET = 0;
     public static final int PERFORMANCE_CLASS_R = Build.VERSION_CODES.R;
     public static final int PERFORMANCE_CLASS_S = Build.VERSION_CODES.R + 1;
-    public static final int PERFORMANCE_CLASS_CURRENT = PERFORMANCE_CLASS_S;
+    public static final int PERFORMANCE_CLASS_T = Build.VERSION_CODES.S + 2;
+    public static final int PERFORMANCE_CLASS_CURRENT = PERFORMANCE_CLASS_T;
 
     /**
      * Check whether this mobile device is R performance class as defined in CDD
@@ -3813,6 +3833,13 @@ public class CameraTestUtils extends Assert {
      */
     public static boolean isSPerfClass() {
         return Build.VERSION.MEDIA_PERFORMANCE_CLASS == PERFORMANCE_CLASS_S;
+    }
+
+    /**
+     * Check whether this mobile device is T performance class as defined in CDD
+     */
+    public static boolean isTPerfClass() {
+        return Build.VERSION.MEDIA_PERFORMANCE_CLASS == PERFORMANCE_CLASS_T;
     }
 
     /**
