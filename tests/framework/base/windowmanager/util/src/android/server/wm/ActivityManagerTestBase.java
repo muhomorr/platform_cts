@@ -28,6 +28,7 @@ import static android.content.Intent.ACTION_MAIN;
 import static android.content.Intent.CATEGORY_HOME;
 import static android.content.Intent.FLAG_ACTIVITY_MULTIPLE_TASK;
 import static android.content.Intent.FLAG_ACTIVITY_NEW_TASK;
+import static android.content.Intent.FLAG_ACTIVITY_NO_USER_ACTION;
 import static android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DISABLED;
 import static android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_ENABLED;
 import static android.content.pm.PackageManager.DONT_KILL_APP;
@@ -46,6 +47,7 @@ import static android.content.pm.PackageManager.FEATURE_TELEVISION;
 import static android.content.pm.PackageManager.FEATURE_VR_MODE_HIGH_PERFORMANCE;
 import static android.content.pm.PackageManager.FEATURE_WATCH;
 import static android.content.pm.PackageManager.MATCH_DEFAULT_ONLY;
+import static android.os.UserHandle.USER_SYSTEM;
 import static android.server.wm.ActivityLauncher.KEY_ACTIVITY_TYPE;
 import static android.server.wm.ActivityLauncher.KEY_DISPLAY_ID;
 import static android.server.wm.ActivityLauncher.KEY_INTENT_EXTRAS;
@@ -184,10 +186,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -335,6 +335,16 @@ public abstract class ActivityManagerTestBase {
     protected static String getAmStartCmdWithDismissKeyguardIfInsecure(
             final ComponentName activityName) {
         return "am start --dismiss-keyguard-if-insecure -n " + getActivityName(activityName);
+    }
+
+    protected static String getAmStartCmdWithNoUserAction(final ComponentName activityName,
+            final CliIntentExtra... extras) {
+        return appendKeyValuePairs(
+                new StringBuilder("am start -n ")
+                        .append(getActivityName(activityName))
+                        .append(" -f 0x")
+                        .append(toHexString(FLAG_ACTIVITY_NO_USER_ACTION)),
+                extras);
     }
 
     protected WindowManagerStateHelper mWmState = new WindowManagerStateHelper();
@@ -803,6 +813,12 @@ public abstract class ActivityManagerTestBase {
 
     protected void launchActivityWithDismissKeyguardIfInsecure(final ComponentName activityName) {
         executeShellCommand(getAmStartCmdWithDismissKeyguardIfInsecure(activityName));
+        mWmState.waitForValidState(activityName);
+    }
+
+    protected void launchActivityWithNoUserAction(final ComponentName activityName,
+            final CliIntentExtra... extras) {
+        executeShellCommand(getAmStartCmdWithNoUserAction(activityName, extras));
         mWmState.waitForValidState(activityName);
     }
 
@@ -1357,31 +1373,20 @@ public abstract class ActivityManagerTestBase {
         return mObjectTracker.manage(new FontScaleSession());
     }
 
+    /** Allows requesting orientation in case ignore_orientation_request is set to true. */
+    protected void disableIgnoreOrientationRequest() {
+        mObjectTracker.manage(new IgnoreOrientationRequestSession(false /* enable */));
+    }
+
     /**
      * Test @Rule class that disables screen doze settings before each test method running and
      * restoring to initial values after test method finished.
      */
-    protected static class DisableScreenDozeRule implements TestRule {
+    protected class DisableScreenDozeRule implements TestRule {
+        AmbientDisplayConfiguration mConfig;
 
-        /** Copied from android.provider.Settings.Secure since these keys are hidden. */
-        private static final String[] DOZE_SETTINGS = {
-                "doze_enabled",
-                "doze_always_on",
-                "doze_pulse_on_pick_up",
-                "doze_pulse_on_long_press",
-                "doze_pulse_on_double_tap",
-                "doze_wake_screen_gesture",
-                "doze_wake_display_gesture",
-                "doze_tap_gesture",
-                "doze_quick_pickup_gesture"
-        };
-
-        private String get(String key) {
-            return executeShellCommand("settings get secure " + key).trim();
-        }
-
-        private void put(String key, String value) {
-            executeShellCommand("settings put secure " + key + " " + value);
+        DisableScreenDozeRule() {
+            mConfig = new AmbientDisplayConfiguration(mContext);
         }
 
         @Override
@@ -1389,13 +1394,18 @@ public abstract class ActivityManagerTestBase {
             return new Statement() {
                 @Override
                 public void evaluate() throws Throwable {
-                    final Map<String, String> initialValues = new HashMap<>();
-                    Arrays.stream(DOZE_SETTINGS).forEach(k -> initialValues.put(k, get(k)));
                     try {
-                        Arrays.stream(DOZE_SETTINGS).forEach(k -> put(k, "0"));
+                        SystemUtil.runWithShellPermissionIdentity(() -> {
+                            // disable current doze settings
+                            mConfig.disableDozeSettings(true /* shouldDisableNonUserConfigurable */,
+                                    USER_SYSTEM);
+                        });
                         base.evaluate();
                     } finally {
-                        Arrays.stream(DOZE_SETTINGS).forEach(k -> put(k, initialValues.get(k)));
+                        SystemUtil.runWithShellPermissionIdentity(() -> {
+                            // restore doze settings
+                            mConfig.restoreDozeSettings(USER_SYSTEM);
+                        });
                     }
                 }
             };
@@ -2712,37 +2722,6 @@ public abstract class ActivityManagerTestBase {
 
     /** Activity that can handle all config changes. */
     public static class ConfigChangeHandlingActivity extends CommandSession.BasicTestActivity {
-    }
-
-    public static class IgnoreOrientationRequestSession implements AutoCloseable {
-        private static final String WM_SET_IGNORE_ORIENTATION_REQUEST =
-                "wm set-ignore-orientation-request ";
-        private static final String WM_GET_IGNORE_ORIENTATION_REQUEST =
-                "wm get-ignore-orientation-request";
-        private static final Pattern IGNORE_ORIENTATION_REQUEST_PATTERN =
-                Pattern.compile("ignoreOrientationRequest (true|false) for displayId=\\d+");
-
-        final int mDisplayId;
-        final boolean mInitialIgnoreOrientationRequest;
-
-        IgnoreOrientationRequestSession(int displayId, boolean enable) {
-            mDisplayId = displayId;
-            Matcher matcher = IGNORE_ORIENTATION_REQUEST_PATTERN.matcher(
-                    executeShellCommand(WM_GET_IGNORE_ORIENTATION_REQUEST + " -d " + mDisplayId));
-            assertTrue("get-ignore-orientation-request should match pattern",
-                    matcher.find());
-            mInitialIgnoreOrientationRequest = Boolean.parseBoolean(matcher.group(1));
-
-            executeShellCommand("wm set-ignore-orientation-request " + (enable ? "true" : "false")
-                    + " -d " + mDisplayId);
-        }
-
-        @Override
-        public void close() {
-            executeShellCommand(
-                    WM_SET_IGNORE_ORIENTATION_REQUEST + mInitialIgnoreOrientationRequest + " -d "
-                            + mDisplayId);
-        }
     }
 
     public static class ReportedDisplayMetrics {
