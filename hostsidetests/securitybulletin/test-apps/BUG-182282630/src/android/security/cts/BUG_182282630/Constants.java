@@ -14,24 +14,14 @@
  * limitations under the License.
  */
 
-package android.security.cts;
+package android.security.cts.BUG_182282630;
 
-import android.platform.test.annotations.AsbSecurityTest;
-import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import static org.junit.Assert.*;
+final class Constants {
 
-@RunWith(DeviceJUnit4ClassRunner.class)
-public class CVE_2020_29374 extends SecurityTestCase {
+    public static final String TAG = "BUG-182282630";
+    public static final String TEST_APP_PACKAGE = Constants.class.getPackage().getName();
+    public static final String CAR_SETTINGS_APP_PACKAGE = "com.android.car.settings";
 
-   /**
-     * b/174737879
-     *
-     */
-    @AsbSecurityTest(cveBugId = 174737879)
-    @Test
-    public void testPocCVE_2020_29374() throws Exception {
-        AdbUtils.runPocAssertExitStatusNotVulnerable("CVE-2020-29374", getDevice(),60);
-    }
+    public static final String TAPJACKED_ACTIVITY_INTENT_ACTION = "android.net.wifi.action.REQUEST_ENABLE";
+    public static final String ACTION_START_TAPJACKING = TAG + ".start_tapjacking";
 }
