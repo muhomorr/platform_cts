@@ -14,18 +14,29 @@
   ~ See the License for the specific language governing permissions and
   ~ limitations under the License.
   -->
-
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-          package="android.compat.sjp.app"
+          package="android.security.cts.BUG_182282630"
           android:targetSandboxVersion="2">
-
-    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
-
-    <application android:requestLegacyExternalStorage="true">
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <application
+        android:label="@string/app_name"
+        android:theme="@style/Theme.AppCompat.Light">
         <uses-library android:name="android.test.runner" />
+        <service android:name=".OverlayService"
+                 android:enabled="true"
+                 android:exported="false" />
+        <activity
+            android:name=".MainActivity"
+            android:label="ST (Permission)"
+            android:exported="true"
+            android:taskAffinity="android.security.cts.BUG_182282630.MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
     </application>
-
     <instrumentation
         android:name="androidx.test.runner.AndroidJUnitRunner"
-        android:targetPackage="android.compat.sjp.app" />
+        android:targetPackage="android.security.cts.BUG_182282630" />
 </manifest>
