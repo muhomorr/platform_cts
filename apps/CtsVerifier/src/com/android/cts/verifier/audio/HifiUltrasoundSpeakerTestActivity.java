@@ -39,7 +39,7 @@ import java.util.Arrays;
 
 import com.android.cts.verifier.audio.audiolib.AudioCommon;
 import com.android.cts.verifier.audio.soundio.SoundGenerator;
-import com.android.cts.verifier.audio.wavlib.WavAnalyzer;
+import com.android.cts.verifier.audio.wavelib.WavAnalyzer;
 
 import com.androidplot.xy.PointLabelFormatter;
 import com.androidplot.xy.LineAndPointFormatter;
@@ -50,7 +50,7 @@ import com.androidplot.xy.XYStepMode;
 
 import com.android.compatibility.common.util.CddTest;
 
-@CddTest(requirement="7.8.3")
+@CddTest(requirement = "7.8.3/C-1-1,C-1-2,C-2-1")
 public class HifiUltrasoundSpeakerTestActivity extends PassFailButtons.Activity {
 
   public enum Status {

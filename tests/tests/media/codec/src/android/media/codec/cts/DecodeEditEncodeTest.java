@@ -23,6 +23,7 @@ import android.media.MediaCodecList;
 import android.media.MediaFormat;
 import android.media.cts.InputSurface;
 import android.media.cts.OutputSurface;
+import android.media.cts.TestArgs;
 import android.opengl.GLES20;
 import android.util.Log;
 
@@ -126,15 +127,34 @@ public class DecodeEditEncodeTest {
         final List<Object[]> argsList = new ArrayList<>();
         int argLength = exhaustiveArgsList.get(0).length;
         for (Object[] arg : exhaustiveArgsList) {
-            String[] encoderNamesForMime = MediaUtils.getEncoderNamesForMime((String)arg[0]);
-            String[] decoderNamesForMime = MediaUtils.getDecoderNamesForMime((String)arg[0]);
-            Object[] testArgs = new Object[argLength + 2];
-            // Add encoder name and decoder name as first two arguments and then
-            // copy arguments passed
-            testArgs[0] = encoderNamesForMime[0];
-            testArgs[1] = decoderNamesForMime[0];
-            System.arraycopy(arg, 0, testArgs, 2, argLength);
-            argsList.add(testArgs);
+            String mediaType = (String)arg[0];
+            if (TestArgs.shouldSkipMediaType(mediaType)) {
+                continue;
+            }
+            String[] encoderNames = MediaUtils.getEncoderNamesForMime(mediaType);
+            String[] decoderNames = MediaUtils.getDecoderNamesForMime(mediaType);
+            // First pair of decoder and encoder that supports given mediaType is chosen
+            outerLoop:
+            for (String decoder : decoderNames) {
+                if (TestArgs.shouldSkipCodec(decoder)) {
+                    continue;
+                }
+
+                for (String encoder : encoderNames) {
+                    if (TestArgs.shouldSkipCodec(encoder)) {
+                        continue;
+                    }
+                    Object[] testArgs = new Object[argLength + 2];
+                    // Add encoder name and decoder name as first two arguments and then
+                    // copy arguments passed
+                    testArgs[0] = encoder;
+                    testArgs[1] = decoder;
+                    System.arraycopy(arg, 0, testArgs, 2, argLength);
+                    argsList.add(testArgs);
+                    // Only one combination of encoder and decoder is tested
+                    break outerLoop;
+                }
+            }
         }
         return argsList;
     }
@@ -269,6 +289,9 @@ public class DecodeEditEncodeTest {
             format.setInteger(MediaFormat.KEY_BIT_RATE, mBitRate);
             format.setInteger(MediaFormat.KEY_FRAME_RATE, FRAME_RATE);
             format.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, IFRAME_INTERVAL);
+            format.setInteger(MediaFormat.KEY_COLOR_RANGE, MediaFormat.COLOR_RANGE_LIMITED);
+            format.setInteger(MediaFormat.KEY_COLOR_STANDARD, MediaFormat.COLOR_STANDARD_BT601_PAL);
+            format.setInteger(MediaFormat.KEY_COLOR_TRANSFER, MediaFormat.COLOR_TRANSFER_SDR_VIDEO);
             if (VERBOSE) Log.d(TAG, "format: " + format);
             output.setMediaFormat(format);
 
@@ -455,6 +478,11 @@ public class DecodeEditEncodeTest {
                     inputFormat.getInteger(MediaFormat.KEY_FRAME_RATE));
             outputFormat.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL,
                     inputFormat.getInteger(MediaFormat.KEY_I_FRAME_INTERVAL));
+            outputFormat.setInteger(MediaFormat.KEY_COLOR_RANGE, MediaFormat.COLOR_RANGE_LIMITED);
+            outputFormat.setInteger(MediaFormat.KEY_COLOR_STANDARD,
+                    MediaFormat.COLOR_STANDARD_BT601_PAL);
+            outputFormat.setInteger(MediaFormat.KEY_COLOR_TRANSFER,
+                    MediaFormat.COLOR_TRANSFER_SDR_VIDEO);
 
             outputData.setMediaFormat(outputFormat);
 

@@ -217,6 +217,11 @@ public class CarPropertyManagerTest extends CarApiTestBase {
         }
     }
 
+    @Test
+    public void testInvalidMustNotBeImplemented() {
+        assertThat(mCarPropertyManager.getCarPropertyConfig(VehiclePropertyIds.INVALID)).isNull();
+    }
+
     @CddTest(requirement = "2.5.1")
     @Test
     public void testMustSupportGearSelection() {
@@ -813,6 +818,126 @@ public class CarPropertyManagerTest extends CarApiTestBase {
                 CarPropertyConfig.VEHICLE_PROPERTY_CHANGE_MODE_ONCHANGE,
                 Boolean.class).build().verify(mCarPropertyManager);
     }
+
+    @Test
+    public void testEvChargeCurrentDrawLimitIfSupported() {
+        VehiclePropertyVerifier.newBuilder(VehiclePropertyIds.EV_CHARGE_CURRENT_DRAW_LIMIT,
+                CarPropertyConfig.VEHICLE_PROPERTY_ACCESS_READ_WRITE,
+                VehicleAreaType.VEHICLE_AREA_TYPE_GLOBAL,
+                CarPropertyConfig.VEHICLE_PROPERTY_CHANGE_MODE_ONCHANGE,
+                Float.class).setConfigArrayVerifier(configArray -> {
+            assertWithMessage("EV_CHARGE_CURRENT_DRAW_LIMIT config array must be size 1").that(
+                    configArray.size()).isEqualTo(1);
+
+            int maxCurrentDrawThresholdAmps = configArray.get(0);
+            assertWithMessage("EV_CHARGE_CURRENT_DRAW_LIMIT config array first element specifies "
+                    + "max current draw allowed by vehicle in amperes.").that(
+                    maxCurrentDrawThresholdAmps).isGreaterThan(0);
+        }).setCarPropertyValueVerifier((carPropertyConfig, carPropertyValue) -> {
+            List<Integer> evChargeCurrentDrawLimitConfigArray = carPropertyConfig.getConfigArray();
+            int maxCurrentDrawThresholdAmps = evChargeCurrentDrawLimitConfigArray.get(0);
+
+            Float evChargeCurrentDrawLimit = (Float) carPropertyValue.getValue();
+            assertWithMessage("EV_CHARGE_CURRENT_DRAW_LIMIT value must be greater than 0").that(
+                    evChargeCurrentDrawLimit).isGreaterThan(0);
+            assertWithMessage("EV_CHARGE_CURRENT_DRAW_LIMIT value must be less than or equal to max"
+                    + " current draw by the vehicle").that(evChargeCurrentDrawLimit).isAtMost(
+                    maxCurrentDrawThresholdAmps);
+        }).build().verify(mCarPropertyManager);
+    }
+
+    @Test
+    public void testEvChargePercentLimitIfSupported() {
+        VehiclePropertyVerifier.newBuilder(VehiclePropertyIds.EV_CHARGE_PERCENT_LIMIT,
+                CarPropertyConfig.VEHICLE_PROPERTY_ACCESS_READ_WRITE,
+                VehicleAreaType.VEHICLE_AREA_TYPE_GLOBAL,
+                CarPropertyConfig.VEHICLE_PROPERTY_CHANGE_MODE_ONCHANGE,
+                Float.class).setConfigArrayVerifier(configArray -> {
+            for (int i = 0; i < configArray.size(); i++) {
+                assertWithMessage("EV_CHARGE_PERCENT_LIMIT configArray[" + i
+                        + "] valid charge percent limit must be greater than 0").that(
+                        configArray.get(i)).isGreaterThan(0);
+                assertWithMessage("EV_CHARGE_PERCENT_LIMIT configArray[" + i
+                        + "] valid charge percent limit must be at most 100").that(
+                        configArray.get(i)).isAtMost(100);
+            }
+        }).setCarPropertyValueVerifier((carPropertyConfig, carPropertyValue) -> {
+            List<Integer> evChargePercentLimitConfigArray = carPropertyConfig.getConfigArray();
+            Float evChargePercentLimit = (Float) carPropertyValue.getValue();
+
+            if (evChargePercentLimitConfigArray.isEmpty()) {
+                assertWithMessage("EV_CHARGE_PERCENT_LIMIT value must be greater than 0").that(
+                        evChargePercentLimit).isGreaterThan(0);
+                assertWithMessage("EV_CHARGE_PERCENT_LIMIT value must be at most 100").that(
+                        evChargePercentLimit).isAtMost(100);
+            } else {
+                assertWithMessage(
+                        "EV_CHARGE_PERCENT_LIMIT value must be in the configArray valid charge "
+                                + "percent limit list").that(evChargePercentLimit.intValue()).isIn(
+                        evChargePercentLimitConfigArray);
+            }
+        }).build().verify(mCarPropertyManager);
+    }
+
+    @Test
+    public void testEvChargeStateIfSupported() {
+        VehiclePropertyVerifier.newBuilder(VehiclePropertyIds.EV_CHARGE_STATE,
+                CarPropertyConfig.VEHICLE_PROPERTY_ACCESS_READ,
+                VehicleAreaType.VEHICLE_AREA_TYPE_GLOBAL,
+                CarPropertyConfig.VEHICLE_PROPERTY_CHANGE_MODE_ONCHANGE,
+                Integer.class).setCarPropertyValueVerifier(
+                (carPropertyConfig, carPropertyValue) -> {
+                    Integer evChargeState = (Integer) carPropertyValue.getValue();
+                    assertWithMessage("EV_CHARGE_STATE must be a defined charge state: "
+                            + evChargeState).that(evChargeState).isIn(
+                            ImmutableSet.of(/*EvChargeState.UNKNOWN=*/0,
+                                    /*EvChargeState.CHARGING=*/1, /*EvChargeState.FULLY_CHARGED=*/2,
+                                    /*EvChargeState.NOT_CHARGING=*/3, /*EvChargeState.ERROR=*/4));
+                }).build().verify(mCarPropertyManager);
+    }
+
+    @Test
+    public void testEvChargeSwitchIfSupported() {
+        VehiclePropertyVerifier.newBuilder(VehiclePropertyIds.EV_CHARGE_SWITCH,
+                CarPropertyConfig.VEHICLE_PROPERTY_ACCESS_READ_WRITE,
+                VehicleAreaType.VEHICLE_AREA_TYPE_GLOBAL,
+                CarPropertyConfig.VEHICLE_PROPERTY_CHANGE_MODE_ONCHANGE,
+                Boolean.class).build().verify(mCarPropertyManager);
+    }
+
+    @Test
+    public void testEvChargeTimeRemainingIfSupported() {
+        VehiclePropertyVerifier.newBuilder(VehiclePropertyIds.EV_CHARGE_TIME_REMAINING,
+                CarPropertyConfig.VEHICLE_PROPERTY_ACCESS_READ,
+                VehicleAreaType.VEHICLE_AREA_TYPE_GLOBAL,
+                CarPropertyConfig.VEHICLE_PROPERTY_CHANGE_MODE_CONTINUOUS,
+                Integer.class).setCarPropertyValueVerifier(
+                (carPropertyConfig, carPropertyValue) -> {
+                    assertWithMessage(
+                            "FUEL_LEVEL Integer value must be greater than or equal 0").that(
+                            (Integer) carPropertyValue.getValue()).isAtLeast(0);
+
+                }).build().verify(mCarPropertyManager);
+    }
+
+    @Test
+    public void testEvRegenerativeBrakingStateIfSupported() {
+        VehiclePropertyVerifier.newBuilder(VehiclePropertyIds.EV_REGENERATIVE_BRAKING_STATE,
+                CarPropertyConfig.VEHICLE_PROPERTY_ACCESS_READ,
+                VehicleAreaType.VEHICLE_AREA_TYPE_GLOBAL,
+                CarPropertyConfig.VEHICLE_PROPERTY_CHANGE_MODE_ONCHANGE,
+                Integer.class).setCarPropertyValueVerifier(
+                (carPropertyConfig, carPropertyValue) -> {
+                    Integer evRegenerativeBrakingState = (Integer) carPropertyValue.getValue();
+                    assertWithMessage("EV_REGENERATIVE_BRAKING_STATE must be a defined state: "
+                            + evRegenerativeBrakingState).that(evRegenerativeBrakingState).isIn(
+                            ImmutableSet.of(/*EvRegenerativeBrakingState.UNKNOWN=*/0,
+                                    /*EvRegenerativeBrakingState.DISABLED=*/1,
+                                    /*EvRegenerativeBrakingState.PARTIALLY_ENABLED=*/2,
+                                    /*EvRegenerativeBrakingState.FULLY_ENABLED=*/3));
+                }).build().verify(mCarPropertyManager);
+    }
+
 
     @SuppressWarnings("unchecked")
     @Test

@@ -464,7 +464,6 @@
     <string name="bt_le">Bluetooth LE</string>
     <string name="bt_hid">Bluetooth HID</string>
     <string name="bt_le_coc">Bluetooth LE CoC</string>
-    <string name="bt_background_rfcomm">Bluetooth Background RFCOMM</string>
 
     <string name="bt_toggle_bluetooth">Toggle Bluetooth</string>
     <string name="bt_toggle_instructions">Disable and enable Bluetooth to successfully complete this test.</string>
@@ -510,19 +509,6 @@
         \n\nTap \"01 Bluetooth LE CoC Server Test\" on this device, then tap \"01 Bluetooth LE CoC Client Test\" on the other device.
         \nWhen the test is complete, move to the next item. You must complete all tests.
     </string>
-    <string name="bt_background_rfcomm_test_name">Bluetooth Background RFCOMM Test</string>
-    <string name="bt_background_rfcomm_test_info">
-        This test verifies that system applications can register RFCOMM listeners via the
-        BluetoothAdapter without needing a foreground service.
-    </string>
-    <string name="bt_background_rfcomm_test_client_name">Bluetooth Background RFCOMM Test Client</string>
-    <string name="bt_background_rfcomm_test_client_info">
-        Run by a second phone which acts as the RFCOMM client to connect to the rfcomm listener.
-        This phone should be paired with the primary phone which runs the Bluetooth Background
-        RFCOMM Test.
-    </string>
-    <string name="bt_background_rfcomm_test_uuid">1bd18454-462a-4117-bd58-77cb4d81ddbe</string>
-    <string name="bt_background_rfcomm_test_message">Test Message</string>
 
     <!-- BLE CoC client side strings -->
     <string name="ble_coc_client_test_name">01 Bluetooth LE CoC Client Test</string>
@@ -640,13 +626,6 @@
     <string name="bt_scanning">Scanning...</string>
     <string name="bt_unpair">Device must be unpaired via Bluetooth settings before completing the test.\n\nUnpair the device in settings, make the server discoverable, and rescan to pick this device.</string>
     <string name="bt_settings">Bluetooth Settings</string>
-
-    <string name="bt_background_rfcomm_test_start_client">On the client device: enable (or toggle) Bluetooth and connect to this device, then start the client test.</string>
-    <string name="bt_background_rfcomm_test_socket_received">Received client connection.</string>
-    <string name="bt_background_rfcomm_test_sending_message">Sending test message.</string>
-    <string name="bt_background_rfcomm_test_waiting_for_message">Waiting for message.</string>
-    <string name="bt_background_rfcomm_test_connecting_to_server">Connecting to server.</string>
-    <string name="bt_background_rfcomm_test_doing_sdp">Doing service discovery of server.</string>
 
     <!-- BLE client side strings -->
     <string name="ble_client_service_name">Bluetooth LE GATT Client Handler Service</string>
@@ -890,7 +869,7 @@
         including showing the dialog to the user to verify a device, as well as updating an internal
         record once the user made the choice and then removing it.\n\n
         Before proceeding, make sure you have a bluetooth device nearby and discoverable.
-        Also, make sure that bluetooth is turned on on this device.
+        Also, make sure that bluetooth is turned on for this device.
         Once you press the button, wait for a dialog to pop up and select your device from the list.
     </string>
 
@@ -901,23 +880,22 @@
         Before proceeding, make sure you have a Bluetooth LE device nearby and
         discoverable. Also, make sure that bluetooth is turned on. Note that, the nearby device can
         not be a phone since it considers advertising as classic device scan.
-        First, you press the go button, wait for a dialog to pop up and select your device from the
-        list. Second, make sure your bluetooth device is unreachable(you can power off/reboot your
-        Bluetooth device or put it into a Faraday bag) and press the Device Gone button.
-        Lastly, make your bluetooth device reachable by waiting for the device to power on or
-        removing it from the Faraday bag and press the Device Present button.
+        First, press the go button, wait for a dialog to pop up and select your device from the
+        list. Second, make your Bluetooth device reachable then press the Device Present button.
+        Lastly, make sure your bluetooth device is unreachable(you can power off your
+        Bluetooth device or put it into a Faraday bag) and wait up to 2 minutes then press the
+        Device Gone button.
+    </string>
+
+    <string name="companion_service_test_present_text">
+        Now, please make your Bluetooth device is reachable and wait up to 10 to 20 seconds, then
+        press the Device Present button.
     </string>
 
     <string name="companion_service_test_gone_text">
         Now, please make your Bluetooth device unreachable.
-        Put your bluetooth device into a RF Bag or power off/reboot your device,
-        then press the Device Gone button.
-    </string>
-
-    <string name="companion_service_test_present_text">
-        Now, please make your Bluetooth device reachable.
-        Remove your Bluetooth device from a RF Bag or power on your device,
-        then press the Device Present button.
+        Put your nearby bluetooth device into an RF Bag or power off your device and wait up to
+        2 minutes, then press the Device Gone button.
     </string>
 
     <!-- Strings for FeatureSummaryActivity -->
@@ -2326,7 +2304,7 @@
 
     <string name="shortcut_reset_test">Shortcut Reset Rate-limiting Test</string>
     <string name="shortcut_reset_info">This test checks that when an inline-reply happens, ShortcutManager\'s rate-limiting
-        is reset.</string>
+        is reset. Please grant access to show notification when prompted.</string>
     <string name="shortcut_reset_bot">Verifying that the CTS Robot helper package is installed.</string>
     <string name="shortcut_reset_start">Showing the notification.</string>
     <string name="shortcut_reset_prompt_inline_reply">Open the notification shade,
@@ -4082,6 +4060,66 @@ You should be prompted to select credentials; choose the ones you just installed
         \n
         Use the Back button to return to this page.
     </string>
+    <string name="device_owner_disallow_add_wifi_config">Disallow adding WiFi config</string>
+    <string name="device_owner_disallow_add_wifi_config_info">
+        Please press the Set restriction button to set the user restriction.
+        Then press Go to open the WiFi page in Settings.
+        Confirm that:\n\n
+        - You cannot add a new WiFi configuration.\n
+        - Trying to add any new WiFi configs triggers a support message.\n
+        \n
+        Use the Back button to return to this page.
+    </string>
+    <string name="device_owner_disallow_sharing_admin_configure_wifi">Disallow sharing admin configured WiFi config</string>
+    <string name="device_owner_disallow_sharing_admin_configure_wifi_info">
+        Please press the Set restriction button to set the user restriction.
+        Then press Go to open the WiFi page in Settings.
+        Confirm that:\n\n
+        - You cannot share an admin configured WiFi config.\n
+        - Sharing option is disabled in Settings.\n
+        \n
+        Use the Back button to return to this page.
+    </string>
+    <string name="device_owner_wifi_security_level_restriction">Set WiFi security level restriction</string>
+    <string name="device_owner_wifi_security_level_restriction_info">
+        This test verifies that minimum WiFi security level restriction can be set by the device owner.
+        The levels below are listed in an increasing order of security.\n
+        1. Connect to any network.\n
+        2. Pick a security level greater than the currently connected network (if unsure pick Enterprise 192).\n
+        3. Verify that current network gets disconnected.\n
+        4. Press Go to open the WiFi page in Settings.\n
+        5. Confirm that you cannot connect to any network that does not meet the security level restriction.\n
+        6. Use the Back button to return to this page.\n
+        7. Set the security level to Open to remove the restriction.\n
+        8. Press Go to open the WiFi page in Settings.\n
+        9. Confirm that you can connect to any network.
+    </string>
+    <string name="set_wifi_security_level_open">Set WiFi security level to Open</string>
+    <string name="set_wifi_security_level_personal">Set WiFi security level to Personal</string>
+    <string name="set_wifi_security_level_enterprise_eap">Set WiFi security level to Enterprise EAP</string>
+    <string name="set_wifi_security_level_enterprise_192">Set WiFi security level to Enterprise 192</string>
+    <string name="device_owner_ssid_restriction">Set WiFi SSID restriction</string>
+    <string name="device_owner_ssid_restriction_info">
+        This test verifies that WiFi SSID restriction can be set by the device owner.\n
+        1. Connect to any network.\n
+        2. Enter the SSID of the network you are currently connected to.\n
+        3. Set the SSID denylist.\n
+        4. Verify that current network gets disconnected.\n
+        5. Press Go to open the WiFi page in Settings.\n
+        6. Confirm that only the SSID from the denylist is restricted from connection.\n
+        7. Use the Back button to return to this page.\n
+        8. Enter the same SSID and set the SSID allowlist.\n
+        9. Press Go to open the WiFi page in Settings.\n
+        10. Confirm that you can only connect to the SSID from the allowlist.\n
+        11. Use the Back button to return to this page.\n
+        12. Leave the SSID field blank and set the allowlist to remove restriction.\n
+        13. Press Go to open the WiFi page in Settings.\n
+        14. Confirm that you can connect to any network.
+    </string>
+    <string name="device_owner_ssid_restriction_hint">Enter SSID</string>
+    <string name="device_owner_set_ssid_allowlist_button">Set SSID allowlist</string>
+    <string name="device_owner_set_ssid_denylist_button">Set SSID denylist</string>
+    <string name="device_owner_ssid_restriction_removing_toast">Removing SSID restriction</string>
     <string name="device_owner_disallow_ambient_display">Disallow ambient display</string>
     <string name="device_owner_disallow_ambient_display_info">
         Please press the Set restriction button to set the user restriction.
@@ -5083,6 +5121,9 @@ You should be prompted to select credentials; choose the ones you just installed
     soundbar which can play Dolby Atmos. </string>
     <string name="tv_audio_capabilities_atmos_supported">Does your Android TV device support Dolby
     Atmos (either passthrough or decode)?  </string>
+    <string name="tv_audio_capabilities_skip_test"> This test is only applicable to OTT and STB
+        devices. Is your device a soundbar or panel TV?
+    </string>
 
     <!-- Hotplug Test -->
     <string name="tv_hotplug_test">Hotplug Test</string>
@@ -5344,20 +5385,28 @@ You should be prompted to select credentials; choose the ones you just installed
 
     <string name="audio_general_clear_results">Clear Results</string>
 
+    <string name="audio_general_test_not_run">Test Not Run</string>
+
     <!-- Audio Loopback Latency Test -->
     <string name="audio_loopback_latency_test">Audio Loopback Latency Test</string>
-    <string name="audio_loopback_info">
-        This test verifies that the device can achieve the required or recommended loopback latency.
-        To pass the test, the device need only achieve this on one of the following audio paths:\n
-          - a <a href="https://source.android.com/devices/audio/latency/loopback">Loopback Plug</a>  connected to a 3.5mm headset jack.\n
-          - a <a href="https://source.android.com/devices/audio/latency/loopback">Loopback Plug</a>  connected to a USB audio adapter.\n
-          - a USB interface with patch cords connecting the input and output jacks.
-          \nPlease connect one of these Loopback mechanisms, and proceed with the instructions
-          on the screen. The required &amp; recommended latencies will be displayed.
-          The system will measure the input-output audio latency by injecting an audio signal to
+    <string name="audio_loopback_info">This test verifies that the DUT can achieve the required or
+        recommended loopback latency as defined by CDD § 5.6 (Audio Latency) and
+        § 5.10 (Professional Audio).
+        \nTo pass the test, the DUT needs to meet the latency requirement on ALL 3 of the
+        following audio paths (if present):
+          \n- the internal speaker and microphone.
+          \n- a <a href="https://source.android.com/devices/audio/latency/loopback">Loopback Plug</a>  connected to a 3.5mm headset jack.
+          \n- a <a href="https://source.android.com/devices/audio/latency/loopback">Loopback Plug</a>  connected to a USB audio adapter.
+          (or alternatively USB interface with patch cords connecting the input and output jacks).
+          \nPlease connect these Loopback mechanisms (the same Loopback Plug can be used at different times
+          for the headset jack and USB audio adapter) and proceed with the instructions
+          on the screen. The volume may need to be adjusted for each audio path.
+          \nThe system will measure the input-output audio latency by injecting an audio signal into
           the output and compute the time between generating the signal and recording it back.
           You can vary the Audio Level slider to ensure the pulse will feed back at adequate levels.
-          Repeat until a confidence level >= 0.6 is achieved.
+          Repeat until a confidence level >= 0.6 is achieved. When each route test is completed the
+          measured and required latencies will be displayed.
+          \nWhen all test routes have passed, the test as a whole can be passed.
     </string>
     <string name="audio_loopback_instructions">
           Please connect a "Loopback Plug" and press "Loopback Plug Ready".
@@ -5370,6 +5419,16 @@ You should be prompted to select credentials; choose the ones you just installed
     <string name="audio_loopback_level_text">Audio Level</string>
     <string name="audio_loopback_test_btn">Test</string>
     <string name="audio_loopback_results_text">Results...</string>
+
+    <string name="audio_loopback_speakermicpath_instructions">Place the DUT flat on a table
+    in a quiet room. Press the Start button and allow the test to proceed.</string>
+
+    <string name="audio_loopback_headsetpath_instructions">Insert the loopback plug in the
+    headset jack.  Press the Start button and allow the test to proceed.</string>
+
+    <string name="audio_loopback_usbpath_instructions">Connect the USB port to an appropriate
+        USB audio test peripheral with loopback set up. Press the Start button and
+        allow the test to proceed.</string>
 
     <string name="audio_loopback_failure">FAILURE - Could not allocate analyzer thread.</string>
 
@@ -6422,4 +6481,124 @@ Follow the instructions on the screen to measure the frequency response for the 
     <string name="audio_descriptor_hdmi_message">
         Please connect an HDMI peripheral to validate AudioDescriptor.
     </string>
+    <string name="uwb">Uwb</string>
+    <string name="presence_test">Presence Test</string>
+    <string name="presence_test_info">
+        The Presence tests check whether or not a device is properly calibrated for BLE, NAN and UWB based on Presence requirements.
+        \nAll tests are required to pass on every device, if the radio technology is supported
+    </string>
+    <string name="uwb_precision">Uwb Precision Test</string>
+    <string name="uwb_short_range">Uwb Short Range Test</string>
+    <string name="uwb_precision_instruction">
+        1. Take 1000 measurements with DUT at any distance from the reference device. We recommend 1m.
+        \n2. Sort the 1000 measurements.
+        \n3. Compute the range as range = 975th measurement - 25th measurement
+        \n4. Report the range below - Must be less than 10cm for distance measurements and 5 degrees for angle of arrival measurements (if supported) for tests to pass.
+        \n5. Distance range is a compulsory input for this test to pass. Angle of arrival (Aoa) is optional.
+    </string>
+    <string name="report_distance_range_cm">Report Range (cm)</string>
+    <string name="report_aoa_range_degrees">Report Range (degrees)</string>
+    <string name="uwb_short_range_instruction">
+        1. Take 1000 measurements with DUT being 10cm apart from the reference device
+        \n2. Sort the values.
+        \n3. Report the median (500th value) (must be within 8cm - 12cm to pass).
+        \n4. Report the reference device used.
+    </string>
+    <string name="report_distance_median_cm">Report Median (cm)</string>
+    <string name="report_reference_device">Report Reference Device</string>
+    <string name="uwb_not_supported">Uwb is not supported on device. Finishing activity. </string>
+    <string name="ble">BLE</string>
+
+    <!-- Strings for BLE RSSI Precision Test -->
+    <string name="ble_rssi_precision_name">BLE RSSI Precision Test</string>
+    <string name="ble_rssi_precision_test_instructions">
+        1. Take 1000 scan measurements with the DUT
+        \n2. Sort the values
+        \n3. Compute the range as range = 975th measurement - 25th measurement
+        \n4. Report the range; must be less than or equal to 12dBm to pass
+        \n5. Report the reference device used
+    </string>
+    <string name="report_ble_rssi_range">Report RSSI Range (dBm)</string>
+
+    <!-- Strings for BLE Rx/Tx Calibration Test -->
+    <string name="ble_rx_tx_calibration_name">BLE Rx/Tx Calibration Test</string>
+    <string name="ble_rx_tx_calibration_test_instructions">
+        To verify this requirement, work with your chip vendor. The chip vendor can measure the
+        channel flatness and identify the differences between cores and channels.
+    </string>
+    <string name="report_channels_ble_rssi_range">Report RSSI Range Across Channels (dBm)</string>
+    <string name="report_cores_ble_rssi_range">[Optional] Report RSSI Range Across Cores (dBm)</string>
+
+    <!-- Strings for BLE Rx Offset Test -->
+    <string name="ble_rx_offset_name">BLE Rx Offset Test</string>
+    <string name="ble_rx_offset_test_instructions">
+        1. Take 1000 scan measurements with the DUT
+        \n2. Sort the values
+        \n3. Report the median (500th value); must be within [-57, -63] dBm to pass
+        \n4. Report the reference device used
+    </string>
+    <string name="report_ble_rssi_median">Report RSSI Median (dBm)</string>
+
+    <!-- Strings for BLE Tx Offset Test -->
+    <string name="ble_tx_offset_name">BLE Tx Offset Test</string>
+    <string name="ble_tx_offset_test_instructions">
+        1. Start BLE advertisement on DUT and take 1000 scan measurements with the reference device
+        \n2. Sort the values
+        \n3. Report the median (500th value); must be within [-57, -63] dBm to pass
+        \n4. Report the reference device used
+    </string>
+    <string name="nan_precision_and_bias_instruction">
+        1. Take 1000 ranging measurements at each of the ground truth points of 1m, 3m, and 5m. The Wifinanscan in Play Store is recommended for data collection.
+        \n2. For each point:
+        \n\t\ta. Compute and report the range (Range = 975th measurement - 25th measurement).
+        \n\t\tb. Range must be less than 2m for test to pass.
+        \n3. Using the same measurements collected in step 1, compute a least squares regression line.
+        \n4. Report the bias and slope.
+        \n5. Bias must be 0+/- 0.25m and slope must be 1+/- 0.05m for tests to pass.
+        \n6. Report reference device used. All fields must be filled before test can be passed.
+    </string>
+    <string name="report_distance_range_1m_gt">Report Measurement Range at 1m</string>
+    <string name="report_distance_range_3m_gt">Report Measurement Range at 3m</string>
+    <string name="report_distance_range_5m_gt">Report Measurement Range at 5m</string>
+    <string name="report_bias_meters">Report Bias (meters)</string>
+    <string name="report_slope">Report Slope</string>
+    <string name="nan_precision_and_bias">Nan Precision and Bias Test</string>
+    <string name="wifi_nan">WiFi NAN</string>
+
+    <!-- Strings for AudioMicrophoneMuteToggleActivity -->
+    <string name="audio_mic_toggle_test">Audio Microphone Hardware Toggle Mute Test</string>
+    <string name="audio_mic_toggle_test_info">
+        This test verifies that devices which implement microphone hardware privacy toggles enforce sensor privacy when toggles are enabled.
+        \nTo pass the test:
+        \n  - <a href="https://source.android.com/compatibility/android-cdd#9813_sensorprivacymanager">The audio stream should be muted</a>.
+        \n  - A dialog or notification should be shown that informs the user that the sensor privacy is enabled.
+    </string>
+    <string name="audio_mic_toggle_test_instruction1">
+        Mute the microphone using the hardware privacy toggle.
+        \nPress the RECORD button.
+        \nObserve a dialog with information regarding the microphone being blocked
+        \nIgnore/cancel the dialog and wait for the recording to complete.
+        \nThe pass button will be enabled if the test succeeded.</string>
+    <string name="audio_mic_toggle_test_analyzing">Analyzing, please wait...\n</string>
+
+    <!-- Strings for CameraMuteToggleActivity -->
+    <string name="camera_hw_toggle_test">Camera Hardware Toggle Mute Test</string>
+    <string name="camera_hw_toggle_test_info">
+        This test verifies that devices which implement camera hardware privacy toggles enforce sensor privacy when toggles are enabled.
+        \nTo pass the test:
+        \n  - <a href="https://source.android.com/compatibility/android-cdd#9813_sensorprivacymanager">The video stream should be muted</a>.
+        \n  - A dialog or notification should be shown that informs the user that the sensor privacy is enabled.
+    </string>
+    <string name="camera_hw_toggle_test_instruction">
+        Mute the camera using the hardware privacy toggle.
+        \nObserve a dialog with information regarding the camera being blocked.
+        \nCamera preview should show a blank feed.
+        \nPress the Take Photo button.
+        \nCaptured image should be black.
+        \nMark the test as passing if the above conditions are met.</string>
+    <string name="camera_hw_toggle_test_no_camera">
+        No available camera found.
+        \nAdd or enable a camera and re-run this test.
+    </string>
+
 </resources>

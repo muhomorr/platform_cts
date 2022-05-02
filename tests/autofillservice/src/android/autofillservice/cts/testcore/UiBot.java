@@ -137,6 +137,8 @@ public class UiBot {
     private static final String RESOURCE_ID_FILL_DIALOG_PICKER = "autofill_dialog_picker";
     private static final String RESOURCE_ID_FILL_DIALOG_HEADER = "autofill_dialog_header";
     private static final String RESOURCE_ID_FILL_DIALOG_DATASET = "autofill_dialog_list";
+    private static final String RESOURCE_ID_FILL_DIALOG_BUTTON_NO = "autofill_dialog_no";
+    private static final String RESOURCE_ID_FILL_DIALOG_BUTTON_YES = "autofill_dialog_yes";
 
     static final BySelector DATASET_PICKER_SELECTOR = By.res("android", RESOURCE_ID_DATASET_PICKER);
     private static final BySelector SAVE_UI_SELECTOR = By.res("android", RESOURCE_ID_SAVE_SNACKBAR);
@@ -1306,9 +1308,13 @@ public class UiBot {
         final UiObject2 picker = findFillDialogPicker();
 
         // "No thanks" button shown
-        assertWithMessage("wrong reject button in fill dialog")
-                .that(getChildrenAsText(picker))
-                .contains(getString(RESOURCE_STRING_SAVE_BUTTON_NO_THANKS));
+        final UiObject2 rejectButton = picker.findObject(
+                By.res("android", RESOURCE_ID_FILL_DIALOG_BUTTON_NO));
+        assertWithMessage("No reject button in fill dialog")
+                .that(rejectButton).isNotNull();
+        assertWithMessage("wrong text on reject button")
+                .that(rejectButton.getText().toUpperCase()).isEqualTo(
+                        getString(RESOURCE_STRING_SAVE_BUTTON_NO_THANKS).toUpperCase());
     }
 
     /**
@@ -1318,9 +1324,13 @@ public class UiBot {
         final UiObject2 picker = findFillDialogPicker();
 
         // "Continue" button shown
-        assertWithMessage("wrong accept button in fill dialog")
-                .that(getChildrenAsText(picker))
-                .contains(getString(RESOURCE_STRING_CONTINUE_BUTTON_YES));
+        final UiObject2 acceptButton = picker.findObject(
+                By.res("android", RESOURCE_ID_FILL_DIALOG_BUTTON_YES));
+        assertWithMessage("No accept button in fill dialog")
+                .that(acceptButton).isNotNull();
+        assertWithMessage("wrong text on accept button")
+                .that(acceptButton.getText().toUpperCase()).isEqualTo(
+                        getString(RESOURCE_STRING_CONTINUE_BUTTON_YES).toUpperCase());
     }
 
     /**
@@ -1330,9 +1340,10 @@ public class UiBot {
         final UiObject2 picker = findFillDialogPicker();
 
         // "Continue" button not shown
+        final UiObject2 acceptButton = picker.findObject(
+                By.res("android", RESOURCE_ID_FILL_DIALOG_BUTTON_YES));
         assertWithMessage("wrong accept button in fill dialog")
-                .that(getChildrenAsText(picker))
-                .doesNotContain(getString(RESOURCE_STRING_CONTINUE_BUTTON_YES));
+                .that(acceptButton).isNull();
     }
 
     /**
@@ -1367,5 +1378,12 @@ public class UiBot {
 
     private UiObject2 findFillDialogHeaderPicker() throws Exception {
         return waitForObject(FILL_DIALOG_HEADER_SELECTOR, UI_DATASET_PICKER_TIMEOUT);
+    }
+
+    /**
+     * Asserts the fill dialog is not shown.
+     */
+    public void assertNoFillDialog() throws Exception {
+        assertNeverShown("Fill dialog", FILL_DIALOG_SELECTOR, DATASET_PICKER_NOT_SHOWN_NAPTIME_MS);
     }
 }
