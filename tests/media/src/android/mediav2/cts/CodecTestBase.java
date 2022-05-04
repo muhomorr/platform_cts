@@ -874,6 +874,16 @@ abstract class CodecTestBase {
         return isDefault;
     }
 
+    static boolean isVendorCodec(String codecName) {
+        MediaCodecList mcl = new MediaCodecList(MediaCodecList.ALL_CODECS);
+        for (MediaCodecInfo codecInfo : mcl.getCodecInfos()) {
+            if (codecName.equals(codecInfo.getName())) {
+                return codecInfo.isVendor();
+            }
+        }
+        return false;
+    }
+
     static ArrayList<String> compileRequiredMimeList(boolean isEncoder, boolean needAudio,
             boolean needVideo) {
         Set<String> list = new HashSet<>();
@@ -1377,6 +1387,7 @@ class CodecDecoderTestBase extends CodecTestBase {
     MediaFormat setUpSource(String prefix, String srcFile) throws IOException {
         Preconditions.assertTestFileExists(prefix + srcFile);
         mExtractor = new MediaExtractor();
+        Preconditions.assertTestFileExists(prefix + srcFile);
         mExtractor.setDataSource(prefix + srcFile);
         for (int trackID = 0; trackID < mExtractor.getTrackCount(); trackID++) {
             MediaFormat format = mExtractor.getTrackFormat(trackID);
