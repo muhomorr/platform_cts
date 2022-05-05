@@ -48,7 +48,7 @@ public class BluetoothLeAudioCodecConfigMetadataTest {
     // See Page 5 of Generic Audio assigned number specification
     private static final byte[] TEST_METADATA_BYTES = {
             // length = 0x05, type = 0x03, value = 0x00000001 (front left)
-            0x05, 0x03, 0x00, 0x00, 0x00, 0x01
+            0x05, 0x03, 0x01, 0x00, 0x00, 0x00
     };
 
     private Context mContext;
@@ -82,9 +82,9 @@ public class BluetoothLeAudioCodecConfigMetadataTest {
 
         mIsBroadcastSourceSupported =
                 mAdapter.isLeAudioBroadcastSourceSupported() == FEATURE_SUPPORTED;
-        if (!mIsBroadcastSourceSupported) {
+        if (mIsBroadcastSourceSupported) {
             boolean isBroadcastSourceEnabledInConfig =
-                    TestUtils.isProfileEnabled(BluetoothProfile.LE_AUDIO_BROADCAST_ASSISTANT);
+                    TestUtils.isProfileEnabled(BluetoothProfile.LE_AUDIO_BROADCAST);
             assertTrue("Config must be true when profile is supported",
                     isBroadcastSourceEnabledInConfig);
         }
@@ -126,7 +126,7 @@ public class BluetoothLeAudioCodecConfigMetadataTest {
                 new BluetoothLeAudioCodecConfigMetadata.Builder(codecMetadata).build();
         assertEquals(codecMetadata, codecMetadataCopy);
         assertEquals(TEST_AUDIO_LOCATION_FRONT_LEFT, codecMetadataCopy.getAudioLocation());
-        assertArrayEquals(TEST_METADATA_BYTES, codecMetadata.getRawMetadata());
+        assertArrayEquals(codecMetadata.getRawMetadata(), codecMetadataCopy.getRawMetadata());
     }
 
     @Test

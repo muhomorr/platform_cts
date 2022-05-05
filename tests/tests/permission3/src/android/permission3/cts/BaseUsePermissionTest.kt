@@ -67,6 +67,8 @@ abstract class BaseUsePermissionTest : BasePermissionTest() {
             "$APK_DIRECTORY/CtsCreateNotificationChannelsApp31.apk"
         const val APP_APK_PATH_CREATE_NOTIFICATION_CHANNELS_33 =
             "$APK_DIRECTORY/CtsCreateNotificationChannelsApp33.apk"
+        const val APP_APK_PATH_MEDIA_PERMISSION_33_WITH_STORAGE =
+            "$APK_DIRECTORY/CtsMediaPermissionApp33WithStorage.apk"
         const val APP_APK_PATH_OTHER_APP =
             "$APK_DIRECTORY/CtsDifferentPkgNameApp.apk"
         const val APP_PACKAGE_NAME = "android.permission3.cts.usepermission"
@@ -106,12 +108,20 @@ abstract class BaseUsePermissionTest : BasePermissionTest() {
                 "grant_dialog_button_deny_and_dont_ask_again"
         const val NO_UPGRADE_AND_DONT_ASK_AGAIN_BUTTON_TEXT = "grant_dialog_button_no_upgrade"
         const val ALERT_DIALOG_MESSAGE = "android:id/message"
+        const val ALERT_DIALOG_OK_BUTTON = "android:id/button1"
 
         const val REQUEST_LOCATION_MESSAGE = "permgrouprequest_location"
 
         val STORAGE_AND_MEDIA_PERMISSIONS = setOf(
             android.Manifest.permission.READ_EXTERNAL_STORAGE,
             android.Manifest.permission.WRITE_EXTERNAL_STORAGE,
+            android.Manifest.permission.ACCESS_MEDIA_LOCATION,
+            android.Manifest.permission.READ_MEDIA_AUDIO,
+            android.Manifest.permission.READ_MEDIA_IMAGES,
+            android.Manifest.permission.READ_MEDIA_VIDEO
+        )
+
+        val MEDIA_PERMISSIONS = setOf(
             android.Manifest.permission.ACCESS_MEDIA_LOCATION,
             android.Manifest.permission.READ_MEDIA_AUDIO,
             android.Manifest.permission.READ_MEDIA_IMAGES,
@@ -284,7 +294,7 @@ abstract class BaseUsePermissionTest : BasePermissionTest() {
         )
         waitForIdle()
         // Notification permission prompt is shown first, so get it out of the way
-        clickNotificationPermissionRequestAllowButton()
+        clickNotificationPermissionRequestAllowButtonIfAvailable()
         // Perform the post-request action
         block()
         return future.get(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS)
@@ -335,9 +345,13 @@ abstract class BaseUsePermissionTest : BasePermissionTest() {
     }
 
     /**
-     * Only for use in tests that are not testing the notification permission popup
+     * Only for use in tests that are not testing the notification permission popup, on T devices
      */
-    protected fun clickNotificationPermissionRequestAllowButton() {
+    protected fun clickNotificationPermissionRequestAllowButtonIfAvailable() {
+        if (!SdkLevel.isAtLeastT()) {
+            return
+        }
+
         if (waitFindObjectOrNull(By.text(getPermissionControllerString(
                 NOTIF_CONTINUE_TEXT, APP_PACKAGE_NAME)), 1000) != null ||
                 waitFindObjectOrNull(By.text(getPermissionControllerString(
@@ -399,8 +413,9 @@ abstract class BaseUsePermissionTest : BasePermissionTest() {
         eventually {
             // UiObject2 doesn't expose CharSequence.
             val node = if (isAutomotive) {
+                // Should match "Allow in settings." (location) and "go to settings." (body sensors)
                 uiAutomation.rootInActiveWindow.findAccessibilityNodeInfosByText(
-                        "Allow in settings."
+                        " settings."
                 )[0]
             } else {
                 uiAutomation.rootInActiveWindow.findAccessibilityNodeInfosByViewId(
@@ -585,11 +600,9 @@ abstract class BaseUsePermissionTest : BasePermissionTest() {
 
             val shouldShowStorageWarning = !isTv && !isWatch &&
                 SdkLevel.isAtLeastT() && targetSdk <= Build.VERSION_CODES.S_V2 &&
-                permission in STORAGE_AND_MEDIA_PERMISSIONS
-            if (shouldShowStorageWarning && state == PermissionState.ALLOWED) {
-                click(By.text(getPermissionControllerString(ALLOW_BUTTON_TEXT)))
-            } else if (shouldShowStorageWarning && state == PermissionState.DENIED) {
-                click(By.text(getPermissionControllerString(DENY_ANYWAY_BUTTON_TEXT)))
+                permission in MEDIA_PERMISSIONS
+            if (shouldShowStorageWarning) {
+                click(By.res(ALERT_DIALOG_OK_BUTTON))
             } else if (!alreadyChecked && isLegacyApp && wasGranted) {
                 if (!isTv) {
                     // Wait for alert dialog to popup, then scroll to the bottom of it
@@ -690,7 +703,7 @@ abstract class BaseUsePermissionTest : BasePermissionTest() {
             }
         )
         waitForIdle()
-        clickNotificationPermissionRequestAllowButton()
+        clickNotificationPermissionRequestAllowButtonIfAvailable()
         val result = future.get(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS)
         assertEquals(Activity.RESULT_OK, result.resultCode)
         assertTrue(result.resultData!!.hasExtra("$APP_PACKAGE_NAME.HAS_ACCESS"))

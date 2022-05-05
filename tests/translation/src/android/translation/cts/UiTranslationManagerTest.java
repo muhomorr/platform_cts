@@ -38,6 +38,7 @@ import static com.android.compatibility.common.util.SystemUtil.runWithShellPermi
 import static com.google.common.truth.Truth.assertThat;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 
 import android.app.PendingIntent;
 import android.content.ComponentName;
@@ -78,7 +79,6 @@ import androidx.test.core.app.ActivityScenario;
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.filters.FlakyTest;
 import androidx.test.runner.AndroidJUnit4;
-import androidx.test.uiautomator.UiObject2;
 
 import com.android.compatibility.common.util.BlockingBroadcastReceiver;
 import com.android.compatibility.common.util.PollingCheck;
@@ -140,6 +140,7 @@ public class UiTranslationManagerTest {
     private VirtualContainerView mVirtualContainerView;
     private ResponseNotSetTextView mResponseNotSetTextView;
     private CustomTextView mCustomTextView;
+    private SimpleActivity mSimpleActivity;
     private TextView mTextView;
     private static String sOriginalLogTag;
 
@@ -190,6 +191,55 @@ public class UiTranslationManagerTest {
     }
 
     @Test
+    public void testTranslationAfterStartActivityOnSameTask() throws Throwable {
+        final Pair<List<AutofillId>, ContentCaptureContext> result =
+                enableServicesAndStartActivityForTranslation();
+
+        final List<AutofillId> views = result.first;
+        final ContentCaptureContext contentCaptureContext = result.second;
+
+        // Register callback
+        UiTranslationManager manager =
+                sContext.getSystemService(UiTranslationManager.class);
+        final Executor executor = Executors.newSingleThreadExecutor();
+        UiTranslationStateCallback mockCallback = Mockito.mock(UiTranslationStateCallback.class);
+        manager.registerUiTranslationStateCallback(executor, mockCallback);
+
+        try {
+            final String translatedText = "success";
+            // Set response
+            final TranslationResponse response =
+                createViewsTranslationResponse(views, translatedText);
+            sTranslationReplier.addResponse(response);
+
+            // Start an Activity in the same task then call translation APIs
+            mSimpleActivity.startEmptyActivity();
+
+            startUiTranslation(/* shouldPadContent */ false, views, contentCaptureContext);
+
+            assertScreenText(mTextView, translatedText);
+
+            Mockito.verify(mockCallback, Mockito.times(1))
+                .onStarted(any(ULocale.class), any(ULocale.class), any(String.class));
+
+            pauseUiTranslation(contentCaptureContext);
+
+            Mockito.verify(mockCallback, Mockito.times(1)).onPaused(any(String.class));
+
+            resumeUiTranslation(contentCaptureContext);
+
+            Mockito.verify(mockCallback, Mockito.times(1))
+                .onResumed(any(ULocale.class), any(ULocale.class), any(String.class));
+
+            finishUiTranslation(contentCaptureContext);
+
+            Mockito.verify(mockCallback, Mockito.times(1)).onFinished(any(String.class));
+        } finally {
+            manager.unregisterUiTranslationStateCallback(mockCallback);
+        }
+    }
+
+    @Test
     public void testUiTranslation() throws Throwable {
         try {
             final Pair<List<AutofillId>, ContentCaptureContext> result =
@@ -200,9 +250,6 @@ public class UiTranslationManagerTest {
             final ContentCaptureContext contentCaptureContext = result.second;
 
             final String translatedText = "success";
-            final UiObject2 helloText = Helper.findObjectByResId(Helper.ACTIVITY_PACKAGE,
-                    SimpleActivity.HELLO_TEXT_ID);
-            assertThat(helloText).isNotNull();
             // Set response
             final TranslationResponse response =
                     createViewsTranslationResponse(views, translatedText);
@@ -227,21 +274,21 @@ public class UiTranslationManagerTest {
             assertThat(translationContext.getActivityId())
                     .isEqualTo(contentCaptureContext.getActivityId());
 
-            assertThat(helloText.getText()).isEqualTo(translatedText);
+            assertScreenText(mTextView, translatedText);
             assertThat(mTextView.getViewTranslationResponse())
                     .isEqualTo(response.getViewTranslationResponses().get(0));
 
             pauseUiTranslation(contentCaptureContext);
 
-            assertThat(helloText.getText()).isEqualTo(originalText.toString());
+            assertScreenText(mTextView, originalText.toString());
 
             resumeUiTranslation(contentCaptureContext);
 
-            assertThat(helloText.getText()).isEqualTo(translatedText);
+            assertScreenText(mTextView, translatedText);
 
             finishUiTranslation(contentCaptureContext);
 
-            assertThat(helloText.getText()).isEqualTo(originalText.toString());
+            assertScreenText(mTextView, originalText.toString());
 
             // Check the Translation session is destroyed after calling finishTranslation()
             translationService.awaitSessionDestroyed();
@@ -251,12 +298,12 @@ public class UiTranslationManagerTest {
 
             startUiTranslation(/* shouldPadContent */ false, views, contentCaptureContext);
 
-            assertThat(helloText.getText()).isEqualTo(translatedText);
+            assertScreenText(mTextView, translatedText);
 
             // Also make sure pausing still works.
             pauseUiTranslation(contentCaptureContext);
 
-            assertThat(helloText.getText()).isEqualTo(originalText.toString());
+            assertScreenText(mTextView, originalText.toString());
         } catch (Throwable t) {
             Helper.takeScreenshotAndSave(sContext, TestNameUtils.getCurrentTestName(),
                     Helper.LOCAL_TEST_FILES_DIR);
@@ -285,9 +332,6 @@ public class UiTranslationManagerTest {
             final ContentCaptureContext contentCaptureContext = result.second;
 
             final String translatedText = "success";
-            final UiObject2 helloText = Helper.findObjectByResId(Helper.ACTIVITY_PACKAGE,
-                    SimpleActivity.HELLO_TEXT_ID);
-            assertThat(helloText).isNotNull();
             // Set response
             final TranslationResponse response =
                     createViewsTranslationResponse(views, translatedText);
@@ -295,19 +339,19 @@ public class UiTranslationManagerTest {
 
             startUiTranslation(/* shouldPadContent */ false, views, contentCaptureContext);
 
-            assertThat(helloText.getText()).isEqualTo(translatedText);
+            assertScreenText(mTextView, translatedText);
 
             pauseUiTranslation(contentCaptureContext);
 
-            assertThat(helloText.getText()).isEqualTo(originalText.toString());
+            assertScreenText(mTextView, originalText.toString());
 
             resumeUiTranslation(contentCaptureContext);
 
-            assertThat(helloText.getText()).isEqualTo(translatedText);
+            assertScreenText(mTextView, translatedText);
 
             finishUiTranslation(contentCaptureContext);
 
-            assertThat(helloText.getText()).isEqualTo(originalText.toString());
+            assertScreenText(mTextView, originalText.toString());
         } finally {
             // restore animation
             SystemUtil.runWithShellPermissionIdentity(() -> {
@@ -329,9 +373,6 @@ public class UiTranslationManagerTest {
         final ContentCaptureContext contentCaptureContext = result.second;
 
         final String translatedText = "success";
-        final UiObject2 helloText = Helper.findObjectByResId(Helper.ACTIVITY_PACKAGE,
-                SimpleActivity.HELLO_TEXT_ID);
-        assertThat(helloText).isNotNull();
         // Set response
         final TranslationResponse response =
                 createViewsTranslationResponse(views, translatedText);
@@ -339,17 +380,17 @@ public class UiTranslationManagerTest {
 
         startUiTranslation(/* shouldPadContent */ false, views, contentCaptureContext);
 
-        assertThat(helloText.getText()).isEqualTo(translatedText);
+        assertScreenText(mTextView, translatedText);
 
         pauseUiTranslation(contentCaptureContext);
 
-        assertThat(helloText.getText()).isEqualTo(originalText.toString());
+        assertScreenText(mTextView, originalText.toString());
 
         sTranslationReplier.addResponse(createViewsTranslationResponse(views, translatedText));
 
         startUiTranslation(/* shouldPadContent */ false, views, contentCaptureContext);
 
-        assertThat(helloText.getText()).isEqualTo(translatedText);
+        assertScreenText(mTextView, translatedText);
     }
 
     @Test
@@ -520,9 +561,9 @@ public class UiTranslationManagerTest {
             // Get result to check the onStarted() was called
             Intent onStartIntent = onStartResultReceiver.awaitForBroadcast();
             ULocale receivedSource =
-                    (ULocale) onStartIntent.getSerializableExtra(EXTRA_SOURCE_LOCALE);
+                    onStartIntent.getSerializableExtra(EXTRA_SOURCE_LOCALE, ULocale.class);
             ULocale receivedTarget =
-                    (ULocale) onStartIntent.getSerializableExtra(EXTRA_TARGET_LOCALE);
+                    onStartIntent.getSerializableExtra(EXTRA_TARGET_LOCALE, ULocale.class);
             int startedCallCount = onStartIntent.getIntExtra(EXTRA_CALL_COUNT, -999);
             String startedPackageName = onStartIntent.getStringExtra(EXTRA_PACKAGE_NAME);
             assertThat(receivedSource).isEqualTo(ULocale.ENGLISH);
@@ -597,32 +638,35 @@ public class UiTranslationManagerTest {
         UiTranslationStateCallback mockCallback = Mockito.mock(UiTranslationStateCallback.class);
         manager.registerUiTranslationStateCallback(executor, mockCallback);
 
-        startUiTranslation(/* shouldPadContent */ false, views, contentCaptureContext);
+        try {
+            startUiTranslation(/* shouldPadContent */ false, views, contentCaptureContext);
 
-        // TODO(b/191417938): add tests for the Activity isn't the same package of the
-        //  registered callback app
-        Mockito.verify(mockCallback, Mockito.times(1))
+            // TODO(b/191417938): add tests for the Activity isn't the same package of the
+            //  registered callback app
+            Mockito.verify(mockCallback, Mockito.times(1))
                 .onStarted(any(ULocale.class), any(ULocale.class), any(String.class));
 
-        pauseUiTranslation(contentCaptureContext);
+            pauseUiTranslation(contentCaptureContext);
 
-        Mockito.verify(mockCallback, Mockito.times(1)).onPaused(any(String.class));
+            Mockito.verify(mockCallback, Mockito.times(1)).onPaused(any(String.class));
 
-        resumeUiTranslation(contentCaptureContext);
+            resumeUiTranslation(contentCaptureContext);
 
-        Mockito.verify(mockCallback, Mockito.times(1))
+            Mockito.verify(mockCallback, Mockito.times(1))
                 .onResumed(any(ULocale.class), any(ULocale.class), any(String.class));
 
-        finishUiTranslation(contentCaptureContext);
+            finishUiTranslation(contentCaptureContext);
 
-        Mockito.verify(mockCallback, Mockito.times(1)).onFinished(any(String.class));
+            Mockito.verify(mockCallback, Mockito.times(1)).onFinished(any(String.class));
 
-        // Make sure onFinished will not be called twice.
-        mActivityScenario.moveToState(Lifecycle.State.DESTROYED);
-        mActivityScenario = null;
-        SystemClock.sleep(UI_WAIT_TIMEOUT);
-        Mockito.verify(mockCallback, Mockito.times(1)).onFinished(any(String.class));
-
+            // Make sure onFinished will not be called twice.
+            mActivityScenario.moveToState(Lifecycle.State.DESTROYED);
+            mActivityScenario = null;
+            SystemClock.sleep(UI_WAIT_TIMEOUT);
+            Mockito.verify(mockCallback, Mockito.times(1)).onFinished(any(String.class));
+        } finally {
+            manager.unregisterUiTranslationStateCallback(mockCallback);
+        }
         // TODO(b/191417938): add a test to verify startUiTranslation + Activity destroyed.
     }
 
@@ -647,28 +691,32 @@ public class UiTranslationManagerTest {
         manager.registerUiTranslationStateCallback(executor, mockCallback);
         SystemClock.sleep(UI_WAIT_TIMEOUT);
 
-        // Callback should receive onStarted.
-        Mockito.verify(mockCallback, Mockito.times(1))
+        try {
+            // Callback should receive onStarted.
+            Mockito.verify(mockCallback, Mockito.times(1))
                 .onStarted(any(ULocale.class), any(ULocale.class), any(String.class));
 
-        pauseUiTranslation(contentCaptureContext);
+            pauseUiTranslation(contentCaptureContext);
 
-        Mockito.verify(mockCallback, Mockito.times(1)).onPaused(any(String.class));
+            Mockito.verify(mockCallback, Mockito.times(1)).onPaused(any(String.class));
 
-        resumeUiTranslation(contentCaptureContext);
+            resumeUiTranslation(contentCaptureContext);
 
-        Mockito.verify(mockCallback, Mockito.times(1))
+            Mockito.verify(mockCallback, Mockito.times(1))
                 .onResumed(any(ULocale.class), any(ULocale.class), any(String.class));
 
-        finishUiTranslation(contentCaptureContext);
+            finishUiTranslation(contentCaptureContext);
 
-        Mockito.verify(mockCallback, Mockito.times(1)).onFinished(any(String.class));
+            Mockito.verify(mockCallback, Mockito.times(1)).onFinished(any(String.class));
 
-        // Make sure onFinished will not be called twice.
-        mActivityScenario.moveToState(Lifecycle.State.DESTROYED);
-        mActivityScenario = null;
-        SystemClock.sleep(UI_WAIT_TIMEOUT);
-        Mockito.verify(mockCallback, Mockito.times(1)).onFinished(any(String.class));
+            // Make sure onFinished will not be called twice.
+            mActivityScenario.moveToState(Lifecycle.State.DESTROYED);
+            mActivityScenario = null;
+            SystemClock.sleep(UI_WAIT_TIMEOUT);
+            Mockito.verify(mockCallback, Mockito.times(1)).onFinished(any(String.class));
+        } finally {
+            manager.unregisterUiTranslationStateCallback(mockCallback);
+        }
     }
 
     @Test
@@ -694,26 +742,30 @@ public class UiTranslationManagerTest {
         manager.registerUiTranslationStateCallback(executor, mockCallback);
         SystemClock.sleep(UI_WAIT_TIMEOUT);
 
-        // Callback should receive onStarted and onPaused events.
-        Mockito.verify(mockCallback, Mockito.times(1))
+        try {
+            // Callback should receive onStarted and onPaused events.
+            Mockito.verify(mockCallback, Mockito.times(1))
                 .onStarted(any(ULocale.class), any(ULocale.class), any(String.class));
 
-        Mockito.verify(mockCallback, Mockito.times(1)).onPaused(any(String.class));
+            Mockito.verify(mockCallback, Mockito.times(1)).onPaused(any(String.class));
 
-        resumeUiTranslation(contentCaptureContext);
+            resumeUiTranslation(contentCaptureContext);
 
-        Mockito.verify(mockCallback, Mockito.times(1))
+            Mockito.verify(mockCallback, Mockito.times(1))
                 .onResumed(any(ULocale.class), any(ULocale.class), any(String.class));
 
-        finishUiTranslation(contentCaptureContext);
+            finishUiTranslation(contentCaptureContext);
 
-        Mockito.verify(mockCallback, Mockito.times(1)).onFinished(any(String.class));
+            Mockito.verify(mockCallback, Mockito.times(1)).onFinished(any(String.class));
 
-        // Make sure onFinished will not be called twice.
-        mActivityScenario.moveToState(Lifecycle.State.DESTROYED);
-        mActivityScenario = null;
-        SystemClock.sleep(UI_WAIT_TIMEOUT);
-        Mockito.verify(mockCallback, Mockito.times(1)).onFinished(any(String.class));
+            // Make sure onFinished will not be called twice.
+            mActivityScenario.moveToState(Lifecycle.State.DESTROYED);
+            mActivityScenario = null;
+            SystemClock.sleep(UI_WAIT_TIMEOUT);
+            Mockito.verify(mockCallback, Mockito.times(1)).onFinished(any(String.class));
+        } finally {
+            manager.unregisterUiTranslationStateCallback(mockCallback);
+        }
     }
 
     @Test
@@ -741,25 +793,29 @@ public class UiTranslationManagerTest {
         manager.registerUiTranslationStateCallback(executor, mockCallback);
         SystemClock.sleep(UI_WAIT_TIMEOUT);
 
-        // Callback should receive onStarted event but NOT an onPaused event, because translation
-        // was already resumed prior to registration.
-        Mockito.verify(mockCallback, Mockito.times(1))
+        try {
+            // Callback should receive onStarted event but NOT an onPaused event, because
+            // translation was already resumed prior to registration.
+            Mockito.verify(mockCallback, Mockito.times(1))
                 .onStarted(any(ULocale.class), any(ULocale.class), any(String.class));
 
-        Mockito.verify(mockCallback, Mockito.never()).onPaused(any(String.class));
+            Mockito.verify(mockCallback, Mockito.never()).onPaused(any(String.class));
 
-        Mockito.verify(mockCallback, Mockito.never())
+            Mockito.verify(mockCallback, Mockito.never())
                 .onResumed(any(ULocale.class), any(ULocale.class), any(String.class));
 
-        finishUiTranslation(contentCaptureContext);
+            finishUiTranslation(contentCaptureContext);
 
-        Mockito.verify(mockCallback, Mockito.times(1)).onFinished(any(String.class));
+            Mockito.verify(mockCallback, Mockito.times(1)).onFinished(any(String.class));
 
-        // Make sure onFinished will not be called twice.
-        mActivityScenario.moveToState(Lifecycle.State.DESTROYED);
-        mActivityScenario = null;
-        SystemClock.sleep(UI_WAIT_TIMEOUT);
-        Mockito.verify(mockCallback, Mockito.times(1)).onFinished(any(String.class));
+            // Make sure onFinished will not be called twice.
+            mActivityScenario.moveToState(Lifecycle.State.DESTROYED);
+            mActivityScenario = null;
+            SystemClock.sleep(UI_WAIT_TIMEOUT);
+            Mockito.verify(mockCallback, Mockito.times(1)).onFinished(any(String.class));
+        } finally {
+            manager.unregisterUiTranslationStateCallback(mockCallback);
+        }
     }
 
     @Test
@@ -789,22 +845,205 @@ public class UiTranslationManagerTest {
         manager.registerUiTranslationStateCallback(executor, mockCallback);
         SystemClock.sleep(UI_WAIT_TIMEOUT);
 
-        // Callback should receive no events.
-        Mockito.verify(mockCallback, Mockito.never())
+        try {
+            // Callback should receive no events.
+            Mockito.verify(mockCallback, Mockito.never())
                 .onStarted(any(ULocale.class), any(ULocale.class), any(String.class));
 
-        Mockito.verify(mockCallback, Mockito.never()).onPaused(any(String.class));
+            Mockito.verify(mockCallback, Mockito.never()).onPaused(any(String.class));
+
+            Mockito.verify(mockCallback, Mockito.never())
+                .onResumed(any(ULocale.class), any(ULocale.class), any(String.class));
+
+            Mockito.verify(mockCallback, Mockito.never()).onFinished(any(String.class));
+
+            // Make sure onFinished will not be called at all.
+            mActivityScenario.moveToState(Lifecycle.State.DESTROYED);
+            mActivityScenario = null;
+            SystemClock.sleep(UI_WAIT_TIMEOUT);
+            Mockito.verify(mockCallback, Mockito.never()).onFinished(any(String.class));
+        } finally {
+            manager.unregisterUiTranslationStateCallback(mockCallback);
+        }
+    }
+
+    @Test
+    public void testCallbackCalledOnceAfterDuplicateCalls() throws Throwable {
+        final Pair<List<AutofillId>, ContentCaptureContext> result =
+                enableServicesAndStartActivityForTranslation();
+
+        final List<AutofillId> views = result.first;
+        final ContentCaptureContext contentCaptureContext = result.second;
+
+        UiTranslationManager manager =
+                sContext.getSystemService(UiTranslationManager.class);
+        // Set response
+        sTranslationReplier.addResponse(createViewsTranslationResponse(views, "success"));
+
+        // Register callback
+        final Executor executor = Executors.newSingleThreadExecutor();
+        UiTranslationStateCallback mockCallback = Mockito.mock(UiTranslationStateCallback.class);
+        manager.registerUiTranslationStateCallback(executor, mockCallback);
+
+        // Call startTranslation() multiple times; callback should only be called once.
+        // Note: The locales don't change with each call.
+        startUiTranslation(/* shouldPadContent */ false, views, contentCaptureContext);
+        startUiTranslation(/* shouldPadContent */ false, views, contentCaptureContext);
+        startUiTranslation(/* shouldPadContent */ false, views, contentCaptureContext);
+
+        Mockito.verify(mockCallback, Mockito.times(1))
+                .onStarted(any(ULocale.class), any(ULocale.class), any(String.class));
+
+        // Call pauseTranslation() multiple times; callback should only be called once.
+        pauseUiTranslation(contentCaptureContext);
+        pauseUiTranslation(contentCaptureContext);
+        pauseUiTranslation(contentCaptureContext);
+
+        Mockito.verify(mockCallback, Mockito.times(1)).onPaused(any(String.class));
+
+        // Call resumeUiTranslation() multiple times; callback should only be called once.
+        resumeUiTranslation(contentCaptureContext);
+        resumeUiTranslation(contentCaptureContext);
+        resumeUiTranslation(contentCaptureContext);
+
+        Mockito.verify(mockCallback, Mockito.times(1))
+                .onResumed(any(ULocale.class), any(ULocale.class), any(String.class));
+    }
+
+    @Test
+    public void testCallbackCalledForStartTranslationWithDifferentLocales() throws Throwable {
+        final Pair<List<AutofillId>, ContentCaptureContext> result =
+                enableServicesAndStartActivityForTranslation();
+
+        final List<AutofillId> views = result.first;
+        final ContentCaptureContext contentCaptureContext = result.second;
+
+        UiTranslationManager manager =
+                sContext.getSystemService(UiTranslationManager.class);
+        // Set response
+        sTranslationReplier.addResponse(createViewsTranslationResponse(views, "success"));
+
+        // Register callback
+        final Executor executor = Executors.newSingleThreadExecutor();
+        UiTranslationStateCallback mockCallback = Mockito.mock(UiTranslationStateCallback.class);
+        manager.registerUiTranslationStateCallback(executor, mockCallback);
+
+        startUiTranslation(/* shouldPadContent */ false, views, contentCaptureContext,
+                ULocale.ENGLISH, ULocale.FRENCH);
+        startUiTranslation(/* shouldPadContent */ false, views, contentCaptureContext,
+                ULocale.ENGLISH, ULocale.GERMAN);
+        startUiTranslation(/* shouldPadContent */ false, views, contentCaptureContext,
+                ULocale.ITALIAN, ULocale.GERMAN);
+        startUiTranslation(/* shouldPadContent */ false, views, contentCaptureContext,
+                ULocale.JAPANESE, ULocale.KOREAN);
+
+        Mockito.verify(mockCallback, Mockito.times(1))
+                .onStarted(eq(ULocale.ENGLISH), eq(ULocale.FRENCH), any(String.class));
+        Mockito.verify(mockCallback, Mockito.times(1))
+                .onStarted(eq(ULocale.ENGLISH), eq(ULocale.GERMAN), any(String.class));
+        Mockito.verify(mockCallback, Mockito.times(1))
+                .onStarted(eq(ULocale.ITALIAN), eq(ULocale.GERMAN), any(String.class));
+        Mockito.verify(mockCallback, Mockito.times(1))
+                .onStarted(eq(ULocale.JAPANESE), eq(ULocale.KOREAN), any(String.class));
+
+        // Calling startTranslation() after pauseTranslation() should invoke the callback even if
+        // the locales are the same as it was before.
+        pauseUiTranslation(contentCaptureContext);
+
+        Mockito.verify(mockCallback, Mockito.times(1)).onPaused(any(String.class));
+
+        startUiTranslation(/* shouldPadContent */ false, views, contentCaptureContext,
+                ULocale.JAPANESE, ULocale.KOREAN);
+
+        Mockito.verify(mockCallback, Mockito.times(2))
+                .onStarted(eq(ULocale.JAPANESE), eq(ULocale.KOREAN), any(String.class));
+    }
+
+    @Test
+    public void testCallbackCalledOnStartTranslationAfterPause() throws Throwable {
+        final Pair<List<AutofillId>, ContentCaptureContext> result =
+                enableServicesAndStartActivityForTranslation();
+
+        final List<AutofillId> views = result.first;
+        final ContentCaptureContext contentCaptureContext = result.second;
+
+        UiTranslationManager manager =
+                sContext.getSystemService(UiTranslationManager.class);
+        // Set response
+        sTranslationReplier.addResponse(createViewsTranslationResponse(views, "success"));
+
+        // Register callback
+        final Executor executor = Executors.newSingleThreadExecutor();
+        UiTranslationStateCallback mockCallback = Mockito.mock(UiTranslationStateCallback.class);
+        manager.registerUiTranslationStateCallback(executor, mockCallback);
+
+        startUiTranslation(/* shouldPadContent */ false, views, contentCaptureContext);
+
+        Mockito.verify(mockCallback, Mockito.times(1))
+                .onStarted(any(ULocale.class), any(ULocale.class), any(String.class));
+
+        pauseUiTranslation(contentCaptureContext);
+
+        Mockito.verify(mockCallback, Mockito.times(1)).onPaused(any(String.class));
+
+        startUiTranslation(/* shouldPadContent */ false, views, contentCaptureContext);
+
+        // Start after pause invokes onResumed(), NOT onStarted().
+        Mockito.verify(mockCallback, Mockito.times(1))
+                .onResumed(any(ULocale.class), any(ULocale.class), any(String.class));
+    }
+
+    @Test
+    public void testCallbackNotCalledOnResumeTranslationAfterStart() throws Throwable {
+        final Pair<List<AutofillId>, ContentCaptureContext> result =
+                enableServicesAndStartActivityForTranslation();
+
+        final List<AutofillId> views = result.first;
+        final ContentCaptureContext contentCaptureContext = result.second;
+
+        UiTranslationManager manager =
+                sContext.getSystemService(UiTranslationManager.class);
+        // Set response
+        sTranslationReplier.addResponse(createViewsTranslationResponse(views, "success"));
+
+        // Register callback
+        final Executor executor = Executors.newSingleThreadExecutor();
+        UiTranslationStateCallback mockCallback = Mockito.mock(UiTranslationStateCallback.class);
+        manager.registerUiTranslationStateCallback(executor, mockCallback);
+
+        startUiTranslation(/* shouldPadContent */ false, views, contentCaptureContext);
+
+        Mockito.verify(mockCallback, Mockito.times(1))
+                .onStarted(any(ULocale.class), any(ULocale.class), any(String.class));
+
+        resumeUiTranslation(contentCaptureContext);
 
         Mockito.verify(mockCallback, Mockito.never())
                 .onResumed(any(ULocale.class), any(ULocale.class), any(String.class));
+    }
 
-        Mockito.verify(mockCallback, Mockito.never()).onFinished(any(String.class));
+    @Test
+    public void testCallbackNotCalledOnPauseOrResumeTranslationWithoutStart() throws Throwable {
+        final Pair<List<AutofillId>, ContentCaptureContext> result =
+                enableServicesAndStartActivityForTranslation();
 
-        // Make sure onFinished will not be called at all.
-        mActivityScenario.moveToState(Lifecycle.State.DESTROYED);
-        mActivityScenario = null;
-        SystemClock.sleep(UI_WAIT_TIMEOUT);
-        Mockito.verify(mockCallback, Mockito.never()).onFinished(any(String.class));
+        final List<AutofillId> views = result.first;
+        final ContentCaptureContext contentCaptureContext = result.second;
+
+        UiTranslationManager manager =
+                sContext.getSystemService(UiTranslationManager.class);
+        // Set response
+        sTranslationReplier.addResponse(createViewsTranslationResponse(views, "success"));
+
+        // Register callback
+        final Executor executor = Executors.newSingleThreadExecutor();
+        UiTranslationStateCallback mockCallback = Mockito.mock(UiTranslationStateCallback.class);
+        manager.registerUiTranslationStateCallback(executor, mockCallback);
+
+        pauseUiTranslation(contentCaptureContext);
+        resumeUiTranslation(contentCaptureContext);
+
+        Mockito.verifyZeroInteractions(mockCallback);
     }
 
     @Test
@@ -900,11 +1139,7 @@ public class UiTranslationManagerTest {
             startUiTranslation(/* shouldPadContent */ false, views, contentCaptureContext);
 
             // Verify result. Translation response doesn't set, it should show original text
-            assertThat(mResponseNotSetTextView.getSavedResponse()).isNotNull();
-            final UiObject2 responseNotSetText = Helper.findObjectByResId(Helper.ACTIVITY_PACKAGE,
-                    CustomTextViewActivity.ID_RESPONSE_NOT_SET_TEXT);
-            assertThat(responseNotSetText).isNotNull();
-            assertThat(responseNotSetText.getText()).isEqualTo("Hello World 1");
+            assertScreenText(mResponseNotSetTextView, "Hello World 1");
         } catch (Throwable t) {
             Helper.takeScreenshotAndSave(sContext, TestNameUtils.getCurrentTestName(),
                     Helper.LOCAL_TEST_FILES_DIR);
@@ -939,14 +1174,11 @@ public class UiTranslationManagerTest {
 
             // Verify result.
             assertThat(mCustomTextView.isMyTagTranslationSupported()).isTrue();
-            final UiObject2 customText = Helper.findObjectByResId(Helper.ACTIVITY_PACKAGE,
-                    CustomTextViewActivity.ID_CUSTOM_TEXT);
-            assertThat(customText).isNotNull();
-            assertThat(customText.getText()).isEqualTo(translatedText);
+            assertScreenText(mCustomTextView, translatedText);
 
             finishUiTranslation(contentCaptureContext);
 
-            assertThat(customText.getText()).isEqualTo("Hello World 2");
+            assertScreenText(mCustomTextView, "Hello World 2");
         } catch (Throwable t) {
             Helper.takeScreenshotAndSave(sContext, TestNameUtils.getCurrentTestName(),
                     Helper.LOCAL_TEST_FILES_DIR);
@@ -954,16 +1186,27 @@ public class UiTranslationManagerTest {
         }
     }
 
+
+    private void assertScreenText(TextView textView, String expected) {
+        String screenText = textView.getLayout().getText().toString();
+        assertThat(screenText).isEqualTo(expected);
+    }
+
     private void startUiTranslation(boolean shouldPadContent, List<AutofillId> views,
             ContentCaptureContext contentCaptureContext) {
+        startUiTranslation(shouldPadContent, views, contentCaptureContext, ULocale.ENGLISH,
+                ULocale.FRENCH);
+    }
+
+    private void startUiTranslation(boolean shouldPadContent, List<AutofillId> views,
+            ContentCaptureContext contentCaptureContext, ULocale sourceLocale,
+            ULocale targetLocale) {
         final UiTranslationManager manager = sContext.getSystemService(UiTranslationManager.class);
         runWithShellPermissionIdentity(() -> {
             // Call startTranslation API
             manager.startTranslation(
-                    new TranslationSpec(ULocale.ENGLISH,
-                            TranslationSpec.DATA_FORMAT_TEXT),
-                    new TranslationSpec(ULocale.FRENCH,
-                            TranslationSpec.DATA_FORMAT_TEXT),
+                    new TranslationSpec(sourceLocale, TranslationSpec.DATA_FORMAT_TEXT),
+                    new TranslationSpec(targetLocale, TranslationSpec.DATA_FORMAT_TEXT),
                     views, contentCaptureContext.getActivityId(),
                     shouldPadContent ? new UiTranslationSpec.Builder().setShouldPadContentForCompat(
                             true).build() : new UiTranslationSpec.Builder().build());
@@ -1099,6 +1342,7 @@ public class UiTranslationManagerTest {
 
         mActivityScenario = ActivityScenario.launch(intent);
         mActivityScenario.onActivity(activity -> {
+            mSimpleActivity = activity;
             mTextView = activity.getHelloText();
             originalTextRef.set(activity.getHelloText().getText());
             viewAutofillIdsRef.set(activity.getViewsForTranslation());

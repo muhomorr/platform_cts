@@ -43,11 +43,6 @@ import java.util.Arrays;
  */
 class TestUtils {
     /**
-     * Bluetooth package name
-     */
-    static final String BLUETOOTH_PACKAGE_NAME = "com.android.bluetooth.services";
-
-    /**
      * Checks whether this device has Bluetooth feature
      * @return true if this device has Bluetooth feature
      */
@@ -74,7 +69,7 @@ class TestUtils {
             case BluetoothProfile.CSIP_SET_COORDINATOR:
                 return BluetoothProperties.isProfileCsipSetCoordinatorEnabled().orElse(false);
             case BluetoothProfile.GATT:
-                return BluetoothProperties.isProfileGattEnabled().orElse(false);
+                return BluetoothProperties.isProfileGattEnabled().orElse(true);
             case BluetoothProfile.HAP_CLIENT:
                 return BluetoothProperties.isProfileHapClientEnabled().orElse(false);
             case BluetoothProfile.HEADSET:
@@ -88,14 +83,14 @@ class TestUtils {
             case BluetoothProfile.HID_HOST:
                 return BluetoothProperties.isProfileHidHostEnabled().orElse(false);
             case BluetoothProfile.LE_AUDIO:
-                return BluetoothProperties.isProfileBapUnicastServerEnabled().orElse(false);
+                return BluetoothProperties.isProfileBapUnicastClientEnabled().orElse(false);
             case BluetoothProfile.LE_AUDIO_BROADCAST:
                 return BluetoothProperties.isProfileBapBroadcastSourceEnabled().orElse(false);
             case BluetoothProfile.LE_AUDIO_BROADCAST_ASSISTANT:
                 return BluetoothProperties.isProfileBapBroadcastAssistEnabled().orElse(false);
             // Hidden profile
             // case BluetoothProfile.LE_CALL_CONTROL:
-            //     return BluetoothProperties.isProfileTbsServerEnabled().orElse(false);
+            //     return BluetoothProperties.isProfileCcpServerEnabled().orElse(false);
             case BluetoothProfile.MAP:
                 return BluetoothProperties.isProfileMapServerEnabled().orElse(false);
             case BluetoothProfile.MAP_CLIENT:
@@ -115,7 +110,7 @@ class TestUtils {
             case BluetoothProfile.SAP:
                 return BluetoothProperties.isProfileSapServerEnabled().orElse(false);
             case BluetoothProfile.VOLUME_CONTROL:
-                return BluetoothProperties.isProfileVcServerEnabled().orElse(false);
+                return BluetoothProperties.isProfileVcpControllerEnabled().orElse(false);
             default:
                 return false;
         }

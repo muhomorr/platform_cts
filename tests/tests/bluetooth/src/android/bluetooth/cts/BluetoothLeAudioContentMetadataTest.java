@@ -88,7 +88,7 @@ public class BluetoothLeAudioContentMetadataTest {
 
         mIsBroadcastSourceSupported =
                 mAdapter.isLeAudioBroadcastSourceSupported() == FEATURE_SUPPORTED;
-        if (!mIsBroadcastSourceSupported) {
+        if (mIsBroadcastSourceSupported) {
             boolean isBroadcastSourceEnabledInConfig =
                     TestUtils.isProfileEnabled(BluetoothProfile.LE_AUDIO_BROADCAST_ASSISTANT);
             assertTrue("Config must be true when profile is supported",
@@ -108,7 +108,7 @@ public class BluetoothLeAudioContentMetadataTest {
     }
 
     @Test
-    public void testCreateCodecConfigMetadataFromBuilder() {
+    public void testCreateContentMetadataFromBuilder() {
         if (shouldSkipTest()) {
             return;
         }
@@ -121,7 +121,7 @@ public class BluetoothLeAudioContentMetadataTest {
     }
 
     @Test
-    public void testCreateCodecConfigMetadataFromCopy() {
+    public void testCreateContentMetadataFromCopy() {
         if (shouldSkipTest()) {
             return;
         }
@@ -136,7 +136,7 @@ public class BluetoothLeAudioContentMetadataTest {
     }
 
     @Test
-    public void testCreateCodecConfigMetadataFromBytes() {
+    public void testCreateContentMetadataFromBytes() {
         if (shouldSkipTest()) {
             return;
         }

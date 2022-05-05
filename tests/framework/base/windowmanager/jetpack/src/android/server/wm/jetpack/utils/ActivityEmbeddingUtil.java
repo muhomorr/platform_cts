@@ -33,6 +33,7 @@ import android.app.Activity;
 import android.content.ComponentName;
 import android.content.Intent;
 import android.graphics.Rect;
+import android.os.Bundle;
 import android.util.LayoutDirection;
 import android.util.Log;
 import android.util.Pair;
@@ -80,6 +81,30 @@ public class ActivityEmbeddingUtil {
     }
 
     @NonNull
+    public static SplitPairRule createWildcardSplitPairRuleWithPrimaryActivityClass(
+            Class<? extends Activity> activityClass, boolean shouldClearTop) {
+        return createWildcardSplitPairRuleBuilderWithPrimaryActivityClass(activityClass,
+                shouldClearTop).build();
+    }
+
+    @NonNull
+    public static SplitPairRule.Builder createWildcardSplitPairRuleBuilderWithPrimaryActivityClass(
+            Class<? extends Activity> activityClass, boolean shouldClearTop) {
+        // The specified activity be split any activity
+        final Predicate<Pair<Activity, Activity>> activityPairPredicate =
+                activityActivityPair -> activityActivityPair.first.getClass().equals(activityClass);
+        // The specified activity can launch any split intent
+        final Predicate<Pair<Activity, Intent>> activityIntentPredicate =
+                activityIntentPair -> activityIntentPair.first.getClass().equals(activityClass);
+        // Allow any parent bounds to show the split containers side by side
+        Predicate<WindowMetrics> parentWindowMetricsPredicate = windowMetrics -> true;
+        // Build the split pair rule
+        return new SplitPairRule.Builder(activityPairPredicate,
+                activityIntentPredicate, parentWindowMetricsPredicate).setSplitRatio(
+                DEFAULT_SPLIT_RATIO).setShouldClearTop(shouldClearTop);
+    }
+
+    @NonNull
     public static SplitPairRule createWildcardSplitPairRule() {
         return createWildcardSplitPairRule(false /* shouldClearTop */);
     }
@@ -118,13 +143,16 @@ public class ActivityEmbeddingUtil {
         } catch (InterruptedException e) {
             fail("startActivityAndVerifySplit() InterruptedException");
         }
+        if (activeSplitStates == null) {
+            fail("Didn't receive updated split info");
+        }
 
         // Wait for secondary activity to be resumed and verify that the newly sent split info
         // contains the secondary activity.
         waitAndAssertResumed(secondaryActivityId);
         final Activity secondaryActivity = getResumedActivityById(secondaryActivityId);
-        assertTrue(splitInfoTopSplitIsCorrect(activeSplitStates, expectedPrimaryActivity,
-                secondaryActivity));
+        assertSplitInfoTopSplitIsCorrect(activeSplitStates, expectedPrimaryActivity,
+                secondaryActivity);
 
         assertValidSplit(expectedPrimaryActivity, secondaryActivity, splitPairRule);
 
@@ -157,7 +185,8 @@ public class ActivityEmbeddingUtil {
             @NonNull ComponentName secondActivityComponent, @NonNull SplitPairRule splitPairRule,
             @NonNull TestValueCountConsumer<List<SplitInfo>> splitInfoConsumer,
             @NonNull String secondActivityId, boolean verifySplitState) {
-        startActivityFromActivity(primaryActivity, secondActivityComponent, secondActivityId);
+        startActivityFromActivity(primaryActivity, secondActivityComponent, secondActivityId,
+                Bundle.EMPTY);
         if (!verifySplitState) {
             return;
         }
@@ -194,13 +223,22 @@ public class ActivityEmbeddingUtil {
             @NonNull TestValueCountConsumer<List<SplitInfo>> splitInfoConsumer) {
         boolean startExceptionObserved = false;
         try {
-            startActivityFromActivity(primaryActivity, secondActivityComponent, "secondActivityId");
+            startActivityFromActivity(primaryActivity, secondActivityComponent, "secondActivityId",
+                    Bundle.EMPTY);
         } catch (SecurityException e) {
             startExceptionObserved = true;
         }
         assertTrue(startExceptionObserved);
 
         // No split should be active, primary activity should be covered by the new one.
+        assertNoSplit(primaryActivity, splitInfoConsumer);
+    }
+
+    /**
+     * Asserts that there is no split with the provided primary activity.
+     */
+    public static void assertNoSplit(@NonNull Activity primaryActivity,
+            @NonNull TestValueCountConsumer<List<SplitInfo>> splitInfoConsumer) {
         waitForVisible(primaryActivity, false /* visible */);
         List<SplitInfo> activeSplitStates = splitInfoConsumer.getLastReportedValue();
         assertTrue(activeSplitStates == null || activeSplitStates.isEmpty());
@@ -327,7 +365,7 @@ public class ActivityEmbeddingUtil {
                 waitForResumed(activityId));
     }
 
-    private static boolean waitForVisible(@NonNull Activity activity, boolean visible) {
+    public static boolean waitForVisible(@NonNull Activity activity, boolean visible) {
         final long startTime = System.currentTimeMillis();
         while (System.currentTimeMillis() - startTime < WAIT_FOR_LIFECYCLE_TIMEOUT_MS) {
             if (WindowManagerJetpackTestBase.isActivityVisible(activity) == visible) {
@@ -335,6 +373,11 @@ public class ActivityEmbeddingUtil {
             }
         }
         return false;
+    }
+
+    public static void waitAndAssertVisible(@NonNull Activity activity) {
+        assertTrue(activity + " should be visible",
+                waitForVisible(activity, true /* visible */));
     }
 
     public static void waitAndAssertNotVisible(@NonNull Activity activity) {
@@ -410,11 +453,13 @@ public class ActivityEmbeddingUtil {
         }
     }
 
-    private static boolean splitInfoTopSplitIsCorrect(@NonNull List<SplitInfo> splitInfoList,
+    private static void assertSplitInfoTopSplitIsCorrect(@NonNull List<SplitInfo> splitInfoList,
             @NonNull Activity primaryActivity, @NonNull Activity secondaryActivity) {
         assertFalse("Split info callback should not be empty", splitInfoList.isEmpty());
         final SplitInfo topSplit = splitInfoList.get(splitInfoList.size() - 1);
-        return primaryActivity.equals(getPrimaryStackTopActivity(topSplit))
-                && secondaryActivity.equals(getSecondaryStackTopActivity(topSplit));
+        assertEquals("Expect primary activity to match the top of the primary stack",
+                primaryActivity, getPrimaryStackTopActivity(topSplit));
+        assertEquals("Expect secondary activity to match the top of the secondary stack",
+                secondaryActivity, getSecondaryStackTopActivity(topSplit));
     }
 }
