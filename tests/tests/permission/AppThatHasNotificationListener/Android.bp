@@ -1,3 +1,4 @@
+//
 // Copyright (C) 2022 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -11,19 +12,28 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+//
 
 package {
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
 android_test_helper_app {
-    name: "CtsAppCloningTestApp",
-    defaults: ["cts_defaults"],
-    static_libs: [
-        "cts-install-lib",
+    name: "CtsAppThatHasNotificationListener",
+    defaults: [
+        "cts_defaults",
+        "mts-target-sdk-version-current",
     ],
-    srcs: ["src/**/*.java"],
-    sdk_version: "test_current",
-    target_sdk_version: "33",
+    sdk_version: "current",
     min_sdk_version: "30",
+    // Tag this module as a cts test artifact
+    test_suites: [
+        "cts",
+        "general-tests",
+        "sts",
+        "mts-permission",
+    ],
+    srcs: [
+        "src/**/*.java",
+    ],
 }
