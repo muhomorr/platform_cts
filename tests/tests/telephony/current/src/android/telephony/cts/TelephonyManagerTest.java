@@ -101,6 +101,7 @@ import android.util.Pair;
 
 import androidx.test.InstrumentationRegistry;
 
+import com.android.compatibility.common.util.CarrierPrivilegeUtils;
 import com.android.compatibility.common.util.CddTest;
 import com.android.compatibility.common.util.ShellIdentityUtils;
 import com.android.compatibility.common.util.TestThread;
@@ -121,6 +122,7 @@ import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -2044,14 +2046,16 @@ public class TelephonyManagerTest {
         }
         String[] originalFplmns = mTelephonyManager.getForbiddenPlmns();
         try {
-            int numFplmnsSet = mTelephonyManager.setForbiddenPlmns(FPLMN_TEST);
+            int numFplmnsSet = ShellIdentityUtils.invokeMethodWithShellPermissions(
+                mTelephonyManager, (tm) -> tm.setForbiddenPlmns(FPLMN_TEST));
             String[] writtenFplmns = mTelephonyManager.getForbiddenPlmns();
             assertEquals("Wrong return value for setFplmns with less than required fplmns: "
                     + numFplmnsSet, FPLMN_TEST.size(), numFplmnsSet);
             assertEquals("Wrong Fplmns content written", FPLMN_TEST, Arrays.asList(writtenFplmns));
         } finally {
             // Restore
-            mTelephonyManager.setForbiddenPlmns(Arrays.asList(originalFplmns));
+            ShellIdentityUtils.invokeMethodWithShellPermissions(
+                mTelephonyManager, (tm) -> tm.setForbiddenPlmns(Arrays.asList(originalFplmns)));
         }
     }
 
@@ -2073,7 +2077,8 @@ public class TelephonyManagerTest {
             for (int i = MIN_FPLMN_NUM; i < MAX_FPLMN_NUM; i++) {
                 targetFplmns.add(PLMN_B);
             }
-            int numFplmnsSet = mTelephonyManager.setForbiddenPlmns(targetFplmns);
+            int numFplmnsSet = ShellIdentityUtils.invokeMethodWithShellPermissions(
+                mTelephonyManager, (tm) -> tm.setForbiddenPlmns(targetFplmns));
             String[] writtenFplmns = mTelephonyManager.getForbiddenPlmns();
             assertTrue("Wrong return value for setFplmns with overflowing fplmns: " + numFplmnsSet,
                     numFplmnsSet < MAX_FPLMN_NUM);
@@ -2083,7 +2088,8 @@ public class TelephonyManagerTest {
                     Arrays.asList(writtenFplmns));
         } finally {
             // Restore
-            mTelephonyManager.setForbiddenPlmns(Arrays.asList(originalFplmns));
+            ShellIdentityUtils.invokeMethodWithShellPermissions(
+                mTelephonyManager, (tm) -> tm.setForbiddenPlmns(Arrays.asList(originalFplmns)));
         }
     }
 
@@ -2102,19 +2108,22 @@ public class TelephonyManagerTest {
             for (int i = 0; i < MIN_FPLMN_NUM; i++) {
                 targetDummyFplmns.add(PLMN_A);
             }
-            mTelephonyManager.setForbiddenPlmns(targetDummyFplmns);
+            ShellIdentityUtils.invokeMethodWithShellPermissions(
+                mTelephonyManager, (tm) -> tm.setForbiddenPlmns(targetDummyFplmns));
             String[] writtenDummyFplmns = mTelephonyManager.getForbiddenPlmns();
             assertEquals(targetDummyFplmns, Arrays.asList(writtenDummyFplmns));
 
             List<String> targetFplmns = new ArrayList<>();
-            int numFplmnsSet = mTelephonyManager.setForbiddenPlmns(targetFplmns);
+            int numFplmnsSet = ShellIdentityUtils.invokeMethodWithShellPermissions(
+                mTelephonyManager, (tm) -> tm.setForbiddenPlmns(targetFplmns));
             String[] writtenFplmns = mTelephonyManager.getForbiddenPlmns();
             assertEquals("Wrong return value for setFplmns with empty list", 0, numFplmnsSet);
             assertEquals("Wrong number of Fplmns written", 0, writtenFplmns.length);
             // TODO wait for 10 minutes or so for the FPLMNS list to grow back
         } finally {
             // Restore
-            mTelephonyManager.setForbiddenPlmns(Arrays.asList(originalFplmns));
+            ShellIdentityUtils.invokeMethodWithShellPermissions(
+                mTelephonyManager, (tm) -> tm.setForbiddenPlmns(Arrays.asList(originalFplmns)));
         }
     }
 
@@ -2129,12 +2138,14 @@ public class TelephonyManagerTest {
         }
         String[] originalFplmns = mTelephonyManager.getForbiddenPlmns();
         try {
-            mTelephonyManager.setForbiddenPlmns(null);
+            ShellIdentityUtils.invokeMethodWithShellPermissions(
+                mTelephonyManager, (tm) -> tm.setForbiddenPlmns(null));
             fail("Expected IllegalArgumentException. Null input is not allowed");
         } catch (IllegalArgumentException expected) {
         } finally {
             // Restore
-            mTelephonyManager.setForbiddenPlmns(Arrays.asList(originalFplmns));
+            ShellIdentityUtils.invokeMethodWithShellPermissions(
+                mTelephonyManager, (tm) -> tm.setForbiddenPlmns(Arrays.asList(originalFplmns)));
         }
     }
 
@@ -2247,7 +2258,16 @@ public class TelephonyManagerTest {
             Log.d(TAG, "Skipping test that requires FEATURE_TELEPHONY");
             return;
         }
-        // Requires READ_PRIVILEGED_PHONE_STATE or carrier privileges
+
+        // The API requires either READ_PRIVILEGED_PHONE_STATE or carrier privileges
+        try {
+            mTelephonyManager.getUiccCardsInfo();
+            fail("Telephony#getUiccCardsInfo should throw SecurityException without "
+                    + "READ_PRIVILEGED_PHONE_STATE nor carrier privileges");
+        } catch (SecurityException expected) {
+        }
+
+        // With READ_PRIVILEGED_PHONE_STATE only, it should work
         List<UiccCardInfo> infos =
                 ShellIdentityUtils.invokeMethodWithShellPermissions(mTelephonyManager,
                 (tm) -> tm.getUiccCardsInfo());
@@ -2261,6 +2281,19 @@ public class TelephonyManagerTest {
             info.getPorts();
             info.getPhysicalSlotIndex();
             info.isRemovable();
+        }
+
+        // With carrier privileges only, it should also work
+        try {
+            CarrierPrivilegeUtils.withCarrierPrivileges(
+                    getContext(),
+                    SubscriptionManager.getDefaultSubscriptionId(),
+                    () -> mTelephonyManager.getUiccCardsInfo());
+        } catch (SecurityException se) {
+            fail("TelephonyManager.getUiccCardsInfo should not throw SecurityException with "
+                    + "carrier privileges");
+        } catch (Exception e) {
+            fail("Exception thrown when try to get carrier privileges.");
         }
     }
 
@@ -2819,6 +2852,21 @@ public class TelephonyManagerTest {
     }
 
     @Test
+    public void testIccOpenLogicalChannelBySlotAndPort() {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            return;
+        }
+        // just verify no crash
+        try {
+            ShellIdentityUtils.invokeMethodWithShellPermissions(
+                    mTelephonyManager, (tm) -> tm.iccOpenLogicalChannelByPort(0, 0, null, 0));
+        } catch (SecurityException e) {
+            // IllegalArgumentException is okay, just not SecurityException
+            fail("iccCloseLogicalChannelByPort: SecurityException not expected");
+        }
+    }
+
+    @Test
     public void testIccCloseLogicalChannelBySlot() {
         if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
             return;
@@ -2831,13 +2879,41 @@ public class TelephonyManagerTest {
             // IllegalArgumentException is okay, just not SecurityException
         }
     }
+    @Test
+    public void testIccCloseLogicalChannelBySlotAndPort() {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            return;
+        }
+        // just verify no crash
+        try {
+            ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(
+                    mTelephonyManager, (tm) -> tm.iccCloseLogicalChannelByPort(0, 0, 0));
+        } catch (SecurityException e) {
+            // IllegalArgumentException is okay, just not SecurityException
+            fail("iccCloseLogicalChannelByPort: SecurityException not expected");
+        }
+        try {
+            ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(
+                    mTelephonyManager, (tm) -> tm.iccCloseLogicalChannelByPort(0, -1, 0));
+            fail("Expected IllegalArgumentException, invalid PortIndex");
+        } catch (IllegalArgumentException e) {
+            // IllegalArgumentException is expected
+        }
+        try {
+            ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(
+                    mTelephonyManager, (tm) -> tm.iccCloseLogicalChannelByPort(0, 0, -1));
+            fail("Expected IllegalArgumentException, invalid channel");
+        } catch (IllegalArgumentException e) {
+            // IllegalArgumentException is expected
+        }
+    }
 
     @Test
     public void testIccTransmitApduLogicalChannelBySlot() {
         if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
             return;
         }
-        int slotIndex = getValidSlotIndex();
+        int slotIndex = getValidSlotIndexAndPort().getKey();
         String result = ShellIdentityUtils.invokeMethodWithShellPermissions(
                 mTelephonyManager, (tm) -> tm.iccTransmitApduLogicalChannelBySlot(
                         slotIndex,
@@ -2852,12 +2928,37 @@ public class TelephonyManagerTest {
     }
 
     @Test
+    public void testIccTransmitApduLogicalChannelBySlotAndPort() {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            return;
+        }
+        int slotIndex = getValidSlotIndexAndPort().getKey();
+        int portIndex = getValidSlotIndexAndPort().getValue();
+        try {
+            String result = ShellIdentityUtils.invokeMethodWithShellPermissions(
+                    mTelephonyManager, (tm) -> tm.iccTransmitApduLogicalChannelByPort(
+                            slotIndex,
+                            portIndex /* portIndex */,
+                            0 /* channel */,
+                            0 /* cla */,
+                            0 /* instruction */,
+                            0 /* p1 */,
+                            0 /* p2 */,
+                            0 /* p3 */,
+                            null /* data */));
+            assertTrue(TextUtils.isEmpty(result));
+        } catch (SecurityException e) {
+            // IllegalArgumentException is okay, just not SecurityException
+            fail("iccTransmitApduLogicalChannelByPort: SecurityException not expected");
+        }
+    }
+    @Test
     public void testIccTransmitApduBasicChannelBySlot() {
         if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
             return;
         }
         // just verify no crash
-        int slotIndex = getValidSlotIndex();
+        int slotIndex = getValidSlotIndexAndPort().getKey();
         try {
             ShellIdentityUtils.invokeMethodWithShellPermissions(
                     mTelephonyManager, (tm) -> tm.iccTransmitApduBasicChannelBySlot(
@@ -2870,6 +2971,31 @@ public class TelephonyManagerTest {
                             null /* data */));
         } catch (IllegalArgumentException e ) {
             // IllegalArgumentException is okay, just not SecurityException
+        }
+    }
+
+    @Test
+    public void testIccTransmitApduBasicChannelBySlotAndPort() {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            return;
+        }
+        // just verify no crash
+        int slotIndex = getValidSlotIndexAndPort().getKey();
+        int portIndex = getValidSlotIndexAndPort().getValue();
+        try {
+            ShellIdentityUtils.invokeMethodWithShellPermissions(
+                    mTelephonyManager, (tm) -> tm.iccTransmitApduBasicChannelByPort(
+                            slotIndex,
+                            portIndex /*portIndex */,
+                            0 /* cla */,
+                            0 /* instruction */,
+                            0 /* p1 */,
+                            0 /* p2 */,
+                            0 /* p3 */,
+                            null /* data */));
+        } catch (SecurityException e) {
+            // IllegalArgumentException is okay, just not SecurityException
+            fail("iccTransmitApduBasicChannelByPort: SecurityException not expected");
         }
     }
 
@@ -3434,6 +3560,19 @@ public class TelephonyManagerTest {
                 TelephonyManager.SIM_STATE_NOT_READY,
                 TelephonyManager.SIM_STATE_PERM_DISABLED,
                 TelephonyManager.SIM_STATE_LOADED).contains(simApplicationState));
+
+        for (int i = 0; i <= mTelephonyManager.getPhoneCount(); i++) {
+            final int slotId = i;
+            simApplicationState = ShellIdentityUtils.invokeMethodWithShellPermissions(
+                    mTelephonyManager, (tm) -> tm.getSimApplicationState(slotId));
+            assertTrue(Arrays.asList(TelephonyManager.SIM_STATE_UNKNOWN,
+                    TelephonyManager.SIM_STATE_PIN_REQUIRED,
+                    TelephonyManager.SIM_STATE_PUK_REQUIRED,
+                    TelephonyManager.SIM_STATE_NETWORK_LOCKED,
+                    TelephonyManager.SIM_STATE_NOT_READY,
+                    TelephonyManager.SIM_STATE_PERM_DISABLED,
+                    TelephonyManager.SIM_STATE_LOADED).contains(simApplicationState));
+        }
     }
 
     @Test
@@ -3447,6 +3586,28 @@ public class TelephonyManagerTest {
                 TelephonyManager.SIM_STATE_CARD_IO_ERROR,
                 TelephonyManager.SIM_STATE_CARD_RESTRICTED,
                 TelephonyManager.SIM_STATE_PRESENT).contains(simCardState));
+    }
+    @Test
+    public void getSimCardStateTest() {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            return;
+        }
+        InstrumentationRegistry.getInstrumentation().getUiAutomation()
+                .adoptShellPermissionIdentity("android.permission.READ_PRIVILEGED_PHONE_STATE");
+        List<UiccCardInfo> cardsInfo = mTelephonyManager.getUiccCardsInfo();
+        InstrumentationRegistry.getInstrumentation().getUiAutomation()
+                .dropShellPermissionIdentity();
+        for (UiccCardInfo cardInfo : cardsInfo) {
+            for (UiccPortInfo portInfo : cardInfo.getPorts()) {
+                int simCardState = mTelephonyManager.getSimCardState(cardInfo
+                        .getPhysicalSlotIndex(), portInfo.getPortIndex());
+                assertTrue(Arrays.asList(TelephonyManager.SIM_STATE_UNKNOWN,
+                        TelephonyManager.SIM_STATE_ABSENT,
+                        TelephonyManager.SIM_STATE_CARD_IO_ERROR,
+                        TelephonyManager.SIM_STATE_CARD_RESTRICTED,
+                        TelephonyManager.SIM_STATE_PRESENT).contains(simCardState));
+            }
+        }
     }
 
     private boolean isDataEnabled() {
@@ -3465,6 +3626,7 @@ public class TelephonyManagerTest {
                 (tm) -> tm.setDataEnabledForReason(TelephonyManager.DATA_ENABLED_REASON_THERMAL,
                         false));
 
+        waitForMs(500);
         boolean isDataEnabledForReason = ShellIdentityUtils.invokeMethodWithShellPermissions(
                 mTelephonyManager, (tm) -> tm.isDataEnabledForReason(
                         TelephonyManager.DATA_ENABLED_REASON_THERMAL));
@@ -3479,6 +3641,7 @@ public class TelephonyManagerTest {
                 (tm) -> tm.setDataEnabledForReason(TelephonyManager.DATA_ENABLED_REASON_THERMAL,
                         true));
 
+        waitForMs(500);
         isDataEnabledForReason = ShellIdentityUtils.invokeMethodWithShellPermissions(
                 mTelephonyManager, (tm) -> tm.isDataEnabledForReason(
                         TelephonyManager.DATA_ENABLED_REASON_THERMAL));
@@ -3500,6 +3663,7 @@ public class TelephonyManagerTest {
                 (tm) -> tm.setDataEnabledForReason(TelephonyManager.DATA_ENABLED_REASON_POLICY,
                         false));
 
+        waitForMs(500);
         boolean isDataEnabledForReason = ShellIdentityUtils.invokeMethodWithShellPermissions(
                 mTelephonyManager, (tm) -> tm.isDataEnabledForReason(
                         TelephonyManager.DATA_ENABLED_REASON_POLICY));
@@ -3514,6 +3678,7 @@ public class TelephonyManagerTest {
                 (tm) -> tm.setDataEnabledForReason(TelephonyManager.DATA_ENABLED_REASON_POLICY,
                         true));
 
+        waitForMs(500);
         isDataEnabledForReason = ShellIdentityUtils.invokeMethodWithShellPermissions(
                 mTelephonyManager, (tm) -> tm.isDataEnabledForReason(
                         TelephonyManager.DATA_ENABLED_REASON_POLICY));
@@ -3614,6 +3779,7 @@ public class TelephonyManagerTest {
                         TelephonyManager.MOBILE_DATA_POLICY_DATA_ON_NON_DEFAULT_DURING_VOICE_CALL,
                         !allowDataDuringVoiceCall));
 
+        waitForMs(500);
         assertNotEquals(allowDataDuringVoiceCall,
                 ShellIdentityUtils.invokeMethodWithShellPermissions(
                         mTelephonyManager, getPolicyHelper));
@@ -3623,6 +3789,7 @@ public class TelephonyManagerTest {
                         TelephonyManager.MOBILE_DATA_POLICY_DATA_ON_NON_DEFAULT_DURING_VOICE_CALL,
                         allowDataDuringVoiceCall));
 
+        waitForMs(500);
         assertEquals(allowDataDuringVoiceCall,
                 ShellIdentityUtils.invokeMethodWithShellPermissions(
                         mTelephonyManager, getPolicyHelper));
@@ -3646,6 +3813,7 @@ public class TelephonyManagerTest {
                         TelephonyManager.MOBILE_DATA_POLICY_MMS_ALWAYS_ALLOWED,
                         !mmsAlwaysAllowed));
 
+        waitForMs(500);
         assertNotEquals(mmsAlwaysAllowed,
                 ShellIdentityUtils.invokeMethodWithShellPermissions(
                         mTelephonyManager, getPolicyHelper));
@@ -3655,6 +3823,7 @@ public class TelephonyManagerTest {
                         TelephonyManager.MOBILE_DATA_POLICY_MMS_ALWAYS_ALLOWED,
                         mmsAlwaysAllowed));
 
+        waitForMs(500);
         assertEquals(mmsAlwaysAllowed,
                 ShellIdentityUtils.invokeMethodWithShellPermissions(
                         mTelephonyManager, getPolicyHelper));
@@ -4482,9 +4651,10 @@ public class TelephonyManagerTest {
         return (c >= '0' && c <= '9') || c == '*' || c == '#' || c == '+' || c == 'N';
     }
 
-    private int getValidSlotIndex() {
+    private Map.Entry<Integer, Integer> getValidSlotIndexAndPort() {
         return ShellIdentityUtils.invokeMethodWithShellPermissions(
                 mTelephonyManager, (tm) -> {
+
                     List<UiccCardInfo> cardInfos = mTelephonyManager.getUiccCardsInfo();
                     Set<String> presentCards = Arrays.stream(mTelephonyManager.getUiccSlotsInfo())
                             .filter(Objects::nonNull)
@@ -4496,11 +4666,15 @@ public class TelephonyManagerTest {
                             .map(s -> s.endsWith("F") ? s.substring(0, s.length() - 1) : s)
                             .collect(Collectors.toSet());
                     int slotIndex = -1;
+                    int portIndex = -1;
                     for (UiccCardInfo cardInfo : cardInfos) {
                         for (UiccPortInfo portInfo : cardInfo.getPorts()) {
                             if (presentCards.contains(portInfo.getIccId())
                                     || presentCards.contains(cardInfo.getEid())) {
                                 slotIndex = cardInfo.getPhysicalSlotIndex();
+                                portIndex = portInfo.getPortIndex();
+                                Log.d(TAG, "SlotIndex : " + slotIndex + " and portIndex :"
+                                        + portIndex);
                                 break;
                             }
                         }
@@ -4509,7 +4683,7 @@ public class TelephonyManagerTest {
                         fail("Test must be run with SIM card inserted, presentCards = "
                                 + presentCards + "cardinfos = " + cardInfos);
                     }
-                    return slotIndex;
+                    return Map.entry(slotIndex, portIndex);
                 });
     }
 
@@ -4755,9 +4929,22 @@ public class TelephonyManagerTest {
     public void testCheckCarrierPrivilegesForPackageAnyPhone() {
         try {
             mTelephonyManager.checkCarrierPrivilegesForPackageAnyPhone(mSelfPackageName);
+            fail("TelephonyManager#checkCarrierPrivilegesForPackageAnyPhone must be protected "
+                    + "with READ_PRIVILEGED_PHONE_STATE");
+        } catch (SecurityException expected) {
+        }
+
+        try {
+            InstrumentationRegistry.getInstrumentation().getUiAutomation()
+                    .adoptShellPermissionIdentity(
+                            "android.permission.READ_PRIVILEGED_PHONE_STATE");
+            mTelephonyManager.checkCarrierPrivilegesForPackageAnyPhone(mSelfPackageName);
         } catch (SecurityException e) {
-            fail("TelephonyManager#checkCarrierPrivilegesForPackageAnyPhone shouldn't require "
-                    + "READ_PRIVILEGED_PHONE_STATE");
+            fail("TelephonyManager#checkCarrierPrivilegesForPackageAnyPhone should not throw "
+                    + "SecurityException with READ_PRIVILEGED_PHONE_STATE permission");
+        } finally {
+            InstrumentationRegistry.getInstrumentation().getUiAutomation()
+                    .dropShellPermissionIdentity();
         }
     }
 
@@ -4906,6 +5093,77 @@ public class TelephonyManagerTest {
                 portInfo.getPortIndex();
             }
         }
+    }
+
+    @Test
+    public void getSimSlotMappingTestReadPermission() {
+        if (!hasCellular()) return;
+        try {
+            Collection<UiccSlotMapping> simSlotMapping = mTelephonyManager.getSimSlotMapping();
+            fail("Expected SecurityException, no READ_PRIVILEGED_PHONE_STATE permission");
+        } catch (SecurityException e) {
+            // expected
+        }
+    }
+
+    @Test
+    public void testIgnoreInvalidNetworkType() {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            return;
+        }
+
+        // NETWORK_TYPE_BITMASK_LTE_CA is invalid, should be converted into NETWORK_TYPE_BITMASK_LTE
+        long invalidAllowedNetworkTypes = TelephonyManager.NETWORK_TYPE_BITMASK_NR
+                | TelephonyManager.NETWORK_TYPE_BITMASK_LTE_CA;
+        long expectedAllowedNetworkTypes = TelephonyManager.NETWORK_TYPE_BITMASK_NR
+                | TelephonyManager.NETWORK_TYPE_BITMASK_LTE;
+        try {
+            ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(
+                    mTelephonyManager,
+                    (tm) -> tm.setAllowedNetworkTypesForReason(
+                            TelephonyManager.ALLOWED_NETWORK_TYPES_REASON_POWER,
+                            invalidAllowedNetworkTypes));
+
+            long deviceAllowedNetworkTypes = ShellIdentityUtils.invokeMethodWithShellPermissions(
+                    mTelephonyManager, (tm) -> {
+                        return tm.getAllowedNetworkTypesForReason(
+                                TelephonyManager.ALLOWED_NETWORK_TYPES_REASON_POWER);
+                    }
+            );
+            assertEquals(expectedAllowedNetworkTypes, deviceAllowedNetworkTypes);
+        } catch (SecurityException se) {
+            fail("testIgnoreInvalidNetworkType: SecurityException not expected");
+        }
+    }
+
+    @Test
+    public void getSimSlotMappingTest() {
+        if (!hasCellular()) return;
+        InstrumentationRegistry.getInstrumentation().getUiAutomation()
+                .adoptShellPermissionIdentity("android.permission.READ_PRIVILEGED_PHONE_STATE");
+        try {
+            Collection<UiccSlotMapping> simSlotMapping = mTelephonyManager.getSimSlotMapping();
+            assertTrue(isSlotMappingValid(simSlotMapping));
+        } catch (IllegalArgumentException e) {
+            fail("IllegalArgumentException, Duplicate UiccSlotMapping data found");
+        } finally {
+            InstrumentationRegistry.getInstrumentation().getUiAutomation()
+                    .dropShellPermissionIdentity();
+        }
+    }
+    private static boolean isSlotMappingValid(@NonNull Collection<UiccSlotMapping> slotMapping) {
+        // Grouping the collection by logicalSlotIndex, finding different entries mapping to the
+        // same logical slot
+        Map<Integer, List<UiccSlotMapping>> slotMappingInfo = slotMapping.stream().collect(
+                Collectors.groupingBy(UiccSlotMapping::getLogicalSlotIndex));
+        for (Map.Entry<Integer, List<UiccSlotMapping>> entry : slotMappingInfo.entrySet()) {
+            List<UiccSlotMapping> logicalSlotMap = entry.getValue();
+            if (logicalSlotMap.size() > 1) {
+                // duplicate logicalSlotIndex found
+                return false;
+            }
+        }
+        return true;
     }
 }
 

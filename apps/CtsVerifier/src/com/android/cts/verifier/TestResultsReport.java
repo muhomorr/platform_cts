@@ -28,6 +28,7 @@ import com.android.compatibility.common.util.ITestResult;
 import com.android.compatibility.common.util.InvocationResult;
 import com.android.compatibility.common.util.ReportLog;
 import com.android.compatibility.common.util.TestResultHistory;
+import com.android.compatibility.common.util.TestScreenshotsMetadata;
 import com.android.compatibility.common.util.TestStatus;
 import com.android.cts.verifier.TestListActivity.DisplayMode;
 import com.android.cts.verifier.TestListAdapter.TestListItem;
@@ -80,6 +81,7 @@ class TestResultsReport {
         String abis64 = null;
         String versionBaseOs = null;
         String versionSecurityPatch = null;
+        String versionRelease = null;
         IInvocationResult result = new InvocationResult();
         IModuleResult moduleResult = result.getOrCreateModule(
                 mContext.getResources().getString(R.string.module_id));
@@ -97,6 +99,9 @@ class TestResultsReport {
             versionSecurityPatch = Build.VERSION.SECURITY_PATCH;
         }
 
+        versionRelease = (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R)
+                ? Build.VERSION.RELEASE_OR_CODENAME : Build.VERSION.RELEASE;
+
         // at the time of writing, the build class has no REFERENCE_FINGERPRINT property
         String referenceFingerprint = null;
 
@@ -104,7 +109,7 @@ class TestResultsReport {
                 Build.CPU_ABI2, abis, abis32, abis64, Build.BOARD, Build.BRAND, Build.DEVICE,
                 Build.FINGERPRINT, null, Build.ID, Build.MANUFACTURER, Build.MODEL, Build.PRODUCT,
                 referenceFingerprint, Build.getSerial(), Build.TAGS, Build.TYPE, versionBaseOs,
-                Build.VERSION.RELEASE_OR_CODENAME, Integer.toString(Build.VERSION.SDK_INT),
+                versionRelease, Integer.toString(Build.VERSION.SDK_INT),
                 versionSecurityPatch, Build.VERSION.INCREMENTAL);
 
         // add device properties to the result with a prefix tag for each key
@@ -163,6 +168,12 @@ class TestResultsReport {
                         List<TestResultHistory> leafTestHistories =
                             getTestResultHistories(historyCollection);
                         currentTestResult.setTestResultHistories(leafTestHistories);
+                    }
+
+                    TestScreenshotsMetadata screenshotsMetadata = mAdapter
+                            .getScreenshotsMetadata(displayMode, i);
+                    if (screenshotsMetadata != null) {
+                        currentTestResult.setTestScreenshotsMetadata(screenshotsMetadata);
                     }
                 }
             }

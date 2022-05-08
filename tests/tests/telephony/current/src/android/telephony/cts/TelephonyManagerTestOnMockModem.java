@@ -22,9 +22,12 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assume.assumeTrue;
 
 import android.content.Context;
 import android.content.pm.PackageManager;
+import android.os.Build;
+import android.os.SystemProperties;
 import android.telephony.TelephonyManager;
 import android.util.Log;
 
@@ -33,6 +36,7 @@ import androidx.test.InstrumentationRegistry;
 import com.android.compatibility.common.util.ShellIdentityUtils;
 
 import org.junit.AfterClass;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -44,18 +48,18 @@ public class TelephonyManagerTestOnMockModem {
     private static final String TAG = "TelephonyManagerTestOnMockModem";
     private static MockModemManager sMockModemManager;
     private static TelephonyManager sTelephonyManager;
+    private static final String ALLOW_MOCK_MODEM_PROPERTY = "persist.radio.allow_mock_modem";
+    private static final boolean DEBUG = !"user".equals(Build.TYPE);
 
     @BeforeClass
     public static void beforeAllTests() throws Exception {
-
         Log.d(TAG, "TelephonyManagerTestOnMockModem#beforeAllTests()");
 
-        final PackageManager pm = getContext().getPackageManager();
-        if (!pm.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
-            Log.d(TAG, "Skipping test that requires FEATURE_TELEPHONY");
+        if (!hasTelephonyFeature()) {
             return;
         }
 
+        enforceMockModemDeveloperSetting();
         sTelephonyManager =
                 (TelephonyManager) getContext().getSystemService(Context.TELEPHONY_SERVICE);
 
@@ -68,14 +72,42 @@ public class TelephonyManagerTestOnMockModem {
     public static void afterAllTests() throws Exception {
         Log.d(TAG, "TelephonyManagerTestOnMockModem#afterAllTests()");
 
+        if (!hasTelephonyFeature()) {
+            return;
+        }
+
         // Rebind all interfaces which is binding to MockModemService to default.
         assertNotNull(sMockModemManager);
         assertTrue(sMockModemManager.disconnectMockModemService());
         sMockModemManager = null;
     }
 
+    @Before
+    public void beforeTest() {
+        assumeTrue(hasTelephonyFeature());
+    }
+
     private static Context getContext() {
         return InstrumentationRegistry.getInstrumentation().getContext();
+    }
+
+    private static boolean hasTelephonyFeature() {
+        final PackageManager pm = getContext().getPackageManager();
+        if (!pm.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            Log.d(TAG, "Skipping test that requires FEATURE_TELEPHONY");
+            return false;
+        }
+        return true;
+    }
+
+    private static void enforceMockModemDeveloperSetting() throws Exception {
+        boolean isAllowed = SystemProperties.getBoolean(ALLOW_MOCK_MODEM_PROPERTY, false);
+        // Check for developer settings for user build. Always allow for debug builds
+        if (!isAllowed && !DEBUG) {
+            throw new IllegalStateException(
+                "!! Enable Mock Modem before running this test !! "
+                    + "Developer options => Allow Mock Modem");
+        }
     }
 
     @Test
@@ -126,7 +158,7 @@ public class TelephonyManagerTestOnMockModem {
         }
 
         // Wait the radio state update in Framework
-        TimeUnit.SECONDS.sleep(1);
+        TimeUnit.SECONDS.sleep(2);
         int toggleRadioState =
                 radioState == TelephonyManager.RADIO_POWER_ON
                         ? TelephonyManager.RADIO_POWER_OFF
@@ -145,7 +177,7 @@ public class TelephonyManagerTestOnMockModem {
         }
 
         // Wait the radio state update in Framework
-        TimeUnit.SECONDS.sleep(1);
+        TimeUnit.SECONDS.sleep(2);
         assertEquals(sTelephonyManager.getRadioPowerState(), radioState);
 
         Log.d(TAG, "Test Done ");

@@ -16,6 +16,11 @@
 
 package android.mediapc.cts;
 
+import static android.media.MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface;
+import static android.media.MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Flexible;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+
 import android.graphics.ImageFormat;
 import android.media.Image;
 import android.media.MediaCodec;
@@ -37,16 +42,13 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedList;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
-
-import static android.media.MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface;
-import static android.media.MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Flexible;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 class CodecAsyncHandler extends MediaCodec.Callback {
     private static final String LOG_TAG = CodecAsyncHandler.class.getSimpleName();
@@ -178,6 +180,8 @@ abstract class CodecTestBase {
     static final int SELECT_ALL = 0; // Select all codecs
     static final int SELECT_HARDWARE = 1; // Select Hardware codecs only
     static final int SELECT_SOFTWARE = 2; // Select Software codecs only
+    static final int SELECT_AUDIO = 3; // Select Audio codecs only
+    static final int SELECT_VIDEO = 4; // Select Video codecs only
     // Maintain Timeouts in sync with their counterpart in NativeMediaCommon.h
     static final long Q_DEQ_TIMEOUT_US = 5000; // block at most 5ms while looking for io buffers
     static final int RETRY_LIMIT = 100; // max poll counter before test aborts and returns error
@@ -339,12 +343,23 @@ abstract class CodecTestBase {
 
     static ArrayList<String> selectHardwareCodecs(String mime, ArrayList<MediaFormat> formats,
             String[] features, boolean isEncoder) {
-        return selectCodecs(mime, formats, features, isEncoder, SELECT_HARDWARE);
+        return selectHardwareCodecs(mime, formats, features, isEncoder, false);
+    }
+
+    static ArrayList<String> selectHardwareCodecs(String mime, ArrayList<MediaFormat> formats,
+            String[] features, boolean isEncoder, boolean allCodecs) {
+        return selectCodecs(mime, formats, features, isEncoder, SELECT_HARDWARE, allCodecs);
     }
 
     static ArrayList<String> selectCodecs(String mime, ArrayList<MediaFormat> formats,
             String[] features, boolean isEncoder, int selectCodecOption) {
-        MediaCodecList codecList = new MediaCodecList(MediaCodecList.REGULAR_CODECS);
+        return selectCodecs(mime, formats, features, isEncoder, selectCodecOption, false);
+    }
+
+    static ArrayList<String> selectCodecs(String mime, ArrayList<MediaFormat> formats,
+            String[] features, boolean isEncoder, int selectCodecOption, boolean allCodecs) {
+        int kind = allCodecs ? MediaCodecList.ALL_CODECS : MediaCodecList.REGULAR_CODECS;
+        MediaCodecList codecList = new MediaCodecList(kind);
         MediaCodecInfo[] codecInfos = codecList.getCodecInfos();
         ArrayList<String> listOfCodecs = new ArrayList<>();
         for (MediaCodecInfo codecInfo : codecInfos) {
@@ -381,6 +396,31 @@ abstract class CodecTestBase {
             }
         }
         return listOfCodecs;
+    }
+
+    static Set<String> getMimesOfAvailableCodecs(int codecAV, int codecType) {
+        MediaCodecList codecList = new MediaCodecList(MediaCodecList.REGULAR_CODECS);
+        MediaCodecInfo[] codecInfos = codecList.getCodecInfos();
+        Set<String> listOfMimes = new HashSet<>();
+        for (MediaCodecInfo codecInfo : codecInfos) {
+            if (codecType == SELECT_HARDWARE && !codecInfo.isHardwareAccelerated()) {
+                continue;
+            }
+            if (codecType == SELECT_SOFTWARE && !codecInfo.isSoftwareOnly()) {
+                continue;
+            }
+            String[] types = codecInfo.getSupportedTypes();
+            for (String type : types) {
+                if (codecAV == SELECT_AUDIO && !type.startsWith("audio/")) {
+                    continue;
+                }
+                if (codecAV == SELECT_VIDEO && !type.startsWith("video/")) {
+                    continue;
+                }
+                listOfMimes.add(type);
+            }
+        }
+        return listOfMimes;
     }
 }
 
@@ -729,28 +769,33 @@ class DecodeToSurface extends Decode {
 
 /**
  * The following class encodes a YUV video file to a given mimeType using encoder created by the
- * given encoderName and configuring to 720p 30fps format.
+ * given encoderName and configuring to 30fps format.
  */
 class Encode extends CodecEncoderTestBase implements Callable<Double> {
     private static final String LOG_TAG = Encode.class.getSimpleName();
 
     private final String mEncoderName;
     private final boolean mIsAsync;
+    private final int mBitrate;
 
-    Encode(String mime, String encoderName, boolean isAsync) {
+    Encode(String mime, String encoderName, boolean isAsync, int height, int width, int frameRate,
+            int bitrate) {
         super(mime);
         mEncoderName = encoderName;
         mIsAsync = isAsync;
         mSurface = MediaCodec.createPersistentInputSurface();
-        mFrameRate = 30;
+        mFrameRate = frameRate;
+        mBitrate = bitrate;
+        mHeight = height;
+        mWidth = width;
     }
 
     private MediaFormat setUpFormat() {
         MediaFormat format = new MediaFormat();
         format.setString(MediaFormat.KEY_MIME, mMime);
-        format.setInteger(MediaFormat.KEY_BIT_RATE, 4000000);
-        format.setInteger(MediaFormat.KEY_WIDTH, 1280);
-        format.setInteger(MediaFormat.KEY_HEIGHT, 720);
+        format.setInteger(MediaFormat.KEY_BIT_RATE, mBitrate);
+        format.setInteger(MediaFormat.KEY_WIDTH, mWidth);
+        format.setInteger(MediaFormat.KEY_HEIGHT, mHeight);
         format.setInteger(MediaFormat.KEY_FRAME_RATE, mFrameRate);
         format.setInteger(MediaFormat.KEY_MAX_B_FRAMES, 0);
         format.setFloat(MediaFormat.KEY_I_FRAME_INTERVAL, 1.0f);
