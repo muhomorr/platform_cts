@@ -16,27 +16,25 @@
 
 package android.security.cts;
 
-import android.platform.test.annotations.AppModeFull;
 import android.platform.test.annotations.AsbSecurityTest;
 
+import com.android.sts.common.tradefed.testtype.StsExtraBusinessLogicHostTestBase;
 import com.android.tradefed.device.ITestDevice;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
-import com.android.sts.common.tradefed.testtype.StsExtraBusinessLogicHostTestBase;
 
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
 @RunWith(DeviceJUnit4ClassRunner.class)
-public class CVE_2021_39702 extends StsExtraBusinessLogicHostTestBase {
-    private static final String TEST_PKG = "android.security.cts.CVE_2021_39702";
+public class CVE_2022_20115 extends StsExtraBusinessLogicHostTestBase {
+    private static final String TEST_PKG = "android.security.cts.CVE_2022_20115";
     private static final String TEST_CLASS = TEST_PKG + "." + "DeviceTest";
-    private static final String TEST_APP = "CVE-2021-39702.apk";
+    private static final String TEST_APP = "CVE-2022-20115.apk";
 
-    @AppModeFull
-    @AsbSecurityTest(cveBugId = 205150380)
+    @AsbSecurityTest(cveBugId = 210118427)
     @Test
-    public void testPocCVE_2021_39702() throws Exception {
+    public void testPocCVE_2022_20115() throws Exception {
         ITestDevice device = getDevice();
         uninstallPackage(device, TEST_PKG);
 
@@ -45,8 +43,7 @@ public class CVE_2021_39702 extends StsExtraBusinessLogicHostTestBase {
         AdbUtils.runCommandLine("input keyevent KEYCODE_MENU", device);
         AdbUtils.runCommandLine("input keyevent KEYCODE_HOME", device);
         installPackage(TEST_APP);
-        AdbUtils.runCommandLine("pm grant " + TEST_PKG + " android.permission.SYSTEM_ALERT_WINDOW",
-                device);
-        Assert.assertTrue(runDeviceTests(TEST_PKG, TEST_CLASS, "testOverlayButtonPresence"));
+
+        Assert.assertTrue(runDeviceTests(TEST_PKG, TEST_CLASS, "testCellLocation"));
     }
 }
