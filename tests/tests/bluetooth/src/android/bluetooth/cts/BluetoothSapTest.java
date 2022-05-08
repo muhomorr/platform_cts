@@ -16,15 +16,19 @@
 
 package android.bluetooth.cts;
 
+import static android.Manifest.permission.BLUETOOTH_CONNECT;
+
 import static org.junit.Assert.assertThrows;
 
+import android.app.UiAutomation;
 import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothManager;
 import android.bluetooth.BluetoothProfile;
 import android.bluetooth.BluetoothSap;
 import android.content.pm.PackageManager;
-import android.sysprop.BluetoothProperties;
 import android.test.AndroidTestCase;
+import android.test.suitebuilder.annotation.MediumTest;
 import android.util.Log;
 
 import androidx.test.InstrumentationRegistry;
@@ -34,12 +38,13 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
 
 public class BluetoothSapTest extends AndroidTestCase {
-    private static final String TAG = BluetoothLeAudioTest.class.getSimpleName();
+    private static final String TAG = BluetoothSapTest.class.getSimpleName();
 
     private static final int PROXY_CONNECTION_TIMEOUT_MS = 500;  // ms timeout for Proxy Connect
 
     private boolean mHasBluetooth;
     private BluetoothAdapter mAdapter;
+    private UiAutomation mUiAutomation;;
 
     private BluetoothSap mBluetoothSap;
     private boolean mIsProfileReady;
@@ -56,11 +61,11 @@ public class BluetoothSapTest extends AndroidTestCase {
 
         if (!mHasBluetooth) return;
 
-        mIsSapSupported = BluetoothProperties.isProfileSapServerEnabled().orElse(false);
+        mIsSapSupported = TestUtils.isProfileEnabled(BluetoothProfile.SAP);
         if (!mIsSapSupported) return;
 
-        InstrumentationRegistry.getInstrumentation().getUiAutomation()
-            .adoptShellPermissionIdentity(android.Manifest.permission.BLUETOOTH_CONNECT);
+        mUiAutomation = InstrumentationRegistry.getInstrumentation().getUiAutomation();
+        mUiAutomation.adoptShellPermissionIdentity(BLUETOOTH_CONNECT);
 
         mAdapter = getContext().getSystemService(BluetoothManager.class).getAdapter();
         assertTrue(BTAdapterUtils.enableAdapter(mAdapter, mContext));
@@ -83,13 +88,61 @@ public class BluetoothSapTest extends AndroidTestCase {
                 mBluetoothSap = null;
                 mIsProfileReady = false;
             }
-            assertTrue(BTAdapterUtils.disableAdapter(mAdapter, mContext));
-            InstrumentationRegistry.getInstrumentation().getUiAutomation()
-                .dropShellPermissionIdentity();
+            mUiAutomation.adoptShellPermissionIdentity(BLUETOOTH_CONNECT);
+            if (mAdapter != null) {
+                assertTrue(BTAdapterUtils.disableAdapter(mAdapter, mContext));
+            }
+            mUiAutomation.dropShellPermissionIdentity();
             mAdapter = null;
         }
     }
 
+    @MediumTest
+    public void test_getConnectedDevices() {
+        if (!mHasBluetooth || !mIsSapSupported) return;
+
+        assertTrue(waitForProfileConnect());
+        assertNotNull(mBluetoothSap);
+
+        assertNotNull(mBluetoothSap.getConnectedDevices());
+
+        mUiAutomation.dropShellPermissionIdentity();
+        assertThrows(SecurityException.class, () -> mBluetoothSap.getConnectedDevices());
+    }
+
+    @MediumTest
+    public void test_getDevicesMatchingConnectionStates() {
+        if (!mHasBluetooth || !mIsSapSupported) return;
+
+        assertTrue(waitForProfileConnect());
+        assertNotNull(mBluetoothSap);
+
+        int[] connectionState = new int[]{BluetoothProfile.STATE_CONNECTED};
+
+        assertTrue(mBluetoothSap.getDevicesMatchingConnectionStates(connectionState).isEmpty());
+
+        mUiAutomation.dropShellPermissionIdentity();
+        assertThrows(SecurityException.class,
+                () -> mBluetoothSap.getDevicesMatchingConnectionStates(connectionState));
+    }
+
+    @MediumTest
+    public void test_getConnectionState() {
+        if (!mHasBluetooth || !mIsSapSupported) return;
+
+        assertTrue(waitForProfileConnect());
+        assertNotNull(mBluetoothSap);
+
+        BluetoothDevice testDevice = mAdapter.getRemoteDevice("00:11:22:AA:BB:CC");
+
+        assertEquals(mBluetoothSap.getConnectionState(testDevice),
+                BluetoothProfile.STATE_DISCONNECTED);
+
+        mUiAutomation.dropShellPermissionIdentity();
+        assertThrows(SecurityException.class, () -> mBluetoothSap.getConnectionState(testDevice));
+    }
+
+    @MediumTest
     public void test_setgetConnectionPolicy() {
         if (!mHasBluetooth || !mIsSapSupported) return;
 
@@ -98,6 +151,12 @@ public class BluetoothSapTest extends AndroidTestCase {
 
         assertThrows(NullPointerException.class, () -> mBluetoothSap.setConnectionPolicy(null, 0));
         assertThrows(NullPointerException.class, () -> mBluetoothSap.getConnectionPolicy(null));
+
+        mUiAutomation.dropShellPermissionIdentity();
+        BluetoothDevice testDevice = mAdapter.getRemoteDevice("00:11:22:AA:BB:CC");
+        assertThrows(SecurityException.class, () -> mBluetoothSap.setConnectionPolicy(testDevice,
+                    BluetoothProfile.CONNECTION_POLICY_FORBIDDEN));
+        assertThrows(SecurityException.class, () -> mBluetoothSap.getConnectionPolicy(testDevice));
     }
 
     private boolean waitForProfileConnect() {

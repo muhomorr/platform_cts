@@ -16,8 +16,24 @@
 
 package android.hardware.camera2.cts;
 
+import static android.hardware.camera2.cts.CameraTestUtils.SimpleCaptureCallback;
+import static android.hardware.camera2.cts.helpers.AssertHelpers.assertArrayContains;
+import static android.hardware.camera2.cts.helpers.AssertHelpers.assertArrayContainsAnyOf;
+import static android.hardware.camera2.cts.helpers.AssertHelpers.assertCollectionContainsAnyOf;
+import static android.hardware.cts.helpers.CameraUtils.matchParametersToCharacteristics;
+
+import static junit.framework.Assert.assertFalse;
+import static junit.framework.Assert.assertNotNull;
+import static junit.framework.Assert.assertTrue;
+import static junit.framework.Assert.fail;
+
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.timeout;
+import static org.mockito.Mockito.verify;
+
 import android.content.Context;
-import android.content.pm.PackageManager;
 import android.graphics.ImageFormat;
 import android.graphics.Rect;
 import android.graphics.SurfaceTexture;
@@ -25,53 +41,46 @@ import android.hardware.Camera;
 import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraCharacteristics.Key;
 import android.hardware.camera2.CameraDevice;
-import android.hardware.camera2.CameraManager;
 import android.hardware.camera2.CameraMetadata;
 import android.hardware.camera2.CaptureRequest;
 import android.hardware.camera2.CaptureResult;
-import android.hardware.camera2.cts.helpers.CameraErrorCollector;
 import android.hardware.camera2.cts.helpers.StaticMetadata;
 import android.hardware.camera2.cts.testcases.Camera2AndroidTestCase;
 import android.hardware.camera2.params.BlackLevelPattern;
 import android.hardware.camera2.params.ColorSpaceTransform;
+import android.hardware.camera2.params.DeviceStateSensorOrientationMap;
 import android.hardware.camera2.params.RecommendedStreamConfigurationMap;
 import android.hardware.camera2.params.StreamConfigurationMap;
+import android.hardware.cts.helpers.CameraUtils;
 import android.media.CamcorderProfile;
 import android.media.ImageReader;
 import android.os.Build;
+import android.platform.test.annotations.AppModeFull;
 import android.util.ArraySet;
 import android.util.DisplayMetrics;
 import android.util.Log;
-import android.util.Rational;
-import android.util.Range;
-import android.util.Size;
 import android.util.Pair;
 import android.util.Patterns;
+import android.util.Range;
+import android.util.Rational;
+import android.util.Size;
 import android.view.Display;
 import android.view.Surface;
 import android.view.WindowManager;
 
 import com.android.compatibility.common.util.CddTest;
 
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.Set;
-
-import org.junit.runners.Parameterized;
-import org.junit.runner.RunWith;
-import org.junit.Test;
-
-import static android.hardware.camera2.cts.helpers.AssertHelpers.*;
-import static android.hardware.camera2.cts.CameraTestUtils.SimpleCaptureCallback;
-import static android.hardware.cts.helpers.CameraUtils.matchParametersToCharacteristics;
-
-import static junit.framework.Assert.*;
-
-import static org.mockito.Mockito.*;
 
 /**
  * Extended tests for static camera characteristics.
@@ -2480,6 +2489,40 @@ public class ExtendedCameraCharacteristicsTest extends Camera2AndroidTestCase {
     }
 
     /**
+     * Check DeviceStateSensorOrientationMap camera reporting.
+     * If present, the map should only be part of logical camera characteristics.
+     * Verify that all device state modes return valid orientations.
+     */
+    @Test
+    public void testDeviceStateSensorOrientationMapCharacteristics() {
+        for (int i = 0; i < mAllCameraIds.length; i++) {
+            Log.i(TAG, "testDeviceStateOrientationMapCharacteristics: Testing camera ID " +
+                    mAllCameraIds[i]);
+
+            CameraCharacteristics c = mCharacteristics.get(i);
+            DeviceStateSensorOrientationMap orientationMap = c.get(
+                    CameraCharacteristics.INFO_DEVICE_STATE_SENSOR_ORIENTATION_MAP);
+            if (orientationMap == null) {
+                continue;
+            }
+            // DeviceStateOrientationMaps must only be present within logical camera
+            // characteristics.
+            assertTrue("Camera id: " + i + " All devices advertising a " +
+                    "DeviceStateSensorOrientationMap must also be logical cameras!",
+                    CameraTestUtils.hasCapability(c,
+                    CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES_LOGICAL_MULTI_CAMERA));
+            List<Long> supportedStates = new ArrayList<>(Arrays.asList(
+                    DeviceStateSensorOrientationMap.NORMAL, DeviceStateSensorOrientationMap.FOLDED));
+            for (long deviceState : supportedStates) {
+                int orientation = orientationMap.getSensorOrientation(deviceState);
+                assertTrue("CameraId: " + i + " Unexpected orientation: " + orientation,
+                        (orientation >= 0) && (orientation <= 270) &&
+                        ((orientation % 90) == 0));
+            }
+        }
+    }
+
+    /**
      * Check that all devices available through the legacy API are also
      * accessible via Camera2.
      */
@@ -2535,9 +2578,19 @@ public class ExtendedCameraCharacteristicsTest extends Camera2AndroidTestCase {
     /**
      * Check camera orientation against device orientation
      */
+    @AppModeFull(reason = "DeviceStateManager is not accessible to instant apps")
     @CddTest(requirement="7.5.5/C-1-1")
     @Test
     public void testCameraOrientationAlignedWithDevice() {
+        if (CameraUtils.isDeviceFoldable(mContext)) {
+            // CDD 7.5.5/C-1-1 does not apply to devices with folding displays as the display aspect
+            // ratios might change with the device's folding state.
+            // Skip this test in foldables until the CDD is updated to include foldables.
+            Log.i(TAG, "CDD 7.5.5/C-1-1 does not apply to foldables, skipping"
+                    + " testCameraOrientationAlignedWithDevice");
+            return;
+        }
+
         WindowManager windowManager =
                 (WindowManager) mContext.getSystemService(Context.WINDOW_SERVICE);
         Display display = windowManager.getDefaultDisplay();

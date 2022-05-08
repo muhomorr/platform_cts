@@ -282,6 +282,7 @@ public class InlineLoginActivityTest extends LoginActivityCommonTestCase {
     }
 
     @Test
+    @AppModeFull(reason = "BROADCAST_STICKY permission cannot be granted to instant apps")
     public void testAutofill_noInvalid() throws Exception {
         final String keyInvalid = "invalid";
         final String keyValid = "valid";
@@ -397,7 +398,7 @@ public class InlineLoginActivityTest extends LoginActivityCommonTestCase {
         mUiBot.assertSuggestion("Username" + firstDataset);
 
         // Scroll the suggestion view
-        mUiBot.scrollSuggestionView(Direction.RIGHT, /* speed */ 5000);
+        mUiBot.scrollSuggestionView(Direction.RIGHT, /* speed */ 3000);
         mUiBot.waitForIdleSync();
 
         mUiBot.assertNoSuggestion("Username" + firstDataset);

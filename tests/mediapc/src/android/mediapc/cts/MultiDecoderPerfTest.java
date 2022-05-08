@@ -15,7 +15,12 @@
  */
 
 package android.mediapc.cts;
+
+import static org.junit.Assert.assertTrue;
+
+import android.media.MediaCodecInfo.VideoCapabilities.PerformancePoint;
 import android.media.MediaFormat;
+import android.mediapc.cts.common.Utils;
 import android.os.Build;
 import android.util.Pair;
 
@@ -27,6 +32,7 @@ import com.android.compatibility.common.util.DeviceReportLog;
 import com.android.compatibility.common.util.ResultType;
 import com.android.compatibility.common.util.ResultUnit;
 
+import org.junit.Assume;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -34,11 +40,10 @@ import org.junit.runners.Parameterized;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-
-import static org.junit.Assert.assertTrue;
 
 /**
  * The following test class validates the maximum number of concurrent decode sessions that it can
@@ -49,26 +54,26 @@ import static org.junit.Assert.assertTrue;
 @RunWith(Parameterized.class)
 public class MultiDecoderPerfTest extends MultiCodecPerfTestBase {
     private static final String LOG_TAG = MultiDecoderPerfTest.class.getSimpleName();
+    private static final int REQUIRED_MIN_CONCURRENT_SECURE_INSTANCES = 2;
 
     private final String mDecoderName;
 
-    public MultiDecoderPerfTest(String mimeType, String testFile, String decoderName,
-            boolean isAsync) {
-        super(mimeType, testFile, isAsync);
+    public MultiDecoderPerfTest(String mimeType, String decoderName, boolean isAsync) {
+        super(mimeType, null, isAsync);
         mDecoderName = decoderName;
     }
 
-    // Returns the params list with the mime, testFile and their hardware decoders in
+    // Returns the params list with the mime and corresponding hardware decoders in
     // both sync and async modes.
-    // Parameters {0}_{2}_{3} -- Mime_DecoderName_isAsync
-    @Parameterized.Parameters(name = "{index}({0}_{2}_{3})")
+    // Parameters {0}_{1}_{2} -- Mime_DecoderName_isAsync
+    @Parameterized.Parameters(name = "{index}({0}_{1}_{2})")
     public static Collection<Object[]> inputParams() {
         final List<Object[]> argsList = new ArrayList<>();
         for (String mime : mMimeList) {
-            ArrayList<String> listOfDecoders = getHardwareCodecsFor720p(mime, false);
+            ArrayList<String> listOfDecoders = getHardwareCodecsForMime(mime, false, true);
             for (String decoder : listOfDecoders) {
                 for (boolean isAsync : boolStates) {
-                    argsList.add(new Object[]{mime, mTestFiles.get(mime), decoder, isAsync});
+                    argsList.add(new Object[]{mime, decoder, isAsync});
                 }
             }
         }
@@ -82,15 +87,71 @@ public class MultiDecoderPerfTest extends MultiCodecPerfTestBase {
      */
     @LargeTest
     @Test(timeout = CodecTestBase.PER_TEST_TIMEOUT_LARGE_TEST_MS)
-    @CddTest(requirement="2.2.7.1/5.1/H-1-1,H-1-2")
+    @CddTest(requirement = "2.2.7.1/5.1/H-1-1,H-1-2")
     public void test720p() throws Exception {
+        Assume.assumeTrue(Utils.isSPerfClass() || Utils.isRPerfClass() || !Utils.isPerfClass());
+        Assume.assumeFalse("Skipping regular performance tests for secure codecs",
+                isSecureSupportedCodec(mDecoderName, mMime));
+        boolean hasVP9 = mMime.equals(MediaFormat.MIMETYPE_VIDEO_VP9);
+        int requiredMinInstances = getRequiredMinConcurrentInstances(hasVP9);
+        testCodec(m720pTestFiles, 720, 1280, requiredMinInstances);
+    }
+
+    /**
+     * This test validates that the decoder can support at least 6 concurrent 1080p 30fps
+     * decoder instances. Also ensures that all the concurrent sessions succeed in decoding
+     * with meeting the expected frame rate.
+     */
+    @LargeTest
+    @Test(timeout = CodecTestBase.PER_TEST_TIMEOUT_LARGE_TEST_MS)
+    @CddTest(requirement = "2.2.7.1/5.1/H-1-1,H-1-2")
+    public void test1080p() throws Exception {
+        Assume.assumeTrue(Utils.isTPerfClass() || !Utils.isPerfClass());
+        Assume.assumeFalse("Skipping regular performance tests for secure codecs",
+                isSecureSupportedCodec(mDecoderName, mMime));
+        testCodec(m1080pTestFiles, 1080, 1920, REQUIRED_MIN_CONCURRENT_INSTANCES);
+    }
+
+    /**
+     * Validates if hardware decoder that supports required secure decode perf is present
+     */
+    @LargeTest
+    @Test(timeout = CodecTestBase.PER_TEST_TIMEOUT_LARGE_TEST_MS)
+    // TODO(b/218771970) Add @CddTest annotation
+    public void testReqSecureDecodeSupport() throws Exception {
+        Assume.assumeTrue(Utils.isTPerfClass() || !Utils.isPerfClass());
+        Assume.assumeTrue("Skipping secure decode support tests for non-secure codecs",
+                isSecureSupportedCodec(mDecoderName, mMime));
+
+        PerformancePoint reqPP =
+                new PerformancePoint(1920, 1080, 30 * REQUIRED_MIN_CONCURRENT_SECURE_INSTANCES);
+
+        boolean codecSupportsReqPP = codecSupportsPP(mDecoderName, mMime, reqPP);
+
+        if (Utils.isTPerfClass()) {
+            assertTrue(
+                    "Required Secure Decode Support required for MPC >= Android T, unsupported " +
+                            "codec: " + mDecoderName, codecSupportsReqPP);
+        } else {
+            DeviceReportLog log =
+                    new DeviceReportLog("MediaPerformanceClassLogs", "SecureDecodeSupport");
+            log.addValue("Req Secure Decode Support: " + mDecoderName, codecSupportsReqPP,
+                    ResultType.NEUTRAL, ResultUnit.NONE);
+            // TODO(b/218771970) Log CDD sections
+            log.setSummary("MPC 13: Secure Decode requirements", 0, ResultType.NEUTRAL,
+                    ResultUnit.NONE);
+            log.submit(InstrumentationRegistry.getInstrumentation());
+        }
+    }
+
+    private void testCodec(Map<String, String> testFiles, int height, int width,
+            int requiredMinInstances) throws Exception {
+        mTestFile = testFiles.get(mMime);
         ArrayList<Pair<String, String>> mimeDecoderPairs = new ArrayList<>();
         mimeDecoderPairs.add(Pair.create(mMime, mDecoderName));
-        int maxInstances = checkAndGetMaxSupportedInstancesFor720p(mimeDecoderPairs);
-        int requiredMinInstances = REQUIRED_MIN_CONCURRENT_INSTANCES;
-        if (mMime.equals(MediaFormat.MIMETYPE_VIDEO_VP9)) {
-            requiredMinInstances = REQUIRED_MIN_CONCURRENT_INSTANCES_FOR_VP9;
-        }
+        int maxInstances =
+                checkAndGetMaxSupportedInstancesForCodecCombinations(height, width,
+                        mimeDecoderPairs);
         double achievedFrameRate = 0.0;
         if (maxInstances >= requiredMinInstances) {
             ExecutorService pool = Executors.newFixedThreadPool(maxInstances);
@@ -124,6 +185,5 @@ public class MultiDecoderPerfTest extends MultiCodecPerfTestBase {
                     ResultUnit.NONE);
             log.submit(InstrumentationRegistry.getInstrumentation());
         }
-
     }
 }

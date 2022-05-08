@@ -16,6 +16,7 @@
 
 package android.mediav2.cts;
 
+import android.media.AudioFormat;
 import android.media.MediaCodec;
 import android.media.MediaCodecInfo;
 import android.media.MediaExtractor;
@@ -47,6 +48,7 @@ import java.util.List;
 import static android.mediav2.cts.CodecTestBase.SupportClass.*;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 /**
  * Validate decode functionality of listed decoder components
@@ -78,22 +80,17 @@ public class CodecDecoderTest extends CodecDecoderTestBase {
         mSupportRequirements = supportRequirements;
     }
 
-    static short[] setUpAudioReference(String file) throws IOException {
+    static ByteBuffer readAudioReferenceFile(String file) throws IOException {
         File refFile = new File(file);
-        short[] refData;
+        ByteBuffer refBuffer;
         try (FileInputStream refStream = new FileInputStream(refFile)) {
             FileChannel fileChannel = refStream.getChannel();
             int length = (int) refFile.length();
-            ByteBuffer refBuffer = ByteBuffer.allocate(length);
+            refBuffer = ByteBuffer.allocate(length);
             refBuffer.order(ByteOrder.LITTLE_ENDIAN);
             fileChannel.read(refBuffer);
-            refData = new short[length / 2];
-            refBuffer.position(0);
-            for (int i = 0; i < length / 2; i++) {
-                refData[i] = refBuffer.getShort();
-            }
         }
-        return refData;
+        return refBuffer;
     }
 
     private ArrayList<MediaCodec.BufferInfo> createSubFrames(ByteBuffer buffer, int sfCount) {
@@ -135,15 +132,15 @@ public class CodecDecoderTest extends CodecDecoderTestBase {
         final boolean needVideo = true;
         // mediaType, testClip, referenceClip, reconfigureTestClip, refRmsError, refCRC32,
         // SupportClass
-        final List<Object[]> exhaustiveArgsList = Arrays.asList(new Object[][]{
+        final List<Object[]> exhaustiveArgsList = new ArrayList<>(Arrays.asList(new Object[][]{
                 {MediaFormat.MIMETYPE_AUDIO_MPEG, "bbb_1ch_8kHz_lame_cbr.mp3",
-                        "bbb_1ch_8kHz_s16le.raw", "bbb_2ch_44kHz_lame_vbr.mp3", 91.022f, -1L,
+                        "bbb_1ch_8kHz_s16le.raw", "bbb_2ch_44kHz_lame_vbr.mp3", 91.026749f, -1L,
                         CODEC_ALL},
                 {MediaFormat.MIMETYPE_AUDIO_MPEG, "bbb_2ch_44kHz_lame_cbr.mp3",
-                        "bbb_2ch_44kHz_s16le.raw", "bbb_1ch_16kHz_lame_vbr.mp3", 103.60f, -1L,
+                        "bbb_2ch_44kHz_s16le.raw", "bbb_1ch_16kHz_lame_vbr.mp3", 103.603081f, -1L,
                         CODEC_ALL},
                 {MediaFormat.MIMETYPE_AUDIO_AMR_WB, "bbb_1ch_16kHz_16kbps_amrwb.3gp",
-                        "bbb_1ch_16kHz_s16le.raw", "bbb_1ch_16kHz_23kbps_amrwb.3gp", 2393.598f,
+                        "bbb_1ch_16kHz_s16le.raw", "bbb_1ch_16kHz_23kbps_amrwb.3gp", 2393.5979f,
                         -1L, CODEC_ALL},
                 {MediaFormat.MIMETYPE_AUDIO_AMR_NB, "bbb_1ch_8kHz_10kbps_amrnb.3gp",
                         "bbb_1ch_8kHz_s16le.raw", "bbb_1ch_8kHz_8kbps_amrnb.3gp", -1.0f, -1L,
@@ -157,13 +154,13 @@ public class CodecDecoderTest extends CodecDecoderTestBase {
                 {MediaFormat.MIMETYPE_AUDIO_RAW, "bbb_2ch_44kHz.wav", "bbb_2ch_44kHz_s16le.raw",
                         "bbb_1ch_16kHz.wav", 0.0f, -1L, CODEC_ALL},
                 {MediaFormat.MIMETYPE_AUDIO_G711_ALAW, "bbb_1ch_8kHz_alaw.wav",
-                        "bbb_1ch_8kHz_s16le.raw", "bbb_2ch_8kHz_alaw.wav", 23.08678f, -1L,
+                        "bbb_1ch_8kHz_s16le.raw", "bbb_2ch_8kHz_alaw.wav", 23.087402f, -1L,
                         CODEC_ALL},
                 {MediaFormat.MIMETYPE_AUDIO_G711_MLAW, "bbb_1ch_8kHz_mulaw.wav",
-                        "bbb_1ch_8kHz_s16le.raw", "bbb_2ch_8kHz_mulaw.wav", 24.4131f, -1L,
+                        "bbb_1ch_8kHz_s16le.raw", "bbb_2ch_8kHz_mulaw.wav", 24.413954f, -1L,
                         CODEC_ALL},
                 {MediaFormat.MIMETYPE_AUDIO_MSGSM, "bbb_1ch_8kHz_gsm.wav",
-                        "bbb_1ch_8kHz_s16le.raw", "bbb_1ch_8kHz_gsm.wav", 946.02698f, -1L,
+                        "bbb_1ch_8kHz_s16le.raw", "bbb_1ch_8kHz_gsm.wav", 946.026978f, -1L,
                         CODEC_ALL},
                 {MediaFormat.MIMETYPE_AUDIO_VORBIS, "bbb_1ch_16kHz_vorbis.mka",
                         "bbb_1ch_8kHz_s16le.raw", "bbb_2ch_44kHz_vorbis.mka", -1.0f, -1L,
@@ -188,18 +185,96 @@ public class CodecDecoderTest extends CodecDecoderTestBase {
                         "bbb_520x390_1mbps_30fps_vp9.webm", -1.0f, 4122701060L, CODEC_ALL},
                 {MediaFormat.MIMETYPE_VIDEO_AV1, "bbb_340x280_768kbps_30fps_av1.mp4", null,
                         "bbb_520x390_1mbps_30fps_av1.mp4", -1.0f, 400672933L, CODEC_ALL},
-        });
+        }));
+        // P010 support was added in Android T, hence limit the following tests to Android T and
+        // above
+        if (IS_AT_LEAST_T) {
+            exhaustiveArgsList.addAll(Arrays.asList(new Object[][]{
+                    {MediaFormat.MIMETYPE_VIDEO_AVC, "cosmat_340x280_24fps_crf22_avc_10bit.mkv",
+                            null, "cosmat_520x390_24fps_crf22_avc_10bit.mkv", -1.0f, 1462636611L,
+                            CODEC_OPTIONAL},
+                    {MediaFormat.MIMETYPE_VIDEO_HEVC, "cosmat_340x280_24fps_crf22_hevc_10bit.mkv",
+                            null, "cosmat_520x390_24fps_crf22_hevc_10bit.mkv", -1.0f, 2611796790L,
+                            CODEC_OPTIONAL},
+                    {MediaFormat.MIMETYPE_VIDEO_VP9, "cosmat_340x280_24fps_crf22_vp9_10bit.mkv",
+                            null, "cosmat_520x390_24fps_crf22_vp9_10bit.mkv", -1.0f, 2419292938L,
+                            CODEC_OPTIONAL},
+                    {MediaFormat.MIMETYPE_VIDEO_AV1, "cosmat_340x280_24fps_512kbps_av1_10bit.mkv",
+                            null, "cosmat_520x390_24fps_768kbps_av1_10bit.mkv", -1.0f, 1021109556L,
+                            CODEC_ALL},
+                    {MediaFormat.MIMETYPE_VIDEO_AVC, "cosmat_340x280_24fps_crf22_avc_10bit.mkv",
+                            null, "bbb_520x390_1mbps_30fps_avc.mp4", -1.0f, 1462636611L,
+                            CODEC_OPTIONAL},
+                    {MediaFormat.MIMETYPE_VIDEO_HEVC, "cosmat_340x280_24fps_crf22_hevc_10bit.mkv",
+                            null, "bbb_520x390_1mbps_30fps_hevc.mp4", -1.0f, 2611796790L,
+                            CODEC_OPTIONAL},
+                    {MediaFormat.MIMETYPE_VIDEO_VP9, "cosmat_340x280_24fps_crf22_vp9_10bit.mkv",
+                            null, "bbb_520x390_1mbps_30fps_vp9.webm", -1.0f, 2419292938L,
+                            CODEC_OPTIONAL},
+                    {MediaFormat.MIMETYPE_VIDEO_AV1, "cosmat_340x280_24fps_512kbps_av1_10bit.mkv",
+                            null, "bbb_520x390_1mbps_30fps_av1.mp4", -1.0f, 1021109556L,
+                            CODEC_ALL},
+                    {MediaFormat.MIMETYPE_VIDEO_AVC, "cosmat_520x390_24fps_crf22_avc_10bit.mkv",
+                            null, "bbb_340x280_768kbps_30fps_avc.mp4", -1.0f, 2245243696L,
+                            CODEC_OPTIONAL},
+                    {MediaFormat.MIMETYPE_VIDEO_HEVC, "cosmat_520x390_24fps_crf22_hevc_10bit.mkv"
+                            , null, "bbb_340x280_768kbps_30fps_hevc.mp4", -1.0f, 2486118612L,
+                            CODEC_OPTIONAL},
+                    {MediaFormat.MIMETYPE_VIDEO_VP9, "cosmat_520x390_24fps_crf22_vp9_10bit.mkv",
+                            null, "bbb_340x280_768kbps_30fps_vp9.webm", -1.0f, 3677982654L,
+                            CODEC_OPTIONAL},
+                    {MediaFormat.MIMETYPE_VIDEO_AV1, "cosmat_520x390_24fps_768kbps_av1_10bit.mkv",
+                            null, "bbb_340x280_768kbps_30fps_av1.mp4", -1.0f, 1139081423L,
+                            CODEC_ALL},
+            }));
+        }
         return prepareParamList(exhaustiveArgsList, isEncoder, needAudio, needVideo, true);
     }
 
     private native boolean nativeTestSimpleDecode(String decoder, Surface surface, String mime,
-            String testFile, String refFile, float rmsError, long checksum);
+            String testFile, String refFile, int colorFormat, float rmsError, long checksum);
 
-    static void verify(OutputManager outBuff, String refFile, float rmsError, long refCRC)
-            throws IOException {
+    static void verify(OutputManager outBuff, String refFile, float rmsError, int audioFormat,
+            long refCRC) throws IOException {
         if (rmsError >= 0) {
-            short[] refData = setUpAudioReference(mInpPrefix + refFile);
-            float currError = outBuff.getRmsError(refData);
+            int bytesPerSample = AudioFormat.getBytesPerSample(audioFormat);
+            ByteBuffer bb = readAudioReferenceFile(mInpPrefix + refFile);
+            bb.position(0);
+            int bufferSize = bb.limit();
+            assertEquals (0, bufferSize % bytesPerSample);
+            Object refObject = null;
+            int refObjectLen = bufferSize / bytesPerSample;
+            switch (audioFormat) {
+                case AudioFormat.ENCODING_PCM_8BIT:
+                    refObject = new byte[refObjectLen];
+                    bb.get((byte[]) refObject);
+                    break;
+                case AudioFormat.ENCODING_PCM_16BIT:
+                    refObject = new short[refObjectLen];
+                    bb.asShortBuffer().get((short[]) refObject);
+                    break;
+                case AudioFormat.ENCODING_PCM_24BIT_PACKED:
+                    refObject = new int[refObjectLen];
+                    int[] refArray = (int[]) refObject;
+                    for (int i = 0, j = 0; i < bufferSize; i += 3, j++) {
+                        int byte1 = (bb.get() & 0xff);
+                        int byte2 = (bb.get() & 0xff);
+                        int byte3 = (bb.get() & 0xff);
+                        refArray[j] =  byte1 | (byte2 << 8) | (byte3 << 16);
+                    }
+                    break;
+                case AudioFormat.ENCODING_PCM_32BIT:
+                    refObject = new int[refObjectLen];
+                    bb.asIntBuffer().get((int[]) refObject);
+                    break;
+                case AudioFormat.ENCODING_PCM_FLOAT:
+                    refObject = new float[refObjectLen];
+                    bb.asFloatBuffer().get((float[]) refObject);
+                    break;
+                default:
+                    fail("unrecognized audio encoding type " + audioFormat);
+            }
+            float currError = outBuff.getRmsError(refObject, audioFormat);
             float errMargin = rmsError * RMS_ERROR_TOLERANCE;
             assertTrue(String.format("%s rms error too high ref/exp/got %f/%f/%f", refFile,
                     rmsError, errMargin, currError), currError <= errMargin);
@@ -214,7 +289,7 @@ public class CodecDecoderTest extends CodecDecoderTestBase {
         mExtractor.release();
         ArrayList<MediaFormat> formatList = new ArrayList<>();
         formatList.add(format);
-        checkFormatSupport(mCodecName, mMime, formatList, null, mSupportRequirements);
+        checkFormatSupport(mCodecName, mMime, false, formatList, null, mSupportRequirements);
     }
 
     /**
@@ -277,9 +352,15 @@ public class CodecDecoderTest extends CodecDecoderTestBase {
                             assertTrue(log + " pts is not strictly increasing",
                                     ref.isPtsStrictlyIncreasing(mPrevOutputPts));
                         } else {
-                            assertTrue(
-                                    log + " input pts list and output pts list are not identical",
-                                    ref.isOutPtsListIdenticalToInpPtsList(false));
+                            // TODO: Timestamps for deinterlaced content are under review.
+                            // (E.g. can decoders produce multiple progressive frames?)
+                            // For now, do not verify timestamps.
+                            if (!mIsInterlaced) {
+                                    assertTrue(
+                                        log +
+                                        " input pts list and output pts list are not identical",
+                                        ref.isOutPtsListIdenticalToInpPtsList(false));
+                            }
                         }
                     }
                     if (validateFormat) {
@@ -295,11 +376,17 @@ public class CodecDecoderTest extends CodecDecoderTestBase {
                 }
             }
             mCodec.release();
-            if (mSaveToMem) verify(mOutputBuff, mRefFile, mRmsError, mRefCRC);
+            mExtractor.release();
+            int colorFormat = mIsAudio ? 0 : format.getInteger(MediaFormat.KEY_COLOR_FORMAT);
             assertTrue(nativeTestSimpleDecode(mCodecName, null, mMime, mInpPrefix + mTestFile,
-                    mInpPrefix + mRefFile, mRmsError, ref.getCheckSumBuffer()));
+                    mInpPrefix + mRefFile, colorFormat, mRmsError, ref.getCheckSumBuffer()));
+            if (mSaveToMem) {
+                int audioEncoding = mIsAudio ? format.getInteger(MediaFormat.KEY_PCM_ENCODING,
+                        AudioFormat.ENCODING_PCM_16BIT) : AudioFormat.ENCODING_INVALID;
+                Assume.assumeFalse("skip checksum due to tone mapping", mSkipChecksumVerification);
+                verify(mOutputBuff, mRefFile, mRmsError, audioEncoding, mRefCRC);
+            }
         }
-        mExtractor.release();
     }
 
     /**
@@ -330,8 +417,12 @@ public class CodecDecoderTest extends CodecDecoderTestBase {
                 assertTrue("reference output pts is not strictly increasing",
                         ref.isPtsStrictlyIncreasing(mPrevOutputPts));
             } else {
-                assertTrue("input pts list and output pts list are not identical",
-                        ref.isOutPtsListIdenticalToInpPtsList(false));
+                // TODO: Timestamps for deinterlaced content are under review. (E.g. can decoders
+                // produce multiple progressive frames?) For now, do not verify timestamps.
+                if (!mIsInterlaced) {
+                    assertTrue("input pts list and output pts list are not identical",
+                            ref.isOutPtsListIdenticalToInpPtsList(false));
+                }
             }
             mOutputBuff = test;
             setUpSource(mTestFile);
@@ -364,8 +455,10 @@ public class CodecDecoderTest extends CodecDecoderTestBase {
                 mExtractor.seekTo(0, mode);
                 test.reset();
                 doWork(23);
-                assertTrue(log + " pts is not strictly increasing",
-                        test.isPtsStrictlyIncreasing(mPrevOutputPts));
+                if (!mIsInterlaced) {
+                    assertTrue(log + " pts is not strictly increasing",
+                                test.isPtsStrictlyIncreasing(mPrevOutputPts));
+                }
 
                 boolean checkMetrics = (mOutputCount != 0);
 
@@ -416,15 +509,19 @@ public class CodecDecoderTest extends CodecDecoderTestBase {
     }
 
     private native boolean nativeTestFlush(String decoder, Surface surface, String mime,
-            String testFile);
+            String testFile, int colorFormat);
 
     @Ignore("TODO(b/147576107)")
     @LargeTest
     @Test(timeout = PER_TEST_TIMEOUT_LARGE_TEST_MS)
-    public void testFlushNative() {
-        {
-            assertTrue(nativeTestFlush(mCodecName, null, mMime, mInpPrefix + mTestFile));
+    public void testFlushNative() throws IOException {
+        int colorFormat = 0;
+        if (!mIsAudio) {
+            MediaFormat format = setUpSource(mTestFile);
+            mExtractor.release();
+            colorFormat = format.getInteger(MediaFormat.KEY_COLOR_FORMAT);
         }
+        assertTrue(nativeTestFlush(mCodecName, null, mMime, mInpPrefix + mTestFile, colorFormat));
     }
 
     /**
@@ -442,7 +539,7 @@ public class CodecDecoderTest extends CodecDecoderTestBase {
         mExtractor.release();
         ArrayList<MediaFormat> formatList = new ArrayList<>();
         formatList.add(newFormat);
-        checkFormatSupport(mCodecName, mMime, formatList, null, mSupportRequirements);
+        checkFormatSupport(mCodecName, mMime, false, formatList, null, mSupportRequirements);
         final long startTs = 0;
         final long seekTs = 500000;
         final int mode = MediaExtractor.SEEK_TO_CLOSEST_SYNC;
@@ -459,10 +556,14 @@ public class CodecDecoderTest extends CodecDecoderTestBase {
                 assertTrue("config reference output pts is not strictly increasing",
                         configRef.isPtsStrictlyIncreasing(mPrevOutputPts));
             } else {
-                assertTrue("input pts list and reference pts list are not identical",
-                        ref.isOutPtsListIdenticalToInpPtsList(false));
-                assertTrue("input pts list and reconfig ref output pts list are not identical",
-                        ref.isOutPtsListIdenticalToInpPtsList(false));
+                // TODO: Timestamps for deinterlaced content are under review. (E.g. can decoders
+                // produce multiple progressive frames?) For now, do not verify timestamps.
+                if (!mIsInterlaced) {
+                    assertTrue("input pts list and reference pts list are not identical",
+                            ref.isOutPtsListIdenticalToInpPtsList(false));
+                    assertTrue("input pts list and reconfig ref output pts list are not identical",
+                            ref.isOutPtsListIdenticalToInpPtsList(false));
+                }
             }
             mOutputBuff = test;
             mCodec = MediaCodec.createByCodecName(mCodecName);
@@ -512,7 +613,6 @@ public class CodecDecoderTest extends CodecDecoderTestBase {
                 doWork(Integer.MAX_VALUE);
                 queueEOS();
                 waitForAllOutputs();
-                if (mSaveToMem) verify(mOutputBuff, mRefFile, mRmsError, mRefCRC);
                 /* TODO(b/147348711) */
                 if (false) mCodec.stop();
                 else mCodec.reset();
@@ -538,7 +638,6 @@ public class CodecDecoderTest extends CodecDecoderTestBase {
                 doWork(Integer.MAX_VALUE);
                 queueEOS();
                 waitForAllOutputs();
-                if (mSaveToMem) verify(mOutputBuff, mRefFile, mRmsError, mRefCRC);
                 /* TODO(b/147348711) */
                 if (false) mCodec.stop();
                 else mCodec.reset();
@@ -630,9 +729,14 @@ public class CodecDecoderTest extends CodecDecoderTestBase {
                         assertTrue(log + " pts is not strictly increasing",
                                 ref.isPtsStrictlyIncreasing(mPrevOutputPts));
                     } else {
-                        assertTrue(
-                                log + " input pts list and output pts list are not identical",
-                                ref.isOutPtsListIdenticalToInpPtsList(false));
+                        // TODO: Timestamps for deinterlaced content are under review.
+                        // (E.g. can decoders produce multiple progressive frames?)
+                        // For now, do not verify timestamps.
+                        if (!mIsInterlaced) {
+                            assertTrue(
+                                    log + " input pts list and output pts list are not identical",
+                                    ref.isOutPtsListIdenticalToInpPtsList(false));
+                        }
                     }
                 }
                 loopCounter++;
@@ -642,14 +746,19 @@ public class CodecDecoderTest extends CodecDecoderTestBase {
         mExtractor.release();
     }
 
-    private native boolean nativeTestOnlyEos(String decoder, String mime, String testFile);
+    private native boolean nativeTestOnlyEos(String decoder, String mime, String testFile,
+            int colorFormat);
 
     @SmallTest
     @Test
-    public void testOnlyEosNative() {
-        {
-            assertTrue(nativeTestOnlyEos(mCodecName, mMime, mInpPrefix + mTestFile));
+    public void testOnlyEosNative() throws IOException {
+        int colorFormat = 0;
+        if (!mIsAudio) {
+            MediaFormat format = setUpSource(mTestFile);
+            mExtractor.release();
+            colorFormat = format.getInteger(MediaFormat.KEY_COLOR_FORMAT);
         }
+        assertTrue(nativeTestOnlyEos(mCodecName, mMime, mInpPrefix + mTestFile, colorFormat));
     }
 
     /**
@@ -719,9 +828,15 @@ public class CodecDecoderTest extends CodecDecoderTestBase {
                                 assertTrue(log + " pts is not strictly increasing",
                                         ref.isPtsStrictlyIncreasing(mPrevOutputPts));
                             } else {
-                                assertTrue(
-                                        log + " input pts list and output pts list are not identical",
-                                        ref.isOutPtsListIdenticalToInpPtsList(false));
+                                // TODO: Timestamps for deinterlaced content are under review.
+                                // (E.g. can decoders produce multiple progressive frames?)
+                                // For now, do not verify timestamps.
+                                if (!mIsInterlaced) {
+                                    assertTrue(
+                                           log +
+                                           " input pts list and output pts list are not identical",
+                                           ref.isOutPtsListIdenticalToInpPtsList(false));
+                                }
                             }
                         }
                         if (validateFormat) {
@@ -743,7 +858,7 @@ public class CodecDecoderTest extends CodecDecoderTestBase {
     }
 
     private native boolean nativeTestSimpleDecodeQueueCSD(String decoder, String mime,
-            String testFile);
+            String testFile, int colorFormat);
 
     @LargeTest
     @Test(timeout = PER_TEST_TIMEOUT_LARGE_TEST_MS)
@@ -753,10 +868,10 @@ public class CodecDecoderTest extends CodecDecoderTestBase {
             mExtractor.release();
             return;
         }
-        {
-            assertTrue(nativeTestSimpleDecodeQueueCSD(mCodecName, mMime, mInpPrefix + mTestFile));
-        }
         mExtractor.release();
+        int colorFormat = mIsAudio ? 0 : format.getInteger(MediaFormat.KEY_COLOR_FORMAT);
+        assertTrue(nativeTestSimpleDecodeQueueCSD(mCodecName, mMime, mInpPrefix + mTestFile,
+                colorFormat));
     }
 
     /**
@@ -781,8 +896,12 @@ public class CodecDecoderTest extends CodecDecoderTestBase {
                 assertTrue("reference output pts is not strictly increasing",
                         ref.isPtsStrictlyIncreasing(mPrevOutputPts));
             } else {
-                assertTrue("input pts list and output pts list are not identical",
-                        ref.isOutPtsListIdenticalToInpPtsList(false));
+                // TODO: Timestamps for deinterlaced content are under review. (E.g. can decoders
+                // produce multiple progressive frames?) For now, do not verify timestamps.
+                if (!mIsInterlaced) {
+                    assertTrue("input pts list and output pts list are not identical",
+                            ref.isOutPtsListIdenticalToInpPtsList(false));
+                }
             }
             mSaveToMem = true;
             mOutputBuff = test;

@@ -19,12 +19,11 @@ package com.android.cts.verifier;
 import static com.android.cts.verifier.TestListActivity.sCurrentDisplayMode;
 import static com.android.cts.verifier.TestListAdapter.setTestNameSuffix;
 
-import com.android.compatibility.common.util.ReportLog;
-import com.android.compatibility.common.util.TestResultHistory;
-
 import android.app.Activity;
 import android.content.Intent;
 import android.util.Log;
+
+import com.android.compatibility.common.util.ReportLog;
 
 /**
  * Object representing the result of a test activity like whether it succeeded or failed.
@@ -62,10 +61,7 @@ public class TestResult {
     /** Sets the test activity's result to pass including a test report log result. */
     public static void setPassedResult(Activity activity, String testId, String testDetails,
             ReportLog reportLog) {
-        Log.i(TAG, "setPassedResult(activity=" + activity + ", testId=" + testId
-                + ", testDetails=" + testDetails);
-        activity.setResult(Activity.RESULT_OK, createResult(activity, TEST_RESULT_PASSED, testId,
-            testDetails, reportLog, null /*history*/));
+        setPassedResult(activity, testId, testDetails, reportLog, null /*history*/);
     }
 
     /** Sets the test activity's result to pass including a test report log result and history. */
@@ -85,10 +81,7 @@ public class TestResult {
     /** Sets the test activity's result to failed including a test report log result. */
     public static void setFailedResult(Activity activity, String testId, String testDetails,
             ReportLog reportLog) {
-        Log.e(TAG, "setFailedResult(activity=" + activity + ", testId=" + testId
-                + ", testDetails=" + testDetails);
-        activity.setResult(Activity.RESULT_OK, createResult(activity, TEST_RESULT_FAILED, testId,
-                testDetails, reportLog, null /*history*/));
+        setFailedResult(activity, testId, testDetails, reportLog, null /*history*/);
     }
 
     /** Sets the test activity's result to failed including a test report log result and history. */
@@ -97,7 +90,7 @@ public class TestResult {
         Log.e(TAG, "setFailedResult(activity=" + activity + ", testId=" + testId
                 + ", testDetails=" + testDetails);
         activity.setResult(Activity.RESULT_OK, createResult(activity, TEST_RESULT_FAILED, testId,
-            testDetails, reportLog, historyCollection));
+                testDetails, reportLog, historyCollection));
     }
 
     public static Intent createResult(Activity activity, int testResult, String testName,
@@ -131,7 +124,7 @@ public class TestResult {
         String details = data.getStringExtra(TEST_DETAILS);
         ReportLog reportLog = (ReportLog) data.getSerializableExtra(TEST_METRICS);
         TestResultHistoryCollection historyCollection =
-            (TestResultHistoryCollection) data.getSerializableExtra(TEST_HISTORY_COLLECTION);
+                (TestResultHistoryCollection) data.getSerializableExtra(TEST_HISTORY_COLLECTION);
         return new TestResult(name, result, details, reportLog, historyCollection);
     }
 
