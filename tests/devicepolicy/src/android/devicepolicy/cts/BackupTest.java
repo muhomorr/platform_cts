@@ -22,7 +22,8 @@ import static com.android.bedstead.nene.permissions.CommonPermissions.BACKUP;
 
 import static com.google.common.truth.Truth.assertThat;
 
-import android.app.admin.DevicePolicyManager;
+import static org.testng.Assert.assertThrows;
+
 import android.app.backup.BackupManager;
 import android.content.Context;
 
@@ -31,13 +32,15 @@ import com.android.bedstead.harrier.DeviceState;
 import com.android.bedstead.harrier.annotations.EnsureHasPermission;
 import com.android.bedstead.harrier.annotations.Postsubmit;
 import com.android.bedstead.harrier.annotations.RequireFeature;
+import com.android.bedstead.harrier.annotations.enterprise.CannotSetPolicyTest;
 import com.android.bedstead.harrier.annotations.enterprise.PolicyAppliesTest;
+import com.android.bedstead.harrier.annotations.enterprise.PolicyDoesNotApplyTest;
 import com.android.bedstead.harrier.policies.Backup;
 import com.android.bedstead.nene.TestApis;
 
 import org.junit.ClassRule;
+import org.junit.Ignore;
 import org.junit.Rule;
-import org.junit.Test;
 import org.junit.runner.RunWith;
 
 @RunWith(BedsteadJUnit4.class)
@@ -48,19 +51,15 @@ public final class BackupTest {
     public static final DeviceState sDeviceState = new DeviceState();
 
     private static final Context sContext = TestApis.context().instrumentedContext();
-    private static final DevicePolicyManager sLocalDevicePolicyManager =
-            sContext.getSystemService(DevicePolicyManager.class);
+    private static final BackupManager sLocalBackupManager = new BackupManager(sContext);
 
-    @Test
     @PolicyAppliesTest(policy = Backup.class)
     @EnsureHasPermission(BACKUP)
     @Postsubmit(reason = "new test")
     public void isBackupEnabled_default_returnsFalse() {
-        BackupManager bm = new BackupManager(sContext);
-        assertThat(bm.isBackupEnabled()).isFalse();
+        assertThat(sLocalBackupManager.isBackupEnabled()).isFalse();
     }
 
-    @Test
     @PolicyAppliesTest(policy = Backup.class)
     @Postsubmit(reason = "new test")
     public void isBackupServiceEnabled_default_returnsFalse() {
@@ -68,9 +67,9 @@ public final class BackupTest {
                 sDeviceState.dpc().componentName())).isFalse();
     }
 
-    @Test
     @PolicyAppliesTest(policy = Backup.class)
     @Postsubmit(reason = "new test")
+    @EnsureHasPermission(BACKUP)
     public void setBackupServiceEnabled_true_setsBackupServiceEnabled() {
         try {
             sDeviceState.dpc().devicePolicyManager().setBackupServiceEnabled(
@@ -78,15 +77,17 @@ public final class BackupTest {
 
             assertThat(sDeviceState.dpc().devicePolicyManager().isBackupServiceEnabled(
                     sDeviceState.dpc().componentName())).isTrue();
+            assertThat(sLocalBackupManager
+                    .isBackupServiceActive(TestApis.users().instrumented().userHandle())).isTrue();
         } finally {
             sDeviceState.dpc().devicePolicyManager().setBackupServiceEnabled(
                     sDeviceState.dpc().componentName(), false);
         }
     }
 
-    @Test
     @PolicyAppliesTest(policy = Backup.class)
     @Postsubmit(reason = "new test")
+    @EnsureHasPermission(BACKUP)
     public void setBackupServiceEnabled_false_setsBackupServiceNotEnabled() {
         try {
             sDeviceState.dpc().devicePolicyManager().setBackupServiceEnabled(
@@ -94,9 +95,37 @@ public final class BackupTest {
 
             assertThat(sDeviceState.dpc().devicePolicyManager().isBackupServiceEnabled(
                     sDeviceState.dpc().componentName())).isFalse();
+            assertThat(sLocalBackupManager
+                    .isBackupServiceActive(TestApis.users().instrumented().userHandle())).isFalse();
         } finally {
             sDeviceState.dpc().devicePolicyManager().setBackupServiceEnabled(
                     sDeviceState.dpc().componentName(), false);
         }
+    }
+
+    @PolicyDoesNotApplyTest(policy = Backup.class)
+    @Postsubmit(reason = "new test")
+    @EnsureHasPermission(BACKUP)
+    @Ignore("b/221087493 weird behavior regarding if it applies to a parent of a profile owner")
+    public void setBackupServiceEnabled_doesNotApply_doesNotSetBackupServiceEnabled() {
+        try {
+            sDeviceState.dpc().devicePolicyManager().setBackupServiceEnabled(
+                    sDeviceState.dpc().componentName(), true);
+
+            assertThat(sLocalBackupManager
+                    .isBackupServiceActive(TestApis.users().instrumented().userHandle())).isFalse();
+        } finally {
+            sDeviceState.dpc().devicePolicyManager().setBackupServiceEnabled(
+                    sDeviceState.dpc().componentName(), false);
+        }
+    }
+
+    @CannotSetPolicyTest(policy = Backup.class, includeNonDeviceAdminStates = false)
+    @Postsubmit(reason = "new test")
+    public void setBackupServiceEnabled_cannotSetPolicy_throwsException() {
+        assertThrows(SecurityException.class, () -> {
+            sDeviceState.dpc().devicePolicyManager().setBackupServiceEnabled(
+                    sDeviceState.dpc().componentName(), true);
+        });
     }
 }

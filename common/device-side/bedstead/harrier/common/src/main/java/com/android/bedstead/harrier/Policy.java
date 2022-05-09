@@ -44,20 +44,25 @@ import static com.android.bedstead.nene.devicepolicy.CommonDevicePolicy.DELEGATI
 import static com.android.bedstead.nene.devicepolicy.CommonDevicePolicy.DELEGATION_PERMISSION_GRANT;
 import static com.android.bedstead.nene.devicepolicy.CommonDevicePolicy.DELEGATION_SECURITY_LOGGING;
 
+import com.android.bedstead.harrier.annotations.EnsureTestAppHasAppOp;
+import com.android.bedstead.harrier.annotations.EnsureTestAppHasPermission;
+import com.android.bedstead.harrier.annotations.EnsureTestAppInstalled;
 import com.android.bedstead.harrier.annotations.enterprise.EnsureHasDelegate;
 import com.android.bedstead.harrier.annotations.enterprise.EnterprisePolicy;
+import com.android.bedstead.harrier.annotations.enterprise.EnterprisePolicy.AppOp;
+import com.android.bedstead.harrier.annotations.meta.ParameterizedAnnotation;
 import com.android.bedstead.harrier.annotations.parameterized.IncludeNone;
 import com.android.bedstead.harrier.annotations.parameterized.IncludeRunOnAffiliatedDeviceOwnerSecondaryUser;
 import com.android.bedstead.harrier.annotations.parameterized.IncludeRunOnAffiliatedProfileOwnerSecondaryUser;
 import com.android.bedstead.harrier.annotations.parameterized.IncludeRunOnBackgroundDeviceOwnerUser;
 import com.android.bedstead.harrier.annotations.parameterized.IncludeRunOnDeviceOwnerUser;
-import com.android.bedstead.harrier.annotations.parameterized.IncludeRunOnNonAffiliatedDeviceOwnerSecondaryUser;
 import com.android.bedstead.harrier.annotations.parameterized.IncludeRunOnParentOfCorporateOwnedProfileOwner;
 import com.android.bedstead.harrier.annotations.parameterized.IncludeRunOnParentOfProfileOwnerUsingParentInstance;
 import com.android.bedstead.harrier.annotations.parameterized.IncludeRunOnParentOfProfileOwnerWithNoDeviceOwner;
 import com.android.bedstead.harrier.annotations.parameterized.IncludeRunOnProfileOwnerPrimaryUser;
 import com.android.bedstead.harrier.annotations.parameterized.IncludeRunOnProfileOwnerProfileWithNoDeviceOwner;
 import com.android.bedstead.harrier.annotations.parameterized.IncludeRunOnSecondaryUserInDifferentProfileGroupToProfileOwnerProfile;
+import com.android.bedstead.harrier.annotations.parameterized.IncludeRunOnUnaffiliatedDeviceOwnerSecondaryUser;
 import com.android.bedstead.harrier.annotations.parameterized.IncludeRunOnUnaffiliatedProfileOwnerSecondaryUser;
 
 import com.google.auto.value.AutoAnnotation;
@@ -80,6 +85,9 @@ import java.util.stream.Collectors;
  * Utility class for enterprise policy tests.
  */
 public final class Policy {
+
+    // TODO(b/219750042): If we leave over appops and permissions then the delegate will have them
+    private static final String DELEGATE_PACKAGE_NAME = "com.android.Delegate";
 
     // Delegate scopes to be used for a "CannotSet" state. All delegate scopes except the ones which
     // should allow use of the API will be granted
@@ -159,6 +167,22 @@ public final class Policy {
     }
 
     @AutoAnnotation
+    private static EnsureTestAppInstalled ensureTestAppInstalled(
+            String packageName, UserType onUser, boolean isPrimary) {
+        return new AutoAnnotation_Policy_ensureTestAppInstalled(packageName, onUser, isPrimary);
+    }
+
+    @AutoAnnotation
+    private static EnsureTestAppHasPermission ensureTestAppHasPermission(String[] value) {
+        return new AutoAnnotation_Policy_ensureTestAppHasPermission(value);
+    }
+
+    @AutoAnnotation
+    private static EnsureTestAppHasAppOp ensureTestAppHasAppOp(String[] value) {
+        return new AutoAnnotation_Policy_ensureTestAppHasAppOp(value);
+    }
+
+    @AutoAnnotation
     private static IncludeNone includeNone() {
         return new AutoAnnotation_Policy_includeNone();
     }
@@ -169,7 +193,7 @@ public final class Policy {
     }
 
     @AutoAnnotation
-    private static IncludeRunOnNonAffiliatedDeviceOwnerSecondaryUser includeRunOnNonAffiliatedDeviceOwnerSecondaryUser() {
+    private static IncludeRunOnUnaffiliatedDeviceOwnerSecondaryUser includeRunOnNonAffiliatedDeviceOwnerSecondaryUser() {
         return new AutoAnnotation_Policy_includeRunOnNonAffiliatedDeviceOwnerSecondaryUser();
     }
 
@@ -286,7 +310,6 @@ public final class Policy {
         };
     }
 
-
     /**
      * Get parameterized test runs for the given policy.
      *
@@ -304,6 +327,20 @@ public final class Policy {
                 annotations.addAll(annotation.getKey().apply(enterprisePolicy));
             }
         }
+
+        for (AppOp appOp : enterprisePolicy.appOps()) {
+            // TODO(b/219750042): Currently we only test that app ops apply to the current user
+            Annotation[] withAppOpAnnotations = new Annotation[]{
+                    ensureTestAppInstalled(DELEGATE_PACKAGE_NAME,
+                            UserType.INSTRUMENTED_USER, /* isPrimary= */ true),
+                    ensureTestAppHasAppOp(new String[]{appOp.appliedWith()})
+            };
+            annotations.add(
+                    new DynamicParameterizedAnnotation(
+                            "AppOp:" + appOp.appliedWith(), withAppOpAnnotations));
+        }
+
+        removeShadowingAnnotations(annotations);
 
         if (annotations.isEmpty()) {
             // Don't run the original test unparameterized
@@ -357,6 +394,8 @@ public final class Policy {
                 annotations.addAll(annotation.getKey().apply(enterprisePolicy));
             }
         }
+
+        removeShadowedAnnotations(annotations);
 
         if (annotations.isEmpty()) {
             // Don't run the original test unparameterized
@@ -426,6 +465,8 @@ public final class Policy {
             }
         }
 
+        removeShadowedAnnotations(annotations);
+
         if (annotations.isEmpty()) {
             // Don't run the original test unparameterized
             annotations.add(includeNone());
@@ -460,7 +501,23 @@ public final class Policy {
             annotations.add(includeNone());
         }
 
+        for (AppOp appOp : enterprisePolicy.appOps()) {
+            // TODO(b/219750042): Currently we only test that app ops can be set as the primary user
+            Annotation[] withAppOpAnnotations = new Annotation[]{
+                    ensureTestAppInstalled(
+                            DELEGATE_PACKAGE_NAME, UserType.INSTRUMENTED_USER,
+                            /* isPrimary= */ true),
+                    ensureTestAppHasAppOp(new String[]{appOp.appliedWith()})
+            };
+            annotations.add(
+                    new DynamicParameterizedAnnotation(
+                            "AppOp:" + appOp.appliedWith(), withAppOpAnnotations));
+        }
+
+
         List<Annotation> annotationList = new ArrayList<>(annotations);
+
+        removeShadowingAnnotations(annotations);
 
         if (singleTestOnly) {
             // We select one annotation in an arbitrary but deterministic way
@@ -527,5 +584,111 @@ public final class Policy {
         }
 
         return true;
+    }
+
+    /**
+     * Remove entries from {@code annotations} which are shadowed by another entry
+     * in {@code annotatipns} (directly or indirectly).
+     */
+    private static void removeShadowedAnnotations(Set<Annotation> annotations) {
+        Set<Class<? extends Annotation>> shadowedAnnotations = new HashSet<>();
+        for (Annotation annotation : annotations) {
+            if (annotation instanceof DynamicParameterizedAnnotation) {
+                continue; // Doesn't shadow anything
+            }
+
+            ParameterizedAnnotation parameterizedAnnotation =
+                    annotation.annotationType().getAnnotation(ParameterizedAnnotation.class);
+
+            if (parameterizedAnnotation == null) {
+                continue; // Not parameterized
+            }
+
+            for (Class<? extends Annotation> shadowedAnnotationClass
+                    : parameterizedAnnotation.shadows()) {
+                addShadowed(shadowedAnnotations, shadowedAnnotationClass);
+            }
+        }
+
+        annotations.removeIf(a -> shadowedAnnotations.contains(a.annotationType()));
+    }
+
+    private static void addShadowed(Set<Class<? extends Annotation>> shadowedAnnotations,
+            Class<? extends Annotation> annotationClass) {
+        shadowedAnnotations.add(annotationClass);
+        ParameterizedAnnotation parameterizedAnnotation =
+                annotationClass.getAnnotation(ParameterizedAnnotation.class);
+
+        if (parameterizedAnnotation == null) {
+            return;
+        }
+
+        for (Class<? extends Annotation> shadowedAnnotationClass
+                : parameterizedAnnotation.shadows()) {
+            addShadowed(shadowedAnnotations, shadowedAnnotationClass);
+        }
+    }
+
+    // This maps classes to classes which shadow them - we just need to ensure it contains all
+    // annotation classes we encounter
+    private static Map<Class<? extends Annotation>, Set<Class<? extends Annotation>>>
+            sReverseShadowMap = new HashMap<>();
+
+    /**
+     * Remove entries from {@code annotations} which are shadowing another entry
+     * in {@code annotatipns} (directly or indirectly).
+     */
+    private static void removeShadowingAnnotations(Set<Annotation> annotations) {
+        for (Annotation annotation : annotations) {
+            recordInReverseShadowMap(annotation);
+        }
+
+        Set<Class<? extends Annotation>> shadowingAnnotations = new HashSet<>();
+
+        for (Annotation annotation : annotations) {
+            shadowingAnnotations.addAll(
+                    sReverseShadowMap.getOrDefault(annotation.annotationType(), Set.of()));
+        }
+
+        annotations.removeIf(a -> shadowingAnnotations.contains(a.annotationType()));
+    }
+
+    private static void recordInReverseShadowMap(Annotation annotation) {
+        if (annotation instanceof DynamicParameterizedAnnotation) {
+            return; // Not shadowed by anything
+        }
+
+        ParameterizedAnnotation parameterizedAnnotation =
+                annotation.annotationType().getAnnotation(ParameterizedAnnotation.class);
+
+        if (parameterizedAnnotation == null) {
+            return; // Not parameterized
+        }
+
+        if (parameterizedAnnotation.shadows().length == 0) {
+            return; // Doesn't shadow anything
+        }
+
+        recordShadowedInReverseShadowMap(annotation.annotationType(), parameterizedAnnotation);
+    }
+
+    private static void recordShadowedInReverseShadowMap(Class<? extends Annotation> annotation,
+            ParameterizedAnnotation parameterizedAnnotation) {
+        for (Class<? extends Annotation> shadowedAnnotation : parameterizedAnnotation.shadows()) {
+            ParameterizedAnnotation shadowedParameterizedAnnotation =
+                    shadowedAnnotation.getAnnotation(ParameterizedAnnotation.class);
+
+            if (shadowedParameterizedAnnotation == null) {
+                continue; // Not parameterized
+            }
+
+            if (!sReverseShadowMap.containsKey(shadowedAnnotation)) {
+                sReverseShadowMap.put(shadowedAnnotation, new HashSet<>());
+            }
+
+            sReverseShadowMap.get(shadowedAnnotation).add(annotation);
+
+            recordShadowedInReverseShadowMap(annotation, shadowedParameterizedAnnotation);
+        }
     }
 }

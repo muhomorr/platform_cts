@@ -33,6 +33,7 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertNotNull;
+import static org.testng.Assert.assertThrows;
 
 import android.app.UiAutomation;
 import android.content.ComponentName;
@@ -184,6 +185,14 @@ public class ChecksumsTest {
         assertFalse(isAppInstalled(V4_PACKAGE_NAME));
         uninstallPackageSilently(FIXED_PACKAGE_NAME);
         assertFalse(isAppInstalled(FIXED_PACKAGE_NAME));
+    }
+
+    @Test
+    public void testNameNotFound() throws Exception {
+        LocalListener receiver = new LocalListener();
+        PackageManager pm = getPackageManager();
+        assertThrows(PackageManager.NameNotFoundException.class,
+                () -> pm.requestChecksums(V4_PACKAGE_NAME, true, 0, TRUST_NONE, receiver));
     }
 
     @Test
@@ -502,6 +511,7 @@ public class ChecksumsTest {
         try {
             final PackageInstaller installer = getPackageInstaller();
             final SessionParams params = new SessionParams(SessionParams.MODE_FULL_INSTALL);
+            params.installFlags |= PackageManager.INSTALL_REPLACE_EXISTING;
 
             final int sessionId = installer.createSession(params);
             Session session = installer.openSession(sessionId);
@@ -654,6 +664,7 @@ public class ChecksumsTest {
         try {
             installer = getPackageInstaller();
             final SessionParams params = new SessionParams(SessionParams.MODE_FULL_INSTALL);
+            params.installFlags |= PackageManager.INSTALL_REPLACE_EXISTING;
 
             sessionId = installer.createSession(params);
             final Session session = installer.openSession(sessionId);
@@ -1298,6 +1309,7 @@ public class ChecksumsTest {
         try {
             final PackageInstaller installer = getPackageInstaller();
             final SessionParams params = new SessionParams(SessionParams.MODE_FULL_INSTALL);
+            params.installFlags |= PackageManager.INSTALL_REPLACE_EXISTING;
             params.setDataLoaderParams(DataLoaderParams.forIncremental(new ComponentName("android",
                     PackageManagerShellCommandDataLoader.class.getName()), ""));
 

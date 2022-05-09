@@ -27,6 +27,8 @@ import static androidx.test.core.app.ApplicationProvider.getApplicationContext;
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
 
+import static org.junit.Assert.assertThrows;
+
 import android.annotation.Nullable;
 import android.companion.virtual.VirtualDeviceManager;
 import android.companion.virtual.VirtualDeviceManager.VirtualDevice;
@@ -44,12 +46,13 @@ import com.android.compatibility.common.util.AdoptShellPermissionsRule;
 
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+
+import java.util.ArrayList;
 
 @RunWith(AndroidJUnit4.class)
 @AppModeFull(reason = " cannot be accessed by instant apps")
@@ -71,7 +74,8 @@ public class CreateVirtualDisplayTest {
     public FakeAssociationRule mFakeAssociationRule = new FakeAssociationRule();
 
     private VirtualDeviceManager mVirtualDeviceManager;
-    @Nullable private VirtualDevice mVirtualDevice;
+    @Nullable
+    private VirtualDevice mVirtualDevice;
     @Mock
     private VirtualDisplay.Callback mVirtualDisplayCallback;
 
@@ -113,7 +117,6 @@ public class CreateVirtualDisplayTest {
                 .isNotEqualTo(0);
     }
 
-    @Ignore("Need allow_always_unlocked_virtual_displays flag to be on by default")
     @Test
     public void createVirtualDisplay_alwaysUnlocked_shouldSpecifyFlagInVirtualDisplays() {
         mVirtualDevice =
@@ -138,5 +141,68 @@ public class CreateVirtualDisplayTest {
                         displayFlags))
                 .that(displayFlags & Display.FLAG_ALWAYS_UNLOCKED)
                 .isNotEqualTo(0);
+    }
+
+    @Test
+    public void createVirtualDisplay_nullExecutorAndCallback_shouldSucceed() {
+        mVirtualDevice =
+                mVirtualDeviceManager.createVirtualDevice(
+                        mFakeAssociationRule.getAssociationInfo().getId(),
+                        DEFAULT_VIRTUAL_DEVICE_PARAMS);
+        VirtualDisplay virtualDisplay = mVirtualDevice.createVirtualDisplay(
+                /* width= */ 100,
+                /* height= */ 100,
+                /* densityDpi= */ 240,
+                /* surface= */ null,
+                /* flags= */ 0,
+                /* executor= */ null,
+                /* callback= */ null);
+        assertThat(virtualDisplay).isNotNull();
+    }
+
+    @Test
+    public void createVirtualDisplay_nullExecutorButNonNullCallback_shouldThrow() {
+        mVirtualDevice =
+                mVirtualDeviceManager.createVirtualDevice(
+                        mFakeAssociationRule.getAssociationInfo().getId(),
+                        DEFAULT_VIRTUAL_DEVICE_PARAMS);
+
+        assertThrows(NullPointerException.class, () ->
+                mVirtualDevice.createVirtualDisplay(
+                        /* width= */ 100,
+                        /* height= */ 100,
+                        /* densityDpi= */ 240,
+                        /* surface= */ null,
+                        /* flags= */ 0,
+                        /* executor= */ null,
+                        mVirtualDisplayCallback));
+    }
+
+    @Test
+    public void createVirtualDisplay_createAndRemoveSeveralDisplays() throws InterruptedException {
+        mVirtualDevice =
+                mVirtualDeviceManager.createVirtualDevice(
+                        mFakeAssociationRule.getAssociationInfo().getId(),
+                        DEFAULT_VIRTUAL_DEVICE_PARAMS);
+        ArrayList<VirtualDisplay> displays = new ArrayList<>();
+        for (int i = 0; i < 5; i++) {
+            displays.add(mVirtualDevice.createVirtualDisplay(
+                    /* width= */ 100,
+                    /* height= */ 100,
+                    /* densityDpi= */ 240,
+                    /* surface= */ null,
+                    /* flags= */ 0,
+                    Runnable::run,
+                    mVirtualDisplayCallback));
+            // TODO(b/230544802) - for now, use sleep to avoid deadlock when creating multiple
+            //  displays in quick succession
+            Thread.sleep(50);
+        }
+
+        // Releasing several displays in quick succession should not cause deadlock
+        while (!displays.isEmpty()) {
+            int index = displays.size() - 1;
+            displays.remove(index).release();
+        }
     }
 }

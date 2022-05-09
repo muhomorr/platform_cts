@@ -2539,12 +2539,11 @@ public class BitmapTest {
             Bitmap bm = Bitmap.createBitmap(10, 10, pair.config);
             bm = bm.copy(Bitmap.Config.HARDWARE, false);
 
-            // ALPHA_8 is not supported in HARDWARE.
+            // ALPHA_8 may not be supported in HARDWARE.
             if (bm == null) {
                 assertEquals(Bitmap.Config.ALPHA_8, pair.config);
                 continue;
             }
-            assertNotEquals(Bitmap.Config.ALPHA_8, pair.config);
 
             int nativeFormat = nGetFormat(bm);
             if (pair.config == Bitmap.Config.RGBA_F16) {
@@ -2592,18 +2591,18 @@ public class BitmapTest {
                 nTestInfo(bm, expectedFormat, width, height, bm.hasAlpha(),
                         bm.isPremultiplied(), false);
                 Bitmap hwBitmap = bm.copy(Bitmap.Config.HARDWARE, false);
-                if (config == Bitmap.Config.ALPHA_8) {
-                    // ALPHA_8 is not supported in HARDWARE. b/141480329
-                    assertNull(hwBitmap);
+                if (hwBitmap == null) {
+                    // Some devices do not support ALPHA_8 + HARDWARE.
+                    assertEquals(Bitmap.Config.ALPHA_8, config);
                 } else {
-                    assertNotNull(hwBitmap);
-
-                    // Some devices do not support F16 + HARDWARE. These fall back to 8888, and can
-                    // be identified by their use of SRGB instead of EXTENDED_SRGB.
+                    // Some devices do not support (F16 | 1010102) + HARDWARE. These fall back to
+                    // 8888. Check the HWB to confirm.
                     int tempExpectedFormat = expectedFormat;
-                    if (config == Config.RGBA_F16 && hwBitmap.getColorSpace() == ColorSpace.get(
-                            ColorSpace.Named.SRGB)) {
-                        tempExpectedFormat = ANDROID_BITMAP_FORMAT_RGBA_8888;
+                    if (config == Config.RGBA_F16 || config == Config.RGBA_1010102) {
+                        HardwareBuffer buffer = hwBitmap.getHardwareBuffer();
+                        if (buffer.getFormat() == HardwareBuffer.RGBA_8888) {
+                            tempExpectedFormat = ANDROID_BITMAP_FORMAT_RGBA_8888;
+                        }
                     }
                     nTestInfo(hwBitmap, tempExpectedFormat, width, height, hwBitmap.hasAlpha(),
                             hwBitmap.isPremultiplied(), true);
@@ -2969,5 +2968,18 @@ public class BitmapTest {
         BitmapFactory.Options options = new BitmapFactory.Options();
         options.inPreferredConfig = Config.HARDWARE;
         return options;
+    }
+
+    @Test
+    public void testCopyAlpha8ToHardware() {
+        Bitmap bm = Bitmap.createBitmap(10, 10, Bitmap.Config.ALPHA_8);
+        assertNotNull(bm);
+        Bitmap hwBitmap = bm.copy(Bitmap.Config.HARDWARE, false /* mutable */);
+        // Some devices may not support ALPHA_8 + HARDWARE
+        if (hwBitmap != null) {
+            assertNull(hwBitmap.getColorSpace());
+        }
+
+        bm.recycle();
     }
 }

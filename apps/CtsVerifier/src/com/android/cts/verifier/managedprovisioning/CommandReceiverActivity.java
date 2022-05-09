@@ -26,6 +26,7 @@ import android.app.ActivityManager;
 import android.app.KeyguardManager;
 import android.app.PendingIntent;
 import android.app.admin.DevicePolicyManager;
+import android.app.admin.WifiSsidPolicy;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -36,6 +37,7 @@ import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.graphics.BitmapFactory;
 import android.net.ProxyInfo;
+import android.net.wifi.WifiSsid;
 import android.os.Bundle;
 import android.os.PersistableBundle;
 import android.os.UserHandle;
@@ -43,6 +45,7 @@ import android.os.UserManager;
 import android.provider.ContactsContract;
 import android.provider.MediaStore;
 import android.provider.Settings;
+import android.util.ArraySet;
 import android.util.Log;
 import android.view.inputmethod.InputMethodInfo;
 import android.view.inputmethod.InputMethodManager;
@@ -55,9 +58,12 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -126,6 +132,9 @@ public class CommandReceiverActivity extends Activity {
     public static final String COMMAND_ENABLE_USB_DATA_SIGNALING = "enable-usb-data-signaling";
     public static final String COMMAND_SET_REQUIRED_PASSWORD_COMPLEXITY =
             "set-required-password-complexity";
+    public static final String COMMAND_SET_WIFI_SECURITY_LEVEL = "set-wifi-security-level";
+    public static final String COMMAND_SET_SSID_ALLOWLIST = "set-ssid-allowlist";
+    public static final String COMMAND_SET_SSID_DENYLIST = "set-ssid-denylist";
 
     public static final String EXTRA_USER_RESTRICTION =
             "com.android.cts.verifier.managedprovisioning.extra.USER_RESTRICTION";
@@ -453,14 +462,14 @@ public class CommandReceiverActivity extends Activity {
                             PackageManager.DONT_KILL_APP);
                 } break;
                 case COMMAND_SET_ALWAYS_ON_VPN: {
-                    if (!mDpm.isDeviceOwnerApp(getPackageName())) {
+                    if (!isDeviceOwnerAppOrEquivalent(getPackageName())) {
                         return;
                     }
                     mDpm.setAlwaysOnVpnPackage(mAdmin, getPackageName(),
                             false /* lockdownEnabled */);
                 } break;
                 case COMMAND_CLEAR_ALWAYS_ON_VPN: {
-                    if (!mDpm.isDeviceOwnerApp(getPackageName())) {
+                    if (!isDeviceOwnerAppOrEquivalent(getPackageName())) {
                         return;
                     }
                     mDpm.setAlwaysOnVpnPackage(mAdmin, null /* vpnPackage */,
@@ -480,13 +489,13 @@ public class CommandReceiverActivity extends Activity {
                     mDpm.setRecommendedGlobalProxy(mAdmin, null);
                 } break;
                 case COMMAND_INSTALL_CA_CERT: {
-                    if (!mDpm.isDeviceOwnerApp(getPackageName())) {
+                    if (!isDeviceOwnerAppOrEquivalent(getPackageName())) {
                         return;
                     }
                     mDpm.installCaCert(mAdmin, TEST_CA.getBytes());
                 } break;
                 case COMMAND_CLEAR_CA_CERT: {
-                    if (!mDpm.isDeviceOwnerApp(getPackageName())) {
+                    if (!isDeviceOwnerAppOrEquivalent(getPackageName())) {
                         return;
                     }
                     mDpm.uninstallCaCert(mAdmin, TEST_CA.getBytes());
@@ -580,7 +589,39 @@ public class CommandReceiverActivity extends Activity {
                             DevicePolicyManager.PASSWORD_COMPLEXITY_NONE);
                     Log.d(TAG, "calling setRequiredPasswordComplexity(" + complexity + ")");
                     mDpm.setRequiredPasswordComplexity(complexity);
-                }
+                } break;
+                case COMMAND_SET_WIFI_SECURITY_LEVEL: {
+                    int level = intent.getIntExtra(EXTRA_VALUE,
+                            DevicePolicyManager.WIFI_SECURITY_OPEN);
+                    Log.d(TAG, "calling setWifiSecurityLevel(" + level + ")");
+                    mDpm.setMinimumRequiredWifiSecurityLevel(level);
+                } break;
+                case COMMAND_SET_SSID_ALLOWLIST: {
+                    String ssid = intent.getStringExtra(EXTRA_VALUE);
+                    WifiSsidPolicy policy;
+                    if (ssid.isEmpty()) {
+                        policy = null;
+                    } else {
+                        Set<WifiSsid> ssids = new ArraySet<>(Arrays.asList(
+                                WifiSsid.fromBytes(ssid.getBytes(StandardCharsets.UTF_8))));
+                        policy = new WifiSsidPolicy(
+                                WifiSsidPolicy.WIFI_SSID_POLICY_TYPE_ALLOWLIST, ssids);
+                    }
+                    mDpm.setWifiSsidPolicy(policy);
+                } break;
+                case COMMAND_SET_SSID_DENYLIST: {
+                    String ssid = intent.getStringExtra(EXTRA_VALUE);
+                    WifiSsidPolicy policy;
+                    if (ssid.isEmpty()) {
+                        policy = null;
+                    } else {
+                        Set<WifiSsid> ssids = new ArraySet<>(Arrays.asList(
+                                WifiSsid.fromBytes(ssid.getBytes(StandardCharsets.UTF_8))));
+                        policy = new WifiSsidPolicy(
+                                WifiSsidPolicy.WIFI_SSID_POLICY_TYPE_DENYLIST, ssids);
+                    }
+                    mDpm.setWifiSsidPolicy(policy);
+                } break;
             }
         } catch (Exception e) {
             Log.e(TAG, "Failed to execute command: " + intent, e);
@@ -600,6 +641,15 @@ public class CommandReceiverActivity extends Activity {
         boolean isIt = dpm.isDeviceOwnerApp(getPackageName());
         Log.v(TAG, "is " + getPackageName() + " DO, using " + dpm + "? " + isIt);
         return isIt;
+    }
+
+    /**
+     * Checks if the {@code packageName} is a device owner app, or a profile owner app in the
+     * headless system user mode.
+      */
+    private boolean isDeviceOwnerAppOrEquivalent(String packageName) {
+        return mDpm.isDeviceOwnerApp(packageName)
+                || (UserManager.isHeadlessSystemUserMode() && mDpm.isProfileOwnerApp(packageName));
     }
 
     private void installHelperPackage() throws Exception {
