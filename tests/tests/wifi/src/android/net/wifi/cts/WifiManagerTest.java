@@ -1894,6 +1894,12 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
             for (int i = 0; i < testBandsAndChannels.size(); i++) {
                 TestLocalOnlyHotspotCallback callback = new TestLocalOnlyHotspotCallback(mLock);
                 int testBand = testBandsAndChannels.keyAt(i);
+                // WPA2_PSK is not allowed in 6GHz band. So test with WPA3_SAE which is
+                // mandatory to support in 6GHz band.
+                if (testBand == SoftApConfiguration.BAND_6GHZ) {
+                    customConfigBuilder.setPassphrase(TEST_PASSPHRASE,
+                            SoftApConfiguration.SECURITY_TYPE_WPA3_SAE);
+                }
                 customConfigBuilder.setBand(testBand);
                 mWifiManager.startLocalOnlyHotspot(customConfigBuilder.build(), executor, callback);
                 // now wait for callback
@@ -4733,25 +4739,29 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
         assertThrows("No permission should trigger SecurityException", SecurityException.class,
                 () -> mWifiManager.queryAutojoinGlobal(mExecutor, listener));
 
-        // Test get/set autojoin global enabled
-        ShellIdentityUtils.invokeWithShellPermissions(
-                () -> mWifiManager.allowAutojoinGlobal(true));
-        ShellIdentityUtils.invokeWithShellPermissions(
-                () -> mWifiManager.queryAutojoinGlobal(mExecutor, listener));
-        synchronized (mLock) {
-            mLock.wait(TEST_WAIT_DURATION_MS);
-        }
-        assertTrue(enabled.get());
+        UiAutomation uiAutomation = InstrumentationRegistry.getInstrumentation().getUiAutomation();
+        try {
+            uiAutomation.adoptShellPermissionIdentity();
+            // Test get/set autojoin global enabled
+            mWifiManager.allowAutojoinGlobal(true);
+            mWifiManager.queryAutojoinGlobal(mExecutor, listener);
+            synchronized (mLock) {
+                mLock.wait(TEST_WAIT_DURATION_MS);
+            }
+            assertTrue(enabled.get());
 
-        // Test get/set autojoin global disabled
-        ShellIdentityUtils.invokeWithShellPermissions(
-                () -> mWifiManager.allowAutojoinGlobal(false));
-        ShellIdentityUtils.invokeWithShellPermissions(
-                () -> mWifiManager.queryAutojoinGlobal(mExecutor, listener));
-        synchronized (mLock) {
-            mLock.wait(TEST_WAIT_DURATION_MS);
+            // Test get/set autojoin global disabled
+            mWifiManager.allowAutojoinGlobal(false);
+            mWifiManager.queryAutojoinGlobal(mExecutor, listener);
+            synchronized (mLock) {
+                mLock.wait(TEST_WAIT_DURATION_MS);
+            }
+            assertFalse(enabled.get());
+        } finally {
+            // Re-enable auto join if the test fails for some reason.
+            mWifiManager.allowAutojoinGlobal(true);
+            uiAutomation.dropShellPermissionIdentity();
         }
-        assertFalse(enabled.get());
     }
 
     /**
