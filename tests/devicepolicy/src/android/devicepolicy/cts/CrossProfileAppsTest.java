@@ -61,13 +61,12 @@ import com.android.bedstead.harrier.annotations.UserPair;
 import com.android.bedstead.harrier.annotations.UserTest;
 import com.android.bedstead.metricsrecorder.EnterpriseMetricsRecorder;
 import com.android.bedstead.nene.TestApis;
-import com.android.bedstead.nene.appops.AppOps.AppOpsMode;
+import com.android.bedstead.nene.appops.AppOpsMode;
 import com.android.bedstead.nene.packages.Package;
 import com.android.bedstead.nene.packages.ProcessReference;
 import com.android.bedstead.testapp.TestApp;
 import com.android.bedstead.testapp.TestAppActivityReference;
 import com.android.bedstead.testapp.TestAppInstance;
-import com.android.bedstead.testapp.TestAppProvider;
 import com.android.eventlib.events.activities.ActivityCreatedEvent;
 import com.android.eventlib.events.activities.ActivityEvents;
 import com.android.queryable.queries.ActivityQuery;
@@ -93,13 +92,12 @@ public final class CrossProfileAppsTest {
 
     @ClassRule @Rule
     public static final DeviceState sDeviceState = new DeviceState();
-    private static final TestAppProvider sTestAppProvider = new TestAppProvider();
 
-    private static final TestApp sCrossProfileTestApp = sTestAppProvider.query()
+    private static final TestApp sCrossProfileTestApp = sDeviceState.testApps().query()
             .wherePermissions().contains("android.permission.INTERACT_ACROSS_PROFILES").get();
-    private static final TestApp sNonCrossProfileTestApp = sTestAppProvider.query()
+    private static final TestApp sNonCrossProfileTestApp = sDeviceState.testApps().query()
             .wherePermissions().doesNotContain("android.permission.INTERACT_ACROSS_PROFILES").get();
-    private static final TestApp sTestAppWithMainActivity = sTestAppProvider.query()
+    private static final TestApp sTestAppWithMainActivity = sDeviceState.testApps().query()
             .whereActivities().contains(
                     ActivityQuery.activity().intentFilters().contains(
                             IntentFilterQuery.intentFilter().actions().contains(Intent.ACTION_MAIN))
@@ -127,7 +125,6 @@ public final class CrossProfileAppsTest {
                 .forEach(ProcessReference::kill);
     }
 
-    @Test
     @CrossUserTest({
             @UserPair(from = PRIMARY_USER, to = PRIMARY_USER),
             @UserPair(from = PRIMARY_USER, to = SECONDARY_USER),
@@ -143,7 +140,6 @@ public final class CrossProfileAppsTest {
         assertThat(targetProfiles).doesNotContain(sDeviceState.otherUser().userHandle());
     }
 
-    @Test
     @CrossUserTest({
             @UserPair(from = WORK_PROFILE, to = PRIMARY_USER),
             @UserPair(from = PRIMARY_USER, to = WORK_PROFILE)
@@ -156,7 +152,6 @@ public final class CrossProfileAppsTest {
         assertThat(targetProfiles).contains(sDeviceState.otherUser().userHandle());
     }
 
-    @Test
     @CrossUserTest({
             @UserPair(from = WORK_PROFILE, to = PRIMARY_USER),
             @UserPair(from = PRIMARY_USER, to = WORK_PROFILE)
@@ -170,7 +165,6 @@ public final class CrossProfileAppsTest {
         assertThat(targetProfiles).doesNotContain(sDeviceState.otherUser().userHandle());
     }
 
-    @Test
     @Postsubmit(reason = "new test")
     @UserTest({PRIMARY_USER, WORK_PROFILE})
     public void getTargetUserProfiles_logged() {
@@ -185,7 +179,6 @@ public final class CrossProfileAppsTest {
         }
     }
 
-    @Test
     @CrossUserTest({
             @UserPair(from = WORK_PROFILE, to = PRIMARY_USER),
             @UserPair(from = PRIMARY_USER, to = WORK_PROFILE)
@@ -202,7 +195,6 @@ public final class CrossProfileAppsTest {
         ).eventOccurred();
     }
 
-    @Test
     @CrossUserTest({
             @UserPair(from = WORK_PROFILE, to = PRIMARY_USER),
             @UserPair(from = PRIMARY_USER, to = WORK_PROFILE)
@@ -348,7 +340,6 @@ public final class CrossProfileAppsTest {
                                 NOT_MAIN_ACTIVITY, sDeviceState.workProfile().userHandle())));
     }
 
-    @Test
     @RequireRunOnPrimaryUser
     @EnsureHasWorkProfile(installInstrumentedApp = TRUE)
     @PermissionTest({
@@ -386,7 +377,6 @@ public final class CrossProfileAppsTest {
         });
     }
 
-    @Test
     @RequireRunOnPrimaryUser
     @EnsureHasWorkProfile(installInstrumentedApp = TRUE)
     @PermissionTest({
@@ -474,6 +464,94 @@ public final class CrossProfileAppsTest {
         int originalTaskId = ActivityContext.getWithContext(activity -> {
             sCrossProfileApps.startActivity(
                     intent, sDeviceState.workProfile().userHandle(), activity);
+
+            return activity.getTaskId();
+        });
+
+        ActivityCreatedEvent event =
+                ActivityEvents.forActivity(NOT_MAIN_ACTIVITY, sDeviceState.workProfile())
+                        .activityCreated().waitForEvent();
+        assertThat(event.taskId()).isEqualTo(originalTaskId);
+    }
+
+    @Test
+    @RequireRunOnPrimaryUser
+    @EnsureHasWorkProfile(installInstrumentedApp = TRUE)
+    @EnsureHasPermission(START_CROSS_PROFILE_ACTIVITIES)
+    @Postsubmit(reason = "new test")
+    public void startMainActivity_byComponent_nullActivity_newTask() throws Exception {
+        int originalTaskId = ActivityContext.getWithContext(activity -> {
+            sCrossProfileApps.startMainActivity(
+                    MAIN_ACTIVITY,
+                    sDeviceState.workProfile().userHandle(),
+                    /* callingActivity */ null,
+                    /* options */ null);
+
+            return activity.getTaskId();
+        });
+
+        ActivityCreatedEvent event =
+                ActivityEvents.forActivity(MAIN_ACTIVITY, sDeviceState.workProfile())
+                        .activityCreated().waitForEvent();
+        assertThat(event.taskId()).isNotEqualTo(originalTaskId);
+    }
+
+    @Test
+    @RequireRunOnPrimaryUser
+    @EnsureHasWorkProfile(installInstrumentedApp = TRUE)
+    @EnsureHasPermission(START_CROSS_PROFILE_ACTIVITIES)
+    @Postsubmit(reason = "new test")
+    public void startMainActivity_byComponent_setsActivity_sameTask() throws Exception {
+        int originalTaskId = ActivityContext.getWithContext(activity -> {
+            sCrossProfileApps.startMainActivity(
+                    MAIN_ACTIVITY,
+                    sDeviceState.workProfile().userHandle(),
+                    activity,
+                    /* options */ null);
+
+            return activity.getTaskId();
+        });
+
+        ActivityCreatedEvent event =
+                ActivityEvents.forActivity(MAIN_ACTIVITY, sDeviceState.workProfile())
+                        .activityCreated().waitForEvent();
+        assertThat(event.taskId()).isEqualTo(originalTaskId);
+    }
+
+    @Test
+    @RequireRunOnPrimaryUser
+    @EnsureHasWorkProfile(installInstrumentedApp = TRUE)
+    @EnsureHasPermission(START_CROSS_PROFILE_ACTIVITIES)
+    @Postsubmit(reason = "new test")
+    public void startNonMainActivity_byComponent_nullActivity_newTask() throws Exception {
+        int originalTaskId = ActivityContext.getWithContext(activity -> {
+            sCrossProfileApps.startActivity(
+                    NOT_MAIN_ACTIVITY,
+                    sDeviceState.workProfile().userHandle(),
+                    /* callingActivity */ null,
+                    /* options */ null);
+
+            return activity.getTaskId();
+        });
+
+        ActivityCreatedEvent event =
+                ActivityEvents.forActivity(NOT_MAIN_ACTIVITY, sDeviceState.workProfile())
+                        .activityCreated().waitForEvent();
+        assertThat(event.taskId()).isNotEqualTo(originalTaskId);
+    }
+
+    @Test
+    @RequireRunOnPrimaryUser
+    @EnsureHasWorkProfile(installInstrumentedApp = TRUE)
+    @EnsureHasPermission(START_CROSS_PROFILE_ACTIVITIES)
+    @Postsubmit(reason = "new test")
+    public void startNonMainActivity_byComponent_setsActivity_sameTask() throws Exception {
+        int originalTaskId = ActivityContext.getWithContext(activity -> {
+            sCrossProfileApps.startActivity(
+                    NOT_MAIN_ACTIVITY,
+                    sDeviceState.workProfile().userHandle(),
+                    activity,
+                    /* options */ null);
 
             return activity.getTaskId();
         });

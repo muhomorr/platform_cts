@@ -17,26 +17,26 @@
 package android.companion.cts.core
 
 import android.Manifest.permission.REQUEST_COMPANION_SELF_MANAGED
-import android.companion.AssociationRequest
 import android.companion.cts.common.DEVICE_DISPLAY_NAME_A
 import android.companion.cts.common.DEVICE_DISPLAY_NAME_B
 import android.companion.cts.common.MAC_ADDRESS_A
+import android.companion.cts.common.MissingIntentFilterActionCompanionService
+import android.companion.cts.common.MissingPermissionCompanionService
 import android.companion.cts.common.PrimaryCompanionService
-import android.companion.cts.common.RecordingCallback
-import android.companion.cts.common.RecordingCallback.OnAssociationCreated
-import android.companion.cts.common.SIMPLE_EXECUTOR
+import android.companion.cts.common.Repeat
+import android.companion.cts.common.RepeatRule
 import android.companion.cts.common.SecondaryCompanionService
 import android.companion.cts.common.assertEmpty
 import android.companion.cts.common.waitFor
 import android.os.SystemClock.sleep
 import android.platform.test.annotations.AppModeFull
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import kotlin.test.assertContentEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
-import kotlin.test.assertIs
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
@@ -55,6 +55,8 @@ import kotlin.time.Duration.Companion.seconds
 @AppModeFull(reason = "CompanionDeviceManager APIs are not available to the instant apps.")
 @RunWith(AndroidJUnit4::class)
 class SelfPresenceReportingTest : CoreTestBase() {
+    @get:Rule
+    val repeatRule = RepeatRule()
 
     @Test
     fun test_selfReporting_singleDevice_multipleServices() =
@@ -63,23 +65,35 @@ class SelfPresenceReportingTest : CoreTestBase() {
 
         cdm.notifyDeviceAppeared(associationId)
 
-        assertTrue("Both Services - Primary and Secondary - should be bound now") {
+        assertTrue("Both valid CompanionDeviceServices - Primary and Secondary - should be bound " +
+                "now") {
             waitFor(timeout = 1.seconds, interval = 100.milliseconds) {
                 PrimaryCompanionService.isBound && SecondaryCompanionService.isBound
             }
         }
+        assertFalse("CompanionDeviceServices that do not require " +
+                "BIND_COMPANION_DEVICE_SERVICE permission or do not declare an intent-filter for " +
+                "\"android.companion.CompanionDeviceService\" action should not be bound") {
+            MissingPermissionCompanionService.isBound ||
+                    MissingIntentFilterActionCompanionService.isBound
+        }
 
-        // Check that only the primary services has received the onDeviceAppeared() callback...
+        // Check that only the primary CompanionDeviceService has received the onDeviceAppeared()
+        // callback...
         PrimaryCompanionService.waitAssociationToAppear(associationId)
         assertContentEquals(
                 actual = PrimaryCompanionService.associationIdsForConnectedDevices,
                 expected = setOf(associationId)
         )
-        // ... while the non-primary service - has NOT. (Give it 1 more second.)
+        // ... while neither the non-primary nor incorrectly defined CompanionDeviceServices -
+        // have NOT. (Give it 1 more second.)
         sleep(1000)
         assertEmpty(SecondaryCompanionService.connectedDevices)
+        assertEmpty(MissingPermissionCompanionService.connectedDevices)
+        assertEmpty(MissingIntentFilterActionCompanionService.connectedDevices)
 
-        assertFalse("Both Services - Primary and Secondary - should stay bound") {
+        assertFalse("Both valid CompanionDeviceServices - Primary and Secondary - should stay " +
+                "bound ") {
             waitFor(timeout = 1.seconds, interval = 100.milliseconds) {
                 !PrimaryCompanionService.isBound || !SecondaryCompanionService.isBound
             }
@@ -105,10 +119,17 @@ class SelfPresenceReportingTest : CoreTestBase() {
 
         cdm.notifyDeviceAppeared(idA)
 
-        assertTrue("Both Services - Primary and Secondary - should be bound now") {
+        assertTrue("Both valid CompanionDeviceServices - Primary and Secondary - should be bound " +
+                "now") {
             waitFor(timeout = 1.seconds, interval = 100.milliseconds) {
                 PrimaryCompanionService.isBound && SecondaryCompanionService.isBound
             }
+        }
+        assertFalse("CompanionDeviceServices that do not require " +
+                "BIND_COMPANION_DEVICE_SERVICE permission or do not declare an intent-filter for " +
+                "\"android.companion.CompanionDeviceService\" action should not be bound") {
+            MissingPermissionCompanionService.isBound ||
+                    MissingIntentFilterActionCompanionService.isBound
         }
 
         // Check that only the primary services has received the onDeviceAppeared() callback...
@@ -117,9 +138,12 @@ class SelfPresenceReportingTest : CoreTestBase() {
             actual = PrimaryCompanionService.associationIdsForConnectedDevices,
             expected = setOf(idA)
         )
-        // ... while the non-primary service - has NOT. (Give it 1 more second.)
+        // ... while neither the non-primary nor incorrectly defined CompanionDeviceServices -
+        // have NOT. (Give it 1 more second.)
         sleep(1000)
         assertEmpty(SecondaryCompanionService.connectedDevices)
+        assertEmpty(MissingPermissionCompanionService.connectedDevices)
+        assertEmpty(MissingIntentFilterActionCompanionService.connectedDevices)
 
         cdm.notifyDeviceAppeared(idB)
 
@@ -130,8 +154,9 @@ class SelfPresenceReportingTest : CoreTestBase() {
             expected = setOf(idA, idB)
         )
 
-        // Make sure both services stay bound.
-        assertFalse("Both Services - Primary and Secondary - should stay bound") {
+        // Make sure both valid services stay bound.
+        assertFalse("Both valid CompanionDeviceServices - Primary and Secondary - should stay " +
+                "bound ") {
             waitFor(timeout = 1.seconds, interval = 100.milliseconds) {
                 !PrimaryCompanionService.isBound || !SecondaryCompanionService.isBound
             }
@@ -141,10 +166,11 @@ class SelfPresenceReportingTest : CoreTestBase() {
         cdm.notifyDeviceDisappeared(idA)
 
         PrimaryCompanionService.waitAssociationToDisappear(idA)
-        // Both services should stay bound for as long as there is at least
-        // one connected device - device B in this case.
-        assertFalse("Both Services - Primary and Secondary - should stay bound") {
-            waitFor(timeout = 3.seconds, interval = 1.seconds) {
+        // Both valid services should stay bound for as long as there is at least one connected
+        // device - device B in this case.
+        assertFalse("Both valid CompanionDeviceServices - Primary and Secondary - should stay " +
+                "bound ") {
+            waitFor(timeout = 3.seconds, interval = 1.milliseconds) {
                 !PrimaryCompanionService.isBound || !SecondaryCompanionService.isBound
             }
         }
@@ -184,20 +210,31 @@ class SelfPresenceReportingTest : CoreTestBase() {
         }
     }
 
-    private fun createSelfManagedAssociation(displayName: String): Int {
-        val callback = RecordingCallback()
-        val request: AssociationRequest = AssociationRequest.Builder()
-            .setSelfManaged(true)
-            .setDisplayName(displayName)
-            .build()
-        callback.assertInvokedByActions {
-            withShellPermissionIdentity(REQUEST_COMPANION_SELF_MANAGED) {
-                cdm.associate(request, SIMPLE_EXECUTOR, callback)
+    @Test
+    @Repeat(10)
+    fun test_notifyAppears_from_onAssociationCreated() {
+        // Create a self-managed association and call notifyDeviceAppeared() right from the
+        // Callback.onAssociationCreated()
+        val associationId = createSelfManagedAssociation(DEVICE_DISPLAY_NAME_A) {
+            cdm.notifyDeviceAppeared(it.id)
+        }
+
+        // Make sure CDM binds both CompanionDeviceServices.
+        assertTrue("Both valid CompanionDeviceServices - Primary and Secondary - should be bound " +
+                "now") {
+            waitFor(timeout = 1.seconds, interval = 100.milliseconds) {
+                PrimaryCompanionService.isBound && SecondaryCompanionService.isBound
             }
         }
 
-        val callbackInvocation = callback.invocations.first()
-        assertIs<OnAssociationCreated>(callbackInvocation)
-        return callbackInvocation.associationInfo.id
+        // Notify CDM that devices has disconnected.
+        cdm.notifyDeviceDisappeared(associationId)
+
+        // Make sure CDM unbinds both CompanionDeviceServices.
+        assertTrue("Both Services - Primary and Secondary - should be unbound now") {
+            waitFor(timeout = 1.seconds, interval = 100.milliseconds) {
+                !PrimaryCompanionService.isBound && !SecondaryCompanionService.isBound
+            }
+        }
     }
 }

@@ -22,6 +22,9 @@ android_test_helper_app {
         "src/**/*.java",
         "//cts/tests/tests/virtualdevice:CtsVirtualDevicesTestAidl",
     ],
+    static_libs: [
+        "CtsVirtualDeviceCommonLib",
+    ],
     manifest: "AndroidManifest.xml",
     defaults: ["cts_defaults"],
     // Tag this module as a cts test artifact
