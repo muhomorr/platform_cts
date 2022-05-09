@@ -39,6 +39,8 @@ import android.util.Log;
 
 import androidx.test.rule.ActivityTestRule;
 
+import com.android.compatibility.common.util.WindowUtil;
+
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -104,6 +106,11 @@ public class CameraGLTest {
     public void setUp() throws Exception {
         // Start CameraCtsActivity.
         GLSurfaceViewCtsActivity ctsActivity = mActivityRule.getActivity();
+        // Some of the tests run on the UI thread. In case some of the operations take a long time
+        // to complete,  wait for window to receive focus. This ensure that the focus event from
+        // input flinger has been handled, and avoids getting ANR.
+        WindowUtil.waitForFocus(ctsActivity);
+
         // Store a link to the view so we can redraw it when needed
         mGLView = ctsActivity.getView();
 
@@ -225,6 +232,10 @@ public class CameraGLTest {
                     mSurfaceTextureCallbackResult = true;
                 }
                 mSurfaceTextureDone.open();
+            } else {
+                // Draw the frame (and update the SurfaceTexture) so that future
+                // onFrameAvailable won't be silenced.
+                mGLView.requestRender();
             }
         }
 
@@ -567,6 +578,7 @@ public class CameraGLTest {
                             setBurstCount(kLoopCount + kFirstTestedFrame);
                     mSurfaceTextureCallbackResult = false;
                     mSurfaceTextureDone.close();
+                    mRenderer.resetDrawCondition();
 
                     mRenderer.setCameraSizing(mCamera.getParameters().getPreviewSize());
                     if (LOGV) Log.v(TAG, "Starting preview");
@@ -675,6 +687,10 @@ public class CameraGLTest {
 
         public void setCameraSizing(Camera.Size previewSize) {
             mCameraRatio = (float)previewSize.width/previewSize.height;
+        }
+
+        public void resetDrawCondition() {
+            mDrawDone.close();
         }
 
         public boolean waitForDrawDone() {
