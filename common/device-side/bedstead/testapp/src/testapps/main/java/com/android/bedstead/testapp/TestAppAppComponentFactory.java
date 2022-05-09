@@ -21,6 +21,8 @@ import android.app.Activity;
 import android.app.AppComponentFactory;
 import android.app.Service;
 import android.app.admin.DevicePolicyManager;
+import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothManager;
 import android.content.BroadcastReceiver;
 import android.content.ContentResolver;
 import android.content.Context;
@@ -53,6 +55,8 @@ import com.android.eventlib.premade.EventLibService;
                 @FrameworkClass(frameworkClass = AccountManager.class, constructor = "context.getSystemService(android.accounts.AccountManager.class)"),
                 @FrameworkClass(frameworkClass = Context.class, constructor = "context"),
                 @FrameworkClass(frameworkClass = ContentResolver.class, constructor = "context.getContentResolver()"),
+                @FrameworkClass(frameworkClass = BluetoothManager.class, constructor = "context.getSystemService(android.bluetooth.BluetoothManager.class)"),
+                @FrameworkClass(frameworkClass = BluetoothAdapter.class, constructor = "context.getSystemService(android.bluetooth.BluetoothManager.class).getAdapter()"),
                 @FrameworkClass(frameworkClass = KeyChain.class, constructor = "null") // KeyChain can not be instantiated - all calls are static
         }
 )
@@ -84,7 +88,6 @@ public final class TestAppAppComponentFactory extends AppComponentFactory {
         try {
             return super.instantiateReceiver(classLoader, className, intent);
         } catch (ClassNotFoundException e) {
-
             if (className.endsWith("DeviceAdminReceiver")) {
                 Log.d(LOG_TAG, "Broadcast Receiver class (" + className
                         + ") not found, routing to TestAppDeviceAdminReceiver");
@@ -93,6 +96,15 @@ public final class TestAppAppComponentFactory extends AppComponentFactory {
                                 classLoader, BaseTestAppDeviceAdminReceiver.class.getName(),
                                 intent);
                 receiver.setOverrideDeviceAdminReceiverClassName(className);
+                return receiver;
+            } else if (className.endsWith("DelegatedAdminReceiver")) {
+                Log.d(LOG_TAG, "Broadcast Receiver class (" + className
+                        + ") not found, routing to TestAppDelegatedAdminReceiver");
+                BaseTestAppDelegatedAdminReceiver receiver = (BaseTestAppDelegatedAdminReceiver)
+                        super.instantiateReceiver(
+                                classLoader, BaseTestAppDelegatedAdminReceiver.class.getName(),
+                                intent);
+                receiver.setOverrideDelegatedAdminReceiverClassName(className);
                 return receiver;
             }
 

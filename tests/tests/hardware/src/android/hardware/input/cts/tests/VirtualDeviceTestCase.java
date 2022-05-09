@@ -17,6 +17,7 @@
 package android.hardware.input.cts.tests;
 
 import static org.junit.Assert.fail;
+import static org.junit.Assume.assumeTrue;
 
 import android.app.ActivityOptions;
 import android.companion.AssociationInfo;
@@ -24,20 +25,28 @@ import android.companion.CompanionDeviceManager;
 import android.companion.virtual.VirtualDeviceManager;
 import android.companion.virtual.VirtualDeviceParams;
 import android.content.Context;
+import android.content.pm.PackageManager;
+import android.graphics.Point;
 import android.graphics.SurfaceTexture;
 import android.hardware.display.VirtualDisplay;
 import android.hardware.input.InputManager;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.Process;
 import android.os.SystemClock;
+import android.view.MotionEvent;
 import android.view.Surface;
+import android.view.View;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.test.InstrumentationRegistry;
 
 import com.android.compatibility.common.util.AdoptShellPermissionsRule;
 import com.android.compatibility.common.util.SystemUtil;
+
+import com.google.common.collect.ImmutableList;
 
 import org.junit.Rule;
 
@@ -83,6 +92,10 @@ public abstract class VirtualDeviceTestCase extends InputTestCase {
     @Override
     void onBeforeLaunchActivity() {
         final Context context = InstrumentationRegistry.getTargetContext();
+        final PackageManager packageManager = context.getPackageManager();
+        // TVs do not support companion
+        assumeTrue(packageManager.hasSystemFeature(PackageManager.FEATURE_COMPANION_DEVICE_SETUP));
+
         final String packageName = context.getPackageName();
         associateCompanionDevice(packageName);
         AssociationInfo associationInfo = null;
@@ -125,6 +138,8 @@ public abstract class VirtualDeviceTestCase extends InputTestCase {
         } catch (InterruptedException e) {
             fail("Virtual input device setup was interrupted");
         }
+        // Tap to gain window focus on the activity
+        tapActivityToFocus();
         // Wait for everything to settle. Like see in InputHidTestCase, registered input devices
         // don't always seem to produce events right away. Adding a bit of slack here decreases
         // the flake rate.
@@ -149,9 +164,10 @@ public abstract class VirtualDeviceTestCase extends InputTestCase {
             if (mVirtualDevice != null) {
                 mVirtualDevice.close();
             }
-            InstrumentationRegistry.getTargetContext().getSystemService(InputManager.class)
-                    .unregisterInputDeviceListener(mInputDeviceListener);
-            disassociateCompanionDevice();
+            final Context context = InstrumentationRegistry.getTargetContext();
+            context.getSystemService(InputManager.class).unregisterInputDeviceListener(
+                    mInputDeviceListener);
+            disassociateCompanionDevice(context.getPackageName());
         }
     }
 
@@ -165,12 +181,37 @@ public abstract class VirtualDeviceTestCase extends InputTestCase {
     private void associateCompanionDevice(String packageName) {
         // Associate this package for user 0 with a zeroed-out MAC address (not used in this test)
         SystemUtil.runShellCommand(
-                String.format("cmd companiondevice associate 0 %s 00:00:00:00:00:00", packageName));
+                String.format("cmd companiondevice associate %d %s 00:00:00:00:00:00",
+                        Process.myUserHandle().getIdentifier(), packageName));
     }
 
-    private void disassociateCompanionDevice() {
-        SystemUtil.runShellCommand("cmd companiondevice disassociate 0 "
-                + InstrumentationRegistry.getTargetContext().getPackageName()
-                + " 00:00:00:00:00:00");
+    private void disassociateCompanionDevice(String packageName) {
+        SystemUtil.runShellCommand(
+                String.format("cmd companiondevice disassociate %d %s 00:00:00:00:00:00",
+                        Process.myUserHandle().getIdentifier(), packageName));
+    }
+
+    private void tapActivityToFocus() {
+        final Point p = getViewCenterOnScreen(mTestActivity.getWindow().getDecorView());
+        final int displayId = mTestActivity.getDisplayId();
+
+        final long downTime = SystemClock.elapsedRealtime();
+        final MotionEvent downEvent = MotionEvent.obtain(downTime, downTime,
+                MotionEvent.ACTION_DOWN, p.x, p.y, 0 /* metaState */);
+        downEvent.setDisplayId(displayId);
+        mInstrumentation.sendPointerSync(downEvent);
+        final MotionEvent upEvent = MotionEvent.obtain(downTime, SystemClock.elapsedRealtime(),
+                MotionEvent.ACTION_UP, p.x, p.y, 0 /* metaState */);
+        upEvent.setDisplayId(displayId);
+        mInstrumentation.sendPointerSync(upEvent);
+
+        verifyEvents(ImmutableList.of(downEvent, upEvent));
+    }
+
+    private static Point getViewCenterOnScreen(@NonNull View view) {
+        final int[] location = new int[2];
+        view.getLocationOnScreen(location);
+        return new Point(location[0] + view.getWidth() / 2,
+                location[1] + view.getHeight() / 2);
     }
 }

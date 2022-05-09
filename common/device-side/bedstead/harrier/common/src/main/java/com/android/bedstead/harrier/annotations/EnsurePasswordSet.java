@@ -17,8 +17,8 @@
 package com.android.bedstead.harrier.annotations;
 
 import static com.android.bedstead.harrier.Defaults.DEFAULT_PASSWORD;
-import static com.android.bedstead.harrier.UserType.CURRENT_USER;
-import static com.android.bedstead.harrier.annotations.AnnotationRunPrecedence.EARLY;
+import static com.android.bedstead.harrier.UserType.INSTRUMENTED_USER;
+import static com.android.bedstead.harrier.annotations.AnnotationRunPrecedence.MIDDLE;
 
 import com.android.bedstead.harrier.UserType;
 
@@ -38,7 +38,7 @@ import java.lang.annotation.Target;
 public @interface EnsurePasswordSet {
 
     /** The user who must have a password. */
-    UserType forUser() default CURRENT_USER;
+    UserType forUser() default INSTRUMENTED_USER;
 
     /** The password to set. Defaults to {@code Devicestate#DEFAULT_PASSWORD}. */
     String password() default DEFAULT_PASSWORD;
@@ -53,5 +53,5 @@ public @interface EnsurePasswordSet {
      *
      * <p>Weight can be set to a {@link AnnotationRunPrecedence} constant, or to any {@link int}.
      */
-    int weight() default EARLY;
+    int weight() default MIDDLE;
 }

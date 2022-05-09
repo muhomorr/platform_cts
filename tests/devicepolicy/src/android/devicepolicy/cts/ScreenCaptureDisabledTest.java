@@ -16,7 +16,6 @@
 
 package android.devicepolicy.cts;
 
-
 import static com.android.bedstead.metricsrecorder.truth.MetricQueryBuilderSubject.assertThat;
 
 import static com.google.common.truth.Truth.assertThat;
@@ -29,7 +28,6 @@ import android.graphics.Bitmap;
 import android.stats.devicepolicy.EventId;
 
 import androidx.test.InstrumentationRegistry;
-import androidx.test.core.app.ApplicationProvider;
 
 import com.android.bedstead.harrier.BedsteadJUnit4;
 import com.android.bedstead.harrier.DeviceState;
@@ -41,20 +39,18 @@ import com.android.bedstead.harrier.annotations.enterprise.PolicyAppliesTest;
 import com.android.bedstead.harrier.annotations.enterprise.PolicyDoesNotApplyTest;
 import com.android.bedstead.harrier.policies.ScreenCaptureDisabled;
 import com.android.bedstead.metricsrecorder.EnterpriseMetricsRecorder;
+import com.android.bedstead.nene.TestApis;
 import com.android.bedstead.nene.utils.Poll;
 import com.android.bedstead.testapp.TestApp;
 import com.android.bedstead.testapp.TestAppInstance;
-import com.android.bedstead.testapp.TestAppProvider;
 
 import org.junit.After;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Rule;
-import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import java.time.Duration;
-
 
 @RunWith(BedsteadJUnit4.class)
 public final class ScreenCaptureDisabledTest {
@@ -63,9 +59,8 @@ public final class ScreenCaptureDisabledTest {
     @Rule
     public static final DeviceState sDeviceState = new DeviceState();
 
-    private static final TestAppProvider sTestAppProvider = new TestAppProvider();
     private static final TestApp sTestApp =
-            sTestAppProvider.query().whereActivities().isNotEmpty().get();
+            sDeviceState.testApps().query().whereActivities().isNotEmpty().get();
     private RemoteDevicePolicyManager mDevicePolicyManager;
     private DevicePolicyManager mLocalDevicePolicyManager;
     private ComponentName mAdmin;
@@ -77,7 +72,7 @@ public final class ScreenCaptureDisabledTest {
         mDevicePolicyManager = sDeviceState.dpc().devicePolicyManager();
         //TODO(b/198593716) : Use TestApi to take screenshot instead of UiAutomation.
         mUiAutomation = InstrumentationRegistry.getInstrumentation().getUiAutomation();
-        mLocalDevicePolicyManager = ApplicationProvider.getApplicationContext().getSystemService(
+        mLocalDevicePolicyManager = TestApis.context().instrumentedContext().getSystemService(
                 DevicePolicyManager.class);
     }
 
@@ -86,7 +81,6 @@ public final class ScreenCaptureDisabledTest {
         mDevicePolicyManager.setScreenCaptureDisabled(mAdmin, false);
     }
 
-    @Test
     @PolicyAppliesTest(policy = ScreenCaptureDisabled.class)
     @Postsubmit(reason = "new test")
     public void setScreenCaptureDisabled_false_works() {
@@ -95,7 +89,6 @@ public final class ScreenCaptureDisabledTest {
         assertThat(mLocalDevicePolicyManager.getScreenCaptureDisabled(/* admin= */ null)).isFalse();
     }
 
-    @Test
     @CanSetPolicyTest(policy = ScreenCaptureDisabled.class)
     @Postsubmit(reason = "new test")
     public void setScreenCaptureDisabled_false_checkWithDPC_works() {
@@ -104,7 +97,6 @@ public final class ScreenCaptureDisabledTest {
         assertThat(mDevicePolicyManager.getScreenCaptureDisabled(mAdmin)).isFalse();
     }
 
-    @Test
     @PolicyAppliesTest(policy = ScreenCaptureDisabled.class)
     @Postsubmit(reason = "new test")
     public void setScreenCaptureDisabled_true_works() {
@@ -113,7 +105,6 @@ public final class ScreenCaptureDisabledTest {
         assertThat(mLocalDevicePolicyManager.getScreenCaptureDisabled(/* admin= */ null)).isTrue();
     }
 
-    @Test
     @CanSetPolicyTest(policy = ScreenCaptureDisabled.class)
     @Postsubmit(reason = "new test")
     public void setScreenCaptureDisabled_true_checkWithDPC_works() {
@@ -122,7 +113,6 @@ public final class ScreenCaptureDisabledTest {
         assertThat(mDevicePolicyManager.getScreenCaptureDisabled(mAdmin)).isTrue();
     }
 
-    @Test
     @PolicyDoesNotApplyTest(policy = ScreenCaptureDisabled.class)
     @Postsubmit(reason = "new test")
     public void setScreenCaptureDisabled_true_doesNotApply() {
@@ -131,7 +121,6 @@ public final class ScreenCaptureDisabledTest {
         assertThat(mLocalDevicePolicyManager.getScreenCaptureDisabled(/* admin= */ null)).isFalse();
     }
 
-    @Test
     @PolicyDoesNotApplyTest(policy = ScreenCaptureDisabled.class)
     @Postsubmit(reason = "new test")
     @EnsureScreenIsOn
@@ -141,7 +130,6 @@ public final class ScreenCaptureDisabledTest {
         assertThat(takeScreenshotExpectingSuccess()).isNotNull();
     }
 
-    @Test
     @PolicyAppliesTest(policy = ScreenCaptureDisabled.class)
     @Postsubmit(reason = "new test")
     @SlowApiTest("Screenshot policy can take minutes to propagate")
@@ -152,7 +140,6 @@ public final class ScreenCaptureDisabledTest {
         assertThat(takeScreenshotExpectingFailure()).isNull();
     }
 
-    @Test
     @PolicyAppliesTest(policy = ScreenCaptureDisabled.class)
     @Postsubmit(reason = "new test")
     @EnsureScreenIsOn
@@ -162,7 +149,6 @@ public final class ScreenCaptureDisabledTest {
         assertThat(takeScreenshotExpectingSuccess()).isNotNull();
     }
 
-    @Test
     @CanSetPolicyTest(policy = ScreenCaptureDisabled.class)
     @Postsubmit(reason = "new test")
     public void setScreenCaptureDisabled_true_metricsLogged() {
@@ -176,7 +162,6 @@ public final class ScreenCaptureDisabledTest {
         }
     }
 
-    @Test
     @CanSetPolicyTest(policy = ScreenCaptureDisabled.class)
     @Postsubmit(reason = "new test")
     public void setScreenCaptureDisabled_false_metricsLogged() {

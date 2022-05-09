@@ -47,12 +47,10 @@ import com.android.bedstead.nene.TestApis;
 import com.android.bedstead.nene.users.UserReference;
 import com.android.bedstead.testapp.TestApp;
 import com.android.bedstead.testapp.TestAppInstance;
-import com.android.bedstead.testapp.TestAppProvider;
 import com.android.eventlib.truth.EventLogsSubject;
 
 import org.junit.ClassRule;
 import org.junit.Rule;
-import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import java.util.Arrays;
@@ -80,12 +78,10 @@ public final class DelegationScopesTest {
     private static final TestApis sTestApis = new TestApis();
     private static final UserReference sUser = sTestApis.users().instrumented();
 
-    private static final TestAppProvider sTestAppProvider = new TestAppProvider();
-    private static final TestApp sTestApp = sTestAppProvider
+    private static final TestApp sTestApp = sDeviceState.testApps()
             .query().whereActivities().isNotEmpty().get();
-    private static final TestApp sTestApp2 = sTestAppProvider.any();
+    private static final TestApp sTestApp2 = sDeviceState.testApps().any();
 
-    @Test
     @CanSetPolicyTest(policy = Delegation.class)
     public void getDelegatedScopes_returnsFromSetDelegatedScopes() {
         try (TestAppInstance testApp = sTestApp.install(sUser)) {
@@ -105,7 +101,6 @@ public final class DelegationScopesTest {
         }
     }
 
-    @Test
     @CanSetPolicyTest(policy = Delegation.class)
     public void getDelegatedScopes_fromApp_returnsFromSetDelegatedScopes() {
         try (TestAppInstance testApp = sTestApp.install(sUser)) {
@@ -124,7 +119,6 @@ public final class DelegationScopesTest {
         }
     }
 
-    @Test
     @CanSetPolicyTest(policy = Delegation.class)
     public void getDelegatedScopes_fromApp_passComponentName_throwsException() {
         try (TestAppInstance testApp = sTestApp.install(sUser)) {
@@ -143,7 +137,6 @@ public final class DelegationScopesTest {
         }
     }
 
-    @Test
     @CanSetPolicyTest(policy = Delegation.class)
     public void getDelegatedScopes_fromApp_differentPackage_throwsException() {
         try (TestAppInstance testApp = sTestApp.install(sUser);
@@ -168,7 +161,6 @@ public final class DelegationScopesTest {
         }
     }
 
-    @Test
     @CannotSetPolicyTest(policy = Delegation.class, includeNonDeviceAdminStates = false)
     public void setDelegatedScopes_invalidAdmin_throwsSecurityException() {
         try (TestAppInstance testApp = sTestApp.install(sUser)) {
@@ -180,7 +172,6 @@ public final class DelegationScopesTest {
         }
     }
 
-    @Test
     @CannotSetPolicyTest(policy = Delegation.class)
     public void getDelegatedScopes_invalidAdmin_throwsSecurityException() {
         try (TestAppInstance testApp = sTestApp.install(sUser)) {
@@ -190,7 +181,6 @@ public final class DelegationScopesTest {
         }
     }
 
-    @Test
     @CanSetPolicyTest(policy = Delegation.class)
     public void getDelegatedScopes_returnsLatestFromSetDelegatedScopes() {
         try (TestAppInstance testApp = sTestApp.install(sUser)) {
@@ -217,7 +207,6 @@ public final class DelegationScopesTest {
         }
     }
 
-    @Test
     @CanSetPolicyTest(policy = Delegation.class)
     public void setDelegatedScopes_uninstalledPackage_throwsExceptionWithoutChangingState() {
         // This test cannot be split into two without ErrorProne complaining that an Exception is
@@ -233,7 +222,6 @@ public final class DelegationScopesTest {
                 .isEmpty();
     }
 
-    @Test
     @CanSetPolicyTest(policy = Delegation.class)
     public void getDelegatePackages_oneApp_twoScopes_returnsFromSetDelegatedScopes() {
         try (TestAppInstance testApp = sTestApp.install(sUser)) {
@@ -257,7 +245,6 @@ public final class DelegationScopesTest {
         }
     }
 
-    @Test
     @CannotSetPolicyTest(policy = Delegation.class, includeNonDeviceAdminStates = false)
     public void getDelegatePackages_invalidAdmin_throwsSecurityException() {
         try (TestAppInstance testApp = sTestApp.install(sUser)) {
@@ -267,7 +254,6 @@ public final class DelegationScopesTest {
         }
     }
 
-    @Test
     @CanSetPolicyTest(policy = Delegation.class)
     public void getDelegatePackages_twoApps_differentScopes_returnsFromSetDelegatedScopes() {
         try (TestAppInstance testApp = sTestApp.install(sUser);
@@ -297,7 +283,6 @@ public final class DelegationScopesTest {
         }
     }
 
-    @Test
     @PolicyAppliesTest(policy = Delegation.class)
     public void getDelegatePackages_twoApps_sameScope_returnsFromSetDelegatedScopes() {
         try (TestAppInstance testApp = sTestApp.install(sUser);
@@ -326,7 +311,6 @@ public final class DelegationScopesTest {
         }
     }
 
-    @Test
     @PolicyAppliesTest(policy = NetworkLoggingDelegation.class)
     public void setDelegatedScopes_networkLogging_validAdminType_noException() {
         try (TestAppInstance testApp = sTestApp.install(sUser)) {
@@ -341,7 +325,6 @@ public final class DelegationScopesTest {
         }
     }
 
-    @Test
     @CannotSetPolicyTest(
             policy = NetworkLoggingDelegation.class, includeNonDeviceAdminStates = false)
     public void setDelegatedScopes_networkLogging_invalidAdminType_throwsSecurityException() {
@@ -358,7 +341,6 @@ public final class DelegationScopesTest {
         }
     }
 
-    @Test
     @PolicyAppliesTest(policy = SecurityLoggingDelegation.class)
     // TODO(b/198774281): add a negative policy test (in line with all the others here) once we can
     //  correctly mark security logging delegation as possible for COPE profile POs.
@@ -375,7 +357,6 @@ public final class DelegationScopesTest {
         }
     }
 
-    @Test
     @PolicyAppliesTest(policy = Delegation.class)
     public void setDelegatedScopes_certSelection_settingSecondApp_revokesFirstApp() {
         try (TestAppInstance testApp = sTestApp.install(sUser);
@@ -409,7 +390,6 @@ public final class DelegationScopesTest {
         }
     }
 
-    @Test
     @PolicyAppliesTest(policy = NetworkLoggingDelegation.class)
     public void setDelegatedScopes_networkLogging_settingSecondApp_revokesFirstApp() {
         try (TestAppInstance testApp = sTestApp.install(sUser);
@@ -443,7 +423,6 @@ public final class DelegationScopesTest {
         }
     }
 
-    @Test
     @PolicyAppliesTest(policy = SecurityLoggingDelegation.class)
     public void setDelegatedScopes_securityLogging_settingSecondApp_revokesFirstApp() {
         try (TestAppInstance testApp = sTestApp.install(sUser);
@@ -477,7 +456,6 @@ public final class DelegationScopesTest {
         }
     }
 
-    @Test
     @PolicyAppliesTest(policy = Delegation.class)
     public void setDelegatedScopes_delegatedPackageReceivesScopesFromBroadcast() {
         try (TestAppInstance testApp = sTestApp.install(sUser)) {

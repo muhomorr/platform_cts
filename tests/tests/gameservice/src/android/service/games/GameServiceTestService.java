@@ -17,8 +17,9 @@
 package android.service.games;
 
 import android.app.Service;
+import android.content.ComponentName;
 import android.content.Intent;
-import android.graphics.Bitmap;
+import android.content.pm.PackageManager;
 import android.graphics.Rect;
 import android.os.Bundle;
 import android.os.Handler;
@@ -27,6 +28,7 @@ import android.os.Looper;
 import android.service.games.GameSession.ScreenshotCallback;
 import android.service.games.TestGameSessionService.TestGameSession;
 import android.service.games.testing.ActivityResult;
+import android.service.games.testing.GameSessionEventInfo;
 import android.service.games.testing.IGameServiceTestService;
 import android.service.games.testing.OnSystemBarVisibilityChangedInfo;
 
@@ -47,7 +49,7 @@ import java.util.concurrent.TimeUnit;
  */
 public final class GameServiceTestService extends Service {
 
-    private static final long SCREENSHOT_CALLBACK_TIMEOUT_MS = TimeUnit.SECONDS.toMillis(1);
+    private static final long SCREENSHOT_CALLBACK_TIMEOUT_MS = TimeUnit.SECONDS.toMillis(15);
 
     @Nullable
     private ActivityResult mLastActivityResult;
@@ -70,9 +72,18 @@ public final class GameServiceTestService extends Service {
         }
 
         @Override
+        public List<GameSessionEventInfo> getGameSessionEventHistory() {
+            return ImmutableList.copyOf(TestGameSessionService.getGameSessionEventHistory());
+        }
+
+        @Override
         public void resetState() {
-            TestGameService.setGamePackages(ImmutableList.of());
+            TestGameService.reset();
+            TestGameSessionService.reset();
             mLastActivityResult = null;
+
+            setGameServiceComponentEnabled(true);
+            setGameSessionServiceComponentEnabled(true);
         }
 
         @Override
@@ -140,46 +151,36 @@ public final class GameServiceTestService extends Service {
         }
 
         @Override
-        public void showOverlayForFocusedGameSession() {
+        public boolean takeScreenshotForFocusedGameSession() {
+            boolean result = false;
             TestGameSession focusedGameSession = TestGameSessionService.getFocusedSession();
-            if (focusedGameSession == null) {
-                return;
+            if (focusedGameSession != null) {
+                CountDownLatch countDownLatch = new CountDownLatch(1);
+                final boolean[] ret = new boolean[1];
+                ScreenshotCallback callback =
+                        new ScreenshotCallback() {
+                            @Override
+                            public void onFailure(int statusCode) {
+                                ret[0] = false;
+                                countDownLatch.countDown();
+                            }
+
+                            @Override
+                            public void onSuccess() {
+                                ret[0] = true;
+                                countDownLatch.countDown();
+                            }
+                        };
+                focusedGameSession.takeScreenshot(Runnable::run, callback);
+                try {
+                    countDownLatch.await(
+                            SCREENSHOT_CALLBACK_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+                } catch (InterruptedException e) {
+                    return false;
+                }
+                result = ret[0];
             }
-            focusedGameSession.showOverlay();
-        }
-
-        @Override
-        public Bitmap getBitmapScreenshotForFocusedGameSession() {
-            TestGameSession focusedGameSession = TestGameSessionService.getFocusedSession();
-            if (focusedGameSession == null) {
-                return null;
-            }
-
-            CountDownLatch countDownLatch = new CountDownLatch(1);
-            Bitmap[] ret = new Bitmap[1];
-            ScreenshotCallback callback =
-                    new ScreenshotCallback() {
-                        @Override
-                        public void onFailure(int statusCode) {
-                            countDownLatch.countDown();
-                        }
-
-                        @Override
-                        public void onSuccess(Bitmap bitmap) {
-                            ret[0] = bitmap;
-                            countDownLatch.countDown();
-                        }
-                    };
-            focusedGameSession.takeScreenshot(Runnable::run, callback);
-
-            try {
-                countDownLatch.await(
-                        SCREENSHOT_CALLBACK_TIMEOUT_MS, TimeUnit.MILLISECONDS);
-            } catch (InterruptedException e) {
-                return null;
-            }
-
-            return ret[0];
+            return result;
         }
 
         public OnSystemBarVisibilityChangedInfo getOnSystemBarVisibilityChangedInfo() {
@@ -188,6 +189,35 @@ public final class GameServiceTestService extends Service {
                 return null;
             }
             return focusedGameSession.getOnSystemBarVisibilityChangedInfo();
+        }
+
+        public void setGameServiceComponentEnabled(boolean enabled) {
+            getPackageManager().setComponentEnabledSetting(
+                    new ComponentName(getApplicationContext(), TestGameService.class),
+                    enabled ? PackageManager.COMPONENT_ENABLED_STATE_ENABLED
+                            : PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+                    PackageManager.DONT_KILL_APP | PackageManager.SYNCHRONOUS);
+
+            if (enabled) {
+                return;
+            }
+
+            // Wait for package changes to propagate and then reset the TestGameService connection
+            // state.
+            try {
+                Thread.sleep(3_000L);
+            } catch (InterruptedException e) {
+                // Do nothing.
+            }
+            TestGameService.reset();
+        }
+
+        public void setGameSessionServiceComponentEnabled(boolean enabled) {
+            getPackageManager().setComponentEnabledSetting(
+                    new ComponentName(getApplicationContext(), TestGameSessionService.class),
+                    enabled ? PackageManager.COMPONENT_ENABLED_STATE_ENABLED
+                            : PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+                    PackageManager.DONT_KILL_APP | PackageManager.SYNCHRONOUS);
         }
     };
 

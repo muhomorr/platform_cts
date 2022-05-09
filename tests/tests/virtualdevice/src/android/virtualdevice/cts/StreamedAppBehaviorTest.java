@@ -26,8 +26,8 @@ import static android.virtualdevice.cts.util.VirtualDeviceTestUtils.createActivi
 import static androidx.test.core.app.ApplicationProvider.getApplicationContext;
 
 import static com.google.common.truth.Truth.assertThat;
+import static com.google.common.truth.TruthJUnit.assume;
 
-import static org.junit.Assume.assumeNotNull;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.timeout;
@@ -87,33 +87,24 @@ public class StreamedAppBehaviorTest {
 
     private VirtualDeviceManager mVirtualDeviceManager;
     @Nullable private VirtualDevice mVirtualDevice;
+    @Nullable private VirtualDisplay mVirtualDisplay;
+    private Context mContext;
     @Mock
     private VirtualDisplay.Callback mVirtualDisplayCallback;
+    @Mock
+    private ActivityListener mActivityListener;
 
     @Before
     public void setUp() throws Exception {
         MockitoAnnotations.initMocks(this);
-        Context context = getApplicationContext();
-        mVirtualDeviceManager = context.getSystemService(VirtualDeviceManager.class);
-    }
-
-    @After
-    public void tearDown() {
-        if (mVirtualDevice != null) {
-            mVirtualDevice.close();
-        }
-    }
-
-    @Test
-    public void appsInVirtualDevice_shouldNotHaveAccessToClipboard() {
-        Context context = getApplicationContext();
+        mContext = getApplicationContext();
+        mVirtualDeviceManager = mContext.getSystemService(VirtualDeviceManager.class);
         mVirtualDevice =
                 mVirtualDeviceManager.createVirtualDevice(
                         mFakeAssociationRule.getAssociationInfo().getId(),
                         DEFAULT_VIRTUAL_DEVICE_PARAMS);
-        ActivityListener activityListener = mock(ActivityListener.class);
-        mVirtualDevice.addActivityListener(activityListener);
-        VirtualDisplay virtualDisplay = mVirtualDevice.createVirtualDisplay(
+        mVirtualDevice.addActivityListener(mContext.getMainExecutor(), mActivityListener);
+        mVirtualDisplay = mVirtualDevice.createVirtualDisplay(
                 /* width= */ 100,
                 /* height= */ 100,
                 /* densityDpi= */ 240,
@@ -121,7 +112,21 @@ public class StreamedAppBehaviorTest {
                 /* flags= */ 0,
                 Runnable::run,
                 mVirtualDisplayCallback);
-        ClipboardManager clipboardManager = context.getSystemService(ClipboardManager.class);
+    }
+
+    @After
+    public void tearDown() {
+        if (mVirtualDisplay != null) {
+            mVirtualDisplay.release();
+        }
+        if (mVirtualDevice != null) {
+            mVirtualDevice.close();
+        }
+    }
+
+    @Test
+    public void appsInVirtualDevice_shouldNotHaveAccessToClipboard() {
+        ClipboardManager clipboardManager = mContext.getSystemService(ClipboardManager.class);
         clipboardManager.setPrimaryClip(
                 new ClipData(
                         "CTS test clip",
@@ -130,10 +135,10 @@ public class StreamedAppBehaviorTest {
 
         EmptyActivity activity = (EmptyActivity) InstrumentationRegistry.getInstrumentation()
                 .startActivitySync(
-                        new Intent(context, EmptyActivity.class)
+                        new Intent(mContext, EmptyActivity.class)
                                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
                                         | Intent.FLAG_ACTIVITY_CLEAR_TASK),
-                        createActivityOptions(virtualDisplay));
+                        createActivityOptions(mVirtualDisplay));
 
         EmptyActivity.Callback callback = mock(EmptyActivity.Callback.class);
         activity.setCallback(callback);
@@ -142,7 +147,7 @@ public class StreamedAppBehaviorTest {
         activity.startActivityForResult(
                 TestAppHelper.createClipboardTestIntent("clipboard content from app"),
                 requestCode,
-                createActivityOptions(virtualDisplay));
+                createActivityOptions(mVirtualDisplay));
 
         ArgumentCaptor<Intent> intentArgumentCaptor = ArgumentCaptor.forClass(Intent.class);
         verify(callback, timeout(10000)).onActivityResult(
@@ -154,40 +159,26 @@ public class StreamedAppBehaviorTest {
         assertThat(resultData).isNotNull();
         ClipData appReadClipData = resultData.getParcelableExtra("readClip");
         assertThat(appReadClipData).isNull();
-        verify(activityListener, timeout(3000))
-                .onDisplayEmpty(eq(virtualDisplay.getDisplay().getDisplayId()));
+        verify(mActivityListener, timeout(3000))
+                .onDisplayEmpty(eq(mVirtualDisplay.getDisplay().getDisplayId()));
         assertThat(clipboardManager.getPrimaryClip().getItemAt(0).getText().toString())
                 .isEqualTo("clipboard content from test");
     }
 
     @Test
     public void appsInVirtualDevice_shouldNotHaveAccessToCamera() throws CameraAccessException {
-        Context context = getApplicationContext();
-        mVirtualDevice =
-                mVirtualDeviceManager.createVirtualDevice(
-                        mFakeAssociationRule.getAssociationInfo().getId(),
-                        DEFAULT_VIRTUAL_DEVICE_PARAMS);
-        VirtualDisplay virtualDisplay = mVirtualDevice.createVirtualDisplay(
-                /* width= */ 100,
-                /* height= */ 100,
-                /* densityDpi= */ 240,
-                /* surface= */ null,
-                /* flags= */ 0,
-                Runnable::run,
-                mVirtualDisplayCallback);
-
-        CameraManager manager = context.getSystemService(CameraManager.class);
+        CameraManager manager = mContext.getSystemService(CameraManager.class);
         String[] cameras = manager.getCameraIdList();
-        assumeNotNull(cameras);
+        assume().that(cameras).isNotNull();
 
         for (String cameraId : cameras) {
             EmptyActivity activity =
                     (EmptyActivity) InstrumentationRegistry.getInstrumentation()
                             .startActivitySync(
-                                    new Intent(context, EmptyActivity.class)
+                                    new Intent(mContext, EmptyActivity.class)
                                             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
                                                     | Intent.FLAG_ACTIVITY_CLEAR_TASK),
-                                    createActivityOptions(virtualDisplay));
+                                    createActivityOptions(mVirtualDisplay));
 
             EmptyActivity.Callback callback = mock(EmptyActivity.Callback.class);
             activity.setCallback(callback);
@@ -197,7 +188,7 @@ public class StreamedAppBehaviorTest {
                     TestAppHelper.createCameraAccessTestIntent().putExtra(
                             TestAppHelper.EXTRA_CAMERA_ID, cameraId),
                     requestCode,
-                    createActivityOptions(virtualDisplay));
+                    createActivityOptions(mVirtualDisplay));
 
             ArgumentCaptor<Intent> intentArgumentCaptor = ArgumentCaptor.forClass(Intent.class);
             verify(callback, timeout(10000)).onActivityResult(
@@ -214,5 +205,35 @@ public class StreamedAppBehaviorTest {
             }
         }
     }
-}
 
+    @Test
+    public void isDeviceSecure_shouldReturnFalseOnVirtualDisplay() {
+        EmptyActivity activity = (EmptyActivity) InstrumentationRegistry.getInstrumentation()
+                .startActivitySync(
+                        new Intent(mContext, EmptyActivity.class)
+                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
+                                        | Intent.FLAG_ACTIVITY_CLEAR_TASK),
+                        createActivityOptions(mVirtualDisplay));
+
+        EmptyActivity.Callback callback = mock(EmptyActivity.Callback.class);
+        activity.setCallback(callback);
+
+        int requestCode = 1;
+        activity.startActivityForResult(
+                TestAppHelper.createKeyguardManagerIsDeviceSecureTestIntent(),
+                requestCode,
+                createActivityOptions(mVirtualDisplay));
+
+        ArgumentCaptor<Intent> intentArgumentCaptor = ArgumentCaptor.forClass(Intent.class);
+        verify(callback, timeout(5000)).onActivityResult(
+                eq(requestCode), eq(Activity.RESULT_OK), intentArgumentCaptor.capture());
+        Intent resultData = intentArgumentCaptor.getValue();
+        // This is important to get us off of the virtual display
+        activity.finish();
+
+        assertThat(resultData).isNotNull();
+        boolean isDeviceSecure = resultData.getBooleanExtra(
+                TestAppHelper.EXTRA_IS_DEVICE_SECURE, true);
+        assertThat(isDeviceSecure).isFalse();
+    }
+}

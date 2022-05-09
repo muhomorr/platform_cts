@@ -18,9 +18,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
           package="com.android.cts.verifier"
           android:versionCode="5"
-          android:versionName="12.1_r1">
+          android:versionName="13_r1">
 
-    <uses-sdk android:minSdkVersion="19" android:targetSdkVersion="31"/>
+    <uses-sdk android:minSdkVersion="19" android:targetSdkVersion="33"/>
 
     <uses-permission android:name="android.car.permission.CAR_POWERTRAIN" />
     <uses-permission android:name="android.car.permission.READ_CAR_POWER_POLICY" />
@@ -51,6 +51,7 @@
     <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
     <uses-permission android:name="android.permission.REQUEST_PASSWORD_COMPLEXITY" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <uses-feature android:name="android.hardware.camera" android:required="false"/>
     <uses-feature android:name="android.hardware.camera.flash" android:required="false"/>
     <uses-feature android:name="android.hardware.sensor.accelerometer" android:required="false" />
@@ -100,10 +101,14 @@
     <uses-permission android:name="android.permission.INTERACT_ACROSS_USERS" />
 
     <!-- Needed for sensor tests -->
-    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
 
     <!-- Needed for Wi-Fi Direct tests from T -->
     <uses-permission android:name="android.permission.NEARBY_WIFI_DEVICES" />
+
+    <!-- READ_LOGS User Consent Test from T -->
+    <uses-permission android:name="android.permission.READ_LOGS" />
 
     <application android:networkSecurityConfig="@xml/network_security_config"
                  android:label="@string/app_name"
@@ -197,6 +202,9 @@
             <meta-data android:name="test_excluded_features" android:value="android.hardware.type.automotive:android.hardware.type.watch" />
             <meta-data android:name="display_mode"
                        android:value="multi_display_mode" />
+            <meta-data android:name="CddTest"
+                       android:value="2.2.4/8.3/H-1-1|2.3.4/8.3/T-1-1|2.4.4/8.3/W-SR|8.3/C-SR" />
+            <meta-data android:name="ApiTest" android:value="android.os.PowerManager#isPowerSaveMode" />
         </activity>
 
         <activity
@@ -211,6 +219,9 @@
             <meta-data android:name="test_category" android:value="@string/test_category_other" />
             <meta-data android:name="test_excluded_features" android:value="android.hardware.type.automotive:android.hardware.type.television" />
             <meta-data android:name="display_mode" android:value="multi_display_mode" />
+            <meta-data android:name="CddTest" android:value="8.3/C-1-6" />
+            <meta-data android:name="ApiTest"
+                       android:value="android.os.PowerManager#isIgnoringBatteryOptimizations|android.app.usage.UsageStatsManager#getAppStandbyBucket|android.provider.Settings#ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS|android.provider.Settings#ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
         </activity>
 
         <activity android:name=".forcestop.RecentTaskRemovalTestActivity"
@@ -255,6 +266,8 @@
                        android:value="android.software.companion_device_setup" />
             <meta-data android:name="display_mode"
                        android:value="multi_display_mode" />
+            <meta-data android:name="ApiTest"
+                       android:value="android.companion.CompanionDeviceManager#associate" />
         </activity>
 
         <activity android:name=".companion.CompanionDeviceServiceTestActivity"
@@ -270,6 +283,8 @@
                        android:value="android.software.companion_device_setup" />
             <meta-data android:name="display_mode"
                        android:value="multi_display_mode" />
+            <meta-data android:name="ApiTest"
+                       android:value="android.companion.CompanionDeviceManager#startObservingDevicePresence|android.companion.CompanionDeviceManager#stopObservingDevicePresence" />
         </activity>
 
         <service
@@ -578,58 +593,6 @@
             android:name=".bluetooth.DevicePickerActivity"
             android:configChanges="keyboardHidden|orientation|screenSize"
             android:label="@string/bt_device_picker" >
-            <meta-data android:name="display_mode"
-                       android:value="multi_display_mode" />
-        </activity>
-
-        <!--
-             CTS Verifier Bluetooth Background Rfcomm Test Activity
-                 test category : bt_background_rfcomm
-                 test parent : BluetoothTestActivity
-        -->
-        <activity
-            android:name=".bluetooth.BackgroundRfcommTestActivity"
-            android:configChanges="keyboardHidden|orientation|screenSize"
-            android:label="@string/bt_background_rfcomm_test_name"
-            android:exported="true" >
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-
-                <category android:name="android.cts.intent.category.MANUAL_TEST" />
-            </intent-filter>
-
-            <meta-data
-                android:name="test_category"
-                android:value="@string/bt_background_rfcomm" />
-            <meta-data
-                android:name="test_parent"
-                android:value="com.android.cts.verifier.bluetooth.BluetoothTestActivity" />
-            <meta-data android:name="test_excluded_features"
-                       android:value="android.hardware.type.watch" />
-            <meta-data android:name="display_mode"
-                       android:value="multi_display_mode" />
-        </activity>
-
-
-        <activity
-            android:name=".bluetooth.BackgroundRfcommTestClientActivity"
-            android:configChanges="keyboardHidden|orientation|screenSize"
-            android:label="@string/bt_background_rfcomm_test_client_name"
-            android:exported="true" >
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-
-                <category android:name="android.cts.intent.category.MANUAL_TEST" />
-            </intent-filter>
-
-            <meta-data
-                android:name="test_category"
-                android:value="@string/bt_background_rfcomm" />
-            <meta-data
-                android:name="test_parent"
-                android:value="com.android.cts.verifier.bluetooth.BluetoothTestActivity" />
-            <meta-data android:name="test_excluded_features"
-                       android:value="android.hardware.type.watch" />
             <meta-data android:name="display_mode"
                        android:value="multi_display_mode" />
         </activity>
@@ -1846,6 +1809,8 @@
                        android:value="android.software.secure_lock_screen" />
             <meta-data android:name="display_mode"
                        android:value="multi_display_mode" />
+            <meta-data android:name="CddTest"
+                       android:value="9.11.3/C-0-2" />
         </activity>
 
         <activity android:name=".security.IdentityCredentialAuthenticationMultiDocument"
@@ -1863,6 +1828,8 @@
                        android:value="android.software.secure_lock_screen" />
             <meta-data android:name="display_mode"
                        android:value="multi_display_mode" />
+            <meta-data android:name="CddTest"
+                       android:value="9.11.3/C-0-2" />
         </activity>
 
         <activity android:name=".security.FingerprintBoundKeysTest"
@@ -1880,6 +1847,8 @@
                        android:value="android.hardware.fingerprint:android.software.secure_lock_screen" />
             <meta-data android:name="display_mode"
                        android:value="single_display_mode" />
+            <meta-data android:name="CddTest"
+                       android:value="9.11.1/C-4-1" />
         </activity>
 
         <activity android:name=".security.ProtectedConfirmationTest"
@@ -1893,6 +1862,8 @@
             <meta-data android:name="test_category" android:value="@string/test_category_security" />
             <meta-data android:name="display_mode"
                        android:value="multi_display_mode" />
+            <meta-data android:name="CddTest"
+                       android:value="9.10/C-3-1|9.10/C-3-2|9.10/C-3-3" />
         </activity>
 
         <activity android:name=".security.ScreenLockBoundKeysTest"
@@ -1910,6 +1881,8 @@
                     android:value="android.software.device_admin:android.software.secure_lock_screen" />
             <meta-data android:name="display_mode"
                        android:value="single_display_mode" />
+            <meta-data android:name="CddTest"
+                       android:value="9.11/C-1-3" />
         </activity>
 
         <activity android:name=".security.UnlockedDeviceRequiredTest"
@@ -1989,14 +1962,16 @@
             <meta-data android:name="test_excluded_features"
                     android:value="android.hardware.type.watch" />
             <meta-data android:name="display_mode" android:value="single_display_mode" />
+            <meta-data android:name="CddTest" android:value="5.7/C-1-1,C-1-2,C-1-3" />
         </activity>
 
         <activity android:name=".streamquality.PlayVideoActivity"
                 android:label="@string/streaming_video"
                 android:configChanges="keyboardHidden|orientation|screenSize"
                 android:screenOrientation="nosensor" >
-                <meta-data android:name="display_mode"
-                           android:value="multi_display_mode" />
+            <meta-data android:name="display_mode"
+                        android:value="multi_display_mode" />
+            <meta-data android:name="CddTest" android:value="5.7/C-1-1,C-1-2,C-1-3" />
         </activity>
 
         <!-- FeatureSummaryActivity is replaced by CTS SystemFeaturesTest
@@ -2758,6 +2733,19 @@
                        android:value="android.hardware.type.automotive"/>
             <meta-data android:name="display_mode"
                        android:value="single_display_mode" />
+            <meta-data android:name="ApiTest" android:value="android.hardware.Camera#getParameters|
+                                android.hardware.Camera#setParameters|
+                                android.hardware.Camera#setDisplayOrientation|
+                                android.hardware.Camera#setPreviewCallback|
+                                android.hardware.Camera#stopPreview|
+                                android.hardware.Camera#release|
+                                android.hardware.Camera#setPreviewTexture|
+                                android.hardware.Camera#startPreview|
+                                android.hardware.Camera.Parameters#setPreviewFormat|
+                                android.hardware.Camera.Parameters#setPreviewSize|
+                                android.hardware.Camera.Parameters#getSupportedPreviewFormats|
+                                android.hardware.Camera.Parameters#getSupportedPreviewSizes|
+                                android.hardware.Camera.PreviewCallback#onPreviewFrame" />
         </activity>
 
         <activity android:name=".camera.intents.CameraIntentsActivity"
@@ -2774,6 +2762,9 @@
                        android:value="android.hardware.type.automotive:android.hardware.type.television:android.software.leanback"/>
             <meta-data android:name="display_mode"
                        android:value="single_display_mode" />
+            <meta-data android:name="ApiTest"
+                       android:value="android.hardware.Camera#ACTION_NEW_PICTURE|
+                               android.hardware.Camera#ACTION_NEW_VIDEO" />
         </activity>
 
         <service android:name=".camera.intents.CameraContentJobService"
@@ -2794,6 +2785,13 @@
                        android:value="android.hardware.type.automotive"/>
             <meta-data android:name="display_mode"
                        android:value="single_display_mode" />
+            <meta-data android:name="ApiTest"
+                       android:value="android.hardware.Camera#getNumberOfCameras|
+                               android.hardware.Camera#setPreviewDisplay|
+                               android.hardware.Camera.Parameters#setPictureFormat|
+                               android.hardware.Camera.Parameters#setPictureSize|
+                               android.hardware.Camera#setDisplayOrientation|
+                               android.hardware.Camera#takePicture" />
         </activity>
 
         <activity
@@ -2880,6 +2878,11 @@
                        android:value="android.hardware.type.automotive"/>
             <meta-data android:name="display_mode"
                        android:value="multi_display_mode" />
+            <meta-data android:name="ApiTest"
+                       android:value="android.hardware.camera2.CameraCharacteristics#FLASH_INFO_AVAILABLE|
+                                      android.hardware.camera2.CameraManager#setTorchMode|
+                                      android.hardware.camera2.CameraManager#registerTorchCallback|
+                                      android.hardware.camera2.CameraManager.TorchCallback#onTorchModeChanged"/>
         </activity>
 
         <activity android:name=".camera.performance.CameraPerformanceActivity"
@@ -2913,6 +2916,30 @@
                        android:value="android.hardware.type.automotive"/>
             <meta-data android:name="display_mode"
                        android:value="multi_display_mode" />
+            <meta-data android:name="ApiTest"
+                       android:value="android.hardware.camera2.CameraMetadata#controlExtendedSceneModeBokehStillCapture|
+                               android.hardware.camera2.CameraMetadata#controlExtendedSceneModeBokehContinuous|
+                               android.hardware.camera2.CameraCharacteristics#controlAvailableExtendedSceneModeCapabilities|
+                               android.hardware.camera2.CameraCharacteristics#scalerStreamConfigurationMap|
+                               android.hardware.camera2.CaptureRequest#controlExtendedSceneMode" />
+        </activity>
+
+        <activity android:name=".camera.its.CameraMuteToggleActivity"
+                 android:label="@string/camera_hw_toggle_test"
+                 android:exported="true"
+                 android:screenOrientation="landscape">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.cts.intent.category.MANUAL_TEST" />
+            </intent-filter>
+            <meta-data android:name="test_category" android:value="@string/test_category_camera" />
+            <meta-data android:name="test_required_configs" android:value="config_has_camera_toggle"/>
+            <meta-data android:name="test_required_features" android:value="android.hardware.camera.any"/>
+            <meta-data android:name="test_excluded_features"
+                       android:value="android.hardware.type.automotive"/>
+            <meta-data android:name="display_mode"
+                       android:value="single_display_mode" />
+            <meta-data android:name="CddTest" android:value="9.8.13/C-1-3" />
         </activity>
 
         <activity android:name=".usb.accessory.UsbAccessoryTestActivity"
@@ -2929,6 +2956,7 @@
                     android:value="android.hardware.type.watch" />
             <meta-data android:name="display_mode"
                        android:value="multi_display_mode" />
+            <meta-data android:name="CddTest" android:value="7.7.1/H-1-1" />
         </activity>
 
         <activity android:name=".usb.accessory.AccessoryAttachmentHandler"
@@ -2958,6 +2986,9 @@
                     android:value="android.hardware.type.watch" />
             <meta-data android:name="display_mode"
                        android:value="multi_display_mode" />
+            <meta-data android:name="CddTest" android:value="7.7.2/C-1-1" />
+            <meta-data android:name="ApiTest"
+                       android:value="android.hardware.usb.UsbDeviceConnection#controlTransfer|android.hardware.usb.UsbDeviceConnection#bulkTransfer" />
         </activity>
 
         <activity android:name=".usb.mtp.MtpHostTestActivity" android:label="@string/mtp_host_test"
@@ -2972,6 +3003,7 @@
                        android:value="android.hardware.type.automotive:android.hardware.type.television" />
             <meta-data android:name="display_mode"
                        android:value="multi_display_mode" />
+            <meta-data android:name="CddTest" android:value="7.7.2/C-3-1" />
         </activity>
 
 <!-- Turned off Sensor Power Test in initial L release
@@ -3000,6 +3032,7 @@
             <meta-data android:name="test_required_features" android:value="android.hardware.wifi.direct" />
             <meta-data android:name="display_mode"
                        android:value="single_display_mode" />
+            <meta-data android:name="NonApiTest" android:value="Helper class. List test activities" />
         </activity>
 
         <activity android:name=".managedprovisioning.RecentsRedactionActivity"
@@ -3065,6 +3098,7 @@
                 <category android:name="android.cts.intent.category.MANUAL_TEST" />
             </intent-filter>
             <meta-data android:name="test_category" android:value="@string/test_category_notifications" />
+            <meta-data android:name="test_required_features" android:value="android.software.secure_lock_screen" />
             <meta-data android:name="test_excluded_features"
                        android:value="android.hardware.type.automotive" />
             <meta-data android:name="display_mode" android:value="multi_display_mode" />
@@ -3178,6 +3212,22 @@
                        android:value="multi_display_mode" />
         </activity>
 
+        <activity android:name=".notifications.MediaPlayerVerifierActivity"
+                  android:label="@string/media_controls_title"
+                  android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.cts.intent.category.MANUAL_TEST" />
+            </intent-filter>
+
+            <meta-data android:name="test_category"
+                       android:value="@string/test_category_notifications" />
+            <meta-data android:name="test_excluded_features"
+                       android:value="android.hardware.type.watch:android.software.leanback:android.hardware.type.automotive" />
+            <meta-data android:name="display_mode"
+                       android:value="multi_display_mode" />
+        </activity>
+
         <service android:name=".notifications.MockListener"
           android:exported="true"
           android:label="@string/nls_service_name"
@@ -3186,7 +3236,7 @@
                 <action android:name="android.service.notification.NotificationListenerService" />
             </intent-filter>
             <meta-data android:name="android.service.notification.default_filter_types"
-                       android:value="alerting|silent" />
+                       android:value="conversations|alerting|silent" />
             <meta-data android:name="android.service.notification.disabled_filter_types"
                        android:value="ongoing" />
         </service>
@@ -3228,6 +3278,7 @@
             <meta-data android:name="test_required_configs" android:value="config_quick_settings_supported" />
             <meta-data android:name="display_mode"
                        android:value="multi_display_mode" />
+            <meta-data android:name="CddTest" android:value="3.13/C-1-1,C-1-2,C-1-3" />
         </activity>
 
         <activity android:name=".qstiles.TileServiceRequestVerifierActivity"
@@ -3243,6 +3294,7 @@
             <meta-data android:name="test_required_configs" android:value="config_quick_settings_supported" />
             <meta-data android:name="display_mode"
                        android:value="multi_display_mode" />
+            <meta-data android:name="ApiTest" android:value="android.app.StatusBarManager#requestAddTileService" />
         </activity>
 
         <service android:name=".qstiles.MockTileService"
@@ -3464,6 +3516,7 @@
                 android:configChanges="keyboardHidden|orientation|screenSize" >
             <meta-data android:name="display_mode"
                        android:value="single_display_mode" />
+            <meta-data android:name="NonApiTest" android:value="Helper class. List test activities" />
         </activity>
 
         <activity android:name=".p2p.GoNegRequesterTestActivity"
@@ -3471,6 +3524,8 @@
                 android:configChanges="keyboardHidden|orientation|screenSize" >
             <meta-data android:name="display_mode"
                        android:value="single_display_mode" />
+            <meta-data android:name="ApiTest"
+                    android:value="android.net.wifi.p2p.WifiP2pManager#connect|android.net.wifi.p2p.WifiP2pManager#discoverPeers" />
         </activity>
 
         <activity android:name=".p2p.GoNegResponderTestActivity"
@@ -3478,6 +3533,8 @@
                 android:configChanges="keyboardHidden|orientation|screenSize" >
             <meta-data android:name="display_mode"
                        android:value="single_display_mode" />
+            <meta-data android:name="ApiTest"
+                    android:value="android.net.wifi.p2p.WifiP2pManager#discoverPeers" />
         </activity>
 
         <activity android:name=".p2p.P2pClientTestListActivity"
@@ -3485,6 +3542,7 @@
                 android:configChanges="keyboardHidden|orientation|screenSize" >
             <meta-data android:name="display_mode"
                        android:value="single_display_mode" />
+            <meta-data android:name="NonApiTest" android:value="Helper class. List test activities" />
         </activity>
 
         <activity android:name=".p2p.P2pClientTestActivity"
@@ -3492,6 +3550,8 @@
                 android:configChanges="keyboardHidden|orientation|screenSize" >
             <meta-data android:name="display_mode"
                        android:value="single_display_mode" />
+            <meta-data android:name="ApiTest"
+                    android:value="android.net.wifi.p2p.WifiP2pManager#connect|android.net.wifi.p2p.WifiP2pManager#discoverPeers" />
         </activity>
 
         <activity android:name=".p2p.GoTestActivity"
@@ -3499,6 +3559,8 @@
                 android:configChanges="keyboardHidden|orientation|screenSize" >
             <meta-data android:name="display_mode"
                        android:value="single_display_mode" />
+            <meta-data android:name="ApiTest"
+                    android:value="android.net.wifi.p2p.WifiP2pManager#createGroup|android.net.wifi.p2p.WifiP2pManager#removeGroup" />
         </activity>
 
         <activity android:name=".p2p.P2pClientWithConfigTestListActivity"
@@ -3506,6 +3568,7 @@
                 android:configChanges="keyboardHidden|orientation|screenSize" >
             <meta-data android:name="display_mode"
                        android:value="single_display_mode" />
+            <meta-data android:name="NonApiTest" android:value="Helper class. List test activities" />
         </activity>
 
         <activity android:name=".p2p.P2pClientWithConfig2gBandTestListActivity"
@@ -3513,6 +3576,7 @@
                 android:configChanges="keyboardHidden|orientation|screenSize" >
             <meta-data android:name="display_mode"
                        android:value="single_display_mode" />
+            <meta-data android:name="NonApiTest" android:value="Helper class. List test activities" />
         </activity>
 
         <activity android:name=".p2p.P2pClientWithConfigFixedFrequencyTestListActivity"
@@ -3520,6 +3584,7 @@
                 android:configChanges="keyboardHidden|orientation|screenSize" >
             <meta-data android:name="display_mode"
                        android:value="single_display_mode" />
+            <meta-data android:name="NonApiTest" android:value="Helper class. List test activities" />
         </activity>
 
         <activity android:name=".p2p.P2pClientWithConfigTestActivity"
@@ -3527,6 +3592,8 @@
                 android:configChanges="keyboardHidden|orientation|screenSize" >
             <meta-data android:name="display_mode"
                        android:value="single_display_mode" />
+            <meta-data android:name="ApiTest"
+                    android:value="android.net.wifi.p2p.WifiP2pManager#connect|android.net.wifi.p2p.WifiP2pManager#discoverPeers" />
         </activity>
 
         <activity android:name=".p2p.P2pClientWithConfig2gBandTestActivity"
@@ -3534,6 +3601,8 @@
                 android:configChanges="keyboardHidden|orientation|screenSize" >
             <meta-data android:name="display_mode"
                        android:value="single_display_mode" />
+            <meta-data android:name="ApiTest"
+                    android:value="android.net.wifi.p2p.WifiP2pManager#connect|android.net.wifi.p2p.WifiP2pManager#discoverPeers" />
         </activity>
 
         <activity android:name=".p2p.P2pClientWithConfigFixedFrequencyTestActivity"
@@ -3541,6 +3610,8 @@
                 android:configChanges="keyboardHidden|orientation|screenSize" >
             <meta-data android:name="display_mode"
                        android:value="single_display_mode" />
+            <meta-data android:name="ApiTest"
+                    android:value="android.net.wifi.p2p.WifiP2pManager#connect|android.net.wifi.p2p.WifiP2pManager#discoverPeers" />
         </activity>
 
         <activity android:name=".p2p.GoWithConfigTestActivity"
@@ -3548,6 +3619,8 @@
                 android:configChanges="keyboardHidden|orientation|screenSize" >
             <meta-data android:name="display_mode"
                        android:value="single_display_mode" />
+            <meta-data android:name="ApiTest"
+                    android:value="android.net.wifi.p2p.WifiP2pManager#createGroup|android.net.wifi.p2p.WifiP2pManager#removeGroup" />
         </activity>
 
         <activity android:name=".p2p.GoWithConfig2gBandTestActivity"
@@ -3555,6 +3628,8 @@
                 android:configChanges="keyboardHidden|orientation|screenSize" >
             <meta-data android:name="display_mode"
                        android:value="single_display_mode" />
+            <meta-data android:name="ApiTest"
+                    android:value="android.net.wifi.p2p.WifiP2pManager#createGroup|android.net.wifi.p2p.WifiP2pManager#removeGroup" />
         </activity>
 
         <activity android:name=".p2p.GoWithConfigFixedFrequencyTestActivity"
@@ -3562,6 +3637,8 @@
                 android:configChanges="keyboardHidden|orientation|screenSize" >
             <meta-data android:name="display_mode"
                        android:value="single_display_mode" />
+            <meta-data android:name="ApiTest"
+                    android:value="android.net.wifi.p2p.WifiP2pManager#createGroup|android.net.wifi.p2p.WifiP2pManager#removeGroup" />
         </activity>
 
         <activity android:name=".p2p.ServiceRequesterTestListActivity"
@@ -3569,6 +3646,7 @@
                 android:configChanges="keyboardHidden|orientation|screenSize" >
             <meta-data android:name="display_mode"
                        android:value="single_display_mode" />
+            <meta-data android:name="NonApiTest" android:value="Helper class. List test activities" />
         </activity>
 
         <activity android:name=".p2p.ServiceRequesterTestActivity"
@@ -3576,6 +3654,8 @@
                 android:configChanges="keyboardHidden|orientation|screenSize" >
             <meta-data android:name="display_mode"
                        android:value="single_display_mode" />
+            <meta-data android:name="ApiTest"
+                    android:value="android.net.wifi.p2p.WifiP2pManager#discoverServices|android.net.wifi.p2p.WifiP2pManager#addServiceRequest|android.net.wifi.p2p.WifiP2pManager#setUpnpServiceResponseListener|android.net.wifi.p2p.WifiP2pManager#setDnsSdResponseListeners|android.net.wifi.p2p.WifiP2pManager#removeServiceRequest|android.net.wifi.p2p.WifiP2pManager#clearServiceRequests" />
         </activity>
 
         <activity android:name=".p2p.ServiceResponderTestActivity"
@@ -3583,6 +3663,8 @@
                 android:configChanges="keyboardHidden|orientation|screenSize" >
             <meta-data android:name="display_mode"
                        android:value="single_display_mode" />
+            <meta-data android:name="ApiTest"
+                    android:value="android.net.wifi.p2p.WifiP2pManager#addLocalService" />
         </activity>
 
         <activity android:name=".wifiaware.DataPathOpenUnsolicitedPublishTestActivity"
@@ -3809,11 +3891,246 @@
                        android:value="single_display_mode" />
         </activity>
 
-        <activity-alias android:name=".CtsVerifierActivity" android:label="@string/app_name"
-                android:exported="true"
-                android:targetActivity=".TestListActivity">
+        <!--            CTS Verifier Presence Test Top Screen -->
+        <activity
+            android:name=".presence.PresenceTestActivity"
+            android:configChanges="keyboardHidden|orientation|screenSize"
+            android:exported="true"
+            android:label="@string/presence_test" >
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
+
+                <category android:name="android.cts.intent.category.MANUAL_TEST" />
+            </intent-filter>
+
+            <meta-data
+                android:name="test_category"
+                android:value="@string/test_category_networking" />
+            <meta-data android:name="display_mode"
+                       android:value="single_display_mode" />
+        </activity>
+
+        <!--
+             CTS Verifier Uwb Precision Test Screen
+                 test category : uwb
+                 test parent : PresenceTestActivity
+        -->
+        <activity
+            android:name=".presence.UwbPrecisionActivity"
+            android:configChanges="keyboardHidden|orientation|screenSize"
+            android:exported="true"
+            android:label="@string/uwb_precision" >
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+
+                <category android:name="android.cts.intent.category.MANUAL_TEST" />
+            </intent-filter>
+
+            <meta-data
+                android:name="test_category"
+                android:value="@string/uwb" />
+            <meta-data
+                android:name="test_parent"
+                android:value="com.android.cts.verifier.presence.PresenceTestActivity" />
+            <meta-data android:name="display_mode"
+                       android:value="single_display_mode" />
+            <meta-data android:name="CddTest"
+                       android:value="7.4.9/C-1-1" />
+        </activity>
+
+        <!--
+             CTS Verifier Uwb Short Range Test Screen
+                 test category : uwb
+                 test parent : PresenceTestActivity
+        -->
+        <activity
+            android:name=".presence.UwbShortRangeActivity"
+            android:configChanges="keyboardHidden|orientation|screenSize"
+            android:exported="true"
+            android:label="@string/uwb_short_range" >
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+
+                <category android:name="android.cts.intent.category.MANUAL_TEST" />
+            </intent-filter>
+
+            <meta-data
+                android:name="test_category"
+                android:value="@string/uwb" />
+            <meta-data
+                android:name="test_parent"
+                android:value="com.android.cts.verifier.presence.PresenceTestActivity" />
+            <meta-data
+                android:name="display_mode"
+                android:value="single_display_mode" />
+            <meta-data
+                android:name="CddTest"
+                android:value="7.4.9/C-1-2" />
+        </activity>
+
+        <!--
+            CTS Verifier BLE RSSI Precision Test Screen
+                test category : BLE
+                test parent : PresenceTestActivity
+        -->
+        <activity
+            android:name=".presence.BleRssiPrecisionActivity"
+            android:exported="true"
+            android:label="@string/ble_rssi_precision_name">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+
+                <category android:name="android.cts.intent.category.MANUAL_TEST" />
+            </intent-filter>
+
+            <meta-data
+                android:name="test_category"
+                android:value="@string/ble" />
+            <meta-data
+                android:name="test_parent"
+                android:value="com.android.cts.verifier.presence.PresenceTestActivity" />
+            <meta-data
+                android:name="test_required_features"
+                android:value="android.hardware.bluetooth_le" />
+            <meta-data
+                android:name="display_mode"
+                android:value="single_display_mode" />
+            <meta-data
+                android:name="CddText"
+                android:value="7.4.3/C-7-1" />
+        </activity>
+
+        <!--
+            CTS Verifier BLE Rx/Tx Calibration Test Screen
+                test category : BLE
+                test parent : PresenceTestActivity
+        -->
+        <activity
+            android:name=".presence.BleRxTxCalibrationActivity"
+            android:exported="true"
+            android:label="@string/ble_rx_tx_calibration_name">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+
+                <category android:name="android.cts.intent.category.MANUAL_TEST" />
+            </intent-filter>
+
+            <meta-data
+                android:name="test_category"
+                android:value="@string/ble" />
+            <meta-data
+                android:name="test_parent"
+                android:value="com.android.cts.verifier.presence.PresenceTestActivity" />
+            <meta-data
+                android:name="test_required_features"
+                android:value="android.hardware.bluetooth_le" />
+            <meta-data
+                android:name="display_mode"
+                android:value="single_display_mode" />
+            <meta-data
+                android:name="CddText"
+                android:value="7.4.3/C-7-2" />
+        </activity>
+
+        <!--
+            CTS Verifier BLE Rx Offset Test Screen
+                test category : BLE
+                test parent : PresenceTestActivity
+        -->
+        <activity
+            android:name=".presence.BleRxOffsetActivity"
+            android:exported="true"
+            android:label="@string/ble_rx_offset_name">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+
+                <category android:name="android.cts.intent.category.MANUAL_TEST" />
+            </intent-filter>
+
+            <meta-data
+                android:name="test_category"
+                android:value="@string/ble" />
+            <meta-data
+                android:name="test_parent"
+                android:value="com.android.cts.verifier.presence.PresenceTestActivity" />
+            <meta-data
+                android:name="test_required_features"
+                android:value="android.hardware.bluetooth_le" />
+            <meta-data
+                android:name="display_mode"
+                android:value="single_display_mode" />
+            <meta-data
+                android:name="CddText"
+                android:value="7.4.3/C-7-3" />
+        </activity>
+
+        <!--
+            CTS Verifier BLE Tx Offset Test Screen
+                test category : BLE
+                test parent : PresenceTestActivity
+        -->
+        <activity
+            android:name=".presence.BleTxOffsetActivity"
+            android:exported="true"
+            android:label="@string/ble_tx_offset_name">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+
+                <category android:name="android.cts.intent.category.MANUAL_TEST" />
+            </intent-filter>
+
+            <meta-data
+                android:name="test_category"
+                android:value="@string/ble" />
+            <meta-data
+                android:name="test_parent"
+                android:value="com.android.cts.verifier.presence.PresenceTestActivity" />
+            <meta-data
+                android:name="test_required_features"
+                android:value="android.hardware.bluetooth_le" />
+            <meta-data
+                android:name="display_mode"
+                android:value="single_display_mode" />
+            <meta-data
+                android:name="CddText"
+                android:value="7.4.3/C-7-4" />
+        </activity>
+
+        <!-- CTS Verifier Nan Precision and Bias Test Screen
+                 test category : wifi_nan
+                 test parent : PresenceTestActivity
+        -->
+        <activity
+            android:name=".presence.NanPrecisionAndBiasTestActivity"
+            android:configChanges="keyboardHidden|orientation|screenSize"
+            android:exported="true"
+            android:label="@string/nan_precision_and_bias" >
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+
+                <category android:name="android.cts.intent.category.MANUAL_TEST" />
+            </intent-filter>
+
+            <meta-data
+                android:name="test_category"
+                android:value="@string/wifi_nan" />
+            <meta-data
+                android:name="test_parent"
+                android:value="com.android.cts.verifier.presence.PresenceTestActivity" />
+            <meta-data android:name="display_mode"
+                       android:value="single_display_mode" />
+            <meta-data android:name="CddTest"
+                       android:value="7.4.2.5/H-1-1,7.4.2.5/H-1-2" />
+        </activity>
+
+        <activity-alias
+            android:name=".CtsVerifierActivity"
+            android:label="@string/app_name"
+            android:exported="true"
+            android:targetActivity=".TestListActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+
                 <category android:name="android.intent.category.LAUNCHER" />
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
@@ -3848,16 +4165,18 @@
 
         <activity android:name=".deskclock.DeskClockTestsActivity"
                 android:exported="true"
-                  android:label="@string/deskclock_tests">
+                android:label="@string/deskclock_tests">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.cts.intent.category.MANUAL_TEST" />
             </intent-filter>
             <meta-data android:name="test_category" android:value="@string/test_category_deskclock" />
             <meta-data android:name="test_excluded_features"
-                    android:value="android.hardware.type.television:android.software.leanback:android.hardware.type.automotive" />
+                       android:value="android.hardware.type.television:android.software.leanback:android.hardware.type.automotive" />
             <meta-data android:name="display_mode"
                        android:value="multi_display_mode" />
+            <meta-data android:name="ApiTest"
+                       android:value="android.provider.AlarmClock#ACTION_SHOW_ALARMS|android.provider.AlarmClock#ACTION_SET_ALARM|android.provider.AlarmClock#ACTION_SET_TIMER" />
         </activity>
 
 <!-- TODO: enable when not requiring to tap the screen and timeouts are tuned -->
@@ -4679,6 +4998,8 @@
             <intent-filter>
                 <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
                 <action android:name="android.app.action.PROFILE_PROVISIONING_COMPLETE"/>
+                <!--  TODO(b/176993670): remove if DpmWrapperManagerWrapper goes away -->
+                <action android:name="com.android.bedstead.dpmwrapper.action.WRAPPED_MANAGER_CALL"/>
             </intent-filter>
         </receiver>
         <service android:name=".managedprovisioning.DeviceAdminTestReceiver$PrimaryUserService"
@@ -4808,6 +5129,8 @@
                        android:value="android.software.leanback" />
             <meta-data android:name="test_required_configs"
                        android:value="config_hdmi_source" />
+            <meta-data android:name="ApiTest"
+                       android:value="android.media.AudioTrack#isDirectPlaybackSupported" />
         </activity>
 
         <activity android:name=".tv.display.HotplugTestActivity"
@@ -4879,6 +5202,241 @@
                        android:value="multi_display_mode" />
         </activity>
 
+        <!-- Audio Tests Start Here -->
+        <activity android:name=".audio.AnalogHeadsetAudioActivity"
+            android:exported="true"
+            android:label="@string/audio_headset_audio_test">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.cts.intent.category.MANUAL_TEST" />
+            </intent-filter>
+            <meta-data android:name="test_category" android:value="@string/test_category_audio" />
+            <meta-data android:name="display_mode" android:value="multi_display_mode" />
+            <meta-data android:name="CddTest" android:value="7.8.2.1/C-1-1,C-1-2,C-1-3,C-1-4,C-2-1" />
+        </activity>
+
+        <activity android:name=".audio.AudioAEC"
+            android:exported="true"
+            android:label="@string/audio_aec_test">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.cts.intent.category.MANUAL_TEST" />
+            </intent-filter>
+            <meta-data android:name="test_category" android:value="@string/test_category_audio" />
+            <meta-data android:name="test_required_features" android:value="android.hardware.microphone:android.hardware.audio.output" />
+            <meta-data android:name="display_mode" android:value="multi_display_mode" />
+            <meta-data android:name="ApiTest" android:value="android.media.audiofx.AcousticEchoCanceler#isAvailable|
+                android.media.audiofx.AcousticEchoCanceler#create|
+                android.media.audiofx.AcousticEchoCanceler#release|
+                android.media.audiofx.AcousticEchoCanceler#getEnabled" />
+        </activity>
+
+        <activity android:name=".audio.AudioDescriptorActivity"
+            android:exported="true"
+            android:label="@string/audio_descriptor_test">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.cts.intent.category.MANUAL_TEST" />
+            </intent-filter>
+            <meta-data android:name="test_category" android:value="@string/test_category_audio" />
+            <meta-data android:name="display_mode" android:value="multi_display_mode" />
+            <meta-data android:name="ApiTest"
+                android:value="android.media.AudioDescriptor#getStandard|
+                android.media.AudioDescriptor#getDescriptor" />
+        </activity>
+
+        <activity android:name=".audio.AudioFrequencyLineActivity"
+            android:exported="true"
+            android:label="@string/audio_frequency_line_test">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.cts.intent.category.MANUAL_TEST" />
+            </intent-filter>
+            <meta-data android:name="test_category" android:value="@string/test_category_audio" />
+            <meta-data android:name="test_required_features" android:value="android.hardware.microphone:android.hardware.audio.output" />
+            <meta-data android:name="display_mode" android:value="multi_display_mode" />
+            <!-- this test is currently informational only -->
+            <meta-data android:name="NonApiTest" android:value="METRIC" />
+        </activity>
+
+        <activity android:name=".audio.AudioFrequencyMicActivity"
+            android:exported="true"
+            android:label="@string/audio_frequency_mic_test">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.cts.intent.category.MANUAL_TEST" />
+            </intent-filter>
+            <meta-data android:name="test_category" android:value="@string/test_category_audio" />
+            <meta-data android:name="test_required_features" android:value="android.hardware.microphone:android.hardware.audio.output:android.hardware.usb.host" />
+            <meta-data android:name="display_mode" android:value="multi_display_mode" />
+            <!-- this test is currently informational only -->
+            <meta-data android:name="NonApiTest" android:value="METRIC" />
+        </activity>
+
+        <activity android:name=".audio.AudioFrequencySpeakerActivity"
+            android:exported="true"
+            android:label="@string/audio_frequency_speaker_test">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.cts.intent.category.MANUAL_TEST" />
+            </intent-filter>
+            <meta-data android:name="test_category" android:value="@string/test_category_audio" />
+            <meta-data android:name="test_required_features" android:value="android.hardware.audio.output:android.hardware.usb.host" />
+            <meta-data android:name="display_mode" android:value="multi_display_mode" />
+            <!-- this test is currently informational only -->
+            <meta-data android:name="NonApiTest" android:value="METRIC" />
+        </activity>
+
+        <activity android:name=".audio.AudioFrequencyUnprocessedActivity"
+            android:exported="true"
+            android:label="@string/audio_frequency_unprocessed_test">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.cts.intent.category.MANUAL_TEST" />
+            </intent-filter>
+            <meta-data android:name="test_category" android:value="@string/test_category_audio" />
+            <meta-data android:name="test_required_features" android:value="android.hardware.microphone:android.hardware.usb.host" />
+            <meta-data android:name="display_mode" android:value="multi_display_mode" />
+            <meta-data android:name="CddTest" android:value="5.11/C-1-1,C-1-2,C-1-3,C-1-4,C-1-5" />
+        </activity>
+
+        <activity android:name=".audio.AudioFrequencyVoiceRecognitionActivity"
+            android:exported="true"
+            android:label="@string/audio_frequency_voice_recognition_test">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.cts.intent.category.MANUAL_TEST" />
+            </intent-filter>
+            <meta-data android:name="test_category" android:value="@string/test_category_audio" />
+            <meta-data android:name="test_required_features" android:value="android.hardware.microphone:android.hardware.usb.host" />
+            <meta-data android:name="display_mode" android:value="multi_display_mode" />
+            <!-- this test is currently informational only -->
+            <meta-data android:name="NonApiTest" android:value="METRIC" />
+        </activity>
+
+        <activity android:name=".audio.AudioInColdStartLatencyActivity"
+            android:exported="true"
+            android:label="@string/audio_coldstart_in_latency_test">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.cts.intent.category.MANUAL_TEST" />
+            </intent-filter>
+            <meta-data android:name="test_category" android:value="@string/test_category_audio" />
+            <meta-data android:name="test_excluded_features"
+                android:value="android.hardware.type.watch:android.hardware.type.television" />
+            <meta-data android:name="display_mode" android:value="multi_display_mode" />
+            <meta-data android:name="CddTest" android:value="5.6/C-3-2" />
+        </activity>
+
+        <activity android:name=".audio.AudioInputDeviceNotificationsActivity"
+            android:exported="true"
+            android:label="@string/audio_in_devices_notifications_test">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.cts.intent.category.MANUAL_TEST" />
+            </intent-filter>
+            <meta-data android:name="test_category" android:value="@string/test_category_audio" />
+            <meta-data android:name="test_required_features" android:value="android.hardware.microphone" />
+            <meta-data android:name="test_excluded_features" android:value="android.software.leanback" />
+            <meta-data android:name="display_mode" android:value="multi_display_mode" />
+            <meta-data android:name="ApiTest"
+                android:value="android.media.AudioManager#registerAudioDeviceCallback|
+                android.media.AudioDeviceCallback#onAudioDevicesAdded|
+                android.media.AudioDeviceCallback#onAudioDevicesRemoved" />
+        </activity>
+
+        <activity android:name=".audio.AudioInputRoutingNotificationsActivity"
+            android:exported="true"
+            android:label="@string/audio_input_routingnotifications_test">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.cts.intent.category.MANUAL_TEST" />
+            </intent-filter>
+            <meta-data android:name="test_category" android:value="@string/test_category_audio" />
+            <meta-data android:name="test_required_features" android:value="android.hardware.microphone" />
+            <meta-data android:name="test_excluded_features" android:value="android.software.leanback" />
+            <meta-data android:name="display_mode" android:value="multi_display_mode" />
+            <meta-data android:name="ApiTest"
+                android:value="android.media.AudioRecord#addOnRoutingChangedListener|
+                android.media.AudioRecord.OnRoutingChangedListener#onRoutingChanged" />
+        </activity>
+
+        <activity android:name=".audio.AudioLoopbackLatencyActivity"
+            android:exported="true"
+            android:label="@string/audio_loopback_latency_test">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.cts.intent.category.MANUAL_TEST" />
+            </intent-filter>
+            <meta-data android:name="test_category" android:value="@string/test_category_audio" />
+            <meta-data android:name="test_required_features" android:value="android.hardware.microphone:android.hardware.audio.output" />
+            <meta-data android:name="test_excluded_features"
+                android:value="android.hardware.type.watch:android.hardware.type.television:android.hardware.type.automotive" />
+            <meta-data android:name="display_mode" android:value="multi_display_mode" />
+            <meta-data android:name="CddTest" android:value="5.10/C-1-2,C-1-5" />
+        </activity>
+
+        <activity android:name=".audio.AudioOutColdStartLatencyActivity"
+            android:exported="true"
+            android:label="@string/audio_coldstart_out_latency_test">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.cts.intent.category.MANUAL_TEST" />
+            </intent-filter>
+            <meta-data android:name="test_category" android:value="@string/test_category_audio" />
+            <meta-data android:name="test_excluded_features"
+                android:value="android.hardware.type.watch:android.hardware.type.television" />
+            <meta-data android:name="display_mode" android:value="multi_display_mode" />
+            <meta-data android:name="CddTest" android:value="5.6/C-1-2" />
+        </activity>
+
+        <activity android:name=".audio.AudioOutputDeviceNotificationsActivity"
+            android:exported="true"
+            android:label="@string/audio_out_devices_notifications_test">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.cts.intent.category.MANUAL_TEST" />
+            </intent-filter>
+            <meta-data android:name="test_category" android:value="@string/test_category_audio" />
+            <meta-data android:name="test_required_features" android:value="android.hardware.audio.output" />
+            <meta-data android:name="test_excluded_features" android:value="android.software.leanback" />
+            <meta-data android:name="display_mode" android:value="multi_display_mode" />
+            <meta-data android:name="ApiTest"
+                android:value="android.media.AudioManager#registerAudioDeviceCallback|
+                    android.media.AudioDeviceCallback#onAudioDevicesAdded|
+                    android.media.AudioDeviceCallback#onAudioDevicesRemoved"/>
+        </activity>
+
+        <activity android:name=".audio.AudioOutputRoutingNotificationsActivity"
+            android:exported="true"
+            android:label="@string/audio_output_routingnotifications_test">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.cts.intent.category.MANUAL_TEST" />
+            </intent-filter>
+            <meta-data android:name="test_category" android:value="@string/test_category_audio" />
+            <meta-data android:name="test_required_features" android:value="android.hardware.audio.output" />
+            <meta-data android:name="test_excluded_features" android:value="android.software.leanback" />
+            <meta-data android:name="display_mode" android:value="multi_display_mode" />
+            <meta-data android:name="ApiTest"
+                android:value="android.media.AudioTrack#addOnRoutingChangedListener|
+                    android.media.AudioTrack.OnRoutingChangedListener#onRoutingChanged" />
+        </activity>
+
+        <activity android:name=".audio.AudioTap2ToneActivity"
+            android:exported="true"
+            android:label="@string/audio_tap2tone">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.cts.intent.category.MANUAL_TEST" />
+            </intent-filter>
+            <meta-data android:name="test_category" android:value="@string/test_category_audio" />
+            <meta-data android:name="test_excluded_features"
+                android:value="android.hardware.type.watch:android.hardware.type.television:android.hardware.type.automotive" />
+            <meta-data android:name="display_mode" android:value="multi_display_mode" />
+            <meta-data android:name="CddTest" android:value="5.6" />
+        </activity>
+
         <activity android:name=".audio.HifiUltrasoundTestActivity"
                 android:label="@string/hifi_ultrasound_test"
                 android:exported="true"
@@ -4903,58 +5461,68 @@
             <meta-data android:name="test_category" android:value="@string/test_category_audio" />
             <meta-data android:name="test_required_features" android:value="android.hardware.audio.output" />
             <meta-data android:name="display_mode" android:value="multi_display_mode" />
+            <meta-data android:name="CddTest" android:value="7.8.3/C-1-1,C-1-2,C-2-1" />
         </activity>
 
-        <activity android:name=".audio.AudioOutputDeviceNotificationsActivity"
-                android:exported="true"
-                  android:label="@string/audio_out_devices_notifications_test">
+        <!-- Not a test module. Service to implement MIDI loopback -->
+        <service android:name="com.android.midi.VerifierMidiEchoService"
+            android:exported="true"
+            android:permission="android.permission.BIND_MIDI_DEVICE_SERVICE">
+            <intent-filter>
+                <action android:name="android.media.midi.MidiDeviceService" />
+            </intent-filter>
+            <meta-data android:name="android.media.midi.MidiDeviceService"
+                android:resource="@xml/echo_device_info" />
+        </service>
+
+        <activity android:name=".audio.MidiJavaTestActivity"
+            android:exported="true"
+            android:label="@string/midi_java_test">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.cts.intent.category.MANUAL_TEST" />
             </intent-filter>
             <meta-data android:name="test_category" android:value="@string/test_category_audio" />
-            <meta-data android:name="test_required_features" android:value="android.hardware.audio.output" />
-            <meta-data android:name="test_excluded_features" android:value="android.software.leanback" />
+            <meta-data android:name="test_required_features"
+                android:value="android.hardware.usb.host:android.software.midi" />
             <meta-data android:name="display_mode" android:value="multi_display_mode" />
+            <meta-data android:name="CddTest" android:value="5.9/C-1-4,C-1-2" />
+            <meta-data android:name="ApiTest"
+                android:value="android.media.midi.MidiManager#registerDeviceCallback|
+                    android.media.midi.MidiManager#getDevices|
+                    android.media.midi.MidiDevice#getInfo|
+                    android.media.midi.MidiDevice#openOutputPort|
+                    android.media.midi.MidiDevice#openInputPort|
+                    android.media.midi.MidiDeviceInfo#getOutputPortCount|
+                    android.media.midi.MidiDeviceInfo#getInputPortCount|
+                    android.media.midi.MidiInputPort#send"/>
         </activity>
 
-        <activity android:name=".audio.AudioInputDeviceNotificationsActivity"
-                android:exported="true"
-                  android:label="@string/audio_in_devices_notifications_test">
+        <activity android:name=".audio.MidiNativeTestActivity"
+            android:exported="true"
+            android:label="@string/midi_native_test">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.cts.intent.category.MANUAL_TEST" />
             </intent-filter>
             <meta-data android:name="test_category" android:value="@string/test_category_audio" />
-            <meta-data android:name="test_required_features" android:value="android.hardware.microphone" />
-            <meta-data android:name="test_excluded_features" android:value="android.software.leanback" />
+            <meta-data android:name="test_required_features"
+                android:value="android.hardware.usb.host:android.software.midi" />
             <meta-data android:name="display_mode" android:value="multi_display_mode" />
+            <meta-data android:name="CddTest" android:value="5.9/C-1-3,C-1-2" />
         </activity>
 
-        <activity android:name=".audio.AudioOutputRoutingNotificationsActivity"
-                android:exported="true"
-                  android:label="@string/audio_output_routingnotifications_test">
+        <activity android:name=".audio.ProAudioActivity"
+            android:exported="true"
+            android:label="@string/pro_audio_latency_test">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.cts.intent.category.MANUAL_TEST" />
             </intent-filter>
             <meta-data android:name="test_category" android:value="@string/test_category_audio" />
-            <meta-data android:name="test_required_features" android:value="android.hardware.audio.output" />
-            <meta-data android:name="test_excluded_features" android:value="android.software.leanback" />
+            <meta-data android:name="test_required_features" android:value="android.hardware.usb.host:android.hardware.audio.pro" />
             <meta-data android:name="display_mode" android:value="multi_display_mode" />
-        </activity>
-
-        <activity android:name=".audio.AudioInputRoutingNotificationsActivity"
-                android:exported="true"
-                  android:label="@string/audio_input_routingnotifications_test">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.cts.intent.category.MANUAL_TEST" />
-            </intent-filter>
-            <meta-data android:name="test_category" android:value="@string/test_category_audio" />
-            <meta-data android:name="test_required_features" android:value="android.hardware.microphone" />
-            <meta-data android:name="test_excluded_features" android:value="android.software.leanback" />
-            <meta-data android:name="display_mode" android:value="multi_display_mode" />
+            <meta-data android:name="CddTest" android:value="5.10/C-1-1,C-1-3,C-1-4" />
         </activity>
 
         <activity android:name=".audio.USBAudioPeripheralAttributesActivity"
@@ -4969,6 +5537,30 @@
             <meta-data android:name="test_excluded_features"
                        android:value="android.hardware.type.television:android.software.leanback:android.hardware.type.watch:android.hardware.type.automotive" />
             <meta-data android:name="display_mode" android:value="multi_display_mode" />
+            <meta-data android:name="CddTest" android:value="7.7.2/H-1-1,H-4-4,H-4-5,H-4-6,H-4-7" />
+            <meta-data android:name="ApiTest"
+                android:value="android.media.AudioManager#registerAudioDeviceCallback|
+                    android.media.AudioDeviceCallback#onAudioDevicesAdded|
+                    android.media.AudioDeviceCallback#onAudioDevicesRemoved|
+                    android.media.AudioDeviceInfo#getChannelCounts|
+                    android.media.AudioDeviceInfo#getEncodings|
+                    android.media.AudioDeviceInfo#getSampleRates|
+                    android.media.AudioDeviceInfo#getChannelIndexMasks"/>
+        </activity>
+
+        <activity android:name=".audio.USBAudioPeripheralButtonsActivity"
+            android:exported="true"
+            android:label="@string/audio_uap_buttons_test">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.cts.intent.category.MANUAL_TEST" />
+            </intent-filter>
+            <meta-data android:name="test_category" android:value="@string/test_category_audio" />
+            <meta-data android:name="test_required_features" android:value="android.hardware.usb.host" />
+            <meta-data android:name="test_excluded_features"
+                android:value="android.hardware.type.television:android.software.leanback:android.hardware.type.watch:android.hardware.type.automotive" />
+            <meta-data android:name="display_mode" android:value="multi_display_mode" />
+            <meta-data android:name="CddTest" android:value="7.7.2/C-2-1,C-2-2" />
         </activity>
 
         <activity android:name=".audio.USBAudioPeripheralNotificationsTest"
@@ -4983,6 +5575,12 @@
             <meta-data android:name="test_excluded_features"
                        android:value="android.hardware.type.television:android.software.leanback:android.hardware.type.watch:android.hardware.type.automotive" />
             <meta-data android:name="display_mode" android:value="multi_display_mode" />
+            <meta-data android:name="CddTest" android:value="7.8.2.2/H-1-2,H-2-1,H-3-1,H-4-2,H-4-3,H-4-4,H-4-5" />
+            <meta-data android:name="ApiTest"
+                android:value="android.media.AudioManager#registerAudioDeviceCallback|
+                    android.media.AudioDeviceCallback#onAudioDevicesAdded|
+                    android.media.AudioDeviceCallback#onAudioDevicesRemoved|
+                    android.content.BroadcastReceiver#onReceive"/>
         </activity>
 
         <activity android:name=".audio.USBAudioPeripheralPlayActivity"
@@ -4997,6 +5595,7 @@
             <meta-data android:name="test_excluded_features"
                        android:value="android.hardware.type.television:android.software.leanback:android.hardware.type.watch:android.hardware.type.automotive" />
             <meta-data android:name="display_mode" android:value="multi_display_mode" />
+            <meta-data android:name="CddTest" android:value="7.8.2/C-1-1,C-1-2" />
         </activity>
 
         <activity android:name=".audio.USBAudioPeripheralRecordActivity"
@@ -5011,20 +5610,9 @@
             <meta-data android:name="test_excluded_features"
                        android:value="android.hardware.type.television:android.software.leanback:android.hardware.type.watch:android.hardware.type.automotive" />
             <meta-data android:name="display_mode" android:value="multi_display_mode" />
-        </activity>
-
-        <activity android:name=".audio.USBAudioPeripheralButtonsActivity"
-                android:exported="true"
-            android:label="@string/audio_uap_buttons_test">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.cts.intent.category.MANUAL_TEST" />
-            </intent-filter>
-            <meta-data android:name="test_category" android:value="@string/test_category_audio" />
-            <meta-data android:name="test_required_features" android:value="android.hardware.usb.host" />
-            <meta-data android:name="test_excluded_features"
-                       android:value="android.hardware.type.television:android.software.leanback:android.hardware.type.watch:android.hardware.type.automotive" />
-            <meta-data android:name="display_mode" android:value="multi_display_mode" />
+            <meta-data android:name="CddTest" android:value="7.8.2.2/H-1-1|7.7.2/C-2-1,C-2-2" />
+            <meta-data android:name="ApiTest"
+                android:value="android.app.Activity#onKeyDown"/>
         </activity>
 
         <activity android:name=".audio.USBRestrictRecordAActivity"
@@ -5039,190 +5627,23 @@
             <meta-data android:name="test_excluded_features"
                        android:value="android.hardware.type.television:android.software.leanback:android.hardware.type.watch:android.hardware.type.automotive" />
             <meta-data android:name="display_mode" android:value="multi_display_mode" />
+            <meta-data android:name="ApiTest"
+                android:value="android.hardware.usb.UsbManager#getDeviceList|
+                    android.hardware.usb.UsbManager#requestPermission"/>
         </activity>
 
-        <activity android:name=".audio.ProAudioActivity"
+        <activity android:name=".audio.AudioMicrophoneMuteToggleActivity"
+                android:label="@string/audio_mic_toggle_test"
                 android:exported="true"
-                  android:label="@string/pro_audio_latency_test">
+                android:screenOrientation="locked">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.cts.intent.category.MANUAL_TEST" />
             </intent-filter>
             <meta-data android:name="test_category" android:value="@string/test_category_audio" />
-            <meta-data android:name="test_required_features" android:value="android.hardware.usb.host:android.hardware.audio.pro" />
+            <meta-data android:name="test_required_configs" android:value="config_has_mic_toggle"/>
             <meta-data android:name="display_mode" android:value="multi_display_mode" />
-        </activity>
-
-        <activity android:name=".audio.AnalogHeadsetAudioActivity"
-                android:exported="true"
-            android:label="@string/audio_headset_audio_test">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.cts.intent.category.MANUAL_TEST" />
-            </intent-filter>
-            <meta-data android:name="test_category" android:value="@string/test_category_audio" />
-            <meta-data android:name="display_mode" android:value="multi_display_mode" />
-        </activity>
-
-        <activity android:name=".audio.AudioLoopbackLatencyActivity"
-                android:exported="true"
-                  android:label="@string/audio_loopback_latency_test">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.cts.intent.category.MANUAL_TEST" />
-            </intent-filter>
-            <meta-data android:name="test_category" android:value="@string/test_category_audio" />
-            <meta-data android:name="test_required_features" android:value="android.hardware.microphone:android.hardware.audio.output" />
-            <meta-data android:name="test_excluded_features"
-                       android:value="android.hardware.type.watch:android.hardware.type.television:android.hardware.type.automotive" />
-            <meta-data android:name="display_mode" android:value="multi_display_mode" />
-        </activity>
-
-        <activity android:name=".audio.AudioTap2ToneActivity"
-            android:exported="true"
-            android:label="@string/audio_tap2tone">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.cts.intent.category.MANUAL_TEST" />
-            </intent-filter>
-            <meta-data android:name="test_category" android:value="@string/test_category_audio" />
-            <meta-data android:name="test_excluded_features"
-                android:value="android.hardware.type.watch:android.hardware.type.television:android.hardware.type.automotive" />
-            <meta-data android:name="display_mode" android:value="multi_display_mode" />
-        </activity>
-
-        <activity android:name=".audio.AudioOutColdStartLatencyActivity"
-            android:exported="true"
-            android:label="@string/audio_coldstart_out_latency_test">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.cts.intent.category.MANUAL_TEST" />
-            </intent-filter>
-            <meta-data android:name="test_category" android:value="@string/test_category_audio" />
-            <meta-data android:name="test_excluded_features"
-                android:value="android.hardware.type.watch:android.hardware.type.television" />
-            <meta-data android:name="display_mode" android:value="multi_display_mode" />
-        </activity>
-
-        <activity android:name=".audio.AudioInColdStartLatencyActivity"
-            android:exported="true"
-            android:label="@string/audio_coldstart_in_latency_test">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.cts.intent.category.MANUAL_TEST" />
-            </intent-filter>
-            <meta-data android:name="test_category" android:value="@string/test_category_audio" />
-            <meta-data android:name="test_excluded_features"
-                android:value="android.hardware.type.watch:android.hardware.type.television" />
-            <meta-data android:name="display_mode" android:value="multi_display_mode" />
-        </activity>
-
-        <activity android:name=".audio.MidiJavaTestActivity"
-                android:exported="true"
-                  android:label="@string/midi_java_test">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.cts.intent.category.MANUAL_TEST" />
-            </intent-filter>
-            <meta-data android:name="test_category" android:value="@string/test_category_audio" />
-            <meta-data android:name="test_required_features"
-                android:value="android.hardware.usb.host:android.software.midi" />
-            <meta-data android:name="display_mode" android:value="multi_display_mode" />
-        </activity>
-
-        <activity android:name=".audio.MidiNativeTestActivity"
-                android:exported="true"
-                  android:label="@string/midi_native_test">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.cts.intent.category.MANUAL_TEST" />
-            </intent-filter>
-            <meta-data android:name="test_category" android:value="@string/test_category_audio" />
-            <meta-data android:name="test_required_features"
-                android:value="android.hardware.usb.host:android.software.midi" />
-            <meta-data android:name="display_mode" android:value="multi_display_mode" />
-        </activity>
-
-        <service android:name="com.android.midi.VerifierMidiEchoService"
-            android:exported="true"
-            android:permission="android.permission.BIND_MIDI_DEVICE_SERVICE">
-            <intent-filter>
-                <action android:name="android.media.midi.MidiDeviceService" />
-            </intent-filter>
-            <meta-data android:name="android.media.midi.MidiDeviceService"
-                android:resource="@xml/echo_device_info" />
-        </service>
-
-        <activity android:name=".audio.AudioFrequencyLineActivity"
-                android:exported="true"
-                  android:label="@string/audio_frequency_line_test">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.cts.intent.category.MANUAL_TEST" />
-            </intent-filter>
-            <meta-data android:name="test_category" android:value="@string/test_category_audio" />
-            <meta-data android:name="test_required_features" android:value="android.hardware.microphone:android.hardware.audio.output" />
-            <meta-data android:name="display_mode" android:value="multi_display_mode" />
-        </activity>
-
-        <activity android:name=".audio.AudioFrequencySpeakerActivity"
-                android:exported="true"
-                  android:label="@string/audio_frequency_speaker_test">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.cts.intent.category.MANUAL_TEST" />
-            </intent-filter>
-            <meta-data android:name="test_category" android:value="@string/test_category_audio" />
-            <meta-data android:name="test_required_features" android:value="android.hardware.audio.output:android.hardware.usb.host" />
-            <meta-data android:name="display_mode" android:value="multi_display_mode" />
-        </activity>
-
-        <activity android:name=".audio.AudioFrequencyMicActivity"
-                android:exported="true"
-                  android:label="@string/audio_frequency_mic_test">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.cts.intent.category.MANUAL_TEST" />
-            </intent-filter>
-            <meta-data android:name="test_category" android:value="@string/test_category_audio" />
-            <meta-data android:name="test_required_features" android:value="android.hardware.microphone:android.hardware.audio.output:android.hardware.usb.host" />
-            <meta-data android:name="display_mode" android:value="multi_display_mode" />
-        </activity>
-
-        <activity android:name=".audio.AudioFrequencyUnprocessedActivity"
-                android:exported="true"
-                  android:label="@string/audio_frequency_unprocessed_test">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.cts.intent.category.MANUAL_TEST" />
-            </intent-filter>
-            <meta-data android:name="test_category" android:value="@string/test_category_audio" />
-            <meta-data android:name="test_required_features" android:value="android.hardware.microphone:android.hardware.usb.host" />
-            <meta-data android:name="display_mode" android:value="multi_display_mode" />
-        </activity>
-
-        <activity android:name=".audio.AudioFrequencyVoiceRecognitionActivity"
-                android:exported="true"
-                  android:label="@string/audio_frequency_voice_recognition_test">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.cts.intent.category.MANUAL_TEST" />
-            </intent-filter>
-            <meta-data android:name="test_category" android:value="@string/test_category_audio" />
-            <meta-data android:name="test_required_features" android:value="android.hardware.microphone:android.hardware.usb.host" />
-            <meta-data android:name="display_mode" android:value="multi_display_mode" />
-        </activity>
-
-        <activity android:name=".audio.AudioAEC"
-                android:exported="true"
-                  android:label="@string/audio_aec_test">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.cts.intent.category.MANUAL_TEST" />
-            </intent-filter>
-            <meta-data android:name="test_category" android:value="@string/test_category_audio" />
-            <meta-data android:name="test_required_features" android:value="android.hardware.microphone:android.hardware.audio.output" />
-            <meta-data android:name="display_mode" android:value="multi_display_mode" />
+            <meta-data android:name="CddTest" android:value="9.8.13/C-1-3" />
         </activity>
 
         <service android:name=".tv.MockTvInputService"
@@ -5369,6 +5790,9 @@
                        android:value="android.hardware.type.automotive"/>
             <meta-data android:name="display_mode"
                        android:value="multi_display_mode" />
+            <meta-data
+                android:name="ApiTest"
+                android:value="android.car.settings.CarSettings.Secure#KEY_PACKAGES_DISABLED_ON_RESOURCE_OVERUSE"/>
         </activity>
 
         <!-- 6DoF sensor test -->
@@ -5416,6 +5840,8 @@
                 android:value="config_voice_capable"/>
             <meta-data android:name="display_mode"
                        android:value="multi_display_mode" />
+            <meta-data android:name="ApiTest"
+                android:value="android.telephony.TelephonyManager#ACTION_SHOW_VOICEMAIL_NOTIFICATION"/>
         </activity>
 
         <receiver android:name=".voicemail.VoicemailBroadcastReceiver"
@@ -5445,6 +5871,8 @@
                 android:value="config_voice_capable"/>
             <meta-data android:name="display_mode"
                        android:value="multi_display_mode" />
+            <meta-data android:name="ApiTest"
+                android:value="android.telephony.TelephonyManager#ACTION_SHOW_VOICEMAIL_NOTIFICATION"/>
         </activity>
 
         <activity
@@ -5520,6 +5948,8 @@
                 android:value="config_voice_capable"/>
             <meta-data android:name="display_mode"
                        android:value="multi_display_mode" />
+            <meta-data android:name="ApiTest"
+                android:value="android.telephony.TelephonyManager#METADATA_HIDE_VOICEMAIL_SETTINGS_MENU"/>
         </activity>
 
         <activity
@@ -5542,6 +5972,8 @@
                 android:value="config_voice_capable"/>
             <meta-data android:name="display_mode"
                        android:value="multi_display_mode" />
+            <meta-data android:name="ApiTest"
+                android:value="android.telephony.TelephonyManager#EXTRA_HIDE_PUBLIC_SETTINGS"/>
         </activity>
 
         <activity
@@ -5575,6 +6007,8 @@
             <intent-filter>
                 <action android:name="android.telephony.VisualVoicemailService"/>
             </intent-filter>
+            <meta-data android:name="ApiTest"
+                android:value="android.telephony.VisualVoicemailService#onCellServiceConnected|android.telephony.VisualVoicemailService#onSimRemoved"/>
         </service>
 
         <activity
@@ -5718,6 +6152,12 @@
                        android:value="single_display_mode" />
         </activity>
 
+        <activity android:name=".managedprovisioning.SsidRestrictionTestActivity"
+                  android:label="@string/device_owner_ssid_restriction" >
+            <meta-data android:name="display_mode"
+                       android:value="single_display_mode" />
+        </activity>
+
         <service android:name="com.android.cts.verifier.telecom.CtsConnectionService"
                 android:exported="true"
             android:permission="android.permission.BIND_TELECOM_CONNECTION_SERVICE" >
@@ -5744,6 +6184,7 @@
             <meta-data android:name="test_excluded_features" android:value="android.hardware.type.television:android.software.leanback:android.hardware.type.automotive:android.hardware.type.watch" />
             <meta-data android:name="display_mode"
                        android:value="multi_display_mode" />
+            <meta-data android:name="CddTest" android:value="3.15/C-0-6" />
         </activity>
         <activity android:name=".instantapps.RecentAppsTestActivity"
                 android:exported="true"
@@ -5756,6 +6197,7 @@
             <meta-data android:name="test_excluded_features" android:value="android.hardware.type.television:android.software.leanback:android.hardware.type.automotive:android.hardware.type.watch" />
             <meta-data android:name="display_mode"
                        android:value="multi_display_mode" />
+            <meta-data android:name="CddTest" android:value="3.15/C-0-7" />
         </activity>
         <activity android:name=".instantapps.AppInfoTestActivity"
                 android:exported="true"
@@ -5769,11 +6211,23 @@
                 android:value="android.hardware.type.television:android.software.leanback:android.hardware.type.automotive:android.hardware.type.watch" />
             <meta-data android:name="display_mode"
                        android:value="multi_display_mode" />
+            <meta-data android:name="CddTest" android:value="3.15/C-0-5" />
+        </activity>
+
+        <activity android:name=".logcat.ReadLogsTestActivity"
+            android:exported="true"
+            android:label="@string/read_logs_text">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.cts.intent.category.MANUAL_TEST" />
+            </intent-filter>
+            <meta-data android:name="test_category" android:value="@string/test_category_logcat" />
         </activity>
 
         <activity android:name=".displaycutout.DisplayCutoutTestActivity"
-                android:exported="true"
-                  android:label="@string/display_cutout_test">
+            android:theme="@android:style/Theme.Holo.NoActionBar.Fullscreen"
+            android:exported="true"
+            android:label="@string/display_cutout_test">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.cts.intent.category.MANUAL_TEST" />
@@ -5781,7 +6235,8 @@
             <meta-data android:name="test_category" android:value="@string/test_category_display_cutout" />
             <meta-data android:name="display_mode"
                        android:value="single_display_mode" />
-        </activity>
+            <meta-data android:name="CddTest" android:value="7.2.4/H-0-1" />
+          </activity>
         <activity android:name=".speech.tts.TtsTestActivity"
                   android:exported="true"
                   android:label="@string/tts_test">

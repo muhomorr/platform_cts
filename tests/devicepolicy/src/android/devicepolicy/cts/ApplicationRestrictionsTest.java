@@ -45,11 +45,9 @@ import com.android.bedstead.harrier.policies.ApplicationRestrictionsManagingPack
 import com.android.bedstead.metricsrecorder.EnterpriseMetricsRecorder;
 import com.android.bedstead.testapp.TestApp;
 import com.android.bedstead.testapp.TestAppInstance;
-import com.android.bedstead.testapp.TestAppProvider;
 
 import org.junit.ClassRule;
 import org.junit.Rule;
-import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import java.util.Arrays;
@@ -67,10 +65,9 @@ public final class ApplicationRestrictionsTest {
             "<JSON>\"{ \\\"One\\\": { \\\"OneOne\\\": \\\"11\\\", \\\""
                     + "OneTwo\\\": \\\"12\\\" }, \\\"Two\\\": \\\"2\\\" } <JSON/>\""
     };
-    private static final TestAppProvider sTestAppProvider = new TestAppProvider();
 
-    private static final TestApp sTestApp = sTestAppProvider.any();
-    private static final TestApp sDifferentTestApp = sTestAppProvider.any();
+    private static final TestApp sTestApp = sDeviceState.testApps().any();
+    private static final TestApp sDifferentTestApp = sDeviceState.testApps().any();
 
     // Should be consistent with assertEqualToBundle
     private static Bundle createBundle(String id) {
@@ -103,7 +100,6 @@ public final class ApplicationRestrictionsTest {
         return result;
     }
 
-    @Test
     @Postsubmit(reason = "New test")
     @PolicyAppliesTest(policy = ApplicationRestrictions.class)
     public void setApplicationRestrictions_applicationRestrictionsAreSet() {
@@ -128,7 +124,6 @@ public final class ApplicationRestrictionsTest {
         }
     }
 
-    @Test
     @Postsubmit(reason = "New test")
     @PolicyAppliesTest(policy = ApplicationRestrictions.class)
     public void setApplicationRestrictions_applicationRestrictionsAlreadySet_setsNewRestrictions() {
@@ -157,7 +152,6 @@ public final class ApplicationRestrictionsTest {
         }
     }
 
-    @Test
     @Postsubmit(reason = "New test")
     @CanSetPolicyTest(policy = ApplicationRestrictions.class)
     public void getApplicationRestrictions_applicationRestrictionsAreSet_returnsApplicationRestrictions() {
@@ -183,7 +177,6 @@ public final class ApplicationRestrictionsTest {
         }
     }
 
-    @Test
     @Postsubmit(reason = "New test")
     @CanSetPolicyTest(policy = ApplicationRestrictions.class)
     public void getApplicationRestrictions_differentPackage_throwsException() {
@@ -209,7 +202,6 @@ public final class ApplicationRestrictionsTest {
         }
     }
 
-    @Test
     @Postsubmit(reason = "New test")
     @CanSetPolicyTest(policy = ApplicationRestrictions.class)
     public void getApplicationRestrictions_setForOtherPackage_returnsNull() {
@@ -235,7 +227,6 @@ public final class ApplicationRestrictionsTest {
         }
     }
 
-    @Test
     @Postsubmit(reason = "New test")
     @PolicyDoesNotApplyTest(policy = ApplicationRestrictions.class)
     public void setApplicationRestrictions_policyDoesNotApply_applicationRestrictionsAreNotSet() {
@@ -259,7 +250,6 @@ public final class ApplicationRestrictionsTest {
         }
     }
 
-    @Test
     @Postsubmit(reason = "New test")
     @CannotSetPolicyTest(policy = ApplicationRestrictions.class)
     public void setApplicationRestrictions_cannotSetPolicy_throwsException() {
@@ -272,7 +262,6 @@ public final class ApplicationRestrictionsTest {
         });
     }
 
-    @Test
     @Postsubmit(reason = "New test")
     @CannotSetPolicyTest(policy = ApplicationRestrictions.class)
     public void getApplicationRestrictions_cannotSetPolicy_throwsException() {
@@ -283,7 +272,6 @@ public final class ApplicationRestrictionsTest {
         });
     }
 
-    @Test
     @Postsubmit(reason = "New test")
     @CanSetPolicyTest(policy = ApplicationRestrictions.class, singleTestOnly = true)
     public void setApplicationRestrictions_nullComponent_throwsException() {
@@ -293,7 +281,6 @@ public final class ApplicationRestrictionsTest {
                         sTestApp.packageName(), bundle));
     }
 
-    @Test
     @Postsubmit(reason = "New test")
     @PolicyAppliesTest(policy = ApplicationRestrictions.class)
     public void setApplicationRestrictions_restrictionsChangedBroadcastIsReceived() {
@@ -321,7 +308,6 @@ public final class ApplicationRestrictionsTest {
         }
     }
 
-    @Test
     @Postsubmit(reason = "New test")
     @CanSetPolicyTest(policy = ApplicationRestrictionsManagingPackage.class)
     public void setApplicationRestrictionsManagingPackage_applicationRestrictionsManagingPackageIsSet()
@@ -337,13 +323,16 @@ public final class ApplicationRestrictionsTest {
                     .getApplicationRestrictionsManagingPackage(sDeviceState.dpc().componentName()))
                     .isEqualTo(sTestApp.packageName());
         } finally {
-            sDeviceState.dpc().devicePolicyManager().setApplicationRestrictionsManagingPackage(
-                    sDeviceState.dpc().componentName(),
-                    originalApplicationRestrictionsManagingPackage);
+            try {
+                sDeviceState.dpc().devicePolicyManager().setApplicationRestrictionsManagingPackage(
+                        sDeviceState.dpc().componentName(),
+                        originalApplicationRestrictionsManagingPackage);
+            } catch (Throwable expected) {
+                // If the original has been removed this can throw
+            }
         }
     }
 
-    @Test
     @Postsubmit(reason = "New test")
     @CanSetPolicyTest(policy = ApplicationRestrictionsManagingPackage.class)
     public void setApplicationRestrictionsManagingPackage_appNotInstalled_throwsException() {
@@ -356,7 +345,6 @@ public final class ApplicationRestrictionsTest {
                                 sDifferentTestApp.packageName()));
     }
 
-    @Test
     @Postsubmit(reason = "New test")
     @PolicyAppliesTest(policy = ApplicationRestrictions.class)
     public void setApplicationRestrictions_logged() {
@@ -422,23 +410,24 @@ public final class ApplicationRestrictionsTest {
     }
 
     private void assertBooleanKey(Bundle bundle, String key, boolean expectedValue) {
+
         boolean value = bundle.getBoolean(key);
         Log.v(TAG, "assertBooleanKey(): " + key + "=" + value);
-        assertWithMessage("bundle's '%s' key")
+        assertWithMessage("bundle's '%s' key", key)
                 .that(value).isEqualTo(expectedValue);
     }
 
     private void assertIntKey(Bundle bundle, String key, int expectedValue) {
         int value = bundle.getInt(key);
         Log.v(TAG, "assertIntKey(): " + key + "=" + value);
-        assertWithMessage("bundle's '%s' key")
+        assertWithMessage("bundle's '%s' key", key)
                 .that(value).isEqualTo(expectedValue);
     }
 
     private void assertStringKey(Bundle bundle, String key, String expectedValue) {
         String value = bundle.getString(key);
         Log.v(TAG, "assertStringKey(): " + key + "=" + value);
-        assertWithMessage("bundle's '%s' key")
+        assertWithMessage("bundle's '%s' key", key)
                 .that(value).isEqualTo(expectedValue);
     }
 
@@ -447,14 +436,14 @@ public final class ApplicationRestrictionsTest {
         Log.v(TAG, "assertStringsKey(): " + key + "="
                 + (value == null ? "null" : Arrays.toString(value)));
 
-        assertWithMessage("bundle's '%s' key").that(value).asList()
+        assertWithMessage("bundle's '%s' key", key).that(value).asList()
                 .containsExactlyElementsIn(expectedValue).inOrder();
     }
 
     private Bundle getBundleKey(Bundle bundle, String key) {
         Bundle value = bundle.getBundle(key);
         Log.v(TAG, "getBundleKey(): " + key + "=" + value);
-        assertWithMessage("bundle's '%s' key").that(value).isNotNull();
+        assertWithMessage("bundle's '%s' key", key).that(value).isNotNull();
         return value;
     }
 
