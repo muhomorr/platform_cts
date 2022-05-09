@@ -22,8 +22,6 @@ import static com.google.common.truth.Truth.assertWithMessage;
 import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
 
-import com.android.tradefed.device.DeviceNotAvailableException;
-import com.android.tradefed.targetprep.TargetSetupError;
 import com.android.tradefed.testtype.junit4.DeviceTestRunOptions;
 import com.android.tradefed.util.CommandResult;
 
@@ -34,20 +32,18 @@ import javax.annotation.Nonnull;
 public class AppCloningBaseHostTest extends BaseHostTestCase {
 
     protected static final String APP_A_PACKAGE = "com.android.cts.appcloningtestapp";
+    protected static final String APP_A = "CtsAppCloningTestApp.apk";
 
-    private static final String APP_A = "CtsAppCloningTestApp.apk";
     private static final String TEST_CLASS_A = APP_A_PACKAGE + ".AppCloningDeviceTest";
     private static final long DEFAULT_INSTRUMENTATION_TIMEOUT_MS = 600_000; // 10min
 
-    private static final String CONTENT_PROVIDER_URL = "content://android.tradefed.contentprovider";
+    protected static final String CONTENT_PROVIDER_URL =
+            "content://android.tradefed.contentprovider";
+    protected static final String MEDIA_PROVIDER_URL = "content://media";
 
     public String mCloneUserId;
 
-    public void baseHostSetup() throws Exception {
-        assumeFalse("Device is in headless system user mode", isHeadlessSystemUserMode());
-        assumeTrue(isAtLeastS());
-        assumeFalse("Device uses sdcardfs", usesSdcardFs());
-
+    private void createAndStartCloneUser() throws Exception {
         // create clone user
         String output = executeShellCommand(
                 "pm create-user --profileOf 0 --user-type android.os.usertype.profile.CLONE "
@@ -58,32 +54,33 @@ public class AppCloningBaseHostTest extends BaseHostTestCase {
 
         CommandResult out = executeShellV2Command("am start-user -w %s", mCloneUserId);
         assertThat(isSuccessful(out)).isTrue();
+    }
 
-        // Install the app in both the user spaces
-        installAppAsUser(APP_A, getCurrentUserId());
-        installAppAsUser(APP_A, Integer.valueOf(mCloneUserId));
+    public void baseHostSetup() throws Exception {
+        setDevice();
+
+        assumeTrue("Device doesn't support multiple users", supportsMultipleUsers());
+        assumeFalse("Device is in headless system user mode", isHeadlessSystemUserMode());
+        assumeTrue(isAtLeastS());
+        assumeFalse("Device uses sdcardfs", usesSdcardFs());
+
+        createAndStartCloneUser();
     }
 
     public void baseHostTeardown() throws Exception {
-        if (isHeadlessSystemUserMode() || !isAtLeastS() || usesSdcardFs()) return;
-
-        // Uninstall the app
-        uninstallPackage(APP_A_PACKAGE);
+        if (!supportsMultipleUsers() || isHeadlessSystemUserMode() || !isAtLeastS()
+                || usesSdcardFs())
+            return;
 
         // remove the clone user
         executeShellCommand("pm remove-user %s", mCloneUserId);
     }
 
-    protected void installAppAsUser(String packageFile, int userId)
-            throws TargetSetupError, DeviceNotAvailableException {
-        installPackageAsUser(packageFile, false, userId, "-t");
-    }
-
     protected CommandResult runContentProviderCommand(String commandType, String userId,
-            String relativePath, String args) throws Exception {
-        String fullUri = CONTENT_PROVIDER_URL + relativePath;
+            String provider, String relativePath, String... args) throws Exception {
+        String fullUri = provider + relativePath;
         return executeShellV2Command("content %s --user %s --uri %s %s",
-                commandType, userId, fullUri, args);
+                commandType, userId, fullUri, String.join(" ", args));
     }
 
     protected boolean usesSdcardFs() throws Exception {

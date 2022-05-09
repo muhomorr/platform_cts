@@ -16,10 +16,11 @@
   -->
 <configuration description="Runs the CTS developer added tests">
 
-    <include name="cts" />
+    <include name="cts-common" />
 
     <option name="plan" value="cts-developer" />
 
     <!-- Include the set of tests from the cts-developer-exclude plan here -->
+    <option name="compatibility:include-filter" value="CtsServiceKillTestCases" />
 
 </configuration>

@@ -32,6 +32,7 @@ android_test {
         "androidx.test.ext.junit",
         "compatibility-device-util-axt",
         "ctstestrunner-axt",
+        "CtsVirtualDeviceCommonLib",
         "junit",
     ],
 
@@ -45,6 +46,10 @@ android_test {
         "cts",
         "general-tests",
     ],
+    data: [
+        ":CtsVirtualDeviceStreamedTestApp",
+    ],
+    per_testcase_directory: true,
 }
 
 filegroup {

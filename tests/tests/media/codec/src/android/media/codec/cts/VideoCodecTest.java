@@ -21,6 +21,7 @@ import android.media.MediaCodecList;
 import android.media.MediaFormat;
 import android.media.cts.MediaCodecWrapper;
 import android.media.cts.MediaHeavyPresubmitTest;
+import android.media.cts.TestArgs;
 import android.platform.test.annotations.AppModeFull;
 import android.util.Log;
 
@@ -96,9 +97,6 @@ public class VideoCodecTest extends VideoCodecTestBase {
     // Maximum allowed key frame interval variation from the target value.
     private static final int MAX_KEYFRAME_INTERVAL_VARIATION = 3;
 
-    private static final String CODEC_PREFIX_KEY = "codec-prefix";
-    private static final String mCodecPrefix;
-
     @Parameterized.Parameter(0)
     public String mCodecName;
 
@@ -108,18 +106,17 @@ public class VideoCodecTest extends VideoCodecTestBase {
     @Parameterized.Parameter(2)
     public int mBitRateMode;
 
-    static {
-        android.os.Bundle args = InstrumentationRegistry.getArguments();
-        mCodecPrefix = args.getString(CODEC_PREFIX_KEY);
-    }
-
     static private List<Object[]> prepareParamList(List<Object[]> exhaustiveArgsList) {
         final List<Object[]> argsList = new ArrayList<>();
         int argLength = exhaustiveArgsList.get(0).length;
         for (Object[] arg : exhaustiveArgsList) {
-            String[] encodersForMime = MediaUtils.getEncoderNamesForMime((String) arg[0]);
+            String mediaType = (String)arg[0];
+            if (TestArgs.shouldSkipMediaType(mediaType)) {
+                continue;
+            }
+            String[] encodersForMime = MediaUtils.getEncoderNamesForMime(mediaType);
             for (String encoder : encodersForMime) {
-                if (mCodecPrefix != null && !encoder.startsWith(mCodecPrefix)) {
+                if (TestArgs.shouldSkipCodec(encoder)) {
                     continue;
                 }
                 Object[] testArgs = new Object[argLength + 1];
@@ -175,7 +172,8 @@ public class VideoCodecTest extends VideoCodecTestBase {
                     targetBitrate,
                     true);
             ArrayList<ByteBuffer> codecConfigs = new ArrayList<>();
-            ArrayList<MediaCodec.BufferInfo> bufInfo = encode(params, codecConfigs);
+            VideoEncodeOutput videoEncodeOutput = encode(params, codecConfigs);
+            ArrayList<MediaCodec.BufferInfo> bufInfo = videoEncodeOutput.bufferInfo;
             if (bufInfo == null) {
                 continue;
             }
@@ -236,7 +234,8 @@ public class VideoCodecTest extends VideoCodecTestBase {
                 BITRATE,
                 syncEncoding);
         ArrayList<ByteBuffer> codecConfigs = new ArrayList<>();
-        ArrayList<MediaCodec.BufferInfo> bufInfos = encodeAsync(params, codecConfigs);
+        VideoEncodeOutput videoEncodeOutput = encodeAsync(params, codecConfigs);
+        ArrayList<MediaCodec.BufferInfo> bufInfos = videoEncodeOutput.bufferInfo;
         if (bufInfos == null) {
             Log.i(TAG, "SKIPPING testAsyncEncoding(): no suitable encoder found");
             return;
@@ -263,7 +262,8 @@ public class VideoCodecTest extends VideoCodecTestBase {
                 BITRATE,
                 syncEncoding);
         codecConfigs.clear();
-        bufInfos = encode(params, codecConfigs);
+        videoEncodeOutput = encode(params, codecConfigs);
+        bufInfos = videoEncodeOutput.bufferInfo;
         if (bufInfos == null) {
             Log.i(TAG, "SKIPPING testAsyncEncoding(): no suitable encoder found");
             return;
@@ -312,7 +312,8 @@ public class VideoCodecTest extends VideoCodecTestBase {
         params.syncFrameInterval = encodeSeconds * FPS;
         params.syncForceFrameInterval = FPS;
         params.useNdk = useNdk;
-        ArrayList<MediaCodec.BufferInfo> bufInfo = encode(params);
+        VideoEncodeOutput videoEncodeOutput = encode(params);
+        ArrayList<MediaCodec.BufferInfo> bufInfo = videoEncodeOutput.bufferInfo;
         if (bufInfo == null) {
             Log.i(TAG, "SKIPPING testSyncFrame(): no suitable encoder found");
             return;
@@ -376,7 +377,8 @@ public class VideoCodecTest extends VideoCodecTestBase {
         }
 
         params.useNdk = useNdk;
-        ArrayList<MediaCodec.BufferInfo> bufInfo = encode(params);
+        VideoEncodeOutput videoEncodeOutput = encode(params);
+        ArrayList<MediaCodec.BufferInfo> bufInfo = videoEncodeOutput.bufferInfo;
         if (bufInfo == null) {
             Log.i(TAG, "SKIPPING testDynamicBitrateChange(): no suitable encoder found");
             return;
@@ -453,9 +455,11 @@ public class VideoCodecTest extends VideoCodecTestBase {
                  try {
                      ArrayList<MediaCodec.BufferInfo> bufInfo;
                      if (codecConfigs.isEmpty()) {
-                         bufInfo = encode(params, codecConfigs);
+                         VideoEncodeOutput videoEncodeOutput = encode(params, codecConfigs);
+                         bufInfo = videoEncodeOutput.bufferInfo;
                      } else {
-                         bufInfo = encode(params);
+                         VideoEncodeOutput videoEncodeOutput = encode(params);
+                         bufInfo = videoEncodeOutput.bufferInfo;
                      }
                      VideoEncodingStatistics statistics = computeEncodingStatistics(bufInfo);
                      bitrate[0] = statistics.mAverageBitrate;

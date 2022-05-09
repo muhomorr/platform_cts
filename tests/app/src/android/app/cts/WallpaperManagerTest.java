@@ -52,6 +52,8 @@ import android.view.WindowManager;
 import androidx.test.InstrumentationRegistry;
 import androidx.test.runner.AndroidJUnit4;
 
+import com.android.compatibility.common.util.CddTest;
+
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -111,14 +113,15 @@ public class WallpaperManagerTest {
         if (mBroadcastReceiver != null) {
             mContext.unregisterReceiver(mBroadcastReceiver);
         }
-        try {
-            ensureSetWallpaperDimAmountPermissionIsGranted();
-            mWallpaperManager.setWallpaperDimAmount(0f);
-            assertDimAmountEqualsTo(0f);
-        } finally {
-            InstrumentationRegistry.getInstrumentation().getUiAutomation()
-                    .dropShellPermissionIdentity();
-            mAcquiredWallpaperDimmingPermission = false;
+        if (mAcquiredWallpaperDimmingPermission) {
+            try {
+                mWallpaperManager.setWallpaperDimAmount(0f);
+                assertDimAmountEqualsTo(0f);
+            } finally {
+                InstrumentationRegistry.getInstrumentation().getUiAutomation()
+                        .dropShellPermissionIdentity();
+                mAcquiredWallpaperDimmingPermission = false;
+            }
         }
     }
 
@@ -467,6 +470,7 @@ public class WallpaperManagerTest {
         assertDimAmountEqualsTo(1f);
     }
 
+    @CddTest(requirement = "3.8.7.1/H-1-2")
     @Test
     public void setWallpaperDimAmount_changingWallpaperShouldRemainDimmed() throws IOException {
         ensureSetWallpaperDimAmountPermissionIsGranted();
