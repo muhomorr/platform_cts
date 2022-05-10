@@ -23,6 +23,7 @@ import android.hardware.biometrics.BiometricManager;
 import android.hardware.biometrics.BiometricPrompt;
 import android.hardware.biometrics.SensorProperties;
 import android.os.ParcelFileDescriptor;
+import android.os.SystemProperties;
 import android.security.keystore.KeyGenParameterSpec;
 import android.security.keystore.KeyProperties;
 import android.server.wm.Condition;
@@ -65,7 +66,7 @@ public class Utils {
      * @throws Exception
      */
     public static void waitForIdleService(@NonNull SensorStatesSupplier supplier) throws Exception {
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < 20; i++) {
             if (!supplier.getSensorStates().areAllSensorsIdle()) {
                 Log.d(TAG, "Not idle yet..");
                 Thread.sleep(300);
@@ -263,5 +264,13 @@ public class Utils {
                 throw new IllegalArgumentException("Unable to convert testApiStrength: "
                         + testApiStrength);
         }
+    }
+
+    public static boolean isFirstApiLevel29orGreater() {
+        int firstApiLevel = SystemProperties.getInt("ro.product.first_api_level", 0);
+        if (firstApiLevel >= 29) {
+            return true;
+        }
+        return false;
     }
 }

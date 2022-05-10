@@ -18,15 +18,17 @@ package com.android.cts.packagemanager.verify.domain.device.multiuser
 
 import com.android.bedstead.harrier.BedsteadJUnit4
 import com.android.bedstead.harrier.DeviceState
+import com.android.bedstead.harrier.UserType
 import com.android.bedstead.harrier.annotations.EnsureHasWorkProfile
 import com.android.bedstead.harrier.annotations.Postsubmit
 import com.android.bedstead.harrier.annotations.RequireRunOnPrimaryUser
+import com.android.bedstead.remotedpc.RemoteDpc.DPC_COMPONENT_NAME
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 
-@EnsureHasWorkProfile(forUser = DeviceState.UserType.PRIMARY_USER)
+@EnsureHasWorkProfile(forUser = UserType.PRIMARY_USER)
 @RunWith(BedsteadJUnit4::class)
 class DomainVerificationWorkProfileAllowParentLinkingTests :
     DomainVerificationWorkProfileTestsBase() {
@@ -36,17 +38,17 @@ class DomainVerificationWorkProfileAllowParentLinkingTests :
     @Before
     fun saveAndSetPolicy() {
         val manager = deviceState.getWorkDevicePolicyManager()
-        initialAppLinkPolicy = manager.getAppLinkPolicy()
+        initialAppLinkPolicy = manager.getAppLinkPolicy(DPC_COMPONENT_NAME)
         if (initialAppLinkPolicy != true) {
-            manager.setAppLinkPolicy(true)
+            manager.setAppLinkPolicy(DPC_COMPONENT_NAME, true)
         }
     }
 
     @After
     fun resetPolicy() {
         val manager = deviceState.getWorkDevicePolicyManager()
-        if (initialAppLinkPolicy ?: return != manager.getAppLinkPolicy()) {
-            manager.setAppLinkPolicy(initialAppLinkPolicy!!)
+        if (initialAppLinkPolicy ?: return != manager.getAppLinkPolicy(DPC_COMPONENT_NAME)) {
+            manager.setAppLinkPolicy(DPC_COMPONENT_NAME, initialAppLinkPolicy!!)
         }
     }
 

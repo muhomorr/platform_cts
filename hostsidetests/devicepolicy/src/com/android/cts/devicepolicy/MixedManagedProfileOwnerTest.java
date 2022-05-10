@@ -31,9 +31,6 @@ import com.android.tradefed.device.DeviceNotAvailableException;
 
 import org.junit.Test;
 
-import java.util.ArrayList;
-import java.util.List;
-
 /**
  * Set of tests for managed profile owner use cases that also apply to device owners.
  * Tests that should be run identically in both cases are added in DeviceAndProfileOwnerTest.
@@ -76,22 +73,6 @@ public class MixedManagedProfileOwnerTest extends DeviceAndProfileOwnerTest {
     }
 
     // Most tests for this class are defined in DeviceAndProfileOwnerTest
-
-    /**
-     * Verify that screenshots are still possible for activities in the primary user when the policy
-     * is set on the profile owner.
-     */
-    @LargeTest
-    @Test
-    public void testScreenCaptureDisabled_allowedPrimaryUser() throws Exception {
-        // disable screen capture in profile
-        setScreenCaptureDisabled(mUserId, true);
-
-        // start the ScreenCaptureDisabledActivity in the parent
-        installAppAsUser(DEVICE_ADMIN_APK, mParentUserId);
-        startSimpleActivityAsUser(mParentUserId);
-        executeDeviceTestMethod(".ScreenCaptureDisabledTest", "testScreenCapturePossible");
-    }
 
     @FlakyTest
     @Test
@@ -203,18 +184,6 @@ public class MixedManagedProfileOwnerTest extends DeviceAndProfileOwnerTest {
     }
 
     @Override
-    @LockSettingsTest
-    @Test
-    public void testResetPasswordWithToken() throws Exception {
-        assumeHasSecureLockScreenFeature();
-
-        // Execute the test method that's guaranteed to succeed. See also test in base class
-        // which are tolerant to failure and executed by MixedDeviceOwnerTest and
-        // MixedProfileOwnerTest
-        executeResetPasswordWithTokenTests(/* allowFailures */ false);
-    }
-
-    @Override
     @Test
     public void testSetSystemSetting() {
         // Managed profile owner cannot set currently allowlisted system settings.
@@ -289,13 +258,6 @@ public class MixedManagedProfileOwnerTest extends DeviceAndProfileOwnerTest {
     @FlakyTest
     @Override
     @Test
-    public void testCaCertManagement() throws Exception {
-        super.testCaCertManagement();
-    }
-
-    @FlakyTest
-    @Override
-    @Test
     public void testDelegatedCertInstaller() throws Exception {
         super.testDelegatedCertInstaller();
     }
@@ -305,13 +267,6 @@ public class MixedManagedProfileOwnerTest extends DeviceAndProfileOwnerTest {
     @Test
     public void testPackageInstallUserRestrictions() throws Exception {
         super.testPackageInstallUserRestrictions();
-    }
-
-    @Override
-    @PermissionsTest
-    @Test
-    public void testPermissionGrant() throws Exception {
-        super.testPermissionGrant();
     }
 
     @Override
@@ -362,6 +317,18 @@ public class MixedManagedProfileOwnerTest extends DeviceAndProfileOwnerTest {
     public void testPermissionGrantOfDisallowedPermissionWhileOtherPermIsGranted()
             throws Exception {
         super.testPermissionGrantOfDisallowedPermissionWhileOtherPermIsGranted();
+    }
+
+    @Override
+    @Test
+    public void testLockTaskAfterReboot() {
+        // Managed profiles are not allowed to use lock task
+    }
+
+    @Override
+    @Test
+    public void testLockTaskAfterReboot_tryOpeningSettings() {
+        // Managed profiles are not allowed to use lock task
     }
 
     @Test
@@ -427,12 +394,5 @@ public class MixedManagedProfileOwnerTest extends DeviceAndProfileOwnerTest {
             runDeviceTestsAsUser(packageName, testClassName,
                     "testSetNetworkLogsEnabled_false", mUserId);
         }
-    }
-
-    @Override
-    List<String> getAdditionalDelegationScopes() {
-        final List<String> result = new ArrayList<>();
-        result.add(DELEGATION_NETWORK_LOGGING);
-        return result;
     }
 }

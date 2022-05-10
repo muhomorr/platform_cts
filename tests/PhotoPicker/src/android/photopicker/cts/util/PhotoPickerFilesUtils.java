@@ -19,10 +19,12 @@ package android.photopicker.cts.util;
 import android.app.UiAutomation;
 import android.content.Context;
 import android.net.Uri;
+import android.os.Bundle;
 import android.os.FileUtils;
 import android.os.UserHandle;
 import android.photopicker.cts.R;
 import android.provider.MediaStore;
+import android.provider.cts.ProviderTestUtils;
 import android.provider.cts.media.MediaStoreUtils;
 
 import androidx.test.InstrumentationRegistry;
@@ -42,11 +44,18 @@ public class PhotoPickerFilesUtils {
 
     public static void createImages(int count, int userId, List<Uri> uriList)
             throws Exception {
+        createImages(count, userId, uriList, false);
+    }
+
+    public static void createImages(int count, int userId, List<Uri> uriList, boolean isFavorite)
+            throws Exception {
         for (int i = 0; i < count; i++) {
-            final Uri uri = createImage(userId);
+            final Uri uri = createImage(userId, isFavorite);
             uriList.add(uri);
             clearMediaOwner(uri, userId);
         }
+        // Wait for Picker db sync to complete
+        MediaStore.waitForIdle(InstrumentationRegistry.getContext().getContentResolver());
     }
 
     public static void createDNGVideos(int count, int userId, List<Uri> uriList)
@@ -56,6 +65,8 @@ public class PhotoPickerFilesUtils {
             uriList.add(uri);
             clearMediaOwner(uri, userId);
         }
+        // Wait for Picker db sync to complete
+        MediaStore.waitForIdle(InstrumentationRegistry.getContext().getContentResolver());
     }
 
     public static void createVideos(int count, int userId, List<Uri> uriList)
@@ -65,11 +76,16 @@ public class PhotoPickerFilesUtils {
             uriList.add(uri);
             clearMediaOwner(uri, userId);
         }
+        // Wait for Picker db sync to complete
+        MediaStore.waitForIdle(InstrumentationRegistry.getContext().getContentResolver());
     }
 
-    public static void deleteMedia(Uri uri, int userId) throws Exception {
-        final String cmd = String.format("content delete --uri %s --user %d", uri, userId);
-        ShellUtils.runShellCommand(cmd);
+    public static void deleteMedia(Uri uri, Context context) throws Exception {
+        try {
+            ProviderTestUtils.setOwner(uri, context.getPackageName());
+            context.getContentResolver().delete(uri, Bundle.EMPTY);
+        } catch (Exception ignored) {
+        }
     }
 
     private static void clearMediaOwner(Uri uri, int userId) throws Exception {
@@ -90,13 +106,14 @@ public class PhotoPickerFilesUtils {
         return uri;
     }
 
-    private static Uri createImage(int userId) throws Exception {
+    private static Uri createImage(int userId, boolean isFavorite) throws Exception {
         final Uri uri = stageMedia(R.raw.lg_g4_iso_800_jpg,
-                MediaStore.Images.Media.EXTERNAL_CONTENT_URI, "image/jpeg", userId);
+                MediaStore.Images.Media.EXTERNAL_CONTENT_URI, "image/jpeg", userId, isFavorite);
         return uri;
     }
 
-    private static Uri stageMedia(int resId, Uri collectionUri, String mimeType, int userId) throws
+    private static Uri stageMedia(int resId, Uri collectionUri, String mimeType, int userId,
+            boolean isFavorite) throws
             Exception {
         UiAutomation uiAutomation = InstrumentationRegistry.getInstrumentation().getUiAutomation();
         uiAutomation.adoptShellPermissionIdentity(
@@ -107,17 +124,24 @@ public class PhotoPickerFilesUtils {
             final Context userContext = userId == context.getUserId() ? context :
                     context.createPackageContextAsUser("android", /* flags= */ 0,
                             UserHandle.of(userId));
-            return stageMedia(resId, collectionUri, mimeType, userContext);
+            return stageMedia(resId, collectionUri, mimeType, userContext, isFavorite);
         } finally {
             uiAutomation.dropShellPermissionIdentity();
         }
     }
 
-    private static Uri stageMedia(int resId, Uri collectionUri, String mimeType, Context context)
+    private static Uri stageMedia(int resId, Uri collectionUri, String mimeType, int userId) throws
+            Exception {
+        return stageMedia(resId, collectionUri, mimeType, userId, false);
+    }
+
+    private static Uri stageMedia(int resId, Uri collectionUri, String mimeType, Context context,
+            boolean isFavorite)
             throws IOException {
         final String displayName = DISPLAY_NAME_PREFIX + System.nanoTime();
         final MediaStoreUtils.PendingParams params = new MediaStoreUtils.PendingParams(
                 collectionUri, displayName, mimeType);
+        params.setIsFavorite(isFavorite);
         final Uri pendingUri = MediaStoreUtils.createPending(context, params);
         try (MediaStoreUtils.PendingSession session = MediaStoreUtils.openPending(context,
                 pendingUri)) {
