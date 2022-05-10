@@ -56,6 +56,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 
@@ -110,10 +111,12 @@ public class StrictJavaPackagesTest extends BaseHostJUnit4Test {
                     "Landroid/annotation/CurrentTimeSecondsLong;",
                     "Landroid/annotation/DimenRes;",
                     "Landroid/annotation/Dimension;",
+                    "Landroid/annotation/Discouraged;",
                     "Landroid/annotation/DisplayContext;",
                     "Landroid/annotation/DrawableRes;",
                     "Landroid/annotation/DurationMillisLong;",
                     "Landroid/annotation/ElapsedRealtimeLong;",
+                    "Landroid/annotation/EnforcePermission;",
                     "Landroid/annotation/FloatRange;",
                     "Landroid/annotation/FontRes;",
                     "Landroid/annotation/FractionRes;",
@@ -166,6 +169,9 @@ public class StrictJavaPackagesTest extends BaseHostJUnit4Test {
                     "Landroid/gsi/IImageService;",
                     "Landroid/gsi/IProgressCallback;",
                     "Landroid/gsi/MappedImage;",
+                    "Landroid/gui/TouchOcclusionMode;",
+                    // TODO(b/227752875): contexthub V1 APIs can be removed
+                    // from T+ with the fix in aosp/2050305.
                     "Landroid/hardware/contexthub/V1_0/AsyncEventType;",
                     "Landroid/hardware/contexthub/V1_0/ContextHub;",
                     "Landroid/hardware/contexthub/V1_0/ContextHubMsg;",
@@ -208,13 +214,9 @@ public class StrictJavaPackagesTest extends BaseHostJUnit4Test {
                     "Landroid/hardware/usb/gadget/V1_2/IUsbGadget;",
                     "Landroid/hardware/usb/gadget/V1_2/IUsbGadgetCallback;",
                     "Landroid/hardware/usb/gadget/V1_2/UsbSpeed;",
-                    "Landroid/os/BlockUntrustedTouchesMode;",
                     "Landroid/os/CreateAppDataArgs;",
                     "Landroid/os/CreateAppDataResult;",
-                    "Landroid/os/IInputConstants;",
-                    "Landroid/os/InputEventInjectionResult;",
-                    "Landroid/os/InputEventInjectionSync;",
-                    "Landroid/os/TouchOcclusionMode;",
+                    "Landroid/os/ReconcileSdkDataArgs;",
                     "Lcom/android/internal/util/FrameworkStatsLog;"
             );
 
@@ -694,12 +696,6 @@ public class StrictJavaPackagesTest extends BaseHostJUnit4Test {
                 "Landroid/ondevicepersonalization/aidl/IInitOnDevicePersonalizationCallback;",
                 "Landroid/ondevicepersonalization/aidl/IOnDevicePersonalizationManagerService;"
             );
-    // TODO: b/223837016
-    private static final ImmutableSet<String> MEDIAPROVIDER_APK_IN_APEX_BURNDOWN_LIST =
-            ImmutableSet.of(
-                // /system/framework/services.jar
-                "Lcom/android/modules/utils/build/SdkLevel;"
-            );
     // TODO: b/223837017
     private static final ImmutableSet<String> CELLBROADCAST_APK_IN_APEX_BURNDOWN_LIST =
             ImmutableSet.of(
@@ -713,6 +709,8 @@ public class StrictJavaPackagesTest extends BaseHostJUnit4Test {
     private static final ImmutableMap<String, ImmutableSet<String>> FULL_APK_IN_APEX_BURNDOWN =
         new ImmutableMap.Builder<String, ImmutableSet<String>>()
             .put("/apex/com.android.bluetooth/app/Bluetooth/Bluetooth.apk",
+                BLUETOOTH_APK_IN_APEX_BURNDOWN_LIST)
+            .put("/apex/com.android.bluetooth/app/BluetoothGoogle/BluetoothGoogle.apk",
                 BLUETOOTH_APK_IN_APEX_BURNDOWN_LIST)
             .put("/apex/com.android.permission/priv-app/PermissionController/PermissionController.apk",
                 PERMISSION_CONTROLLER_APK_IN_APEX_BURNDOWN_LIST)
@@ -734,15 +732,12 @@ public class StrictJavaPackagesTest extends BaseHostJUnit4Test {
                 ODA_APK_IN_APEX_BURNDOWN_LIST)
             .put("/apex/com.android.ondevicepersonalization/app/OnDevicePersonalization/OnDevicePersonalization.apk",
                 ODA_APK_IN_APEX_BURNDOWN_LIST)
-            .put("/apex/com.android.mediaprovider/priv-app/MediaProviderGoogle/MediaProviderGoogle.apk",
-                MEDIAPROVIDER_APK_IN_APEX_BURNDOWN_LIST)
-            .put("/apex/com.android.mediaprovider/priv-app/MediaProvider/MediaProvider.apk",
-                MEDIAPROVIDER_APK_IN_APEX_BURNDOWN_LIST)
             .put("/apex/com.android.cellbroadcast/priv-app/GoogleCellBroadcastServiceModule/GoogleCellBroadcastServiceModule.apk",
                 CELLBROADCAST_APK_IN_APEX_BURNDOWN_LIST)
             .put("/apex/com.android.cellbroadcast/priv-app/CellBroadcastServiceModule/CellBroadcastServiceModule.apk",
                 CELLBROADCAST_APK_IN_APEX_BURNDOWN_LIST)
             .build();
+
     /**
      * Fetch all jar files in BCP, SSCP and shared libs and extract all the classes.
      *
@@ -768,6 +763,7 @@ public class StrictJavaPackagesTest extends BaseHostJUnit4Test {
                 .filter(file -> doesFileExist(file, testInfo.getDevice()))
                 // GmsCore should not contribute to *classpath.
                 .filter(file -> !file.contains("GmsCore"))
+                .filter(file -> !file.contains("com.google.android.gms"))
                 .collect(ImmutableList.toImmutableList());
 
         final ImmutableSetMultimap.Builder<String, String> jarsToClasses =
@@ -984,6 +980,45 @@ public class StrictJavaPackagesTest extends BaseHostJUnit4Test {
                     }
                 });
         assertThat(perApkClasspathDuplicates).isEmpty();
+    }
+
+    /**
+     * Ensure that there are no androidx dependencies in BOOTCLASSPATH, SYSTEMSERVERCLASSPATH
+     * and shared library jars.
+     */
+    @Test
+    public void testBootClasspathAndSystemServerClasspathAndSharedLibs_noAndroidxDependencies() {
+        // WARNING: Do not add more exceptions here, no androidx should be in bootclasspath.
+        // See go/androidx-api-guidelines#module-naming for more details.
+        final ImmutableMap<String, ImmutableSet<String>>
+                LegacyExemptAndroidxSharedLibsJarToClasses =
+                new ImmutableMap.Builder<String, ImmutableSet<String>>()
+                .put("/vendor/framework/androidx.camera.extensions.impl.jar",
+                    ImmutableSet.of("Landroidx/camera/extensions/impl/"))
+                .put("/system_ext/framework/androidx.window.extensions.jar",
+                    ImmutableSet.of("Landroidx/window/common/", "Landroidx/window/extensions/",
+                        "Landroidx/window/util/"))
+                .put("/system_ext/framework/androidx.window.sidecar.jar",
+                    ImmutableSet.of("Landroidx/window/common/", "Landroidx/window/sidecar",
+                        "Landroidx/window/util"))
+                .build();
+        assertWithMessage("There must not be any androidx classes on the "
+            + "bootclasspath. Please use alternatives provided by the platform instead. "
+            + "See go/androidx-api-guidelines#module-naming.")
+                .that(sJarsToClasses.entries().stream()
+                        .filter(e -> e.getValue().startsWith("Landroidx/"))
+                        .filter(e -> !isLegacyAndroidxDependency(
+                            LegacyExemptAndroidxSharedLibsJarToClasses, e.getKey(), e.getValue()))
+                        .collect(Collectors.toList())
+                ).isEmpty();
+    }
+
+    private boolean isLegacyAndroidxDependency(
+            ImmutableMap<String, ImmutableSet<String>> legacyExemptAndroidxSharedLibsJarToClasses,
+            String jar, String className) {
+        return legacyExemptAndroidxSharedLibsJarToClasses.containsKey(jar)
+                && legacyExemptAndroidxSharedLibsJarToClasses.get(jar).stream().anyMatch(
+                        v -> className.startsWith(v));
     }
 
     private String[] collectApkInApexPaths() {

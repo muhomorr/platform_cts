@@ -39,8 +39,8 @@ public final class UserfaultfdTest {
   @Before
   public void setUp() {
       boolean mShouldRunTest = !(FeatureUtil.isAutomotive()
-              && ApiLevelUtil.isAtMost(VERSION_CODES.S));
-      Assume.assumeTrue("Skip userfaultfd tests on Automotive targets till S", mShouldRunTest);
+              && ApiLevelUtil.isAtMost(VERSION_CODES.S_V2));
+      Assume.assumeTrue("Skip userfaultfd tests on Automotive targets till S_V2", mShouldRunTest);
       Assume.assumeTrue("Skip userfaultfd tests on kernels lower than 5.4", confirmKernelVersion());
   }
 
@@ -74,9 +74,18 @@ public final class UserfaultfdTest {
     assertEquals(0, performMinorUffd());
   }
 
+  // Confirms if userfaultfd is controlled by selinux or not.
+  // We don't allow getattr operation in our selinux policy.
+  @Test
+  public void selinuxEnabled() {
+    // Expect the return value to be EACCES (13).
+    assertEquals(13, checkGetattr());
+  }
+
   private native boolean confirmKernelVersion();
   private native int performKernelSpaceUffd();
   private native int uffdWithoutUserModeOnly();
   private native int performMremapDontUnmap();
   private native int performMinorUffd();
+  private native int checkGetattr();
 }

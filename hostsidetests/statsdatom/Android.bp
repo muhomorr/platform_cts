@@ -21,6 +21,7 @@ java_test_host {
     defaults: ["cts_defaults"],
     srcs: [
         "src/**/alarm/*.java",
+        "src/**/appcompatstate/*.java",
         "src/**/apphibernation/*.java",
         "src/**/appops/*.java",
         "src/**/appexit/*.java",
@@ -31,15 +32,19 @@ java_test_host {
         "src/**/bluetooth/*.java",
         "src/**/cpu/*.java",
         "src/**/devicepower/*.java",
+        "src/**/devicestate/*.java",
+        "src/**/gamemanager/*.java",
         "src/**/gnss/*.java",
         "src/**/jobscheduler/*.java",
         "src/**/integrity/*.java",
+        "src/**/media/*.java",
         "src/**/memory/*.java",
         "src/**/net/*.java",
         "src/**/notification/*.java",
         "src/**/perfetto/*.java",
         "src/**/permissionstate/*.java",
         "src/**/settingsstats/*.java",
+        "src/**/sizecompatrestartbutton/*.java",
         "src/**/statsd/*.java",
         "src/**/telephony/*.java",
         "src/**/wifi/*.java",
@@ -69,7 +74,11 @@ java_test_host {
     data: [
         ":CtsStatsdAtomApp",
         ":CtsStatsdApp", //TODO(b/163546661): Remove once migration to new lib is complete.
-    ]
+        ":CtsAppExitTestCases",
+        ":CtsExternalServiceService",
+        ":CtsSimpleApp",
+    ],
+    per_testcase_directory: true,
 }
 
 java_library_host {
