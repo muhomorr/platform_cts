@@ -18,6 +18,7 @@ package com.android.cts.mockime;
 
 import android.os.SystemClock;
 import android.text.TextUtils;
+import android.util.Pair;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputBinding;
 
@@ -169,6 +170,25 @@ public final class ImeEventStreamTestUtils {
     }
 
     /**
+     * Checks if {@code eventName} has occurred on the EditText(or TextView) of the current
+     * activity mainly for onStartInput restarting check.
+     * @param eventName event name to check
+     * @param marker Test marker set to {@link android.widget.EditText#setPrivateImeOptions(String)}
+     * @return true if event occurred and restarting is false.
+     */
+    public static Predicate<ImeEvent> editorMatcherRestartingFalse(
+            @NonNull String eventName, @NonNull String marker) {
+        return event -> {
+            if (!TextUtils.equals(eventName, event.getEventName())) {
+                return false;
+            }
+            final EditorInfo editorInfo = event.getArguments().getParcelable("editorInfo");
+            final boolean restarting = event.getArguments().getBoolean("restarting");
+            return (TextUtils.equals(marker, editorInfo.privateImeOptions) && !restarting );
+        };
+    }
+
+    /**
     * Checks if {@code eventName} has occurred on the EditText(or TextView) of the current
     * activity.
     * @param eventName event name to check
@@ -310,6 +330,63 @@ public final class ImeEventStreamTestUtils {
             throws TimeoutException {
         expectEvent(stream, event -> TextUtils.equals(eventName, event.getEventName())
                 && value == event.getArguments().getInt(key), timeout);
+    }
+
+    /**
+     * Assert that the {@link MockIme} will not be terminated abruptly with executing a command to
+     * check if it's still alive and verify the number of create/destroy callback should be paired.
+     *
+     * @param session {@link MockImeSession} to be checked.
+     * @param timeout timeout in millisecond to check if {@link MockIme} is still alive.
+     * @throws Exception
+     */
+    public static void expectNoImeCrash(@NonNull MockImeSession session, long timeout)
+            throws Exception {
+        // Issue any trivial command to make sure that the MockIme is still alive.
+        final ImeCommand command = session.callGetDisplayId();
+        expectCommand(session.openEventStream(), command, timeout);
+        // A filter that matches exit events of "onCreate", "onDestroy", and the *command* above.
+        final Predicate<ImeEvent> matcher = event -> {
+            if (!event.isEnterEvent()) {
+                return false;
+            }
+            switch (event.getEventName()) {
+                case "onHandleCommand": {
+                    final ImeCommand eventCommand =
+                            ImeCommand.fromBundle(event.getArguments().getBundle("command"));
+                    return eventCommand.getId() == command.getId();
+                }
+                case "onCreate":
+                case "onDestroy":
+                    return true;
+                default:
+                    return false;
+            }
+        };
+        final ImeEventStream stream = session.openEventStream();
+        String lastEventName = null;
+        // Allowed pairs of (lastEventName, eventName):
+        //  - (null, "onCreate")
+        //  - ("onCreate", "onDestroy")
+        //  - ("onCreate", "onHandleCommand") -> then stop searching
+        //  - ("onDestroy", "onCreate")
+        while (true) {
+            final String eventName =
+                    stream.seekToFirst(matcher).map(ImeEvent::getEventName).orElse("");
+            final Pair<String, String> pair = Pair.create(lastEventName, eventName);
+            if (pair.equals(Pair.create("onCreate", "onHandleCommand"))) {
+                break;  // Done!
+            }
+            if (pair.equals(Pair.create(null, "onCreate"))
+                    || pair.equals(Pair.create("onCreate", "onDestroy"))
+                    || pair.equals(Pair.create("onDestroy", "onCreate"))) {
+                lastEventName = eventName;
+                stream.skip(1);
+                continue;
+            }
+            throw new AssertionError("IME might have crashed. lastEventName="
+                    + lastEventName + " eventName=" + eventName + "\n" + stream.dump());
+        }
     }
 
     /**
