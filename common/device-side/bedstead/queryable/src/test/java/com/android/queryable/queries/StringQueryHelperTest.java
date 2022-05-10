@@ -16,6 +16,8 @@
 
 package com.android.queryable.queries;
 
+import static com.android.bedstead.nene.utils.ParcelTest.assertParcelsCorrectly;
+
 import static com.google.common.truth.Truth.assertThat;
 
 import com.android.queryable.Queryable;
@@ -57,5 +59,66 @@ public class StringQueryHelperTest {
         stringQueryHelper.isEqualTo(DIFFERENT_STRING_VALUE);
 
         assertThat(stringQueryHelper.matches(STRING_VALUE)).isFalse();
+    }
+
+    @Test
+    public void matches_isNotEqualTo_meetsRestriction_returnsTrue() {
+        StringQueryHelper<Queryable> stringQueryHelper =
+                new StringQueryHelper<>(mQuery);
+
+        stringQueryHelper.isNotEqualTo(DIFFERENT_STRING_VALUE);
+
+        assertThat(stringQueryHelper.matches(STRING_VALUE)).isTrue();
+    }
+
+    @Test
+    public void matches_isNotEqualTo_doesNotMeetRestriction_returnsFalse() {
+        StringQueryHelper<Queryable> stringQueryHelper =
+                new StringQueryHelper<>(mQuery);
+
+        stringQueryHelper.isNotEqualTo(DIFFERENT_STRING_VALUE);
+
+        assertThat(stringQueryHelper.matches(DIFFERENT_STRING_VALUE)).isFalse();
+    }
+
+    @Test
+    public void matches_isNotEqualTo_multipleRestrictions_doesNotMeetRestriction_returnsFalse() {
+        StringQueryHelper<Queryable> stringQueryHelper =
+                new StringQueryHelper<>(mQuery);
+
+        stringQueryHelper.isNotEqualTo(DIFFERENT_STRING_VALUE);
+        stringQueryHelper.isNotEqualTo(STRING_VALUE);
+
+        assertThat(stringQueryHelper.matches(DIFFERENT_STRING_VALUE)).isFalse();
+    }
+
+    @Test
+    public void matches_isNull_meetsRestriction_returnsTrue() {
+        StringQueryHelper<Queryable> stringQueryHelper =
+                new StringQueryHelper<>(mQuery);
+
+        stringQueryHelper.isNull();
+
+        assertThat(stringQueryHelper.matches(null)).isTrue();
+    }
+
+    @Test
+    public void matches_isNotNull_doesNotMeetRestriction_returnsFalse() {
+        StringQueryHelper<Queryable> stringQueryHelper =
+                new StringQueryHelper<>(mQuery);
+
+        stringQueryHelper.isNotNull();
+
+        assertThat(stringQueryHelper.matches(null)).isFalse();
+    }
+
+    @Test
+    public void parcel_parcelsCorrectly() {
+        StringQueryHelper<Queryable> stringQueryHelper = new StringQueryHelper<>(mQuery);
+
+        stringQueryHelper.isEqualTo("");
+        stringQueryHelper.isNotEqualTo("");
+
+        assertParcelsCorrectly(StringQueryHelper.class, stringQueryHelper);
     }
 }
