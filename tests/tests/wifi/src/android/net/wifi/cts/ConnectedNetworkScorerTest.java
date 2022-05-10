@@ -23,12 +23,12 @@ import static android.Manifest.permission.WIFI_UPDATE_USABILITY_STATS_SCORE;
 import static android.net.NetworkCapabilities.NET_CAPABILITY_OEM_PAID;
 import static android.net.NetworkCapabilities.NET_CAPABILITY_OEM_PRIVATE;
 import static android.net.wifi.WifiUsabilityStatsEntry.ContentionTimeStats;
-import static android.net.wifi.WifiUsabilityStatsEntry.RadioStats;
-import static android.net.wifi.WifiUsabilityStatsEntry.RateStats;
 import static android.net.wifi.WifiUsabilityStatsEntry.PROBE_STATUS_FAILURE;
 import static android.net.wifi.WifiUsabilityStatsEntry.PROBE_STATUS_NO_PROBE;
 import static android.net.wifi.WifiUsabilityStatsEntry.PROBE_STATUS_SUCCESS;
 import static android.net.wifi.WifiUsabilityStatsEntry.PROBE_STATUS_UNKNOWN;
+import static android.net.wifi.WifiUsabilityStatsEntry.RadioStats;
+import static android.net.wifi.WifiUsabilityStatsEntry.RateStats;
 import static android.net.wifi.WifiUsabilityStatsEntry.WME_ACCESS_CATEGORY_BE;
 import static android.net.wifi.WifiUsabilityStatsEntry.WME_ACCESS_CATEGORY_BK;
 import static android.net.wifi.WifiUsabilityStatsEntry.WME_ACCESS_CATEGORY_VI;
@@ -48,21 +48,23 @@ import android.annotation.NonNull;
 import android.app.UiAutomation;
 import android.content.Context;
 import android.net.ConnectivityManager;
+import android.net.DhcpOption;
 import android.net.wifi.WifiConfiguration;
+import android.net.wifi.WifiConnectedSessionInfo;
 import android.net.wifi.WifiManager;
 import android.net.wifi.WifiNetworkSpecifier;
 import android.net.wifi.WifiNetworkSuggestion;
+import android.net.wifi.WifiSsid;
 import android.net.wifi.WifiUsabilityStatsEntry;
-import android.net.wifi.WifiConnectedSessionInfo;
 import android.os.Build;
 import android.platform.test.annotations.AppModeFull;
 import android.support.test.uiautomator.UiDevice;
 import android.telephony.TelephonyManager;
 
+import androidx.test.ext.junit.runners.AndroidJUnit4;
+import androidx.test.filters.LargeTest;
 import androidx.test.filters.SdkSuppress;
-import androidx.test.filters.SmallTest;
 import androidx.test.platform.app.InstrumentationRegistry;
-import androidx.test.runner.AndroidJUnit4;
 
 import com.android.compatibility.common.util.ApiLevelUtil;
 import com.android.compatibility.common.util.PollingCheck;
@@ -76,6 +78,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Set;
@@ -88,7 +91,7 @@ import java.util.concurrent.TimeUnit;
  * Tests for wifi connected network scorer interface and usability stats.
  */
 @AppModeFull(reason = "Cannot get WifiManager in instant app mode")
-@SmallTest
+@LargeTest
 @RunWith(AndroidJUnit4.class)
 public class ConnectedNetworkScorerTest extends WifiJUnit4TestBase {
     private Context mContext;
@@ -286,7 +289,8 @@ public class ConnectedNetworkScorerTest extends WifiJUnit4TestBase {
                     assertEquals(1, contentionStats.getContentionTimeMaxMicros());
                     assertEquals(4, contentionStats.getContentionTimeAvgMicros());
                     assertEquals(10, contentionStats.getContentionNumSamples());
-                    assertThat(statsEntry.getChannelUtilizationRatio()).isIn(Range.closed(0, 255));
+                    // Note that -1 is also a possible returned value for utilization ratio.
+                    assertThat(statsEntry.getChannelUtilizationRatio()).isIn(Range.closed(-1, 255));
                     if (mTelephonyManager != null) {
                         boolean isCellularDataAvailable =
                                 mTelephonyManager.getDataState() == TelephonyManager.DATA_CONNECTED;
@@ -618,14 +622,16 @@ public class ConnectedNetworkScorerTest extends WifiJUnit4TestBase {
 
             // Restart wifi subsystem.
             mWifiManager.restartWifiSubsystem();
+
+            // wait for scorer to stop session due to network disconnection.
+            assertThat(countDownLatchScorer.await(TIMEOUT, TimeUnit.MILLISECONDS)).isTrue();
+            assertThat(connectedNetworkScorer.stopSessionId).isEqualTo(prevSessionId);
+
             // Wait for the device to connect back.
             PollingCheck.check(
                     "Wifi not connected",
                     WIFI_CONNECT_TIMEOUT_MILLIS * 2,
                     () -> mWifiManager.getConnectionInfo().getNetworkId() != -1);
-
-            assertThat(countDownLatchScorer.await(TIMEOUT, TimeUnit.MILLISECONDS)).isTrue();
-            assertThat(connectedNetworkScorer.stopSessionId).isEqualTo(prevSessionId);
 
             // Followed by a new onStart() after the connection.
             // Note: There is a 5 second delay between stop/start when restartWifiSubsystem() is
@@ -759,7 +765,7 @@ public class ConnectedNetworkScorerTest extends WifiJUnit4TestBase {
                     }
                     return mTestHelper.testConnectionFlowWithSuggestionWithShellIdentity(
                             testNetwork, suggestionBuilder.build(), executorService,
-                            restrictedNetworkCapabilities);
+                            restrictedNetworkCapabilities, false/* restrictedNetwork */);
                 }
         );
     }
@@ -787,5 +793,48 @@ public class ConnectedNetworkScorerTest extends WifiJUnit4TestBase {
             throws Exception {
         testSetWifiConnectedNetworkScorerForRestrictedSuggestionConnection(
                 Set.of(NET_CAPABILITY_OEM_PRIVATE));
+    }
+
+    /**
+     * Tests the
+     * {@link android.net.wifi.WifiManager#addCustomDhcpOptions(Object, Object, List)} and
+     * {@link android.net.wifi.WifiManager#removeCustomDhcpOptions(Object, Object)}.
+     *
+     * Verifies that these APIs can be invoked successfully with permissions.
+     */
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.TIRAMISU)
+    @Test
+    public void testAddAndRemoveCustomDhcpOptions() throws Exception {
+        UiAutomation uiAutomation = InstrumentationRegistry.getInstrumentation().getUiAutomation();
+        try {
+            uiAutomation.adoptShellPermissionIdentity();
+            WifiSsid ssid = WifiSsid.fromBytes(new byte[]{0x12, 0x34, 0x56});
+            byte[] oui = new byte[]{0x00, 0x01, 0x02};
+            List<DhcpOption> options = new ArrayList<DhcpOption>();
+            mWifiManager.addCustomDhcpOptions(ssid, oui, options);
+            mWifiManager.removeCustomDhcpOptions(ssid, oui);
+        } finally {
+            uiAutomation.dropShellPermissionIdentity();
+        }
+    }
+
+    /**
+     * Tests the
+     * {@link android.net.wifi.WifiManager#addCustomDhcpOptions(Object, Object, List)}.
+     *
+     * Verifies that SecurityException is thrown when permissions are missing.
+     */
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.TIRAMISU)
+    @Test
+    public void testAddCustomDhcpOptionsOnMissingPermissions() throws Exception {
+        try {
+            WifiSsid ssid = WifiSsid.fromBytes(new byte[]{0x12, 0x34, 0x56});
+            byte[] oui = new byte[]{0x00, 0x01, 0x02};
+            List<DhcpOption> options = new ArrayList<DhcpOption>();
+            mWifiManager.addCustomDhcpOptions(ssid, oui, options);
+            fail("Expected SecurityException");
+        } catch (SecurityException e) {
+            // expected
+        }
     }
 }

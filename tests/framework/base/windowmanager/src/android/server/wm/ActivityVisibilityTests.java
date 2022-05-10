@@ -24,7 +24,6 @@ import static android.content.Intent.FLAG_ACTIVITY_TASK_ON_HOME;
 import static android.server.wm.CliIntentExtra.extraString;
 import static android.server.wm.UiDeviceUtils.pressBackButton;
 import static android.server.wm.UiDeviceUtils.pressHomeButton;
-import static android.server.wm.UiDeviceUtils.pressSleepButton;
 import static android.server.wm.VirtualDisplayHelper.waitForDefaultDisplayState;
 import static android.server.wm.WindowManagerState.STATE_RESUMED;
 import static android.server.wm.WindowManagerState.STATE_STOPPED;
@@ -89,7 +88,7 @@ public class ActivityVisibilityTests extends ActivityManagerTestBase {
         }
 
         launchHomeActivity();
-        launchActivity(TRANSLUCENT_ACTIVITY);
+        launchActivity(TRANSLUCENT_ACTIVITY, WINDOWING_MODE_FULLSCREEN);
 
         mWmState.assertFrontStack("Fullscreen stack must be the front stack.",
                 WINDOWING_MODE_FULLSCREEN, ACTIVITY_TYPE_STANDARD);
@@ -205,18 +204,14 @@ public class ActivityVisibilityTests extends ActivityManagerTestBase {
         }
         final ActivitySessionClient activityClient = createManagedActivityClientSession();
         testTurnScreenOnActivity(lockScreenSession, activityClient,
-                true /* useWindowFlags */, true /* showWhenLocked */);
+                true /* useWindowFlags */);
         testTurnScreenOnActivity(lockScreenSession, activityClient,
-                false /* useWindowFlags */, true /* showWhenLocked */);
+                false /* useWindowFlags */);
         if (notSupportsInsecureLock) {
             // In the platform without InsecureLock, we just test if the display is on with
             // TurnScreenOnActivity.
             mObjectTracker.close(lockScreenSession);
         }
-        testTurnScreenOnActivity(lockScreenSession, activityClient,
-                true /* useWindowFlags */, false /* showWhenLocked */);
-        testTurnScreenOnActivity(lockScreenSession, activityClient,
-                false /* useWindowFlags */, false /* showWhenLocked */);
     }
 
     @Test
@@ -230,21 +225,20 @@ public class ActivityVisibilityTests extends ActivityManagerTestBase {
         // timeout should still notify the client activity to be visible. Then the relayout can
         // send the visible request to apply the flags and turn on screen.
         testTurnScreenOnActivity(lockScreenSession, activityClient, true /* useWindowFlags */,
-                true /* showWhenLocked */, 1000 /* sleepMsInOnCreate */);
+                1000 /* sleepMsInOnCreate */);
     }
 
     private void testTurnScreenOnActivity(LockScreenSession lockScreenSession,
-            ActivitySessionClient activitySessionClient, boolean useWindowFlags,
-            boolean showWhenLocked) {
+            ActivitySessionClient activitySessionClient, boolean useWindowFlags) {
         testTurnScreenOnActivity(lockScreenSession, activitySessionClient, useWindowFlags,
-                showWhenLocked, 0 /* sleepMsInOnCreate */);
+                0 /* sleepMsInOnCreate */);
     }
 
     private void testTurnScreenOnActivity(LockScreenSession lockScreenSession,
             ActivitySessionClient activitySessionClient, boolean useWindowFlags,
-            boolean showWhenLocked, int sleepMsInOnCreate) {
+            int sleepMsInOnCreate) {
         ActivitySession activity = sleepDeviceAndLaunchTurnScreenOnActivity(lockScreenSession,
-                activitySessionClient, useWindowFlags, showWhenLocked, sleepMsInOnCreate,
+                activitySessionClient, useWindowFlags, sleepMsInOnCreate,
                 WINDOWING_MODE_FULLSCREEN);
 
         mWmState.assertVisibility(TURN_SCREEN_ON_ACTIVITY, true);
@@ -263,21 +257,16 @@ public class ActivityVisibilityTests extends ActivityManagerTestBase {
         final ActivitySessionClient activityClient = createManagedActivityClientSession();
 
         testFreeformWindowTurnScreenOnActivity(lockScreenSession, activityClient,
-                true/* useWindowFlags */, true/* showWhenLocked */);
+                true/* useWindowFlags */);
         testFreeformWindowTurnScreenOnActivity(lockScreenSession, activityClient,
-                true/* useWindowFlags */, false/* showWhenLocked */);
-        testFreeformWindowTurnScreenOnActivity(lockScreenSession, activityClient,
-                false/* useWindowFlags */, true/* showWhenLocked */);
-        testFreeformWindowTurnScreenOnActivity(lockScreenSession, activityClient,
-                false/* useWindowFlags */, false/* showWhenLocked */);
+                false/* useWindowFlags */);
     }
 
     private void testFreeformWindowTurnScreenOnActivity(LockScreenSession lockScreenSession,
-            ActivitySessionClient activityClient, boolean useWindowFlags,
-            boolean showWhenLocked) {
+            ActivitySessionClient activityClient, boolean useWindowFlags) {
         ActivitySession activity = sleepDeviceAndLaunchTurnScreenOnActivity(lockScreenSession,
-                activityClient, useWindowFlags, showWhenLocked,
-                0 /* sleepMsInOnCreate */, WINDOWING_MODE_FREEFORM);
+                activityClient, useWindowFlags, 0 /* sleepMsInOnCreate */,
+                WINDOWING_MODE_FREEFORM);
         mWmState.waitForValidState(
                 new WaitForValidActivityState.Builder(TURN_SCREEN_ON_ACTIVITY)
                         .setWindowingMode(WINDOWING_MODE_FULLSCREEN)
@@ -291,16 +280,13 @@ public class ActivityVisibilityTests extends ActivityManagerTestBase {
 
     private ActivitySession sleepDeviceAndLaunchTurnScreenOnActivity(
             LockScreenSession lockScreenSession, ActivitySessionClient activitySessionClient,
-            boolean useWindowFlags, boolean showWhenLocked, int sleepMsInOnCreate,
-            int windowingMode) {
+            boolean useWindowFlags, int sleepMsInOnCreate, int windowingMode) {
         lockScreenSession.sleepDevice();
 
         return activitySessionClient.startActivity(
                 getLaunchActivityBuilder().setUseInstrumentation().setIntentExtra(extra -> {
                     extra.putBoolean(Components.TurnScreenOnActivity.EXTRA_USE_WINDOW_FLAGS,
                             useWindowFlags);
-                    extra.putBoolean(Components.TurnScreenOnActivity.EXTRA_SHOW_WHEN_LOCKED,
-                            showWhenLocked);
                     extra.putLong(Components.TurnScreenOnActivity.EXTRA_SLEEP_MS_IN_ON_CREATE,
                             sleepMsInOnCreate);
                 }).setTargetActivity(TURN_SCREEN_ON_ACTIVITY).setWindowingMode(windowingMode));
@@ -340,14 +326,51 @@ public class ActivityVisibilityTests extends ActivityManagerTestBase {
         }
 
         getLaunchActivityBuilder().setTargetActivity(BROADCAST_RECEIVER_ACTIVITY)
+                .setWindowingMode(WINDOWING_MODE_FULLSCREEN)
                 .setIntentFlags(FLAG_ACTIVITY_NEW_TASK).execute();
 
         getLaunchActivityBuilder().setTargetActivity(BROADCAST_RECEIVER_ACTIVITY)
+                .setWindowingMode(WINDOWING_MODE_FULLSCREEN)
                 .setIntentFlags(FLAG_ACTIVITY_NEW_TASK | FLAG_ACTIVITY_TASK_ON_HOME).execute();
 
         mBroadcastActionTrigger.finishBroadcastReceiverActivity();
         mWmState.waitForHomeActivityVisible();
         mWmState.assertHomeActivityVisible(true);
+    }
+
+    /**
+     * This test case tests behavior of activity launched with FLAG_ACTIVITY_TASK_ON_HOME in lock
+     * task mode. The home task do not move to the front of the launched task if the home task
+     * is violated with the lock-task mode.
+     */
+    @Test
+    public void testLaunchTaskOnHomeInLockTaskMode() {
+        if (!hasHomeScreen()) {
+            return;
+        }
+        // Start LaunchingActivity and BroadcastReceiverActivity in two separate tasks.
+        getLaunchActivityBuilder().setTargetActivity(BROADCAST_RECEIVER_ACTIVITY)
+                .setWindowingMode(WINDOWING_MODE_FULLSCREEN)
+                .setIntentFlags(FLAG_ACTIVITY_NEW_TASK).execute();
+        waitAndAssertResumedActivity(BROADCAST_RECEIVER_ACTIVITY,"Activity must be resumed");
+        final int taskId = mWmState.getTaskByActivity(BROADCAST_RECEIVER_ACTIVITY).mTaskId;
+
+        try {
+            runWithShellPermission(() -> mAtm.startSystemLockTaskMode(taskId));
+            getLaunchActivityBuilder()
+                    .setUseInstrumentation()
+                    .setTargetActivity(BROADCAST_RECEIVER_ACTIVITY)
+                    .setWindowingMode(WINDOWING_MODE_FULLSCREEN)
+                    .setIntentFlags(FLAG_ACTIVITY_NEW_TASK | FLAG_ACTIVITY_TASK_ON_HOME).execute();
+            mWmState.waitForActivityState(BROADCAST_RECEIVER_ACTIVITY, STATE_RESUMED);
+        } finally {
+            runWithShellPermission(() -> mAtm.stopSystemLockTaskMode());
+        }
+
+        mBroadcastActionTrigger.finishBroadcastReceiverActivity();
+        mWmState.waitAndAssertActivityRemoved(BROADCAST_RECEIVER_ACTIVITY);
+
+        mWmState.assertHomeActivityVisible(false);
     }
 
     @Test
@@ -651,7 +674,7 @@ public class ActivityVisibilityTests extends ActivityManagerTestBase {
         lockScreenSession.sleepDevice();
         mWmState.waitForAllStoppedActivities();
         separateTestJournal();
-        launchActivity(TURN_SCREEN_ON_ATTR_REMOVE_ATTR_ACTIVITY);
+        launchActivityNoWait(TURN_SCREEN_ON_ATTR_REMOVE_ATTR_ACTIVITY);
         mWmState.waitForActivityState(TURN_SCREEN_ON_ATTR_REMOVE_ATTR_ACTIVITY, STATE_STOPPED);
         // Display should keep off, because setTurnScreenOn(false) has been called at
         // {@link TURN_SCREEN_ON_ATTR_REMOVE_ATTR_ACTIVITY}'s onStop.

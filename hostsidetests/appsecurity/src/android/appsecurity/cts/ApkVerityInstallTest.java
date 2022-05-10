@@ -16,10 +16,14 @@
 
 package android.appsecurity.cts;
 
+import static com.android.compatibility.common.util.PropertyUtil.getFirstApiLevel;
+import static com.android.compatibility.common.util.PropertyUtil.getVendorApiLevel;
+
 import static org.junit.Assert.fail;
 import static org.junit.Assume.assumeTrue;
 
 import android.platform.test.annotations.AppModeFull;
+import android.platform.test.annotations.Presubmit;
 
 import com.android.compatibility.common.util.CddTest;
 import com.android.tradefed.device.DeviceNotAvailableException;
@@ -36,6 +40,7 @@ import java.util.HashMap;
 
 import junitparams.Parameters;
 
+@Presubmit
 @RunWith(DeviceParameterizedRunner.class)
 @AppModeFull
 public final class ApkVerityInstallTest extends BaseAppSecurityTest {
@@ -85,12 +90,13 @@ public final class ApkVerityInstallTest extends BaseAppSecurityTest {
         };
     }
 
+    private int mLaunchApiLevel;
     @Before
     public void setUp() throws DeviceNotAvailableException {
         ITestDevice device = getDevice();
         String apkVerityMode = device.getProperty("ro.apk_verity.mode");
-        assumeTrue(device.getLaunchApiLevel() >= 30
-                || APK_VERITY_STANDARD_MODE.equals(apkVerityMode));
+        mLaunchApiLevel = device.getLaunchApiLevel();
+        assumeTrue(mLaunchApiLevel >= 30 || APK_VERITY_STANDARD_MODE.equals(apkVerityMode));
         mDmRequireFsVerity = "true".equals(device.getProperty("pm.dexopt.dm.require_fsverity"));
         assumeSecurityModelCompat();
     }
@@ -376,7 +382,7 @@ public final class ApkVerityInstallTest extends BaseAppSecurityTest {
 
     @Test
     public void testInstallBaseIncrementallyWithFsvSig() throws Exception {
-        assumeTrue(hasIncrementalDeliveryFeature());
+        assumeTrue(isIncrementalDeliveryV2Feature());
         new InstallMultiple(/*incremental=*/true)
                 .addFile(BASE_APK)
                 .addFile(BASE_APK + FSV_SIG_SUFFIX)
@@ -386,7 +392,7 @@ public final class ApkVerityInstallTest extends BaseAppSecurityTest {
 
     @Test
     public void testInstallBaseIncrementallyWithFsvSigAndIdSig() throws Exception {
-        assumeTrue(hasIncrementalDeliveryFeature());
+        assumeTrue(isIncrementalDeliveryV2Feature());
         new InstallMultiple(/*incremental=*/true)
                 .addFile(BASE_APK)
                 .pushFile(BASE_APK + ID_SIG_SUFFIX)
@@ -397,7 +403,7 @@ public final class ApkVerityInstallTest extends BaseAppSecurityTest {
 
     @Test
     public void testInstallBaseIncrementallyWithIdSigAndWrongFsvSig() throws Exception {
-        assumeTrue(hasIncrementalDeliveryFeature());
+        assumeTrue(isIncrementalDeliveryV2Feature());
         new InstallMultiple(/*incremental=*/true)
                 .addFile(BASE_APK)
                 .pushFile(BASE_APK + ID_SIG_SUFFIX)
@@ -407,7 +413,7 @@ public final class ApkVerityInstallTest extends BaseAppSecurityTest {
 
     @Test
     public void testInstallBaseIncrementallyWithWrongIdSigAndFsvSig() throws Exception {
-        assumeTrue(hasIncrementalDeliveryFeature());
+        assumeTrue(isIncrementalDeliveryV2Feature());
         new InstallMultiple(/*incremental=*/true)
                 .addFile(BASE_APK)
                 .renameAndPushFile(BAD_BASE_APK + ID_SIG_SUFFIX, BASE_APK + ID_SIG_SUFFIX)
@@ -432,8 +438,14 @@ public final class ApkVerityInstallTest extends BaseAppSecurityTest {
     }
 
     private void assumeSecurityModelCompat() throws DeviceNotAvailableException {
-        assumeTrue("Skipping test: FEATURE_SECURITY_MODEL_COMPATIBLE missing.",
-                getDevice().hasFeature("feature:android.hardware.security.model.compatible"));
+        // This feature name check only applies to devices that first shipped with
+        // SC or later.
+        final int firstApiLevel =
+                Math.min(getFirstApiLevel(getDevice()), getVendorApiLevel(getDevice()));
+        if (firstApiLevel >= 31) {
+            assumeTrue("Skipping test: FEATURE_SECURITY_MODEL_COMPATIBLE missing.",
+                    getDevice().hasFeature("feature:android.hardware.security.model.compatible"));
+        }
     }
 
     void verifyFsverityInstall(boolean incremental, String... files) throws Exception {

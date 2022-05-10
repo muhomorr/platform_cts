@@ -15,6 +15,7 @@
  */
 package android.security.cts;
 
+import android.app.Instrumentation;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -22,17 +23,24 @@ import android.content.ServiceConnection;
 import android.os.IBinder;
 import android.os.Process;
 import android.os.RemoteException;
-import android.platform.test.annotations.SecurityTest;
+import android.platform.test.annotations.AsbSecurityTest;
 import android.security.cts.IIsolatedService;
 import android.security.cts.IsolatedService;
-import android.test.AndroidTestCase;
 import android.util.Log;
+import androidx.test.InstrumentationRegistry;
 import com.android.internal.util.ArrayUtils;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import junit.framework.Assert;
+import org.junit.Before;
+import org.junit.After;
 
-public class IsolatedProcessTest extends AndroidTestCase {
+import androidx.test.runner.AndroidJUnit4;
+import org.junit.runner.RunWith;
+import org.junit.Test;
+
+@RunWith(AndroidJUnit4.class)
+public class IsolatedProcessTest {
     static final String TAG = IsolatedProcessTest.class.getSimpleName();
 
     private static final long BIND_SERVICE_TIMEOUT = 5000;
@@ -65,16 +73,21 @@ public class IsolatedProcessTest extends AndroidTestCase {
         }
     };
 
-    @Override
+    private static Instrumentation getInstrumentation() {
+        return InstrumentationRegistry.getInstrumentation();
+    }
+
+    @Before
     public void setUp() throws InterruptedException {
         mLatch = new CountDownLatch(1);
-        Intent serviceIntent = new Intent(mContext, IsolatedService.class);
-        mContext.bindService(serviceIntent, mServiceConnection, Context.BIND_AUTO_CREATE);
+        Intent serviceIntent = new Intent(getInstrumentation().getContext(), IsolatedService.class);
+        getInstrumentation().getContext().bindService(serviceIntent, mServiceConnection, Context.BIND_AUTO_CREATE);
         Assert.assertTrue("Timed out while waiting to bind to isolated service",
                 mLatch.await(BIND_SERVICE_TIMEOUT, TimeUnit.MILLISECONDS));
     }
 
-    @SecurityTest
+    @Test
+    @AsbSecurityTest(cveBugId = 30202228)
     public void testGetCachedServicesFromIsolatedService() throws RemoteException {
         String[] cachedServices = mService.getCachedSystemServices();
         for (String serviceName : cachedServices) {
@@ -83,7 +96,8 @@ public class IsolatedProcessTest extends AndroidTestCase {
         }
     }
 
-    @SecurityTest
+    @Test
+    @AsbSecurityTest(cveBugId = 30202228)
     public void testGetServiceFromIsolatedService() throws RemoteException {
         for (String serviceName : RESTRICTED_SERVICES_TO_TEST) {
             IBinder service = mService.getSystemService(serviceName);
@@ -92,14 +106,15 @@ public class IsolatedProcessTest extends AndroidTestCase {
         }
     }
 
+    @Test
     public void testGetProcessIsIsolated() throws RemoteException {
         Assert.assertFalse(Process.isIsolated());
         Assert.assertTrue(mService.getProcessIsIsolated());
     }
 
-    @Override
+    @After
     public void tearDown() {
-        mContext.unbindService(mServiceConnection);
+        getInstrumentation().getContext().unbindService(mServiceConnection);
     }
 
 }

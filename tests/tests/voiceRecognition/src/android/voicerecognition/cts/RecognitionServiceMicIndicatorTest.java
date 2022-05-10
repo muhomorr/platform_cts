@@ -45,7 +45,6 @@ import com.android.compatibility.common.util.SettingsStateChangerRule;
 
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -65,9 +64,11 @@ public final class RecognitionServiceMicIndicatorTest {
     // Th notification privacy indicator
     private final String PRIVACY_CHIP_PACKAGE_NAME = "com.android.systemui";
     private final String PRIVACY_CHIP_ID = "privacy_chip";
+    private final String CAR_MIC_PRIVACY_CHIP_ID = "mic_privacy_chip";
     private final String PRIVACY_DIALOG_PACKAGE_NAME = "com.android.systemui";
     private final String PRIVACY_DIALOG_CONTENT_ID = "text";
-    private final String CAR_PRIVACY_DIALOG_CONTENT_ID = "car_ui_list_item_title";
+    private final String CAR_PRIVACY_DIALOG_CONTENT_ID = "mic_privacy_panel";
+    private final String CAR_PRIVACY_DIALOG_APP_LABEL_CONTENT_ID = "qc_title";
     private final String TV_MIC_INDICATOR_WINDOW_TITLE = "MicrophoneCaptureIndicator";
     // The cts app label
     private final String APP_LABEL = "CtsVoiceRecognitionTestCases";
@@ -114,6 +115,8 @@ public final class RecognitionServiceMicIndicatorTest {
             Log.v(TAG, "setup(): mOriginalIndicatorsState=" + mOriginalIndicatorsState);
         });
         setIndicatorsEnabledState(Boolean.toString(true));
+        // Wait for any privacy indicator to disappear to avoid the test becoming flaky.
+        SystemClock.sleep(INDICATOR_DISMISS_TIMEOUT);
     }
 
     @After
@@ -161,22 +164,20 @@ public final class RecognitionServiceMicIndicatorTest {
         return componentName != null ? componentName.getPackageName() : "";
     }
 
-    @Ignore("b/184963112")
     @Test
     public void testNonTrustedRecognitionServiceCanBlameCallingApp() throws Throwable {
-        // This is a workaound solution for R QPR. We treat trusted if the current voice recognizer
-        // is also a preinstalled app. This is a untrusted case.
+        // We treat trusted if the current voice recognizer is also a preinstalled app. This is a
+        // untrusted case.
         setCurrentRecognizer(CTS_VOICE_RECOGNITION_SERVICE);
 
         // verify that the untrusted app cannot blame the calling app mic access
-        testVoiceRecognitionServiceBlameCallingApp(/* trustVoiceService */ true);
+        testVoiceRecognitionServiceBlameCallingApp(/* trustVoiceService */ false);
     }
 
-    @Ignore("b/184963112")
     @Test
     public void testTrustedRecognitionServiceCanBlameCallingApp() throws Throwable {
-        // This is a workaround solution for R QPR. We treat trusted if the current voice recognizer
-        // is also a preinstalled app. This is a trusted case.
+        // We treat trusted if the current voice recognizer is also a preinstalled app. This is a
+        // trusted case.
         boolean hasPreInstalledRecognizer = hasPreInstalledRecognizer(
                 getComponentPackageNameFromString(mOriginalVoiceRecognizer));
         assumeTrue("No preinstalled recognizer.", hasPreInstalledRecognizer);
@@ -217,8 +218,9 @@ public final class RecognitionServiceMicIndicatorTest {
         mUiDevice.openQuickSettings();
         SystemClock.sleep(UI_WAIT_TIMEOUT);
 
+        String chipId = isCar() ? CAR_MIC_PRIVACY_CHIP_ID : PRIVACY_CHIP_ID;
         final UiObject2 privacyChip =
-                mUiDevice.findObject(By.res(PRIVACY_CHIP_PACKAGE_NAME, PRIVACY_CHIP_ID));
+                mUiDevice.findObject(By.res(PRIVACY_CHIP_PACKAGE_NAME, chipId));
         assertWithMessage("Can not find mic indicator").that(privacyChip).isNotNull();
 
         // Click the privacy indicator and verify the calling app name display status in the dialog.
@@ -233,21 +235,25 @@ public final class RecognitionServiceMicIndicatorTest {
                 recognitionCallingAppLabels).isNotEmpty();
 
         // get dialog content
-        final String dialogDescription =
-                recognitionCallingAppLabels
-                        .stream()
-                        .map(UiObject2::getText)
-                        .collect(Collectors.joining("\n"));
+        String dialogDescription;
+        if (isCar()) {
+            dialogDescription =
+                    recognitionCallingAppLabels.get(0)
+                            .findObjects(By.res(PRIVACY_DIALOG_PACKAGE_NAME,
+                                    CAR_PRIVACY_DIALOG_APP_LABEL_CONTENT_ID))
+                            .stream()
+                            .map(UiObject2::getText)
+                            .collect(Collectors.joining("\n"));
+        } else {
+            dialogDescription =
+                    recognitionCallingAppLabels
+                            .stream()
+                            .map(UiObject2::getText)
+                            .collect(Collectors.joining("\n"));
+        }
         Log.i(TAG, "Retrieved dialog description " + dialogDescription);
 
-        if (isCar()) {
-            // Make sure Voice recognizer's app label is present in dialog.
-            assertWithMessage(
-                    "Voice recognition service can blame the calling app name " + APP_LABEL
-                            + ", but does not find it.")
-                    .that(dialogDescription)
-                    .contains(APP_LABEL);
-        } else if (trustVoiceService) {
+        if (trustVoiceService) {
             // Check trust recognizer can blame calling apmic permission
             assertWithMessage(
                     "Trusted voice recognition service can blame the calling app name " + APP_LABEL

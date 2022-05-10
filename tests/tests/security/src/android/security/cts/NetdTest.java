@@ -18,22 +18,27 @@ package android.security.cts;
 
 import android.os.Binder;
 import android.os.IBinder;
-import android.platform.test.annotations.SecurityTest;
+import android.platform.test.annotations.AsbSecurityTest;
 
-import junit.framework.TestCase;
+import androidx.test.runner.AndroidJUnit4;
+import com.android.sts.common.util.StsExtraBusinessLogicTestCase;
+import org.junit.runner.RunWith;
+import org.junit.Test;
 
 import java.lang.Class;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 
-@SecurityTest
-public class NetdTest extends TestCase {
+@RunWith(AndroidJUnit4.class)
+public class NetdTest extends StsExtraBusinessLogicTestCase {
 
     /**
      * Detect if netd has unsanitized system call in Throttle API.
      * Based on jsharkey PoC in b/5758556
      *    serv.setInterfaceThrottle("foo; reboot; echo ", -1, -1);
      */
+    @AsbSecurityTest(cveBugId = 5758556)
+    @Test
     public void testThrottleSanitization() {
         try {
 

@@ -36,6 +36,7 @@ import android.app.AppOpsManager.MODE_DEFAULT
 import android.app.AppOpsManager.MODE_ERRORED
 import android.app.AppOpsManager.MODE_IGNORED
 import android.app.AppOpsManager.OnOpChangedListener
+import android.app.AppOpsManager.OPSTR_ACCESS_RESTRICTED_SETTINGS
 import android.app.AppOpsManager.OPSTR_FINE_LOCATION
 import android.app.AppOpsManager.OPSTR_PHONE_CALL_CAMERA
 import android.app.AppOpsManager.OPSTR_PHONE_CALL_MICROPHONE
@@ -47,9 +48,11 @@ import android.app.AppOpsManager.OPSTR_WRITE_CALENDAR
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Process
+import android.os.UserHandle
 import android.platform.test.annotations.AppModeFull
 import androidx.test.runner.AndroidJUnit4
 import androidx.test.InstrumentationRegistry
+import org.junit.Assert
 
 import org.junit.Before
 import org.junit.Test
@@ -138,6 +141,9 @@ class AppOpsTest {
             permissionToOpStr[permission.INTERACT_ACROSS_PROFILES] =
                     AppOpsManager.OPSTR_INTERACT_ACROSS_PROFILES
         }
+
+        val USER_SHELL_UID = UserHandle.getUid(Process.myUserHandle().identifier,
+                UserHandle.getAppId(Process.SHELL_UID))
     }
 
     @Before
@@ -257,29 +263,29 @@ class AppOpsTest {
             try {
                 mAppOps.startOp(OPSTR_WRITE_CALENDAR, mMyUid, mOpPackageName, "firstAttribution",
                         null)
-                assertTrue(mAppOps.isOpActive(OPSTR_WRITE_CALENDAR, Process.SHELL_UID,
+                assertTrue(mAppOps.isOpActive(OPSTR_WRITE_CALENDAR, USER_SHELL_UID,
                         SHELL_PACKAGE_NAME))
                 gotActive.get(TIMEOUT_MS, TimeUnit.MILLISECONDS)
 
                 mAppOps.startOp(OPSTR_WRITE_CALENDAR, Process.myUid(), mOpPackageName,
                     "secondAttribution", null)
-                assertTrue(mAppOps.isOpActive(OPSTR_WRITE_CALENDAR, Process.SHELL_UID,
+                assertTrue(mAppOps.isOpActive(OPSTR_WRITE_CALENDAR, USER_SHELL_UID,
                         SHELL_PACKAGE_NAME))
                 assertFalse(gotInActive.isDone)
 
-                mAppOps.finishOp(OPSTR_WRITE_CALENDAR, Process.SHELL_UID, SHELL_PACKAGE_NAME,
+                mAppOps.finishOp(OPSTR_WRITE_CALENDAR, USER_SHELL_UID, SHELL_PACKAGE_NAME,
                     "firstAttribution")
 
                 // Allow some time for premature "watchingActive" callbacks to arrive
                 Thread.sleep(500)
 
-                assertTrue(mAppOps.isOpActive(OPSTR_WRITE_CALENDAR, Process.SHELL_UID,
+                assertTrue(mAppOps.isOpActive(OPSTR_WRITE_CALENDAR, USER_SHELL_UID,
                         SHELL_PACKAGE_NAME))
                 assertFalse(gotInActive.isDone)
 
-                mAppOps.finishOp(OPSTR_WRITE_CALENDAR, Process.SHELL_UID, SHELL_PACKAGE_NAME,
+                mAppOps.finishOp(OPSTR_WRITE_CALENDAR, USER_SHELL_UID, SHELL_PACKAGE_NAME,
                     "secondAttribution")
-                assertFalse(mAppOps.isOpActive(OPSTR_WRITE_CALENDAR, Process.SHELL_UID,
+                assertFalse(mAppOps.isOpActive(OPSTR_WRITE_CALENDAR, USER_SHELL_UID,
                         SHELL_PACKAGE_NAME))
                 gotInActive.get(TIMEOUT_MS, TimeUnit.MILLISECONDS)
             } finally {
@@ -296,7 +302,7 @@ class AppOpsTest {
             val activeWatcher =
                     AppOpsManager.OnOpActiveChangedListener { _, uid, packageName, active ->
                         if (packageName == SHELL_PACKAGE_NAME &&
-                                uid == Process.SHELL_UID) {
+                                uid == USER_SHELL_UID) {
                             receivedActiveState.push(active)
                         }
                     }
@@ -307,13 +313,13 @@ class AppOpsTest {
                 mAppOps.startOp(OPSTR_WIFI_SCAN, mMyUid, mOpPackageName, null, null)
                 assertTrue(receivedActiveState.poll(TIMEOUT_MS, TimeUnit.MILLISECONDS)!!)
 
-                mAppOps.finishOp(OPSTR_WIFI_SCAN, Process.SHELL_UID, SHELL_PACKAGE_NAME, null)
+                mAppOps.finishOp(OPSTR_WIFI_SCAN, USER_SHELL_UID, SHELL_PACKAGE_NAME, null)
                 assertFalse(receivedActiveState.poll(TIMEOUT_MS, TimeUnit.MILLISECONDS)!!)
 
                 mAppOps.startOp(OPSTR_WIFI_SCAN, mMyUid, mOpPackageName, null, null)
                 assertTrue(receivedActiveState.poll(TIMEOUT_MS, TimeUnit.MILLISECONDS)!!)
 
-                mAppOps.finishOp(OPSTR_WIFI_SCAN, Process.SHELL_UID, SHELL_PACKAGE_NAME, null)
+                mAppOps.finishOp(OPSTR_WIFI_SCAN, USER_SHELL_UID, SHELL_PACKAGE_NAME, null)
                 assertFalse(receivedActiveState.poll(TIMEOUT_MS, TimeUnit.MILLISECONDS)!!)
             } finally {
                 mAppOps.stopWatchingActive(activeWatcher)
@@ -592,13 +598,67 @@ class AppOpsTest {
 
     @Test
     fun ensurePhoneCallOpsRestricted() {
-        assumeTrue(mContext.packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY))
+        val pm = mContext.packageManager
+        assumeTrue(pm.hasSystemFeature(PackageManager.FEATURE_TELEPHONY) ||
+                pm.hasSystemFeature(PackageManager.FEATURE_MICROPHONE) ||
+                pm.hasSystemFeature(PackageManager.FEATURE_TELECOM))
         val micReturn = mAppOps.noteOp(OPSTR_PHONE_CALL_MICROPHONE, Process.myUid(), mOpPackageName,
                 null, null)
         assertEquals(MODE_IGNORED, micReturn)
         val cameraReturn = mAppOps.noteOp(OPSTR_PHONE_CALL_CAMERA, Process.myUid(),
                 mOpPackageName, null, null)
         assertEquals(MODE_IGNORED, cameraReturn)
+    }
+
+    @Test
+    fun testRestrictedSettingsOpsRead() {
+        // Apps without manage appops permission will get security exception if it tries to access
+        // restricted settings ops.
+        Assert.assertThrows(SecurityException::class.java) {
+            mAppOps.unsafeCheckOpRawNoThrow(OPSTR_ACCESS_RESTRICTED_SETTINGS, Process.myUid(),
+                    mOpPackageName)
+        }
+        // Apps with manage appops permission (shell) should be able to read restricted settings op
+        // successfully.
+        runWithShellPermissionIdentity {
+            mAppOps.unsafeCheckOpRawNoThrow(OPSTR_ACCESS_RESTRICTED_SETTINGS, Process.myUid(),
+                    mOpPackageName)
+        }
+
+        // Normal apps should not receive op change callback when op is changed.
+        val watcher = mock(OnOpChangedListener::class.java)
+        try {
+            setOpMode(mOpPackageName, OPSTR_ACCESS_RESTRICTED_SETTINGS, MODE_ERRORED)
+
+            mAppOps.startWatchingMode(OPSTR_ACCESS_RESTRICTED_SETTINGS, mOpPackageName, watcher)
+
+            // Make a change to the app op's mode.
+            Mockito.reset(watcher)
+            setOpMode(mOpPackageName, OPSTR_ACCESS_RESTRICTED_SETTINGS, MODE_ALLOWED)
+            verifyZeroInteractions(watcher)
+        } finally {
+            // Clean up registered watcher.
+            mAppOps.stopWatchingMode(watcher)
+        }
+
+        // Apps with manage ops permission (shell) should be able to receive op change callback.
+        runWithShellPermissionIdentity {
+            try {
+                setOpMode(mOpPackageName, OPSTR_ACCESS_RESTRICTED_SETTINGS, MODE_ERRORED)
+
+                mAppOps.startWatchingMode(OPSTR_ACCESS_RESTRICTED_SETTINGS, mOpPackageName,
+                        watcher)
+
+                // Make a change to the app op's mode.
+                Mockito.reset(watcher)
+                setOpMode(mOpPackageName, OPSTR_ACCESS_RESTRICTED_SETTINGS, MODE_ALLOWED)
+                verify(watcher, timeout(TIMEOUT_MS))
+                        .onOpChanged(OPSTR_ACCESS_RESTRICTED_SETTINGS, mOpPackageName)
+            } finally {
+                // Clean up registered watcher.
+                mAppOps.stopWatchingMode(watcher)
+            }
+        }
     }
 
     private fun runWithShellPermissionIdentity(command: () -> Unit) {

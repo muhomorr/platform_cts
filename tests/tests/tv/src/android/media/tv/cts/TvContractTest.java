@@ -37,6 +37,8 @@ import android.test.AndroidTestCase;
 import android.test.MoreAsserts;
 import android.tv.cts.R;
 
+import androidx.test.InstrumentationRegistry;
+
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Arrays;
@@ -113,6 +115,11 @@ public class TvContractTest extends AndroidTestCase {
     private static final String[] NON_EXISTING_COLUMN_NAMES =
             {"non_existing_column", "another non-existing column --"};
 
+    private static final String PERMISSION_ACCESS_WATCHED_PROGRAMS =
+            "com.android.providers.tv.permission.ACCESS_WATCHED_PROGRAMS";
+    private static final String PERMISSION_WRITE_EPG_DATA =
+            "com.android.providers.tv.permission.WRITE_EPG_DATA";
+
     private String mInputId;
     private ContentResolver mContentResolver;
     private Uri mChannelsUri;
@@ -123,6 +130,11 @@ public class TvContractTest extends AndroidTestCase {
         if (!Utils.hasTvInputFramework(getContext())) {
             return;
         }
+        InstrumentationRegistry
+                .getInstrumentation()
+                .getUiAutomation()
+                .adoptShellPermissionIdentity(
+                        PERMISSION_ACCESS_WATCHED_PROGRAMS, PERMISSION_WRITE_EPG_DATA);
         mInputId = TvContract.buildInputId(
                 new ComponentName(getContext(), StubTunerTvInputService.class));
         mContentResolver = getContext().getContentResolver();
@@ -138,6 +150,9 @@ public class TvContractTest extends AndroidTestCase {
         mContentResolver.delete(Channels.CONTENT_URI, null, null);
         mContentResolver.delete(RecordedPrograms.CONTENT_URI, null, null);
         mContentResolver.delete(WatchNextPrograms.CONTENT_URI, null, null);
+
+        InstrumentationRegistry.getInstrumentation().getUiAutomation()
+                .dropShellPermissionIdentity();
         super.tearDown();
     }
 
@@ -168,6 +183,9 @@ public class TvContractTest extends AndroidTestCase {
         values.put(Programs.COLUMN_REVIEW_RATING_STYLE,
                 RecordedPrograms.REVIEW_RATING_STYLE_STARS);
         values.put(Programs.COLUMN_REVIEW_RATING, "4.5");
+        values.put(Programs.COLUMN_SCRAMBLED, 0);
+        values.put(Programs.COLUMN_MULTI_SERIES_ID, "series-1, series-X");
+        values.put(Programs.COLUMN_INTERNAL_PROVIDER_ID, "AAA-BBB-CCC");
 
         return values;
     }
@@ -226,6 +244,8 @@ public class TvContractTest extends AndroidTestCase {
         values.put(PreviewPrograms.COLUMN_REVIEW_RATING_STYLE,
                 PreviewPrograms.REVIEW_RATING_STYLE_STARS);
         values.put(PreviewPrograms.COLUMN_REVIEW_RATING, "4.5");
+        values.put(PreviewPrograms.COLUMN_START_TIME_UTC_MILLIS, 1600000000);
+        values.put(PreviewPrograms.COLUMN_END_TIME_UTC_MILLIS, 1603600000);
         values.put(WatchNextPrograms.COLUMN_CONTENT_ID, "CID-125-6335");
 
         return values;
@@ -268,7 +288,8 @@ public class TvContractTest extends AndroidTestCase {
         values.put(RecordedPrograms.COLUMN_REVIEW_RATING_STYLE,
                 RecordedPrograms.REVIEW_RATING_STYLE_STARS);
         values.put(RecordedPrograms.COLUMN_REVIEW_RATING, "4.5");
-
+        values.put(RecordedPrograms.COLUMN_MULTI_SERIES_ID, "series-1, series-X");
+        values.put(RecordedPrograms.COLUMN_INTERNAL_PROVIDER_ID, "AAA-BBB-CCC");
         return values;
     }
 
@@ -725,6 +746,9 @@ public class TvContractTest extends AndroidTestCase {
             verifyIntegerColumn(cursor, expectedValues, Programs.COLUMN_VERSION_NUMBER);
             verifyStringColumn(cursor, expectedValues, Programs.COLUMN_REVIEW_RATING_STYLE);
             verifyStringColumn(cursor, expectedValues, Programs.COLUMN_REVIEW_RATING);
+            verifyIntegerColumn(cursor, expectedValues, Programs.COLUMN_SCRAMBLED);
+            verifyStringColumn(cursor, expectedValues, Programs.COLUMN_MULTI_SERIES_ID);
+            verifyStringColumn(cursor, expectedValues, Programs.COLUMN_INTERNAL_PROVIDER_ID);
         }
     }
 
@@ -778,6 +802,9 @@ public class TvContractTest extends AndroidTestCase {
             verifyIntegerColumn(cursor, expectedValues, PreviewPrograms.COLUMN_INTERACTION_COUNT);
             verifyStringColumn(cursor, expectedValues, PreviewPrograms.COLUMN_AUTHOR);
             verifyIntegerColumn(cursor, expectedValues, PreviewPrograms.COLUMN_REVIEW_RATING_STYLE);
+            verifyIntegerColumn(cursor, expectedValues,
+                    PreviewPrograms.COLUMN_START_TIME_UTC_MILLIS);
+            verifyIntegerColumn(cursor, expectedValues, PreviewPrograms.COLUMN_END_TIME_UTC_MILLIS);
             verifyStringColumn(cursor, expectedValues, PreviewPrograms.COLUMN_REVIEW_RATING);
         }
     }
@@ -863,6 +890,9 @@ public class TvContractTest extends AndroidTestCase {
         values.put(Programs.COLUMN_TITLE, "new_program_title");
         values.put(Programs.COLUMN_SHORT_DESCRIPTION, "");
         values.put(Programs.COLUMN_INTERNAL_PROVIDER_DATA, "Coffee".getBytes());
+        values.put(Programs.COLUMN_SCRAMBLED, 1);
+        values.put(Programs.COLUMN_MULTI_SERIES_ID, "series-2, series-Y");
+        values.put(Programs.COLUMN_INTERNAL_PROVIDER_ID, "XXX-YYY-ZZZ");
 
         mContentResolver.update(programUri, values, null, null);
         verifyProgram(programUri, values, programId);
@@ -1190,6 +1220,8 @@ public class TvContractTest extends AndroidTestCase {
             verifyIntegerColumn(cursor, expectedValues, RecordedPrograms.COLUMN_VERSION_NUMBER);
             verifyStringColumn(cursor, expectedValues, RecordedPrograms.COLUMN_REVIEW_RATING_STYLE);
             verifyStringColumn(cursor, expectedValues, RecordedPrograms.COLUMN_REVIEW_RATING);
+            verifyStringColumn(cursor, expectedValues, RecordedPrograms.COLUMN_MULTI_SERIES_ID);
+            verifyStringColumn(cursor, expectedValues, RecordedPrograms.COLUMN_INTERNAL_PROVIDER_ID);
         }
     }
 
@@ -1207,6 +1239,8 @@ public class TvContractTest extends AndroidTestCase {
         values.put(RecordedPrograms.COLUMN_SHORT_DESCRIPTION, "short_description1");
         values.put(RecordedPrograms.COLUMN_INTERNAL_PROVIDER_DATA,
                 "internal_provider_data1".getBytes());
+        values.put(RecordedPrograms.COLUMN_MULTI_SERIES_ID, "series-2, series-Y");
+        values.put(RecordedPrograms.COLUMN_INTERNAL_PROVIDER_ID, "XXX-YYY-ZZZ");
 
         mContentResolver.update(recordedProgramUri, values, null, null);
         verifyRecordedProgram(recordedProgramUri, values, recordedProgramId);

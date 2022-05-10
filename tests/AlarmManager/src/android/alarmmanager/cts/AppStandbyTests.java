@@ -17,6 +17,8 @@
 package android.alarmmanager.cts;
 
 import static android.app.AlarmManager.ELAPSED_REALTIME_WAKEUP;
+import static android.app.AppOpsManager.MODE_IGNORED;
+import static android.app.AppOpsManager.OPSTR_SCHEDULE_EXACT_ALARM;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -25,6 +27,7 @@ import static org.junit.Assume.assumeTrue;
 import android.alarmmanager.alarmtestapp.cts.TestAlarmReceiver;
 import android.alarmmanager.alarmtestapp.cts.TestAlarmScheduler;
 import android.alarmmanager.util.AlarmManagerDeviceConfigHelper;
+import android.alarmmanager.util.Utils;
 import android.app.Activity;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
@@ -42,6 +45,7 @@ import androidx.test.InstrumentationRegistry;
 import androidx.test.filters.LargeTest;
 import androidx.test.runner.AndroidJUnit4;
 
+import com.android.compatibility.common.util.AppOpsUtils;
 import com.android.compatibility.common.util.AppStandbyUtils;
 
 import org.junit.After;
@@ -136,8 +140,12 @@ public class AppStandbyTests {
         mAlarmScheduler = new ComponentName(TEST_APP_PACKAGE, TEST_APP_RECEIVER);
         mAlarmCount = new AtomicInteger(0);
         updateAlarmManagerConstants();
-        updateBackgroundSettleTime();
         setBatteryCharging(false);
+
+        // To make sure it doesn't get pinned to working_set on older versions.
+        AppOpsUtils.setUidMode(Utils.getPackageUid(TEST_APP_PACKAGE), OPSTR_SCHEDULE_EXACT_ALARM,
+                MODE_IGNORED);
+
         final IntentFilter intentFilter = new IntentFilter();
         intentFilter.addAction(TestAlarmReceiver.ACTION_REPORT_ALARM_EXPIRED);
         sContext.registerReceiver(mAlarmStateReceiver, intentFilter);
@@ -244,7 +252,6 @@ public class AppStandbyTests {
     public void tearDown() throws Exception {
         setPowerWhitelisted(false);
         setBatteryCharging(true);
-        resetBackgroundSettleTime();
         mConfigHelper.restoreAll();
         final Intent cancelAlarmsIntent = new Intent(TestAlarmScheduler.ACTION_CANCEL_ALL_ALARMS);
         cancelAlarmsIntent.setComponent(mAlarmScheduler);
@@ -270,15 +277,6 @@ public class AppStandbyTests {
             mConfigHelper.with(APP_BUCKET_QUOTA_KEYS[i], APP_STANDBY_QUOTAS[i]);
         }
         mConfigHelper.commitAndAwaitPropagation();
-    }
-
-    private void updateBackgroundSettleTime() throws IOException {
-        sUiDevice.executeShellCommand(
-                "settings put global activity_manager_constants background_settle_time=0");
-    }
-
-    private void resetBackgroundSettleTime() throws IOException {
-        sUiDevice.executeShellCommand("settings delete global activity_manager_constants");
     }
 
     private void setPowerWhitelisted(boolean whitelist) throws IOException {

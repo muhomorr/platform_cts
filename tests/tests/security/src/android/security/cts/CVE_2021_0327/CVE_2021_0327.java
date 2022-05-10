@@ -19,19 +19,19 @@ package android.security.cts.CVE_2021_0327;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
-import android.platform.test.annotations.SecurityTest;
+import android.platform.test.annotations.AsbSecurityTest;
 import android.test.AndroidTestCase;
 import android.util.Log;
 import androidx.test.runner.AndroidJUnit4;
 import androidx.test.InstrumentationRegistry;
+import com.android.sts.common.util.StsExtraBusinessLogicTestCase;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-@SecurityTest
 @RunWith(AndroidJUnit4.class)
-public class CVE_2021_0327 {
+public class CVE_2021_0327 extends StsExtraBusinessLogicTestCase {
 
     private static final String SECURITY_CTS_PACKAGE_NAME = "android.security.cts";
     private static final String TAG = "CVE_2021_0327";
@@ -51,7 +51,7 @@ public class CVE_2021_0327 {
      * b/175817081
      */
     @Test
-    @SecurityTest
+    @AsbSecurityTest(cveBugId = 172935267)
     public void testPocCVE_2021_0327() throws Exception {
         Log.d(TAG, "test start");
         testActivityCreated=false;

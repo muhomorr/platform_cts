@@ -19,11 +19,11 @@ package com.android.tests.stagedinstall;
 import static com.android.cts.install.lib.InstallUtils.assertStatusFailure;
 import static com.android.cts.install.lib.InstallUtils.assertStatusSuccess;
 import static com.android.cts.install.lib.InstallUtils.getPackageInstaller;
+import static com.android.cts.install.lib.PackageInstallerSessionInfoSubject.assertThat;
 import static com.android.cts.shim.lib.ShimPackage.DIFFERENT_APEX_PACKAGE_NAME;
 import static com.android.cts.shim.lib.ShimPackage.NOT_PRE_INSTALL_APEX_PACKAGE_NAME;
 import static com.android.cts.shim.lib.ShimPackage.SHIM_APEX_PACKAGE_NAME;
 import static com.android.cts.shim.lib.ShimPackage.SHIM_PACKAGE_NAME;
-import static com.android.tests.stagedinstall.PackageInstallerSessionInfoSubject.assertThat;
 
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
@@ -75,7 +75,9 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
@@ -166,6 +168,12 @@ public class StagedInstallTest {
     private static final TestApp Apex2SignPayloadWithDifferentKey = new TestApp(
             "StagedInstallTestApexV2_SignPayloadWithDifferentKey", SHIM_APEX_PACKAGE_NAME, 1,
             /*isApex*/true, "com.android.apex.cts.shim.v2_sign_payload_with_different_key.apex");
+    private static final TestApp Apex2Rebootless = new TestApp(
+            "StagedInstallTestApexV2_Rebootless", SHIM_APEX_PACKAGE_NAME, 2,
+            /*isApex*/true, "com.android.apex.cts.shim.v2_rebootless.apex");
+    private static final TestApp Apex3Rebootless = new TestApp(
+            "StagedInstallTestApexV3_Rebootless", SHIM_APEX_PACKAGE_NAME, 3,
+            /*isApex*/true, "com.android.apex.cts.shim.v3_rebootless.apex");
 
     @Before
     public void adoptShellPermissions() {
@@ -231,7 +239,6 @@ public class StagedInstallTest {
         BroadcastCounter counter = new BroadcastCounter(PackageInstaller.ACTION_SESSION_COMMITTED);
         int sessionId = stageSingleApk(TestApp.A1).assertSuccessful().getSessionId();
         assertThat(getInstalledVersion(TestApp.A)).isEqualTo(-1);
-        waitForIsReadyBroadcast(sessionId);
         assertSessionReady(sessionId);
         storeSessionId(sessionId);
         assertThat(getInstalledVersion(TestApp.A)).isEqualTo(-1);
@@ -264,7 +271,6 @@ public class StagedInstallTest {
                 .assertSuccessful().getSessionId();
         assertThat(getInstalledVersion(TestApp.A)).isEqualTo(-1);
         assertThat(getInstalledVersion(TestApp.B)).isEqualTo(-1);
-        waitForIsReadyBroadcast(sessionId);
         assertSessionReady(sessionId);
         storeSessionId(sessionId);
         assertThat(getInstalledVersion(TestApp.A)).isEqualTo(-1);
@@ -286,7 +292,6 @@ public class StagedInstallTest {
     public void testAbandonStagedApkBeforeReboot_CommitAndAbandon() throws Exception {
         int sessionId = stageSingleApk(TestApp.A1).assertSuccessful().getSessionId();
         assertThat(getInstalledVersion(TestApp.A)).isEqualTo(-1);
-        waitForIsReadyBroadcast(sessionId);
         PackageInstaller.SessionInfo session = InstallUtils.getStagedSessionInfo(sessionId);
         assertSessionReady(sessionId);
         abandonSession(sessionId);
@@ -352,8 +357,9 @@ public class StagedInstallTest {
         assertThat(getInstalledVersion(SHIM_APEX_PACKAGE_NAME)).isEqualTo(1);
         // Using an apex in hopes that pre-reboot verification will take longer to complete
         // and we will manage to abandon it before session becomes ready.
-        int sessionId = stageMultipleApks(TestApp.A1, TestApp.Apex2).assertSuccessful()
-                .getSessionId();
+        int sessionId = Install.multi(TestApp.A1, TestApp.Apex2).setStaged().createSession();
+        LocalIntentSender sender = new LocalIntentSender();
+        InstallUtils.openPackageInstallerSession(sessionId).commit(sender.getIntentSender());
         abandonSession(sessionId);
         InstallUtils.assertStagedSessionIsAbandoned(sessionId);
         counter.assertNoBroadcastReceived();
@@ -427,9 +433,9 @@ public class StagedInstallTest {
     public void testStagedInstallDowngrade_DowngradeNotRequested_Fails_Commit()  throws Exception {
         assertThat(getInstalledVersion(TestApp.A)).isEqualTo(-1);
         Install.single(TestApp.A2).commit();
-        int sessionId = stageSingleApk(TestApp.A1).assertSuccessful().getSessionId();
+        int sessionId = stageSingleApk(TestApp.A1).assertFailure().getSessionId();
         assertThat(getInstalledVersion(TestApp.A)).isEqualTo(2);
-        PackageInstaller.SessionInfo sessionInfo = waitForBroadcast(sessionId);
+        PackageInstaller.SessionInfo sessionInfo = getSessionInfo(sessionId);
         assertThat(sessionInfo).isStagedSessionFailed();
     }
 
@@ -439,7 +445,6 @@ public class StagedInstallTest {
         Install.single(TestApp.A2).commit();
         int sessionId = stageDowngradeSingleApk(TestApp.A1).assertSuccessful().getSessionId();
         assertThat(getInstalledVersion(TestApp.A)).isEqualTo(2);
-        waitForIsReadyBroadcast(sessionId);
         assertSessionReady(sessionId);
         storeSessionId(sessionId);
     }
@@ -448,10 +453,7 @@ public class StagedInstallTest {
     public void testStagedInstallDowngrade_DowngradeRequested_Fails_Commit() throws Exception {
         assertThat(getInstalledVersion(TestApp.A)).isEqualTo(-1);
         Install.single(TestApp.A2).commit();
-        int sessionId = stageDowngradeSingleApk(TestApp.A1).assertSuccessful().getSessionId();
-        assertThat(getInstalledVersion(TestApp.A)).isEqualTo(2);
-        PackageInstaller.SessionInfo sessionInfo = waitForBroadcast(sessionId);
-        assertThat(sessionInfo).isStagedSessionFailed();
+        stageDowngradeSingleApk(TestApp.A1).assertFailure();
     }
 
     @Test
@@ -468,7 +470,6 @@ public class StagedInstallTest {
         BroadcastCounter counter = new BroadcastCounter(PackageInstaller.ACTION_SESSION_COMMITTED);
         assertThat(getInstalledVersion(SHIM_APEX_PACKAGE_NAME)).isEqualTo(1);
         int sessionId = stageSingleApk(TestApp.Apex2).assertSuccessful().getSessionId();
-        waitForIsReadyBroadcast(sessionId);
         assertSessionReady(sessionId);
         storeSessionId(sessionId);
         // Version shouldn't change before reboot.
@@ -492,7 +493,6 @@ public class StagedInstallTest {
         assertThat(getInstalledVersion(TestApp.A)).isEqualTo(-1);
         int sessionId = stageMultipleApks(TestApp.Apex2, TestApp.A1)
                 .assertSuccessful().getSessionId();
-        waitForIsReadyBroadcast(sessionId);
         assertSessionReady(sessionId);
         storeSessionId(sessionId);
         // Version shouldn't change before reboot.
@@ -531,8 +531,8 @@ public class StagedInstallTest {
     @Test
     public void testInstallStagedNonPreInstalledApex_Fails() throws Exception {
         assertThat(getInstalledVersion(NOT_PRE_INSTALL_APEX_PACKAGE_NAME)).isEqualTo(-1);
-        int sessionId = stageSingleApk(ApexNotPreInstalled).assertSuccessful().getSessionId();
-        PackageInstaller.SessionInfo sessionInfo = waitForBroadcast(sessionId);
+        int sessionId = stageSingleApk(ApexNotPreInstalled).assertFailure().getSessionId();
+        PackageInstaller.SessionInfo sessionInfo = getSessionInfo(sessionId);
         assertThat(sessionInfo).isStagedSessionFailed();
     }
 
@@ -540,17 +540,16 @@ public class StagedInstallTest {
     public void testInstallStagedDifferentPackageNameWithInstalledApex_Fails() throws Exception {
         assertThat(getInstalledVersion(DIFFERENT_APEX_PACKAGE_NAME)).isEqualTo(-1);
         assertThat(getInstalledVersion(SHIM_APEX_PACKAGE_NAME)).isEqualTo(1);
-        int sessionId = stageSingleApk(Apex2DifferentPackageName).assertSuccessful().getSessionId();
-        PackageInstaller.SessionInfo sessionInfo = waitForBroadcast(sessionId);
+        int sessionId = stageSingleApk(Apex2DifferentPackageName).assertFailure().getSessionId();
+        PackageInstaller.SessionInfo sessionInfo = getSessionInfo(sessionId);
         assertThat(sessionInfo.getStagedSessionErrorMessage()).contains(
-                "It is forbidden to install new APEX packages.");
+                "Attempting to install new APEX package");
     }
 
     @Test
     public void testStageApkWithSameNameAsApexShouldFail_Commit() throws Exception {
         assertThat(getInstalledVersion(SHIM_APEX_PACKAGE_NAME)).isEqualTo(1);
         int sessionId = stageSingleApk(TESTAPP_SAME_NAME_AS_APEX).assertSuccessful().getSessionId();
-        waitForIsReadyBroadcast(sessionId);
         assertSessionReady(sessionId);
         storeSessionId(sessionId);
     }
@@ -574,7 +573,6 @@ public class StagedInstallTest {
     @Test
     public void testInstallV2Apex_Commit() throws Exception {
         int sessionId = stageSingleApk(TestApp.Apex2).assertSuccessful().getSessionId();
-        waitForIsReadyBroadcast(sessionId);
         assertSessionReady(sessionId);
         storeSessionId(sessionId);
     }
@@ -590,7 +588,6 @@ public class StagedInstallTest {
     @Test
     public void testInstallV2SignedBobApex_Commit() throws Exception {
         int sessionId = stageSingleApk(Apex2SignedBobRot).assertSuccessful().getSessionId();
-        waitForIsReadyBroadcast(sessionId);
         assertSessionReady(sessionId);
         storeSessionId(sessionId);
     }
@@ -605,7 +602,6 @@ public class StagedInstallTest {
     @Test
     public void testInstallV3Apex_Commit() throws Exception {
         int sessionId = stageSingleApk(TestApp.Apex3).assertSuccessful().getSessionId();
-        waitForIsReadyBroadcast(sessionId);
         assertSessionReady(sessionId);
         storeSessionId(sessionId);
     }
@@ -620,7 +616,6 @@ public class StagedInstallTest {
     @Test
     public void testInstallV3SignedBobApex_Commit() throws Exception {
         int sessionId = stageSingleApk(Apex2SignedBobRot).assertSuccessful().getSessionId();
-        waitForIsReadyBroadcast(sessionId);
         assertSessionReady(sessionId);
         storeSessionId(sessionId);
     }
@@ -636,8 +631,8 @@ public class StagedInstallTest {
     public void testStagedInstallDowngradeApex_DowngradeNotRequested_Fails_Commit()
             throws Exception {
         assertThat(getInstalledVersion(SHIM_APEX_PACKAGE_NAME)).isEqualTo(3);
-        int sessionId = stageSingleApk(TestApp.Apex2).assertSuccessful().getSessionId();
-        PackageInstaller.SessionInfo sessionInfo = waitForBroadcast(sessionId);
+        int sessionId = stageSingleApk(TestApp.Apex2).assertFailure().getSessionId();
+        PackageInstaller.SessionInfo sessionInfo = getSessionInfo(sessionId);
         assertThat(sessionInfo).isStagedSessionFailed();
         // Also verify that correct session info is reported by PackageManager.
         assertSessionFailed(sessionId);
@@ -658,7 +653,6 @@ public class StagedInstallTest {
             throws Exception {
         assertThat(getInstalledVersion(SHIM_APEX_PACKAGE_NAME)).isEqualTo(3);
         int sessionId = stageDowngradeSingleApk(TestApp.Apex2).assertSuccessful().getSessionId();
-        waitForIsReadyBroadcast(sessionId);
         assertSessionReady(sessionId);
         storeSessionId(sessionId);
     }
@@ -676,8 +670,8 @@ public class StagedInstallTest {
     public void testStagedInstallDowngradeApex_DowngradeRequested_UserBuild_Fails_Commit()
             throws Exception {
         assertThat(getInstalledVersion(SHIM_APEX_PACKAGE_NAME)).isEqualTo(3);
-        int sessionId = stageDowngradeSingleApk(TestApp.Apex2).assertSuccessful().getSessionId();
-        PackageInstaller.SessionInfo sessionInfo = waitForBroadcast(sessionId);
+        int sessionId = stageDowngradeSingleApk(TestApp.Apex2).getSessionId();
+        PackageInstaller.SessionInfo sessionInfo = getSessionInfo(sessionId);
         assertThat(sessionInfo).isStagedSessionFailed();
         // Also verify that correct session info is reported by PackageManager.
         assertSessionFailed(sessionId);
@@ -698,7 +692,6 @@ public class StagedInstallTest {
             throws Exception {
         assertThat(getInstalledVersion(SHIM_APEX_PACKAGE_NAME)).isEqualTo(2);
         int sessionId = stageDowngradeSingleApk(TestApp.Apex1).assertSuccessful().getSessionId();
-        waitForIsReadyBroadcast(sessionId);
         assertSessionReady(sessionId);
         storeSessionId(sessionId);
     }
@@ -722,9 +715,8 @@ public class StagedInstallTest {
     @Test
     public void testFailsInvalidApexInstall_Commit() throws Exception {
         assertThat(getInstalledVersion(SHIM_APEX_PACKAGE_NAME)).isEqualTo(1);
-        int sessionId = stageSingleApk(ApexWrongSha2).assertSuccessful()
+        int sessionId = stageSingleApk(ApexWrongSha2).assertFailure()
                 .getSessionId();
-        waitForIsFailedBroadcast(sessionId);
         assertSessionFailed(sessionId);
         storeSessionId(sessionId);
     }
@@ -743,7 +735,6 @@ public class StagedInstallTest {
     public void testStagedApkSessionCallbacks() throws Exception {
 
         List<Integer> created = new ArrayList<Integer>();
-        List<Integer> finished = new ArrayList<Integer>();
 
         HandlerThread handlerThread = new HandlerThread(
                 "StagedApkSessionCallbacksTestHandlerThread");
@@ -762,13 +753,7 @@ public class StagedInstallTest {
             @Override public void onBadgingChanged(int sessionId) { }
             @Override public void onActiveChanged(int sessionId, boolean active) { }
             @Override public void onProgressChanged(int sessionId, float progress) { }
-
-            @Override
-            public void onFinished(int sessionId, boolean success) {
-                synchronized (finished) {
-                    finished.add(sessionId);
-                }
-            }
+            @Override public void onFinished(int sessionId, boolean success) { }
         };
 
         Context context = InstrumentationRegistry.getInstrumentation().getContext();
@@ -778,7 +763,6 @@ public class StagedInstallTest {
         int sessionId = stageSingleApk(TestApp.A1).assertSuccessful().getSessionId();
 
         assertThat(getInstalledVersion(TestApp.A)).isEqualTo(-1);
-        waitForIsReadyBroadcast(sessionId);
         assertSessionReady(sessionId);
 
         packageInstaller.unregisterSessionCallback(callback);
@@ -789,9 +773,6 @@ public class StagedInstallTest {
         synchronized (created) {
             assertThat(created).containsExactly(sessionId);
         }
-        synchronized (finished) {
-            assertThat(finished).containsExactly(sessionId);
-        }
         packageInstaller.abandonSession(sessionId);
     }
 
@@ -801,7 +782,6 @@ public class StagedInstallTest {
 
         int sessionId = stageSingleApk("com.android.apex.cts.shim.v2.apex", "package")
                 .assertSuccessful().getSessionId();
-        waitForIsReadyBroadcast(sessionId);
         assertSessionReady(sessionId);
         storeSessionId(sessionId);
         // Version shouldn't change before reboot.
@@ -818,8 +798,8 @@ public class StagedInstallTest {
     @Test
     public void testRejectsApexDifferentCertificate() throws Exception {
         int sessionId = stageSingleApk(Apex2DifferentCertificate)
-                .assertSuccessful().getSessionId();
-        PackageInstaller.SessionInfo info = waitForBroadcast(sessionId);
+                .assertFailure().getSessionId();
+        PackageInstaller.SessionInfo info = getSessionInfo(sessionId);
         assertThat(info.getSessionId()).isEqualTo(sessionId);
         assertThat(info).isStagedSessionFailed();
         assertThat(info.getStagedSessionErrorMessage()).contains("is not compatible with the one "
@@ -837,15 +817,13 @@ public class StagedInstallTest {
     // The update should fail if it is signed with a different non-rotated key
     @Test
     public void testUpdateWithDifferentKeyButNoRotation() throws Exception {
-        int sessionId = stageSingleApk(Apex2SignedBob).assertSuccessful().getSessionId();
-        waitForIsFailedBroadcast(sessionId);
+        stageSingleApk(Apex2SignedBob).assertFailure().getSessionId();
     }
 
     // The update should pass if it is signed with a proper rotated key
     @Test
     public void testUpdateWithDifferentKey_Commit() throws Exception {
-        int sessionId = stageSingleApk(Apex2SignedBobRot).assertSuccessful().getSessionId();
-        waitForIsReadyBroadcast(sessionId);
+        stageSingleApk(Apex2SignedBobRot).assertSuccessful().getSessionId();
     }
 
     @Test
@@ -857,23 +835,20 @@ public class StagedInstallTest {
     @Test
     public void testUntrustedOldKeyIsRejected() throws Exception {
         assertThat(getInstalledVersion(SHIM_APEX_PACKAGE_NAME)).isEqualTo(2);
-        int sessionId = stageSingleApk(TestApp.Apex3).assertSuccessful().getSessionId();
-        waitForIsFailedBroadcast(sessionId);
+        stageSingleApk(TestApp.Apex3).assertFailure().getSessionId();
     }
 
     // Should be able to update with an old key which is trusted
     @Test
     public void testTrustedOldKeyIsAccepted_Commit() throws Exception {
         assertThat(getInstalledVersion(SHIM_APEX_PACKAGE_NAME)).isEqualTo(1);
-        int sessionId = stageSingleApk(Apex2SignedBobRotRollback).assertSuccessful().getSessionId();
-        waitForIsReadyBroadcast(sessionId);
+        stageSingleApk(Apex2SignedBobRotRollback).assertSuccessful().getSessionId();
     }
 
     @Test
     public void testTrustedOldKeyIsAccepted_CommitPostReboot() throws Exception {
         assertThat(getInstalledVersion(SHIM_APEX_PACKAGE_NAME)).isEqualTo(2);
-        int sessionId = stageSingleApk(TestApp.Apex3).assertSuccessful().getSessionId();
-        waitForIsReadyBroadcast(sessionId);
+        stageSingleApk(TestApp.Apex3).assertSuccessful().getSessionId();
     }
 
     @Test
@@ -885,8 +860,7 @@ public class StagedInstallTest {
     @Test
     public void testAfterRotationNewKeyCanUpdateFurther_CommitPostReboot() throws Exception {
         assertThat(getInstalledVersion(SHIM_APEX_PACKAGE_NAME)).isEqualTo(2);
-        int sessionId = stageSingleApk(Apex3SignedBobRot).assertSuccessful().getSessionId();
-        waitForIsReadyBroadcast(sessionId);
+        stageSingleApk(Apex3SignedBobRot).assertSuccessful().getSessionId();
     }
 
     @Test
@@ -899,8 +873,7 @@ public class StagedInstallTest {
     public void testAfterRotationNewKeyCanUpdateFurtherWithoutLineage()
             throws Exception {
         assertThat(getInstalledVersion(SHIM_APEX_PACKAGE_NAME)).isEqualTo(2);
-        int sessionId = stageSingleApk(Apex3SignedBob).assertSuccessful().getSessionId();
-        waitForIsReadyBroadcast(sessionId);
+        stageSingleApk(Apex3SignedBob).assertSuccessful().getSessionId();
     }
 
     /**
@@ -912,7 +885,7 @@ public class StagedInstallTest {
     public void testFailStagingMultipleSessionsIfNoCheckPoint() throws Exception {
         stageSingleApk(TestApp.A1).assertSuccessful();
         int sessionId = stageSingleApk(TestApp.B1).assertSuccessful().getSessionId();
-        PackageInstaller.SessionInfo info = waitForBroadcast(sessionId);
+        PackageInstaller.SessionInfo info = getSessionInfo(sessionId);
         assertThat(info).isStagedSessionFailed();
         assertThat(info.getStagedSessionErrorMessage()).contains(
                 "Cannot stage multiple sessions without checkpoint support");
@@ -920,11 +893,10 @@ public class StagedInstallTest {
 
     @Test
     public void testFailOverlappingMultipleStagedInstall_BothSinglePackage_Apk() throws Exception {
-        int stagedSessionId = stageSingleApk(TestApp.A1).assertSuccessful().getSessionId();
-        waitForIsReadyBroadcast(stagedSessionId);
+        stageSingleApk(TestApp.A1).assertSuccessful().getSessionId();
 
-        int sessionId = stageSingleApk(TestApp.A1).assertSuccessful().getSessionId();
-        PackageInstaller.SessionInfo info = waitForBroadcast(sessionId);
+        int sessionId = stageSingleApk(TestApp.A1).assertFailure().getSessionId();
+        PackageInstaller.SessionInfo info = getSessionInfo(sessionId);
         assertThat(info).isStagedSessionFailed();
         assertThat(info.getStagedSessionErrorMessage()).contains(
                 "has been staged already by session");
@@ -939,10 +911,9 @@ public class StagedInstallTest {
 
     @Test
     public void testFailOverlappingMultipleStagedInstall_BothMultiPackage_Apk() throws Exception {
-        int id = stageMultipleApks(TestApp.A1, TestApp.B1).assertSuccessful().getSessionId();
-        waitForIsReadyBroadcast(id);
-        int sessionId = stageMultipleApks(TestApp.A2, TestApp.C1).assertSuccessful().getSessionId();
-        PackageInstaller.SessionInfo info = waitForBroadcast(sessionId);
+        stageMultipleApks(TestApp.A1, TestApp.B1).assertSuccessful().getSessionId();
+        int sessionId = stageMultipleApks(TestApp.A2, TestApp.C1).assertFailure().getSessionId();
+        PackageInstaller.SessionInfo info = getSessionInfo(sessionId);
         assertThat(info).isStagedSessionFailed();
         assertThat(info.getStagedSessionErrorMessage()).contains(
                 "has been staged already by session");
@@ -953,9 +924,7 @@ public class StagedInstallTest {
     public void testMultipleStagedInstall_ApkOnly_Commit()
             throws Exception {
         int firstSessionId = stageSingleApk(TestApp.A1).assertSuccessful().getSessionId();
-        waitForIsReadyBroadcast(firstSessionId);
         int secondSessionId = stageSingleApk(TestApp.B1).assertSuccessful().getSessionId();
-        waitForIsReadyBroadcast(secondSessionId);
         assertThat(getInstalledVersion(TestApp.A)).isEqualTo(-1);
         assertThat(getInstalledVersion(TestApp.B)).isEqualTo(-1);
         storeSessionIds(Arrays.asList(firstSessionId, secondSessionId));
@@ -977,9 +946,7 @@ public class StagedInstallTest {
     public void testInstallMultipleStagedSession_PartialFail_ApkOnly_Commit()
             throws Exception {
         int firstSessionId = stageSingleApk(TestApp.A1).assertSuccessful().getSessionId();
-        waitForIsReadyBroadcast(firstSessionId);
         int secondSessionId = stageSingleApk(TestApp.B1).assertSuccessful().getSessionId();
-        waitForIsReadyBroadcast(secondSessionId);
 
         // Install TestApp.A2 so that after reboot TestApp.A1 fails to install as it is downgrade
         Install.single(TestApp.A2).commit();
@@ -1052,7 +1019,6 @@ public class StagedInstallTest {
         assertThat(shim.applicationInfo.flags & ApplicationInfo.FLAG_INSTALLED).isEqualTo(
                 ApplicationInfo.FLAG_INSTALLED);
         int sessionId = stageDowngradeSingleApk(TestApp.Apex1).assertSuccessful().getSessionId();
-        waitForIsReadyBroadcast(sessionId);
         storeSessionId(sessionId);
     }
 
@@ -1089,7 +1055,6 @@ public class StagedInstallTest {
     public void testInstallStagedNoHashtreeApex_Commit() throws Exception {
         assertThat(getInstalledVersion(SHIM_APEX_PACKAGE_NAME)).isEqualTo(1);
         int sessionId = stageSingleApk(ApexNoHashtree2).assertSuccessful().getSessionId();
-        waitForIsReadyBroadcast(sessionId);
         assertSessionReady(sessionId);
         storeSessionId(sessionId);
         // Version shouldn't change before reboot.
@@ -1155,7 +1120,6 @@ public class StagedInstallTest {
     @Test
     public void testApexFailsToInstallIfApkInApexFailsToScan_Commit() throws Exception {
         int sessionId = stageSingleApk(Apex2ApkInApexSdkTargetP).assertSuccessful().getSessionId();
-        waitForIsReadyBroadcast(sessionId);
         storeSessionId(sessionId);
     }
 
@@ -1170,8 +1134,8 @@ public class StagedInstallTest {
 
     @Test
     public void testCorruptedApexFailsVerification_b146895998() throws Exception {
-        int sessionId = stageSingleApk(CorruptedApex_b146895998).assertSuccessful().getSessionId();
-        PackageInstaller.SessionInfo sessionInfo = waitForBroadcast(sessionId);
+        int sessionId = stageSingleApk(CorruptedApex_b146895998).assertFailure().getSessionId();
+        PackageInstaller.SessionInfo sessionInfo = getSessionInfo(sessionId);
         assertThat(sessionInfo).isStagedSessionFailed();
     }
 
@@ -1189,8 +1153,8 @@ public class StagedInstallTest {
      */
     @Test
     public void testApexWithUnsignedPayloadFailsVerification() throws Exception {
-        int sessionId = stageSingleApk(Apex2UnsignedPayload).assertSuccessful().getSessionId();
-        PackageInstaller.SessionInfo sessionInfo = waitForBroadcast(sessionId);
+        int sessionId = stageSingleApk(Apex2UnsignedPayload).assertFailure().getSessionId();
+        PackageInstaller.SessionInfo sessionInfo = getSessionInfo(sessionId);
         assertThat(sessionInfo).isStagedSessionFailed();
         assertThat(sessionInfo.getStagedSessionErrorMessage())
                 .contains("AVB footer verification failed");
@@ -1202,8 +1166,8 @@ public class StagedInstallTest {
     @Test
     public void testApexSignPayloadWithDifferentKeyFailsVerification() throws Exception {
         int sessionId = stageSingleApk(
-                Apex2SignPayloadWithDifferentKey).assertSuccessful().getSessionId();
-        PackageInstaller.SessionInfo sessionInfo = waitForBroadcast(sessionId);
+                Apex2SignPayloadWithDifferentKey).assertFailure().getSessionId();
+        PackageInstaller.SessionInfo sessionInfo = getSessionInfo(sessionId);
         assertThat(sessionInfo).isStagedSessionFailed();
         assertThat(sessionInfo.getStagedSessionErrorMessage())
                 .contains("public key doesn't match the pre-installed one");
@@ -1256,6 +1220,190 @@ public class StagedInstallTest {
                 (info.applicationInfo.flags & ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0;
         assertThat(isSystemApp).isFalse();
         assertThat(isUpdatedSystemApp).isTrue();
+    }
+
+    @Test
+    public void testRebootlessUpdate() throws Exception {
+        InstallUtils.dropShellPermissionIdentity();
+        InstallUtils.adoptShellPermissionIdentity(Manifest.permission.INSTALL_PACKAGE_UPDATES);
+
+        final PackageManager pm =
+                InstrumentationRegistry.getInstrumentation().getContext().getPackageManager();
+        {
+            PackageInfo apex = pm.getPackageInfo(SHIM_APEX_PACKAGE_NAME, PackageManager.MATCH_APEX);
+            assertThat(apex.getLongVersionCode()).isEqualTo(1);
+            assertThat(apex.applicationInfo.flags & ApplicationInfo.FLAG_SYSTEM)
+                    .isEqualTo(ApplicationInfo.FLAG_SYSTEM);
+            assertThat(apex.applicationInfo.flags & ApplicationInfo.FLAG_INSTALLED)
+                    .isEqualTo(ApplicationInfo.FLAG_INSTALLED);
+            assertThat(apex.applicationInfo.sourceDir).startsWith("/system/apex");
+        }
+
+        Install.single(Apex2Rebootless).commit();
+        {
+            PackageInfo apex = pm.getPackageInfo(SHIM_APEX_PACKAGE_NAME, PackageManager.MATCH_APEX);
+            assertThat(apex.getLongVersionCode()).isEqualTo(2);
+            assertThat(apex.applicationInfo.flags & ApplicationInfo.FLAG_SYSTEM).isEqualTo(0);
+            assertThat(apex.applicationInfo.flags & ApplicationInfo.FLAG_INSTALLED)
+                    .isEqualTo(ApplicationInfo.FLAG_INSTALLED);
+            assertThat(apex.applicationInfo.sourceDir).startsWith("/data/apex/active");
+        }
+        {
+            PackageInfo apex = pm.getPackageInfo(SHIM_APEX_PACKAGE_NAME,
+                    PackageManager.MATCH_APEX | PackageManager.MATCH_FACTORY_ONLY);
+            assertThat(apex.getLongVersionCode()).isEqualTo(1);
+            assertThat(apex.applicationInfo.flags & ApplicationInfo.FLAG_SYSTEM)
+                    .isEqualTo(ApplicationInfo.FLAG_SYSTEM);
+            assertThat(apex.applicationInfo.flags & ApplicationInfo.FLAG_INSTALLED).isEqualTo(0);
+            assertThat(apex.applicationInfo.sourceDir).startsWith("/system/apex");
+        }
+    }
+
+    @Test
+    public void testRebootlessUpdate_installV3() throws Exception {
+        InstallUtils.dropShellPermissionIdentity();
+        InstallUtils.adoptShellPermissionIdentity(Manifest.permission.INSTALL_PACKAGE_UPDATES);
+
+        final PackageManager pm =
+                InstrumentationRegistry.getInstrumentation().getContext().getPackageManager();
+
+        Install.single(Apex3Rebootless).commit();
+        {
+            PackageInfo apex = pm.getPackageInfo(SHIM_APEX_PACKAGE_NAME, PackageManager.MATCH_APEX);
+            assertThat(apex.getLongVersionCode()).isEqualTo(3);
+            assertThat(apex.applicationInfo.flags & ApplicationInfo.FLAG_SYSTEM).isEqualTo(0);
+            assertThat(apex.applicationInfo.flags & ApplicationInfo.FLAG_INSTALLED)
+                    .isEqualTo(ApplicationInfo.FLAG_INSTALLED);
+            assertThat(apex.applicationInfo.sourceDir).startsWith("/data/apex/active");
+        }
+        {
+            PackageInfo apex = pm.getPackageInfo(SHIM_APEX_PACKAGE_NAME,
+                    PackageManager.MATCH_APEX | PackageManager.MATCH_FACTORY_ONLY);
+            assertThat(apex.getLongVersionCode()).isEqualTo(1);
+            assertThat(apex.applicationInfo.flags & ApplicationInfo.FLAG_SYSTEM)
+                    .isEqualTo(ApplicationInfo.FLAG_SYSTEM);
+            assertThat(apex.applicationInfo.flags & ApplicationInfo.FLAG_INSTALLED).isEqualTo(0);
+            assertThat(apex.applicationInfo.sourceDir).startsWith("/system/apex");
+        }
+    }
+
+    @Test
+    public void testRebootlessUpdate_downgradeToV2_fails() throws Exception {
+        InstallUtils.dropShellPermissionIdentity();
+        InstallUtils.adoptShellPermissionIdentity(Manifest.permission.INSTALL_PACKAGE_UPDATES);
+
+        final PackageManager pm =
+                InstrumentationRegistry.getInstrumentation().getContext().getPackageManager();
+
+        {
+            PackageInfo apex = pm.getPackageInfo(SHIM_APEX_PACKAGE_NAME, PackageManager.MATCH_APEX);
+            assertThat(apex.getLongVersionCode()).isEqualTo(3);
+            assertThat(apex.applicationInfo.flags & ApplicationInfo.FLAG_SYSTEM).isEqualTo(0);
+            assertThat(apex.applicationInfo.flags & ApplicationInfo.FLAG_INSTALLED)
+                    .isEqualTo(ApplicationInfo.FLAG_INSTALLED);
+            assertThat(apex.applicationInfo.sourceDir).startsWith("/data/apex/active");
+        }
+
+        InstallUtils.commitExpectingFailure(
+                    AssertionError.class,
+                    "INSTALL_FAILED_VERSION_DOWNGRADE",
+                    Install.single(Apex2Rebootless));
+        assertThat(getInstalledVersion(SHIM_APEX_PACKAGE_NAME)).isEqualTo(3);
+    }
+
+    @Test
+    public void testRebootlessUpdate_noPermission_fails() throws Exception {
+        InstallUtils.dropShellPermissionIdentity();
+
+        InstallUtils.commitExpectingFailure(SecurityException.class,
+                    "Not allowed to perform APEX updates",
+                    Install.single(Apex2Rebootless));
+        assertThat(getInstalledVersion(SHIM_APEX_PACKAGE_NAME)).isEqualTo(1);
+    }
+
+    @Test
+    public void testRebootlessUpdate_noPreInstalledApex_fails() throws Exception {
+        assertThat(getInstalledVersion(DIFFERENT_APEX_PACKAGE_NAME)).isEqualTo(-1);
+        assertThat(getInstalledVersion(SHIM_APEX_PACKAGE_NAME)).isEqualTo(1);
+
+        InstallUtils.commitExpectingFailure(
+                AssertionError.class,
+                "Attempting to install new APEX package",
+                Install.single(Apex2DifferentPackageName));
+        assertThat(getInstalledVersion(SHIM_APEX_PACKAGE_NAME)).isEqualTo(1);
+    }
+
+    @Test
+    public void testRebootlessUpdate_unsignedPayload_fails() throws Exception {
+        assertThat(getInstalledVersion(SHIM_APEX_PACKAGE_NAME)).isEqualTo(1);
+
+        InstallUtils.commitExpectingFailure(
+                AssertionError.class,
+                "AVB footer verification failed",
+                Install.single(Apex2UnsignedPayload));
+        assertThat(getInstalledVersion(SHIM_APEX_PACKAGE_NAME)).isEqualTo(1);
+    }
+
+    @Test
+    public void testRebootlessUpdate_payloadSignedWithDifferentKey_fails() throws Exception {
+        assertThat(getInstalledVersion(SHIM_APEX_PACKAGE_NAME)).isEqualTo(1);
+
+        InstallUtils.commitExpectingFailure(
+                AssertionError.class,
+                "public key doesn't match the pre-installed one",
+                Install.single(Apex2SignPayloadWithDifferentKey));
+        assertThat(getInstalledVersion(SHIM_APEX_PACKAGE_NAME)).isEqualTo(1);
+    }
+
+    @Test
+    public void testRebootlessUpdate_outerContainerSignedWithDifferentCert_fails()
+            throws Exception {
+        assertThat(getInstalledVersion(SHIM_APEX_PACKAGE_NAME)).isEqualTo(1);
+
+        InstallUtils.commitExpectingFailure(
+                AssertionError.class,
+                "APK container signature of .+ is not compatible with currently installed",
+                Install.single(Apex2DifferentCertificate));
+        assertThat(getInstalledVersion(SHIM_APEX_PACKAGE_NAME)).isEqualTo(1);
+    }
+
+    @Test
+    public void testRebootlessUpdate_outerContainerUnsigned_fails() throws Exception {
+        assertThat(getInstalledVersion(SHIM_APEX_PACKAGE_NAME)).isEqualTo(1);
+
+        InstallUtils.commitExpectingFailure(
+                AssertionError.class,
+                "Failed to collect certificates from",
+                Install.single(Apex2NoApkSignature));
+        assertThat(getInstalledVersion(SHIM_APEX_PACKAGE_NAME)).isEqualTo(1);
+    }
+
+    @Test
+    public void testRebootlessUpdate_targetsOlderSdk_fails() throws Exception {
+        assertThat(getInstalledVersion(SHIM_APEX_PACKAGE_NAME)).isEqualTo(1);
+
+        InstallUtils.commitExpectingFailure(
+                AssertionError.class,
+                "Requires development platform P",
+                Install.single(Apex2SdkTargetP));
+        assertThat(getInstalledVersion(SHIM_APEX_PACKAGE_NAME)).isEqualTo(1);
+    }
+
+    @Test
+    public void testGetInactiveApexFactoryPackagesAfterApexInstall_containsNoDuplicates()
+            throws Exception {
+        int flags = (PackageManager.MATCH_APEX | PackageManager.MATCH_FACTORY_ONLY
+                | PackageManager.MATCH_UNINSTALLED_PACKAGES);
+        List<PackageInfo> packageInfos =
+                InstrumentationRegistry.getInstrumentation().getContext().getPackageManager()
+                        .getInstalledPackages(flags);
+        Set<String> foundPackages = new HashSet<>();
+        for (PackageInfo pi : packageInfos) {
+            if (foundPackages.contains(pi.packageName)) {
+                throw new AssertionError(pi.packageName + " is listed at least twice.");
+            }
+            foundPackages.add(pi.packageName);
+        }
     }
 
     // It becomes harder to maintain this variety of install-related helper methods.
@@ -1459,21 +1607,5 @@ public class StagedInstallTest {
 
     private static PackageInstaller.SessionInfo getSessionInfo(int sessionId) {
         return getPackageInstaller().getSessionInfo(sessionId);
-    }
-
-    private void waitForIsFailedBroadcast(int sessionId) {
-        Log.i(TAG, "Waiting for session " + sessionId + " to be marked as failed");
-        PackageInstaller.SessionInfo info = waitForBroadcast(sessionId);
-        assertThat(info).isStagedSessionFailed();
-    }
-
-    private void waitForIsReadyBroadcast(int sessionId) {
-        Log.i(TAG, "Waiting for session " + sessionId + " to be ready");
-        PackageInstaller.SessionInfo info = waitForBroadcast(sessionId);
-        assertThat(info).isStagedSessionReady();
-    }
-
-    private PackageInstaller.SessionInfo waitForBroadcast(int sessionId) {
-        return InstallUtils.waitForSession(sessionId);
     }
 }

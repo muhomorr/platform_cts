@@ -16,13 +16,12 @@
 
 package com.android.tests.stagedinstall;
 
+import static com.android.cts.install.lib.PackageInstallerSessionInfoSubject.assertThat;
 import static com.android.cts.shim.lib.ShimPackage.SHIM_APEX_PACKAGE_NAME;
-import static com.android.tests.stagedinstall.PackageInstallerSessionInfoSubject.assertThat;
 
 import static com.google.common.truth.Truth.assertThat;
 
 import android.Manifest;
-import android.content.Intent;
 import android.content.pm.PackageInstaller;
 
 import androidx.test.platform.app.InstrumentationRegistry;
@@ -68,40 +67,103 @@ public class ApexShimValidationTest {
     @Test
     public void testRejectsApexWithAdditionalFile_Commit() throws Exception {
         int sessionId = stageApex("com.android.apex.cts.shim.v2_additional_file.apex");
-        PackageInstaller.SessionInfo info = InstallUtils.waitForSession(sessionId);
+        PackageInstaller.SessionInfo info =
+                InstallUtils.getPackageInstaller().getSessionInfo(sessionId);
         assertThat(info).isStagedSessionFailed();
     }
 
     @Test
     public void testRejectsApexWithAdditionalFolder_Commit() throws Exception {
         int sessionId = stageApex("com.android.apex.cts.shim.v2_additional_folder.apex");
-        PackageInstaller.SessionInfo info = InstallUtils.waitForSession(sessionId);
+        PackageInstaller.SessionInfo info =
+                InstallUtils.getPackageInstaller().getSessionInfo(sessionId);
         assertThat(info).isStagedSessionFailed();
     }
 
     @Test
     public void testRejectsApexWithPostInstallHook_Commit() throws Exception {
         int sessionId = stageApex("com.android.apex.cts.shim.v2_with_post_install_hook.apex");
-        PackageInstaller.SessionInfo info = InstallUtils.waitForSession(sessionId);
+        PackageInstaller.SessionInfo info =
+                InstallUtils.getPackageInstaller().getSessionInfo(sessionId);
         assertThat(info).isStagedSessionFailed();
     }
 
     @Test
     public void testRejectsApexWithPreInstallHook_Commit() throws Exception {
         int sessionId = stageApex("com.android.apex.cts.shim.v2_with_pre_install_hook.apex");
-        PackageInstaller.SessionInfo info = InstallUtils.waitForSession(sessionId);
+        PackageInstaller.SessionInfo info =
+                InstallUtils.getPackageInstaller().getSessionInfo(sessionId);
         assertThat(info).isStagedSessionFailed();
     }
 
     @Test
     public void testRejectsApexWrongSHA_Commit() throws Exception {
         int sessionId = stageApex("com.android.apex.cts.shim.v2_wrong_sha.apex");
-        PackageInstaller.SessionInfo info = InstallUtils.waitForSession(sessionId);
+        PackageInstaller.SessionInfo info =
+                InstallUtils.getPackageInstaller().getSessionInfo(sessionId);
         assertThat(info).isStagedSessionFailed();
     }
 
     @Test
     public void testInstallRejected_VerifyPostReboot() throws Exception {
+        assertThat(InstallUtils.getInstalledVersion(SHIM_APEX_PACKAGE_NAME)).isEqualTo(1);
+    }
+
+    @Test
+    public void testRejectsApexWithAdditionalFile_rebootless() throws Exception {
+        assertThat(InstallUtils.getInstalledVersion(SHIM_APEX_PACKAGE_NAME)).isEqualTo(1);
+        TestApp apex = new TestApp("ShimApex", SHIM_APEX_PACKAGE_NAME, 2,
+                true, "com.android.apex.cts.shim.v2_additional_file.apex");
+        InstallUtils.commitExpectingFailure(
+                AssertionError.class,
+                "is an unexpected file inside the shim apex",
+                Install.single(apex));
+        assertThat(InstallUtils.getInstalledVersion(SHIM_APEX_PACKAGE_NAME)).isEqualTo(1);
+    }
+
+    @Test
+    public void testRejectsApexWithAdditionalFolder_rebootless() throws Exception {
+        assertThat(InstallUtils.getInstalledVersion(SHIM_APEX_PACKAGE_NAME)).isEqualTo(1);
+        TestApp apex = new TestApp("ShimApex", SHIM_APEX_PACKAGE_NAME, 2,
+                true, "com.android.apex.cts.shim.v2_additional_folder.apex");
+        InstallUtils.commitExpectingFailure(
+                AssertionError.class,
+                "is an unexpected file inside the shim apex",
+                Install.single(apex));
+        assertThat(InstallUtils.getInstalledVersion(SHIM_APEX_PACKAGE_NAME)).isEqualTo(1);
+    }
+
+    @Test
+    public void testRejectsApexWithPostInstallHook_rebootless() throws Exception {
+        assertThat(InstallUtils.getInstalledVersion(SHIM_APEX_PACKAGE_NAME)).isEqualTo(1);
+        TestApp apex = new TestApp("ShimApex", SHIM_APEX_PACKAGE_NAME, 2,
+                true, "com.android.apex.cts.shim.v2_with_post_install_hook.apex");
+        InstallUtils.commitExpectingFailure(
+                AssertionError.class,
+                "Shim apex is not allowed to have pre or post install hooks",
+                Install.single(apex));
+        assertThat(InstallUtils.getInstalledVersion(SHIM_APEX_PACKAGE_NAME)).isEqualTo(1);
+    }
+
+    @Test
+    public void testRejectsApexWithPreInstallHook_rebootless() throws Exception {
+        assertThat(InstallUtils.getInstalledVersion(SHIM_APEX_PACKAGE_NAME)).isEqualTo(1);
+        TestApp apex = new TestApp("ShimApex", SHIM_APEX_PACKAGE_NAME, 2,
+                true, "com.android.apex.cts.shim.v2_with_pre_install_hook.apex");
+        InstallUtils.commitExpectingFailure(
+                AssertionError.class,
+                "Shim apex is not allowed to have pre or post install hooks",
+                Install.single(apex));
+        assertThat(InstallUtils.getInstalledVersion(SHIM_APEX_PACKAGE_NAME)).isEqualTo(1);
+    }
+
+    @Test
+    public void testRejectsApexWrongSHA_rebootless() throws Exception {
+        assertThat(InstallUtils.getInstalledVersion(SHIM_APEX_PACKAGE_NAME)).isEqualTo(1);
+        TestApp apex = new TestApp("ShimApex", SHIM_APEX_PACKAGE_NAME, 2,
+                true, "com.android.apex.cts.shim.v2_wrong_sha.apex");
+        InstallUtils.commitExpectingFailure(
+                AssertionError.class, "has unexpected SHA512 hash", Install.single(apex));
         assertThat(InstallUtils.getInstalledVersion(SHIM_APEX_PACKAGE_NAME)).isEqualTo(1);
     }
 
@@ -113,8 +175,7 @@ public class ApexShimValidationTest {
                      InstallUtils.openPackageInstallerSession(sessionId)) {
             LocalIntentSender sender = new LocalIntentSender();
             session.commit(sender.getIntentSender());
-            Intent result = sender.getResult();
-            InstallUtils.assertStatusSuccess(result);
+            sender.getResult();
             return sessionId;
         }
     }

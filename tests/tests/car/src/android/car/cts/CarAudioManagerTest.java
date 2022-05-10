@@ -22,6 +22,7 @@ import static android.car.media.CarAudioManager.*;
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
 
+import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
 import static org.testng.Assert.assertThrows;
 import static org.testng.Assert.expectThrows;
@@ -30,6 +31,7 @@ import android.app.UiAutomation;
 import android.car.Car;
 import android.car.media.CarAudioManager;
 import android.os.SystemClock;
+import android.platform.test.annotations.AppModeFull;
 import android.util.Pair;
 import android.view.KeyEvent;
 
@@ -49,6 +51,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 @RunWith(AndroidJUnit4.class)
+@AppModeFull(reason = "Instant Apps cannot get car related permissions")
 public final class CarAudioManagerTest extends CarApiTestBase {
 
     private static long WAIT_TIMEOUT_SECS = 5;
@@ -134,6 +137,7 @@ public final class CarAudioManagerTest extends CarApiTestBase {
     @Test
     public void registerCarVolumeCallback_onMasterMuteChanged() throws Exception {
         assumeDynamicRoutingIsEnabled();
+        assumeVolumeGroupMutingIsDisabled();
         mCallback = new SyncCarVolumeCallback();
 
         runWithCarControlAudioVolumePermission(
@@ -239,6 +243,10 @@ public final class CarAudioManagerTest extends CarApiTestBase {
 
     private void assumeVolumeGroupMutingIsEnabled() {
         assumeTrue(mCarAudioManager.isAudioFeatureEnabled(AUDIO_FEATURE_VOLUME_GROUP_MUTING));
+    }
+
+    private void assumeVolumeGroupMutingIsDisabled() {
+        assumeFalse(mCarAudioManager.isAudioFeatureEnabled(AUDIO_FEATURE_VOLUME_GROUP_MUTING));
     }
 
     private void runWithCarControlAudioVolumePermission(Runnable runnable) {

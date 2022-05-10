@@ -18,23 +18,29 @@ package android.security.cts;
 
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
-import android.platform.test.annotations.SecurityTest;
-import android.test.AndroidTestCase;
+import android.platform.test.annotations.AsbSecurityTest;
+import androidx.test.runner.AndroidJUnit4;
+import com.android.sts.common.util.StsExtraBusinessLogicTestCase;
+import org.junit.runner.RunWith;
+import org.junit.Test;
+
+import static org.junit.Assert.*;
 
 import java.io.InputStream;
 
 import android.security.cts.R;
 
-@SecurityTest
-public class AllocatePixelRefIntOverflowTest extends AndroidTestCase {
+@RunWith(AndroidJUnit4.class)
+public class AllocatePixelRefIntOverflowTest extends StsExtraBusinessLogicTestCase {
 
     /**
      * Verifies that the device is not vulnerable to ANDROID-19270126: Android
      * BitmapFactory.decodeStream JPG allocPixelRef integer overflow
      */
-    @SecurityTest(minPatchLevel = "2015-03")
+    @AsbSecurityTest(cveBugId = 19394591)
+    @Test
     public void testAllocateJavaPixelRefIntOverflow() {
-        InputStream exploitImage = mContext.getResources().openRawResource(
+        InputStream exploitImage = getInstrumentation().getContext().getResources().openRawResource(
                 R.raw.cve_2015_1531_b_19270126);
         /**
          * The decodeStream method results in SIGSEGV (Segmentation fault) on unpatched devices

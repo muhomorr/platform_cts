@@ -43,6 +43,7 @@ import com.google.protobuf.Parser;
 
 import java.io.FileNotFoundException;
 import java.util.Map;
+import java.util.StringTokenizer;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
@@ -243,7 +244,15 @@ public final class DeviceUtils {
      */
     public static boolean hasFeature(ITestDevice device, String feature) throws Exception {
         final String features = device.executeShellCommand("pm list features");
-        return features.contains(feature);
+        StringTokenizer featureToken = new StringTokenizer(features, "\n");
+
+        while(featureToken.hasMoreTokens()) {
+            if (("feature:" + feature).equals(featureToken.nextToken())) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -363,6 +372,24 @@ public final class DeviceUtils {
 
     public static String getProperty(ITestDevice device, String prop) throws Exception {
         return device.executeShellCommand("getprop " + prop).replace("\n", "");
+    }
+
+    public static String getDeviceConfigFeature(ITestDevice device, String namespace,
+            String key) throws Exception {
+        return device.executeShellCommand(
+                "device_config get " + namespace + " " + key).replace("\n", "");
+    }
+
+    public static String putDeviceConfigFeature(ITestDevice device, String namespace,
+            String key, String value) throws Exception {
+        return device.executeShellCommand(
+                "device_config put " + namespace + " " + key + " " + value).replace("\n", "");
+    }
+
+    public static String deleteDeviceConfigFeature(ITestDevice device, String namespace,
+            String key) throws Exception {
+        return device.executeShellCommand(
+                "device_config delete " + namespace + " " + key).replace("\n", "");
     }
 
     public static boolean isDebuggable(ITestDevice device) throws Exception {

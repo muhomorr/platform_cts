@@ -35,10 +35,10 @@ import android.os.Build;
 import android.platform.test.annotations.AppModeFull;
 import android.support.test.uiautomator.UiDevice;
 
+import androidx.test.ext.junit.runners.AndroidJUnit4;
+import androidx.test.filters.LargeTest;
 import androidx.test.filters.SdkSuppress;
-import androidx.test.filters.SmallTest;
 import androidx.test.platform.app.InstrumentationRegistry;
-import androidx.test.runner.AndroidJUnit4;
 
 import com.android.compatibility.common.util.PollingCheck;
 import com.android.compatibility.common.util.ShellIdentityUtils;
@@ -68,7 +68,7 @@ import java.util.List;
  */
 @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
 @AppModeFull(reason = "Cannot get WifiManager in instant app mode")
-@SmallTest
+@LargeTest
 @RunWith(AndroidJUnit4.class)
 public class MultiStaConcurrencyWifiNetworkSpecifierTest extends WifiJUnit4TestBase {
     private static final String TAG = "MultiStaConcurrencyWifiNetworkSpecifierTest";
@@ -259,7 +259,9 @@ public class MultiStaConcurrencyWifiNetworkSpecifierTest extends WifiJUnit4TestB
      * Tests the concurrent connection flow.
      * 1. Connect to a network using peer to peer API.
      * 2. Connect to a network using internet connectivity API.
-     * 3. Verify that both connections are active.
+     * 3. Verify that both connections are active only the network for peer-to-peer and network
+     *    for internet have different SSIDs. If they have the same SSID, verify there's exactly one
+     *    connection.
      */
     @Test
     public void testConnectToInternetNetworkWhenConnectedToPeerPeerNetwork() throws Exception {
@@ -275,7 +277,9 @@ public class MultiStaConcurrencyWifiNetworkSpecifierTest extends WifiJUnit4TestB
                 mTestNetworkForInternetConnection);
 
         // Ensure that there are 2 wifi connections available for apps.
-        assertThat(mTestHelper.getNumWifiConnections()).isEqualTo(2);
+        assertThat(mTestHelper.getNumWifiConnections()).isEqualTo(
+                mTestNetworkForPeerToPeer.SSID.equals(mTestNetworkForInternetConnection.SSID)
+                        ? 1 : 2);
     }
 
     /**

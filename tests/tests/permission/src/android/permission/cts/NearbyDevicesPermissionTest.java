@@ -47,6 +47,8 @@ import androidx.test.InstrumentationRegistry;
 import androidx.test.filters.SdkSuppress;
 import androidx.test.runner.AndroidJUnit4;
 
+import com.android.compatibility.common.util.CddTest;
+
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -105,15 +107,18 @@ public class NearbyDevicesPermissionTest {
     @After
     public void uninstallTestApp() {
         uninstallApp(TEST_APP_PKG);
+        uninstallApp(DISAVOWAL_APP_PKG);
     }
 
     @Test
+    @CddTest(requirement="7.4.3/C-6-1")
     public void testRequestBluetoothPermission30_Default() throws Throwable {
         install(APK_BLUETOOTH_30);
         assertScanBluetoothResult(Result.EMPTY);
     }
 
     @Test
+    @CddTest(requirement="7.4.3/C-6-1")
     public void testRequestBluetoothPermission30_GrantLocation() throws Throwable {
         install(APK_BLUETOOTH_30);
         grantPermission(TEST_APP_PKG, ACCESS_FINE_LOCATION);
@@ -122,12 +127,14 @@ public class NearbyDevicesPermissionTest {
     }
 
     @Test
+    @CddTest(requirement="7.4.3/C-6-1")
     public void testRequestBluetoothPermission31_Default() throws Throwable {
         install(APK_BLUETOOTH_31);
         assertScanBluetoothResult(Result.EXCEPTION);
     }
 
     @Test
+    @CddTest(requirement="7.4.3/C-6-1")
     public void testRequestBluetoothPermission31_GrantNearby() throws Throwable {
         install(APK_BLUETOOTH_31);
         grantPermission(TEST_APP_PKG, BLUETOOTH_CONNECT);
@@ -136,6 +143,7 @@ public class NearbyDevicesPermissionTest {
     }
 
     @Test
+    @CddTest(requirement="7.4.3/C-6-1")
     public void testRequestBluetoothPermission31_GrantLocation() throws Throwable {
         install(APK_BLUETOOTH_31);
         grantPermission(TEST_APP_PKG, ACCESS_FINE_LOCATION);
@@ -144,6 +152,7 @@ public class NearbyDevicesPermissionTest {
     }
 
     @Test
+    @CddTest(requirement="7.4.3/C-6-1")
     public void testRequestBluetoothPermission31_GrantNearby_GrantLocation() throws Throwable {
         install(APK_BLUETOOTH_31);
         grantPermission(TEST_APP_PKG, BLUETOOTH_CONNECT);
@@ -154,12 +163,14 @@ public class NearbyDevicesPermissionTest {
     }
 
     @Test
+    @CddTest(requirement="7.4.3/C-6-1")
     public void testRequestBluetoothPermissionNeverForLocation31_Default() throws Throwable {
         install(APK_BLUETOOTH_NEVER_FOR_LOCATION_31);
         assertScanBluetoothResult(Result.EXCEPTION);
     }
 
     @Test
+    @CddTest(requirement="7.4.3/C-6-1")
     public void testRequestBluetoothPermissionNeverForLocation31_GrantNearby() throws Throwable {
         install(APK_BLUETOOTH_NEVER_FOR_LOCATION_31);
         grantPermission(TEST_APP_PKG, BLUETOOTH_CONNECT);
@@ -168,6 +179,7 @@ public class NearbyDevicesPermissionTest {
     }
 
     @Test
+    @CddTest(requirement="7.4.3/C-6-1")
     public void testRequestBluetoothPermissionNeverForLocation31_GrantLocation() throws Throwable {
         install(APK_BLUETOOTH_NEVER_FOR_LOCATION_31);
         grantPermission(TEST_APP_PKG, ACCESS_FINE_LOCATION);
@@ -176,6 +188,7 @@ public class NearbyDevicesPermissionTest {
     }
 
     @Test
+    @CddTest(requirement="7.4.3/C-6-1")
     public void testRequestBluetoothPermissionNeverForLocation31_GrantNearby_GrantLocation()
             throws Throwable {
         install(APK_BLUETOOTH_NEVER_FOR_LOCATION_31);
@@ -198,24 +211,40 @@ public class NearbyDevicesPermissionTest {
     }
 
     /**
-     * Verify that upgrading an app doesn't gain them any access to Bluetooth
-     * scan results; they'd always need to involve the user to gain permissions.
+     * Verify that a legacy app that was unable to interact with Bluetooth
+     * devices is still unable to interact with them after updating to a modern
+     * SDK; they'd always need to involve the user to gain permissions.
      */
     @Test
-    public void testRequestBluetoothPermission_Upgrade() throws Throwable {
+    public void testRequestBluetoothPermission_Default_Upgrade() throws Throwable {
         install(APK_BLUETOOTH_30);
-        grantPermission(TEST_APP_PKG, ACCESS_FINE_LOCATION);
-        grantPermission(TEST_APP_PKG, ACCESS_BACKGROUND_LOCATION);
-        assertScanBluetoothResult(Result.FULL);
+        assertScanBluetoothResult(Result.EMPTY);
 
         // Upgrading to target a new SDK level means they need to explicitly
         // request the new runtime permission; by default it's denied
-        install(APK_BLUETOOTH_31);
+        install(APK_BLUETOOTH_NEVER_FOR_LOCATION_31);
         assertScanBluetoothResult(Result.EXCEPTION);
 
         // If the user does grant it, they can scan again
         grantPermission(TEST_APP_PKG, BLUETOOTH_CONNECT);
         grantPermission(TEST_APP_PKG, BLUETOOTH_SCAN);
+        assertScanBluetoothResult(Result.FILTERED);
+    }
+
+    /**
+     * Verify that a legacy app that was able to interact with Bluetooth devices
+     * is still able to interact with them after updating to a modern SDK.
+     */
+    @Test
+    public void testRequestBluetoothPermission_GrantLocation_Upgrade() throws Throwable {
+        install(APK_BLUETOOTH_30);
+        grantPermission(TEST_APP_PKG, ACCESS_FINE_LOCATION);
+        grantPermission(TEST_APP_PKG, ACCESS_BACKGROUND_LOCATION);
+        assertScanBluetoothResult(Result.FULL);
+
+        // Upgrading to target a new SDK level means they still have the access
+        // they enjoyed as a legacy app
+        install(APK_BLUETOOTH_31);
         assertScanBluetoothResult(Result.FULL);
     }
 
@@ -262,11 +291,11 @@ public class NearbyDevicesPermissionTest {
 
     private void enableTestMode() {
         runShellCommandOrThrow("dumpsys activity service"
-                + " com.android.bluetooth/.btservice.AdapterService set-test-mode enabled");
+                + " com.android.bluetooth.btservice.AdapterService set-test-mode enabled");
     }
 
     private void disableTestMode() {
         runShellCommandOrThrow("dumpsys activity service"
-                + " com.android.bluetooth/.btservice.AdapterService set-test-mode disabled");
+                + " com.android.bluetooth.btservice.AdapterService set-test-mode disabled");
     }
 }

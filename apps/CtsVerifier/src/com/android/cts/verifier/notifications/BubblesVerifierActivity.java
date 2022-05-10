@@ -186,8 +186,7 @@ public class BubblesVerifierActivity extends PassFailButtons.Activity {
             mTests.add(new PortraitAndLandscape());
             mTests.add(new ScrimBehindExpandedView());
             mTests.add(new ImeInsetsExpandedView());
-            // (b/190560927) Enable this in scv2.
-            //mTests.add(new MinHeightExpandedView());
+            mTests.add(new MinHeightExpandedView());
             mTests.add(new MaxHeightExpandedView());
         }
 

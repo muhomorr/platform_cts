@@ -21,20 +21,26 @@ import static android.app.AppOpsManager.OPSTR_FINE_LOCATION;
 
 import static androidx.test.core.app.ApplicationProvider.getApplicationContext;
 
-import static com.android.compatibility.common.util.SystemUtil.runShellCommand;
+import static com.android.compatibility.common.util.SystemUtil.runShellCommandOrThrow;
 
 import static com.google.common.truth.Truth.assertThat;
+
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assume.assumeTrue;
 
 import android.app.AppOpsManager;
 import android.app.AsyncNotedAppOp;
 import android.app.SyncNotedAppOp;
+import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothManager;
+import android.bluetooth.cts.BTAdapterUtils;
 import android.bluetooth.le.BluetoothLeScanner;
 import android.bluetooth.le.ScanCallback;
 import android.bluetooth.le.ScanResult;
 import android.content.AttributionSource;
 import android.content.Context;
 import android.content.ContextParams;
+import android.content.pm.PackageManager;
 import android.os.Process;
 import android.os.SystemClock;
 import android.platform.test.annotations.AppModeFull;
@@ -42,12 +48,12 @@ import android.util.ArraySet;
 import android.util.Base64;
 import android.util.Log;
 
+import androidx.test.InstrumentationRegistry;
+
 import com.android.compatibility.common.util.SystemUtil;
 
 import org.junit.After;
-import org.junit.AfterClass;
 import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Test;
 
 import java.util.HashSet;
@@ -65,6 +71,9 @@ public class NearbyDevicesRenouncePermissionTest {
     private AppOpsManager mAppOpsManager;
     private int mLocationNoteCount;
     private int mScanNoteCount;
+    private Context mContext = InstrumentationRegistry.getInstrumentation().getContext();
+    private BluetoothAdapter mBluetoothAdapter;
+    private boolean mBluetoothAdapterWasEnabled;
 
     private enum Result {
         UNKNOWN, EXCEPTION, EMPTY, FILTERED, FULL
@@ -74,16 +83,22 @@ public class NearbyDevicesRenouncePermissionTest {
         DEFAULT, RENOUNCE, RENOUNCE_MIDDLE, RENOUNCE_END
     }
 
-    @BeforeClass
-    public static void enableTestMode() {
-        runShellCommand("dumpsys activity service"
-                + " com.android.bluetooth/.btservice.AdapterService set-test-mode enabled");
+    @Before
+    public void enableBluetooth() {
+        assumeTrue(supportsBluetooth());
+        mBluetoothAdapter = mContext.getSystemService(BluetoothManager.class).getAdapter();
+        mBluetoothAdapterWasEnabled = mBluetoothAdapter.isEnabled();
+        assertTrue(BTAdapterUtils.enableAdapter(mBluetoothAdapter, mContext));
+        enableTestMode();
     }
 
-    @AfterClass
-    public static void disableTestMode() {
-        runShellCommand("dumpsys activity service"
-                + " com.android.bluetooth/.btservice.AdapterService set-test-mode disabled");
+    @After
+    public void disableBluetooth() {
+        assumeTrue(supportsBluetooth());
+        disableTestMode();
+        if (!mBluetoothAdapterWasEnabled) {
+            assertTrue(BTAdapterUtils.disableAdapter(mBluetoothAdapter, mContext));
+        }
     }
 
     @Before
@@ -110,6 +125,15 @@ public class NearbyDevicesRenouncePermissionTest {
 
                     @Override
                     public void onAsyncNoted(AsyncNotedAppOp asyncOp) {
+                        switch (asyncOp.getOp()) {
+                            case OPSTR_FINE_LOCATION:
+                                mLocationNoteCount++;
+                                break;
+                            case OPSTR_BLUETOOTH_SCAN:
+                                mScanNoteCount++;
+                                break;
+                            default:
+                        }
                     }
                 });
     }
@@ -126,38 +150,46 @@ public class NearbyDevicesRenouncePermissionTest {
 
     @AppModeFull
     @Test
-    public void scanWithoutRenouncingNotesBluetoothAndLocation() {
+    public void scanWithoutRenouncingNotesBluetoothAndLocation() throws Exception {
         clearNoteCounts();
         assertThat(performScan(Scenario.DEFAULT)).isEqualTo(Result.FULL);
-        assertThat(mLocationNoteCount).isGreaterThan(0);
-        assertThat(mScanNoteCount).isGreaterThan(0);
+        SystemUtil.eventually(() -> {
+            assertThat(mLocationNoteCount).isGreaterThan(0);
+            assertThat(mScanNoteCount).isGreaterThan(0);
+        });
     }
 
     @AppModeFull
     @Test
-    public void scanRenouncingLocationNotesBluetoothButNotLocation() {
+    public void scanRenouncingLocationNotesBluetoothButNotLocation() throws Exception {
         clearNoteCounts();
         assertThat(performScan(Scenario.RENOUNCE)).isEqualTo(Result.FILTERED);
-        assertThat(mLocationNoteCount).isEqualTo(0);
-        assertThat(mScanNoteCount).isGreaterThan(0);
+        SystemUtil.eventually(() -> {
+            assertThat(mLocationNoteCount).isEqualTo(0);
+            assertThat(mScanNoteCount).isGreaterThan(0);
+        });
     }
 
     @AppModeFull
     @Test
-    public void scanRenouncingInMiddleOfChainNotesBluetoothButNotLocation() {
+    public void scanRenouncingInMiddleOfChainNotesBluetoothButNotLocation() throws Exception {
         clearNoteCounts();
         assertThat(performScan(Scenario.RENOUNCE_MIDDLE)).isEqualTo(Result.FILTERED);
-        assertThat(mLocationNoteCount).isEqualTo(0);
-        assertThat(mScanNoteCount).isGreaterThan(0);
+        SystemUtil.eventually(() -> {
+            assertThat(mLocationNoteCount).isEqualTo(0);
+            assertThat(mScanNoteCount).isGreaterThan(0);
+        });
     }
 
     @AppModeFull
     @Test
-    public void scanRenouncingAtEndOfChainNotesBluetoothButNotLocation() {
+    public void scanRenouncingAtEndOfChainNotesBluetoothButNotLocation() throws Exception {
         clearNoteCounts();
         assertThat(performScan(Scenario.RENOUNCE_END)).isEqualTo(Result.FILTERED);
-        assertThat(mLocationNoteCount).isEqualTo(0);
-        assertThat(mScanNoteCount).isGreaterThan(0);
+        SystemUtil.eventually(() -> {
+            assertThat(mLocationNoteCount).isEqualTo(0);
+            assertThat(mScanNoteCount).isGreaterThan(0);
+        });
     }
 
     private Result performScan(Scenario scenario) {
@@ -239,6 +271,21 @@ public class NearbyDevicesRenouncePermissionTest {
             default:
                 throw new IllegalStateException();
         }
+    }
+
+
+    private boolean supportsBluetooth() {
+        return mContext.getPackageManager().hasSystemFeature(PackageManager.FEATURE_BLUETOOTH);
+    }
+
+    private void enableTestMode() {
+        runShellCommandOrThrow("dumpsys activity service"
+                + " com.android.bluetooth.btservice.AdapterService set-test-mode enabled");
+    }
+
+    private void disableTestMode() {
+        runShellCommandOrThrow("dumpsys activity service"
+                + " com.android.bluetooth.btservice.AdapterService set-test-mode disabled");
     }
 
 }

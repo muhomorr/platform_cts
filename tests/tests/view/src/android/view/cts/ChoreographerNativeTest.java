@@ -19,6 +19,7 @@ package android.view.cts;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
+import static org.junit.Assume.assumeTrue;
 
 import android.Manifest;
 import android.content.Context;
@@ -39,6 +40,7 @@ import androidx.test.rule.ActivityTestRule;
 import androidx.test.runner.AndroidJUnit4;
 
 import com.android.compatibility.common.util.AdoptShellPermissionsRule;
+import com.android.compatibility.common.util.DisplayUtil;
 
 import org.junit.Before;
 import org.junit.Rule;
@@ -73,6 +75,14 @@ public class ChoreographerNativeTest {
     private static native void nativeTestPostCallback64WithoutDelayEventuallyRunsCallbacks(
             long ptr);
     private static native void nativeTestPostCallback64WithDelayEventuallyRunsCallbacks(long ptr);
+    private static native void nativeTestPostVsyncCallbackWithoutDelayEventuallyRunsCallbacks(
+            long ptr);
+    private static native void nativeTestFrameCallbackDataVsyncIdValid(
+            long ptr);
+    private static native void nativeTestFrameCallbackDataDeadlineInFuture(
+            long ptr);
+    private static native void nativeTestFrameCallbackDataExpectedPresentTimeInFuture(
+            long ptr);
     private static native void nativeTestPostCallbackMixedWithoutDelayEventuallyRunsCallbacks(
             long ptr);
     private static native void nativeTestPostCallbackMixedWithDelayEventuallyRunsCallbacks(
@@ -116,6 +126,30 @@ public class ChoreographerNativeTest {
         if (!nativePrepareChoreographerTests(mChoreographerPtr, mSupportedPeriods)) {
             fail("Failed to setup choreographer tests");
         }
+    }
+
+    @MediumTest
+    @Test
+    public void testPostVsyncCallbackWithoutDelayEventuallyRunsCallbacks() {
+        nativeTestPostVsyncCallbackWithoutDelayEventuallyRunsCallbacks(mChoreographerPtr);
+    }
+
+    @MediumTest
+    @Test
+    public void testFrameCallbackDataVsyncIdValid() {
+        nativeTestFrameCallbackDataVsyncIdValid(mChoreographerPtr);
+    }
+
+    @MediumTest
+    @Test
+    public void testFrameCallbackDataDeadlineInFuture() {
+        nativeTestFrameCallbackDataDeadlineInFuture(mChoreographerPtr);
+    }
+
+    @MediumTest
+    @Test
+    public void testFrameCallbackDataExpectedPresentTimeInFuture() {
+        nativeTestFrameCallbackDataExpectedPresentTimeInFuture(mChoreographerPtr);
     }
 
     @MediumTest
@@ -188,9 +222,9 @@ public class ChoreographerNativeTest {
     @SmallTest
     @Test
     public void testRefreshRateCallbacksIsSyncedWithDisplayManager() {
-        if (mSupportedPeriods.length <= 1) {
-            return;
-        }
+        assumeTrue(mSupportedPeriods.length >= 2);
+        assumeTrue(findModeForSeamlessSwitch().isPresent());
+
         int initialMatchContentFrameRate = 0;
         try {
 
@@ -219,15 +253,10 @@ public class ChoreographerNativeTest {
     private void checkRefreshRateIsCurrentAndSwitch(int refreshRate) {
         assertEquals(Math.round(mDefaultDisplay.getRefreshRate()), refreshRate);
 
-        Optional<Mode> nextMode = Arrays.stream(mDefaultDisplay.getSupportedModes())
-                .sorted((left, right) ->
-                        Float.compare(right.getRefreshRate(), left.getRefreshRate()))
-                .filter(mode ->  Math.round(mode.getRefreshRate()) != refreshRate)
-                .findFirst();
+        Optional<Mode> maybeNextMode = findModeForSeamlessSwitch();
+        assertTrue(maybeNextMode.isPresent());
+        Mode mode = maybeNextMode.get();
 
-        assertTrue(nextMode.isPresent());
-
-        Mode mode = nextMode.get();
         Handler handler = new Handler(Looper.getMainLooper());
         handler.post(() -> {
             Window window = mTestActivityRule.getActivity().getWindow();
@@ -235,6 +264,15 @@ public class ChoreographerNativeTest {
             params.preferredDisplayModeId = mode.getModeId();
             window.setAttributes(params);
         });
+    }
+
+    private Optional<Mode> findModeForSeamlessSwitch() {
+        Mode activeMode = mDefaultDisplay.getMode();
+        int refreshRate = Math.round(mDefaultDisplay.getRefreshRate());
+        return Arrays.stream(mDefaultDisplay.getSupportedModes())
+                .filter(mode -> DisplayUtil.isModeSwitchSeamless(activeMode, mode))
+                .filter(mode ->  Math.round(mode.getRefreshRate()) != refreshRate)
+                .findFirst();
     }
 
     private int toSwitchingType(int matchContentFrameRateUserPreference) {
@@ -249,5 +287,4 @@ public class ChoreographerNativeTest {
                 return -1;
         }
     }
-
 }

@@ -64,6 +64,8 @@ import org.junit.Assert.assertThat
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeFalse
 import org.junit.Before
+import org.junit.BeforeClass
+import org.junit.Ignore
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -94,6 +96,12 @@ class AutoRevokeTest {
 
     companion object {
         const val LOG_TAG = "AutoRevokeTest"
+
+        @JvmStatic
+        @BeforeClass
+        fun beforeAllTests() {
+            runBootCompleteReceiver(InstrumentationRegistry.getTargetContext(), LOG_TAG)
+        }
     }
 
     @get:Rule
@@ -133,6 +141,7 @@ class AutoRevokeTest {
 
     @AppModeFull(reason = "Uses separate apps for testing")
     @Test
+    @Ignore("b/201545116")
     fun testUnusedApp_getsPermissionRevoked() {
         assumeFalse(
                 "Watch doesn't provide a unified way to check notifications. it depends on UX",
@@ -149,6 +158,11 @@ class AutoRevokeTest {
 
                 // Verify
                 assertPermission(PERMISSION_DENIED)
+
+                if (hasFeatureTV()) {
+                    // Skip checking unused apps screen because it may be unavailable on TV
+                    return
+                }
                 openUnusedAppsNotification()
 
                 waitFindObject(By.text(supportedAppPackageName))
@@ -161,6 +175,9 @@ class AutoRevokeTest {
     @AppModeFull(reason = "Uses separate apps for testing")
     @Test
     fun testUnusedApp_uninstallApp() {
+        assumeFalse(
+            "Unused apps screen may be unavailable on TV",
+            hasFeatureTV())
         withUnusedThresholdMs(3L) {
             withDummyAppNoUninstallAssertion {
                 // Setup

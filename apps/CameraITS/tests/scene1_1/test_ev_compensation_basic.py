@@ -15,6 +15,7 @@
 
 
 import logging
+import math
 import os.path
 import matplotlib
 from matplotlib import pylab
@@ -28,7 +29,8 @@ import image_processing_utils
 import its_session_utils
 
 LOCKED = 3
-LUMA_LOCKED_TOL = 0.05
+LUMA_LOCKED_RTOL_EV_SM = 0.05
+LUMA_LOCKED_RTOL_EV_LG = 0.10
 NAME = os.path.splitext(os.path.basename(__file__))[0]
 NUM_UNSATURATED_EVS = 3
 PATCH_H = 0.1  # center 10%
@@ -69,6 +71,8 @@ class EvCompensationBasicTest(its_base_test.ItsBaseTest):
       props = cam.get_camera_properties()
       props = cam.override_with_hidden_physical_camera_props(props)
       log_path = self.log_path
+      debug = self.debug_mode
+      test_name_w_path = os.path.join(log_path, NAME)
 
       # check SKIP conditions
       camera_properties_utils.skip_unless(
@@ -84,6 +88,11 @@ class EvCompensationBasicTest(its_base_test.ItsBaseTest):
           props['android.control.aeCompensationStep'])
       steps_per_ev = int(1.0 / ev_per_step)
       evs = range(-2 * steps_per_ev, 2 * steps_per_ev + 1, steps_per_ev)
+      luma_locked_rtols = [LUMA_LOCKED_RTOL_EV_LG,
+                           LUMA_LOCKED_RTOL_EV_SM,
+                           LUMA_LOCKED_RTOL_EV_SM,
+                           LUMA_LOCKED_RTOL_EV_SM,
+                           LUMA_LOCKED_RTOL_EV_LG]
 
       # Converge 3A, and lock AE once converged. skip AF trigger as
       # dark/bright scene could make AF convergence fail and this test
@@ -97,24 +106,36 @@ class EvCompensationBasicTest(its_base_test.ItsBaseTest):
       fmt = capture_request_utils.get_smallest_yuv_format(
           props, match_ar=match_ar)
       lumas = []
-      for ev in evs:
+      for j, ev in enumerate(evs):
+        luma_locked_rtol = luma_locked_rtols[j]
         # Capture a single shot with the same EV comp and locked AE.
         req = create_request_with_ev(ev)
         caps = cam.do_capture([req]*THRESH_CONVERGE_FOR_EV, fmt)
         luma_locked = []
         for i, cap in enumerate(caps):
+          if debug:
+            img = image_processing_utils.convert_capture_to_rgb_image(
+                cap, props)
+            image_processing_utils.write_image(
+                img, f'{test_name_w_path}_ev{ev}_frame{i}.jpg')
           if cap['metadata']['android.control.aeState'] == LOCKED:
+            ev_meta = cap['metadata']['android.control.aeExposureCompensation']
+            logging.debug('cap EV compensation: %d', ev_meta)
+            if ev != ev_meta:
+              raise AssertionError(
+                  f'EV compensation cap != req! cap: {ev_meta}, req: {ev}')
             luma = extract_luma_from_capture(cap)
             luma_locked.append(luma)
             if i == THRESH_CONVERGE_FOR_EV-1:
               lumas.append(luma)
-              msg = 'AE locked lumas: %s, RTOL: %.2f' % (
-                  str(luma_locked), LUMA_LOCKED_TOL)
-              assert np.isclose(min(luma_locked), max(luma_locked),
-                                rtol=LUMA_LOCKED_TOL), msg
+              if not math.isclose(min(luma_locked), max(luma_locked),
+                                  rel_tol=luma_locked_rtol):
+                raise AssertionError(f'AE locked lumas: {luma_locked}, '
+                                     f'RTOL: {luma_locked_rtol}')
       logging.debug('lumas in AE locked captures: %s', str(lumas))
-      assert caps[THRESH_CONVERGE_FOR_EV-1]['metadata'][
-          'android.control.aeState'] == LOCKED
+      if caps[THRESH_CONVERGE_FOR_EV-1]['metadata'][
+          'android.control.aeState'] != LOCKED:
+        raise AssertionError(f'No AE lock by {THRESH_CONVERGE_FOR_EV} frame.')
 
     # Create plot
     pylab.figure(NAME)
@@ -122,8 +143,7 @@ class EvCompensationBasicTest(its_base_test.ItsBaseTest):
     pylab.title(NAME)
     pylab.xlabel('EV Compensation')
     pylab.ylabel('Mean Luma (Normalized)')
-    matplotlib.pyplot.savefig(
-        '%s_plot_means.png' % os.path.join(log_path, NAME))
+    matplotlib.pyplot.savefig(f'{test_name_w_path}_plot_means.png')
 
     # Trim extra saturated images
     while (lumas[-2] >= YUV_SAT_MIN/YUV_FULL_SCALE and
@@ -133,14 +153,18 @@ class EvCompensationBasicTest(its_base_test.ItsBaseTest):
       logging.debug('Removed saturated image.')
 
     # Only allow positive EVs to give saturated image
-    e_msg = '>%d unsaturated images needed.' % (NUM_UNSATURATED_EVS-1)
-    assert len(lumas) >= NUM_UNSATURATED_EVS, e_msg
+    if len(lumas) < NUM_UNSATURATED_EVS:
+      raise AssertionError(
+          f'>{NUM_UNSATURATED_EVS-1} unsaturated images needed.')
     min_luma_diffs = min(np.diff(lumas))
     logging.debug('Min of luma value difference between adjacent ev comp: %.3f',
                   min_luma_diffs)
 
     # Assert unsaturated lumas increasing with increasing ev comp.
-    assert min_luma_diffs > 0, 'Luma is not increasing! lumas %s' % str(lumas)
+    if min_luma_diffs <= 0:
+      raise AssertionError('Lumas not increasing with ev comp! '
+                           f'EVs: {list(evs)}, lumas: {lumas}')
+
 
 if __name__ == '__main__':
   test_runner.main()

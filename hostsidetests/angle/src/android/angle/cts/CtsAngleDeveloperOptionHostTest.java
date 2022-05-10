@@ -37,7 +37,8 @@ public class CtsAngleDeveloperOptionHostTest extends BaseHostJUnit4Test {
 
     private static final String TAG = CtsAngleDeveloperOptionHostTest.class.getSimpleName();
 
-    private void setAndValidateAngleDevOptionPkgDriver(String pkgName, String driverValue) throws Exception {
+    private void setAndValidateAngleDevOptionPkgDriver(String pkgName, String driverValue)
+            throws Exception {
         CLog.logAndDisplay(LogLevel.INFO, "Updating Global.Settings: pkgName = '" +
                 pkgName + "', driverValue = '" + driverValue + "'");
 
@@ -57,12 +58,11 @@ public class CtsAngleDeveloperOptionHostTest extends BaseHostJUnit4Test {
                 driverValue, devOption);
     }
 
-    private void setAndValidatePkgDriver(String pkgName, OpenGlDriverChoice driver) throws Exception {
+    private void setAndValidatePkgDriver(String pkgName, OpenGlDriverChoice driver)
+            throws Exception {
         stopPackage(getDevice(), pkgName);
 
         setAndValidateAngleDevOptionPkgDriver(pkgName, sDriverGlobalSettingMap.get(driver));
-
-        startActivity(getDevice(), ANGLE_MAIN_ACTIVTY);
 
         CLog.logAndDisplay(LogLevel.INFO, "Validating driver selection (" +
                 driver + ") with method '" + sDriverTestMethodMap.get(driver) + "'");
@@ -72,12 +72,11 @@ public class CtsAngleDeveloperOptionHostTest extends BaseHostJUnit4Test {
     }
 
     private void installApp(String appName) throws Exception {
-        for (int i = 0; i < NUM_ATTEMPTS; i++)
-        {
+        for (int i = 0; i < NUM_ATTEMPTS; i++) {
             try {
                 installPackage(appName);
                 return;
-            } catch(Exception e) {
+            } catch (Exception e) {
                 Thread.sleep(REATTEMPT_SLEEP_MSEC);
             }
         }
@@ -89,6 +88,7 @@ public class CtsAngleDeveloperOptionHostTest extends BaseHostJUnit4Test {
 
         stopPackage(getDevice(), ANGLE_DRIVER_TEST_PKG);
         stopPackage(getDevice(), ANGLE_DRIVER_TEST_SEC_PKG);
+        stopPackage(getDevice(), ANGLE_GAME_DRIVER_TEST_PKG);
     }
 
     @After
@@ -101,7 +101,7 @@ public class CtsAngleDeveloperOptionHostTest extends BaseHostJUnit4Test {
      */
     @Test
     public void testEnableAngleForAll() throws Exception {
-        Assume.assumeTrue(isAngleLoadable(getDevice()));
+        Assume.assumeTrue(isAngleInstalled(getDevice()));
 
         installApp(ANGLE_DRIVER_TEST_APP);
         installApp(ANGLE_DRIVER_TEST_SEC_APP);
@@ -126,7 +126,7 @@ public class CtsAngleDeveloperOptionHostTest extends BaseHostJUnit4Test {
      */
     @Test
     public void testUseDefaultDriver() throws Exception {
-        Assume.assumeTrue(isAngleLoadable(getDevice()));
+        Assume.assumeTrue(isAngleInstalled(getDevice()));
         Assume.assumeFalse(isNativeDriverAngle(getDevice()));
 
         installApp(ANGLE_DRIVER_TEST_APP);
@@ -144,7 +144,7 @@ public class CtsAngleDeveloperOptionHostTest extends BaseHostJUnit4Test {
      */
     @Test
     public void testUseAngleDriver() throws Exception {
-        Assume.assumeTrue(isAngleLoadable(getDevice()));
+        Assume.assumeTrue(isAngleInstalled(getDevice()));
         Assume.assumeFalse(isNativeDriverAngle(getDevice()));
 
         installApp(ANGLE_DRIVER_TEST_APP);
@@ -162,7 +162,7 @@ public class CtsAngleDeveloperOptionHostTest extends BaseHostJUnit4Test {
      */
     @Test
     public void testUseNativeDriver() throws Exception {
-        Assume.assumeTrue(isAngleLoadable(getDevice()));
+        Assume.assumeTrue(isAngleInstalled(getDevice()));
         Assume.assumeFalse(isNativeDriverAngle(getDevice()));
 
         installApp(ANGLE_DRIVER_TEST_APP);
@@ -180,7 +180,7 @@ public class CtsAngleDeveloperOptionHostTest extends BaseHostJUnit4Test {
      */
     @Test
     public void testSettingsLengthMismatch() throws Exception {
-        Assume.assumeTrue(isAngleLoadable(getDevice()));
+        Assume.assumeTrue(isAngleInstalled(getDevice()));
         Assume.assumeFalse(isNativeDriverAngle(getDevice()));
 
         installApp(ANGLE_DRIVER_TEST_APP);
@@ -204,7 +204,7 @@ public class CtsAngleDeveloperOptionHostTest extends BaseHostJUnit4Test {
      */
     @Test
     public void testUseInvalidDriver() throws Exception {
-        Assume.assumeTrue(isAngleLoadable(getDevice()));
+        Assume.assumeTrue(isAngleInstalled(getDevice()));
         Assume.assumeFalse(isNativeDriverAngle(getDevice()));
 
         installApp(ANGLE_DRIVER_TEST_APP);
@@ -221,7 +221,7 @@ public class CtsAngleDeveloperOptionHostTest extends BaseHostJUnit4Test {
      */
     @Test
     public void testUpdateDriverValues() throws Exception {
-        Assume.assumeTrue(isAngleLoadable(getDevice()));
+        Assume.assumeTrue(isAngleInstalled(getDevice()));
         Assume.assumeFalse(isNativeDriverAngle(getDevice()));
 
         installApp(ANGLE_DRIVER_TEST_APP);
@@ -244,7 +244,7 @@ public class CtsAngleDeveloperOptionHostTest extends BaseHostJUnit4Test {
      */
     @Test
     public void testMultipleDevOptionsAngleNative() throws Exception {
-        Assume.assumeTrue(isAngleLoadable(getDevice()));
+        Assume.assumeTrue(isAngleInstalled(getDevice()));
         Assume.assumeFalse(isNativeDriverAngle(getDevice()));
 
         installApp(ANGLE_DRIVER_TEST_APP);
@@ -269,7 +269,7 @@ public class CtsAngleDeveloperOptionHostTest extends BaseHostJUnit4Test {
      */
     @Test
     public void testMultipleUpdateDriverValues() throws Exception {
-        Assume.assumeTrue(isAngleLoadable(getDevice()));
+        Assume.assumeTrue(isAngleInstalled(getDevice()));
         Assume.assumeFalse(isNativeDriverAngle(getDevice()));
 
         installApp(ANGLE_DRIVER_TEST_APP);
@@ -288,10 +288,9 @@ public class CtsAngleDeveloperOptionHostTest extends BaseHostJUnit4Test {
                         sDriverGlobalSettingMap.get(OpenGlDriverChoice.ANGLE) + "," +
                                 sDriverGlobalSettingMap.get(firstDriver));
 
-                startActivity(getDevice(), ANGLE_MAIN_ACTIVTY);
-
                 CLog.logAndDisplay(LogLevel.INFO, "Validating driver selection (" +
-                        firstDriver + ") with method '" + sDriverTestMethodMap.get(firstDriver) + "'");
+                        firstDriver + ") with method '" + sDriverTestMethodMap.get(firstDriver)
+                        + "'");
 
                 runDeviceTests(ANGLE_DRIVER_TEST_SEC_PKG,
                         ANGLE_DRIVER_TEST_SEC_PKG + "." + ANGLE_DRIVER_TEST_CLASS,
@@ -302,20 +301,17 @@ public class CtsAngleDeveloperOptionHostTest extends BaseHostJUnit4Test {
                         sDriverGlobalSettingMap.get(OpenGlDriverChoice.ANGLE) + "," +
                                 sDriverGlobalSettingMap.get(secondDriver));
 
-                startActivity(getDevice(), ANGLE_MAIN_ACTIVTY);
-
                 CLog.logAndDisplay(LogLevel.INFO, "Validating driver selection (" +
-                        secondDriver + ") with method '" + sDriverTestMethodMap.get(secondDriver) + "'");
+                        secondDriver + ") with method '" + sDriverTestMethodMap.get(secondDriver)
+                        + "'");
 
                 runDeviceTests(ANGLE_DRIVER_TEST_SEC_PKG,
                         ANGLE_DRIVER_TEST_SEC_PKG + "." + ANGLE_DRIVER_TEST_CLASS,
                         sDriverTestMethodMap.get(secondDriver));
 
-                // Make sure the first PKG's driver value was not modified
-                startActivity(getDevice(), ANGLE_MAIN_ACTIVTY);
-
                 String devOptionPkg = getGlobalSetting(getDevice(), SETTINGS_GLOBAL_DRIVER_PKGS);
-                String devOptionValue = getGlobalSetting(getDevice(), SETTINGS_GLOBAL_DRIVER_VALUES);
+                String devOptionValue = getGlobalSetting(getDevice(),
+                        SETTINGS_GLOBAL_DRIVER_VALUES);
                 CLog.logAndDisplay(LogLevel.INFO, "Validating: PKG name = '" +
                         devOptionPkg + "', driver value = '" + devOptionValue + "'");
 
@@ -327,129 +323,6 @@ public class CtsAngleDeveloperOptionHostTest extends BaseHostJUnit4Test {
     }
 
     /**
-     * Test setting a driver to 'default' does not keep the value in the settings when the ANGLE
-     * activity runs and cleans things up.
-     */
-    @Test
-    public void testDefaultNotInSettings() throws Exception {
-        Assume.assumeTrue(isAngleLoadable(getDevice()));
-
-        // Install the package so the setting isn't removed because the package isn't present.
-        installApp(ANGLE_DRIVER_TEST_APP);
-
-        setAndValidateAngleDevOptionPkgDriver(ANGLE_DRIVER_TEST_PKG,
-                sDriverGlobalSettingMap.get(OpenGlDriverChoice.DEFAULT));
-
-        // Run the ANGLE activity so it'll clear up any 'default' settings.
-        startActivity(getDevice(), ANGLE_MAIN_ACTIVTY);
-
-        String devOptionPkg = getGlobalSetting(getDevice(), SETTINGS_GLOBAL_DRIVER_PKGS);
-        String devOptionValue = getGlobalSetting(getDevice(), SETTINGS_GLOBAL_DRIVER_VALUES);
-        CLog.logAndDisplay(LogLevel.INFO, "Validating: PKG name = '" +
-                devOptionPkg + "', driver value = '" + devOptionValue + "'");
-
-        Assert.assertEquals(
-                "Invalid developer option: " + SETTINGS_GLOBAL_DRIVER_PKGS + " = '" + devOptionPkg + "'",
-                "", devOptionPkg);
-        Assert.assertEquals(
-                "Invalid developer option: " + SETTINGS_GLOBAL_DRIVER_VALUES + " = '" + devOptionValue + "'",
-                "", devOptionValue);
-    }
-
-    /**
-     * Test uninstalled PKGs have their settings removed.
-     */
-    @Test
-    public void testUninstalledPkgsNotInSettings() throws Exception {
-        Assume.assumeTrue(isAngleLoadable(getDevice()));
-
-        uninstallPackage(getDevice(), ANGLE_DRIVER_TEST_PKG);
-
-        setAndValidateAngleDevOptionPkgDriver(ANGLE_DRIVER_TEST_PKG,
-                sDriverGlobalSettingMap.get(OpenGlDriverChoice.NATIVE));
-
-        // Run the ANGLE activity so it'll clear up any 'default' settings.
-        startActivity(getDevice(), ANGLE_MAIN_ACTIVTY);
-
-        String devOptionPkg = getGlobalSetting(getDevice(), SETTINGS_GLOBAL_DRIVER_PKGS);
-        String devOptionValue = getGlobalSetting(getDevice(), SETTINGS_GLOBAL_DRIVER_VALUES);
-        CLog.logAndDisplay(LogLevel.INFO, "Validating: PKG name = '" +
-                devOptionPkg + "', driver value = '" + devOptionValue + "'");
-
-        Assert.assertEquals(
-                "Invalid developer option: " + SETTINGS_GLOBAL_DRIVER_PKGS + " = '" + devOptionPkg + "'",
-                "", devOptionPkg);
-        Assert.assertEquals(
-                "Invalid developer option: " + SETTINGS_GLOBAL_DRIVER_VALUES + " = '" + devOptionValue + "'",
-                "", devOptionValue);
-    }
-
-    /**
-     * Test different PKGs can have different developer option values.
-     * Primary: ANGLE
-     * Secondary: Default
-     *
-     * Verify the PKG set to 'default' is removed from the settings.
-     */
-    @Test
-    public void testMultipleDevOptionsAngleDefault() throws Exception {
-        Assume.assumeTrue(isAngleLoadable(getDevice()));
-
-        installApp(ANGLE_DRIVER_TEST_APP);
-        installApp(ANGLE_DRIVER_TEST_SEC_APP);
-
-        setAndValidateAngleDevOptionPkgDriver(ANGLE_DRIVER_TEST_PKG + "," + ANGLE_DRIVER_TEST_SEC_PKG,
-                sDriverGlobalSettingMap.get(OpenGlDriverChoice.ANGLE) + "," +
-                        sDriverGlobalSettingMap.get(OpenGlDriverChoice.DEFAULT));
-
-        // Run the ANGLE activity so it'll clear up any 'default' settings.
-        startActivity(getDevice(), ANGLE_MAIN_ACTIVTY);
-
-        String devOption = getGlobalSetting(getDevice(), SETTINGS_GLOBAL_DRIVER_PKGS);
-        Assert.assertEquals(
-                "Invalid developer option: " + SETTINGS_GLOBAL_DRIVER_PKGS + " = '" + devOption + "'",
-                ANGLE_DRIVER_TEST_PKG, devOption);
-
-        devOption = getGlobalSetting(getDevice(), SETTINGS_GLOBAL_DRIVER_VALUES);
-        Assert.assertEquals(
-                "Invalid developer option: " + SETTINGS_GLOBAL_DRIVER_VALUES + " = '" + devOption + "'",
-                sDriverGlobalSettingMap.get(OpenGlDriverChoice.ANGLE), devOption);
-    }
-
-    /**
-     * Test different PKGs can have different developer option values.
-     * Primary: ANGLE
-     * Secondary: Default
-     *
-     * Verify the uninstalled PKG is removed from the settings.
-     */
-    @Test
-    public void testMultipleDevOptionsAngleNativeUninstall() throws Exception {
-        Assume.assumeTrue(isAngleLoadable(getDevice()));
-
-        installApp(ANGLE_DRIVER_TEST_SEC_APP);
-
-        setAndValidateAngleDevOptionPkgDriver(ANGLE_DRIVER_TEST_PKG + "," + ANGLE_DRIVER_TEST_SEC_PKG,
-                sDriverGlobalSettingMap.get(OpenGlDriverChoice.ANGLE) + "," +
-                        sDriverGlobalSettingMap.get(OpenGlDriverChoice.NATIVE));
-
-        // Run the ANGLE activity so it'll clear up any 'default' settings.
-        startActivity(getDevice(), ANGLE_MAIN_ACTIVTY);
-
-        String devOptionPkg = getGlobalSetting(getDevice(), SETTINGS_GLOBAL_DRIVER_PKGS);
-        String devOptionValue = getGlobalSetting(getDevice(), SETTINGS_GLOBAL_DRIVER_VALUES);
-        CLog.logAndDisplay(LogLevel.INFO, "Validating: PKG name = '" +
-                devOptionPkg + "', driver value = '" + devOptionValue + "'");
-
-        Assert.assertEquals(
-                "Invalid developer option: " + SETTINGS_GLOBAL_DRIVER_PKGS + " = '" + devOptionPkg + "'",
-                ANGLE_DRIVER_TEST_SEC_PKG, devOptionPkg);
-        Assert.assertEquals(
-                "Invalid developer option: " + SETTINGS_GLOBAL_DRIVER_VALUES + " = '" + devOptionValue + "'",
-                sDriverGlobalSettingMap.get(OpenGlDriverChoice.NATIVE), devOptionValue);
-    }
-
-    /**
      * Test that the "ANGLE In Use" dialog box can be enabled when ANGLE is used.
      *
      * We can't actually make sure the dialog box shows up, just that enabling it and attempting to
@@ -457,7 +330,7 @@ public class CtsAngleDeveloperOptionHostTest extends BaseHostJUnit4Test {
      */
     @Test
     public void testAngleInUseDialogBoxWithAngle() throws Exception {
-        Assume.assumeTrue(isAngleLoadable(getDevice()));
+        Assume.assumeTrue(isAngleInstalled(getDevice()));
         Assume.assumeFalse(isNativeDriverAngle(getDevice()));
 
         setGlobalSetting(getDevice(), SETTINGS_GLOBAL_ANGLE_IN_USE_DIALOG_BOX, "1");
@@ -473,11 +346,147 @@ public class CtsAngleDeveloperOptionHostTest extends BaseHostJUnit4Test {
      */
     @Test
     public void testAngleInUseDialogBoxWithNative() throws Exception {
-        Assume.assumeTrue(isAngleLoadable(getDevice()));
+        Assume.assumeTrue(isAngleInstalled(getDevice()));
         Assume.assumeFalse(isNativeDriverAngle(getDevice()));
 
         setGlobalSetting(getDevice(), SETTINGS_GLOBAL_ANGLE_IN_USE_DIALOG_BOX, "1");
 
         testUseNativeDriver();
+    }
+
+    /**
+     * Test ANGLE is loaded when the Battery Game Mode includes 'useAngle=true'.
+     */
+    @Test
+    public void testGameModeBatteryUseAngleDriver() throws Exception {
+        Assume.assumeTrue(isAngleInstalled(getDevice()));
+        Assume.assumeFalse(isNativeDriverAngle(getDevice()));
+
+        installApp(ANGLE_GAME_DRIVER_TEST_APP);
+
+        setGameModeBatteryConfig(getDevice(), ANGLE_GAME_DRIVER_TEST_PKG, true);
+        setGameModeBattery(getDevice(), ANGLE_GAME_DRIVER_TEST_PKG);
+
+        runDeviceTests(ANGLE_GAME_DRIVER_TEST_PKG,
+                ANGLE_GAME_DRIVER_TEST_PKG + "." + ANGLE_DRIVER_TEST_CLASS,
+                ANGLE_DRIVER_TEST_ANGLE_METHOD);
+    }
+
+    /**
+     * Test ANGLE is loaded when the Standard Game Mode includes 'useAngle=true'.
+     */
+    @Test
+    public void testGameModeStandardUseAngleDriver() throws Exception {
+        Assume.assumeTrue(isAngleInstalled(getDevice()));
+        Assume.assumeFalse(isNativeDriverAngle(getDevice()));
+
+        installApp(ANGLE_GAME_DRIVER_TEST_APP);
+
+        setGameModeStandardConfig(getDevice(), ANGLE_GAME_DRIVER_TEST_PKG, true);
+        setGameModeStandard(getDevice(), ANGLE_GAME_DRIVER_TEST_PKG);
+
+        runDeviceTests(ANGLE_GAME_DRIVER_TEST_PKG,
+                ANGLE_GAME_DRIVER_TEST_PKG + "." + ANGLE_DRIVER_TEST_CLASS,
+                ANGLE_DRIVER_TEST_ANGLE_METHOD);
+    }
+
+    /**
+     * Test setting the Game Mode to use ANGLE ('useAngle=true') and then overriding that to use the
+     * native driver with the Global.Settings loads the native driver.
+     */
+    @Test
+    public void testGameModeBatteryUseAngleOverrideWithNative() throws Exception {
+        Assume.assumeTrue(isAngleInstalled(getDevice()));
+        Assume.assumeFalse(isNativeDriverAngle(getDevice()));
+
+        installApp(ANGLE_GAME_DRIVER_TEST_APP);
+
+        // Set Game Mode to use ANGLE and verify ANGLE is loaded.
+        setGameModeBatteryConfig(getDevice(), ANGLE_GAME_DRIVER_TEST_PKG, true);
+        setGameModeBattery(getDevice(), ANGLE_GAME_DRIVER_TEST_PKG);
+
+        runDeviceTests(ANGLE_GAME_DRIVER_TEST_PKG,
+                ANGLE_GAME_DRIVER_TEST_PKG + "." + ANGLE_DRIVER_TEST_CLASS,
+                ANGLE_DRIVER_TEST_ANGLE_METHOD);
+
+        // Set Global.Settings to use the native driver and verify the native driver is loaded.
+        setAndValidateAngleDevOptionPkgDriver(ANGLE_GAME_DRIVER_TEST_PKG,
+                sDriverGlobalSettingMap.get(OpenGlDriverChoice.NATIVE));
+
+        runDeviceTests(ANGLE_GAME_DRIVER_TEST_PKG,
+                ANGLE_GAME_DRIVER_TEST_PKG + "." + ANGLE_DRIVER_TEST_CLASS,
+                ANGLE_DRIVER_TEST_NATIVE_METHOD);
+    }
+
+    /**
+     * Test setting the Game Mode to not use ANGLE ('useAngle=false') and then overriding that to
+     * use ANGLE with the Global.Settings loads ANGLE.
+     */
+    @Test
+    public void testGameModeBatteryDontUseAngleOverrideWithAngle() throws Exception {
+        Assume.assumeTrue(isAngleInstalled(getDevice()));
+        Assume.assumeFalse(isNativeDriverAngle(getDevice()));
+
+        installApp(ANGLE_GAME_DRIVER_TEST_APP);
+
+        // Set Game Mode to *not* use ANGLE and verify the native driver is loaded.
+        setGameModeBatteryConfig(getDevice(), ANGLE_GAME_DRIVER_TEST_PKG, false);
+        setGameModeBattery(getDevice(), ANGLE_GAME_DRIVER_TEST_PKG);
+
+        runDeviceTests(ANGLE_GAME_DRIVER_TEST_PKG,
+                ANGLE_GAME_DRIVER_TEST_PKG + "." + ANGLE_DRIVER_TEST_CLASS,
+                ANGLE_DRIVER_TEST_NATIVE_METHOD);
+
+        // Set Global.Settings to use ANGLE and verify ANGLE is loaded.
+        setAndValidateAngleDevOptionPkgDriver(ANGLE_GAME_DRIVER_TEST_PKG,
+                sDriverGlobalSettingMap.get(OpenGlDriverChoice.ANGLE));
+
+        runDeviceTests(ANGLE_GAME_DRIVER_TEST_PKG,
+                ANGLE_GAME_DRIVER_TEST_PKG + "." + ANGLE_DRIVER_TEST_CLASS,
+                ANGLE_DRIVER_TEST_ANGLE_METHOD);
+    }
+
+    /**
+     * Test that the `dumpsys gpu` correctly indicates `angleInUse = 1` when ANGLE is enabled.
+     */
+    @Test
+    public void testDumpsysAngleInWhenAngleEnabled() throws Exception {
+        Assume.assumeTrue(isAngleInstalled(getDevice()));
+        Assume.assumeFalse(isNativeDriverAngle(getDevice()));
+
+        installApp(ANGLE_DUMPSYS_GPU_TEST_APP);
+
+        setAndValidateAngleDevOptionPkgDriver(ANGLE_DUMPSYS_GPU_TEST_PKG,
+                sDriverGlobalSettingMap.get(OpenGlDriverChoice.ANGLE));
+
+        startActivity(getDevice(), ANGLE_DUMPSYS_GPU_TEST_PKG, ANGLE_DUMPSYS_GPU_TEST_CLASS);
+
+        int angleInUse = getDumpsysGpuAngleInUse(getDevice(), ANGLE_DUMPSYS_GPU_TEST_PKG);
+        Assert.assertEquals(
+                "'dumpsys gpu' for package '" + ANGLE_DUMPSYS_GPU_TEST_PKG
+                        + "' failed to indicate angle is in use: angleInUse = " + angleInUse,
+                1, angleInUse);
+    }
+
+    /**
+     * Test that the `dumpsys gpu` correctly indicates `angleInUse = 0` when ANGLE is disabled.
+     */
+    @Test
+    public void testDumpsysAngleInWhenAngleDisabled() throws Exception {
+        Assume.assumeTrue(isAngleInstalled(getDevice()));
+        Assume.assumeFalse(isNativeDriverAngle(getDevice()));
+
+        installApp(ANGLE_DUMPSYS_GPU_TEST_APP);
+
+        setAndValidateAngleDevOptionPkgDriver(ANGLE_DUMPSYS_GPU_TEST_PKG,
+                sDriverGlobalSettingMap.get(OpenGlDriverChoice.NATIVE));
+
+        startActivity(getDevice(), ANGLE_DUMPSYS_GPU_TEST_PKG, ANGLE_DUMPSYS_GPU_TEST_CLASS);
+
+        int angleInUse = getDumpsysGpuAngleInUse(getDevice(), ANGLE_DUMPSYS_GPU_TEST_PKG);
+        Assert.assertEquals(
+                "'dumpsys gpu' for package '" + ANGLE_DUMPSYS_GPU_TEST_PKG
+                        + "' failed to indicate angle is not in use: angleInUse = " + angleInUse,
+                0, angleInUse);
     }
 }

@@ -16,7 +16,7 @@
 package android.angle.cts;
 
 import com.android.tradefed.device.ITestDevice;
-import com.android.tradefed.testtype.junit4.BaseHostJUnit4Test;
+import com.android.tradefed.device.PackageInfo;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -34,28 +34,32 @@ class CtsAngleCommon {
     static final String SETTINGS_GLOBAL_ANGLE_IN_USE_DIALOG_BOX = "show_angle_in_use_dialog_box";
 
     // System Properties
-    static final String PROPERTY_GFX_ANGLE_SUPPORTED = "ro.gfx.angle.supported";
     static final String PROPERTY_TEMP_RULES_FILE = "debug.angle.rules";
 
-    // Rules File
-    static final String DEVICE_TEMP_RULES_FILE_DIRECTORY = "/data/local/tmp";
-    static final String DEVICE_TEMP_RULES_FILE_FILENAME = "a4a_rules.json";
-    static final String DEVICE_TEMP_RULES_FILE_PATH = DEVICE_TEMP_RULES_FILE_DIRECTORY + "/" + DEVICE_TEMP_RULES_FILE_FILENAME;
-
     // ANGLE
-    static final String ANGLE_DRIVER_TEST_PKG = "com.android.angleIntegrationTest.driverTest";
-    static final String ANGLE_DRIVER_TEST_SEC_PKG = "com.android.angleIntegrationTest.driverTestSecondary";
+    static final String ANGLE_PACKAGE_NAME = "com.android.angle";
+    static final String ANGLE_DRIVER_TEST_PKG = "com.android.angleintegrationtest.drivertest";
+    static final String ANGLE_DRIVER_TEST_SEC_PKG =
+            "com.android.angleintegrationtest.drivertestsecondary";
+    static final String ANGLE_GAME_DRIVER_TEST_PKG =
+            "com.android.angleintegrationtest.gamedrivertest";
     static final String ANGLE_DRIVER_TEST_CLASS = "AngleDriverTestActivity";
     static final String ANGLE_DRIVER_TEST_DEFAULT_METHOD = "testUseDefaultDriver";
     static final String ANGLE_DRIVER_TEST_ANGLE_METHOD = "testUseAngleDriver";
     static final String ANGLE_DRIVER_TEST_NATIVE_METHOD = "testUseNativeDriver";
     static final String ANGLE_DRIVER_TEST_APP = "CtsAngleDriverTestCases.apk";
     static final String ANGLE_DRIVER_TEST_SEC_APP = "CtsAngleDriverTestCasesSecondary.apk";
+    static final String ANGLE_GAME_DRIVER_TEST_APP = "CtsAngleGameDriverTestCases.apk";
+    static final String ANGLE_DUMPSYS_GPU_TEST_PKG =
+            "com.android.angleintegrationtest.dumpsysgputest";
+    static final String ANGLE_DUMPSYS_GPU_TEST_CLASS = "AngleDumpsysGpuTestActivity";
+    static final String ANGLE_DUMPSYS_GPU_TEST_APP = "CtsAngleDumpsysGpuTestApp.apk";
     static final String ANGLE_DRIVER_TEST_ACTIVITY =
-            ANGLE_DRIVER_TEST_PKG + "/com.android.angleIntegrationTest.common.AngleIntegrationTestActivity";
+            ANGLE_DRIVER_TEST_PKG
+                    + "/com.android.angleIntegrationTest.common.AngleIntegrationTestActivity";
     static final String ANGLE_DRIVER_TEST_SEC_ACTIVITY =
-            ANGLE_DRIVER_TEST_SEC_PKG + "/com.android.angleIntegrationTest.common.AngleIntegrationTestActivity";
-    static final String ANGLE_MAIN_ACTIVTY = "android.app.action.ANGLE_FOR_ANDROID";
+            ANGLE_DRIVER_TEST_SEC_PKG
+                    + "/com.android.angleIntegrationTest.common.AngleIntegrationTestActivity";
 
     enum OpenGlDriverChoice {
         DEFAULT,
@@ -63,7 +67,9 @@ class CtsAngleCommon {
         ANGLE
     }
 
-    static final Map<OpenGlDriverChoice, String> sDriverGlobalSettingMap = buildDriverGlobalSettingMap();
+    static final Map<OpenGlDriverChoice, String> sDriverGlobalSettingMap =
+            buildDriverGlobalSettingMap();
+
     static Map<OpenGlDriverChoice, String> buildDriverGlobalSettingMap() {
         Map<OpenGlDriverChoice, String> map = new HashMap<>();
         map.put(OpenGlDriverChoice.DEFAULT, "default");
@@ -74,6 +80,7 @@ class CtsAngleCommon {
     }
 
     static final Map<OpenGlDriverChoice, String> sDriverTestMethodMap = buildDriverTestMethodMap();
+
     static Map<OpenGlDriverChoice, String> buildDriverTestMethodMap() {
         Map<OpenGlDriverChoice, String> map = new HashMap<>();
         map.put(OpenGlDriverChoice.DEFAULT, ANGLE_DRIVER_TEST_DEFAULT_METHOD);
@@ -87,7 +94,8 @@ class CtsAngleCommon {
         return device.getSetting("global", globalSetting);
     }
 
-    static void setGlobalSetting(ITestDevice device, String globalSetting, String value) throws Exception {
+    static void setGlobalSetting(ITestDevice device, String globalSetting, String value)
+            throws Exception {
         device.setSetting("global", globalSetting, value);
         device.executeShellCommand("am refresh-settings-cache");
     }
@@ -104,10 +112,10 @@ class CtsAngleCommon {
         setProperty(device, PROPERTY_TEMP_RULES_FILE, "\"\"");
     }
 
-    static boolean isAngleLoadable(ITestDevice device) throws Exception {
-        String angleSupported = device.getProperty(PROPERTY_GFX_ANGLE_SUPPORTED);
+    static boolean isAngleInstalled(ITestDevice device) throws Exception {
+        PackageInfo info = device.getAppPackageInfo(ANGLE_PACKAGE_NAME);
 
-        return (angleSupported != null) && (angleSupported.equals("true"));
+        return (info != null);
     }
 
     static boolean isNativeDriverAngle(ITestDevice device) throws Exception {
@@ -116,10 +124,11 @@ class CtsAngleCommon {
         return (driverProp != null) && (driverProp.equals("angle"));
     }
 
-    static void startActivity(ITestDevice device, String action) throws Exception {
-        // Run the ANGLE activity so it'll clear up any 'default' settings.
-        device.executeShellCommand("am start --user " + device.getCurrentUser() +
-                " -S -W -a \"" + action + "\"");
+    static void startActivity(ITestDevice device, String pkgName, String className)
+            throws Exception {
+        String startCommand = String.format(
+                "am start -W -a android.intent.action.MAIN -n %s/.%s", pkgName, className);
+        device.executeShellCommand(startCommand);
     }
 
     static void stopPackage(ITestDevice device, String pkgName) throws Exception {
@@ -131,5 +140,74 @@ class CtsAngleCommon {
      */
     static void setProperty(ITestDevice device, String property, String value) throws Exception {
         device.executeShellCommand("setprop " + property + " " + value);
+    }
+
+    static void setGameModeBatteryConfig(ITestDevice device, String packageName, boolean useAngle)
+            throws Exception {
+        device.executeShellCommand("device_config put game_overlay " + packageName
+                + " mode=3,useAngle=" + Boolean.toString(useAngle));
+    }
+
+    static void setGameModeStandardConfig(ITestDevice device, String packageName, boolean useAngle)
+            throws Exception {
+        device.executeShellCommand("device_config put game_overlay " + packageName
+                + " mode=1,useAngle=" + Boolean.toString(useAngle));
+    }
+
+    static void setGameModeBattery(ITestDevice device, String packageName) throws Exception {
+        device.executeShellCommand("cmd game mode battery " + packageName);
+    }
+
+    static void setGameModeStandard(ITestDevice device, String packageName) throws Exception {
+        device.executeShellCommand("cmd game mode standard " + packageName);
+    }
+
+    /**
+     * Find and parse the `dumpsys gpu` output for the specified package.
+     *
+     * Sample output:
+     *      appPackageName = com.android.angleIntegrationTest.dumpsysGpuTest
+     *      driverVersionCode = 0
+     *      cpuVulkanInUse = 0
+     *      falsePrerotation = 0
+     *      gles1InUse = 0
+     *      angleInUse = 1
+     *      glDriverLoadingTime:
+     *      angleDriverLoadingTime:
+     *      vkDriverLoadingTime: 37390096
+     *
+     * @return angleInUse, -1 on error
+     */
+    static int getDumpsysGpuAngleInUse(ITestDevice device, String packageName) throws Exception {
+        String dumpSysGpu = device.executeShellCommand("dumpsys gpu");
+        String[] lines = dumpSysGpu.split("\n");
+
+        boolean foundPackage = false;
+        for (String s : lines) {
+            String line = s.trim();
+            if (!foundPackage && line.contains(packageName)) {
+                foundPackage = true;
+                continue;
+            }
+
+            if (foundPackage) {
+                if (line.contains("angleInUse")) {
+                    String[] tokens = line.split(" ");
+                    if (tokens.length != 3) {
+                        throw new IllegalArgumentException(
+                                "Malformed result: tokens.length = " + tokens.length);
+                    }
+
+                    return Integer.parseInt(tokens[2]);
+                } else if (line.contains("appPackageName")) {
+                    // We've moved to another block for a different package without finding the
+                    // 'angleInUse' field, so return an error.
+                    throw new IllegalArgumentException("Failed to find field: angleInUse");
+                }
+            }
+        }
+
+        // Didn't find the specified package, return an error.
+        return -1;
     }
 }

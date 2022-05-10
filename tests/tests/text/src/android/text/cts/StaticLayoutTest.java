@@ -32,8 +32,9 @@ import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.Paint.FontMetricsInt;
 import android.graphics.Typeface;
+import android.graphics.text.LineBreakConfig;
 import android.os.LocaleList;
-import android.platform.test.annotations.SecurityTest;
+import android.platform.test.annotations.AsbSecurityTest;
 import android.text.Editable;
 import android.text.Layout;
 import android.text.Layout.Alignment;
@@ -235,6 +236,38 @@ public class StaticLayoutTest {
             builder.setHyphenationFrequency(Layout.HYPHENATION_FREQUENCY_FULL);
             builder.setIncludePad(true);
             builder.setIndents(null, null);
+            StaticLayout layout = builder.build();
+            assertNotNull(layout);
+        }
+        {
+            // setLineBreakConfig
+            LineBreakConfig lineBreakConfig = new LineBreakConfig.Builder()
+                    .setLineBreakWordStyle(LineBreakConfig.LINE_BREAK_STYLE_STRICT)
+                    .setLineBreakWordStyle(LineBreakConfig.LINE_BREAK_WORD_STYLE_NONE).build();
+
+            StaticLayout.Builder builder = StaticLayout.Builder.obtain(LAYOUT_TEXT, 0,
+                    LAYOUT_TEXT.length(), mDefaultPaint, DEFAULT_OUTER_WIDTH);
+            builder.setBreakStrategy(Layout.BREAK_STRATEGY_HIGH_QUALITY);
+            builder.setHyphenationFrequency(Layout.HYPHENATION_FREQUENCY_FULL);
+            builder.setIncludePad(true);
+            builder.setIndents(null, null);
+            builder.setLineBreakConfig(lineBreakConfig);
+            StaticLayout layout = builder.build();
+            assertNotNull(layout);
+        }
+        {
+            // setLineBreakConfig with word style(lw=phrase)
+            LineBreakConfig lineBreakConfig = new LineBreakConfig.Builder()
+                    .setLineBreakWordStyle(LineBreakConfig.LINE_BREAK_STYLE_NONE)
+                    .setLineBreakWordStyle(LineBreakConfig.LINE_BREAK_WORD_STYLE_PHRASE).build();
+
+            StaticLayout.Builder builder = StaticLayout.Builder.obtain(LAYOUT_TEXT, 0,
+                    LAYOUT_TEXT.length(), mDefaultPaint, DEFAULT_OUTER_WIDTH);
+            builder.setBreakStrategy(Layout.BREAK_STRATEGY_HIGH_QUALITY);
+            builder.setHyphenationFrequency(Layout.HYPHENATION_FREQUENCY_FULL);
+            builder.setIncludePad(true);
+            builder.setIndents(null, null);
+            builder.setLineBreakConfig(lineBreakConfig);
             StaticLayout layout = builder.build();
             assertNotNull(layout);
         }
@@ -1684,8 +1717,8 @@ public class StaticLayoutTest {
     }
 
     // This is for b/140755449
-    @SecurityTest
     @Test
+    @AsbSecurityTest(cveBugId = 140632678)
     public void testBidiVisibleEnd() {
         TextPaint paint = new TextPaint();
         // The default text size is too small and not useful for handling line breaks.

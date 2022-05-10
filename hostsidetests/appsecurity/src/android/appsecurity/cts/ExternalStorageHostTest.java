@@ -22,6 +22,8 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
+import android.platform.test.annotations.Presubmit;
+
 import com.android.compatibility.common.tradefed.build.CompatibilityBuildHelper;
 import com.android.ddmlib.Log;
 import com.android.role.RoleProto;
@@ -29,6 +31,7 @@ import com.android.role.RoleServiceDumpProto;
 import com.android.role.RoleUserStateProto;
 import com.android.tradefed.device.CollectingByteOutputReceiver;
 import com.android.tradefed.device.DeviceNotAvailableException;
+import com.android.tradefed.device.ITestDevice;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
 import com.android.tradefed.testtype.junit4.BaseHostJUnit4Test;
 import com.android.tradefed.util.AbiUtils;
@@ -50,6 +53,7 @@ import java.util.List;
 /**
  * Set of tests that verify behavior of external storage devices.
  */
+@Presubmit
 @RunWith(DeviceJUnit4ClassRunner.class)
 public class ExternalStorageHostTest extends BaseHostJUnit4Test {
     private static final String TAG = "ExternalStorageHostTest";
@@ -97,6 +101,12 @@ public class ExternalStorageHostTest extends BaseHostJUnit4Test {
             "android.permission.ACCESS_MEDIA_LOCATION";
     private static final String PERM_READ_EXTERNAL_STORAGE =
             "android.permission.READ_EXTERNAL_STORAGE";
+    private static final String PERM_READ_MEDIA_IMAGES =
+            "android.permission.READ_MEDIA_IMAGES";
+    private static final String PERM_READ_MEDIA_AUDIO =
+            "android.permission.READ_MEDIA_AUDIO";
+    private static final String PERM_READ_MEDIA_VIDEO =
+            "android.permission.READ_MEDIA_VIDEO";
     private static final String PERM_WRITE_EXTERNAL_STORAGE =
             "android.permission.WRITE_EXTERNAL_STORAGE";
 
@@ -110,6 +120,7 @@ public class ExternalStorageHostTest extends BaseHostJUnit4Test {
     private static final String FEATURE_WATCH = "android.hardware.type.watch";
 
     private int[] mUsers;
+    private boolean mAdbWasRoot;
 
     private File getTestAppFile(String fileName) throws FileNotFoundException {
         CompatibilityBuildHelper buildHelper = new CompatibilityBuildHelper(getBuild());
@@ -121,6 +132,16 @@ public class ExternalStorageHostTest extends BaseHostJUnit4Test {
         mUsers = Utils.prepareMultipleUsers(getDevice());
         assertNotNull(getAbi());
         assertNotNull(getBuild());
+
+        ITestDevice device = getDevice();
+        mAdbWasRoot = device.isAdbRoot();
+        if (mAdbWasRoot) {
+            // This test assumes that the test is not run with root privileges. But this test runs
+            // as a part of appsecurity test suite which contains a lot of other tests. Some of
+            // which may enable adb root, make sure that this test is run without root access.
+            device.disableAdbRoot();
+            assertFalse("adb root is enabled", device.isAdbRoot());
+        }
     }
 
     @Before
@@ -132,6 +153,16 @@ public class ExternalStorageHostTest extends BaseHostJUnit4Test {
         getDevice().uninstallPackage(MULTIUSER_PKG);
 
         wipePrimaryExternalStorage();
+    }
+
+    @After
+    public void tearDown() throws DeviceNotAvailableException {
+        ITestDevice device = getDevice();
+        if (mAdbWasRoot) {
+            device.enableAdbRoot();
+        } else {
+            device.disableAdbRoot();
+        }
     }
 
     @Test
@@ -273,6 +304,9 @@ public class ExternalStorageHostTest extends BaseHostJUnit4Test {
             for (int user : mUsers) {
                 updateAppOp(WRITE_PKG_2, user, "android:request_install_packages", true);
                 updatePermissions(WRITE_PKG_2, user, new String[] {
+                        PERM_READ_MEDIA_IMAGES,
+                        PERM_READ_MEDIA_VIDEO,
+                        PERM_READ_MEDIA_AUDIO,
                         PERM_READ_EXTERNAL_STORAGE,
                         PERM_WRITE_EXTERNAL_STORAGE,
                 }, true);
@@ -498,6 +532,9 @@ public class ExternalStorageHostTest extends BaseHostJUnit4Test {
         waitForBroadcastIdle();
         for (int user : mUsers) {
             updatePermissions(config.pkg, user, new String[] {
+                    PERM_READ_MEDIA_IMAGES,
+                    PERM_READ_MEDIA_VIDEO,
+                    PERM_READ_MEDIA_AUDIO,
                     PERM_READ_EXTERNAL_STORAGE,
                     PERM_WRITE_EXTERNAL_STORAGE,
             }, true);
@@ -514,14 +551,70 @@ public class ExternalStorageHostTest extends BaseHostJUnit4Test {
         }
     }
 
+    /**
+     * b/197302116. The apps can't be granted prefix UriPermissions to the uri, when the query
+     * result of the uri is 1.
+     */
+    @Test
+    public void testOwningOneFileNotGrantPrefixUriPermission() throws Exception {
+        installPackage(MEDIA.apk);
+
+        int user = getDevice().getCurrentUser();
+
+        // revoke permissions
+        updatePermissions(MEDIA.pkg, user, new String[] {
+                PERM_READ_MEDIA_IMAGES,
+                PERM_READ_MEDIA_VIDEO,
+                PERM_READ_MEDIA_AUDIO,
+                PERM_READ_EXTERNAL_STORAGE,
+                PERM_WRITE_EXTERNAL_STORAGE,
+        }, false);
+
+
+        // revoke the app ops permission
+        updateAppOp(MEDIA.pkg, user, APP_OPS_MANAGE_EXTERNAL_STORAGE, false);
+
+        runDeviceTests(MEDIA.pkg, MEDIA.clazz,
+                "testOwningOneFileNotGrantPrefixUriPermission", user);
+    }
+
+    /**
+     * If the app grants read UriPermission to the uri without id (E.g.
+     * MediaStore.Audio.Media.EXTERNAL_CONTENT_URI), the query result of the uri should be the same
+     * without granting permission.
+     */
+    @Test
+    public void testReadUriPermissionOnUriWithoutId_sameQueryResult() throws Exception {
+        installPackage(MEDIA.apk);
+
+        int user = getDevice().getCurrentUser();
+
+        // revoke permissions
+        updatePermissions(MEDIA.pkg, user, new String[] {
+                PERM_READ_MEDIA_IMAGES,
+                PERM_READ_MEDIA_VIDEO,
+                PERM_READ_MEDIA_AUDIO,
+                PERM_READ_EXTERNAL_STORAGE,
+                PERM_WRITE_EXTERNAL_STORAGE,
+        }, false);
+
+
+        // revoke the app ops permission
+        updateAppOp(MEDIA.pkg, user, APP_OPS_MANAGE_EXTERNAL_STORAGE, false);
+
+        runDeviceTests(MEDIA.pkg, MEDIA.clazz,
+                "testReadUriPermissionOnUriWithoutId_sameQueryResult", user);
+    }
 
     @Test
     public void testGrantUriPermission() throws Exception {
         doGrantUriPermission(MEDIA, "testGrantUriPermission", new String[]{});
         doGrantUriPermission(MEDIA, "testGrantUriPermission",
-                new String[]{PERM_READ_EXTERNAL_STORAGE});
+                new String[]{PERM_READ_MEDIA_IMAGES, PERM_READ_MEDIA_VIDEO,
+                    PERM_READ_MEDIA_AUDIO, PERM_READ_EXTERNAL_STORAGE});
         doGrantUriPermission(MEDIA, "testGrantUriPermission",
-                new String[]{PERM_READ_EXTERNAL_STORAGE, PERM_WRITE_EXTERNAL_STORAGE});
+                new String[]{PERM_READ_EXTERNAL_STORAGE, PERM_READ_MEDIA_IMAGES,
+                    PERM_READ_MEDIA_VIDEO, PERM_READ_MEDIA_AUDIO, PERM_WRITE_EXTERNAL_STORAGE});
     }
 
     @Test
@@ -540,6 +633,9 @@ public class ExternalStorageHostTest extends BaseHostJUnit4Test {
         for (int user : mUsers) {
             // Over revoke all permissions and grant necessary permissions later.
             updatePermissions(config.pkg, user, new String[] {
+                    PERM_READ_MEDIA_IMAGES,
+                    PERM_READ_MEDIA_VIDEO,
+                    PERM_READ_MEDIA_AUDIO,
                     PERM_READ_EXTERNAL_STORAGE,
                     PERM_WRITE_EXTERNAL_STORAGE,
             }, false);
@@ -565,6 +661,9 @@ public class ExternalStorageHostTest extends BaseHostJUnit4Test {
         installPackage(config.apk);
         for (int user : mUsers) {
             updatePermissions(config.pkg, user, new String[] {
+                    PERM_READ_MEDIA_IMAGES,
+                    PERM_READ_MEDIA_VIDEO,
+                    PERM_READ_MEDIA_AUDIO,
                     PERM_READ_EXTERNAL_STORAGE,
                     PERM_WRITE_EXTERNAL_STORAGE,
             }, false);
@@ -590,6 +689,9 @@ public class ExternalStorageHostTest extends BaseHostJUnit4Test {
         installPackage(config.apk);
         for (int user : mUsers) {
             updatePermissions(config.pkg, user, new String[] {
+                    PERM_READ_MEDIA_IMAGES,
+                    PERM_READ_MEDIA_VIDEO,
+                    PERM_READ_MEDIA_AUDIO,
                     PERM_READ_EXTERNAL_STORAGE,
             }, true);
             updatePermissions(config.pkg, user, new String[] {
@@ -617,6 +719,9 @@ public class ExternalStorageHostTest extends BaseHostJUnit4Test {
         installPackage(config.apk);
         for (int user : mUsers) {
             updatePermissions(config.pkg, user, new String[] {
+                    PERM_READ_MEDIA_IMAGES,
+                    PERM_READ_MEDIA_VIDEO,
+                    PERM_READ_MEDIA_AUDIO,
                     PERM_READ_EXTERNAL_STORAGE,
                     PERM_WRITE_EXTERNAL_STORAGE,
             }, true);
@@ -632,12 +737,19 @@ public class ExternalStorageHostTest extends BaseHostJUnit4Test {
         installPackage(MEDIA.apk);
 
         int user = getDevice().getCurrentUser();
+        // revoke all permissions
         updatePermissions(MEDIA.pkg, user, new String[] {
+                PERM_ACCESS_MEDIA_LOCATION,
+                PERM_READ_MEDIA_IMAGES,
+                PERM_READ_MEDIA_VIDEO,
+                PERM_READ_MEDIA_AUDIO,
                 PERM_READ_EXTERNAL_STORAGE,
-        }, true);
-        updatePermissions(MEDIA.pkg, user, new String[] {
                 PERM_WRITE_EXTERNAL_STORAGE,
         }, false);
+
+        // revoke the app ops permission
+        updateAppOp(MEDIA.pkg, user, APP_OPS_MANAGE_MEDIA, false);
+        updateAppOp(MEDIA.pkg, user, APP_OPS_MANAGE_EXTERNAL_STORAGE, false);
 
         runDeviceTests(MEDIA.pkg, MEDIA.clazz, "testMediaEscalation_RequestWriteFilePathSupport",
                 user);
@@ -662,6 +774,9 @@ public class ExternalStorageHostTest extends BaseHostJUnit4Test {
         // TODO: extend test to exercise secondary users
         int user = getDevice().getCurrentUser();
         updatePermissions(config.pkg, user, new String[] {
+                PERM_READ_MEDIA_IMAGES,
+                PERM_READ_MEDIA_VIDEO,
+                PERM_READ_MEDIA_AUDIO,
                 PERM_READ_EXTERNAL_STORAGE,
         }, true);
         updatePermissions(config.pkg, user, new String[] {
@@ -772,6 +887,9 @@ public class ExternalStorageHostTest extends BaseHostJUnit4Test {
         }, true);
         // revoke permissions
         updatePermissions(MEDIA.pkg, user, new String[] {
+                PERM_READ_MEDIA_IMAGES,
+                PERM_READ_MEDIA_VIDEO,
+                PERM_READ_MEDIA_AUDIO,
                 PERM_READ_EXTERNAL_STORAGE,
                 PERM_WRITE_EXTERNAL_STORAGE,
         }, false);
@@ -802,6 +920,9 @@ public class ExternalStorageHostTest extends BaseHostJUnit4Test {
         int user = getDevice().getCurrentUser();
         // grant permissions
         updatePermissions(MEDIA.pkg, user, new String[] {
+                PERM_READ_MEDIA_IMAGES,
+                PERM_READ_MEDIA_VIDEO,
+                PERM_READ_MEDIA_AUDIO,
                 PERM_READ_EXTERNAL_STORAGE,
                 PERM_ACCESS_MEDIA_LOCATION,
         }, true);
@@ -835,6 +956,9 @@ public class ExternalStorageHostTest extends BaseHostJUnit4Test {
         int user = getDevice().getCurrentUser();
         // grant permissions
         updatePermissions(MEDIA.pkg, user, new String[] {
+                PERM_READ_MEDIA_IMAGES,
+                PERM_READ_MEDIA_VIDEO,
+                PERM_READ_MEDIA_AUDIO,
                 PERM_READ_EXTERNAL_STORAGE,
         }, true);
         // revoke permission
@@ -872,6 +996,9 @@ public class ExternalStorageHostTest extends BaseHostJUnit4Test {
         int user = getDevice().getCurrentUser();
         // grant permissions
         updatePermissions(MEDIA.pkg, user, new String[] {
+                PERM_READ_MEDIA_IMAGES,
+                PERM_READ_MEDIA_VIDEO,
+                PERM_READ_MEDIA_AUDIO,
                 PERM_READ_EXTERNAL_STORAGE,
                 PERM_ACCESS_MEDIA_LOCATION,
         }, true);

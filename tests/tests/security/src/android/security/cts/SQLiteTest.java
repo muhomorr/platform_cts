@@ -26,17 +26,23 @@ import android.content.pm.PackageManager.NameNotFoundException;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.net.Uri;
-import android.platform.test.annotations.SecurityTest;
+import android.platform.test.annotations.AsbSecurityTest;
 import android.provider.VoicemailContract;
-import android.test.AndroidTestCase;
 
 import androidx.test.InstrumentationRegistry;
+import androidx.test.runner.AndroidJUnit4;
+
+import com.android.sts.common.util.StsExtraBusinessLogicTestCase;
 
 import java.io.File;
 import java.io.FileInputStream;
 
-@SecurityTest
-public class SQLiteTest extends AndroidTestCase {
+import org.junit.Before;
+import org.junit.runner.RunWith;
+import org.junit.Test;
+
+@RunWith(AndroidJUnit4.class)
+public class SQLiteTest extends StsExtraBusinessLogicTestCase {
     private static final String DATABASE_FILE_NAME = "database_test.db";
 
     private ContentResolver mResolver;
@@ -45,9 +51,8 @@ public class SQLiteTest extends AndroidTestCase {
 
     private SQLiteDatabase mDatabase;
 
-    @Override
-    protected void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void setUp() throws Exception {
         mResolver = getContext().getContentResolver();
         mContext = InstrumentationRegistry.getTargetContext();
         mPackageName = mContext.getPackageName();
@@ -62,7 +67,8 @@ public class SQLiteTest extends AndroidTestCase {
     /**
      * b/139186193
      */
-    @SecurityTest(minPatchLevel = "2019-11")
+    @AsbSecurityTest(cveBugId = 139186193)
+    @Test
     public void test_android_cve_2019_2195() {
         Uri uri = VoicemailContract.Voicemails.CONTENT_URI;
         uri = uri.buildUpon().appendQueryParameter("source_package", mPackageName).build();
@@ -99,7 +105,8 @@ public class SQLiteTest extends AndroidTestCase {
     /**
      * b/153352319
      */
-    @SecurityTest(minPatchLevel = "2021-06")
+    @AsbSecurityTest(cveBugId = 153352319)
+    @Test
     public void test_android_float_to_text_conversion_overflow() {
         String create_cmd = "select (printf('%.2147483647G',0.01));";
         try (Cursor c = mDatabase.rawQuery(create_cmd, null)) {

@@ -29,9 +29,7 @@ import com.android.tradefed.build.IBuildInfo;
 import com.android.tradefed.testtype.DeviceTestCase;
 import com.android.tradefed.testtype.IBuildReceiver;
 
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Base64;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -67,6 +65,26 @@ public class MediaMetricsAtomTests extends DeviceTestCase implements IBuildRecei
         mCtsBuild = buildInfo;
     }
 
+    public void testPlaybackStateEvent_default() throws Exception {
+        ConfigUtils.uploadConfigForPushedAtom(getDevice(), TEST_PKG,
+                AtomsProto.Atom.MEDIA_PLAYBACK_STATE_CHANGED_FIELD_NUMBER);
+        DeviceUtils.runDeviceTests(
+                getDevice(),
+                TEST_PKG,
+                "android.media.metrics.cts.MediaMetricsAtomHostSideTests",
+                "testPlaybackStateEvent_default");
+        Thread.sleep(AtomTestUtils.WAIT_TIME_LONG);
+
+        List<StatsLog.EventMetricData> data = ReportUtils.getEventMetricDataList(getDevice());
+
+        assertThat(data.size()).isEqualTo(1);
+        assertThat(data.get(0).getAtom().hasMediaPlaybackStateChanged()).isTrue();
+        AtomsProto.MediaPlaybackStateChanged result =
+                data.get(0).getAtom().getMediaPlaybackStateChanged();
+        assertThat(result.getPlaybackState().toString()).isEqualTo("NOT_STARTED");
+        assertThat(result.getTimeSincePlaybackCreatedMillis()).isEqualTo(-1L);
+    }
+
     public void testPlaybackStateEvent() throws Exception {
         ConfigUtils.uploadConfigForPushedAtom(getDevice(), TEST_PKG,
                 AtomsProto.Atom.MEDIA_PLAYBACK_STATE_CHANGED_FIELD_NUMBER);
@@ -85,6 +103,53 @@ public class MediaMetricsAtomTests extends DeviceTestCase implements IBuildRecei
                 data.get(0).getAtom().getMediaPlaybackStateChanged();
         assertThat(result.getPlaybackState().toString()).isEqualTo("JOINING_FOREGROUND");
         assertThat(result.getTimeSincePlaybackCreatedMillis()).isEqualTo(1763L);
+    }
+
+    // same as testPlaybackStateEvent, but we use the BundleSession transport.
+    public void testBundleSessionPlaybackStateEvent() throws Exception {
+        ConfigUtils.uploadConfigForPushedAtom(getDevice(), TEST_PKG,
+                AtomsProto.Atom.MEDIA_PLAYBACK_STATE_CHANGED_FIELD_NUMBER);
+        DeviceUtils.runDeviceTests(
+                getDevice(),
+                TEST_PKG,
+                "android.media.metrics.cts.MediaMetricsAtomHostSideTests",
+                "testBundleSessionPlaybackStateEvent");
+        Thread.sleep(AtomTestUtils.WAIT_TIME_LONG);
+
+        List<StatsLog.EventMetricData> data = ReportUtils.getEventMetricDataList(getDevice());
+
+        assertThat(data.size()).isEqualTo(1);
+        assertThat(data.get(0).getAtom().hasMediaPlaybackStateChanged()).isTrue();
+        AtomsProto.MediaPlaybackStateChanged result =
+                data.get(0).getAtom().getMediaPlaybackStateChanged();
+        assertThat(result.getPlaybackState().toString()).isEqualTo("JOINING_FOREGROUND");
+        assertThat(result.getTimeSincePlaybackCreatedMillis()).isEqualTo(1763L);
+    }
+
+
+    public void testPlaybackErrorEvent_default() throws Exception {
+        ConfigUtils.uploadConfigForPushedAtom(getDevice(), TEST_PKG,
+                AtomsProto.Atom.MEDIA_PLAYBACK_ERROR_REPORTED_FIELD_NUMBER);
+        DeviceUtils.runDeviceTests(
+                getDevice(),
+                TEST_PKG,
+                "android.media.metrics.cts.MediaMetricsAtomHostSideTests",
+                "testPlaybackErrorEvent_default");
+        Thread.sleep(AtomTestUtils.WAIT_TIME_LONG);
+
+        List<StatsLog.EventMetricData> data = ReportUtils.getEventMetricDataList(getDevice());
+
+        assertThat(data.size()).isEqualTo(1);
+        assertThat(data.get(0).getAtom().hasMediaPlaybackErrorReported()).isTrue();
+        AtomsProto.MediaPlaybackErrorReported result =
+                data.get(0).getAtom().getMediaPlaybackErrorReported();
+
+        assertThat(result.getTimeSincePlaybackCreatedMillis()).isEqualTo(-1L);
+        assertThat(result.getErrorCode().toString()).isEqualTo("ERROR_CODE_UNKNOWN");
+        assertThat(result.getSubErrorCode()).isEqualTo(0);
+        assertThat(result.getExceptionStack().startsWith(
+                "android.media.metrics.cts.MediaMetricsAtomHostSideTests.testPlaybackErrorEvent"))
+                        .isTrue();
     }
 
     public void testPlaybackErrorEvent() throws Exception {
@@ -110,6 +175,37 @@ public class MediaMetricsAtomTests extends DeviceTestCase implements IBuildRecei
         assertThat(result.getExceptionStack().startsWith(
                 "android.media.metrics.cts.MediaMetricsAtomHostSideTests.testPlaybackErrorEvent"))
                         .isTrue();
+    }
+
+    public void testTrackChangeEvent_default() throws Exception {
+        ConfigUtils.uploadConfigForPushedAtom(getDevice(), TEST_PKG,
+                AtomsProto.Atom.MEDIA_PLAYBACK_TRACK_CHANGED_FIELD_NUMBER);
+        DeviceUtils.runDeviceTests(
+                getDevice(),
+                TEST_PKG,
+                "android.media.metrics.cts.MediaMetricsAtomHostSideTests",
+                "testTrackChangeEvent_default");
+        Thread.sleep(AtomTestUtils.WAIT_TIME_LONG);
+
+        List<StatsLog.EventMetricData> data = ReportUtils.getEventMetricDataList(getDevice());
+
+        assertThat(data.size()).isEqualTo(1);
+        assertThat(data.get(0).getAtom().hasMediaPlaybackTrackChanged()).isTrue();
+        AtomsProto.MediaPlaybackTrackChanged result =
+                data.get(0).getAtom().getMediaPlaybackTrackChanged();
+
+        assertThat(result.getTimeSincePlaybackCreatedMillis()).isEqualTo(-1L);
+        assertThat(result.getState().toString()).isEqualTo("OFF");
+        assertThat(result.getReason().toString()).isEqualTo("REASON_UNKNOWN");
+        assertThat(result.getContainerMimeType()).isEqualTo("");
+        assertThat(result.getSampleMimeType()).isEqualTo("");
+        assertThat(result.getCodecName()).isEqualTo("");
+        assertThat(result.getBitrate()).isEqualTo(-1);
+        assertThat(result.getType().toString()).isEqualTo("AUDIO");
+        assertThat(result.getLanguage()).isEqualTo("");
+        assertThat(result.getLanguageRegion()).isEqualTo("");
+        assertThat(result.getSampleRate()).isEqualTo(-1);
+        assertThat(result.getChannelCount()).isEqualTo(-1);
     }
 
     public void testTrackChangeEvent_text() throws Exception {
@@ -204,6 +300,27 @@ public class MediaMetricsAtomTests extends DeviceTestCase implements IBuildRecei
         assertThat(result.getVideoFrameRate()).isEqualTo(60);
     }
 
+    public void testNetworkEvent_default() throws Exception {
+        ConfigUtils.uploadConfigForPushedAtom(getDevice(), TEST_PKG,
+                AtomsProto.Atom.MEDIA_NETWORK_INFO_CHANGED_FIELD_NUMBER);
+        DeviceUtils.runDeviceTests(
+                getDevice(),
+                TEST_PKG,
+                "android.media.metrics.cts.MediaMetricsAtomHostSideTests",
+                "testNetworkEvent_default");
+        Thread.sleep(AtomTestUtils.WAIT_TIME_LONG);
+
+        List<StatsLog.EventMetricData> data = ReportUtils.getEventMetricDataList(getDevice());
+
+        assertThat(data.size()).isEqualTo(1);
+        assertThat(data.get(0).getAtom().hasMediaNetworkInfoChanged()).isTrue();
+        AtomsProto.MediaNetworkInfoChanged result =
+                data.get(0).getAtom().getMediaNetworkInfoChanged();
+
+        assertThat(result.getTimeSincePlaybackCreatedMillis()).isEqualTo(-1L);
+        assertThat(result.getType().toString()).isEqualTo("NETWORK_TYPE_UNKNOWN");
+    }
+
     public void testNetworkEvent() throws Exception {
         ConfigUtils.uploadConfigForPushedAtom(getDevice(), TEST_PKG,
                 AtomsProto.Atom.MEDIA_NETWORK_INFO_CHANGED_FIELD_NUMBER);
@@ -223,6 +340,43 @@ public class MediaMetricsAtomTests extends DeviceTestCase implements IBuildRecei
 
         assertThat(result.getTimeSincePlaybackCreatedMillis()).isEqualTo(3032L);
         assertThat(result.getType().toString()).isEqualTo("NETWORK_TYPE_WIFI");
+    }
+
+    public void testPlaybackMetrics_default() throws Exception {
+        ConfigUtils.uploadConfigForPushedAtom(getDevice(), TEST_PKG,
+                AtomsProto.Atom.MEDIAMETRICS_PLAYBACK_REPORTED_FIELD_NUMBER);
+        DeviceUtils.runDeviceTests(
+                getDevice(),
+                TEST_PKG,
+                "android.media.metrics.cts.MediaMetricsAtomHostSideTests",
+                "testPlaybackMetrics_default");
+        Thread.sleep(AtomTestUtils.WAIT_TIME_LONG);
+
+        List<StatsLog.EventMetricData> data = ReportUtils.getEventMetricDataList(getDevice());
+        int appUid = DeviceUtils.getAppUid(getDevice(), TEST_PKG);
+
+        assertThat(data.size()).isEqualTo(1);
+        assertThat(data.get(0).getAtom().hasMediametricsPlaybackReported()).isTrue();
+        AtomsProto.MediametricsPlaybackReported result =
+                data.get(0).getAtom().getMediametricsPlaybackReported();
+
+        assertThat(result.getUid()).isEqualTo(appUid);
+        assertThat(result.getMediaDurationMillis()).isEqualTo(-1L);
+        assertThat(result.getStreamSource().toString()).isEqualTo("STREAM_SOURCE_UNKNOWN");
+        assertThat(result.getStreamType().toString()).isEqualTo("STREAM_TYPE_UNKNOWN");
+        assertThat(result.getPlaybackType().toString()).isEqualTo("PLAYBACK_TYPE_UNKNOWN");
+        assertThat(result.getDrmType().toString()).isEqualTo("DRM_TYPE_NONE");
+        assertThat(result.getContentType().toString()).isEqualTo("CONTENT_TYPE_UNKNOWN");
+        assertThat(result.getPlayerName()).isEqualTo("");
+        assertThat(result.getPlayerVersion()).isEqualTo("");
+        assertThat(result.getVideoFramesPlayed()).isEqualTo(-1);
+        assertThat(result.getVideoFramesDropped()).isEqualTo(-1);
+        assertThat(result.getAudioUnderrunCount()).isEqualTo(-1);
+        assertThat(result.getNetworkBytesRead()).isEqualTo(-1);
+        assertThat(result.getLocalBytesRead()).isEqualTo(-1);
+        assertThat(result.getNetworkTransferDurationMillis()).isEqualTo(-1);
+        assertThat(result.getExperimentIds().getExperimentsList().size()).isEqualTo(0);
+        assertThat(result.getDrmSessionId().length()).isEqualTo(0);
     }
 
     public void testPlaybackMetrics() throws Exception {
@@ -276,7 +430,7 @@ public class MediaMetricsAtomTests extends DeviceTestCase implements IBuildRecei
 
         List<StatsLog.EventMetricData> data = ReportUtils.getEventMetricDataList(getDevice());
         assertThat(data.size()).isEqualTo(0);
-   }
+    }
 
     public void testRecordingSession() throws Exception {
         ConfigUtils.uploadConfigForPushedAtom(getDevice(), TEST_PKG,
@@ -290,7 +444,49 @@ public class MediaMetricsAtomTests extends DeviceTestCase implements IBuildRecei
 
         List<StatsLog.EventMetricData> data = ReportUtils.getEventMetricDataList(getDevice());
         assertThat(data.size()).isEqualTo(0);
-   }
+    }
+
+    public void testEditingSession() throws Exception {
+        ConfigUtils.uploadConfigForPushedAtom(getDevice(), TEST_PKG,
+                AtomsProto.Atom.MEDIAMETRICS_PLAYBACK_REPORTED_FIELD_NUMBER);
+        DeviceUtils.runDeviceTests(
+                getDevice(),
+                TEST_PKG,
+                "android.media.metrics.cts.MediaMetricsAtomHostSideTests",
+                "testEditingSession");
+        Thread.sleep(AtomTestUtils.WAIT_TIME_LONG);
+
+        List<StatsLog.EventMetricData> data = ReportUtils.getEventMetricDataList(getDevice());
+        assertThat(data.size()).isEqualTo(0);
+    }
+
+    public void testTranscodingSession() throws Exception {
+        ConfigUtils.uploadConfigForPushedAtom(getDevice(), TEST_PKG,
+                AtomsProto.Atom.MEDIAMETRICS_PLAYBACK_REPORTED_FIELD_NUMBER);
+        DeviceUtils.runDeviceTests(
+                getDevice(),
+                TEST_PKG,
+                "android.media.metrics.cts.MediaMetricsAtomHostSideTests",
+                "testTranscodingSession");
+        Thread.sleep(AtomTestUtils.WAIT_TIME_LONG);
+
+        List<StatsLog.EventMetricData> data = ReportUtils.getEventMetricDataList(getDevice());
+        assertThat(data.size()).isEqualTo(0);
+    }
+
+    public void testBundleSession() throws Exception {
+        ConfigUtils.uploadConfigForPushedAtom(getDevice(), TEST_PKG,
+                AtomsProto.Atom.MEDIAMETRICS_PLAYBACK_REPORTED_FIELD_NUMBER);
+        DeviceUtils.runDeviceTests(
+                getDevice(),
+                TEST_PKG,
+                "android.media.metrics.cts.MediaMetricsAtomHostSideTests",
+                "testBundleSession");
+        Thread.sleep(AtomTestUtils.WAIT_TIME_LONG);
+
+        List<StatsLog.EventMetricData> data = ReportUtils.getEventMetricDataList(getDevice());
+        assertThat(data.size()).isEqualTo(0);
+    }
 
     public void testAppBlocklist() throws Exception {
         ConfigUtils.uploadConfigForPushedAtom(getDevice(), TEST_PKG,
@@ -400,7 +596,7 @@ public class MediaMetricsAtomTests extends DeviceTestCase implements IBuildRecei
         List<Set<Integer>> directionList = Arrays.asList(directionSet);
 
         List<StatsLog.EventMetricData> data = ReportUtils.getEventMetricDataList(getDevice());
-        AtomTestUtils.assertStatesOccurred(directionList, data, 0,
+        AtomTestUtils.assertStatesOccurredInOrder(directionList, data, 0,
                 atom -> atom.getMediametricsAaudiostreamReported().getDirection().getNumber());
 
         for (StatsLog.EventMetricData event : data) {
@@ -434,29 +630,29 @@ public class MediaMetricsAtomTests extends DeviceTestCase implements IBuildRecei
     }
 
     /**
-     * The test try to create and then close aaudio input stream with mmap path via media metrics
+     * The test try to create and then close aaudio input stream with low latency via media metrics
      * atom host side test app on the DUT.
      * After that, the event metric data for MediametricsAAudioStreamReported is pushed to verify
      * the data is collected correctly.
      */
-    public void testAAudioMmapInputStream() throws Exception {
+    public void testAAudioLowLatencyInputStream() throws Exception {
         runAAudioTestAndValidate(
                 FEATURE_MICROPHONE,
                 AtomsProto.MediametricsAAudioStreamReported.Direction.DIRECTION_INPUT_VALUE,
-                "testAAudioMmapInputStream");
+                "testAAudioLowLatencyInputStream");
     }
 
     /**
-     * The test try to create and then close aaudio output stream with mmap path via media metrics
+     * The test try to create and then close aaudio output stream with low latency via media metrics
      * atom host side test app on the DUT.
      * After that, the event metric data for MediametricsAAudioStreamReported is pushed to verify
      * the data is collected correctly.
      */
-    public void testAAudioMmapOutputStream() throws Exception {
+    public void testAAudioLowLatencyOutputStream() throws Exception {
         runAAudioTestAndValidate(
                 FEATURE_AUDIO_OUTPUT,
                 AtomsProto.MediametricsAAudioStreamReported.Direction.DIRECTION_OUTPUT_VALUE,
-                "testAAudioMmapOutputStream");
+                "testAAudioLowLatencyOutputStream");
     }
 
     /**

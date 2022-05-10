@@ -45,8 +45,6 @@ public class IncidentdTest extends ProtoDumpTestCase {
 
         DiskStatsProtoTest.verifyDiskStatsServiceDumpProto(dump.getDiskstats(), filterLevel, getDevice());
 
-        PackageIncidentTest.verifyPackageServiceDumpProto(dump.getPackage(), filterLevel);
-
         PowerIncidentTest.verifyPowerManagerServiceDumpProto(dump.getPower(), filterLevel);
 
         if (PrintProtoTest.supportsPrinting(getDevice())) {
@@ -67,7 +65,9 @@ public class IncidentdTest extends ProtoDumpTestCase {
 
         WindowManagerIncidentTest.verifyWindowManagerServiceDumpProto(dump.getWindow(), filterLevel);
 
-        UsbIncidentTest.verifyUsbServiceDumpProto(dump.getUsb(), filterLevel);
+        if (UsbIncidentTest.hasUsbFunctionality(getDevice())) {
+            UsbIncidentTest.verifyUsbServiceDumpProto(dump.getUsb(), filterLevel);
+        }
     }
 
     // Splitting these into separate methods to make debugging easier.

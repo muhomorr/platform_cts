@@ -20,6 +20,7 @@ import static com.google.common.truth.Truth.assertThat;
 
 import android.content.Intent;
 import android.content.pm.PackageInstaller;
+import android.text.TextUtils;
 
 import com.android.compatibility.common.util.SystemUtil;
 
@@ -38,12 +39,15 @@ public class Install {
     // Indicates whether Install represents a multiPackage install.
     private final boolean mIsMultiPackage;
     // PackageInstaller.Session parameters.
+    private String mPackageName = null;
     private boolean mIsStaged = false;
     private boolean mIsDowngrade = false;
     private boolean mEnableRollback = false;
     private int mRollbackDataPolicy = 0;
     private int mSessionMode = PackageInstaller.SessionParams.MODE_FULL_INSTALL;
     private int mInstallFlags = 0;
+    private boolean mBypassAllowedApexUpdateCheck = true;
+    private boolean mBypassStagedInstallerCheck = true;
 
     private Install(boolean isMultiPackage, TestApp... testApps) {
         mIsMultiPackage = isMultiPackage;
@@ -91,6 +95,14 @@ public class Install {
         }
         Install install = new Install(true, installs);
         return install;
+    }
+
+    /**
+     * Sets package name to the session params.
+     */
+    public Install setPackageName(String packageName) {
+        mPackageName = packageName;
+        return this;
     }
 
     /**
@@ -145,6 +157,24 @@ public class Install {
     }
 
     /**
+     * Sets whether to call {@code pm bypass-allowed-apex-update-check true} when creating install
+     * session.
+     */
+    public Install setBypassAllowedApexUpdateCheck(boolean bypassAllowedApexUpdateCheck) {
+        mBypassAllowedApexUpdateCheck = bypassAllowedApexUpdateCheck;
+        return this;
+    }
+
+    /**
+     * Sets whether to call {@code pm bypass-staged-installer-check true} when creating install
+     * session.
+     */
+    public Install setBypassStangedInstallerCheck(boolean bypassStagedInstallerCheck) {
+        mBypassStagedInstallerCheck = bypassStagedInstallerCheck;
+        return this;
+    }
+
+    /**
      * Commits the install.
      *
      * @return the session id of the install session, if the session is successful.
@@ -158,9 +188,6 @@ public class Install {
             session.commit(sender.getIntentSender());
             Intent result = sender.getResult();
             InstallUtils.assertStatusSuccess(result);
-            if (mIsStaged) {
-                InstallUtils.waitForSessionReady(sessionId);
-            }
             return sessionId;
         }
     }
@@ -198,15 +225,18 @@ public class Install {
      */
     private int createEmptyInstallSession(boolean multiPackage, boolean isApex)
             throws IOException {
-        if (mIsStaged || isApex) {
+        if ((mIsStaged || isApex) && mBypassStagedInstallerCheck) {
             SystemUtil.runShellCommandForNoOutput("pm bypass-staged-installer-check true");
         }
-        if (isApex) {
+        if (isApex && mBypassAllowedApexUpdateCheck) {
             SystemUtil.runShellCommandForNoOutput("pm bypass-allowed-apex-update-check true");
         }
         try {
             PackageInstaller.SessionParams params =
                     new PackageInstaller.SessionParams(mSessionMode);
+            if (!TextUtils.isEmpty(mPackageName)) {
+                params.setAppPackageName(mPackageName);
+            }
             if (multiPackage) {
                 params.setMultiPackage();
             }
@@ -223,10 +253,10 @@ public class Install {
             }
             return InstallUtils.getPackageInstaller().createSession(params);
         } finally {
-            if (mIsStaged || isApex) {
+            if ((mIsStaged || isApex) && mBypassStagedInstallerCheck) {
                 SystemUtil.runShellCommandForNoOutput("pm bypass-staged-installer-check false");
             }
-            if (isApex) {
+            if (isApex && mBypassAllowedApexUpdateCheck) {
                 SystemUtil.runShellCommandForNoOutput("pm bypass-allowed-apex-update-check false");
             }
         }

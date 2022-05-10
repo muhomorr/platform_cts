@@ -18,28 +18,34 @@ package android.security.cts;
 
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
-import android.platform.test.annotations.SecurityTest;
-import android.test.AndroidTestCase;
+import android.platform.test.annotations.AsbSecurityTest;
+import androidx.test.runner.AndroidJUnit4;
+import com.android.sts.common.util.StsExtraBusinessLogicTestCase;
+import org.junit.runner.RunWith;
+import org.junit.Test;
 
 import java.io.InputStream;
 
 import android.security.cts.R;
-import android.platform.test.annotations.SecurityTest;
+import android.platform.test.annotations.AsbSecurityTest;
 
-@SecurityTest
-public class SkiaICORecursiveDecodingTest extends AndroidTestCase {
+@RunWith(AndroidJUnit4.class)
+public class SkiaICORecursiveDecodingTest extends StsExtraBusinessLogicTestCase {
 
-    @SecurityTest(minPatchLevel = "2018-05")
+    @AsbSecurityTest(cveBugId = 73782357)
+    @Test
     public void testAndroid_cve_2017_13318() {
         doSkiaIcoRecursiveDecodingTest(R.raw.cve_2017_13318);
     }
 
-    @SecurityTest
+    @AsbSecurityTest(cveBugId = 17262540)
+    @Test
     public void test_android_bug_17262540() {
         doSkiaIcoRecursiveDecodingTest(R.raw.bug_17262540);
     }
 
-    @SecurityTest
+    @AsbSecurityTest(cveBugId = 17265466)
+    @Test
     public void test_android_bug_17265466() {
         doSkiaIcoRecursiveDecodingTest(R.raw.bug_17265466);
     }
@@ -48,7 +54,7 @@ public class SkiaICORecursiveDecodingTest extends AndroidTestCase {
      * Verifies that the device prevents recursive decoding of malformed ICO files
      */
     public void doSkiaIcoRecursiveDecodingTest(int resId) {
-        InputStream exploitImage = mContext.getResources().openRawResource(resId);
+        InputStream exploitImage = getInstrumentation().getContext().getResources().openRawResource(resId);
         /**
          * The decodeStream method results in SIGSEGV (Segmentation fault) on unpatched devices
          * while decoding the exploit image which will lead to process crash
