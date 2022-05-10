@@ -28,16 +28,12 @@ import android.os.StatsDataDumpProto;
 import android.platform.test.annotations.RestrictedBuildTest;
 import android.server.DeviceIdleModeEnum;
 import android.view.DisplayStateEnum;
-import android.telephony.NetworkTypeEnum;
 
-import com.android.internal.os.StatsdConfigProto.StatsdConfig;
 import com.android.os.AtomsProto.AppBreadcrumbReported;
 import com.android.os.AtomsProto.Atom;
 import com.android.os.AtomsProto.BatterySaverModeStateChanged;
 import com.android.os.AtomsProto.BuildInformation;
 import com.android.os.AtomsProto.ConnectivityStateChanged;
-import com.android.os.AtomsProto.SimSlotState;
-import com.android.os.AtomsProto.SupportedRadioAccessFamily;
 import com.android.os.StatsLog.ConfigMetricsReportList;
 import com.android.os.StatsLog.EventMetricData;
 import com.android.tradefed.build.IBuildInfo;
@@ -50,15 +46,9 @@ import com.google.protobuf.ByteString;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
-import java.util.Queue;
 import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * Statsd atom tests that are done via adb (hostside).
@@ -75,6 +65,7 @@ public class HostAtomTests extends DeviceTestCase implements IBuildReceiver {
 
     private static final String FEATURE_AUTOMOTIVE = "android.hardware.type.automotive";
     private static final String FEATURE_WATCH = "android.hardware.type.watch";
+    private static final String FEATURE_TWM = "com.google.clockwork.hardware.traditional_watch_mode";
     private static final String FEATURE_WIFI = "android.hardware.wifi";
     private static final String FEATURE_LEANBACK_ONLY = "android.software.leanback_only";
 
@@ -148,7 +139,7 @@ public class HostAtomTests extends DeviceTestCase implements IBuildReceiver {
         // Restores AoD to initial state.
         setAodState(aodState);
         // Assert that the events happened in the expected order.
-        AtomTestUtils.assertStatesOccurred(stateSet, data, AtomTestUtils.WAIT_TIME_LONG,
+        AtomTestUtils.assertStatesOccurredInOrder(stateSet, data, AtomTestUtils.WAIT_TIME_LONG,
                 atom -> atom.getScreenStateChanged().getState().getNumber());
     }
 
@@ -198,7 +189,7 @@ public class HostAtomTests extends DeviceTestCase implements IBuildReceiver {
         Thread.sleep(AtomTestUtils.WAIT_TIME_SHORT);
 
         // Assert that the events happened in the expected order.
-        AtomTestUtils.assertStatesOccurred(stateSet, data, AtomTestUtils.WAIT_TIME_SHORT,
+        AtomTestUtils.assertStatesOccurredInOrder(stateSet, data, AtomTestUtils.WAIT_TIME_SHORT,
                 atom -> atom.getChargingStateChanged().getState().getNumber());
     }
 
@@ -254,7 +245,7 @@ public class HostAtomTests extends DeviceTestCase implements IBuildReceiver {
         Thread.sleep(AtomTestUtils.WAIT_TIME_SHORT);
 
         // Assert that the events happened in the expected order.
-        AtomTestUtils.assertStatesOccurred(stateSet, data, AtomTestUtils.WAIT_TIME_LONG,
+        AtomTestUtils.assertStatesOccurredInOrder(stateSet, data, AtomTestUtils.WAIT_TIME_LONG,
                 atom -> atom.getPluggedStateChanged().getState().getNumber());
     }
 
@@ -262,6 +253,7 @@ public class HostAtomTests extends DeviceTestCase implements IBuildReceiver {
         if (DeviceUtils.hasFeature(getDevice(), FEATURE_AUTOMOTIVE)) return;
         // Setup, set battery level to full.
         setBatteryLevel(100);
+        DeviceUtils.flushBatteryStatsHandlers(getDevice());
         Thread.sleep(AtomTestUtils.WAIT_TIME_SHORT);
 
         final int atomTag = Atom.BATTERY_LEVEL_CHANGED_FIELD_NUMBER;
@@ -281,15 +273,20 @@ public class HostAtomTests extends DeviceTestCase implements IBuildReceiver {
 
         // Trigger events in same order.
         setBatteryLevel(2);
-        Thread.sleep(AtomTestUtils.WAIT_TIME_SHORT);
+        DeviceUtils.flushBatteryStatsHandlers(getDevice());
+        Thread.sleep(AtomTestUtils.WAIT_TIME_LONG);
         setBatteryLevel(25);
-        Thread.sleep(AtomTestUtils.WAIT_TIME_SHORT);
+        DeviceUtils.flushBatteryStatsHandlers(getDevice());
+        Thread.sleep(AtomTestUtils.WAIT_TIME_LONG);
         setBatteryLevel(50);
-        Thread.sleep(AtomTestUtils.WAIT_TIME_SHORT);
+        DeviceUtils.flushBatteryStatsHandlers(getDevice());
+        Thread.sleep(AtomTestUtils.WAIT_TIME_LONG);
         setBatteryLevel(75);
-        Thread.sleep(AtomTestUtils.WAIT_TIME_SHORT);
+        DeviceUtils.flushBatteryStatsHandlers(getDevice());
+        Thread.sleep(AtomTestUtils.WAIT_TIME_LONG);
         setBatteryLevel(100);
-        Thread.sleep(AtomTestUtils.WAIT_TIME_SHORT);
+        DeviceUtils.flushBatteryStatsHandlers(getDevice());
+        Thread.sleep(AtomTestUtils.WAIT_TIME_LONG);
 
         // Sorted list of events in order in which they occurred.
         List<EventMetricData> data = ReportUtils.getEventMetricDataList(getDevice());
@@ -299,7 +296,7 @@ public class HostAtomTests extends DeviceTestCase implements IBuildReceiver {
         Thread.sleep(AtomTestUtils.WAIT_TIME_SHORT);
 
         // Assert that the events happened in the expected order.
-        AtomTestUtils.assertStatesOccurred(stateSet, data, AtomTestUtils.WAIT_TIME_SHORT,
+        AtomTestUtils.assertStatesOccurredInOrder(stateSet, data, AtomTestUtils.WAIT_TIME_LONG,
                 atom -> atom.getBatteryLevelChanged().getBatteryLevel());
     }
 
@@ -335,11 +332,12 @@ public class HostAtomTests extends DeviceTestCase implements IBuildReceiver {
         List<EventMetricData> data = ReportUtils.getEventMetricDataList(getDevice());
 
         // Assert that the events happened in the expected order.
-        AtomTestUtils.assertStatesOccurred(stateSet, data, AtomTestUtils.WAIT_TIME_SHORT,
+        AtomTestUtils.assertStatesOccurredInOrder(stateSet, data, AtomTestUtils.WAIT_TIME_SHORT,
                 atom -> atom.getDeviceIdleModeStateChanged().getState().getNumber());
     }
 
     public void testBatterySaverModeStateChangedAtom() throws Exception {
+        if (DeviceUtils.hasFeature(getDevice(), FEATURE_TWM)) return;
         if (DeviceUtils.hasFeature(getDevice(), FEATURE_AUTOMOTIVE)) return;
         // Setup, turn off battery saver.
         turnBatterySaverOff();
@@ -368,7 +366,7 @@ public class HostAtomTests extends DeviceTestCase implements IBuildReceiver {
         List<EventMetricData> data = ReportUtils.getEventMetricDataList(getDevice());
 
         // Assert that the events happened in the expected order.
-        AtomTestUtils.assertStatesOccurred(stateSet, data, AtomTestUtils.WAIT_TIME_LONG,
+        AtomTestUtils.assertStatesOccurredInOrder(stateSet, data, AtomTestUtils.WAIT_TIME_LONG,
                 atom -> atom.getBatterySaverModeStateChanged().getState().getNumber());
     }
 
