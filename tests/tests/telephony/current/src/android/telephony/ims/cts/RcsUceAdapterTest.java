@@ -38,6 +38,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.fail;
 
 import android.content.BroadcastReceiver;
@@ -125,9 +126,11 @@ public class RcsUceAdapterTest {
     private static String sTestPhoneNumber;
     private static String sTestContact2;
     private static String sTestContact3;
+    private static String sTestContact4;
     private static Uri sTestNumberUri;
     private static Uri sTestContact2Uri;
     private static Uri sTestContact3Uri;
+    private static Uri sTestContact4Uri;
 
     private ContentObserver mUceObserver;
 
@@ -504,9 +507,6 @@ public class RcsUceAdapterTest {
         Collection<Uri> numbers = new ArrayList<>(1);
         numbers.add(sTestNumberUri);
 
-        ArrayList<String> pidfXmlList = new ArrayList<>(1);
-        pidfXmlList.add(getPidfXmlData(sTestNumberUri, true, true));
-
         BlockingQueue<Boolean> completeQueue = new LinkedBlockingQueue<>();
         BlockingQueue<RcsContactUceCapability> capabilityQueue = new LinkedBlockingQueue<>();
         BlockingQueue<Integer> errorQueue = new LinkedBlockingQueue<>();
@@ -587,19 +587,21 @@ public class RcsUceAdapterTest {
         // Prepare the network response is 200 OK and the capabilities update
         int networkRespCode = 200;
         String networkRespReason = "OK";
+        HashMap<Uri, Pair<Boolean, Boolean>> contactExpectedMedia = new HashMap<>();
+        contactExpectedMedia.put(sTestNumberUri, new Pair<>(true, true));
+
         capabilityExchangeImpl.setSubscribeOperation((uris, cb) -> {
             cb.onNetworkResponse(networkRespCode, networkRespReason);
-            cb.onNotifyCapabilitiesUpdate(pidfXmlList);
+            cb.onNotifyCapabilitiesUpdate(getPidfForUris(new ArrayList(uris),
+                    contactExpectedMedia));
             cb.onTerminated("", 0L);
         });
 
         requestCapabilities(uceAdapter, numbers, callback);
 
         // Verify that the contact capability is received and the onCompleted is called.
-        RcsContactUceCapability capability = waitForResult(capabilityQueue);
-        assertNotNull("Capabilities were not received for contact: " + sTestNumberUri, capability);
-        verifyCapabilityResult(capability, sTestNumberUri, SOURCE_TYPE_NETWORK,
-                REQUEST_RESULT_FOUND, true, true);
+        verifyCapabilities(numbers, getCapabilities(capabilityQueue, numbers.size()),
+                SOURCE_TYPE_NETWORK, REQUEST_RESULT_FOUND, contactExpectedMedia);
         waitForResult(completeQueue);
 
         errorQueue.clear();
@@ -610,9 +612,10 @@ public class RcsUceAdapterTest {
         requestAvailability(uceAdapter, sTestNumberUri, callback);
 
         // Verify that the contact capability is received and the onCompleted is called.
-        capability = waitForResult(capabilityQueue);
-        verifyCapabilityResult(capability, sTestNumberUri, SOURCE_TYPE_NETWORK,
-                REQUEST_RESULT_FOUND, true, true);
+        verifyCapabilityReceived(sTestNumberUri, capabilityQueue, SOURCE_TYPE_NETWORK,
+                REQUEST_RESULT_FOUND, contactExpectedMedia.get(sTestNumberUri).first,
+                contactExpectedMedia.get(sTestNumberUri).second);
+
         waitForResult(completeQueue);
 
         overrideCarrierConfig(null);
@@ -818,6 +821,8 @@ public class RcsUceAdapterTest {
             } finally {
                 errorQueue.clear();
                 retryAfterQueue.clear();
+                removeTestContactFromEab();
+                removeUceRequestDisallowedStatus();
             }
 
             requestAvailability(uceAdapter, sTestNumberUri, callback);
@@ -831,6 +836,8 @@ public class RcsUceAdapterTest {
             } finally {
                 errorQueue.clear();
                 retryAfterQueue.clear();
+                removeTestContactFromEab();
+                removeUceRequestDisallowedStatus();
             }
 
             /*
@@ -854,6 +861,8 @@ public class RcsUceAdapterTest {
             } finally {
                 errorQueue.clear();
                 retryAfterQueue.clear();
+                removeTestContactFromEab();
+                removeUceRequestDisallowedStatus();
             }
 
             requestAvailability(uceAdapter, sTestNumberUri, callback);
@@ -867,6 +876,8 @@ public class RcsUceAdapterTest {
             } finally {
                 errorQueue.clear();
                 retryAfterQueue.clear();
+                removeTestContactFromEab();
+                removeUceRequestDisallowedStatus();
             }
         });
 
@@ -888,6 +899,8 @@ public class RcsUceAdapterTest {
         } finally {
             errorQueue.clear();
             retryAfterQueue.clear();
+            removeTestContactFromEab();
+            removeUceRequestDisallowedStatus();
         }
 
         requestCapabilities(uceAdapter, numbers, callback);
@@ -902,6 +915,8 @@ public class RcsUceAdapterTest {
         } finally {
             errorQueue.clear();
             retryAfterQueue.clear();
+            removeTestContactFromEab();
+            removeUceRequestDisallowedStatus();
         }
 
         overrideCarrierConfig(null);
@@ -954,44 +969,51 @@ public class RcsUceAdapterTest {
         final Uri contact1 = sTestNumberUri;
         final Uri contact2 = sTestContact2Uri;
         final Uri contact3 = sTestContact3Uri;
+        final Uri contact4 = sTestContact4Uri;
 
-        Collection<Uri> contacts = new ArrayList<>(3);
+        Collection<Uri> contacts = new ArrayList<>(4);
         contacts.add(contact1);
         contacts.add(contact2);
         contacts.add(contact3);
-
-        ArrayList<String> pidfXmlList = new ArrayList<>(3);
-        pidfXmlList.add(getPidfXmlData(contact1, true, true));
-        pidfXmlList.add(getPidfXmlData(contact2, true, false));
-        pidfXmlList.add(getPidfXmlData(contact3, false, false));
+        contacts.add(contact4);
 
         // Setup the network response is 200 OK and notify capabilities update
         int networkRespCode = 200;
         String networkRespReason = "OK";
+        HashMap<Uri, Pair<Boolean, Boolean>> contactExpectedMedia = new HashMap<>();
+        contactExpectedMedia.put(contact1, new Pair<>(true, true));
+        contactExpectedMedia.put(contact2, new Pair<>(true, false));
+        contactExpectedMedia.put(contact3, new Pair<>(false, false));
+        contactExpectedMedia.put(contact4, new Pair<>(false, false));
+
         capabilityExchangeImpl.setSubscribeOperation((uris, cb) -> {
             cb.onNetworkResponse(networkRespCode, networkRespReason);
-            cb.onNotifyCapabilitiesUpdate(pidfXmlList);
+            cb.onNotifyCapabilitiesUpdate(getPidfForUris(new ArrayList(uris),
+                    contactExpectedMedia));
             cb.onTerminated("", 0L);
         });
 
         requestCapabilities(uceAdapter, contacts, callback);
 
-        // Verify that all the three contact's capabilities are received
-        RcsContactUceCapability capability = waitForResult(capabilityQueue);
-        assertNotNull("Capabilities were not received for contact: " + contact1, capability);
-        verifyCapabilityResult(capability, contact1, SOURCE_TYPE_NETWORK, REQUEST_RESULT_FOUND,
-                true, true);
+        // Verify that all the four contact's capabilities are received
+        List<RcsContactUceCapability> resultCapList =
+                getCapabilities(capabilityQueue, contacts.size());
 
-        capability = waitForResult(capabilityQueue);
-        assertNotNull("Capabilities were not received for contact: " + contact2, capability);
-        verifyCapabilityResult(capability, contact2, SOURCE_TYPE_NETWORK, REQUEST_RESULT_FOUND,
-                true, false);
+        Collection<Uri> contactsToVerify = new ArrayList<>(3);
+        contactsToVerify.add(contact1);
+        contactsToVerify.add(contact2);
+        contactsToVerify.add(contact3);
 
-        capability = waitForResult(capabilityQueue);
-        assertNotNull("Capabilities were not received for contact: " + contact3, capability);
-        verifyCapabilityResult(capability, contact3, SOURCE_TYPE_NETWORK, REQUEST_RESULT_FOUND,
-                false, false);
+        // Verify the contact with normal capabilities from the received capabilities list
+        verifyCapabilities(contactsToVerify, resultCapList, SOURCE_TYPE_NETWORK,
+                REQUEST_RESULT_FOUND, contactExpectedMedia);
 
+        // Verify the contact with malformed capabilities from the received capabilities list
+        RcsContactUceCapability resultCapability = getContactCapability(resultCapList, contact4);
+        assertNotNull("Cannot find the contact", resultCapability);
+        verifyMalformedCapabilityResult(resultCapability, contact4, SOURCE_TYPE_NETWORK,
+                REQUEST_RESULT_FOUND, contactExpectedMedia.get(contact4).first,
+                contactExpectedMedia.get(contact4).second);
         // Verify the onCompleted is called
         waitForResult(completeQueue);
 
@@ -999,6 +1021,7 @@ public class RcsUceAdapterTest {
         errorRetryQueue.clear();
         completeQueue.clear();
         capabilityQueue.clear();
+        resultCapList.clear();
         removeTestContactFromEab();
 
         // Setup the callback that some of the contacts are terminated.
@@ -1008,18 +1031,15 @@ public class RcsUceAdapterTest {
 
         requestCapabilities(uceAdapter, contacts, callback);
 
-        // Verify the contacts are not found.
-        capability = waitForResult(capabilityQueue);
-        verifyCapabilityResult(capability, contact1, SOURCE_TYPE_NETWORK, REQUEST_RESULT_NOT_FOUND,
-                false, false);
+        contactExpectedMedia.clear();
+        contactExpectedMedia.put(contact1, new Pair<>(false, false));
+        contactExpectedMedia.put(contact2, new Pair<>(false, false));
+        contactExpectedMedia.put(contact3, new Pair<>(false, false));
+        contactExpectedMedia.put(contact4, new Pair<>(false, false));
 
-        capability = waitForResult(capabilityQueue);
-        verifyCapabilityResult(capability, contact2, SOURCE_TYPE_NETWORK, REQUEST_RESULT_NOT_FOUND,
-                false, false);
-
-        capability = waitForResult(capabilityQueue);
-        verifyCapabilityResult(capability, contact3, SOURCE_TYPE_NETWORK, REQUEST_RESULT_NOT_FOUND,
-                false, false);
+        // Verify the contact capabilities from the received capabilities list
+        verifyCapabilities(contacts, getCapabilities(capabilityQueue, contacts.size()),
+                SOURCE_TYPE_NETWORK, REQUEST_RESULT_NOT_FOUND, contactExpectedMedia);
 
         // Verify the onCompleted is called
         waitForResult(completeQueue);
@@ -1031,13 +1051,15 @@ public class RcsUceAdapterTest {
         removeTestContactFromEab();
 
         // Setup the callback that some of the contacts are terminated.
+        contactExpectedMedia.replace(contact1, new Pair<>(true, true));
+
         capabilityExchangeImpl.setSubscribeOperation((uris, cb) -> {
             List<Uri> uriList = new ArrayList(uris);
             cb.onNetworkResponse(networkRespCode, networkRespReason);
             // Notify capabilities updated for the first contact
-            String pidfXml = pidfXmlList.get(0);
-            cb.onNotifyCapabilitiesUpdate(Collections.singletonList(pidfXml));
-
+            assertEquals(contact1, uriList.get(0));
+            cb.onNotifyCapabilitiesUpdate(getPidfForUris(uriList.subList(0, 1),
+                    contactExpectedMedia));
             List<Pair<Uri, String>> terminatedResources = new ArrayList<>();
             for (int i = 1; i < uriList.size(); i++) {
                 Pair<Uri, String> pair = Pair.create(uriList.get(i), "noresource");
@@ -1049,22 +1071,143 @@ public class RcsUceAdapterTest {
 
         requestCapabilities(uceAdapter, contacts, callback);
 
-        // Verify the first contact is found.
-        capability = waitForResult(capabilityQueue);
-        verifyCapabilityResult(capability, contact1, SOURCE_TYPE_NETWORK, REQUEST_RESULT_FOUND,
-                true, true);
+        resultCapList = getCapabilities(capabilityQueue, contacts.size());
 
-        // Verify the reset contacts are not found.
-        capability = waitForResult(capabilityQueue);
-        verifyCapabilityResult(capability, contact2, SOURCE_TYPE_NETWORK, REQUEST_RESULT_NOT_FOUND,
-                true, false);
+        // Verify the first contact capabilities from the received capabilities list
+        verifyCapabilities(Collections.singletonList(contact1), resultCapList,
+                SOURCE_TYPE_NETWORK, REQUEST_RESULT_FOUND, contactExpectedMedia);
 
-        capability = waitForResult(capabilityQueue);
-        verifyCapabilityResult(capability, contact3, SOURCE_TYPE_NETWORK, REQUEST_RESULT_NOT_FOUND,
-                false, false);
+        contactsToVerify.clear();
+        contactsToVerify.add(contact2);
+        contactsToVerify.add(contact3);
+        contactsToVerify.add(contact4);
+
+        // Verify the other contact capabilities from the received capabilities list
+        verifyCapabilities(contactsToVerify, resultCapList, SOURCE_TYPE_NETWORK,
+                REQUEST_RESULT_NOT_FOUND, contactExpectedMedia);
 
         // Verify the onCompleted is called
         waitForResult(completeQueue);
+
+        overrideCarrierConfig(null);
+    }
+
+    /**
+     * Tests the case when contact1 has had a successful network query, but a query for contact2
+     * has resulted in the carrier network not responding with a NOTIFY. If contact1 caps are
+     * queried again, the query to the cache for contact1 should not be blocked in a queue behind
+     * the pending network query. Eventually, request for contact2 will timeout with onTimeout
+     * response from vendor, which will result in ERROR_REQUEST_TIMEOUT result back to app.
+     */
+    @Test
+    public void testCacheQuerySuccessWhenNetworkBlocked() throws Exception {
+        if (!ImsUtils.shouldTestImsService()) {
+            return;
+        }
+        ImsManager imsManager = getContext().getSystemService(ImsManager.class);
+        RcsUceAdapter uceAdapter = imsManager.getImsRcsManager(sTestSub).getUceAdapter();
+        assertNotNull("UCE adapter should not be null!", uceAdapter);
+
+        // Remove the test contact capabilities
+        removeTestContactFromEab();
+
+        // Connect to the ImsService
+        setupTestImsService(uceAdapter, true, true /* presence cap */, false /* OPTIONS */);
+
+        TestRcsCapabilityExchangeImpl capabilityExchangeImpl = sServiceConnector
+                .getCarrierService().getRcsFeature().getRcsCapabilityExchangeImpl();
+
+        BlockingQueue<Boolean> completeQueue = new LinkedBlockingQueue<>();
+        BlockingQueue<RcsContactUceCapability> capabilityQueue = new LinkedBlockingQueue<>();
+        BlockingQueue<Integer> errorQueue = new LinkedBlockingQueue<>();
+        RcsUceAdapter.CapabilitiesCallback callback = new RcsUceAdapter.CapabilitiesCallback() {
+            @Override
+            public void onCapabilitiesReceived(List<RcsContactUceCapability> capabilities) {
+                capabilities.forEach(capabilityQueue::offer);
+            }
+            @Override
+            public void onComplete() {
+                completeQueue.offer(true);
+            }
+            @Override
+            public void onError(int errorCode, long retryAfterMilliseconds) {
+                errorQueue.offer(errorCode);
+            }
+        };
+
+        // Prepare two contacts
+        final Uri contact1 = sTestNumberUri;
+        final Uri contact2 = sTestContact2Uri;
+
+        Collection<Uri> contacts = new ArrayList<>(1);
+        contacts.add(contact1);
+
+        HashMap<Uri, Pair<Boolean, Boolean>> contactExpectedMedia = new HashMap<>();
+        contactExpectedMedia.put(contact1, new Pair<>(true, true));
+
+        // Setup the network response is 200 OK and notify capabilities update
+        int networkRespCode = 200;
+        String networkRespReason = "OK";
+        capabilityExchangeImpl.setSubscribeOperation((uris, cb) -> {
+            cb.onNetworkResponse(networkRespCode, networkRespReason);
+            cb.onNotifyCapabilitiesUpdate(getPidfForUris(new ArrayList(uris),
+                    contactExpectedMedia));
+            cb.onTerminated("", 0L);
+        });
+
+        requestCapabilities(uceAdapter, contacts, callback);
+
+        // Verify contact1's capabilities from the received capabilities list
+        verifyCapabilities(contacts, getCapabilities(capabilityQueue, contacts.size()),
+                SOURCE_TYPE_NETWORK, REQUEST_RESULT_FOUND, contactExpectedMedia);
+
+        // Verify the onCompleted is called
+        waitForResult(completeQueue);
+
+        completeQueue.clear();
+        capabilityQueue.clear();
+
+        // Now hold the second contact and do not return a response until after contact1 is queried
+        //again
+        CountDownLatch latch = new CountDownLatch(1);
+        capabilityExchangeImpl.setSubscribeOperation((uris, cb) -> {
+            try {
+                cb.onNetworkResponse(networkRespCode, networkRespReason);
+                assertTrue("Timed out waiting for latch", latch.await(10, TimeUnit.SECONDS));
+                // We didn't receive any NOTIFY
+                cb.onTerminated("timeout", 0L);
+            } catch (InterruptedException e) {
+                fail("Waiting for cap response resulted in unexpected exception: " + e);
+            }
+        });
+
+        contacts.clear();
+        contacts.add(contact2);
+
+        requestCapabilities(uceAdapter, contacts, callback);
+
+        // Send another request for contact1's caps. Although the request queue is blocked due to
+        // pending network request, contact1 has valid caps, so system should return those.
+        contacts.clear();
+        contacts.add(contact1);
+
+        requestCapabilities(uceAdapter, contacts, callback);
+
+        // Verify contact1's capabilities from the received capabilities list
+        verifyCapabilities(contacts, getCapabilities(capabilityQueue, contacts.size()),
+                SOURCE_TYPE_CACHED, REQUEST_RESULT_FOUND, contactExpectedMedia);
+
+        // Now contact2's query finishes and it timed out without a NOTIFY
+        latch.countDown();
+
+        Integer error = waitForResult(errorQueue);
+        assertEquals("Timeout without NOTIFY should result in ERROR_REQUEST_TIMEOUT",
+                RcsUceAdapter.ERROR_REQUEST_TIMEOUT, error.intValue());
+
+        errorQueue.clear();
+        completeQueue.clear();
+        capabilityQueue.clear();
+        removeTestContactFromEab();
 
         overrideCarrierConfig(null);
     }
@@ -1117,37 +1260,26 @@ public class RcsUceAdapterTest {
         contacts.add(contact2);
         contacts.add(contact3);
 
-        ArrayList<String> pidfXmlList = new ArrayList<>(3);
-        pidfXmlList.add(getPidfXmlData(contact1, true, true));
-        pidfXmlList.add(getPidfXmlData(contact2, true, false));
-        pidfXmlList.add(getPidfXmlData(contact3, false, false));
+        HashMap<Uri, Pair<Boolean, Boolean>> contactExpectedMedia = new HashMap<>();
+        contactExpectedMedia.put(contact1, new Pair<>(true, true));
+        contactExpectedMedia.put(contact2, new Pair<>(true, false));
+        contactExpectedMedia.put(contact3, new Pair<>(false, false));
 
         // Setup the network response is 200 OK and notify capabilities update
         int networkRespCode = 200;
         String networkRespReason = "OK";
         capabilityExchangeImpl.setSubscribeOperation((uris, cb) -> {
             cb.onNetworkResponse(networkRespCode, networkRespReason);
-            cb.onNotifyCapabilitiesUpdate(pidfXmlList);
+            cb.onNotifyCapabilitiesUpdate(getPidfForUris(new ArrayList(uris),
+                    contactExpectedMedia));
             cb.onTerminated("", 0L);
         });
 
         requestCapabilities(uceAdapter, contacts, callback);
 
-        // Verify that all the three contact's capabilities are received
-        RcsContactUceCapability capability = waitForResult(capabilityQueue);
-        assertNotNull("Capabilities were not received for contact: " + contact1, capability);
-        verifyCapabilityResult(capability, contact1, SOURCE_TYPE_NETWORK, REQUEST_RESULT_FOUND,
-                true, true);
-
-        capability = waitForResult(capabilityQueue);
-        assertNotNull("Capabilities were not received for contact: " + contact2, capability);
-        verifyCapabilityResult(capability, contact2, SOURCE_TYPE_NETWORK, REQUEST_RESULT_FOUND,
-                true, false);
-
-        capability = waitForResult(capabilityQueue);
-        assertNotNull("Capabilities were not received for contact: " + contact3, capability);
-        verifyCapabilityResult(capability, contact3, SOURCE_TYPE_NETWORK, REQUEST_RESULT_FOUND,
-                false, false);
+        // Verify that all the three contact's capabilities are received.
+        verifyCapabilities(contacts, getCapabilities(capabilityQueue, contacts.size()),
+                SOURCE_TYPE_NETWORK, REQUEST_RESULT_FOUND, contactExpectedMedia);
 
         // Verify the onCompleted is called
         waitForResult(completeQueue);
@@ -1165,20 +1297,8 @@ public class RcsUceAdapterTest {
         requestCapabilities(uceAdapter, contacts, callback);
 
         // Verify that all the three contact's capabilities are received
-        capability = waitForResult(capabilityQueue);
-        assertNotNull("Capabilities were not received for contact: " + contact1, capability);
-        verifyCapabilityResult(capability, contact1, SOURCE_TYPE_CACHED, REQUEST_RESULT_FOUND,
-                true, true);
-
-        capability = waitForResult(capabilityQueue);
-        assertNotNull("Capabilities were not received for contact: " + contact2, capability);
-        verifyCapabilityResult(capability, contact2, SOURCE_TYPE_CACHED, REQUEST_RESULT_FOUND,
-                true, false);
-
-        capability = waitForResult(capabilityQueue);
-        assertNotNull("Capabilities were not received for contact: " + contact3, capability);
-        verifyCapabilityResult(capability, contact3, SOURCE_TYPE_CACHED, REQUEST_RESULT_FOUND,
-                false, false);
+        verifyCapabilities(contacts, getCapabilities(capabilityQueue, contacts.size()),
+                SOURCE_TYPE_CACHED, REQUEST_RESULT_FOUND, contactExpectedMedia);
 
         // Verify the onCompleted is called
         waitForResult(completeQueue);
@@ -1244,6 +1364,11 @@ public class RcsUceAdapterTest {
         contacts.add(contact2);
         contacts.add(contact3);
 
+        HashMap<Uri, Pair<Boolean, Boolean>> contactExpectedMedia = new HashMap<>();
+        contactExpectedMedia.put(contact1, new Pair<>(true, true));
+        contactExpectedMedia.put(contact2, new Pair<>(true, false));
+        contactExpectedMedia.put(contact3, new Pair<>(false, false));
+
         List<String> pidfXml1 = Collections.singletonList(getPidfXmlData(contact1, true, true));
         List<String> pidfXml2 = Collections.singletonList(getPidfXmlData(contact2, true, false));
         List<String> pidfXml3 = Collections.singletonList(getPidfXmlData(contact3, false, false));
@@ -1256,14 +1381,8 @@ public class RcsUceAdapterTest {
             receiveRequestCount.incrementAndGet();
             cb.onNetworkResponse(networkRespCode, networkRespReason);
             assertEquals(1, uris.size());
-            String uriPart = uris.iterator().next().getSchemeSpecificPart();
-            if (contact1.getSchemeSpecificPart().equalsIgnoreCase(uriPart)) {
-                cb.onNotifyCapabilitiesUpdate(pidfXml1);
-            } else if (contact2.getSchemeSpecificPart().equalsIgnoreCase(uriPart)) {
-                cb.onNotifyCapabilitiesUpdate(pidfXml2);
-            } else if (contact3.getSchemeSpecificPart().equalsIgnoreCase(uriPart)) {
-                cb.onNotifyCapabilitiesUpdate(pidfXml3);
-            }
+            cb.onNotifyCapabilitiesUpdate(getPidfForUris(new ArrayList(uris),
+                    contactExpectedMedia));
             cb.onTerminated("", 0L);
         });
 
@@ -1859,6 +1978,7 @@ public class RcsUceAdapterTest {
         // Override the carrier config of SIP 489 request forbidden.
         PersistableBundle bundle = new PersistableBundle();
         bundle.putBoolean(CarrierConfigManager.Ims.KEY_RCS_REQUEST_FORBIDDEN_BY_SIP_489_BOOL, true);
+        bundle.putBoolean(CarrierConfigManager.Ims.KEY_ENABLE_PRESENCE_GROUP_SUBSCRIBE_BOOL, true);
         overrideCarrierConfig(bundle);
 
         // Connect to the ImsService
@@ -1927,50 +2047,17 @@ public class RcsUceAdapterTest {
                 } else if (sipCode == sipCodeBadEvent) {
                     assertTrue(retryAfterMillis > 0L);
                 }
-
-                // Verify the ImsService received the capabilities request.
-                assertEquals(1, subscribeRequestCount.get());
             } catch (Exception e) {
                 fail("testForbiddenResponseToCapabilitiesRequest with command error failed: " + e);
             } finally {
                 errorQueue.clear();
                 retryAfterQueue.clear();
+                capabilityQueue.clear();
+                completeQueue.clear();
                 subscribeRequestCount.set(0);
+                removeTestContactFromEab();
+                removeUceRequestDisallowedStatus();
             }
-
-            // Prepare the network response with sip code 200 OK
-            capabilityExchangeImpl.setSubscribeOperation((uris, cb) -> {
-                subscribeRequestCount.incrementAndGet();
-                cb.onNetworkResponse(200, "OK");
-            });
-
-            try {
-                // Request contact uce capabilities again.
-                requestCapabilities(uceAdapter, contacts, callback);
-
-                // Verify that the callback "onError" is called with the error code FORBIDDEN
-                assertEquals(RcsUceAdapter.ERROR_FORBIDDEN, waitForIntResult(errorQueue));
-                // Verify the retryAfter value
-                long retryAfterMillis = waitForLongResult(retryAfterQueue);
-                if (sipCode == sipCodeForbidden) {
-                    assertEquals(0L, retryAfterMillis);
-                } else if (sipCode == sipCodeBadEvent) {
-                    assertTrue(retryAfterMillis > 0L);
-                }
-
-                // Verify that the capabilities won't be send to the ImsService because the
-                // uce request is forbidden.
-                assertEquals(0, subscribeRequestCount.get());
-            } catch (Exception e) {
-                fail("testForbiddenResponseToCapabilitiesRequest with command error failed: " + e);
-            } finally {
-                errorQueue.clear();
-                retryAfterQueue.clear();
-                subscribeRequestCount.set(0);
-            }
-
-            // Reset the device status
-            removeUceRequestDisallowedStatus();
         });
 
         overrideCarrierConfig(null);
@@ -1991,9 +2078,6 @@ public class RcsUceAdapterTest {
 
         // Connect to the ImsService
         setupTestImsService(uceAdapter, true, true /* presence cap */, false /* OPTIONS */);
-
-        ArrayList<String> pidfXmlList = new ArrayList<>(1);
-        pidfXmlList.add(getPidfXmlData(sTestNumberUri, true, true));
 
         TestRcsCapabilityExchangeImpl capabilityExchangeImpl = sServiceConnector
                 .getCarrierService().getRcsFeature().getRcsCapabilityExchangeImpl();
@@ -2021,6 +2105,9 @@ public class RcsUceAdapterTest {
         // Prepare the test contact and the callback
         Collection<Uri> numbers = new ArrayList<>(1);
         numbers.add(sTestNumberUri);
+
+        HashMap<Uri, Pair<Boolean, Boolean>> contactExpectedMedia = new HashMap<>();
+        contactExpectedMedia.put(sTestNumberUri, new Pair<>(true, true));
 
         // Prepare the network response is 200 OK and the capabilities update
         int networkRespCode = 200;
@@ -2089,7 +2176,8 @@ public class RcsUceAdapterTest {
             Long terminatedRetryAfterMillis = (Long) reason.arg2;
             capabilityExchangeImpl.setSubscribeOperation((uris, cb) -> {
                 cb.onNetworkResponse(networkRespCode, networkRespReason);
-                cb.onNotifyCapabilitiesUpdate(pidfXmlList);
+                cb.onNotifyCapabilitiesUpdate(getPidfForUris(new ArrayList(uris),
+                        contactExpectedMedia));
                 cb.onTerminated(terminatedReason, terminatedRetryAfterMillis);
             });
 
@@ -2097,11 +2185,8 @@ public class RcsUceAdapterTest {
 
             try {
                 // Verify that the contact capability is received and the onCompleted is called.
-                RcsContactUceCapability capability = waitForResult(capabilityQueue);
-                assertNotNull("Capabilities were not received for contact: " + sTestNumberUri,
-                        capability);
-                verifyCapabilityResult(capability, sTestNumberUri, SOURCE_TYPE_NETWORK,
-                        REQUEST_RESULT_FOUND, true, true);
+                verifyCapabilities(numbers, getCapabilities(capabilityQueue, numbers.size()),
+                        SOURCE_TYPE_NETWORK, REQUEST_RESULT_FOUND, contactExpectedMedia);
 
                 int expectedErrorCode = expectedResult.argi1;
                 Long expectedRetryAfter = (Long) expectedResult.arg1;
@@ -2128,17 +2213,17 @@ public class RcsUceAdapterTest {
         long terminatedRetryAfterMillis = 0L;
         capabilityExchangeImpl.setSubscribeOperation((uris, cb) -> {
             cb.onNetworkResponse(networkRespCode, networkRespReason);
-            cb.onNotifyCapabilitiesUpdate(pidfXmlList);
+            cb.onNotifyCapabilitiesUpdate(getPidfForUris(new ArrayList(uris),
+                    contactExpectedMedia));
             cb.onTerminated(terminatedReason, terminatedRetryAfterMillis);
         });
 
         requestCapabilities(uceAdapter, numbers, callback);
 
         // Verify that the contact capability is received and the onCompleted is called.
-        RcsContactUceCapability capability = waitForResult(capabilityQueue);
-        assertNotNull("Capabilities were not received for contact: " + sTestNumberUri, capability);
-        verifyCapabilityResult(capability, sTestNumberUri, SOURCE_TYPE_NETWORK,
-                REQUEST_RESULT_FOUND, true, true);
+        verifyCapabilities(numbers, getCapabilities(capabilityQueue, numbers.size()),
+                SOURCE_TYPE_NETWORK, REQUEST_RESULT_FOUND, contactExpectedMedia);
+
         assertTrue(waitForResult(completeQueue));
 
         errorQueue.clear();
@@ -2239,6 +2324,7 @@ public class RcsUceAdapterTest {
             completeQueue.clear();
             capabilityQueue.clear();
             removeTestContactFromEab();
+            removeUceRequestDisallowedStatus();
             setCapabilitiesRequestTimeout(-1L);
         }
 
@@ -2264,12 +2350,113 @@ public class RcsUceAdapterTest {
             completeQueue.clear();
             capabilityQueue.clear();
             removeTestContactFromEab();
+            removeUceRequestDisallowedStatus();
             setCapabilitiesRequestTimeout(-1L);
         }
 
         overrideCarrierConfig(null);
     }
 
+    @Test
+    public void testRequestTimeoutWithPresenceMechanism() throws Exception {
+        if (!ImsUtils.shouldTestImsService()) {
+            return;
+        }
+        ImsManager imsManager = getContext().getSystemService(ImsManager.class);
+        RcsUceAdapter uceAdapter = imsManager.getImsRcsManager(sTestSub).getUceAdapter();
+        assertNotNull("UCE adapter should not be null!", uceAdapter);
+
+        // Remove the test contact capabilities
+        removeTestContactFromEab();
+
+        // Connect to the ImsService
+        setupTestImsService(uceAdapter, true, true /* presence cap */, false /* OPTIONS */);
+
+        TestRcsCapabilityExchangeImpl capabilityExchangeImpl = sServiceConnector
+                .getCarrierService().getRcsFeature().getRcsCapabilityExchangeImpl();
+
+        BlockingQueue<Integer> errorQueue = new LinkedBlockingQueue<>();
+        BlockingQueue<Long> errorRetryQueue = new LinkedBlockingQueue<>();
+        BlockingQueue<Boolean> completeQueue = new LinkedBlockingQueue<>();
+        BlockingQueue<RcsContactUceCapability> capabilityQueue = new LinkedBlockingQueue<>();
+        RcsUceAdapter.CapabilitiesCallback callback = new RcsUceAdapter.CapabilitiesCallback() {
+            @Override
+            public void onCapabilitiesReceived(List<RcsContactUceCapability> capabilities) {
+                capabilities.forEach(c -> capabilityQueue.offer(c));
+            }
+            @Override
+            public void onComplete() {
+                completeQueue.offer(true);
+            }
+            @Override
+            public void onError(int errorCode, long retryAfterMilliseconds) {
+                errorQueue.offer(errorCode);
+                errorRetryQueue.offer(retryAfterMilliseconds);
+            }
+        };
+
+        // Prepare the test contact
+        Collection<Uri> contacts = new ArrayList<>();
+        contacts.add(sTestNumberUri);
+        HashMap<Uri, Pair<Boolean, Boolean>> contactExpectedMedia = new HashMap<>();
+        contactExpectedMedia.put(sTestNumberUri, new Pair<>(false, false));
+
+        // Setup the ImsService doesn't trigger any callbacks.
+        AtomicInteger subscribeRequestCount = new AtomicInteger(0);
+        capabilityExchangeImpl.setSubscribeOperation((uris, cb) -> {
+            subscribeRequestCount.incrementAndGet();
+            // It won't trigger any callbacks to the framework.
+        });
+
+        // Set the timeout for 3 seconds
+        setCapabilitiesRequestTimeout(3000L);
+
+        // Request capabilities
+        requestCapabilities(uceAdapter, contacts, callback);
+
+        try {
+            // Verify the error code REQUEST_TIMEOUT is received
+            assertEquals(RcsUceAdapter.ERROR_REQUEST_TIMEOUT, waitForIntResult(errorQueue));
+            assertEquals(0L, waitForLongResult(errorRetryQueue));
+
+            // Verify the capabilities can still be received.
+            verifyCapabilities(contacts, getCapabilities(capabilityQueue, contacts.size()),
+                    SOURCE_TYPE_NETWORK, REQUEST_RESULT_NOT_FOUND, contactExpectedMedia);
+        } finally {
+            errorQueue.clear();
+            errorRetryQueue.clear();
+            completeQueue.clear();
+            capabilityQueue.clear();
+            subscribeRequestCount.set(0);
+        }
+
+        // Request the capabilities with the same contact again.
+        requestCapabilities(uceAdapter, contacts, callback);
+
+        try {
+            // Verify that the caller can received the capabilities callback.
+            // Verify the capabilities can still be received.
+            verifyCapabilities(contacts, getCapabilities(capabilityQueue, contacts.size()),
+                    SOURCE_TYPE_NETWORK, REQUEST_RESULT_NOT_FOUND, contactExpectedMedia);
+            // Verify the complete callback will be called.
+            waitForResult(completeQueue);
+
+            // Verify that the ImsService didn't received the request because the capabilities
+            // should be retrieved from the cache.
+            assertEquals(0, subscribeRequestCount.get());
+        } finally {
+            errorQueue.clear();
+            errorRetryQueue.clear();
+            completeQueue.clear();
+            capabilityQueue.clear();
+            removeTestContactFromEab();
+            removeUceRequestDisallowedStatus();
+            subscribeRequestCount.set(0);
+            setCapabilitiesRequestTimeout(-1L);
+        }
+
+        overrideCarrierConfig(null);
+    }
 
     @Test
     public void testTimeoutToRequestCapabilitiesWithOptionsMechanism() throws Exception {
@@ -2395,39 +2582,41 @@ public class RcsUceAdapterTest {
         contacts.add(contact2);
         contacts.add(contact3);
 
-        ArrayList<String> pidfXmlList = new ArrayList<>(3);
-        // ImsService replies the pidf xml data with the SIP scheme
-        pidfXmlList.add(getPidfXmlData(contact1SipScheme, true, true));
-        pidfXmlList.add(getPidfXmlData(contact2, true, false));
-        pidfXmlList.add(getPidfXmlData(contact3, false, false));
+        HashMap<Uri, Pair<Boolean, Boolean>> contactExpectedMedia = new HashMap<>(contacts.size());
+        contactExpectedMedia.put(contact1SipScheme, new Pair<>(true, true));
+        contactExpectedMedia.put(contact2, new Pair<>(true, false));
+        contactExpectedMedia.put(contact3, new Pair<>(false, false));
+
 
         // Setup the network response is 200 OK and notify capabilities update
         int networkRespCode = 200;
         String networkRespReason = "OK";
         capabilityExchangeImpl.setSubscribeOperation((uris, cb) -> {
+            List<Uri> uriList = new ArrayList<>();
+            for (Uri uri : uris) {
+                if (contact1TelScheme.equals(uri)) {
+                    // ImsService replies the pidf xml data with the SIP scheme
+                    uriList.add(contact1SipScheme);
+                } else {
+                    uriList.add(uri);
+                }
+            }
             cb.onNetworkResponse(networkRespCode, networkRespReason);
-            cb.onNotifyCapabilitiesUpdate(pidfXmlList);
+            cb.onNotifyCapabilitiesUpdate(getPidfForUris(uriList, contactExpectedMedia));
             cb.onTerminated("", 0L);
         });
 
         requestCapabilities(uceAdapter, contacts, callback);
 
         // Verify that all the three contact's capabilities are received
-        RcsContactUceCapability capability = waitForResult(capabilityQueue);
-        assertNotNull("Capabilities were not received for contact: " + contact1SipScheme,
-                capability);
-        verifyCapabilityResult(capability, contact1SipScheme, SOURCE_TYPE_NETWORK,
-                REQUEST_RESULT_FOUND, true, true);
+        Collection<Uri> contactsToVerify = new ArrayList<>(3);
+        contactsToVerify.add(contact1SipScheme);
+        contactsToVerify.add(contact2);
+        contactsToVerify.add(contact3);
 
-        capability = waitForResult(capabilityQueue);
-        assertNotNull("Capabilities were not received for contact: " + contact2, capability);
-        verifyCapabilityResult(capability, contact2, SOURCE_TYPE_NETWORK, REQUEST_RESULT_FOUND,
-                true, false);
-
-        capability = waitForResult(capabilityQueue);
-        assertNotNull("Capabilities were not received for contact: " + contact3, capability);
-        verifyCapabilityResult(capability, contact3, SOURCE_TYPE_NETWORK, REQUEST_RESULT_FOUND,
-                false, false);
+        // Verify that all the three contact's capabilities are received.
+        verifyCapabilities(contactsToVerify, getCapabilities(capabilityQueue, contacts.size()),
+                SOURCE_TYPE_NETWORK, REQUEST_RESULT_FOUND, contactExpectedMedia);
 
         // Verify the onCompleted is called
         waitForResult(completeQueue);
@@ -2446,17 +2635,13 @@ public class RcsUceAdapterTest {
         requestCapabilities(uceAdapter, contacts, callback);
 
         // Verify the contacts are not found.
-        capability = waitForResult(capabilityQueue);
-        verifyCapabilityResult(capability, contact1TelScheme, SOURCE_TYPE_NETWORK,
-                REQUEST_RESULT_NOT_FOUND, false, false);
+        contactExpectedMedia.clear();
+        contactExpectedMedia.put(contact1TelScheme, new Pair<>(false, false));
+        contactExpectedMedia.put(contact2, new Pair<>(false, false));
+        contactExpectedMedia.put(contact3, new Pair<>(false, false));
 
-        capability = waitForResult(capabilityQueue);
-        verifyCapabilityResult(capability, contact2, SOURCE_TYPE_NETWORK, REQUEST_RESULT_NOT_FOUND,
-                false, false);
-
-        capability = waitForResult(capabilityQueue);
-        verifyCapabilityResult(capability, contact3, SOURCE_TYPE_NETWORK, REQUEST_RESULT_NOT_FOUND,
-                false, false);
+        verifyCapabilities(contacts, getCapabilities(capabilityQueue, contacts.size()),
+                SOURCE_TYPE_NETWORK, REQUEST_RESULT_NOT_FOUND, contactExpectedMedia);
 
         // Verify the onCompleted is called
         waitForResult(completeQueue);
@@ -2468,12 +2653,25 @@ public class RcsUceAdapterTest {
         removeTestContactFromEab();
 
         // Setup the callback that some of the contacts are terminated.
+        contactExpectedMedia.clear();
+        contactExpectedMedia.put(contact1SipScheme, new Pair<>(true, true));
+        contactExpectedMedia.put(contact2, new Pair<>(true, false));
+        contactExpectedMedia.put(contact3, new Pair<>(false, false));
+
         capabilityExchangeImpl.setSubscribeOperation((uris, cb) -> {
-            List<Uri> uriList = new ArrayList(uris);
             cb.onNetworkResponse(networkRespCode, networkRespReason);
+            List<Uri> uriList = new ArrayList<>(uris);
             // Notify capabilities updated for the first contact
-            String pidfXml = pidfXmlList.get(0);
-            cb.onNotifyCapabilitiesUpdate(Collections.singletonList(pidfXml));
+            assertEquals(uriList.get(0), contact1TelScheme);
+
+            List<Uri> changedUriList = new ArrayList<>(1);
+            for (Uri uri : uris) {
+                if (contact1TelScheme.equals(uri)) {
+                    changedUriList.add(contact1SipScheme);
+                }
+            }
+            // ImsService replies the pidf xml data with the SIP scheme
+            cb.onNotifyCapabilitiesUpdate(getPidfForUris(changedUriList, contactExpectedMedia));
 
             List<Pair<Uri, String>> terminatedResources = new ArrayList<>();
             for (int i = 1; i < uriList.size(); i++) {
@@ -2487,18 +2685,20 @@ public class RcsUceAdapterTest {
         requestCapabilities(uceAdapter, contacts, callback);
 
         // Verify the first contact is found.
-        capability = waitForResult(capabilityQueue);
-        verifyCapabilityResult(capability, contact1SipScheme, SOURCE_TYPE_NETWORK,
-                REQUEST_RESULT_FOUND, true, true);
+        List<RcsContactUceCapability> resultCapList =
+                getCapabilities(capabilityQueue, contacts.size());
 
-        // Verify the reset contacts are not found.
-        capability = waitForResult(capabilityQueue);
-        verifyCapabilityResult(capability, contact2, SOURCE_TYPE_NETWORK, REQUEST_RESULT_NOT_FOUND,
-                true, false);
+        // Verify the first contact capabilities from the received capabilities list
+        verifyCapabilities(Collections.singletonList(contact1SipScheme), resultCapList,
+                SOURCE_TYPE_NETWORK, REQUEST_RESULT_FOUND, contactExpectedMedia);
 
-        capability = waitForResult(capabilityQueue);
-        verifyCapabilityResult(capability, contact3, SOURCE_TYPE_NETWORK, REQUEST_RESULT_NOT_FOUND,
-                false, false);
+        // Verify the other contact capabilities from the received capabilities list
+        contactsToVerify.clear();
+        contactsToVerify.add(contact2);
+        contactsToVerify.add(contact3);
+
+        verifyCapabilities(contactsToVerify, resultCapList, SOURCE_TYPE_NETWORK,
+                REQUEST_RESULT_NOT_FOUND, contactExpectedMedia);
 
         // Verify the onCompleted is called
         waitForResult(completeQueue);
@@ -2547,29 +2747,25 @@ public class RcsUceAdapterTest {
         // Prepare the test contact
         Collection<Uri> contacts = new ArrayList<>(1);
         contacts.add(sTestNumberUri);
-
-        // Prepare the empty PIDF xml
-        ArrayList<String> pidfXmlList = new ArrayList<>(1);
-        pidfXmlList.add("");
-
+        HashMap<Uri, Pair<Boolean, Boolean>> contactExpectedMedia = new HashMap<>();
+        contactExpectedMedia.put(sTestNumberUri, new Pair<>(false, false));
         // Setup the network response is 200 OK, empty PIDF data and the reason of onTerminated
         // is "TIMEOUT"
         int networkRespCode = 200;
         String networkRespReason = "OK";
         capabilityExchangeImpl.setSubscribeOperation((uris, cb) -> {
             cb.onNetworkResponse(networkRespCode, networkRespReason);
-            cb.onNotifyCapabilitiesUpdate(pidfXmlList);
+            // Prepare the empty PIDF xml
+            cb.onNotifyCapabilitiesUpdate(Collections.singletonList(""));
             cb.onTerminated("TIMEOUT", 0L);
         });
 
         requestCapabilities(uceAdapter, contacts, callback);
         try {
             // Verify the contact capabilities is received and the result is NOT FOUND.
-            RcsContactUceCapability capability = waitForResult(capabilityQueue);
-            assertNotNull("Capabilities were not received.", capability);
-            verifyCapabilityResult(capability, sTestNumberUri, SOURCE_TYPE_NETWORK,
-                    REQUEST_RESULT_NOT_FOUND, false, false);
-
+            // Verify the capabilities can still be received.
+            verifyCapabilities(contacts, getCapabilities(capabilityQueue, contacts.size()),
+                    SOURCE_TYPE_NETWORK, REQUEST_RESULT_NOT_FOUND, contactExpectedMedia);
             // Verify the callback "onCompleted" is called
             waitForResult(completeQueue);
         } finally {
@@ -2588,11 +2784,8 @@ public class RcsUceAdapterTest {
         requestCapabilities(uceAdapter, contacts, callback);
         try {
             // Verify the contact capabilities is received and the result is NOT FOUND.
-            RcsContactUceCapability capability = waitForResult(capabilityQueue);
-            assertNotNull("Capabilities is not received.", capability);
-            verifyCapabilityResult(capability, sTestNumberUri, SOURCE_TYPE_NETWORK,
-                    REQUEST_RESULT_NOT_FOUND, false, false);
-
+            verifyCapabilities(contacts, getCapabilities(capabilityQueue, contacts.size()),
+                    SOURCE_TYPE_NETWORK, REQUEST_RESULT_NOT_FOUND, contactExpectedMedia);
             // Verify that the callback "onComplete" is called
             waitForResult(completeQueue);
         } catch (Exception e) {
@@ -2613,11 +2806,8 @@ public class RcsUceAdapterTest {
         requestCapabilities(uceAdapter, contacts, callback);
         try {
             // Verify the contact capabilities is received and the result is NOT FOUND.
-            RcsContactUceCapability capability = waitForResult(capabilityQueue);
-            assertNotNull("Capabilities is not received.", capability);
-            verifyCapabilityResult(capability, sTestNumberUri, SOURCE_TYPE_NETWORK,
-                    REQUEST_RESULT_NOT_FOUND, false, false);
-
+            verifyCapabilities(contacts, getCapabilities(capabilityQueue, contacts.size()),
+                    SOURCE_TYPE_NETWORK, REQUEST_RESULT_NOT_FOUND, contactExpectedMedia);
             // Verify that the callback "onComplete" is called
             waitForResult(completeQueue);
         } catch (Exception e) {
@@ -2628,6 +2818,325 @@ public class RcsUceAdapterTest {
             completeQueue.clear();
             capabilityQueue.clear();
             removeTestContactFromEab();
+        }
+
+        overrideCarrierConfig(null);
+    }
+
+    @Test
+    public void testContactInThrottlingState() throws Exception {
+        if (!ImsUtils.shouldTestImsService()) {
+            return;
+        }
+        ImsManager imsManager = getContext().getSystemService(ImsManager.class);
+        RcsUceAdapter uceAdapter = imsManager.getImsRcsManager(sTestSub).getUceAdapter();
+        assertNotNull("UCE adapter should not be null!", uceAdapter);
+
+        // Remove the test contact capabilities
+        removeTestContactFromEab();
+        // Reset the UCE device state.
+        removeUceRequestDisallowedStatus();
+
+        // Connect to the ImsService
+        setupTestImsService(uceAdapter, true, true /* presence cap */, false /* options */);
+
+        TestRcsCapabilityExchangeImpl capabilityExchangeImpl = sServiceConnector
+                .getCarrierService().getRcsFeature().getRcsCapabilityExchangeImpl();
+
+        BlockingQueue<Integer> errorQueue = new LinkedBlockingQueue<>();
+        BlockingQueue<Long> errorRetryQueue = new LinkedBlockingQueue<>();
+        BlockingQueue<Boolean> completeQueue = new LinkedBlockingQueue<>();
+        BlockingQueue<RcsContactUceCapability> capabilityQueue = new LinkedBlockingQueue<>();
+        RcsUceAdapter.CapabilitiesCallback callback = new RcsUceAdapter.CapabilitiesCallback() {
+            @Override
+            public void onCapabilitiesReceived(List<RcsContactUceCapability> capabilities) {
+                capabilities.forEach(c -> capabilityQueue.offer(c));
+            }
+            @Override
+            public void onComplete() {
+                completeQueue.offer(true);
+            }
+            @Override
+            public void onError(int errorCode, long retryAfterMilliseconds) {
+                errorQueue.offer(errorCode);
+                errorRetryQueue.offer(retryAfterMilliseconds);
+            }
+        };
+
+        // Prepare the test contact
+        Collection<Uri> numbers = new ArrayList<>(1);
+        numbers.add(sTestNumberUri);
+        HashMap<Uri, Pair<Boolean, Boolean>> contactExpectedMedia = new HashMap<>();
+        contactExpectedMedia.put(sTestNumberUri, new Pair<>(false, false));
+        // Setup the network response is 408 Request Timeout.
+        int networkRespCode = 408;
+        String networkRespReason = "Request Timeout";
+        AtomicInteger subscribeRequestCount = new AtomicInteger(0);
+        capabilityExchangeImpl.setSubscribeOperation((uris, cb) -> {
+            subscribeRequestCount.incrementAndGet();
+            cb.onNetworkResponse(networkRespCode, networkRespReason);
+        });
+
+        // Request contact capabilities
+        requestCapabilities(uceAdapter, numbers, callback);
+
+        // Verify that the callback "onError" is called with the expected error code.
+        try {
+            assertEquals(RcsUceAdapter.ERROR_REQUEST_TIMEOUT, waitForIntResult(errorQueue));
+            assertEquals(0L, waitForLongResult(errorRetryQueue));
+            // Verify the caller can received the capabilities callback.
+            verifyCapabilities(numbers, getCapabilities(capabilityQueue, numbers.size()),
+                    SOURCE_TYPE_NETWORK, REQUEST_RESULT_NOT_FOUND, contactExpectedMedia);
+            // Verity the ImsService received the request.
+            assertTrue(subscribeRequestCount.get() > 0);
+        } catch (Exception e) {
+            fail("testContactsInThrottlingState with command error failed: " + e);
+        } finally {
+            errorQueue.clear();
+            errorRetryQueue.clear();
+            capabilityQueue.clear();
+            completeQueue.clear();
+            subscribeRequestCount.set(0);
+        }
+
+        // Request the capabilities again with the same contact.
+        requestCapabilities(uceAdapter, numbers, callback);
+
+        // Verify that the result.
+        try {
+            // Verify that the caller can received the capabilities callback.
+            verifyCapabilities(numbers, getCapabilities(capabilityQueue, numbers.size()),
+                    SOURCE_TYPE_CACHED, REQUEST_RESULT_NOT_FOUND, contactExpectedMedia);
+            // Verify the complete callback will be called.
+            waitForResult(completeQueue);
+            // Verify that the ImsService didn't received the request because the capabilities
+            // should be retrieved from the cache.
+            assertEquals(0, subscribeRequestCount.get());
+        } catch (Exception e) {
+            fail("testContactsInThrottlingState with command error failed: " + e);
+        } finally {
+            errorQueue.clear();
+            errorRetryQueue.clear();
+            subscribeRequestCount.set(0);
+            // reset the cache and throttling list
+            removeTestContactFromEab();
+            removeUceRequestDisallowedStatus();
+        }
+
+        // Request availability.
+        requestAvailability(uceAdapter, sTestNumberUri, callback);
+
+        // Verify that the callback "onError" is called with the expected error code.
+        try {
+            assertEquals(RcsUceAdapter.ERROR_REQUEST_TIMEOUT, waitForIntResult(errorQueue));
+            assertEquals(0L, waitForLongResult(errorRetryQueue));
+            // Verify the caller can received the capabilities callback.
+            verifyCapabilityReceived(sTestNumberUri, capabilityQueue, SOURCE_TYPE_NETWORK,
+                    REQUEST_RESULT_NOT_FOUND, contactExpectedMedia.get(sTestNumberUri).first,
+                    contactExpectedMedia.get(sTestNumberUri).second);
+            // Verity the ImsService received the request.
+            assertTrue(subscribeRequestCount.get() > 0);
+        } catch (Exception e) {
+            fail("requestAvailability with command error failed: " + e);
+        } finally {
+            errorQueue.clear();
+            errorRetryQueue.clear();
+            capabilityQueue.clear();
+            completeQueue.clear();
+            subscribeRequestCount.set(0);
+        }
+
+        // Request availability again with the same contact.
+        requestAvailability(uceAdapter, sTestNumberUri, callback);
+
+        // Verify that the callback "onError" is called with the expected error code.
+        try {
+            // Verify that the caller can received the capabilities callback.
+            verifyCapabilityReceived(sTestNumberUri, capabilityQueue, SOURCE_TYPE_CACHED,
+                    REQUEST_RESULT_NOT_FOUND, contactExpectedMedia.get(sTestNumberUri).first,
+                    contactExpectedMedia.get(sTestNumberUri).second);
+            // Verify the complete callback will be called.
+            waitForResult(completeQueue);
+            // Verify that the ImsService didn't received the request because the capabilities
+            // should be retrieved from the cache.
+            assertEquals(0, subscribeRequestCount.get());
+        } catch (Exception e) {
+            fail("testContactsInThrottlingState with command error failed: " + e);
+        } finally {
+            errorQueue.clear();
+            errorRetryQueue.clear();
+            subscribeRequestCount.set(0);
+            removeTestContactFromEab();
+            removeUceRequestDisallowedStatus();
+        }
+
+        overrideCarrierConfig(null);
+    }
+
+    @Test
+    public void testRequestResultInconclusive() throws Exception {
+        if (!ImsUtils.shouldTestImsService()) {
+            return;
+        }
+        ImsManager imsManager = getContext().getSystemService(ImsManager.class);
+        RcsUceAdapter uceAdapter = imsManager.getImsRcsManager(sTestSub).getUceAdapter();
+        assertNotNull("UCE adapter should not be null!", uceAdapter);
+
+        // Remove the test contact capabilities
+        removeTestContactFromEab();
+        // Reset the UCE device state.
+        removeUceRequestDisallowedStatus();
+
+        // Connect to the ImsService
+        setupTestImsService(uceAdapter, true, true /* presence cap */, false /* options */);
+
+        TestRcsCapabilityExchangeImpl capabilityExchangeImpl = sServiceConnector
+                .getCarrierService().getRcsFeature().getRcsCapabilityExchangeImpl();
+
+        BlockingQueue<Integer> errorQueue = new LinkedBlockingQueue<>();
+        BlockingQueue<Long> errorRetryQueue = new LinkedBlockingQueue<>();
+        BlockingQueue<Boolean> completeQueue = new LinkedBlockingQueue<>();
+        BlockingQueue<RcsContactUceCapability> capabilityQueue = new LinkedBlockingQueue<>();
+        RcsUceAdapter.CapabilitiesCallback callback = new RcsUceAdapter.CapabilitiesCallback() {
+            @Override
+            public void onCapabilitiesReceived(List<RcsContactUceCapability> capabilities) {
+                capabilities.forEach(c -> capabilityQueue.offer(c));
+            }
+
+            @Override
+            public void onComplete() {
+                completeQueue.offer(true);
+            }
+
+            @Override
+            public void onError(int errorCode, long retryAfterMilliseconds) {
+                errorQueue.offer(errorCode);
+                errorRetryQueue.offer(retryAfterMilliseconds);
+            }
+        };
+
+        // In the first round, prepare the test account
+        Collection<Uri> numbers = new ArrayList<>();
+        numbers.add(sTestNumberUri);
+        HashMap<Uri, Pair<Boolean, Boolean>> contactExpectedMedia = new HashMap<>();
+        contactExpectedMedia.put(sTestNumberUri, new Pair<>(true, true));
+        // Setup the network response is 200 OK for the first request
+        final int networkRespCode200 = 200;
+        final String networkRespReasonOK = "OK";
+        capabilityExchangeImpl.setSubscribeOperation((uris, cb) -> {
+            cb.onNetworkResponse(networkRespCode200, networkRespReasonOK);
+            cb.onNotifyCapabilitiesUpdate(getPidfForUris(new ArrayList(uris),
+                    contactExpectedMedia));
+            cb.onTerminated("", 0L);
+        });
+
+        // Request contact capabilities
+        requestCapabilities(uceAdapter, numbers, callback);
+
+        // Verify that the contact capability is received and the onCompleted is called.
+        try {
+            verifyCapabilities(numbers, getCapabilities(capabilityQueue, numbers.size()),
+                    SOURCE_TYPE_NETWORK, REQUEST_RESULT_FOUND, contactExpectedMedia);
+            waitForResult(completeQueue);
+        } catch (Exception e) {
+            fail("testRequestResultInconclusive with command error failed: " + e);
+        } finally {
+            errorQueue.clear();
+            errorRetryQueue.clear();
+            capabilityQueue.clear();
+            completeQueue.clear();
+            numbers.clear();
+        }
+
+        // Request the second contacts and this time, the network respons is 408 Request Timeout
+        numbers.add(sTestContact2Uri);
+        contactExpectedMedia.clear();
+        contactExpectedMedia.put(sTestContact2Uri, new Pair<>(false, false));
+
+        final int networkRespCode408 = 408;
+        final String networkRespReasonTimeout = "Request Timeout";
+        AtomicInteger subscribeRequestCount = new AtomicInteger(0);
+        contactExpectedMedia.put(sTestContact2Uri, new Pair<>(true, true));
+        capabilityExchangeImpl.setSubscribeOperation((uris, cb) -> {
+            subscribeRequestCount.incrementAndGet();
+            cb.onNetworkResponse(networkRespCode408, networkRespReasonTimeout);
+        });
+
+        // Request contact capabilities again with different contact
+        requestCapabilities(uceAdapter, numbers, callback);
+
+        // Verify that the callback "onError" is called with the expected error code.
+        try {
+            assertEquals(RcsUceAdapter.ERROR_REQUEST_TIMEOUT, waitForIntResult(errorQueue));
+            assertEquals(0L, waitForLongResult(errorRetryQueue));
+            verifyCapabilities(numbers, getCapabilities(capabilityQueue, numbers.size()),
+                    SOURCE_TYPE_NETWORK, REQUEST_RESULT_NOT_FOUND, contactExpectedMedia);
+            assertTrue(subscribeRequestCount.get() > 0);
+        } catch (Exception e) {
+            fail("testRequestResultInconclusive with command error failed: " + e);
+        } finally {
+            errorQueue.clear();
+            errorRetryQueue.clear();
+            capabilityQueue.clear();
+            completeQueue.clear();
+            numbers.clear();
+            subscribeRequestCount.set(0);
+        }
+
+        // Request three contacts at a time in the third round.
+        numbers.add(sTestNumberUri);
+        numbers.add(sTestContact2Uri);
+        numbers.add(sTestContact3Uri);
+
+        contactExpectedMedia.clear();
+        contactExpectedMedia.put(sTestNumberUri, new Pair<>(true, true));
+        contactExpectedMedia.put(sTestContact2Uri, new Pair<>(false, false));
+        contactExpectedMedia.put(sTestContact3Uri, new Pair<>(true, true));
+
+        // The first two contact capabilities can be retrieved from the cache. However, the third
+        // contact capabilities will be provided by the ImsService
+        capabilityExchangeImpl.setSubscribeOperation((uris, cb) -> {
+            subscribeRequestCount.incrementAndGet();
+            assertNotNull("The uris of capabilities request cannot be null", uris);
+            List<Uri> uriList = new ArrayList(uris);
+            // Verify that only uri need to be queried from the network
+            assertEquals(1, uriList.size());
+            assertEquals(sTestContact3Uri, uriList.get(0));
+            cb.onNetworkResponse(networkRespCode200, networkRespReasonOK);
+
+            cb.onNotifyCapabilitiesUpdate(getPidfForUris(uriList.subList(0, 1),
+                    contactExpectedMedia));
+            cb.onTerminated("", 0L);
+        });
+
+        requestCapabilities(uceAdapter, numbers, callback);
+
+        List<RcsContactUceCapability> resultCapList;
+
+        // Verify that the contact capability is received and the onCompleted is called.
+        try {
+            resultCapList = getCapabilities(capabilityQueue, numbers.size());
+            verifyCapabilities(Collections.singletonList(sTestNumberUri), resultCapList,
+                    SOURCE_TYPE_CACHED, REQUEST_RESULT_FOUND, contactExpectedMedia);
+
+            verifyCapabilities(Collections.singletonList(sTestContact2Uri), resultCapList,
+                    SOURCE_TYPE_CACHED, REQUEST_RESULT_NOT_FOUND, contactExpectedMedia);
+
+            verifyCapabilities(Collections.singletonList(sTestContact3Uri), resultCapList,
+                    SOURCE_TYPE_NETWORK, REQUEST_RESULT_FOUND, contactExpectedMedia);
+            // Verify the onCompleted is called
+            waitForResult(completeQueue);
+
+        } catch (Exception e) {
+            fail("testRequestResultInconclusive with command error failed: " + e);
+        } finally {
+            errorQueue.clear();
+            errorRetryQueue.clear();
+            capabilityQueue.clear();
+            completeQueue.clear();
+            numbers.clear();
+            removeTestContactFromEab();
+            removeUceRequestDisallowedStatus();
         }
 
         overrideCarrierConfig(null);
@@ -2670,6 +3179,48 @@ public class RcsUceAdapterTest {
         return pidfBuilder.toString();
     }
 
+    private String getMalformedPidfXmlData(Uri contact, boolean audioSupported,
+            boolean videoSupported) {
+        StringBuilder pidfBuilder = new StringBuilder();
+        pidfBuilder.append("<?xml version='1.0' encoding='utf-8' standalone='yes' ?>")
+                .append("<presence entity=\"").append(contact).append("\"")
+                .append(" xmlns=\"urn:ietf:params:xml:ns:pidf\"")
+                .append(" xmlns:op=\"urn:oma:xml:prs:pidf:oma-pres\"")
+                .append(" xmlns:caps=\"urn:ietf:params:xml:ns:pidf:caps\">")
+                .append("<tuple id=\"tid0\"><status><basic>open</basic></status>")
+                .append("<op:service-description>")
+                .append("<op:service-id>service_id_01</op:service-id>")
+                .append("<op:version>1.0</op:version>")
+                .append("<op:description>description_test1</op:description>")
+                .append("</op:service-description>")
+                .append("<caps:servcaps>")
+                .append("<caps:audio>").append(audioSupported).append("</caps:audio>")
+                .append("<caps:video>").append(videoSupported).append("</caps:video>")
+                .append("</caps:servcaps>")
+                .append("<contact>").append(contact).append("</contact>")
+                .append("</tuple>")
+                .append("<tuple id=\"tid1\"><status><basic>open</basic></status>")
+                .append("<op:service-description>")
+                .append("<op:service-id>service_id_02</op:service-id>")
+                .append("<op:version>1.0</op:version>")
+                .append("<op:ddescription>description_test2</op:description>")
+                .append("</op:service-description>")
+                .append("<contact>").append(contact).append("</contact>")
+                .append("</tuple></presence>");
+        return pidfBuilder.toString();
+    }
+
+    private RcsContactUceCapability getContactCapability(
+            List<RcsContactUceCapability> resultCapList, Uri targetUri) {
+        if (resultCapList == null) {
+            return null;
+        }
+        return resultCapList.stream()
+            .filter(capability -> targetUri.equals(capability.getContactUri()))
+            .findFirst()
+            .orElse(null);
+    }
+
     private void verifyCapabilityResult(RcsContactUceCapability resultCapability, Uri expectedUri,
             int expectedSourceType, int expectedResult, boolean expectedAudioSupported,
             boolean expectedVideoSupported) {
@@ -2698,6 +3249,47 @@ public class RcsUceAdapterTest {
         assertNotNull("Contact Presence tuple should not be null!", presenceTuple);
 
         ServiceCapabilities capabilities = presenceTuple.getServiceCapabilities();
+        assertNotNull("Service capabilities should not be null!", capabilities);
+
+        // Verify if the audio is supported
+        assertEquals(expectedAudioSupported, capabilities.isAudioCapable());
+
+        // Verify if the video is supported
+        assertEquals(expectedVideoSupported, capabilities.isVideoCapable());
+    }
+
+    private void verifyMalformedCapabilityResult(RcsContactUceCapability resultCapability,
+            Uri expectedUri, int expectedSourceType, int expectedResult,
+            boolean expectedAudioSupported, boolean expectedVideoSupported) {
+        // Verify the contact URI
+        assertEquals(expectedUri, resultCapability.getContactUri());
+
+        // Verify the source type is the network type.
+        assertEquals(expectedSourceType, resultCapability.getSourceType());
+
+        // Verify the request result is expected.
+        final int requestResult = resultCapability.getRequestResult();
+        assertEquals(expectedResult, requestResult);
+
+        // Return directly if the result is not found.
+        if (requestResult == REQUEST_RESULT_NOT_FOUND) {
+            return;
+        }
+
+        // Verify the mechanism is presence
+        assertEquals(RcsContactUceCapability.CAPABILITY_MECHANISM_PRESENCE,
+                resultCapability.getCapabilityMechanism());
+
+        // First tuple is malformed. Verify that no malformed tuple is stored.
+        RcsContactPresenceTuple presenceTuple =
+                resultCapability.getCapabilityTuple("service_id_02");
+        assertNull("Contact Presence tuple should be null!", presenceTuple);
+
+        presenceTuple = resultCapability.getCapabilityTuple("service_id_01");
+        assertNotNull("Contact Presence tuple should not be null!", presenceTuple);
+
+        RcsContactPresenceTuple.ServiceCapabilities capabilities =
+                presenceTuple.getServiceCapabilities();
         assertNotNull("Service capabilities should not be null!", capabilities);
 
         // Verify if the audio is supported
@@ -2800,6 +3392,9 @@ public class RcsUceAdapterTest {
 
         sTestContact3 = generateRandomContact(6);
         sTestContact3Uri = Uri.fromParts(PhoneAccount.SCHEME_SIP, sTestContact3, null);
+
+        sTestContact4 = generateRandomContact(7);
+        sTestContact4Uri = Uri.fromParts(PhoneAccount.SCHEME_SIP, sTestContact4, null);
     }
 
     private static String generateRandomPhoneNumber() {
@@ -2835,7 +3430,8 @@ public class RcsUceAdapterTest {
             StringBuilder builder = new StringBuilder();
             builder.append(sTestPhoneNumber)
                     .append(",").append(sTestContact2)
-                    .append(",").append(sTestContact3);
+                    .append(",").append(sTestContact3)
+                    .append(",").append(sTestContact4);
             sServiceConnector.removeEabContacts(sTestSlot, builder.toString());
         } catch (Exception e) {
             Log.w("RcsUceAdapterTest", "Cannot remove test contacts from eab database: " + e);
@@ -2888,5 +3484,60 @@ public class RcsUceAdapterTest {
         } catch (ImsException e) {
             fail("requestAvailability failed " + e);
         }
+    }
+
+    private void verifyCapabilities(Collection<Uri> contacts,
+            List<RcsContactUceCapability> resultCapList,
+            int expectedSourceType, int expectedResult,
+            HashMap<Uri, Pair<Boolean, Boolean>> contactExpectedMedia) {
+
+        for (Uri uri : contacts) {
+            RcsContactUceCapability resultCapability = getContactCapability(resultCapList, uri);
+            assertNotNull("Cannot find the contact: " + uri, resultCapability);
+            Pair<Boolean, Boolean> pair = contactExpectedMedia.get(uri);
+            assertNotNull("Expected media type is not matched with uri", pair);
+            verifyCapabilityResult(resultCapability, uri, expectedSourceType,
+                    expectedResult, pair.first, pair.second);
+        }
+    }
+
+    private void verifyCapabilityReceived(Uri contact,
+            BlockingQueue<RcsContactUceCapability> capabilityQueue,
+            int expectedSourceType, int expectedResult,
+            boolean audioSupported, boolean videoSupported) throws Exception {
+
+        RcsContactUceCapability capability = waitForResult(capabilityQueue);
+        assertNotNull("Can not receive capabilities result", capability);
+
+        assertEquals(contact, capability.getContactUri());
+        verifyCapabilityResult(capability, contact, expectedSourceType, expectedResult,
+                audioSupported, videoSupported);
+    }
+
+    private List<RcsContactUceCapability> getCapabilities(
+            BlockingQueue<RcsContactUceCapability> capabilityQueue, int size) throws Exception {
+        List<RcsContactUceCapability> resultCapList = new ArrayList<>();
+        if (size == 0) {
+            return resultCapList;
+        }
+        for (int index = 0; index < size; index++) {
+            RcsContactUceCapability capability = waitForResult(capabilityQueue);
+            assertNotNull("Can not receive capabilities result.", capability);
+            resultCapList.add(capability);
+        }
+        return resultCapList;
+    }
+
+    private List<String> getPidfForUris(List<Uri> uris,
+            HashMap<Uri, Pair<Boolean, Boolean>> contactExpectedMedia) {
+        ArrayList<String> pidfXmlList = new ArrayList<>(uris.size());
+        for (Uri uri : uris) {
+            Pair<Boolean, Boolean> expectedMedia = contactExpectedMedia.get(uri);
+            assertNotNull("unexpected URI", expectedMedia);
+            String pidf = getPidfXmlData(uri, expectedMedia.first, expectedMedia.second);
+            assertNotNull("no pidf found for URI", pidf);
+            pidfXmlList.add(pidf);
+        }
+        return pidfXmlList;
     }
 }

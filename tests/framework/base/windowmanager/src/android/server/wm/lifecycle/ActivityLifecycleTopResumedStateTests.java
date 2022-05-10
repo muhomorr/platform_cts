@@ -16,6 +16,7 @@
 
 package android.server.wm.lifecycle;
 
+import static android.app.WindowConfiguration.WINDOWING_MODE_FULLSCREEN;
 import static android.app.WindowConfiguration.WINDOWING_MODE_PINNED;
 import static android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP;
 import static android.content.Intent.FLAG_ACTIVITY_MULTIPLE_TASK;
@@ -23,18 +24,21 @@ import static android.content.Intent.FLAG_ACTIVITY_NEW_TASK;
 import static android.content.Intent.FLAG_ACTIVITY_REORDER_TO_FRONT;
 import static android.server.wm.UiDeviceUtils.pressHomeButton;
 import static android.server.wm.app.Components.PipActivity.EXTRA_ENTER_PIP;
-import static android.server.wm.lifecycle.LifecycleLog.ActivityCallback.ON_ACTIVITY_RESULT;
-import static android.server.wm.lifecycle.LifecycleLog.ActivityCallback.ON_CREATE;
-import static android.server.wm.lifecycle.LifecycleLog.ActivityCallback.ON_DESTROY;
-import static android.server.wm.lifecycle.LifecycleLog.ActivityCallback.ON_NEW_INTENT;
-import static android.server.wm.lifecycle.LifecycleLog.ActivityCallback.ON_PAUSE;
-import static android.server.wm.lifecycle.LifecycleLog.ActivityCallback.ON_POST_CREATE;
-import static android.server.wm.lifecycle.LifecycleLog.ActivityCallback.ON_RESTART;
-import static android.server.wm.lifecycle.LifecycleLog.ActivityCallback.ON_RESUME;
-import static android.server.wm.lifecycle.LifecycleLog.ActivityCallback.ON_START;
-import static android.server.wm.lifecycle.LifecycleLog.ActivityCallback.ON_STOP;
-import static android.server.wm.lifecycle.LifecycleLog.ActivityCallback.ON_TOP_POSITION_GAINED;
-import static android.server.wm.lifecycle.LifecycleLog.ActivityCallback.ON_TOP_POSITION_LOST;
+import static android.server.wm.lifecycle.LifecycleConstants.EXTRA_FINISH_IN_ON_RESUME;
+import static android.server.wm.lifecycle.LifecycleConstants.EXTRA_SKIP_TOP_RESUMED_STATE;
+import static android.server.wm.lifecycle.LifecycleConstants.ON_ACTIVITY_RESULT;
+import static android.server.wm.lifecycle.LifecycleConstants.ON_CREATE;
+import static android.server.wm.lifecycle.LifecycleConstants.ON_DESTROY;
+import static android.server.wm.lifecycle.LifecycleConstants.ON_NEW_INTENT;
+import static android.server.wm.lifecycle.LifecycleConstants.ON_PAUSE;
+import static android.server.wm.lifecycle.LifecycleConstants.ON_POST_CREATE;
+import static android.server.wm.lifecycle.LifecycleConstants.ON_RESTART;
+import static android.server.wm.lifecycle.LifecycleConstants.ON_RESUME;
+import static android.server.wm.lifecycle.LifecycleConstants.ON_START;
+import static android.server.wm.lifecycle.LifecycleConstants.ON_STOP;
+import static android.server.wm.lifecycle.LifecycleConstants.ON_TOP_POSITION_GAINED;
+import static android.server.wm.lifecycle.LifecycleConstants.ON_TOP_POSITION_LOST;
+import static android.server.wm.lifecycle.LifecycleConstants.getComponentName;
 import static android.server.wm.lifecycle.LifecycleVerifier.transition;
 import static android.view.Display.DEFAULT_DISPLAY;
 
@@ -47,15 +51,12 @@ import android.app.Activity;
 import android.app.ActivityOptions;
 import android.content.ComponentName;
 import android.content.Intent;
-import android.content.pm.PackageManager;
 import android.os.SystemClock;
 import android.platform.test.annotations.Presubmit;
 import android.server.wm.WindowManagerState;
-import android.server.wm.WindowManagerState.ActivityTask;
-import android.server.wm.lifecycle.LifecycleLog.ActivityCallback;
+import android.server.wm.WindowManagerState.Task;
 import android.util.Pair;
 
-import androidx.test.filters.FlakyTest;
 import androidx.test.filters.MediumTest;
 
 import org.junit.Before;
@@ -200,13 +201,13 @@ public class ActivityLifecycleTopResumedStateTests extends ActivityLifecycleClie
 
         waitAndAssertActivityStates(state(baseActivity, ON_STOP));
 
-        final List<ActivityCallback> expectedTopActivitySequence = Arrays.asList(
+        final List<String> expectedTopActivitySequence = Arrays.asList(
                 ON_CREATE, ON_START, ON_POST_CREATE, ON_RESUME, ON_TOP_POSITION_GAINED);
         waitForActivityTransitions(ResultActivity.class, expectedTopActivitySequence);
 
-        final List<Pair<String, ActivityCallback>> observedTransitions =
+        final List<Pair<String, String>> observedTransitions =
                 getLifecycleLog().getLog();
-        final List<Pair<String, ActivityCallback>> expectedTransitions = Arrays.asList(
+        final List<Pair<String, String>> expectedTransitions = Arrays.asList(
                 transition(CallbackTrackingActivity.class, ON_TOP_POSITION_LOST),
                 transition(CallbackTrackingActivity.class, ON_PAUSE),
                 transition(LaunchForResultActivity.class, ON_CREATE),
@@ -232,20 +233,21 @@ public class ActivityLifecycleTopResumedStateTests extends ActivityLifecycleClie
 
         getLifecycleLog().clear();
         final Activity launchForResultActivity = new Launcher(LaunchForResultActivity.class)
-                .customizeIntent(LaunchForResultActivity.forwardFlag(EXTRA_FINISH_IN_ON_RESUME))
+                .customizeIntent(LaunchForResultActivity.forwardFlag(EXTRA_FINISH_IN_ON_RESUME,
+                        EXTRA_SKIP_TOP_RESUMED_STATE))
                 // Start the TranslucentResultActivity to avoid activity below stopped sometimes
                 // and resulted in different lifecycle events.
                 .setExtraFlags(LaunchForResultActivity.EXTRA_USE_TRANSLUCENT_RESULT)
                 .launch();
 
         waitAndAssertActivityStates(state(baseActivity, ON_STOP));
-        final List<ActivityCallback> expectedLaunchingSequence =
+        final List<String> expectedLaunchingSequence =
                 Arrays.asList(ON_CREATE, ON_START, ON_POST_CREATE, ON_RESUME,
                         ON_TOP_POSITION_GAINED, ON_TOP_POSITION_LOST, ON_PAUSE,
                         ON_ACTIVITY_RESULT, ON_RESUME, ON_TOP_POSITION_GAINED);
         waitForActivityTransitions(LaunchForResultActivity.class, expectedLaunchingSequence);
 
-        final List<ActivityCallback> expectedTopActivitySequence = Arrays.asList(ON_CREATE,
+        final List<String> expectedTopActivitySequence = Arrays.asList(ON_CREATE,
                 ON_START, ON_POST_CREATE, ON_RESUME, ON_TOP_POSITION_GAINED);
         waitForActivityTransitions(TranslucentResultActivity.class, expectedTopActivitySequence);
 
@@ -263,8 +265,6 @@ public class ActivityLifecycleTopResumedStateTests extends ActivityLifecycleClie
                 transition(TranslucentResultActivity.class, ON_START),
                 transition(TranslucentResultActivity.class, ON_POST_CREATE),
                 transition(TranslucentResultActivity.class, ON_RESUME),
-                transition(TranslucentResultActivity.class, ON_TOP_POSITION_GAINED),
-                transition(TranslucentResultActivity.class, ON_TOP_POSITION_LOST),
                 transition(TranslucentResultActivity.class, ON_PAUSE),
                 transition(LaunchForResultActivity.class, ON_ACTIVITY_RESULT),
                 transition(LaunchForResultActivity.class, ON_RESUME),
@@ -334,6 +334,7 @@ public class ActivityLifecycleTopResumedStateTests extends ActivityLifecycleClie
 
         // Switch top between two activities
         getLifecycleLog().clear();
+        mTaskOrganizer.setLaunchRoot(mTaskOrganizer.getPrimarySplitTaskId());
         new Launcher(CallbackTrackingActivity.class)
                 .setFlags(FLAG_ACTIVITY_NEW_TASK)
                 .setNoInstance()
@@ -348,6 +349,7 @@ public class ActivityLifecycleTopResumedStateTests extends ActivityLifecycleClie
 
         // Switch top again
         getLifecycleLog().clear();
+        mTaskOrganizer.setLaunchRoot(mTaskOrganizer.getSecondarySplitTaskId());
         new Launcher(SingleTopActivity.class)
                 .setFlags(FLAG_ACTIVITY_NEW_TASK)
                 .setNoInstance()
@@ -474,8 +476,8 @@ public class ActivityLifecycleTopResumedStateTests extends ActivityLifecycleClie
 
         // Tap on first activity to switch the focus
         getLifecycleLog().clear();
-        final ActivityTask dockedStack = getStackForTaskId(firstActivity.getTaskId());
-        tapOnStackCenter(dockedStack);
+        final Task dockedTask = getRootTaskForLeafTaskId(firstActivity.getTaskId());
+        tapOnTaskCenter(dockedTask);
 
         // Wait and assert focus switch
         waitAndAssertActivityStates(state(firstActivity, ON_TOP_POSITION_GAINED),
@@ -487,8 +489,8 @@ public class ActivityLifecycleTopResumedStateTests extends ActivityLifecycleClie
 
         // Tap on second activity to switch the focus again
         getLifecycleLog().clear();
-        final ActivityTask sideStack = getStackForTaskId(secondActivity.getTaskId());
-        tapOnStackCenter(sideStack);
+        final Task sideTask = getRootTaskForLeafTaskId(secondActivity.getTaskId());
+        tapOnTaskCenter(sideTask);
 
         // Wait and assert focus switch
         waitAndAssertActivityStates(state(firstActivity, ON_TOP_POSITION_LOST),
@@ -537,8 +539,8 @@ public class ActivityLifecycleTopResumedStateTests extends ActivityLifecycleClie
 
         // Tap on first activity to switch the top resumed one
         getLifecycleLog().clear();
-        final ActivityTask dockedStack = getStackForTaskId(firstActivity.getTaskId());
-        tapOnStackCenter(dockedStack);
+        final Task dockedTask = getRootTaskForLeafTaskId(firstActivity.getTaskId());
+        tapOnTaskCenter(dockedTask);
 
         // Wait and assert top resumed position switch
         waitAndAssertActivityStates(state(secondActivityClass, ON_TOP_POSITION_LOST),
@@ -546,14 +548,12 @@ public class ActivityLifecycleTopResumedStateTests extends ActivityLifecycleClie
         LifecycleVerifier.assertOrder(getLifecycleLog(), Arrays.asList(
                 transition(secondActivityClass, ON_TOP_POSITION_LOST),
                 transition(firstActivityClass, ON_TOP_POSITION_GAINED)),
-                "tapOnStack");
+                "tapOnTask");
 
         // Tap on second activity to switch the top resumed activity again
         getLifecycleLog().clear();
-        final ActivityTask sideTask = mWmState
-                .getTaskByActivity(secondActivityComponent);
-        final ActivityTask sideStack = getStackForTaskId(sideTask.getTaskId());
-        tapOnStackCenter(sideStack);
+        final Task sideTask = mWmState.getTaskByActivity(secondActivityComponent);
+        tapOnTaskCenter(sideTask);
 
         // Wait and assert top resumed position switch
         waitAndAssertActivityStates(state(secondActivityClass, ON_TOP_POSITION_GAINED),
@@ -561,7 +561,7 @@ public class ActivityLifecycleTopResumedStateTests extends ActivityLifecycleClie
         LifecycleVerifier.assertOrder(getLifecycleLog(), Arrays.asList(
                 transition(firstActivityClass, ON_TOP_POSITION_LOST),
                 transition(secondActivityClass, ON_TOP_POSITION_GAINED)),
-                "tapOnStack");
+                "tapOnTask");
     }
 
     @Test
@@ -602,8 +602,8 @@ public class ActivityLifecycleTopResumedStateTests extends ActivityLifecycleClie
 
         // Tap on first activity to switch the top resumed one
         getLifecycleLog().clear();
-        final ActivityTask dockedStack = getStackForTaskId(slowActivity.getTaskId());
-        tapOnStackCenter(dockedStack);
+        final Task dockedTask = getRootTaskForLeafTaskId(slowActivity.getTaskId());
+        tapOnTaskCenter(dockedTask);
 
         // Wait and assert top resumed position switch.
         waitAndAssertActivityStates(state(secondActivityClass, ON_TOP_POSITION_LOST),
@@ -611,14 +611,13 @@ public class ActivityLifecycleTopResumedStateTests extends ActivityLifecycleClie
         LifecycleVerifier.assertOrder(getLifecycleLog(), Arrays.asList(
                 transition(secondActivityClass, ON_TOP_POSITION_LOST),
                 transition(slowActivityClass, ON_TOP_POSITION_GAINED)),
-                "tapOnStack");
+                "tapOnTask");
 
         // Tap on second activity to switch the top resumed activity again
         getLifecycleLog().clear();
-        final ActivityTask sideTask = mWmState
+        final Task sideTask = mWmState
                 .getTaskByActivity(secondActivityComponent);
-        final ActivityTask sideStack = getStackForTaskId(sideTask.getTaskId());
-        tapOnStackCenter(sideStack);
+        tapOnTaskCenter(sideTask);
 
         // Wait and assert top resumed position switch. Because of timeout the new top position will
         // be reported to the first activity before second will finish handling it.
@@ -627,7 +626,7 @@ public class ActivityLifecycleTopResumedStateTests extends ActivityLifecycleClie
         LifecycleVerifier.assertOrder(getLifecycleLog(), Arrays.asList(
                 transition(secondActivityClass, ON_TOP_POSITION_GAINED),
                 transition(slowActivityClass, ON_TOP_POSITION_LOST)),
-                "tapOnStack");
+                "tapOnTask");
 
         // Wait 5 seconds more to make sure that no new messages received after top resumed state
         // released by the slow activity
@@ -719,8 +718,11 @@ public class ActivityLifecycleTopResumedStateTests extends ActivityLifecycleClie
         try (final LockScreenSession lockScreenSession = new LockScreenSession()) {
             lockScreenSession.setLockCredential().gotoKeyguard();
 
-            showWhenLockedActivity =
-                    launchActivityAndWait(ShowWhenLockedCallbackTrackingActivity.class);
+            ActivityOptions options = ActivityOptions.makeBasic();
+            options.setLaunchWindowingMode(WINDOWING_MODE_FULLSCREEN);
+            showWhenLockedActivity = new Launcher(ShowWhenLockedCallbackTrackingActivity.class)
+                                .setOptions(options)
+                                .launch();
 
             // TODO(b/123432490): Fix extra pause/resume
             LifecycleVerifier.assertSequence(ShowWhenLockedCallbackTrackingActivity.class,
@@ -824,8 +826,10 @@ public class ActivityLifecycleTopResumedStateTests extends ActivityLifecycleClie
 
         getLifecycleLog().clear();
 
-        // Tap on default display to switch the top activity
-        tapOnDisplayCenter(DEFAULT_DISPLAY);
+        // Tap on task center to switch the top activity.
+        final Task callbackTrackingTask = mWmState
+                .getTaskByActivity(getComponentName(CallbackTrackingActivity.class));
+        tapOnTaskCenter(callbackTrackingTask);
 
         // Wait and assert focus switch
         waitAndAssertActivityTransitions(SingleTopActivity.class,
@@ -839,8 +843,11 @@ public class ActivityLifecycleTopResumedStateTests extends ActivityLifecycleClie
 
         getLifecycleLog().clear();
 
-        // Tap on new display to switch the top activity
-        tapOnDisplayCenter(newDisplay.mId);
+        // Tap on task center to switch the top activity.
+        final Task singleTopActivityTask = mWmState
+                .getTaskByActivity(getComponentName(SingleTopActivity.class));
+        tapOnTaskCenter(singleTopActivityTask);
+
 
         // Wait and assert focus switch
         waitAndAssertActivityTransitions(CallbackTrackingActivity.class,
@@ -897,9 +904,11 @@ public class ActivityLifecycleTopResumedStateTests extends ActivityLifecycleClie
                 transition(defaultActivityClass, ON_TOP_POSITION_GAINED)),
                 "launchOnDifferentDisplay");
 
-        // Tap on secondary display to switch the top activity.
+        // Tap on task center to switch the top activity.
         getLifecycleLog().clear();
-        tapOnDisplayCenter(newDisplay.mId);
+        final Task secondActivityTask = mWmState
+                .getTaskByActivity(getComponentName(SecondProcessCallbackTrackingActivity.class));
+        tapOnTaskCenter(secondActivityTask);
 
         // Wait and assert top resumed position switch.
         waitAndAssertActivityStates(state(secondActivityClass, ON_TOP_POSITION_GAINED),
@@ -909,9 +918,11 @@ public class ActivityLifecycleTopResumedStateTests extends ActivityLifecycleClie
                 transition(secondActivityClass, ON_TOP_POSITION_GAINED)),
                 "tapOnDifferentDisplay");
 
-        // Tap on default display to switch the top activity again.
         getLifecycleLog().clear();
-        tapOnDisplayCenter(DEFAULT_DISPLAY);
+        // Tap on task center to switch the top activity.
+        final Task defaultActivityTask = mWmState
+                .getTaskByActivity(getComponentName(defaultActivityClass));
+        tapOnTaskCenter(defaultActivityTask);
 
         // Wait and assert top resumed position switch.
         waitAndAssertActivityStates(state(secondActivityClass, ON_TOP_POSITION_LOST),
