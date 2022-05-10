@@ -111,6 +111,8 @@ public class TestUtils {
     public static final String IS_URI_REDACTED_VIA_FILEPATH =
             "android.scopedstorage.cts.is_uri_redacted_via_filepath";
     public static final String QUERY_URI = "android.scopedstorage.cts.query_uri";
+    public static final String QUERY_MAX_ROW_ID = "android.scopedstorage.cts.query_max_row_id";
+    public static final String QUERY_MIN_ROW_ID = "android.scopedstorage.cts.query_min_row_id";
     public static final String OPEN_FILE_FOR_READ_QUERY =
             "android.scopedstorage.cts.openfile_read";
     public static final String OPEN_FILE_FOR_WRITE_QUERY =
@@ -430,10 +432,8 @@ public class TestUtils {
     }
 
     public static void verifyInsertFromExternalPrivateDirViaRelativePath_denied() throws Exception {
-        resetDefaultExternalStorageVolume();
-
         // Test that inserting files from Android/obb/.. is not allowed.
-        final String androidObbDir = getContext().getObbDir().toString();
+        final String androidObbDir = getExternalObbDir().toString();
         ContentValues values = new ContentValues();
         values.put(
                 MediaStore.MediaColumns.RELATIVE_PATH,
@@ -449,8 +449,6 @@ public class TestUtils {
     }
 
     public static void verifyInsertFromExternalMediaDirViaRelativePath_allowed() throws Exception {
-        resetDefaultExternalStorageVolume();
-
         // Test that inserting files from Android/media/.. is allowed.
         final String androidMediaDir = getExternalMediaDir().toString();
         final ContentValues values = new ContentValues();
@@ -461,13 +459,11 @@ public class TestUtils {
     }
 
     public static void verifyInsertFromExternalPrivateDirViaData_denied() throws Exception {
-        resetDefaultExternalStorageVolume();
-
         ContentValues values = new ContentValues();
 
         // Test that inserting files from Android/obb/.. is not allowed.
         final String androidObbDir =
-                getContext().getObbDir().toString() + "/" + System.currentTimeMillis();
+                getExternalObbDir().toString() + "/" + System.currentTimeMillis();
         values.put(MediaStore.MediaColumns.DATA, androidObbDir);
         assertThrows(IllegalArgumentException.class, () -> insertFile(values));
 
@@ -478,8 +474,6 @@ public class TestUtils {
     }
 
     public static void verifyInsertFromExternalMediaDirViaData_allowed() throws Exception {
-        resetDefaultExternalStorageVolume();
-
         // Test that inserting files from Android/media/.. is allowed.
         ContentValues values = new ContentValues();
         final String androidMediaDirFile =
@@ -490,7 +484,6 @@ public class TestUtils {
 
     // NOTE: While updating, DATA field should be ignored for all the apps including file manager.
     public static void verifyUpdateToExternalDirsViaData_denied() throws Exception {
-        resetDefaultExternalStorageVolume();
         Uri uri = insertFileFromExternalMedia(false);
 
         final String androidMediaDirFile =
@@ -500,7 +493,7 @@ public class TestUtils {
         assertEquals(0, updateFile(uri, values));
 
         final String androidObbDir =
-                getContext().getObbDir().toString() + "/" + System.currentTimeMillis();
+                getExternalObbDir().toString() + "/" + System.currentTimeMillis();
         values.put(MediaStore.MediaColumns.DATA, androidObbDir);
         assertEquals(0, updateFile(uri, values));
 
@@ -511,7 +504,6 @@ public class TestUtils {
 
     public static void verifyUpdateToExternalMediaDirViaRelativePath_allowed()
             throws IOException {
-        resetDefaultExternalStorageVolume();
         Uri uri = insertFileFromExternalMedia(true);
 
         // Test that update to files from Android/media/.. is allowed.
@@ -525,11 +517,10 @@ public class TestUtils {
 
     public static void verifyUpdateToExternalPrivateDirsViaRelativePath_denied()
             throws Exception {
-        resetDefaultExternalStorageVolume();
         Uri uri = insertFileFromExternalMedia(true);
 
         // Test that update to files from Android/obb/.. is not allowed.
-        final String androidObbDir = getContext().getObbDir().toString();
+        final String androidObbDir = getExternalObbDir().toString();
         ContentValues values = new ContentValues();
         values.put(
                 MediaStore.MediaColumns.RELATIVE_PATH,
@@ -597,6 +588,9 @@ public class TestUtils {
             assertThat(InstallUtils.getInstalledVersion(packageName)).isEqualTo(1);
             if (grantStoragePermission) {
                 grantPermission(packageName, Manifest.permission.READ_EXTERNAL_STORAGE);
+                grantPermission(packageName, Manifest.permission.READ_MEDIA_IMAGES);
+                grantPermission(packageName, Manifest.permission.READ_MEDIA_AUDIO);
+                grantPermission(packageName, Manifest.permission.READ_MEDIA_VIDEO);
             }
         } finally {
             uiAutomation.dropShellPermissionIdentity();
@@ -867,8 +861,7 @@ public class TestUtils {
      * Returns whether we can open the file.
      */
     public static boolean canOpen(File file, boolean forWrite) {
-        try {
-            openWithFilePath(file, forWrite);
+        try (ParcelFileDescriptor ignore = openWithFilePath(file, forWrite)) {
             return true;
         } catch (IOException expected) {
             return false;
@@ -901,6 +894,16 @@ public class TestUtils {
 
     public static void setShouldForceStopTestApp(boolean value) {
         sShouldForceStopTestApp = value;
+    }
+
+    public static long readMaximumRowIdFromDatabaseAs(TestApp app, Uri uri) throws Exception {
+        final String actionName = QUERY_MAX_ROW_ID;
+        return getFromTestApp(app, uri, actionName).getLong(actionName, Long.MIN_VALUE);
+    }
+
+    public static long readMinimumRowIdFromDatabaseAs(TestApp app, Uri uri) throws Exception {
+        final String actionName = QUERY_MIN_ROW_ID;
+        return getFromTestApp(app, uri, actionName).getLong(actionName, Long.MAX_VALUE);
     }
 
     /**
@@ -1311,6 +1314,18 @@ public class TestUtils {
     }
 
     /**
+     * Creates and returns the Android obb sub-directory belonging to the calling package.
+     */
+    public static File getExternalObbDir() {
+        final String packageName = getContext().getPackageName();
+        final File res = new File(getAndroidObbDir(), packageName);
+        if (!res.equals(getContext().getObbDirs()[0])) {
+            res.mkdirs();
+        }
+        return res;
+    }
+
+    /**
      * Creates and returns the Android media sub-directory belonging to the calling package.
      */
     public static File getExternalMediaDir() {
@@ -1388,6 +1403,10 @@ public class TestUtils {
 
     public static File getAndroidDataDir() {
         return new File(getAndroidDir(), "data");
+    }
+
+    public static File getAndroidObbDir() {
+        return new File(getAndroidDir(), "obb");
     }
 
     public static File getAndroidMediaDir() {
@@ -1473,7 +1492,8 @@ public class TestUtils {
         final IntentFilter intentFilter = new IntentFilter();
         intentFilter.addAction(actionName);
         intentFilter.addCategory(Intent.CATEGORY_DEFAULT);
-        getContext().registerReceiver(broadcastReceiver, intentFilter);
+        getContext().registerReceiver(broadcastReceiver, intentFilter,
+                Context.RECEIVER_EXPORTED_UNAUDITED);
 
         // Launch the test app.
         intent.setPackage(testApp.getPackageName());
@@ -1693,16 +1713,78 @@ public class TestUtils {
         return true;
     }
 
+    private static boolean isVolumeMounted(String type) {
+        try {
+            final String volume = executeShellCommand("sm list-volumes " + type).trim();
+            return volume != null && volume.contains(" mounted");
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private static boolean isPublicVolumeMounted() {
+        return isVolumeMounted("public");
+    }
+
+    private static boolean isEmulatedVolumeMounted() {
+        return isVolumeMounted("emulated");
+    }
+
+    private static boolean isFuseReady() {
+        for (String volumeName : MediaStore.getExternalVolumeNames(getContext())) {
+            final Uri uri = MediaStore.Files.getContentUri(volumeName);
+            try (Cursor c = getContentResolver().query(uri, null, null, null)) {
+                assertThat(c).isNotNull();
+            } catch (IllegalArgumentException e) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Prepare or create a public volume for testing
+     */
+    public static void preparePublicVolume() throws Exception {
+        if (getCurrentPublicVolumeName() == null) {
+            createNewPublicVolume();
+            return;
+        }
+
+        if (!Boolean.parseBoolean(executeShellCommand("sm has-adoptable").trim())) {
+            unmountAppDirs();
+            // ensure the volume is visible
+            executeShellCommand("sm set-force-adoptable on");
+            Thread.sleep(2000);
+            pollForCondition(TestUtils::isPublicVolumeMounted,
+                    "Timed out while waiting for public volume");
+            pollForCondition(TestUtils::isEmulatedVolumeMounted,
+                    "Timed out while waiting for emulated volume");
+            pollForCondition(TestUtils::isFuseReady,
+                    "Timed out while waiting for fuse");
+        }
+    }
+
+    /**
+     * Unmount app's obb and data dirs.
+     */
+    public static void unmountAppDirs() throws Exception {
+        if (TestUtils.isObbDirUnmounted()) {
+            return;
+        }
+        executeShellCommand("sm unmount-app-data-dirs " + getContext().getPackageName() + " "
+                + android.os.Process.myPid() + " " + android.os.UserHandle.myUserId());
+        pollForCondition(TestUtils::isObbDirUnmounted,
+                "Timed out while waiting for unmounting obb dir");
+    }
+
     /**
      * Creates a new virtual public volume and returns the volume's name.
      */
     public static void createNewPublicVolume() throws Exception {
         // Unmount data and obb dirs for test app first so test app won't be killed during
         // volume unmount.
-        executeShellCommand("sm unmount-app-data-dirs " + getContext().getPackageName() + " "
-                    + android.os.Process.myPid() + " " + android.os.UserHandle.myUserId());
-        pollForCondition(TestUtils::isObbDirUnmounted,
-                "Timed out while waiting for unmounting obb dir");
+        unmountAppDirs();
         executeShellCommand("sm set-force-adoptable on");
         executeShellCommand("sm set-virtual-disk true");
         Thread.sleep(2000);
@@ -1825,4 +1907,33 @@ public class TestUtils {
                 .that(getContentResolver().update(uri, values, Bundle.EMPTY)).isEqualTo(1);
     }
 
+    public static void waitForMountedAndIdleState(ContentResolver resolver) throws Exception {
+        // We purposefully perform these operations twice in this specific
+        // order, since clearing the data on a package can asynchronously
+        // perform a vold reset, which can make us think storage is ready and
+        // mounted when it's moments away from being torn down.
+        pollForExternalStorageMountedState();
+        MediaStore.waitForIdle(resolver);
+        pollForExternalStorageMountedState();
+        MediaStore.waitForIdle(resolver);
+    }
+
+    private static void pollForExternalStorageMountedState() throws Exception {
+        final File target = Environment.getExternalStorageDirectory();
+        pollForCondition(() -> isExternalStorageDirectoryMounted(target),
+                "Timed out while waiting for ExternalStorageState to be MEDIA_MOUNTED");
+    }
+
+    private static boolean isExternalStorageDirectoryMounted(File target) {
+        boolean isMounted = Environment.MEDIA_MOUNTED.equals(
+                Environment.getExternalStorageState(target));
+        if (isMounted) {
+            try {
+                return Os.statvfs(target.getAbsolutePath()).f_blocks > 0;
+            } catch (Exception e) {
+                // Waiting for external storage to be mounted
+            }
+        }
+        return false;
+    }
 }

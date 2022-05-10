@@ -16,8 +16,7 @@
 
 package android.photopicker.cts.util;
 
-import static android.os.SystemProperties.getBoolean;
-import static android.provider.MediaStore.Files.FileColumns;
+import static android.provider.MediaStore.PickerMediaColumns;
 
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
@@ -26,6 +25,8 @@ import static org.junit.Assert.fail;
 
 import android.content.ContentResolver;
 import android.content.Context;
+import android.content.Intent;
+import android.content.UriPermission;
 import android.database.Cursor;
 import android.media.ExifInterface;
 import android.net.Uri;
@@ -35,9 +36,14 @@ import android.os.ParcelFileDescriptor;
 import androidx.test.InstrumentationRegistry;
 
 import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
 /**
  * Photo Picker Utility methods for test assertions.
@@ -54,6 +60,20 @@ public class PhotoPickerAssertionsUtils {
         assertThat(auth).isEqualTo("picker");
     }
 
+    public static void assertPersistedGrant(Uri uri, ContentResolver resolver) {
+        resolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+
+        final List<UriPermission> uriPermissions = resolver.getPersistedUriPermissions();
+        final List<Uri> uris = new ArrayList<>();
+        for (UriPermission perm : uriPermissions) {
+            if (perm.isReadPermission()) {
+                uris.add(perm.getUri());
+            }
+        }
+
+        assertThat(uris).contains(uri);
+    }
+
     public static void assertMimeType(Uri uri, String expectedMimeType) throws Exception {
         final Context context = InstrumentationRegistry.getTargetContext();
         final String resultMimeType = context.getContentResolver().getType(uri);
@@ -62,22 +82,14 @@ public class PhotoPickerAssertionsUtils {
 
     public static void assertRedactedReadOnlyAccess(Uri uri) throws Exception {
         assertThat(uri).isNotNull();
-        // TODO(b/205291616): Replace FileColumns.MIME_TYPE with PickerMediaColumns.MIME_TYPE
-        final String[] projection = new String[]{ FileColumns.MIME_TYPE };
+        final String[] projection = new String[]{ PickerMediaColumns.MIME_TYPE };
         final Context context = InstrumentationRegistry.getTargetContext();
         final ContentResolver resolver = context.getContentResolver();
         try (Cursor c = resolver.query(uri, projection, null, null)) {
             assertThat(c).isNotNull();
             assertThat(c.moveToFirst()).isTrue();
 
-            final String mimeType;
-            if (getBoolean("sys.photopicker.pickerdb.enabled", true)) {
-                // TODO(b/205291616): Replace FileColumns.MIME_TYPE with
-                // PickerMediaColumns.MIME_TYPE
-                mimeType = c.getString(c.getColumnIndex(FileColumns.MIME_TYPE));
-            } else {
-                mimeType = c.getString(c.getColumnIndex(FileColumns.MIME_TYPE));
-            }
+            final String mimeType = c.getString(c.getColumnIndex(PickerMediaColumns.MIME_TYPE));
 
             if (mimeType.startsWith("image")) {
                 assertImageRedactedReadOnlyAccess(uri, resolver);
@@ -117,29 +129,54 @@ public class PhotoPickerAssertionsUtils {
 
     private static void assertImageRedactedReadOnlyAccess(Uri uri, ContentResolver resolver)
             throws Exception {
+        // Assert URI access
         // The location is redacted
         try (InputStream is = resolver.openInputStream(uri)) {
-            final ExifInterface exif = new ExifInterface(is);
-            final float[] latLong = new float[2];
-            exif.getLatLong(latLong);
-            assertWithMessage("Failed to redact latitude")
-                    .that(latLong[0]).isWithin(0.001f).of(0);
-            assertWithMessage("Failed to redact longitude")
-                    .that(latLong[1]).isWithin(0.001f).of(0);
-
-            String xmp = exif.getAttribute(ExifInterface.TAG_XMP);
-            assertWithMessage("Failed to redact XMP longitude")
-                    .that(xmp.contains("10,41.751000E")).isFalse();
-            assertWithMessage("Failed to redact XMP latitude")
-                    .that(xmp.contains("53,50.070500N")).isFalse();
-            assertWithMessage("Redacted non-location XMP")
-                    .that(xmp.contains("LensDefaults")).isTrue();
+            assertImageExifRedacted(is);
         }
 
-        // assert no write access
+        // Assert no write access
         try (ParcelFileDescriptor pfd = resolver.openFileDescriptor(uri, "w")) {
             fail("Does not grant write access to uri " + uri.toString());
         } catch (SecurityException | FileNotFoundException expected) {
         }
+
+        // Assert file path access
+        try (Cursor c = resolver.query(uri, null, null, null)) {
+            assertThat(c).isNotNull();
+            assertThat(c.moveToFirst()).isTrue();
+
+            File file = new File(c.getString(c.getColumnIndex(PickerMediaColumns.DATA)));
+
+            // The location is redacted
+            try (InputStream is = new FileInputStream(file)) {
+                assertImageExifRedacted(is);
+            }
+
+            // Assert no write access
+            try (ParcelFileDescriptor pfd =
+                    ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_WRITE)) {
+                fail("Does not grant write access to file " + file);
+            } catch (IOException e) {
+            }
+        }
+    }
+
+    private static void assertImageExifRedacted(InputStream is) throws IOException {
+        final ExifInterface exif = new ExifInterface(is);
+        final float[] latLong = new float[2];
+        exif.getLatLong(latLong);
+        assertWithMessage("Failed to redact latitude")
+                .that(latLong[0]).isWithin(0.001f).of(0);
+        assertWithMessage("Failed to redact longitude")
+                .that(latLong[1]).isWithin(0.001f).of(0);
+
+        String xmp = exif.getAttribute(ExifInterface.TAG_XMP);
+        assertWithMessage("Failed to redact XMP longitude")
+                .that(xmp.contains("10,41.751000E")).isFalse();
+        assertWithMessage("Failed to redact XMP latitude")
+                .that(xmp.contains("53,50.070500N")).isFalse();
+        assertWithMessage("Redacted non-location XMP")
+                .that(xmp.contains("LensDefaults")).isTrue();
     }
 }

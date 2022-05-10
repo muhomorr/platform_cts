@@ -50,6 +50,7 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.FileUtils;
+import android.os.ParcelFileDescriptor;
 import android.provider.MediaStore;
 
 import androidx.test.filters.SdkSuppress;
@@ -58,7 +59,6 @@ import com.android.cts.install.lib.TestApp;
 
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -110,15 +110,11 @@ public class RedactUriDeviceTest extends ScopedStorageBaseDeviceTest {
     }
 
     @BeforeClass
-    public static void setup() {
-        setupApps();
-        setShouldForceStopTestApp(false);
-    }
-
-    private static void setupApps() {
+    public static void setupApps() {
         // Installed by target preparer
         assertThat(checkPermission(APP_B_NO_PERMS,
                 Manifest.permission.READ_EXTERNAL_STORAGE)).isFalse();
+        setShouldForceStopTestApp(false);
     }
 
     @AfterClass
@@ -276,7 +272,6 @@ public class RedactUriDeviceTest extends ScopedStorageBaseDeviceTest {
      * redacted mode.
      **/
     @Test
-    @Ignore("Enable when b/194700183 is fixed")
     public void testSharedRedactedUri_openFileForRead() throws Exception {
         forceStopApp(APP_B_NO_PERMS.getPackageName());
         final File img = stageImageFileWithMetadata(IMAGE_FILE_NAME);
@@ -453,9 +448,10 @@ public class RedactUriDeviceTest extends ScopedStorageBaseDeviceTest {
         try {
             assertUriIsUnredacted(img);
 
-            InputStream is = getContentResolver().openInputStream(redactedUri);
-            ExifInterface redactedExifInf = new ExifInterface(is);
-            assertUriIsRedacted(redactedExifInf);
+            try (InputStream is = getContentResolver().openInputStream(redactedUri)) {
+                ExifInterface redactedExifInf = new ExifInterface(is);
+                assertUriIsRedacted(redactedExifInf);
+            }
         } finally {
             img.delete();
         }
@@ -468,10 +464,12 @@ public class RedactUriDeviceTest extends ScopedStorageBaseDeviceTest {
         try {
             assertUriIsUnredacted(img);
 
-            FileDescriptor fd = getContentResolver().openFileDescriptor(redactedUri,
-                    "r").getFileDescriptor();
-            ExifInterface redactedExifInf = new ExifInterface(fd);
-            assertUriIsRedacted(redactedExifInf);
+            try (ParcelFileDescriptor pfd =
+                    getContentResolver().openFileDescriptor(redactedUri, "r")) {
+                FileDescriptor fd = pfd.getFileDescriptor();
+                ExifInterface redactedExifInf = new ExifInterface(fd);
+                assertUriIsRedacted(redactedExifInf);
+            }
         } finally {
             img.delete();
         }
