@@ -52,32 +52,37 @@ public final class DirectActionsActivity extends Activity {
         final Intent intent = getIntent();
         Log.v(TAG, "onResume: " + intent);
         final Bundle args = intent.getExtras();
-        final RemoteCallback callBack = args.getParcelable(Utils.DIRECT_ACTIONS_KEY_CALLBACK);
+        final RemoteCallback callBack = args.getParcelable(Utils.VOICE_INTERACTION_KEY_CALLBACK);
 
         final RemoteCallback control = new RemoteCallback((cmdArgs) -> {
-            final String command = cmdArgs.getString(Utils.DIRECT_ACTIONS_KEY_COMMAND);
+            final String command = cmdArgs.getString(Utils.VOICE_INTERACTION_KEY_COMMAND);
             Log.v(TAG, "on remote callback: command=" + command);
             switch (command) {
                 case Utils.DIRECT_ACTIONS_ACTIVITY_CMD_DESTROYED_INTERACTOR: {
                     final RemoteCallback commandCallback = cmdArgs.getParcelable(
-                            Utils.DIRECT_ACTIONS_KEY_CALLBACK);
+                            Utils.VOICE_INTERACTION_KEY_CALLBACK);
                     detectDestroyedInteractor(commandCallback);
                 } break;
-                case Utils.DIRECT_ACTIONS_ACTIVITY_CMD_FINISH: {
+                case Utils.VOICE_INTERACTION_ACTIVITY_CMD_FINISH: {
                     final RemoteCallback commandCallback = cmdArgs.getParcelable(
-                            Utils.DIRECT_ACTIONS_KEY_CALLBACK);
+                            Utils.VOICE_INTERACTION_KEY_CALLBACK);
                     doFinish(commandCallback);
                 } break;
                 case Utils.DIRECT_ACTIONS_ACTIVITY_CMD_INVALIDATE_ACTIONS: {
                     final RemoteCallback commandCallback = cmdArgs.getParcelable(
-                            Utils.DIRECT_ACTIONS_KEY_CALLBACK);
+                            Utils.VOICE_INTERACTION_KEY_CALLBACK);
                     invalidateDirectActions(commandCallback);
+                } break;
+                case Utils.DIRECT_ACTIONS_ACTIVITY_CMD_GET_PACKAGE_NAME: {
+                    final RemoteCallback commandCallback = cmdArgs.getParcelable(
+                            Utils.VOICE_INTERACTION_KEY_CALLBACK);
+                    getPackageName(commandCallback);
                 } break;
             }
         });
 
         final Bundle result = new Bundle();
-        result.putParcelable(Utils.DIRECT_ACTIONS_KEY_CONTROL, control);
+        result.putParcelable(Utils.VOICE_INTERACTION_KEY_CONTROL, control);
         Log.v(TAG, "onResume(): result=" + Utils.toBundleString(result));
         callBack.sendResult(result);
     }
@@ -105,8 +110,8 @@ public final class DirectActionsActivity extends Activity {
     public void onPerformDirectAction(String actionId, Bundle arguments,
             CancellationSignal cancellationSignal, Consumer<Bundle> callback) {
         Log.v(TAG, "onPerformDirectAction(): " + Utils.toBundleString(arguments));
-        if (arguments == null || !arguments.getString(Utils.DIRECT_ACTIONS_KEY_ARGUMENTS)
-                .equals(Utils.DIRECT_ACTIONS_KEY_ARGUMENTS)) {
+        if (arguments == null || !arguments.getString(Utils.VOICE_INTERACTION_KEY_ARGUMENTS)
+                .equals(Utils.VOICE_INTERACTION_KEY_ARGUMENTS)) {
             reportActionFailed(callback);
             return;
         }
@@ -154,6 +159,14 @@ public final class DirectActionsActivity extends Activity {
         final Bundle result = new Bundle();
         result.putBoolean(Utils.DIRECT_ACTIONS_KEY_RESULT, true);
         Log.v(TAG, "invalidateDirectActions(): " + Utils.toBundleString(result));
+        callback.sendResult(result);
+    }
+
+    private void getPackageName(@NonNull RemoteCallback callback) {
+        String packageName = getVoiceInteractor().getPackageName();
+        final Bundle result = new Bundle();
+        result.putString(Utils.DIRECT_ACTIONS_KEY_RESULT, packageName);
+        Log.v(TAG, "getPackageName(): " + Utils.toBundleString(result));
         callback.sendResult(result);
     }
 

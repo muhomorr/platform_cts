@@ -12,6 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+package {
+    default_applicable_licenses: ["Android-Apache-2.0"],
+}
+
 android_test_helper_app {
     name: "StrictJavaPackagesTestApp",
     defaults: ["cts_defaults"],
@@ -21,6 +25,7 @@ android_test_helper_app {
         "androidx.test.core",
     ],
     sdk_version: "test_current",
+    min_sdk_version: "29",
     test_suites: [
         "ats",
         "cts",
