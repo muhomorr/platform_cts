@@ -210,7 +210,6 @@ public class AppATests {
         mDevice.pressKeyCode(KeyEvent.KEYCODE_2);
         mDevice.pressKeyCode(KeyEvent.KEYCODE_3);
         mDevice.pressKeyCode(KeyEvent.KEYCODE_4);
-        mDevice.pressKeyCode(KeyEvent.KEYCODE_5);
         mDevice.waitForIdle();
         mDevice.pressEnter();
         mDevice.waitForIdle();
@@ -251,7 +250,7 @@ public class AppATests {
         testUnlockDevice();
 
         assertTrue("User not unlocked", unlocked.await(1, TimeUnit.MINUTES));
-        assertTrue("No locked boot complete", bootCompleted.await(1, TimeUnit.MINUTES));
+        assertTrue("No locked boot complete", bootCompleted.await(2, TimeUnit.MINUTES));
 
         setUpExternalStoragePaths();
 

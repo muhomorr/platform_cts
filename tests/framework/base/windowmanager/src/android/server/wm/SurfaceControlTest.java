@@ -41,9 +41,17 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TestName;
 
+import java.util.concurrent.Executor;
+
 @Presubmit
 public class SurfaceControlTest {
     private static final int DEFAULT_SURFACE_SIZE = 100;
+    /**
+     * Use a rect that doesn't include 1 pixel in the border since some composers add blending at
+     * the edges. It's easier to just ignore those pixels and ensure the rest are correct.
+     */
+    private static final Rect DEFAULT_RECT = new Rect(1, 1, DEFAULT_SURFACE_SIZE - 1,
+            DEFAULT_SURFACE_SIZE - 1);
 
     @Rule
     public ActivityScenarioRule<ASurfaceControlTestActivity> mActivityRule =
@@ -71,9 +79,9 @@ public class SurfaceControlTest {
         public void surfaceDestroyed(@NonNull SurfaceHolder holder) {}
     }
 
-    private void verifyTest(SurfaceHolder.Callback callback,
-            PixelChecker pixelChecker) throws Throwable {
-        mActivity.verifyTest(callback, pixelChecker, 0 /* delayInMs */);
+    private void verifyTest(SurfaceHolder.Callback callback, PixelChecker pixelChecker,
+            int numOfTransaction) {
+        mActivity.verifyTest(callback, pixelChecker, mName, numOfTransaction);
     }
 
     @Before
@@ -114,7 +122,7 @@ public class SurfaceControlTest {
     void fillWithColor(SurfaceControl sc, int color) {
         Surface s = new Surface(sc);
 
-        Canvas c = s.lockHardwareCanvas();
+        Canvas c = s.lockCanvas(null);
         c.drawColor(color);
         s.unlockCanvasAndPost(c);
     }
@@ -149,12 +157,12 @@ public class SurfaceControlTest {
                     public void addChildren(SurfaceControl parent) {
                         final SurfaceControl sc = buildDefaultRedSurface(parent);
 
-                        new SurfaceControl.Transaction().setVisibility(sc, true).apply();
+                        makeTransactionWithListener().setVisibility(sc, true).apply();
 
                         sc.release();
                     }
                 },
-                new RectChecker(new Rect(0, 0, 100, 100), PixelColor.RED));
+                new RectChecker(DEFAULT_RECT, PixelColor.RED), 1);
     }
 
     /**
@@ -168,12 +176,12 @@ public class SurfaceControlTest {
                     public void addChildren(SurfaceControl parent) {
                         final SurfaceControl sc = buildDefaultRedSurface(parent);
 
-                        new SurfaceControl.Transaction().setVisibility(sc, false).apply();
+                        makeTransactionWithListener().setVisibility(sc, false).apply();
 
                         sc.release();
                     }
                 },
-                new RectChecker(new Rect(0, 0, 100, 100), PixelColor.BLACK));
+                new RectChecker(DEFAULT_RECT, PixelColor.BLACK), 1);
     }
 
     /**
@@ -186,11 +194,11 @@ public class SurfaceControlTest {
                 new SurfaceHolderCallback () {
                     @Override
                     public void addChildren(SurfaceControl parent) {
-                        new SurfaceControl.Transaction().reparent(sc, parent).apply();
-                        new SurfaceControl.Transaction().reparent(sc, null).apply();
+                        makeTransactionWithListener().reparent(sc, parent).apply();
+                        makeTransactionWithListener().reparent(sc, null).apply();
                     }
                 },
-                new RectChecker(new Rect(0, 0, 100, 100), PixelColor.BLACK));
+                new RectChecker(DEFAULT_RECT, PixelColor.BLACK), 2);
       // Since the SurfaceControl is parented off-screen, if we release our reference
       // it may completely die. If this occurs while the render thread is still rendering
       // the RED background we could trigger a crash. For this test defer destroying the
@@ -211,14 +219,14 @@ public class SurfaceControlTest {
                     public void addChildren(SurfaceControl parent) {
                         final SurfaceControl sc = buildDefaultRedSurface(null);
 
-                        new SurfaceControl.Transaction().setVisibility(sc, true)
+                        makeTransactionWithListener().setVisibility(sc, true)
                             .reparent(sc, parent)
                             .apply();
 
                         sc.release();
                     }
                 },
-                new RectChecker(new Rect(0, 0, 100, 100), PixelColor.RED));
+                new RectChecker(DEFAULT_RECT, PixelColor.RED), 1);
     }
 
     /**
@@ -233,7 +241,7 @@ public class SurfaceControlTest {
                         final SurfaceControl sc = buildDefaultRedSurface(parent);
                         final SurfaceControl sc2 = buildDefaultSurface(parent, Color.GREEN);
 
-                        new SurfaceControl.Transaction().setVisibility(sc, true)
+                        makeTransactionWithListener().setVisibility(sc, true)
                             .setVisibility(sc2, true)
                             .setLayer(sc, 1)
                             .setLayer(sc2, 2)
@@ -242,7 +250,7 @@ public class SurfaceControlTest {
                         sc.release();
                     }
                 },
-                new RectChecker(new Rect(0, 0, 100, 100), PixelColor.GREEN));
+                new RectChecker(DEFAULT_RECT, PixelColor.GREEN), 1);
     }
 
     /**
@@ -255,7 +263,7 @@ public class SurfaceControlTest {
                     @Override
                     public void addChildren(SurfaceControl parent) {
                         final SurfaceControl sc = buildDefaultRedSurface(parent);
-                        new SurfaceControl.Transaction().setVisibility(sc, true)
+                        makeTransactionWithListener().setVisibility(sc, true)
                             .setGeometry(sc, null, new Rect(-50, -50, 50, 50), Surface.ROTATION_0)
                             .apply();
                         sc.release();
@@ -263,7 +271,7 @@ public class SurfaceControlTest {
                 },
 
                 // The rect should be offset by -50 pixels
-                new MultiRectChecker(new Rect(0, 0, 100, 100)) {
+                new MultiRectChecker(DEFAULT_RECT) {
                     final PixelColor red = new PixelColor(PixelColor.RED);
                     final PixelColor black = new PixelColor(PixelColor.BLACK);
                     @Override
@@ -274,7 +282,7 @@ public class SurfaceControlTest {
                             return black;
                         }
                     }
-                });
+                }, 1);
     }
 
     /**
@@ -287,7 +295,7 @@ public class SurfaceControlTest {
                     @Override
                     public void addChildren(SurfaceControl parent) {
                         final SurfaceControl sc = buildDefaultRedSurface(parent);
-                        new SurfaceControl.Transaction().setVisibility(sc, true)
+                        makeTransactionWithListener().setVisibility(sc, true)
                             .setGeometry(sc, null, new Rect(50, 50, 150, 150), Surface.ROTATION_0)
                             .apply();
 
@@ -296,7 +304,7 @@ public class SurfaceControlTest {
                 },
 
                 // The rect should be offset by 50 pixels
-                new MultiRectChecker(new Rect(0, 0, 100, 100)) {
+                new MultiRectChecker(DEFAULT_RECT) {
                     final PixelColor red = new PixelColor(PixelColor.RED);
                     final PixelColor black = new PixelColor(PixelColor.BLACK);
                     @Override
@@ -307,7 +315,7 @@ public class SurfaceControlTest {
                             return black;
                         }
                     }
-                });
+                }, 1);
     }
 
     /**
@@ -320,7 +328,7 @@ public class SurfaceControlTest {
                     @Override
                     public void addChildren(SurfaceControl parent) {
                         final SurfaceControl sc = buildSmallRedSurface(parent);
-                        new SurfaceControl.Transaction().setVisibility(sc, true)
+                        makeTransactionWithListener().setVisibility(sc, true)
                             .setGeometry(sc, new Rect(0, 0, DEFAULT_SURFACE_SIZE / 2, DEFAULT_SURFACE_SIZE / 2),
                                     new Rect(0, 0, DEFAULT_SURFACE_SIZE , DEFAULT_SURFACE_SIZE),
                                     Surface.ROTATION_0)
@@ -329,6 +337,22 @@ public class SurfaceControlTest {
                     }
                 },
 
-                new RectChecker(new Rect(0, 0, 100, 100), PixelColor.RED));
+                new RectChecker(DEFAULT_RECT, PixelColor.RED), 1);
+    }
+
+    private SurfaceControl.Transaction makeTransactionWithListener() {
+        return new SurfaceControl.Transaction().addTransactionCommittedListener(
+                new Executor() {
+                    @Override
+                    public void execute(Runnable command) {
+                        command.run();
+                    }
+                }, new SurfaceControl.TransactionCommittedListener() {
+                    @Override
+                    public void onTransactionCommitted() {
+                        mActivity.transactionCommitted();
+                    }
+                }
+        );
     }
 }
