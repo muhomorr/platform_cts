@@ -24,34 +24,53 @@ import java.util.List;
 
 public final class EnterpriseMetricInfo {
     private final String mAdminPackageName;
+    private final int mType;
     private final boolean mBoolean;
     private final List<String> mStrings;
+    private final int mInteger;
 
     EnterpriseMetricInfo(AtomsProto.DevicePolicyEvent event) {
         mAdminPackageName = event.adminPackageName;
+        mType = event.eventId;
         mBoolean = event.booleanValue;
         mStrings = (event.stringListValue == null) ? new ArrayList<>() : Arrays.asList(
                 event.stringListValue.stringValue);
+        mInteger = event.integerValue;
     }
 
+    /** Admin package name. */
     public String adminPackageName() {
         return mAdminPackageName;
     }
 
+    /** Type of metric. */
+    public int type() {
+        return mType;
+    }
+
+    /** Arbitrary boolean value. */
     public boolean Boolean() {
         return mBoolean;
     }
 
+    /** Arbitrary list of strings. */
     public List<String> strings() {
         return mStrings;
+    }
+
+    /** Arbitrary integer value. */
+    public int integer() {
+        return mInteger;
     }
 
     @Override
     public String toString() {
         return "EnterpriseMetricInfo{"
                 + "adminPackageName=" + mAdminPackageName
+                + ", type=" + mType
                 + ", boolean=" + mBoolean
                 + ", strings=" + mStrings
+                + ", integer=" + mInteger
                 + "}";
     }
 }

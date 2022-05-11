@@ -21,12 +21,18 @@ import android.signature.cts.AnnotationChecker;
 import android.signature.cts.ApiDocumentParser;
 import android.signature.cts.JDiffClassDescription;
 
+import android.signature.cts.LogHelper;
+import android.util.Log;
+import androidx.test.InstrumentationRegistry;
+import com.android.compatibility.common.util.DynamicConfigDeviceSide;
 import com.android.compatibility.common.util.PropertyUtil;
+import java.util.List;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.function.Predicate;
+import org.junit.Test;
 
 /**
  * Checks that parts of the device's API that are annotated (e.g. with android.annotation.SystemApi)
@@ -58,6 +64,7 @@ public class AnnotationTest extends AbstractApiTest {
      * Tests that the parts of the device's API that are annotated (e.g. with
      * android.annotation.SystemApi) match the API definition.
      */
+    @Test
     public void testAnnotation() {
        AnnotationChecker.ResultFilter filter = new AnnotationChecker.ResultFilter() {
             @Override

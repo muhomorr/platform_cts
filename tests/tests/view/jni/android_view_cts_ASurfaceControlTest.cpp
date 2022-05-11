@@ -16,25 +16,30 @@
 
 #define LOG_TAG "ASurfaceControlTest"
 
-#include <sys/types.h>
+#include <ChoreographerTestUtils.h>
+#include <android/choreographer.h>
+#include <android/data_space.h>
+#include <android/hardware_buffer.h>
+#include <android/hardware_buffer_jni.h>
+#include <android/log.h>
+#include <android/looper.h>
+#include <android/native_window_jni.h>
+#include <android/surface_control.h>
+#include <android/sync.h>
+#include <android/trace.h>
+#include <errno.h>
+#include <jni.h>
+#include <poll.h>
 #include <sys/time.h>
+#include <sys/types.h>
+#include <time.h>
 #include <unistd.h>
 
 #include <array>
 #include <cinttypes>
 #include <string>
 
-#include <android/data_space.h>
-#include <android/hardware_buffer.h>
-#include <android/log.h>
-#include <android/native_window_jni.h>
-#include <android/surface_control.h>
-#include <android/sync.h>
-
-#include <errno.h>
-#include <jni.h>
-#include <jniAssert.h>
-#include <time.h>
+#define ALOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 
 namespace {
 
@@ -42,16 +47,6 @@ static struct {
     jclass clazz;
     jmethodID onTransactionComplete;
 } gTransactionCompleteListenerClassInfo;
-
-#define NANOS_PER_SECOND 1000000000LL
-int64_t systemTime() {
-    struct timespec time;
-    int result = clock_gettime(CLOCK_MONOTONIC, &time);
-    if (result < 0) {
-        return -errno;
-    }
-    return (time.tv_sec * NANOS_PER_SECOND) + time.tv_nsec;
-}
 
 static AHardwareBuffer* allocateBuffer(int32_t width, int32_t height) {
     AHardwareBuffer* buffer = nullptr;
@@ -98,6 +93,7 @@ static bool getSolidBuffer(int32_t width, int32_t height, uint32_t color,
     AHardwareBuffer_lock(buffer, AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN, -1, &rect,
                                              &data);
     if (!data) {
+        AHardwareBuffer_release(buffer);
         return true;
     }
 
@@ -107,6 +103,16 @@ static bool getSolidBuffer(int32_t width, int32_t height, uint32_t color,
 
     *outHardwareBuffer = buffer;
     return false;
+}
+
+jobject Utils_getSolidBuffer(JNIEnv* env, jobject /*clazz*/, jint width, jint height, jint color) {
+    AHardwareBuffer* buffer;
+    if (getSolidBuffer(width, height, static_cast<uint32_t>(color), &buffer, nullptr)) {
+        return nullptr;
+    }
+    jobject result = AHardwareBuffer_toHardwareBuffer(env, buffer);
+    AHardwareBuffer_release(buffer);
+    return result;
 }
 
 static bool getQuadrantBuffer(int32_t width, int32_t height, jint colorTopLeft,
@@ -141,6 +147,26 @@ static bool getQuadrantBuffer(int32_t width, int32_t height, jint colorTopLeft,
 
     *outHardwareBuffer = buffer;
     return false;
+}
+
+jobject Utils_getQuadrantBuffer(JNIEnv* env, jobject /*clazz*/, jint width, jint height,
+                                jint colorTopLeft, jint colorTopRight, jint colorBottomRight,
+                                jint colorBottomLeft) {
+    AHardwareBuffer* buffer;
+    if (getQuadrantBuffer(width, height, colorTopLeft, colorTopRight, colorBottomRight,
+                          colorBottomLeft, &buffer, nullptr)) {
+        return nullptr;
+    }
+    jobject result = AHardwareBuffer_toHardwareBuffer(env, buffer);
+    AHardwareBuffer_release(buffer);
+    return result;
+}
+
+jlong Utils_getBufferId(JNIEnv* env, jobject /*clazz*/, jobject jHardwareBuffer) {
+    AHardwareBuffer* buffer = AHardwareBuffer_fromHardwareBuffer(env, jHardwareBuffer);
+    uint64_t id = 0;
+    AHardwareBuffer_getId(buffer, &id);
+    return id;
 }
 
 jlong SurfaceTransaction_create(JNIEnv* /*env*/, jclass) {
@@ -344,121 +370,71 @@ void SurfaceTransaction_setZOrder(JNIEnv* /*env*/, jclass, jlong surfaceControl,
 
 class CallbackListenerWrapper {
 public:
-    explicit CallbackListenerWrapper(JNIEnv* env, jobject object) {
+    explicit CallbackListenerWrapper(JNIEnv* env, jobject object, bool waitForFence) {
         env->GetJavaVM(&mVm);
         mCallbackListenerObject = env->NewGlobalRef(object);
-        ASSERT(mCallbackListenerObject, "Failed to make global ref");
+        mWaitForFence = waitForFence;
+        if (!mCallbackListenerObject) {
+            ALOGE("Failed to make global ref");
+        }
     }
 
     ~CallbackListenerWrapper() { getenv()->DeleteGlobalRef(mCallbackListenerObject); }
 
-    void callback(int64_t latchTime) {
-        JNIEnv* env = getenv();
-        env->CallVoidMethod(mCallbackListenerObject,
-                            gTransactionCompleteListenerClassInfo.onTransactionComplete, latchTime);
-    }
+    /**
+     * This is duplicate code from sync.c, but the sync_wait function is not exposed to the ndk.
+     * The documentation recommends using poll instead of exposing sync_wait, but the sync_wait
+     * also handles errors and retries so copied the code here.
+     */
+    static int sync_wait(int fd, int timeout) {
+        struct pollfd fds;
+        int ret;
 
-    static void transactionCallbackThunk(void* context, ASurfaceTransactionStats* stats) {
-        CallbackListenerWrapper* listener = reinterpret_cast<CallbackListenerWrapper*>(context);
-        listener->callback(ASurfaceTransactionStats_getLatchTime(stats));
-        delete listener;
-    }
-
-private:
-    jobject mCallbackListenerObject;
-    JavaVM* mVm;
-
-    JNIEnv* getenv() {
-        JNIEnv* env;
-        mVm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6);
-        return env;
-    }
-};
-
-static void onComplete(void* context, ASurfaceTransactionStats* stats) {
-    if (!stats) {
-        return;
-    }
-
-    int64_t latchTime = ASurfaceTransactionStats_getLatchTime(stats);
-    if (latchTime < 0) {
-        return;
-    }
-
-    ASurfaceControl** surfaceControls = nullptr;
-    size_t surfaceControlsSize = 0;
-    ASurfaceTransactionStats_getASurfaceControls(stats, &surfaceControls, &surfaceControlsSize);
-
-    for (int i = 0; i < surfaceControlsSize; i++) {
-        ASurfaceControl* surfaceControl = surfaceControls[i];
-
-        int64_t acquireTime = ASurfaceTransactionStats_getAcquireTime(stats, surfaceControl);
-        if (acquireTime < -1) {
-            return;
+        if (fd < 0) {
+            errno = EINVAL;
+            return -1;
         }
 
-        int previousReleaseFence = ASurfaceTransactionStats_getPreviousReleaseFenceFd(
-                    stats, surfaceControl);
-        close(previousReleaseFence);
+        fds.fd = fd;
+        fds.events = POLLIN;
+
+        do {
+            ret = poll(&fds, 1, timeout);
+            if (ret > 0) {
+                if (fds.revents & (POLLERR | POLLNVAL)) {
+                    errno = EINVAL;
+                    return -1;
+                }
+                return 0;
+            } else if (ret == 0) {
+                errno = ETIME;
+                return -1;
+            }
+        } while (ret == -1 && (errno == EINTR || errno == EAGAIN));
+
+        return ret;
     }
 
-    int presentFence = ASurfaceTransactionStats_getPresentFenceFd(stats);
+    static uint64_t getPresentTime(int presentFence) {
+        uint64_t presentTime = 0;
+        int error = sync_wait(presentFence, 500);
+        if (error < 0) {
+            ALOGE("Failed to sync fence error=%d", error);
+            return 0;
+        }
 
-    if (!context) {
-        close(presentFence);
-        return;
-    }
-
-    int* contextIntPtr = reinterpret_cast<int*>(context);
-    contextIntPtr[0]++;
-    contextIntPtr[1] = presentFence;
-    int64_t* systemTimeLongPtr = reinterpret_cast<int64_t*>(contextIntPtr + 2);
-    *systemTimeLongPtr = systemTime();
-}
-
-jlong SurfaceTransaction_setOnComplete(JNIEnv* /*env*/, jclass, jlong surfaceTransaction) {
-    int* context = new int[4];
-    context[0] = 0;
-    context[1] = -1;
-    context[2] = -1;
-    context[3] = -1;
-
-    ASurfaceTransaction_setOnComplete(
-            reinterpret_cast<ASurfaceTransaction*>(surfaceTransaction),
-            reinterpret_cast<void*>(context), onComplete);
-    return reinterpret_cast<jlong>(context);
-}
-
-void SurfaceTransaction_checkOnComplete(JNIEnv* env, jclass, jlong context,
-                                        jlong desiredPresentTime) {
-    ASSERT(context != 0, "invalid context")
-
-    int* contextPtr = reinterpret_cast<int*>(context);
-    int data = contextPtr[0];
-    int presentFence = contextPtr[1];
-
-    int64_t* callbackTimePtr = reinterpret_cast<int64_t*>(contextPtr + 2);
-    int64_t callbackTime = *callbackTimePtr;
-
-    delete[] contextPtr;
-
-    if (desiredPresentTime < 0) {
-        close(presentFence);
-        ASSERT(data >= 1, "did not receive a callback")
-        ASSERT(data <= 1, "received too many callbacks")
-        return;
-    }
-
-    if (presentFence >= 0) {
         struct sync_file_info* syncFileInfo = sync_file_info(presentFence);
-        ASSERT(syncFileInfo, "invalid fence");
+        if (!syncFileInfo) {
+            ALOGE("invalid fence");
+            sync_file_info_free(syncFileInfo);
+            return 0;
+        }
 
         if (syncFileInfo->status != 1) {
-            sync_file_info_free(syncFileInfo);
-            ASSERT(syncFileInfo->status == 1, "fence did not signal")
+            ALOGE("fence did not signal status=%d", syncFileInfo->status);
+            return 0;
         }
 
-        uint64_t presentTime = 0;
         struct sync_fence_info* syncFenceInfo = sync_get_fence_info(syncFileInfo);
         for (size_t i = 0; i < syncFileInfo->num_fences; i++) {
             if (syncFenceInfo[i].timestamp_ns > presentTime) {
@@ -468,25 +444,41 @@ void SurfaceTransaction_checkOnComplete(JNIEnv* env, jclass, jlong context,
 
         sync_file_info_free(syncFileInfo);
         close(presentFence);
-
-        // In the worst case the worst present time should be no more than three frames off from the
-        // desired present time. Since the test case is using a virtual display and there are no
-        // requirements for virtual display refresh rate timing, lets assume a refresh rate of 16fps.
-        ASSERT(presentTime < desiredPresentTime + 0.188 * 1e9, "transaction was presented too late");
-        ASSERT(presentTime >= desiredPresentTime, "transaction was presented too early");
-    } else {
-        ASSERT(presentFence == -1, "invalid fences should be -1");
-        // The device doesn't support present fences. We will use the callback time to roughly
-        // verify the result. Since the callback could take up to half a frame, do the normal bound
-        // check plus an additional half frame.
-        ASSERT(callbackTime < desiredPresentTime + (0.188 + 0.031) * 1e9,
-                                                  "transaction was presented too late");
-        ASSERT(callbackTime >= desiredPresentTime, "transaction was presented too early");
+        return presentTime;
     }
 
-    ASSERT(data >= 1, "did not receive a callback")
-    ASSERT(data <= 1, "received too many callbacks")
-}
+    void callback(ASurfaceTransactionStats* stats) {
+        JNIEnv* env = getenv();
+        int64_t latchTime = ASurfaceTransactionStats_getLatchTime(stats);
+        uint64_t presentTime = systemTime();
+        if (mWaitForFence) {
+            int presentFence = ASurfaceTransactionStats_getPresentFenceFd(stats);
+            if (presentFence >= 0) {
+                presentTime = getPresentTime(presentFence);
+            }
+        }
+        env->CallVoidMethod(mCallbackListenerObject,
+                            gTransactionCompleteListenerClassInfo.onTransactionComplete, latchTime,
+                            presentTime);
+    }
+
+    static void transactionCallbackThunk(void* context, ASurfaceTransactionStats* stats) {
+        CallbackListenerWrapper* listener = reinterpret_cast<CallbackListenerWrapper*>(context);
+        listener->callback(stats);
+        delete listener;
+    }
+
+private:
+    jobject mCallbackListenerObject;
+    JavaVM* mVm;
+    bool mWaitForFence;
+
+    JNIEnv* getenv() {
+        JNIEnv* env;
+        mVm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6);
+        return env;
+    }
+};
 
 jlong SurfaceTransaction_setDesiredPresentTime(JNIEnv* /*env*/, jclass, jlong surfaceTransaction,
                                               jlong desiredPresentTimeOffset) {
@@ -538,8 +530,8 @@ void SurfaceTransaction_setEnableBackPressure(JNIEnv* /*env*/, jclass, jlong sur
 }
 
 void SurfaceTransaction_setOnCompleteCallback(JNIEnv* env, jclass, jlong surfaceTransaction,
-                                              jobject callback) {
-    void* context = new CallbackListenerWrapper(env, callback);
+                                              jboolean waitForFence, jobject callback) {
+    void* context = new CallbackListenerWrapper(env, callback, waitForFence);
     ASurfaceTransaction_setOnComplete(reinterpret_cast<ASurfaceTransaction*>(surfaceTransaction),
                                       reinterpret_cast<void*>(context),
                                       CallbackListenerWrapper::transactionCallbackThunk);
@@ -547,7 +539,7 @@ void SurfaceTransaction_setOnCompleteCallback(JNIEnv* env, jclass, jlong surface
 
 void SurfaceTransaction_setOnCommitCallback(JNIEnv* env, jclass, jlong surfaceTransaction,
                                             jobject callback) {
-    void* context = new CallbackListenerWrapper(env, callback);
+    void* context = new CallbackListenerWrapper(env, callback, false /* waitForFence */);
     ASurfaceTransaction_setOnCommit(reinterpret_cast<ASurfaceTransaction*>(surfaceTransaction),
                                     reinterpret_cast<void*>(context),
                                     CallbackListenerWrapper::transactionCallbackThunk);
@@ -563,8 +555,9 @@ static void transactionCallbackWithoutContextThunk(void* /* context */,
 
 void SurfaceTransaction_setOnCompleteCallbackWithoutContext(JNIEnv* env, jclass,
                                                             jlong surfaceTransaction,
+                                                            jboolean waitForFence,
                                                             jobject callback) {
-    listener = new CallbackListenerWrapper(env, callback);
+    listener = new CallbackListenerWrapper(env, callback, waitForFence);
     ASurfaceTransaction_setOnComplete(reinterpret_cast<ASurfaceTransaction*>(surfaceTransaction),
                                       nullptr, transactionCallbackWithoutContextThunk);
 }
@@ -572,12 +565,83 @@ void SurfaceTransaction_setOnCompleteCallbackWithoutContext(JNIEnv* env, jclass,
 void SurfaceTransaction_setOnCommitCallbackWithoutContext(JNIEnv* env, jclass,
                                                           jlong surfaceTransaction,
                                                           jobject callback) {
-    listener = new CallbackListenerWrapper(env, callback);
+    listener = new CallbackListenerWrapper(env, callback, false /* waitForFence */);
     ASurfaceTransaction_setOnCommit(reinterpret_cast<ASurfaceTransaction*>(surfaceTransaction),
                                     nullptr, transactionCallbackWithoutContextThunk);
 }
 
-const std::array<JNINativeMethod, 31> JNI_METHODS = {{
+void SurfaceTransaction_setFrameTimeline(JNIEnv* /*env*/, jclass, jlong surfaceTransaction,
+                                         jlong vsyncId) {
+    ASurfaceTransaction_setFrameTimeline(reinterpret_cast<ASurfaceTransaction*>(surfaceTransaction),
+                                         vsyncId);
+}
+
+static struct {
+    jclass clazz;
+    jmethodID constructor;
+} gFrameTimelineClassInfo;
+
+static struct {
+    jclass clazz;
+    jmethodID constructor;
+} gFrameCallbackDataClassInfo;
+
+static void verifyChoreographer(JNIEnv* env, AChoreographer* choreographer) {
+    ASSERT(choreographer != nullptr, "Choreographer setup unsuccessful");
+}
+
+static void verifyPollCallback(JNIEnv* env, int result) {
+    ASSERT(result == ALOOPER_POLL_CALLBACK, "Callback failed with error: %d", result);
+}
+
+/** Gets VSync information from Choreographer, including a collection of frame timelines and
+ * platform-preferred index using Choreographer. */
+jobject SurfaceControlTest_getFrameTimelines(JNIEnv* env, jclass) {
+    ALooper_prepare(0);
+    ATrace_beginSection("Getting Choreographer instance");
+    AChoreographer* choreographer = AChoreographer_getInstance();
+    ATrace_endSection();
+    verifyChoreographer(env, choreographer);
+
+    VsyncCallback cb1("cb1", env);
+    auto start = now();
+    ATrace_beginSection("postVsyncCallback");
+    AChoreographer_postVsyncCallback(choreographer, vsyncCallback, &cb1);
+    ATrace_endSection();
+    auto delayPeriod = std::chrono::duration_cast<std::chrono::milliseconds>(DELAY_PERIOD).count();
+    ATrace_beginSection("ALooper_pollOnce");
+    int result = ALooper_pollOnce(delayPeriod * 5, nullptr, nullptr, nullptr);
+    ATrace_endSection();
+    verifyPollCallback(env, result);
+    verifyCallback(env, cb1, 1, start, NOMINAL_VSYNC_PERIOD * 3);
+
+    jobjectArray frameTimelineObjs =
+            env->NewObjectArray(cb1.getTimeline().size(), gFrameTimelineClassInfo.clazz,
+                                /*initial element*/ NULL);
+    if (env->ExceptionCheck()) {
+        env->ExceptionDescribe();
+        env->ExceptionClear();
+        return NULL;
+    }
+    if (frameTimelineObjs == NULL) {
+        jniThrowRuntimeException(env, "Failed to create FrameTimeline array");
+        return NULL;
+    }
+    for (int i = 0; i < cb1.getTimeline().size(); i++) {
+        VsyncCallback::FrameTime frameTimeline = cb1.getTimeline()[i];
+        jobject frameTimelineObj =
+                env->NewObject(gFrameTimelineClassInfo.clazz, gFrameTimelineClassInfo.constructor,
+                               frameTimeline.vsyncId, frameTimeline.expectedPresentTime,
+                               frameTimeline.deadline);
+        env->SetObjectArrayElement(frameTimelineObjs, i, frameTimelineObj);
+    }
+
+    return env->NewObject(gFrameCallbackDataClassInfo.clazz,
+                          gFrameCallbackDataClassInfo.constructor, frameTimelineObjs,
+                          cb1.getPreferredFrameTimelineIndex());
+}
+
+static const JNINativeMethod JNI_METHODS[] = {
         {"nSurfaceTransaction_create", "()J", (void*)SurfaceTransaction_create},
         {"nSurfaceTransaction_delete", "(J)V", (void*)SurfaceTransaction_delete},
         {"nSurfaceTransaction_apply", "(J)V", (void*)SurfaceTransaction_apply},
@@ -600,8 +664,6 @@ const std::array<JNINativeMethod, 31> JNI_METHODS = {{
         {"nSurfaceTransaction_setDamageRegion", "(JJIIII)V",
          (void*)SurfaceTransaction_setDamageRegion},
         {"nSurfaceTransaction_setZOrder", "(JJI)V", (void*)SurfaceTransaction_setZOrder},
-        {"nSurfaceTransaction_setOnComplete", "(J)J", (void*)SurfaceTransaction_setOnComplete},
-        {"nSurfaceTransaction_checkOnComplete", "(JJ)V", (void*)SurfaceTransaction_checkOnComplete},
         {"nSurfaceTransaction_setDesiredPresentTime", "(JJ)J",
          (void*)SurfaceTransaction_setDesiredPresentTime},
         {"nSurfaceTransaction_setBufferAlpha", "(JJD)V", (void*)SurfaceTransaction_setBufferAlpha},
@@ -610,7 +672,7 @@ const std::array<JNINativeMethod, 31> JNI_METHODS = {{
         {"nSurfaceTransaction_setEnableBackPressure", "(JJZ)V",
          (void*)SurfaceTransaction_setEnableBackPressure},
         {"nSurfaceTransaction_setOnCompleteCallback",
-         "(JLandroid/view/cts/util/ASurfaceControlTestUtils$TransactionCompleteListener;)V",
+         "(JZLandroid/view/cts/util/ASurfaceControlTestUtils$TransactionCompleteListener;)V",
          (void*)SurfaceTransaction_setOnCompleteCallback},
         {"nSurfaceTransaction_setOnCommitCallback",
          "(JLandroid/view/cts/util/ASurfaceControlTestUtils$TransactionCompleteListener;)V",
@@ -621,13 +683,23 @@ const std::array<JNINativeMethod, 31> JNI_METHODS = {{
          (void*)SurfaceTransaction_setBufferTransform},
         {"nSurfaceTransaction_setScale", "(JJFF)V", (void*)SurfaceTransaction_setScale},
         {"nSurfaceTransaction_setOnCompleteCallbackWithoutContext",
-         "(JLandroid/view/cts/util/ASurfaceControlTestUtils$TransactionCompleteListener;)V",
+         "(JZLandroid/view/cts/util/ASurfaceControlTestUtils$TransactionCompleteListener;)V",
          (void*)SurfaceTransaction_setOnCompleteCallbackWithoutContext},
         {"nSurfaceTransaction_setOnCommitCallbackWithoutContext",
          "(JLandroid/view/cts/util/ASurfaceControlTestUtils$TransactionCompleteListener;)V",
          (void*)SurfaceTransaction_setOnCommitCallbackWithoutContext},
+        {"nSurfaceTransaction_setFrameTimeline", "(JJ)V",
+         (void*)SurfaceTransaction_setFrameTimeline},
+        {"getSolidBuffer", "(III)Landroid/hardware/HardwareBuffer;", (void*)Utils_getSolidBuffer},
+        {"getQuadrantBuffer", "(IIIIII)Landroid/hardware/HardwareBuffer;",
+         (void*)Utils_getQuadrantBuffer},
+        {"getBufferId", "(Landroid/hardware/HardwareBuffer;)J", (void*)Utils_getBufferId},
+};
 
-}};
+static const JNINativeMethod FRAME_TIMELINE_JNI_METHODS[] = {
+        {"nGetFrameTimelines", "()Landroid/view/cts/util/FrameCallbackData;",
+         (void*)SurfaceControlTest_getFrameTimelines},
+};
 
 }  // anonymous namespace
 
@@ -637,7 +709,23 @@ jint register_android_view_cts_ASurfaceControlTest(JNIEnv* env) {
     gTransactionCompleteListenerClassInfo.clazz =
             static_cast<jclass>(env->NewGlobalRef(transactionCompleteListenerClazz));
     gTransactionCompleteListenerClassInfo.onTransactionComplete =
-            env->GetMethodID(transactionCompleteListenerClazz, "onTransactionComplete", "(J)V");
+            env->GetMethodID(transactionCompleteListenerClazz, "onTransactionComplete", "(JJ)V");
+
+    gFrameTimelineClassInfo.clazz = static_cast<jclass>(env->NewGlobalRef(
+            env->FindClass("android/view/cts/util/FrameCallbackData$FrameTimeline")));
+    gFrameTimelineClassInfo.constructor =
+            env->GetMethodID(gFrameTimelineClassInfo.clazz, "<init>", "(JJJ)V");
+
+    gFrameCallbackDataClassInfo.clazz = static_cast<jclass>(
+            env->NewGlobalRef(env->FindClass("android/view/cts/util/FrameCallbackData")));
+    gFrameCallbackDataClassInfo.constructor =
+            env->GetMethodID(gFrameCallbackDataClassInfo.clazz, "<init>",
+                             "([Landroid/view/cts/util/FrameCallbackData$FrameTimeline;I)V");
+
+    jclass frameCallbackDataClass = env->FindClass("android/view/cts/util/FrameCallbackData");
+    env->RegisterNatives(frameCallbackDataClass, FRAME_TIMELINE_JNI_METHODS,
+                         sizeof(FRAME_TIMELINE_JNI_METHODS) / sizeof(JNINativeMethod));
+
     jclass clazz = env->FindClass("android/view/cts/util/ASurfaceControlTestUtils");
-    return env->RegisterNatives(clazz, JNI_METHODS.data(), JNI_METHODS.size());
+    return env->RegisterNatives(clazz, JNI_METHODS, sizeof(JNI_METHODS) / sizeof(JNINativeMethod));
 }
