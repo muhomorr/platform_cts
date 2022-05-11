@@ -39,6 +39,7 @@ import android.os.SystemClock;
 import android.platform.test.annotations.AppModeFull;
 import android.platform.test.annotations.Presubmit;
 import android.provider.Settings;
+import android.text.TextUtils;
 import android.view.FrameStats;
 import android.view.KeyEvent;
 import android.view.WindowAnimationFrameStats;
@@ -189,7 +190,7 @@ public class UiAutomationTest {
             getInstrumentation().waitForIdleSync();
 
             // Find the application window.
-            final int windowId = findAppWindowId(uiAutomation.getWindows());
+            final int windowId = findAppWindowId(uiAutomation.getWindows(), activity);
             assertTrue(windowId >= 0);
 
             // Clear stats to be with a clean slate.
@@ -251,7 +252,7 @@ public class UiAutomationTest {
             getInstrumentation().waitForIdleSync();
 
             // Find the application window.
-            final int windowId = findAppWindowId(uiAutomation.getWindows());
+            final int windowId = findAppWindowId(uiAutomation.getWindows(), activity);
             assertTrue(windowId >= 0);
 
             // Clear stats to be with a clean slate.
@@ -284,102 +285,15 @@ public class UiAutomationTest {
 
     @Presubmit
     @Test
-    public void testWindowAnimationFrameStats() throws Exception {
-        Activity firstActivity = null;
-        Activity secondActivity = null;
-        try {
-            UiAutomation uiAutomation = getInstrumentation().getUiAutomation();
-
-            // Start the frist activity.
-            Intent firstIntent = new Intent(getInstrumentation().getContext(),
-                    UiAutomationTestFirstActivity.class);
-            firstIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            firstActivity = getInstrumentation().startActivitySync(firstIntent);
-
-            // Wait for things to settle.
-            uiAutomation.waitForIdle(
-                    QUIET_TIME_TO_BE_CONSIDERED_IDLE_STATE, TOTAL_TIME_TO_WAIT_FOR_IDLE_STATE);
-
-            // Wait for Activity draw finish
-            getInstrumentation().waitForIdleSync();
-
-            // Clear the window animation stats to be with a clean slate.
-            uiAutomation.clearWindowAnimationFrameStats();
-
-            // Start the second activity
-            Intent secondIntent = new Intent(getInstrumentation().getContext(),
-                    UiAutomationTestSecondActivity.class);
-            secondIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            secondActivity = getInstrumentation().startActivitySync(secondIntent);
-
-            // Wait for things to settle.
-            uiAutomation.waitForIdle(
-                    QUIET_TIME_TO_BE_CONSIDERED_IDLE_STATE, TOTAL_TIME_TO_WAIT_FOR_IDLE_STATE);
-
-            // Wait for Activity draw finish
-            getInstrumentation().waitForIdleSync();
-
-            // Get the frame stats.
-            WindowAnimationFrameStats stats = uiAutomation.getWindowAnimationFrameStats();
-
-            // Check the frame stats...
-
-            // We should have something.
-            assertNotNull(stats);
-
-            // The refresh presiod is always positive.
-            assertTrue(stats.getRefreshPeriodNano() > 0);
-
-            // There is some frame data.
-            final int frameCount = stats.getFrameCount();
-            assertTrue(frameCount > 0);
-
-            // The frames are ordered in ascending order.
-            assertWindowAnimationTimestampsInAscendingOrder(stats);
-
-            // The start and end times are based on first and last frame.
-            assertEquals(stats.getStartTimeNano(), stats.getFramePresentedTimeNano(0));
-            assertEquals(stats.getEndTimeNano(), stats.getFramePresentedTimeNano(frameCount - 1));
-        } finally {
-            // Clean up.
-            if (firstActivity != null) {
-                firstActivity.finish();
-            }
-            if (secondActivity != null) {
-                secondActivity.finish();
-            }
-        }
-    }
-
-    @Test
-    public void testWindowAnimationFrameStatsNoAnimation() throws Exception {
+    public void testWindowAnimationFrameStatsDoesntCrash() throws Exception {
         UiAutomation uiAutomation = getInstrumentation().getUiAutomation();
 
-        // Wait for things to settle.
-        uiAutomation.waitForIdle(
-                QUIET_TIME_TO_BE_CONSIDERED_IDLE_STATE, TOTAL_TIME_TO_WAIT_FOR_IDLE_STATE);
-
-        // Clear the window animation stats to be with a clean slate.
+        // Get the frame stats. This just needs to not crash because these APIs are deprecated.
         uiAutomation.clearWindowAnimationFrameStats();
-
-        // Get the frame stats.
         WindowAnimationFrameStats stats = uiAutomation.getWindowAnimationFrameStats();
-
-        // Check the frame stats...
-
-        // We should have something.
-        assertNotNull(stats);
-
-        // The refresh presiod is always positive.
-        assertTrue(stats.getRefreshPeriodNano() > 0);
-
-        // There is no data.
-        assertTrue(stats.getFrameCount() == 0);
-
-        // The start and end times are undefibed as we have no data.
-        assertEquals(stats.getStartTimeNano(), FrameStats.UNDEFINED_TIME_NANO);
-        assertEquals(stats.getEndTimeNano(), FrameStats.UNDEFINED_TIME_NANO);
+        assertEquals(0, stats.getFrameCount());
     }
+
 
     @Presubmit
     @Test
@@ -674,46 +588,48 @@ public class UiAutomationTest {
     }
 
     private void assertWindowContentTimestampsInAscendingOrder(WindowContentFrameStats stats) {
-        long lastExpectedTimeNano = 0;
-        long lastPresentedTimeNano = 0;
-        long lastPreparedTimeNano = 0;
+        long lastDesiredPresentTimeNano = 0;
+        long lastPreviousFramePresentTimeNano = 0;
+        long lastFrameReadyTimeNano = 0;
 
-        final int frameCount = stats.getFrameCount();
-        for (int i = 0; i < frameCount; i++) {
-            final long expectedTimeNano = stats.getFramePostedTimeNano(i);
-            assertTrue(expectedTimeNano >= lastExpectedTimeNano);
-            lastExpectedTimeNano = expectedTimeNano;
-
-            final long presentedTimeNano = stats.getFramePresentedTimeNano(i);
-            if (lastPresentedTimeNano == FrameStats.UNDEFINED_TIME_NANO) {
-                assertTrue(presentedTimeNano == FrameStats.UNDEFINED_TIME_NANO);
-            } else if (presentedTimeNano != FrameStats.UNDEFINED_TIME_NANO) {
-                assertTrue(presentedTimeNano >= lastPresentedTimeNano);
-            }
-            lastPresentedTimeNano = presentedTimeNano;
-
-            final long preparedTimeNano = stats.getFrameReadyTimeNano(i);
-            if (lastPreparedTimeNano == FrameStats.UNDEFINED_TIME_NANO) {
-                assertTrue(preparedTimeNano == FrameStats.UNDEFINED_TIME_NANO);
-            } else if (preparedTimeNano != FrameStats.UNDEFINED_TIME_NANO) {
-                assertTrue(preparedTimeNano >= lastPreparedTimeNano);
-            }
-            lastPreparedTimeNano = preparedTimeNano;
+        String statsDebugDump = stats.toString();
+        for (int i = 0; i < stats.getFrameCount(); i++) {
+            statsDebugDump += " [" + i + ":" +
+            stats.getFramePostedTimeNano(i) + " " +
+            stats.getFramePresentedTimeNano(i) + " " + stats.getFrameReadyTimeNano(i)  + "] ";
         }
-    }
-
-    private void assertWindowAnimationTimestampsInAscendingOrder(WindowAnimationFrameStats stats) {
-        long lastPresentedTimeNano = 0;
 
         final int frameCount = stats.getFrameCount();
         for (int i = 0; i < frameCount; i++) {
-            final long presentedTimeNano = stats.getFramePresentedTimeNano(i);
-            if (lastPresentedTimeNano == FrameStats.UNDEFINED_TIME_NANO) {
-                assertTrue(presentedTimeNano == FrameStats.UNDEFINED_TIME_NANO);
-            } else if (presentedTimeNano != FrameStats.UNDEFINED_TIME_NANO) {
-                assertTrue(presentedTimeNano >= lastPresentedTimeNano);
+            final long desiredPresentTimeNano = stats.getFramePostedTimeNano(i);
+            final long previousFramePresentTimeNano = stats.getFramePresentedTimeNano(i);
+            final long frameReadyTimeNano = stats.getFrameReadyTimeNano(i);
+
+            if (desiredPresentTimeNano == FrameStats.UNDEFINED_TIME_NANO ||
+                previousFramePresentTimeNano == FrameStats.UNDEFINED_TIME_NANO ||
+                frameReadyTimeNano == FrameStats.UNDEFINED_TIME_NANO) {
+                continue;
             }
-            lastPresentedTimeNano = presentedTimeNano;
+
+            if (i > 0) {
+                // WindowContentFrameStats#getFramePresentedTimeNano() returns the previous frame
+                // presented time, so verify the actual presented timestamp is ahead of the
+                // last frame's desired present time and frame ready time.
+
+                // NOTE: actual present time maybe an estimate. If this test continues to be flaky,
+                // we may need to add a margin like the one below.
+                // previousFramePresentTimeNano += stats.getRefreshPeriodNano() / 2;
+                assertTrue("Failed frame:" + i + statsDebugDump,
+                        previousFramePresentTimeNano >= lastDesiredPresentTimeNano);
+                assertTrue("Failed frame:" + i + statsDebugDump,
+                        previousFramePresentTimeNano >= lastFrameReadyTimeNano);
+            }
+            assertTrue("Failed frame:" + i + statsDebugDump,
+                    previousFramePresentTimeNano >= lastPreviousFramePresentTimeNano);
+
+            lastDesiredPresentTimeNano = desiredPresentTimeNano;
+            lastPreviousFramePresentTimeNano = previousFramePresentTimeNano;
+            lastFrameReadyTimeNano = frameReadyTimeNano;
         }
     }
 
@@ -738,11 +654,13 @@ public class UiAutomationTest {
         waitForAccessibilityServiceToStart();
     }
 
-    private int findAppWindowId(List<AccessibilityWindowInfo> windows) {
+    private int findAppWindowId(List<AccessibilityWindowInfo> windows, Activity activity) {
+        final CharSequence activityTitle = getActivityTitle(getInstrumentation(), activity);
         final int windowCount = windows.size();
         for (int i = 0; i < windowCount; i++) {
             AccessibilityWindowInfo window = windows.get(i);
-            if (window.getType() == AccessibilityWindowInfo.TYPE_APPLICATION) {
+            if (window.getType() == AccessibilityWindowInfo.TYPE_APPLICATION
+                    && TextUtils.equals(window.getTitle(), activityTitle)) {
                 return window.getId();
             }
         }
@@ -751,5 +669,12 @@ public class UiAutomationTest {
 
     private Instrumentation getInstrumentation() {
         return InstrumentationRegistry.getInstrumentation();
+    }
+
+    private static CharSequence getActivityTitle(
+            Instrumentation instrumentation, Activity activity) {
+        final StringBuilder titleBuilder = new StringBuilder();
+        instrumentation.runOnMainSync(() -> titleBuilder.append(activity.getTitle()));
+        return titleBuilder;
     }
 }
