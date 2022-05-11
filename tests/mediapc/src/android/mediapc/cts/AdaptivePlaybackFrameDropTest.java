@@ -16,17 +16,25 @@
 
 package android.mediapc.cts;
 
+import static org.junit.Assert.assertTrue;
+
 import android.media.MediaCodecInfo;
+import android.mediapc.cts.common.Utils;
+import android.os.Build;
 
 import androidx.test.filters.LargeTest;
+import androidx.test.platform.app.InstrumentationRegistry;
+
+import com.android.compatibility.common.util.CddTest;
+import com.android.compatibility.common.util.DeviceReportLog;
+import com.android.compatibility.common.util.ResultType;
+import com.android.compatibility.common.util.ResultUnit;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
 import java.util.Collection;
-
-import static org.junit.Assert.assertTrue;
 
 /**
  * The following test class validates the frame drops of AdaptivePlayback for the hardware decoders
@@ -57,14 +65,27 @@ public class AdaptivePlaybackFrameDropTest extends FrameDropTestBase {
      */
     @LargeTest
     @Test(timeout = CodecTestBase.PER_TEST_TIMEOUT_LARGE_TEST_MS)
+    @CddTest(requirement="2.2.7.1/5.3/H-1-2")
     public void testAdaptivePlaybackFrameDrop() throws Exception {
         PlaybackFrameDrop playbackFrameDrop = new PlaybackFrameDrop(mMime, mDecoderName,
                 new String[]{m1080pTestFiles.get(mMime), m540pTestFiles.get(mMime)},
                 mSurface, FRAME_RATE, mIsAsync);
         int frameDropCount = playbackFrameDrop.getFrameDropCount();
-        assertTrue("Adaptive Playback FrameDrop count for mime: " + mMime + ", decoder: " +
-                mDecoderName + ", FrameRate: " + FRAME_RATE + ", is not as expected. act/exp: " +
-                frameDropCount + "/" + MAX_FRAME_DROP_FOR_30S,
-                frameDropCount <= MAX_FRAME_DROP_FOR_30S);
+        if (Utils.isPerfClass()) {
+            assertTrue("Adaptive Playback FrameDrop count for mime: " + mMime + ", decoder: "
+                    + mDecoderName + ", FrameRate: " + FRAME_RATE
+                    + ", is not as expected. act/exp: " + frameDropCount + "/"
+                    + MAX_FRAME_DROP_FOR_30S, frameDropCount <= MAX_FRAME_DROP_FOR_30S);
+        } else {
+            int pc = frameDropCount <= MAX_FRAME_DROP_FOR_30S ? Build.VERSION_CODES.R : 0;
+            DeviceReportLog log = new DeviceReportLog("MediaPerformanceClassLogs",
+                    "AdaptiveFrameDrop_" + mDecoderName);
+            log.addValue("decoder", mDecoderName, ResultType.NEUTRAL, ResultUnit.NONE);
+            log.addValue("adaptive_frame_drops_for_30sec", frameDropCount, ResultType.LOWER_BETTER,
+                    ResultUnit.NONE);
+            log.setSummary("CDD 2.2.7.1/5.3/H-1-2 performance_class", pc, ResultType.NEUTRAL,
+                    ResultUnit.NONE);
+            log.submit(InstrumentationRegistry.getInstrumentation());
+        }
     }
 }

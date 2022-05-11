@@ -29,6 +29,8 @@ import com.android.queryable.info.ActivityInfo;
 import com.android.queryable.queries.ActivityQuery;
 import com.android.queryable.queries.ActivityQueryHelper;
 import com.android.queryable.queries.BundleQueryHelper;
+import com.android.queryable.queries.IntegerQuery;
+import com.android.queryable.queries.IntegerQueryHelper;
 import com.android.queryable.queries.PersistableBundleQuery;
 import com.android.queryable.queries.PersistableBundleQueryHelper;
 import com.android.queryable.util.SerializableParcelWrapper;
@@ -39,7 +41,9 @@ import com.android.queryable.util.SerializableParcelWrapper;
  */
 public final class ActivityCreatedEvent extends Event {
 
-    /** Begin a query for {@link ActivityCreatedEvent} events. */
+    private static final long serialVersionUID = 1;
+
+    /** Begins a query for {@link ActivityCreatedEvent} events. */
     public static ActivityCreatedEventQuery queryPackage(String packageName) {
         return new ActivityCreatedEventQuery(packageName);
     }
@@ -47,11 +51,15 @@ public final class ActivityCreatedEvent extends Event {
     /** {@link EventLogsQuery} for {@link ActivityCreatedEvent}. */
     public static final class ActivityCreatedEventQuery
             extends EventLogsQuery<ActivityCreatedEvent, ActivityCreatedEventQuery> {
+
+        private static final long serialVersionUID = 1;
+
         ActivityQueryHelper<ActivityCreatedEventQuery> mActivity = new ActivityQueryHelper<>(this);
         BundleQueryHelper<ActivityCreatedEventQuery> mSavedInstanceState =
                 new BundleQueryHelper<>(this);
         PersistableBundleQueryHelper<ActivityCreatedEventQuery> mPersistentState =
                 new PersistableBundleQueryHelper<>(this);
+        IntegerQuery<ActivityCreatedEventQuery> mTaskId = new IntegerQueryHelper<>(this);
 
         private ActivityCreatedEventQuery(String packageName) {
             super(ActivityCreatedEvent.class, packageName);
@@ -82,6 +90,12 @@ public final class ActivityCreatedEvent extends Event {
             return mActivity;
         }
 
+        /** Query {@code taskId}. */
+        @CheckResult
+        public IntegerQuery<ActivityCreatedEventQuery> whereTaskId() {
+            return mTaskId;
+        }
+
         @Override
         protected boolean filter(ActivityCreatedEvent event) {
             if (!mSavedInstanceState.matches(event.mSavedInstanceState)) {
@@ -93,11 +107,24 @@ public final class ActivityCreatedEvent extends Event {
             if (!mActivity.matches(event.mActivity)) {
                 return false;
             }
+            if (!mTaskId.matches(event.mTaskId)) {
+                return false;
+            }
             return true;
+        }
+
+        @Override
+        public String describeQuery(String fieldName) {
+            return toStringBuilder(ActivityCreatedEvent.class, this)
+                    .field("savedInstanceState", mSavedInstanceState)
+                    .field("persistentState", mPersistentState)
+                    .field("activity", mActivity)
+                    .field("taskId", mTaskId)
+                    .toString();
         }
     }
 
-    /** Begin logging a {@link ActivityCreatedEvent}. */
+    /** Begins logging a {@link ActivityCreatedEvent}. */
     public static ActivityCreatedEventLogger logger(Activity activity, android.content.pm.ActivityInfo activityInfo, Bundle savedInstanceState) {
         return new ActivityCreatedEventLogger(activity, activityInfo, savedInstanceState);
     }
@@ -106,7 +133,8 @@ public final class ActivityCreatedEvent extends Event {
     public static final class ActivityCreatedEventLogger extends EventLogger<ActivityCreatedEvent> {
         private ActivityCreatedEventLogger(Activity activity, android.content.pm.ActivityInfo activityInfo, Bundle savedInstanceState) {
             super(activity, new ActivityCreatedEvent());
-            mEvent.mSavedInstanceState = new SerializableParcelWrapper<>(savedInstanceState);
+            setSavedInstanceState(savedInstanceState);
+            setTaskId(activity.getTaskId());
             setActivity(activityInfo);
         }
 
@@ -127,11 +155,18 @@ public final class ActivityCreatedEvent extends Event {
             mEvent.mPersistentState = new SerializableParcelWrapper<>(persistentState);
             return this;
         }
+
+        /** Sets the task ID for the activity. */
+        public ActivityCreatedEventLogger setTaskId(int taskId) {
+            mEvent.mTaskId = taskId;
+            return this;
+        }
     }
 
     protected SerializableParcelWrapper<Bundle> mSavedInstanceState;
     protected SerializableParcelWrapper<PersistableBundle> mPersistentState;
     protected ActivityInfo mActivity;
+    protected int mTaskId;
 
     /**
      * The {@code savedInstanceState} {@link Bundle} passed into
@@ -161,12 +196,18 @@ public final class ActivityCreatedEvent extends Event {
         return mActivity;
     }
 
+    /** The Task ID of the Activity. */
+    public int taskId() {
+        return mTaskId;
+    }
+
     @Override
     public String toString() {
         return "ActivityCreatedEvent{"
                 + " savedInstanceState=" + savedInstanceState()
                 + ", persistentState=" + persistentState()
                 + ", activity=" + mActivity
+                + ", taskId=" + mTaskId
                 + ", packageName='" + mPackageName + "'"
                 + ", timestamp=" + mTimestamp
                 + "}";

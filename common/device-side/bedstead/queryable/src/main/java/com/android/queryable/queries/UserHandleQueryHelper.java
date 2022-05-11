@@ -16,20 +16,27 @@
 
 package com.android.queryable.queries;
 
+import android.os.Parcel;
+import android.os.Parcelable;
 import android.os.UserHandle;
 
-import com.android.queryable.util.SerializableParcelWrapper;
 import com.android.queryable.Queryable;
+import com.android.queryable.util.SerializableParcelWrapper;
 
 import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
 
 /** Implementation of {@link UserHandleQuery}. */
 public final class UserHandleQueryHelper<E extends Queryable>
         implements UserHandleQuery<E>, Serializable {
 
-    private final E mQuery;
-    private UserHandle mEqualsValue = null;
-    private IntegerQueryHelper<E> mIdQuery = null;
+    private static final long serialVersionUID = 1;
+
+    private final transient E mQuery;
+    private UserHandle mEqualsValue;
+    private IntegerQueryHelper<E> mIdQuery;
 
     UserHandleQueryHelper() {
         mQuery = (E) this;
@@ -37,6 +44,12 @@ public final class UserHandleQueryHelper<E extends Queryable>
 
     public UserHandleQueryHelper(E query) {
         mQuery = query;
+    }
+
+    private UserHandleQueryHelper(Parcel in) {
+        mQuery = null;
+        mEqualsValue = in.readParcelable(UserHandleQueryHelper.class.getClassLoader());
+        mIdQuery = in.readParcelable(UserHandleQueryHelper.class.getClassLoader());
     }
 
     @Override
@@ -79,5 +92,54 @@ public final class UserHandleQueryHelper<E extends Queryable>
         }
 
         return matches(serializableBundle.get());
+    }
+
+    @Override
+    public String describeQuery(String fieldName) {
+        List<String> queryStrings = new ArrayList<>();
+        if (mEqualsValue != null) {
+            queryStrings.add(fieldName + "=" + mEqualsValue);
+        }
+        if (mIdQuery != null) {
+            queryStrings.add(mIdQuery.describeQuery(fieldName + ".id"));
+        }
+
+        return Queryable.joinQueryStrings(queryStrings);
+    }
+
+    @Override
+    public int describeContents() {
+        return 0;
+    }
+
+    @Override
+    public void writeToParcel(Parcel out, int flags) {
+        out.writeParcelable(mEqualsValue, flags);
+        out.writeParcelable(mIdQuery, flags);
+    }
+
+    public static final Parcelable.Creator<UserHandleQueryHelper> CREATOR =
+            new Parcelable.Creator<UserHandleQueryHelper>() {
+                public UserHandleQueryHelper createFromParcel(Parcel in) {
+                    return new UserHandleQueryHelper(in);
+                }
+
+                public UserHandleQueryHelper[] newArray(int size) {
+                    return new UserHandleQueryHelper[size];
+                }
+    };
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof UserHandleQueryHelper)) return false;
+        UserHandleQueryHelper<?> that = (UserHandleQueryHelper<?>) o;
+        return Objects.equals(mEqualsValue, that.mEqualsValue) && Objects.equals(
+                mIdQuery, that.mIdQuery);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(mEqualsValue, mIdQuery);
     }
 }

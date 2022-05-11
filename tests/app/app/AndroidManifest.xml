@@ -65,6 +65,7 @@
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application android:label="Android TestCase"
          android:icon="@drawable/size_48x48"
@@ -366,7 +367,6 @@
 
         <activity android:name="android.app.stubs.ActivityManagerStubCrashActivity"
              android:label="ActivityManagerStubCrashActivity"
-             android:multiprocess="true"
              android:process=":ActivityManagerStubCrashActivity"
              android:exported="true">
             <intent-filter>
@@ -444,12 +444,35 @@
             </meta-data>
         </service>
 
+        <service android:name="android.app.stubs.LiveWallpaperNoUnfoldTransition"
+             android:icon="@drawable/robot"
+             android:label="@string/wallpaper_title"
+             android:permission="android.permission.BIND_WALLPAPER"
+             android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.wallpaper.WallpaperService">
+                </action>
+            </intent-filter>
+            <meta-data android:name="android.service.wallpaper"
+                 android:resource="@xml/wallpaper_no_default_device_state_change_transition">
+            </meta-data>
+        </service>
+
         <service android:name="android.app.stubs.TestNotificationListener"
              android:exported="true"
              android:label="TestNotificationListener"
              android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
             <intent-filter>
                 <action android:name="android.service.notification.NotificationListenerService"/>
+            </intent-filter>
+        </service>
+
+        <service android:name="android.app.stubs.TestNotificationAssistant"
+                 android:exported="true"
+                 android:label="TestNotificationAssistant"
+                 android:permission="android.permission.BIND_NOTIFICATION_ASSISTANT_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationAssistantService"/>
             </intent-filter>
         </service>
 
@@ -463,16 +486,14 @@
             </intent-filter>
         </service>
 
-        <service android:name="android.app.stubs.ToggleableTestTileService"
-             android:exported="true"
-             android:label="BooleanTestTileService"
-             android:icon="@drawable/robot"
-             android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+        <service android:name="android.app.stubs.NotExportedTestTileService"
+                 android:exported="false"
+                 android:label="NotExportedTestTileService"
+                 android:icon="@drawable/robot"
+                 android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
             <intent-filter>
                 <action android:name="android.service.quicksettings.action.QS_TILE"/>
             </intent-filter>
-            <meta-data android:name="android.service.quicksettings.TOGGLEABLE_TILE"
-                 android:value="true"/>
         </service>
 
         <activity android:name="android.app.stubs.AutomaticZenRuleActivity"
@@ -501,6 +522,7 @@
         </activity>
 
         <activity android:name="android.app.stubs.BubbledActivity"
+             android:turnScreenOn="true"
              android:resizeableActivity="true"/>
 
         <service android:name="android.app.stubs.BubblesTestService"
@@ -521,6 +543,34 @@
             <meta-data android:name="android.app.shortcuts"
                  android:resource="@xml/shortcuts"/>
         </activity>
+
+        <!-- Disable home activities by default or it may disturb other tests by
+                showing ResolverActivity when start home activity.
+             Set the task affinity to empty not to group with the other Activities in this app. -->
+        <activity
+            android:name="android.app.stubs.TestHomeActivity"
+            android:enabled="false"
+            android:taskAffinity=""
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.HOME" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <service android:name=".HeartbeatService"
+            android:process=":hbsvc"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.app.stubs.HeartbeatService"/>
+            </intent-filter>
+        </service>
+        <activity android:name=".HeartbeatActivity"
+            android:label=":CountdownActivity"
+            android:process=":hbact"
+            android:launchMode="singleInstance"
+            android:exported="true"/>
 
         <service android:name="android.app.stubs.TrimMemService"
             android:exported="true"

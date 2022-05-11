@@ -1,4 +1,4 @@
-/*
+/*d
  * Copyright (C) 2019 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,6 +21,7 @@ import static android.app.AppOpsManager.MODE_ERRORED;
 import static android.server.wm.UiDeviceUtils.pressHomeButton;
 import static android.server.wm.WindowManagerState.STATE_INITIALIZING;
 import static android.server.wm.backgroundactivity.appa.Components.APP_A_BACKGROUND_ACTIVITY;
+import static android.server.wm.backgroundactivity.appa.Components.APP_A_BACKGROUND_ACTIVITY_TEST_SERVICE;
 import static android.server.wm.backgroundactivity.appa.Components.APP_A_FOREGROUND_ACTIVITY;
 import static android.server.wm.backgroundactivity.appa.Components.APP_A_SECOND_BACKGROUND_ACTIVITY;
 import static android.server.wm.backgroundactivity.appa.Components.APP_A_SEND_PENDING_INTENT_RECEIVER;
@@ -37,6 +38,9 @@ import static android.server.wm.backgroundactivity.appa.Components.ForegroundAct
 import static android.server.wm.backgroundactivity.appa.Components.SendPendingIntentReceiver.IS_BROADCAST_EXTRA;
 import static android.server.wm.backgroundactivity.appa.Components.StartBackgroundActivityReceiver.START_ACTIVITY_DELAY_MS_EXTRA;
 import static android.server.wm.backgroundactivity.appb.Components.APP_B_FOREGROUND_ACTIVITY;
+import static android.server.wm.backgroundactivity.appb.Components.APP_B_START_PENDING_INTENT_ACTIVITY;
+import static android.server.wm.backgroundactivity.appb.Components.StartPendingIntentActivity.ALLOW_BAL_EXTRA;
+import static android.server.wm.backgroundactivity.appb.Components.StartPendingIntentReceiver.PENDING_INTENT_EXTRA;
 import static android.server.wm.backgroundactivity.common.CommonComponents.EVENT_NOTIFIER_EXTRA;
 
 import static com.android.compatibility.common.util.SystemUtil.runShellCommand;
@@ -46,29 +50,54 @@ import static com.google.common.truth.Truth.assertThat;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
+import android.Manifest;
+import android.app.PendingIntent;
+import android.app.UiAutomation;
+import android.appwidget.AppWidgetHost;
+import android.appwidget.AppWidgetManager;
 import android.content.ComponentName;
+import android.content.Context;
 import android.content.Intent;
+import android.content.ServiceConnection;
 import android.content.pm.PackageManager;
+import android.content.pm.ResolveInfo;
+import android.content.pm.UserInfo;
+import android.os.IBinder;
 import android.os.ResultReceiver;
+import android.os.SystemProperties;
+import android.os.UserManager;
 import android.platform.test.annotations.Presubmit;
 import android.platform.test.annotations.SystemUserOnly;
+import android.server.wm.backgroundactivity.appa.Components;
+import android.server.wm.backgroundactivity.appa.IBackgroundActivityTestService;
 import android.server.wm.backgroundactivity.common.CommonComponents.Event;
 import android.server.wm.backgroundactivity.common.EventReceiver;
 
 import androidx.annotation.Nullable;
 import androidx.test.filters.FlakyTest;
+import androidx.test.platform.app.InstrumentationRegistry;
+import androidx.test.uiautomator.By;
+import androidx.test.uiautomator.BySelector;
+import androidx.test.uiautomator.UiDevice;
+import androidx.test.uiautomator.UiObject2;
+import androidx.test.uiautomator.Until;
 
 import com.android.compatibility.common.util.AppOpsUtils;
 
 import org.junit.After;
+import org.junit.Assume;
 import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
 
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Stream;
 
@@ -97,6 +126,15 @@ public class BackgroundActivityLaunchTest extends ActivityManagerTestBase {
     public static final ComponentName APP_A_PIP_ACTIVITY =
             new ComponentName(TEST_PACKAGE_APP_A,
                     "android.server.wm.backgroundactivity.appa.PipActivity");
+    public static final ComponentName APP_A_VIRTUAL_DISPLAY_ACTIVITY =
+            new ComponentName(TEST_PACKAGE_APP_A,
+                    "android.server.wm.backgroundactivity.appa.VirtualDisplayActivity");
+    public static final ComponentName APP_A_WIDGET_CONFIG_TEST_ACTIVITY =
+            new ComponentName(TEST_PACKAGE_APP_A,
+                    "android.server.wm.backgroundactivity.appa.WidgetConfigTestActivity");
+    public static final ComponentName APP_A_APPWIDGET_PROVIDER =
+            new ComponentName(TEST_PACKAGE_APP_A,
+                    "android.server.wm.backgroundactivity.appa.WidgetProvider");
     private static final String SHELL_PACKAGE = "com.android.shell";
 
     /**
@@ -104,6 +142,9 @@ public class BackgroundActivityLaunchTest extends ActivityManagerTestBase {
      * is long and it takes some time to process the broadcast we just sent.
      */
     private static final int BROADCAST_DELIVERY_TIMEOUT_MS = 60000;
+
+    private IBackgroundActivityTestService mBackgroundActivityTestService;
+    private ServiceConnection mBalServiceConnection;
 
     @Override
     @Before
@@ -137,6 +178,9 @@ public class BackgroundActivityLaunchTest extends ActivityManagerTestBase {
         stopTestPackage(TEST_PACKAGE_APP_B);
         AppOpsUtils.reset(APP_A_PACKAGE_NAME);
         AppOpsUtils.reset(SHELL_PACKAGE);
+        if (mBalServiceConnection != null) {
+            mContext.unbindService(mBalServiceConnection);
+        }
     }
 
     @Test
@@ -407,6 +451,21 @@ public class BackgroundActivityLaunchTest extends ActivityManagerTestBase {
     }
 
     @Test
+    public void testPendingIntentActivity_whenActivityAllowsBal_isNotBlocked() throws Exception {
+        startPendingIntentSenderActivity(true);
+        boolean result = waitForActivityFocused(APP_A_BACKGROUND_ACTIVITY);
+        assertTrue("Not able to launch background activity", result);
+        assertTaskStack(new ComponentName[]{APP_A_BACKGROUND_ACTIVITY}, APP_A_BACKGROUND_ACTIVITY);
+    }
+
+    @Test
+    public void testPendingIntentActivity_whenActivityDoesNotAllowBal_isBlocked() throws Exception {
+        startPendingIntentSenderActivity(false);
+        boolean result = waitForActivityFocused(APP_A_BACKGROUND_ACTIVITY);
+        assertFalse("Should not able to launch background activity", result);
+    }
+
+    @Test
     @FlakyTest(bugId = 130800326)
     public void testPendingIntentActivityNotBlocked_appAIsForeground() throws Exception {
         // Start AppA foreground activity
@@ -460,7 +519,13 @@ public class BackgroundActivityLaunchTest extends ActivityManagerTestBase {
 
     @Test
     public void testPendingIntentBroadcastTimeout_delay12s() throws Exception {
-        assertPendingIntentBroadcastTimeoutTest(12000, false);
+        // This test is testing that activity start is blocked after broadcast allowlist token
+        // timeout. Before the timeout, the start would be allowed because app B (the PI sender) was
+        // in the foreground during PI send, so app A (the PI creator) would have
+        // (10s * hw_multiplier) to start background activity starts.
+        assertPendingIntentBroadcastTimeoutTest(
+                12000 * SystemProperties.getInt("ro.hw_timeout_multiplier", 1),
+                false);
     }
 
     @Test
@@ -480,6 +545,45 @@ public class BackgroundActivityLaunchTest extends ActivityManagerTestBase {
         assertTaskStack(null, APP_A_BACKGROUND_ACTIVITY);
     }
 
+    /**
+     * Returns a list of alive users on the device
+     */
+    private List<UserInfo> getAliveUsers() {
+        // Setting the CREATE_USERS permission in AndroidManifest.xml has no effect when the test
+        // is run through the CTS harness, so instead adopt it as a shell permission. We use
+        // the CREATE_USERS permission instead of MANAGE_USERS because the shell can never use
+        // MANAGE_USERS.
+        UiAutomation uiAutomation = InstrumentationRegistry.getInstrumentation().getUiAutomation();
+        uiAutomation.adoptShellPermissionIdentity(Manifest.permission.CREATE_USERS);
+        List<UserInfo> userList = mContext.getSystemService(UserManager.class)
+                .getUsers(/* excludePartial= */ true,
+                        /* excludeDying= */ true,
+                        /* excludePreCreated= */ true);
+        uiAutomation.dropShellPermissionIdentity();
+        return userList;
+    }
+
+    /**
+     * Removes the guest user from the device if present
+     */
+    private void removeGuestUser() {
+        List<UserInfo> userList = getAliveUsers();
+        for (UserInfo info : userList) {
+            if (info.isGuest()) {
+                removeUser(info.id);
+                // Device is only allowed to have one alive guest user, so stop if it's found
+                break;
+            }
+        }
+    }
+
+    /**
+     * Removes a user from the device given their ID
+     */
+    private void removeUser(int userId) {
+        executeShellCommand(String.format("pm remove-user %d", userId));
+    }
+
     @Test
     @SystemUserOnly(reason = "Device owner must be SYSTEM user")
     public void testDeviceOwner() throws Exception {
@@ -488,6 +592,15 @@ public class BackgroundActivityLaunchTest extends ActivityManagerTestBase {
         if (!mContext.getPackageManager().hasSystemFeature(PackageManager.FEATURE_DEVICE_ADMIN)) {
             return;
         }
+
+        // Remove existing guest user. The device may already have a guest present if it is
+        // configured with config_guestUserAutoCreated.
+        //
+        // In production flow the DO can only be created before device provisioning finishes
+        // (e.g. during SUW), and we make sure the guest user in only created after the device
+        // provision is finished. Ideally this test would use the provisioning flow and Device
+        // Owner (DO) creation in a similar manner as that of production flow.
+        removeGuestUser();
 
         String cmdResult = runShellCommand("dpm set-device-owner --user 0 "
                 + APP_A_SIMPLE_ADMIN_RECEIVER.flattenToString());
@@ -545,6 +658,117 @@ public class BackgroundActivityLaunchTest extends ActivityManagerTestBase {
         pressHomeAndWaitHomeResumed();
 
         assertActivityNotResumed();
+    }
+
+    // Check that a presentation on a virtual display won't allow BAL after pressing home.
+    @Test
+    public void testVirtualDisplayCannotStartAfterHomeButton() throws Exception {
+        Intent intent = new Intent();
+        intent.setComponent(APP_A_VIRTUAL_DISPLAY_ACTIVITY);
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        mContext.startActivity(intent);
+
+        assertTrue("VirtualDisplay activity not started", waitUntilForegroundChanged(
+                TEST_PACKAGE_APP_A, true, ACTIVITY_START_TIMEOUT_MS));
+
+        // Click home button, and test app activity onPause() will trigger which tries to launch
+        // the background activity.
+        pressHomeAndWaitHomeResumed();
+
+        assertActivityNotResumed();
+    }
+
+
+    // Test manage space pending intent created by system cannot bypass BAL check.
+    @Test
+    public void testManageSpacePendingIntentNoBalAllowed() throws Exception {
+        setupPendingIntentService();
+        runWithShellPermissionIdentity(() -> {
+            runShellCommand("cmd appops set " + TEST_PACKAGE_APP_A
+                    + " android:manage_external_storage allow");
+        });
+        // Make sure AppA paused at least 10s so it can't start activity because of grace period.
+        Thread.sleep(1000 * 10);
+        mBackgroundActivityTestService.getAndStartManageSpaceActivity();
+        boolean result = waitForActivityFocused(APP_A_BACKGROUND_ACTIVITY);
+        assertFalse("Should not able to launch background activity", result);
+        assertTaskStack(null, APP_A_BACKGROUND_ACTIVITY);
+    }
+
+    @Test
+    public void testAppWidgetConfigNoBalBypass() throws Exception {
+        // Click bind widget button and then go home screen so app A will enter background state
+        // with bind widget ability.
+        EventReceiver receiver = new EventReceiver(Event.APP_A_START_WIDGET_CONFIG_ACTIVITY);
+        clickAllowBindWidget(receiver.getNotifier());
+        pressHomeAndWaitHomeResumed();
+
+        // After pressing home button, wait for appA to start widget config activity.
+        receiver.waitForEventOrThrow(1000 * 30);
+
+        boolean result = waitForActivityFocused(APP_A_BACKGROUND_ACTIVITY);
+        assertFalse("Should not able to launch background activity", result);
+        assertTaskStack(null, APP_A_BACKGROUND_ACTIVITY);
+    }
+
+    private void clickAllowBindWidget(ResultReceiver resultReceiver) throws Exception {
+        PackageManager pm = mContext.getPackageManager();
+        // Skip on auto and TV devices only as they don't support appwidget bind.
+        Assume.assumeFalse(pm.hasSystemFeature(PackageManager.FEATURE_AUTOMOTIVE));
+        Assume.assumeFalse(pm.hasSystemFeature(PackageManager.FEATURE_LEANBACK_ONLY));
+
+        // Create appWidgetId so we can send it to appA, to request bind widget and start config
+        // activity.
+        UiDevice device = UiDevice.getInstance(mInstrumentation);
+        AppWidgetHost appWidgetHost = new AppWidgetHost(mContext, 0);
+        final int appWidgetId = appWidgetHost.allocateAppWidgetId();
+        Intent appWidgetIntent = new Intent(AppWidgetManager.ACTION_APPWIDGET_BIND);
+        appWidgetIntent.putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId);
+        appWidgetIntent.putExtra(AppWidgetManager.EXTRA_APPWIDGET_PROVIDER,
+                APP_A_APPWIDGET_PROVIDER);
+
+        Intent intent = new Intent();
+        intent.setComponent(APP_A_WIDGET_CONFIG_TEST_ACTIVITY);
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        intent.putExtra(Intent.EXTRA_INTENT, appWidgetIntent);
+        intent.putExtra(EVENT_NOTIFIER_EXTRA, resultReceiver);
+        mContext.startActivity(intent);
+
+        // Find settings package and bind widget activity and click the create button.
+        String settingsPkgName = "";
+        List<ResolveInfo> ris = pm.queryIntentActivities(appWidgetIntent,
+                PackageManager.MATCH_DEFAULT_ONLY);
+        for (ResolveInfo ri : ris) {
+            if (ri.activityInfo.name.contains("AllowBindAppWidgetActivity")) {
+                settingsPkgName = ri.activityInfo.packageName;
+            }
+        }
+        assertNotEquals("Cannot find settings app", "", settingsPkgName);
+
+        if (!device.wait(Until.hasObject(By.pkg(settingsPkgName)), 1000 * 10)) {
+            fail("Unable to start AllowBindAppWidgetActivity");
+        }
+        boolean buttonClicked = false;
+        BySelector selector = By.clickable(true);
+        List<UiObject2> objects = device.findObjects(selector);
+        for (UiObject2 object : objects) {
+            String objectText = object.getText();
+            if (objectText == null) {
+                continue;
+            }
+            if (objectText.equalsIgnoreCase("CREATE")) {
+                object.click();
+                buttonClicked = true;
+                break;
+            }
+        }
+        if (!device.wait(Until.gone(By.pkg(settingsPkgName)), 1000 * 10) || !buttonClicked) {
+            fail("Create' button not found/clicked");
+        }
+
+        // Wait the bind widget activity goes away.
+        waitUntilForegroundChanged(settingsPkgName, false,
+                ACTIVITY_NOT_RESUMED_TIMEOUT_MS);
     }
 
     private void pressHomeAndWaitHomeResumed() {
@@ -654,6 +878,49 @@ public class BackgroundActivityLaunchTest extends ActivityManagerTestBase {
 
     private boolean waitForActivityFocused(ComponentName componentName) {
         return waitForActivityFocused(ACTIVITY_FOCUS_TIMEOUT_MS, componentName);
+    }
+
+    private void setupPendingIntentService() throws Exception {
+        Intent bindIntent = new Intent();
+        bindIntent.setComponent(APP_A_BACKGROUND_ACTIVITY_TEST_SERVICE);
+        final CountDownLatch bindLatch = new CountDownLatch(1);
+
+        mBalServiceConnection = new ServiceConnection() {
+            @Override
+            public void onServiceConnected(ComponentName name, IBinder service) {
+                mBackgroundActivityTestService =
+                        IBackgroundActivityTestService.Stub.asInterface(service);
+                bindLatch.countDown();
+            }
+            @Override
+            public void onServiceDisconnected(ComponentName name) {
+                mBackgroundActivityTestService = null;
+            }
+        };
+        boolean success = mContext.bindService(bindIntent, mBalServiceConnection,
+                Context.BIND_AUTO_CREATE);
+        assertTrue(success);
+        assertTrue("Timeout connecting to test service",
+                bindLatch.await(1000, TimeUnit.MILLISECONDS));
+    }
+
+    private void startPendingIntentSenderActivity(boolean allowBal) throws Exception {
+        setupPendingIntentService();
+        // Get a PendingIntent created by appA.
+        final PendingIntent pi;
+        try {
+            pi = mBackgroundActivityTestService.generatePendingIntent(false);
+        } catch (Exception e) {
+            throw new AssertionError(e);
+        }
+
+        // Start app B's activity so it runs send() on PendingIntent created by app A.
+        Intent secondIntent = new Intent();
+        secondIntent.setComponent(APP_B_START_PENDING_INTENT_ACTIVITY);
+        secondIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        secondIntent.putExtra(PENDING_INTENT_EXTRA, pi);
+        secondIntent.putExtra(ALLOW_BAL_EXTRA, allowBal);
+        mContext.startActivity(secondIntent);
     }
 
     private void sendPendingIntentActivity() {
