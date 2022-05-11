@@ -33,8 +33,7 @@ import org.junit.runners.JUnit4;
 @RunWith(JUnit4.class)
 public final class DeviceAdminEnabledEventTest {
 
-    private static final TestApis sTestApis = new TestApis();
-    private static final Context sContext = sTestApis.context().instrumentedContext();
+    private static final Context sContext = TestApis.context().instrumentedContext();
     private static final String STRING_VALUE = "Value";
     private static final String DIFFERENT_STRING_VALUE = "Value2";
     private static final Intent INTENT = new Intent();
@@ -57,21 +56,19 @@ public final class DeviceAdminEnabledEventTest {
 
     @Test
     public void whereIntent_works() {
-        Intent intent = new Intent();
-        intent.setAction(STRING_VALUE);
+        Intent intent = new Intent(STRING_VALUE);
         DeviceAdminEnabledEvent.logger(DEVICE_ADMIN_RECEIVER, sContext, intent).log();
 
         EventLogs<DeviceAdminEnabledEvent> eventLogs =
                 DeviceAdminEnabledEvent.queryPackage(sContext.getPackageName())
                         .whereIntent().action().isEqualTo(STRING_VALUE);
 
-        assertThat(eventLogs.get().intent()).isEqualTo(intent);
+        assertThat(eventLogs.poll().intent()).isEqualTo(intent);
     }
 
     @Test
     public void whereIntent_skipsNonMatching() {
-        Intent intent = new Intent();
-        intent.setAction(STRING_VALUE);
+        Intent intent = new Intent(STRING_VALUE);
         Intent differentIntent = new Intent();
         differentIntent.setAction(DIFFERENT_STRING_VALUE);
         DeviceAdminEnabledEvent.logger(DEVICE_ADMIN_RECEIVER, sContext, differentIntent).log();
@@ -81,7 +78,7 @@ public final class DeviceAdminEnabledEventTest {
                 DeviceAdminEnabledEvent.queryPackage(sContext.getPackageName())
                         .whereIntent().action().isEqualTo(STRING_VALUE);
 
-        assertThat(eventLogs.get().intent()).isEqualTo(intent);
+        assertThat(eventLogs.poll().intent()).isEqualTo(intent);
     }
 
     @Test
@@ -92,10 +89,10 @@ public final class DeviceAdminEnabledEventTest {
 
         EventLogs<DeviceAdminEnabledEvent> eventLogs =
                 DeviceAdminEnabledEvent.queryPackage(sContext.getPackageName())
-                        .whereDeviceAdminReceiver().className().isEqualTo(
+                        .whereDeviceAdminReceiver().broadcastReceiver().receiverClass().className().isEqualTo(
                         CUSTOM_DEVICE_ADMIN_RECEIVER_CLASS_NAME);
 
-        assertThat(eventLogs.get().deviceAdminReceiver().className()).isEqualTo(
+        assertThat(eventLogs.poll().deviceAdminReceiver().className()).isEqualTo(
                 CUSTOM_DEVICE_ADMIN_RECEIVER_CLASS_NAME);
     }
 
@@ -110,10 +107,10 @@ public final class DeviceAdminEnabledEventTest {
 
         EventLogs<DeviceAdminEnabledEvent> eventLogs =
                 DeviceAdminEnabledEvent.queryPackage(sContext.getPackageName())
-                        .whereDeviceAdminReceiver().className().isEqualTo(
+                        .whereDeviceAdminReceiver().broadcastReceiver().receiverClass().className().isEqualTo(
                         CUSTOM_DEVICE_ADMIN_RECEIVER_CLASS_NAME);
 
-        assertThat(eventLogs.get().deviceAdminReceiver().className()).isEqualTo(
+        assertThat(eventLogs.poll().deviceAdminReceiver().className()).isEqualTo(
                 CUSTOM_DEVICE_ADMIN_RECEIVER_CLASS_NAME);
     }
 
@@ -123,10 +120,10 @@ public final class DeviceAdminEnabledEventTest {
 
         EventLogs<DeviceAdminEnabledEvent> eventLogs =
                 DeviceAdminEnabledEvent.queryPackage(sContext.getPackageName())
-                        .whereDeviceAdminReceiver().className()
+                        .whereDeviceAdminReceiver().broadcastReceiver().receiverClass().className()
                         .isEqualTo(DEFAULT_DEVICE_ADMIN_RECEIVER_CLASS_NAME);
 
-        assertThat(eventLogs.get().deviceAdminReceiver().className())
+        assertThat(eventLogs.poll().deviceAdminReceiver().className())
                 .isEqualTo(DEFAULT_DEVICE_ADMIN_RECEIVER_CLASS_NAME);
     }
 
@@ -140,10 +137,10 @@ public final class DeviceAdminEnabledEventTest {
 
         EventLogs<DeviceAdminEnabledEvent> eventLogs =
                 DeviceAdminEnabledEvent.queryPackage(sContext.getPackageName())
-                        .whereDeviceAdminReceiver().className()
+                        .whereDeviceAdminReceiver().broadcastReceiver().receiverClass().className()
                         .isEqualTo(DEFAULT_DEVICE_ADMIN_RECEIVER_CLASS_NAME);
 
-        assertThat(eventLogs.get().deviceAdminReceiver().className())
+        assertThat(eventLogs.poll().deviceAdminReceiver().className())
                 .isEqualTo(DEFAULT_DEVICE_ADMIN_RECEIVER_CLASS_NAME);
     }
 

@@ -34,7 +34,9 @@ import android.app.UiAutomation;
 import android.graphics.Point;
 import android.hardware.input.InputManager;
 import android.os.SystemClock;
+import android.view.InputDevice;
 import android.view.InputEvent;
+import android.view.KeyCharacterMap;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.VerifiedInputEvent;
@@ -54,6 +56,8 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import java.util.Arrays;
+import java.util.List;
 
 /**
  * Test {@link android.hardware.input.InputManager#verifyInputEvent(InputEvent)} functionality.
@@ -62,8 +66,8 @@ import org.junit.runner.RunWith;
 @RunWith(AndroidJUnit4.class)
 public class VerifyInputEventTest {
     private static final int NANOS_PER_MILLISECOND = 1000000;
-    private static final float STRICT_TOLERANCE = 0;
-    private static final int INJECTED_EVENT_DEVICE_ID = -1;
+    private static final float EPSILON = 0.001f;
+    private static final int INJECTED_EVENT_DEVICE_ID = KeyCharacterMap.VIRTUAL_KEYBOARD;
 
     private InputManager mInputManager;
     private UiAutomation mAutomation;
@@ -155,6 +159,7 @@ public class VerifyInputEventTest {
         final long downTime = SystemClock.uptimeMillis();
         MotionEvent downEvent = MotionEvent.obtain(downTime, downTime, MotionEvent.ACTION_DOWN,
                 point.x, point.y, 0 /*metaState*/);
+        downEvent.setSource(InputDevice.SOURCE_TOUCHSCREEN);
         mAutomation.injectInputEvent(downEvent, true);
         MotionEvent received = waitForMotion();
         VerifiedInputEvent verified = mInputManager.verifyInputEvent(received);
@@ -165,6 +170,7 @@ public class VerifyInputEventTest {
         // Send UP event for consistency
         MotionEvent upEvent = MotionEvent.obtain(downTime, SystemClock.uptimeMillis(),
                 MotionEvent.ACTION_UP, point.x, point.y, 0 /*metaState*/);
+        upEvent.setSource(InputDevice.SOURCE_TOUCHSCREEN);
         mAutomation.injectInputEvent(upEvent, true);
         waitForMotion();
     }
@@ -181,6 +187,7 @@ public class VerifyInputEventTest {
         final long downTime = SystemClock.uptimeMillis();
         MotionEvent downEvent = MotionEvent.obtain(downTime, downTime, MotionEvent.ACTION_DOWN,
                 point.x, point.y, 0 /*metaState*/);
+        downEvent.setSource(InputDevice.SOURCE_TOUCHSCREEN);
         mAutomation.injectInputEvent(downEvent, true);
         waitForMotion(); // we will not be using the received event
         VerifiedInputEvent verified = mInputManager.verifyInputEvent(downEvent);
@@ -189,6 +196,7 @@ public class VerifyInputEventTest {
         // Send UP event for consistency
         MotionEvent upEvent = MotionEvent.obtain(downTime, downTime, MotionEvent.ACTION_UP,
                 point.x, point.y, 0 /*metaState*/);
+        upEvent.setSource(InputDevice.SOURCE_TOUCHSCREEN);
         mAutomation.injectInputEvent(upEvent, true);
         waitForMotion();
     }
@@ -204,6 +212,7 @@ public class VerifyInputEventTest {
         final long downTime = SystemClock.uptimeMillis();
         MotionEvent downEvent = MotionEvent.obtain(downTime, downTime, MotionEvent.ACTION_DOWN,
                 point.x, point.y, 0 /*metaState*/);
+        downEvent.setSource(InputDevice.SOURCE_TOUCHSCREEN);
         mAutomation.injectInputEvent(downEvent, true);
         MotionEvent received = waitForMotion();
         // use the received event, by modify its action
@@ -214,6 +223,7 @@ public class VerifyInputEventTest {
         // Send UP event for consistency
         MotionEvent upEvent = MotionEvent.obtain(downTime, SystemClock.uptimeMillis(),
                 MotionEvent.ACTION_UP, point.x, point.y, 0 /*metaState*/);
+        upEvent.setSource(InputDevice.SOURCE_TOUCHSCREEN);
         mAutomation.injectInputEvent(upEvent, true);
         waitForMotion();
     }
@@ -260,6 +270,7 @@ public class VerifyInputEventTest {
         MotionEvent downEvent = MotionEvent.obtain(downTime, downTime, MotionEvent.ACTION_DOWN,
                 point.x, point.y, 1 /*pressure*/, 1 /*size*/, 0 /*metaState*/,
                 0 /*xPrecision*/, 0 /*yPrecision*/, 1 /*deviceId*/, 0 /*edgeFlags*/);
+        downEvent.setSource(InputDevice.SOURCE_TOUCHSCREEN);
         mAutomation.injectInputEvent(downEvent, true);
         MotionEvent received = waitForMotion();
         assertEquals(INJECTED_EVENT_DEVICE_ID, received.getDeviceId());
@@ -273,6 +284,7 @@ public class VerifyInputEventTest {
                 MotionEvent.ACTION_UP, point.x, point.y, 0 /*pressure*/, 1 /*size*/,
                 0 /*metaState*/, 0 /*xPrecision*/, 0 /*yPrecision*/,
                 1 /*deviceId*/, 0 /*edgeFlags*/);
+        upEvent.setSource(InputDevice.SOURCE_TOUCHSCREEN);
         mAutomation.injectInputEvent(upEvent, true);
         waitForMotion();
     }
@@ -324,8 +336,8 @@ public class VerifyInputEventTest {
         assertTrue(verified instanceof VerifiedMotionEvent);
         VerifiedMotionEvent verifiedMotion = (VerifiedMotionEvent) verified;
 
-        assertEquals(motionEvent.getRawX(), verifiedMotion.getRawX(), STRICT_TOLERANCE);
-        assertEquals(motionEvent.getRawY(), verifiedMotion.getRawY(), STRICT_TOLERANCE);
+        assertEquals(motionEvent.getRawX(), verifiedMotion.getRawX(), EPSILON);
+        assertEquals(motionEvent.getRawY(), verifiedMotion.getRawY(), EPSILON);
         assertEquals(motionEvent.getActionMasked(), verifiedMotion.getActionMasked());
         assertEquals(motionEvent.getDownTime() * NANOS_PER_MILLISECOND,
                 verifiedMotion.getDownTimeNanos());
@@ -335,12 +347,17 @@ public class VerifyInputEventTest {
     }
 
     private static void compareKeyFlags(int expectedFlags, VerifiedKeyEvent verified) {
+        final List<Integer> verifiedKeyFlags = Arrays.asList(
+                FLAG_CANCELED,
+                KeyEvent.FLAG_IS_ACCESSIBILITY_EVENT);
         // Separately check the value of verifiable flags
-        assertFlag(expectedFlags, FLAG_CANCELED, verified);
+        for (int flag : verifiedKeyFlags) {
+            assertFlag(expectedFlags, flag, verified);
+        }
         // All other flags should be null, because they are not verifiable
         for (int i = 0; i < Integer.SIZE; i++) {
             int flag = 1 << i;
-            if (flag == FLAG_CANCELED) {
+            if (verifiedKeyFlags.contains(flag)) {
                 continue;
             }
             assertNull(verified.getFlag(flag));
@@ -348,14 +365,18 @@ public class VerifyInputEventTest {
     }
 
     private static void compareMotionFlags(int expectedFlags, VerifiedMotionEvent verified) {
+        final List<Integer> verifiedMotionFlags = Arrays.asList(
+                FLAG_WINDOW_IS_OBSCURED,
+                FLAG_WINDOW_IS_PARTIALLY_OBSCURED,
+                MotionEvent.FLAG_IS_ACCESSIBILITY_EVENT);
         // Separately check the value of verifiable flags
-        assertFlag(expectedFlags, FLAG_WINDOW_IS_OBSCURED, verified);
-        assertFlag(expectedFlags, FLAG_WINDOW_IS_PARTIALLY_OBSCURED, verified);
+        for (int flag : verifiedMotionFlags) {
+            assertFlag(expectedFlags, flag, verified);
+        }
         // All other flags should be null, because they are not verifiable
         for (int i = 0; i < Integer.SIZE; i++) {
             int flag = 1 << i;
-            if (flag == FLAG_WINDOW_IS_OBSCURED
-                    || flag == FLAG_WINDOW_IS_PARTIALLY_OBSCURED) {
+            if (verifiedMotionFlags.contains(flag)) {
                 continue;
             }
             assertNull(verified.getFlag(flag));

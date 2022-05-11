@@ -16,20 +16,27 @@
 
 package android.security.cts;
 
-import android.platform.test.annotations.SecurityTest;
+import android.platform.test.annotations.AsbSecurityTest;
 import android.media.MediaRecorder;
-import android.test.AndroidTestCase;
+import com.android.sts.common.util.StsExtraBusinessLogicTestCase;
 import android.util.Log;
 
 import java.io.File;
 
-@SecurityTest
-public class MediaRecorderInfoLeakTest extends AndroidTestCase {
+import static org.junit.Assert.*;
+
+import androidx.test.runner.AndroidJUnit4;
+import org.junit.runner.RunWith;
+import org.junit.Test;
+
+@RunWith(AndroidJUnit4.class)
+public class MediaRecorderInfoLeakTest extends StsExtraBusinessLogicTestCase {
 
    /**
     *  b/27855172
     */
-    @SecurityTest(minPatchLevel = "2016-06")
+    @Test
+    @AsbSecurityTest(cveBugId = 27855172)
     public void test_cve_2016_2499() throws Exception {
         MediaRecorder mediaRecorder = null;
         long end = System.currentTimeMillis() + 600_000; // 10 minutes from now

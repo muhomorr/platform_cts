@@ -19,6 +19,7 @@ package android.alarmmanager.cts;
 
 import static org.junit.Assert.fail;
 
+import android.alarmmanager.util.AlarmManagerDeviceConfigHelper;
 import android.app.AlarmManager;
 import android.app.PendingIntent;
 import android.content.Context;
@@ -31,6 +32,7 @@ import androidx.test.runner.AndroidJUnit4;
 
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -54,6 +56,9 @@ public class UidCapTests {
     private Context mContext;
     private AlarmManagerDeviceConfigHelper mConfigHelper = new AlarmManagerDeviceConfigHelper();
     private ArrayList<PendingIntent> mAlarmsSet = new ArrayList<>();
+
+    @Rule
+    public DumpLoggerRule mFailLoggerRule = new DumpLoggerRule(TAG);
 
     @Before
     public void setUp() {
@@ -116,6 +121,6 @@ public class UidCapTests {
 
     @After
     public void deleteAlarmManagerConstants() {
-        mConfigHelper.deleteAll();
+        mConfigHelper.restoreAll();
     }
 }

@@ -33,11 +33,13 @@ import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
 
 import android.app.Activity;
+import android.app.Instrumentation;
 import android.app.PendingIntent;
 import android.app.assist.AssistStructure;
 import android.app.assist.AssistStructure.ViewNode;
 import android.app.assist.AssistStructure.WindowNode;
 import android.autofillservice.cts.R;
+import android.autofillservice.cts.activities.LoginActivity;
 import android.content.AutofillOptions;
 import android.content.ComponentName;
 import android.content.ContentResolver;
@@ -49,6 +51,7 @@ import android.graphics.Bitmap;
 import android.icu.util.Calendar;
 import android.os.Bundle;
 import android.os.Environment;
+import android.provider.DeviceConfig;
 import android.provider.Settings;
 import android.service.autofill.FieldClassification;
 import android.service.autofill.FieldClassification.Match;
@@ -62,6 +65,7 @@ import android.util.Size;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewStructure.HtmlInfo;
+import android.view.WindowInsets;
 import android.view.autofill.AutofillId;
 import android.view.autofill.AutofillManager;
 import android.view.autofill.AutofillManager.AutofillCallback;
@@ -76,6 +80,7 @@ import androidx.autofill.inline.v1.InlineSuggestionUi;
 import androidx.test.platform.app.InstrumentationRegistry;
 
 import com.android.compatibility.common.util.BitmapUtils;
+import com.android.compatibility.common.util.DeviceConfigStateManager;
 import com.android.compatibility.common.util.OneTimeSettingsListener;
 import com.android.compatibility.common.util.SettingsUtils;
 import com.android.compatibility.common.util.ShellUtils;
@@ -137,6 +142,8 @@ public final class Helper {
     private static final Timeout SETTINGS_BASED_SHELL_CMD_TIMEOUT = new Timeout(
             "SETTINGS_SHELL_CMD_TIMEOUT", OneTimeSettingsListener.DEFAULT_TIMEOUT_MS / 2, 2,
             OneTimeSettingsListener.DEFAULT_TIMEOUT_MS);
+
+    public static final String DEVICE_CONFIG_AUTOFILL_DIALOG_HINTS = "autofill_dialog_hints";
 
     /**
      * Helper interface used to filter nodes.
@@ -758,10 +765,9 @@ public final class Helper {
     /**
      * Asserts the number of children in the Assist structure.
      */
-    public static void assertNumberOfChildren(AssistStructure structure, int expected) {
-        assertWithMessage("wrong number of nodes").that(structure.getWindowNodeCount())
-                .isEqualTo(1);
-        final int actual = getNumberNodes(structure);
+    public static void assertNumberOfChildrenWithWindowTitle(AssistStructure structure,
+            int expected, CharSequence windowTitle) {
+        final int actual = getNumberNodes(structure, windowTitle);
         if (actual != expected) {
             dumpStructure("assertNumberOfChildren()", structure);
             throw new AssertionError("assertNumberOfChildren() for structure failed: expected "
@@ -771,28 +777,46 @@ public final class Helper {
 
     /**
      * Gets the total number of nodes in an structure.
+     * A node that has a non-null IdPackage which does not match the test package is not counted.
      */
-    public static int getNumberNodes(AssistStructure structure) {
+    public static int getNumberNodes(AssistStructure structure,
+            CharSequence windowTitle) {
         int count = 0;
         final int nodes = structure.getWindowNodeCount();
         for (int i = 0; i < nodes; i++) {
             final WindowNode windowNode = structure.getWindowNodeAt(i);
-            final ViewNode rootNode = windowNode.getRootViewNode();
-            count += getNumberNodes(rootNode);
+            if (windowNode.getTitle().equals(windowTitle)) {
+                final ViewNode rootNode = windowNode.getRootViewNode();
+                count += getNumberNodes(rootNode);
+            }
         }
         return count;
     }
 
     /**
+     * Gets the activity title.
+     */
+    public static CharSequence getActivityTitle(Instrumentation instrumentation,
+            Activity activity) {
+        final StringBuilder titleBuilder = new StringBuilder();
+        instrumentation.runOnMainSync(() -> titleBuilder.append(activity.getTitle()));
+        return titleBuilder;
+    }
+
+    /**
      * Gets the total number of nodes in an node, including all descendants and the node itself.
+     * A node that has a non-null IdPackage which does not match the test package is not counted.
      */
     public static int getNumberNodes(ViewNode node) {
+        if (node.getIdPackage() != null && !node.getIdPackage().equals(MY_PACKAGE)) {
+            Log.w(TAG, "ViewNode ignored in getNumberNodes because of mismatched package: "
+                    + node.getIdPackage());
+            return 0;
+        }
         int count = 1;
         final int childrenSize = node.getChildCount();
-        if (childrenSize > 0) {
-            for (int i = 0; i < childrenSize; i++) {
-                count += getNumberNodes(node.getChildAt(i));
-            }
+        for (int i = 0; i < childrenSize; i++) {
+            count += getNumberNodes(node.getChildAt(i));
         }
         return count;
     }
@@ -904,6 +928,11 @@ public final class Helper {
         }
         if (packageManager.hasSystemFeature(PackageManager.FEATURE_PC)) {
             Log.v(TAG, "isRotationSupported(): is PC");
+            return false;
+        }
+        if (!packageManager.hasSystemFeature(PackageManager.FEATURE_SCREEN_LANDSCAPE)
+                || !packageManager.hasSystemFeature(PackageManager.FEATURE_SCREEN_PORTRAIT)) {
+            Log.v(TAG, "isRotationSupported(): no screen orientation feature");
             return false;
         }
         return true;
@@ -1086,6 +1115,11 @@ public final class Helper {
              .that(clientState).isNull();
     }
 
+    private static void assertFillEventPresentationType(FillEventHistory.Event event,
+            int expectedType) {
+        assertThat(event.getUiType()).isEqualTo(expectedType);
+    }
+
     /**
      * Asserts the content of a {@link android.service.autofill.FillEventHistory.Event}.
      *
@@ -1163,8 +1197,9 @@ public final class Helper {
      * @param datasetId dataset set id expected in the event
      */
     public static void assertFillEventForDatasetSelected(@NonNull FillEventHistory.Event event,
-            @Nullable String datasetId) {
+            @Nullable String datasetId, int uiType) {
         assertFillEvent(event, TYPE_DATASET_SELECTED, datasetId, null, null, null);
+        assertFillEventPresentationType(event, uiType);
     }
 
     /**
@@ -1177,8 +1212,9 @@ public final class Helper {
      * @param value the only value expected in the client state bundle
      */
     public static void assertFillEventForDatasetSelected(@NonNull FillEventHistory.Event event,
-            @Nullable String datasetId, @Nullable String key, @Nullable String value) {
+            @Nullable String datasetId, @Nullable String key, @Nullable String value, int uiType) {
         assertFillEvent(event, TYPE_DATASET_SELECTED, datasetId, key, value, null);
+        assertFillEventPresentationType(event, uiType);
     }
 
     /**
@@ -1214,10 +1250,12 @@ public final class Helper {
      * @param event event to be asserted
      * @param key the only key expected in the client state bundle
      * @param value the only value expected in the client state bundle
+     * @param expectedPresentation the exptected ui presentation type
      */
     public static void assertFillEventForDatasetShown(@NonNull FillEventHistory.Event event,
-            @NonNull String key, @NonNull String value) {
+            @NonNull String key, @NonNull String value, int expectedPresentation) {
         assertFillEvent(event, TYPE_DATASETS_SHOWN, NULL_DATASET_ID, key, value, null);
+        assertFillEventPresentationType(event, expectedPresentation);
     }
 
     /**
@@ -1226,8 +1264,10 @@ public final class Helper {
      *
      * @param event event to be asserted
      */
-    public static void assertFillEventForDatasetShown(@NonNull FillEventHistory.Event event) {
+    public static void assertFillEventForDatasetShown(@NonNull FillEventHistory.Event event,
+            int expectedPresentation) {
         assertFillEvent(event, TYPE_DATASETS_SHOWN, NULL_DATASET_ID, null, null, null);
+        assertFillEventPresentationType(event, expectedPresentation);
     }
 
     /**
@@ -1300,6 +1340,11 @@ public final class Helper {
     public static void assertHasFlags(int actualFlags, int expectedFlags) {
         assertWithMessage("Flags %s not in %s", expectedFlags, actualFlags)
                 .that(actualFlags & expectedFlags).isEqualTo(expectedFlags);
+    }
+
+    public static void assertNoFlags(int actualFlags, int expectedFlags) {
+        assertWithMessage("Flags %s in %s", expectedFlags, actualFlags)
+                .that(actualFlags & expectedFlags).isEqualTo(0);
     }
 
     public static String callbackEventAsString(int event) {
@@ -1605,6 +1650,62 @@ public final class Helper {
      */
     public static void clearApplicationAutofillOptions(@NonNull Context context) {
         context.getApplicationContext().setAutofillOptions(null);
+    }
+
+    /**
+     * Enable fill dialog feature
+     */
+    public static void enableFillDialogFeature(@NonNull Context context) {
+        DeviceConfigStateManager deviceConfigStateManager =
+                new DeviceConfigStateManager(context, DeviceConfig.NAMESPACE_AUTOFILL,
+                        AutofillManager.DEVICE_CONFIG_AUTOFILL_DIALOG_ENABLED);
+        setDeviceConfig(deviceConfigStateManager, "true");
+    }
+
+    /**
+     * Set hints list for fill dialog
+     */
+    public static void setFillDialogHints(@NonNull Context context, @Nullable String hints) {
+        DeviceConfigStateManager deviceConfigStateManager =
+                new DeviceConfigStateManager(context, DeviceConfig.NAMESPACE_AUTOFILL,
+                        DEVICE_CONFIG_AUTOFILL_DIALOG_HINTS);
+        setDeviceConfig(deviceConfigStateManager, hints);
+    }
+
+    public static void setDeviceConfig(@NonNull DeviceConfigStateManager deviceConfigStateManager,
+            @Nullable String value) {
+        final String previousValue = deviceConfigStateManager.get();
+        if (TextUtils.isEmpty(value) && TextUtils.isEmpty(previousValue)
+                || TextUtils.equals(previousValue, value)) {
+            Log.v(TAG, "No changed in config: " + deviceConfigStateManager);
+            return;
+        }
+
+        deviceConfigStateManager.set(value);
+    }
+
+    /**
+     * Whether IME is showing
+     */
+    public static boolean isImeShowing(WindowInsets rootWindowInsets) {
+        if (rootWindowInsets != null && rootWindowInsets.isVisible(WindowInsets.Type.ime())) {
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Asserts whether mock IME is showing
+     */
+    public static void assertMockImeStatus(LoginActivity activity,
+            boolean expectedImeShow) throws Exception {
+        Timeouts.MOCK_IME_TIMEOUT.run("assertMockImeStatus(" + expectedImeShow + ")",
+                () -> {
+                    final boolean actual = isImeShowing(activity.getRootWindowInsets());
+                    Log.v(TAG, "assertMockImeStatus(): expected=" + expectedImeShow + ", actual="
+                            + actual);
+                    return actual == expectedImeShow ? "expected" : null;
+                });
     }
 
     private Helper() {

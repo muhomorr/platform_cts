@@ -20,6 +20,7 @@ import static android.graphics.fonts.FontStyle.FONT_SLANT_UPRIGHT;
 import static android.graphics.fonts.FontStyle.FONT_WEIGHT_NORMAL;
 
 import static com.google.common.truth.Truth.assertThat;
+import static com.google.common.truth.Truth.assertWithMessage;
 
 import static org.junit.Assert.fail;
 
@@ -34,6 +35,7 @@ import androidx.test.filters.SmallTest;
 import androidx.test.platform.app.InstrumentationRegistry;
 import androidx.test.runner.AndroidJUnit4;
 
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -117,6 +119,7 @@ public class FontManagerTest {
         }
     }
 
+    @Ignore("TODO(b/199671094)")
     @Test
     public void fontManager_getFontConfig_checkAlias() {
         FontConfig config = getFontConfig();
@@ -267,6 +270,28 @@ public class FontManagerTest {
                 assertThat(font.getPostScriptName()).isEqualTo(psNameInFile);
             }
         }
+    }
+
+    @Test
+    public void fontManager_NotoColorEmojiAvailable() throws IOException {
+        FontConfig fontConfig = getFontConfig();
+        boolean hasNotoColorEmoji = false;
+
+        for (FontConfig.FontFamily family : fontConfig.getFontFamilies()) {
+
+            if (family.getLocaleList().size() == 1
+                    && "Zsye".equals(family.getLocaleList().get(0).getScript())) {
+                if ("NotoColorEmoji".equals(family.getFontList().get(0).getPostScriptName())) {
+                    hasNotoColorEmoji = true;
+                }
+            }
+        }
+
+        assertWithMessage("NotoColorEmoji must be included."
+                + "If you include your own font, place your emoji just before the "
+                + "NotoColorEmoji.ttf")
+            .that(hasNotoColorEmoji)
+                .isTrue();
     }
 
     // TODO: Add more tests once we sign test fonts.

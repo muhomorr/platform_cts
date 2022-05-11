@@ -28,6 +28,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
+import android.platform.test.annotations.AppModeFull;
 import android.platform.test.annotations.RequiresDevice;
 import android.test.suitebuilder.annotation.SmallTest;
 import android.util.Log;
@@ -39,6 +40,7 @@ import androidx.test.runner.AndroidJUnit4;
 import com.android.compatibility.common.util.CddTest;
 import com.android.compatibility.common.util.FeatureUtil;
 import com.android.compatibility.common.util.RequiredFeatureRule;
+import com.android.compatibility.common.util.ShellIdentityUtils;
 
 import org.junit.After;
 import org.junit.Before;
@@ -56,6 +58,7 @@ import java.util.concurrent.locks.ReentrantLock;
 @SmallTest
 @RequiresDevice
 @RunWith(AndroidJUnit4.class)
+@AppModeFull(reason = "Instant Apps cannot get Bluetooth related permissions")
 public class CarBluetoothTest {
     @ClassRule
     public static final RequiredFeatureRule sRequiredFeatureRule = new RequiredFeatureRule(
@@ -138,9 +141,9 @@ public class CarBluetoothTest {
             // Update the desired state so that we'll signal when we get there
             mDesiredState = desiredState;
             if (desiredState == BluetoothAdapter.STATE_ON) {
-                mBluetoothAdapter.enable();
+                ShellIdentityUtils.invokeWithShellPermissions(() -> mBluetoothAdapter.enable());
             } else {
-                mBluetoothAdapter.disable();
+                ShellIdentityUtils.invokeWithShellPermissions(() -> mBluetoothAdapter.disable());
             }
 
             // Wait until we're reached that desired state

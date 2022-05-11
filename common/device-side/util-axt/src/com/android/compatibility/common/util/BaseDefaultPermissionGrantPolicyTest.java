@@ -81,6 +81,13 @@ public abstract class BaseDefaultPermissionGrantPolicyTest extends BusinessLogic
     public abstract Set<String> getRuntimePermissionNames(List<PackageInfo> packageInfos);
 
     /**
+     * Return the names of all the packages whose permissions can always be granted as fixed.
+     */
+    public Set<String> getGrantAsFixedPackageNames(ArrayMap<String, PackageInfo> packagesToVerify) {
+        return Collections.emptySet();
+    }
+
+    /**
      * Returns whether the permission name, as defined in
      * {@link PermissionManager.SplitPermissionInfo#getNewPermissions()}
      * should be considered a violation.
@@ -103,6 +110,12 @@ public abstract class BaseDefaultPermissionGrantPolicyTest extends BusinessLogic
         // Add split permissions that were split from non-runtime permissions
         if (ApiLevelUtil.isAtLeast(Build.VERSION_CODES.Q)) {
             addSplitFromNonDangerousPermissions(packagesToVerify, pregrantUidStates);
+        }
+
+        if (ApiLevelUtil.isAtLeast(Build.VERSION_CODES.TIRAMISU)
+                || ApiLevelUtil.codenameStartsWith("T")) {
+            addImplicitlyGrantedPermission(Manifest.permission.POST_NOTIFICATIONS,
+                    Build.VERSION_CODES.TIRAMISU, packagesToVerify, pregrantUidStates);
         }
 
         // Add exceptions
@@ -312,7 +325,7 @@ public abstract class BaseDefaultPermissionGrantPolicyTest extends BusinessLogic
 
     public void addException(DefaultPermissionGrantException exception,
             Set<String> runtimePermNames, Map<String, PackageInfo> packageInfos,
-            SparseArray<UidState> outUidStates) {
+            Set<String> platformSignedPackages, SparseArray<UidState> outUidStates) {
         Log.v(LOG_TAG, "Adding exception for company " + exception.company
                 + ". Metadata: " + exception.metadata);
         String packageName = exception.pkg;
@@ -356,9 +369,12 @@ public abstract class BaseDefaultPermissionGrantPolicyTest extends BusinessLogic
                 return;
             }
         } else {
-            Log.w(LOG_TAG, "Attribute sha256-cert-digest or brand must be provided for package: "
-                    + packageName);
-            return;
+            if (!platformSignedPackages.contains(packageName)) {
+                String packageDigest = computePackageCertDigest(packageInfo.signatures[0]);
+                Log.w(LOG_TAG, "Package is not signed with the platform certificate: " + packageName
+                        + ". Package signature: " + packageDigest.toUpperCase());
+                return;
+            }
         }
 
         List<String> requestedPermissions = Arrays.asList(packageInfo.requestedPermissions);
@@ -432,12 +448,27 @@ public abstract class BaseDefaultPermissionGrantPolicyTest extends BusinessLogic
         // Only use exceptions from business logic if they've been added
         if (!mRemoteExceptions.isEmpty()) {
             Log.d(LOG_TAG, String.format("Found %d remote exceptions", mRemoteExceptions.size()));
+            Set<String> platformSignedPackages = getPlatformSignedPackages(packageInfos);
             for (DefaultPermissionGrantException dpge : mRemoteExceptions) {
-                addException(dpge, runtimePermNames, packageInfos, outUidStates);
+                addException(dpge, runtimePermNames, packageInfos, platformSignedPackages,
+                        outUidStates);
             }
         } else {
             Log.w(LOG_TAG, "Failed to retrieve remote default permission grant exceptions.");
         }
+    }
+
+    private Set<String> getPlatformSignedPackages(Map<String, PackageInfo> packageInfos) {
+        Set<String> platformSignedPackages = new ArraySet<>();
+        PackageManager pm = getInstrumentation().getContext().getPackageManager();
+        for (PackageInfo pkg : packageInfos.values()) {
+            boolean isPlatformSigned = pm.checkSignatures(pkg.packageName, PLATFORM_PACKAGE_NAME)
+                    == PackageManager.SIGNATURE_MATCH;
+            if (isPlatformSigned) {
+                platformSignedPackages.add(pkg.packageName);
+            }
+        }
+        return platformSignedPackages;
     }
 
 
@@ -489,6 +520,37 @@ public abstract class BaseDefaultPermissionGrantPolicyTest extends BusinessLogic
         }
     }
 
+    /**
+     * Add a permission which is granted, if it is implicitly added to a package
+     * @param permissionToAdd The permission to be added
+     * @param targetSdk The targetSDK below which the permission is added in
+     * @param packageInfos The packageInfos to be checked
+     * @param outUidStates The state to be modified
+     */
+    public static void addImplicitlyGrantedPermission(String permissionToAdd, int targetSdk,
+            Map<String, PackageInfo> packageInfos, SparseArray<UidState> outUidStates) {
+        for (PackageInfo pkg : packageInfos.values()) {
+            if (pkg.applicationInfo.targetSdkVersion >= targetSdk) {
+                continue;
+            }
+            for (String perm: pkg.requestedPermissions) {
+                if (perm.equals(permissionToAdd)) {
+                    int uid = pkg.applicationInfo.uid;
+                    UidState uidState = outUidStates.get(uid);
+                    if (uidState != null
+                            && uidState.grantedPermissions.containsKey(permissionToAdd)) {
+                        // permission is already granted. Don't override the grant-state.
+                        continue;
+                    }
+
+                    appendPackagePregrantedPerms(pkg, "permission " + permissionToAdd
+                                    + " is granted to pre-" + targetSdk + " apps", false,
+                            Collections.singleton(permissionToAdd), outUidStates);
+                }
+            }
+        }
+    }
+
     public static void appendPackagePregrantedPerms(PackageInfo packageInfo, String reason,
             boolean fixed, Set<String> pregrantedPerms, SparseArray<UidState> outUidStates) {
         final int uid = packageInfo.applicationInfo.uid;
@@ -514,9 +576,10 @@ public abstract class BaseDefaultPermissionGrantPolicyTest extends BusinessLogic
         }
     }
 
-    public void checkDefaultGrantsInCorrectState(Map<String, PackageInfo> packagesToVerify,
+    public void checkDefaultGrantsInCorrectState(ArrayMap<String, PackageInfo> packagesToVerify,
             SparseArray<UidState> pregrantUidStates,
             Map<String, ArrayMap<String, ArraySet<String>>> violations) {
+        Set<String> grantAsFixedPackageNames = getGrantAsFixedPackageNames(packagesToVerify);
         PackageManager packageManager = getInstrumentation().getContext().getPackageManager();
         for (PackageInfo packageInfo : packagesToVerify.values()) {
             final int uid = packageInfo.applicationInfo.uid;
@@ -558,7 +621,8 @@ public abstract class BaseDefaultPermissionGrantPolicyTest extends BusinessLogic
 
                 setPermissionGrantState(packageInfo.packageName, permission, false);
 
-                Boolean fixed = uidState.grantedPermissions.valueAt(i);
+                Boolean fixed = grantAsFixedPackageNames.contains(packageInfo.packageName)
+                        || uidState.grantedPermissions.valueAt(i);
 
                 // Weaker grant is fine, e.g. not-fixed instead of fixed.
                 if (!fixed && packageManager.checkPermission(permission, packageInfo.packageName)
@@ -785,7 +849,7 @@ public abstract class BaseDefaultPermissionGrantPolicyTest extends BusinessLogic
         public Map<String, Boolean> permissions = new HashMap<>();
 
         public boolean hasNonBrandSha256() {
-            return sha256 != null && !hasBrand;
+            return !sha256.isEmpty() && !hasBrand;
         }
 
         public DefaultPermissionGrantException(String pkg, String sha256,
@@ -800,7 +864,7 @@ public abstract class BaseDefaultPermissionGrantPolicyTest extends BusinessLogic
             this.metadata = metadata;
             this.pkg = pkg;
             this.sha256 = sha256;
-            if (!sha256.contains(":")) {
+            if (!sha256.isEmpty() && !sha256.contains(":")) {
                 hasBrand = true; // rough approximation of brand vs. SHA256 hash
             }
             this.permissions = permissions;

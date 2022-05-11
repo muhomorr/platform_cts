@@ -15,27 +15,30 @@
  */
 package android.security.cts;
 
+import static org.junit.Assert.*;
+
 import android.app.ActivityManager;
 import android.app.ApplicationExitInfo;
 import android.content.Context;
 import android.os.IBinder;
-import android.platform.test.annotations.SecurityTest;
+import android.platform.test.annotations.AsbSecurityTest;
 import android.util.Log;
+import androidx.test.runner.AndroidJUnit4;
 
 import androidx.test.InstrumentationRegistry;
+import com.android.sts.common.util.StsExtraBusinessLogicTestCase;
 import junit.framework.TestCase;
 
 import java.lang.reflect.InvocationTargetException;
 
-@SecurityTest
-public class ActivityManagerTest extends TestCase {
+import org.junit.runner.RunWith;
+import org.junit.Test;
 
-    @Override
-    protected void setUp() throws Exception {
-        super.setUp();
-    }
+@RunWith(AndroidJUnit4.class)
+public class ActivityManagerTest extends StsExtraBusinessLogicTestCase {
 
-    @SecurityTest(minPatchLevel = "2015-03")
+    @AsbSecurityTest(cveBugId = 19394591)
+    @Test
     public void testActivityManager_injectInputEvents() throws ClassNotFoundException {
         try {
             /*
@@ -53,7 +56,8 @@ public class ActivityManagerTest extends TestCase {
     }
 
     // b/144285917
-    @SecurityTest(minPatchLevel = "2020-05")
+    @AsbSecurityTest(cveBugId = 144285917)
+    @Test
     public void testActivityManager_attachNullApplication() {
         SecurityException securityException = null;
         Exception unexpectedException = null;
@@ -81,7 +85,8 @@ public class ActivityManagerTest extends TestCase {
     }
 
     // b/166667403
-    @SecurityTest(minPatchLevel = "2021-01")
+    @AsbSecurityTest(cveBugId = 166667403)
+    @Test
     public void testActivityManager_appExitReasonPackageNames() {
         final String mockPackage = "com.foo.bar";
         final String realPackage = "com.android.compatibility.common.deviceinfo";

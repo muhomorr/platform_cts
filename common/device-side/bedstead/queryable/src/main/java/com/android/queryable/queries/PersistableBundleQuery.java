@@ -22,12 +22,15 @@ import androidx.annotation.CheckResult;
 
 import com.android.queryable.Queryable;
 
-import java.io.Serializable;
-
 /** Query for a {@link PersistableBundle}. */
-public interface PersistableBundleQuery<E extends Queryable> extends Serializable {
+public interface PersistableBundleQuery<E extends Queryable> extends Query<PersistableBundle> {
 
-    /** Query a given key on the {@link PersistableBundle}. */
+    /** Queries a {@link PersistableBundle}. */
+    static PersistableBundleQuery<PersistableBundleQuery<?>> persistableBundle() {
+        return new PersistableBundleQueryHelper<>();
+    }
+
+    /** Queries a given key on the {@link PersistableBundle}. */
     @CheckResult
     PersistableBundleKeyQuery<E> key(String key);
 }

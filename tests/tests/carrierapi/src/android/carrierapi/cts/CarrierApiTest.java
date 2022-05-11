@@ -21,6 +21,9 @@ import static android.carrierapi.cts.IccUtils.bytesToHexString;
 import static android.carrierapi.cts.IccUtils.hexStringToBytes;
 import static android.telephony.IccOpenLogicalChannelResponse.INVALID_CHANNEL;
 import static android.telephony.IccOpenLogicalChannelResponse.STATUS_NO_ERROR;
+import static android.telephony.SubscriptionManager.PHONE_NUMBER_SOURCE_CARRIER;
+import static android.telephony.TelephonyManager.DATA_ENABLED_REASON_THERMAL;
+import static android.telephony.TelephonyManager.DATA_ENABLED_REASON_USER;
 
 import static com.android.compatibility.common.util.UiccUtil.UiccCertificate.CTS_UICC_2021;
 
@@ -57,6 +60,7 @@ import android.telephony.SignalThresholdInfo;
 import android.telephony.SubscriptionInfo;
 import android.telephony.SubscriptionManager;
 import android.telephony.TelephonyManager;
+import android.telephony.data.NetworkSlicingConfig;
 import android.util.Base64;
 import android.util.Log;
 
@@ -78,6 +82,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -520,6 +525,10 @@ public class CarrierApiTest extends BaseCarrierApiTest {
             mTelephonyManager.getServiceState();
             mTelephonyManager.getManualNetworkSelectionPlmn();
             mTelephonyManager.setForbiddenPlmns(new ArrayList<String>());
+            int activeModemCount = mTelephonyManager.getActiveModemCount();
+            for (int i = 0; i < activeModemCount; i++) {
+                mTelephonyManager.isModemEnabledForSlot(i);
+            }
         } catch (SecurityException e) {
             fail(NO_CARRIER_PRIVILEGES_FAILURE_MESSAGE);
         }
@@ -733,11 +742,21 @@ public class CarrierApiTest extends BaseCarrierApiTest {
         assertThat(mTelephonyManager.iccCloseLogicalChannel(response.getChannel())).isTrue();
 
         // Close opened channel twice.
-        assertThat(mTelephonyManager.iccCloseLogicalChannel(response.getChannel())).isFalse();
+        try {
+            boolean result = mTelephonyManager.iccCloseLogicalChannel(response.getChannel());
+            assertThat(result).isFalse();
+        } catch (IllegalArgumentException ex) {
+            //IllegalArgumentException is expected sometimes because of different behaviour of modem
+        }
 
         // Channel 0 is guaranteed to be always available and cannot be closed, per TS 102 221
         // Section 11.1.17
-        assertThat(mTelephonyManager.iccCloseLogicalChannel(0)).isFalse();
+        try {
+            mTelephonyManager.iccCloseLogicalChannel(0);
+            fail("Expected IllegalArgumentException");
+        } catch (IllegalArgumentException ex) {
+            // IllegalArgumentException is expected
+        }
     }
 
     /**
@@ -984,10 +1003,12 @@ public class CarrierApiTest extends BaseCarrierApiTest {
 
     /**
      * This test verifies that {@link TelephonyManager#setLine1NumberForDisplay(String, String)}
-     * correctly sets the Line 1 alpha tag and number when called.
+     * correctly sets the Line 1 alpha tag and number when called, and the phone number
+     * of {@link SubscriptionManager#PHONE_NUMBER_SOURCE_CARRIER}.
      */
     @Test
     public void testLine1NumberForDisplay() {
+        int subId = SubscriptionManager.getDefaultSubscriptionId();
         // Cache original alpha tag and number values.
         String originalAlphaTag = mTelephonyManager.getLine1AlphaTag();
         String originalNumber = mTelephonyManager.getLine1Number();
@@ -1001,15 +1022,21 @@ public class CarrierApiTest extends BaseCarrierApiTest {
             assertThat(mTelephonyManager.setLine1NumberForDisplay(ALPHA_TAG_A, NUMBER_A)).isTrue();
             assertThat(mTelephonyManager.getLine1AlphaTag()).isEqualTo(ALPHA_TAG_A);
             assertThat(mTelephonyManager.getLine1Number()).isEqualTo(NUMBER_A);
+            assertThat(mSubscriptionManager.getPhoneNumber(subId, PHONE_NUMBER_SOURCE_CARRIER))
+                    .isEqualTo(NUMBER_A);
 
             assertThat(mTelephonyManager.setLine1NumberForDisplay(ALPHA_TAG_B, NUMBER_B)).isTrue();
             assertThat(mTelephonyManager.getLine1AlphaTag()).isEqualTo(ALPHA_TAG_B);
             assertThat(mTelephonyManager.getLine1Number()).isEqualTo(NUMBER_B);
+            assertThat(mSubscriptionManager.getPhoneNumber(subId, PHONE_NUMBER_SOURCE_CARRIER))
+                    .isEqualTo(NUMBER_B);
 
             // null is used to clear the Line 1 alpha tag and number values.
             assertThat(mTelephonyManager.setLine1NumberForDisplay(null, null)).isTrue();
             assertThat(mTelephonyManager.getLine1AlphaTag()).isEqualTo(defaultAlphaTag);
             assertThat(mTelephonyManager.getLine1Number()).isEqualTo(defaultNumber);
+            assertThat(mSubscriptionManager.getPhoneNumber(subId, PHONE_NUMBER_SOURCE_CARRIER))
+                    .isEqualTo("");
         } finally {
             // Reset original alpha tag and number values.
             mTelephonyManager.setLine1NumberForDisplay(originalAlphaTag, originalNumber);
@@ -1080,23 +1107,27 @@ public class CarrierApiTest extends BaseCarrierApiTest {
         // Set subscription group with current sub Id.
         int subId = SubscriptionManager.getDefaultDataSubscriptionId();
         if (subId == SubscriptionManager.INVALID_SUBSCRIPTION_ID) return;
-        ParcelUuid uuid = mSubscriptionManager.createSubscriptionGroup(Arrays.asList(subId));
+        ParcelUuid uuid = ShellIdentityUtils.invokeMethodWithShellPermissions(mSubscriptionManager,
+                (sm) -> sm.createSubscriptionGroup(Arrays.asList(subId)));
 
         try {
             // Get all active subscriptions.
             List<SubscriptionInfo> activeSubInfos =
-                    mSubscriptionManager.getActiveSubscriptionInfoList();
+                    ShellIdentityUtils.invokeMethodWithShellPermissions(mSubscriptionManager,
+                    (sm) -> sm.getActiveSubscriptionInfoList());
 
             List<Integer> activeSubGroup = getSubscriptionIdList(activeSubInfos);
             activeSubGroup.removeIf(id -> id == subId);
 
-            mSubscriptionManager.addSubscriptionsIntoGroup(activeSubGroup, uuid);
+            ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mSubscriptionManager,
+                    (sm) -> sm.addSubscriptionsIntoGroup(activeSubGroup, uuid));
 
-            List<Integer> infoList =
-                    getSubscriptionIdList(mSubscriptionManager.getSubscriptionsInGroup(uuid));
+            List<Integer> infoList = ShellIdentityUtils.invokeMethodWithShellPermissions(
+                    mSubscriptionManager,
+                    (sm) -> getSubscriptionIdList(sm.getSubscriptionsInGroup(uuid)));
+
             activeSubGroup.add(subId);
-            assertThat(infoList).hasSize(activeSubGroup.size());
-            assertThat(infoList).containsExactly(activeSubGroup);
+            assertThat(infoList).containsExactlyElementsIn(activeSubGroup);
         } finally {
             removeSubscriptionsFromGroup(uuid);
         }
@@ -1128,8 +1159,7 @@ public class CarrierApiTest extends BaseCarrierApiTest {
                 List<Integer> infoList =
                         getSubscriptionIdList(mSubscriptionManager.getSubscriptionsInGroup(uuid));
                 accessibleSubGroup.add(subId);
-                assertThat(infoList).hasSize(accessibleSubGroup.size());
-                assertThat(infoList).containsExactly(accessibleSubGroup);
+                assertThat(infoList).containsExactlyElementsIn(accessibleSubGroup);
             }
         } finally {
             removeSubscriptionsFromGroup(uuid);
@@ -1260,12 +1290,17 @@ public class CarrierApiTest extends BaseCarrierApiTest {
     }
 
     private void removeSubscriptionsFromGroup(ParcelUuid uuid) {
-        List<SubscriptionInfo> infoList = mSubscriptionManager.getSubscriptionsInGroup(uuid);
+        List<SubscriptionInfo> infoList = ShellIdentityUtils.invokeMethodWithShellPermissions(
+                mSubscriptionManager,
+                (sm) -> (sm.getSubscriptionsInGroup(uuid)));
         if (!infoList.isEmpty()) {
-            mSubscriptionManager.removeSubscriptionsFromGroup(
-                    getSubscriptionIdList(infoList), uuid);
+            List<Integer> subscriptionIdList = getSubscriptionIdList(infoList);
+            ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mSubscriptionManager,
+                    (sm) -> sm.removeSubscriptionsFromGroup(subscriptionIdList, uuid));
         }
-        infoList = mSubscriptionManager.getSubscriptionsInGroup(uuid);
+        infoList = ShellIdentityUtils.invokeMethodWithShellPermissions(
+                mSubscriptionManager,
+                (sm) -> (sm.getSubscriptionsInGroup(uuid)));
         assertThat(infoList).isEmpty();
     }
 
@@ -1359,5 +1394,33 @@ public class CarrierApiTest extends BaseCarrierApiTest {
         assertWithMessage("Results for AUTHTYPE_EAP_AKA failed")
                 .that(akaResponse)
                 .isEqualTo(hexStringToBytes(EXPECTED_EAP_AKA_RESULT));
+    }
+
+    /**
+     * This test checks that applications with carrier privilege can set/get data enable
+     * state.
+     */
+    @Test
+    public void testDataEnableRequest() {
+        for (int i = DATA_ENABLED_REASON_USER; i <= DATA_ENABLED_REASON_THERMAL; i++) {
+            mTelephonyManager.isDataEnabledForReason(i);
+        }
+        boolean isDataEnabled = mTelephonyManager.isDataEnabledForReason(
+                TelephonyManager.DATA_ENABLED_REASON_CARRIER);
+        mTelephonyManager.setDataEnabledForReason(
+                TelephonyManager.DATA_ENABLED_REASON_CARRIER, !isDataEnabled);
+        mTelephonyManager.setDataEnabledForReason(
+                TelephonyManager.DATA_ENABLED_REASON_CARRIER, isDataEnabled);
+    }
+
+    /**
+     * This test checks that applications with carrier privileges can get network slicing
+     * configuration.
+     */
+    @Test
+    public void testGetNetworkSlicingConfiguration() {
+        CompletableFuture<NetworkSlicingConfig> resultFuture = new CompletableFuture<>();
+        mTelephonyManager.getNetworkSlicingConfiguration(
+                AsyncTask.SERIAL_EXECUTOR, resultFuture::complete);
     }
 }

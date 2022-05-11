@@ -16,49 +16,90 @@
 
 package com.android.queryable.info;
 
+import static com.android.bedstead.nene.utils.ParcelTest.parcelAndUnparcel;
+
 import static com.google.common.truth.Truth.assertThat;
 
 import android.app.Activity;
+import android.content.IntentFilter;
 
 import com.android.activitycontext.ActivityContext;
-import com.android.queryable.info.ActivityInfo;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
+
+import java.util.Set;
 
 @RunWith(JUnit4.class)
 public class ActivityInfoTest {
 
     private static final Class<? extends Activity> TEST_CLASS = ActivityContext.class;
     private static final String TEST_CLASS_NAME = ActivityContext.class.getName();
-    private static final String TEST_CLASS_SIMPLE_NAME = ActivityContext.class.getSimpleName();
+    private static final IntentFilter INTENT_FILTER = new IntentFilter("");
 
     @Test
-    public void classConstructor_setsClassName() {
-        ActivityInfo activityInfo = new ActivityInfo(TEST_CLASS);
+    public void classConstructor_setsClass() {
+        ActivityInfo activityInfo = ActivityInfo.builder().activityClass(TEST_CLASS).build();
 
         assertThat(activityInfo.className()).isEqualTo(TEST_CLASS_NAME);
     }
 
     @Test
-    public void instanceConstructor_setsClassName() throws Exception {
-        ActivityInfo activityInfo = ActivityContext.getWithContext(ActivityInfo::new);
+    public void instanceConstructor_setsClass() throws Exception {
+        ActivityInfo activityInfo = ActivityContext.getWithContext(c ->
+                ActivityInfo.builder().activityClass(c).build());
 
         assertThat(activityInfo.className()).isEqualTo(TEST_CLASS_NAME);
     }
 
     @Test
-    public void stringConstructor_setsClassName() {
-        ActivityInfo activityInfo = new ActivityInfo(TEST_CLASS_NAME);
+    public void stringConstructor_setsClass() {
+        ActivityInfo activityInfo = ActivityInfo.builder().activityClass(TEST_CLASS_NAME).build();
 
         assertThat(activityInfo.className()).isEqualTo(TEST_CLASS_NAME);
     }
 
     @Test
-    public void simpleName_getsSimpleName() {
-        ActivityInfo activityInfo = new ActivityInfo(TEST_CLASS_NAME);
+    public void activityInfoConstructor_setsClass() {
+        android.content.pm.ActivityInfo frameworkActivityInfo =
+                new android.content.pm.ActivityInfo();
+        frameworkActivityInfo.name = TEST_CLASS_NAME;
 
-        assertThat(activityInfo.simpleName()).isEqualTo(TEST_CLASS_SIMPLE_NAME);
+        ActivityInfo activityInfo = ActivityInfo.builder(frameworkActivityInfo).build();
+
+        assertThat(activityInfo.className()).isEqualTo(TEST_CLASS_NAME);
+    }
+
+    @Test
+    public void exported_returnsExported() {
+        ActivityInfo activityInfo = ActivityInfo.builder()
+                .activityClass(TEST_CLASS_NAME)
+                .exported(true).build();
+
+        assertThat(activityInfo.exported()).isTrue();
+    }
+
+    @Test
+    public void intentFilters_returnsIntentFilters() {
+        ActivityInfo activityInfo = ActivityInfo.builder()
+                .activityClass(TEST_CLASS_NAME)
+                .intentFilters(Set.of(INTENT_FILTER)).build();
+
+        assertThat(activityInfo.intentFilters()).containsExactly(INTENT_FILTER);
+    }
+
+    @Test
+    public void parcel_parcelsCorrectly() {
+        ActivityInfo activityInfo = ActivityInfo.builder()
+                .activityClass(TEST_CLASS_NAME)
+                .exported(true)
+                .intentFilters(Set.of(INTENT_FILTER)).build();
+
+        // We can't check equality as intent filters don't have well-defined equality
+        ActivityInfo unparceledActivityInfo = parcelAndUnparcel(ActivityInfo.class, activityInfo);
+        assertThat(unparceledActivityInfo.className()).isEqualTo(activityInfo.className());
+        assertThat(unparceledActivityInfo.exported()).isEqualTo(activityInfo.exported());
+        assertThat(unparceledActivityInfo.intentFilters()).hasSize(1);
     }
 }

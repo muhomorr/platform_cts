@@ -33,7 +33,7 @@ import static android.accessibilityservice.cts.utils.GestureUtils.isAtPoint;
 import static android.accessibilityservice.cts.utils.GestureUtils.longClick;
 import static android.accessibilityservice.cts.utils.GestureUtils.path;
 import static android.accessibilityservice.cts.utils.GestureUtils.times;
-import static android.view.InputDevice.ACCESSIBILITY_DEVICE_ID;
+import static android.view.KeyCharacterMap.VIRTUAL_KEYBOARD;
 
 import static androidx.test.InstrumentationRegistry.getInstrumentation;
 
@@ -55,6 +55,7 @@ import android.accessibilityservice.GestureDescription;
 import android.accessibilityservice.GestureDescription.StrokeDescription;
 import android.accessibilityservice.cts.activities.AccessibilityTestActivity;
 import android.app.Instrumentation;
+import android.app.UiAutomation;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.graphics.Matrix;
@@ -75,7 +76,9 @@ import androidx.test.rule.ActivityTestRule;
 import androidx.test.runner.AndroidJUnit4;
 
 import org.hamcrest.Matcher;
+import org.junit.AfterClass;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.RuleChain;
@@ -84,6 +87,8 @@ import org.junit.runner.RunWith;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import android.graphics.Rect;
 
 /**
  * Verify that gestures dispatched from an accessibility service show up in the current UI
@@ -95,6 +100,9 @@ public class AccessibilityGestureDispatchTest {
 
     private static final int GESTURE_COMPLETION_TIMEOUT = 5000; // millis
     private static final int MOTION_EVENT_TIMEOUT = 1000; // millis
+
+    private static Instrumentation sInstrumentation;
+    private static UiAutomation sUiAutomation;
 
     private ActivityTestRule<GestureDispatchActivity> mActivityRule =
             new ActivityTestRule<>(GestureDispatchActivity.class, false, false);
@@ -125,24 +133,37 @@ public class AccessibilityGestureDispatchTest {
 
     private GestureDispatchActivity mActivity;
 
+    @BeforeClass
+    public static void oneTimeSetup() {
+        sInstrumentation = getInstrumentation();
+        sUiAutomation = sInstrumentation.getUiAutomation(
+                UiAutomation.FLAG_DONT_SUPPRESS_ACCESSIBILITY_SERVICES);
+    }
+
+    @AfterClass
+    public static void postTestTearDown() {
+        sUiAutomation.destroy();
+    }
+
     @Before
     public void setUp() throws Exception {
-        Instrumentation instrumentation = getInstrumentation();
-        PackageManager pm = instrumentation.getContext().getPackageManager();
+        PackageManager pm = sInstrumentation.getContext().getPackageManager();
         mHasTouchScreen = pm.hasSystemFeature(PackageManager.FEATURE_TOUCHSCREEN)
                 || pm.hasSystemFeature(PackageManager.FEATURE_FAKETOUCH);
         if (!mHasTouchScreen) {
             return;
         }
 
-        mActivity = launchActivityAndWaitForItToBeOnscreen(instrumentation,
-                instrumentation.getUiAutomation(), mActivityRule);
+        mActivity = launchActivityAndWaitForItToBeOnscreen(sInstrumentation,
+                sUiAutomation, mActivityRule);
+        // Wait for window animation completed to ensure the input window is at the final position.
+        sUiAutomation.syncInputTransactions();
 
         mHasMultiTouch = pm.hasSystemFeature(PackageManager.FEATURE_TOUCHSCREEN_MULTITOUCH)
                 || pm.hasSystemFeature(PackageManager.FEATURE_FAKETOUCH_MULTITOUCH_DISTINCT);
 
         mFullScreenTextView = mActivity.findViewById(R.id.full_screen_text_view);
-        getInstrumentation().runOnMainSync(() -> {
+        sInstrumentation.runOnMainSync(() -> {
             final int midX = mFullScreenTextView.getWidth() / 2;
             final int midY = mFullScreenTextView.getHeight() / 2;
             mFullScreenTextView.getLocationOnScreen(mViewLocation);
@@ -174,7 +195,8 @@ public class AccessibilityGestureDispatchTest {
 
         // Verify other MotionEvent fields in this test to make sure they get initialized.
         assertEquals(0, clickDown.getActionIndex());
-        assertEquals(ACCESSIBILITY_DEVICE_ID, clickDown.getDeviceId());
+        assertEquals(VIRTUAL_KEYBOARD, clickDown.getDeviceId());
+        assertEquals(MotionEvent.FLAG_IS_ACCESSIBILITY_EVENT, clickDown.getFlags());
         assertEquals(0, clickDown.getEdgeFlags());
         assertEquals(1F, clickDown.getXPrecision(), 0F);
         assertEquals(1F, clickDown.getYPrecision(), 0F);
@@ -326,7 +348,7 @@ public class AccessibilityGestureDispatchTest {
         }
     }
 
-    // This test assumes device's screen contains its center (W/2, H/2) with some surroundings
+    // This test assumes the test activity contains its center (W/2, H/2) with some surroundings
     // and should work for rectangular, round and round with chin screens.
     @Test
     public void testClickWhenMagnified_matchesActualTouch() throws InterruptedException {
@@ -334,6 +356,8 @@ public class AccessibilityGestureDispatchTest {
         final float CLICK_OFFSET_X = 10;
         final float CLICK_OFFSET_Y = 20;
         final float MAGNIFICATION_FACTOR = 2;
+        final int MAGNIFICATION_SPEC_WAIT_MILLIS = 200;
+
         if (!mHasTouchScreen) {
             return;
         }
@@ -344,36 +368,54 @@ public class AccessibilityGestureDispatchTest {
             return;
         }
 
-        final WindowManager wm = (WindowManager) getInstrumentation().getContext().getSystemService(
-                Context.WINDOW_SERVICE);
         final StubMagnificationAccessibilityService magnificationService =
                 enableService(StubMagnificationAccessibilityService.class);
         final AccessibilityService.MagnificationController
                 magnificationController = magnificationService.getMagnificationController();
 
-        final PointF magRegionCenterPoint = new PointF();
+        final PointF magRegionCenterClickPoint = new PointF();
+        // Determine the center of the test activity to center the magnification viewport.
+        final Rect activityBounds = mActivity.getWindowManager()
+                .getCurrentWindowMetrics().getBounds();
+        final PointF activityCenterPoint = new PointF(activityBounds.centerX(),
+                activityBounds.centerY());
+        // Target points where the clicks are expected to land after magnification.
+        final PointF viewPortCenter = new PointF();
+        final PointF viewPortCenterWithOffset = new PointF();
+
         magnificationService.runOnServiceSync(() -> {
             magnificationController.reset(false);
-            magRegionCenterPoint.set(magnificationController.getCenterX(),
+            magRegionCenterClickPoint.set(magnificationController.getCenterX(),
                     magnificationController.getCenterY());
         });
-        final PointF magRegionOffsetPoint
-                = add(magRegionCenterPoint, CLICK_OFFSET_X, CLICK_OFFSET_Y);
 
-        final PointF magRegionOffsetClickPoint = add(magRegionCenterPoint,
-                CLICK_OFFSET_X * MAGNIFICATION_FACTOR, CLICK_OFFSET_Y * MAGNIFICATION_FACTOR);
+        final PointF magRegionOffsetClickPoint =
+                add(magRegionCenterClickPoint, CLICK_OFFSET_X * MAGNIFICATION_FACTOR,
+                        CLICK_OFFSET_Y * MAGNIFICATION_FACTOR);
 
         try {
             // Zoom in
             final AtomicBoolean setScale = new AtomicBoolean();
             magnificationService.runOnServiceSync(() -> {
                 setScale.set(magnificationController.setScale(MAGNIFICATION_FACTOR, false));
+                magnificationController.setCenter(activityCenterPoint.x,
+                        activityCenterPoint.y, false);
+                // The magnification's viewport center can be different than the activity's center
+                // (e.g. on foldable devices when the activity is on half of the screen).
+                viewPortCenter.set(magnificationController.getCenterX(),
+                        magnificationController.getCenterY());
+                viewPortCenterWithOffset.set(viewPortCenter.x + CLICK_OFFSET_X,
+                        viewPortCenter.y + CLICK_OFFSET_Y);
             });
             assertTrue("Failed to set scale", setScale.get());
 
+            // DisplayContent#applyMagnificationSpec uses the pending transaction and there's no
+            // signal to know when it gets executed. Wait for UI to get updated.
+            Thread.sleep(MAGNIFICATION_SPEC_WAIT_MILLIS);
+
             // Click in the center of the magnification region
             dispatch(new GestureDescription.Builder()
-                    .addStroke(click(magRegionCenterPoint))
+                    .addStroke(click(magRegionCenterClickPoint))
                     .build(),
                     GESTURE_COMPLETION_TIMEOUT);
 
@@ -395,21 +437,21 @@ public class AccessibilityGestureDispatchTest {
         assertEquals(4, mMotionEvents.size());
         // Because the MotionEvents have been captures by the view, the coordinates will
         // be in the View's coordinate system.
-        magRegionCenterPoint.offset(-mViewLocation[0], -mViewLocation[1]);
-        magRegionOffsetPoint.offset(-mViewLocation[0], -mViewLocation[1]);
+        viewPortCenter.offset(-mViewLocation[0], -mViewLocation[1]);
+        viewPortCenterWithOffset.offset(-mViewLocation[0], -mViewLocation[1]);
 
         // The first click should be at the magnification center, as that point is invariant
         // for zoom only
         assertThat(mMotionEvents.get(0),
-                both(IS_ACTION_DOWN).and(isAtPoint(magRegionCenterPoint, POINT_TOL)));
+                both(IS_ACTION_DOWN).and(isAtPoint(viewPortCenter, POINT_TOL)));
         assertThat(mMotionEvents.get(1),
-                both(IS_ACTION_UP).and(isAtPoint(magRegionCenterPoint, POINT_TOL)));
+                both(IS_ACTION_UP).and(isAtPoint(viewPortCenter, POINT_TOL)));
 
         // The second point should be at the offset point
         assertThat(mMotionEvents.get(2),
-                both(IS_ACTION_DOWN).and(isAtPoint(magRegionOffsetPoint, POINT_TOL)));
+                both(IS_ACTION_DOWN).and(isAtPoint(viewPortCenterWithOffset, POINT_TOL)));
         assertThat(mMotionEvents.get(3),
-                both(IS_ACTION_UP).and(isAtPoint(magRegionOffsetPoint, POINT_TOL)));
+                both(IS_ACTION_UP).and(isAtPoint(viewPortCenterWithOffset, POINT_TOL)));
     }
 
     @Test

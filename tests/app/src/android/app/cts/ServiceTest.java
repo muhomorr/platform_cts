@@ -16,6 +16,9 @@
 
 package android.app.cts;
 
+import static android.Manifest.permission.POST_NOTIFICATIONS;
+import static android.Manifest.permission.REVOKE_POST_NOTIFICATIONS_WITHOUT_KILL;
+import static android.Manifest.permission.REVOKE_RUNTIME_PERMISSIONS;
 import static android.app.stubs.LocalForegroundService.COMMAND_START_FOREGROUND;
 import static android.app.stubs.LocalForegroundService.COMMAND_START_FOREGROUND_DEFER_NOTIFICATION;
 import static android.app.stubs.LocalForegroundService.COMMAND_STOP_FOREGROUND_DETACH_NOTIFICATION;
@@ -53,6 +56,8 @@ import android.os.Process;
 import android.os.RemoteException;
 import android.os.SystemClock;
 import android.os.UserHandle;
+import android.permission.PermissionManager;
+import android.permission.cts.PermissionUtils;
 import android.service.notification.StatusBarNotification;
 import android.test.suitebuilder.annotation.MediumTest;
 import android.util.Log;
@@ -698,6 +703,7 @@ public class ServiceTest extends ActivityTestsBase {
     protected void setUp() throws Exception {
         super.setUp();
         mContext = getContext();
+        PermissionUtils.grantPermission(mContext.getPackageName(), POST_NOTIFICATIONS);
         mLocalService = new Intent(mContext, LocalService.class);
         mExternalService = new Intent();
         mExternalService.setComponent(ComponentName.unflattenFromString(EXTERNAL_SERVICE_COMPONENT));
@@ -745,6 +751,15 @@ public class ServiceTest extends ActivityTestsBase {
         }
         mBackgroundThread = null;
         mBackgroundThreadExecutor = null;
+        // Use test API to prevent PermissionManager from killing the test process when revoking
+        // permission.
+        SystemUtil.runWithShellPermissionIdentity(
+                () -> mContext.getSystemService(PermissionManager.class)
+                        .revokePostNotificationPermissionWithoutKillForTest(
+                                mContext.getPackageName(),
+                                Process.myUserHandle().getIdentifier()),
+                REVOKE_POST_NOTIFICATIONS_WITHOUT_KILL,
+                REVOKE_RUNTIME_PERMISSIONS);
     }
 
     private class MockBinder extends Binder {
@@ -1269,6 +1284,8 @@ public class ServiceTest extends ActivityTestsBase {
         mExpectedServiceState = STATE_START_1;
         startForegroundService(COMMAND_START_FOREGROUND_DEFER_NOTIFICATION);
         waitForResultOrThrow(DELAY, "service to start with deferred notification");
+        // Pause a moment and ensure that the notification has still not appeared
+        waitMillis(1000L);
         assertNoNotification(1);
 
         // Explicitly post a new Notification with the same id, still deferrable
@@ -1290,6 +1307,24 @@ public class ServiceTest extends ActivityTestsBase {
         assertNoNotification(1);
         waitMillis(10_000L);
         assertNotification(1, notificationTitle);
+
+        mExpectedServiceState = STATE_DESTROY;
+        mContext.stopService(mLocalForegroundService);
+        waitForResultOrThrow(DELAY, "service to be destroyed");
+    }
+
+    public void testForegroundService_deferThenKeepNotification() throws Exception {
+        // Start FGS with deferred notification; it should not display
+        mExpectedServiceState = STATE_START_1;
+        startForegroundService(COMMAND_START_FOREGROUND_DEFER_NOTIFICATION);
+        waitForResultOrThrow(DELAY, "service to start first time");
+        assertNoNotification(1);
+
+        // Exit foreground but keep notification - it should display immediately
+        mExpectedServiceState = STATE_START_2;
+        startForegroundService(COMMAND_STOP_FOREGROUND_DONT_REMOVE_NOTIFICATION);
+        waitForResultOrThrow(DELAY, "service to stop foreground");
+        assertNotification(1, LocalForegroundService.getNotificationTitle(1));
 
         mExpectedServiceState = STATE_DESTROY;
         mContext.stopService(mLocalForegroundService);

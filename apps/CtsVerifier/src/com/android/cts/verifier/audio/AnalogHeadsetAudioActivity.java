@@ -16,41 +16,38 @@
 
 package com.android.cts.verifier.audio;
 
-import com.android.compatibility.common.util.ReportLog;
-import com.android.compatibility.common.util.ResultType;
-import com.android.compatibility.common.util.ResultUnit;
+import static com.android.cts.verifier.TestListActivity.sCurrentDisplayMode;
+import static com.android.cts.verifier.TestListAdapter.setTestNameSuffix;
 
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
-
+import android.content.res.Resources;
 import android.graphics.Color;
-
 import android.media.AudioDeviceCallback;
 import android.media.AudioDeviceInfo;
 import android.media.AudioManager;
-
 import android.os.Bundle;
 import android.os.Handler;
-
 import android.util.Log;
-
 import android.view.KeyEvent;
 import android.view.View;
-
 import android.widget.Button;
 import android.widget.TextView;
 
+import com.android.compatibility.common.util.CddTest;
+import com.android.compatibility.common.util.ResultType;
+import com.android.compatibility.common.util.ResultUnit;
 import com.android.cts.verifier.PassFailButtons;
-import com.android.cts.verifier.R;  // needed to access resource in CTSVerifier project namespace.
+import com.android.cts.verifier.R;
 
-// MegaPlayer
 import org.hyphonate.megaaudio.player.AudioSourceProvider;
 import org.hyphonate.megaaudio.player.JavaPlayer;
 import org.hyphonate.megaaudio.player.PlayerBuilder;
 import org.hyphonate.megaaudio.player.sources.SinAudioSourceProvider;
 
+@CddTest(requirement = "7.8.2.1/C-1-1,C-1-2,C-1-3,C-1-4,C-2-1")
 public class AnalogHeadsetAudioActivity
         extends PassFailButtons.Activity
         implements View.OnClickListener {
@@ -60,6 +57,7 @@ public class AnalogHeadsetAudioActivity
     private AudioManager    mAudioManager;
 
     // UI
+    private TextView mHasPortQueryText;
     private Button mHasAnalogPortYesBtn;
     private Button mHasAnalogPortNoBtn;
 
@@ -67,10 +65,12 @@ public class AnalogHeadsetAudioActivity
     private Button mStopButton;
     private Button mPlaybackSuccessBtn;
     private Button mPlaybackFailBtn;
+    private TextView mPlaybackStatusTxt;
 
     private TextView mHeadsetNameText;
     private TextView mHeadsetPlugMessage;
 
+    private TextView mButtonsPromptTxt;
     private TextView mHeadsetHookText;
     private TextView mHeadsetVolUpText;
     private TextView mHeadsetVolDownText;
@@ -86,8 +86,11 @@ public class AnalogHeadsetAudioActivity
 
     // Buttons
     private boolean mHasHeadsetHook;
+    private boolean mHasPlayPause;
     private boolean mHasVolUp;
     private boolean mHasVolDown;
+
+    private TextView mResultsTxt;
 
     // Player
     protected boolean mIsPlaying = false;
@@ -97,6 +100,17 @@ public class AnalogHeadsetAudioActivity
     static final int SAMPLE_RATE = 48000;
 
     JavaPlayer mAudioPlayer;
+
+    // ReportLog Schema
+    private static final String SECTION_ANALOG_HEADSET = "analog_headset_activity";
+    private static final String KEY_HAS_HEADSET_PORT = "has_headset_port";
+    private static final String KEY_HEADSET_PLUG_INTENT_STATE = "intent_received_state";
+    private static final String KEY_CLAIMS_HEADSET_PORT = "claims_headset_port";
+    private static final String KEY_HEADSET_CONNECTED = "headset_connected";
+    private static final String KEY_KEYCODE_HEADSETHOOK = "keycode_headset_hook";
+    private static final String KEY_KEYCODE_PLAY_PAUSE = "keycode_play_pause";
+    private static final String KEY_KEYCODE_VOLUME_UP = "keycode_volume_up";
+    private static final String KEY_KEYCODE_VOLUME_DOWN = "keycode_volume_down";
 
     public AnalogHeadsetAudioActivity() {
         super();
@@ -112,6 +126,7 @@ public class AnalogHeadsetAudioActivity
         mHeadsetPlugMessage = (TextView)findViewById(R.id.headset_analog_plug_message);
 
         // Analog Port?
+        mHasPortQueryText = (TextView)findViewById(R.id.analog_headset_query) ;
         mHasAnalogPortYesBtn = (Button)findViewById(R.id.headset_analog_port_yes);
         mHasAnalogPortYesBtn.setOnClickListener(this);
         mHasAnalogPortNoBtn = (Button)findViewById(R.id.headset_analog_port_no);
@@ -122,17 +137,23 @@ public class AnalogHeadsetAudioActivity
         mPlayButton.setOnClickListener(this);
         mStopButton = (Button)findViewById(R.id.headset_analog_stop);
         mStopButton.setOnClickListener(this);
+        mPlaybackStatusTxt = (TextView)findViewById(R.id.analog_headset_playback_status);
 
         // Play Status
         mPlaybackSuccessBtn = (Button)findViewById(R.id.headset_analog_play_yes);
         mPlaybackSuccessBtn.setOnClickListener(this);
         mPlaybackFailBtn = (Button)findViewById(R.id.headset_analog_play_no);
         mPlaybackFailBtn.setOnClickListener(this);
+        mPlaybackSuccessBtn.setEnabled(false);
+        mPlaybackFailBtn.setEnabled(false);
 
         // Keycodes
+        mButtonsPromptTxt = (TextView)findViewById(R.id.analog_headset_keycodes_prompt);
         mHeadsetHookText = (TextView)findViewById(R.id.headset_keycode_headsethook);
         mHeadsetVolUpText = (TextView)findViewById(R.id.headset_keycode_volume_up);
         mHeadsetVolDownText = (TextView)findViewById(R.id.headset_keycode_volume_down);
+
+        mResultsTxt = (TextView)findViewById(R.id.headset_results);
 
         mAudioManager = (AudioManager)getSystemService(AUDIO_SERVICE);
 
@@ -158,36 +179,56 @@ public class AnalogHeadsetAudioActivity
     //
     private boolean calculatePass() {
         if (!mHasHeadsetPort) {
+            mResultsTxt.setText(getResources().getString(R.string.analog_headset_pass_noheadset));
             return true;
         } else {
-            return mPlugIntentReceived &&
+            boolean pass = mPlugIntentReceived &&
                     mHeadsetDeviceInfo != null &&
                     mPlaybackSuccess &&
-                    mHasHeadsetHook && mHasVolUp && mHasVolDown;
+                    (mHasHeadsetHook || mHasPlayPause) && mHasVolUp && mHasVolDown;
+            if (pass) {
+                mResultsTxt.setText(getResources().getString(R.string.analog_headset_pass));
+            }
+            return pass;
         }
+    }
+
+    //
+    // PassFailButtons Overrides
+    //
+    @Override
+    public String getReportFileName() { return PassFailButtons.AUDIO_TESTS_REPORT_LOG_NAME; }
+
+    @Override
+    public final String getReportSectionName() {
+        return setTestNameSuffix(sCurrentDisplayMode, SECTION_ANALOG_HEADSET);
+    }
+
+    @Override
+    public void recordTestResults() {
+        getReportLog().submit();
     }
 
     private void reportHeadsetPort(boolean has) {
         mHasHeadsetPort = has;
         getReportLog().addValue(
-                "User Reports Headset Port",
+                KEY_HAS_HEADSET_PORT,
                 has ? 1 : 0,
                 ResultType.NEUTRAL,
                 ResultUnit.NONE);
-        if (has) {
-            mHasAnalogPortNoBtn.setEnabled(false);
-        } else {
-            mHasAnalogPortYesBtn.setEnabled(false);
-        }
         enablePlayerButtons(has && mHeadsetDeviceInfo != null);
 
         if (!has) {
             // no port, so can't test. Let them pass
-            getPassButton().setEnabled(true);
+            getPassButton().setEnabled(calculatePass());
         }
     }
 
     private void reportPlugIntent(Intent intent) {
+        // NOTE: This is a "sticky" intent meaning that if a headset has EVER been plugged in
+        // (since a reboot), we will receive this intent.
+        Resources resources = getResources();
+
         // [C-1-4] MUST trigger ACTION_HEADSET_PLUG upon a plug insert,
         // but only after all contacts on plug are touching their relevant segments on the jack.
         mPlugIntentReceived = true;
@@ -198,9 +239,11 @@ public class AnalogHeadsetAudioActivity
 
         int state = intent.getIntExtra("state", -1);
         if (state != -1) {
-
             StringBuilder sb = new StringBuilder();
-            sb.append("ACTION_HEADSET_PLUG received - " + (state == 0 ? "Unplugged" : "Plugged"));
+            sb.append(resources.getString(R.string.analog_headset_action_received)
+                    + resources.getString(
+                            state == 0 ? R.string.analog_headset_unplugged
+                                       : R.string.analog_headset_plugged));
 
             String name = intent.getStringExtra("name");
             if (name != null) {
@@ -209,13 +252,25 @@ public class AnalogHeadsetAudioActivity
 
             int hasMic = intent.getIntExtra("microphone", 0);
             if (hasMic == 1) {
-                sb.append(" [mic]");
+                sb.append(resources.getString(R.string.analog_headset_mic));
             }
 
             mHeadsetPlugMessage.setText(sb.toString());
+
+            // If we receive this intent, there is no need to ask if there is an analog jack.
+            reportHeadsetPort(true);
+
+            mHasPortQueryText.setText(getResources().getString(
+                    R.string.analog_headset_port_detected));
+            mHasAnalogPortYesBtn.setVisibility(View.GONE);
+            mHasAnalogPortNoBtn.setVisibility(View.GONE);
+
+            mPlaybackStatusTxt.setText(getResources().getString(
+                    R.string.analog_headset_playback_prompt));
         }
+
         getReportLog().addValue(
-                "ACTION_HEADSET_PLUG Intent Received. State: ",
+                KEY_HEADSET_PLUG_INTENT_STATE,
                 state,
                 ResultType.NEUTRAL,
                 ResultUnit.NONE);
@@ -225,18 +280,22 @@ public class AnalogHeadsetAudioActivity
         // [C-1-1] MUST support audio playback to stereo headphones
         // and stereo headsets with a microphone.
         mPlaybackSuccess = success;
-        if (success) {
-            mPlaybackFailBtn.setEnabled(false);
-        } else {
-            mPlaybackSuccessBtn.setEnabled(false);
-        }
+
+        mPlaybackSuccessBtn.setEnabled(success);
+        mPlaybackFailBtn.setEnabled(!success);
+
         getPassButton().setEnabled(calculatePass());
 
         getReportLog().addValue(
-                "User reported headset/headphones playback",
+                KEY_CLAIMS_HEADSET_PORT,
                 success ? 1 : 0,
                 ResultType.NEUTRAL,
                 ResultUnit.NONE);
+
+        if (success) {
+            mButtonsPromptTxt.setText(getResources().getString(
+                    R.string.analog_headset_press_buttons));
+        }
     }
 
     //
@@ -244,12 +303,10 @@ public class AnalogHeadsetAudioActivity
     //
     private void showConnectedDevice() {
         if (mHeadsetDeviceInfo != null) {
-            mHeadsetNameText.setText(
-                    mHeadsetDeviceInfo.getType() == AudioDeviceInfo.TYPE_WIRED_HEADSET
-                    ? "Headset Connected"
-                    : "Headphones Connected");
+            mHeadsetNameText.setText(getResources().getString(
+                    R.string.analog_headset_headset_connected));
         } else {
-            mHeadsetNameText.setText("No Headset/Headphones Connected");
+            mHeadsetNameText.setText(getResources().getString(R.string.analog_headset_no_headset));
         }
     }
 
@@ -259,7 +316,8 @@ public class AnalogHeadsetAudioActivity
     }
 
     private void showKeyMessagesState() {
-        mHeadsetHookText.setTextColor(mHasHeadsetHook ? Color.WHITE : Color.GRAY);
+        mHeadsetHookText.setTextColor((mHasHeadsetHook || mHasPlayPause)
+                ? Color.WHITE : Color.GRAY);
         mHeadsetVolUpText.setTextColor(mHasVolUp ? Color.WHITE : Color.GRAY);
         mHeadsetVolDownText.setTextColor(mHasVolDown ? Color.WHITE : Color.GRAY);
     }
@@ -291,6 +349,9 @@ public class AnalogHeadsetAudioActivity
             mAudioPlayer.setupStream(NUM_CHANNELS, SAMPLE_RATE, 96);
             mAudioPlayer.startStream();
             mIsPlaying = true;
+
+            mPlayButton.setEnabled(false);
+            mStopButton.setEnabled(true);
         }
     }
 
@@ -299,6 +360,12 @@ public class AnalogHeadsetAudioActivity
             mAudioPlayer.stopStream();
             mAudioPlayer.teardownStream();
             mIsPlaying = false;
+
+            mPlayButton.setEnabled(true);
+            mStopButton.setEnabled(false);
+
+            mPlaybackStatusTxt.setText(getResources().getString(
+                    R.string.analog_headset_playback_query));
         }
     }
 
@@ -307,30 +374,21 @@ public class AnalogHeadsetAudioActivity
     //
     @Override
     public void onClick(View view) {
-        switch (view.getId()) {
-            case R.id.headset_analog_port_yes:
-                reportHeadsetPort(true);
-                break;
-
-            case R.id.headset_analog_port_no:
-                reportHeadsetPort(false);
-                break;
-
-            case R.id.headset_analog_play:
-                startPlay();
-                break;
-
-            case R.id.headset_analog_stop:
-                stopPlay();
-                break;
-
-            case R.id.headset_analog_play_yes:
-                reportPlaybackStatus(true);
-                break;
-
-            case R.id.headset_analog_play_no:
-                reportPlaybackStatus(false);
-                break;
+        int id = view.getId();
+        if (id == R.id.headset_analog_port_yes) {
+            reportHeadsetPort(true);
+        } else if (id == R.id.headset_analog_port_no) {
+            reportHeadsetPort(false);
+        } else if (id == R.id.headset_analog_play) {
+            startPlay();
+        } else if (id == R.id.headset_analog_stop) {
+            stopPlay();
+            mPlaybackSuccessBtn.setEnabled(true);
+            mPlaybackFailBtn.setEnabled(true);
+        } else if (id == R.id.headset_analog_play_yes) {
+            reportPlaybackStatus(true);
+        } else if (id == R.id.headset_analog_play_no) {
+            reportPlaybackStatus(false);
         }
     }
 
@@ -343,19 +401,19 @@ public class AnalogHeadsetAudioActivity
             if (devInfo.getType() == AudioDeviceInfo.TYPE_WIRED_HEADSET ||
                     devInfo.getType() == AudioDeviceInfo.TYPE_WIRED_HEADPHONES) {
                 mHeadsetDeviceInfo = devInfo;
-
-                getReportLog().addValue(
-                        (devInfo.getType() == AudioDeviceInfo.TYPE_WIRED_HEADSET
-                                ? "Headset" : "Headphones") + " connected",
-                        0,
-                        ResultType.NEUTRAL,
-                        ResultUnit.NONE);
                 break;
             }
         }
 
+        getReportLog().addValue(
+                KEY_HEADSET_CONNECTED,
+                mHeadsetDeviceInfo != null ? 1 : 0,
+                ResultType.NEUTRAL,
+                ResultUnit.NONE);
+
+        reportHeadsetPort(mHeadsetDeviceInfo != null);
+
         showConnectedDevice();
-        enablePlayerButtons(mHeadsetDeviceInfo != null);
     }
 
     private class ConnectListener extends AudioDeviceCallback {
@@ -397,18 +455,32 @@ public class AnalogHeadsetAudioActivity
                 mHasHeadsetHook = true;
                 showKeyMessagesState();
                 getPassButton().setEnabled(calculatePass());
+                getReportLog().addValue(
+                        KEY_KEYCODE_HEADSETHOOK, 1, ResultType.NEUTRAL, ResultUnit.NONE);
+                break;
+
+            case KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE:
+                mHasPlayPause = true;
+                showKeyMessagesState();
+                getPassButton().setEnabled(calculatePass());
+                getReportLog().addValue(
+                        KEY_KEYCODE_PLAY_PAUSE, 1, ResultType.NEUTRAL, ResultUnit.NONE);
                 break;
 
             case KeyEvent.KEYCODE_VOLUME_UP:
                 mHasVolUp = true;
                 showKeyMessagesState();
                 getPassButton().setEnabled(calculatePass());
+                getReportLog().addValue(
+                        KEY_KEYCODE_VOLUME_UP, 1, ResultType.NEUTRAL, ResultUnit.NONE);
                 break;
 
             case KeyEvent.KEYCODE_VOLUME_DOWN:
                 mHasVolDown = true;
                 showKeyMessagesState();
                 getPassButton().setEnabled(calculatePass());
+                getReportLog().addValue(
+                        KEY_KEYCODE_VOLUME_DOWN, 1, ResultType.NEUTRAL, ResultUnit.NONE);
                 break;
         }
         return super.onKeyDown(keyCode, event);

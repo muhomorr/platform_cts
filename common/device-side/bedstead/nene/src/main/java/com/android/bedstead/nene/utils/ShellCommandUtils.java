@@ -96,8 +96,8 @@ public final class ShellCommandUtils {
 
             writeStdInAndClose(fdIn, stdInBytes);
 
-            String out = readStreamAndClose(fdOut);
-            String err = readStreamAndClose(fdErr);
+            String out = new String(readStreamAndClose(fdOut));
+            String err = new String(readStreamAndClose(fdErr));
 
             if (!err.isEmpty()) {
                 throw new AdbException("Error executing command", command, out, err);
@@ -105,6 +105,40 @@ public final class ShellCommandUtils {
 
             if (SHOULD_LOG) {
                 Log.d(LOG_TAG, "Command result: " + out);
+            }
+
+            return out;
+        } catch (IOException e) {
+            throw new AdbException("Error executing command", command, e);
+        }
+    }
+
+    static byte[] executeCommandForBytes(String command) throws AdbException {
+        return executeCommandForBytes(command, /* stdInBytes= */ null);
+    }
+
+    static byte[] executeCommandForBytes(String command, byte[] stdInBytes) throws AdbException {
+        logCommand(command, /* allowEmptyOutput= */ false, stdInBytes);
+
+        if (!Versions.meetsMinimumSdkVersionRequirement(S)) {
+            return executeCommandForBytesPreS(command, stdInBytes);
+        }
+
+        // TODO(scottjonathan): Add argument to force errors to stderr
+        try {
+
+            ParcelFileDescriptor[] fds = uiAutomation().executeShellCommandRwe(command);
+            ParcelFileDescriptor fdOut = fds[OUT_DESCRIPTOR_INDEX];
+            ParcelFileDescriptor fdIn = fds[IN_DESCRIPTOR_INDEX];
+            ParcelFileDescriptor fdErr = fds[ERR_DESCRIPTOR_INDEX];
+
+            writeStdInAndClose(fdIn, stdInBytes);
+
+            byte[] out = readStreamAndClose(fdOut);
+            String err = new String(readStreamAndClose(fdErr));
+
+            if (!err.isEmpty()) {
+                throw new AdbException("Error executing command", command, err);
             }
 
             return out;
@@ -176,13 +210,13 @@ public final class ShellCommandUtils {
     }
 
     private static String executeCommandPreS(
-            String command, boolean allowEmptyOutput, byte[] stdInBytes) throws AdbException {
+            String command, boolean allowEmptyOutput, byte[] stdIn) throws AdbException {
         ParcelFileDescriptor[] fds = uiAutomation().executeShellCommandRw(command);
         ParcelFileDescriptor fdOut = fds[OUT_DESCRIPTOR_INDEX];
         ParcelFileDescriptor fdIn = fds[IN_DESCRIPTOR_INDEX];
 
         try {
-            writeStdInAndClose(fdIn, stdInBytes);
+            writeStdInAndClose(fdIn, stdIn);
 
             try (FileInputStream fis = new ParcelFileDescriptor.AutoCloseInputStream(fdOut)) {
                 String out = new String(FileUtils.readInputStreamFully(fis));
@@ -205,6 +239,26 @@ public final class ShellCommandUtils {
         }
     }
 
+    // This is warned for executeShellCommandRw which did exist as TestApi
+    @SuppressWarnings("NewApi")
+    private static byte[] executeCommandForBytesPreS(
+            String command, byte[] stdInBytes) throws AdbException {
+        ParcelFileDescriptor[] fds = uiAutomation().executeShellCommandRw(command);
+        ParcelFileDescriptor fdOut = fds[OUT_DESCRIPTOR_INDEX];
+        ParcelFileDescriptor fdIn = fds[IN_DESCRIPTOR_INDEX];
+
+        try {
+            writeStdInAndClose(fdIn, stdInBytes);
+
+            try (FileInputStream fis = new ParcelFileDescriptor.AutoCloseInputStream(fdOut)) {
+                return FileUtils.readInputStreamFully(fis);
+            }
+        } catch (IOException e) {
+            throw new AdbException(
+                    "Error reading command output", command, e);
+        }
+    }
+
     private static void writeStdInAndClose(ParcelFileDescriptor fdIn, byte[] stdInBytes)
             throws IOException {
         if (stdInBytes != null) {
@@ -216,9 +270,9 @@ public final class ShellCommandUtils {
         }
     }
 
-    private static String readStreamAndClose(ParcelFileDescriptor fd) throws IOException {
+    private static byte[] readStreamAndClose(ParcelFileDescriptor fd) throws IOException {
         try (FileInputStream fis = new ParcelFileDescriptor.AutoCloseInputStream(fd)) {
-            return new String(FileUtils.readInputStreamFully(fis));
+            return FileUtils.readInputStreamFully(fis);
         }
     }
 

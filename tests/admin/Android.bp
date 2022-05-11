@@ -25,6 +25,7 @@ android_test {
         "mockito-target-minus-junit4",
         "truth-prebuilt",
         "testng",
+        "Nene",
     ],
     libs: [
         "android.test.runner",
@@ -38,4 +39,8 @@ android_test {
     ],
     instrumentation_for: "CtsAdminApp",
     sdk_version: "test_current",
+    data: [
+        ":CtsAdminApp",
+    ],
+    per_testcase_directory: true,
 }

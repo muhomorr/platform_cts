@@ -77,7 +77,7 @@ public class UnsupportedErrorDialogTests extends ActivityManagerTestBase {
             showOnFirstCrashDev.set(0);
             launchActivityNoWait(Components.CRASHING_ACTIVITY);
             findCrashDialogAndCloseApp();
-            ensureHomeFocused();
+            ensureActivityNotFocused(Components.CRASHING_ACTIVITY);
 
             resetAppErrors();
 
@@ -86,7 +86,7 @@ public class UnsupportedErrorDialogTests extends ActivityManagerTestBase {
             showOnFirstCrashDev.set(1);
             launchActivityNoWait(Components.CRASHING_ACTIVITY);
             findCrashDialogAndCloseApp();
-            ensureHomeFocused();
+            ensureActivityNotFocused(Components.CRASHING_ACTIVITY);
         }
     }
 
@@ -109,7 +109,7 @@ public class UnsupportedErrorDialogTests extends ActivityManagerTestBase {
 
             launchActivityNoWait(Components.CRASHING_ACTIVITY);
             findCrashDialogAndCloseApp();
-            ensureHomeFocused();
+            ensureActivityNotFocused(Components.CRASHING_ACTIVITY);
         }
     }
 
@@ -127,7 +127,7 @@ public class UnsupportedErrorDialogTests extends ActivityManagerTestBase {
             launchActivityNoWait(Components.CRASHING_ACTIVITY);
 
             ensureNoCrashDialog(Components.CRASHING_ACTIVITY);
-            ensureHomeFocused();
+            ensureActivityNotFocused(Components.CRASHING_ACTIVITY);
         }
     }
 
@@ -150,7 +150,7 @@ public class UnsupportedErrorDialogTests extends ActivityManagerTestBase {
                 launchActivityNoWait(Components.CRASHING_ACTIVITY);
                 ensureNoCrashDialog(Components.CRASHING_ACTIVITY);
             }
-            ensureHomeFocused();
+            ensureActivityNotFocused(Components.CRASHING_ACTIVITY);
         }
     }
 
@@ -165,12 +165,16 @@ public class UnsupportedErrorDialogTests extends ActivityManagerTestBase {
         mWmState.waitAndAssertAppFocus(Components.UNRESPONSIVE_ACTIVITY.getPackageName(),
                 2_000 /* waitTime */);
         // queue up enough key events to trigger an ANR
-        for (int i = 0; i < 14; i++) {
+        for (int i = 0; i < 20; i++) {
             injectKey(KeyEvent.KEYCODE_TAB, false /* longPress */, false /* sync */);
             SystemClock.sleep(500);
+            mWmState.computeState();
+            if (!mWmState.isActivityVisible(Components.UNRESPONSIVE_ACTIVITY)) {
+                break;
+            }
         }
         ensureNoCrashDialog(Components.UNRESPONSIVE_ACTIVITY);
-        ensureHomeFocused();
+        ensureActivityNotFocused(Components.UNRESPONSIVE_ACTIVITY);
     }
 
     private void findCrashDialogAndCloseApp() {
@@ -189,10 +193,9 @@ public class UnsupportedErrorDialogTests extends ActivityManagerTestBase {
         assertEquals(0, numWindows);
     }
 
-    private void ensureHomeFocused() {
+    private void ensureActivityNotFocused(ComponentName activity) {
         mWmState.computeState();
-        mWmState.assertFocusedActivity("The home activity should be visible!",
-                mWmState.getHomeActivityName());
+        mWmState.assertNotFocusedActivity("The activity should not be focused", activity);
     }
 
     /** Attempt to find the close button of a crash or ANR dialog in at most 2 seconds. */

@@ -29,6 +29,8 @@ import android.view.Surface;
 import androidx.test.filters.LargeTest;
 import androidx.test.platform.app.InstrumentationRegistry;
 
+import org.junit.Assume;
+import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -41,7 +43,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -51,6 +52,7 @@ public class CodecEncoderSurfaceTest {
     private static final String mInpPrefix = WorkDir.getMediaDirString();
     private static final boolean ENABLE_LOGS = false;
 
+    private final String mCompName;
     private final String mMime;
     private final String mTestFile;
     private final int mBitrate;
@@ -58,11 +60,14 @@ public class CodecEncoderSurfaceTest {
     private final int mMaxBFrames;
     private int mLatency;
     private boolean mReviseLatency;
+    private MediaFormat mEncoderFormat;
 
     private MediaExtractor mExtractor;
     private MediaCodec mEncoder;
     private CodecAsyncHandler mAsyncHandleEncoder;
+    private String mDecoderName;
     private MediaCodec mDecoder;
+    private MediaFormat mDecoderFormat;
     private CodecAsyncHandler mAsyncHandleDecoder;
     private boolean mIsCodecInAsyncMode;
     private boolean mSignalEOSWithLastFrame;
@@ -86,7 +91,9 @@ public class CodecEncoderSurfaceTest {
         CodecTestBase.mimeSelKeys = args.getString(CodecTestBase.MIME_SEL_KEY);
     }
 
-    public CodecEncoderSurfaceTest(String mime, String testFile, int bitrate, int frameRate) {
+    public CodecEncoderSurfaceTest(String encoder, String mime, String testFile, int bitrate,
+            int frameRate) {
+        mCompName = encoder;
         mMime = mime;
         mTestFile = testFile;
         mBitrate = bitrate;
@@ -98,12 +105,37 @@ public class CodecEncoderSurfaceTest {
         mAsyncHandleEncoder = new CodecAsyncHandler();
     }
 
-    @Parameterized.Parameters(name = "{index}({0})")
+    @Before
+    public void setUp() throws IOException {
+        if (mCompName.startsWith(CodecTestBase.INVALID_CODEC)) {
+            fail("no valid component available for current test ");
+        }
+        mDecoderFormat = setUpSource(mTestFile);
+        ArrayList<MediaFormat> decoderFormatList = new ArrayList<>();
+        decoderFormatList.add(mDecoderFormat);
+        String decoderMediaType = mDecoderFormat.getString(MediaFormat.KEY_MIME);
+        if (CodecTestBase.doesAnyFormatHaveHDRProfile(decoderMediaType, decoderFormatList) ||
+                mTestFile.contains("10bit")) {
+            // Check if encoder is capable of supporting HDR profiles.
+            // Previous check doesn't verify this as profile isn't set in the format
+            Assume.assumeTrue(mCompName + " doesn't support HDR encoding",
+                    CodecTestBase.doesCodecSupportHDRProfile(mCompName, mMime));
+        }
+
+        MediaCodecList codecList = new MediaCodecList(MediaCodecList.REGULAR_CODECS);
+        mDecoderName = codecList.findDecoderForFormat(mDecoderFormat);
+        Assume.assumeNotNull(mDecoderFormat.toString() + " not supported by any decoder.",
+                mDecoderName);
+
+        mEncoderFormat = setUpEncoderFormat(mDecoderFormat);
+    }
+
+    @Parameterized.Parameters(name = "{index}({0}_{1})")
     public static Collection<Object[]> input() {
         final boolean isEncoder = true;
         final boolean needAudio = false;
         final boolean needVideo = true;
-        final List<Object[]> exhaustiveArgsList = Arrays.asList(new Object[][]{
+        final List<Object[]> exhaustiveArgsList = new ArrayList<>(Arrays.asList(new Object[][]{
                 // Video - CodecMime, test file, bit rate, frame rate
                 {MediaFormat.MIMETYPE_VIDEO_H263, "bbb_176x144_128kbps_15fps_h263.3gp", 128000, 15},
                 {MediaFormat.MIMETYPE_VIDEO_MPEG4, "bbb_128x96_64kbps_12fps_mpeg4.mp4", 64000, 12},
@@ -112,7 +144,21 @@ public class CodecEncoderSurfaceTest {
                 {MediaFormat.MIMETYPE_VIDEO_VP8, "bbb_cif_768kbps_30fps_avc.mp4", 512000, 30},
                 {MediaFormat.MIMETYPE_VIDEO_VP9, "bbb_cif_768kbps_30fps_avc.mp4", 512000, 30},
                 {MediaFormat.MIMETYPE_VIDEO_AV1, "bbb_cif_768kbps_30fps_avc.mp4", 512000, 30},
-        });
+        }));
+        // P010 support was added in Android T, hence limit the following tests to Android T and
+        // above
+        if (CodecTestBase.IS_AT_LEAST_T) {
+            exhaustiveArgsList.addAll(Arrays.asList(new Object[][]{
+                {MediaFormat.MIMETYPE_VIDEO_AVC, "cosmat_520x390_24fps_crf22_avc_10bit.mkv",
+                        512000, 30},
+                {MediaFormat.MIMETYPE_VIDEO_HEVC, "cosmat_520x390_24fps_crf22_hevc_10bit.mkv",
+                        512000, 30},
+                {MediaFormat.MIMETYPE_VIDEO_VP9, "cosmat_520x390_24fps_crf22_vp9_10bit.mkv",
+                        512000, 30},
+                {MediaFormat.MIMETYPE_VIDEO_AV1, "cosmat_520x390_24fps_768kbps_av1_10bit.mkv",
+                        512000, 30},
+            }));
+        }
         return CodecTestBase.prepareParamList(exhaustiveArgsList, isEncoder, needAudio, needVideo,
                 true);
     }
@@ -129,10 +175,17 @@ public class CodecEncoderSurfaceTest {
             String mime = format.getString(MediaFormat.KEY_MIME);
             if (mime.startsWith("video/")) {
                 mExtractor.selectTrack(trackID);
-                // COLOR_FormatYUV420Flexible by default should be supported by all components
-                // This call shouldn't effect configure() call for any codec
-                format.setInteger(MediaFormat.KEY_COLOR_FORMAT,
-                        MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Flexible);
+                ArrayList<MediaFormat> formatList = new ArrayList<>();
+                formatList.add(format);
+                boolean selectHBD = CodecTestBase.doesAnyFormatHaveHDRProfile(mime, formatList) ||
+                        srcFile.contains("10bit");
+                if (selectHBD) {
+                    format.setInteger(MediaFormat.KEY_COLOR_FORMAT,
+                            MediaCodecInfo.CodecCapabilities.COLOR_FormatYUVP010);
+                } else {
+                    format.setInteger(MediaFormat.KEY_COLOR_FORMAT,
+                            MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Flexible);
+                }
                 return format;
             }
         }
@@ -436,20 +489,10 @@ public class CodecEncoderSurfaceTest {
     @LargeTest
     @Test(timeout = CodecTestBase.PER_TEST_TIMEOUT_LARGE_TEST_MS)
     public void testSimpleEncodeFromSurface() throws IOException, InterruptedException {
-        MediaFormat decoderFormat = setUpSource(mTestFile);
-        MediaCodecList codecList = new MediaCodecList(MediaCodecList.REGULAR_CODECS);
-        String decoder = codecList.findDecoderForFormat(decoderFormat);
-        if (decoder == null) {
-            mExtractor.release();
-            fail("no suitable decoder found for format: " + decoderFormat.toString());
-        }
-        mDecoder = MediaCodec.createByCodecName(decoder);
-        MediaFormat encoderFormat = setUpEncoderFormat(decoderFormat);
-        ArrayList<String> listOfEncoders = CodecTestBase.selectCodecs(mMime, null, null, true);
-        assertFalse("no suitable codecs found for mime: " + mMime, listOfEncoders.isEmpty());
+        mDecoder = MediaCodec.createByCodecName(mDecoderName);
         boolean muxOutput = true;
-        for (String encoder : listOfEncoders) {
-            mEncoder = MediaCodec.createByCodecName(encoder);
+        {
+            mEncoder = MediaCodec.createByCodecName(mCompName);
             /* TODO(b/149027258) */
             mSaveToMem = false;
             OutputManager ref = new OutputManager();
@@ -473,7 +516,7 @@ public class CodecEncoderSurfaceTest {
                     }
                     mMuxer = new MediaMuxer(tmpPath, muxerFormat);
                 }
-                configureCodec(decoderFormat, encoderFormat, isAsync, false);
+                configureCodec(mDecoderFormat, mEncoderFormat, isAsync, false);
                 mEncoder.start();
                 mDecoder.start();
                 doWork(Integer.MAX_VALUE);
@@ -497,7 +540,7 @@ public class CodecEncoderSurfaceTest {
                 else mEncoder.reset();
                 String log = String.format(
                         "format: %s \n codec: %s, file: %s, mode: %s:: ",
-                        encoderFormat, encoder, mTestFile, (isAsync ? "async" : "sync"));
+                        mEncoderFormat, mCompName, mTestFile, (isAsync ? "async" : "sync"));
                 assertTrue(log + " unexpected error", !hasSeenError());
                 assertTrue(log + "no input sent", 0 != mDecInputCount);
                 assertTrue(log + "no decoder output received", 0 != mDecOutputCount);
@@ -537,31 +580,22 @@ public class CodecEncoderSurfaceTest {
     }
 
     private native boolean nativeTestSimpleEncode(String encoder, String decoder, String mime,
-            String testFile, String muxFile, int bitrate, int framerate);
+            String testFile, String muxFile, int bitrate, int framerate, int colorFormat);
 
     @LargeTest
     @Test(timeout = CodecTestBase.PER_TEST_TIMEOUT_LARGE_TEST_MS)
     public void testSimpleEncodeFromSurfaceNative() throws IOException {
-        MediaFormat decoderFormat = setUpSource(mTestFile);
-        MediaCodecList codecList = new MediaCodecList(MediaCodecList.REGULAR_CODECS);
-        String decoder = codecList.findDecoderForFormat(decoderFormat);
-        if (decoder == null) {
-            mExtractor.release();
-            fail("no suitable decoder found for format: " + decoderFormat.toString());
-        }
-        ArrayList<String> listOfEncoders = CodecTestBase.selectCodecs(mMime, null, null, true);
-        assertFalse("no suitable codecs found for mime: " + mMime, listOfEncoders.isEmpty());
-        for (String encoder : listOfEncoders) {
-            String tmpPath = null;
+        {
+            String tmpPath;
             if (mMime.equals(MediaFormat.MIMETYPE_VIDEO_VP8) ||
                     mMime.equals(MediaFormat.MIMETYPE_VIDEO_VP9)) {
                 tmpPath = File.createTempFile("tmp", ".webm").getAbsolutePath();
             } else {
                 tmpPath = File.createTempFile("tmp", ".mp4").getAbsolutePath();
             }
-            assertTrue(
-                    nativeTestSimpleEncode(encoder, decoder, mMime, mInpPrefix + mTestFile, tmpPath,
-                            mBitrate, mFrameRate));
+            int colorFormat = mDecoderFormat.getInteger(MediaFormat.KEY_COLOR_FORMAT, -1);
+            assertTrue(nativeTestSimpleEncode(mCompName, mDecoderName, mMime,
+                    mInpPrefix + mTestFile, tmpPath, mBitrate, mFrameRate, colorFormat));
         }
     }
 }

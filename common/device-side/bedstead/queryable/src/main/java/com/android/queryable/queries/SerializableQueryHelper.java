@@ -16,19 +16,36 @@
 
 package com.android.queryable.queries;
 
+import android.os.Parcel;
+import android.os.Parcelable;
+
 import com.android.queryable.Queryable;
 
 import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
 
 /** Implementation of {@link SerializableQuery}. */
 public final class SerializableQueryHelper<E extends Queryable>
         implements SerializableQuery<E>, Serializable {
 
-    private final E mQuery;
-    private Serializable mEqualsValue = null;
+    private static final long serialVersionUID = 1;
+
+    private final transient E mQuery;
+    private Serializable mEqualsValue;
+
+    SerializableQueryHelper() {
+        mQuery = (E) this;
+    }
 
     public SerializableQueryHelper(E query) {
         mQuery = query;
+    }
+
+    private SerializableQueryHelper(Parcel in) {
+        mQuery = null;
+        mEqualsValue = in.readSerializable();
     }
 
     @Override
@@ -37,11 +54,56 @@ public final class SerializableQueryHelper<E extends Queryable>
         return mQuery;
     }
 
+    @Override
     public boolean matches(Serializable value) {
         if (mEqualsValue != null && !mEqualsValue.equals(value)) {
             return false;
         }
 
         return true;
+    }
+
+    @Override
+    public String describeQuery(String fieldName) {
+        List<String> queryStrings = new ArrayList<>();
+        if (mEqualsValue != null) {
+            queryStrings.add(fieldName + "=" + mEqualsValue);
+        }
+
+        return Queryable.joinQueryStrings(queryStrings);
+    }
+
+    @Override
+    public int describeContents() {
+        return 0;
+    }
+
+    @Override
+    public void writeToParcel(Parcel out, int flags) {
+        out.writeSerializable(mEqualsValue);
+    }
+
+    public static final Parcelable.Creator<SerializableQueryHelper> CREATOR =
+            new Parcelable.Creator<SerializableQueryHelper>() {
+                public SerializableQueryHelper createFromParcel(Parcel in) {
+                    return new SerializableQueryHelper(in);
+                }
+
+                public SerializableQueryHelper[] newArray(int size) {
+                    return new SerializableQueryHelper[size];
+                }
+    };
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof SerializableQueryHelper)) return false;
+        SerializableQueryHelper<?> that = (SerializableQueryHelper<?>) o;
+        return Objects.equals(mEqualsValue, that.mEqualsValue);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(mEqualsValue);
     }
 }

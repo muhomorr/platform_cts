@@ -21,9 +21,12 @@ import android.media.MediaCodecInfo;
 import android.media.MediaExtractor;
 import android.media.MediaFormat;
 
+import androidx.test.ext.junit.rules.ActivityScenarioRule;
 import androidx.test.filters.LargeTest;
-import androidx.test.rule.ActivityTestRule;
 
+import org.junit.After;
+import org.junit.Assume;
+import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -37,34 +40,44 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
-import static org.junit.Assert.fail;
+import static android.mediav2.cts.CodecTestBase.SupportClass.*;
 
 @RunWith(Parameterized.class)
 public class AdaptivePlaybackTest extends CodecDecoderTestBase {
-    private final String mMime;
     private final String[] mSrcFiles;
-    private final int mSupport;
+    private final SupportClass mSupportRequirements;
 
     private long mMaxPts = 0;
 
-    public AdaptivePlaybackTest(String mime, String[] srcFiles, int support) {
-        super(mime, null);
-        mMime = mime;
+    public AdaptivePlaybackTest(String decoder, String mime, String[] srcFiles,
+            SupportClass supportRequirements) {
+        super(decoder, mime, null);
         mSrcFiles = srcFiles;
-        mSupport = support;
+        mSupportRequirements = supportRequirements;
     }
 
     @Rule
-    public ActivityTestRule<CodecTestActivity> mActivityRule =
-            new ActivityTestRule<>(CodecTestActivity.class);
+    public ActivityScenarioRule<CodecTestActivity> mActivityRule =
+            new ActivityScenarioRule<>(CodecTestActivity.class);
 
-    @Parameterized.Parameters(name = "{index}({0})")
+    @Before
+    public void setUp() throws IOException, InterruptedException {
+        mActivityRule.getScenario().onActivity(activity -> mActivity = activity);
+        setUpSurface(mActivity);
+    }
+
+    @After
+    public void tearDown() {
+        tearDownSurface();
+    }
+
+    @Parameterized.Parameters(name = "{index}({0}_{1})")
     public static Collection<Object[]> input() {
         final boolean isEncoder = false;
         final boolean needAudio = false;
         final boolean needVideo = true;
-        // mime, array list of test files we'll play, codec should support adaptive feature
-        final List<Object[]> exhaustiveArgsList = Arrays.asList(new Object[][]{
+        // mediaType, array list of test files, SupportClass
+        final List<Object[]> exhaustiveArgsList = new ArrayList<>(Arrays.asList(new Object[][]{
                 {MediaFormat.MIMETYPE_VIDEO_AVC, new String[]{
                         "bbb_800x640_768kbps_30fps_avc_2b.mp4",
                         "bbb_800x640_768kbps_30fps_avc_nob.mp4",
@@ -111,7 +124,41 @@ public class AdaptivePlaybackTest extends CodecDecoderTestBase {
                         "bbb_1280x720_1mbps_30fps_mpeg2_nob.mp4",
                         "bbb_640x360_512kbps_30fps_mpeg2_nob.mp4",
                         "bbb_640x360_512kbps_30fps_mpeg2_2b.mp4"}, CODEC_ALL},
-        });
+        }));
+        // P010 support was added in Android T, hence limit the following tests to Android T and
+        // above
+        if (IS_AT_LEAST_T) {
+            exhaustiveArgsList.addAll(Arrays.asList(new Object[][]{
+                    {MediaFormat.MIMETYPE_VIDEO_AVC, new String[]{
+                            "cosmat_800x640_24fps_crf22_avc_10bit_2b.mkv",
+                            "cosmat_800x640_24fps_crf22_avc_10bit_nob.mkv",
+                            "cosmat_1280x720_24fps_crf22_avc_10bit_2b.mkv",
+                            "cosmat_640x360_24fps_crf22_avc_10bit_nob.mkv",
+                            "cosmat_1280x720_24fps_crf22_avc_10bit_nob.mkv",
+                            "cosmat_640x360_24fps_crf22_avc_10bit_2b.mkv",
+                            "cosmat_1280x720_24fps_crf22_avc_10bit_nob.mkv",
+                            "cosmat_640x360_24fps_crf22_avc_10bit_nob.mkv",
+                            "cosmat_640x360_24fps_crf22_avc_10bit_2b.mkv"}, CODEC_OPTIONAL},
+                    {MediaFormat.MIMETYPE_VIDEO_HEVC, new String[]{
+                            "cosmat_800x640_24fps_crf22_hevc_10bit_2b.mkv",
+                            "cosmat_800x640_24fps_crf22_hevc_10bit_nob.mkv",
+                            "cosmat_1280x720_24fps_crf22_hevc_10bit_2b.mkv",
+                            "cosmat_640x360_24fps_crf22_hevc_10bit_nob.mkv",
+                            "cosmat_1280x720_24fps_crf22_hevc_10bit_nob.mkv",
+                            "cosmat_640x360_24fps_crf22_hevc_10bit_2b.mkv",
+                            "cosmat_1280x720_24fps_crf22_hevc_10bit_nob.mkv",
+                            "cosmat_640x360_24fps_crf22_hevc_10bit_nob.mkv",
+                            "cosmat_640x360_24fps_crf22_hevc_10bit_2b.mkv"}, CODEC_OPTIONAL},
+                    {MediaFormat.MIMETYPE_VIDEO_VP9, new String[]{
+                            "cosmat_640x360_24fps_crf22_vp9_10bit.mkv",
+                            "cosmat_1280x720_24fps_crf22_vp9_10bit.mkv",
+                            "cosmat_800x640_24fps_crf22_vp9_10bit.mkv"}, CODEC_OPTIONAL},
+                    {MediaFormat.MIMETYPE_VIDEO_AV1, new String[]{
+                            "cosmat_640x360_24fps_512kbps_av1_10bit.mkv",
+                            "cosmat_1280x720_24fps_1200kbps_av1_10bit.mkv",
+                            "cosmat_800x640_24fps_768kbps_av1_10bit.mkv"}, CODEC_ALL},
+            }));
+        }
         return prepareParamList(exhaustiveArgsList, isEncoder, needAudio, needVideo, false);
     }
 
@@ -171,30 +218,22 @@ public class AdaptivePlaybackTest extends CodecDecoderTestBase {
     @LargeTest
     @Test(timeout = CodecTestBase.PER_TEST_TIMEOUT_LARGE_TEST_MS)
     public void testAdaptivePlayback() throws IOException, InterruptedException {
-        CodecTestActivity activity = mActivityRule.getActivity();
-        setUpSurface(activity);
+        Assume.assumeTrue(isFeatureSupported(mCodecName, mMime,
+                MediaCodecInfo.CodecCapabilities.FEATURE_AdaptivePlayback));
         ArrayList<MediaFormat> formats = new ArrayList<>();
-        if (mSupport != CODEC_ALL) {
-            formats = new ArrayList<>();
-            for (String file : mSrcFiles) {
-                formats.add(setUpSource(file));
-                mExtractor.release();
-            }
+        for (String file : mSrcFiles) {
+            formats.add(setUpSource(file));
+            mExtractor.release();
         }
-        ArrayList<String> listOfDecoders = selectCodecs(mMime, formats,
-                new String[]{MediaCodecInfo.CodecCapabilities.FEATURE_AdaptivePlayback}, false);
-        if (listOfDecoders.isEmpty()) {
-            tearDownSurface();
-            if (mSupport == CODEC_OPTIONAL) return;
-            else fail("no suitable codecs found for mime: " + mMime);
-        }
+        checkFormatSupport(mCodecName, mMime, false, formats,
+                new String[]{MediaCodecInfo.CodecCapabilities.FEATURE_AdaptivePlayback},
+                mSupportRequirements);
         formats.clear();
         int totalSize = 0;
         for (String srcFile : mSrcFiles) {
             File file = new File(mInpPrefix + srcFile);
             totalSize += (int) file.length();
         }
-        totalSize <<= 1;
         long ptsOffset = 0;
         int buffOffset = 0;
         ArrayList<MediaCodec.BufferInfo> list = new ArrayList<>();
@@ -205,22 +244,19 @@ public class AdaptivePlaybackTest extends CodecDecoderTestBase {
             ptsOffset = mMaxPts + 1000000L;
             buffOffset = (list.get(list.size() - 1).offset) + (list.get(list.size() - 1).size);
         }
-        boolean[] boolStates = {false, true};
         mOutputBuff = new OutputManager();
-        for (String decoder : listOfDecoders) {
-            mCodec = MediaCodec.createByCodecName(decoder);
+        {
+            mCodec = MediaCodec.createByCodecName(mCodecName);
             MediaFormat format = formats.get(0);
-            activity.setScreenParams(getWidth(format), getHeight(format), true);
-            for (boolean isAsync : boolStates) {
-                mOutputBuff.reset();
-                configureCodec(format, isAsync, false, false);
-                mCodec.start();
-                doWork(buffer, list);
-                queueEOS();
-                waitForAllOutputs();
-                mCodec.reset();
-            }
+            mActivity.setScreenParams(getWidth(format), getHeight(format), true);
+            mOutputBuff.reset();
+            configureCodec(format, true, false, false);
+            mCodec.start();
+            doWork(buffer, list);
+            queueEOS();
+            waitForAllOutputs();
+            mCodec.reset();
+            mCodec.release();
         }
-        tearDownSurface();
     }
 }

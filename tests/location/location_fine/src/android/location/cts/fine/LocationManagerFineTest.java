@@ -16,7 +16,12 @@
 
 package android.location.cts.fine;
 
+import static android.Manifest.permission.LOCATION_BYPASS;
 import static android.Manifest.permission.WRITE_SECURE_SETTINGS;
+import static android.app.AppOpsManager.OPSTR_MONITOR_HIGH_POWER_LOCATION;
+import static android.app.AppOpsManager.OPSTR_MONITOR_LOCATION;
+import static android.content.pm.PackageManager.FEATURE_AUTOMOTIVE;
+import static android.content.pm.PackageManager.FEATURE_TELEVISION;
 import static android.location.LocationManager.EXTRA_PROVIDER_ENABLED;
 import static android.location.LocationManager.EXTRA_PROVIDER_NAME;
 import static android.location.LocationManager.FUSED_PROVIDER;
@@ -25,6 +30,7 @@ import static android.location.LocationManager.NETWORK_PROVIDER;
 import static android.location.LocationManager.PASSIVE_PROVIDER;
 import static android.location.LocationManager.PROVIDERS_CHANGED_ACTION;
 import static android.location.LocationRequest.PASSIVE_INTERVAL;
+import static android.location.LocationRequest.QUALITY_HIGH_ACCURACY;
 import static android.os.PowerManager.LOCATION_MODE_ALL_DISABLED_WHEN_SCREEN_OFF;
 import static android.os.PowerManager.LOCATION_MODE_GPS_DISABLED_WHEN_SCREEN_OFF;
 import static android.os.PowerManager.LOCATION_MODE_THROTTLE_REQUESTS_WHEN_SCREEN_OFF;
@@ -40,6 +46,7 @@ import static com.google.common.truth.Truth.assertThat;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
+import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
 
 import android.Manifest;
@@ -53,6 +60,7 @@ import android.location.Criteria;
 import android.location.GnssMeasurementsEvent;
 import android.location.GnssNavigationMessage;
 import android.location.GnssStatus;
+import android.location.LastLocationRequest;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
@@ -63,15 +71,18 @@ import android.location.cts.common.BroadcastCapture;
 import android.location.cts.common.GetCurrentLocationCapture;
 import android.location.cts.common.LocationListenerCapture;
 import android.location.cts.common.LocationPendingIntentCapture;
+import android.location.cts.common.OpActiveChangedCapture;
 import android.location.cts.common.ProviderRequestChangedListenerCapture;
 import android.location.cts.common.gnss.GnssAntennaInfoCapture;
 import android.location.cts.common.gnss.GnssMeasurementsCapture;
 import android.location.cts.common.gnss.GnssNavigationMessageCapture;
 import android.location.provider.ProviderProperties;
+import android.os.Build;
 import android.os.HandlerThread;
 import android.os.Looper;
 import android.os.PowerManager;
 import android.os.SystemClock;
+import android.os.SystemProperties;
 import android.os.UserHandle;
 import android.platform.test.annotations.AppModeFull;
 import android.provider.DeviceConfig;
@@ -118,6 +129,7 @@ public class LocationManagerFineTest {
             "invalid_location_attribution_tag";
 
     private static final String IGNORE_SETTINGS_ALLOWLIST = "ignore_settings_allowlist";
+    private static final String ADAS_SETTINGS_ALLOWLIST = "adas_settings_allowlist";
 
     private Random mRandom;
     private Context mContext;
@@ -140,15 +152,11 @@ public class LocationManagerFineTest {
         }
 
         mManager.addTestProvider(TEST_PROVIDER,
-                true,
-                false,
-                true,
-                false,
-                false,
-                false,
-                false,
-                Criteria.POWER_MEDIUM,
-                Criteria.ACCURACY_FINE);
+                new ProviderProperties.Builder()
+                        .setHasNetworkRequirement(true)
+                        .setHasCellRequirement(true)
+                        .setPowerUsage(ProviderProperties.POWER_USAGE_HIGH)
+                        .setAccuracy(ProviderProperties.ACCURACY_FINE).build());
         mManager.setTestProviderEnabled(TEST_PROVIDER, true);
     }
 
@@ -231,6 +239,110 @@ public class LocationManagerFineTest {
     }
 
     @Test
+    public void testGetLastKnownLocation_AdasLocationSettings_ReturnsLocation() throws Exception {
+        assumeTrue(mContext.getPackageManager().hasSystemFeature(FEATURE_AUTOMOTIVE));
+
+        try (LocationListenerCapture capture = new LocationListenerCapture(mContext);
+             DeviceConfigStateHelper locationDeviceConfigStateHelper =
+                     new DeviceConfigStateHelper(DeviceConfig.NAMESPACE_LOCATION)) {
+
+            locationDeviceConfigStateHelper.set(ADAS_SETTINGS_ALLOWLIST,
+                    mContext.getPackageName());
+
+            mManager.addTestProvider(
+                    GPS_PROVIDER,
+                    false,
+                    true,
+                    false,
+                    false,
+                    true,
+                    true,
+                    true,
+                    Criteria.POWER_HIGH,
+                    Criteria.ACCURACY_FINE);
+
+            Location loc = createLocation(GPS_PROVIDER, mRandom);
+            mManager.setTestProviderLocation(GPS_PROVIDER, loc);
+
+            mManager.setTestProviderEnabled(GPS_PROVIDER, true);
+
+            getInstrumentation()
+                    .getUiAutomation()
+                    .adoptShellPermissionIdentity(LOCATION_BYPASS, WRITE_SECURE_SETTINGS);
+
+            try {
+                // Returns loc when ADAS toggle is on.
+                mManager.setLocationEnabledForUser(false, mContext.getUser());
+                mManager.setAdasGnssLocationEnabled(true);
+                assertThat(
+                        mManager.getLastKnownLocation(
+                                GPS_PROVIDER,
+                                new LastLocationRequest.Builder()
+                                        .setAdasGnssBypass(true)
+                                        .build()))
+                        .isEqualTo(loc);
+
+            } finally {
+                mManager.setLocationEnabledForUser(true, android.os.Process.myUserHandle());
+                getInstrumentation().getUiAutomation().dropShellPermissionIdentity();
+            }
+        }
+    }
+
+    @Test
+    public void testGetLastKnownLocation_AdasLocationSettings_ReturnsNull() throws Exception {
+        assumeTrue(mContext.getPackageManager().hasSystemFeature(FEATURE_AUTOMOTIVE));
+
+        try (LocationListenerCapture capture = new LocationListenerCapture(mContext);
+             DeviceConfigStateHelper locationDeviceConfigStateHelper =
+                     new DeviceConfigStateHelper(DeviceConfig.NAMESPACE_LOCATION)) {
+
+            locationDeviceConfigStateHelper.set(ADAS_SETTINGS_ALLOWLIST,
+                    mContext.getPackageName());
+
+            mManager.addTestProvider(
+                    GPS_PROVIDER,
+                    false,
+                    true,
+                    false,
+                    false,
+                    true,
+                    true,
+                    true,
+                    Criteria.POWER_HIGH,
+                    Criteria.ACCURACY_FINE);
+
+            Location loc = createLocation(GPS_PROVIDER, mRandom);
+            mManager.setTestProviderLocation(GPS_PROVIDER, loc);
+
+            mManager.setTestProviderEnabled(GPS_PROVIDER, true);
+
+            getInstrumentation()
+                    .getUiAutomation()
+                    .adoptShellPermissionIdentity(LOCATION_BYPASS, WRITE_SECURE_SETTINGS);
+
+            try {
+                // Returns null when ADAS toggle is off
+                mManager.setAdasGnssLocationEnabled(false);
+                mManager.setLocationEnabledForUser(false, mContext.getUser());
+
+                assertThat(
+                        mManager.getLastKnownLocation(
+                                GPS_PROVIDER,
+                                new LastLocationRequest.Builder()
+                                        .setAdasGnssBypass(true)
+                                        .build()))
+                        .isNull();
+
+            } finally {
+                mManager.setLocationEnabledForUser(true, android.os.Process.myUserHandle());
+                mManager.setAdasGnssLocationEnabled(true);
+                getInstrumentation().getUiAutomation().dropShellPermissionIdentity();
+            }
+        }
+    }
+
+    @Test
     public void testGetLastKnownLocation_RemoveProvider() {
         Location loc1 = createLocation(TEST_PROVIDER, mRandom);
 
@@ -261,8 +373,6 @@ public class LocationManagerFineTest {
 
     @Test
     public void testGetCurrentLocation_Timeout() throws Exception {
-        Location loc = createLocation(TEST_PROVIDER, mRandom);
-
         try (GetCurrentLocationCapture capture = new GetCurrentLocationCapture()) {
             mManager.getCurrentLocation(
                     TEST_PROVIDER,
@@ -662,6 +772,10 @@ public class LocationManagerFineTest {
 
     @Test
     public void testRequestLocationUpdates_BatterySaver_GpsDisabledScreenOff() throws Exception {
+        // battery saver is unsupported on auto and tv
+        assumeFalse(mContext.getPackageManager().hasSystemFeature(FEATURE_AUTOMOTIVE));
+        assumeFalse(mContext.getPackageManager().hasSystemFeature(FEATURE_TELEVISION));
+
         PowerManager powerManager = Objects.requireNonNull(
                 mContext.getSystemService(PowerManager.class));
 
@@ -719,6 +833,10 @@ public class LocationManagerFineTest {
 
     @Test
     public void testRequestLocationUpdates_BatterySaver_AllDisabledScreenOff() throws Exception {
+        // battery saver is unsupported on auto and tv
+        assumeFalse(mContext.getPackageManager().hasSystemFeature(FEATURE_AUTOMOTIVE));
+        assumeFalse(mContext.getPackageManager().hasSystemFeature(FEATURE_TELEVISION));
+
         PowerManager powerManager = Objects.requireNonNull(
                 mContext.getSystemService(PowerManager.class));
 
@@ -757,6 +875,10 @@ public class LocationManagerFineTest {
 
     @Test
     public void testRequestLocationUpdates_BatterySaver_ThrottleScreenOff() throws Exception {
+        // battery saver is unsupported on auto and tv
+        assumeFalse(mContext.getPackageManager().hasSystemFeature(FEATURE_AUTOMOTIVE));
+        assumeFalse(mContext.getPackageManager().hasSystemFeature(FEATURE_TELEVISION));
+
         PowerManager powerManager = Objects.requireNonNull(
                 mContext.getSystemService(PowerManager.class));
 
@@ -796,17 +918,14 @@ public class LocationManagerFineTest {
     @Test
     public void testRequestLocationUpdates_LocationSettingsIgnored() throws Exception {
         try (LocationListenerCapture capture = new LocationListenerCapture(mContext);
-             ScreenResetter ignored1 = new ScreenResetter();
              DeviceConfigStateHelper locationDeviceConfigStateHelper =
-                     new DeviceConfigStateHelper(DeviceConfig.NAMESPACE_LOCATION);
-             DeviceConfigStateHelper batterySaverDeviceConfigStateHelper =
-                     new DeviceConfigStateHelper(DeviceConfig.NAMESPACE_BATTERY_SAVER)) {
+                     new DeviceConfigStateHelper(DeviceConfig.NAMESPACE_LOCATION)) {
 
             locationDeviceConfigStateHelper.set(IGNORE_SETTINGS_ALLOWLIST,
                     mContext.getPackageName());
 
             getInstrumentation().getUiAutomation()
-                    .adoptShellPermissionIdentity(WRITE_SECURE_SETTINGS);
+                    .adoptShellPermissionIdentity(LOCATION_BYPASS);
             try {
                 mManager.requestLocationUpdates(
                         TEST_PROVIDER,
@@ -822,12 +941,6 @@ public class LocationManagerFineTest {
             // turn off provider
             mManager.setTestProviderEnabled(TEST_PROVIDER, false);
 
-            // enable battery saver throttling
-            batterySaverDeviceConfigStateHelper.set("location_mode", "4");
-            BatteryUtils.runDumpsysBatteryUnplug();
-            BatteryUtils.enableBatterySaver(true);
-            ScreenUtils.setScreenOn(false);
-
             // test that all restrictions are bypassed
             Location loc = createLocation(TEST_PROVIDER, mRandom);
             mManager.setTestProviderLocation(TEST_PROVIDER, loc);
@@ -835,9 +948,107 @@ public class LocationManagerFineTest {
             loc = createLocation(TEST_PROVIDER, mRandom);
             mManager.setTestProviderLocation(TEST_PROVIDER, loc);
             assertThat(capture.getNextLocation(FAILURE_TIMEOUT_MS)).isEqualTo(loc);
-        } finally {
-            BatteryUtils.enableBatterySaver(false);
-            BatteryUtils.runDumpsysBatteryReset();
+        }
+    }
+
+    @Test
+    public void testRequestLocationUpdates_AdasGnssBypass() throws Exception {
+        assumeTrue(mContext.getPackageManager().hasSystemFeature(FEATURE_AUTOMOTIVE));
+
+        try (LocationListenerCapture capture = new LocationListenerCapture(mContext);
+             DeviceConfigStateHelper locationDeviceConfigStateHelper =
+                     new DeviceConfigStateHelper(DeviceConfig.NAMESPACE_LOCATION)) {
+
+            locationDeviceConfigStateHelper.set(ADAS_SETTINGS_ALLOWLIST,
+                    mContext.getPackageName());
+
+            mManager.addTestProvider(
+                    GPS_PROVIDER,
+                    false,
+                    true,
+                    false,
+                    false,
+                    true,
+                    true,
+                    true,
+                    Criteria.POWER_HIGH,
+                    Criteria.ACCURACY_FINE);
+
+            getInstrumentation().getUiAutomation()
+                    .adoptShellPermissionIdentity(LOCATION_BYPASS);
+            try {
+                mManager.requestLocationUpdates(
+                        GPS_PROVIDER,
+                        new LocationRequest.Builder(0)
+                                .setAdasGnssBypass(true)
+                                .build(),
+                        Executors.newSingleThreadExecutor(),
+                        capture);
+            } finally {
+                getInstrumentation().getUiAutomation().dropShellPermissionIdentity();
+            }
+
+            // turn off provider
+            mManager.setTestProviderEnabled(GPS_PROVIDER, false);
+
+            // test that all restrictions are bypassed
+            Location loc = createLocation(GPS_PROVIDER, mRandom);
+            mManager.setTestProviderLocation(GPS_PROVIDER, loc);
+            assertThat(capture.getNextLocation(FAILURE_TIMEOUT_MS)).isEqualTo(loc);
+            loc = createLocation(GPS_PROVIDER, mRandom);
+            mManager.setTestProviderLocation(GPS_PROVIDER, loc);
+            assertThat(capture.getNextLocation(FAILURE_TIMEOUT_MS)).isEqualTo(loc);
+        }
+    }
+
+    @Test
+    public void testMonitoring() throws Exception {
+        AppOpsManager appOps = Objects.requireNonNull(
+                mContext.getSystemService(AppOpsManager.class));
+
+        try (OpActiveChangedCapture opCapture = new OpActiveChangedCapture(appOps,
+                OPSTR_MONITOR_LOCATION);
+             OpActiveChangedCapture opHighPowerCapture = new OpActiveChangedCapture(appOps,
+                     OPSTR_MONITOR_HIGH_POWER_LOCATION);
+             LocationListenerCapture capture1 = new LocationListenerCapture(mContext);
+             LocationListenerCapture capture2 = new LocationListenerCapture(mContext);
+             LocationListenerCapture capture3 = new LocationListenerCapture(mContext)) {
+            appOps.startWatchingActive(new String[]{OPSTR_MONITOR_LOCATION}, Runnable::run,
+                    opCapture);
+            appOps.startWatchingActive(new String[]{OPSTR_MONITOR_HIGH_POWER_LOCATION},
+                    Runnable::run, opHighPowerCapture);
+
+            mManager.requestLocationUpdates(TEST_PROVIDER,
+                    new LocationRequest.Builder(Long.MAX_VALUE - 1).build(),
+                    Executors.newSingleThreadExecutor(), capture1);
+            assertThat(opCapture.getNextActive(TIMEOUT_MS)).isTrue();
+            assertThat(opHighPowerCapture.getNextActive(FAILURE_TIMEOUT_MS)).isNull();
+
+            mManager.requestLocationUpdates(TEST_PROVIDER, new LocationRequest.Builder(
+                            0).setQuality(
+                            QUALITY_HIGH_ACCURACY).build(),
+                    Executors.newSingleThreadExecutor(), capture2);
+            assertThat(opCapture.getNextActive(FAILURE_TIMEOUT_MS)).isNull();
+            assertThat(opHighPowerCapture.getNextActive(TIMEOUT_MS)).isTrue();
+
+            mManager.requestLocationUpdates(TEST_PROVIDER, new LocationRequest.Builder(
+                            0).setQuality(
+                            QUALITY_HIGH_ACCURACY).build(),
+                    Executors.newSingleThreadExecutor(), capture3);
+            assertThat(opCapture.getNextActive(FAILURE_TIMEOUT_MS)).isNull();
+            assertThat(opHighPowerCapture.getNextActive(FAILURE_TIMEOUT_MS)).isNull();
+
+            mManager.removeUpdates(capture2);
+            assertThat(opCapture.getNextActive(FAILURE_TIMEOUT_MS)).isNull();
+            assertThat(opHighPowerCapture.getNextActive(FAILURE_TIMEOUT_MS)).isNull();
+
+            mManager.removeUpdates(capture3);
+            assertThat(opCapture.getNextActive(FAILURE_TIMEOUT_MS)).isNull();
+            assertThat(opHighPowerCapture.getNextActive(TIMEOUT_MS)).isFalse();
+
+            mManager.removeUpdates(capture1);
+            assertThat(opCapture.getNextActive(TIMEOUT_MS)).isFalse();
+            assertThat(opHighPowerCapture.getNextActive(FAILURE_TIMEOUT_MS)).isNull();
         }
     }
 
@@ -1007,7 +1218,9 @@ public class LocationManagerFineTest {
 
     @Test
     public void testRequestFlush_Gnss() throws Exception {
-        assumeTrue(mManager.getAllProviders().contains(GPS_PROVIDER));
+        assumeTrue(SystemProperties.getInt("ro.product.first_api_level", 0)
+                >= Build.VERSION_CODES.S);
+        assumeTrue(mManager.hasProvider(GPS_PROVIDER));
 
         try (LocationListenerCapture capture = new LocationListenerCapture(mContext)) {
             mManager.requestLocationUpdates(GPS_PROVIDER, 0, 0,

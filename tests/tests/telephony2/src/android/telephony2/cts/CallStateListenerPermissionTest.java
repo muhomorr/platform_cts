@@ -24,6 +24,7 @@ import static junit.framework.Assert.fail;
 
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assume.assumeTrue;
 
 import android.content.Context;
 import android.telephony.PhoneStateListener;
@@ -63,6 +64,7 @@ public class CallStateListenerPermissionTest {
     @Before
     public void setUp() throws Exception {
         mContext = InstrumentationRegistry.getContext();
+        assumeTrue(mContext.getPackageManager().hasSystemFeature(FEATURE_TELEPHONY));
     }
 
     /**
@@ -71,10 +73,6 @@ public class CallStateListenerPermissionTest {
      */
     @Test
     public void testRegisterWithNoCallLogPermission() {
-        if (!mContext.getPackageManager().hasSystemFeature(FEATURE_TELEPHONY)) {
-            return;
-        }
-
         TelephonyManager telephonyManager = mContext.getSystemService(TelephonyManager.class);
         assertNotNull(telephonyManager);
 
@@ -97,10 +95,6 @@ public class CallStateListenerPermissionTest {
      */
     @Test
     public void testCallStatePermission() throws Exception {
-        if (!mContext.getPackageManager().hasSystemFeature(FEATURE_TELEPHONY)) {
-            return;
-        }
-
         TelephonyManager telephonyManager = mContext.getSystemService(TelephonyManager.class);
         assertNotNull(telephonyManager);
         MyTelephonyCallback callback = new MyTelephonyCallback();
@@ -123,25 +117,6 @@ public class CallStateListenerPermissionTest {
                         + "TelecomManager#ENABLE_GET_CALL_STATE_PERMISSION_PROTECTION is enabled.");
             } catch (SecurityException e) {
                 // Expected
-            }
-
-            TelephonyUtils.disableCompatCommand(InstrumentationRegistry.getInstrumentation(),
-                    TelephonyUtils.CTS_APP_PACKAGE2,
-                    TelephonyUtils.ENABLE_GET_CALL_STATE_PERMISSION_PROTECTION_STRING);
-            try {
-                telephonyManager.registerTelephonyCallback(mSimpleExecutor, callback);
-            } catch (SecurityException e) {
-                fail("TelephonyCallback.CallStateListener must not require READ_PHONE_STATE when "
-                        + "TelecomManager#ENABLE_GET_CALL_STATE_PERMISSION_PROTECTION is "
-                        + "disabled.");
-            }
-            try {
-                telephonyManager.listen(new PhoneStateListener(Runnable::run),
-                        PhoneStateListener.LISTEN_CALL_STATE);
-            } catch (SecurityException e) {
-                fail("PhoneStateListener#onCallStateChanged must not require READ_PHONE_STATE when "
-                        + "TelecomManager#ENABLE_GET_CALL_STATE_PERMISSION_PROTECTION is "
-                        + "disabled.");
             }
         } finally {
             TelephonyUtils.resetCompatCommand(InstrumentationRegistry.getInstrumentation(),

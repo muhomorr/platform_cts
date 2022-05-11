@@ -18,14 +18,14 @@
 #define LOG_TAG "NativeMuxerTest"
 #include <log/log.h>
 
-#include <NdkMediaExtractor.h>
-#include <NdkMediaFormat.h>
-#include <NdkMediaMuxer.h>
+#include <dlfcn.h>
 #include <fcntl.h>
 #include <jni.h>
+#include <media/NdkMediaExtractor.h>
+#include <media/NdkMediaFormat.h>
+#include <media/NdkMediaMuxer.h>
 #include <sys/stat.h>
 #include <unistd.h>
-#include <dlfcn.h>
 
 #include <cmath>
 #include <cstring>
@@ -35,8 +35,8 @@
 
 #include "NativeMediaCommon.h"
 
-// TODO: replace __ANDROID_API_FUTURE__with 31 when it's official
-#define __TRANSCODING_MIN_API__ __ANDROID_API_FUTURE__
+// Transcoding arrived in Android 12/S, which is api 31.
+#define __TRANSCODING_MIN_API__ 31
 
 /**
  * MuxerNativeTestHelper breaks a media file to elements that a muxer can use to rebuild its clone.

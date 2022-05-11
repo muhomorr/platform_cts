@@ -15,11 +15,11 @@
 
 
 import logging
+import math
 import os.path
 import matplotlib
 from matplotlib import pylab
 from mobly import test_runner
-import numpy as np
 
 import its_base_test
 import camera_properties_utils
@@ -29,17 +29,15 @@ import its_session_utils
 
 LINEAR_TONEMAP_CURVE = [0.0, 0.0, 1.0, 1.0]
 LOCKED = 3
-LUMA_DELTA_THRESH = 0.05
-LUMA_LOCKED_TOL = 0.05
+LUMA_DELTA_ATOL = 0.05
+LUMA_DELTA_ATOL_SAT = 0.10
+LUMA_SAT_THRESH = 0.75  # luma value at which ATOL changes from MID to SAT
 NAME = os.path.splitext(os.path.basename(__file__))[0]
 PATCH_H = 0.1  # center 10%
 PATCH_W = 0.1
 PATCH_X = 0.5 - PATCH_W/2
 PATCH_Y = 0.5 - PATCH_H/2
 THRESH_CONVERGE_FOR_EV = 8  # AE must converge within this num auto reqs for EV
-YUV_FULL_SCALE = 255.0
-YUV_SAT_MIN = 250.0
-YUV_SAT_TOL = 3.0
 
 
 def create_request_with_ev(ev):
@@ -122,14 +120,23 @@ class EvCompensationAdvancedTest(its_base_test.ItsBaseTest):
         caps = cam.do_capture([req]*THRESH_CONVERGE_FOR_EV, fmt)
         for cap in caps:
           if cap['metadata']['android.control.aeState'] == LOCKED:
+            ev_meta = cap['metadata']['android.control.aeExposureCompensation']
+            if ev_meta != ev:
+              raise AssertionError(
+                  f'EV comp capture != request! cap: {ev_meta}, req: {ev}')
             lumas.append(extract_luma_from_capture(cap))
             break
-          assert cap['metadata']['android.control.aeState'] == LOCKED
+        if caps[THRESH_CONVERGE_FOR_EV-1]['metadata'][
+            'android.control.aeState'] != LOCKED:
+          raise AssertionError('AE does not reach locked state in '
+                               f'{THRESH_CONVERGE_FOR_EV} frames.')
         logging.debug('lumas in AE locked captures: %s', str(lumas))
 
       i_mid = len(ev_steps) // 2
       luma_normal = lumas[i_mid] / ev_shifts[i_mid]
       expected_lumas = [min(1.0, luma_normal*shift) for shift in ev_shifts]
+      luma_delta_atols = [LUMA_DELTA_ATOL if l < LUMA_SAT_THRESH
+                          else LUMA_DELTA_ATOL_SAT for l in expected_lumas]
 
       # Create plot
       pylab.figure(NAME)
@@ -142,15 +149,16 @@ class EvCompensationAdvancedTest(its_base_test.ItsBaseTest):
       matplotlib.pyplot.savefig(
           '%s_plot_means.png' % os.path.join(log_path, NAME))
 
-      luma_diffs = [expected_lumas[i]-lumas[i] for i in range(len(ev_steps))]
-      max_diff = max(abs(i) for i in luma_diffs)
-      avg_diff = abs(np.array(luma_diffs)).mean()
-      logging.debug(
-          'Max delta between modeled and measured lumas: %.4f', max_diff)
-      logging.debug(
-          'Avg delta between modeled and measured lumas: %.4f', avg_diff)
-      assert max_diff < LUMA_DELTA_THRESH, 'diff: %.3f, THRESH: %.2f' % (
-          max_diff, LUMA_DELTA_THRESH)
+      for i, luma in enumerate(lumas):
+        luma_delta_atol = luma_delta_atols[i]
+        logging.debug('EV step: %3d, luma: %.3f, model: %.3f, ATOL: %.2f',
+                      ev_steps[i], luma, expected_lumas[i], luma_delta_atol)
+        if not math.isclose(luma, expected_lumas[i],
+                            abs_tol=luma_delta_atol):
+          raise AssertionError('Modeled/measured luma deltas too large! '
+                               f'meas: {lumas[i]}, model: {expected_lumas[i]}, '
+                               f'ATOL: {luma_delta_atol}.')
+
 
 if __name__ == '__main__':
   test_runner.main()

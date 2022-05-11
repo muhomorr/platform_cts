@@ -28,7 +28,8 @@ TestBeds:
       brightness: 96
       chart_distance: 31.0
       debug_mode: "False"  # quotes are needed here
-      chart_loc_arg: ""
+      lighting_cntl: <controller-type>  # can be arduino or "None"
+      lighting_ch: <controller-channel>
       camera: <camera-id>
       scene: <scene-name>  # if <scene-name> left as-is runs all scenes
 
@@ -44,6 +45,7 @@ TestBeds:
       test_length: 7
       debug_mode: "False"  # quotes are needed here
       chart_distance: 25
-      rotator_cntl: <controller-type>  # can be arduino or canakit
+      rotator_cntl: <controller-type>  # arduino, canakit, or as-is for manual
       rotator_ch: <controller-channel>
       camera: <camera-id>
+

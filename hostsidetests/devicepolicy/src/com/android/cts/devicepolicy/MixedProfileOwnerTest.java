@@ -65,20 +65,6 @@ public final class MixedProfileOwnerTest extends DeviceAndProfileOwnerTest {
     }
 
     @Override
-    @FlakyTest
-    @Test
-    public void testCaCertManagement() throws Exception {
-        super.testCaCertManagement();
-    }
-
-    @Override
-    @FlakyTest
-    @Test
-    public void testInstallCaCertLogged() throws Exception {
-        super.testInstallCaCertLogged();
-    }
-
-    @Override
     @LargeTest
     @Test
     public void testPackageInstallUserRestrictions() throws Exception {
@@ -99,14 +85,6 @@ public final class MixedProfileOwnerTest extends DeviceAndProfileOwnerTest {
     @Test
     public void testLockTaskAfterReboot_tryOpeningSettings() throws Exception {
         super.testLockTaskAfterReboot_tryOpeningSettings();
-    }
-
-    @Override
-    @FlakyTest(bugId = 140932104)
-    @Ignore("Ignored while migrating to new infrastructure b/175377361")
-    @Test
-    public void testLockTask_exitIfNoLongerAllowed() throws Exception {
-        super.testLockTask_exitIfNoLongerAllowed();
     }
 
     @Override

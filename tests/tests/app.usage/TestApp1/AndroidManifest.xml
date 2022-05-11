@@ -17,16 +17,23 @@
 
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="android.app.usage.cts.test1">
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
 
     <application>
-        <activity android:name=".SomeActivity"
-                  android:exported="true"
+        <activity android:name=".SomeActivity" android:exported="true"
         />
         <activity android:name=".SomeActivityWithLocus"
                   android:exported="true"
         />
         <service android:name=".TestService"
                   android:exported="true"
+        />
+        <receiver android:name=".TestBroadcastReceiver"
+                  android:exported="true"
+        />
+        <provider android:name=".TestContentProvider"
+            android:authorities="@string/authority"
+            android:exported="true"
         />
     </application>
 </manifest>

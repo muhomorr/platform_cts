@@ -18,10 +18,14 @@ package com.android.queryable.queries;
 
 import com.android.queryable.Queryable;
 
-import java.io.Serializable;
+/**
+ * Query for a {@link String}.
+ *
+ * @param <E> Type of query
+ */
+public interface StringQuery<E extends Queryable> extends NullableQuery<E, String> {
 
-/** Query for a {@link String}. */
-public interface StringQuery<E extends Queryable> extends Serializable {
-    /** Require the {@link String} is equal to {@code string}. */
-    E isEqualTo(String string);
+    static StringQuery<StringQuery<?>> string() {
+        return new StringQueryHelper<>();
+    }
 }

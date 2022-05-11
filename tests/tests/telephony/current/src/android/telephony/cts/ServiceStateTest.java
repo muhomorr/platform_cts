@@ -35,6 +35,7 @@ import android.content.Context;
 import android.os.Build;
 import android.os.Parcel;
 import android.telephony.AccessNetworkConstants;
+import android.telephony.DataSpecificRegistrationInfo;
 import android.telephony.LteVopsSupportInfo;
 import android.telephony.NetworkRegistrationInfo;
 import android.telephony.NrVopsSupportInfo;
@@ -170,24 +171,32 @@ public class ServiceStateTest {
 
     @Test
     public void testNrStateRedacted() {
+        // Verify that NR State is not leaked in user builds.
+        if (Build.IS_DEBUGGABLE) return;
         final TelephonyManager tm = getContext().getSystemService(TelephonyManager.class);
 
-        // Verify that NR State is not leaked in user builds.
-        if (!Build.IS_DEBUGGABLE) {
-            final String sss = tm.getServiceState().toString();
-            // The string leaked in previous releases is "nrState=<val>"; test that there is
-            // no matching or highly similar string leak, such as:
-            // nrState=NONE
-            // nrState=0
-            // mNrState=RESTRICTED
-            // NRSTATE=NOT_RESTRICTED
-            // nrState = CONNECTED
-            // etc.
-            Pattern p = Pattern.compile("nrState\\s*=\\s*[a-zA-Z0-9_]+", Pattern.CASE_INSENSITIVE);
-            Matcher m = p.matcher(sss);
-            // Need to use if (find) fail to ensure that the start and end are populated
-            if (m.find()) fail("Found nrState reported as: " + sss.substring(m.start(), m.end()));
-        }
+        final NetworkRegistrationInfo nri = new NetworkRegistrationInfo.Builder()
+                .setTransportType(AccessNetworkConstants.TRANSPORT_TYPE_WWAN)
+                .setDomain(NetworkRegistrationInfo.DOMAIN_PS)
+                .build();
+        nri.setNrState(NetworkRegistrationInfo.NR_STATE_RESTRICTED);
+
+        final ServiceState ss = new ServiceState();
+        ss.addNetworkRegistrationInfo(nri);
+        String sss = ss.toString();
+
+        // The string leaked in previous releases is "nrState=<val>"; test that there is
+        // no matching or highly similar string leak, such as:
+        // nrState=NONE
+        // nrState=0
+        // mNrState=RESTRICTED
+        // NRSTATE=NOT_RESTRICTED
+        // nrState = CONNECTED
+        // etc.
+        Pattern p = Pattern.compile("nrState\\s*=\\s*[a-zA-Z0-9_]+", Pattern.CASE_INSENSITIVE);
+        Matcher m = p.matcher(sss);
+        // Need to use if (find) fail to ensure that the start and end are populated
+        if (m.find()) fail("Found nrState reported as: " + sss.substring(m.start(), m.end()));
     }
 
     @Test
@@ -363,9 +372,12 @@ public class ServiceStateTest {
                 new LteVopsSupportInfo(LteVopsSupportInfo.LTE_STATUS_NOT_AVAILABLE,
                         LteVopsSupportInfo.LTE_STATUS_NOT_AVAILABLE);
 
-        NetworkRegistrationInfo wwanDataRegState = new NetworkRegistrationInfo(
-                NetworkRegistrationInfo.DOMAIN_PS, AccessNetworkConstants.TRANSPORT_TYPE_WWAN,
-                0, 0, 0, true, null, null, "", 0, false, false, false, vopsSupportInfo);
+        NetworkRegistrationInfo wwanDataRegState = new NetworkRegistrationInfo.Builder()
+                .setDomain(NetworkRegistrationInfo.DOMAIN_PS)
+                .setTransportType(AccessNetworkConstants.TRANSPORT_TYPE_WWAN)
+                .setDataSpecificInfo(new DataSpecificRegistrationInfo(
+                        0, false, false, false, vopsSupportInfo))
+                .setEmergencyOnly(true).build();
 
         ServiceState ss = new ServiceState();
 
@@ -378,9 +390,12 @@ public class ServiceStateTest {
                 new LteVopsSupportInfo(LteVopsSupportInfo.LTE_STATUS_SUPPORTED,
                         LteVopsSupportInfo.LTE_STATUS_NOT_SUPPORTED);
 
-        wwanDataRegState = new NetworkRegistrationInfo(
-                NetworkRegistrationInfo.DOMAIN_PS, AccessNetworkConstants.TRANSPORT_TYPE_WWAN,
-                0, 0, 0, true, null, null, "", 0, false, false, false, vopsSupportInfo);
+        wwanDataRegState = new NetworkRegistrationInfo.Builder()
+                .setDomain(NetworkRegistrationInfo.DOMAIN_PS)
+                .setTransportType(AccessNetworkConstants.TRANSPORT_TYPE_WWAN)
+                .setDataSpecificInfo(new DataSpecificRegistrationInfo(
+                        0, false, false, false, vopsSupportInfo))
+                .setEmergencyOnly(true).build();
         ss.addNetworkRegistrationInfo(wwanDataRegState);
         assertEquals(ss.getNetworkRegistrationInfo(NetworkRegistrationInfo.DOMAIN_PS,
                 AccessNetworkConstants.TRANSPORT_TYPE_WWAN), wwanDataRegState);
@@ -394,9 +409,12 @@ public class ServiceStateTest {
         vopsSupportInfo = new NrVopsSupportInfo(NrVopsSupportInfo.NR_STATUS_VOPS_NOT_SUPPORTED,
                 NrVopsSupportInfo.NR_STATUS_EMC_NOT_SUPPORTED,
                 NrVopsSupportInfo.NR_STATUS_EMF_NOT_SUPPORTED);
-        wwanDataRegState = new NetworkRegistrationInfo(
-                NetworkRegistrationInfo.DOMAIN_PS, AccessNetworkConstants.TRANSPORT_TYPE_WWAN,
-                0, 0, 0, true, null, null, "", 0, false, false, false, vopsSupportInfo);
+        wwanDataRegState = new NetworkRegistrationInfo.Builder()
+                .setDomain(NetworkRegistrationInfo.DOMAIN_PS)
+                .setTransportType(AccessNetworkConstants.TRANSPORT_TYPE_WWAN)
+                .setDataSpecificInfo(new DataSpecificRegistrationInfo(
+                        0, false, false, false, vopsSupportInfo))
+                .setEmergencyOnly(true).build();
         ss.addNetworkRegistrationInfo(wwanDataRegState);
         assertEquals(ss.getNetworkRegistrationInfo(NetworkRegistrationInfo.DOMAIN_PS,
                 AccessNetworkConstants.TRANSPORT_TYPE_WWAN), wwanDataRegState);

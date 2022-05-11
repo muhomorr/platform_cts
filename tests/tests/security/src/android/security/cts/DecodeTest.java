@@ -18,23 +18,31 @@ package android.security.cts;
 
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
-import android.platform.test.annotations.SecurityTest;
-import android.test.AndroidTestCase;
+import android.platform.test.annotations.AsbSecurityTest;
+import com.android.sts.common.util.StsExtraBusinessLogicTestCase;
 
 import java.io.InputStream;
 
 import android.security.cts.R;
 
-public class DecodeTest extends AndroidTestCase {
+import static org.junit.Assert.*;
+
+import androidx.test.runner.AndroidJUnit4;
+import org.junit.runner.RunWith;
+import org.junit.Test;
+
+@RunWith(AndroidJUnit4.class)
+public class DecodeTest extends StsExtraBusinessLogicTestCase {
     /**
      * Verifies that the device fails to decode a large, corrupt BMP.
      *
      * Prior to fixing bug 34778578, decoding this file would crash. Instead, it should fail to
      * decode.
      */
-    @SecurityTest(minPatchLevel = "2017-07")
+    @AsbSecurityTest(cveBugId = 34778578)
+    @Test
     public void test_android_bug_34778578() {
-        InputStream exploitImage = mContext.getResources().openRawResource(R.raw.bug_34778578);
+        InputStream exploitImage = getInstrumentation().getContext().getResources().openRawResource(R.raw.bug_34778578);
         Bitmap bitmap = BitmapFactory.decodeStream(exploitImage);
         assertNull(bitmap);
     }
@@ -45,9 +53,10 @@ public class DecodeTest extends AndroidTestCase {
      * Prior to fixing bug 67381469, decoding this file would crash. Instead, it should fail to
      * decode.
      */
-    @SecurityTest(minPatchLevel = "2017-12")
+    @AsbSecurityTest(cveBugId = 67381469)
+    @Test
     public void test_android_bug_67381469() {
-        InputStream exploitImage = mContext.getResources().openRawResource(R.raw.bug_67381469);
+        InputStream exploitImage = getInstrumentation().getContext().getResources().openRawResource(R.raw.bug_67381469);
         Bitmap bitmap = BitmapFactory.decodeStream(exploitImage);
         assertNull(bitmap);
     }

@@ -28,6 +28,7 @@ import android.util.Log;
 import android.view.View;
 import android.view.View.OnClickListener;
 import android.view.ViewGroup;
+import android.view.WindowInsets;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
 import android.widget.EditText;
@@ -360,6 +361,49 @@ public class LoginActivity extends AbstractAutoFillActivity {
         Log.d(TAG, "addChild(" + child + "): id=" + child.getAutofillId());
         final ViewGroup root = (ViewGroup) mUsernameContainer.getParent();
         syncRunOnUiThread(() -> root.addView(child));
+    }
+
+    /**
+     * Set the EditText input or password value and wait until text change.
+     */
+    public void setTextAndWaitTextChange(String username, String password) throws Exception {
+        expectTextChange(username, password);
+
+        syncRunOnUiThread(() -> {
+            if (username != null) {
+                onUsername((v) -> v.setText(username));
+
+            }
+            if (password != null) {
+                onPassword((v) -> v.setText(password));
+            }
+        });
+
+        assertTextChange();
+    }
+
+    private void expectTextChange(String username, String password) {
+        expectAutoFill(username, password);
+    }
+
+    private void assertTextChange() throws Exception {
+        assertAutoFilled();
+    }
+
+    /**
+     * Get insets of the root window
+     */
+    public WindowInsets getRootWindowInsets() {
+        return mUsernameLabel.getRootWindowInsets();
+    }
+
+    /**
+     * Request to hide soft input
+     */
+    public void hideSoftInput() {
+        final InputMethodManager imm = (InputMethodManager) getSystemService(
+                Context.INPUT_METHOD_SERVICE);
+        imm.hideSoftInputFromWindow(mUsernameEditText.getWindowToken(), 0);
     }
 
     /**

@@ -16,6 +16,8 @@
 
 package com.android.cts.verifier.audio;
 
+import com.android.cts.verifier.audio.audiolib.SettingsUtils;
+
 import static com.android.cts.verifier.TestListActivity.sCurrentDisplayMode;
 import static com.android.cts.verifier.TestListAdapter.setTestNameSuffix;
 
@@ -24,6 +26,8 @@ import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
 import android.widget.TextView;
+
+import com.android.compatibility.common.util.CddTest;
 
 import com.android.cts.verifier.R;
 import com.android.cts.verifier.audio.audiolib.AudioSystemParams;
@@ -39,6 +43,7 @@ import java.util.TimerTask;
 /**
  * CTS-Test for cold-start latency measurements
  */
+@CddTest(requirement = "5.6/C-1-2")
 public class AudioOutColdStartLatencyActivity
         extends AudioColdStartBaseActivity {
     private static final String TAG = "AudioOutColdStartLatencyActivity";
@@ -54,6 +59,8 @@ public class AudioOutColdStartLatencyActivity
     Timer mTimer;
     private AudioTimestamp mPullTimestamp = new AudioTimestamp();
 
+    private boolean mTouchSoundsActive;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         setContentView(R.layout.audio_coldstart_out_activity);
@@ -66,17 +73,37 @@ public class AudioOutColdStartLatencyActivity
     }
 
     @Override
+    protected void onResume() {
+        super.onResume();
+        mTouchSoundsActive = SettingsUtils.areTouchSoundsActive(this);
+        showTouchSoundsState();
+    }
+
+    private void showTouchSoundsState() {
+        String message = getResources().getString(
+                mTouchSoundsActive
+                        ? R.string.audio_coldstart_touchsounds_message
+                        : R.string.audio_coldstart_notouchsounds_message);
+        mAttributesTxt.setText(message);
+        enableTest(!mTouchSoundsActive);
+    }
+
+    @Override
     public String getTestId() {
         return setTestNameSuffix(sCurrentDisplayMode, getClass().getName());
     }
 
-    boolean calcTestResult() {
+    private void enableTest(boolean enabled) {
+        mStartBtn.setEnabled(enabled);
+    }
+
+    private boolean calcTestResult() {
         boolean pass = mColdStartlatencyMS <= LATENCY_MS_MUST;
         getPassButton().setEnabled(pass);
         return pass;
     }
 
-    double calcColdStartLatency(AudioTimestamp timestamp) {
+    private double calcColdStartLatency(AudioTimestamp timestamp) {
         // how long ago was frame 0?
         long frame0Delta
                 = msToNanos((1000.0 * (double)timestamp.framePosition) / (double) mSampleRate);
@@ -88,10 +115,6 @@ public class AudioOutColdStartLatencyActivity
         return mColdStartlatencyMS;
     }
 
-    protected void stopAudio() {
-        stopAudioTest();
-    }
-
     void startOutTimer() {
         TimerTask task = new TimerTask() {
             public void run() {
@@ -101,16 +124,16 @@ public class AudioOutColdStartLatencyActivity
                         @Override
                         public void run() {
                             calcColdStartLatency(mPullTimestamp);
-                            showColdStartLatency();
                             stopAudioTest();
                             updateTestStateButtons();
+                            showColdStartLatency();
                             calcTestResult();
                         }
                     });
 
                 } else {
                     Log.e(TAG, "NO TIME STAMP");
-                    mResultsTxt.setText("NO TIME STAMP");
+                    mLatencyTxt.setText("NO TIME STAMP");
                 }
 
                 mTimer = null;
@@ -126,6 +149,16 @@ public class AudioOutColdStartLatencyActivity
             mTimer.cancel();
             mTimer = null;
         }
+    }
+
+    @Override
+    int getRequiredTimeMS() {
+        return LATENCY_MS_MUST;
+    }
+
+    @Override
+    int getRecommendedTimeMS() {
+        return LATENCY_MS_RECOMMEND;
     }
 
     //
@@ -153,7 +186,7 @@ public class AudioOutColdStartLatencyActivity
             mIsTestRunning = true;
         } catch (PlayerBuilder.BadStateException badStateException) {
             Log.e(TAG, "BadStateException: " + badStateException);
-            mResultsTxt.setText("Can't Start Player.");
+            mLatencyTxt.setText("Can't Start Player.");
             mIsTestRunning = false;
         }
 
@@ -174,6 +207,8 @@ public class AudioOutColdStartLatencyActivity
         }
 
         mPlayer.stopStream();
+        mPlayer.teardownStream();
+
         mIsTestRunning = false;
 
         stopOutTimer();

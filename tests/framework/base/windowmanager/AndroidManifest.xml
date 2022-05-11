@@ -34,59 +34,10 @@
     <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS"/>
 
     <application android:label="CtsWindowManagerDeviceTestCases"
-         android:requestLegacyExternalStorage="true">
+                 android:requestLegacyExternalStorage="true"
+                 android:enableOnBackInvokedCallback="true"
+                 android:testOnly="true">
         <uses-library android:name="android.test.runner"/>
-
-        <activity android:name="android.server.wm.AspectRatioTests$MaxAspectRatioActivity"
-             android:label="MaxAspectRatioActivity"
-             android:maxAspectRatio="1.0"
-             android:resizeableActivity="false"/>
-
-        <activity android:name="android.server.wm.AspectRatioTests$MetaDataMaxAspectRatioActivity"
-             android:label="MetaDataMaxAspectRatioActivity"
-             android:resizeableActivity="false">
-            <meta-data android:name="android.max_aspect"
-                 android:value="1.0"/>
-        </activity>
-
-        <activity android:name="android.server.wm.AspectRatioTests$MaxAspectRatioResizeableActivity"
-             android:label="MaxAspectRatioResizeableActivity"
-             android:maxAspectRatio="1.0"
-             android:resizeableActivity="true"/>
-
-        <activity android:name="android.server.wm.AspectRatioTests$MaxAspectRatioUnsetActivity"
-             android:label="MaxAspectRatioUnsetActivity"
-             android:resizeableActivity="false"/>
-
-        <activity android:name="android.server.wm.AspectRatioTests$MinAspectRatioActivity"
-             android:label="MinAspectRatioActivity"
-             android:minWidth="1dp"
-             android:minAspectRatio="3.0"
-             android:resizeableActivity="false"/>
-
-        <activity android:name="android.server.wm.AspectRatioTests$MinAspectRatioResizeableActivity"
-             android:label="MinAspectRatioResizeableActivity"
-             android:minWidth="1dp"
-             android:minAspectRatio="3.0"
-             android:resizeableActivity="true"/>
-
-        <activity android:name="android.server.wm.AspectRatioTests$MinAspectRatioUnsetActivity"
-             android:label="MinAspectRatioUnsetActivity"
-             android:resizeableActivity="false"/>
-
-        <activity android:name="android.server.wm.AspectRatioTests$MinAspectRatioLandscapeActivity"
-             android:label="MinAspectRatioLandscapeActivity"
-             android:minWidth="1dp"
-             android:minAspectRatio="3.0"
-             android:resizeableActivity="false"
-             android:screenOrientation="landscape"/>
-
-        <activity android:name="android.server.wm.AspectRatioTests$MinAspectRatioPortraitActivity"
-             android:label="MinAspectRatioPortraitActivity"
-             android:minWidth="1dp"
-             android:minAspectRatio="3.0"
-             android:resizeableActivity="false"
-             android:screenOrientation="portrait"/>
 
         <activity android:name="android.server.wm.ActivityManagerTestBase$ConfigChangeHandlingActivity"
              android:resizeableActivity="true"
@@ -107,8 +58,8 @@
         <activity android:name="android.server.wm.lifecycle.ActivityLifecycleClientTestBase$SecondTranslucentActivity"
              android:theme="@android:style/Theme.Translucent.NoTitleBar"/>
 
-        <activity android:name="android.server.wm.lifecycle.ActivityLifecycleClientTestBase$CallbackTrackingActivity"
-                  android:configChanges="keyboard|keyboardHidden|navigation"/>
+        <activity android:name="android.server.wm.lifecycle.CallbackTrackingActivity"
+             android:configChanges="keyboard|keyboardHidden|navigation"/>
 
         <activity android:name="android.server.wm.lifecycle.ActivityLifecycleClientTestBase$SecondCallbackTrackingActivity"/>
 
@@ -136,7 +87,7 @@
         <activity android:name="android.server.wm.lifecycle.ActivityLifecycleClientTestBase$SingleTopActivity"
              android:launchMode="singleTop"/>
 
-        <activity android:name="android.server.wm.lifecycle.ActivityLifecycleClientTestBase$ConfigChangeHandlingActivity"
+        <activity android:name="android.server.wm.lifecycle.LifecycleConfigChangeHandlingActivity"
              android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|colorMode|density"/>
 
         <activity android:name="android.server.wm.lifecycle.ActivityLifecycleClientTestBase$PipActivity"
@@ -242,6 +193,9 @@
         <activity android:name="android.server.wm.lifecycle.ActivityStarterTests$FinishOnTaskLaunchActivity"
                   android:finishOnTaskLaunch="true"
                   android:exported="true"/>
+        <activity android:name="android.server.wm.lifecycle.ActivityStarterTests$RelinquishTaskIdentityActivity"
+                  android:exported="true"
+                  android:relinquishTaskIdentity="true"/>
 
         <provider android:name="android.server.wm.TestJournalProvider"
              android:authorities="android.server.wm.testjournalprovider"
@@ -350,6 +304,7 @@
              android:configChanges="orientation|screenLayout|keyboard|keyboardHidden|navigation"
              android:showWhenLocked="true"/>
         <activity android:name="android.server.wm.WindowInsetsPolicyTest$TestActivity"
+             android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout"
              android:turnScreenOn="true"
              android:showWhenLocked="true"/>
         <activity android:name="android.server.wm.WindowInsetsPolicyTest$FullscreenTestActivity"/>
@@ -366,7 +321,7 @@
              android:theme="@style/no_starting_window"/>
         <activity android:name="android.server.wm.WindowFocusTests$PrimaryActivity"/>
         <activity android:name="android.server.wm.WindowFocusTests$SecondaryActivity"
-             android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|colorMode|density"/>
+             android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|colorMode|density|touchscreen"/>
         <activity android:name="android.server.wm.WindowFocusTests$LosingFocusActivity"/>
         <activity android:name="android.server.wm.WindowFocusTests$AutoEngagePointerCaptureActivity" />
         <activity android:name="android.server.wm.WindowMetricsActivityTests$MetricsActivity"
@@ -382,7 +337,8 @@
         <activity android:name="android.server.wm.WindowInsetsLayoutTests$TestActivity"/>
         <activity android:name="android.server.wm.WindowInsetsControllerTests$TestActivity"
                   android:theme="@style/no_starting_window"/>
-        <activity android:name="android.server.wm.WindowInsetsControllerTests$TestHideOnCreateActivity"/>
+        <activity android:name="android.server.wm.WindowInsetsControllerTests$TestHideOnCreateActivity"
+                  android:windowSoftInputMode="adjustPan|stateUnchanged"/>
         <activity android:name="android.server.wm.WindowInsetsControllerTests$TestShowOnCreateActivity"/>
 
         <activity android:name="android.server.wm.DragDropTest$DragDropActivity"
@@ -475,12 +431,29 @@
         <activity android:name="android.server.wm.ForceRelayoutTestBase$TestActivity"
              android:exported="true"/>
 
-        <activity android:name="android.server.wm.ActivityTransitionTests$LauncherActivity"/>
+        <activity android:name="android.server.wm.ActivityTransitionTests$LauncherActivity"
+            android:theme="@style/Theme.TranslucentBars"
+            android:fitsSystemWindows="true" />
 
         <activity android:name="android.server.wm.ActivityTransitionTests$TransitionActivity"/>
 
+        <activity android:name="android.server.wm.ActivityTransitionTests$OverridePendingTransitionActivity"/>
+
+        <activity android:name="android.server.wm.ActivityTransitionTests$TransitionActivityWithWhiteBackground"
+            android:theme="@style/Theme.WhiteBackground"
+            android:exported="true"
+            android:colorMode="wideColorGamut"/>
+
+        <activity android:name="android.server.wm.ActivityTransitionTests$EdgeExtensionActivity"
+            android:theme="@style/Theme.EdgeExtensions"
+            android:exported="true"
+            android:colorMode="wideColorGamut"
+            android:fitsSystemWindows="true" />
+
         <activity android:name="android.server.wm.WindowUntrustedTouchTest$TestActivity"
-                  android:exported="true"/>
+                  android:exported="true"
+                  android:configChanges="screenSize|screenLayout|orientation"
+                  android:screenOrientation="nosensor" />
 
         <activity android:name="android.server.wm.DisplayHashManagerTest$TestActivity"
                    android:exported="true"/>
@@ -493,6 +466,15 @@
         <activity android:name="android.server.wm.CompatChangeTests$NonResizeablePortraitActivity"
                   android:resizeableActivity="false"
                   android:screenOrientation="portrait"
+                  android:exported="true"/>
+
+        <activity android:name="android.server.wm.CompatChangeTests$NonResizeableLandscapeActivity"
+                  android:resizeableActivity="false"
+                  android:screenOrientation="landscape"
+                  android:exported="true"/>
+
+        <activity android:name="android.server.wm.CompatChangeTests$NonResizeableNonFixedOrientationActivity"
+                  android:resizeableActivity="false"
                   android:exported="true"/>
 
         <activity android:name="android.server.wm.CompatChangeTests$NonResizeableAspectRatioActivity"
@@ -532,6 +514,50 @@
             android:name="androidx.test.core.app.InstrumentationActivityInvoker$BootstrapActivity"
             tools:replace="android:theme"
             android:theme="@style/WhiteBackgroundTheme" />
+        <activity android:name="android.server.wm.SplitActivityLifecycleTest$ActivityA"
+                  android:exported="true"
+                  android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|colorMode|density|touchscreen"/>
+        <activity android:name="android.server.wm.SplitActivityLifecycleTest$ActivityB"
+                  android:exported="true"
+                  android:taskAffinity=".TaskFragmentB.embeddedTask"
+                  android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|colorMode|density|touchscreen"/>
+        <activity android:name="android.server.wm.SplitActivityLifecycleTest$ActivityC"
+                  android:exported="true"
+                  android:taskAffinity=".TaskFragmentB.embeddedTask"
+                  android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|colorMode|density|touchscreen"/>
+        <activity android:name="android.server.wm.SplitActivityLifecycleTest$TranslucentActivity"
+                  android:exported="true"
+                  android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|colorMode|density|touchscreen"
+                  android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+        <activity android:name="android.server.wm.HostActivity"
+                  android:exported="true">
+               <intent-filter>
+                 <action android:name="android.server.wm.app.HostActivity"/>
+               </intent-filter>
+               <intent-filter>
+                 <action android:name="android.intent.action.MAIN"/>
+                 <category android:name="android.intent.category.LAUNCHER"/>
+               </intent-filter>
+        </activity>
+        <activity android:name="android.server.wm.KeepClearRectsTests$TestActivity"
+                  android:exported="true"
+                  android:theme="@style/NoInsetsTheme" />
+        <activity android:name="android.server.wm.KeepClearRectsTests$TranslucentTestActivity"
+                  android:exported="true"
+                  android:theme="@style/NoInsetsTheme.Translucent" />
+
+        <activity android:name="android.server.wm.SnapshotTaskTests$TestActivity"
+            android:theme="@style/WhiteBackgroundTheme"
+            android:exported="true">
+        </activity>
+        <activity android:name="android.server.wm.BackNavigationActivity"
+                  android:exported="true"/>
+        <activity android:name="android.server.wm.PinnedStackTests$TestActivity"
+                  android:exported="true"/>
+        <activity android:name="android.server.wm.TaskFragmentTrustedModeTest$TranslucentActivity"
+                  android:exported="true"
+                  android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|colorMode|density|touchscreen"
+                  android:theme="@android:style/Theme.Translucent.NoTitleBar" />
     </application>
 
     <instrumentation android:name="androidx.test.runner.AndroidJUnitRunner"

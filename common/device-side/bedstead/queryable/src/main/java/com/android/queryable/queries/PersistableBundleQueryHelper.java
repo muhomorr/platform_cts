@@ -16,25 +16,44 @@
 
 package com.android.queryable.queries;
 
+import android.os.Parcel;
+import android.os.Parcelable;
 import android.os.PersistableBundle;
 
-import com.android.queryable.util.SerializableParcelWrapper;
 import com.android.queryable.Queryable;
+import com.android.queryable.util.SerializableParcelWrapper;
 
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /** Implementation of {@link PersistableBundleQuery}. */
 public final class PersistableBundleQueryHelper<E extends Queryable>
         implements PersistableBundleQuery<E>, Serializable {
 
-    private final E mQuery;
-    private final Map<String, PersistableBundleKeyQueryHelper<E>> mKeyQueryHelpers =
-            new HashMap<>();
+    private static final long serialVersionUID = 1;
+
+    private final transient E mQuery;
+    private final Map<String, PersistableBundleKeyQueryHelper<E>> mKeyQueryHelpers;
+
+    PersistableBundleQueryHelper() {
+        mQuery = (E) this;
+        mKeyQueryHelpers = new HashMap<>();
+    }
 
     public PersistableBundleQueryHelper(E query) {
         mQuery = query;
+        mKeyQueryHelpers = new HashMap<>();
+    }
+
+    private PersistableBundleQueryHelper(Parcel in) {
+        mQuery = null;
+
+        mKeyQueryHelpers =
+                in.readHashMap(PersistableBundleQueryHelper.class.getClassLoader());
     }
 
     @Override
@@ -45,6 +64,7 @@ public final class PersistableBundleQueryHelper<E extends Queryable>
         return mKeyQueryHelpers.get(key);
     }
 
+    @Override
     public boolean matches(PersistableBundle value) {
         for (Map.Entry<String, PersistableBundleKeyQueryHelper<E>> keyQueries :
                 mKeyQueryHelpers.entrySet()) {
@@ -65,5 +85,50 @@ public final class PersistableBundleQueryHelper<E extends Queryable>
         }
 
         return matches(serializableBundle.get());
+    }
+
+    @Override
+    public String describeQuery(String fieldName) {
+        List<String> queryStrings = new ArrayList<>();
+        for (Map.Entry<String, PersistableBundleKeyQueryHelper<E>> query :
+                mKeyQueryHelpers.entrySet()) {
+            queryStrings.add(query.getValue().describeQuery(fieldName + "." + query.getKey()));
+        }
+
+        return Queryable.joinQueryStrings(queryStrings);
+    }
+
+    @Override
+    public int describeContents() {
+        return 0;
+    }
+
+    @Override
+    public void writeToParcel(Parcel out, int flags) {
+        out.writeMap(mKeyQueryHelpers);
+    }
+
+    public static final Parcelable.Creator<PersistableBundleQueryHelper> CREATOR =
+            new Parcelable.Creator<PersistableBundleQueryHelper>() {
+                public PersistableBundleQueryHelper createFromParcel(Parcel in) {
+                    return new PersistableBundleQueryHelper(in);
+                }
+
+                public PersistableBundleQueryHelper[] newArray(int size) {
+                    return new PersistableBundleQueryHelper[size];
+                }
+    };
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof PersistableBundleQueryHelper)) return false;
+        PersistableBundleQueryHelper<?> that = (PersistableBundleQueryHelper<?>) o;
+        return Objects.equals(mKeyQueryHelpers, that.mKeyQueryHelpers);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(mKeyQueryHelpers);
     }
 }

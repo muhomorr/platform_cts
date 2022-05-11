@@ -262,6 +262,10 @@ public class WindowFocusTests extends WindowManagerTestBase {
         primaryActivity.waitAndAssertPointerCaptureState(true /* hasCapture */);
 
         assumeTrue(supportsMultiDisplay());
+
+        // This test only makes sense if `config_perDisplayFocusEnabled` is disabled.
+        assumeFalse(perDisplayFocusEnabled());
+
         final SecondaryActivity secondaryActivity =
                 createManagedInvisibleDisplaySession().startActivityAndFocus();
 
@@ -286,7 +290,6 @@ public class WindowFocusTests extends WindowManagerTestBase {
                 DEFAULT_DISPLAY);
 
         final InvisibleVirtualDisplaySession session = createManagedInvisibleDisplaySession();
-        final int secondaryDisplayId = session.getDisplayId();
         final SecondaryActivity secondaryActivity = session.startActivityAndFocus();
         // Secondary display disconnected.
         session.close();

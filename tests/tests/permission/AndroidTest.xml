@@ -20,6 +20,7 @@
     <option name="config-descriptor:metadata" key="parameter" value="not_multi_abi" />
     <option name="config-descriptor:metadata" key="parameter" value="secondary_user"/>
     <option name="config-descriptor:metadata" key="token" value="SIM_CARD" />
+    <option name="config-descriptor:metadata" key="parameter" value="no_foldable_states" />
 
     <object type="module_controller" class="com.android.tradefed.testtype.suite.module.Sdk30ModuleController" />
 
@@ -48,6 +49,7 @@
         <option name="push" value="CtsAppThatRequestsBluetoothPermission30.apk->/data/local/tmp/cts/permissions/CtsAppThatRequestsBluetoothPermission30.apk" />
         <option name="push" value="CtsAppThatRequestsBluetoothPermission31.apk->/data/local/tmp/cts/permissions/CtsAppThatRequestsBluetoothPermission31.apk" />
         <option name="push" value="CtsAppThatRequestsBluetoothPermissionNeverForLocation31.apk->/data/local/tmp/cts/permissions/CtsAppThatRequestsBluetoothPermissionNeverForLocation31.apk" />
+        <option name="push" value="CtsAppThatRequestsBluetoothPermissionNeverForLocationNoProvider.apk->/data/local/tmp/cts/permissions/CtsAppThatRequestsBluetoothPermissionNeverForLocationNoProvider.apk" />
         <option name="push" value="CtsAppThatRequestsContactsPermission16.apk->/data/local/tmp/cts/permissions/CtsAppThatRequestsContactsPermission16.apk" />
         <option name="push" value="CtsAppThatRequestsContactsPermission15.apk->/data/local/tmp/cts/permissions/CtsAppThatRequestsContactsPermission15.apk" />
         <option name="push" value="CtsAppThatRequestsContactsAndCallLogPermission16.apk->/data/local/tmp/cts/permissions/CtsAppThatRequestsContactsAndCallLogPermission16.apk" />
@@ -76,6 +78,7 @@
         <option name="push" value="CtsInstallPermissionUserApp.apk->/data/local/tmp/cts/permissions/CtsInstallPermissionUserApp.apk" />
         <option name="push" value="CtsInstallPermissionEscalatorApp.apk->/data/local/tmp/cts/permissions/CtsInstallPermissionEscalatorApp.apk" />
         <option name="push" value="CtsAppThatRequestsOneTimePermission.apk->/data/local/tmp/cts/permissions/CtsAppThatRequestsOneTimePermission.apk" />
+        <option name="push" value="CtsAppToTestRevokeSelfPermission.apk->/data/local/tmp/cts/permissions/CtsAppToTestRevokeSelfPermission.apk" />
         <option name="push" value="AppThatDefinesUndefinedPermissionGroupElement.apk->/data/local/tmp/cts/permissions/AppThatDefinesUndefinedPermissionGroupElement.apk" />
         <option name="push" value="CtsAppThatDefinesPermissionA.apk->/data/local/tmp/cts/permissions/CtsAppThatDefinesPermissionA.apk" />
         <option name="push" value="CtsAppThatAlsoDefinesPermissionA.apk->/data/local/tmp/cts/permissions/CtsAppThatAlsoDefinesPermissionA.apk" />
@@ -88,6 +91,7 @@
         <option name="push" value="CtsStorageEscalationApp28.apk->/data/local/tmp/cts/permissions/CtsStorageEscalationApp28.apk" />
         <option name="push" value="CtsStorageEscalationApp29Full.apk->/data/local/tmp/cts/permissions/CtsStorageEscalationApp29Full.apk" />
         <option name="push" value="CtsStorageEscalationApp29Scoped.apk->/data/local/tmp/cts/permissions/CtsStorageEscalationApp29Scoped.apk" />
+        <option name="push" value="CtsAppThatHasNotificationListener.apk->/data/local/tmp/cts/permissions/CtsAppThatHasNotificationListener.apk" />
     </target_preparer>
 
     <!-- Remove additional apps if installed -->
@@ -99,6 +103,7 @@
         <option name="teardown-command" value="pm uninstall android.permission.cts.revokepermissionwhenremoved.userapp" />
         <option name="teardown-command" value="pm uninstall android.permission.cts.revokepermissionwhenremoved.runtimepermissiondefinerapp" />
         <option name="teardown-command" value="pm uninstall android.permission.cts.revokepermissionwhenremoved.runtimepermissionuserapp" />
+        <option name="teardown-command" value="pm uninstall android.permission.cts.appthathasnotificationlistener" />
     </target_preparer>
 
     <test class="com.android.tradefed.testtype.AndroidJUnitTest" >

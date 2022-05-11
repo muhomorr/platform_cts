@@ -34,11 +34,14 @@ import com.android.tradefed.util.RunUtil;
 
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import java.io.File;
 import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
@@ -64,9 +67,15 @@ public class IncrementalLoadingProgressTest extends BaseHostJUnit4Test {
 
     @Before
     public void setUp() throws Exception {
+        // Only enable this test on devices with Incremental Delivery V2 features
         assumeTrue("true\n".equals(getDevice().executeShellCommand(
-                "pm has-feature android.software.incremental_delivery")));
+                "pm has-feature android.software.incremental_delivery 2")));
         getDevice().uninstallPackage(TEST_APP_PACKAGE_NAME);
+        // Before the test app is installed, launch a helper app to register a LauncherApps callback
+        // This ensures the loading progress listener is activated when the test app is installed
+        assertTrue(runDeviceTests(DEVICE_TEST_PACKAGE_NAME, TEST_CLASS_NAME,
+                "registerFirstLauncherAppsCallback"));
+
         CompatibilityBuildHelper buildHelper = new CompatibilityBuildHelper(getBuild());
         final File base_apk = buildHelper.getTestFile(TEST_APK);
         assertNotNull(base_apk);
@@ -119,6 +128,27 @@ public class IncrementalLoadingProgressTest extends BaseHostJUnit4Test {
 
     @LargeTest
     @Test
+    public void testGetLoadingProgressDuringMigration() throws Exception {
+        // Check partial loading progress
+        assertTrue(runDeviceTests(DEVICE_TEST_PACKAGE_NAME, TEST_CLASS_NAME,
+                "testGetPartialLoadingProgress"));
+        final List<File> apks = new ArrayList<>(2);
+        CompatibilityBuildHelper buildHelper = new CompatibilityBuildHelper(getBuild());
+        final File base_apk = buildHelper.getTestFile(TEST_APK);
+        assertNotNull(base_apk);
+        apks.add(base_apk);
+        final File split_apk = buildHelper.getTestFile(TEST_SPLIT_APK);
+        assertNotNull(split_apk);
+        apks.add(split_apk);
+        // Trigger app migration through normal package installation.
+        getDevice().installPackages(apks, false, "-t");
+        assertTrue(runDeviceTests(DEVICE_TEST_PACKAGE_NAME, TEST_CLASS_NAME,
+                "testGetFullLoadingProgress"));
+    }
+
+    @LargeTest
+    @Test
+    @Ignore("b/229901433")
     public void testOnPackageLoadingProgressChangedCalledWithPartialLoaded() throws Exception {
         assertTrue(runDeviceTests(DEVICE_TEST_PACKAGE_NAME, TEST_CLASS_NAME,
                 "testOnPackageLoadingProgressChangedCalledWithPartialLoaded"));
@@ -131,9 +161,8 @@ public class IncrementalLoadingProgressTest extends BaseHostJUnit4Test {
                 "testOnPackageLoadingProgressChangedCalledWithFullyLoaded"));
     }
 
-    @LargeTest
     @Test
-    public void testLoadingProgressPersistsAfterReboot() throws Exception {
+    public void testLoadingProgressInDumpsysWhenPartiallyLoaded() throws Exception {
         // Wait for loading progress to update
         RunUtil.getDefault().sleep(WAIT_FOR_LOADING_PROGRESS_UPDATE_MS);
         // Check that "loadingProgress" is shown in the dumpsys of on a partially loaded app
@@ -141,18 +170,11 @@ public class IncrementalLoadingProgressTest extends BaseHostJUnit4Test {
         assertNotNull(loadingPercentageString);
         final int loadingPercentage = Integer.parseInt(loadingPercentageString);
         assertTrue(loadingPercentage > 0 && loadingPercentage < 100);
-        getDevice().reboot();
-        final String loadingPercentageStringAfterReboot = getLoadingProgressFromDumpsys();
-        assertNotNull(loadingPercentageStringAfterReboot);
-        final int loadingPercentageAfterReboot =
-                Integer.parseInt(loadingPercentageStringAfterReboot);
-        // Can't guarantee that the values are the same, but should still be partially loaded
-        assertTrue(loadingPercentageAfterReboot > 0 && loadingPercentageAfterReboot < 100);
     }
 
     @LargeTest
     @Test
-    public void testLoadingProgressNotShownWhenFullyLoaded() throws Exception {
+    public void testLoadingProgressNotInDumpsysWhenFullyLoaded() throws Exception {
         // Trigger full download
         assertTrue(runDeviceTests(DEVICE_TEST_PACKAGE_NAME, TEST_CLASS_NAME,
                 "testReadAllBytes"));

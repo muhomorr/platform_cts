@@ -91,7 +91,7 @@ public class WifiStatsTests extends DeviceTestCase implements IBuildReceiver {
         List<Set<Integer>> stateSet = Arrays.asList(lockOn, lockOff);
 
         // Assert that the events happened in the expected order.
-        AtomTestUtils.assertStatesOccurred(stateSet, data, AtomTestUtils.WAIT_TIME_SHORT,
+        AtomTestUtils.assertStatesOccurredInOrder(stateSet, data, AtomTestUtils.WAIT_TIME_SHORT,
                 atom -> atom.getWifiLockStateChanged().getState().getNumber());
 
         for (StatsLog.EventMetricData event : data) {
@@ -120,7 +120,7 @@ public class WifiStatsTests extends DeviceTestCase implements IBuildReceiver {
         List<Set<Integer>> stateSet = Arrays.asList(lockOn, lockOff);
 
         // Assert that the events happened in the expected order.
-        AtomTestUtils.assertStatesOccurred(stateSet, data, AtomTestUtils.WAIT_TIME_SHORT,
+        AtomTestUtils.assertStatesOccurredInOrder(stateSet, data, AtomTestUtils.WAIT_TIME_SHORT,
                 atom -> atom.getWifiLockStateChanged().getState().getNumber());
 
         for (StatsLog.EventMetricData event : data) {
@@ -152,7 +152,7 @@ public class WifiStatsTests extends DeviceTestCase implements IBuildReceiver {
         List<Set<Integer>> stateSet = Arrays.asList(lockOn, lockOff);
 
         // Assert that the events happened in the expected order.
-        AtomTestUtils.assertStatesOccurred(stateSet, data, AtomTestUtils.WAIT_TIME_SHORT,
+        AtomTestUtils.assertStatesOccurredInOrder(stateSet, data, AtomTestUtils.WAIT_TIME_SHORT,
                 atom -> atom.getWifiMulticastLockStateChanged().getState().getNumber());
 
         for (StatsLog.EventMetricData event : data) {
@@ -224,7 +224,11 @@ public class WifiStatsTests extends DeviceTestCase implements IBuildReceiver {
         for (AtomsProto.WifiScanReported a : new AtomsProto.WifiScanReported[]{a0, a1}) {
             assertThat(a.getResult()).isEqualTo(AtomsProto.WifiScanReported.Result.RESULT_SUCCESS);
             assertThat(a.getType()).isEqualTo(AtomsProto.WifiScanReported.Type.TYPE_SINGLE);
-            assertThat(a.getSource()).isEqualTo(
+            assertThat(a.getSource()).isAnyOf(
+                    // If this test is run on a device that has a Settings app open that
+                    // continuously performs frequent scans, quite often our scans requests
+                    // are bundled together and get attributed to the Settings app.
+                    AtomsProto.WifiScanReported.Source.SOURCE_SETTINGS_APP,
                     AtomsProto.WifiScanReported.Source.SOURCE_OTHER_APP);
             assertThat(a.getImportance()).isEqualTo(
                     AtomsProto.WifiScanReported.Importance.IMPORTANCE_FOREGROUND_SERVICE);

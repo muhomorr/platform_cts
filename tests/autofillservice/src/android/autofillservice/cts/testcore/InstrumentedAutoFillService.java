@@ -48,9 +48,11 @@ import android.service.autofill.FillEventHistory;
 import android.service.autofill.FillEventHistory.Event;
 import android.service.autofill.FillResponse;
 import android.service.autofill.SaveCallback;
+import android.service.autofill.SavedDatasetsInfoCallback;
 import android.util.Log;
 import android.view.inputmethod.InlineSuggestionsRequest;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import com.android.compatibility.common.util.RetryableException;
@@ -68,6 +70,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 /**
  * Implementation of {@link AutofillService} used in the tests.
@@ -92,6 +95,8 @@ public class InstrumentedAutoFillService extends AutofillService {
     protected static final AtomicReference<InstrumentedAutoFillService> sInstance =
             new AtomicReference<>();
     private static final Replier sReplier = new Replier();
+    @Nullable
+    private static Consumer<SavedDatasetsInfoCallback> sSavedDatasetsInfoReplier;
 
     private static AtomicBoolean sConnected = new AtomicBoolean(false);
 
@@ -238,7 +243,9 @@ public class InstrumentedAutoFillService extends AutofillService {
         mHandler.post(
                 () -> sReplier.onFillRequest(request.getFillContexts(), request.getClientState(),
                         cancellationSignal, callback, request.getFlags(),
-                        request.getInlineSuggestionsRequest(), request.getId()));
+                        request.getInlineSuggestionsRequest(),
+                        request.getDelayedFillIntentSender(),
+                        request.getId()));
     }
 
     @Override
@@ -271,6 +278,20 @@ public class InstrumentedAutoFillService extends AutofillService {
         mHandler.post(() -> sReplier.onSaveRequest(request.getFillContexts(),
                 request.getClientState(), callback,
                 request.getDatasetIds()));
+    }
+
+    @Override
+    public void onSavedDatasetsInfoRequest(@NonNull SavedDatasetsInfoCallback callback) {
+        if (sSavedDatasetsInfoReplier == null) {
+            super.onSavedDatasetsInfoRequest(callback);
+        } else {
+            sSavedDatasetsInfoReplier.accept(callback);
+        }
+    }
+
+    public static void setSavedDatasetsInfoReplier(
+            @Nullable Consumer<SavedDatasetsInfoCallback> savedDatasetsInfoReplier) {
+        sSavedDatasetsInfoReplier = savedDatasetsInfoReplier;
     }
 
     public static boolean isConnected() {
@@ -352,6 +373,7 @@ public class InstrumentedAutoFillService extends AutofillService {
         sInstance.set(null);
         sConnected.set(false);
         sServiceLabel = SERVICE_CLASS;
+        sSavedDatasetsInfoReplier = null;
     }
 
     /**
@@ -367,10 +389,14 @@ public class InstrumentedAutoFillService extends AutofillService {
         public final FillCallback callback;
         public final int flags;
         public final InlineSuggestionsRequest inlineRequest;
+        public final IntentSender delayFillIntentSender;
+        public final int requestId;
 
         private FillRequest(List<FillContext> contexts, Bundle data,
                 CancellationSignal cancellationSignal, FillCallback callback, int flags,
-                InlineSuggestionsRequest inlineRequest) {
+                InlineSuggestionsRequest inlineRequest,
+                IntentSender delayFillIntentSender,
+                int requestId) {
             this.contexts = contexts;
             this.data = data;
             this.cancellationSignal = cancellationSignal;
@@ -378,6 +404,8 @@ public class InstrumentedAutoFillService extends AutofillService {
             this.flags = flags;
             this.structure = contexts.get(contexts.size() - 1).getStructure();
             this.inlineRequest = inlineRequest;
+            this.delayFillIntentSender = delayFillIntentSender;
+            this.requestId = requestId;
         }
 
         @Override
@@ -616,7 +644,8 @@ public class InstrumentedAutoFillService extends AutofillService {
 
         private void onFillRequest(List<FillContext> contexts, Bundle data,
                 CancellationSignal cancellationSignal, FillCallback callback, int flags,
-                InlineSuggestionsRequest inlineRequest, int requestId) {
+                InlineSuggestionsRequest inlineRequest, IntentSender delayFillIntentSender,
+                int requestId) {
             try {
                 CannedFillResponse response = null;
                 try {
@@ -692,7 +721,8 @@ public class InstrumentedAutoFillService extends AutofillService {
                         // Add a fill request to let test case know response was sent.
                         Helper.offer(mFillRequests,
                                 new FillRequest(contexts, data, cancellationSignal, callback,
-                                        flags, inlineRequest), CONNECTION_TIMEOUT.ms());
+                                        flags, inlineRequest, delayFillIntentSender, requestId),
+                                CONNECTION_TIMEOUT.ms());
                     }, RESPONSE_DELAY_MS);
                 } else {
                     Log.v(TAG, "onFillRequest(" + requestId + "): fillResponse = " + fillResponse);
@@ -702,7 +732,8 @@ public class InstrumentedAutoFillService extends AutofillService {
                 addException(t);
             } finally {
                 Helper.offer(mFillRequests, new FillRequest(contexts, data, cancellationSignal,
-                        callback, flags, inlineRequest), CONNECTION_TIMEOUT.ms());
+                        callback, flags, inlineRequest, delayFillIntentSender, requestId),
+                        CONNECTION_TIMEOUT.ms());
             }
         }
 

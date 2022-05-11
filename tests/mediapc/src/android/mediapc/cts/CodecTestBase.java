@@ -16,6 +16,11 @@
 
 package android.mediapc.cts;
 
+import static android.media.MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface;
+import static android.media.MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Flexible;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+
 import android.graphics.ImageFormat;
 import android.media.Image;
 import android.media.MediaCodec;
@@ -42,11 +47,6 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
-
-import static android.media.MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface;
-import static android.media.MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Flexible;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 class CodecAsyncHandler extends MediaCodec.Callback {
     private static final String LOG_TAG = CodecAsyncHandler.class.getSimpleName();
@@ -435,17 +435,6 @@ class CodecDecoderTestBase extends CodecTestBase {
         return null;
     }
 
-    void enqueueInput(int bufferIndex, ByteBuffer buffer, MediaCodec.BufferInfo info) {
-        ByteBuffer inputBuffer = mCodec.getInputBuffer(bufferIndex);
-        inputBuffer.put(buffer.array(), info.offset, info.size);
-        mCodec.queueInputBuffer(bufferIndex, 0, info.size, info.presentationTimeUs,
-                info.flags);
-        if (info.size > 0 && ((info.flags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG) == 0) &&
-                ((info.flags & MediaCodec.BUFFER_FLAG_PARTIAL_FRAME) == 0)) {
-            mInputCount++;
-        }
-    }
-
     void enqueueInput(int bufferIndex) {
         if (mExtractor.getSampleSize() < 0) {
             enqueueEOS(bufferIndex);
@@ -477,44 +466,6 @@ class CodecDecoderTestBase extends CodecTestBase {
             mOutputCount++;
         }
         mCodec.releaseOutputBuffer(bufferIndex, false);
-    }
-
-    void doWork(ByteBuffer buffer, ArrayList<MediaCodec.BufferInfo> list)
-            throws InterruptedException {
-        int frameCount = 0;
-        if (mIsCodecInAsyncMode) {
-            // output processing after queuing EOS is done in waitForAllOutputs()
-            while (!mAsyncHandle.hasSeenError() && !mSawInputEOS && frameCount < list.size()) {
-                Pair<Integer, MediaCodec.BufferInfo> element = mAsyncHandle.getWork();
-                if (element != null) {
-                    int bufferID = element.first;
-                    MediaCodec.BufferInfo info = element.second;
-                    if (info != null) {
-                        dequeueOutput(bufferID, info);
-                    } else {
-                        enqueueInput(bufferID, buffer, list.get(frameCount));
-                        frameCount++;
-                    }
-                }
-            }
-        } else {
-            MediaCodec.BufferInfo outInfo = new MediaCodec.BufferInfo();
-            // output processing after queuing EOS is done in waitForAllOutputs()
-            while (!mSawInputEOS && frameCount < list.size()) {
-                int outputBufferId = mCodec.dequeueOutputBuffer(outInfo, Q_DEQ_TIMEOUT_US);
-                if (outputBufferId >= 0) {
-                    dequeueOutput(outputBufferId, outInfo);
-                } else if (outputBufferId == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
-                    mOutFormat = mCodec.getOutputFormat();
-                    mSignalledOutFormatChanged = true;
-                }
-                int inputBufferId = mCodec.dequeueInputBuffer(Q_DEQ_TIMEOUT_US);
-                if (inputBufferId != -1) {
-                    enqueueInput(inputBufferId, buffer, list.get(frameCount));
-                    frameCount++;
-                }
-            }
-        }
     }
 }
 
@@ -710,6 +661,10 @@ class CodecEncoderTestBase extends CodecTestBase {
     }
 }
 
+/**
+ * The following class decodes the given testFile using decoder created by the given decoderName
+ * in surface mode(uses PersistentInputSurface) and returns the achieved fps for decoding.
+ */
 class Decode extends CodecDecoderTestBase implements Callable<Double> {
     private static final String LOG_TAG = Decode.class.getSimpleName();
 
@@ -749,6 +704,10 @@ class Decode extends CodecDecoderTestBase implements Callable<Double> {
     }
 }
 
+/**
+ * The following class decodes the given testFile using decoder created by the given decoderName
+ * in surface mode(uses given valid surface) and render the output to surface.
+ */
 class DecodeToSurface extends Decode {
 
     DecodeToSurface(String mime, String testFile, String decoderName, Surface surface,
@@ -768,26 +727,35 @@ class DecodeToSurface extends Decode {
     }
 }
 
+/**
+ * The following class encodes a YUV video file to a given mimeType using encoder created by the
+ * given encoderName and configuring to 30fps format.
+ */
 class Encode extends CodecEncoderTestBase implements Callable<Double> {
     private static final String LOG_TAG = Encode.class.getSimpleName();
 
     private final String mEncoderName;
     private final boolean mIsAsync;
+    private final int mBitrate;
 
-    Encode(String mime, String encoderName, boolean isAsync) {
+    Encode(String mime, String encoderName, boolean isAsync, int height, int width, int frameRate,
+            int bitrate) {
         super(mime);
         mEncoderName = encoderName;
         mIsAsync = isAsync;
         mSurface = MediaCodec.createPersistentInputSurface();
-        mFrameRate = 30;
+        mFrameRate = frameRate;
+        mBitrate = bitrate;
+        mHeight = height;
+        mWidth = width;
     }
 
     private MediaFormat setUpFormat() {
         MediaFormat format = new MediaFormat();
         format.setString(MediaFormat.KEY_MIME, mMime);
-        format.setInteger(MediaFormat.KEY_BIT_RATE, 4000000);
-        format.setInteger(MediaFormat.KEY_WIDTH, 1280);
-        format.setInteger(MediaFormat.KEY_HEIGHT, 720);
+        format.setInteger(MediaFormat.KEY_BIT_RATE, mBitrate);
+        format.setInteger(MediaFormat.KEY_WIDTH, mWidth);
+        format.setInteger(MediaFormat.KEY_HEIGHT, mHeight);
         format.setInteger(MediaFormat.KEY_FRAME_RATE, mFrameRate);
         format.setInteger(MediaFormat.KEY_MAX_B_FRAMES, 0);
         format.setFloat(MediaFormat.KEY_I_FRAME_INTERVAL, 1.0f);

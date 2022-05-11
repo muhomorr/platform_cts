@@ -63,7 +63,7 @@ public class ActivityLaunchUtils {
     private static final String LOG_TAG = "ActivityLaunchUtils";
     private static final String AM_START_HOME_ACTIVITY_COMMAND =
             "am start -a android.intent.action.MAIN -c android.intent.category.HOME";
-    private static final String AM_BROADCAST_CLOSE_SYSTEM_DIALOG_COMMAND =
+    public static final String AM_BROADCAST_CLOSE_SYSTEM_DIALOG_COMMAND =
             "am broadcast -a android.intent.action.CLOSE_SYSTEM_DIALOGS";
 
     // Using a static variable so it can be used in lambdas. Not preserving state in it.
@@ -135,6 +135,11 @@ public class ActivityLaunchUtils {
         wakeUpOrBust(context, uiAutomation);
         if (context.getPackageManager().isInstantApp()) return;
         if (isHomeScreenShowing(context, uiAutomation)) return;
+        final AccessibilityServiceInfo serviceInfo = uiAutomation.getServiceInfo();
+        final int enabledFlags = serviceInfo.flags;
+        // Make sure we could query windows.
+        serviceInfo.flags |= AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS;
+        uiAutomation.setServiceInfo(serviceInfo);
         try {
             executeAndWaitOn(
                     uiAutomation,
@@ -159,6 +164,9 @@ public class ActivityLaunchUtils {
             }
 
             fail("Unable to reach home screen");
+        } finally {
+            serviceInfo.flags = enabledFlags;
+            uiAutomation.setServiceInfo(serviceInfo);
         }
     }
 

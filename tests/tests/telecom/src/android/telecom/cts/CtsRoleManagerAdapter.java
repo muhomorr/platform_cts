@@ -17,7 +17,6 @@
 package android.telecom.cts;
 
 import static android.telecom.cts.TestUtils.WAIT_FOR_STATE_CHANGE_TIMEOUT_MS;
-import static android.telecom.cts.TestUtils.executeShellCommand;
 
 import static com.android.compatibility.common.util.SystemUtil.runWithShellPermissionIdentity;
 
@@ -30,11 +29,9 @@ import android.app.role.RoleManager;
 import android.content.Context;
 import android.os.Process;
 import android.os.UserHandle;
-import android.telecom.TelecomManager;
 import android.util.Log;
 
 import java.util.ArrayList;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
@@ -57,10 +54,22 @@ public class CtsRoleManagerAdapter {
         mRoleHolders = new ConcurrentHashMap<>();
     }
 
+    public boolean isDialerRoleAvailable() {
+        return mRoleManager.isRoleAvailable(RoleManager.ROLE_DIALER);
+    }
+
     public void setDialerRoleHolder(String packageName)
             throws Exception {
         if (mRoleManager != null) {
             addRoleHolder(RoleManager.ROLE_DIALER, packageName);
+        } else {
+            fail("Expected role manager");
+        }
+    }
+
+    public void removeDialerRoleHolder(String packageName) throws Exception {
+        if (mRoleManager != null) {
+            removeRoleHolder(RoleManager.ROLE_DIALER, packageName);
         } else {
             fail("Expected role manager");
         }

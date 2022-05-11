@@ -28,10 +28,10 @@ import android.signature.cts.VirtualPath;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.text.ParseException;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.function.Predicate;
+import org.junit.Test;
 
 /**
  * Checks that it is not possible to access hidden APIs.
@@ -44,15 +44,15 @@ public class HiddenApiTest extends AbstractApiTest {
     private Set<String> hiddenapiFilterSet;
 
     @Override
-    protected void initializeFromArgs(Bundle instrumentationArgs) {
-        hiddenapiFiles = getCommaSeparatedList(instrumentationArgs, "hiddenapi-files");
-        hiddenapiTestFlags = getCommaSeparatedList(instrumentationArgs, "hiddenapi-test-flags");
+    protected void initializeFromArgs(Bundle instrumentationArgs) throws Exception {
+        hiddenapiFiles = getCommaSeparatedListRequired(instrumentationArgs, "hiddenapi-files");
+        hiddenapiTestFlags = getCommaSeparatedListOptional(instrumentationArgs, "hiddenapi-test-flags");
         hiddenapiFilterFile = instrumentationArgs.getString("hiddenapi-filter-file");
         hiddenapiFilterSet = new HashSet<>();
     }
 
     @Override
-    protected void setUp() throws Exception {
+    public void setUp() throws Exception {
         super.setUp();
         DexMemberChecker.init();
         loadFilters();
@@ -66,18 +66,22 @@ public class HiddenApiTest extends AbstractApiTest {
     private final static Predicate<DexMember> FIELD_FILTER =
             dexMember -> (dexMember instanceof DexField);
 
+    @Test
     public void testSignatureMethodsThroughReflection() {
         doTestSignature(METHOD_FILTER,/* reflection= */ true, /* jni= */ false);
     }
 
+    @Test
     public void testSignatureMethodsThroughJni() {
         doTestSignature(METHOD_FILTER, /* reflection= */ false, /* jni= */ true);
     }
 
+    @Test
     public void testSignatureFieldsThroughReflection() {
         doTestSignature(FIELD_FILTER, /* reflection= */ true, /* jni= */ false);
     }
 
+    @Test
     public void testSignatureFieldsThroughJni() {
         doTestSignature(FIELD_FILTER, /* reflection= */ false, /* jni= */ true);
     }
@@ -166,7 +170,15 @@ public class HiddenApiTest extends AbstractApiTest {
         });
     }
 
+    /**
+     * Determines whether to test the member.
+     *
+     * @param member the member
+     * @return true if the member should be tested, false otherwise.
+     */
     protected boolean shouldTestMember(DexMember member) {
+        // Test the member if it supports ANY of the flags specified in the hiddenapi-test-flags
+        // argument.
         Set<String> flags = member.getHiddenapiFlags();
         for (String testFlag : hiddenapiTestFlags) {
             if (flags.contains(testFlag)) {

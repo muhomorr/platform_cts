@@ -46,8 +46,7 @@ public class EventLibBroadcastReceiverTest {
     private static final String GENERATED_BROADCAST_RECEIVER_ACTION =
             "com.android.eventlib.GENERATED_BROADCAST_RECEIVER";
 
-    private static final TestApis sTestApis = new TestApis();
-    private static final Context sContext = sTestApis.context().instrumentedContext();
+    private static final Context sContext = TestApis.context().instrumentedContext();
 
     @Before
     public void setUp() {
@@ -63,7 +62,7 @@ public class EventLibBroadcastReceiverTest {
 
         EventLogs<BroadcastReceivedEvent> eventLogs = BroadcastReceivedEvent
                 .queryPackage(sContext.getPackageName())
-                .whereBroadcastReceiver().isSameClassAs(EventLibBroadcastReceiver.class);
+                .whereBroadcastReceiver().receiverClass().isSameClassAs(EventLibBroadcastReceiver.class);
         assertThat(eventLogs.poll()).isNotNull();
     }
 
@@ -76,7 +75,7 @@ public class EventLibBroadcastReceiverTest {
 
         EventLogs<BroadcastReceivedEvent> eventLogs = BroadcastReceivedEvent
                 .queryPackage(sContext.getPackageName())
-                .whereBroadcastReceiver().className().isEqualTo(GENERATED_RECEIVER_CLASS_NAME);
+                .whereBroadcastReceiver().receiverClass().className().isEqualTo(GENERATED_RECEIVER_CLASS_NAME);
         assertThat(eventLogs.poll()).isNotNull();
     }
 

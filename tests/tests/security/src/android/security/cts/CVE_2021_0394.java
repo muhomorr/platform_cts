@@ -16,15 +16,16 @@
 
 package android.security.cts;
 
-import android.platform.test.annotations.SecurityTest;
-import androidx.test.filters.RequiresDevice;
+import android.platform.test.annotations.AsbSecurityTest;
 import androidx.test.runner.AndroidJUnit4;
+import com.android.sts.common.util.StsExtraBusinessLogicTestCase;
+import dalvik.system.VMRuntime;
 import org.junit.runner.RunWith;
 import org.junit.Test;
 import static org.junit.Assert.assertFalse;
 
 @RunWith(AndroidJUnit4.class)
-public class CVE_2021_0394 {
+public class CVE_2021_0394 extends StsExtraBusinessLogicTestCase {
     static {
         System.loadLibrary("ctssecurity_jni");
     }
@@ -32,13 +33,13 @@ public class CVE_2021_0394 {
     /**
      * b/172655291
      */
-    @SecurityTest(minPatchLevel = "2021-03")
     @Test
-    @RequiresDevice
-    // emulators always have checkJNI enabled which causes the test
-    // to abort the VM while passing invalid input to NewStringUTF
+    @AsbSecurityTest(cveBugId = 172655291)
     public void testPocCVE_2021_0394() throws Exception {
-        assertFalse(poc());
+        VMRuntime vmRuntime = VMRuntime.getRuntime();
+        if (!vmRuntime.isCheckJniEnabled()) {
+            assertFalse(poc());
+        }
     }
 
     public static native boolean poc();

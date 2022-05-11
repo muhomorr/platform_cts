@@ -16,7 +16,6 @@
 
 package android.alarmmanager.cts;
 
-import static android.alarmmanager.cts.AppStandbyTests.TEST_APP_PACKAGE;
 import static android.alarmmanager.cts.AppStandbyTests.setTestAppStandbyBucket;
 import static android.app.usage.UsageStatsManager.STANDBY_BUCKET_ACTIVE;
 import static android.app.usage.UsageStatsManager.STANDBY_BUCKET_WORKING_SET;
@@ -27,10 +26,16 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assume.assumeFalse;
 
+import android.alarmmanager.alarmtestapp.cts.common.PermissionStateChangedReceiver;
+import android.alarmmanager.alarmtestapp.cts.common.RequestReceiver;
+import android.alarmmanager.util.AlarmManagerDeviceConfigHelper;
+import android.alarmmanager.util.Utils;
+import android.app.Activity;
 import android.app.AlarmManager;
 import android.app.AppOpsManager;
 import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
@@ -66,6 +71,9 @@ import java.io.IOException;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 @AppModeFull
 @RunWith(AndroidJUnit4.class)
@@ -83,6 +91,12 @@ public class ExactAlarmsTest {
      */
     private static final String TAG = ExactAlarmsTest.class.getSimpleName();
 
+    private static final String TEST_APP_30 = "android.alarmmanager.alarmtestapp.cts.sdk30";
+    private static final String TEST_APP_WITH_SCHEDULE_EXACT_ALARM_32 =
+            "android.alarmmanager.alarmtestapp.cts.user_permission_32";
+    private static final String TEST_APP_WITH_USE_EXACT_ALARM_32 =
+            "android.alarmmanager.alarmtestapp.cts.policy_permission_32";
+
     private static final int ALLOW_WHILE_IDLE_QUOTA = 5;
     private static final long ALLOW_WHILE_IDLE_WINDOW = 10_000;
     private static final int ALLOW_WHILE_IDLE_COMPAT_QUOTA = 3;
@@ -96,10 +110,18 @@ public class ExactAlarmsTest {
      */
     private static final long DEFAULT_WAIT_FOR_SUCCESS = 30_000;
 
+    private static final String TEST_APP_PACKAGE = "android.alarmmanager.alarmtestapp.cts";
+
     private static final Context sContext = InstrumentationRegistry.getTargetContext();
     private final AlarmManager mAlarmManager = sContext.getSystemService(AlarmManager.class);
     private final PowerWhitelistManager mWhitelistManager = sContext.getSystemService(
             PowerWhitelistManager.class);
+    private final PackageManager mPackageManager = sContext.getPackageManager();
+    private final ComponentName mPermissionChangeReceiver = new ComponentName(TEST_APP_PACKAGE,
+            PermissionStateChangedReceiver.class.getName());
+    private final ComponentName mPermissionChangeReceiver32 = new ComponentName(
+            TEST_APP_WITH_SCHEDULE_EXACT_ALARM_32,
+            PermissionStateChangedReceiver.class.getName());
 
     private final AlarmManagerDeviceConfigHelper mDeviceConfigHelper =
             new AlarmManagerDeviceConfigHelper();
@@ -115,19 +137,11 @@ public class ExactAlarmsTest {
     };
 
     @Before
-    @After
-    public void resetAppOp() throws IOException {
-        AppOpsUtils.reset(sContext.getOpPackageName());
-    }
-
-    @Before
     public void updateAlarmManagerConstants() {
         mDeviceConfigHelper.with("min_futurity", 0L)
                 .with("allow_while_idle_quota", ALLOW_WHILE_IDLE_QUOTA)
                 .with("allow_while_idle_compat_quota", ALLOW_WHILE_IDLE_COMPAT_QUOTA)
                 .with("allow_while_idle_window", ALLOW_WHILE_IDLE_WINDOW)
-                .with("crash_non_clock_apps", true)
-                .with("kill_on_schedule_exact_alarm_revoked", false)
                 .commitAndAwaitPropagation();
     }
 
@@ -138,29 +152,29 @@ public class ExactAlarmsTest {
     }
 
     @Before
-    public void enableChange() {
-        SystemUtil.runShellCommand("am compat enable --no-kill REQUIRE_EXACT_ALARM_PERMISSION "
-                + sContext.getOpPackageName(), output -> output.contains("Enabled"));
-    }
-
-    private static void disableChange() {
-        SystemUtil.runShellCommand("am compat disable --no-kill REQUIRE_EXACT_ALARM_PERMISSION "
-                + sContext.getOpPackageName(), output -> output.contains("Disabled"));
+    public void enableChanges() {
+        Utils.enableChangeForSelf(AlarmManager.REQUIRE_EXACT_ALARM_PERMISSION);
+        Utils.enableChangeForSelf(AlarmManager.ENABLE_USE_EXACT_ALARM);
+        Utils.enableChange(AlarmManager.SCHEDULE_EXACT_ALARM_DENIED_BY_DEFAULT, TEST_APP_PACKAGE,
+                sContext.getUserId());
     }
 
     @After
     public void resetChanges() {
-        // This is needed because compat persists the overrides beyond package uninstall
-        SystemUtil.runShellCommand("am compat reset --no-kill REQUIRE_EXACT_ALARM_PERMISSION "
-                + sContext.getOpPackageName(), output -> output.contains("Reset"));
+        Utils.resetChange(AlarmManager.REQUIRE_EXACT_ALARM_PERMISSION, sContext.getOpPackageName());
+        Utils.resetChange(AlarmManager.ENABLE_USE_EXACT_ALARM, sContext.getOpPackageName());
+        Utils.resetChange(AlarmManager.SCHEDULE_EXACT_ALARM_DENIED_BY_DEFAULT, TEST_APP_PACKAGE);
     }
 
     @After
     public void removeFromWhitelists() {
+        removeFromWhitelists(sContext.getOpPackageName());
+    }
+
+    private void removeFromWhitelists(String packageName) {
         SystemUtil.runWithShellPermissionIdentity(
-                () -> mWhitelistManager.removeFromWhitelist(sContext.getOpPackageName()));
-        SystemUtil.runShellCommand("cmd deviceidle tempwhitelist -r "
-                + sContext.getOpPackageName());
+                () -> mWhitelistManager.removeFromWhitelist(packageName));
+        SystemUtil.runShellCommand("cmd deviceidle tempwhitelist -r " + packageName);
     }
 
     @After
@@ -170,13 +184,31 @@ public class ExactAlarmsTest {
     }
 
     @After
-    public void restoreAlarmManagerConstants() {
-        mDeviceConfigHelper.deleteAll();
+    public void restorePermissionReceiverState() {
+        SystemUtil.runWithShellPermissionIdentity(
+                () -> mPackageManager.setComponentEnabledSetting(mPermissionChangeReceiver,
+                        PackageManager.COMPONENT_ENABLED_STATE_DEFAULT,
+                        PackageManager.DONT_KILL_APP));
     }
 
-    private static void revokeAppOp() throws IOException {
-        AppOpsUtils.setOpMode(sContext.getOpPackageName(), AppOpsManager.OPSTR_SCHEDULE_EXACT_ALARM,
-                AppOpsManager.MODE_IGNORED);
+    private void resetAppOps() throws IOException {
+        AppOpsUtils.reset(TEST_APP_PACKAGE);
+    }
+
+    @After
+    public void restoreAlarmManagerConstants() throws IOException {
+        // App ops must be reset while kill_on_schedule_exact_alarm_revoked=false
+        resetAppOps();
+        mDeviceConfigHelper.restoreAll();
+    }
+
+    private void revokeAppOp(String packageName) {
+        setAppOp(packageName, AppOpsManager.MODE_IGNORED);
+    }
+
+    static void setAppOp(String packageName, int mode) {
+        final int uid = Utils.getPackageUid(packageName);
+        AppOpsUtils.setUidMode(uid, AppOpsManager.OPSTR_SCHEDULE_EXACT_ALARM, mode);
     }
 
     private static PendingIntent getAlarmSender(int id, boolean quotaed) {
@@ -189,13 +221,66 @@ public class ExactAlarmsTest {
                 PendingIntent.FLAG_MUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
     }
 
-    @Test
-    public void hasPermissionByDefault() {
-        assertTrue(mAlarmManager.canScheduleExactAlarms());
+    private boolean getCanScheduleExactAlarmFromTestApp(String testAppName) throws Exception {
+        final CountDownLatch resultLatch = new CountDownLatch(1);
+        final AtomicBoolean apiResult = new AtomicBoolean(false);
+        final AtomicInteger result = new AtomicInteger(-1);
 
-        mDeviceConfigHelper.with("exact_alarm_deny_list", sContext.getOpPackageName())
+        final Intent requestToTestApp = new Intent(
+                RequestReceiver.ACTION_GET_CAN_SCHEDULE_EXACT_ALARM)
+                .setClassName(testAppName, RequestReceiver.class.getName())
+                .addFlags(Intent.FLAG_RECEIVER_FOREGROUND);
+        sContext.sendOrderedBroadcast(requestToTestApp, null, new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                result.set(getResultCode());
+                final String resultStr = getResultData();
+                apiResult.set(Boolean.parseBoolean(resultStr));
+                resultLatch.countDown();
+            }
+        }, null, Activity.RESULT_CANCELED, null, null);
+
+        assertTrue("Timed out waiting for response from helper app " + testAppName,
+                resultLatch.await(10, TimeUnit.SECONDS));
+        assertEquals(Activity.RESULT_OK, result.get());
+        return apiResult.get();
+    }
+
+    @Test
+    public void defaultBehaviorWhenChangeDisabled() throws Exception {
+        setAppOp(TEST_APP_PACKAGE, AppOpsManager.MODE_DEFAULT);
+        mDeviceConfigHelper.with("schedule_exact_alarm_denied_by_default", false)
                 .commitAndAwaitPropagation();
-        assertFalse(mAlarmManager.canScheduleExactAlarms());
+        assertTrue(getCanScheduleExactAlarmFromTestApp(TEST_APP_PACKAGE));
+
+        mDeviceConfigHelper.with("exact_alarm_deny_list", TEST_APP_PACKAGE)
+                .commitAndAwaitPropagation();
+        // Just to give some time for the app kill to complete.
+        Thread.sleep(1000);
+        assertFalse(getCanScheduleExactAlarmFromTestApp(TEST_APP_PACKAGE));
+    }
+
+    @Test
+    public void noPermissionByDefault() throws Exception {
+        setAppOp(TEST_APP_PACKAGE, AppOpsManager.MODE_DEFAULT);
+        assertFalse(getCanScheduleExactAlarmFromTestApp(TEST_APP_PACKAGE));
+    }
+
+    @Test
+    public void noPermissionWhenIgnored() throws Exception {
+        revokeAppOp(TEST_APP_PACKAGE);
+        assertFalse(getCanScheduleExactAlarmFromTestApp(TEST_APP_PACKAGE));
+    }
+
+    @Test
+    public void hasPermissionWhenAllowed() throws Exception {
+        setAppOp(TEST_APP_PACKAGE, AppOpsManager.MODE_ALLOWED);
+        assertTrue(getCanScheduleExactAlarmFromTestApp(TEST_APP_PACKAGE));
+
+        // The deny list shouldn't matter in this case.
+        mDeviceConfigHelper.with("exact_alarm_deny_list", TEST_APP_PACKAGE)
+                .commitAndAwaitPropagation();
+        assertTrue(getCanScheduleExactAlarmFromTestApp(TEST_APP_PACKAGE));
     }
 
     @Test
@@ -217,47 +302,64 @@ public class ExactAlarmsTest {
     }
 
     @Test
-    public void noPermissionWhenIgnored() throws IOException {
-        revokeAppOp();
-        assertFalse(mAlarmManager.canScheduleExactAlarms());
-    }
-
-    @Test
-    public void hasPermissionWhenAllowed() throws IOException {
-        AppOpsUtils.setOpMode(sContext.getOpPackageName(), AppOpsManager.OPSTR_SCHEDULE_EXACT_ALARM,
-                AppOpsManager.MODE_ALLOWED);
+    public void canScheduleExactAlarmWithPolicyPermission() throws Exception {
         assertTrue(mAlarmManager.canScheduleExactAlarms());
 
+        // The deny list shouldn't do anything.
         mDeviceConfigHelper.with("exact_alarm_deny_list", sContext.getOpPackageName())
                 .commitAndAwaitPropagation();
         assertTrue(mAlarmManager.canScheduleExactAlarms());
     }
 
     @Test
-    public void canScheduleExactAlarmWhenChangeDisabled() throws IOException {
-        disableChange();
-        revokeAppOp();
-        assertTrue(mAlarmManager.canScheduleExactAlarms());
+    public void canScheduleExactAlarmWithPolicyPermissionSdk32() throws Exception {
+        // Policy permission is not enabled at SDK 32.
+        assertFalse(getCanScheduleExactAlarmFromTestApp(TEST_APP_WITH_USE_EXACT_ALARM_32));
     }
 
-    @Test(expected = SecurityException.class)
-    public void setAlarmClockWithoutPermission() throws IOException {
-        revokeAppOp();
-        mAlarmManager.setAlarmClock(new AlarmManager.AlarmClockInfo(0, null), getAlarmSender(0,
-                false));
+    @Test
+    public void canScheduleExactAlarmWithUserPermissionSdk32() throws Exception {
+        // Should be allowed by default.
+        assertTrue(getCanScheduleExactAlarmFromTestApp(TEST_APP_WITH_SCHEDULE_EXACT_ALARM_32));
+
+        mDeviceConfigHelper.with("exact_alarm_deny_list", TEST_APP_WITH_SCHEDULE_EXACT_ALARM_32)
+                .commitAndAwaitPropagation();
+
+        assertFalse("canScheduleExactAlarm returned true when app was in deny list",
+                getCanScheduleExactAlarmFromTestApp(TEST_APP_WITH_SCHEDULE_EXACT_ALARM_32));
+    }
+
+    @Test
+    public void canScheduleExactAlarmSdk30() throws Exception {
+        revokeAppOp(TEST_APP_30);
+        assertTrue(getCanScheduleExactAlarmFromTestApp(TEST_APP_30));
+    }
+
+    private static void assertSecurityExceptionFromTestApp(String requestAction, String testAppName)
+            throws Exception {
+        final CountDownLatch resultLatch = new CountDownLatch(1);
+        final AtomicInteger result = new AtomicInteger(-1);
+
+        final Intent requestToTestApp = new Intent(requestAction)
+                .setClassName(testAppName, RequestReceiver.class.getName())
+                .addFlags(Intent.FLAG_RECEIVER_FOREGROUND);
+        sContext.sendOrderedBroadcast(requestToTestApp, null, new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                result.set(getResultCode());
+                resultLatch.countDown();
+            }
+        }, null, Activity.RESULT_CANCELED, null, null);
+
+        assertTrue("Timed out waiting for response from helper app " + testAppName,
+                resultLatch.await(10, TimeUnit.SECONDS));
+        assertEquals("Security exception not reported", RequestReceiver.RESULT_SECURITY_EXCEPTION,
+                result.get());
     }
 
     private void whitelistTestApp() {
         SystemUtil.runWithShellPermissionIdentity(
                 () -> mWhitelistManager.addToWhitelist(sContext.getOpPackageName()));
-    }
-
-    @Test(expected = SecurityException.class)
-    public void setAlarmClockWithoutPermissionWithWhitelist() throws IOException {
-        revokeAppOp();
-        whitelistTestApp();
-        mAlarmManager.setAlarmClock(new AlarmManager.AlarmClockInfo(0, null), getAlarmSender(0,
-                false));
     }
 
     @Test
@@ -274,45 +376,32 @@ public class ExactAlarmsTest {
         }
     }
 
-    @Test(expected = SecurityException.class)
-    public void setExactAwiWithoutPermissionOrWhitelist() throws IOException {
-        revokeAppOp();
-        mAlarmManager.setExactAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME, 0,
-                getAlarmSender(0, false));
+    @Test
+    public void setAlarmClockWithoutPermissionOrWhitelist() throws Exception {
+        revokeAppOp(TEST_APP_PACKAGE);
+        assertSecurityExceptionFromTestApp(RequestReceiver.ACTION_SET_ALARM_CLOCK,
+                TEST_APP_PACKAGE);
     }
 
-    @Test(expected = SecurityException.class)
-    public void setExactPiWithoutPermissionOrWhitelist() throws IOException {
-        revokeAppOp();
-        mAlarmManager.setExact(AlarmManager.ELAPSED_REALTIME, 0, getAlarmSender(0, false));
-    }
 
-    @Test(expected = SecurityException.class)
-    public void setExactCallbackWithoutPermissionOrWhitelist() throws IOException {
-        revokeAppOp();
-        mAlarmManager.setExact(AlarmManager.ELAPSED_REALTIME, 0, "test",
-                new AlarmManager.OnAlarmListener() {
-                    @Override
-                    public void onAlarm() {
-                        Log.e(TAG, "Alarm fired!");
-                    }
-                }, null);
+    @Test
+    public void setExactAwiWithoutPermissionOrWhitelist() throws Exception {
+        revokeAppOp(TEST_APP_PACKAGE);
+        assertSecurityExceptionFromTestApp(RequestReceiver.ACTION_SET_EXACT_AND_AWI,
+                TEST_APP_PACKAGE);
     }
 
     @Test
-    public void setExactAwiWithoutPermissionWithWhitelist() throws Exception {
-        revokeAppOp();
-        whitelistTestApp();
-        final long now = SystemClock.elapsedRealtime();
-        // This is the user whitelist, so the app should get unrestricted alarms.
-        final int numAlarms = 100;   // Number much higher than any quota.
-        for (int i = 0; i < numAlarms; i++) {
-            final int id = mIdGenerator.nextInt();
-            mAlarmManager.setExactAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, now,
-                    getAlarmSender(id, false));
-            assertTrue("Alarm " + id + " not received",
-                    AlarmReceiver.waitForAlarm(id, DEFAULT_WAIT_FOR_SUCCESS));
-        }
+    public void setExactPiWithoutPermissionOrWhitelist() throws Exception {
+        revokeAppOp(TEST_APP_PACKAGE);
+        assertSecurityExceptionFromTestApp(RequestReceiver.ACTION_SET_EXACT_PI, TEST_APP_PACKAGE);
+    }
+
+    @Test
+    public void setExactCallbackWithoutPermissionOrWhitelist() throws Exception {
+        revokeAppOp(TEST_APP_PACKAGE);
+        assertSecurityExceptionFromTestApp(RequestReceiver.ACTION_SET_EXACT_CALLBACK,
+                TEST_APP_PACKAGE);
     }
 
     @Test
@@ -442,8 +531,7 @@ public class ExactAlarmsTest {
         output = output.replaceFirst("^.*? mFgsStartTempAllowList:$", "");
 
         final String uidStr = UserHandle.formatUid(uid);
-        final String expected = "^\\s*" + uidStr
-                + ":.* reasonCode=REASON_SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED.*";
+        final String expected = "^\\s*" + uidStr + ":";
         for (String line : output.split("\n")) {
             if (line.matches(expected)) {
                 return true;
@@ -452,83 +540,98 @@ public class ExactAlarmsTest {
         return false;
     }
 
-    @Test
-    public void scheduleExactAlarmPermissionStateChangedSentAppOp() throws Exception {
-        // Revoke the permission.
-        revokeAppOp();
-
-        final int myUid = Process.myUid();
-
-        // Because prior tests may already put the app on the temp allowlist, wait until
-        // it's removed from it...
-        // TODO(b/188789296) We should use `cmd deviceidle tempwhitelist -r PACKAGE-NAME`, but
-        //  it currently doesn't work.
-        TestUtils.waitUntil("App still on temp-allowlist", 60,
-                () -> !checkThisAppTempAllowListed(myUid));
-
-        final IntentFilter filter = new IntentFilter(
-                AlarmManager.ACTION_SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED);
-        final CountDownLatch latch = new CountDownLatch(1);
-        sContext.registerReceiver(new BroadcastReceiver() {
-            @Override
-            public void onReceive(Context context, Intent intent) {
-                latch.countDown();
-            }
-        }, filter);
-
-        // Grant again.
-        AppOpsUtils.setOpMode(sContext.getOpPackageName(), AppOpsManager.OPSTR_SCHEDULE_EXACT_ALARM,
-                AppOpsManager.MODE_ALLOWED);
-
-        assertTrue("Didn't receive ACTION_SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED",
-                latch.await(30, TimeUnit.SECONDS));
-
-        // We really should try starting a foreground service to make sure the app is
-        // allowed to start an FGS here, but when an app is running on `am instrument`, it's always
-        // exempted anyway, so we can't do that. Instead, we just check the dumpsys output.
-        //
-        // TODO(b/188790230): Use the test app instead, and make sure the app can actually start
-        // the FGS.
-        assertTrue("App should be temp-allowlisted", checkThisAppTempAllowListed(myUid));
+    private void prepareTestAppForBroadcast(ComponentName receiver) {
+        // Just send an explicit foreground broadcast to the test app to make sure
+        // the app is out of force-stop.
+        SystemUtil.runWithShellPermissionIdentity(
+                () -> mPackageManager.setComponentEnabledSetting(receiver,
+                        PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
+                        PackageManager.DONT_KILL_APP));
+        Log.d(TAG, "Un-force-stoppping the test app");
+        Intent i = new Intent("android.app.action.cts.ACTION_PING");
+        i.setComponent(receiver);
+        i.setFlags(Intent.FLAG_RECEIVER_FOREGROUND);
+        sContext.sendBroadcast(i);
     }
 
     @Test
-    public void scheduleExactAlarmPermissionStateChangedSentDenyList() throws Exception {
-        mDeviceConfigHelper.with("exact_alarm_deny_list", sContext.getOpPackageName())
-                .commitAndAwaitPropagation();
-        assertFalse(mAlarmManager.canScheduleExactAlarms());
+    public void scheduleExactAlarmPermissionStateChangedSentAppOp() throws Exception {
+        // Revoke the permission, and remove it from the temp-allowlist.
+        prepareTestAppForBroadcast(mPermissionChangeReceiver);
+        Log.d(TAG, "Revoking the appop");
+        revokeAppOp(TEST_APP_PACKAGE);
+        removeFromWhitelists(TEST_APP_PACKAGE);
 
-        final int myUid = Process.myUid();
+        final int uid = Utils.getPackageUid(TEST_APP_PACKAGE);
+        TestUtils.waitUntil("Package still allowlisted",
+                () -> !checkThisAppTempAllowListed(uid));
 
-        // Because prior tests may already put the app on the temp allowlist, wait until
-        // it's removed from it...
-        // TODO(b/188789296) We should use `cmd deviceidle tempwhitelist -r PACKAGE-NAME`, but
-        //  it currently doesn't work.
-        TestUtils.waitUntil("App still on temp-allowlist", 60,
-                () -> !checkThisAppTempAllowListed(myUid));
+        Thread.sleep(1000); // Give the system a little time to settle down.
 
         final IntentFilter filter = new IntentFilter(
-                AlarmManager.ACTION_SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED);
+                PermissionStateChangedReceiver.ACTION_FGS_START_RESULT);
+        final AtomicReference<String> resultHolder = new AtomicReference<>();
         final CountDownLatch latch = new CountDownLatch(1);
-        sContext.registerReceiver(new BroadcastReceiver() {
+        final BroadcastReceiver receiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
+                Log.d(TAG, "Received response intent: " + intent);
+                resultHolder.set(intent.getStringExtra(
+                        PermissionStateChangedReceiver.EXTRA_FGS_START_RESULT));
                 latch.countDown();
             }
-        }, filter);
+        };
+        sContext.registerReceiver(receiver, filter);
+        try {
+            Log.d(TAG, "Granting the appop");
+            setAppOp(TEST_APP_PACKAGE, AppOpsManager.MODE_ALLOWED);
 
-        mDeviceConfigHelper.without("exact_alarm_deny_list").commitAndAwaitPropagation();
-        assertTrue(mAlarmManager.canScheduleExactAlarms());
+            assertTrue("Didn't receive response",
+                    latch.await(30, TimeUnit.SECONDS));
+            assertEquals("Failure message should be empty", "", resultHolder.get());
+        } finally {
+            sContext.unregisterReceiver(receiver);
+        }
+    }
 
-        assertTrue("Didn't receive ACTION_SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED",
-                latch.await(30, TimeUnit.SECONDS));
+    @Test
+    public void scheduleExactAlarmPermissionStateChangedSentDenyListSdk32() throws Exception {
+        // App is targeting SDK 32, deny list will dictate the default grant state.
+        prepareTestAppForBroadcast(mPermissionChangeReceiver32);
 
-        // We really should try starting a foreground service to make sure the app is
-        // allowed to start an FGS here, but when an app is running on `am instrument`, it's always
-        // exempted anyway, so we can't do that. Instead, we just check the dumpsys output.
-        //
-        // TODO(b/188790230): Use the test app instead, and make sure the app can actually start
-        // the FGS.
-        assertTrue("App should be temp-allowlisted", checkThisAppTempAllowListed(myUid));
+        // App op hasn't been touched, should be default.
+        Log.d(TAG, "Putting in deny list");
+        mDeviceConfigHelper.with("exact_alarm_deny_list", TEST_APP_WITH_SCHEDULE_EXACT_ALARM_32)
+                .commitAndAwaitPropagation();
+        removeFromWhitelists(TEST_APP_WITH_SCHEDULE_EXACT_ALARM_32);
+
+        final int uid = Utils.getPackageUid(TEST_APP_WITH_SCHEDULE_EXACT_ALARM_32);
+        TestUtils.waitUntil("Package still allowlisted",
+                () -> !checkThisAppTempAllowListed(uid));
+
+        final IntentFilter filter = new IntentFilter(
+                PermissionStateChangedReceiver.ACTION_FGS_START_RESULT);
+        final AtomicReference<String> resultHolder = new AtomicReference<>();
+        final CountDownLatch latch = new CountDownLatch(1);
+        final BroadcastReceiver receiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                Log.d(TAG, "Received response intent: " + intent);
+                resultHolder.set(intent.getStringExtra(
+                        PermissionStateChangedReceiver.EXTRA_FGS_START_RESULT));
+                latch.countDown();
+            }
+        };
+        sContext.registerReceiver(receiver, filter);
+        try {
+            Log.d(TAG, "Removing from deny list");
+            mDeviceConfigHelper.without("exact_alarm_deny_list").commitAndAwaitPropagation();
+
+            assertTrue("Didn't receive response",
+                    latch.await(30, TimeUnit.SECONDS));
+            assertEquals("Failure message should be empty", "", resultHolder.get());
+        } finally {
+            sContext.unregisterReceiver(receiver);
+        }
     }
 }

@@ -18,6 +18,8 @@ package android.app.cts;
 
 import static androidx.test.InstrumentationRegistry.getInstrumentation;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assume.assumeFalse;
 
@@ -26,10 +28,13 @@ import android.app.StatusBarManager.DisableInfo;
 import android.app.UiAutomation;
 import android.content.Context;
 import android.content.pm.PackageManager;
+import android.view.KeyEvent;
 
 import androidx.test.InstrumentationRegistry;
 import androidx.test.filters.SmallTest;
 import androidx.test.runner.AndroidJUnit4;
+
+import com.android.compatibility.common.util.CddTest;
 
 import org.junit.After;
 import org.junit.Before;
@@ -39,7 +44,7 @@ import org.junit.runner.RunWith;
 @RunWith(AndroidJUnit4.class)
 @SmallTest
 public class StatusBarManagerTest {
-    private static final String PERMISSION_STATUS_BAR = "android.permission.STATUS_BAR";
+    private static final String PERMISSION_STATUS_BAR = android.Manifest.permission.STATUS_BAR;
 
     private StatusBarManager mStatusBarManager;
     private Context mContext;
@@ -93,6 +98,7 @@ public class StatusBarManagerTest {
         assertTrue(info.isStatusBarExpansionDisabled());
         assertTrue(info.isRecentsDisabled());
         assertTrue(info.isSearchDisabled());
+        assertFalse(info.isRotationSuggestionDisabled());
     }
 
     /**
@@ -143,5 +149,77 @@ public class StatusBarManagerTest {
         mStatusBarManager.collapsePanels();
 
         // Nothing thrown, passed
+    }
+
+    @Test(expected = SecurityException.class)
+    public void testTogglePanel_withoutStatusBarPermission_throws() throws Exception {
+        // We've adopted shell identity for STATUS_BAR in setUp(), so drop it now
+        mUiAutomation.dropShellPermissionIdentity();
+
+        mStatusBarManager.togglePanel();
+    }
+
+    @Test
+    public void testTogglePanel_withStatusBarPermission_doesNotThrow() throws Exception {
+        // We've adopted shell identity for STATUS_BAR in setUp()
+
+        mStatusBarManager.togglePanel();
+
+        // Nothing thrown, passed
+    }
+
+    @Test(expected = SecurityException.class)
+    public void testHandleSystemKey_withoutStatusBarPermission_throws() throws Exception {
+        // We've adopted shell identity for STATUS_BAR in setUp(), so drop it now
+        mUiAutomation.dropShellPermissionIdentity();
+
+        mStatusBarManager.handleSystemKey(KeyEvent.KEYCODE_SYSTEM_NAVIGATION_UP);
+    }
+
+    @Test
+    public void testHandleSystemKey_withStatusBarPermission_doesNotThrow() throws Exception {
+        // We've adopted shell identity for STATUS_BAR in setUp()
+
+        mStatusBarManager.handleSystemKey(KeyEvent.KEYCODE_SYSTEM_NAVIGATION_UP);
+
+        // Nothing thrown, passed
+    }
+
+    /**
+     * Test StatusBarManager.setNavBarMode(NAV_BAR_MODE_KIDS)
+     *
+     * @throws Exception
+     */
+    @CddTest(requirement = "7.2.3/C-9-1")
+    @Test
+    public void testSetNavBarMode_kids_doesNotThrow() throws Exception {
+        int navBarModeKids = StatusBarManager.NAV_BAR_MODE_KIDS;
+        mStatusBarManager.setNavBarMode(navBarModeKids);
+
+        assertEquals(mStatusBarManager.getNavBarMode(), navBarModeKids);
+    }
+
+    /**
+     * Test StatusBarManager.setNavBarMode(NAV_BAR_MODE_NONE)
+     *
+     * @throws Exception
+     */
+    @Test
+    public void testSetNavBarMode_none_doesNotThrow() throws Exception {
+        int navBarModeNone = StatusBarManager.NAV_BAR_MODE_DEFAULT;
+        mStatusBarManager.setNavBarMode(navBarModeNone);
+
+        assertEquals(mStatusBarManager.getNavBarMode(), navBarModeNone);
+    }
+
+    /**
+     * Test StatusBarManager.setNavBarMode(-1) // invalid input
+     *
+     * @throws Exception
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testSetNavBarMode_invalid_throws() throws Exception {
+        int invalidInput = -1;
+        mStatusBarManager.setNavBarMode(invalidInput);
     }
 }

@@ -18,10 +18,12 @@ package android.mediav2.cts;
 
 import android.media.MediaFormat;
 
+import androidx.test.ext.junit.rules.ActivityScenarioRule;
 import androidx.test.filters.SmallTest;
-import androidx.test.rule.ActivityTestRule;
 
+import org.junit.After;
 import org.junit.Assume;
+import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -40,25 +42,26 @@ public class DecoderColorAspectsTest extends CodecDecoderTestBase {
     private final int mColorStandard;
     private final int mColorTransferCurve;
     private final boolean mCanIgnoreColorBox;
+
     private ArrayList<String> mCheckESList;
 
-    public DecoderColorAspectsTest(String mime, String testFile, int range, int standard,
-            int transferCurve, boolean canIgnoreColorBox) {
-        super(mime, testFile);
+    public DecoderColorAspectsTest(String decoderName, String mime, String testFile, int range,
+            int standard, int transferCurve, boolean canIgnoreColorBox) {
+        super(decoderName, mime, testFile);
         mColorRange = range;
         mColorStandard = standard;
         mColorTransferCurve = transferCurve;
         mCheckESList = new ArrayList<>();
         mCheckESList.add(MediaFormat.MIMETYPE_VIDEO_AVC);
         mCheckESList.add(MediaFormat.MIMETYPE_VIDEO_HEVC);
-        /* TODO (b/165492703) Mpeg2 and (b/165787556) AV1 has problems in signalling color
+        /* TODO (b/165492703) Mpeg2 has problems in signalling color
             aspects information via elementary stream. */
         // mCheckESList.add(MediaFormat.MIMETYPE_VIDEO_MPEG2);
-        // mCheckESList.add(MediaFormat.MIMETYPE_VIDEO_AV1);
+        mCheckESList.add(MediaFormat.MIMETYPE_VIDEO_AV1);
         mCanIgnoreColorBox = canIgnoreColorBox;
     }
 
-    @Parameterized.Parameters(name = "{index}({0})")
+    @Parameterized.Parameters(name = "{index}({0}_{1}_{3}_{4}_{5})")
     public static Collection<Object[]> input() {
         final boolean isEncoder = false;
         final boolean needAudio = true;
@@ -235,32 +238,41 @@ public class DecoderColorAspectsTest extends CodecDecoderTestBase {
     }
 
     @Rule
-    public ActivityTestRule<CodecTestActivity> mActivityRule =
-            new ActivityTestRule<>(CodecTestActivity.class);
+    public ActivityScenarioRule<CodecTestActivity> mActivityRule =
+            new ActivityScenarioRule<>(CodecTestActivity.class);
+
+    @Before
+    public void setUp() throws IOException, InterruptedException {
+        mActivityRule.getScenario().onActivity(activity -> mActivity = activity);
+        setUpSurface(mActivity);
+    }
+
+    @After
+    public void tearDown() {
+        tearDownSurface();
+    }
 
     @SmallTest
     @Test(timeout = PER_TEST_TIMEOUT_SMALL_TEST_MS)
     public void testColorAspects() throws IOException, InterruptedException {
-        CodecTestActivity activity = mActivityRule.getActivity();
-        setUpSurface(activity);
         MediaFormat format = setUpSource(mInpPrefix, mTestFile);
         mExtractor.release();
         ArrayList<MediaFormat> formats = new ArrayList<>();
         formats.add(format);
-        ArrayList<String> listOfDecoders = selectCodecs(mMime, formats, null, false);
-        Assume.assumeFalse("no suitable codecs found for : " + format.toString(),
-                listOfDecoders.isEmpty());
-        activity.setScreenParams(getWidth(format), getHeight(format), true);
-        for (String decoder : listOfDecoders) {
-            validateColorAspects(decoder, mInpPrefix, mTestFile, mColorRange, mColorStandard,
+        Assume.assumeTrue(areFormatsSupported(mCodecName, mMime, formats));
+        if (doesAnyFormatHaveHDRProfile(mMime, formats)) {
+            Assume.assumeTrue(canDisplaySupportHDRContent());
+        }
+        mActivity.setScreenParams(getWidth(format), getHeight(format), true);
+        {
+            validateColorAspects(mCodecName, mInpPrefix, mTestFile, mColorRange, mColorStandard,
                     mColorTransferCurve, false);
             // If color metadata can also be signalled via elementary stream, then verify if the
             // elementary stream contains color aspects as expected
             if (mCanIgnoreColorBox && mCheckESList.contains(mMime)) {
-                validateColorAspects(decoder, mInpPrefix, mTestFile, mColorRange,
+                validateColorAspects(mCodecName, mInpPrefix, mTestFile, mColorRange,
                         mColorStandard, mColorTransferCurve, true);
             }
         }
-        tearDownSurface();
     }
 }

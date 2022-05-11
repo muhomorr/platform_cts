@@ -21,6 +21,8 @@ import android.media.MediaFormat;
 import androidx.test.filters.SmallTest;
 import androidx.test.runner.AndroidJUnit4;
 
+import com.android.compatibility.common.util.MediaUtils;
+
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -44,7 +46,7 @@ public class CodecListTest {
         boolean[] modes = {true, false};
         for (boolean isEncoder : modes) {
             ArrayList<String> cddRequiredMimeList =
-                    CodecTestBase.prepareRequiredArgsList(isEncoder, needAudio, needVideo);
+                    CodecTestBase.compileRequiredMimeList(isEncoder, needAudio, needVideo);
             for (String mime : cddRequiredMimeList) {
                 String log = String.format("no %s found for mime %s as required by cdd ",
                         isEncoder ? "encoder" : "decoder", mime);
@@ -52,8 +54,8 @@ public class CodecListTest {
                                         CodecTestBase.hasDecoder(mime));
             }
         }
-        if (CodecTestBase.hasCamera()) {
-            assertTrue("device doesn't support either VP8 or AVC video encoders",
+        if (MediaUtils.hasCamera()) {
+            assertTrue("device has neither VP8 or AVC encoding",
                     CodecTestBase.hasEncoder(MediaFormat.MIMETYPE_VIDEO_AVC) ||
                             CodecTestBase.hasEncoder(MediaFormat.MIMETYPE_VIDEO_VP8));
         }

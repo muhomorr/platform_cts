@@ -19,12 +19,15 @@ package android.compat.cts;
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
 
+import android.cts.statsdatom.lib.ReportUtils;
+
 import com.android.compatibility.common.tradefed.build.CompatibilityBuildHelper;
 import com.android.ddmlib.testrunner.RemoteAndroidTestRunner;
 import com.android.ddmlib.testrunner.TestResult.TestStatus;
 import com.android.internal.os.StatsdConfigProto;
 import com.android.os.AtomsProto;
 import com.android.os.AtomsProto.Atom;
+import com.android.os.StatsLog;
 import com.android.os.StatsLog.ConfigMetricsReport;
 import com.android.os.StatsLog.ConfigMetricsReportList;
 import com.android.tradefed.build.IBuildInfo;
@@ -46,7 +49,9 @@ import com.google.protobuf.InvalidProtocolBufferException;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -195,16 +200,25 @@ public class CompatChangeGatingTestCase extends DeviceTestCase implements IBuild
     /**
      * Gets the statsd report. Note that this also deletes that report from statsd.
      */
-    private List<ConfigMetricsReport> getReportList(long configId) throws DeviceNotAvailableException {
+    private ConfigMetricsReportList getReportList(long configId)
+            throws DeviceNotAvailableException {
         try {
             final CollectingByteOutputReceiver receiver = new CollectingByteOutputReceiver();
             getDevice().executeShellCommand(String.format(DUMP_REPORT_CMD, configId), receiver);
             return ConfigMetricsReportList.parser()
-                    .parseFrom(receiver.getOutput())
-                    .getReportsList();
+                    .parseFrom(receiver.getOutput());
         } catch (InvalidProtocolBufferException e) {
             throw new IllegalStateException("Failed to fetch and parse the statsd output report.",
                     e);
+        }
+    }
+
+    private static List<StatsLog.EventMetricData> getEventMetricDataList(
+            ConfigMetricsReportList reportList) {
+        try {
+            return ReportUtils.getEventMetricDataList(reportList);
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to parse ConfigMetrisReportList", e);
         }
     }
 
@@ -260,16 +274,21 @@ public class CompatChangeGatingTestCase extends DeviceTestCase implements IBuild
      */
     protected int getUid(@Nonnull String packageName) throws DeviceNotAvailableException {
         int currentUser = getDevice().getCurrentUser();
-        String uidLine = getDevice()
+        String uidLines = getDevice()
                 .executeShellCommand(
                         "cmd package list packages -U --user " + currentUser + " "
                                 + packageName);
-        String[] uidLineParts = uidLine.split(":");
-        // 3rd entry is package uid
-        assertThat(uidLineParts.length).isGreaterThan(2);
-        int uid = Integer.parseInt(uidLineParts[2].trim());
-        assertThat(uid).isGreaterThan(10000);
-        return uid;
+        for (String uidLine : uidLines.split("\n")) {
+            if (uidLine.startsWith("package:" + packageName + " uid:")) {
+                String[] uidLineParts = uidLine.split(":");
+                // 3rd entry is package uid
+                assertThat(uidLineParts.length).isGreaterThan(2);
+                int uid = Integer.parseInt(uidLineParts[2].trim());
+                assertThat(uid).isGreaterThan(10000);
+                return uid;
+            }
+        }
+        throw new IllegalStateException("Failed to find the test app on the device");
     }
 
     /**
@@ -313,9 +332,7 @@ public class CompatChangeGatingTestCase extends DeviceTestCase implements IBuild
     private Map<Long, Boolean> getReportedChanges(long configId, String pkgName)
             throws DeviceNotAvailableException {
         final int packageUid = getUid(pkgName);
-        return getReportList(configId).stream()
-                .flatMap(report -> report.getMetricsList().stream())
-                .flatMap(metric -> metric.getEventMetrics().getDataList().stream())
+        return getEventMetricDataList(getReportList(configId)).stream()
                 .filter(eventMetricData -> eventMetricData.hasAtom())
                 .map(eventMetricData -> eventMetricData.getAtom())
                 .map(atom -> atom.getAppCompatibilityChangeReported())

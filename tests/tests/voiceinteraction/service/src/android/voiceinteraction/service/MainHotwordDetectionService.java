@@ -16,7 +16,14 @@
 
 package android.voiceinteraction.service;
 
+import static android.media.AudioFormat.CHANNEL_IN_FRONT;
+
+import android.media.AudioAttributes;
 import android.media.AudioFormat;
+import android.media.AudioRecord;
+import android.media.MediaRecorder;
+import android.os.Handler;
+import android.os.Looper;
 import android.os.ParcelFileDescriptor;
 import android.os.PersistableBundle;
 import android.os.Process;
@@ -37,28 +44,90 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.function.IntConsumer;
 
+import javax.annotation.concurrent.GuardedBy;
+
 public class MainHotwordDetectionService extends HotwordDetectionService {
     static final String TAG = "MainHotwordDetectionService";
 
-    // TODO: Fill in the remaining fields.
+    public static final int DEFAULT_PHRASE_ID = 5;
     public static final HotwordDetectedResult DETECTED_RESULT =
             new HotwordDetectedResult.Builder()
+                    .setAudioChannel(CHANNEL_IN_FRONT)
                     .setConfidenceLevel(HotwordDetectedResult.CONFIDENCE_LEVEL_HIGH)
+                    .setHotwordDetectionPersonalized(true)
+                    .setHotwordDurationMillis(1000)
+                    .setHotwordOffsetMillis(500)
+                    .setHotwordPhraseId(DEFAULT_PHRASE_ID)
+                    .setPersonalizedScore(10)
+                    .setScore(15)
+                    .build();
+    public static final HotwordDetectedResult DETECTED_RESULT_AFTER_STOP_DETECTION =
+            new HotwordDetectedResult.Builder()
+                    .setHotwordPhraseId(DEFAULT_PHRASE_ID)
+                    .setScore(57)
+                    .build();
+    public static final HotwordDetectedResult DETECTED_RESULT_FOR_MIC_FAILURE =
+            new HotwordDetectedResult.Builder()
+                    .setHotwordPhraseId(DEFAULT_PHRASE_ID)
+                    .setScore(58)
                     .build();
     public static final HotwordRejectedResult REJECTED_RESULT =
             new HotwordRejectedResult.Builder()
                     .setConfidenceLevel(HotwordRejectedResult.CONFIDENCE_LEVEL_MEDIUM)
                     .build();
+    @NonNull
+    private final Object mLock = new Object();
+    private Handler mHandler;
+    @GuardedBy("mLock")
+    private boolean mStopDetectionCalled;
+
+    @GuardedBy("mLock")
+    @Nullable
+    private Runnable mDetectionJob;
+
+    @Override
+    public void onCreate() {
+        super.onCreate();
+        mHandler = Handler.createAsync(Looper.getMainLooper());
+        Log.d(TAG, "onCreate");
+    }
 
     @Override
     public void onDetect(@NonNull AlwaysOnHotwordDetector.EventPayload eventPayload,
             long timeoutMillis, @NonNull Callback callback) {
         Log.d(TAG, "onDetect for DSP source");
 
+        if (!canReadAudio()) {
+            callback.onDetected(DETECTED_RESULT_FOR_MIC_FAILURE);
+            return;
+        }
+
         // TODO: Check the capture session (needs to be reflectively accessed).
         byte[] data = eventPayload.getTriggerAudio();
         if (data != null && data.length > 0) {
-            callback.onDetected(DETECTED_RESULT);
+            // Create the unaccepted HotwordDetectedResult first to test the protection in the
+            // onDetected callback function of HotwordDetectionService. When the bundle data of
+            // HotwordDetectedResult is larger than max bundle size, it will throw the
+            // IllegalArgumentException.
+            PersistableBundle persistableBundle = new PersistableBundle();
+            HotwordDetectedResult hotwordDetectedResult =
+                    new HotwordDetectedResult.Builder()
+                            .setHotwordPhraseId(eventPayload.getKeyphraseRecognitionExtras().get(
+                                    0).getKeyphraseId())
+                            .setExtras(persistableBundle)
+                            .build();
+            int key = 0;
+            do {
+                persistableBundle.putInt(Integer.toString(key), 0);
+                key++;
+            } while (Utils.getParcelableSize(persistableBundle)
+                    <= HotwordDetectedResult.getMaxBundleSize());
+
+            try {
+                callback.onDetected(hotwordDetectedResult);
+            } catch (IllegalArgumentException e) {
+                callback.onDetected(DETECTED_RESULT);
+            }
         } else {
             callback.onRejected(REJECTED_RESULT);
         }
@@ -102,7 +171,7 @@ public class MainHotwordDetectionService extends HotwordDetectionService {
             Log.d(TAG, "fis.available() = " + fis.available());
             byte[] buffer = new byte[8];
             fis.read(buffer, 0, 8);
-            if(isSame(buffer, BasicVoiceInteractionService.FAKE_HOTWORD_AUDIO_DATA,
+            if (isSame(buffer, BasicVoiceInteractionService.FAKE_HOTWORD_AUDIO_DATA,
                     buffer.length)) {
                 Log.d(TAG, "call callback.onDetected");
                 callback.onDetected(DETECTED_RESULT);
@@ -115,7 +184,41 @@ public class MainHotwordDetectionService extends HotwordDetectionService {
     @Override
     public void onDetect(@NonNull Callback callback) {
         Log.d(TAG, "onDetect for Mic source");
-        callback.onDetected(DETECTED_RESULT);
+        synchronized (mLock) {
+            if (mDetectionJob != null) {
+                throw new IllegalStateException("onDetect called while already detecting");
+            }
+            if (!mStopDetectionCalled) {
+                // Delaying this allows us to test other flows, such as stopping detection. It's
+                // also more realistic to schedule it onto another thread.
+                mDetectionJob = () -> {
+                    Log.d(TAG, "Sending detected result");
+
+                    if (canReadAudio()) {
+                        callback.onDetected(DETECTED_RESULT);
+                    } else {
+                        callback.onDetected(DETECTED_RESULT_FOR_MIC_FAILURE);
+                    }
+                };
+                mHandler.postDelayed(mDetectionJob, 1500);
+            } else {
+                Log.d(TAG, "Sending detected result after stop detection");
+                // We can't store and use this callback in onStopDetection (not valid anymore
+                // there), so instead we trigger detection again to report the event.
+                callback.onDetected(DETECTED_RESULT_AFTER_STOP_DETECTION);
+            }
+        }
+    }
+
+    @Override
+    public void onStopDetection() {
+        super.onStopDetection();
+        Log.d(TAG, "onStopDetection");
+        synchronized (mLock) {
+            mHandler.removeCallbacks(mDetectionJob);
+            mDetectionJob = null;
+            mStopDetectionCalled = true;
+        }
     }
 
     @Override
@@ -124,7 +227,20 @@ public class MainHotwordDetectionService extends HotwordDetectionService {
             @Nullable SharedMemory sharedMemory,
             long callbackTimeoutMillis,
             @Nullable IntConsumer statusCallback) {
+        super.onUpdateState(options, sharedMemory, callbackTimeoutMillis, statusCallback);
         Log.d(TAG, "onUpdateState");
+
+        // Reset mDetectionJob and mStopDetectionCalled when service is initializing.
+        synchronized (mLock) {
+            if (statusCallback != null) {
+                if (mDetectionJob != null) {
+                    Log.d(TAG, "onUpdateState mDetectionJob is not null");
+                    mHandler.removeCallbacks(mDetectionJob);
+                    mDetectionJob = null;
+                }
+                mStopDetectionCalled = false;
+            }
+        }
 
         if (options != null) {
             if (options.getInt(Utils.KEY_TEST_SCENARIO, -1)
@@ -172,5 +288,60 @@ public class MainHotwordDetectionService extends HotwordDetectionService {
             }
         }
         return true;
+    }
+
+    private boolean canReadAudio() {
+        int bytesPerSample = 2; // for ENCODING_PCM_16BIT
+        int sampleRate = 16000;
+        int bytesPerSecond = bytesPerSample * sampleRate; // for single channel
+        AudioRecord record =
+                new AudioRecord.Builder()
+                        .setAudioAttributes(
+                                new AudioAttributes.Builder()
+                                        .setInternalCapturePreset(MediaRecorder.AudioSource.HOTWORD)
+                                        .build())
+                        .setAudioFormat(
+                                new AudioFormat.Builder()
+                                        .setChannelMask(AudioFormat.CHANNEL_IN_MONO)
+                                        .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                                        .setSampleRate(sampleRate)
+                                        .build())
+                        .setBufferSizeInBytes(bytesPerSecond)
+                        .build();
+        if (record.getState() != AudioRecord.STATE_INITIALIZED) {
+            Log.e(TAG, "Failed to initialize AudioRecord");
+            record.release();
+            return false;
+        }
+
+        record.startRecording();
+        try {
+            byte[] buffer = new byte[bytesPerSecond]; // read 1 second of audio
+            int numBytes = 0;
+            while (numBytes < buffer.length) {
+                int bytesRead =
+                        record.read(buffer, numBytes, Math.min(1024, buffer.length - numBytes));
+                if (bytesRead < 0) {
+                    Log.e(TAG, "Error reading from mic: " + bytesRead);
+                    return false;
+                }
+                numBytes += bytesRead;
+            }
+            // The audio data will be zero on virtual device, so it would be better to skip to
+            // check the audio data.
+            if (Utils.isVirtualDevice()) {
+                return true;
+            }
+            for (byte b : buffer) {
+                // TODO: Maybe check that some portion of the bytes are non-zero.
+                if (b != 0) {
+                    return true;
+                }
+            }
+            Log.d(TAG, "All data are zero");
+            return false;
+        } finally {
+            record.release();
+        }
     }
 }

@@ -29,6 +29,10 @@ import image_processing_utils
 import its_session_utils
 
 
+_ZOOM_RATIO = 1.0 # Zoom target to be used while running the model
+_REMOVE_OUTLIERS = False # When True, filters the variance to remove outliers
+_OUTLIE_MEDIAN_ABS_DEVS = 10 # Defines the number of Median Absolute Deviations
+                             # that consitutes acceptable data
 _BAYER_LIST = ('R', 'GR', 'GB', 'B')
 _BRACKET_MAX = 8  # Exposure bracketing range in stops
 _BRACKET_FACTOR = math.pow(2, _BRACKET_MAX)
@@ -111,6 +115,52 @@ def create_noise_model_code(noise_model_a, noise_model_b,
   text_file.write('%s' % code)
   text_file.close()
 
+  # Creates the noise profile C++ file
+  code = textwrap.dedent(f"""\
+          /* noise_profile.cc
+             Note: gradient_slope --> gradient of API slope parameter
+                   offset_slope --> offset of API slope parameter
+                   gradient_intercept--> gradient of API intercept parameter
+                   offset_intercept --> offset of API intercept parameter
+             Note: SENSOR_NOISE_PROFILE in Android Developers doc uses
+                   N(x) = sqrt(Sx + O), where 'S' is 'slope' & 'O' is 'intercept'
+          */
+          .noise_profile =
+              {{.noise_coefficients_r = {{.gradient_slope = {noise_model_a[0]},
+                                        .offset_slope = {noise_model_b[0]},
+                                        .gradient_intercept = {noise_model_c[0]},
+                                        .offset_intercept = {noise_model_d[0]}}},
+               .noise_coefficients_gr = {{.gradient_slope = {noise_model_a[1]},
+                                         .offset_slope = {noise_model_b[1]},
+                                         .gradient_intercept = {noise_model_c[1]},
+                                         .offset_intercept = {noise_model_d[1]}}},
+               .noise_coefficients_gb = {{.gradient_slope = {noise_model_a[2]},
+                                         .offset_slope = {noise_model_b[2]},
+                                         .gradient_intercept = {noise_model_c[2]},
+                                         .offset_intercept = {noise_model_d[2]}}},
+               .noise_coefficients_b = {{.gradient_slope = {noise_model_a[3]},
+                                        .offset_slope = {noise_model_b[3]},
+                                        .gradient_intercept = {noise_model_c[3]},
+                                        .offset_intercept = {noise_model_d[3]}}}}},
+          """)
+  text_file = open(os.path.join(log_path, 'noise_profile.cc'), 'w')
+  text_file.write('%s' % code)
+  text_file.close()
+
+def outlier_removed_indices(data, deviations=3):
+  """Removes outliers using median absolute deviation and returns indices kept.
+
+  Args:
+      data:             list to remove outliers from
+      deviations:       number of deviations from median to keep
+  Returns:
+      keep_indices:     The indices of data which should be kept
+  """
+  std_dev = scipy.stats.median_abs_deviation(data, axis=None, scale=1)
+  med = np.median(data)
+  keep_indices = np.where(
+    np.logical_and(data>med-deviations*std_dev, data<med+deviations*std_dev))
+  return keep_indices
 
 class DngNoiseModel(its_base_test.ItsBaseTest):
   """Create DNG noise model.
@@ -182,6 +232,7 @@ class DngNoiseModel(its_base_test.ItsBaseTest):
           logging.info('exp %.3fms', round(exposure*1.0E-6, 3))
           req = capture_request_utils.manual_capture_request(iso_int, exposure,
                                                              f_dist)
+          req['android.control.zoomRatio'] = _ZOOM_RATIO
           fmt_raw = {'format': 'rawStats',
                      'gridWidth': _TILE_SIZE,
                      'gridHeight': _TILE_SIZE}
@@ -207,8 +258,21 @@ class DngNoiseModel(its_base_test.ItsBaseTest):
             logging.info('R planes means image size: %s', str(means[0].shape))
             logging.info('means min: %.3f, median: %.3f, max: %.3f',
                          np.min(means), np.median(means), np.max(means))
-            logging.info('vars_ min: %.4f, median: %.4f, max: %.4f',
-                         np.min(vars_), np.median(vars_), np.max(vars_))
+          logging.info('vars_ min: %.4f, median: %.4f, max: %.4f',
+                        np.min(vars_), np.median(vars_), np.max(vars_))
+
+          # If remove outliers is True, we will filter the variance data
+          if _REMOVE_OUTLIERS:
+            means_filtered = []
+            vars_filtered = []
+            for pidx in range(len(means)):
+              keep_indices = outlier_removed_indices(vars_[pidx],
+                                                    _OUTLIE_MEDIAN_ABS_DEVS)
+              means_filtered.append(means[pidx][keep_indices])
+              vars_filtered.append(vars_[pidx][keep_indices])
+
+            means = means_filtered
+            vars_ = vars_filtered
 
           s_read = cap['metadata']['android.sensor.sensitivity']
           if not 1.0 >= s_read/float(iso_int) >= _RTOL_EXP_GAIN:
@@ -279,17 +343,17 @@ class DngNoiseModel(its_base_test.ItsBaseTest):
         iso *= math.pow(2, 1.0/_STEPS_PER_STOP)
 
     # Do model plots
-    (fig, (plt_slope, plt_intercept)) = plt.subplots(2, 1, figsize=(11, 8.5))
-    plt_slope.set_title('Noise model')
-    plt_slope.set_ylabel('Slope')
-    plt_intercept.set_xlabel('ISO')
-    plt_intercept.set_ylabel('Intercept')
+    (fig, (plt_s, plt_o)) = plt.subplots(2, 1, figsize=(11, 8.5))
+    plt_s.set_title('Noise model: N(x) = sqrt(Sx + O)')
+    plt_s.set_ylabel('S')
+    plt_o.set_xlabel('ISO')
+    plt_o.set_ylabel('O')
 
     noise_model = []
     for (pidx, p) in enumerate(measured_models):
       # Grab the sensitivities and line parameters from each sensitivity.
-      slp_measured = [e[1] for e in measured_models[pidx]]
-      int_measured = [e[2] for e in measured_models[pidx]]
+      s_measured = [e[1] for e in measured_models[pidx]]
+      o_measured = [e[2] for e in measured_models[pidx]]
       sens = np.asarray([e[0] for e in measured_models[pidx]])
       sens_sq = np.square(sens)
 
@@ -314,30 +378,34 @@ class DngNoiseModel(its_base_test.ItsBaseTest):
       # Divide the whole system by gains*means.
       f = lambda x, a, b, c, d: (c*(x[0]**2)+d+(x[1])*a*x[0]+(x[1])*b)/(x[0])
       result, _ = scipy.optimize.curve_fit(f, (gains, means), vars_/(gains))
-
-      a_p, b_p, c_p, d_p = result[0:4]
+      # result[0:4] = s_gradient, s_offset, o_gradient, o_offset
+      # Note 'S' and 'O' are the API terms for the 2 model params.
+      # The noise_profile.cc uses 'slope' for 'S' and 'intercept' for 'O'.
+      # 'gradient' and 'offset' are used to describe the linear fit
+      # parameters for 'S' and 'O'.
       noise_model.append(result[0:4])
 
       # Plot noise model components with the values predicted by the model.
-      slp_model = result[0]*sens + result[1]
-      int_model = result[2]*sens_sq + result[3]*np.square(np.maximum(
+      s_model = result[0]*sens + result[1]
+      o_model = result[2]*sens_sq + result[3]*np.square(np.maximum(
           sens/sens_max_analog, 1))
 
-      plt_slope.loglog(sens, slp_measured, 'rgkb'[pidx]+'+', base=10,
-                       label='Measured')
-      plt_slope.loglog(sens, slp_model, 'rgkb'[pidx]+'o', base=10,
-                       label='Model', alpha=0.3)
-      plt_intercept.loglog(sens, int_measured, 'rgkb'[pidx]+'+', base=10,
-                           label='Measured')
-      plt_intercept.loglog(sens, int_model, 'rgkb'[pidx]+'o', base=10,
-                           label='Model', alpha=0.3)
-    plt_slope.legend()
-    plt_slope.set_xticks(isos)
-    plt_slope.set_xticklabels(isos)
+      plt_s.loglog(sens, s_measured, 'rgkb'[pidx]+'+', base=10,
+                   label='Measured')
+      plt_s.loglog(sens, s_model, 'rgkb'[pidx]+'o', base=10,
+                   label='Model', alpha=0.3)
+      plt_o.loglog(sens, o_measured, 'rgkb'[pidx]+'+', base=10,
+                   label='Measured')
+      plt_o.loglog(sens, o_model, 'rgkb'[pidx]+'o', base=10,
+                   label='Model', alpha=0.3)
+    plt_s.legend()
+    plt_s.set_xticks(isos)
+    plt_s.set_xticklabels(isos)
 
-    plt_intercept.set_xticks(isos)
-    plt_intercept.set_xticklabels(isos)
-    plt_intercept.legend()
+    plt_o.set_xticks([])
+    plt_o.set_xticks(isos)
+    plt_o.set_xticklabels(isos)
+    plt_o.legend()
     fig.savefig(f'{name_with_log_path}.png')
 
     # Generate individual noise model components
@@ -345,30 +413,29 @@ class DngNoiseModel(its_base_test.ItsBaseTest):
         *noise_model)
 
     # Add models to subplots and re-save
-    for [s, fig] in plots:  # re-step through figs...
-      dig_gain = max(s/sens_max_analog, 1)
+    for [iso, fig] in plots:  # re-step through figs...
+      dig_gain = max(iso/sens_max_analog, 1)
       fig.gca()
       for (pidx, p) in enumerate(measured_models):
-        slope = noise_model_a[pidx]*s + noise_model_b[pidx]
-        intercept = noise_model_c[pidx]*s**2 + noise_model_d[pidx]*dig_gain**2
-        color_plane_plots[s][pidx].plot(
-            [0, _MAX_SIGNAL_VALUE],
-            [intercept, intercept+slope*_MAX_SIGNAL_VALUE],
+        s = noise_model_a[pidx]*iso + noise_model_b[pidx]
+        o = noise_model_c[pidx]*iso**2 + noise_model_d[pidx]*dig_gain**2
+        color_plane_plots[iso][pidx].plot(
+            [0, _MAX_SIGNAL_VALUE], [o, o+s*_MAX_SIGNAL_VALUE],
             'rgkb'[pidx]+'-', label='Model', alpha=0.5)
-        color_plane_plots[s][pidx].legend(loc='upper left')
-      fig.savefig(f'{name_with_log_path}_samples_iso{s:04d}.png')
+        color_plane_plots[iso][pidx].legend(loc='upper left')
+      fig.savefig(f'{name_with_log_path}_samples_iso{iso:04d}.png')
 
-    # Validity checks on model: read noise > 0, positive slope.
+    # Validity checks on model: read noise > 0, positive intercept gradient.
     for i, _ in enumerate(_BAYER_LIST):
       read_noise = noise_model_c[i] * sens_min * sens_min + noise_model_d[i]
       if read_noise <= 0:
         raise AssertionError(f'{_BAYER_LIST[i]} model min ISO noise < 0! '
-                             f'C: {noise_model_c[i]:.4e}, '
-                             f'D: {noise_model_d[i]:.4e}, '
+                             f'API intercept gradient: {noise_model_c[i]:.4e}, '
+                             f'API intercept offset: {noise_model_d[i]:.4e}, '
                              f'read_noise: {read_noise:.4e}')
       if noise_model_c[i] <= 0:
-        raise AssertionError(f'{_BAYER_LIST[i]} model slope is negative. '
-                             f' slope={noise_model_c[i]:.4e}')
+        raise AssertionError(f'{_BAYER_LIST[i]} model API intercept gradient '
+                             f'is negative: {noise_model_c[i]:.4e}')
 
     # Generate the noise model file.
     create_noise_model_code(

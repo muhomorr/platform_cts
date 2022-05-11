@@ -59,8 +59,8 @@ public class AppDataIsolationTests extends BaseAppSecurityTest {
             "testAppADeDataDoesNotExist";
     private static final String APPA_METHOD_CHECK_CUR_PROFILE_ACCESSIBLE =
             "testAppACurProfileDataAccessible";
-    private static final String APPA_METHOD_CHECK_REF_PROFILE_NOT_ACCESSIBLE =
-            "testAppARefProfileDataNotAccessible";
+    private static final String APPA_METHOD_CHECK_REF_PROFILE_ACCESSIBLE =
+            "testAppARefProfileDataAccessible";
     private static final String APPA_METHOD_UNLOCK_DEVICE_AND_VERIFY_CE_DE_EXTERNAL_EXIST =
             "testAppAUnlockDeviceAndVerifyCeDeExternalDataExist";
     private static final String APPA_METHOD_CANNOT_ACCESS_APPB_DIR = "testCannotAccessAppBDataDir";
@@ -134,7 +134,7 @@ public class AppDataIsolationTests extends BaseAppSecurityTest {
         runDeviceTests(APPA_PKG, APPA_CLASS, APPA_METHOD_CHECK_DE_DATA_EXISTS);
         runDeviceTests(APPA_PKG, APPA_CLASS, APPA_METHOD_CHECK_EXTERNAL_DIRS_DO_EXIST);
         runDeviceTests(APPA_PKG, APPA_CLASS, APPA_METHOD_CHECK_CUR_PROFILE_ACCESSIBLE);
-        runDeviceTests(APPA_PKG, APPA_CLASS, APPA_METHOD_CHECK_REF_PROFILE_NOT_ACCESSIBLE);
+        runDeviceTests(APPA_PKG, APPA_CLASS, APPA_METHOD_CHECK_REF_PROFILE_ACCESSIBLE);
 
         // Force stop and verify CE, DE and external storage contains data, cur profile is
         // accessible and ref profile is not accessible, to confirm it's binding back the same data
@@ -144,7 +144,7 @@ public class AppDataIsolationTests extends BaseAppSecurityTest {
         runDeviceTests(APPA_PKG, APPA_CLASS, APPA_METHOD_CHECK_DE_DATA_EXISTS);
         runDeviceTests(APPA_PKG, APPA_CLASS, APPA_METHOD_CHECK_EXTERNAL_DIRS_DO_EXIST);
         runDeviceTests(APPA_PKG, APPA_CLASS, APPA_METHOD_CHECK_CUR_PROFILE_ACCESSIBLE);
-        runDeviceTests(APPA_PKG, APPA_CLASS, APPA_METHOD_CHECK_REF_PROFILE_NOT_ACCESSIBLE);
+        runDeviceTests(APPA_PKG, APPA_CLASS, APPA_METHOD_CHECK_REF_PROFILE_ACCESSIBLE);
     }
 
     @Test
@@ -165,7 +165,7 @@ public class AppDataIsolationTests extends BaseAppSecurityTest {
         runDeviceTests(APPA_PKG, APPA_CLASS, APPA_METHOD_CHECK_DE_DATA_EXISTS);
         runDeviceTests(APPA_PKG, APPA_CLASS, APPA_METHOD_CHECK_EXTERNAL_DIRS_DO_EXIST);
         runDeviceTests(APPA_PKG, APPA_CLASS, APPA_METHOD_CHECK_CUR_PROFILE_ACCESSIBLE);
-        runDeviceTests(APPA_PKG, APPA_CLASS, APPA_METHOD_CHECK_REF_PROFILE_NOT_ACCESSIBLE);
+        runDeviceTests(APPA_PKG, APPA_CLASS, APPA_METHOD_CHECK_REF_PROFILE_ACCESSIBLE);
 
         // Reboot and verify CE, DE and external storage contains data, cur profile is accessible
         // and ref profile is not accessible
@@ -174,7 +174,7 @@ public class AppDataIsolationTests extends BaseAppSecurityTest {
         runDeviceTests(APPA_PKG, APPA_CLASS, APPA_METHOD_CHECK_DE_DATA_EXISTS);
         runDeviceTests(APPA_PKG, APPA_CLASS, APPA_METHOD_CHECK_EXTERNAL_DIRS_DO_EXIST);
         runDeviceTests(APPA_PKG, APPA_CLASS, APPA_METHOD_CHECK_CUR_PROFILE_ACCESSIBLE);
-        runDeviceTests(APPA_PKG, APPA_CLASS, APPA_METHOD_CHECK_REF_PROFILE_NOT_ACCESSIBLE);
+        runDeviceTests(APPA_PKG, APPA_CLASS, APPA_METHOD_CHECK_REF_PROFILE_ACCESSIBLE);
     }
 
     @Test
@@ -202,19 +202,19 @@ public class AppDataIsolationTests extends BaseAppSecurityTest {
         runDeviceTests(APPA_PKG, APPA_CLASS, APPA_METHOD_CHECK_DE_DATA_EXISTS);
         runDeviceTests(APPA_PKG, APPA_CLASS, APPA_METHOD_CHECK_EXTERNAL_DIRS_DO_EXIST);
         runDeviceTests(APPA_PKG, APPA_CLASS, APPA_METHOD_CHECK_CUR_PROFILE_ACCESSIBLE);
-        runDeviceTests(APPA_PKG, APPA_CLASS, APPA_METHOD_CHECK_REF_PROFILE_NOT_ACCESSIBLE);
+        runDeviceTests(APPA_PKG, APPA_CLASS, APPA_METHOD_CHECK_REF_PROFILE_ACCESSIBLE);
 
         try {
             // Setup screenlock
             getDevice().executeShellCommand("settings put global require_password_to_decrypt 0");
             getDevice().executeShellCommand("locksettings set-disabled false");
-            String response = getDevice().executeShellCommand("locksettings set-pin 12345");
-            if (!response.contains("12345")) {
+            String response = getDevice().executeShellCommand("locksettings set-pin 1234");
+            if (!response.contains("1234")) {
                 // This seems to fail occasionally. Try again once, then give up.
                 Thread.sleep(500);
-                response = getDevice().executeShellCommand("locksettings set-pin 12345");
+                response = getDevice().executeShellCommand("locksettings set-pin 1234");
                 assumeTrue("Test requires setting a pin, which failed: " + response,
-                        response.contains("12345"));
+                        response.contains("1234"));
             }
 
             // Give enough time for vold to update keys
@@ -240,7 +240,7 @@ public class AppDataIsolationTests extends BaseAppSecurityTest {
             runDeviceTests(APPA_PKG, APPA_CLASS, APPA_METHOD_CHECK_CE_DATA_DOES_NOT_EXIST);
             runDeviceTests(APPA_PKG, APPA_CLASS, APPA_METHOD_CHECK_EXTERNAL_DIRS_UNAVAILABLE);
             runDeviceTests(APPA_PKG, APPA_CLASS, APPA_METHOD_CHECK_CUR_PROFILE_ACCESSIBLE);
-            runDeviceTests(APPA_PKG, APPA_CLASS, APPA_METHOD_CHECK_REF_PROFILE_NOT_ACCESSIBLE);
+            runDeviceTests(APPA_PKG, APPA_CLASS, APPA_METHOD_CHECK_REF_PROFILE_ACCESSIBLE);
             // Verify cannot access other apps data
             runDeviceTests(APPA_PKG, APPA_CLASS, APPA_METHOD_CANNOT_ACCESS_APPB_DIR);
 
@@ -255,14 +255,14 @@ public class AppDataIsolationTests extends BaseAppSecurityTest {
             runDeviceTests(APPA_PKG, APPA_CLASS, APPA_METHOD_CHECK_DE_DATA_EXISTS);
             runDeviceTests(APPA_PKG, APPA_CLASS, APPA_METHOD_CHECK_EXTERNAL_DIRS_DO_EXIST);
             runDeviceTests(APPA_PKG, APPA_CLASS, APPA_METHOD_CHECK_CUR_PROFILE_ACCESSIBLE);
-            runDeviceTests(APPA_PKG, APPA_CLASS, APPA_METHOD_CHECK_REF_PROFILE_NOT_ACCESSIBLE);
+            runDeviceTests(APPA_PKG, APPA_CLASS, APPA_METHOD_CHECK_REF_PROFILE_ACCESSIBLE);
         } finally {
             try {
                 // Always try to unlock first, then clear screenlock setting
                 try {
                     runDeviceTests(APPA_PKG, APPA_CLASS, APPA_METHOD_TEST_UNLOCK_DEVICE);
                 } catch (Exception e) {}
-                getDevice().executeShellCommand("locksettings clear --old 12345");
+                getDevice().executeShellCommand("locksettings clear --old 1234");
                 getDevice().executeShellCommand("locksettings set-disabled true");
                 getDevice().executeShellCommand(
                         "settings delete global require_password_to_decrypt");

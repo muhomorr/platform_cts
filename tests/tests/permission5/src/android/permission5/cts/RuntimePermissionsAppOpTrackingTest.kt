@@ -24,13 +24,14 @@ import android.content.ContentValues
 import android.content.Context
 import android.content.ContextParams
 import android.content.Intent
+import android.content.pm.PackageManager.FEATURE_LEANBACK
 import android.net.Uri
-import android.os.Binder
 import android.os.Bundle
 import android.os.Process
 import android.os.RemoteCallback
 import android.os.SystemClock
 import android.os.UserHandle
+import android.permission.PermissionManager
 import android.platform.test.annotations.AppModeFull
 import android.provider.CalendarContract
 import android.provider.CallLog
@@ -42,12 +43,13 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.android.compatibility.common.util.SystemUtil
 import com.google.common.truth.Truth.assertThat
 import org.junit.After
+import org.junit.Assume.assumeFalse
 import org.junit.Before
 import org.junit.Test
 import org.mockito.ArgumentMatcher
 import org.mockito.Mockito.eq
-import org.mockito.Mockito.intThat
 import org.mockito.Mockito.inOrder
+import org.mockito.Mockito.intThat
 import org.mockito.Mockito.isNull
 import org.mockito.Mockito.mock
 import java.util.concurrent.CountDownLatch
@@ -56,7 +58,7 @@ import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.locks.ReentrantLock
 import java.util.function.Consumer
 
-@AppModeFull(reason="Instant apps cannot hold READ_CONTACTS/READ_CALENDAR/READ_SMS/READ_CALL_LOG")
+@AppModeFull(reason = "Instant apps cannot hold READ_CONTACTS/READ_CALENDAR/READ_SMS/READ_CALL_LOG")
 class RuntimePermissionsAppOpTrackingTest {
 
     @Before
@@ -102,6 +104,7 @@ class RuntimePermissionsAppOpTrackingTest {
     @Test
     @Throws(Exception::class)
     fun testSelfSmsAccess() {
+        assumeNotTv()
         testSelfAccess(Telephony.Sms.CONTENT_URI,
                 Manifest.permission.READ_SMS)
     }
@@ -174,6 +177,7 @@ class RuntimePermissionsAppOpTrackingTest {
     @Test
     @Throws(Exception::class)
     fun testUntrustedSmsAccessAttributeToAnother() {
+        assumeNotTv()
         testUntrustedAccessAttributeToAnother(Telephony.Sms.CONTENT_URI,
                 Manifest.permission.READ_SMS)
     }
@@ -220,6 +224,7 @@ class RuntimePermissionsAppOpTrackingTest {
     @Test
     @Throws(Exception::class)
     fun testUntrustedSmsAccessAttributeToAnotherThroughIntermediary() {
+        assumeNotTv()
         testUntrustedAccessAttributeToAnotherThroughIntermediary(
                 Telephony.Sms.CONTENT_URI,
                 Manifest.permission.READ_SMS)
@@ -234,8 +239,10 @@ class RuntimePermissionsAppOpTrackingTest {
     }
 
     @Throws(Exception::class)
-    private fun testUntrustedAccessAttributeToAnotherThroughIntermediary(uri: Uri,
-            permission: String) {
+    private fun testUntrustedAccessAttributeToAnotherThroughIntermediary(
+        uri: Uri,
+        permission: String
+    ) {
         runWithAuxiliaryApps {
             val nextAttributionSource = startBlamedAppActivity()
 
@@ -261,7 +268,7 @@ class RuntimePermissionsAppOpTrackingTest {
                     beginEndMillis, endTimeMillis, nextAttributionSource,
                     /*accessorForeground*/ true, /*receiverForeground*/ false,
                     /*accessorTrusted*/ false, /*accessorAccessCount*/ 1,
-                    /*receiverAccessCount*/ 1,  /*checkAccessor*/ false,
+                    /*receiverAccessCount*/ 1, /*checkAccessor*/ false,
                     /*fromDatasource*/ false)
         }
     }
@@ -315,6 +322,7 @@ class RuntimePermissionsAppOpTrackingTest {
     @Test
     @Throws(Exception::class)
     fun testTrustedAccessSmsAttributeToAnother() {
+        assumeNotTv()
         testTrustedAccessAttributeToAnother(Telephony.Sms.CONTENT_URI,
                 Manifest.permission.READ_SMS)
     }
@@ -408,7 +416,7 @@ class RuntimePermissionsAppOpTrackingTest {
                                 /*attributionTag*/ null, null, context.attributionSource),
                         /*accessorForeground*/ true, /*receiverForeground*/ true,
                         /*accessorTrusted*/ false, /*accessorAccessCount*/ 1,
-                        /*receiverAccessCount*/ 1,  /*checkAccessor*/ true,
+                        /*receiverAccessCount*/ 1, /*checkAccessor*/ true,
                         /*fromDatasource*/ false)
 
                 assertRunningOpAccess(op, speechStartTime, System.currentTimeMillis(),
@@ -419,7 +427,7 @@ class RuntimePermissionsAppOpTrackingTest {
 
                 // Finish recon and check if all ops are finished
                 currentOperationComplete = CountDownLatch(1)
-                instrumentation.runOnMainSync{ recognizerRef.get().cancel() }
+                instrumentation.runOnMainSync { recognizerRef.get().cancel() }
                 currentOperationComplete.await(ASYNC_OPERATION_TIMEOUT_MILLIS,
                         TimeUnit.MILLISECONDS)
 
@@ -431,7 +439,7 @@ class RuntimePermissionsAppOpTrackingTest {
                                 /*attributionTag*/ null, null, context.attributionSource),
                         /*accessorForeground*/ true, /*receiverForeground*/ true,
                         /*accessorTrusted*/ false, /*accessorAccessCount*/ 1,
-                        /*receiverAccessCount*/ 1,  /*checkAccessor*/ true,
+                        /*receiverAccessCount*/ 1, /*checkAccessor*/ true,
                         /*fromDatasource*/ false)
 
                 assertNotRunningOpAccess(op, speechStartTime, System.currentTimeMillis(),
@@ -480,7 +488,7 @@ class RuntimePermissionsAppOpTrackingTest {
                         intThat(attributionChainIdMatcher))
             } finally {
                 // Take down the recognition service
-                instrumentation.runOnMainSync{ recognizerRef.get().destroy() }
+                instrumentation.runOnMainSync { recognizerRef.get().destroy() }
             }
         }
     }
@@ -547,13 +555,13 @@ class RuntimePermissionsAppOpTrackingTest {
 
                 assertRunningOpAccess(op, speechStartTime, System.currentTimeMillis(),
                         context.attributionSource, /*accessorForeground*/ true,
-                        /*receiverForeground*/ true, /*accessorTrusted*/ false,
+                        /*receiverForeground*/ true, /*accessorTrusted*/ true,
                         /*accessorAccessCount*/ 0, /*receiverAccessCount*/ 1,
                         /*checkAccessor*/ false, /*fromDatasource*/ true)
 
                 // Finish recon and check if all ops are finished
                 currentOperationComplete = CountDownLatch(1)
-                instrumentation.runOnMainSync{ recognizerRef.get().cancel() }
+                instrumentation.runOnMainSync { recognizerRef.get().cancel() }
                 currentOperationComplete.await(ASYNC_OPERATION_TIMEOUT_MILLIS,
                         TimeUnit.MILLISECONDS)
 
@@ -570,7 +578,7 @@ class RuntimePermissionsAppOpTrackingTest {
 
                 assertNotRunningOpAccess(op, speechStartTime, System.currentTimeMillis(),
                         context.attributionSource, /*accessorForeground*/ true,
-                        /*receiverForeground*/ true, /*accessorTrusted*/ false,
+                        /*receiverForeground*/ true, /*accessorTrusted*/ true,
                         /*accessorAccessCount*/ 0, /*receiverAccessCount*/ 1,
                         /*checkAccessor*/ false, /*fromDatasource*/ true)
 
@@ -589,32 +597,32 @@ class RuntimePermissionsAppOpTrackingTest {
 
                 inOrder.verify(listener).onOpActiveChanged(eq(AppOpsManager.OPSTR_RECORD_AUDIO),
                         eq(recognizerUid), eq(RECEIVER2_PACKAGE_NAME), isNull(), eq(true),
-                        eq(AppOpsManager.ATTRIBUTION_FLAG_ACCESSOR),
+                        eq(AppOpsManager.ATTRIBUTION_FLAG_ACCESSOR or ATTRIBUTION_FLAG_TRUSTED),
                         intThat(attributionChainIdMatcher))
                 inOrder.verify(listener).onOpActiveChanged(eq(AppOpsManager.OPSTR_RECORD_AUDIO),
                         eq(Process.myUid()), eq(context.packageName), eq(ACCESSOR_ATTRIBUTION_TAG),
-                        eq(true), eq(AppOpsManager.ATTRIBUTION_FLAG_INTERMEDIARY),
-                        intThat(attributionChainIdMatcher))
+                        eq(true), eq(AppOpsManager.ATTRIBUTION_FLAG_INTERMEDIARY or
+                        ATTRIBUTION_FLAG_TRUSTED), intThat(attributionChainIdMatcher))
                 inOrder.verify(listener).onOpActiveChanged(eq(AppOpsManager.OPSTR_RECORD_AUDIO),
                         eq(receiverUid), eq(RECEIVER_PACKAGE_NAME), eq(RECEIVER_ATTRIBUTION_TAG),
-                        eq(true), eq(AppOpsManager.ATTRIBUTION_FLAG_RECEIVER),
-                        intThat(attributionChainIdMatcher))
+                        eq(true), eq(AppOpsManager.ATTRIBUTION_FLAG_RECEIVER or
+                        ATTRIBUTION_FLAG_TRUSTED), intThat(attributionChainIdMatcher))
 
                 inOrder.verify(listener).onOpActiveChanged(eq(AppOpsManager.OPSTR_RECORD_AUDIO),
                         eq(recognizerUid), eq(RECEIVER2_PACKAGE_NAME), isNull(), eq(false),
-                        eq(AppOpsManager.ATTRIBUTION_FLAG_ACCESSOR),
+                        eq(AppOpsManager.ATTRIBUTION_FLAG_ACCESSOR or ATTRIBUTION_FLAG_TRUSTED),
                         intThat(attributionChainIdMatcher))
                 inOrder.verify(listener).onOpActiveChanged(eq(AppOpsManager.OPSTR_RECORD_AUDIO),
                         eq(Process.myUid()), eq(context.packageName), eq(ACCESSOR_ATTRIBUTION_TAG),
-                        eq(false), eq(AppOpsManager.ATTRIBUTION_FLAG_INTERMEDIARY),
-                        intThat(attributionChainIdMatcher))
+                        eq(false), eq(AppOpsManager.ATTRIBUTION_FLAG_INTERMEDIARY or
+                        ATTRIBUTION_FLAG_TRUSTED), intThat(attributionChainIdMatcher))
                 inOrder.verify(listener).onOpActiveChanged(eq(AppOpsManager.OPSTR_RECORD_AUDIO),
                         eq(receiverUid), eq(RECEIVER_PACKAGE_NAME), eq(RECEIVER_ATTRIBUTION_TAG),
-                        eq(false), eq(AppOpsManager.ATTRIBUTION_FLAG_RECEIVER),
-                        intThat(attributionChainIdMatcher))
+                        eq(false), eq(AppOpsManager.ATTRIBUTION_FLAG_RECEIVER or
+                        ATTRIBUTION_FLAG_TRUSTED), intThat(attributionChainIdMatcher))
             } finally {
                 // Take down the recognition service
-                instrumentation.runOnMainSync{ recognizerRef.get().destroy() }
+                instrumentation.runOnMainSync { recognizerRef.get().destroy() }
             }
         }
     }
@@ -624,7 +632,7 @@ class RuntimePermissionsAppOpTrackingTest {
         try {
             worker.invoke()
         } finally {
-            ensureAuxiliaryAppsNotRunningAndNoResidualProcessState();
+            ensureAuxiliaryAppsNotRunningAndNoResidualProcessState()
         }
     }
 
@@ -649,11 +657,15 @@ class RuntimePermissionsAppOpTrackingTest {
         val OPERATION_MIC_RECO_WITH_ATTRIBUTION = "operation:mic_reco_with_attribution"
         val OPERATION_INJECT_RECO_WITHOUT_ATTRIBUTION = "operation:inject_reco_without_attribution"
 
+        val ATTRIBUTION_FLAG_TRUSTED = 0x8
+
         private val context: Context
-            get () = InstrumentationRegistry.getInstrumentation().getContext()
+            get() = InstrumentationRegistry.getInstrumentation().getContext()
 
         private val instrumentation: Instrumentation
-            get () = InstrumentationRegistry.getInstrumentation()
+            get() = InstrumentationRegistry.getInstrumentation()
+
+        private val isTv = context.packageManager.hasSystemFeature(FEATURE_LEANBACK)
 
         fun ensureAuxiliaryAppsNotRunningAndNoResidualProcessState() {
             SystemUtil.runShellCommand("am force-stop $RECEIVER_PACKAGE_NAME")
@@ -662,12 +674,19 @@ class RuntimePermissionsAppOpTrackingTest {
         }
 
         @Throws(Exception::class)
-        private fun assertRunningOpAccess(op: String, beginEndMillis: Long,
-                endTimeMillis: Long, attributionSource: AttributionSource,
-                accessorForeground: Boolean, receiverForeground: Boolean,
-                accessorTrusted: Boolean, accessorAccessCount: Int,
-                receiverAccessCount: Int, checkAccessor: Boolean,
-                fromDatasource: Boolean) {
+        private fun assertRunningOpAccess(
+            op: String,
+            beginEndMillis: Long,
+            endTimeMillis: Long,
+            attributionSource: AttributionSource,
+            accessorForeground: Boolean,
+            receiverForeground: Boolean,
+            accessorTrusted: Boolean,
+            accessorAccessCount: Int,
+            receiverAccessCount: Int,
+            checkAccessor: Boolean,
+            fromDatasource: Boolean
+        ) {
             assertOpAccess(op, beginEndMillis, endTimeMillis, attributionSource,
                     accessorForeground, receiverForeground, accessorTrusted,
                     /*assertRunning*/ true, accessorAccessCount, receiverAccessCount,
@@ -675,11 +694,19 @@ class RuntimePermissionsAppOpTrackingTest {
         }
 
         @Throws(Exception::class)
-        private fun assertNotRunningOpAccess(op: String, beginEndMillis: Long,
-                endTimeMillis: Long, attributionSource: AttributionSource,
-                accessorForeground: Boolean, receiverForeground: Boolean,
-                accessorTrusted: Boolean, accessorAccessCount: Int,
-                receiverAccessCount: Int, checkAccessor: Boolean, fromDatasource: Boolean) {
+        private fun assertNotRunningOpAccess(
+            op: String,
+            beginEndMillis: Long,
+            endTimeMillis: Long,
+            attributionSource: AttributionSource,
+            accessorForeground: Boolean,
+            receiverForeground: Boolean,
+            accessorTrusted: Boolean,
+            accessorAccessCount: Int,
+            receiverAccessCount: Int,
+            checkAccessor: Boolean,
+            fromDatasource: Boolean
+        ) {
             assertOpAccess(op, beginEndMillis, endTimeMillis, attributionSource,
                     accessorForeground, receiverForeground, accessorTrusted,
                     /*assertRunning*/ false, accessorAccessCount, receiverAccessCount,
@@ -687,11 +714,20 @@ class RuntimePermissionsAppOpTrackingTest {
         }
 
         @Throws(Exception::class)
-        private fun assertOpAccess(op: String, beginEndMillis: Long,
-                endTimeMillis: Long, attributionSource: AttributionSource,
-                accessorForeground: Boolean, receiverForeground: Boolean, accessorTrusted: Boolean,
-                assertRunning: Boolean, accessorAccessCount: Int, receiverAccessCount: Int,
-                checkAccessor: Boolean, fromDatasource: Boolean) {
+        private fun assertOpAccess(
+            op: String,
+            beginEndMillis: Long,
+            endTimeMillis: Long,
+            attributionSource: AttributionSource,
+            accessorForeground: Boolean,
+            receiverForeground: Boolean,
+            accessorTrusted: Boolean,
+            assertRunning: Boolean,
+            accessorAccessCount: Int,
+            receiverAccessCount: Int,
+            checkAccessor: Boolean,
+            fromDatasource: Boolean
+        ) {
             assertLastOpAccess(op, beginEndMillis, endTimeMillis, attributionSource,
                     accessorForeground, receiverForeground, accessorTrusted, assertRunning,
                     checkAccessor, fromDatasource)
@@ -700,11 +736,18 @@ class RuntimePermissionsAppOpTrackingTest {
                     checkAccessor, fromDatasource)
         }
 
-        private fun assertLastOpAccess(op: String, beginEndMillis: Long,
-                endTimeMillis: Long, attributionSource: AttributionSource,
-                accessorForeground: Boolean, receiverForeground: Boolean,
-                accessorTrusted: Boolean, assertRunning: Boolean, checkAccessor: Boolean,
-                fromDatasource: Boolean) {
+        private fun assertLastOpAccess(
+            op: String,
+            beginEndMillis: Long,
+            endTimeMillis: Long,
+            attributionSource: AttributionSource,
+            accessorForeground: Boolean,
+            receiverForeground: Boolean,
+            accessorTrusted: Boolean,
+            assertRunning: Boolean,
+            checkAccessor: Boolean,
+            fromDatasource: Boolean
+        ) {
             val appOpsManager = context.getSystemService(AppOpsManager::class.java)!!
             val allPackagesOps: MutableList<AppOpsManager.PackageOps?> = ArrayList()
             SystemUtil.runWithShellPermissionIdentity<Boolean> {
@@ -719,23 +762,29 @@ class RuntimePermissionsAppOpTrackingTest {
             }
             if (attributionSource.next != null) {
                 assertLastReceiverOps(op, beginEndMillis, endTimeMillis, attributionSource,
-                        receiverForeground, accessorTrusted, assertRunning, fromDatasource,
-                        allPackagesOps)
+                        receiverForeground, accessorTrusted, assertRunning, allPackagesOps)
             }
         }
 
         @Throws(Exception::class)
-        private fun assertHistoricalOpAccess(op: String, attributionSource: AttributionSource,
-                accessorForeground: Boolean, receiverForeground: Boolean,
-                accessorTrusted: Boolean, accessorAccessCount: Int, receiverAccessCount: Int,
-                checkAccessor: Boolean, fromDatasource: Boolean) {
+        private fun assertHistoricalOpAccess(
+            op: String,
+            attributionSource: AttributionSource,
+            accessorForeground: Boolean,
+            receiverForeground: Boolean,
+            accessorTrusted: Boolean,
+            accessorAccessCount: Int,
+            receiverAccessCount: Int,
+            checkAccessor: Boolean,
+            fromDatasource: Boolean
+        ) {
             val appOpsManager = context.getSystemService(AppOpsManager::class.java)!!
             val request = AppOpsManager.HistoricalOpsRequest.Builder(0, Long.MAX_VALUE)
                     .setOpNames(listOf(op))
                     .build()
             val historicalOpsRef = AtomicReference<AppOpsManager.HistoricalOps>()
-            val lock = ReentrantLock();
-            val condition = lock.newCondition();
+            val lock = ReentrantLock()
+            val condition = lock.newCondition()
             SystemUtil.runWithShellPermissionIdentity {
                 appOpsManager.getHistoricalOps(request, context.mainExecutor,
                         Consumer { historicalOps: AppOpsManager.HistoricalOps ->
@@ -764,14 +813,21 @@ class RuntimePermissionsAppOpTrackingTest {
             }
             if (attributionSource.next != null) {
                 assertHistoricalReceiverOps(op, attributionSource, receiverForeground,
-                        accessorTrusted, fromDatasource, receiverAccessCount, historicalOps)
+                        accessorTrusted, receiverAccessCount, historicalOps)
             }
         }
 
-        private fun assertLastAccessorOps(op: String, beginEndMillis: Long,
-                endTimeMillis: Long, attributionSource: AttributionSource,
-                accessorForeground: Boolean, accessorTrusted: Boolean, assertRunning: Boolean,
-                fromDatasource: Boolean, allPackagesOps: List<AppOpsManager.PackageOps?>) {
+        private fun assertLastAccessorOps(
+            op: String,
+            beginEndMillis: Long,
+            endTimeMillis: Long,
+            attributionSource: AttributionSource,
+            accessorForeground: Boolean,
+            accessorTrusted: Boolean,
+            assertRunning: Boolean,
+            fromDatasource: Boolean,
+            allPackagesOps: List<AppOpsManager.PackageOps?>
+        ) {
             val accessorPackageOps = findPackageOps(attributionSource.uid,
                     attributionSource.packageName!!, allPackagesOps)
             for (opEntry in accessorPackageOps!!.ops) {
@@ -805,8 +861,11 @@ class RuntimePermissionsAppOpTrackingTest {
             }
         }
 
-        private fun assertNotLastAccessorOps(op: String, attributionSource: AttributionSource,
-                allPackagesOps: List<AppOpsManager.PackageOps?>) {
+        private fun assertNotLastAccessorOps(
+            op: String,
+            attributionSource: AttributionSource,
+            allPackagesOps: List<AppOpsManager.PackageOps?>
+        ) {
             val accessorPackageOps = findPackageOps(attributionSource.uid,
                     attributionSource.packageName!!, allPackagesOps) ?: return
             for (opEntry in accessorPackageOps.ops) {
@@ -828,10 +887,15 @@ class RuntimePermissionsAppOpTrackingTest {
             }
         }
 
-        private fun assertHistoricalAccessorOps(op: String,
-                attributionSource: AttributionSource, accessorForeground: Boolean,
-                accessorTrusted: Boolean, fromDatasource: Boolean, assertedAccessCount: Int,
-                historicalOps: AppOpsManager.HistoricalOps) {
+        private fun assertHistoricalAccessorOps(
+            op: String,
+            attributionSource: AttributionSource,
+            accessorForeground: Boolean,
+            accessorTrusted: Boolean,
+            fromDatasource: Boolean,
+            assertedAccessCount: Int,
+            historicalOps: AppOpsManager.HistoricalOps
+        ) {
             val accessorPackageOps = findPackageOps(
                     attributionSource.uid, attributionSource.packageName!!,
                     historicalOps)
@@ -845,7 +909,7 @@ class RuntimePermissionsAppOpTrackingTest {
                         accessorForeground, assertedAccessCount)
             } else if (accessorTrusted) {
                 // Access for others and we are trusted. If we got the data from a datasource it
-                // would blame the accessor in a trusted way but all other apps are not trusted.
+                // would blame the accessor in a trusted way
                 if (fromDatasource) {
                     assertAccessCount(attributedPackageOp!!, AppOpsManager.OP_FLAG_TRUSTED_PROXIED,
                             accessorForeground, assertedAccessCount)
@@ -860,8 +924,11 @@ class RuntimePermissionsAppOpTrackingTest {
             }
         }
 
-        private fun assertNoHistoricalAccessorOps(op: String, attributionSource: AttributionSource,
-                historicalOps: AppOpsManager.HistoricalOps) {
+        private fun assertNoHistoricalAccessorOps(
+            op: String,
+            attributionSource: AttributionSource,
+            historicalOps: AppOpsManager.HistoricalOps
+        ) {
             val accessorPackageOps = findPackageOps(
                     attributionSource.uid, attributionSource.packageName!!,
                     historicalOps)
@@ -880,10 +947,16 @@ class RuntimePermissionsAppOpTrackingTest {
             }
         }
 
-        private fun assertLastReceiverOps(op: String, beginTimeMillis: Long,
-                endTimeMillis: Long, attributionSource: AttributionSource,
-                receiverForeground: Boolean, accessorTrusted: Boolean, assertRunning: Boolean,
-                fromDatasource: Boolean, allPackagesOps: List<AppOpsManager.PackageOps?>) {
+        private fun assertLastReceiverOps(
+            op: String,
+            beginTimeMillis: Long,
+            endTimeMillis: Long,
+            attributionSource: AttributionSource,
+            receiverForeground: Boolean,
+            accessorTrusted: Boolean,
+            assertRunning: Boolean,
+            allPackagesOps: List<AppOpsManager.PackageOps?>
+        ) {
             val receiverPackageOps = findPackageOps(
                     attributionSource.next!!.uid,
                     attributionSource.next!!.packageName!!,
@@ -897,19 +970,15 @@ class RuntimePermissionsAppOpTrackingTest {
                 val opProxyInfo: AppOpsManager.OpEventProxyInfo?
                 opProxyInfo = if (accessorTrusted) {
                     // Received from a trusted accessor. If we got the data from a datasource it
-                    // would blame the accessor in a trusted way but all other apps are not trusted.
-                    val flags =
-                        if (fromDatasource)
-                            AppOpsManager.OP_FLAG_UNTRUSTED_PROXIED
-                        else
-                            AppOpsManager.OP_FLAG_TRUSTED_PROXIED
+                    // would blame the accessor in a trusted way
                     assertLastAccessInRange(attributedOpEntry!!, beginTimeMillis, endTimeMillis,
-                            flags, receiverForeground, assertRunning)
-                    attributedOpEntry.getLastProxyInfo(flags)
+                            AppOpsManager.OP_FLAG_TRUSTED_PROXIED, receiverForeground,
+                            assertRunning)
+                    attributedOpEntry.getLastProxyInfo(AppOpsManager.OP_FLAG_TRUSTED_PROXIED)
                 } else {
                     // Received from an untrusted accessor
                     assertLastAccessInRange(attributedOpEntry!!, beginTimeMillis, endTimeMillis,
-                            AppOpsManager.OP_FLAG_UNTRUSTED_PROXIED,  receiverForeground,
+                            AppOpsManager.OP_FLAG_UNTRUSTED_PROXIED, receiverForeground,
                             assertRunning)
                     attributedOpEntry.getLastProxyInfo(
                             AppOpsManager.OP_FLAG_UNTRUSTED_PROXIED)
@@ -920,9 +989,14 @@ class RuntimePermissionsAppOpTrackingTest {
             }
         }
 
-        private fun assertHistoricalReceiverOps(op: String, attributionSource: AttributionSource,
-                receiverForeground: Boolean, accessorTrusted: Boolean, fromDatasource: Boolean,
-                assertedAccessCount: Int, historicalOps: AppOpsManager.HistoricalOps) {
+        private fun assertHistoricalReceiverOps(
+            op: String,
+            attributionSource: AttributionSource,
+            receiverForeground: Boolean,
+            accessorTrusted: Boolean,
+            assertedAccessCount: Int,
+            historicalOps: AppOpsManager.HistoricalOps
+        ) {
             val accessorPackageOps = findPackageOps(
                     attributionSource.next!!.uid,
                     attributionSource.next!!.packageName!!,
@@ -931,16 +1005,9 @@ class RuntimePermissionsAppOpTrackingTest {
                     attributionSource.next!!.attributionTag!!)
             val attributedPackageOp = attributedPackageOps!!.getOp(op)
             if (accessorTrusted) {
-                // Received from a trusted accessor. If we got the data from a datasource
-                // the latter is the proxy and we proxied, otherwise we are the proxy.
-                if (fromDatasource) {
-                    assertAccessCount(attributedPackageOp!!,
-                            AppOpsManager.OP_FLAG_UNTRUSTED_PROXIED, receiverForeground,
-                            assertedAccessCount)
-                } else {
+                // Received from a trusted accessor.
                     assertAccessCount(attributedPackageOp!!, AppOpsManager.OP_FLAG_TRUSTED_PROXIED,
                             receiverForeground, assertedAccessCount)
-                }
             } else {
                 // Received from an untrusted accessor
                 assertAccessCount(attributedPackageOp!!, AppOpsManager.OP_FLAG_UNTRUSTED_PROXIED,
@@ -948,9 +1015,14 @@ class RuntimePermissionsAppOpTrackingTest {
             }
         }
 
-        private fun assertLastAccessInRange(opEntry: AppOpsManager.AttributedOpEntry,
-                beginTimeMillis: Long, endTimeMillis: Long, assertedFlag: Int,
-                assertForeground: Boolean, assertRunning: Boolean) {
+        private fun assertLastAccessInRange(
+            opEntry: AppOpsManager.AttributedOpEntry,
+            beginTimeMillis: Long,
+            endTimeMillis: Long,
+            assertedFlag: Int,
+            assertForeground: Boolean,
+            assertRunning: Boolean
+        ) {
             assertThat(opEntry.isRunning).isEqualTo(assertRunning)
             assertTimeInRangeIfRequired(opEntry, assertedFlag,
                     AppOpsManager.OP_FLAG_SELF,
@@ -976,9 +1048,14 @@ class RuntimePermissionsAppOpTrackingTest {
             }
         }
 
-        private fun assertTimeInRangeIfRequired(opEntry: AppOpsManager.AttributedOpEntry,
-                assertedFlag: Int, accessedFlag: Int, assertForeground: Boolean,
-                beginTimeMillis: Long, endTimeMillis: Long) {
+        private fun assertTimeInRangeIfRequired(
+            opEntry: AppOpsManager.AttributedOpEntry,
+            assertedFlag: Int,
+            accessedFlag: Int,
+            assertForeground: Boolean,
+            beginTimeMillis: Long,
+            endTimeMillis: Long
+        ) {
             if (assertedFlag != accessedFlag) {
                 return
             }
@@ -992,8 +1069,12 @@ class RuntimePermissionsAppOpTrackingTest {
             assertThat(accessTime).isAtMost(endTimeMillis)
         }
 
-        private fun assertAccessCount(historicalOp: AppOpsManager.HistoricalOp,
-                assertedFlag: Int, assertForeground: Boolean, assertedAccessCount: Int) {
+        private fun assertAccessCount(
+            historicalOp: AppOpsManager.HistoricalOp,
+            assertedFlag: Int,
+            assertForeground: Boolean,
+            assertedAccessCount: Int
+        ) {
             assertAccessCountIfRequired(historicalOp, AppOpsManager.OP_FLAG_SELF,
                     assertedFlag, assertForeground, assertedAccessCount)
             assertAccessCountIfRequired(historicalOp, AppOpsManager.OP_FLAG_TRUSTED_PROXY,
@@ -1013,9 +1094,13 @@ class RuntimePermissionsAppOpTrackingTest {
             }
         }
 
-        private fun assertAccessCountIfRequired(historicalOp: AppOpsManager.HistoricalOp,
-                assertedFlag: Int, accessedFlag: Int, assertForeground: Boolean,
-                assertedAccessCount: Int) {
+        private fun assertAccessCountIfRequired(
+            historicalOp: AppOpsManager.HistoricalOp,
+            assertedFlag: Int,
+            accessedFlag: Int,
+            assertForeground: Boolean,
+            assertedAccessCount: Int
+        ) {
             if (assertedFlag != accessedFlag) {
                 return
             }
@@ -1028,8 +1113,11 @@ class RuntimePermissionsAppOpTrackingTest {
             assertThat(accessCount).isEqualTo(assertedAccessCount)
         }
 
-        private fun findPackageOps(uid: Int, packageName: String,
-                searchedList: List<AppOpsManager.PackageOps?>): AppOpsManager.PackageOps? {
+        private fun findPackageOps(
+            uid: Int,
+            packageName: String,
+            searchedList: List<AppOpsManager.PackageOps?>
+        ): AppOpsManager.PackageOps? {
             return searchedList.stream()
                     .filter { packageOps: AppOpsManager.PackageOps? ->
                         packageOps!!.uid == uid && packageOps.packageName == packageName
@@ -1038,14 +1126,20 @@ class RuntimePermissionsAppOpTrackingTest {
                     .orElse(null)
         }
 
-        private fun findPackageOps(uid: Int, packageName: String,
-                historicalOps: AppOpsManager.HistoricalOps): AppOpsManager.HistoricalPackageOps? {
+        private fun findPackageOps(
+            uid: Int,
+            packageName: String,
+            historicalOps: AppOpsManager.HistoricalOps
+        ): AppOpsManager.HistoricalPackageOps? {
             val uidOps = historicalOps.getUidOps(uid)
             return uidOps?.getPackageOps(packageName)
         }
 
-        fun createAttributionContext(attributionTag: String?, receiverPackageName: String?,
-                receiverAttributionTag: String?) : Context {
+        fun createAttributionContext(
+            attributionTag: String?,
+            receiverPackageName: String?,
+            receiverAttributionTag: String?
+        ): Context {
             val attributionParamsBuilder = ContextParams.Builder()
             if (attributionTag != null) {
                 attributionParamsBuilder.setAttributionTag(attributionTag)
@@ -1057,12 +1151,18 @@ class RuntimePermissionsAppOpTrackingTest {
                 if (receiverAttributionTag != null) {
                     attributionSourceBuilder.setAttributionTag(receiverAttributionTag)
                 }
-                attributionParamsBuilder.setNextAttributionSource(attributionSourceBuilder.build())
+                var receiverAttributionSource = attributionSourceBuilder.build()
+                SystemUtil.runWithShellPermissionIdentity {
+                    receiverAttributionSource = context.getSystemService(
+                            PermissionManager::class.java)!!.registerAttributionSource(
+                            receiverAttributionSource)
+                }
+                attributionParamsBuilder.setNextAttributionSource(receiverAttributionSource)
             }
             return context.createContext(attributionParamsBuilder.build())
         }
 
-        fun startBlamedAppActivity() : AttributionSource {
+        fun startBlamedAppActivity(): AttributionSource {
             val activityStatedLatch = CountDownLatch(1)
             val attributionSourceRef = AtomicReference<AttributionSource>()
             val intent = Intent()
@@ -1076,5 +1176,7 @@ class RuntimePermissionsAppOpTrackingTest {
             activityStatedLatch.await(ASYNC_OPERATION_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS)
             return attributionSourceRef.get()
         }
+
+        private fun assumeNotTv() = assumeFalse(isTv)
     }
 }

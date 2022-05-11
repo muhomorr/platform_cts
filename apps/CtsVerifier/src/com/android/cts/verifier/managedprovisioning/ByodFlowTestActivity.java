@@ -16,6 +16,8 @@
 
 package com.android.cts.verifier.managedprovisioning;
 
+import static android.content.Intent.FLAG_ACTIVITY_NEW_TASK;
+
 import android.app.KeyguardManager;
 import android.app.admin.DevicePolicyManager;
 import android.content.ActivityNotFoundException;
@@ -110,10 +112,10 @@ public class ByodFlowTestActivity extends DialogTestListActivity {
     private TestListItem mKeyguardDisabledFeaturesTest;
     private DialogTestListItem mDisableNfcBeamTest;
     private TestListItem mAuthenticationBoundKeyTest;
-    private DialogTestListItem mEnableLocationModeTest;
-    private DialogTestListItem mDisableLocationModeThroughMainSwitchTest;
-    private DialogTestListItem mDisableLocationModeThroughWorkSwitchTest;
-    private DialogTestListItem mPrimaryLocationWhenWorkDisabledTest;
+    private TestListItem mEnableLocationModeTest;
+    private TestListItem mDisableLocationModeThroughMainSwitchTest;
+    private TestListItem mDisableLocationModeThroughWorkSwitchTest;
+    private TestListItem mPrimaryLocationWhenWorkDisabledTest;
     private DialogTestListItem mSelectWorkChallenge;
     private DialogTestListItem mConfirmWorkCredentials;
     private DialogTestListItem mPatternWorkChallenge;
@@ -317,7 +319,7 @@ public class ByodFlowTestActivity extends DialogTestListActivity {
                 R.drawable.ic_corp_icon);
 
         Intent workStatusIcon = new Intent(WorkStatusTestActivity.ACTION_WORK_STATUS_ICON);
-        workStatusIcon.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        workStatusIcon.setFlags(FLAG_ACTIVITY_NEW_TASK);
         mWorkStatusBarIconTest = new DialogTestListItemWithIcon(this,
                 R.string.provisioning_byod_work_status_icon,
                 "BYOD_WorkStatusBarIconTest",
@@ -480,7 +482,7 @@ public class ByodFlowTestActivity extends DialogTestListActivity {
                 R.string.provisioning_byod_recents,
                 RecentsRedactionActivity.class.getName(),
                 new Intent(RecentsRedactionActivity.ACTION_RECENTS).setFlags(
-                        Intent.FLAG_ACTIVITY_NEW_TASK),
+                        FLAG_ACTIVITY_NEW_TASK),
                 null);
 
         mOrganizationInfoTest = TestListItem.newTest(this,
@@ -679,26 +681,26 @@ public class ByodFlowTestActivity extends DialogTestListActivity {
         }
 
         if (getPackageManager().hasSystemFeature(PackageManager.FEATURE_LOCATION_GPS)) {
-            mEnableLocationModeTest = new DialogTestListItem(this,
+            mEnableLocationModeTest = TestListItem.newTest(this,
                     R.string.provisioning_byod_location_mode_enable,
-                    "BYOD_LocationModeEnableTest",
-                    R.string.provisioning_byod_location_mode_enable_instruction,
-                    new Intent(ByodHelperActivity.ACTION_BYOD_SET_LOCATION_AND_CHECK_UPDATES));
-            mDisableLocationModeThroughMainSwitchTest = new DialogTestListItem(this,
+                    LocationTestActivity.TEST_ID_LOCATION_ENABLED,
+                    new Intent(LocationTestActivity.ACTION_TEST_LOCATION_ENABLED),
+                    null);
+            mDisableLocationModeThroughMainSwitchTest = TestListItem.newTest(this,
                     R.string.provisioning_byod_location_mode_disable,
-                    "BYOD_LocationModeDisableMainTest",
-                    R.string.provisioning_byod_location_mode_disable_instruction,
-                    new Intent(ByodHelperActivity.ACTION_BYOD_SET_LOCATION_AND_CHECK_UPDATES));
-            mDisableLocationModeThroughWorkSwitchTest = new DialogTestListItem(this,
+                    LocationTestActivity.TEST_ID_LOCATION_DISABLED,
+                    new Intent(LocationTestActivity.ACTION_TEST_LOCATION_DISABLED),
+                    null);
+            mDisableLocationModeThroughWorkSwitchTest = TestListItem.newTest(this,
                     R.string.provisioning_byod_work_location_mode_disable,
-                    "BYOD_LocationModeDisableWorkTest",
-                    R.string.provisioning_byod_work_location_mode_disable_instruction,
-                    new Intent(ByodHelperActivity.ACTION_BYOD_SET_LOCATION_AND_CHECK_UPDATES));
-            mPrimaryLocationWhenWorkDisabledTest = new DialogTestListItem(this,
+                    LocationTestActivity.TEST_ID_WORK_LOCATION_DISABLED,
+                    new Intent(LocationTestActivity.ACTION_TEST_WORK_LOCATION_DISABLED),
+                    null);
+            mPrimaryLocationWhenWorkDisabledTest = TestListItem.newTest(this,
                     R.string.provisioning_byod_primary_location_when_work_disabled,
-                    "BYOD_PrimaryLocationWhenWorkDisabled",
-                    R.string.provisioning_byod_primary_location_when_work_disabled_instruction,
-                    new Intent(LocationListenerActivity.ACTION_SET_LOCATION_AND_CHECK_UPDATES));
+                    LocationTestActivity.TEST_ID_WORK_LOCATION_DISABLED_PRIMARY,
+                    new Intent(LocationTestActivity.ACTION_TEST_WORK_LOCATION_DISABLED_PRIMARY),
+                    null);
             adapter.add(mEnableLocationModeTest);
             adapter.add(mDisableLocationModeThroughMainSwitchTest);
             adapter.add(mDisableLocationModeThroughWorkSwitchTest);
@@ -724,6 +726,12 @@ public class ByodFlowTestActivity extends DialogTestListActivity {
                 "BYOD_UninstallWorkApp",
                 R.string.provisioning_byod_uninstall_work_app_instruction,
                 createInstallWorkProfileAppIntent()));
+
+        adapter.add(new DialogTestListItem(this,
+                R.string.provisioning_byod_launch_work_tab,
+                "BYOD_LaunchWorkTab",
+                R.string.provisioning_byod_launch_work_tab_instruction,
+                createLaunchWorkTabIntent()));
     }
 
     private Intent createInstallWorkProfileAppIntent() {
@@ -731,6 +739,13 @@ public class ByodFlowTestActivity extends DialogTestListActivity {
         return new Intent(ByodHelperActivity.ACTION_INSTALL_APK)
                 .putExtra(ByodHelperActivity.EXTRA_ALLOW_NON_MARKET_APPS, true)
                 .putExtra(ByodHelperActivity.EXTRA_PARAMETER_1, HELPER_APP_PATH);
+    }
+
+    private Intent createLaunchWorkTabIntent() {
+        return new Intent(Intent.ACTION_SHOW_WORK_APPS)
+                .addCategory(Intent.CATEGORY_HOME)
+                .addCategory(Intent.CATEGORY_LAUNCHER_APP)
+                .addFlags(FLAG_ACTIVITY_NEW_TASK);
     }
 
     // Return whether the intent can be resolved in the current profile

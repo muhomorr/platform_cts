@@ -300,8 +300,6 @@ class MuxerTestHelper {
                     if (!ExtractorTest.isFormatSimilar(thisFormat, thatFormat)) continue;
                     if (mBufferInfo.get(i).size() == that.mBufferInfo.get(j).size()) {
                         long tolerance = thisMime.startsWith("video/") ? STTS_TOLERANCE_US : 0;
-                        // TODO(b/157008437) - muxed file pts is +1us of target pts
-                        tolerance += 1; // rounding error
                         int k = 0;
                         for (; k < mBufferInfo.get(i).size(); k++) {
                             MediaCodec.BufferInfo thisInfo = mBufferInfo.get(i).get(k);
@@ -483,7 +481,7 @@ public class MuxerTest {
         private native boolean nativeTestGetTrackFormat(String srcPath, String outPath,
                 int outFormat);
 
-        private void verifyLocationInFile(String fileName) {
+        private void verifyLocationInFile(String fileName) throws IOException {
             if (mOutFormat != MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4 &&
                     mOutFormat != MediaMuxer.OutputFormat.MUXER_OUTPUT_3GPP) return;
             MediaMetadataRetriever retriever = new MediaMetadataRetriever();
@@ -516,7 +514,7 @@ public class MuxerTest {
             retriever.release();
         }
 
-        private void verifyOrientation(String fileName) {
+        private void verifyOrientation(String fileName) throws IOException {
             if (mOutFormat != MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4 &&
                     mOutFormat != MediaMuxer.OutputFormat.MUXER_OUTPUT_3GPP) return;
             MediaMetadataRetriever retriever = new MediaMetadataRetriever();
@@ -697,14 +695,14 @@ public class MuxerTest {
         }
 
         @Test
-        public void testSetLocationNative() {
+        public void testSetLocationNative() throws IOException {
             Assume.assumeTrue(shouldRunTest(mOutFormat));
             assertTrue(nativeTestSetLocation(mOutFormat, mInpPath, mOutPath));
             verifyLocationInFile(mOutPath);
         }
 
         @Test
-        public void testSetOrientationHintNative() {
+        public void testSetOrientationHintNative() throws IOException {
             Assume.assumeTrue(shouldRunTest(mOutFormat));
             assertTrue(nativeTestSetOrientationHint(mOutFormat, mInpPath, mOutPath));
             verifyOrientation(mOutPath);

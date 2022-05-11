@@ -32,8 +32,8 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
+import static android.mediav2.cts.CodecTestBase.SupportClass.*;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 /**
  * The following test validates that the decode can be paused
@@ -43,26 +43,29 @@ public class CodecDecoderPauseTest extends CodecDecoderTestBase {
     private static final String LOG_TAG = CodecDecoderPauseTest.class.getSimpleName();
     private final long PAUSE_TIME_MS = 10000;
     private final int NUM_FRAMES = 8;
-    private final int mSupport;
+    private final SupportClass mSupportRequirements;
 
-    public CodecDecoderPauseTest(String mime, String srcFile, int support) {
-        super(mime, srcFile);
-        mSupport = support;
+    public CodecDecoderPauseTest(String decoder, String mime, String srcFile,
+            SupportClass supportRequirements) {
+        super(decoder, mime, srcFile);
+        mSupportRequirements = supportRequirements;
     }
 
-    @Parameterized.Parameters(name = "{index}({0})")
+    @Parameterized.Parameters(name = "{index}({0}_{1})")
     public static Collection<Object[]> input() {
         final boolean isEncoder = false;
         final boolean needAudio = true;
         final boolean needVideo = true;
-        // mime, source file, codecs required to support
+        /// mediaType, test file, SupportClass
         final List<Object[]> exhaustiveArgsList = Arrays.asList(new Object[][]{
                 {MediaFormat.MIMETYPE_AUDIO_AAC, "bbb_2ch_48kHz_he_aac.mp4", CODEC_ALL},
                 {MediaFormat.MIMETYPE_VIDEO_AVC, "bbb_cif_avc_delay16.mp4", CODEC_ALL},
-                {MediaFormat.MIMETYPE_VIDEO_H263, "bbb_cif_768kbps_30fps_h263.mp4", CODEC_ALL},
+                {MediaFormat.MIMETYPE_VIDEO_H263, "bbb_176x144_128kbps_15fps_h263.3gp", CODEC_ALL},
                 {MediaFormat.MIMETYPE_VIDEO_HEVC, "bbb_cif_hevc_delay15.mp4", CODEC_ALL},
-                {MediaFormat.MIMETYPE_VIDEO_MPEG2, "bbb_640x360_512kbps_30fps_mpeg2_2b.mp4", CODEC_ALL},
-                {MediaFormat.MIMETYPE_VIDEO_MPEG4, "bbb_176x144_192kbps_15fps_mpeg4.mp4", CODEC_ALL},
+                {MediaFormat.MIMETYPE_VIDEO_MPEG2, "bbb_640x360_512kbps_30fps_mpeg2_2b.mp4",
+                        CODEC_ALL},
+                {MediaFormat.MIMETYPE_VIDEO_MPEG4, "bbb_176x144_192kbps_15fps_mpeg4.mp4",
+                        CODEC_ALL},
                 {MediaFormat.MIMETYPE_VIDEO_VP8, "bbb_640x360_512kbps_30fps_vp8.webm", CODEC_ALL},
                 {MediaFormat.MIMETYPE_VIDEO_VP9, "bbb_cif_768kbps_30fps_vp9.mkv", CODEC_ALL},
         });
@@ -75,27 +78,20 @@ public class CodecDecoderPauseTest extends CodecDecoderTestBase {
     @LargeTest
     @Test(timeout = PER_TEST_TIMEOUT_LARGE_TEST_MS)
     public void testPause() throws IOException, InterruptedException {
-        ArrayList<MediaFormat> formats = null;
-        if (mSupport != CODEC_ALL) {
-            formats = new ArrayList<>();
-            formats.add(setUpSource(mTestFile));
-            mExtractor.release();
-        }
-        ArrayList<String> listOfDecoders = selectCodecs(mMime, formats, null, false);
-        if (listOfDecoders.isEmpty()) {
-            if (mSupport == CODEC_OPTIONAL) return;
-            else fail("no suitable codecs found for mime: " + mMime);
-        }
+        ArrayList<MediaFormat> formats = new ArrayList<>();
+        formats.add(setUpSource(mTestFile));
+        mExtractor.release();
+        checkFormatSupport(mCodecName, mMime, false, formats, null, mSupportRequirements);
         final boolean isAsync = true;
         MediaFormat format = setUpSource(mTestFile);
-        for (String decoder : listOfDecoders) {
-            mCodec = MediaCodec.createByCodecName(decoder);
+        {
+            mCodec = MediaCodec.createByCodecName(mCodecName);
             int loopCounter = 0;
             boolean[] boolStates = {true, false};
             OutputManager ref = new OutputManager();
             OutputManager test = new OutputManager();
             for (boolean enablePause : boolStates) {
-                String log = String.format("decoder: %s, input file: %s, mode: %s:: ", decoder,
+                String log = String.format("decoder: %s, input file: %s, mode: %s:: ", mCodecName,
                         mTestFile, (isAsync ? "async" : "sync"));
                 mExtractor.seekTo(0, MediaExtractor.SEEK_TO_CLOSEST_SYNC);
                 configureCodec(format, isAsync, false, false);

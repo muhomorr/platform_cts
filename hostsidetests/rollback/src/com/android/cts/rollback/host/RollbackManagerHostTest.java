@@ -81,6 +81,7 @@ public class RollbackManagerHostTest extends BaseHostJUnit4Test {
                 + "--only-parent); do pm install-abandon $i; done");
         getDevice().executeShellCommand("pm uninstall com.android.cts.install.lib.testapp.A");
         getDevice().executeShellCommand("pm uninstall com.android.cts.install.lib.testapp.B");
+        getDevice().executeShellCommand("pm uninstall com.android.cts.install.lib.testapp.C");
         run("cleanUp");
         mHostUtils.uninstallShimApexIfNecessary();
     }
@@ -221,15 +222,30 @@ public class RollbackManagerHostTest extends BaseHostJUnit4Test {
      * Tests that existing staged sessions are failed when rollback is committed
      */
     @Test
-    public void testRollbackFailsBlockingSessions() throws Exception {
+    public void testRollbackFailsOtherSessions() throws Exception {
         assumeTrue("Device does not support file-system checkpoint",
                 mHostUtils.isCheckpointSupported());
 
-        run("testRollbackFailsBlockingSessions_Phase1_Install");
+        run("testRollbackFailsOtherSessions_Phase1_Install");
         getDevice().reboot();
-        run("testRollbackFailsBlockingSessions_Phase2_RollBack");
+        run("testRollbackFailsOtherSessions_Phase2_RollBack");
         getDevice().reboot();
-        run("testRollbackFailsBlockingSessions_Phase3_Confirm");
+        run("testRollbackFailsOtherSessions_Phase3_Confirm");
+    }
+
+    /**
+     * Tests that simultaneous rollbacks both succeed - neither causes the other to fail.
+     */
+    @Test
+    public void testSimultaneousRollbacksBothSucceed() throws Exception {
+        assumeTrue("Device does not support file-system checkpoint",
+                mHostUtils.isCheckpointSupported());
+
+        run("testSimultaneousRollbacksBothSucceed_Phase1_Install");
+        getDevice().reboot();
+        run("testSimultaneousRollbacksBothSucceed_Phase2_RollBack");
+        getDevice().reboot();
+        run("testSimultaneousRollbacksBothSucceed_Phase3_Confirm");
     }
 
     /**

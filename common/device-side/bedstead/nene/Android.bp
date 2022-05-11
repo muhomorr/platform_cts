@@ -2,6 +2,40 @@ package {
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
+java_library_host {
+    name: "NeneCommon",
+    srcs: [
+        "common/src/main/java/**/*.java"
+    ],
+}
+
+android_library {
+    name: "NeneCommonAndroid",
+    srcs: [
+        "common/src/main/java/**/*.java"
+    ],
+    manifest: "src/main/AndroidManifestInternal.xml",
+    min_sdk_version: "27"
+}
+
+// TODO(b/203507664): Remove NeneInternal once we no longer need QUERY_ALL_PACKAGES to install
+android_library {
+    name: "NeneInternal",
+    sdk_version: "test_current",
+    srcs: [
+        "src/main/java/**/*.java"
+    ],
+    manifest: "src/main/AndroidManifestInternal.xml",
+    static_libs: [
+        "compatibility-device-util-axt",
+        "guava",
+        "Queryable",
+        "NeneCommonAndroid",
+        "RemoteFrameworkClasses"
+    ],
+    min_sdk_version: "27"
+}
+
 android_library {
     name: "Nene",
     sdk_version: "test_current",
@@ -10,7 +44,11 @@ android_library {
     ],
     manifest: "src/main/AndroidManifest.xml",
     static_libs: [
-        "compatibility-device-util-axt"
+        "compatibility-device-util-axt",
+        "guava",
+        "Queryable",
+        "NeneCommonAndroid",
+        "RemoteFrameworkClasses"
     ],
     min_sdk_version: "27"
 }
@@ -36,7 +74,7 @@ android_test {
     ],
     data: [":NeneTestApp1"],
     manifest: "src/test/AndroidManifest.xml",
-    min_sdk_version: "28"
+    min_sdk_version: "27"
 }
 
 android_test_helper_app {

@@ -30,6 +30,7 @@ NUM_POSE_ROTATION_PARAMS = 4  # number of terms in poseRotation
 NUM_POSE_TRANSLATION_PARAMS = 3  # number of terms in poseTranslation
 SKIP_RET_MSG = 'Test skipped'
 SOLID_COLOR_TEST_PATTERN = 1
+COLOR_BARS_TEST_PATTERN = 2
 
 
 def legacy(props):
@@ -159,7 +160,7 @@ def logical_multi_camera_physical_ids(props):
   return physical_ids_list
 
 
-def skip_unless(cond):
+def skip_unless(cond, msg=None):
   """Skips the test if the condition is false.
 
   If a test is skipped, then it is exited and returns the special code
@@ -168,12 +169,14 @@ def skip_unless(cond):
 
   Args:
     cond: Boolean, which must be true for the test to not skip.
+    msg: String, reason for test to skip
 
   Returns:
      Nothing.
   """
   if not cond:
-    asserts.skip(SKIP_RET_MSG)
+    skip_msg = SKIP_RET_MSG if not msg else f'{SKIP_RET_MSG}: {msg}'
+    asserts.skip(skip_msg)
 
 
 def backward_compatible(props):
@@ -580,6 +583,19 @@ def private_reprocess(props):
       'android.request.availableCapabilities']
 
 
+def stream_use_case(props):
+  """Returns whether a device has stream use case capability.
+
+  Args:
+    props: Camera properties object.
+
+  Returns:
+     Boolean. True if the device has stream use case capability.
+  """
+  return 'android.request.availableCapabilities' in props and 19 in props[
+      'android.request.availableCapabilities']
+
+
 def intrinsic_calibration(props):
   """Returns whether a device supports android.lens.intrinsicCalibration.
 
@@ -735,7 +751,10 @@ def post_raw_sensitivity_boost(props):
   Returns:
     Boolean. True if android.control.postRawSensitivityBoost is supported.
   """
-  return props.get('android.control.postRawSensitivityBoostRange') != [100, 100]
+  return (
+      'android.control.postRawSensitivityBoostRange' in
+      props['camera.characteristics.keys'] and
+      props.get('android.control.postRawSensitivityBoostRange') != [100, 100])
 
 
 def sensor_fusion_capable(props):
@@ -805,6 +824,35 @@ def solid_color_test_pattern(props):
   """
   return SOLID_COLOR_TEST_PATTERN in props.get(
       'android.sensor.availableTestPatternModes')
+
+
+def color_bars_test_pattern(props):
+  """Determines if camera supports color bars test pattern.
+
+  Args:
+    props: Camera properties object.
+
+  Returns:
+    Boolean. True if android.sensor.availableTestPatternModes has
+             COLOR_BARS_TEST_PATTERN.
+  """
+  return COLOR_BARS_TEST_PATTERN in props.get(
+      'android.sensor.availableTestPatternModes')
+
+
+def linear_tonemap(props):
+  """Determines if camera supports CONTRAST_CURVE or GAMMA_VALUE in tonemap.
+
+  Args:
+    props: Camera properties object.
+
+  Returns:
+    Boolean. True if android.tonemap.availableToneMapModes has
+             CONTRAST_CURVE (0) or GAMMA_VALUE (3).
+  """
+  return ('android.tonemap.availableToneMapModes' in props and
+          (0 in props.get('android.tonemap.availableToneMapModes') or
+           3 in props.get('android.tonemap.availableToneMapModes')))
 
 
 if __name__ == '__main__':

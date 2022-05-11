@@ -65,6 +65,8 @@ public class CtsTranslationService extends TranslationService {
 
     private final CountDownLatch mSessionDestroyedLatch = new CountDownLatch(1);
 
+    private TranslationContext mTranslationContext;
+
     /**
      * Timeout for Translation cts.
      */
@@ -109,6 +111,7 @@ public class CtsTranslationService extends TranslationService {
     public void onCreateTranslationSession(@NonNull TranslationContext translationContext,
             int sessionId, @NonNull Consumer<Boolean> callback) {
         Log.v(TAG, "onCreateTranslationSession");
+        mTranslationContext = translationContext;
         callback.accept(true);
     }
 
@@ -116,6 +119,7 @@ public class CtsTranslationService extends TranslationService {
     public void onFinishTranslationSession(int sessionId) {
         Log.v(TAG, "onFinishTranslationSession");
         mSessionDestroyedLatch.countDown();
+        mTranslationContext = null;
     }
 
     @Override
@@ -147,6 +151,10 @@ public class CtsTranslationService extends TranslationService {
         }
         sServiceWatcher = new ServiceWatcher();
         return sServiceWatcher;
+    }
+
+    TranslationContext getTranslationContext() {
+        return mTranslationContext;
     }
 
     /**
@@ -274,24 +282,27 @@ public class CtsTranslationService extends TranslationService {
             Log.d(TAG, "offering " + request);
             offer(mTranslationRequests, request, TRANSLATION_TIMEOUT_MS);
             try {
-                final TranslationResponse response;
-                try {
-                    response = mResponses.poll(TRANSLATION_TIMEOUT_MS, TimeUnit.MILLISECONDS);
-                } catch (InterruptedException e) {
-                    Log.w(TAG, "Interrupted getting TranslationResponse: " + e);
-                    Thread.currentThread().interrupt();
-                    addException(e);
-                    return;
-                }
+                TranslationResponse response;
+                while (mResponses.peek() != null) {
+                    try {
+                        response = mResponses.poll(TRANSLATION_TIMEOUT_MS,
+                                TimeUnit.MILLISECONDS);
+                    } catch (InterruptedException e) {
+                        Log.w(TAG, "Interrupted getting TranslationResponse: " + e);
+                        Thread.currentThread().interrupt();
+                        addException(e);
+                        return;
+                    }
 
-                if (response == null) {
-                    Log.w(TAG, "onTranslationRequest() for " + request
-                            + " received when no response was set.");
-                    return;
-                }
+                    if (response == null) {
+                        Log.w(TAG, "onTranslationRequest() for " + request
+                                + " received when no response was set.");
+                        return;
+                    }
 
-                Log.v(TAG, "onTranslationRequest(): response = " + response);
-                callback.accept(response);
+                    Log.v(TAG, "onTranslationRequest(): response = " + response);
+                    callback.accept(response);
+                }
             } catch (Throwable t) {
                 addException(t);
             }

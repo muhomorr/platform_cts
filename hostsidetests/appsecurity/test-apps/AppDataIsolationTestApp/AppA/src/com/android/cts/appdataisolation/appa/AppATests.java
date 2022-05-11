@@ -184,8 +184,9 @@ public class AppATests {
     }
 
     @Test
-    public void testAppARefProfileDataNotAccessible() {
-        assertDirIsNotAccessible("/data/misc/profiles/ref");
+    public void testAppARefProfileDataAccessible() {
+        assertDirIsAccessible("/data/misc/profiles/ref/"
+                + mContext.getPackageName());
     }
 
     @Test
@@ -196,7 +197,7 @@ public class AppATests {
         assertDirDoesNotExist(applicationInfo.deviceProtectedDataDir);
         assertDirDoesNotExist("/data/data/" + APPB_PKG);
         assertDirDoesNotExist("/data/misc/profiles/cur/" + getCurrentUserId() + "/" + APPB_PKG);
-        assertDirIsNotAccessible("/data/misc/profiles/ref");
+        assertDirDoesNotExist("/data/misc/profiles/ref/" + APPB_PKG);
     }
 
     @Test
@@ -209,7 +210,6 @@ public class AppATests {
         mDevice.pressKeyCode(KeyEvent.KEYCODE_2);
         mDevice.pressKeyCode(KeyEvent.KEYCODE_3);
         mDevice.pressKeyCode(KeyEvent.KEYCODE_4);
-        mDevice.pressKeyCode(KeyEvent.KEYCODE_5);
         mDevice.waitForIdle();
         mDevice.pressEnter();
         mDevice.waitForIdle();
@@ -250,7 +250,7 @@ public class AppATests {
         testUnlockDevice();
 
         assertTrue("User not unlocked", unlocked.await(1, TimeUnit.MINUTES));
-        assertTrue("No locked boot complete", bootCompleted.await(1, TimeUnit.MINUTES));
+        assertTrue("No locked boot complete", bootCompleted.await(2, TimeUnit.MINUTES));
 
         setUpExternalStoragePaths();
 
@@ -259,7 +259,7 @@ public class AppATests {
         testAppADeDataExists();
         testAppAExternalDirsDoExist();
         testAppACurProfileDataAccessible();
-        testAppARefProfileDataNotAccessible();
+        testAppARefProfileDataAccessible();
 
         // Verify after unlocking device, app a has still no access to app b dir.
         testCannotAccessAppBDataDir();

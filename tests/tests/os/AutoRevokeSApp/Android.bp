@@ -22,11 +22,13 @@ android_test_helper_app {
     name: "CtsAutoRevokeSApp",
     defaults: ["cts_defaults"],
     sdk_version: "test_current",
+    min_sdk_version: "31",
+    target_sdk_version: "31",
     // Tag this module as a cts test artifact
     test_suites: [
         "cts",
         "vts",
-        "mts",
+        "mts-permission",
         "general-tests",
         "sts",
     ],

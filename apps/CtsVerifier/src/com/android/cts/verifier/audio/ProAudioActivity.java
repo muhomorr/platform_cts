@@ -16,27 +16,31 @@
 
 package com.android.cts.verifier.audio;
 
+import static com.android.cts.verifier.TestListActivity.sCurrentDisplayMode;
+import static com.android.cts.verifier.TestListAdapter.setTestNameSuffix;
+
 import android.app.AlertDialog;
 import android.content.DialogInterface;
-import android.content.pm.PackageManager;
 import android.content.res.Resources;
+import android.media.AudioDeviceCallback;
 import android.media.AudioDeviceInfo;
 import android.media.AudioFormat;
+import android.media.AudioManager;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
 import android.widget.CheckBox;
 import android.widget.TextView;
 
+import com.android.compatibility.common.util.CddTest;
 import com.android.compatibility.common.util.ResultType;
 import com.android.compatibility.common.util.ResultUnit;
 import com.android.cts.verifier.CtsVerifierReportLog;
 import com.android.cts.verifier.PassFailButtons;
 import com.android.cts.verifier.R;
+import com.android.cts.verifier.audio.audiolib.AudioSystemFlags;
 
-import static com.android.cts.verifier.TestListActivity.sCurrentDisplayMode;
-import static com.android.cts.verifier.TestListAdapter.setTestNameSuffix;
-
+@CddTest(requirement = "5.10/C-1-1,C-1-3,C-1-4")
 public class ProAudioActivity
         extends PassFailButtons.Activity
         implements View.OnClickListener {
@@ -66,6 +70,7 @@ public class ProAudioActivity
     private static final String INFO_DIALOG_MESSAGE_ID = "infoDialogMessageId";
 
     // ReportLog Schema
+    private static final String SECTION_PRO_AUDIO_ACTIVITY = "pro_audio_activity";
     private static final String KEY_CLAIMS_PRO = "claims_pro_audio";
     private static final String KEY_CLAIMS_LOW_LATENCY = "claims_low_latency_audio";
     private static final String KEY_CLAIMS_MIDI = "claims_midi";
@@ -77,29 +82,11 @@ public class ProAudioActivity
         super();
     }
 
-    private boolean claimsProAudio() {
-        return getPackageManager().hasSystemFeature(PackageManager.FEATURE_AUDIO_PRO);
-    }
-
-    private boolean claimsLowLatencyAudio() {
-        // CDD Section C-1-1: android.hardware.audio.low_latency
-        return getPackageManager().hasSystemFeature(PackageManager.FEATURE_AUDIO_LOW_LATENCY);
-    }
-
-    private boolean claimsMIDI() {
-        // CDD Section C-1-4: android.software.midi
-        return getPackageManager().hasSystemFeature(PackageManager.FEATURE_MIDI);
-    }
-
-    private boolean claimsUSBHostMode() {
-        return getPackageManager().hasSystemFeature(PackageManager.FEATURE_USB_HOST);
-    }
-
-    private boolean claimsUSBPeripheralMode() {
-        return getPackageManager().hasSystemFeature(PackageManager.FEATURE_USB_ACCESSORY);
-    }
-
     // HDMI Stuff
+    private boolean isHDMIConnected() {
+        return mHDMIDeviceInfo != null;
+    }
+
     private boolean isHDMIValid() {
         if (mHDMIDeviceInfo == null) {
             return false;
@@ -150,21 +137,21 @@ public class ProAudioActivity
         return true;
     }
 
-    protected void handleDeviceConnection(AudioDeviceInfo devInfo) {
+    protected void handleDeviceConnection(AudioDeviceInfo[] addedDevices) {
         mHDMIDeviceInfo = null;
-
-        if (devInfo.isSink() && devInfo.getType() == AudioDeviceInfo.TYPE_HDMI) {
-            mHDMIDeviceInfo = devInfo;
+        for (AudioDeviceInfo deviceInfo : addedDevices) {
+            Log.i(TAG, "  " + deviceInfo.getProductName() + " type:" + deviceInfo.getType());
+            if (deviceInfo.isSink() && deviceInfo.getType() == AudioDeviceInfo.TYPE_HDMI) {
+                mHDMIDeviceInfo = deviceInfo;
+                break;
+            }
         }
 
         if (mHDMIDeviceInfo != null) {
             mClaimsHDMICheckBox.setChecked(true);
-            mHDMISupportLbl.setText(getResources().getString(
-                    isHDMIValid() ? R.string.pass_button_text : R.string.fail_button_text));
         }
-        mHDMISupportLbl.setText(getResources().getString(R.string.audio_proaudio_NA));
 
-        calculatePass();
+        displayTestResults();
     }
 
     private boolean calculatePass() {
@@ -194,8 +181,12 @@ public class ProAudioActivity
         } else if (!mClaimsUSBPeripheralMode) {
             mTestStatusLbl.setText(strings.getString(
                     R.string.audio_proaudio_usbperipheralnotreported));
-        } else if (mClaimsHDMI && isHDMIValid()) {
-            mTestStatusLbl.setText(strings.getString(R.string.audio_proaudio_hdminotvalid));
+        } else if (mClaimsHDMI) {
+            if (!isHDMIConnected()) {
+                mTestStatusLbl.setText(strings.getString(R.string.audio_proaudio_hdmiNotFound));
+            } else if (!isHDMIValid()) {
+                mTestStatusLbl.setText(strings.getString(R.string.hdmi_insufficient));
+            }
         }
     }
 
@@ -208,7 +199,7 @@ public class ProAudioActivity
         setPassFailButtonClickListeners();
         setInfoResources(R.string.proaudio_test, R.string.proaudio_info, -1);
 
-        mClaimsProAudio = claimsProAudio();
+        mClaimsProAudio = AudioSystemFlags.claimsProAudio(this);
         ((TextView)findViewById(R.id.proAudioHasProAudioLbl)).setText("" + mClaimsProAudio);
 
         if (!mClaimsProAudio) {
@@ -218,16 +209,16 @@ public class ProAudioActivity
             showDialog(INFO_DIALOG_ID, args);
         }
 
-        mClaimsLowLatencyAudio = claimsLowLatencyAudio();
+        mClaimsLowLatencyAudio = AudioSystemFlags.claimsLowLatencyAudio(this);
         ((TextView)findViewById(R.id.proAudioHasLLALbl)).setText("" + mClaimsLowLatencyAudio);
 
-        mClaimsMIDI = claimsMIDI();
+        mClaimsMIDI = AudioSystemFlags.claimsMIDI(this);
         ((TextView)findViewById(R.id.proAudioHasMIDILbl)).setText("" + mClaimsMIDI);
 
-        mClaimsUSBHostMode = claimsUSBHostMode();
+        mClaimsUSBHostMode = AudioSystemFlags.claimsUSBHostMode(this);
         ((TextView)findViewById(R.id.proAudioMidiHasUSBHostLbl)).setText("" + mClaimsUSBHostMode);
 
-        mClaimsUSBPeripheralMode = claimsUSBPeripheralMode();
+        mClaimsUSBPeripheralMode = AudioSystemFlags.claimsUSBPeripheralMode(this);
         ((TextView)findViewById(
                 R.id.proAudioMidiHasUSBPeripheralLbl)).setText("" + mClaimsUSBPeripheralMode);
 
@@ -238,7 +229,10 @@ public class ProAudioActivity
 
         mTestStatusLbl = (TextView)findViewById(R.id.proAudioTestStatusLbl);
 
-        calculatePass();
+        AudioManager audioManager = getSystemService(AudioManager.class);
+        audioManager.registerAudioDeviceCallback(new TestAudioDeviceCallback(), null);
+
+        displayTestResults();
     }
 
     /**
@@ -252,6 +246,14 @@ public class ProAudioActivity
     //
     // PassFailButtons Overrides
     //
+    @Override
+    public String getReportFileName() { return PassFailButtons.AUDIO_TESTS_REPORT_LOG_NAME; }
+
+    @Override
+    public final String getReportSectionName() {
+        return setTestNameSuffix(sCurrentDisplayMode, SECTION_PRO_AUDIO_ACTIVITY);
+    }
+
     @Override
     public void recordTestResults() {
 
@@ -297,28 +299,38 @@ public class ProAudioActivity
 
     @Override
     public void onClick(View view) {
-        switch (view.getId()) {
-        case R.id.proAudioHasHDMICheckBox:
+        if (view.getId() == R.id.proAudioHasHDMICheckBox) {
             if (mClaimsHDMICheckBox.isChecked()) {
-                AlertDialog.Builder builder =
-                        new AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert);
+                AlertDialog.Builder builder = new AlertDialog.Builder(
+                        this, android.R.style.Theme_Material_Dialog_Alert);
                 builder.setTitle(getResources().getString(R.string.proaudio_hdmi_infotitle));
                 builder.setMessage(getResources().getString(R.string.proaudio_hdmi_message));
                 builder.setPositiveButton(android.R.string.yes,
-                    new DialogInterface.OnClickListener() {
-                        public void onClick(DialogInterface dialog, int which) {}
-                 });
+                        new DialogInterface.OnClickListener() {
+                            public void onClick(DialogInterface dialog, int which) {
+                            }
+                        });
                 builder.setIcon(android.R.drawable.ic_dialog_alert);
                 builder.show();
 
                 mClaimsHDMI = true;
-                mHDMISupportLbl.setText(getResources().getString(R.string.audio_proaudio_pending));
+                mHDMISupportLbl.setText(
+                        getResources().getString(R.string.audio_proaudio_hdmiPending));
             } else {
                 mClaimsHDMI = false;
                 mHDMISupportLbl.setText(getResources().getString(R.string.audio_proaudio_NA));
             }
-            calculatePass();
-            break;
+            displayTestResults();
+        }
+    }
+
+    private class TestAudioDeviceCallback extends AudioDeviceCallback {
+        public void onAudioDevicesAdded(AudioDeviceInfo[] addedDevices) {
+            handleDeviceConnection(addedDevices);
+        }
+
+        public void onAudioDevicesRemoved(AudioDeviceInfo[] removedDevices) {
+            // NOP
         }
     }
 }

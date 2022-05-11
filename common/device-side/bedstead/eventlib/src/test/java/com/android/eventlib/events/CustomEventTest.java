@@ -34,12 +34,14 @@ public final class CustomEventTest {
     // TODO: We need a standard pattern for testing that events log correctly cross-process
     // (when within the process serialization never happens)
 
-    private static final TestApis sTestApis = new TestApis();
-    private static final Context sContext = sTestApis.context().instrumentedContext();
+    private static final Context sContext = TestApis.context().instrumentedContext();
     private static final String TAG_1 = "TAG_1";
     private static final String TAG_2 = "TAG_2";
     private static final String DATA_1 = "DATA_1";
     private static final String DATA_2 = "DATA_2";
+
+    // Not used for Events
+    private static final String FIELD_NAME = "";
 
     @Before
     public void setUp() {
@@ -55,7 +57,7 @@ public final class CustomEventTest {
         EventLogs<CustomEvent> eventLogs = CustomEvent.queryPackage(sContext.getPackageName())
                 .whereTag().isEqualTo(TAG_1);
 
-        assertThat(eventLogs.get().tag()).isEqualTo(TAG_1);
+        assertThat(eventLogs.poll().tag()).isEqualTo(TAG_1);
     }
 
     @Test
@@ -70,7 +72,7 @@ public final class CustomEventTest {
         EventLogs<CustomEvent> eventLogs = CustomEvent.queryPackage(sContext.getPackageName())
                 .whereTag().isEqualTo(TAG_2);
 
-        assertThat(eventLogs.get().tag()).isEqualTo(TAG_2);
+        assertThat(eventLogs.poll().tag()).isEqualTo(TAG_2);
     }
 
     @Test
@@ -82,7 +84,7 @@ public final class CustomEventTest {
         EventLogs<CustomEvent> eventLogs = CustomEvent.queryPackage(sContext.getPackageName())
                 .whereData().isEqualTo(DATA_1);
 
-        assertThat(eventLogs.get().data()).isEqualTo(DATA_1);
+        assertThat(eventLogs.poll().data()).isEqualTo(DATA_1);
     }
 
     @Test
@@ -97,6 +99,42 @@ public final class CustomEventTest {
         EventLogs<CustomEvent> eventLogs = CustomEvent.queryPackage(sContext.getPackageName())
                 .whereData().isEqualTo(DATA_2);
 
-        assertThat(eventLogs.get().data()).isEqualTo(DATA_2);
+        assertThat(eventLogs.poll().data()).isEqualTo(DATA_2);
+    }
+
+    @Test
+    public void describeQuery_onlyIncludingPackage_isCorrect() {
+        CustomEvent.CustomEventQuery customEvent = CustomEvent.queryPackage("PACKAGE");
+
+        assertThat(customEvent.describeQuery(FIELD_NAME))
+                .isEqualTo("{type=CustomEvent, packageName=PACKAGE}");
+    }
+
+    @Test
+    public void describeQuery_includesTag_isCorrect() {
+        CustomEvent.CustomEventQuery customEvent = CustomEvent.queryPackage("PACKAGE")
+                .whereTag().isEqualTo("TAG");
+
+        assertThat(customEvent.describeQuery(FIELD_NAME))
+                .isEqualTo("{type=CustomEvent, packageName=PACKAGE, tag=\"TAG\"}");
+    }
+
+    @Test
+    public void describeQuery_includesData_isCorrect() {
+        CustomEvent.CustomEventQuery customEvent = CustomEvent.queryPackage("PACKAGE")
+                .whereData().isEqualTo("DATA");
+
+        assertThat(customEvent.describeQuery(FIELD_NAME))
+                .isEqualTo("{type=CustomEvent, packageName=PACKAGE, data=DATA}");
+    }
+
+    @Test
+    public void describeQuery_includesAllOptions_isCorrect() {
+        CustomEvent.CustomEventQuery customEvent = CustomEvent.queryPackage("PACKAGE")
+                .whereTag().isEqualTo("TAG")
+                .whereData().isEqualTo("DATA");
+
+        assertThat(customEvent.describeQuery(FIELD_NAME))
+                .isEqualTo("{type=CustomEvent, packageName=PACKAGE, tag=\"TAG\", data=DATA}");
     }
 }

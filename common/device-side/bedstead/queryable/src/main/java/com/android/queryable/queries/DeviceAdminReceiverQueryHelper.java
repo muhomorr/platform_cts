@@ -16,6 +16,9 @@
 
 package com.android.queryable.queries;
 
+import android.os.Parcel;
+import android.os.Parcelable;
+
 import com.android.queryable.Queryable;
 import com.android.queryable.info.DeviceAdminReceiverInfo;
 
@@ -23,31 +26,61 @@ import com.android.queryable.info.DeviceAdminReceiverInfo;
 public final class DeviceAdminReceiverQueryHelper<E extends Queryable>
         implements DeviceAdminReceiverQuery<E> {
 
-    private final E mQuery;
-    private final ClassQueryHelper<E> mClassQueryHelper;
+    private final transient E mQuery;
+    private final BroadcastReceiverQueryHelper<E> mBroadcastReceiverQueryHelper;
+
+    DeviceAdminReceiverQueryHelper() {
+        mQuery = (E) this;
+        mBroadcastReceiverQueryHelper = new BroadcastReceiverQueryHelper<>(mQuery);
+    }
 
     public DeviceAdminReceiverQueryHelper(E query) {
         mQuery = query;
-        mClassQueryHelper = new ClassQueryHelper<>(query);
+        mBroadcastReceiverQueryHelper = new BroadcastReceiverQueryHelper<>(query);
+    }
+
+    private DeviceAdminReceiverQueryHelper(Parcel in) {
+        mQuery = null;
+        mBroadcastReceiverQueryHelper = in.readParcelable(
+                DeviceAdminReceiverQueryHelper.class.getClassLoader());
     }
 
     @Override
-    public E isSameClassAs(Class<?> clazz) {
-        return mClassQueryHelper.isSameClassAs(clazz);
-    }
-
-    @Override
-    public StringQuery<E> className() {
-        return mClassQueryHelper.className();
-    }
-
-    @Override
-    public StringQuery<E> simpleName() {
-        return mClassQueryHelper.simpleName();
+    public BroadcastReceiverQuery<E> broadcastReceiver() {
+        return mBroadcastReceiverQueryHelper;
     }
 
     /** {@code true} if all filters are met by {@code value}. */
+    @Override
     public boolean matches(DeviceAdminReceiverInfo value) {
-        return mClassQueryHelper.matches(value);
+        return mBroadcastReceiverQueryHelper.matches(value);
     }
+
+    @Override
+    public String describeQuery(String fieldName) {
+        return Queryable.joinQueryStrings(
+                mBroadcastReceiverQueryHelper.describeQuery(fieldName + ".broadcastReceiver")
+        );
+    }
+
+    @Override
+    public int describeContents() {
+        return 0;
+    }
+
+    @Override
+    public void writeToParcel(Parcel out, int flags) {
+        out.writeParcelable(mBroadcastReceiverQueryHelper, flags);
+    }
+
+    public static final Parcelable.Creator<DeviceAdminReceiverQueryHelper> CREATOR =
+            new Parcelable.Creator<DeviceAdminReceiverQueryHelper>() {
+                public DeviceAdminReceiverQueryHelper createFromParcel(Parcel in) {
+                    return new DeviceAdminReceiverQueryHelper(in);
+                }
+
+                public DeviceAdminReceiverQueryHelper[] newArray(int size) {
+                    return new DeviceAdminReceiverQueryHelper[size];
+                }
+    };
 }

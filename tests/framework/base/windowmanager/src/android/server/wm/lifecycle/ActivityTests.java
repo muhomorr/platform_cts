@@ -18,25 +18,23 @@ package android.server.wm.lifecycle;
 
 import static android.content.Intent.FLAG_ACTIVITY_MULTIPLE_TASK;
 import static android.content.Intent.FLAG_ACTIVITY_NEW_TASK;
-import static android.server.wm.lifecycle.LifecycleLog.ActivityCallback.ON_DESTROY;
-import static android.server.wm.lifecycle.LifecycleLog.ActivityCallback.ON_PAUSE;
-import static android.server.wm.lifecycle.LifecycleLog.ActivityCallback.ON_RESTART;
-import static android.server.wm.lifecycle.LifecycleLog.ActivityCallback.ON_RESUME;
-import static android.server.wm.lifecycle.LifecycleLog.ActivityCallback.ON_START;
-import static android.server.wm.lifecycle.LifecycleLog.ActivityCallback.ON_STOP;
-import static android.server.wm.lifecycle.LifecycleLog.ActivityCallback.ON_TOP_POSITION_GAINED;
-import static android.server.wm.lifecycle.LifecycleLog.ActivityCallback.ON_TOP_POSITION_LOST;
+import static android.server.wm.WindowManagerState.STATE_STOPPED;
+import static android.server.wm.lifecycle.LifecycleConstants.ON_DESTROY;
+import static android.server.wm.lifecycle.LifecycleConstants.ON_PAUSE;
+import static android.server.wm.lifecycle.LifecycleConstants.ON_RESTART;
+import static android.server.wm.lifecycle.LifecycleConstants.ON_RESUME;
+import static android.server.wm.lifecycle.LifecycleConstants.ON_START;
+import static android.server.wm.lifecycle.LifecycleConstants.ON_STOP;
+import static android.server.wm.lifecycle.LifecycleConstants.ON_TOP_POSITION_GAINED;
+import static android.server.wm.lifecycle.LifecycleConstants.ON_TOP_POSITION_LOST;
 import static android.server.wm.lifecycle.LifecycleVerifier.transition;
 
-import static androidx.test.platform.app.InstrumentationRegistry.getInstrumentation;
-
-import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 import android.app.Activity;
 import android.platform.test.annotations.Presubmit;
 
-import androidx.test.filters.FlakyTest;
 import androidx.test.filters.MediumTest;
 
 import org.junit.Test;
@@ -69,10 +67,8 @@ public class ActivityTests extends ActivityLifecycleClientTestBase {
         // Launch two activities - second one to cover the first one and make it invisible.
         final Activity firstActivity = launchActivityAndWait(FirstActivity.class);
         final Activity secondActivity = launchActivityAndWait(SecondActivity.class);
-        waitAndAssertActivityStates(state(secondActivity, ON_RESUME),
-                state(firstActivity, ON_STOP));
         // Wait for activity to report saved state to the server.
-        getInstrumentation().waitForIdleSync();
+        mWmState.waitForActivityState(firstActivity.getComponentName(), STATE_STOPPED);
 
         // Release the instance of the non-visible activity below.
         getLifecycleLog().clear();

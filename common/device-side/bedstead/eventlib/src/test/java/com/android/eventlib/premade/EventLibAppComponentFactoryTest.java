@@ -26,6 +26,7 @@ import com.android.bedstead.nene.TestApis;
 import com.android.eventlib.EventLogs;
 import com.android.eventlib.events.activities.ActivityCreatedEvent;
 import com.android.eventlib.events.broadcastreceivers.BroadcastReceivedEvent;
+import com.android.eventlib.events.services.ServiceCreatedEvent;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -49,20 +50,24 @@ public class EventLibAppComponentFactoryTest {
     private static final String GENERATED_BROADCAST_RECEIVER_ACTION =
             "com.android.eventlib.GENERATED_BROADCAST_RECEIVER";
 
-    private static final TestApis sTestApis = new TestApis();
+    // This must exist as a <service> in AndroidManifest.xml
+    private static final String GENERATED_SERVICE_CLASS_NAME =
+            "com.android.generatedEventLibService";
+
     private static final Context sContext =
-            sTestApis.context().instrumentedContext();
+            TestApis.context().instrumentedContext();
 
     @Test
     public void startActivity_activityDoesNotExist_startsLoggingActivity() {
         Intent intent = new Intent();
         intent.setComponent(new ComponentName(sContext.getPackageName(),
                 DECLARED_ACTIVITY_WITH_NO_CLASS));
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         sContext.startActivity(intent);
 
         EventLogs<ActivityCreatedEvent> eventLogs =
                 ActivityCreatedEvent.queryPackage(sContext.getPackageName())
-                .whereActivity().className().isEqualTo(DECLARED_ACTIVITY_WITH_NO_CLASS);
+                .whereActivity().activityClass().className().isEqualTo(DECLARED_ACTIVITY_WITH_NO_CLASS);
         assertThat(eventLogs.poll()).isNotNull();
     }
 
@@ -75,8 +80,25 @@ public class EventLibAppComponentFactoryTest {
 
         EventLogs<BroadcastReceivedEvent> eventLogs = BroadcastReceivedEvent
                 .queryPackage(sContext.getPackageName())
-                .whereBroadcastReceiver().className().isEqualTo(GENERATED_RECEIVER_CLASS_NAME);
+                .whereBroadcastReceiver().receiverClass().className().isEqualTo(GENERATED_RECEIVER_CLASS_NAME);
         assertThat(eventLogs.poll()).isNotNull();
+    }
+
+    @Test
+    public void startService_serviceDoesNotExist_startsLoggingService() {
+        Intent intent = new Intent();
+        intent.setComponent(new ComponentName(sContext.getPackageName(),
+                GENERATED_SERVICE_CLASS_NAME));
+
+        sContext.startService(intent);
+
+        EventLogs<ServiceCreatedEvent> eventLogs =
+                ServiceCreatedEvent.queryPackage(sContext.getPackageName())
+                        .whereService().serviceClass().className()
+                            .isEqualTo(GENERATED_SERVICE_CLASS_NAME);
+        assertThat(eventLogs.poll()).isNotNull();
+
+        sContext.stopService(intent);
     }
 
 }

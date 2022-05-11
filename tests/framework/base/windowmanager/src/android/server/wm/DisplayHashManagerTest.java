@@ -16,6 +16,9 @@
 
 package android.server.wm;
 
+import static android.server.wm.UiDeviceUtils.pressUnlockButton;
+import static android.server.wm.UiDeviceUtils.pressWakeupButton;
+import static android.view.Display.DEFAULT_DISPLAY;
 import static android.view.WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS;
 import static android.view.displayhash.DisplayHashResultCallback.DISPLAY_HASH_ERROR_INVALID_BOUNDS;
 import static android.view.displayhash.DisplayHashResultCallback.DISPLAY_HASH_ERROR_INVALID_HASH_ALGORITHM;
@@ -31,15 +34,21 @@ import static org.junit.Assert.assertNull;
 
 import android.app.Activity;
 import android.app.Instrumentation;
+import android.app.KeyguardManager;
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.Color;
 import android.graphics.Point;
 import android.graphics.Rect;
 import android.os.Bundle;
+import android.os.PowerManager;
 import android.platform.test.annotations.Presubmit;
+import android.service.displayhash.DisplayHashParams;
+import android.util.Size;
 import android.view.Gravity;
+import android.view.SurfaceControl;
 import android.view.View;
+import android.view.ViewTreeObserver;
 import android.view.WindowManager;
 import android.view.displayhash.DisplayHash;
 import android.view.displayhash.DisplayHashManager;
@@ -60,7 +69,7 @@ import org.junit.Rule;
 import org.junit.Test;
 
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
@@ -68,7 +77,9 @@ import java.util.concurrent.TimeUnit;
 
 @Presubmit
 public class DisplayHashManagerTest {
-    private static final int MAX_RETRIES = 3;
+    private static final int WAIT_TIME_S = 5;
+
+    private final Point mCenter = new Point();
     private final Point mTestViewSize = new Point(200, 300);
 
     private Instrumentation mInstrumentation;
@@ -84,6 +95,8 @@ public class DisplayHashManagerTest {
 
     private SyncDisplayHashResultCallback mSyncDisplayHashResultCallback;
 
+    protected WindowManagerStateHelper mWmState = new WindowManagerStateHelper();
+
     @Rule
     public ActivityTestRule<TestActivity> mActivityRule =
             new ActivityTestRule<>(TestActivity.class);
@@ -91,16 +104,27 @@ public class DisplayHashManagerTest {
     @Before
     public void setUp() throws Exception {
         mInstrumentation = InstrumentationRegistry.getInstrumentation();
-        Context context = mInstrumentation.getContext();
+        final Context context = mInstrumentation.getContext();
+        final KeyguardManager km = context.getSystemService(KeyguardManager.class);
         Intent intent = new Intent(Intent.ACTION_MAIN);
         intent.setClass(context, TestActivity.class);
         mActivity = mActivityRule.getActivity();
+
+        if (km != null && km.isKeyguardLocked() || !Objects.requireNonNull(
+                context.getSystemService(PowerManager.class)).isInteractive()) {
+            pressWakeupButton();
+            pressUnlockButton();
+        }
 
         mActivity.runOnUiThread(() -> {
             mMainView = new RelativeLayout(mActivity);
             mActivity.setContentView(mMainView);
         });
         mInstrumentation.waitForIdleSync();
+        mActivity.runOnUiThread(() -> {
+            mCenter.set((mMainView.getWidth() - mTestViewSize.x) / 2,
+                    (mMainView.getHeight() - mTestViewSize.y) / 2);
+        });
         mDisplayHashManager = context.getSystemService(DisplayHashManager.class);
 
         Set<String> algorithms = mDisplayHashManager.getSupportedHashAlgorithms();
@@ -128,35 +152,15 @@ public class DisplayHashManagerTest {
 
     @Test
     public void testGenerateAndVerifyDisplayHash() {
-        mInstrumentation.runOnMainSync(() -> {
-            final RelativeLayout.LayoutParams p = new RelativeLayout.LayoutParams(mTestViewSize.x,
-                    mTestViewSize.y);
-            mTestView = new View(mActivity);
-            mTestView.setBackgroundColor(Color.BLUE);
-            mMainView.addView(mTestView, p);
-            mMainView.invalidate();
-        });
-        mInstrumentation.waitForIdleSync();
+        setupChildView();
 
-        int retryCount = 0;
         // A solid color image has expected hash of all 0s
         byte[] expectedImageHash = new byte[8];
-        VerifiedDisplayHash verifiedDisplayHash = null;
 
-        // Sometimes the app can still be launching when generating a display hash. This could
-        // result in a different image hash. Give the test a few tries to let the activity settle.
-        while (retryCount < MAX_RETRIES && (verifiedDisplayHash == null ||
-                !Arrays.equals(expectedImageHash, verifiedDisplayHash.getImageHash()))) {
-            DisplayHash displayHash = generateDisplayHash(null);
-
-            verifiedDisplayHash = mDisplayHashManager.verifyDisplayHash(displayHash);
-            assertNotNull(verifiedDisplayHash);
-            retryCount++;
-            try {
-                Thread.sleep(100);
-            } catch (InterruptedException e) {
-            }
-        }
+        DisplayHash displayHash = generateDisplayHash(null);
+        VerifiedDisplayHash verifiedDisplayHash = mDisplayHashManager.verifyDisplayHash(
+                displayHash);
+        assertNotNull(verifiedDisplayHash);
 
         assertEquals(mTestViewSize.x, verifiedDisplayHash.getBoundsInWindow().width());
         assertEquals(mTestViewSize.y, verifiedDisplayHash.getBoundsInWindow().height());
@@ -165,15 +169,7 @@ public class DisplayHashManagerTest {
 
     @Test
     public void testGenerateAndVerifyDisplayHash_BoundsInView() {
-        mInstrumentation.runOnMainSync(() -> {
-            final RelativeLayout.LayoutParams p = new RelativeLayout.LayoutParams(mTestViewSize.x,
-                    mTestViewSize.y);
-            mTestView = new View(mActivity);
-            mTestView.setBackgroundColor(Color.BLUE);
-            mMainView.addView(mTestView, p);
-            mMainView.invalidate();
-        });
-        mInstrumentation.waitForIdleSync();
+        setupChildView();
 
         Rect bounds = new Rect(10, 20, mTestViewSize.x / 2, mTestViewSize.y / 2);
         DisplayHash displayHash = generateDisplayHash(new Rect(bounds));
@@ -187,15 +183,8 @@ public class DisplayHashManagerTest {
 
     @Test
     public void testGenerateAndVerifyDisplayHash_EmptyBounds() {
-        mInstrumentation.runOnMainSync(() -> {
-            final RelativeLayout.LayoutParams p = new RelativeLayout.LayoutParams(mTestViewSize.x,
-                    mTestViewSize.y);
-            mTestView = new View(mActivity);
-            mTestView.setBackgroundColor(Color.BLUE);
-            mMainView.addView(mTestView, p);
-            mMainView.invalidate();
-        });
-        mInstrumentation.waitForIdleSync();
+        setupChildView();
+
         mTestView.generateDisplayHash(mPhashAlgorithm, new Rect(), mExecutor,
                 mSyncDisplayHashResultCallback);
 
@@ -205,15 +194,7 @@ public class DisplayHashManagerTest {
 
     @Test
     public void testGenerateAndVerifyDisplayHash_BoundsBiggerThanView() {
-        mInstrumentation.runOnMainSync(() -> {
-            final RelativeLayout.LayoutParams p = new RelativeLayout.LayoutParams(mTestViewSize.x,
-                    mTestViewSize.y);
-            mTestView = new View(mActivity);
-            mTestView.setBackgroundColor(Color.BLUE);
-            mMainView.addView(mTestView, p);
-            mMainView.invalidate();
-        });
-        mInstrumentation.waitForIdleSync();
+        setupChildView();
 
         Rect bounds = new Rect(0, 0, mTestViewSize.x + 100, mTestViewSize.y + 100);
 
@@ -228,15 +209,7 @@ public class DisplayHashManagerTest {
 
     @Test
     public void testGenerateDisplayHash_BoundsOutOfView() {
-        mInstrumentation.runOnMainSync(() -> {
-            final RelativeLayout.LayoutParams p = new RelativeLayout.LayoutParams(mTestViewSize.x,
-                    mTestViewSize.y);
-            mTestView = new View(mActivity);
-            mTestView.setBackgroundColor(Color.BLUE);
-            mMainView.addView(mTestView, p);
-            mMainView.invalidate();
-        });
-        mInstrumentation.waitForIdleSync();
+        setupChildView();
 
         Rect bounds = new Rect(mTestViewSize.x + 1, mTestViewSize.y + 1, mTestViewSize.x + 100,
                 mTestViewSize.y + 100);
@@ -249,16 +222,25 @@ public class DisplayHashManagerTest {
 
     @Test
     public void testGenerateDisplayHash_ViewOffscreen() {
+        final CountDownLatch committedCallbackLatch = new CountDownLatch(1);
+        final SurfaceControl.Transaction t = new SurfaceControl.Transaction();
+        t.addTransactionCommittedListener(mExecutor, committedCallbackLatch::countDown);
+
         mInstrumentation.runOnMainSync(() -> {
             final RelativeLayout.LayoutParams p = new RelativeLayout.LayoutParams(mTestViewSize.x,
                     mTestViewSize.y);
             mTestView = new View(mActivity);
             mTestView.setBackgroundColor(Color.BLUE);
             mTestView.setX(-mTestViewSize.x);
+
             mMainView.addView(mTestView, p);
-            mMainView.invalidate();
+            mMainView.getRootSurfaceControl().applyTransactionOnDraw(t);
         });
         mInstrumentation.waitForIdleSync();
+        try {
+            committedCallbackLatch.await(WAIT_TIME_S, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+        }
 
         mTestView.generateDisplayHash(mPhashAlgorithm, null, mExecutor,
                 mSyncDisplayHashResultCallback);
@@ -272,6 +254,9 @@ public class DisplayHashManagerTest {
         final WindowManager wm = mActivity.getWindowManager();
         final WindowManager.LayoutParams windowParams = new WindowManager.LayoutParams();
 
+        final CountDownLatch committedCallbackLatch = new CountDownLatch(1);
+        final SurfaceControl.Transaction t = new SurfaceControl.Transaction();
+        t.addTransactionCommittedListener(mExecutor, committedCallbackLatch::countDown);
         mInstrumentation.runOnMainSync(() -> {
             mMainView = new RelativeLayout(mActivity);
             windowParams.width = mTestViewSize.x;
@@ -280,18 +265,37 @@ public class DisplayHashManagerTest {
             windowParams.flags = FLAG_LAYOUT_NO_LIMITS;
             mActivity.addWindow(mMainView, windowParams);
 
-            final RelativeLayout.LayoutParams p = new RelativeLayout.LayoutParams(mTestViewSize.x,
-                    mTestViewSize.y);
-            mTestView = new View(mActivity);
-            mTestView.setBackgroundColor(Color.BLUE);
-            mMainView.addView(mTestView, p);
+            mMainView.getViewTreeObserver().addOnWindowAttachListener(
+                    new ViewTreeObserver.OnWindowAttachListener() {
+                        @Override
+                        public void onWindowAttached() {
+                            final RelativeLayout.LayoutParams p = new RelativeLayout.LayoutParams(
+                                    mTestViewSize.x,
+                                    mTestViewSize.y);
+                            mTestView = new View(mActivity);
+                            mTestView.setBackgroundColor(Color.BLUE);
+                            mMainView.addView(mTestView, p);
+                            mMainView.getRootSurfaceControl().applyTransactionOnDraw(t);
+                        }
+
+                        @Override
+                        public void onWindowDetached() {
+                        }
+                    });
         });
         mInstrumentation.waitForIdleSync();
+        try {
+            committedCallbackLatch.await(WAIT_TIME_S, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+        }
 
         generateDisplayHash(null);
 
         mInstrumentation.runOnMainSync(() -> {
-            windowParams.x = -mTestViewSize.x;
+            int[] mainViewLocationOnScreen = new int[2];
+            mMainView.getLocationOnScreen(mainViewLocationOnScreen);
+
+            windowParams.x = -mTestViewSize.x - mainViewLocationOnScreen[0];
             wm.updateViewLayout(mMainView, windowParams);
         });
         mInstrumentation.waitForIdleSync();
@@ -306,15 +310,7 @@ public class DisplayHashManagerTest {
 
     @Test
     public void testGenerateDisplayHash_InvalidHashAlgorithm() {
-        mInstrumentation.runOnMainSync(() -> {
-            final RelativeLayout.LayoutParams p = new RelativeLayout.LayoutParams(mTestViewSize.x,
-                    mTestViewSize.y);
-            mTestView = new View(mActivity);
-            mTestView.setBackgroundColor(Color.BLUE);
-            mMainView.addView(mTestView, p);
-            mMainView.invalidate();
-        });
-        mInstrumentation.waitForIdleSync();
+        setupChildView();
 
         mTestView.generateDisplayHash("fake hash", null, mExecutor,
                 mSyncDisplayHashResultCallback);
@@ -324,15 +320,7 @@ public class DisplayHashManagerTest {
 
     @Test
     public void testVerifyDisplayHash_ValidDisplayHash() {
-        mInstrumentation.runOnMainSync(() -> {
-            final RelativeLayout.LayoutParams p = new RelativeLayout.LayoutParams(mTestViewSize.x,
-                    mTestViewSize.y);
-            mTestView = new View(mActivity);
-            mTestView.setBackgroundColor(Color.BLUE);
-            mMainView.addView(mTestView, p);
-            mMainView.invalidate();
-        });
-        mInstrumentation.waitForIdleSync();
+        setupChildView();
 
         DisplayHash displayHash = generateDisplayHash(null);
         VerifiedDisplayHash verifiedDisplayHash = mDisplayHashManager.verifyDisplayHash(
@@ -347,15 +335,7 @@ public class DisplayHashManagerTest {
 
     @Test
     public void testVerifyDisplayHash_InvalidDisplayHash() {
-        mInstrumentation.runOnMainSync(() -> {
-            final RelativeLayout.LayoutParams p = new RelativeLayout.LayoutParams(mTestViewSize.x,
-                    mTestViewSize.y);
-            mTestView = new View(mActivity);
-            mTestView.setBackgroundColor(Color.BLUE);
-            mMainView.addView(mTestView, p);
-            mMainView.invalidate();
-        });
-        mInstrumentation.waitForIdleSync();
+        setupChildView();
 
         DisplayHash displayHash = generateDisplayHash(null);
         DisplayHash fakeDisplayHash = new DisplayHash(
@@ -387,15 +367,7 @@ public class DisplayHashManagerTest {
         SystemUtil.runWithShellPermissionIdentity(
                 () -> mDisplayHashManager.setDisplayHashThrottlingEnabled(true));
 
-        mInstrumentation.runOnMainSync(() -> {
-            final RelativeLayout.LayoutParams p = new RelativeLayout.LayoutParams(mTestViewSize.x,
-                    mTestViewSize.y);
-            mTestView = new View(mActivity);
-            mTestView.setBackgroundColor(Color.BLUE);
-            mMainView.addView(mTestView, p);
-            mMainView.invalidate();
-        });
-        mInstrumentation.waitForIdleSync();
+        setupChildView();
 
         mTestView.generateDisplayHash(mPhashAlgorithm, null, mExecutor,
                 mSyncDisplayHashResultCallback);
@@ -410,6 +382,9 @@ public class DisplayHashManagerTest {
 
     @Test
     public void testGenerateAndVerifyDisplayHash_MultiColor() {
+        final CountDownLatch committedCallbackLatch = new CountDownLatch(1);
+        final SurfaceControl.Transaction t = new SurfaceControl.Transaction();
+        t.addTransactionCommittedListener(mExecutor, committedCallbackLatch::countDown);
         mInstrumentation.runOnMainSync(() -> {
             final RelativeLayout.LayoutParams p = new RelativeLayout.LayoutParams(mTestViewSize.x,
                     mTestViewSize.y);
@@ -428,51 +403,75 @@ public class DisplayHashManagerTest {
             linearLayout.addView(redView, redParams);
             mTestView = linearLayout;
 
+            mTestView.setX(mCenter.x);
+            mTestView.setY(mCenter.y);
             mMainView.addView(mTestView, p);
-            mMainView.invalidate();
+            mMainView.getRootSurfaceControl().applyTransactionOnDraw(t);
         });
         mInstrumentation.waitForIdleSync();
-
-        int retryCount = 0;
-        byte[] expectedImageHash = new byte[]{-1, -1, 127, -1, -1, -1, 127, 127};
-        VerifiedDisplayHash verifiedDisplayHash = null;
-
-        // Sometimes the app can still be launching when generating a display hash. This could
-        // result in a different image hash. Give the test a few tries to let the activity settle.
-        while (retryCount < MAX_RETRIES && (verifiedDisplayHash == null ||
-                !Arrays.equals(expectedImageHash, verifiedDisplayHash.getImageHash()))) {
-            DisplayHash displayHash = generateDisplayHash(null);
-
-            verifiedDisplayHash = mDisplayHashManager.verifyDisplayHash(displayHash);
-            assertNotNull(verifiedDisplayHash);
-            retryCount++;
-            try {
-                Thread.sleep(100);
-            } catch (InterruptedException e) {
-            }
+        mWmState.waitForAppTransitionIdleOnDisplay(DEFAULT_DISPLAY);
+        try {
+            committedCallbackLatch.await(WAIT_TIME_S, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
         }
+
+        byte[] expectedImageHash = new byte[]{-1, -1, 127, -1, -1, -1, 127, 127};
+
+        DisplayHash displayHash = generateDisplayHash(null);
+        VerifiedDisplayHash verifiedDisplayHash = mDisplayHashManager.verifyDisplayHash(
+                displayHash);
+        assertNotNull(verifiedDisplayHash);
 
         assertEquals(mTestViewSize.x, verifiedDisplayHash.getBoundsInWindow().width());
         assertEquals(mTestViewSize.y, verifiedDisplayHash.getBoundsInWindow().height());
         assertArrayEquals(expectedImageHash, verifiedDisplayHash.getImageHash());
     }
 
+    @Test
+    public void testDisplayHashParams() {
+        int width = 10;
+        int height = 20;
+        boolean isGrayscale = true;
+        DisplayHashParams displayHashParams = new DisplayHashParams.Builder()
+                .setBufferSize(width, height)
+                .setGrayscaleBuffer(isGrayscale)
+                .build();
+
+        Size bufferSize = displayHashParams.getBufferSize();
+        assertEquals(width, bufferSize.getWidth());
+        assertEquals(height, bufferSize.getHeight());
+        assertEquals(isGrayscale, displayHashParams.isGrayscaleBuffer());
+    }
+
     private DisplayHash generateDisplayHash(Rect bounds) {
-        DisplayHash displayHash = null;
-        int retryCount = 0;
-        while (displayHash == null && retryCount < MAX_RETRIES) {
-            mTestView.generateDisplayHash(mPhashAlgorithm, bounds, mExecutor,
-                    mSyncDisplayHashResultCallback);
-            displayHash = mSyncDisplayHashResultCallback.getDisplayHash();
-            retryCount++;
-            try {
-                Thread.sleep(100);
-            } catch (InterruptedException e) {
-            }
-        }
+        mTestView.generateDisplayHash(mPhashAlgorithm, bounds, mExecutor,
+                mSyncDisplayHashResultCallback);
+        DisplayHash displayHash = mSyncDisplayHashResultCallback.getDisplayHash();
 
         assertNotNull(displayHash);
         return displayHash;
+    }
+
+    private void setupChildView() {
+        final CountDownLatch committedCallbackLatch = new CountDownLatch(1);
+        final SurfaceControl.Transaction t = new SurfaceControl.Transaction();
+        t.addTransactionCommittedListener(mExecutor, committedCallbackLatch::countDown);
+
+        mInstrumentation.runOnMainSync(() -> {
+            final RelativeLayout.LayoutParams p = new RelativeLayout.LayoutParams(mTestViewSize.x,
+                    mTestViewSize.y);
+            mTestView = new View(mActivity);
+            mTestView.setX(mCenter.x);
+            mTestView.setY(mCenter.y);
+            mTestView.setBackgroundColor(Color.BLUE);
+            mMainView.addView(mTestView, p);
+            mMainView.getRootSurfaceControl().applyTransactionOnDraw(t);
+        });
+        mInstrumentation.waitForIdleSync();
+        try {
+            committedCallbackLatch.await(WAIT_TIME_S, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+        }
     }
 
     public static class TestActivity extends Activity {

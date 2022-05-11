@@ -50,6 +50,7 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.FileUtils;
+import android.os.ParcelFileDescriptor;
 import android.provider.MediaStore;
 
 import androidx.test.filters.SdkSuppress;
@@ -109,15 +110,11 @@ public class RedactUriDeviceTest extends ScopedStorageBaseDeviceTest {
     }
 
     @BeforeClass
-    public static void setup() {
-        setupApps();
-        setShouldForceStopTestApp(false);
-    }
-
-    private static void setupApps() {
+    public static void setupApps() {
         // Installed by target preparer
         assertThat(checkPermission(APP_B_NO_PERMS,
                 Manifest.permission.READ_EXTERNAL_STORAGE)).isFalse();
+        setShouldForceStopTestApp(false);
     }
 
     @AfterClass
@@ -451,9 +448,10 @@ public class RedactUriDeviceTest extends ScopedStorageBaseDeviceTest {
         try {
             assertUriIsUnredacted(img);
 
-            InputStream is = getContentResolver().openInputStream(redactedUri);
-            ExifInterface redactedExifInf = new ExifInterface(is);
-            assertUriIsRedacted(redactedExifInf);
+            try (InputStream is = getContentResolver().openInputStream(redactedUri)) {
+                ExifInterface redactedExifInf = new ExifInterface(is);
+                assertUriIsRedacted(redactedExifInf);
+            }
         } finally {
             img.delete();
         }
@@ -466,10 +464,12 @@ public class RedactUriDeviceTest extends ScopedStorageBaseDeviceTest {
         try {
             assertUriIsUnredacted(img);
 
-            FileDescriptor fd = getContentResolver().openFileDescriptor(redactedUri,
-                    "r").getFileDescriptor();
-            ExifInterface redactedExifInf = new ExifInterface(fd);
-            assertUriIsRedacted(redactedExifInf);
+            try (ParcelFileDescriptor pfd =
+                    getContentResolver().openFileDescriptor(redactedUri, "r")) {
+                FileDescriptor fd = pfd.getFileDescriptor();
+                ExifInterface redactedExifInf = new ExifInterface(fd);
+                assertUriIsRedacted(redactedExifInf);
+            }
         } finally {
             img.delete();
         }

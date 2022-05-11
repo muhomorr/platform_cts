@@ -834,12 +834,10 @@ public class ExtractorTest {
                     {MediaFormat.MIMETYPE_AUDIO_FLAC, new String[]{
                             "bbb_cif_768kbps_30fps_mpeg4_stereo_48kHz_192kbps_flac.mp4",
                             "bbb_cif_768kbps_30fps_h263_stereo_48kHz_192kbps_flac.mkv",}},
-                    {MediaFormat.MIMETYPE_AUDIO_RAW, new String[]{
-                            "bbb_stereo_48kHz_192kbps_flac.flac",}},
                     {MediaFormat.MIMETYPE_AUDIO_RAW, new String[]{"canon.mid",}},
                     {MediaFormat.MIMETYPE_AUDIO_AC3, new String[]{
                             "testac3mp4.mp4", "testac3ts.ts",}},
-                    {MediaFormat.MIMETYPE_AUDIO_AC4, new String[]{"multi0.mp4", "multi0.ts",}},
+                    {MediaFormat.MIMETYPE_AUDIO_AC4, new String[]{"multi0.mp4",}},
                     {MediaFormat.MIMETYPE_AUDIO_EAC3, new String[]{
                             "testeac3mp4.mp4", "testeac3ts.ts",}},
                     {MediaFormat.MIMETYPE_AUDIO_RAW, new String[]{"bbb_1ch_16kHz.wav",}},
@@ -1371,7 +1369,8 @@ public class ExtractorTest {
                         CodecTestBase.selectCodecs(mMime, null, null, false);
                 assertTrue("no suitable codecs found for mime: " + mMime,
                         !listOfDecoders.isEmpty());
-                CodecDecoderTestBase cdtb = new CodecDecoderTestBase(mMime, mRefFile);
+                CodecDecoderTestBase cdtb =
+                        new CodecDecoderTestBase(listOfDecoders.get(0), mMime, mRefFile);
                 cdtb.decodeToMemory(mRefFile, listOfDecoders.get(0), 0,
                         MediaExtractor.SEEK_TO_CLOSEST_SYNC, Integer.MAX_VALUE);
                 String log = String.format("test file: %s, ref file: %s:: ", mTestFile, mRefFile);
@@ -1604,6 +1603,7 @@ public class ExtractorTest {
             for (String file : mInpFiles) {
                 MediaFormat format = null;
                 MediaExtractor extractor = new MediaExtractor();
+                Preconditions.assertTestFileExists(mInpPrefix + file);
                 extractor.setDataSource(mInpPrefix + file);
                 for (int trackID = 0; trackID < extractor.getTrackCount(); trackID++) {
                     MediaFormat fmt = extractor.getTrackFormat(trackID);
@@ -1613,26 +1613,38 @@ public class ExtractorTest {
                     }
                 }
                 extractor.release();
-                assertTrue(format != null);
+                assertTrue("missing track format from file " +  file, format != null);
                 if (mMime.equals(MediaFormat.MIMETYPE_AUDIO_AAC)) {
-                    assertTrue(format.containsKey(MediaFormat.KEY_AAC_PROFILE) ||
+                    assertTrue("neither KEY_AAC_PROFILE nor KEY_PROFILE found in file " + file,
+                            format.containsKey(MediaFormat.KEY_AAC_PROFILE) ||
                             format.containsKey(MediaFormat.KEY_PROFILE));
                     if (format.containsKey(MediaFormat.KEY_AAC_PROFILE)) {
-                        assertEquals(mProfile, format.getInteger(MediaFormat.KEY_AAC_PROFILE));
+                        int profile = format.getInteger(MediaFormat.KEY_AAC_PROFILE, -1);
+                        assertEquals("mismatched KEY_AAC_PROFILE in file " + file,
+                                     mProfile, profile);
                     }
                     if (format.containsKey(MediaFormat.KEY_PROFILE)) {
-                        assertEquals(mProfile, format.getInteger(MediaFormat.KEY_PROFILE));
+                        int profile = format.getInteger(MediaFormat.KEY_PROFILE, -1);
+                        assertEquals("mismatched KEY_PROFILE in file " + file, mProfile, profile);
                     }
                 } else {
-                    assertEquals(mProfile, format.getInteger(MediaFormat.KEY_PROFILE));
-                    assertEquals(mLevel, format.getInteger(MediaFormat.KEY_LEVEL));
+                    int profile = format.getInteger(MediaFormat.KEY_PROFILE, -1);
+                    assertEquals("mismatched KEY_PROFILE in file " + file, mProfile, profile);
+                    int level = format.getInteger(MediaFormat.KEY_LEVEL, -1);
+                    assertEquals("mismatched KEY_LEVEL in file " + file, mLevel, level);
                 }
                 if (mMime.startsWith("audio/")) {
-                    assertEquals(mWR, format.getInteger(MediaFormat.KEY_SAMPLE_RATE));
-                    assertEquals(mHCh, format.getInteger(MediaFormat.KEY_CHANNEL_COUNT));
+                    int sample_rate = format.getInteger(MediaFormat.KEY_SAMPLE_RATE, -1);
+                    assertEquals("mismatched KEY_SAMPLE_RATE in file " + file,
+                                 mWR, sample_rate);
+                    int channel_count = format.getInteger(MediaFormat.KEY_CHANNEL_COUNT, -1);
+                    assertEquals("mismatched KEY_CHANNEL_COUNT in file " + file,
+                                 mHCh, channel_count);
                 } else if (mMime.startsWith("video/")) {
-                    assertEquals(mWR, format.getInteger(MediaFormat.KEY_WIDTH));
-                    assertEquals(mHCh, format.getInteger(MediaFormat.KEY_HEIGHT));
+                    int width = format.getInteger(MediaFormat.KEY_WIDTH, -1);
+                    assertEquals("mismatched KEY_WIDTH in file " + file, mWR, width);
+                    int height = format.getInteger(MediaFormat.KEY_HEIGHT, -1);
+                    assertEquals("mismatched KEY_HEIGHT in file " + file, mHCh, height);
                 }
             }
         }
@@ -1741,6 +1753,7 @@ public class ExtractorTest {
                 strTok.parseNumbers();
 
                 MediaExtractor extractor = new MediaExtractor();
+                Preconditions.assertTestFileExists(mInpPrefix + mRefFile);
                 extractor.setDataSource(mInpPrefix + mRefFile);
                 assertTrue(mTrackIndex < extractor.getTrackCount());
                 extractor.selectTrack(mTrackIndex);
