@@ -1934,6 +1934,13 @@
                        android:value="android.hardware.type.automotive:android.software.lockscreen_disabled" />
             <meta-data android:name="display_mode"
                        android:value="single_display_mode" />
+            <meta-data android:name="ApiTest" android:value=
+                "android.app.admin.DevicePolicyManager#ACTION_SET_NEW_PASSWORD|
+                 android.app.admin.DevicePolicyManager#EXTRA_PASSWORD_COMPLEXITY|
+                 android.app.admin.DevicePolicyManager#PASSWORD_COMPLEXITY_HIGH|
+                 android.app.admin.DevicePolicyManager#PASSWORD_COMPLEXITY_MEDIUM|
+                 android.app.admin.DevicePolicyManager#PASSWORD_COMPLEXITY_LOW|
+                 android.app.admin.DevicePolicyManager#PASSWORD_COMPLEXITY_NONE" />
         </activity>
 
         <activity android:name=".security.SecurityModeFeatureVerifierActivity"
@@ -2878,6 +2885,11 @@
                        android:value="android.hardware.type.automotive"/>
             <meta-data android:name="display_mode"
                        android:value="multi_display_mode" />
+            <meta-data android:name="ApiTest"
+                       android:value="android.hardware.camera2.CameraCharacteristics#FLASH_INFO_AVAILABLE|
+                                      android.hardware.camera2.CameraManager#setTorchMode|
+                                      android.hardware.camera2.CameraManager#registerTorchCallback|
+                                      android.hardware.camera2.CameraManager.TorchCallback#onTorchModeChanged"/>
         </activity>
 
         <activity android:name=".camera.performance.CameraPerformanceActivity"
