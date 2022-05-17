@@ -2499,7 +2499,8 @@ public abstract class ActivityManagerTestBase {
                 String amStartCmd =
                         (mWindowingMode == -1 || mNewTask)
                                 ? getAmStartCmd(mLaunchingActivity)
-                                : getAmStartCmd(mLaunchingActivity, mWindowingMode);
+                                : getAmStartCmd(mLaunchingActivity, mDisplayId)
+                                        + " --windowingMode " + mWindowingMode;
                 // Use launching activity to launch the target.
                 commandBuilder.append(amStartCmd)
                         .append(" -f 0x20000020");
@@ -2656,5 +2657,36 @@ public abstract class ActivityManagerTestBase {
 
     /** Activity that can handle all config changes. */
     public static class ConfigChangeHandlingActivity extends CommandSession.BasicTestActivity {
+    }
+
+    public static class IgnoreOrientationRequestSession implements AutoCloseable {
+        private static final String WM_SET_IGNORE_ORIENTATION_REQUEST =
+                "wm set-ignore-orientation-request ";
+        private static final String WM_GET_IGNORE_ORIENTATION_REQUEST =
+                "wm get-ignore-orientation-request";
+        private static final Pattern IGNORE_ORIENTATION_REQUEST_PATTERN =
+                Pattern.compile("ignoreOrientationRequest (true|false) for displayId=\\d+");
+
+        final int mDisplayId;
+        final boolean mInitialIgnoreOrientationRequest;
+
+        IgnoreOrientationRequestSession(int displayId, boolean enable) {
+            mDisplayId = displayId;
+            Matcher matcher = IGNORE_ORIENTATION_REQUEST_PATTERN.matcher(
+                    executeShellCommand(WM_GET_IGNORE_ORIENTATION_REQUEST + " -d " + mDisplayId));
+            assertTrue("get-ignore-orientation-request should match pattern",
+                    matcher.find());
+            mInitialIgnoreOrientationRequest = Boolean.parseBoolean(matcher.group(1));
+
+            executeShellCommand("wm set-ignore-orientation-request " + (enable ? "true" : "false")
+                    + " -d " + mDisplayId);
+        }
+
+        @Override
+        public void close() {
+            executeShellCommand(
+                    WM_SET_IGNORE_ORIENTATION_REQUEST + mInitialIgnoreOrientationRequest + " -d "
+                            + mDisplayId);
+        }
     }
 }
