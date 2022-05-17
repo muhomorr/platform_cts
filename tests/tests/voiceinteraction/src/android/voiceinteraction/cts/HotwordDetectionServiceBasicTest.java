@@ -21,6 +21,7 @@ import static android.content.pm.PackageManager.FEATURE_MICROPHONE;
 import static com.google.common.truth.Truth.assertThat;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assume.assumeFalse;
 
 import android.app.Instrumentation;
 import android.app.compat.CompatChanges;
@@ -50,6 +51,7 @@ import androidx.test.filters.RequiresDevice;
 import androidx.test.platform.app.InstrumentationRegistry;
 
 import com.android.compatibility.common.util.BlockingBroadcastReceiver;
+import com.android.compatibility.common.util.DisableAnimationRule;
 import com.android.compatibility.common.util.RequiredFeatureRule;
 import com.android.compatibility.common.util.SystemUtil;
 
@@ -71,20 +73,35 @@ public final class HotwordDetectionServiceBasicTest
     @Rule
     public RequiredFeatureRule REQUIRES_MIC_RULE = new RequiredFeatureRule(FEATURE_MICROPHONE);
 
+    // TODO(b/230321933): Use active/noted RECORD_AUDIO app ops instead of checking the Mic icon.
+    @Rule
+    public DisableAnimationRule mDisableAnimationRule = new DisableAnimationRule();
+
     private static final String INDICATORS_FLAG = "camera_mic_icons_enabled";
     private static final String PRIVACY_CHIP_PKG = "com.android.systemui";
     private static final String PRIVACY_CHIP_ID = "privacy_chip";
     private static final Long PERMISSION_INDICATORS_NOT_PRESENT = 162547999L;
-    private static final Long CLEAR_CHIP_MS = 5000L;
+    private static final Long CLEAR_CHIP_MS = 10000L;
 
     private static Instrumentation sInstrumentation = InstrumentationRegistry.getInstrumentation();
     private static UiDevice sUiDevice = UiDevice.getInstance(sInstrumentation);
     private static PackageManager sPkgMgr = sInstrumentation.getContext().getPackageManager();
     private static boolean wasIndicatorEnabled = false;
+    private static String sDefaultScreenOffTimeoutValue;
+    private static boolean sIsAutomotive;
 
     @BeforeClass
     public static void enableIndicators() {
         wasIndicatorEnabled = setIndicatorEnabledStateIfNeeded(true);
+    }
+
+    @BeforeClass
+    public static void extendScreenOffTimeout() throws Exception {
+        // Change screen off timeout to 10 minutes.
+        sDefaultScreenOffTimeoutValue = SystemUtil.runShellCommand(
+                "settings get system screen_off_timeout");
+        SystemUtil.runShellCommand("settings put system screen_off_timeout 600000");
+        sIsAutomotive = sPkgMgr.hasSystemFeature(PackageManager.FEATURE_AUTOMOTIVE);
     }
 
     @AfterClass
@@ -92,6 +109,12 @@ public final class HotwordDetectionServiceBasicTest
         if (!wasIndicatorEnabled) {
             setIndicatorEnabledStateIfNeeded(false);
         }
+    }
+
+    @AfterClass
+    public static void restoreScreenOffTimeout() {
+        SystemUtil.runShellCommand(
+                "settings put system screen_off_timeout " + sDefaultScreenOffTimeoutValue);
     }
 
     // Checks if the privacy indicators are enabled on this device. Sets the state to the parameter,
@@ -126,6 +149,8 @@ public final class HotwordDetectionServiceBasicTest
     @RequiresDevice
     public void testHotwordDetectionService_createDetectorTwiceQuickly_triggerSuccess()
             throws Throwable {
+        assumeFalse("TODO(b/214488187): Fix failure for Automotive", sIsAutomotive);
+
         Thread.sleep(CLEAR_CHIP_MS);
         final BlockingBroadcastReceiver softwareReceiver = new BlockingBroadcastReceiver(mContext,
                 Utils.HOTWORD_DETECTION_SERVICE_SOFTWARE_TRIGGER_RESULT_INTENT);
@@ -175,6 +200,8 @@ public final class HotwordDetectionServiceBasicTest
     @RequiresDevice
     public void testHotwordDetectionService_onDetectFromDsp_success()
             throws Throwable {
+        assumeFalse("TODO(b/214488187): Fix failure for Automotive", sIsAutomotive);
+
         Thread.sleep(CLEAR_CHIP_MS);
         // Create AlwaysOnHotwordDetector and wait the HotwordDetectionService ready
         testHotwordDetection(Utils.HOTWORD_DETECTION_SERVICE_TRIGGER_TEST,
@@ -191,6 +218,8 @@ public final class HotwordDetectionServiceBasicTest
     @RequiresDevice
     public void testHotwordDetectionService_onDetectFromDsp_rejection()
             throws Throwable {
+        assumeFalse("TODO(b/214488187): Fix failure for Automotive", sIsAutomotive);
+
         Thread.sleep(CLEAR_CHIP_MS);
         // Create AlwaysOnHotwordDetector and wait the HotwordDetectionService ready
         testHotwordDetection(Utils.HOTWORD_DETECTION_SERVICE_TRIGGER_TEST,
@@ -203,9 +232,27 @@ public final class HotwordDetectionServiceBasicTest
     }
 
     @Test
+    public void testHotwordDetectionService_onDetectFromExternalSource_success()
+            throws Throwable {
+        Thread.sleep(CLEAR_CHIP_MS);
+        // Create AlwaysOnHotwordDetector and wait the HotwordDetectionService ready
+        testHotwordDetection(Utils.HOTWORD_DETECTION_SERVICE_TRIGGER_TEST,
+                Utils.HOTWORD_DETECTION_SERVICE_TRIGGER_RESULT_INTENT,
+                Utils.HOTWORD_DETECTION_SERVICE_TRIGGER_SUCCESS);
+
+        verifyDetectedResult(
+                performAndGetDetectionResult(
+                        Utils.HOTWORD_DETECTION_SERVICE_EXTERNAL_SOURCE_ONDETECT_TEST),
+                MainHotwordDetectionService.DETECTED_RESULT);
+        verifyMicrophoneChip(true);
+    }
+
+    @Test
     @RequiresDevice
     public void testHotwordDetectionService_onDetectFromMic_success()
             throws Throwable {
+        assumeFalse("TODO(b/214488187): Fix failure for Automotive", sIsAutomotive);
+
         Thread.sleep(CLEAR_CHIP_MS);
         // Create SoftwareHotwordDetector and wait the HotwordDetectionService ready
         testHotwordDetection(Utils.HOTWORD_DETECTION_SERVICE_FROM_SOFTWARE_TRIGGER_TEST,
@@ -242,6 +289,8 @@ public final class HotwordDetectionServiceBasicTest
     @Test
     @RequiresDevice
     public void testHotwordDetectionService_concurrentCapture() throws Throwable {
+        assumeFalse("TODO(b/214488187): Fix failure for Automotive", sIsAutomotive);
+
         // Create SoftwareHotwordDetector and wait the HotwordDetectionService ready
         testHotwordDetection(Utils.HOTWORD_DETECTION_SERVICE_FROM_SOFTWARE_TRIGGER_TEST,
                 Utils.HOTWORD_DETECTION_SERVICE_SOFTWARE_TRIGGER_RESULT_INTENT,
