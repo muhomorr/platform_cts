@@ -22,7 +22,10 @@ import android.os.Parcel;
 import android.os.Parcelable;
 import android.util.Log;
 
+import com.android.compatibility.common.util.PropertyUtil;
+
 import java.util.ArrayList;
+import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Condition;
@@ -89,6 +92,8 @@ public class Utils {
     public static final int HOTWORD_DETECTION_SERVICE_DSP_ONREJECT_TEST = 105;
     public static final int HOTWORD_DETECTION_SERVICE_PROCESS_DIED_TEST = 106;
     public static final int HOTWORD_DETECTION_SERVICE_CALL_STOP_RECOGNITION = 107;
+    public static final int HOTWORD_DETECTION_SERVICE_DSP_DESTROY_DETECTOR = 108;
+    public static final int HOTWORD_DETECTION_SERVICE_SOFTWARE_DESTROY_DETECTOR = 109;
 
     public static final int HOTWORD_DETECTION_SERVICE_TRIGGER_SUCCESS = 1;
     public static final int HOTWORD_DETECTION_SERVICE_TRIGGER_ILLEGAL_STATE_EXCEPTION = 2;
@@ -99,6 +104,17 @@ public class Utils {
     /** Indicate which test scenario for testing. */
     public static final int HOTWORD_DETECTION_SERVICE_ON_UPDATE_STATE_CRASH = 1;
 
+    /** Indicate to start a new activity for testing. */
+    public static final int ACTIVITY_NEW = 0;
+    /** Indicate to finish an activity for testing. */
+    public static final int ACTIVITY_FINISH = 1;
+
+    /** Indicate what kind of parameters for calling registerVisibleActivityCallback. */
+    public static final int VISIBLE_ACTIVITY_CALLBACK_REGISTER_NORMAL = 0;
+    public static final int VISIBLE_ACTIVITY_CALLBACK_REGISTER_WITHOUT_EXECUTOR = 1;
+    public static final int VISIBLE_ACTIVITY_CALLBACK_REGISTER_WITHOUT_CALLBACK = 2;
+
+    public static final String TEST_APP_PACKAGE = "android.voiceinteraction.testapp";
     public static final String TESTCASE_TYPE = "testcase_type";
     public static final String TESTINFO = "testinfo";
     public static final String BROADCAST_INTENT = "android.intent.action.VOICE_TESTAPP";
@@ -134,14 +150,8 @@ public class Utils {
     public static final String DIRECT_ACTION_AUTHORITY =
             "android.voiceinteraction.testapp.fileprovider";
 
-    public static final String DIRECT_ACTIONS_KEY_CALLBACK = "callback";
     public static final String DIRECT_ACTIONS_KEY_CANCEL_CALLBACK = "cancelCallback";
-    public static final String DIRECT_ACTIONS_KEY_CONTROL = "control";
-    public static final String DIRECT_ACTIONS_KEY_COMMAND = "command";
     public static final String DIRECT_ACTIONS_KEY_RESULT = "result";
-    public static final String DIRECT_ACTIONS_KEY_ACTION = "action";
-    public static final String DIRECT_ACTIONS_KEY_ARGUMENTS = "arguments";
-    public static final String DIRECT_ACTIONS_KEY_CLASS = "class";
 
     public static final String DIRECT_ACTIONS_SESSION_CMD_PERFORM_ACTION = "performAction";
     public static final String DIRECT_ACTIONS_SESSION_CMD_PERFORM_ACTION_CANCEL =
@@ -149,12 +159,11 @@ public class Utils {
     public static final String DIRECT_ACTIONS_SESSION_CMD_DETECT_ACTIONS_CHANGED =
             "detectActionsChanged";
     public static final String DIRECT_ACTIONS_SESSION_CMD_GET_ACTIONS = "getActions";
-    public static final String DIRECT_ACTIONS_SESSION_CMD_FINISH = "hide";
 
     public static final String DIRECT_ACTIONS_ACTIVITY_CMD_DESTROYED_INTERACTOR =
             "destroyedInteractor";
-    public static final String DIRECT_ACTIONS_ACTIVITY_CMD_FINISH = "finish";
     public static final String DIRECT_ACTIONS_ACTIVITY_CMD_INVALIDATE_ACTIONS = "invalidateActions";
+    public static final String DIRECT_ACTIONS_ACTIVITY_CMD_GET_PACKAGE_NAME = "getpackagename";
 
     public static final String DIRECT_ACTIONS_RESULT_PERFORMED = "performed";
     public static final String DIRECT_ACTIONS_RESULT_CANCELLED = "cancelled";
@@ -173,12 +182,33 @@ public class Utils {
 
     public static final String HOTWORD_DETECTION_SERVICE_TRIGGER_RESULT_INTENT =
             "android.intent.action.HOTWORD_DETECTION_SERVICE_TRIGGER_RESULT";
+    public static final String HOTWORD_DETECTION_SERVICE_SOFTWARE_TRIGGER_RESULT_INTENT =
+            "android.intent.action.HOTWORD_DETECTION_SERVICE_SOFTWARE_TRIGGER_RESULT";
     public static final String HOTWORD_DETECTION_SERVICE_ONDETECT_RESULT_INTENT =
             "android.intent.action.HOTWORD_DETECTION_SERVICE_ONDETECT_RESULT";
     public static final String KEY_SERVICE_TYPE = "serviceType";
     public static final String KEY_TEST_EVENT = "testEvent";
     public static final String KEY_TEST_RESULT = "testResult";
     public static final String KEY_TEST_SCENARIO = "testScenario";
+
+    public static final String VOICE_INTERACTION_KEY_CALLBACK = "callback";
+    public static final String VOICE_INTERACTION_KEY_CONTROL = "control";
+    public static final String VOICE_INTERACTION_KEY_COMMAND = "command";
+    public static final String VOICE_INTERACTION_DIRECT_ACTIONS_KEY_ACTION = "action";
+    public static final String VOICE_INTERACTION_KEY_ARGUMENTS = "arguments";
+    public static final String VOICE_INTERACTION_KEY_CLASS = "class";
+    public static final String VOICE_INTERACTION_SESSION_CMD_FINISH = "hide";
+    public static final String VOICE_INTERACTION_ACTIVITY_CMD_FINISH = "finish";
+
+    // For v2 reliable visible activity lookup feature
+    public static final String VISIBLE_ACTIVITY_CALLBACK_ONVISIBLE_INTENT =
+            "android.intent.action.VISIBLE_ACTIVITY_CALLBACK_ONVISIBLE_INTENT";
+    public static final String VISIBLE_ACTIVITY_CALLBACK_ONINVISIBLE_INTENT =
+            "android.intent.action.VISIBLE_ACTIVITY_CALLBACK_ONINVISIBLE_INTENT";
+    public static final String VISIBLE_ACTIVITY_KEY_RESULT = "result";
+
+    public static final String VISIBLE_ACTIVITY_CMD_REGISTER_CALLBACK = "registerCallback";
+    public static final String VISIBLE_ACTIVITY_CMD_UNREGISTER_CALLBACK = "unregisterCallback";
 
     public static final String toBundleString(Bundle bundle) {
         if (bundle == null) {
@@ -266,5 +296,11 @@ public class Utils {
             value = value >> 1;
         }
         return bits;
+    }
+
+    public static boolean isVirtualDevice() {
+        final String property = PropertyUtil.getProperty("ro.hardware.virtual_device");
+        Log.v(TAG, "virtual device property=" + property);
+        return Objects.equals(property, "1");
     }
 }

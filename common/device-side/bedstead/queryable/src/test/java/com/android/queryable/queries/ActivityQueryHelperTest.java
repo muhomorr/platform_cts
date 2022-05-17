@@ -16,9 +16,13 @@
 
 package com.android.queryable.queries;
 
+import static com.android.bedstead.nene.utils.ParcelTest.assertParcelsCorrectly;
+import static com.android.queryable.queries.IntentFilterQuery.intentFilter;
+
 import static com.google.common.truth.Truth.assertThat;
 
 import android.app.Activity;
+import android.content.IntentFilter;
 
 import com.android.queryable.Queryable;
 import com.android.queryable.info.ActivityInfo;
@@ -26,6 +30,8 @@ import com.android.queryable.info.ActivityInfo;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
+
+import java.util.Set;
 
 @RunWith(JUnit4.class)
 public class ActivityQueryHelperTest {
@@ -36,6 +42,7 @@ public class ActivityQueryHelperTest {
 
     private static final String CLASS_1_CLASS_NAME = CLASS_1.getName();
 
+    private static final IntentFilter INTENT_FILTER_WITH_ACTION = new IntentFilter("action");
     private static final android.content.pm.ActivityInfo FRAMEWORK_ACTIVITY_INFO_1 =
             createActivityInfo(CLASS_1_CLASS_NAME, /* exported= */ false);
     private static final android.content.pm.ActivityInfo FRAMEWORK_ACTIVITY_INFO_2 =
@@ -54,6 +61,10 @@ public class ActivityQueryHelperTest {
     private static final ActivityInfo CLASS_1_ACTIVITY_INFO = ActivityInfo.builder(FRAMEWORK_ACTIVITY_INFO_1).build();
     private static final ActivityInfo EXPORTED_ACTIVITY_INFO = ActivityInfo.builder(EXPORTED_FRAMEWORK_ACTIVITY_INFO).build();
     private static final ActivityInfo CLASS_2_ACTIVITY_INFO = ActivityInfo.builder(FRAMEWORK_ACTIVITY_INFO_2).build();
+    private static final ActivityInfo INTENT_FILTER_ACTIVITY_INFO = ActivityInfo.builder()
+            .activityClass(CLASS_1_CLASS_NAME)
+            .intentFilters(Set.of(INTENT_FILTER_WITH_ACTION))
+            .build();
 
     @Test
     public void matches_noRestrictions_returnsTrue() {
@@ -99,4 +110,40 @@ public class ActivityQueryHelperTest {
         assertThat(activityQueryHelper.matches(EXPORTED_ACTIVITY_INFO)).isFalse();
     }
 
+    @Test
+    public void matches_intentFilters_matches_returnsTrue() {
+        ActivityQueryHelper<Queryable> activityQueryHelper = new ActivityQueryHelper<>(mQuery);
+
+        activityQueryHelper.intentFilters().contains(
+                intentFilter().actions().contains("action")
+        );
+
+        assertThat(activityQueryHelper.matches(INTENT_FILTER_ACTIVITY_INFO)).isTrue();
+    }
+
+    @Test
+    public void matches_intentFilters_doesNotMatch_returnsFalse() {
+        ActivityQueryHelper<Queryable> activityQueryHelper = new ActivityQueryHelper<>(mQuery);
+
+        activityQueryHelper.intentFilters().doesNotContain(
+                intentFilter().actions().contains("action")
+        );
+
+        assertThat(activityQueryHelper.matches(INTENT_FILTER_ACTIVITY_INFO)).isFalse();
+    }
+
+    @Test
+    public void parcel_parcelsCorrectly() {
+        ActivityQueryHelper<Queryable> activityQueryHelper = new ActivityQueryHelper<>(mQuery);
+
+        activityQueryHelper
+                .activityClass().className().isEqualTo("");
+        activityQueryHelper
+                .intentFilters().doesNotContain(
+                intentFilter().actions().contains("action")
+        );
+        activityQueryHelper.exported().isTrue();
+
+        assertParcelsCorrectly(ActivityQueryHelper.class, activityQueryHelper);
+    }
 }

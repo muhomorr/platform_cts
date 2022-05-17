@@ -49,9 +49,17 @@
 #endif
 
 static const std::string kSystemLibraryPath = "/system/" LIB_DIR;
-static const std::string kArtApexLibraryPath = "/apex/com.android.art/" LIB_DIR;
 static const std::string kVendorLibraryPath = "/vendor/" LIB_DIR;
 static const std::string kProductLibraryPath = "/product/" LIB_DIR;
+
+// APEX library paths to check for either presence or absence of public
+// libraries.
+static const std::vector<std::string> kApexLibraryPaths = {
+  "/apex/com.android.art/" LIB_DIR,
+  "/apex/com.android.i18n/" LIB_DIR,
+  "/apex/com.android.neuralnetworks/" LIB_DIR,
+  "/apex/com.android.runtime/" LIB_DIR,
+};
 
 static const std::vector<std::regex> kSystemPathRegexes = {
     std::regex("/system/lib(64)?"),
@@ -59,16 +67,18 @@ static const std::vector<std::regex> kSystemPathRegexes = {
     std::regex("/system/(lib/arm|lib64/arm64)"), // when CTS runs in ARM ABI on non-ARM CPU. http://b/149852946
 };
 
+// Full paths to libraries in system or APEX search paths that are not public
+// but still may or may not be possible to load in an app.
+static const std::vector<std::string> kOtherLoadableLibrariesInSearchPaths = {
+  // This library may be loaded using DF_1_GLOBAL into the global group in
+  // app_process, which is necessary to make it override some symbols in libc in
+  // all DSO's. As a side effect it also gets inherited into the classloader
+  // namespaces constructed in libnativeloader, and is hence possible to dlopen
+  // even though there is no linker namespace link for it.
+  "/apex/com.android.art/" LIB_DIR "/libsigchain.so",
+};
+
 static const std::string kWebViewPlatSupportLib = "libwebviewchromium_plat_support.so";
-
-static bool is_directory(const char* path) {
-  struct stat sb;
-  if (stat(path, &sb) != -1) {
-    return S_ISDIR(sb.st_mode);
-  }
-
-  return false;
-}
 
 static bool not_accessible(const std::string& err) {
   return err.find("dlopen failed: library \"") == 0 &&
@@ -171,6 +181,24 @@ static std::string load_library(JNIEnv* env, jclass clazz, const std::string& pa
   return error;
 }
 
+static bool skip_subdir_load_check(const std::string& path) {
+  static bool vndk_lite = android::base::GetBoolProperty("ro.vndk.lite", false);
+  static const std::string system_vndk_dir = kSystemLibraryPath + "/vndk-sp-";
+  return vndk_lite && android::base::StartsWith(path, system_vndk_dir);
+}
+
+// Checks that a .so library can or cannot be loaded with dlopen() and
+// System.load(), as appropriate by the other settings:
+// -  clazz: The java class instance of android.jni.cts.LinkerNamespacesHelper,
+//    used for calling System.load() and System.loadLibrary().
+// -  path: Full path to the library to load.
+// -  library_search_paths: Directories that should be searched for public
+//    libraries. They should not be loaded from a subdirectory of these.
+// -  public_library_basenames: File names without paths of expected public
+//    libraries.
+// -  test_system_load_library: Try loading with System.loadLibrary() as well.
+// -  check_absence: Raise an error if it is a non-public library but still is
+//    loaded successfully from a searched directory.
 static bool check_lib(JNIEnv* env,
                       jclass clazz,
                       const std::string& path,
@@ -210,7 +238,7 @@ static bool check_lib(JNIEnv* env,
         return false;
       }
     } else {  // !is_in_search_path
-      if (loaded) {
+      if (loaded && !skip_subdir_load_check(path)) {
         errors->push_back("The library \"" + path +
                           "\" is a public library that was loaded from a subdirectory.");
         return false;
@@ -220,7 +248,10 @@ static bool check_lib(JNIEnv* env,
     // If the library loaded successfully but is in a subdirectory then it is
     // still not public. That is the case e.g. for
     // /apex/com.android.runtime/lib{,64}/bionic/lib*.so.
-    if (loaded && is_in_search_path && check_absence) {
+    if (loaded && is_in_search_path && check_absence &&
+        (std::find(kOtherLoadableLibrariesInSearchPaths.begin(),
+                   kOtherLoadableLibrariesInSearchPaths.end(), path) ==
+         kOtherLoadableLibrariesInSearchPaths.end())) {
       errors->push_back("The library \"" + path + "\" is not a public library but it loaded.");
       return false;
     }
@@ -234,6 +265,7 @@ static bool check_lib(JNIEnv* env,
   return true;
 }
 
+// Calls check_lib for every file found recursively within library_path.
 static bool check_path(JNIEnv* env,
                        jclass clazz,
                        const std::string& library_path,
@@ -264,11 +296,19 @@ static bool check_path(JNIEnv* env,
       }
 
       std::string path = dir + "/" + dp->d_name;
-      if (is_directory(path.c_str())) {
-        dirs.push(path);
-      } else if (!check_lib(env, clazz, path, library_search_paths, public_library_basenames,
-                            test_system_load_library, check_absence, errors)) {
-        success = false;
+      struct stat sb;
+      // Use lstat to not dereference a symlink. If it links out of library_path
+      // it can be ignored because the Bionic linker derefences symlinks before
+      // checking the path. If it links inside library_path we'll get to the
+      // link target anyway.
+      if (lstat(path.c_str(), &sb) != -1) {
+        if (S_ISDIR(sb.st_mode)) {
+          dirs.push(path);
+        } else if (!S_ISLNK(sb.st_mode) &&
+                   !check_lib(env, clazz, path, library_search_paths, public_library_basenames,
+                              test_system_load_library, check_absence, errors)) {
+          success = false;
+        }
       }
     }
   }
@@ -279,8 +319,8 @@ static bool check_path(JNIEnv* env,
 static bool jobject_array_to_set(JNIEnv* env,
                                  jobjectArray java_libraries_array,
                                  std::unordered_set<std::string>* libraries,
-                                 std::string* error_msg) {
-  error_msg->clear();
+                                 std::string* error_msgs) {
+  error_msgs->clear();
   size_t size = env->GetArrayLength(java_libraries_array);
   bool success = true;
   for (size_t i = 0; i<size; ++i) {
@@ -290,7 +330,7 @@ static bool jobject_array_to_set(JNIEnv* env,
 
     // Verify that the name doesn't contain any directory components.
     if (soname.rfind('/') != std::string::npos) {
-      *error_msg += "\n---Illegal value, no directories allowed: " + soname;
+      *error_msgs += "\n---Illegal value, no directories allowed: " + soname;
       continue;
     }
 
@@ -300,7 +340,7 @@ static bool jobject_array_to_set(JNIEnv* env,
     if (space_pos != std::string::npos) {
       std::string type = soname.substr(space_pos + 1);
       if (type != "32" && type != "64") {
-        *error_msg += "\n---Illegal value at end of line (only 32 or 64 allowed): " + soname;
+        *error_msgs += "\n---Illegal value at end of line (only 32 or 64 allowed): " + soname;
         success = false;
         continue;
       }
@@ -332,21 +372,21 @@ extern "C" JNIEXPORT jstring JNICALL
         JNIEnv* env,
         jclass clazz,
         jobjectArray java_system_public_libraries,
-        jobjectArray java_runtime_public_libraries) {
+        jobjectArray java_apex_public_libraries) {
   bool success = true;
   std::vector<std::string> errors;
-  std::string error_msg;
+  std::string error_msgs;
   std::unordered_set<std::string> system_public_libraries;
   if (!jobject_array_to_set(env, java_system_public_libraries, &system_public_libraries,
-                            &error_msg)) {
+                            &error_msgs)) {
     success = false;
-    errors.push_back("Errors in system public library file:" + error_msg);
+    errors.push_back("Errors in system public library list:" + error_msgs);
   }
-  std::unordered_set<std::string> runtime_public_libraries;
-  if (!jobject_array_to_set(env, java_runtime_public_libraries, &runtime_public_libraries,
-                            &error_msg)) {
+  std::unordered_set<std::string> apex_public_libraries;
+  if (!jobject_array_to_set(env, java_apex_public_libraries, &apex_public_libraries,
+                            &error_msgs)) {
     success = false;
-    errors.push_back("Errors in runtime public library file:" + error_msg);
+    errors.push_back("Errors in APEX public library list:" + error_msgs);
   }
 
   // Check the system libraries.
@@ -362,8 +402,8 @@ extern "C" JNIEXPORT jstring JNICALL
   // /apex/com.android.*/lib*.
   std::unordered_set<std::string> system_library_search_paths;
 
-  for (const auto& path : library_search_paths) {
-    for (const auto& regex : kSystemPathRegexes) {
+  for (const std::string& path : library_search_paths) {
+    for (const std::regex& regex : kSystemPathRegexes) {
       if (std::regex_match(path, regex)) {
         system_library_search_paths.insert(path);
         break;
@@ -374,7 +414,7 @@ extern "C" JNIEXPORT jstring JNICALL
   // These paths should be tested too - this is because apps may rely on some
   // libraries being available there.
   system_library_search_paths.insert(kSystemLibraryPath);
-  system_library_search_paths.insert(kArtApexLibraryPath);
+  system_library_search_paths.insert(kApexLibraryPaths.begin(), kApexLibraryPaths.end());
 
   if (!check_path(env, clazz, kSystemLibraryPath, system_library_search_paths,
                   system_public_libraries,
@@ -387,17 +427,19 @@ extern "C" JNIEXPORT jstring JNICALL
   // don't complain about that in that case.
   bool check_absence = !android::base::GetBoolProperty("ro.vndk.lite", false);
 
-  // Check the runtime libraries.
-  if (!check_path(env, clazz, kArtApexLibraryPath, {kArtApexLibraryPath},
-                  runtime_public_libraries,
-                  /*test_system_load_library=*/true,
-                  check_absence, &errors)) {
-    success = false;
+  // Check the APEX libraries.
+  for (const std::string& apex_path : kApexLibraryPaths) {
+    if (!check_path(env, clazz, apex_path, {apex_path},
+                    apex_public_libraries,
+                    /*test_system_load_library=*/true,
+                    check_absence, &errors)) {
+      success = false;
+    }
   }
 
   if (!success) {
     std::string error_str;
-    for (const auto& line : errors) {
+    for (const std::string& line : errors) {
       error_str += line + '\n';
     }
     return env->NewStringUTF(error_str.c_str());

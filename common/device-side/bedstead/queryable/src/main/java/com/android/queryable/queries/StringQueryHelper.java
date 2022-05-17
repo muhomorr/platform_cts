@@ -16,16 +16,30 @@
 
 package com.android.queryable.queries;
 
+import static com.android.queryable.util.ParcelableUtils.writeStringSet;
+
+import android.os.Parcel;
+import android.os.Parcelable;
+
 import com.android.queryable.Queryable;
+import com.android.queryable.util.ParcelableUtils;
 
 import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Objects;
+import java.util.Set;
 
 /** Implementation of {@link StringQuery}. */
 public final class StringQueryHelper<E extends Queryable>
         implements StringQuery<E>, Serializable{
 
-    private final E mQuery;
-    private String mEqualsValue = null;
+    private static final long serialVersionUID = 1;
+
+    private final transient E mQuery;
+    private String mEqualsValue;
+    private Set<String> mNotEqualsValues = new HashSet<>();
 
     StringQueryHelper() {
         mQuery = (E) this;
@@ -35,9 +49,21 @@ public final class StringQueryHelper<E extends Queryable>
         mQuery = query;
     }
 
+    private StringQueryHelper(Parcel in) {
+        mQuery = null;
+        mEqualsValue = in.readString();
+        mNotEqualsValues = ParcelableUtils.readStringSet(in);
+    }
+
     @Override
     public E isEqualTo(String string) {
-        this.mEqualsValue = string;
+        mEqualsValue = string;
+        return mQuery;
+    }
+
+    @Override
+    public E isNotEqualTo(String string) {
+        mNotEqualsValues.add(string);
         return mQuery;
     }
 
@@ -46,11 +72,78 @@ public final class StringQueryHelper<E extends Queryable>
         if (mEqualsValue != null && !mEqualsValue.equals(value)) {
             return false;
         }
+        if (mNotEqualsValues.contains(value)) {
+            return false;
+        }
 
         return true;
     }
 
     public static boolean matches(StringQueryHelper<?> stringQueryHelper, String value) {
         return stringQueryHelper.matches(value);
+    }
+
+    /**
+     * True if this query has not been configured.
+     */
+    public boolean isEmpty() {
+        return mEqualsValue == null && mNotEqualsValues.isEmpty();
+    }
+
+    /**
+     * True if this query is for an exact string match.
+     */
+    public boolean isQueryingForExactMatch() {
+        return mEqualsValue != null;
+    }
+
+    @Override
+    public String describeQuery(String fieldName) {
+        List<String> queryStrings = new ArrayList<>();
+        if (mEqualsValue != null) {
+            queryStrings.add(fieldName + "=\"" + mEqualsValue + "\"");
+        }
+
+        for (String notEquals : mNotEqualsValues) {
+            queryStrings.add(fieldName + "!=\"" + notEquals + "\"");
+        }
+
+        return Queryable.joinQueryStrings(queryStrings);
+    }
+
+    @Override
+    public int describeContents() {
+        return 0;
+    }
+
+    @Override
+    public void writeToParcel(Parcel out, int flags) {
+        out.writeString(mEqualsValue);
+        writeStringSet(out, mNotEqualsValues);
+    }
+
+    public static final Parcelable.Creator<StringQueryHelper> CREATOR =
+            new Parcelable.Creator<StringQueryHelper>() {
+                public StringQueryHelper createFromParcel(Parcel in) {
+                    return new StringQueryHelper(in);
+                }
+
+                public StringQueryHelper[] newArray(int size) {
+                    return new StringQueryHelper[size];
+                }
+    };
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof StringQueryHelper)) return false;
+        StringQueryHelper<?> that = (StringQueryHelper<?>) o;
+        return Objects.equals(mEqualsValue, that.mEqualsValue) && Objects.equals(
+                mNotEqualsValues, that.mNotEqualsValues);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(mEqualsValue, mNotEqualsValues);
     }
 }

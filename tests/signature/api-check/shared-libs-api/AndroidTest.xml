@@ -18,6 +18,7 @@
     <option name="config-descriptor:metadata" key="component" value="systems" />
     <option name="config-descriptor:metadata" key="parameter" value="instant_app" />
     <option name="config-descriptor:metadata" key="parameter" value="not_multi_abi" />
+    <option name="config-descriptor:metadata" key="parameter" value="no_foldable_states" />
     <option name="config-descriptor:metadata" key="parameter" value="secondary_user" />
     <target_preparer class="com.android.tradefed.targetprep.suite.SuiteApkInstaller">
         <option name="cleanup-apks" value="true" />
@@ -25,9 +26,11 @@
     </target_preparer>
     <test class="com.android.tradefed.testtype.AndroidJUnitTest" >
         <option name="package" value="android.signature.cts.api.shared_libs" />
-        <option name="runner" value="repackaged.android.test.InstrumentationTestRunner" />
+        <option name="runner" value="androidx.test.runner.AndroidJUnitRunner" />
         <option name="class" value="android.signature.cts.api.SignatureMultiLibsTest" />
-        <option name="instrumentation-arg" key="expected-api-files" value="shared-libs-all.api.zip" />
+        <option name="instrumentation-arg" key="base-api-files" value="current.api.gz" />
+        <option name="instrumentation-arg" key="expected-api-files" value="shared-libs-all-current.api.zip" />
+        <option name="instrumentation-arg" key="previous-api-files" value="shared-libs-all-previous.api.zip" />
         <option name="runtime-hint" value="30s" />
         <!-- Disable hidden API checks (http://b/171459260). -->
         <option name="hidden-api-checks" value="false" />

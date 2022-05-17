@@ -23,10 +23,15 @@ import android.os.Build;
 import android.os.Environment;
 import android.os.FileUtils;
 import android.os.ParcelFileDescriptor;
+import android.util.Log;
 
 import com.android.compatibility.common.util.FileUtil;
+import com.android.compatibility.common.util.ICaseResult;
 import com.android.compatibility.common.util.IInvocationResult;
+import com.android.compatibility.common.util.IModuleResult;
+import com.android.compatibility.common.util.ITestResult;
 import com.android.compatibility.common.util.ResultHandler;
+import com.android.compatibility.common.util.ScreenshotsMetadataHandler;
 import com.android.compatibility.common.util.ZipUtil;
 
 import org.xmlpull.v1.XmlPullParserException;
@@ -48,7 +53,9 @@ import java.util.logging.Logger;
 /**
  * Background task to generate a report and save it to external storage.
  */
-class ReportExporter extends AsyncTask<Void, Void, String> {
+public class ReportExporter extends AsyncTask<Void, Void, String> {
+    private static final String TAG = ReportExporter.class.getSimpleName();
+    private static final boolean DEBUG = true;
 
     public static final String REPORT_DIRECTORY = "VerifierReports";
     public static final String LOGS_DIRECTORY = "ReportLogFiles";
@@ -76,30 +83,42 @@ class ReportExporter extends AsyncTask<Void, Void, String> {
     // so that they will get ZIPped into the transmitted file.
     //
     private void copyReportFiles(File tempDir) {
-        File externalStorageDirectory = Environment.getExternalStorageDirectory();
+        if (DEBUG) {
+            Log.d(TAG, "copyReportFiles(" + tempDir.getAbsolutePath() + ")");
+        }
+
         File reportLogFolder =
                 new File(Environment.getExternalStorageDirectory().getAbsolutePath()
                         + File.separator
-                        + REPORT_DIRECTORY);
-        File[] reportLogFiles = reportLogFolder.listFiles();
+                        + LOGS_DIRECTORY);
 
-        // if no ReportLog files have been created (i.e. the folder doesn't exist)
-        // then listFiles() returns null. Handle silently.
-        if (reportLogFiles != null) {
-            for (File reportLogFile : reportLogFiles) {
-                Path src = Paths.get(reportLogFile.getAbsolutePath());
-                Path dest = Paths.get(
-                        tempDir.getAbsolutePath()
-                                + File.separator
-                                + reportLogFile.getName());
-                try {
-                    Files.copy(src, dest, StandardCopyOption.REPLACE_EXISTING);
-                } catch (IOException ex) {
-                    LOG.log(Level.WARNING, "Error copying ReportLog files. IOException: " + ex);
-                }
+        copyFilesRecursively(reportLogFolder, tempDir);
+    }
+
+    private void copyFilesRecursively(File source, File destFolder) {
+        File[] files = source.listFiles();
+
+        if (files == null) {
+            return;
+        }
+
+        for (File file : files) {
+            Path src = Paths.get(file.getAbsolutePath());
+            Path dest = Paths.get(
+                    destFolder.getAbsolutePath()
+                            + File.separator
+                            + file.getName());
+            try {
+                Files.copy(src, dest, StandardCopyOption.REPLACE_EXISTING);
+            } catch (IOException ex) {
+                LOG.log(Level.WARNING, "Error copying ReportLog file. IOException: " + ex);
+            }
+            if (file.isDirectory()) {
+                copyFilesRecursively(file, dest.toFile());
             }
         }
     }
+
 
     @Override
     protected String doInBackground(Void... params) {
@@ -139,6 +158,11 @@ class ReportExporter extends AsyncTask<Void, Void, String> {
                     result, tempDir, START_MS, END_MS, REFERENCE_URL, LOG_URL,
                     COMMAND_LINE_ARGS, null);
 
+            // Serialize the screenshots metadata if at least one exists
+            if (containsScreenshotMetadata(result)) {
+                ScreenshotsMetadataHandler.writeResults(result, tempDir);
+            }
+
             // copy formatting files to the temporary report directory
             copyFormattingFiles(tempDir);
 
@@ -155,7 +179,26 @@ class ReportExporter extends AsyncTask<Void, Void, String> {
         return mContext.getString(R.string.report_saved, reportZipFile.getPath());
     }
 
+    private boolean containsScreenshotMetadata(IInvocationResult result) {
+        for (IModuleResult module : result.getModules()) {
+            for (ICaseResult cr : module.getResults()) {
+                for (ITestResult r : cr.getResults()) {
+                    if (r.getResultStatus() == null) {
+                        continue; // test was not executed, don't report
+                    }
+                    if (r.getTestScreenshotsMetadata() != null) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
     private void saveReportOnInternalStorage(File reportZipFile) {
+        if (DEBUG) {
+            Log.d(TAG, "---- saveReportOnInternalStorage(" + reportZipFile.getAbsolutePath() + ")");
+        }
         try {
             ParcelFileDescriptor pfd = ParcelFileDescriptor.open(
                     reportZipFile, ParcelFileDescriptor.MODE_READ_ONLY);

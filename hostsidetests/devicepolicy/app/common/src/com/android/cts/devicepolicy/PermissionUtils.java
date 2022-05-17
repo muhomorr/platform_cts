@@ -16,21 +16,25 @@
 
 package com.android.cts.devicepolicy;
 
+import static android.Manifest.permission.BODY_SENSORS;
 import static android.Manifest.permission.CAMERA;
 import static android.Manifest.permission.RECORD_AUDIO;
 import static android.content.pm.PackageManager.PERMISSION_DENIED;
 import static android.content.pm.PackageManager.PERMISSION_GRANTED;
 
-import static junit.framework.Assert.assertTrue;
+import static com.google.common.truth.Truth.assertWithMessage;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
 
 import android.Manifest;
 import android.app.AppOpsManager;
+import android.app.admin.DevicePolicyManager;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
+import android.os.Process;
 import android.support.test.uiautomator.By;
 import android.support.test.uiautomator.BySelector;
 import android.support.test.uiautomator.UiDevice;
@@ -38,16 +42,23 @@ import android.support.test.uiautomator.UiObject2;
 import android.support.test.uiautomator.Until;
 import android.util.Log;
 
+import androidx.test.core.app.ApplicationProvider;
 import androidx.test.platform.app.InstrumentationRegistry;
 
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 public class PermissionUtils {
-    private static final String LOG_TAG = PermissionUtils.class.getName();
+    private static final String LOG_TAG = PermissionUtils.class.getSimpleName();
     private static final Set<String> LOCATION_PERMISSIONS = new HashSet<String>();
+
+    private static final Context sContext = ApplicationProvider.getApplicationContext();
 
     static {
         LOCATION_PERMISSIONS.add(Manifest.permission.ACCESS_FINE_LOCATION);
@@ -66,7 +77,16 @@ public class PermissionUtils {
             throws Exception {
         launchActivityWithAction(permission, ACTION_CHECK_HAS_PERMISSION,
                 packageName, activityName);
-        assertEquals(expected, receiver.waitForBroadcast());
+        assertBroadcastReceived(receiver, expected);
+    }
+
+    private static void assertBroadcastReceived(PermissionBroadcastReceiver receiver,
+            int expected) throws Exception {
+        int actual = receiver.waitForBroadcast();
+        assertWithMessage("value returned by %s (%s=%s, %s=%s)", receiver,
+                expected, permissionToString(expected),
+                actual, permissionToString(actual))
+                        .that(actual).isEqualTo(expected);
     }
 
     public static void launchActivityAndRequestPermission(PermissionBroadcastReceiver receiver,
@@ -74,7 +94,7 @@ public class PermissionUtils {
             throws Exception {
         launchActivityWithAction(permission, ACTION_REQUEST_PERMISSION,
                 packageName, activityName);
-        assertEquals(expected, receiver.waitForBroadcast());
+        assertBroadcastReceived(receiver, expected);
     }
 
     public static void launchActivityAndRequestPermission(PermissionBroadcastReceiver
@@ -91,7 +111,8 @@ public class PermissionUtils {
                 // For some permissions, different buttons may be available.
                 if (LOCATION_PERMISSIONS.contains(permission)
                         || RECORD_AUDIO.equals(permission)
-                        || CAMERA.equals(permission)) {
+                        || CAMERA.equals(permission)
+                        || BODY_SENSORS.equals(permission)) {
                     resNames.add("permission_allow_foreground_only_button");
                     resNames.add("permission_allow_one_time_button");
                 }
@@ -101,8 +122,8 @@ public class PermissionUtils {
         }
         launchActivityWithAction(permission, ACTION_REQUEST_PERMISSION,
                 packageName, activityName);
-        pressPermissionPromptButton(device, resNames.toArray(new String[0]));
-        assertEquals(expected, receiver.waitForBroadcast());
+        pressPermissionPromptButton(device, expected, resNames.toArray(new String[0]));
+        assertBroadcastReceived(receiver, expected);
     }
 
     private static void launchActivityWithAction(String permission, String action,
@@ -112,31 +133,60 @@ public class PermissionUtils {
         launchIntent.putExtra(EXTRA_PERMISSION, permission);
         launchIntent.setAction(action);
         launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_MULTIPLE_TASK);
+        Log.d(LOG_TAG, "Launching activity (with intent " + launchIntent + ") for permission "
+                + permission + " on uid " + Process.myUid());
         getContext().startActivity(launchIntent);
     }
 
     public static void checkPermission(String permission, int expected, String packageName) {
-        assertEquals(getContext().getPackageManager()
-                .checkPermission(permission, packageName), expected);
+        checkPermission(getContext(), permission, expected, packageName);
+    }
+
+    public static void checkPermission(Context context, String permission, int expected,
+            String packageName) {
+        PackageManager pm = context.getPackageManager();
+        Log.d(LOG_TAG, "checkPermission(" + permission + ", " + expected + ", " + packageName
+                + "): " + "using " + pm + " on user " + context.getUser());
+        assertPermission(permission, packageName, pm.checkPermission(permission, packageName),
+                expected);
+    }
+
+    private static void assertPermission(String permission, String packageName, int actual,
+            int expected) {
+        assertWithMessage("Wrong status for permission %s on package %s (where %s=%s and %s=%s)",
+                permission, packageName,
+                expected, permissionToString(expected), actual, permissionToString(actual))
+                        .that(actual).isEqualTo(expected);
     }
 
     /**
-     * Correctly check a runtime permission. This also works for pre-m apps.
+     * Correctly checks a runtime permission. This also works for pre-{@code M} apps.
      */
     public static void checkPermissionAndAppOps(String permission, int expected, String packageName)
             throws Exception {
-        assertEquals(checkPermissionAndAppOps(permission, packageName), expected);
+        checkPermissionAndAppOps(getContext(), permission, expected, packageName);
     }
 
-    private static int checkPermissionAndAppOps(String permission, String packageName)
-            throws Exception {
-        PackageInfo packageInfo = getContext().getPackageManager().getPackageInfo(packageName, 0);
-        if (getContext().checkPermission(permission, -1, packageInfo.applicationInfo.uid)
+    /**
+     * Correctly checks a runtime permission. This also works for pre-{@code M} apps.
+     */
+    public static void checkPermissionAndAppOps(Context context, String permission, int expected,
+            String packageName) throws Exception {
+        assertPermission(permission, packageName,
+                checkPermissionAndAppOps(context, permission, packageName), expected);
+    }
+
+    private static int checkPermissionAndAppOps(Context context, String permission,
+            String packageName) throws Exception {
+        Log.d(LOG_TAG, "checkPermissionAndAppOps(): user=" + context.getUser()
+                + ", permission=" + permission + ", packageName=" + packageName);
+        PackageInfo packageInfo = context.getPackageManager().getPackageInfo(packageName, 0);
+        if (context.checkPermission(permission, -1, packageInfo.applicationInfo.uid)
                 == PERMISSION_DENIED) {
             return PERMISSION_DENIED;
         }
 
-        AppOpsManager appOpsManager = getContext().getSystemService(AppOpsManager.class);
+        AppOpsManager appOpsManager = context.getSystemService(AppOpsManager.class);
         if (appOpsManager != null && appOpsManager.noteProxyOpNoThrow(
                 AppOpsManager.permissionToOp(permission), packageName,
                 packageInfo.applicationInfo.uid, null, null)
@@ -151,9 +201,29 @@ public class PermissionUtils {
         return InstrumentationRegistry.getInstrumentation().getContext();
     }
 
-    private static void pressPermissionPromptButton(UiDevice mDevice, String[] resNames) {
+    private static void pressPermissionPromptButton(UiDevice device, int expectedAction,
+            String[] resNames) {
+        UiObject2 button = findPermissionPromptButton(device, expectedAction, resNames);
+        Log.d(LOG_TAG, "Clicking on '" + button.getText() + "'");
+        button.click();
+    }
+
+    private static UiObject2 findPermissionPromptButton(UiDevice device, int expectedAction,
+            String[] resNames) {
         if ((resNames == null) || (resNames.length == 0)) {
             throw new IllegalArgumentException("resNames must not be null or empty");
+        }
+        String action;
+        switch (expectedAction) {
+            case PERMISSION_DENIED:
+                action = "PERMISSION_DENIED";
+                break;
+            case PERMISSION_GRANTED:
+                action = "PERMISSION_GRANTED";
+                break;
+            default:
+                throw new IllegalArgumentException("Invalid expected action: "
+                        + expectedAction);
         }
 
         // The dialog was moved from the packageinstaller to the permissioncontroller.
@@ -163,27 +233,96 @@ public class PermissionUtils {
                 "com.android.packageinstaller",
                 "com.android.permissioncontroller"};
 
-        boolean foundButton = false;
+        Log.v(LOG_TAG, "findPermissionPromptButton(): pkgs= " + Arrays.toString(possiblePackages)
+                + ", action=" + action + ", resIds=" + Arrays.toString(resNames));
         for (String resName : resNames) {
             for (String possiblePkg : possiblePackages) {
                 BySelector selector = By
                         .clazz(android.widget.Button.class.getName())
                         .res(possiblePkg, resName);
-                mDevice.wait(Until.hasObject(selector), 5000);
-                UiObject2 button = mDevice.findObject(selector);
+                Log.v(LOG_TAG, "trying " + selector);
+                device.wait(Until.hasObject(selector), 5000);
+                UiObject2 button = device.findObject(selector);
                 Log.d(LOG_TAG, String.format("Resource %s in Package %s found? %b", resName,
                         possiblePkg, button != null));
                 if (button != null) {
-                    foundButton = true;
-                    button.click();
-                    break;
+                    return button;
                 }
-            }
-            if (foundButton) {
-                break;
             }
         }
 
-        assertTrue("Couldn't find any button", foundButton);
+        if (!sContext.getPackageManager().hasSystemFeature(PackageManager.FEATURE_AUTOMOTIVE)) {
+            fail("Did not find button for action " + action + " on packages "
+                    + Arrays.toString(possiblePackages));
+        }
+        return findPermissionPromptButtonAutomotive(device, expectedAction);
+    }
+
+    private static UiObject2 findPermissionPromptButtonAutomotive(UiDevice device,
+            int expectedAction) {
+        // TODO: ideally the UI should use a more specific resource, so it doesn't need to search
+        // for text
+        Pattern resPattern = Pattern.compile(".*car_ui_list_item_title");
+        Pattern textPattern;
+        String action;
+        switch (expectedAction) {
+            case PERMISSION_DENIED:
+                action = "PERMISSION_DENIED";
+                textPattern = Pattern.compile("^Don’t allow$");
+                break;
+            case PERMISSION_GRANTED:
+                action = "PERMISSION_GRANTED";
+                textPattern = Pattern.compile("^Allow|While using the app$");
+                break;
+            default:
+                throw new IllegalArgumentException("Invalid expected action: " + expectedAction);
+        }
+        Log.i(LOG_TAG, "Button not found on automotive build; searching for " + resPattern
+                + " res and " + textPattern + " text instead");
+        BySelector selector = By
+                .clazz(android.widget.TextView.class.getName())
+                 .text(textPattern)
+                .res(resPattern);
+        Log.v(LOG_TAG, "selector: " + selector);
+        device.wait(Until.hasObject(selector), 5000);
+        UiObject2 button = device.findObject(selector);
+        Log.d(LOG_TAG, "button: " + button + (button == null ? "" : " (" + button.getText() + ")"));
+        assertWithMessage("Found button with res %s and text '%s'", resPattern, textPattern)
+                .that(button).isNotNull();
+
+        return button;
+    }
+
+    public static String permissionGrantStateToString(int state) {
+        return constantToString(DevicePolicyManager.class, "PERMISSION_GRANT_STATE_", state);
+    }
+
+    public static String permissionPolicyToString(int policy) {
+        return constantToString(DevicePolicyManager.class, "PERMISSION_POLICY_", policy);
+    }
+
+    public static String permissionToString(int permission) {
+        return constantToString(PackageManager.class, "PERMISSION_", permission);
+    }
+
+    // Copied from DebugUtils
+    private static String constantToString(Class<?> clazz, String prefix, int value) {
+        for (Field field : clazz.getDeclaredFields()) {
+            final int modifiers = field.getModifiers();
+            try {
+                if (Modifier.isStatic(modifiers) && Modifier.isFinal(modifiers)
+                        && field.getType().equals(int.class) && field.getName().startsWith(prefix)
+                        && field.getInt(null) == value) {
+                    return constNameWithoutPrefix(prefix, field);
+                }
+            } catch (IllegalAccessException ignored) {
+            }
+        }
+        return prefix + Integer.toString(value);
+    }
+
+    // Copied from DebugUtils
+    private static String constNameWithoutPrefix(String prefix, Field field) {
+        return field.getName().substring(prefix.length());
     }
 }

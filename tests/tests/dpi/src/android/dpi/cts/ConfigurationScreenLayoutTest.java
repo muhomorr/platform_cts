@@ -22,12 +22,11 @@ import android.content.Intent;
 import android.content.pm.ActivityInfo;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
+import android.server.wm.IgnoreOrientationRequestSession;
 import android.test.ActivityInstrumentationTestCase2;
 import android.util.DisplayMetrics;
 import android.view.Display;
 import android.view.WindowManager;
-
-import androidx.test.InstrumentationRegistry;
 
 public class ConfigurationScreenLayoutTest
         extends ActivityInstrumentationTestCase2<OrientationActivity> {
@@ -57,26 +56,35 @@ public class ConfigurationScreenLayoutTest
             tearDown();
             return;
         }
-        int expectedScreenLayout = computeScreenLayout();
-        int expectedSize = expectedScreenLayout & Configuration.SCREENLAYOUT_SIZE_MASK;
-        int expectedLong = expectedScreenLayout & Configuration.SCREENLAYOUT_LONG_MASK;
+        // Disable IgnoreOrientationRequest feature because when it's enabled, the device would only
+        // follow physical rotations.
+        try (IgnoreOrientationRequestSession session =
+                     new IgnoreOrientationRequestSession(false /* enable */)) {
+            int expectedScreenLayout = computeScreenLayout();
+            int expectedSize = expectedScreenLayout & Configuration.SCREENLAYOUT_SIZE_MASK;
+            int expectedLong = expectedScreenLayout & Configuration.SCREENLAYOUT_LONG_MASK;
 
-        // Check that all four orientations report the same configuration value.
-        for (int i = 0; i < ORIENTATIONS.length; i++) {
-            Activity activity = startOrientationActivity(ORIENTATIONS[i]);
-            if (activity.isInMultiWindowMode()) {
-                // activity.setRequestedOrientation has no effect in multiwindow mode.
+            // Check that all four orientations report the same configuration value.
+            for (int i = 0; i < ORIENTATIONS.length; i++) {
+                Activity activity = startOrientationActivity(ORIENTATIONS[i]);
+                if (activity.isInMultiWindowMode()) {
+                    // activity.setRequestedOrientation has no effect in multiwindow mode.
+                    tearDown();
+                    return;
+                }
+                Configuration mConfig = activity.getResources().getConfiguration();
+                int actualSize = mConfig.screenLayout & Configuration.SCREENLAYOUT_SIZE_MASK;
+                int actualLong = mConfig.screenLayout & Configuration.SCREENLAYOUT_LONG_MASK;
+
+                assertEquals("Expected screen size value of " + expectedSize + " but got "
+                        + actualSize + " for orientation "
+                        + ORIENTATIONS[i], expectedSize, actualSize);
+                assertEquals("Expected screen long value of " + expectedLong + " but got "
+                        + actualLong + " for orientation "
+                        + ORIENTATIONS[i], expectedLong, actualLong);
                 tearDown();
-                return;
             }
-            Configuration mConfig = activity.getResources().getConfiguration();
-            int actualSize = mConfig.screenLayout & Configuration.SCREENLAYOUT_SIZE_MASK;
-            int actualLong = mConfig.screenLayout & Configuration.SCREENLAYOUT_LONG_MASK;
-
-            assertEquals("Expected screen size value of " + expectedSize + " but got " + actualSize
-                    + " for orientation " + ORIENTATIONS[i], expectedSize, actualSize);
-            assertEquals("Expected screen long value of " + expectedLong + " but got " + actualLong
-                    + " for orientation " + ORIENTATIONS[i], expectedLong, actualLong);
+        } finally {
             tearDown();
         }
     }
@@ -102,7 +110,7 @@ public class ConfigurationScreenLayoutTest
     }
 
     private boolean hasDeviceFeature(final String requiredFeature) {
-        return InstrumentationRegistry.getContext()
+        return getInstrumentation().getContext()
                 .getPackageManager()
                 .hasSystemFeature(requiredFeature);
     }

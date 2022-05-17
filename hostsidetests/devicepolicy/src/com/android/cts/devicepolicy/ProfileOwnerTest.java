@@ -15,13 +15,11 @@
  */
 package com.android.cts.devicepolicy;
 
-import static com.android.cts.devicepolicy.DeviceAdminFeaturesCheckerRule.FEATURE_BACKUP;
-
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-import com.android.cts.devicepolicy.DeviceAdminFeaturesCheckerRule.RequiresAdditionalFeatures;
 import com.android.cts.devicepolicy.DeviceAdminFeaturesCheckerRule.RequiresProfileOwnerSupport;
+import com.android.tradefed.log.LogUtil.CLog;
 
 import org.junit.Test;
 
@@ -42,7 +40,7 @@ public class ProfileOwnerTest extends BaseDevicePolicyTest {
     public void setUp() throws Exception {
         super.setUp();
 
-        mUserId = getPrimaryUser();
+        mUserId = isHeadlessSystemUserMode() ? getCurrentUser() : getPrimaryUser();
 
 
         installAppAsUser(PROFILE_OWNER_APK, mUserId);
@@ -68,13 +66,6 @@ public class ProfileOwnerTest extends BaseDevicePolicyTest {
     @Test
     public void testAppUsageObserver() throws Exception {
         executeProfileOwnerTest("AppUsageObserverTest");
-    }
-
-    // The backup service cannot be enabled if the backup feature is not supported.
-    @RequiresAdditionalFeatures({FEATURE_BACKUP})
-    @Test
-    public void testBackupServiceEnabling() throws Exception {
-        executeProfileOwnerTest("BackupServicePoliciesTest");
     }
 
     @Test
@@ -109,11 +100,14 @@ public class ProfileOwnerTest extends BaseDevicePolicyTest {
 
     private void executeProfileOwnerTest(String testClassName) throws Exception {
         String testClass = PROFILE_OWNER_PKG + "." + testClassName;
-        runDeviceTestsAsUser(PROFILE_OWNER_PKG, testClass, mPrimaryUserId);
+        CLog.d("executeProfileOwnerTest(): running %s on user %d", testClassName, mUserId);
+        runDeviceTestsAsUser(PROFILE_OWNER_PKG, testClass, mUserId);
     }
 
     protected void executeProfileOwnerTestMethod(String className, String testName)
             throws Exception {
+        CLog.d("executeProfileOwnerTestMethod(): running %s.%s on user %d", className, testName,
+                mUserId);
         runDeviceTestsAsUser(PROFILE_OWNER_PKG, className, testName, mUserId);
     }
 

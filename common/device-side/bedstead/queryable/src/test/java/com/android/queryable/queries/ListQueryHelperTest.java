@@ -16,6 +16,7 @@
 
 package com.android.queryable.queries;
 
+import static com.android.bedstead.nene.utils.ParcelTest.assertParcelsCorrectly;
 import static com.android.queryable.queries.BundleQuery.bundle;
 
 import static com.google.common.truth.Truth.assertThat;
@@ -29,7 +30,6 @@ import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
 
 import java.util.List;
-import java.util.Set;
 
 @RunWith(JUnit4.class)
 public class ListQueryHelperTest {
@@ -38,6 +38,9 @@ public class ListQueryHelperTest {
     private static final String BUNDLE_KEY = "key";
     private static final Bundle BUNDLE_CONTAINING_KEY = new Bundle();
     private static final Bundle BUNDLE_NOT_CONTAINING_KEY = new Bundle();
+    private static final Integer INTEGER = 1;
+    private static final Integer DIFFERENT_INTEGER = 2;
+    private static final Integer ANOTHER_DIFFERENT_INTEGER = 3;
     static {
         BUNDLE_CONTAINING_KEY.putString(BUNDLE_KEY, "value");
     }
@@ -63,7 +66,7 @@ public class ListQueryHelperTest {
     }
 
     @Test
-    public void matches_contains_doesContain_returnsTrue() {
+    public void matches_contains_withQuery_doesContain_returnsTrue() {
         ListQueryHelper<Queryable, Bundle, BundleQuery<Queryable>> listQueryHelper =
                 new ListQueryHelper<>(mQuery);
 
@@ -76,7 +79,7 @@ public class ListQueryHelperTest {
     }
 
     @Test
-    public void matches_contains_doesNotContain_returnsFalse() {
+    public void matches_contains_withQuery_doesNotContain_returnsFalse() {
         ListQueryHelper<Queryable, Bundle, BundleQuery<Queryable>> listQueryHelper =
                 new ListQueryHelper<>(mQuery);
 
@@ -88,7 +91,7 @@ public class ListQueryHelperTest {
     }
 
     @Test
-    public void matches_doesNotContain_doesContain_returnsFalse() {
+    public void matches_doesNotContain_withQuery_doesContain_returnsFalse() {
         ListQueryHelper<Queryable, Bundle, BundleQuery<Queryable>> listQueryHelper =
                 new ListQueryHelper<>(mQuery);
 
@@ -101,7 +104,7 @@ public class ListQueryHelperTest {
     }
 
     @Test
-    public void matches_doesNotContain_doesNotContain_returnsTrue() {
+    public void matches_doesNotContain_withQuery_doesNotContain_returnsTrue() {
         ListQueryHelper<Queryable, Bundle, BundleQuery<Queryable>> listQueryHelper =
                 new ListQueryHelper<>(mQuery);
 
@@ -112,4 +115,103 @@ public class ListQueryHelperTest {
         assertThat(listQueryHelper.matches(List.of(BUNDLE_NOT_CONTAINING_KEY))).isTrue();
     }
 
+    @Test
+    public void matches_contains_withNonQuery_doesContain_returnsTrue() {
+        ListQueryHelper<Queryable, Integer, IntegerQuery<Queryable>> listQueryHelper =
+                new ListQueryHelper<>(mQuery);
+
+        listQueryHelper.contains(INTEGER);
+
+        assertThat(listQueryHelper.matches(
+                List.of(INTEGER, DIFFERENT_INTEGER))).isTrue();
+    }
+
+    @Test
+    public void matches_contains_withNonQuery_doesNotContain_returnsFalse() {
+        ListQueryHelper<Queryable, Integer, IntegerQuery<Queryable>> listQueryHelper =
+                new ListQueryHelper<>(mQuery);
+
+        listQueryHelper.contains(INTEGER);
+
+        assertThat(listQueryHelper.matches(List.of(DIFFERENT_INTEGER))).isFalse();
+    }
+
+    @Test
+    public void matches_doesNotContain_withNonQuery_doesContain_returnsFalse() {
+        ListQueryHelper<Queryable, Integer, IntegerQuery<Queryable>> listQueryHelper =
+                new ListQueryHelper<>(mQuery);
+
+        listQueryHelper.doesNotContain(INTEGER);
+
+        assertThat(listQueryHelper.matches(
+                List.of(INTEGER, DIFFERENT_INTEGER))).isFalse();
+    }
+
+    @Test
+    public void matches_doesNotContain_withNonQuery_doesNotContain_returnsTrue() {
+        ListQueryHelper<Queryable, Integer, IntegerQuery<Queryable>> listQueryHelper =
+                new ListQueryHelper<>(mQuery);
+
+        listQueryHelper.doesNotContain(INTEGER);
+
+        assertThat(listQueryHelper.matches(List.of(DIFFERENT_INTEGER))).isTrue();
+    }
+
+    @Test
+    public void matches_containsAll_withNonQueries_doesContain_returnsTrue() {
+        ListQueryHelper<Queryable, Integer, IntegerQuery<Queryable>> listQueryHelper =
+                new ListQueryHelper<>(mQuery);
+
+        listQueryHelper.containsAll(List.of(INTEGER, DIFFERENT_INTEGER));
+
+        assertThat(listQueryHelper.matches(
+                List.of(INTEGER, DIFFERENT_INTEGER, ANOTHER_DIFFERENT_INTEGER))).isTrue();
+    }
+
+    @Test
+    public void matches_containsAll_withNonQueries_doesNotContain_returnsFalse() {
+        ListQueryHelper<Queryable, Integer, IntegerQuery<Queryable>> listQueryHelper =
+                new ListQueryHelper<>(mQuery);
+
+        listQueryHelper.containsAll(List.of(INTEGER, DIFFERENT_INTEGER));
+
+        assertThat(listQueryHelper.matches(
+                List.of(DIFFERENT_INTEGER, ANOTHER_DIFFERENT_INTEGER))).isFalse();
+    }
+
+    @Test
+    public void matches_doesNotContainAny_withNonQueries_doesContain_returnsFalse() {
+        ListQueryHelper<Queryable, Integer, IntegerQuery<Queryable>> listQueryHelper =
+                new ListQueryHelper<>(mQuery);
+
+        listQueryHelper.doesNotContainAny(List.of(INTEGER, DIFFERENT_INTEGER));
+
+        assertThat(listQueryHelper.matches(
+                List.of(INTEGER, ANOTHER_DIFFERENT_INTEGER))).isFalse();
+    }
+
+    @Test
+    public void matches_doesNotContainAny_withNonQueries_doesNotContain_returnsTrue() {
+        ListQueryHelper<Queryable, Integer, IntegerQuery<Queryable>> listQueryHelper =
+                new ListQueryHelper<>(mQuery);
+
+        listQueryHelper.doesNotContainAny(List.of(INTEGER, DIFFERENT_INTEGER));
+
+        assertThat(listQueryHelper.matches(
+                List.of(ANOTHER_DIFFERENT_INTEGER))).isTrue();
+    }
+
+    @Test
+    public void parcel_parcelsCorrectly() {
+        ListQueryHelper<Queryable, Integer, IntegerQuery<?>> listQueryHelper =
+                new ListQueryHelper<>(mQuery);
+
+        listQueryHelper.size().isEqualTo(1);
+        listQueryHelper.contains(1);
+        listQueryHelper.doesNotContain(1);
+        listQueryHelper.contains(IntegerQuery.integer().isEqualTo(1));
+        listQueryHelper.doesNotContain(IntegerQuery.integer().isEqualTo(1));
+
+        assertParcelsCorrectly(ListQueryHelper.class, listQueryHelper);
+    }
 }

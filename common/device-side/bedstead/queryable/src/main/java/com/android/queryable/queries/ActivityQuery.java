@@ -17,6 +17,7 @@
 package com.android.queryable.queries;
 
 import android.app.Activity;
+import android.content.IntentFilter;
 
 import com.android.queryable.Queryable;
 import com.android.queryable.info.ActivityInfo;
@@ -30,4 +31,10 @@ public interface ActivityQuery<E extends Queryable> extends Query<ActivityInfo> 
 
     ClassQuery<E> activityClass();
     BooleanQuery<E> exported();
+
+    /** Query the permission to launch an activity. */
+    StringQuery<E> permission();
+
+    /** Query the intent-filters on an activity. */
+    SetQuery<E, IntentFilter, IntentFilterQuery<?>> intentFilters();
 }

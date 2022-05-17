@@ -22,6 +22,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
+import static org.junit.Assume.assumeNotNull;
 import static org.junit.Assume.assumeTrue;
 
 import android.Manifest;
@@ -66,12 +67,14 @@ public class BrightnessTest {
     private DisplayManager mDisplayManager;
     private PowerManager.WakeLock mWakeLock;
     private Context mContext;
+    private PackageManager mPackageManager;
 
     @Before
     public void setUp() {
         mContext = InstrumentationRegistry.getContext();
         mDisplayManager = mContext.getSystemService(DisplayManager.class);
         PowerManager pm = mContext.getSystemService(PowerManager.class);
+        mPackageManager = mContext.getPackageManager();
 
         mWakeLock = pm.newWakeLock(
                 PowerManager.SCREEN_BRIGHT_WAKE_LOCK | PowerManager.ACQUIRE_CAUSES_WAKEUP,
@@ -91,6 +94,9 @@ public class BrightnessTest {
 
     @Test
     public void testBrightnessSliderTracking() throws InterruptedException {
+        // Only run if we have a valid ambient light sensor.
+        assumeTrue(mPackageManager.hasSystemFeature(PackageManager.FEATURE_SENSOR_LIGHT));
+
         // Don't run as there is no app that has permission to access slider usage.
         assumeTrue(
                 numberOfSystemAppsWithPermission(Manifest.permission.BRIGHTNESS_SLIDER_USAGE) > 0);
@@ -174,6 +180,9 @@ public class BrightnessTest {
 
     @Test
     public void testNoColorSampleData() throws InterruptedException {
+        // Only run if we have a valid ambient light sensor.
+        assumeTrue(mPackageManager.hasSystemFeature(PackageManager.FEATURE_SENSOR_LIGHT));
+
           // Don't run as there is no app that has permission to access slider usage.
         assumeTrue(
                 numberOfSystemAppsWithPermission(Manifest.permission.BRIGHTNESS_SLIDER_USAGE) > 0);
@@ -182,9 +191,12 @@ public class BrightnessTest {
         assumeTrue(numberOfSystemAppsWithPermission(
                 Manifest.permission.CONFIGURE_DISPLAY_BRIGHTNESS) > 0);
 
+        grantPermission(Manifest.permission.CONFIGURE_DISPLAY_BRIGHTNESS);
         int previousBrightness = getSystemSetting(Settings.System.SCREEN_BRIGHTNESS);
         int previousBrightnessMode =
                 getSystemSetting(Settings.System.SCREEN_BRIGHTNESS_MODE);
+        BrightnessConfiguration previousConfig = mDisplayManager.getBrightnessConfiguration();
+
         try {
             setSystemSetting(Settings.System.SCREEN_BRIGHTNESS_MODE,
                     Settings.System.SCREEN_BRIGHTNESS_MODE_AUTOMATIC);
@@ -192,7 +204,6 @@ public class BrightnessTest {
             assertEquals(Settings.System.SCREEN_BRIGHTNESS_MODE_AUTOMATIC, mode);
 
             grantPermission(Manifest.permission.BRIGHTNESS_SLIDER_USAGE);
-            grantPermission(Manifest.permission.CONFIGURE_DISPLAY_BRIGHTNESS);
 
             // Set brightness config to not sample color.
             BrightnessConfiguration config =
@@ -215,6 +226,7 @@ public class BrightnessTest {
         } finally {
             setSystemSetting(Settings.System.SCREEN_BRIGHTNESS, previousBrightness);
             setSystemSetting(Settings.System.SCREEN_BRIGHTNESS_MODE, previousBrightnessMode);
+            mDisplayManager.setBrightnessConfiguration(previousConfig);
         }
     }
 
@@ -251,6 +263,9 @@ public class BrightnessTest {
 
     @Test
     public void testSetGetSimpleCurve() {
+        // Only run if we have a valid ambient light sensor.
+        assumeTrue(mPackageManager.hasSystemFeature(PackageManager.FEATURE_SENSOR_LIGHT));
+
         // Don't run as there is no app that has permission to push curves.
         assumeTrue(numberOfSystemAppsWithPermission(
                 Manifest.permission.CONFIGURE_DISPLAY_BRIGHTNESS) > 0);
@@ -258,6 +273,8 @@ public class BrightnessTest {
         grantPermission(Manifest.permission.CONFIGURE_DISPLAY_BRIGHTNESS);
 
         BrightnessConfiguration defaultConfig = mDisplayManager.getDefaultBrightnessConfiguration();
+        // This might be null, meaning that the device doesn't support brightness configuration
+        assumeNotNull(defaultConfig);
 
         BrightnessConfiguration config =
                 new BrightnessConfiguration.Builder(
@@ -327,6 +344,9 @@ public class BrightnessTest {
 
     @Test
     public void testSliderEventsReflectCurves() throws InterruptedException {
+        // Only run if we have a valid ambient light sensor.
+        assumeTrue(mPackageManager.hasSystemFeature(PackageManager.FEATURE_SENSOR_LIGHT));
+
         // Don't run as there is no app that has permission to access slider usage.
         assumeTrue(
                 numberOfSystemAppsWithPermission(Manifest.permission.BRIGHTNESS_SLIDER_USAGE) > 0);
@@ -388,6 +408,103 @@ public class BrightnessTest {
     public void testAtMostOneAppHoldsBrightnessConfigurationPermission() {
         assertTrue(numberOfSystemAppsWithPermission(
                     Manifest.permission.CONFIGURE_DISPLAY_BRIGHTNESS) < 2);
+    }
+
+    @Test
+    public void testSetAndGetBrightnessConfiguration() {
+        assumeTrue(numberOfSystemAppsWithPermission(
+                Manifest.permission.CONFIGURE_DISPLAY_BRIGHTNESS) > 0);
+
+        grantPermission(Manifest.permission.CONFIGURE_DISPLAY_BRIGHTNESS);
+
+        BrightnessConfiguration previousConfig = mDisplayManager.getBrightnessConfiguration();
+        int previousBrightnessMode =
+                getSystemSetting(Settings.System.SCREEN_BRIGHTNESS_MODE);
+
+        try{
+            BrightnessConfiguration configSet =
+                    new BrightnessConfiguration.Builder(
+                            new float[]{0.0f, 1345.0f}, new float[]{15.0f, 250.0f})
+                            .setDescription("model:8").build();
+            BrightnessConfiguration configGet;
+
+            mDisplayManager.setBrightnessConfiguration(configSet);
+            configGet = mDisplayManager.getBrightnessConfiguration();
+
+            assertNotNull(configGet);
+            assertEquals(configSet, configGet);
+
+        } finally {
+            // Reset
+            mDisplayManager.setBrightnessConfiguration(previousConfig);
+            setSystemSetting(Settings.System.SCREEN_BRIGHTNESS_MODE, previousBrightnessMode);
+        }
+    }
+
+    @Test
+    public void testSetAndGetPerDisplay() throws InterruptedException{
+        // Only run if we have a valid ambient light sensor.
+        assumeTrue(mPackageManager.hasSystemFeature(PackageManager.FEATURE_SENSOR_LIGHT));
+
+        assumeTrue(numberOfSystemAppsWithPermission(
+                Manifest.permission.CONFIGURE_DISPLAY_BRIGHTNESS) > 0);
+
+        grantPermission(Manifest.permission.CONFIGURE_DISPLAY_BRIGHTNESS);
+        grantPermission(Manifest.permission.BRIGHTNESS_SLIDER_USAGE);
+
+        BrightnessConfiguration previousConfig = mDisplayManager.getBrightnessConfiguration();
+        int previousBrightnessMode =
+                getSystemSetting(Settings.System.SCREEN_BRIGHTNESS_MODE);
+        try {
+            // Setup slider events.
+            setSystemSetting(Settings.System.SCREEN_BRIGHTNESS_MODE,
+                    Settings.System.SCREEN_BRIGHTNESS_MODE_AUTOMATIC);
+            int mode = getSystemSetting(Settings.System.SCREEN_BRIGHTNESS_MODE);
+            assertEquals(Settings.System.SCREEN_BRIGHTNESS_MODE_AUTOMATIC, mode);
+            recordSliderEvents();
+            waitForFirstSliderEvent();
+            setSystemSetting(Settings.System.SCREEN_BRIGHTNESS, 20);
+            getNewEvents(1);
+
+            // Get a unique display id via brightness change event
+            setSystemSetting(Settings.System.SCREEN_BRIGHTNESS, 60);
+            List<BrightnessChangeEvent> newEvents = getNewEvents(1);
+            BrightnessChangeEvent firstEvent = newEvents.get(0);
+            String uniqueDisplayId = firstEvent.uniqueDisplayId;
+            assertNotNull(uniqueDisplayId);
+
+            // Set & get a configuration for that specific display
+            BrightnessConfiguration configSet =
+                    new BrightnessConfiguration.Builder(
+                            new float[]{0.0f, 12345.0f}, new float[]{15.0f, 200.0f})
+                            .setDescription("test:0").build();
+            mDisplayManager.setBrightnessConfigurationForDisplay(configSet, uniqueDisplayId);
+            BrightnessConfiguration returnedConfig =
+                    mDisplayManager.getBrightnessConfigurationForDisplay(uniqueDisplayId);
+
+            assertEquals(configSet, returnedConfig);
+
+            // Set & get a different configuration for that specific display
+            BrightnessConfiguration configSetTwo =
+                    new BrightnessConfiguration.Builder(
+                            new float[]{0.0f, 678.0f}, new float[]{15.0f, 500.0f})
+                            .setDescription("test:1").build();
+            mDisplayManager.setBrightnessConfigurationForDisplay(configSetTwo, uniqueDisplayId);
+            BrightnessConfiguration returnedConfigTwo =
+                    mDisplayManager.getBrightnessConfigurationForDisplay(uniqueDisplayId);
+
+            assertEquals(configSetTwo, returnedConfigTwo);
+
+            // Since brightness change event will happen on the default display, this should also
+            // return the same value.
+            BrightnessConfiguration unspecifiedDisplayConfig =
+                    mDisplayManager.getBrightnessConfiguration();
+            assertEquals(configSetTwo, unspecifiedDisplayConfig);
+        } finally {
+            // Reset
+            mDisplayManager.setBrightnessConfiguration(previousConfig);
+            setSystemSetting(Settings.System.SCREEN_BRIGHTNESS_MODE, previousBrightnessMode);
+        }
     }
 
     private void assertValidLuxData(BrightnessChangeEvent event) {

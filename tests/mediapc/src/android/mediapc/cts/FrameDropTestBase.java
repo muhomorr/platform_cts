@@ -16,7 +16,16 @@
 
 package android.mediapc.cts;
 
+import static android.mediapc.cts.CodecTestBase.selectCodecs;
+import static android.mediapc.cts.CodecTestBase.selectHardwareCodecs;
+
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assume.assumeFalse;
+import static org.junit.Assume.assumeTrue;
+
 import android.media.MediaFormat;
+import android.mediapc.cts.common.Utils;
 import android.util.Log;
 import android.view.Surface;
 
@@ -30,13 +39,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
-import static android.mediapc.cts.CodecTestBase.selectCodecs;
-import static android.mediapc.cts.CodecTestBase.selectHardwareCodecs;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assume.assumeFalse;
-import static org.junit.Assume.assumeTrue;
 
 public class FrameDropTestBase {
     private static final String LOG_TAG = FrameDropTestBase.class.getSimpleName();
@@ -85,7 +87,7 @@ public class FrameDropTestBase {
             m1080pTestFiles.put(VP8, "bbb_1920x1080_8mbps_60fps_vp8.webm");
             m1080pTestFiles.put(VP9, "bbb_1920x1080_6mbps_60fps_vp9.webm");
             m1080pTestFiles.put(AV1, "bbb_1920x1080_6mbps_60fps_av1.mp4");
-        } else if (Utils.isRPerfClass()) {
+        } else {
             // One frame drops per 10 seconds at 30 fps is 3 drops per 30 seconds
             MAX_FRAME_DROP_FOR_30S = 3;
             m540pTestFiles.put(AVC, "bbb_960x540_2mbps_30fps_avc.mp4");
@@ -99,15 +101,12 @@ public class FrameDropTestBase {
             m1080pTestFiles.put(VP8, "bbb_1920x1080_6mbps_30fps_vp8.webm");
             m1080pTestFiles.put(VP9, "bbb_1920x1080_4mbps_30fps_vp9.webm");
             m1080pTestFiles.put(AV1, "bbb_1920x1080_4mbps_30fps_av1.mp4");
-        } else {
-            MAX_FRAME_DROP_FOR_30S = 0;
-            Log.e(LOG_TAG, "Unknown performance class.");
         }
     }
 
     @Before
     public void setUp() throws Exception {
-        assumeTrue("Test requires performance class.", Utils.isPerfClass());
+        Utils.assumeDeviceMeetsPerformanceClassPreconditions();
 
         ArrayList<String> listOfAvcHwDecoders = selectHardwareCodecs(AVC, null, null, false);
         assumeFalse("Test requires h/w avc decoder", listOfAvcHwDecoders.isEmpty());

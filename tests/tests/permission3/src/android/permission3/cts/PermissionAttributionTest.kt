@@ -26,6 +26,7 @@ import android.provider.DeviceConfig
 import android.support.test.uiautomator.By
 import androidx.test.filters.SdkSuppress
 import com.android.compatibility.common.util.AppOpsUtils.setOpMode
+import com.android.compatibility.common.util.CtsDownstreamingTest
 import com.android.compatibility.common.util.SystemUtil.callWithShellPermissionIdentity
 import com.android.compatibility.common.util.SystemUtil.runWithShellPermissionIdentity
 import com.android.modules.utils.build.SdkLevel
@@ -78,13 +79,14 @@ class PermissionAttributionTest : BasePermissionHubTest() {
         }
     }
 
+    @CtsDownstreamingTest
     @Test
     fun testLocationProviderAttributionForMicrophone() {
         enableAppAsLocationProvider()
         useMicrophone()
         openMicrophoneTimeline()
 
-        waitFindObject(By.descContains(micLabel))
+        waitFindObject(By.textContains(micLabel))
         waitFindObject(By.textContains(APP_LABEL))
         waitFindObject(By.textContains(ATTRIBUTION_LABEL))
     }

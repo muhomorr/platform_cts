@@ -71,7 +71,7 @@ def take_caps_and_determine_sharpness(
   caps = cam.do_capture(reqs, fmt)
   caps = caps[START_FRAME:]
   for i, cap in enumerate(caps):
-    data = {'fd': fds[i]}
+    data = {'fd': fds[i+START_FRAME]}
     data['loc'] = cap['metadata']['android.lens.focusDistance']
     data['lens_moving'] = (cap['metadata']['android.lens.state']
                            == 1)
@@ -105,7 +105,6 @@ class LensMovementReportingTest(its_base_test.ItsBaseTest):
         device_id=self.dut.serial,
         camera_id=self.camera_id,
         hidden_physical_id=self.hidden_physical_id) as cam:
-      chart_loc_arg = self.chart_loc_arg
       props = cam.get_camera_properties()
       props = cam.override_with_hidden_physical_camera_props(props)
 
@@ -120,8 +119,7 @@ class LensMovementReportingTest(its_base_test.ItsBaseTest):
           cam, props, self.scene, self.tablet, self.chart_distance)
 
       # Initialize chart class and locate chart in scene
-      chart = opencv_processing_utils.Chart(
-          cam, props, self.log_path, chart_loc=chart_loc_arg)
+      chart = opencv_processing_utils.Chart(cam, props, self.log_path)
 
       # Get proper sensitivity, exposure time, and focus distance with 3A.
       mono_camera = camera_properties_utils.mono_camera(props)

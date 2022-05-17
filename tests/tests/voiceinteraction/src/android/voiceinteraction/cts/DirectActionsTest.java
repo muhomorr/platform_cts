@@ -29,6 +29,7 @@ import android.os.RemoteCallback;
 import android.platform.test.annotations.AppModeFull;
 import android.util.Log;
 import android.voiceinteraction.common.Utils;
+import android.voiceinteraction.cts.testcore.VoiceInteractionSessionControl;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -48,8 +49,6 @@ import java.util.concurrent.TimeoutException;
  */
 public class DirectActionsTest extends AbstractVoiceInteractionTestCase {
     private static final String TAG = DirectActionsTest.class.getSimpleName();
-    private static final long OPERATION_TIMEOUT_MS = 5000;
-    private static final String TEST_APP_PACKAGE = "android.voiceinteraction.testapp";
 
     private final @NonNull SessionControl mSessionControl = new SessionControl();
     private final @NonNull ActivityControl mActivityControl = new ActivityControl();
@@ -72,6 +71,23 @@ public class DirectActionsTest extends AbstractVoiceInteractionTestCase {
 
             // Assert the action completed successfully.
             assertActionSucceeded(result);
+        } finally {
+            mSessionControl.stopVoiceInteractionSession();
+            mActivityControl.finishActivity();
+        }
+    }
+
+    @AppModeFull(reason = "testPerformDirectAction() is enough")
+    @Test
+    public void testGetPackageName() throws Exception {
+        mActivityControl.startActivity();
+        mSessionControl.startVoiceInteractionSession();
+        try {
+            // Get the actions to set up the VoiceInteractor
+            mSessionControl.getDirectActions();
+
+            String packageName = mActivityControl.getPackageName();
+            assertThat(packageName).isEqualTo("android.voiceinteraction.service");
         } finally {
             mSessionControl.stopVoiceInteractionSession();
             mActivityControl.finishActivity();
@@ -137,37 +153,22 @@ public class DirectActionsTest extends AbstractVoiceInteractionTestCase {
             mActivityControl.finishActivity();
         }
     }
-    private final class SessionControl {
-        private @Nullable RemoteCallback mControl;
+
+    private final class SessionControl extends VoiceInteractionSessionControl {
+
+        SessionControl() {
+            super(mContext);
+        }
 
         private void startVoiceInteractionSession() throws Exception {
-            final CountDownLatch latch = new CountDownLatch(1);
-
-            final RemoteCallback callback = new RemoteCallback((result) -> {
-                mControl = result.getParcelable(Utils.DIRECT_ACTIONS_KEY_CONTROL);
-                latch.countDown();
-            });
-
             final Intent intent = new Intent();
-            intent.putExtra(Utils.DIRECT_ACTIONS_KEY_CLASS,
+            intent.putExtra(Utils.VOICE_INTERACTION_KEY_CLASS,
                     "android.voiceinteraction.service.DirectActionsSession");
             intent.setClassName("android.voiceinteraction.service",
                     "android.voiceinteraction.service.VoiceInteractionMain");
-            intent.putExtra(Utils.DIRECT_ACTIONS_KEY_CALLBACK, callback);
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
 
-            Log.v(TAG, "startVoiceInteractionSession(): " + intent);
-            mContext.startActivity(intent);
-
-            if (!latch.await(OPERATION_TIMEOUT_MS, TimeUnit.MILLISECONDS)) {
-                throw new TimeoutException("actitvity not started in " + OPERATION_TIMEOUT_MS
-                        + "ms");
-            }
-        }
-
-        private void stopVoiceInteractionSession() throws Exception {
-            executeCommand(Utils.DIRECT_ACTIONS_SESSION_CMD_FINISH,
-                    null /*directAction*/, null /*arguments*/, null /*postActionCommand*/);
+            startVoiceInteractionSession(intent);
         }
 
         @Nullable List<DirectAction> getDirectActions() throws Exception {
@@ -198,42 +199,6 @@ public class DirectActionsTest extends AbstractVoiceInteractionTestCase {
                     null /*directAction*/, null /*arguments*/, postActionCommand);
             return result.getBoolean(Utils.DIRECT_ACTIONS_KEY_RESULT);
         }
-
-        @Nullable Bundle executeCommand(@NonNull String action, @Nullable DirectAction directAction,
-                @Nullable Bundle arguments, @Nullable ThrowingRunnable postActionCommand)
-                throws Exception {
-            final CountDownLatch latch = new CountDownLatch(1);
-
-            final Bundle result = new Bundle();
-
-            final RemoteCallback callback = new RemoteCallback((b) -> {
-                result.putAll(b);
-                latch.countDown();
-            });
-
-            final Bundle command = new Bundle();
-            command.putString(Utils.DIRECT_ACTIONS_KEY_COMMAND, action);
-            command.putParcelable(Utils.DIRECT_ACTIONS_KEY_ACTION, directAction);
-            command.putBundle(Utils.DIRECT_ACTIONS_KEY_ARGUMENTS, arguments);
-            command.putParcelable(Utils.DIRECT_ACTIONS_KEY_CALLBACK, callback);
-
-            Log.v(TAG, "executeCommand(): action=" + action + " command="
-                    + Utils.toBundleString(command));
-            mControl.sendResult(command);
-
-            if (postActionCommand != null) {
-                Log.v(TAG, "Executing post-action command for " + action);
-                postActionCommand.run();
-            }
-
-            if (!latch.await(OPERATION_TIMEOUT_MS, TimeUnit.MILLISECONDS)) {
-                throw new TimeoutException("result not received in " + OPERATION_TIMEOUT_MS + "ms");
-            }
-
-            Log.v(TAG, "returning " + Utils.toBundleString(result));
-
-            return result;
-        }
     }
 
     private final class ActivityControl {
@@ -245,7 +210,7 @@ public class DirectActionsTest extends AbstractVoiceInteractionTestCase {
             final RemoteCallback callback = new RemoteCallback((result) -> {
                 Log.v(TAG, "ActivityControl: testapp called the callback: "
                         + Utils.toBundleString(result));
-                mControl = result.getParcelable(Utils.DIRECT_ACTIONS_KEY_CONTROL);
+                mControl = result.getParcelable(Utils.VOICE_INTERACTION_KEY_CONTROL);
                 latch.countDown();
             });
 
@@ -255,24 +220,24 @@ public class DirectActionsTest extends AbstractVoiceInteractionTestCase {
                     .setData(Uri.parse("https://android.voiceinteraction.testapp"
                             + "/DirectActionsActivity"))
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    .putExtra(Utils.DIRECT_ACTIONS_KEY_CALLBACK, callback);
+                    .putExtra(Utils.VOICE_INTERACTION_KEY_CALLBACK, callback);
             if (mContext.getPackageManager().isInstantApp()) {
                 // Override app-links domain verification.
                 runShellCommand(
                         String.format(
                                 "pm set-app-links-user-selection --user cur --package %1$s true"
                                         + " %1$s",
-                                TEST_APP_PACKAGE));
+                                Utils.TEST_APP_PACKAGE));
             } else {
-                intent.setPackage(TEST_APP_PACKAGE);
+                intent.setPackage(Utils.TEST_APP_PACKAGE);
             }
 
             Log.v(TAG, "startActivity: " + intent);
             mContext.startActivity(intent);
 
-            if (!latch.await(OPERATION_TIMEOUT_MS, TimeUnit.MILLISECONDS)) {
-                throw new TimeoutException("actitvity not started in " + OPERATION_TIMEOUT_MS
-                        + "ms");
+            if (!latch.await(Utils.OPERATION_TIMEOUT_MS, TimeUnit.MILLISECONDS)) {
+                throw new TimeoutException(
+                        "activity not started in " + Utils.OPERATION_TIMEOUT_MS + "ms");
             }
         }
 
@@ -284,8 +249,15 @@ public class DirectActionsTest extends AbstractVoiceInteractionTestCase {
             return result.getBoolean(Utils.DIRECT_ACTIONS_KEY_RESULT);
         }
 
+        private String getPackageName()
+                throws Exception {
+            final Bundle result = executeRemoteCommand(
+                    Utils.DIRECT_ACTIONS_ACTIVITY_CMD_GET_PACKAGE_NAME);
+            return result.getString(Utils.DIRECT_ACTIONS_KEY_RESULT);
+        }
+
         void finishActivity() throws Exception {
-            executeRemoteCommand(Utils.DIRECT_ACTIONS_ACTIVITY_CMD_FINISH);
+            executeRemoteCommand(Utils.VOICE_INTERACTION_ACTIVITY_CMD_FINISH);
         }
 
         void invalidateDirectActions() throws Exception {
@@ -312,8 +284,8 @@ public class DirectActionsTest extends AbstractVoiceInteractionTestCase {
             });
 
             final Bundle command = new Bundle();
-            command.putString(Utils.DIRECT_ACTIONS_KEY_COMMAND, action);
-            command.putParcelable(Utils.DIRECT_ACTIONS_KEY_CALLBACK, callback);
+            command.putString(Utils.VOICE_INTERACTION_KEY_COMMAND, action);
+            command.putParcelable(Utils.VOICE_INTERACTION_KEY_CALLBACK, callback);
 
             Log.v(TAG, "executeRemoteCommand(): sending command for '" + action + "'");
             mControl.sendResult(command);
@@ -327,8 +299,9 @@ public class DirectActionsTest extends AbstractVoiceInteractionTestCase {
                 }
             }
 
-            if (!latch.await(OPERATION_TIMEOUT_MS, TimeUnit.MILLISECONDS)) {
-                throw new TimeoutException("result not received in " + OPERATION_TIMEOUT_MS + "ms");
+            if (!latch.await(Utils.OPERATION_TIMEOUT_MS, TimeUnit.MILLISECONDS)) {
+                throw new TimeoutException(
+                        "result not received in " + Utils.OPERATION_TIMEOUT_MS + "ms");
             }
             return result;
         }
@@ -347,7 +320,8 @@ public class DirectActionsTest extends AbstractVoiceInteractionTestCase {
 
     private @NonNull Bundle createActionArguments() {
         final Bundle args = new Bundle();
-        args.putString(Utils.DIRECT_ACTIONS_KEY_ARGUMENTS, Utils.DIRECT_ACTIONS_KEY_ARGUMENTS);
+        args.putString(Utils.VOICE_INTERACTION_KEY_ARGUMENTS,
+                Utils.VOICE_INTERACTION_KEY_ARGUMENTS);
         Log.v(TAG, "createActionArguments(): " + Utils.toBundleString(args));
         return args;
     }
@@ -366,3 +340,4 @@ public class DirectActionsTest extends AbstractVoiceInteractionTestCase {
                 .that(Utils.DIRECT_ACTIONS_RESULT_CANCELLED).isEqualTo(status);
     }
 }
+

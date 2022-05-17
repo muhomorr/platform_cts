@@ -40,7 +40,6 @@ import android.content.pm.PermissionInfo;
 import android.os.Build;
 import android.os.Process;
 import android.os.UserHandle;
-import android.platform.test.annotations.SecurityTest;
 import android.provider.Settings;
 import android.provider.Telephony;
 import android.support.test.uiautomator.By;
@@ -112,11 +111,13 @@ public class RoleManagerTest {
     private static final String APP_28_CHANGE_DEFAULT_SMS_ACTIVITY_NAME = APP_28_PACKAGE_NAME
             + ".ChangeDefaultSmsActivity";
 
+    private static final String APP_33_WITHOUT_INCALLSERVICE_APK_PATH =
+            "/data/local/tmp/cts/role/CtsRoleTestApp33WithoutInCallService.apk";
+    private static final String APP_33_WITHOUT_INCALLSERVICE_PACKAGE_NAME =
+            "android.app.role.cts.app33WithoutInCallService";
+
     private static final String PERMISSION_MANAGE_ROLES_FROM_CONTROLLER =
             "com.android.permissioncontroller.permission.MANAGE_ROLES_FROM_CONTROLLER";
-
-    private static final String ROLE_SYSTEM_SPEECH_RECOGNIZER =
-            "android.app.role.SYSTEM_SPEECH_RECOGNIZER";
 
     private static final Instrumentation sInstrumentation =
             InstrumentationRegistry.getInstrumentation();
@@ -162,12 +163,14 @@ public class RoleManagerTest {
     public void installApp() throws Exception {
         installPackage(APP_APK_PATH);
         installPackage(APP_28_APK_PATH);
+        installPackage(APP_33_WITHOUT_INCALLSERVICE_APK_PATH);
     }
 
     @After
     public void uninstallApp() throws Exception {
         uninstallPackage(APP_PACKAGE_NAME);
         uninstallPackage(APP_28_PACKAGE_NAME);
+        uninstallPackage(APP_33_WITHOUT_INCALLSERVICE_PACKAGE_NAME);
     }
 
     @Before
@@ -538,6 +541,28 @@ public class RoleManagerTest {
         //        telecomManager.getDefaultDialerPackage(), APP_PACKAGE_NAME));
         TestUtils.waitUntil("App is not set as default dialer app", () ->
                 getRoleHolders(RoleManager.ROLE_DIALER).contains(APP_PACKAGE_NAME));
+    }
+
+    @Test
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.TIRAMISU, codeName = "Tiramisu")
+    public void testHoldDialerRoleRequirementWithInCallServiceAndSdk()
+            throws Exception {
+        assumeTrue(sRoleManager.isRoleAvailable(RoleManager.ROLE_DIALER));
+        // target below sdk 33 without InCallService component can hold dialer role
+        addRoleHolder(
+                RoleManager.ROLE_DIALER, APP_28_PACKAGE_NAME, true);
+        assertIsRoleHolder(
+                RoleManager.ROLE_DIALER, APP_28_PACKAGE_NAME, true);
+        // target sdk 33 without InCallService component cannot hold dialer role
+        addRoleHolder(
+                RoleManager.ROLE_DIALER, APP_33_WITHOUT_INCALLSERVICE_PACKAGE_NAME, false);
+        assertIsRoleHolder(
+                RoleManager.ROLE_DIALER, APP_33_WITHOUT_INCALLSERVICE_PACKAGE_NAME, false);
+        // target sdk 33 with InCallService component can hold dialer role
+        addRoleHolder(
+                RoleManager.ROLE_DIALER, APP_PACKAGE_NAME, true);
+        assertIsRoleHolder(
+                RoleManager.ROLE_DIALER, APP_PACKAGE_NAME, true);
     }
 
     @Test
@@ -991,33 +1016,6 @@ public class RoleManagerTest {
         }
         assertThat(callWithShellPermissionIdentity(() ->
                 sRoleManager.isBypassingRoleQualification())).isFalse();
-    }
-
-    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S, codeName = "S")
-    @SecurityTest
-    @Test
-    public void systemRoleDoesNotOverrideUserRevokedPermission() throws Exception {
-        assumeTrue(sRoleManager.isRoleAvailable(ROLE_SYSTEM_SPEECH_RECOGNIZER));
-        String systemSpeechRecognizerPackageName = getRoleHolders(ROLE_SYSTEM_SPEECH_RECOGNIZER)
-                .get(0);
-        assertThat(sPackageManager.checkPermission(android.Manifest.permission.RECORD_AUDIO,
-                systemSpeechRecognizerPackageName)).isEqualTo(PackageManager.PERMISSION_GRANTED);
-        assertThat(sPackageManager.checkPermission(android.Manifest.permission.RECORD_AUDIO,
-                APP_PACKAGE_NAME)).isEqualTo(PackageManager.PERMISSION_DENIED);
-
-        runWithShellPermissionIdentity(() -> sPackageManager.updatePermissionFlags(
-                android.Manifest.permission.RECORD_AUDIO, APP_PACKAGE_NAME,
-                PackageManager.FLAG_PERMISSION_USER_SET, PackageManager.FLAG_PERMISSION_USER_SET,
-                Process.myUserHandle()));
-        runWithShellPermissionIdentity(() -> sRoleManager.setBypassingRoleQualification(true));
-        try {
-            addRoleHolder(ROLE_SYSTEM_SPEECH_RECOGNIZER, APP_PACKAGE_NAME);
-
-            assertThat(sPackageManager.checkPermission(android.Manifest.permission.RECORD_AUDIO,
-                APP_PACKAGE_NAME)).isEqualTo(PackageManager.PERMISSION_DENIED);
-        } finally {
-            runWithShellPermissionIdentity(() -> sRoleManager.setBypassingRoleQualification(false));
-        }
     }
 
     @NonNull

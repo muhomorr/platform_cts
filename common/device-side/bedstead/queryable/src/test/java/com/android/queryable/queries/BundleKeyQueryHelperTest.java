@@ -16,6 +16,8 @@
 
 package com.android.queryable.queries;
 
+import static com.android.bedstead.nene.utils.ParcelTest.assertParcelsCorrectly;
+
 import static com.google.common.truth.Truth.assertThat;
 
 import android.os.Bundle;
@@ -27,6 +29,8 @@ import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
 
 import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.Arrays;
 
 @RunWith(JUnit4.class)
 public class BundleKeyQueryHelperTest {
@@ -35,6 +39,18 @@ public class BundleKeyQueryHelperTest {
     private static final String KEY2 = "Key2";
     private static final String STRING_VALUE = "String";
     private static final String DIFFERENT_STRING_VALUE = "String2";
+    private static final int INTEGER_VALUE = 1;
+    private static final int DIFFERENT_INTEGER_VALUE = 2;
+    private static final long LONG_VALUE = 1;
+    private static final int DIFFERENT_LONG_VALUE = 2;
+    private static final ArrayList<String> STRING_LIST_VALUE = new ArrayList<String>(
+            Arrays.asList(".", "..", "..."));
+    private static final ArrayList<String> DIFFERENT_STRING_LIST_VALUE = new ArrayList<String>(
+            Arrays.asList("|||", "||", "|"));
+    private static final ArrayList<Integer> INTEGER_LIST_VALUE = new ArrayList<Integer>(
+            Arrays.asList(1, 2, 3));
+    private static final ArrayList<Integer> DIFFERENT_INTEGER_LIST_VALUE = new ArrayList<Integer>(
+            Arrays.asList(4, 5, 6));
 
     private final Queryable mQuery = null;
     private final Bundle mBundle = new Bundle();
@@ -160,5 +176,126 @@ public class BundleKeyQueryHelperTest {
         bundleKeyQueryHelper.doesNotExist();
 
         assertThat(bundleKeyQueryHelper.matches(mBundle, KEY)).isFalse();
+    }
+
+    @Test
+    public void matches_integerValueRestriction_meetsRestriction_returnsTrue() {
+        mBundle.putInt(KEY, INTEGER_VALUE);
+        BundleKeyQueryHelper<Queryable> bundleKeyQueryHelper =
+                new BundleKeyQueryHelper<>(mQuery);
+
+        bundleKeyQueryHelper.integerValue().isEqualTo(INTEGER_VALUE);
+
+        assertThat(bundleKeyQueryHelper.matches(mBundle, KEY)).isTrue();
+    }
+
+    @Test
+    public void matches_integerValueRestriction_doesNotMeetRestriction_returnsFalse() {
+        mBundle.putInt(KEY, INTEGER_VALUE);
+        BundleKeyQueryHelper<Queryable> bundleKeyQueryHelper =
+                new BundleKeyQueryHelper<>(mQuery);
+
+        bundleKeyQueryHelper.integerValue().isEqualTo(DIFFERENT_INTEGER_VALUE);
+
+        assertThat(bundleKeyQueryHelper.matches(mBundle, KEY)).isFalse();
+    }
+
+    @Test
+    public void matches_LongValueRestriction_meetsRestriction_returnsTrue() {
+        mBundle.putLong(KEY, LONG_VALUE);
+        BundleKeyQueryHelper<Queryable> bundleKeyQueryHelper =
+                new BundleKeyQueryHelper<>(mQuery);
+
+        bundleKeyQueryHelper.longValue().isEqualTo(LONG_VALUE);
+
+        assertThat(bundleKeyQueryHelper.matches(mBundle, KEY)).isTrue();
+    }
+
+    @Test
+    public void matches_longValueRestriction_doesNotMeetRestriction_returnsFalse() {
+        mBundle.putLong(KEY, LONG_VALUE);
+        BundleKeyQueryHelper<Queryable> bundleKeyQueryHelper =
+                new BundleKeyQueryHelper<>(mQuery);
+
+        bundleKeyQueryHelper.longValue().isEqualTo(DIFFERENT_LONG_VALUE);
+
+        assertThat(bundleKeyQueryHelper.matches(mBundle, KEY)).isFalse();
+    }
+
+    @Test
+    public void matches_booleanValueRestriction_meetsRestriction_returnsTrue() {
+        mBundle.putBoolean(KEY, true);
+        BundleKeyQueryHelper<Queryable> bundleKeyQueryHelper =
+                new BundleKeyQueryHelper<>(mQuery);
+
+        bundleKeyQueryHelper.booleanValue().isTrue();
+
+        assertThat(bundleKeyQueryHelper.matches(mBundle, KEY)).isTrue();
+    }
+
+    @Test
+    public void matches_booleanValueRestriction_doesNotMeetRestriction_returnsFalse() {
+        mBundle.putBoolean(KEY, true);
+        BundleKeyQueryHelper<Queryable> bundleKeyQueryHelper =
+                new BundleKeyQueryHelper<>(mQuery);
+
+        bundleKeyQueryHelper.booleanValue().isFalse();
+
+        assertThat(bundleKeyQueryHelper.matches(mBundle, KEY)).isFalse();
+    }
+
+    @Test
+    public void matches_stringListValueRestriction_meetsRestriction_returnsTrue() {
+        mBundle.putStringArrayList(KEY, STRING_LIST_VALUE);
+        BundleKeyQueryHelper<Queryable> bundleKeyQueryHelper =
+                new BundleKeyQueryHelper<>(mQuery);
+
+        bundleKeyQueryHelper.stringListValue().containsAll(STRING_LIST_VALUE);
+
+        assertThat(bundleKeyQueryHelper.matches(mBundle, KEY)).isTrue();
+    }
+
+    @Test
+    public void matches_stringListValueRestriction_doesNotMeetRestriction_returnsFalse() {
+        mBundle.putStringArrayList(KEY, STRING_LIST_VALUE);
+        BundleKeyQueryHelper<Queryable> bundleKeyQueryHelper =
+                new BundleKeyQueryHelper<>(mQuery);
+
+        bundleKeyQueryHelper.stringListValue().containsAll(DIFFERENT_STRING_LIST_VALUE);
+
+        assertThat(bundleKeyQueryHelper.matches(mBundle, KEY)).isFalse();
+    }
+
+    @Test
+    public void matches_integerListValueRestriction_meetsRestriction_returnsTrue() {
+        mBundle.putIntegerArrayList(KEY, INTEGER_LIST_VALUE);
+        BundleKeyQueryHelper<Queryable> bundleKeyQueryHelper =
+                new BundleKeyQueryHelper<>(mQuery);
+
+        bundleKeyQueryHelper.integerListValue().containsAll(INTEGER_LIST_VALUE);
+
+        assertThat(bundleKeyQueryHelper.matches(mBundle, KEY)).isTrue();
+    }
+
+    @Test
+    public void matches_integerListValueRestriction_doesNotMeetRestriction_returnsFalse() {
+        mBundle.putIntegerArrayList(KEY, INTEGER_LIST_VALUE);
+        BundleKeyQueryHelper<Queryable> bundleKeyQueryHelper =
+                new BundleKeyQueryHelper<>(mQuery);
+
+        bundleKeyQueryHelper.integerListValue().containsAll(DIFFERENT_INTEGER_LIST_VALUE);
+
+        assertThat(bundleKeyQueryHelper.matches(mBundle, KEY)).isFalse();
+    }
+
+    @Test
+    public void parcel_parcelsCorrectly() {
+        BundleKeyQueryHelper<Queryable> bundleKeyQueryHelper =
+                new BundleKeyQueryHelper<>(mQuery);
+
+        bundleKeyQueryHelper.exists();
+        bundleKeyQueryHelper.stringValue().isEqualTo("");
+
+        assertParcelsCorrectly(BundleKeyQueryHelper.class, bundleKeyQueryHelper);
     }
 }

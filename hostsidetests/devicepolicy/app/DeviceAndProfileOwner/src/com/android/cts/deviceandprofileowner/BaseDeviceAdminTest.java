@@ -42,6 +42,7 @@ import com.android.bedstead.dpmwrapper.TestAppSystemServiceFactory;
 import com.android.compatibility.common.util.SystemUtil;
 import com.android.cts.deviceandprofileowner.BaseDeviceAdminTest.BasicAdminReceiver;
 
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 
 /**
@@ -126,6 +127,8 @@ public abstract class BaseDeviceAdminTest extends InstrumentationTestCase {
     protected UserManager mUserManager;
     protected Context mContext;
     protected boolean mHasSecureLockScreen;
+    protected boolean mIsAutomotive;
+    protected boolean mIsDeviceOwnerTest;
     static CountDownLatch mOnPasswordExpiryTimeoutCalled;
 
     protected final String mTag = getClass().getSimpleName();
@@ -140,17 +143,14 @@ public abstract class BaseDeviceAdminTest extends InstrumentationTestCase {
 
         mHasSecureLockScreen = mContext.getPackageManager().hasSystemFeature(
                 PackageManager.FEATURE_SECURE_LOCK_SCREEN);
+        mIsAutomotive = mContext.getPackageManager().hasSystemFeature(
+                PackageManager.FEATURE_AUTOMOTIVE);
 
-        boolean isDeviceOwnerTest = "DeviceOwner"
+        mIsDeviceOwnerTest = "DeviceOwner"
                 .equals(InstrumentationRegistry.getArguments().getString("admin_type"));
 
-        if (isDeviceOwnerTest) {
-            mDevicePolicyManager = TestAppSystemServiceFactory.getDevicePolicyManager(mContext,
-                    BasicAdminReceiver.class);
-            Log.d(mTag, "mDevicePolicyManager after DPMWrapper call: " + mDevicePolicyManager);
-        } else {
-            mDevicePolicyManager = mContext.getSystemService(DevicePolicyManager.class);
-        }
+        mDevicePolicyManager = TestAppSystemServiceFactory.getDevicePolicyManager(mContext,
+                BasicAdminReceiver.class, mIsDeviceOwnerTest);
 
         Log.v(TAG, "setup(): dpm for " + getClass() + " and user " + mContext.getUserId() + ": "
                 + mDevicePolicyManager);
@@ -163,7 +163,7 @@ public abstract class BaseDeviceAdminTest extends InstrumentationTestCase {
         Log.d(mTag, "setup() on user " + mContext.getUserId() + ": package=" + PACKAGE_NAME
                 + ", adminReceiverComponent=" + ADMIN_RECEIVER_COMPONENT
                 + ", isActiveAdmin=" + isActiveAdmin + ", isProfileOwner=" + isProfileOwner
-                + ", isDeviceOwner=" + isDeviceOwner + ", isDeviceOwnerTest=" + isDeviceOwnerTest);
+                + ", isDeviceOwner=" + isDeviceOwner + ", isDeviceOwnerTest=" + mIsDeviceOwnerTest);
 
         assertWithMessage("active admin for %s", ADMIN_RECEIVER_COMPONENT).that(isActiveAdmin)
                 .isTrue();
@@ -215,6 +215,12 @@ public abstract class BaseDeviceAdminTest extends InstrumentationTestCase {
 
     protected boolean isDeviceOwner() {
         return mDevicePolicyManager.isDeviceOwnerApp(PACKAGE_NAME);
+    }
+
+    protected void setDelegatedScopes(String delegatePackage, List<String> scopes) {
+        Log.v(TAG, "Calling setDelegatedScopes(" + ADMIN_RECEIVER_COMPONENT.flattenToShortString()
+                + ", " + delegatePackage + ", " + scopes + ") using " + mDevicePolicyManager);
+        mDevicePolicyManager.setDelegatedScopes(ADMIN_RECEIVER_COMPONENT, delegatePackage, scopes);
     }
 
     void sleep(int timeMs) {

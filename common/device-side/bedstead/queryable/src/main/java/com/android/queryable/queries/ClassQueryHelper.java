@@ -16,16 +16,22 @@
 
 package com.android.queryable.queries;
 
+import android.os.Parcel;
+import android.os.Parcelable;
+
 import com.android.queryable.Queryable;
 import com.android.queryable.info.ClassInfo;
 
 import java.io.Serializable;
+import java.util.Objects;
 
 /** Implementation of {@link ClassQuery}. */
 public final class ClassQueryHelper<E extends Queryable>
         implements ClassQuery<E>, Serializable {
 
-    private final E mQuery;
+    private static final long serialVersionUID = 1;
+
+    private final transient E mQuery;
     private final StringQueryHelper<E> mClassName;
     private final StringQueryHelper<E> mSimpleName;
 
@@ -39,6 +45,12 @@ public final class ClassQueryHelper<E extends Queryable>
         mQuery = query;
         mClassName = new StringQueryHelper<>(query);
         mSimpleName = new StringQueryHelper<>(query);
+    }
+
+    private ClassQueryHelper(Parcel in) {
+        mQuery = null;
+        mClassName = in.readParcelable(ClassQueryHelper.class.getClassLoader());
+        mSimpleName = in.readParcelable(ClassQueryHelper.class.getClassLoader());
     }
 
     @Override
@@ -67,5 +79,49 @@ public final class ClassQueryHelper<E extends Queryable>
         }
 
         return true;
+    }
+
+    @Override
+    public String describeQuery(String fieldName) {
+        return Queryable.joinQueryStrings(
+                mClassName.describeQuery(fieldName + ".className"),
+                mSimpleName.describeQuery(fieldName + ".simpleName")
+        );
+    }
+
+    @Override
+    public int describeContents() {
+        return 0;
+    }
+
+    @Override
+    public void writeToParcel(Parcel out, int flags) {
+        out.writeParcelable(mClassName, flags);
+        out.writeParcelable(mSimpleName, flags);
+    }
+
+    public static final Parcelable.Creator<ClassQueryHelper> CREATOR =
+            new Parcelable.Creator<ClassQueryHelper>() {
+                public ClassQueryHelper createFromParcel(Parcel in) {
+                    return new ClassQueryHelper(in);
+                }
+
+                public ClassQueryHelper[] newArray(int size) {
+                    return new ClassQueryHelper[size];
+                }
+    };
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof ClassQueryHelper)) return false;
+        ClassQueryHelper<?> that = (ClassQueryHelper<?>) o;
+        return Objects.equals(mClassName, that.mClassName) && Objects.equals(
+                mSimpleName, that.mSimpleName);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(mClassName, mSimpleName);
     }
 }

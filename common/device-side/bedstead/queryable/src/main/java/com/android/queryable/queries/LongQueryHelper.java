@@ -16,14 +16,25 @@
 
 package com.android.queryable.queries;
 
+import static com.android.queryable.util.ParcelableUtils.readNullableLong;
+import static com.android.queryable.util.ParcelableUtils.writeNullableLong;
+
+import android.os.Parcel;
+import android.os.Parcelable;
+
 import androidx.annotation.Nullable;
 
 import com.android.queryable.Queryable;
 
 import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
 
 /** Implementation of {@link LongQuery}. */
 public final class LongQueryHelper<E extends Queryable> implements LongQuery<E>, Serializable {
+
+    private static final long serialVersionUID = 1;
 
     @Nullable private Long mEqualToValue = null;
     @Nullable private Long mGreaterThanValue = null;
@@ -31,12 +42,20 @@ public final class LongQueryHelper<E extends Queryable> implements LongQuery<E>,
     @Nullable private Long mLessThanValue = null;
     @Nullable private Long mLessThanOrEqualToValue = null;
 
-    private final E mQuery;
+    private final transient E mQuery;
 
     public LongQueryHelper(E query) {
         mQuery = query;
     }
 
+    private LongQueryHelper(Parcel in) {
+        mQuery = null;
+        mEqualToValue = readNullableLong(in);
+        mGreaterThanValue = readNullableLong(in);
+        mGreaterThanOrEqualToValue = readNullableLong(in);
+        mLessThanValue = readNullableLong(in);
+        mLessThanOrEqualToValue = readNullableLong(in);
+    }
 
     @Override
     public E isEqualTo(long i) {
@@ -84,6 +103,11 @@ public final class LongQueryHelper<E extends Queryable> implements LongQuery<E>,
         return mQuery;
     }
 
+    @Override
+    public boolean matches(Long value) {
+        return matches(value.longValue());
+    }
+
     /** {@code true} if all filters are met by {@code value}. */
     public boolean matches(long value) {
         if (mEqualToValue != null && mEqualToValue != value) {
@@ -107,5 +131,70 @@ public final class LongQueryHelper<E extends Queryable> implements LongQuery<E>,
         }
 
         return true;
+    }
+
+    @Override
+    public String describeQuery(String fieldName) {
+        List<String> queryStrings = new ArrayList<>();
+        if (mEqualToValue != null) {
+            queryStrings.add(fieldName + "=" + mEqualToValue);
+        }
+        if (mGreaterThanValue != null) {
+            queryStrings.add(fieldName + ">" + mGreaterThanValue);
+        }
+        if (mGreaterThanOrEqualToValue != null) {
+            queryStrings.add(fieldName + ">=" + mGreaterThanOrEqualToValue);
+        }
+        if (mLessThanValue != null) {
+            queryStrings.add(fieldName + "<" + mLessThanValue);
+        }
+        if (mLessThanOrEqualToValue != null) {
+            queryStrings.add(fieldName + "<=" + mLessThanOrEqualToValue);
+        }
+
+        return Queryable.joinQueryStrings(queryStrings);
+    }
+
+    @Override
+    public int describeContents() {
+        return 0;
+    }
+
+    @Override
+    public void writeToParcel(Parcel out, int flags) {
+        writeNullableLong(out, mEqualToValue);
+        writeNullableLong(out, mGreaterThanValue);
+        writeNullableLong(out, mGreaterThanOrEqualToValue);
+        writeNullableLong(out, mLessThanValue);
+        writeNullableLong(out, mLessThanOrEqualToValue);
+    }
+
+    public static final Parcelable.Creator<LongQueryHelper> CREATOR =
+            new Parcelable.Creator<LongQueryHelper>() {
+                public LongQueryHelper createFromParcel(Parcel in) {
+                    return new LongQueryHelper(in);
+                }
+
+                public LongQueryHelper[] newArray(int size) {
+                    return new LongQueryHelper[size];
+                }
+    };
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof LongQueryHelper)) return false;
+        LongQueryHelper<?> that = (LongQueryHelper<?>) o;
+        return Objects.equals(mEqualToValue, that.mEqualToValue) && Objects.equals(
+                mGreaterThanValue, that.mGreaterThanValue) && Objects.equals(
+                mGreaterThanOrEqualToValue, that.mGreaterThanOrEqualToValue)
+                && Objects.equals(mLessThanValue, that.mLessThanValue)
+                && Objects.equals(mLessThanOrEqualToValue, that.mLessThanOrEqualToValue);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(mEqualToValue, mGreaterThanValue, mGreaterThanOrEqualToValue,
+                mLessThanValue, mLessThanOrEqualToValue);
     }
 }

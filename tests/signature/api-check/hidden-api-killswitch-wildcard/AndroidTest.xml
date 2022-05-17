@@ -19,6 +19,7 @@
     <option name="config-descriptor:metadata" key="parameter" value="instant_app" />
     <option name="config-descriptor:metadata" key="parameter" value="not_multi_abi" />
     <option name="config-descriptor:metadata" key="parameter" value="secondary_user" />
+    <option name="config-descriptor:metadata" key="parameter" value="no_foldable_states" />
     <target_preparer class="com.android.tradefed.targetprep.RunCommandTargetPreparer">
         <!-- Enable the killswitch before running the test, then disable it afterwards. The test
              is intended to verify the behaviour when the killswitch is enabled. -->
@@ -31,9 +32,10 @@
     </target_preparer>
     <test class="com.android.tradefed.testtype.AndroidJUnitTest" >
         <option name="package" value="android.signature.cts.api.killswitch_wildcard" />
-        <option name="runner" value="repackaged.android.test.InstrumentationTestRunner" />
+        <option name="runner" value="androidx.test.runner.AndroidJUnitRunner" />
         <option name="class" value="android.signature.cts.api.WildcardKillswitchTest" />
         <option name="runtime-hint" value="60s" />
+        <option name="shell-timeout" value="20m" />
     </test>
 
     <!-- Controller that will skip the module if a native bridge situation is detected -->
