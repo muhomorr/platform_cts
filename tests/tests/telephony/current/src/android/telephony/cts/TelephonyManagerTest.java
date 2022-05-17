@@ -3621,6 +3621,9 @@ public class TelephonyManagerTest {
             return;
         }
 
+        // Perform this test on default data subscription.
+        mTelephonyManager = getContext().getSystemService(TelephonyManager.class)
+                .createForSubscriptionId(SubscriptionManager.getDefaultDataSubscriptionId());
         ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(
                 mTelephonyManager,
                 (tm) -> tm.setDataEnabledForReason(TelephonyManager.DATA_ENABLED_REASON_THERMAL,
@@ -3658,6 +3661,9 @@ public class TelephonyManagerTest {
             return;
         }
 
+        // Perform this test on default data subscription.
+        mTelephonyManager = getContext().getSystemService(TelephonyManager.class)
+                .createForSubscriptionId(SubscriptionManager.getDefaultDataSubscriptionId());
         ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(
                 mTelephonyManager,
                 (tm) -> tm.setDataEnabledForReason(TelephonyManager.DATA_ENABLED_REASON_POLICY,
@@ -3695,6 +3701,9 @@ public class TelephonyManagerTest {
             return;
         }
 
+        // Perform this test on default data subscription.
+        mTelephonyManager = getContext().getSystemService(TelephonyManager.class)
+                .createForSubscriptionId(SubscriptionManager.getDefaultDataSubscriptionId());
         ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(
                 mTelephonyManager,
                 (tm) -> tm.setDataEnabledForReason(TelephonyManager.DATA_ENABLED_REASON_CARRIER,
@@ -4464,6 +4473,7 @@ public class TelephonyManagerTest {
             return;
         }
 
+        boolean connectedToNrCell = false;
         for (CellInfo cellInfo : mTelephonyManager.getAllCellInfo()) {
             CellIdentity cellIdentity = cellInfo.getCellIdentity();
             int[] bands;
@@ -4481,10 +4491,20 @@ public class TelephonyManagerTest {
                             || (band >= AccessNetworkConstants.NgranBands.BAND_257
                             && band <= AccessNetworkConstants.NgranBands.BAND_261));
                 }
+                if (cellInfo.isRegistered()) {
+                    connectedToNrCell = true;
+                }
             } else {
                 continue;
             }
             assertTrue(bands.length > 0);
+        }
+
+        if (connectedToNrCell) {
+            assertEquals(TelephonyManager.NETWORK_TYPE_NR, mTelephonyManager.getDataNetworkType());
+        } else {
+            assertNotEquals(TelephonyManager.NETWORK_TYPE_NR,
+                    mTelephonyManager.getDataNetworkType());
         }
     }
 
@@ -5105,6 +5125,37 @@ public class TelephonyManagerTest {
             // expected
         }
     }
+
+    @Test
+    public void testIgnoreInvalidNetworkType() {
+        if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
+            return;
+        }
+
+        // NETWORK_TYPE_BITMASK_LTE_CA is invalid, should be converted into NETWORK_TYPE_BITMASK_LTE
+        long invalidAllowedNetworkTypes = TelephonyManager.NETWORK_TYPE_BITMASK_NR
+                | TelephonyManager.NETWORK_TYPE_BITMASK_LTE_CA;
+        long expectedAllowedNetworkTypes = TelephonyManager.NETWORK_TYPE_BITMASK_NR
+                | TelephonyManager.NETWORK_TYPE_BITMASK_LTE;
+        try {
+            ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(
+                    mTelephonyManager,
+                    (tm) -> tm.setAllowedNetworkTypesForReason(
+                            TelephonyManager.ALLOWED_NETWORK_TYPES_REASON_POWER,
+                            invalidAllowedNetworkTypes));
+
+            long deviceAllowedNetworkTypes = ShellIdentityUtils.invokeMethodWithShellPermissions(
+                    mTelephonyManager, (tm) -> {
+                        return tm.getAllowedNetworkTypesForReason(
+                                TelephonyManager.ALLOWED_NETWORK_TYPES_REASON_POWER);
+                    }
+            );
+            assertEquals(expectedAllowedNetworkTypes, deviceAllowedNetworkTypes);
+        } catch (SecurityException se) {
+            fail("testIgnoreInvalidNetworkType: SecurityException not expected");
+        }
+    }
+
     @Test
     public void getSimSlotMappingTest() {
         if (!hasCellular()) return;
