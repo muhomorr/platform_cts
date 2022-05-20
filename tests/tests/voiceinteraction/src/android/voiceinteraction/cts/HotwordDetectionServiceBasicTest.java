@@ -87,6 +87,7 @@ public final class HotwordDetectionServiceBasicTest
     private static PackageManager sPkgMgr = sInstrumentation.getContext().getPackageManager();
     private static boolean wasIndicatorEnabled = false;
     private static String sDefaultScreenOffTimeoutValue;
+    private static boolean sIsAutomotive;
 
     @BeforeClass
     public static void enableIndicators() {
@@ -99,6 +100,7 @@ public final class HotwordDetectionServiceBasicTest
         sDefaultScreenOffTimeoutValue = SystemUtil.runShellCommand(
                 "settings get system screen_off_timeout");
         SystemUtil.runShellCommand("settings put system screen_off_timeout 600000");
+        sIsAutomotive = sPkgMgr.hasSystemFeature(PackageManager.FEATURE_AUTOMOTIVE);
     }
 
     @AfterClass
