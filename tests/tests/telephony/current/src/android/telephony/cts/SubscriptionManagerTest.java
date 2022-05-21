@@ -33,6 +33,7 @@ import static org.junit.Assert.fail;
 import static org.junit.Assume.assumeTrue;
 
 import android.annotation.Nullable;
+import android.app.AppOpsManager;
 import android.app.UiAutomation;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -49,6 +50,7 @@ import android.net.Uri;
 import android.os.Looper;
 import android.os.ParcelUuid;
 import android.os.PersistableBundle;
+import android.os.Process;
 import android.telephony.CarrierConfigManager;
 import android.telephony.SubscriptionInfo;
 import android.telephony.SubscriptionManager;
@@ -64,6 +66,7 @@ import android.util.Log;
 import androidx.test.InstrumentationRegistry;
 
 import com.android.compatibility.common.util.CarrierPrivilegeUtils;
+import com.android.compatibility.common.util.PropertyUtil;
 import com.android.compatibility.common.util.ShellIdentityUtils;
 import com.android.compatibility.common.util.SystemUtil;
 import com.android.compatibility.common.util.TestThread;
@@ -81,7 +84,9 @@ import java.time.Period;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
@@ -675,10 +680,20 @@ public class SubscriptionManagerTest {
                 (sm) -> sm.createSubscriptionGroup(subGroup));
 
         // Getting subscriptions in group.
-        List<SubscriptionInfo> infoList = mSm.getSubscriptionsInGroup(uuid);
+        List<SubscriptionInfo> infoList;
+        try {
+            mSm.getSubscriptionsInGroup(uuid);
+            fail("SecurityException should be thrown without USE_ICC_AUTH_WITH_DEVICE_IDENTIFIER");
+        } catch (SecurityException ex) {
+            // Expected
+        }
+
+        // has the READ_PRIVILEGED_PHONE_STATE permission
+        infoList = ShellIdentityUtils.invokeMethodWithShellPermissions(mSm,
+                (sm) -> sm.getSubscriptionsInGroup(uuid), READ_PRIVILEGED_PHONE_STATE);
         assertNotNull(infoList);
         assertEquals(1, infoList.size());
-        assertNull(infoList.get(0).getGroupUuid());
+        assertEquals(uuid, infoList.get(0).getGroupUuid());
 
         infoList = ShellIdentityUtils.invokeMethodWithShellPermissions(mSm,
                 (sm) -> sm.getSubscriptionsInGroup(uuid));
@@ -695,30 +710,36 @@ public class SubscriptionManagerTest {
         }
         availableInfoList = ShellIdentityUtils.invokeMethodWithShellPermissions(mSm,
                 (sm) -> sm.getAvailableSubscriptionInfoList());
-        if (availableInfoList.size() > 1) {
-            List<Integer> availableSubGroup = availableInfoList.stream()
-                    .map(info -> info.getSubscriptionId())
-                    .filter(subId -> subId != mSubId)
-                    .collect(Collectors.toList());
+        // has the USE_ICC_AUTH_WITH_DEVICE_IDENTIFIER permission
+        try {
+            setIdentifierAccess(true);
+            if (availableInfoList.size() > 1) {
+                List<Integer> availableSubGroup = availableInfoList.stream()
+                        .map(info -> info.getSubscriptionId())
+                        .filter(subId -> subId != mSubId)
+                        .collect(Collectors.toList());
 
+                ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mSm,
+                        (sm) -> sm.addSubscriptionsIntoGroup(availableSubGroup, uuid));
+
+                infoList = mSm.getSubscriptionsInGroup(uuid);
+                assertNotNull(infoList);
+                assertEquals(availableInfoList.size(), infoList.size());
+
+                ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mSm,
+                        (sm) -> sm.removeSubscriptionsFromGroup(availableSubGroup, uuid));
+            }
+
+            // Remove from subscription group with current sub Id.
             ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mSm,
-                    (sm) -> sm.addSubscriptionsIntoGroup(availableSubGroup, uuid));
+                    (sm) -> sm.removeSubscriptionsFromGroup(subGroup, uuid));
 
             infoList = mSm.getSubscriptionsInGroup(uuid);
             assertNotNull(infoList);
-            assertEquals(availableInfoList.size(), infoList.size());
-
-            ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mSm,
-                    (sm) -> sm.removeSubscriptionsFromGroup(availableSubGroup, uuid));
+            assertTrue(infoList.isEmpty());
+        } finally {
+            setIdentifierAccess(false);
         }
-
-        // Remove from subscription group with current sub Id.
-        ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mSm,
-                (sm) -> sm.removeSubscriptionsFromGroup(subGroup, uuid));
-
-        infoList = mSm.getSubscriptionsInGroup(uuid);
-        assertNotNull(infoList);
-        assertTrue(infoList.isEmpty());
     }
 
     @Test
@@ -730,23 +751,31 @@ public class SubscriptionManagerTest {
         ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mSm,
                 (sm) -> sm.addSubscriptionsIntoGroup(subGroup, uuid));
 
-        // Getting subscriptions in group.
-        List<SubscriptionInfo> infoList = mSm.getSubscriptionsInGroup(uuid);
-        assertNotNull(infoList);
-        assertEquals(1, infoList.size());
-        assertNull(infoList.get(0).getGroupUuid());
+        List<SubscriptionInfo> infoList;
+        try {
+            mSm.getSubscriptionsInGroup(uuid);
+            fail("SecurityException should be thrown without USE_ICC_AUTH_WITH_DEVICE_IDENTIFIER");
+        } catch (SecurityException ex) {
+            // Expected
+        }
 
-        infoList = ShellIdentityUtils.invokeMethodWithShellPermissions(mSm,
-                (sm) -> sm.getSubscriptionsInGroup(uuid));
-        assertNotNull(infoList);
-        assertEquals(1, infoList.size());
-        assertEquals(uuid, infoList.get(0).getGroupUuid());
+        // Getting subscriptions in group.
+        try {
+            setIdentifierAccess(true);
+            infoList = mSm.getSubscriptionsInGroup(uuid);
+            assertNotNull(infoList);
+            assertEquals(1, infoList.size());
+            assertEquals(uuid, infoList.get(0).getGroupUuid());
+        } finally {
+            setIdentifierAccess(false);
+        }
 
         // Remove from subscription group with current sub Id.
         ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mSm,
                 (sm) -> sm.removeSubscriptionsFromGroup(subGroup, uuid));
 
-        infoList = mSm.getSubscriptionsInGroup(uuid);
+        infoList = ShellIdentityUtils.invokeMethodWithShellPermissions(mSm,
+                (sm) -> sm.getSubscriptionsInGroup(uuid));
         assertNotNull(infoList);
         assertTrue(infoList.isEmpty());
     }
@@ -1217,45 +1246,78 @@ public class SubscriptionManagerTest {
         }
     }
 
-    @Test
-    public void testCellularUsageSetting() throws Exception {
-        if (!isSupported()) return;
-
-        boolean isUsageSettingSupported = true;
-        int defaultUsageSetting = SubscriptionManager.USAGE_SETTING_DEFAULT;
-        int[] supportedUsageSettings;
+    private Set<Integer> getSupportedUsageSettings() throws Exception {
+        final Set<Integer> supportedUsageSettings = new HashSet();
         final Context context = InstrumentationRegistry.getContext();
 
-        //  Load the resources to provide the device capability
+        // Vendors can add supported usage settings by adding resources.
         try {
-            defaultUsageSetting = context.getResources().getInteger(
-                com.android.internal.R.integer.config_default_cellular_usage_setting);
-            supportedUsageSettings = context.getResources().getIntArray(
+            int[] usageSettingsFromResource = context.getResources().getIntArray(
                 com.android.internal.R.array.config_supported_cellular_usage_settings);
-            // If usage settings are not supported, return the default setting, which is UNKNOWN.
-            if (supportedUsageSettings.length < 1) {
-                isUsageSettingSupported = false;
-                fail("Usage Setting resources empty");
+
+            for (int setting : usageSettingsFromResource) {
+                supportedUsageSettings.add(setting);
             }
-        } catch (Resources.NotFoundException nfe) {
-            fail("Usage Setting resources not found");
-            isUsageSettingSupported = false;
+
+        } catch (Resources.NotFoundException ignore) {
         }
 
-        int[] settingsToTest = new int[] {
-                SubscriptionManager.USAGE_SETTING_DEFAULT,
-                defaultUsageSetting};
+        // For devices shipping with Radio HAL 2.0 and/or non-HAL devices launching with T,
+        // the usage settings are required to be supported if the rest of the telephony stack
+        // has support for that mode of operation.
+        if (PropertyUtil.isVendorApiLevelAtLeast(android.os.Build.VERSION_CODES.TIRAMISU)) {
+            final PackageManager pm = InstrumentationRegistry.getContext().getPackageManager();
 
-        for (int setting : settingsToTest) {
-            PersistableBundle bundle = new PersistableBundle();
-            bundle.putInt(CarrierConfigManager.KEY_CELLULAR_USAGE_SETTING_INT, setting);
-            overrideCarrierConfig(bundle, mSubId);
-            SubscriptionInfo info = ShellIdentityUtils.invokeMethodWithShellPermissions(mSm,
-                    (sm) -> sm.getActiveSubscriptionInfo(mSubId));
-            assertEquals(
-                    isUsageSettingSupported ? setting :
-                            SubscriptionManager.USAGE_SETTING_UNKNOWN,
-                    info.getUsageSetting());
+            if (pm.hasSystemFeature(PackageManager.FEATURE_TELEPHONY_DATA)) {
+                supportedUsageSettings.add(SubscriptionManager.USAGE_SETTING_DATA_CENTRIC);
+            }
+            if (pm.hasSystemFeature(PackageManager.FEATURE_TELEPHONY_CALLING)) {
+                supportedUsageSettings.add(SubscriptionManager.USAGE_SETTING_VOICE_CENTRIC);
+            }
+        }
+
+        return supportedUsageSettings;
+    }
+
+    private int getUsageSetting() throws Exception {
+        SubscriptionInfo info = ShellIdentityUtils.invokeMethodWithShellPermissions(mSm,
+                (sm) -> sm.getActiveSubscriptionInfo(mSubId));
+        return info.getUsageSetting();
+    }
+
+    private void checkUsageSetting(int inputSetting, boolean isSupported) throws Exception {
+        final int initialSetting = getUsageSetting();
+
+        PersistableBundle bundle = new PersistableBundle();
+        bundle.putInt(CarrierConfigManager.KEY_CELLULAR_USAGE_SETTING_INT, inputSetting);
+        overrideCarrierConfig(bundle, mSubId);
+
+        final int newSetting = getUsageSetting();
+        assertEquals(isSupported ? inputSetting : initialSetting, newSetting);
+    }
+
+    @Test
+    public void testCellularUsageSetting() throws Exception {
+        Set<Integer> supportedUsageSettings = getSupportedUsageSettings();
+
+        // If any setting works, default must be allowed.
+        if (supportedUsageSettings.size() > 0) {
+            supportedUsageSettings.add(SubscriptionManager.USAGE_SETTING_DEFAULT);
+        }
+
+        final int[] allUsageSettings = new int[]{
+                SubscriptionManager.USAGE_SETTING_UNKNOWN,
+                SubscriptionManager.USAGE_SETTING_DEFAULT,
+                SubscriptionManager.USAGE_SETTING_VOICE_CENTRIC,
+                SubscriptionManager.USAGE_SETTING_DATA_CENTRIC,
+                3 /* undefined value */};
+
+        try {
+            for (int setting : allUsageSettings) {
+                checkUsageSetting(setting, supportedUsageSettings.contains(setting));
+            }
+        } finally {
+            overrideCarrierConfig(null, mSubId);
         }
     }
 
@@ -1422,5 +1484,14 @@ public class SubscriptionManagerTest {
         boolean validNetworkType = dataNetworkType == TelephonyManager.NETWORK_TYPE_NR;
 
         return validCarrier && validNetworkType && validCapabilities;
+    }
+
+    private void setIdentifierAccess(boolean allowed) {
+        String op = AppOpsManager.OPSTR_USE_ICC_AUTH_WITH_DEVICE_IDENTIFIER;
+        AppOpsManager appOpsManager = InstrumentationRegistry.getContext().getSystemService(
+                AppOpsManager.class);
+        int mode = allowed ? AppOpsManager.MODE_ALLOWED : AppOpsManager.opToDefaultMode(op);
+        ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(
+                appOpsManager, (appOps) -> appOps.setUidMode(op, Process.myUid(), mode));
     }
 }

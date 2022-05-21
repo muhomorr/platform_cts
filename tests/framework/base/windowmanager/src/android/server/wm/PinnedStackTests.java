@@ -1010,17 +1010,23 @@ public class PinnedStackTests extends ActivityManagerTestBase {
         assertFalse(task.mHasChildPipActivity);
     }
 
+    /**
+     * When the activity entering PIP is in a Task with another finishing activity, the Task should
+     * enter PIP instead of reparenting the activity to a new PIP Task.
+     */
     @Test
-    public void testPipFromTaskWithMultipleActivitiesAndFinishOriginalTask() {
-        // Try to enter picture-in-picture from an activity that finished itself and ensure
-        // pinned task is removed when the original task vanishes
+    public void testPipFromTaskWithAnotherFinishingActivity() {
         launchActivity(LAUNCH_ENTER_PIP_ACTIVITY,
                 extraString(EXTRA_FINISH_SELF_ON_RESUME, "true"));
 
         waitForEnterPip(PIP_ACTIVITY);
-        waitForPinnedStackRemoved();
+        mWmState.waitForActivityRemoved(LAUNCH_ENTER_PIP_ACTIVITY);
 
-        assertPinnedStackDoesNotExist();
+        mWmState.assertNotExist(LAUNCH_ENTER_PIP_ACTIVITY);
+        assertPinnedStackExists();
+        final Task pipTask = mWmState.getTaskByActivity(PIP_ACTIVITY);
+        assertEquals(WINDOWING_MODE_PINNED, pipTask.getWindowingMode());
+        assertEquals(1, pipTask.getActivityCount());
     }
 
     @Test
@@ -1423,15 +1429,15 @@ public class PinnedStackTests extends ActivityManagerTestBase {
     public void testDisplayMetricsPinUnpin() {
         separateTestJournal();
         launchActivity(TEST_ACTIVITY, WINDOWING_MODE_FULLSCREEN);
-        final int defaultWindowingMode = mWmState
-                .getTaskByActivity(TEST_ACTIVITY).getWindowingMode();
-        final SizeInfo initialSizes = getLastReportedSizesForActivity(TEST_ACTIVITY);
-        final Rect initialAppBounds = getAppBounds(TEST_ACTIVITY);
+        launchActivity(PIP_ACTIVITY);
+        int defaultWindowingMode = mWmState.getTaskByActivity(PIP_ACTIVITY).getWindowingMode();
+        final SizeInfo initialSizes = getLastReportedSizesForActivity(PIP_ACTIVITY);
+        final Rect initialAppBounds = getAppBounds(PIP_ACTIVITY);
         assertNotNull("Must report display dimensions", initialSizes);
         assertNotNull("Must report app bounds", initialAppBounds);
 
         separateTestJournal();
-        launchActivity(PIP_ACTIVITY, extraString(EXTRA_ENTER_PIP, "true"));
+        enterPipAndAssertPinnedTaskExists(PIP_ACTIVITY);
         // Wait for animation complete since we are comparing bounds
         waitForEnterPipAnimationComplete(PIP_ACTIVITY);
         final SizeInfo pinnedSizes = getLastReportedSizesForActivity(PIP_ACTIVITY);
@@ -1492,6 +1498,24 @@ public class PinnedStackTests extends ActivityManagerTestBase {
         // ensure that there is no pinned stack.
         mBroadcastActionTrigger.doAction(ACTION_LAUNCH_TRANSLUCENT_ACTIVITY);
         assertPinnedStackDoesNotExist();
+    }
+
+    @Test
+    public void testAutoPipOnLaunchingActivityWithNoUserAction() {
+        // Launch the PIP activity and set its pip params to allow auto-pip.
+        launchActivity(PIP_ACTIVITY, extraString(EXTRA_ALLOW_AUTO_PIP, "true"));
+        assertPinnedStackDoesNotExist();
+
+        int windowingMode = mWmState.getTaskByActivity(PIP_ACTIVITY).getWindowingMode();
+        // Skip the test if freeform, since desktops may manually request PIP immediately after
+        // the test activity launch.
+        assumeFalse(windowingMode == WINDOWING_MODE_FREEFORM);
+
+        // Launch a regular activity with FLAG_ACTIVITY_NO_USER_ACTION and
+        // ensure that there is no pinned stack.
+        launchActivityWithNoUserAction(TEST_ACTIVITY);
+        assertPinnedStackDoesNotExist();
+        waitAndAssertActivityState(PIP_ACTIVITY, STATE_STOPPED, "activity must be stopped");
     }
 
     @Test

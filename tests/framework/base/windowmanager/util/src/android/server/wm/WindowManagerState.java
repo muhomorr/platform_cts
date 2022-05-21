@@ -1570,6 +1570,17 @@ public class WindowManagerState {
             return getActivity(activityName) != null;
         }
 
+        public int getActivityCount() {
+            int count = mActivities.size();
+            for (TaskFragment taskFragment : mTaskFragments) {
+                count += taskFragment.getActivityCount();
+            }
+            for (Task task : mTasks) {
+                count += task.getActivityCount();
+            }
+            return count;
+        }
+
         @Override
         int getActivityType() {
             return mTaskType;
@@ -1631,6 +1642,17 @@ public class WindowManagerState {
             return null;
         }
 
+        public int getActivityCount() {
+            int count = mActivities.size();
+            for (TaskFragment taskFragment : mTaskFragments) {
+                count += taskFragment.getActivityCount();
+            }
+            for (Task task : mTasks) {
+                count += task.getActivityCount();
+            }
+            return count;
+        }
+
         @Override
         int getActivityType() {
             return mTaskFragmentType;
@@ -1650,6 +1672,7 @@ public class WindowManagerState {
         public boolean translucent;
         private WindowContainer mParent;
         private boolean mEnableRecentsScreenshot;
+        private int mLastDropInputMode;
 
         Activity(ActivityRecordProto proto, WindowContainer parent) {
             super(proto.windowToken.windowContainer);
@@ -1665,6 +1688,7 @@ public class WindowManagerState {
             }
             translucent = proto.translucent;
             mEnableRecentsScreenshot = proto.enableRecentsScreenshot;
+            mLastDropInputMode = proto.lastDropInputMode;
             mParent = parent;
         }
 
@@ -1706,6 +1730,10 @@ public class WindowManagerState {
 
         public boolean enableRecentsScreenshot() {
             return mEnableRecentsScreenshot;
+        }
+
+        public int getLastDropInputMode() {
+            return mLastDropInputMode;
         }
 
         @Override

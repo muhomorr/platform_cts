@@ -29,6 +29,7 @@ import androidx.test.filters.SmallTest;
 
 import org.junit.Assert;
 import org.junit.Assume;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -75,6 +76,10 @@ public class CodecInfoTest {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && codecInfo.isAlias()) {
                 continue;
             }
+            if (CodecTestBase.codecPrefix != null &&
+                    !codecInfo.getName().startsWith(CodecTestBase.codecPrefix)) {
+                continue;
+            }
             String[] types = codecInfo.getSupportedTypes();
             for (String type : types) {
                 argsList.add(new Object[]{type, codecInfo.getName(), codecInfo});
@@ -88,6 +93,7 @@ public class CodecInfoTest {
      * it should be capable of displaying the same
      */
     @Test
+    @Ignore("TODO(b/228237404) Enable once display capabilities can be queried at codec2 level")
     public void testHDRDisplayCapabilities() {
         Assume.assumeTrue("Test needs Android 13", IS_AT_LEAST_T);
         Assume.assumeTrue("Test is applicable for video codecs", mMediaType.startsWith("video/"));
@@ -135,9 +141,14 @@ public class CodecInfoTest {
                 IntStream.of(caps.colorFormats)
                         .noneMatch(x -> x == COLOR_FormatYUV420Flexible));
 
-        assertFalse(mCodecInfo.getName() + " does not support COLOR_FormatSurface",
-                IntStream.of(caps.colorFormats)
-                        .noneMatch(x -> x == COLOR_FormatSurface));
+        // COLOR_FormatSurface support is an existing requirement, but we did not
+        // test for it before T.  We can not retroactively apply the higher standard to
+        // devices that are already certified, so only test on T or later devices.
+        if (IS_AT_LEAST_T) {
+            assertFalse(mCodecInfo.getName() + " does not support COLOR_FormatSurface",
+                    IntStream.of(caps.colorFormats)
+                            .noneMatch(x -> x == COLOR_FormatSurface));
+        }
 
         // For devices launching with Android T, if a codec supports an HDR profile, it must
         // advertise P010 support
@@ -160,6 +171,8 @@ public class CodecInfoTest {
     @Test
     public void testDecoderAvailability() {
         Assume.assumeTrue("Test is applicable only for encoders", mCodecInfo.isEncoder());
+        Assume.assumeTrue("Test is applicable for video/audio codecs",
+                mMediaType.startsWith("video/") || mMediaType.startsWith("audio/"));
         if (selectCodecs(mMediaType, null, null, true).size() > 0) {
             assertTrue("Device advertises support for encoding " + mMediaType +
                             ", but not decoding it",
