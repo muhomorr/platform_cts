@@ -25,6 +25,8 @@ import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.content.pm.cts.PackageManagerShellCommandTest.FullyRemovedBroadcastReceiver
 import android.content.pm.cts.util.AbandonAllPackageSessionsRule
+import android.os.Handler
+import android.os.HandlerThread
 import android.platform.test.annotations.AppModeFull
 import androidx.test.InstrumentationRegistry
 import com.android.bedstead.harrier.BedsteadJUnit4
@@ -70,6 +72,17 @@ class PackageManagerShellCommandMultiUserTest {
         private val context: Context = InstrumentationRegistry.getContext()
         private val uiAutomation: UiAutomation =
             InstrumentationRegistry.getInstrumentation().getUiAutomation()
+
+        private var backgroundThread = HandlerThread("PackageManagerShellCommandMultiUserTest")
+
+        fun skipTheInstallType(installTypeString: String): Boolean {
+            if (installTypeString == "install-incremental" &&
+                !context.packageManager.hasSystemFeature(
+                    PackageManager.FEATURE_INCREMENTAL_DELIVERY)) {
+                return true
+            }
+            return false
+        }
     }
 
     private lateinit var primaryUser: UserReference
@@ -83,7 +96,7 @@ class PackageManagerShellCommandMultiUserTest {
 
     private var mPackageVerifier: String? = null
     private var mStreamingVerificationTimeoutMs =
-        PackageManagerShellCommandTest.DEFAULT_STREAMING_VERIFICATION_TIMEOUT
+        PackageManagerShellCommandTest.DEFAULT_STREAMING_VERIFICATION_TIMEOUT_MS
 
     @Before
     fun setup() {
@@ -98,7 +111,7 @@ class PackageManagerShellCommandMultiUserTest {
             "settings get global streaming_verifier_timeout"
         )
             .toLongOrNull()
-            ?: PackageManagerShellCommandTest.DEFAULT_STREAMING_VERIFICATION_TIMEOUT
+            ?: PackageManagerShellCommandTest.DEFAULT_STREAMING_VERIFICATION_TIMEOUT_MS
     }
 
     @After
@@ -126,6 +139,9 @@ class PackageManagerShellCommandMultiUserTest {
             "install-incremental"
         ) installTypeString: String
     ) {
+        if (skipTheInstallType(installTypeString)) {
+            return
+        }
         val startTimeMillisForPrimaryUser = System.currentTimeMillis()
         installPackageAsUser(TEST_HW5, primaryUser, installTypeString)
         assertTrue(isAppInstalledForUser(TEST_APP_PACKAGE, primaryUser))
@@ -201,6 +217,13 @@ class PackageManagerShellCommandMultiUserTest {
             "install-incremental"
         ) installTypeString: String
     ) {
+        if (skipTheInstallType(installTypeString)) {
+            return
+        }
+        if (!backgroundThread.isAlive) {
+            backgroundThread.start()
+        }
+        val backgroundHandler = Handler(backgroundThread.getLooper())
         installExistingPackageAsUser(context.packageName, secondaryUser)
         installPackage(TEST_HW5, installTypeString)
         assertTrue(isAppInstalledForUser(context.packageName, primaryUser))
@@ -215,7 +238,11 @@ class PackageManagerShellCommandMultiUserTest {
         intentFilter.addAction(Intent.ACTION_PACKAGE_FULLY_REMOVED)
         intentFilter.addDataScheme("package")
         context.registerReceiver(
-            broadcastReceiverForPrimaryUser, intentFilter, RECEIVER_EXPORTED
+            broadcastReceiverForPrimaryUser,
+            intentFilter,
+            null,
+            backgroundHandler,
+            RECEIVER_EXPORTED
         )
         uiAutomation.adoptShellPermissionIdentity(
             Manifest.permission.INTERACT_ACROSS_USERS,
@@ -223,21 +250,66 @@ class PackageManagerShellCommandMultiUserTest {
         )
         try {
             context.createContextAsUser(secondaryUser.userHandle(), 0).registerReceiver(
-                broadcastReceiverForSecondaryUser, intentFilter, RECEIVER_EXPORTED
+                broadcastReceiverForSecondaryUser,
+                intentFilter,
+                null,
+                backgroundHandler,
+                RECEIVER_EXPORTED
             )
         } finally {
             uiAutomation.dropShellPermissionIdentity()
         }
         // Verify that uninstall with "keep data" doesn't send the broadcast
         uninstallPackageWithKeepData(TEST_APP_PACKAGE, secondaryUser)
-        assertFalse(broadcastReceiverForSecondaryUser.isBroadcastReceived)
+        broadcastReceiverForSecondaryUser.assertBroadcastNotReceived()
         installExistingPackageAsUser(TEST_APP_PACKAGE, secondaryUser)
         // Verify that uninstall on a specific user only sends the broadcast to the user
         uninstallPackageAsUser(TEST_APP_PACKAGE, secondaryUser)
-        assertTrue(broadcastReceiverForSecondaryUser.isBroadcastReceived)
-        assertFalse(broadcastReceiverForPrimaryUser.isBroadcastReceived)
+        broadcastReceiverForSecondaryUser.assertBroadcastReceived()
+        broadcastReceiverForPrimaryUser.assertBroadcastNotReceived()
         uninstallPackageSilently(TEST_APP_PACKAGE)
-        assertTrue(broadcastReceiverForPrimaryUser.isBroadcastReceived)
+        broadcastReceiverForPrimaryUser.assertBroadcastReceived()
+    }
+
+    @Test
+    fun testListPackageDefaultAllUsers(
+        @StringTestParameter(
+            "install",
+            "install-streaming",
+            "install-incremental"
+        ) installTypeString: String
+    ) {
+        if (skipTheInstallType(installTypeString)) {
+            return
+        }
+        installPackageAsUser(TEST_HW5, primaryUser, installTypeString)
+        assertTrue(isAppInstalledForUser(TEST_APP_PACKAGE, primaryUser))
+        assertFalse(isAppInstalledForUser(TEST_APP_PACKAGE, secondaryUser))
+        var out = SystemUtil.runShellCommand(
+                    "pm list packages -U --user ${primaryUser.id()} $TEST_APP_PACKAGE"
+                ).replace("\n", "")
+        assertTrue(out.split(":").last().split(",").size == 1)
+        out = SystemUtil.runShellCommand(
+                    "pm list packages -U --user ${secondaryUser.id()} $TEST_APP_PACKAGE"
+                ).replace("\n", "")
+        assertEquals("", out)
+        out = SystemUtil.runShellCommand("pm list packages -U $TEST_APP_PACKAGE")
+                .replace("\n", "")
+        assertTrue(out.split(":").last().split(",").size == 1)
+        installExistingPackageAsUser(TEST_APP_PACKAGE, secondaryUser)
+        assertTrue(isAppInstalledForUser(TEST_APP_PACKAGE, primaryUser))
+        assertTrue(isAppInstalledForUser(TEST_APP_PACKAGE, secondaryUser))
+        out = SystemUtil.runShellCommand("pm list packages -U $TEST_APP_PACKAGE")
+                .replace("\n", "")
+        assertTrue(out.split(":").last().split(",").size == 2)
+        out = SystemUtil.runShellCommand(
+                    "pm list packages -U --user ${primaryUser.id()} $TEST_APP_PACKAGE"
+                ).replace("\n", "")
+        assertTrue(out.split(":").last().split(",").size == 1)
+        out = SystemUtil.runShellCommand(
+                    "pm list packages -U --user ${secondaryUser.id()} $TEST_APP_PACKAGE"
+                ).replace("\n", "")
+        assertTrue(out.split(":").last().split(",").size == 1)
     }
 
     private fun getFirstInstallTimeAsUser(packageName: String, user: UserReference) =

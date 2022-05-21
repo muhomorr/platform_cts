@@ -20,29 +20,26 @@ import static android.server.wm.jetpack.utils.ActivityEmbeddingUtil.DEFAULT_SPLI
 import static android.server.wm.jetpack.utils.ActivityEmbeddingUtil.UNEVEN_CONTAINERS_DEFAULT_SPLIT_RATIO;
 import static android.server.wm.jetpack.utils.ActivityEmbeddingUtil.assertValidSplit;
 import static android.server.wm.jetpack.utils.ActivityEmbeddingUtil.startActivityAndVerifySplit;
+import static android.server.wm.jetpack.utils.ActivityEmbeddingUtil.waitAndAssertNotVisible;
 import static android.server.wm.jetpack.utils.ActivityEmbeddingUtil.waitForFillsTask;
-import static android.server.wm.jetpack.utils.ActivityEmbeddingUtil.waitForVisible;
 
 import static org.junit.Assert.assertTrue;
 
 import android.app.Activity;
 import android.content.Intent;
-import android.server.wm.ActivityManagerTestBase.ReportedDisplayMetrics;
-import android.server.wm.jetpack.utils.ActivityEmbeddingTestBase;
+import android.platform.test.annotations.FlakyTest;
+import android.platform.test.annotations.Presubmit;
 import android.server.wm.jetpack.utils.TestActivity;
 import android.server.wm.jetpack.utils.TestActivityWithId;
 import android.server.wm.jetpack.utils.TestConfigChangeHandlingActivity;
 import android.util.LayoutDirection;
 import android.util.Pair;
 import android.util.Size;
-import android.view.Display;
 
 import androidx.annotation.NonNull;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.window.extensions.embedding.SplitPairRule;
 
-import org.junit.After;
-import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -57,20 +54,9 @@ import java.util.Set;
  * Build/Install/Run:
  *     atest CtsWindowManagerJetpackTestCases:ActivityEmbeddingBoundsTests
  */
+@Presubmit
 @RunWith(AndroidJUnit4.class)
 public class ActivityEmbeddingBoundsTests extends ActivityEmbeddingTestBase {
-
-    private ReportedDisplayMetrics mReportedDisplayMetrics;
-
-    @Before
-    public void initializeDisplayMetrics() {
-        mReportedDisplayMetrics = ReportedDisplayMetrics.getDisplayMetrics(Display.DEFAULT_DISPLAY);
-    }
-
-    @After
-    public void restoreDisplayMetrics() {
-        mReportedDisplayMetrics.restoreDisplayMetrics();
-    }
 
     /**
      * Tests that when two activities are in a split and the parent bounds shrink such that
@@ -108,7 +94,7 @@ public class ActivityEmbeddingBoundsTests extends ActivityEmbeddingTestBase {
             mReportedDisplayMetrics.setSize(new Size((int) (originalDisplaySize.getWidth() * 0.9),
                     originalDisplaySize.getHeight()));
             waitForFillsTask(secondaryActivity);
-            assertTrue(waitForVisible(primaryActivity, false));
+            waitAndAssertNotVisible(primaryActivity);
 
             // Return the display to its original size and verify that the activities are split
             secondaryActivity.resetBoundsChangeCounter();
@@ -177,6 +163,7 @@ public class ActivityEmbeddingBoundsTests extends ActivityEmbeddingTestBase {
      * {@link SplitPairRule}, and is not assumed to be 0.5 or match the split ratio of the previous
      * top-most activity split.
      */
+    @FlakyTest(bugId = 213322133)
     @Test
     public void testSplitRatio() {
         final String activityAId = "activityA";

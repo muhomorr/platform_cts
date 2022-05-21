@@ -19,6 +19,7 @@ package android.mediapc.cts;
 import static org.junit.Assert.assertTrue;
 
 import android.media.MediaFormat;
+import android.mediapc.cts.common.Utils;
 import android.os.Build;
 import android.util.Pair;
 import android.view.Surface;
@@ -116,6 +117,21 @@ public class MultiTranscoderPerfTest extends MultiCodecPerfTestBase {
                 || mEncoderPair.first.equals(MediaFormat.MIMETYPE_VIDEO_VP9);
         int requiredMinInstances = getRequiredMinConcurrentInstances(hasVP9) / 2;
         testCodec(m720pTestFiles, 720, 1280, requiredMinInstances);
+    }
+
+    /**
+     * This test calculates the validates number of concurrent 1080p Transcode sessions that
+     * it can support by the (mime, decoder - mime, encoder) pairs. Creates maxInstances / 2
+     * Transcode sessions. If maximum instances is odd, creates one additional decoder which decodes
+     * to surface and render. And ensures that all the supported sessions succeed in
+     * transcoding/decoding with meeting the expected frame rate.
+     */
+    @LargeTest
+    @Test(timeout = CodecTestBase.PER_TEST_TIMEOUT_LARGE_TEST_MS)
+    @CddTest(requirement = "2.2.7.1/5.1/H-1-5,H-1-6")
+    public void test1080p() throws Exception {
+        Assume.assumeTrue(Utils.isTPerfClass() || !Utils.isPerfClass());
+        testCodec(m1080pTestFiles, 1080, 1920, REQUIRED_MIN_CONCURRENT_INSTANCES / 2);
     }
 
     private void testCodec(Map<String, String> testFiles, int height, int width,

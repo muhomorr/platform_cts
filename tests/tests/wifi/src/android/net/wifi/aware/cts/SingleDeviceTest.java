@@ -670,7 +670,7 @@ public class SingleDeviceTest extends WifiJUnit3TestBase {
         intentFilter.addAction(WifiAwareManager.ACTION_WIFI_AWARE_RESOURCE_CHANGED);
         WifiAwareResourcesBroadcastReceiver receiver = new WifiAwareResourcesBroadcastReceiver();
         mContext.registerReceiver(receiver, intentFilter);
-        final String serviceName = "ValidName";
+        final String serviceName = "PublishName";
 
         WifiAwareSession session = attachAndGetSession();
 
@@ -692,8 +692,7 @@ public class SingleDeviceTest extends WifiJUnit3TestBase {
                 DiscoverySessionCallbackTest.ON_SESSION_DISCOVERED_LOST));
         assertEquals(numOfAllPublishSessions - 1, mWifiAwareManager
                     .getAvailableAwareResources().getAvailablePublishSessionsCount());
-        //TODO(211696926): Change to isAtLeast() when SDK finalize.
-        if (ApiLevelUtil.codenameStartsWith("T")) {
+        if (ApiLevelUtil.isAtLeast(Build.VERSION_CODES.TIRAMISU)) {
             assertTrue("Time out waiting for resource change", receiver.waitForStateChange());
             assertEquals(numOfAllPublishSessions - 1, receiver.getResources()
                     .getAvailablePublishSessionsCount());
@@ -717,8 +716,7 @@ public class SingleDeviceTest extends WifiJUnit3TestBase {
                 DiscoverySessionCallbackTest.ON_SESSION_CONFIG_UPDATED));
         assertEquals(numOfAllPublishSessions, mWifiAwareManager
                 .getAvailableAwareResources().getAvailablePublishSessionsCount());
-        //TODO(211696926): Change to isAtLeast() when SDK finalize.
-        if (ApiLevelUtil.codenameStartsWith("T")) {
+        if (ApiLevelUtil.isAtLeast(Build.VERSION_CODES.TIRAMISU)) {
             assertTrue("Time out waiting for resource change", receiver.waitForStateChange());
             assertEquals(numOfAllPublishSessions, receiver.getResources()
                     .getAvailablePublishSessionsCount());
@@ -735,7 +733,7 @@ public class SingleDeviceTest extends WifiJUnit3TestBase {
             return;
         }
 
-        final String serviceName = "ValidName";
+        final String serviceName = "PublishName";
         final int ttlSec = 5;
 
         WifiAwareSession session = attachAndGetSession();
@@ -774,7 +772,7 @@ public class SingleDeviceTest extends WifiJUnit3TestBase {
             return;
         }
 
-        final String serviceName = "ValidName";
+        final String serviceName = "PublishName";
         final String passphrase = "SomePassword";
         final byte[] pmk = "01234567890123456789012345678901".getBytes();
         final byte[] pmkId = "0123456789012345".getBytes();
@@ -836,7 +834,7 @@ public class SingleDeviceTest extends WifiJUnit3TestBase {
     /**
      * Validate success publish with instant communacation enabled.
      */
-    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.TIRAMISU, codeName = "Tiramisu")
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.TIRAMISU)
     public void testPublishWithInstantCommunicationModeSuccess() {
         if (!TestUtils.shouldTestWifiAware(getContext())) {
             return;
@@ -845,7 +843,7 @@ public class SingleDeviceTest extends WifiJUnit3TestBase {
         if (!characteristics.isInstantCommunicationModeSupported()) {
             return;
         }
-        final String serviceName = "ValidName";
+        final String serviceName = "PublishName";
         WifiAwareSession session = attachAndGetSession();
 
         PublishConfig publishConfig = new PublishConfig.Builder()
@@ -887,7 +885,7 @@ public class SingleDeviceTest extends WifiJUnit3TestBase {
         intentFilter.addAction(WifiAwareManager.ACTION_WIFI_AWARE_RESOURCE_CHANGED);
         WifiAwareResourcesBroadcastReceiver receiver = new WifiAwareResourcesBroadcastReceiver();
         mContext.registerReceiver(receiver, intentFilter);
-        final String serviceName = "ValidName";
+        final String serviceName = "SubscribeName";
 
         WifiAwareSession session = attachAndGetSession();
 
@@ -908,8 +906,7 @@ public class SingleDeviceTest extends WifiJUnit3TestBase {
                 DiscoverySessionCallbackTest.ON_SESSION_DISCOVERED_LOST));
         assertEquals(numOfAllSubscribeSessions - 1, mWifiAwareManager
                 .getAvailableAwareResources().getAvailableSubscribeSessionsCount());
-        //TODO(211696926): Change to isAtLeast() when SDK finalize.
-        if (ApiLevelUtil.codenameStartsWith("T")) {
+        if (ApiLevelUtil.isAtLeast(Build.VERSION_CODES.TIRAMISU)) {
             assertTrue("Time out waiting for resource change", receiver.waitForStateChange());
             assertEquals(numOfAllSubscribeSessions - 1, receiver.getResources()
                     .getAvailableSubscribeSessionsCount());
@@ -941,8 +938,7 @@ public class SingleDeviceTest extends WifiJUnit3TestBase {
                 DiscoverySessionCallbackTest.ON_SESSION_CONFIG_UPDATED));
         assertEquals(numOfAllSubscribeSessions, mWifiAwareManager
                 .getAvailableAwareResources().getAvailableSubscribeSessionsCount());
-        //TODO(211696926): Change to isAtLeast() when SDK finalize.
-        if (ApiLevelUtil.codenameStartsWith("T")) {
+        if (ApiLevelUtil.isAtLeast(Build.VERSION_CODES.TIRAMISU)) {
             assertTrue("Time out waiting for resource change", receiver.waitForStateChange());
             assertEquals(numOfAllSubscribeSessions, receiver.getResources()
                     .getAvailableSubscribeSessionsCount());
@@ -954,7 +950,7 @@ public class SingleDeviceTest extends WifiJUnit3TestBase {
     /**
      * Validate success subscribe with instant communication enabled.
      */
-    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.TIRAMISU, codeName = "Tiramisu")
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.TIRAMISU)
     public void testSubscribeWithInstantCommunicationModeSuccess() {
         if (!TestUtils.shouldTestWifiAware(getContext())) {
             return;
@@ -963,7 +959,7 @@ public class SingleDeviceTest extends WifiJUnit3TestBase {
         if (!characteristics.isInstantCommunicationModeSupported()) {
             return;
         }
-        final String serviceName = "ValidName";
+        final String serviceName = "SubscribeName";
         WifiAwareSession session = attachAndGetSession();
 
         SubscribeConfig subscribeConfig = new SubscribeConfig.Builder()
@@ -1003,7 +999,7 @@ public class SingleDeviceTest extends WifiJUnit3TestBase {
             return;
         }
 
-        final String serviceName = "ValidName";
+        final String serviceName = "SubscribeName";
         final int ttlSec = 5;
 
         WifiAwareSession session = attachAndGetSession();
@@ -1242,8 +1238,7 @@ public class SingleDeviceTest extends WifiJUnit3TestBase {
         assertEquals(1000, params.getMacRandomizationIntervalSeconds());
         assertEquals(1, params.getNumSpatialStreamsInDiscovery());
         assertTrue(params.isDwEarlyTerminationEnabled());
-        if (ApiLevelUtil.isAtLeast(Build.VERSION_CODES.TIRAMISU)
-                || ApiLevelUtil.codenameStartsWith("T")) {
+        if (ApiLevelUtil.isAtLeast(Build.VERSION_CODES.TIRAMISU)) {
             ShellIdentityUtils.invokeWithShellPermissions(
                     () -> mWifiAwareManager.setAwareParams(params)
             );

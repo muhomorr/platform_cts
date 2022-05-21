@@ -21,6 +21,7 @@ import static com.android.cts.devicepolicy.metrics.DevicePolicyEventLogVerifier.
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
 
 import android.platform.test.annotations.FlakyTest;
@@ -497,6 +498,8 @@ public abstract class DeviceAndProfileOwnerTest extends BaseDevicePolicyTest {
         executeDeviceTestMethod(".ApplicationHiddenTest", "testCannotHidePolicyExemptApps");
     }
 
+    @TemporarilyIgnoreOnHeadlessSystemUserMode(bugId = "197859595",
+            reason = "Will be migrated to new test infra")
     @Test
     public void testDelegatedCertInstaller() throws Exception {
         installAppAsUser(CERT_INSTALLER_APK, mUserId);
@@ -672,6 +675,7 @@ public abstract class DeviceAndProfileOwnerTest extends BaseDevicePolicyTest {
     @Test
     public void testSetMeteredDataDisabledPackages() throws Exception {
         assumeHasWifiFeature();
+        assumeFalse("is watch", hasDeviceFeature("android.hardware.type.watch"));
 
         installAppAsUser(METERED_DATA_APP_APK, mUserId);
 
@@ -695,6 +699,10 @@ public abstract class DeviceAndProfileOwnerTest extends BaseDevicePolicyTest {
         final String SECURE_SETTING_CATEGORY = "secure";
         final String GLOBAL_SETTING_CATEGORY = "global";
         final File apk = mBuildHelper.getTestFile(TEST_APP_APK);
+
+        // Needed to access dpm.getPolicyExemptApps()
+        allowTestApiAccess(DEVICE_ADMIN_PKG);
+
         try {
             // Install the test and prepare the test apk.
             installAppAsUser(PACKAGE_INSTALLER_APK, mUserId);
@@ -1051,6 +1059,8 @@ public abstract class DeviceAndProfileOwnerTest extends BaseDevicePolicyTest {
         executeDeviceTestClass(".KeyManagementTest");
     }
 
+    @TemporarilyIgnoreOnHeadlessSystemUserMode(bugId = "218408549",
+            reason = "Will be migrated to new test infra")
     @Test
     public void testInstallKeyPairLogged() throws Exception {
         assertMetricsLogged(getDevice(), () -> {

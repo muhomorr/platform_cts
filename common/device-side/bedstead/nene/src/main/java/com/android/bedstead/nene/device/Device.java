@@ -21,7 +21,8 @@ import android.support.test.uiautomator.UiDevice;
 
 import androidx.test.platform.app.InstrumentationRegistry;
 
-import com.android.bedstead.nene.exceptions.AdbException;
+import com.android.bedstead.nene.TestApis;
+import com.android.bedstead.nene.annotations.Experimental;
 import com.android.bedstead.nene.exceptions.NeneException;
 import com.android.bedstead.nene.utils.Poll;
 import com.android.bedstead.nene.utils.ShellCommand;
@@ -40,19 +41,43 @@ public final class Device {
      * Turn the screen on.
      */
     public void wakeUp() {
-        try {
-            ShellCommand.builder("input keyevent")
-                    .addOperand("KEYCODE_WAKEUP")
-                    .validate(String::isEmpty)
-                    .execute();
-        } catch (AdbException e) {
-            throw new NeneException("Error waking up device", e);
-        }
+        ShellCommand.builder("input keyevent")
+                .addOperand("KEYCODE_WAKEUP")
+                .allowEmptyOutput(true)
+                .validate(String::isEmpty)
+                .executeOrThrowNeneException("Error waking up device");
 
         Poll.forValue("isScreenOn", this::isScreenOn)
                 .toBeEqualTo(true)
                 .errorOnFail()
                 .await();
+    }
+
+    /**
+     * Dismiss the keyguard.
+     */
+    public void unlock() {
+        ShellCommand.builder("wm dismiss-keyguard")
+                .allowEmptyOutput(true)
+                .validate(String::isEmpty)
+                .executeOrThrowNeneException("Error dismissing keyguard");
+    }
+
+    /**
+     * Set the screen on setting.
+     *
+     * <p>When enabled, the device will never sleep.
+     */
+    @Experimental
+    public void keepScreenOn(boolean stayOn) {
+        // one day vs default
+        TestApis.settings().system().putInt("screen_off_timeout", stayOn ? 86400000 : 121000);
+        ShellCommand.builder("svc power stayon")
+                .addOperand(stayOn ? "true" : "false")
+                .allowEmptyOutput(true)
+                .validate(String::isEmpty)
+                .executeOrThrowNeneException("Error setting stayOn");
+        unlock();
     }
 
     /**

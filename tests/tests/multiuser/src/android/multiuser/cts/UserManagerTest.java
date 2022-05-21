@@ -29,6 +29,7 @@ import static android.os.UserManager.USER_TYPE_PROFILE_MANAGED;
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
 
+import static org.junit.Assume.assumeNoException;
 import static org.junit.Assume.assumeTrue;
 
 import android.app.Instrumentation;
@@ -146,15 +147,19 @@ public final class UserManagerTest {
     // TODO(b/179163496): add testIsUserForeground_ tests for profile users
 
     @Test
-    @SystemUserOnly(reason = "Profiles are only supported on system user.")
     public void testCloneProfile() throws Exception {
         UserHandle userHandle = null;
 
         // Need CREATE_USERS permission to create user in test
         try (PermissionHelper ph = adoptShellPermissionIdentity(mInstrumentation, CREATE_USERS)) {
-            Set<String> disallowedPackages = new HashSet<String>();
-            userHandle = mUserManager.createProfile(
-                    "Clone profile", UserManager.USER_TYPE_PROFILE_CLONE, disallowedPackages);
+            try {
+                userHandle = mUserManager.createProfile(
+                    "Clone profile", UserManager.USER_TYPE_PROFILE_CLONE, new HashSet<>());
+            } catch (UserManager.UserOperationException e) {
+                // Not all devices and user types support these profiles; skip if this one doesn't.
+                assumeNoException("Couldn't create clone profile", e);
+                return;
+            }
             assertThat(userHandle).isNotNull();
 
             final Context userContext = sContext.createPackageContextAsUser("system", 0,
@@ -179,14 +184,20 @@ public final class UserManagerTest {
     }
 
     @Test
-    @SystemUserOnly(reason = "Profiles are only supported on system user.")
+    @RequireFeature(FEATURE_MANAGED_USERS)
     @EnsureHasPermission({CREATE_USERS, QUERY_USERS})
     public void testManagedProfile() throws Exception {
         UserHandle userHandle = null;
 
         try {
-            userHandle = mUserManager.createProfile(
+            try {
+                userHandle = mUserManager.createProfile(
                     "Managed profile", UserManager.USER_TYPE_PROFILE_MANAGED, new HashSet<>());
+            } catch (UserManager.UserOperationException e) {
+                // Not all devices and user types support these profiles; skip if this one doesn't.
+                assumeNoException("Couldn't create managed profile", e);
+                return;
+            }
             assertThat(userHandle).isNotNull();
 
             final UserManager umOfProfile = sContext
@@ -208,21 +219,24 @@ public final class UserManagerTest {
     @Test
     @EnsureHasPermission({QUERY_USERS})
     public void testSystemUser() throws Exception {
-      final UserManager umOfSys = sContext
-        .createPackageContextAsUser("android", 0, UserHandle.SYSTEM)
-        .getSystemService(UserManager.class);
+        final UserManager umOfSys = sContext
+                .createPackageContextAsUser("android", 0, UserHandle.SYSTEM)
+                .getSystemService(UserManager.class);
 
-      assertThat(umOfSys.isSystemUser()).isTrue();
+        // TODO(b/222584163): Remove the if{} clause after v33 Sdk bump.
+        if (Build.VERSION.SDK_INT > Build.VERSION_CODES.S_V2) {
+            assertThat(umOfSys.isSystemUser()).isTrue();
+        }
 
-      // We cannot demand what type of user SYSTEM is, but we can say some things it isn't.
-      assertThat(umOfSys.isUserOfType(UserManager.USER_TYPE_PROFILE_CLONE)).isFalse();
-      assertThat(umOfSys.isUserOfType(UserManager.USER_TYPE_PROFILE_MANAGED)).isFalse();
-      assertThat(umOfSys.isUserOfType(UserManager.USER_TYPE_FULL_GUEST)).isFalse();
+        // We cannot demand what type of user SYSTEM is, but we can say some things it isn't.
+        assertThat(umOfSys.isUserOfType(UserManager.USER_TYPE_PROFILE_CLONE)).isFalse();
+        assertThat(umOfSys.isUserOfType(UserManager.USER_TYPE_PROFILE_MANAGED)).isFalse();
+        assertThat(umOfSys.isUserOfType(UserManager.USER_TYPE_FULL_GUEST)).isFalse();
 
-      assertThat(umOfSys.isProfile()).isFalse();
-      assertThat(umOfSys.isManagedProfile()).isFalse();
-      assertThat(umOfSys.isManagedProfile(UserHandle.USER_SYSTEM)).isFalse();
-      assertThat(umOfSys.isCloneProfile()).isFalse();
+        assertThat(umOfSys.isProfile()).isFalse();
+        assertThat(umOfSys.isManagedProfile()).isFalse();
+        assertThat(umOfSys.isManagedProfile(UserHandle.USER_SYSTEM)).isFalse();
+        assertThat(umOfSys.isCloneProfile()).isFalse();
     }
 
     @Test
@@ -271,6 +285,8 @@ public final class UserManagerTest {
 
     @Test
     public void testSomeUserHasAccount() {
+        // TODO: (b/233197356): Replace with bedstead annotation.
+        assumeTrue(mUserManager.supportsMultipleUsers());
         UserHandle user = null;
 
         try (PermissionHelper ph = adoptShellPermissionIdentity(mInstrumentation, CREATE_USERS)) {
@@ -284,6 +300,8 @@ public final class UserManagerTest {
 
     @Test
     public void testSomeUserHasAccount_shouldIgnoreToBeRemovedUsers() {
+        // TODO: (b/233197356): Replace with bedstead annotation.
+        assumeTrue(mUserManager.supportsMultipleUsers());
         try (PermissionHelper ph = adoptShellPermissionIdentity(mInstrumentation, CREATE_USERS)) {
             final NewUserResponse response = mUserManager.createUser(newUserRequest());
             assertThat(response.getOperationResult()).isEqualTo(USER_OPERATION_SUCCESS);
@@ -295,6 +313,8 @@ public final class UserManagerTest {
     @Test
     public void testCreateUser_withNewUserRequest_shouldCreateUserWithCorrectProperties()
             throws PackageManager.NameNotFoundException {
+        // TODO: (b/233197356): Replace with bedstead annotation.
+        assumeTrue(mUserManager.supportsMultipleUsers());
         UserHandle user = null;
 
         try (PermissionHelper ph = adoptShellPermissionIdentity(mInstrumentation, CREATE_USERS)) {
@@ -328,6 +348,8 @@ public final class UserManagerTest {
 
     @Test
     public void testCreateUser_withNewUserRequest_shouldNotAllowDuplicateUserAccounts() {
+        // TODO: (b/233197356): Replace with bedstead annotation.
+        assumeTrue(mUserManager.supportsMultipleUsers());
         UserHandle user1 = null;
         UserHandle user2 = null;
 
