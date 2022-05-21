@@ -1894,6 +1894,12 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
             for (int i = 0; i < testBandsAndChannels.size(); i++) {
                 TestLocalOnlyHotspotCallback callback = new TestLocalOnlyHotspotCallback(mLock);
                 int testBand = testBandsAndChannels.keyAt(i);
+                // WPA2_PSK is not allowed in 6GHz band. So test with WPA3_SAE which is
+                // mandatory to support in 6GHz band.
+                if (testBand == SoftApConfiguration.BAND_6GHZ) {
+                    customConfigBuilder.setPassphrase(TEST_PASSPHRASE,
+                            SoftApConfiguration.SECURITY_TYPE_WPA3_SAE);
+                }
                 customConfigBuilder.setBand(testBand);
                 mWifiManager.startLocalOnlyHotspot(customConfigBuilder.build(), executor, callback);
                 // now wait for callback
@@ -5486,9 +5492,10 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
                 network.setBssidAllowlist(Collections.emptyList());
                 mWifiManager.updateNetwork(network);
             }
-            // trigger a disconnect and wait for disconnect.
-            mWifiManager.disconnect();
-            waitForDisconnection();
+
+            // Disable and re-enable Wifi to avoid reconnect to the secondary candidate
+            setWifiEnabled(false);
+            setWifiEnabled(true);
 
             // Now trigger scan and ensure that the device does not connect to any networks.
             mWifiManager.startScan();
