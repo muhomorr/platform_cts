@@ -39,6 +39,7 @@ import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assume.assumeTrue;
 
 import android.app.UiAutomation;
 import android.content.BroadcastReceiver;
@@ -65,6 +66,7 @@ import android.os.IBinder;
 import android.os.ParcelFileDescriptor;
 import android.os.Process;
 import android.os.RemoteException;
+import android.os.UserHandle;
 import android.platform.test.annotations.AppModeFull;
 import android.util.PackageUtils;
 
@@ -156,7 +158,8 @@ public class PackageManagerShellCommandTest {
 
     private static final String PACKAGE_MIME_TYPE = "application/vnd.android.package-archive";
 
-    static final long DEFAULT_STREAMING_VERIFICATION_TIMEOUT = 3 * 1000;
+    static final long DEFAULT_STREAMING_VERIFICATION_TIMEOUT_MS = 3 * 1000;
+    static final long VERIFICATION_BROADCAST_RECEIVED_TIMEOUT_MS = 10 * 1000;
 
     @Rule
     public AbandonAllPackageSessionsRule mAbandonSessionsRule = new AbandonAllPackageSessionsRule();
@@ -175,7 +178,7 @@ public class PackageManagerShellCommandTest {
     private String mInstall = "";
     private String mPackageVerifier = null;
     private String mUnusedStaticSharedLibsMinCachePeriod = null;
-    private long mStreamingVerificationTimeoutMs = DEFAULT_STREAMING_VERIFICATION_TIMEOUT;
+    private long mStreamingVerificationTimeoutMs = DEFAULT_STREAMING_VERIFICATION_TIMEOUT_MS;
     private int mSecondUser = -1;
 
     private static PackageInstaller getPackageInstaller() {
@@ -1230,7 +1233,10 @@ public class PackageManagerShellCommandTest {
         assertTrue(isAppInstalled(TEST_APP_PACKAGE));
 
         getUiAutomation().adoptShellPermissionIdentity(
-                android.Manifest.permission.PACKAGE_VERIFICATION_AGENT);
+                android.Manifest.permission.PACKAGE_VERIFICATION_AGENT,
+                android.Manifest.permission.INTERACT_ACROSS_USERS_FULL);
+
+        final CompletableFuture<Boolean> broadcastReceived = new CompletableFuture<>();
 
         // Create a single-use broadcast receiver
         BroadcastReceiver broadcastReceiver = new BroadcastReceiver() {
@@ -1238,13 +1244,17 @@ public class PackageManagerShellCommandTest {
             public void onReceive(Context context, Intent intent) {
                 context.unregisterReceiver(this);
                 onBroadcast.accept(context, intent);
+                broadcastReceived.complete(true);
             }
         };
         // Create an intent-filter and register the receiver
         IntentFilter intentFilter = new IntentFilter();
         intentFilter.addAction(Intent.ACTION_PACKAGE_NEEDS_VERIFICATION);
         intentFilter.addDataType(PACKAGE_MIME_TYPE);
-        getContext().registerReceiver(broadcastReceiver, intentFilter, RECEIVER_EXPORTED);
+        // The broadcast is sent for user 0, so we need to request it for all users.
+        // TODO(b/232317379) Fix this in proper way
+        getContext().registerReceiverForAllUsers(broadcastReceiver, intentFilter, null, null,
+                RECEIVER_EXPORTED);
 
         // Enable verification.
         executeShellCommand("settings put global verifier_verify_adb_installs 1");
@@ -1253,6 +1263,9 @@ public class PackageManagerShellCommandTest {
 
         // Update the package, should trigger verifier override.
         installPackage(TEST_HW7, expectedResultStartsWith);
+
+        // Wait for broadcast.
+        broadcastReceived.get(VERIFICATION_BROADCAST_RECEIVED_TIMEOUT_MS, TimeUnit.MILLISECONDS);
     }
 
     @Test
@@ -1275,6 +1288,10 @@ public class PackageManagerShellCommandTest {
 
     @Test
     public void testPackageVerifierReject() throws Exception {
+        // PackageManager.verifyPendingInstall() call only works with user 0 as verifier is expected
+        // to be user 0. So skip the test if it is not user 0.
+        // TODO(b/232317379) Fix this in proper way
+        assumeTrue(getContext().getUserId() == UserHandle.USER_SYSTEM);
         AtomicInteger dataLoaderType = new AtomicInteger(-1);
 
         runPackageVerifierTest("Failure [INSTALL_FAILED_VERIFICATION_FAILURE: Install not allowed]",
