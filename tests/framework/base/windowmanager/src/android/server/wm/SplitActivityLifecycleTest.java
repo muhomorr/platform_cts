@@ -23,6 +23,7 @@ import static android.content.Intent.FLAG_ACTIVITY_NEW_TASK;
 import static android.server.wm.SplitActivityLifecycleTest.ActivityB.EXTRA_SHOW_WHEN_LOCKED;
 import static android.server.wm.WindowManagerState.STATE_STARTED;
 import static android.server.wm.WindowManagerState.STATE_STOPPED;
+import static android.view.Display.DEFAULT_DISPLAY;
 
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
@@ -67,6 +68,12 @@ public class SplitActivityLifecycleTest extends TaskFragmentOrganizerTestBase {
     private final ComponentName mActivityB = new ComponentName(mContext, ActivityB.class);
     private final ComponentName mActivityC = new ComponentName(mContext, ActivityC.class);
     private final Intent mIntent = new Intent().setComponent(mActivityC);
+
+    @Override
+    public void setUp() throws Exception {
+        assumeTrue(supportsMultiWindow());
+        super.setUp();
+    }
 
     @Override
     Activity setUpOwnerActivity() {
@@ -491,8 +498,11 @@ public class SplitActivityLifecycleTest extends TaskFragmentOrganizerTestBase {
      */
     @Test
     public void testTranslucentAdjacentTaskFragment() {
-        // Create ActivityB on top of ActivityA
-        Activity activityB = startActivityInWindowingModeFullScreen(ActivityB.class);
+        // Create ActivityB on top of ActivityA.
+        // Make sure ActivityB is launched into the same task as ActivityA so that we can reparent
+        // it to TaskFragment in the same task later.
+        Activity activityB = startActivity(ActivityB.class, DEFAULT_DISPLAY, true /* hasFocus */,
+                WINDOWING_MODE_FULLSCREEN, mOwnerActivity.getTaskId());
         waitAndAssertResumedActivity(mActivityB, "Activity B must be resumed.");
         waitAndAssertActivityState(mActivityA, STATE_STOPPED,
                 "Activity A is occluded by Activity B, so it must be stopped.");
