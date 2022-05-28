@@ -14,65 +14,52 @@
  * limitations under the License.
  */
 
-/* You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package android.bluetooth.cts;
 
 import static android.Manifest.permission.BLUETOOTH_CONNECT;
 
-import static org.junit.Assert.assertThrows;
-
 import android.app.UiAutomation;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
-import android.bluetooth.BluetoothHidDevice;
 import android.bluetooth.BluetoothManager;
+import android.bluetooth.BluetoothPbapClient;
 import android.bluetooth.BluetoothProfile;
 import android.content.pm.PackageManager;
+import android.sysprop.BluetoothProperties;
 import android.test.AndroidTestCase;
 import android.util.Log;
 
 import androidx.test.InstrumentationRegistry;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
 
-public class BluetoothHidDeviceTest extends AndroidTestCase {
-    private static final String TAG = BluetoothHidDevice.class.getSimpleName();
+public class BluetoothPbapClientTest extends AndroidTestCase {
+    private static final String TAG = BluetoothPbapClientTest.class.getSimpleName();
 
     private static final int PROXY_CONNECTION_TIMEOUT_MS = 500;  // ms timeout for Proxy Connect
 
     private boolean mHasBluetooth;
-    private boolean mIsHidSupported;
-    private boolean mIsProfileReady;
     private BluetoothAdapter mAdapter;
     private UiAutomation mUiAutomation;
+
+    private BluetoothPbapClient mBluetoothPbapClient;
+    private boolean mIsPbapClientSupported;
+    private boolean mIsProfileReady;
     private Condition mConditionProfileIsConnected;
     private ReentrantLock mProfileConnectedlock;
-    private BluetoothHidDevice mBluetoothHidDevice;
-
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        mHasBluetooth =
-                getContext().getPackageManager().hasSystemFeature(PackageManager.FEATURE_BLUETOOTH);
+        mHasBluetooth = getContext().getPackageManager().hasSystemFeature(
+                PackageManager.FEATURE_BLUETOOTH);
         if (!mHasBluetooth) return;
 
-        mIsHidSupported = TestUtils.isProfileEnabled(BluetoothProfile.HID_DEVICE);
-        if (!mIsHidSupported) return;
+        mIsPbapClientSupported = BluetoothProperties.isProfilePbapClientEnabled().orElse(false);
+        if (!mIsPbapClientSupported) return;
 
         mUiAutomation = InstrumentationRegistry.getInstrumentation().getUiAutomation();
         mUiAutomation.adoptShellPermissionIdentity(BLUETOOTH_CONNECT);
@@ -84,128 +71,115 @@ public class BluetoothHidDeviceTest extends AndroidTestCase {
         mProfileConnectedlock = new ReentrantLock();
         mConditionProfileIsConnected = mProfileConnectedlock.newCondition();
         mIsProfileReady = false;
-        mBluetoothHidDevice = null;
+        mBluetoothPbapClient = null;
 
-        mAdapter.getProfileProxy(getContext(), new BluetoothHidServiceListener(),
-                BluetoothProfile.HID_DEVICE);
+        mAdapter.getProfileProxy(getContext(), new BluetoothPbapClientServiceListener(),
+                BluetoothProfile.PBAP_CLIENT);
     }
 
     @Override
     public void tearDown() throws Exception {
         super.tearDown();
-        if (!(mHasBluetooth && mIsHidSupported)) {
+        if (!(mHasBluetooth && mIsPbapClientSupported)) {
             return;
         }
-        if (mAdapter != null && mBluetoothHidDevice != null) {
-            mAdapter.closeProfileProxy(BluetoothProfile.HID_DEVICE, mBluetoothHidDevice);
-            mBluetoothHidDevice = null;
+        if (mAdapter != null && mBluetoothPbapClient != null) {
+            mAdapter.closeProfileProxy(BluetoothProfile.PBAP_CLIENT,
+                    mBluetoothPbapClient);
+            mBluetoothPbapClient = null;
             mIsProfileReady = false;
         }
-        mUiAutomation.adoptShellPermissionIdentity(BLUETOOTH_CONNECT);
         if (mAdapter != null) {
             assertTrue(BTAdapterUtils.disableAdapter(mAdapter, mContext));
         }
         mAdapter = null;
-        mUiAutomation.dropShellPermissionIdentity();
+    }
+
+    public void test_getConnectedDevices() {
+        if (!(mHasBluetooth && mIsPbapClientSupported)) return;
+
+        assertTrue(waitForProfileConnect());
+        assertNotNull(mBluetoothPbapClient);
+
+        assertTrue(BTAdapterUtils.disableAdapter(mAdapter, mContext));
+
+        // Verify returns empty list if bluetooth is not enabled
+        List<BluetoothDevice> connectedDevices = mBluetoothPbapClient.getConnectedDevices();
+        assertTrue(connectedDevices.isEmpty());
+    }
+
+    public void test_getConnectionPolicy() {
+        if (!(mHasBluetooth && mIsPbapClientSupported)) return;
+
+        assertTrue(waitForProfileConnect());
+        assertNotNull(mBluetoothPbapClient);
+
+        BluetoothDevice testDevice = mAdapter.getRemoteDevice("00:11:22:AA:BB:CC");
+
+        // Verify returns false when invalid input is given
+        assertEquals(BluetoothProfile.CONNECTION_POLICY_FORBIDDEN,
+                mBluetoothPbapClient.getConnectionPolicy(null));
+
+        assertTrue(BTAdapterUtils.disableAdapter(mAdapter, mContext));
+
+        // Verify returns false if bluetooth is not enabled
+        assertEquals(BluetoothProfile.CONNECTION_POLICY_FORBIDDEN,
+                mBluetoothPbapClient.getConnectionPolicy(testDevice));
+    }
+
+    public void test_getConnectionState() {
+        if (!(mHasBluetooth && mIsPbapClientSupported)) return;
+
+        assertTrue(waitForProfileConnect());
+        assertNotNull(mBluetoothPbapClient);
+
+        BluetoothDevice testDevice = mAdapter.getRemoteDevice("00:11:22:AA:BB:CC");
+
+        // Verify returns false when invalid input is given
+        assertEquals(BluetoothProfile.STATE_DISCONNECTED,
+                mBluetoothPbapClient.getConnectionState(null));
+
+        assertTrue(BTAdapterUtils.disableAdapter(mAdapter, mContext));
+
+        // Verify returns false if bluetooth is not enabled
+        assertEquals(BluetoothProfile.STATE_DISCONNECTED,
+                mBluetoothPbapClient.getConnectionState(testDevice));
     }
 
     public void test_getDevicesMatchingConnectionStates() {
-        if (!(mHasBluetooth && mIsHidSupported)) return;
+        if (!(mHasBluetooth && mIsPbapClientSupported)) return;
 
         assertTrue(waitForProfileConnect());
-        assertNotNull(mBluetoothHidDevice);
-
-        assertEquals(new ArrayList<BluetoothDevice>(),
-                mBluetoothHidDevice.getDevicesMatchingConnectionStates(
-                        new int[]{BluetoothProfile.STATE_CONNECTED}));
+        assertNotNull(mBluetoothPbapClient);
 
         assertTrue(BTAdapterUtils.disableAdapter(mAdapter, mContext));
 
         // Verify returns empty list if bluetooth is not enabled
         List<BluetoothDevice> connectedDevices =
-                mBluetoothHidDevice.getDevicesMatchingConnectionStates(null);
-        assertTrue(connectedDevices.isEmpty());
-    }
-
-    public void test_getConnectionState() {
-        if (!(mHasBluetooth && mIsHidSupported)) return;
-
-        assertTrue(waitForProfileConnect());
-        assertNotNull(mBluetoothHidDevice);
-
-        BluetoothDevice testDevice = mAdapter.getRemoteDevice("00:11:22:AA:BB:CC");
-
-        // Verify returns STATE_DISCONNECTED when invalid input is given
-        assertEquals(BluetoothProfile.STATE_DISCONNECTED,
-                mBluetoothHidDevice.getConnectionState(null));
-
-        assertTrue(BTAdapterUtils.disableAdapter(mAdapter, mContext));
-
-        // Verify returns STATE_DISCONNECTED if bluetooth is not enabled
-        assertEquals(BluetoothProfile.STATE_DISCONNECTED,
-                mBluetoothHidDevice.getConnectionState(testDevice));
-    }
-
-    public void test_connect() {
-        if (!(mHasBluetooth && mIsHidSupported)) return;
-
-        assertTrue(waitForProfileConnect());
-        assertNotNull(mBluetoothHidDevice);
-
-        BluetoothDevice testDevice = mAdapter.getRemoteDevice("00:11:22:AA:BB:CC");
-
-        assertFalse(mBluetoothHidDevice.connect(testDevice));
-        mUiAutomation.dropShellPermissionIdentity();
-        assertThrows(SecurityException.class, () -> mBluetoothHidDevice.connect(testDevice));
-    }
-
-    public void test_disconnect() {
-        if (!(mHasBluetooth && mIsHidSupported)) return;
-
-        assertTrue(waitForProfileConnect());
-        assertNotNull(mBluetoothHidDevice);
-
-        BluetoothDevice testDevice = mAdapter.getRemoteDevice("00:11:22:AA:BB:CC");
-
-        assertFalse(mBluetoothHidDevice.disconnect(testDevice));
-        mUiAutomation.dropShellPermissionIdentity();
-        assertThrows(SecurityException.class, () -> mBluetoothHidDevice.connect(testDevice));
-    }
-
-    public void test_getConnectedDevices() {
-        if (!(mHasBluetooth && mIsHidSupported)) return;
-
-        assertTrue(waitForProfileConnect());
-        assertNotNull(mBluetoothHidDevice);
-
-        assertTrue(BTAdapterUtils.disableAdapter(mAdapter, mContext));
-
-        // Verify returns empty list if bluetooth is not enabled
-        List<BluetoothDevice> connectedDevices = mBluetoothHidDevice.getConnectedDevices();
+                mBluetoothPbapClient.getDevicesMatchingConnectionStates(new int[]{});
         assertTrue(connectedDevices.isEmpty());
     }
 
     public void test_setConnectionPolicy() {
-        if (!(mHasBluetooth && mIsHidSupported)) return;
+        if (!(mHasBluetooth && mIsPbapClientSupported)) return;
 
         assertTrue(waitForProfileConnect());
-        assertNotNull(mBluetoothHidDevice);
+        assertNotNull(mBluetoothPbapClient);
 
         BluetoothDevice testDevice = mAdapter.getRemoteDevice("00:11:22:AA:BB:CC");
 
         // Verify returns false when invalid input is given
-        assertFalse(mBluetoothHidDevice.setConnectionPolicy(
+        assertFalse(mBluetoothPbapClient.setConnectionPolicy(
                 testDevice, BluetoothProfile.CONNECTION_POLICY_UNKNOWN));
-        assertFalse(mBluetoothHidDevice.setConnectionPolicy(
+        assertFalse(mBluetoothPbapClient.setConnectionPolicy(
                 null, BluetoothProfile.CONNECTION_POLICY_ALLOWED));
 
         assertTrue(BTAdapterUtils.disableAdapter(mAdapter, mContext));
 
         // Verify returns false if bluetooth is not enabled
-        assertFalse(mBluetoothHidDevice.setConnectionPolicy(
+        assertFalse(mBluetoothPbapClient.setConnectionPolicy(
                 testDevice, BluetoothProfile.CONNECTION_POLICY_FORBIDDEN));
     }
-
 
     private boolean waitForProfileConnect() {
         mProfileConnectedlock.lock();
@@ -227,12 +201,13 @@ public class BluetoothHidDeviceTest extends AndroidTestCase {
         return mIsProfileReady;
     }
 
-    private final class BluetoothHidServiceListener implements
+    private final class BluetoothPbapClientServiceListener implements
             BluetoothProfile.ServiceListener {
+
         @Override
         public void onServiceConnected(int profile, BluetoothProfile proxy) {
             mProfileConnectedlock.lock();
-            mBluetoothHidDevice = (BluetoothHidDevice) proxy;
+            mBluetoothPbapClient = (BluetoothPbapClient) proxy;
             mIsProfileReady = true;
             try {
                 mConditionProfileIsConnected.signal();
@@ -243,9 +218,6 @@ public class BluetoothHidDeviceTest extends AndroidTestCase {
 
         @Override
         public void onServiceDisconnected(int profile) {
-
         }
     }
-
-
 }
