@@ -271,13 +271,7 @@ public final class DeviceState extends HarrierRule {
                 try {
                     Throwable t = future.get(MAX_TEST_DURATION.getSeconds(), TimeUnit.SECONDS);
                     if (t != null) {
-                        if (t instanceof AssertionError
-                                || t instanceof AssumptionViolatedException) {
-                            throw t;
-                        } else {
-                            // We wrap the failure in an AssertionError so it doesn't crash
-                            throw new AssertionError("Exception while executing test", t);
-                        }
+                        throw t;
                     }
                 } catch (TimeoutException e) {
                     StackTraceElement[] stack = mTestThread.getStackTrace();
@@ -894,6 +888,11 @@ public final class DeviceState extends HarrierRule {
                 }
 
                 try {
+                    TestApis.device().keepScreenOn(true);
+
+                    if (!Tags.hasTag(Tags.INSTANT_APP)) {
+                        TestApis.device().setKeyguardEnabled(false);
+                    }
                     TestApis.users().setStopBgUsersOnSwitch(STOP_USER_ON_SWITCH_FALSE);
 
                     try {
@@ -931,6 +930,10 @@ public final class DeviceState extends HarrierRule {
                         teardownShareableState();
                     }
 
+                    if (!Tags.hasTag(Tags.INSTANT_APP)) {
+                        TestApis.device().setKeyguardEnabled(true);
+                    }
+                    TestApis.device().keepScreenOn(false);
                     TestApis.users().setStopBgUsersOnSwitch(STOP_USER_ON_SWITCH_DEFAULT);
                 }
             }
