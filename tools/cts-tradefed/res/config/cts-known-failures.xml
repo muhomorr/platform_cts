@@ -279,10 +279,13 @@
 
     <!-- b/232209413 -->
     <option name="compatibility:exclude-filter" value="CtsDpiTestCases android.dpi.cts.ConfigurationScreenLayoutTest" />
+    <option name="compatibility:exclude-filter" value="CtsDpiTestCases[foldable:1:OPEN] android.dpi.cts.ConfigurationScreenLayoutTest" />
+    <option name="compatibility:exclude-filter" value="CtsDpiTestCases[foldable:2:HALF-OPEN] android.dpi.cts.ConfigurationScreenLayoutTest" />
+    <option name="compatibility:exclude-filter" value="CtsDpiTestCases[instant] android.dpi.cts.ConfigurationScreenLayoutTest" />
 
     <!-- b/232830864 -->
-    <option name="compatibility:exclude-filter" value="CtsWindowManagerDeviceTestCases android.server.wm.ActivityTests#testFinishAffinity_differentAffinity" />
-    <option name="compatibility:exclude-filter" value="CtsWindowManagerDeviceTestCases android.server.wm.ActivityTests#testFinishAffinity_multiTask" />
+    <option name="compatibility:exclude-filter" value="CtsWindowManagerDeviceTestCases android.server.wm.lifecycle.ActivityTests#testFinishAffinity_differentAffinity" />
+    <option name="compatibility:exclude-filter" value="CtsWindowManagerDeviceTestCases android.server.wm.lifecycle.ActivityTests#testFinishAffinity_multiTask" />
 
      <!-- b/232962177 -->
     <option name="compatibility:exclude-filter" value="CtsWindowManagerDeviceTestCases android.server.wm.lifecycle.ActivityLifecycleTests#testLocalRecreate" />
@@ -296,5 +299,14 @@
         value="CtsDevicePolicyManagerTestCases com.android.cts.devicepolicy.MixedManagedProfileOwnerTest#testSuspendPackage" />
     <option name="compatibility:exclude-filter"
         value="CtsDevicePolicyManagerTestCases com.android.cts.devicepolicy.MixedProfileOwnerTest#testSuspendPackage" />
+
+    <!-- b/233294162 -->
+    <option name="compatibility:exclude-filter" value="CtsViewTestCases android.view.cts.AttachedSurfaceControlTest#testOnBufferTransformHintChangedListener" />
+    <option name="compatibility:exclude-filter" value="CtsViewTestCases[foldable:1:OPEN] android.view.cts.AttachedSurfaceControlTest#testOnBufferTransformHintChangedListener" />
+    <option name="compatibility:exclude-filter" value="CtsViewTestCases[foldable:2:HALF-OPEN] android.view.cts.AttachedSurfaceControlTest#testOnBufferTransformHintChangedListener" />
+    <!-- b/233298534 -->
+    <option name="compatibility:exclude-filter" value="CtsViewTestCases android.view.cts.AttachedSurfaceControlTest#testOnBufferTransformHintChangesFromLandToSea" />
+    <option name="compatibility:exclude-filter" value="CtsViewTestCases[foldable:1:OPEN] android.view.cts.AttachedSurfaceControlTest#testOnBufferTransformHintChangesFromLandToSea" />
+    <option name="compatibility:exclude-filter" value="CtsViewTestCases[foldable:2:HALF-OPEN] android.view.cts.AttachedSurfaceControlTest#testOnBufferTransformHintChangesFromLandToSea" />
 
 </configuration>
