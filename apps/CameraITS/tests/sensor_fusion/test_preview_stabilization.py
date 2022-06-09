@@ -37,7 +37,7 @@ _NUM_ROTATIONS = 25
 _START_FRAME = 30  # give 3A some frames to warm up
 _VIDEO_DELAY_TIME = 5.5  # seconds
 _VIDEO_DURATION = 5.5  # seconds
-_VIDEO_STABILIZATION_FACTOR = 0.6  # 60% of gyro movement allowed
+_VIDEO_STABILIZATION_FACTOR = 0.7  # 70% of gyro movement allowed
 _PREVIEW_STABILIZATION_MODE_PREVIEW = 2
 
 
@@ -137,6 +137,8 @@ class PreviewStabilizationTest(its_base_test.ItsBaseTest):
       # Initialize rotation rig
       rot_rig['cntl'] = self.rotator_cntl
       rot_rig['ch'] = self.rotator_ch
+      if rot_rig['cntl'].lower() != 'arduino':
+        raise AssertionError(f'You must use the arduino controller for {_NAME}.')
 
       # List of video resolutions to test
       supported_preview_sizes = cam.get_supported_preview_sizes(self.camera_id)
