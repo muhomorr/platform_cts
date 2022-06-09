@@ -34,6 +34,7 @@ import static org.junit.Assert.assertTrue;
 import android.app.Activity;
 import android.app.ActivityManager;
 import android.os.Bundle;
+import android.platform.test.annotations.Presubmit;
 import android.server.wm.NestedShellPermission;
 import android.server.wm.jetpack.utils.TestActivityWithId;
 import android.server.wm.jetpack.utils.TestConfigChangeHandlingActivity;
@@ -57,6 +58,7 @@ import java.util.function.Predicate;
  * Build/Install/Run:
  *     atest CtsWindowManagerJetpackTestCases:ActivityEmbeddingCrossUidTests
  */
+@Presubmit
 @RunWith(AndroidJUnit4.class)
 public class ActivityEmbeddingCrossUidTests extends ActivityEmbeddingTestBase {
 
@@ -118,12 +120,14 @@ public class ActivityEmbeddingCrossUidTests extends ActivityEmbeddingTestBase {
 
     /**
      * Tests that embedding an activity across UIDs is allowed if an activity requires a
-     * permission that the host has.
+     * certificate that the host has.
      */
     @Test
     public void testCrossUidActivityEmbeddingIsAllowedWithPermission() {
         // Start an activity that will attempt to embed TestActivityKnownEmbeddingCerts
-        startActivityNewTask(SIGNED_EMBEDDING_ACTIVITY);
+        Bundle extras = new Bundle();
+        extras.putBoolean(EXTRA_EMBED_ACTIVITY, true);
+        startActivityNoWait(mContext, SIGNED_EMBEDDING_ACTIVITY, extras);
 
         waitAndAssertResumed(EMBEDDED_ACTIVITY_ID);
         TestActivityWithId embeddedActivity = getResumedActivityById(EMBEDDED_ACTIVITY_ID);

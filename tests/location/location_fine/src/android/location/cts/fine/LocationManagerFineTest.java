@@ -77,11 +77,12 @@ import android.location.cts.common.gnss.GnssAntennaInfoCapture;
 import android.location.cts.common.gnss.GnssMeasurementsCapture;
 import android.location.cts.common.gnss.GnssNavigationMessageCapture;
 import android.location.provider.ProviderProperties;
+import android.os.Build;
 import android.os.HandlerThread;
 import android.os.Looper;
 import android.os.PowerManager;
 import android.os.SystemClock;
-import android.os.UserHandle;
+import android.os.SystemProperties;
 import android.platform.test.annotations.AppModeFull;
 import android.provider.DeviceConfig;
 import android.util.ArraySet;
@@ -174,22 +175,6 @@ public class LocationManagerFineTest {
     @Test
     public void testIsLocationEnabled() {
         assertThat(mManager.isLocationEnabled()).isTrue();
-
-        try {
-            mContext.createContextAsUser(UserHandle.CURRENT, 0).getSystemService(
-                    LocationManager.class).isLocationEnabled();
-            fail();
-        } catch (SecurityException e) {
-            // pass
-        }
-
-        try {
-            mContext.createContextAsUser(UserHandle.ALL, 0).getSystemService(
-                    LocationManager.class).isLocationEnabled();
-            fail();
-        } catch (SecurityException e) {
-            // pass
-        }
     }
 
     @Test
@@ -1051,6 +1036,7 @@ public class LocationManagerFineTest {
     }
 
     @Test
+    @AppModeFull(reason = "Instant apps can't hold INTERACT_ACROSS_USERS permission")
     public void testAddProviderRequestListener() throws Exception {
         InstrumentationRegistry.getInstrumentation().getUiAutomation()
                 .adoptShellPermissionIdentity(Manifest.permission.LOCATION_HARDWARE);
@@ -1216,6 +1202,8 @@ public class LocationManagerFineTest {
 
     @Test
     public void testRequestFlush_Gnss() throws Exception {
+        assumeTrue(SystemProperties.getInt("ro.product.first_api_level", 0)
+                >= Build.VERSION_CODES.S);
         assumeTrue(mManager.hasProvider(GPS_PROVIDER));
 
         try (LocationListenerCapture capture = new LocationListenerCapture(mContext)) {

@@ -1429,15 +1429,15 @@ public class PinnedStackTests extends ActivityManagerTestBase {
     public void testDisplayMetricsPinUnpin() {
         separateTestJournal();
         launchActivity(TEST_ACTIVITY, WINDOWING_MODE_FULLSCREEN);
-        final int defaultWindowingMode = mWmState
-                .getTaskByActivity(TEST_ACTIVITY).getWindowingMode();
-        final SizeInfo initialSizes = getLastReportedSizesForActivity(TEST_ACTIVITY);
-        final Rect initialAppBounds = getAppBounds(TEST_ACTIVITY);
+        launchActivity(PIP_ACTIVITY);
+        int defaultWindowingMode = mWmState.getTaskByActivity(PIP_ACTIVITY).getWindowingMode();
+        final SizeInfo initialSizes = getLastReportedSizesForActivity(PIP_ACTIVITY);
+        final Rect initialAppBounds = getAppBounds(PIP_ACTIVITY);
         assertNotNull("Must report display dimensions", initialSizes);
         assertNotNull("Must report app bounds", initialAppBounds);
 
         separateTestJournal();
-        launchActivity(PIP_ACTIVITY, extraString(EXTRA_ENTER_PIP, "true"));
+        enterPipAndAssertPinnedTaskExists(PIP_ACTIVITY);
         // Wait for animation complete since we are comparing bounds
         waitForEnterPipAnimationComplete(PIP_ACTIVITY);
         final SizeInfo pinnedSizes = getLastReportedSizesForActivity(PIP_ACTIVITY);
@@ -1505,6 +1505,11 @@ public class PinnedStackTests extends ActivityManagerTestBase {
         // Launch the PIP activity and set its pip params to allow auto-pip.
         launchActivity(PIP_ACTIVITY, extraString(EXTRA_ALLOW_AUTO_PIP, "true"));
         assertPinnedStackDoesNotExist();
+
+        int windowingMode = mWmState.getTaskByActivity(PIP_ACTIVITY).getWindowingMode();
+        // Skip the test if freeform, since desktops may manually request PIP immediately after
+        // the test activity launch.
+        assumeFalse(windowingMode == WINDOWING_MODE_FREEFORM);
 
         // Launch a regular activity with FLAG_ACTIVITY_NO_USER_ACTION and
         // ensure that there is no pinned stack.

@@ -191,12 +191,13 @@ public class EuiccManagerTest {
                 EuiccManager.EMBEDDED_SUBSCRIPTION_RESULT_ERROR, mCallbackReceiver.getResultCode());
     }
 
-    @Ignore("b/221887933") // TODO: Enable the test case after framework code is uncommented
+    @Ignore("the compatibility framework does not currently support changing compatibility flags"
+            + " on user builds for device side CTS tests. Ignore this test until support is added")
     @Test
     public void testSwitchToSubscritionDisableWithNoPortAndChangesCompatDisabled()
             throws Exception {
-        // test disabled state only for now
-        if (mEuiccManager.isEnabled()) {
+        // Only test it when EuiccManager is enabled.
+        if (!mEuiccManager.isEnabled()) {
             return;
         }
         // disable compact change
@@ -232,11 +233,10 @@ public class EuiccManagerTest {
                 SWITCH_WITHOUT_PORT_INDEX_EXCEPTION_ON_DISABLE_STRING);
     }
 
-    @Ignore("b/221887933") // TODO: Enable the test case after framework code is uncommented
     @Test
     public void testSwitchToSubscriptionDisableWithNoPort() throws Exception {
-        // test disabled state only for now
-        if (mEuiccManager.isEnabled()) {
+        // Only test it when EuiccManager is enabled.
+        if (!mEuiccManager.isEnabled()) {
             return;
         }
 

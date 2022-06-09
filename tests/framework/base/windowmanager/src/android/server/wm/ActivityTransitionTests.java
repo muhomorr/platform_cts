@@ -17,16 +17,24 @@
 package android.server.wm;
 
 import static android.content.Intent.FLAG_ACTIVITY_NEW_TASK;
+import static android.server.wm.ActivityTransitionTests.EdgeExtensionActivity.BOTTOM;
+import static android.server.wm.ActivityTransitionTests.EdgeExtensionActivity.DIRECTION_KEY;
+import static android.server.wm.ActivityTransitionTests.EdgeExtensionActivity.LEFT;
+import static android.server.wm.ActivityTransitionTests.EdgeExtensionActivity.RIGHT;
+import static android.server.wm.ActivityTransitionTests.EdgeExtensionActivity.TOP;
 import static android.server.wm.ActivityTransitionTests.OverridePendingTransitionActivity.BACKGROUND_COLOR_KEY;
 import static android.server.wm.ActivityTransitionTests.OverridePendingTransitionActivity.ENTER_ANIM_KEY;
 import static android.server.wm.ActivityTransitionTests.OverridePendingTransitionActivity.EXIT_ANIM_KEY;
 import static android.server.wm.app.Components.TEST_ACTIVITY;
 import static android.view.Display.DEFAULT_DISPLAY;
+import static android.view.RoundedCorner.POSITION_BOTTOM_LEFT;
+import static android.view.RoundedCorner.POSITION_BOTTOM_RIGHT;
+import static android.view.RoundedCorner.POSITION_TOP_LEFT;
+import static android.view.RoundedCorner.POSITION_TOP_RIGHT;
+import static android.view.ViewGroup.LayoutParams.MATCH_PARENT;
 
 import static com.android.compatibility.common.util.SystemUtil.runShellCommand;
 
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -34,11 +42,12 @@ import android.app.Activity;
 import android.app.ActivityOptions;
 import android.app.Instrumentation;
 import android.content.ComponentName;
-import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.ColorSpace;
+import android.graphics.Insets;
+import android.graphics.Point;
 import android.graphics.Rect;
 import android.os.Bundle;
 import android.os.Handler;
@@ -47,8 +56,12 @@ import android.os.SystemClock;
 import android.platform.test.annotations.Presubmit;
 import android.server.wm.cts.R;
 import android.util.Range;
-import android.view.WindowManager;
+import android.view.RoundedCorner;
+import android.view.View;
+import android.view.ViewGroup;
+import android.view.WindowInsets;
 
+import androidx.annotation.Nullable;
 import androidx.test.platform.app.InstrumentationRegistry;
 
 import com.android.compatibility.common.util.SystemUtil;
@@ -58,8 +71,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.List;
-import java.util.Optional;
+import java.util.ArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
@@ -82,6 +94,9 @@ public class ActivityTransitionTests extends ActivityManagerTestBase {
     private String mInitialTransitionAnimationScale;
     private String mInitialAnimatorDurationScale;
 
+    // We need to allow for some variation stemming from color conversions
+    private static final float COLOR_VALUE_VARIANCE_TOLERANCE = 0.03f;
+
     @Before
     public void setUp() throws Exception {
         super.setUp();
@@ -96,6 +111,13 @@ public class ActivityTransitionTests extends ActivityManagerTestBase {
         mWmState.setSanityCheckWithFocusedWindow(true);
     }
 
+    private LauncherActivity startLauncherActivity() {
+        final Intent intent = new Intent(mContext, LauncherActivity.class)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        final Instrumentation instrumentation = InstrumentationRegistry.getInstrumentation();
+        return (LauncherActivity) instrumentation.startActivitySync(intent);
+    }
+
     @Test
     public void testActivityTransitionOverride() throws Exception {
         final CountDownLatch latch = new CountDownLatch(1);
@@ -108,16 +130,12 @@ public class ActivityTransitionTests extends ActivityManagerTestBase {
             latch.countDown();
         };
 
-        final Intent intent = new Intent(mContext, LauncherActivity.class)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        final Instrumentation instrumentation = InstrumentationRegistry.getInstrumentation();
-        final LauncherActivity launcherActivity =
-                (LauncherActivity) instrumentation.startActivitySync(intent);
+        final LauncherActivity launcherActivity = startLauncherActivity();
 
         final ActivityOptions options = ActivityOptions.makeCustomAnimation(mContext,
                 R.anim.alpha, 0 /* exitResId */, 0 /* backgroundColor */,
                 new Handler(Looper.getMainLooper()), startedListener, finishedListener);
-        launcherActivity.startTransitionActivity(options);
+        launcherActivity.startActivity(options, TransitionActivity.class);
         mWmState.waitForAppTransitionIdleOnDisplay(DEFAULT_DISPLAY);
         waitAndAssertTopResumedActivity(new ComponentName(mContext, TransitionActivity.class),
                 DEFAULT_DISPLAY, "Activity must be launched");
@@ -202,9 +220,11 @@ public class ActivityTransitionTests extends ActivityManagerTestBase {
     @Test
     public void testThemeBackgroundColorShowsDuringActivityTransition() {
         final int backgroundColor = Color.WHITE;
-        Bitmap screenshot = runAndScreenshotActivityTransition(
+        final TestBounds testBounds = getTestBounds();
+
+        ArrayList<Bitmap> screenshots = runAndScreenshotActivityTransition(
                 TransitionActivityWithWhiteBackground.class);
-        assertAppRegionOfScreenIsColor(screenshot, backgroundColor);
+        assertAppRegionOfScreenIsColor(screenshots, backgroundColor, testBounds);
     }
 
     /**
@@ -218,9 +238,11 @@ public class ActivityTransitionTests extends ActivityManagerTestBase {
         final int backgroundColor = Color.RED;
         final ActivityOptions activityOptions = ActivityOptions.makeCustomAnimation(mContext,
                 R.anim.alpha_0_with_red_backdrop, R.anim.alpha_0_with_red_backdrop);
-        Bitmap screenshot = runAndScreenshotActivityTransition(activityOptions,
+        final TestBounds testBounds = getTestBounds();
+
+        ArrayList<Bitmap> screenshots = runAndScreenshotActivityTransition(activityOptions,
                 TransitionActivityWithWhiteBackground.class);
-        assertAppRegionOfScreenIsColor(screenshot, backgroundColor);
+        assertAppRegionOfScreenIsColor(screenshots, backgroundColor, testBounds);
     }
 
     /**
@@ -233,9 +255,11 @@ public class ActivityTransitionTests extends ActivityManagerTestBase {
         final ActivityOptions activityOptions = ActivityOptions.makeCustomAnimation(mContext,
                 R.anim.alpha_0_with_backdrop, R.anim.alpha_0_with_backdrop, backgroundColor
         );
-        Bitmap screenshot = runAndScreenshotActivityTransition(activityOptions,
+        final TestBounds testBounds = getTestBounds();
+
+        ArrayList<Bitmap> screenshots = runAndScreenshotActivityTransition(activityOptions,
                 TransitionActivity.class);
-        assertAppRegionOfScreenIsColor(screenshot, backgroundColor);
+        assertAppRegionOfScreenIsColor(screenshots, backgroundColor, testBounds);
     }
 
     /**
@@ -250,46 +274,235 @@ public class ActivityTransitionTests extends ActivityManagerTestBase {
         extras.putInt(ENTER_ANIM_KEY, R.anim.alpha_0_with_backdrop);
         extras.putInt(EXIT_ANIM_KEY, R.anim.alpha_0_with_backdrop);
         extras.putInt(BACKGROUND_COLOR_KEY, backgroundColor);
+        final TestBounds testBounds = getTestBounds();
 
-        Bitmap screenshot = runAndScreenshotActivityTransition(
+        final ArrayList<Bitmap> screenshots = runAndScreenshotActivityTransition(
                 OverridePendingTransitionActivity.class, extras);
-        assertAppRegionOfScreenIsColor(screenshot, backgroundColor);
+        assertAppRegionOfScreenIsColor(screenshots, backgroundColor, testBounds);
     }
 
-    private Bitmap runAndScreenshotActivityTransition(Class<?> klass) {
+    /**
+     * Checks that when an activity transition with a left edge extension is run that the animating
+     * activity is extended on the left side by clamping the edge pixels of the activity.
+     *
+     * The test runs an activity transition where the animating activities are X scaled to 50%,
+     * positioned of the right side of the screen, and edge extended on the left. Because the
+     * animating activities are half red half blue (split at the middle of the X axis of the
+     * activity). We expect first 75% pixel columns of the screen to be red (50% from the edge
+     * extension and the next 25% from from the activity) and the remaining 25% columns after that
+     * to be blue (from the activity).
+     *
+     * @see R.anim.edge_extension_left for the transition applied.
+     */
+    @Test
+    public void testLeftEdgeExtensionWorksDuringActivityTransition() {
+        final Bundle extras = new Bundle();
+        extras.putInt(DIRECTION_KEY, LEFT);
+        final TestBounds testBounds = getTestBounds();
+
+        final ArrayList<Bitmap> screenshots = runAndScreenshotActivityTransition(
+                EdgeExtensionActivity.class, extras);
+        final Rect appBounds = getTopAppBounds();
+        assertColorChangeXIndex(screenshots,
+                appBounds.left + (appBounds.right - appBounds.left) * 3 / 4, testBounds);
+    }
+
+    /**
+     * Checks that when an activity transition with a top edge extension is run that the animating
+     * activity is extended on the left side by clamping the edge pixels of the activity.
+     *
+     * The test runs an activity transition where the animating activities are Y scaled to 50%,
+     * positioned of the bottom of the screen, and edge extended on the top. Because the
+     * animating activities are half red half blue (split at the middle of the X axis of the
+     * activity). We expect first 50% pixel columns of the screen to be red (the top half from the
+     * extension and the bottom half from the activity) and the remaining 50% columns after that
+     * to be blue (the top half from the extension and the bottom half from the activity).
+     *
+     * @see R.anim.edge_extension_top for the transition applied.
+     */
+    @Test
+    public void testTopEdgeExtensionWorksDuringActivityTransition() {
+        final Bundle extras = new Bundle();
+        extras.putInt(DIRECTION_KEY, TOP);
+        final TestBounds testBounds = getTestBounds();
+
+        final ArrayList<Bitmap> screenshots = runAndScreenshotActivityTransition(
+                EdgeExtensionActivity.class, extras);
+        final Rect appBounds = getTopAppBounds();
+        assertColorChangeXIndex(screenshots,
+                (appBounds.left + appBounds.right) / 2, testBounds);
+    }
+
+    /**
+     * Checks that when an activity transition with a right edge extension is run that the animating
+     * activity is extended on the right side by clamping the edge pixels of the activity.
+     *
+     * The test runs an activity transition where the animating activities are X scaled to 50% and
+     * edge extended on the right. Because the animating activities are half red half blue. We
+     * expect first 25% pixel columns of the screen to be red (from the activity) and the remaining
+     * 75% columns after that to be blue (25% from the activity and 50% from the edge extension
+     * which should be extending the right edge pixel (so red pixels).
+     *
+     * @see R.anim.edge_extension_right for the transition applied.
+     */
+    @Test
+    public void testRightEdgeExtensionWorksDuringActivityTransition() {
+        final Bundle extras = new Bundle();
+        extras.putInt(DIRECTION_KEY, RIGHT);
+        final TestBounds testBounds = getTestBounds();
+
+        final ArrayList<Bitmap> screenshots = runAndScreenshotActivityTransition(
+                EdgeExtensionActivity.class, extras);
+        final Rect appBounds = getTopAppBounds();
+        assertColorChangeXIndex(screenshots,
+            appBounds.left + (appBounds.right - appBounds.left) / 4, testBounds);
+    }
+
+    /**
+     * Checks that when an activity transition with a bottom edge extension is run that the
+     * animating activity is extended on the bottom side by clamping the edge pixels of the
+     * activity.
+     *
+     * The test runs an activity transition where the animating activities are Y scaled to 50%,
+     * positioned of the top of the screen, and edge extended on the bottom. Because the
+     * animating activities are half red half blue (split at the middle of the X axis of the
+     * activity). We expect first 50% pixel columns of the screen to be red (the top half from the
+     * activity and the bottom half from gthe extensions) and the remaining 50% columns after that
+     * to be blue (the top half from the activity and the bottom half from the extension).
+     *
+     * @see R.anim.edge_extension_bottom for the transition applied.
+     */
+    @Test
+    public void testBottomEdgeExtensionWorksDuringActivityTransition() {
+        final Bundle extras = new Bundle();
+        extras.putInt(DIRECTION_KEY, BOTTOM);
+        final TestBounds testBounds = getTestBounds();
+
+        final ArrayList<Bitmap> screenshots = runAndScreenshotActivityTransition(
+                EdgeExtensionActivity.class, extras);
+        final Rect appBounds = getTopAppBounds();
+        assertColorChangeXIndex(screenshots,
+                (appBounds.left + appBounds.right) / 2, testBounds);
+    }
+
+    private static class TestBounds {
+        public Rect rect;
+        public ArrayList<Rect> excluded;
+    }
+
+    private TestBounds getTestBounds() {
+        final LauncherActivity activity = startLauncherActivity();
+        final TestBounds bounds = new TestBounds();
+        bounds.rect = activity.getActivityFullyVisibleRegion();
+        bounds.excluded = activity.getRoundedCornersRegions();
+        launchHomeActivityNoWait();
+        removeRootTasksWithActivityTypes(ALL_ACTIVITY_TYPE_BUT_HOME);
+        return bounds;
+    }
+
+    private ArrayList<Bitmap> runAndScreenshotActivityTransition(Class<?> klass) {
         return runAndScreenshotActivityTransition(klass, Bundle.EMPTY);
     }
 
-    private Bitmap runAndScreenshotActivityTransition(
+    private ArrayList<Bitmap> runAndScreenshotActivityTransition(
             ActivityOptions activityOptions, Class<?> klass) {
         return runAndScreenshotActivityTransition(activityOptions, klass, Bundle.EMPTY);
     }
 
-    private Bitmap runAndScreenshotActivityTransition(Class<?> klass, Bundle extras) {
+    private ArrayList<Bitmap> runAndScreenshotActivityTransition(Class<?> klass, Bundle extras) {
         return runAndScreenshotActivityTransition(ActivityOptions.makeBasic(), klass, extras);
     }
 
-    private Bitmap runAndScreenshotActivityTransition(ActivityOptions activityOptions,
+    private ArrayList<Bitmap> runAndScreenshotActivityTransition(ActivityOptions activityOptions,
             Class<?> klass, Bundle extras) {
-        final Intent intent = new Intent(mContext, LauncherActivity.class)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        final Instrumentation instrumentation = InstrumentationRegistry.getInstrumentation();
-        final LauncherActivity launcherActivity =
-                (LauncherActivity) instrumentation.startActivitySync(intent);
+        final LauncherActivity launcherActivity = startLauncherActivity();
+        launcherActivity.startActivity(activityOptions, klass, extras);
 
-        launcherActivity.startTransitionActivity(activityOptions, klass, extras);
-        SystemClock.sleep(1000);
-        final Bitmap screenshot = mInstrumentation.getUiAutomation().takeScreenshot();
+        // Busy wait until we are running the transition to capture the screenshot
+        boolean isTransitioning;
+        do {
+            getWmState().computeState();
+            isTransitioning = getWmState().getDefaultDisplayAppTransitionState()
+                            .equals("APP_STATE_RUNNING");
+            SystemClock.sleep(10);
+        } while (!isTransitioning);
 
-        return screenshot;
+        // Because of differences in timing between devices we take 5 screenshots approximately
+        // 100ms apart to ensure we capture at least one screenshot around the beginning of the
+        // activity transition.
+        final ArrayList<Bitmap> screenshots = new ArrayList<>();
+        for (int i = 0; i < 5; i++) {
+            screenshots.add(mInstrumentation.getUiAutomation().takeScreenshot());
+            SystemClock.sleep(100);
+        }
+
+        return screenshots;
     }
 
-    private void assertAppRegionOfScreenIsColor(Bitmap screen, int color) {
-        final Rect fullyVisibleBounds = getActivityFullyVisibleRegion();
+    private boolean rectsContain(ArrayList<Rect> rect, int x, int y) {
+        for (Rect r : rect) {
+            if (r.contains(x, y)) {
+                return true;
+            }
+        }
+        return false;
+    }
 
-        for (int x = 0; x < screen.getWidth(); x++) {
-            for (int y = fullyVisibleBounds.top;
-                    y < fullyVisibleBounds.bottom; y++) {
+    private void assertAppRegionOfScreenIsColor(ArrayList<Bitmap> transitionScreenshots,
+            int color, TestBounds testBounds) {
+        ArrayList<AssertionResult> results = new ArrayList<>();
+        for (final Bitmap screenshot : transitionScreenshots) {
+            final AssertionResult result = getIsAppRegionOfScreenOfColorResult(screenshot, color,
+                    testBounds);
+            if (!result.isFailure) {
+                // One screenshot passed the assertion - we are good
+                return;
+            }
+            results.add(result);
+        }
+
+        fail("No screenshot of the activity transition passed the assertions ::\n"
+                + String.join(",\n", results.stream().map(Object::toString)
+                        .toArray(String[]::new)));
+    }
+
+    private static class ColorCheckResult extends AssertionResult {
+        public final Point firstWrongPixel;
+        public final Color expectedColor;
+        public final Color actualColor;
+
+        private ColorCheckResult(boolean isFailure, Point firstWrongPixel, Color expectedColor,
+                Color actualColor) {
+            super(isFailure);
+            this.firstWrongPixel = firstWrongPixel;
+            this.expectedColor = expectedColor;
+            this.actualColor = actualColor;
+        }
+
+        private ColorCheckResult(Point firstWrongPixel, Color expectedColor, Color actualColor) {
+            this(true, firstWrongPixel, expectedColor, actualColor);
+        }
+
+        @Override
+        public String toString() {
+            return "ColorCheckResult{"
+                    + "isFailure=" + isFailure
+                    + ", firstWrongPixel=" + firstWrongPixel
+                    + ", expectedColor=" + expectedColor
+                    + ", actualColor=" + actualColor
+                    + '}';
+        }
+    }
+
+    private AssertionResult getIsAppRegionOfScreenOfColorResult(Bitmap screen, int color,
+            TestBounds testBounds) {
+        for (int x = testBounds.rect.left; x < testBounds.rect.right; x++) {
+            for (int y = testBounds.rect.top;
+                    y < testBounds.rect.bottom; y++) {
+                if (rectsContain(testBounds.excluded, x, y)) {
+                    continue;
+                }
+
                 final Color rawColor = screen.getColor(x, y);
                 final Color sRgbColor;
                 if (!rawColor.getColorSpace().equals(ColorSpace.get(ColorSpace.Named.SRGB))) {
@@ -303,43 +516,157 @@ public class ActivityTransitionTests extends ActivityManagerTestBase {
                     sRgbColor = rawColor;
                 }
                 final Color expectedColor = Color.valueOf(color);
-                assertArrayEquals("Screen pixel (" + x + ", " + y + ") is not the right color",
-                        new float[] {
-                                expectedColor.red(), expectedColor.green(), expectedColor.blue() },
-                        new float[] { sRgbColor.red(), sRgbColor.green(), sRgbColor.blue() },
-                        0.03f); // need to allow for some variation stemming from conversions
+                if (arrayEquals(new float[]{
+                                expectedColor.red(), expectedColor.green(), expectedColor.blue()},
+                        new float[]{sRgbColor.red(), sRgbColor.green(), sRgbColor.blue()})) {
+                    return new ColorCheckResult(new Point(x, y), expectedColor, sRgbColor);
+                }
             }
         }
+
+        return AssertionResult.SUCCESS;
     }
 
-    private Rect getActivityFullyVisibleRegion() {
-        final List<WindowManagerState.WindowState> windows = getWmState().getWindows();
-        Optional<WindowManagerState.WindowState> screenDecorOverlay =
-                windows.stream().filter(
-                        w -> w.getName().equals("ScreenDecorOverlay")).findFirst();
-        Optional<WindowManagerState.WindowState> screenDecorOverlayBottom =
-                windows.stream().filter(
-                        w -> w.getName().equals("ScreenDecorOverlayBottom")).findFirst();
-        Optional<WindowManagerState.WindowState> navigationBar =
-                windows.stream().filter(
-                        w -> w.getName().equals("NavigationBar0")).findFirst();
+    private boolean arrayEquals(float[] array1, float[] array2) {
+        if (array1.length != array2.length) {
+            return true;
+        }
+        for (int i = 0; i < array1.length; i++) {
+            if (Math.abs(array1[i] - array2[i]) > COLOR_VALUE_VARIANCE_TOLERANCE) {
+                return true;
+            }
+        }
+        return false;
+    }
 
-        final int screenDecorOverlayHeight = screenDecorOverlay.map(
-                WindowManagerState.WindowState::getRequestedHeight).orElse(0);
-        final int screenDecorOverlayBottomHeight = screenDecorOverlayBottom.map(
-                WindowManagerState.WindowState::getRequestedHeight).orElse(0);
-        final int navigationBarHeight = navigationBar.map(
-                WindowManagerState.WindowState::getRequestedHeight).orElse(0);
+    private Rect getTopAppBounds() {
+        getWmState().computeState();
+        final WindowManagerState.Activity activity = getWmState().getActivity(
+                ComponentName.unflattenFromString(getWmState().getFocusedActivity()));
+        return activity.getAppBounds();
+    }
 
-        WindowManager windowManager = (WindowManager) androidx.test.InstrumentationRegistry
-                .getTargetContext().getSystemService(Context.WINDOW_SERVICE);
-        assertNotNull(windowManager);
-        final Rect displayBounds = windowManager.getCurrentWindowMetrics().getBounds();
+    private static class AssertionResult {
+        public final boolean isFailure;
+        public final String message;
 
-        final int bottomHeightToIgnore =
-                Math.max(screenDecorOverlayBottomHeight, navigationBarHeight);
-        return new Rect(displayBounds.left, displayBounds.top + screenDecorOverlayHeight,
-                displayBounds.right, displayBounds.bottom - bottomHeightToIgnore);
+        private AssertionResult(boolean isFailure, String message) {
+            this.isFailure = isFailure;
+            this.message = message;
+        }
+
+        private AssertionResult(boolean isFailure) {
+            this(isFailure, null);
+        }
+
+        @Override
+        public String toString() {
+            return "AssertionResult{"
+                    + "isFailure=" + isFailure
+                    + ", message='" + message + '\''
+                    + '}';
+        }
+
+        private static final AssertionResult SUCCESS = new AssertionResult(false);
+        private static final AssertionResult FAILURE = new AssertionResult(true);
+    }
+
+    private void assertColorChangeXIndex(ArrayList<Bitmap> transitionScreenshots, int xIndex,
+            TestBounds testBounds) {
+        final ArrayList<AssertionResult> results = new ArrayList<>();
+        for (final Bitmap screenshot : transitionScreenshots) {
+            final AssertionResult result = assertColorChangeXIndex(screenshot, xIndex, testBounds);
+            if (!result.isFailure) {
+                // One screenshot passed the assertion - we are good
+                return;
+            }
+            results.add(result);
+        }
+
+        fail("Failed to match a color change at xIndex " + xIndex
+                + " on any of the transitions screenshots ::\n"
+                + String.join(",\n", results.stream().map(Object::toString)
+                        .toArray(String[]::new)));
+    }
+
+    private AssertionResult assertColorChangeXIndex(Bitmap screen, int xIndex,
+            TestBounds testBounds) {
+        final int colorChangeXIndex = getColorChangeXIndex(screen);
+
+        if (xIndex != colorChangeXIndex) {
+            return new AssertionResult(true, "Expected color to change at x index " + xIndex
+                    + " instead of " + colorChangeXIndex);
+        }
+
+        // The activity we are extending is a half red, half blue.
+        // We are scaling the activity in the animation so if the extension doesn't work we should
+        // have a blue, then red, then black section, and if it does work we should see on a blue,
+        // followed by an extended red section.
+        for (int x = testBounds.rect.left; x < testBounds.rect.right; x++) {
+            for (int y = testBounds.rect.top;
+                    y < testBounds.rect.bottom; y++) {
+                if (rectsContain(testBounds.excluded, x, y)) {
+                    continue;
+                }
+
+                final Color expectedColor;
+                if (x < xIndex) {
+                    expectedColor = Color.valueOf(Color.BLUE);
+                } else {
+                    expectedColor = Color.valueOf(Color.RED);
+                }
+
+                final Color rawColor = screen.getColor(x, y);
+                final Color sRgbColor;
+                if (!rawColor.getColorSpace().equals(ColorSpace.get(ColorSpace.Named.SRGB))) {
+                    // Conversion is required because the color space of the screenshot may be in
+                    // the DCI-P3 color space or some other color space and we want to compare the
+                    // color against once in the SRGB color space, so we must convert the color back
+                    // to the SRGB color space.
+                    sRgbColor = screen.getColor(x, y)
+                            .convert(ColorSpace.get(ColorSpace.Named.SRGB));
+                } else {
+                    sRgbColor = rawColor;
+                }
+
+                if (arrayEquals(new float[]{
+                                expectedColor.red(), expectedColor.green(), expectedColor.blue()},
+                        new float[]{sRgbColor.red(), sRgbColor.green(), sRgbColor.blue()})) {
+                    return new ColorCheckResult(new Point(x, y), expectedColor, sRgbColor);
+                }
+            }
+        }
+
+        return AssertionResult.SUCCESS;
+    }
+
+    private int getColorChangeXIndex(Bitmap screen) {
+        // Look for color changing index at middle of app
+        final int y =
+                (getTopAppBounds().top + getTopAppBounds().bottom) / 2;
+
+        Color prevColor = screen.getColor(0, y)
+                .convert(ColorSpace.get(ColorSpace.Named.SRGB));
+        for (int x = 0; x < screen.getWidth(); x++) {
+            final Color c = screen.getColor(x, y)
+                    .convert(ColorSpace.get(ColorSpace.Named.SRGB));
+
+            if (!colorsEqual(prevColor, c)) {
+                return x;
+            }
+        }
+
+        return -1;
+    }
+
+    private boolean colorsEqual(Color c1, Color c2) {
+        return almostEquals(c1.red(), c2.red(), COLOR_VALUE_VARIANCE_TOLERANCE)
+                && almostEquals(c1.green(), c2.green(), COLOR_VALUE_VARIANCE_TOLERANCE)
+                && almostEquals(c1.blue(), c2.blue(), COLOR_VALUE_VARIANCE_TOLERANCE);
+    }
+
+    private boolean almostEquals(float a, float b, float delta) {
+        return Math.abs(a - b) < delta;
     }
 
     private void setDefaultAnimationScale() {
@@ -382,15 +709,76 @@ public class ActivityTransitionTests extends ActivityManagerTestBase {
 
     public static class LauncherActivity extends Activity {
 
-        public void startTransitionActivity(ActivityOptions activityOptions) {
-            startTransitionActivity(activityOptions, TransitionActivity.class);
+        private WindowInsets mInsets;
+
+        @Override
+        protected void onCreate(@Nullable Bundle savedInstanceState) {
+            super.onCreate(savedInstanceState);
+
+            // Ensure the activity is edge-to-edge
+            // In tests we rely on the activity's content filling the entire window
+            getWindow().setDecorFitsSystemWindows(false);
+
+            View view = new View(this);
+            view.setLayoutParams(new ViewGroup.LayoutParams(MATCH_PARENT, MATCH_PARENT));
+            view.setOnApplyWindowInsetsListener((v, insets) -> mInsets = insets);
+            setContentView(view);
         }
 
-        public void startTransitionActivity(ActivityOptions activityOptions, Class<?> klass) {
-            startTransitionActivity(activityOptions, klass, new Bundle());
+        private Rect getActivityFullyVisibleRegion() {
+            final Rect activityBounds = getWindowManager().getCurrentWindowMetrics().getBounds();
+            final Insets insets = mInsets.getInsets(WindowInsets.Type.systemBars()
+                    | WindowInsets.Type.displayCutout());
+            activityBounds.inset(insets);
+
+            return new Rect(activityBounds);
         }
 
-        public void startTransitionActivity(ActivityOptions activityOptions, Class<?> klass,
+        private ArrayList<Rect> getRoundedCornersRegions() {
+            RoundedCorner topRightCorner = mInsets.getRoundedCorner(POSITION_TOP_RIGHT);
+            RoundedCorner topLeftCorner = mInsets.getRoundedCorner(POSITION_TOP_LEFT);
+            RoundedCorner bottomRightCorner = mInsets.getRoundedCorner(POSITION_BOTTOM_RIGHT);
+            RoundedCorner bottomLeftCorner = mInsets.getRoundedCorner(POSITION_BOTTOM_LEFT);
+
+            final ArrayList<Rect> roundedCornersRects = new ArrayList<>();
+
+            if (topRightCorner != null) {
+                final Point center = topRightCorner.getCenter();
+                final int radius = topRightCorner.getRadius();
+                roundedCornersRects.add(
+                        new Rect(center.x, center.y - radius,
+                                center.x + radius, center.y));
+            }
+            if (topLeftCorner != null) {
+                final Point center = topLeftCorner.getCenter();
+                final int radius = topLeftCorner.getRadius();
+                roundedCornersRects.add(
+                        new Rect(center.x - radius, center.y - radius,
+                                center.x, center.y));
+            }
+            if (bottomRightCorner != null) {
+                final Point center = bottomRightCorner.getCenter();
+                final int radius = bottomRightCorner.getRadius();
+                roundedCornersRects.add(
+                        new Rect(center.x, center.y,
+                                center.x + radius, center.y + radius));
+            }
+            if (bottomLeftCorner != null) {
+                final Point center = bottomLeftCorner.getCenter();
+                final int radius = bottomLeftCorner.getRadius();
+                roundedCornersRects.add(
+                        new Rect(center.x - radius, center.y,
+                                center.x, center.y + radius));
+            }
+
+            return roundedCornersRects;
+        }
+
+        public void startActivity(ActivityOptions activityOptions, Class<?> klass) {
+            startActivity(activityOptions, klass, new Bundle());
+        }
+
+        public void startActivity(ActivityOptions activityOptions, Class<?> klass,
                 Bundle extras) {
             final Intent i = new Intent(this, klass);
             i.putExtras(extras);
@@ -418,4 +806,50 @@ public class ActivityTransitionTests extends ActivityManagerTestBase {
     }
 
     public static class TransitionActivityWithWhiteBackground extends Activity { }
+
+    public static class EdgeExtensionActivity extends Activity {
+        static final String DIRECTION_KEY = "direction";
+        static final int LEFT = 0;
+        static final int TOP = 1;
+        static final int RIGHT = 2;
+        static final int BOTTOM = 3;
+
+        @Override
+        protected void onCreate(@Nullable Bundle savedInstanceState) {
+            super.onCreate(savedInstanceState);
+            setContentView(R.layout.vertical_color_split);
+
+            // Ensure the activity is edge-to-edge
+            // In tests we rely on the activity's content filling the entire window
+            getWindow().setDecorFitsSystemWindows(false);
+
+            // Hide anything that the decor view might add to the window to avoid extending that
+            getWindow().getInsetsController()
+                    .hide(WindowInsets.Type.statusBars() | WindowInsets.Type.navigationBars());
+        }
+
+        @Override
+        protected void onResume() {
+            super.onResume();
+
+            Bundle extras = getIntent().getExtras();
+            int direction = extras.getInt(DIRECTION_KEY);
+            int enterAnim = 0;
+            switch (direction) {
+                case LEFT:
+                    enterAnim = R.anim.edge_extension_left;
+                    break;
+                case TOP:
+                    enterAnim = R.anim.edge_extension_top;
+                    break;
+                case RIGHT:
+                    enterAnim = R.anim.edge_extension_right;
+                    break;
+                case BOTTOM:
+                    enterAnim = R.anim.edge_extension_bottom;
+                    break;
+            }
+            overridePendingTransition(enterAnim, R.anim.alpha_0);
+        }
+    }
 }

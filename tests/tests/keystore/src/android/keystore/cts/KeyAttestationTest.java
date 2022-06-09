@@ -815,6 +815,10 @@ public class KeyAttestationTest {
         if (Build.VERSION.DEVICE_INITIAL_SDK_INT <= Build.VERSION_CODES.S) {
             return;
         }
+        // ID attestation is not implemented on the goldfish emulator.
+        if (Build.BOARD.startsWith("goldfish")) {
+            return;
+        }
         // ID attestation is tested by other tests (outside of this class), including negative
         // tests that ID attestation is failing if the platform does not declare support.
         // Hence, it's safe to only test here that the feature is supported.
@@ -1128,10 +1132,11 @@ public class KeyAttestationTest {
                         creationDateTime.getTime() + ") should be close",
                         Math.abs(creationDateTime.getTime() - startTime.getTime()) <= 2000);
 
+                // Allow 1 second leeway in case of nearest-second rounding.
                 Date now = new Date();
                 assertTrue("Key creation time (" + creationDateTime.getTime() + ") must be now (" +
                         now.getTime() + ") or earlier.",
-                        now.getTime() >= creationDateTime.getTime());
+                        now.getTime() >= (creationDateTime.getTime() - 1000));
             }
         }
 

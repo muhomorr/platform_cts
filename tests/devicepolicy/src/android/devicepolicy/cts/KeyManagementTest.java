@@ -16,6 +16,8 @@
 
 package android.devicepolicy.cts;
 
+import static android.security.KeyChain.ACTION_KEYCHAIN_CHANGED;
+
 import static com.google.common.truth.Truth.assertThat;
 
 import static org.junit.Assert.assertThrows;
@@ -38,6 +40,9 @@ import com.android.bedstead.harrier.annotations.enterprise.PolicyAppliesTest;
 import com.android.bedstead.harrier.policies.KeyManagement;
 import com.android.bedstead.harrier.policies.KeySelection;
 import com.android.bedstead.nene.TestApis;
+import com.android.bedstead.nene.packages.ProcessReference;
+import com.android.bedstead.nene.utils.Poll;
+import com.android.compatibility.common.util.BlockingBroadcastReceiver;
 import com.android.compatibility.common.util.BlockingCallback;
 import com.android.compatibility.common.util.FakeKeys;
 
@@ -328,9 +333,15 @@ public final class KeyManagementTest {
     public void getPrivateKey_aliasIsGranted_returnPrivateKey() throws Exception {
         try {
             // Install keypair
-            sDeviceState.dpc().devicePolicyManager()
-                    .installKeyPair(sDeviceState.dpc().componentName(),
-                            PRIVATE_KEY, CERTIFICATE, RSA_ALIAS);
+
+            try (BlockingBroadcastReceiver broadcastReceiver =
+                         sDeviceState.registerBroadcastReceiver(ACTION_KEYCHAIN_CHANGED)
+                                 .register()) {
+                sDeviceState.dpc().devicePolicyManager()
+                        .installKeyPair(sDeviceState.dpc().componentName(),
+                                PRIVATE_KEY, CERTIFICATE, RSA_ALIAS);
+            }
+
             // Grant alias via {@code KeyChain.choosePrivateKeyAlias}
             KeyChainAliasCallback callback = new KeyChainAliasCallback();
             choosePrivateKeyAlias(callback, RSA_ALIAS);
@@ -417,9 +428,14 @@ public final class KeyManagementTest {
             sDeviceState.dpcOnly().devicePolicyManager().installKeyPair(
                     sDeviceState.dpcOnly().componentName(), PRIVATE_KEY, CERTIFICATES,
                     RSA_ALIAS, /* requestAccess= */ true);
+            ProcessReference dpcProcess =
+                    Poll.forValue("DPC Uid", () -> sDeviceState.dpcOnly().process())
+                            .toNotBeNull()
+                            .errorOnFail()
+                            .await();
 
             assertThat(sDeviceState.dpc().devicePolicyManager().getKeyPairGrants(RSA_ALIAS))
-                    .isEqualTo(Map.of(sDeviceState.dpcOnly().process().uid(),
+                    .isEqualTo(Map.of(dpcProcess.uid(),
                             singleton(sDeviceState.dpcOnly().packageName())));
         } finally {
             // Remove keypair

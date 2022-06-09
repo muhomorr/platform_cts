@@ -21,9 +21,8 @@ android_test_helper_app {
     manifest: "ScopedStorageTestHelper/TestAppA.xml",
     static_libs: ["cts-scopedstorage-lib"],
     sdk_version: "test_current",
-    //TODO(b/227617884): Change target_sdk_version to 33 after T SDK finalization is complete
-    target_sdk_version: "10000",
-    min_sdk_version: "30",
+    target_sdk_version: "33",
+    min_sdk_version: "29",
     srcs: ["ScopedStorageTestHelper/src/**/*.java"],
     // Tag as a CTS artifact
     test_suites: [
@@ -39,7 +38,7 @@ android_test_helper_app {
     static_libs: ["cts-scopedstorage-lib"],
     sdk_version: "test_current",
     target_sdk_version: "31",
-    min_sdk_version: "30",
+    min_sdk_version: "29",
     srcs: ["ScopedStorageTestHelper/src/**/*.java"],
     // Tag as a CTS artifact
     test_suites: [
@@ -54,9 +53,8 @@ android_test_helper_app {
     manifest: "ScopedStorageTestHelper/TestAppB.xml",
     static_libs: ["cts-scopedstorage-lib"],
     sdk_version: "test_current",
-    //TODO(b/227617884): Change target_sdk_version to 33 after T SDK finalization is complete
-    target_sdk_version: "10000",
-    min_sdk_version: "30",
+    target_sdk_version: "33",
+    min_sdk_version: "29",
     srcs: ["ScopedStorageTestHelper/src/**/*.java"],
     // Tag as a CTS artifact
     test_suites: [
@@ -71,9 +69,8 @@ android_test_helper_app {
     manifest: "ScopedStorageTestHelper/TestAppC.xml",
     static_libs: ["cts-scopedstorage-lib"],
     sdk_version: "test_current",
-    //TODO(b/227617884): Change target_sdk_version to 33 after T SDK finalization is complete
-    target_sdk_version: "10000",
-    min_sdk_version: "30",
+    target_sdk_version: "33",
+    min_sdk_version: "29",
     srcs: ["ScopedStorageTestHelper/src/**/*.java"],
     // Tag as a CTS artifact
     test_suites: [
@@ -89,7 +86,7 @@ android_test_helper_app {
     static_libs: ["cts-scopedstorage-lib"],
     sdk_version: "test_current",
     target_sdk_version: "30",
-    min_sdk_version: "30",
+    min_sdk_version: "29",
     srcs: ["ScopedStorageTestHelper/src/**/*.java"],
     // Tag as a CTS artifact
     test_suites: [
@@ -136,9 +133,8 @@ android_test_helper_app {
     manifest: "ScopedStorageTestHelper/TestAppFileManager.xml",
     static_libs: ["cts-scopedstorage-lib"],
     sdk_version: "test_current",
-    //TODO(b/227617884): Change target_sdk_version to 33 after T SDK finalization is complete
-    target_sdk_version: "10000",
-    min_sdk_version: "30",
+    target_sdk_version: "33",
+    min_sdk_version: "29",
     srcs: ["ScopedStorageTestHelper/src/**/*.java"],
     // Tag as a CTS artifact
     test_suites: [
@@ -153,9 +149,8 @@ android_test_helper_app {
     manifest: "ScopedStorageTestHelper/TestAppFileManagerBypassDB.xml",
     static_libs: ["cts-scopedstorage-lib"],
     sdk_version: "test_current",
-    //TODO(b/227617884): Change target_sdk_version to 33 after T SDK finalization is complete
-    target_sdk_version: "10000",
-    min_sdk_version: "30",
+    target_sdk_version: "33",
+    min_sdk_version: "29",
     srcs: ["ScopedStorageTestHelper/src/**/*.java"],
     // Tag as a CTS artifact
     test_suites: [
@@ -170,9 +165,8 @@ android_test_helper_app {
     manifest: "ScopedStorageTestHelper/TestAppSystemGalleryBypassDB.xml",
     static_libs: ["cts-scopedstorage-lib"],
     sdk_version: "test_current",
-    //TODO(b/227617884): Change target_sdk_version to 33 after T SDK finalization is complete
-    target_sdk_version: "10000",
-    min_sdk_version: "30",
+    target_sdk_version: "33",
+    min_sdk_version: "29",
     srcs: ["ScopedStorageTestHelper/src/**/*.java"],
     // Tag as a CTS artifact
     test_suites: [
@@ -188,7 +182,7 @@ android_test_helper_app {
     static_libs: ["cts-scopedstorage-lib"],
     sdk_version: "test_current",
     target_sdk_version: "30",
-    min_sdk_version: "30",
+    min_sdk_version: "29",
     srcs: ["ScopedStorageTestHelper/src/**/*.java"],
     // Tag as a CTS artifact
     test_suites: [
@@ -232,9 +226,8 @@ android_test {
         "cts",
     ],
     sdk_version: "test_current",
-    //TODO(b/227617884): Change target_sdk_version to 33 after T SDK finalization is complete
-    target_sdk_version: "10000",
-    min_sdk_version: "30",
+    target_sdk_version: "33",
+    min_sdk_version: "29",
     java_resources: [
         ":CtsScopedStorageTestAppA",
         ":CtsScopedStorageTestAppA31",
@@ -260,7 +253,7 @@ android_test {
     ],
     sdk_version: "test_current",
     target_sdk_version: "29",
-    min_sdk_version: "30",
+    min_sdk_version: "29",
     java_resources: [
         ":CtsScopedStorageTestAppA",
     ],
@@ -283,6 +276,15 @@ java_test_host {
         "cts",
     ],
     test_config: "CoreTest.xml",
+    data: [
+        ":CtsScopedStorageTestAppA31",
+        ":CtsScopedStorageTestAppA",
+        ":CtsScopedStorageTestAppB",
+        ":CtsScopedStorageTestAppDLegacy",
+        ":ScopedStorageTest",
+        ":LegacyStorageTest",
+    ],
+    per_testcase_directory: true,
 }
 
 java_test_host {
@@ -303,7 +305,13 @@ java_test_host {
         "cts",
     ],
     test_config: "AndroidTest.xml",
+    per_testcase_directory: true,
     data: [
+        ":CtsScopedStorageTestAppA",
+        ":CtsScopedStorageTestAppB",
+        ":CtsScopedStorageTestAppDLegacy",
+        ":ScopedStorageTest",
+        ":LegacyStorageTest",
         ":CtsLegacyStorageTestAppRequestLegacy",
         ":CtsLegacyStorageTestAppPreserveLegacy",
     ],
@@ -363,6 +371,7 @@ android_test {
         "truth-prebuilt",
         "cts-scopedstorage-lib",
         "androidx.test.uiautomator_uiautomator",
+        "modules-utils-build_system",
     ],
     compile_multilib: "both",
     test_suites: [
@@ -371,9 +380,8 @@ android_test {
         "cts",
     ],
     sdk_version: "test_current",
-    //TODO(b/227617884): Change target_sdk_version to 33 after T SDK finalization is complete
-    target_sdk_version: "10000",
-    min_sdk_version: "30",
+    target_sdk_version: "33",
+    min_sdk_version: "29",
     libs: [
         "android.test.base",
         "android.test.mock",
@@ -391,4 +399,11 @@ android_test {
         ":CtsScopedStorageTestAppSystemGalleryBypassDB",
         ":CtsScopedStorageTestAppSystemGallery30BypassDB",
     ],
+    data: [
+        ":CtsScopedStorageTestAppFileManager",
+        ":CtsScopedStorageTestAppA",
+        ":CtsScopedStorageTestAppB",
+        ":CtsScopedStorageTestAppDLegacy",
+    ],
+    per_testcase_directory: true,
 }

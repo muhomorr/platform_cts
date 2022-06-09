@@ -39,6 +39,7 @@ import android.app.assist.AssistStructure;
 import android.app.assist.AssistStructure.ViewNode;
 import android.app.assist.AssistStructure.WindowNode;
 import android.autofillservice.cts.R;
+import android.autofillservice.cts.activities.LoginActivity;
 import android.content.AutofillOptions;
 import android.content.ComponentName;
 import android.content.ContentResolver;
@@ -77,6 +78,8 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.autofill.inline.v1.InlineSuggestionUi;
 import androidx.test.platform.app.InstrumentationRegistry;
+import androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry;
+import androidx.test.runner.lifecycle.Stage;
 
 import com.android.compatibility.common.util.BitmapUtils;
 import com.android.compatibility.common.util.DeviceConfigStateManager;
@@ -88,6 +91,8 @@ import com.android.compatibility.common.util.Timeout;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -1696,15 +1701,34 @@ public final class Helper {
     /**
      * Asserts whether mock IME is showing
      */
-    public static void assertMockImeStatus(WindowInsets rootWindowInsets,
+    public static void assertMockImeStatus(LoginActivity activity,
             boolean expectedImeShow) throws Exception {
         Timeouts.MOCK_IME_TIMEOUT.run("assertMockImeStatus(" + expectedImeShow + ")",
                 () -> {
-                    final boolean actual = isImeShowing(rootWindowInsets);
+                    final boolean actual = isImeShowing(activity.getRootWindowInsets());
                     Log.v(TAG, "assertMockImeStatus(): expected=" + expectedImeShow + ", actual="
                             + actual);
                     return actual == expectedImeShow ? "expected" : null;
                 });
+    }
+
+    /**
+     * Make sure the activity that the name is clazz resumed.
+     */
+    public static void assertActivityShownInBackground(Class<?> clazz) throws Exception {
+        Timeouts.UI_TIMEOUT.run("activity is not resumed: " + clazz, () -> {
+            ArrayList<Boolean> result = new ArrayList<>();
+            InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
+                final Collection<Activity> stage = ActivityLifecycleMonitorRegistry.getInstance()
+                        .getActivitiesInStage(Stage.RESUMED);
+                for (Activity act : stage) {
+                    if (act.getClass().equals(clazz)) {
+                        result.add(Boolean.TRUE);
+                    }
+                }
+            });
+            return result.isEmpty() ? null : Boolean.TRUE;
+        });
     }
 
     private Helper() {

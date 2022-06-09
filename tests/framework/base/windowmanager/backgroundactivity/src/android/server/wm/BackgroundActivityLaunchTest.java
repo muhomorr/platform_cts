@@ -1,4 +1,4 @@
-/*d
+/*
  * Copyright (C) 2019 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -73,7 +73,6 @@ import android.os.SystemProperties;
 import android.os.UserManager;
 import android.platform.test.annotations.Presubmit;
 import android.platform.test.annotations.SystemUserOnly;
-import android.server.wm.backgroundactivity.appa.Components;
 import android.server.wm.backgroundactivity.appa.IBackgroundActivityTestService;
 import android.server.wm.backgroundactivity.common.CommonComponents.Event;
 import android.server.wm.backgroundactivity.common.EventReceiver;
@@ -170,8 +169,13 @@ public class BackgroundActivityLaunchTest extends ActivityManagerTestBase {
         // We do this before anything else, because having an active device owner can prevent us
         // from being able to force stop apps. (b/142061276)
         runWithShellPermissionIdentity(() -> {
-            runShellCommand("dpm remove-active-admin --user current "
+            runShellCommand("dpm remove-active-admin --user 0 "
                     + APP_A_SIMPLE_ADMIN_RECEIVER.flattenToString());
+            if (UserManager.isHeadlessSystemUserMode()) {
+                // Must also remove the PO from current user
+                runShellCommand("dpm remove-active-admin --user cur "
+                        + APP_A_SIMPLE_ADMIN_RECEIVER.flattenToString());
+            }
         });
 
         stopTestPackage(TEST_PACKAGE_APP_A);
@@ -712,9 +716,11 @@ public class BackgroundActivityLaunchTest extends ActivityManagerTestBase {
     }
 
     private void clickAllowBindWidget(ResultReceiver resultReceiver) throws Exception {
-        // Test on non-auto devices only as auto doesn't support appwidget bind.
-        Assume.assumeFalse(mContext.getPackageManager().hasSystemFeature(
-                PackageManager.FEATURE_AUTOMOTIVE));
+        PackageManager pm = mContext.getPackageManager();
+        // Skip on auto and TV devices only as they don't support appwidget bind.
+        Assume.assumeFalse(pm.hasSystemFeature(PackageManager.FEATURE_AUTOMOTIVE));
+        Assume.assumeFalse(pm.hasSystemFeature(PackageManager.FEATURE_LEANBACK_ONLY));
+
         // Create appWidgetId so we can send it to appA, to request bind widget and start config
         // activity.
         UiDevice device = UiDevice.getInstance(mInstrumentation);
@@ -734,7 +740,6 @@ public class BackgroundActivityLaunchTest extends ActivityManagerTestBase {
 
         // Find settings package and bind widget activity and click the create button.
         String settingsPkgName = "";
-        PackageManager pm = mContext.getPackageManager();
         List<ResolveInfo> ris = pm.queryIntentActivities(appWidgetIntent,
                 PackageManager.MATCH_DEFAULT_ONLY);
         for (ResolveInfo ri : ris) {
