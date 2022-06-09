@@ -105,7 +105,9 @@
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
 
     <!-- Needed for Wi-Fi Direct tests from T -->
-    <uses-permission android:name="android.permission.NEARBY_WIFI_DEVICES" />
+    <uses-permission
+        android:name="android.permission.NEARBY_WIFI_DEVICES"
+        android:usesPermissionFlags="neverForLocation" />
 
     <!-- READ_LOGS User Consent Test from T -->
     <uses-permission android:name="android.permission.READ_LOGS" />
@@ -1900,6 +1902,9 @@
                     android:value="android.software.device_admin:android.software.secure_lock_screen" />
             <meta-data android:name="display_mode"
                        android:value="multi_display_mode" />
+            <meta-data android:name="ApiTest"
+                android:value="android.app.KeyguardManager#isDeviceLocked|
+                 android.hardware.biometrics.BiometricManager#canAuthenticate" />
         </activity>
 
         <activity android:name=".security.LockConfirmBypassTest"
@@ -1917,6 +1922,8 @@
                        android:value="android.software.device_admin:android.software.secure_lock_screen" />
             <meta-data android:name="display_mode"
                        android:value="single_display_mode" />
+            <meta-data android:name="ApiTest"
+                android:value="android.app.admin.DevicePolicyManager#ACTION_SET_NEW_PASSWORD" />
         </activity>
 
         <activity android:name=".security.SetNewPasswordComplexityTest"
@@ -1955,6 +1962,10 @@
             <meta-data android:name="test_excluded_features" android:value="android.hardware.type.automotive:android.hardware.type.television:android.hardware.type.watch:android.hardware.security.model.compatible" />
             <meta-data android:name="display_mode"
                        android:value="single_display_mode" />
+            <meta-data android:name="ApiTest" android:value=
+                "android.content.pm.PackageManager#FEATURE_SECURITY_MODEL_COMPATIBLE" />
+            <meta-data android:name="CddTest" android:value="2.2.5/9.1/H-0-1" />
+
         </activity>
 
         <activity android:name=".streamquality.StreamingVideoActivity"
@@ -3374,6 +3385,10 @@
                        android:value="com.android.settings.TRUSTED_CREDENTIALS_USER" />
             <meta-data android:name="display_mode"
                        android:value="single_display_mode" />
+            <meta-data
+                android:name="ApiTest"
+                android:value="android.provider.Settings#ACTION_SECURITY_SETTINGS|
+                    android.provider.Settings#ACTION_TRUSTED_CREDENTIALS_USER" />
         </activity>
         <activity android:name=".security.CANotifyOnBootActivity"
                 android:exported="true"
@@ -3390,6 +3405,10 @@
                        android:value="com.android.settings.TRUSTED_CREDENTIALS_USER" />
             <meta-data android:name="display_mode"
                        android:value="single_display_mode" />
+            <meta-data
+                android:name="ApiTest"
+                android:value="android.provider.Settings#ACTION_SECURITY_SETTINGS|
+                    android.provider.Settings#ACTION_TRUSTED_CREDENTIALS_USER" />
         </activity>
 
         <activity android:name=".security.KeyChainTest"
@@ -3406,6 +3425,12 @@
                     android:value="android.hardware.type.watch:android.hardware.type.television:android.software.leanback:android.hardware.type.automotive" />
             <meta-data android:name="display_mode"
                        android:value="single_display_mode" />
+            <meta-data
+                android:name="ApiTest"
+                android:value="android.security.KeyChain#createInstallIntent|
+                    android.security.KeyChain#choosePrivateKeyAlias|
+                    android.security.KeyChain#getCertificateChain|
+                    android.security.KeyChain#getPrivateKey" />
         </activity>
 
         <activity android:name=".security.CaCertInstallViaIntentTest"
@@ -3421,6 +3446,9 @@
                        android:value="android.hardware.type.watch:android.hardware.type.television:android.software.leanback" />
             <meta-data android:name="display_mode"
                        android:value="single_display_mode" />
+            <meta-data
+                android:name="ApiTest"
+                android:value="android.security.KeyChain#createInstallIntent" />
         </activity>
 
         <activity android:name=".security.CredentialManagementAppActivity"
@@ -3435,6 +3463,15 @@
                        android:value="android.hardware.type.watch:android.hardware.type.television:android.software.leanback:android.hardware.type.automotive" />
             <meta-data android:name="display_mode"
                        android:value="single_display_mode" />
+            <meta-data
+                android:name="ApiTest"
+                android:value="android.security.KeyChain#createManageCredentialsIntent|
+                    android.security.KeyChain#isCredentialManagementApp|
+                    android.security.KeyChain#getCredentialManagementAppPolicy|
+                    android.security.KeyChain#removeCredentialManagementApp|
+                    android.security.KeyChain#choosePrivateKeyAlias|
+                    android.app.admin.DevicePolicyManager#generateKeyPair|
+                    android.app.admin.DevicePolicyManager#setKeyPairCertificate" />
         </activity>
 
         <activity android:name=".wifi.NetworkRequestSpecificNetworkSpecifierTestActivity"
@@ -4090,10 +4127,10 @@
                  test parent : PresenceTestActivity
         -->
         <activity
-            android:name=".presence.NanPrecisionAndBiasTestActivity"
+            android:name=".presence.NanPrecisionTestActivity"
             android:configChanges="keyboardHidden|orientation|screenSize"
             android:exported="true"
-            android:label="@string/nan_precision_and_bias" >
+            android:label="@string/nan_precision" >
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
@@ -4109,7 +4146,7 @@
             <meta-data android:name="display_mode"
                        android:value="single_display_mode" />
             <meta-data android:name="CddTest"
-                       android:value="7.4.2.5/H-1-1,7.4.2.5/H-1-2" />
+                       android:value="7.4.2.5/H-1-1|7.4.2.5/H-1-2" />
         </activity>
 
         <activity-alias
@@ -5137,6 +5174,8 @@
                        android:value="config_hdmi_source"/>
             <meta-data android:name="display_mode"
                        android:value="multi_display_mode" />
+            <meta-data android:name="ApiTest"
+                       android:value="android.hardware.display.DisplayManager.DisplayListener#onDisplayChanged" />
         </activity>
 
         <activity android:name=".tv.display.ModeSwitchingTestActivity"
@@ -5152,6 +5191,8 @@
                        android:value="android.software.leanback"/>
             <meta-data android:name="display_mode"
                        android:value="multi_display_mode" />
+            <meta-data android:name="ApiTest"
+                       android:value="android.view.WindowManager.LayoutParams#preferredDisplayModeId" />
         </activity>
 
         <activity android:name=".screenpinning.ScreenPinningTestActivity"
