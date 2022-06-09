@@ -22,6 +22,7 @@ import static org.junit.Assert.assertTrue;
 import android.app.ActivityManager;
 import android.content.Context;
 import android.os.Bundle;
+import android.os.SystemClock;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
@@ -36,6 +37,8 @@ import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 
 /**
@@ -59,11 +62,14 @@ public class ReadLogsTestActivity extends PassFailButtons.Activity {
 
     private static final int NUM_OF_LINES_FG = 10;
     private static final int NUM_OF_LINES_BG = 0;
+    private static final int LOG_ACCESS_INTERVAL = 1000 * 60 * 2;
+    private volatile long mLastLogAccess = 0;
 
     private static Context sContext;
     private static ActivityManager sActivityManager;
 
     private static String sAppPackageName;
+    private static ExecutorService sExecutorService;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -71,6 +77,7 @@ public class ReadLogsTestActivity extends PassFailButtons.Activity {
 
         sContext = this;
         sActivityManager = sContext.getSystemService(ActivityManager.class);
+        sExecutorService = Executors.newSingleThreadExecutor();
 
         // Setup the UI.
         setContentView(R.layout.logcat_read_logs);
@@ -105,111 +112,147 @@ public class ReadLogsTestActivity extends PassFailButtons.Activity {
      * Responsible for running the logcat in foreground and testing the allow button
      */
     public void runLogcatInForegroundAllowOnlyOnce() {
-        Log.d(TAG, "Inside runLogcatInForeground()");
-        BufferedReader reader = null;
-        try {
-            // Dump the logcat most recent 10 lines before the compile command,
-            // and check if there are logs about compiling the test package.
-            java.lang.Process logcat = new ProcessBuilder(
-                    Arrays.asList("logcat", "-b", "system", "-t",
-                        Integer.toString(NUM_OF_LINES_FG))).start();
-            reader = new BufferedReader(new InputStreamReader(logcat.getInputStream()));
-            logcat.waitFor();
+        Log.d(TAG, "Inside runLogcatInForegroundAllowOnlyOnce()");
 
-            List<String> logcatOutput = new ArrayList<>();
-            String current;
-            Integer lineCount = 0;
-            while ((current = reader.readLine()) != null) {
-                logcatOutput.add(current);
-                lineCount++;
-            }
-
-            Log.d(TAG, "Logcat system allow line count: " + lineCount);
-            Log.d(TAG, "Logcat system allow output: " + logcatOutput);
-
-            try {
-
-                assertTrue("System log output is null", logcatOutput.size() != 0);
-
-                // Check if the logcatOutput is not null. If logcatOutput is null,
-                // it throws an assertion error
-                assertNotNull(logcatOutput.get(0), "logcat output should not be null");
-
-                boolean allowLog = logcatOutput.get(0).contains(SYSTEM_LOG_START);
-                assertTrue("Allow system log access containe log", allowLog);
-
-                boolean allowLineCount = lineCount > NUM_OF_LINES_FG;
-                assertTrue("Allow system log access count", allowLineCount);
-
-                Log.d(TAG, "Logcat system allow log contains: " + allowLog + " lineCount: "
-                        + lineCount + " larger than: " + allowLineCount);
-
-            } catch (AssertionError e) {
-                fail("User Consent Allow Testing failed");
-            }
-
-        } catch (Exception e) {
-            Log.e(TAG, "User Consent Testing failed");
-        } finally {
-            try {
-                if (reader != null) {
-                    reader.close();
-                }
-            } catch (IOException e) {
-                Log.d(TAG, "Could not close reader: " + e.getMessage());
-            }
+        if (mLastLogAccess > (SystemClock.elapsedRealtime() - LOG_ACCESS_INTERVAL)) {
+            String reason = "Please wait for "
+                    + ((mLastLogAccess + LOG_ACCESS_INTERVAL - SystemClock.elapsedRealtime())
+                    / 1000) + " seconds before running the test.";
+            Toast.makeText(this, reason, Toast.LENGTH_LONG).show();
+            return;
         }
+
+        sExecutorService.execute(new Runnable() {
+
+            public void run() {
+                BufferedReader reader = null;
+                try {
+
+                    // Dump the logcat most recent 10 lines before the compile command,
+                    // and check if there are logs about compiling the test package.
+                    java.lang.Process logcat = new ProcessBuilder(
+                            Arrays.asList("logcat", "-b", "system", "-t",
+                                    Integer.toString(NUM_OF_LINES_FG))).start();
+                    reader = new BufferedReader(new InputStreamReader(logcat.getInputStream()));
+                    logcat.waitFor();
+
+                    List<String> logcatOutput = new ArrayList<>();
+                    String current;
+                    Integer lineCount = 0;
+                    while ((current = reader.readLine()) != null) {
+                        logcatOutput.add(current);
+                        lineCount++;
+                    }
+
+                    Log.d(TAG, "Logcat system allow line count: " + lineCount);
+                    Log.d(TAG, "Logcat system allow output: " + logcatOutput);
+
+                    try {
+
+                        assertTrue("System log output is null", logcatOutput.size() != 0);
+
+                        // Check if the logcatOutput is not null. If logcatOutput is null,
+                        // it throws an assertion error
+                        assertNotNull(logcatOutput.get(0), "logcat output should not be null");
+
+                        boolean allowLog = logcatOutput.get(0).contains(SYSTEM_LOG_START);
+                        assertTrue("Allow system log access containe log", allowLog);
+
+                        boolean allowLineCount = lineCount > NUM_OF_LINES_FG;
+                        assertTrue("Allow system log access count", allowLineCount);
+
+                        Log.d(TAG, "Logcat system allow log contains: " + allowLog + " lineCount: "
+                                + lineCount + " larger than: " + allowLineCount);
+
+                        mLastLogAccess = SystemClock.elapsedRealtime();
+
+                    } catch (AssertionError e) {
+                        fail("User Consent Allow Testing failed");
+                    }
+
+                } catch (Exception e) {
+                    Log.e(TAG, "User Consent Testing failed");
+                } finally {
+                    try {
+                        if (reader != null) {
+                            reader.close();
+                        }
+                    } catch (IOException e) {
+                        Log.d(TAG, "Could not close reader: " + e.getMessage());
+                    }
+                }
+            }
+        });
     }
 
     private void fail(CharSequence reason) {
-        Toast.makeText(this, reason, Toast.LENGTH_LONG).show();
-        Log.e(TAG, reason.toString());
-        setTestResultAndFinish(false);
+        runOnUiThread(() -> {
+            Toast.makeText(this, reason, Toast.LENGTH_LONG).show();
+            Log.e(TAG, reason.toString());
+            setTestResultAndFinish(false);
+        });
     }
 
     /**
      * Responsible for running the logcat in foreground and testing the deny button
      */
     public void runLogcatInForegroundDontAllow() {
-        Log.d(TAG, "Inside runLogcatInForeground()");
-        BufferedReader reader = null;
-        try {
-            java.lang.Process logcat = new ProcessBuilder(
-                    Arrays.asList("logcat", "-b", "system", "-t",
-                        Integer.toString(NUM_OF_LINES_FG))).start();
-            logcat.waitFor();
+        Log.d(TAG, "Inside runLogcatInForegroundDontAllow()");
 
-            // Merge several logcat streams, and take the last N lines
-            reader = new BufferedReader(new InputStreamReader(logcat.getInputStream()));
-            assertNotNull(reader);
-
-            List<String> logcatOutput = new ArrayList<>();
-            String current;
-            int lineCount = 0;
-            while ((current = reader.readLine()) != null) {
-                logcatOutput.add(current);
-                lineCount++;
-            }
-
-            Log.d(TAG, "Logcat system deny line count:" + lineCount);
-
-            try {
-                assertTrue("Deny System log access", lineCount == NUM_OF_LINES_BG);
-            }  catch (AssertionError e) {
-                fail("User Consent Deny Testing failed");
-            }
-
-        } catch (Exception e) {
-            Log.e(TAG, "User Consent Testing failed");
-        } finally {
-            try {
-                if (reader != null) {
-                    reader.close();
-                }
-            } catch (IOException e) {
-                Log.d(TAG, "Could not close reader: " + e.getMessage());
-            }
+        if (mLastLogAccess > (SystemClock.elapsedRealtime() - LOG_ACCESS_INTERVAL)) {
+            String reason = "Please wait for "
+                    + ((mLastLogAccess + LOG_ACCESS_INTERVAL - SystemClock.elapsedRealtime())
+                    / 1000) + " seconds before running the test.";
+            Toast.makeText(this, reason, Toast.LENGTH_LONG).show();
+            return;
         }
+
+        sExecutorService.execute(new Runnable() {
+
+            public void run() {
+                BufferedReader reader = null;
+                try {
+                    java.lang.Process logcat = new ProcessBuilder(
+                            Arrays.asList("logcat", "-b", "system", "-t",
+                                    Integer.toString(NUM_OF_LINES_FG))).start();
+                    logcat.waitFor();
+
+                    // Merge several logcat streams, and take the last N lines
+                    reader = new BufferedReader(new InputStreamReader(logcat.getInputStream()));
+                    assertNotNull(reader);
+
+                    List<String> logcatOutput = new ArrayList<>();
+                    String current;
+                    int lineCount = 0;
+                    while ((current = reader.readLine()) != null) {
+                        logcatOutput.add(current);
+                        lineCount++;
+                    }
+
+                    Log.d(TAG, "Logcat system deny line count:" + lineCount);
+
+                    mLastLogAccess = SystemClock.elapsedRealtime();
+
+                    try {
+                        assertTrue("Deny System log access", lineCount == NUM_OF_LINES_BG);
+                    } catch (AssertionError e) {
+                        fail("User Consent Deny Testing failed");
+                    }
+
+                } catch (Exception e) {
+                    Log.e(TAG, "User Consent Testing failed");
+                } finally {
+                    try {
+                        if (reader != null) {
+                            reader.close();
+                        }
+                    } catch (IOException e) {
+                        Log.d(TAG, "Could not close reader: " + e.getMessage());
+                    }
+                }
+            }
+        });
+
     }
 
 }

@@ -151,10 +151,6 @@ public class SpatializerTest extends CtsAndroidTestCase {
                 SecurityException.class,
                 () -> spat.addOnHeadTrackingModeChangedListener(Executors.newSingleThreadExecutor(),
                         listener));
-        assertThrows("Able to call removeOnHeadTrackingModeChangedListener without permission",
-                SecurityException.class,
-                () -> spat.removeOnHeadTrackingModeChangedListener(listener));
-
         getInstrumentation().getUiAutomation()
                 .adoptShellPermissionIdentity("android.permission.MODIFY_DEFAULT_AUDIO_EFFECTS");
 
@@ -175,16 +171,21 @@ public class SpatializerTest extends CtsAndroidTestCase {
         List<Integer> supportedModes = spat.getSupportedHeadTrackingModes();
         Assert.assertNotNull("Invalid null list of tracking modes", supportedModes);
         Log.i(TAG, "Reported supported head tracking modes:" + supportedModes);
-        if (!supportedModes.contains(Spatializer.HEAD_TRACKING_MODE_RELATIVE_DEVICE)
-                && !supportedModes.contains(Spatializer.HEAD_TRACKING_MODE_RELATIVE_WORLD)
-                && !supportedModes.contains(Spatializer.HEAD_TRACKING_MODE_OTHER)) {
+        if (!(supportedModes.contains(Spatializer.HEAD_TRACKING_MODE_RELATIVE_DEVICE)
+                || supportedModes.contains(Spatializer.HEAD_TRACKING_MODE_RELATIVE_WORLD)
+                || supportedModes.contains(Spatializer.HEAD_TRACKING_MODE_OTHER))) {
             // no head tracking is supported, verify it is correctly reported by the API
+            Log.i(TAG, "no headtracking modes supported");
             assertEquals("When no head tracking mode supported, list of modes must be empty",
                     0, supportedModes.size());
-            // TODO: to be enforced
-            //assertEquals("Invalid mode when no head tracking mode supported",
-            //        Spatializer.HEAD_TRACKING_MODE_UNSUPPORTED, spat.getHeadTrackingMode());
-            Log.i(TAG, "no headtracking modes supported, stop test");
+            assertEquals("Invalid mode when no head tracking mode supported",
+                    Spatializer.HEAD_TRACKING_MODE_UNSUPPORTED, spat.getHeadTrackingMode());
+            // verify you can't enable head tracking on a device
+            final AudioDeviceAttributes device = new AudioDeviceAttributes(
+                    AudioDeviceAttributes.ROLE_OUTPUT, AudioDeviceInfo.TYPE_BLUETOOTH_A2DP, "bli");
+            spat.addCompatibleAudioDevice(device);
+            spat.setHeadTrackerEnabled(true, device);
+            assertFalse(spat.isHeadTrackerEnabled(device));
             return;
         }
         int trackingModeToUse;
@@ -390,6 +391,10 @@ public class SpatializerTest extends CtsAndroidTestCase {
             Log.i(TAG, "skipping testVirtualizerEnabled, no Spatializer");
             return;
         }
+        if (!spat.isAvailable()) {
+            Log.i(TAG, "skipping testVirtualizerEnabled, Spatializer not available");
+            return;
+        }
         boolean spatEnabled = spat.isEnabled();
         final MySpatStateListener stateListener = new MySpatStateListener();
 
@@ -416,12 +421,15 @@ public class SpatializerTest extends CtsAndroidTestCase {
         final MyHeadTrackerAvailable htAvailableListener = new MyHeadTrackerAvailable();
 
         assertThrows("null Executor allowed in addOnHeadTrackerAvailableListener",
-                IllegalArgumentException.class,
+                NullPointerException.class,
                 () -> spat.addOnHeadTrackerAvailableListener(null, htAvailableListener));
         assertThrows("null listener allowed in addOnHeadTrackerAvailableListener",
-                IllegalArgumentException.class,
+                NullPointerException.class,
                 () -> spat.addOnHeadTrackerAvailableListener(Executors.newSingleThreadExecutor(),
                         null));
+        spat.addOnHeadTrackerAvailableListener(
+                Executors.newSingleThreadExecutor(), htAvailableListener);
+
         final boolean enabled = spat.isEnabled();
         // verify that with spatializer disabled, the head tracker is not available
         if (!enabled) {
@@ -450,7 +458,7 @@ public class SpatializerTest extends CtsAndroidTestCase {
                     stateListener.getEnabled());
         }
         assertThrows("null listener allowed in removeOnHeadTrackerAvailableListener",
-                IllegalArgumentException.class,
+                NullPointerException.class,
                 () -> spat.removeOnHeadTrackerAvailableListener(null));
         spat.removeOnHeadTrackerAvailableListener(htAvailableListener);
         assertThrows("able to remove listener twice in removeOnHeadTrackerAvailableListener",

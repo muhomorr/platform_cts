@@ -40,9 +40,6 @@ import com.android.cts.verifier.audio.wavelib.DspBufferMath;
 import com.android.cts.verifier.audio.wavelib.DspFftServer;
 import com.android.cts.verifier.audio.wavelib.DspWindow;
 import com.android.cts.verifier.audio.wavelib.PipeShort;
-import com.android.cts.verifier.audio.soundio.SoundPlayerObject;
-import com.android.cts.verifier.audio.wavelib.*;
-
 import com.android.cts.verifier.audio.wavelib.VectorAverage;
 
 /**

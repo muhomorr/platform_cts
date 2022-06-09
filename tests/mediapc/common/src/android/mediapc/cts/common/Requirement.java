@@ -26,6 +26,7 @@ import com.android.compatibility.common.util.ResultUnit;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -89,35 +90,18 @@ public abstract class Requirement {
     }
 
     @VisibleForTesting
-    protected boolean checkPerformanceClass(String testName, int reportPerfClass,
-            int expectedPerfClass) {
-        if (reportPerfClass < expectedPerfClass) {
-            Log.w(Requirement.TAG, "Test: " + testName + " reporting invalid performance class " +
-                reportPerfClass + " for requirement " + this.id + " performance class should at " +
-                "least be: " + expectedPerfClass);
-            for (RequiredMeasurement<?> rm: this.mRequiredMeasurements.values()) {
-                Map<Integer, RequirementConstants.Result> perfClasses = rm.getPerformanceClass();
-                int maxMetPerformanceClass = 0;
-                for (int pc: perfClasses.keySet()) {
-                    if (perfClasses.get(pc) == RequirementConstants.Result.MET) {
-                        maxMetPerformanceClass = Math.max(maxMetPerformanceClass, pc);
-                    }
-                }
-
-                if (maxMetPerformanceClass < expectedPerfClass) {
-                    Log.w(Requirement.TAG, rm.toString());
-                } else {
-                    Log.i(Requirement.TAG, rm.toString());
-                }
+    protected boolean checkPerformanceClass(int devicePerfClass) {
+        boolean noResultsUnment = true;
+        for (RequiredMeasurement<?> rm: this.mRequiredMeasurements.values()) {
+            RequirementConstants.Result res = rm.meetsPerformanceClass(devicePerfClass);
+            if (res == RequirementConstants.Result.UNMET) {
+                Log.w(Requirement.TAG, rm.toString());
+                noResultsUnment = false;
+            } else {
+                Log.i(Requirement.TAG, rm.toString());
             }
-            return false;
-        } else {
-            return true;
         }
-    }
-
-    private boolean checkPerformanceClass(String testName, int reportPerfClass) {
-        return this.checkPerformanceClass(testName, reportPerfClass, Utils.getPerfClass());
+        return noResultsUnment;
     }
 
     protected <T> void setMeasuredValue(String measurement, T measuredValue) {
@@ -130,6 +114,13 @@ public abstract class Requirement {
      * @return whether or not the requirement meets the device's specified performance class
      */
     public boolean writeLogAndCheck(String testName) {
+        if (this.id == RequirementConstants.RTBD) {
+            // skip upload on any requirement without a specified id
+            Log.i(this.TAG, testName + "has requirement without set requirement id and test " +
+                "results were not uploaded");
+            return this.checkPerformanceClass(Utils.getPerfClass());
+        }
+
         int perfClass = this.computePerformanceClass();
 
         DeviceReportLog log = new DeviceReportLog(RequirementConstants.REPORT_LOG_NAME, this.id);
@@ -142,6 +133,6 @@ public abstract class Requirement {
             ResultUnit.NONE);
         log.submit(InstrumentationRegistry.getInstrumentation());
 
-        return this.checkPerformanceClass(testName, perfClass);
+        return this.checkPerformanceClass(Utils.getPerfClass());
     }
 }

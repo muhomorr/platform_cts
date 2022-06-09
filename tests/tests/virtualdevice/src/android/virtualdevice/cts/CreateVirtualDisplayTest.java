@@ -28,12 +28,14 @@ import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
 
 import static org.junit.Assert.assertThrows;
+import static org.junit.Assume.assumeTrue;
 
 import android.annotation.Nullable;
 import android.companion.virtual.VirtualDeviceManager;
 import android.companion.virtual.VirtualDeviceManager.VirtualDevice;
 import android.companion.virtual.VirtualDeviceParams;
 import android.content.Context;
+import android.content.pm.PackageManager;
 import android.hardware.display.VirtualDisplay;
 import android.platform.test.annotations.AppModeFull;
 import android.view.Display;
@@ -51,6 +53,8 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+
+import java.util.ArrayList;
 
 @RunWith(AndroidJUnit4.class)
 @AppModeFull(reason = " cannot be accessed by instant apps")
@@ -81,6 +85,9 @@ public class CreateVirtualDisplayTest {
     public void setUp() throws Exception {
         MockitoAnnotations.initMocks(this);
         Context context = getApplicationContext();
+        assumeTrue(
+                context.getPackageManager()
+                        .hasSystemFeature(PackageManager.FEATURE_ACTIVITIES_ON_SECONDARY_DISPLAYS));
         mVirtualDeviceManager = context.getSystemService(VirtualDeviceManager.class);
     }
 
@@ -174,5 +181,30 @@ public class CreateVirtualDisplayTest {
                         /* flags= */ 0,
                         /* executor= */ null,
                         mVirtualDisplayCallback));
+    }
+
+    @Test
+    public void createVirtualDisplay_createAndRemoveSeveralDisplays() throws InterruptedException {
+        mVirtualDevice =
+                mVirtualDeviceManager.createVirtualDevice(
+                        mFakeAssociationRule.getAssociationInfo().getId(),
+                        DEFAULT_VIRTUAL_DEVICE_PARAMS);
+        ArrayList<VirtualDisplay> displays = new ArrayList<>();
+        for (int i = 0; i < 5; i++) {
+            displays.add(mVirtualDevice.createVirtualDisplay(
+                    /* width= */ 100,
+                    /* height= */ 100,
+                    /* densityDpi= */ 240,
+                    /* surface= */ null,
+                    /* flags= */ 0,
+                    Runnable::run,
+                    mVirtualDisplayCallback));
+        }
+
+        // Releasing several displays in quick succession should not cause deadlock
+        while (!displays.isEmpty()) {
+            int index = displays.size() - 1;
+            displays.remove(index).release();
+        }
     }
 }

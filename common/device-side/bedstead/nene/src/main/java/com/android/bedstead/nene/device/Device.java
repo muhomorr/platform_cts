@@ -16,6 +16,9 @@
 
 package com.android.bedstead.nene.device;
 
+import static com.android.bedstead.nene.permissions.CommonPermissions.DISABLE_KEYGUARD;
+
+import android.app.KeyguardManager;
 import android.os.RemoteException;
 import android.support.test.uiautomator.UiDevice;
 
@@ -23,8 +26,8 @@ import androidx.test.platform.app.InstrumentationRegistry;
 
 import com.android.bedstead.nene.TestApis;
 import com.android.bedstead.nene.annotations.Experimental;
-import com.android.bedstead.nene.exceptions.AdbException;
 import com.android.bedstead.nene.exceptions.NeneException;
+import com.android.bedstead.nene.permissions.PermissionContext;
 import com.android.bedstead.nene.utils.Poll;
 import com.android.bedstead.nene.utils.ShellCommand;
 
@@ -33,29 +36,59 @@ public final class Device {
     public static final Device sInstance = new Device();
     private static final UiDevice sDevice =
             UiDevice.getInstance(InstrumentationRegistry.getInstrumentation());
+    private static final KeyguardManager sKeyguardManager =
+            TestApis.context().instrumentedContext()
+            .getSystemService(KeyguardManager.class);
+    private static KeyguardManager.KeyguardLock sKeyguardLock;
 
     private Device() {
 
+    }
+
+    private KeyguardManager.KeyguardLock keyGuardLock() {
+        if (sKeyguardManager == null) {
+            if (TestApis.packages().instrumented().isInstantApp()) {
+                throw new NeneException("Cannot manage keyguard with instant app");
+            }
+
+            throw new NeneException("KeyguardManager cannot be found.");
+        }
+
+        if (sKeyguardLock == null) {
+            synchronized (Device.class) {
+                if (sKeyguardLock == null) {
+                    sKeyguardLock = sKeyguardManager.newKeyguardLock("Nene");
+                }
+            }
+        }
+
+        return sKeyguardLock;
     }
 
     /**
      * Turn the screen on.
      */
     public void wakeUp() {
-        try {
-            ShellCommand.builder("input keyevent")
-                    .addOperand("KEYCODE_WAKEUP")
-                    .allowEmptyOutput(true)
-                    .validate(String::isEmpty)
-                    .execute();
-        } catch (AdbException e) {
-            throw new NeneException("Error waking up device", e);
-        }
+        ShellCommand.builder("input keyevent")
+                .addOperand("KEYCODE_WAKEUP")
+                .allowEmptyOutput(true)
+                .validate(String::isEmpty)
+                .executeOrThrowNeneException("Error waking up device");
 
         Poll.forValue("isScreenOn", this::isScreenOn)
                 .toBeEqualTo(true)
                 .errorOnFail()
                 .await();
+    }
+
+    /**
+     * Dismiss the keyguard.
+     */
+    public void unlock() {
+        ShellCommand.builder("wm dismiss-keyguard")
+                .allowEmptyOutput(true)
+                .validate(String::isEmpty)
+                .executeOrThrowNeneException("Error dismissing keyguard");
     }
 
     /**
@@ -72,10 +105,18 @@ public final class Device {
                 .allowEmptyOutput(true)
                 .validate(String::isEmpty)
                 .executeOrThrowNeneException("Error setting stayOn");
-        ShellCommand.builder("wm dismiss-keyguard")
-                .allowEmptyOutput(true)
-                .validate(String::isEmpty)
-                .executeOrThrowNeneException("Error dismissing keyguard");
+        unlock();
+    }
+
+    @Experimental
+    public void setKeyguardEnabled(boolean keyguardEnabled) {
+        try (PermissionContext p = TestApis.permissions().withPermission(DISABLE_KEYGUARD)) {
+            if (keyguardEnabled) {
+                keyGuardLock().reenableKeyguard();
+            } else {
+                keyGuardLock().disableKeyguard();
+            }
+        }
     }
 
     /**

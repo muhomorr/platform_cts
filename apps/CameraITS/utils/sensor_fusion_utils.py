@@ -146,8 +146,9 @@ def canakit_cmd_send(canakit_serial_port, cmd_str):
     time.sleep(CANAKIT_CMD_TIME)  # This is critical for relay.
     canakit_serial_port.write(cmd_str.encode())
 
-  except IOError:
-    raise IOError(f'Port {CANAKIT_VID}:{CANAKIT_PID} is not open!')
+  except IOError as io_error:
+    raise IOError(
+        f'Port {CANAKIT_VID}:{CANAKIT_PID} is not open!') from io_error
 
 
 def canakit_set_relay_channel_state(canakit_port, ch, state):
@@ -599,7 +600,8 @@ def plot_camera_rotations(cam_rots, start_frame, video_quality,
   pylab.plot(frames, cam_rots*_RADS_TO_DEGS, '-ro', label='x')
   pylab.xlabel('frame #')
   pylab.ylabel('camera rotation (degrees)')
-  matplotlib.pyplot.savefig(f'{plot_name_stem}_{video_quality}_cam_rots.png')
+  matplotlib.pyplot.savefig(f'{plot_name_stem}_cam_rots.png')
+  pylab.close(video_quality)
 
 
 def plot_gyro_events(gyro_events, plot_name, log_path):
@@ -647,6 +649,7 @@ def plot_gyro_events(gyro_events, plot_name, log_path):
   pylab.legend()
   file_name = os.path.join(log_path, plot_name)
   matplotlib.pyplot.savefig(f'{file_name}_gyro_events.png')
+  pylab.close(plot_name)
 
 
 def conv_acceleration_to_movement(gyro_events, video_delay_time):

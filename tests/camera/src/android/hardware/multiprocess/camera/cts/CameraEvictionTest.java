@@ -193,7 +193,7 @@ public class CameraEvictionTest extends ActivityInstrumentationTestCase2<CameraC
             mUiAutomation.adoptShellPermissionIdentity();
         }
         CameraManager manager = mContext.getSystemService(CameraManager.class);
-        assertNotNull(manager);
+        assertNotNull("Unable to get CameraManager service!", manager);
         String[] cameraIds = manager.getCameraIdListNoLazy();
 
         if (cameraIds.length == 0) {
@@ -201,7 +201,7 @@ public class CameraEvictionTest extends ActivityInstrumentationTestCase2<CameraC
             return;
         }
 
-        assertTrue(mContext.getMainLooper() != null);
+        assertTrue("Context has no main looper!", mContext.getMainLooper() != null);
 
         // Setup camera manager
         String chosenCamera = cameraIds[0];
@@ -252,8 +252,9 @@ public class CameraEvictionTest extends ActivityInstrumentationTestCase2<CameraC
             eventList[eventIdx++] = e.getEvent();
         }
         String[] actualEvents = TestConstants.convertToStringArray(eventList);
-        String[] expectedEvents = new String[] {TestConstants.EVENT_CAMERA_UNAVAILABLE_STR,
-                TestConstants.EVENT_CAMERA_CONNECT_STR};
+        String[] expectedEvents = new String[] { TestConstants.EVENT_ACTIVITY_RESUMED_STR,
+                TestConstants.EVENT_CAMERA_UNAVAILABLE_STR,
+                TestConstants.EVENT_CAMERA_CONNECT_STR };
         String[] ignoredEvents = new String[] { TestConstants.EVENT_CAMERA_AVAILABLE_STR,
                 TestConstants.EVENT_CAMERA_UNAVAILABLE_STR };
         assertOrderedEvents(actualEvents, expectedEvents, ignoredEvents);
@@ -309,7 +310,7 @@ public class CameraEvictionTest extends ActivityInstrumentationTestCase2<CameraC
      */
     public void testCamera2OomScoreOffsetPermissions() throws Throwable {
         CameraManager manager = mContext.getSystemService(CameraManager.class);
-        assertNotNull(manager);
+        assertNotNull("Unable to get CameraManager service!", manager);
         String[] cameraIds = manager.getCameraIdListNoLazy();
 
         if (cameraIds.length == 0) {
@@ -317,7 +318,7 @@ public class CameraEvictionTest extends ActivityInstrumentationTestCase2<CameraC
             return;
         }
 
-        assertTrue(mContext.getMainLooper() != null);
+        assertTrue("Context has no main looper!", mContext.getMainLooper() != null);
         for (String cameraId : cameraIds) {
             // Setup camera manager
             Handler cameraHandler = new Handler(mContext.getMainLooper());
@@ -371,7 +372,7 @@ public class CameraEvictionTest extends ActivityInstrumentationTestCase2<CameraC
 
         final int permissionCallbackTimeoutMs = 3000;
         CameraManager manager = mContext.getSystemService(CameraManager.class);
-        assertNotNull(manager);
+        assertNotNull("Unable to get CameraManager service!", manager);
         String[] cameraIds = manager.getCameraIdListNoLazy();
 
         if (cameraIds.length == 0) {
@@ -379,13 +380,10 @@ public class CameraEvictionTest extends ActivityInstrumentationTestCase2<CameraC
             return;
         }
 
-        assertTrue(mContext.getMainLooper() != null);
+        assertTrue("Context has no main looper!", mContext.getMainLooper() != null);
 
         // Setup camera manager
         Handler cameraHandler = new Handler(mContext.getMainLooper());
-
-        WindowMetrics metrics = getActivity().getWindowManager().getCurrentWindowMetrics();
-        Rect initialBounds = metrics.getBounds();
 
         startRemoteProcess(Camera2Activity.class, "camera2ActivityProcess",
                 true /*splitScreen*/);
@@ -395,30 +393,42 @@ public class CameraEvictionTest extends ActivityInstrumentationTestCase2<CameraC
                 TestConstants.EVENT_CAMERA_CONNECT);
         assertNotNull("Camera device not setup in remote process!", allEvents);
 
+        WindowMetrics metrics = getActivity().getWindowManager().getCurrentWindowMetrics();
+        Rect firstBounds = metrics.getBounds();
+
+        Rect secondBounds = new Rect();
+        boolean activityResumed = false;
+        boolean cameraConnected = false;
+        for (ErrorLoggingService.LogEvent e : allEvents) {
+            int eventTag = e.getEvent();
+            if (eventTag == TestConstants.EVENT_ACTIVITY_RESUMED) {
+                String[] components = e.getLogText().split(":");
+                secondBounds.left = Integer.parseInt(components[0]);
+                secondBounds.top = Integer.parseInt(components[1]);
+                secondBounds.right = Integer.parseInt(components[2]);
+                secondBounds.bottom = Integer.parseInt(components[3]);
+                activityResumed = true;
+            } else if (eventTag == TestConstants.EVENT_CAMERA_CONNECT) {
+                cameraConnected = true;
+            }
+        }
+        assertTrue("Remote activity never resumed!", activityResumed);
+        assertTrue("Camera device not setup in remote process!", cameraConnected);
+
+        Log.v(TAG, "Split bounds: (" + firstBounds.left + ", " + firstBounds.top + ", "
+                + firstBounds.right + ", " + firstBounds.bottom + "), ("
+                + secondBounds.left + ", " + secondBounds.top + ", "
+                + secondBounds.right + ", " + secondBounds.bottom + ")");
+
         CameraManager.AvailabilityCallback mockAvailCb = mock(
                 CameraManager.AvailabilityCallback.class);
         manager.registerAvailabilityCallback(mockAvailCb, cameraHandler);
-        metrics = getActivity().getWindowManager().getCurrentWindowMetrics();
-        Rect splitBounds = metrics.getBounds();
-
-        // The original of the initial and split activity bounds should remain the same
-        assertTrue((initialBounds.left == splitBounds.left)
-                && (initialBounds.top == splitBounds.top));
-
-        Rect secondBounds;
-        if (initialBounds.right > splitBounds.right) {
-            secondBounds = new Rect(splitBounds.right + 1, initialBounds.top, initialBounds.right,
-                    initialBounds.bottom);
-        } else {
-            secondBounds = new Rect(initialBounds.left, splitBounds.bottom + 1, initialBounds.right,
-                    initialBounds.bottom);
-        }
 
         // Priorities are also expected to change when a second activity only gains or loses focus
         // while running in split screen mode
-        injectTapEvent(splitBounds.centerX(), splitBounds.centerY());
+        injectTapEvent(firstBounds.centerX(), firstBounds.centerY());
         injectTapEvent(secondBounds.centerX(), secondBounds.centerY());
-        injectTapEvent(splitBounds.centerX(), splitBounds.centerY());
+        injectTapEvent(firstBounds.centerX(), firstBounds.centerY());
 
         verify(mockAvailCb, timeout(
                 permissionCallbackTimeoutMs).atLeastOnce()).onCameraAccessPrioritiesChanged();
@@ -430,7 +440,7 @@ public class CameraEvictionTest extends ActivityInstrumentationTestCase2<CameraC
     public void testCamera2AccessCallback() throws Throwable {
         int PERMISSION_CALLBACK_TIMEOUT_MS = 2000;
         CameraManager manager = mContext.getSystemService(CameraManager.class);
-        assertNotNull(manager);
+        assertNotNull("Unable to get CameraManager service!", manager);
         String[] cameraIds = manager.getCameraIdListNoLazy();
 
         if (cameraIds.length == 0) {
@@ -438,7 +448,7 @@ public class CameraEvictionTest extends ActivityInstrumentationTestCase2<CameraC
             return;
         }
 
-        assertTrue(mContext.getMainLooper() != null);
+        assertTrue("Context has no main looper!", mContext.getMainLooper() != null);
 
         // Setup camera manager
         Handler cameraHandler = new Handler(mContext.getMainLooper());
@@ -466,7 +476,7 @@ public class CameraEvictionTest extends ActivityInstrumentationTestCase2<CameraC
     public void testCamera2NativeAccessCallback() throws Throwable {
         int PERMISSION_CALLBACK_TIMEOUT_MS = 2000;
         CameraManager manager = mContext.getSystemService(CameraManager.class);
-        assertNotNull(manager);
+        assertNotNull("Unable to get CameraManager service!", manager);
         String[] cameraIds = manager.getCameraIdListNoLazy();
 
         if (cameraIds.length == 0) {
@@ -685,7 +695,8 @@ public class CameraEvictionTest extends ActivityInstrumentationTestCase2<CameraC
         String cameraActivityName = a.getPackageName() + ":" + processName;
         List<ActivityManager.RunningAppProcessInfo> list =
                 mActivityManager.getRunningAppProcesses();
-        assertEquals(-1, getPid(cameraActivityName, list));
+        assertEquals("Activity " + cameraActivityName + " already running.",
+                -1, getPid(cameraActivityName, list));
 
         // Start activity in a new top foreground process
         Intent activityIntent = new Intent(a, klass);
@@ -698,7 +709,8 @@ public class CameraEvictionTest extends ActivityInstrumentationTestCase2<CameraC
         // Fail if activity isn't running
         list = mActivityManager.getRunningAppProcesses();
         mProcessPid = getPid(cameraActivityName, list);
-        assertTrue(-1 != mProcessPid);
+        assertTrue("Activity " + cameraActivityName + " not found in list of running app "
+                + "processes.", -1 != mProcessPid);
     }
 
     /**
@@ -740,7 +752,7 @@ public class CameraEvictionTest extends ActivityInstrumentationTestCase2<CameraC
      * @param array array to check.
      */
     public static <T> void assertNotEmpty(T[] array) {
-        assertNotNull(array);
+        assertNotNull("Array is null.", array);
         assertFalse("Array is empty: " + Arrays.toString(array), array.length == 0);
     }
 
@@ -757,9 +769,9 @@ public class CameraEvictionTest extends ActivityInstrumentationTestCase2<CameraC
      * @param <T>
      */
     public static <T> void assertOrderedEvents(T[] actual, T[] expected, T[] ignored) {
-        assertNotNull(actual);
-        assertNotNull(expected);
-        assertNotNull(ignored);
+        assertNotNull("List of actual events is null.", actual);
+        assertNotNull("List of expected events is null.", expected);
+        assertNotNull("List of ignored events is null.", ignored);
 
         int expIndex = 0;
         int index = 0;

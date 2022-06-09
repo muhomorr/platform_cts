@@ -210,7 +210,9 @@ public final class NetworkLoggingTest {
             for (String url : URL_LIST) {
                 connectToWebsite(url);
             }
+
             TestApis.devicePolicy().forceNetworkLogs();
+
             long batchToken = waitForBatchToken();
 
             sDeviceState.dpc().devicePolicyManager().retrieveNetworkLogs(
