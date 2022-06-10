@@ -304,7 +304,7 @@ public class ActivityTransitionTests extends ActivityManagerTestBase {
                 EdgeExtensionActivity.class, extras);
         final Rect appBounds = getTopAppBounds();
         assertColorChangeXIndex(screenshots,
-                (appBounds.left + appBounds.right) / 4 * 3, testBounds);
+                appBounds.left + (appBounds.right - appBounds.left) * 3 / 4, testBounds);
     }
 
     /**
@@ -355,7 +355,7 @@ public class ActivityTransitionTests extends ActivityManagerTestBase {
                 EdgeExtensionActivity.class, extras);
         final Rect appBounds = getTopAppBounds();
         assertColorChangeXIndex(screenshots,
-                (appBounds.left + appBounds.right) / 4, testBounds);
+            appBounds.left + (appBounds.right - appBounds.left) / 4, testBounds);
     }
 
     /**
@@ -422,9 +422,7 @@ public class ActivityTransitionTests extends ActivityManagerTestBase {
         boolean isTransitioning;
         do {
             getWmState().computeState();
-            isTransitioning =
-                    getWmState().getDefaultDisplayLastTransition().equals("TRANSIT_ACTIVITY_OPEN")
-                    && getWmState().getDefaultDisplayAppTransitionState()
+            isTransitioning = getWmState().getDefaultDisplayAppTransitionState()
                             .equals("APP_STATE_RUNNING");
             SystemClock.sleep(10);
         } while (!isTransitioning);

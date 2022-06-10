@@ -35,7 +35,7 @@ _ARDUINO_SERVO_SPEED = 10
 _IMG_FORMAT = 'png'
 _MIN_PHONE_MOVEMENT_ANGLE = 5  # degrees
 _NAME = os.path.splitext(os.path.basename(__file__))[0]
-_NUM_ROTATIONS = 25
+_NUM_ROTATIONS = 12
 _RADS_TO_DEGS = 180/math.pi
 _SEC_TO_NSEC = 1E9
 _START_FRAME = 30  # give 3A 1s to warm up
@@ -156,6 +156,8 @@ class VideoStabilizationTest(its_base_test.ItsBaseTest):
       # Initialize rotation rig
       rot_rig['cntl'] = self.rotator_cntl
       rot_rig['ch'] = self.rotator_ch
+      if rot_rig['cntl'].lower() != 'arduino':
+        raise AssertionError(f'You must use the arduino controller for {_NAME}.')
 
       # Create list of video qualities to test
       supported_video_qualities = cam.get_supported_video_qualities(
