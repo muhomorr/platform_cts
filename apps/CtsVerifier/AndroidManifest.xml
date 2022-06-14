@@ -105,7 +105,9 @@
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
 
     <!-- Needed for Wi-Fi Direct tests from T -->
-    <uses-permission android:name="android.permission.NEARBY_WIFI_DEVICES" />
+    <uses-permission
+        android:name="android.permission.NEARBY_WIFI_DEVICES"
+        android:usesPermissionFlags="neverForLocation" />
 
     <!-- READ_LOGS User Consent Test from T -->
     <uses-permission android:name="android.permission.READ_LOGS" />
@@ -1962,6 +1964,8 @@
                        android:value="single_display_mode" />
             <meta-data android:name="ApiTest" android:value=
                 "android.content.pm.PackageManager#FEATURE_SECURITY_MODEL_COMPATIBLE" />
+            <meta-data android:name="CddTest" android:value="2.2.5/9.1/H-0-1" />
+
         </activity>
 
         <activity android:name=".streamquality.StreamingVideoActivity"
@@ -4123,10 +4127,10 @@
                  test parent : PresenceTestActivity
         -->
         <activity
-            android:name=".presence.NanPrecisionAndBiasTestActivity"
+            android:name=".presence.NanPrecisionTestActivity"
             android:configChanges="keyboardHidden|orientation|screenSize"
             android:exported="true"
-            android:label="@string/nan_precision_and_bias" >
+            android:label="@string/nan_precision" >
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
