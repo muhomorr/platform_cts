@@ -387,19 +387,30 @@ public class PhotoPickerTest extends PhotoPickerBaseTest {
         // Test 2: Click Mute Button
         // Click to unmute the audio
         clickAndWait(muteButton);
+
+        waitForBinderCallsToComplete();
+
         // Check that mute button state is unmute, i.e., it shows `volume up` icon
         assertMuteButtonState(muteButton, /* isMuted */ false);
         // Click on the muteButton and check that mute button status is now 'mute'
         clickAndWait(muteButton);
+
+        waitForBinderCallsToComplete();
+
         assertMuteButtonState(muteButton, /* isMuted */ true);
         // Click on the muteButton and check that mute button status is now unmute
         clickAndWait(muteButton);
+
+        waitForBinderCallsToComplete();
+
         assertMuteButtonState(muteButton, /* isMuted */ false);
 
         // Test 3: Next preview resumes mute state
         // Go back and launch preview again
         mDevice.pressBack();
         clickAndWait(findViewSelectedButton());
+
+        waitForBinderCallsToComplete();
 
         // check that player controls are visible
         assertPlayerControlsVisible(playPauseButton, muteButton);
@@ -424,6 +435,9 @@ public class PhotoPickerTest extends PhotoPickerBaseTest {
         assertMuteButtonState(muteButton, /* isMuted */ true);
         // Swipe to next page and check that muteButton is in mute state.
         swipeLeftAndWait();
+
+        waitForBinderCallsToComplete();
+
         // set-up and wait for player controls to be sticky
         setUpAndAssertStickyPlayerControls(playerView, playPauseButton, muteButton);
         assertMuteButtonState(muteButton, /* isMuted */ true);
@@ -431,9 +445,17 @@ public class PhotoPickerTest extends PhotoPickerBaseTest {
         // Test 2: Swipe resumes mute state, with state of mute button 'volume up' / 'unmute'
         // Click muteButton again to check the next video resumes the previous video's mute state
         clickAndWait(muteButton);
+
+        waitForBinderCallsToComplete();
+
         assertMuteButtonState(muteButton, /* isMuted */ false);
         // check that next video resumed previous video's mute state
         swipeLeftAndWait();
+
+        waitForBinderCallsToComplete();
+
+        // Wait for 1s before checking Play/Pause button's visibility
+        playPauseButton.waitForExists(1000);
         // check that player controls are visible
         assertPlayerControlsVisible(playPauseButton, muteButton);
         assertMuteButtonState(muteButton, /* isMuted */ false);
@@ -477,6 +499,12 @@ public class PhotoPickerTest extends PhotoPickerBaseTest {
         final UiObject muteButton = findMuteButton();
         // unmute the audio of video preview
         clickAndWait(muteButton);
+
+        // Remote video preview involves binder calls
+        // Wait for Binder calls to complete and device to be idle
+        MediaStore.waitForIdle(mContext.getContentResolver());
+        mDevice.waitForIdle();
+
         assertMuteButtonState(muteButton, /* isMuted */ false);
 
         // Verify that test lost the audio focus because PhotoPicker has requested audio focus now.
@@ -643,6 +671,10 @@ public class PhotoPickerTest extends PhotoPickerBaseTest {
         final long playbackStartTimeout = 10000;
         (findPreviewVideoImageView()).waitUntilGone(playbackStartTimeout);
 
+        waitForBinderCallsToComplete();
+    }
+
+    private void waitForBinderCallsToComplete() {
         // Wait for Binder calls to complete and device to be idle
         MediaStore.waitForIdle(mContext.getContentResolver());
         mDevice.waitForIdle();
@@ -650,6 +682,8 @@ public class PhotoPickerTest extends PhotoPickerBaseTest {
 
     private void setUpAndAssertStickyPlayerControls(UiObject playerView, UiObject playPauseButton,
             UiObject muteButton) throws Exception {
+        // Wait for 1s for player view to exist
+        playerView.waitForExists(1000);
         // Wait for 1s or Play/Pause button to hide
         playPauseButton.waitUntilGone(1000);
         // Click on StyledPlayerView to make the video controls visible
