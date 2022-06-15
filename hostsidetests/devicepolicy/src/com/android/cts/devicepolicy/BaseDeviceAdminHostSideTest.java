@@ -87,4 +87,12 @@ public abstract class BaseDeviceAdminHostSideTest extends BaseDevicePolicyTest {
     public void testRunDeviceAdminTest() throws Exception {
         runTests(getDeviceAdminApkPackage(), "DeviceAdminTest");
     }
+
+    @Test
+    public void testResetPasswordDeprecated() throws Exception {
+        assumeHasSecureLockScreenFeature();
+
+        runTests(getDeviceAdminApkPackage(), "DeviceAdminPasswordTest",
+                        "testResetPasswordDeprecated");
+    }
 }

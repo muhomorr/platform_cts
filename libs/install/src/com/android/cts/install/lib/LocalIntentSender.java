@@ -54,8 +54,7 @@ public class LocalIntentSender extends BroadcastReceiver {
         Context context = InstrumentationRegistry.getTargetContext();
         // Generate a unique string to ensure each LocalIntentSender gets its own results.
         String action = LocalIntentSender.class.getName() + SystemClock.elapsedRealtime();
-        context.registerReceiver(this, new IntentFilter(action),
-                Context.RECEIVER_EXPORTED_UNAUDITED);
+        context.registerReceiver(this, new IntentFilter(action));
         Intent intent = new Intent(action);
         PendingIntent pending = PendingIntent.getBroadcast(context, 0, intent, FLAG_MUTABLE);
         return pending.getIntentSender();

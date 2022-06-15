@@ -16,7 +16,6 @@
 
 package com.android.cts.appcloning;
 
-import com.android.modules.utils.build.testing.DeviceSdkLevel;
 import com.android.tradefed.device.DeviceNotAvailableException;
 import com.android.tradefed.device.ITestDevice;
 import com.android.tradefed.device.NativeDevice;
@@ -25,61 +24,32 @@ import com.android.tradefed.testtype.junit4.BaseHostJUnit4Test;
 import com.android.tradefed.util.CommandResult;
 import com.android.tradefed.util.CommandStatus;
 
-import java.util.function.BooleanSupplier;
-
 
 abstract class BaseHostTestCase extends BaseHostJUnit4Test {
     private int mCurrentUserId = NativeDevice.INVALID_USER_ID;
     private static final String ERROR_MESSAGE_TAG = "[ERROR]";
-    protected ITestDevice mDevice = null;
-
-    protected void setDevice() {
-        mDevice = getDevice();
-    }
 
     protected String executeShellCommand(String cmd, Object... args) throws Exception {
-        return mDevice.executeShellCommand(String.format(cmd, args));
+        return getDevice().executeShellCommand(String.format(cmd, args));
     }
 
     protected CommandResult executeShellV2Command(String cmd, Object... args) throws Exception {
-        return mDevice.executeShellV2Command(String.format(cmd, args));
+        return getDevice().executeShellV2Command(String.format(cmd, args));
     }
 
     protected boolean isPackageInstalled(String packageName, String userId) throws Exception {
-        return mDevice.isPackageInstalled(packageName, userId);
+        return getDevice().isPackageInstalled(packageName, userId);
     }
 
     // TODO (b/174775905) remove after exposing the check from ITestDevice.
     protected boolean isHeadlessSystemUserMode() throws DeviceNotAvailableException {
-        String result = mDevice
+        String result = getDevice()
                 .executeShellCommand("getprop ro.fw.mu.headless_system_user").trim();
         return "true".equalsIgnoreCase(result);
     }
 
-    protected boolean supportsMultipleUsers() throws DeviceNotAvailableException {
-        return mDevice.getMaxNumberOfUsersSupported() > 1;
-    }
-
     protected boolean isAtLeastS() throws DeviceNotAvailableException {
-        DeviceSdkLevel deviceSdkLevel = new DeviceSdkLevel(mDevice);
-        return deviceSdkLevel.isDeviceAtLeastS();
-    }
-
-    protected boolean isAtLeastT() throws DeviceNotAvailableException {
-        DeviceSdkLevel deviceSdkLevel = new DeviceSdkLevel(mDevice);
-        return deviceSdkLevel.isDeviceAtLeastT();
-    }
-
-    protected static void throwExceptionIfTimeout(long start, long timeoutMillis, Throwable e) {
-        if (System.currentTimeMillis() - start < timeoutMillis) {
-            try {
-                Thread.sleep(100);
-            } catch (InterruptedException ignored) {
-                throw new RuntimeException(e);
-            }
-        } else {
-            throw new RuntimeException(e);
-        }
+        return getDevice().getApiLevel() >= 31 /* BUILD.VERSION_CODES.S */;
     }
 
     protected static void eventually(ThrowingRunnable r, long timeoutMillis) {
@@ -90,24 +60,15 @@ abstract class BaseHostTestCase extends BaseHostJUnit4Test {
                 r.run();
                 return;
             } catch (Throwable e) {
-                throwExceptionIfTimeout(start, timeoutMillis, e);
-            }
-        }
-    }
-
-    protected static void eventually(ThrowingBooleanSupplier booleanSupplier,
-            long timeoutMillis, String failureMessage) {
-        long start = System.currentTimeMillis();
-
-        while (true) {
-            try {
-                if (booleanSupplier.getAsBoolean()) {
-                    return;
+                if (System.currentTimeMillis() - start < timeoutMillis) {
+                    try {
+                        Thread.sleep(100);
+                    } catch (InterruptedException ignored) {
+                        throw new RuntimeException(e);
+                    }
+                } else {
+                    throw new RuntimeException(e);
                 }
-
-                throw new RuntimeException(failureMessage);
-            } catch (Throwable e) {
-                throwExceptionIfTimeout(start, timeoutMillis, e);
             }
         }
     }
@@ -133,7 +94,8 @@ abstract class BaseHostTestCase extends BaseHostJUnit4Test {
     private void setCurrentUserId() throws Exception {
         if (mCurrentUserId != NativeDevice.INVALID_USER_ID) return;
 
-        mCurrentUserId = mDevice.getCurrentUser();
+        ITestDevice device = getDevice();
+        mCurrentUserId = device.getCurrentUser();
         CLog.i("Current user: %d");
     }
 
@@ -142,12 +104,5 @@ abstract class BaseHostTestCase extends BaseHostJUnit4Test {
          * Similar to {@link Runnable#run} but has {@code throws Exception}.
          */
         void run() throws Exception;
-    }
-
-    protected interface ThrowingBooleanSupplier {
-        /**
-         * Similar to {@link BooleanSupplier#getAsBoolean} but has {@code throws Exception}.
-         */
-        boolean getAsBoolean() throws Exception;
     }
 }

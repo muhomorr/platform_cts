@@ -61,6 +61,9 @@ test-mode=test
 # Inject some known modules.
 inject-known-modules=no
 
+# The import path resolver
+resolver=blaze
+
 
 [REPORTS]
 

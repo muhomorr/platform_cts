@@ -18,7 +18,6 @@ package android.appsecurity.cts;
 
 import android.platform.test.annotations.AppModeFull;
 import android.platform.test.annotations.LargeTest;
-import android.platform.test.annotations.Presubmit;
 
 import com.android.compatibility.common.tradefed.build.CompatibilityBuildHelper;
 import com.android.ddmlib.Log;
@@ -33,7 +32,6 @@ import com.android.tradefed.util.AbiFormatter;
 /**
  * Tests that verify intent filters.
  */
-@Presubmit
 @LargeTest
 @AppModeFull(reason="Instant applications can never be system or privileged")
 public class PrivilegedUpdateTests extends DeviceTestCase implements IAbiReceiver, IBuildReceiver {
@@ -178,25 +176,6 @@ public class PrivilegedUpdateTests extends DeviceTestCase implements IAbiReceive
         } finally {
             getDevice().uninstallPackage(SHIM_PKG);
         }
-    }
-
-    public void testUninstallDisabledUpdatedSystemApp_remainingDisabled() throws Exception {
-        if (!isDefaultAbi()) {
-            Log.w(TAG, "Skipping test for non-default abi.");
-            return;
-        }
-
-        getDevice().executeShellCommand("pm enable " + SHIM_PKG);
-        runDeviceTests(TEST_PKG, ".PrivilegedAppDisableTest", "testPrivAppAndEnabled");
-        try {
-            assertNull(getDevice().installPackage(
-                    mBuildHelper.getTestFile(SHIM_UPDATE_APK), true));
-            getDevice().executeShellCommand("pm disable-user " + SHIM_PKG);
-            runDeviceTests(TEST_PKG, ".PrivilegedAppDisableTest", "testUpdatedPrivAppAndDisabled");
-        } finally {
-            getDevice().uninstallPackage(SHIM_PKG);
-        }
-        runDeviceTests(TEST_PKG, ".PrivilegedAppDisableTest", "testPrivAppAndDisabled");
     }
 
     private void runDeviceTests(String packageName, String testClassName, String testMethodName)

@@ -1613,38 +1613,26 @@ public class ExtractorTest {
                     }
                 }
                 extractor.release();
-                assertTrue("missing track format from file " +  file, format != null);
+                assertTrue(format != null);
                 if (mMime.equals(MediaFormat.MIMETYPE_AUDIO_AAC)) {
-                    assertTrue("neither KEY_AAC_PROFILE nor KEY_PROFILE found in file " + file,
-                            format.containsKey(MediaFormat.KEY_AAC_PROFILE) ||
+                    assertTrue(format.containsKey(MediaFormat.KEY_AAC_PROFILE) ||
                             format.containsKey(MediaFormat.KEY_PROFILE));
                     if (format.containsKey(MediaFormat.KEY_AAC_PROFILE)) {
-                        int profile = format.getInteger(MediaFormat.KEY_AAC_PROFILE, -1);
-                        assertEquals("mismatched KEY_AAC_PROFILE in file " + file,
-                                     mProfile, profile);
+                        assertEquals(mProfile, format.getInteger(MediaFormat.KEY_AAC_PROFILE));
                     }
                     if (format.containsKey(MediaFormat.KEY_PROFILE)) {
-                        int profile = format.getInteger(MediaFormat.KEY_PROFILE, -1);
-                        assertEquals("mismatched KEY_PROFILE in file " + file, mProfile, profile);
+                        assertEquals(mProfile, format.getInteger(MediaFormat.KEY_PROFILE));
                     }
                 } else {
-                    int profile = format.getInteger(MediaFormat.KEY_PROFILE, -1);
-                    assertEquals("mismatched KEY_PROFILE in file " + file, mProfile, profile);
-                    int level = format.getInteger(MediaFormat.KEY_LEVEL, -1);
-                    assertEquals("mismatched KEY_LEVEL in file " + file, mLevel, level);
+                    assertEquals(mProfile, format.getInteger(MediaFormat.KEY_PROFILE));
+                    assertEquals(mLevel, format.getInteger(MediaFormat.KEY_LEVEL));
                 }
                 if (mMime.startsWith("audio/")) {
-                    int sample_rate = format.getInteger(MediaFormat.KEY_SAMPLE_RATE, -1);
-                    assertEquals("mismatched KEY_SAMPLE_RATE in file " + file,
-                                 mWR, sample_rate);
-                    int channel_count = format.getInteger(MediaFormat.KEY_CHANNEL_COUNT, -1);
-                    assertEquals("mismatched KEY_CHANNEL_COUNT in file " + file,
-                                 mHCh, channel_count);
+                    assertEquals(mWR, format.getInteger(MediaFormat.KEY_SAMPLE_RATE));
+                    assertEquals(mHCh, format.getInteger(MediaFormat.KEY_CHANNEL_COUNT));
                 } else if (mMime.startsWith("video/")) {
-                    int width = format.getInteger(MediaFormat.KEY_WIDTH, -1);
-                    assertEquals("mismatched KEY_WIDTH in file " + file, mWR, width);
-                    int height = format.getInteger(MediaFormat.KEY_HEIGHT, -1);
-                    assertEquals("mismatched KEY_HEIGHT in file " + file, mHCh, height);
+                    assertEquals(mWR, format.getInteger(MediaFormat.KEY_WIDTH));
+                    assertEquals(mHCh, format.getInteger(MediaFormat.KEY_HEIGHT));
                 }
             }
         }

@@ -165,7 +165,7 @@ TEST_F(NdkBinderTest_AIBinder, WeakPointerCloneNoPromote) {
 
   AIBinder_decStrong(binder);
 
-  AIBinder* promoted = AIBinder_Weak_promote(copy);
+  AIBinder* promoted = AIBinder_Weak_promote(weak);
   EXPECT_EQ(nullptr, promoted);
 
   AIBinder_Weak_delete(copy);
@@ -225,10 +225,6 @@ TEST_F(NdkBinderTest_AIBinder, WeakPointerNotEqual) {
 
   AIBinder_Weak_delete(w1);
   AIBinder_Weak_delete(w2);
-}
-
-TEST_F(NdkBinderTest_AIBinder, IsHandlingTransactionFalse) {
-  EXPECT_FALSE(AIBinder_isHandlingTransaction());
 }
 
 TEST_F(NdkBinderTest_AIBinder, LocalIsLocal) {
@@ -467,8 +463,6 @@ TEST_F(NdkBinderTest_AIBinder, NullArguments) {
 
   // Does not crash
   AIBinder_DeathRecipient_delete(nullptr);
-  AIBinder_DeathRecipient_setOnUnlinked(recipient, nullptr);
-  AIBinder_DeathRecipient_setOnUnlinked(nullptr, nullptr);
 
   AIBinder_DeathRecipient_delete(recipient);
   AIBinder_decStrong(binder);

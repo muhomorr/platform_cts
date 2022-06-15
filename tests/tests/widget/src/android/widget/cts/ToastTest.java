@@ -266,7 +266,7 @@ public class ToastTest {
         assertNull(view.getParent());
         assertEquals(View.VISIBLE, view.getVisibility());
 
-        runOnMainAndDrawSync(view, () -> showToastWithNotificationPermission(mToast));
+        runOnMainAndDrawSync(view, mToast::show);
 
         // view will be attached to screen when show it
         assertEquals(View.VISIBLE, view.getVisibility());
@@ -277,7 +277,7 @@ public class ToastTest {
     public void testShow_whenTextToast() throws Throwable {
         makeTextToast();
 
-        mActivityRule.runOnUiThread(() -> showToastWithNotificationPermission(mToast));
+        mActivityRule.runOnUiThread(mToast::show);
 
         assertTextToastShownAndHidden();
     }
@@ -288,7 +288,7 @@ public class ToastTest {
         // Measure the length of a long toast.
         makeTextToast();
         long start1 = SystemClock.uptimeMillis();
-        mActivityRule.runOnUiThread(() -> showToastWithNotificationPermission(mToast));
+        mActivityRule.runOnUiThread(mToast::show);
         assertEquals(Toast.LENGTH_LONG, mToast.getDuration());
         assertTextToastShownAndHidden();
         long longDurationMs = SystemClock.uptimeMillis() - start1;
@@ -296,10 +296,10 @@ public class ToastTest {
         // Call show in the middle of the toast duration.
         makeTextToast();
         long start2 = SystemClock.uptimeMillis();
-        mActivityRule.runOnUiThread(() -> showToastWithNotificationPermission(mToast));
+        mActivityRule.runOnUiThread(mToast::show);
         assertEquals(Toast.LENGTH_LONG, mToast.getDuration());
         SystemClock.sleep(longDurationMs / 2);
-        mActivityRule.runOnUiThread(() -> showToastWithNotificationPermission(mToast));
+        mActivityRule.runOnUiThread(mToast::show);
         assertTextToastShownAndHidden();
         long repeatCallDurationMs = SystemClock.uptimeMillis() - start2;
 
@@ -315,7 +315,7 @@ public class ToastTest {
         // Measure the length of a long toast.
         makeCustomToast();
         long start1 = SystemClock.uptimeMillis();
-        mActivityRule.runOnUiThread(() -> showToastWithNotificationPermission(mToast));
+        mActivityRule.runOnUiThread(mToast::show);
         assertEquals(Toast.LENGTH_LONG, mToast.getDuration());
         assertCustomToastShownAndHidden(mToast.getView());
         long longDurationMs = SystemClock.uptimeMillis() - start1;
@@ -323,10 +323,10 @@ public class ToastTest {
         // Call show in the middle of the toast duration.
         makeCustomToast();
         long start2 = SystemClock.uptimeMillis();
-        mActivityRule.runOnUiThread(() -> showToastWithNotificationPermission(mToast));
+        mActivityRule.runOnUiThread(mToast::show);
         assertEquals(Toast.LENGTH_LONG, mToast.getDuration());
         SystemClock.sleep(longDurationMs / 2);
-        mActivityRule.runOnUiThread(() -> showToastWithNotificationPermission(mToast));
+        mActivityRule.runOnUiThread(mToast::show);
         assertCustomToastShownAndHidden(mToast.getView());
         long repeatCallDurationMs = SystemClock.uptimeMillis() - start2;
 
@@ -342,7 +342,7 @@ public class ToastTest {
         Toast toast = new Toast(mContext);
         // do not have any views or text
         assertNull(toast.getView());
-        showToastWithNotificationPermission(mToast);
+        toast.show();
     }
 
     @Test
@@ -354,7 +354,7 @@ public class ToastTest {
         // view has not been attached to screen yet
         assertNull(view.getParent());
         mActivityRule.runOnUiThread(() -> {
-            showToastWithNotificationPermission(mToast);
+            mToast.show();
             mToast.cancel();
         });
 
@@ -372,7 +372,7 @@ public class ToastTest {
 
         runOnMainAndDrawSync(imageView, () -> {
             mToast.setView(imageView);
-            showToastWithNotificationPermission(mToast);
+            mToast.show();
         });
         assertSame(imageView, mToast.getView());
         assertCustomToastShownAndHidden(imageView);
@@ -382,8 +382,7 @@ public class ToastTest {
     public void testAccessDuration_whenCustomToast() throws Throwable {
         long start = SystemClock.uptimeMillis();
         makeCustomToast();
-        runOnMainAndDrawSync(mToast.getView(),
-                () -> showToastWithNotificationPermission(mToast));
+        runOnMainAndDrawSync(mToast.getView(), mToast::show);
         assertEquals(Toast.LENGTH_LONG, mToast.getDuration());
 
         View view = mToast.getView();
@@ -393,7 +392,7 @@ public class ToastTest {
         start = SystemClock.uptimeMillis();
         runOnMainAndDrawSync(mToast.getView(), () -> {
             mToast.setDuration(Toast.LENGTH_SHORT);
-            showToastWithNotificationPermission(mToast);
+            mToast.show();
         });
         assertEquals(Toast.LENGTH_SHORT, mToast.getDuration());
 
@@ -408,7 +407,7 @@ public class ToastTest {
     public void testAccessDuration_whenTextToast() throws Throwable {
         long start = SystemClock.uptimeMillis();
         makeTextToast();
-        mActivityRule.runOnUiThread(() -> showToast(mToast, true));
+        mActivityRule.runOnUiThread(mToast::show);
         assertEquals(Toast.LENGTH_LONG, mToast.getDuration());
 
         assertTextToastShownAndHidden();
@@ -418,7 +417,7 @@ public class ToastTest {
         makeTextToast();
         mActivityRule.runOnUiThread(() -> {
             mToast.setDuration(Toast.LENGTH_SHORT);
-            showToastWithNotificationPermission(mToast);
+            mToast.show();
         });
         assertEquals(Toast.LENGTH_SHORT, mToast.getDuration());
 
@@ -433,7 +432,7 @@ public class ToastTest {
         makeCustomToast();
         final Runnable showToast = () -> {
             mToast.setDuration(Toast.LENGTH_SHORT);
-            showToastWithNotificationPermission(mToast);
+            mToast.show();
         };
         long start = SystemClock.uptimeMillis();
         runOnMainAndDrawSync(mToast.getView(), showToast);
@@ -464,7 +463,7 @@ public class ToastTest {
         makeTextToast();
         final Runnable showToast = () -> {
             mToast.setDuration(Toast.LENGTH_SHORT);
-            showToastWithNotificationPermission(mToast);
+            mToast.show();
         };
         long start = SystemClock.uptimeMillis();
         mActivityRule.runOnUiThread(showToast);
@@ -506,7 +505,7 @@ public class ToastTest {
                 lock.notifyAll();
             }
         };
-        manager.addAccessibilityServicesStateChangeListener(listener);
+        manager.addAccessibilityServicesStateChangeListener(listener, null);
         try {
             TestUtils.waitOn(lock,
                     () -> manager.getRecommendedTimeoutMillis(0,
@@ -537,7 +536,7 @@ public class ToastTest {
         final float vertical1 = 1.0f;
         runOnMainAndDrawSync(view, () -> {
             mToast.setMargin(horizontal1, vertical1);
-            showToastWithNotificationPermission(mToast);
+            mToast.show();
             registerLayoutListener(mToast.getView());
         });
         assertCustomToastShown(view);
@@ -557,7 +556,7 @@ public class ToastTest {
         final float vertical2 = 0.1f;
         runOnMainAndDrawSync(view, () -> {
             mToast.setMargin(horizontal2, vertical2);
-            showToastWithNotificationPermission(mToast);
+            mToast.show();
             registerLayoutListener(mToast.getView());
         });
         assertCustomToastShown(view);
@@ -595,7 +594,7 @@ public class ToastTest {
         makeCustomToast();
         runOnMainAndDrawSync(mToast.getView(), () -> {
             mToast.setGravity(Gravity.CENTER, 0, 0);
-            showToastWithNotificationPermission(mToast);
+            mToast.show();
             registerLayoutListener(mToast.getView());
         });
         View view = mToast.getView();
@@ -610,7 +609,7 @@ public class ToastTest {
 
         runOnMainAndDrawSync(mToast.getView(), () -> {
             mToast.setGravity(Gravity.BOTTOM, 0, 0);
-            showToastWithNotificationPermission(mToast);
+            mToast.show();
             registerLayoutListener(mToast.getView());
         });
         view = mToast.getView();
@@ -766,7 +765,7 @@ public class ToastTest {
                     mToast.removeCallback(testCallback);
                 });
 
-        mActivityRule.runOnUiThread(() -> showToastWithNotificationPermission(mToast));
+        mActivityRule.runOnUiThread(mToast::show);
 
         assertTextToastShownAndHidden();
         assertFalse(toastShown.isDone());
@@ -789,7 +788,7 @@ public class ToastTest {
                     mToast.addCallback(new ConditionCallback(toastShown, toastHidden));
                 });
 
-        mActivityRule.runOnUiThread(() -> showToastWithNotificationPermission(mToast));
+        mActivityRule.runOnUiThread(mToast::show);
 
         assertTrue(toastShown.block(TIME_OUT));
         assertTrue(toastHidden.block(TIME_OUT));
@@ -803,20 +802,17 @@ public class ToastTest {
         mActivityRule.runOnUiThread(
                 () -> mToast.addCallback(new ConditionCallback(toastShown, toastHidden)));
 
-        mActivityRule.runOnUiThread(() -> showToastWithNotificationPermission(mToast));
+        mActivityRule.runOnUiThread(mToast::show);
 
         assertTrue(toastShown.block(TIME_OUT));
         assertTrue(toastHidden.block(TIME_OUT));
     }
 
     @Test
-    public void testTextToastAllowed_whenInTheForeground()
-            throws Throwable {
+    public void testTextToastAllowed_whenInTheForeground() throws Throwable {
         makeTextToast();
 
-        mActivityRule.runOnUiThread(
-                () -> showToastWithoutNotificationPermission(mToast)
-        );
+        mActivityRule.runOnUiThread(mToast::show);
 
         assertTextToastShownAndHidden();
     }
@@ -828,44 +824,21 @@ public class ToastTest {
         // View has not been attached to screen yet
         assertNull(view.getParent());
 
-        mActivityRule.runOnUiThread(
-                () -> showToastWithoutNotificationPermission(mToast)
-        );
+        mActivityRule.runOnUiThread(mToast::show);
 
         assertCustomToastShownAndHidden(view);
     }
 
     @Test
-    public void testTextToastAllowed_whenInTheBackground_withNotificationPermission()
-            throws Throwable {
+    public void testTextToastAllowed_whenInTheBackground() throws Throwable {
         assumeFalse("Skipping test: Watch does not support new Toast behavior yet", isWatch());
         // Make it background
         mActivityRule.finishActivity();
         makeTextToast();
 
-        mActivityRule.runOnUiThread(
-                () -> showToastWithNotificationPermission(mToast)
-        );
+        mActivityRule.runOnUiThread(mToast::show);
+
         assertTextToastShownAndHidden();
-    }
-
-    @Test
-    public void testTextToastNotAllowed_whenInTheBackground_withoutNotificationPermission()
-            throws Throwable {
-        assumeFalse("Skipping test: Watch does not support new Toast behavior yet", isWatch());
-
-        // Make it background
-        mActivityRule.finishActivity();
-        // may take time for the app process importance to get downgraded from foreground:
-        SystemClock.sleep(TIME_FOR_UI_OPERATION);
-
-        List<TextToastInfo> toastInfoList = createTextToasts(1, "Text", Toast.LENGTH_SHORT);
-
-        mActivityRule.runOnUiThread(
-                () -> showToastWithoutNotificationPermission(toastInfoList.get(0).getToast())
-        );
-
-        assertTextToastNotShown(toastInfoList.get(0));
     }
 
     @Test
@@ -877,7 +850,7 @@ public class ToastTest {
         // View has not been attached to screen yet
         assertNull(view.getParent());
 
-        mActivityRule.runOnUiThread(() -> showToastWithNotificationPermission(mToast));
+        mActivityRule.runOnUiThread(mToast::show);
 
         assertCustomToastNotShown(view);
     }
@@ -897,7 +870,7 @@ public class ToastTest {
         makeCustomToast();
         View view = mToast.getView();
 
-        mActivityRule.runOnUiThread(() -> showToastWithNotificationPermission(mToast));
+        mActivityRule.runOnUiThread(mToast::show);
 
         assertCustomToastNotShown(view);
 
@@ -933,10 +906,8 @@ public class ToastTest {
                 event -> event.getEventType() == AccessibilityEvent.TYPE_NOTIFICATION_STATE_CHANGED;
 
         AccessibilityEvent event = mUiAutomation.executeAndWaitForEvent(
-                () -> uncheck(() -> mActivityRule.runOnUiThread(
-                        () -> showToastWithNotificationPermission(mToast))),
-                filter,
-                TIME_OUT);
+                () -> uncheck(() -> mActivityRule.runOnUiThread(mToast::show)), filter, TIME_OUT);
+
         assertThat(event.getEventType()).isEqualTo(
                 AccessibilityEvent.TYPE_NOTIFICATION_STATE_CHANGED);
         assertThat(event.getClassName()).isEqualTo(Toast.class.getCanonicalName());
@@ -951,10 +922,7 @@ public class ToastTest {
                 event -> event.getEventType() == AccessibilityEvent.TYPE_NOTIFICATION_STATE_CHANGED;
 
         AccessibilityEvent event = mUiAutomation.executeAndWaitForEvent(
-                () -> uncheck(() -> mActivityRule.runOnUiThread(
-                        () -> showToastWithNotificationPermission(mToast))),
-                filter,
-                TIME_OUT);
+                () -> uncheck(() -> mActivityRule.runOnUiThread(mToast::show)), filter, TIME_OUT);
 
         assertThat(event.getEventType()).isEqualTo(
                 AccessibilityEvent.TYPE_NOTIFICATION_STATE_CHANGED);
@@ -1095,14 +1063,14 @@ public class ToastTest {
     private void showToasts(List<? extends ToastInfo> toasts) throws Throwable {
         mActivityRule.runOnUiThread(() -> {
             for (ToastInfo t : toasts) {
-                showToast(t.getToast(), /* run with POST_NOTIFICATION permission */true);
+                t.getToast().show();
             }
         });
     }
 
     private void showToast(ToastInfo toast) throws Throwable {
         mActivityRule.runOnUiThread(() -> {
-            showToast(toast.getToast(), /* run with POST_NOTIFICATION permission */true);
+            toast.getToast().show();
         });
     }
 
@@ -1173,22 +1141,6 @@ public class ToastTest {
             runnable.run();
         } catch (Throwable e) {
             throw new RuntimeException(e);
-        }
-    }
-
-    private static void showToastWithNotificationPermission(Toast toast) {
-        showToast(toast, true);
-    }
-
-    private static void showToastWithoutNotificationPermission(Toast toast) {
-        showToast(toast, false);
-    }
-
-    private static void showToast(Toast toast, boolean runWithPostNotificationPermission) {
-        if (runWithPostNotificationPermission) {
-            SystemUtil.runWithShellPermissionIdentity(() -> toast.show());
-        } else {
-            toast.show();
         }
     }
 

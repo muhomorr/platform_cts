@@ -84,7 +84,6 @@ public class UsbDeviceTestActivity extends PassFailButtons.Activity {
     private Thread mTestThread;
     private TextView mStatus;
     private ProgressBar mProgress;
-    private UsbDevice mDevice;
 
     /**
      * Some N and older accessories do not send a zero sized package after a request that is a
@@ -157,6 +156,7 @@ public class UsbDeviceTestActivity extends PassFailButtons.Activity {
                         case ACTION_USB_PERMISSION:
                             boolean granted = intent.getBooleanExtra(
                                     UsbManager.EXTRA_PERMISSION_GRANTED, false);
+
                             if (granted) {
                                 if (!AoapInterface.isDeviceInAoapMode(device)) {
                                     mStatus.setText(R.string.usb_device_test_step3);
@@ -194,6 +194,7 @@ public class UsbDeviceTestActivity extends PassFailButtons.Activity {
                 }
             }
         };
+
         registerReceiver(mUsbDeviceConnectionReceiver, filter);
     }
 
@@ -1556,15 +1557,6 @@ public class UsbDeviceTestActivity extends PassFailButtons.Activity {
         connection.close();
     }
 
-    private void syncReconnectDevice(@NonNull UsbDevice device) {
-        this.mDevice = device;
-    }
-
-    private UsbDevice getReconnectDevice() {
-        return mDevice;
-    }
-
-
     /**
      * <p> This attachedtask the requests and does not care about them anymore after the
      * system took them. The {@link attachedTask} handles the test after the main test done.
@@ -1608,8 +1600,6 @@ public class UsbDeviceTestActivity extends PassFailButtons.Activity {
             public void onReceive(Context context, Intent intent) {
                 synchronized (UsbDeviceTestActivity.this) {
                     UsbDevice device = intent.getParcelableExtra(UsbManager.EXTRA_DEVICE);
-                    syncReconnectDevice(device);
-
                     switch (intent.getAction()) {
                         case ACTION_USB_PERMISSION:
                             boolean granted = intent.getBooleanExtra(
@@ -2276,12 +2266,6 @@ public class UsbDeviceTestActivity extends PassFailButtons.Activity {
 
             // If reconnect timeout make the test fail
             assertEquals(0, errors.size());
-
-            // Update connection handle after reconnect
-            device = getReconnectDevice();
-            assertNotNull(device);
-            connection = mUsbManager.openDevice(device);
-            assertNotNull(connection);
 
             connection.close();
 

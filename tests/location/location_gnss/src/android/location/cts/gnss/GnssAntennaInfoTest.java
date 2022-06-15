@@ -1,8 +1,5 @@
 package android.location.cts.gnss;
 
-import static android.Manifest.permission.ACCESS_COARSE_LOCATION;
-import static android.Manifest.permission.ACCESS_FINE_LOCATION;
-
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
 
@@ -12,12 +9,9 @@ import android.content.Context;
 import android.location.GnssAntennaInfo;
 import android.location.LocationListener;
 import android.location.LocationManager;
-import android.location.cts.common.TestGnssStatusCallback;
 import android.location.cts.common.TestLocationManager;
 import android.location.cts.common.TestMeasurementUtil;
-import android.location.cts.common.TestUtils;
 import android.os.Looper;
-import android.platform.test.annotations.AppModeFull;
 
 import androidx.test.core.app.ApplicationProvider;
 
@@ -50,7 +44,6 @@ public class GnssAntennaInfoTest {
      * GnssStatus.
      */
     @Test
-    @AppModeFull(reason = "Instant apps cannot access package manager to scan for permissions")
     public void testGnssAntennaInfoValues() throws Exception {
         // Checks if GPS hardware feature is present, skips test (pass) if not
         assumeTrue(TestMeasurementUtil.canTestRunOnCurrentDevice(mTestLocationManager, TAG));
@@ -59,33 +52,22 @@ public class GnssAntennaInfoTest {
         assumeTrue(
                 mTestLocationManager.getLocationManager().getGnssCapabilities().hasAntennaInfo());
 
-        // Revoke location permissions from packages before running GnssStatusTest stops
-        // active location requests, allowing this test to receive all necessary Gnss callbacks.
-        List<String> courseLocationPackages = TestUtils.revokePermissions(ACCESS_COARSE_LOCATION);
-        List<String> fineLocationPackages = TestUtils.revokePermissions(ACCESS_FINE_LOCATION);
+        // Registers GnssStatus Listener
+        TestGnssStatusCallback testGnssStatusCallback =
+                new TestGnssStatusCallback(TAG, STATUS_TO_COLLECT_COUNT);
+        checkGnssChange(testGnssStatusCallback);
 
-        try {
-            // Registers GnssStatus Listener
-            TestGnssStatusCallback testGnssStatusCallback =
-                    new TestGnssStatusCallback(TAG, STATUS_TO_COLLECT_COUNT);
-            checkGnssChange(testGnssStatusCallback);
+        float[] carrierFrequencies = testGnssStatusCallback.getCarrierFrequencies();
+        List<GnssAntennaInfo> antennaInfos =
+                mTestLocationManager.getLocationManager().getGnssAntennaInfos();
 
-            float[] carrierFrequencies = testGnssStatusCallback.getCarrierFrequencies();
-            List<GnssAntennaInfo> antennaInfos =
-                    mTestLocationManager.getLocationManager().getGnssAntennaInfos();
-
-            assertThat(antennaInfos).isNotNull();
-            for (GnssAntennaInfo antennaInfo : antennaInfos) {
-                double antennaInfoFreqHz = antennaInfo.getCarrierFrequencyMHz() * HZ_PER_MHZ;
-                assertWithMessage(
-                        "Carrier frequency in GnssAntennaInfo must be found in GnssStatus.").that(
-                        carrierFrequencies).usingTolerance(CARRIER_FREQ_TOLERANCE_HZ).contains(
-                        antennaInfoFreqHz);
-            }
-        } finally {
-            // For each location package, re-grant the permission
-            TestUtils.grantLocationPermissions(ACCESS_COARSE_LOCATION, courseLocationPackages);
-            TestUtils.grantLocationPermissions(ACCESS_FINE_LOCATION, fineLocationPackages);
+        assertThat(antennaInfos).isNotNull();
+        for (GnssAntennaInfo antennaInfo : antennaInfos) {
+            double antennaInfoFreqHz = antennaInfo.getCarrierFrequencyMHz() * HZ_PER_MHZ;
+            assertWithMessage(
+                    "Carrier frequency in GnssAntennaInfo must be found in GnssStatus.").that(
+                    carrierFrequencies).usingTolerance(CARRIER_FREQ_TOLERANCE_HZ).contains(
+                    antennaInfoFreqHz);
         }
     }
 

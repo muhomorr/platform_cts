@@ -41,8 +41,4 @@ android_test {
         "cts",
         "general-tests",
     ],
-    data: [
-        ":com.replica.replicaisland",
-    ],
-    per_testcase_directory: true,
 }

@@ -17,15 +17,13 @@
 package android.hardware.multiprocess.camera.cts;
 
 import android.app.Activity;
-import android.graphics.Rect;
+import android.content.Context;
 import android.hardware.camera2.CameraAccessException;
 import android.hardware.camera2.CameraDevice;
 import android.hardware.camera2.CameraManager;
 import android.os.Bundle;
 import android.os.Handler;
-import android.os.HandlerThread;
 import android.util.Log;
-import android.view.WindowMetrics;
 
 /**
  * Activity implementing basic access of the Camera2 API.
@@ -37,19 +35,11 @@ public class Camera2Activity extends Activity {
     private static final String TAG = "Camera2Activity";
 
     ErrorLoggingService.ErrorServiceConnection mErrorServiceConnection;
-    CameraManager mCameraManager;
-    AvailabilityCallback mAvailabilityCallback;
-    StateCallback mStateCallback;
-    Handler mCameraHandler;
-    HandlerThread mCameraHandlerThread;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         Log.i(TAG, "onCreate called.");
         super.onCreate(savedInstanceState);
-        mCameraHandlerThread = new HandlerThread("CameraHandlerThread");
-        mCameraHandlerThread.start();
-        mCameraHandler = new Handler(mCameraHandlerThread.getLooper());
         mErrorServiceConnection = new ErrorLoggingService.ErrorServiceConnection(this);
         mErrorServiceConnection.start();
     }
@@ -65,22 +55,16 @@ public class Camera2Activity extends Activity {
         Log.i(TAG, "onResume called.");
         super.onResume();
 
-        WindowMetrics metrics = getWindowManager().getCurrentWindowMetrics();
-        Rect windowRect = metrics.getBounds();
-        mErrorServiceConnection.logAsync(TestConstants.EVENT_ACTIVITY_RESUMED,
-                windowRect.left + ":" + windowRect.top + ":"
-                + windowRect.right + ":" + windowRect.bottom);
-
         try {
-            mCameraManager = getSystemService(CameraManager.class);
+            CameraManager manager = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
 
-            if (mCameraManager == null) {
+            if (manager == null) {
                 mErrorServiceConnection.logAsync(TestConstants.EVENT_CAMERA_ERROR, TAG +
                         " could not connect camera service");
                 return;
             }
             // TODO: http://b/145308043 move this back to getCameraIdListNoLazy()
-            String[] cameraIds = mCameraManager.getCameraIdList();
+            String[] cameraIds = manager.getCameraIdList();
 
             if (cameraIds == null || cameraIds.length == 0) {
                 mErrorServiceConnection.logAsync(TestConstants.EVENT_CAMERA_ERROR, TAG +
@@ -88,16 +72,64 @@ public class Camera2Activity extends Activity {
                 return;
             }
 
-            if (mAvailabilityCallback == null) {
-                mAvailabilityCallback = new AvailabilityCallback();
-                mCameraManager.registerAvailabilityCallback(mAvailabilityCallback, mCameraHandler);
-            }
+            manager.registerAvailabilityCallback(new CameraManager.AvailabilityCallback() {
+                @Override
+                public void onCameraAvailable(String cameraId) {
+                    super.onCameraAvailable(cameraId);
+                    mErrorServiceConnection.logAsync(TestConstants.EVENT_CAMERA_AVAILABLE,
+                            cameraId);
+                    Log.i(TAG, "Camera " + cameraId + " is available");
+                }
+
+                @Override
+                public void onCameraUnavailable(String cameraId) {
+                    super.onCameraUnavailable(cameraId);
+                    mErrorServiceConnection.logAsync(TestConstants.EVENT_CAMERA_UNAVAILABLE,
+                            cameraId);
+                    Log.i(TAG, "Camera " + cameraId + " is unavailable");
+                }
+
+                @Override
+                public void onPhysicalCameraAvailable(String cameraId, String physicalCameraId) {
+                    super.onPhysicalCameraAvailable(cameraId, physicalCameraId);
+                    mErrorServiceConnection.logAsync(TestConstants.EVENT_CAMERA_AVAILABLE,
+                            cameraId + " : " + physicalCameraId);
+                    Log.i(TAG, "Camera " + cameraId + " : " + physicalCameraId + " is available");
+                }
+
+                @Override
+                public void onPhysicalCameraUnavailable(String cameraId, String physicalCameraId) {
+                    super.onPhysicalCameraUnavailable(cameraId, physicalCameraId);
+                    mErrorServiceConnection.logAsync(TestConstants.EVENT_CAMERA_UNAVAILABLE,
+                            cameraId + " : " + physicalCameraId);
+                    Log.i(TAG, "Camera " + cameraId + " : " + physicalCameraId + " is unavailable");
+                }
+            }, null);
 
             final String chosen = cameraIds[0];
-            if (mStateCallback == null || mStateCallback.mChosen != chosen) {
-                mStateCallback = new StateCallback(chosen);
-                mCameraManager.openCamera(chosen, mStateCallback, mCameraHandler);
-            }
+
+            manager.openCamera(chosen, new CameraDevice.StateCallback() {
+                @Override
+                public void onOpened(CameraDevice cameraDevice) {
+                    mErrorServiceConnection.logAsync(TestConstants.EVENT_CAMERA_CONNECT,
+                            chosen);
+                    Log.i(TAG, "Camera " + chosen + " is opened");
+                }
+
+                @Override
+                public void onDisconnected(CameraDevice cameraDevice) {
+                    mErrorServiceConnection.logAsync(TestConstants.EVENT_CAMERA_EVICTED,
+                            chosen);
+                    Log.i(TAG, "Camera " + chosen + " is disconnected");
+                }
+
+                @Override
+                public void onError(CameraDevice cameraDevice, int i) {
+                    mErrorServiceConnection.logAsync(TestConstants.EVENT_CAMERA_ERROR, TAG +
+                            " Camera " + chosen + " experienced error " + i);
+                    Log.e(TAG, "Camera " + chosen + " onError called with error " + i);
+                }
+            }, null);
         } catch (CameraAccessException e) {
             mErrorServiceConnection.logAsync(TestConstants.EVENT_CAMERA_ERROR, TAG +
                     " camera exception during connection: " + e);
@@ -109,80 +141,9 @@ public class Camera2Activity extends Activity {
     protected void onDestroy() {
         Log.i(TAG, "onDestroy called.");
         super.onDestroy();
-
-        if (mAvailabilityCallback != null) {
-            mCameraManager.unregisterAvailabilityCallback(mAvailabilityCallback);
-            mAvailabilityCallback = null;
-        }
-
-        mCameraHandlerThread.quitSafely();
-
         if (mErrorServiceConnection != null) {
             mErrorServiceConnection.stop();
             mErrorServiceConnection = null;
-        }
-    }
-
-    private class AvailabilityCallback extends CameraManager.AvailabilityCallback {
-        @Override
-        public void onCameraAvailable(String cameraId) {
-            super.onCameraAvailable(cameraId);
-            mErrorServiceConnection.logAsync(TestConstants.EVENT_CAMERA_AVAILABLE,
-                    cameraId);
-            Log.i(TAG, "Camera " + cameraId + " is available");
-        }
-
-        @Override
-        public void onCameraUnavailable(String cameraId) {
-            super.onCameraUnavailable(cameraId);
-            mErrorServiceConnection.logAsync(TestConstants.EVENT_CAMERA_UNAVAILABLE,
-                    cameraId);
-            Log.i(TAG, "Camera " + cameraId + " is unavailable");
-        }
-
-        @Override
-        public void onPhysicalCameraAvailable(String cameraId, String physicalCameraId) {
-            super.onPhysicalCameraAvailable(cameraId, physicalCameraId);
-            mErrorServiceConnection.logAsync(TestConstants.EVENT_CAMERA_AVAILABLE,
-                    cameraId + " : " + physicalCameraId);
-            Log.i(TAG, "Camera " + cameraId + " : " + physicalCameraId + " is available");
-        }
-
-        @Override
-        public void onPhysicalCameraUnavailable(String cameraId, String physicalCameraId) {
-            super.onPhysicalCameraUnavailable(cameraId, physicalCameraId);
-            mErrorServiceConnection.logAsync(TestConstants.EVENT_CAMERA_UNAVAILABLE,
-                    cameraId + " : " + physicalCameraId);
-            Log.i(TAG, "Camera " + cameraId + " : " + physicalCameraId + " is unavailable");
-        }
-    }
-
-    private class StateCallback extends CameraDevice.StateCallback {
-        String mChosen;
-
-        StateCallback(String chosen) {
-            mChosen = chosen;
-        }
-
-        @Override
-        public void onOpened(CameraDevice cameraDevice) {
-            mErrorServiceConnection.logAsync(TestConstants.EVENT_CAMERA_CONNECT,
-                    mChosen);
-            Log.i(TAG, "Camera " + mChosen + " is opened");
-        }
-
-        @Override
-        public void onDisconnected(CameraDevice cameraDevice) {
-            mErrorServiceConnection.logAsync(TestConstants.EVENT_CAMERA_EVICTED,
-                    mChosen);
-            Log.i(TAG, "Camera " + mChosen + " is disconnected");
-        }
-
-        @Override
-        public void onError(CameraDevice cameraDevice, int i) {
-            mErrorServiceConnection.logAsync(TestConstants.EVENT_CAMERA_ERROR, TAG
-                    + " Camera " + mChosen + " experienced error " + i);
-            Log.e(TAG, "Camera " + mChosen + " onError called with error " + i);
         }
     }
 }

@@ -17,14 +17,9 @@
 package android.server.biometrics;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assume.assumeTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.anyObject;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -44,9 +39,7 @@ import android.util.Log;
 import com.android.server.biometrics.nano.SensorStateProto;
 
 import org.junit.Test;
-import org.mockito.ArgumentCaptor;
 
-import java.io.File;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -64,7 +57,6 @@ public class BiometricSimpleTests extends BiometricTestBase {
      */
     @Test
     public void testEnroll() throws Exception {
-        assumeTrue(Utils.isFirstApiLevel29orGreater());
         for (SensorProperties prop : mSensorProperties) {
             try (BiometricTestSession session =
                          mBiometricManager.createTestSession(prop.getSensorId())){
@@ -79,7 +71,6 @@ public class BiometricSimpleTests extends BiometricTestBase {
      */
     @Test
     public void testSensorPropertiesAndDumpsysMatch() throws Exception {
-        assumeTrue(Utils.isFirstApiLevel29orGreater());
         final BiometricServiceState state = getCurrentState();
 
         assertEquals(mSensorProperties.size(), state.mSensorStates.sensorStates.size());
@@ -93,21 +84,12 @@ public class BiometricSimpleTests extends BiometricTestBase {
      */
     @Test
     public void testPackageManagerAndDumpsysMatch() throws Exception {
-        assumeTrue(Utils.isFirstApiLevel29orGreater());
         final BiometricServiceState state = getCurrentState();
-        final PackageManager pm = mContext.getPackageManager();
         if (mSensorProperties.isEmpty()) {
             assertTrue(state.mSensorStates.sensorStates.isEmpty());
-
-            final File initGsiRc = new File("/system/system_ext/etc/init/init.gsi.rc");
-            if (!initGsiRc.exists()) {
-                assertFalse(pm.hasSystemFeature(PackageManager.FEATURE_FINGERPRINT));
-                assertFalse(pm.hasSystemFeature(PackageManager.FEATURE_FACE));
-                assertFalse(pm.hasSystemFeature(PackageManager.FEATURE_IRIS));
-            }
-
-            assertTrue(state.mSensorStates.sensorStates.isEmpty());
         } else {
+            final PackageManager pm = mContext.getPackageManager();
+
             assertEquals(pm.hasSystemFeature(PackageManager.FEATURE_FINGERPRINT),
                     state.mSensorStates.containsModality(SensorStateProto.FINGERPRINT));
             assertEquals(pm.hasSystemFeature(PackageManager.FEATURE_FACE),
@@ -119,7 +101,6 @@ public class BiometricSimpleTests extends BiometricTestBase {
 
     @Test
     public void testCanAuthenticate_whenNoSensors() {
-        assumeTrue(Utils.isFirstApiLevel29orGreater());
         if (mSensorProperties.isEmpty()) {
             assertEquals(BiometricManager.BIOMETRIC_ERROR_NO_HARDWARE,
                     mBiometricManager.canAuthenticate(Authenticators.BIOMETRIC_WEAK));
@@ -130,7 +111,6 @@ public class BiometricSimpleTests extends BiometricTestBase {
 
     @Test
     public void testInvalidInputs() {
-        assumeTrue(Utils.isFirstApiLevel29orGreater());
         for (int i = 0; i < 32; i++) {
             final int authenticator = 1 << i;
             // If it's a public constant, no need to test
@@ -160,7 +140,6 @@ public class BiometricSimpleTests extends BiometricTestBase {
      */
     @Test
     public void testWhenCredentialNotEnrolled() throws Exception {
-        assumeTrue(Utils.isFirstApiLevel29orGreater());
         // First case above
         final int result = mBiometricManager.canAuthenticate(BiometricManager
                 .Authenticators.DEVICE_CREDENTIAL);
@@ -178,29 +157,13 @@ public class BiometricSimpleTests extends BiometricTestBase {
         // Third case above. Since the deprecated API is intended to allow credential in addition
         // to biometrics, we should be receiving BIOMETRIC_ERROR_NO_BIOMETRICS.
         final boolean noSensors = mSensorProperties.isEmpty();
-        int expectedError;
-        if (noSensors) {
-            expectedError = BiometricPrompt.BIOMETRIC_ERROR_NO_DEVICE_CREDENTIAL;
-        } else if (hasOnlyConvenienceSensors()) {
-            expectedError = BiometricPrompt.BIOMETRIC_ERROR_HW_NOT_PRESENT;
-        } else {
-            expectedError = BiometricPrompt.BIOMETRIC_ERROR_NO_BIOMETRICS;
-        }
         callback = mock(BiometricPrompt.AuthenticationCallback.class);
         showDeviceCredentialAllowedBiometricPrompt(callback, new CancellationSignal(),
                 false /* shouldShow */);
         verify(callback).onAuthenticationError(
-                eq(expectedError),
+                eq(noSensors ? BiometricPrompt.BIOMETRIC_ERROR_NO_DEVICE_CREDENTIAL
+                        : BiometricPrompt.BIOMETRIC_ERROR_NO_BIOMETRICS),
                 any());
-    }
-
-    private boolean hasOnlyConvenienceSensors() {
-        for (SensorProperties sensor : mSensorProperties) {
-            if (sensor.getSensorStrength() != SensorProperties.STRENGTH_CONVENIENCE) {
-                return false;
-            }
-        }
-        return true;
     }
 
     /**
@@ -214,7 +177,6 @@ public class BiometricSimpleTests extends BiometricTestBase {
      */
     @Test
     public void testWhenCredentialEnrolled() throws Exception {
-        assumeTrue(Utils.isFirstApiLevel29orGreater());
         try (CredentialSession session = new CredentialSession()) {
             session.setCredential();
 
@@ -256,45 +218,6 @@ public class BiometricSimpleTests extends BiometricTestBase {
         }
     }
 
-    @Test
-    public void testSimpleBiometricAuth_convenience() throws Exception {
-        assumeTrue(Utils.isFirstApiLevel29orGreater());
-        for (SensorProperties props : mSensorProperties) {
-            if (props.getSensorStrength() != SensorProperties.STRENGTH_CONVENIENCE) {
-                continue;
-            }
-
-            Log.d(TAG, "testSimpleBiometricAuth_convenience, sensor: " + props.getSensorId());
-
-            try (BiometricTestSession session =
-                         mBiometricManager.createTestSession(props.getSensorId())) {
-
-                // Let's just try to check+auth against WEAK, since CONVENIENCE isn't even
-                // exposed to public BiometricPrompt APIs (as intended).
-                final int authenticatorStrength = Authenticators.BIOMETRIC_WEAK;
-                assertNotEquals("Sensor: " + props.getSensorId()
-                                + ", strength: " + props.getSensorStrength(),
-                        BiometricManager.BIOMETRIC_SUCCESS,
-                        mBiometricManager.canAuthenticate(authenticatorStrength));
-
-                enrollForSensor(session, props.getSensorId());
-
-                assertNotEquals("Sensor: " + props.getSensorId()
-                                + ", strength: " + props.getSensorStrength(),
-                        BiometricManager.BIOMETRIC_SUCCESS,
-                        mBiometricManager.canAuthenticate(authenticatorStrength));
-
-                BiometricPrompt.AuthenticationCallback callback =
-                        mock(BiometricPrompt.AuthenticationCallback.class);
-
-                showDefaultBiometricPrompt(props.getSensorId(), 0 /* userId */,
-                        true /* requireConfirmation */, callback, new CancellationSignal());
-
-                verify(callback).onAuthenticationError(anyInt(), anyObject());
-            }
-        }
-    }
-
     /**
      * Tests that the values specified through the public APIs are shown on the BiometricPrompt UI
      * when biometric auth is requested.
@@ -303,8 +226,7 @@ public class BiometricSimpleTests extends BiometricTestBase {
      * {@link BiometricPrompt#AUTHENTICATION_RESULT_TYPE_BIOMETRIC}
      */
     @Test
-    public void testSimpleBiometricAuth_nonConvenience() throws Exception {
-        assumeTrue(Utils.isFirstApiLevel29orGreater());
+    public void testSimpleBiometricAuth() throws Exception {
         for (SensorProperties props : mSensorProperties) {
             if (props.getSensorStrength() == SensorProperties.STRENGTH_CONVENIENCE) {
                 continue;
@@ -336,8 +258,18 @@ public class BiometricSimpleTests extends BiometricTestBase {
                 final String randomDescription = String.valueOf(random.nextInt(10000));
                 final String randomNegativeButtonText = String.valueOf(random.nextInt(10000));
 
+                CountDownLatch latch = new CountDownLatch(1);
                 BiometricPrompt.AuthenticationCallback callback =
-                        mock(BiometricPrompt.AuthenticationCallback.class);
+                        new BiometricPrompt.AuthenticationCallback() {
+                    @Override
+                    public void onAuthenticationSucceeded(
+                            BiometricPrompt.AuthenticationResult result) {
+                        assertEquals("Must be TYPE_BIOMETRIC",
+                                BiometricPrompt.AUTHENTICATION_RESULT_TYPE_BIOMETRIC,
+                                result.getAuthenticationType());
+                        latch.countDown();
+                    }
+                };
 
                 showDefaultBiometricPromptWithContents(props.getSensorId(), 0 /* userId */,
                         true /* requireConfirmation */, callback, randomTitle, randomSubtitle,
@@ -354,13 +286,7 @@ public class BiometricSimpleTests extends BiometricTestBase {
 
                 // Finish auth
                 successfullyAuthenticate(session, 0 /* userId */);
-
-                ArgumentCaptor<BiometricPrompt.AuthenticationResult> resultCaptor =
-                        ArgumentCaptor.forClass(BiometricPrompt.AuthenticationResult.class);
-                verify(callback).onAuthenticationSucceeded(resultCaptor.capture());
-                assertEquals("Must be TYPE_BIOMETRIC",
-                        BiometricPrompt.AUTHENTICATION_RESULT_TYPE_BIOMETRIC,
-                        resultCaptor.getValue().getAuthenticationType());
+                latch.await(3, TimeUnit.SECONDS);
             }
         }
     }
@@ -374,7 +300,6 @@ public class BiometricSimpleTests extends BiometricTestBase {
      */
     @Test
     public void testSimpleCredentialAuth() throws Exception {
-        assumeTrue(Utils.isFirstApiLevel29orGreater());
         try (CredentialSession session = new CredentialSession()){
             session.setCredential();
 
@@ -416,7 +341,6 @@ public class BiometricSimpleTests extends BiometricTestBase {
      */
     @Test
     public void testBiometricCancellation() throws Exception {
-        assumeTrue(Utils.isFirstApiLevel29orGreater());
         for (SensorProperties props : mSensorProperties) {
             if (props.getSensorStrength() == SensorProperties.STRENGTH_CONVENIENCE) {
                 continue;

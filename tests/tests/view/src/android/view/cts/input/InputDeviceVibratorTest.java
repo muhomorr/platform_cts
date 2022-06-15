@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package android.view.cts.input;
+package android.view.cts;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -34,7 +34,6 @@ import android.os.Vibrator;
 import android.os.Vibrator.OnVibratorStateChangedListener;
 import android.util.Log;
 import android.view.InputDevice;
-import android.view.cts.R;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
@@ -73,7 +72,6 @@ public class InputDeviceVibratorTest {
     private InputJsonParser mParser;
     private Instrumentation mInstrumentation;
     private Vibrator mVibrator;
-    /** The device id inside the resource file (register command) */
     private int mDeviceId;
 
     @Rule
@@ -104,16 +102,20 @@ public class InputDeviceVibratorTest {
 
     @Before
     public void setup() {
+        final int resourceId = R.raw.google_gamepad_register;
+
         mInstrumentation = InstrumentationRegistry.getInstrumentation();
         mInputManager = mInstrumentation.getTargetContext().getSystemService(InputManager.class);
         assertNotNull(mInputManager);
         mParser = new InputJsonParser(mInstrumentation.getTargetContext());
-
-        mUinputDevice = UinputDevice.create(mInstrumentation, R.raw.google_gamepad_register,
-                InputDevice.SOURCE_KEYBOARD);
-        mDeviceId = mUinputDevice.getRegisterCommandDeviceId();
-        mVibrator = getVibrator(mUinputDevice.getVendorId(), mUinputDevice.getProductId());
-        assertNotNull(mVibrator);
+        mDeviceId = mParser.readDeviceId(resourceId);
+        String registerCommand = mParser.readRegisterCommand(resourceId);
+        mUinputDevice = new UinputDevice(mInstrumentation, mDeviceId,
+                mParser.readVendorId(resourceId), mParser.readProductId(resourceId),
+                InputDevice.SOURCE_KEYBOARD, registerCommand);
+        mVibrator = getVibrator(mParser.readVendorId(resourceId),
+                mParser.readProductId(resourceId));
+        assertTrue(mVibrator != null);
         mVibrator.addVibratorStateListener(mListener);
         verify(mListener, timeout(CALLBACK_TIMEOUT_MILLIS)
                 .times(1)).onVibratorStateChanged(false);

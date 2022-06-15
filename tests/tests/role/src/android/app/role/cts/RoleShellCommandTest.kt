@@ -43,7 +43,6 @@ class RoleShellCommandTest {
     private val userId = UserHandle.myUserId()
 
     private var roleHolder: String? = null
-    private var wasBypassingRoleQualification: Boolean = false
 
     @Before
     fun saveRoleHolder() {
@@ -54,21 +53,11 @@ class RoleShellCommandTest {
         }
     }
 
-    @Before
-    fun saveBypassingRoleQualification() {
-        wasBypassingRoleQualification = isBypassingRoleQualification()
-    }
-
     @After
     fun restoreRoleHolder() {
         removeRoleHolder()
         roleHolder?.let { addRoleHolder(it) }
         assertIsRoleHolder(false)
-    }
-
-    @After
-    fun restoreBypassingRoleQualification() {
-        setBypassingRoleQualification(wasBypassingRoleQualification)
     }
 
     @Before
@@ -128,24 +117,6 @@ class RoleShellCommandTest {
         assertThat(runShellCommandOrThrow("dumpsys role")).contains(APP_PACKAGE_NAME)
     }
 
-    @Test
-    fun setBypassingRoleQualificationToTrueThenSetsToTrue() {
-        setBypassingRoleQualification(false)
-
-        runShellCommandOrThrow("cmd role set-bypassing-role-qualification true")
-
-        assertThat(isBypassingRoleQualification()).isTrue()
-    }
-
-    @Test
-    fun setBypassingRoleQualificationToFalseThenSetsToFalse() {
-        setBypassingRoleQualification(true)
-
-        runShellCommandOrThrow("cmd role set-bypassing-role-qualification false")
-
-        assertThat(isBypassingRoleQualification()).isFalse()
-    }
-
     private fun addRoleHolder(packageName: String = APP_PACKAGE_NAME) {
         runShellCommandOrThrow("cmd role add-role-holder --user $userId $ROLE_NAME $packageName")
     }
@@ -178,15 +149,6 @@ class RoleShellCommandTest {
     private fun uninstallPackage(packageName: String) {
         assertThat(runShellCommandOrThrow("pm uninstall --user $userId $packageName").trim())
             .isEqualTo("Success")
-    }
-
-    private fun isBypassingRoleQualification(): Boolean =
-        callWithShellPermissionIdentity { roleManager.isBypassingRoleQualification() }
-
-    private fun setBypassingRoleQualification(value: Boolean) {
-        callWithShellPermissionIdentity {
-            roleManager.setBypassingRoleQualification(value)
-        }
     }
 
     companion object {

@@ -16,19 +16,11 @@
 
 package com.android.queryable.queries;
 
-import static com.android.queryable.util.ParcelableUtils.readNullableBoolean;
-import static com.android.queryable.util.ParcelableUtils.writeNullableBoolean;
-
-import android.os.Parcel;
-import android.os.Parcelable;
-
 import com.android.queryable.Queryable;
-
-import java.util.Objects;
 
 public final class BooleanQueryHelper<E extends Queryable> implements BooleanQuery<E> {
 
-    private final transient E mQuery;
+    private final E mQuery;
     private Boolean mTargetValue = null;
 
     BooleanQueryHelper() {
@@ -37,11 +29,6 @@ public final class BooleanQueryHelper<E extends Queryable> implements BooleanQue
 
     public BooleanQueryHelper(E query) {
         mQuery = query;
-    }
-
-    private BooleanQueryHelper(Parcel in) {
-        mQuery = null;
-        mTargetValue = readNullableBoolean(in);
     }
 
     @Override
@@ -67,7 +54,7 @@ public final class BooleanQueryHelper<E extends Queryable> implements BooleanQue
     }
 
     @Override
-    public E isEqualTo(boolean value) {
+    public E equals(boolean value) {
         if (mTargetValue != null) {
             throw new IllegalStateException("Cannot set multiple boolean filters");
         }
@@ -79,53 +66,6 @@ public final class BooleanQueryHelper<E extends Queryable> implements BooleanQue
 
     @Override
     public boolean matches(Boolean value) {
-        return (mTargetValue == null) || mTargetValue.equals(value);
-    }
-
-    @Override
-    public String describeQuery(String fieldName) {
-        if (mTargetValue == null) {
-            return null;
-        }
-
-        return fieldName + "=" + mTargetValue;
-    }
-
-    public static boolean matches(BooleanQuery<?> query, Boolean value) {
-        return query.matches(value);
-    }
-
-    @Override
-    public int describeContents() {
-        return 0;
-    }
-
-    @Override
-    public void writeToParcel(Parcel out, int flags) {
-        writeNullableBoolean(out, mTargetValue);
-    }
-
-    public static final Parcelable.Creator<BooleanQueryHelper> CREATOR =
-            new Parcelable.Creator<BooleanQueryHelper>() {
-                public BooleanQueryHelper createFromParcel(Parcel in) {
-                    return new BooleanQueryHelper(in);
-                }
-
-                public BooleanQueryHelper[] newArray(int size) {
-                    return new BooleanQueryHelper[size];
-                }
-    };
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (!(o instanceof BooleanQueryHelper)) return false;
-        BooleanQueryHelper<?> that = (BooleanQueryHelper<?>) o;
-        return Objects.equals(mTargetValue, that.mTargetValue);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(mTargetValue);
+        return (mTargetValue == null) || mTargetValue == value;
     }
 }

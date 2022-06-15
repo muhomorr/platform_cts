@@ -23,7 +23,6 @@ android_test {
         "ctstestrunner-axt",
         "bluetooth-test-util-lib",
         "compatibility-device-util-axt",
-        "PlatformProperties",
     ],
     libs: [
         "android.test.runner",
@@ -36,6 +35,5 @@ android_test {
     test_suites: [
         "cts",
         "general-tests",
-        "mts-bluetooth",
     ],
 }

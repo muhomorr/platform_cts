@@ -5,3 +5,4 @@ include platform/frameworks/base:/core/java/android/os/storage/OWNERS
 tgunn@google.com
 nicksauer@google.com
 nona@google.com
+omakoto@google.com

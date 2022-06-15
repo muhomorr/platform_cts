@@ -16,6 +16,8 @@
 
 package com.android.cts.packagemanager.stats.host;
 
+import static com.android.cts.packagemanager.stats.host.Utils.FEATURE_INCREMENTAL_DELIVERY;
+
 import android.cts.statsdatom.lib.AtomTestUtils;
 import android.cts.statsdatom.lib.ConfigUtils;
 import android.cts.statsdatom.lib.DeviceUtils;
@@ -47,7 +49,7 @@ public class PackageInstallerV2StatsTests extends PackageManagerStatsTestsBase {
     }
 
     public void testPackageInstallerV2MetricsReported() throws Throwable {
-        if (!Utils.hasIncrementalFeature(getDevice())) {
+        if (!DeviceUtils.hasFeature(getDevice(), FEATURE_INCREMENTAL_DELIVERY)) {
             return;
         }
         final AtomsProto.PackageInstallerV2Reported report = installPackageUsingV2AndGetReport(
@@ -63,7 +65,7 @@ public class PackageInstallerV2StatsTests extends PackageManagerStatsTestsBase {
     }
 
     public void testPackageInstallerV2MetricsReportedForSplits() throws Throwable {
-        if (!Utils.hasIncrementalFeature(getDevice())) {
+        if (!DeviceUtils.hasFeature(getDevice(), FEATURE_INCREMENTAL_DELIVERY)) {
             return;
         }
         final AtomsProto.PackageInstallerV2Reported report = installPackageUsingV2AndGetReport(

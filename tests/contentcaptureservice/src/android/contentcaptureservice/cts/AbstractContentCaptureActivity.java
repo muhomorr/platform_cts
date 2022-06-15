@@ -157,8 +157,7 @@ public abstract class AbstractContentCaptureActivity extends Activity {
      */
     public void dumpIt() {
         final String dump = runShellCommand(
-                "dumpsys activity %s %s %s", getComponentName().flattenToString(),
-                Activity.DUMP_ARG_DUMP_DUMPABLE, ContentCaptureManager.DUMPABLE_NAME);
+                "dumpsys activity %s --contentcapture",  getComponentName().flattenToString());
         Log.v(mTag, "dump it: " + dump);
     }
 }

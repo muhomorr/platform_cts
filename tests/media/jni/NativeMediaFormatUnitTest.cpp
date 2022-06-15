@@ -17,9 +17,8 @@
 //#define LOG_NDEBUG 0
 #define LOG_TAG "NativeMediaFormatUnitTest"
 #include <log/log.h>
-
 #include <jni.h>
-#include <media/NdkMediaFormat.h>
+#include <NdkMediaFormat.h>
 
 #include <cinttypes>
 #include <map>

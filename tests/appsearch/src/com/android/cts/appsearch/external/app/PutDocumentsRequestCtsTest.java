@@ -20,7 +20,8 @@ package android.app.appsearch.cts.app;
 import static com.google.common.truth.Truth.assertThat;
 
 import android.app.appsearch.PutDocumentsRequest;
-import android.app.appsearch.testutil.AppSearchEmail;
+
+import com.android.server.appsearch.testing.AppSearchEmail;
 
 import com.google.common.collect.ImmutableSet;
 

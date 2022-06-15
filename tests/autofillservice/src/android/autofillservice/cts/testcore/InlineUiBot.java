@@ -20,16 +20,14 @@ import static android.autofillservice.cts.testcore.Timeouts.DATASET_PICKER_NOT_S
 import static android.autofillservice.cts.testcore.Timeouts.LONG_PRESS_MS;
 import static android.autofillservice.cts.testcore.Timeouts.UI_TIMEOUT;
 
-import android.content.Context;
 import android.content.pm.PackageManager;
-import android.content.res.Resources;
 import android.support.test.uiautomator.By;
 import android.support.test.uiautomator.BySelector;
 import android.support.test.uiautomator.Direction;
 import android.support.test.uiautomator.UiObject2;
-import android.util.Log;
 
 import com.android.compatibility.common.util.RequiredFeatureRule;
+import com.android.compatibility.common.util.Timeout;
 import com.android.cts.mockime.MockIme;
 
 import org.junit.rules.RuleChain;
@@ -48,11 +46,12 @@ public final class InlineUiBot extends UiBot {
     private static final RequiredFeatureRule REQUIRES_IME_RULE = new RequiredFeatureRule(
             PackageManager.FEATURE_INPUT_METHODS);
 
-    private final Context mContext;
+    public InlineUiBot() {
+        this(UI_TIMEOUT);
+    }
 
-    public InlineUiBot(Context context) {
-        super(UI_TIMEOUT);
-        mContext = context;
+    public InlineUiBot(Timeout defaultTimeout) {
+        super(defaultTimeout);
     }
 
     public static RuleChain annotateRule(TestRule rule) {
@@ -74,7 +73,7 @@ public final class InlineUiBot extends UiBot {
      * Selects the suggestion in the {@link MockIme}'s suggestion strip by the given text.
      */
     public void selectSuggestion(String name) throws Exception {
-        final UiObject2 strip = findSuggestionStrip();
+        final UiObject2 strip = findSuggestionStrip(UI_TIMEOUT);
         final UiObject2 dataset = strip.findObject(By.text(name));
         if (dataset == null) {
             throw new AssertionError("no dataset " + name + " in " + getChildrenAsText(strip));
@@ -89,7 +88,7 @@ public final class InlineUiBot extends UiBot {
 
     @Override
     public void longPressSuggestion(String name) throws Exception {
-        final UiObject2 strip = findSuggestionStrip();
+        final UiObject2 strip = findSuggestionStrip(UI_TIMEOUT);
         final UiObject2 dataset = strip.findObject(By.text(name));
         if (dataset == null) {
             throw new AssertionError("no dataset " + name + " in " + getChildrenAsText(strip));
@@ -98,14 +97,14 @@ public final class InlineUiBot extends UiBot {
     }
 
     @Override
-    public UiObject2 assertDatasets(String... names) throws Exception {
-        final UiObject2 picker = findSuggestionStrip();
+    public UiObject2 assertDatasets(String...names) throws Exception {
+        final UiObject2 picker = findSuggestionStrip(UI_TIMEOUT);
         return assertDatasets(picker, names);
     }
 
     @Override
     public void assertSuggestion(String name) throws Exception {
-        final UiObject2 strip = findSuggestionStrip();
+        final UiObject2 strip = findSuggestionStrip(UI_TIMEOUT);
         final UiObject2 dataset = strip.findObject(By.text(name));
         if (dataset == null) {
             throw new AssertionError("no dataset " + name + " in " + getChildrenAsText(strip));
@@ -114,7 +113,7 @@ public final class InlineUiBot extends UiBot {
 
     @Override
     public void assertNoSuggestion(String name) throws Exception {
-        final UiObject2 strip = findSuggestionStrip();
+        final UiObject2 strip = findSuggestionStrip(UI_TIMEOUT);
         final UiObject2 dataset = strip.findObject(By.text(name));
         if (dataset != null) {
             throw new AssertionError("has dataset " + name + " in " + getChildrenAsText(strip));
@@ -123,10 +122,7 @@ public final class InlineUiBot extends UiBot {
 
     @Override
     public void scrollSuggestionView(Direction direction, int speed) throws Exception {
-        final UiObject2 strip = findSuggestionStrip();
-        final int defaultWidth = strip.getVisibleBounds().width() / 4;
-        final int width = getEdgeSensitivityWidth(defaultWidth);
-        strip.setGestureMargin(width);
+        final UiObject2 strip = findSuggestionStrip(UI_TIMEOUT);
         strip.fling(direction, speed);
     }
 
@@ -137,24 +133,7 @@ public final class InlineUiBot extends UiBot {
         }
     }
 
-    private UiObject2 findSuggestionStrip() throws Exception {
-        return waitForObject(SUGGESTION_STRIP_SELECTOR, Timeouts.UI_TIMEOUT);
-    }
-
-    private int getEdgeSensitivityWidth(int defaultWidth) {
-        Resources resources = mContext.getResources();
-        int resId = resources.getIdentifier("config_backGestureInset", "dimen", "android");
-        try {
-            int width = resources.getDimensionPixelSize(resId) + 1;
-            if (width >= defaultWidth) {
-                return width;
-            }
-            Log.i(TAG, "Got edge sensitivity width of " + width
-                    + ", which is less than the default of " + defaultWidth + ". Using default");
-            return defaultWidth;
-        } catch (Resources.NotFoundException e) {
-            Log.e(TAG, "Failed to get edge sensitivity width. Defaulting to " + defaultWidth, e);
-            return defaultWidth;
-        }
+    private UiObject2 findSuggestionStrip(Timeout timeout) throws Exception {
+        return waitForObject(SUGGESTION_STRIP_SELECTOR, timeout);
     }
 }

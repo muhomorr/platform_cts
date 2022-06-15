@@ -16,8 +16,6 @@
 
 package com.android.queryable.info;
 
-import static com.android.bedstead.nene.utils.ParcelTest.assertParcelsCorrectly;
-
 import static com.google.common.truth.Truth.assertThat;
 
 import org.junit.Test;
@@ -58,12 +56,5 @@ public class ClassInfoTest {
         ClassInfo classInfo = new ClassInfo(TEST_CLASS_NAME);
 
         assertThat(classInfo.simpleName()).isEqualTo(TEST_CLASS_SIMPLE_NAME);
-    }
-
-    @Test
-    public void parcel_parcelsCorrectly() {
-        ClassInfo classInfo = new ClassInfo(TEST_CLASS_NAME);
-
-        assertParcelsCorrectly(ClassInfo.class, classInfo);
     }
 }

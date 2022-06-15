@@ -64,19 +64,15 @@ class OutputSurface implements SurfaceTexture.OnFrameAvailableListener {
      * EGL context and surface will be made current.  Creates a Surface that can be passed
      * to MediaCodec.configure().
      */
-    public OutputSurface(int width, int height, boolean useHighBitDepth) {
-        this(width, height, useHighBitDepth, /* useYuvSampling */ false);
-    }
-
-    public OutputSurface(int width, int height, boolean useHighBitDepth, boolean useYuvSampling) {
+    public OutputSurface(int width, int height) {
         if (width <= 0 || height <= 0) {
             throw new IllegalArgumentException();
         }
 
-        eglSetup(width, height, useHighBitDepth, useYuvSampling);
+        eglSetup(width, height);
         makeCurrent();
 
-        setup(this, useYuvSampling);
+        setup(this);
     }
 
     /**
@@ -84,24 +80,23 @@ class OutputSurface implements SurfaceTexture.OnFrameAvailableListener {
      * new one).  Creates a Surface that can be passed to MediaCodec.configure().
      */
     public OutputSurface() {
-        setup(this, /* useYuvSampling */ false);
+        setup(this);
     }
 
     public OutputSurface(final SurfaceTexture.OnFrameAvailableListener listener) {
-        setup(listener, /* useYuvSampling */ false);
+        setup(listener);
     }
 
     /**
      * Creates instances of TextureRender and SurfaceTexture, and a Surface associated
      * with the SurfaceTexture.
      */
-    private void setup(SurfaceTexture.OnFrameAvailableListener listener, boolean useYuvSampling) {
+    private void setup(SurfaceTexture.OnFrameAvailableListener listener) {
         assertTrue(EGL14.eglGetCurrentContext() != EGL14.EGL_NO_CONTEXT);
         assertTrue(EGL14.eglGetCurrentDisplay() != EGL14.EGL_NO_DISPLAY);
         assertTrue(EGL14.eglGetCurrentSurface(EGL14.EGL_DRAW) != EGL14.EGL_NO_SURFACE);
         assertTrue(EGL14.eglGetCurrentSurface(EGL14.EGL_READ) != EGL14.EGL_NO_SURFACE);
         mTextureRender = new TextureRender();
-        mTextureRender.setUseYuvSampling(useYuvSampling);
         mTextureRender.surfaceCreated();
 
         // Even if we don't access the SurfaceTexture after the constructor returns, we
@@ -130,7 +125,7 @@ class OutputSurface implements SurfaceTexture.OnFrameAvailableListener {
     /**
      * Prepares EGL.  We want a GLES 2.0 context and a surface that supports pbuffer.
      */
-    private void eglSetup(int width, int height, boolean useHighBitDepth, boolean useYuvSampling) {
+    private void eglSetup(int width, int height) {
         mEGLDisplay = EGL14.eglGetDisplay(EGL14.EGL_DEFAULT_DISPLAY);
         if (mEGLDisplay == EGL14.EGL_NO_DISPLAY) {
             throw new RuntimeException("unable to get EGL14 display");
@@ -143,13 +138,10 @@ class OutputSurface implements SurfaceTexture.OnFrameAvailableListener {
 
         // Configure EGL for pbuffer and OpenGL ES 2.0.  We want enough RGB bits
         // to be able to tell if the frame is reasonable.
-        int eglColorSize = useHighBitDepth ? 10: 8;
-        int eglAlphaSize = useHighBitDepth ? 2: 0;
         int[] attribList = {
-                EGL14.EGL_RED_SIZE, eglColorSize,
-                EGL14.EGL_GREEN_SIZE, eglColorSize,
-                EGL14.EGL_BLUE_SIZE, eglColorSize,
-                EGL14.EGL_ALPHA_SIZE, eglAlphaSize,
+                EGL14.EGL_RED_SIZE, 8,
+                EGL14.EGL_GREEN_SIZE, 8,
+                EGL14.EGL_BLUE_SIZE, 8,
                 EGL14.EGL_RENDERABLE_TYPE, EGL14.EGL_OPENGL_ES2_BIT,
                 EGL14.EGL_SURFACE_TYPE, EGL14.EGL_PBUFFER_BIT,
                 EGL14.EGL_NONE
@@ -161,10 +153,9 @@ class OutputSurface implements SurfaceTexture.OnFrameAvailableListener {
             throw new RuntimeException("unable to find RGB888+recordable ES2 EGL config");
         }
 
-        // Configure context for OpenGL ES 3.0/2.0.
-        int eglContextClientVersion = useYuvSampling ? 3: 2;
+        // Configure context for OpenGL ES 2.0.
         int[] attrib_list = {
-                EGL14.EGL_CONTEXT_CLIENT_VERSION, eglContextClientVersion,
+                EGL14.EGL_CONTEXT_CLIENT_VERSION, 2,
                 EGL14.EGL_NONE
         };
         mEGLContext = EGL14.eglCreateContext(mEGLDisplay, configs[0], EGL14.EGL_NO_CONTEXT,

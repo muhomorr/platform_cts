@@ -41,12 +41,10 @@ public class InlineSuggestionsRequestHostTest extends CompatChangeGatingTestCase
                 /*disabledChanges*/ ImmutableSet.of());
     }
 
-    // TODO(b/232956188): The test tests on the test tool class, we cannot find the reason before
-    // the deadline, so we disable this test first and create another bug to find the root cause.
-    //public void testImeAutofillDefaultSupportedLocalesIsEmpty_changeDisabled() throws Exception {
-    //    runDeviceCompatTest(DeviceTestConstants.PACKAGE, ".InlineSuggestionsRequestDeviceTest",
-    //            "imeAutofillDefaultSupportedLocalesIsEmpty_changeDisabled",
-    //            /*enabledChanges*/ImmutableSet.of(),
-    //            /*disabledChanges*/ ImmutableSet.of(169273070L));
-    //}
+    public void testImeAutofillDefaultSupportedLocalesIsEmpty_changeDisabled() throws Exception {
+        runDeviceCompatTest(DeviceTestConstants.PACKAGE, ".InlineSuggestionsRequestDeviceTest",
+                "imeAutofillDefaultSupportedLocalesIsEmpty_changeDisabled",
+                /*enabledChanges*/ImmutableSet.of(),
+                /*disabledChanges*/ ImmutableSet.of(169273070L));
+    }
 }

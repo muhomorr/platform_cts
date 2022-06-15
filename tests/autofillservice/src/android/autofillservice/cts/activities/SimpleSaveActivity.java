@@ -105,41 +105,21 @@ public class SimpleSaveActivity extends AbstractAutoFillActivity {
         mClearFieldsOnSubmit = flag;
     }
 
-    /**
-     * Set the EditText input or password value and wait until text change.
-     */
-    public void setTextAndWaitTextChange(String input, String password) throws Exception {
-        FillExpectation changeExpectation = expectInputPasswordTextChange(input, password);
-        syncRunOnUiThread(() -> {
-            if (input != null) {
-                mInput.setText(input);
-            }
-            if (password != null) {
-                mPassword.setText(password);
-            }
-        });
-        changeExpectation.assertTextChange();
-    }
-
-    public FillExpectation expectAutoFill(String input) {
+    public FillExpectation expectInputTextChange(String input) {
         final FillExpectation expectation = new FillExpectation(input, null);
         mInput.addTextChangedListener(expectation.mInputWatcher);
         return expectation;
     }
 
-    public FillExpectation expectInputPasswordTextChange(String input, String password) {
-        final FillExpectation expectation = new FillExpectation(input, password);
-        if (expectation.mInputWatcher != null) {
-            mInput.addTextChangedListener(expectation.mInputWatcher);
-        }
-        if (expectation.mPasswordWatcher != null) {
-            mPassword.addTextChangedListener(expectation.mPasswordWatcher);
-        }
-        return expectation;
+    public FillExpectation expectAutoFill(String input) {
+        return expectInputTextChange(input);
     }
 
     public FillExpectation expectAutoFill(String input, String password) {
-        return expectInputPasswordTextChange(input, password);
+        final FillExpectation expectation = new FillExpectation(input, password);
+        mInput.addTextChangedListener(expectation.mInputWatcher);
+        mPassword.addTextChangedListener(expectation.mPasswordWatcher);
+        return expectation;
     }
 
     public EditText getInput() {
@@ -151,9 +131,7 @@ public class SimpleSaveActivity extends AbstractAutoFillActivity {
         private final OneTimeTextWatcher mPasswordWatcher;
 
         private FillExpectation(String input, String password) {
-            mInputWatcher = input == null
-                    ? null
-                    : new OneTimeTextWatcher("input", mInput, input);
+            mInputWatcher = new OneTimeTextWatcher("input", mInput, input);
             mPasswordWatcher = password == null
                     ? null
                     : new OneTimeTextWatcher("password", mPassword, password);
@@ -164,9 +142,7 @@ public class SimpleSaveActivity extends AbstractAutoFillActivity {
         }
 
         public void assertAutoFilled() throws Exception {
-            if (mInputWatcher != null) {
-                mInputWatcher.assertAutoFilled();
-            }
+            mInputWatcher.assertAutoFilled();
             if (mPasswordWatcher != null) {
                 mPasswordWatcher.assertAutoFilled();
             }

@@ -29,7 +29,6 @@ import android.os.UserHandle;
 import android.test.suitebuilder.annotation.SmallTest;
 import android.util.Log;
 
-import com.android.compatibility.common.util.CddTest;
 import com.android.server.pm.shortcutmanagertest.ShortcutManagerTestUtils.ShortcutListAsserter;
 
 import java.util.ArrayList;
@@ -37,8 +36,9 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
+
+import com.android.compatibility.common.util.CddTest;
 
 @CddTest(requirement="3.8.1/C-2-3")
 @SmallTest
@@ -46,10 +46,9 @@ public class ShortcutManagerLauncherCallbackTest extends ShortcutManagerCtsTests
 
     private static class MyCallback extends LauncherApps.Callback {
         private final HashSet<String> mInterestedPackages = new HashSet<String>();
-        private final AtomicInteger mCallcount = new AtomicInteger(0);
+        private boolean called;
         private String lastPackage;
         private final List<ShortcutInfo> lastShortcuts = new ArrayList<>();
-
 
         public MyCallback(String... interestedPackages) {
             mInterestedPackages.addAll(Arrays.asList(interestedPackages));
@@ -99,17 +98,17 @@ public class ShortcutManagerLauncherCallbackTest extends ShortcutManagerCtsTests
             lastPackage = packageName;
             lastShortcuts.clear();
             lastShortcuts.addAll(shortcuts);
-            mCallcount.incrementAndGet();
+            called = true;
         }
 
         public synchronized void reset() {
             lastPackage = null;
             lastShortcuts.clear();
-            mCallcount.set(0);
+            called = false;
         }
 
         public synchronized boolean isCalled() {
-            return mCallcount.get() > 0;
+            return called;
         }
 
         public synchronized ShortcutListAsserter assertCalled(Context clientContext) {
@@ -344,16 +343,6 @@ public class ShortcutManagerLauncherCallbackTest extends ShortcutManagerCtsTests
                     .areAllDisabled();
             reset.run();
 
-            //-----------------------
-            Log.i(TAG, "testCallbacks: pushDynamicShortcut");
-            runWithCaller(mPackageContext1, () -> {
-                for (int i = 0; i < 100; i++) {
-                    getManager().pushDynamicShortcut(makeShortcut("s" + i));
-                }
-            });
-            retryUntil(c::isCalled, "callback not called.");
-            assertEquals(1, c.mCallcount.get());
-            reset.run();
         } finally {
             runWithCaller(mLauncherContext1, () -> {
                 if (registered.get()) {

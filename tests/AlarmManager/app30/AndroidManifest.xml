@@ -15,12 +15,14 @@
 -->
 
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-          package="android.alarmmanager.alarmtestapp.cts.sdk30">
+        package="android.alarmmanager.alarmtestapp.cts.sdk30">
 
     <uses-sdk android:targetSdkVersion="30" />
 
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
+
     <application>
-        <receiver android:name="android.alarmmanager.alarmtestapp.cts.common.RequestReceiver"
+        <receiver android:name=".TestReceiver"
                   android:exported="true" />
     </application>
 

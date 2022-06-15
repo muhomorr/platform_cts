@@ -40,7 +40,6 @@ import android.autofillservice.cts.testcore.InstrumentedAutoFillService.SaveRequ
 import android.autofillservice.cts.testcore.UiBot;
 import android.content.IntentSender;
 import android.platform.test.annotations.AppModeFull;
-import android.platform.test.annotations.FlakyTest;
 import android.platform.test.annotations.Presubmit;
 import android.view.inputmethod.InlineSuggestionsRequest;
 
@@ -178,7 +177,6 @@ public class InlineAuthenticationTest extends AbstractLoginActivityTestCase {
     }
 
     @Test
-    @FlakyTest(bugId = 185876679)
     @AppModeFull(reason = "testDatasetAuthTwoFields() is enough")
     public void testDatasetAuthTwoFieldsUserCancelsFirstAttempt() throws Exception {
         datasetAuthTwoFields(/* cancelFirstAttempt */ true);

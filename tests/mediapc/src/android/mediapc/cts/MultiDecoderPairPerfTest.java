@@ -16,36 +16,22 @@
 
 package android.mediapc.cts;
 
-import static org.junit.Assert.assertTrue;
-
-import android.media.MediaCodecInfo;
-import android.media.MediaFormat;
-import android.mediapc.cts.common.PerformanceClassEvaluator;
-import android.mediapc.cts.common.Utils;
 import android.util.Pair;
 
 import androidx.test.filters.LargeTest;
-import androidx.test.platform.app.InstrumentationRegistry;
 
-import com.android.compatibility.common.util.CddTest;
-import com.android.compatibility.common.util.DeviceReportLog;
-import com.android.compatibility.common.util.ResultType;
-import com.android.compatibility.common.util.ResultUnit;
-
-import org.junit.Assume;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TestName;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+
+import static org.junit.Assert.assertTrue;
 
 /**
  * The following test class calculates the maximum number of concurrent decode sessions that it can
@@ -58,7 +44,6 @@ import java.util.concurrent.Future;
 @RunWith(Parameterized.class)
 public class MultiDecoderPairPerfTest extends MultiCodecPerfTestBase {
     private static final String LOG_TAG = MultiDecoderPairPerfTest.class.getSimpleName();
-    private static final int REQUIRED_CONCURRENT_NON_SECURE_INSTANCES_WITH_SECURE = 3;
 
     private final Pair<String, String> mFirstPair;
     private final Pair<String, String> mSecondPair;
@@ -70,9 +55,6 @@ public class MultiDecoderPairPerfTest extends MultiCodecPerfTestBase {
         mSecondPair = secondPair;
     }
 
-    @Rule
-    public final TestName mTestName = new TestName();
-
     // Returns the list of params with two hardware (mime - decoder) pairs in both
     // sync and async modes.
     // Parameters {0}_{1}_{2} -- Pair(Mime DecoderName)_Pair(Mime DecoderName)_isAsync
@@ -81,7 +63,7 @@ public class MultiDecoderPairPerfTest extends MultiCodecPerfTestBase {
         final List<Object[]> argsList = new ArrayList<>();
         ArrayList<Pair<String, String>> mimeTypeDecoderPairs = new ArrayList<>();
         for (String mime : mMimeList) {
-            ArrayList<String> listOfDecoders = getHardwareCodecsForMime(mime, false, true);
+            ArrayList<String> listOfDecoders = getHardwareCodecsFor720p(mime, false);
             for (String decoder : listOfDecoders) {
                 mimeTypeDecoderPairs.add(Pair.create(mime, decoder));
             }
@@ -106,125 +88,30 @@ public class MultiDecoderPairPerfTest extends MultiCodecPerfTestBase {
      */
     @LargeTest
     @Test(timeout = CodecTestBase.PER_TEST_TIMEOUT_LARGE_TEST_MS)
-    @CddTest(requirement = "2.2.7.1/5.1/H-1-1,H-1-2")
     public void test720p() throws Exception {
-        Assume.assumeTrue(Utils.isSPerfClass() || Utils.isRPerfClass() || !Utils.isPerfClass());
-        Assume.assumeFalse("Skipping regular performance tests for secure codecs",
-                isSecureSupportedCodec(mFirstPair.second, mFirstPair.first) ||
-                        isSecureSupportedCodec(mSecondPair.second, mSecondPair.first));
-
-        boolean hasVP9 = mFirstPair.first.equals(MediaFormat.MIMETYPE_VIDEO_VP9) ||
-                mSecondPair.first.equals(MediaFormat.MIMETYPE_VIDEO_VP9);
-        int requiredMinInstances = getRequiredMinConcurrentInstances720p(hasVP9);
-        testCodec(m720pTestFiles, 720, 1280, requiredMinInstances);
-    }
-
-    /**
-     * This test calculates the number of 1080p 30 fps decoder instances that the given two
-     * (mime - decoder) pairs can support. Assigns the same number of instances to the two pairs
-     * (if max instances are even), or one more to one pair (if odd) and ensures that all the
-     * concurrent sessions succeed in decoding with meeting the expected frame rate.
-     */
-    @LargeTest
-    @Test(timeout = CodecTestBase.PER_TEST_TIMEOUT_LARGE_TEST_MS)
-    @CddTest(requirements = {
-            "2.2.7.1/5.1/H-1-1",
-            "2.2.7.1/5.1/H-1-2",
-            "2.2.7.1/5.1/H-1-9",
-            "2.2.7.1/5.1/H-1-10",})
-    public void test1080p() throws Exception {
-        Assume.assumeTrue(Utils.isTPerfClass() || !Utils.isPerfClass());
-        boolean isFirstSecure = isSecureSupportedCodec(mFirstPair.second, mFirstPair.first);
-        boolean isSecondSecure = isSecureSupportedCodec(mSecondPair.second, mSecondPair.first);
-        boolean onlyOneSecure = isFirstSecure ^ isSecondSecure;
-        boolean bothSecure = isFirstSecure & isSecondSecure;
-
-        if (bothSecure) {
-            testCodec(null, 1080, 1920, REQUIRED_MIN_CONCURRENT_SECURE_INSTANCES);
-        } else if (onlyOneSecure) {
-            testCodec(m1080pTestFiles, 1080, 1920,
-                    REQUIRED_CONCURRENT_NON_SECURE_INSTANCES_WITH_SECURE + 1, true);
-        } else {
-            testCodec(m1080pTestFiles, 1080, 1920, REQUIRED_MIN_CONCURRENT_INSTANCES);
-        }
-    }
-
-    private void testCodec(Map<String, String> testFiles, int height, int width,
-            int requiredMinInstances) throws Exception {
-        testCodec(testFiles, height, width, requiredMinInstances, false);
-    }
-
-    private void testCodec(Map<String, String> testFiles, int height, int width,
-            int requiredMinInstances, boolean secureWithUnsecure) throws Exception {
-        mTestFiles = testFiles;
         ArrayList<Pair<String, String>> mimeDecoderPairs = new ArrayList<>();
         mimeDecoderPairs.add(mFirstPair);
         mimeDecoderPairs.add(mSecondPair);
-        boolean bothSecure = true;
-        int maxInstances = checkAndGetMaxSupportedInstancesForCodecCombinations(height, width,
-                mimeDecoderPairs, requiredMinInstances);
+        int maxInstances = checkAndGetMaxSupportedInstancesFor720p(mimeDecoderPairs);
+        int secondPairInstances = maxInstances / 2;
+        int firstPairInstances = maxInstances - secondPairInstances;
+        ExecutorService pool = Executors.newFixedThreadPool(maxInstances);
+        List<Decode> testList = new ArrayList<>();
+        for (int i = 0; i < firstPairInstances; i++) {
+            testList.add(new Decode(mFirstPair.first, mTestFiles.get(mFirstPair.first),
+                    mFirstPair.second, mIsAsync));
+        }
+        for (int i = 0; i < secondPairInstances; i++) {
+            testList.add(new Decode(mSecondPair.first, mTestFiles.get(mSecondPair.first),
+                    mSecondPair.second, mIsAsync));
+        }
+        List<Future<Double>> resultList = pool.invokeAll(testList);
         double achievedFrameRate = 0.0;
-        // secure test should not reach this point if secure codec doesn't support PP
-        if (maxInstances >= requiredMinInstances || secureWithUnsecure) {
-            int secondPairInstances = maxInstances / 2;
-            int firstPairInstances = maxInstances - secondPairInstances;
-            if (secureWithUnsecure) {
-                firstPairInstances =
-                        isSecureSupportedCodec(mFirstPair.second, mFirstPair.first) ? 1 : 3;
-                secondPairInstances = requiredMinInstances - firstPairInstances;
-                maxInstances = requiredMinInstances;
-            }
-            List<Decode> testList = new ArrayList<>();
-            for (int i = 0; i < firstPairInstances; i++) {
-                boolean isSecure = isSecureSupportedCodec(mFirstPair.second, mFirstPair.first);
-                bothSecure &= isSecure;
-                String testFile = isSecure ? m1080pWidevineTestFiles.get(mFirstPair.first) :
-                        mTestFiles.get(mFirstPair.first);
-                Assume.assumeTrue("Add " + (isSecure ? "secure" : "") + " test vector for mime: " +
-                        mFirstPair.first, testFile != null);
-                testList.add(new Decode(mFirstPair.first, testFile, mFirstPair.second, mIsAsync,
-                        isSecure));
-            }
-            for (int i = 0; i < secondPairInstances; i++) {
-                boolean isSecure = isSecureSupportedCodec(mSecondPair.second, mSecondPair.first);
-                bothSecure &= isSecure;
-                String testFile = isSecure ? m1080pWidevineTestFiles.get(mSecondPair.first) :
-                        mTestFiles.get(mSecondPair.first);
-                Assume.assumeTrue("Add " + (isSecure ? "secure" : "") + " test vector for mime: " +
-                        mFirstPair.first, testFile != null);
-                testList.add(new Decode(mSecondPair.first, testFile, mSecondPair.second, mIsAsync,
-                        isSecure));
-            }
-            ExecutorService pool = Executors.newFixedThreadPool(maxInstances);
-            List<Future<Double>> resultList = pool.invokeAll(testList);
-            for (Future<Double> result : resultList) {
-                achievedFrameRate += result.get();
-            }
+        for (Future<Double> result : resultList) {
+            achievedFrameRate += result.get();
         }
-
-        PerformanceClassEvaluator pce = new PerformanceClassEvaluator(this.mTestName);
-        if (secureWithUnsecure) {
-            PerformanceClassEvaluator.ConcurrentCodecRequirement r5_1__H_1_10 =
-                pce.addR5_1__H_1_10();
-            r5_1__H_1_10.setConcurrentFps(achievedFrameRate);
-        } else if (bothSecure) {
-            PerformanceClassEvaluator.ConcurrentCodecRequirement r5_1__H_1_9 = pce.addR5_1__H_1_9();
-            r5_1__H_1_9.setConcurrentFps(achievedFrameRate);
-        } else {
-            PerformanceClassEvaluator.ConcurrentCodecRequirement r5_1__H_1_1;
-            PerformanceClassEvaluator.ConcurrentCodecRequirement r5_1__H_1_2;
-            if (height >= 1080) {
-                r5_1__H_1_1 = pce.addR5_1__H_1_1_1080p();
-                r5_1__H_1_2 = pce.addR5_1__H_1_2_1080p();
-                r5_1__H_1_1.setConcurrentInstances(maxInstances);
-                r5_1__H_1_2.setConcurrentFps(achievedFrameRate);
-            } else {
-                r5_1__H_1_1 = pce.addR5_1__H_1_1_720p(mMime, mMime, height);
-                r5_1__H_1_2 = pce.addR5_1__H_1_2_720p(mMime, mMime, height);
-                r5_1__H_1_1.setConcurrentInstances(maxInstances);
-                r5_1__H_1_2.setConcurrentFps(achievedFrameRate);
-            }
-        }
-        pce.submitAndCheck();
+        assertTrue("Unable to achieve the maxFrameRate supported. act/exp: " + achievedFrameRate
+                + "/" + mMaxFrameRate + " for " + maxInstances + " instances.",
+                achievedFrameRate >= mMaxFrameRate);
     }
 }

@@ -157,8 +157,6 @@ class DiscreteAppopsTest {
         uiDevice.wakeUp()
         uiDevice.executeShellCommand("wm dismiss-keyguard")
         uiDevice.executeShellCommand("input keyevent KEYCODE_HOME")
-
-        instrumentation.uiAutomation.waitForIdle(1000, 10000)
     }
 
     @After

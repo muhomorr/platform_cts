@@ -27,8 +27,6 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
 
-import com.android.compatibility.common.util.ApiTest;
-import com.android.compatibility.common.util.CddTest;
 import com.android.cts.verifier.PassFailButtons;
 import com.android.cts.verifier.R;
 
@@ -38,8 +36,6 @@ import java.util.List;
  * Tests that an outgoing call made from the default dialer on the system is able to connect to
  * the CtsConnectionService.
  */
-@ApiTest(apis={"android.telecom.ConnectionService"})
-@CddTest(requirement="7.4.1.2/C-1-1")
 public class OutgoingCallTestActivity extends PassFailButtons.Activity {
     private final static String TAG = "TelecomOutgoingCall";
 

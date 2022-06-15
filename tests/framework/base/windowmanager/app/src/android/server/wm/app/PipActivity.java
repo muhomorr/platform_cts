@@ -16,18 +16,15 @@
 
 package android.server.wm.app;
 
-import static android.server.wm.app.Components.PipActivity.ACTION_CHANGE_ASPECT_RATIO;
 import static android.server.wm.app.Components.PipActivity.ACTION_ENTER_PIP;
 import static android.server.wm.app.Components.PipActivity.ACTION_EXPAND_PIP;
 import static android.server.wm.app.Components.PipActivity.ACTION_FINISH;
-import static android.server.wm.app.Components.PipActivity.ACTION_LAUNCH_TRANSLUCENT_ACTIVITY;
 import static android.server.wm.app.Components.PipActivity.ACTION_MOVE_TO_BACK;
 import static android.server.wm.app.Components.PipActivity.ACTION_ON_PIP_REQUESTED;
 import static android.server.wm.app.Components.PipActivity.ACTION_SET_REQUESTED_ORIENTATION;
 import static android.server.wm.app.Components.PipActivity.ACTION_UPDATE_PIP_STATE;
 import static android.server.wm.app.Components.PipActivity.EXTRA_ALLOW_AUTO_PIP;
 import static android.server.wm.app.Components.PipActivity.EXTRA_ASSERT_NO_ON_STOP_BEFORE_PIP;
-import static android.server.wm.app.Components.PipActivity.EXTRA_CLOSE_ACTION;
 import static android.server.wm.app.Components.PipActivity.EXTRA_DISMISS_KEYGUARD;
 import static android.server.wm.app.Components.PipActivity.EXTRA_ENTER_PIP;
 import static android.server.wm.app.Components.PipActivity.EXTRA_ENTER_PIP_ASPECT_RATIO_DENOMINATOR;
@@ -35,10 +32,7 @@ import static android.server.wm.app.Components.PipActivity.EXTRA_ENTER_PIP_ASPEC
 import static android.server.wm.app.Components.PipActivity.EXTRA_ENTER_PIP_ON_PAUSE;
 import static android.server.wm.app.Components.PipActivity.EXTRA_ENTER_PIP_ON_PIP_REQUESTED;
 import static android.server.wm.app.Components.PipActivity.EXTRA_ENTER_PIP_ON_USER_LEAVE_HINT;
-import static android.server.wm.app.Components.PipActivity.EXTRA_EXPANDED_PIP_ASPECT_RATIO_DENOMINATOR;
-import static android.server.wm.app.Components.PipActivity.EXTRA_EXPANDED_PIP_ASPECT_RATIO_NUMERATOR;
 import static android.server.wm.app.Components.PipActivity.EXTRA_FINISH_SELF_ON_RESUME;
-import static android.server.wm.app.Components.PipActivity.EXTRA_IS_SEAMLESS_RESIZE_ENABLED;
 import static android.server.wm.app.Components.PipActivity.EXTRA_NUMBER_OF_CUSTOM_ACTIONS;
 import static android.server.wm.app.Components.PipActivity.EXTRA_ON_PAUSE_DELAY;
 import static android.server.wm.app.Components.PipActivity.EXTRA_PIP_ORIENTATION;
@@ -50,10 +44,9 @@ import static android.server.wm.app.Components.PipActivity.EXTRA_SET_PIP_CALLBAC
 import static android.server.wm.app.Components.PipActivity.EXTRA_SET_PIP_STASHED;
 import static android.server.wm.app.Components.PipActivity.EXTRA_SHOW_OVER_KEYGUARD;
 import static android.server.wm.app.Components.PipActivity.EXTRA_START_ACTIVITY;
-import static android.server.wm.app.Components.PipActivity.EXTRA_SUBTITLE;
+import static android.server.wm.app.Components.PipActivity.EXTRA_IS_SEAMLESS_RESIZE_ENABLED;
 import static android.server.wm.app.Components.PipActivity.EXTRA_TAP_TO_FINISH;
-import static android.server.wm.app.Components.PipActivity.EXTRA_TITLE;
-import static android.server.wm.app.Components.PipActivity.UI_STATE_STASHED_RESULT;
+import static android.server.wm.app.Components.PipActivity.PIP_CALLBACK_RESULT_KEY;
 import static android.view.WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD;
 
 import android.app.Activity;
@@ -131,16 +124,6 @@ public class PipActivity extends AbstractLifecycleLogActivity {
                     case ACTION_ON_PIP_REQUESTED:
                         onPictureInPictureRequested();
                         break;
-                    case ACTION_CHANGE_ASPECT_RATIO:
-                        setPictureInPictureParams(new PictureInPictureParams.Builder()
-                                .setAspectRatio(getAspectRatio(intent,
-                                        EXTRA_SET_ASPECT_RATIO_NUMERATOR,
-                                        EXTRA_SET_ASPECT_RATIO_DENOMINATOR))
-                                .build());
-                        break;
-                    case ACTION_LAUNCH_TRANSLUCENT_ACTIVITY:
-                        startActivity(new Intent(PipActivity.this, TranslucentTestActivity.class));
-                        break;
                 }
             }
         }
@@ -177,11 +160,6 @@ public class PipActivity extends AbstractLifecycleLogActivity {
                     builder.setAspectRatio(getAspectRatio(getIntent(),
                             EXTRA_ENTER_PIP_ASPECT_RATIO_NUMERATOR,
                             EXTRA_ENTER_PIP_ASPECT_RATIO_DENOMINATOR));
-                    if (shouldAddExpandedPipAspectRatios()) {
-                        builder.setExpandedAspectRatio(getAspectRatio(getIntent(),
-                                EXTRA_EXPANDED_PIP_ASPECT_RATIO_NUMERATOR,
-                                EXTRA_EXPANDED_PIP_ASPECT_RATIO_DENOMINATOR));
-                    }
                     enteringPip = enterPictureInPictureMode(builder.build());
                 } catch (Exception e) {
                     // This call can fail intentionally if the aspect ratio is too extreme
@@ -218,25 +196,6 @@ public class PipActivity extends AbstractLifecycleLogActivity {
         if (getIntent().hasExtra(EXTRA_IS_SEAMLESS_RESIZE_ENABLED)) {
             sharedBuilder.setSeamlessResizeEnabled(
                     getIntent().getBooleanExtra(EXTRA_IS_SEAMLESS_RESIZE_ENABLED, true));
-            sharedBuilderChanged = true;
-        }
-
-        if (getIntent().hasExtra(EXTRA_TITLE)) {
-            sharedBuilder.setTitle(getIntent().getStringExtra(EXTRA_TITLE));
-            sharedBuilderChanged = true;
-        }
-
-        if (getIntent().hasExtra(EXTRA_SUBTITLE)) {
-            sharedBuilder.setSubtitle(getIntent().getStringExtra(EXTRA_SUBTITLE));
-            sharedBuilderChanged = true;
-        }
-
-        if (getIntent().hasExtra(EXTRA_CLOSE_ACTION)) {
-            if (getIntent().getBooleanExtra(EXTRA_CLOSE_ACTION, false)) {
-                sharedBuilder.setCloseAction(createRemoteAction(0));
-            } else {
-                sharedBuilder.setCloseAction(null);
-            }
             sharedBuilderChanged = true;
         }
 
@@ -281,9 +240,7 @@ public class PipActivity extends AbstractLifecycleLogActivity {
         filter.addAction(ACTION_SET_REQUESTED_ORIENTATION);
         filter.addAction(ACTION_FINISH);
         filter.addAction(ACTION_ON_PIP_REQUESTED);
-        filter.addAction(ACTION_CHANGE_ASPECT_RATIO);
-        filter.addAction(ACTION_LAUNCH_TRANSLUCENT_ACTIVITY);
-        registerReceiver(mReceiver, filter, Context.RECEIVER_EXPORTED);
+        registerReceiver(mReceiver, filter);
 
         // Don't dump configuration when entering PIP to avoid the verifier getting the intermediate
         // state. In this case it is expected that the verifier will check the changed configuration
@@ -377,7 +334,7 @@ public class PipActivity extends AbstractLifecycleLogActivity {
     @Override
     public void onPictureInPictureUiStateChanged(PictureInPictureUiState pipState) {
         Bundle res = new Bundle();
-        res.putBoolean(UI_STATE_STASHED_RESULT, pipState.isStashed());
+        res.putBoolean(PIP_CALLBACK_RESULT_KEY, pipState.isStashed());
         mCb.sendResult(res);
     }
 
@@ -414,10 +371,5 @@ public class PipActivity extends AbstractLifecycleLogActivity {
                 "action " + index,
                 "contentDescription " + index,
                 PendingIntent.getBroadcast(this, 0, new Intent(), PendingIntent.FLAG_IMMUTABLE));
-    }
-
-    private boolean shouldAddExpandedPipAspectRatios() {
-        return getIntent().hasExtra(EXTRA_EXPANDED_PIP_ASPECT_RATIO_NUMERATOR)
-            && getIntent().hasExtra(EXTRA_EXPANDED_PIP_ASPECT_RATIO_DENOMINATOR);
     }
 }

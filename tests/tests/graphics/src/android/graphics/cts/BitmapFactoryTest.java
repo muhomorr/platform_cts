@@ -24,7 +24,6 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
-import static org.junit.Assume.assumeTrue;
 import static org.testng.Assert.assertThrows;
 
 import android.content.res.Resources;
@@ -35,12 +34,9 @@ import android.graphics.BitmapFactory;
 import android.graphics.BitmapFactory.Options;
 import android.graphics.Color;
 import android.graphics.Rect;
-import android.media.MediaFormat;
-import android.os.Build;
 import android.os.Parcel;
 import android.os.ParcelFileDescriptor;
 import android.platform.test.annotations.LargeTest;
-import android.platform.test.annotations.RequiresDevice;
 import android.system.ErrnoException;
 import android.system.Os;
 import android.util.DisplayMetrics;
@@ -49,10 +45,8 @@ import android.util.TypedValue;
 import androidx.test.InstrumentationRegistry;
 import androidx.test.filters.SmallTest;
 
-import com.android.compatibility.common.util.ApiLevelUtil;
 import com.android.compatibility.common.util.BitmapUtils;
 import com.android.compatibility.common.util.CddTest;
-import com.android.compatibility.common.util.MediaUtils;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -66,8 +60,6 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.RandomAccessFile;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.concurrent.CountDownLatch;
 
 import junitparams.JUnitParamsRunner;
@@ -92,18 +84,13 @@ public class BitmapFactoryTest {
     }
 
     private Object[] testImages() {
-        ArrayList<Object> testImages = new ArrayList<>(Arrays.asList(new Object[] {
+        return new Object[] {
                 new TestImage(R.drawable.baseline_jpeg, 1280, 960),
                 new TestImage(R.drawable.png_test, 640, 480),
                 new TestImage(R.drawable.gif_test, 320, 240),
                 new TestImage(R.drawable.bmp_test, 320, 240),
-                new TestImage(R.drawable.webp_test, 640, 480)
-        }));
-        if (MediaUtils.hasDecoder(MediaFormat.MIMETYPE_VIDEO_HEVC)) {
-            // HEIF support is optional when HEVC decoder is not supported.
-            testImages.add(new TestImage(R.raw.heifwriter_input, 1920, 1080));
-        }
-        return testImages.toArray(new Object[] {});
+                new TestImage(R.drawable.webp_test, 640, 480),
+        };
     }
 
     private static final int[] RAW_COLORS = new int[] {
@@ -1003,67 +990,6 @@ public class BitmapFactoryTest {
             }
         }
         return argb;
-    }
-
-    @Test
-    @RequiresDevice
-    public void testDecode10BitHEIFTo10BitBitmap() {
-        assumeTrue(
-            "Test needs Android T.", ApiLevelUtil.isFirstApiAtLeast(Build.VERSION_CODES.TIRAMISU));
-        if (!MediaUtils.hasDecoder(MediaFormat.MIMETYPE_VIDEO_HEVC)) {
-            return;
-        }
-        BitmapFactory.Options opt = new BitmapFactory.Options();
-        opt.inPreferredConfig = Config.RGBA_1010102;
-        Bitmap bm = BitmapFactory.decodeStream(obtainInputStream(R.raw.heifimage_10bit), null, opt);
-        assertNotNull(bm);
-        assertEquals(4096, bm.getWidth());
-        assertEquals(3072, bm.getHeight());
-        assertEquals(Config.RGBA_1010102, bm.getConfig());
-    }
-
-    @Test
-    @RequiresDevice
-    public void testDecode10BitHEIFTo8BitBitmap() {
-        assumeTrue(
-            "Test needs Android T.", ApiLevelUtil.isFirstApiAtLeast(Build.VERSION_CODES.TIRAMISU));
-        if (!MediaUtils.hasDecoder(MediaFormat.MIMETYPE_VIDEO_HEVC)) {
-            return;
-        }
-        BitmapFactory.Options opt = new BitmapFactory.Options();
-        opt.inPreferredConfig = Config.ARGB_8888;
-        Bitmap bm1 =
-            BitmapFactory.decodeStream(obtainInputStream(R.raw.heifimage_10bit), null, opt);
-        Bitmap bm2 = BitmapFactory.decodeStream(obtainInputStream(R.raw.heifimage_10bit));
-        assertNotNull(bm1);
-        assertEquals(4096, bm1.getWidth());
-        assertEquals(3072, bm1.getHeight());
-        assertEquals(Config.RGBA_1010102, bm1.getConfig());
-        assertNotNull(bm2);
-        assertEquals(4096, bm2.getWidth());
-        assertEquals(3072, bm2.getHeight());
-        assertEquals(Config.RGBA_1010102, bm2.getConfig());
-    }
-
-    @Test
-    @RequiresDevice
-    public void testDecode8BitHEIFTo10BitBitmap() {
-        if (!MediaUtils.hasDecoder(MediaFormat.MIMETYPE_VIDEO_HEVC)) {
-            return;
-        }
-        BitmapFactory.Options opt = new BitmapFactory.Options();
-        opt.inPreferredConfig = Config.RGBA_1010102;
-        Bitmap bm1 =
-            BitmapFactory.decodeStream(obtainInputStream(R.raw.heifwriter_input), null, opt);
-        Bitmap bm2 = BitmapFactory.decodeStream(obtainInputStream(R.raw.heifwriter_input));
-        assertNotNull(bm1);
-        assertEquals(1920, bm1.getWidth());
-        assertEquals(1080, bm1.getHeight());
-        assertEquals(Config.ARGB_8888, bm1.getConfig());
-        assertNotNull(bm2);
-        assertEquals(1920, bm2.getWidth());
-        assertEquals(1080, bm2.getHeight());
-        assertEquals(Config.ARGB_8888, bm2.getConfig());
     }
 
     private byte[] obtainArray() {

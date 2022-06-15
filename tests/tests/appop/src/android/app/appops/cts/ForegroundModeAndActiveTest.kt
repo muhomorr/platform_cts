@@ -42,7 +42,6 @@ import android.support.test.uiautomator.UiDevice
 import android.util.Log
 import androidx.test.platform.app.InstrumentationRegistry
 import com.android.compatibility.common.util.SystemUtil.callWithShellPermissionIdentity
-import com.android.compatibility.common.util.SystemUtil.eventually
 import com.google.common.truth.Truth.assertThat
 import org.junit.After
 import org.junit.Assert
@@ -81,8 +80,6 @@ class ForegroundModeAndActiveTest {
         uiDevice.wakeUp()
         uiDevice.executeShellCommand("wm dismiss-keyguard")
         uiDevice.executeShellCommand("input keyevent KEYCODE_HOME")
-
-        instrumentation.uiAutomation.waitForIdle(1000, 10000)
     }
 
     @Before
@@ -140,14 +137,12 @@ class ForegroundModeAndActiveTest {
     }
 
     private fun withTopActivity(code: (Activity) -> Unit) {
-        eventually({
-            wakeUpScreen()
+        wakeUpScreen()
 
-            context.startActivity(Intent(context, UidStateForceActivity::class.java)
-                    .setFlags(FLAG_ACTIVITY_NEW_TASK))
+        context.startActivity(Intent(context, UidStateForceActivity::class.java)
+                .setFlags(FLAG_ACTIVITY_NEW_TASK))
 
-            UidStateForceActivity.waitForResumed()
-        }, 300000)
+        UidStateForceActivity.waitForResumed()
         try {
             code(UidStateForceActivity.instance!!)
         } finally {

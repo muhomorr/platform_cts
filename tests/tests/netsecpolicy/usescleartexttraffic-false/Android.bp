@@ -38,8 +38,4 @@ android_test {
         "general-tests",
     ],
     sdk_version: "current",
-    data: [
-        ":CtsNetSecPolicyUsesCleartextTrafficFalse",
-    ],
-    per_testcase_directory: true,
 }

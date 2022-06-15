@@ -61,7 +61,7 @@ public:
   VkAHardwareBufferImage(VkInit *init);
   ~VkAHardwareBufferImage();
 
-  bool init(AHardwareBuffer *buffer, bool useExternalFormat, int syncFd = -1, VkImageUsageFlags usage = VK_IMAGE_USAGE_SAMPLED_BIT);
+  bool init(AHardwareBuffer *buffer, bool useExternalFormat, int syncFd = -1);
   VkImage image() { return mImage; }
   VkSampler sampler() { return mSampler; }
   VkImageView view() { return mView; }
@@ -76,19 +76,6 @@ private:
   VkImageView mView = VK_NULL_HANDLE;
   VkSamplerYcbcrConversion mConversion = VK_NULL_HANDLE;
   VkSemaphore mSemaphore = VK_NULL_HANDLE;
-};
-
-class ShaderModule {
-public:
-  ShaderModule() {};
-  bool init(VkInit* init, JNIEnv* env, jobject assetMgr, char const *spirvFilename);
-  ~ShaderModule();
-
-  VkShaderModule module() { return mModule; }
-
-private:
-  VkInit* mInit = nullptr;
-  VkShaderModule mModule = VK_NULL_HANDLE;
 };
 
 // Renders a provided image to a new texture, then reads back that texture to
@@ -129,9 +116,9 @@ private:
   VkBuffer mVertexBuffer = VK_NULL_HANDLE;
   VkDeviceMemory mVertexBufferMemory = VK_NULL_HANDLE;
   VkFramebuffer mFramebuffer = VK_NULL_HANDLE;
+  VkShaderModule mVertModule = VK_NULL_HANDLE;
+  VkShaderModule mPixelModule = VK_NULL_HANDLE;
   VkFence mFence = VK_NULL_HANDLE;
-  ShaderModule mVertexShaderModule;
-  ShaderModule mFragmentShaderModule;
 
   // Temporary values used during renderImageAndReadback.
   VkCommandBuffer mCmdBuffer = VK_NULL_HANDLE;

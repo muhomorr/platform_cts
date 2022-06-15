@@ -17,7 +17,6 @@
 package android.filesystem.cts;
 
 import android.util.Log;
-import android.mediapc.cts.common.Utils;
 
 import static androidx.test.InstrumentationRegistry.getContext;
 import static androidx.test.InstrumentationRegistry.getInstrumentation;
@@ -55,7 +54,7 @@ public class SequentialRWTest {
     private static final double MIN_WRITE_MBPS;
 
     static {
-        if (Utils.isRPerfClass()) {
+        if (MediaPerformanceClassUtils.isRPerfClass()) {
             MIN_READ_MBPS = 200;
             MIN_WRITE_MBPS = 100;
         } else {
@@ -105,7 +104,7 @@ public class SequentialRWTest {
         Log.v(TAG, "sequential write " + stat.mAverage + " MBPS");
         report.submit(getInstrumentation());
 
-        if (Utils.isPerfClass()) {
+        if (MediaPerformanceClassUtils.isPerfClass()) {
             assertTrue("measured " + stat.mAverage + " is less than target (" + MIN_WRITE_MBPS +
                        " MBPS)", stat.mAverage >= MIN_WRITE_MBPS);
         }
@@ -167,7 +166,7 @@ public class SequentialRWTest {
         Log.v(TAG, "sequential read " + stat.mAverage + " MBPS");
         report.submit(getInstrumentation());
 
-        if (Utils.isPerfClass()) {
+        if (MediaPerformanceClassUtils.isPerfClass()) {
             assertTrue("measured " + stat.mAverage + " is less than target (" + MIN_READ_MBPS +
                        " MBPS)", stat.mAverage >= MIN_READ_MBPS);
         }

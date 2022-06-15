@@ -35,6 +35,8 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 
 public class PostMessageTest extends ActivityInstrumentationTestCase2<WebViewCtsActivity> {
+    public static final long TIMEOUT = 20000L;
+
     private WebView mWebView;
     private WebViewOnUiThread mOnUiThread;
 
@@ -94,7 +96,7 @@ public class PostMessageTest extends ActivityInstrumentationTestCase2<WebViewCts
     }
 
     private void waitForTitle(final String title) {
-        new PollingCheck(WebkitUtils.TEST_TIMEOUT_MS) {
+        new PollingCheck(TIMEOUT) {
             @Override
             protected boolean check() {
                 return mOnUiThread.getTitle().equals(title);

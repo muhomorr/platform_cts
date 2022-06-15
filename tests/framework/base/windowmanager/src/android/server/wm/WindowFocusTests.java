@@ -61,6 +61,8 @@ import android.view.WindowManager.LayoutParams;
 
 import androidx.annotation.NonNull;
 
+import com.android.compatibility.common.util.SystemUtil;
+
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -79,7 +81,9 @@ public class WindowFocusTests extends WindowManagerTestBase {
     private static void sendKey(int action, int keyCode, int displayId) {
         final KeyEvent keyEvent = new KeyEvent(action, keyCode);
         keyEvent.setDisplayId(displayId);
-        getInstrumentation().sendKeySync(keyEvent);
+        SystemUtil.runWithShellPermissionIdentity(() -> {
+            getInstrumentation().sendKeySync(keyEvent);
+        });
     }
 
     private static void sendAndAssertTargetConsumedKey(InputTargetActivity target, int keyCode,

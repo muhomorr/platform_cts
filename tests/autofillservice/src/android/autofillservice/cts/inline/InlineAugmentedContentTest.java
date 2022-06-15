@@ -27,7 +27,6 @@ import android.autofillservice.cts.commontests.AugmentedAutofillAutoActivityLaun
 import android.autofillservice.cts.testcore.AutofillActivityTestRule;
 import android.autofillservice.cts.testcore.CannedAugmentedFillResponse;
 import android.autofillservice.cts.testcore.CtsAugmentedAutofillService;
-import android.autofillservice.cts.testcore.InlineUiBot;
 import android.content.ClipData;
 import android.content.ContentResolver;
 import android.content.IntentSender;
@@ -44,7 +43,6 @@ import android.widget.TextView;
 
 import org.junit.Before;
 import org.junit.Test;
-import org.junit.rules.TestRule;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -71,11 +69,6 @@ public class InlineAugmentedContentTest
                 mActivity = getActivity();
             }
         };
-    }
-
-    @Override
-    public TestRule getMainTestRule() {
-        return InlineUiBot.annotateRule(super.getMainTestRule());
     }
 
     @Before

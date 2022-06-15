@@ -16,31 +16,32 @@
 
 package com.android.cts.verifier.audio;
 
+import com.android.cts.verifier.CtsVerifierReportLog;
+import com.android.cts.verifier.R;
+import com.android.cts.verifier.audio.wavelib.*;
+import com.android.compatibility.common.util.ResultType;
+import com.android.compatibility.common.util.ResultUnit;
+import android.content.BroadcastReceiver;
+import android.content.Intent;
+import android.content.IntentFilter;
+
 import android.media.AudioFormat;
 import android.media.AudioRecord;
 import android.media.MediaRecorder;
+
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
 import android.os.SystemClock;
+
 import android.util.Log;
+
 import android.view.View;
 import android.view.View.OnClickListener;
-import android.widget.Button;
-import android.widget.ProgressBar;
-import android.widget.TextView;
 
-import com.android.compatibility.common.util.ResultType;
-import com.android.compatibility.common.util.ResultUnit;
-import com.android.cts.verifier.CtsVerifierReportLog;
-import com.android.cts.verifier.R;
-import com.android.cts.verifier.audio.wavelib.DspBufferComplex;
-import com.android.cts.verifier.audio.wavelib.DspBufferDouble;
-import com.android.cts.verifier.audio.wavelib.DspBufferMath;
-import com.android.cts.verifier.audio.wavelib.DspFftServer;
-import com.android.cts.verifier.audio.wavelib.DspWindow;
-import com.android.cts.verifier.audio.wavelib.PipeShort;
-import com.android.cts.verifier.audio.wavelib.VectorAverage;
+import android.widget.Button;
+import android.widget.TextView;
+import android.widget.ProgressBar;
 
 /**
  * Tests Audio Device roundtrip latency by using a loopback plug.
@@ -102,13 +103,15 @@ public class AudioFrequencySpeakerActivity extends AudioFrequencyActivity implem
     private class OnBtnClickListener implements OnClickListener {
         @Override
         public void onClick(View v) {
-            int id = v.getId();
-            if (id == R.id.audio_frequency_speaker_mic_ready_btn) {
+            switch (v.getId()) {
+            case R.id.audio_frequency_speaker_mic_ready_btn:
                 testUSB();
                 setMaxLevel();
                 testMaxLevel();
-            } else if (id == R.id.audio_frequency_speaker_test_btn) {
+                break;
+            case R.id.audio_frequency_speaker_test_btn:
                 startAudioTest();
+                break;
             }
         }
     }

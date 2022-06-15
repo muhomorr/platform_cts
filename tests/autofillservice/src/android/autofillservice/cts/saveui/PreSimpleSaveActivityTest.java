@@ -18,8 +18,8 @@ package android.autofillservice.cts.saveui;
 import static android.autofillservice.cts.activities.LoginActivity.ID_USERNAME_CONTAINER;
 import static android.autofillservice.cts.activities.PreSimpleSaveActivity.ID_PRE_INPUT;
 import static android.autofillservice.cts.activities.SimpleSaveActivity.ID_INPUT;
+import static android.autofillservice.cts.activities.SimpleSaveActivity.ID_LABEL;
 import static android.autofillservice.cts.testcore.Helper.ID_STATIC_TEXT;
-import static android.autofillservice.cts.testcore.Helper.assertActivityShownInBackground;
 import static android.autofillservice.cts.testcore.Helper.assertTextAndValue;
 import static android.autofillservice.cts.testcore.Helper.findAutofillIdByResourceId;
 import static android.autofillservice.cts.testcore.Helper.findNodeByResourceId;
@@ -69,7 +69,7 @@ public class PreSimpleSaveActivityTest
     @Override
     protected void saveUiRestoredAfterTappingLinkTest(PostSaveLinkTappedAction type)
             throws Exception {
-        startActivity(/* remainOnRecents= */ false);
+        startActivity(false);
         // Set service.
         enableService();
 
@@ -85,11 +85,12 @@ public class PreSimpleSaveActivityTest
         sReplier.getNextFillRequest();
 
         // Trigger save.
-        mActivity.setTextAndWaitTextChange("108");
-        mActivity.syncRunOnUiThread(() -> mActivity.mSubmit.performClick());
-
+        mActivity.syncRunOnUiThread(() -> {
+            mActivity.mPreInput.setText("108");
+            mActivity.mSubmit.performClick();
+        });
         // Make sure post-save activity is shown...
-        assertActivityShownInBackground(SimpleSaveActivity.class);
+        mUiBot.assertShownByRelativeId(ID_INPUT);
 
         // Tap the link.
         final UiObject2 saveUi = assertSaveUiWithLinkIsShown(SAVE_DATA_TYPE_PASSWORD);
@@ -127,7 +128,7 @@ public class PreSimpleSaveActivityTest
     @Override
     protected void tapLinkThenTapBackThenStartOverTest(PostSaveLinkTappedAction action,
             boolean manualRequest) throws Exception {
-        startActivity(/* remainOnRecents= */ false);
+        startActivity(false);
         // Set service.
         enableService();
 
@@ -143,11 +144,12 @@ public class PreSimpleSaveActivityTest
         sReplier.getNextFillRequest();
 
         // Trigger save.
-        mActivity.setTextAndWaitTextChange("108");
-        mActivity.syncRunOnUiThread(() -> mActivity.mSubmit.performClick());
-
+        mActivity.syncRunOnUiThread(() -> {
+            mActivity.mPreInput.setText("108");
+            mActivity.mSubmit.performClick();
+        });
         // Make sure post-save activity is shown...
-        assertActivityShownInBackground(SimpleSaveActivity.class);
+        mUiBot.assertShownByRelativeId(ID_INPUT);
 
         // Tap the link.
         final UiObject2 saveUi = assertSaveUiWithLinkIsShown(SAVE_DATA_TYPE_PASSWORD);
@@ -166,7 +168,7 @@ public class PreSimpleSaveActivityTest
         // ...instead, do something to dismiss it:
         switch (action) {
             case TOUCH_OUTSIDE:
-                mUiBot.touchOutsideSaveDialog();
+                mUiBot.assertShownByRelativeId(ID_LABEL).longClick();
                 break;
             case TAP_NO_ON_SAVE_UI:
                 mUiBot.saveForAutofill(saveUi2, false);
@@ -201,11 +203,12 @@ public class PreSimpleSaveActivityTest
         sReplier.getNextFillRequest();
 
         // Trigger save.
-        newActivty.setTextAndWaitTextChange(/* input= */ "42", /* password= */  null);
-        newActivty.syncRunOnUiThread(() -> newActivty.mCommit.performClick());
-
+        newActivty.syncRunOnUiThread(() -> {
+            newActivty.mInput.setText("42");
+            newActivty.mCommit.performClick();
+        });
         // Make sure post-save activity is shown...
-        assertActivityShownInBackground(SimpleSaveActivity.class);
+        mUiBot.assertShownByRelativeId(ID_INPUT);
 
         // Save it...
         mUiBot.saveForAutofill(true, SAVE_DATA_TYPE_EMAIL_ADDRESS);
@@ -218,7 +221,7 @@ public class PreSimpleSaveActivityTest
     @Override
     protected void saveUiCancelledAfterTappingLinkTest(PostSaveLinkTappedAction type)
             throws Exception {
-        startActivity(/* remainOnRecents= */ false);
+        startActivity(false);
         // Set service.
         enableService();
 
@@ -234,11 +237,12 @@ public class PreSimpleSaveActivityTest
         sReplier.getNextFillRequest();
 
         // Trigger save.
-        mActivity.setTextAndWaitTextChange("108");
-        mActivity.syncRunOnUiThread(() -> mActivity.mSubmit.performClick());
-
+        mActivity.syncRunOnUiThread(() -> {
+            mActivity.mPreInput.setText("108");
+            mActivity.mSubmit.performClick();
+        });
         // Make sure post-save activity is shown...
-        assertActivityShownInBackground(SimpleSaveActivity.class);
+        mUiBot.assertShownByRelativeId(ID_INPUT);
 
         // Tap the link.
         final UiObject2 saveUi = assertSaveUiWithLinkIsShown(SAVE_DATA_TYPE_PASSWORD);
@@ -272,7 +276,7 @@ public class PreSimpleSaveActivityTest
     protected void tapLinkLaunchTrampolineActivityThenTapBackAndStartNewSessionTest()
             throws Exception {
         // Prepare activity.
-        startActivity(/* remainOnRecents= */ false);
+        startActivity(false);
         mActivity.mPreInput.getRootView()
                 .setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS);
 
@@ -291,16 +295,17 @@ public class PreSimpleSaveActivityTest
         sReplier.getNextFillRequest();
 
         // Trigger save.
-        mActivity.setTextAndWaitTextChange("108");
-        mActivity.syncRunOnUiThread(() -> mActivity.mSubmit.performClick());
-
+        mActivity.syncRunOnUiThread(() -> {
+            mActivity.mPreInput.setText("108");
+            mActivity.mSubmit.performClick();
+        });
         final UiObject2 saveUi = assertSaveUiWithLinkIsShown(SAVE_DATA_TYPE_PASSWORD);
 
         // Tap the link.
         tapSaveUiLink(saveUi);
 
         // Make sure new activity is shown...
-        assertActivityShownInBackground(WelcomeActivity.class);
+        WelcomeActivity.assertShowingDefaultMessage(mUiBot);
 
         // Save UI should be showing as well, since Trampoline finished.
         mUiBot.assertSaveShowing(SAVE_DATA_TYPE_PASSWORD);
@@ -310,7 +315,7 @@ public class PreSimpleSaveActivityTest
         mUiBot.pressBack();
         // second BACK cancel WelcomeActivity
         mUiBot.pressBack();
-        assertActivityShownInBackground(SimpleSaveActivity.class);
+        mUiBot.assertShownByRelativeId(ID_INPUT);
 
         // Now triggers a new session in the new activity (SaveActivity) and do business as usual...
         sReplier.addResponse(new CannedFillResponse.Builder()
@@ -324,10 +329,12 @@ public class PreSimpleSaveActivityTest
         sReplier.getNextFillRequest();
 
         // Trigger save.
-        newActivty.setTextAndWaitTextChange(/* input= */ "42", /* password= */  null);
-        newActivty.syncRunOnUiThread(() -> newActivty.mCommit.performClick());
+        newActivty.syncRunOnUiThread(() -> {
+            newActivty.mInput.setText("42");
+            newActivty.mCommit.performClick();
+        });
         // Make sure post-save activity is shown...
-        assertActivityShownInBackground(SimpleSaveActivity.class);
+        mUiBot.assertShownByRelativeId(ID_INPUT);
 
         // Save it...
         mUiBot.saveForAutofill(true, SAVE_DATA_TYPE_EMAIL_ADDRESS);
@@ -339,7 +346,7 @@ public class PreSimpleSaveActivityTest
 
     @Override
     protected void tapLinkAfterUpdateAppliedTest(boolean updateLinkView) throws Exception {
-        startActivity(/* remainOnRecents= */ false);
+        startActivity(false);
         // Set service.
         enableService();
 
@@ -368,11 +375,12 @@ public class PreSimpleSaveActivityTest
         sReplier.getNextFillRequest();
 
         // Trigger save.
-        mActivity.setTextAndWaitTextChange("108");
-        mActivity.syncRunOnUiThread(() -> mActivity.mSubmit.performClick());
-
+        mActivity.syncRunOnUiThread(() -> {
+            mActivity.mPreInput.setText("108");
+            mActivity.mSubmit.performClick();
+        });
         // Make sure post-save activity is shown...
-        assertActivityShownInBackground(SimpleSaveActivity.class);
+        mUiBot.assertShownByRelativeId(ID_INPUT);
 
         // Tap the link.
         final UiObject2 saveUi;

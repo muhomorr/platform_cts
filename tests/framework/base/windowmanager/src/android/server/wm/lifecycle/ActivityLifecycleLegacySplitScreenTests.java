@@ -19,28 +19,19 @@ package android.server.wm.lifecycle;
 import static android.app.WindowConfiguration.WINDOWING_MODE_FULLSCREEN;
 import static android.content.Intent.FLAG_ACTIVITY_MULTIPLE_TASK;
 import static android.content.Intent.FLAG_ACTIVITY_NEW_TASK;
-import static android.server.wm.lifecycle.LifecycleConstants.EXTRA_ACTIVITY_ON_USER_LEAVE_HINT;
-import static android.server.wm.lifecycle.LifecycleConstants.ON_ACTIVITY_RESULT;
-import static android.server.wm.lifecycle.LifecycleConstants.ON_CREATE;
-import static android.server.wm.lifecycle.LifecycleConstants.ON_DESTROY;
-import static android.server.wm.lifecycle.LifecycleConstants.ON_MULTI_WINDOW_MODE_CHANGED;
-import static android.server.wm.lifecycle.LifecycleConstants.ON_PAUSE;
-import static android.server.wm.lifecycle.LifecycleConstants.ON_POST_CREATE;
-import static android.server.wm.lifecycle.LifecycleConstants.ON_RESUME;
-import static android.server.wm.lifecycle.LifecycleConstants.ON_START;
-import static android.server.wm.lifecycle.LifecycleConstants.ON_STOP;
-import static android.server.wm.lifecycle.LifecycleConstants.ON_TOP_POSITION_GAINED;
-import static android.server.wm.lifecycle.LifecycleConstants.ON_TOP_POSITION_LOST;
-import static android.server.wm.lifecycle.LifecycleConstants.ON_USER_LEAVE_HINT;
-import static android.server.wm.lifecycle.LifecycleConstants.getComponentName;
-import static android.server.wm.lifecycle.TransitionVerifier.assertLaunchSequence;
-import static android.server.wm.lifecycle.TransitionVerifier.assertOrder;
-import static android.server.wm.lifecycle.TransitionVerifier.assertRecreateAndResumeSequence;
-import static android.server.wm.lifecycle.TransitionVerifier.assertRestartAndResumeSequence;
-import static android.server.wm.lifecycle.TransitionVerifier.assertResumeToDestroySequence;
-import static android.server.wm.lifecycle.TransitionVerifier.assertSequence;
-import static android.server.wm.lifecycle.TransitionVerifier.assertTransitionObserved;
-import static android.server.wm.lifecycle.TransitionVerifier.transition;
+import static android.server.wm.lifecycle.LifecycleLog.ActivityCallback.ON_ACTIVITY_RESULT;
+import static android.server.wm.lifecycle.LifecycleLog.ActivityCallback.ON_CREATE;
+import static android.server.wm.lifecycle.LifecycleLog.ActivityCallback.ON_DESTROY;
+import static android.server.wm.lifecycle.LifecycleLog.ActivityCallback.ON_MULTI_WINDOW_MODE_CHANGED;
+import static android.server.wm.lifecycle.LifecycleLog.ActivityCallback.ON_PAUSE;
+import static android.server.wm.lifecycle.LifecycleLog.ActivityCallback.ON_POST_CREATE;
+import static android.server.wm.lifecycle.LifecycleLog.ActivityCallback.ON_RESUME;
+import static android.server.wm.lifecycle.LifecycleLog.ActivityCallback.ON_START;
+import static android.server.wm.lifecycle.LifecycleLog.ActivityCallback.ON_STOP;
+import static android.server.wm.lifecycle.LifecycleLog.ActivityCallback.ON_TOP_POSITION_GAINED;
+import static android.server.wm.lifecycle.LifecycleLog.ActivityCallback.ON_TOP_POSITION_LOST;
+import static android.server.wm.lifecycle.LifecycleLog.ActivityCallback.ON_USER_LEAVE_HINT;
+import static android.server.wm.lifecycle.LifecycleVerifier.transition;
 
 import static androidx.test.InstrumentationRegistry.getInstrumentation;
 
@@ -48,7 +39,9 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assume.assumeTrue;
 
 import android.app.Activity;
+import android.app.ActivityOptions;
 import android.app.Instrumentation;
+import android.app.WindowConfiguration;
 import android.content.Intent;
 import android.platform.test.annotations.Presubmit;
 
@@ -93,7 +86,7 @@ public class ActivityLifecycleLegacySplitScreenTests extends ActivityLifecycleCl
         moveTaskToPrimarySplitScreenAndVerify(secondActivity, sideActivity);
 
         // CLear logs so we can capture just the destroy sequence
-        getTransitionLog().clear();
+        getLifecycleLog().clear();
 
         // Start an activity in separate task (will be placed in secondary stack)
         mTaskOrganizer.setLaunchRoot(mTaskOrganizer.getSecondarySplitTaskId());
@@ -109,10 +102,10 @@ public class ActivityLifecycleLegacySplitScreenTests extends ActivityLifecycleCl
 
         // Verify that the first activity was recreated to resume as it was created before
         // windowing mode was switched
-        assertRecreateAndResumeSequence(FirstActivity.class, getTransitionLog());
+        LifecycleVerifier.assertRecreateAndResumeSequence(FirstActivity.class, getLifecycleLog());
 
         // Verify that the lifecycle state did not change for activity in non-focused stack
-        assertLaunchSequence(ThirdActivity.class, getTransitionLog());
+        LifecycleVerifier.assertLaunchSequence(ThirdActivity.class, getLifecycleLog());
     }
 
     @Test
@@ -127,7 +120,7 @@ public class ActivityLifecycleLegacySplitScreenTests extends ActivityLifecycleCl
         moveTaskToPrimarySplitScreenAndVerify(firstActivity, sideActivity);
 
         // Launch third activity on top of second
-        getTransitionLog().clear();
+        getLifecycleLog().clear();
         mTaskOrganizer.setLaunchRoot(mTaskOrganizer.getSecondarySplitTaskId());
         new Launcher(ThirdActivity.class)
                 .setFlags(FLAG_ACTIVITY_NEW_TASK | FLAG_ACTIVITY_MULTIPLE_TASK)
@@ -140,16 +133,20 @@ public class ActivityLifecycleLegacySplitScreenTests extends ActivityLifecycleCl
         // Launch an activity that will be moved to split-screen secondary
         final Activity sideActivity = launchActivityAndWait(ThirdActivity.class);
 
+        ActivityOptions options = ActivityOptions.makeBasic();
+        options.setLaunchWindowingMode(WindowConfiguration.WINDOWING_MODE_FULLSCREEN);
+
         // Launch an activity in a new task
         final Activity firstActivity = new Launcher(FirstActivity.class)
                 .setFlags(FLAG_ACTIVITY_NEW_TASK | FLAG_ACTIVITY_MULTIPLE_TASK)
+                .setOptions(options)
                 .launch();
 
         // Enter split screen
         moveTaskToPrimarySplitScreenAndVerify(firstActivity, sideActivity);
 
         // Launch translucent activity on top of second
-        getTransitionLog().clear();
+        getLifecycleLog().clear();
 
         mTaskOrganizer.setLaunchRoot(mTaskOrganizer.getSecondarySplitTaskId());
         new Launcher(TranslucentActivity.class)
@@ -191,13 +188,13 @@ public class ActivityLifecycleLegacySplitScreenTests extends ActivityLifecycleCl
         moveTaskToPrimarySplitScreenAndVerify(secondActivity, sideActivity);
 
         // Finish top activity and verify that activity below became focused.
-        getTransitionLog().clear();
+        getLifecycleLog().clear();
         secondActivity.setResult(Activity.RESULT_OK);
         secondActivity.finish();
 
         // Check that activity was restarted and result was delivered
         waitAndAssertActivityStates(state(callbackTrackingActivity, ON_RESUME));
-        assertSequence(CallbackTrackingActivity.class, getTransitionLog(),
+        LifecycleVerifier.assertSequence(CallbackTrackingActivity.class, getLifecycleLog(),
                 Arrays.asList(ON_DESTROY, ON_CREATE, ON_START, ON_POST_CREATE,
                         ON_ACTIVITY_RESULT, ON_RESUME), "restart");
     }
@@ -220,14 +217,14 @@ public class ActivityLifecycleLegacySplitScreenTests extends ActivityLifecycleCl
                 .launch();
 
         // Launch second activity, first become stopped
-        getTransitionLog().clear();
+        getLifecycleLog().clear();
         final Activity secondActivity = launchActivityAndWait(SecondActivity.class);
 
         // Wait for second activity to resume and first to stop
         waitAndAssertActivityStates(state(newTaskActivity, ON_STOP));
 
         // Finish top activity
-        getTransitionLog().clear();
+        getLifecycleLog().clear();
         secondActivity.finish();
 
         waitAndAssertActivityStates(state(newTaskActivity, ON_RESUME));
@@ -235,8 +232,8 @@ public class ActivityLifecycleLegacySplitScreenTests extends ActivityLifecycleCl
 
         // Verify that the first activity was restarted to resumed state as it was brought back
         // after windowing mode was switched
-        assertRestartAndResumeSequence(ThirdActivity.class, getTransitionLog());
-        assertResumeToDestroySequence(SecondActivity.class, getTransitionLog());
+        LifecycleVerifier.assertRestartAndResumeSequence(ThirdActivity.class, getLifecycleLog());
+        LifecycleVerifier.assertResumeToDestroySequence(SecondActivity.class, getLifecycleLog());
     }
 
     @Test
@@ -259,17 +256,17 @@ public class ActivityLifecycleLegacySplitScreenTests extends ActivityLifecycleCl
                 sideActivity.getComponentName());
 
         // Finish top activity
-        getTransitionLog().clear();
+        getLifecycleLog().clear();
         translucentActivity.finish();
 
         waitAndAssertActivityStates(state(firstActivity, ON_RESUME));
         waitAndAssertActivityStates(state(translucentActivity, ON_DESTROY));
 
         // Verify that the first activity was resumed
-        assertSequence(FirstActivity.class, getTransitionLog(),
+        LifecycleVerifier.assertSequence(FirstActivity.class, getLifecycleLog(),
                 Arrays.asList(ON_RESUME), "resume");
-        assertResumeToDestroySequence(TranslucentActivity.class,
-                getTransitionLog());
+        LifecycleVerifier.assertResumeToDestroySequence(TranslucentActivity.class,
+                getLifecycleLog());
     }
 
     @Test
@@ -283,32 +280,32 @@ public class ActivityLifecycleLegacySplitScreenTests extends ActivityLifecycleCl
                 .launch();
 
         // Wait for the activity to resume
-        assertLaunchSequence(CallbackTrackingActivity.class, getTransitionLog());
+        LifecycleVerifier.assertLaunchSequence(CallbackTrackingActivity.class, getLifecycleLog());
 
         // Enter split screen
-        getTransitionLog().clear();
+        getLifecycleLog().clear();
         moveTaskToPrimarySplitScreenAndVerify(firstActivity, sideActivity);
 
         // Wait for the activity to relaunch and receive multi-window mode change
-        final List<String> expectedEnterSequence =
+        final List<LifecycleLog.ActivityCallback> expectedEnterSequence =
                 Arrays.asList(ON_TOP_POSITION_LOST, ON_PAUSE, ON_STOP, ON_DESTROY,
                         ON_CREATE, ON_START, ON_POST_CREATE, ON_RESUME, ON_TOP_POSITION_GAINED,
                         ON_TOP_POSITION_LOST, ON_PAUSE);
         waitForActivityTransitions(CallbackTrackingActivity.class, expectedEnterSequence);
-        assertOrder(getTransitionLog(), CallbackTrackingActivity.class,
+        LifecycleVerifier.assertOrder(getLifecycleLog(), CallbackTrackingActivity.class,
                 Arrays.asList(ON_TOP_POSITION_LOST, ON_PAUSE, ON_STOP, ON_DESTROY, ON_CREATE,
                         ON_RESUME), "moveToSplitScreen");
 
         // Exit split-screen
-        getTransitionLog().clear();
+        getLifecycleLog().clear();
         dismissSplitScreen(true /* primaryOnTop */);
 
         // Wait for the activity to relaunch and receive multi-window mode change
-        final List<String> expectedExitSequence =
+        final List<LifecycleLog.ActivityCallback> expectedExitSequence =
                 Arrays.asList(ON_STOP, ON_DESTROY, ON_CREATE, ON_START,
                         ON_POST_CREATE, ON_RESUME, ON_PAUSE, ON_RESUME, ON_TOP_POSITION_GAINED);
         waitForActivityTransitions(CallbackTrackingActivity.class, expectedExitSequence);
-        assertOrder(getTransitionLog(), CallbackTrackingActivity.class,
+        LifecycleVerifier.assertOrder(getLifecycleLog(), CallbackTrackingActivity.class,
                 Arrays.asList(ON_DESTROY, ON_CREATE, ON_RESUME, ON_TOP_POSITION_GAINED),
                 "moveFromSplitScreen");
     }
@@ -321,46 +318,44 @@ public class ActivityLifecycleLegacySplitScreenTests extends ActivityLifecycleCl
         // prior to MULTI_WINDOW_MODE_CHANGED.
         launchActivitiesInSplitScreen(
                 getLaunchActivityBuilder().
-                        setTargetActivity(getComponentName(
-                                LifecycleConfigChangeHandlingActivity.class)),
+                        setTargetActivity(getComponentName(ConfigChangeHandlingActivity.class)),
                 getLaunchActivityBuilder().
                         setTargetActivity(getComponentName(SecondActivity.class)));
 
         final int displayWindowingMode = getDisplayWindowingModeByActivity(
-                getComponentName(LifecycleConfigChangeHandlingActivity.class));
+                getComponentName(ConfigChangeHandlingActivity.class));
         if (displayWindowingMode == WINDOWING_MODE_FULLSCREEN) {
             // Wait for the activity to receive the change.
-            waitForActivityTransitions(LifecycleConfigChangeHandlingActivity.class,
+            waitForActivityTransitions(ConfigChangeHandlingActivity.class,
                     Arrays.asList(ON_TOP_POSITION_LOST, ON_MULTI_WINDOW_MODE_CHANGED));
-            assertOrder(getTransitionLog(),
-                    LifecycleConfigChangeHandlingActivity.class,
+            LifecycleVerifier.assertOrder(getLifecycleLog(), ConfigChangeHandlingActivity.class,
                     Arrays.asList(ON_MULTI_WINDOW_MODE_CHANGED, ON_TOP_POSITION_LOST),
                     "moveToSplitScreen");
         } else {
             // For non-fullscreen display mode, there won't be a multi-window callback.
-            waitForActivityTransitions(LifecycleConfigChangeHandlingActivity.class,
+            waitForActivityTransitions(ConfigChangeHandlingActivity.class,
                     Arrays.asList(ON_TOP_POSITION_LOST));
-            assertTransitionObserved(getTransitionLog(),
-                    transition(LifecycleConfigChangeHandlingActivity.class, ON_TOP_POSITION_LOST),
+            LifecycleVerifier.assertTransitionObserved(getLifecycleLog(),
+                    transition(ConfigChangeHandlingActivity.class, ON_TOP_POSITION_LOST),
                     "moveToSplitScreen");
         }
 
         // Exit split-screen
-        getTransitionLog().clear();
+        getLifecycleLog().clear();
         dismissSplitScreen(true /* primaryOnTop */);
 
         // Wait for the activity to receive the change
-        final List<String> expectedSequence =
+        final List<LifecycleLog.ActivityCallback> expectedSequence =
                 Arrays.asList(ON_TOP_POSITION_GAINED, ON_MULTI_WINDOW_MODE_CHANGED);
-        waitForActivityTransitions(LifecycleConfigChangeHandlingActivity.class, expectedSequence);
+        waitForActivityTransitions(ConfigChangeHandlingActivity.class, expectedSequence);
 
         if (displayWindowingMode == WINDOWING_MODE_FULLSCREEN) {
-            assertTransitionObserved(getTransitionLog(),
-                    transition(LifecycleConfigChangeHandlingActivity.class,
-                            ON_MULTI_WINDOW_MODE_CHANGED), "exitSplitScreen");
+                LifecycleVerifier.assertTransitionObserved(getLifecycleLog(),
+                        transition(ConfigChangeHandlingActivity.class,
+                        ON_MULTI_WINDOW_MODE_CHANGED), "exitSplitScreen");
         }
-        assertTransitionObserved(getTransitionLog(),
-                transition(LifecycleConfigChangeHandlingActivity.class, ON_TOP_POSITION_GAINED),
+        LifecycleVerifier.assertTransitionObserved(getLifecycleLog(),
+                transition(ConfigChangeHandlingActivity.class, ON_TOP_POSITION_GAINED),
                 "exitSplitScreen");
     }
 
@@ -368,19 +363,18 @@ public class ActivityLifecycleLegacySplitScreenTests extends ActivityLifecycleCl
     public void testOnUserLeaveHint() throws Exception {
         launchActivitiesInSplitScreen(
                 getLaunchActivityBuilder()
-                        .setTargetActivity(getComponentName(
-                                LifecycleConfigChangeHandlingActivity.class)),
+                        .setTargetActivity(getComponentName(ConfigChangeHandlingActivity.class)),
                 getLaunchActivityBuilder()
                         .setIntentExtra(
                                 extra -> extra.putBoolean(EXTRA_ACTIVITY_ON_USER_LEAVE_HINT, true))
                         .setTargetActivity(getComponentName(FirstActivity.class)));
 
-        getTransitionLog().clear();
+        getLifecycleLog().clear();
         launchActivityAndWait(SecondActivity.class);
 
         waitForIdle();
 
-        assertOrder(getTransitionLog(), FirstActivity.class,
+        LifecycleVerifier.assertOrder(getLifecycleLog(), FirstActivity.class,
                 Arrays.asList(ON_USER_LEAVE_HINT, ON_PAUSE, ON_STOP),
                 "moveFromSplitScreen");
     }

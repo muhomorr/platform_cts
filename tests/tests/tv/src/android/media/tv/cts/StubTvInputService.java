@@ -30,8 +30,8 @@ public class StubTvInputService extends TvInputService {
         return new StubSessionImpl(this);
     }
 
-    public static class StubSessionImpl extends Session {
-        public StubSessionImpl(Context context) {
+    private static class StubSessionImpl extends Session {
+        StubSessionImpl(Context context) {
             super(context);
         }
 

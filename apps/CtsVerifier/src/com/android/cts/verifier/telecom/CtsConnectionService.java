@@ -24,8 +24,6 @@ import android.telecom.ConnectionService;
 import android.telecom.PhoneAccountHandle;
 import android.telecom.TelecomManager;
 
-import com.android.compatibility.common.util.ApiTest;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -34,7 +32,6 @@ import java.util.concurrent.TimeUnit;
 /**
  * CTS Verifier ConnectionService implementation.
  */
-@ApiTest(apis={"android.telecom.ConnectionService"})
 public class CtsConnectionService extends ConnectionService {
     static final int TIMEOUT_MILLIS = 10000;
 

@@ -27,8 +27,6 @@ import android.media.MediaCodecInfo.CodecCapabilities;
 import android.media.MediaFormat;
 import android.media.cts.CodecImage;
 import android.media.cts.CodecUtils;
-import android.media.cts.TestArgs;
-import android.media.cts.TestUtils;
 import android.media.cts.YUVImage;
 import android.os.Build;
 import android.util.Log;
@@ -126,8 +124,6 @@ public class VideoEncoderDecoderTest extends CtsAndroidTestCase {
     private double mRmsErrorMargin;
     private Random mRandom;
 
-    private boolean mUpdatedSwCodec = false;
-
     private class TestConfig {
         public boolean mTestPixels = true;
         public boolean mReportFrameTime = false;
@@ -147,22 +143,10 @@ public class VideoEncoderDecoderTest extends CtsAndroidTestCase {
 
     private TestConfig mTestConfig;
 
-    private static boolean isPreferredAbi() {
-        boolean prefers64Bit = false;
-        if (Build.SUPPORTED_64_BIT_ABIS.length > 0 &&
-                Build.SUPPORTED_ABIS.length > 0 &&
-                Build.SUPPORTED_ABIS[0].equals(Build.SUPPORTED_64_BIT_ABIS[0])) {
-            prefers64Bit = true;
-        }
-        return android.os.Process.is64Bit() ? prefers64Bit : !prefers64Bit;
-    }
-
     @Override
     protected void setUp() throws Exception {
         mEncodedOutputBuffer = new LinkedList<Pair<ByteBuffer, BufferInfo>>();
         mRmsErrorMargin = PIXEL_RMS_ERROR_MARGIN;
-        mUpdatedSwCodec =
-                !TestUtils.isMainlineModuleFactoryVersion("com.google.android.media.swcodec");
         // Use time as a seed, hoping to prevent checking pixels in the same pattern
         long now = System.currentTimeMillis();
         mRandom = new Random(now);
@@ -675,9 +659,6 @@ public class VideoEncoderDecoderTest extends CtsAndroidTestCase {
 
     private void doTest(String mimeType, int w, int h, boolean isPerf, boolean isGoog, int ix)
             throws Exception {
-        if (TestArgs.shouldSkipMediaType(mimeType)) {
-            return;
-        }
         MediaFormat format = MediaFormat.createVideoFormat(mimeType, w, h);
         String[] encoderNames = MediaUtils.getEncoderNames(isGoog, format);
         String kind = isGoog ? "Google" : "non-Google";
@@ -694,9 +675,7 @@ public class VideoEncoderDecoderTest extends CtsAndroidTestCase {
         }
 
         String encoderName = encoderNames[ix];
-        if (TestArgs.shouldSkipCodec(encoderName)) {
-            return;
-        }
+
         CodecInfo infoEnc = CodecInfo.getSupportedFormatInfo(encoderName, mimeType, w, h, MAX_FPS);
         assertNotNull(infoEnc);
 
@@ -723,7 +702,6 @@ public class VideoEncoderDecoderTest extends CtsAndroidTestCase {
         if (MediaUtils.onFrankenDevice()) {
             mTestConfig.mMaxTimeMs /= 10;
         }
-        Log.i(TAG, "current ABI is " + (isPreferredAbi() ? "" : "not ") + "a preferred one");
 
         mVideoWidth = w;
         mVideoHeight = h;
@@ -773,9 +751,6 @@ public class VideoEncoderDecoderTest extends CtsAndroidTestCase {
 
             if (decoderNames != null && decoderNames.length > 0) {
                 for (String decoderName : decoderNames) {
-                    if (TestArgs.shouldSkipCodec(decoderName)) {
-                        continue;
-                    }
                     CodecInfo infoDec =
                         CodecInfo.getSupportedFormatInfo(decoderName, mimeType, w, h, MAX_FPS);
                     assertNotNull(infoDec);
@@ -833,19 +808,10 @@ public class VideoEncoderDecoderTest extends CtsAndroidTestCase {
         }
 
         if (isPerf) {
-            // allow improvements in mainline-updated google-supplied software codecs.
-            boolean fasterIsOk =  mUpdatedSwCodec & encoderName.startsWith("c2.android.");
             String error = MediaPerfUtils.verifyAchievableFrameRates(
-                    encoderName, mimeType, w, h, fasterIsOk, measuredFps);
+                    encoderName, mimeType, w, h, measuredFps);
             // Performance numbers only make sense on real devices, so skip on non-real devices
-            //
-            // Also ignore verification on non-preferred ABIs due to the possibility of
-            // this being emulated. On some CPU-s 32-bit mode is emulated using big cores
-            // that results in the SW codecs also running much faster (perhaps they are
-            // scheduled for the big cores as well)
-            // TODO: still verify lower bound.
-            if ((MediaUtils.onFrankenDevice() || (infoEnc.mIsSoftware && !isPreferredAbi()))
-                    && error != null) {
+            if (MediaUtils.onFrankenDevice() && error != null) {
                 // ensure there is data, but don't insist that it is correct
                 assertFalse(error, error.startsWith("Failed to get "));
             } else {

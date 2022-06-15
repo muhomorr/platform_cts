@@ -33,7 +33,6 @@ import android.util.Log;
 import junit.framework.Assert;
 
 import java.util.ArrayList;
-import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -77,9 +76,6 @@ public class MockJobService extends JobService {
     public boolean onStartJob(JobParameters params) {
         Log.i(TAG, "Test job executing: " + params.getJobId());
         mParams = params;
-        TestEnvironment.getTestEnvironment().addEvent(
-                new TestEnvironment.Event(
-                        TestEnvironment.Event.EVENT_START_JOB, params.getJobId()));
 
         int permCheckRead = PackageManager.PERMISSION_DENIED;
         int permCheckWrite = PackageManager.PERMISSION_DENIED;
@@ -384,7 +380,6 @@ public class MockJobService extends JobService {
         private ArrayList<JobWorkItem> mExecutedReceivedWork;
         private String mExecutedErrorMessage;
         private JobParameters mStopJobParameters;
-        private List<Event> mExecutedEvents = new ArrayList<>();
 
         public static TestEnvironment getTestEnvironment() {
             if (kTestEnvironment == null) {
@@ -471,6 +466,7 @@ public class MockJobService extends JobService {
 
         private void notifyExecution(JobParameters params, int permCheckRead, int permCheckWrite,
                 ArrayList<JobWorkItem> receivedWork, String errorMsg) {
+            //Log.d(TAG, "Job executed:" + params.getJobId());
             mExecutedJobParameters = params;
             mExecutedPermCheckRead = permCheckRead;
             mExecutedPermCheckWrite = permCheckWrite;
@@ -505,7 +501,6 @@ public class MockJobService extends JobService {
             mDoWorkLatch = null;
             mExpectedWork = null;
             mContinueAfterStart = false;
-            mExecutedEvents.clear();
         }
 
         public void setExpectedWaitForStop() {
@@ -550,46 +545,5 @@ public class MockJobService extends JobService {
             mStopJobParameters = null;
         }
 
-        void addEvent(Event event) {
-            mExecutedEvents.add(event);
-        }
-
-        public List<Event> getExecutedEvents() {
-            return mExecutedEvents;
-        }
-
-        public static class Event {
-            public static final int EVENT_START_JOB = 0;
-
-            public int event;
-            public int jobId;
-
-            public Event(int event, int jobId) {
-                this.event = event;
-                this.jobId = jobId;
-            }
-
-            @Override
-            public boolean equals(Object other) {
-                if (this == other) {
-                    return true;
-                }
-                if (other instanceof Event) {
-                    Event otherEvent = (Event) other;
-                    return otherEvent.event == event && otherEvent.jobId == jobId;
-                }
-                return false;
-            }
-
-            @Override
-            public int hashCode() {
-                return event + 31 * jobId;
-            }
-
-            @Override
-            public String toString() {
-                return "Event{" + event + ", " + jobId + "}";
-            }
-        }
     }
 }

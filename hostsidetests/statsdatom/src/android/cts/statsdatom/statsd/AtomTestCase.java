@@ -79,7 +79,6 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.Random;
 import java.util.Set;
-import java.util.StringTokenizer;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -927,16 +926,7 @@ public class AtomTestCase extends BaseTestCase {
      */
     protected boolean hasFeature(String featureName, boolean requiredAnswer) throws Exception {
         final String features = getDevice().executeShellCommand("pm list features");
-        StringTokenizer featureToken = new StringTokenizer(features, "\n");
-        boolean hasIt = false;
-
-        while (featureToken.hasMoreTokens()) {
-            if (("feature:" + featureName).equals(featureToken.nextToken())) {
-                 hasIt = true;
-                 break;
-            }
-        }
-
+        boolean hasIt = features.contains(featureName);
         if (hasIt != requiredAnswer) {
             LogUtil.CLog.w("Device does " + (requiredAnswer ? "not " : "") + "have feature "
                     + featureName);

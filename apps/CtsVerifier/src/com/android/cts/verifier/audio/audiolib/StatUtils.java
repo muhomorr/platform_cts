@@ -17,13 +17,12 @@
 package com.android.cts.verifier.audio.audiolib;
 
 public class StatUtils {
-    public static double calculateMeanAbsoluteDeviation(
-            double mean, double[] values, int numValues) {
+    public static double calculateMeanAbsoluteDeviation(double mean, double[] values) {
         double sum = 0.0;
-        for (int index = 0; index < numValues; index++) {
-            sum += Math.abs(values[index] - mean);
+        for (double value : values) {
+            sum += Math.abs(value - mean);
         }
-        return sum / numValues;
+        return sum / values.length;
     }
 
     public static double calculateMean(double[] values) {

@@ -37,7 +37,6 @@ import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.rule.ActivityTestRule
 import com.android.compatibility.common.util.SystemUtil
 import com.android.compatibility.common.util.UiAutomatorUtils
-import com.android.modules.utils.build.SdkLevel
 import com.android.sts.common.util.StsExtraBusinessLogicTestCase
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -63,7 +62,6 @@ abstract class BasePermissionUiTest : StsExtraBusinessLogicTestCase() {
             "/data/local/tmp/cts/security/SplitBluetoothPermissionTestApp.apk"
 
         const val APP_PACKAGE_NAME = "android.security.cts.usepermission"
-        const val NOTIF_TEXT = "permgrouprequest_notifications"
         const val ALLOW_BUTTON_TEXT = "grant_dialog_button_allow"
         const val ALLOW_BUTTON =
             "com.android.permissioncontroller:id/permission_allow_button"
@@ -118,17 +116,6 @@ abstract class BasePermissionUiTest : StsExtraBusinessLogicTestCase() {
         waitForIdle()
         return findObjectWithRetry({ t -> UiAutomatorUtils.waitFindObject(selector, t) },
             timeoutMillis)!!
-    }
-
-    protected fun waitFindObjectOrNull(selector: BySelector): UiObject2? {
-        waitForIdle()
-        return findObjectWithRetry({ t -> UiAutomatorUtils.waitFindObjectOrNull(selector, t) })
-    }
-
-    protected fun waitFindObjectOrNull(selector: BySelector, timeoutMillis: Long): UiObject2? {
-        waitForIdle()
-        return findObjectWithRetry({ t -> UiAutomatorUtils.waitFindObjectOrNull(selector, t) },
-            timeoutMillis)
     }
 
     protected fun pressHome() {
@@ -215,36 +202,9 @@ abstract class BasePermissionUiTest : StsExtraBusinessLogicTestCase() {
             }
         )
         waitForIdle()
-        // Notification permission prompt is shown first, so get it out of the way
-        clickNotificationPermissionRequestAllowButtonIfAvailable()
         // Perform the post-request action
         block()
         return future.get(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS)
-    }
-
-    /**
-     * Only for use in tests that are not testing the notification permission popup
-     */
-    private fun clickNotificationPermissionRequestAllowButtonIfAvailable() {
-        if (!SdkLevel.isAtLeastT()) {
-            return
-        }
-
-        if (waitFindObjectOrNull(
-                By.text(getPermissionControllerString(
-                    NOTIF_TEXT,
-                    APP_PACKAGE_NAME
-                )), 1000) != null ||
-            waitFindObjectOrNull(
-                By.text(getPermissionControllerString(
-                    NOTIF_TEXT, APP_PACKAGE_NAME
-                )), 1000) != null) {
-            if (isAutomotive) {
-                click(By.text(getPermissionControllerString(ALLOW_BUTTON_TEXT)))
-            } else {
-                click(By.res(ALLOW_BUTTON))
-            }
-        }
     }
 
     private val mPermissionControllerResources: Resources = mContext.createPackageContext(

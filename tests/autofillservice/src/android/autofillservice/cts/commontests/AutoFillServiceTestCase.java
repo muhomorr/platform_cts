@@ -16,7 +16,6 @@
 
 package android.autofillservice.cts.commontests;
 
-import static android.autofillservice.cts.testcore.Helper.DEVICE_CONFIG_AUTOFILL_DIALOG_HINTS;
 import static android.autofillservice.cts.testcore.Helper.getContext;
 import static android.autofillservice.cts.testcore.InstrumentedAutoFillService.SERVICE_NAME;
 import static android.content.Context.CLIPBOARD_SERVICE;
@@ -30,7 +29,6 @@ import android.autofillservice.cts.R;
 import android.autofillservice.cts.activities.AbstractAutoFillActivity;
 import android.autofillservice.cts.activities.AugmentedAuthActivity;
 import android.autofillservice.cts.activities.AuthenticationActivity;
-import android.autofillservice.cts.activities.LoginActivity;
 import android.autofillservice.cts.activities.PreSimpleSaveActivity;
 import android.autofillservice.cts.activities.SimpleSaveActivity;
 import android.autofillservice.cts.testcore.AutofillActivityTestRule;
@@ -57,7 +55,6 @@ import androidx.test.InstrumentationRegistry;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
 import com.android.compatibility.common.util.DeviceConfigStateChangerRule;
-import com.android.compatibility.common.util.DisableAnimationRule;
 import com.android.compatibility.common.util.RequiredFeatureRule;
 import com.android.compatibility.common.util.RetryRule;
 import com.android.compatibility.common.util.SafeCleanerRule;
@@ -112,7 +109,7 @@ public final class AutoFillServiceTestCase {
         }
 
         protected static InlineUiBot getInlineUiBot() {
-            return new InlineUiBot(getContext());
+            return sDefaultUiBot2;
         }
 
         protected static UiBot getDropdownUiBot() {
@@ -204,14 +201,6 @@ public final class AutoFillServiceTestCase {
             mUiBot.assertShownByRelativeId(PreSimpleSaveActivity.ID_PRE_LABEL);
             return PreSimpleSaveActivity.getInstance();
         }
-
-        protected LoginActivity startLoginActivity() throws Exception {
-            final Intent intent = new Intent(mContext, LoginActivity.class)
-                    .setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            mContext.startActivity(intent);
-            mUiBot.assertShownByRelativeId(Helper.ID_USERNAME_LABEL);
-            return LoginActivity.getCurrentActivity();
-        }
     }
 
     @RunWith(AndroidJUnit4.class)
@@ -278,10 +267,6 @@ public final class AutoFillServiceTestCase {
                 // test being ran and finishes dangling activities at the end
                 .around(mTestWatcher)
                 //
-                // Disable animation for UiAutomator because animation will cause the UiAutomator
-                // got a wrong position and then tests failed due to click on the wrong position.
-                .around(new DisableAnimationRule())
-                //
                 // sMockImeSessionRule make sure MockImeSession.create() is used to launch mock IME
                 .around(sMockImeSessionRule)
                 //
@@ -299,16 +284,6 @@ public final class AutoFillServiceTestCase {
                         AutofillManager.DEVICE_CONFIG_AUTOFILL_SMART_SUGGESTION_SUPPORTED_MODES,
                         Integer.toString(getSmartSuggestionMode())))
                 //
-                // Fill Dialog should be disabled by default
-                .around(new DeviceConfigStateChangerRule(sContext, DeviceConfig.NAMESPACE_AUTOFILL,
-                        AutofillManager.DEVICE_CONFIG_AUTOFILL_DIALOG_ENABLED,
-                        Boolean.toString(false)))
-                //
-                // Hints list of Fill Dialog should be empty by default
-                .around(new DeviceConfigStateChangerRule(sContext, DeviceConfig.NAMESPACE_AUTOFILL,
-                        DEVICE_CONFIG_AUTOFILL_DIALOG_HINTS,
-                        ""))
-                //
                 // Finally, let subclasses add their own rules (like ActivityTestRule)
                 .around(getMainTestRule());
 
@@ -316,11 +291,6 @@ public final class AutoFillServiceTestCase {
         protected final Context mContext = sContext;
         protected final String mPackageName;
         protected final UiBot mUiBot;
-
-        public BaseTestCase() {
-            mPackageName = mContext.getPackageName();
-            mUiBot = sDefaultUiBot;
-        }
 
         private BaseTestCase(@NonNull UiBot uiBot) {
             mPackageName = mContext.getPackageName();
@@ -510,6 +480,7 @@ public final class AutoFillServiceTestCase {
     }
 
     protected static final UiBot sDefaultUiBot = new UiBot();
+    protected static final InlineUiBot sDefaultUiBot2 = new InlineUiBot();
 
     private AutoFillServiceTestCase() {
         throw new UnsupportedOperationException("Contain static stuff only");

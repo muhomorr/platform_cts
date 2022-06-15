@@ -23,9 +23,8 @@ import static org.junit.Assert.assertTrue;
 
 import android.platform.test.annotations.AppModeFull;
 import android.platform.test.annotations.AppModeInstant;
-import android.platform.test.annotations.AsbSecurityTest;
-import android.platform.test.annotations.Presubmit;
 import android.platform.test.annotations.RestrictedBuildTest;
+import android.platform.test.annotations.AsbSecurityTest;
 
 import com.android.ddmlib.Log;
 import com.android.tradefed.device.DeviceNotAvailableException;
@@ -42,7 +41,6 @@ import java.util.Map;
  * Set of tests that verify various security checks involving multiple apps are
  * properly enforced.
  */
-@Presubmit
 @RunWith(DeviceJUnit4ClassRunner.class)
 public class AppSecurityTests extends BaseAppSecurityTest {
 
@@ -88,14 +86,15 @@ public class AppSecurityTests extends BaseAppSecurityTest {
             "com.android.cts.duplicatepermissiondeclareapp";
 
     private static final String DUPLICATE_PERMISSION_DIFFERENT_PROTECTION_LEVEL_APK =
-            "CtsDuplicatePermissionDeclareApp_DifferentProtectionLevel.apk";
+            "CtsMalformedDuplicatePermission_DifferentProtectionLevel.apk";
     private static final String DUPLICATE_PERMISSION_DIFFERENT_PROTECTION_LEVEL_PKG =
             "com.android.cts.duplicatepermission.differentprotectionlevel";
     private static final String DUPLICATE_PERMISSION_SAME_PROTECTION_LEVEL_APK =
-            "CtsDuplicatePermissionDeclareApp_SameProtectionLevel.apk";
+            "CtsDuplicatePermission_SameProtectionLevel.apk";
     private static final String DUPLICATE_PERMISSION_SAME_PROTECTION_LEVEL_PKG =
             "com.android.cts.duplicatepermission.sameprotectionlevel";
 
+    // TODO sign the apk
     private static final String DUPLICATE_PERMISSION_DIFFERENT_PERMISSION_GROUP_APK =
             "CtsMalformedDuplicatePermission_DifferentPermissionGroup.apk";
     private static final String DUPLICATE_PERMISSION_DIFFERENT_PERMISSION_GROUP_PKG =
@@ -363,23 +362,6 @@ public class AppSecurityTests extends BaseAppSecurityTest {
         testAdbInstallFile(true);
     }
 
-    private void testAdbInstallFile(boolean instant) throws Exception {
-        String output = getDevice().executeShellCommand(
-                "cmd package install"
-                        + (instant ? " --instant" : " --full")
-                        + " -S 1024 /data/local/tmp/foo.apk");
-        assertTrue("Error text", output.contains("Error"));
-    }
-
-    private void enableAlertWindowAppOp(String pkgName) throws Exception {
-        getDevice().executeShellCommand(
-                "appops set " + pkgName + " android:system_alert_window allow");
-        String result = "No operations.";
-        while (result.contains("No operations")) {
-            result = getDevice().executeShellCommand(
-                    "appops get " + pkgName + " android:system_alert_window");
-        }
-    }
 
     /**
      * Tests that a single APK declaring duplicate permissions with different protection levels
@@ -438,6 +420,24 @@ public class AppSecurityTests extends BaseAppSecurityTest {
                     .run(true /* expectingSuccess */);
         } finally {
             getDevice().uninstallPackage(DUPLICATE_PERMISSION_SAME_PERMISSION_GROUP_PKG);
+        }
+    }
+
+    private void testAdbInstallFile(boolean instant) throws Exception {
+        String output = getDevice().executeShellCommand(
+                "cmd package install"
+                        + (instant ? " --instant" : " --full")
+                        + " -S 1024 /data/local/tmp/foo.apk");
+        assertTrue("Error text", output.contains("Error"));
+    }
+
+    private void enableAlertWindowAppOp(String pkgName) throws Exception {
+        getDevice().executeShellCommand(
+                "appops set " + pkgName + " android:system_alert_window allow");
+        String result = "No operations.";
+        while (result.contains("No operations")) {
+            result = getDevice().executeShellCommand(
+                    "appops get " + pkgName + " android:system_alert_window");
         }
     }
 }

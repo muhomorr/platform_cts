@@ -36,6 +36,8 @@ import java.util.Map;
 
 public final class Utils {
     public static final String SIGNATURE_FILE_SUFFIX = ".idsig";
+    public static final String FEATURE_INCREMENTAL_DELIVERY =
+            "android.software.incremental_delivery";
 
     public static String pushApkToRemote(String apkName, String remoteDirPath, IBuildInfo ctsBuild,
             ITestDevice device) throws Exception {
@@ -125,10 +127,5 @@ public final class Utils {
         public void testFailed(TestDescription test, String trace) {
             mFailureStackTrace = trace;
         }
-    }
-
-    public static boolean hasIncrementalFeature(ITestDevice device) throws Exception {
-        return "true\n".equals(device.executeShellCommand(
-                "pm has-feature android.software.incremental_delivery"));
     }
 }

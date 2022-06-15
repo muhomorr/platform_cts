@@ -186,20 +186,20 @@ static void s_MyErrorCallbackProc(
 }
 
 bool NativeAudioAnalyzer::isRecordingComplete() {
-    return mWhiteNoiseLatencyAnalyzer.isRecordingComplete();
+    return mPulseLatencyAnalyzer.isRecordingComplete();
 }
 
 int NativeAudioAnalyzer::analyze() {
-    mWhiteNoiseLatencyAnalyzer.analyze();
+    mPulseLatencyAnalyzer.analyze();
     return getError(); // TODO review
 }
 
 double NativeAudioAnalyzer::getLatencyMillis() {
-    return mWhiteNoiseLatencyAnalyzer.getMeasuredLatency() * 1000.0 / 48000;
+    return mPulseLatencyAnalyzer.getMeasuredLatency() * 1000.0 / 48000;
 }
 
 double NativeAudioAnalyzer::getConfidence() {
-    return mWhiteNoiseLatencyAnalyzer.getMeasuredConfidence();
+    return mPulseLatencyAnalyzer.getMeasuredConfidence();
 }
 
 bool NativeAudioAnalyzer::isLowLatencyStream() {
@@ -210,14 +210,10 @@ int NativeAudioAnalyzer::getSampleRate() {
     return mOutputSampleRate;
 }
 
-aaudio_result_t NativeAudioAnalyzer::openAudio(int inputDeviceId, int outputDeviceId) {
-    mInputDeviceId = inputDeviceId;
-    mOutputDeviceId = outputDeviceId;
-
+aaudio_result_t NativeAudioAnalyzer::openAudio() {
     AAudioStreamBuilder *builder = nullptr;
 
-    mWhiteNoiseLatencyAnalyzer.setup();
-    mLoopbackProcessor = &mWhiteNoiseLatencyAnalyzer; // for latency test
+    mLoopbackProcessor = &mPulseLatencyAnalyzer; // for latency test
 
     // Use an AAudioStreamBuilder to contain requested parameters.
     aaudio_result_t result = AAudio_createStreamBuilder(&builder);
@@ -235,7 +231,6 @@ aaudio_result_t NativeAudioAnalyzer::openAudio(int inputDeviceId, int outputDevi
     AAudioStreamBuilder_setChannelCount(builder, 2); // stereo
     AAudioStreamBuilder_setDataCallback(builder, s_MyDataCallbackProc, this);
     AAudioStreamBuilder_setErrorCallback(builder, s_MyErrorCallbackProc, this);
-    AAudioStreamBuilder_setDeviceId(builder, mOutputDeviceId);
 
     result = AAudioStreamBuilder_openStream(builder, &mOutputStream);
     if (result != AAUDIO_OK) {
@@ -261,8 +256,6 @@ aaudio_result_t NativeAudioAnalyzer::openAudio(int inputDeviceId, int outputDevi
     AAudioStreamBuilder_setChannelCount(builder, 1); // mono
     AAudioStreamBuilder_setDataCallback(builder, nullptr, nullptr);
     AAudioStreamBuilder_setErrorCallback(builder, nullptr, nullptr);
-    AAudioStreamBuilder_setDeviceId(builder, mInputDeviceId);
-
     result = AAudioStreamBuilder_openStream(builder, &mInputStream);
     if (result != AAUDIO_OK) {
         ALOGE("NativeAudioAnalyzer::openAudio() INPUT error %s",

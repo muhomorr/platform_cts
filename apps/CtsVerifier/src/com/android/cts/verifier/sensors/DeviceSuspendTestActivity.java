@@ -1,6 +1,18 @@
 package com.android.cts.verifier.sensors;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Timer;
+import java.util.TimerTask;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+
+import com.android.cts.verifier.R;
+import com.android.cts.verifier.sensors.base.SensorCtsVerifierTestActivity;
+import com.android.cts.verifier.sensors.helpers.SensorTestScreenManipulator;
+
 import android.app.AlarmManager;
+import android.app.IntentService;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -11,26 +23,33 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
-import android.hardware.cts.helpers.SensorNotSupportedException;
+import android.hardware.TriggerEvent;
+import android.hardware.TriggerEventListener;
+import android.hardware.cts.helpers.MovementDetectorHelper;
+import android.hardware.cts.helpers.SensorStats;
+import android.hardware.cts.helpers.SensorStats;
 import android.hardware.cts.helpers.SensorTestStateNotSupportedException;
 import android.hardware.cts.helpers.TestSensorEnvironment;
+import android.hardware.cts.helpers.TestSensorEvent;
+import android.hardware.cts.helpers.TestSensorEventListener;
+import android.hardware.cts.helpers.TestSensorManager;
 import android.hardware.cts.helpers.sensoroperations.TestSensorOperation;
+import android.hardware.cts.helpers.SensorNotSupportedException;
 import android.hardware.cts.helpers.sensorverification.BatchArrivalVerification;
 import android.hardware.cts.helpers.sensorverification.TimestampClockSourceVerification;
 import android.os.IBinder;
 import android.os.PowerManager;
+import android.os.PowerManager.WakeLock;
 import android.os.SystemClock;
-import android.util.Log;
-
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
+import android.util.Log;
+import android.view.MotionEvent;
+import android.view.View;
 
-import com.android.cts.verifier.R;
-import com.android.cts.verifier.sensors.base.SensorCtsVerifierTestActivity;
-import com.android.cts.verifier.sensors.helpers.SensorTestScreenManipulator;
-
-import java.util.List;
-import java.util.concurrent.TimeUnit;
+import junit.framework.Assert;
 
 public class DeviceSuspendTestActivity
             extends SensorCtsVerifierTestActivity {
@@ -455,10 +474,17 @@ public class DeviceSuspendTestActivity
 
 
         public String runAPWakeUpByAlarmNonWakeSensor(Sensor sensor, int maxReportLatencyUs)
-                throws Throwable {
+            throws  Throwable {
             verifyBatchingSupport(sensor);
 
-            int samplingPeriodUs = sensor.getMinDelay();
+            int samplingPeriodUs = sensor.getMaxDelay();
+            if (samplingPeriodUs == 0 || samplingPeriodUs > 200000) {
+                // If maxDelay is not defined, set the value for 5 Hz.
+                samplingPeriodUs = 200000;
+            }
+
+            long fifoBasedReportLatencyUs = maxBatchingPeriod(sensor, samplingPeriodUs);
+            verifyBatchingPeriod(fifoBasedReportLatencyUs);
 
             TestSensorEnvironment environment = new TestSensorEnvironment(
                     this,

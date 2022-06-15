@@ -84,7 +84,7 @@ public final class DevicePolicySafetyCheckerIntegrationTest extends BaseDeviceOw
             + "VcUyQ1/e7WQgOaBHi9TefUJi+4PSVSluOXon\n"
             + "-----END CERTIFICATE-----";
     private final DevicePolicySafetyCheckerIntegrationTester mTester =
-            new DevicePolicySafetyCheckerIntegrationTester(/* forDeviceOwner= */ true) {
+            new DevicePolicySafetyCheckerIntegrationTester() {
 
         @Override
         protected int[] getSafetyAwareOperations() {

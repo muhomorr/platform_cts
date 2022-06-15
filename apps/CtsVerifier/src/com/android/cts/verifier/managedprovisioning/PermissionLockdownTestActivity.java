@@ -187,12 +187,16 @@ public class PermissionLockdownTestActivity extends PassFailButtons.Activity
     @Override
     public void onCheckedChanged(RadioGroup radioGroup, int checkedId) {
         int permissionGrantState = -1;
-        if (checkedId == R.id.permission_allow) {
-            permissionGrantState = DevicePolicyManager.PERMISSION_GRANT_STATE_GRANTED;
-        } else if (checkedId == R.id.permission_default) {
-            permissionGrantState = DevicePolicyManager.PERMISSION_GRANT_STATE_DEFAULT;
-        } else if (checkedId == R.id.permission_deny) {
-            permissionGrantState = DevicePolicyManager.PERMISSION_GRANT_STATE_DENIED;
+        switch (checkedId) {
+            case R.id.permission_allow: {
+                permissionGrantState = DevicePolicyManager.PERMISSION_GRANT_STATE_GRANTED;
+            } break;
+            case R.id.permission_default: {
+                permissionGrantState = DevicePolicyManager.PERMISSION_GRANT_STATE_DEFAULT;
+            } break;
+            case R.id.permission_deny: {
+                permissionGrantState = DevicePolicyManager.PERMISSION_GRANT_STATE_DENIED;
+            } break;
         }
         mDevicePolicyManager.setPermissionGrantState(mAdmin, PERMISSION_APP_PACKAGE,
                 CONTACTS_PERMISSIONS[0], permissionGrantState);

@@ -22,19 +22,15 @@ import static android.view.WindowManager.LayoutParams.TYPE_APPLICATION;
 import static android.view.WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY;
 
 import static com.google.common.truth.Truth.assertThat;
-import static com.google.common.truth.Truth.assertWithMessage;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assume.assumeTrue;
 
-import android.app.WindowConfiguration;
 import android.content.ComponentCallbacks;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
-import android.content.pm.ActivityInfo;
 import android.content.res.Configuration;
 import android.graphics.Rect;
 import android.os.Binder;
@@ -55,7 +51,6 @@ import org.junit.Test;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 
 /**
  * Tests that verify the behavior of window context
@@ -127,7 +122,7 @@ public class WindowContextTests extends WindowContextTestBase {
      * is received when the window context configuration changes.
      */
     @Test
-    public void testWindowContextRegisterComponentCallbacks() {
+    public void testWindowContextRegisterComponentCallbacks() throws Exception {
         final TestComponentCallbacks callbacks = new TestComponentCallbacks();
         final WindowManagerState.DisplayContent display = createManagedVirtualDisplaySession()
                 .setSimulateDisplay(true).createDisplay();
@@ -142,11 +137,7 @@ public class WindowContextTests extends WindowContextTestBase {
         displayMetricsSession.changeDisplayMetrics(1.2 /* sizeRatio */, 1.1 /* densityRatio */);
 
         // verify if there is a callback from the window context configuration change.
-        try {
-            assertTrue(callbacks.mLatch.await(4, TimeUnit.SECONDS));
-        } catch(InterruptedException e) {
-            throw new RuntimeException(e);
-        }
+        assertTrue(callbacks.mLatch.await(4, TimeUnit.SECONDS));
         Rect bounds = callbacks.mConfiguration.windowConfiguration.getBounds();
         assertBoundsEquals(displayMetricsSession.getDisplayMetrics(), bounds);
 
@@ -193,108 +184,64 @@ public class WindowContextTests extends WindowContextTestBase {
      * </ul>
      */
     @Test
-    public void testWindowProviderServiceLifecycle() {
-        assumeTrue(supportsSplitScreenMultiWindow());
-
+    public void testWindowProviderServiceLifecycle() throws Exception {
         // Start an activity for WindowProviderService to attach
-        final TestActivity activity = startActivity(TestActivity.class);
+        TestActivity activity = startActivity(TestActivity.class);
         final ComponentName activityName = activity.getComponentName();
 
         // If the device supports multi-window, make this Activity to multi-window mode.
         // In this way, we can verify if the WindowProviderService's metrics matches
         // the split-screen Activity's metrics, which is different from TaskDisplayArea's metrics.
-        mWmState.computeState(activityName);
+        if (supportsSplitScreenMultiWindow()) {
+            mWmState.computeState(activityName);
 
-        putActivityInPrimarySplit(activityName);
+            putActivityInPrimarySplit(activityName);
 
-        activity.waitAndAssertConfigurationChanged();
+            activity.waitAndAssertConfigurationChanged();
+        }
 
         // Obtain the TestWindowService instance.
-        final TestWindowService service = createManagedWindowServiceSession().getService();
+        final Context context = ApplicationProvider.getApplicationContext();
+        final Intent intent = new Intent(context, TestWindowService.class);
+        final ServiceTestRule serviceRule = new ServiceTestRule();
+        try {
+            TestToken token = (TestToken) serviceRule.bindService(intent);
+            final TestWindowService service = token.getService();
 
-        // Compute state to obtain associated TaskActivityArea information.
-        mWmState.computeState(activityName);
-        final WindowManagerState.DisplayArea da = mWmState.getTaskDisplayArea(activityName);
-        final Rect daBounds = da.mFullConfiguration.windowConfiguration.getBounds();
-        final Rect maxDaBounds = da.mFullConfiguration.windowConfiguration.getMaxBounds();
+            mWmState.computeState(activityName);
+            final WindowManagerState.DisplayArea da = mWmState.getTaskDisplayArea(activityName);
+            final Rect daBounds = da.mFullConfiguration.windowConfiguration.getBounds();
+            final Rect maxDaBounds = da.mFullConfiguration.windowConfiguration.getMaxBounds();
 
-        assertBoundsMatches(service, daBounds, maxDaBounds,
-                "WindowProviderService bounds must match DisplayArea bounds.");
+            waitAndAssertWindowMetricsBoundsMatches(service, daBounds, maxDaBounds,
+                    "WindowProviderService bounds must match DisplayArea bounds.");
 
-        // Obtain the Activity's token and attach it to TestWindowService.
-        final IBinder windowToken = activity.getWindow().getAttributes().token;
-        service.attachToWindowToken(windowToken);
+            // Obtain the Activity's token and attach it to TestWindowService.
+            final IBinder windowToken = activity.getWindow().getAttributes().token;
+            service.attachToWindowToken(windowToken);
 
-        final WindowManager wm = activity.getWindowManager();
-        final Rect currentBounds = wm.getCurrentWindowMetrics().getBounds();
-        final Rect maxBounds = wm.getMaximumWindowMetrics().getBounds();
+            final WindowManager wm = activity.getWindowManager();
+            final Rect currentBounds = wm.getCurrentWindowMetrics().getBounds();
+            final Rect maxBounds = wm.getMaximumWindowMetrics().getBounds();
 
-        service.waitAndAssertConfigurationChanged();
-        // After TestWindowService attaches the Activity's token, which is also a WindowToken,
-        // it is expected to receive a config update which matches the WindowMetrics of
-        // the Activity.
-        assertBoundsMatches(service, currentBounds, maxBounds,
-                "WindowProviderService bounds must match WindowToken bounds.");
-    }
-
-    /**
-     * Verifies if:
-     * <ul>
-     *     <li>{@link android.view.WindowMetrics} bounds matches provided bounds.</li>
-     *     <li>Bounds from {@link WindowProviderService#onConfigurationChanged(Configuration)}
-     *     callback matches provided bounds.</li>
-     * </ul>
-     */
-    private void assertBoundsMatches(TestWindowService service, Rect currentBounds,
-            Rect maxBounds, String message) {
-        final WindowConfiguration winConfig = service.mConfiguration.windowConfiguration;
-        assertWithMessage(message + " WindowConfiguration#getBounds not matched.")
-                .that(winConfig.getBounds()).isEqualTo(currentBounds);
-        assertWithMessage(message +  " WindowConfiguration#getMaxBounds not "
-                + "matched.").that(winConfig.getMaxBounds()).isEqualTo(maxBounds);
-
-        final WindowManager wm = service.getSystemService(WindowManager.class);
-        final Rect currentWindowBounds = wm.getCurrentWindowMetrics().getBounds();
-        final Rect maxWindowBounds = wm.getMaximumWindowMetrics().getBounds();
-        assertWithMessage(message + " Current WindowMetrics bounds not matched.")
-                .that(currentWindowBounds).isEqualTo(currentBounds);
-        assertWithMessage(message  + " Maximum WindowMetrics bounds not matched.")
-                .that(maxWindowBounds).isEqualTo(maxBounds);
-    }
-
-    @Test
-    public void testWidowProviderServiceGlobalConfigChanges() {
-        final TestWindowService service = createManagedWindowServiceSession().getService();
-
-        // Obtain the original config
-        final Configuration originalConfiguration =
-                new Configuration(service.getResources().getConfiguration());
-
-        final FontScaleSession fontScaleSession = createManagedFontScaleSession();
-        final float expectedFontScale = fontScaleSession.get() + 0.3f;
-        fontScaleSession.set(expectedFontScale);
-
-        service.waitAndAssertConfigurationChanged();
-
-        assertThat(service.mConfiguration.fontScale).isEqualTo(expectedFontScale);
-        // Also check Configuration obtained from WindowProviderService's Resources
-        assertWithMessage("Configuration update must contains font scale change.")
-                .that(originalConfiguration.diff(service.mConfiguration)
-                        & ActivityInfo.CONFIG_FONT_SCALE).isNotEqualTo(0);
-        assertWithMessage("Font scale must be updated to WindowProviderService Resources.")
-                .that(service.getResources().getConfiguration().fontScale)
-                .isEqualTo(expectedFontScale);
-    }
-
-    @Test
-    public void testWindowProviderServiceCallWmBeforeOnCreateNotCrash() {
-        final TestWindowService service =
-                createManagedWindowServiceSession(true /* verifyWmInOnCreate */).getService();
-        if (service.mThrowableFromOnCreate != null) {
-            throw new AssertionError("Calling WindowManager APIs before"
-                    + " WindowProviderService#onCreate must not throw Throwable, but did.",
-                    service.mThrowableFromOnCreate);
+            // After TestWindowService attaches the Activity's token, which is also a WindowToken,
+            // it is expected to receive a config update which matches the WindowMetrics of
+            // the Activity.
+            waitAndAssertWindowMetricsBoundsMatches(service, currentBounds, maxBounds,
+                    "WindowProviderService bounds must match WindowToken bounds.");
+        } finally {
+            serviceRule.unbindService();
         }
+    }
+
+    private void waitAndAssertWindowMetricsBoundsMatches(Context context, Rect currentBounds,
+            Rect maxBounds, String message) {
+        final WindowManager wm = context.getSystemService(WindowManager.class);
+        waitForOrFail(message, () -> {
+            final Rect currentWindowBounds = wm.getCurrentWindowMetrics().getBounds();
+            final Rect maxWindowBounds = wm.getMaximumWindowMetrics().getBounds();
+            return currentBounds.equals(currentWindowBounds) && maxBounds.equals(maxWindowBounds);
+        });
     }
 
     public static class TestActivity extends WindowManagerTestBase.FocusableActivity {
@@ -306,55 +253,13 @@ public class WindowContextTests extends WindowContextTestBase {
             mLatch.countDown();
         }
 
-        private void waitAndAssertConfigurationChanged() {
-            try {
-                assertThat(mLatch.await(4, TimeUnit.SECONDS)).isTrue();
-            } catch(InterruptedException e) {
-                throw new RuntimeException(e);
-            }
-        }
-    }
-
-    private TestWindowServiceSession createManagedWindowServiceSession() {
-        return mObjectTracker.manage(new TestWindowServiceSession(false /* verifyWmInOnCreate */));
-    }
-
-    private TestWindowServiceSession createManagedWindowServiceSession(boolean verifyWmInOnCreate) {
-        return mObjectTracker.manage(new TestWindowServiceSession(verifyWmInOnCreate));
-    }
-
-    private static class TestWindowServiceSession implements AutoCloseable {
-        private final ServiceTestRule mServiceRule = new ServiceTestRule();
-        private final TestWindowService mService;
-        private static boolean sVerifyWmInOnCreate = false;
-
-        private TestWindowServiceSession(boolean verifyWmInOnCreate) {
-            final Context context = ApplicationProvider.getApplicationContext();
-            final Intent intent = new Intent(context, TestWindowService.class);
-            sVerifyWmInOnCreate = verifyWmInOnCreate;
-            try {
-                final TestToken token = (TestToken) mServiceRule.bindService(intent);
-                mService = token.getService();
-            } catch (TimeoutException e) {
-                throw new RuntimeException(e);
-            }
-        }
-
-        private TestWindowService getService() {
-            return mService;
-        }
-
-        @Override
-        public void close() {
-            mServiceRule.unbindService();
+        private void waitAndAssertConfigurationChanged() throws Exception {
+            assertThat(mLatch.await(4, TimeUnit.SECONDS)).isTrue();
         }
     }
 
     public static class TestWindowService extends WindowProviderService {
         private final IBinder mToken = new TestToken();
-        private CountDownLatch mLatch = new CountDownLatch(1);
-        private Configuration mConfiguration;
-        private Throwable mThrowableFromOnCreate;
 
         @Override
         public int getWindowType() {
@@ -365,39 +270,6 @@ public class WindowContextTests extends WindowContextTestBase {
         @Override
         public IBinder onBind(Intent intent) {
             return mToken;
-        }
-
-        @Override
-        public void onCreate() {
-            // Verify if call WindowManager before WindowProviderService#onCreate throws Exception.
-            if (TestWindowServiceSession.sVerifyWmInOnCreate) {
-                try {
-                    getSystemService(WindowManager.class).getCurrentWindowMetrics();
-                } catch (Throwable t) {
-                    mThrowableFromOnCreate = t;
-                }
-            }
-            super.onCreate();
-            mConfiguration = getResources().getConfiguration();
-        }
-
-        @Override
-        public void onConfigurationChanged(Configuration newConfig) {
-            super.onConfigurationChanged(newConfig);
-            mConfiguration = newConfig;
-            mLatch.countDown();
-        }
-
-        private void resetLatch() {
-            mLatch = new CountDownLatch(1);
-        }
-
-        private void waitAndAssertConfigurationChanged() {
-            try {
-                assertThat(mLatch.await(4, TimeUnit.SECONDS)).isTrue();
-            } catch(InterruptedException e) {
-                throw new RuntimeException(e);
-            }
         }
 
         public class TestToken extends Binder {

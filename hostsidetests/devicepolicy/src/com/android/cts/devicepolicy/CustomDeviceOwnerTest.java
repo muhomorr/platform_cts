@@ -39,9 +39,15 @@ public class CustomDeviceOwnerTest extends BaseDevicePolicyTest {
     private static final String INTENT_RECEIVER_PKG = "com.android.cts.intent.receiver";
     private static final String INTENT_RECEIVER_APK = "CtsIntentReceiverApp.apk";
 
+    private static final String ACCOUNT_MANAGEMENT_PKG
+            = "com.android.cts.devicepolicy.accountmanagement";
+    protected static final String ACCOUNT_MANAGEMENT_APK
+            = "CtsAccountManagementDevicePolicyApp.apk";
+
     @Override
     public void tearDown() throws Exception {
         getDevice().uninstallPackage(DEVICE_OWNER_PKG);
+        getDevice().uninstallPackage(ACCOUNT_MANAGEMENT_PKG);
 
         super.tearDown();
     }
@@ -88,6 +94,24 @@ public class CustomDeviceOwnerTest extends BaseDevicePolicyTest {
             removeUser(userId);
             // make sure we clean up in case we succeeded in setting the device owner
             removeAdmin(DEVICE_OWNER_ADMIN_COMPONENT, mDeviceOwnerUserId);
+        }
+    }
+
+    @FlakyTest
+    @Test
+    public void testCannotSetDeviceOwnerWhenAccountPresent() throws Exception {
+        installAppAsUser(ACCOUNT_MANAGEMENT_APK, mPrimaryUserId);
+        installAppAsUser(DEVICE_OWNER_APK, mDeviceOwnerUserId);
+        try {
+            runDeviceTestsAsUser(ACCOUNT_MANAGEMENT_PKG, ".AccountUtilsTest",
+                    "testAddAccountExplicitly", mPrimaryUserId);
+            assertFalse(setDeviceOwner(DEVICE_OWNER_ADMIN_COMPONENT, mDeviceOwnerUserId,
+                    /*expectFailure*/ true));
+        } finally {
+            // make sure we clean up in case we succeeded in setting the device owner
+            removeAdmin(DEVICE_OWNER_ADMIN_COMPONENT, mDeviceOwnerUserId);
+            runDeviceTestsAsUser(ACCOUNT_MANAGEMENT_PKG, ".AccountUtilsTest",
+                    "testRemoveAccountExplicitly", mPrimaryUserId);
         }
     }
 

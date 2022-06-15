@@ -20,6 +20,7 @@ import static com.google.common.truth.Truth.assertWithMessage;
 
 import android.hdmicec.cts.BaseHdmiCecCtsTest;
 import android.hdmicec.cts.CecOperand;
+import android.hdmicec.cts.HdmiCecConstants;
 
 import com.android.tradefed.device.ITestDevice;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
@@ -69,7 +70,8 @@ public final class HdmiCecStartupTest extends BaseHdmiCecCtsTest {
                         CecOperand.GIVE_SYSTEM_AUDIO_MODE_STATUS));
         allowedMessages.addAll(expectedMessages);
 
-        device.reboot();
+        device.executeShellCommand("reboot");
+        device.waitForBootComplete(HdmiCecConstants.REBOOT_TIMEOUT);
         /* Monitor CEC messages for 20s after reboot */
         final List<CecOperand> messagesReceived =
                 hdmiCecClient.getAllMessages(mDutLogicalAddresses, 20);
@@ -106,7 +108,8 @@ public final class HdmiCecStartupTest extends BaseHdmiCecCtsTest {
         List<CecOperand> expectedMessages = Arrays.asList(CecOperand.REPORT_PHYSICAL_ADDRESS,
                 CecOperand.REPORT_FEATURES);
 
-        device.reboot();
+        device.executeShellCommand("reboot");
+        device.waitForBootComplete(HdmiCecConstants.REBOOT_TIMEOUT);
         /* Monitor CEC messages for 20s after reboot */
         final List<CecOperand> messagesReceived =
                 hdmiCecClient.getAllMessages(mDutLogicalAddresses, 20);

@@ -45,10 +45,12 @@ class ScopedStorageBaseDeviceTest {
     }
 
     private static void createPublicVolume() throws Exception {
-        TestUtils.preparePublicVolume();
-        assertWithMessage("Expected newly created public volume name to be not null")
+        if (TestUtils.getCurrentPublicVolumeName() == null) {
+            TestUtils.createNewPublicVolume();
+            assertWithMessage("Expected newly created public volume name to be not null")
                     .that(TestUtils.getCurrentPublicVolumeName())
                     .isNotNull();
+        }
     }
     private static void setupStorage() throws Exception {
         if (!getContext().getPackageManager().isInstantApp()) {

@@ -21,7 +21,5 @@
         <!-- This app will not be a system app and so must be installed as forceQueryable by the
              test framework -->
         <uses-library android:name="android.test.runner" />
-        <activity android:name="android.appenumeration.cts.TestActivity"
-                  android:exported="true" />
     </application>
 </manifest>

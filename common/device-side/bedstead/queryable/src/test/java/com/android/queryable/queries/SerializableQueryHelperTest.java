@@ -16,8 +16,6 @@
 
 package com.android.queryable.queries;
 
-import static com.android.bedstead.nene.utils.ParcelTest.assertParcelsCorrectly;
-
 import static com.google.common.truth.Truth.assertThat;
 
 import com.android.queryable.Queryable;
@@ -61,15 +59,5 @@ public class SerializableQueryHelperTest {
         serializableQueryHelper.isEqualTo(mDifferentSerializable);
 
         assertThat(serializableQueryHelper.matches(mSerializable)).isFalse();
-    }
-
-    @Test
-    public void parcel_parcelsCorrectly() {
-        SerializableQueryHelper<Queryable> serializableQueryHelper =
-                new SerializableQueryHelper<>(mQuery);
-
-        serializableQueryHelper.isEqualTo(mDifferentSerializable);
-
-        assertParcelsCorrectly(SerializableQueryHelper.class, serializableQueryHelper);
     }
 }

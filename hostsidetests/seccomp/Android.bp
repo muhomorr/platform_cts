@@ -29,8 +29,4 @@ java_test_host {
         "tradefed",
         "compatibility-host-util",
     ],
-    data: [
-        ":CtsSeccompDeviceApp",
-    ],
-    per_testcase_directory: true,
 }

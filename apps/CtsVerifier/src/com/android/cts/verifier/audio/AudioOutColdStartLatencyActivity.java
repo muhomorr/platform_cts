@@ -27,8 +27,6 @@ import android.util.Log;
 import android.view.View;
 import android.widget.TextView;
 
-import com.android.compatibility.common.util.CddTest;
-
 import com.android.cts.verifier.R;
 import com.android.cts.verifier.audio.audiolib.AudioSystemParams;
 
@@ -43,7 +41,6 @@ import java.util.TimerTask;
 /**
  * CTS-Test for cold-start latency measurements
  */
-@CddTest(requirement = "5.6/C-1-2")
 public class AudioOutColdStartLatencyActivity
         extends AudioColdStartBaseActivity {
     private static final String TAG = "AudioOutColdStartLatencyActivity";

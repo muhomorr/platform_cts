@@ -143,8 +143,7 @@ public abstract class BaseDeviceAdminServiceTest extends BaseDevicePolicyTest {
         CLog.i("Running testDisableService1...");
         executeDeviceTestMethod(".ComponentController", "testDisableService1");
         withRetry(() -> assertServiceNotBound(OWNER_SERVICE));
-        // There's a rare flake which occurs here - will fix with migration
-//        withRetry(() -> assertServiceBound(OWNER_SERVICE2));
+        withRetry(() -> assertServiceBound(OWNER_SERVICE2));
 
         CLog.i("Running testDisableService2...");
         executeDeviceTestMethod(".ComponentController", "testDisableService2");

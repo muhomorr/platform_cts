@@ -30,17 +30,15 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.test.ActivityInstrumentationTestCase2;
 import android.test.UiThreadTest;
-import android.tv.cts.R;
 import android.util.ArrayMap;
 import android.util.SparseIntArray;
 import android.view.InputEvent;
 import android.view.KeyEvent;
+import android.tv.cts.R;
 
 import androidx.test.InstrumentationRegistry;
 
 import com.android.compatibility.common.util.PollingCheck;
-
-import org.junit.Ignore;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -449,10 +447,8 @@ public class TvViewTest extends ActivityInstrumentationTestCase2<TvViewStubActiv
         mInstrumentation.waitForIdleSync();
         assertTrue(mTvView.isFocused());
 
-        verifyKeyEvent(
-                new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_BUTTON_16), unhandledEvent);
-        verifyKeyEvent(
-                new KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_BUTTON_16), unhandledEvent);
+        verifyKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_GUIDE), unhandledEvent);
+        verifyKeyEvent(new KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_GUIDE), unhandledEvent);
     }
 
     public void testConnectionFailed() throws Throwable {
@@ -470,8 +466,7 @@ public class TvViewTest extends ActivityInstrumentationTestCase2<TvViewStubActiv
         }.run();
     }
 
-    @Ignore("b/216866512")
-    public void ignoredTestDisconnected() throws Throwable {
+    public void testDisconnected() throws Throwable {
         if (!Utils.hasTvInputFramework(getActivity())) {
             return;
         }

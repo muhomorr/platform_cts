@@ -147,7 +147,7 @@ class FormatCombosTest(its_base_test.ItsBaseTest):
               if STOP_AT_FIRST_FAILURE:
                 raise AssertionError(
                     f'Capture fail at combo req: {req_str}, fmt: {fmt_combo}, '
-                    f'burst: {burst_len}') from e
+                    f'burst: {burst_len}')
             n += 1
 
       num_fail = len(failures)

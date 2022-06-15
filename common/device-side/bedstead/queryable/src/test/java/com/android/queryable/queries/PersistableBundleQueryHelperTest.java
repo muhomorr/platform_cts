@@ -16,8 +16,6 @@
 
 package com.android.queryable.queries;
 
-import static com.android.bedstead.nene.utils.ParcelTest.assertParcelsCorrectly;
-
 import static com.google.common.truth.Truth.assertThat;
 
 import android.os.PersistableBundle;
@@ -89,16 +87,5 @@ public class PersistableBundleQueryHelperTest {
         persistableBundleQueryHelper.key(KEY).stringValue().isEqualTo(STRING_VALUE);
 
         assertThat(persistableBundleQueryHelper.matches(mPersistableBundle)).isFalse();
-    }
-
-    @Test
-    public void parcel_parcelsCorrectly() {
-        PersistableBundleQueryHelper<Queryable> persistableBundleQueryHelper =
-                new PersistableBundleQueryHelper<>(mQuery);
-
-        persistableBundleQueryHelper.key("").stringValue().isEqualTo("");
-
-        assertParcelsCorrectly(PersistableBundleQueryHelper.class,
-                persistableBundleQueryHelper);
     }
 }

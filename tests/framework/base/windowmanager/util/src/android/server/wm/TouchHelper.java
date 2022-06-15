@@ -101,13 +101,9 @@ public class TouchHelper {
     }
 
     public void tapOnCenter(Rect bounds, int displayId) {
-        tapOnCenter(bounds, displayId, true  /* waitAnimation */);
-    }
-
-    public void tapOnCenter(Rect bounds, int displayId, boolean waitAnimation) {
         final int tapX = bounds.left + bounds.width() / 2;
         final int tapY = bounds.top + bounds.height() / 2;
-        tapOnDisplay(tapX, tapY, displayId, true /* sync */, waitAnimation);
+        tapOnDisplaySync(tapX, tapY, displayId);
     }
 
     public void tapOnViewCenter(View view) {
@@ -122,8 +118,8 @@ public class TouchHelper {
         tapOnDisplay(x, y, view.getDisplay().getDisplayId(), true /* sync */, waitAnimations);
     }
 
-    public void tapOnTaskCenter(WindowManagerState.Task task) {
-        tapOnCenter(task.getBounds(), task.mDisplayId);
+    public void tapOnStackCenter(WindowManagerState.ActivityTask stack) {
+        tapOnCenter(stack.getBounds(), stack.mDisplayId);
     }
 
     public void tapOnDisplayCenter(int displayId) {
@@ -166,12 +162,5 @@ public class TouchHelper {
         KeyEvent upEvent = new KeyEvent(downTime, SystemClock.uptimeMillis(),
                 KeyEvent.ACTION_UP, keyCode, 0 /* repeatCount */);
         getInstrumentation().getUiAutomation().injectInputEvent(upEvent, sync);
-    }
-
-    public void tapOnTaskCenterAsync(WindowManagerState.Task task) {
-        final Rect bounds = task.getBounds();
-        final int x = bounds.left + bounds.width() / 2;
-        final int y = bounds.top + bounds.height() / 2;
-        tapOnDisplay(x, y, task.mDisplayId, false /* sync*/);
     }
 }

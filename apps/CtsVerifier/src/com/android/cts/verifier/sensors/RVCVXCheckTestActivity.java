@@ -44,7 +44,6 @@ import com.android.cts.verifier.sensors.base.SensorCtsVerifierTestActivity;
 import com.android.cts.verifier.sensors.helpers.OpenCVLibrary;
 
 import junit.framework.Assert;
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.concurrent.CountDownLatch;
@@ -149,8 +148,7 @@ public class RVCVXCheckTestActivity
             // wait for record finish
             mRecordActivityFinishedSignal.await();
 
-            File videoFile = new File(mRecPath,"video.mp4");
-            if (("".equals(mRecPath)) || (!videoFile.exists())) {
+            if ("".equals(mRecPath)) {
                 showUserMessage("Recording failed or exited prematurely.");
                 waitForUserToContinue();
             } else {

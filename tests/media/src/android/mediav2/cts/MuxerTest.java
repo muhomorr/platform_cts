@@ -481,7 +481,7 @@ public class MuxerTest {
         private native boolean nativeTestGetTrackFormat(String srcPath, String outPath,
                 int outFormat);
 
-        private void verifyLocationInFile(String fileName) throws IOException {
+        private void verifyLocationInFile(String fileName) {
             if (mOutFormat != MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4 &&
                     mOutFormat != MediaMuxer.OutputFormat.MUXER_OUTPUT_3GPP) return;
             MediaMetadataRetriever retriever = new MediaMetadataRetriever();
@@ -514,7 +514,7 @@ public class MuxerTest {
             retriever.release();
         }
 
-        private void verifyOrientation(String fileName) throws IOException {
+        private void verifyOrientation(String fileName) {
             if (mOutFormat != MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4 &&
                     mOutFormat != MediaMuxer.OutputFormat.MUXER_OUTPUT_3GPP) return;
             MediaMetadataRetriever retriever = new MediaMetadataRetriever();
@@ -695,14 +695,14 @@ public class MuxerTest {
         }
 
         @Test
-        public void testSetLocationNative() throws IOException {
+        public void testSetLocationNative() {
             Assume.assumeTrue(shouldRunTest(mOutFormat));
             assertTrue(nativeTestSetLocation(mOutFormat, mInpPath, mOutPath));
             verifyLocationInFile(mOutPath);
         }
 
         @Test
-        public void testSetOrientationHintNative() throws IOException {
+        public void testSetOrientationHintNative() {
             Assume.assumeTrue(shouldRunTest(mOutFormat));
             assertTrue(nativeTestSetOrientationHint(mOutFormat, mInpPath, mOutPath));
             verifyOrientation(mOutPath);

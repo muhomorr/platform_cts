@@ -22,8 +22,6 @@ android_test {
         "general-tests",
     ],
     static_libs: [
-        "Nene",
-        "Harrier",
         "Queryable",
         "ActivityContext",
         "androidx.test.ext.junit",

@@ -16,26 +16,15 @@
 
 package android.keystore.cts;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.fail;
-
-import android.content.Context;
 import android.security.KeyPairGeneratorSpec;
-
-import androidx.test.InstrumentationRegistry;
-import androidx.test.runner.AndroidJUnit4;
+import android.test.AndroidTestCase;
 
 import java.math.BigInteger;
 import java.util.Date;
 
 import javax.security.auth.x500.X500Principal;
 
-import org.junit.Test;
-import org.junit.runner.RunWith;
-
-@RunWith(AndroidJUnit4.class)
-public class KeyPairGeneratorSpecTest {
+public class KeyPairGeneratorSpecTest extends AndroidTestCase {
     private static final String TEST_ALIAS_1 = "test1";
 
     private static final X500Principal TEST_DN_1 = new X500Principal("CN=test1");
@@ -50,11 +39,6 @@ public class KeyPairGeneratorSpecTest {
     @SuppressWarnings("deprecation")
     private static final Date NOW_PLUS_10_YEARS = new Date(NOW.getYear() + 10, 0, 1);
 
-    private Context getContext() {
-        return InstrumentationRegistry.getInstrumentation().getTargetContext();
-    }
-
-    @Test
     public void testBuilder_Unencrypted_Success() throws Exception {
         KeyPairGeneratorSpec spec = new KeyPairGeneratorSpec.Builder(getContext())
                 .setAlias(TEST_ALIAS_1)
@@ -77,7 +61,6 @@ public class KeyPairGeneratorSpecTest {
         assertFalse("encryption flag should not be on", spec.isEncryptionRequired());
     }
 
-    @Test
     public void testBuilder_NullContext_Failure() throws Exception {
         try {
             new KeyPairGeneratorSpec.Builder(null);
@@ -86,7 +69,6 @@ public class KeyPairGeneratorSpecTest {
         }
     }
 
-    @Test
     public void testBuilder_MissingAlias_Failure() throws Exception {
         try {
             new KeyPairGeneratorSpec.Builder(getContext())
@@ -100,7 +82,6 @@ public class KeyPairGeneratorSpecTest {
         }
     }
 
-    @Test
     public void testBuilder_MissingSubjectDN_Failure() throws Exception {
         try {
             new KeyPairGeneratorSpec.Builder(getContext())
@@ -114,7 +95,6 @@ public class KeyPairGeneratorSpecTest {
         }
     }
 
-    @Test
     public void testBuilder_MissingSerialNumber_Failure() throws Exception {
         try {
             new KeyPairGeneratorSpec.Builder(getContext())
@@ -128,7 +108,6 @@ public class KeyPairGeneratorSpecTest {
         }
     }
 
-    @Test
     public void testBuilder_MissingStartDate_Failure() throws Exception {
         try {
             new KeyPairGeneratorSpec.Builder(getContext())
@@ -142,7 +121,6 @@ public class KeyPairGeneratorSpecTest {
         }
     }
 
-    @Test
     public void testBuilder_MissingEndDate_Failure() throws Exception {
         try {
             new KeyPairGeneratorSpec.Builder(getContext())
@@ -156,7 +134,6 @@ public class KeyPairGeneratorSpecTest {
         }
     }
 
-    @Test
     public void testBuilder_EndBeforeStart_Failure() throws Exception {
         try {
             new KeyPairGeneratorSpec.Builder(getContext())

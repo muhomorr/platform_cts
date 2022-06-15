@@ -45,12 +45,9 @@ import android.os.SystemClock;
 import android.platform.test.annotations.AppModeFull;
 import android.platform.test.annotations.Presubmit;
 import android.util.Log;
-
-import com.android.compatibility.common.util.CddTest;
-import com.android.compatibility.common.util.PropertyUtil;
-
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
+import com.android.compatibility.common.util.PropertyUtil;
 
 import junit.framework.Assert;
 
@@ -124,14 +121,10 @@ public class SensorTest extends SensorTestCase {
         }
     }
 
-    /**
-     * testSensorOperations
-     *
-     * Because we can't know every sensors unit details, so we can't assert
-     * get values with specified values.
-     */
-    @CddTest(requirement = "7.3.1/C-2-1")
-    public void testSensorOperations_accelerometer() {
+    @SuppressWarnings("deprecation")
+    public void testSensorOperations() {
+        // Because we can't know every sensors unit details, so we can't assert
+        // get values with specified values.
         Sensor sensor = mSensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
         boolean hasAccelerometer = getContext().getPackageManager().hasSystemFeature(
                 PackageManager.FEATURE_SENSOR_ACCELEROMETER);
@@ -143,10 +136,8 @@ public class SensorTest extends SensorTestCase {
         } else {
             assertNull(sensor);
         }
-    }
 
-    public void testSensorOperations_stepCounter() {
-        Sensor sensor = mSensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER);
+        sensor = mSensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER);
         boolean hasStepCounter = getContext().getPackageManager().hasSystemFeature(
                 PackageManager.FEATURE_SENSOR_STEP_COUNTER);
         // stepcounter sensor is optional
@@ -157,10 +148,8 @@ public class SensorTest extends SensorTestCase {
         } else {
             assertNull(sensor);
         }
-    }
 
-    public void testSensorOperations_stepDetector() {
-        Sensor sensor = mSensorManager.getDefaultSensor(Sensor.TYPE_STEP_DETECTOR);
+        sensor = mSensorManager.getDefaultSensor(Sensor.TYPE_STEP_DETECTOR);
         boolean hasStepDetector = getContext().getPackageManager().hasSystemFeature(
                 PackageManager.FEATURE_SENSOR_STEP_DETECTOR);
         // stepdetector sensor is optional
@@ -171,10 +160,8 @@ public class SensorTest extends SensorTestCase {
         } else {
             assertNull(sensor);
         }
-    }
 
-    public void testSensorOperations_magneticField() {
-        Sensor sensor = mSensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD);
+        sensor = mSensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD);
         boolean hasCompass = getContext().getPackageManager().hasSystemFeature(
                 PackageManager.FEATURE_SENSOR_COMPASS);
         // compass sensor is optional
@@ -185,11 +172,8 @@ public class SensorTest extends SensorTestCase {
         } else {
             assertNull(sensor);
         }
-    }
 
-    @CddTest(requirement = "7.3.4/C-2-1")
-    public void testSensorOperations_gyroscope() {
-        Sensor sensor = mSensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE);
+        sensor = mSensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE);
         boolean hasGyroscope = getContext().getPackageManager().hasSystemFeature(
                 PackageManager.FEATURE_SENSOR_GYROSCOPE);
         // gyroscope sensor is optional
@@ -200,10 +184,8 @@ public class SensorTest extends SensorTestCase {
         } else {
             assertNull(sensor);
         }
-    }
 
-    public void testSensorOperations_pressure() {
-        Sensor sensor = mSensorManager.getDefaultSensor(Sensor.TYPE_PRESSURE);
+        sensor = mSensorManager.getDefaultSensor(Sensor.TYPE_PRESSURE);
         boolean hasPressure = getContext().getPackageManager().hasSystemFeature(
                 PackageManager.FEATURE_SENSOR_BAROMETER);
         // pressure sensor is optional
@@ -214,30 +196,22 @@ public class SensorTest extends SensorTestCase {
         } else {
             assertNull(sensor);
         }
-    }
 
-    @SuppressWarnings("deprecation")
-    public void testSensorOperations_orientation() {
-        Sensor sensor = mSensorManager.getDefaultSensor(Sensor.TYPE_ORIENTATION);
+        sensor = mSensorManager.getDefaultSensor(Sensor.TYPE_ORIENTATION);
         // Note: orientation sensor is deprecated.
         if (sensor != null) {
             assertEquals(Sensor.TYPE_ORIENTATION, sensor.getType());
             assertSensorValues(sensor);
         }
-    }
 
-    @SuppressWarnings("deprecation")
-    public void testSensorOperations_temperature() {
-        Sensor sensor = mSensorManager.getDefaultSensor(Sensor.TYPE_TEMPERATURE);
+        sensor = mSensorManager.getDefaultSensor(Sensor.TYPE_TEMPERATURE);
         // temperature sensor is optional
         if (sensor != null) {
             assertEquals(Sensor.TYPE_TEMPERATURE, sensor.getType());
             assertSensorValues(sensor);
         }
-    }
 
-    public void testSensorOperations_hingeAngle() {
-        Sensor sensor = mSensorManager.getDefaultSensor(Sensor.TYPE_HINGE_ANGLE);
+        sensor = mSensorManager.getDefaultSensor(Sensor.TYPE_HINGE_ANGLE);
         boolean hasHingeAngle = getContext().getPackageManager().hasSystemFeature(
                 PackageManager.FEATURE_SENSOR_HINGE_ANGLE);
 
@@ -249,64 +223,6 @@ public class SensorTest extends SensorTestCase {
                 + " " + sensor.getName(), sensor.getMaximumRange() <= 360);
         } else {
             assertNull(sensor);
-        }
-    }
-
-    @CddTest(requirement = "7.3.1/C-3-1")
-    public void testSensorOperations_accelerometerLimitedAxes() {
-        validateLimitedAxesImuSensorType(Sensor.TYPE_ACCELEROMETER_LIMITED_AXES,
-                PackageManager.FEATURE_SENSOR_ACCELEROMETER_LIMITED_AXES);
-    }
-
-    public void testSensorOperations_gyroscopeLimitedAxes() {
-        validateLimitedAxesImuSensorType(Sensor.TYPE_GYROSCOPE_LIMITED_AXES,
-                PackageManager.FEATURE_SENSOR_GYROSCOPE_LIMITED_AXES);
-    }
-
-    @CddTest(requirement = "7.3.4/C-3-1")
-    public void testSensorOperations_accelerometerLimitedAxesUncalibrated() {
-        validateLimitedAxesImuSensorType(Sensor.TYPE_ACCELEROMETER_LIMITED_AXES_UNCALIBRATED,
-                PackageManager.FEATURE_SENSOR_ACCELEROMETER_LIMITED_AXES_UNCALIBRATED);
-    }
-
-    public void testSensorOperations_gyroscopeLimitedAxesUncalibrated() {
-        validateLimitedAxesImuSensorType(Sensor.TYPE_GYROSCOPE_LIMITED_AXES_UNCALIBRATED,
-                PackageManager.FEATURE_SENSOR_GYROSCOPE_LIMITED_AXES_UNCALIBRATED);
-    }
-
-    private void validateLimitedAxesImuSensorType(int sensorType, String systemFeature) {
-        Sensor sensor = mSensorManager.getDefaultSensor(sensorType);
-        boolean hasSensorFeature = getContext().getPackageManager().hasSystemFeature(systemFeature);
-        if (hasSensorFeature) {
-            assertNotNull(sensor);
-            assertEquals(sensorType, sensor.getType());
-            assertSensorValues(sensor);
-        } else {
-            assertNull(sensor);
-        }
-    }
-
-    public void testSensorOperations_heading() {
-        Sensor sensor = mSensorManager.getDefaultSensor(Sensor.TYPE_HEADING);
-        boolean hasHeadingSensor = getContext().getPackageManager().hasSystemFeature(
-                PackageManager.FEATURE_SENSOR_HEADING);
-        boolean isAutomotive = mContext.getPackageManager().hasSystemFeature(
-                PackageManager.FEATURE_AUTOMOTIVE);
-        if (isAutomotive && hasHeadingSensor) {
-            assertNotNull(sensor);
-            assertEquals(Sensor.TYPE_HEADING, sensor.getType());
-            assertSensorValues(sensor);
-            assertTrue("Max range must not be greater or equal to 360. Range="
-                    + sensor.getMaximumRange() + " " + sensor.getName(),
-                    sensor.getMaximumRange() < 360);
-        } else if (isAutomotive) {
-            assertNull(sensor);
-        } else {
-            // There isn't good test coverage for heading, particularly for non-automotive devices.
-            // So if a non-automotive device wants to implement this, requirements for the sensor
-            // and how to test for those requirements should be re-discussed.
-            assertNull("If the heading sensor is being implemented on a non-automotive device, "
-                    + "the team would love to hear from you. Please reach out!", sensor);
         }
     }
 

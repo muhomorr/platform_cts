@@ -22,15 +22,12 @@ import static android.os.Build.VERSION.SECURITY_PATCH;
 
 import static com.google.common.truth.Truth.assertWithMessage;
 
-import android.Manifest;
 import android.content.Context;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.PackageManager.NameNotFoundException;
 import android.content.pm.PermissionGroupInfo;
 import android.content.pm.PermissionInfo;
-import android.os.Process;
-import android.os.SystemProperties;
 import android.platform.test.annotations.AppModeFull;
 import android.util.ArrayMap;
 import android.util.ArraySet;
@@ -42,7 +39,6 @@ import androidx.annotation.Nullable;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
 
-import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.xmlpull.v1.XmlPullParser;
@@ -71,11 +67,16 @@ public class PermissionPolicyTest {
     private static final String MANAGE_COMPANION_DEVICES_PERMISSION
             = "android.permission.MANAGE_COMPANION_DEVICES";
 
+    private static final String ALLOW_SLIPPERY_TOUCHES_PERMISSION
+            = "android.permission.ALLOW_SLIPPERY_TOUCHES";
+
     private static final String LOG_TAG = "PermissionProtectionTest";
 
     private static final String PLATFORM_PACKAGE_NAME = "android";
 
     private static final String PLATFORM_ROOT_NAMESPACE = "android.";
+
+    private static final String AUTOMOTIVE_SERVICE_PACKAGE_NAME = "com.android.car";
 
     private static final String TAG_PERMISSION = "permission";
     private static final String TAG_PERMISSION_GROUP = "permission-group";
@@ -88,18 +89,6 @@ public class PermissionPolicyTest {
 
     private static final Context sContext =
             InstrumentationRegistry.getInstrumentation().getTargetContext();
-
-    @Test
-    public void shellIsOnlySystemAppThatRequestsRevokePostNotificationsWithoutKill() {
-        List<PackageInfo> pkgs = sContext.getPackageManager().getInstalledPackages(
-                PackageManager.PackageInfoFlags.of(
-                PackageManager.GET_PERMISSIONS | PackageManager.MATCH_ALL));
-        int shellUid = Process.myUserHandle().getUid(Process.SHELL_UID);
-        for (PackageInfo pkg : pkgs) {
-            Assert.assertFalse(pkg.applicationInfo.uid != shellUid
-                    && hasRevokeNotificationNoKillPermission(pkg));
-        }
-    }
 
     @Test
     public void platformPermissionPolicyIsUnaltered() throws Exception {
@@ -122,14 +111,8 @@ public class PermissionPolicyTest {
 
         if (sContext.getPackageManager().hasSystemFeature(PackageManager.FEATURE_AUTOMOTIVE)) {
             expectedPermissions.addAll(loadExpectedPermissions(R.raw.automotive_android_manifest));
-            String carServicePackageName = SystemProperties.get("ro.android.car.carservice.package",
-                    null);
-
-            assertWithMessage("Car service package not defined").that(
-                    carServicePackageName).isNotNull();
-
             declaredPermissionsMap.putAll(
-                    getPermissionsForPackage(sContext, carServicePackageName));
+                    getPermissionsForPackage(sContext, AUTOMOTIVE_SERVICE_PACKAGE_NAME));
         }
 
         for (ExpectedPermissionInfo expectedPermission : expectedPermissions) {
@@ -254,20 +237,6 @@ public class PermissionPolicyTest {
 
         // Fail on any offending item
         assertWithMessage("list of offending permissions").that(offendingList).isEmpty();
-    }
-
-    private boolean hasRevokeNotificationNoKillPermission(PackageInfo info) {
-        if (info.requestedPermissions == null) {
-            return false;
-        }
-
-        for (int i = 0; i < info.requestedPermissions.length; i++) {
-            if (Manifest.permission.REVOKE_POST_NOTIFICATIONS_WITHOUT_KILL.equals(
-                    info.requestedPermissions[i])) {
-                return true;
-            }
-        }
-        return false;
     }
 
     private List<ExpectedPermissionInfo> loadExpectedPermissions(int resourceId) throws Exception {
@@ -417,6 +386,9 @@ public class PermissionPolicyTest {
                 case "incidentReportApprover": {
                     protectionLevel |= PermissionInfo.PROTECTION_FLAG_INCIDENT_REPORT_APPROVER;
                 } break;
+                case "documenter": {
+                    protectionLevel |= PermissionInfo.PROTECTION_FLAG_DOCUMENTER;
+                } break;
                 case "appPredictor": {
                     protectionLevel |= PermissionInfo.PROTECTION_FLAG_APP_PREDICTOR;
                 } break;
@@ -437,9 +409,6 @@ public class PermissionPolicyTest {
                 } break;
                 case "role": {
                     protectionLevel |= PermissionInfo.PROTECTION_FLAG_ROLE;
-                } break;
-                case "knownSigner": {
-                    protectionLevel |= PermissionInfo.PROTECTION_FLAG_KNOWN_SIGNER;
                 } break;
             }
         }
@@ -475,6 +444,9 @@ public class PermissionPolicyTest {
                 return parseDate(SECURITY_PATCH).before(HIDE_NON_SYSTEM_OVERLAY_WINDOWS_PATCH_DATE);
             case MANAGE_COMPANION_DEVICES_PERMISSION:
                 return parseDate(SECURITY_PATCH).before(MANAGE_COMPANION_DEVICES_PATCH_DATE);
+            case ALLOW_SLIPPERY_TOUCHES_PERMISSION:
+                // In R and S branches, skip this permission
+                return true;
             default:
                 return false;
         }

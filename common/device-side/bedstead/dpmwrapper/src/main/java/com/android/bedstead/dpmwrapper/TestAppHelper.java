@@ -37,16 +37,7 @@ public final class TestAppHelper {
      */
     public static void registerTestCaseReceiver(Context context, BroadcastReceiver receiver,
             IntentFilter filter) {
-        registerTestCaseReceiver(context, receiver, filter, /* forDeviceOwner= */ true);
-    }
-
-    /**
-     * Called by test case to register a {@link BrodcastReceiver} to receive intents sent by the
-     * device owner's {@link android.app.admin.DeviceAdminReceiver}.
-     */
-    public static void registerTestCaseReceiver(Context context, BroadcastReceiver receiver,
-            IntentFilter filter, boolean forDeviceOwner) {
-        if (forDeviceOwner && isCurrentUserOnHeadlessSystemUser(context)) {
+        if (isCurrentUserOnHeadlessSystemUser(context)) {
             TestAppCallbacksReceiver.registerReceiver(context, receiver, filter);
             return;
         }
@@ -60,16 +51,7 @@ public final class TestAppHelper {
      * device owner's {@link android.app.admin.DeviceAdminReceiver}.
      */
     public static void unregisterTestCaseReceiver(Context context, BroadcastReceiver receiver) {
-        unregisterTestCaseReceiver(context, receiver, /* forDeviceOwner= */ true);
-    }
-
-    /**
-     * Called by test case to unregister a {@link BrodcastReceiver} that receive intents sent by the
-     * device owner's {@link android.app.admin.DeviceAdminReceiver}.
-     */
-    public static void unregisterTestCaseReceiver(Context context, BroadcastReceiver receiver,
-            boolean forDeviceOwner) {
-        if (forDeviceOwner && isCurrentUserOnHeadlessSystemUser(context)) {
+        if (isCurrentUserOnHeadlessSystemUser(context)) {
             TestAppCallbacksReceiver.unregisterReceiver(context, receiver);
             return;
         }

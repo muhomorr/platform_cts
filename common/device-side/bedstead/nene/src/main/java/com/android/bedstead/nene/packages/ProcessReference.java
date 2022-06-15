@@ -16,96 +16,57 @@
 
 package com.android.bedstead.nene.packages;
 
+import android.util.Log;
+
 import com.android.bedstead.nene.annotations.Experimental;
+import com.android.bedstead.nene.exceptions.AdbException;
 import com.android.bedstead.nene.exceptions.NeneException;
 import com.android.bedstead.nene.users.UserReference;
-import com.android.bedstead.nene.utils.Poll;
-
-import java.util.Set;
+import com.android.bedstead.nene.utils.ShellCommand;
 
 @Experimental
 public final class ProcessReference {
 
-    private final Package mPackage;
-    private final int mPid;
-    private final int mUid;
+    private final PackageReference mPackage;
+    private final int mProcessId;
     private final UserReference mUser;
 
-    ProcessReference(Package pkg, int pid, int uid, UserReference user) {
+    ProcessReference(PackageReference pkg, int processId, UserReference user) {
         if (pkg == null) {
             throw new NullPointerException();
         }
         mPackage = pkg;
-        mPid = pid;
-        mUid = uid;
+        mProcessId = processId;
         mUser = user;
     }
 
-    /**
-     * Get the {@link Package} this process is associated with.
-     */
-    public Package pkg() {
+    public PackageReference pkg() {
         return mPackage;
     }
 
-    /**
-     * Get the pid of this process.
-     */
     public int pid() {
-        return mPid;
+        return mProcessId;
     }
 
-    /**
-     * Get the uid of this process.
-     */
-    public int uid() {
-        return mUid;
-    }
-
-    /**
-     * Get the {@link UserReference} this process is running on.
-     */
     public UserReference user() {
         return mUser;
     }
 
-    /**
-     * Kill this process.
-     */
     public void kill() {
-        // Removing a permission kills the process, so we can grant then remove an arbitrary
-        // permission
-        String permission = getGrantablePermission();
-
-        if (mPackage.hasPermission(mUser, permission)) {
-            mPackage.denyPermission(mUser, permission);
-            mPackage.grantPermission(mUser, permission);
-        } else {
-            mPackage.grantPermission(mUser, permission);
-            mPackage.denyPermission(mUser, permission);
+        try {
+            ShellCommand.builder("kill")
+                    .addOperand(mProcessId)
+                    .validate(String::isEmpty)
+                    .asRoot()
+                    .execute();
+        } catch (AdbException e) {
+            throw new NeneException("Error killing process", e);
         }
-
-        Poll.forValue("process", () -> mPackage.runningProcess(mUser))
-                .toBeNull()
-                .await();
-    }
-
-    private String getGrantablePermission() {
-        Set<String> permissions = mPackage.requestedPermissions();
-        for (String permission : permissions) {
-            try {
-                mPackage.checkCanGrantOrRevokePermission(mUser, permission);
-                return permission;
-            } catch (NeneException e) {
-                // If we can't grant it we'll check the next one
-            }
-        }
-        throw new NeneException("No grantable permission for package " + mPackage);
     }
 
     @Override
     public int hashCode() {
-        return mPackage.hashCode() + mPid + mUser.hashCode();
+        return mPackage.hashCode() + mProcessId + mUser.hashCode();
     }
 
     @Override
@@ -116,13 +77,12 @@ public final class ProcessReference {
 
         ProcessReference other = (ProcessReference) obj;
         return other.mUser.equals(mUser)
-                && other.mPid == mPid
+                && other.mProcessId == mProcessId
                 && other.mPackage.equals(mPackage);
     }
 
     @Override
     public String toString() {
-        return "ProcessReference{package=" + mPackage
-                + ", processId=" + mPid + ", user=" + mUser + "}";
+        return "ProcessReference{package=" + mPackage + ", processId=" + mProcessId + ", user=" + mUser + "}";
     }
 }

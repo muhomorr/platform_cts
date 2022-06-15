@@ -57,10 +57,6 @@ public class MbmsDownloadSessionTest extends MbmsDownloadTestBase {
         // Make sure we got the streaming services
         List<FileServiceInfo> serviceInfos =
                 (List<FileServiceInfo>) mCallback.waitOnFileServicesUpdated().arg1;
-        if (!CtsDownloadService.FILE_SERVICE_INFO.equals(serviceInfos.get(0))) {
-            mDownloadSession.requestUpdateFileServices(testClasses);
-            serviceInfos = (List<FileServiceInfo>) mCallback.waitOnFileServicesUpdated().arg1;
-        }
         assertEquals(CtsDownloadService.FILE_SERVICE_INFO, serviceInfos.get(0));
         assertEquals(0, mCallback.getNumErrorCalls());
 

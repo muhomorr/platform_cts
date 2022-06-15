@@ -132,24 +132,21 @@ public class TextViewTranslationTest {
     }
 
     @Test
-    public void testOnCreateViewTranslationRequest_textSelectable_returnsRequest()
+    public void testOnCreateViewTranslationRequest_textSelectable_returnsNull()
             throws Throwable {
         mScenario.onActivity(activity -> {
-            // TextView is selectable with default callback
+            // TextView is selectable
             mTestTextView.setTextIsSelectable(true);
             mTestTextView.onCreateViewTranslationRequest(SUPPORTED_DATA_FORMAT, mRequestConsumer);
         });
-        ViewTranslationRequest request = mRequestConsumer.getRequest();
-        Log.d(TAG, "Collect request = " + request);
+        Log.d(TAG, "Collect request = " + mRequestConsumer.getRequest());
 
-        assertThat(request).isNotNull();
-        assertThat(request.getAutofillId()).isEqualTo(mTestTextView.getAutofillId());
-        assertThat(request.getValue(ViewTranslationRequest.ID_TEXT).getText().toString())
-                .isEqualTo(mTestTextView.getText().toString());
+        assertThat(mRequestConsumer.getRequest()).isNull();
     }
 
     @Test
-    public void testOnCreateViewTranslationRequest_textEditable_returnsNull() throws Throwable {
+    public void testOnCreateViewTranslationRequest_textEditable_returnsNull()
+            throws Throwable {
         mScenario.onActivity(activity -> {
             // TextView is editable
             mTestTextView.setText("Test", TextView.BufferType.EDITABLE);

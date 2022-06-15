@@ -143,13 +143,9 @@ public class QuietModeHostsideTest extends BaseDevicePolicyTest {
                 "testTryEnableQuietMode",
                 mPrimaryUserId,
                 createParams(mProfileId));
-        // In case of a necessary log is not captured
-        // cause of too many logs while waiting idle broadcast, capture log previously.
-        // This log will be concatenated.
-        String log = getDevice().executeAdbCommand("logcat", "-d");
         waitForBroadcastIdle();
         verifyBroadcastSent("android.intent.action.MANAGED_PROFILE_UNAVAILABLE",
-                /* needPermissions= */ !withCrossProfileAppOps, log);
+                /* needPermissions= */ !withCrossProfileAppOps);
 
         clearLogcat();
         runDeviceTestsAsUser(
@@ -158,17 +154,15 @@ public class QuietModeHostsideTest extends BaseDevicePolicyTest {
                 "testTryDisableQuietMode",
                 mPrimaryUserId,
                 createParams(mProfileId));
-        log = getDevice().executeAdbCommand("logcat", "-d");
         waitForBroadcastIdle();
         verifyBroadcastSent("android.intent.action.MANAGED_PROFILE_AVAILABLE",
-                /* needPermissions= */ !withCrossProfileAppOps, log);
+                /* needPermissions= */ !withCrossProfileAppOps);
 
         clearLogcat();
         removeUser(mProfileId);
-        log = getDevice().executeAdbCommand("logcat", "-d");
         waitForBroadcastIdle();
         verifyBroadcastSent("android.intent.action.MANAGED_PROFILE_REMOVED",
-                /* needPermissions= */ false, log);
+                /* needPermissions= */ false);
     }
 
     private void clearLogcat() throws DeviceNotAvailableException {
@@ -176,10 +170,9 @@ public class QuietModeHostsideTest extends BaseDevicePolicyTest {
         getDevice().executeAdbCommand("logcat", "-G", "16M");
     }
 
-    private void verifyBroadcastSent(String actionName, boolean needPermissions, String prevLog)
+    private void verifyBroadcastSent(String actionName, boolean needPermissions)
             throws DeviceNotAvailableException {
-        String result = getDevice().executeAdbCommand("logcat", "-d");
-        result = prevLog + result;
+        final String result = getDevice().executeAdbCommand("logcat", "-d");
         assertThat(result).contains(
                 buildReceivedBroadcastRegex(actionName, "CrossProfileEnabledAppReceiver"));
         assertThat(result).contains(

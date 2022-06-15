@@ -22,6 +22,7 @@ android_test {
     name: "CtsPermission4TestCases",
     sdk_version: "test_current",
     defaults: ["cts_defaults"],
+    platform_apis: true,
     srcs: [
         "src/**/*.kt",
     ],
@@ -36,10 +37,6 @@ android_test {
         "cts",
         "vts10",
         "general-tests",
-        "mts-permission",
+        "mts",
     ],
-    data: [
-        ":CtsAppThatAccessesMicAndCameraPermission",
-    ],
-    per_testcase_directory: true,
 }

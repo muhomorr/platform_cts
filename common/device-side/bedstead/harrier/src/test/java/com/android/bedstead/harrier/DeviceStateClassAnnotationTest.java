@@ -43,6 +43,8 @@ public class DeviceStateClassAnnotationTest extends DeviceStateTestParent {
     @Rule
     public static final DeviceState sDeviceState = new DeviceState();
 
+    private static final TestApis sTestApis = new TestApis();
+
     private static boolean sBeforeClassHasRun = false;
     private static boolean sShadowedGrandparentWithoutBeforeClassInTestClassHasRun = false;
 
@@ -63,12 +65,12 @@ public class DeviceStateClassAnnotationTest extends DeviceStateTestParent {
         // We test here that ensureHasWorkProfile is processed before the test method
         // but ensureHasSecondaryUser is not processed
 
-        assertThat(TestApis.users().findProfileOfType(
-                TestApis.users().supportedType(MANAGED_PROFILE_TYPE_NAME),
-                TestApis.users().instrumented())
+        assertThat(sTestApis.users().findProfileOfType(
+                sTestApis.users().supportedType(MANAGED_PROFILE_TYPE_NAME),
+                sTestApis.users().instrumented())
         ).isNotNull();
-        assertThat(TestApis.users().findUserOfType(
-                TestApis.users().supportedType(SECONDARY_USER_TYPE_NAME))
+        assertThat(sTestApis.users().findUserOfType(
+                sTestApis.users().supportedType(SECONDARY_USER_TYPE_NAME))
         ).isNull();
 
         // Test that the parent always runs before the child
@@ -95,26 +97,26 @@ public class DeviceStateClassAnnotationTest extends DeviceStateTestParent {
 
     @Test
     public void ensureHasWorkProfileAnnotationOnClass_workProfileExists() {
-        assertThat(TestApis.users().findProfileOfType(
-                TestApis.users().supportedType(MANAGED_PROFILE_TYPE_NAME),
-                TestApis.users().instrumented())
+        assertThat(sTestApis.users().findProfileOfType(
+                sTestApis.users().supportedType(MANAGED_PROFILE_TYPE_NAME),
+                sTestApis.users().instrumented())
         ).isNotNull();
     }
 
     @Test
     @EnsureHasNoWorkProfile
     public void ensureHasNoWorkProfileAnnotation_overridesClassAnnotation() {
-        assertThat(TestApis.users().findProfileOfType(
-                TestApis.users().supportedType(MANAGED_PROFILE_TYPE_NAME),
-                TestApis.users().instrumented())
+        assertThat(sTestApis.users().findProfileOfType(
+                sTestApis.users().supportedType(MANAGED_PROFILE_TYPE_NAME),
+                sTestApis.users().instrumented())
         ).isNull();
     }
 
     @Test
     @EnsureHasSecondaryUser
     public void ensureHasSecondaryUserAnnotation_overridesClassAnnotation() {
-        assertThat(TestApis.users().findUserOfType(
-                TestApis.users().supportedType(SECONDARY_USER_TYPE_NAME))
+        assertThat(sTestApis.users().findUserOfType(
+                sTestApis.users().supportedType(SECONDARY_USER_TYPE_NAME))
         ).isNotNull();
     }
 }

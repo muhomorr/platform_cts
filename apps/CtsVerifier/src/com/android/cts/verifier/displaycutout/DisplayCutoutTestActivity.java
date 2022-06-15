@@ -17,7 +17,6 @@
 package com.android.cts.verifier.displaycutout;
 
 import android.graphics.Color;
-import android.graphics.Insets;
 import android.graphics.Rect;
 import android.os.Bundle;
 import android.view.DisplayCutout;
@@ -74,13 +73,11 @@ public class DisplayCutoutTestActivity extends PassFailButtons.Activity {
         setPassFailButtonClickListeners();
         // only enable pass button when all test buttons are clicked.
         getPassButton().setEnabled(false);
-
         getWindow().getDecorView().setOnApplyWindowInsetsListener((v, insets) -> {
-            insets = new WindowInsets.Builder(insets).setInsets(
-                    WindowInsets.Type.displayCutout(), Insets.NONE).build();
-            updateButtons(insets.getDisplayCutout());
-            return v.onApplyWindowInsets(insets);
-        });
+                updateButtons(insets.getDisplayCutout());
+                return insets;
+            });
+
     }
 
     public void updateButtons(DisplayCutout cutout) {

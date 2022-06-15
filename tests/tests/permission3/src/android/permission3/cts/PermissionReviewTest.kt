@@ -20,13 +20,11 @@ import android.app.Activity
 import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.ResultReceiver
 import android.support.test.uiautomator.By
-import androidx.test.filters.SdkSuppress
 import androidx.test.runner.AndroidJUnit4
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -54,7 +52,7 @@ class PermissionReviewTest : BaseUsePermissionTest() {
     fun testDenyCalendarDuringReview() {
         startAppActivityAndAssertResultCode(Activity.RESULT_OK) {
             // Deny
-            clickPermissionControllerUi(By.text("Calendar"))
+            click(By.text("Calendar"))
             // Confirm deny
             click(By.res("android:id/button1"))
 
@@ -69,12 +67,12 @@ class PermissionReviewTest : BaseUsePermissionTest() {
     fun testDenyGrantCalendarDuringReview() {
         startAppActivityAndAssertResultCode(Activity.RESULT_OK) {
             // Deny
-            clickPermissionControllerUi(By.text("Calendar"))
+            click(By.text("Calendar"))
             // Confirm deny
             click(By.res("android:id/button1"))
 
             // Grant
-            clickPermissionControllerUi(By.text("Calendar"))
+            click(By.text("Calendar"))
 
             clickPermissionReviewContinue()
         }
@@ -87,15 +85,15 @@ class PermissionReviewTest : BaseUsePermissionTest() {
     fun testDenyGrantDenyCalendarDuringReview() {
         startAppActivityAndAssertResultCode(Activity.RESULT_OK) {
             // Deny
-            clickPermissionControllerUi(By.text("Calendar"))
+            click(By.text("Calendar"))
             // Confirm deny
             click(By.res("android:id/button1"))
 
             // Grant
-            clickPermissionControllerUi(By.text("Calendar"))
+            click(By.text("Calendar"))
 
             // Deny
-            clickPermissionControllerUi(By.text("Calendar"))
+            click(By.text("Calendar"))
 
             clickPermissionReviewContinue()
         }
@@ -113,15 +111,6 @@ class PermissionReviewTest : BaseUsePermissionTest() {
         approvePermissionReview()
 
         assertAppDoesNotNeedPermissionReview()
-    }
-
-    @Test
-    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.TIRAMISU, codeName = "TIRAMISU")
-    fun testNotificationPermissionAddedToReview() {
-        startAppActivityAndAssertResultCode(Activity.RESULT_CANCELED) {
-            waitFindObject(By.text("Notifications"), 5000L)
-            clickPermissionReviewCancel()
-        }
     }
 
     @Test

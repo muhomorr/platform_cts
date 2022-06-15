@@ -46,13 +46,4 @@ android_test {
         "android.test.base.stubs",
     ],
     stl: "c++_shared",
-    data: [
-        ":CtsSensorRatePermissionDirectReportAPI30",
-        ":CtsSensorRatePermissionDirectReportAPI31",
-        ":CtsSensorRatePermissionEventConnectionAPI31",
-        ":CtsSensorRatePermissionDebuggableAPI31",
-        ":CtsSensorRatePermissionReturnedRateInfo",
-        ":CtsSensorRatePermissionEventConnectionAPI30",
-    ],
-    per_testcase_directory: true,
 }

@@ -17,87 +17,191 @@
 package android.hdmicec.cts.audio;
 
 import android.hdmicec.cts.BaseHdmiCecCtsTest;
+import android.hdmicec.cts.HdmiCecClientWrapper;
 import android.hdmicec.cts.HdmiCecConstants;
+import android.hdmicec.cts.LogHelper;
 import android.hdmicec.cts.LogicalAddress;
-import android.hdmicec.cts.RemoteControlPassthrough;
+import android.hdmicec.cts.RequiredPropertyRule;
+import android.hdmicec.cts.RequiredFeatureRule;
 
+import com.android.tradefed.device.ITestDevice;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
 
 import org.junit.Ignore;
 import org.junit.Rule;
-import org.junit.Test;
 import org.junit.rules.RuleChain;
 import org.junit.runner.RunWith;
+import org.junit.Test;
 
 @Ignore("b/162820841")
 @RunWith(DeviceJUnit4ClassRunner.class)
 public final class HdmiCecRemoteControlPassThroughTest extends BaseHdmiCecCtsTest {
 
-    private static final int DUT_DEVICE_TYPE = HdmiCecConstants.CEC_DEVICE_TYPE_AUDIO_SYSTEM;
+    /** The package name of the APK. */
+    private static final String PACKAGE = "android.hdmicec.app";
+
+    /** The class name of the main activity in the APK. */
+    private static final String CLASS = "HdmiCecKeyEventCapture";
+
+    /** The command to launch the main activity. */
+    private static final String START_COMMAND = String.format(
+            "am start -W -a android.intent.action.MAIN -n %s/%s.%s", PACKAGE, PACKAGE, CLASS);
+
+    /** The command to clear the main activity. */
+    private static final String CLEAR_COMMAND = String.format("pm clear %s", PACKAGE);
 
     public HdmiCecRemoteControlPassThroughTest() {
-        super(DUT_DEVICE_TYPE);
+        super(HdmiCecConstants.CEC_DEVICE_TYPE_AUDIO_SYSTEM);
     }
 
     @Rule
     public RuleChain ruleChain =
-            RuleChain.outerRule(CecRules.requiresCec(this))
-                    .around(CecRules.requiresLeanback(this))
-                    .around(
-                            CecRules.requiresDeviceType(
-                                    this, HdmiCecConstants.CEC_DEVICE_TYPE_AUDIO_SYSTEM))
-                    .around(hdmiCecClient);
+        RuleChain
+            .outerRule(CecRules.requiresCec(this))
+            .around(CecRules.requiresLeanback(this))
+            .around(CecRules.requiresDeviceType(this, LogicalAddress.AUDIO_SYSTEM))
+            .around(hdmiCecClient);
 
     /**
      * Test 11.2.13-1
-     *
-     * <p>Tests that the device responds correctly to a {@code <User Control Pressed>} message
-     * followed immediately by a {@code <User Control Released>} message.
+     * Tests that the device responds correctly to a <User Control Pressed> message followed
+     * immediately by a <User Control Released> message.
      */
     @Test
     public void cect_11_2_13_1_UserControlPressAndRelease() throws Exception {
-        LogicalAddress dutLogicalAddress = getTargetLogicalAddress(getDevice(), DUT_DEVICE_TYPE);
-        RemoteControlPassthrough.checkUserControlPressAndRelease(
-                hdmiCecClient, getDevice(), LogicalAddress.TV, dutLogicalAddress);
+        ITestDevice device = getDevice();
+        // Clear activity
+        device.executeShellCommand(CLEAR_COMMAND);
+        // Clear logcat.
+        device.executeAdbCommand("logcat", "-c");
+        // Start the APK and wait for it to complete.
+        device.executeShellCommand(START_COMMAND);
+        hdmiCecClient.sendUserControlPressAndRelease(LogicalAddress.TV, LogicalAddress.AUDIO_SYSTEM,
+                HdmiCecConstants.CEC_CONTROL_UP, false);
+        LogHelper.assertLog(getDevice(), CLASS, "Short press KEYCODE_DPAD_UP");
+        hdmiCecClient.sendUserControlPressAndRelease(LogicalAddress.TV, LogicalAddress.AUDIO_SYSTEM,
+                HdmiCecConstants.CEC_CONTROL_DOWN, false);
+        LogHelper.assertLog(getDevice(), CLASS, "Short press KEYCODE_DPAD_DOWN");
+        hdmiCecClient.sendUserControlPressAndRelease(LogicalAddress.TV, LogicalAddress.AUDIO_SYSTEM,
+                HdmiCecConstants.CEC_CONTROL_LEFT, false);
+        LogHelper.assertLog(getDevice(), CLASS, "Short press KEYCODE_DPAD_LEFT");
+        hdmiCecClient.sendUserControlPressAndRelease(LogicalAddress.TV, LogicalAddress.AUDIO_SYSTEM,
+                HdmiCecConstants.CEC_CONTROL_RIGHT, false);
+        LogHelper.assertLog(getDevice(), CLASS, "Short press KEYCODE_DPAD_RIGHT");
+        hdmiCecClient.sendUserControlPressAndRelease(LogicalAddress.TV, LogicalAddress.AUDIO_SYSTEM,
+                HdmiCecConstants.CEC_CONTROL_SELECT, false);
+        LogHelper.assertLog(getDevice(), CLASS, "Short press KEYCODE_DPAD_CENTER");
+        hdmiCecClient.sendUserControlPressAndRelease(LogicalAddress.TV, LogicalAddress.AUDIO_SYSTEM,
+                HdmiCecConstants.CEC_CONTROL_BACK, false);
+        LogHelper.assertLog(getDevice(), CLASS, "Short press KEYCODE_BACK");
     }
 
     /**
      * Test 11.2.13-2
-     *
-     * <p>Tests that the device responds correctly to a {@code <User Control Pressed>} message for
-     * press and hold operations.
+     * Tests that the device responds correctly to a <User Control Pressed> message for press and
+     * hold operations.
      */
     @Test
     public void cect_11_2_13_2_UserControlPressAndHold() throws Exception {
-        LogicalAddress dutLogicalAddress = getTargetLogicalAddress(getDevice(), DUT_DEVICE_TYPE);
-        RemoteControlPassthrough.checkUserControlPressAndHold(
-                hdmiCecClient, getDevice(), LogicalAddress.TV, dutLogicalAddress);
+        ITestDevice device = getDevice();
+        // Clear activity
+        device.executeShellCommand(CLEAR_COMMAND);
+        // Clear logcat.
+        device.executeAdbCommand("logcat", "-c");
+        // Start the APK and wait for it to complete.
+        device.executeShellCommand(START_COMMAND);
+        hdmiCecClient.sendUserControlPressAndRelease(LogicalAddress.TV, LogicalAddress.AUDIO_SYSTEM,
+                HdmiCecConstants.CEC_CONTROL_UP, true);
+        LogHelper.assertLog(getDevice(), CLASS, "Long press KEYCODE_DPAD_UP");
+        hdmiCecClient.sendUserControlPressAndRelease(LogicalAddress.TV, LogicalAddress.AUDIO_SYSTEM,
+                HdmiCecConstants.CEC_CONTROL_DOWN, true);
+        LogHelper.assertLog(getDevice(), CLASS, "Long press KEYCODE_DPAD_DOWN");
+        hdmiCecClient.sendUserControlPressAndRelease(LogicalAddress.TV, LogicalAddress.AUDIO_SYSTEM,
+                HdmiCecConstants.CEC_CONTROL_LEFT, true);
+        LogHelper.assertLog(getDevice(), CLASS, "Long press KEYCODE_DPAD_LEFT");
+        hdmiCecClient.sendUserControlPressAndRelease(LogicalAddress.TV, LogicalAddress.AUDIO_SYSTEM,
+                HdmiCecConstants.CEC_CONTROL_RIGHT, true);
+        LogHelper.assertLog(getDevice(), CLASS, "Long press KEYCODE_DPAD_RIGHT");
+        hdmiCecClient.sendUserControlPressAndRelease(LogicalAddress.TV, LogicalAddress.AUDIO_SYSTEM,
+                HdmiCecConstants.CEC_CONTROL_SELECT, true);
+        LogHelper.assertLog(getDevice(), CLASS, "Long press KEYCODE_DPAD_CENTER");
+        hdmiCecClient.sendUserControlPressAndRelease(LogicalAddress.TV, LogicalAddress.AUDIO_SYSTEM,
+                HdmiCecConstants.CEC_CONTROL_BACK, true);
+        LogHelper.assertLog(getDevice(), CLASS, "Long press KEYCODE_BACK");
     }
 
     /**
      * Test 11.2.13-3
-     *
-     * <p>Tests that the device responds correctly to a {@code <User Control Pressed>} message for
-     * press and hold operations when no {@code <User Control Released>} is sent.
+     * Tests that the device responds correctly to a <User Control Pressed> message for press and
+     * hold operations when no <User Control Released> is sent.
      */
     @Test
     public void cect_11_2_13_3_UserControlPressAndHoldWithNoRelease() throws Exception {
-        LogicalAddress dutLogicalAddress = getTargetLogicalAddress(getDevice(), DUT_DEVICE_TYPE);
-        RemoteControlPassthrough.checkUserControlPressAndHoldWithNoRelease(
-                hdmiCecClient, getDevice(), LogicalAddress.TV, dutLogicalAddress);
+        ITestDevice device = getDevice();
+        // Clear activity
+        device.executeShellCommand(CLEAR_COMMAND);
+        // Clear logcat.
+        device.executeAdbCommand("logcat", "-c");
+        // Start the APK and wait for it to complete.
+        device.executeShellCommand(START_COMMAND);
+        hdmiCecClient.sendUserControlPress(LogicalAddress.TV, LogicalAddress.AUDIO_SYSTEM,
+                HdmiCecConstants.CEC_CONTROL_UP, true);
+        LogHelper.assertLog(getDevice(), CLASS, "Long press KEYCODE_DPAD_UP");
+        hdmiCecClient.sendUserControlPress(LogicalAddress.TV, LogicalAddress.AUDIO_SYSTEM,
+                HdmiCecConstants.CEC_CONTROL_DOWN, true);
+        LogHelper.assertLog(getDevice(), CLASS, "Long press KEYCODE_DPAD_DOWN");
+        hdmiCecClient.sendUserControlPress(LogicalAddress.TV, LogicalAddress.AUDIO_SYSTEM,
+                HdmiCecConstants.CEC_CONTROL_LEFT, true);
+        LogHelper.assertLog(getDevice(), CLASS, "Long press KEYCODE_DPAD_LEFT");
+        hdmiCecClient.sendUserControlPress(LogicalAddress.TV, LogicalAddress.AUDIO_SYSTEM,
+                HdmiCecConstants.CEC_CONTROL_RIGHT, true);
+        LogHelper.assertLog(getDevice(), CLASS, "Long press KEYCODE_DPAD_RIGHT");
+        hdmiCecClient.sendUserControlPress(LogicalAddress.TV, LogicalAddress.AUDIO_SYSTEM,
+                HdmiCecConstants.CEC_CONTROL_SELECT, true);
+        LogHelper.assertLog(getDevice(), CLASS, "Long press KEYCODE_DPAD_CENTER");
+        hdmiCecClient.sendUserControlPress(LogicalAddress.TV, LogicalAddress.AUDIO_SYSTEM,
+                HdmiCecConstants.CEC_CONTROL_BACK, true);
+        LogHelper.assertLog(getDevice(), CLASS, "Long press KEYCODE_BACK");
     }
 
     /**
      * Test 11.2.13-4
-     *
-     * <p>Tests that the device responds correctly to a {@code <User Control Pressed>
-     * [firstKeycode]} press and hold operation when interrupted by a {@code <User Control Pressed>
-     * [secondKeycode]} before a {@code <User Control Released> [firstKeycode]} is sent.
+     * Tests that the device responds correctly to a <User Control Pressed> [firstKeycode] press
+     * and hold operation when interrupted by a <User Control Pressed> [secondKeycode] before a
+     * <User Control Released> [firstKeycode] is sent.
      */
     @Test
     public void cect_11_2_13_4_UserControlInterruptedPressAndHoldWithNoRelease() throws Exception {
-        LogicalAddress dutLogicalAddress = getTargetLogicalAddress(getDevice(), DUT_DEVICE_TYPE);
-        RemoteControlPassthrough.checkUserControlInterruptedPressAndHoldWithNoRelease(
-                hdmiCecClient, getDevice(), LogicalAddress.TV, dutLogicalAddress);
+        ITestDevice device = getDevice();
+        // Clear activity
+        device.executeShellCommand(CLEAR_COMMAND);
+        // Clear logcat.
+        device.executeAdbCommand("logcat", "-c");
+        // Start the APK and wait for it to complete.
+        device.executeShellCommand(START_COMMAND);
+        hdmiCecClient.sendUserControlInterruptedPressAndHold(LogicalAddress.TV,
+                LogicalAddress.AUDIO_SYSTEM, HdmiCecConstants.CEC_CONTROL_UP,
+                HdmiCecConstants.CEC_CONTROL_BACK, true);
+        LogHelper.assertLog(getDevice(), CLASS, "Long press KEYCODE_DPAD_UP");
+        hdmiCecClient.sendUserControlInterruptedPressAndHold(LogicalAddress.TV,
+                LogicalAddress.AUDIO_SYSTEM, HdmiCecConstants.CEC_CONTROL_DOWN,
+                HdmiCecConstants.CEC_CONTROL_UP, true);
+        LogHelper.assertLog(getDevice(), CLASS, "Long press KEYCODE_DPAD_DOWN");
+        hdmiCecClient.sendUserControlInterruptedPressAndHold(LogicalAddress.TV,
+                LogicalAddress.AUDIO_SYSTEM, HdmiCecConstants.CEC_CONTROL_LEFT,
+                HdmiCecConstants.CEC_CONTROL_DOWN, true);
+        LogHelper.assertLog(getDevice(), CLASS, "Long press KEYCODE_DPAD_LEFT");
+        hdmiCecClient.sendUserControlInterruptedPressAndHold(LogicalAddress.TV,
+                LogicalAddress.AUDIO_SYSTEM, HdmiCecConstants.CEC_CONTROL_RIGHT,
+                HdmiCecConstants.CEC_CONTROL_LEFT, true);
+        LogHelper.assertLog(getDevice(), CLASS, "Long press KEYCODE_DPAD_RIGHT");
+        hdmiCecClient.sendUserControlInterruptedPressAndHold(LogicalAddress.TV,
+                LogicalAddress.AUDIO_SYSTEM, HdmiCecConstants.CEC_CONTROL_SELECT,
+                HdmiCecConstants.CEC_CONTROL_RIGHT, true);
+        LogHelper.assertLog(getDevice(), CLASS, "Long press KEYCODE_DPAD_CENTER");
+        hdmiCecClient.sendUserControlInterruptedPressAndHold(LogicalAddress.TV,
+                LogicalAddress.AUDIO_SYSTEM, HdmiCecConstants.CEC_CONTROL_BACK,
+                HdmiCecConstants.CEC_CONTROL_SELECT, true);
+        LogHelper.assertLog(getDevice(), CLASS, "Long press KEYCODE_BACK");
     }
 }

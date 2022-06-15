@@ -32,6 +32,7 @@ import com.android.internal.os.nano.StatsdConfigProto.StatsdConfig;
 import com.android.os.nano.AtomsProto;
 import com.android.os.nano.StatsLog;
 import com.android.os.nano.StatsLog.ConfigMetricsReportList;
+import com.android.queryable.Queryable;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -53,7 +54,7 @@ import java.util.stream.Collectors;
  *
  * }</pre>
  */
-public class EnterpriseMetricsRecorder implements AutoCloseable {
+public class EnterpriseMetricsRecorder implements AutoCloseable, Queryable {
 
     /** Create a {@link EnterpriseMetricsRecorder} and begin listening for metrics. */
     public static EnterpriseMetricsRecorder create() {

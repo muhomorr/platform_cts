@@ -2,10 +2,8 @@ package android.location.cts.gnss;
 
 import android.location.cts.common.GnssTestCase;
 import android.location.cts.common.SoftAssert;
-import android.location.cts.common.TestGnssStatusCallback;
 import android.location.cts.common.TestLocationListener;
 import android.location.cts.common.TestLocationManager;
-import android.location.cts.common.TestMeasurementUtil;
 import android.location.cts.common.TestUtils;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
@@ -53,11 +51,6 @@ public class GnssTtffTests extends GnssTestCase {
   @AppModeFull(reason = "permission ACCESS_LOCATION_EXTRA_COMMANDS not available to instant apps")
   public void testTtffWithNetwork() throws Exception {
     if (!TestUtils.deviceHasGpsFeature(getContext())) {
-      return;
-    }
-
-    // Network connection isn't required for automotive devices.
-    if (TestMeasurementUtil.isAutomotiveDevice(getContext())) {
       return;
     }
 
@@ -136,9 +129,8 @@ public class GnssTtffTests extends GnssTestCase {
     TestLocationListener networkLocationListener
         = new TestLocationListener(LOCATION_TO_COLLECT_COUNT);
     // fetch the networklocation first to make sure the ttff is not flaky
-    if (mTestLocationManager.requestNetworkLocationUpdates(networkLocationListener)) {
-        networkLocationListener.await();
-    }
+    mTestLocationManager.requestNetworkLocationUpdates(networkLocationListener);
+    networkLocationListener.await();
 
     TestGnssStatusCallback testGnssStatusCallback =
         new TestGnssStatusCallback(TAG, STATUS_TO_COLLECT_COUNT);

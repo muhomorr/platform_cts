@@ -17,6 +17,7 @@
 package android.telecom.cts;
 
 import android.telecom.Call;
+import android.telecom.CallAudioState;
 import android.telecom.Connection;
 
 /**
@@ -118,8 +119,7 @@ public class WiredHeadsetTest extends BaseTelecomTestWithMockServices {
     }
 
     private void sendMediaButtonPress(boolean longPress) throws Exception {
-        // request 3 seconds press when long press needed for stability
-        final String command = "input keyevent " + (longPress ? "--longpress 3" : "--shortpress")
+        final String command = "input keyevent " + (longPress ? "--longpress" : "--shortpress")
                 + " KEYCODE_HEADSETHOOK";
         TestUtils.executeShellCommand(getInstrumentation(), command);
     }

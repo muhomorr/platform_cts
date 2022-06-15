@@ -17,7 +17,6 @@
 package android.bluetooth.cts;
 
 import android.bluetooth.le.AdvertiseSettings;
-import android.bluetooth.le.AdvertisingSetParameters;
 import android.os.Parcel;
 import android.test.AndroidTestCase;
 import android.test.suitebuilder.annotation.SmallTest;
@@ -51,7 +50,6 @@ public class AdvertiseSettingsTest extends AndroidTestCase {
                 .setConnectable(false)
                 .setTimeout(timeoutMillis)
                 .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_MEDIUM)
-                .setOwnAddressType(AdvertisingSetParameters.ADDRESS_TYPE_DEFAULT)
                 .build();
         settings.writeToParcel(parcel, 0);
         parcel.setDataPosition(0);
@@ -61,7 +59,6 @@ public class AdvertiseSettingsTest extends AndroidTestCase {
                 settingsFromParcel.getTxPowerLevel());
         assertEquals(timeoutMillis, settingsFromParcel.getTimeout());
         assertFalse(settings.isConnectable());
-        assertEquals(AdvertisingSetParameters.ADDRESS_TYPE_DEFAULT, settings.getOwnAddressType());
     }
 
     @SmallTest

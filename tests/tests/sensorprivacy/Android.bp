@@ -45,9 +45,4 @@ android_test {
         "android.test.runner",
         "android.test.base",
     ],
-    data: [
-        ":CtsUseMicOrCameraAndOverlayForSensorPrivacy",
-        ":CtsUseMicOrCameraForSensorPrivacy",
-    ],
-    per_testcase_directory: true,
 }

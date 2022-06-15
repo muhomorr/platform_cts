@@ -33,6 +33,7 @@
 
 #include <aaudio/AAudio.h>
 
+#include "analyzer/GlitchAnalyzer.h"
 #include "analyzer/LatencyAnalyzer.h"
 
 class NativeAudioAnalyzer {
@@ -42,7 +43,7 @@ public:
      * Open the audio input and output streams.
      * @return AAUDIO_OK or negative error
      */
-    aaudio_result_t openAudio(int inputDeviceId, int outputDeviceId);
+    aaudio_result_t openAudio();
 
     /**
      * Start the audio input and output streams.
@@ -118,7 +119,8 @@ private:
 
     int32_t readFormattedData(int32_t numFrames);
 
-    WhiteNoiseLatencyAnalyzer mWhiteNoiseLatencyAnalyzer;
+    GlitchAnalyzer       mSineAnalyzer;
+    PulseLatencyAnalyzer mPulseLatencyAnalyzer;
     LoopbackProcessor   *mLoopbackProcessor;
 
     int32_t            mInputFramesMaximum = 0;
@@ -135,9 +137,6 @@ private:
     int32_t            mFramesWrittenTotal = 0;
     bool               mIsDone = false;
     bool               mIsLowLatencyStream = false;
-
-    int32_t            mOutputDeviceId = 0;
-    int32_t            mInputDeviceId = 0;
 
     static constexpr int kLogPeriodMillis         = 1000;
     static constexpr int kNumInputChannels        = 1;

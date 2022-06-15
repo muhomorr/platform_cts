@@ -22,9 +22,6 @@ import android.util.Log;
 
 public class TestActiveTileService extends TestTileService {
 
-    private static final String EXTRA_BAD_PACKAGE = "android.systemui.cts.EXTRA_BAD_PACKAGE";
-    private static final String TAG = "TestActiveTileService";
-
     @Override
     public void onTileAdded() {
         Log.i(TAG, TEST_PREFIX + "onTileAdded");
@@ -35,18 +32,7 @@ public class TestActiveTileService extends TestTileService {
         public void onReceive(Context context, Intent intent) {
             Log.i(TestActiveTileService.class.getSimpleName(),
                     TEST_PREFIX + "requestListeningState");
-            ComponentName componentName;
-            boolean useBadPackage = intent.getBooleanExtra(EXTRA_BAD_PACKAGE, false);
-            if (useBadPackage) {
-                componentName = ComponentName.unflattenFromString("pkg/.cls");
-            } else {
-                componentName = new ComponentName(context, TestActiveTileService.class);
-            }
-            try {
-                requestListeningState(context, componentName);
-            } catch (SecurityException e) {
-                Log.i(TAG, TEST_PREFIX + "SecurityException");
-            }
+            requestListeningState(context, new ComponentName(context, TestActiveTileService.class));
         }
     }
 }

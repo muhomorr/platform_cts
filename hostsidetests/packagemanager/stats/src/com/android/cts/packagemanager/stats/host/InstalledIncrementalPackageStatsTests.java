@@ -16,6 +16,8 @@
 
 package com.android.cts.packagemanager.stats.host;
 
+import static com.android.cts.packagemanager.stats.host.Utils.FEATURE_INCREMENTAL_DELIVERY;
+
 import android.cts.statsdatom.lib.AtomTestUtils;
 import android.cts.statsdatom.lib.ConfigUtils;
 import android.cts.statsdatom.lib.DeviceUtils;
@@ -43,7 +45,11 @@ public class InstalledIncrementalPackageStatsTests extends PackageManagerStatsTe
 
     // Install 2 incremental packages and check if their UIDs are included in the pulled metrics
     public void testInstalledIncrementalMetricsReported() throws Throwable {
-        if (!Utils.hasIncrementalFeature(getDevice())) {
+        if (!DeviceUtils.hasFeature(getDevice(), FEATURE_INCREMENTAL_DELIVERY)) {
+            return;
+        }
+        // TODO(b/197784344): remove when the metrics supports multi-user
+        if (getDevice().isUserSecondary(getDevice().getCurrentUser())) {
             return;
         }
         ConfigUtils.uploadConfigForPulledAtom(getDevice(), DeviceUtils.STATSD_ATOM_TEST_PKG,

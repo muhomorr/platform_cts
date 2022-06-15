@@ -16,16 +16,17 @@
 
 package android.graphics.cts;
 
-import static org.junit.Assert.fail;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assume.assumeTrue;
 
 import android.content.pm.FeatureInfo;
 import android.content.pm.PackageManager;
 import android.platform.test.annotations.AppModeFull;
+import android.util.Log;
 
-import androidx.test.ext.junit.runners.AndroidJUnit4;
+import androidx.test.InstrumentationRegistry;
 import androidx.test.filters.SmallTest;
-import androidx.test.platform.app.InstrumentationRegistry;
+import androidx.test.runner.AndroidJUnit4;
 
 import com.android.compatibility.common.util.CddTest;
 import com.android.compatibility.common.util.PropertyUtil;
@@ -43,26 +44,29 @@ import org.junit.runner.RunWith;
 @AppModeFull(reason = "Instant apps cannot access ro.board.* system properties")
 public class VulkanDeqpLevelTest {
 
+    private static final String TAG = VulkanDeqpLevelTest.class.getSimpleName();
+    private static final boolean DEBUG = false;
+
     private static final int MINIMUM_VULKAN_DEQP_LEVEL = 0x07E30301; // Corresponds to 2019-03-01
 
     // Require patch version 3 for Vulkan 1.0: It was the first publicly available version,
     // and there was an important bugfix relative to 1.0.2.
     private static final int VULKAN_1_0 = 0x00400003; // 1.0.3
 
+    private PackageManager mPm;
     private FeatureInfo mVulkanHardwareVersion = null;
-    private FeatureInfo mFeatureVulkanDeqpLevel = null;
 
     @Before
     public void setup() {
-        final PackageManager pm =
-                InstrumentationRegistry.getInstrumentation().getTargetContext().getPackageManager();
-        final FeatureInfo[] features = pm.getSystemAvailableFeatures();
+        mPm = InstrumentationRegistry.getTargetContext().getPackageManager();
+        FeatureInfo[] features = mPm.getSystemAvailableFeatures();
         if (features != null) {
             for (FeatureInfo feature : features) {
                 if (PackageManager.FEATURE_VULKAN_HARDWARE_VERSION.equals(feature.name)) {
                     mVulkanHardwareVersion = feature;
-                } else if (PackageManager.FEATURE_VULKAN_DEQP_LEVEL.equals(feature.name)) {
-                    mFeatureVulkanDeqpLevel = feature;
+                    if (DEBUG) {
+                        Log.d(TAG, feature.name + "=0x" + Integer.toHexString(feature.version));
+                    }
                 }
             }
         }
@@ -72,20 +76,19 @@ public class VulkanDeqpLevelTest {
     @Test
     public void testVulkanDeqpLevel() {
         assumeTrue(
-                "Test only applies for API level >= 30 (Android 11)",
-                PropertyUtil.getVsrApiLevel() >= 30);
-
+                "Test only applies for vendor image with API level >= 30 (Android 11)",
+                PropertyUtil.isVendorApiLevelNewerThan(29));
         assumeTrue(
                 "Test does not apply if Vulkan 1.0 or higher is not supported",
                 mVulkanHardwareVersion != null && mVulkanHardwareVersion.version >= VULKAN_1_0);
-
-        if (mFeatureVulkanDeqpLevel == null
-                || mFeatureVulkanDeqpLevel.version < MINIMUM_VULKAN_DEQP_LEVEL) {
-            String message = String.format(
-                    "Feature %s must be present and have at least version %d.",
-                    PackageManager.FEATURE_VULKAN_DEQP_LEVEL, MINIMUM_VULKAN_DEQP_LEVEL);
-            message += "\nActual feature value: " + mFeatureVulkanDeqpLevel;
-            fail(message);
+        if (DEBUG) {
+            Log.d(TAG, "Checking whether " + PackageManager.FEATURE_VULKAN_DEQP_LEVEL
+                    + " has an acceptable value");
         }
+        assertTrue("Feature " + PackageManager.FEATURE_VULKAN_DEQP_LEVEL + " must be present "
+                + "and have at least version " + MINIMUM_VULKAN_DEQP_LEVEL,
+                mPm.hasSystemFeature(PackageManager.FEATURE_VULKAN_DEQP_LEVEL,
+                        MINIMUM_VULKAN_DEQP_LEVEL));
     }
+
 }

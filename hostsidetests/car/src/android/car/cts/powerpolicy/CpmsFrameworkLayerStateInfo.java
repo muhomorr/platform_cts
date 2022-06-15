@@ -23,8 +23,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Objects;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 public final class CpmsFrameworkLayerStateInfo {
     private static final int STRING_BUILDER_BUF_SIZE = 1024;
@@ -304,14 +302,12 @@ public final class CpmsFrameworkLayerStateInfo {
             int val = 0;
             switch (header) {
                 case CURRENT_STATE_HDR:
-                    Pattern pattern = Pattern.compile("mCurrentState: CpmsState "
-                            + "[^\\n]*carPowerStateListenerState=(\\d+)");
-                    Matcher matcher = pattern.matcher(mLines[mIdx]);
-                    if (!matcher.find()) {
+                    String[] tokens = mLines[mIdx].split(",*\\s");
+                    if (tokens.length != 6) {
                         throw new IllegalArgumentException("malformatted mCurrentState: "
                                 + mLines[mIdx]);
                     }
-                    val = Integer.parseInt(matcher.group(1));
+                    val = Integer.parseInt(tokens[4].trim().substring(tokens[4].length() - 1));
                     break;
                 case NUMBER_POLICY_LISTENERS_HDR:
                     int strLen = mLines[mIdx].length();

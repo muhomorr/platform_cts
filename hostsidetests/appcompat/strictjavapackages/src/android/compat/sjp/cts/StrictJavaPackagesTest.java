@@ -30,14 +30,12 @@ import android.compat.testing.SharedLibraryInfo;
 import com.android.compatibility.common.tradefed.build.CompatibilityBuildHelper;
 import com.android.modules.utils.build.testing.DeviceSdkLevel;
 import com.android.tradefed.device.DeviceNotAvailableException;
-import com.android.tradefed.device.INativeDevice;
 import com.android.tradefed.device.ITestDevice;
 import com.android.tradefed.invoker.TestInformation;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
 import com.android.tradefed.testtype.junit4.BaseHostJUnit4Test;
 import com.android.tradefed.testtype.junit4.BeforeClassWithInfo;
 import com.android.tradefed.testtype.junit4.DeviceTestRunOptions;
-import com.android.tradefed.util.FileUtil;
 
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableCollection;
@@ -54,14 +52,10 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Set;
-import java.util.jar.JarEntry;
-import java.util.jar.JarFile;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 
@@ -84,7 +78,6 @@ public class StrictJavaPackagesTest extends BaseHostJUnit4Test {
     private static ImmutableList<String> sSharedLibJars;
     private static ImmutableList<SharedLibraryInfo> sSharedLibs;
     private static ImmutableMultimap<String, String> sJarsToClasses;
-    private static ImmutableMultimap<String, String> sJarsToFiles;
 
     private DeviceSdkLevel mDeviceSdkLevel;
 
@@ -117,12 +110,10 @@ public class StrictJavaPackagesTest extends BaseHostJUnit4Test {
                     "Landroid/annotation/CurrentTimeSecondsLong;",
                     "Landroid/annotation/DimenRes;",
                     "Landroid/annotation/Dimension;",
-                    "Landroid/annotation/Discouraged;",
                     "Landroid/annotation/DisplayContext;",
                     "Landroid/annotation/DrawableRes;",
                     "Landroid/annotation/DurationMillisLong;",
                     "Landroid/annotation/ElapsedRealtimeLong;",
-                    "Landroid/annotation/EnforcePermission;",
                     "Landroid/annotation/FloatRange;",
                     "Landroid/annotation/FontRes;",
                     "Landroid/annotation/FractionRes;",
@@ -175,9 +166,6 @@ public class StrictJavaPackagesTest extends BaseHostJUnit4Test {
                     "Landroid/gsi/IImageService;",
                     "Landroid/gsi/IProgressCallback;",
                     "Landroid/gsi/MappedImage;",
-                    "Landroid/gui/TouchOcclusionMode;",
-                    // TODO(b/227752875): contexthub V1 APIs can be removed
-                    // from T+ with the fix in aosp/2050305.
                     "Landroid/hardware/contexthub/V1_0/AsyncEventType;",
                     "Landroid/hardware/contexthub/V1_0/ContextHub;",
                     "Landroid/hardware/contexthub/V1_0/ContextHubMsg;",
@@ -220,8 +208,13 @@ public class StrictJavaPackagesTest extends BaseHostJUnit4Test {
                     "Landroid/hardware/usb/gadget/V1_2/IUsbGadget;",
                     "Landroid/hardware/usb/gadget/V1_2/IUsbGadgetCallback;",
                     "Landroid/hardware/usb/gadget/V1_2/UsbSpeed;",
+                    "Landroid/os/BlockUntrustedTouchesMode;",
                     "Landroid/os/CreateAppDataArgs;",
                     "Landroid/os/CreateAppDataResult;",
+                    "Landroid/os/IInputConstants;",
+                    "Landroid/os/InputEventInjectionResult;",
+                    "Landroid/os/InputEventInjectionSync;",
+                    "Landroid/os/TouchOcclusionMode;",
                     "Landroid/os/ReconcileSdkDataArgs;",
                     "Lcom/android/internal/util/FrameworkStatsLog;"
             );
@@ -702,6 +695,12 @@ public class StrictJavaPackagesTest extends BaseHostJUnit4Test {
                 "Landroid/ondevicepersonalization/aidl/IInitOnDevicePersonalizationCallback;",
                 "Landroid/ondevicepersonalization/aidl/IOnDevicePersonalizationManagerService;"
             );
+    // TODO: b/223837016
+    private static final ImmutableSet<String> MEDIAPROVIDER_APK_IN_APEX_BURNDOWN_LIST =
+            ImmutableSet.of(
+                // /system/framework/services.jar
+                "Lcom/android/modules/utils/build/SdkLevel;"
+            );
     // TODO: b/223837017
     private static final ImmutableSet<String> CELLBROADCAST_APK_IN_APEX_BURNDOWN_LIST =
             ImmutableSet.of(
@@ -712,16 +711,6 @@ public class StrictJavaPackagesTest extends BaseHostJUnit4Test {
                 "Lcom/android/internal/util/StateMachine;",
                 "Lcom/android/internal/util/State;"
             );
-
-    // TODO: b/234557765
-    private static final ImmutableSet<String> ADSERVICES_SANDBOX_APK_IN_APEX_BURNDOWN_LIST =
-            ImmutableSet.of(
-                // /apex/com.android.adservices/javalib/service-sdksandbox.jar
-                "Lcom/android/sdksandbox/ISdkSandboxManagerToSdkSandboxCallback;",
-                "Lcom/android/sdksandbox/ISdkSandboxService;",
-                "Lcom/android/sdksandbox/ISdkSandboxToSdkSandboxManagerCallback;"
-            );
-
     private static final ImmutableMap<String, ImmutableSet<String>> FULL_APK_IN_APEX_BURNDOWN =
         new ImmutableMap.Builder<String, ImmutableSet<String>>()
             .put("/apex/com.android.bluetooth/app/Bluetooth/Bluetooth.apk",
@@ -732,6 +721,8 @@ public class StrictJavaPackagesTest extends BaseHostJUnit4Test {
                 PERMISSION_CONTROLLER_APK_IN_APEX_BURNDOWN_LIST)
             .put("/apex/com.android.permission/priv-app/GooglePermissionController/GooglePermissionController.apk",
                 PERMISSION_CONTROLLER_APK_IN_APEX_BURNDOWN_LIST)
+            .put("/apex/com.android.tethering/priv-app/InProcessTethering/InProcessTethering.apk",
+                TETHERING_APK_IN_APEX_BURNDOWN_LIST)
             .put("/apex/com.android.tethering/priv-app/TetheringNextGoogle/TetheringNextGoogle.apk",
                 TETHERING_APK_IN_APEX_BURNDOWN_LIST)
             .put("/apex/com.android.tethering/priv-app/TetheringGoogle/TetheringGoogle.apk",
@@ -748,16 +739,15 @@ public class StrictJavaPackagesTest extends BaseHostJUnit4Test {
                 ODA_APK_IN_APEX_BURNDOWN_LIST)
             .put("/apex/com.android.ondevicepersonalization/app/OnDevicePersonalization/OnDevicePersonalization.apk",
                 ODA_APK_IN_APEX_BURNDOWN_LIST)
+            .put("/apex/com.android.mediaprovider/priv-app/MediaProviderGoogle/MediaProviderGoogle.apk",
+                MEDIAPROVIDER_APK_IN_APEX_BURNDOWN_LIST)
+            .put("/apex/com.android.mediaprovider/priv-app/MediaProvider/MediaProvider.apk",
+                MEDIAPROVIDER_APK_IN_APEX_BURNDOWN_LIST)
             .put("/apex/com.android.cellbroadcast/priv-app/GoogleCellBroadcastServiceModule/GoogleCellBroadcastServiceModule.apk",
                 CELLBROADCAST_APK_IN_APEX_BURNDOWN_LIST)
             .put("/apex/com.android.cellbroadcast/priv-app/CellBroadcastServiceModule/CellBroadcastServiceModule.apk",
                 CELLBROADCAST_APK_IN_APEX_BURNDOWN_LIST)
-            .put("/apex/com.android.adservices/app/SdkSandbox/SdkSandbox.apk",
-                ADSERVICES_SANDBOX_APK_IN_APEX_BURNDOWN_LIST)
-            .put("/apex/com.android.adservices/app/SdkSandboxGoogle/SdkSandboxGoogle.apk",
-                ADSERVICES_SANDBOX_APK_IN_APEX_BURNDOWN_LIST)
             .build();
-
     /**
      * Fetch all jar files in BCP, SSCP and shared libs and extract all the classes.
      *
@@ -786,8 +776,6 @@ public class StrictJavaPackagesTest extends BaseHostJUnit4Test {
                 .filter(file -> !file.contains("com.google.android.gms"))
                 .collect(ImmutableList.toImmutableList());
 
-        final ImmutableSetMultimap.Builder<String, String> jarsToFiles =
-                ImmutableSetMultimap.builder();
         final ImmutableSetMultimap.Builder<String, String> jarsToClasses =
                 ImmutableSetMultimap.builder();
         Stream.of(sBootclasspathJars.stream(),
@@ -795,32 +783,21 @@ public class StrictJavaPackagesTest extends BaseHostJUnit4Test {
                         sSharedLibJars.stream())
                 .reduce(Stream::concat).orElseGet(Stream::empty)
                 .parallel()
-                .forEach(jarPath -> {
-                    File jar = null;
+                .forEach(jar -> {
                     try {
-                        jar = pullJarFromDevice(testInfo.getDevice(), jarPath);
-
-                        ImmutableSet<String> files = getJarFileContents(jar);
-                        synchronized (jarsToFiles) {
-                            jarsToFiles.putAll(jarPath, files);
-                        }
-
                         ImmutableSet<String> classes =
-                                Classpaths.getClassDefsFromJar(jar).stream()
+                                Classpaths.getClassDefsFromJar(testInfo.getDevice(), jar).stream()
                                         .map(ClassDef::getType)
                                         // Inner classes always go with their parent.
                                         .filter(className -> !className.contains("$"))
                                         .collect(ImmutableSet.toImmutableSet());
                         synchronized (jarsToClasses) {
-                            jarsToClasses.putAll(jarPath, classes);
+                            jarsToClasses.putAll(jar, classes);
                         }
                     } catch (DeviceNotAvailableException | IOException e) {
                         throw new RuntimeException(e);
-                    } finally {
-                        FileUtil.deleteFile(jar);
                     }
                 });
-        sJarsToFiles = jarsToFiles.build();
         sJarsToClasses = jarsToClasses.build();
     }
 
@@ -984,11 +961,9 @@ public class StrictJavaPackagesTest extends BaseHostJUnit4Test {
         Arrays.stream(collectApkInApexPaths())
                 .parallel()
                 .forEach(apk -> {
-                    File apkFile = null;
                     try {
-                        apkFile = pullJarFromDevice(getDevice(), apk);
                         final ImmutableSet<String> apkClasses =
-                                Classpaths.getClassDefsFromJar(apkFile).stream()
+                                Classpaths.getClassDefsFromJar(getDevice(), apk).stream()
                                         .map(ClassDef::getType)
                                         .collect(ImmutableSet.toImmutableSet());
                         // b/226559955: The directory paths containing APKs contain the build ID,
@@ -1012,90 +987,9 @@ public class StrictJavaPackagesTest extends BaseHostJUnit4Test {
                         }
                     } catch (Exception e) {
                         throw new RuntimeException(e);
-                    } finally {
-                        FileUtil.deleteFile(apkFile);
                     }
                 });
         assertThat(perApkClasspathDuplicates).isEmpty();
-    }
-
-    /**
-     * Ensure that there are no androidx dependencies in BOOTCLASSPATH, SYSTEMSERVERCLASSPATH
-     * and shared library jars.
-     */
-    @Test
-    public void testBootClasspathAndSystemServerClasspathAndSharedLibs_noAndroidxDependencies() {
-        // WARNING: Do not add more exceptions here, no androidx should be in bootclasspath.
-        // See go/androidx-api-guidelines#module-naming for more details.
-        final ImmutableMap<String, ImmutableSet<String>>
-                LegacyExemptAndroidxSharedLibsJarToClasses =
-                new ImmutableMap.Builder<String, ImmutableSet<String>>()
-                .put("/vendor/framework/androidx.camera.extensions.impl.jar",
-                    ImmutableSet.of("Landroidx/camera/extensions/impl/"))
-                .put("/system_ext/framework/androidx.window.extensions.jar",
-                    ImmutableSet.of("Landroidx/window/common/", "Landroidx/window/extensions/",
-                        "Landroidx/window/util/"))
-                .put("/system_ext/framework/androidx.window.sidecar.jar",
-                    ImmutableSet.of("Landroidx/window/common/", "Landroidx/window/sidecar",
-                        "Landroidx/window/util"))
-                .build();
-        assertWithMessage("There must not be any androidx classes on the "
-            + "bootclasspath. Please use alternatives provided by the platform instead. "
-            + "See go/androidx-api-guidelines#module-naming.")
-                .that(sJarsToClasses.entries().stream()
-                        .filter(e -> e.getValue().startsWith("Landroidx/"))
-                        .filter(e -> !isLegacyAndroidxDependency(
-                            LegacyExemptAndroidxSharedLibsJarToClasses, e.getKey(), e.getValue()))
-                        .collect(Collectors.toList())
-                ).isEmpty();
-    }
-
-    /**
-     * Ensure that there are no kotlin files in BOOTCLASSPATH, SYSTEMSERVERCLASSPATH
-     * and shared library jars.
-     */
-    @Test
-    public void testNoKotlinFilesInClasspaths() {
-        ImmutableList<String> kotlinFiles =
-                Stream.of(sBootclasspathJars.stream(),
-                        sSystemserverclasspathJars.stream(),
-                        sSharedLibJars.stream())
-                .reduce(Stream::concat).orElseGet(Stream::empty)
-                .parallel()
-                .filter(jarPath -> {
-                    return sJarsToFiles
-                            .get(jarPath)
-                            .stream()
-                            .anyMatch(file -> file.contains(".kotlin_builtins")
-                                    || file.contains(".kotlin_module"));
-                })
-                .collect(ImmutableList.toImmutableList());
-        assertThat(kotlinFiles).isEmpty();
-    }
-
-    private static File pullJarFromDevice(INativeDevice device,
-            String remoteJarPath) throws DeviceNotAvailableException {
-        File jar = device.pullFile(remoteJarPath);
-        if (jar == null) {
-            throw new IllegalStateException("could not pull remote file " + remoteJarPath);
-        }
-        return jar;
-    }
-
-    private static ImmutableSet<String> getJarFileContents(File jar) throws IOException {
-        try (JarFile jarFile = new JarFile(jar)) {
-            return jarFile.stream()
-                    .map(JarEntry::getName)
-                    .collect(ImmutableSet.toImmutableSet());
-        }
-    }
-
-    private boolean isLegacyAndroidxDependency(
-            ImmutableMap<String, ImmutableSet<String>> legacyExemptAndroidxSharedLibsJarToClasses,
-            String jar, String className) {
-        return legacyExemptAndroidxSharedLibsJarToClasses.containsKey(jar)
-                && legacyExemptAndroidxSharedLibsJarToClasses.get(jar).stream().anyMatch(
-                        v -> className.startsWith(v));
     }
 
     private String[] collectApkInApexPaths() {

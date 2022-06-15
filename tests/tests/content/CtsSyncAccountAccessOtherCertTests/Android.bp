@@ -39,8 +39,4 @@ android_test {
     dex_preopt: {
         enabled: false,
     },
-    data: [
-        ":CtsSyncAccountAccessStubs",
-    ],
-    per_testcase_directory: true,
 }

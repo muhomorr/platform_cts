@@ -23,6 +23,7 @@ import android.app.Activity;
 import android.app.Service;
 import android.content.Context;
 import android.content.ContextWrapper;
+import android.content.cts.ContextTestBase;
 import android.content.res.Configuration;
 import android.os.Bundle;
 import android.platform.test.annotations.Presubmit;
@@ -52,7 +53,6 @@ import java.util.concurrent.TimeoutException;
  *     - get {@link Display} entity</li>
  *     <li>{@link ContextWrapper} with base non-display-associated {@link Context}
  *     - get {@link Display} entity</li>
- *     <li>{@link android.window.WindowProviderService} - get {@link Display} entity</li>
  * </ul>
  *
  * <p>Build/Install/Run:
@@ -107,7 +107,7 @@ public class ContextGetDisplayTest extends ContextTestBase {
     public void testGetDisplayFromWindowContext() {
         final Display display = getDefaultDisplay();
         final Context windowContext = createWindowContext();
-        assertEquals(display.getDisplayId(), windowContext.getDisplay().getDisplayId());
+        assertEquals(display, windowContext.getDisplay());
     }
 
     @Test
@@ -115,7 +115,7 @@ public class ContextGetDisplayTest extends ContextTestBase {
         final Display display = getDefaultDisplay();
         final Context windowContext = mApplicationContext.createWindowContext(display,
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY, null /* options */);
-        assertEquals(display.getDisplayId(), windowContext.getDisplay().getDisplayId());
+        assertEquals(display, windowContext.getDisplay());
     }
 
     @Test
@@ -123,7 +123,7 @@ public class ContextGetDisplayTest extends ContextTestBase {
         final Display display = getSecondaryDisplay();
         final Context windowContext = mApplicationContext.createWindowContext(display,
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY, null /* options */);
-        assertEquals(display.getDisplayId(), windowContext.getDisplay().getDisplayId());
+        assertEquals(display, windowContext.getDisplay());
     }
 
     @Test
@@ -139,12 +139,5 @@ public class ContextGetDisplayTest extends ContextTestBase {
     public void testGetDisplayFromNonVisualWrapper() {
         ContextWrapper wrapper = new ContextWrapper(mApplicationContext);
         wrapper.getDisplay();
-    }
-
-    @Test
-    public void testGetDisplayFromWindowProviderService() {
-        final Display d = createWindowTestService().getDisplay();
-
-        assertNotNull("Display must be accessible from visual components", d);
     }
 }

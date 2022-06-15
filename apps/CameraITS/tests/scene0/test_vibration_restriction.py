@@ -102,10 +102,10 @@ class VibrationRestrictionTest(its_base_test.ItsBaseTest):
           'Accel variance with/without/restricted vibration (%f, %f, %f)',
           var_w_vibration, var_wo_vibration, var_w_vibration_restricted)
 
+      e_msg = 'Device vibrated while vibration is muted'
       vibration_variance = var_w_vibration_restricted < (
           var_wo_vibration * THRESHOLD_VIBRATION_VAR)
-      if not vibration_variance:
-        raise AssertionError('Device vibrated while vibration is muted.')
+      assert vibration_variance, e_msg
 
 
 if __name__ == '__main__':

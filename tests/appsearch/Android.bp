@@ -33,13 +33,8 @@ android_test {
     test_suites: [
         "cts",
         "general-tests",
-        "mts-appsearch",
     ],
-    data: [
-        ":CtsAppSearchTestHelperA",
-        ":CtsAppSearchTestHelperB",
-    ],
-    per_testcase_directory: true,
+    platform_apis: true,
 }
 
 android_test_helper_app {
@@ -54,19 +49,20 @@ android_test_helper_app {
     ],
     srcs: [
         "helper-app/src/**/*.java",
-        ":CtsAppSearchTestsAidl",
+        ":CtsAppSearchTestsAidl"
     ],
     test_suites: [
         "cts",
+        "vts",
+        "vts10",
         "general-tests",
-        "mts-appsearch",
     ],
     manifest: "helper-app/AndroidManifest.xml",
     aaptflags: [
         "--rename-manifest-package com.android.cts.appsearch.helper.a",
     ],
     certificate: ":cts-appsearch-helper-cert-a",
-    sdk_version: "test_current",
+    sdk_version: "test_current"
 }
 
 android_test_helper_app {
@@ -81,24 +77,25 @@ android_test_helper_app {
     ],
     srcs: [
         "helper-app/src/**/*.java",
-        ":CtsAppSearchTestsAidl",
+        ":CtsAppSearchTestsAidl"
     ],
     test_suites: [
         "cts",
+        "vts",
+        "vts10",
         "general-tests",
-        "mts-appsearch",
     ],
     manifest: "helper-app/AndroidManifest.xml",
     aaptflags: [
         "--rename-manifest-package com.android.cts.appsearch.helper.b",
     ],
     certificate: ":cts-appsearch-helper-cert-b",
-    sdk_version: "test_current",
+    sdk_version: "test_current"
 }
 
 filegroup {
     name: "CtsAppSearchTestsAidl",
     srcs: [
         "aidl/**/*.aidl",
-    ],
+    ]
 }

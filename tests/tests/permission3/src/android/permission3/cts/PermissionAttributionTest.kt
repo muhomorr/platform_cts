@@ -26,12 +26,13 @@ import android.provider.DeviceConfig
 import android.support.test.uiautomator.By
 import androidx.test.filters.SdkSuppress
 import com.android.compatibility.common.util.AppOpsUtils.setOpMode
-import com.android.compatibility.common.util.CtsDownstreamingTest
 import com.android.compatibility.common.util.SystemUtil.callWithShellPermissionIdentity
 import com.android.compatibility.common.util.SystemUtil.runWithShellPermissionIdentity
+import com.android.modules.utils.build.SdkLevel
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Assume.assumeFalse
 import org.junit.Before
 import org.junit.Test
 import java.util.concurrent.TimeUnit
@@ -39,15 +40,18 @@ import java.util.concurrent.TimeUnit
 /**
  * Tests permission attribution for location providers.
  */
-// Tests converted to GTS since these are GMS requirements not CDD.
-// These will be moved to GTS in U.
-@CtsDownstreamingTest
-@SdkSuppress(minSdkVersion = Build.VERSION_CODES.TIRAMISU)
+@SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
 class PermissionAttributionTest : BasePermissionHubTest() {
     private val micLabel = packageManager.getPermissionGroupInfo(
         android.Manifest.permission_group.MICROPHONE, 0).loadLabel(packageManager).toString()
     val locationManager = context.getSystemService(LocationManager::class.java)!!
     private var wasEnabled = false
+
+    // Permission history is not available on Auto devices running S or below.
+    @Before
+    fun assumeNotAutoBelowT() {
+        assumeFalse(isAutomotive && !SdkLevel.isAtLeastT())
+    }
 
     @Before
     fun installAppLocationProviderAndAllowMockLocation() {
@@ -80,7 +84,7 @@ class PermissionAttributionTest : BasePermissionHubTest() {
         useMicrophone()
         openMicrophoneTimeline()
 
-        waitFindObject(By.textContains(micLabel))
+        waitFindObject(By.descContains(micLabel))
         waitFindObject(By.textContains(APP_LABEL))
         waitFindObject(By.textContains(ATTRIBUTION_LABEL))
     }

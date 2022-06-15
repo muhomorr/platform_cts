@@ -77,8 +77,7 @@ class JitterTest(its_base_test.ItsBaseTest):
       logging.debug('Jitter range: %s to %s', range0, range1)
 
       # Draw a plot.
-      pylab.figure()
-      pylab.plot(range(len(deltas_ms)), deltas_ms, '-bo')
+      pylab.plot(range(len(deltas_ms)), deltas_ms)
       pylab.title(_NAME)
       pylab.xlabel('frame number')
       pylab.ylabel('jitter (ms)')

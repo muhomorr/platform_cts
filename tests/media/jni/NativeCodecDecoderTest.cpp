@@ -17,10 +17,9 @@
 //#define LOG_NDEBUG 0
 #define LOG_TAG "NativeCodecDecoderTest"
 #include <log/log.h>
-
 #include <android/native_window_jni.h>
+#include <NdkMediaExtractor.h>
 #include <jni.h>
-#include <media/NdkMediaExtractor.h>
 #include <sys/stat.h>
 
 #include <array>
@@ -44,7 +43,7 @@ class CodecDecoderTest final : public CodecTestBase {
 
     void setUpAudioReference(const char* refFile);
     void deleteReference();
-    bool setUpExtractor(const char* srcFile, int colorFormat);
+    bool setUpExtractor(const char* srcFile);
     void deleteExtractor();
     bool configureCodec(AMediaFormat* format, bool isAsync, bool signalEOSWithLastFrame,
                         bool isEncoder) override;
@@ -60,10 +59,10 @@ class CodecDecoderTest final : public CodecTestBase {
     ~CodecDecoderTest();
 
     bool testSimpleDecode(const char* decoder, const char* testFile, const char* refFile,
-                          int colorFormat, float rmsError, uLong checksum);
-    bool testFlush(const char* decoder, const char* testFile, int colorFormat);
-    bool testOnlyEos(const char* decoder, const char* testFile, int colorFormat);
-    bool testSimpleDecodeQueueCSD(const char* decoder, const char* testFile, int colorFormat);
+                          float rmsError, uLong checksum);
+    bool testFlush(const char* decoder, const char* testFile);
+    bool testOnlyEos(const char* decoder, const char* testFile);
+    bool testSimpleDecodeQueueCSD(const char* decoder, const char* testFile);
 };
 
 CodecDecoderTest::CodecDecoderTest(const char* mime, ANativeWindow* window)
@@ -103,7 +102,7 @@ void CodecDecoderTest::deleteReference() {
     mRefLength = 0;
 }
 
-bool CodecDecoderTest::setUpExtractor(const char* srcFile, int colorFormat) {
+bool CodecDecoderTest::setUpExtractor(const char* srcFile) {
     FILE* fp = fopen(srcFile, "rbe");
     struct stat buf {};
     if (fp && !fstat(fileno(fp), &buf)) {
@@ -114,7 +113,6 @@ bool CodecDecoderTest::setUpExtractor(const char* srcFile, int colorFormat) {
         if (res != AMEDIA_OK) {
             deleteExtractor();
         } else {
-            mBytesPerSample = (colorFormat == COLOR_FormatYUVP010) ? 2 : 1;
             for (size_t trackID = 0; trackID < AMediaExtractor_getTrackCount(mExtractor);
                  trackID++) {
                 AMediaFormat* currFormat = AMediaExtractor_getTrackFormat(mExtractor, trackID);
@@ -124,7 +122,7 @@ bool CodecDecoderTest::setUpExtractor(const char* srcFile, int colorFormat) {
                     AMediaExtractor_selectTrack(mExtractor, trackID);
                     if (!mIsAudio) {
                         AMediaFormat_setInt32(currFormat, AMEDIAFORMAT_KEY_COLOR_FORMAT,
-                                              colorFormat);
+                                              COLOR_FormatYUV420Flexible);
                     }
                     mInpDecFormat = currFormat;
                     // TODO: determine this from the extractor format when it becomes exposed.
@@ -240,7 +238,7 @@ bool CodecDecoderTest::dequeueOutput(size_t bufferIndex, AMediaCodecBufferInfo* 
                 AMediaFormat_getInt32(format, "width", &width);
                 AMediaFormat_getInt32(format, "height", &height);
                 AMediaFormat_getInt32(format, "stride", &stride);
-                mOutputBuff->updateChecksum(buf, info, width, height, stride, mBytesPerSample);
+                mOutputBuff->updateChecksum(buf, info, width, height, stride);
             }
         }
         mOutputBuff->saveOutPTS(info->presentationTimeUs);
@@ -301,10 +299,9 @@ bool CodecDecoderTest::decodeToMemory(const char* decoder, AMediaFormat* format,
 }
 
 bool CodecDecoderTest::testSimpleDecode(const char* decoder, const char* testFile,
-                                        const char* refFile, int colorFormat, float rmsError,
-                                        uLong checksum) {
+                                        const char* refFile, float rmsError, uLong checksum) {
     bool isPass = true;
-    if (!setUpExtractor(testFile, colorFormat)) return false;
+    if (!setUpExtractor(testFile)) return false;
     mSaveToMem = (mWindow == nullptr);
     auto ref = &mRefBuff;
     auto test = &mTestBuff;
@@ -402,9 +399,9 @@ bool CodecDecoderTest::testSimpleDecode(const char* decoder, const char* testFil
     return isPass;
 }
 
-bool CodecDecoderTest::testFlush(const char* decoder, const char* testFile, int colorFormat) {
+bool CodecDecoderTest::testFlush(const char* decoder, const char* testFile) {
     bool isPass = true;
-    if (!setUpExtractor(testFile, colorFormat)) return false;
+    if (!setUpExtractor(testFile)) return false;
     mCsdBuffers.clear();
     for (int i = 0;; i++) {
         char csdName[16];
@@ -475,10 +472,8 @@ bool CodecDecoderTest::testFlush(const char* decoder, const char* testFile, int 
         AMediaExtractor_seekTo(mExtractor, 0, mode);
         test->reset();
         if (!doWork(23)) return false;
-        if (!mIsInterlaced) {
-            CHECK_ERR(!test->isPtsStrictlyIncreasing(mPrevOutputPts), "",
-                          "pts is not strictly increasing", isPass);
-        }
+        CHECK_ERR(!test->isPtsStrictlyIncreasing(mPrevOutputPts), "",
+                  "pts is not strictly increasing", isPass);
 
         /* test flush in running state */
         if (!flushCodec()) return false;
@@ -531,9 +526,9 @@ bool CodecDecoderTest::testFlush(const char* decoder, const char* testFile, int 
     return isPass;
 }
 
-bool CodecDecoderTest::testOnlyEos(const char* decoder, const char* testFile, int colorFormat) {
+bool CodecDecoderTest::testOnlyEos(const char* decoder, const char* testFile) {
     bool isPass = true;
-    if (!setUpExtractor(testFile, colorFormat)) return false;
+    if (!setUpExtractor(testFile)) return false;
     mSaveToMem = (mWindow == nullptr);
     auto ref = &mRefBuff;
     auto test = &mTestBuff;
@@ -565,22 +560,16 @@ bool CodecDecoderTest::testOnlyEos(const char* decoder, const char* testFile, in
         CHECK_ERR(loopCounter != 0 && (!ref->equals(test)), log, "output is flaky", isPass);
         CHECK_ERR(loopCounter == 0 && mIsAudio && (!ref->isPtsStrictlyIncreasing(mPrevOutputPts)),
                   log, "pts is not strictly increasing", isPass);
-        // TODO: Timestamps for deinterlaced content are under review. (E.g. can decoders
-        // produce multiple progressive frames?) For now, do not verify timestamps.
-        if (!mIsInterlaced) {
-            CHECK_ERR(loopCounter == 0 && !mIsAudio &&
-                      (!ref->isOutPtsListIdenticalToInpPtsList(false)),
-                      log, "input pts list and output pts list are not identical", isPass);
-        }
+        CHECK_ERR(loopCounter == 0 && !mIsAudio && (!ref->isOutPtsListIdenticalToInpPtsList(false)),
+                  log, "input pts list and output pts list are not identical", isPass);
         loopCounter++;
     }
     return isPass;
 }
 
-bool CodecDecoderTest::testSimpleDecodeQueueCSD(const char* decoder, const char* testFile,
-                                                int colorFormat) {
+bool CodecDecoderTest::testSimpleDecodeQueueCSD(const char* decoder, const char* testFile) {
     bool isPass = true;
-    if (!setUpExtractor(testFile, colorFormat)) return false;
+    if (!setUpExtractor(testFile)) return false;
     std::vector<AMediaFormat*> formats;
     formats.push_back(mInpDecFormat);
     mInpDecDupFormat = AMediaFormat_new();
@@ -649,13 +638,9 @@ bool CodecDecoderTest::testSimpleDecodeQueueCSD(const char* decoder, const char*
                 CHECK_ERR(loopCounter == 0 && mIsAudio &&
                           (!ref->isPtsStrictlyIncreasing(mPrevOutputPts)),
                           log, "pts is not strictly increasing", isPass);
-                // TODO: Timestamps for deinterlaced content are under review. (E.g. can decoders
-                // produce multiple progressive frames?) For now, do not verify timestamps.
-                if (!mIsInterlaced) {
-                    CHECK_ERR(loopCounter == 0 && !mIsAudio &&
-                                      (!ref->isOutPtsListIdenticalToInpPtsList(false)),
-                              log, "input pts list and output pts list are not identical", isPass);
-                }
+                CHECK_ERR(loopCounter == 0 && !mIsAudio &&
+                                  (!ref->isOutPtsListIdenticalToInpPtsList(false)),
+                          log, "input pts list and output pts list are not identical", isPass);
                 if (validateFormat) {
                     if (mIsCodecInAsyncMode ? !mAsyncHandle.hasOutputFormatChanged()
                                             : !mSignalledOutFormatChanged) {
@@ -678,7 +663,7 @@ bool CodecDecoderTest::testSimpleDecodeQueueCSD(const char* decoder, const char*
 
 static jboolean nativeTestSimpleDecode(JNIEnv* env, jobject, jstring jDecoder, jobject surface,
                                        jstring jMime, jstring jtestFile, jstring jrefFile,
-                                       jint jColorFormat, jfloat jrmsError, jlong jChecksum) {
+                                       jfloat jrmsError, jlong jChecksum) {
     const char* cDecoder = env->GetStringUTFChars(jDecoder, nullptr);
     const char* cMime = env->GetStringUTFChars(jMime, nullptr);
     const char* cTestFile = env->GetStringUTFChars(jtestFile, nullptr);
@@ -687,8 +672,8 @@ static jboolean nativeTestSimpleDecode(JNIEnv* env, jobject, jstring jDecoder, j
     uLong cChecksum = jChecksum;
     ANativeWindow* window = surface ? ANativeWindow_fromSurface(env, surface) : nullptr;
     auto* codecDecoderTest = new CodecDecoderTest(cMime, window);
-    bool isPass = codecDecoderTest->testSimpleDecode(cDecoder, cTestFile, cRefFile, jColorFormat,
-                                                     cRmsError, cChecksum);
+    bool isPass =
+            codecDecoderTest->testSimpleDecode(cDecoder, cTestFile, cRefFile, cRmsError, cChecksum);
     delete codecDecoderTest;
     if (window) {
         ANativeWindow_release(window);
@@ -702,12 +687,12 @@ static jboolean nativeTestSimpleDecode(JNIEnv* env, jobject, jstring jDecoder, j
 }
 
 static jboolean nativeTestOnlyEos(JNIEnv* env, jobject, jstring jDecoder, jstring jMime,
-                                  jstring jtestFile, jint jColorFormat) {
+                                  jstring jtestFile) {
     const char* cDecoder = env->GetStringUTFChars(jDecoder, nullptr);
     const char* cMime = env->GetStringUTFChars(jMime, nullptr);
     const char* cTestFile = env->GetStringUTFChars(jtestFile, nullptr);
     auto* codecDecoderTest = new CodecDecoderTest(cMime, nullptr);
-    bool isPass = codecDecoderTest->testOnlyEos(cDecoder, cTestFile, jColorFormat);
+    bool isPass = codecDecoderTest->testOnlyEos(cDecoder, cTestFile);
     delete codecDecoderTest;
     env->ReleaseStringUTFChars(jDecoder, cDecoder);
     env->ReleaseStringUTFChars(jMime, cMime);
@@ -716,13 +701,13 @@ static jboolean nativeTestOnlyEos(JNIEnv* env, jobject, jstring jDecoder, jstrin
 }
 
 static jboolean nativeTestFlush(JNIEnv* env, jobject, jstring jDecoder, jobject surface,
-                                jstring jMime, jstring jtestFile, jint jColorFormat) {
+                                jstring jMime, jstring jtestFile) {
     const char* cDecoder = env->GetStringUTFChars(jDecoder, nullptr);
     const char* cMime = env->GetStringUTFChars(jMime, nullptr);
     const char* cTestFile = env->GetStringUTFChars(jtestFile, nullptr);
     ANativeWindow* window = surface ? ANativeWindow_fromSurface(env, surface) : nullptr;
     auto* codecDecoderTest = new CodecDecoderTest(cMime, window);
-    bool isPass = codecDecoderTest->testFlush(cDecoder, cTestFile, jColorFormat);
+    bool isPass = codecDecoderTest->testFlush(cDecoder, cTestFile);
     delete codecDecoderTest;
     if (window) {
         ANativeWindow_release(window);
@@ -735,13 +720,12 @@ static jboolean nativeTestFlush(JNIEnv* env, jobject, jstring jDecoder, jobject 
 }
 
 static jboolean nativeTestSimpleDecodeQueueCSD(JNIEnv* env, jobject, jstring jDecoder,
-                                               jstring jMime, jstring jtestFile,
-                                               jint jColorFormat) {
+                                               jstring jMime, jstring jtestFile) {
     const char* cDecoder = env->GetStringUTFChars(jDecoder, nullptr);
     const char* cMime = env->GetStringUTFChars(jMime, nullptr);
     const char* cTestFile = env->GetStringUTFChars(jtestFile, nullptr);
     auto codecDecoderTest = new CodecDecoderTest(cMime, nullptr);
-    bool isPass = codecDecoderTest->testSimpleDecodeQueueCSD(cDecoder, cTestFile, jColorFormat);
+    bool isPass = codecDecoderTest->testSimpleDecodeQueueCSD(cDecoder, cTestFile);
     delete codecDecoderTest;
     env->ReleaseStringUTFChars(jDecoder, cDecoder);
     env->ReleaseStringUTFChars(jMime, cMime);
@@ -753,15 +737,15 @@ int registerAndroidMediaV2CtsDecoderTest(JNIEnv* env) {
     const JNINativeMethod methodTable[] = {
             {"nativeTestSimpleDecode",
              "(Ljava/lang/String;Landroid/view/Surface;Ljava/lang/String;Ljava/lang/String;Ljava/"
-             "lang/String;IFJ)Z",
+             "lang/String;FJ)Z",
              (void*)nativeTestSimpleDecode},
-            {"nativeTestOnlyEos", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;I)Z",
+            {"nativeTestOnlyEos", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Z",
              (void*)nativeTestOnlyEos},
             {"nativeTestFlush",
-             "(Ljava/lang/String;Landroid/view/Surface;Ljava/lang/String;Ljava/lang/String;I)Z",
+             "(Ljava/lang/String;Landroid/view/Surface;Ljava/lang/String;Ljava/lang/String;)Z",
              (void*)nativeTestFlush},
             {"nativeTestSimpleDecodeQueueCSD",
-             "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;I)Z",
+             "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Z",
              (void*)nativeTestSimpleDecodeQueueCSD},
     };
     jclass c = env->FindClass("android/mediav2/cts/CodecDecoderTest");
@@ -772,10 +756,10 @@ int registerAndroidMediaV2CtsDecoderSurfaceTest(JNIEnv* env) {
     const JNINativeMethod methodTable[] = {
             {"nativeTestSimpleDecode",
              "(Ljava/lang/String;Landroid/view/Surface;Ljava/lang/String;Ljava/lang/String;Ljava/"
-             "lang/String;IFJ)Z",
+             "lang/String;FJ)Z",
              (void*)nativeTestSimpleDecode},
             {"nativeTestFlush",
-             "(Ljava/lang/String;Landroid/view/Surface;Ljava/lang/String;Ljava/lang/String;I)Z",
+             "(Ljava/lang/String;Landroid/view/Surface;Ljava/lang/String;Ljava/lang/String;)Z",
              (void*)nativeTestFlush},
     };
     jclass c = env->FindClass("android/mediav2/cts/CodecDecoderSurfaceTest");

@@ -63,7 +63,7 @@ public class MultiWindowLoginActivityTest
             @Override
             protected void afterActivityLaunched() {
                 mActivity = getActivity();
-                mTaskOrganizer = new TestTaskOrganizer();
+                mTaskOrganizer = new TestTaskOrganizer(mContext);
             }
         };
     }

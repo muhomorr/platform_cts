@@ -34,7 +34,6 @@ import android.app.UiAutomation;
 import android.graphics.Point;
 import android.hardware.input.InputManager;
 import android.os.SystemClock;
-import android.view.InputDevice;
 import android.view.InputEvent;
 import android.view.KeyCharacterMap;
 import android.view.KeyEvent;
@@ -66,7 +65,7 @@ import java.util.List;
 @RunWith(AndroidJUnit4.class)
 public class VerifyInputEventTest {
     private static final int NANOS_PER_MILLISECOND = 1000000;
-    private static final float EPSILON = 0.001f;
+    private static final float STRICT_TOLERANCE = 0;
     private static final int INJECTED_EVENT_DEVICE_ID = KeyCharacterMap.VIRTUAL_KEYBOARD;
 
     private InputManager mInputManager;
@@ -159,7 +158,6 @@ public class VerifyInputEventTest {
         final long downTime = SystemClock.uptimeMillis();
         MotionEvent downEvent = MotionEvent.obtain(downTime, downTime, MotionEvent.ACTION_DOWN,
                 point.x, point.y, 0 /*metaState*/);
-        downEvent.setSource(InputDevice.SOURCE_TOUCHSCREEN);
         mAutomation.injectInputEvent(downEvent, true);
         MotionEvent received = waitForMotion();
         VerifiedInputEvent verified = mInputManager.verifyInputEvent(received);
@@ -170,7 +168,6 @@ public class VerifyInputEventTest {
         // Send UP event for consistency
         MotionEvent upEvent = MotionEvent.obtain(downTime, SystemClock.uptimeMillis(),
                 MotionEvent.ACTION_UP, point.x, point.y, 0 /*metaState*/);
-        upEvent.setSource(InputDevice.SOURCE_TOUCHSCREEN);
         mAutomation.injectInputEvent(upEvent, true);
         waitForMotion();
     }
@@ -187,7 +184,6 @@ public class VerifyInputEventTest {
         final long downTime = SystemClock.uptimeMillis();
         MotionEvent downEvent = MotionEvent.obtain(downTime, downTime, MotionEvent.ACTION_DOWN,
                 point.x, point.y, 0 /*metaState*/);
-        downEvent.setSource(InputDevice.SOURCE_TOUCHSCREEN);
         mAutomation.injectInputEvent(downEvent, true);
         waitForMotion(); // we will not be using the received event
         VerifiedInputEvent verified = mInputManager.verifyInputEvent(downEvent);
@@ -196,7 +192,6 @@ public class VerifyInputEventTest {
         // Send UP event for consistency
         MotionEvent upEvent = MotionEvent.obtain(downTime, downTime, MotionEvent.ACTION_UP,
                 point.x, point.y, 0 /*metaState*/);
-        upEvent.setSource(InputDevice.SOURCE_TOUCHSCREEN);
         mAutomation.injectInputEvent(upEvent, true);
         waitForMotion();
     }
@@ -212,7 +207,6 @@ public class VerifyInputEventTest {
         final long downTime = SystemClock.uptimeMillis();
         MotionEvent downEvent = MotionEvent.obtain(downTime, downTime, MotionEvent.ACTION_DOWN,
                 point.x, point.y, 0 /*metaState*/);
-        downEvent.setSource(InputDevice.SOURCE_TOUCHSCREEN);
         mAutomation.injectInputEvent(downEvent, true);
         MotionEvent received = waitForMotion();
         // use the received event, by modify its action
@@ -223,7 +217,6 @@ public class VerifyInputEventTest {
         // Send UP event for consistency
         MotionEvent upEvent = MotionEvent.obtain(downTime, SystemClock.uptimeMillis(),
                 MotionEvent.ACTION_UP, point.x, point.y, 0 /*metaState*/);
-        upEvent.setSource(InputDevice.SOURCE_TOUCHSCREEN);
         mAutomation.injectInputEvent(upEvent, true);
         waitForMotion();
     }
@@ -270,7 +263,6 @@ public class VerifyInputEventTest {
         MotionEvent downEvent = MotionEvent.obtain(downTime, downTime, MotionEvent.ACTION_DOWN,
                 point.x, point.y, 1 /*pressure*/, 1 /*size*/, 0 /*metaState*/,
                 0 /*xPrecision*/, 0 /*yPrecision*/, 1 /*deviceId*/, 0 /*edgeFlags*/);
-        downEvent.setSource(InputDevice.SOURCE_TOUCHSCREEN);
         mAutomation.injectInputEvent(downEvent, true);
         MotionEvent received = waitForMotion();
         assertEquals(INJECTED_EVENT_DEVICE_ID, received.getDeviceId());
@@ -284,7 +276,6 @@ public class VerifyInputEventTest {
                 MotionEvent.ACTION_UP, point.x, point.y, 0 /*pressure*/, 1 /*size*/,
                 0 /*metaState*/, 0 /*xPrecision*/, 0 /*yPrecision*/,
                 1 /*deviceId*/, 0 /*edgeFlags*/);
-        upEvent.setSource(InputDevice.SOURCE_TOUCHSCREEN);
         mAutomation.injectInputEvent(upEvent, true);
         waitForMotion();
     }
@@ -336,8 +327,8 @@ public class VerifyInputEventTest {
         assertTrue(verified instanceof VerifiedMotionEvent);
         VerifiedMotionEvent verifiedMotion = (VerifiedMotionEvent) verified;
 
-        assertEquals(motionEvent.getRawX(), verifiedMotion.getRawX(), EPSILON);
-        assertEquals(motionEvent.getRawY(), verifiedMotion.getRawY(), EPSILON);
+        assertEquals(motionEvent.getRawX(), verifiedMotion.getRawX(), STRICT_TOLERANCE);
+        assertEquals(motionEvent.getRawY(), verifiedMotion.getRawY(), STRICT_TOLERANCE);
         assertEquals(motionEvent.getActionMasked(), verifiedMotion.getActionMasked());
         assertEquals(motionEvent.getDownTime() * NANOS_PER_MILLISECOND,
                 verifiedMotion.getDownTimeNanos());

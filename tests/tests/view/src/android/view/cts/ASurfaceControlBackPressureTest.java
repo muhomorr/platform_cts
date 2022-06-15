@@ -30,7 +30,6 @@ import static android.view.cts.util.ASurfaceControlTestUtils.nSurfaceTransaction
 import static android.view.cts.util.ASurfaceControlTestUtils.reparent;
 
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assume.assumeFalse;
 
 import android.graphics.Canvas;
 import android.graphics.Color;
@@ -65,7 +64,7 @@ public class ASurfaceControlBackPressureTest {
         private final CountDownLatch mCountDownLatch = new CountDownLatch(1);
 
         @Override
-        public void onTransactionComplete(long latchTime, long presentTime) {
+        public void onTransactionComplete(long latchTime) {
             mCountDownLatch.countDown();
         }
 
@@ -95,7 +94,6 @@ public class ASurfaceControlBackPressureTest {
         mActivity = mActivityRule.getActivity();
         mActivity.setLogicalDisplaySize(getLogicalDisplaySize());
         mActivity.setMinimumCaptureDurationMs(1000);
-        assumeFalse(mActivity.isOnWatch());
     }
 
     @After
@@ -138,8 +136,7 @@ public class ASurfaceControlBackPressureTest {
                         nSurfaceTransaction_setBuffer(mSurfaceControl, surfaceTransaction,
                                 getNextBuffer());
                         if (i == 0) {
-                            nSurfaceTransaction_setOnCompleteCallback(surfaceTransaction,
-                                    false /* waitForFence */, listener);
+                            nSurfaceTransaction_setOnCompleteCallback(surfaceTransaction, listener);
                         }
                         applyAndDeleteSurfaceTransaction(surfaceTransaction);
                     }

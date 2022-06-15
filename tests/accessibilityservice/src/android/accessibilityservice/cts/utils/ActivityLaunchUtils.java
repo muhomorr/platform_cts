@@ -135,11 +135,6 @@ public class ActivityLaunchUtils {
         wakeUpOrBust(context, uiAutomation);
         if (context.getPackageManager().isInstantApp()) return;
         if (isHomeScreenShowing(context, uiAutomation)) return;
-        final AccessibilityServiceInfo serviceInfo = uiAutomation.getServiceInfo();
-        final int enabledFlags = serviceInfo.flags;
-        // Make sure we could query windows.
-        serviceInfo.flags |= AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS;
-        uiAutomation.setServiceInfo(serviceInfo);
         try {
             executeAndWaitOn(
                     uiAutomation,
@@ -164,9 +159,6 @@ public class ActivityLaunchUtils {
             }
 
             fail("Unable to reach home screen");
-        } finally {
-            serviceInfo.flags = enabledFlags;
-            uiAutomation.setServiceInfo(serviceInfo);
         }
     }
 

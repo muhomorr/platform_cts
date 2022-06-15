@@ -163,8 +163,7 @@ public class SilentProvisioningTestManager {
         }
 
         public void register() {
-            mContext.registerReceiver(this, new IntentFilter(mAction),
-                    Context.RECEIVER_EXPORTED_UNAUDITED);
+            mContext.registerReceiver(this, new IntentFilter(mAction));
         }
 
         public boolean await() throws InterruptedException {

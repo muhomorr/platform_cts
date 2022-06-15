@@ -16,6 +16,9 @@
 
 package com.android.cts.verifier.audio;
 
+import java.io.IOException;
+import java.util.ArrayList;
+
 import android.media.midi.MidiDevice;
 import android.media.midi.MidiDeviceInfo;
 import android.media.midi.MidiInputPort;
@@ -24,12 +27,9 @@ import android.media.midi.MidiReceiver;
 import android.os.Bundle;
 import android.util.Log;
 
-import com.android.compatibility.common.util.CddTest;
 import com.android.cts.verifier.R;
-import com.android.cts.verifier.audio.midilib.MidiIODevice;
 
-import java.io.IOException;
-import java.util.ArrayList;
+import com.android.cts.verifier.audio.midilib.MidiIODevice;
 
 /*
  * A note about the USB MIDI device.
@@ -55,10 +55,9 @@ import java.util.ArrayList;
 /**
  * CTS Verifier Activity for MIDI test
  */
-@CddTest(requirement = "5.9/C-1-4,C-1-2")
 public class MidiJavaTestActivity extends MidiTestActivityBase {
     private static final String TAG = "MidiJavaTestActivity";
-    private static final boolean DEBUG = true;
+    private static final boolean DEBUG = false;
 
     public MidiJavaTestActivity() {
         super();
@@ -207,10 +206,6 @@ public class MidiJavaTestActivity extends MidiTestActivityBase {
             closePorts();
 
             if (mIODevice.mSendDevInfo != null) {
-                if (DEBUG) {
-                    Log.i(TAG, "---- mMidiManager.openDevice() mSendDevice: "
-                            + mIODevice.mSendDevInfo);
-                }
                 mMidiManager.openDevice(mIODevice.mSendDevInfo, new TestModuleOpenListener(), null);
             }
 
@@ -218,9 +213,6 @@ public class MidiJavaTestActivity extends MidiTestActivityBase {
         }
 
         protected void openPorts(MidiDevice device) {
-            if (DEBUG) {
-                Log.i(TAG, "---- openPorts()");
-            }
             mIODevice.openPorts(device, new MidiMatchingReceiver());
         }
 
@@ -432,8 +424,7 @@ public class MidiJavaTestActivity extends MidiTestActivityBase {
             @Override
             public void onSend(byte[] msg, int offset, int count, long timestamp) throws IOException {
                 if (DEBUG) {
-                    Log.i(TAG, "---- onSend(offset:" + offset
-                            + " count:" + count + ") mTestRunning:" + mTestRunning);
+                    Log.i(TAG, "---- onSend(offset:" + offset + " count:" + count);
                     logByteArray("bytes-received: ", msg, offset, count);
                 }
                 synchronized (mTestLock) {
@@ -452,11 +443,6 @@ public class MidiJavaTestActivity extends MidiTestActivityBase {
 
                     mTestMismatched = !matchStream(msg, offset, count);
 
-                    if (DEBUG) {
-                        Log.i(TAG, "  mTestMismatched:" + mTestMismatched);
-                        Log.i(TAG, "  mReceiveStreamPos:" + mReceiveStreamPos + " size:"
-                                + mMatchStream.size());
-                    }
                     if (mTestMismatched || mReceiveStreamPos == mMatchStream.size()) {
                         mTestRunning = false;
                         mRunningTestID = TESTID_NONE;
@@ -473,10 +459,7 @@ public class MidiJavaTestActivity extends MidiTestActivityBase {
                             }
                         }).start();
 
-                        mTestStatus = mTestMismatched
-                                ? TESTSTATUS_FAILED_MISMATCH : TESTSTATUS_PASSED;
                         enableTestButtons(true);
-
                         updateTestStateUI();
                     }
                 }

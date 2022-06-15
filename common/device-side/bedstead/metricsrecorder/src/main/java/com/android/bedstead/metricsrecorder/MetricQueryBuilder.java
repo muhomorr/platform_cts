@@ -43,14 +43,11 @@ public class MetricQueryBuilder implements Queryable {
             new BooleanQueryHelper<>(this);
     private final ListQueryHelper<MetricQueryBuilder, String, StringQuery<?>> mStringsQuery =
             new ListQueryHelper<>(this);
-    private final IntegerQueryHelper<MetricQueryBuilder> mIntegerQuery =
-            new IntegerQueryHelper<>(this);
 
     MetricQueryBuilder(EnterpriseMetricsRecorder recorder) {
         mRecorder = recorder;
     }
 
-    /** Query for {@link EnterpriseMetricInfo#type()}. */
     public IntegerQuery<MetricQueryBuilder> whereType() {
         if (hasStartedFetchingResults) {
             throw new IllegalStateException("Cannot modify query after fetching results");
@@ -58,7 +55,6 @@ public class MetricQueryBuilder implements Queryable {
         return mTypeQuery;
     }
 
-    /** Query for {@link EnterpriseMetricInfo#adminPackageName()}. */
     public StringQuery<MetricQueryBuilder> whereAdminPackageName() {
         if (hasStartedFetchingResults) {
             throw new IllegalStateException("Cannot modify query after fetching results");
@@ -66,20 +62,11 @@ public class MetricQueryBuilder implements Queryable {
         return mAdminPackageNameQuery;
     }
 
-    /** Query for {@link EnterpriseMetricInfo#Boolean()}. */
     public BooleanQuery<MetricQueryBuilder> whereBoolean() {
         if (hasStartedFetchingResults) {
             throw new IllegalStateException("Cannot modify query after fetching results");
         }
         return mBooleanQuery;
-    }
-
-    /** Query for {@link EnterpriseMetricInfo#integer()}. */
-    public IntegerQuery<MetricQueryBuilder> whereInteger() {
-        if (hasStartedFetchingResults) {
-            throw new IllegalStateException("Cannot modify query after fetching results");
-        }
-        return mIntegerQuery;
     }
 
     public ListQueryHelper<MetricQueryBuilder, String, StringQuery<?>> whereStrings() {
@@ -97,10 +84,7 @@ public class MetricQueryBuilder implements Queryable {
         hasStartedFetchingResults = true;
         for (EnterpriseMetricInfo m : mRecorder.fetchLatestData()) {
             if (matches(m)) {
-                skipResults -= 1;
-                if (skipResults < 0) {
-                    return m;
-                }
+                return m;
             }
         }
 
@@ -145,25 +129,7 @@ public class MetricQueryBuilder implements Queryable {
 
     private boolean matches(EnterpriseMetricInfo metric) {
         return mAdminPackageNameQuery.matches(metric.adminPackageName())
-                && mTypeQuery.matches(metric.type())
                 && mBooleanQuery.matches(metric.Boolean())
-                && mStringsQuery.matches(metric.strings())
-                && mIntegerQuery.matches(metric.integer());
-    }
-
-    @Override
-    public String describeQuery(String fieldName) {
-        return "{" + Queryable.joinQueryStrings(
-                mAdminPackageNameQuery.describeQuery("adminPackageName"),
-                mTypeQuery.describeQuery("type"),
-                mBooleanQuery.describeQuery("boolean"),
-                mStringsQuery.describeQuery("strings"),
-                mIntegerQuery.describeQuery("integer")
-        ) + "}";
-    }
-
-    @Override
-    public String toString() {
-        return describeQuery("");
+                && mStringsQuery.matches(metric.strings());
     }
 }

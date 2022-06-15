@@ -15,9 +15,7 @@
  */
 package com.android.cts.managedprofile;
 
-import static android.os.Process.BLUETOOTH_UID;
 
-import android.app.UiAutomation;
 import android.bluetooth.BluetoothAdapter;
 import android.content.ComponentName;
 import android.content.Context;
@@ -27,16 +25,12 @@ import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.net.Uri;
 import android.os.SystemClock;
-import android.os.SystemProperties;
 import android.os.UserManager;
-
-import androidx.test.InstrumentationRegistry;
-
-import com.android.internal.util.ArrayUtils;
 
 import junit.framework.TestCase;
 
 import java.util.List;
+
 
 /**
  * Test {@link UserManager#DISALLOW_BLUETOOTH_SHARING} in profile owner.
@@ -49,12 +43,8 @@ public class BluetoothSharingRestrictionTest extends BaseManagedProfileTest {
     /** How often to check component state. */
     private static final int POLL_TIME_MS = 400;
     /** Activity that handles Bluetooth sharing. */
-    private static final String OPP_LAUNCHER_CLASS =
-            "com.android.bluetooth.opp.BluetoothOppLauncherActivity";
-    private static final String INTERACT_ACROSS_USERS_PERMISSION =
-            "android.permission.INTERACT_ACROSS_USERS";
-    private static final UiAutomation sUiAutomation =
-             InstrumentationRegistry.getInstrumentation().getUiAutomation();
+    private static final ComponentName OPP_LAUNCHER_COMPONENT = new ComponentName(
+            "com.android.bluetooth", "com.android.bluetooth.opp.BluetoothOppLauncherActivity");
 
     /**
      * Tests that Bluetooth sharing activity gets disabled when the restriction is enforced.
@@ -90,7 +80,7 @@ public class BluetoothSharingRestrictionTest extends BaseManagedProfileTest {
 
     /**
      * Builds an intent to share an image file. If Bluetooth sharing is allowed, it should be
-     * handled by {@link #OPP_LAUNCHER_CLASS}.
+     * handled by {@link #OPP_LAUNCHER_COMPONENT}.
      */
     private static Intent fileSharingIntent() {
         final Intent result = new Intent(Intent.ACTION_SEND);
@@ -107,44 +97,30 @@ public class BluetoothSharingRestrictionTest extends BaseManagedProfileTest {
         // Check restriction.
         assertRestrictionEnforced(context, !available);
         // Check component status.
-        final int[] componentEnabledState = available
-                ? new int[] {PackageManager.COMPONENT_ENABLED_STATE_DEFAULT,
-                        PackageManager.COMPONENT_ENABLED_STATE_ENABLED}
-                : new int[] {PackageManager.COMPONENT_ENABLED_STATE_DISABLED};
-
-        sUiAutomation.adoptShellPermissionIdentity(INTERACT_ACROSS_USERS_PERMISSION);
-        String bluetoothPackageName = context.getPackageManager()
-                .getPackagesForUid(BLUETOOTH_UID)[0];
-        sUiAutomation.dropShellPermissionIdentity();
-
-        ComponentName oppLauncherComponent = new ComponentName(
-                bluetoothPackageName, OPP_LAUNCHER_CLASS);
-
-        assertComponentStateAfterTimeout(context, oppLauncherComponent, componentEnabledState);
-        // Do not perform the handler check if the profile is disabled on the device.
-        if (SystemProperties.getBoolean("bluetooth.profile.opp.enabled", false)) {
-            // Check whether sharing activity is offered.
-            assertHandlerAvailable(context, fileSharingIntent(), oppLauncherComponent, available);
-        }
+        final int componentEnabledState = available
+                ? PackageManager.COMPONENT_ENABLED_STATE_DEFAULT
+                : PackageManager.COMPONENT_ENABLED_STATE_DISABLED;
+        assertComponentStateAfterTimeout(context, OPP_LAUNCHER_COMPONENT, componentEnabledState);
+        // Check whether sharing activity is offered.
+        assertHandlerAvailable(context, fileSharingIntent(), OPP_LAUNCHER_COMPONENT, available);
     }
 
     /** Waits for package state to change to a desired one or fails. */
     private static void assertComponentStateAfterTimeout(Context context, ComponentName component,
-            int[] expectedState)
+            int expectedState)
             throws Exception {
         final long timeout = SystemClock.elapsedRealtime() + COMPONENT_STATE_TIMEOUT_MS;
         int state = -1;
         while (SystemClock.elapsedRealtime() < timeout) {
             state = context.getPackageManager().getComponentEnabledSetting(component);
-            if (ArrayUtils.contains(expectedState, state)) {
+            if (expectedState == state) {
                 // Success
                 return;
             }
             Thread.sleep(POLL_TIME_MS);
         }
-        TestCase.fail("The state of " + component + " should have been "
-                + ArrayUtils.deepToString(expectedState)
-                + ", but was " + state + " after timeout.");
+        TestCase.fail("The state of " + component + " should have been " + expectedState
+                + ", it but was " + state + " after timeout.");
     }
 
     /** Verifies that {@code component} is offered when handling {@code intent}. */
@@ -160,6 +136,7 @@ public class BluetoothSharingRestrictionTest extends BaseManagedProfileTest {
                                     info.providerInfo;
             final ComponentName resolvedComponent =
                     new ComponentName(componentInfo.packageName, componentInfo.name);
+
             if (resolvedComponent.equals(component)) {
                 if (shouldResolve) {
                     // Found it, assertion passed.

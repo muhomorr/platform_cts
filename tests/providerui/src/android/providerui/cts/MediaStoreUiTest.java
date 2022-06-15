@@ -405,8 +405,7 @@ public class MediaStoreUiTest {
     private boolean supportsHardware() {
         final PackageManager pm = mContext.getPackageManager();
         return !pm.hasSystemFeature("android.hardware.type.television")
-                && !pm.hasSystemFeature("android.hardware.type.watch")
-                && !pm.hasSystemFeature("android.hardware.type.automotive");
+                && !pm.hasSystemFeature("android.hardware.type.watch");
     }
 
     public File getVolumePath(String volumeName) {

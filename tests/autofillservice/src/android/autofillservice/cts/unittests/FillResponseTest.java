@@ -16,7 +16,6 @@
 
 package android.autofillservice.cts.unittests;
 
-import static android.service.autofill.FillResponse.FLAG_DELAY_FILL;
 import static android.service.autofill.FillResponse.FLAG_DISABLE_ACTIVITY_ONLY;
 import static android.service.autofill.FillResponse.FLAG_TRACK_CONTEXT_COMMITED;
 
@@ -77,12 +76,12 @@ public class FillResponseTest {
                 () -> mBuilder.setAuthentication(mIds, null, mPresentation));
         // null presentation
         assertThrows(IllegalArgumentException.class,
-                () -> mBuilder.setAuthentication(mIds, mIntentSender, (RemoteViews) null));
+                () -> mBuilder.setAuthentication(mIds, mIntentSender, null));
     }
 
     @Test
     public void testBuilder_setAuthentication_valid() {
-        new FillResponse.Builder().setAuthentication(mIds, null, (RemoteViews) null);
+        new FillResponse.Builder().setAuthentication(mIds, null, null);
         new FillResponse.Builder().setAuthentication(mIds, mIntentSender, mPresentation);
     }
 
@@ -133,7 +132,6 @@ public class FillResponseTest {
         mBuilder.setFlags(0);
         mBuilder.setFlags(FLAG_TRACK_CONTEXT_COMMITED);
         mBuilder.setFlags(FLAG_DISABLE_ACTIVITY_ONLY);
-        mBuilder.setFlags(FLAG_DELAY_FILL);
     }
 
     @Test

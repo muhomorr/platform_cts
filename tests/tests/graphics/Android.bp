@@ -31,7 +31,6 @@ android_test {
         "ctsdeviceutillegacy-axt",
         "ctstestrunner-axt",
         "androidx.annotation_annotation",
-        "hamcrest-library",
         "junit",
         "junit-params",
         "testng",

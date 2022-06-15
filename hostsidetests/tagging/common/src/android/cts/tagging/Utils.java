@@ -21,7 +21,6 @@ public class Utils {
       System.loadLibrary("tagging-common-devicesidelib-jni");
     }
     public static native boolean kernelSupportsTaggedPointers();
-    public static native int getCurrentTaggingMode();
     public static native int nativeHeapPointerTag();
     public static native void accessMistaggedPointer();
     public static native boolean mistaggedKernelUaccessFails();

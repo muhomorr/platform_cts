@@ -15,17 +15,14 @@
  */
 package android.security.cts;
 
-import static android.os.Process.BLUETOOTH_UID;
+import org.junit.Test;
 
 import android.content.ComponentName;
 import android.content.Intent;
 import android.platform.test.annotations.AsbSecurityTest;
-
-import androidx.test.runner.AndroidJUnit4;
-
 import com.android.sts.common.util.StsExtraBusinessLogicTestCase;
 
-import org.junit.Test;
+import androidx.test.runner.AndroidJUnit4;
 import org.junit.runner.RunWith;
 
 @RunWith(AndroidJUnit4.class)
@@ -52,14 +49,9 @@ public class BluetoothIntentsTest extends StsExtraBusinessLogicTestCase {
   private void genericIntentTest(String action) throws SecurityException {
     try {
       Intent should_be_protected_broadcast = new Intent();
-
-      String bluetoothPackageName = getInstrumentation().getContext().getPackageManager()
-          .getPackagesForUid(BLUETOOTH_UID)[0];
-
-      ComponentName oppLauncherComponent = new ComponentName(bluetoothPackageName,
-          "com.android.bluetooth.opp.BluetoothOppReceiver");
-
-      should_be_protected_broadcast.setComponent(oppLauncherComponent);
+      should_be_protected_broadcast.setComponent(
+          new ComponentName("com.android.bluetooth",
+            "com.android.bluetooth.opp.BluetoothOppReceiver"));
       should_be_protected_broadcast.setAction(prefix + action);
       getInstrumentation().getContext().sendBroadcast(should_be_protected_broadcast);
     }

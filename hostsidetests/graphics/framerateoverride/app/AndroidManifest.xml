@@ -19,8 +19,7 @@
     <!-- targetSdkVersion for this test must be below 30 -->
     <uses-sdk android:targetSdkVersion="30"/>
     <application
-        android:debuggable="true"
-        android:appCategory="game">
+        android:debuggable="true">
         <uses-library android:name="android.test.runner" />
 
         <activity

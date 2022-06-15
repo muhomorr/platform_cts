@@ -18,7 +18,5 @@
 #define CTS_TESTS_TESTS_SECURITY_NATIVE_UTILS_H
 
 bool deviceSupportsFeature(const char *feature);
-int getFirstApiLevel();
-int getVendorApiLevel();
 
 #endif  // CTS_TESTS_TESTS_SECURITY_NATIVE_UTILS_H

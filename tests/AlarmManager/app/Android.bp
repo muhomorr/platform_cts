@@ -25,10 +25,7 @@ android_test_helper_app {
         "general-tests",
         "mts",
     ],
-    srcs: [
-        "src/**/*.java",
-        ":CtsAlarmTestHelperCommon",
-    ],
+    srcs: ["src/**/*.java"],
     dex_preopt: {
         enabled: false,
     },

@@ -16,38 +16,42 @@
 
 package com.android.cts.verifier.audio;
 
-import static com.android.cts.verifier.TestListActivity.sCurrentDisplayMode;
-import static com.android.cts.verifier.TestListAdapter.setTestNameSuffix;
+import com.android.compatibility.common.util.ReportLog;
+import com.android.compatibility.common.util.ResultType;
+import com.android.compatibility.common.util.ResultUnit;
 
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.res.Resources;
+
 import android.graphics.Color;
+
 import android.media.AudioDeviceCallback;
 import android.media.AudioDeviceInfo;
 import android.media.AudioManager;
+
 import android.os.Bundle;
 import android.os.Handler;
+
 import android.util.Log;
+
 import android.view.KeyEvent;
 import android.view.View;
+
 import android.widget.Button;
 import android.widget.TextView;
 
-import com.android.compatibility.common.util.CddTest;
-import com.android.compatibility.common.util.ResultType;
-import com.android.compatibility.common.util.ResultUnit;
 import com.android.cts.verifier.PassFailButtons;
-import com.android.cts.verifier.R;
+import com.android.cts.verifier.R;  // needed to access resource in CTSVerifier project namespace.
 
+// MegaPlayer
 import org.hyphonate.megaaudio.player.AudioSourceProvider;
 import org.hyphonate.megaaudio.player.JavaPlayer;
 import org.hyphonate.megaaudio.player.PlayerBuilder;
 import org.hyphonate.megaaudio.player.sources.SinAudioSourceProvider;
 
-@CddTest(requirement = "7.8.2.1/C-1-1,C-1-2,C-1-3,C-1-4,C-2-1")
 public class AnalogHeadsetAudioActivity
         extends PassFailButtons.Activity
         implements View.OnClickListener {
@@ -100,17 +104,6 @@ public class AnalogHeadsetAudioActivity
     static final int SAMPLE_RATE = 48000;
 
     JavaPlayer mAudioPlayer;
-
-    // ReportLog Schema
-    private static final String SECTION_ANALOG_HEADSET = "analog_headset_activity";
-    private static final String KEY_HAS_HEADSET_PORT = "has_headset_port";
-    private static final String KEY_HEADSET_PLUG_INTENT_STATE = "intent_received_state";
-    private static final String KEY_CLAIMS_HEADSET_PORT = "claims_headset_port";
-    private static final String KEY_HEADSET_CONNECTED = "headset_connected";
-    private static final String KEY_KEYCODE_HEADSETHOOK = "keycode_headset_hook";
-    private static final String KEY_KEYCODE_PLAY_PAUSE = "keycode_play_pause";
-    private static final String KEY_KEYCODE_VOLUME_UP = "keycode_volume_up";
-    private static final String KEY_KEYCODE_VOLUME_DOWN = "keycode_volume_down";
 
     public AnalogHeadsetAudioActivity() {
         super();
@@ -193,26 +186,10 @@ public class AnalogHeadsetAudioActivity
         }
     }
 
-    //
-    // PassFailButtons Overrides
-    //
-    @Override
-    public String getReportFileName() { return PassFailButtons.AUDIO_TESTS_REPORT_LOG_NAME; }
-
-    @Override
-    public final String getReportSectionName() {
-        return setTestNameSuffix(sCurrentDisplayMode, SECTION_ANALOG_HEADSET);
-    }
-
-    @Override
-    public void recordTestResults() {
-        getReportLog().submit();
-    }
-
     private void reportHeadsetPort(boolean has) {
         mHasHeadsetPort = has;
         getReportLog().addValue(
-                KEY_HAS_HEADSET_PORT,
+                "User Reports Headset Port",
                 has ? 1 : 0,
                 ResultType.NEUTRAL,
                 ResultUnit.NONE);
@@ -270,7 +247,7 @@ public class AnalogHeadsetAudioActivity
         }
 
         getReportLog().addValue(
-                KEY_HEADSET_PLUG_INTENT_STATE,
+                "ACTION_HEADSET_PLUG Intent Received. State: ",
                 state,
                 ResultType.NEUTRAL,
                 ResultUnit.NONE);
@@ -287,7 +264,7 @@ public class AnalogHeadsetAudioActivity
         getPassButton().setEnabled(calculatePass());
 
         getReportLog().addValue(
-                KEY_CLAIMS_HEADSET_PORT,
+                "User reported headset/headphones playback",
                 success ? 1 : 0,
                 ResultType.NEUTRAL,
                 ResultUnit.NONE);
@@ -374,21 +351,32 @@ public class AnalogHeadsetAudioActivity
     //
     @Override
     public void onClick(View view) {
-        int id = view.getId();
-        if (id == R.id.headset_analog_port_yes) {
-            reportHeadsetPort(true);
-        } else if (id == R.id.headset_analog_port_no) {
-            reportHeadsetPort(false);
-        } else if (id == R.id.headset_analog_play) {
-            startPlay();
-        } else if (id == R.id.headset_analog_stop) {
-            stopPlay();
-            mPlaybackSuccessBtn.setEnabled(true);
-            mPlaybackFailBtn.setEnabled(true);
-        } else if (id == R.id.headset_analog_play_yes) {
-            reportPlaybackStatus(true);
-        } else if (id == R.id.headset_analog_play_no) {
-            reportPlaybackStatus(false);
+        switch (view.getId()) {
+            case R.id.headset_analog_port_yes:
+                reportHeadsetPort(true);
+                break;
+
+            case R.id.headset_analog_port_no:
+                reportHeadsetPort(false);
+                break;
+
+            case R.id.headset_analog_play:
+                startPlay();
+                break;
+
+            case R.id.headset_analog_stop:
+                stopPlay();
+                mPlaybackSuccessBtn.setEnabled(true);
+                mPlaybackFailBtn.setEnabled(true);
+                break;
+
+            case R.id.headset_analog_play_yes:
+                reportPlaybackStatus(true);
+                break;
+
+            case R.id.headset_analog_play_no:
+                reportPlaybackStatus(false);
+                break;
         }
     }
 
@@ -401,17 +389,16 @@ public class AnalogHeadsetAudioActivity
             if (devInfo.getType() == AudioDeviceInfo.TYPE_WIRED_HEADSET ||
                     devInfo.getType() == AudioDeviceInfo.TYPE_WIRED_HEADPHONES) {
                 mHeadsetDeviceInfo = devInfo;
+
+                getReportLog().addValue(
+                        (devInfo.getType() == AudioDeviceInfo.TYPE_WIRED_HEADSET
+                                ? "Headset" : "Headphones") + " connected",
+                        0,
+                        ResultType.NEUTRAL,
+                        ResultUnit.NONE);
                 break;
             }
         }
-
-        getReportLog().addValue(
-                KEY_HEADSET_CONNECTED,
-                mHeadsetDeviceInfo != null ? 1 : 0,
-                ResultType.NEUTRAL,
-                ResultUnit.NONE);
-
-        reportHeadsetPort(mHeadsetDeviceInfo != null);
 
         showConnectedDevice();
     }
@@ -456,7 +443,7 @@ public class AnalogHeadsetAudioActivity
                 showKeyMessagesState();
                 getPassButton().setEnabled(calculatePass());
                 getReportLog().addValue(
-                        KEY_KEYCODE_HEADSETHOOK, 1, ResultType.NEUTRAL, ResultUnit.NONE);
+                        "KEYCODE_HEADSETHOOK", 1, ResultType.NEUTRAL, ResultUnit.NONE);
                 break;
 
             case KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE:
@@ -464,7 +451,7 @@ public class AnalogHeadsetAudioActivity
                 showKeyMessagesState();
                 getPassButton().setEnabled(calculatePass());
                 getReportLog().addValue(
-                        KEY_KEYCODE_PLAY_PAUSE, 1, ResultType.NEUTRAL, ResultUnit.NONE);
+                        "KEYCODE_MEDIA_PLAY_PAUSE", 1, ResultType.NEUTRAL, ResultUnit.NONE);
                 break;
 
             case KeyEvent.KEYCODE_VOLUME_UP:
@@ -472,7 +459,7 @@ public class AnalogHeadsetAudioActivity
                 showKeyMessagesState();
                 getPassButton().setEnabled(calculatePass());
                 getReportLog().addValue(
-                        KEY_KEYCODE_VOLUME_UP, 1, ResultType.NEUTRAL, ResultUnit.NONE);
+                        "KEYCODE_VOLUME_UP", 1, ResultType.NEUTRAL, ResultUnit.NONE);
                 break;
 
             case KeyEvent.KEYCODE_VOLUME_DOWN:
@@ -480,7 +467,7 @@ public class AnalogHeadsetAudioActivity
                 showKeyMessagesState();
                 getPassButton().setEnabled(calculatePass());
                 getReportLog().addValue(
-                        KEY_KEYCODE_VOLUME_DOWN, 1, ResultType.NEUTRAL, ResultUnit.NONE);
+                        "KEYCODE_VOLUME_DOWN", 1, ResultType.NEUTRAL, ResultUnit.NONE);
                 break;
         }
         return super.onKeyDown(keyCode, event);

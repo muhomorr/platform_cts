@@ -28,6 +28,8 @@ import android.test.suitebuilder.annotation.SmallTest;
 
 import androidx.annotation.Nullable;
 
+import com.android.compatibility.common.util.SystemUtil;
+
 import com.google.common.base.Strings;
 
 import org.junit.After;
@@ -127,11 +129,11 @@ public final class CarPowerManagerTest extends CarApiTestBase {
         if (!Strings.isNullOrEmpty(disabledComponents)) {
             command += " --disable " + disabledComponents;
         }
-        executeShellCommandWithPermission("android.car.permission.CAR_POWER", command);
+        executeShellCommandWithPermission(android.Manifest.permission.DEVICE_POWER, command);
     }
 
     private static void applyPowerPolicy(String policyId) throws Exception {
-        executeShellCommandWithPermission("android.car.permission.CONTROL_CAR_POWER_POLICY",
+        executeShellCommandWithPermission(android.Manifest.permission.DEVICE_POWER,
                 "cmd car_service apply-power-policy %s", policyId);
     }
 

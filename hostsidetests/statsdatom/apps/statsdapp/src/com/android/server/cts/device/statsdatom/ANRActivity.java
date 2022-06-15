@@ -41,8 +41,7 @@ public class ANRActivity extends Activity {
                   SystemClock.sleep(2);
                 }
             }
-        }, new IntentFilter(ACTION_ANR),
-        Context.RECEIVER_EXPORTED);
+        }, new IntentFilter(ACTION_ANR));
 
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
                 | WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED

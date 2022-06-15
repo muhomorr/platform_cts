@@ -32,7 +32,6 @@ android_test {
     ],
 
     min_sdk_version: "30",
-    target_sdk_version: "33",
     certificate: "media",
     java_resources: [":CtsTranscodeTestAppSupportsHevc", ":CtsTranscodeTestAppSupportsSlowMotion"]
 }

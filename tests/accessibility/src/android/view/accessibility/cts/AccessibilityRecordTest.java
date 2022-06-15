@@ -23,7 +23,6 @@ import static org.junit.Assert.assertSame;
 import android.accessibility.cts.common.AccessibilityDumpOnFailureRule;
 import android.os.Message;
 import android.platform.test.annotations.Presubmit;
-import android.view.Display;
 import android.view.accessibility.AccessibilityRecord;
 
 import androidx.test.filters.SmallTest;
@@ -105,8 +104,6 @@ public class AccessibilityRecordTest {
        TestCase.assertSame("scrollX not properly recycled", 0, record.getScrollX());
        TestCase.assertSame("scrollY not properly recycled", 0, record.getScrollY());
        TestCase.assertSame("toIndex not properly recycled", -1, record.getToIndex());
-       TestCase.assertSame("displayId not properly recycled", Display.INVALID_DISPLAY,
-               record.getDisplayId());
    }
 
     /**
@@ -135,7 +132,6 @@ public class AccessibilityRecordTest {
         record.setScrollY(1);
         record.setToIndex(1);
         record.setScrollable(true);
-        record.setDisplayId(Display.DEFAULT_DISPLAY);
     }
 
     static void assertEqualAccessibilityRecord(AccessibilityRecord expectedRecord,
@@ -177,8 +173,6 @@ public class AccessibilityRecordTest {
                 receivedRecord.getToIndex());
         assertSame("scrollable has incorrect value", expectedRecord.isScrollable(),
                 receivedRecord.isScrollable());
-        assertSame("displayId has incorrect value", expectedRecord.getDisplayId(),
-                receivedRecord.getDisplayId());
 
         assertFalse("one of the parcelableData is null",
                 expectedRecord.getParcelableData() == null

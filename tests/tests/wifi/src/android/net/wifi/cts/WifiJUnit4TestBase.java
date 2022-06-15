@@ -20,43 +20,43 @@ import android.content.Context;
 import android.location.LocationManager;
 import android.os.Process;
 import android.os.UserHandle;
+import android.test.AndroidTestCase;
 
 import androidx.test.platform.app.InstrumentationRegistry;
 
 import com.android.compatibility.common.util.ShellIdentityUtils;
 
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
+import org.junit.After;
+import org.junit.Before;
 
 /**
  * Base test for Wifi JUnit4 tests that enables/disables location
  */
 public abstract class WifiJUnit4TestBase {
 
-    private static LocationManager sLocationManager;
-    private static boolean sWasLocationEnabledForTest = false;
+    private LocationManager mLocationManager;
+    private boolean mWasLocationEnabledForTest = false;
 
-    @BeforeClass
-    public static void enableLocationIfNotEnabled() throws Exception {
+    @Before
+    public void enableLocationIfNotEnabled() throws Exception {
         Context context = InstrumentationRegistry.getInstrumentation().getContext();
 
-        sLocationManager = context.getSystemService(LocationManager.class);
-        if (!sLocationManager.isLocationEnabled()) {
+        mLocationManager = context.getSystemService(LocationManager.class);
+        if (!mLocationManager.isLocationEnabled()) {
             // Turn on location if it isn't on already
-            ShellIdentityUtils.invokeWithShellPermissions(
-                    () -> sLocationManager.setLocationEnabledForUser(
-                            true, UserHandle.getUserHandleForUid(Process.myUid())));
+            ShellIdentityUtils.invokeWithShellPermissions(() ->
+                mLocationManager.setLocationEnabledForUser(
+                    true, UserHandle.getUserHandleForUid(Process.myUid())));
 
-            sWasLocationEnabledForTest = true;
+            mWasLocationEnabledForTest = true;
         }
     }
 
-    @AfterClass
-    public static void disableLocationIfOriginallyDisabled() throws Exception {
-        if (sWasLocationEnabledForTest) {
-            ShellIdentityUtils.invokeWithShellPermissions(() ->
-                    sLocationManager.setLocationEnabledForUser(
-                            false, UserHandle.getUserHandleForUid(Process.myUid())));
+    @After
+    public void disableLocationIfOriginallyDisabled() throws Exception {
+        if (mWasLocationEnabledForTest) {
+            mLocationManager.setLocationEnabledForUser(
+                    false, UserHandle.getUserHandleForUid(Process.myUid()));
         }
     }
 }

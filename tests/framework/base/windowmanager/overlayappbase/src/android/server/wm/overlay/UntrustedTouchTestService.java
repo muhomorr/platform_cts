@@ -88,14 +88,12 @@ public class UntrustedTouchTestService extends Service {
         }
 
         @Override
-        public void showSystemAlertWindow(String name, float opacity, int viewX, int viewY) {
+        public void showSystemAlertWindow(String name, float opacity) {
             View view = getView(mSawContext);
             LayoutParams params = newOverlayLayoutParams(name,
                     LayoutParams.TYPE_APPLICATION_OVERLAY);
             params.setTitle(name);
             params.alpha = opacity;
-            params.x = viewX;
-            params.y = viewY;
             mMainHandler.post(() -> mSawWindowManager.addView(view, params));
             mViewManagers.put(view, mSawWindowManager);
         }

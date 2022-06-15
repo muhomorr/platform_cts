@@ -32,8 +32,8 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
-import static android.mediav2.cts.CodecTestBase.SupportClass.*;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 /**
  * The following test validates that the decode can be paused
@@ -43,12 +43,11 @@ public class CodecDecoderPauseTest extends CodecDecoderTestBase {
     private static final String LOG_TAG = CodecDecoderPauseTest.class.getSimpleName();
     private final long PAUSE_TIME_MS = 10000;
     private final int NUM_FRAMES = 8;
-    private final SupportClass mSupportRequirements;
+    private final int mSupport;
 
-    public CodecDecoderPauseTest(String decoder, String mime, String srcFile,
-            SupportClass supportRequirements) {
+    public CodecDecoderPauseTest(String decoder, String mime, String srcFile, int support) {
         super(decoder, mime, srcFile);
-        mSupportRequirements = supportRequirements;
+        mSupport = support;
     }
 
     @Parameterized.Parameters(name = "{index}({0}_{1})")
@@ -56,16 +55,14 @@ public class CodecDecoderPauseTest extends CodecDecoderTestBase {
         final boolean isEncoder = false;
         final boolean needAudio = true;
         final boolean needVideo = true;
-        /// mediaType, test file, SupportClass
+        // mime, source file, codecs required to support
         final List<Object[]> exhaustiveArgsList = Arrays.asList(new Object[][]{
                 {MediaFormat.MIMETYPE_AUDIO_AAC, "bbb_2ch_48kHz_he_aac.mp4", CODEC_ALL},
                 {MediaFormat.MIMETYPE_VIDEO_AVC, "bbb_cif_avc_delay16.mp4", CODEC_ALL},
                 {MediaFormat.MIMETYPE_VIDEO_H263, "bbb_176x144_128kbps_15fps_h263.3gp", CODEC_ALL},
                 {MediaFormat.MIMETYPE_VIDEO_HEVC, "bbb_cif_hevc_delay15.mp4", CODEC_ALL},
-                {MediaFormat.MIMETYPE_VIDEO_MPEG2, "bbb_640x360_512kbps_30fps_mpeg2_2b.mp4",
-                        CODEC_ALL},
-                {MediaFormat.MIMETYPE_VIDEO_MPEG4, "bbb_176x144_192kbps_15fps_mpeg4.mp4",
-                        CODEC_ALL},
+                {MediaFormat.MIMETYPE_VIDEO_MPEG2, "bbb_640x360_512kbps_30fps_mpeg2_2b.mp4", CODEC_ALL},
+                {MediaFormat.MIMETYPE_VIDEO_MPEG4, "bbb_176x144_192kbps_15fps_mpeg4.mp4", CODEC_ALL},
                 {MediaFormat.MIMETYPE_VIDEO_VP8, "bbb_640x360_512kbps_30fps_vp8.webm", CODEC_ALL},
                 {MediaFormat.MIMETYPE_VIDEO_VP9, "bbb_cif_768kbps_30fps_vp9.mkv", CODEC_ALL},
         });
@@ -81,7 +78,16 @@ public class CodecDecoderPauseTest extends CodecDecoderTestBase {
         ArrayList<MediaFormat> formats = new ArrayList<>();
         formats.add(setUpSource(mTestFile));
         mExtractor.release();
-        checkFormatSupport(mCodecName, mMime, false, formats, null, mSupportRequirements);
+        if (!areFormatsSupported(mCodecName, mMime, formats)) {
+            if (mSupport == CODEC_ALL) {
+                fail("format(s) not supported by component: " + mCodecName + " for mime : " +
+                        mMime);
+            }
+            if (mSupport != CODEC_OPTIONAL && selectCodecs(mMime, formats, null, false).isEmpty()) {
+                fail("format(s) not supported by any component for mime : " + mMime);
+            }
+            return;
+        }
         final boolean isAsync = true;
         MediaFormat format = setUpSource(mTestFile);
         {

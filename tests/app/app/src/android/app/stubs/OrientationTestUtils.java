@@ -21,7 +21,6 @@ import static org.junit.Assert.assertTrue;
 import android.app.Activity;
 import android.content.pm.ActivityInfo;
 import android.content.res.Resources;
-import android.graphics.Rect;
 import android.view.DisplayInfo;
 
 import java.util.concurrent.CountDownLatch;
@@ -60,8 +59,9 @@ public class OrientationTestUtils {
      */
     private static int[] getOrientations(final Activity activity) {
         // Check the display dimension to get the current device orientation.
-        Rect bounds = activity.getWindowManager().getCurrentWindowMetrics().getBounds();
-        final int originalOrientation = bounds.width() > bounds.height()
+        final DisplayInfo displayInfo = new DisplayInfo();
+        activity.getDisplay().getDisplayInfo(displayInfo);
+        final int originalOrientation = displayInfo.logicalWidth > displayInfo.logicalHeight
                 ? ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
                 : ActivityInfo.SCREEN_ORIENTATION_PORTRAIT;
         final int newOrientation = originalOrientation == ActivityInfo.SCREEN_ORIENTATION_PORTRAIT

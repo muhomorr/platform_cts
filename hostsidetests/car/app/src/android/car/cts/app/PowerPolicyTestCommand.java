@@ -19,25 +19,38 @@ package android.car.cts.app;
 import android.car.hardware.power.CarPowerPolicy;
 import android.util.Log;
 
+import com.android.compatibility.common.util.PollingCheck;
+
 import java.util.Arrays;
 
 
 public abstract class PowerPolicyTestCommand {
+    enum TestCommandType {
+        SET_TEST,
+        CLEAR_TEST,
+        DUMP_POLICY,
+        ADD_LISTENER,
+        REMOVE_LISTENER,
+        DUMP_LISTENER,
+        RESET_LISTENERS,
+        WAIT_LISTENERS
+    }
+
     private static final String TAG = PowerPolicyTestCommand.class.getSimpleName();
     private static final String NO_POLICY = "null";
+    private static final int TEST_WAIT_DURATION_MS = 5_000;
 
-    private final PowerPolicyTestCommandType mType;
+    private final TestCommandType mType;
     protected final PowerPolicyTestClient mTestClient;
     protected final String mData;
 
-    PowerPolicyTestCommand(PowerPolicyTestClient testClient, String data,
-            PowerPolicyTestCommandType type) {
+    PowerPolicyTestCommand(PowerPolicyTestClient testClient, String data, TestCommandType type) {
         mTestClient = testClient;
         mData = data;
         mType = type;
     }
 
-    PowerPolicyTestCommandType getType() {
+    TestCommandType getType() {
         return mType;
     }
 
@@ -53,7 +66,7 @@ public abstract class PowerPolicyTestCommand {
 
     static final class SetTestCommand extends PowerPolicyTestCommand {
         SetTestCommand(PowerPolicyTestClient testClient, String data) {
-            super(testClient, data, PowerPolicyTestCommandType.SET_TEST);
+            super(testClient, data, TestCommandType.SET_TEST);
         }
 
         @Override
@@ -67,7 +80,7 @@ public abstract class PowerPolicyTestCommand {
 
     static final class ClearTestCommand extends PowerPolicyTestCommand {
         ClearTestCommand(PowerPolicyTestClient testClient) {
-            super(testClient, /* data = */ null, PowerPolicyTestCommandType.CLEAR_TEST);
+            super(testClient, /* data = */ null, TestCommandType.CLEAR_TEST);
         }
 
         @Override
@@ -81,7 +94,7 @@ public abstract class PowerPolicyTestCommand {
 
     static final class DumpPolicyCommand extends PowerPolicyTestCommand {
         DumpPolicyCommand(PowerPolicyTestClient testClient) {
-            super(testClient, /* data = */ null, PowerPolicyTestCommandType.DUMP_POLICY);
+            super(testClient, /* data = */ null, TestCommandType.DUMP_POLICY);
         }
 
         @Override
@@ -113,7 +126,7 @@ public abstract class PowerPolicyTestCommand {
 
     static final class AddListenerCommand extends PowerPolicyTestCommand {
         AddListenerCommand(PowerPolicyTestClient testClient, String compName) {
-            super(testClient, compName, PowerPolicyTestCommandType.ADD_LISTENER);
+            super(testClient, compName, TestCommandType.ADD_LISTENER);
         }
 
         @Override
@@ -122,9 +135,9 @@ public abstract class PowerPolicyTestCommand {
             mTestClient.printResultHeader(getType().name());
             try {
                 mTestClient.registerPowerPolicyListener(mData);
-                mTestClient.printlnResult(PowerPolicyTestCommandStatus.SUCCEED);
+                mTestClient.printlnResult("succeed");
             } catch (Exception e) {
-                mTestClient.printlnResult(PowerPolicyTestCommandStatus.FAILED);
+                mTestClient.printlnResult("failed");
                 Log.e(TAG, "failed to addListener", e);
             }
         }
@@ -132,7 +145,7 @@ public abstract class PowerPolicyTestCommand {
 
     static final class RemoveListenerCommand extends PowerPolicyTestCommand {
         RemoveListenerCommand(PowerPolicyTestClient testClient, String compName) {
-            super(testClient, compName, PowerPolicyTestCommandType.REMOVE_LISTENER);
+            super(testClient, compName, TestCommandType.REMOVE_LISTENER);
         }
 
         @Override
@@ -141,9 +154,9 @@ public abstract class PowerPolicyTestCommand {
             mTestClient.printResultHeader(getType().name());
             try {
                 mTestClient.unregisterPowerPolicyListener(mData);
-                mTestClient.printlnResult(PowerPolicyTestCommandStatus.SUCCEED);
+                mTestClient.printlnResult("succeed");
             } catch (Exception e) {
-                mTestClient.printlnResult(PowerPolicyTestCommandStatus.FAILED);
+                mTestClient.printlnResult("failed");
                 Log.e(TAG, "failed to removeListener", e);
             }
         }
@@ -151,7 +164,7 @@ public abstract class PowerPolicyTestCommand {
 
     static final class DumpListenerCommand extends PowerPolicyTestCommand {
         DumpListenerCommand(PowerPolicyTestClient testClient, String compName) {
-            super(testClient, compName, PowerPolicyTestCommandType.DUMP_LISTENER);
+            super(testClient, compName, TestCommandType.DUMP_LISTENER);
         }
 
         @Override
@@ -173,28 +186,30 @@ public abstract class PowerPolicyTestCommand {
         }
     }
 
-    static final class CheckListenersCommand extends PowerPolicyTestCommand {
-        CheckListenersCommand(PowerPolicyTestClient testClient) {
-            super(testClient, /* data = */ null, PowerPolicyTestCommandType.CHECK_LISTENERS);
+    static final class WaitListenersCommand extends PowerPolicyTestCommand {
+        WaitListenersCommand(PowerPolicyTestClient testClient) {
+            super(testClient, /* data = */ null, TestCommandType.WAIT_LISTENERS);
         }
 
         @Override
         public void execute() {
             Log.d(TAG, "waitListeners: " + mTestClient.getTestcase());
             mTestClient.printResultHeader(getType().name());
-            if (mTestClient.arePowerPolicyListenersUpdated()) {
-                mTestClient.printlnResult(PowerPolicyTestCommandStatus.PROPAGATED);
+            try {
+                PollingCheck.check("policy change isn't propagated", TEST_WAIT_DURATION_MS,
+                        () -> mTestClient.arePowerPolicyListenersUpdated());
+                mTestClient.printlnResult("propagated");
                 Log.d(TAG, "policy change is propagated");
-            } else {
-                mTestClient.printlnResult(PowerPolicyTestCommandStatus.IN_PROGRESS);
-                Log.d(TAG, "policy change is in-progress");
+            } catch (Exception e) {
+                mTestClient.printlnResult("not_propagated");
+                Log.d(TAG, "failed propagate power policy", e);
             }
         }
     }
 
     static final class ResetListenersCommand extends PowerPolicyTestCommand {
         ResetListenersCommand(PowerPolicyTestClient testClient) {
-            super(testClient, /* data = */ null, PowerPolicyTestCommandType.RESET_LISTENERS);
+            super(testClient, /* data = */ null, TestCommandType.RESET_LISTENERS);
         }
 
         @Override
@@ -203,9 +218,9 @@ public abstract class PowerPolicyTestCommand {
             mTestClient.printResultHeader(getType().name());
             try {
                 mTestClient.resetPowerPolicyListeners();
-                mTestClient.printlnResult(PowerPolicyTestCommandStatus.SUCCEED);
+                mTestClient.printlnResult("succeed");
             } catch (Exception e) {
-                mTestClient.printlnResult(PowerPolicyTestCommandStatus.FAILED);
+                mTestClient.printlnResult("failed");
             }
         }
     }

@@ -18,12 +18,10 @@ package android.mediav2.cts;
 
 import android.media.MediaFormat;
 
-import androidx.test.ext.junit.rules.ActivityScenarioRule;
 import androidx.test.filters.SmallTest;
+import androidx.test.rule.ActivityTestRule;
 
-import org.junit.After;
 import org.junit.Assume;
-import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -42,7 +40,6 @@ public class DecoderColorAspectsTest extends CodecDecoderTestBase {
     private final int mColorStandard;
     private final int mColorTransferCurve;
     private final boolean mCanIgnoreColorBox;
-
     private ArrayList<String> mCheckESList;
 
     public DecoderColorAspectsTest(String decoderName, String mime, String testFile, int range,
@@ -238,19 +235,8 @@ public class DecoderColorAspectsTest extends CodecDecoderTestBase {
     }
 
     @Rule
-    public ActivityScenarioRule<CodecTestActivity> mActivityRule =
-            new ActivityScenarioRule<>(CodecTestActivity.class);
-
-    @Before
-    public void setUp() throws IOException, InterruptedException {
-        mActivityRule.getScenario().onActivity(activity -> mActivity = activity);
-        setUpSurface(mActivity);
-    }
-
-    @After
-    public void tearDown() {
-        tearDownSurface();
-    }
+    public ActivityTestRule<CodecTestActivity> mActivityRule =
+            new ActivityTestRule<>(CodecTestActivity.class);
 
     @SmallTest
     @Test(timeout = PER_TEST_TIMEOUT_SMALL_TEST_MS)
@@ -263,7 +249,9 @@ public class DecoderColorAspectsTest extends CodecDecoderTestBase {
         if (doesAnyFormatHaveHDRProfile(mMime, formats)) {
             Assume.assumeTrue(canDisplaySupportHDRContent());
         }
-        mActivity.setScreenParams(getWidth(format), getHeight(format), true);
+        CodecTestActivity activity = mActivityRule.getActivity();
+        setUpSurface(activity);
+        activity.setScreenParams(getWidth(format), getHeight(format), true);
         {
             validateColorAspects(mCodecName, mInpPrefix, mTestFile, mColorRange, mColorStandard,
                     mColorTransferCurve, false);
@@ -274,5 +262,6 @@ public class DecoderColorAspectsTest extends CodecDecoderTestBase {
                         mColorStandard, mColorTransferCurve, true);
             }
         }
+        tearDownSurface();
     }
 }

@@ -114,21 +114,10 @@ public class Settings_SecureTest {
         } catch (SettingNotFoundException expected) {
         }
 
-        if (!isFloat(Secure.getString(cr, STRING_VALUE_SETTING))) {
-            try {
-                Secure.getFloat(cr, STRING_VALUE_SETTING);
-                fail("SettingNotFoundException should have been thrown!");
-            } catch (SettingNotFoundException expected) {
-            }
-        }
-    }
-
-    private boolean isFloat(String str) {
         try {
-            Float.parseFloat(str);
-            return true;
-        } catch (NumberFormatException e) {
-            return false;
+            Secure.getFloat(cr, STRING_VALUE_SETTING);
+            fail("SettingNotFoundException should have been thrown!");
+        } catch (SettingNotFoundException expected) {
         }
     }
 
@@ -148,21 +137,10 @@ public class Settings_SecureTest {
         } catch (SettingNotFoundException expected) {
         }
 
-        if (!isLong(Secure.getString(cr, STRING_VALUE_SETTING))) {
-            try {
-                Secure.getLong(cr, STRING_VALUE_SETTING);
-                fail("SettingNotFoundException should have been thrown!");
-            } catch (SettingNotFoundException expected) {
-            }
-        }
-    }
-
-    private boolean isLong(String str) {
         try {
-            Long.parseLong(str);
-            return true;
-        } catch (NumberFormatException e) {
-            return false;
+            Secure.getLong(cr, STRING_VALUE_SETTING);
+            fail("SettingNotFoundException should have been thrown!");
+        } catch (SettingNotFoundException expected) {
         }
     }
 

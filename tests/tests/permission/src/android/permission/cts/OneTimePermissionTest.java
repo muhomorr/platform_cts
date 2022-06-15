@@ -34,7 +34,6 @@ import android.content.pm.PackageManager;
 import android.provider.DeviceConfig;
 import android.support.test.uiautomator.By;
 import android.support.test.uiautomator.UiDevice;
-import android.support.test.uiautomator.UiObject2;
 
 import androidx.test.platform.app.InstrumentationRegistry;
 
@@ -61,7 +60,6 @@ public class OneTimePermissionTest {
             "android.permission.cts.OneTimePermissionTest.EXTRA_FOREGROUND_SERVICE_STICKY";
 
     private static final long ONE_TIME_TIMEOUT_MILLIS = 5000;
-    private static final long ONE_TIME_KILLED_DELAY_MILLIS = 5000;
     private static final long ONE_TIME_TIMER_LOWER_GRACE_PERIOD = 1000;
     private static final long ONE_TIME_TIMER_UPPER_GRACE_PERIOD = 10000;
 
@@ -73,7 +71,6 @@ public class OneTimePermissionTest {
             mContext.getSystemService(ActivityManager.class);
 
     private String mOldOneTimePermissionTimeoutValue;
-    private String mOldOneTimePermissionKilledDelayValue;
 
     @Rule
     public IgnoreAllTestsRule mIgnoreAutomotive = new IgnoreAllTestsRule(
@@ -96,13 +93,8 @@ public class OneTimePermissionTest {
         runWithShellPermissionIdentity(() -> {
             mOldOneTimePermissionTimeoutValue = DeviceConfig.getProperty("permissions",
                     "one_time_permissions_timeout_millis");
-            mOldOneTimePermissionKilledDelayValue = DeviceConfig.getProperty("permissions",
-                    "one_time_permissions_killed_delay_millis");
             DeviceConfig.setProperty("permissions", "one_time_permissions_timeout_millis",
                     Long.toString(ONE_TIME_TIMEOUT_MILLIS), false);
-            DeviceConfig.setProperty("permissions",
-                    "one_time_permissions_killed_delay_millis",
-                    Long.toString(ONE_TIME_KILLED_DELAY_MILLIS), false);
         });
     }
 
@@ -114,13 +106,8 @@ public class OneTimePermissionTest {
     @After
     public void restoreDeviceForOneTime() {
         runWithShellPermissionIdentity(
-                () -> {
-                    DeviceConfig.setProperty("permissions", "one_time_permissions_timeout_millis",
-                            mOldOneTimePermissionTimeoutValue, false);
-                    DeviceConfig.setProperty("permissions",
-                            "one_time_permissions_killed_delay_millis",
-                            mOldOneTimePermissionKilledDelayValue, false);
-                });
+                () -> DeviceConfig.setProperty("permissions", "one_time_permissions_timeout_millis",
+                        mOldOneTimePermissionTimeoutValue, false));
     }
 
     @Test
@@ -269,10 +256,9 @@ public class OneTimePermissionTest {
     }
 
     private void clickOneTimeButton() throws Throwable {
-        final UiObject2 uiObject = UiAutomatorUtils.waitFindObject(By.res(
-                "com.android.permissioncontroller:id/permission_allow_one_time_button"), 10000);
-        Thread.sleep(500);
-        uiObject.click();
+        UiAutomatorUtils.waitFindObject(By.res(
+                "com.android.permissioncontroller:id/permission_allow_one_time_button"), 10000)
+                .click();
     }
 
     /**

@@ -46,12 +46,4 @@ android_test {
         "src/**/*.kt",
     ],
     platform_apis: true,
-    data: [
-        ":CtsVpnFirewallApp",
-        ":PipTestApp",
-        ":CtsMockInputMethod",
-        ":AudioRecorderTestApp_AudioRecord",
-        ":AudioRecorderTestApp_MediaRecorder",
-    ],
-    per_testcase_directory: true,
 }

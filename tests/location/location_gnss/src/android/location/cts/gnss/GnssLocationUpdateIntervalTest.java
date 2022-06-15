@@ -16,9 +16,6 @@
 
 package android.location.cts.gnss;
 
-import static android.Manifest.permission.ACCESS_COARSE_LOCATION;
-import static android.Manifest.permission.ACCESS_FINE_LOCATION;
-
 import android.location.Location;
 import android.location.LocationManager;
 import android.location.cts.common.GnssTestCase;
@@ -27,8 +24,6 @@ import android.location.cts.common.TestGnssMeasurementListener;
 import android.location.cts.common.TestLocationListener;
 import android.location.cts.common.TestLocationManager;
 import android.location.cts.common.TestMeasurementUtil;
-import android.location.cts.common.TestUtils;
-import android.platform.test.annotations.AppModeFull;
 import android.util.Log;
 
 import junit.framework.Assert;
@@ -94,25 +89,13 @@ public class GnssLocationUpdateIntervalTest extends GnssTestCase {
     /**
      * Tests the location update intervals are within expected thresholds.
      */
-    @AppModeFull(reason = "Instant apps cannot access package manager to scan for permissions")
     public void testLocationUpdatesAtVariousIntervals() throws Exception {
         if (!TestMeasurementUtil.canTestRunOnCurrentDevice(mTestLocationManager, TAG)) {
             return;
         }
 
-        // Revoke location permissions from packages before running GnssStatusTest stops
-        // active location requests, allowing this test to receive all necessary Gnss callbacks.
-        List<String> courseLocationPackages = TestUtils.revokePermissions(ACCESS_COARSE_LOCATION);
-        List<String> fineLocationPackages = TestUtils.revokePermissions(ACCESS_FINE_LOCATION);
-
-        try {
-            for (int fixIntervalMillis : FIX_INTERVALS_MILLIS) {
-                testLocationUpdatesAtInterval(fixIntervalMillis);
-            }
-        } finally {
-            // For each location package, re-grant the permission
-            TestUtils.grantLocationPermissions(ACCESS_COARSE_LOCATION, courseLocationPackages);
-            TestUtils.grantLocationPermissions(ACCESS_FINE_LOCATION, fineLocationPackages);
+        for (int fixIntervalMillis : FIX_INTERVALS_MILLIS) {
+            testLocationUpdatesAtInterval(fixIntervalMillis);
         }
     }
 

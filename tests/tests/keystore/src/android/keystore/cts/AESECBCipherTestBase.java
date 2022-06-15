@@ -16,13 +16,9 @@
 
 package android.keystore.cts;
 
-import static org.junit.Assert.fail;
-
 import java.security.AlgorithmParameters;
 import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.InvalidParameterSpecException;
-
-import org.junit.Test;
 
 abstract class AESECBCipherTestBase extends BlockCipherTestBase {
 
@@ -59,7 +55,6 @@ abstract class AESECBCipherTestBase extends BlockCipherTestBase {
         return null;
     }
 
-    @Test
     public void testInitRejectsIvParameterSpec() throws Exception {
         assertInitRejectsIvParameterSpec(new byte[getBlockSize()]);
     }

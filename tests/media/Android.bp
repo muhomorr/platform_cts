@@ -21,7 +21,6 @@ android_test {
     defaults: ["cts_defaults"],
     compile_multilib: "both",
     static_libs: [
-        "androidx.test.core",
         "compatibility-device-util-axt",
         "ctstestrunner-axt",
         "ctstestserver",

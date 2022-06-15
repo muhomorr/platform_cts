@@ -8,15 +8,5 @@
         }
       ]
     }
-  ],
-  "hwasan-postsubmit": [
-    {
-      "name": "CtsVoiceInteractionTestCases",
-      "options": [
-        {
-          "exclude-annotation": "androidx.test.filters.FlakyTest"
-        }
-      ]
-    }
   ]
 }

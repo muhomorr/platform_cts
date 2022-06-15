@@ -20,6 +20,7 @@ import android.platform.test.annotations.AsbSecurityTest;
 
 import com.android.compatibility.common.tradefed.build.CompatibilityBuildHelper;
 import com.android.compatibility.common.util.ApiLevelUtil;
+
 import com.android.tradefed.device.DeviceNotAvailableException;
 
 import com.google.common.collect.ImmutableSet;
@@ -128,30 +129,6 @@ public class DocumentsTest extends DocumentsTestCase {
         runDeviceTests(CLIENT_PKG, ".DocumentsClientTest", "testEject");
     }
 
-    public void testScopeStorageAtInitLocationRootWithDot_blockFromTree() throws Exception {
-        if (isAtLeastT()) {
-            // From BUILD.VERSION_CODES.S, scope storage is enabled in default
-            runDeviceTests(CLIENT_PKG, ".DocumentsClientTest",
-                    "testScopeStorageAtInitLocationRootWithDot_blockFromTree");
-        }
-    }
-
-    public void testScopeStorageAtInitLocationAndroidData_blockFromTree() throws Exception {
-        if (isAtLeastT()) {
-            // From BUILD.VERSION_CODES.S, scope storage is enabled in default
-            runDeviceTests(CLIENT_PKG, ".DocumentsClientTest",
-                    "testScopeStorageAtInitLocationAndroidData_blockFromTree");
-        }
-    }
-
-    public void testScopeStorageAtInitLocationAndroidObb_blockFromTree() throws Exception {
-        if (isAtLeastT()) {
-            // From BUILD.VERSION_CODES.S, scope storage is enabled in default
-            runDeviceTests(CLIENT_PKG, ".DocumentsClientTest",
-                    "testScopeStorageAtInitLocationAndroidObb_blockFromTree");
-        }
-    }
-
     public void testRestrictStorageAccessFrameworkEnabled_blockFromTree() throws Exception {
         if (isAtLeastR() && isSupportedHardware()) {
             runDeviceCompatTestReported(CLIENT_PKG, ".DocumentsClientTest",
@@ -195,14 +172,6 @@ public class DocumentsTest extends DocumentsTestCase {
         try {
             return ApiLevelUtil.isAfter(getDevice(), 30 /* BUILD.VERSION_CODES.R */)
                 || ApiLevelUtil.codenameEquals(getDevice(), "S");
-        } catch (Exception e) {
-            return false;
-        }
-    }
-
-    private boolean isAtLeastT() {
-        try {
-            return ApiLevelUtil.isAfter(getDevice(), 32 /* BUILD.VERSION_CODES.S_V2 */);
         } catch (Exception e) {
             return false;
         }

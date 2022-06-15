@@ -16,8 +16,6 @@
 
 package com.android.queryable.queries;
 
-import static com.android.bedstead.nene.utils.ParcelTest.assertParcelsCorrectly;
-
 import static com.google.common.truth.Truth.assertThat;
 
 import com.android.queryable.Queryable;
@@ -73,7 +71,7 @@ public class BooleanQueryHelperTest {
     @Test
     public void matches_equalsTrue_valueIsTrue_returnsTrue() {
         BooleanQueryHelper<Queryable> booleanQueryHelper = new BooleanQueryHelper<>(mQuery);
-        booleanQueryHelper.isEqualTo(true);
+        booleanQueryHelper.equals(true);
 
         assertThat(booleanQueryHelper.matches(true)).isTrue();
     }
@@ -81,7 +79,7 @@ public class BooleanQueryHelperTest {
     @Test
     public void matches_equalsTrue_valueIsFalse_returnsFalse() {
         BooleanQueryHelper<Queryable> booleanQueryHelper = new BooleanQueryHelper<>(mQuery);
-        booleanQueryHelper.isEqualTo(true);
+        booleanQueryHelper.equals(true);
 
         assertThat(booleanQueryHelper.matches(false)).isFalse();
     }
@@ -89,7 +87,7 @@ public class BooleanQueryHelperTest {
     @Test
     public void matches_equalsFalse_valueIsTrue_returnsFalse() {
         BooleanQueryHelper<Queryable> booleanQueryHelper = new BooleanQueryHelper<>(mQuery);
-        booleanQueryHelper.isEqualTo(false);
+        booleanQueryHelper.equals(false);
 
         assertThat(booleanQueryHelper.matches(true)).isFalse();
     }
@@ -97,18 +95,9 @@ public class BooleanQueryHelperTest {
     @Test
     public void matches_equalsFalse_valueIsFalse_returnsTrue() {
         BooleanQueryHelper<Queryable> booleanQueryHelper = new BooleanQueryHelper<>(mQuery);
-        booleanQueryHelper.isEqualTo(false);
+        booleanQueryHelper.equals(false);
 
         assertThat(booleanQueryHelper.matches(false)).isTrue();
-    }
-
-    @Test
-    public void parcel_parcelsCorrectly() {
-        BooleanQueryHelper<Queryable> booleanQueryHelper = new BooleanQueryHelper<>(mQuery);
-
-        booleanQueryHelper.isTrue();
-
-        assertParcelsCorrectly(BooleanQueryHelper.class, booleanQueryHelper);
     }
 
 }

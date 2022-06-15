@@ -17,11 +17,10 @@
 //#define LOG_NDEBUG 0
 #define LOG_TAG "NativeCodecEncoderSurfaceTest"
 #include <log/log.h>
-
 #include <android/native_window_jni.h>
+#include <NdkMediaExtractor.h>
+#include <NdkMediaMuxer.h>
 #include <jni.h>
-#include <media/NdkMediaExtractor.h>
-#include <media/NdkMediaMuxer.h>
 #include <sys/stat.h>
 
 #include "NativeCodecTestBase.h"
@@ -59,7 +58,7 @@ class CodecEncoderSurfaceTest {
     OutputManager mTestBuff;
     bool mSaveToMem;
 
-    bool setUpExtractor(const char* srcPath, int colorFormat);
+    bool setUpExtractor(const char* srcPath);
     void deleteExtractor();
     bool configureCodec(bool isAsync, bool signalEOSWithLastFrame);
     void resetContext(bool isAsync, bool signalEOSWithLastFrame);
@@ -79,7 +78,7 @@ class CodecEncoderSurfaceTest {
     ~CodecEncoderSurfaceTest();
 
     bool testSimpleEncode(const char* encoder, const char* decoder, const char* srcPath,
-                          const char* muxOutPath, int colorFormat);
+                          const char* muxOutPath);
 };
 
 CodecEncoderSurfaceTest::CodecEncoderSurfaceTest(const char* mime, int bitrate, int framerate)
@@ -122,7 +121,7 @@ CodecEncoderSurfaceTest::~CodecEncoderSurfaceTest() {
     }
 }
 
-bool CodecEncoderSurfaceTest::setUpExtractor(const char* srcFile, int colorFormat) {
+bool CodecEncoderSurfaceTest::setUpExtractor(const char* srcFile) {
     FILE* fp = fopen(srcFile, "rbe");
     struct stat buf {};
     if (fp && !fstat(fileno(fp), &buf)) {
@@ -141,7 +140,7 @@ bool CodecEncoderSurfaceTest::setUpExtractor(const char* srcFile, int colorForma
                 if (mime && strncmp(mime, "video/", strlen("video/")) == 0) {
                     AMediaExtractor_selectTrack(mExtractor, trackID);
                     AMediaFormat_setInt32(currFormat, AMEDIAFORMAT_KEY_COLOR_FORMAT,
-                                          colorFormat);
+                                          COLOR_FormatYUV420Flexible);
                     mDecFormat = currFormat;
                     break;
                 }
@@ -498,10 +497,9 @@ bool CodecEncoderSurfaceTest::doWork(int frameLimit) {
 }
 
 bool CodecEncoderSurfaceTest::testSimpleEncode(const char* encoder, const char* decoder,
-                                               const char* srcPath, const char* muxOutPath,
-                                               int colorFormat) {
+                                               const char* srcPath, const char* muxOutPath) {
     bool isPass = true;
-    if (!setUpExtractor(srcPath, colorFormat)) {
+    if (!setUpExtractor(srcPath)) {
         ALOGE("setUpExtractor failed");
         return false;
     }
@@ -600,7 +598,7 @@ bool CodecEncoderSurfaceTest::testSimpleEncode(const char* encoder, const char* 
 
 static jboolean nativeTestSimpleEncode(JNIEnv* env, jobject, jstring jEncoder, jstring jDecoder,
                                        jstring jMime, jstring jtestFile, jstring jmuxFile,
-                                       jint jBitrate, jint jFramerate, jint jColorFormat) {
+                                       jint jBitrate, jint jFramerate) {
     const char* cEncoder = env->GetStringUTFChars(jEncoder, nullptr);
     const char* cDecoder = env->GetStringUTFChars(jDecoder, nullptr);
     const char* cMime = env->GetStringUTFChars(jMime, nullptr);
@@ -609,8 +607,7 @@ static jboolean nativeTestSimpleEncode(JNIEnv* env, jobject, jstring jEncoder, j
     auto codecEncoderSurfaceTest =
             new CodecEncoderSurfaceTest(cMime, (int)jBitrate, (int)jFramerate);
     bool isPass =
-            codecEncoderSurfaceTest->testSimpleEncode(cEncoder, cDecoder, cTestFile, cMuxFile,
-                                                      jColorFormat);
+            codecEncoderSurfaceTest->testSimpleEncode(cEncoder, cDecoder, cTestFile, cMuxFile);
     delete codecEncoderSurfaceTest;
     env->ReleaseStringUTFChars(jEncoder, cEncoder);
     env->ReleaseStringUTFChars(jDecoder, cDecoder);
@@ -624,7 +621,7 @@ int registerAndroidMediaV2CtsEncoderSurfaceTest(JNIEnv* env) {
     const JNINativeMethod methodTable[] = {
             {"nativeTestSimpleEncode",
              "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/"
-             "String;III)Z",
+             "String;II)Z",
              (void*)nativeTestSimpleEncode},
     };
     jclass c = env->FindClass("android/mediav2/cts/CodecEncoderSurfaceTest");

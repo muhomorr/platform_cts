@@ -40,10 +40,4 @@ android_test {
     srcs: ["src/**/*.java"],
 
     sdk_version: "test_current",
-    data: [
-        ":CtsSharesheetExcludeTester",
-        ":CtsSharesheetActivityLabelTester",
-        ":CtsSharesheetIntentFilterLabelTester",
-    ],
-    per_testcase_directory: true,
 }

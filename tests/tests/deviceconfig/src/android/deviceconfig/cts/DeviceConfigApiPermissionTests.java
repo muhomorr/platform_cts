@@ -66,7 +66,6 @@ public final class DeviceConfigApiPermissionTests {
         // setters without write permission
         trySetPropertyWithoutWritePermission(violations);
         trySetPropertiesWithoutWritePermission(violations);
-        tryDeletePropertyWithoutWritePermission(violations);
 
         // getters without read permission
         tryGetPropertyWithoutReadPermission(violations);
@@ -121,7 +120,6 @@ public final class DeviceConfigApiPermissionTests {
         // setters without write permission
         trySetPropertyWithoutWritePermission(violations);
         trySetPropertiesWithoutWritePermission(violations);
-        tryDeletePropertyWithoutWritePermission(violations);
 
         // getters with read permission
         tryGetPropertyWithReadPermission(violations);
@@ -276,15 +274,6 @@ public final class DeviceConfigApiPermissionTests {
         } catch (DeviceConfig.BadConfigException e) {
             addExceptionToViolations(violations, "DeviceConfig.setProperties() should not throw "
                     + "BadConfigException without a known bad configuration.", e);
-        } catch (SecurityException e) {
-        }
-    }
-
-    private void tryDeletePropertyWithoutWritePermission(StringBuilder violations) {
-        try {
-            DeviceConfig.deleteProperty(NAMESPACE, KEY);
-            violations.append("DeviceConfig.deleteProperty() must not be accessible without "
-                    + "WRITE_DEVICE_CONFIG permission.\n");
         } catch (SecurityException e) {
         }
     }

@@ -34,14 +34,4 @@ public class WifiFeature {
         final PackageManager pm = context.getPackageManager();
         return pm.hasSystemFeature(PackageManager.FEATURE_TELEPHONY);
     }
-
-    public static boolean isRttSupported(Context context) {
-        final PackageManager pm = context.getPackageManager();
-        return pm.hasSystemFeature(PackageManager.FEATURE_WIFI_RTT);
-    }
-
-    public static boolean isAwareSupported(Context context) {
-        final PackageManager pm = context.getPackageManager();
-        return pm.hasSystemFeature(PackageManager.FEATURE_WIFI_AWARE);
-    }
 }

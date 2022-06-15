@@ -16,40 +16,16 @@
 
 package android.os.cts;
 
-import static com.android.compatibility.common.util.SystemUtil.runWithShellPermissionIdentity;
-
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotEquals;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
-
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
-import android.content.pm.PackageManager;
 import android.os.IBinder;
 import android.os.Process;
+import android.test.AndroidTestCase;
 import android.util.Log;
 
-import androidx.test.InstrumentationRegistry;
-
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.JUnit4;
-
-
-/**
- * CTS for {@link android.os.Process}.
- *
- * We have more test in cts/tests/process/ too.
- */
-@RunWith(JUnit4.class)
-public class ProcessTest {
+public class ProcessTest extends AndroidTestCase {
 
     public static final int THREAD_PRIORITY_HIGHEST = -20;
     private static final String NONE_EXISITENT_NAME = "abcdefcg";
@@ -57,8 +33,6 @@ public class ProcessTest {
     private static final String PROCESS_SHELL= "shell";
     private static final String PROCESS_CACHE= "cache";
     private static final String REMOTE_SERVICE = "android.app.REMOTESERVICE";
-    private static final int APP_UID = 10001;
-    private static final int SANDBOX_SDK_UID = 20001;
     private static final String TAG = "ProcessTest";
     private ISecondary mSecondaryService = null;
     private Intent mIntent;
@@ -66,11 +40,10 @@ public class ProcessTest {
     private boolean mHasConnected;
     private boolean mHasDisconnected;
     private ServiceConnection mSecondaryConnection;
-    private Context mContext;
 
-    @Before
-    public void setUp() throws Exception {
-        mContext = InstrumentationRegistry.getContext();
+    @Override
+    protected void setUp() throws Exception {
+        super.setUp();
         mSync = new Object();
         mSecondaryConnection = new ServiceConnection() {
             public void onServiceConnected(ComponentName className,
@@ -94,12 +67,12 @@ public class ProcessTest {
             }
         };
         mIntent = new Intent(REMOTE_SERVICE);
-        mIntent.setPackage(mContext.getPackageName());
-        mContext.startService(mIntent);
+        mIntent.setPackage(getContext().getPackageName());
+        getContext().startService(mIntent);
 
         Intent secondaryIntent = new Intent(ISecondary.class.getName());
-        secondaryIntent.setPackage(mContext.getPackageName());
-        mContext.bindService(secondaryIntent, mSecondaryConnection,
+        secondaryIntent.setPackage(getContext().getPackageName());
+        getContext().bindService(secondaryIntent, mSecondaryConnection,
                 Context.BIND_AUTO_CREATE);
         synchronized (mSync) {
             if (!mHasConnected) {
@@ -111,17 +84,17 @@ public class ProcessTest {
         }
     }
 
-    @After
-    public void tearDown() throws Exception {
+    @Override
+    protected void tearDown() throws Exception {
+        super.tearDown();
         if (mIntent != null) {
-            mContext.stopService(mIntent);
+            getContext().stopService(mIntent);
         }
         if (mSecondaryConnection != null) {
-            mContext.unbindService(mSecondaryConnection);
+            getContext().unbindService(mSecondaryConnection);
         }
     }
 
-    @Test
     public void testMiscMethods() {
         /*
          * Test setThreadPriority(int) and setThreadPriority(int, int)
@@ -174,8 +147,6 @@ public class ProcessTest {
         assertEquals(0, Process.getGidForName("0"));
 
         assertTrue(Process.myUid() >= 0);
-
-        assertNotEquals(null, Process.getExclusiveCores());
     }
 
     /**
@@ -183,7 +154,6 @@ public class ProcessTest {
      * Only the process running the caller's packages/application
      * and any additional processes created by that app be able to kill each other's processes.
      */
-    @Test
     public void testKillProcess() throws Exception {
         long time = 0;
         int servicePid = 0;
@@ -191,7 +161,7 @@ public class ProcessTest {
             servicePid = mSecondaryService.getPid();
             time = mSecondaryService.getElapsedCpuTime();
         } finally {
-            mContext.stopService(mIntent);
+            getContext().stopService(mIntent);
             mIntent = null;
         }
 
@@ -217,13 +187,12 @@ public class ProcessTest {
      * Test sendSignal(int) point.
      * Send a signal to the given process.
      */
-    @Test
     public void testSendSignal() throws Exception {
         int servicePid = 0;
         try {
             servicePid = mSecondaryService.getPid();
         } finally {
-            mContext.stopService(mIntent);
+            getContext().stopService(mIntent);
             mIntent = null;
         }
         assertTrue(servicePid != 0);
@@ -238,36 +207,5 @@ public class ProcessTest {
             }
         }
         assertTrue(mHasDisconnected);
-    }
-
-    /**
-     * Tests APIs related to sdk sandbox uids.
-     */
-    @Test
-    public void testSdkSandboxUids() {
-        assertEquals(SANDBOX_SDK_UID, Process.toSdkSandboxUid(APP_UID));
-        assertEquals(APP_UID, Process.getAppUidForSdkSandboxUid(SANDBOX_SDK_UID));
-
-        assertFalse(Process.isSdkSandboxUid(APP_UID));
-        assertTrue(Process.isSdkSandboxUid(SANDBOX_SDK_UID));
-
-        assertFalse(Process.isSdkSandbox());
-    }
-
-    /**
-     * Tests that the reserved UID is not taken by an actual package.
-     */
-    @Test
-    public void testReservedVirtualUid() {
-        PackageManager pm = mContext.getPackageManager();
-        final String name = pm.getNameForUid(Process.SDK_SANDBOX_VIRTUAL_UID);
-        assertNull(name);
-
-        // PackageManager#getPackagesForUid requires android.permission.INTERACT_ACROSS_USERS for
-        // cross-user calls.
-        runWithShellPermissionIdentity(() -> {
-            final String[] packages = pm.getPackagesForUid(Process.SDK_SANDBOX_VIRTUAL_UID);
-            assertNull(packages);
-        });
     }
 }

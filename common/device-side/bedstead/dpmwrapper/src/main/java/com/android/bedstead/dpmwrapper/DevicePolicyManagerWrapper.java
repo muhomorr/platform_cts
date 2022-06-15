@@ -113,8 +113,6 @@ final class DevicePolicyManagerWrapper
             doAnswer(answer).when(spy).setEndUserSessionMessage(any(), any());
             doAnswer(answer).when(spy).setLogoutEnabled(any(), anyBoolean());
             doAnswer(answer).when(spy).removeUser(any(), any());
-            doAnswer(answer).when(spy).setMinimumRequiredWifiSecurityLevel(anyInt());
-            doAnswer(answer).when(spy).setWifiSsidPolicy(any());
 
             // Used by DevicePolicySafetyCheckerIntegrationTest
             doAnswer(answer).when(spy).createAndManageUser(any(), any(), any(), any(), anyInt());
@@ -271,22 +269,16 @@ final class DevicePolicyManagerWrapper
             // Used by BlockUninstallDelegateTest
             doAnswer(answer).when(spy).isUninstallBlocked(any(), any());
 
+            // Used by CertInstallDelegateTest
+            doAnswer(answer).when(spy).hasCaCertInstalled(any(), any());
+            doAnswer(answer).when(spy).getInstalledCaCerts(any());
+            doAnswer(answer).when(spy).installKeyPair(any(), any(), any(), any());
+
             // Used By DelegationTest
             doAnswer(answer).when(spy).getDelegatePackages(any(), any());
 
             // Used by TrustAgentInfoTest
             doAnswer(answer).when(spy).getTrustAgentConfiguration(any(), any());
-
-            // Used by BackupServiceActiveTest
-            doAnswer(answer).when(spy).setBackupServiceEnabled(any(), anyBoolean());
-            doAnswer(answer).when(spy).isBackupServiceEnabled(any());
-
-            // Used by PendingSystemUpdateTest
-            doAnswer(answer).when(spy).notifyPendingSystemUpdate(anyLong());
-            doAnswer(answer).when(spy).getPendingSystemUpdate(any());
-
-            // Used by AffiliationTest (GTS)
-            doAnswer(answer).when(spy).getAffiliationIds(any());
 
             // TODO(b/176993670): add more methods below as tests are converted
         } catch (Exception e) {

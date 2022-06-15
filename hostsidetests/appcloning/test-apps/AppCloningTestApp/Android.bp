@@ -20,10 +20,12 @@ android_test_helper_app {
     name: "CtsAppCloningTestApp",
     defaults: ["cts_defaults"],
     static_libs: [
+        "androidx.test.rules",
+        "truth-prebuilt",
         "cts-install-lib",
     ],
     srcs: ["src/**/*.java"],
     sdk_version: "test_current",
-    target_sdk_version: "33",
+    target_sdk_version: "current",
     min_sdk_version: "30",
 }

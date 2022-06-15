@@ -43,6 +43,5 @@ android_test {
     data: [
         ":CtsRoleTestApp",
         ":CtsRoleTestApp28",
-        ":CtsRoleTestApp33WithoutInCallService",
     ],
 }

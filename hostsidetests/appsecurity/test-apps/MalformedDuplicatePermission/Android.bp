@@ -1,4 +1,4 @@
-// Copyright (C) 2018 The Android Open Source Project
+// Copyright (C) 2022 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,6 +19,28 @@ package {
 android_test_import {
     name: "CtsMalformedDuplicatePermission_DifferentPermissionGroup",
     apk: "apk/b213323615_DifferentPermissionGroup.apk",
+    presigned: true,
+    test_suites: [
+        "cts",
+        "sts",
+        "general-tests",
+    ],
+}
+
+android_test_import {
+    name: "CtsMalformedDuplicatePermission_DifferentProtectionLevel",
+    apk: "apk/b211934395_DifferentProtectionLevel.apk",
+    presigned: true,
+    test_suites: [
+        "cts",
+        "sts",
+        "general-tests",
+    ],
+}
+
+android_test_import {
+    name: "CtsDuplicatePermission_SameProtectionLevel",
+    apk: "apk/b211934395_SameProtectionLevel.apk",
     presigned: true,
     test_suites: [
         "cts",

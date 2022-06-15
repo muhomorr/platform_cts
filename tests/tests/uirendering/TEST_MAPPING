@@ -8,15 +8,5 @@
         }
       ]
     }
-  ],
-  "hwasan-postsubmit": [
-    {
-      "name": "CtsUiRenderingTestCases",
-      "options": [
-        {
-          "exclude-annotation": "android.uirendering.cts.runner.SkipPresubmit"
-        }
-      ]
-    }
   ]
 }

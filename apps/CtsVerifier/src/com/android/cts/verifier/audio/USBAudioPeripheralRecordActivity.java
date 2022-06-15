@@ -23,20 +23,20 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.Toast;
 
-import com.android.compatibility.common.util.CddTest;
-
-import com.android.cts.verifier.R;
 import com.android.cts.verifier.audio.audiolib.AudioSystemParams;
 import com.android.cts.verifier.audio.audiolib.WaveScopeView;
 
+// MegaAudio imports
 import org.hyphonate.megaaudio.common.BuilderBase;
 import org.hyphonate.megaaudio.common.StreamBase;
 import org.hyphonate.megaaudio.duplex.DuplexAudioManager;
 import org.hyphonate.megaaudio.player.sources.SinAudioSourceProvider;
+import org.hyphonate.megaaudio.recorder.RecorderBuilder;
 import org.hyphonate.megaaudio.recorder.sinks.AppCallback;
 import org.hyphonate.megaaudio.recorder.sinks.AppCallbackAudioSinkProvider;
 
-@CddTest(requirement = "7.8.2.2/H-1-1|7.7.2/C-2-1,C-2-2")
+import com.android.cts.verifier.R;  // needed to access resource in CTSVerifier project namespace.
+
 public class USBAudioPeripheralRecordActivity extends USBAudioPeripheralActivity {
     private static final String TAG = "USBAudioPeripheralRecordActivity";
 
@@ -163,7 +163,8 @@ public class USBAudioPeripheralRecordActivity extends USBAudioPeripheralActivity
         @Override
         public void onClick(View view) {
             int id = view.getId();
-            if (id == R.id.uap_recordRecordBtn) {
+            switch (id) {
+            case R.id.uap_recordRecordBtn:
                 if (!isRecording()) {
                     if (startRecording(false)) {
                         mRecordBtn.setText(getString(R.string.audio_uap_record_stopBtn));
@@ -174,7 +175,9 @@ public class USBAudioPeripheralRecordActivity extends USBAudioPeripheralActivity
                     mRecordBtn.setText(getString(R.string.audio_uap_record_recordBtn));
                     mRecordLoopbackBtn.setEnabled(true);
                 }
-            } else if (id == R.id.uap_recordRecordLoopBtn) {
+                break;
+
+            case R.id.uap_recordRecordLoopBtn:
                 if (!isRecording()) {
                     if (startRecording(true)) {
                         mRecordLoopbackBtn.setText(getString(R.string.audio_uap_record_stopBtn));
@@ -186,6 +189,7 @@ public class USBAudioPeripheralRecordActivity extends USBAudioPeripheralActivity
                         getString(R.string.audio_uap_record_recordLoopbackBtn));
                     mRecordBtn.setEnabled(true);
                 }
+                break;
             }
         }
     }

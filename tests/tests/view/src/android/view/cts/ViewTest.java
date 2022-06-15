@@ -16,8 +16,6 @@
 
 package android.view.cts;
 
-import static android.server.wm.ActivityManagerTestBase.isTablet;
-
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
@@ -27,7 +25,6 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
-import static org.junit.Assume.assumeFalse;
 import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.any;
@@ -523,10 +520,6 @@ public class ViewTest {
     public void testAccessPointerIcon() {
         View view = mActivity.findViewById(R.id.pointer_icon_layout);
         MotionEvent event = MotionEvent.obtain(0, 0, MotionEvent.ACTION_HOVER_MOVE, 0, 0, 0);
-        // Only pointer sources (SOURCE_CLASS_POINTER) will have translation applied, since only
-        // they refer to locations on the screen. We need to set the source to get
-        // "setLocation" to work.
-        event.setSource(InputDevice.SOURCE_MOUSE);
 
         // First view has pointerIcon="help"
         assertEquals(PointerIcon.getSystemIcon(mActivity, PointerIcon.TYPE_HELP),
@@ -3901,9 +3894,6 @@ public class ViewTest {
 
     @Test
     public void testGetWindowVisibleDisplayFrame() {
-        // TODO (b/228380863): re-enable the test once the configuration calculation issue resolved
-        // on device with taskbar.
-        assumeFalse(isTablet());
         Rect outRect = new Rect();
         View view = new View(mActivity);
         // mAttachInfo is null

@@ -22,52 +22,27 @@ import static android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP;
 import static android.content.Intent.FLAG_ACTIVITY_MULTIPLE_TASK;
 import static android.content.Intent.FLAG_ACTIVITY_NEW_TASK;
 import static android.content.Intent.FLAG_ACTIVITY_NO_USER_ACTION;
-import static android.server.wm.UiDeviceUtils.pressBackButton;
 import static android.server.wm.WindowManagerState.STATE_PAUSED;
 import static android.server.wm.WindowManagerState.STATE_STOPPED;
+import static android.server.wm.UiDeviceUtils.pressBackButton;
 import static android.server.wm.lifecycle.ActivityLifecycleClientTestBase.LaunchForResultActivity.EXTRA_LAUNCH_ON_RESULT;
 import static android.server.wm.lifecycle.ActivityLifecycleClientTestBase.LaunchForResultActivity.EXTRA_LAUNCH_ON_RESUME_AFTER_RESULT;
 import static android.server.wm.lifecycle.ActivityLifecycleClientTestBase.NoDisplayActivity.EXTRA_LAUNCH_ACTIVITY;
 import static android.server.wm.lifecycle.ActivityLifecycleClientTestBase.NoDisplayActivity.EXTRA_NEW_TASK;
-import static android.server.wm.lifecycle.LifecycleConstants.EXTRA_ACTIVITY_ON_USER_LEAVE_HINT;
-import static android.server.wm.lifecycle.LifecycleConstants.EXTRA_FINISH_IN_ON_CREATE;
-import static android.server.wm.lifecycle.LifecycleConstants.EXTRA_FINISH_IN_ON_PAUSE;
-import static android.server.wm.lifecycle.LifecycleConstants.EXTRA_FINISH_IN_ON_RESUME;
-import static android.server.wm.lifecycle.LifecycleConstants.EXTRA_FINISH_IN_ON_START;
-import static android.server.wm.lifecycle.LifecycleConstants.EXTRA_FINISH_IN_ON_STOP;
-import static android.server.wm.lifecycle.LifecycleConstants.EXTRA_RECREATE;
-import static android.server.wm.lifecycle.LifecycleConstants.EXTRA_SKIP_TOP_RESUMED_STATE;
-import static android.server.wm.lifecycle.LifecycleConstants.EXTRA_START_ACTIVITY_IN_ON_CREATE;
-import static android.server.wm.lifecycle.LifecycleConstants.EXTRA_START_ACTIVITY_WHEN_IDLE;
-import static android.server.wm.lifecycle.LifecycleConstants.ON_ACTIVITY_RESULT;
-import static android.server.wm.lifecycle.LifecycleConstants.ON_CREATE;
-import static android.server.wm.lifecycle.LifecycleConstants.ON_DESTROY;
-import static android.server.wm.lifecycle.LifecycleConstants.ON_NEW_INTENT;
-import static android.server.wm.lifecycle.LifecycleConstants.ON_PAUSE;
-import static android.server.wm.lifecycle.LifecycleConstants.ON_POST_CREATE;
-import static android.server.wm.lifecycle.LifecycleConstants.ON_RESTART;
-import static android.server.wm.lifecycle.LifecycleConstants.ON_RESUME;
-import static android.server.wm.lifecycle.LifecycleConstants.ON_START;
-import static android.server.wm.lifecycle.LifecycleConstants.ON_STOP;
-import static android.server.wm.lifecycle.LifecycleConstants.ON_TOP_POSITION_GAINED;
-import static android.server.wm.lifecycle.LifecycleConstants.ON_TOP_POSITION_LOST;
-import static android.server.wm.lifecycle.LifecycleConstants.ON_USER_LEAVE_HINT;
-import static android.server.wm.lifecycle.LifecycleConstants.getComponentName;
-import static android.server.wm.lifecycle.TransitionVerifier.assertEmptySequence;
-import static android.server.wm.lifecycle.TransitionVerifier.assertEntireSequence;
-import static android.server.wm.lifecycle.TransitionVerifier.assertLaunchAndDestroySequence;
-import static android.server.wm.lifecycle.TransitionVerifier.assertLaunchSequence;
-import static android.server.wm.lifecycle.TransitionVerifier.assertOrder;
-import static android.server.wm.lifecycle.TransitionVerifier.assertRelaunchSequence;
-import static android.server.wm.lifecycle.TransitionVerifier.assertRestartAndResumeSequence;
-import static android.server.wm.lifecycle.TransitionVerifier.assertRestartSequence;
-import static android.server.wm.lifecycle.TransitionVerifier.assertResumeToDestroySequence;
-import static android.server.wm.lifecycle.TransitionVerifier.assertSequence;
-import static android.server.wm.lifecycle.TransitionVerifier.assertSequenceMatchesOneOf;
-import static android.server.wm.lifecycle.TransitionVerifier.assertTransitionNotObserved;
-import static android.server.wm.lifecycle.TransitionVerifier.assertTransitionObserved;
-import static android.server.wm.lifecycle.TransitionVerifier.getLaunchAndDestroySequence;
-import static android.server.wm.lifecycle.TransitionVerifier.transition;
+import static android.server.wm.lifecycle.LifecycleLog.ActivityCallback.ON_ACTIVITY_RESULT;
+import static android.server.wm.lifecycle.LifecycleLog.ActivityCallback.ON_CREATE;
+import static android.server.wm.lifecycle.LifecycleLog.ActivityCallback.ON_DESTROY;
+import static android.server.wm.lifecycle.LifecycleLog.ActivityCallback.ON_NEW_INTENT;
+import static android.server.wm.lifecycle.LifecycleLog.ActivityCallback.ON_PAUSE;
+import static android.server.wm.lifecycle.LifecycleLog.ActivityCallback.ON_POST_CREATE;
+import static android.server.wm.lifecycle.LifecycleLog.ActivityCallback.ON_RESTART;
+import static android.server.wm.lifecycle.LifecycleLog.ActivityCallback.ON_RESUME;
+import static android.server.wm.lifecycle.LifecycleLog.ActivityCallback.ON_START;
+import static android.server.wm.lifecycle.LifecycleLog.ActivityCallback.ON_STOP;
+import static android.server.wm.lifecycle.LifecycleLog.ActivityCallback.ON_TOP_POSITION_GAINED;
+import static android.server.wm.lifecycle.LifecycleLog.ActivityCallback.ON_TOP_POSITION_LOST;
+import static android.server.wm.lifecycle.LifecycleLog.ActivityCallback.ON_USER_LEAVE_HINT;
+import static android.server.wm.lifecycle.LifecycleVerifier.transition;
 import static android.view.Surface.ROTATION_0;
 import static android.view.Surface.ROTATION_180;
 import static android.view.Surface.ROTATION_270;
@@ -84,6 +59,7 @@ import android.content.Intent;
 import android.content.pm.ActivityInfo;
 import android.platform.test.annotations.Presubmit;
 
+import androidx.test.filters.FlakyTest;
 import androidx.test.filters.MediumTest;
 
 import com.android.compatibility.common.util.AmUtils;
@@ -91,7 +67,6 @@ import com.android.compatibility.common.util.AmUtils;
 import org.junit.Test;
 
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 
 /**
@@ -107,19 +82,19 @@ public class ActivityLifecycleTests extends ActivityLifecycleClientTestBase {
     public void testSingleLaunch() throws Exception {
         launchActivityAndWait(FirstActivity.class);
 
-        assertLaunchSequence(FirstActivity.class, getTransitionLog());
+        LifecycleVerifier.assertLaunchSequence(FirstActivity.class, getLifecycleLog());
     }
 
     @Test
     public void testLaunchOnTop() throws Exception {
         final Activity firstActivity = launchActivityAndWait(FirstActivity.class);
 
-        getTransitionLog().clear();
+        getLifecycleLog().clear();
         launchActivityAndWait(SecondActivity.class);
         waitAndAssertActivityStates(state(firstActivity, ON_STOP));
 
-        assertLaunchSequence(SecondActivity.class, FirstActivity.class,
-                getTransitionLog(), false /* launchIsTranslucent */);
+        LifecycleVerifier.assertLaunchSequence(SecondActivity.class, FirstActivity.class,
+                getLifecycleLog(), false /* launchIsTranslucent */);
     }
 
     @Test
@@ -128,12 +103,12 @@ public class ActivityLifecycleTests extends ActivityLifecycleClientTestBase {
         final Activity firstActivity = launchActivityAndWait(FirstActivity.class);
 
         // Launch translucent activity on top
-        getTransitionLog().clear();
+        getLifecycleLog().clear();
         final Activity translucentActivity = launchActivityAndWait(TranslucentActivity.class);
         waitAndAssertActivityStates(occludedActivityState(firstActivity, translucentActivity));
 
-        assertLaunchSequence(TranslucentActivity.class, FirstActivity.class,
-                getTransitionLog(), true /* launchIsTranslucent */);
+        LifecycleVerifier.assertLaunchSequence(TranslucentActivity.class, FirstActivity.class,
+                getLifecycleLog(), true /* launchIsTranslucent */);
     }
 
     @Test
@@ -141,33 +116,34 @@ public class ActivityLifecycleTests extends ActivityLifecycleClientTestBase {
         final Activity firstActivity = launchActivityAndWait(FirstActivity.class);
 
         // Launch translucent activity on top
-        getTransitionLog().clear();
+        getLifecycleLog().clear();
         final Activity translucentActivity = launchActivityAndWait(TranslucentActivity.class);
         waitAndAssertActivityStates(occludedActivityState(firstActivity, translucentActivity));
 
-        assertLaunchSequence(TranslucentActivity.class, FirstActivity.class,
-                getTransitionLog(), true /* launchIsTranslucent */);
+        LifecycleVerifier.assertLaunchSequence(TranslucentActivity.class, FirstActivity.class,
+                getLifecycleLog(), true /* launchIsTranslucent */);
 
         // Launch another translucent activity on top
-        getTransitionLog().clear();
+        getLifecycleLog().clear();
         final Activity secondTranslucentActivity =
                 launchActivityAndWait(SecondTranslucentActivity.class);
         waitAndAssertActivityStates(
                 occludedActivityState(translucentActivity, secondTranslucentActivity));
-        assertSequence(TranslucentActivity.class, getTransitionLog(),
-                Collections.singletonList(ON_PAUSE), "launch");
-        assertEmptySequence(FirstActivity.class, getTransitionLog(), "launch");
+        LifecycleVerifier.assertSequence(TranslucentActivity.class, getLifecycleLog(),
+                Arrays.asList(ON_PAUSE), "launch");
+        LifecycleVerifier.assertEmptySequence(FirstActivity.class, getLifecycleLog(), "launch");
 
         // Finish top translucent activity
-        getTransitionLog().clear();
+        getLifecycleLog().clear();
         secondTranslucentActivity.finish();
 
         waitAndAssertActivityStates(state(translucentActivity, ON_RESUME));
         waitAndAssertActivityStates(state(secondTranslucentActivity, ON_DESTROY));
-        assertResumeToDestroySequence(SecondTranslucentActivity.class, getTransitionLog());
-        assertSequence(TranslucentActivity.class, getTransitionLog(),
-                Collections.singletonList(ON_RESUME), "launch");
-        assertEmptySequence(FirstActivity.class, getTransitionLog(), "launch");
+        LifecycleVerifier.assertResumeToDestroySequence(SecondTranslucentActivity.class,
+                getLifecycleLog());
+        LifecycleVerifier.assertSequence(TranslucentActivity.class, getLifecycleLog(),
+                Arrays.asList(ON_RESUME), "launch");
+        LifecycleVerifier.assertEmptySequence(FirstActivity.class, getLifecycleLog(), "launch");
     }
 
     @Test
@@ -187,15 +163,16 @@ public class ActivityLifecycleTests extends ActivityLifecycleClientTestBase {
         int firstActivityStack = mWmState.getRootTaskIdByActivity(firstActivityName);
 
         // Move translucent activity into the stack with the first activity
-        getTransitionLog().clear();
+        getLifecycleLog().clear();
         moveActivityToRootTaskOrOnTop(getComponentName(TranslucentActivity.class), firstActivityStack);
 
         // Wait for translucent activity to resume and first activity to pause
         waitAndAssertActivityStates(state(translucentActivity, ON_RESUME),
                 state(firstActivity, ON_PAUSE));
-        assertSequence(FirstActivity.class, getTransitionLog(), Collections.singletonList(ON_PAUSE),
-                "launchOnTop");
-        assertRestartAndResumeSequence(TranslucentActivity.class, getTransitionLog());
+        LifecycleVerifier.assertSequence(FirstActivity.class, getLifecycleLog(),
+                Arrays.asList(ON_PAUSE), "launchOnTop");
+        LifecycleVerifier.assertRestartAndResumeSequence(TranslucentActivity.class,
+                getLifecycleLog());
     }
 
     @Test
@@ -206,16 +183,16 @@ public class ActivityLifecycleTests extends ActivityLifecycleClientTestBase {
         waitAndAssertActivityStates(occludedActivityState(firstActivity, translucentActivity));
 
         // Finish translucent activity
-        getTransitionLog().clear();
+        getLifecycleLog().clear();
         translucentActivity.finish();
 
         waitAndAssertActivityStates(state(firstActivity, ON_RESUME),
                 state(translucentActivity, ON_DESTROY));
 
         // Verify destruction lifecycle
-        assertResumeToDestroySequence(TranslucentActivity.class,
-                getTransitionLog());
-        assertSequence(FirstActivity.class, getTransitionLog(),
+        LifecycleVerifier.assertResumeToDestroySequence(TranslucentActivity.class,
+                getLifecycleLog());
+        LifecycleVerifier.assertSequence(FirstActivity.class, getLifecycleLog(),
                 Arrays.asList(ON_RESUME), "resumeAfterTopDestroyed");
     }
 
@@ -232,7 +209,7 @@ public class ActivityLifecycleTests extends ActivityLifecycleClientTestBase {
         waitAndAssertActivityStates(state(translucentActivity, ON_STOP),
                 state(firstActivity, ON_STOP));
 
-        getTransitionLog().clear();
+        getLifecycleLog().clear();
 
         final boolean secondActivityIsTranslucent = ActivityInfo.isTranslucentOrFloating(
                 secondActivity.getWindow().getWindowStyle());
@@ -241,7 +218,7 @@ public class ActivityLifecycleTests extends ActivityLifecycleClientTestBase {
         secondActivity.finish();
 
         waitAndAssertActivityStates(state(secondActivity, ON_DESTROY));
-        assertResumeToDestroySequence(SecondActivity.class, getTransitionLog());
+        LifecycleVerifier.assertResumeToDestroySequence(SecondActivity.class, getLifecycleLog());
         if (secondActivityIsTranslucent) {
             // In this case we don't expect the state of the firstActivity to change since it is
             // already in the visible paused state. So, we just verify that translucentActivity
@@ -253,7 +230,7 @@ public class ActivityLifecycleTests extends ActivityLifecycleClientTestBase {
                     state(firstActivity, ON_START));
 
             // Verify that the first activity was restarted
-            assertRestartSequence(FirstActivity.class, getTransitionLog());
+            LifecycleVerifier.assertRestartSequence(FirstActivity.class, getLifecycleLog());
         }
     }
 
@@ -267,26 +244,27 @@ public class ActivityLifecycleTests extends ActivityLifecycleClientTestBase {
                 occludedActivityState(translucentActivity, secondTranslucentActivity));
 
         // Finish top translucent activity
-        getTransitionLog().clear();
+        getLifecycleLog().clear();
         secondTranslucentActivity.finish();
 
         waitAndAssertActivityStates(state(translucentActivity, ON_RESUME));
         waitAndAssertActivityStates(state(secondTranslucentActivity, ON_DESTROY));
-        assertResumeToDestroySequence(SecondTranslucentActivity.class,
-                getTransitionLog());
-        assertSequence(TranslucentActivity.class, getTransitionLog(),
-                Collections.singletonList(ON_RESUME), "destroy");
-        assertEmptySequence(FirstActivity.class, getTransitionLog(), "destroy");
+        LifecycleVerifier.assertResumeToDestroySequence(SecondTranslucentActivity.class,
+                getLifecycleLog());
+        LifecycleVerifier.assertSequence(TranslucentActivity.class, getLifecycleLog(),
+                Arrays.asList(ON_RESUME), "destroy");
+        LifecycleVerifier.assertEmptySequence(FirstActivity.class, getLifecycleLog(), "destroy");
 
         // Finish first translucent activity
-        getTransitionLog().clear();
+        getLifecycleLog().clear();
         translucentActivity.finish();
 
         waitAndAssertActivityStates(state(firstActivity, ON_RESUME));
         waitAndAssertActivityStates(state(translucentActivity, ON_DESTROY));
-        assertResumeToDestroySequence(TranslucentActivity.class, getTransitionLog());
-        assertSequence(FirstActivity.class, getTransitionLog(),
-                Collections.singletonList(ON_RESUME), "secondDestroy");
+        LifecycleVerifier.assertResumeToDestroySequence(TranslucentActivity.class,
+                getLifecycleLog());
+        LifecycleVerifier.assertSequence(FirstActivity.class, getLifecycleLog(),
+                Arrays.asList(ON_RESUME), "secondDestroy");
     }
 
     @Test
@@ -296,15 +274,15 @@ public class ActivityLifecycleTests extends ActivityLifecycleClientTestBase {
         waitAndAssertActivityStates(state(bottomActivity, ON_STOP));
 
         // Finish the activity on the bottom
-        getTransitionLog().clear();
+        getLifecycleLog().clear();
         bottomActivity.finish();
 
         // Assert that activity on the bottom went directly to destroyed state, and activity on top
         // did not get any lifecycle changes.
         waitAndAssertActivityStates(state(bottomActivity, ON_DESTROY));
-        assertSequence(FirstActivity.class, getTransitionLog(),
-                Collections.singletonList(ON_DESTROY), "destroyOnBottom");
-        assertEmptySequence(SecondActivity.class, getTransitionLog(),
+        LifecycleVerifier.assertSequence(FirstActivity.class, getLifecycleLog(),
+                Arrays.asList(ON_DESTROY), "destroyOnBottom");
+        LifecycleVerifier.assertEmptySequence(SecondActivity.class, getLifecycleLog(),
                 "destroyOnBottom");
     }
 
@@ -333,22 +311,27 @@ public class ActivityLifecycleTests extends ActivityLifecycleClientTestBase {
 
         waitAndAssertActivityStates(state(CallbackTrackingActivity.class, ON_TOP_POSITION_GAINED),
                 state(ResultActivity.class, ON_DESTROY));
-        assertOrder(getTransitionLog(), Arrays.asList(
+        LifecycleVerifier.assertOrder(getLifecycleLog(), Arrays.asList(
                 // Base launching activity starting.
                 transition(LaunchForResultActivity.class, ON_CREATE),
                 transition(LaunchForResultActivity.class, ON_START),
                 transition(LaunchForResultActivity.class, ON_POST_CREATE),
                 transition(LaunchForResultActivity.class, ON_RESUME),
+                transition(LaunchForResultActivity.class, ON_TOP_POSITION_GAINED),
                 // An activity is automatically launched for result.
+                transition(LaunchForResultActivity.class, ON_TOP_POSITION_LOST),
                 transition(LaunchForResultActivity.class, ON_PAUSE),
                 transition(ResultActivity.class, ON_CREATE),
                 transition(ResultActivity.class, ON_START),
                 transition(ResultActivity.class, ON_RESUME),
+                transition(ResultActivity.class, ON_TOP_POSITION_GAINED),
                 // Activity that was launched for result is finished automatically - the base
                 // launching activity is brought to front.
                 transition(LaunchForResultActivity.class, ON_ACTIVITY_RESULT),
                 transition(LaunchForResultActivity.class, ON_RESUME),
+                transition(LaunchForResultActivity.class, ON_TOP_POSITION_GAINED),
                 // New activity is launched after receiving result in base activity.
+                transition(LaunchForResultActivity.class, ON_TOP_POSITION_LOST),
                 transition(LaunchForResultActivity.class, ON_PAUSE),
                 transition(CallbackTrackingActivity.class, ON_CREATE),
                 transition(CallbackTrackingActivity.class, ON_START),
@@ -364,7 +347,7 @@ public class ActivityLifecycleTests extends ActivityLifecycleClientTestBase {
         activity.finish();
         waitAndAssertActivityStates(state(activity, ON_DESTROY));
 
-        assertLaunchAndDestroySequence(FirstActivity.class, getTransitionLog());
+        LifecycleVerifier.assertLaunchAndDestroySequence(FirstActivity.class, getLifecycleLog());
     }
 
     @Test
@@ -397,7 +380,7 @@ public class ActivityLifecycleTests extends ActivityLifecycleClientTestBase {
         launcher.launch();
         waitAndAssertActivityStates(state(CallbackTrackingActivity.class, ON_TOP_POSITION_GAINED));
 
-        assertEntireSequence(Arrays.asList(
+        LifecycleVerifier.assertEntireSequence(Arrays.asList(
                 transition(NoDisplayActivity.class, ON_CREATE),
                 transition(CallbackTrackingActivity.class, ON_CREATE),
                 transition(CallbackTrackingActivity.class, ON_START),
@@ -405,7 +388,7 @@ public class ActivityLifecycleTests extends ActivityLifecycleClientTestBase {
                 transition(CallbackTrackingActivity.class, ON_RESUME),
                 transition(CallbackTrackingActivity.class, ON_TOP_POSITION_GAINED),
                 transition(NoDisplayActivity.class, ON_DESTROY)),
-                getTransitionLog(), "trampolineLaunch");
+                getLifecycleLog(), "trampolineLaunch");
     }
 
     /** @see #testTrampolineWithAnotherProcess */
@@ -425,7 +408,7 @@ public class ActivityLifecycleTests extends ActivityLifecycleClientTestBase {
                 .setFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
         waitAndAssertActivityStates(
                 state(SecondProcessCallbackTrackingActivity.class, ON_TOP_POSITION_GAINED));
-        getTransitionLog().clear();
+        getLifecycleLog().clear();
 
         testTrampolineWithAnotherProcess();
     }
@@ -456,11 +439,11 @@ public class ActivityLifecycleTests extends ActivityLifecycleClientTestBase {
     public void testRelaunchResumed() throws Exception {
         final Activity activity = launchActivityAndWait(FirstActivity.class);
 
-        getTransitionLog().clear();
+        getLifecycleLog().clear();
         getInstrumentation().runOnMainSync(activity::recreate);
         waitAndAssertActivityStates(state(activity, ON_RESUME));
 
-        assertRelaunchSequence(FirstActivity.class, getTransitionLog(), ON_RESUME);
+        LifecycleVerifier.assertRelaunchSequence(FirstActivity.class, getLifecycleLog(), ON_RESUME);
     }
 
     @Test
@@ -470,11 +453,11 @@ public class ActivityLifecycleTests extends ActivityLifecycleClientTestBase {
 
         waitAndAssertActivityStates(occludedActivityState(pausedActivity, translucentActivity));
 
-        getTransitionLog().clear();
+        getLifecycleLog().clear();
         getInstrumentation().runOnMainSync(pausedActivity::recreate);
         waitAndAssertActivityStates(state(pausedActivity, ON_PAUSE));
 
-        assertRelaunchSequence(FirstActivity.class, getTransitionLog(), ON_PAUSE);
+        LifecycleVerifier.assertRelaunchSequence(FirstActivity.class, getLifecycleLog(), ON_PAUSE);
     }
 
     @Test
@@ -484,11 +467,12 @@ public class ActivityLifecycleTests extends ActivityLifecycleClientTestBase {
 
         waitAndAssertActivityStates(state(stoppedActivity, ON_STOP));
 
-        getTransitionLog().clear();
+        getLifecycleLog().clear();
         getInstrumentation().runOnMainSync(stoppedActivity::recreate);
         waitAndAssertActivityStates(state(stoppedActivity, ON_STOP));
 
-        assertRelaunchSequence(FirstActivity.class, getTransitionLog(), ON_STOP);
+        LifecycleVerifier.assertRelaunchSequence(FirstActivity.class, getLifecycleLog(),
+                ON_STOP);
     }
 
     @Test
@@ -518,7 +502,7 @@ public class ActivityLifecycleTests extends ActivityLifecycleClientTestBase {
             return;
         }
 
-        getTransitionLog().clear();
+        getLifecycleLog().clear();
 
         final int current = rotationSession.get();
         // Set new rotation to cause a configuration change.
@@ -537,10 +521,11 @@ public class ActivityLifecycleTests extends ActivityLifecycleClientTestBase {
 
         // Assert that the top activity was relaunched.
         waitAndAssertActivityStates(state(topOpaqueActivity, ON_RESUME));
-        assertRelaunchSequence(SecondActivity.class, getTransitionLog(), ON_RESUME);
+        LifecycleVerifier.assertRelaunchSequence(
+                SecondActivity.class, getLifecycleLog(), ON_RESUME);
 
         // Finish the top activity
-        getTransitionLog().clear();
+        getLifecycleLog().clear();
         topOpaqueActivity.finish();
 
         // Assert that the translucent activity and the activity visible behind it were
@@ -548,13 +533,13 @@ public class ActivityLifecycleTests extends ActivityLifecycleClientTestBase {
         waitAndAssertActivityStates(state(becomingVisibleActivity, ON_PAUSE),
                 state(translucentActivity, ON_RESUME));
 
-        assertSequence(FirstActivity.class, getTransitionLog(),
-                Arrays.asList(ON_DESTROY, ON_CREATE, ON_START, ON_RESUME, ON_PAUSE),
-                "becomingVisiblePaused");
-        final List<String> expectedSequence =
+        LifecycleVerifier.assertSequence(FirstActivity.class, getLifecycleLog(),
+                Arrays.asList(ON_DESTROY, ON_CREATE, ON_START, ON_RESUME,
+                        ON_PAUSE), "becomingVisiblePaused");
+        final List<LifecycleLog.ActivityCallback> expectedSequence =
                 Arrays.asList(ON_DESTROY, ON_CREATE, ON_START, ON_RESUME);
-        assertSequence(TranslucentActivity.class, getTransitionLog(), expectedSequence,
-                "becomingVisibleResumed");
+        LifecycleVerifier.assertSequence(TranslucentActivity.class, getLifecycleLog(),
+                expectedSequence, "becomingVisibleResumed");
     }
 
     @Test
@@ -574,35 +559,47 @@ public class ActivityLifecycleTests extends ActivityLifecycleClientTestBase {
                 ON_TOP_POSITION_GAINED));
 
         // verify the result have sent back to original activity
-        final List<String> expectedSequence =
+        final List<LifecycleLog.ActivityCallback> expectedSequence =
                 Arrays.asList(ON_CREATE, ON_START, ON_POST_CREATE, ON_RESUME,
                         ON_TOP_POSITION_GAINED, ON_TOP_POSITION_LOST, ON_PAUSE, ON_STOP,
-                        ON_RESTART, ON_START, ON_ACTIVITY_RESULT, ON_RESUME,
+                        ON_ACTIVITY_RESULT, ON_RESTART, ON_START, ON_RESUME,
                         ON_TOP_POSITION_GAINED);
-        assertSequence(LaunchForwardResultActivity.class, getTransitionLog(),
+        LifecycleVerifier.assertSequence(LaunchForwardResultActivity.class, getLifecycleLog(),
                 expectedSequence, "becomingVisibleResumed");
     }
 
     @Test
     public void testOnActivityResult() throws Exception {
         new Launcher(LaunchForResultActivity.class)
-                .customizeIntent(LaunchForResultActivity.forwardFlag(
-                        EXTRA_FINISH_IN_ON_RESUME,
-                        EXTRA_SKIP_TOP_RESUMED_STATE))
-                .setSkipTopResumedStateCheck()
+                .customizeIntent(LaunchForResultActivity.forwardFlag(EXTRA_FINISH_IN_ON_RESUME))
                 .launch();
 
-        final List<String> expectedSequence =
+        final List<LifecycleLog.ActivityCallback> expectedSequence =
                 Arrays.asList(ON_CREATE, ON_START, ON_POST_CREATE, ON_RESUME,
-                        ON_PAUSE, ON_ACTIVITY_RESULT, ON_RESUME);
+                        ON_TOP_POSITION_GAINED, ON_TOP_POSITION_LOST,
+                        ON_PAUSE, ON_ACTIVITY_RESULT, ON_RESUME, ON_TOP_POSITION_GAINED);
         waitForActivityTransitions(LaunchForResultActivity.class, expectedSequence);
 
         // TODO(b/79218023): First activity might also be stopped before getting result.
-        final List<String> sequenceWithStop =
+        final List<LifecycleLog.ActivityCallback> sequenceWithStop =
                 Arrays.asList(ON_CREATE, ON_START, ON_POST_CREATE, ON_RESUME,
-                        ON_PAUSE, ON_STOP, ON_RESTART, ON_START, ON_ACTIVITY_RESULT, ON_RESUME);
-        assertSequenceMatchesOneOf(LaunchForResultActivity.class, getTransitionLog(),
-                Arrays.asList(expectedSequence, sequenceWithStop), "activityResult");
+                        ON_TOP_POSITION_GAINED, ON_TOP_POSITION_LOST,
+                        ON_PAUSE, ON_STOP, ON_ACTIVITY_RESULT, ON_RESTART, ON_START, ON_RESUME,
+                        ON_TOP_POSITION_GAINED);
+        final List<LifecycleLog.ActivityCallback> thirdSequence =
+                Arrays.asList(ON_CREATE, ON_START, ON_POST_CREATE, ON_RESUME,
+                        ON_TOP_POSITION_GAINED, ON_TOP_POSITION_LOST,
+                        ON_PAUSE, ON_STOP, ON_ACTIVITY_RESULT, ON_RESTART, ON_START, ON_RESUME,
+                        ON_TOP_POSITION_GAINED);
+        final List<LifecycleLog.ActivityCallback> fourthSequence =
+                Arrays.asList(ON_CREATE, ON_START, ON_POST_CREATE, ON_RESUME,
+                        ON_TOP_POSITION_GAINED, ON_TOP_POSITION_LOST,
+                        ON_PAUSE, ON_STOP, ON_RESTART, ON_START, ON_ACTIVITY_RESULT, ON_RESUME,
+                        ON_TOP_POSITION_GAINED);
+        LifecycleVerifier.assertSequenceMatchesOneOf(LaunchForResultActivity.class,
+                getLifecycleLog(),
+                Arrays.asList(expectedSequence, sequenceWithStop, thirdSequence, fourthSequence),
+                "activityResult");
     }
 
     @Test
@@ -615,7 +612,6 @@ public class ActivityLifecycleTests extends ActivityLifecycleClientTestBase {
                 // TODO (b/127741025) temporarily use setNoInstance, because startActivitySync will
                 // cause launch timeout when more than 2 activities start consecutively.
                 .setNoInstance()
-                .setSkipTopResumedStateCheck()
                 .setExpectedState(ON_STOP)
                 .launch();
         final Activity activity = getInstrumentation()
@@ -628,18 +624,29 @@ public class ActivityLifecycleTests extends ActivityLifecycleClientTestBase {
 
         final boolean isTranslucent = isTranslucent(activity);
 
-        final List<String> expectedSequences;
+        final List<List<LifecycleLog.ActivityCallback>> expectedSequences;
         if (isTranslucent) {
-            expectedSequences = Arrays.asList(ON_CREATE, ON_START, ON_POST_CREATE, ON_RESUME,
-                    ON_PAUSE, ON_ACTIVITY_RESULT, ON_RESUME);
+            expectedSequences = Arrays.asList(
+                    Arrays.asList(ON_CREATE, ON_START, ON_POST_CREATE, ON_RESUME,
+                            ON_TOP_POSITION_GAINED, ON_TOP_POSITION_LOST, ON_PAUSE,
+                            ON_ACTIVITY_RESULT, ON_RESUME, ON_TOP_POSITION_GAINED)
+            );
         } else {
-            expectedSequences = Arrays.asList(ON_CREATE, ON_START, ON_POST_CREATE, ON_RESUME,
-                    ON_PAUSE, ON_STOP, ON_RESTART, ON_START, ON_ACTIVITY_RESULT, ON_RESUME);
+            expectedSequences = Arrays.asList(
+                    Arrays.asList(ON_CREATE, ON_START, ON_POST_CREATE, ON_RESUME,
+                            ON_TOP_POSITION_GAINED, ON_TOP_POSITION_LOST,
+                            ON_PAUSE, ON_STOP, ON_RESTART, ON_START, ON_ACTIVITY_RESULT, ON_RESUME,
+                            ON_TOP_POSITION_GAINED),
+                    Arrays.asList(ON_CREATE, ON_START, ON_POST_CREATE, ON_RESUME,
+                            ON_TOP_POSITION_GAINED, ON_TOP_POSITION_LOST,
+                            ON_PAUSE, ON_STOP, ON_ACTIVITY_RESULT, ON_RESTART, ON_START, ON_RESUME,
+                            ON_TOP_POSITION_GAINED)
+            );
         }
-        waitForActivityTransitions(LaunchForResultActivity.class, expectedSequences);
+        waitForActivityTransitions(LaunchForResultActivity.class, expectedSequences.get(0));
 
-        assertSequence(LaunchForResultActivity.class, getTransitionLog(), expectedSequences,
-                "activityResult");
+        LifecycleVerifier.assertSequenceMatchesOneOf(LaunchForResultActivity.class,
+                getLifecycleLog(), expectedSequences, "activityResult");
     }
 
     @Test
@@ -647,11 +654,12 @@ public class ActivityLifecycleTests extends ActivityLifecycleClientTestBase {
         final Activity trackingActivity = launchActivityAndWait(CallbackTrackingActivity.class);
 
         // Call "recreate" and assert sequence
-        getTransitionLog().clear();
+        getLifecycleLog().clear();
         getInstrumentation().runOnMainSync(trackingActivity::recreate);
         waitAndAssertActivityStates(state(trackingActivity, ON_TOP_POSITION_GAINED));
 
-        assertSequence(CallbackTrackingActivity.class, getTransitionLog(),
+        LifecycleVerifier.assertSequence(CallbackTrackingActivity.class,
+                getLifecycleLog(),
                 Arrays.asList(ON_TOP_POSITION_LOST, ON_PAUSE, ON_STOP, ON_DESTROY,
                         ON_CREATE, ON_START, ON_POST_CREATE, ON_RESUME, ON_TOP_POSITION_GAINED),
                 "recreate");
@@ -668,11 +676,12 @@ public class ActivityLifecycleTests extends ActivityLifecycleClientTestBase {
         waitAndAssertActivityStates(occludedActivityState(trackingActivity, translucentActivity));
 
         // Call "recreate" and assert sequence
-        getTransitionLog().clear();
+        getLifecycleLog().clear();
         getInstrumentation().runOnMainSync(trackingActivity::recreate);
         waitAndAssertActivityStates(occludedActivityState(trackingActivity, translucentActivity));
 
-        assertSequence(CallbackTrackingActivity.class, getTransitionLog(),
+        LifecycleVerifier.assertSequence(CallbackTrackingActivity.class,
+                getLifecycleLog(),
                 Arrays.asList(ON_STOP, ON_DESTROY, ON_CREATE, ON_START,
                         ON_POST_CREATE, ON_RESUME, ON_PAUSE),
                 "recreate");
@@ -688,11 +697,11 @@ public class ActivityLifecycleTests extends ActivityLifecycleClientTestBase {
         waitAndAssertActivityStates(state(trackingActivity, ON_STOP));
 
         // Call "recreate" and assert sequence
-        getTransitionLog().clear();
+        getLifecycleLog().clear();
         getInstrumentation().runOnMainSync(trackingActivity::recreate);
         waitAndAssertActivityStates(state(trackingActivity, ON_STOP));
 
-        final List<String> callbacks;
+        final List<LifecycleLog.ActivityCallback> callbacks;
         if (isTranslucent(secondActivity)) {
             callbacks = Arrays.asList(ON_STOP, ON_DESTROY, ON_CREATE, ON_START,
                     ON_POST_CREATE, ON_RESUME, ON_PAUSE);
@@ -701,8 +710,8 @@ public class ActivityLifecycleTests extends ActivityLifecycleClientTestBase {
                     ON_POST_CREATE, ON_RESUME, ON_PAUSE, ON_STOP);
         }
 
-        assertSequence(
-                CallbackTrackingActivity.class, getTransitionLog(), callbacks, "recreate");
+        LifecycleVerifier.assertSequence(
+                CallbackTrackingActivity.class, getLifecycleLog(), callbacks, "recreate");
     }
 
     /**
@@ -748,8 +757,7 @@ public class ActivityLifecycleTests extends ActivityLifecycleClientTestBase {
     @Test
     public void testLocalRecreate() throws Exception {
         // Launch the activity that will recreate itself
-        final Activity recreatingActivity = new Launcher(SingleTopActivity.class)
-                .launch();
+        final Activity recreatingActivity = launchActivityAndWait(SingleTopActivity.class);
 
         // Launch second activity to cover and stop first
         final Activity secondActivity = new Launcher(SecondActivity.class)
@@ -761,28 +769,28 @@ public class ActivityLifecycleTests extends ActivityLifecycleClientTestBase {
         waitAndAssertActivityStates(state(recreatingActivity, ON_STOP));
 
         // Launch the activity again to recreate
-        getTransitionLog().clear();
+        getLifecycleLog().clear();
         new Launcher(SingleTopActivity.class)
                 .setFlags(FLAG_ACTIVITY_NEW_TASK)
                 .setExtraFlags(EXTRA_RECREATE)
-                // There is no guarantee that the activity will be relaunched after on top resume
-                // state received. Skip recording the top resume state to simplify the verification.
-                .setSkipTopResumedStateCheck()
                 .launch();
 
         // Wait for activity to relaunch and resume
-        final List<String> expectedRelaunchSequence;
+        final List<LifecycleLog.ActivityCallback> expectedRelaunchSequence;
         if (isTranslucent(secondActivity)) {
             expectedRelaunchSequence = Arrays.asList(ON_NEW_INTENT, ON_RESUME,
-                    ON_PAUSE, ON_STOP, ON_DESTROY, ON_CREATE, ON_START, ON_POST_CREATE, ON_RESUME);
+                    ON_TOP_POSITION_GAINED, ON_TOP_POSITION_LOST,
+                    ON_PAUSE, ON_STOP, ON_DESTROY, ON_CREATE, ON_START,
+                    ON_POST_CREATE, ON_RESUME, ON_TOP_POSITION_GAINED);
         } else {
             expectedRelaunchSequence = Arrays.asList(ON_RESTART, ON_START, ON_NEW_INTENT, ON_RESUME,
-                    ON_PAUSE, ON_STOP, ON_DESTROY, ON_CREATE, ON_START, ON_POST_CREATE, ON_RESUME);
+                    ON_TOP_POSITION_GAINED, ON_TOP_POSITION_LOST, ON_PAUSE, ON_STOP, ON_DESTROY,
+                    ON_CREATE, ON_START, ON_POST_CREATE, ON_RESUME, ON_TOP_POSITION_GAINED);
         }
 
         waitForActivityTransitions(SingleTopActivity.class, expectedRelaunchSequence);
-        assertSequence(SingleTopActivity.class, getTransitionLog(), expectedRelaunchSequence,
-                "recreate");
+        LifecycleVerifier.assertSequence(SingleTopActivity.class, getLifecycleLog(),
+                expectedRelaunchSequence, "recreate");
     }
 
     @Test
@@ -790,17 +798,17 @@ public class ActivityLifecycleTests extends ActivityLifecycleClientTestBase {
         // Launch a singleTop activity
         launchActivityAndWait(SingleTopActivity.class);
 
-        assertLaunchSequence(SingleTopActivity.class, getTransitionLog());
+        LifecycleVerifier.assertLaunchSequence(SingleTopActivity.class, getLifecycleLog());
 
         // Try to launch again
-        getTransitionLog().clear();
+        getLifecycleLog().clear();
         new Launcher(SingleTopActivity.class)
                 .setFlags(FLAG_ACTIVITY_NEW_TASK)
                 .setNoInstance()
                 .launch();
 
         // Verify that the first activity was paused, new intent was delivered and resumed again
-        assertSequence(SingleTopActivity.class, getTransitionLog(),
+        LifecycleVerifier.assertSequence(SingleTopActivity.class, getLifecycleLog(),
                 Arrays.asList(ON_TOP_POSITION_LOST, ON_PAUSE, ON_NEW_INTENT, ON_RESUME,
                         ON_TOP_POSITION_GAINED), "newIntent");
     }
@@ -809,7 +817,7 @@ public class ActivityLifecycleTests extends ActivityLifecycleClientTestBase {
     public void testOnNewIntentFromHidden() throws Exception {
         // Launch a singleTop activity
         final Activity singleTopActivity = launchActivityAndWait(SingleTopActivity.class);
-        assertLaunchSequence(SingleTopActivity.class, getTransitionLog());
+        LifecycleVerifier.assertLaunchSequence(SingleTopActivity.class, getLifecycleLog());
 
         // Launch something on top
         final Activity secondActivity = new Launcher(SecondActivity.class)
@@ -820,28 +828,29 @@ public class ActivityLifecycleTests extends ActivityLifecycleClientTestBase {
         waitAndAssertActivityStates(state(singleTopActivity, ON_STOP));
 
         // Try to launch again
-        getTransitionLog().clear();
+        getLifecycleLog().clear();
         new Launcher(SingleTopActivity.class)
                 .setFlags(FLAG_ACTIVITY_NEW_TASK)
                 .setNoInstance()
                 .launch();
 
         // Verify that the first activity was restarted, new intent was delivered and resumed again
-        final List<String> expectedSequence;
+        final List<LifecycleLog.ActivityCallback> expectedSequence;
         if (isTranslucent(singleTopActivity)) {
             expectedSequence = Arrays.asList(ON_NEW_INTENT, ON_RESUME, ON_TOP_POSITION_GAINED);
         } else {
             expectedSequence = Arrays.asList(ON_RESTART, ON_START, ON_NEW_INTENT, ON_RESUME,
                     ON_TOP_POSITION_GAINED);
         }
-        assertSequence(SingleTopActivity.class, getTransitionLog(), expectedSequence, "newIntent");
+        LifecycleVerifier.assertSequence(SingleTopActivity.class, getLifecycleLog(),
+                expectedSequence, "newIntent");
     }
 
     @Test
     public void testOnNewIntentFromPaused() throws Exception {
         // Launch a singleTop activity
         final Activity singleTopActivity = launchActivityAndWait(SingleTopActivity.class);
-        assertLaunchSequence(SingleTopActivity.class, getTransitionLog());
+        LifecycleVerifier.assertLaunchSequence(SingleTopActivity.class, getLifecycleLog());
 
         // Launch translucent activity, which will make the first one paused.
         launchActivityAndWait(TranslucentActivity.class);
@@ -850,7 +859,7 @@ public class ActivityLifecycleTests extends ActivityLifecycleClientTestBase {
         waitAndAssertActivityStates(state(singleTopActivity, ON_PAUSE));
 
         // Try to launch again
-        getTransitionLog().clear();
+        getLifecycleLog().clear();
         new Launcher(SingleTopActivity.class)
                 .setFlags(FLAG_ACTIVITY_NEW_TASK | FLAG_ACTIVITY_CLEAR_TOP)
                 .setNoInstance()
@@ -858,15 +867,16 @@ public class ActivityLifecycleTests extends ActivityLifecycleClientTestBase {
 
         // Wait for the activity to resume again
         // Verify that the new intent was delivered and resumed again
-        final List<String> expectedSequence =
+        final List<LifecycleLog.ActivityCallback> expectedSequence =
                 Arrays.asList(ON_NEW_INTENT, ON_RESUME, ON_TOP_POSITION_GAINED);
         waitForActivityTransitions(SingleTopActivity.class, expectedSequence);
-        assertSequence(SingleTopActivity.class, getTransitionLog(), expectedSequence, "newIntent");
+        LifecycleVerifier.assertSequence(SingleTopActivity.class, getLifecycleLog(),
+                expectedSequence, "newIntent");
     }
 
     @Test
     public void testFinishInOnCreate() throws Exception {
-        verifyFinishAtStage(ResultActivity.class, EXTRA_FINISH_IN_ON_CREATE,
+        verifyFinishAtStage( ResultActivity.class, EXTRA_FINISH_IN_ON_CREATE,
                 Arrays.asList(ON_CREATE, ON_DESTROY), "onCreate");
     }
 
@@ -893,38 +903,27 @@ public class ActivityLifecycleTests extends ActivityLifecycleClientTestBase {
     @Test
     public void testFinishInOnResume() throws Exception {
         verifyFinishAtStage(ResultActivity.class, EXTRA_FINISH_IN_ON_RESUME,
-                true /* skipTopResumedState */,
-                Arrays.asList(ON_CREATE, ON_START, ON_POST_CREATE, ON_RESUME, ON_PAUSE, ON_STOP,
+                Arrays.asList(ON_CREATE, ON_START, ON_POST_CREATE, ON_RESUME,
+                        ON_TOP_POSITION_GAINED, ON_TOP_POSITION_LOST, ON_PAUSE, ON_STOP,
                         ON_DESTROY), "onResume");
     }
 
     @Test
     public void testFinishInOnResumeNoDisplay() throws Exception {
         verifyFinishAtStage(NoDisplayActivity.class, EXTRA_FINISH_IN_ON_RESUME,
-                true /* skipTopResumedState */,
-                Arrays.asList(ON_CREATE, ON_START, ON_POST_CREATE, ON_RESUME, ON_PAUSE, ON_STOP,
+                Arrays.asList(ON_CREATE, ON_START, ON_POST_CREATE, ON_RESUME,
+                        ON_TOP_POSITION_GAINED, ON_TOP_POSITION_LOST, ON_PAUSE, ON_STOP,
                         ON_DESTROY), "onResume");
     }
 
     private void verifyFinishAtStage(Class<? extends Activity> activityClass,
-            String finishStageExtra, List<String> expectedSequence,
+            String finishStageExtra, List<LifecycleLog.ActivityCallback> expectedSequence,
             String stageName) throws Exception {
-        verifyFinishAtStage(activityClass, finishStageExtra, false /* skipTopResumedState */,
-                expectedSequence, stageName);
-    }
-
-    private void verifyFinishAtStage(Class<? extends Activity> activityClass,
-            String finishStageExtra, boolean skipTopResumedState,
-            List<String> expectedSequence,
-            String stageName) throws Exception {
-        final Launcher launcher = new Launcher(activityClass)
+        new Launcher(activityClass)
                 .setExpectedState(ON_DESTROY)
                 .setExtraFlags(finishStageExtra)
-                .setNoInstance();
-        if (skipTopResumedState) {
-            launcher.setSkipTopResumedStateCheck();
-        }
-        launcher.launch();
+                .setNoInstance()
+                .launch();
 
         waitAndAssertActivityTransitions(activityClass, expectedSequence, "finish in " + stageName);
     }
@@ -960,7 +959,8 @@ public class ActivityLifecycleTests extends ActivityLifecycleClientTestBase {
         // Launch an activity on top, which will make the first one paused or stopped.
         launchActivityAndWait(launchOnTopClass);
 
-        final List<String> expectedSequence = getLaunchAndDestroySequence(activityClass);
+        final List<LifecycleLog.ActivityCallback> expectedSequence =
+                LifecycleVerifier.getLaunchAndDestroySequence(activityClass);
         waitAndAssertActivityTransitions(activityClass, expectedSequence, "finish in " + stageName);
     }
 
@@ -970,13 +970,13 @@ public class ActivityLifecycleTests extends ActivityLifecycleClientTestBase {
 
         launchActivityAndWait(TranslucentCallbackTrackingActivity.class);
         waitAndAssertActivityStates(state(bottomActivity, ON_PAUSE));
-        getTransitionLog().clear();
+        getLifecycleLog().clear();
 
         waitForIdle();
         bottomActivity.finish();
         waitAndAssertActivityStates(state(bottomActivity, ON_DESTROY));
-        assertEmptySequence(TranslucentCallbackTrackingActivity.class,
-                getTransitionLog(), "finishBelow");
+        LifecycleVerifier.assertEmptySequence(TranslucentCallbackTrackingActivity.class,
+                getLifecycleLog(), "finishBelow");
     }
 
     @Test
@@ -985,12 +985,13 @@ public class ActivityLifecycleTests extends ActivityLifecycleClientTestBase {
 
         launchActivityAndWait(FirstActivity.class);
         waitAndAssertActivityStates(state(bottomActivity, ON_STOP));
-        getTransitionLog().clear();
+        getLifecycleLog().clear();
 
         waitForIdle();
         bottomActivity.finish();
         waitAndAssertActivityStates(state(bottomActivity, ON_DESTROY));
-        assertEmptySequence(FirstActivity.class, getTransitionLog(), "finishBelow");
+        LifecycleVerifier.assertEmptySequence(FirstActivity.class, getLifecycleLog(),
+                "finishBelow");
     }
 
     @Test
@@ -1015,7 +1016,7 @@ public class ActivityLifecycleTests extends ActivityLifecycleClientTestBase {
         waitAndAssertActivityStates(state(activity, ON_TOP_POSITION_GAINED));
 
         // Verify the result have been sent back to original activity
-        assertTransitionObserved(getTransitionLog(),
+        LifecycleVerifier.assertTransitionObserved(getLifecycleLog(),
                 transition(SingleTopActivity.class, ON_ACTIVITY_RESULT),"activityResult");
     }
 
@@ -1025,11 +1026,11 @@ public class ActivityLifecycleTests extends ActivityLifecycleClientTestBase {
                 .setExtraFlags(EXTRA_ACTIVITY_ON_USER_LEAVE_HINT)
                 .launch();
 
-        getTransitionLog().clear();
+        getLifecycleLog().clear();
         launchActivityAndWait(SecondActivity.class);
         waitAndAssertActivityStates(state(FirstActivity.class, ON_STOP));
 
-        assertTransitionObserved(getTransitionLog(),
+        LifecycleVerifier.assertTransitionObserved(getLifecycleLog(),
                 transition(FirstActivity.class, ON_USER_LEAVE_HINT),"userLeaveHint");
     }
 
@@ -1039,13 +1040,13 @@ public class ActivityLifecycleTests extends ActivityLifecycleClientTestBase {
                 .setExtraFlags(EXTRA_ACTIVITY_ON_USER_LEAVE_HINT)
                 .launch();
 
-        getTransitionLog().clear();
+        getLifecycleLog().clear();
         new Launcher(SecondActivity.class)
                 .setFlags(FLAG_ACTIVITY_NO_USER_ACTION | FLAG_ACTIVITY_NEW_TASK)
                 .launch();
         waitAndAssertActivityStates(state(FirstActivity.class, ON_STOP));
 
-        assertTransitionNotObserved(getTransitionLog(),
+        LifecycleVerifier.assertTransitionNotObserved(getLifecycleLog(),
                 transition(FirstActivity.class, ON_USER_LEAVE_HINT),"userLeaveHint");
     }
 }

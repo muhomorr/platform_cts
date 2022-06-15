@@ -59,12 +59,10 @@ public class BleClientService extends Service {
     // (termination signal will not be sent)
     // This flag switches to turn Bluetooth off instead of BluetoothGatt#disconnect().
     // If true, test will turn Bluetooth off. Otherwise, will call BluetoothGatt#disconnect().
-    public static final boolean DISCONNECT_BY_TURN_BT_OFF_ON =
-            (Build.VERSION.SDK_INT > Build.VERSION_CODES.M);
+    public static final boolean DISCONNECT_BY_TURN_BT_OFF_ON = (Build.VERSION.SDK_INT > Build.VERSION_CODES.M);
 
     // for Version 1 test
-//    private static final int TRANSPORT_MODE_FOR_SECURE_CONNECTION = BluetoothDevice
-//    .TRANSPORT_AUTO;
+//    private static final int TRANSPORT_MODE_FOR_SECURE_CONNECTION = BluetoothDevice.TRANSPORT_AUTO;
     // for Version 2 test
     private static final int TRANSPORT_MODE_FOR_SECURE_CONNECTION = BluetoothDevice.TRANSPORT_LE;
 
@@ -118,8 +116,6 @@ public class BleClientService extends Service {
             "com.android.cts.verifier.bluetooth.BLE_RELIABLE_WRITE_BAD_RESP_COMPLETED";
     public static final String BLE_READ_REMOTE_RSSI =
             "com.android.cts.verifier.bluetooth.BLE_READ_REMOTE_RSSI";
-    public static final String BLE_PHY_READ =
-            "com.android.cts.verifier.bluetooth.BLE_PHY_READ";
     public static final String BLE_ON_SERVICE_CHANGED =
             "com.android.cts.verifier.bluetooth.BLE_ON_SERVICE_CHANGED";
     public static final String BLE_CHARACTERISTIC_READ_NOPERMISSION =
@@ -178,28 +174,22 @@ public class BleClientService extends Service {
             "com.android.cts.verifier.bluetooth.BLE_CLIENT_ACTION_WRITE_DESCRIPTOR";
     public static final String BLE_CLIENT_ACTION_READ_RSSI =
             "com.android.cts.verifier.bluetooth.BLE_CLIENT_ACTION_READ_RSSI";
-    public static final String BLE_CLIENT_ACTION_READ_PHY =
-            "com.android.cts.verifier.bluetooth.BLE_CLIENT_ACTION_READ_PHY";
     public static final String BLE_CLIENT_ACTION_TRIGGER_SERVICE_CHANGED =
             "com.android.cts.verifier.bluetooth.BLE_CLIENT_ACTION_TRIGGER_SERVICE_CHANGED";
     public static final String BLE_CLIENT_ACTION_CLIENT_DISCONNECT =
             "com.android.cts.verifier.bluetooth.BLE_CLIENT_ACTION_CLIENT_DISCONNECT";
     public static final String BLE_CLIENT_ACTION_READ_CHARACTERISTIC_NO_PERMISSION =
-            "com.android.cts.verifier.bluetooth"
-                    + ".BLE_CLIENT_ACTION_READ_CHARACTERISTIC_NO_PERMISSION";
+            "com.android.cts.verifier.bluetooth.BLE_CLIENT_ACTION_READ_CHARACTERISTIC_NO_PERMISSION";
     public static final String BLE_CLIENT_ACTION_WRITE_CHARACTERISTIC_NO_PERMISSION =
-            "com.android.cts.verifier.bluetooth"
-                    + ".BLE_CLIENT_ACTION_WRITE_CHARACTERISTIC_NO_PERMISSION";
+            "com.android.cts.verifier.bluetooth.BLE_CLIENT_ACTION_WRITE_CHARACTERISTIC_NO_PERMISSION";
     public static final String BLE_CLIENT_ACTION_READ_DESCRIPTOR_NO_PERMISSION =
             "com.android.cts.verifier.bluetooth.BLE_CLIENT_ACTION_READ_DESCRIPTOR_NO_PERMISSION";
     public static final String BLE_CLIENT_ACTION_WRITE_DESCRIPTOR_NO_PERMISSION =
             "com.android.cts.verifier.bluetooth.BLE_CLIENT_ACTION_WRITE_DESCRIPTOR_NO_PERMISSION";
     public static final String BLE_CLIENT_ACTION_READ_AUTHENTICATED_CHARACTERISTIC =
-            "com.android.cts.verifier.bluetooth"
-                    + ".BLE_CLIENT_ACTION_READ_AUTHENTICATED_CHARACTERISTIC";
+            "com.android.cts.verifier.bluetooth.BLE_CLIENT_ACTION_READ_AUTHENTICATED_CHARACTERISTIC";
     public static final String BLE_CLIENT_ACTION_WRITE_AUTHENTICATED_CHARACTERISTIC =
-            "com.android.cts.verifier.bluetooth"
-                    + ".BLE_CLIENT_ACTION_WRITE_AUTHENTICATED_CHARACTERISTIC";
+            "com.android.cts.verifier.bluetooth.BLE_CLIENT_ACTION_WRITE_AUTHENTICATED_CHARACTERISTIC";
     public static final String BLE_CLIENT_ACTION_READ_AUTHENTICATED_DESCRIPTOR =
             "com.android.cts.verifier.bluetooth.BLE_CLIENT_ACTION_READ_AUTHENTICATED_DESCRIPTOR";
     public static final String BLE_CLIENT_ACTION_WRITE_AUTHENTICATED_DESCRIPTOR =
@@ -211,10 +201,6 @@ public class BleClientService extends Service {
             "com.android.cts.verifier.bluetooth.EXTRA_DESCRIPTOR_VALUE";
     public static final String EXTRA_RSSI_VALUE =
             "com.android.cts.verifier.bluetooth.EXTRA_RSSI_VALUE";
-    public static final String EXTRA_TX_PHY_VALUE =
-            "com.android.cts.verifier.bluetooth.EXTRA_TX_PHY_VALUE";
-    public static final String EXTRA_RX_PHY_VALUE =
-            "com.android.cts.verifier.bluetooth.EXTRA_RX_PHY_VALUE";
     public static final String EXTRA_ERROR_MESSAGE =
             "com.android.cts.verifier.bluetooth.EXTRA_ERROR_MESSAGE";
 
@@ -288,7 +274,7 @@ public class BleClientService extends Service {
             UUID.fromString("00009955-0000-1000-8000-00805f9b34fb");
 
     private static final UUID SERVICE_CHANGED_CONTROL_CHARACTERISTIC_UUID =
-            UUID.fromString("00009949-0000-1000-8000-00805f9b34fb");
+        UUID.fromString("00009949-0000-1000-8000-00805f9b34fb");
 
     private static final UUID UPDATE_DESCRIPTOR_UUID =
             UUID.fromString("00002902-0000-1000-8000-00805f9b34fb");
@@ -329,7 +315,7 @@ public class BleClientService extends Service {
     private static final int SERVICE_CHANGED_FLAG_TRIGGER_ACTION = 0x01;
     private static final int SERVICE_CHANGED_FLAG_ON_SERVICE_CHANGED = 0x02;
     private static final int SERVICE_CHANGED_FLAG_ALL = 0x03;
-    private static final int SERVICE_CHANGED_FLAG_IGNORE = 0xFF;
+    private static final int SERVOCE_CHANGED_FLAG_IGNORE = 0xFF;
     private int mServiceChangedFlag;
 
     private enum ReliableWriteState {
@@ -344,8 +330,7 @@ public class BleClientService extends Service {
     public void onCreate() {
         super.onCreate();
 
-        registerReceiver(mBondStatusReceiver,
-                new IntentFilter(BluetoothDevice.ACTION_BOND_STATE_CHANGED));
+        registerReceiver(mBondStatusReceiver, new IntentFilter(BluetoothDevice.ACTION_BOND_STATE_CHANGED));
 
         mBluetoothManager = (BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE);
         mBluetoothAdapter = mBluetoothManager.getAdapter();
@@ -410,7 +395,7 @@ public class BleClientService extends Service {
                             reliableWrite();
                         }
                     });
-                    break;
+                break;
                 case BLE_CLIENT_ACTION_INDICATE_CHARACTERISTIC:
                     setNotification(INDICATE_CHARACTERISTIC_UUID, true);
                     break;
@@ -422,20 +407,15 @@ public class BleClientService extends Service {
                             mNotifyCount = 16;
                             setNotification(UPDATE_CHARACTERISTIC_UUID, true);
                             waitForDisableNotificationCompletion();
-                            setNotification(SERVICE_UUID_ADDITIONAL, UPDATE_CHARACTERISTIC_UUID_1,
-                                    true);
+                            setNotification(SERVICE_UUID_ADDITIONAL, UPDATE_CHARACTERISTIC_UUID_1, true);
                             waitForDisableNotificationCompletion();
-                            setNotification(SERVICE_UUID_ADDITIONAL, UPDATE_CHARACTERISTIC_UUID_2,
-                                    true);
+                            setNotification(SERVICE_UUID_ADDITIONAL, UPDATE_CHARACTERISTIC_UUID_2, true);
                             waitForDisableNotificationCompletion();
-                            setNotification(SERVICE_UUID_ADDITIONAL, UPDATE_CHARACTERISTIC_UUID_3,
-                                    true);
+                            setNotification(SERVICE_UUID_ADDITIONAL, UPDATE_CHARACTERISTIC_UUID_3, true);
                             waitForDisableNotificationCompletion();
-                            setNotification(SERVICE_UUID_ADDITIONAL, UPDATE_CHARACTERISTIC_UUID_4,
-                                    true);
+                            setNotification(SERVICE_UUID_ADDITIONAL, UPDATE_CHARACTERISTIC_UUID_4, true);
                             waitForDisableNotificationCompletion();
-                            setNotification(SERVICE_UUID_ADDITIONAL, UPDATE_CHARACTERISTIC_UUID_5,
-                                    true);
+                            setNotification(SERVICE_UUID_ADDITIONAL, UPDATE_CHARACTERISTIC_UUID_5, true);
                             waitForDisableNotificationCompletion();
                             setNotification(UPDATE_CHARACTERISTIC_UUID_6, true);
                             waitForDisableNotificationCompletion();
@@ -447,24 +427,19 @@ public class BleClientService extends Service {
                             waitForDisableNotificationCompletion();
                             setNotification(UPDATE_CHARACTERISTIC_UUID_10, true);
                             waitForDisableNotificationCompletion();
-                            setNotification(SERVICE_UUID_ADDITIONAL, UPDATE_CHARACTERISTIC_UUID_11,
-                                    true);
+                            setNotification(SERVICE_UUID_ADDITIONAL, UPDATE_CHARACTERISTIC_UUID_11, true);
                             waitForDisableNotificationCompletion();
-                            setNotification(SERVICE_UUID_ADDITIONAL, UPDATE_CHARACTERISTIC_UUID_12,
-                                    true);
+                            setNotification(SERVICE_UUID_ADDITIONAL, UPDATE_CHARACTERISTIC_UUID_12, true);
                             waitForDisableNotificationCompletion();
-                            setNotification(SERVICE_UUID_ADDITIONAL, UPDATE_CHARACTERISTIC_UUID_13,
-                                    true);
+                            setNotification(SERVICE_UUID_ADDITIONAL, UPDATE_CHARACTERISTIC_UUID_13, true);
                             waitForDisableNotificationCompletion();
-                            setNotification(SERVICE_UUID_ADDITIONAL, UPDATE_CHARACTERISTIC_UUID_14,
-                                    true);
+                            setNotification(SERVICE_UUID_ADDITIONAL, UPDATE_CHARACTERISTIC_UUID_14, true);
                             waitForDisableNotificationCompletion();
-                            setNotification(SERVICE_UUID_ADDITIONAL, UPDATE_CHARACTERISTIC_UUID_15,
-                                    true);
+                            setNotification(SERVICE_UUID_ADDITIONAL, UPDATE_CHARACTERISTIC_UUID_15, true);
                             waitForDisableNotificationCompletion();
                         }
                     });
-                    break;
+                break;
                 case BLE_CLIENT_ACTION_READ_DESCRIPTOR:
                     readDescriptor(DESCRIPTOR_UUID);
                     break;
@@ -503,13 +478,7 @@ public class BleClientService extends Service {
                     readDescriptor(CHARACTERISTIC_RESULT_UUID, DESCRIPTOR_NEED_ENCRYPTED_READ_UUID);
                     break;
                 case BLE_CLIENT_ACTION_WRITE_AUTHENTICATED_DESCRIPTOR:
-                    writeDescriptor(CHARACTERISTIC_RESULT_UUID,
-                            DESCRIPTOR_NEED_ENCRYPTED_WRITE_UUID, WRITE_VALUE);
-                    break;
-                case BLE_CLIENT_ACTION_READ_PHY:
-                    if (mBluetoothGatt != null) {
-                        mBluetoothGatt.readPhy();
-                    }
+                    writeDescriptor(CHARACTERISTIC_RESULT_UUID, DESCRIPTOR_NEED_ENCRYPTED_WRITE_UUID, WRITE_VALUE);
                     break;
                 case BLE_CLIENT_ACTION_TRIGGER_SERVICE_CHANGED:
                     initializeServiceChangedEvent();
@@ -538,35 +507,18 @@ public class BleClientService extends Service {
         mTaskQueue.quit();
     }
 
-    /**
-     * Connect to GATT Server hosted by this device. Caller acts as GATT client.
-     * The callback is used to deliver results to Caller, such as connection status as well
-     * as any further GATT client operations.
-     * The method returns a BluetoothGatt instance. You can use BluetoothGatt to conduct
-     * GATT client operations.
-     *
-     * @param callback GATT callback handler that will receive asynchronous callbacks.
-     * @param autoConnect Whether to directly connect to the remote device (false) or to
-     * automatically connect as soon as the remote device becomes available (true).
-     * @param isSecure Whether to use transport mode for secure connection (true or false)
-     * @throws IllegalArgumentException if callback is null
-     */
-    public static BluetoothGatt connectGatt(BluetoothDevice device, Context context,
-            boolean autoConnect, boolean isSecure, BluetoothGattCallback callback) {
+    public static BluetoothGatt connectGatt(BluetoothDevice device, Context context, boolean autoConnect, boolean isSecure, BluetoothGattCallback callback) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             if (isSecure) {
                 if (TRANSPORT_MODE_FOR_SECURE_CONNECTION == BluetoothDevice.TRANSPORT_AUTO) {
-                    Toast.makeText(context, "connectGatt(transport=AUTO)",
-                            Toast.LENGTH_SHORT).show();
+                    Toast.makeText(context, "connectGatt(transport=AUTO)", Toast.LENGTH_SHORT).show();
                 } else {
                     Toast.makeText(context, "connectGatt(transport=LE)", Toast.LENGTH_SHORT).show();
                 }
-                return device.connectGatt(context, autoConnect, callback,
-                        TRANSPORT_MODE_FOR_SECURE_CONNECTION);
+                return device.connectGatt(context, autoConnect, callback, TRANSPORT_MODE_FOR_SECURE_CONNECTION);
             } else {
                 Toast.makeText(context, "connectGatt(transport=LE)", Toast.LENGTH_SHORT).show();
-                return device.connectGatt(context, autoConnect, callback,
-                        BluetoothDevice.TRANSPORT_LE);
+                return device.connectGatt(context, autoConnect, callback, BluetoothDevice.TRANSPORT_LE);
             }
         } else {
             Toast.makeText(context, "connectGatt", Toast.LENGTH_SHORT).show();
@@ -601,22 +553,16 @@ public class BleClientService extends Service {
         }
     }
 
-    private void writeCharacteristic(BluetoothGattCharacteristic characteristic,
-            String writeValue) {
+    private void writeCharacteristic(BluetoothGattCharacteristic characteristic, String writeValue) {
         if (characteristic != null) {
-            // Note: setValue() should not be necessary when using writeCharacteristic(byte[]) which
-            // is added on Android T, but here we call the method in order to make the test
-            // easier to read. Otherwise, we should verify the written value by calling
-            // readCharacteristic() but that makes the whole test hard to read.
             characteristic.setValue(writeValue);
-            mBluetoothGatt.writeCharacteristic(characteristic, writeValue.getBytes(),
-                    characteristic.getWriteType());
+            mBluetoothGatt.writeCharacteristic(characteristic);
         }
     }
 
     private void writeCharacteristic(UUID uid, String writeValue) {
         BluetoothGattCharacteristic characteristic = getCharacteristic(uid);
-        if (characteristic != null) {
+        if (characteristic != null){
             writeCharacteristic(characteristic, writeValue);
         }
     }
@@ -631,12 +577,8 @@ public class BleClientService extends Service {
     private void writeDescriptor(UUID uid, String writeValue) {
         BluetoothGattDescriptor descriptor = getDescriptor(uid);
         if (descriptor != null) {
-            // Note: setValue() should not be necessary when using writeDescriptor(byte[]) which
-            // is added on Android T, but here we call the method in order to make the test
-            // easier to read. Otherwise, we should verify the written value by calling
-            // readDescriptor() but that makes the whole test hard to read.
             descriptor.setValue(writeValue.getBytes());
-            mBluetoothGatt.writeDescriptor(descriptor, writeValue.getBytes());
+            mBluetoothGatt.writeDescriptor(descriptor);
         }
     }
 
@@ -650,12 +592,8 @@ public class BleClientService extends Service {
     private void writeDescriptor(UUID cuid, UUID duid, String writeValue) {
         BluetoothGattDescriptor descriptor = getDescriptor(cuid, duid);
         if (descriptor != null) {
-            // Note: setValue() should not be necessary when using writeDescriptor(byte[]) which
-            // is added on Android T, but here we call the method in order to make the test
-            // easier to read. Otherwise, we should verify the written value by calling
-            // readDescriptor() but that makes the whole test hard to read.
             descriptor.setValue(writeValue.getBytes());
-            mBluetoothGatt.writeDescriptor(descriptor, writeValue.getBytes());
+            mBluetoothGatt.writeDescriptor(descriptor);
         }
     }
 
@@ -693,23 +631,22 @@ public class BleClientService extends Service {
         synchronized (mServiceChangedLock) {
             mServiceChangedFlag |= flag;
             if (mServiceChangedFlag == SERVICE_CHANGED_FLAG_ALL) {
-                mServiceChangedFlag |= SERVICE_CHANGED_FLAG_IGNORE;
+                mServiceChangedFlag |= SERVOCE_CHANGED_FLAG_IGNORE;
                 shouldSend = true;
             }
         }
 
         if (shouldSend) {
-            // This is to send result to the connected GATT server.
             writeCharacteristic(getCharacteristic(CHARACTERISTIC_RESULT_UUID),
-                    SERVICE_CHANGED_VALUE);
+                SERVICE_CHANGED_VALUE);
+            notifyServiceChanged();
         }
     }
 
     private void setNotification(BluetoothGattCharacteristic characteristic, boolean enable) {
         if (characteristic != null) {
             mBluetoothGatt.setCharacteristicNotification(characteristic, enable);
-            BluetoothGattDescriptor descriptor = characteristic.getDescriptor(
-                    UPDATE_DESCRIPTOR_UUID);
+            BluetoothGattDescriptor descriptor = characteristic.getDescriptor(UPDATE_DESCRIPTOR_UUID);
             if (enable) {
                 if (characteristic.getUuid().equals(INDICATE_CHARACTERISTIC_UUID)) {
                     descriptor.setValue(BluetoothGattDescriptor.ENABLE_INDICATION_VALUE);
@@ -723,9 +660,8 @@ public class BleClientService extends Service {
         }
     }
 
-    private void setNotification(UUID serviceUid, UUID characteristicUid, boolean enable) {
-        BluetoothGattCharacteristic characteristic = getCharacteristic(serviceUid,
-                characteristicUid);
+    private void setNotification(UUID serviceUid, UUID characteristicUid,  boolean enable) {
+        BluetoothGattCharacteristic characteristic = getCharacteristic(serviceUid, characteristicUid);
         if (characteristic != null) {
             setNotification(characteristic, enable);
         }
@@ -734,7 +670,7 @@ public class BleClientService extends Service {
     private void setNotification(UUID uid, boolean enable) {
         BluetoothGattCharacteristic characteristic = getCharacteristic(uid);
         if (characteristic != null) {
-            setNotification(characteristic, enable);
+           setNotification(characteristic, enable);
         }
     }
 
@@ -899,14 +835,6 @@ public class BleClientService extends Service {
         sendBroadcast(intent);
     }
 
-    private void notifyPhyRead(int txPhy, int rxPhy) {
-        showMessage("Phy read: txPhy=" + txPhy + ", rxPhy=" + rxPhy);
-        Intent intent = new Intent(BLE_PHY_READ);
-        intent.putExtra(EXTRA_TX_PHY_VALUE, txPhy);
-        intent.putExtra(EXTRA_RX_PHY_VALUE, rxPhy);
-        sendBroadcast(intent);
-    }
-
     private void notifyServiceChanged() {
         showMessage("Remote service changed");
         Intent intent = new Intent(BLE_ON_SERVICE_CHANGED);
@@ -949,7 +877,6 @@ public class BleClientService extends Service {
         }
         return characteristic;
     }
-
     private BluetoothGattCharacteristic getCharacteristic(UUID uuid) {
         BluetoothGattCharacteristic characteristic = null;
 
@@ -1029,11 +956,7 @@ public class BleClientService extends Service {
     private final BluetoothGattCallback mGattCallbacks = new BluetoothGattCallback() {
         @Override
         public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
-            super.onConnectionStateChange(gatt, status, newState);
-            if (DEBUG) {
-                Log.d(TAG,
-                        "onConnectionStateChange: status= " + status + ", newState= " + newState);
-            }
+            if (DEBUG) Log.d(TAG, "onConnectionStateChange: status= " + status + ", newState= " + newState);
             if (status == BluetoothGatt.GATT_SUCCESS) {
                 if (newState == BluetoothProfile.STATE_CONNECTED) {
                     mBleState = newState;
@@ -1075,12 +998,10 @@ public class BleClientService extends Service {
 
         @Override
         public void onServicesDiscovered(BluetoothGatt gatt, int status) {
-            super.onServicesDiscovered(gatt, status);
-            if (DEBUG) {
+            if (DEBUG){
                 Log.d(TAG, "onServiceDiscovered");
             }
-            if ((status == BluetoothGatt.GATT_SUCCESS) && (mBluetoothGatt.getService(SERVICE_UUID)
-                    != null)) {
+            if ((status == BluetoothGatt.GATT_SUCCESS) && (mBluetoothGatt.getService(SERVICE_UUID) != null)) {
                 notifyServicesDiscovered();
             }
         }
@@ -1088,7 +1009,7 @@ public class BleClientService extends Service {
         @Override
         public void onMtuChanged(BluetoothGatt gatt, int mtu, int status) {
             super.onMtuChanged(gatt, mtu, status);
-            if (DEBUG) {
+            if (DEBUG){
                 Log.d(TAG, "onMtuChanged");
             }
             if (status == BluetoothGatt.GATT_SUCCESS) {
@@ -1115,31 +1036,15 @@ public class BleClientService extends Service {
         }
 
         @Override
-        public void onCharacteristicWrite(BluetoothGatt gatt,
-                BluetoothGattCharacteristic characteristic, final int status) {
-            super.onCharacteristicWrite(gatt, characteristic, status);
+        public void onCharacteristicWrite(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, final int status) {
             String value = characteristic.getStringValue(0);
             final UUID uid = characteristic.getUuid();
             if (DEBUG) {
-                Log.d(TAG,
-                        "onCharacteristicWrite: characteristic.val=" + value + " status=" + status);
+                Log.d(TAG, "onCharacteristicWrite: characteristic.val=" + value + " status=" + status);
             }
 
             if (BLE_CLIENT_ACTION_TRIGGER_SERVICE_CHANGED.equals(mCurrentAction)) {
-                if (SERVICE_CHANGED_VALUE.equals(value)) {
-                    if (status == BluetoothGatt.GATT_SUCCESS) {
-                        // Waits until the GATT server sends the response, we can then do notify.
-                        notifyServiceChanged();
-                    } else {
-                        notifyError("Failed to send result for service changed event");
-                    }
-                } else {
-                    // The reason not to check the status code is that we know there is a service
-                    // changed event coming later, sometimes the status code will be modified by
-                    // bt stack (133), but it's ok, as long as onServiceChanged is called, we then
-                    // know the request is successfully sent during this test session.
-                    sendServiceChangedEventIfReady(SERVICE_CHANGED_FLAG_TRIGGER_ACTION);
-                }
+                sendServiceChangedEventIfReady(SERVICE_CHANGED_FLAG_TRIGGER_ACTION);
             } else if (BLE_CLIENT_ACTION_REQUEST_MTU_512.equals(mCurrentAction) ||
                     BLE_CLIENT_ACTION_REQUEST_MTU_23.equals(mCurrentAction)) {
                 if (status == BluetoothGatt.GATT_SUCCESS) {
@@ -1151,14 +1056,11 @@ public class BleClientService extends Service {
                 switch (mExecReliableWrite) {
                     case RELIABLE_WRITE_NONE:
                         if (status == BluetoothGatt.GATT_SUCCESS) {
-                            if (characteristic.getUuid().equals(
-                                    CHARACTERISTIC_NEED_ENCRYPTED_WRITE_UUID)) {
+                            if (characteristic.getUuid().equals(CHARACTERISTIC_NEED_ENCRYPTED_WRITE_UUID)) {
                                 notifyCharacteristicWriteNeedEncrypted(value);
-                            } else if (!characteristic.getUuid().equals(
-                                    CHARACTERISTIC_RESULT_UUID)) {
+                            } else if (!characteristic.getUuid().equals(CHARACTERISTIC_RESULT_UUID)) {
                                 // verify
-                                if (Arrays.equals(BleClientService.WRITE_VALUE.getBytes(),
-                                        characteristic.getValue())) {
+                                if (Arrays.equals(BleClientService.WRITE_VALUE.getBytes(), characteristic.getValue())) {
                                     notifyCharacteristicWrite(value);
                                 } else {
                                     notifyError("Written data is not correct");
@@ -1166,8 +1068,7 @@ public class BleClientService extends Service {
                             }
                         } else if (status == BluetoothGatt.GATT_WRITE_NOT_PERMITTED) {
                             if (uid.equals(CHARACTERISTIC_NO_WRITE_UUID)) {
-                                writeCharacteristic(getCharacteristic(CHARACTERISTIC_RESULT_UUID),
-                                        BleServerService.WRITE_NO_PERMISSION);
+                                writeCharacteristic(getCharacteristic(CHARACTERISTIC_RESULT_UUID), BleServerService.WRITE_NO_PERMISSION);
                                 notifyCharacteristicWriteNoPermission(value);
                             } else {
                                 notifyError("Not Permission Write: " + status + " : " + uid);
@@ -1183,8 +1084,7 @@ public class BleClientService extends Service {
                         if (WRITE_VALUE_507BYTES_FOR_RELIABLE_WRITE.equals(value)) {
                             // write next data
                             mExecReliableWrite = ReliableWriteState.RELIABLE_WRITE_WRITE_2ND_DATA;
-                            writeCharacteristic(CHARACTERISTIC_UUID,
-                                    WRITE_VALUE_507BYTES_FOR_RELIABLE_WRITE);
+                            writeCharacteristic(CHARACTERISTIC_UUID, WRITE_VALUE_507BYTES_FOR_RELIABLE_WRITE);
                         } else {
                             notifyError("Failed to write characteristic: " + status + " : " + uid);
                         }
@@ -1231,46 +1131,31 @@ public class BleClientService extends Service {
         }
 
         @Override
-        public void onCharacteristicRead(BluetoothGatt gatt,
-                BluetoothGattCharacteristic characteristic, int status) {
-            super.onCharacteristicRead(gatt, characteristic, status);
-            // Note: Both this method and onCharacteristicRead(byte[]) will be called.
+        public void onCharacteristicRead(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
             UUID uid = characteristic.getUuid();
             if (DEBUG) {
-                Log.d(TAG, "onCharacteristicRead (deprecated): status=" + status);
+                Log.d(TAG, "onCharacteristicRead: status=" + status);
             }
-        }
-
-        @Override
-        public void onCharacteristicRead(BluetoothGatt gatt,
-                BluetoothGattCharacteristic characteristic, byte[] value, int status) {
-            super.onCharacteristicRead(gatt, characteristic, value, status);
-            UUID uid = characteristic.getUuid();
-            if (DEBUG) {
-                Log.d(TAG, "onCharacteristicRead (memory safe version): status=" + status);
-            }
-
             if (status == BluetoothGatt.GATT_SUCCESS) {
-                String stringValue = new String(value);
+                String value = characteristic.getStringValue(0);
                 if (characteristic.getUuid().equals(CHARACTERISTIC_NEED_ENCRYPTED_READ_UUID)) {
-                    notifyCharacteristicReadNeedEncrypted(stringValue);
+                    notifyCharacteristicReadNeedEncrypted(value);
                 } else {
                     // verify
-                    if (BleServerService.WRITE_VALUE.equals(stringValue)) {
-                        notifyCharacteristicRead(stringValue);
+                    if (BleServerService.WRITE_VALUE.equals(value)) {
+                        notifyCharacteristicRead(value);
                     } else {
                         notifyError("Read data is not correct");
                     }
                 }
             } else if (status == BluetoothGatt.GATT_READ_NOT_PERMITTED) {
                 if (uid.equals(CHARACTERISTIC_NO_READ_UUID)) {
-                    writeCharacteristic(getCharacteristic(CHARACTERISTIC_RESULT_UUID),
-                            BleServerService.READ_NO_PERMISSION);
+                    writeCharacteristic(getCharacteristic(CHARACTERISTIC_RESULT_UUID), BleServerService.READ_NO_PERMISSION);
                     notifyCharacteristicReadNoPermission();
                 } else {
                     notifyError("Not Permission Read: " + status + " : " + uid);
                 }
-            } else if (status == BluetoothGatt.GATT_INSUFFICIENT_AUTHENTICATION) {
+            } else if(status == BluetoothGatt.GATT_INSUFFICIENT_AUTHENTICATION) {
                 notifyError("Not Authentication Read: " + status + " : " + uid);
             } else {
                 notifyError("Failed to read characteristic: " + status + " : " + uid);
@@ -1278,9 +1163,7 @@ public class BleClientService extends Service {
         }
 
         @Override
-        public void onDescriptorWrite(BluetoothGatt gatt, BluetoothGattDescriptor descriptor,
-                int status) {
-            super.onDescriptorWrite(gatt, descriptor, status);
+        public void onDescriptorWrite(BluetoothGatt gatt, BluetoothGattDescriptor descriptor, int status) {
             if (DEBUG) {
                 Log.d(TAG, "onDescriptorWrite");
             }
@@ -1288,8 +1171,7 @@ public class BleClientService extends Service {
             if ((status == BluetoothGatt.GATT_SUCCESS)) {
                 if (uid.equals(UPDATE_DESCRIPTOR_UUID)) {
                     Log.d(TAG, "write in update descriptor.");
-                    if (Arrays.equals(descriptor.getValue(),
-                            BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE)) {
+                    if (descriptor.getValue() == BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE) {
                         notifyDisableNotificationCompletion();
                     }
                 } else if (uid.equals(DESCRIPTOR_UUID)) {
@@ -1304,8 +1186,7 @@ public class BleClientService extends Service {
                 }
             } else if (status == BluetoothGatt.GATT_WRITE_NOT_PERMITTED) {
                 if (uid.equals(DESCRIPTOR_NO_WRITE_UUID)) {
-                    writeCharacteristic(getCharacteristic(CHARACTERISTIC_RESULT_UUID),
-                            BleServerService.DESCRIPTOR_WRITE_NO_PERMISSION);
+                    writeCharacteristic(getCharacteristic(CHARACTERISTIC_RESULT_UUID), BleServerService.DESCRIPTOR_WRITE_NO_PERMISSION);
                     notifyDescriptorWriteNoPermission();
                 } else {
                     notifyError("Not Permission Write: " + status + " : " + descriptor.getUuid());
@@ -1316,40 +1197,26 @@ public class BleClientService extends Service {
         }
 
         @Override
-        public void onDescriptorRead(BluetoothGatt gatt, BluetoothGattDescriptor descriptor,
-                int status) {
-            super.onDescriptorRead(gatt, descriptor, status);
-            // Note: Both this method and onDescriptorRead(byte[]) will be called.
+        public void onDescriptorRead(BluetoothGatt gatt, BluetoothGattDescriptor descriptor, int status) {
             if (DEBUG) {
-                Log.d(TAG, "onDescriptorRead (deprecated)");
-            }
-        }
-
-        @Override
-        public void onDescriptorRead(BluetoothGatt gatt, BluetoothGattDescriptor descriptor,
-                int status, byte[] value) {
-            super.onDescriptorRead(gatt, descriptor, status, value);
-            if (DEBUG) {
-                Log.d(TAG, "onDescriptorRead (memory safe version)");
+                Log.d(TAG, "onDescriptorRead");
             }
 
             UUID uid = descriptor.getUuid();
-            String stringValue = new String(value);
             if ((status == BluetoothGatt.GATT_SUCCESS)) {
                 if ((uid != null) && (uid.equals(DESCRIPTOR_UUID))) {
                     // verify
-                    if (BleServerService.WRITE_VALUE.equals(stringValue)) {
-                        notifyDescriptorRead(stringValue);
+                    if (Arrays.equals(BleServerService.WRITE_VALUE.getBytes(), descriptor.getValue())) {
+                        notifyDescriptorRead(new String(descriptor.getValue()));
                     } else {
                         notifyError("Read data is not correct");
                     }
                 } else if (uid.equals(DESCRIPTOR_NEED_ENCRYPTED_READ_UUID)) {
-                    notifyDescriptorReadNeedEncrypted(stringValue);
+                    notifyDescriptorReadNeedEncrypted(new String(descriptor.getValue()));
                 }
             } else if (status == BluetoothGatt.GATT_READ_NOT_PERMITTED) {
                 if (uid.equals(DESCRIPTOR_NO_READ_UUID)) {
-                    writeCharacteristic(getCharacteristic(CHARACTERISTIC_RESULT_UUID),
-                            BleServerService.DESCRIPTOR_READ_NO_PERMISSION);
+                    writeCharacteristic(getCharacteristic(CHARACTERISTIC_RESULT_UUID), BleServerService.DESCRIPTOR_READ_NO_PERMISSION);
                     notifyDescriptorReadNoPermission();
                 } else {
                     notifyError("Not Permission Read: " + status + " : " + descriptor.getUuid());
@@ -1360,32 +1227,16 @@ public class BleClientService extends Service {
         }
 
         @Override
-        public void onCharacteristicChanged(BluetoothGatt gatt,
-                BluetoothGattCharacteristic characteristic) {
-            super.onCharacteristicChanged(gatt, characteristic);
-            UUID uid = characteristic.getUuid();
-            // Note: Both this method and onCharacteristicChanged(byte[]) will be called.
-            if (DEBUG) {
-                Log.d(TAG, "onCharacteristicChanged (deprecated): uid=" + uid);
-            }
-        }
-
-        @Override
-        public void onCharacteristicChanged(BluetoothGatt gatt,
-                BluetoothGattCharacteristic characteristic, byte[] value) {
-            super.onCharacteristicChanged(gatt, characteristic, value);
+        public void onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
             UUID uid = characteristic.getUuid();
             if (DEBUG) {
-                Log.d(TAG, "onCharacteristicChanged (memory safe version): uid=" + uid);
+                Log.d(TAG, "onCharacteristicChanged: " + uid);
             }
-
-            String stringValue = new String(value);
             if (uid != null) {
-                if (uid.equals(INDICATE_CHARACTERISTIC_UUID)
-                        && BleServerService.INDICATE_VALUE.equals(stringValue)) {
+                if (uid.equals(INDICATE_CHARACTERISTIC_UUID)) {
                     setNotification(characteristic, false);
                     notifyCharacteristicIndicated();
-                } else if (BleServerService.NOTIFY_VALUE.equals(stringValue)) {
+                } else {
                     mNotifyCount--;
                     setNotification(characteristic, false);
                     if (mNotifyCount == 0) {
@@ -1397,7 +1248,6 @@ public class BleClientService extends Service {
 
         @Override
         public void onReliableWriteCompleted(BluetoothGatt gatt, int status) {
-            super.onReliableWriteCompleted(gatt, status);
             if (DEBUG) {
                 Log.d(TAG, "onReliableWriteComplete: " + status);
             }
@@ -1414,7 +1264,6 @@ public class BleClientService extends Service {
 
         @Override
         public void onReadRemoteRssi(BluetoothGatt gatt, int rssi, int status) {
-            super.onReadRemoteRssi(gatt, rssi, status);
             if (DEBUG) {
                 Log.d(TAG, "onReadRemoteRssi");
             }
@@ -1426,32 +1275,7 @@ public class BleClientService extends Service {
         }
 
         @Override
-        public void onPhyRead(BluetoothGatt gatt, int txPhy, int rxPhy, int status) {
-            super.onPhyRead(gatt, txPhy, rxPhy, status);
-            if (DEBUG) {
-                Log.d(TAG, "onPhyRead");
-            }
-            if (status == BluetoothGatt.GATT_SUCCESS) {
-                notifyPhyRead(txPhy, rxPhy);
-            } else {
-                notifyError("Failed to read phy");
-            }
-        }
-
-        @Override
-        public void onPhyUpdate(BluetoothGatt gatt, int txPhy, int rxPhy, int status) {
-            // TODO: Currently this is not called when BluetoothGatt.setPreferredPhy() is called.
-            // It is because the path is not wired in native code. (acl_legacy_interface.cc)
-            // Add a proper implementation and related test.
-            super.onPhyUpdate(gatt, txPhy, rxPhy, status);
-            if (DEBUG) {
-                Log.d(TAG, "onPhyUpdate");
-            }
-        }
-
-        @Override
         public void onServiceChanged(BluetoothGatt gatt) {
-            super.onServiceChanged(gatt);
             if (DEBUG) {
                 Log.d(TAG, "onServiceChanged");
             }
@@ -1485,12 +1309,10 @@ public class BleClientService extends Service {
                                 notifyError("Failed to call create bond");
                             }
                         } else {
-                            mBluetoothGatt = connectGatt(result.getDevice(), mContext, false,
-                                    mSecure, mGattCallbacks);
+                            mBluetoothGatt = connectGatt(result.getDevice(), mContext, false, mSecure, mGattCallbacks);
                         }
                     } else {
-                        mBluetoothGatt = connectGatt(result.getDevice(), mContext, false, mSecure,
-                                mGattCallbacks);
+                        mBluetoothGatt = connectGatt(result.getDevice(), mContext, false, mSecure, mGattCallbacks);
                     }
                 } else {
                     notifyError("There is no validity to Advertise servie.");
@@ -1520,7 +1342,7 @@ public class BleClientService extends Service {
         builder.append("REQUEST_MTU");
         int len = length - builder.length();
         for (int i = 0; i < len; ++i) {
-            builder.append("" + (i % 10));
+            builder.append(""+(i%10));
         }
         return builder.toString();
     }
@@ -1530,18 +1352,17 @@ public class BleClientService extends Service {
         public void onReceive(Context context, Intent intent) {
             if (intent.getAction().equals(BluetoothDevice.ACTION_BOND_STATE_CHANGED)) {
                 BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
-                int state = intent.getIntExtra(BluetoothDevice.EXTRA_BOND_STATE,
-                        BluetoothDevice.BOND_NONE);
+                int state = intent.getIntExtra(BluetoothDevice.EXTRA_BOND_STATE, BluetoothDevice.BOND_NONE);
                 switch (state) {
                     case BluetoothDevice.BOND_BONDED:
                         if ((mBluetoothGatt == null) &&
-                                (device.getType() != BluetoothDevice.DEVICE_TYPE_CLASSIC)) {
+                            (device.getType() != BluetoothDevice.DEVICE_TYPE_CLASSIC)) {
                             if (DEBUG) {
                                 Log.d(TAG, "onReceive:BOND_BONDED: calling connectGatt device="
-                                        + device + ", mSecure=" + mSecure);
+                                             + device + ", mSecure=" + mSecure);
                             }
                             mBluetoothGatt = connectGatt(device, mContext, false, mSecure,
-                                    mGattCallbacks);
+                                                         mGattCallbacks);
                         }
                         break;
                     case BluetoothDevice.BOND_NONE:

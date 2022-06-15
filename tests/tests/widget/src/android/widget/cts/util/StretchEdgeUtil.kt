@@ -178,13 +178,10 @@ fun dragAndHoldKeepsStretch(
 /**
  * An [EdgeEffect] that does not release with [onRelease] unless [pauseRelease] is `false`.
  */
-open class NoReleaseEdgeEffect(context: Context) : EdgeEffect(context) {
+class NoReleaseEdgeEffect(context: Context) : EdgeEffect(context) {
     var pauseRelease = true
 
-    var onReleaseCalled = false
-
     override fun onRelease() {
-        onReleaseCalled = true
         if (!pauseRelease) {
             super.onRelease()
         }
@@ -235,7 +232,7 @@ private fun emulateDragGesture(
     }
 }
 
-fun injectMoveEventsForDrag(
+private fun injectMoveEventsForDrag(
     uiAutomation: UiAutomation,
     downTime: Long,
     dragStartTime: Long = downTime,
@@ -268,7 +265,7 @@ fun injectMoveEventsForDrag(
  * @param yOnScreen The y screen coordinate to press on
  * sent.
  */
-fun injectUpEvent(
+private fun injectUpEvent(
     uiAutomation: UiAutomation,
     downTime: Long,
     upTime: Long,
@@ -284,7 +281,7 @@ fun injectUpEvent(
  * @param yOnScreen The y screen coordinate to press on
  * sent.
  */
-fun injectDownEvent(
+private fun injectDownEvent(
     uiAutomation: UiAutomation,
     downTime: Long,
     xOnScreen: Int,

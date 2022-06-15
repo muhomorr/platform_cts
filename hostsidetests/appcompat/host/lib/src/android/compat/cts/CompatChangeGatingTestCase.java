@@ -274,21 +274,16 @@ public class CompatChangeGatingTestCase extends DeviceTestCase implements IBuild
      */
     protected int getUid(@Nonnull String packageName) throws DeviceNotAvailableException {
         int currentUser = getDevice().getCurrentUser();
-        String uidLines = getDevice()
+        String uidLine = getDevice()
                 .executeShellCommand(
                         "cmd package list packages -U --user " + currentUser + " "
                                 + packageName);
-        for (String uidLine : uidLines.split("\n")) {
-            if (uidLine.startsWith("package:" + packageName + " uid:")) {
-                String[] uidLineParts = uidLine.split(":");
-                // 3rd entry is package uid
-                assertThat(uidLineParts.length).isGreaterThan(2);
-                int uid = Integer.parseInt(uidLineParts[2].trim());
-                assertThat(uid).isGreaterThan(10000);
-                return uid;
-            }
-        }
-        throw new IllegalStateException("Failed to find the test app on the device");
+        String[] uidLineParts = uidLine.split(":");
+        // 3rd entry is package uid
+        assertThat(uidLineParts.length).isGreaterThan(2);
+        int uid = Integer.parseInt(uidLineParts[2].trim());
+        assertThat(uid).isGreaterThan(10000);
+        return uid;
     }
 
     /**

@@ -37,7 +37,7 @@ public final class LauncherAppsTests {
     private final LauncherApps sLauncherApps = sContext.getSystemService(LauncherApps.class);
 
     @Test
-    public void resolveActivity_invalid_doesNotCrash() {
+    public void testResolveInvalidActivity_doesNotCrash() {
         final Intent intent = new Intent();
         intent.setComponent(new ComponentName("invalidPackage", "invalidClass"));
 

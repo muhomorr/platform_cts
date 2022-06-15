@@ -23,7 +23,6 @@ import android.telephony.ims.DelegateRequest;
 import android.telephony.ims.DelegateStateCallback;
 import android.telephony.ims.stub.SipDelegate;
 import android.telephony.ims.stub.SipTransportImplBase;
-import android.util.Log;
 
 import androidx.annotation.NonNull;
 
@@ -35,7 +34,6 @@ import java.util.concurrent.TimeUnit;
 
 public class TestSipTransport extends SipTransportImplBase {
 
-    private static final String TAG = "TestSipTransport";
     public static final String ONE_TO_ONE_CHAT_TAG =
             "+g.3gpp.icsi-ref=\"urn%3Aurn-7%3A3gppservice.ims.icsi.oma.cpm.msg\"";
     public static final String GROUP_CHAT_TAG =
@@ -56,13 +54,8 @@ public class TestSipTransport extends SipTransportImplBase {
     private final ArrayList<TestSipDelegate> mDelegates = new ArrayList<>();
     private final Object mLock = new Object();
 
-    public TestSipTransport() {
-        Log.d(TAG, "TestSipTransport with default constructor");
-    }
-
     public TestSipTransport(Executor executor) {
         super(executor);
-        Log.d(TAG, "TestSipTransport with Executor constructor");
     }
 
     @Override

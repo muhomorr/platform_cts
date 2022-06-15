@@ -23,8 +23,6 @@
 
 #include <android/log.h>
 #include <cstring>
-#include <chrono>
-#include <thread>
 
 #include "VulkanPreTransformTestHelpers.h"
 
@@ -137,13 +135,7 @@ DeviceInfo::~DeviceInfo() {
 VkTestResult DeviceInfo::init(JNIEnv* env, jobject jSurface) {
     ASSERT(jSurface);
 
-    // The native window may not be ready at this point yet (especially if the activity is
-    // restarted with rotation).
-    int wait_count = 0;
-    do {
-        mWindow = ANativeWindow_fromSurface(env, jSurface);
-        std::this_thread::sleep_for(std::chrono::seconds(1));
-    } while (!mWindow && wait_count++ < 10);
+    mWindow = ANativeWindow_fromSurface(env, jSurface);
     ASSERT(mWindow);
 
     std::vector<VkExtensionProperties> supportedInstanceExtensions;

@@ -22,6 +22,8 @@ import android.app.Activity;
 import android.app.Service;
 import android.content.Context;
 import android.content.ContextWrapper;
+import android.content.cts.ContextTestBase;
+import android.inputmethodservice.InputMethodService;
 import android.os.Bundle;
 import android.platform.test.annotations.Presubmit;
 import android.view.Display;
@@ -47,7 +49,6 @@ import org.junit.Test;
  *     <li>UI derived display context - returns {@code false}</li>
  *     <li>{@link ContextWrapper} with base UI {@link Context} - returns {@code true}</li>
  *     <li>{@link ContextWrapper} with base non-UI {@link Context} - returns {@code false}</li>
- *     <li>{@link android.window.WindowProviderService} - returns {@code true}</li>
  * </ul>
  *
  * <p>Build/Install/Run:
@@ -81,6 +82,11 @@ public class ContextIsUiContextTest extends ContextTestBase {
         final Context windowContext = mApplicationContext.createWindowContext(getDefaultDisplay(),
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY, null /* options */);
         assertThat(windowContext.isUiContext()).isTrue();
+    }
+
+    @Test
+    public void testIsUiContextOnInputMethodService() {
+        assertThat(new InputMethodService().isUiContext()).isTrue();
     }
 
     @Test
@@ -129,10 +135,5 @@ public class ContextIsUiContextTest extends ContextTestBase {
     public void testIsUiContextOnNonUiContextWrapper() {
         final Context uiContextWrapper = new ContextWrapper(mApplicationContext);
         assertThat(uiContextWrapper.isUiContext()).isFalse();
-    }
-
-    @Test
-    public void testIsUiContextFromWindowProviderService() {
-        assertThat(createWindowTestService().isUiContext()).isTrue();
     }
 }

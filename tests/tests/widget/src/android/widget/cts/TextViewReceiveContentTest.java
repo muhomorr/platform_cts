@@ -69,7 +69,7 @@ import androidx.test.filters.MediumTest;
 import androidx.test.rule.ActivityTestRule;
 import androidx.test.runner.AndroidJUnit4;
 
-import com.android.compatibility.common.util.WindowUtil;
+import com.android.compatibility.common.util.PollingCheck;
 
 import org.junit.After;
 import org.junit.Assert;
@@ -102,7 +102,7 @@ public class TextViewReceiveContentTest {
     @Before
     public void before() {
         mActivity = mActivityRule.getActivity();
-        WindowUtil.waitForFocus(mActivity);
+        PollingCheck.waitFor(mActivity::hasWindowFocus);
         mTextView = mActivity.findViewById(R.id.textview_text);
         mDefaultReceiver = new TextViewOnReceiveContentListener();
 

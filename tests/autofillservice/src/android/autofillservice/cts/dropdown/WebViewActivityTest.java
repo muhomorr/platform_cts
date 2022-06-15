@@ -42,7 +42,6 @@ import android.util.Log;
 import android.view.KeyEvent;
 import android.view.ViewStructure.HtmlInfo;
 
-import org.junit.Assume;
 import org.junit.Ignore;
 import org.junit.Test;
 
@@ -108,9 +107,6 @@ public class WebViewActivityTest extends AbstractWebViewTestCase<WebViewActivity
     }
 
     private void autofillOneDatasetTest(boolean usesAppContext) throws Exception {
-        // TODO(b/226240255) WebView does not inform the autofill service about editText (re-)entry
-        Assume.assumeFalse(isPreventImeStartup());
-
         // Set service.
         enableService();
 
@@ -397,7 +393,6 @@ public class WebViewActivityTest extends AbstractWebViewTestCase<WebViewActivity
 
         // Now trigger save.
         if (INJECT_EVENTS) {
-            mActivity.clearFocus();
             mActivity.getUsernameInput().click();
             mActivity.dispatchKeyPress(KeyEvent.KEYCODE_U);
             mActivity.getPasswordInput().click();
@@ -410,11 +405,7 @@ public class WebViewActivityTest extends AbstractWebViewTestCase<WebViewActivity
             mActivity.mOutside1.setText("DUDER");
             mActivity.mOutside2.setText("SWEETER");
         });
-        // Login button could be overlapped by keyboard on small display,
-        // scroll to make sure login button is visible.
-        // Otherwise mActivity.getLoginButton().click() does not work
-        // if login button is not visible.
-        mActivity.runOnUiThread(() -> myWebView.flingScroll(0, 1000));
+
         mActivity.getLoginButton().click();
 
         // Assert save UI shown.

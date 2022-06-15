@@ -17,7 +17,6 @@
 package android.permission2.cts;
 
 import android.content.Intent;
-import android.content.RestrictionsManager;
 import android.content.pm.PackageManager;
 import android.test.AndroidTestCase;
 
@@ -70,9 +69,7 @@ public class ProtectedBroadcastsTest extends AndroidTestCase {
         "android.net.conn.TETHER_STATE_CHANGED",
         "android.net.conn.INET_CONDITION_ACTION",
         "android.net.conn.CAPTIVE_PORTAL_TEST_COMPLETED",
-        "com.android.server.inputmethod.InputMethodManagerService.SHOW_INPUT_METHOD_PICKER",
-        RestrictionsManager.ACTION_PERMISSION_RESPONSE_RECEIVED,
-        RestrictionsManager.ACTION_REQUEST_PERMISSION
+        "com.android.server.inputmethod.InputMethodManagerService.SHOW_INPUT_METHOD_PICKER"
     };
 
     private static final String BROADCASTS_TELEPHONY[] = new String[] {

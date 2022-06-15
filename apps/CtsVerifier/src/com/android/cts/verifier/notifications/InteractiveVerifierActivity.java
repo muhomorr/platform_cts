@@ -36,8 +36,6 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.ImageView;
-import android.widget.LinearLayout;
-import android.widget.ScrollView;
 import android.widget.TextView;
 
 import com.android.cts.verifier.PassFailButtons;
@@ -55,7 +53,6 @@ public abstract class InteractiveVerifierActivity extends PassFailButtons.Activi
     private static final String TAG = "InteractiveVerifier";
     private static final String STATE = "state";
     private static final String STATUS = "status";
-    private static final String SCROLLY = "scrolly";
     private static LinkedBlockingQueue<String> sDeletedQueue = new LinkedBlockingQueue<String>();
     protected static final String LISTENER_PATH = "com.android.cts.verifier/" +
             "com.android.cts.verifier.notifications.MockListener";
@@ -82,8 +79,7 @@ public abstract class InteractiveVerifierActivity extends PassFailButtons.Activi
     protected String mPackageString;
 
     private LayoutInflater mInflater;
-    private LinearLayout mItemList;
-    private ScrollView mScrollView;
+    private ViewGroup mItemList;
     private List<InteractiveTestCase> mTestList;
     private Iterator<InteractiveTestCase> mTestOrder;
 
@@ -111,7 +107,6 @@ public abstract class InteractiveVerifierActivity extends PassFailButtons.Activi
             if (view == null) {
                 view = inflate(parent);
             }
-            view.setTag(this.getClass().getSimpleName());
             return view;
         }
 
@@ -162,7 +157,6 @@ public abstract class InteractiveVerifierActivity extends PassFailButtons.Activi
         super.onCreate(savedState);
         int savedStateIndex = (savedState == null) ? 0 : savedState.getInt(STATE, 0);
         int savedStatus = (savedState == null) ? SETUP : savedState.getInt(STATUS, SETUP);
-        int scrollY = (savedState == null) ? 0 : savedState.getInt(SCROLLY, 0);
         Log.i(TAG, "restored state(" + savedStateIndex + "}, status(" + savedStatus + ")");
         mContext = this;
         mRunner = this;
@@ -170,8 +164,7 @@ public abstract class InteractiveVerifierActivity extends PassFailButtons.Activi
         mPackageManager = getPackageManager();
         mInflater = getLayoutInflater();
         View view = mInflater.inflate(R.layout.nls_main, null);
-        mScrollView = view.findViewById(R.id.nls_test_scroller);
-        mItemList = view.findViewById(R.id.nls_test_items);
+        mItemList = (ViewGroup) view.findViewById(R.id.nls_test_items);
         mHandler = mItemList;
         mTestList = new ArrayList<>();
         mTestList.addAll(createTestItems());
@@ -182,12 +175,8 @@ public abstract class InteractiveVerifierActivity extends PassFailButtons.Activi
         for (int i = 0; i < savedStateIndex; i++) {
             mCurrentTest = mTestOrder.next();
             mCurrentTest.status = PASS;
-            markItem(mCurrentTest);
         }
         mCurrentTest = mTestOrder.next();
-
-        mScrollView.post(() -> mScrollView.smoothScrollTo(0, scrollY));
-
         mCurrentTest.status = savedStatus;
 
         setContentView(view);
@@ -203,7 +192,6 @@ public abstract class InteractiveVerifierActivity extends PassFailButtons.Activi
         outState.putInt(STATE, stateIndex);
         final int status = mCurrentTest == null ? SETUP : mCurrentTest.status;
         outState.putInt(STATUS, status);
-        outState.putInt(SCROLLY, mScrollView.getScrollY());
         Log.i(TAG, "saved state(" + stateIndex + "), status(" + status + ")");
     }
 
@@ -465,7 +453,7 @@ public abstract class InteractiveVerifierActivity extends PassFailButtons.Activi
         if (Arrays.equals(expected, actual)) {
             return true;
         }
-        logWithStack(String.format(message, Arrays.toString(expected), Arrays.toString(actual)));
+        logWithStack(String.format(message, expected, actual));
         return false;
     }
 
@@ -473,7 +461,7 @@ public abstract class InteractiveVerifierActivity extends PassFailButtons.Activi
         if (Arrays.equals(expected, actual)) {
             return true;
         }
-        logWithStack(String.format(message, Arrays.toString(expected), Arrays.toString(actual)));
+        logWithStack(String.format(message, expected, actual));
         return false;
     }
 

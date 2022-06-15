@@ -123,16 +123,6 @@ public class ManagedProfileTest extends BaseManagedProfileTest {
     }
 
     @Test
-    public void testOverrideApn() throws Exception {
-        assumeHasTelephonyFeature();
-
-        runDeviceTestsAsUser(MANAGED_PROFILE_PKG, ".OverrideApnTest",
-                "testAddGetRemoveOverrideApn", mProfileUserId);
-        runDeviceTestsAsUser(MANAGED_PROFILE_PKG, ".OverrideApnTest",
-                "testUpdateOverrideApn", mProfileUserId);
-    }
-
-    @Test
     public void testCannotCallMethodsOnParentProfile() throws Exception {
         runDeviceTestsAsUser(MANAGED_PROFILE_PKG, ".ParentProfileTest",
                 "testCannotWipeParentProfile", mProfileUserId);
@@ -171,6 +161,39 @@ public class ManagedProfileTest extends BaseManagedProfileTest {
                 "Expected SecurityException when starting the activity "
                         + addRestrictionCommandOutput,
                 addRestrictionCommandOutput.contains("SecurityException"));
+    }
+
+    // Test the bluetooth API from a managed profile.
+    @Test
+    public void testBluetooth() throws Exception {
+        assumeHasBluetoothFeature();
+
+        runDeviceTestsAsUser(MANAGED_PROFILE_PKG, ".BluetoothTest",
+                "testEnableDisable", mProfileUserId);
+        runDeviceTestsAsUser(MANAGED_PROFILE_PKG, ".BluetoothTest",
+                "testGetAddress", mProfileUserId);
+        runDeviceTestsAsUser(MANAGED_PROFILE_PKG, ".BluetoothTest",
+                "testListenUsingRfcommWithServiceRecord", mProfileUserId);
+        runDeviceTestsAsUser(MANAGED_PROFILE_PKG, ".BluetoothTest",
+                "testGetRemoteDevice", mProfileUserId);
+    }
+
+    @Test
+    public void testCameraPolicy() throws Exception {
+        assumeHasCameraFeature();
+
+        try {
+            runDeviceTestsAsUser(MANAGED_PROFILE_PKG, ".CameraPolicyTest",
+                    "testDisableCameraInManagedProfile",
+                    mProfileUserId);
+            runDeviceTestsAsUser(MANAGED_PROFILE_PKG, ".CameraPolicyTest",
+                    "testEnableCameraInManagedProfile",
+                    mProfileUserId);
+        } finally {
+            final String adminHelperClass = ".PrimaryUserAdminHelper";
+            runDeviceTestsAsUser(MANAGED_PROFILE_PKG,
+                    adminHelperClass, "testClearDeviceAdmin", mParentUserId);
+        }
     }
 
     @Test
@@ -526,10 +549,6 @@ public class ManagedProfileTest extends BaseManagedProfileTest {
                     "addCrossProfileIntents", mProfileUserId);
             runDeviceTestsAsUser(MANAGED_PROFILE_PKG, ".CrossProfileSharingTest",
                     "startSwitchToOtherProfileIntent", mProfileUserId);
-
-            // TODO(b/223178698): Investigate potential increase in latency
-            Thread.sleep(30000);
-
             assertResolverActivityInForeground(mProfileUserId);
         } finally {
             pressHome();
@@ -570,9 +589,6 @@ public class ManagedProfileTest extends BaseManagedProfileTest {
                     "addCrossProfileIntents", mProfileUserId);
             runDeviceTestsAsUser(MANAGED_PROFILE_PKG, ".CrossProfileSharingTest",
                     "startSwitchToOtherProfileIntent_chooser", mProfileUserId);
-
-            Thread.sleep(30000);
-
             assertChooserActivityInForeground(mProfileUserId);
         } finally {
             pressHome();

@@ -66,8 +66,6 @@ public class AudioCapabilitiesTestActivity extends TvAppVerifierActivity
     private TestSequence mTestSequence;
     private View mSupportDolbyAtmosYesItem;
     private View mSupportDolbyAtmosNoItem;
-    private View mSkipTestYesItem;
-    private View mSkipTestNoItem;
 
     @Override
     protected void setInfoResources() {
@@ -77,23 +75,7 @@ public class AudioCapabilitiesTestActivity extends TvAppVerifierActivity
 
     @Override
     public void onClick(View v) {
-        if (containsButton(mSkipTestYesItem, v)) {
-            setPassState(mSkipTestYesItem, true);
-            setButtonEnabled(mSkipTestYesItem, false);
-            setButtonEnabled(mSkipTestNoItem, false);
-            getPassButton().setEnabled(true);
-            return;
-        } else if (containsButton(mSkipTestNoItem, v)) {
-            setPassState(mSkipTestYesItem, true);
-            setButtonEnabled(mSkipTestYesItem, false);
-            setButtonEnabled(mSkipTestNoItem, false);
-            mSupportDolbyAtmosYesItem =
-                    createAndAttachUserItem(
-                            R.string.tv_audio_capabilities_atmos_supported, R.string.tv_yes, this);
-            setButtonEnabled(mSupportDolbyAtmosYesItem, true);
-            mSupportDolbyAtmosNoItem = createAndAttachButtonItem(R.string.tv_no, this);
-            setButtonEnabled(mSupportDolbyAtmosNoItem, true);
-        } else if (containsButton(mSupportDolbyAtmosYesItem, v)) {
+        if (containsButton(mSupportDolbyAtmosYesItem, v)) {
             setPassState(mSupportDolbyAtmosYesItem, true);
             setButtonEnabled(mSupportDolbyAtmosNoItem, false);
             List<TestStepBase> testSteps = new ArrayList<>();
@@ -116,11 +98,12 @@ public class AudioCapabilitiesTestActivity extends TvAppVerifierActivity
 
     @Override
     protected void createTestItems() {
-        mSkipTestYesItem = createAndAttachUserItem(
-                R.string.tv_audio_capabilities_skip_test, R.string.tv_yes, this);
-        setButtonEnabled(mSkipTestYesItem, true);
-        mSkipTestNoItem = createAndAttachButtonItem(R.string.tv_no, this);
-        setButtonEnabled(mSkipTestNoItem, true);
+        mSupportDolbyAtmosYesItem =
+                createAndAttachUserItem(
+                        R.string.tv_audio_capabilities_atmos_supported, R.string.tv_yes, this);
+        setButtonEnabled(mSupportDolbyAtmosYesItem, true);
+        mSupportDolbyAtmosNoItem = createAndAttachButtonItem(R.string.tv_no, this);
+        setButtonEnabled(mSupportDolbyAtmosNoItem, true);
     }
 
     private class TvTestStep extends TestStep {

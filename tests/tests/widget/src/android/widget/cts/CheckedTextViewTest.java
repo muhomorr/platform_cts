@@ -135,11 +135,9 @@ public class CheckedTextViewTest {
         assertTrue(view1.isChecked());
         assertTrue(view2.isChecked());
 
-        mActivityRule.runOnUiThread(() -> {
-            view0.setChecked(true);
-            view1.setChecked(false);
-            view2.setChecked(false);
-        });
+        view0.setChecked(true);
+        view1.setChecked(false);
+        view2.setChecked(false);
         assertTrue(view0.isChecked());
         assertFalse(view1.isChecked());
         assertFalse(view2.isChecked());

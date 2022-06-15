@@ -20,6 +20,7 @@ import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -76,12 +77,6 @@ class InterfaceChecker {
         HIDDEN_INTERFACE_METHOD_ALLOW_LIST.add("public abstract boolean android.view.WindowInsetsController.isRequestedVisible(int)");
         HIDDEN_INTERFACE_METHOD_ALLOW_LIST.add("public abstract void android.view.WindowInsetsController.setAnimationsDisabled(boolean)");
         HIDDEN_INTERFACE_METHOD_ALLOW_LIST.add("public abstract void android.view.inputmethod.InputMethod.hideSoftInputWithToken(int,android.os.ResultReceiver,android.os.IBinder)");
-        HIDDEN_INTERFACE_METHOD_ALLOW_LIST.add("public abstract boolean android.view.WindowInsetsAnimationController.hasZeroInsetsIme()");
-        HIDDEN_INTERFACE_METHOD_ALLOW_LIST.add("public abstract void android.view.WindowInsetsController.setCaptionInsetsHeight(int)");
-        HIDDEN_INTERFACE_METHOD_ALLOW_LIST.add("public abstract void android.view.inputmethod.InputMethod.setCurrentHideInputToken(android.os.IBinder)");
-        HIDDEN_INTERFACE_METHOD_ALLOW_LIST.add("public abstract void android.view.inputmethod.InputMethod.setCurrentShowInputToken(android.os.IBinder)");
-        HIDDEN_INTERFACE_METHOD_ALLOW_LIST.add("public abstract void android.view.inputmethod.InputMethodSession.notifyImeHidden()");
-        HIDDEN_INTERFACE_METHOD_ALLOW_LIST.add("public abstract void android.view.inputmethod.InputMethodSession.removeImeSurface()");
     }
 
     private final ResultObserver resultObserver;
@@ -100,14 +95,6 @@ class InterfaceChecker {
         for (Map.Entry<Class<?>, JDiffClassDescription> entry : class2Description.entrySet()) {
             Class<?> runtimeClass = entry.getKey();
             JDiffClassDescription classDescription = entry.getValue();
-            if (classDescription.isPreviousApi()) {
-                // Skip the interface method check as it provides no value. If the runtime interface
-                // contains additional methods that are not present in a previous API then either
-                // the methods have been added in a later API (in which case it is ok), or it will
-                // be caught when comparing against the current API.
-                continue;
-            }
-
             List<Method> methods = checkInterfaceMethodCompliance(classDescription, runtimeClass);
             if (methods.size() > 0) {
                 resultObserver.notifyFailure(FailureType.MISMATCH_INTERFACE_METHOD,
@@ -143,8 +130,9 @@ class InterfaceChecker {
     }
 
     private boolean findMethod(JDiffClassDescription classDescription, Method method) {
+        Map<Method, String> matchNameNotSignature = new LinkedHashMap<>();
         for (JDiffClassDescription.JDiffMethod jdiffMethod : classDescription.getMethods()) {
-            if (ReflectionHelper.matches(jdiffMethod, method)) {
+            if (ReflectionHelper.matchesSignature(jdiffMethod, method, matchNameNotSignature)) {
                 return true;
             }
         }
@@ -171,6 +159,7 @@ class InterfaceChecker {
 
 
     void queueForDeferredCheck(JDiffClassDescription classDescription, Class<?> runtimeClass) {
+
         JDiffClassDescription existingDescription = class2Description.get(runtimeClass);
         if (existingDescription != null) {
             for (JDiffClassDescription.JDiffMethod method : classDescription.getMethods()) {

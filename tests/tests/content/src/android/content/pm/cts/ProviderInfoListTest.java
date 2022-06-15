@@ -33,8 +33,7 @@ public class ProviderInfoListTest extends AndroidTestCase {
     public void testApplicationInfoSquashed() throws Exception {
         final PackageManager pm = getContext().getPackageManager();
         final PackageInfo pi = pm.getPackageInfo(PACKAGE_NAME,
-                PackageManager.PackageInfoFlags.of(
-                        PackageManager.GET_PROVIDERS | PackageManager.GET_UNINSTALLED_PACKAGES));
+                PackageManager.GET_PROVIDERS | PackageManager.GET_UNINSTALLED_PACKAGES);
 
         // Make sure the package contains more than 1 providers.
         assertNotNull(pi);

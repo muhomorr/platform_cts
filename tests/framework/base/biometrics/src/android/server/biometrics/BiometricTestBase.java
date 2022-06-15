@@ -67,12 +67,13 @@ import org.junit.Before;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Executor;
 
 /**
  * Base class containing useful functionality. Actual tests should be done in subclasses.
  */
-abstract class BiometricTestBase extends ActivityManagerTestBase implements TestSessionList.Idler {
+abstract class BiometricTestBase extends ActivityManagerTestBase {
 
     private static final String TAG = "BiometricTestBase";
     private static final String DUMPSYS_BIOMETRIC = Utils.DUMPSYS_BIOMETRIC;
@@ -106,15 +107,6 @@ abstract class BiometricTestBase extends ActivityManagerTestBase implements Test
      */
     void launchActivity(@NonNull ComponentName componentName) {
         super.launchActivity(componentName);
-    }
-
-    @Override
-    public void waitForIdleSensors() {
-        try {
-            Utils.waitForIdleService(this::getSensorStates);
-        } catch (Exception e) {
-            Log.e(TAG, "Exception when waiting for idle", e);
-        }
     }
 
     /** @see Utils#getBiometricServiceCurrentState() */
@@ -384,7 +376,19 @@ abstract class BiometricTestBase extends ActivityManagerTestBase implements Test
                 .setAllowBackgroundAuthentication(true)
                 .setAllowedSensorIds(new ArrayList<>(Collections.singletonList(sensorId)))
                 .build();
-        prompt.authenticate(new CancellationSignal(), executor, callback);
+        prompt.authenticate(new CancellationSignal(), executor,
+                new BiometricPrompt.AuthenticationCallback() {
+                    @Override
+                    public void onAuthenticationError(int errorCode, CharSequence errString) {
+                        Log.d(TAG, "onAuthenticationError: " + errorCode);
+                    }
+
+                    @Override
+                    public void onAuthenticationSucceeded(
+                            BiometricPrompt.AuthenticationResult result) {
+                        Log.d(TAG, "onAuthenticationSucceeded");
+                    }
+                });
 
         waitForState(STATE_AUTH_STARTED_UI_SHOWING);
     }
@@ -505,8 +509,39 @@ abstract class BiometricTestBase extends ActivityManagerTestBase implements Test
     public void cleanup() {
         mInstrumentation.waitForIdleSync();
 
+        try {
+            Utils.waitForIdleService(this::getSensorStates);
+        } catch (Exception e) {
+            Log.e(TAG, "Exception when waiting for idle", e);
+        }
+
+        try {
+            final BiometricServiceState state = getCurrentState();
+
+            for (Map.Entry<Integer, SensorState> sensorEntry
+                    : state.mSensorStates.sensorStates.entrySet()) {
+                for (Map.Entry<Integer, UserState> userEntry
+                        : sensorEntry.getValue().getUserStates().entrySet()) {
+                    if (userEntry.getValue().numEnrolled != 0) {
+                        Log.w(TAG, "Cleaning up for sensor: " + sensorEntry.getKey()
+                                + ", user: " + userEntry.getKey());
+                        BiometricTestSession session = mBiometricManager.createTestSession(
+                                sensorEntry.getKey());
+                        session.cleanupInternalState(userEntry.getKey());
+                        session.close();
+                    }
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Unable to get current state in cleanup()");
+        }
+
         // Authentication lifecycle is done
-        waitForIdleSensors();
+        try {
+            Utils.waitForIdleService(this::getSensorStates);
+        } catch (Exception e) {
+            Log.e(TAG, "Exception when waiting for idle", e);
+        }
 
         if (mWakeLock != null) {
             mWakeLock.release();

@@ -39,8 +39,5 @@ android_test {
         "general-tests",
     ],
     sdk_version: "test_current",
-    per_testcase_directory: true,
-    data: [
-        ":CtsInputMethod1",
-        ":CtsAccessibilityWidgetProvider"],
+    data: [":CtsAccessibilityWidgetProvider"],
 }

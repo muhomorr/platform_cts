@@ -37,9 +37,11 @@ import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
 import android.os.SystemClock;
 import android.view.Gravity;
+import android.view.InputDevice;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
+import android.view.MotionEvent;
 import android.view.SubMenu;
 import android.view.View;
 import android.widget.EditText;
@@ -53,7 +55,6 @@ import androidx.test.filters.LargeTest;
 import androidx.test.rule.ActivityTestRule;
 import androidx.test.runner.AndroidJUnit4;
 
-import com.android.compatibility.common.util.CtsMouseUtil;
 import com.android.compatibility.common.util.CtsTouchUtils;
 import com.android.compatibility.common.util.WidgetTestUtils;
 
@@ -441,7 +442,7 @@ public class PopupMenuTest {
         ListView menuItemList = mPopupMenu.getMenuListView();
 
         assertEquals(0, menuItemList.getFirstVisiblePosition());
-        emulateHoverOverVisibleItems(menuItemList);
+        emulateHoverOverVisibleItems(mInstrumentation, menuItemList);
 
         // Select the last item to force menu scrolling and emulate hover again.
         mActivityRule.runOnUiThread(
@@ -450,25 +451,38 @@ public class PopupMenuTest {
 
         assertNotEquals("Too few menu items to test for scrolling",
                 0, menuItemList.getFirstVisiblePosition());
-        emulateHoverOverVisibleItems(menuItemList);
+        emulateHoverOverVisibleItems(mInstrumentation, menuItemList);
 
         mPopupMenu = null;
     }
 
-    private void emulateHoverOverVisibleItems(ListView listView) {
+    private void emulateHoverOverVisibleItems(Instrumentation instrumentation, ListView listView) {
         final int childCount = listView.getChildCount();
         // The first/last child may present partially on the app, we should ignore them when inject
         // mouse events to prevent the event send to the wrong target.
         for (int i = 1; i < childCount - 1; i++) {
             View itemView = listView.getChildAt(i);
-            CtsMouseUtil.emulateHoverOnView(mInstrumentation, itemView, itemView.getWidth() / 2,
-                    itemView.getHeight() / 2);
+            injectMouseEvent(instrumentation, itemView, MotionEvent.ACTION_HOVER_MOVE);
+
             // Wait for the system to process all events in the queue.
-            mInstrumentation.waitForIdleSync();
+            instrumentation.waitForIdleSync();
+
             // Hovered menu item should be selected.
             assertEquals(listView.getFirstVisiblePosition() + i,
                     listView.getSelectedItemPosition());
         }
+    }
+
+    private static void injectMouseEvent(Instrumentation instrumentation, View view, int action) {
+        final int[] xy = new int[2];
+        view.getLocationOnScreen(xy);
+        final int x = xy[0] + view.getWidth() / 2;
+        final int y = xy[1] + view.getHeight() / 2;
+        long eventTime = SystemClock.uptimeMillis();
+        MotionEvent event = MotionEvent.obtain(eventTime, eventTime, action, x, y, 0);
+        event.setSource(InputDevice.SOURCE_MOUSE);
+        instrumentation.sendPointerSync(event);
+        event.recycle();
     }
 
     /**

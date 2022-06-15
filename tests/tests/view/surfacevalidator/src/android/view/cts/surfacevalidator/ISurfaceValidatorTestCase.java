@@ -37,8 +37,4 @@ public interface ISurfaceValidatorTestCase {
         boundsToCheck.offset(topLeft[0], topLeft[1]);
         return  boundsToCheck;
     }
-
-    default void waitForReady() {
-        return;
-    }
 }

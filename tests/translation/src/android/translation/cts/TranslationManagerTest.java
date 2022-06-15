@@ -21,7 +21,6 @@ import static android.view.translation.TranslationSpec.DATA_FORMAT_TEXT;
 import static com.android.compatibility.common.util.ActivitiesWatcher.ActivityLifecycle.RESUMED;
 
 import static com.google.common.truth.Truth.assertThat;
-import static com.google.common.truth.Truth.assertWithMessage;
 
 import android.app.Application;
 import android.app.PendingIntent;
@@ -43,7 +42,6 @@ import android.view.translation.TranslationResponseValue;
 import android.view.translation.TranslationSpec;
 import android.view.translation.Translator;
 
-import androidx.annotation.NonNull;
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.runner.AndroidJUnit4;
 
@@ -122,7 +120,7 @@ public class TranslationManagerTest {
     }
 
     @Test
-    public void testTranslationCapabilityUpdateListener() throws Exception {
+    public void testTranslationCapabilityUpdateListener() throws Exception{
         // enable cts translation service
         enableCtsTranslationService();
 
@@ -130,9 +128,9 @@ public class TranslationManagerTest {
         // text to text capability
         final TranslationCapability updatedText2TextCapability =
                 new TranslationCapability(TranslationCapability.STATE_ON_DEVICE,
-                        new TranslationSpec(ULocale.ENGLISH, DATA_FORMAT_TEXT),
-                        new TranslationSpec(ULocale.FRENCH, DATA_FORMAT_TEXT),
-                        true, 0);
+                new TranslationSpec(ULocale.ENGLISH, DATA_FORMAT_TEXT),
+                new TranslationSpec(ULocale.FRENCH, DATA_FORMAT_TEXT),
+                true, 0);
         // text to image capability
         final TranslationCapability updatedText2ImageCapability =
                 new TranslationCapability(TranslationCapability.STATE_ON_DEVICE,
@@ -200,7 +198,7 @@ public class TranslationManagerTest {
     }
 
     @Test
-    public void testSingleTranslation() throws Exception {
+    public void testSingleTranslation() throws Exception{
         enableCtsTranslationService();
 
         final TranslationManager manager = sContext.getSystemService(TranslationManager.class);
@@ -213,7 +211,26 @@ public class TranslationManagerTest {
                                 .build())
                         .build());
 
-        final Translator translator = createTranslator(manager, createTranslationContext());
+        final TranslationContext translationContext = new TranslationContext.Builder(
+                new TranslationSpec(ULocale.ENGLISH,
+                        TranslationSpec.DATA_FORMAT_TEXT),
+                new TranslationSpec(ULocale.FRENCH,
+                        TranslationSpec.DATA_FORMAT_TEXT))
+                .build();
+
+        final CountDownLatch createTranslatorLatch = new CountDownLatch(1);
+        final AtomicReference<Translator> translatorRef = new AtomicReference<>();
+        manager.createOnDeviceTranslator(translationContext, r -> r.run(),
+                new Consumer<Translator>() {
+                    @Override
+                    public void accept(Translator translator) {
+                        createTranslatorLatch.countDown();
+                        translatorRef.set(translator);
+                    }
+                });
+
+        createTranslatorLatch.await(5_000, TimeUnit.MILLISECONDS);
+        final Translator translator = translatorRef.get();
 
         try {
             mServiceWatcher.waitOnConnected();
@@ -229,22 +246,24 @@ public class TranslationManagerTest {
         values.add(TranslationRequestValue.forText("hello world"));
         translator.translate(new TranslationRequest.Builder()
                         .setTranslationRequestValues(values)
-                        .build(), new CancellationSignal(), Runnable::run,
-                translationResponse -> {
-                    responseRef.set(translationResponse);
-                    translationLatch.countDown();
+                        .build(), new CancellationSignal(), (r) -> r.run(),
+                new Consumer<TranslationResponse>() {
+                    @Override
+                    public void accept(TranslationResponse translationResponse) {
+                        responseRef.set(translationResponse);
+                        translationLatch.countDown();
+                    }
                 });
 
         sTranslationReplier.getNextTranslationRequest();
 
-        CtsTranslationService translationService =
-                mServiceWatcher.getService();
-        TranslationContext sessionContext = translationService.getTranslationContext();
-        assertThat(sessionContext).isNotNull();
-        assertThat(sessionContext.getActivityId()).isNull();
-
         translator.destroy();
         assertThat(translator.isDestroyed()).isTrue();
+        try {
+            mServiceWatcher.waitOnDisconnected();
+        } catch (InterruptedException e) {
+            Log.w(TAG, "Exception waiting for onDisconnected");
+        }
 
         // Wait for translation to finish
         translationLatch.await();
@@ -268,7 +287,7 @@ public class TranslationManagerTest {
     }
 
     @Test
-    public void testTranslation_partialResponses() throws Exception {
+    public void testTranslation_partialResponses() throws Exception{
         enableCtsTranslationService();
 
         final TranslationManager manager = sContext.getSystemService(TranslationManager.class);
@@ -289,7 +308,23 @@ public class TranslationManagerTest {
                         .setFinalResponse(true)
                         .build());
 
-        final Translator translator = createTranslator(manager, createTranslationContext());
+        final TranslationContext translationContext = new TranslationContext.Builder(
+                new TranslationSpec(ULocale.ENGLISH,
+                        TranslationSpec.DATA_FORMAT_TEXT),
+                new TranslationSpec(ULocale.FRENCH,
+                        TranslationSpec.DATA_FORMAT_TEXT))
+                .build();
+
+        final CountDownLatch createTranslatorLatch = new CountDownLatch(1);
+        final AtomicReference<Translator> translatorRef = new AtomicReference<>();
+        manager.createOnDeviceTranslator(translationContext, r -> r.run(),
+                translator -> {
+                    createTranslatorLatch.countDown();
+                    translatorRef.set(translator);
+                });
+
+        createTranslatorLatch.await(5_000, TimeUnit.MILLISECONDS);
+        final Translator translator = translatorRef.get();
 
         try {
             mServiceWatcher.waitOnConnected();
@@ -302,13 +337,13 @@ public class TranslationManagerTest {
 
         final CountDownLatch translationLatch = new CountDownLatch(2);
         final AtomicReference<List<TranslationResponse>> responsesRef = new AtomicReference<>();
-        responsesRef.set(new ArrayList<>());
+        responsesRef.set(new ArrayList<TranslationResponse>());
         final ArrayList<TranslationRequestValue> values = new ArrayList<>();
         values.add(TranslationRequestValue.forText("hello world"));
         translator.translate(new TranslationRequest.Builder()
                         .setTranslationRequestValues(values)
                         .setFlags(TranslationRequest.FLAG_PARTIAL_RESPONSES)
-                        .build(), new CancellationSignal(), Runnable::run,
+                        .build(), new CancellationSignal(), (r) -> r.run(),
                 translationResponse -> {
                     responsesRef.getAndUpdate(responses -> {
                         responses.add(translationResponse);
@@ -321,6 +356,11 @@ public class TranslationManagerTest {
 
         translator.destroy();
         assertThat(translator.isDestroyed()).isTrue();
+        try {
+            mServiceWatcher.waitOnDisconnected();
+        } catch (InterruptedException e) {
+            Log.w(TAG, "Exception waiting for onDisconnected");
+        }
 
         // Wait for translation to finish
         translationLatch.await();
@@ -360,7 +400,7 @@ public class TranslationManagerTest {
     }
 
     @Test
-    public void testTranslationCancelled() throws Exception {
+    public void testTranslationCancelled() throws Exception{
         enableCtsTranslationService();
 
         final TranslationManager manager = sContext.getSystemService(TranslationManager.class);
@@ -373,7 +413,27 @@ public class TranslationManagerTest {
                                 .build())
                         .build());
 
-        final Translator translator = createTranslator(manager, createTranslationContext());
+        final CountDownLatch translationLatch = new CountDownLatch(1);
+        final AtomicReference<TranslationResponse> responseRef = new AtomicReference<>();
+
+        final TranslationContext translationContext = new TranslationContext.Builder(
+                new TranslationSpec(ULocale.ENGLISH, TranslationSpec.DATA_FORMAT_TEXT),
+                new TranslationSpec(ULocale.FRENCH, TranslationSpec.DATA_FORMAT_TEXT))
+                .build();
+
+        final CountDownLatch createTranslatorLatch = new CountDownLatch(1);
+        final AtomicReference<Translator> translatorRef = new AtomicReference<>();
+        manager.createOnDeviceTranslator(translationContext, r -> r.run(),
+                new Consumer<Translator>() {
+                    @Override
+                    public void accept(Translator translator) {
+                        createTranslatorLatch.countDown();
+                        translatorRef.set(translator);
+                    }
+                });
+
+        createTranslatorLatch.await(5_000, TimeUnit.MILLISECONDS);
+        final Translator translator = translatorRef.get();
 
         try {
             mServiceWatcher.waitOnConnected();
@@ -383,19 +443,21 @@ public class TranslationManagerTest {
 
         assertThat(translator.isDestroyed()).isFalse();
 
+        final Consumer<TranslationResponse> callback = new Consumer<TranslationResponse>() {
+            @Override
+            public void accept(TranslationResponse translationResponse) {
+                responseRef.set(translationResponse);
+                translationLatch.countDown();
+            }
+        };
+
         final CancellationSignal cancellationSignal = new CancellationSignal();
 
-        final CountDownLatch translationLatch = new CountDownLatch(1);
-        final AtomicReference<TranslationResponse> responseRef = new AtomicReference<>();
         final ArrayList<TranslationRequestValue> values = new ArrayList<>();
         values.add(TranslationRequestValue.forText("hello world"));
         translator.translate(new TranslationRequest.Builder()
-                        .setTranslationRequestValues(values)
-                        .build(), cancellationSignal, Runnable::run,
-                translationResponse -> {
-                    responseRef.set(translationResponse);
-                    translationLatch.countDown();
-                });
+                .setTranslationRequestValues(values)
+                .build(), cancellationSignal, (r) -> r.run(), callback);
 
         // TODO: implement with cancellation signal listener
         // cancel translation request
@@ -405,10 +467,15 @@ public class TranslationManagerTest {
 
         translator.destroy();
         assertThat(translator.isDestroyed()).isTrue();
+        try {
+            mServiceWatcher.waitOnDisconnected();
+        } catch (InterruptedException e) {
+            Log.w(TAG, "Exception waiting for onDisconnected");
+        }
     }
 
     @Test
-    public void testGetTranslationCapabilities() throws Exception {
+    public void testGetTranslationCapabilities() throws Exception{
         enableCtsTranslationService();
 
         final TranslationManager manager = sContext.getSystemService(TranslationManager.class);
@@ -440,7 +507,7 @@ public class TranslationManagerTest {
     }
 
     @Test
-    public void testGetTranslationSettingsActivityIntent() throws Exception {
+    public void testGetTranslationSettingsActivityIntent() throws Exception{
         enableCtsTranslationService();
 
         final TranslationManager manager = sContext.getSystemService(TranslationManager.class);
@@ -458,41 +525,6 @@ public class TranslationManagerTest {
         pendingIntent.send();
 
         watcher.waitFor(RESUMED);
-    }
-
-    @Test
-    public void testTranslatorsAreNotCached() throws Exception {
-        enableCtsTranslationService();
-
-        final TranslationManager manager = sContext.getSystemService(TranslationManager.class);
-
-        final TranslationContext translationContext = createTranslationContext();
-        final Translator translator1 = createTranslator(manager, translationContext);
-        final Translator translator2 = createTranslator(manager, translationContext);
-
-        assertWithMessage("The same Translator was returned for the same TranslationContext")
-                .that(translator1).isNotEqualTo(translator2);
-    }
-
-    private TranslationContext createTranslationContext() {
-        return new TranslationContext.Builder(
-                new TranslationSpec(ULocale.ENGLISH, TranslationSpec.DATA_FORMAT_TEXT),
-                new TranslationSpec(ULocale.FRENCH, TranslationSpec.DATA_FORMAT_TEXT))
-                .build();
-    }
-
-    private Translator createTranslator(@NonNull TranslationManager manager,
-            @NonNull TranslationContext translationContext) throws Exception {
-        final CountDownLatch createTranslatorLatch = new CountDownLatch(1);
-        final AtomicReference<Translator> translatorRef = new AtomicReference<>();
-        manager.createOnDeviceTranslator(translationContext, Runnable::run,
-                translator -> {
-                    createTranslatorLatch.countDown();
-                    translatorRef.set(translator);
-                });
-
-        createTranslatorLatch.await(5_000, TimeUnit.MILLISECONDS);
-        return translatorRef.get();
     }
 
     //TODO(183605243): add test for cancelling translation.

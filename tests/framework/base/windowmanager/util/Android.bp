@@ -28,11 +28,6 @@ filegroup {
     ],
 }
 
-filegroup {
-    name: "cts-wm-ignore-orientation-request-session",
-    srcs: ["src/android/server/wm/IgnoreOrientationRequestSession.java"],
-}
-
 java_test_helper_library {
     name: "cts-wm-util",
 

@@ -66,18 +66,6 @@ public class SELinuxTargetSdkTest extends SELinuxTargetSdkTestBase
     }
 
     public void testNetworkInterface() throws Exception {
-        checkNetworkInterface_returnsAnonymizedHardwareAddresses();
-    }
-
-    public void testNoNetlinkRouteGetlink() throws IOException {
-        noNetlinkRouteGetlink();
-    }
-
-    public void testNoNetlinkRouteBind() throws IOException {
-        noNetlinkRouteBind();
-    }
-
-    public void testNetlinkRouteGetneigh() throws IOException {
-        checkNetlinkRouteGetneigh(true);
+        checkNetworkInterface_returnsHardwareAddresses();
     }
 }

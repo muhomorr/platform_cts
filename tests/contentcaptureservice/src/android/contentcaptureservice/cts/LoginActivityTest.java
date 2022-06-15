@@ -26,10 +26,10 @@ import static android.contentcaptureservice.cts.Assertions.assertSessionId;
 import static android.contentcaptureservice.cts.Assertions.assertSessionPaused;
 import static android.contentcaptureservice.cts.Assertions.assertSessionResumed;
 import static android.contentcaptureservice.cts.Assertions.assertViewAppeared;
+import static android.contentcaptureservice.cts.Assertions.assertViewTextChanged;
 import static android.contentcaptureservice.cts.Assertions.assertViewTreeFinished;
 import static android.contentcaptureservice.cts.Assertions.assertViewTreeStarted;
 import static android.contentcaptureservice.cts.Assertions.assertViewsOptionallyDisappeared;
-import static android.contentcaptureservice.cts.Assertions.assertWindowBoundsChanged;
 import static android.contentcaptureservice.cts.Helper.MY_PACKAGE;
 import static android.contentcaptureservice.cts.Helper.newImportantView;
 import static android.view.contentcapture.DataRemovalRequest.FLAG_IS_PREFIX;
@@ -227,9 +227,6 @@ public class LoginActivityTest
         assertMainSessionContext(mainSession, activity);
 
         // Check events
-        final List<ContentCaptureEvent> unfilteredEvents = mainSession.getUnfilteredEvents();
-        assertWindowBoundsChanged(unfilteredEvents);
-
         final List<ContentCaptureEvent> mainEvents = mainSession.getEvents();
         Log.v(TAG, "events(" + mainEvents.size() + ") for main session: " + mainEvents);
 
@@ -313,18 +310,16 @@ public class LoginActivityTest
         final Session session = service.getOnlyFinishedSession();
         Log.v(TAG, "session id: " + session.id);
 
-        final EventsAssertor assertor = activity.assertInitialViewsAppeared(session);
+        final int additionalEvents = 2;
+        final List<ContentCaptureEvent> events = activity.assertInitialViewsAppeared(session,
+                additionalEvents);
 
-        assertor.isAtLeast(LoginActivity.MIN_EVENTS + 2)
-                .assertContextUpdated();
-
-        final ContentCaptureEvent event1 = assertor.getLastEvent();
+        final ContentCaptureEvent event1 = assertContextUpdated(events, LoginActivity.MIN_EVENTS);
         final ContentCaptureContext actualContext = event1.getContentCaptureContext();
         assertContentCaptureContext(actualContext);
 
-        assertor.assertContextUpdated();
-
-        final ContentCaptureEvent event2 = assertor.getLastEvent();
+        final ContentCaptureEvent event2 = assertContextUpdated(events,
+                LoginActivity.MIN_EVENTS + 1);
         assertThat(event2.getContentCaptureContext()).isNull();
     }
 
@@ -408,14 +403,20 @@ public class LoginActivityTest
         watcher.waitFor(DESTROYED);
 
         final Session session = service.getOnlyFinishedSession();
+        final ContentCaptureSessionId sessionId = session.id;
 
-        final EventsAssertor assertor = activity.assertInitialViewsAppeared(session);
+        assertRightActivity(session, sessionId, activity);
 
-        assertor.isAtLeast(LoginActivity.MIN_EVENTS + 2)
-                .assertViewTextChanged(activity.mUsername.getAutofillId(), "USER")
-                .assertViewTextChanged(activity.mPassword.getAutofillId(), "PASS");
+        final int additionalEvents = 2;
+        final List<ContentCaptureEvent> events = activity.assertInitialViewsAppeared(session,
+                additionalEvents);
 
-        activity.assertInitialViewsDisappeared(assertor);
+        final int i = LoginActivity.MIN_EVENTS;
+
+        assertViewTextChanged(events, i, activity.mUsername.getAutofillId(), "USER");
+        assertViewTextChanged(events, i + 1, activity.mPassword.getAutofillId(), "PASS");
+
+        activity.assertInitialViewsDisappeared(events, additionalEvents);
     }
 
     @Test
@@ -449,26 +450,29 @@ public class LoginActivityTest
         watcher.waitFor(DESTROYED);
 
         final Session session = service.getOnlyFinishedSession();
+        final ContentCaptureSessionId sessionId = session.id;
 
-        final EventsAssertor assertor = activity.assertInitialViewsAppeared(session);
+        assertRightActivity(session, sessionId, activity);
 
-        final AutofillId usernameId = activity.mUsername.getAutofillId();
-        final AutofillId passwordId = activity.mPassword.getAutofillId();
+        final int additionalEvents = 8;
+        final List<ContentCaptureEvent> events = activity.assertInitialViewsAppeared(session,
+                additionalEvents);
 
-        assertor.isAtLeast(LoginActivity.MIN_EVENTS + 8)
-                .assertViewTextChanged(activity.mUsername.getAutofillId(), "a")
-                .assertViewTextChanged(usernameId, "ab")
-                .assertViewTextChanged(usernameId, "")
-                .assertViewTextChanged(usernameId, "abc")
-                .assertViewTextChanged(passwordId, "d")
-                .assertViewTextChanged(passwordId, "")
-                .assertViewTextChanged(passwordId, "")
-                .assertViewTextChanged(passwordId, "de")
-                .assertViewTextChanged(passwordId, "def")
-                .assertViewTextChanged(passwordId, "")
-                .assertViewTextChanged(usernameId, "abc");
+        final int i = LoginActivity.MIN_EVENTS;
 
-        activity.assertInitialViewsDisappeared(assertor);
+        assertViewTextChanged(events, i, activity.mUsername.getAutofillId(), "a");
+        assertViewTextChanged(events, i + 1, activity.mUsername.getAutofillId(), "ab");
+        assertViewTextChanged(events, i + 2, activity.mUsername.getAutofillId(), "");
+        assertViewTextChanged(events, i + 3, activity.mUsername.getAutofillId(), "abc");
+        assertViewTextChanged(events, i + 4, activity.mPassword.getAutofillId(), "d");
+        assertViewTextChanged(events, i + 5, activity.mPassword.getAutofillId(), "");
+        assertViewTextChanged(events, i + 6, activity.mPassword.getAutofillId(), "");
+        assertViewTextChanged(events, i + 7, activity.mPassword.getAutofillId(), "de");
+        assertViewTextChanged(events, i + 8, activity.mPassword.getAutofillId(), "def");
+        assertViewTextChanged(events, i + 9, activity.mPassword.getAutofillId(), "");
+        assertViewTextChanged(events, i + 10, activity.mUsername.getAutofillId(), "abc");
+
+        activity.assertInitialViewsDisappeared(events, additionalEvents);
     }
 
     @Test
@@ -497,13 +501,19 @@ public class LoginActivityTest
         watcher.waitFor(DESTROYED);
 
         final Session session = service.getOnlyFinishedSession();
+        final ContentCaptureSessionId sessionId = session.id;
 
-        final EventsAssertor assertor = activity.assertInitialViewsAppeared(session);
+        assertRightActivity(session, sessionId, activity);
 
-        assertor.isAtLeast(LoginActivity.MIN_EVENTS + 5)
-                .assertViewTextChanged(activity.mUsername.getAutofillId(), "Android");
+        final int additionalEvents = 5;
+        final List<ContentCaptureEvent> events = activity.assertInitialViewsAppeared(session,
+                additionalEvents);
 
-        activity.assertInitialViewsDisappeared(assertor);
+        final int i = LoginActivity.MIN_EVENTS;
+
+        assertViewTextChanged(events, i, activity.mUsername.getAutofillId(), "Android");
+
+        activity.assertInitialViewsDisappeared(events, additionalEvents);
     }
 
     @Test
@@ -536,22 +546,26 @@ public class LoginActivityTest
         watcher.waitFor(DESTROYED);
 
         final Session session = service.getOnlyFinishedSession();
+        final ContentCaptureSessionId sessionId = session.id;
 
-        final EventsAssertor assertor = activity.assertInitialViewsAppeared(session);
+        assertRightActivity(session, sessionId, activity);
 
-        assertor.isAtLeast(LoginActivity.MIN_EVENTS + 4)
-                .assertViewTextChanged(activity.mUsername.getAutofillId(), "Good");
-        assertComposingSpan(assertor.getLastEvent().getText(), 0, 4);
+        final int additionalEvents = 4;
+        final List<ContentCaptureEvent> events = activity.assertInitialViewsAppeared(session,
+                additionalEvents);
 
-        assertor.assertViewTextChanged(activity.mUsername.getAutofillId(), "Good ");
-        assertNoComposingSpan(assertor.getLastEvent().getText());
+        final int i = LoginActivity.MIN_EVENTS;
 
-        assertor.assertViewTextChanged(activity.mUsername.getAutofillId(), "Good morning");
+        assertViewTextChanged(events, i, activity.mUsername.getAutofillId(), "Good");
+        assertComposingSpan(events.get(i).getText(), 0, 4);
+        assertViewTextChanged(events, i + 1, activity.mUsername.getAutofillId(), "Good ");
+        assertNoComposingSpan(events.get(i + 1).getText());
+        assertViewTextChanged(events, i + 2, activity.mUsername.getAutofillId(), "Good morning");
         // TODO: Change how the appending works to more realistically test the case where only
         // "morning" is in the composing state.
-        assertComposingSpan(assertor.getLastEvent().getText(), 0, 12);
+        assertComposingSpan(events.get(i + 2).getText(), 0, 12);
 
-        activity.assertInitialViewsDisappeared(assertor);
+        activity.assertInitialViewsDisappeared(events, additionalEvents);
     }
 
     @Test
@@ -579,14 +593,20 @@ public class LoginActivityTest
         watcher.waitFor(DESTROYED);
 
         final Session session = service.getOnlyFinishedSession();
+        final ContentCaptureSessionId sessionId = session.id;
 
-        final EventsAssertor assertor = activity.assertInitialViewsAppeared(session);
+        assertRightActivity(session, sessionId, activity);
 
-        assertor.isAtLeast(LoginActivity.MIN_EVENTS + 3)
-                .assertViewTextChanged(activity.mUsername.getAutofillId(), "Good morning")
-                .assertViewTextChanged(activity.mPassword.getAutofillId(), "How are you");
+        final int additionalEvents = 3;
+        final List<ContentCaptureEvent> events = activity.assertInitialViewsAppeared(session,
+                additionalEvents);
 
-        activity.assertInitialViewsDisappeared(assertor);
+        final int i = LoginActivity.MIN_EVENTS;
+
+        assertViewTextChanged(events, i, activity.mUsername.getAutofillId(), "Good morning");
+        assertViewTextChanged(events, i + 1, activity.mPassword.getAutofillId(), "How are you");
+
+        activity.assertInitialViewsDisappeared(events, additionalEvents);
     }
 
     @Test
@@ -618,24 +638,27 @@ public class LoginActivityTest
         watcher.waitFor(DESTROYED);
 
         final Session session = service.getOnlyFinishedSession();
+        final ContentCaptureSessionId sessionId = session.id;
 
-        final EventsAssertor assertor = activity.assertInitialViewsAppeared(session);
+        assertRightActivity(session, sessionId, activity);
 
-        assertor.isAtLeast(LoginActivity.MIN_EVENTS + 5)
-                // TODO: The first two events should probably be merged.
-                .assertViewTextChanged(activity.mUsername.getAutofillId(), "Android");
-        assertNoComposingSpan(assertor.getLastEvent().getText());
+        final int additionalEvents = 5;
+        final List<ContentCaptureEvent> events = activity.assertInitialViewsAppeared(session,
+                additionalEvents);
 
-        assertor.assertViewTextChanged(activity.mUsername.getAutofillId(), "Android");
-        assertComposingSpan(assertor.getLastEvent().getText(), 1, 3);
+        final int i = LoginActivity.MIN_EVENTS;
 
-        assertor.assertViewTextChanged(activity.mUsername.getAutofillId(), "Android");
-        assertNoComposingSpan(assertor.getLastEvent().getText());
+        // TODO: The first two events should probably be merged.
+        assertViewTextChanged(events, i, activity.mUsername.getAutofillId(), "Android");
+        assertNoComposingSpan(events.get(i).getText());
+        assertViewTextChanged(events, i + 1, activity.mUsername.getAutofillId(), "Android");
+        assertComposingSpan(events.get(i + 1).getText(), 1, 3);
+        assertViewTextChanged(events, i + 2, activity.mUsername.getAutofillId(), "Android");
+        assertNoComposingSpan(events.get(i + 2).getText());
+        assertViewTextChanged(events, i + 3, activity.mUsername.getAutofillId(), "end");
+        assertNoComposingSpan(events.get(i + 3).getText());
 
-        assertor.assertViewTextChanged(activity.mUsername.getAutofillId(), "end");
-        assertNoComposingSpan(assertor.getLastEvent().getText());
-
-        activity.assertInitialViewsDisappeared(assertor);
+        activity.assertInitialViewsDisappeared(events, additionalEvents);
     }
 
     private void appendText(EditText editText, String text) {
@@ -893,16 +916,20 @@ public class LoginActivityTest
         watcher.waitFor(DESTROYED);
 
         final Session session = service.getOnlyFinishedSession();
+        Log.v(TAG, "session id: " + session.id);
+
         final ContentCaptureSessionId sessionId = session.id;
-        Log.v(TAG, "session id: " + sessionId);
+        assertRightActivity(session, sessionId, activity);
+
+        final List<ContentCaptureEvent> events = activity.assertJustInitialViewsAppeared(session,
+                /* additionalEvents= */ 2);
         final AutofillId rootId = activity.getRootView().getAutofillId();
 
-        final EventsAssertor assertor = activity.assertInitialViewsAppeared(session);
-
-        assertor.isAtLeast(LoginActivity.MIN_EVENTS + 3)
-                .assertViewTreeStarted()
-                .assertViewAppeared(sessionId, child, rootId)
-                .assertViewTreeFinished();
+        int i = LoginActivity.MIN_EVENTS - 1;
+        assertViewTreeFinished(events, i);
+        assertViewTreeStarted(events, i + 1);
+        assertViewAppeared(events, i + 2, sessionId, child, rootId);
+        assertViewTreeFinished(events, i + 3);
     }
 
     @Test
@@ -932,26 +959,49 @@ public class LoginActivityTest
 
         final Session session = service.getOnlyFinishedSession();
         Log.v(TAG, "session id: " + session.id);
+
         final ContentCaptureSessionId sessionId = session.id;
+        assertRightActivity(session, sessionId, activity);
+        final int additionalEvents = 2; // 2 children views
+        final List<ContentCaptureEvent> events = activity.assertJustInitialViewsAppeared(session,
+                additionalEvents);
+        assertThat(events.size()).isAtLeast(LoginActivity.MIN_EVENTS + 5);
         final View decorView = activity.getDecorView();
         final View grandpa1 = activity.getGrandParent();
         final View grandpa2 = activity.getGrandGrandParent();
         final AutofillId rootId = activity.getRootView().getAutofillId();
+        int i = LoginActivity.MIN_EVENTS - 1;
 
-        final EventsAssertor assertor = activity.assertInitialViewsAppeared(session);
+        assertViewTreeFinished(events, i);
+        assertViewTreeStarted(events, i + 1);
+        assertViewAppeared(events, i + 2, sessionId, children[0], rootId);
+        assertViewAppeared(events, i + 3, sessionId, children[1], rootId);
+        assertViewTreeFinished(events, i + 4);
 
-        assertor.isAtLeast(LoginActivity.MIN_EVENTS + 5)
-                .assertViewTreeStarted()
-                .assertViewAppeared(sessionId, children[0], rootId)
-                .assertViewAppeared(sessionId, children[1], rootId)
-                .assertViewTreeFinished()
-                .assertViewDisappeared(
-                        decorView.getAutofillId(),
-                        grandpa1.getAutofillId(), grandpa2.getAutofillId(),
-                        rootId,
-                        activity.mUsernameLabel.getAutofillId(), activity.mUsername.getAutofillId(),
-                        activity.mPasswordLabel.getAutofillId(), activity.mPassword.getAutofillId(),
-                        children[0].getAutofillId(), children[1].getAutofillId());
+        // TODO(b/122315042): assert parents disappeared
+        if (true) return;
+
+        // TODO(b/122315042): sometimes we get decor view disappareared events, sometimes we don't
+        // As we don't really care about those, let's fix it!
+        try {
+            assertViewsOptionallyDisappeared(events, LoginActivity.MIN_EVENTS + additionalEvents,
+                    rootId,
+                    grandpa1.getAutofillId(), grandpa2.getAutofillId(),
+                    activity.mUsernameLabel.getAutofillId(), activity.mUsername.getAutofillId(),
+                    activity.mPasswordLabel.getAutofillId(), activity.mPassword.getAutofillId(),
+                    children[0].getAutofillId(), children[1].getAutofillId());
+        } catch (AssertionError e) {
+            Log.e(TAG, "Hack-ignoring assertion without decor view: " + e);
+            // Try again removing it...
+            assertViewsOptionallyDisappeared(events, LoginActivity.MIN_EVENTS + additionalEvents,
+                    rootId,
+                    grandpa1.getAutofillId(), grandpa2.getAutofillId(),
+                    decorView.getAutofillId(),
+                    activity.mUsernameLabel.getAutofillId(), activity.mUsername.getAutofillId(),
+                    activity.mPasswordLabel.getAutofillId(), activity.mPassword.getAutofillId(),
+                    children[0].getAutofillId(), children[1].getAutofillId());
+
+        }
     }
 
     @Test

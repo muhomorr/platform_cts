@@ -19,20 +19,15 @@ package android.server.wm.lifecycle;
 import static android.content.Intent.FLAG_ACTIVITY_MULTIPLE_TASK;
 import static android.content.Intent.FLAG_ACTIVITY_NEW_TASK;
 import static android.server.wm.WindowManagerState.STATE_STOPPED;
-import static android.server.wm.lifecycle.LifecycleConstants.ON_DESTROY;
-import static android.server.wm.lifecycle.LifecycleConstants.ON_PAUSE;
-import static android.server.wm.lifecycle.LifecycleConstants.ON_RESTART;
-import static android.server.wm.lifecycle.LifecycleConstants.ON_RESUME;
-import static android.server.wm.lifecycle.LifecycleConstants.ON_START;
-import static android.server.wm.lifecycle.LifecycleConstants.ON_STOP;
-import static android.server.wm.lifecycle.LifecycleConstants.ON_TOP_POSITION_GAINED;
-import static android.server.wm.lifecycle.LifecycleConstants.ON_TOP_POSITION_LOST;
-import static android.server.wm.lifecycle.TransitionVerifier.assertEmptySequence;
-import static android.server.wm.lifecycle.TransitionVerifier.assertEntireSequence;
-import static android.server.wm.lifecycle.TransitionVerifier.assertLaunchAndDestroySequence;
-import static android.server.wm.lifecycle.TransitionVerifier.assertLaunchSequence;
-import static android.server.wm.lifecycle.TransitionVerifier.assertSequence;
-import static android.server.wm.lifecycle.TransitionVerifier.transition;
+import static android.server.wm.lifecycle.LifecycleLog.ActivityCallback.ON_DESTROY;
+import static android.server.wm.lifecycle.LifecycleLog.ActivityCallback.ON_PAUSE;
+import static android.server.wm.lifecycle.LifecycleLog.ActivityCallback.ON_RESTART;
+import static android.server.wm.lifecycle.LifecycleLog.ActivityCallback.ON_RESUME;
+import static android.server.wm.lifecycle.LifecycleLog.ActivityCallback.ON_START;
+import static android.server.wm.lifecycle.LifecycleLog.ActivityCallback.ON_STOP;
+import static android.server.wm.lifecycle.LifecycleLog.ActivityCallback.ON_TOP_POSITION_GAINED;
+import static android.server.wm.lifecycle.LifecycleLog.ActivityCallback.ON_TOP_POSITION_LOST;
+import static android.server.wm.lifecycle.LifecycleVerifier.transition;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -45,7 +40,6 @@ import androidx.test.filters.MediumTest;
 import org.junit.Test;
 
 import java.util.Arrays;
-import java.util.Collections;
 
 /**
  * Tests for {@link Activity} class APIs.
@@ -62,9 +56,10 @@ public class ActivityTests extends ActivityLifecycleClientTestBase {
         final Activity activity = launchActivityAndWait(FirstActivity.class);
         waitAndAssertActivityStates(state(activity, ON_RESUME));
 
-        getTransitionLog().clear();
+        getLifecycleLog().clear();
         assertFalse("Launched and visible activity must be released", activity.releaseInstance());
-        assertEmptySequence(FirstActivity.class, getTransitionLog(), "tryReleaseInstance");
+        LifecycleVerifier.assertEmptySequence(FirstActivity.class, getLifecycleLog(),
+                "tryReleaseInstance");
     }
 
     @Test
@@ -76,18 +71,18 @@ public class ActivityTests extends ActivityLifecycleClientTestBase {
         mWmState.waitForActivityState(firstActivity.getComponentName(), STATE_STOPPED);
 
         // Release the instance of the non-visible activity below.
-        getTransitionLog().clear();
+        getLifecycleLog().clear();
         assertTrue("It must be possible to release an instance of an invisible activity",
                 firstActivity.releaseInstance());
         waitAndAssertActivityStates(state(firstActivity, ON_DESTROY));
-        assertEmptySequence(SecondActivity.class, getTransitionLog(),
+        LifecycleVerifier.assertEmptySequence(SecondActivity.class, getLifecycleLog(),
                 "releaseInstance");
 
         // Finish the top activity to navigate back to the first one and re-create it.
-        getTransitionLog().clear();
+        getLifecycleLog().clear();
         secondActivity.finish();
         waitAndAssertActivityStates(state(secondActivity, ON_DESTROY));
-        assertLaunchSequence(FirstActivity.class, getTransitionLog());
+        LifecycleVerifier.assertLaunchSequence(FirstActivity.class, getLifecycleLog());
     }
 
     /**
@@ -103,16 +98,16 @@ public class ActivityTests extends ActivityLifecycleClientTestBase {
         waitAndAssertActivityStates(state(rootActivity, ON_STOP),
                 state(topActivity, ON_TOP_POSITION_GAINED));
 
-        getTransitionLog().clear();
+        getLifecycleLog().clear();
         rootActivity.finishAndRemoveTask();
 
         waitAndAssertActivityStates(state(rootActivity, ON_DESTROY),
                 state(topActivity, ON_DESTROY));
         // Cannot guarantee exact sequence among top and bottom activities, so verifying
         // independently
-        assertSequence(rootActivityClass, getTransitionLog(),
-                Collections.singletonList(ON_DESTROY), "finishAndRemoveTask");
-        assertSequence(topActivityClass, getTransitionLog(),
+        LifecycleVerifier.assertSequence(rootActivityClass, getLifecycleLog(),
+                Arrays.asList(ON_DESTROY), "finishAndRemoveTask");
+        LifecycleVerifier.assertSequence(topActivityClass, getLifecycleLog(),
                 Arrays.asList(ON_TOP_POSITION_LOST, ON_PAUSE, ON_STOP, ON_DESTROY),
                 "finishAndRemoveTask");
     }
@@ -131,16 +126,16 @@ public class ActivityTests extends ActivityLifecycleClientTestBase {
         waitAndAssertActivityStates(state(rootActivity, ON_PAUSE),
                 state(topActivity, ON_TOP_POSITION_GAINED));
 
-        getTransitionLog().clear();
+        getLifecycleLog().clear();
         rootActivity.finishAndRemoveTask();
 
         waitAndAssertActivityStates(state(rootActivity, ON_DESTROY),
                 state(topActivity, ON_DESTROY));
         // Cannot guarantee exact sequence among top and bottom activities, so verifying
         // independently
-        assertSequence(rootActivityClass, getTransitionLog(),
+        LifecycleVerifier.assertSequence(rootActivityClass, getLifecycleLog(),
                 Arrays.asList(ON_STOP, ON_DESTROY), "finishAndRemoveTask");
-        assertSequence(topActivityClass, getTransitionLog(),
+        LifecycleVerifier.assertSequence(topActivityClass, getLifecycleLog(),
                 Arrays.asList(ON_TOP_POSITION_LOST, ON_PAUSE, ON_STOP, ON_DESTROY),
                 "finishAndRemoveTask");
     }
@@ -160,12 +155,13 @@ public class ActivityTests extends ActivityLifecycleClientTestBase {
         waitAndAssertActivityStates(state(rootActivity, ON_STOP), state(midActivity, ON_STOP),
                 state(topActivity, ON_TOP_POSITION_GAINED));
 
-        getTransitionLog().clear();
+        getLifecycleLog().clear();
         midActivity.finishAndRemoveTask();
 
         waitAndAssertActivityStates(state(midActivity, ON_DESTROY));
-        assertEntireSequence(Collections.singletonList(transition(midActivityClass, ON_DESTROY)),
-                getTransitionLog(), "finishAndRemoveTask");
+        LifecycleVerifier.assertEntireSequence(Arrays.asList(
+                transition(midActivityClass, ON_DESTROY)), getLifecycleLog(),
+                "finishAndRemoveTask");
     }
 
     /**
@@ -175,15 +171,16 @@ public class ActivityTests extends ActivityLifecycleClientTestBase {
     @Test
     public void testFinishAfterTransition() throws Exception {
         final TransitionSourceActivity rootActivity =
-                launchActivityAndWait(TransitionSourceActivity.class);
+                (TransitionSourceActivity) launchActivityAndWait(TransitionSourceActivity.class);
         waitAndAssertActivityStates(state(rootActivity, ON_RESUME));
 
         // Launch activity with configured shared element transition. It will call
         // finishAfterTransition() on its own after transition completes.
-        rootActivity.runOnUiThread(rootActivity::launchActivityWithTransition);
+        rootActivity.runOnUiThread(() -> rootActivity.launchActivityWithTransition());
         waitAndAssertActivityStates(state(TransitionDestinationActivity.class, ON_DESTROY),
                 state(rootActivity, ON_RESUME));
-        assertLaunchAndDestroySequence(TransitionDestinationActivity.class, getTransitionLog());
+        LifecycleVerifier.assertLaunchAndDestroySequence(TransitionDestinationActivity.class,
+                getLifecycleLog());
     }
 
     /**
@@ -195,10 +192,10 @@ public class ActivityTests extends ActivityLifecycleClientTestBase {
         final Activity activity = launchActivityAndWait(FirstActivity.class);
         waitAndAssertActivityStates(state(activity, ON_RESUME));
 
-        getTransitionLog().clear();
+        getLifecycleLog().clear();
         activity.finishAfterTransition();
         waitAndAssertActivityStates(state(FirstActivity.class, ON_DESTROY));
-        assertSequence(FirstActivity.class, getTransitionLog(),
+        LifecycleVerifier.assertSequence(FirstActivity.class, getLifecycleLog(),
                 Arrays.asList(ON_PAUSE, ON_STOP, ON_DESTROY), "finishAfterTransition");
     }
 
@@ -212,10 +209,10 @@ public class ActivityTests extends ActivityLifecycleClientTestBase {
         final Activity topActivity = launchActivityAndWait(SecondActivity.class);
         waitAndAssertActivityStates(state(topActivity, ON_RESUME), state(rootActivity, ON_STOP));
 
-        getTransitionLog().clear();
+        getLifecycleLog().clear();
         topActivity.finishAfterTransition();
         waitAndAssertActivityStates(state(SecondActivity.class, ON_DESTROY));
-        assertSequence(SecondActivity.class, getTransitionLog(),
+        LifecycleVerifier.assertSequence(SecondActivity.class, getLifecycleLog(),
                 Arrays.asList(ON_PAUSE, ON_STOP, ON_DESTROY), "finishAfterTransition");
     }
 
@@ -231,11 +228,12 @@ public class ActivityTests extends ActivityLifecycleClientTestBase {
         waitAndAssertActivityStates(state(thirdActivity, ON_RESUME), state(secondActivity, ON_STOP),
                 state(firstActivity, ON_STOP));
 
-        getTransitionLog().clear();
+        getLifecycleLog().clear();
         secondActivity.finishAffinity();
         waitAndAssertActivityStates(state(FirstActivity.class, ON_DESTROY),
                 state(SecondActivity.class, ON_DESTROY));
-        assertEmptySequence(ThirdActivity.class, getTransitionLog(), "finishAffinityBelow");
+        LifecycleVerifier.assertEmptySequence(ThirdActivity.class, getLifecycleLog(),
+                "finishAffinityBelow");
     }
 
     /**
@@ -251,10 +249,10 @@ public class ActivityTests extends ActivityLifecycleClientTestBase {
         waitAndAssertActivityStates(state(differentAffinityActivity, ON_RESUME),
                 state(firstActivity, ON_STOP));
 
-        getTransitionLog().clear();
+        getLifecycleLog().clear();
         differentAffinityActivity.finishAffinity();
         waitAndAssertActivityStates(state(DifferentAffinityActivity.class, ON_DESTROY));
-        assertSequence(FirstActivity.class, getTransitionLog(),
+        LifecycleVerifier.assertSequence(FirstActivity.class, getLifecycleLog(),
                 Arrays.asList(ON_RESTART, ON_START, ON_RESUME), "finishAffinity");
     }
 
@@ -273,7 +271,7 @@ public class ActivityTests extends ActivityLifecycleClientTestBase {
         waitAndAssertActivityStates(state(secondActivity, ON_RESUME),
                 state(firstActivity, ON_STOP));
 
-        getTransitionLog().clear();
+        getLifecycleLog().clear();
         secondActivity.finishAffinity();
         waitAndAssertActivityStates(state(SecondActivity.class, ON_DESTROY),
                 state(firstActivity, ON_RESUME));

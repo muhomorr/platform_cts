@@ -16,7 +16,6 @@
 
 package com.android.cts.verifier.qstiles;
 
-import android.content.ComponentName;
 import android.view.View;
 import android.view.ViewGroup;
 
@@ -35,13 +34,6 @@ public class TileServiceVerifierActivity extends InteractiveVerifierActivity imp
     @Override
     protected int getInstructionsResource() {
         return R.string.tiles_info;
-    }
-
-    @Override
-    protected ComponentName getTileComponentName() {
-        String tilePath = "com.android.cts.verifier/"
-                + "com.android.cts.verifier.qstiles.MockTileService";
-        return ComponentName.unflattenFromString(tilePath);
     }
 
     @Override

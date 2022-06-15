@@ -17,10 +17,7 @@
 package com.android.cts.verifier.audio;
 
 import android.content.Context;
-import android.media.AudioManager;
-import android.media.AudioRecord;
-import android.media.AudioTrack;
-import android.media.MediaRecorder;
+import android.media.*;
 import android.media.audiofx.AcousticEchoCanceler;
 import android.os.Bundle;
 import android.util.Log;
@@ -29,14 +26,11 @@ import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
-
 import com.android.compatibility.common.util.ResultType;
 import com.android.compatibility.common.util.ResultUnit;
 import com.android.cts.verifier.CtsVerifierReportLog;
 import com.android.cts.verifier.R;
-import com.android.cts.verifier.audio.wavelib.DspBufferDouble;
-import com.android.cts.verifier.audio.wavelib.DspBufferMath;
-import com.android.cts.verifier.audio.wavelib.PipeShort;
+import com.android.cts.verifier.audio.wavelib.*;
 
 public class AudioAEC extends AudioFrequencyActivity implements View.OnClickListener {
     private static final String TAG = "AudioAEC";
@@ -250,21 +244,26 @@ public class AudioAEC extends AudioFrequencyActivity implements View.OnClickList
     @Override
     public void onClick(View v) {
         int id = v.getId();
-        if (id == R.id.audio_aec_button_test) {
-            startTest();
-        } else if (id == R.id.audio_aec_mandatory_no) {
-            enableUILayout(mLinearLayout, false);
-            getPassButton().setEnabled(true);
-            mButtonMandatoryNo.setEnabled(false);
-            mButtonMandatoryYes.setEnabled(false);
-            mMandatory = false;
-            Log.v(TAG, "AEC marked as NOT mandatory");
-        } else if (id == R.id.audio_aec_mandatory_yes) {
-            enableUILayout(mLinearLayout, true);
-            mButtonMandatoryNo.setEnabled(false);
-            mButtonMandatoryYes.setEnabled(false);
-            mMandatory = true;
-            Log.v(TAG, "AEC marked as mandatory");
+        switch (id) {
+            case R.id.audio_aec_button_test:
+                startTest();
+                break;
+            case R.id.audio_aec_mandatory_no:
+                enableUILayout(mLinearLayout,false);
+                getPassButton().setEnabled(true);
+                mButtonMandatoryNo.setEnabled(false);
+                mButtonMandatoryYes.setEnabled(false);
+                mMandatory = false;
+                Log.v(TAG,"AEC marked as NOT mandatory");
+                break;
+            case R.id.audio_aec_mandatory_yes:
+                enableUILayout(mLinearLayout,true);
+                mButtonMandatoryNo.setEnabled(false);
+                mButtonMandatoryYes.setEnabled(false);
+                mMandatory = true;
+                Log.v(TAG,"AEC marked as mandatory");
+                break;
+
         }
     }
 

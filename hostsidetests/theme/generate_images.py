@@ -227,18 +227,14 @@ def main(argv):
 
     if len(argv) is 2:
         for density in CTS_THEME_dict.keys():
-            retries = 0
-            result = False
-            while result != True:
-                retries += 1
-                emulator = start_emulator(argv[1], density)
-                result = do_capture(setup=(theme_apk, out_path), device_serial=emulator.get_serial())
-                emulator.stop()
-                if result:
-                    print("Generated reference images for %ddpi" % density)
-                else:
-                    print("Failed to generate reference images for %ddpi" % density)
-                    print("Try number %d" % retries)
+            emulator = start_emulator(argv[1], density)
+            result = do_capture(setup=(theme_apk, out_path), device_serial=emulator.get_serial())
+            emulator.stop()
+            if result:
+                print("Generated reference images for %ddpi" % density)
+            else:
+                print("Failed to generate reference images for %ddpi" % density)
+                break
     else:
         tasks = [do_capture]
         setup = (theme_apk, out_path)

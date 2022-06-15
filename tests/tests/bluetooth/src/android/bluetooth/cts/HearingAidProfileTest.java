@@ -16,11 +16,6 @@
 
 package android.bluetooth.cts;
 
-import static android.Manifest.permission.BLUETOOTH_CONNECT;
-
-import static org.junit.Assert.assertThrows;
-
-import android.app.UiAutomation;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothHearingAid;
@@ -35,14 +30,13 @@ import android.test.AndroidTestCase;
 import android.test.suitebuilder.annotation.MediumTest;
 import android.util.Log;
 
-import androidx.test.InstrumentationRegistry;
-
+import java.io.IOException;
+import java.util.List;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Unit test cases for {@link BluetoothHearingAid}.
@@ -67,7 +61,6 @@ public class HearingAidProfileTest extends AndroidTestCase {
     private BluetoothHearingAid mService;
     private BluetoothAdapter mBluetoothAdapter;
     private BroadcastReceiver mIntentReceiver;
-    private UiAutomation mUiAutomation;;
 
     private Condition mConditionProfileIsConnected;
     private ReentrantLock mProfileConnectedlock;
@@ -83,34 +76,33 @@ public class HearingAidProfileTest extends AndroidTestCase {
         if (!isBleSupported()) return;
         mIsBleSupported = true;
 
-        mIsHearingAidSupported = TestUtils.isProfileEnabled(BluetoothProfile.HEARING_AID);
-        if (!mIsHearingAidSupported) return;
-
-        mUiAutomation = InstrumentationRegistry.getInstrumentation().getUiAutomation();
-        mUiAutomation.adoptShellPermissionIdentity(BLUETOOTH_CONNECT);
-
         BluetoothManager manager = (BluetoothManager) mContext.getSystemService(
                 Context.BLUETOOTH_SERVICE);
         mBluetoothAdapter = manager.getAdapter();
 
-        assertTrue(BTAdapterUtils.enableAdapter(mBluetoothAdapter, mContext));
+        if (!BTAdapterUtils.enableAdapter(mBluetoothAdapter, mContext)) {
+            Log.e(TAG, "Unable to enable Bluetooth Adapter!");
+            assertTrue(mBluetoothAdapter.isEnabled());
+        }
+
         mProfileConnectedlock = new ReentrantLock();
         mConditionProfileIsConnected  = mProfileConnectedlock.newCondition();
         mIsProfileReady = false;
         mService = null;
-        mBluetoothAdapter.getProfileProxy(getContext(), new HearingAidsServiceListener(),
-                BluetoothProfile.HEARING_AID);
+        mIsHearingAidSupported = mBluetoothAdapter.getProfileProxy(getContext(),
+                                                  new HearingAidsServiceListener(),
+                                                  BluetoothProfile.HEARING_AID);
+        if (!mIsHearingAidSupported) return;
     }
 
     @Override
     public void tearDown() {
-        if (!(mIsBleSupported && mIsHearingAidSupported)) {
-            return;
+        if (!mIsBleSupported) return;
+
+        if (!BTAdapterUtils.disableAdapter(mBluetoothAdapter, mContext)) {
+            Log.e(TAG, "Unable to disable Bluetooth Adapter!");
+            assertTrue(mBluetoothAdapter.isEnabled());
         }
-        if (mBluetoothAdapter != null) {
-            assertTrue(BTAdapterUtils.disableAdapter(mBluetoothAdapter, mContext));
-        }
-        mUiAutomation.dropShellPermissionIdentity();
     }
 
     /**
@@ -138,33 +130,14 @@ public class HearingAidProfileTest extends AndroidTestCase {
         assertTrue(mIsProfileReady);
         assertNotNull(mService);
 
-        // Create a fake device
+        // Create a dummy device
         BluetoothDevice device = mBluetoothAdapter.getRemoteDevice("00:11:22:AA:BB:CC");
         assertNotNull(device);
 
         int connectionState = mService.getConnectionState(device);
-        // Fake device should be disconnected
+        // Dummy device should be disconnected
         assertEquals(connectionState, BluetoothProfile.STATE_DISCONNECTED);
     }
-
-    /**
-     * Basic test case to make sure that a fictional device throw a SecurityException when setting
-     * volume.
-     */
-    @MediumTest
-    public void test_setVolume() {
-        if (!(mIsBleSupported && mIsHearingAidSupported)) {
-            return;
-        }
-
-        waitForProfileConnect();
-        assertTrue(mIsProfileReady);
-        assertNotNull(mService);
-
-        // This should throw a SecurityException because no BLUETOOTH_PRIVILEGED permission
-        assertThrows(SecurityException.class, () -> mService.setVolume(42));
-    }
-
 
     /**
      * Basic test case to get the list of connected Hearing Aid devices.

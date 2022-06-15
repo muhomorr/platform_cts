@@ -27,10 +27,8 @@ import android.support.test.uiautomator.UiObjectNotFoundException;
 import android.support.test.uiautomator.UiScrollable;
 import android.support.test.uiautomator.UiSelector;
 import android.support.test.uiautomator.Until;
-import android.util.TypedValue;
 
 import androidx.test.InstrumentationRegistry;
-import androidx.test.core.app.ApplicationProvider;
 
 import java.util.regex.Pattern;
 
@@ -39,9 +37,6 @@ public class UiAutomatorUtils {
 
     /** Default swipe deadzone percentage. See {@link UiScrollable}. */
     private static final double DEFAULT_SWIPE_DEADZONE_PCT = 0.1;
-
-    /** Minimum view height accepted (before needing to scroll more). */
-    private static final float MIN_VIEW_HEIGHT_DP = 8;
 
     private static Pattern sCollapsingToolbarResPattern =
             Pattern.compile(".*:id/collapsing_toolbar");
@@ -69,11 +64,6 @@ public class UiAutomatorUtils {
         return waitFindObjectOrNull(selector, 20_000);
     }
 
-    private static int convertDpToPx(float dp) {
-        return Math.round(TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, dp,
-                ApplicationProvider.getApplicationContext().getResources().getDisplayMetrics()));
-    }
-
     public static UiObject2 waitFindObjectOrNull(BySelector selector, long timeoutMs)
             throws UiObjectNotFoundException {
         UiObject2 view = null;
@@ -83,12 +73,10 @@ public class UiAutomatorUtils {
         boolean wasScrolledUpAlready = false;
         boolean scrolledPastCollapsibleToolbar = false;
 
-        final int minViewHeightPx = convertDpToPx(MIN_VIEW_HEIGHT_DP);
-
         while (view == null && start + timeoutMs > System.currentTimeMillis()) {
             view = getUiDevice().wait(Until.findObject(selector), 1000);
 
-            if (view == null || view.getVisibleBounds().height() < minViewHeightPx) {
+            if (view == null) {
                 final double deadZone = !(FeatureUtil.isWatch() || FeatureUtil.isTV())
                         ? 0.25 : DEFAULT_SWIPE_DEADZONE_PCT;
                 UiScrollable scrollable = new UiScrollable(new UiSelector().scrollable(true));
@@ -110,15 +98,9 @@ public class UiAutomatorUtils {
                     } else {
                         Rect boundsBeforeScroll = scrollable.getBounds();
                         boolean scrollAtStartOrEnd = !scrollable.scrollForward();
-                        // The scrollable view may no longer be scrollable after the toolbar is
-                        // collapsed.
-                        if (scrollable.exists()) {
-                            Rect boundsAfterScroll = scrollable.getBounds();
-                            isAtEnd = scrollAtStartOrEnd && boundsBeforeScroll.equals(
-                                    boundsAfterScroll);
-                        } else {
-                            isAtEnd = scrollAtStartOrEnd;
-                        }
+                        Rect boundsAfterScroll = scrollable.getBounds();
+                        isAtEnd = scrollAtStartOrEnd && boundsBeforeScroll.equals(
+                                boundsAfterScroll);
                     }
                 } else {
                     // There might be a collapsing toolbar, but no scrollable view. Try to collapse

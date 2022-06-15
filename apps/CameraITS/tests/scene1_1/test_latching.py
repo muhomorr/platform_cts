@@ -90,7 +90,7 @@ class LatchingTest(its_base_test.ItsBaseTest):
         elif req_type == 'iso':
           reqs.append(iso_mult_req)
         else:
-          raise AssertionError(f'Incorrect capture request! {req_type}')
+          assert 0, 'Incorrect capture request!'
 
       caps = cam.do_capture(reqs, fmt)
       for i, cap in enumerate(caps):
@@ -121,8 +121,8 @@ class LatchingTest(its_base_test.ItsBaseTest):
       # check G mean pattern for correctness
       g_avg_for_caps = sum(g_means) / len(g_means)
       g_high = [g / g_avg_for_caps > 1 for g in g_means]
-      if g_high != PATTERN_CHECK:
-        raise AssertionError(f'G means: {g_means}, TEMPLATE: {REQ_PATTERN}')
+      assert g_high == PATTERN_CHECK, 'G means: %s, TEMPLATE: %s' % (
+          str(g_means), str(REQ_PATTERN))
 
 if __name__ == '__main__':
   test_runner.main()
