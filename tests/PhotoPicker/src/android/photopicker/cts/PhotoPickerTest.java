@@ -37,6 +37,9 @@ import static com.google.common.truth.Truth.assertWithMessage;
 import android.app.Activity;
 import android.content.ClipData;
 import android.content.Intent;
+import android.media.AudioAttributes;
+import android.media.AudioFocusRequest;
+import android.media.AudioManager;
 import android.net.Uri;
 import android.provider.MediaStore;
 
@@ -384,19 +387,30 @@ public class PhotoPickerTest extends PhotoPickerBaseTest {
         // Test 2: Click Mute Button
         // Click to unmute the audio
         clickAndWait(muteButton);
+
+        waitForBinderCallsToComplete();
+
         // Check that mute button state is unmute, i.e., it shows `volume up` icon
         assertMuteButtonState(muteButton, /* isMuted */ false);
         // Click on the muteButton and check that mute button status is now 'mute'
         clickAndWait(muteButton);
+
+        waitForBinderCallsToComplete();
+
         assertMuteButtonState(muteButton, /* isMuted */ true);
         // Click on the muteButton and check that mute button status is now unmute
         clickAndWait(muteButton);
+
+        waitForBinderCallsToComplete();
+
         assertMuteButtonState(muteButton, /* isMuted */ false);
 
         // Test 3: Next preview resumes mute state
         // Go back and launch preview again
         mDevice.pressBack();
         clickAndWait(findViewSelectedButton());
+
+        waitForBinderCallsToComplete();
 
         // check that player controls are visible
         assertPlayerControlsVisible(playPauseButton, muteButton);
@@ -421,6 +435,9 @@ public class PhotoPickerTest extends PhotoPickerBaseTest {
         assertMuteButtonState(muteButton, /* isMuted */ true);
         // Swipe to next page and check that muteButton is in mute state.
         swipeLeftAndWait();
+
+        waitForBinderCallsToComplete();
+
         // set-up and wait for player controls to be sticky
         setUpAndAssertStickyPlayerControls(playerView, playPauseButton, muteButton);
         assertMuteButtonState(muteButton, /* isMuted */ true);
@@ -428,9 +445,15 @@ public class PhotoPickerTest extends PhotoPickerBaseTest {
         // Test 2: Swipe resumes mute state, with state of mute button 'volume up' / 'unmute'
         // Click muteButton again to check the next video resumes the previous video's mute state
         clickAndWait(muteButton);
+
+        waitForBinderCallsToComplete();
+
         assertMuteButtonState(muteButton, /* isMuted */ false);
         // check that next video resumed previous video's mute state
         swipeLeftAndWait();
+
+        waitForBinderCallsToComplete();
+
         // Wait for 1s before checking Play/Pause button's visibility
         playPauseButton.waitForExists(1000);
         // check that player controls are visible
@@ -439,6 +462,78 @@ public class PhotoPickerTest extends PhotoPickerBaseTest {
 
         // We don't test the result of the picker here because the intention of the test is only to
         // test the video controls
+    }
+
+    @Test
+    public void testVideoPreviewAudioFocus() throws Exception {
+        final int[] focusStateForTest = new int[1];
+        final AudioManager audioManager = mContext.getSystemService(AudioManager.class);
+        AudioFocusRequest audioFocusRequest =
+                new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
+                .setAudioAttributes(new AudioAttributes.Builder()
+                        .setContentType(AudioAttributes.USAGE_MEDIA)
+                        .setUsage(AudioAttributes.CONTENT_TYPE_MOVIE)
+                        .build())
+                .setWillPauseWhenDucked(true)
+                .setAcceptsDelayedFocusGain(false)
+                .setOnAudioFocusChangeListener(focusChange -> {
+                    if (focusChange == AudioManager.AUDIOFOCUS_LOSS
+                            || focusChange == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT
+                            || focusChange == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK) {
+                        focusStateForTest[0] = focusChange;
+                    }
+                })
+                .build();
+
+        // Request AudioFocus
+        assertWithMessage("Expected requestAudioFocus result")
+                .that(audioManager.requestAudioFocus(audioFocusRequest))
+                .isEqualTo(AudioManager.AUDIOFOCUS_REQUEST_GRANTED);
+
+        // Launch Preview
+        launchPreviewMultipleWithVideos(/* videoCount */ 2);
+        // Video preview launches in mute mode, hence, test's audio focus shouldn't be lost when
+        // video preview starts
+        assertThat(focusStateForTest[0]).isEqualTo(0);
+
+        final UiObject muteButton = findMuteButton();
+        // unmute the audio of video preview
+        clickAndWait(muteButton);
+
+        // Remote video preview involves binder calls
+        // Wait for Binder calls to complete and device to be idle
+        MediaStore.waitForIdle(mContext.getContentResolver());
+        mDevice.waitForIdle();
+
+        assertMuteButtonState(muteButton, /* isMuted */ false);
+
+        // Verify that test lost the audio focus because PhotoPicker has requested audio focus now.
+        assertThat(focusStateForTest[0]).isEqualTo(AudioManager.AUDIOFOCUS_LOSS_TRANSIENT);
+
+        // Reset the focusStateForTest to verify test loses audio focus when video preview is
+        // launched with unmute state
+        focusStateForTest[0] = 0;
+        // Abandon the audio focus before requesting again. This is necessary to reduce test flakes
+        audioManager.abandonAudioFocusRequest(audioFocusRequest);
+        // Request AudioFocus from test again
+        assertWithMessage("Expected requestAudioFocus result")
+                .that(audioManager.requestAudioFocus(audioFocusRequest))
+                        .isEqualTo(AudioManager.AUDIOFOCUS_REQUEST_GRANTED);
+
+        // Wait for PhotoPicker to lose Audio Focus
+        findPlayButton().waitForExists(SHORT_TIMEOUT);
+        // Test requesting audio focus will make PhotoPicker lose audio focus, Verify video is
+        // paused when PhotoPicker loses audio focus.
+        assertWithMessage("PlayPause button's content description")
+                .that(findPlayPauseButton().getContentDescription())
+                .isEqualTo("Play");
+
+        // Swipe to next video and verify preview gains audio focus
+        swipeLeftAndWait();
+        findPauseButton().waitForExists(SHORT_TIMEOUT);
+        // Video preview is now in unmute mode. Hence, PhotoPicker will request audio focus. Verify
+        // that test lost the audio focus.
+        assertThat(focusStateForTest[0]).isEqualTo(AudioManager.AUDIOFOCUS_LOSS_TRANSIENT);
     }
 
     @Test
@@ -576,6 +671,10 @@ public class PhotoPickerTest extends PhotoPickerBaseTest {
         final long playbackStartTimeout = 10000;
         (findPreviewVideoImageView()).waitUntilGone(playbackStartTimeout);
 
+        waitForBinderCallsToComplete();
+    }
+
+    private void waitForBinderCallsToComplete() {
         // Wait for Binder calls to complete and device to be idle
         MediaStore.waitForIdle(mContext.getContentResolver());
         mDevice.waitForIdle();
@@ -648,6 +747,14 @@ public class PhotoPickerTest extends PhotoPickerBaseTest {
     private static UiObject findPlayPauseButton() {
         return new UiObject(new UiSelector().resourceIdMatches(
                 REGEX_PACKAGE_NAME + ":id/exo_play_pause"));
+    }
+
+    private static UiObject findPauseButton() {
+        return new UiObject(new UiSelector().descriptionContains("Pause"));
+    }
+
+    private static UiObject findPlayButton() {
+        return new UiObject(new UiSelector().descriptionContains("Play"));
     }
 
     private static UiObject findPreviewVideoImageView() {
