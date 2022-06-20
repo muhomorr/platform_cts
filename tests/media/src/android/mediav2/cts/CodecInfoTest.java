@@ -34,6 +34,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -90,40 +91,31 @@ public class CodecInfoTest {
 
     /**
      * Tests if the devices on T or later, if decoder for a mediaType supports HDR profiles then
-     * it should be capable of displaying the same
+     * it should be capable of displaying the same. Since HLG profiles can't be distinguished from
+     * default 10-bit profiles, those are excluded from this test.
      */
     @Test
-    @Ignore("TODO(b/228237404) Enable once display capabilities can be queried at codec2 level")
     public void testHDRDisplayCapabilities() {
         Assume.assumeTrue("Test needs Android 13", IS_AT_LEAST_T);
         Assume.assumeTrue("Test is applicable for video codecs", mMediaType.startsWith("video/"));
-        Assume.assumeTrue("Test is applicable for codecs with HDR profiles",
-                mProfileHdrMap.containsKey(mMediaType));
 
-        int[] HdrProfiles = mProfileHdrMap.get(mMediaType);
+        int[] Hdr10Profiles = mProfileHdr10Map.get(mMediaType);
+        int[] Hdr10PlusProfiles = mProfileHdr10PlusMap.get(mMediaType);
+        Assume.assumeTrue("Test is applicable for codecs with HDR10/HDR10+ profiles",
+                Hdr10Profiles != null || Hdr10PlusProfiles != null);
+
         MediaCodecInfo.CodecCapabilities caps = mCodecInfo.getCapabilitiesForType(mMediaType);
 
         for (CodecProfileLevel pl : caps.profileLevels) {
-            if (IntStream.of(HdrProfiles).anyMatch(x -> x == pl.profile)) {
-                if (pl.profile == AV1ProfileMain10 || pl.profile == AVCProfileHigh10 ||
-                        pl.profile == HEVCProfileMain10 || pl.profile == VP9Profile2) {
-                    assertTrue("Advertises support for HLG technology without HLG display",
-                            IntStream.of(DISPLAY_HDR_TYPES).anyMatch(x -> x == HDR_TYPE_HLG));
-                } else if (pl.profile == AV1ProfileMain10HDR10 ||
-                        pl.profile == HEVCProfileMain10HDR10 || pl.profile == VP9Profile2HDR) {
-                    assertTrue(mCodecInfo.getName() + " Advertises support for HDR10 profile " +
-                                    pl.profile + " without HDR10 display",
-                            IntStream.of(DISPLAY_HDR_TYPES).anyMatch(x -> x == HDR_TYPE_HDR10));
-                } else if (pl.profile == AV1ProfileMain10HDR10Plus ||
-                        pl.profile == HEVCProfileMain10HDR10Plus ||
-                        pl.profile == VP9Profile2HDR10Plus) {
-                    assertTrue(mCodecInfo.getName() + " Advertises support for HDR10+ profile " +
-                                    pl.profile + " without HDR10+ display",
-                            IntStream.of(DISPLAY_HDR_TYPES)
-                                    .anyMatch(x -> x == HDR_TYPE_HDR10_PLUS));
-                } else {
-                    fail("Unhandled HDR profile" + pl.profile + " for type " + mMediaType);
-                }
+            boolean isHdr10Profile = Hdr10Profiles != null &&
+                    IntStream.of(Hdr10Profiles).anyMatch(x -> x == pl.profile);
+            boolean isHdr10PlusProfile = Hdr10PlusProfiles != null &&
+                    IntStream.of(Hdr10PlusProfiles).anyMatch(x -> x == pl.profile);
+            // TODO (b/228237404) Once there is a way to query support for HDR10/HDR10+ display at
+            // native level, separate the following to independent checks for HDR10 and HDR10+
+            if (isHdr10Profile || isHdr10PlusProfile) {
+                assertTrue(mCodecInfo.getName() + " Advertises support for HDR10/HDR10+ profile " +
+                        pl.profile + " without any HDR display", DISPLAY_HDR_TYPES.length > 0);
             }
         }
     }
@@ -134,17 +126,33 @@ public class CodecInfoTest {
      * doesn't validate its support.
      */
     @Test
-    public void testColorFormatSupport() {
+    public void testColorFormatSupport() throws IOException {
         Assume.assumeTrue("Test is applicable for video codecs", mMediaType.startsWith("video/"));
         MediaCodecInfo.CodecCapabilities caps = mCodecInfo.getCapabilitiesForType(mMediaType);
         assertFalse(mCodecInfo.getName() + " does not support COLOR_FormatYUV420Flexible",
                 IntStream.of(caps.colorFormats)
                         .noneMatch(x -> x == COLOR_FormatYUV420Flexible));
 
+        // Encoders that support FEATURE_HdrEditing, must support P010 and ABGR2101010
+        // color format and at least one HDR profile
+        boolean hdrEditingSupported = caps.isFeatureSupported(FEATURE_HdrEditing);
+        if (mCodecInfo.isEncoder() && hdrEditingSupported) {
+            boolean abgr2101010Supported =
+                    IntStream.of(caps.colorFormats)
+                            .anyMatch(x -> x == COLOR_Format32bitABGR2101010);
+            boolean p010Supported =
+                    IntStream.of(caps.colorFormats).anyMatch(x -> x == COLOR_FormatYUVP010);
+            assertTrue(mCodecName + " supports FEATURE_HdrEditing, but does not support " +
+                    "COLOR_FormatABGR2101010 and COLOR_FormatYUVP010 color formats.",
+                    abgr2101010Supported && p010Supported);
+            assertTrue(mCodecName + " supports FEATURE_HdrEditing, but does not support any HDR " +
+                    "profiles.", CodecTestBase.doesCodecSupportHDRProfile(mCodecName, mMediaType));
+        }
+
         // COLOR_FormatSurface support is an existing requirement, but we did not
         // test for it before T.  We can not retroactively apply the higher standard to
-        // devices that are already certified, so only test on T or later devices.
-        if (IS_AT_LEAST_T) {
+        // devices that are already certified, so only test on VNDK T or later devices.
+        if (VNDK_IS_AT_LEAST_T) {
             assertFalse(mCodecInfo.getName() + " does not support COLOR_FormatSurface",
                     IntStream.of(caps.colorFormats)
                             .noneMatch(x -> x == COLOR_FormatSurface));

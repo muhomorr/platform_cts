@@ -107,6 +107,7 @@ public class CtsConfigLoadingTest {
                             "telecom",
                             "tv",
                             "uitoolkit",
+                            "uwb",
                             "vr",
                             "webview",
                             "wifi"));
@@ -141,6 +142,7 @@ public class CtsConfigLoadingTest {
             "com.drawelements.deqp.runner.DeqpTestRunner",
             // Tradefed runners
             "com.android.tradefed.testtype.AndroidJUnitTest",
+            "com.android.tradefed.testtype.ArtRunTest",
             "com.android.tradefed.testtype.HostTest",
             "com.android.tradefed.testtype.GTest",
             "com.android.tradefed.testtype.mobly.MoblyBinaryHostTest"
