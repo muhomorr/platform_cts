@@ -4083,7 +4083,7 @@ You should be prompted to select credentials; choose the ones you just installed
         Then press Go to open the WiFi page in Settings.
         Confirm that:\n\n
         - You cannot add a new WiFi configuration.\n
-        - Trying to add any new WiFi configs triggers a support message.\n
+        - The UI indicates that this is disabled due to admin policy.\n
         \n
         Use the Back button to return to this page.
     </string>
@@ -4350,7 +4350,7 @@ You should be prompted to select credentials; choose the ones you just installed
     <string name="disallow_config_date_time">Disallow config date time</string>
     <string name="disallow_config_date_time_action">Configuring auto time, time, auto date or date</string>
     <string name="disallow_config_location">Disallow config location</string>
-    <string name="disallow_config_location_action">Enabling or disabling location in settings or quick settings</string>
+    <string name="disallow_config_location_action">Enabling or disabling location, \'Bluetooth Scanning\' or \'WiFi Scanning\' in settings or quick settings</string>
     <string name="disallow_airplane_mode">Disallow airplane mode</string>
     <string name="disallow_airplane_mode_action">Toggling airplane mode switch bar or changing airplane mode state in quick settings</string>
     <string name="disallow_config_screen_timeout">Disallow config screen timeout</string>
@@ -5226,30 +5226,75 @@ You should be prompted to select credentials; choose the ones you just installed
           Note if the appropriate notification messages appear below.
           The \"Pass\" button will be enabled if device connect and disconnect messages are received.
     </string>
-    <string name="audio_out_devices_notifications_test">Audio Output Devices Notifications Test</string>
-    <string name="audio_in_devices_notifications_test">Audio Input Devices Notifications Test</string>
     <string name="audio_dev_notification_clearmsgs">Clear Messages</string>
     <string name="audio_dev_notification_connectMsg">CONNECT DETECTED</string>
     <string name="audio_dev_notification_disconnectMsg">DISCONNECT DETECTED</string>
 
+    <string name="audio_out_devices_notifications_test">Audio Output Devices Notifications Test</string>
+    <string name="audio_out_devices_infotext">Tests whether wired output peripheral
+        connect/disconnect notifications are correctly sent when output peripherals are
+        connected or disconnected. A \"wired output peripheral\" can be a headset or headphones
+        connected to an analog 3.5mm jack or the USB port or a USB audio interface connected to
+        the USB port.
+        \n\nTest Setup:
+        \nDisconnect any wired audio peripherals.
+        \n\nTest Process:
+        \n1. Verify that the DUT supports USB or Analog audio peripherals.
+        \n2. Press the \"Clear Messages\" button to clear any previously sent \"sticky\" notifications.
+        \n3. Connect a wired output peripheral. A connect message should appear. Disconnect the
+        audio peripheral. A disconnect message should appear.
+        \n\nTest Criteria:
+        \nThe test passes if either the device DOES NOT support wired output peripherals, or both
+        the connect and disconnect notifications are received.
+    </string>
+
+    <string name="audio_in_devices_notifications_test">Audio Input Devices Notifications Test</string>
+    <string name="audio_in_devices_infotext">Tests whether wired input peripheral
+        connect/disconnect notifications are correctly sent when input peripherals are
+        connected or disconnected. A \"wired input peripheral\" can be a headset connected to an
+        analog 3.5mm jack or the USB port or a USB audio interface connected to the USB port.
+        \n\nTest Setup:
+        \nDisconnect any wired audio peripherals.
+        \n\nTest Process:
+        \n1. Verify that the DUT supports USB or Analog audio peripherals.
+        \n2. Press the \"Clear Messages\" button to clear any previously sent \"sticky\" notifications.
+        \n3. Connect a wired output peripheral. A connect message should appear. Disconnect the
+        audio peripheral. A disconnect message should appear.
+        \n\nTest Criteria:
+        \nThe test passes if either the device DOES NOT support wired output peripherals, or both
+        the connect and disconnect notifications are received.
+    </string>
+
     <string name="audio_input_routingnotifications_test">Audio Input Routing Notifications Test</string>
     <string name="audio_input_routingnotification_instructions">
-          Click on the "Record" button in the AudioRecord Routing Notifications section below to
-          start recording. Insert a wired headset or microphone. Observe a message acknowledging the
-          rerouting event below. Remove the wired headset and observe the new routing message.
-          Click on the "Stop" button to stop recording.\n
+        Test whether appropriate routing notifications are sent when audio input peripherals are
+        connected to the device.
+        \n\nTest Setup:
+        \nDisconnect any wired audio peripherals.
+        \n\nTest Process:
+        \n1. Verify that the DUT supports USB or Analog audio peripherals.
+        \n2. Press the \"Record\" button.
+        \n3. Connect a wired input peripheral. A connect routing message should appear.
+        \n4. Press the \"Stop\" button.
+        \n\nTest Criteria:
+        \nThe test passes if either the device DOES NOT support wired input peripherals, or
+        the routing notifications are received.
     </string>
     <string name="audio_output_routingnotifications_test">Audio Output Routing Notifications Test</string>
     <string name="audio_output_routingnotification_instructions">
-          Click on the "Play" button in the AudioTrack Routing Notifications section below to
-          start (silent) playback. Insert a wired headset. Observe a message acknowledging the
-          rerouting event below. Remove the wired headset and observe the new routing message.
-          Click on the "Stop" button to stop playback.\n
+        Test whether appropriate output routing notifications are sent when audio output peripherals are
+        connected to the device.
+        \n\nTest Setup:
+        \nDisconnect any wired audio peripherals.
+        \n\nTest Process:
+        \n1. Verify that the DUT supports USB or Analog audio peripherals.
+        \n2. Press the \"Play\" button.
+        \n3. Connect a wired output peripheral. A connect routing message should appear.
+        \n4. Press the \"Stop\" button.
+        \n\nTest Criteria:
+        \nThe test passes if either the device DOES NOT support wired output peripherals, or
+        the routing notifications are received.
     </string>
-    <string name="audio_routingnotification_playBtn">Play</string>
-    <string name="audio_routingnotification_playStopBtn">Stop</string>
-    <string name="audio_routingnotification_recBtn">Record</string>
-    <string name="audio_routingnotification_recStopBtn">Stop</string>
     <string name="audio_routingnotification_playHeader">AudioTrack Routing Notifications</string>
     <string name="audio_routingnotification_recHeader">AudioRecord Routing Notifications</string>
     <string name="audio_routingnotification_trackRoutingMsg">AudioTrack rerouting</string>
@@ -5428,6 +5473,9 @@ You should be prompted to select credentials; choose the ones you just installed
     <string name="audio_general_Input">Input</string>
     <string name="audio_general_Output">Output</string>
 
+    <string name="audio_general_record">Record</string>
+    <string name="audio_general_play">Play</string>
+
     <string name="audio_general_JavaApi">Java API</string>
     <string name="audio_general_NativeApi">Native API</string>
 
@@ -5435,6 +5483,7 @@ You should be prompted to select credentials; choose the ones you just installed
 
     <string name="audio_general_test_not_run">Test Not Run</string>
     <string name="audio_general_testnotcompleted">Test not completed.</string>
+
 
     <!-- Audio Loopback Latency Test -->
     <string name="audio_loopback_latency_test">Audio Loopback Latency Test</string>
@@ -5701,6 +5750,7 @@ Follow the instructions on the screen to measure the frequency response for the 
         test is best conducted in a quiet room with the device laying on a table.
         \n\nTo execute test:
         \n1. Select the Audio API to test (\"Native\" has the lowest latency) and press the \"Start\" button.
+        The test needs to pass for ONLY ONE API.
         \n2. Use your fingernail to tap ONCE on the field below to trigger the test tone. DO NOT leave
         the finger resting on the test field. A strong "tick" sound from the fingernail striking
         the display is necessary to register the start of the test process.
@@ -6540,24 +6590,26 @@ Follow the instructions on the screen to measure the frequency response for the 
         The Presence tests check whether or not a device is properly calibrated for BLE, NAN and UWB based on Presence requirements.
         \nAll tests are required to pass on every device, if the radio technology is supported
     </string>
+    <string name="presence_test_tv_info">
+        The Presence tests check whether or not a device is properly calibrated for BLE, NAN and UWB based on Presence requirements.
+        \nAll tests are required to pass on all Android T+ launched TV devices, if the radio technology is supported.
+        \nIf the TV device is launched on older Android letters, all tests will be disabled. Press Pass to pass this case.
+    </string>
     <string name="uwb_precision">Uwb Precision Test</string>
     <string name="uwb_short_range">Uwb Short Range Test</string>
     <string name="uwb_precision_instruction">
-        1. Take 1000 measurements with DUT at any distance from the reference device. We recommend 1m.
-        \n2. Sort the 1000 measurements.
-        \n3. Compute the range as range = 975th measurement - 25th measurement
-        \n4. Report the range below - Must be less than 10cm for distance measurements and 5 degrees for angle of arrival measurements (if supported) for tests to pass.
-        \n5. Distance range is a compulsory input for this test to pass. Angle of arrival (Aoa) is optional.
+        1. Take 1000 measurements with DUT at 1m distance from the reference device in a non-reflective chamber.
+        \n2. Sort the 1000 measurements and compute the range as 975th measurement - 25th measurement
+        \n3. Report the range below - Must be within 30cm (distance) for tests to pass.
     </string>
     <string name="report_distance_range_cm">Report Range (cm)</string>
-    <string name="report_aoa_range_degrees">Report Range (degrees)</string>
     <string name="uwb_short_range_instruction">
-        1. Take 1000 measurements with DUT being 10cm apart from the reference device
+        1. Take 1000 measurements with DUT being 1m apart from the reference device, where ground truth distance is measured from the top edge of the DUT, held face up and tilted 45 degrees
         \n2. Sort the values.
-        \n3. Report the median (500th value) (must be within 8cm - 12cm to pass).
+        \n3. Report the median (500th value) (must be within 0.75m and 1.25m to pass).
         \n4. Report the reference device used.
     </string>
-    <string name="report_distance_median_cm">Report Median (cm)</string>
+    <string name="report_distance_median_meters">Report Median (meters)</string>
     <string name="report_reference_device">Report Reference Device</string>
     <string name="uwb_not_supported">Uwb is not supported on device. Finishing activity. </string>
     <string name="ble">BLE</string>
@@ -6565,11 +6617,10 @@ Follow the instructions on the screen to measure the frequency response for the 
     <!-- Strings for BLE RSSI Precision Test -->
     <string name="ble_rssi_precision_name">BLE RSSI Precision Test</string>
     <string name="ble_rssi_precision_test_instructions">
-        1. Take 1000 scan measurements with the DUT
-        \n2. Sort the values
-        \n3. Compute the range as range = 975th measurement - 25th measurement
-        \n4. Report the range; must be less than or equal to 12dBm to pass
-        \n5. Report the reference device used
+        1. Take 1000 scan measurements with the DUT at 1m distance from the reference device transmitting at ADVERTISE_TX_POWER_HIGH in line of sight environment
+        \n2. Sort the measurements and compute the range as 975th measurement - 25th measurement
+        \n3. Report the range below. Must be within 18dBm for tests to pass
+        \n4. Report the reference device used
     </string>
     <string name="report_ble_rssi_range">Report RSSI Range (dBm)</string>
 
@@ -6578,44 +6629,33 @@ Follow the instructions on the screen to measure the frequency response for the 
     <string name="ble_rx_tx_calibration_test_instructions">
         To verify this requirement, work with your chip vendor. The chip vendor can measure the
         channel flatness and identify the differences between cores and channels.
-        \nThe RSSI range must be less than or equal to 6 dBm to pass.
+        \n1. Must include Rx/Tx corrections to reduce per-channel deviations so that the measurements on each of the 3 channels, on each of the antennas (if multiple are used), are within +/-3dBm of one another for 95% of the measurements.
+        \n2. For 1000 sorted measurements, report the range as 975th measurement - 25th measurement. Must be within 6dBm to pass.
     </string>
     <string name="report_channels_ble_rssi_range">Report RSSI Range Across Channels (dBm)</string>
     <string name="report_cores_ble_rssi_range">[Optional] Report RSSI Range Across Cores (dBm)</string>
 
-    <!-- Strings for BLE Rx Offset Test -->
-    <string name="ble_rx_offset_name">BLE Rx Offset Test</string>
-    <string name="ble_rx_offset_test_instructions">
-        1. Take 1000 scan measurements with the DUT
-        \n2. Sort the values
-        \n3. Report the median (500th value); must be within [-57, -63] dBm to pass
-        \n4. Report the reference device used
+    <string name="nan_precision_instruction">
+        1. Take 1000 ranging measurements at each of the ground truth points of 10cm, 1m, 3m, and 5m. The WifiNanScan app in Play Store is recommended for data collection.
+        \n2. Report the bandwidth at which the data was collected. Must be either 160, 80, 40, 20 MHz.
+        \n3. For each ground truth point:
+        \n\t\ta. Sort the measurements, and report the range at the 68th percentile (840th measurement - 160th measurement), accurately to within:
+        \n\t\t\ti. 2 meters at 160 MHz bandwidth
+        \n\t\t\tii. 4 meters at 80 MHz bandwidth
+        \n\t\t\tiii. 8 meters at 40 MHz bandwidth
+        \n\t\t\tiv. 16 meters at 20 MHz bandwidth
+        \n4. Following the same instructions above, it is strongly recommended (but not required), to report the range at the 90th percentile (950th measurement - 50th measurement) as calculated with the Cumulative Distribution Function. If the range at 90th percentile is inputted, it must be within the expected range, and inputted for all distance ranges.
+        \n5. Report reference device used. All required fields must be filled before test can be passed.
     </string>
-    <string name="report_ble_rssi_median">Report RSSI Median (dBm)</string>
-
-    <!-- Strings for BLE Tx Offset Test -->
-    <string name="ble_tx_offset_name">BLE Tx Offset Test</string>
-    <string name="ble_tx_offset_test_instructions">
-        1. Start BLE advertisement on DUT and take 1000 scan measurements with the reference device
-        \n2. Sort the values
-        \n3. Report the median (500th value); must be within [-57, -63] dBm to pass
-        \n4. Report the reference device used
-    </string>
-    <string name="nan_precision_and_bias_instruction">
-        1. Take 1000 ranging measurements at each of the ground truth points of 1m, 3m, and 5m. The Wifinanscan in Play Store is recommended for data collection.
-        \n2. For each point:
-        \n\t\ta. Compute and report the range (Range = 975th measurement - 25th measurement).
-        \n\t\tb. Range must be less than 2m for test to pass.
-        \n3. Using the same measurements collected in step 1, compute a least squares regression line.
-        \n4. Report the bias and slope.
-        \n5. Bias must be 0+/- 0.25m and slope must be 1+/- 0.05m for tests to pass.
-        \n6. Report reference device used. All fields must be filled before test can be passed.
-    </string>
-    <string name="report_distance_range_1m_gt">Report Measurement Range at 1m</string>
-    <string name="report_distance_range_3m_gt">Report Measurement Range at 3m</string>
-    <string name="report_distance_range_5m_gt">Report Measurement Range at 5m</string>
-    <string name="report_bias_meters">Report Bias (meters)</string>
-    <string name="report_slope">Report Slope</string>
-    <string name="nan_precision_and_bias">Nan Precision and Bias Test</string>
+    <string name="report_nan_bandwidth_mhz">Bandwidth (MHz)</string>
+    <string name="report_distance_range_10cm_gt_68p">Measurement Range at 10cm (68th percentile)</string>
+    <string name="report_distance_range_1m_gt_68p">Measurement Range at 1m (68th percentile)</string>
+    <string name="report_distance_range_3m_gt_68p">Measurement Range at 3m (68th percentile)</string>
+    <string name="report_distance_range_5m_gt_68p">Measurement Range at 5m (68th percentile)</string>
+    <string name="report_distance_range_10cm_gt_90p">Measurement Range at 10cm (90th percentile)</string>
+    <string name="report_distance_range_1m_gt_90p">Measurement Range at 1m (90th percentile)</string>
+    <string name="report_distance_range_3m_gt_90p">Measurement Range at 3m (90th percentile)</string>
+    <string name="report_distance_range_5m_gt_90p">Measurement Range at 5m (90th percentile)</string>
+    <string name="nan_precision">Nan Precision Test</string>
     <string name="wifi_nan">WiFi NAN</string>
 </resources>
