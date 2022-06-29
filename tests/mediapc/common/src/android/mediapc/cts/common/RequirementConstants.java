@@ -35,9 +35,19 @@ public class RequirementConstants {
     public static final String R5_1__H_1_6 = "r5_1__h_1_6"; // 5.1/H-1-6
     public static final String R5_1__H_1_7 = "r5_1__h_1_7"; // 5.1/H-1-7
     public static final String R5_1__H_1_8 = "r5_1__h_1_8"; // 5.1/H-1-8
+    public static final String R5_1__H_1_9 = "r5_1__h_1_9"; // 5.1/H-1-9
+    public static final String R5_1__H_1_10 = "r5_1__h_1_10"; // 5.1/H-1-10
+    public static final String R5_1__H_1_11 = "r5_1__h_1_11"; // 5.1/H-1-11
+    public static final String R5_1__H_1_12 = "r5_1__h_1_12"; // 5.1/H-1-12
+    public static final String R5_1__H_1_13 = "r5_1__h_1_13"; // 5.1/H-1-13
+    public static final String R5_1__H_1_14 = "r5_1__h_1_14"; // 5.1/H-1-14
+    public static final String R5_1__H_1_15 = "r5_1__h_1_15"; // 5.1/H-1-16
+    public static final String R5_1__H_1_16 = "r5_1__h_1_16"; // 5.1/H-1-16
     public static final String R5_3__H_1_1 = "r5_3__h_1_1"; // 5.3/H-1-1
     public static final String R5_3__H_1_2 = "r5_3__h_1_2"; // 5.3/H-1-2
     public static final String R5_6__H_1_1 = "r5_6__h_1_1"; // 5.6/H-1-1
+    public static final String R5_7__H_1_1 = "r5_7__h_1_1"; // 5.7/H-1-1
+    public static final String R5_7__H_1_2 = "r5_7__h_1_2"; // 5.7/H-1-2
     public static final String R7_5__H_1_1 = "r7_5__h_1_1"; // 7.5/H-1-1
     public static final String R7_5__H_1_2 = "r7_5__h_1_2"; // 7.5/H-1-2
     public static final String R7_5__H_1_3 = "r7_5__h_1_3"; // 7.5/H-1-3
@@ -61,8 +71,11 @@ public class RequirementConstants {
     public static final String R8_2__H_2_2 = "r8_2__h_2_2"; // 8.2/H-2-2
     public static final String R8_2__H_2_3 = "r8_2__h_2_3"; // 8.2/H-2-3
     public static final String R8_2__H_2_4 = "r8_2__h_2_4"; // 8.2/H-2-4
+    public static final String RTBD = "tbd"; // placeholder for requirements without a set id
 
-    public static final String MAX_CONCURRENT_SESSIONS = "max_concurrent_sessions";
+    public static final String CONCURRENT_SESSIONS = "concurrent_sessions";
+    public static final String TEST_RESOLUTION = "resolution";
+    public static final String CONCURRENT_FPS = "concurrent_fps";
     public static final String SUPPORTED_PERFORMANCE_POINTS = "supported_performance_points";
     public static final String FRAMES_DROPPED = "frame_drops_per_30sec";
     public static final String FRAME_RATE = "frame_rate";
@@ -70,14 +83,27 @@ public class RequirementConstants {
     public static final String SHORT_RESOLUTION = "short_resolution_pixels";
     public static final String DISPLAY_DENSITY = "display_density_dpi";
     public static final String PHYSICAL_MEMORY = "physical_memory_mb";
+    public static final String CODEC_INIT_LATENCY = "codec_initialization_latency_ms";
+    public static final String AV1_DEC_REQ = "av1_decoder_requirement_boolean";
+    public static final String NUM_4k_HW_DEC = "number_4k_hw_decoders";
+    public static final String NUM_4k_HW_ENC = "number_4k_hw_encoders";
+    public static final String SECURE_REQ_SATISFIED = "secure_requirement_satisfied_boolean";
+    public static final String NUM_CRYPTO_HW_SECURE_ALL_SUPPORT =
+        "number_crypto_hw_secure_all_support";
+    public static final String FILESYSTEM_IO_RATE = "filesystem_io_rate_mbps";
 
     public enum Result {
         NA, MET, UNMET
     }
 
     public static final BiPredicate<Long, Long> LONG_GTE = RequirementConstants.gte();
+    public static final BiPredicate<Long, Long> LONG_LTE = RequirementConstants.lte();
     public static final BiPredicate<Integer, Integer> INTEGER_GTE = RequirementConstants.gte();
     public static final BiPredicate<Integer, Integer> INTEGER_LTE = RequirementConstants.lte();
+    public static final BiPredicate<Integer, Integer> INTEGER_EQ = RequirementConstants.eq();
+    public static final BiPredicate<Double, Double> DOUBLE_GTE = RequirementConstants.gte();
+    public static final BiPredicate<Double, Double> DOUBLE_EQ = RequirementConstants.eq();
+    public static final BiPredicate<Boolean, Boolean> BOOLEAN_EQ = RequirementConstants.eq();
 
     /**
      * Creates a >= predicate.
@@ -111,6 +137,23 @@ public class RequirementConstants {
             @Override
             public String toString() {
                 return "Less than or equal to";
+            }
+        };
+    }
+
+    /**
+     * Creates an == predicate.
+     */
+    private static <T, S extends Comparable<T>> BiPredicate<S, T> eq() {
+        return new BiPredicate<S, T>() {
+            @Override
+            public boolean test(S actual, T expected) {
+                return actual.compareTo(expected) == 0;
+            }
+
+            @Override
+            public String toString() {
+                return "Equal to";
             }
         };
     }

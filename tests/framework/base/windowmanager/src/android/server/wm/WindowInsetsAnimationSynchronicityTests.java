@@ -63,6 +63,7 @@ import androidx.test.rule.ActivityTestRule;
 import com.android.compatibility.common.util.PollingCheck;
 import com.android.compatibility.common.util.SystemUtil;
 
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 
@@ -82,11 +83,13 @@ public class WindowInsetsAnimationSynchronicityTests {
 
     private final Context mContext = InstrumentationRegistry.getInstrumentation().getContext();
 
+    @Ignore("b/168446060")
     @Test
     public void testShowAndHide_renderSynchronouslyBetweenImeWindowAndAppContent() throws Throwable {
         runTest(false /* useControlApi */);
     }
 
+    @Ignore("b/168446060")
     @Test
     public void testControl_rendersSynchronouslyBetweenImeWindowAndAppContent() throws Throwable {
         runTest(true /* useControlApi */);
@@ -100,7 +103,10 @@ public class WindowInsetsAnimationSynchronicityTests {
             activity.setEvaluator(() -> {
                 // This runs from time to time on the UI thread.
                 Bitmap screenshot = getInstrumentation().getUiAutomation().takeScreenshot();
-                final int center = screenshot.getWidth() / 2;
+                // Activity can be next to any screen edge and center must be offset by mTestView X
+                int[] loc = new int[2];
+                activity.mTestView.getLocationOnScreen(loc);
+                final int center = activity.mTestView.getWidth() / 2 + loc[0];
                 int imePositionApp = lowestPixelWithColor(APP_COLOR, 1, screenshot);
                 int contentBottomMiddle = lowestPixelWithColor(APP_COLOR, center, screenshot);
                 int behindImeBottomMiddle =

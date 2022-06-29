@@ -475,10 +475,12 @@ public abstract class DeviceAndProfileOwnerTest extends BaseDevicePolicyTest {
     @RequiresDevice
     @Test
     public void testAlwaysOnVpnPackageLogged() throws Exception {
+        int userId = getUserIdForAlwaysOnVpnTests();
         // Will be uninstalled in tearDown().
-        installAppAsUser(VPN_APP_APK, mUserId);
+        installAppAsUser(VPN_APP_APK, userId);
         assertMetricsLogged(getDevice(), () -> {
-            executeDeviceTestMethod(".AlwaysOnVpnUnsupportedTest", "testSetSupportedVpnAlwaysOn");
+            executeDeviceTestMethod(".AlwaysOnVpnUnsupportedTest", "testSetSupportedVpnAlwaysOn",
+                    userId);
         }, new DevicePolicyEventWrapper.Builder(EventId.SET_ALWAYS_ON_VPN_PACKAGE_VALUE)
                     .setAdminPackageName(DEVICE_ADMIN_PKG)
                     .setStrings(VPN_APP_PKG)
@@ -556,6 +558,10 @@ public abstract class DeviceAndProfileOwnerTest extends BaseDevicePolicyTest {
     @Test
     public void testPermissionGrantPreMApp() throws Exception {
         installAppAsUser(SIMPLE_PRE_M_APP_APK, mUserId);
+
+        if (isHeadlessSystemUserMode()) {
+            installAppAsUser(SIMPLE_PRE_M_APP_APK, mDeviceOwnerUserId);
+        }
         executeDeviceTestMethod(".PermissionsTest", "testPermissionGrantState_preMApp");
     }
 
@@ -607,63 +613,9 @@ public abstract class DeviceAndProfileOwnerTest extends BaseDevicePolicyTest {
 
     @Test
     public void testApplicationHidden_cannotHidePolicyExemptApps() throws Exception {
+        // Needed to access dpm.getPolicyExemptApps()
+        allowTestApiAccess(DEVICE_ADMIN_PKG);
         executeDeviceTestMethod(".ApplicationHiddenTest", "testCannotHidePolicyExemptApps");
-    }
-
-    // TODO(b/197491427): AccountManager support in TestApp
-    @Test
-    public void testAccountManagement_userRestrictionAddAccount() throws Exception {
-        installAppAsUser(ACCOUNT_MANAGEMENT_APK, mUserId);
-        try {
-            changeUserRestrictionOrFail(DISALLOW_MODIFY_ACCOUNTS, true, mUserId);
-            executeAccountTest("testAddAccount_blocked");
-        } finally {
-            // Ensure we clear the user restriction
-            changeUserRestrictionOrFail(DISALLOW_MODIFY_ACCOUNTS, false, mUserId);
-        }
-        executeAccountTest("testAddAccount_allowed");
-    }
-
-    // TODO(b/197491427): AccountManager support in TestApp
-    @Test
-    public void testAccountManagement_userRestrictionRemoveAccount() throws Exception {
-        installAppAsUser(ACCOUNT_MANAGEMENT_APK, mUserId);
-        try {
-            changeUserRestrictionOrFail(DISALLOW_MODIFY_ACCOUNTS, true, mUserId);
-            executeAccountTest("testRemoveAccount_blocked");
-        } finally {
-            // Ensure we clear the user restriction
-            changeUserRestrictionOrFail(DISALLOW_MODIFY_ACCOUNTS, false, mUserId);
-        }
-        executeAccountTest("testRemoveAccount_allowed");
-    }
-
-    // TODO(b/197491427): AccountManager support in TestApp
-    @Test
-    public void testAccountManagement_disabledAddAccount() throws Exception {
-        installAppAsUser(ACCOUNT_MANAGEMENT_APK, mUserId);
-        try {
-            changeAccountManagement(COMMAND_BLOCK_ACCOUNT_TYPE, ACCOUNT_TYPE, mUserId);
-            executeAccountTest("testAddAccount_blocked");
-        } finally {
-            // Ensure we remove account management policies
-            changeAccountManagement(COMMAND_UNBLOCK_ACCOUNT_TYPE, ACCOUNT_TYPE, mUserId);
-        }
-        executeAccountTest("testAddAccount_allowed");
-    }
-
-    // TODO(b/197491427): AccountManager support in TestApp
-    @Test
-    public void testAccountManagement_disabledRemoveAccount() throws Exception {
-        installAppAsUser(ACCOUNT_MANAGEMENT_APK, mUserId);
-        try {
-            changeAccountManagement(COMMAND_BLOCK_ACCOUNT_TYPE, ACCOUNT_TYPE, mUserId);
-            executeAccountTest("testRemoveAccount_blocked");
-        } finally {
-            // Ensure we remove account management policies
-            changeAccountManagement(COMMAND_UNBLOCK_ACCOUNT_TYPE, ACCOUNT_TYPE, mUserId);
-        }
-        executeAccountTest("testRemoveAccount_allowed");
     }
 
     @Test
@@ -865,6 +817,10 @@ public abstract class DeviceAndProfileOwnerTest extends BaseDevicePolicyTest {
         final String SECURE_SETTING_CATEGORY = "secure";
         final String GLOBAL_SETTING_CATEGORY = "global";
         final File apk = mBuildHelper.getTestFile(TEST_APP_APK);
+
+        // Needed to access dpm.getPolicyExemptApps()
+        allowTestApiAccess(DEVICE_ADMIN_PKG);
+
         try {
             // Install the test and prepare the test apk.
             installAppAsUser(PACKAGE_INSTALLER_APK, mUserId);
@@ -1229,6 +1185,8 @@ public abstract class DeviceAndProfileOwnerTest extends BaseDevicePolicyTest {
         executeDeviceTestClass(".KeyManagementTest");
     }
 
+    @TemporarilyIgnoreOnHeadlessSystemUserMode(bugId = "218408549",
+            reason = "Will be migrated to new test infra")
     @Test
     public void testInstallKeyPairLogged() throws Exception {
         assertMetricsLogged(getDevice(), () -> {
@@ -1270,8 +1228,6 @@ public abstract class DeviceAndProfileOwnerTest extends BaseDevicePolicyTest {
 
     }
 
-    @TemporarilyIgnoreOnHeadlessSystemUserMode(bugId = "197859595",
-            reason = "Will be migrated to new test infra")
     @Test
     public void testSetKeyPairCertificateLogged() throws Exception {
         assertMetricsLogged(getDevice(), () -> {
@@ -1335,6 +1291,16 @@ public abstract class DeviceAndProfileOwnerTest extends BaseDevicePolicyTest {
 
     @Test
     public void testPasswordMethodsLogged() throws Exception {
+        if (isAutomotive()) {
+            assertMetricsLogged(getDevice(), () -> {
+                executeDeviceTestMethod(".DevicePolicyLoggingTest", "testPasswordMethodsLogged");
+            }, new DevicePolicyEventWrapper.Builder(EventId.SET_PASSWORD_COMPLEXITY_VALUE)
+                    .setAdminPackageName(DEVICE_ADMIN_PKG)
+                    .setInt(0x50000)
+                    .setBoolean(false)
+                    .build());
+            return;
+        }
         assertMetricsLogged(getDevice(), () -> {
             executeDeviceTestMethod(".DevicePolicyLoggingTest", "testPasswordMethodsLogged");
         }, new DevicePolicyEventWrapper.Builder(EventId.SET_PASSWORD_QUALITY_VALUE)
@@ -1772,7 +1738,12 @@ public abstract class DeviceAndProfileOwnerTest extends BaseDevicePolicyTest {
 
     protected void installAppPermissionAppAsUser()
             throws FileNotFoundException, DeviceNotAvailableException {
-        installAppAsUser(PERMISSIONS_APP_APK, false, mUserId);
+        installAppPermissionAppAsUser(mUserId);
+    }
+
+    protected final void installAppPermissionAppAsUser(int userId)
+            throws FileNotFoundException, DeviceNotAvailableException {
+        installAppAsUser(PERMISSIONS_APP_APK, false, userId);
     }
 
     private void executeSuspendPackageTestMethod(String testName) throws Exception {
