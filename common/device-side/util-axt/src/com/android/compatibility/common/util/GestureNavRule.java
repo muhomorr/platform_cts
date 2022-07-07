@@ -33,17 +33,21 @@ import android.util.ArrayMap;
 
 import androidx.test.InstrumentationRegistry;
 
+import org.junit.ClassRule;
 import org.junit.rules.ExternalResource;
 
+import java.io.IOException;
 import java.util.Map;
 
 /**
- * Test rule to enable gesture navigation on the device.
+ * Test rule to enable gesture navigation on the device. Designed to be a {@link ClassRule}.
  */
 public class GestureNavRule extends ExternalResource {
     private static final String SETTINGS_PACKAGE_NAME = "com.android.settings";
     private static final String NAV_BAR_INTERACTION_MODE_RES_NAME = "config_navBarInteractionMode";
     private static final int NAV_BAR_INTERACTION_MODE_GESTURAL = 2;
+    private static final String GESTURAL_OVERLAY_NAME =
+            "com.android.internal.systemui.navbar.gestural";
 
     /** Most application's res id must be larger than 0x7f000000 */
     public static final int MIN_APPLICATION_RES_ID = 0x7f000000;
@@ -59,13 +63,13 @@ public class GestureNavRule extends ExternalResource {
     private String mSystemNavigationTitle;
     private String mGesturePreferenceTitle;
     private boolean mConfiguredInSettings;
+    private boolean mRevertOverlay;
 
     @Override
     protected void before() throws Throwable {
         if (!isGestureMode()) {
             enableGestureNav();
         }
-        assumeGestureNavigationMode();
     }
 
     @Override
@@ -183,6 +187,19 @@ public class GestureNavRule extends ExternalResource {
         if (!hasSystemGestureFeature()) {
             return;
         }
+        try {
+            if (mDevice.executeShellCommand("cmd overlay list").contains(GESTURAL_OVERLAY_NAME)) {
+                mDevice.executeShellCommand("cmd overlay enable " + GESTURAL_OVERLAY_NAME);
+                mDevice.waitForIdle();
+            }
+        } catch (IOException e) {
+            // Do nothing
+        }
+
+        if (isGestureMode()) {
+            mRevertOverlay = true;
+            return;
+        }
 
         // Set up the gesture navigation by enabling it via the Settings app
         boolean isOperatedSettingsToExpectedOption = launchToSettingsSystemGesture();
@@ -214,6 +231,17 @@ public class GestureNavRule extends ExternalResource {
             return;
         }
 
+        if (mRevertOverlay) {
+            try {
+                mDevice.executeShellCommand("cmd overlay disable " + GESTURAL_OVERLAY_NAME);
+            } catch (IOException e) {
+                // Do nothing
+            }
+            if (!isGestureMode()) {
+                return;
+            }
+        }
+
         if (mConfiguredInSettings) {
             launchToSettingsSystemGesture();
             for (Map.Entry<String, Boolean> entry : mSystemGestureOptionsMap.entrySet()) {
@@ -228,7 +256,12 @@ public class GestureNavRule extends ExternalResource {
         }
     }
 
-    private void assumeGestureNavigationMode() {
+    /**
+     * Assumes the device is in gesture navigation mode. Due to constraints of AndroidJUnitRunner we
+     * can't make assumptions in static contexts like in a {@link ClassRule} so tests need to call
+     * this method explicitly.
+     */
+    public void assumeGestureNavigationMode() {
         boolean isGestureMode = isGestureMode();
         assumeTrue("Gesture navigation required", isGestureMode);
     }

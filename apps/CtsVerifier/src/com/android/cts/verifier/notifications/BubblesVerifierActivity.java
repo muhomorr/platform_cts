@@ -20,6 +20,8 @@ import static android.app.NotificationManager.BUBBLE_PREFERENCE_NONE;
 import static android.app.NotificationManager.BUBBLE_PREFERENCE_SELECTED;
 import static android.app.NotificationManager.IMPORTANCE_DEFAULT;
 import static android.content.Intent.ACTION_VIEW;
+import static android.content.pm.PackageManager.FEATURE_INPUT_METHODS;
+import static android.content.pm.PackageManager.FEATURE_PC;
 import static android.view.View.GONE;
 import static android.view.View.INVISIBLE;
 import static android.view.View.VISIBLE;
@@ -42,6 +44,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ShortcutInfo;
 import android.content.pm.ShortcutManager;
+import android.content.res.Resources;
 import android.graphics.Color;
 import android.graphics.Insets;
 import android.graphics.drawable.Icon;
@@ -150,6 +153,10 @@ public class BubblesVerifierActivity extends PassFailButtons.Activity {
         if (am.isLowRamDevice()) {
             // Bubbles don't occur on low ram, instead they just show as notifs so test that
             mTests.add(new LowRamBubbleTest());
+        } else if (!Resources.getSystem()
+                    .getBoolean(com.android.internal.R.bool.config_supportsBubble)) {
+            // Bubbles don't occur on bubble disabled devices, only test notifications.
+            mTests.add(new BubbleDisabledTest());
         } else {
             //
             // Behavior around settings at the device level and on the app settings page.
@@ -183,9 +190,14 @@ public class BubblesVerifierActivity extends PassFailButtons.Activity {
             //
             // Expanded view appearance
             //
-            mTests.add(new PortraitAndLandscape());
+            // At the moment, PC devices do not support rotation
+            if (!getPackageManager().hasSystemFeature(FEATURE_PC)) {
+                mTests.add(new PortraitAndLandscape());
+            }
             mTests.add(new ScrimBehindExpandedView());
-            mTests.add(new ImeInsetsExpandedView());
+            if (getPackageManager().hasSystemFeature(FEATURE_INPUT_METHODS)) {
+                mTests.add(new ImeInsetsExpandedView());
+            }
             mTests.add(new MinHeightExpandedView());
             mTests.add(new MaxHeightExpandedView());
         }
@@ -952,6 +964,31 @@ public class BubblesVerifierActivity extends PassFailButtons.Activity {
         @Override
         public int getButtonText() {
             return R.string.bubbles_test_lowram_button;
+        }
+
+        @Override
+        public void performTestAction() {
+            Notification.Builder builder = getConversationNotif(getTestTitle());
+            builder.setBubbleMetadata(getBubbleBuilder().build());
+
+            mNotificationManager.notify(NOTIFICATION_ID, builder.build());
+        }
+    }
+
+    private class BubbleDisabledTest extends BubblesTestStep {
+        @Override
+        public int getTestTitle() {
+            return R.string.bubbles_test_disable_config_title;
+        }
+
+        @Override
+        public int getTestDescription() {
+            return R.string.bubbles_test_disable_config_verify;
+        }
+
+        @Override
+        public int getButtonText() {
+            return R.string.bubbles_test_disable_config_button;
         }
 
         @Override
