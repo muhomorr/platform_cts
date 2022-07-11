@@ -3212,22 +3212,6 @@
                        android:value="multi_display_mode" />
         </activity>
 
-        <activity android:name=".notifications.MediaPlayerVerifierActivity"
-                  android:label="@string/media_controls_title"
-                  android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.cts.intent.category.MANUAL_TEST" />
-            </intent-filter>
-
-            <meta-data android:name="test_category"
-                       android:value="@string/test_category_notifications" />
-            <meta-data android:name="test_excluded_features"
-                       android:value="android.hardware.type.watch:android.software.leanback:android.hardware.type.automotive" />
-            <meta-data android:name="display_mode"
-                       android:value="multi_display_mode" />
-        </activity>
-
         <service android:name=".notifications.MockListener"
           android:exported="true"
           android:label="@string/nls_service_name"
@@ -4056,70 +4040,6 @@
             <meta-data
                 android:name="CddText"
                 android:value="7.4.3/C-7-2" />
-        </activity>
-
-        <!--
-            CTS Verifier BLE Rx Offset Test Screen
-                test category : BLE
-                test parent : PresenceTestActivity
-        -->
-        <activity
-            android:name=".presence.BleRxOffsetActivity"
-            android:exported="true"
-            android:label="@string/ble_rx_offset_name">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-
-                <category android:name="android.cts.intent.category.MANUAL_TEST" />
-            </intent-filter>
-
-            <meta-data
-                android:name="test_category"
-                android:value="@string/ble" />
-            <meta-data
-                android:name="test_parent"
-                android:value="com.android.cts.verifier.presence.PresenceTestActivity" />
-            <meta-data
-                android:name="test_required_features"
-                android:value="android.hardware.bluetooth_le" />
-            <meta-data
-                android:name="display_mode"
-                android:value="single_display_mode" />
-            <meta-data
-                android:name="CddText"
-                android:value="7.4.3/C-7-3" />
-        </activity>
-
-        <!--
-            CTS Verifier BLE Tx Offset Test Screen
-                test category : BLE
-                test parent : PresenceTestActivity
-        -->
-        <activity
-            android:name=".presence.BleTxOffsetActivity"
-            android:exported="true"
-            android:label="@string/ble_tx_offset_name">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-
-                <category android:name="android.cts.intent.category.MANUAL_TEST" />
-            </intent-filter>
-
-            <meta-data
-                android:name="test_category"
-                android:value="@string/ble" />
-            <meta-data
-                android:name="test_parent"
-                android:value="com.android.cts.verifier.presence.PresenceTestActivity" />
-            <meta-data
-                android:name="test_required_features"
-                android:value="android.hardware.bluetooth_le" />
-            <meta-data
-                android:name="display_mode"
-                android:value="single_display_mode" />
-            <meta-data
-                android:name="CddText"
-                android:value="7.4.3/C-7-4" />
         </activity>
 
         <!-- CTS Verifier Nan Precision and Bias Test Screen
@@ -5118,6 +5038,7 @@
                 android:exported="true"
             android:launchMode="singleTask">
             <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.cts.intent.category.MANUAL_TEST" />
             </intent-filter>
@@ -5126,6 +5047,8 @@
                 android:value="android.software.live_tv" />
             <meta-data android:name="display_mode"
                        android:value="multi_display_mode" />
+            <meta-data android:name="CddTest"
+                       android:value="3.12/C-1-2" />
         </activity>
 
         <activity android:name=".tv.MicrophoneDeviceTestActivity"
