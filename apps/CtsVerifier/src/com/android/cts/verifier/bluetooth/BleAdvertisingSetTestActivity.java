@@ -99,6 +99,11 @@ public class BleAdvertisingSetTestActivity extends PassFailButtons.Activity {
                 R.string.ble_advertising_set_test_info, -1);
         getPassButton().setEnabled(false);
 
+        mBluetoothManager = getSystemService(BluetoothManager.class);
+        mBluetoothAdapter = mBluetoothManager.getAdapter();
+        mAdvertiser = mBluetoothAdapter.getBluetoothLeAdvertiser();
+        mCallback = new TestAdvertisingSetCallback();
+
         mTestAdapter = new TestAdapter(this, setupTestList());
         ListView listView = findViewById(R.id.ble_advertising_set_tests);
         listView.setAdapter(mTestAdapter);
@@ -128,7 +133,9 @@ public class BleAdvertisingSetTestActivity extends PassFailButtons.Activity {
                             testEnableAndDisableAdvertising();
                             testSetAdvertisingData();
                             testSetAdvertisingParameters();
-                            testPeriodicAdvertising();
+                            if (mBluetoothAdapter.isLePeriodicAdvertisingSupported()) {
+                                testPeriodicAdvertising();
+                            }
                             testSetScanResponseData();
                             stopAdvertisingSet();
                         } catch (InterruptedException e) {
@@ -160,11 +167,6 @@ public class BleAdvertisingSetTestActivity extends PassFailButtons.Activity {
         });
 
         mAllTestsPassed = 0;
-
-        mBluetoothManager = getSystemService(BluetoothManager.class);
-        mBluetoothAdapter = mBluetoothManager.getAdapter();
-        mAdvertiser = mBluetoothAdapter.getBluetoothLeAdvertiser();
-        mCallback = new TestAdvertisingSetCallback();
     }
 
     private void startAdvertisingSet() throws InterruptedException {
@@ -244,6 +246,16 @@ public class BleAdvertisingSetTestActivity extends PassFailButtons.Activity {
     // The following order of commands follows the diagram of Bluetooth Core Specification,
     // Version 5.3, Vol 6, Part D, Figure 3.7: Periodic advertising.
     private void testPeriodicAdvertising() throws InterruptedException {
+        if (!mBluetoothAdapter.isLePeriodicAdvertisingSupported()) {
+            mAllTestsPassed |= PASS_FLAG_SET_PERIODIC_ADVERTISING_PARAMS
+                    | PASS_FLAG_SET_PERIODIC_ADVERTISING_DATA
+                    | PASS_FLAG_SET_PERIODIC_ADVERTISING_ENABLED_DISABLED;
+            mTestAdapter.setTestPass(TEST_ADAPTER_INDEX_SET_PERIODIC_ADVERTISING_PARAMS);
+            mTestAdapter.setTestPass(TEST_ADAPTER_INDEX_SET_PERIODIC_ADVERTISING_DATA);
+            mTestAdapter.setTestPass(TEST_ADAPTER_INDEX_SET_PERIODIC_ADVERTISING_ENABLED_DISABLED);
+            return;
+        }
+
         mCallback.reset();
 
         mCallback.mAdvertisingSet.get().setAdvertisingParameters(
@@ -311,9 +323,11 @@ public class BleAdvertisingSetTestActivity extends PassFailButtons.Activity {
         testList.add(R.string.ble_advertising_set_enable_disable);
         testList.add(R.string.ble_advertising_set_advertising_data);
         testList.add(R.string.ble_advertising_set_advertising_params);
-        testList.add(R.string.ble_advertising_set_periodic_advertising_data);
-        testList.add(R.string.ble_advertising_set_periodic_advertising_enabled_disabled);
-        testList.add(R.string.ble_advertising_set_periodic_advertising_params);
+        if (mBluetoothAdapter.isLePeriodicAdvertisingSupported()) {
+            testList.add(R.string.ble_advertising_set_periodic_advertising_data);
+            testList.add(R.string.ble_advertising_set_periodic_advertising_enabled_disabled);
+            testList.add(R.string.ble_advertising_set_periodic_advertising_params);
+        }
         testList.add(R.string.ble_advertising_set_scan_response_data);
         testList.add(R.string.ble_advertising_set_stop);
         return testList;
