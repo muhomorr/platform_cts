@@ -50,16 +50,18 @@ import com.android.compatibility.common.util.UiDumpUtils
 import com.android.compatibility.common.util.click
 import com.android.compatibility.common.util.depthFirstSearch
 import com.android.compatibility.common.util.textAsString
+import java.io.InputStream
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import org.hamcrest.Matcher
 import org.hamcrest.Matchers
 import org.junit.Assert
 import org.junit.Assert.assertThat
 import org.junit.Assert.assertTrue
-import java.io.InputStream
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.TimeUnit
 
 private const val BROADCAST_TIMEOUT_MS = 60000L
+
+const val PROPERTY_SAFETY_CENTER_ENABLED = "safety_center_is_enabled"
 
 const val SYSUI_PKG_NAME = "com.android.systemui"
 const val NOTIF_LIST_ID = "com.android.systemui:id/notification_stack_scroller"
@@ -132,6 +134,14 @@ fun runAppHibernationJob(context: Context, tag: String) {
     }
 }
 
+fun runPermissionEventCleanupJob(context: Context) {
+    eventually {
+        runShellCommandOrThrow("cmd jobscheduler run -u " +
+            "${Process.myUserHandle().identifier} -f " +
+            "${context.packageManager.permissionControllerPackageName} 3")
+    }
+}
+
 inline fun withApp(
     apk: String,
     packageName: String,
@@ -189,6 +199,12 @@ inline fun <T> withUnusedThresholdMs(threshold: Long, action: () -> T): T {
         threshold.toString(), action)
 }
 
+inline fun <T> withSafetyCenterEnabled(action: () -> T): T {
+    return withDeviceConfig(
+        DeviceConfig.NAMESPACE_PRIVACY, PROPERTY_SAFETY_CENTER_ENABLED,
+        true.toString(), action)
+}
+
 fun awaitAppState(pkg: String, stateMatcher: Matcher<Int>) {
     val context: Context = InstrumentationRegistry.getTargetContext()
     eventually {
@@ -211,6 +227,7 @@ fun startApp(packageName: String) {
 
 fun goHome() {
     runShellCommandOrThrow("input keyevent KEYCODE_HOME")
+    waitForIdle()
 }
 
 /**
