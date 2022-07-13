@@ -983,6 +983,17 @@ public class SELinuxHostTest extends BaseHostJUnit4Test {
     }
 
     /**
+     * Tests that all types in /sys/fs/bpf have the bpffs_type attribute.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void testBpffsTypeViolators() throws Exception {
+        assertSepolicyTests("TestBpffsTypeViolations", "/sepolicy_tests",
+                PropertyUtil.isVendorApiLevelNewerThan(mDevice, 33) /* includeVendorSepolicy */);
+    }
+
+    /**
      * Tests that all types in /proc have the proc_type attribute.
      *
      * @throws Exception
@@ -1356,7 +1367,7 @@ public class SELinuxHostTest extends BaseHostJUnit4Test {
     @CddTest(requirement="9.7")
     @Test
     public void testDrmServerDomain() throws DeviceNotAvailableException {
-        assertDomainN("u:r:drmserver:s0", "/system/bin/drmserver", "/system/bin/drmserver64");
+        assertDomainHasExecutable("u:r:drmserver:s0", "/system/bin/drmserver", "/system/bin/drmserver64");
     }
 
     /* Installd is always running */
