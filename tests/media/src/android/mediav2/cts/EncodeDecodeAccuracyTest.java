@@ -21,6 +21,7 @@ import android.media.MediaCodecInfo;
 import android.media.MediaFormat;
 import android.media.MediaMuxer;
 import android.opengl.GLES20;
+import android.opengl.GLES30;
 import android.util.Log;
 import android.util.Pair;
 import android.view.Surface;
@@ -55,9 +56,10 @@ public class EncodeDecodeAccuracyTest extends CodecDecoderTestBase {
     // qp of the encoded clips shall drop down to < 10. Further the color bands are aligned to 2,
     // so from downsampling rgb24 to yuv420p, even if bilinear filters are used as opposed to
     // skipping samples, we may not see large color loss. Hence allowable tolerance is kept to 5.
-    // until QP stabilizes, the tolerance is set at 7.
-    private final int TRANSIENT_STATE_COLOR_DELTA = 7;
-    private final int STEADY_STATE_COLOR_DELTA = 5;
+    // until QP stabilizes, the tolerance is set at 7. For devices upgrading to T, thresholds are
+    // relaxed to 8 and 10.
+    private final int TRANSIENT_STATE_COLOR_DELTA = FIRST_SDK_IS_AT_LEAST_T ? 7: 10;
+    private final int STEADY_STATE_COLOR_DELTA = FIRST_SDK_IS_AT_LEAST_T ? 5: 8;
     private final int[][] mColorBars = new int[][]{
             {66, 133, 244},
             {219, 68, 55},
@@ -151,12 +153,26 @@ public class EncodeDecodeAccuracyTest extends CodecDecoderTestBase {
         final boolean needAudio = false;
         final boolean needVideo = true;
         final List<Object[]> baseArgsList = Arrays.asList(new Object[][]{
-                // "video/*", width, height, framerate, bitrate, range, standard, transfer
+                // "video/*", width, height, framerate, bitrate, range, standard, transfer,
+                // useHighBitDepth
                 {720, 480, 30, 3000000, MediaFormat.COLOR_RANGE_LIMITED,
                         MediaFormat.COLOR_STANDARD_BT601_NTSC,
-                        MediaFormat.COLOR_TRANSFER_SDR_VIDEO},
+                        MediaFormat.COLOR_TRANSFER_SDR_VIDEO, false},
                 {720, 576, 30, 3000000, MediaFormat.COLOR_RANGE_LIMITED,
-                        MediaFormat.COLOR_STANDARD_BT601_PAL, MediaFormat.COLOR_TRANSFER_SDR_VIDEO},
+                        MediaFormat.COLOR_STANDARD_BT601_PAL, MediaFormat.COLOR_TRANSFER_SDR_VIDEO,
+                        false},
+                {720, 480, 30, 3000000, MediaFormat.COLOR_RANGE_FULL,
+                    MediaFormat.COLOR_STANDARD_BT2020,
+                    MediaFormat.COLOR_TRANSFER_ST2084, true},
+
+                // TODO (b/235954984) Some devices do not support following in h/w encoders
+                // Add more combinations as required once the encoders support these
+                /*
+                {720, 480, 30, 3000000, MediaFormat.COLOR_RANGE_LIMITED,
+                    MediaFormat.COLOR_STANDARD_BT2020, MediaFormat.COLOR_TRANSFER_ST2084, true},
+                {720, 480, 30, 3000000, MediaFormat.COLOR_RANGE_LIMITED,
+                    MediaFormat.COLOR_STANDARD_BT709, MediaFormat.COLOR_TRANSFER_SDR_VIDEO, true},
+                */
                 // TODO (b/186511593)
                 /*
                 {1280, 720, 30, 3000000, MediaFormat.COLOR_RANGE_LIMITED,
@@ -195,9 +211,7 @@ public class EncodeDecodeAccuracyTest extends CodecDecoderTestBase {
         for (String mime : mimes) {
             for (Object[] obj : baseArgsList) {
                 exhaustiveArgsList.add(new Object[]{mime, obj[0], obj[1], obj[2], obj[3], obj[4],
-                        obj[5], obj[6], false});
-                exhaustiveArgsList.add(new Object[]{mime, obj[0], obj[1], obj[2], obj[3], obj[4],
-                        obj[5], obj[6], true});
+                        obj[5], obj[6], obj[7]});
             }
         }
         return CodecTestBase.prepareParamList(exhaustiveArgsList, isEncoder, needAudio, needVideo,
@@ -382,11 +396,6 @@ public class EncodeDecodeAccuracyTest extends CodecDecoderTestBase {
         if (delta > mLargestColorDelta) mLargestColorDelta = delta;
         int maxAllowedDelta = (mOutputCount >= STEADY_STATE_FRAME_INDEX ? STEADY_STATE_COLOR_DELTA :
                 TRANSIENT_STATE_COLOR_DELTA);
-        // Since glReadPixels currently reads 8 bits per component, allow significantly higher error
-        // for high bit depth case
-        if (mUseHighBitDepth) {
-            maxAllowedDelta *= 8;
-        }
         return (delta <= maxAllowedDelta);
     }
 
@@ -396,10 +405,23 @@ public class EncodeDecodeAccuracyTest extends CodecDecoderTestBase {
         for (int i = 0; i < mColorBars.length; i++) {
             int x = mColorBarWidth * i + xOffset;
             int y = yOffset;
-            GLES20.glReadPixels(x, y, 1, 1, GL10.GL_RGBA, GL10.GL_UNSIGNED_BYTE, pixelBuf);
-            int r = pixelBuf.get(0) & 0xff;
-            int g = pixelBuf.get(1) & 0xff;
-            int b = pixelBuf.get(2) & 0xff;
+            int r, g, b;
+            if (mUseHighBitDepth) {
+                GLES30.glReadPixels(x, y, 1, 1, GL10.GL_RGBA, GLES30.GL_UNSIGNED_INT_2_10_10_10_REV,
+                        pixelBuf);
+                r = (pixelBuf.get(1) & 0x03) << 8 | (pixelBuf.get(0) & 0xFF);
+                g = (pixelBuf.get(2) & 0x0F) << 6 | ((pixelBuf.get(1) >> 2) & 0x3F);
+                b = (pixelBuf.get(3) & 0x3F) << 4 | ((pixelBuf.get(2) >> 4) & 0x0F);
+                // Convert the values to 8 bit as comparisons later are with 8 bit RGB values
+                r = (r + 2) >> 2;
+                g = (g + 2) >> 2;
+                b = (b + 2) >> 2;
+            } else {
+                GLES20.glReadPixels(x, y, 1, 1, GL10.GL_RGBA, GL10.GL_UNSIGNED_BYTE, pixelBuf);
+                r = pixelBuf.get(0) & 0xFF;
+                g = pixelBuf.get(1) & 0xFF;
+                b = pixelBuf.get(2) & 0xFF;
+            }
             if (!(isColorClose(r, mColorBars[i][0]) && isColorClose(g, mColorBars[i][1]) &&
                     isColorClose(b, mColorBars[i][2]))) {
                 Log.w(LOG_TAG, "Bad frame " + frameIndex + " (rect={" + x + " " + y + "} :rgb=" +
