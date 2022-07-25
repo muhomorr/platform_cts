@@ -50,6 +50,7 @@ import com.android.bedstead.harrier.annotations.EnsureBluetoothEnabled;
 import com.android.bedstead.harrier.annotations.EnsureCanGetPermission;
 import com.android.bedstead.harrier.annotations.EnsureDoesNotHaveAppOp;
 import com.android.bedstead.harrier.annotations.EnsureDoesNotHavePermission;
+import com.android.bedstead.harrier.annotations.EnsureGlobalSettingSet;
 import com.android.bedstead.harrier.annotations.EnsureHasAppOp;
 import com.android.bedstead.harrier.annotations.EnsureHasPermission;
 import com.android.bedstead.harrier.annotations.EnsurePackageNotInstalled;
@@ -66,6 +67,7 @@ import com.android.bedstead.harrier.annotations.RequireDoesNotHaveFeature;
 import com.android.bedstead.harrier.annotations.RequireFeature;
 import com.android.bedstead.harrier.annotations.RequireHeadlessSystemUserMode;
 import com.android.bedstead.harrier.annotations.RequireLowRamDevice;
+import com.android.bedstead.harrier.annotations.RequireMultiUserSupport;
 import com.android.bedstead.harrier.annotations.RequireNotHeadlessSystemUserMode;
 import com.android.bedstead.harrier.annotations.RequireNotLowRamDevice;
 import com.android.bedstead.harrier.annotations.RequirePackageInstalled;
@@ -778,6 +780,20 @@ public final class DeviceState extends HarrierRule {
                 ensureBluetoothDisabled();
                 continue;
             }
+
+            if (annotation instanceof EnsureGlobalSettingSet) {
+                EnsureGlobalSettingSet ensureGlobalSettingSetAnnotation =
+                        (EnsureGlobalSettingSet) annotation;
+                ensureGlobalSettingSet(
+                        ensureGlobalSettingSetAnnotation.key(),
+                        ensureGlobalSettingSetAnnotation.value());
+                continue;
+            }
+
+            if (annotation instanceof RequireMultiUserSupport) {
+                requireMultiUserSupport();
+                continue;
+            }
         }
 
         requireSdkVersion(/* min= */ mMinSdkVersionCurrentTest,
@@ -1152,7 +1168,7 @@ public final class DeviceState extends HarrierRule {
     private Boolean mOriginalBluetoothEnabled;
     private TestAppProvider mTestAppProvider = new TestAppProvider();
     private Map<String, TestAppInstance> mTestApps = new HashMap<>();
-
+    private final Map<String, String> mOriginalGlobalSettings = new HashMap<>();
 
     private static final class RemovedUser {
         // Store the user builder so we can recreate the user later
@@ -1759,6 +1775,11 @@ public final class DeviceState extends HarrierRule {
             TestApis.bluetooth().setEnabled(mOriginalBluetoothEnabled);
             mOriginalBluetoothEnabled = null;
         }
+
+        for (Map.Entry<String, String> s : mOriginalGlobalSettings.entrySet()) {
+            TestApis.settings().global().putString(s.getKey(), s.getValue());
+        }
+        mOriginalGlobalSettings.clear();
     }
 
     private UserReference createProfile(
@@ -2506,5 +2527,17 @@ public final class DeviceState extends HarrierRule {
         } else {
             mPermissionContext = mPermissionContext.withoutPermission(permission);
         }
+    }
+
+    private void ensureGlobalSettingSet(String key, String value) {
+        if (!mOriginalGlobalSettings.containsKey(key)) {
+            mOriginalGlobalSettings.put(key, TestApis.settings().global().getString(value));
+        }
+        TestApis.settings().global().putString(key, value);
+    }
+
+    private void requireMultiUserSupport() {
+        assumeTrue("This test is only supported on multi user devices",
+                TestApis.users().supportsMultipleUsers());
     }
 }

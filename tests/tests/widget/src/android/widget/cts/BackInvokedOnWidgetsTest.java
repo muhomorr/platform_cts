@@ -21,6 +21,7 @@ import static org.junit.Assert.assertTrue;
 
 import android.app.Instrumentation;
 import android.graphics.Color;
+import android.platform.test.annotations.AppModeFull;
 import android.support.test.uiautomator.UiDevice;
 import android.view.Gravity;
 import android.view.ViewGroup;
@@ -36,12 +37,14 @@ import com.android.compatibility.common.util.GestureNavRule;
 
 import org.junit.Before;
 import org.junit.ClassRule;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+// @AppModeFull because GestureNavRule does not work for
+// instant mode tests (b/238975931)
 @MediumTest
+@AppModeFull
 @RunWith(AndroidJUnit4.class)
 public class BackInvokedOnWidgetsTest {
 
@@ -58,11 +61,11 @@ public class BackInvokedOnWidgetsTest {
 
     @Before
     public void setUp() {
+        rule.assumeGestureNavigationMode();
         mInstrumentation = InstrumentationRegistry.getInstrumentation();
         mUiDevice = UiDevice.getInstance(mInstrumentation);
     }
 
-    @Ignore("b/229946481")
     @Test
     public void popupWindowDismissedOnBackGesture() {
         PopupWindow[] popupWindow = new PopupWindow[1];

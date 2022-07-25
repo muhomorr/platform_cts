@@ -39,7 +39,6 @@ import android.annotation.NonNull;
 import android.app.AppOpsManager;
 import android.app.UiAutomation;
 import android.bluetooth.BluetoothAdapter;
-import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -110,6 +109,7 @@ import android.util.Pair;
 
 import androidx.test.InstrumentationRegistry;
 
+import com.android.compatibility.common.util.ApiTest;
 import com.android.compatibility.common.util.CarrierPrivilegeUtils;
 import com.android.compatibility.common.util.CddTest;
 import com.android.compatibility.common.util.ShellIdentityUtils;
@@ -284,6 +284,7 @@ public class TelephonyManagerTest {
     private static final int RADIO_HAL_VERSION_1_3 = makeRadioVersion(1, 3);
     private static final int RADIO_HAL_VERSION_1_5 = makeRadioVersion(1, 5);
     private static final int RADIO_HAL_VERSION_1_6 = makeRadioVersion(1, 6);
+    private static final int RADIO_HAL_VERSION_2_0 = makeRadioVersion(2, 0);
 
     static {
         EMERGENCY_NUMBER_SOURCE_SET = new HashSet<Integer>();
@@ -1251,20 +1252,49 @@ public class TelephonyManagerTest {
     private static final String ISO_COUNTRY_CODE_PATTERN = "[a-z]{2}";
 
     @Test
+    @ApiTest(apis = "android.telephony.TelephonyManager#getNetworkCountryIso")
     public void testGetNetworkCountryIso() {
         assumeTrue(hasFeature(PackageManager.FEATURE_TELEPHONY_RADIO_ACCESS));
 
         String countryCode = mTelephonyManager.getNetworkCountryIso();
-        assertTrue("Country code '" + countryCode + "' did not match "
-                + ISO_COUNTRY_CODE_PATTERN,
-                Pattern.matches(ISO_COUNTRY_CODE_PATTERN, countryCode));
+        ServiceState serviceState = mTelephonyManager.getServiceState();
+        if (serviceState != null && (serviceState.getState()
+                == ServiceState.STATE_IN_SERVICE || serviceState.getState()
+                == ServiceState.STATE_EMERGENCY_ONLY)) {
+            assertTrue("Country code '" + countryCode + "' did not match "
+                    + ISO_COUNTRY_CODE_PATTERN,
+                    Pattern.matches(ISO_COUNTRY_CODE_PATTERN, countryCode));
+        } else {
+            assertTrue("Country code could be empty when out of service",
+                    Pattern.matches(ISO_COUNTRY_CODE_PATTERN, countryCode)
+                    || TextUtils.isEmpty(countryCode));
+        }
+
+        int[] allSubs = ShellIdentityUtils.invokeMethodWithShellPermissions(
+                mSubscriptionManager, (sm) -> sm.getActiveSubscriptionIdList());
+        for (int i : allSubs) {
+            countryCode = mTelephonyManager.getNetworkCountryIso(
+                    SubscriptionManager.getSlotIndex(i));
+            serviceState = mTelephonyManager.createForSubscriptionId(i).getServiceState();
+
+            if (serviceState != null && (serviceState.getState()
+                    == ServiceState.STATE_IN_SERVICE || serviceState.getState()
+                    == ServiceState.STATE_EMERGENCY_ONLY)) {
+                assertTrue("Country code '" + countryCode + "' did not match "
+                        + ISO_COUNTRY_CODE_PATTERN + " for slot " + i,
+                        Pattern.matches(ISO_COUNTRY_CODE_PATTERN, countryCode));
+            } else {
+                assertTrue("Country code could be empty when out of service",
+                        Pattern.matches(ISO_COUNTRY_CODE_PATTERN, countryCode)
+                        || TextUtils.isEmpty(countryCode));
+            }
+        }
 
         for (int i = 0; i < mTelephonyManager.getPhoneCount(); i++) {
             countryCode = mTelephonyManager.getNetworkCountryIso(i);
-
-            assertTrue("Country code '" + countryCode + "' did not match "
-                    + ISO_COUNTRY_CODE_PATTERN + " for slot " + i,
-                    Pattern.matches(ISO_COUNTRY_CODE_PATTERN, countryCode));
+            assertTrue("Country code must match " + ISO_COUNTRY_CODE_PATTERN + "or empty",
+                    Pattern.matches(ISO_COUNTRY_CODE_PATTERN, countryCode)
+                    || TextUtils.isEmpty(countryCode));
         }
     }
 
@@ -1727,6 +1757,10 @@ public class TelephonyManagerTest {
     @Test
     public void testRebootRadio() throws Throwable {
         assumeTrue(hasFeature(PackageManager.FEATURE_TELEPHONY_RADIO_ACCESS));
+        if (mRadioVersion < RADIO_HAL_VERSION_2_0) {
+            Log.d(TAG, "Skipping test since rebootModem is not supported.");
+            return;
+        }
 
         TestThread t = new TestThread(() -> {
             Looper.prepare();
