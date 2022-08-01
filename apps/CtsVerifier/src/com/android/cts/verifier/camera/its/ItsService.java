@@ -1847,6 +1847,8 @@ public class ItsService extends Service implements SensorEventListener {
         // s1440p which is the max supported stream size in a combination, when preview
         // stabilization is on.
         Size maxPreviewSize = new Size(1920, 1440);
+        // QCIF, we test only sizes >= this.
+        Size minPreviewSize = new Size(176, 144);
         Size[] outputSizes = configMap.getOutputSizes(ImageFormat.YUV_420_888);
         if (outputSizes == null) {
             mSocketRunnableObj.sendResponse("supportedPreviewSizes", "");
@@ -1857,6 +1859,8 @@ public class ItsService extends Service implements SensorEventListener {
                 .distinct()
                 .filter(s -> s.getWidth() * s.getHeight()
                         <= maxPreviewSize.getWidth() * maxPreviewSize.getHeight())
+                .filter(s -> s.getWidth() * s.getHeight()
+                        >= minPreviewSize.getWidth() * minPreviewSize.getHeight())
                 .sorted(Comparator.comparingInt(s -> s.getWidth() * s.getHeight()))
                 .map(Size::toString)
                 .collect(Collectors.joining(";"));
@@ -2985,6 +2989,8 @@ public class ItsService extends Service implements SensorEventListener {
                                                   CaptureResult.CONTROL_AE_STATE_FLASH_REQUIRED ||
                                        result.get(CaptureResult.CONTROL_AE_STATE) ==
                                                   CaptureResult.CONTROL_AE_STATE_LOCKED;
+                        mLockedAE = result.get(CaptureResult.CONTROL_AE_STATE) ==
+                                CaptureResult.CONTROL_AE_STATE_LOCKED;
                         if (!mPrecaptureTriggered) {
                             mPrecaptureTriggered = result.get(CaptureResult.CONTROL_AE_STATE) ==
                                     CaptureResult.CONTROL_AE_STATE_PRECAPTURE;
