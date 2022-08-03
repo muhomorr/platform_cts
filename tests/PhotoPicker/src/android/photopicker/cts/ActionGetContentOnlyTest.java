@@ -33,14 +33,17 @@ import android.content.ClipData;
 import android.content.Intent;
 import android.net.Uri;
 import android.photopicker.cts.util.GetContentActivityAliasUtils;
+import android.photopicker.cts.util.PhotoPickerUiUtils;
 import android.util.Pair;
 
 import androidx.test.uiautomator.UiObject;
 import androidx.test.uiautomator.UiObjectNotFoundException;
+import androidx.test.uiautomator.UiScrollable;
 import androidx.test.uiautomator.UiSelector;
 
 import org.junit.After;
 import org.junit.AfterClass;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -52,6 +55,9 @@ import java.util.List;
  * exclusively.
  */
 public class ActionGetContentOnlyTest extends PhotoPickerBaseTest {
+
+    public static final String TAG = "ActionGetContentOnlyTest";
+
     private static String sDocumentsUiPackageName;
     private static int sGetContentTakeOverActivityAliasState;
 
@@ -73,12 +79,49 @@ public class ActionGetContentOnlyTest extends PhotoPickerBaseTest {
     public static void setUpBeforeClass() throws Exception {
         sDocumentsUiPackageName = getDocumentsUiPackageName();
         sGetContentTakeOverActivityAliasState = GetContentActivityAliasUtils.enableAndGetOldState();
+    }
+
+    @Before
+    public void setUp() throws Exception {
+        super.setUp();
+
         clearPackageData(sDocumentsUiPackageName);
     }
 
     @AfterClass
     public static void tearDownAfterClass() throws Exception {
         GetContentActivityAliasUtils.restoreState(sGetContentTakeOverActivityAliasState);
+    }
+
+    @Test
+    public void testMimeTypeFilter() throws Exception {
+        final Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("audio/*");
+        mActivity.startActivityForResult(intent, REQUEST_CODE);
+        mDevice.waitForIdle();
+        // Should open documentsUi
+        assertThatShowsDocumentsUiButtons();
+
+        // We don't test the result of the picker here because the intention of the test is only to
+        // test that DocumentsUi is opened.
+    }
+
+    @Test
+    public void testExtraMimeTypeFilter() throws Exception {
+        final Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("image/*");
+        intent.putExtra(Intent.EXTRA_MIME_TYPES, new String[]{"video/*", "audio/*"});
+        mActivity.startActivityForResult(intent, REQUEST_CODE);
+        mDevice.waitForIdle();
+        // Should open documentsUi
+        assertThatShowsDocumentsUiButtons();
+
+        // We don't test the result of the picker here because the intention of the test is only to
+        // test that DocumentsUi is opened.
     }
 
     @Test
@@ -133,6 +176,80 @@ public class ActionGetContentOnlyTest extends PhotoPickerBaseTest {
         for (int i = 0; i < count; i++) {
             assertReadOnlyAccess(clipData.getItemAt(i).getUri(), mContext.getContentResolver());
         }
+    }
+
+    @Test
+    public void testChooserIntent_mediaFilter() throws Exception {
+        final Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
+        intent.setType("image/*");
+        mActivity.startActivityForResult(Intent.createChooser(intent, TAG), REQUEST_CODE);
+
+        // Should open Picker
+        assertThatShowsPickerUi();
+    }
+
+    @Test
+    public void testChooserIntent_nonMediaFilter() throws Exception {
+        final Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
+        intent.setType("*/*");
+        mActivity.startActivityForResult(Intent.createChooser(intent, TAG), REQUEST_CODE);
+
+        // Should open DocumentsUi
+        assertThatShowsDocumentsUiButtons();
+    }
+
+    @Test
+    public void testPickerSupportedFromDocumentsUi() throws Exception {
+        final Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
+        intent.setType("*/*");
+        mActivity.startActivityForResult(Intent.createChooser(intent, TAG), REQUEST_CODE);
+
+        findAndClickMediaIcon();
+
+        // Should open Picker
+        assertThatShowsPickerUi();
+    }
+
+    private void findAndClickMediaIcon() throws Exception {
+        final UiSelector appList = new UiSelector().resourceId(sDocumentsUiPackageName
+                + ":id/apps_row");
+
+        // Wait for the first app list item to appear
+        assertWithMessage("Waiting for app list to appear in DocumentsUi").that(
+                new UiObject(appList).waitForExists(SHORT_TIMEOUT)).isTrue();
+
+        String photoPickerAppName = "Media";
+        UiObject mediaButton = mDevice.findObject(new UiSelector().text(photoPickerAppName));
+
+        assertWithMessage("Timed out waiting for " + photoPickerAppName + " app icon to appear")
+                .that(new UiScrollable(appList).scrollIntoView(mediaButton)).isTrue();
+        mDevice.waitForIdle();
+
+        clickAndWait(mDevice, mediaButton);
+    }
+
+    private void assertThatShowsPickerUi() {
+        // Assert that Search bar for DocumentsUi shows
+        // Add a short timeout wait for DocumentsUi to show
+        assertThat(new UiObject(new UiSelector().resourceIdMatches(
+                PhotoPickerUiUtils.REGEX_PACKAGE_NAME + ":id/bottom_sheet"))
+                .waitForExists(SHORT_TIMEOUT)).isTrue();
+
+        // Assert that "Recent files" header for DocumentsUi shows
+        assertThat(new UiObject(new UiSelector().resourceIdMatches(
+                PhotoPickerUiUtils.REGEX_PACKAGE_NAME + ":id/privacy_text"))
+                .exists()).isTrue();
+
+        // Assert that Documents list UiObject for DocumentsUi shows
+        assertThat(new UiObject(new UiSelector().text("Photos")).exists()).isTrue();
+        assertThat(new UiObject(new UiSelector().text("Albums")).exists()).isTrue();
+    }
+
+    private void assertThatShowsDocumentsUiButtons() {
+        // Assert that "Recent files" header for DocumentsUi shows
+        // Add a short timeout wait for DocumentsUi to show
+        assertThat(new UiObject(new UiSelector().resourceId(sDocumentsUiPackageName
+                + ":id/header_title")).waitForExists(SHORT_TIMEOUT)).isTrue();
     }
 
     private UiObject findSaveButton() {
