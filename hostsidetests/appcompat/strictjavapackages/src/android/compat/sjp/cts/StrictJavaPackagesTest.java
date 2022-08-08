@@ -207,6 +207,7 @@ public class StrictJavaPackagesTest extends BaseHostJUnit4Test {
                     "Landroid/os/IVoldListener;",
                     "Landroid/os/IVoldMountCallback;",
                     "Landroid/os/IVoldTaskListener;",
+                    "Landroid/os/TouchOcclusionMode;",
                     "Landroid/os/storage/CrateMetadata;",
                     "Landroid/view/LayerMetadataKey;",
                     "Lcom/android/internal/annotations/CompositeRWLock;",
@@ -1056,6 +1057,8 @@ public class StrictJavaPackagesTest extends BaseHostJUnit4Test {
                 .put("androidx.window.sidecar",
                     ImmutableSet.of("Landroidx/window/common/", "Landroidx/window/sidecar",
                         "Landroidx/window/util"))
+                .put("com.google.android.camera.experimental2019",
+                    ImmutableSet.of("Landroidx/annotation"))
                 .put("com.google.android.camera.experimental2020_midyear",
                     ImmutableSet.of("Landroidx/annotation"))
                 .build();
@@ -1075,7 +1078,8 @@ public class StrictJavaPackagesTest extends BaseHostJUnit4Test {
      * and shared library jars.
      */
     @Test
-    public void testNoKotlinFilesInClasspaths() {
+    public void testNoKotlinFilesInClasspaths() throws Exception {
+        assumeTrue(mDeviceSdkLevel.isDeviceAtLeastT());
         ImmutableList<String> kotlinFiles =
                 Stream.of(sBootclasspathJars.stream(),
                         sSystemserverclasspathJars.stream(),
@@ -1091,6 +1095,29 @@ public class StrictJavaPackagesTest extends BaseHostJUnit4Test {
                 })
                 .collect(ImmutableList.toImmutableList());
         assertThat(kotlinFiles).isEmpty();
+    }
+
+    /**
+     * Ensure that all classes from protobuf libraries are jarjared before
+     * included in BOOTCLASSPATH, SYSTEMSERVERCLASSPATH and shared library jars
+     */
+    @Test
+    public void testNoProtobufClassesWithoutJarjar() {
+        assertWithMessage("Classes from protobuf libraries must not be included in bootclasspath "
+            + "and systemserverclasspath without being jarjared.")
+                .that(Stream.of(sBootclasspathJars.stream(),
+                                sSystemserverclasspathJars.stream(),
+                                sSharedLibJars.stream())
+                        .reduce(Stream::concat).orElseGet(Stream::empty)
+                        .parallel()
+                        .filter(jarPath -> {
+                            return sJarsToClasses
+                                    .get(jarPath)
+                                    .stream()
+                                    .anyMatch(cls -> cls.startsWith("Lcom/google/protobuf/"));
+                        })
+                        .collect(ImmutableList.toImmutableList())
+                ).isEmpty();
     }
 
     private static File pullJarFromDevice(INativeDevice device,

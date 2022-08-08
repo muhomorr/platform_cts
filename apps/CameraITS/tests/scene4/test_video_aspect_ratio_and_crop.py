@@ -137,9 +137,9 @@ class VideoAspectRatioAndCropTest(its_base_test.ItsBaseTest):
       logging.debug('physical available focal lengths: %s', str(fls_physical))
 
       # Check SKIP conditions.
-      first_api_level = its_session_utils.get_first_api_level(self.dut.serial)
+      vendor_api_level = its_session_utils.get_vendor_api_level(self.dut.serial)
       camera_properties_utils.skip_unless(
-          first_api_level >= its_session_utils.ANDROID13_API_LEVEL)
+          vendor_api_level >= its_session_utils.ANDROID13_API_LEVEL)
 
       # Load scene.
       its_session_utils.load_scene(cam, props, self.scene,
@@ -152,6 +152,8 @@ class VideoAspectRatioAndCropTest(its_base_test.ItsBaseTest):
       full_or_better = camera_properties_utils.full_or_better(props)
       raw_avlb = camera_properties_utils.raw16(props)
 
+      # Converge 3A.
+      cam.do_3a()
       req = capture_request_utils.auto_capture_request()
       ref_img_name_stem = f'{os.path.join(self.log_path, _NAME)}'
 
