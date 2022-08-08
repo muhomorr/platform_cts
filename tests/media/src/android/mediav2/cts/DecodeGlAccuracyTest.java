@@ -28,6 +28,8 @@ import android.util.Log;
 
 import androidx.test.filters.LargeTest;
 
+import com.android.compatibility.common.util.ApiTest;
+
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -222,23 +224,23 @@ public class DecodeGlAccuracyTest extends CodecDecoderTestBase {
                         MediaFormat.COLOR_TRANSFER_SDR_VIDEO},
 
                 // 601FR
-                {MediaFormat.MIMETYPE_VIDEO_AVC, "color_bands_176x176_h264_8bit.mp4",
+                {MediaFormat.MIMETYPE_VIDEO_AVC, "color_bands_176x176_h264_8bit_fr.mp4",
                         MediaFormat.COLOR_RANGE_FULL,
                         MediaFormat.COLOR_STANDARD_BT601_NTSC,
                         MediaFormat.COLOR_TRANSFER_SDR_VIDEO},
-                {MediaFormat.MIMETYPE_VIDEO_HEVC, "color_bands_176x176_hevc_8bit.mp4",
+                {MediaFormat.MIMETYPE_VIDEO_HEVC, "color_bands_176x176_hevc_8bit_fr.mp4",
                         MediaFormat.COLOR_RANGE_FULL,
                         MediaFormat.COLOR_STANDARD_BT601_NTSC,
                         MediaFormat.COLOR_TRANSFER_SDR_VIDEO},
-                {MediaFormat.MIMETYPE_VIDEO_VP8, "color_bands_176x176_vp8_8bit.webm",
+                {MediaFormat.MIMETYPE_VIDEO_VP8, "color_bands_176x176_vp8_8bit_fr.webm",
                         MediaFormat.COLOR_RANGE_FULL,
                         MediaFormat.COLOR_STANDARD_BT601_NTSC,
                         MediaFormat.COLOR_TRANSFER_SDR_VIDEO},
-                {MediaFormat.MIMETYPE_VIDEO_VP9, "color_bands_176x176_vp9_8bit.webm",
+                {MediaFormat.MIMETYPE_VIDEO_VP9, "color_bands_176x176_vp9_8bit_fr.webm",
                         MediaFormat.COLOR_RANGE_FULL,
                         MediaFormat.COLOR_STANDARD_BT601_NTSC,
                         MediaFormat.COLOR_TRANSFER_SDR_VIDEO},
-                {MediaFormat.MIMETYPE_VIDEO_AV1, "color_bands_176x176_av1_8bit.webm",
+                {MediaFormat.MIMETYPE_VIDEO_AV1, "color_bands_176x176_av1_8bit_fr.webm",
                         MediaFormat.COLOR_RANGE_FULL,
                         MediaFormat.COLOR_STANDARD_BT601_NTSC,
                         MediaFormat.COLOR_TRANSFER_SDR_VIDEO},
@@ -334,6 +336,12 @@ public class DecodeGlAccuracyTest extends CodecDecoderTestBase {
      * The OpenGL fragment shader reads the frame buffers as externl textures and renders to
      * a pbuffer. The output RGB values are read and compared against the expected values.
      */
+    @ApiTest(apis = {"android.media.MediaCodec#dequeueOutputBuffer",
+                     "android.media.MediaCodec#releaseOutputBuffer",
+                     "android.media.MediaCodec.Callback#onOutputBufferAvailable",
+                     "android.media.MediaFormat#setInteger(KEY_COLOR_RANGE)",
+                     "android.media.MediaFormat#setInteger(KEY_COLOR_STANDARD)",
+                     "android.media.MediaFormat#setInteger(KEY_COLOR_TRANSFER)"})
     @LargeTest
     @Test(timeout = CodecTestBase.PER_TEST_TIMEOUT_LARGE_TEST_MS)
     public void testDecodeGlAccuracyRGB() throws IOException, InterruptedException {
@@ -364,6 +372,17 @@ public class DecodeGlAccuracyTest extends CodecDecoderTestBase {
         mWidth = format.getInteger(MediaFormat.KEY_WIDTH);
         mHeight = format.getInteger(MediaFormat.KEY_HEIGHT);
         mEGLWindowOutSurface = new OutputSurface(mWidth, mHeight, false, mUseYuvSampling);
+
+        // If device supports HDR editing, then GL_EXT_YUV_target extension support is mandatory
+        if (mUseYuvSampling) {
+            String message = "Device doesn't support EXT_YUV_target GL extension";
+            if (IS_AT_LEAST_T && IS_HDR_EDITING_SUPPORTED) {
+                assertTrue(message, mEGLWindowOutSurface.getEXTYuvTargetSupported());
+            } else {
+                assumeTrue(message, mEGLWindowOutSurface.getEXTYuvTargetSupported());
+            }
+        }
+
         mSurface = mEGLWindowOutSurface.getSurface();
 
         mCodec = MediaCodec.createByCodecName(mCompName);

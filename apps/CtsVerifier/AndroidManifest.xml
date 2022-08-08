@@ -248,6 +248,7 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.cts.intent.category.MANUAL_TEST" />
             </intent-filter>
+            <meta-data android:name="CddTest" android:value="3.8.17/C-1-1,C-2-1" />
             <meta-data android:name="test_category" android:value="@string/test_category_features" />
             <meta-data android:name="test_excluded_features"
                        android:value="android.hardware.type.watch:android.software.leanback:android.hardware.type.automotive" />
@@ -2052,6 +2053,9 @@
             <meta-data android:name="test_required_features" android:value="android.hardware.wifi" />
             <meta-data android:name="display_mode"
                        android:value="multi_display_mode" />
+            <meta-data android:name="CddTest" android:value="7.4.5.2" />
+            <meta-data android:name="ApiTest"
+                       android:value="android.net.ConnectivityManager#registerNetworkCallback|android.net.ConnectivityManager#unregisterNetworkCallback|android.net.ConnectivityManager#getLinkProperties" />
         </activity>
 
         <activity android:name=".net.MultiNetworkConnectivityTestActivity"
@@ -2068,6 +2072,8 @@
                        android:value="android.hardware.type.television:android.software.leanback:android.hardware.type.watch" />
             <meta-data android:name="display_mode"
                        android:value="multi_display_mode" />
+            <meta-data android:name="ApiTest"
+                       android:value="android.net.ConnectivityManager#getNetworkCapabilities|android.net.ConnectivityManager#getAllNetworks|android.net.ConnectivityManager#requestNetwork|android.net.ConnectivityManager#unregisterNetworkCallback|android.net.ConnectivityManager#getActiveNetwork|android.net.ConnectivityManager#getNetworkInfo|android.net.ConnectivityManager#reportNetworkConnectivity" />
         </activity>
 
         <activity android:name=".nfc.NfcTestActivity"
@@ -2827,6 +2833,16 @@
                        android:value="android.hardware.type.automotive"/>
             <meta-data android:name="display_mode"
                        android:value="single_display_mode" />
+            <meta-data android:name="ApiTest"
+                       android:value="android.hardware.Camera#getNumberOfCameras|
+                               android.hardware.Camera#open|
+                               android.hardware.Camera#startPreview|
+                               android.hardware.Camera#stopPreview|
+                               android.hardware.Camera#takePicture|
+                               android.hardware.Camera#setParameters|
+                               android.hardware.Camera#setDisplayOrientation|
+                               android.hardware.Camera.Parameters#setHorizontalViewAngle|
+                               android.hardware.Camera.Parameters#setVerticalViewAngle" />
         </activity>
         <activity
             android:name=".camera.fov.DetermineFovActivity"
@@ -2836,6 +2852,11 @@
                        android:value="android.hardware.type.automotive"/>
             <meta-data android:name="display_mode"
                        android:value="multi_display_mode" />
+            <meta-data android:name="ApiTest"
+                       android:value="android.media.ExifInterface#TAG_ORIENTATION|
+                               android.media.ExifInterface#ORIENTATION_ROTATE_90|
+                               android.media.ExifInterface#ORIENTATION_ROTATE_180|
+                               android.media.ExifInterface#ORIENTATION_ROTATE_270" />
         </activity>
         <activity
             android:name=".camera.fov.CalibrationPreferenceActivity"
@@ -2861,6 +2882,32 @@
                        android:value="android.hardware.type.automotive"/>
             <meta-data android:name="display_mode"
                        android:value="single_display_mode" />
+            <meta-data android:name="ApiTest"
+                       android:value="android.hardware.Camera#getParameters|
+                               android.hardware.Camera#lock|
+                               android.hardware.Camera#setDisplayOrientation|
+                               android.hardware.Camera#setPreviewCallback|
+                               android.hardware.Camera#setParameters|
+                               android.hardware.Camera#setPreviewTexture|
+                               android.hardware.Camera#startPreview|
+                               android.hardware.Camera#stopPreview|
+                               android.hardware.Camera#unlock|
+                               android.media.MediaRecorder#prepare|
+                               android.media.MediaRecorder#release|
+                               android.media.MediaRecorder#reset|
+                               android.media.MediaRecorder#setAudioEncoder|
+                               android.media.MediaRecorder#setAudioSource|
+                               android.media.MediaRecorder#setCamera|
+                               android.media.MediaRecorder#setOnErrorListener|
+                               android.media.MediaRecorder#setOutputFormat|
+                               android.media.MediaRecorder#setOutputFile|
+                               android.media.MediaRecorder#setProfile|
+                               android.media.MediaRecorder#setVideoEncoder|
+                               android.media.MediaRecorder#setVideoEncodingBitRate|
+                               android.media.MediaRecorder#setVideoSize|
+                               android.media.MediaRecorder#setVideoSource|
+                               android.media.MediaRecorder#start|
+                               android.media.MediaRecorder#stop" />
         </activity>
 
         <activity android:name=".camera.its.ItsTestActivity"
@@ -3088,6 +3135,7 @@
             <meta-data android:name="test_category" android:value="@string/test_category_notifications" />
             <meta-data android:name="display_mode"
                        android:value="multi_display_mode" />
+            <meta-data android:name="CddTest" android:value="2.2.3/3.8.3/H-0-1|3.8.3.1/C-1-5|3.8.3.1/C-3-1|3.8.3.1/C-3-2|3.8.3.2/C-0-1|3.8.3.2/C-0-2|3.8.3.2/C-1-1" />
         </activity>
 
         <activity android:name=".notifications.NotificationPrivacyVerifierActivity"
@@ -3102,6 +3150,7 @@
             <meta-data android:name="test_excluded_features"
                        android:value="android.hardware.type.automotive" />
             <meta-data android:name="display_mode" android:value="multi_display_mode" />
+            <meta-data android:name="CddTest" android:value="3.8.3.1/C-1-4|2.2.3/3.8.10/H-1-1" />
         </activity>
 
         <activity android:name=".notifications.ShowWhenLockedActivity"
@@ -3152,6 +3201,7 @@
                        android:value="android.hardware.type.automotive:android.hardware.type.television:android.software.leanback:android.hardware.type.watch" />
             <meta-data android:name="display_mode"
                        android:value="multi_display_mode" />
+            <meta-data android:name="CddTest" android:value="3.8.3.3/C-1-1" />
         </activity>
 
         <activity android:name=".notifications.AttentionManagementVerifierActivity"
@@ -3166,6 +3216,7 @@
                     android:value="android.hardware.type.watch:android.software.leanback" />
             <meta-data android:name="display_mode"
                        android:value="multi_display_mode" />
+            <meta-data android:name="CddTest" android:value="2.2.3/3.8.4/H-1-1|3.8.3.3/C-1-1|3.8.3.3/C-1-3" />
         </activity>
 
         <activity android:name=".notifications.ToastVerifierActivity"
@@ -3178,6 +3229,8 @@
             <meta-data android:name="test_category" android:value="@string/test_category_notifications" />
             <meta-data android:name="display_mode"
                        android:value="multi_display_mode" />
+            <meta-data android:name="ApiTest"
+                       android:value="android.widget.Toast#makeText" />
         </activity>
 
         <activity android:name=".notifications.BubblesVerifierActivity"
@@ -3192,6 +3245,8 @@
                        android:value="android.hardware.type.watch:android.software.leanback:android.hardware.type.automotive" />
             <meta-data android:name="display_mode"
                        android:value="multi_display_mode" />
+            <meta-data android:name="ApiTest"
+                       android:value="android.app.Notification.Builder#setBubbleMetadata|android.app.NotificationManager#notify" />
         </activity>
 
         <activity android:name=".notifications.BubbleActivity"
@@ -3208,22 +3263,6 @@
 
             <meta-data android:name="android.app.shortcuts"
                        android:resource="@xml/shortcuts" />
-            <meta-data android:name="display_mode"
-                       android:value="multi_display_mode" />
-        </activity>
-
-        <activity android:name=".notifications.MediaPlayerVerifierActivity"
-                  android:label="@string/media_controls_title"
-                  android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.cts.intent.category.MANUAL_TEST" />
-            </intent-filter>
-
-            <meta-data android:name="test_category"
-                       android:value="@string/test_category_notifications" />
-            <meta-data android:name="test_excluded_features"
-                       android:value="android.hardware.type.watch:android.software.leanback:android.hardware.type.automotive" />
             <meta-data android:name="display_mode"
                        android:value="multi_display_mode" />
         </activity>
@@ -3263,6 +3302,7 @@
                 android:value="android.hardware.type.watch:android.software.leanback:android.hardware.type.automotive" />
             <meta-data android:name="display_mode"
                        android:value="multi_display_mode" />
+            <meta-data android:name="CddTest" android:value="3.8.1/C-4-1" />
         </activity>
 
         <activity android:name=".qstiles.TileServiceVerifierActivity"
@@ -3479,6 +3519,14 @@
                   android:configChanges="keyboardHidden|orientation|screenSize" >
             <meta-data android:name="display_mode"
                        android:value="single_display_mode" />
+            <meta-data android:name="ApiTest"
+                       android:value="android.net.wifi.WifiNetworkSpecifier.Builder#build
+                       |android.net.wifi.WifiNetworkSpecifier.Builder#setSsidPattern
+                       |android.net.wifi.WifiNetworkSpecifier.Builder#setBssidPattern
+                       |android.net.wifi.WifiNetworkSpecifier.Builder#setWpa2Passphrase
+                       |android.net.wifi.WifiNetworkSpecifier.Builder#setWpa2Passphrase
+                       |android.net.NetworkRequest.Builder#setNetworkSpecifier
+                       |android.net.ConnectivityManager#requestNetwork" />
         </activity>
 
         <activity android:name=".wifi.NetworkRequestPatternNetworkSpecifierTestActivity"
@@ -3486,6 +3534,14 @@
                   android:configChanges="keyboardHidden|orientation|screenSize" >
             <meta-data android:name="display_mode"
                        android:value="single_display_mode" />
+            <meta-data android:name="ApiTest"
+                       android:value="android.net.wifi.WifiNetworkSpecifier.Builder#build
+                       |android.net.wifi.WifiNetworkSpecifier.Builder#setSsidPattern
+                       |android.net.wifi.WifiNetworkSpecifier.Builder#setBssidPattern
+                       |android.net.wifi.WifiNetworkSpecifier.Builder#setWpa2Passphrase
+                       |android.net.wifi.WifiNetworkSpecifier.Builder#setWpa2Passphrase
+                       |android.net.NetworkRequest.Builder#setNetworkSpecifier
+                       |android.net.ConnectivityManager#requestNetwork" />
         </activity>
 
         <activity android:name=".wifi.NetworkRequestUnavailableNetworkSpecifierTestActivity"
@@ -3493,6 +3549,14 @@
                   android:configChanges="keyboardHidden|orientation|screenSize" >
             <meta-data android:name="display_mode"
                        android:value="single_display_mode" />
+            <meta-data android:name="ApiTest"
+                       android:value="android.net.wifi.WifiNetworkSpecifier.Builder#build
+                       |android.net.wifi.WifiNetworkSpecifier.Builder#setSsidPattern
+                       |android.net.wifi.WifiNetworkSpecifier.Builder#setBssidPattern
+                       |android.net.wifi.WifiNetworkSpecifier.Builder#setWpa2Passphrase
+                       |android.net.wifi.WifiNetworkSpecifier.Builder#setWpa2Passphrase
+                       |android.net.NetworkRequest.Builder#setNetworkSpecifier
+                       |android.net.ConnectivityManager#requestNetwork" />
         </activity>
 
         <activity android:name=".wifi.NetworkRequestInvalidCredentialNetworkSpecifierTestActivity"
@@ -3500,6 +3564,14 @@
                   android:configChanges="keyboardHidden|orientation|screenSize" >
             <meta-data android:name="display_mode"
                        android:value="single_display_mode" />
+            <meta-data android:name="ApiTest"
+                       android:value="android.net.wifi.WifiNetworkSpecifier.Builder#build
+                       |android.net.wifi.WifiNetworkSpecifier.Builder#setSsid
+                       |android.net.wifi.WifiNetworkSpecifier.Builder#setBssid
+                       |android.net.wifi.WifiNetworkSpecifier.Builder#setWpa2Passphrase
+                       |android.net.wifi.WifiNetworkSpecifier.Builder#setWpa2Passphrase
+                       |android.net.NetworkRequest.Builder#setNetworkSpecifier
+                       |android.net.ConnectivityManager#requestNetwork" />
         </activity>
 
         <activity android:name=".wifi.NetworkSuggestionSsidTestActivity"
@@ -3507,6 +3579,19 @@
                   android:configChanges="keyboardHidden|orientation|screenSize" >
             <meta-data android:name="display_mode"
                        android:value="single_display_mode" />
+            <meta-data android:name="ApiTest"
+                       android:value="android.net.wifi.WifiNetworkSuggestion.Builder#build
+                       |android.net.wifi.WifiNetworkSuggestion.Builder#setSsid
+                       |android.net.wifi.WifiNetworkSuggestion.Builder#setBssid
+                       |android.net.wifi.WifiNetworkSuggestion.Builder#setWpa2Passphrase
+                       |android.net.wifi.WifiNetworkSuggestion.Builder#setWpa3Passphrase
+                       |android.net.wifi.WifiNetworkSuggestion.Builder#setIsMetered
+                       |android.net.wifi.WifiManager#addNetworkSuggestions
+                       |android.net.wifi.WifiManager#addSuggestionUserApprovalStatusListener
+                       |android.net.wifi.WifiManager#getNetworkSuggestions
+                       |android.net.wifi.WifiManager#removeNetworkSuggestions
+                       |android.net.wifi.WifiManager#removeSuggestionConnectionStatusListener
+                       |android.net.wifi.WifiManager#addSuggestionConnectionStatusListener" />
         </activity>
 
         <activity android:name=".wifi.NetworkSuggestionSsidBssidTestActivity"
@@ -3514,6 +3599,19 @@
                   android:configChanges="keyboardHidden|orientation|screenSize" >
             <meta-data android:name="display_mode"
                        android:value="single_display_mode" />
+            <meta-data android:name="ApiTest"
+                       android:value="android.net.wifi.WifiNetworkSuggestion.Builder#build
+                       |android.net.wifi.WifiNetworkSuggestion.Builder#setSsid
+                       |android.net.wifi.WifiNetworkSuggestion.Builder#setBssid
+                       |android.net.wifi.WifiNetworkSuggestion.Builder#setWpa2Passphrase
+                       |android.net.wifi.WifiNetworkSuggestion.Builder#setWpa3Passphrase
+                       |android.net.wifi.WifiNetworkSuggestion.Builder#setIsMetered
+                       |android.net.wifi.WifiManager#addNetworkSuggestions
+                       |android.net.wifi.WifiManager#addSuggestionUserApprovalStatusListener
+                       |android.net.wifi.WifiManager#getNetworkSuggestions
+                       |android.net.wifi.WifiManager#removeNetworkSuggestions
+                       |android.net.wifi.WifiManager#removeSuggestionConnectionStatusListener
+                       |android.net.wifi.WifiManager#addSuggestionConnectionStatusListener" />
         </activity>
 
         <activity android:name=".wifi.NetworkSuggestionSsidPostConnectTestActivity"
@@ -3521,6 +3619,19 @@
                   android:configChanges="keyboardHidden|orientation|screenSize" >
             <meta-data android:name="display_mode"
                        android:value="single_display_mode" />
+            <meta-data android:name="ApiTest"
+                       android:value="android.net.wifi.WifiNetworkSuggestion.Builder#build
+                       |android.net.wifi.WifiNetworkSuggestion.Builder#setSsid
+                       |android.net.wifi.WifiNetworkSuggestion.Builder#setBssid
+                       |android.net.wifi.WifiNetworkSuggestion.Builder#setWpa2Passphrase
+                       |android.net.wifi.WifiNetworkSuggestion.Builder#setWpa3Passphrase
+                       |android.net.wifi.WifiNetworkSuggestion.Builder#setIsMetered
+                       |android.net.wifi.WifiManager#addNetworkSuggestions
+                       |android.net.wifi.WifiManager#addSuggestionUserApprovalStatusListener
+                       |android.net.wifi.WifiManager#getNetworkSuggestions
+                       |android.net.wifi.WifiManager#removeNetworkSuggestions
+                       |android.net.wifi.WifiManager#removeSuggestionConnectionStatusListener
+                       |android.net.wifi.WifiManager#addSuggestionConnectionStatusListener" />
         </activity>
 
         <activity android:name=".wifi.NetworkSuggestionConnectionFailureTestActivity"
@@ -3528,6 +3639,19 @@
                   android:configChanges="keyboardHidden|orientation|screenSize" >
             <meta-data android:name="display_mode"
                        android:value="single_display_mode" />
+            <meta-data android:name="ApiTest"
+                       android:value="android.net.wifi.WifiNetworkSuggestion.Builder#build
+                       |android.net.wifi.WifiNetworkSuggestion.Builder#setSsid
+                       |android.net.wifi.WifiNetworkSuggestion.Builder#setBssid
+                       |android.net.wifi.WifiNetworkSuggestion.Builder#setWpa2Passphrase
+                       |android.net.wifi.WifiNetworkSuggestion.Builder#setWpa3Passphrase
+                       |android.net.wifi.WifiNetworkSuggestion.Builder#setIsMetered
+                       |android.net.wifi.WifiManager#addNetworkSuggestions
+                       |android.net.wifi.WifiManager#addSuggestionUserApprovalStatusListener
+                       |android.net.wifi.WifiManager#getNetworkSuggestions
+                       |android.net.wifi.WifiManager#removeNetworkSuggestions
+                       |android.net.wifi.WifiManager#removeSuggestionConnectionStatusListener
+                       |android.net.wifi.WifiManager#addSuggestionConnectionStatusListener" />
         </activity>
 
         <activity android:name=".wifi.NetworkSuggestionModificationInPlaceTestActivity"
@@ -3535,6 +3659,19 @@
                   android:configChanges="keyboardHidden|orientation|screenSize" >
             <meta-data android:name="display_mode"
                        android:value="single_display_mode" />
+            <meta-data android:name="ApiTest"
+                       android:value="android.net.wifi.WifiNetworkSuggestion.Builder#build
+                       |android.net.wifi.WifiNetworkSuggestion.Builder#setSsid
+                       |android.net.wifi.WifiNetworkSuggestion.Builder#setBssid
+                       |android.net.wifi.WifiNetworkSuggestion.Builder#setWpa2Passphrase
+                       |android.net.wifi.WifiNetworkSuggestion.Builder#setWpa3Passphrase
+                       |android.net.wifi.WifiNetworkSuggestion.Builder#setIsMetered
+                       |android.net.wifi.WifiManager#addNetworkSuggestions
+                       |android.net.wifi.WifiManager#addSuggestionUserApprovalStatusListener
+                       |android.net.wifi.WifiManager#getNetworkSuggestions
+                       |android.net.wifi.WifiManager#removeNetworkSuggestions
+                       |android.net.wifi.WifiManager#removeSuggestionConnectionStatusListener
+                       |android.net.wifi.WifiManager#addSuggestionConnectionStatusListener" />
         </activity>
 
         <activity android:name=".p2p.GoNegRequesterTestListActivity"
@@ -3698,6 +3835,9 @@
                   android:configChanges="keyboardHidden|orientation|screenSize" >
             <meta-data android:name="display_mode"
                        android:value="single_display_mode" />
+            <meta-data android:name="ApiTest"
+                       android:value="android.net.wifi.aware.PublishConfig.Builder#setPublishType
+                       |android.net.wifi.aware.WifiAwareNetworkSpecifier.Builder#build" />
         </activity>
 
         <activity android:name=".wifiaware.DataPathOpenPassiveSubscribeTestActivity"
@@ -3705,6 +3845,9 @@
                   android:configChanges="keyboardHidden|orientation|screenSize" >
             <meta-data android:name="display_mode"
                        android:value="single_display_mode" />
+            <meta-data android:name="ApiTest"
+                       android:value="android.net.wifi.aware.SubscribeConfig.Builder#setSubscribeType
+                       |android.net.wifi.aware.WifiAwareNetworkSpecifier.Builder#build" />
         </activity>
 
         <activity android:name=".wifiaware.DataPathOpenPassiveSubscribeAcceptAnyTestActivity"
@@ -3712,6 +3855,10 @@
                   android:configChanges="keyboardHidden|orientation|screenSize" >
             <meta-data android:name="display_mode"
                        android:value="single_display_mode" />
+            <meta-data android:name="ApiTest"
+                       android:value="android.net.wifi.aware.SubscribeConfig.Builder#setSubscribeType
+                       |android.net.wifi.aware.WifiAwareNetworkSpecifier.Builder#Builder
+                       |android.net.wifi.aware.WifiAwareNetworkSpecifier.Builder#build" />
         </activity>
 
         <activity android:name=".wifiaware.DataPathPassphraseUnsolicitedPublishTestActivity"
@@ -3719,6 +3866,9 @@
                   android:configChanges="keyboardHidden|orientation|screenSize" >
             <meta-data android:name="display_mode"
                        android:value="single_display_mode" />
+            <meta-data android:name="ApiTest"
+                       android:value="android.net.wifi.aware.PublishConfig.Builder#setPublishType
+                       |android.net.wifi.aware.WifiAwareNetworkSpecifier.Builder#build" />
         </activity>
 
         <activity android:name=".wifiaware.DataPathPassphrasePassiveSubscribeTestActivity"
@@ -3726,6 +3876,10 @@
                   android:configChanges="keyboardHidden|orientation|screenSize" >
             <meta-data android:name="display_mode"
                        android:value="single_display_mode" />
+            <meta-data android:name="ApiTest"
+                       android:value="android.net.wifi.aware.SubscribeConfig.Builder#setSubscribeType
+                       |android.net.wifi.aware.WifiAwareNetworkSpecifier.Builder#setPskPassphrase
+                       |android.net.wifi.aware.WifiAwareNetworkSpecifier.Builder#build" />
         </activity>
 
         <activity android:name=".wifiaware.DataPathPassphrasePassiveSubscribeAcceptAnyTestActivity"
@@ -3733,6 +3887,10 @@
                   android:configChanges="keyboardHidden|orientation|screenSize" >
             <meta-data android:name="display_mode"
                        android:value="single_display_mode" />
+            <meta-data android:name="ApiTest"
+                       android:value="android.net.wifi.aware.SubscribeConfig.Builder#setSubscribeType
+                       |android.net.wifi.aware.WifiAwareNetworkSpecifier.Builder#setPskPassphrase
+                       |android.net.wifi.aware.WifiAwareNetworkSpecifier.Builder#build" />
         </activity>
 
         <activity android:name=".wifiaware.DataPathPmkUnsolicitedPublishTestActivity"
@@ -3740,6 +3898,10 @@
                   android:configChanges="keyboardHidden|orientation|screenSize" >
             <meta-data android:name="display_mode"
                        android:value="single_display_mode" />
+            <meta-data android:name="ApiTest"
+                       android:value="android.net.wifi.aware.PublishConfig.Builder#setPublishType
+                       |android.net.wifi.aware.WifiAwareNetworkSpecifier.Builder#setPmk
+                       |android.net.wifi.aware.WifiAwareNetworkSpecifier.Builder#build" />
         </activity>
 
         <activity android:name=".wifiaware.DataPathPmkPassiveSubscribeTestActivity"
@@ -3747,6 +3909,10 @@
                   android:configChanges="keyboardHidden|orientation|screenSize" >
             <meta-data android:name="display_mode"
                        android:value="single_display_mode" />
+            <meta-data android:name="ApiTest"
+                       android:value="android.net.wifi.aware.SubscribeConfig.Builder#setSubscribeType
+                       |android.net.wifi.aware.WifiAwareNetworkSpecifier.Builder#setPmk
+                       |android.net.wifi.aware.WifiAwareNetworkSpecifier.Builder#build" />
         </activity>
 
         <activity android:name=".wifiaware.DataPathPmkPassiveSubscribeAcceptAnyTestActivity"
@@ -3754,6 +3920,11 @@
                   android:configChanges="keyboardHidden|orientation|screenSize" >
             <meta-data android:name="display_mode"
                        android:value="single_display_mode" />
+            <meta-data android:name="ApiTest"
+                       android:value="android.net.wifi.aware.SubscribeConfig.Builder#setSubscribeType
+                       |android.net.wifi.aware.WifiAwareNetworkSpecifier.Builder#setPmk
+                       |android.net.wifi.aware.WifiAwareNetworkSpecifier.Builder#build
+                       |android.net.wifi.aware.WifiAwareNetworkSpecifier.Builder#Builder" />
         </activity>
 
         <activity android:name=".wifiaware.DataPathOpenSolicitedPublishTestActivity"
@@ -3761,6 +3932,9 @@
                   android:configChanges="keyboardHidden|orientation|screenSize" >
             <meta-data android:name="display_mode"
                        android:value="single_display_mode" />
+            <meta-data android:name="ApiTest"
+                       android:value="android.net.wifi.aware.PublishConfig.Builder#setPublishType
+                       |android.net.wifi.aware.WifiAwareNetworkSpecifier.Builder#build" />
         </activity>
 
         <activity android:name=".wifiaware.DataPathOpenActiveSubscribeTestActivity"
@@ -3768,6 +3942,9 @@
                   android:configChanges="keyboardHidden|orientation|screenSize" >
             <meta-data android:name="display_mode"
                        android:value="single_display_mode" />
+            <meta-data android:name="ApiTest"
+                       android:value="android.net.wifi.aware.SubscribeConfig.Builder#setSubscribeType
+                       |android.net.wifi.aware.WifiAwareNetworkSpecifier.Builder#build" />
         </activity>
 
         <activity android:name=".wifiaware.DataPathOpenActiveSubscribeAcceptAnyTestActivity"
@@ -3775,6 +3952,10 @@
                   android:configChanges="keyboardHidden|orientation|screenSize" >
             <meta-data android:name="display_mode"
                        android:value="single_display_mode" />
+            <meta-data android:name="ApiTest"
+                       android:value="android.net.wifi.aware.SubscribeConfig.Builder#setSubscribeType
+                       |android.net.wifi.aware.WifiAwareNetworkSpecifier.Builder#Builder
+                       |android.net.wifi.aware.WifiAwareNetworkSpecifier.Builder#build" />
         </activity>
 
         <activity android:name=".wifiaware.DataPathPassphraseSolicitedPublishTestActivity"
@@ -3782,6 +3963,10 @@
                   android:configChanges="keyboardHidden|orientation|screenSize" >
             <meta-data android:name="display_mode"
                        android:value="single_display_mode" />
+            <meta-data android:name="ApiTest"
+                       android:value="android.net.wifi.aware.PublishConfig.Builder#setPublishType
+                       |android.net.wifi.aware.WifiAwareNetworkSpecifier.Builder#setPassphrase
+                       |android.net.wifi.aware.WifiAwareNetworkSpecifier.Builder#build" />
         </activity>
 
         <activity android:name=".wifiaware.DataPathPassphraseActiveSubscribeTestActivity"
@@ -3789,6 +3974,10 @@
                   android:configChanges="keyboardHidden|orientation|screenSize" >
             <meta-data android:name="display_mode"
                        android:value="single_display_mode" />
+            <meta-data android:name="ApiTest"
+                       android:value="android.net.wifi.aware.SubscribeConfig.Builder#setSubscribeType
+                       |android.net.wifi.aware.WifiAwareNetworkSpecifier.Builder#setPskPassphrase
+                       |android.net.wifi.aware.WifiAwareNetworkSpecifier.Builder#build" />
         </activity>
 
         <activity android:name=".wifiaware.DataPathPassphraseActiveSubscribeAcceptAnyTestActivity"
@@ -3796,6 +3985,11 @@
                   android:configChanges="keyboardHidden|orientation|screenSize" >
             <meta-data android:name="display_mode"
                        android:value="single_display_mode" />
+            <meta-data android:name="ApiTest"
+                       android:value="android.net.wifi.aware.SubscribeConfig.Builder#setSubscribeType
+                       |android.net.wifi.aware.WifiAwareNetworkSpecifier.Builder#setPskPassphrase
+                       |android.net.wifi.aware.WifiAwareNetworkSpecifier.Builder#Builder
+                       |android.net.wifi.aware.WifiAwareNetworkSpecifier.Builder#build" />
         </activity>
 
         <activity android:name=".wifiaware.DataPathPmkSolicitedPublishTestActivity"
@@ -3803,6 +3997,10 @@
                   android:configChanges="keyboardHidden|orientation|screenSize" >
             <meta-data android:name="display_mode"
                        android:value="single_display_mode" />
+            <meta-data android:name="ApiTest"
+                       android:value="android.net.wifi.aware.PublishConfig.Builder#setPublishType
+                       |android.net.wifi.aware.WifiAwareNetworkSpecifier.Builder#setPmk
+                       |android.net.wifi.aware.WifiAwareNetworkSpecifier.Builder#build" />
         </activity>
 
         <activity android:name=".wifiaware.DataPathPmkActiveSubscribeTestActivity"
@@ -3810,6 +4008,10 @@
                   android:configChanges="keyboardHidden|orientation|screenSize" >
             <meta-data android:name="display_mode"
                        android:value="single_display_mode" />
+            <meta-data android:name="ApiTest"
+                       android:value="android.net.wifi.aware.SubscribeConfig.Builder#setSubscribeType
+                       |android.net.wifi.aware.WifiAwareNetworkSpecifier.Builder#setPmk
+                       |android.net.wifi.aware.WifiAwareNetworkSpecifier.Builder#build" />
         </activity>
 
         <activity android:name=".wifiaware.DataPathPmkActiveSubscribeAcceptAnyTestActivity"
@@ -3817,6 +4019,11 @@
                   android:configChanges="keyboardHidden|orientation|screenSize" >
             <meta-data android:name="display_mode"
                        android:value="single_display_mode" />
+            <meta-data android:name="ApiTest"
+                       android:value="android.net.wifi.aware.SubscribeConfig.Builder#setSubscribeType
+                       |android.net.wifi.aware.WifiAwareNetworkSpecifier.Builder#setPmk
+                       |android.net.wifi.aware.WifiAwareNetworkSpecifier.Builder#build
+                       |android.net.wifi.aware.WifiAwareNetworkSpecifier.Builder#Builder" />
         </activity>
 
         <activity android:name=".wifiaware.DataPathOobOpenResponderTestActivity"
@@ -3824,6 +4031,8 @@
                   android:configChanges="keyboardHidden|orientation|screenSize" >
             <meta-data android:name="display_mode"
                        android:value="single_display_mode" />
+            <meta-data android:name="ApiTest"
+                       android:value="android.net.wifi.aware.WifiAwareSession#createNetworkSpecifierOpen" />
         </activity>
 
         <activity android:name=".wifiaware.DataPathOobOpenInitiatorTestActivity"
@@ -3831,6 +4040,8 @@
                   android:configChanges="keyboardHidden|orientation|screenSize" >
             <meta-data android:name="display_mode"
                        android:value="single_display_mode" />
+            <meta-data android:name="ApiTest"
+                       android:value="android.net.wifi.aware.WifiAwareSession#createNetworkSpecifierOpen" />
         </activity>
 
         <activity android:name=".wifiaware.DataPathOobPassphraseResponderTestActivity"
@@ -3838,6 +4049,8 @@
                   android:configChanges="keyboardHidden|orientation|screenSize" >
             <meta-data android:name="display_mode"
                        android:value="single_display_mode" />
+            <meta-data android:name="ApiTest"
+                       android:value="android.net.wifi.aware.WifiAwareSession#createNetworkSpecifierPassphrase" />
         </activity>
 
         <activity android:name=".wifiaware.DataPathOobPassphraseInitiatorTestActivity"
@@ -3845,6 +4058,8 @@
                   android:configChanges="keyboardHidden|orientation|screenSize" >
             <meta-data android:name="display_mode"
                        android:value="single_display_mode" />
+            <meta-data android:name="ApiTest"
+                       android:value="android.net.wifi.aware.WifiAwareSession#createNetworkSpecifierPassphrase" />
         </activity>
 
         <activity android:name=".wifiaware.DiscoveryRangingPublishTestActivity"
@@ -3852,6 +4067,12 @@
                   android:configChanges="keyboardHidden|orientation|screenSize" >
             <meta-data android:name="display_mode"
                        android:value="single_display_mode" />
+            <meta-data android:name="ApiTest"
+                       android:value="android.net.wifi.rtt.RangingRequest.Builder#addWifiAwarePeer
+                       |android.net.wifi.aware.PublishConfig.Builder#setRangingEnabled
+                       |android.net.wifi.rtt.WifiRttManager#startRanging
+                       |android.net.wifi.aware.WifiAwareManager#attach
+                       |android.net.wifi.aware.WifiAwareSession#publish" />
         </activity>
 
         <activity android:name=".wifiaware.DiscoveryRangingSubscribeTestActivity"
@@ -3859,6 +4080,12 @@
                   android:configChanges="keyboardHidden|orientation|screenSize" >
             <meta-data android:name="display_mode"
                        android:value="single_display_mode" />
+            <meta-data android:name="ApiTest"
+                       android:value="android.net.wifi.rtt.RangingRequest.Builder#addWifiAwarePeer
+                       |android.net.wifi.aware.SubscribeConfig.Builder#setMaxDistanceMm
+                       |android.net.wifi.rtt.WifiRttManager#startRanging
+                       |android.net.wifi.aware.WifiAwareManager#attach
+                       |android.net.wifi.aware.WifiAwareSession#subscrible" />
         </activity>
 
         <activity android:name=".wifiaware.DataPathOpenSolicitedPublishAcceptAnyTestActivity"
@@ -3866,6 +4093,10 @@
                   android:configChanges="keyboardHidden|orientation|screenSize" >
             <meta-data android:name="display_mode"
                        android:value="single_display_mode" />
+            <meta-data android:name="ApiTest"
+                       android:value="android.net.wifi.aware.WifiAwareNetworkSpecifier.Builder#Builder
+                       |android.net.wifi.aware.WifiAwareNetworkSpecifier.Builder#build
+                       |android.net.NetworkCapabilities#TRANSPORT_WIFI_AWARE" />
         </activity>
 
         <activity android:name=".wifiaware.DataPathPmkUnsolicitedPublishAcceptAnyTestActivity"
@@ -3873,6 +4104,10 @@
                   android:configChanges="keyboardHidden|orientation|screenSize" >
             <meta-data android:name="display_mode"
                        android:value="single_display_mode" />
+            <meta-data android:name="ApiTest"
+                       android:value="android.net.wifi.aware.WifiAwareNetworkSpecifier.Builder#Builder
+                       |android.net.wifi.aware.WifiAwareNetworkSpecifier.Builder#build
+                       |android.net.NetworkCapabilities#TRANSPORT_WIFI_AWARE" />
         </activity>
 
         <activity android:name=".wifiaware.DataPathPmkSolicitedPublishAcceptAnyTestActivity"
@@ -3880,6 +4115,9 @@
                   android:configChanges="keyboardHidden|orientation|screenSize" >
             <meta-data android:name="display_mode"
                        android:value="single_display_mode" />
+            <meta-data android:name="ApiTest"
+                       android:value="android.net.wifi.aware.WifiAwareNetworkSpecifier.Builder#Builder
+                       |android.net.wifi.aware.WifiAwareNetworkSpecifier.Builder#setPmk" />
         </activity>
 
         <activity android:name=".wifiaware.DataPathPassphraseUnsolicitedPublishAcceptAnyTestActivity"
@@ -3887,6 +4125,9 @@
                   android:configChanges="keyboardHidden|orientation|screenSize" >
             <meta-data android:name="display_mode"
                        android:value="single_display_mode" />
+            <meta-data android:name="ApiTest"
+                       android:value="android.net.wifi.aware.WifiAwareNetworkSpecifier.Builder#Builder
+                       |android.net.wifi.aware.WifiAwareNetworkSpecifier.Builder#setPskPassphrase" />
         </activity>
 
         <activity android:name=".wifiaware.DataPathPassphraseSolicitedPublishAcceptAnyTestActivity"
@@ -3894,6 +4135,9 @@
                   android:configChanges="keyboardHidden|orientation|screenSize" >
             <meta-data android:name="display_mode"
                        android:value="single_display_mode" />
+            <meta-data android:name="ApiTest"
+                       android:value="android.net.wifi.aware.WifiAwareNetworkSpecifier.Builder#Builder
+                       |android.net.wifi.aware.WifiAwareNetworkSpecifier.Builder#setPskPassphrase" />
         </activity>
 
         <activity android:name=".wifiaware.DataPathOpenUnsolicitedPublishAcceptAnyTestActivity"
@@ -3901,6 +4145,9 @@
                   android:configChanges="keyboardHidden|orientation|screenSize" >
             <meta-data android:name="display_mode"
                        android:value="single_display_mode" />
+            <meta-data android:name="ApiTest"
+                       android:value="android.net.wifi.aware.WifiAwareNetworkSpecifier.Builder#Builder
+                       |android.net.wifi.aware.WifiAwareNetworkSpecifier.Builder#setPskPassphrase" />
         </activity>
 
         <activity android:name=".wifiaware.DataPathForceChannelSetupSubscribeTestActivity"
@@ -3908,6 +4155,9 @@
                   android:configChanges="keyboardHidden|orientation|screenSize" >
             <meta-data android:name="display_mode"
                        android:value="single_display_mode" />
+            <meta-data android:name="ApiTest"
+                       android:value="android.net.wifi.aware.WifiAwareNetworkSpecifier.Builder#Builder
+                       |android.net.wifi.aware.WifiAwareNetworkSpecifier.Builder#setChannelFrequencyMhz" />
         </activity>
 
         <activity android:name=".wifiaware.DataPathForceChannelSetupPublishTestActivity"
@@ -3915,174 +4165,9 @@
                   android:configChanges="keyboardHidden|orientation|screenSize" >
             <meta-data android:name="display_mode"
                        android:value="single_display_mode" />
-        </activity>
-
-        <!--            CTS Verifier Presence Test Top Screen -->
-        <activity
-            android:name=".presence.PresenceTestActivity"
-            android:configChanges="keyboardHidden|orientation|screenSize"
-            android:exported="true"
-            android:label="@string/presence_test" >
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-
-                <category android:name="android.cts.intent.category.MANUAL_TEST" />
-            </intent-filter>
-
-            <meta-data
-                android:name="test_category"
-                android:value="@string/test_category_networking" />
-            <meta-data android:name="display_mode"
-                       android:value="single_display_mode" />
-        </activity>
-
-        <!--
-             CTS Verifier Uwb Precision Test Screen
-                 test category : uwb
-                 test parent : PresenceTestActivity
-        -->
-        <activity
-            android:name=".presence.UwbPrecisionActivity"
-            android:configChanges="keyboardHidden|orientation|screenSize"
-            android:exported="true"
-            android:label="@string/uwb_precision" >
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-
-                <category android:name="android.cts.intent.category.MANUAL_TEST" />
-            </intent-filter>
-
-            <meta-data
-                android:name="test_category"
-                android:value="@string/uwb" />
-            <meta-data
-                android:name="test_parent"
-                android:value="com.android.cts.verifier.presence.PresenceTestActivity" />
-            <meta-data android:name="display_mode"
-                       android:value="single_display_mode" />
-            <meta-data android:name="CddTest"
-                       android:value="7.4.9/C-1-1" />
-        </activity>
-
-        <!--
-             CTS Verifier Uwb Short Range Test Screen
-                 test category : uwb
-                 test parent : PresenceTestActivity
-        -->
-        <activity
-            android:name=".presence.UwbShortRangeActivity"
-            android:configChanges="keyboardHidden|orientation|screenSize"
-            android:exported="true"
-            android:label="@string/uwb_short_range" >
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-
-                <category android:name="android.cts.intent.category.MANUAL_TEST" />
-            </intent-filter>
-
-            <meta-data
-                android:name="test_category"
-                android:value="@string/uwb" />
-            <meta-data
-                android:name="test_parent"
-                android:value="com.android.cts.verifier.presence.PresenceTestActivity" />
-            <meta-data
-                android:name="display_mode"
-                android:value="single_display_mode" />
-            <meta-data
-                android:name="CddTest"
-                android:value="7.4.9/C-1-2" />
-        </activity>
-
-        <!--
-            CTS Verifier BLE RSSI Precision Test Screen
-                test category : BLE
-                test parent : PresenceTestActivity
-        -->
-        <activity
-            android:name=".presence.BleRssiPrecisionActivity"
-            android:exported="true"
-            android:label="@string/ble_rssi_precision_name">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-
-                <category android:name="android.cts.intent.category.MANUAL_TEST" />
-            </intent-filter>
-
-            <meta-data
-                android:name="test_category"
-                android:value="@string/ble" />
-            <meta-data
-                android:name="test_parent"
-                android:value="com.android.cts.verifier.presence.PresenceTestActivity" />
-            <meta-data
-                android:name="test_required_features"
-                android:value="android.hardware.bluetooth_le" />
-            <meta-data
-                android:name="display_mode"
-                android:value="single_display_mode" />
-            <meta-data
-                android:name="CddText"
-                android:value="7.4.3/C-7-1" />
-        </activity>
-
-        <!--
-            CTS Verifier BLE Rx/Tx Calibration Test Screen
-                test category : BLE
-                test parent : PresenceTestActivity
-        -->
-        <activity
-            android:name=".presence.BleRxTxCalibrationActivity"
-            android:exported="true"
-            android:label="@string/ble_rx_tx_calibration_name">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-
-                <category android:name="android.cts.intent.category.MANUAL_TEST" />
-            </intent-filter>
-
-            <meta-data
-                android:name="test_category"
-                android:value="@string/ble" />
-            <meta-data
-                android:name="test_parent"
-                android:value="com.android.cts.verifier.presence.PresenceTestActivity" />
-            <meta-data
-                android:name="test_required_features"
-                android:value="android.hardware.bluetooth_le" />
-            <meta-data
-                android:name="display_mode"
-                android:value="single_display_mode" />
-            <meta-data
-                android:name="CddText"
-                android:value="7.4.3/C-7-2" />
-        </activity>
-
-        <!-- CTS Verifier Nan Precision and Bias Test Screen
-                 test category : wifi_nan
-                 test parent : PresenceTestActivity
-        -->
-        <activity
-            android:name=".presence.NanPrecisionTestActivity"
-            android:configChanges="keyboardHidden|orientation|screenSize"
-            android:exported="true"
-            android:label="@string/nan_precision" >
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-
-                <category android:name="android.cts.intent.category.MANUAL_TEST" />
-            </intent-filter>
-
-            <meta-data
-                android:name="test_category"
-                android:value="@string/wifi_nan" />
-            <meta-data
-                android:name="test_parent"
-                android:value="com.android.cts.verifier.presence.PresenceTestActivity" />
-            <meta-data android:name="display_mode"
-                       android:value="single_display_mode" />
-            <meta-data android:name="CddTest"
-                       android:value="7.4.2.5/H-1-1|7.4.2.5/H-1-2" />
+            <meta-data android:name="ApiTest"
+                       android:value="android.net.wifi.aware.WifiAwareNetworkSpecifier.Builder#Builder
+                       |android.net.wifi.aware.WifiAwareNetworkSpecifier.Builder#setChannelFrequencyMhz" />
         </activity>
 
         <activity-alias
@@ -4123,6 +4208,7 @@
                     android:value="android.hardware.type.automotive:android.hardware.ram.low" />
             <meta-data android:name="display_mode"
                        android:value="multi_display_mode" />
+            <meta-data android:name="CddTest" android:value="3.8.2/C-1-2,C-1-3" />
         </activity>
 
         <activity android:name=".deskclock.DeskClockTestsActivity"
@@ -4991,6 +5077,8 @@
                        android:value="android.hardware.type.automotive" />
             <meta-data android:name="display_mode"
                        android:value="multi_display_mode" />
+            <meta-data android:name="ApiTest"
+                       android:value="android.media.MediaCodecInfo.CodecCapabilities#FEATURE_TunneledPlayback" />
         </activity>
 
         <activity android:name=".tv.TvInputDiscoveryTestActivity"
@@ -5054,6 +5142,7 @@
                 android:exported="true"
             android:launchMode="singleTask">
             <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.cts.intent.category.MANUAL_TEST" />
             </intent-filter>
@@ -5062,6 +5151,8 @@
                 android:value="android.software.live_tv" />
             <meta-data android:name="display_mode"
                        android:value="multi_display_mode" />
+            <meta-data android:name="CddTest"
+                       android:value="3.12/C-1-2" />
         </activity>
 
         <activity android:name=".tv.MicrophoneDeviceTestActivity"
@@ -5143,6 +5234,7 @@
                        android:value="android.hardware.type.television:android.software.leanback:android.hardware.type.watch:android.hardware.type.automotive" />
             <meta-data android:name="display_mode"
                        android:value="multi_display_mode" />
+            <meta-data android:name="CddTest" android:value="3.8.8/C-1-2"/>
         </activity>
 
         <activity android:name=".tv.MockTvInputSetupActivity"
@@ -6172,6 +6264,7 @@
                 <category android:name="android.cts.intent.category.MANUAL_TEST" />
             </intent-filter>
             <meta-data android:name="test_category" android:value="@string/test_category_logcat" />
+            <meta-data android:name="test_excluded_features" android:value="android.hardware.type.automotive" />
         </activity>
 
         <activity android:name=".displaycutout.DisplayCutoutTestActivity"
