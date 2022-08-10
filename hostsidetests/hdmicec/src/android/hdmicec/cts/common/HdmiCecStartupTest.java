@@ -65,7 +65,7 @@ public final class HdmiCecStartupTest extends BaseHdmiCecCtsTest {
                 Arrays.asList(CecOperand.VENDOR_COMMAND, CecOperand.GIVE_DEVICE_VENDOR_ID,
                         CecOperand.SET_OSD_NAME, CecOperand.GIVE_OSD_NAME, CecOperand.CEC_VERSION,
                         CecOperand.DEVICE_VENDOR_ID, CecOperand.GIVE_POWER_STATUS,
-                        CecOperand.GET_MENU_LANGUAGE));
+                        CecOperand.GET_MENU_LANGUAGE, CecOperand.REPORT_POWER_STATUS));
         allowedMessages.addAll(expectedMessages);
 
         device.executeShellCommand("reboot");
