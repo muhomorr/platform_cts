@@ -21,7 +21,7 @@ import static android.os.ParcelFileDescriptor.MODE_CREATE;
 import static android.os.ParcelFileDescriptor.MODE_READ_WRITE;
 import static android.scopedstorage.cts.lib.RedactionTestHelper.assertExifMetadataMatch;
 import static android.scopedstorage.cts.lib.RedactionTestHelper.assertExifMetadataMismatch;
-import static android.scopedstorage.cts.lib.RedactionTestHelper.getExifMetadata;
+import static android.scopedstorage.cts.lib.RedactionTestHelper.getExifMetadataFromFile;
 import static android.scopedstorage.cts.lib.RedactionTestHelper.getExifMetadataFromRawResource;
 import static android.scopedstorage.cts.lib.TestUtils.BYTES_DATA2;
 import static android.scopedstorage.cts.lib.TestUtils.STR_DATA2;
@@ -79,6 +79,7 @@ import static android.scopedstorage.cts.lib.TestUtils.installAppWithStoragePermi
 import static android.scopedstorage.cts.lib.TestUtils.isAppInstalled;
 import static android.scopedstorage.cts.lib.TestUtils.listAs;
 import static android.scopedstorage.cts.lib.TestUtils.openWithMediaProvider;
+import static android.scopedstorage.cts.lib.TestUtils.queryAudioFile;
 import static android.scopedstorage.cts.lib.TestUtils.queryFile;
 import static android.scopedstorage.cts.lib.TestUtils.queryFileExcludingPending;
 import static android.scopedstorage.cts.lib.TestUtils.queryImageFile;
@@ -134,6 +135,7 @@ import android.os.Process;
 import android.os.storage.StorageManager;
 import android.provider.DocumentsContract;
 import android.provider.MediaStore;
+import android.scopedstorage.cts.lib.RedactionTestHelper;
 import android.system.ErrnoException;
 import android.system.Os;
 import android.system.StructStat;
@@ -875,7 +877,7 @@ public class ScopedStorageDeviceTest extends ScopedStorageBaseDeviceTest {
                 // EXIF tags and might misleadingly think there are not tags to redact
                 out.getFD().sync();
 
-                HashMap<String, String> exif = getExifMetadata(jpgFile);
+                HashMap<String, String> exif = getExifMetadataFromFile(jpgFile);
                 assertExifMetadataMatch(exif, originalExif);
 
                 HashMap<String, String> exifFromTestApp =
@@ -1324,7 +1326,7 @@ public class ScopedStorageDeviceTest extends ScopedStorageBaseDeviceTest {
                 // Sync file to disk to ensure file is fully written to the lower fs.
                 out.getFD().sync();
             }
-            HashMap<String, String> exif = getExifMetadata(imgFile);
+            HashMap<String, String> exif = getExifMetadataFromFile(imgFile);
             assertExifMetadataMatch(exif, originalExif);
 
             // Install test app
@@ -1518,6 +1520,10 @@ public class ScopedStorageDeviceTest extends ScopedStorageBaseDeviceTest {
 
             // Assert we can read from the file
             assertFileContent(otherAppImageFile, BYTES_DATA1);
+
+            // Assert has access to redacted information
+            RedactionTestHelper.assertConsistentNonRedactedAccess(otherAppImageFile,
+                    R.raw.img_with_metadata);
 
             // Assert we can delete the file
             assertThat(otherAppImageFile.delete()).isTrue();
@@ -3020,6 +3026,45 @@ public class ScopedStorageDeviceTest extends ScopedStorageBaseDeviceTest {
                 assertThat(c.getCount()).isEqualTo(0);
                 Log.i(TAG, "Verified that " + imageFilePath + " was excluded in default query");
             }
+        }
+    }
+
+    /**
+     * Test that renaming a file to {@link Environment#DIRECTORY_RINGTONES} sets
+     * {@link MediaStore.Audio.AudioColumns#IS_RINGTONE}
+     */
+
+    @Test
+    public void testRenameToRingtoneDirectory() throws Exception {
+        final File fileInDownloads = new File(getDownloadDir(), AUDIO_FILE_NAME);
+        final File fileInRingtones = new File(getRingtonesDir(), AUDIO_FILE_NAME);
+
+        try {
+            assertThat(fileInDownloads.createNewFile()).isTrue();
+            assertThat(MediaStore.scanFile(getContentResolver(), fileInDownloads)).isNotNull();
+
+            assertCanRenameFile(fileInDownloads, fileInRingtones);
+
+            try (Cursor c = queryAudioFile(fileInRingtones,
+                    MediaStore.Audio.AudioColumns.IS_RINGTONE)) {
+                assertTrue(c.moveToFirst());
+                assertWithMessage("Expected " + MediaStore.Audio.AudioColumns.IS_RINGTONE
+                        + " to be set after renaming to " + fileInRingtones)
+                        .that(c.getInt(0)).isEqualTo(1);
+            }
+
+            assertCanRenameFile(fileInRingtones, fileInDownloads);
+
+            try (Cursor c = queryAudioFile(fileInDownloads,
+                    MediaStore.Audio.AudioColumns.IS_RINGTONE)) {
+                assertTrue(c.moveToFirst());
+                assertWithMessage("Expected " + MediaStore.Audio.AudioColumns.IS_RINGTONE
+                        + " to be unset after renaming to " + fileInDownloads)
+                        .that(c.getInt(0)).isEqualTo(0);
+            }
+        } finally {
+            fileInDownloads.delete();
+            fileInRingtones.delete();
         }
     }
 
