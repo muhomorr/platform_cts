@@ -33,7 +33,7 @@ _ARDUINO_SERVO_SPEED = 10
 _IMG_FORMAT = 'png'
 _MIN_PHONE_MOVEMENT_ANGLE = 5  # degrees
 _NAME = os.path.splitext(os.path.basename(__file__))[0]
-_NUM_ROTATIONS = 25
+_NUM_ROTATIONS = 12
 _START_FRAME = 30  # give 3A some frames to warm up
 _VIDEO_DELAY_TIME = 5.5  # seconds
 _VIDEO_DURATION = 5.5  # seconds
@@ -128,6 +128,10 @@ class PreviewStabilizationTest(its_base_test.ItsBaseTest):
           'Preview Stabilization not supported',
       )
 
+      # Get ffmpeg version being used.
+      ffmpeg_version = video_processing_utils.get_ffmpeg_version()
+      logging.debug('ffmpeg_version: %s', ffmpeg_version)
+
       # Raise error if not FRONT or REAR facing camera
       facing = props['android.lens.facing']
       if (facing != camera_properties_utils.LENS_FACING_BACK
@@ -142,7 +146,9 @@ class PreviewStabilizationTest(its_base_test.ItsBaseTest):
 
       # List of video resolutions to test
       supported_preview_sizes = cam.get_supported_preview_sizes(self.camera_id)
-      supported_preview_sizes.remove(video_processing_utils.QCIF_SIZE)
+      for size in video_processing_utils.LOW_RESOLUTION_SIZES:
+        if size in supported_preview_sizes:
+          supported_preview_sizes.remove(size)
       logging.debug('Supported preview resolutions: %s',
                     supported_preview_sizes)
 

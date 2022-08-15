@@ -81,9 +81,9 @@ public class DecoderTestAacFormat {
                         AudioFormat.CHANNEL_OUT_QUAD | AudioFormat.CHANNEL_OUT_FRONT_CENTER},
                 {"noise_6ch_44khz_aot5_dr_sbr_sig2_mp4.m4a", 6, AudioFormat.CHANNEL_OUT_5POINT1},
         };
-
-        for (Object [] sample: samples) {
-            for (String codecName : DecoderTest.codecsFor((String)sample[0] /* resource */)) {
+        for (Object[] sample: samples) {
+            for (String codecName : DecoderTest.codecsFor((String)sample[0] /* resource */,
+                    DecoderTest.CODEC_DEFAULT)) {
                 // verify correct number of channels is observed without downmixing
                 AudioParameter chanParams = new AudioParameter();
                 decodeUpdateFormat(codecName, (String) sample[0] /*resource*/, chanParams,
@@ -264,11 +264,25 @@ public class DecoderTestAacFormat {
                 Log.d(TAG, "output buffers have changed.");
             } else if (res == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
                 MediaFormat outputFormat = decoder.getOutputFormat();
-                audioParams.setNumChannels(outputFormat.getInteger(MediaFormat.KEY_CHANNEL_COUNT));
-                audioParams.setSamplingRate(outputFormat.getInteger(MediaFormat.KEY_SAMPLE_RATE));
+                try {
+                    audioParams.setNumChannels(
+                            outputFormat.getInteger(MediaFormat.KEY_CHANNEL_COUNT));
+                } catch (NullPointerException e) {
+                    fail("KEY_CHANNEL_COUNT not found on output format");
+                }
+                try {
+                    audioParams.setSamplingRate(
+                            outputFormat.getInteger(MediaFormat.KEY_SAMPLE_RATE));
+                } catch (NullPointerException e) {
+                    fail("KEY_SAMPLE_RATE not found on output format");
+                }
                 if (sIsAtLeastT) {
-                    audioParams.setChannelMask(
-                            outputFormat.getInteger(MediaFormat.KEY_CHANNEL_MASK));
+                    try {
+                        audioParams.setChannelMask(
+                                outputFormat.getInteger(MediaFormat.KEY_CHANNEL_MASK));
+                    } catch (NullPointerException e) {
+                        fail("KEY_CHANNEL_MASK not found on output format");
+                    }
                 }
                 Log.i(TAG, "output format has changed to " + outputFormat);
             } else {
