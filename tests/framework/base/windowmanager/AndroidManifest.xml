@@ -38,6 +38,8 @@
                  android:enableOnBackInvokedCallback="true"
                  android:testOnly="true">
         <uses-library android:name="android.test.runner"/>
+        <uses-library android:name="androidx.window.extensions"
+            android:required="false" />
 
         <activity android:name="android.server.wm.ActivityManagerTestBase$ConfigChangeHandlingActivity"
              android:resizeableActivity="true"
@@ -418,7 +420,8 @@
         <activity android:name="android.server.wm.WindowInputTests$TestActivity" />
 
         <activity android:name="android.server.wm.ActivityRecordInputSinkTestsActivity"
-                  android:exported="true"/>
+            android:theme="@android:style/Theme.Material.NoActionBar"
+            android:exported="true"/>
 
         <service android:name="android.view.cts.surfacevalidator.LocalMediaProjectionService"
              android:foregroundServiceType="mediaProjection"
@@ -489,7 +492,7 @@
         <activity android:name="android.server.wm.CompatChangeTests$NonResizeableLargeAspectRatioActivity"
                   android:resizeableActivity="false"
                   android:screenOrientation="portrait"
-                  android:minAspectRatio="3"
+                  android:minAspectRatio="4"
                   android:exported="true"/>
 
         <activity android:name="android.server.wm.CompatChangeTests$SupportsSizeChangesPortraitActivity"

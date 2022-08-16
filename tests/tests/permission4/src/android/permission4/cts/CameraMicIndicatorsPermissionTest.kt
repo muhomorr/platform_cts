@@ -26,13 +26,17 @@ import android.content.pm.PackageManager
 import android.hardware.camera2.CameraManager
 import android.os.Build
 import android.os.Process
+import android.os.SystemClock
 import android.permission.PermissionManager
 import android.provider.DeviceConfig
 import android.provider.Settings
 import android.safetycenter.SafetyCenterManager
 import android.server.wm.WindowManagerStateHelper
 import android.support.test.uiautomator.By
+import android.support.test.uiautomator.BySelector
+import android.support.test.uiautomator.StaleObjectException
 import android.support.test.uiautomator.UiDevice
+import android.support.test.uiautomator.UiObject2
 import android.support.test.uiautomator.UiSelector
 import androidx.annotation.RequiresApi
 import androidx.test.filters.SdkSuppress
@@ -42,6 +46,7 @@ import com.android.compatibility.common.util.SystemUtil.callWithShellPermissionI
 import com.android.compatibility.common.util.SystemUtil.eventually
 import com.android.compatibility.common.util.SystemUtil.runShellCommand
 import com.android.compatibility.common.util.SystemUtil.runWithShellPermissionIdentity
+import com.android.compatibility.common.util.UiAutomatorUtils
 import org.junit.After
 import org.junit.Assert
 import org.junit.Assert.assertEquals
@@ -73,6 +78,8 @@ private const val IDLE_TIMEOUT_MILLIS: Long = 1000
 private const val UNEXPECTED_TIMEOUT_MILLIS = 1000
 private const val TIMEOUT_MILLIS: Long = 20000
 private const val TV_MIC_INDICATOR_WINDOW_TITLE = "MicrophoneCaptureIndicator"
+private const val MIC_LABEL_NAME = "microphone_toggle_label_qs"
+private const val CAMERA_LABEL_NAME = "camera_toggle_label_qs"
 
 class CameraMicIndicatorsPermissionTest {
     private val instrumentation: Instrumentation = InstrumentationRegistry.getInstrumentation()
@@ -85,11 +92,9 @@ class CameraMicIndicatorsPermissionTest {
 
     private val isTv = packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK)
     private val isCar = packageManager.hasSystemFeature(PackageManager.FEATURE_AUTOMOTIVE)
+    private val micLabel = getPermissionControllerString(MIC_LABEL_NAME)
+    private val cameraLabel = getPermissionControllerString(CAMERA_LABEL_NAME)
     private var wasEnabled = false
-    private val micLabel = packageManager.getPermissionGroupInfo(
-        Manifest.permission_group.MICROPHONE, 0).loadLabel(packageManager).toString()
-    private val cameraLabel = packageManager.getPermissionGroupInfo(
-        Manifest.permission_group.CAMERA, 0).loadLabel(packageManager).toString()
     private var isScreenOn = false
     private var screenTimeoutBeforeTest: Long = 0L
 
@@ -103,7 +108,7 @@ class CameraMicIndicatorsPermissionTest {
 
     private val safetyCenterEnabled = callWithShellPermissionIdentity {
         DeviceConfig.getString(DeviceConfig.NAMESPACE_PRIVACY,
-                SAFETY_CENTER_ENABLED, false.toString())
+            SAFETY_CENTER_ENABLED, false.toString())
     }
 
     @Before
@@ -116,7 +121,7 @@ class CameraMicIndicatorsPermissionTest {
                 context.contentResolver, Settings.System.SCREEN_OFF_TIMEOUT, 1800000L
             )
             DeviceConfig.setProperty(DeviceConfig.NAMESPACE_PRIVACY,
-                    SAFETY_CENTER_ENABLED, false.toString(), false)
+                SAFETY_CENTER_ENABLED, false.toString(), false)
         }
 
         if (!isScreenOn) {
@@ -400,15 +405,23 @@ class CameraMicIndicatorsPermissionTest {
                 return@eventually
             }
             if (useMic) {
-                val iconView = uiDevice.findObject(UiSelector().descriptionContains(micLabel))
-                assertTrue("View with description $micLabel not found", iconView.exists())
+                var iconView = if (safetyCenterEnabled) {
+                    waitFindObjectOrNull(By.text(micLabel))
+                } else {
+                    uiDevice.findObject(UiSelector().descriptionContains(micLabel))
+                }
+                assertNotNull("View with description $micLabel not found", iconView)
             }
             if (useCamera) {
-                val iconView = uiDevice.findObject(UiSelector().descriptionContains(cameraLabel))
-                assertTrue("View with text $APP_LABEL not found", iconView.exists())
+                var iconView = if (safetyCenterEnabled) {
+                    waitFindObjectOrNull(By.text(cameraLabel))
+                } else {
+                    uiDevice.findObject(UiSelector().descriptionContains(cameraLabel))
+                }
+                assertNotNull("View with text $APP_LABEL not found", iconView)
             }
-            val appView = uiDevice.findObject(UiSelector().textContains(APP_LABEL))
-            assertTrue("View with text $APP_LABEL not found", appView.exists())
+            var appView = waitFindObjectOrNull(By.textContains(APP_LABEL))
+            assertNotNull("View with text $APP_LABEL not found", appView)
             if (safetyCenterEnabled) {
                 assertTrue("Did not find safety center views",
                     uiDevice.findObjects(By.res(SAFETY_CENTER_ITEM_ID)).size > 0)
@@ -440,16 +453,21 @@ class CameraMicIndicatorsPermissionTest {
             "Did not find shell package"
         }
 
-        val usageViews = if (safetyCenterEnabled) {
-            uiDevice.findObjects(By.res(SAFETY_CENTER_ITEM_ID))
+        if (safetyCenterEnabled) {
+            var micView = waitFindObjectOrNull(By.text(micLabel))
+            assertNotNull("View with text $micLabel not found", micView)
+            var camView = waitFindObjectOrNull(By.text(cameraLabel))
+            assertNotNull("View with text $cameraLabel not found", camView)
+            var shellView = waitFindObjectOrNull(By.textContains(shellLabel))
+            assertNotNull("View with text $shellLabel not found", shellView)
         } else {
-            uiDevice.findObjects(By.res(PRIVACY_ITEM_ID))
+            val usageViews = uiDevice.findObjects(By.res(PRIVACY_ITEM_ID))
+            assertEquals("Expected two usage views", 2, usageViews.size)
+            val appViews = uiDevice.findObjects(By.textContains(APP_LABEL))
+            assertEquals("Expected two $APP_LABEL view", 2, appViews.size)
+            val shellView = uiDevice.findObjects(By.textContains(shellLabel))
+            assertEquals("Expected only one shell view", 1, shellView.size)
         }
-        assertEquals("Expected two usage views", 2, usageViews.size)
-        val appViews = uiDevice.findObjects(By.textContains(APP_LABEL))
-        assertEquals("Expected two $APP_LABEL view", 2, appViews.size)
-        val shellView = uiDevice.findObjects(By.textContains(shellLabel))
-        assertEquals("Expected only one shell view", 1, shellView.size)
     }
 
     private fun pressBack() {
@@ -468,7 +486,7 @@ class CameraMicIndicatorsPermissionTest {
     private fun changeSafetyCenterFlag(safetyCenterEnabled: String) {
         runWithShellPermissionIdentity {
             DeviceConfig.setProperty(DeviceConfig.NAMESPACE_PRIVACY,
-                    SAFETY_CENTER_ENABLED, safetyCenterEnabled, false)
+                SAFETY_CENTER_ENABLED, safetyCenterEnabled, false)
         }
     }
 
@@ -478,7 +496,42 @@ class CameraMicIndicatorsPermissionTest {
         val isSafetyCenterEnabled: Boolean = runWithShellPermissionIdentity<Boolean> {
             safetyCenterManager.isSafetyCenterEnabled
         }
-
         assumeTrue(isSafetyCenterEnabled)
+    }
+
+    protected fun waitFindObjectOrNull(selector: BySelector): UiObject2? {
+        waitForIdle()
+        return findObjectWithRetry({ t -> UiAutomatorUtils.waitFindObjectOrNull(selector, t) })
+    }
+
+    private fun findObjectWithRetry(
+        automatorMethod: (timeoutMillis: Long) -> UiObject2?,
+        timeoutMillis: Long = TIMEOUT_MILLIS
+    ): UiObject2? {
+        waitForIdle()
+        val startTime = SystemClock.elapsedRealtime()
+        return try {
+            automatorMethod(timeoutMillis)
+        } catch (e: StaleObjectException) {
+            val remainingTime = timeoutMillis - (SystemClock.elapsedRealtime() - startTime)
+            if (remainingTime <= 0) {
+                throw e
+            }
+            automatorMethod(remainingTime)
+        }
+    }
+
+    private fun getPermissionControllerString(resourceName: String): String {
+        val permissionControllerPkg = context.packageManager.permissionControllerPackageName
+        try {
+            val permissionControllerContext =
+                context.createPackageContext(permissionControllerPkg, 0)
+            val resourceId =
+                permissionControllerContext.resources.getIdentifier(
+                    resourceName, "string", "com.android.permissioncontroller")
+            return permissionControllerContext.getString(resourceId)
+        } catch (e: PackageManager.NameNotFoundException) {
+            throw RuntimeException(e)
+        }
     }
 }

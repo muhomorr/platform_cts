@@ -22,10 +22,12 @@ import android.opengl.EGLConfig;
 import android.opengl.EGLContext;
 import android.opengl.EGLDisplay;
 import android.opengl.EGLSurface;
+import android.opengl.GLES20;
 import android.util.Log;
 import android.view.Surface;
 
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assume.assumeTrue;
 
 
 /**
@@ -58,6 +60,8 @@ class OutputSurface implements SurfaceTexture.OnFrameAvailableListener {
     private boolean mFrameAvailable;
 
     private TextureRender mTextureRender;
+    private int mEGLESVersion;
+    private boolean mEXTYuvTargetSupported = false;
 
     /**
      * Creates an OutputSurface backed by a pbuffer with the specified dimensions.  The new
@@ -65,14 +69,23 @@ class OutputSurface implements SurfaceTexture.OnFrameAvailableListener {
      * to MediaCodec.configure().
      */
     public OutputSurface(int width, int height, boolean useHighBitDepth) {
+        this(width, height, useHighBitDepth, /* useYuvSampling */ false);
+    }
+
+    public OutputSurface(int width, int height, boolean useHighBitDepth, boolean useYuvSampling) {
         if (width <= 0 || height <= 0) {
             throw new IllegalArgumentException();
         }
 
-        eglSetup(width, height, useHighBitDepth);
+        eglSetup(width, height, useHighBitDepth, useYuvSampling);
         makeCurrent();
 
-        setup(this);
+        if (mEGLESVersion > 2) {
+            String extensionList = GLES20.glGetString(GLES20.GL_EXTENSIONS);
+            mEXTYuvTargetSupported = extensionList.contains("GL_EXT_YUV_target");
+        }
+
+        setup(this, useYuvSampling);
     }
 
     /**
@@ -80,23 +93,31 @@ class OutputSurface implements SurfaceTexture.OnFrameAvailableListener {
      * new one).  Creates a Surface that can be passed to MediaCodec.configure().
      */
     public OutputSurface() {
-        setup(this);
+        setup(this, /* useYuvSampling */ false);
     }
 
     public OutputSurface(final SurfaceTexture.OnFrameAvailableListener listener) {
-        setup(listener);
+        setup(listener, /* useYuvSampling */ false);
+    }
+
+    /**
+     * Returns if the device support GL_EXT_YUV_target extension
+     */
+    public boolean getEXTYuvTargetSupported() {
+        return mEXTYuvTargetSupported;
     }
 
     /**
      * Creates instances of TextureRender and SurfaceTexture, and a Surface associated
      * with the SurfaceTexture.
      */
-    private void setup(SurfaceTexture.OnFrameAvailableListener listener) {
+    private void setup(SurfaceTexture.OnFrameAvailableListener listener, boolean useYuvSampling) {
         assertTrue(EGL14.eglGetCurrentContext() != EGL14.EGL_NO_CONTEXT);
         assertTrue(EGL14.eglGetCurrentDisplay() != EGL14.EGL_NO_DISPLAY);
         assertTrue(EGL14.eglGetCurrentSurface(EGL14.EGL_DRAW) != EGL14.EGL_NO_SURFACE);
         assertTrue(EGL14.eglGetCurrentSurface(EGL14.EGL_READ) != EGL14.EGL_NO_SURFACE);
         mTextureRender = new TextureRender();
+        mTextureRender.setUseYuvSampling(mEXTYuvTargetSupported && useYuvSampling);
         mTextureRender.surfaceCreated();
 
         // Even if we don't access the SurfaceTexture after the constructor returns, we
@@ -125,7 +146,7 @@ class OutputSurface implements SurfaceTexture.OnFrameAvailableListener {
     /**
      * Prepares EGL.  We want a GLES 2.0 context and a surface that supports pbuffer.
      */
-    private void eglSetup(int width, int height, boolean useHighBitDepth) {
+    private void eglSetup(int width, int height, boolean useHighBitDepth, boolean useYuvSampling) {
         mEGLDisplay = EGL14.eglGetDisplay(EGL14.EGL_DEFAULT_DISPLAY);
         if (mEGLDisplay == EGL14.EGL_NO_DISPLAY) {
             throw new RuntimeException("unable to get EGL14 display");
@@ -156,13 +177,23 @@ class OutputSurface implements SurfaceTexture.OnFrameAvailableListener {
             throw new RuntimeException("unable to find RGB888+recordable ES2 EGL config");
         }
 
-        // Configure context for OpenGL ES 2.0.
-        int[] attrib_list = {
-                EGL14.EGL_CONTEXT_CLIENT_VERSION, 2,
-                EGL14.EGL_NONE
-        };
-        mEGLContext = EGL14.eglCreateContext(mEGLDisplay, configs[0], EGL14.EGL_NO_CONTEXT,
-                attrib_list, 0);
+        // Configure context for OpenGL ES 3.0/2.0.
+        mEGLESVersion = useYuvSampling ? 3 : 2;
+        do {
+            int[] attrib_list = {
+                    EGL14.EGL_CONTEXT_CLIENT_VERSION, mEGLESVersion,
+                    EGL14.EGL_NONE
+            };
+            mEGLContext = EGL14.eglCreateContext(mEGLDisplay, configs[0], EGL14.EGL_NO_CONTEXT,
+                    attrib_list, 0);
+            // if OpenGL ES 3.0 isn't supported, attempt to create OpenGL ES 2.0 context
+            if (mEGLContext == EGL14.EGL_NO_CONTEXT && useYuvSampling) {
+                mEGLESVersion--;
+            } else {
+                break;
+            }
+        } while (mEGLESVersion > 1);
+
         checkEglError("eglCreateContext");
         if (mEGLContext == null) {
             throw new RuntimeException("null context");

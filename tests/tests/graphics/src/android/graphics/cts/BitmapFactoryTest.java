@@ -24,6 +24,7 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
+import static org.junit.Assume.assumeTrue;
 import static org.testng.Assert.assertThrows;
 
 import android.content.res.Resources;
@@ -34,9 +35,13 @@ import android.graphics.BitmapFactory;
 import android.graphics.BitmapFactory.Options;
 import android.graphics.Color;
 import android.graphics.Rect;
+import android.media.MediaCodecInfo;
+import android.media.MediaCodecList;
 import android.media.MediaFormat;
+import android.os.Build;
 import android.os.Parcel;
 import android.os.ParcelFileDescriptor;
+import android.os.SystemProperties;
 import android.platform.test.annotations.LargeTest;
 import android.platform.test.annotations.RequiresDevice;
 import android.system.ErrnoException;
@@ -47,6 +52,7 @@ import android.util.TypedValue;
 import androidx.test.InstrumentationRegistry;
 import androidx.test.filters.SmallTest;
 
+import com.android.compatibility.common.util.ApiLevelUtil;
 import com.android.compatibility.common.util.BitmapUtils;
 import com.android.compatibility.common.util.CddTest;
 import com.android.compatibility.common.util.MediaUtils;
@@ -1005,9 +1011,13 @@ public class BitmapFactoryTest {
     @Test
     @RequiresDevice
     public void testDecode10BitHEIFTo10BitBitmap() {
-        if (!MediaUtils.hasDecoder(MediaFormat.MIMETYPE_VIDEO_HEVC)) {
-            return;
-        }
+        assumeTrue(
+            "Test needs Android T.", ApiLevelUtil.isFirstApiAtLeast(Build.VERSION_CODES.TIRAMISU));
+        assumeTrue(
+            "Test needs VNDK at least T.",
+            SystemProperties.getInt("ro.vndk.version", 0) >= Build.VERSION_CODES.TIRAMISU);
+        assumeTrue("No 10-bit HEVC decoder, skip the test.", has10BitHEVCDecoder());
+
         BitmapFactory.Options opt = new BitmapFactory.Options();
         opt.inPreferredConfig = Config.RGBA_1010102;
         Bitmap bm = BitmapFactory.decodeStream(obtainInputStream(R.raw.heifimage_10bit), null, opt);
@@ -1020,9 +1030,13 @@ public class BitmapFactoryTest {
     @Test
     @RequiresDevice
     public void testDecode10BitHEIFTo8BitBitmap() {
-        if (!MediaUtils.hasDecoder(MediaFormat.MIMETYPE_VIDEO_HEVC)) {
-            return;
-        }
+        assumeTrue(
+            "Test needs Android T.", ApiLevelUtil.isFirstApiAtLeast(Build.VERSION_CODES.TIRAMISU));
+        assumeTrue(
+            "Test needs VNDK at least T.",
+            SystemProperties.getInt("ro.vndk.version", 0) >= Build.VERSION_CODES.TIRAMISU);
+        assumeTrue("No 10-bit HEVC decoder, skip the test.", has10BitHEVCDecoder());
+
         BitmapFactory.Options opt = new BitmapFactory.Options();
         opt.inPreferredConfig = Config.ARGB_8888;
         Bitmap bm1 =
@@ -1083,5 +1097,20 @@ public class BitmapFactoryTest {
 
     private String obtainPath() throws IOException {
         return Utils.obtainPath(R.drawable.start, 0);
+    }
+
+    private static boolean has10BitHEVCDecoder() {
+        MediaFormat format = new MediaFormat();
+        format.setString(MediaFormat.KEY_MIME, "video/hevc");
+        format.setInteger(
+            MediaFormat.KEY_PROFILE, MediaCodecInfo.CodecProfileLevel.HEVCProfileMain10);
+        format.setInteger(
+            MediaFormat.KEY_LEVEL, MediaCodecInfo.CodecProfileLevel.HEVCMainTierLevel5);
+
+        MediaCodecList mcl = new MediaCodecList(MediaCodecList.ALL_CODECS);
+        if (mcl.findDecoderForFormat(format) == null) {
+            return false;
+        }
+        return true;
     }
 }

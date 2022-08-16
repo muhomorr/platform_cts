@@ -52,6 +52,8 @@ NOT_YET_MANDATED = {
     'sensor_fusion': [],
 }
 
+logging.getLogger('matplotlib.font_manager').disabled = True
+
 
 class ItsBaseTest(base_test.BaseTestClass):
   """Base test for CameraITS tests.
@@ -171,6 +173,7 @@ class ItsBaseTest(base_test.BaseTestClass):
     self.tablet.adb.shell('am force-stop com.google.android.apps.photos')
     self.tablet.adb.shell('am force-stop com.android.gallery3d')
     self.tablet.adb.shell('am force-stop com.sec.android.gallery3d')
+    self.tablet.adb.shell('am force-stop com.miui.gallery')
 
   def set_tablet_landscape_orientation(self):
     """Sets the screen orientation to landscape.

@@ -82,6 +82,8 @@ public final class BackgroundDexOptimizationTest extends BaseHostJUnit4Test {
     // Uses internal consts defined in BackgroundDexOptService only for testing purpose.
     private static final int STATUS_OK = 0;
     private static final int STATUS_CANCELLED = 1;
+    // We allow package level failure in dexopt, which will lead into this error state.
+    private static final int STATUS_DEX_OPT_FAILED = 5;
 
     private ITestDevice mDevice;
 
@@ -89,6 +91,8 @@ public final class BackgroundDexOptimizationTest extends BaseHostJUnit4Test {
     public void setUp() throws Exception {
         mDevice = getDevice();
         assertThat(mDevice.waitForBootComplete(REBOOT_TIMEOUT_MS)).isTrue();
+        // Turn off the display to simulate the idle state in terms of power consumption.
+        toggleScreenOn(false);
     }
 
     @Test
@@ -124,7 +128,7 @@ public final class BackgroundDexOptimizationTest extends BaseHostJUnit4Test {
                 () -> getLastExecutionTime().duration >= 0);
 
         int status = getLastDexOptStatus();
-        assertThat(status).isAnyOf(STATUS_OK, STATUS_CANCELLED);
+        assertThat(status).isAnyOf(STATUS_OK, STATUS_DEX_OPT_FAILED, STATUS_CANCELLED);
         if (status == STATUS_CANCELLED) {
             assertThat(checkFinishedPostBootUpdate()).isFalse();
             // If cancelled, we can complete it by running it again.
@@ -177,7 +181,7 @@ public final class BackgroundDexOptimizationTest extends BaseHostJUnit4Test {
                 () -> getLastExecutionTime().duration >= 0);
 
         int status = getLastDexOptStatus();
-        assertThat(status).isAnyOf(STATUS_OK, STATUS_CANCELLED);
+        assertThat(status).isAnyOf(STATUS_OK, STATUS_DEX_OPT_FAILED, STATUS_CANCELLED);
         if (status == STATUS_CANCELLED) {
             // If cancelled, we can complete it by running it again.
             completeIdleOptimization();
@@ -204,7 +208,7 @@ public final class BackgroundDexOptimizationTest extends BaseHostJUnit4Test {
         assertThat(timeAfter.startTime).isAtLeast(timeBefore.deviceCurrentTime);
         assertThat(timeAfter.duration).isAtLeast(0);
         int status = getLastDexOptStatus();
-        assertThat(status).isEqualTo(STATUS_OK);
+        assertThat(status).isAnyOf(STATUS_OK, STATUS_DEX_OPT_FAILED);
     }
 
     private void completeIdleOptimization() throws Exception {
@@ -220,15 +224,29 @@ public final class BackgroundDexOptimizationTest extends BaseHostJUnit4Test {
                 });
 
         int status = getLastDexOptStatus();
-        assertThat(status).isEqualTo(STATUS_OK);
+        assertThat(status).isAnyOf(STATUS_OK, STATUS_DEX_OPT_FAILED);
     }
 
     @After
     public void tearDown() throws Exception {
+        // Restore the display state. CTS runs display on state by default. So we need to turn it
+        // on again.
+        toggleScreenOn(true);
         // Cancel all active dexopt jobs.
         executeShellCommand(CMD_CANCEL_IDLE);
         executeShellCommand(CMD_CANCEL_POST_BOOT);
         mDevice.uninstallPackage(APPLICATION_PACKAGE);
+    }
+
+    /**
+     * Turns on or off the screen.
+     */
+    private void toggleScreenOn(boolean on) throws Exception {
+        if (on) {
+            executeShellCommand("input keyevent KEYCODE_WAKEUP");
+        } else {
+            executeShellCommand("input keyevent KEYCODE_SLEEP");
+        }
     }
 
     private void postJobSchedulerJob(String cmd) throws Exception {

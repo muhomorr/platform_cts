@@ -57,8 +57,8 @@ public abstract class VirtualDeviceTestCase extends InputTestCase {
 
     private static final int ARBITRARY_SURFACE_TEX_ID = 1;
 
-    static final int DISPLAY_WIDTH = 100;
-    static final int DISPLAY_HEIGHT = 100;
+    protected static final int DISPLAY_WIDTH = 100;
+    protected static final int DISPLAY_HEIGHT = 100;
 
     // Uses:
     // Manifest.permission.CREATE_VIRTUAL_DEVICE,
@@ -95,6 +95,9 @@ public abstract class VirtualDeviceTestCase extends InputTestCase {
         final PackageManager packageManager = context.getPackageManager();
         // TVs do not support companion
         assumeTrue(packageManager.hasSystemFeature(PackageManager.FEATURE_COMPANION_DEVICE_SETUP));
+        // Virtual input devices only operate on virtual displays
+        assumeTrue(packageManager.hasSystemFeature(
+                PackageManager.FEATURE_ACTIVITIES_ON_SECONDARY_DISPLAYS));
 
         final String packageName = context.getPackageName();
         associateCompanionDevice(packageName);
@@ -140,10 +143,6 @@ public abstract class VirtualDeviceTestCase extends InputTestCase {
         }
         // Tap to gain window focus on the activity
         tapActivityToFocus();
-        // Wait for everything to settle. Like see in InputHidTestCase, registered input devices
-        // don't always seem to produce events right away. Adding a bit of slack here decreases
-        // the flake rate.
-        SystemClock.sleep(1000L);
     }
 
     abstract void onSetUpVirtualInputDevice();

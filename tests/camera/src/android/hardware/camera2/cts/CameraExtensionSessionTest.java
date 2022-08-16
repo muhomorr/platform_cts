@@ -602,10 +602,14 @@ public class CameraExtensionSessionTest extends Camera2ParameterizedTestCase {
                             }
                         }
 
+                        mReportLog.addValue("width", maxSize.getWidth(), ResultType.NEUTRAL,
+                                ResultUnit.NONE);
+                        mReportLog.addValue("height", maxSize.getHeight(),
+                                ResultType.NEUTRAL, ResultUnit.NONE);
+                        mReportLog.addValue("format", captureFormat, ResultType.NEUTRAL,
+                                ResultUnit.NONE);
                         long avgCaptureLatency = (long) Stat.getAverage(captureTimes);
-                        String resultFormat = "avg_latency size: " + maxSize.toString() +
-                                " image format: " + captureFormat;
-                        mReportLog.addValue(resultFormat, avgCaptureLatency,
+                        mReportLog.addValue("avg_latency", avgCaptureLatency,
                                 ResultType.LOWER_BETTER, ResultUnit.MS);
 
                         verify(captureMockCallback, times(0))
@@ -1482,9 +1486,6 @@ public class CameraExtensionSessionTest extends Camera2ParameterizedTestCase {
                             .onCaptureResultAvailable(eq(extensionSession), eq(triggerRequest),
                                     any(TotalCaptureResult.class));
 
-                    verify(mockAFListener,
-                            timeout(WAIT_FOR_FOCUS_DONE_TIMEOUT_MS).atLeastOnce()).onInactive();
-
                     afState.lockAutoFocus(captureBuilder, triggerBuilder);
                     triggerRequest = triggerBuilder.build();
                     reset(mockAFListener);
@@ -1495,9 +1496,6 @@ public class CameraExtensionSessionTest extends Camera2ParameterizedTestCase {
                             timeout(REPEATING_REQUEST_TIMEOUT_MS).atLeastOnce())
                             .onCaptureResultAvailable(eq(extensionSession), eq(triggerRequest),
                                     any(TotalCaptureResult.class));
-
-                    verify(mockAFListener,
-                            timeout(WAIT_FOR_FOCUS_DONE_TIMEOUT_MS).atLeastOnce()).onScan();
 
                     verify(mockAFListener, timeout(WAIT_FOR_FOCUS_DONE_TIMEOUT_MS)
                             .atLeast(1)).onDone(anyBoolean());

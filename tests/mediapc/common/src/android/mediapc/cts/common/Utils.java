@@ -40,6 +40,7 @@ public class Utils {
     private static final int sPc;
 
     private static final String TAG = "PerformanceClassTestUtils";
+    private static final String MEDIA_PERF_CLASS_KEY = "media-performance-class";
 
     public static final int DISPLAY_DPI;
     public static final int MIN_DISPLAY_CANDIDATE_DPI = DENSITY_400;
@@ -56,22 +57,40 @@ public class Utils {
     public static final long MIN_MEMORY_PERF_CLASS_T_MB = 7 * 1024;
 
     static {
-        sPc = ApiLevelUtil.isAtLeast(Build.VERSION_CODES.S) ? Build.VERSION.MEDIA_PERFORMANCE_CLASS
-                : SystemProperties.getInt("ro.odm.build.media_performance_class", 0);
+        // with a default-media-performance-class that can be configured through a command line
+        // argument.
+        android.os.Bundle args = InstrumentationRegistry.getArguments();
+        String mediaPerfClassArg = args.getString(MEDIA_PERF_CLASS_KEY);
+        if (mediaPerfClassArg != null) {
+            Log.d(TAG, "Running the tests with performance class set to " + mediaPerfClassArg);
+            sPc = Integer.parseInt(mediaPerfClassArg);
+        } else {
+            sPc = ApiLevelUtil.isAtLeast(Build.VERSION_CODES.S)
+                    ? Build.VERSION.MEDIA_PERFORMANCE_CLASS
+                    : SystemProperties.getInt("ro.odm.build.media_performance_class", 0);
+        }
         Log.d(TAG, "performance class is " + sPc);
 
         Context context = InstrumentationRegistry.getInstrumentation().getContext();
         DisplayMetrics metrics = new DisplayMetrics();
-        WindowManager windowManager = context.getSystemService(WindowManager.class);
-        windowManager.getDefaultDisplay().getMetrics(metrics);
-        DISPLAY_DPI = metrics.densityDpi;
-        DISPLAY_LONG_PIXELS = Math.max(metrics.widthPixels, metrics.heightPixels);
-        DISPLAY_SHORT_PIXELS = Math.min(metrics.widthPixels, metrics.heightPixels);
+        // When used from ItsService, context will be null
+        if (context != null) {
+            WindowManager windowManager = context.getSystemService(WindowManager.class);
+            windowManager.getDefaultDisplay().getMetrics(metrics);
+            DISPLAY_DPI = metrics.densityDpi;
+            DISPLAY_LONG_PIXELS = Math.max(metrics.widthPixels, metrics.heightPixels);
+            DISPLAY_SHORT_PIXELS = Math.min(metrics.widthPixels, metrics.heightPixels);
 
-        ActivityManager activityManager = context.getSystemService(ActivityManager.class);
-        ActivityManager.MemoryInfo memoryInfo = new ActivityManager.MemoryInfo();
-        activityManager.getMemoryInfo(memoryInfo);
-        TOTAL_MEMORY_MB = memoryInfo.totalMem / 1024 / 1024;
+            ActivityManager activityManager = context.getSystemService(ActivityManager.class);
+            ActivityManager.MemoryInfo memoryInfo = new ActivityManager.MemoryInfo();
+            activityManager.getMemoryInfo(memoryInfo);
+            TOTAL_MEMORY_MB = memoryInfo.totalMem / 1024 / 1024;
+        } else {
+            DISPLAY_DPI = 0;
+            DISPLAY_LONG_PIXELS = 0;
+            DISPLAY_SHORT_PIXELS = 0;
+            TOTAL_MEMORY_MB = 0;
+        }
     }
 
     /**

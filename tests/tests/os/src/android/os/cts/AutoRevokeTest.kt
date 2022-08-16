@@ -28,7 +28,11 @@ import android.content.pm.PackageManager.PERMISSION_GRANTED
 import android.content.res.Resources
 import android.net.Uri
 import android.os.Build
+import android.os.UserHandle
 import android.platform.test.annotations.AppModeFull
+import android.provider.DeviceConfig
+import android.safetycenter.SafetyCenterIssue
+import android.safetycenter.SafetyCenterManager
 import android.support.test.uiautomator.By
 import android.support.test.uiautomator.BySelector
 import android.support.test.uiautomator.UiObject2
@@ -38,6 +42,7 @@ import android.widget.Switch
 import androidx.test.InstrumentationRegistry
 import androidx.test.filters.SdkSuppress
 import androidx.test.runner.AndroidJUnit4
+import com.android.compatibility.common.util.DeviceConfigStateChangerRule
 import com.android.compatibility.common.util.DisableAnimationRule
 import com.android.compatibility.common.util.FreezeRotationRule
 import com.android.compatibility.common.util.MatcherUtils.hasTextThat
@@ -52,6 +57,13 @@ import com.android.compatibility.common.util.click
 import com.android.compatibility.common.util.depthFirstSearch
 import com.android.compatibility.common.util.uiDump
 import com.android.modules.utils.build.SdkLevel
+import com.android.safetycenter.internaldata.SafetyCenterIds
+import com.android.safetycenter.internaldata.SafetyCenterIssueId
+import com.android.safetycenter.internaldata.SafetyCenterIssueKey
+import java.lang.reflect.Modifier
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicReference
+import java.util.regex.Pattern
 import org.hamcrest.CoreMatchers.containsString
 import org.hamcrest.CoreMatchers.containsStringIgnoringCase
 import org.hamcrest.CoreMatchers.equalTo
@@ -69,10 +81,6 @@ import org.junit.Ignore
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
-import java.lang.reflect.Modifier
-import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicReference
-import java.util.regex.Pattern
 
 private const val READ_CALENDAR = "android.permission.READ_CALENDAR"
 private const val BLUETOOTH_CONNECT = "android.permission.BLUETOOTH_CONNECT"
@@ -82,7 +90,6 @@ private const val BLUETOOTH_CONNECT = "android.permission.BLUETOOTH_CONNECT"
  */
 @RunWith(AndroidJUnit4::class)
 class AutoRevokeTest {
-
     private val context: Context = InstrumentationRegistry.getTargetContext()
     private val instrumentation: Instrumentation = InstrumentationRegistry.getInstrumentation()
 
@@ -94,8 +101,16 @@ class AutoRevokeTest {
     private lateinit var preMinVersionApkPath: String
     private lateinit var preMinVersionAppPackageName: String
 
+    @Rule
+    @JvmField
+    val storeExactTimeRule = DeviceConfigStateChangerRule(context,
+        DeviceConfig.NAMESPACE_PERMISSIONS, STORE_EXACT_TIME_KEY, "true")
+
     companion object {
         const val LOG_TAG = "AutoRevokeTest"
+        private const val STORE_EXACT_TIME_KEY = "permission_changes_store_exact_time"
+        private const val UNUSED_APPS_SOURCE_ID = "AndroidPermissionAutoRevoke"
+        private const val UNUSED_APPS_ISSUE_ID = "unused_apps_issue"
 
         @JvmStatic
         @BeforeClass
@@ -119,7 +134,11 @@ class AutoRevokeTest {
 
         // Wake up the device
         runShellCommandOrThrow("input keyevent KEYCODE_WAKEUP")
-        runShellCommandOrThrow("input keyevent 82")
+        if ("false".equals(runShellCommandOrThrow("cmd lock_settings get-disabled"))) {
+            // Unlock screen only when it's lock settings enabled to prevent showing "wallpaper
+            // picker" which may cover another UI elements on freeform window configuration.
+            runShellCommandOrThrow("input keyevent 82")
+        }
 
         if (isAutomotiveDevice()) {
             supportedApkPath = APK_PATH_S_APP
@@ -253,6 +272,61 @@ class AutoRevokeTest {
 
     @AppModeFull(reason = "Uses separate apps for testing")
     @Test
+    fun testAppWithPermissionsChangedRecently_doesNotGetPermissionRevoked() {
+        val unusedThreshold = 15_000L
+        withUnusedThresholdMs(unusedThreshold) {
+            withDummyApp {
+                // Setup
+                // Ensure app is considered unused and then change permission
+                Thread.sleep(unusedThreshold)
+                goToPermissions()
+                click("Calendar")
+                click("Allow")
+                goBack()
+                goBack()
+                goBack()
+
+                // Run
+                runAppHibernationJob(context, LOG_TAG)
+
+                // Verify that permission is not revoked because the permission was changed
+                // within the unused threshold even though the app itself is unused
+                assertPermission(PERMISSION_GRANTED)
+            }
+        }
+    }
+
+    @AppModeFull(reason = "Uses separate apps for testing")
+    @Test
+    fun testPermissionEventCleanupService_scrubsEvents() {
+        val unusedThreshold = 15_000L
+        withUnusedThresholdMs(unusedThreshold) {
+            withDummyApp {
+                // Setup
+                // Ensure app is considered unused
+                Thread.sleep(unusedThreshold)
+                goToPermissions()
+                click("Calendar")
+                click("Allow")
+                goBack()
+                goBack()
+                goBack()
+                // Run with threshold where events would be cleaned up
+                withUnusedThresholdMs(0) {
+                    runPermissionEventCleanupJob(context)
+                    Thread.sleep(3000L)
+                }
+
+                runAppHibernationJob(context, LOG_TAG)
+
+                // Verify that permission is revoked because there are no recent permission changes
+                assertPermission(PERMISSION_DENIED)
+            }
+        }
+    }
+
+    @AppModeFull(reason = "Uses separate apps for testing")
+    @Test
     fun testPreMinAutoRevokeVersionUnusedApp_doesntGetPermissionRevoked() {
         withUnusedThresholdMs(3L) {
             withDummyApp(preMinVersionApkPath, preMinVersionAppPackageName) {
@@ -372,6 +446,88 @@ class AutoRevokeTest {
         }
     }
 
+    @AppModeFull(reason = "Uses separate apps for testing")
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.TIRAMISU, codeName = "Tiramisu")
+    @Test
+    fun testAutoRevoke_showsUpInSafetyCenter() {
+        withSafetyCenterEnabled {
+            withUnusedThresholdMs(3L) {
+                withDummyApp {
+                    startAppAndAcceptPermission()
+
+                    killDummyApp()
+
+                    // Run
+                    runAppHibernationJob(context, LOG_TAG)
+
+                    // Verify
+                    val safetyCenterManager =
+                        context.getSystemService(SafetyCenterManager::class.java)!!
+                    eventually {
+                        val issues = ArrayList<SafetyCenterIssue>()
+                        runWithShellPermissionIdentity {
+                            val safetyCenterData = safetyCenterManager!!.safetyCenterData
+                            issues.addAll(safetyCenterData.issues)
+                        }
+                        val issueId = SafetyCenterIds.encodeToString(
+                                SafetyCenterIssueId.newBuilder()
+                                        .setSafetyCenterIssueKey(SafetyCenterIssueKey.newBuilder()
+                                                .setSafetySourceId(UNUSED_APPS_SOURCE_ID)
+                                                .setSafetySourceIssueId(UNUSED_APPS_ISSUE_ID)
+                                                .setUserId(UserHandle.myUserId())
+                                                .build())
+                                        .setIssueTypeId(UNUSED_APPS_ISSUE_ID)
+                                        .build())
+                        assertTrue(issues.any { it.id == issueId })
+                    }
+                }
+            }
+        }
+    }
+
+    @AppModeFull(reason = "Uses separate apps for testing")
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.TIRAMISU, codeName = "Tiramisu")
+    @Test
+    fun testAutoRevoke_goToUnusedAppsPage_removesSafetyCenterIssue() {
+        withSafetyCenterEnabled {
+            withUnusedThresholdMs(3L) {
+                withDummyApp {
+                    startAppAndAcceptPermission()
+
+                    killDummyApp()
+
+                    // Run
+                    runAppHibernationJob(context, LOG_TAG)
+
+                    // Go to unused apps page
+                    openUnusedAppsNotification()
+                    waitFindObject(By.text(supportedAppPackageName))
+
+                    // Verify
+                    val safetyCenterManager =
+                        context.getSystemService(SafetyCenterManager::class.java)!!
+                    eventually {
+                        val issues = ArrayList<SafetyCenterIssue>()
+                        runWithShellPermissionIdentity {
+                            val safetyCenterData = safetyCenterManager!!.safetyCenterData
+                            issues.addAll(safetyCenterData.issues)
+                        }
+                        val issueId = SafetyCenterIds.encodeToString(
+                                SafetyCenterIssueId.newBuilder()
+                                        .setSafetyCenterIssueKey(SafetyCenterIssueKey.newBuilder()
+                                                .setSafetySourceId(UNUSED_APPS_SOURCE_ID)
+                                                .setSafetySourceIssueId(UNUSED_APPS_ISSUE_ID)
+                                                .setUserId(UserHandle.myUserId())
+                                                .build())
+                                        .setIssueTypeId(UNUSED_APPS_ISSUE_ID)
+                                        .build())
+                        assertFalse(issues.any { it.id == issueId })
+                    }
+                }
+            }
+        }
+    }
+
     private fun isAutomotiveDevice(): Boolean {
         return context.packageManager.hasSystemFeature(PackageManager.FEATURE_AUTOMOTIVE)
     }
@@ -436,6 +592,7 @@ class AutoRevokeTest {
             waitFindObject(By.res("com.android.permissioncontroller:id/permission_allow_button"))
                     .click()
         }
+        waitForIdle()
     }
 
     private fun clickUninstallIcon() {
@@ -513,9 +670,9 @@ class AutoRevokeTest {
         val parent = waitFindObject(
             By.clickable(true)
                 .hasDescendant(By.textStartsWith("Remove permissions"))
-                .hasDescendant(By.clazz(Switch::class.java.name))
+                .hasDescendant(By.checkable(true))
         )
-        return parent.findObject(By.clazz(Switch::class.java.name))
+        return parent.findObject(By.checkable(true))
     }
 
     private fun waitForIdle() {

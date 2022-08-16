@@ -17,42 +17,47 @@
 package android.mediapc.cts;
 
 import static android.media.MediaCodecInfo.CodecCapabilities.FEATURE_SecurePlayback;
+import static android.mediapc.cts.CodecDecoderTestBase.WIDEVINE_UUID;
 import static android.mediapc.cts.CodecTestBase.selectHardwareCodecs;
-
 import static org.junit.Assert.assertTrue;
 
+import android.content.Context;
 import android.media.MediaCodec;
 import android.media.MediaCodecInfo;
 import android.media.MediaCodecInfo.VideoCapabilities.PerformancePoint;
+import android.media.MediaDrm;
 import android.media.MediaFormat;
+import android.media.UnsupportedSchemeException;
 import android.mediapc.cts.common.Utils;
+import android.net.ConnectivityManager;
+import android.net.NetworkCapabilities;
+import android.net.Network;
 import android.os.Build;
 import android.util.Log;
 import android.util.Pair;
-
-import org.junit.Assume;
-import org.junit.Before;
-
 import java.io.IOException;
+import java.net.InetAddress;
+import java.net.Socket;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.junit.Assume;
+import org.junit.Before;
 
 public class MultiCodecPerfTestBase {
     private static final String LOG_TAG = MultiCodecPerfTestBase.class.getSimpleName();
     static final boolean[] boolStates = {true, false};
     static final int REQUIRED_MIN_CONCURRENT_INSTANCES = 6;
     static final int REQUIRED_MIN_CONCURRENT_INSTANCES_FOR_VP9 = 2;
-    // allowed tolerance in measured fps vs expected fps in percentage, i.e. codecs achieving fps
-    // that is greater than (FPS_TOLERANCE_FACTOR * expectedFps) will be considered as
-    // passing the test
-    static final double FPS_TOLERANCE_FACTOR = 0.95;
+    static final int REQUIRED_MIN_CONCURRENT_SECURE_INSTANCES = 2;
+
     static ArrayList<String> mMimeList = new ArrayList<>();
     static Map<String, String> mTestFiles = new HashMap<>();
     static Map<String, String> m720pTestFiles = new HashMap<>();
     static Map<String, String> m1080pTestFiles = new HashMap<>();
+    static Map<String, String> m1080pWidevineTestFiles = new HashMap<>();
 
     static {
         mMimeList.add(MediaFormat.MIMETYPE_VIDEO_AVC);
@@ -73,13 +78,21 @@ public class MultiCodecPerfTestBase {
         m1080pTestFiles.put(MediaFormat.MIMETYPE_VIDEO_HEVC, "bbb_1920x1080_4mbps_30fps_hevc.mp4");
         m1080pTestFiles.put(MediaFormat.MIMETYPE_VIDEO_VP9, "bbb_1920x1080_4mbps_30fps_vp9.webm");
         m1080pTestFiles.put(MediaFormat.MIMETYPE_VIDEO_AV1, "bbb_1920x1080_4mbps_30fps_av1.mp4");
+
+        m1080pWidevineTestFiles
+                .put(MediaFormat.MIMETYPE_VIDEO_AVC, "bbb_1920x1080_6mbps_30fps_avc_cenc.mp4");
+        m1080pWidevineTestFiles
+                .put(MediaFormat.MIMETYPE_VIDEO_HEVC, "bbb_1920x1080_4mbps_30fps_hevc_cenc.mp4");
+        // TODO(b/230682028)
+        // m1080pWidevineTestFiles
+        //         .put(MediaFormat.MIMETYPE_VIDEO_VP9, "bbb_1920x1080_4mbps_30fps_vp9_cenc.webm");
+        m1080pWidevineTestFiles
+                .put(MediaFormat.MIMETYPE_VIDEO_AV1, "bbb_1920x1080_4mbps_30fps_av1_cenc.mp4");
     }
 
     String mMime;
     String mTestFile;
     final boolean mIsAsync;
-
-    double mMaxFrameRate;
 
     @Before
     public void isPerformanceClassCandidate() {
@@ -110,9 +123,11 @@ public class MultiCodecPerfTestBase {
     }
 
     // Returns the max number of 30 fps instances that the given list of mimeCodecPairs
-    // supports. It also checks that the each codec supports 180 fps PerformancePoint.
+    // supports. It also checks that the each codec supports a PerformancePoint that covers
+    // required number of 30 fps instances.
     public int checkAndGetMaxSupportedInstancesForCodecCombinations(int height, int width,
-            ArrayList<Pair<String, String>> mimeCodecPairs) throws IOException {
+            ArrayList<Pair<String, String>> mimeCodecPairs, int requiredMinInstances)
+            throws IOException {
         int[] maxInstances = new int[mimeCodecPairs.size()];
         int[] maxFrameRates = new int[mimeCodecPairs.size()];
         int[] maxMacroBlockRates = new int[mimeCodecPairs.size()];
@@ -125,7 +140,7 @@ public class MultiCodecPerfTestBase {
             assertTrue(pps.size() > 0);
 
             boolean hasVP9 = mimeCodecPair.first.equals(MediaFormat.MIMETYPE_VIDEO_VP9);
-            int requiredFrameRate = getRequiredMinConcurrentInstances(hasVP9) * 30;
+            int requiredFrameRate = requiredMinInstances * 30;
 
             maxInstances[loopCount] = cap.getMaxSupportedInstances();
             PerformancePoint PPRes = new PerformancePoint(width, height, requiredFrameRate);
@@ -157,16 +172,13 @@ public class MultiCodecPerfTestBase {
         int minOfMaxFrameRates = maxFrameRates[0];
         int minOfMaxMacroBlockRates = maxMacroBlockRates[0];
 
-        // Allow a tolerance in expected frame rate
-        mMaxFrameRate = minOfMaxFrameRates * FPS_TOLERANCE_FACTOR;
-
         // Calculate how many 30fps max instances it can support from it's mMaxFrameRate
         // amd maxMacroBlockRate. (assuming 16x16 macroblocks)
         return Math.min(minOfMaxInstances, Math.min((int) (minOfMaxFrameRates / 30.0),
                 (int) (minOfMaxMacroBlockRates / ((width / 16) * (height / 16)) / 30.0)));
     }
 
-    public int getRequiredMinConcurrentInstances(boolean hasVP9) {
+    public int getRequiredMinConcurrentInstances720p(boolean hasVP9) throws IOException {
         // Below T, VP9 requires 60 fps at 720p and minimum of 2 instances
         if (!Utils.isTPerfClass() && hasVP9) {
             return REQUIRED_MIN_CONCURRENT_INSTANCES_FOR_VP9;
@@ -183,20 +195,42 @@ public class MultiCodecPerfTestBase {
         return isSecureSupported;
     }
 
-    boolean codecSupportsPP(String codecName, String mime, PerformancePoint reqPP)
-            throws IOException {
-        MediaCodec codec = MediaCodec.createByCodecName(codecName);
-        List<PerformancePoint> suppPPs =
-                codec.getCodecInfo().getCapabilitiesForType(mime).getVideoCapabilities()
-                        .getSupportedPerformancePoints();
-        assertTrue("Performance point not published by codec: " + codecName, suppPPs != null);
-        boolean codecSupportsReqPP = false;
-        for (PerformancePoint pp : suppPPs) {
-            if (pp.covers(reqPP)) {
-                codecSupportsReqPP = true;
-            }
+    boolean isWidevineSupported() {
+        return MediaDrm.isCryptoSchemeSupported(WIDEVINE_UUID);
+    }
+
+    boolean isWidevineL1Supported() throws UnsupportedSchemeException {
+        boolean isL1Supported = false;
+        if (isWidevineSupported()) {
+            MediaDrm mediaDrm = new MediaDrm(WIDEVINE_UUID);
+            isL1Supported = mediaDrm.getPropertyString("securityLevel").equals("L1");
+            mediaDrm.close();
         }
-        codec.release();
-        return codecSupportsReqPP;
+        return isL1Supported;
+    }
+
+    boolean isInternetAvailable() {
+        Context context = androidx.test.core.app.ApplicationProvider.getApplicationContext();
+        ConnectivityManager cm = context.getSystemService(ConnectivityManager.class);
+        NetworkCapabilities cap = cm.getNetworkCapabilities(cm.getActiveNetwork());
+        if (cap == null) return false;
+        return cap.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET);
+    }
+
+    boolean meetsSecureDecodePreconditions() throws UnsupportedSchemeException {
+        Assume.assumeTrue("Skipping secure decoder performance tests as Widevine is not supported",
+                isWidevineSupported());
+
+        if (Utils.isTPerfClass()) {
+            assertTrue("If Widevine is supported, L1 support is required for media performance " +
+                            "class T devices",
+                    isWidevineL1Supported());
+            assertTrue("Test requires internet connection for validating secure decoder " +
+                            "requirements for media performance class T devices",
+                    isInternetAvailable());
+            return true;
+        }
+
+        return isWidevineL1Supported() && isInternetAvailable();
     }
 }
