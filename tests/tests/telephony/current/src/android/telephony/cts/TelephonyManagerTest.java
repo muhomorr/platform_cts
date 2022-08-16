@@ -79,6 +79,7 @@ import android.telephony.PhoneStateListener;
 import android.telephony.PinResult;
 import android.telephony.PreciseCallState;
 import android.telephony.RadioAccessFamily;
+import android.telephony.RadioAccessSpecifier;
 import android.telephony.ServiceState;
 import android.telephony.SignalStrength;
 import android.telephony.SignalStrengthUpdateRequest;
@@ -206,7 +207,7 @@ public class TelephonyManagerTest {
     private static final String PLMN_A = "123456";
     private static final String PLMN_B = "78901";
     private static final List<String> FPLMN_TEST = Arrays.asList(PLMN_A, PLMN_B);
-    private static final int MAX_FPLMN_NUM = 100;
+    private static final int MAX_FPLMN_NUM = 1000;
     private static final int MIN_FPLMN_NUM = 3;
 
     private static final String THERMAL_MITIGATION_COMMAND_BASE = "cmd phone thermal-mitigation ";
@@ -276,6 +277,7 @@ public class TelephonyManagerTest {
     private static final int RADIO_HAL_VERSION_1_3 = makeRadioVersion(1, 3);
     private static final int RADIO_HAL_VERSION_1_5 = makeRadioVersion(1, 5);
     private static final int RADIO_HAL_VERSION_1_6 = makeRadioVersion(1, 6);
+    private static final int RADIO_HAL_VERSION_2_0 = makeRadioVersion(2, 0);
 
     static {
         EMERGENCY_NUMBER_SOURCE_SET = new HashSet<Integer>();
@@ -1249,16 +1251,44 @@ public class TelephonyManagerTest {
     public void testGetNetworkCountryIso() {
         if (mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
             String countryCode = mTelephonyManager.getNetworkCountryIso();
-            assertTrue("Country code '" + countryCode + "' did not match "
-                            + ISO_COUNTRY_CODE_PATTERN,
-                    Pattern.matches(ISO_COUNTRY_CODE_PATTERN, countryCode));
+            ServiceState serviceState = mTelephonyManager.getServiceState();
+            if (serviceState != null && (serviceState.getState()
+                    == ServiceState.STATE_IN_SERVICE || serviceState.getState()
+                    == ServiceState.STATE_EMERGENCY_ONLY)) {
+                assertTrue("Country code '" + countryCode + "' did not match "
+                                + ISO_COUNTRY_CODE_PATTERN,
+                        Pattern.matches(ISO_COUNTRY_CODE_PATTERN, countryCode));
+            } else {
+                assertTrue("Country code could be empty when out of service",
+                        Pattern.matches(ISO_COUNTRY_CODE_PATTERN, countryCode)
+                        || TextUtils.isEmpty(countryCode));
+            }
+
+            int[] allSubs = ShellIdentityUtils.invokeMethodWithShellPermissions(
+                    mSubscriptionManager, (sm) -> sm.getActiveSubscriptionIdList());
+            for (int i : allSubs) {
+                countryCode = mTelephonyManager.getNetworkCountryIso(
+                        SubscriptionManager.getSlotIndex(i));
+                serviceState = mTelephonyManager.createForSubscriptionId(i).getServiceState();
+
+                if (serviceState != null && (serviceState.getState()
+                        == ServiceState.STATE_IN_SERVICE || serviceState.getState()
+                        == ServiceState.STATE_EMERGENCY_ONLY)) {
+                    assertTrue("Country code '" + countryCode + "' did not match "
+                                    + ISO_COUNTRY_CODE_PATTERN + " for slot " + i,
+                            Pattern.matches(ISO_COUNTRY_CODE_PATTERN, countryCode));
+                } else {
+                    assertTrue("Country code could be empty when out of service",
+                            Pattern.matches(ISO_COUNTRY_CODE_PATTERN, countryCode)
+                            || TextUtils.isEmpty(countryCode));
+                }
+            }
 
             for (int i = 0; i < mTelephonyManager.getPhoneCount(); i++) {
                 countryCode = mTelephonyManager.getNetworkCountryIso(i);
-
-                assertTrue("Country code '" + countryCode + "' did not match "
-                                + ISO_COUNTRY_CODE_PATTERN + " for slot " + i,
-                        Pattern.matches(ISO_COUNTRY_CODE_PATTERN, countryCode));
+                assertTrue("Country code must match " + ISO_COUNTRY_CODE_PATTERN + "or empty",
+                        Pattern.matches(ISO_COUNTRY_CODE_PATTERN, countryCode)
+                        || TextUtils.isEmpty(countryCode));
             }
         } else {
             // Non-telephony may still have the property defined if it has a SIM.
@@ -1271,6 +1301,17 @@ public class TelephonyManagerTest {
             Log.d(TAG, "skipping test on device without FEATURE_TELEPHONY present");
             return;
         }
+
+        List<RadioAccessSpecifier> channels;
+        try {
+            channels = ShellIdentityUtils.invokeMethodWithShellPermissions(
+                    mTelephonyManager, TelephonyManager::getSystemSelectionChannels);
+        } catch (IllegalStateException e) {
+            // TODO (b/189255895): Allow ISE once API is enforced in IRadio 2.1.
+            Log.d(TAG, "Skipping test since system selection channels are not available.");
+            return;
+        }
+
         LinkedBlockingQueue<Boolean> queue = new LinkedBlockingQueue<>(1);
         final UiAutomation uiAutomation =
                 InstrumentationRegistry.getInstrumentation().getUiAutomation();
@@ -1283,10 +1324,7 @@ public class TelephonyManagerTest {
             Boolean result = queue.poll(1000, TimeUnit.MILLISECONDS);
             // Ensure we get a result
             assertNotNull(result);
-            // Only verify the result for supported devices on IRadio 1.3+
-            if (mRadioVersion >= RADIO_HAL_VERSION_1_3) {
-                assertTrue(result);
-            }
+            assertTrue(result);
         } catch (InterruptedException e) {
             fail("interrupted");
         } finally {
@@ -1298,16 +1336,15 @@ public class TelephonyManagerTest {
         ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mTelephonyManager,
                 tp -> tp.setSystemSelectionChannels(Collections.emptyList()));
 
-        // TODO (b/189255895): Uncomment once getSystemSelection channels is functional in S QPR
-        /**
-        // getSystemSelectionChannels was added in IRadio 1.6, so ensure it returns
-        // the value that was set by setSystemSelectionChannels.
-        if (mRadioVersion >= RADIO_HAL_VERSION_1_6) {
-            assertEquals(Collections.emptyList(),
-                    ShellIdentityUtils.invokeMethodWithShellPermissions(mTelephonyManager,
-                    TelephonyManager::getSystemSelectionChannels));
-        }
-         **/
+        // Assert that we get back the value we set.
+        assertEquals(Collections.emptyList(),
+                ShellIdentityUtils.invokeMethodWithShellPermissions(mTelephonyManager,
+                TelephonyManager::getSystemSelectionChannels));
+
+        // Reset the values back to the original.
+        List<RadioAccessSpecifier> finalChannels = channels;
+        ShellIdentityUtils.invokeMethodWithShellPermissionsNoReturn(mTelephonyManager,
+                tp -> tp.setSystemSelectionChannels(finalChannels));
     }
 
     @Test
@@ -1689,6 +1726,11 @@ public class TelephonyManagerTest {
         if (!mPackageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) {
             return;
         }
+        if (mRadioVersion < RADIO_HAL_VERSION_2_0) {
+            Log.d(TAG, "Skipping test since rebootModem is not supported.");
+            return;
+        }
+
         TestThread t = new TestThread(new Runnable() {
             public void run() {
                 Looper.prepare();
