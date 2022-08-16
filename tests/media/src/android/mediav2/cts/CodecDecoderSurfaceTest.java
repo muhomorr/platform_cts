@@ -135,9 +135,9 @@ public class CodecDecoderSurfaceTest extends CodecDecoderTestBase {
                 {MediaFormat.MIMETYPE_VIDEO_AVC, "bbb_360x640_768kbps_30fps_avc.mp4",
                         "bbb_520x390_1mbps_30fps_avc.mp4", CODEC_ALL},
                 {MediaFormat.MIMETYPE_VIDEO_AVC, "bbb_160x1024_1500kbps_30fps_avc.mp4",
-                        "bbb_520x390_1mbps_30fps_avc.mp4", CODEC_ALL},
+                        "bbb_520x390_1mbps_30fps_avc.mp4", CODEC_OPTIONAL},
                 {MediaFormat.MIMETYPE_VIDEO_AVC, "bbb_1280x120_1500kbps_30fps_avc.mp4",
-                        "bbb_340x280_768kbps_30fps_avc.mp4", CODEC_ALL},
+                        "bbb_340x280_768kbps_30fps_avc.mp4", CODEC_OPTIONAL},
                 {MediaFormat.MIMETYPE_VIDEO_HEVC, "bbb_520x390_1mbps_30fps_hevc.mp4",
                         "bbb_340x280_768kbps_30fps_hevc.mp4", CODEC_ALL},
                 {MediaFormat.MIMETYPE_VIDEO_MPEG4, "bbb_128x96_64kbps_12fps_mpeg4.mp4",
@@ -225,9 +225,7 @@ public class CodecDecoderSurfaceTest extends CodecDecoderTestBase {
                 doWork(Integer.MAX_VALUE);
                 queueEOS();
                 waitForAllOutputs();
-                /* TODO(b/147348711) */
-                if (false) mCodec.stop();
-                else mCodec.reset();
+                mCodec.stop();
                 assertTrue(log + " unexpected error", !mAsyncHandle.hasSeenError());
                 assertTrue(log + "no input sent", 0 != mInputCount);
                 assertTrue(log + "output received", 0 != mOutputCount);
@@ -328,9 +326,7 @@ public class CodecDecoderSurfaceTest extends CodecDecoderTestBase {
                 doWork(Integer.MAX_VALUE);
                 queueEOS();
                 waitForAllOutputs();
-                /* TODO(b/147348711) */
-                if (false) mCodec.stop();
-                else mCodec.reset();
+                mCodec.stop();
                 assertTrue(log + " unexpected error", !mAsyncHandle.hasSeenError());
                 assertTrue(log + "no input sent", 0 != mInputCount);
                 assertTrue(log + "output received", 0 != mOutputCount);
@@ -409,9 +405,7 @@ public class CodecDecoderSurfaceTest extends CodecDecoderTestBase {
                 doWork(Integer.MAX_VALUE);
                 queueEOS();
                 waitForAllOutputs();
-                /* TODO(b/147348711) */
-                if (false) mCodec.stop();
-                else mCodec.reset();
+                mCodec.stop();
                 assertTrue(log + " unexpected error", !mAsyncHandle.hasSeenError());
                 assertTrue(log + "no input sent", 0 != mInputCount);
                 assertTrue(log + "output received", 0 != mOutputCount);
@@ -430,9 +424,7 @@ public class CodecDecoderSurfaceTest extends CodecDecoderTestBase {
                 doWork(Integer.MAX_VALUE);
                 queueEOS();
                 waitForAllOutputs();
-                /* TODO(b/147348711) */
-                if (false) mCodec.stop();
-                else mCodec.reset();
+                mCodec.stop();
                 assertTrue(log + " unexpected error", !mAsyncHandle.hasSeenError());
                 assertTrue(log + "no input sent", 0 != mInputCount);
                 assertTrue(log + "output received", 0 != mOutputCount);
@@ -457,9 +449,7 @@ public class CodecDecoderSurfaceTest extends CodecDecoderTestBase {
                 doWork(Integer.MAX_VALUE);
                 queueEOS();
                 waitForAllOutputs();
-                /* TODO(b/147348711) */
-                if (false) mCodec.stop();
-                else mCodec.reset();
+                mCodec.stop();
                 assertTrue(log + " unexpected error", !mAsyncHandle.hasSeenError());
                 assertTrue(log + "no input sent", 0 != mInputCount);
                 assertTrue(log + "output received", 0 != mOutputCount);
