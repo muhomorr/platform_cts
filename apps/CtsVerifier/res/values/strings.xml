@@ -32,6 +32,16 @@
     <string name="finish_button_text">Finish</string>
     <string name="fail_and_next_button_text">Fail and Next</string>
 
+    <!-- Strings for CtsReportLog warning -->
+    <string name="reportlog_warning_title">CTS-Verifier Report Log</string>
+    <string name="reportlog_warning_body">Can\'t create folder for CTS-Verifier Report Logs.
+        \n\nPlease enable Report Log creation by exiting CTS Verifier and running the following commands:
+        \n\n<code>adb shell appops set com.android.cts.verifier android:read_device_identifiers allow</code>
+        \n\n<code>adb shell appops set com.android.cts.verifier MANAGE_EXTERNAL_STORAGE 0</code>
+        \n\nTest instructions are found in the \"Using CTS Verifier\" document found at
+        <a href="https://source.android.com/compatibility/cts/verifier">https://source.android.com/compatibility/cts/verifier</a>
+    </string>
+
     <!-- Strings for TestListActivity -->
     <string name="test_category_audio">Audio</string>
     <string name="test_category_camera">Camera</string>
@@ -301,9 +311,12 @@
     </string>
     <string name="clipboard_preview_test_instructions">
         Press the \'Copy\' button to copy the secret code to the clipboard.
-        \n\nUse the clipboard preview UI, or the clipboard editor component to view the secret code.
-        \n\nEnter the secret code using the buttons below.
+        \nDo not press any other buttons after you press the \'Copy\' button.
+        \n\n If nothing happens, press Fail.
+        \n\n If you see the word "FAIL" appear on screen, press Fail.
+        \n\n If you see a confirmation that content has been copied to the clipboard, press Pass.
     </string>
+    <string name="clipboard_preview_test_secret">FAIL</string>
     <string name="clipboard_preview_test_copy_button">Copy</string>
 
 
@@ -778,7 +791,7 @@
     <!-- BLE Advertising Set test strings -->
     <string name="ble_advertising_set_test_name">Bluetooth LE Advertising Set Test</string>
     <string name="ble_advertising_set_test_info">Bluetooth LE Advertising Set tests AdvertisingSet and AdvertisingSetCallback APIs.</string>
-    <string name="ble_advertising_set_test_instruction">Press the \"Set Up\" button first, then start the test by pressing the \"Start Test\" button. UI thread may freeze for a few seconds while enabling/disabling bluetooth adapter.</string>
+    <string name="ble_advertising_set_test_instruction">Press the \"Start Test\" button. UI thread may freeze for a few seconds while enabling/disabling bluetooth adapter.</string>
     <string name="ble_advertising_set_start_test">Start Test</string>
     <string name="ble_advertising_set_running_test">Running Test...</string>
     <string name="ble_advertising_set_finished_test">Finished Test</string>
@@ -2450,16 +2463,6 @@
         icon, large icon, notification title, notification text, and two action buttons.
         If this device does not support heads-up notifications, press Pass.</string>
     <string name="action">Action %1$d</string>
-    <string name="media_controls_title">Media Controls Test</string>
-    <string name="media_controls_info">This test checks that media controls appear in the shade for
-        applications that post a media style notification.</string>
-    <string name="media_controls_visible">Pull down the notification shade and check that the media
-        controls from the CTS Verifier app are visible.
-    </string>
-    <string name="media_controls_output_switcher_chip">Pull down the notification shade and look at
-        the media controls for the CTS Verifier app.
-        Check that it contains an affordance to switch between available media routes.
-    </string>
     <string name="tile_service_name">Tile Service for CTS Verifier</string>
     <string name="tiles_test">Tile Service Test</string>
     <string name="tiles_info">This test checks that a Tile Service added by a third party
@@ -3755,6 +3758,11 @@ You should be prompted to select credentials; choose the ones you just installed
             Device Owner. Then press the button below, and check that CTSVerifier is NOT Device
             Owner anymore.
     </string>
+    <string name="device_owner_remove_device_owner_test_info_on_tv">
+            Please check in Settings &gt; Privacy &gt; Security &amp; Restrictions &gt; Device Administrators if CTSVerifier is
+            Device Owner. Then press the button below, and check that CTSVerifier is NOT Device
+            Owner anymore.
+    </string>
     <string name="remove_device_owner_button">Remove device owner</string>
     <string name="device_owner_check_device_owner_test">Check device owner</string>
     <string name="device_owner_check_profile_owner_test">Check profile owner</string>
@@ -4059,11 +4067,12 @@ You should be prompted to select credentials; choose the ones you just installed
     <string name="device_owner_disallow_config_bt">Disallow configuring Bluetooth</string>
     <string name="device_owner_disallow_config_bt_info">
         Please press the Set restriction button to set the user restriction.
-        Then press Go to open the Bluetooth page in Settings.
-        Confirm that:\n
-        \n
+        Then press Go, you should either see (a) the Bluetooth settings page or (b) trigger a support message directly.\n
+        In the case of (a), confirm that:\n
         - You cannot view Bluetooth devices in range.\n
         - Trying to edit, add or remove any already paired devices triggers a support message.\n
+        \n
+        In the case of (b) this step is successful.\n
         \n
         Use the Back button to return to this page.
     </string>
@@ -5484,6 +5493,7 @@ You should be prompted to select credentials; choose the ones you just installed
     <string name="audio_general_test_not_run">Test Not Run</string>
     <string name="audio_general_testnotcompleted">Test not completed.</string>
 
+    <string name="audio_general_reportlogtest">[Can\'t Write ReportLog]</string>
 
     <!-- Audio Loopback Latency Test -->
     <string name="audio_loopback_latency_test">Audio Loopback Latency Test</string>
@@ -6385,6 +6395,12 @@ Follow the instructions on the screen to measure the frequency response for the 
         bubble does NOT appear on screen. Verify that there is a notification in the notification
         shade.</string>
     <string name="bubbles_test_lowram_button">Add bubble</string>
+    <!-- Disable bubbles by config_supportsBubble -->
+    <string name="bubbles_test_disable_config_title">No bubbles on bubbles disabled device</string>
+    <string name="bubbles_test_disable_config_verify">Click the button below and verify that a
+        bubble does NOT appear on screen. Verify that there is a notification in the notification
+        shade.</string>
+    <string name="bubbles_test_disable_config_button">Add bubble</string>
     <!-- Bubbles end of test summary -->
     <string name="bubbles_test_summary_title">Test Complete</string>
     <string name="bubbles_test_summary">%1$d out of %2$d tests passed</string>
