@@ -16,6 +16,9 @@
 
 package android.mediav2.cts;
 
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+
 import android.media.MediaCodec;
 import android.media.MediaCodecInfo;
 import android.media.MediaCodecList;
@@ -42,9 +45,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
-
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 @RunWith(Parameterized.class)
 public class CodecEncoderSurfaceTest {
@@ -532,9 +532,7 @@ public class CodecEncoderSurfaceTest {
                         mMuxer = null;
                     }
                 }
-                /* TODO(b/147348711) */
-                if (false) mDecoder.stop();
-                else mDecoder.reset();
+                mDecoder.stop();
                 /* TODO(b/147348711) */
                 if (false) mEncoder.stop();
                 else mEncoder.reset();

@@ -64,7 +64,8 @@ import org.junit.Assert.assertThat
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeFalse
 import org.junit.Before
-import org.junit.Ignore;
+import org.junit.BeforeClass
+import org.junit.Ignore
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -95,6 +96,12 @@ class AutoRevokeTest {
 
     companion object {
         const val LOG_TAG = "AutoRevokeTest"
+
+        @JvmStatic
+        @BeforeClass
+        fun beforeAllTests() {
+            runBootCompleteReceiver(InstrumentationRegistry.getTargetContext(), LOG_TAG)
+        }
     }
 
     @get:Rule
@@ -510,9 +517,9 @@ class AutoRevokeTest {
         val parent = waitFindObject(
             By.clickable(true)
                 .hasDescendant(By.textStartsWith("Remove permissions"))
-                .hasDescendant(By.clazz(Switch::class.java.name))
+                .hasDescendant(By.checkable(true))
         )
-        return parent.findObject(By.clazz(Switch::class.java.name))
+        return parent.findObject(By.checkable(true))
     }
 
     private fun waitForIdle() {

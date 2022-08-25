@@ -16,36 +16,45 @@
 
 package android.mediav2.cts;
 
+import static android.media.MediaCodecInfo.CodecCapabilities.COLOR_Format32bitABGR2101010;
+import static android.media.MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface;
+import static android.media.MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Flexible;
+import static android.media.MediaCodecInfo.CodecCapabilities.COLOR_FormatYUVP010;
+import static android.media.MediaCodecInfo.CodecCapabilities.FEATURE_HdrEditing;
+import static android.mediav2.cts.CodecTestBase.FIRST_SDK_IS_AT_LEAST_T;
+import static android.mediav2.cts.CodecTestBase.IS_AT_LEAST_T;
+import static android.mediav2.cts.CodecTestBase.VNDK_IS_AT_LEAST_T;
+import static android.mediav2.cts.CodecTestBase.isVendorCodec;
+import static android.mediav2.cts.CodecTestBase.mContext;
+import static android.mediav2.cts.CodecTestBase.mProfileHdr10Map;
+import static android.mediav2.cts.CodecTestBase.mProfileHdr10PlusMap;
+import static android.mediav2.cts.CodecTestBase.mProfileHdrMap;
+import static android.mediav2.cts.CodecTestBase.selectCodecs;
+
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+
 import android.hardware.display.DisplayManager;
 import android.media.MediaCodecInfo;
 import android.media.MediaCodecInfo.CodecProfileLevel;
 import android.media.MediaCodecList;
-import android.media.MediaFormat;
 import android.os.Build;
-import android.util.Log;
 import android.view.Display;
 
 import androidx.test.filters.SmallTest;
 
 import com.android.compatibility.common.util.ApiTest;
 
-import org.junit.Assert;
 import org.junit.Assume;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.stream.IntStream;
-
-import static android.media.MediaCodecInfo.CodecCapabilities.*;
-import static android.media.MediaCodecInfo.CodecProfileLevel.*;
-import static android.mediav2.cts.CodecTestBase.*;
-import static android.view.Display.HdrCapabilities.*;
-import static org.junit.Assert.*;
 
 @SmallTest
 @RunWith(Parameterized.class)
@@ -102,6 +111,7 @@ public class CodecInfoTest {
     @ApiTest(apis = "MediaCodecInfo.CodecCapabilities#profileLevels")
     public void testHDRDisplayCapabilities() {
         Assume.assumeTrue("Test needs Android 13", IS_AT_LEAST_T);
+        Assume.assumeTrue("Test needs VNDK Android 13", VNDK_IS_AT_LEAST_T);
         Assume.assumeTrue("Test is applicable for video codecs", mMediaType.startsWith("video/"));
         // TODO (b/228237404) Remove the following once there is a reliable way to query HDR
         // display capabilities at native level, till then limit the test to vendor codecs
@@ -134,12 +144,28 @@ public class CodecInfoTest {
      * doesn't validate its support.
      */
     @Test
-    public void testColorFormatSupport() {
+    public void testColorFormatSupport() throws IOException {
         Assume.assumeTrue("Test is applicable for video codecs", mMediaType.startsWith("video/"));
         MediaCodecInfo.CodecCapabilities caps = mCodecInfo.getCapabilitiesForType(mMediaType);
         assertFalse(mCodecInfo.getName() + " does not support COLOR_FormatYUV420Flexible",
                 IntStream.of(caps.colorFormats)
                         .noneMatch(x -> x == COLOR_FormatYUV420Flexible));
+
+        // Encoders that support FEATURE_HdrEditing, must support P010 and ABGR2101010
+        // color format and at least one HDR profile
+        boolean hdrEditingSupported = caps.isFeatureSupported(FEATURE_HdrEditing);
+        if (mCodecInfo.isEncoder() && hdrEditingSupported) {
+            boolean abgr2101010Supported =
+                    IntStream.of(caps.colorFormats)
+                            .anyMatch(x -> x == COLOR_Format32bitABGR2101010);
+            boolean p010Supported =
+                    IntStream.of(caps.colorFormats).anyMatch(x -> x == COLOR_FormatYUVP010);
+            assertTrue(mCodecName + " supports FEATURE_HdrEditing, but does not support " +
+                    "COLOR_FormatABGR2101010 and COLOR_FormatYUVP010 color formats.",
+                    abgr2101010Supported && p010Supported);
+            assertTrue(mCodecName + " supports FEATURE_HdrEditing, but does not support any HDR " +
+                    "profiles.", CodecTestBase.doesCodecSupportHDRProfile(mCodecName, mMediaType));
+        }
 
         // COLOR_FormatSurface support is an existing requirement, but we did not
         // test for it before T.  We can not retroactively apply the higher standard to
@@ -153,7 +179,8 @@ public class CodecInfoTest {
         // For devices launching with Android T, if a codec supports an HDR profile and device
         // supports HDR display, it must advertise P010 support
         int[] HdrProfileArray = mProfileHdrMap.get(mMediaType);
-        if (VNDK_IS_AT_LEAST_T && HdrProfileArray != null && DISPLAY_HDR_TYPES.length > 0) {
+        if (FIRST_SDK_IS_AT_LEAST_T && VNDK_IS_AT_LEAST_T
+                        && HdrProfileArray != null && DISPLAY_HDR_TYPES.length > 0) {
             for (CodecProfileLevel pl : caps.profileLevels) {
                 if (IntStream.of(HdrProfileArray).anyMatch(x -> x == pl.profile)) {
                     assertFalse(mCodecInfo.getName() + " supports HDR profile " + pl.profile + "," +
