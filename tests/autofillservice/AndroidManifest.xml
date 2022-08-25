@@ -30,6 +30,10 @@
     the config_preventImeStartupUnlessTextEditor option. -->
     <uses-permission android:name="android.permission.BROADCAST_STICKY"/>
 
+    <queries>
+        <package android:name="com.android.cts.mockime" />
+    </queries>
+
     <application>
 
         <uses-library android:name="android.test.runner"/>
@@ -150,6 +154,7 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+        <activity android:name=".activities.FieldsNoPasswordActivity"/>
         <activity android:name=".activities.AugmentedAuthActivity" />
         <activity android:name=".activities.SimpleAfterLoginActivity"/>
         <activity android:name=".activities.SimpleBeforeLoginActivity"/>

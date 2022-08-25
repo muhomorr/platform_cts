@@ -35,6 +35,7 @@ android_test {
         "platform-test-annotations",
         "sts-device-util",
         "hamcrest-library",
+        "NeneInternal",
     ],
     libs: [
         "android.test.runner",
@@ -78,6 +79,7 @@ android_test {
     data: [
         ":CtsDeviceInfo",
         ":RolePermissionOverrideTestApp",
+        ":SplitBluetoothPermissionTestApp",
     ],
 }
 
