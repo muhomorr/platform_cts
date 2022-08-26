@@ -103,6 +103,7 @@ public class CodecInfoTest {
     @ApiTest(apis = "MediaCodecInfo.CodecCapabilities#profileLevels")
     public void testHDRDisplayCapabilities() {
         Assume.assumeTrue("Test needs Android 13", IS_AT_LEAST_T);
+        Assume.assumeTrue("Test needs VNDK Android 13", VNDK_IS_AT_LEAST_T);
         Assume.assumeTrue("Test is applicable for video codecs", mMediaType.startsWith("video/"));
         // TODO (b/228237404) Remove the following once there is a reliable way to query HDR
         // display capabilities at native level, till then limit the test to vendor codecs
@@ -170,7 +171,8 @@ public class CodecInfoTest {
         // For devices launching with Android T, if a codec supports an HDR profile and device
         // supports HDR display, it must advertise P010 support
         int[] HdrProfileArray = mProfileHdrMap.get(mMediaType);
-        if (VNDK_IS_AT_LEAST_T && HdrProfileArray != null && DISPLAY_HDR_TYPES.length > 0) {
+        if (FIRST_SDK_IS_AT_LEAST_T && VNDK_IS_AT_LEAST_T
+                        && HdrProfileArray != null && DISPLAY_HDR_TYPES.length > 0) {
             for (CodecProfileLevel pl : caps.profileLevels) {
                 if (IntStream.of(HdrProfileArray).anyMatch(x -> x == pl.profile)) {
                     assertFalse(mCodecInfo.getName() + " supports HDR profile " + pl.profile + "," +
