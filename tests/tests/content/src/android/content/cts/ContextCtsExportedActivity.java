@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021 The Android Open Source Project
+ * Copyright (C) 2022 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,24 +14,16 @@
  * limitations under the License.
  */
 
-package android.mediav2.cts;
+package android.content.cts;
 
-import junit.framework.Assert;
+import android.app.Activity;
+import android.os.Bundle;
 
-import java.io.File;
+public class ContextCtsExportedActivity  extends Activity {
+    @Override
+    public void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
 
-/**
- * Static methods used to validate preconditions in the media CTS suite
- * to simplify failure diagnosis.
- */
-
-public final class Preconditions {
-    private static final String TAG = "Preconditions";
-
-    public static void assertTestFileExists(String pathName) {
-        File testFile = new File(pathName);
-        Assert.assertTrue("Test Setup Error, missing file: " + pathName, testFile.exists());
+        setContentView(R.layout.local_sample);
     }
-
-    private Preconditions() {}
 }
