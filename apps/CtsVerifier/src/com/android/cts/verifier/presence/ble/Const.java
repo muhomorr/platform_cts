@@ -14,16 +14,14 @@
  * limitations under the License.
  */
 
-package android.content.cts;
+package com.android.cts.verifier.presence.ble;
 
-import android.app.Activity;
-import android.os.Bundle;
+import android.os.ParcelUuid;
 
-public class ContextCtsNonExportedActivity  extends Activity {
-    @Override
-    public void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
+import java.util.UUID;
 
-        setContentView(R.layout.local_sample);
-    }
+public class Const {
+    private static final String TAG = BleScanner.class.getName();
+    public static final String UUID_STRING = "CDB7950D-73F1-4D4D-8E47-C090502DBD63";
+    public static final ParcelUuid PARCEL_UUID = new ParcelUuid(UUID.fromString(UUID_STRING));
 }
