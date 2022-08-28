@@ -114,6 +114,23 @@ class AccessibilityPrivacySourceTest {
     }
 
     @Test
+    fun testJobSendsNotificationOnEnable() {
+        mAccessibilityServiceRule.enableService()
+        runJobAndWaitUntilCompleted()
+        assertNotificationExist(permissionControllerPackage, ACCESSIBILITY_NOTIFICATION_ID)
+
+        setDeviceConfigPrivacyProperty(ACCESSIBILITY_LISTENER_ENABLED, true.toString())
+        cancelNotification(permissionControllerPackage, ACCESSIBILITY_NOTIFICATION_ID)
+        InstrumentedAccessibilityService.disableAllServices()
+        setDeviceConfigPrivacyProperty(ACCESSIBILITY_LISTENER_ENABLED, false.toString())
+
+        // enable service again and verify a notification
+        mAccessibilityServiceRule.enableService()
+        runJobAndWaitUntilCompleted()
+        assertNotificationExist(permissionControllerPackage, ACCESSIBILITY_NOTIFICATION_ID)
+    }
+
+    @Test
     fun testJobSendsIssuesToSafetyCenter() {
         mAccessibilityServiceRule.enableService()
         runJobAndWaitUntilCompleted()
@@ -131,23 +148,6 @@ class AccessibilityPrivacySourceTest {
 
         runJobAndWaitUntilCompleted()
         assertEmptyNotification(permissionControllerPackage, ACCESSIBILITY_NOTIFICATION_ID)
-    }
-
-    @Test
-    fun testAccessibilityListenerSendsIssueToSafetyCenter() {
-        setDeviceConfigPrivacyProperty(ACCESSIBILITY_LISTENER_ENABLED, true.toString())
-        val automation = getAutomation()
-        mAccessibilityServiceRule.enableService()
-        TestUtils.eventually(
-            {
-                assertSafetyCenterIssueExist(
-                    SC_ACCESSIBILITY_SOURCE_ID,
-                    safetyCenterIssueId,
-                    SC_ACCESSIBILITY_ISSUE_TYPE_ID,
-                    automation)
-            },
-            TIMEOUT_MILLIS)
-        automation.destroy()
     }
 
     @Test
