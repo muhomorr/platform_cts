@@ -39,6 +39,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.Build;
+import android.os.UserManager;
 import android.util.Log;
 
 import androidx.annotation.Nullable;
@@ -70,6 +71,7 @@ import com.android.bedstead.harrier.annotations.RequireHeadlessSystemUserMode;
 import com.android.bedstead.harrier.annotations.RequireInstantApp;
 import com.android.bedstead.harrier.annotations.RequireLowRamDevice;
 import com.android.bedstead.harrier.annotations.RequireMultiUserSupport;
+import com.android.bedstead.harrier.annotations.RequireMultipleUsersOnMultipleDisplays;
 import com.android.bedstead.harrier.annotations.RequireNotHeadlessSystemUserMode;
 import com.android.bedstead.harrier.annotations.RequireNotInstantApp;
 import com.android.bedstead.harrier.annotations.RequireNotLowRamDevice;
@@ -599,6 +601,14 @@ public final class DeviceState extends HarrierRule {
                         (RequireNotLowRamDevice) annotation;
                 requireNotLowRamDevice(requireNotLowRamDeviceAnnotation.reason(),
                         requireNotLowRamDeviceAnnotation.failureMode());
+                continue;
+            }
+
+            if (annotation instanceof RequireMultipleUsersOnMultipleDisplays) {
+                RequireMultipleUsersOnMultipleDisplays requireMumdAnnotation =
+                        (RequireMultipleUsersOnMultipleDisplays) annotation;
+                requireMumd(requireMumdAnnotation.reason(),
+                        requireMumdAnnotation.failureMode());
                 continue;
             }
 
@@ -1187,12 +1197,13 @@ public final class DeviceState extends HarrierRule {
     }
 
     private void failOrSkip(String message, FailureMode failureMode) {
-        if (failureMode.equals(FailureMode.FAIL)) {
-            throw new AssertionError(message);
-        } else if (failureMode.equals(FailureMode.SKIP)) {
-            throw new AssumptionViolatedException(message);
-        } else {
-            throw new IllegalStateException("Unknown failure mode: " + failureMode);
+        switch (failureMode) {
+            case FAIL:
+                throw new AssertionError(message);
+            case SKIP:
+                throw new AssumptionViolatedException(message);
+            default:
+                throw new IllegalStateException("Unknown failure mode: " + failureMode);
         }
     }
 
@@ -2638,6 +2649,15 @@ public final class DeviceState extends HarrierRule {
                 failureMode);
     }
 
+    private void requireMumd(String reason, FailureMode failureMode) {
+        if (!TestApis.context().instrumentedContext()
+                .getSystemService(UserManager.class).isUsersOnSecondaryDisplaysEnabled()) {
+            String message = "Device supports does not support multiple users on multiple display, "
+                    + "but test requires it. Reason: " + reason;
+            failOrSkip(message, failureMode);
+        }
+    }
+
     private void ensureScreenIsOn() {
         TestApis.device().wakeUp();
     }
@@ -2767,6 +2787,6 @@ public final class DeviceState extends HarrierRule {
 
     private void requireNotInstantApp(String reason, FailureMode failureMode) {
         checkFailOrSkip("Test does not run as an instant-app: " + reason,
-                TestApis.packages().instrumented().isInstantApp(), failureMode);
+                !TestApis.packages().instrumented().isInstantApp(), failureMode);
     }
 }

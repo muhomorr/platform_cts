@@ -33,6 +33,7 @@ import android.permission.cts.NotificationListenerUtils.getNotification
 import android.permission.cts.SafetyCenterUtils.assertSafetyCenterIssueDoesNotExist
 import android.permission.cts.SafetyCenterUtils.assertSafetyCenterIssueExist
 import android.permission.cts.SafetyCenterUtils.assertSafetyCenterStarted
+import android.permission.cts.SafetyCenterUtils.deleteDeviceConfigPrivacyProperty
 import android.permission.cts.SafetyCenterUtils.deviceSupportsSafetyCenter
 import android.permission.cts.SafetyCenterUtils.setDeviceConfigPrivacyProperty
 import android.platform.test.annotations.AppModeFull
@@ -129,11 +130,16 @@ class AccessibilityPrivacySourceTest {
         cancelNotification(permissionControllerPackage, ACCESSIBILITY_NOTIFICATION_ID)
         InstrumentedAccessibilityService.disableAllServices()
         setDeviceConfigPrivacyProperty(ACCESSIBILITY_LISTENER_ENABLED, false.toString())
+        setDeviceConfigPrivacyProperty(ACCESSIBILITY_JOB_INTERVAL_MILLIS, "0")
 
         // enable service again and verify a notification
-        mAccessibilityServiceRule.enableService()
-        runJobAndWaitUntilCompleted()
-        assertNotificationExist(permissionControllerPackage, ACCESSIBILITY_NOTIFICATION_ID)
+        try {
+            mAccessibilityServiceRule.enableService()
+            runJobAndWaitUntilCompleted()
+            assertNotificationExist(permissionControllerPackage, ACCESSIBILITY_NOTIFICATION_ID)
+        } finally {
+            deleteDeviceConfigPrivacyProperty(ACCESSIBILITY_JOB_INTERVAL_MILLIS)
+        }
     }
 
     @Test
@@ -154,6 +160,23 @@ class AccessibilityPrivacySourceTest {
 
         runJobAndWaitUntilCompleted()
         assertEmptyNotification(permissionControllerPackage, ACCESSIBILITY_NOTIFICATION_ID)
+    }
+
+    @Test
+    fun testAccessibilityListenerSendsIssueToSafetyCenter() {
+        setDeviceConfigPrivacyProperty(ACCESSIBILITY_LISTENER_ENABLED, true.toString())
+        val automation = getAutomation()
+        mAccessibilityServiceRule.enableService()
+        TestUtils.eventually(
+            {
+                assertSafetyCenterIssueExist(
+                    SC_ACCESSIBILITY_SOURCE_ID,
+                    safetyCenterIssueId,
+                    SC_ACCESSIBILITY_ISSUE_TYPE_ID,
+                    automation)
+            },
+            TIMEOUT_MILLIS)
+        automation.destroy()
     }
 
     @Test
@@ -300,6 +323,7 @@ class AccessibilityPrivacySourceTest {
         private const val ACCESSIBILITY_SOURCE_ENABLED = "sc_accessibility_source_enabled"
         private const val SAFETY_CENTER_ENABLED = "safety_center_is_enabled"
         private const val ACCESSIBILITY_LISTENER_ENABLED = "sc_accessibility_listener_enabled"
+        private const val ACCESSIBILITY_JOB_INTERVAL_MILLIS = "sc_accessibility_job_interval_millis"
 
         private const val ACCESSIBILITY_JOB_ID = 6
         private const val ACCESSIBILITY_NOTIFICATION_ID = 4
