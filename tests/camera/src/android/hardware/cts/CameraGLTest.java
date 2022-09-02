@@ -232,6 +232,13 @@ public class CameraGLTest {
                     mSurfaceTextureCallbackResult = true;
                 }
                 mSurfaceTextureDone.open();
+            } else {
+                // Draw the frame (and update the SurfaceTexture) so that future
+                // onFrameAvailable won't be silenced.
+                mGLView.requestRender();
+                // Wait for the draw done signal, otherwise drawing sequence maybe
+                // bleed into next iteration of tests.
+                mRenderer.waitForDrawDone();
             }
         }
 

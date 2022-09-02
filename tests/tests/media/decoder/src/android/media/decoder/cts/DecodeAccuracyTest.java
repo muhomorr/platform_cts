@@ -19,44 +19,33 @@ import static junit.framework.TestCase.assertTrue;
 
 import static org.junit.Assert.fail;
 
-import android.media.decoder.cts.R;
-
 import android.annotation.TargetApi;
-import android.content.Context;
 import android.graphics.Bitmap;
 import android.media.MediaFormat;
-import android.media.cts.MediaCodecTunneledPlayer;
 import android.media.cts.MediaHeavyPresubmitTest;
+import android.media.cts.TestArgs;
 import android.os.Environment;
 import android.platform.test.annotations.AppModeFull;
 import android.util.Log;
 import android.view.View;
 
-import androidx.test.platform.app.InstrumentationRegistry;
-
 import com.android.compatibility.common.util.MediaUtils;
 
-import java.io.File;
-import java.io.IOException;
-import java.io.FileOutputStream;
-import java.lang.reflect.Field;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-
 import org.junit.After;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.rules.Timeout;
+import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
-import org.junit.Test;
+
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.lang.reflect.Field;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @TargetApi(24)
 @RunWith(Parameterized.class)
@@ -69,7 +58,6 @@ public class DecodeAccuracyTest extends DecodeAccuracyTestBase {
     private static final int ALLOWED_GREATEST_PIXEL_DIFFERENCE = 90;
     private static final int OFFSET = 10;
     private static final long PER_TEST_TIMEOUT_MS = 60000;
-    private static final String CODEC_PREFIX_KEY = "codec-prefix";
     private static final String[] VIDEO_FILES = {
         // 144p
         "video_decode_accuracy_and_capability-h264_256x108_30fps.mp4",
@@ -150,7 +138,6 @@ public class DecodeAccuracyTest extends DecodeAccuracyTestBase {
 
     private static final String INP_PREFIX = WorkDir.getMediaDirString() +
             "assets/decode_accuracy/";
-    private static String mCodecPrefix;
 
     private View videoView;
     private VideoViewFactory videoViewFactory;
@@ -159,11 +146,6 @@ public class DecodeAccuracyTest extends DecodeAccuracyTestBase {
     private String decoderName;
     private String methodName;
     private SimplePlayer player;
-
-    static {
-        android.os.Bundle args = InstrumentationRegistry.getArguments();
-        mCodecPrefix = args.getString(CODEC_PREFIX_KEY);
-    }
 
     public DecodeAccuracyTest(String decoderName, String fileName, String testName) {
         this.testName = testName;
@@ -199,9 +181,12 @@ public class DecodeAccuracyTest extends DecodeAccuracyTestBase {
             MediaFormat mediaFormat =
                     MediaUtils.getTrackFormatForResource(INP_PREFIX + file, "video");
             String mediaType = mediaFormat.getString(MediaFormat.KEY_MIME);
+            if (TestArgs.shouldSkipMediaType(mediaType)) {
+                continue;
+            }
             String[] componentNames = MediaUtils.getDecoderNamesForMime(mediaType);
             for (String componentName : componentNames) {
-                if (mCodecPrefix != null && !componentName.startsWith(mCodecPrefix)) {
+                if (TestArgs.shouldSkipCodec(componentName)) {
                     continue;
                 }
                 if (MediaUtils.supports(componentName, mediaFormat)) {

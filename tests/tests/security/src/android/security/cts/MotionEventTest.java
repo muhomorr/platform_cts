@@ -39,8 +39,8 @@ import androidx.test.filters.MediumTest;
 import androidx.test.platform.app.InstrumentationRegistry;
 import androidx.test.rule.ActivityTestRule;
 
-import com.android.compatibility.common.util.PollingCheck;
 import com.android.compatibility.common.util.WidgetTestUtils;
+import com.android.compatibility.common.util.WindowUtil;
 
 import org.junit.Before;
 import org.junit.Rule;
@@ -70,7 +70,7 @@ public class MotionEventTest {
     public void setup() {
         mInstrumentation = InstrumentationRegistry.getInstrumentation();
         mActivity = mActivityRule.getActivity();
-        PollingCheck.waitFor(mActivity::hasWindowFocus);
+        WindowUtil.waitForFocus(mActivity);
     }
 
     /**
@@ -139,11 +139,12 @@ public class MotionEventTest {
 
         // Find the position inside the main activity and outside of the overlays.
         FutureTask<Point> clickLocationTask = new FutureTask<>(() -> {
-            final int[] viewLocation = new int[2];
+            final int[] contentViewLocation = new int[2];
             final View decorView = mActivity.getWindow().getDecorView();
-            decorView.getLocationOnScreen(viewLocation);
+            final View contentView = decorView.findViewById(android.R.id.content);
+            contentView.getLocationOnScreen(contentViewLocation);
             // Set y position to the center of the view, to make sure it is away from the status bar
-            return new Point(viewLocation[0], viewLocation[1] + decorView.getHeight() / 2);
+            return new Point(contentViewLocation[0], contentViewLocation[1] + contentView.getHeight() / 2);
         });
         mActivity.runOnUiThread(clickLocationTask);
         Point viewLocation = clickLocationTask.get(5, TimeUnit.SECONDS);

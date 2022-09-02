@@ -53,6 +53,8 @@ import com.google.common.util.concurrent.AbstractFuture;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertThrows;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 
 public class ParcelTest extends AndroidTestCase {
 
@@ -701,6 +703,43 @@ public class ParcelTest extends AndroidTestCase {
             p.writeByteArray(c, 0, c.length + 1); // High count.
             fail();
         } catch (RuntimeException expected) {
+        }
+        p.recycle();
+    }
+
+    public void testWriteBlob() {
+        Parcel p;
+
+        byte[] shortBytes = {(byte) 21};
+        // Create a byte array with 70 KiB to make sure it is large enough to be saved into Android
+        // Shared Memory. The native blob inplace limit is 16 KiB. Also make it larger than the
+        // IBinder.MAX_IPC_SIZE which is 64 KiB.
+        byte[] largeBytes = new byte[70 * 1024];
+        for (int i = 0; i < largeBytes.length; i++) {
+            largeBytes[i] = (byte) (i / Byte.MAX_VALUE);
+        }
+        // test write null
+        p = Parcel.obtain();
+        p.writeBlob(null, 0, 2);
+        p.setDataPosition(0);
+        byte[] outputBytes = p.readBlob();
+        assertNull(outputBytes);
+        p.recycle();
+
+        // test write short bytes
+        p = Parcel.obtain();
+        p.writeBlob(shortBytes, 0, 1);
+        p.setDataPosition(0);
+        assertEquals(shortBytes[0], p.readBlob()[0]);
+        p.recycle();
+
+        // test write large bytes
+        p = Parcel.obtain();
+        p.writeBlob(largeBytes, 0, largeBytes.length);
+        p.setDataPosition(0);
+        outputBytes = p.readBlob();
+        for (int i = 0; i < largeBytes.length; i++) {
+            assertEquals(largeBytes[i], outputBytes[i]);
         }
         p.recycle();
     }
@@ -2517,6 +2556,23 @@ public class ParcelTest extends AndroidTestCase {
         for (int i = 0; i < s2.size(); i++) {
             assertEquals(s2.get(i), s3.get(i));
         }
+        p.recycle();
+    }
+
+    public void testWriteTypedList() {
+        Parcel p = Parcel.obtain();
+        ArrayList<SimpleParcelable> list = new ArrayList<>();
+        SimpleParcelable spy = spy(new SimpleParcelable(42));
+        list.add(spy);
+        int flags = Parcelable.PARCELABLE_WRITE_RETURN_VALUE;
+        p.writeTypedList(list, flags);
+
+        verify(spy).writeToParcel(p, flags);
+
+        p.setDataPosition(0);
+        ArrayList<SimpleParcelable> read = p.createTypedArrayList(SimpleParcelable.CREATOR);
+        assertEquals(list.size(), read.size());
+        assertEquals(list.get(0).getValue(), read.get(0).getValue());
         p.recycle();
     }
 
@@ -4635,5 +4691,70 @@ public class ParcelTest extends AndroidTestCase {
         p.recycle();
         p = Parcel.obtain();
         assertEquals(0, p.getFlags());
+    }
+
+    public static class SimpleParcelableWithoutNestedCreator implements Parcelable {
+        private final int value;
+
+        public SimpleParcelableWithoutNestedCreator(int value) {
+            this.value = value;
+        }
+
+        private SimpleParcelableWithoutNestedCreator(Parcel in) {
+            this.value = in.readInt();
+        }
+
+        public int getValue() {
+            return value;
+        }
+
+        @Override
+        public int describeContents() {
+            return 0;
+        }
+
+        @Override
+        public void writeToParcel(Parcel out, int flags) {
+            out.writeInt(value);
+        }
+
+        public static Parcelable.Creator<SimpleParcelableWithoutNestedCreator> CREATOR =
+                new SimpleParcelableWithoutNestedCreatorCreator();
+    }
+
+    public static class SimpleParcelableWithoutNestedCreatorCreator implements
+            Parcelable.Creator<SimpleParcelableWithoutNestedCreator> {
+        @Override
+        public SimpleParcelableWithoutNestedCreator createFromParcel(Parcel source) {
+            return new SimpleParcelableWithoutNestedCreator(source);
+        }
+
+        @Override
+        public SimpleParcelableWithoutNestedCreator[] newArray(int size) {
+            return new SimpleParcelableWithoutNestedCreator[size];
+        }
+    }
+
+    // http://b/232589966
+    public void testReadParcelableWithoutNestedCreator() {
+        Parcel p = Parcel.obtain();
+        p.writeParcelable(new SimpleParcelableWithoutNestedCreator(1), 0);
+        p.setDataPosition(0);
+        // First time checks the type of the creator using reflection
+        SimpleParcelableWithoutNestedCreator parcelable =
+                p.readParcelable(getClass().getClassLoader(),
+                        SimpleParcelableWithoutNestedCreator.class);
+        assertEquals(1, parcelable.value);
+        p.recycle();
+
+        p = Parcel.obtain();
+        p.writeParcelable(new SimpleParcelableWithoutNestedCreator(2), 0);
+        p.setDataPosition(0);
+        // Second time tries to read it from a cache
+        parcelable =
+                p.readParcelable(getClass().getClassLoader(),
+                        SimpleParcelableWithoutNestedCreator.class);
+        assertEquals(2, parcelable.value);
+        p.recycle();
     }
 }

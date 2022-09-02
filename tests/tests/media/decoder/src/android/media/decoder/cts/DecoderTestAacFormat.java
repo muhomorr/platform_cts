@@ -23,11 +23,12 @@ import static org.junit.Assert.fail;
 
 import android.app.Instrumentation;
 import android.content.res.AssetFileDescriptor;
-import android.media.decoder.cts.DecoderTest.AudioParameter;
+import android.media.AudioFormat;
 import android.media.MediaCodec;
 import android.media.MediaExtractor;
 import android.media.MediaFormat;
 import android.media.cts.Preconditions;
+import android.media.decoder.cts.DecoderTest.AudioParameter;
 import android.os.Build;
 import android.os.ParcelFileDescriptor;
 import android.platform.test.annotations.AppModeFull;
@@ -36,6 +37,7 @@ import android.util.Log;
 import androidx.test.InstrumentationRegistry;
 
 import com.android.compatibility.common.util.ApiLevelUtil;
+import com.android.compatibility.common.util.CddTest;
 import com.android.compatibility.common.util.MediaUtils;
 
 import org.junit.Before;
@@ -53,7 +55,9 @@ public class DecoderTestAacFormat {
     static final String mInpPrefix = WorkDir.getMediaDirString();
     private static final boolean sIsAndroidRAndAbove =
             ApiLevelUtil.isAtLeast(Build.VERSION_CODES.R);
-
+    private static final boolean sIsAtLeastT =
+            ApiLevelUtil.isAtLeast(Build.VERSION_CODES.TIRAMISU);
+    private static final String MIMETYPE_AAC = MediaFormat.MIMETYPE_AUDIO_AAC;
     @Before
     public void setUp() throws Exception {
         final Instrumentation inst = InstrumentationRegistry.getInstrumentation();
@@ -64,6 +68,7 @@ public class DecoderTestAacFormat {
      * Verify downmixing to stereo at decoding of MPEG-4 HE-AAC 5.0 and 5.1 channel streams
      */
     @Test
+    @CddTest(requirements = {"5.1.2/C-2-1", "5.1.2/C-7-1", "5.1.2/C-7-2"})
     public void testHeAacM4aMultichannelDownmix() throws Exception {
         Log.i(TAG, "START testDecodeHeAacMcM4a");
 
@@ -71,27 +76,66 @@ public class DecoderTestAacFormat {
             return;
 
         // array of multichannel resources with their expected number of channels without downmixing
+        // and the channel mask of the content
         Object [][] samples = {
                 //  {resource, numChannels},
-                {"noise_5ch_48khz_aot5_dr_sbr_sig1_mp4.m4a", 5},
-                {"noise_6ch_44khz_aot5_dr_sbr_sig2_mp4.m4a", 6},
+                {"noise_5ch_48khz_aot5_dr_sbr_sig1_mp4.m4a", 5,
+                        AudioFormat.CHANNEL_OUT_QUAD | AudioFormat.CHANNEL_OUT_FRONT_CENTER},
+                {"noise_6ch_44khz_aot5_dr_sbr_sig2_mp4.m4a", 6, AudioFormat.CHANNEL_OUT_5POINT1},
         };
+
         for (Object [] sample: samples) {
             for (String codecName : DecoderTest.codecsFor((String)sample[0] /* resource */)) {
                 // verify correct number of channels is observed without downmixing
                 AudioParameter chanParams = new AudioParameter();
                 decodeUpdateFormat(codecName, (String) sample[0] /*resource*/, chanParams,
-                        0 /*no downmix*/);
-                assertEquals("Number of channels differs for codec:" + codecName,
+                        0 /*no downmix*/, "" /*ignored*/);
+                assertEquals("Number of channels differs for codec:" + codecName
+                                +  " with no downmixing",
                         sample[1], chanParams.getNumChannels());
 
                 // verify correct number of channels is observed when downmixing to stereo
-                AudioParameter downmixParams = new AudioParameter();
-                decodeUpdateFormat(codecName, (String) sample[0] /* resource */, downmixParams,
-                        2 /*stereo downmix*/);
-                assertEquals("Number of channels differs for codec:" + codecName,
-                        2, downmixParams.getNumChannels());
+                // - with AAC specific key
+                AudioParameter aacDownmixParams = new AudioParameter();
+                decodeUpdateFormat(codecName, (String) sample[0] /* resource */, aacDownmixParams,
+                        2 /*stereo downmix*/,
+                        MediaFormat.KEY_AAC_MAX_OUTPUT_CHANNEL_COUNT);
+                assertEquals("Number of channels differs for codec:" + codecName
+                                + " when downmixing with KEY_AAC_MAX_OUTPUT_CHANNEL_COUNT",
+                        2, aacDownmixParams.getNumChannels());
+                if (sIsAtLeastT && DecoderTest.isDefaultCodec(codecName, MIMETYPE_AAC)) {
+                    // KEY_CHANNEL_MASK expected to work starting with T
+                    assertEquals("Wrong channel mask with KEY_AAC_MAX_OUTPUT_CHANNEL_COUNT",
+                            AudioFormat.CHANNEL_OUT_STEREO,
+                            aacDownmixParams.getChannelMask());
 
+                    // KEY_MAX_OUTPUT_CHANNEL_COUNT introduced in T
+                    // - with codec-agnostic key
+                    AudioParameter downmixParams = new AudioParameter();
+                    decodeUpdateFormat(codecName, (String) sample[0] /* resource */, downmixParams,
+                            2 /*stereo downmix*/,
+                            MediaFormat.KEY_MAX_OUTPUT_CHANNEL_COUNT);
+                    assertEquals("Number of channels differs for codec:" + codecName
+                                    + " when downmixing with KEY_MAX_OUTPUT_CHANNEL_COUNT",
+                            2, downmixParams.getNumChannels());
+                    assertEquals("Wrong channel mask with KEY_MAX_OUTPUT_CHANNEL_COUNT",
+                            AudioFormat.CHANNEL_OUT_STEREO,
+                            aacDownmixParams.getChannelMask());
+
+                    // verify setting value larger than actual channel count behaves like
+                    // no downmixing
+                    AudioParameter bigChanParams = new AudioParameter();
+                    final int tooManyChannels = ((Integer) sample[1]).intValue() + 99;
+                    decodeUpdateFormat(codecName, (String) sample[0] /*resource*/, bigChanParams,
+                            tooManyChannels, MediaFormat.KEY_MAX_OUTPUT_CHANNEL_COUNT);
+                    assertEquals("Number of channels differs for codec:" + codecName
+                                    + " when setting " + tooManyChannels
+                                    + " on KEY_MAX_OUTPUT_CHANNEL_COUNT",
+                            sample[1], bigChanParams.getNumChannels());
+                    assertEquals("Wrong channel mask with big KEY_MAX_OUTPUT_CHANNEL_COUNT",
+                            ((Integer) sample[2]).intValue(),
+                            bigChanParams.getChannelMask());
+                }
             }
         }
     }
@@ -103,10 +147,13 @@ public class DecoderTestAacFormat {
      * @param audioParams
      * @param downmixChannelCount 0 if no downmix requested,
      *                           positive number for number of channels in requested downmix
+     * @param keyForChannelCountControl the key to use to control decoding when downmixChannelCount
+     *                                  is not 0
      * @throws IOException
      */
     private void decodeUpdateFormat(String decoderName, final String testInput,
-            AudioParameter audioParams, int downmixChannelCount)
+            AudioParameter audioParams, int downmixChannelCount,
+            String keyForChannelCountControl)
             throws IOException
     {
         Preconditions.assertTestFileExists(mInpPrefix + testInput);
@@ -123,7 +170,7 @@ public class DecoderTestAacFormat {
         assertEquals("wrong number of tracks", 1, extractor.getTrackCount());
         MediaFormat format = extractor.getTrackFormat(0);
         String mime = format.getString(MediaFormat.KEY_MIME);
-        assertTrue("not an audio file", mime.startsWith("audio/"));
+        assertTrue("not an aac audio file", mime.equals(MIMETYPE_AAC));
 
         MediaCodec decoder;
         if (decoderName == null) {
@@ -134,8 +181,7 @@ public class DecoderTestAacFormat {
 
         MediaFormat configFormat = format;
         if (downmixChannelCount > 0) {
-            configFormat.setInteger(
-                    MediaFormat.KEY_AAC_MAX_OUTPUT_CHANNEL_COUNT, downmixChannelCount);
+            configFormat.setInteger(keyForChannelCountControl, downmixChannelCount);
         }
 
         Log.v(TAG, "configuring with " + configFormat);
@@ -220,8 +266,26 @@ public class DecoderTestAacFormat {
                 Log.d(TAG, "output buffers have changed.");
             } else if (res == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
                 MediaFormat outputFormat = decoder.getOutputFormat();
-                audioParams.setNumChannels(outputFormat.getInteger(MediaFormat.KEY_CHANNEL_COUNT));
-                audioParams.setSamplingRate(outputFormat.getInteger(MediaFormat.KEY_SAMPLE_RATE));
+                try {
+                    audioParams.setNumChannels(
+                            outputFormat.getInteger(MediaFormat.KEY_CHANNEL_COUNT));
+                } catch (NullPointerException e) {
+                    fail("KEY_CHANNEL_COUNT not found on output format");
+                }
+                try {
+                    audioParams.setSamplingRate(
+                            outputFormat.getInteger(MediaFormat.KEY_SAMPLE_RATE));
+                } catch (NullPointerException e) {
+                    fail("KEY_SAMPLE_RATE not found on output format");
+                }
+                if (sIsAtLeastT && DecoderTest.isDefaultCodec(decoderName, MIMETYPE_AAC)) {
+                    try {
+                        audioParams.setChannelMask(
+                                outputFormat.getInteger(MediaFormat.KEY_CHANNEL_MASK));
+                    } catch (NullPointerException e) {
+                        fail("KEY_CHANNEL_MASK not found on output format");
+                    }
+                }
                 Log.i(TAG, "output format has changed to " + outputFormat);
             } else {
                 Log.d(TAG, "dequeueOutputBuffer returned " + res);

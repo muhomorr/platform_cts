@@ -48,10 +48,13 @@ import android.util.Size;
 
 import androidx.annotation.Nullable;
 
+import com.android.compatibility.common.util.GestureNavRule;
+
 import libcore.junit.util.compat.CoreCompatChangeRule.DisableCompatChanges;
 import libcore.junit.util.compat.CoreCompatChangeRule.EnableCompatChanges;
 
 import org.junit.Before;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TestRule;
@@ -87,17 +90,22 @@ public final class CompatChangeTests extends MultiDisplayTestBase {
     private static final ComponentName SUPPORTS_SIZE_CHANGES_PORTRAIT_ACTIVITY =
             component(SupportsSizeChangesPortraitActivity.class);
 
+    // Fixed orientation min aspect ratio
+    private static final float FIXED_ORIENTATION_MIN_ASPECT_RATIO = 1.03f;
     // The min aspect ratio of NON_RESIZEABLE_ASPECT_RATIO_ACTIVITY (as defined in the manifest).
     private static final float ACTIVITY_MIN_ASPECT_RATIO = 1.6f;
     // The min aspect ratio of NON_RESIZEABLE_LARGE_ASPECT_RATIO_ACTIVITY (as defined in the
     // manifest). This needs to be higher than the aspect ratio of any device, which according to
     // CDD is at most 21:9.
-    private static final float ACTIVITY_LARGE_MIN_ASPECT_RATIO = 3f;
+    private static final float ACTIVITY_LARGE_MIN_ASPECT_RATIO = 4f;
 
     private static final float FLOAT_EQUALITY_DELTA = 0.01f;
 
     @Rule
     public TestRule compatChangeRule = new PlatformCompatChangeRule();
+
+    @ClassRule
+    public static GestureNavRule GESTURE_NAV_RULE = new GestureNavRule();
 
     private DisplayMetricsSession mDisplayMetricsSession;
 
@@ -105,10 +113,11 @@ public final class CompatChangeTests extends MultiDisplayTestBase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
+        GESTURE_NAV_RULE.assumeGestureNavigationMode();
 
         mDisplayMetricsSession =
                 createManagedDisplayMetricsSession(DEFAULT_DISPLAY);
-        createManagedIgnoreOrientationRequestSession(DEFAULT_DISPLAY, /* value=  */ true);
+        createManagedLetterboxAspectRatioSession(FIXED_ORIENTATION_MIN_ASPECT_RATIO);
         createManagedConstrainDisplayApisFlagsSession();
     }
 
@@ -703,6 +712,16 @@ public final class CompatChangeTests extends MultiDisplayTestBase {
     }
 
     /**
+     * Restore the display size and ensure configuration changes are complete.
+     */
+    private void restoreDisplay(ComponentName activity) {
+        final Rect originalBounds = mWmState.getActivity(activity).getBounds();
+        mDisplayMetricsSession.restoreDisplayMetrics();
+        // Ensure configuration changes are complete after resizing the display.
+        waitForActivityBoundsChanged(activity, originalBounds);
+    }
+
+    /**
      * Wait for the display to be restored to the original display content.
      */
     private void waitForRestoreDisplay(WindowManagerState.DisplayContent originalDisplayContent) {
@@ -712,6 +731,7 @@ public final class CompatChangeTests extends MultiDisplayTestBase {
             return dc.equals(originalDisplayContent);
         }, "waiting for display to be restored");
     }
+
 
     /**
      * Resize the display and ensure configuration changes are complete.

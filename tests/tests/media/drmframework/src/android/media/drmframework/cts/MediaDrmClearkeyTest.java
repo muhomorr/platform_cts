@@ -26,7 +26,6 @@ import android.media.ResourceBusyException;
 import android.media.UnsupportedSchemeException;
 import android.media.cts.AudioManagerStub;
 import android.media.cts.AudioManagerStubHelper;
-import android.media.cts.CodecState;
 import android.media.cts.ConnectionStatus;
 import android.media.cts.IConnectionStatus;
 import android.media.cts.InputSurface;
@@ -1643,6 +1642,9 @@ public class MediaDrmClearkeyTest extends MediaCodecPlayerTestBase<MediaStubActi
             assertFalse("ERROR_SESSION_NOT_OPENED requires new session", e.isTransient());
             assertEquals("Expected ERROR_SESSION_NOT_OPENED",
                     MediaDrm.ErrorCodes.ERROR_SESSION_NOT_OPENED, e.getErrorCode());
+            assertTrue("Expected ERROR_SESSION_NOT_OPENED value in info",
+                    e.getDiagnosticInfo().contains(
+                            String.valueOf(MediaDrm.ErrorCodes.ERROR_SESSION_NOT_OPENED)));
         }  finally {
             if (drm != null) {
                 drm.close();

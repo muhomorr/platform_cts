@@ -16,6 +16,9 @@
 
 package android.mediav2.cts;
 
+import static android.mediav2.cts.CodecTestBase.SupportClass.CODEC_ALL;
+import static android.mediav2.cts.CodecTestBase.SupportClass.CODEC_OPTIONAL;
+
 import android.media.MediaCodec;
 import android.media.MediaCodecInfo;
 import android.media.MediaExtractor;
@@ -23,6 +26,8 @@ import android.media.MediaFormat;
 
 import androidx.test.ext.junit.rules.ActivityScenarioRule;
 import androidx.test.filters.LargeTest;
+
+import com.android.compatibility.common.util.ApiTest;
 
 import org.junit.After;
 import org.junit.Assume;
@@ -40,8 +45,15 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
-import static android.mediav2.cts.CodecTestBase.SupportClass.*;
-
+/**
+ * Test video decoders support for Adaptive Playback.
+ *
+ * Adaptive playback support for video decoders is only activated if the codec is configured to
+ * decode onto a Surface. The getOutputImage() will return null if the codec was configured with
+ * an output surface. Hence any form of checksum validation for the decoded output is ruled out.
+ * The only form of validation this test currently does is, it checks if the output count is same
+ * as input count and output timestamps list and input timestamps list are same.
+ */
 @RunWith(Parameterized.class)
 public class AdaptivePlaybackTest extends CodecDecoderTestBase {
     private final String[] mSrcFiles;
@@ -215,6 +227,10 @@ public class AdaptivePlaybackTest extends CodecDecoderTestBase {
         return format;
     }
 
+    /**
+     * Test video decoder for seamless resolution changes.
+     */
+    @ApiTest(apis = "MediaCodecInfo.CodecCapabilities#FEATURE_AdaptivePlayback")
     @LargeTest
     @Test(timeout = CodecTestBase.PER_TEST_TIMEOUT_LARGE_TEST_MS)
     public void testAdaptivePlayback() throws IOException, InterruptedException {

@@ -16,12 +16,22 @@
 
 package android.mediav2.cts;
 
+import static android.mediav2.cts.CodecTestBase.SupportClass.CODEC_ALL;
+import static android.mediav2.cts.CodecTestBase.SupportClass.CODEC_ANY;
+import static android.mediav2.cts.CodecTestBase.SupportClass.CODEC_DEFAULT;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+
 import android.media.AudioFormat;
 import android.media.MediaCodec;
 import android.media.MediaExtractor;
 import android.media.MediaFormat;
 
 import androidx.test.filters.LargeTest;
+
+import com.android.compatibility.common.util.ApiTest;
+import com.android.compatibility.common.util.CddTest;
 
 import org.junit.Assume;
 import org.junit.Test;
@@ -34,17 +44,25 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
-import static android.mediav2.cts.CodecTestBase.SupportClass.*;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-
 /**
- * The following test validates decoder for the given input clip. For audio components, we check
- * if the output buffers timestamp is strictly increasing. If possible the decoded output rms is
- * compared against a reference value and the error is expected to be within a tolerance of 5%. For
- * video components, we check if the output buffers timestamp is identical to the sorted input pts
- * list. Also for video standard post mpeg4, the decoded output checksum is compared against
- * reference checksum.
+ * The tests accepts multiple test vectors packaged in different way. For instance, Avc elementary
+ * stream can be packed in mp4, avi, mkv, ts, 3gp, webm, ... These clips when decoded, are
+ * expected to yield same output. Similarly for Vpx, av1, no-show frame can be packaged in-to
+ * separate NALs or can be combined with a display frame in to one NAL. Both these scenarios
+ * are expected to give same output. The test decodes all the test vectors it is given and
+ * compares their outputs against each other. In short, the tests validate extractors, codecs
+ * together.
+ *
+ * Additionally, as the test runs mediacodec in byte buffer mode.
+ * 1. For normative codecs we expect the decoded output to be identical to reference decoded
+ * output. The reference decoded output is sent to the test as crc32 checksum.
+ * 2. For non normative codecs, the decoded output is checked for consistency.
+ * 3. For lossless audio codecs, we check if the rms error of the decoded output is 0.
+ * 4. For lossy audio codecs, we check if the rms error is within 5% of reference rms error.
+ * 5. For video components the test expects the output timestamp list to be identical to input
+ * timestamp list.
+ * 6. For audio components, the test expect the output timestamps to be strictly increasing.
+ * 7. The test also checks correctness of essential keys of output format of mediacodec.
  */
 @RunWith(Parameterized.class)
 public class CodecDecoderValidationTest extends CodecDecoderTestBase {
@@ -96,7 +114,7 @@ public class CodecDecoderValidationTest extends CodecDecoderTestBase {
         // mediaType, array list of test files (underlying elementary stream is same, except they
         // are placed in different containers), ref file, rms error, checksum, sample rate,
         // channel count, width, height, SupportClass
-        final List<Object[]> exhaustiveArgsList = Arrays.asList(new Object[][]{
+        final List<Object[]> exhaustiveArgsList = new ArrayList<>(Arrays.asList(new Object[][]{
                 // vp9 test vectors with no-show frames signalled in alternate ways
                 {MEDIA_TYPE_VP9, new String[]{"bbb_340x280_768kbps_30fps_vp9.webm",
                         "bbb_340x280_768kbps_30fps_split_non_display_frame_vp9.webm"},
@@ -355,7 +373,14 @@ public class CodecDecoderValidationTest extends CodecDecoderTestBase {
                 {MEDIA_TYPE_RAW, new String[]{"audio/highres_2ch_96kHz.wav"},
                         "audio/highres_2ch_96kHz_s16le_5s.raw", 0.0f, -1L, 96000, 2, -1, -1,
                         CODEC_ALL},
-
+                {MEDIA_TYPE_RAW, new String[]{"audio/sd_2ch_48kHz.wav"},
+                        "audio/sd_2ch_48kHz_f32le.raw", 0.0f, -1L, 48000, 2, -1, -1, CODEC_ALL},
+                {MEDIA_TYPE_RAW, new String[]{"audio/bellezza_2ch_48kHz_s32le.wav"},
+                        "audio/bellezza_2ch_48kHz_s32le.raw", 0.0f, -1L, 48000, 2, -1, -1,
+                        CODEC_ALL},
+                {MEDIA_TYPE_RAW, new String[]{"audio/bellezza_2ch_48kHz_s24le.wav"},
+                        "audio/bellezza_2ch_48kHz_s24le.raw", 0.0f, -1L, 48000, 2, -1, -1,
+                        CODEC_ALL},
                 // aac-lc
                 {MEDIA_TYPE_AAC, new String[]{"audio/bbb_1ch_8kHz_aac_lc.m4a"},
                         "audio/bbb_1ch_8kHz_s16le_3s.raw", 26.910906f, -1L, 8000, 1, -1, -1,
@@ -573,13 +598,35 @@ public class CodecDecoderValidationTest extends CodecDecoderTestBase {
                         null, -1.0f, -1L, 44100, 2, -1, -1, CODEC_DEFAULT},
                 {MEDIA_TYPE_AAC, new String[]{"audio/bbb_2ch_48kHz_usac.m4a"},
                         null, -1.0f, -1L, 48000, 2, -1, -1, CODEC_DEFAULT},
-        });
+        }));
+        if (IS_AT_LEAST_U) {
+            exhaustiveArgsList.addAll(Arrays.asList(new Object[][]{
+                    // Support for 176kHz and 192kHz for c2.android.raw.decoder was added in
+                    // Android U
+                    {MEDIA_TYPE_RAW, new String[]{"audio/highres_1ch_176kHz.wav"},
+                            "audio/highres_1ch_176kHz_s16le_5s.raw", 0.0f, -1L, 176400, 1, -1, -1,
+                            CODEC_ALL},
+                    {MEDIA_TYPE_RAW, new String[]{"audio/highres_1ch_192kHz.wav"},
+                            "audio/highres_1ch_192kHz_s16le_5s.raw", 0.0f, -1L, 192000, 1, -1, -1,
+                            CODEC_ALL},
+                    {MEDIA_TYPE_RAW, new String[]{"audio/highres_2ch_176kHz.wav"},
+                            "audio/highres_2ch_176kHz_s16le_5s.raw", 0.0f, -1L, 176400, 2, -1, -1,
+                            CODEC_ALL},
+                    {MEDIA_TYPE_RAW, new String[]{"audio/highres_2ch_192kHz.wav"},
+                            "audio/highres_2ch_192kHz_s16le_5s.raw", 0.0f, -1L, 192000, 2, -1, -1,
+                            CODEC_ALL},
+            }));
+        }
         return prepareParamList(exhaustiveArgsList, isEncoder, needAudio, needVideo, false);
     }
 
     /**
-     * Test decodes and compares decoded output of two files.
+     * Extract, Decode and Validate
      */
+    @ApiTest(apis = {"MediaCodecInfo.CodecCapabilities#COLOR_FormatYUV420Flexible",
+                     "MediaCodecInfo.CodecCapabilities#COLOR_FormatYUVP010",
+                     "android.media.AudioFormat#ENCODING_PCM_16BIT"})
+    @CddTest(requirements = "5.1.3")
     @LargeTest
     @Test(timeout = PER_TEST_TIMEOUT_LARGE_TEST_MS)
     public void testDecodeAndValidate() throws IOException, InterruptedException {

@@ -31,7 +31,6 @@ import android.graphics.Bitmap.Config;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.graphics.SurfaceTexture;
-import android.media.decoder.cts.R;
 import android.media.MediaCodec;
 import android.media.MediaCodec.BufferInfo;
 import android.media.MediaCodecInfo.VideoCapabilities;
@@ -66,18 +65,19 @@ import com.android.compatibility.common.util.ApiLevelUtil;
 import com.android.compatibility.common.util.MediaUtils;
 
 import org.junit.After;
+import org.junit.Assume;
 import org.junit.Before;
 import org.junit.Rule;
 
 import java.io.File;
-import java.io.IOException;
 import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
 import java.util.HashMap;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import javax.microedition.khronos.egl.EGL10;
 import javax.microedition.khronos.egl.EGLConfig;
@@ -214,6 +214,8 @@ public class DecodeAccuracyTestBase {
                 return false;
             }
             configureVideoFormat(mediaFormat, videoFormat);
+            Assume.assumeTrue("Decoder " + codecName + " doesn't support format " + mediaFormat,
+                    MediaUtils.supports(codecName, mediaFormat));
             setRenderToSurface(surface != null);
             return createDecoder(mediaFormat) && configureDecoder(surface, mediaFormat);
         }

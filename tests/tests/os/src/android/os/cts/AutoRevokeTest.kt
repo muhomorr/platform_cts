@@ -64,7 +64,8 @@ import org.junit.Assert.assertThat
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeFalse
 import org.junit.Before
-import org.junit.Ignore;
+import org.junit.BeforeClass
+import org.junit.Ignore
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -95,6 +96,12 @@ class AutoRevokeTest {
 
     companion object {
         const val LOG_TAG = "AutoRevokeTest"
+
+        @JvmStatic
+        @BeforeClass
+        fun beforeAllTests() {
+            runBootCompleteReceiver(InstrumentationRegistry.getTargetContext(), LOG_TAG)
+        }
     }
 
     @get:Rule
@@ -112,7 +119,11 @@ class AutoRevokeTest {
 
         // Wake up the device
         runShellCommandOrThrow("input keyevent KEYCODE_WAKEUP")
-        runShellCommandOrThrow("input keyevent 82")
+        if ("false".equals(runShellCommandOrThrow("cmd lock_settings get-disabled"))) {
+            // Unlock screen only when it's lock settings enabled to prevent showing "wallpaper
+            // picker" which may cover another UI elements on freeform window configuration.
+            runShellCommandOrThrow("input keyevent 82")
+        }
 
         if (isAutomotiveDevice()) {
             supportedApkPath = APK_PATH_S_APP
@@ -506,9 +517,9 @@ class AutoRevokeTest {
         val parent = waitFindObject(
             By.clickable(true)
                 .hasDescendant(By.textStartsWith("Remove permissions"))
-                .hasDescendant(By.clazz(Switch::class.java.name))
+                .hasDescendant(By.checkable(true))
         )
-        return parent.findObject(By.clazz(Switch::class.java.name))
+        return parent.findObject(By.checkable(true))
     }
 
     private fun waitForIdle() {

@@ -576,7 +576,7 @@ public class ActivityManagerProcessStateTest {
 
             // Going off the temp whitelist causes a spurious proc state report...  that's
             // not ideal, but okay.
-            uidWatcher.expect(WatchUidRunner.CMD_PROCSTATE, WatchUidRunner.STATE_CACHED_EMPTY);
+            // uidWatcher.expect(WatchUidRunner.CMD_PROCSTATE, WatchUidRunner.STATE_CACHED_EMPTY);
 
             // We don't want to wait for the uid to actually go idle, we can force it now.
             cmd = "am make-uid-idle --user " + userId + " " + SIMPLE_PACKAGE_NAME;
@@ -887,7 +887,7 @@ public class ActivityManagerProcessStateTest {
 
             // Going off the temp whitelist causes a spurious proc state report...  that's
             // not ideal, but okay.
-            uidWatcher.expect(WatchUidRunner.CMD_PROCSTATE, WatchUidRunner.STATE_CACHED_EMPTY);
+            // uidWatcher.expect(WatchUidRunner.CMD_PROCSTATE, WatchUidRunner.STATE_CACHED_EMPTY);
 
             // We don't want to wait for the uid to actually go idle, we can force it now.
             controller.makeUidIdle();
@@ -2359,6 +2359,7 @@ public class ActivityManagerProcessStateTest {
             // Launch home activity, so the activity in app1 will be stopped, app1 now only has FGS,
             // we're not "finishing" the activity because removing a task could result in service
             // restart.
+            waitForAppFocus(PACKAGE_NAME_APP1,WAITFOR_MSEC);
             final Intent homeIntent = new Intent();
             homeIntent.setAction(Intent.ACTION_MAIN);
             homeIntent.addCategory(Intent.CATEGORY_HOME);

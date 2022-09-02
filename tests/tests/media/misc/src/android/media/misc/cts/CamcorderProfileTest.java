@@ -16,6 +16,14 @@
 
 package android.media.misc.cts;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assume.assumeTrue;
+
+import android.content.Context;
 import android.content.pm.PackageManager;
 import android.hardware.Camera;
 import android.hardware.Camera.Parameters;
@@ -28,13 +36,21 @@ import android.media.MediaFormat;
 import android.media.MediaRecorder;
 import android.media.cts.NonMediaMainlineTest;
 import android.test.AndroidTestCase;
+import android.test.InstrumentationTestCase;
 import android.util.Log;
+
+import androidx.test.InstrumentationRegistry;
+import androidx.test.ext.junit.runners.AndroidJUnit4;
+
+import org.junit.Test;
+import org.junit.runner.RunWith;
 
 import java.util.Arrays;
 import java.util.List;
 
 @NonMediaMainlineTest
-public class CamcorderProfileTest extends AndroidTestCase {
+@RunWith(AndroidJUnit4.class)
+public class CamcorderProfileTest {
 
     private static final String TAG = "CamcorderProfileTest";
     private static final int MIN_HIGH_SPEED_FPS = 100;
@@ -158,6 +174,14 @@ public class CamcorderProfileTest extends AndroidTestCase {
                 assertEquals(profile.videoBitRate, videoProfile.getBitrate());
                 assertEquals(profile.videoFrameRate, videoProfile.getFrameRate());
                 first = false;
+
+                // The first video profile must be a basic profile: YUV 4:2:0 8-bit SDR.
+                // This is to ensure backward compatibility with the corresponding
+                // CamcorderProfile, which is always a basic profile.
+                assertEquals(EncoderProfiles.VideoProfile.YUV_420,
+                             videoProfile.getChromaSubsampling());
+                assertEquals(EncoderProfiles.VideoProfile.HDR_NONE, videoProfile.getHdrFormat());
+                assertEquals(8, videoProfile.getBitDepth());
             }
             // all profiles must be the same size
             assertEquals(profile.videoFrameWidth, videoProfile.getWidth());
@@ -180,10 +204,21 @@ public class CamcorderProfileTest extends AndroidTestCase {
             case MediaRecorder.VideoEncoder.HEVC:
                   assertEquals(MediaFormat.MIMETYPE_VIDEO_HEVC, videoProfile.getMediaType());
                   break;
+            case MediaRecorder.VideoEncoder.VP9:
+                  assertEquals(MediaFormat.MIMETYPE_VIDEO_VP9, videoProfile.getMediaType());
+                  break;
+            case MediaRecorder.VideoEncoder.DOLBY_VISION:
+                  assertEquals(MediaFormat.MIMETYPE_VIDEO_DOLBY_VISION, videoProfile.getMediaType());
+                  break;
+            case MediaRecorder.VideoEncoder.AV1:
+                  assertEquals(MediaFormat.MIMETYPE_VIDEO_AV1, videoProfile.getMediaType());
+                  break;
             }
             // Cannot validate profile as vendors may use vendor specific profile. Just read it.
             int codecProfile = videoProfile.getProfile();
         }
+        // there must have been at least one video profile
+        assertFalse("no video profiles in getAll()", first);
         first = true;
         for (EncoderProfiles.AudioProfile audioProfile : allProfiles.getAudioProfiles()) {
             if (first) {
@@ -381,7 +416,19 @@ public class CamcorderProfileTest extends AndroidTestCase {
                    ? "Checking get without id"
                    : "Checking get with id = " + cameraId);
 
-        final List<Size> videoSizes = getSupportedVideoSizes(cameraId);
+        Camera camera = null;
+        if (cameraId == -1) {
+            camera = Camera.open();
+            assumeTrue("Device does not have a back-facing camera", camera != null);
+        } else {
+            camera = Camera.open(cameraId);
+            assertNotNull("failed to open CameraId " + cameraId, camera);
+        }
+
+        final List<Size> videoSizes = getSupportedVideoSizes(camera);
+
+        camera.release();
+        camera = null;
 
         /**
          * Check all possible supported profiles: get profile should work, and the profile
@@ -402,6 +449,8 @@ public class CamcorderProfileTest extends AndroidTestCase {
                         CamcorderProfile.getAll(String.valueOf(cameraId), quality);
                     checkAllProfiles(allProfiles, profile, videoSizesToCheck);
                 }
+            } else {
+                assertNull(CamcorderProfile.getAll(String.valueOf(cameraId), quality));
             }
         }
 
@@ -477,26 +526,33 @@ public class CamcorderProfileTest extends AndroidTestCase {
                 specificHighSpeedProfileQualities, null);
     }
 
-    public void testGet() {
+    @Test
+    public void testGetFirstBackCamera() {
         /*
          * Device may not have rear camera for checkGet(-1).
          * Checking PackageManager.FEATURE_CAMERA is included or not to decide the flow.
          * Continue if the feature is included.
          * Otherwise, exit test.
          */
-        PackageManager pm = mContext.getPackageManager();
+        Context context = InstrumentationRegistry.getContext();
+        assertNotNull("did not find context", context);
+        PackageManager pm = context.getPackageManager();
+        assertNotNull("did not find package manager", pm);
         if (!pm.hasSystemFeature(PackageManager.FEATURE_CAMERA)) {
             return;
         }
         checkGet(-1);
     }
 
+    @Test
     public void testGetWithId() {
         int nCamera = Camera.getNumberOfCameras();
+        Context context = InstrumentationRegistry.getContext();
+        assertNotNull("did not find context", context);
         for (int cameraId = 0; cameraId < nCamera; cameraId++) {
             boolean isExternal = false;
             try {
-                isExternal = CameraUtils.isExternal(mContext, cameraId);
+                isExternal = CameraUtils.isExternal(context, cameraId);
             } catch (Exception e) {
                 Log.e(TAG, "Unable to query external camera: " + e);
             }
@@ -507,15 +563,14 @@ public class CamcorderProfileTest extends AndroidTestCase {
         }
     }
 
-    private List<Size> getSupportedVideoSizes(int cameraId) {
-        Camera camera = (cameraId == -1)? Camera.open(): Camera.open(cameraId);
+    private List<Size> getSupportedVideoSizes(Camera camera) {
         Parameters parameters = camera.getParameters();
+        assertNotNull("Camera did not provide parameters", parameters);
         List<Size> videoSizes = parameters.getSupportedVideoSizes();
         if (videoSizes == null) {
             videoSizes = parameters.getSupportedPreviewSizes();
             assertNotNull(videoSizes);
         }
-        camera.release();
         return videoSizes;
     }
 

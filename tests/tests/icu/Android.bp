@@ -32,13 +32,16 @@ android_test {
         "general-tests",
     ],
     platform_apis: true,
+    host_required: ["cts-dalvik-host-test-runner"],
 }
 
 java_test_host {
     name: "CtsIcu4cTestCases",
     defaults: ["cts_support_defaults"],
     test_config: "CtsIcu4cTestCases.xml",
+    per_testcase_directory: true,
     data: [
+        ":CtsIcu4cTestApp",
         ":cintltst32",
         ":cintltst64",
         ":intltest32",

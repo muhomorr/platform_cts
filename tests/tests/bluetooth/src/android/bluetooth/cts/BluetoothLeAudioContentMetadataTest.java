@@ -49,6 +49,8 @@ public class BluetoothLeAudioContentMetadataTest {
     // German language code in ISO 639-3
     // In byte it is ASCII, 0x64, 0x65, 0x75
     private static final String TEST_LANGUAGE = "deu";
+    // Same as TEST_LANGUAGE, but with whitespace before and after
+    private static final String TEST_LANGUAGE_WITH_WHITESPACE = "   deu     ";
     // See Page 6 of Generic Audio assigned number specification
     private static final byte[] TEST_METADATA_BYTES = {
             // length is 0x05, type is 0x03, data is "Test" in UTF-8 "54 65 73 74" hex
@@ -81,18 +83,16 @@ public class BluetoothLeAudioContentMetadataTest {
                 mAdapter.isLeAudioBroadcastAssistantSupported() == FEATURE_SUPPORTED;
         if (mIsBroadcastAssistantSupported) {
             boolean isBroadcastAssistantEnabledInConfig =
-                    TestUtils.getProfileConfigValueOrDie(
-                            BluetoothProfile.LE_AUDIO_BROADCAST_ASSISTANT);
+                    TestUtils.isProfileEnabled(BluetoothProfile.LE_AUDIO_BROADCAST_ASSISTANT);
             assertTrue("Config must be true when profile is supported",
                     isBroadcastAssistantEnabledInConfig);
         }
 
         mIsBroadcastSourceSupported =
                 mAdapter.isLeAudioBroadcastSourceSupported() == FEATURE_SUPPORTED;
-        if (!mIsBroadcastSourceSupported) {
+        if (mIsBroadcastSourceSupported) {
             boolean isBroadcastSourceEnabledInConfig =
-                    TestUtils.getProfileConfigValueOrDie(
-                            BluetoothProfile.LE_AUDIO_BROADCAST_ASSISTANT);
+                    TestUtils.isProfileEnabled(BluetoothProfile.LE_AUDIO_BROADCAST_ASSISTANT);
             assertTrue("Config must be true when profile is supported",
                     isBroadcastSourceEnabledInConfig);
         }
@@ -101,14 +101,16 @@ public class BluetoothLeAudioContentMetadataTest {
     @After
     public void tearDown() {
         if (mHasBluetooth) {
-            assertTrue(BTAdapterUtils.disableAdapter(mAdapter, mContext));
+            if (mAdapter != null) {
+                assertTrue(BTAdapterUtils.disableAdapter(mAdapter, mContext));
+            }
             mAdapter = null;
             TestUtils.dropPermissionAsShellUid();
         }
     }
 
     @Test
-    public void testCreateCodecConfigMetadataFromBuilder() {
+    public void testCreateContentMetadataFromBuilder() {
         if (shouldSkipTest()) {
             return;
         }
@@ -118,10 +120,19 @@ public class BluetoothLeAudioContentMetadataTest {
         assertEquals(TEST_PROGRAM_INFO, contentMetadata.getProgramInfo());
         assertEquals(TEST_LANGUAGE, contentMetadata.getLanguage());
         assertArrayEquals(TEST_METADATA_BYTES, contentMetadata.getRawMetadata());
+
+        // Verifies that the language string is stripped when generating the raw metadata
+        BluetoothLeAudioContentMetadata contentMetadataStrippedLanguage =
+                new BluetoothLeAudioContentMetadata.Builder()
+                        .setProgramInfo(TEST_PROGRAM_INFO)
+                        .setLanguage(TEST_LANGUAGE_WITH_WHITESPACE.toLowerCase().strip())
+                        .build();
+        assertArrayEquals(contentMetadata.getRawMetadata(),
+                contentMetadataStrippedLanguage.getRawMetadata());
     }
 
     @Test
-    public void testCreateCodecConfigMetadataFromCopy() {
+    public void testCreateContentMetadataFromCopy() {
         if (shouldSkipTest()) {
             return;
         }
@@ -136,7 +147,7 @@ public class BluetoothLeAudioContentMetadataTest {
     }
 
     @Test
-    public void testCreateCodecConfigMetadataFromBytes() {
+    public void testCreateContentMetadataFromBytes() {
         if (shouldSkipTest()) {
             return;
         }

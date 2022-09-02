@@ -16,19 +16,28 @@
 
 package android.media.encoder.cts;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+
 import android.media.MediaCodec;
 import android.media.MediaCodecInfo;
 import android.media.MediaFormat;
 import android.media.MediaMuxer;
 import android.media.cts.Preconditions;
+import android.media.cts.TestArgs;
 import android.platform.test.annotations.AppModeFull;
 import android.platform.test.annotations.RequiresDevice;
 import android.util.Log;
 
 import androidx.test.filters.SmallTest;
-import androidx.test.platform.app.InstrumentationRegistry;
 
 import com.android.compatibility.common.util.MediaUtils;
+
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -39,23 +48,14 @@ import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 @SmallTest
 @RequiresDevice
@@ -84,9 +84,6 @@ public class EncoderTest {
     private static boolean sSaveResults = false;
     static final Map<String, String> mDefaultEncoders = new HashMap<>();
 
-    private static final String CODEC_PREFIX_KEY = "codec-prefix";
-    private static String mCodecPrefix;
-
     private final String mEncoderName;
     private final String mMime;
     private final int[] mProfiles;
@@ -111,9 +108,13 @@ public class EncoderTest {
         final List<Object[]> argsList = new ArrayList<>();
         int argLength = exhaustiveArgsList.get(0).length;
         for (Object[] arg : exhaustiveArgsList) {
-            String[] componentNames = MediaUtils.getEncoderNamesForMime((String)arg[0]);
+            String mediaType = (String)arg[0];
+            if (TestArgs.shouldSkipMediaType(mediaType)) {
+                continue;
+            }
+            String[] componentNames = MediaUtils.getEncoderNamesForMime(mediaType);
             for (String name : componentNames) {
-                if (mCodecPrefix != null && !name.startsWith(mCodecPrefix)) {
+                if (TestArgs.shouldSkipCodec(name)) {
                     continue;
                 }
                 Object[] testArgs = new Object[argLength + 1];
@@ -123,11 +124,6 @@ public class EncoderTest {
             }
         }
         return argsList;
-    }
-
-    static {
-        android.os.Bundle args = InstrumentationRegistry.getArguments();
-        mCodecPrefix = args.getString(CODEC_PREFIX_KEY);
     }
 
     @Parameterized.Parameters(name = "{index}({0}_{1})")

@@ -16,26 +16,28 @@
 
 package android.video.cts;
 
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+import static org.junit.Assume.assumeTrue;
+
 import android.media.MediaCodec;
 import android.media.MediaCodecInfo;
 import android.media.MediaCodecList;
 import android.media.MediaExtractor;
 import android.media.MediaFormat;
+import android.media.cts.TestArgs;
 import android.os.Build;
 import android.os.SystemProperties;
 import android.util.Range;
 import android.view.Surface;
+
+import org.junit.Before;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
-
-import org.junit.Before;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
-import static org.junit.Assume.assumeTrue;
 
 class CodecPerformanceTestBase {
     private static final String LOG_TAG = CodecPerformanceTestBase.class.getSimpleName();
@@ -166,10 +168,17 @@ class CodecPerformanceTestBase {
 
     static ArrayList<String> selectCodecs(String mime, ArrayList<MediaFormat> formats,
             String[] features, boolean isEncoder, int selectCodecOption) {
+        ArrayList<String> listOfCodecs = new ArrayList<>();
+        if (TestArgs.shouldSkipMediaType(mime)) {
+            return listOfCodecs;
+        }
         MediaCodecList codecList = new MediaCodecList(MediaCodecList.REGULAR_CODECS);
         MediaCodecInfo[] codecInfos = codecList.getCodecInfos();
-        ArrayList<String> listOfCodecs = new ArrayList<>();
+
         for (MediaCodecInfo codecInfo : codecInfos) {
+            if (TestArgs.shouldSkipCodec(codecInfo.getName())) {
+                continue;
+            }
             if (codecInfo.isEncoder() != isEncoder) continue;
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && codecInfo.isAlias()) continue;
             if (selectCodecOption == SELECT_HARDWARE && !codecInfo.isHardwareAccelerated())
