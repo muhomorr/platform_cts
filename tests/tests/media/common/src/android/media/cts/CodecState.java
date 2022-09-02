@@ -59,6 +59,7 @@ public class CodecState {
     private int mAvailableInputBufferIndex;
     private LinkedList<Integer> mAvailableOutputBufferIndices;
     private LinkedList<MediaCodec.BufferInfo> mAvailableOutputBufferInfos;
+
     /**
      * The media timestamp of the latest frame decoded by this codec.
      *
@@ -70,7 +71,6 @@ public class CodecState {
     private long mFirstSampleTimeUs;
     private long mPlaybackStartTimeUs;
     private long mLastPresentTimeUs;
-    private long mOffsetTimestampUs = 0;
     private MediaCodec mCodec;
     private MediaTimeProvider mMediaTimeProvider;
     private MediaExtractor mExtractor;
@@ -169,13 +169,15 @@ public class CodecState {
         }
     }
 
-    public void start() {
+    public void startCodec() {
         mCodec.start();
         mCodecInputBuffers = mCodec.getInputBuffers();
         if (!mIsTunneled || mIsAudio) {
             mCodecOutputBuffers = mCodec.getOutputBuffers();
         }
+    }
 
+    public void play() {
         if (mAudioTrack != null) {
             mAudioTrack.play();
         }
@@ -358,14 +360,14 @@ public class CodecState {
                 return null;
             }
 
-            if (mIsTunneled && !mIsAudio) {
+            if (mIsTunneled) {
                 if (mFirstSampleTimeUs == -1) {
                     mFirstSampleTimeUs = sampleTime;
                 }
                 sampleTime -= mFirstSampleTimeUs;
             }
 
-            mLastPresentTimeUs = mPlaybackStartTimeUs + sampleTime + mOffsetTimestampUs;
+            mLastPresentTimeUs = mPlaybackStartTimeUs + sampleTime;
 
             if ((sampleFlags & MediaExtractor.SAMPLE_FLAG_ENCRYPTED) != 0) {
                 MediaCodec.CryptoInfo info = new MediaCodec.CryptoInfo();
@@ -660,21 +662,10 @@ public class CodecState {
     /**
      * Seek media extractor to the beginning of the configured track.
      *
-     * @param shouldContinuePts  a boolean that controls whether timestamps keep increasing
+     * @param presentationTimeOffsetUs The offset for the presentation time to start at.
      */
-    public void seekToBeginning(boolean shouldContinuePts) {
-        mExtractor.seekTo(UNINITIALIZED_TIMESTAMP, MediaExtractor.SEEK_TO_PREVIOUS_SYNC);
-        if (shouldContinuePts) {
-            if (mDecodedFramePresentationTimeUs != UNINITIALIZED_TIMESTAMP) {
-                mOffsetTimestampUs = mDecodedFramePresentationTimeUs;
-                return;
-            }
-            if (mRenderedVideoFramePresentationTimeUs != UNINITIALIZED_TIMESTAMP) {
-                mOffsetTimestampUs = mRenderedVideoFramePresentationTimeUs;
-                return;
-            }
-        } else {
-            mOffsetTimestampUs = 0;
-        }
+    public void seekToBeginning(long presentationTimeOffsetUs) {
+        mExtractor.seekTo(mFirstSampleTimeUs, MediaExtractor.SEEK_TO_CLOSEST_SYNC);
+        mPlaybackStartTimeUs = presentationTimeOffsetUs;
     }
 }

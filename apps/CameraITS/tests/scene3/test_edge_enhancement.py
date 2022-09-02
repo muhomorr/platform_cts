@@ -67,17 +67,17 @@ def do_capture_and_determine_sharpness(
   for n in range(NUM_SAMPLES):
     cap = cam.do_capture(req, out_surface, repeat_request=req)
     y, _, _ = image_processing_utils.convert_capture_to_planes(cap)
-    chart.img = image_processing_utils.normalize_img(
-        image_processing_utils.get_image_patch(
-            y, chart.xnorm, chart.ynorm, chart.wnorm, chart.hnorm))
+    chart.img = image_processing_utils.get_image_patch(
+        y, chart.xnorm, chart.ynorm, chart.wnorm, chart.hnorm)
     if n == 0:
       image_processing_utils.write_image(
           chart.img, '%s_edge=%d.jpg' % (
               os.path.join(log_path, NAME), edge_mode))
       edge_mode_res = cap['metadata']['android.edge.mode']
     sharpness_list.append(
-        image_processing_utils.compute_image_sharpness(chart.img))
-
+        image_processing_utils.compute_image_sharpness(chart.img)*255)
+  logging.debug('edge mode: %d, sharpness values: %s',
+                edge_mode_res, sharpness_list)
   return {'edge_mode': edge_mode_res, 'sharpness': np.mean(sharpness_list)}
 
 
@@ -89,12 +89,10 @@ class EdgeEnhancementTest(its_base_test.ItsBaseTest):
   """
 
   def test_edge_enhancement(self):
-    logging.debug('Starting %s', NAME)
     with its_session_utils.ItsSession(
         device_id=self.dut.serial,
         camera_id=self.camera_id,
         hidden_physical_id=self.hidden_physical_id) as cam:
-      chart_loc_arg = self.chart_loc_arg
       props = cam.get_camera_properties()
       props = cam.override_with_hidden_physical_camera_props(props)
 
@@ -109,8 +107,7 @@ class EdgeEnhancementTest(its_base_test.ItsBaseTest):
           cam, props, self.scene, self.tablet, self.chart_distance)
 
       # Initialize chart class and locate chart in scene
-      chart = opencv_processing_utils.Chart(
-          cam, props, self.log_path, chart_loc=chart_loc_arg)
+      chart = opencv_processing_utils.Chart(cam, props, self.log_path)
 
       # Define format
       fmt = 'yuv'
@@ -141,24 +138,26 @@ class EdgeEnhancementTest(its_base_test.ItsBaseTest):
                     str(sharpness_regular))
 
       logging.debug('Verify HQ is sharper than OFF')
-      e_msg = 'HQ: %.3f, OFF: %.3f' % (sharpness_regular[EDGE_MODES['HQ']],
-                                       sharpness_regular[EDGE_MODES['OFF']])
-      assert (sharpness_regular[EDGE_MODES['HQ']] >
-              sharpness_regular[EDGE_MODES['OFF']]), e_msg
+      if (sharpness_regular[EDGE_MODES['HQ']] <=
+          sharpness_regular[EDGE_MODES['OFF']]):
+        raise AssertionError(f"HQ: {sharpness_regular[EDGE_MODES['HQ']]:.3f}, "
+                             f"OFF: {sharpness_regular[EDGE_MODES['OFF']]:.3f}")
 
       logging.debug('Verify OFF is not sharper than FAST')
-      e_msg = 'FAST: %.3f, OFF: %.3f, RTOL: %.2f' % (
-          sharpness_regular[EDGE_MODES['FAST']],
-          sharpness_regular[EDGE_MODES['OFF']], SHARPNESS_RTOL)
-      assert (sharpness_regular[EDGE_MODES['FAST']] >
-              sharpness_regular[EDGE_MODES['OFF']]*(1.0-SHARPNESS_RTOL)), e_msg
+      if (sharpness_regular[EDGE_MODES['FAST']] <=
+          sharpness_regular[EDGE_MODES['OFF']]*(1.0-SHARPNESS_RTOL)):
+        raise AssertionError(
+            f"FAST: {sharpness_regular[EDGE_MODES['FAST']]:.3f}, "
+            f"OFF: {sharpness_regular[EDGE_MODES['OFF']]:.3f}, "
+            f"RTOL: {SHARPNESS_RTOL}")
 
       logging.debug('Verify FAST is not sharper than HQ')
-      e_msg = 'HQ: %.3f, FAST: %.3f, RTOL: %.2f' % (
-          sharpness_regular[EDGE_MODES['HQ']],
-          sharpness_regular[EDGE_MODES['FAST']], SHARPNESS_RTOL)
-      assert (sharpness_regular[EDGE_MODES['HQ']] >
-              sharpness_regular[EDGE_MODES['FAST']]*(1.0-SHARPNESS_RTOL)), e_msg
+      if (sharpness_regular[EDGE_MODES['HQ']] <=
+          sharpness_regular[EDGE_MODES['FAST']]*(1.0-SHARPNESS_RTOL)):
+        raise AssertionError(
+            f"HQ: {sharpness_regular[EDGE_MODES['HQ']]:.3f}, "
+            f"FAST: {sharpness_regular[EDGE_MODES['FAST']]:.3f}, "
+            f"RTOL: {SHARPNESS_RTOL}")
 
 if __name__ == '__main__':
   test_runner.main()

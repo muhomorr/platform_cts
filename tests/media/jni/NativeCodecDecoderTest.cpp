@@ -17,9 +17,10 @@
 //#define LOG_NDEBUG 0
 #define LOG_TAG "NativeCodecDecoderTest"
 #include <log/log.h>
+
 #include <android/native_window_jni.h>
-#include <NdkMediaExtractor.h>
 #include <jni.h>
+#include <media/NdkMediaExtractor.h>
 #include <sys/stat.h>
 
 #include <array>
@@ -321,7 +322,7 @@ bool CodecDecoderTest::testSimpleDecode(const char* decoder, const char* testFil
             mOutputBuff = loopCounter == 0 ? ref : test;
             mOutputBuff->reset();
             AMediaExtractor_seekTo(mExtractor, 0, AMEDIAEXTRACTOR_SEEK_CLOSEST_SYNC);
-            /* TODO(b/147348711) */
+            /* TODO(b/149981033) */
             /* Instead of create and delete codec at every iteration, we would like to create
              * once and use it for all iterations and delete before exiting */
             mCodec = AMediaCodec_createCodecByName(decoder);
@@ -439,7 +440,7 @@ bool CodecDecoderTest::testFlush(const char* decoder, const char* testFile, int 
         char log[1000];
         snprintf(log, sizeof(log), "codec: %s, file: %s, async mode: %s:: \n", decoder, testFile,
                  (isAsync ? "async" : "sync"));
-        /* TODO(b/147348711) */
+        /* TODO(b/149981033) */
         /* Instead of create and delete codec at every iteration, we would like to create
          * once and use it for all iterations and delete before exiting */
         mCodec = AMediaCodec_createCodecByName(decoder);
@@ -474,8 +475,10 @@ bool CodecDecoderTest::testFlush(const char* decoder, const char* testFile, int 
         AMediaExtractor_seekTo(mExtractor, 0, mode);
         test->reset();
         if (!doWork(23)) return false;
-        CHECK_ERR(!test->isPtsStrictlyIncreasing(mPrevOutputPts), "",
-                  "pts is not strictly increasing", isPass);
+        if (!mIsInterlaced) {
+            CHECK_ERR(!test->isPtsStrictlyIncreasing(mPrevOutputPts), "",
+                          "pts is not strictly increasing", isPass);
+        }
 
         /* test flush in running state */
         if (!flushCodec()) return false;
@@ -543,7 +546,7 @@ bool CodecDecoderTest::testOnlyEos(const char* decoder, const char* testFile, in
                  (isAsync ? "async" : "sync"));
         mOutputBuff = loopCounter == 0 ? ref : test;
         mOutputBuff->reset();
-        /* TODO(b/147348711) */
+        /* TODO(b/149981033) */
         /* Instead of create and delete codec at every iteration, we would like to create
          * once and use it for all iterations and delete before exiting */
         mCodec = AMediaCodec_createCodecByName(decoder);
@@ -562,8 +565,13 @@ bool CodecDecoderTest::testOnlyEos(const char* decoder, const char* testFile, in
         CHECK_ERR(loopCounter != 0 && (!ref->equals(test)), log, "output is flaky", isPass);
         CHECK_ERR(loopCounter == 0 && mIsAudio && (!ref->isPtsStrictlyIncreasing(mPrevOutputPts)),
                   log, "pts is not strictly increasing", isPass);
-        CHECK_ERR(loopCounter == 0 && !mIsAudio && (!ref->isOutPtsListIdenticalToInpPtsList(false)),
-                  log, "input pts list and output pts list are not identical", isPass);
+        // TODO: Timestamps for deinterlaced content are under review. (E.g. can decoders
+        // produce multiple progressive frames?) For now, do not verify timestamps.
+        if (!mIsInterlaced) {
+            CHECK_ERR(loopCounter == 0 && !mIsAudio &&
+                      (!ref->isOutPtsListIdenticalToInpPtsList(false)),
+                      log, "input pts list and output pts list are not identical", isPass);
+        }
         loopCounter++;
     }
     return isPass;
@@ -608,7 +616,7 @@ bool CodecDecoderTest::testSimpleDecodeQueueCSD(const char* decoder, const char*
                          (eosType ? "eos with last frame" : "eos separate"));
                 mOutputBuff = loopCounter == 0 ? ref : test;
                 mOutputBuff->reset();
-                /* TODO(b/147348711) */
+                /* TODO(b/149981033) */
                 /* Instead of create and delete codec at every iteration, we would like to create
                  * once and use it for all iterations and delete before exiting */
                 mCodec = AMediaCodec_createCodecByName(decoder);
@@ -641,9 +649,13 @@ bool CodecDecoderTest::testSimpleDecodeQueueCSD(const char* decoder, const char*
                 CHECK_ERR(loopCounter == 0 && mIsAudio &&
                           (!ref->isPtsStrictlyIncreasing(mPrevOutputPts)),
                           log, "pts is not strictly increasing", isPass);
-                CHECK_ERR(loopCounter == 0 && !mIsAudio &&
-                                  (!ref->isOutPtsListIdenticalToInpPtsList(false)),
-                          log, "input pts list and output pts list are not identical", isPass);
+                // TODO: Timestamps for deinterlaced content are under review. (E.g. can decoders
+                // produce multiple progressive frames?) For now, do not verify timestamps.
+                if (!mIsInterlaced) {
+                    CHECK_ERR(loopCounter == 0 && !mIsAudio &&
+                                      (!ref->isOutPtsListIdenticalToInpPtsList(false)),
+                              log, "input pts list and output pts list are not identical", isPass);
+                }
                 if (validateFormat) {
                     if (mIsCodecInAsyncMode ? !mAsyncHandle.hasOutputFormatChanged()
                                             : !mSignalledOutFormatChanged) {

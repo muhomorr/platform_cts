@@ -16,11 +16,21 @@
 
 package android.mediav2.cts;
 
+import static android.media.MediaCodecInfo.CodecCapabilities.COLOR_FormatYUVP010;
+import static android.mediav2.cts.CodecTestBase.SupportClass.CODEC_OPTIONAL;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+
 import android.media.AudioFormat;
 import android.media.MediaCodec;
 import android.media.MediaFormat;
 
 import androidx.test.filters.LargeTest;
+
+import com.android.compatibility.common.util.ApiTest;
+import com.android.compatibility.common.util.CddTest;
 
 import org.junit.Assume;
 import org.junit.Test;
@@ -36,17 +46,22 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static android.media.MediaCodecInfo.CodecCapabilities.COLOR_FormatYUVP010;
-import static android.mediav2.cts.CodecTestBase.SupportClass.*;
-import static org.junit.Assert.*;
-
+/**
+ * The test verifies encoders present in media codec list in bytebuffer mode. The test feeds raw
+ * input data (audio/video) to the component and receives compressed bitstream from the component.
+ * This is written to an output file using muxer.
+ *
+ * 1. For lossless audio codecs, this file is decoded and the decoded output is expected to be
+ * bit-exact with encoder input.
+ * 2. For lossy audio codecs, the output sample count (after stripping priming and padding
+ * samples) should be input sample count else encoder-decoder-encoder loops results in audio time
+ * shift. // TODO: This attribute is not strictly enforced in this test.
+ * 3. For video codecs, the output file is decoded and PSNR is computed between encoder input and
+ * decoded output and it has to be at least min tolerance value.
+ */
 @RunWith(Parameterized.class)
 public class CodecEncoderValidationTest extends CodecEncoderTestBase {
-    private static final String INPUT_AUDIO_FILE_HBD = "audio/sd_2ch_48kHz_f32le.raw";
-    private static final String INPUT_VIDEO_FILE_HBD = "cosmat_cif_24fps_yuv420p16le.yuv";
-
     private final boolean mUseHBD;
-    private final SupportClass mSupportRequirements;
     // Key: mediaType, Value: tolerance duration in ms
     private static final Map<String, Integer> toleranceMap = new HashMap<>();
 
@@ -58,80 +73,100 @@ public class CodecEncoderValidationTest extends CodecEncoderTestBase {
         toleranceMap.put(MediaFormat.MIMETYPE_AUDIO_FLAC, 0);
     }
 
-    public CodecEncoderValidationTest(String encoder, String mediaType, int[] bitrates,
-            int[] encoderInfo1, int[] encoderInfo2, boolean useHBD,
-            SupportClass supportRequirements) {
-        super(encoder, mediaType, bitrates, encoderInfo1, encoderInfo2);
+    public CodecEncoderValidationTest(String encoder, String mediaType, int bitrate,
+            int encoderInfo1, int encoderInfo2, boolean useHBD) {
+        super(encoder, mediaType, new int[]{bitrate}, new int[]{encoderInfo1},
+                new int[]{encoderInfo2});
         mUseHBD = useHBD;
-        mSupportRequirements = supportRequirements;
     }
 
-    @Parameterized.Parameters(name = "{index}({0})")
+    private static List<Object[]> flattenParams(List<Object[]> params) {
+        List<Object[]> argsList = new ArrayList<>();
+        for (Object[] param : params) {
+            String mediaType = (String) param[0];
+            int[] bitRates = (int[]) param[1];
+            int[] infoList1 = (int[]) param[2];
+            int[] infoList2 = (int[]) param[3];
+            boolean useHBD = (boolean) param[4];
+            for (int bitrate : bitRates) {
+                for (int info1 : infoList1) {
+                    for (int info2 : infoList2) {
+                        argsList.add(new Object[]{mediaType, bitrate, info1, info2, useHBD});
+                    }
+                }
+            }
+        }
+        return argsList;
+    }
+
+    @Parameterized.Parameters(name = "{index}({0}_{1}_{2}_{3}_{4}_{5})")
     public static Collection<Object[]> input() {
         final boolean isEncoder = true;
         final boolean needAudio = true;
         final boolean needVideo = true;
         List<Object[]> defArgsList = new ArrayList<>(Arrays.asList(new Object[][]{
                 // Audio tests covering cdd sec 5.1.3
-                // mediaType, arrays of bit-rates, sample rates, channel counts, useHBD,
-                // SupportClass
+                // mediaType, arrays of bit-rates, sample rates, channel counts, useHBD
                 {MediaFormat.MIMETYPE_AUDIO_AAC, new int[]{64000, 128000}, new int[]{8000, 12000,
-                        16000, 22050, 24000, 32000, 44100, 48000}, new int[]{1, 2}, false,
-                        CODEC_ALL},
+                        16000, 22050, 24000, 32000, 44100, 48000}, new int[]{1, 2}, false},
                 {MediaFormat.MIMETYPE_AUDIO_OPUS, new int[]{64000, 128000}, new int[]{8000, 12000
-                        , 16000, 24000, 48000}, new int[]{1, 2}, false, CODEC_ALL},
+                        , 16000, 24000, 48000}, new int[]{1, 2}, false},
                 {MediaFormat.MIMETYPE_AUDIO_AMR_NB, new int[]{4750, 5150, 5900, 6700, 7400, 7950,
-                        10200, 12200}, new int[]{8000}, new int[]{1}, false, CODEC_ALL},
+                        10200, 12200}, new int[]{8000}, new int[]{1}, false},
                 {MediaFormat.MIMETYPE_AUDIO_AMR_WB, new int[]{6600, 8850, 12650, 14250, 15850,
-                        18250, 19850, 23050, 23850}, new int[]{16000}, new int[]{1}, false,
-                        CODEC_ALL},
+                        18250, 19850, 23050, 23850}, new int[]{16000}, new int[]{1}, false},
                 /* TODO(169310292) */
                 {MediaFormat.MIMETYPE_AUDIO_FLAC, new int[]{/* 0, 1, 2, */ 3, 4, 5, 6, 7, 8},
                         new int[]{8000, 16000, 32000, 48000, 96000, 192000}, new int[]{1, 2},
-                        false, CODEC_ALL},
+                        false},
                 {MediaFormat.MIMETYPE_AUDIO_FLAC, new int[]{/* 0, 1, 2, */ 3, 4, 5, 6, 7, 8},
                         new int[]{8000, 16000, 32000, 48000, 96000, 192000}, new int[]{1, 2},
-                        true, CODEC_ALL},
+                        true},
 
-                // mediaType, arrays of bit-rates, width, height, useHBD, SupportClass
+                // mediaType, arrays of bit-rates, width, height, useHBD
                 {MediaFormat.MIMETYPE_VIDEO_H263, new int[]{32000, 64000}, new int[]{176},
-                        new int[]{144}, false, CODEC_ALL},
+                        new int[]{144}, false},
                 {MediaFormat.MIMETYPE_VIDEO_MPEG4, new int[]{32000, 64000}, new int[]{176},
-                        new int[]{144}, false, CODEC_ALL},
+                        new int[]{144}, false},
                 {MediaFormat.MIMETYPE_VIDEO_AVC, new int[]{256000}, new int[]{352, 480},
-                        new int[]{240, 360}, false, CODEC_ALL},
+                        new int[]{240, 360}, false},
                 {MediaFormat.MIMETYPE_VIDEO_HEVC, new int[]{256000}, new int[]{352, 480},
-                        new int[]{240, 360}, false, CODEC_ALL},
+                        new int[]{240, 360}, false},
                 {MediaFormat.MIMETYPE_VIDEO_VP8, new int[]{256000}, new int[]{352, 480},
-                        new int[]{240, 360}, false, CODEC_ALL},
+                        new int[]{240, 360}, false},
                 {MediaFormat.MIMETYPE_VIDEO_VP9, new int[]{256000}, new int[]{352, 480},
-                        new int[]{240, 360}, false, CODEC_ALL},
+                        new int[]{240, 360}, false},
                 {MediaFormat.MIMETYPE_VIDEO_AV1, new int[]{256000}, new int[]{352, 480},
-                        new int[]{240, 360}, false, CODEC_ALL},
+                        new int[]{240, 360}, false},
         }));
         // P010 support was added in Android T, hence limit the following tests to Android T and
         // above
         if (IS_AT_LEAST_T) {
             defArgsList.addAll(Arrays.asList(new Object[][]{
                     {MediaFormat.MIMETYPE_VIDEO_AVC, new int[]{256000}, new int[]{352, 480},
-                            new int[]{240, 360}, true, CODEC_OPTIONAL},
+                            new int[]{240, 360}, true},
                     {MediaFormat.MIMETYPE_VIDEO_HEVC, new int[]{256000}, new int[]{352, 480},
-                            new int[]{240, 360}, true, CODEC_OPTIONAL},
+                            new int[]{240, 360}, true},
                     {MediaFormat.MIMETYPE_VIDEO_VP9, new int[]{256000}, new int[]{352, 480},
-                            new int[]{240, 360}, true, CODEC_OPTIONAL},
+                            new int[]{240, 360}, true},
                     {MediaFormat.MIMETYPE_VIDEO_AV1, new int[]{256000}, new int[]{352, 480},
-                            new int[]{240, 360}, true, CODEC_OPTIONAL},
+                            new int[]{240, 360}, true},
             }));
         }
-        return prepareParamList(defArgsList, isEncoder, needAudio, needVideo, false);
+        List<Object[]> argsList = flattenParams(defArgsList);
+        return prepareParamList(argsList, isEncoder, needAudio, needVideo, false);
     }
 
     void encodeAndValidate(String inputFile) throws IOException, InterruptedException {
         if (!mIsAudio) {
             int colorFormat = mFormats.get(0).getInteger(MediaFormat.KEY_COLOR_FORMAT);
             Assume.assumeTrue(hasSupportForColorFormat(mCodecName, mMime, colorFormat));
+            if (mUseHBD) {
+                Assume.assumeTrue("Codec doesn't support high bit depth profile encoding",
+                        doesCodecSupportHDRProfile(mCodecName, mMime));
+            }
         }
-        checkFormatSupport(mCodecName, mMime, true, mFormats, null, mSupportRequirements);
+        checkFormatSupport(mCodecName, mMime, true, mFormats, null, CODEC_OPTIONAL);
         setUpSource(inputFile);
         mOutputBuff = new OutputManager();
         {
@@ -218,6 +253,13 @@ public class CodecEncoderValidationTest extends CodecEncoderTestBase {
         }
     }
 
+    /**
+     * @see CodecEncoderValidationTest
+     */
+    @ApiTest(apis = {"MediaCodecInfo.CodecCapabilities#COLOR_FormatYUV420Flexible",
+                     "MediaCodecInfo.CodecCapabilities#COLOR_FormatYUVP010",
+                     "android.media.AudioFormat#ENCODING_PCM_16BIT"})
+    @CddTest(requirements = "5.1.1")
     @LargeTest
     @Test(timeout = PER_TEST_TIMEOUT_LARGE_TEST_MS)
     public void testEncodeAndValidate() throws IOException, InterruptedException {

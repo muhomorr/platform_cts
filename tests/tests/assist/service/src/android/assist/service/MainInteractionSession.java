@@ -16,6 +16,9 @@
 
 package android.assist.service;
 
+import static android.view.WindowInsets.Type.displayCutout;
+import static android.view.WindowInsets.Type.statusBars;
+
 import android.app.assist.AssistContent;
 import android.app.assist.AssistStructure;
 import android.assist.common.Utils;
@@ -27,6 +30,7 @@ import android.content.IntentFilter;
 import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.Point;
+import android.graphics.Rect;
 import android.os.Bundle;
 import android.os.RemoteCallback;
 import android.service.voice.VoiceInteractionSession;
@@ -36,6 +40,9 @@ import android.view.DisplayCutout;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewTreeObserver;
+import android.view.WindowInsets;
+import android.view.WindowManager;
+import android.view.WindowMetrics;
 
 public class MainInteractionSession extends VoiceInteractionSession {
     static final String TAG = "MainInteractionSession";
@@ -49,6 +56,7 @@ public class MainInteractionSession extends VoiceInteractionSession {
     private int mCurColor;
     private int mDisplayHeight;
     private int mDisplayWidth;
+    private Rect mDisplayAreaBounds;
     private BroadcastReceiver mReceiver;
     private String mTestName;
     private View mContentView;
@@ -99,7 +107,7 @@ public class MainInteractionSession extends VoiceInteractionSession {
     public void onPrepareShow(Bundle args, int showFlags) {
         if (Utils.LIFECYCLE_NOUI.equals(args.getString(Utils.TESTCASE_TYPE, ""))) {
             setUiEnabled(false);
-        } else  {
+        } else {
             setUiEnabled(true);
         }
     }
@@ -115,6 +123,7 @@ public class MainInteractionSession extends VoiceInteractionSession {
         mCurColor = args.getInt(Utils.SCREENSHOT_COLOR_KEY);
         mDisplayHeight = args.getInt(Utils.DISPLAY_HEIGHT_KEY);
         mDisplayWidth = args.getInt(Utils.DISPLAY_WIDTH_KEY);
+        mDisplayAreaBounds = args.getParcelable(Utils.DISPLAY_AREA_BOUNDS_KEY);
         mRemoteCallback = args.getParcelable(Utils.EXTRA_REMOTE_CALLBACK);
         super.onShow(args, showFlags);
         if (mContentView == null) return; // Happens when ui is not enabled.
@@ -125,7 +134,26 @@ public class MainInteractionSession extends VoiceInteractionSession {
                     mContentView.getViewTreeObserver().removeOnPreDrawListener(this);
                     Display d = mContentView.getDisplay();
                     Point displayPoint = new Point();
-                    d.getRealSize(displayPoint);
+                    // The voice interaction window layer is higher than keyguard, status bar,
+                    // nav bar now. So we should take both status bar, nav bar into consideration.
+                    // The voice interaction hide the nav bar, so the height only need to consider
+                    // status bar. The status bar may contain display cutout but the display cutout
+                    // is device specific, we need to check it.
+                    WindowManager wm = mContext.getSystemService(WindowManager.class);
+                    WindowMetrics windowMetrics = wm.getCurrentWindowMetrics();
+                    Rect bound = windowMetrics.getBounds();
+                    WindowInsets windowInsets = windowMetrics.getWindowInsets();
+                    android.graphics.Insets statusBarInsets =
+                            windowInsets.getInsets(statusBars());
+                    android.graphics.Insets displayCutoutInsets =
+                            windowInsets.getInsets(displayCutout());
+                    android.graphics.Insets min =
+                            android.graphics.Insets.min(statusBarInsets, displayCutoutInsets);
+                    boolean statusBarContainsCutout = !android.graphics.Insets.NONE.equals(min);
+                    Log.d(TAG, "statusBarContainsCutout=" + statusBarContainsCutout);
+                    displayPoint.y = statusBarContainsCutout
+                            ? bound.height() - min.top - min.bottom : bound.height();
+                    displayPoint.x = bound.width();
                     DisplayCutout dc = d.getCutout();
                     if (dc != null) {
                         // Means the device has a cutout area
@@ -138,7 +166,8 @@ public class MainInteractionSession extends VoiceInteractionSession {
                         }
                     }
                     Bundle bundle = new Bundle();
-                    bundle.putString(Utils.EXTRA_REMOTE_CALLBACK_ACTION, Utils.BROADCAST_CONTENT_VIEW_HEIGHT);
+                    bundle.putString(Utils.EXTRA_REMOTE_CALLBACK_ACTION,
+                            Utils.BROADCAST_CONTENT_VIEW_HEIGHT);
                     bundle.putInt(Utils.EXTRA_CONTENT_VIEW_HEIGHT, mContentView.getHeight());
                     bundle.putInt(Utils.EXTRA_CONTENT_VIEW_WIDTH, mContentView.getWidth());
                     bundle.putParcelable(Utils.EXTRA_DISPLAY_POINT, displayPoint);
@@ -166,6 +195,15 @@ public class MainInteractionSession extends VoiceInteractionSession {
             // a quick fix for the issue; a better solution would be refactoring the infra to
             // either send all events, or let the test specifify which activity it's waiting for
             Log.i(TAG, "Ignoring " + activity.flattenToShortString() + " on automotive");
+            return;
+        }
+
+        if (structure != null && structure.isHomeActivity() && !state.isFocused()) {
+            // If the system has multiple display areas, the launcher may be visible and resumed
+            // when the tests are in progress, so the tests might fail if they receives unexpected
+            // state from the launcher. Ignore the states from unfocused launcher to avoid this
+            // failure.
+            Log.i(TAG, "Ignoring the state from unfocused launcher");
             return;
         }
 
@@ -220,6 +258,11 @@ public class MainInteractionSession extends VoiceInteractionSession {
         int[] pixels = new int[size.x * size.y];
         screenshot.getPixels(pixels, 0, size.x, 0, 0, size.x, size.y);
 
+        // screenshot bitmap contains the screenshot for the entire physical display. A single
+        // physical display could have multiple display area with different applications.
+        // Let's grab the region of the display area from the original screenshot.
+        Bitmap displayAreaScreenshot = Bitmap.createBitmap(screenshot, mDisplayAreaBounds.left,
+                mDisplayAreaBounds.top, mDisplayAreaBounds.width(), mDisplayAreaBounds.height());
         int expectedColor = 0;
         for (int pixel : pixels) {
             // Check for roughly the same because there are rounding errors converting from the
@@ -231,7 +274,7 @@ public class MainInteractionSession extends VoiceInteractionSession {
             }
         }
 
-        int pixelCount = screenshot.getWidth() * screenshot.getHeight();
+        int pixelCount = displayAreaScreenshot.getWidth() * displayAreaScreenshot.getHeight();
         double colorRatio = (double) expectedColor / pixelCount;
         Log.i(TAG, "the ratio is " + colorRatio);
         return colorRatio >= 0.6;

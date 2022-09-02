@@ -16,6 +16,9 @@
 
 package android.media.codec.cts;
 
+import static org.junit.Assert.fail;
+import static org.junit.Assume.assumeTrue;
+
 import android.app.Presentation;
 import android.content.Context;
 import android.graphics.drawable.ColorDrawable;
@@ -23,13 +26,10 @@ import android.hardware.display.DisplayManager;
 import android.hardware.display.VirtualDisplay;
 import android.media.MediaCodec;
 import android.media.MediaCodecInfo;
-import android.media.MediaCodecList;
 import android.media.MediaFormat;
 import android.media.MediaMuxer;
-import android.media.cts.CompositionTextureView;
-import android.media.cts.InputSurface;
-import android.media.cts.NonMediaMainlineTest;
 import android.media.cts.OutputSurface;
+import android.media.cts.TestArgs;
 import android.opengl.GLES20;
 import android.os.Build;
 import android.os.Bundle;
@@ -37,13 +37,11 @@ import android.os.Handler;
 import android.os.Looper;
 import android.platform.test.annotations.Presubmit;
 import android.platform.test.annotations.RequiresDevice;
-import android.test.AndroidTestCase;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.Display;
 import android.view.Surface;
 import android.view.ViewGroup.LayoutParams;
-import android.view.WindowManager;
 import android.widget.ImageView;
 
 import androidx.test.filters.SmallTest;
@@ -52,23 +50,19 @@ import androidx.test.platform.app.InstrumentationRegistry;
 import com.android.compatibility.common.util.ApiLevelUtil;
 import com.android.compatibility.common.util.MediaUtils;
 
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-import java.util.List;
-
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
-import static org.junit.Assert.fail;
-import static org.junit.Assume.assumeTrue;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Tests connecting a virtual display to the input of a MediaCodec encoder.
@@ -95,8 +89,6 @@ public class EncodeVirtualDisplayTest {
     private static final boolean VERBOSE = false;           // lots of logging
     private static final boolean DEBUG_SAVE_FILE = false;   // save copy of encoded movie
     private static final String DEBUG_FILE_NAME_BASE = "/sdcard/test.";
-    private static final String CODEC_PREFIX_KEY = "codec-prefix";
-    private static String mCodecPrefix;
 
     // Virtual display characteristics.  Scaled down from full display size because not all
     // devices can encode at the resolution of their own display.
@@ -161,9 +153,13 @@ public class EncodeVirtualDisplayTest {
         final List<Object[]> argsList = new ArrayList<>();
         int argLength = exhaustiveArgsList.get(0).length;
         for (Object[] arg : exhaustiveArgsList) {
-            String[] componentNames = MediaUtils.getEncoderNamesForMime((String)arg[0]);
+            String mediaType = (String)arg[0];
+            if (TestArgs.shouldSkipMediaType(mediaType)) {
+                continue;
+            }
+            String[] componentNames = MediaUtils.getEncoderNamesForMime(mediaType);
             for (String name : componentNames) {
-                if (mCodecPrefix != null && !name.startsWith(mCodecPrefix)) {
+                if (TestArgs.shouldSkipCodec(name)) {
                     continue;
                 }
                 Object[] testArgs = new Object[argLength + 1];
@@ -174,11 +170,6 @@ public class EncodeVirtualDisplayTest {
             }
         }
         return argsList;
-    }
-
-    static {
-        android.os.Bundle args = InstrumentationRegistry.getArguments();
-        mCodecPrefix = args.getString(CODEC_PREFIX_KEY);
     }
 
     @Parameterized.Parameters(name = "{index}({0}:{6})")
@@ -259,6 +250,7 @@ public class EncodeVirtualDisplayTest {
         MediaCodec decoder = null;
         OutputSurface outputSurface = null;
         VirtualDisplay virtualDisplay = null;
+        ColorSlideShow slideShow = null;
 
         try {
             encoder = MediaCodec.createByCodecName(mEncoderName);
@@ -279,13 +271,19 @@ public class EncodeVirtualDisplayTest {
 
             // Run the color slide show on a separate thread.
             mInputDone = false;
-            new ColorSlideShow(virtualDisplay.getDisplay()).start();
+            slideShow = new ColorSlideShow(virtualDisplay.getDisplay());
+            slideShow.start();
 
             // Record everything we can and check the results.
             doTestEncodeVirtual(encoder, decoder, outputSurface);
 
         } finally {
             if (VERBOSE) Log.d(TAG, "releasing codecs, surfaces, and virtual display");
+            if (slideShow != null) {
+                try {
+                    slideShow.join();
+                } catch (InterruptedException ignore) {}
+            }
             if (virtualDisplay != null) {
                 virtualDisplay.release();
             }

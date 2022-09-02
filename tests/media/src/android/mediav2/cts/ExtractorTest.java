@@ -16,6 +16,13 @@
 
 package android.mediav2.cts;
 
+import static android.mediav2.cts.CodecTestBase.hasDecoder;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+import static org.junit.Assume.assumeTrue;
+
 import android.content.Context;
 import android.content.res.AssetFileDescriptor;
 import android.media.MediaCodec;
@@ -63,12 +70,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.zip.CRC32;
-
-import static android.mediav2.cts.CodecTestBase.hasDecoder;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
-import static org.junit.Assume.assumeTrue;
 
 class TestMediaDataSource extends MediaDataSource {
     private static final String LOG_TAG = TestMediaDataSource.class.getSimpleName();
@@ -1603,6 +1604,7 @@ public class ExtractorTest {
             for (String file : mInpFiles) {
                 MediaFormat format = null;
                 MediaExtractor extractor = new MediaExtractor();
+                Preconditions.assertTestFileExists(mInpPrefix + file);
                 extractor.setDataSource(mInpPrefix + file);
                 for (int trackID = 0; trackID < extractor.getTrackCount(); trackID++) {
                     MediaFormat fmt = extractor.getTrackFormat(trackID);
@@ -1752,6 +1754,7 @@ public class ExtractorTest {
                 strTok.parseNumbers();
 
                 MediaExtractor extractor = new MediaExtractor();
+                Preconditions.assertTestFileExists(mInpPrefix + mRefFile);
                 extractor.setDataSource(mInpPrefix + mRefFile);
                 assertTrue(mTrackIndex < extractor.getTrackCount());
                 extractor.selectTrack(mTrackIndex);

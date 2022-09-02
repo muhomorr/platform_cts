@@ -16,6 +16,9 @@
 
 package android.mediav2.cts;
 
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+
 import android.media.MediaCodec;
 import android.media.MediaCodecInfo;
 import android.media.MediaCodecList;
@@ -29,6 +32,9 @@ import android.view.Surface;
 import androidx.test.filters.LargeTest;
 import androidx.test.platform.app.InstrumentationRegistry;
 
+import com.android.compatibility.common.util.ApiTest;
+
+import org.junit.Assume;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -37,13 +43,24 @@ import org.junit.runners.Parameterized;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
-
+/**
+ * Test mediacodec api, video encoders and their interactions in surface mode.
+ *
+ * The test decodes an input clip to surface. This decoded output is fed as input to encoder.
+ * Assuming no frame drops, the test expects,
+ * 1. The number of encoded frames to be identical to number of frames present in input clip.
+ * 2. As encoders are expected to give consistent output for a given input and configuration
+ * parameters, the test checks for consistency across runs.
+ * 3. The encoder output timestamps list should be identical to decoder input timestamp list.
+ * 4. The output of encoder is further verified for PSNR to check for obvious visual artifacts.
+ *
+ * The test runs mediacodec in synchronous and asynchronous mode.
+ */
 @RunWith(Parameterized.class)
 public class CodecEncoderSurfaceTest {
     private static final String LOG_TAG = CodecEncoderSurfaceTest.class.getSimpleName();
@@ -58,11 +75,14 @@ public class CodecEncoderSurfaceTest {
     private final int mMaxBFrames;
     private int mLatency;
     private boolean mReviseLatency;
+    private MediaFormat mEncoderFormat;
 
     private MediaExtractor mExtractor;
     private MediaCodec mEncoder;
     private CodecAsyncHandler mAsyncHandleEncoder;
+    private String mDecoderName;
     private MediaCodec mDecoder;
+    private MediaFormat mDecoderFormat;
     private CodecAsyncHandler mAsyncHandleDecoder;
     private boolean mIsCodecInAsyncMode;
     private boolean mSignalEOSWithLastFrame;
@@ -101,10 +121,28 @@ public class CodecEncoderSurfaceTest {
     }
 
     @Before
-    public void isCodecNameValid() {
+    public void setUp() throws IOException {
         if (mCompName.startsWith(CodecTestBase.INVALID_CODEC)) {
             fail("no valid component available for current test ");
         }
+        mDecoderFormat = setUpSource(mTestFile);
+        ArrayList<MediaFormat> decoderFormatList = new ArrayList<>();
+        decoderFormatList.add(mDecoderFormat);
+        String decoderMediaType = mDecoderFormat.getString(MediaFormat.KEY_MIME);
+        if (CodecTestBase.doesAnyFormatHaveHDRProfile(decoderMediaType, decoderFormatList) ||
+                mTestFile.contains("10bit")) {
+            // Check if encoder is capable of supporting HDR profiles.
+            // Previous check doesn't verify this as profile isn't set in the format
+            Assume.assumeTrue(mCompName + " doesn't support HDR encoding",
+                    CodecTestBase.doesCodecSupportHDRProfile(mCompName, mMime));
+        }
+
+        MediaCodecList codecList = new MediaCodecList(MediaCodecList.REGULAR_CODECS);
+        mDecoderName = codecList.findDecoderForFormat(mDecoderFormat);
+        Assume.assumeNotNull(mDecoderFormat.toString() + " not supported by any decoder.",
+                mDecoderName);
+
+        mEncoderFormat = setUpEncoderFormat(mDecoderFormat);
     }
 
     @Parameterized.Parameters(name = "{index}({0}_{1})")
@@ -112,7 +150,7 @@ public class CodecEncoderSurfaceTest {
         final boolean isEncoder = true;
         final boolean needAudio = false;
         final boolean needVideo = true;
-        final List<Object[]> exhaustiveArgsList = Arrays.asList(new Object[][]{
+        final List<Object[]> exhaustiveArgsList = new ArrayList<>(Arrays.asList(new Object[][]{
                 // Video - CodecMime, test file, bit rate, frame rate
                 {MediaFormat.MIMETYPE_VIDEO_H263, "bbb_176x144_128kbps_15fps_h263.3gp", 128000, 15},
                 {MediaFormat.MIMETYPE_VIDEO_MPEG4, "bbb_128x96_64kbps_12fps_mpeg4.mp4", 64000, 12},
@@ -121,7 +159,21 @@ public class CodecEncoderSurfaceTest {
                 {MediaFormat.MIMETYPE_VIDEO_VP8, "bbb_cif_768kbps_30fps_avc.mp4", 512000, 30},
                 {MediaFormat.MIMETYPE_VIDEO_VP9, "bbb_cif_768kbps_30fps_avc.mp4", 512000, 30},
                 {MediaFormat.MIMETYPE_VIDEO_AV1, "bbb_cif_768kbps_30fps_avc.mp4", 512000, 30},
-        });
+        }));
+        // P010 support was added in Android T, hence limit the following tests to Android T and
+        // above
+        if (CodecTestBase.IS_AT_LEAST_T) {
+            exhaustiveArgsList.addAll(Arrays.asList(new Object[][]{
+                {MediaFormat.MIMETYPE_VIDEO_AVC, "cosmat_520x390_24fps_crf22_avc_10bit.mkv",
+                        512000, 30},
+                {MediaFormat.MIMETYPE_VIDEO_HEVC, "cosmat_520x390_24fps_crf22_hevc_10bit.mkv",
+                        512000, 30},
+                {MediaFormat.MIMETYPE_VIDEO_VP9, "cosmat_520x390_24fps_crf22_vp9_10bit.mkv",
+                        512000, 30},
+                {MediaFormat.MIMETYPE_VIDEO_AV1, "cosmat_520x390_24fps_768kbps_av1_10bit.mkv",
+                        512000, 30},
+            }));
+        }
         return CodecTestBase.prepareParamList(exhaustiveArgsList, isEncoder, needAudio, needVideo,
                 true);
     }
@@ -138,10 +190,17 @@ public class CodecEncoderSurfaceTest {
             String mime = format.getString(MediaFormat.KEY_MIME);
             if (mime.startsWith("video/")) {
                 mExtractor.selectTrack(trackID);
-                // COLOR_FormatYUV420Flexible by default should be supported by all components
-                // This call shouldn't effect configure() call for any codec
-                format.setInteger(MediaFormat.KEY_COLOR_FORMAT,
-                        MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Flexible);
+                ArrayList<MediaFormat> formatList = new ArrayList<>();
+                formatList.add(format);
+                boolean selectHBD = CodecTestBase.doesAnyFormatHaveHDRProfile(mime, formatList) ||
+                        srcFile.contains("10bit");
+                if (selectHBD) {
+                    format.setInteger(MediaFormat.KEY_COLOR_FORMAT,
+                            MediaCodecInfo.CodecCapabilities.COLOR_FormatYUVP010);
+                } else {
+                    format.setInteger(MediaFormat.KEY_COLOR_FORMAT,
+                            MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Flexible);
+                }
                 return format;
             }
         }
@@ -439,21 +498,19 @@ public class CodecEncoderSurfaceTest {
     }
 
     /**
-     * Tests listed encoder components for sync and async mode in surface mode.The output has to
-     * be consistent (not flaky) in all runs.
+     * Checks if the component under test can encode from surface properly. The test runs
+     * mediacodec in both synchronous and asynchronous mode. The test feeds the encoder input
+     * surface with output of decoder. Assuming no frame drops, the number of output frames from
+     * encoder should be identical to number of input frames to decoder. Also the timestamps
+     * should be identical. As encoder output is deterministic, the test expects consistent
+     * output in all runs. The output is written to a file using muxer. This file is validated
+     * for PSNR to check if the encoding happened successfully with out any obvious artifacts.
      */
+    @ApiTest(apis = {"MediaCodecInfo.CodecCapabilities#COLOR_FormatSurface"})
     @LargeTest
     @Test(timeout = CodecTestBase.PER_TEST_TIMEOUT_LARGE_TEST_MS)
     public void testSimpleEncodeFromSurface() throws IOException, InterruptedException {
-        MediaFormat decoderFormat = setUpSource(mTestFile);
-        MediaCodecList codecList = new MediaCodecList(MediaCodecList.REGULAR_CODECS);
-        String decoder = codecList.findDecoderForFormat(decoderFormat);
-        if (decoder == null) {
-            mExtractor.release();
-            fail("no suitable decoder found for format: " + decoderFormat.toString());
-        }
-        mDecoder = MediaCodec.createByCodecName(decoder);
-        MediaFormat encoderFormat = setUpEncoderFormat(decoderFormat);
+        mDecoder = MediaCodec.createByCodecName(mDecoderName);
         boolean muxOutput = true;
         {
             mEncoder = MediaCodec.createByCodecName(mCompName);
@@ -480,7 +537,7 @@ public class CodecEncoderSurfaceTest {
                     }
                     mMuxer = new MediaMuxer(tmpPath, muxerFormat);
                 }
-                configureCodec(decoderFormat, encoderFormat, isAsync, false);
+                configureCodec(mDecoderFormat, mEncoderFormat, isAsync, false);
                 mEncoder.start();
                 mDecoder.start();
                 doWork(Integer.MAX_VALUE);
@@ -496,15 +553,13 @@ public class CodecEncoderSurfaceTest {
                         mMuxer = null;
                     }
                 }
-                /* TODO(b/147348711) */
-                if (false) mDecoder.stop();
-                else mDecoder.reset();
+                mDecoder.stop();
                 /* TODO(b/147348711) */
                 if (false) mEncoder.stop();
                 else mEncoder.reset();
                 String log = String.format(
                         "format: %s \n codec: %s, file: %s, mode: %s:: ",
-                        encoderFormat, mCompName, mTestFile, (isAsync ? "async" : "sync"));
+                        mEncoderFormat, mCompName, mTestFile, (isAsync ? "async" : "sync"));
                 assertTrue(log + " unexpected error", !hasSeenError());
                 assertTrue(log + "no input sent", 0 != mDecInputCount);
                 assertTrue(log + "no decoder output received", 0 != mDecOutputCount);
@@ -544,18 +599,15 @@ public class CodecEncoderSurfaceTest {
     }
 
     private native boolean nativeTestSimpleEncode(String encoder, String decoder, String mime,
-            String testFile, String muxFile, int bitrate, int framerate);
+            String testFile, String muxFile, int bitrate, int framerate, int colorFormat);
 
+    /**
+     * Test is similar to {@link #testSimpleEncodeFromSurface()} but uses ndk api
+     */
+    @ApiTest(apis = {"MediaCodecInfo.CodecCapabilities#COLOR_FormatSurface"})
     @LargeTest
     @Test(timeout = CodecTestBase.PER_TEST_TIMEOUT_LARGE_TEST_MS)
     public void testSimpleEncodeFromSurfaceNative() throws IOException {
-        MediaFormat decoderFormat = setUpSource(mTestFile);
-        MediaCodecList codecList = new MediaCodecList(MediaCodecList.REGULAR_CODECS);
-        String decoder = codecList.findDecoderForFormat(decoderFormat);
-        if (decoder == null) {
-            mExtractor.release();
-            fail("no suitable decoder found for format: " + decoderFormat.toString());
-        }
         {
             String tmpPath;
             if (mMime.equals(MediaFormat.MIMETYPE_VIDEO_VP8) ||
@@ -564,8 +616,9 @@ public class CodecEncoderSurfaceTest {
             } else {
                 tmpPath = File.createTempFile("tmp", ".mp4").getAbsolutePath();
             }
-            assertTrue(nativeTestSimpleEncode(mCompName, decoder, mMime, mInpPrefix + mTestFile,
-                    tmpPath, mBitrate, mFrameRate));
+            int colorFormat = mDecoderFormat.getInteger(MediaFormat.KEY_COLOR_FORMAT, -1);
+            assertTrue(nativeTestSimpleEncode(mCompName, mDecoderName, mMime,
+                    mInpPrefix + mTestFile, tmpPath, mBitrate, mFrameRate, colorFormat));
         }
     }
 }

@@ -16,6 +16,17 @@
 
 package android.mediav2.cts;
 
+import static android.media.MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface;
+import static android.media.MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Flexible;
+import static android.media.MediaCodecInfo.CodecCapabilities.COLOR_FormatYUVP010;
+import static android.media.MediaCodecInfo.CodecCapabilities.FEATURE_HdrEditing;
+import static android.media.MediaCodecInfo.CodecProfileLevel.*;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.graphics.ImageFormat;
@@ -25,11 +36,16 @@ import android.media.AudioFormat;
 import android.media.Image;
 import android.media.MediaCodec;
 import android.media.MediaCodecInfo;
+import android.media.MediaCodecInfo.CodecCapabilities;
+import android.media.MediaCodecInfo.CodecProfileLevel;
 import android.media.MediaCodecList;
 import android.media.MediaExtractor;
 import android.media.MediaFormat;
+import android.media.MediaMuxer;
 import android.os.Build;
+import android.os.Bundle;
 import android.os.PersistableBundle;
+import android.os.SystemProperties;
 import android.util.Log;
 import android.util.Pair;
 import android.view.Display;
@@ -38,7 +54,10 @@ import android.view.Surface;
 import androidx.annotation.NonNull;
 import androidx.test.platform.app.InstrumentationRegistry;
 
-import org.junit.Assert;
+import com.android.compatibility.common.util.ApiLevelUtil;
+import com.android.compatibility.common.util.MediaUtils;
+
+import org.junit.After;
 import org.junit.Assume;
 import org.junit.Before;
 
@@ -59,19 +78,10 @@ import java.util.Set;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.IntStream;
 import java.util.zip.CRC32;
-
-import com.android.compatibility.common.util.ApiLevelUtil;
-import com.android.compatibility.common.util.MediaUtils;
-
-import static android.media.MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface;
-import static android.media.MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Flexible;
-import static android.media.MediaCodecInfo.CodecCapabilities.COLOR_FormatYUVP010;
-import static android.media.MediaCodecInfo.CodecProfileLevel.*;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 class CodecAsyncHandler extends MediaCodec.Callback {
     private static final String LOG_TAG = CodecAsyncHandler.class.getSimpleName();
@@ -533,8 +543,6 @@ class OutputManager {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         OutputManager that = (OutputManager) o;
-        // TODO: Timestamps for deinterlaced content are under review. (E.g. can decoders
-        // produce multiple progressive frames?) For now, do not verify timestamps.
         boolean isEqual = this.equalsInterlaced(o);
         if (!outPtsList.equals(that.outPtsList)) {
             isEqual = false;
@@ -543,6 +551,8 @@ class OutputManager {
         return isEqual;
     }
 
+    // TODO: Timestamps for deinterlaced content are under review. (E.g. can decoders
+    // produce multiple progressive frames?) For now, do not verify timestamps.
     public boolean equalsInterlaced(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
@@ -580,12 +590,16 @@ class OutputManager {
 }
 
 abstract class CodecTestBase {
+    public static final boolean IS_Q = ApiLevelUtil.getApiLevel() == Build.VERSION_CODES.Q;
     public static final boolean IS_AT_LEAST_R = ApiLevelUtil.isAtLeast(Build.VERSION_CODES.R);
-    // TODO (b/223868241) Update the following two to check for Build.VERSION_CODES.TIRAMISU once
-    // TIRAMISU is set correctly
-    public static final boolean IS_AT_LEAST_T = ApiLevelUtil.isAfter(Build.VERSION_CODES.S_V2);
+    public static final boolean IS_AT_LEAST_T =
+            ApiLevelUtil.isAtLeast(Build.VERSION_CODES.TIRAMISU);
+    public static final boolean IS_AT_LEAST_U = ApiLevelUtil.isAfter(Build.VERSION_CODES.TIRAMISU);
     public static final boolean FIRST_SDK_IS_AT_LEAST_T =
-            ApiLevelUtil.isFirstApiAfter(Build.VERSION_CODES.S_V2);
+            ApiLevelUtil.isFirstApiAtLeast(Build.VERSION_CODES.TIRAMISU);
+    public static final boolean VNDK_IS_AT_LEAST_T =
+            SystemProperties.getInt("ro.vndk.version", 0) >= Build.VERSION_CODES.TIRAMISU;
+    public static final boolean IS_HDR_EDITING_SUPPORTED = isHDREditingSupported();
     private static final String LOG_TAG = CodecTestBase.class.getSimpleName();
     enum SupportClass {
         CODEC_ALL, // All codecs must support
@@ -594,13 +608,24 @@ abstract class CodecTestBase {
         CODEC_OPTIONAL // Codec support is optional
     }
 
+    static final ArrayList<String> HDR_INFO_IN_BITSTREAM_CODECS = new ArrayList<>();
+    static final String HDR_STATIC_INFO =
+            "00 d0 84 80 3e c2 33 c4 86 4c 1d b8 0b 13 3d 42 40 a0 0f 32 00 10 27 df 0d";
+    static final String HDR_STATIC_INCORRECT_INFO =
+            "00 d0 84 80 3e c2 33 c4 86 10 27 d0 07 13 3d 42 40 a0 0f 32 00 10 27 df 0d";
+    static final HashMap<Integer, String> HDR_DYNAMIC_INFO = new HashMap<>();
+    static final HashMap<Integer, String> HDR_DYNAMIC_INCORRECT_INFO = new HashMap<>();
     static final String CODEC_PREFIX_KEY = "codec-prefix";
+    static final String MEDIA_TYPE_PREFIX_KEY = "media-type-prefix";
     static final String MIME_SEL_KEY = "mime-sel";
     static final Map<String, String> codecSelKeyMimeMap = new HashMap<>();
     static final Map<String, String> mDefaultEncoders = new HashMap<>();
     static final Map<String, String> mDefaultDecoders = new HashMap<>();
     static final HashMap<String, int[]> mProfileMap = new HashMap<>();
     static final HashMap<String, int[]> mProfileSdrMap = new HashMap<>();
+    static final HashMap<String, int[]> mProfileHlgMap = new HashMap<>();
+    static final HashMap<String, int[]> mProfileHdr10Map = new HashMap<>();
+    static final HashMap<String, int[]> mProfileHdr10PlusMap = new HashMap<>();
     static final HashMap<String, int[]> mProfileHdrMap = new HashMap<>();
     static final boolean ENABLE_LOGS = false;
     static final int PER_TEST_TIMEOUT_LARGE_TEST_MS = 300000;
@@ -626,20 +651,29 @@ abstract class CodecTestBase {
     static final int[] AVC_SDR_PROFILES = new int[]{AVCProfileBaseline, AVCProfileMain,
             AVCProfileExtended, AVCProfileHigh, AVCProfileConstrainedBaseline,
             AVCProfileConstrainedHigh};
-    static final int[] AVC_HDR_PROFILES = new int[]{AVCProfileHigh10, AVCProfileHigh422,
-            AVCProfileHigh444};
+    static final int[] AVC_HLG_PROFILES = new int[]{AVCProfileHigh10};
+    static final int[] AVC_HDR_PROFILES = AVC_HLG_PROFILES;
     static final int[] AVC_PROFILES = combine(AVC_SDR_PROFILES, AVC_HDR_PROFILES);
-    static final int[] VP9_SDR_PROFILES = new int[]{VP9Profile0, VP9Profile1};
-    static final int[] VP9_HDR_PROFILES = new int[]{VP9Profile2, VP9Profile3,
-            VP9Profile2HDR, VP9Profile3HDR, VP9Profile2HDR10Plus, VP9Profile3HDR10Plus};
+    static final int[] VP9_SDR_PROFILES = new int[]{VP9Profile0};
+    static final int[] VP9_HLG_PROFILES = new int[]{VP9Profile2};
+    static final int[] VP9_HDR10_PROFILES = new int[]{VP9Profile2HDR};
+    static final int[] VP9_HDR10Plus_PROFILES = new int[]{VP9Profile2HDR10Plus};
+    static final int[] VP9_HDR_PROFILES =
+            combine(VP9_HLG_PROFILES, combine(VP9_HDR10_PROFILES, VP9_HDR10Plus_PROFILES));
     static final int[] VP9_PROFILES = combine(VP9_SDR_PROFILES, VP9_HDR_PROFILES);
     static final int[] HEVC_SDR_PROFILES = new int[]{HEVCProfileMain, HEVCProfileMainStill};
-    static final int[] HEVC_HDR_PROFILES = new int[]{HEVCProfileMain10,
-            HEVCProfileMain10HDR10, HEVCProfileMain10HDR10Plus};
+    static final int[] HEVC_HLG_PROFILES = new int[]{HEVCProfileMain10};
+    static final int[] HEVC_HDR10_PROFILES = new int[]{HEVCProfileMain10HDR10};
+    static final int[] HEVC_HDR10Plus_PROFILES = new int[]{HEVCProfileMain10HDR10Plus};
+    static final int[] HEVC_HDR_PROFILES =
+            combine(HEVC_HLG_PROFILES, combine(HEVC_HDR10_PROFILES, HEVC_HDR10Plus_PROFILES));
     static final int[] HEVC_PROFILES = combine(HEVC_SDR_PROFILES, HEVC_HDR_PROFILES);
     static final int[] AV1_SDR_PROFILES = new int[]{AV1ProfileMain8};
-    static final int[] AV1_HDR_PROFILES = new int[]{AV1ProfileMain10,
-            AV1ProfileMain10HDR10, AV1ProfileMain10HDR10Plus};
+    static final int[] AV1_HLG_PROFILES = new int[]{AV1ProfileMain10};
+    static final int[] AV1_HDR10_PROFILES = new int[]{AV1ProfileMain10HDR10};
+    static final int[] AV1_HDR10Plus_PROFILES = new int[]{AV1ProfileMain10HDR10Plus};
+    static final int[] AV1_HDR_PROFILES =
+            combine(AV1_HLG_PROFILES, combine(AV1_HDR10_PROFILES, AV1_HDR10Plus_PROFILES));
     static final int[] AV1_PROFILES = combine(AV1_SDR_PROFILES, AV1_HDR_PROFILES);
     static final int[] AAC_PROFILES = new int[]{AACObjectMain, AACObjectLC, AACObjectSSR,
             AACObjectLTP, AACObjectHE, AACObjectScalable, AACObjectERLC, AACObjectERScalable,
@@ -649,6 +683,7 @@ abstract class CodecTestBase {
     static final PackageManager pm = mContext.getPackageManager();
     static String mimeSelKeys;
     static String codecPrefix;
+    static String mediaTypePrefix;
 
     CodecAsyncHandler mAsyncHandle;
     boolean mIsCodecInAsyncMode;
@@ -696,6 +731,7 @@ abstract class CodecTestBase {
         android.os.Bundle args = InstrumentationRegistry.getArguments();
         mimeSelKeys = args.getString(MIME_SEL_KEY);
         codecPrefix = args.getString(CODEC_PREFIX_KEY);
+        mediaTypePrefix = args.getString(MEDIA_TYPE_PREFIX_KEY);
 
         mProfileSdrMap.put(MediaFormat.MIMETYPE_VIDEO_AVC, AVC_SDR_PROFILES);
         mProfileSdrMap.put(MediaFormat.MIMETYPE_VIDEO_HEVC, HEVC_SDR_PROFILES);
@@ -706,6 +742,19 @@ abstract class CodecTestBase {
         mProfileSdrMap.put(MediaFormat.MIMETYPE_VIDEO_VP9, VP9_SDR_PROFILES);
         mProfileSdrMap.put(MediaFormat.MIMETYPE_VIDEO_AV1, AV1_SDR_PROFILES);
         mProfileSdrMap.put(MediaFormat.MIMETYPE_AUDIO_AAC, AAC_PROFILES);
+
+        mProfileHlgMap.put(MediaFormat.MIMETYPE_VIDEO_AVC, AVC_HLG_PROFILES);
+        mProfileHlgMap.put(MediaFormat.MIMETYPE_VIDEO_HEVC, HEVC_HLG_PROFILES);
+        mProfileHlgMap.put(MediaFormat.MIMETYPE_VIDEO_VP9, VP9_HLG_PROFILES);
+        mProfileHlgMap.put(MediaFormat.MIMETYPE_VIDEO_AV1, AV1_HLG_PROFILES);
+
+        mProfileHdr10Map.put(MediaFormat.MIMETYPE_VIDEO_HEVC, HEVC_HDR10_PROFILES);
+        mProfileHdr10Map.put(MediaFormat.MIMETYPE_VIDEO_VP9, VP9_HDR10_PROFILES);
+        mProfileHdr10Map.put(MediaFormat.MIMETYPE_VIDEO_AV1, AV1_HDR10_PROFILES);
+
+        mProfileHdr10PlusMap.put(MediaFormat.MIMETYPE_VIDEO_HEVC, HEVC_HDR10Plus_PROFILES);
+        mProfileHdr10PlusMap.put(MediaFormat.MIMETYPE_VIDEO_VP9, VP9_HDR10Plus_PROFILES);
+        mProfileHdr10PlusMap.put(MediaFormat.MIMETYPE_VIDEO_AV1, AV1_HDR10Plus_PROFILES);
 
         mProfileHdrMap.put(MediaFormat.MIMETYPE_VIDEO_AVC, AVC_HDR_PROFILES);
         mProfileHdrMap.put(MediaFormat.MIMETYPE_VIDEO_HEVC, HEVC_HDR_PROFILES);
@@ -721,6 +770,45 @@ abstract class CodecTestBase {
         mProfileMap.put(MediaFormat.MIMETYPE_VIDEO_VP9, VP9_PROFILES);
         mProfileMap.put(MediaFormat.MIMETYPE_VIDEO_AV1, AV1_PROFILES);
         mProfileMap.put(MediaFormat.MIMETYPE_AUDIO_AAC, AAC_PROFILES);
+
+        HDR_INFO_IN_BITSTREAM_CODECS.add(MediaFormat.MIMETYPE_VIDEO_AV1);
+        HDR_INFO_IN_BITSTREAM_CODECS.add(MediaFormat.MIMETYPE_VIDEO_AVC);
+        HDR_INFO_IN_BITSTREAM_CODECS.add(MediaFormat.MIMETYPE_VIDEO_HEVC);
+
+        HDR_DYNAMIC_INFO.put(0, "b5 00 3c 00 01 04 00 40  00 0c 80 4e 20 27 10 00" +
+                "0a 00 00 24 08 00 00 28  00 00 50 00 28 c8 00 c9" +
+                "90 02 aa 58 05 ca d0 0c  0a f8 16 83 18 9c 18 00" +
+                "40 78 13 64 d5 7c 2e 2c  c3 59 de 79 6e c3 c2 00");
+        HDR_DYNAMIC_INFO.put(4, "b5 00 3c 00 01 04 00 40  00 0c 80 4e 20 27 10 00" +
+                "0a 00 00 24 08 00 00 28  00 00 50 00 28 c8 00 c9" +
+                "90 02 aa 58 05 ca d0 0c  0a f8 16 83 18 9c 18 00" +
+                "40 78 13 64 d5 7c 2e 2c  c3 59 de 79 6e c3 c2 00");
+        HDR_DYNAMIC_INFO.put(12, "b5 00 3c 00 01 04 00 40  00 0c 80 4e 20 27 10 00" +
+                "0e 80 00 24 08 00 00 28  00 00 50 00 28 c8 00 c9" +
+                "90 02 aa 58 05 ca d0 0c  0a f8 16 83 18 9c 18 00" +
+                "40 78 13 64 d5 7c 2e 2c  c3 59 de 79 6e c3 c2 00");
+        HDR_DYNAMIC_INFO.put(22, "b5 00 3c 00 01 04 00 40  00 0c 80 4e 20 27 10 00" +
+                "0e 80 00 24 08 00 00 28  00 00 50 00 28 c8 00 c9" +
+                "90 02 aa 58 05 ca d0 0c  0a f8 16 83 18 9c 18 00" +
+                "40 78 13 64 d5 7c 2e 2c  c3 59 de 79 6e c3 c2 00");
+
+
+        HDR_DYNAMIC_INCORRECT_INFO.put(0, "b5 00 3c 00 01 04 00 40  00 0c 80 4e 20 27 10 00" +
+                "0a 00 00 24 08 00 00 28  00 00 50 00 28 c8 00 c9" +
+                "90 02 aa 58 05 ca d0 0c  0a f8 16 83 18 9c 18 00" +
+                "40 78 13 64 d5 7c 2e 2c  c3 59 de 79 6e c3 c2 00");
+        HDR_DYNAMIC_INCORRECT_INFO.put(4, "b5 00 3c 00 01 04 00 40  00 0c 80 4e 20 27 10 00" +
+                "0a 00 00 24 08 00 00 28  00 00 50 00 28 c8 00 c9" +
+                "90 02 aa 58 05 ca d0 0c  0a f8 16 83 18 9c 18 00" +
+                "40 78 13 64 d5 7c 2e 2c  c3 59 de 79 6e c3 c2 01");
+        HDR_DYNAMIC_INCORRECT_INFO.put(12, "b5 00 3c 00 01 04 00 40  00 0c 80 4e 20 27 10 00" +
+                "0e 80 00 24 08 00 00 28  00 00 50 00 28 c8 00 c9" +
+                "90 02 aa 58 05 ca d0 0c  0a f8 16 83 18 9c 18 00" +
+                "40 78 13 64 d5 7c 2e 2c  c3 59 de 79 6e c3 c2 02");
+        HDR_DYNAMIC_INCORRECT_INFO.put(22, "b5 00 3c 00 01 04 00 40  00 0c 80 4e 20 27 10 00" +
+                "0e 80 00 24 08 00 00 28  00 00 50 00 28 c8 00 c9" +
+                "90 02 aa 58 05 ca d0 0c  0a f8 16 83 18 9c 18 00" +
+                "40 78 13 64 d5 7c 2e 2c  c3 59 de 79 6e c3 c2 03");
     }
 
     static int[] combine(int[] first, int[] second) {
@@ -748,22 +836,26 @@ abstract class CodecTestBase {
         if (!areFormatsSupported(codecName, mime, formats)) {
             switch (supportRequirements) {
                 case CODEC_ALL:
-                    fail("format(s) not supported by codec: " + codecName + " for mime : " + mime);
+                    fail("format(s) not supported by codec: " + codecName
+                                    + " for mime : " + mime + " formats: " + formats);
                     break;
                 case CODEC_ANY:
                     if (selectCodecs(mime, formats, features, isEncoder).isEmpty())
-                        fail("format(s) not supported by any component for mime : " + mime);
+                        fail("format(s) not supported by any component for mime : " + mime
+                                        + " formats: " + formats);
                     break;
                 case CODEC_DEFAULT:
                     if (isDefaultCodec(codecName, mime, isEncoder))
                         fail("format(s) not supported by default codec : " + codecName +
-                                "for mime : " + mime);
+                                "for mime : " + mime + " formats: " + formats);
                     break;
                 case CODEC_OPTIONAL:
                 default:
-                    Assume.assumeTrue("format(s) not supported by codec: " + codecName +
-                            " for mime : " + mime, false);
+                    // the later assumeTrue() ensures we skip the test for unsupported codecs
+                    break;
             }
+            Assume.assumeTrue("format(s) not supported by codec: " + codecName + " for mime : " +
+                    mime, false);
         }
     }
 
@@ -776,6 +868,22 @@ abstract class CodecTestBase {
         return isSupported;
     }
 
+    static boolean isHDREditingSupported() {
+        MediaCodecList mcl = new MediaCodecList(MediaCodecList.REGULAR_CODECS);
+        for (MediaCodecInfo codecInfo : mcl.getCodecInfos()) {
+            if (!codecInfo.isEncoder()) {
+                continue;
+            }
+            for (String mediaType : codecInfo.getSupportedTypes()) {
+                CodecCapabilities caps = codecInfo.getCapabilitiesForType(mediaType);
+                if (caps != null && caps.isFeatureSupported(FEATURE_HdrEditing)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     static boolean doesAnyFormatHaveHDRProfile(String mime, ArrayList<MediaFormat> formats) {
         int[] profileArray = mProfileHdrMap.get(mime);
         if (profileArray != null) {
@@ -783,6 +891,30 @@ abstract class CodecTestBase {
                 assertEquals(mime, format.getString(MediaFormat.KEY_MIME));
                 int profile = format.getInteger(MediaFormat.KEY_PROFILE, -1);
                 if (IntStream.of(profileArray).anyMatch(x -> x == profile)) return true;
+            }
+        }
+        return false;
+    }
+
+    static boolean doesCodecSupportHDRProfile(String codecName, String mediaType)
+            throws IOException {
+        int[] hdrProfiles = mProfileHdrMap.get(mediaType);
+        if (hdrProfiles == null) {
+            return false;
+        }
+        MediaCodecList mcl = new MediaCodecList(MediaCodecList.REGULAR_CODECS);
+        for (MediaCodecInfo codecInfo : mcl.getCodecInfos()) {
+            if (!codecName.equals(codecInfo.getName())) {
+                continue;
+            }
+            CodecCapabilities caps = codecInfo.getCapabilitiesForType(mediaType);
+            if (caps == null) {
+                return false;
+            }
+            for (CodecProfileLevel pl : caps.profileLevels) {
+                if (IntStream.of(hdrProfiles).anyMatch(x -> x == pl.profile)) {
+                    return true;
+                }
             }
         }
         return false;
@@ -837,6 +969,16 @@ abstract class CodecTestBase {
         mDefaultCodecs.put(mime, codec.getName());
         codec.release();
         return isDefault;
+    }
+
+    static boolean isVendorCodec(String codecName) {
+        MediaCodecList mcl = new MediaCodecList(MediaCodecList.ALL_CODECS);
+        for (MediaCodecInfo codecInfo : mcl.getCodecInfos()) {
+            if (codecName.equals(codecInfo.getName())) {
+                return codecInfo.isVendor();
+            }
+        }
+        return false;
     }
 
     static ArrayList<String> compileRequiredMimeList(boolean isEncoder, boolean needAudio,
@@ -922,12 +1064,18 @@ abstract class CodecTestBase {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && codecInfo.isAlias()) continue;
                 String[] types = codecInfo.getSupportedTypes();
                 for (String type : types) {
+                    if (mediaTypePrefix != null && !type.startsWith(mediaTypePrefix)) {
+                        continue;
+                    }
                     if (!needAudio && type.startsWith("audio/")) continue;
                     if (!needVideo && type.startsWith("video/")) continue;
                     if (!mimes.contains(type)) {
                         mimes.add(type);
                     }
                 }
+            }
+            if (mediaTypePrefix != null) {
+                return mimes;
             }
             // feature_video_output is not exposed to package manager. Testing for video output
             // ports, such as VGA, HDMI, DisplayPort, or a wireless port for display is also not
@@ -1224,6 +1372,27 @@ abstract class CodecTestBase {
         return height;
     }
 
+    byte[] loadByteArrayFromString(final String str) {
+        if (str == null) {
+            return null;
+        }
+        Pattern pattern = Pattern.compile("[0-9a-fA-F]{2}");
+        Matcher matcher = pattern.matcher(str);
+        // allocate a large enough byte array first
+        byte[] tempArray = new byte[str.length() / 2];
+        int i = 0;
+        while (matcher.find()) {
+            tempArray[i++] = (byte) Integer.parseInt(matcher.group(), 16);
+        }
+        return Arrays.copyOfRange(tempArray, 0, i);
+    }
+
+    void insertHdrDynamicInfo(byte[] info) {
+        final Bundle params = new Bundle();
+        params.putByteArray(MediaFormat.KEY_HDR10_PLUS_INFO, info);
+        mCodec.setParameters(params);
+    }
+
     boolean isFormatSimilar(MediaFormat inpFormat, MediaFormat outFormat) {
         if (inpFormat == null || outFormat == null) return false;
         String inpMime = inpFormat.getString(MediaFormat.KEY_MIME);
@@ -1282,6 +1451,29 @@ abstract class CodecTestBase {
         }
     }
 
+    void validateHDRInfo(MediaFormat fmt, String hdrInfoKey, ByteBuffer hdrInfoRef) {
+        ByteBuffer hdrInfo = fmt.getByteBuffer(hdrInfoKey, null);
+        assertNotNull("No " + hdrInfoKey + " present in format : " + fmt, hdrInfo);
+        if (!hdrInfoRef.equals(hdrInfo)) {
+            StringBuilder refString = new StringBuilder("");
+            StringBuilder testString = new StringBuilder("");
+            byte[] ref = new byte[hdrInfoRef.capacity()];
+            hdrInfoRef.get(ref);
+            hdrInfoRef.rewind();
+            byte[] test = new byte[hdrInfo.capacity()];
+            hdrInfo.get(test);
+            hdrInfo.rewind();
+            for (int i = 0; i < ref.length; i++) {
+                refString.append(String.format("%2x ", ref[i]));
+            }
+            for (int i = 0; i < test.length; i++) {
+                testString.append(String.format("%2x ", test[i]));
+            }
+            fail(hdrInfoKey + " mismatch in codec " + mCodecName + "\nref info : " + refString +
+                    "\n test info : " + testString);
+        }
+    }
+
     public void setUpSurface(CodecTestActivity activity) throws InterruptedException {
         activity.waitTillSurfaceIsCreated();
         mSurface = activity.getSurface();
@@ -1300,6 +1492,14 @@ abstract class CodecTestBase {
     public void isCodecNameValid() {
         if (mCodecName != null && mCodecName.startsWith(INVALID_CODEC)) {
             fail("no valid component available for current test ");
+        }
+    }
+
+    @After
+    public void tearDown() {
+        if (mCodec != null) {
+            mCodec.release();
+            mCodec = null;
         }
     }
 }
@@ -1336,6 +1536,7 @@ class CodecDecoderTestBase extends CodecTestBase {
     MediaFormat setUpSource(String prefix, String srcFile) throws IOException {
         Preconditions.assertTestFileExists(prefix + srcFile);
         mExtractor = new MediaExtractor();
+        Preconditions.assertTestFileExists(prefix + srcFile);
         mExtractor.setDataSource(prefix + srcFile);
         for (int trackID = 0; trackID < mExtractor.getTrackCount(); trackID++) {
             MediaFormat format = mExtractor.getTrackFormat(trackID);
@@ -1618,10 +1819,12 @@ class CodecEncoderTestBase extends CodecTestBase {
     private static final String LOG_TAG = CodecEncoderTestBase.class.getSimpleName();
 
     // files are in WorkDir.getMediaDirString();
-    private static final String INPUT_AUDIO_FILE = "bbb_2ch_44kHz_s16le.raw";
-    private static final String INPUT_VIDEO_FILE = "bbb_cif_yuv420p_30fps.yuv";
-    private final int INP_FRM_WIDTH = 352;
-    private final int INP_FRM_HEIGHT = 288;
+    protected static final String INPUT_AUDIO_FILE = "bbb_2ch_44kHz_s16le.raw";
+    protected static final String INPUT_VIDEO_FILE = "bbb_cif_yuv420p_30fps.yuv";
+    protected static final String INPUT_AUDIO_FILE_HBD = "audio/sd_2ch_48kHz_f32le.raw";
+    protected static final String INPUT_VIDEO_FILE_HBD = "cosmat_cif_24fps_yuv420p16le.yuv";
+    protected final int INP_FRM_WIDTH = 352;
+    protected final int INP_FRM_HEIGHT = 288;
 
     final String mMime;
     final int[] mBitrates;
@@ -1978,5 +2181,243 @@ class CodecEncoderTestBase extends CodecTestBase {
         cdtb.mCodec.stop();
         cdtb.mCodec.release();
         return cdtb.mOutputBuff.getBuffer();
+    }
+}
+
+class HDRDecoderTestBase extends CodecDecoderTestBase {
+    private static final String LOG_TAG = HDRDecoderTestBase.class.getSimpleName();
+
+    private ByteBuffer mHdrStaticInfoRef;
+    private ByteBuffer mHdrStaticInfoStream;
+    private ByteBuffer mHdrStaticInfoContainer;
+    private Map<Integer, String> mHdrDynamicInfoRef;
+    private Map<Integer, String> mHdrDynamicInfoStream;
+    private Map<Integer, String> mHdrDynamicInfoContainer;
+    private String mHdrDynamicInfoCurrent;
+
+    public HDRDecoderTestBase(String decoder, String mime, String testFile) {
+        super(decoder, mime, testFile);
+    }
+
+    void enqueueInput(int bufferIndex) {
+        if (mHdrDynamicInfoContainer != null && mHdrDynamicInfoContainer.containsKey(mInputCount) &&
+                mExtractor.getSampleSize() != -1) {
+            insertHdrDynamicInfo(
+                    loadByteArrayFromString(mHdrDynamicInfoContainer.get(mInputCount)));
+        }
+        super.enqueueInput(bufferIndex);
+    }
+
+    void dequeueOutput(int bufferIndex, MediaCodec.BufferInfo info) {
+        if (info.size > 0 && mHdrDynamicInfoRef != null) {
+            MediaFormat format = mCodec.getOutputFormat(bufferIndex);
+            if (mHdrDynamicInfoRef.containsKey(mOutputCount)) {
+                mHdrDynamicInfoCurrent = mHdrDynamicInfoRef.get(mOutputCount);
+            }
+            validateHDRInfo(format, MediaFormat.KEY_HDR10_PLUS_INFO,
+                    ByteBuffer.wrap(loadByteArrayFromString(mHdrDynamicInfoCurrent)));
+        }
+        super.dequeueOutput(bufferIndex, info);
+    }
+
+    void validateHDRInfo(String hdrStaticInfoStream, String hdrStaticInfoContainer,
+                         Map<Integer, String> hdrDynamicInfoStream,
+                         Map<Integer, String> hdrDynamicInfoContainer) throws IOException,
+            InterruptedException {
+        mHdrStaticInfoStream = hdrStaticInfoStream != null ?
+                ByteBuffer.wrap(loadByteArrayFromString(hdrStaticInfoStream)) : null;
+        mHdrStaticInfoContainer = hdrStaticInfoContainer != null ?
+                ByteBuffer.wrap(loadByteArrayFromString(hdrStaticInfoContainer)) : null;
+        mHdrStaticInfoRef = mHdrStaticInfoStream == null ? mHdrStaticInfoContainer :
+                mHdrStaticInfoStream;
+        mHdrDynamicInfoStream = hdrDynamicInfoStream;
+        mHdrDynamicInfoContainer = hdrDynamicInfoContainer;
+        mHdrDynamicInfoRef = hdrDynamicInfoStream == null ? hdrDynamicInfoContainer :
+                hdrDynamicInfoStream;
+
+        assertTrue("reference hdr10/hdr10+ info is not supplied for validation",
+                mHdrDynamicInfoRef != null || mHdrStaticInfoRef != null);
+
+        if (mHdrDynamicInfoStream != null || mHdrDynamicInfoContainer != null) {
+            Assume.assumeNotNull("Test is only applicable to codecs that have HDR10+ profiles",
+                    mProfileHdr10PlusMap.get(mMime));
+        }
+        if (mHdrStaticInfoStream != null || mHdrStaticInfoContainer != null) {
+            Assume.assumeNotNull("Test is only applicable to codecs that have HDR10 profiles",
+                    mProfileHdr10Map.get(mMime));
+        }
+
+        File fObj = new File(mTestFile);
+        String parent = fObj.getParent();
+        if (parent != null) parent += File.separator;
+        else parent = mInpPrefix;
+        Preconditions.assertTestFileExists(parent + fObj.getName());
+        // For decoders, if you intend to supply hdr10+ info using external means like json, make
+        // sure that info that is being supplied is in sync with SEI info
+        if (mHdrDynamicInfoStream != null && mHdrDynamicInfoContainer != null) {
+            assertEquals("Container hdr10+ info size and elementary stream SEI hdr10+ " +
+                            "info size are unequal", mHdrDynamicInfoStream.size(),
+                    mHdrDynamicInfoContainer.size());
+            for (Map.Entry<Integer, String> element : mHdrDynamicInfoStream.entrySet()) {
+                assertTrue("Container hdr10+ info and elementary stream SEI hdr10+ " +
+                                "info frame positions are not in sync",
+                        mHdrDynamicInfoContainer.containsKey(element.getKey()));
+            }
+        }
+        mOutputBuff = new OutputManager();
+        MediaFormat format = setUpSource(parent, fObj.getName());
+        if (mHdrDynamicInfoStream != null || mHdrDynamicInfoContainer != null) {
+            format.setInteger(MediaFormat.KEY_PROFILE, mProfileHdr10PlusMap.get(mMime)[0]);
+        } else {
+            format.setInteger(MediaFormat.KEY_PROFILE, mProfileHdr10Map.get(mMime)[0]);
+        }
+        ArrayList<MediaFormat> formatList = new ArrayList<>();
+        formatList.add(format);
+        Assume.assumeTrue(mCodecName + " does not support HDR10/HDR10+ profile",
+                areFormatsSupported(mCodecName, mMime, formatList));
+        mCodec = MediaCodec.createByCodecName(mCodecName);
+        configureCodec(format, false, true, false);
+        mCodec.start();
+        doWork(Integer.MAX_VALUE);
+        queueEOS();
+        waitForAllOutputs();
+        if (mHdrStaticInfoRef != null) {
+            validateHDRInfo(mCodec.getOutputFormat(), MediaFormat.KEY_HDR_STATIC_INFO,
+                    mHdrStaticInfoRef);
+        }
+        mCodec.stop();
+        mCodec.release();
+        mExtractor.release();
+    }
+}
+
+class HDREncoderTestBase extends CodecEncoderTestBase {
+    private static final String LOG_TAG = HDREncoderTestBase.class.getSimpleName();
+
+    private ByteBuffer mHdrStaticInfo;
+    private Map<Integer, String> mHdrDynamicInfo;
+
+    private MediaMuxer mMuxer;
+    private int mTrackID = -1;
+
+    public HDREncoderTestBase(String encoderName, String mediaType, int bitrate, int width,
+                              int height) {
+        super(encoderName, mediaType, new int[]{bitrate}, new int[]{width}, new int[]{height});
+    }
+
+    void enqueueInput(int bufferIndex) {
+        if (mHdrDynamicInfo != null && mHdrDynamicInfo.containsKey(mInputCount)) {
+            insertHdrDynamicInfo(loadByteArrayFromString(mHdrDynamicInfo.get(mInputCount)));
+        }
+        super.enqueueInput(bufferIndex);
+    }
+
+    void dequeueOutput(int bufferIndex, MediaCodec.BufferInfo info) {
+        MediaFormat bufferFormat = mCodec.getOutputFormat(bufferIndex);
+        if (info.size > 0) {
+            ByteBuffer buf = mCodec.getOutputBuffer(bufferIndex);
+            if (mMuxer != null) {
+                if (mTrackID == -1) {
+                    mTrackID = mMuxer.addTrack(bufferFormat);
+                    mMuxer.start();
+                }
+                mMuxer.writeSampleData(mTrackID, buf, info);
+            }
+        }
+        super.dequeueOutput(bufferIndex, info);
+    }
+
+    void validateHDRInfo(String hdrStaticInfo, Map<Integer, String> hdrDynamicInfo)
+            throws IOException, InterruptedException {
+        mHdrStaticInfo = hdrStaticInfo != null ?
+                ByteBuffer.wrap(loadByteArrayFromString(hdrStaticInfo)) : null;
+        mHdrDynamicInfo = hdrDynamicInfo;
+
+        setUpParams(1);
+
+        MediaFormat format = mFormats.get(0);
+        format.setInteger(MediaFormat.KEY_COLOR_FORMAT, COLOR_FormatYUVP010);
+        format.setInteger(MediaFormat.KEY_COLOR_RANGE, MediaFormat.COLOR_RANGE_LIMITED);
+        format.setInteger(MediaFormat.KEY_COLOR_STANDARD, MediaFormat.COLOR_STANDARD_BT2020);
+        format.setInteger(MediaFormat.KEY_COLOR_TRANSFER, MediaFormat.COLOR_TRANSFER_ST2084);
+        int profile = (mHdrDynamicInfo != null) ? mProfileHdr10PlusMap.get(mMime)[0] :
+                mProfileHdr10Map.get(mMime)[0];
+        format.setInteger(MediaFormat.KEY_PROFILE, profile);
+
+        if (mHdrStaticInfo != null) {
+            format.setByteBuffer(MediaFormat.KEY_HDR_STATIC_INFO, mHdrStaticInfo);
+        }
+        Assume.assumeTrue(mCodecName + " does not support HDR10/HDR10+ profile " + profile,
+                areFormatsSupported(mCodecName, mMime, mFormats));
+        Assume.assumeTrue(mCodecName + " does not support color format COLOR_FormatYUVP010",
+                hasSupportForColorFormat(mCodecName, mMime, COLOR_FormatYUVP010));
+
+        mBytesPerSample = 2;
+        setUpSource(INPUT_VIDEO_FILE_HBD);
+
+        int frameLimit = 4;
+        if (mHdrDynamicInfo != null) {
+            Integer lastHdr10PlusFrame =
+                    Collections.max(HDR_DYNAMIC_INFO.entrySet(), Map.Entry.comparingByKey())
+                            .getKey();
+            frameLimit = lastHdr10PlusFrame + 10;
+        }
+        int maxNumFrames = mInputData.length / (INP_FRM_WIDTH * INP_FRM_HEIGHT * mBytesPerSample);
+        assertTrue("HDR info tests require input file with at least " + frameLimit +
+                        " frames. " + INPUT_VIDEO_FILE_HBD + " has " + maxNumFrames + " frames.",
+                frameLimit <= maxNumFrames);
+
+        mOutputBuff = new OutputManager();
+        mCodec = MediaCodec.createByCodecName(mCodecName);
+        File tmpFile;
+        int muxerFormat;
+        if (mMime.equals(MediaFormat.MIMETYPE_VIDEO_VP9)) {
+            muxerFormat = MediaMuxer.OutputFormat.MUXER_OUTPUT_WEBM;
+            tmpFile = File.createTempFile("tmp10bit", ".webm");
+        } else {
+            muxerFormat = MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4;
+            tmpFile = File.createTempFile("tmp10bit", ".mp4");
+        }
+        mMuxer = new MediaMuxer(tmpFile.getAbsolutePath(), muxerFormat);
+        configureCodec(format, true, true, true);
+        mCodec.start();
+        doWork(frameLimit);
+        queueEOS();
+        waitForAllOutputs();
+        if (mTrackID != -1) {
+            mMuxer.stop();
+            mTrackID = -1;
+        }
+        if (mMuxer != null) {
+            mMuxer.release();
+            mMuxer = null;
+        }
+        String log = String.format("format: %s \n codec: %s:: ", format, mCodecName);
+        assertTrue(log + "unexpected error", !mAsyncHandle.hasSeenError());
+        assertTrue(log + "no input sent", 0 != mInputCount);
+        assertTrue(log + "output received", 0 != mOutputCount);
+
+        MediaFormat fmt = mCodec.getOutputFormat();
+
+        mCodec.stop();
+        mCodec.release();
+        if (mHdrStaticInfo != null) {
+            // verify if the out fmt contains HDR Static info as expected
+            validateHDRInfo(fmt, MediaFormat.KEY_HDR_STATIC_INFO, mHdrStaticInfo);
+        }
+
+        // verify if the muxed file contains HDR Dynamic info as expected
+        MediaCodecList codecList = new MediaCodecList(MediaCodecList.REGULAR_CODECS);
+        String decoder = codecList.findDecoderForFormat(format);
+        assertNotNull("Device advertises support for encoding " + format + " but not decoding it",
+                decoder);
+
+        HDRDecoderTestBase decoderTest = new HDRDecoderTestBase(decoder, mMime,
+                tmpFile.getAbsolutePath());
+        decoderTest.validateHDRInfo(hdrStaticInfo, hdrStaticInfo, mHdrDynamicInfo, mHdrDynamicInfo);
+        if (HDR_INFO_IN_BITSTREAM_CODECS.contains(mMime)) {
+            decoderTest.validateHDRInfo(hdrStaticInfo, null, mHdrDynamicInfo, null);
+        }
+        tmpFile.delete();
     }
 }

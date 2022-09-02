@@ -16,11 +16,17 @@
 
 package android.mediav2.cts;
 
+import static android.mediav2.cts.CodecTestBase.SupportClass.CODEC_ALL;
+
+import static org.junit.Assert.assertTrue;
+
 import android.media.MediaCodec;
 import android.media.MediaExtractor;
 import android.media.MediaFormat;
 
 import androidx.test.filters.LargeTest;
+
+import com.android.compatibility.common.util.ApiTest;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -32,11 +38,9 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
-import static android.mediav2.cts.CodecTestBase.SupportClass.*;
-import static org.junit.Assert.assertTrue;
-
 /**
- * The following test validates that the decode can be paused
+ * Test decoders response during playback pause. The pause is emulated by stalling the
+ * enqueueInput() call for a short duration during running state.
  */
 @RunWith(Parameterized.class)
 public class CodecDecoderPauseTest extends CodecDecoderTestBase {
@@ -56,7 +60,7 @@ public class CodecDecoderPauseTest extends CodecDecoderTestBase {
         final boolean isEncoder = false;
         final boolean needAudio = true;
         final boolean needVideo = true;
-        /// mediaType, test file, SupportClass
+        // mediaType, test file, SupportClass
         final List<Object[]> exhaustiveArgsList = Arrays.asList(new Object[][]{
                 {MediaFormat.MIMETYPE_AUDIO_AAC, "bbb_2ch_48kHz_he_aac.mp4", CODEC_ALL},
                 {MediaFormat.MIMETYPE_VIDEO_AVC, "bbb_cif_avc_delay16.mp4", CODEC_ALL},
@@ -73,8 +77,14 @@ public class CodecDecoderPauseTest extends CodecDecoderTestBase {
     }
 
     /**
-     * Test decodes and compares decoded output of two files.
+     * Test decoder by stalling enqueueInput() call for short duration during running state. The
+     * output during normal run and the output during paused run are expected to be same.
      */
+    @ApiTest(apis = {"android.media.MediaCodec.Callback#onInputBufferAvailable",
+                     "android.media.MediaCodec#queueInputBuffer",
+                     "android.media.MediaCodec.Callback#onOutputBufferAvailable",
+                     "android.media.MediaCodec#dequeueOutputBuffer",
+                     "android.media.MediaCodec#releaseOutputBuffer"})
     @LargeTest
     @Test(timeout = PER_TEST_TIMEOUT_LARGE_TEST_MS)
     public void testPause() throws IOException, InterruptedException {

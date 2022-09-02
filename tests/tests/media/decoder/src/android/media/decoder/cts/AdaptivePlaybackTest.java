@@ -19,6 +19,7 @@ package android.media.decoder.cts;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
+import static org.junit.Assume.assumeFalse;
 
 import android.media.MediaCodec;
 import android.media.MediaCodecInfo;
@@ -30,6 +31,8 @@ import android.media.cts.MediaHeavyPresubmitTest;
 import android.media.cts.MediaTestBase;
 import android.media.cts.OutputSurface;
 import android.media.cts.Preconditions;
+import android.media.cts.TestArgs;
+import android.opengl.GLES20;
 import android.os.Build;
 import android.platform.test.annotations.AppModeFull;
 import android.util.Log;
@@ -37,18 +40,11 @@ import android.view.Surface;
 
 import com.android.compatibility.common.util.ApiLevelUtil;
 
-import android.opengl.GLES20;
-
-import androidx.test.platform.app.InstrumentationRegistry;
-import androidx.test.ext.junit.runners.AndroidJUnit4;
-
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
-
-import javax.microedition.khronos.opengles.GL10;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -60,10 +56,7 @@ import java.util.Vector;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.zip.CRC32;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
-import static org.junit.Assume.assumeFalse;
+import javax.microedition.khronos.opengles.GL10;
 
 @MediaHeavyPresubmitTest
 @AppModeFull
@@ -90,19 +83,11 @@ public class AdaptivePlaybackTest extends MediaTestBase {
         super.tearDown();
     }
 
-    private static final String CODEC_PREFIX_KEY = "codec-prefix";
-    private static final String mCodecPrefix;
-
     @Parameterized.Parameter(0)
     public String mCodecName;
 
     @Parameterized.Parameter(1)
     public CodecList mCodecs;
-
-    static {
-        android.os.Bundle args = InstrumentationRegistry.getArguments();
-        mCodecPrefix = args.getString(CODEC_PREFIX_KEY);
-    }
 
     public static Iterable<Codec> H264(CodecFactory factory) {
         return factory.createCodecList(
@@ -277,7 +262,7 @@ public class AdaptivePlaybackTest extends MediaTestBase {
             if (arg instanceof CodecList) {
                 CodecList codecList = (CodecList)arg;
                 for (Codec codec : codecList) {
-                    if (mCodecPrefix != null && !codec.name.startsWith(mCodecPrefix)) {
+                    if (TestArgs.shouldSkipCodec(codec.name)) {
                         continue;
                     }
                     Object[] testArgs = new Object[2];
@@ -1542,6 +1527,10 @@ class CodecFamily extends CodecList {
 
     public CodecFamily(String mime, final String ... resources) {
         try {
+            if (TestArgs.shouldSkipMediaType(mime)) {
+                return;
+            }
+
             /* read all media */
             Media[] mediaList = new Media[resources.length];
             for (int i = 0; i < resources.length; i++) {

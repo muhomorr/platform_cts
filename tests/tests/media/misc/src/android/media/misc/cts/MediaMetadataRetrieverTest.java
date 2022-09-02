@@ -157,6 +157,37 @@ public class MediaMetadataRetrieverTest extends AndroidTestCase {
         return ds;
     }
 
+    public void testExceptionWhileClosingMediaDataSource() throws IOException {
+        MediaDataSource backingMediaDataSource =
+                TestMediaDataSource.fromAssetFd(
+                        getAssetFileDescriptorFor("audio_with_metadata.mp3"));
+        MediaDataSource mediaDataSource = new MediaDataSource() {
+            @Override
+            public int readAt(long position, byte[] buffer, int offset, int size)
+                    throws IOException {
+                return backingMediaDataSource.readAt(position, buffer, offset, size);
+            }
+
+            @Override
+            public long getSize() throws IOException {
+                return backingMediaDataSource.getSize();
+            }
+
+            @Override
+            public void close() throws IOException {
+                backingMediaDataSource.close();
+                throw new IOException();
+            }
+        };
+        mRetriever.setDataSource(mediaDataSource);
+        try {
+            mRetriever.release();
+            fail("Expected IOException not thrown.");
+        } catch (IOException e) {
+            // Expected.
+        }
+    }
+
     public void testAudioMetadata() {
         setDataSourceCallback("audio_with_metadata.mp3");
 
@@ -391,13 +422,6 @@ public class MediaMetadataRetrieverTest extends AndroidTestCase {
     }
 
     public void testID3v240ExtHeader() {
-        if(!ApiLevelUtil.isAtLeast(Build.VERSION_CODES.R)) {
-            // The fix for b/154357105 was released in mainline release 30.09.007.01
-            // See https://android-build.googleplex.com/builds/treetop/googleplex-android-review/11174063
-            if (TestUtils.skipTestIfMainlineLessThan("com.google.android.media", 300900701)) {
-                return;
-            }
-        }
         setDataSourceFd("sinesweepid3v24ext.mp3");
         assertEquals("Mime type was other than expected",
                 "audio/mpeg",
@@ -575,8 +599,8 @@ public class MediaMetadataRetrieverTest extends AndroidTestCase {
 
         setDataSourceFd(res);
 
-        if (!MediaUtils.hasCodecForResourceAndDomain(res, "video/")) {
-            MediaUtils.skipTest("no video codecs for resource");
+        if (!MediaUtils.hasCodecForResourceAndDomain(mInpPrefix + res, "video/")) {
+            MediaUtils.skipTest("no video codecs for resource: " + mInpPrefix + res);
             return;
         }
 
@@ -695,8 +719,8 @@ public class MediaMetadataRetrieverTest extends AndroidTestCase {
 
         setDataSourceFd(res);
 
-        if (!MediaUtils.hasCodecForResourceAndDomain(res, "video/")) {
-            MediaUtils.skipTest("no video codecs for resource");
+        if (!MediaUtils.hasCodecForResourceAndDomain(mInpPrefix + res, "video/")) {
+            MediaUtils.skipTest("no video codecs for resource: " + mInpPrefix + res);
             return;
         }
 
@@ -924,9 +948,9 @@ public class MediaMetadataRetrieverTest extends AndroidTestCase {
 
         setDataSourceFd(res);
 
-        if (!MediaUtils.hasCodecForResourceAndDomain(res, "video/")
+        if (!MediaUtils.hasCodecForResourceAndDomain(mInpPrefix + res, "video/")
             && mPackageManager.hasSystemFeature(PackageManager.FEATURE_WATCH)) {
-            MediaUtils.skipTest("no video codecs for resource on watch");
+            MediaUtils.skipTest("no video codecs for resource: " + mInpPrefix + res + " on watch");
             return;
         }
 
@@ -985,9 +1009,10 @@ public class MediaMetadataRetrieverTest extends AndroidTestCase {
 
         for (String res : resources) {
             setDataSourceFd(res);
-            if (!MediaUtils.hasCodecForResourceAndDomain(res, "video/")
+            if (!MediaUtils.hasCodecForResourceAndDomain(mInpPrefix + res, "video/")
                     && mPackageManager.hasSystemFeature(PackageManager.FEATURE_WATCH)) {
-                MediaUtils.skipTest("no video codecs for resource on watch");
+                MediaUtils.skipTest("no video codecs for resource: " + mInpPrefix + res +
+                        " on watch");
                 continue;
             }
 
@@ -1038,9 +1063,9 @@ public class MediaMetadataRetrieverTest extends AndroidTestCase {
     public void testGetScaledFrameAtTime() {
         String res = "binary_counter_320x240_30fps_600frames.mp4";
         setDataSourceFd(res);
-        if (!MediaUtils.hasCodecForResourceAndDomain(res, "video/")
+        if (!MediaUtils.hasCodecForResourceAndDomain(mInpPrefix + res, "video/")
             && mPackageManager.hasSystemFeature(PackageManager.FEATURE_WATCH)) {
-            MediaUtils.skipTest("no video codecs for resource on watch");
+            MediaUtils.skipTest("no video codecs for resource: " + mInpPrefix + res + " on watch");
             return;
         }
 
@@ -1067,7 +1092,7 @@ public class MediaMetadataRetrieverTest extends AndroidTestCase {
 
     public void testGetImageAtIndex() throws Exception {
         if (!MediaUtils.hasDecoder(MediaFormat.MIMETYPE_VIDEO_HEVC)) {
-            MediaUtils.skipTest("no video decoders for resource");
+            MediaUtils.skipTest("no video decoders for HEVC");
             return;
         }
 

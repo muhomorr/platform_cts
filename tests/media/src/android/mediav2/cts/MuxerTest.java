@@ -16,6 +16,11 @@
 
 package android.mediav2.cts;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+
 import android.media.MediaCodec;
 import android.media.MediaExtractor;
 import android.media.MediaFormat;
@@ -45,11 +50,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
-
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 /**
  * MuxerTestHelper breaks a media file to elements that a muxer can use to rebuild its clone.
@@ -481,7 +481,7 @@ public class MuxerTest {
         private native boolean nativeTestGetTrackFormat(String srcPath, String outPath,
                 int outFormat);
 
-        private void verifyLocationInFile(String fileName) {
+        private void verifyLocationInFile(String fileName) throws IOException {
             if (mOutFormat != MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4 &&
                     mOutFormat != MediaMuxer.OutputFormat.MUXER_OUTPUT_3GPP) return;
             MediaMetadataRetriever retriever = new MediaMetadataRetriever();
@@ -514,7 +514,7 @@ public class MuxerTest {
             retriever.release();
         }
 
-        private void verifyOrientation(String fileName) {
+        private void verifyOrientation(String fileName) throws IOException {
             if (mOutFormat != MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4 &&
                     mOutFormat != MediaMuxer.OutputFormat.MUXER_OUTPUT_3GPP) return;
             MediaMetadataRetriever retriever = new MediaMetadataRetriever();
@@ -695,14 +695,14 @@ public class MuxerTest {
         }
 
         @Test
-        public void testSetLocationNative() {
+        public void testSetLocationNative() throws IOException {
             Assume.assumeTrue(shouldRunTest(mOutFormat));
             assertTrue(nativeTestSetLocation(mOutFormat, mInpPath, mOutPath));
             verifyLocationInFile(mOutPath);
         }
 
         @Test
-        public void testSetOrientationHintNative() {
+        public void testSetOrientationHintNative() throws IOException {
             Assume.assumeTrue(shouldRunTest(mOutFormat));
             assertTrue(nativeTestSetOrientationHint(mOutFormat, mInpPath, mOutPath));
             verifyOrientation(mOutPath);
