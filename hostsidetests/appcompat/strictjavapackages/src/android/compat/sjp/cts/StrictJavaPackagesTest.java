@@ -740,7 +740,8 @@ public class StrictJavaPackagesTest extends BaseHostJUnit4Test {
                 "Lcom/android/sdksandbox/ISdkSandboxManagerToSdkSandboxCallback;",
                 "Lcom/android/sdksandbox/ISdkSandboxService;",
                 "Lcom/android/sdksandbox/SandboxLatencyInfo-IA;",
-                "Lcom/android/sdksandbox/SandboxLatencyInfo;"
+                "Lcom/android/sdksandbox/SandboxLatencyInfo;",
+                "Lcom/android/sdksandbox/IUnloadSdkCallback;"
             );
 
     private static final ImmutableMap<String, ImmutableSet<String>> FULL_APK_IN_APEX_BURNDOWN =
@@ -1056,7 +1057,9 @@ public class StrictJavaPackagesTest extends BaseHostJUnit4Test {
      * and shared library jars.
      */
     @Test
-    public void testBootClasspathAndSystemServerClasspathAndSharedLibs_noAndroidxDependencies() {
+    public void testBootClasspathAndSystemServerClasspathAndSharedLibs_noAndroidxDependencies()
+            throws Exception {
+        assumeTrue(mDeviceSdkLevel.isDeviceAtLeastT());
         // WARNING: Do not add more exceptions here, no androidx should be in bootclasspath.
         // See go/androidx-api-guidelines#module-naming for more details.
         final ImmutableMap<String, ImmutableSet<String>>
@@ -1100,11 +1103,12 @@ public class StrictJavaPackagesTest extends BaseHostJUnit4Test {
                 .reduce(Stream::concat).orElseGet(Stream::empty)
                 .parallel()
                 .filter(jarPath -> {
-                    return sJarsToFiles
-                            .get(jarPath)
-                            .stream()
-                            .anyMatch(file -> file.contains(".kotlin_builtins")
-                                    || file.contains(".kotlin_module"));
+                    // Exclude shared library apks.
+                    return jarPath.endsWith(".jar")
+                            && sJarsToFiles.get(jarPath)
+                                .stream()
+                                .anyMatch(file -> file.contains(".kotlin_builtins")
+                                        || file.contains(".kotlin_module"));
                 })
                 .collect(ImmutableList.toImmutableList());
         assertThat(kotlinFiles).isEmpty();
