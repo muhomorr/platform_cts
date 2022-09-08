@@ -158,9 +158,4 @@ public class Utils {
         return context.getPackageManager().hasSystemFeature(
                 PackageManager.FEATURE_SECURE_LOCK_SCREEN);
     }
-
-    static boolean isTV(Context context) {
-        return context.getPackageManager().hasSystemFeature(PackageManager.FEATURE_LEANBACK)
-                || context.getPackageManager().hasSystemFeature(PackageManager.FEATURE_TELEVISION);
-    }
 }

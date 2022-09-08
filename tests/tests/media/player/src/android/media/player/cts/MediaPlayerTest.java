@@ -406,10 +406,9 @@ public class MediaPlayerTest extends MediaPlayerTestBase {
     }
 
     @Test
-    public void testConcurrentPlayAudio() throws Exception {
+    public void testConcurentPlayAudio() throws Exception {
         final String res = "test1m1s.mp3"; // MP3 longer than 1m are usualy offloaded
-        final int recommendedTolerance = 70;
-        final List<Integer> offsets = new ArrayList<>();
+        final int tolerance = 70;
 
         Preconditions.assertTestFileExists(mInpPrefix + res);
         List<MediaPlayer> mps = Stream.generate(
@@ -432,25 +431,13 @@ public class MediaPlayerTest extends MediaPlayerTestBase {
                 int pos = mp.getCurrentPosition();
                 assertTrue(pos >= 0);
 
-                Thread.sleep(SLEEP_TIME); // Delay each track to be able to hear them
+                Thread.sleep(SLEEP_TIME); // Delay each track to be able to ear them
             }
-
             // Check that all mp3 are playing concurrently here
-            // Record the offsets between streams, but don't enforce them
             for (MediaPlayer mp : mps) {
                 int pos = mp.getCurrentPosition();
                 Thread.sleep(SLEEP_TIME);
-                offsets.add(Math.abs(pos + SLEEP_TIME - mp.getCurrentPosition()));
-            }
-
-            if (offsets.stream().anyMatch(offset -> offset > recommendedTolerance)) {
-                Log.w(LOG_TAG, "testConcurrentPlayAudio: some concurrent playing offsets "
-                        + offsets + " are above the recommended tolerance of "
-                        + recommendedTolerance + "ms.");
-            } else {
-                Log.i(LOG_TAG, "testConcurrentPlayAudio: all concurrent playing offsets "
-                        + offsets + " are under the recommended tolerance of "
-                        + recommendedTolerance + "ms.");
+                assertEquals(pos + SLEEP_TIME, mp.getCurrentPosition(), tolerance);
             }
         } finally {
             mps.forEach(MediaPlayer::release);

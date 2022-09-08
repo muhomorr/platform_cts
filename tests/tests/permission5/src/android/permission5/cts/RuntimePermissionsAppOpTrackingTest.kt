@@ -25,7 +25,6 @@ import android.content.Context
 import android.content.ContextParams
 import android.content.Intent
 import android.content.pm.PackageManager.FEATURE_LEANBACK
-import android.content.pm.PackageManager.FEATURE_TELEPHONY
 import android.net.Uri
 import android.os.Bundle
 import android.os.Process
@@ -45,7 +44,6 @@ import com.android.compatibility.common.util.SystemUtil
 import com.google.common.truth.Truth.assertThat
 import org.junit.After
 import org.junit.Assume.assumeFalse
-import org.junit.Assume.assumeTrue
 import org.junit.Before
 import org.junit.Test
 import org.mockito.ArgumentMatcher
@@ -107,7 +105,6 @@ class RuntimePermissionsAppOpTrackingTest {
     @Throws(Exception::class)
     fun testSelfSmsAccess() {
         assumeNotTv()
-        assumeHasTelephony()
         testSelfAccess(Telephony.Sms.CONTENT_URI,
                 Manifest.permission.READ_SMS)
     }
@@ -181,7 +178,6 @@ class RuntimePermissionsAppOpTrackingTest {
     @Throws(Exception::class)
     fun testUntrustedSmsAccessAttributeToAnother() {
         assumeNotTv()
-        assumeHasTelephony()
         testUntrustedAccessAttributeToAnother(Telephony.Sms.CONTENT_URI,
                 Manifest.permission.READ_SMS)
     }
@@ -229,7 +225,6 @@ class RuntimePermissionsAppOpTrackingTest {
     @Throws(Exception::class)
     fun testUntrustedSmsAccessAttributeToAnotherThroughIntermediary() {
         assumeNotTv()
-        assumeHasTelephony()
         testUntrustedAccessAttributeToAnotherThroughIntermediary(
                 Telephony.Sms.CONTENT_URI,
                 Manifest.permission.READ_SMS)
@@ -328,7 +323,6 @@ class RuntimePermissionsAppOpTrackingTest {
     @Throws(Exception::class)
     fun testTrustedAccessSmsAttributeToAnother() {
         assumeNotTv()
-        assumeHasTelephony()
         testTrustedAccessAttributeToAnother(Telephony.Sms.CONTENT_URI,
                 Manifest.permission.READ_SMS)
     }
@@ -672,7 +666,6 @@ class RuntimePermissionsAppOpTrackingTest {
             get() = InstrumentationRegistry.getInstrumentation()
 
         private val isTv = context.packageManager.hasSystemFeature(FEATURE_LEANBACK)
-        private val isTel = context.packageManager.hasSystemFeature(FEATURE_TELEPHONY)
 
         fun ensureAuxiliaryAppsNotRunningAndNoResidualProcessState() {
             SystemUtil.runShellCommand("am force-stop $RECEIVER_PACKAGE_NAME")
@@ -1185,6 +1178,5 @@ class RuntimePermissionsAppOpTrackingTest {
         }
 
         private fun assumeNotTv() = assumeFalse(isTv)
-        private fun assumeHasTelephony() = assumeTrue(isTel)
     }
 }

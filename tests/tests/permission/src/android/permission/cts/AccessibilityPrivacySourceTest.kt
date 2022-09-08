@@ -35,7 +35,6 @@ import android.permission.cts.SafetyCenterUtils.assertSafetyCenterIssueExist
 import android.permission.cts.SafetyCenterUtils.assertSafetyCenterStarted
 import android.permission.cts.SafetyCenterUtils.deviceSupportsSafetyCenter
 import android.permission.cts.SafetyCenterUtils.setDeviceConfigPrivacyProperty
-import android.platform.test.annotations.AppModeFull
 import android.provider.DeviceConfig
 import android.safetycenter.SafetyCenterManager
 import androidx.test.filters.SdkSuppress
@@ -56,10 +55,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
-@AppModeFull(
-    reason = "Cannot set system settings as instant app. Also we never show an accessibility " +
-            "notification for instant apps."
-)
 @SdkSuppress(minSdkVersion = Build.VERSION_CODES.TIRAMISU, codeName = "Tiramisu")
 class AccessibilityPrivacySourceTest {
 

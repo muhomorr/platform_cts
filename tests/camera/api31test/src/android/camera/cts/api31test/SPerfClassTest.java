@@ -36,7 +36,6 @@ import android.hardware.camera2.params.SessionConfiguration;
 import android.hardware.camera2.TotalCaptureResult;
 import android.media.Image;
 import android.media.ImageReader;
-import android.os.Build;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.test.AndroidTestCase;
@@ -211,9 +210,8 @@ public class SPerfClassTest extends AndroidTestCase {
      * Version.MEDIA_PERFORMANCE_CLASS
      */
     public void testSPerfClassJpegSizes() throws Exception {
-        final boolean isAtLeastSPerfClass =
-                (Build.VERSION.MEDIA_PERFORMANCE_CLASS >= Build.VERSION_CODES.S);
-        if (!isAtLeastSPerfClass) {
+        boolean isSPerfClass = CameraTestUtils.isSPerfClass();
+        if (!isSPerfClass) {
             return;
         }
 

@@ -21,12 +21,10 @@ import static com.google.common.truth.Truth.assertThat;
 import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
 
-import android.app.ActivityManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
-import android.server.wm.WindowManagerStateHelper;
 import android.support.test.uiautomator.By;
 import android.support.test.uiautomator.BySelector;
 import android.support.test.uiautomator.UiDevice;
@@ -34,8 +32,6 @@ import android.support.test.uiautomator.Until;
 
 import androidx.test.InstrumentationRegistry;
 import androidx.test.runner.AndroidJUnit4;
-
-import com.android.compatibility.common.util.SystemUtil;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -57,14 +53,11 @@ public class MediaOutputDialogTest {
     public static final String TEST_PACKAGE_NAME = "com.android.package.test";
     private static final BySelector MEDIA_DIALOG_SELECTOR = By.res(SYSTEMUI_PACKAGE_NAME,
             "media_output_dialog");
-    private WindowManagerStateHelper mWmState = new WindowManagerStateHelper();
 
     private Context mContext;
     private UiDevice mDevice;
     private String mLauncherPackage;
     private boolean mHasTouchScreen;
-    private ActivityManager mActivityManager;
-    private static final int DURATION_SCREEN_TOGGLE = 2000;
 
     @Before
     public void setUp() {
@@ -84,35 +77,14 @@ public class MediaOutputDialogTest {
                 packageManager.hasSystemFeature(
                         PackageManager.FEATURE_AUTOMOTIVE));
         mLauncherPackage = resolveInfo.activityInfo.packageName;
-        mActivityManager = mContext.getSystemService(ActivityManager.class);
     }
 
     @Test
-    public void mediaOutputDialog_correctDialog() throws Exception {
-        prepareDevice();
+    public void mediaOutputDialog_correctDialog() {
         assumeTrue(mHasTouchScreen);
-        try {
-            if (mActivityManager.isLowRamDevice()) {
-                SystemUtil.runShellCommand(InstrumentationRegistry.getInstrumentation(),
-                        "appops set " + SYSTEMUI_PACKAGE_NAME + " SYSTEM_ALERT_WINDOW allow");
-            }
+        launchMediaOutputDialog();
 
-            launchMediaOutputDialog();
-
-            assertThat(mDevice.wait(Until.hasObject(MEDIA_DIALOG_SELECTOR), TIMEOUT)).isTrue();
-        } finally {
-            if (mActivityManager.isLowRamDevice()) {
-                SystemUtil.runShellCommand(InstrumentationRegistry.getInstrumentation(),
-                        "appops set " + SYSTEMUI_PACKAGE_NAME + " SYSTEM_ALERT_WINDOW ignore");
-            }
-        }
-    }
-
-    private void prepareDevice() throws Exception {
-        mDevice.executeShellCommand("input keyevent KEYCODE_WAKEUP");
-        mDevice.executeShellCommand("wm dismiss-keyguard");
-        // Since the screen on/off intent is ordered, they will not be sent right now.
-        mWmState.waitForKeyguardGone();
+        assertThat(mDevice.wait(Until.hasObject(MEDIA_DIALOG_SELECTOR), TIMEOUT)).isTrue();
     }
 
     private void launchMediaOutputDialog() {

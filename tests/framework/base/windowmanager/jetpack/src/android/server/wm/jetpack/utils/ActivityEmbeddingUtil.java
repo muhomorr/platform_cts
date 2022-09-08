@@ -16,7 +16,6 @@
 
 package android.server.wm.jetpack.utils;
 
-import static android.server.wm.jetpack.utils.ExtensionUtil.assumeExtensionSupportedDevice;
 import static android.server.wm.jetpack.utils.ExtensionUtil.getWindowExtensions;
 import static android.server.wm.jetpack.utils.WindowManagerJetpackTestBase.getActivityBounds;
 import static android.server.wm.jetpack.utils.WindowManagerJetpackTestBase.getMaximumActivityBounds;
@@ -29,7 +28,6 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
-import static org.junit.Assume.assumeTrue;
 
 import android.app.Activity;
 import android.content.ComponentName;
@@ -53,7 +51,6 @@ import com.android.compatibility.common.util.PollingCheck;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Objects;
 import java.util.function.Predicate;
 
 /**
@@ -219,13 +216,19 @@ public class ActivityEmbeddingUtil {
 
     /**
      * Attempts to start an activity from a different UID into a split, verifies that activity
-     * did not start on splitContainer successfully and no new split is active.
+     * start did not succeed and no new split is active.
      */
     public static void startActivityCrossUidInSplit_expectFail(@NonNull Activity primaryActivity,
             @NonNull ComponentName secondActivityComponent,
             @NonNull TestValueCountConsumer<List<SplitInfo>> splitInfoConsumer) {
-        startActivityFromActivity(primaryActivity, secondActivityComponent, "secondActivityId",
+        boolean startExceptionObserved = false;
+        try {
+            startActivityFromActivity(primaryActivity, secondActivityComponent, "secondActivityId",
                     Bundle.EMPTY);
+        } catch (SecurityException e) {
+            startExceptionObserved = true;
+        }
+        assertTrue(startExceptionObserved);
 
         // No split should be active, primary activity should be covered by the new one.
         assertNoSplit(primaryActivity, splitInfoConsumer);
@@ -448,13 +451,6 @@ public class ActivityEmbeddingUtil {
             outPrimaryActivityBounds.set(rightContainerBounds);
             outSecondaryActivityBounds.set(leftContainerBounds);
         }
-    }
-
-    public static void assumeActivityEmbeddingSupportedDevice() {
-        assumeExtensionSupportedDevice();
-        assumeTrue("Device does not support ActivityEmbedding",
-                Objects.requireNonNull(getWindowExtensions())
-                        .getActivityEmbeddingComponent() != null);
     }
 
     private static void assertSplitInfoTopSplitIsCorrect(@NonNull List<SplitInfo> splitInfoList,

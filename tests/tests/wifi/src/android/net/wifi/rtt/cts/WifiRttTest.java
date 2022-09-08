@@ -605,7 +605,7 @@ public class WifiRttTest extends TestBase {
         builder.setRttBurstSize(RangingRequest.getMaxRttBurstSize());
         RangingRequest request = builder.build();
 
-        // Perform the request
+        // Perform the rquest
         rangeNon11mcApRequest(request, testAp, MAX_NON11MC_VARIATION_FROM_AVERAGE_DISTANCE_MM);
     }
 
@@ -639,9 +639,7 @@ public class WifiRttTest extends TestBase {
         builder.setRttBurstSize(RangingRequest.getMaxRttBurstSize());
         RangingRequest request = builder.build();
 
-
-
-        // Perform the request
+        // Perform the rquest
         rangeNon11mcApRequest(request, testAp, MAX_NON11MC_VARIATION_FROM_AVERAGE_DISTANCE_MM);
     }
 
@@ -749,13 +747,15 @@ public class WifiRttTest extends TestBase {
                 ResultType.NEUTRAL, ResultUnit.NONE);
         reportLog.submit();
 
-        /** TODO(b/237011062): enable the performance verification new API to check capabilities
-         // Analyze results
+        // This bug below has been addressed by making the test parameters for Non-80211mc devices
+        // less stringent. Please update the bug if this does not solve the problem.
+        // TODO(b/192909380): enable the performance verification after device fix.
+
+        // Analyze results
         assertTrue("Wi-Fi RTT failure rate exceeds threshold: FAIL=" + numFailures
                         + ", ITERATIONS="
                         + NUM_OF_RTT_ITERATIONS + ", AP=" + testAp,
                 numFailures <= NUM_OF_RTT_ITERATIONS * MAX_NON11MC_FAILURE_RATE_PERCENT / 100);
-         */
 
         if (numFailures != NUM_OF_RTT_ITERATIONS) {
             // Calculate an initial average using all measurements to determine distance outliers

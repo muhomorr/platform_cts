@@ -120,8 +120,6 @@ public class BleClientService extends Service {
             "com.android.cts.verifier.bluetooth.BLE_READ_REMOTE_RSSI";
     public static final String BLE_PHY_READ =
             "com.android.cts.verifier.bluetooth.BLE_PHY_READ";
-    public static final String BLE_PHY_READ_SKIPPED =
-            "com.android.cts.verifier.bluetooth.BLE_PHY_READ_SKIPPED";
     public static final String BLE_ON_SERVICE_CHANGED =
             "com.android.cts.verifier.bluetooth.BLE_ON_SERVICE_CHANGED";
     public static final String BLE_CHARACTERISTIC_READ_NOPERMISSION =
@@ -909,12 +907,6 @@ public class BleClientService extends Service {
         sendBroadcast(intent);
     }
 
-    private void notifyPhyReadSkipped() {
-        showMessage("Phy read not supported. Skipping the test.");
-        Intent intent = new Intent(BLE_PHY_READ_SKIPPED);
-        sendBroadcast(intent);
-    }
-
     private void notifyServiceChanged() {
         showMessage("Remote service changed");
         Intent intent = new Intent(BLE_ON_SERVICE_CHANGED);
@@ -1437,12 +1429,10 @@ public class BleClientService extends Service {
         public void onPhyRead(BluetoothGatt gatt, int txPhy, int rxPhy, int status) {
             super.onPhyRead(gatt, txPhy, rxPhy, status);
             if (DEBUG) {
-                Log.d(TAG, "onPhyRead status=" + status);
+                Log.d(TAG, "onPhyRead");
             }
             if (status == BluetoothGatt.GATT_SUCCESS) {
                 notifyPhyRead(txPhy, rxPhy);
-            } else if (status == BluetoothGatt.GATT_REQUEST_NOT_SUPPORTED) {
-                notifyPhyReadSkipped();
             } else {
                 notifyError("Failed to read phy");
             }

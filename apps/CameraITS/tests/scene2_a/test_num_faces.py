@@ -16,8 +16,6 @@
 
 import logging
 import os.path
-
-import cv2
 from mobly import test_runner
 
 import its_base_test
@@ -25,6 +23,7 @@ import camera_properties_utils
 import capture_request_utils
 import image_processing_utils
 import its_session_utils
+import cv2
 
 FD_MODE_OFF = 0
 FD_MODE_SIMPLE = 1
@@ -150,7 +149,8 @@ class NumFacesTest(its_base_test.ItsBaseTest):
       logging.debug('active array size: %s', str(a))
       file_name_stem = os.path.join(self.log_path, NAME)
 
-      cam.do_3a(mono_camera=mono_camera)
+      if camera_properties_utils.read_3a(props):
+        _, _, _, _, _ = cam.do_3a(get_results=True, mono_camera=mono_camera)
 
       for fd_mode in fd_modes:
         logging.debug('face detection mode: %d', fd_mode)

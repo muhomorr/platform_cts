@@ -21,24 +21,23 @@ import android.platform.test.annotations.AppModeFull;
 import android.platform.test.annotations.AsbSecurityTest;
 
 import androidx.test.platform.app.InstrumentationRegistry;
-import androidx.test.runner.AndroidJUnit4;
 
 import com.android.cts.install.lib.Install;
 import com.android.cts.install.lib.TestApp;
 import com.android.cts.install.lib.Uninstall;
-import com.android.sts.common.util.StsExtraBusinessLogicTestCase;
 
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.junit.runners.JUnit4;
 
 import java.util.concurrent.TimeUnit;
 
-@RunWith(AndroidJUnit4.class)
+@RunWith(JUnit4.class)
 @AppModeFull
-public class PackageInstallerTest extends StsExtraBusinessLogicTestCase {
+public class PackageInstallerTest {
 
     private static final String TEST_APP_NAME = "android.security.cts.packageinstallertestapp";
 

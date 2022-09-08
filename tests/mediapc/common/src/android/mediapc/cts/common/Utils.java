@@ -73,24 +73,16 @@ public class Utils {
 
         Context context = InstrumentationRegistry.getInstrumentation().getContext();
         DisplayMetrics metrics = new DisplayMetrics();
-        // When used from ItsService, context will be null
-        if (context != null) {
-            WindowManager windowManager = context.getSystemService(WindowManager.class);
-            windowManager.getDefaultDisplay().getMetrics(metrics);
-            DISPLAY_DPI = metrics.densityDpi;
-            DISPLAY_LONG_PIXELS = Math.max(metrics.widthPixels, metrics.heightPixels);
-            DISPLAY_SHORT_PIXELS = Math.min(metrics.widthPixels, metrics.heightPixels);
+        WindowManager windowManager = context.getSystemService(WindowManager.class);
+        windowManager.getDefaultDisplay().getMetrics(metrics);
+        DISPLAY_DPI = metrics.densityDpi;
+        DISPLAY_LONG_PIXELS = Math.max(metrics.widthPixels, metrics.heightPixels);
+        DISPLAY_SHORT_PIXELS = Math.min(metrics.widthPixels, metrics.heightPixels);
 
-            ActivityManager activityManager = context.getSystemService(ActivityManager.class);
-            ActivityManager.MemoryInfo memoryInfo = new ActivityManager.MemoryInfo();
-            activityManager.getMemoryInfo(memoryInfo);
-            TOTAL_MEMORY_MB = memoryInfo.totalMem / 1024 / 1024;
-        } else {
-            DISPLAY_DPI = 0;
-            DISPLAY_LONG_PIXELS = 0;
-            DISPLAY_SHORT_PIXELS = 0;
-            TOTAL_MEMORY_MB = 0;
-        }
+        ActivityManager activityManager = context.getSystemService(ActivityManager.class);
+        ActivityManager.MemoryInfo memoryInfo = new ActivityManager.MemoryInfo();
+        activityManager.getMemoryInfo(memoryInfo);
+        TOTAL_MEMORY_MB = memoryInfo.totalMem / 1024 / 1024;
     }
 
     /**

@@ -65,7 +65,6 @@ android_test {
         "truth-prebuilt",
         "androidx.heifwriter_heifwriter",
         "androidx.test.rules",
-        "MediaPerformanceClassCommon",
     ],
     jni_libs: [
         "libctscamera2_jni",

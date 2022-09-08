@@ -33,8 +33,6 @@ import android.Manifest;
 import android.app.Instrumentation;
 import android.content.ContentResolver;
 import android.content.Context;
-import android.content.pm.PackageManager;
-import android.content.pm.ProviderInfo;
 import android.provider.MediaStore;
 import android.scopedstorage.cts.lib.TestUtils;
 import android.util.Log;
@@ -123,7 +121,7 @@ public final class StableUrisTest extends ScopedStorageBaseDeviceTest {
             Log.d(TAG, "maxRowIdOfExternalDbBeforeReset:" + maxRowIdOfExternalDbBeforeReset);
 
             // Clear MediaProvider package data to trigger DB recreation.
-            mDevice.executeShellCommand("pm clear " + getMediaProviderPackageName());
+            mDevice.executeShellCommand("pm clear com.google.android.providers.media.module");
             waitForMountedAndIdleState(mContentResolver);
             MediaStore.scanVolume(mContentResolver, mVolumeName);
 
@@ -174,11 +172,4 @@ public final class StableUrisTest extends ScopedStorageBaseDeviceTest {
         return files;
     }
 
-    private static String getMediaProviderPackageName() {
-        final Instrumentation inst = androidx.test.InstrumentationRegistry.getInstrumentation();
-        final PackageManager packageManager = inst.getContext().getPackageManager();
-        final ProviderInfo providerInfo = packageManager.resolveContentProvider(
-                MediaStore.AUTHORITY, PackageManager.MATCH_ALL);
-        return providerInfo.packageName;
-    }
 }

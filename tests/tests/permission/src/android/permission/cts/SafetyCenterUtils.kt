@@ -67,7 +67,7 @@ object SafetyCenterUtils {
     @JvmStatic
     fun assertSafetyCenterStarted() {
         // CollapsingToolbar title can't be found by text, so using description instead.
-        waitFindObject(By.desc("Security & privacy"))
+        waitFindObject(By.desc("Security & Privacy"))
     }
 
     @JvmStatic

@@ -23,6 +23,7 @@ java_test_host {
     java_resource_dirs: ["res"],
     // tag this module as a cts test artifact
     test_suites: [
+        "cts",
         "general-tests",
         "sts",
     ],
@@ -43,7 +44,6 @@ java_test_host {
 
 cc_defaults {
     name: "cts_hostsidetests_securitybulletin_defaults",
-    auto_gen_config: false,
     compile_multilib: "both",
     multilib: {
         lib32: {
@@ -60,6 +60,7 @@ cc_defaults {
         },
     },
     test_suites: [
+        "cts",
         "sts",
         "general-tests",
     ],

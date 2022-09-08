@@ -294,8 +294,6 @@ public class AudioLoopbackLatencyActivity extends PassFailButtons.Activity {
         getPassButton().setEnabled(false);
         setInfoResources(R.string.audio_loopback_latency_test, R.string.audio_loopback_info, -1);
 
-        mRequireReportLogToPass = true;
-
         mClaimsOutput = AudioSystemFlags.claimsOutput(this);
         mClaimsInput = AudioSystemFlags.claimsInput(this);
         mClaimsProAudio = AudioSystemFlags.claimsProAudio(this);
@@ -685,8 +683,7 @@ public class AudioLoopbackLatencyActivity extends PassFailButtons.Activity {
         mResultsText[mTestRoute].setText(testSpec.getResultString());
 
         LoopbackLatencyRequirements requirements = new LoopbackLatencyRequirements();
-        boolean pass = isReportLogOkToPass()
-                && requirements.evaluate(mClaimsProAudio,
+        boolean pass = requirements.evaluate(mClaimsProAudio,
                 Build.VERSION.MEDIA_PERFORMANCE_CLASS,
                 mTestSpecs[TESTROUTE_DEVICE].isMeasurementValid()
                         ? mTestSpecs[TESTROUTE_DEVICE].mMeanLatencyMS : 0.0,
@@ -697,12 +694,8 @@ public class AudioLoopbackLatencyActivity extends PassFailButtons.Activity {
 
         getPassButton().setEnabled(pass);
 
-        StringBuilder sb = new StringBuilder();
-        if (!isReportLogOkToPass()) {
-            sb.append(getResources().getString(R.string.audio_general_reportlogtest) + "\n");
-        }
-        sb.append(requirements.getResultsString());
-        mTestStatusText.setText(sb.toString());
+        String resultText = requirements.getResultsString();
+        mTestStatusText.setText(resultText);
 
         showWait(false);
         enableStartButtons(true);

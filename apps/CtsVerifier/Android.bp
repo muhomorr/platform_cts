@@ -91,7 +91,6 @@ android_library {
         "CtsForceStopHelper-constants",
         "ctsmediautil",
         "DpmWrapper",
-        "MediaPerformanceClassCommon",
     ],
 
     libs: ["telephony-common"] + ["android.test.runner.stubs"] + ["android.test.base.stubs"] + ["android.test.mock.stubs"] + ["android.car-test-stubs"] + ["voip-common"] + ["truth-prebuilt"],
@@ -115,7 +114,7 @@ android_test {
 
     compile_multilib: "both",
 
-    additional_manifests: ["AndroidManifest-verifierConfig.xml"],
+    manifest: "AndroidManifest-verifierConfig.xml",
 
     jni_libs: [
         "libctsverifier_jni",

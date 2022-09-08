@@ -52,7 +52,6 @@ import android.os.SystemClock;
 import android.service.autofill.SaveInfo;
 import android.support.test.uiautomator.By;
 import android.support.test.uiautomator.BySelector;
-import android.support.test.uiautomator.Configurator;
 import android.support.test.uiautomator.Direction;
 import android.support.test.uiautomator.SearchCondition;
 import android.support.test.uiautomator.StaleObjectException;
@@ -66,8 +65,6 @@ import android.text.Html;
 import android.text.Spanned;
 import android.text.style.URLSpan;
 import android.util.Log;
-import android.view.InputDevice;
-import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowInsets;
 import android.view.accessibility.AccessibilityEvent;
@@ -1280,6 +1277,20 @@ public class UiBot {
     }
 
     /**
+     * Selects a view by id via UiDevice.
+     *
+     * Note: This used to avoid IME issue that some case IME will be not shown via
+     * UiObject2.click().
+     */
+    public UiObject2 selectByRelativeIdFromUiDevice(String id) throws Exception {
+        Log.v(TAG, "selectByRelativeIdFromDevice(): " + id);
+        final UiObject2 object = waitForObject(By.res(mPackageName, id));
+        final Point p = object.getVisibleCenter();
+        mDevice.click(p.x, p.y);
+        return object;
+    }
+
+    /**
      * Asserts the header in the fill dialog.
      */
     public void assertFillDialogHeader(String expectedHeader) throws Exception {
@@ -1363,7 +1374,7 @@ public class UiBot {
     public void touchOutsideDialog() throws Exception {
         Log.v(TAG, "touchOutsideDialog()");
         final UiObject2 picker = findFillDialogPicker();
-        assertThat(injectClick(new Point(1, picker.getVisibleBounds().top / 2))).isTrue();
+        mDevice.click(1, picker.getVisibleBounds().top / 2);
     }
 
     /**
@@ -1372,7 +1383,7 @@ public class UiBot {
     public void touchOutsideSaveDialog() throws Exception {
         Log.v(TAG, "touchOutsideSaveDialog()");
         final UiObject2 picker = waitForObject(SAVE_UI_SELECTOR, SAVE_TIMEOUT);
-        assertThat(injectClick(new Point(1, picker.getVisibleBounds().top / 2))).isTrue();
+        mDevice.click(1, picker.getVisibleBounds().top / 2);
     }
 
     /**
@@ -1403,45 +1414,5 @@ public class UiBot {
      */
     public void assertNoFillDialog() throws Exception {
         assertNeverShown("Fill dialog", FILL_DIALOG_SELECTOR, DATASET_PICKER_NOT_SHOWN_NAPTIME_MS);
-    }
-
-    /**
-     * Injects a click input event at the given point in the default display.
-     * We have this method because {@link UiObject2#click) cannot touch outside the object, and
-     * {@link UiDevice#click} is broken in multi windowing mode (b/238254060).
-     */
-    private boolean injectClick(Point p) {
-        final long downTime = SystemClock.uptimeMillis();
-        final MotionEvent downEvent = getMotionEvent(downTime, downTime, MotionEvent.ACTION_DOWN,
-                p);
-        if (!mAutoman.injectInputEvent(downEvent, true)) {
-            Log.e(TAG, "Failed to inject down event.");
-            return false;
-        }
-
-        try {
-            Thread.sleep(100);
-        } catch (InterruptedException e) {
-            Log.e(TAG, "Interrupted while sleep between click", e);
-        }
-
-        final MotionEvent upEvent = getMotionEvent(downTime, SystemClock.uptimeMillis(),
-                MotionEvent.ACTION_UP, p);
-        return mAutoman.injectInputEvent(upEvent, true);
-    }
-
-    private static MotionEvent getMotionEvent(long downTime, long eventTime, int action, Point p) {
-        final MotionEvent.PointerProperties properties = new MotionEvent.PointerProperties();
-        properties.id = 0;
-        properties.toolType = Configurator.getInstance().getToolType();
-        final MotionEvent.PointerCoords coords = new MotionEvent.PointerCoords();
-        coords.pressure = 1.0F;
-        coords.size = 1.0F;
-        coords.x = p.x;
-        coords.y = p.y;
-        return MotionEvent.obtain(downTime, eventTime, action, 1,
-                new MotionEvent.PointerProperties[]{properties},
-                new MotionEvent.PointerCoords[]{coords}, 0, 0, 1.0F, 1.0F, 0, 0,
-                InputDevice.SOURCE_TOUCHSCREEN, 0);
     }
 }

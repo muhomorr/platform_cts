@@ -40,7 +40,6 @@ import android.util.Log;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
-import org.junit.Ignore;
 import org.junit.Test;
 
 /**
@@ -238,8 +237,6 @@ public class BiometricActivityTests extends BiometricTestBase {
         assertEquals(callbackState.toString(), 1, callbackState.mNumAuthRejected);
     }
 
-    // TODO(b/236763921): fix this test and unignore.
-    @Ignore
     @Test
     public void testBiometricOnly_negativeButtonInvoked() throws Exception {
         assumeTrue(Utils.isFirstApiLevel29orGreater());
@@ -288,8 +285,6 @@ public class BiometricActivityTests extends BiometricTestBase {
     }
 
 
-    // TODO(b/236763921): fix this test and unignore.
-    @Ignore
     @Test
     public void testBiometricOrCredential_credentialButtonInvoked_biometricEnrolled()
             throws Exception {

@@ -30,7 +30,6 @@ import android.telephony.SubscriptionManager;
 import android.telephony.TelephonyManager;
 import android.telephony.UiccSlotMapping;
 import android.util.Log;
-import android.util.Pair;
 
 import androidx.test.InstrumentationRegistry;
 
@@ -41,14 +40,12 @@ import com.android.compatibility.common.util.UiccUtil.ApduResponse;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 class ApduScriptUtil {
     private static final String TAG = "ApduScriptUtil";
 
     private static final long SET_SIM_POWER_TIMEOUT_SECONDS = 30;
-    private static final long APP_STATE_ADDITIONAL_WAIT_MILLIS = TimeUnit.SECONDS.toMillis(3);
     // TelephonyManager constants are @hide, so manually copy them here
     private static final int CARD_POWER_DOWN = 0;
     private static final int CARD_POWER_UP = 1;
@@ -109,77 +106,33 @@ class ApduScriptUtil {
                     "Unable to determine physical slot + port from logical slot: " + logicalSlotId);
         }
 
-        Pair<Integer, Integer> halVersion = getContext().getSystemService(TelephonyManager.class)
-                .getRadioHalVersion();
-        Log.i(TAG, "runApduScript with hal version: " + halVersion.first + "." + halVersion.second);
-        boolean listenToSimCardStateChange = true;
-        // After hal version 1.6, powers SIM card down will not generate SIM ABSENT or
-        // SIM PRESENT events, we have to switch to listen to SIM application states instead.
-        if ((halVersion.first == 1 && halVersion.second == 6) || halVersion.first == 2) {
-            listenToSimCardStateChange = false;
-        }
-
         try {
-            // Note: Even if it won't wipe out subId after hal version 1.6, we still use the
-            // slot/port-based APDU method while in pass-through mode to make compatible with
-            // older hal version.
-            rebootSimCard(subId,
-                    logicalSlotId, CARD_POWER_UP_PASS_THROUGH, listenToSimCardStateChange);
+            // Note: this may wipe out subId, so we need to use the slot/port-based APDU method
+            // while in pass-through mode.
+            rebootSimCard(logicalSlotId, CARD_POWER_UP_PASS_THROUGH);
             sendApdus(physicalSlotId, portIndex, apdus);
         } finally {
             // Even if rebootSimCard failed midway through (leaving the SIM in POWER_DOWN) or timed
             // out waiting for the right SIM state after rebooting in POWER_UP_PASS_THROUGH, we try
             // to bring things back to the normal POWER_UP state to avoid breaking other suites.
-            rebootSimCard(subId, logicalSlotId, CARD_POWER_UP, listenToSimCardStateChange);
+            rebootSimCard(logicalSlotId, CARD_POWER_UP);
         }
     }
 
     /**
-     * Powers the SIM card down firstly and then powers it back up on the {@code
-     * targetPowerState}
-     *
-     * Due to the RADIO HAL interface behavior changed after version 1.6, we have to
-     * listen to SIM card states before hal version 1.6 and SIM application states after.
-     * In specific, the behavior of the method is below:
-     * <p> Before hal version 1.6, powers the SIM card down and waits for it to become
-     *     ABSENT, then powers it back up in {@code targetPowerState} and waits for it to
-           become PRESENT.
-     * <p> After hal version 1.6, powers the SIM card down and waits for the SIM application
-     *     state to become NOT_READY, then powers it back up in {@code targetPowerState} and
-     *     waits for it to become NOT_READY {@code CARD_POWER_UP_PASS_THROUGH} or
-     *     LOADED {@code CARD_POWER_UP}.
-     *     The SIM application state keeps in NOT_READY state after simPower moving from
-     *     CARD_POWER_DOWN to CARD_POWER_UP_PASS_THROUGH.
+     * Powers the SIM card down, waits for it to become ABSENT, then powers it back up in {@code
+     * targetPowerState} and waits for it to become PRESENT.
      */
-    private static void rebootSimCard(int subId,
-            int logicalSlotId, int targetPowerState, boolean listenToSimCardStateChange)
+    private static void rebootSimCard(int logicalSlotId, int targetPowerState)
             throws InterruptedException {
-        if (listenToSimCardStateChange) {
-            setSimPowerAndWaitForCardState(subId,
-                    logicalSlotId, CARD_POWER_DOWN,
-                    TelephonyManager.SIM_STATE_ABSENT, listenToSimCardStateChange);
-            setSimPowerAndWaitForCardState(subId,
-                    logicalSlotId, targetPowerState,
-                    TelephonyManager.SIM_STATE_PRESENT, listenToSimCardStateChange);
-        } else {
-            setSimPowerAndWaitForCardState(subId,
-                    logicalSlotId, CARD_POWER_DOWN,
-                    TelephonyManager.SIM_STATE_NOT_READY, listenToSimCardStateChange);
-            if (targetPowerState == CARD_POWER_UP) {
-                setSimPowerAndWaitForCardState(subId,
-                        logicalSlotId, targetPowerState,
-                        TelephonyManager.SIM_STATE_LOADED, listenToSimCardStateChange);
-            } else if (targetPowerState == CARD_POWER_UP_PASS_THROUGH) {
-                setSimPowerAndWaitForCardState(subId,
-                        logicalSlotId, targetPowerState,
-                        TelephonyManager.SIM_STATE_NOT_READY, listenToSimCardStateChange);
-            }
-        }
+        setSimPowerAndWaitForCardState(
+                logicalSlotId, CARD_POWER_DOWN, TelephonyManager.SIM_STATE_ABSENT);
+        setSimPowerAndWaitForCardState(
+                logicalSlotId, targetPowerState, TelephonyManager.SIM_STATE_PRESENT);
     }
 
     private static void setSimPowerAndWaitForCardState(
-            int subId, int logicalSlotId, int targetPowerState,
-            int targetSimState, boolean listenToSimCardStateChange)
+            int logicalSlotId, int targetPowerState, int targetSimState)
             throws InterruptedException {
         // A small little state machine:
         // 1. Call setSimPower(targetPowerState)
@@ -193,10 +146,8 @@ class ApduScriptUtil {
                 new BroadcastReceiver() {
                     @Override
                     public void onReceive(Context context, Intent intent) {
-                        if ((!TelephonyManager.ACTION_SIM_CARD_STATE_CHANGED.equals(
-                                intent.getAction())) &&
-                            (!TelephonyManager.ACTION_SIM_APPLICATION_STATE_CHANGED.equals(
-                                intent.getAction()))) {
+                        if (!TelephonyManager.ACTION_SIM_CARD_STATE_CHANGED.equals(
+                                intent.getAction())) {
                             return;
                         }
                         int slotId =
@@ -232,10 +183,11 @@ class ApduScriptUtil {
             uiAutomation.adoptShellPermissionIdentity(
                     Manifest.permission.MODIFY_PHONE_STATE,
                     Manifest.permission.READ_PRIVILEGED_PHONE_STATE);
-            IntentFilter intentFilter = new IntentFilter();
-            intentFilter.addAction(TelephonyManager.ACTION_SIM_CARD_STATE_CHANGED);
-            intentFilter.addAction(TelephonyManager.ACTION_SIM_APPLICATION_STATE_CHANGED);
-            getContext().registerReceiver(cardStateReceiver, intentFilter);
+            getContext()
+                    .registerReceiver(
+                            cardStateReceiver,
+                            new IntentFilter(TelephonyManager.ACTION_SIM_CARD_STATE_CHANGED));
+
             Log.i(
                     TAG,
                     "Setting SIM " + logicalSlotId + " power state to " + targetPowerState + "...");
@@ -261,15 +213,8 @@ class ApduScriptUtil {
 
             // Once the RIL request completes successfully, wait for the SIM to move to the desired
             // state (from the broadcast).
-            int simApplicationState = getContext().getSystemService(TelephonyManager.class)
-                    .createForSubscriptionId(subId).getSimApplicationState();
-            Log.i(TAG, "Waiting for SIM " + logicalSlotId
-                    + " to become " + targetSimState + " from " + simApplicationState);
-            // TODO(b/236950019): Find a deterministic way to detect SIM power state change
-            // from DOWN to PASS_THROUGH.
-            if ((!listenToSimCardStateChange) && (targetSimState == simApplicationState)) {
-                Thread.sleep(APP_STATE_ADDITIONAL_WAIT_MILLIS);
-            } else if (!cardStateLatch.await(SET_SIM_POWER_TIMEOUT_SECONDS, SECONDS)) {
+            Log.i(TAG, "Waiting for SIM " + logicalSlotId + " to become " + targetSimState + "...");
+            if (!cardStateLatch.await(SET_SIM_POWER_TIMEOUT_SECONDS, SECONDS)) {
                 throw new IllegalStateException(
                         "Failed to receive SIM state "
                                 + targetSimState

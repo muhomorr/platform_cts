@@ -41,7 +41,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import org.junit.Assume;
-import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TestName;
@@ -58,11 +57,6 @@ public class PerformanceClassTest {
 
     @Rule
     public final TestName mTestName = new TestName();
-
-    @Before
-    public void isPerformanceClassCandidate() {
-        Utils.assumeDeviceMeetsPerformanceClassPreconditions();
-    }
 
     static {
         mMimeSecureSupport.add(MediaFormat.MIMETYPE_VIDEO_AVC);

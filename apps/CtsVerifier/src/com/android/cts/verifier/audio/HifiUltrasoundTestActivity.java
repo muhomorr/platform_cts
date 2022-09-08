@@ -75,15 +75,6 @@ public class HifiUltrasoundTestActivity extends PassFailButtons.Activity {
     }
   }
 
-  boolean getBoolPropValue(final String value) {
-    if (value == null) {
-      return false;
-    }
-
-    return !value.equalsIgnoreCase(getResources().getString(
-        R.string.hifi_ultrasound_test_default_false_string));
-  }
-
   @Override
   protected void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
@@ -97,19 +88,29 @@ public class HifiUltrasoundTestActivity extends PassFailButtons.Activity {
     info.setText(R.string.hifi_ultrasound_test_instruction1);
 
     AudioManager audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
-    micSupport = getBoolPropValue(audioManager.getProperty(
-        AudioManager.PROPERTY_SUPPORT_MIC_NEAR_ULTRASOUND));
-    spkrSupport = getBoolPropValue(audioManager.getProperty(
-        AudioManager.PROPERTY_SUPPORT_SPEAKER_NEAR_ULTRASOUND));
-    Log.d(TAG, "PROPERTY_SUPPORT_MIC_NEAR_ULTRASOUND = " + micSupport);
-    Log.d(TAG, "PROPERTY_SUPPORT_SPEAKER_NEAR_ULTRASOUND = " + spkrSupport);
+    String micSupportString = audioManager.getProperty(
+        AudioManager.PROPERTY_SUPPORT_MIC_NEAR_ULTRASOUND);
+    String spkrSupportString = audioManager.getProperty(
+        AudioManager.PROPERTY_SUPPORT_SPEAKER_NEAR_ULTRASOUND);
+    Log.d(TAG, "PROPERTY_SUPPORT_MIC_NEAR_ULTRASOUND = " + micSupportString);
+    Log.d(TAG, "PROPERTY_SUPPORT_SPEAKER_NEAR_ULTRASOUND = " + spkrSupportString);
 
-    if (!micSupport) {
+    if (micSupportString == null) {
+      micSupportString = "null";
+    }
+    if (spkrSupportString == null) {
+      spkrSupportString = "null";
+    }
+    if (micSupportString.equalsIgnoreCase(getResources().getString(
+        R.string.hifi_ultrasound_test_default_false_string))) {
+      micSupport = false;
       getPassButton().setEnabled(true);
       getPassButton().performClick();
       info.append(getResources().getString(R.string.hifi_ultrasound_test_mic_no_support));
     }
-    if (!spkrSupport) {
+    if (spkrSupportString.equalsIgnoreCase(getResources().getString(
+        R.string.hifi_ultrasound_test_default_false_string))) {
+      spkrSupport = false;
       info.append(getResources().getString(R.string.hifi_ultrasound_test_spkr_no_support));
     }
 

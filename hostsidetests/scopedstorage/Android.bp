@@ -210,7 +210,7 @@ android_test_helper_app {
     min_sdk_version: "29",
 }
 
-android_test_helper_app {
+android_test {
     name: "ScopedStorageTest",
     manifest: "AndroidManifest.xml",
     srcs: ["src/**/*.java"],
@@ -237,7 +237,7 @@ android_test_helper_app {
     ],
 }
 
-android_test_helper_app {
+android_test {
     name: "LegacyStorageTest",
     manifest: "legacy/AndroidManifest.xml",
     srcs: ["legacy/src/**/*.java"],

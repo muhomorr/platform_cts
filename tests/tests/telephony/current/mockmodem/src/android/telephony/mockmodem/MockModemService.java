@@ -34,7 +34,6 @@ import java.util.concurrent.TimeUnit;
 
 public class MockModemService extends Service {
     private static final String TAG = "MockModemService";
-    private static final String RESOURCE_PACKAGE_NAME = "android";
 
     public static final int TEST_TIMEOUT_MS = 30000;
     public static final String IRADIOCONFIG_INTERFACE = "android.telephony.mockmodem.iradioconfig";
@@ -234,18 +233,9 @@ public class MockModemService extends Service {
     }
 
     public int getNumPhysicalSlots() {
-        int numPhysicalSlots = MockSimService.MOCK_SIM_SLOT_MIN;
-        int resourceId =
+        int numPhysicalSlots =
                 sContext.getResources()
-                        .getIdentifier(
-                                "config_num_physical_slots", "integer", RESOURCE_PACKAGE_NAME);
-
-        if (resourceId > 0) {
-            numPhysicalSlots = sContext.getResources().getInteger(resourceId);
-        } else {
-            Log.d(TAG, "Fail to get the resource Id, using default: " + numPhysicalSlots);
-        }
-
+                        .getInteger(com.android.internal.R.integer.config_num_physical_slots);
         if (numPhysicalSlots > MockSimService.MOCK_SIM_SLOT_MAX) {
             Log.d(
                     TAG,
@@ -255,15 +245,6 @@ public class MockModemService extends Service {
                             + MockSimService.MOCK_SIM_SLOT_MAX
                             + ").");
             numPhysicalSlots = MockSimService.MOCK_SIM_SLOT_MAX;
-        } else if (numPhysicalSlots <= MockSimService.MOCK_SIM_SLOT_MIN) {
-            Log.d(
-                    TAG,
-                    "Number of physical Slot ("
-                            + numPhysicalSlots
-                            + ") < mock sim slot support. Reset to min number supported ("
-                            + MockSimService.MOCK_SIM_SLOT_MIN
-                            + ").");
-            numPhysicalSlots = MockSimService.MOCK_SIM_SLOT_MIN;
         }
 
         return numPhysicalSlots;

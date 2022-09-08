@@ -358,7 +358,7 @@ public class CodecState {
                 return null;
             }
 
-            if (mIsTunneled) {
+            if (mIsTunneled && !mIsAudio) {
                 if (mFirstSampleTimeUs == -1) {
                     mFirstSampleTimeUs = sampleTime;
                 }

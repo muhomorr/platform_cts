@@ -48,7 +48,6 @@ public class BitmapTest extends StsExtraBusinessLogicTestCase {
     private Instrumentation mInstrumentation;
     private PeerConnection mRemoteConnection;
     private IBitmapService mRemote;
-    private Intent mIntent;
 
     public static class PeerConnection extends AbstractFuture<IBitmapService>
             implements ServiceConnection {
@@ -80,7 +79,6 @@ public class BitmapTest extends StsExtraBusinessLogicTestCase {
     public void tearDown() {
         if (mRemoteConnection != null) {
             final Context context = mInstrumentation.getContext();
-            context.stopService(mIntent);
             context.unbindService(mRemoteConnection);
             mRemote = null;
             mRemoteConnection = null;
@@ -90,11 +88,11 @@ public class BitmapTest extends StsExtraBusinessLogicTestCase {
     IBitmapService getRemoteService() throws ExecutionException, InterruptedException {
         if (mRemote == null) {
             final Context context = mInstrumentation.getContext();
-            mIntent = new Intent();
-            mIntent.setComponent(new ComponentName(
+            Intent intent = new Intent();
+            intent.setComponent(new ComponentName(
                     "android.security.cts", "android.security.cts.BitmapService"));
             mRemoteConnection = new PeerConnection();
-            context.bindService(mIntent, mRemoteConnection,
+            context.bindService(intent, mRemoteConnection,
                     Context.BIND_AUTO_CREATE | Context.BIND_IMPORTANT);
             mRemote = mRemoteConnection.get();
         }
