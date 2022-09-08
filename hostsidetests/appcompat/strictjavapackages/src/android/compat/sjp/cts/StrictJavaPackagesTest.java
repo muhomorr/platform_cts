@@ -230,8 +230,16 @@ public class StrictJavaPackagesTest extends BaseHostJUnit4Test {
                     "Landroid/os/BlockUntrustedTouchesMode;",
                     "Landroid/os/IInputConstants;",
                     "Landroid/os/InputEventInjectionResult;",
-                    "Landroid/os/InputEventInjectionSync;"
-
+                    "Landroid/os/InputEventInjectionSync;",
+                    // TODO(b/242741880): Remove duplication between sdksandbox-service and
+                    // sdk-sandbox-framework
+                    "Landroid/app/sdksandbox/ILoadSdkCallback;",
+                    "Landroid/app/sdksandbox/IRequestSurfacePackageCallback;",
+                    "Landroid/app/sdksandbox/ISdkSandboxManager;",
+                    "Landroid/app/sdksandbox/ISdkSandboxProcessDeathCallback;",
+                    "Landroid/app/sdksandbox/ISendDataCallback;",
+                    "Landroid/app/sdksandbox/ISharedPreferencesSyncCallback;",
+                    "Landroid/app/sdksandbox/ISdkToServiceCallback;"
             );
 
     private static final String FEATURE_WEARABLE = "android.hardware.type.watch";
@@ -725,9 +733,15 @@ public class StrictJavaPackagesTest extends BaseHostJUnit4Test {
     private static final ImmutableSet<String> ADSERVICES_SANDBOX_APK_IN_APEX_BURNDOWN_LIST =
             ImmutableSet.of(
                 // /apex/com.android.adservices/javalib/service-sdksandbox.jar
+                "Landroid/app/sdksandbox/ISharedPreferencesSyncCallback;",
+                "Lcom/android/sdksandbox/IDataReceivedCallback;",
+                "Lcom/android/sdksandbox/ILoadSdkInSandboxCallback;",
+                "Lcom/android/sdksandbox/IRequestSurfacePackageFromSdkCallback;",
                 "Lcom/android/sdksandbox/ISdkSandboxManagerToSdkSandboxCallback;",
                 "Lcom/android/sdksandbox/ISdkSandboxService;",
-                "Lcom/android/sdksandbox/ISdkSandboxToSdkSandboxManagerCallback;"
+                "Lcom/android/sdksandbox/SandboxLatencyInfo-IA;",
+                "Lcom/android/sdksandbox/SandboxLatencyInfo;",
+                "Lcom/android/sdksandbox/IUnloadSdkCallback;"
             );
 
     private static final ImmutableMap<String, ImmutableSet<String>> FULL_APK_IN_APEX_BURNDOWN =
@@ -1043,7 +1057,9 @@ public class StrictJavaPackagesTest extends BaseHostJUnit4Test {
      * and shared library jars.
      */
     @Test
-    public void testBootClasspathAndSystemServerClasspathAndSharedLibs_noAndroidxDependencies() {
+    public void testBootClasspathAndSystemServerClasspathAndSharedLibs_noAndroidxDependencies()
+            throws Exception {
+        assumeTrue(mDeviceSdkLevel.isDeviceAtLeastT());
         // WARNING: Do not add more exceptions here, no androidx should be in bootclasspath.
         // See go/androidx-api-guidelines#module-naming for more details.
         final ImmutableMap<String, ImmutableSet<String>>
@@ -1087,11 +1103,12 @@ public class StrictJavaPackagesTest extends BaseHostJUnit4Test {
                 .reduce(Stream::concat).orElseGet(Stream::empty)
                 .parallel()
                 .filter(jarPath -> {
-                    return sJarsToFiles
-                            .get(jarPath)
-                            .stream()
-                            .anyMatch(file -> file.contains(".kotlin_builtins")
-                                    || file.contains(".kotlin_module"));
+                    // Exclude shared library apks.
+                    return jarPath.endsWith(".jar")
+                            && sJarsToFiles.get(jarPath)
+                                .stream()
+                                .anyMatch(file -> file.contains(".kotlin_builtins")
+                                        || file.contains(".kotlin_module"));
                 })
                 .collect(ImmutableList.toImmutableList());
         assertThat(kotlinFiles).isEmpty();
@@ -1102,7 +1119,8 @@ public class StrictJavaPackagesTest extends BaseHostJUnit4Test {
      * included in BOOTCLASSPATH, SYSTEMSERVERCLASSPATH and shared library jars
      */
     @Test
-    public void testNoProtobufClassesWithoutJarjar() {
+    public void testNoProtobufClassesWithoutJarjar() throws Exception {
+        assumeTrue(mDeviceSdkLevel.isDeviceAtLeastU());
         assertWithMessage("Classes from protobuf libraries must not be included in bootclasspath "
             + "and systemserverclasspath without being jarjared.")
                 .that(Stream.of(sBootclasspathJars.stream(),
