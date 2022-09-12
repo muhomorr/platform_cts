@@ -44,9 +44,12 @@ import android.graphics.Rect;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.NinePatchDrawable;
+import android.media.MediaCodecInfo;
+import android.media.MediaCodecList;
 import android.media.MediaFormat;
 import android.net.Uri;
 import android.os.Build;
+import android.os.SystemProperties;
 import android.util.DisplayMetrics;
 import android.util.Size;
 import android.util.TypedValue;
@@ -244,9 +247,11 @@ public class ImageDecoderTest {
     public void testDecode10BitHeif() {
         assumeTrue(
             "Test needs Android T.", ApiLevelUtil.isFirstApiAtLeast(Build.VERSION_CODES.TIRAMISU));
-        if (!MediaUtils.hasDecoder(MediaFormat.MIMETYPE_VIDEO_HEVC)) {
-            return;
-        }
+        assumeTrue(
+            "Test needs VNDK at least T.",
+            SystemProperties.getInt("ro.vndk.version", 0) >= Build.VERSION_CODES.TIRAMISU);
+        assumeTrue("No 10-bit HEVC decoder, skip the test.", has10BitHEVCDecoder());
+
         try {
             ImageDecoder.Source src = ImageDecoder
                 .createSource(getResources(), R.raw.heifimage_10bit);
@@ -266,9 +271,8 @@ public class ImageDecoderTest {
     @Test
     @RequiresDevice
     public void testDecode10BitHeifWithLowRam() {
-        if (!MediaUtils.hasDecoder(MediaFormat.MIMETYPE_VIDEO_HEVC)) {
-            return;
-        }
+        assumeTrue("No 10-bit HEVC decoder, skip the test.", has10BitHEVCDecoder());
+
         ImageDecoder.Source src = ImageDecoder.createSource(getResources(), R.raw.heifimage_10bit);
         assertNotNull(src);
         try {
@@ -2769,5 +2773,20 @@ public class ImageDecoderTest {
     public void testBadCallable() throws IOException {
         ImageDecoder.Source src = ImageDecoder.createSource(() -> null);
         ImageDecoder.decodeDrawable(src);
+    }
+
+    private static boolean has10BitHEVCDecoder() {
+        MediaFormat format = new MediaFormat();
+        format.setString(MediaFormat.KEY_MIME, "video/hevc");
+        format.setInteger(
+            MediaFormat.KEY_PROFILE, MediaCodecInfo.CodecProfileLevel.HEVCProfileMain10);
+        format.setInteger(
+            MediaFormat.KEY_LEVEL, MediaCodecInfo.CodecProfileLevel.HEVCMainTierLevel5);
+
+        MediaCodecList mcl = new MediaCodecList(MediaCodecList.ALL_CODECS);
+        if (mcl.findDecoderForFormat(format) == null) {
+            return false;
+        }
+        return true;
     }
 }

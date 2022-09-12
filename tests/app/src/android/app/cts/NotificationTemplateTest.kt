@@ -21,6 +21,7 @@ import android.app.PendingIntent
 import android.app.Person
 import android.app.cts.CtsAppTestUtils.platformNull
 import android.content.Intent
+import android.content.res.Resources
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
@@ -31,6 +32,7 @@ import android.widget.ImageView
 import android.widget.TextView
 import androidx.annotation.ColorInt
 import androidx.test.filters.SmallTest
+import com.android.compatibility.common.util.CddTest;
 import com.google.common.truth.Truth.assertThat
 import org.junit.Assume
 import kotlin.test.assertFailsWith
@@ -282,8 +284,9 @@ class NotificationTemplateTest : NotificationTemplateTestBase() {
         }
     }
 
+    @CddTest(requirement = "3.8.3.1/C-2-1")
     fun testPromoteBigPicture_withBigPictureUriIcon() {
-        val pictureUri = Uri.parse("content://android.app.stubs.assets/picture_400_by_300.png")
+        val pictureUri = Uri.parse("content://android.app.stubs.assets/picture_800_by_600.png")
         val pictureIcon = Icon.createWithContentUri(pictureUri)
         val builder = Notification.Builder(mContext, NOTIFICATION_CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_media_play)
@@ -297,8 +300,8 @@ class NotificationTemplateTest : NotificationTemplateTestBase() {
             assertThat(iconView.width.toFloat())
                     .isWithin(1f)
                     .of((iconView.height * 4 / 3).toFloat())
-            assertThat(iconView.drawable.intrinsicWidth).isEqualTo(400)
-            assertThat(iconView.drawable.intrinsicHeight).isEqualTo(300)
+            assertThat(iconView.drawable.intrinsicWidth).isEqualTo(rightIconSize())
+            assertThat(iconView.drawable.intrinsicHeight).isEqualTo(rightIconSize() * 3 / 4)
         }
     }
 
@@ -384,8 +387,9 @@ class NotificationTemplateTest : NotificationTemplateTestBase() {
                 !!.sameAs(picture)).isTrue()
     }
 
+    @CddTest(requirement = "3.8.3.1/C-2-1")
     fun testBigPicture_withBigLargeIcon_withContentUri() {
-        val iconUri = Uri.parse("content://android.app.stubs.assets/picture_400_by_300.png")
+        val iconUri = Uri.parse("content://android.app.stubs.assets/picture_800_by_600.png")
         val icon = Icon.createWithContentUri(iconUri)
         val builder = Notification.Builder(mContext, NOTIFICATION_CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_media_play)
@@ -396,8 +400,9 @@ class NotificationTemplateTest : NotificationTemplateTestBase() {
             assertThat(iconView.width.toFloat())
                     .isWithin(1f)
                     .of((iconView.height * 4 / 3).toFloat())
-            assertThat(iconView.drawable.intrinsicWidth).isEqualTo(400)
-            assertThat(iconView.drawable.intrinsicHeight).isEqualTo(300)
+
+            assertThat(iconView.drawable.intrinsicWidth).isEqualTo(rightIconSize())
+            assertThat(iconView.drawable.intrinsicHeight).isEqualTo(rightIconSize() * 3 / 4)
         }
     }
 
@@ -777,6 +782,11 @@ class NotificationTemplateTest : NotificationTemplateTestBase() {
 
     private val pendingIntent by lazy {
         PendingIntent.getBroadcast(mContext, 0, Intent("test"), PendingIntent.FLAG_IMMUTABLE)
+    }
+
+    private fun rightIconSize(): Int {
+        return mContext.resources.getDimensionPixelSize(
+            getAndroidRDimen("notification_right_icon_size"))
     }
 
     companion object {
