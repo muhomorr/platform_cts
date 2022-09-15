@@ -63,6 +63,7 @@ import com.android.server.wm.nano.DisplayFramesProto;
 import com.android.server.wm.nano.DisplayRotationProto;
 import com.android.server.wm.nano.IdentifierProto;
 import com.android.server.wm.nano.KeyguardControllerProto;
+import com.android.server.wm.nano.KeyguardServiceDelegateProto;
 import com.android.server.wm.nano.PinnedTaskControllerProto;
 import com.android.server.wm.nano.RootWindowContainerProto;
 import com.android.server.wm.nano.TaskFragmentProto;
@@ -140,6 +141,7 @@ public class WindowManagerState {
     // Windows in z-order with the top most at the front of the list.
     private final List<WindowState> mWindowStates = new ArrayList<>();
     private KeyguardControllerState mKeyguardControllerState;
+    private KeyguardServiceDelegateState mKeyguardServiceDelegateState;
     private final List<String> mPendingActivities = new ArrayList<>();
     private int mTopFocusedTaskId = -1;
     private int mFocusedDisplayId = DEFAULT_DISPLAY;
@@ -419,6 +421,8 @@ public class WindowManagerState {
             updateForDisplayContent(display);
         }
         mKeyguardControllerState = new KeyguardControllerState(root.keyguardController);
+        mKeyguardServiceDelegateState =
+                new KeyguardServiceDelegateState(state.policy.keyguardDelegate);
         mFocusedApp = state.focusedApp;
         mFocusedDisplayId = state.focusedDisplayId;
         final DisplayContent focusedDisplay = getDisplay(mFocusedDisplayId);
@@ -454,6 +458,7 @@ public class WindowManagerState {
         mResumedActivitiesInRootTasks.clear();
         mResumedActivitiesInDisplays.clear();
         mKeyguardControllerState = null;
+        mKeyguardServiceDelegateState = null;
         mIsHomeRecentsComponent = null;
         mPendingActivities.clear();
         mDefaultPinnedStackBounds.setEmpty();
@@ -602,6 +607,10 @@ public class WindowManagerState {
 
     public KeyguardControllerState getKeyguardControllerState() {
         return mKeyguardControllerState;
+    }
+
+    public KeyguardServiceDelegateState getKeyguardServiceDelegateState() {
+        return mKeyguardServiceDelegateState;
     }
 
     public boolean containsRootTasks(int windowingMode, int activityType) {
@@ -762,6 +771,10 @@ public class WindowManagerState {
         }
 
         return false;
+    }
+
+    public boolean isTaskDisplayAreaIgnoringOrientationRequest(ComponentName activityName) {
+        return getTaskDisplayArea(activityName).isIgnoringOrientationRequest();
     }
 
     public boolean containsStartedActivities() {
@@ -1815,6 +1828,27 @@ public class WindowManagerState {
         }
     }
 
+    static class KeyguardServiceDelegateState {
+
+        // copy from KeyguardServiceDelegate.java
+        private static final int INTERACTIVE_STATE_SLEEP = 0;
+        private static final int INTERACTIVE_STATE_WAKING = 1;
+        private static final int INTERACTIVE_STATE_AWAKE = 2;
+        private static final int INTERACTIVE_STATE_GOING_TO_SLEEP = 3;
+
+        private int mInteractiveState = -1;
+
+        KeyguardServiceDelegateState(KeyguardServiceDelegateProto proto) {
+            if (proto != null) {
+                mInteractiveState = proto.interactiveState;
+            }
+        }
+
+        boolean isKeyguardAwake() {
+            return mInteractiveState == INTERACTIVE_STATE_AWAKE;
+        }
+    }
+
     static class ConfigurationContainer {
         final Configuration mOverrideConfiguration = new Configuration();
         final Configuration mFullConfiguration = new Configuration();
@@ -1861,6 +1895,7 @@ public class WindowManagerState {
         private final boolean mIsRootDisplayArea;
         private final int mFeatureId;
         private final boolean mIsOrganized;
+        private final boolean mIsIgnoringOrientationRequest;
         private ArrayList<Activity> mActivities;
         private final ArrayList<WindowState> mWindows = new ArrayList<>();
 
@@ -1870,6 +1905,7 @@ public class WindowManagerState {
             mIsRootDisplayArea = proto.isRootDisplayArea;
             mFeatureId = proto.featureId;
             mIsOrganized = proto.isOrganized;
+            mIsIgnoringOrientationRequest = proto.isIgnoringOrientationRequest;
             if (mIsTaskDisplayArea) {
                 mActivities = new ArrayList<>();
                 collectDescendantsOfType(Activity.class, this, mActivities);
@@ -1895,6 +1931,10 @@ public class WindowManagerState {
 
         public Rect getAppBounds() {
             return mFullConfiguration.windowConfiguration.getAppBounds();
+        }
+
+        public boolean isIgnoringOrientationRequest() {
+            return mIsIgnoringOrientationRequest;
         }
 
         @Override
