@@ -14,9 +14,14 @@
  * limitations under the License.
  */
 
-package com.android.cts.keystore.deviceowner;
+package com.android.cts.verifier.camera.its;
 
-import android.app.Activity;
-
-public class KeyManagementActivity extends Activity {
+/**
+ * RuntimeException to be thrown  within ITS tests where a checked {@link ItsException}
+ * is not possible.
+ */
+public class ItsRuntimeException extends RuntimeException {
+    public ItsRuntimeException(String message, Throwable cause) {
+        super(message, cause);
+    }
 }
