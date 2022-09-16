@@ -112,7 +112,7 @@ public abstract class AbstractRestrictBackgroundNetworkTestCase {
     private static final int BATTERY_STATE_TIMEOUT_MS = 5000;
     private static final int BATTERY_STATE_CHECK_INTERVAL_MS = 500;
 
-    private static final int FOREGROUND_PROC_NETWORK_TIMEOUT_MS = 6000;
+    private static final long FOREGROUND_PROC_NETWORK_TIMEOUT_MS = 20_000;
 
     // Must be higher than NETWORK_TIMEOUT_MS
     private static final int ORDERED_BROADCAST_TIMEOUT_MS = NETWORK_TIMEOUT_MS * 4;
@@ -122,7 +122,7 @@ public abstract class AbstractRestrictBackgroundNetworkTestCase {
 
     private static final String APP_NOT_FOREGROUND_ERROR = "app_not_fg";
 
-    protected static final long TEMP_POWERSAVE_WHITELIST_DURATION_MS = 5_000; // 5 sec
+    protected static final long TEMP_POWERSAVE_WHITELIST_DURATION_MS = 20_000; // 20 sec
 
     protected Context mContext;
     protected Instrumentation mInstrumentation;
