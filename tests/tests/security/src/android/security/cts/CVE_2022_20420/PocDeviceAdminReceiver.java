@@ -14,9 +14,20 @@
  * limitations under the License.
  */
 
-package com.android.cts.keystore.deviceowner;
+package android.security.cts.CVE_2022_20420;
 
-import android.app.Activity;
+import android.app.admin.DeviceAdminReceiver;
+import android.content.Context;
+import android.content.Intent;
 
-public class KeyManagementActivity extends Activity {
+public class PocDeviceAdminReceiver extends DeviceAdminReceiver {
+
+    @Override
+    public void onEnabled(Context context, Intent intent) {
+        try {
+            context.sendBroadcast(new Intent("broadcastCVE_2022_20420"));
+        } catch (Exception e) {
+            // ignore all exceptions.
+        }
+    }
 }
