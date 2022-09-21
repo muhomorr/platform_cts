@@ -424,7 +424,8 @@ def procrustes_rotation(x, y):
   return np.dot(vt.T, u.T)
 
 
-def get_cam_rotations(frames, facing, h, file_name_stem, start_frame):
+def get_cam_rotations(frames, facing, h, file_name_stem,
+                      start_frame, stabilized_video=False):
   """Get the rotations of the camera between each pair of frames.
 
   Takes N frames and returns N-1 angular displacements corresponding to the
@@ -517,7 +518,7 @@ def get_cam_rotations(frames, facing, h, file_name_stem, start_frame):
   rot_per_frame_max = max(abs(rotations))
   logging.debug('Max rotation in frame: %.2f degrees',
                 rot_per_frame_max*_RADS_TO_DEGS)
-  if rot_per_frame_max < _ROTATION_PER_FRAME_MIN:
+  if rot_per_frame_max < _ROTATION_PER_FRAME_MIN and not stabilized_video:
     raise AssertionError(f'Device not moved enough: {rot_per_frame_max:.3f} '
                          f'movement. THRESH: {_ROTATION_PER_FRAME_MIN} rads.')
   return rotations
@@ -653,7 +654,7 @@ def plot_gyro_events(gyro_events, plot_name, log_path):
   pylab.close(plot_name)
 
   z_max = max(abs(z))
-  logging.info('%.3f', z_max)
+  logging.debug('z_max: %.3f', z_max)
   if z_max > _GYRO_ROTATION_PER_SEC_MAX:
     raise AssertionError(
         f'Phone moved too rapidly! Please confirm controller firmware. '
