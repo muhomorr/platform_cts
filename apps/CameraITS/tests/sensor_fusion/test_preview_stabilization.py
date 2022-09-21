@@ -33,7 +33,7 @@ _ARDUINO_SERVO_SPEED = 10
 _IMG_FORMAT = 'png'
 _MIN_PHONE_MOVEMENT_ANGLE = 5  # degrees
 _NAME = os.path.splitext(os.path.basename(__file__))[0]
-_NUM_ROTATIONS = 12
+_NUM_ROTATIONS = 24
 _START_FRAME = 30  # give 3A some frames to warm up
 _VIDEO_DELAY_TIME = 5.5  # seconds
 _VIDEO_DURATION = 5.5  # seconds
@@ -192,6 +192,7 @@ class PreviewStabilizationTest(its_base_test.ItsBaseTest):
             img_h,
             file_name_stem,
             _START_FRAME,
+            stabilized_video=True
         )
         sensor_fusion_utils.plot_camera_rotations(cam_rots, _START_FRAME,
                                                   video_size, file_name_stem)
