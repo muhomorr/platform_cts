@@ -33,8 +33,10 @@ import android.permission.cts.NotificationListenerUtils.getNotification
 import android.permission.cts.SafetyCenterUtils.assertSafetyCenterIssueDoesNotExist
 import android.permission.cts.SafetyCenterUtils.assertSafetyCenterIssueExist
 import android.permission.cts.SafetyCenterUtils.assertSafetyCenterStarted
+import android.permission.cts.SafetyCenterUtils.deleteDeviceConfigPrivacyProperty
 import android.permission.cts.SafetyCenterUtils.deviceSupportsSafetyCenter
 import android.permission.cts.SafetyCenterUtils.setDeviceConfigPrivacyProperty
+import android.platform.test.annotations.AppModeFull
 import android.provider.DeviceConfig
 import android.safetycenter.SafetyCenterManager
 import androidx.test.filters.SdkSuppress
@@ -55,6 +57,10 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
+@AppModeFull(
+    reason = "Cannot set system settings as instant app. Also we never show an accessibility " +
+        "notification for instant apps."
+)
 @SdkSuppress(minSdkVersion = Build.VERSION_CODES.TIRAMISU, codeName = "Tiramisu")
 class AccessibilityPrivacySourceTest {
 
@@ -106,6 +112,28 @@ class AccessibilityPrivacySourceTest {
         mAccessibilityServiceRule.enableService()
         runJobAndWaitUntilCompleted()
         assertNotificationExist(permissionControllerPackage, ACCESSIBILITY_NOTIFICATION_ID)
+    }
+
+    @Test
+    fun testJobSendsNotificationOnEnable() {
+        mAccessibilityServiceRule.enableService()
+        runJobAndWaitUntilCompleted()
+        assertNotificationExist(permissionControllerPackage, ACCESSIBILITY_NOTIFICATION_ID)
+
+        setDeviceConfigPrivacyProperty(ACCESSIBILITY_LISTENER_ENABLED, true.toString())
+        cancelNotification(permissionControllerPackage, ACCESSIBILITY_NOTIFICATION_ID)
+        InstrumentedAccessibilityService.disableAllServices()
+        setDeviceConfigPrivacyProperty(ACCESSIBILITY_LISTENER_ENABLED, false.toString())
+        setDeviceConfigPrivacyProperty(ACCESSIBILITY_JOB_INTERVAL_MILLIS, "0")
+
+        // enable service again and verify a notification
+        try {
+            mAccessibilityServiceRule.enableService()
+            runJobAndWaitUntilCompleted()
+            assertNotificationExist(permissionControllerPackage, ACCESSIBILITY_NOTIFICATION_ID)
+        } finally {
+            deleteDeviceConfigPrivacyProperty(ACCESSIBILITY_JOB_INTERVAL_MILLIS)
+        }
     }
 
     @Test
@@ -238,12 +266,27 @@ class AccessibilityPrivacySourceTest {
             "cmd jobscheduler reset-execution-quota -u " +
                 "${Process.myUserHandle().identifier} $permissionControllerPackage")
 
-        context.sendBroadcast(
-            Intent().apply {
-                setClassName(permissionControllerPackage, AccessibilityOnBootReceiver)
-                setFlags(Intent.FLAG_RECEIVER_FOREGROUND)
+        // Setup up permission controller again (simulate a reboot)
+        val permissionControllerSetupIntent =
+            Intent(ACTION_SET_UP_ACCESSIBILITY_CHECK).apply {
                 setPackage(permissionControllerPackage)
-            })
+                setFlags(Intent.FLAG_RECEIVER_FOREGROUND)
+            }
+
+        // Query for the setup broadcast receiver
+        val resolveInfos =
+            context.packageManager.queryBroadcastReceivers(permissionControllerSetupIntent, 0)
+
+        if (resolveInfos.size > 0) {
+            context.sendBroadcast(permissionControllerSetupIntent)
+        } else {
+            context.sendBroadcast(
+                Intent().apply {
+                    setClassName(permissionControllerPackage, AccessibilityOnBootReceiver)
+                    setFlags(Intent.FLAG_RECEIVER_FOREGROUND)
+                    setPackage(permissionControllerPackage)
+                })
+        }
 
         // Wait until jobs are set up
         TestUtils.eventually(
@@ -274,6 +317,7 @@ class AccessibilityPrivacySourceTest {
         private const val ACCESSIBILITY_SOURCE_ENABLED = "sc_accessibility_source_enabled"
         private const val SAFETY_CENTER_ENABLED = "safety_center_is_enabled"
         private const val ACCESSIBILITY_LISTENER_ENABLED = "sc_accessibility_listener_enabled"
+        private const val ACCESSIBILITY_JOB_INTERVAL_MILLIS = "sc_accessibility_job_interval_millis"
 
         private const val ACCESSIBILITY_JOB_ID = 6
         private const val ACCESSIBILITY_NOTIFICATION_ID = 4
@@ -283,6 +327,8 @@ class AccessibilityPrivacySourceTest {
 
         private const val AccessibilityOnBootReceiver =
             "com.android.permissioncontroller.privacysources.AccessibilityOnBootReceiver"
+        private const val ACTION_SET_UP_ACCESSIBILITY_CHECK =
+            "com.android.permissioncontroller.action.SET_UP_ACCESSIBILITY_CHECK"
 
         @get:ClassRule
         @JvmStatic
