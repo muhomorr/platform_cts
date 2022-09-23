@@ -50,6 +50,7 @@ import com.android.bedstead.harrier.annotations.EnsureBluetoothEnabled;
 import com.android.bedstead.harrier.annotations.EnsureCanGetPermission;
 import com.android.bedstead.harrier.annotations.EnsureDoesNotHaveAppOp;
 import com.android.bedstead.harrier.annotations.EnsureDoesNotHavePermission;
+import com.android.bedstead.harrier.annotations.EnsureGlobalSettingSet;
 import com.android.bedstead.harrier.annotations.EnsureHasAppOp;
 import com.android.bedstead.harrier.annotations.EnsureHasPermission;
 import com.android.bedstead.harrier.annotations.EnsurePackageNotInstalled;
@@ -66,6 +67,7 @@ import com.android.bedstead.harrier.annotations.RequireDoesNotHaveFeature;
 import com.android.bedstead.harrier.annotations.RequireFeature;
 import com.android.bedstead.harrier.annotations.RequireHeadlessSystemUserMode;
 import com.android.bedstead.harrier.annotations.RequireLowRamDevice;
+import com.android.bedstead.harrier.annotations.RequireMultiUserSupport;
 import com.android.bedstead.harrier.annotations.RequireNotHeadlessSystemUserMode;
 import com.android.bedstead.harrier.annotations.RequireNotLowRamDevice;
 import com.android.bedstead.harrier.annotations.RequirePackageInstalled;
@@ -271,13 +273,7 @@ public final class DeviceState extends HarrierRule {
                 try {
                     Throwable t = future.get(MAX_TEST_DURATION.getSeconds(), TimeUnit.SECONDS);
                     if (t != null) {
-                        if (t instanceof AssertionError
-                                || t instanceof AssumptionViolatedException) {
-                            throw t;
-                        } else {
-                            // We wrap the failure in an AssertionError so it doesn't crash
-                            throw new AssertionError("Exception while executing test", t);
-                        }
+                        throw t;
                     }
                 } catch (TimeoutException e) {
                     StackTraceElement[] stack = mTestThread.getStackTrace();
@@ -294,8 +290,6 @@ public final class DeviceState extends HarrierRule {
     }
 
     private void executeTest(Statement base, Description description) throws Throwable {
-        PermissionContextImpl permissionContext = null;
-
         String testName = description.getMethodName();
 
         try {
@@ -312,18 +306,13 @@ public final class DeviceState extends HarrierRule {
 
             mMinSdkVersionCurrentTest = mMinSdkVersion;
             List<Annotation> annotations = getAnnotations(description);
-            permissionContext = applyAnnotations(annotations, /* isTest= */ true);
+            applyAnnotations(annotations, /* isTest= */ true);
 
             Log.d(LOG_TAG, "Finished preparing state for test " + testName);
 
             base.evaluate();
         } finally {
             Log.d(LOG_TAG, "Tearing down state for test " + testName);
-
-            if (permissionContext != null) {
-                permissionContext.close();
-            }
-
             teardownNonShareableState();
             if (!mSkipTestTeardown) {
                 teardownShareableState();
@@ -332,9 +321,8 @@ public final class DeviceState extends HarrierRule {
         }
     }
 
-    private PermissionContextImpl applyAnnotations(List<Annotation> annotations, boolean isTest)
+    private void applyAnnotations(List<Annotation> annotations, boolean isTest)
             throws Throwable {
-        PermissionContextImpl permissionContext = null;
         Log.i(LOG_TAG, "Applying annotations: " + annotations);
         for (Annotation annotation : annotations) {
             Log.i(LOG_TAG, "Applying annotation " + annotation);
@@ -691,13 +679,7 @@ public final class DeviceState extends HarrierRule {
                 }
 
                 try {
-                    if (permissionContext == null) {
-                        permissionContext = TestApis.permissions().withAppOp(
-                                ensureHasAppOpAnnotation.value());
-                    } else {
-                        permissionContext = permissionContext.withAppOp(
-                                ensureHasAppOpAnnotation.value());
-                    }
+                    withAppOp(ensureHasAppOpAnnotation.value());
                 } catch (NeneException e) {
                     failOrSkip("Error getting appOp: " + e,
                             ensureHasAppOpAnnotation.failureMode());
@@ -710,13 +692,7 @@ public final class DeviceState extends HarrierRule {
                         (EnsureDoesNotHaveAppOp) annotation;
 
                 try {
-                    if (permissionContext == null) {
-                        permissionContext = TestApis.permissions().withoutAppOp(
-                                ensureDoesNotHaveAppOpAnnotation.value());
-                    } else {
-                        permissionContext = permissionContext.withoutAppOp(
-                                ensureDoesNotHaveAppOpAnnotation.value());
-                    }
+                    withoutAppOp(ensureDoesNotHaveAppOpAnnotation.value());
                 } catch (NeneException e) {
                     failOrSkip("Error denying appOp: " + e,
                             ensureDoesNotHaveAppOpAnnotation.failureMode());
@@ -742,13 +718,7 @@ public final class DeviceState extends HarrierRule {
                 }
 
                 try {
-                    if (permissionContext == null) {
-                        permissionContext = TestApis.permissions().withPermission(
-                                ensureHasPermissionAnnotation.value());
-                    } else {
-                        permissionContext = permissionContext.withPermission(
-                                ensureHasPermissionAnnotation.value());
-                    }
+                    withPermission(ensureHasPermissionAnnotation.value());
                 } catch (NeneException e) {
                     failOrSkip("Error getting permission: " + e,
                             ensureHasPermissionAnnotation.failureMode());
@@ -761,13 +731,7 @@ public final class DeviceState extends HarrierRule {
                         (EnsureDoesNotHavePermission) annotation;
 
                 try {
-                    if (permissionContext == null) {
-                        permissionContext = TestApis.permissions().withoutPermission(
-                                ensureDoesNotHavePermission.value());
-                    } else {
-                        permissionContext = permissionContext.withoutPermission(
-                                ensureDoesNotHavePermission.value());
-                    }
+                    withoutPermission(ensureDoesNotHavePermission.value());
                 } catch (NeneException e) {
                     failOrSkip("Error denying permission: " + e,
                             ensureDoesNotHavePermission.failureMode());
@@ -816,6 +780,20 @@ public final class DeviceState extends HarrierRule {
                 ensureBluetoothDisabled();
                 continue;
             }
+
+            if (annotation instanceof EnsureGlobalSettingSet) {
+                EnsureGlobalSettingSet ensureGlobalSettingSetAnnotation =
+                        (EnsureGlobalSettingSet) annotation;
+                ensureGlobalSettingSet(
+                        ensureGlobalSettingSetAnnotation.key(),
+                        ensureGlobalSettingSetAnnotation.value());
+                continue;
+            }
+
+            if (annotation instanceof RequireMultiUserSupport) {
+                requireMultiUserSupport();
+                continue;
+            }
         }
 
         requireSdkVersion(/* min= */ mMinSdkVersionCurrentTest,
@@ -825,8 +803,6 @@ public final class DeviceState extends HarrierRule {
                 && !mHasRequirePermissionInstrumentation) {
             requireNoPermissionsInstrumentation("No reason to use instrumentation");
         }
-
-        return permissionContext;
     }
 
     private List<Annotation> getAnnotations(Description description) {
@@ -894,12 +870,17 @@ public final class DeviceState extends HarrierRule {
                 }
 
                 try {
+                    TestApis.device().keepScreenOn(true);
+
+                    if (!Tags.hasTag(Tags.INSTANT_APP)) {
+                        TestApis.device().setKeyguardEnabled(false);
+                    }
                     TestApis.users().setStopBgUsersOnSwitch(STOP_USER_ON_SWITCH_FALSE);
 
                     try {
                         List<Annotation> annotations =
                                 new ArrayList<>(getAnnotations(description));
-                        permissionContext = applyAnnotations(annotations, /* isTest= */ false);
+                        applyAnnotations(annotations, /* isTest= */ false);
                     } catch (AssumptionViolatedException e) {
                         Log.i(LOG_TAG, "Assumption failed during class setup", e);
                         mSkipTests = true;
@@ -931,6 +912,10 @@ public final class DeviceState extends HarrierRule {
                         teardownShareableState();
                     }
 
+                    if (!Tags.hasTag(Tags.INSTANT_APP)) {
+                        TestApis.device().setKeyguardEnabled(true);
+                    }
+                    TestApis.device().keepScreenOn(false);
                     TestApis.users().setStopBgUsersOnSwitch(STOP_USER_ON_SWITCH_DEFAULT);
                 }
             }
@@ -1171,8 +1156,9 @@ public final class DeviceState extends HarrierRule {
     private RemotePolicyManager mPrimaryPolicyManager;
     private UserType mOtherUserType;
 
+    private PermissionContextImpl mPermissionContext = null;
     private final List<UserReference> mCreatedUsers = new ArrayList<>();
-    private final List<UserBuilder> mRemovedUsers = new ArrayList<>();
+    private final List<RemovedUser> mRemovedUsers = new ArrayList<>();
     private final List<UserReference> mUsersSetPasswords = new ArrayList<>();
     private final List<BlockingBroadcastReceiver> mRegisteredBroadcastReceivers = new ArrayList<>();
     private boolean mHasChangedDeviceOwner = false;
@@ -1182,6 +1168,21 @@ public final class DeviceState extends HarrierRule {
     private Boolean mOriginalBluetoothEnabled;
     private TestAppProvider mTestAppProvider = new TestAppProvider();
     private Map<String, TestAppInstance> mTestApps = new HashMap<>();
+    private final Map<String, String> mOriginalGlobalSettings = new HashMap<>();
+
+    private static final class RemovedUser {
+        // Store the user builder so we can recreate the user later
+        public final UserBuilder userBuilder;
+        public final boolean isRunning;
+        public final boolean isOriginalSwitchedToUser;
+
+        RemovedUser(UserBuilder userBuilder,
+                boolean isRunning, boolean isOriginalSwitchedToUser) {
+            this.userBuilder = userBuilder;
+            this.isRunning = isRunning;
+            this.isOriginalSwitchedToUser = isOriginalSwitchedToUser;
+        }
+    }
 
     /**
      * Get the {@link UserReference} of the work profile for the primary user.
@@ -1539,10 +1540,14 @@ public final class DeviceState extends HarrierRule {
         switchFromUser(userReference);
 
         if (!mCreatedUsers.remove(userReference)) {
-            mRemovedUsers.add(TestApis.users().createUser()
+            mRemovedUsers.add(
+                    new RemovedUser(
+                    TestApis.users().createUser()
                     .name(userReference.name())
                     .type(userReference.type())
-                    .parent(userReference.parent()));
+                    .parent(userReference.parent()),
+                            userReference.isRunning(),
+                            Objects.equal(mOriginalSwitchedUser, userReference)));
         }
 
         userReference.remove();
@@ -1671,24 +1676,16 @@ public final class DeviceState extends HarrierRule {
         mTestApps.clear();
 
         mTestAppProvider.restore();
+        if (mPermissionContext != null) {
+            mPermissionContext.close();
+            mPermissionContext = null;
+        }
     }
 
     private Set<TestAppInstance> mInstalledTestApps = new HashSet<>();
     private Set<TestAppInstance> mUninstalledTestApps = new HashSet<>();
 
     private void teardownShareableState() {
-        if (mOriginalSwitchedUser != null) {
-            if (!mOriginalSwitchedUser.exists()) {
-                Log.d(LOG_TAG, "Could not switch back to original user "
-                        + mOriginalSwitchedUser
-                        + " as it does not exist. Switching to initial instead.");
-                TestApis.users().initial().switchTo();
-            } else {
-                mOriginalSwitchedUser.switchTo();
-            }
-            mOriginalSwitchedUser = null;
-        }
-
         if (mHasChangedDeviceOwner) {
             if (mOriginalDeviceOwner == null) {
                 if (mDeviceOwner != null) {
@@ -1710,7 +1707,6 @@ public final class DeviceState extends HarrierRule {
 
             ProfileOwner currentProfileOwner =
                     TestApis.devicePolicy().getProfileOwner(originalProfileOwner.getKey());
-
             if (Objects.equal(currentProfileOwner, originalProfileOwner.getValue())) {
                 continue; // No need to restore
             }
@@ -1741,11 +1737,29 @@ public final class DeviceState extends HarrierRule {
 
         mCreatedUsers.clear();
 
-        for (UserBuilder userBuilder : mRemovedUsers) {
-            userBuilder.create();
+        for (RemovedUser removedUser : mRemovedUsers) {
+            UserReference user = removedUser.userBuilder.create();
+            if (removedUser.isRunning) {
+                user.start();
+            }
+
+            if (removedUser.isOriginalSwitchedToUser) {
+                mOriginalSwitchedUser = user;
+            }
         }
 
         mRemovedUsers.clear();
+        if (mOriginalSwitchedUser != null) {
+            if (!mOriginalSwitchedUser.exists()) {
+                Log.d(LOG_TAG, "Could not switch back to original user "
+                        + mOriginalSwitchedUser
+                        + " as it does not exist. Switching to initial instead.");
+                TestApis.users().initial().switchTo();
+            } else {
+                mOriginalSwitchedUser.switchTo();
+            }
+            mOriginalSwitchedUser = null;
+        }
 
         for (TestAppInstance installedTestApp : mInstalledTestApps) {
             installedTestApp.uninstall();
@@ -1761,6 +1775,11 @@ public final class DeviceState extends HarrierRule {
             TestApis.bluetooth().setEnabled(mOriginalBluetoothEnabled);
             mOriginalBluetoothEnabled = null;
         }
+
+        for (Map.Entry<String, String> s : mOriginalGlobalSettings.entrySet()) {
+            TestApis.settings().global().putString(s.getKey(), s.getValue());
+        }
+        mOriginalGlobalSettings.clear();
     }
 
     private UserReference createProfile(
@@ -2382,6 +2401,10 @@ public final class DeviceState extends HarrierRule {
                 continue;
             }
 
+            if (!otherUser.isRunning()) {
+                continue;
+            }
+
             switchToUser(otherUser);
             return;
         }
@@ -2472,5 +2495,49 @@ public final class DeviceState extends HarrierRule {
             mOriginalBluetoothEnabled = TestApis.bluetooth().isEnabled();
         }
         TestApis.bluetooth().setEnabled(false);
+    }
+
+    private void withAppOp(String... appOp) {
+        if (mPermissionContext == null) {
+            mPermissionContext = TestApis.permissions().withAppOp(appOp);
+        } else {
+            mPermissionContext = mPermissionContext.withAppOp(appOp);
+        }
+    }
+
+    private void withoutAppOp(String... appOp) {
+        if (mPermissionContext == null) {
+            mPermissionContext = TestApis.permissions().withoutAppOp(appOp);
+        } else {
+            mPermissionContext = mPermissionContext.withoutAppOp(appOp);
+        }
+    }
+
+    private void withPermission(String... permission) {
+        if (mPermissionContext == null) {
+            mPermissionContext = TestApis.permissions().withPermission(permission);
+        } else {
+            mPermissionContext = mPermissionContext.withPermission(permission);
+        }
+    }
+
+    private void withoutPermission(String... permission) {
+        if (mPermissionContext == null) {
+            mPermissionContext = TestApis.permissions().withoutPermission(permission);
+        } else {
+            mPermissionContext = mPermissionContext.withoutPermission(permission);
+        }
+    }
+
+    private void ensureGlobalSettingSet(String key, String value) {
+        if (!mOriginalGlobalSettings.containsKey(key)) {
+            mOriginalGlobalSettings.put(key, TestApis.settings().global().getString(value));
+        }
+        TestApis.settings().global().putString(key, value);
+    }
+
+    private void requireMultiUserSupport() {
+        assumeTrue("This test is only supported on multi user devices",
+                TestApis.users().supportsMultipleUsers());
     }
 }

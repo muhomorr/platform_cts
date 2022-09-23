@@ -137,13 +137,13 @@ class VideoAspectRatioAndCropTest(its_base_test.ItsBaseTest):
       logging.debug('physical available focal lengths: %s', str(fls_physical))
 
       # Check SKIP conditions.
-      first_api_level = its_session_utils.get_first_api_level(self.dut.serial)
+      vendor_api_level = its_session_utils.get_vendor_api_level(self.dut.serial)
       camera_properties_utils.skip_unless(
-          first_api_level >= its_session_utils.ANDROID13_API_LEVEL)
+          vendor_api_level >= its_session_utils.ANDROID13_API_LEVEL)
 
       # Load scene.
       its_session_utils.load_scene(cam, props, self.scene,
-                                   self.tablet, chart_distance=0)
+                                   self.tablet, self.chart_distance)
 
       # Determine camera capabilities.
       supported_video_qualities = cam.get_supported_video_qualities(
@@ -152,21 +152,25 @@ class VideoAspectRatioAndCropTest(its_base_test.ItsBaseTest):
       full_or_better = camera_properties_utils.full_or_better(props)
       raw_avlb = camera_properties_utils.raw16(props)
 
+      # Converge 3A.
+      cam.do_3a()
       req = capture_request_utils.auto_capture_request()
       ref_img_name_stem = f'{os.path.join(self.log_path, _NAME)}'
 
       if raw_avlb and (fls_physical == fls_logical):
         logging.debug('RAW')
-        ref_fov, cc_ct_gt, aspect_ratio_gt = (
-            image_fov_utils.find_fov_reference(
-                cam, req, props, 'RAW', ref_img_name_stem))
+        raw_bool = True
       else:
         logging.debug('JPEG')
-        ref_fov, cc_ct_gt, aspect_ratio_gt = (
-            image_fov_utils.find_fov_reference(
-                cam, req, props, 'JPEG', ref_img_name_stem))
+        raw_bool = False
+      ref_fov, cc_ct_gt, aspect_ratio_gt = image_fov_utils.find_fov_reference(
+          cam, req, props, raw_bool, ref_img_name_stem)
 
       run_crop_test = full_or_better and raw_avlb
+
+      # Get ffmpeg version being used.
+      ffmpeg_version = video_processing_utils.get_ffmpeg_version()
+      logging.debug('ffmpeg_version: %s', ffmpeg_version)
 
       for quality_profile_id_pair in supported_video_qualities:
         quality = quality_profile_id_pair.split(':')[0]
@@ -182,7 +186,8 @@ class VideoAspectRatioAndCropTest(its_base_test.ItsBaseTest):
 
           for hlg10_param in hlg10_params:
             video_recording_obj = cam.do_basic_recording(
-                profile_id, quality, _VIDEO_RECORDING_DURATION_SECONDS, 0, hlg10_param)
+                profile_id, quality, _VIDEO_RECORDING_DURATION_SECONDS, 0,
+                hlg10_param)
             logging.debug('video_recording_obj: %s', video_recording_obj)
             # TODO(ruchamk): Modify video recording object to send videoFrame
             # width and height instead of videoSize to avoid string operation
@@ -196,7 +201,8 @@ class VideoAspectRatioAndCropTest(its_base_test.ItsBaseTest):
                                self.log_path])
             logging.debug('Recorded video is available at: %s',
                           self.log_path)
-            video_file_name = video_recording_obj['recordedOutputPath'].split('/')[-1]
+            video_file_name = video_recording_obj[
+                'recordedOutputPath'].split('/')[-1]
             logging.debug('video_file_name: %s', video_file_name)
 
             key_frame_files = []
@@ -208,7 +214,8 @@ class VideoAspectRatioAndCropTest(its_base_test.ItsBaseTest):
             last_key_frame_file = video_processing_utils.get_key_frame_to_process(
                 key_frame_files)
             logging.debug('last_key_frame: %s', last_key_frame_file)
-            last_key_frame_path = os.path.join(self.log_path, last_key_frame_file)
+            last_key_frame_path = os.path.join(
+                self.log_path, last_key_frame_file)
 
             # Convert lastKeyFrame to numpy array
             np_image = image_processing_utils.convert_image_to_numpy_array(
@@ -222,7 +229,7 @@ class VideoAspectRatioAndCropTest(its_base_test.ItsBaseTest):
 
             max_img_value = _MAX_8BIT_IMGS
             if hlg10_param:
-                max_img_value = _MAX_10BIT_IMGS
+              max_img_value = _MAX_10BIT_IMGS
 
             # Check pass/fail for fov coverage for all fmts in AR_CHECKED
             fov_chk_msg = image_fov_utils.check_fov(
@@ -232,7 +239,8 @@ class VideoAspectRatioAndCropTest(its_base_test.ItsBaseTest):
                   os.path.join(self.log_path, _NAME), quality, width, height)
               fov_chk_quality_msg = f'Quality: {quality} {fov_chk_msg}'
               failed_fov.append(fov_chk_quality_msg)
-              image_processing_utils.write_image(np_image/max_img_value, img_name, True)
+              image_processing_utils.write_image(
+                  np_image/max_img_value, img_name, True)
 
             # Check pass/fail for aspect ratio.
             ar_chk_msg = image_fov_utils.check_ar(
@@ -242,14 +250,16 @@ class VideoAspectRatioAndCropTest(its_base_test.ItsBaseTest):
               img_name = '%s_%s_w%d_h%d_ar.png' % (
                   os.path.join(self.log_path, _NAME), quality, width, height)
               failed_ar.append(ar_chk_msg)
-              image_processing_utils.write_image(np_image/max_img_value, img_name, True)
+              image_processing_utils.write_image(
+                  np_image/max_img_value, img_name, True)
 
             # Check pass/fail for crop.
             if run_crop_test:
               # Normalize the circle size to 1/4 of the image size, so that
               # circle size won't affect the crop test result
               crop_thresh_factor = ((min(ref_fov['w'], ref_fov['h']) / 4.0) /
-                                    max(ref_fov['circle_w'], ref_fov['circle_h']))
+                                    max(ref_fov['circle_w'],
+                                        ref_fov['circle_h']))
               crop_chk_msg = image_fov_utils.check_crop(
                   circle, cc_ct_gt, width, height,
                   f'{quality}', crop_thresh_factor)

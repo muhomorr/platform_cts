@@ -18,7 +18,7 @@ package android.photopicker.cts;
 
 import static android.photopicker.cts.util.PhotoPickerAssertionsUtils.assertPickerUriFormat;
 import static android.photopicker.cts.util.PhotoPickerAssertionsUtils.assertRedactedReadOnlyAccess;
-import static android.photopicker.cts.util.PhotoPickerFilesUtils.createImages;
+import static android.photopicker.cts.util.PhotoPickerFilesUtils.createImagesAndGetUris;
 import static android.photopicker.cts.util.PhotoPickerFilesUtils.deleteMedia;
 import static android.photopicker.cts.util.PhotoPickerUiUtils.SHORT_TIMEOUT;
 import static android.photopicker.cts.util.PhotoPickerUiUtils.findAddButton;
@@ -33,6 +33,7 @@ import android.content.Intent;
 import android.net.Uri;
 import android.provider.MediaStore;
 
+import androidx.test.filters.LargeTest;
 import androidx.test.filters.SdkSuppress;
 import androidx.test.uiautomator.UiObject;
 import androidx.test.uiautomator.UiSelector;
@@ -55,6 +56,7 @@ import java.util.List;
  * Photo Picker Device only tests for cross profile interaction flows.
  */
 @RunWith(BedsteadJUnit4.class)
+@LargeTest
 public class PhotoPickerCrossProfileTest extends PhotoPickerBaseTest {
     @ClassRule @Rule
     public static final DeviceState sDeviceState = new DeviceState();
@@ -79,7 +81,7 @@ public class PhotoPickerCrossProfileTest extends PhotoPickerBaseTest {
     @SdkSuppress(minSdkVersion = 32, codeName = "T")
     public void testWorkApp_canAccessPersonalProfileContents() throws Exception {
         final int imageCount = 2;
-        createImages(imageCount, sDeviceState.primaryUser().id(), mUriList);
+        mUriList.addAll(createImagesAndGetUris(imageCount, sDeviceState.primaryUser().id()));
 
         Intent intent = new Intent(MediaStore.ACTION_PICK_IMAGES);
         intent.putExtra(MediaStore.EXTRA_PICK_IMAGES_MAX, imageCount);

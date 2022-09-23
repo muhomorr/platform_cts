@@ -66,12 +66,12 @@ public class LoginActivityTest extends AutoFillServiceTestCase.ManualActivityLau
         mUiBot.waitForIdleSync();
 
         // Click on password field
-        mUiBot.selectByRelativeIdFromUiDevice(ID_PASSWORD);
+        mUiBot.selectByRelativeId(ID_PASSWORD);
         // Waits a while
         mUiBot.waitForIdleSync();
 
         // Click on password field again
-        mUiBot.selectByRelativeIdFromUiDevice(ID_PASSWORD);
+        mUiBot.selectByRelativeId(ID_PASSWORD);
         // Waits a while
         mUiBot.waitForIdleSync();
 
@@ -104,13 +104,17 @@ public class LoginActivityTest extends AutoFillServiceTestCase.ManualActivityLau
         mUiBot.waitForIdleSync();
 
         // Click on password field to trigger fill dialog
-        mUiBot.selectByRelativeIdFromUiDevice(ID_PASSWORD);
+        mUiBot.selectByRelativeId(ID_PASSWORD);
         mUiBot.waitForIdleSync();
 
         mUiBot.assertFillDialogDatasets("Dialog Presentation");
 
+        // Dismiss fill dialog
+        mUiBot.touchOutsideDialog();
+        mUiBot.waitForIdle();
+
         // Click on password field again
-        mUiBot.selectByRelativeIdFromUiDevice(ID_PASSWORD);
+        mUiBot.selectByRelativeId(ID_PASSWORD);
         mUiBot.waitForIdleSync();
 
         // Verify IME is shown
@@ -145,7 +149,7 @@ public class LoginActivityTest extends AutoFillServiceTestCase.ManualActivityLau
         mUiBot.waitForIdleSync();
 
         // Click on password field to trigger fill dialog
-        mUiBot.selectByRelativeIdFromUiDevice(ID_PASSWORD);
+        mUiBot.selectByRelativeId(ID_PASSWORD);
         mUiBot.waitForIdleSync();
 
         // Verify IME is not shown
@@ -198,7 +202,7 @@ public class LoginActivityTest extends AutoFillServiceTestCase.ManualActivityLau
         mUiBot.waitForIdleSync();
 
         // Click on password field to trigger fill dialog
-        mUiBot.selectByRelativeIdFromUiDevice(ID_PASSWORD);
+        mUiBot.selectByRelativeId(ID_PASSWORD);
         mUiBot.waitForIdleSync();
 
         mUiBot.assertFillDialogDatasets("Dialog Presentation");
@@ -215,7 +219,7 @@ public class LoginActivityTest extends AutoFillServiceTestCase.ManualActivityLau
 
         // Click on the username field to trigger autofill. Although the username field supports
         // a fill dialog, the fill dialog only shown once, so shows the dropdown UI.
-        mUiBot.selectByRelativeIdFromUiDevice(ID_USERNAME);
+        mUiBot.selectByRelativeId(ID_USERNAME);
         mUiBot.waitForIdleSync();
 
         mUiBot.assertNoFillDialog();
@@ -266,7 +270,7 @@ public class LoginActivityTest extends AutoFillServiceTestCase.ManualActivityLau
         mUiBot.waitForIdleSync();
 
         // Click on password field
-        mUiBot.selectByRelativeIdFromUiDevice(ID_PASSWORD);
+        mUiBot.selectByRelativeId(ID_PASSWORD);
         mUiBot.waitForIdleSync();
 
         // Verify IME is not shown
@@ -310,15 +314,18 @@ public class LoginActivityTest extends AutoFillServiceTestCase.ManualActivityLau
         sReplier.getNextFillRequest();
         mUiBot.waitForIdleSync();
 
-        mUiBot.selectByRelativeIdFromUiDevice(ID_PASSWORD);
+        mUiBot.selectByRelativeId(ID_PASSWORD);
         mUiBot.waitForIdleSync();
 
         mUiBot.assertFillDialogDatasets("Dialog presentation");
         // Verify IME is not shown
         assertThat(isImeShowing(activity.getRootWindowInsets())).isFalse();
 
+        mUiBot.touchOutsideDialog();
+        mUiBot.waitForIdle();
+
         // Click on username field, and verify dropdown UI is shown
-        mUiBot.selectByRelativeIdFromUiDevice(ID_USERNAME);
+        mUiBot.selectByRelativeId(ID_USERNAME);
         mUiBot.waitForIdleSync();
 
         mUiBot.assertDatasets("Dropdown Presentation");
@@ -358,7 +365,7 @@ public class LoginActivityTest extends AutoFillServiceTestCase.ManualActivityLau
         mUiBot.waitForIdleSync();
 
         // Click on username field, and verify dropdown UI is shown.
-        mUiBot.selectByRelativeIdFromUiDevice(ID_USERNAME);
+        mUiBot.selectByRelativeId(ID_USERNAME);
         mUiBot.waitForIdleSync();
 
         mUiBot.assertDatasets("Dropdown Presentation");
@@ -410,7 +417,7 @@ public class LoginActivityTest extends AutoFillServiceTestCase.ManualActivityLau
         mUiBot.waitForIdleSync();
 
         // Click on password field to trigger fill dialog, then select
-        mUiBot.selectByRelativeIdFromUiDevice(ID_PASSWORD);
+        mUiBot.selectByRelativeId(ID_PASSWORD);
         mUiBot.waitForIdleSync();
         activity.expectAutoFill("dude", "sweet");
         mUiBot.selectFillDialogDataset("Dialog Presentation");
@@ -455,7 +462,7 @@ public class LoginActivityTest extends AutoFillServiceTestCase.ManualActivityLau
         sReplier.addResponse(builder.build());
 
         // Click on username field to trigger fill dialog
-        mUiBot.selectByRelativeIdFromUiDevice(ID_USERNAME);
+        mUiBot.selectByRelativeId(ID_USERNAME);
         mUiBot.waitForIdleSync();
 
         // Check onFillRequest is called now, and the fill dialog is not shown
@@ -531,7 +538,7 @@ public class LoginActivityTest extends AutoFillServiceTestCase.ManualActivityLau
         assertHasFlags(fillRequest.flags, FLAG_SUPPORTS_FILL_DIALOG);
 
         // Click on password field to trigger fill dialog
-        mUiBot.selectByRelativeIdFromUiDevice(ID_USERNAME);
+        mUiBot.selectByRelativeId(ID_USERNAME);
         mUiBot.waitForIdleSync();
 
         // Verify IME is not shown
@@ -569,7 +576,7 @@ public class LoginActivityTest extends AutoFillServiceTestCase.ManualActivityLau
         mUiBot.waitForIdleSync();
 
         // Click on password field to trigger fill dialog
-        mUiBot.selectByRelativeIdFromUiDevice(ID_PASSWORD);
+        mUiBot.selectByRelativeId(ID_PASSWORD);
         mUiBot.waitForIdleSync();
 
         // Verify IME is not shown
@@ -615,7 +622,7 @@ public class LoginActivityTest extends AutoFillServiceTestCase.ManualActivityLau
         mUiBot.waitForIdleSync();
 
         // Click on password field to trigger fill dialog
-        mUiBot.selectByRelativeIdFromUiDevice(ID_PASSWORD);
+        mUiBot.selectByRelativeId(ID_PASSWORD);
         mUiBot.waitForIdleSync();
 
         // Verify the fill dialog shown
@@ -623,7 +630,7 @@ public class LoginActivityTest extends AutoFillServiceTestCase.ManualActivityLau
 
         // Touch outside to cancel the fill dialog, should back to dropdown UI
         mUiBot.touchOutsideDialog();
-        mUiBot.waitForIdleSync();
+        mUiBot.waitForIdle();
 
         mUiBot.assertDatasets("Dropdown Presentation");
         assertMockImeStatus(activity, true);
@@ -662,7 +669,7 @@ public class LoginActivityTest extends AutoFillServiceTestCase.ManualActivityLau
         mUiBot.waitForIdleSync();
 
         // Click on password field to trigger fill dialog
-        mUiBot.selectByRelativeIdFromUiDevice(ID_PASSWORD);
+        mUiBot.selectByRelativeId(ID_PASSWORD);
         mUiBot.waitForIdleSync();
 
         // Verify the fill dialog shown

@@ -18,12 +18,11 @@ package android.permission.cts;
 
 import static android.Manifest.permission.ACCESS_BACKGROUND_LOCATION;
 import static android.Manifest.permission.ACCESS_FINE_LOCATION;
+import static android.Manifest.permission.WRITE_DEVICE_CONFIG;
 import static android.app.AppOpsManager.OPSTR_FINE_LOCATION;
 import static android.app.AppOpsManager.OP_FLAGS_ALL_TRUSTED;
-import static android.app.Notification.EXTRA_TITLE;
 import static android.content.Context.BIND_AUTO_CREATE;
 import static android.content.Context.BIND_NOT_FOREGROUND;
-import static android.content.Intent.ACTION_BOOT_COMPLETED;
 import static android.content.Intent.FLAG_RECEIVER_FOREGROUND;
 import static android.location.Criteria.ACCURACY_FINE;
 import static android.os.Process.myUserHandle;
@@ -41,7 +40,6 @@ import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
 
@@ -50,6 +48,7 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 import android.app.ActivityManager;
 import android.app.AppOpsManager;
+import android.app.PendingIntent;
 import android.app.UiAutomation;
 import android.content.ComponentName;
 import android.content.ContentResolver;
@@ -62,6 +61,7 @@ import android.location.Criteria;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.os.Looper;
@@ -78,9 +78,10 @@ import android.util.Log;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.test.InstrumentationRegistry;
+import androidx.test.filters.SdkSuppress;
 import androidx.test.runner.AndroidJUnit4;
 
-import com.android.compatibility.common.util.DeviceConfigStateHelper;
+import com.android.compatibility.common.util.DeviceConfigStateChangerRule;
 import com.android.compatibility.common.util.ProtoUtils;
 import com.android.compatibility.common.util.mainline.MainlineModule;
 import com.android.compatibility.common.util.mainline.ModuleDetector;
@@ -93,6 +94,7 @@ import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -116,11 +118,25 @@ public class LocationAccessCheckTest {
             "/data/local/tmp/cts/permissions/CtsAppThatAccessesLocationOnCommand.apk";
     private static final String TEST_APP_LOCATION_FG_ACCESS_APK =
             "/data/local/tmp/cts/permissions/AppThatDoesNotHaveBgLocationAccess.apk";
+    private static final String ACTION_SET_UP_LOCATION_ACCESS_CHECK =
+            "com.android.permissioncontroller.action.SET_UP_LOCATION_ACCESS_CHECK";
     private static final int LOCATION_ACCESS_CHECK_JOB_ID = 0;
+    private static final int LOCATION_ACCESS_CHECK_NOTIFICATION_ID = 0;
 
-    /** Whether to show location access check notifications. */
+    /**
+     * Whether to show location access check notifications.
+     */
     private static final String PROPERTY_LOCATION_ACCESS_CHECK_ENABLED =
             "location_access_check_enabled";
+    private static final String PROPERTY_LOCATION_ACCESS_CHECK_DELAY_MILLIS =
+            "location_access_check_delay_millis";
+    private static final String PROPERTY_LOCATION_ACCESS_PERIODIC_INTERVAL_MILLIS =
+            "location_access_check_periodic_interval_millis";
+    private static final String PROPERTY_BG_LOCATION_CHECK_ENABLED = "bg_location_check_is_enabled";
+    private static final String PROPERTY_JOB_SCHEDULER_MAX_JOB_PER_RATE_LIMIT_WINDOW =
+            "qc_max_job_count_per_rate_limiting_window";
+    private static final String PROPERTY_JOB_SCHEDULER_RATE_LIMIT_WINDOW_MILLIS =
+            "qc_rate_limiting_window_ms";
 
     private static final long UNEXPECTED_TIMEOUT_MILLIS = 10000;
     private static final long EXPECTED_TIMEOUT_MILLIS = 15000;
@@ -137,6 +153,10 @@ public class LocationAccessCheckTest {
 
     private static final String PERMISSION_CONTROLLER_PKG = sContext.getPackageManager()
             .getPermissionControllerPackageName();
+    private static final String LocationAccessCheckOnBootReceiver =
+            "com.android.permissioncontroller.permission.service"
+                    + ".LocationAccessCheck$SetupPeriodicBackgroundLocationAccessCheck";
+
 
     /**
      * The result of {@link #assumeCanGetFineLocation()}, so we don't have to run it over and over
@@ -147,14 +167,91 @@ public class LocationAccessCheckTest {
     private static ServiceConnection sConnection;
     private static IAccessLocationOnCommand sLocationAccessor;
 
-    private DeviceConfigStateHelper mPrivacyDeviceConfig =
-            new DeviceConfigStateHelper(DeviceConfig.NAMESPACE_PRIVACY);
-    private static DeviceConfigStateHelper sJobSchedulerDeviceConfig =
-            new DeviceConfigStateHelper(DeviceConfig.NAMESPACE_JOB_SCHEDULER);
-
     private static void assumeNotPlayManaged() throws Exception {
         assumeFalse(ModuleDetector.moduleIsPlayManaged(
                 sContext.getPackageManager(), MainlineModule.PERMISSION_CONTROLLER));
+    }
+
+    // Override location access check flag
+    @Rule
+    public DeviceConfigStateChangerRule mPrivacyDeviceConfig =
+            new DeviceConfigStateChangerRule(sContext,
+                    DeviceConfig.NAMESPACE_PRIVACY,
+                    PROPERTY_LOCATION_ACCESS_CHECK_ENABLED,
+                    Boolean.toString(true));
+
+    // Override SafetyCenter enabled flag
+    @Rule
+    public DeviceConfigStateChangerRule sPrivacyDeviceConfigSafetyCenterEnabled =
+            new DeviceConfigStateChangerRule(sContext,
+                    DeviceConfig.NAMESPACE_PRIVACY,
+                    SafetyCenterUtils.PROPERTY_SAFETY_CENTER_ENABLED,
+                    Boolean.toString(true));
+
+    // Override BG location enabled flag
+    @Rule
+    public DeviceConfigStateChangerRule sPrivacyDeviceConfigBgLocationCheckEnabled =
+            new DeviceConfigStateChangerRule(sContext,
+                    DeviceConfig.NAMESPACE_PRIVACY,
+                    PROPERTY_BG_LOCATION_CHECK_ENABLED,
+                    Boolean.toString(true));
+
+    // Override general notification interval
+    @Rule
+    public DeviceConfigStateChangerRule sPrivacyDeviceConfigBgCheckIntervalMillis =
+            new DeviceConfigStateChangerRule(sContext,
+                    DeviceConfig.NAMESPACE_PRIVACY,
+                    PROPERTY_LOCATION_ACCESS_PERIODIC_INTERVAL_MILLIS,
+                    "100");
+
+    // Override general delay interval
+    @Rule
+    public DeviceConfigStateChangerRule sPrivacyDeviceConfigBgCheckDelayMillis =
+            new DeviceConfigStateChangerRule(sContext,
+                    DeviceConfig.NAMESPACE_PRIVACY,
+                    PROPERTY_LOCATION_ACCESS_CHECK_DELAY_MILLIS,
+                    "50");
+
+    // Disable job scheduler throttling by allowing 300000 jobs per 30 sec
+    @Rule
+    public DeviceConfigStateChangerRule sJobSchedulerDeviceConfig1 =
+            new DeviceConfigStateChangerRule(sContext,
+                    DeviceConfig.NAMESPACE_JOB_SCHEDULER,
+                    PROPERTY_JOB_SCHEDULER_MAX_JOB_PER_RATE_LIMIT_WINDOW,
+                    Integer.toString(3000000));
+
+    // Disable job scheduler throttling by allowing 300000 jobs per 30 sec
+    @Rule
+    public DeviceConfigStateChangerRule sJobSchedulerDeviceConfig2 =
+            new DeviceConfigStateChangerRule(sContext,
+                    DeviceConfig.NAMESPACE_JOB_SCHEDULER,
+                    PROPERTY_JOB_SCHEDULER_RATE_LIMIT_WINDOW_MILLIS,
+                    Integer.toString(30000));
+
+    /**
+     * Change settings so that permission controller can show location access notifications more
+     * often.
+     */
+    @BeforeClass
+    public static void reduceDelays() {
+        runWithShellPermissionIdentity(() -> {
+            ContentResolver cr = sContext.getContentResolver();
+            // New settings will be applied in when permission controller is reset
+            Settings.Secure.putLong(cr, LOCATION_ACCESS_CHECK_INTERVAL_MILLIS, 100);
+            Settings.Secure.putLong(cr, LOCATION_ACCESS_CHECK_DELAY_MILLIS, 50);
+        });
+    }
+
+    /**
+     * Reset settings so that permission controller runs normally.
+     */
+    @AfterClass
+    public static void resetDelays() throws Throwable {
+        runWithShellPermissionIdentity(() -> {
+            ContentResolver cr = sContext.getContentResolver();
+            Settings.Secure.resetToDefaults(cr, LOCATION_ACCESS_CHECK_INTERVAL_MILLIS);
+            Settings.Secure.resetToDefaults(cr, LOCATION_ACCESS_CHECK_DELAY_MILLIS);
+        });
     }
 
     /**
@@ -272,7 +369,6 @@ public class LocationAccessCheckTest {
      * controller.
      *
      * @param event the job event (start/stop)
-     *
      * @return the last time the event happened.
      */
     private static long getLastJobTime(int event) throws Exception {
@@ -297,6 +393,11 @@ public class LocationAccessCheckTest {
      * Force a run of the location check.
      */
     private static void runLocationCheck() throws Throwable {
+        // If the job isn't setup, do it before running a location check
+        if (!isLocationAccessJobSetup(myUserHandle().getIdentifier())) {
+            setupLocationAccessCheckJob();
+        }
+
         // Sleep a little bit to make sure we don't have overlap in timing
         Thread.sleep(1000);
 
@@ -358,8 +459,7 @@ public class LocationAccessCheckTest {
             return null;
         }
 
-        if (notification.getNotification().extras.getString(EXTRA_TITLE, "")
-                .contains(TEST_APP_LABEL)) {
+        if (notification.getId() == LOCATION_ACCESS_CHECK_NOTIFICATION_ID) {
             if (cancelNotification) {
                 notificationService.cancelNotification(notification.getKey());
 
@@ -395,25 +495,6 @@ public class LocationAccessCheckTest {
                 NotificationListener.class).flattenToString()));
     }
 
-    /**
-     * Change settings so that permission controller can show location access notifications more
-     * often.
-     */
-    @BeforeClass
-    public static void reduceDelays() {
-        runWithShellPermissionIdentity(() -> {
-            ContentResolver cr = sContext.getContentResolver();
-
-            // New settings will be applied in when permission controller is reset
-            Settings.Secure.putLong(cr, LOCATION_ACCESS_CHECK_INTERVAL_MILLIS, 100);
-            Settings.Secure.putLong(cr, LOCATION_ACCESS_CHECK_DELAY_MILLIS, 50);
-
-            // Disable job scheduler throttling by allowing 300000 jobs per 30 sec
-            sJobSchedulerDeviceConfig.set("qc_max_job_count_per_rate_limiting_window", "3000000");
-            sJobSchedulerDeviceConfig.set("qc_rate_limiting_window_ms", "30000");
-        });
-    }
-
     @BeforeClass
     public static void installBackgroundAccessApp() throws Exception {
         installBackgroundAccessApp(false);
@@ -442,6 +523,21 @@ public class LocationAccessCheckTest {
         }
         sConnection = null;
         sLocationAccessor = null;
+    }
+
+    private void setDeviceConfigProperty(
+            @NonNull String propertyName,
+            @NonNull String value) {
+        runWithShellPermissionIdentity(() -> {
+            boolean valueWasSet = DeviceConfig.setProperty(
+                    DeviceConfig.NAMESPACE_PRIVACY,
+                    propertyName,
+                    value,
+                    false);
+            if (!valueWasSet) {
+                throw new IllegalStateException("Could not set " + propertyName + " to " + value);
+            }
+        }, WRITE_DEVICE_CONFIG);
     }
 
 
@@ -514,8 +610,8 @@ public class LocationAccessCheckTest {
      * Enable location access check
      */
     public void enableLocationAccessCheck() throws Throwable {
-        mPrivacyDeviceConfig.set(PROPERTY_LOCATION_ACCESS_CHECK_ENABLED, "true");
-
+        setDeviceConfigProperty(PROPERTY_LOCATION_ACCESS_CHECK_ENABLED,
+                "true");
         // Run a location access check to update enabled state inside permission controller
         runLocationCheck();
     }
@@ -524,8 +620,8 @@ public class LocationAccessCheckTest {
      * Disable location access check
      */
     private void disableLocationAccessCheck() throws Throwable {
-        mPrivacyDeviceConfig.set(PROPERTY_LOCATION_ACCESS_CHECK_ENABLED, "false");
-
+        setDeviceConfigProperty(PROPERTY_LOCATION_ACCESS_CHECK_ENABLED,
+                "false");
         // Run a location access check to update enabled state inside permission controller
         runLocationCheck();
     }
@@ -589,36 +685,45 @@ public class LocationAccessCheckTest {
             }
         }, UNEXPECTED_TIMEOUT_MILLIS);
 
-        // Setup up permission controller again (simulate a reboot)
-        Intent permissionControllerSetupIntent = null;
-        for (ResolveInfo ri : sContext.getPackageManager().queryBroadcastReceivers(
-                new Intent(ACTION_BOOT_COMPLETED), 0)) {
-            String pkg = ri.activityInfo.packageName;
-
-            if (pkg.equals(PERMISSION_CONTROLLER_PKG)) {
-                permissionControllerSetupIntent = new Intent()
-                        .setClassName(pkg, ri.activityInfo.name)
-                        .setFlags(FLAG_RECEIVER_FOREGROUND)
-                        .setPackage(PERMISSION_CONTROLLER_PKG);
-
-                sContext.sendBroadcast(permissionControllerSetupIntent);
-            }
-        }
+        setupLocationAccessCheckJob();
 
         // Wait until jobs are set up
         eventually(() -> {
-            JobSchedulerServiceDumpProto dump = getJobSchedulerDump();
-
-            for (RegisteredJob job : dump.registeredJobs) {
-                if (job.dump.sourceUserId == currentUserId
-                        && job.dump.sourcePackageName.equals(PERMISSION_CONTROLLER_PKG)
-                        && job.dump.jobInfo.service.className.contains("LocationAccessCheck")) {
-                    return;
-                }
-            }
-
-            fail("Permission controller jobs not found");
+            assertTrue("LocationAccessCheck job not found",
+                    isLocationAccessJobSetup(currentUserId));
         }, UNEXPECTED_TIMEOUT_MILLIS);
+    }
+
+    private static boolean isLocationAccessJobSetup(int currentUserId) throws Exception {
+        JobSchedulerServiceDumpProto dump = getJobSchedulerDump();
+        for (RegisteredJob job : dump.registeredJobs) {
+            if (job.dump.sourceUserId == currentUserId
+                    && job.dump.sourcePackageName.equals(PERMISSION_CONTROLLER_PKG)
+                    && job.dump.jobInfo.service.className.contains("LocationAccessCheck")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static void setupLocationAccessCheckJob() {
+        // Setup location access check
+        Intent permissionControllerSetupIntent = new Intent(
+                ACTION_SET_UP_LOCATION_ACCESS_CHECK).setPackage(
+                PERMISSION_CONTROLLER_PKG).setFlags(FLAG_RECEIVER_FOREGROUND);
+
+        // Query for the setup broadcast receiver
+        List<ResolveInfo> resolveInfos = sContext.getPackageManager().queryBroadcastReceivers(
+                permissionControllerSetupIntent, 0);
+
+        if (resolveInfos.size() > 0) {
+            sContext.sendBroadcast(permissionControllerSetupIntent);
+        } else {
+            sContext.sendBroadcast(new Intent()
+                    .setClassName(PERMISSION_CONTROLLER_PKG, LocationAccessCheckOnBootReceiver)
+                    .setFlags(FLAG_RECEIVER_FOREGROUND)
+                    .setPackage(PERMISSION_CONTROLLER_PKG));
+        }
     }
 
     /**
@@ -631,27 +736,10 @@ public class LocationAccessCheckTest {
     }
 
     /**
-     * Reset settings so that permission controller runs normally.
-     */
-    @AfterClass
-    public static void resetDelays() throws Throwable {
-        runWithShellPermissionIdentity(() -> {
-            ContentResolver cr = sContext.getContentResolver();
-
-            Settings.Secure.resetToDefaults(cr, LOCATION_ACCESS_CHECK_INTERVAL_MILLIS);
-            Settings.Secure.resetToDefaults(cr, LOCATION_ACCESS_CHECK_DELAY_MILLIS);
-
-            sJobSchedulerDeviceConfig.restoreOriginalValues();
-        });
-    }
-
-    /**
      * Reset location access check
      */
     @After
     public void resetPrivacyConfig() throws Throwable {
-        mPrivacyDeviceConfig.restoreOriginalValues();
-
         // Run a location access check to update enabled state inside permission controller
         runLocationCheck();
     }
@@ -665,7 +753,6 @@ public class LocationAccessCheckTest {
     public void notificationIsShown() throws Throwable {
         accessLocation();
         runLocationCheck();
-
         eventually(() -> assertNotNull(getNotification(true)), EXPECTED_TIMEOUT_MILLIS);
     }
 
@@ -843,5 +930,24 @@ public class LocationAccessCheckTest {
 
         runLocationCheck();
         assertNull(getNotification(false));
+    }
+
+    @Test
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.TIRAMISU, codeName = "Tiramisu")
+    public void notificationOnClickOpensSafetyCenter() throws Throwable {
+        accessLocation();
+        runLocationCheck();
+
+        StatusBarNotification currentNotification = eventually(() -> {
+            StatusBarNotification notification = getNotification(false);
+            assertNotNull(notification);
+            return notification;
+        }, EXPECTED_TIMEOUT_MILLIS);
+
+        // Verify content intent
+        PendingIntent contentIntent = currentNotification.getNotification().contentIntent;
+        contentIntent.send();
+
+        SafetyCenterUtils.assertSafetyCenterStarted();
     }
 }

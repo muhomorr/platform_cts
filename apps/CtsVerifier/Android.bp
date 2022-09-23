@@ -46,6 +46,11 @@ license {
 }
 
 filegroup {
+    name: "CtsVerifierNotice",
+    srcs: ["NOTICE.txt"],
+}
+
+filegroup {
     name: "CtsVerifierMockVrListenerServiceFiles",
     srcs: ["src/com/android/cts/verifier/vr/MockVrListenerService.java"],
 }
@@ -86,6 +91,7 @@ android_library {
         "CtsForceStopHelper-constants",
         "ctsmediautil",
         "DpmWrapper",
+        "MediaPerformanceClassCommon",
     ],
 
     libs: ["telephony-common"] + ["android.test.runner.stubs"] + ["android.test.base.stubs"] + ["android.test.mock.stubs"] + ["android.car-test-stubs"] + ["voip-common"] + ["truth-prebuilt"],
@@ -104,12 +110,12 @@ android_library {
 android_test {
     name: "CtsVerifier",
     static_libs: [
-        "CtsVerifierLibT"
+        "CtsVerifierLibT",
     ],
 
     compile_multilib: "both",
 
-    manifest: "AndroidManifest-verifierConfig.xml",
+    additional_manifests: ["AndroidManifest-verifierConfig.xml"],
 
     jni_libs: [
         "libctsverifier_jni",
@@ -203,13 +209,14 @@ genrule {
         ":cts_apps_to_include",
         ":CtsVerifier",
         ":camera-its",
+        ":CtsVerifierNotice",
     ],
     tools: [
         "soong_zip",
         "merge_zips",
     ],
     out: ["android-cts-verifier.zip"],
-    cmd: "echo $(locations :cts_apps_to_include) $(location :CtsVerifier) > $(genDir)/list &&" +
+    cmd: "echo $(locations :cts_apps_to_include) $(location :CtsVerifier) $(location :CtsVerifierNotice) > $(genDir)/list &&" +
         " $(location soong_zip) -o $(genDir)/cts-verifier.zip -j -P android-cts-verifier -l $(genDir)/list &&" +
         " $(location merge_zips) $(out) $(genDir)/cts-verifier.zip $(location :camera-its)",
     dists: [

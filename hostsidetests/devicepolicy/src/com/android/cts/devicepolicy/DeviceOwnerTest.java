@@ -32,6 +32,7 @@ import android.stats.devicepolicy.EventId;
 
 import com.android.compatibility.common.tradefed.build.CompatibilityBuildHelper;
 import com.android.cts.devicepolicy.DeviceAdminFeaturesCheckerRule.RequiresAdditionalFeatures;
+import com.android.cts.devicepolicy.DeviceAdminFeaturesCheckerRule.TemporarilyIgnoreOnHeadlessSystemUserMode;
 import com.android.cts.devicepolicy.metrics.DevicePolicyEventWrapper;
 import com.android.tradefed.log.LogUtil.CLog;
 
@@ -69,6 +70,7 @@ public class DeviceOwnerTest extends BaseDeviceOwnerTest {
     private static final String TEST_APP_LOCATION = "/data/local/tmp/cts/packageinstaller/";
 
     private static final String ARG_NETWORK_LOGGING_BATCH_COUNT = "batchCount";
+    private static final String ARG_PID_BEFORE_STOP = "pidOfSimpleapp";
 
     private static final String LAUNCHER_TESTS_HAS_LAUNCHER_ACTIVITY_APK =
             "CtsHasLauncherActivityApp.apk";
@@ -342,6 +344,8 @@ public class DeviceOwnerTest extends BaseDeviceOwnerTest {
         executeCreateAndManageUserTest("testCreateAndManageUser_RemoveRestrictionSet");
     }
 
+    @TemporarilyIgnoreOnHeadlessSystemUserMode(bugId = "220386262",
+            reason = "Often fails on automotive due to race condition")
     @Test
     public void testCreateAndManageUser_newUserDisclaimer() throws Exception {
         assumeCanStartNewUser();
@@ -1056,13 +1060,16 @@ public class DeviceOwnerTest extends BaseDeviceOwnerTest {
      */
     private void tryFgsStoppingProtectedPackage(int userId, boolean canUserStopPackage)
             throws Exception {
+        String pid = executeShellCommand(String.format("pidof %s", SIMPLE_APP_PKG)).trim();
         fgsStopPackageForUser(SIMPLE_APP_PKG, userId);
         if (canUserStopPackage) {
             executeDeviceTestMethod(".UserControlDisabledPackagesTest",
-                    "testFgsStopWithUserControlEnabled");
+                    "testFgsStopWithUserControlEnabled",
+                     Collections.singletonMap(ARG_PID_BEFORE_STOP, pid));
         } else {
             executeDeviceTestMethod(".UserControlDisabledPackagesTest",
-                    "testFgsStopWithUserControlDisabled");
+                    "testFgsStopWithUserControlDisabled",
+                     Collections.singletonMap(ARG_PID_BEFORE_STOP, pid));
         }
     }
 

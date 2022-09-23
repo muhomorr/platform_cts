@@ -1880,6 +1880,7 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
         TestExecutor executor = new TestExecutor();
         TestSoftApCallback lohsSoftApCallback = new TestSoftApCallback(mLock);
         UiAutomation uiAutomation = InstrumentationRegistry.getInstrumentation().getUiAutomation();
+        setWifiEnabled(false);
         boolean wifiEnabled = mWifiManager.isWifiEnabled();
         try {
             uiAutomation.adoptShellPermissionIdentity();
@@ -2911,13 +2912,6 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
                 verifySetGetSoftApConfig(softApConfigBuilder.build());
             }
 
-            // Test 11 AX control config.
-            if (callback.getCurrentSoftApCapability()
-                    .areFeaturesSupported(SoftApCapability.SOFTAP_FEATURE_IEEE80211_AX)) {
-                softApConfigBuilder.setIeee80211axEnabled(true);
-                verifySetGetSoftApConfig(softApConfigBuilder.build());
-            }
-
             // Test 11 BE control config
             if (ApiLevelUtil.isAtLeast(Build.VERSION_CODES.TIRAMISU)) {
                 if (callback.getCurrentSoftApCapability()
@@ -2928,6 +2922,12 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
             }
 
             if (ApiLevelUtil.isAtLeast(Build.VERSION_CODES.S)) {
+                // Test 11 AX control config.
+                if (callback.getCurrentSoftApCapability()
+                        .areFeaturesSupported(SoftApCapability.SOFTAP_FEATURE_IEEE80211_AX)) {
+                    softApConfigBuilder.setIeee80211axEnabled(true);
+                    verifySetGetSoftApConfig(softApConfigBuilder.build());
+                }
                 softApConfigBuilder.setBridgedModeOpportunisticShutdownEnabled(false);
                 verifySetGetSoftApConfig(softApConfigBuilder.build());
             }
@@ -3911,6 +3911,14 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
 
     @SdkSuppress(minSdkVersion = Build.VERSION_CODES.TIRAMISU)
     public void testActiveCountryCodeChangedCallback() throws Exception {
+        if (!hasLocationFeature()) {
+            // skip the test if location is not supported
+            return;
+        }
+        if (!isLocationEnabled()) {
+            fail("Please enable location for this test - since country code is not available"
+                    + " when location is disabled!");
+        }
         TestActiveCountryCodeChangedCallback testCountryCodeChangedCallback =
                 new TestActiveCountryCodeChangedCallback();
         TestExecutor executor = new TestExecutor();
@@ -5518,7 +5526,6 @@ public class WifiManagerTest extends WifiJUnit3TestBase {
             waitForConnection();
             wifiInfo = mWifiManager.getConnectionInfo();
             assertEquals(networkId, wifiInfo.getNetworkId());
-            assertEquals(connectedBssid, wifiInfo.getBSSID());
         } finally {
             // Reset BSSID allow list to accept all APs
             for (WifiConfiguration network : savedNetworks) {

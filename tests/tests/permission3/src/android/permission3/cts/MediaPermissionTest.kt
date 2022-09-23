@@ -16,8 +16,11 @@
 
 package android.permission3.cts
 
+import android.Manifest
 import android.os.Build
 import androidx.test.filters.SdkSuppress
+import com.android.compatibility.common.util.SystemUtil
+import org.junit.Assume
 import org.junit.Test
 
 /**
@@ -94,6 +97,8 @@ class MediaPermissionTest : BaseUsePermissionTest() {
 
     @Test
     fun testWhenVisualIsDeniedManuallyThenShouldDenyAllPermissions() {
+        // TODO: Re-enable after b/239249703 is fixed
+        Assume.assumeFalse("skip on TV due to flaky", isTv)
         installPackage(APP_APK_PATH_23)
         grantAppPermissions(android.Manifest.permission.READ_MEDIA_VIDEO, targetSdk = 23)
         revokeAppPermissions(android.Manifest.permission.READ_MEDIA_VIDEO, targetSdk = 23)
@@ -109,5 +114,63 @@ class MediaPermissionTest : BaseUsePermissionTest() {
         ) {
         }
         assertStorageAndMediaPermissionState(false)
+    }
+
+    @Test
+    fun testWhenA33AppRequestsAuralThenDialogAndGrant() {
+        installPackage(APP_APK_PATH_LATEST)
+        requestAppPermissions(android.Manifest.permission.READ_MEDIA_AUDIO) {
+            clickPermissionRequestAllowButton()
+        }
+        assertAppHasPermission(android.Manifest.permission.READ_EXTERNAL_STORAGE, false)
+        assertAppHasPermission(android.Manifest.permission.WRITE_EXTERNAL_STORAGE, false)
+        assertAppHasPermission(android.Manifest.permission.READ_MEDIA_AUDIO, true)
+        assertAppHasPermission(android.Manifest.permission.READ_MEDIA_VIDEO, false)
+        assertAppHasPermission(android.Manifest.permission.READ_MEDIA_IMAGES, false)
+    }
+
+    @Test
+    fun testWhenA33AppRequestsVisualThenDialogAndGrant() {
+        installPackage(APP_APK_PATH_LATEST)
+        requestAppPermissions(
+            android.Manifest.permission.READ_MEDIA_VIDEO,
+            android.Manifest.permission.READ_MEDIA_IMAGES
+        ) {
+            clickPermissionRequestAllowButton()
+        }
+        assertAppHasPermission(android.Manifest.permission.READ_EXTERNAL_STORAGE, false)
+        assertAppHasPermission(android.Manifest.permission.WRITE_EXTERNAL_STORAGE, false)
+        assertAppHasPermission(android.Manifest.permission.READ_MEDIA_AUDIO, false)
+        assertAppHasPermission(android.Manifest.permission.READ_MEDIA_VIDEO, true)
+        assertAppHasPermission(android.Manifest.permission.READ_MEDIA_IMAGES, true)
+    }
+
+    @Test
+    fun testWhenA30AppRequestsStorageWhenMediaPermsHaveRWRFlag() {
+        installPackage(APP_APK_PATH_30)
+
+        requestAppPermissionsAndAssertResult(
+            Manifest.permission.READ_EXTERNAL_STORAGE to true
+        ) {
+            clickPermissionRequestAllowButton()
+        }
+
+        fun setRevokeWhenRequested(permission: String) = SystemUtil.runShellCommandOrThrow(
+            "pm set-permission-flags android.permission3.cts.usepermission " +
+                permission + " revoke-when-requested")
+        setRevokeWhenRequested("android.permission.READ_MEDIA_AUDIO")
+        setRevokeWhenRequested("android.permission.READ_MEDIA_VIDEO")
+        setRevokeWhenRequested("android.permission.READ_MEDIA_IMAGES")
+
+        requestAppPermissionsAndAssertResult(
+            Manifest.permission.READ_EXTERNAL_STORAGE to true
+        ) {
+            // No dialog should appear
+        }
+
+        assertAppHasPermission(Manifest.permission.READ_EXTERNAL_STORAGE, true)
+        assertAppHasPermission(Manifest.permission.READ_MEDIA_AUDIO, true)
+        assertAppHasPermission(Manifest.permission.READ_MEDIA_VIDEO, true)
+        assertAppHasPermission(Manifest.permission.READ_MEDIA_IMAGES, true)
     }
 }

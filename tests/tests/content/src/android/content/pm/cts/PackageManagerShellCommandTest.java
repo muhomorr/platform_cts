@@ -67,6 +67,7 @@ import android.os.ParcelFileDescriptor;
 import android.os.Process;
 import android.os.RemoteException;
 import android.os.UserHandle;
+import android.os.UserManager;
 import android.platform.test.annotations.AppModeFull;
 import android.util.PackageUtils;
 
@@ -649,6 +650,42 @@ public class PackageManagerShellCommandTest {
 
             // We are adding split. OK to have the flag.
             assertTrue(result.get());
+        } finally {
+            getUiAutomation().dropShellPermissionIdentity();
+        }
+    }
+
+    @Test
+    public void testDontKillRemovedWithBaseApkFullInstall() throws Exception {
+        installPackage(TEST_HW5);
+
+        getUiAutomation().adoptShellPermissionIdentity();
+        try {
+            final PackageInstaller installer = getPackageInstaller();
+            final SessionParams params = new SessionParams(SessionParams.MODE_FULL_INSTALL);
+            params.setAppPackageName(TEST_APP_PACKAGE);
+            params.setDontKillApp(true);
+
+            final int sessionId = installer.createSession(params);
+            PackageInstaller.Session session = installer.openSession(sessionId);
+            assertTrue((session.getInstallFlags() & PackageManager.INSTALL_DONT_KILL_APP) != 0);
+
+            writeFileToSession(session, "hw7", TEST_HW7);
+
+            final CompletableFuture<Boolean> result = new CompletableFuture<>();
+            session.commit(new IntentSender((IIntentSender) new IIntentSender.Stub() {
+                @Override
+                public void send(int code, Intent intent, String resolvedType,
+                        IBinder whitelistToken, IIntentReceiver finishedReceiver,
+                        String requiredPermission, Bundle options) throws RemoteException {
+                    boolean dontKillApp =
+                            (session.getInstallFlags() & PackageManager.INSTALL_DONT_KILL_APP) != 0;
+                    result.complete(dontKillApp);
+                }
+            }));
+
+            // We are updating base.apk. Flag to be removed.
+            assertFalse(result.get());
         } finally {
             getUiAutomation().dropShellPermissionIdentity();
         }
@@ -1499,6 +1536,7 @@ public class PackageManagerShellCommandTest {
     @LargeTest
     @Test
     public void testCreateUserCurAsType() throws Exception {
+        assumeTrue(UserManager.supportsMultipleUsers());
         Pattern pattern = Pattern.compile("Success: created user id (\\d+)\\R*");
         String commandResult = executeShellCommand("pm create-user --profileOf cur "
                 + "--user-type android.os.usertype.profile.CLONE test");
