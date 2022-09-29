@@ -22,8 +22,8 @@ import static android.Manifest.permission.INTERACT_ACROSS_USERS;
 import static android.content.pm.PackageManager.FEATURE_MANAGED_USERS;
 import static android.multiuser.cts.PermissionHelper.adoptShellPermissionIdentity;
 
-import static com.android.bedstead.harrier.OptionalBoolean.FALSE;
-import static com.android.bedstead.harrier.OptionalBoolean.TRUE;
+import static com.android.bedstead.nene.types.OptionalBoolean.FALSE;
+import static com.android.bedstead.nene.types.OptionalBoolean.TRUE;
 
 import static com.google.common.truth.Truth.assertWithMessage;
 
@@ -32,6 +32,7 @@ import static org.junit.Assert.assertThrows;
 import android.app.ActivityManager;
 import android.app.Instrumentation;
 import android.content.Context;
+import android.hardware.display.DisplayManager;
 import android.os.UserHandle;
 import android.os.UserManager;
 import android.platform.test.annotations.AppModeFull;
@@ -67,11 +68,12 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.List;
 
 /**
  * Tests for user-related APIs that are only available on devices that
- * {@link UserManager#isUsersOnSecondaryDisplaysEnabled() support background users running on
+ * {@link UserManager#isUsersOnSecondaryDisplaysSupported() support background users running on
  * secondary displays} (such as cars with passenger displays).
  *
  */
@@ -111,7 +113,7 @@ public final class MultipleUsersOnMultipleDisplaysTest {
 
     @Test
     @ApiTest(apis = {"android.os.UserManager#isUserVisible"})
-    @RequireHeadlessSystemUserMode// non-HSUM cannot have profiles on secondary users
+    @RequireHeadlessSystemUserMode(reason = "non-HSUM cannot have profiles on secondary users")
     @RequireRunOnSecondaryUser
     @EnsureHasPermission(INTERACT_ACROSS_USERS) // needed to call isUserVisible() on other context
     @RequireFeature(FEATURE_MANAGED_USERS) // TODO(b/239961027): remove if supports other profiles
@@ -146,7 +148,7 @@ public final class MultipleUsersOnMultipleDisplaysTest {
 
     @Test
     @ApiTest(apis = {"android.os.UserManager#getVisibleUsers"})
-    @RequireHeadlessSystemUserMode// non-HSUM cannot have profiles on secondary users
+    @RequireHeadlessSystemUserMode(reason = "non-HSUM cannot have profiles on secondary users")
     @RequireRunOnSecondaryUser
     @RequireFeature(FEATURE_MANAGED_USERS) // TODO(b/239961027): remove if supports other profiles
     @EnsureHasPermission(INTERACT_ACROSS_USERS) // needed to call getVisibleUsers()
@@ -190,7 +192,7 @@ public final class MultipleUsersOnMultipleDisplaysTest {
 
     @Test
     @ApiTest(apis = {"android.app.ActivityManager#startUserInBackgroundOnSecondaryDisplay"})
-    @RequireHeadlessSystemUserMode// non-HSUM cannot have profiles on secondary users
+    @RequireHeadlessSystemUserMode(reason = "non-HSUM cannot have profiles on secondary users")
     @RequireRunOnSecondaryUser
     @RequireFeature(FEATURE_MANAGED_USERS) // TODO(b/239961027): remove if supports other profiles
     public void testStartUserInBackgroundOnSecondaryDisplay_profileOnSameDisplay() {
@@ -226,7 +228,7 @@ public final class MultipleUsersOnMultipleDisplaysTest {
     @FlakyTest(bugId = 242364454)
     @Test
     @ApiTest(apis = {"android.app.ActivityManager#startUserInBackgroundOnSecondaryDisplay"})
-    @RequireHeadlessSystemUserMode// non-HSUM cannot have profiles on secondary users
+    @RequireHeadlessSystemUserMode(reason =  "non-HSUM cannot have profiles on secondary users")
     @RequireRunOnSecondaryUser
     @RequireFeature(FEATURE_MANAGED_USERS) // TODO(b/239961027): remove if supports other profiles
     public void testStartUserInBackgroundOnSecondaryDisplay_profileOnDefaultDisplay() {
@@ -386,10 +388,26 @@ public final class MultipleUsersOnMultipleDisplaysTest {
     // API are available
 
     private int getDisplayForBackgroundUserOnSecondaryDisplay() {
-        // TODO(b/240736142): get display id from DisplayManager
-        int displayId = 42;
-        Log.d(TAG, "getDisplayForBackgroundUserOnSecondaryDisplay(): returning " + displayId);
-        return displayId;
+        int[] displayIds = null;
+        try (PermissionHelper ph = adoptShellPermissionIdentity(mInstrumentation,
+                INTERACT_ACROSS_USERS)) {
+            displayIds = sContext.getSystemService(ActivityManager.class)
+                    .getSecondaryDisplayIdsForStartingBackgroundUsers();
+        }
+        Log.d(TAG, "getSecondaryDisplayIdsForStartingBackgroundUsers(): displays returned by AM:"
+                + Arrays.toString(displayIds));
+        if (displayIds != null && displayIds.length > 0) {
+            int displayId = displayIds[0];
+            Log.d(TAG, "getSecondaryDisplayIdsForStartingBackgroundUsers(): returning first display"
+                    + " from the list (" + displayId + ")");
+            return displayId;
+        }
+
+        DisplayManager displayManager = sContext.getSystemService(DisplayManager.class);
+        Display[] allDisplays = displayManager.getDisplays();
+        throw new IllegalStateException("Device supports backgroundUserOnSecondaryDisplay(), but "
+                + "doesn't have any secondary display. Current displays: "
+                + Arrays.toString(allDisplays));
     }
 
     private void startBackgroundUserOnSecondaryDisplay(UserReference user, int displayId) {
