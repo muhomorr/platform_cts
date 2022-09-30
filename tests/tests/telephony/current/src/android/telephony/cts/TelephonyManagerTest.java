@@ -1316,11 +1316,15 @@ public class TelephonyManagerTest {
         }
 
         LinkedBlockingQueue<Boolean> queue = new LinkedBlockingQueue<>(1);
+        List<RadioAccessSpecifier> cbrs = Collections.singletonList(new RadioAccessSpecifier(
+                AccessNetworkConstants.AccessNetworkType.EUTRAN,
+                new int[]{AccessNetworkConstants.EutranBand.BAND_48},
+                null));
         try {
             uiAutomation.adoptShellPermissionIdentity();
             // This is a oneway binder call, meaning we may return before the permission check
             // happens. Hold shell permissions until we get a response.
-            mTelephonyManager.setSystemSelectionChannels(Collections.emptyList(),
+            mTelephonyManager.setSystemSelectionChannels(cbrs,
                     getContext().getMainExecutor(), queue::offer);
             Boolean result = queue.poll(1000, TimeUnit.MILLISECONDS);
             // Ensure we get a result
@@ -1336,10 +1340,12 @@ public class TelephonyManagerTest {
 
         // Try calling the API that doesn't provide feedback. We have no way of knowing if it
         // succeeds, so just make sure nothing crashes.
-        mTelephonyManager.setSystemSelectionChannels(Collections.emptyList());
+        mTelephonyManager.setSystemSelectionChannels(cbrs);
 
         // Assert that we get back the value we set.
-        assertEquals(Collections.emptyList(), mTelephonyManager.getSystemSelectionChannels());
+        List<RadioAccessSpecifier> specifiers = mTelephonyManager.getSystemSelectionChannels();
+        assertEquals(cbrs.size(), specifiers.size());
+        assertEquals(cbrs.get(0), specifiers.get(0));
 
         try {
             // Reset the values back to the original. Use callback to ensure we don't drop
@@ -1444,19 +1450,19 @@ public class TelephonyManagerTest {
         for (NetworkRegistrationInfo nri : ss.getNetworkRegistrationInfoList()) {
             final int networkType = nri.getAccessNetworkTechnology();
             final CellIdentity cid = nri.getCellIdentity();
+            if (nri.getTransportType() == AccessNetworkConstants.TRANSPORT_TYPE_WLAN) {
+                assertTrue("NetworkType for WLAN transport must be IWLAN if registered or"
+                        + " UNKNOWN if unregistered",
+                    networkType == TelephonyManager.NETWORK_TYPE_UNKNOWN
+                            || networkType == TelephonyManager.NETWORK_TYPE_IWLAN);
+                assertNull("There is no valid cell type for WLAN", cid);
+                continue;
+            }
             if (!nri.isRegistered() && !nri.isEmergencyEnabled()) {
                 assertEquals(
                         "Network type cannot be known unless it is providing some service",
                         TelephonyManager.NETWORK_TYPE_UNKNOWN, networkType);
                 assertNull(cid);
-                continue;
-            }
-            if (nri.getTransportType() == AccessNetworkConstants.TRANSPORT_TYPE_WLAN) {
-                assertTrue("NetworkType for WLAN transport must be IWLAN if registered or"
-                                + " UNKNOWN if unregistered",
-                        networkType == TelephonyManager.NETWORK_TYPE_UNKNOWN
-                                || networkType == TelephonyManager.NETWORK_TYPE_IWLAN);
-                assertNull("There is no valid cell type for WLAN", cid);
                 continue;
             }
 
