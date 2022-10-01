@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021 The Android Open Source Project
+ * Copyright (C) 2022 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,24 +14,12 @@
  * limitations under the License.
  */
 
-package android.media.cts;
-
-import junit.framework.Assert;
-
-import java.io.File;
+package com.android.interactive.annotations;
 
 /**
- * Static methods used to validate preconditions in the media CTS suite
- * to simplify failure diagnosis.
+ * Annotation to mark either that a Step can not be automated, or that a test makes use of steps
+ * which cannot be automated.
  */
-
-public final class Preconditions {
-    private static final String TAG = "Preconditions";
-
-    public static void assertTestFileExists(String pathName) {
-        File testFile = new File(pathName);
-        Assert.assertTrue("Test Setup Error, missing file: " + pathName, testFile.exists());
-    }
-
-    private Preconditions() {}
+public @interface NotFullyAutomated {
+    String reason();
 }

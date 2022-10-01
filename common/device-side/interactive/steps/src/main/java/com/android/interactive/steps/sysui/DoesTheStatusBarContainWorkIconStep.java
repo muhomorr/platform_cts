@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021 The Android Open Source Project
+ * Copyright (C) 2022 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,24 +14,15 @@
  * limitations under the License.
  */
 
-package android.media.cts;
+package com.android.interactive.steps.sysui;
 
-import junit.framework.Assert;
+import com.android.interactive.annotations.NotFullyAutomated;
+import com.android.interactive.steps.YesNoStep;
 
-import java.io.File;
-
-/**
- * Static methods used to validate preconditions in the media CTS suite
- * to simplify failure diagnosis.
- */
-
-public final class Preconditions {
-    private static final String TAG = "Preconditions";
-
-    public static void assertTestFileExists(String pathName) {
-        File testFile = new File(pathName);
-        Assert.assertTrue("Test Setup Error, missing file: " + pathName, testFile.exists());
+/** See Step Instruction. */
+@NotFullyAutomated(reason = "UiAutomator cannot access the status bar")
+public class DoesTheStatusBarContainWorkIconStep extends YesNoStep {
+    public DoesTheStatusBarContainWorkIconStep() {
+        super("Does the status bar contain a work icon?");
     }
-
-    private Preconditions() {}
 }
