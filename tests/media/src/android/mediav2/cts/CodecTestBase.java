@@ -56,6 +56,7 @@ import androidx.test.platform.app.InstrumentationRegistry;
 
 import com.android.compatibility.common.util.ApiLevelUtil;
 import com.android.compatibility.common.util.MediaUtils;
+import com.android.compatibility.common.util.Preconditions;
 
 import org.junit.After;
 import org.junit.Assume;
@@ -663,7 +664,8 @@ abstract class CodecTestBase {
     public static final boolean FIRST_SDK_IS_AT_LEAST_T =
             ApiLevelUtil.isFirstApiAtLeast(Build.VERSION_CODES.TIRAMISU);
     public static final boolean VNDK_IS_AT_LEAST_T =
-            SystemProperties.getInt("ro.vndk.version", 0) >= Build.VERSION_CODES.TIRAMISU;
+            SystemProperties.getInt("ro.vndk.version", Build.VERSION_CODES.CUR_DEVELOPMENT)
+                    >= Build.VERSION_CODES.TIRAMISU;
     public static final boolean IS_HDR_EDITING_SUPPORTED = isHDREditingSupported();
     private static final String LOG_TAG = CodecTestBase.class.getSimpleName();
 
@@ -914,9 +916,20 @@ abstract class CodecTestBase {
         return result;
     }
 
-    static boolean isCodecLossless(String mime) {
-        return mime.equals(MediaFormat.MIMETYPE_AUDIO_FLAC) ||
-                mime.equals(MediaFormat.MIMETYPE_AUDIO_RAW);
+    static boolean isMediaTypeLossless(String mediaType) {
+        if (mediaType.equals(MediaFormat.MIMETYPE_AUDIO_FLAC)) return true;
+        if (mediaType.equals(MediaFormat.MIMETYPE_AUDIO_RAW)) return true;
+        return false;
+    }
+
+    // some media types decode a pre-roll amount before playback. This would mean that decoding
+    // after seeking may not return the exact same values as would be obtained by decoding the
+    // stream straight through
+    static boolean isMediaTypeOutputUnAffectedBySeek(String mediaType) {
+        if (mediaType.equals(MediaFormat.MIMETYPE_AUDIO_FLAC)) return true;
+        if (mediaType.equals(MediaFormat.MIMETYPE_AUDIO_RAW)) return true;
+        if (mediaType.startsWith("video/")) return true;
+        return false;
     }
 
     static boolean hasDecoder(String mime) {
@@ -1718,17 +1731,7 @@ class CodecDecoderTestBase extends CodecTestBase {
             MediaFormat format = mExtractor.getTrackFormat(trackID);
             if (mMime.equalsIgnoreCase(format.getString(MediaFormat.KEY_MIME))) {
                 mExtractor.selectTrack(trackID);
-                if (mIsAudio) {
-                    // as per cdd, pcm/wave must support PCM_{8, 16, 24, 32, float} and flac must
-                    // support PCM_{16, float}. For raw media type let extractor manage the
-                    // encoding type directly. For flac, basing on bits-per-sample select the type
-                    if (mMime.equals(MediaFormat.MIMETYPE_AUDIO_FLAC)) {
-                        if (format.getInteger("bits-per-sample", 16) > 16) {
-                            format.setInteger(MediaFormat.KEY_PCM_ENCODING,
-                                    AudioFormat.ENCODING_PCM_FLOAT);
-                        }
-                    }
-                } else {
+                if (mIsVideo) {
                     ArrayList<MediaFormat> formatList = new ArrayList<>();
                     formatList.add(format);
                     boolean selectHBD = doesAnyFormatHaveHDRProfile(mMime, formatList) ||
