@@ -27,4 +27,6 @@ interface ICtsCarModeInCallServiceControl {
     boolean requestAutomotiveProjection();
     void releaseAutomotiveProjection();
     boolean checkBindStatus(boolean bind);
+    void registerPhoneAccount(in PhoneAccount phoneAccount);
+    void unregisterPhoneAccount(in PhoneAccountHandle phoneAccountHandle);
 }
