@@ -67,6 +67,7 @@ public class SliceProviderTest {
     }
 
     @Test
+    @AsbSecurityTest(cveBugId = 138441555)
     public void testCallSliceUri_ValidAuthority() {
         assumeFalse(mIsSlicesDisabled);
 
@@ -74,6 +75,7 @@ public class SliceProviderTest {
     }
 
     @Test(expected = SecurityException.class)
+    @AsbSecurityTest(cveBugId = 138441555)
     public void testCallSliceUri_ShadyAuthority() {
         assumeFalse(mIsSlicesDisabled);
 
