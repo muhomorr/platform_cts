@@ -14,8 +14,17 @@
  * limitations under the License.
  */
 
-package android.companion.cts.uiautomation
+package android.app.cts;
 
-const val ASSOCIATION_REVOKE_APP_NAME = "android.companion.cts.associationrevokedtestapp"
-const val ASSOCIATION_REVOKE_APP_APK_PATH =
-    "/data/local/tmp/cts/companion/AssociationRevokedTestApp.apk"
+import android.content.ComponentName;
+
+/**
+ * Chained instrumentation test class.
+ */
+public final class ChainedInstrumentationFirst extends BaseChainedInstrumentation {
+    static final String PACKAGE_NAME = "android.app.cts";
+    /** Constructor */
+    public ChainedInstrumentationFirst() {
+        super(new ComponentName(PACKAGE_NAME, PACKAGE_NAME + ".ChainedInstrumentationSecond"));
+    }
+}
