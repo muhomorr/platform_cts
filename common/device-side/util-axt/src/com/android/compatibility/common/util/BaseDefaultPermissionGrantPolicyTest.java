@@ -481,7 +481,7 @@ public abstract class BaseDefaultPermissionGrantPolicyTest extends BusinessLogic
         Context context = getInstrumentation().getTargetContext();
 
         for (PackageInfo pkg : packageInfos.values()) {
-            int targetSdk = pkg.applicationInfo.targetSandboxVersion;
+            int targetSdk = pkg.applicationInfo.targetSdkVersion;
             int uid = pkg.applicationInfo.uid;
 
             for (String permission : pkg.requestedPermissions) {
@@ -571,7 +571,7 @@ public abstract class BaseDefaultPermissionGrantPolicyTest extends BusinessLogic
         }
         for (String requestedPermission : packageInfo.requestedPermissions) {
             if (pregrantedPerms.contains(requestedPermission)) {
-                uidState.addGrantedPermission(packageInfo.packageName, reason, requestedPermission,
+                uidState.addGrantedPermission(packageInfo, reason, requestedPermission,
                         fixed);
             }
         }
@@ -815,22 +815,16 @@ public abstract class BaseDefaultPermissionGrantPolicyTest extends BusinessLogic
             }
         }
 
-        public void addGrantedPermission(String packageName, String reason, String permission,
+        public void addGrantedPermission(PackageInfo packageInfo, String reason, String permission,
                 FixedState fixed) {
-            Context context = getInstrumentation().getTargetContext();
+            String packageName = packageInfo.packageName;
+            int targetSdk = packageInfo.applicationInfo.targetSdkVersion;
 
             // Add permissions split off from the permission to granted
-            try {
-                PackageInfo info = context.getPackageManager().getPackageInfo(packageName, 0);
-                int targetSdk = info.applicationInfo.targetSdkVersion;
-
-                for (String extendedPerm : extendBySplitPermissions(permission, targetSdk)) {
-                    mergeGrantedPermission(packageName, extendedPerm.equals(permission) ? reason
-                                    : reason + " (split from " + permission + ")", extendedPerm,
-                            fixed, false);
-                }
-            } catch (PackageManager.NameNotFoundException e) {
-                // ignore
+            for (String extendedPerm : extendBySplitPermissions(permission, targetSdk)) {
+                mergeGrantedPermission(packageName, extendedPerm.equals(permission) ? reason
+                                : reason + " (split from " + permission + ")", extendedPerm,
+                        fixed, false);
             }
         }
 
