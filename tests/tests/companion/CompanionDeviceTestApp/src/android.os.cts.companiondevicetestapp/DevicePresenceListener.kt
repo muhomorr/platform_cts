@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021 The Android Open Source Project
+ * Copyright (C) 2022 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,7 +14,17 @@
  * limitations under the License.
  */
 
-package android.companion.cts.core
+package android.os.cts.companiondevicetestapp
 
-const val TEST_APP_PACKAGE_NAME = "android.companion.cts.companiondevicetestapp"
-const val TEST_APP_APK_PATH = "/data/local/tmp/cts/companion/CompanionDeviceTestApp.apk"
+import android.companion.CompanionDeviceService
+
+class DevicePresenceListener : CompanionDeviceService() {
+
+    override fun onDeviceAppeared(address: String) {
+        toast("Device appeared: $address")
+    }
+
+    override fun onDeviceDisappeared(address: String) {
+        toast("Device disappeared: $address")
+    }
+}
