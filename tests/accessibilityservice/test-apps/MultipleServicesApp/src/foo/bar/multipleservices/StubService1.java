@@ -14,20 +14,16 @@
  * limitations under the License.
  */
 
-package android.security.cts.CVE_2022_20007_attacker;
+package foo.bar.multipleservices;
 
-import android.app.Activity;
-import android.os.Bundle;
-import android.view.WindowManager;
+import android.accessibilityservice.AccessibilityService;
+import android.view.accessibility.AccessibilityEvent;
 
-public class PocActivity extends Activity {
+/** A stub accessibility service for testing package uninstall. */
+public class StubService1 extends AccessibilityService {
+    @Override
+    public void onAccessibilityEvent(AccessibilityEvent event) {}
 
     @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        setTheme(android.R.style.Theme_Translucent_NoTitleBar_Fullscreen);
-        super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
-        getWindow().addFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
-                | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE);
-    }
+    public void onInterrupt() {}
 }
