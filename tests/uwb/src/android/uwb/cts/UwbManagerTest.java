@@ -26,9 +26,12 @@ import static androidx.test.platform.app.InstrumentationRegistry.getInstrumentat
 
 import static com.google.common.truth.Truth.assertThat;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.fail;
 import static org.junit.Assume.assumeTrue;
+
+import static java.util.Objects.requireNonNull;
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
@@ -53,16 +56,24 @@ import androidx.test.filters.SmallTest;
 
 import com.android.compatibility.common.util.CddTest;
 import com.android.compatibility.common.util.ShellIdentityUtils;
+import com.android.modules.utils.build.SdkLevel;
 
+import com.google.uwb.support.fira.FiraControleeParams;
 import com.google.uwb.support.fira.FiraOpenSessionParams;
 import com.google.uwb.support.fira.FiraParams;
 import com.google.uwb.support.fira.FiraProtocolVersion;
+import com.google.uwb.support.fira.FiraSpecificationParams;
 import com.google.uwb.support.multichip.ChipInfoParams;
+import com.google.uwb.support.oemextension.DeviceStatus;
+import com.google.uwb.support.oemextension.RangingReportMetadata;
+import com.google.uwb.support.oemextension.SessionStatus;
 
+import org.junit.Assume;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
@@ -82,6 +93,9 @@ public class UwbManagerTest {
     private final Context mContext = InstrumentationRegistry.getContext();
     private UwbManager mUwbManager;
     private String mDefaultChipId;
+    public static final int UWB_SESSION_STATE_IDLE = 0x03;
+    public static final byte DEVICE_STATE_ACTIVE = 0x02;
+    public static final int REASON_STATE_CHANGE_WITH_SESSION_MANAGEMENT_COMMANDS = 0x00;
 
     @Before
     public void setup() throws Exception {
@@ -535,6 +549,8 @@ public class UwbManagerTest {
         public boolean onOpenFailedCalled;
         public boolean onStartedCalled;
         public boolean onStartFailedCalled;
+        public boolean onReconfiguredCalled;
+        public boolean onReconfiguredFailedCalled;
         public boolean onClosedCalled;
         public RangingSession rangingSession;
         public RangingReport rangingReport;
@@ -576,9 +592,15 @@ public class UwbManagerTest {
             mCtrlCountDownLatch.countDown();
         }
 
-        public void onReconfigured(@NonNull PersistableBundle params) { }
+        public void onReconfigured(@NonNull PersistableBundle params) {
+            onReconfiguredCalled = true;
+            mCtrlCountDownLatch.countDown();
+        }
 
-        public void onReconfigureFailed(@Reason int reason, @NonNull PersistableBundle params) { }
+        public void onReconfigureFailed(@Reason int reason, @NonNull PersistableBundle params) {
+            onReconfiguredFailedCalled = true;
+            mCtrlCountDownLatch.countDown();
+        }
 
         public void onStopped(@Reason int reason, @NonNull PersistableBundle parameters) { }
 
@@ -912,6 +934,107 @@ public class UwbManagerTest {
         }
     }
 
+    @Test
+    @CddTest(requirements = {"7.3.13/C-1-1,C-1-2,C-1-5"})
+    public void testFiraRangingSessionWithProvisionedSTS() throws Exception {
+        UiAutomation uiAutomation = getInstrumentation().getUiAutomation();
+        // Needs UWB_PRIVILEGED permission which is held by shell.
+        uiAutomation.adoptShellPermissionIdentity();
+        CancellationSignal cancellationSignal = null;
+        CountDownLatch countDownLatch = new CountDownLatch(1);
+        CountDownLatch resultCountDownLatch = new CountDownLatch(1);
+        RangingSessionCallback rangingSessionCallback =
+                new RangingSessionCallback(countDownLatch, resultCountDownLatch);
+        PersistableBundle bundle = mUwbManager.getSpecificationInfo();
+        if (bundle.keySet().contains(FiraParams.PROTOCOL_NAME)) {
+            bundle = requireNonNull(bundle.getPersistableBundle(FiraParams.PROTOCOL_NAME));
+        }
+        FiraSpecificationParams params =
+                FiraSpecificationParams.fromBundle(bundle);
+        EnumSet<FiraParams.StsCapabilityFlag> stsCapabilities = EnumSet.of(
+                FiraParams.StsCapabilityFlag.HAS_STATIC_STS_SUPPORT,
+                FiraParams.StsCapabilityFlag.HAS_PROVISIONED_STS_SUPPORT);
+        assumeTrue(params.getStsCapabilities() == stsCapabilities);
+
+        FiraOpenSessionParams firaOpenSessionParams = new FiraOpenSessionParams.Builder()
+                .setProtocolVersion(new FiraProtocolVersion(1, 1))
+                .setSessionId(1)
+                .setStsConfig(FiraParams.STS_CONFIG_PROVISIONED)
+                .setSessionKey(new byte[]{
+                    0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8,
+                    0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8
+                })
+                .setSubsessionKey(new byte[]{
+                    0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8,
+                    0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8
+                })
+                .setDeviceType(FiraParams.RANGING_DEVICE_TYPE_CONTROLLER)
+                .setDeviceRole(FiraParams.RANGING_DEVICE_ROLE_INITIATOR)
+                .setMultiNodeMode(FiraParams.MULTI_NODE_MODE_UNICAST)
+                .setDeviceAddress(UwbAddress.fromBytes(new byte[] {0x5, 6}))
+                .setDestAddressList(List.of(UwbAddress.fromBytes(new byte[] {0x5, 6})))
+                .build();
+        try {
+            // Needs UWB_PRIVILEGED & UWB_RANGING permission which is held by shell.
+            uiAutomation.adoptShellPermissionIdentity();
+            cancellationSignal = mUwbManager.openRangingSession(
+                firaOpenSessionParams.toBundle(),
+                Executors.newSingleThreadExecutor(),
+                rangingSessionCallback,
+                mDefaultChipId);
+            // Wait for the on opened callback.
+            assertThat(countDownLatch.await(1, TimeUnit.SECONDS)).isTrue();
+            assertThat(rangingSessionCallback.onOpenedCalled).isTrue();
+            assertThat(rangingSessionCallback.onOpenFailedCalled).isFalse();
+            assertThat(rangingSessionCallback.rangingSession).isNotNull();
+
+            countDownLatch = new CountDownLatch(1);
+            rangingSessionCallback.replaceCtrlCountDownLatch(countDownLatch);
+            rangingSessionCallback.rangingSession.start(new PersistableBundle());
+            // Wait for the on started callback.
+            assertThat(countDownLatch.await(1, TimeUnit.SECONDS)).isTrue();
+            assertThat(rangingSessionCallback.onStartedCalled).isTrue();
+            assertThat(rangingSessionCallback.onStartFailedCalled).isFalse();
+
+            countDownLatch = new CountDownLatch(1);
+            rangingSessionCallback.replaceCtrlCountDownLatch(countDownLatch);
+            UwbAddress uwbAddress = UwbAddress.fromBytes(new byte[] {0x5, 5});
+            rangingSessionCallback.rangingSession.addControlee(
+                    new FiraControleeParams.Builder()
+                    .setAddressList(new UwbAddress[] {uwbAddress})
+                    .setSubSessionIdList(new int[] {1})
+                    .build().toBundle()
+            );
+            // Wait for the on reconfigured callback.
+            assertThat(countDownLatch.await(1, TimeUnit.SECONDS)).isTrue();
+            assertThat(rangingSessionCallback.onReconfiguredCalled).isTrue();
+            assertThat(rangingSessionCallback.onReconfiguredFailedCalled).isFalse();
+
+            // Wait for the on ranging report callback.
+            assertThat(resultCountDownLatch.await(1, TimeUnit.SECONDS)).isTrue();
+            assertThat(rangingSessionCallback.rangingReport).isNotNull();
+
+            // Check the UWB state.
+            assertThat(mUwbManager.getAdapterState()).isEqualTo(STATE_ENABLED_ACTIVE);
+
+            // Stop ongoing session.
+            rangingSessionCallback.rangingSession.stop();
+        } finally {
+            if (cancellationSignal != null) {
+                countDownLatch = new CountDownLatch(1);
+                rangingSessionCallback.replaceCtrlCountDownLatch(countDownLatch);
+
+                // Close session.
+                cancellationSignal.cancel();
+
+                // Wait for the on closed callback.
+                assertThat(countDownLatch.await(1, TimeUnit.SECONDS)).isTrue();
+                assertThat(rangingSessionCallback.onClosedCalled).isTrue();
+            }
+            uiAutomation.dropShellPermissionIdentity();
+        }
+    }
+
     private class AdapterStateCallback implements UwbManager.AdapterStateCallback {
         private final CountDownLatch mCountDownLatch;
         private final @State Integer mWaitForState;
@@ -1019,6 +1142,209 @@ public class UwbManagerTest {
         } finally {
             mUwbManager.unregisterUwbVendorUciCallback(cb);
             uiAutomation.dropShellPermissionIdentity();
+        }
+    }
+
+    private class UwbOemExtensionCallback implements UwbManager.UwbOemExtensionCallback {
+        public PersistableBundle mSessionChangeNtf;
+        public PersistableBundle mDeviceStatusNtf;
+        public PersistableBundle mSessionConfig;
+        public RangingReport mRangingReport;
+        public boolean onSessionConfigCompleteCalled = false;
+        public boolean onRangingReportReceivedCalled = false;
+        public boolean onSessionChangedCalled = false;
+        public boolean onDeviceStatusNtfCalled = false;
+
+        @Override
+        public void onSessionStatusNotificationReceived(
+                @NonNull PersistableBundle sessionStatusBundle) {
+            mSessionChangeNtf = sessionStatusBundle;
+            onSessionChangedCalled = true;
+        }
+
+        @Override
+        public void onDeviceStatusNotificationReceived(PersistableBundle deviceStatusBundle) {
+            mDeviceStatusNtf = deviceStatusBundle;
+            onDeviceStatusNtfCalled = true;
+        }
+
+        @NonNull
+        @Override
+        public int onSessionConfigurationComplete(@NonNull PersistableBundle openSessionBundle) {
+            mSessionConfig = openSessionBundle;
+            onSessionConfigCompleteCalled = true;
+            return 0;
+        }
+
+        @NonNull
+        @Override
+        public RangingReport onRangingReportReceived(
+                @NonNull RangingReport rangingReport) {
+            onRangingReportReceivedCalled = true;
+            mRangingReport = rangingReport;
+            return mRangingReport;
+        }
+    }
+
+    @Test
+    @CddTest(requirements = {"7.3.13/C-1-1,C-1-2,C-1-5"})
+    public void testOemCallbackExtension() throws Exception {
+        Assume.assumeTrue(SdkLevel.isAtLeastU());
+        UiAutomation uiAutomation = getInstrumentation().getUiAutomation();
+        CancellationSignal cancellationSignal = null;
+        CountDownLatch countDownLatch = new CountDownLatch(1);
+        CountDownLatch resultCountDownLatch = new CountDownLatch(1);
+        UwbOemExtensionCallback uwbOemExtensionCallback = new UwbOemExtensionCallback();
+
+        int sessionId = 1;
+        RangingSessionCallback rangingSessionCallback =
+                new RangingSessionCallback(countDownLatch, resultCountDownLatch);
+        FiraOpenSessionParams firaOpenSessionParams = new FiraOpenSessionParams.Builder()
+                .setProtocolVersion(new FiraProtocolVersion(1, 1))
+                .setSessionId(sessionId)
+                .setStsConfig(FiraParams.STS_CONFIG_STATIC)
+                .setVendorId(new byte[]{0x5, 0x6})
+                .setStaticStsIV(new byte[]{0x5, 0x6, 0x9, 0xa, 0x4, 0x6})
+                .setDeviceType(FiraParams.RANGING_DEVICE_TYPE_CONTROLLER)
+                .setDeviceRole(FiraParams.RANGING_DEVICE_ROLE_INITIATOR)
+                .setMultiNodeMode(FiraParams.MULTI_NODE_MODE_UNICAST)
+                .setDeviceAddress(UwbAddress.fromBytes(new byte[] {0x5, 6}))
+                .setDestAddressList(List.of(UwbAddress.fromBytes(new byte[] {0x5, 6})))
+                .build();
+        try {
+            // Needs UWB_PRIVILEGED & UWB_RANGING permission which is held by shell.
+            uiAutomation.adoptShellPermissionIdentity();
+            mUwbManager.registerUwbOemExtensionCallback(
+                    Executors.newSingleThreadExecutor(), uwbOemExtensionCallback);
+            // Try to start a ranging session with invalid params, should fail.
+            cancellationSignal = mUwbManager.openRangingSession(
+                    firaOpenSessionParams.toBundle(),
+                    Executors.newSingleThreadExecutor(),
+                    rangingSessionCallback,
+                    mDefaultChipId);
+            // Wait for the on opened callback.
+            assertThat(countDownLatch.await(1, TimeUnit.SECONDS)).isTrue();
+            assertThat(uwbOemExtensionCallback.onSessionConfigCompleteCalled).isTrue();
+            assertThat(uwbOemExtensionCallback.mSessionConfig).isNotNull();
+
+            FiraOpenSessionParams openSessionParamsBundle = FiraOpenSessionParams
+                    .fromBundle(uwbOemExtensionCallback.mSessionConfig);
+            assertEquals(openSessionParamsBundle.getSessionId(), sessionId);
+            assertEquals(openSessionParamsBundle.getStsConfig(), FiraParams.STS_CONFIG_STATIC);
+            assertEquals(openSessionParamsBundle.getDeviceType(),
+                    FiraParams.RANGING_DEVICE_TYPE_CONTROLLER);
+
+            assertThat(uwbOemExtensionCallback.onSessionChangedCalled).isTrue();
+            assertThat(uwbOemExtensionCallback.mSessionChangeNtf).isNotNull();
+
+            SessionStatus sessionStatusBundle = SessionStatus
+                    .fromBundle(uwbOemExtensionCallback.mSessionChangeNtf);
+            assertEquals(sessionStatusBundle.getSessionId(), sessionId);
+            assertEquals(sessionStatusBundle.getState(), UWB_SESSION_STATE_IDLE);
+            assertEquals(sessionStatusBundle.getReasonCode(),
+                    REASON_STATE_CHANGE_WITH_SESSION_MANAGEMENT_COMMANDS);
+
+            countDownLatch = new CountDownLatch(1);
+            rangingSessionCallback.replaceCtrlCountDownLatch(countDownLatch);
+            rangingSessionCallback.rangingSession.start(new PersistableBundle());
+            // Wait for the on started callback.
+            assertThat(countDownLatch.await(1, TimeUnit.SECONDS)).isTrue();
+            assertThat(uwbOemExtensionCallback.onSessionChangedCalled).isTrue();
+            assertThat(uwbOemExtensionCallback.mSessionChangeNtf).isNotNull();
+            assertThat(uwbOemExtensionCallback.onDeviceStatusNtfCalled).isTrue();
+            assertThat(uwbOemExtensionCallback.mDeviceStatusNtf).isNotNull();
+
+            DeviceStatus deviceStatusBundle = DeviceStatus
+                    .fromBundle(uwbOemExtensionCallback.mDeviceStatusNtf);
+            assertEquals(deviceStatusBundle.getDeviceState(), DEVICE_STATE_ACTIVE);
+
+            // Wait for the on ranging report callback.
+            assertThat(resultCountDownLatch.await(1, TimeUnit.SECONDS)).isTrue();
+            assertThat(rangingSessionCallback.rangingReport).isNotNull();
+            assertThat(uwbOemExtensionCallback.onRangingReportReceivedCalled).isTrue();
+            assertThat(uwbOemExtensionCallback.mRangingReport).isNotNull();
+            PersistableBundle reportMetadataBundle = uwbOemExtensionCallback
+                    .mRangingReport.getRangingReportMetadata();
+            RangingReportMetadata reportMetadata = RangingReportMetadata
+                    .fromBundle(reportMetadataBundle);
+            assertEquals(reportMetadata.getSessionId(), sessionId);
+            assertThat(reportMetadata.getRawNtfData()).isNotEmpty();
+
+            // Check the UWB state.
+            assertThat(mUwbManager.getAdapterState()).isEqualTo(STATE_ENABLED_ACTIVE);
+
+            // Stop ongoing session.
+            rangingSessionCallback.rangingSession.stop();
+        } finally {
+            if (cancellationSignal != null) {
+                countDownLatch = new CountDownLatch(1);
+                rangingSessionCallback.replaceCtrlCountDownLatch(countDownLatch);
+
+                // Close session.
+                cancellationSignal.cancel();
+
+                // Wait for the on closed callback.
+                assertThat(countDownLatch.await(1, TimeUnit.SECONDS)).isTrue();
+                assertThat(rangingSessionCallback.onClosedCalled).isTrue();
+            }
+            try {
+                mUwbManager.unregisterUwbOemExtensionCallback(uwbOemExtensionCallback);
+            } catch (SecurityException e) {
+                /* pass */
+                fail();
+            }
+            uiAutomation.dropShellPermissionIdentity();
+        }
+    }
+
+    @Test
+    @CddTest(requirements = {"7.3.13/C-1-1,C-1-2"})
+    public void testRegisterUwbOemExtensionCallbackWithoutUwbPrivileged() {
+        Assume.assumeTrue(SdkLevel.isAtLeastU());
+        UwbManager.UwbOemExtensionCallback cb = new UwbOemExtensionCallback();
+        try {
+            mUwbManager.registerUwbOemExtensionCallback(
+                    Executors.newSingleThreadExecutor(), cb);
+            // should fail if the call was successful without UWB_PRIVILEGED permission.
+            fail();
+        } catch (SecurityException e) {
+            /* pass */
+            Log.i(TAG, "Failed with expected security exception: " + e);
+        }
+    }
+
+    @Test
+    @CddTest(requirements = {"7.3.13/C-1-1,C-1-2"})
+    public void testUnregisterUwbOemExtensionCallbackWithoutUwbPrivileged() {
+        Assume.assumeTrue(SdkLevel.isAtLeastU());
+        UiAutomation uiAutomation = getInstrumentation().getUiAutomation();
+        UwbManager.UwbOemExtensionCallback cb = new UwbOemExtensionCallback();
+        try {
+            // Needs UWB_PRIVILEGED & UWB_RANGING permission which is held by shell.
+            uiAutomation.adoptShellPermissionIdentity();
+            mUwbManager.registerUwbOemExtensionCallback(
+                    Executors.newSingleThreadExecutor(), cb);
+        } catch (SecurityException e) {
+            /* fail */
+            fail();
+        } finally {
+            uiAutomation.dropShellPermissionIdentity();
+        }
+        try {
+            mUwbManager.unregisterUwbOemExtensionCallback(cb);
+            // should fail if the call was successful without UWB_PRIVILEGED permission.
+            fail();
+        } catch (SecurityException e) {
+            /* pass */
+            Log.i(TAG, "Failed with expected security exception: " + e);
+        }
+        try {
+            // Needs UWB_PRIVILEGED & UWB_RANGING permission which is held by shell.
+            uiAutomation.adoptShellPermissionIdentity();
+            mUwbManager.unregisterUwbOemExtensionCallback(cb);
+        } catch (SecurityException e) {
+            /* pass */
+            fail();
         }
     }
 }
