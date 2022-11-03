@@ -237,6 +237,7 @@ public class StrictJavaPackagesTest extends BaseHostJUnit4Test {
                     "Landroid/app/sdksandbox/IRequestSurfacePackageCallback;",
                     "Landroid/app/sdksandbox/ISdkSandboxManager;",
                     "Landroid/app/sdksandbox/ISdkSandboxLifecycleCallback;",
+                    "Landroid/app/sdksandbox/ISdkSandboxProcessDeathCallback;",
                     "Landroid/app/sdksandbox/ISendDataCallback;",
                     "Landroid/app/sdksandbox/ISharedPreferencesSyncCallback;",
                     "Landroid/app/sdksandbox/ISdkToServiceCallback;"
@@ -737,10 +738,12 @@ public class StrictJavaPackagesTest extends BaseHostJUnit4Test {
                 "Lcom/android/sdksandbox/IDataReceivedCallback;",
                 "Lcom/android/sdksandbox/ILoadSdkInSandboxCallback;",
                 "Lcom/android/sdksandbox/IRequestSurfacePackageFromSdkCallback;",
+                "Lcom/android/sdksandbox/ISdkSandboxDisabledCallback;",
                 "Lcom/android/sdksandbox/ISdkSandboxManagerToSdkSandboxCallback;",
                 "Lcom/android/sdksandbox/ISdkSandboxService;",
                 "Lcom/android/sdksandbox/SandboxLatencyInfo-IA;",
-                "Lcom/android/sdksandbox/SandboxLatencyInfo;"
+                "Lcom/android/sdksandbox/SandboxLatencyInfo;",
+                "Lcom/android/sdksandbox/IUnloadSdkCallback;"
             );
 
     private static final ImmutableMap<String, ImmutableSet<String>> FULL_APK_IN_APEX_BURNDOWN =
@@ -1007,13 +1010,14 @@ public class StrictJavaPackagesTest extends BaseHostJUnit4Test {
 
     /**
      * Ensure that no apk-in-apex bundles classes that could be eclipsed by jars in
-     * BOOTCLASSPATH, SYSTEMSERVERCLASSPATH.
+     * BOOTCLASSPATH.
      */
     @Test
     public void testApkInApex_nonClasspathClasses() throws Exception {
         HashMultimap<String, Multimap<String, String>> perApkClasspathDuplicates =
                 HashMultimap.create();
         Arrays.stream(collectApkInApexPaths())
+                .filter(apk -> apk != null && !apk.isEmpty())
                 .parallel()
                 .forEach(apk -> {
                     File apkFile = null;
@@ -1037,9 +1041,12 @@ public class StrictJavaPackagesTest extends BaseHostJUnit4Test {
                                     className -> !burndownClasses.contains(className)
                                             // TODO: b/225341497
                                             && !className.equals("Landroidx/annotation/Keep;"));
+                        final Multimap<String, String> bcpOnlyDuplicates =
+                                Multimaps.filterKeys(filteredDuplicates,
+                                    sBootclasspathJars::contains);
                         if (!filteredDuplicates.isEmpty()) {
                             synchronized (perApkClasspathDuplicates) {
-                                perApkClasspathDuplicates.put(apk, filteredDuplicates);
+                                perApkClasspathDuplicates.put(apk, bcpOnlyDuplicates);
                             }
                         }
                     } catch (Exception e) {
@@ -1056,7 +1063,9 @@ public class StrictJavaPackagesTest extends BaseHostJUnit4Test {
      * and shared library jars.
      */
     @Test
-    public void testBootClasspathAndSystemServerClasspathAndSharedLibs_noAndroidxDependencies() {
+    public void testBootClasspathAndSystemServerClasspathAndSharedLibs_noAndroidxDependencies()
+            throws Exception {
+        assumeTrue(mDeviceSdkLevel.isDeviceAtLeastT());
         // WARNING: Do not add more exceptions here, no androidx should be in bootclasspath.
         // See go/androidx-api-guidelines#module-naming for more details.
         final ImmutableMap<String, ImmutableSet<String>>
@@ -1079,6 +1088,7 @@ public class StrictJavaPackagesTest extends BaseHostJUnit4Test {
             + "bootclasspath. Please use alternatives provided by the platform instead. "
             + "See go/androidx-api-guidelines#module-naming.")
                 .that(sJarsToClasses.entries().stream()
+                        .filter(e -> e.getKey().endsWith(".jar"))
                         .filter(e -> e.getValue().startsWith("Landroidx/"))
                         .filter(e -> !isLegacyAndroidxDependency(
                             LegacyExemptAndroidxSharedLibsNamesToClasses, e.getKey(), e.getValue()))
@@ -1100,11 +1110,12 @@ public class StrictJavaPackagesTest extends BaseHostJUnit4Test {
                 .reduce(Stream::concat).orElseGet(Stream::empty)
                 .parallel()
                 .filter(jarPath -> {
-                    return sJarsToFiles
-                            .get(jarPath)
-                            .stream()
-                            .anyMatch(file -> file.contains(".kotlin_builtins")
-                                    || file.contains(".kotlin_module"));
+                    // Exclude shared library apks.
+                    return jarPath.endsWith(".jar")
+                            && sJarsToFiles.get(jarPath)
+                                .stream()
+                                .anyMatch(file -> file.contains(".kotlin_builtins")
+                                        || file.contains(".kotlin_module"));
                 })
                 .collect(ImmutableList.toImmutableList());
         assertThat(kotlinFiles).isEmpty();
