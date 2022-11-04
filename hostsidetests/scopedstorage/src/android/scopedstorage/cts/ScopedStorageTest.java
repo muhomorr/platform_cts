@@ -1151,22 +1151,24 @@ public class ScopedStorageTest {
 
             executeShellCommand("pm clear --user " + getCurrentUser() + " " + testAppPackageName);
 
-            // Wait a max of 5 seconds for the cleaning after "pm clear" command to complete.
+            // Wait a max of 10 seconds for the cleaning after "pm clear" command to complete.
             int i = 0;
-            while(i < 10 && getFileRowIdFromDatabase(fileToBeDeleted) != -1
+            while (i < 20 && getFileRowIdFromDatabase(fileToBeDeleted) != -1
                 && getFileRowIdFromDatabase(nestedFileToBeDeleted) != -1) {
                 Thread.sleep(500);
                 i++;
             }
-
-            assertThat(getFileOwnerPackageFromDatabase(fileToRemain)).isNull();
-            assertThat(getFileRowIdFromDatabase(fileToRemain)).isNotEqualTo(-1);
-
-            assertThat(getFileOwnerPackageFromDatabase(fileToBeDeleted)).isNull();
             assertThat(getFileRowIdFromDatabase(fileToBeDeleted)).isEqualTo(-1);
-
-            assertThat(getFileOwnerPackageFromDatabase(nestedFileToBeDeleted)).isNull();
             assertThat(getFileRowIdFromDatabase(nestedFileToBeDeleted)).isEqualTo(-1);
+
+            // Poll for package name to be cleared for existing files
+            i = 0;
+            while (i < 20 && getFileOwnerPackageFromDatabase(fileToRemain) != null) {
+                Thread.sleep(500);
+                i++;
+            }
+            assertThat(getFileRowIdFromDatabase(fileToRemain)).isNotEqualTo(-1);
+            assertThat(getFileOwnerPackageFromDatabase(fileToRemain)).isNull();
         } finally {
             deleteFilesAs(APP_B_NO_PERMS, fileToRemain);
             deleteFilesAs(APP_B_NO_PERMS, fileToBeDeleted);
