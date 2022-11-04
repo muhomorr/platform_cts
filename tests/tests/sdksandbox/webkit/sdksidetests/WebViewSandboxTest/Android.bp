@@ -1,4 +1,4 @@
-// Copyright (C) 2014 The Android Open Source Project
+// Copyright (C) 2022 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,19 +17,19 @@ package {
 }
 
 android_test_helper_app {
-    name: "CtsInputMethod1",
-    defaults: ["cts_defaults"],
-    srcs: ["src/**/*.java"],
+    name: "WebViewSandboxTestSdk",
+    manifest: "AndroidManifest.xml",
+    certificate: ":sdksandbox-test",
+    srcs: [
+        "src/**/*.java",
+    ],
     static_libs: [
-        "CtsInputMethodServiceCommon",
-        "CtsInputMethodServiceLib",
+        "androidx.test.ext.junit",
+        "CtsSdkSandboxTestRunner",
+        "compatibility-device-util-axt",
+        "ctsdeviceutillegacy-axt",
     ],
-    // tag this module as a cts test artifact
-    test_suites: [
-        "cts",
-        "general-tests",
-        "sts",
+    libs: [
+        "android.test.base",
     ],
-    sdk_version: "test_current",
-    min_sdk_version: "19",
 }
