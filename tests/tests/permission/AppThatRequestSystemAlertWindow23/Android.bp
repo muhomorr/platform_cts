@@ -1,5 +1,5 @@
 //
-// Copyright (C) 2015 The Android Open Source Project
+// Copyright (C) 2022 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,19 +14,19 @@
 // limitations under the License.
 //
 
+package {
+    default_applicable_licenses: ["Android-Apache-2.0"],
+}
+
 android_test_helper_app {
-    name: "CtsUsePermissionApp22_2",
-    srcs: [
-        ":CtsUsePermissionAppSrc_2",
-    ],
-    static_libs: [
-        "kotlin-stdlib",
-    ],
+    name: "CtsAppThatRequestsSystemAlertWindow23",
+    target_sdk_version: "23",
+    certificate: ":cts-testkey2",
+    min_sdk_version: "23",
     test_suites: [
         "cts",
         "general-tests",
+        "mts-permission",
         "sts",
     ],
-    certificate: ":cts-testkey2",
-    min_sdk_version: "22",
 }
