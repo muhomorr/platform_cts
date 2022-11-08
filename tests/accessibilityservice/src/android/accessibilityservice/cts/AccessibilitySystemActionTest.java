@@ -198,8 +198,7 @@ public class AccessibilitySystemActionTest {
         BroadcastReceiver receiver = new SystemActionBroadcastReceiver(
                 receiverLatch,
                 pendingIntent);
-        mContext.registerReceiver(receiver, new IntentFilter(pendingIntent),
-                Context.RECEIVER_EXPORTED_UNAUDITED);
+        mContext.registerReceiver(receiver, new IntentFilter(pendingIntent));
         try {
             mService.performGlobalAction(actionId);
             if (!receiverLatch.await(DEFAULT_TIMEOUT_MS, TimeUnit.MILLISECONDS)) {

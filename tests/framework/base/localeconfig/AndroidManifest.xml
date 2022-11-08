@@ -18,10 +18,11 @@
     package="com.android.cts.localeconfig">
 
   <queries>
-    <package android:name="com.android.cts.localeconfiginorout" />
+    <package android:name="com.android.cts.nolocaleconfigtag" />
   </queries>
 
-  <application android:debuggable="true">
+  <application android:debuggable="true"
+      android:localeConfig="@xml/locales_config">
   </application>
 
   <instrumentation android:name="androidx.test.runner.AndroidJUnitRunner"

@@ -30,7 +30,6 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.os.Build;
 import android.os.IBinder;
 import android.os.ParcelableException;
 import android.os.RemoteException;
@@ -131,13 +130,7 @@ public class CloseSystemDialogsTestService extends Service {
                     }
                 }
             };
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                mContext.registerReceiver(mNotificationReceiver,
-                        new IntentFilter(NOTIFICATION_ACTION), Context.RECEIVER_EXPORTED_UNAUDITED);
-            } else {
-                mContext.registerReceiver(mNotificationReceiver,
-                        new IntentFilter(NOTIFICATION_ACTION));
-            }
+            mContext.registerReceiver(mNotificationReceiver, new IntentFilter(NOTIFICATION_ACTION));
             Intent intent = new Intent(NOTIFICATION_ACTION);
             intent.setPackage(mContext.getPackageName());
             CloseSystemDialogsTestService.this.notify(

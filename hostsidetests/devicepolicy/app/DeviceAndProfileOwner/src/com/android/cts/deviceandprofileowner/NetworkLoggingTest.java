@@ -123,8 +123,7 @@ public class NetworkLoggingTest {
 
     @Test
     public void testRetrieveNetworkLogs_forceNetworkLogs_receiveNetworkLogs() throws Exception {
-        mContext.registerReceiver(mReceiver, new IntentFilter(ACTION_NETWORK_LOGS_AVAILABLE),
-                Context.RECEIVER_EXPORTED_UNAUDITED);
+        mContext.registerReceiver(mReceiver, new IntentFilter(ACTION_NETWORK_LOGS_AVAILABLE));
         mDevice.executeShellCommand("dpm force-network-logs");
         mReceiver.waitForBroadcast();
 

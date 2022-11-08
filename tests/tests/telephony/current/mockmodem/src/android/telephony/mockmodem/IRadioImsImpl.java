@@ -25,9 +25,6 @@ import android.hardware.radio.ims.IRadioImsResponse;
 import android.os.RemoteException;
 import android.util.Log;
 
-import java.util.ArrayList;
-import java.util.List;
-
 public class IRadioImsImpl extends IRadioIms.Stub {
     private static final String TAG = "MRIMS";
 
@@ -37,8 +34,6 @@ public class IRadioImsImpl extends IRadioIms.Stub {
     private final MockModemConfigInterface mMockModemConfigInterface;
     private final int mSubId;
     private final String mTag;
-
-    private final List<MockSrvccCall> mSrvccCalls = new ArrayList<>();
 
     public IRadioImsImpl(
             MockModemService service, MockModemConfigInterface configInterface, int instanceId) {
@@ -64,14 +59,7 @@ public class IRadioImsImpl extends IRadioIms.Stub {
     public void setSrvccCallInfo(int serial, android.hardware.radio.ims.SrvccCall[] srvccCalls) {
         Log.d(mTag, "setSrvccCallInfo");
 
-        mSrvccCalls.clear();
-        if (srvccCalls != null) {
-            for (android.hardware.radio.ims.SrvccCall call : srvccCalls) {
-                mSrvccCalls.add(new MockSrvccCall(call));
-            }
-        }
-
-        RadioResponseInfo rsp = mService.makeSolRsp(serial);
+        RadioResponseInfo rsp = mService.makeSolRsp(serial, RadioError.REQUEST_NOT_SUPPORTED);
         try {
             mRadioImsResponse.setSrvccCallInfoResponse(rsp);
         } catch (RemoteException ex) {
@@ -93,8 +81,7 @@ public class IRadioImsImpl extends IRadioIms.Stub {
     }
 
     @Override
-    public void startImsTraffic(int serial,
-            int token, int imsTrafficType, int accessNetworkType, int trafficDirection) {
+    public void startImsTraffic(int serial, int token, int imsTrafficType, int accessNetworkType) {
         Log.d(mTag, "startImsTraffic");
 
         android.hardware.radio.ims.ConnectionFailureInfo failureInfo = null;
@@ -187,22 +174,6 @@ public class IRadioImsImpl extends IRadioIms.Stub {
             }
         } else {
             Log.e(mTag, "null mRadioImsIndication");
-        }
-    }
-
-    public List<MockSrvccCall> getSrvccCalls() {
-        return mSrvccCalls;
-    }
-
-    @Override
-    public void updateImsCallStatus(int serial, android.hardware.radio.ims.ImsCall[] imsCalls) {
-        Log.d(mTag, "updateImsCallStatus");
-
-        RadioResponseInfo rsp = mService.makeSolRsp(serial, RadioError.REQUEST_NOT_SUPPORTED);
-        try {
-            mRadioImsResponse.updateImsCallStatusResponse(rsp);
-        } catch (RemoteException ex) {
-            Log.e(mTag, "Failed to updateImsCallStatus from AIDL. Exception" + ex);
         }
     }
 

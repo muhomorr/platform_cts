@@ -142,8 +142,7 @@ public class ServiceKillTests {
                 }
             }
         };
-        context.registerReceiver(receiver, new IntentFilter(ServiceKillTestService.ACTION_RESULT),
-                Context.RECEIVER_EXPORTED_UNAUDITED);
+        context.registerReceiver(receiver, new IntentFilter(ServiceKillTestService.ACTION_RESULT));
 
         startTest(context, testId);
 

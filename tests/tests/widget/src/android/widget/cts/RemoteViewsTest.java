@@ -841,8 +841,7 @@ public class RemoteViewsTest {
     public void testSetOnCheckedChangeResponse() throws Throwable {
         String action = "my-checked-change-action";
         MockBroadcastReceiver receiver =  new MockBroadcastReceiver();
-        mContext.registerReceiver(receiver, new IntentFilter(action),
-                Context.RECEIVER_EXPORTED_UNAUDITED);
+        mContext.registerReceiver(receiver, new IntentFilter(action));
 
         Intent intent = new Intent(action).setPackage(mContext.getPackageName());
         PendingIntent pendingIntent =

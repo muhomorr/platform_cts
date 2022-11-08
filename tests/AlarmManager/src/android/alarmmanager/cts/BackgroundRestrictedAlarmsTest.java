@@ -103,8 +103,7 @@ public class BackgroundRestrictedAlarmsTest {
         mAlarmCount = 0;
         final IntentFilter intentFilter = new IntentFilter();
         intentFilter.addAction(TestAlarmReceiver.ACTION_REPORT_ALARM_EXPIRED);
-        mContext.registerReceiver(mAlarmStateReceiver, intentFilter,
-                Context.RECEIVER_EXPORTED_UNAUDITED);
+        mContext.registerReceiver(mAlarmStateReceiver, intentFilter);
         updateAlarmManagerConstants();
         mActivityManagerDeviceConfigStateHelper
                 .set("bg_auto_restricted_bucket_on_bg_restricted", "false");

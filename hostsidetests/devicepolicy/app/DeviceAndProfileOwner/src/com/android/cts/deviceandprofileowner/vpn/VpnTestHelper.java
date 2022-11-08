@@ -126,7 +126,7 @@ public class VpnTestHelper {
                     context.unregisterReceiver(this);
                 }
             };
-        context.registerReceiver(receiver, intentFilter, Context.RECEIVER_EXPORTED_UNAUDITED);
+        context.registerReceiver(receiver, intentFilter);
 
         try {
             if (packageName != null) {

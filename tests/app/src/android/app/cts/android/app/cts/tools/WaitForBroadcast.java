@@ -53,7 +53,7 @@ public class WaitForBroadcast {
         mWaitingAction = action;
         IntentFilter filter = new IntentFilter();
         filter.addAction(action);
-        mContext.registerReceiver(mReceiver, filter, Context.RECEIVER_EXPORTED_UNAUDITED);
+        mContext.registerReceiver(mReceiver, filter);
     }
 
     public Intent doWait(long timeout) {

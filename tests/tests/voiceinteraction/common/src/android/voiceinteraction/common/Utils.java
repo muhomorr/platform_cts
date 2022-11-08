@@ -207,8 +207,6 @@ public class Utils {
     public static final String KEY_TEST_RESULT = "testResult";
     public static final String KEY_TEST_SCENARIO = "testScenario";
     public static final String KEY_DETECTION_DELAY_MS = "detectionDelayMs";
-    public static final String KEY_EXTRA_BUNDLE_DATA = "extraBundleData";
-    public static final String KEY_KEEP_DETECTOR = "keepDetector";
 
     public static final String VOICE_INTERACTION_KEY_CALLBACK = "callback";
     public static final String VOICE_INTERACTION_KEY_CONTROL = "control";

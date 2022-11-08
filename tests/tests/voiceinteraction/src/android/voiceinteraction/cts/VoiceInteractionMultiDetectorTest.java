@@ -175,7 +175,7 @@ public class VoiceInteractionMultiDetectorTest {
         assertThat(availabilityChanged.block(TEST_SERVICE_TIMEOUT.toMillis())).isTrue();
 
         availabilityChanged.close();
-        assertThrows(IllegalStateException.class,
+        assertThrows(IllegalArgumentException.class,
                 () -> mTestServiceInterface.createAlwaysOnHotwordDetector("test keyphrase",
                         Locale.ENGLISH.toLanguageTag(),
                         new IProxyDetectorCallback.Stub() {
@@ -184,6 +184,36 @@ public class VoiceInteractionMultiDetectorTest {
                                 availabilityChanged.open();
                             }
                         }));
-        alwaysOnHotwordDetectorEnglish.destroy();
+    }
+
+    @Test
+    public void testAlwaysOnHotwordDetectorCreate_createMultipleUniqueDetectors() throws
+            Exception {
+        final ConditionVariable availabilityChanged = new ConditionVariable();
+
+        IProxyAlwaysOnHotwordDetector alwaysOnHotwordDetectorEnglish =
+                mTestServiceInterface.createAlwaysOnHotwordDetector("test keyphrase",
+                        Locale.ENGLISH.toLanguageTag(),
+                        new IProxyDetectorCallback.Stub() {
+                            @Override
+                            public void onAvailabilityChanged(int status) {
+                                availabilityChanged.open();
+                            }
+                        });
+        assertThat(alwaysOnHotwordDetectorEnglish).isNotNull();
+        assertThat(availabilityChanged.block(TEST_SERVICE_TIMEOUT.toMillis())).isTrue();
+
+        availabilityChanged.close();
+        IProxyAlwaysOnHotwordDetector alwaysOnHotwordDetectorJapanese =
+                mTestServiceInterface.createAlwaysOnHotwordDetector("test keyphrase",
+                        Locale.JAPANESE.toLanguageTag(),
+                        new IProxyDetectorCallback.Stub() {
+                            @Override
+                            public void onAvailabilityChanged(int status) {
+                                availabilityChanged.open();
+                            }
+                        });
+        assertThat(alwaysOnHotwordDetectorJapanese).isNotNull();
+        assertThat(availabilityChanged.block(TEST_SERVICE_TIMEOUT.toMillis())).isTrue();
     }
 }

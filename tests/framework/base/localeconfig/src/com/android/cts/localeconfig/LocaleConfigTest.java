@@ -26,10 +26,6 @@ import android.os.LocaleList;
 import androidx.test.InstrumentationRegistry;
 import androidx.test.runner.AndroidJUnit4;
 
-import com.android.compatibility.common.util.ShellUtils;
-
-import org.junit.After;
-import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -43,38 +39,16 @@ import java.util.stream.Collectors;
  *
  * Build/Install/Run: atest LocaleConfigTest
  */
-
 @RunWith(AndroidJUnit4.class)
 public class LocaleConfigTest {
-    private static final String APK_PATH = "/data/local/tmp/cts/localeconfig/";
-    private static final String APK_WITH_LOCALECONFIG =
-            APK_PATH + "ApkWithLocaleConfig.apk";
-    private static final String APK_WITHOUT_LOCALECONFIG =
-            APK_PATH + "ApkWithoutLocaleConfig.apk";
-    private static final String TEST_PACKAGE = "com.android.cts.localeconfiginorout";
+    private static final String NOTAG_PACKAGE_NAME = "com.android.cts.nolocaleconfigtag";
     private static final List<String> EXPECT_LOCALES = Arrays.asList(
             new String[]{"en-US", "zh-TW", "pt", "fr", "zh-Hans-SG"});
 
-    private Context mContext;
-
-    @Before
-    public void setUp() throws Exception {
-        mContext = InstrumentationRegistry.getTargetContext();
-    }
-
-    @After
-    public void tearDown() throws Exception {
-        uninstall(TEST_PACKAGE);
-    }
-
-    /**
-     * Tests the scenario where a LocaleConfig of an application can be read successfully.
-     */
     @Test
     public void testGetLocaleList() throws Exception {
-        install(APK_WITH_LOCALECONFIG);
-        Context appContext = mContext.createPackageContext(TEST_PACKAGE, 0);
-        LocaleConfig localeConfig = new LocaleConfig(appContext);
+        Context context = InstrumentationRegistry.getTargetContext();
+        LocaleConfig localeConfig = new LocaleConfig(context);
 
         assertEquals(EXPECT_LOCALES.stream()
                 .sorted()
@@ -87,29 +61,16 @@ public class LocaleConfigTest {
         assertEquals(LocaleConfig.STATUS_SUCCESS, localeConfig.getStatus());
     }
 
-    /**
-     * Tests the scenario where the correct status is returned when there is no LocaleConfig in the
-     * application.
-     */
     @Test
     public void testNoLocaleConfigTag() throws Exception {
-        install(APK_WITHOUT_LOCALECONFIG);
         Context context = InstrumentationRegistry.getTargetContext();
-        Context appContext = context.createPackageContext(TEST_PACKAGE, 0);
+        Context appContext = context.createPackageContext(NOTAG_PACKAGE_NAME, 0);
         LocaleConfig localeConfig = new LocaleConfig(appContext);
         LocaleList localeList = localeConfig.getSupportedLocales();
 
         assertNull(localeList);
 
         assertEquals(LocaleConfig.STATUS_NOT_SPECIFIED, localeConfig.getStatus());
-    }
-
-    private void install(String apk) {
-        ShellUtils.runShellCommand("pm install -r " + apk);
-    }
-
-    private void uninstall(String packageName) {
-        ShellUtils.runShellCommand("pm uninstall " + packageName);
     }
 }
 

@@ -31,10 +31,11 @@ android_test {
     ],
 
     static_libs: [
-        "compatibility-device-util-axt",
         "ctstestrunner-axt",
         "junit",
     ],
+
+    java_resource_dirs: ["res"],
 
     srcs: [
         "src/**/*.java",
@@ -42,9 +43,8 @@ android_test {
 
     sdk_version: "test_current",
     data: [
-        ":ApkWithoutLocaleConfig",
-        ":ApkWithLocaleConfig",
-        ":ApkRemoveAppLocalesInLocaleConfig",
+        ":CtsNoLocaleConfigTagTests",
     ],
     per_testcase_directory: true,
 }
+
