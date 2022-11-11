@@ -47,6 +47,7 @@ android_test {
         // which provides assertThrows
         "testng",
         "bluetooth-test-util-lib",
+        "sts-device-util",
     ],
     jni_libs: [
         "libctspermission_jni",
@@ -113,7 +114,6 @@ android_test {
         ":CtsVictimPermissionDefinerApp",
         ":CtsAppThatRequestsSystemAlertWindow22",
         ":CtsAppThatRequestsSystemAlertWindow23",
-        ":CtsAppThatRequestCustomCameraPermission",
     ],
     per_testcase_directory: true,
 }
