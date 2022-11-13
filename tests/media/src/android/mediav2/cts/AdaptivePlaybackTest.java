@@ -16,7 +16,6 @@
 
 package android.mediav2.cts;
 
-import static android.mediav2.common.cts.CodecDecoderTestBase.hasCSD;
 import static android.mediav2.common.cts.CodecTestBase.SupportClass.CODEC_ALL;
 import static android.mediav2.common.cts.CodecTestBase.SupportClass.CODEC_OPTIONAL;
 
@@ -62,7 +61,7 @@ import java.util.List;
 public class AdaptivePlaybackTest extends CodecDecoderTestBase {
     private final String[] mSrcFiles;
     private final SupportClass mSupportRequirements;
-    private static final String mInpPrefix = WorkDir.getMediaDirString();
+    private static final String MEDIA_DIR = WorkDir.getMediaDirString();
 
     private long mMaxPts = 0;
 
@@ -244,7 +243,7 @@ public class AdaptivePlaybackTest extends CodecDecoderTestBase {
                         MediaCodecInfo.CodecCapabilities.FEATURE_AdaptivePlayback));
         ArrayList<MediaFormat> formats = new ArrayList<>();
         for (String file : mSrcFiles) {
-            formats.add(setUpSource(mInpPrefix + file));
+            formats.add(setUpSource(MEDIA_DIR + file));
             mExtractor.release();
         }
         checkFormatSupport(mCodecName, mMime, false, formats,
@@ -253,7 +252,7 @@ public class AdaptivePlaybackTest extends CodecDecoderTestBase {
         formats.clear();
         int totalSize = 0;
         for (String srcFile : mSrcFiles) {
-            File file = new File(mInpPrefix + srcFile);
+            File file = new File(MEDIA_DIR + srcFile);
             totalSize += (int) file.length();
         }
         long ptsOffset = 0;
@@ -261,7 +260,7 @@ public class AdaptivePlaybackTest extends CodecDecoderTestBase {
         ArrayList<MediaCodec.BufferInfo> list = new ArrayList<>();
         ByteBuffer buffer = ByteBuffer.allocate(totalSize);
         for (String file : mSrcFiles) {
-            formats.add(createInputList(setUpSource(mInpPrefix + file), buffer, list, buffOffset,
+            formats.add(createInputList(setUpSource(MEDIA_DIR + file), buffer, list, buffOffset,
                     ptsOffset));
             mExtractor.release();
             ptsOffset = mMaxPts + 1000000L;
