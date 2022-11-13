@@ -1,3 +1,4 @@
+//
 // Copyright (C) 2022 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -11,25 +12,26 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+//
 
 package {
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
-android_test {
-    name: "uwb_snippet",
-    sdk_version: "system_current",
-    srcs: [
-        "UwbManagerSnippet.java",
+android_test_helper_app {
+    name: "CtsAppThatRequestCustomCameraPermission",
+    defaults: [
+        "cts_defaults",
+        "mts-target-sdk-version-current",
     ],
-    manifest: "AndroidManifest.xml",
-    static_libs: [
-        "androidx.test.runner",
-        "guava",
-        "mobly-snippet-lib",
-        "com.uwb.support.ccc",
-        "com.uwb.support.fira",
-        "com.uwb.support.generic",
-        "com.uwb.support.multichip",
+    min_sdk_version: "30",
+    // Tag this module as a cts test artifact
+    test_suites: [
+        "cts",
+        "mts",
+        "sts",
+        "general-tests",
     ],
+    srcs: ["src/**/*.java"],
+    resource_dirs: ["res"],
 }
