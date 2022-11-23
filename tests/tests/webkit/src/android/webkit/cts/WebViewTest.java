@@ -78,7 +78,6 @@ import android.webkit.cts.WebViewSyncLoader.WaitForProgressClient;
 import android.widget.LinearLayout;
 
 import androidx.test.InstrumentationRegistry;
-import androidx.test.core.app.ActivityScenario;
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.rules.ActivityScenarioRule;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
@@ -123,7 +122,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 @AppModeFull
 @RunWith(AndroidJUnit4.class)
-public class WebViewTest {
+public class WebViewTest extends SharedWebViewTest {
     private static final int INITIAL_PROGRESS = 100;
     private static final String X_REQUESTED_WITH = "X-Requested-With";
     private static final String PRINTER_TEST_FILE = "print.pdf";
@@ -156,36 +155,19 @@ public class WebViewTest {
     public ActivityScenarioRule mActivityScenarioRule =
             new ActivityScenarioRule(WebViewCtsActivity.class);
 
-    private ActivityScenario mScenario;
-    private WebViewCtsActivity mActivity;
     private WebView mWebView;
-    private CtsTestServer mWebServer;
     private WebViewOnUiThread mOnUiThread;
+
+    // TODO(bewise): Get rid of all of these member variables
+    // once all these tests are referencing the test environment.
+    private WebViewCtsActivity mActivity;
+    private CtsTestServer mWebServer;
     private WebIconDatabase mIconDb;
 
     @Before
     public void setUp() throws Exception {
-        mScenario = mActivityScenarioRule.getScenario();
-        mScenario.onActivity(
-                activity -> {
-                    mActivity = (WebViewCtsActivity) activity;
-                    mWebView = mActivity.getWebView();
-                });
-        if (mWebView != null) {
-            new PollingCheck(WebkitUtils.TEST_TIMEOUT_MS) {
-                @Override
-                protected boolean check() {
-                    return mActivity.hasWindowFocus();
-                }
-            }.run();
-            File f = mActivity.getFileStreamPath("snapshot");
-            if (f.exists()) {
-                f.delete();
-            }
-
-            mOnUiThread = new WebViewOnUiThread(mWebView);
-        }
-        Assume.assumeTrue("WebView is not available", NullWebViewUtils.isWebViewAvailable());
+        mWebView = getTestEnvironment().getWebView();
+        mOnUiThread = getTestEnvironment().getWebViewOnUiThread();
     }
 
     @After
@@ -202,6 +184,46 @@ public class WebViewTest {
             mIconDb = null;
         }
         mActivity = null;
+    }
+
+    @Override
+    protected SharedWebViewTestEnvironment createTestEnvironment() {
+        Assume.assumeTrue("WebView is not available", NullWebViewUtils.isWebViewAvailable());
+
+        SharedWebViewTestEnvironment.Builder builder = new SharedWebViewTestEnvironment.Builder()
+                .setHostAppInvoker(SharedWebViewTestEnvironment.createHostAppInvoker());
+
+        mActivityScenarioRule.getScenario().onActivity(activity -> {
+            mActivity = (WebViewCtsActivity) activity;
+            builder.setContext(mActivity);
+
+            WebView webView = mActivity.getWebView();
+            builder.setWebView(webView);
+
+            if (webView != null) {
+                WebViewOnUiThread onUi = new WebViewOnUiThread(webView);
+                builder.setWebViewOnUiThread(onUi);
+            }
+        });
+
+        SharedWebViewTestEnvironment environment = builder.build();
+
+        // Wait for window focus and clean up the snapshot before
+        // returning the test environment.
+        if (environment.getWebView() != null) {
+            new PollingCheck(WebkitUtils.TEST_TIMEOUT_MS) {
+                @Override
+                protected boolean check() {
+                    return mActivity.hasWindowFocus();
+                }
+            }.run();
+            File f = mActivity.getFileStreamPath("snapshot");
+            if (f.exists()) {
+                f.delete();
+            }
+        }
+
+        return environment;
     }
 
     private void startWebServer(boolean secure) throws Exception {
@@ -1704,7 +1726,8 @@ public class WebViewTest {
                 return mOnUiThread.getContentHeight() >= dimension;
             }
         }.run();
-        InstrumentationRegistry.getInstrumentation().waitForIdleSync();
+
+        getTestEnvironment().waitForIdleSync();
 
         final int previousScrollX = mOnUiThread.getScrollX();
         final int previousScrollY = mOnUiThread.getScrollY();
