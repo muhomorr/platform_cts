@@ -86,9 +86,9 @@ class CameraMicIndicatorsPermissionTest {
     private val isCar = packageManager.hasSystemFeature(PackageManager.FEATURE_AUTOMOTIVE)
     private var wasEnabled = false
     private val micLabel = packageManager.getPermissionGroupInfo(
-        Manifest.permission_group.MICROPHONE, 0).loadLabel(packageManager).toString()
+        Manifest.permission_group.MICROPHONE, 0).loadLabel(packageManager).toString().toLowerCase()
     private val cameraLabel = packageManager.getPermissionGroupInfo(
-        Manifest.permission_group.CAMERA, 0).loadLabel(packageManager).toString()
+        Manifest.permission_group.CAMERA, 0).loadLabel(packageManager).toString().toLowerCase()
     private var isScreenOn = false
     private var screenTimeoutBeforeTest: Long = 0L
 
@@ -178,6 +178,8 @@ class CameraMicIndicatorsPermissionTest {
 
     @Test
     fun testCameraIndicator() {
+        // If camera is not available skip the test
+        assumeTrue(packageManager.hasSystemFeature(PackageManager.FEATURE_CAMERA))
         val manager = context.getSystemService(CameraManager::class.java)!!
         assumeTrue(manager.cameraIdList.isNotEmpty())
         changeSafetyCenterFlag(false.toString())
@@ -203,6 +205,8 @@ class CameraMicIndicatorsPermissionTest {
         // Car has separate panels for mic and camera for now.
         // TODO(b/218788634): enable this test for car once the new camera indicator is implemented.
         assumeFalse(isCar)
+        // If camera is not available skip the test
+        assumeTrue(packageManager.hasSystemFeature(PackageManager.FEATURE_CAMERA))
         changeSafetyCenterFlag(false.toString())
         testCameraAndMicIndicator(useMic = false, useCamera = true, chainUsage = true)
     }
@@ -270,12 +274,14 @@ class CameraMicIndicatorsPermissionTest {
         chainUsage: Boolean = false,
         safetyCenterEnabled: Boolean = false
     ) {
+        // If camera is not available skip the test
+        assumeTrue(packageManager.hasSystemFeature(PackageManager.FEATURE_CAMERA))
         var chainAttribution: AttributionSource? = null
         openApp(useMic, useCamera, useHotword)
         try {
             eventually {
-                val appView = uiDevice.findObject(UiSelector().textContains(APP_LABEL))
-                assertTrue("View with text $APP_LABEL not found", appView.exists())
+                val appView = uiDevice.findObject(By.textContains(APP_LABEL))
+                assertNotNull("View with text $APP_LABEL not found", appView)
             }
             if (chainUsage) {
                 chainAttribution = createChainAttribution()
@@ -403,15 +409,15 @@ class CameraMicIndicatorsPermissionTest {
                 return@eventually
             }
             if (useMic) {
-                val iconView = uiDevice.findObject(UiSelector().descriptionContains(micLabel))
-                assertTrue("View with description $micLabel not found", iconView.exists())
+                val iconView = uiDevice.findObject(By.descContains(micLabel))
+                assertNotNull("View with description $micLabel not found", iconView)
             }
             if (useCamera) {
-                val iconView = uiDevice.findObject(UiSelector().descriptionContains(cameraLabel))
-                assertTrue("View with text $APP_LABEL not found", iconView.exists())
+                val iconView = uiDevice.findObject(By.descContains(cameraLabel))
+                assertNotNull("View with text $APP_LABEL not found", iconView)
             }
-            val appView = uiDevice.findObject(UiSelector().textContains(APP_LABEL))
-            assertTrue("View with text $APP_LABEL not found", appView.exists())
+            val appView = uiDevice.findObject(By.textContains(APP_LABEL))
+            assertNotNull("View with text $APP_LABEL not found", appView)
             if (safetyCenterEnabled) {
                 assertTrue("Did not find safety center views",
                     uiDevice.findObjects(By.res(SAFETY_CENTER_ITEM_ID)).size > 0)

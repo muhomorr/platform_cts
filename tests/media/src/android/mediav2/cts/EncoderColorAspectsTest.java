@@ -27,6 +27,10 @@ import android.media.MediaCodec;
 import android.media.MediaCodecList;
 import android.media.MediaFormat;
 import android.media.MediaMuxer;
+import android.mediav2.common.cts.CodecDecoderTestBase;
+import android.mediav2.common.cts.CodecEncoderTestBase;
+import android.mediav2.common.cts.CodecTestBase;
+import android.mediav2.common.cts.OutputManager;
 import android.opengl.GLES20;
 import android.os.Build;
 import android.util.Log;
@@ -37,6 +41,7 @@ import androidx.test.filters.SmallTest;
 
 import com.android.compatibility.common.util.ApiLevelUtil;
 import com.android.compatibility.common.util.ApiTest;
+import com.android.compatibility.common.util.MediaUtils;
 
 import org.junit.Assume;
 import org.junit.Test;
@@ -56,11 +61,11 @@ import java.util.List;
  * (mp4, mkv, ...) and some video standards also allow signalling this information in elementary
  * stream. Avc, Hevc, Av1, ... allow signalling this information in elementary stream, vpx relies
  * on webm/mkv or some other container for signalling.
- *
+ * <p>
  * If the encoder is configured with color aspects, then it is expected to place this information
  * in the elementary stream as-is if possible. The same goes for container as well. The test
  * validates this.
- *
+ * <p>
  * Hybrid log gamma transfer characteristics are applicable for high bit depth profiles. Standard
  * gamma curve characteristics are applicable for standard dynamic ranges. The test doesn't
  * exhaustively try all combinations of primaries, standard, transfer on all encoding profiles.
@@ -93,8 +98,9 @@ public class EncoderColorAspectsTest extends CodecEncoderTestBase {
 
     public EncoderColorAspectsTest(String encoderName, String mime, int width, int height,
             int range, int standard, int transferCurve, boolean useHighBitDepth,
-            boolean surfaceMode) {
-        super(encoderName, mime, new int[]{64000}, new int[]{width}, new int[]{height});
+            boolean surfaceMode, String allTestParams) {
+        super(encoderName, mime, new int[]{64000}, new int[]{width}, new int[]{height},
+                EncoderInput.getRawResource(mime, useHighBitDepth), allTestParams);
         mRange = range;
         mStandard = standard;
         mTransferCurve = transferCurve;
@@ -115,7 +121,7 @@ public class EncoderColorAspectsTest extends CodecEncoderTestBase {
         mCheckESList.add(MediaFormat.MIMETYPE_VIDEO_HEVC);
     }
 
-    void dequeueOutput(int bufferIndex, MediaCodec.BufferInfo info) {
+    protected void dequeueOutput(int bufferIndex, MediaCodec.BufferInfo info) {
         if (info.size > 0) {
             ByteBuffer buf = mCodec.getOutputBuffer(bufferIndex);
             if (mMuxer != null) {
@@ -185,6 +191,7 @@ public class EncoderColorAspectsTest extends CodecEncoderTestBase {
                 MediaFormat.MIMETYPE_VIDEO_AV1};
         int[] standardsHighBitDepth = {-1,
                 UNSPECIFIED,
+                MediaFormat.COLOR_STANDARD_BT709,
                 MediaFormat.COLOR_STANDARD_BT2020};
         int[] transfersHighBitDepth = {-1,
                 UNSPECIFIED,
@@ -201,11 +208,11 @@ public class EncoderColorAspectsTest extends CodecEncoderTestBase {
             prepareArgsList(exhaustiveArgsList, stringArgsList, mediaTypesHighBitDepth, ranges,
                     standardsHighBitDepth, transfersHighBitDepth, true);
         }
-        return CodecTestBase
-                .prepareParamList(exhaustiveArgsList, isEncoder, needAudio, needVideo, false);
+        return prepareParamList(exhaustiveArgsList, isEncoder, needAudio, needVideo, false);
     }
+
     private long computePresentationTime(int frameIndex) {
-        return frameIndex * 1000000 / mFrameRate;
+        return frameIndex * 1000000L / mFrameRate;
     }
 
     private void generateSurfaceFrame() {
@@ -244,7 +251,7 @@ public class EncoderColorAspectsTest extends CodecEncoderTestBase {
         }
     }
 
-    void queueEOS() throws InterruptedException {
+    protected void queueEOS() throws InterruptedException {
         if (!mSurfaceMode) {
             super.queueEOS();
         } else {
@@ -256,7 +263,7 @@ public class EncoderColorAspectsTest extends CodecEncoderTestBase {
         }
     }
 
-    void doWork(int frameLimit) throws IOException, InterruptedException {
+    protected void doWork(int frameLimit) throws IOException, InterruptedException {
         if (!mSurfaceMode) {
             super.doWork(frameLimit);
         } else {
@@ -267,10 +274,11 @@ public class EncoderColorAspectsTest extends CodecEncoderTestBase {
                 }
                 mEGLWindowInpSurface.makeCurrent();
                 generateSurfaceFrame();
-                mEGLWindowInpSurface
-                        .setPresentationTime(computePresentationTime(mInputCount) * 1000);
+                long pts = computePresentationTime(mInputCount);
+                mEGLWindowInpSurface.setPresentationTime(pts * 1000);
                 if (ENABLE_LOGS) Log.d(LOG_TAG, "inputSurface swapBuffers");
                 mEGLWindowInpSurface.swapBuffers();
+                mOutputBuff.saveInPTS(pts);
                 mInputCount++;
             }
         }
@@ -288,8 +296,8 @@ public class EncoderColorAspectsTest extends CodecEncoderTestBase {
      * metadata.
      */
     @ApiTest(apis = {"android.media.MediaFormat#KEY_COLOR_RANGE",
-                     "android.media.MediaFormat#KEY_COLOR_STANDARD",
-                     "android.media.MediaFormat#KEY_COLOR_TRANSFER"})
+            "android.media.MediaFormat#KEY_COLOR_STANDARD",
+            "android.media.MediaFormat#KEY_COLOR_TRANSFER"})
     @SmallTest
     @Test(timeout = PER_TEST_TIMEOUT_SMALL_TEST_MS)
     public void testColorAspects() throws IOException, InterruptedException {
@@ -297,6 +305,11 @@ public class EncoderColorAspectsTest extends CodecEncoderTestBase {
         if (mSurfaceMode) {
             Assume.assumeTrue("Surface mode tests are limited to devices launching with Android T",
                     FIRST_SDK_IS_AT_LEAST_T && VNDK_IS_AT_LEAST_T);
+            // Few cuttlefish specific color conversion issues were fixed after Android T.
+            if (MediaUtils.onCuttlefish()) {
+                Assume.assumeTrue("Color conversion related tests are not valid on cuttlefish "
+                        + "releases through android T", IS_AT_LEAST_U);
+            }
         }
 
         if (mUseHighBitDepth) {
@@ -316,14 +329,11 @@ public class EncoderColorAspectsTest extends CodecEncoderTestBase {
         if (mSurfaceMode) {
             mConfigFormat.setInteger(MediaFormat.KEY_COLOR_FORMAT, COLOR_FormatSurface);
         } else {
-            String inputTestFile = mInputFile;
             if (mUseHighBitDepth) {
                 Assume.assumeTrue(hasSupportForColorFormat(mCodecName, mMime, COLOR_FormatYUVP010));
                 mConfigFormat.setInteger(MediaFormat.KEY_COLOR_FORMAT, COLOR_FormatYUVP010);
-                mBytesPerSample = 2;
-                inputTestFile = INPUT_VIDEO_FILE_HBD;
             }
-            setUpSource(inputTestFile);
+            setUpSource(mActiveRawRes.mFileName);
         }
 
         mOutputBuff = new OutputManager();
@@ -336,7 +346,6 @@ public class EncoderColorAspectsTest extends CodecEncoderTestBase {
                 mCodec.release();
                 return;
             }
-            String log = String.format("format: %s \n codec: %s:: ", mConfigFormat, mCodecName);
             File tmpFile;
             int muxerFormat;
             if (mMime.equals(MediaFormat.MIMETYPE_VIDEO_VP8) ||
@@ -354,7 +363,8 @@ public class EncoderColorAspectsTest extends CodecEncoderTestBase {
 
             if (mSurfaceMode) {
                 mInpSurface = mCodec.createInputSurface();
-                assertTrue("Surface is not valid", mInpSurface.isValid());
+                assertTrue("Surface is not valid \n" + mTestConfig + mTestEnv,
+                        mInpSurface.isValid());
                 mEGLWindowInpSurface = new EGLWindowSurface(mInpSurface, mUseHighBitDepth);
                 if (mCodec.getInputFormat().containsKey(MediaFormat.KEY_LATENCY)) {
                     mReviseLatency = true;
@@ -383,9 +393,6 @@ public class EncoderColorAspectsTest extends CodecEncoderTestBase {
                 mInpSurface = null;
             }
 
-            assertTrue(log + "unexpected error", !mAsyncHandle.hasSeenError());
-            assertTrue(log + "no input sent", 0 != mInputCount);
-            assertTrue(log + "output received", 0 != mOutputCount);
             // verify if the out fmt contains color aspects as expected
             MediaFormat fmt = mCodec.getOutputFormat();
             validateColorAspects(fmt, mRange, mStandard, mTransferCurve);
@@ -395,21 +402,16 @@ public class EncoderColorAspectsTest extends CodecEncoderTestBase {
             // verify if the muxed file contains color aspects as expected
             MediaCodecList codecList = new MediaCodecList(MediaCodecList.REGULAR_CODECS);
             String decoder = codecList.findDecoderForFormat(mConfigFormat);
-            assertNotNull("Device advertises support for encoding " + mConfigFormat.toString() +
-                    " but not decoding it", decoder);
+            assertNotNull("Device advertises support for encoding " + mConfigFormat
+                    + " but not decoding it. \n" + mTestConfig + mTestEnv, decoder);
             CodecDecoderTestBase cdtb = new CodecDecoderTestBase(decoder, mMime,
-                    tmpFile.getAbsolutePath());
-            String parent = tmpFile.getParent();
-            if (parent != null) parent += File.separator;
-            else parent = "";
-            cdtb.validateColorAspects(decoder, parent, tmpFile.getName(), mRange, mStandard,
-                    mTransferCurve, false);
+                    tmpFile.getAbsolutePath(), mAllTestParams);
+            cdtb.validateColorAspects(mRange, mStandard, mTransferCurve, false);
 
             // if color metadata can also be signalled via elementary stream then verify if the
             // elementary stream contains color aspects as expected
             if (mCheckESList.contains(mMime)) {
-                cdtb.validateColorAspects(decoder, parent, tmpFile.getName(), mRange, mStandard,
-                        mTransferCurve, true);
+                cdtb.validateColorAspects(mRange, mStandard, mTransferCurve, true);
             }
             tmpFile.delete();
         }

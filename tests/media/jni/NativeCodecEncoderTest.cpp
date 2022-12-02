@@ -28,7 +28,10 @@ class CodecEncoderTest final : CodecTestBase {
   private:
     uint8_t* mInputData;
     size_t mInputLength;
+    int mInputBufferReadOffset;
     int mNumBytesSubmitted;
+    int mLoopBackFrameLimit;
+    bool mIsLoopBack;
     int64_t mInputOffsetPts;
     std::vector<AMediaFormat*> mFormats;
     int mNumSyncFramesReceived;
@@ -55,10 +58,12 @@ class CodecEncoderTest final : CodecTestBase {
     void deleteSource();
     void setUpParams(int limit);
     void deleteParams();
-    bool flushCodec() override;
+    bool configureCodec(AMediaFormat* format, bool isAsync, bool signalEOSWithLastFrame,
+                        bool isEncoder) override;
     void resetContext(bool isAsync, bool signalEOSWithLastFrame) override;
     bool enqueueInput(size_t bufferIndex) override;
     bool dequeueOutput(size_t bufferIndex, AMediaCodecBufferInfo* bufferInfo) override;
+    bool doWork(int frameLimit) override;
     void initFormat(AMediaFormat* format);
     bool encodeToMemory(const char* file, const char* encoder, int frameLimit, AMediaFormat* format,
                         OutputManager* ref);
@@ -72,7 +77,6 @@ class CodecEncoderTest final : CodecTestBase {
     ~CodecEncoderTest();
 
     bool testSimpleEncode(const char* encoder, const char* srcPath);
-    bool testFlush(const char* encoder, const char* srcPath);
     bool testReconfigure(const char* encoder, const char* srcPath);
     bool testSetForceSyncFrame(const char* encoder, const char* srcPath);
     bool testAdaptiveBitRate(const char* encoder, const char* srcPath);
@@ -95,7 +99,10 @@ CodecEncoderTest::CodecEncoderTest(const char* mime, int32_t* list0, int len0, i
     mMaxBFrames = 0;
     mInputData = nullptr;
     mInputLength = 0;
+    mInputBufferReadOffset = 0;
     mNumBytesSubmitted = 0;
+    mLoopBackFrameLimit = 0;
+    mIsLoopBack = false;
     mInputOffsetPts = 0;
 }
 
@@ -202,31 +209,25 @@ void CodecEncoderTest::deleteParams() {
     mFormats.clear();
 }
 
+bool CodecEncoderTest::configureCodec(AMediaFormat* format, bool isAsync,
+                                      bool signalEOSWithLastFrame, bool isEncoder) {
+    bool res = CodecTestBase::configureCodec(format, isAsync, signalEOSWithLastFrame, isEncoder);
+    initFormat(format);
+    return res;
+}
+
 void CodecEncoderTest::resetContext(bool isAsync, bool signalEOSWithLastFrame) {
     CodecTestBase::resetContext(isAsync, signalEOSWithLastFrame);
+    mInputBufferReadOffset = 0;
     mNumBytesSubmitted = 0;
     mInputOffsetPts = 0;
     mNumSyncFramesReceived = 0;
     mSyncFramesPos.clear();
 }
 
-bool CodecEncoderTest::flushCodec() {
-    bool isOk = CodecTestBase::flushCodec();
-    if (mIsAudio) {
-        mInputOffsetPts = (mNumBytesSubmitted + 1024) * 1000000LL / (2 * mChannels * mSampleRate);
-    } else {
-        mInputOffsetPts = (mInputCount + 5) * 1000000LL / mDefFrameRate;
-    }
-    mPrevOutputPts = mInputOffsetPts - 1;
-    mNumBytesSubmitted = 0;
-    mNumSyncFramesReceived = 0;
-    mSyncFramesPos.clear();
-    return isOk;
-}
-
 void CodecEncoderTest::fillByteBuffer(uint8_t* inputBuffer) {
     int width, height, tileWidth, tileHeight;
-    int offset = 0, frmOffset = mNumBytesSubmitted;
+    int offset = 0, frmOffset = mInputBufferReadOffset;
     int numOfPlanes;
     if (mColorFormat == COLOR_FormatYUV420SemiPlanar) {
         numOfPlanes = 2;
@@ -266,9 +267,11 @@ void CodecEncoderTest::fillByteBuffer(uint8_t* inputBuffer) {
 }
 
 bool CodecEncoderTest::enqueueInput(size_t bufferIndex) {
-    if (mNumBytesSubmitted >= mInputLength) {
-        return enqueueEOS(bufferIndex);
-    } else {
+    if (mInputBufferReadOffset >= mInputLength) {
+        if (!mIsLoopBack) return enqueueEOS(bufferIndex);
+        mInputBufferReadOffset = 0; // loop back to beginning
+    }
+    {
         int size = 0;
         int flags = 0;
         int64_t pts = mInputOffsetPts;
@@ -276,18 +279,21 @@ bool CodecEncoderTest::enqueueInput(size_t bufferIndex) {
         uint8_t* inputBuffer = AMediaCodec_getInputBuffer(mCodec, bufferIndex, &buffSize);
         if (mIsAudio) {
             pts += mNumBytesSubmitted * 1000000LL / (2 * mChannels * mSampleRate);
-            size = std::min(buffSize, mInputLength - mNumBytesSubmitted);
-            memcpy(inputBuffer, mInputData + mNumBytesSubmitted, size);
-            if (mNumBytesSubmitted + size >= mInputLength && mSignalEOSWithLastFrame) {
-                flags |= AMEDIACODEC_BUFFER_FLAG_END_OF_STREAM;
-                mSawInputEOS = true;
+            size = std::min(buffSize, mInputLength - mInputBufferReadOffset);
+            memcpy(inputBuffer, mInputData + mInputBufferReadOffset, size);
+            if (mSignalEOSWithLastFrame) {
+                if (mIsLoopBack ? (mInputCount + 1 >= mLoopBackFrameLimit)
+                                : (mInputBufferReadOffset + size >= mInputLength)) {
+                    flags |= AMEDIACODEC_BUFFER_FLAG_END_OF_STREAM;
+                    mSawInputEOS = true;
+                }
             }
-            mNumBytesSubmitted += size;
+            mInputBufferReadOffset += size;
         } else {
             pts += mInputCount * 1000000LL / mDefFrameRate;
             size = mWidth * mHeight * 3 / 2;
             int frmSize = kInpFrmWidth * kInpFrmHeight * 3 / 2;
-            if (mNumBytesSubmitted + frmSize > mInputLength) {
+            if (mInputBufferReadOffset + frmSize > mInputLength) {
                 ALOGE("received partial frame to encode");
                 return false;
             } else if (size > buffSize) {
@@ -295,17 +301,21 @@ bool CodecEncoderTest::enqueueInput(size_t bufferIndex) {
                 return false;
             } else {
                 if (mWidth == kInpFrmWidth && mHeight == kInpFrmHeight) {
-                    memcpy(inputBuffer, mInputData + mNumBytesSubmitted, size);
+                    memcpy(inputBuffer, mInputData + mInputBufferReadOffset, size);
                 } else {
                     fillByteBuffer(inputBuffer);
                 }
             }
-            if (mNumBytesSubmitted + frmSize >= mInputLength && mSignalEOSWithLastFrame) {
-                flags |= AMEDIACODEC_BUFFER_FLAG_END_OF_STREAM;
-                mSawInputEOS = true;
+            if (mSignalEOSWithLastFrame) {
+                if (mIsLoopBack ? (mInputCount + 1 >= mLoopBackFrameLimit)
+                                : (mInputBufferReadOffset + frmSize >= mInputLength)) {
+                    flags |= AMEDIACODEC_BUFFER_FLAG_END_OF_STREAM;
+                    mSawInputEOS = true;
+                }
             }
-            mNumBytesSubmitted += frmSize;
+            mInputBufferReadOffset += frmSize;
         }
+        mNumBytesSubmitted += size;
         CHECK_STATUS(AMediaCodec_queueInputBuffer(mCodec, bufferIndex, 0, size, pts, flags),
                      "AMediaCodec_queueInputBuffer failed");
         ALOGV("input: id: %zu  size: %d  pts: %" PRId64 "  flags: %d", bufferIndex, size, pts,
@@ -342,6 +352,11 @@ bool CodecEncoderTest::dequeueOutput(size_t bufferIndex, AMediaCodecBufferInfo* 
     return !hasSeenError();
 }
 
+bool CodecEncoderTest::doWork(int frameLimit) {
+    mLoopBackFrameLimit = frameLimit;
+    return CodecTestBase::doWork(frameLimit);
+}
+
 void CodecEncoderTest::initFormat(AMediaFormat* format) {
     if (mIsAudio) {
         AMediaFormat_getInt32(format, AMEDIAFORMAT_KEY_SAMPLE_RATE, &mSampleRate);
@@ -366,7 +381,6 @@ bool CodecEncoderTest::encodeToMemory(const char* file, const char* encoder, int
     setUpSource(file);
     if (!mInputData) return false;
     if (!configureCodec(format, false, true, true)) return false;
-    initFormat(format);
     CHECK_STATUS(AMediaCodec_start(mCodec), "AMediaCodec_start failed");
     if (!doWork(frameLimit)) return false;
     if (!queueEOS()) return false;
@@ -403,7 +417,6 @@ bool CodecEncoderTest::testSimpleEncode(const char* encoder, const char* srcPath
     const bool boolStates[]{true, false};
     for (int i = 0; i < mFormats.size() && isPass; i++) {
         AMediaFormat* format = mFormats[i];
-        initFormat(format);
         int loopCounter = 0;
         for (auto eosType : boolStates) {
             if (!isPass) break;
@@ -461,89 +474,6 @@ bool CodecEncoderTest::testSimpleEncode(const char* encoder, const char* srcPath
                 loopCounter++;
             }
         }
-    }
-    return isPass;
-}
-
-bool CodecEncoderTest::testFlush(const char* encoder, const char* srcPath) {
-    bool isPass = true;
-    setUpSource(srcPath);
-    if (!mInputData) return false;
-    setUpParams(1);
-    mOutputBuff = &mTestBuff;
-    AMediaFormat* format = mFormats[0];
-    initFormat(format);
-    const bool boolStates[]{true, false};
-    for (auto isAsync : boolStates) {
-        if (!isPass) break;
-        char log[1000];
-        snprintf(log, sizeof(log),
-                 "format: %s \n codec: %s, file: %s, mode: %s:: ", AMediaFormat_toString(format),
-                 encoder, srcPath, (isAsync ? "async" : "sync"));
-        /* TODO(b/147348711) */
-        /* Instead of create and delete codec at every iteration, we would like to create
-         * once and use it for all iterations and delete before exiting */
-        mCodec = AMediaCodec_createCodecByName(encoder);
-        if (!mCodec) {
-            ALOGE("unable to create media codec by name %s", encoder);
-            isPass = false;
-            continue;
-        }
-        if (!configureCodec(format, isAsync, true, true)) return false;
-        CHECK_STATUS(AMediaCodec_start(mCodec), "AMediaCodec_start failed");
-
-        /* test flush in running state before queuing input */
-        if (!flushCodec()) return false;
-        mOutputBuff->reset();
-        if (mIsCodecInAsyncMode) {
-            CHECK_STATUS(AMediaCodec_start(mCodec), "AMediaCodec_start failed");
-        }
-        if (!doWork(23)) return false;
-        CHECK_ERR((!mOutputBuff->isPtsStrictlyIncreasing(mPrevOutputPts)), log,
-                  "pts is not strictly increasing", isPass);
-        if (!isPass) continue;
-
-        /* test flush in running state */
-        if (!flushCodec()) return false;
-        mOutputBuff->reset();
-        if (mIsCodecInAsyncMode) {
-            CHECK_STATUS(AMediaCodec_start(mCodec), "AMediaCodec_start failed");
-        }
-        if (!doWork(INT32_MAX)) return false;
-        if (!queueEOS()) return false;
-        if (!waitForAllOutputs()) return false;
-        CHECK_ERR((hasSeenError()), log, "has seen error", isPass);
-        CHECK_ERR((0 == mInputCount), log, "queued 0 inputs", isPass);
-        CHECK_ERR((0 == mOutputCount), log, "received 0 outputs", isPass);
-        CHECK_ERR((mIsAudio && !mOutputBuff->isPtsStrictlyIncreasing(mPrevOutputPts)), log,
-                  "pts is not strictly increasing", isPass);
-        CHECK_ERR((!mIsAudio && mInputCount != mOutputCount), log, "input cnt != output cnt",
-                  isPass);
-        CHECK_ERR((!mIsAudio && !mOutputBuff->isOutPtsListIdenticalToInpPtsList(mMaxBFrames != 0)),
-                  log, "input pts list and output pts list are not identical", isPass);
-        if (!isPass) continue;
-
-        /* test flush in eos state */
-        if (!flushCodec()) return false;
-        mOutputBuff->reset();
-        if (mIsCodecInAsyncMode) {
-            CHECK_STATUS(AMediaCodec_start(mCodec), "AMediaCodec_start failed");
-        }
-        if (!doWork(INT32_MAX)) return false;
-        if (!queueEOS()) return false;
-        if (!waitForAllOutputs()) return false;
-        CHECK_ERR((hasSeenError()), log, "has seen error", isPass);
-        CHECK_ERR((0 == mInputCount), log, "queued 0 inputs", isPass);
-        CHECK_ERR((0 == mOutputCount), log, "received 0 outputs", isPass);
-        CHECK_ERR((mIsAudio && !mOutputBuff->isPtsStrictlyIncreasing(mPrevOutputPts)), log,
-                  "pts is not strictly increasing", isPass);
-        CHECK_ERR(!mIsAudio && (mInputCount != mOutputCount), log, "input cnt != output cnt",
-                  isPass);
-        CHECK_ERR(!mIsAudio && (!mOutputBuff->isOutPtsListIdenticalToInpPtsList(mMaxBFrames != 0)),
-                  log, "input pts list and output pts list are not identical", isPass);
-        CHECK_STATUS(AMediaCodec_stop(mCodec), "AMediaCodec_stop failed");
-        CHECK_STATUS(AMediaCodec_delete(mCodec), "AMediaCodec_delete failed");
-        mCodec = nullptr;
     }
     return isPass;
 }
@@ -720,8 +650,6 @@ bool CodecEncoderTest::testSetForceSyncFrame(const char* encoder, const char* sr
     setUpParams(1);
     AMediaFormat* format = mFormats[0];
     AMediaFormat_setFloat(format, AMEDIAFORMAT_KEY_I_FRAME_INTERVAL, 500.f);
-    AMediaFormat_getInt32(format, AMEDIAFORMAT_KEY_WIDTH, &mWidth);
-    AMediaFormat_getInt32(format, AMEDIAFORMAT_KEY_HEIGHT, &mHeight);
     // Maximum allowed key frame interval variation from the target value.
     int kMaxKeyFrameIntervalVariation = 3;
     int kKeyFrameInterval = 2;  // force key frame every 2 seconds.
@@ -753,7 +681,7 @@ bool CodecEncoderTest::testSetForceSyncFrame(const char* encoder, const char* sr
             if (!doWork(kKeyFramePos)) return false;
             assert(!mSawInputEOS);
             forceSyncFrame(params);
-            mNumBytesSubmitted = 0;
+            mInputBufferReadOffset = 0;
         }
         if (!queueEOS()) return false;
         if (!waitForAllOutputs()) return false;
@@ -796,11 +724,11 @@ bool CodecEncoderTest::testAdaptiveBitRate(const char* encoder, const char* srcP
     if (!mInputData) return false;
     setUpParams(1);
     AMediaFormat* format = mFormats[0];
-    AMediaFormat_getInt32(format, AMEDIAFORMAT_KEY_WIDTH, &mWidth);
-    AMediaFormat_getInt32(format, AMEDIAFORMAT_KEY_HEIGHT, &mHeight);
     int kAdaptiveBitrateInterval = 3;  // change bitrate every 3 seconds.
     int kAdaptiveBitrateDurationFrame = mDefFrameRate * kAdaptiveBitrateInterval;
     int kBitrateChangeRequests = 7;
+    // TODO(b/251265293) Reduce the allowed deviation after improving the test conditions
+    float kMaxBitrateDeviation = 60.0; // allowed bitrate deviation in %
     AMediaFormat* params = AMediaFormat_new();
     mFormats.push_back(params);
     // Setting in CBR Mode
@@ -836,7 +764,7 @@ bool CodecEncoderTest::testAdaptiveBitRate(const char* encoder, const char* srcP
             if ((i & 1) == 1) bitrate *= 2;
             else bitrate /= 2;
             updateBitrate(params, bitrate);
-            mNumBytesSubmitted = 0;
+            mInputBufferReadOffset = 0;
         }
         if (!queueEOS()) return false;
         if (!waitForAllOutputs()) return false;
@@ -854,7 +782,7 @@ bool CodecEncoderTest::testAdaptiveBitRate(const char* encoder, const char* srcP
         int outSize = mOutputBuff->getOutStreamSize() * 8;
         float brDev = abs(expOutSize - outSize) * 100.0f / expOutSize;
         ALOGD("%s relative bitrate error is %f %%", log, brDev);
-        if (brDev > 50) {
+        if (brDev > kMaxBitrateDeviation) {
             ALOGE("%s relative bitrate error is is too large %f %%", log, brDev);
             return false;
         }
@@ -877,31 +805,6 @@ static jboolean nativeTestSimpleEncode(JNIEnv* env, jobject, jstring jEncoder, j
     auto codecEncoderTest = new CodecEncoderTest(cmime, cList0, cLen0, cList1, cLen1, cList2, cLen2,
                                                  (int)colorFormat);
     bool isPass = codecEncoderTest->testSimpleEncode(cEncoder, csrcPath);
-    delete codecEncoderTest;
-    env->ReleaseIntArrayElements(jList0, cList0, 0);
-    env->ReleaseIntArrayElements(jList1, cList1, 0);
-    env->ReleaseIntArrayElements(jList2, cList2, 0);
-    env->ReleaseStringUTFChars(jEncoder, cEncoder);
-    env->ReleaseStringUTFChars(jMime, cmime);
-    env->ReleaseStringUTFChars(jsrcPath, csrcPath);
-    return static_cast<jboolean>(isPass);
-}
-
-static jboolean nativeTestFlush(JNIEnv* env, jobject, jstring jEncoder, jstring jsrcPath,
-                                jstring jMime, jintArray jList0, jintArray jList1, jintArray jList2,
-                                jint colorFormat) {
-    const char* csrcPath = env->GetStringUTFChars(jsrcPath, nullptr);
-    const char* cmime = env->GetStringUTFChars(jMime, nullptr);
-    const char* cEncoder = env->GetStringUTFChars(jEncoder, nullptr);
-    jsize cLen0 = env->GetArrayLength(jList0);
-    jint* cList0 = env->GetIntArrayElements(jList0, nullptr);
-    jsize cLen1 = env->GetArrayLength(jList1);
-    jint* cList1 = env->GetIntArrayElements(jList1, nullptr);
-    jsize cLen2 = env->GetArrayLength(jList2);
-    jint* cList2 = env->GetIntArrayElements(jList2, nullptr);
-    auto codecEncoderTest = new CodecEncoderTest(cmime, cList0, cLen0, cList1, cLen1, cList2, cLen2,
-                                                 (int)colorFormat);
-    bool isPass = codecEncoderTest->testFlush(cEncoder, csrcPath);
     delete codecEncoderTest;
     env->ReleaseIntArrayElements(jList0, cList0, 0);
     env->ReleaseIntArrayElements(jList1, cList1, 0);
@@ -1016,8 +919,6 @@ int registerAndroidMediaV2CtsEncoderTest(JNIEnv* env) {
             {"nativeTestSimpleEncode",
              "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;[I[I[II)Z",
              (void*)nativeTestSimpleEncode},
-            {"nativeTestFlush", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;[I[I[II)Z",
-             (void*)nativeTestFlush},
             {"nativeTestReconfigure",
              "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;[I[I[II)Z",
              (void*)nativeTestReconfigure},
@@ -1034,18 +935,9 @@ int registerAndroidMediaV2CtsEncoderTest(JNIEnv* env) {
     return env->RegisterNatives(c, methodTable, sizeof(methodTable) / sizeof(JNINativeMethod));
 }
 
-extern int registerAndroidMediaV2CtsCodecUnitTest(JNIEnv* env);
-extern int registerAndroidMediaV2CtsDecoderTest(JNIEnv* env);
-extern int registerAndroidMediaV2CtsDecoderSurfaceTest(JNIEnv* env);
-extern int registerAndroidMediaV2CtsEncoderSurfaceTest(JNIEnv* env);
-
 extern "C" JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void*) {
     JNIEnv* env;
     if (vm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6) != JNI_OK) return JNI_ERR;
-    if (registerAndroidMediaV2CtsCodecUnitTest(env) != JNI_OK) return JNI_ERR;
     if (registerAndroidMediaV2CtsEncoderTest(env) != JNI_OK) return JNI_ERR;
-    if (registerAndroidMediaV2CtsDecoderTest(env) != JNI_OK) return JNI_ERR;
-    if (registerAndroidMediaV2CtsDecoderSurfaceTest(env) != JNI_OK) return JNI_ERR;
-    if (registerAndroidMediaV2CtsEncoderSurfaceTest(env) != JNI_OK) return JNI_ERR;
     return JNI_VERSION_1_6;
 }

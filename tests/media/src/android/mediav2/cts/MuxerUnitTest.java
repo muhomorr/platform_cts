@@ -27,6 +27,8 @@ import android.media.MediaMuxer;
 
 import androidx.test.filters.SmallTest;
 
+import com.android.compatibility.common.util.NonMainlineTest;
+
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Ignore;
@@ -53,7 +55,7 @@ public class MuxerUnitTest {
     // duplicate definitions of hide fields of MediaMuxer.OutputFormat.
     private static final int MUXER_OUTPUT_LAST = MediaMuxer.OutputFormat.MUXER_OUTPUT_OGG;
 
-    @NonMediaMainlineTest
+    @NonMainlineTest
     @SmallTest
     public static class TestApi {
         @Rule
@@ -157,7 +159,7 @@ public class MuxerUnitTest {
                 FileDescriptor[] fd = pipe();
                 muxer = new MediaMuxer(fd[1], MediaMuxer.OutputFormat.MUXER_OUTPUT_3GPP);
                 fail("pipe, a non-seekable fd accepted by constructor");
-            } catch (IOException e) {
+            } catch (IllegalArgumentException e) {
                 // expected
             } catch (Exception e) {
                 fail(e.getMessage());
@@ -724,7 +726,7 @@ public class MuxerUnitTest {
         }
     }
 
-    @NonMediaMainlineTest
+    @NonMainlineTest
     @SmallTest
     public static class TestApiNative {
         @Rule

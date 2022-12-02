@@ -16,8 +16,6 @@
 
 package android.devicepolicy.cts;
 
-import static android.content.pm.ApplicationInfo.FLAG_STOPPED;
-
 import static com.android.bedstead.metricsrecorder.truth.MetricQueryBuilderSubject.assertThat;
 import static com.android.bedstead.remotedpc.RemoteDpc.DPC_COMPONENT_NAME;
 
@@ -28,10 +26,7 @@ import static org.testng.Assert.assertThrows;
 
 import android.Manifest.permission;
 import android.app.ActivityManager;
-import android.content.pm.PackageInfo;
-import android.content.pm.PackageManager;
 import android.stats.devicepolicy.EventId;
-import android.util.Log;
 
 import com.android.bedstead.harrier.BedsteadJUnit4;
 import com.android.bedstead.harrier.DeviceState;
@@ -45,9 +40,9 @@ import com.android.bedstead.harrier.policies.UserControlDisabledPackages;
 import com.android.bedstead.metricsrecorder.EnterpriseMetricsRecorder;
 import com.android.bedstead.nene.TestApis;
 import com.android.bedstead.nene.packages.Package;
+import com.android.bedstead.nene.utils.Poll;
 import com.android.bedstead.testapp.TestApp;
 import com.android.bedstead.testapp.TestAppInstance;
-import com.android.queryable.queries.StringQuery;
 
 import org.junit.ClassRule;
 import org.junit.Rule;
@@ -69,8 +64,6 @@ public final class UserControlDisabledPackagesTest {
 
     private static final ActivityManager sActivityManager =
             TestApis.context().instrumentedContext().getSystemService(ActivityManager.class);
-    private static final PackageManager sPackageManager =
-            TestApis.context().instrumentedContext().getPackageManager();
 
     private static final String PACKAGE_NAME = "com.android.foo.bar.baz";
 
@@ -90,8 +83,7 @@ public final class UserControlDisabledPackagesTest {
                     .whereType().isEqualTo(EventId.SET_USER_CONTROL_DISABLED_PACKAGES_VALUE)
                     .whereAdminPackageName().isEqualTo(
                             sDeviceState.dpc().componentName().getPackageName())
-                    .whereStrings().contains(
-                            StringQuery.string().isEqualTo(PACKAGE_NAME))).wasLogged();
+                    .whereStrings().contains(PACKAGE_NAME)).wasLogged();
         } finally {
             sDeviceState.dpc().devicePolicyManager().setUserControlDisabledPackages(
                     DPC_COMPONENT_NAME,
@@ -181,11 +173,12 @@ public final class UserControlDisabledPackagesTest {
                     DPC_COMPONENT_NAME, Arrays.asList(testAppPackageName));
 
             instance.activities().any().start();
+            int processIdBeforeStopping = instance.process().pid();
 
             sActivityManager.forceStopPackage(testAppPackageName);
 
             try {
-                assertPackageNotStopped(testAppPackageName);
+                assertPackageNotStopped(sTestApp.pkg(), processIdBeforeStopping);
             } finally {
                 stopPackage(sTestApp.pkg());
             }
@@ -211,11 +204,12 @@ public final class UserControlDisabledPackagesTest {
                     DPC_COMPONENT_NAME, Arrays.asList(testAppPackageName));
 
             instance.activities().any().start();
+            int processIdBeforeStopping = instance.process().pid();
 
             sActivityManager.forceStopPackage(testAppPackageName);
 
             try {
-                assertPackageStopped(testAppPackageName);
+                assertPackageStopped(sTestApp.pkg(), processIdBeforeStopping);
             } finally {
                 stopPackage(sTestApp.pkg());
             }
@@ -233,25 +227,22 @@ public final class UserControlDisabledPackagesTest {
         pkg.forceStop();
     }
 
-    private void assertPackageStopped(String packageName)
+    private void assertPackageStopped(Package pkg, int processIdBeforeStopping)
             throws Exception {
-        assertWithMessage("Package %s not stopped", packageName)
-                .that(isPackageStopped(packageName)).isTrue();
+        Poll.forValue("Package " + pkg + " stopped",
+                        () -> isProcessRunning(pkg, processIdBeforeStopping))
+                .toBeEqualTo(false)
+                .errorOnFail()
+                .await();
     }
 
-    private void assertPackageNotStopped(String packageName)
+    private void assertPackageNotStopped(Package pkg, int processIdBeforeStopping)
             throws Exception {
-        assertWithMessage("Package %s stopped", packageName)
-                .that(isPackageStopped(packageName)).isFalse();
+        assertWithMessage("Package %s stopped", pkg)
+                .that(isProcessRunning(pkg, processIdBeforeStopping)).isTrue();
     }
 
-    private boolean isPackageStopped(String packageName) throws Exception {
-        PackageInfo packageInfo =
-                sPackageManager.getPackageInfo(packageName, PackageManager.GET_META_DATA);
-        boolean stopped = (packageInfo.applicationInfo.flags & FLAG_STOPPED)
-                == FLAG_STOPPED;
-        Log.i(TAG, "Application flags for " + packageName + " = "
-                + Integer.toHexString(packageInfo.applicationInfo.flags) + ". Stopped: " + stopped);
-        return stopped;
+    private boolean isProcessRunning(Package pkg, int processIdBeforeStopping) throws Exception {
+        return pkg.runningProcesses().stream().anyMatch(p -> p.pid() == processIdBeforeStopping);
     }
 }

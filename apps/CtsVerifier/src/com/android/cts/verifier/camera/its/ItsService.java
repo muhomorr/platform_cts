@@ -32,6 +32,7 @@ import android.content.Intent;
 import android.content.pm.ServiceInfo;
 import android.graphics.ImageFormat;
 import android.graphics.Rect;
+import android.graphics.SurfaceTexture;
 import android.hardware.HardwareBuffer;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
@@ -241,6 +242,8 @@ public class ItsService extends Service implements SensorEventListener {
 
     final Object m3AStateLock = new Object();
     private volatile boolean mConvergedAE = false;
+    private volatile boolean mPrecaptureTriggered = false;
+    private volatile boolean mConvergeAETriggered = false;
     private volatile boolean mConvergedAF = false;
     private volatile boolean mConvergedAWB = false;
     private volatile boolean mLockedAE = false;
@@ -821,6 +824,8 @@ public class ItsService extends Service implements SensorEventListener {
                     String cameraId = cmdObj.getString("cameraId");
                     int profileId = cmdObj.getInt("profileId");
                     doCheckHLG10Support(cameraId, profileId);
+                } else if ("doCaptureWithFlash".equals(cmdObj.getString("cmdName"))) {
+                    doCaptureWithFlash(cmdObj);
                 } else {
                     throw new ItsException("Unknown command: " + cmd);
                 }
@@ -1031,7 +1036,9 @@ public class ItsService extends Service implements SensorEventListener {
             @Override
             public void onImageAvailable(ImageReader reader) {
                 Image i = reader.acquireNextImage();
-                i.close();
+                if (i != null) {
+                    i.close();
+                }
             }
         };
     }
@@ -1842,6 +1849,8 @@ public class ItsService extends Service implements SensorEventListener {
         // s1440p which is the max supported stream size in a combination, when preview
         // stabilization is on.
         Size maxPreviewSize = new Size(1920, 1440);
+        // 320 x 240, we test only sizes >= this.
+        Size minPreviewSize = new Size(320, 240);
         Size[] outputSizes = configMap.getOutputSizes(ImageFormat.YUV_420_888);
         if (outputSizes == null) {
             mSocketRunnableObj.sendResponse("supportedPreviewSizes", "");
@@ -1852,6 +1861,8 @@ public class ItsService extends Service implements SensorEventListener {
                 .distinct()
                 .filter(s -> s.getWidth() * s.getHeight()
                         <= maxPreviewSize.getWidth() * maxPreviewSize.getHeight())
+                .filter(s -> s.getWidth() * s.getHeight()
+                        >= minPreviewSize.getWidth() * minPreviewSize.getHeight())
                 .sorted(Comparator.comparingInt(s -> s.getWidth() * s.getHeight()))
                 .map(Size::toString)
                 .collect(Collectors.joining(";"));
@@ -2117,86 +2128,30 @@ public class ItsService extends Service implements SensorEventListener {
 
         int cameraDeviceId = Integer.parseInt(cameraId);
         Size videoSize = Size.parseSize(videoSizeString);
+        int sensorOrientation = mCameraCharacteristics.get(
+                CameraCharacteristics.SENSOR_ORIENTATION);
 
         // Set up MediaRecorder to accept Images from ImageWriter
         int fileFormat = MediaRecorder.OutputFormat.DEFAULT;
 
         String outputFilePath = getOutputMediaFile(cameraDeviceId, videoSize,
-                /* quality= */"preview", fileFormat, /* stabilized= */ true);
+                /* quality= */"preview", fileFormat, stabilize);
         assert outputFilePath != null;
 
-        mMediaRecorder = new MediaRecorder(this);
-        mMediaRecorder.setVideoSource(MediaRecorder.VideoSource.SURFACE);
-        mMediaRecorder.setAudioSource(MediaRecorder.AudioSource.DEFAULT);
-
-        mMediaRecorder.setOutputFormat(fileFormat);
-        mMediaRecorder.setVideoSize(videoSize.getWidth(), videoSize.getHeight());
-        mMediaRecorder.setVideoEncoder(MediaRecorder.VideoEncoder.DEFAULT);
-        mMediaRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.DEFAULT);
-        mMediaRecorder.setOutputFile(outputFilePath);
-
-        try {
-            mMediaRecorder.prepare();
-            mRecordSurface = mMediaRecorder.getSurface();
-        } catch (IOException e) {
-            throw new ItsException("Error preparing MediaRecorder", e);
-        }
-
-        // Image writer to write to mMediaRecorder
-        ImageWriter imageWriter = ImageWriter.newInstance(mRecordSurface, /* maxImages= */ 5,
-                ImageFormat.YUV_420_888);
-
-        // ImageReader to read preview frames from camera HAL
-        // HardwareBuffer.USAGE_COMPOSER_OVERLAY should indicate to the HAL that this surface is
-        // meant for preview
-        ImageReader imageReader = ImageReader.newInstance(videoSize.getWidth(),
-                videoSize.getHeight(), ImageFormat.YUV_420_888, /* maxImages= */ 5, /* usage= */
-                HardwareBuffer.USAGE_COMPOSER_OVERLAY | HardwareBuffer.USAGE_CPU_READ_OFTEN);
-        imageReader.setOnImageAvailableListener(reader -> {
-            Image image = reader.acquireNextImage();
-            if (image != null) {
-                imageWriter.queueInputImage(image); // redirect the frame to mMediaRecorder
-            }
-            // no need to call `image.close()` as imageWriter does it for us.
-        }, mCameraHandler);
-        Surface imageReaderSurface = imageReader.getSurface();
-
-        try {
+        try (PreviewRecorder pr = new PreviewRecorder(cameraDeviceId, videoSize,
+                sensorOrientation, outputFilePath, mCameraHandler, this)) {
             int stabilizationMode = stabilize
                     ? CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE_PREVIEW_STABILIZATION
                     : CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE_OFF;
-            configureAndCreateCaptureSession(CameraDevice.TEMPLATE_PREVIEW, imageReaderSurface,
-                    stabilizationMode);
+            configureAndCreateCaptureSession(CameraDevice.TEMPLATE_PREVIEW,
+                    pr.getCameraSurface(), stabilizationMode);
+            pr.recordPreview(recordingDuration * 1000L);
+            mSession.close();
         } catch (CameraAccessException e) {
             throw new ItsException("Error configuring and creating capture request", e);
         }
 
-        mMediaRecorder.start();
-        try {
-            Thread.sleep(recordingDuration * 1000L); // recordingDuration is in seconds
-        } catch (InterruptedException e) {
-            throw new ItsException("Unexpected InterruptException while recording", e);
-        }
-        mSession.close();
-
-        // close imageReader and imageWriter before stopping mMediaRecorder, otherwise they might
-        // attempt to access closed surfaces.
-        imageReader.close();
-        imageWriter.close();
-        mMediaRecorder.stop();
-
-        mMediaRecorder.reset();
-        mMediaRecorder.release();
-
-
-        mMediaRecorder = null;
-        if (mRecordSurface != null) {
-            mRecordSurface.release();
-            mRecordSurface = null;
-        }
-
         Log.i(TAG, "Preview recording complete: " + outputFilePath);
-
         // Send VideoRecordingObject for further processing.
         VideoRecordingObject obj = new VideoRecordingObject(outputFilePath, /* quality= */"preview",
                 videoSize, fileFormat);
@@ -2215,6 +2170,8 @@ public class ItsService extends Service implements SensorEventListener {
         assert (recordSurface != null);
         // Create capture request builder
         mCaptureRequestBuilder = mCamera.createCaptureRequest(requestTemplate);
+        mCaptureRequestBuilder.set(CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE,
+            CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE_OFF);
 
         switch (videoStabilizationMode) {
             case CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE_ON:
@@ -2335,6 +2292,104 @@ public class ItsService extends Service implements SensorEventListener {
         }
         File mediaFile = new File(fileName);
         return mediaFile + fileExtension;
+    }
+
+    private void doCaptureWithFlash(JSONObject params) throws ItsException {
+        // Parse the json to get the capture requests
+        List<CaptureRequest.Builder> previewStartRequests = ItsSerializer.deserializeRequestList(
+            mCamera, params, "previewRequestStart");
+        List<CaptureRequest.Builder> previewIdleRequests = ItsSerializer.deserializeRequestList(
+            mCamera, params, "previewRequestIdle");
+        List<CaptureRequest.Builder> stillCaptureRequests = ItsSerializer.deserializeRequestList(
+            mCamera, params, "stillCaptureRequest");
+
+        mCaptureResults = new CaptureResult[2];
+
+        ThreeAResultListener threeAListener = new ThreeAResultListener();
+        List<OutputConfiguration> outputConfigs = new ArrayList<OutputConfiguration>();
+        SurfaceTexture preview = new SurfaceTexture(/*random int*/ 1);
+        Surface previewSurface = new Surface(preview);
+        try {
+            BlockingSessionCallback sessionListener = new BlockingSessionCallback();
+            try {
+                mCountCapRes.set(0);
+                mCountJpg.set(0);
+                JSONArray jsonOutputSpecs = ItsUtils.getOutputSpecs(params);
+                prepareImageReadersWithOutputSpecs(jsonOutputSpecs, /*inputSize*/null,
+                         /*inputFormat*/0,/*maxInputBuffers*/0,false);
+
+                outputConfigs.add(new OutputConfiguration(mOutputImageReaders[0].getSurface()));
+                outputConfigs.add(new OutputConfiguration(previewSurface));
+                mCamera.createCaptureSessionByOutputConfigurations(
+                        outputConfigs, sessionListener, mCameraHandler);
+                mSession = sessionListener.waitAndGetSession(TIMEOUT_IDLE_MS);
+                ImageReader.OnImageAvailableListener readerListener =
+                        createAvailableListener(mCaptureCallback);
+                mOutputImageReaders[0].setOnImageAvailableListener(readerListener,
+                        mSaveHandlers[0]);
+            } catch (Exception e) {
+                throw new ItsException("Error configuring outputs", e);
+            }
+            CaptureRequest.Builder previewIdleReq = previewIdleRequests.get(0);
+            previewIdleReq.addTarget(previewSurface);
+            mSession.setRepeatingRequest(previewIdleReq.build(), threeAListener, mResultHandler);
+            Logt.i(TAG, "Triggering precapture sequence");
+            mPrecaptureTriggered = false;
+            CaptureRequest.Builder previewStartReq = previewStartRequests.get(0);
+            previewStartReq.addTarget(previewSurface);
+            mSession.capture(previewStartReq.build(), threeAListener ,mResultHandler);
+            mInterlock3A.open();
+            synchronized(m3AStateLock) {
+                mPrecaptureTriggered = false;
+                mConvergeAETriggered = false;
+            }
+            long tstart = System.currentTimeMillis();
+            boolean triggeredAE = false;
+            while (!mPrecaptureTriggered) {
+                if (!mInterlock3A.block(TIMEOUT_3A * 1000) ||
+                        System.currentTimeMillis() - tstart > TIMEOUT_3A * 1000) {
+                    throw new ItsException (
+                        "AE state is " + CaptureResult.CONTROL_AE_STATE_PRECAPTURE +
+                        "after " + TIMEOUT_3A + " seconds.");
+                }
+            }
+            mConvergeAETriggered = false;
+
+            tstart = System.currentTimeMillis();
+            while (!mConvergeAETriggered) {
+                if (!mInterlock3A.block(TIMEOUT_3A * 1000) ||
+                        System.currentTimeMillis() - tstart > TIMEOUT_3A * 1000) {
+                    throw new ItsException (
+                        "3A failed to converge after " + TIMEOUT_3A + " seconds.\n" +
+                        "AE converge state: " + mConvergedAE + ".");
+                }
+            }
+            mInterlock3A.close();
+            Logt.i(TAG, "AE state after precapture sequence: " + mConvergeAETriggered);
+            threeAListener.stop();
+
+            // Send a still capture request
+            CaptureRequest.Builder stillCaptureRequest = stillCaptureRequests.get(0);
+            Logt.i(TAG, "Taking still capture with ON_AUTO_FLASH.");
+            stillCaptureRequest.addTarget(mOutputImageReaders[0].getSurface());
+            mSession.capture(stillCaptureRequest.build(), mCaptureResultListener, mResultHandler);
+            mCountCallbacksRemaining.set(1);
+            long timeout = TIMEOUT_CALLBACK * 1000;
+            waitForCallbacks(timeout);
+            mSession.stopRepeating();
+        } catch (android.hardware.camera2.CameraAccessException e) {
+            throw new ItsException("Access error: ", e);
+        } finally {
+            if (mSession != null) {
+                mSession.close();
+            }
+            if (previewSurface != null) {
+                previewSurface.release();
+            }
+            if (preview != null) {
+                preview.release();
+            }
+        }
     }
 
     private void doCapture(JSONObject params) throws ItsException {
@@ -2883,7 +2938,14 @@ public class ItsService extends Service implements SensorEventListener {
                                        result.get(CaptureResult.CONTROL_AE_STATE) ==
                                                   CaptureResult.CONTROL_AE_STATE_LOCKED;
                         mLockedAE = result.get(CaptureResult.CONTROL_AE_STATE) ==
-                                               CaptureResult.CONTROL_AE_STATE_LOCKED;
+                                CaptureResult.CONTROL_AE_STATE_LOCKED;
+                        if (!mPrecaptureTriggered) {
+                            mPrecaptureTriggered = result.get(CaptureResult.CONTROL_AE_STATE) ==
+                                    CaptureResult.CONTROL_AE_STATE_PRECAPTURE;
+                        }
+                        if (!mConvergeAETriggered) {
+                            mConvergeAETriggered = mConvergedAE;
+                        }
                     }
                     if (result.get(CaptureResult.CONTROL_AF_STATE) != null) {
                         mConvergedAF = result.get(CaptureResult.CONTROL_AF_STATE) ==

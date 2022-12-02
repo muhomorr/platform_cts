@@ -24,6 +24,7 @@ import static com.android.queryable.queries.ServiceQuery.service;
 import static com.google.common.truth.Truth.assertThat;
 
 import static org.junit.Assert.assertThrows;
+import static org.junit.Assert.assertTrue;
 
 import android.accounts.Account;
 import android.accounts.AccountManager;
@@ -64,8 +65,8 @@ public final class AccountManagementTest {
             .query()
             // TODO(b/198590265) Filter for the correct account type.
             .whereServices().contains(
-                    service().intentFilters().contains(
-                            intentFilter().actions().contains(
+                    service().where().intentFilters().contains(
+                            intentFilter().where().actions().contains(
                                     "android.accounts.AccountAuthenticator"))
                     )
             .get();
@@ -96,9 +97,13 @@ public final class AccountManagementTest {
     // We don't include non device admin states as passing a null admin is a NullPointerException
     @CannotSetPolicyTest(policy = AccountManagement.class, includeNonDeviceAdminStates = false)
     public void setAccountTypesWithManagementDisabled_invalidAdmin_throwsException() {
-        assertThrows(OperationCanceledException.class, () ->
+        Exception exception = assertThrows(Exception.class, () ->
                 mDpm.setAccountManagementDisabled(
                         mAdmin, FAKE_ACCOUNT_TYPE, /* disabled= */ false));
+
+        assertTrue("Expected OperationCanceledException or SecurityException to be thrown",
+                (exception instanceof OperationCanceledException)
+                        || (exception instanceof SecurityException));
     }
 
     @CanSetPolicyTest(policy = AccountManagement.class, singleTestOnly = true)

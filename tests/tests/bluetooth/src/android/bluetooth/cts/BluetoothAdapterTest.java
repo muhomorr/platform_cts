@@ -366,20 +366,20 @@ public class BluetoothAdapterTest extends AndroidTestCase {
             return;
         }
 
-        Duration minute = Duration.ofMinutes(1);
+        Duration minutes = Duration.ofMinutes(2);
 
         assertTrue(BTAdapterUtils.disableAdapter(mAdapter, mContext));
         assertEquals(null, mAdapter.getDiscoverableTimeout());
         assertEquals(BluetoothStatusCodes.ERROR_BLUETOOTH_NOT_ENABLED,
-                mAdapter.setDiscoverableTimeout(minute));
+                mAdapter.setDiscoverableTimeout(minutes));
 
         assertTrue(BTAdapterUtils.enableAdapter(mAdapter, mContext));
         TestUtils.adoptPermissionAsShellUid(BLUETOOTH_CONNECT, BLUETOOTH_PRIVILEGED);
         assertThrows(IllegalArgumentException.class, () -> mAdapter.setDiscoverableTimeout(
                 Duration.ofDays(25000)));
         assertEquals(BluetoothStatusCodes.SUCCESS,
-                mAdapter.setDiscoverableTimeout(minute));
-        assertEquals(minute, mAdapter.getDiscoverableTimeout());
+                mAdapter.setDiscoverableTimeout(minutes));
+        assertEquals(minutes, mAdapter.getDiscoverableTimeout());
     }
 
     public void test_getConnectionState() {
@@ -592,6 +592,38 @@ public class BluetoothAdapterTest extends AndroidTestCase {
                 BluetoothProfile.getProfileName(BluetoothProfile.LE_AUDIO_BROADCAST));
         assertEquals("LE_AUDIO_BROADCAST_ASSISTANT",
                 BluetoothProfile.getProfileName(BluetoothProfile.LE_AUDIO_BROADCAST_ASSISTANT));
+    }
+
+    public void test_getSetBluetoothHciSnoopLoggingMode() {
+        if (!mHasBluetooth) {
+            return;
+        }
+
+        assertThrows(SecurityException.class, () -> mAdapter
+                .setBluetoothHciSnoopLoggingMode(BluetoothAdapter.BT_SNOOP_LOG_MODE_FULL));
+        assertThrows(SecurityException.class, () -> mAdapter
+                .getBluetoothHciSnoopLoggingMode());
+
+        TestUtils.adoptPermissionAsShellUid(BLUETOOTH_PRIVILEGED);
+
+        assertThrows(IllegalArgumentException.class, () -> mAdapter
+                .setBluetoothHciSnoopLoggingMode(-1));
+
+        assertEquals(BluetoothStatusCodes.SUCCESS, mAdapter
+                .setBluetoothHciSnoopLoggingMode(BluetoothAdapter.BT_SNOOP_LOG_MODE_FULL));
+        assertEquals(mAdapter.getBluetoothHciSnoopLoggingMode(),
+                BluetoothAdapter.BT_SNOOP_LOG_MODE_FULL);
+
+        assertEquals(BluetoothStatusCodes.SUCCESS, mAdapter
+                .setBluetoothHciSnoopLoggingMode(BluetoothAdapter.BT_SNOOP_LOG_MODE_FILTERED));
+        assertEquals(mAdapter.getBluetoothHciSnoopLoggingMode(),
+                BluetoothAdapter.BT_SNOOP_LOG_MODE_FILTERED);
+
+        assertEquals(BluetoothStatusCodes.SUCCESS, mAdapter
+                .setBluetoothHciSnoopLoggingMode(BluetoothAdapter.BT_SNOOP_LOG_MODE_DISABLED));
+        assertEquals(mAdapter.getBluetoothHciSnoopLoggingMode(),
+                BluetoothAdapter.BT_SNOOP_LOG_MODE_DISABLED);
+
     }
 
     private static void sleep(long t) {

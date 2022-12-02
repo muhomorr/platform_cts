@@ -158,11 +158,9 @@ public class ProAudioActivity
         boolean usbOK = mClaimsUSBHostMode && mClaimsUSBPeripheralMode;
         boolean hdmiOK = !mClaimsHDMI || isHDMIValid();
 
-        boolean hasPassed = !mClaimsProAudio ||
-                (mClaimsLowLatencyAudio &&
-                mClaimsMIDI &&
-                usbOK &&
-                hdmiOK);
+        boolean hasPassed = isReportLogOkToPass()
+                && !mClaimsProAudio
+                || (mClaimsLowLatencyAudio && mClaimsMIDI && usbOK && hdmiOK);
 
         getPassButton().setEnabled(hasPassed);
         return hasPassed;
@@ -172,7 +170,9 @@ public class ProAudioActivity
         boolean hasPassed = calculatePass();
 
         Resources strings = getResources();
-        if (hasPassed) {
+        if (!isReportLogOkToPass()) {
+            mTestStatusLbl.setText(getResources().getString(R.string.audio_general_reportlogtest));
+        } else  if (hasPassed) {
             mTestStatusLbl.setText(strings.getString(R.string.audio_proaudio_pass));
         } else if (!mClaimsMIDI) {
             mTestStatusLbl.setText(strings.getString(R.string.audio_proaudio_midinotreported));
@@ -305,7 +305,7 @@ public class ProAudioActivity
                         this, android.R.style.Theme_Material_Dialog_Alert);
                 builder.setTitle(getResources().getString(R.string.proaudio_hdmi_infotitle));
                 builder.setMessage(getResources().getString(R.string.proaudio_hdmi_message));
-                builder.setPositiveButton(android.R.string.yes,
+                builder.setPositiveButton(android.R.string.ok,
                         new DialogInterface.OnClickListener() {
                             public void onClick(DialogInterface dialog, int which) {
                             }

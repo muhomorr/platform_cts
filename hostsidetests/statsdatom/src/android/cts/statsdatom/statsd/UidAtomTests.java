@@ -34,13 +34,11 @@ import com.android.os.AtomsProto.AppBreadcrumbReported;
 import com.android.os.AtomsProto.AppCrashOccurred;
 import com.android.os.AtomsProto.AppUsageEventOccurred;
 import com.android.os.AtomsProto.Atom;
-import com.android.os.AtomsProto.AttributionNode;
 import com.android.os.AtomsProto.AudioStateChanged;
 import com.android.os.AtomsProto.CameraStateChanged;
 import com.android.os.AtomsProto.FlashlightStateChanged;
 import com.android.os.AtomsProto.ForegroundServiceAppOpSessionEnded;
 import com.android.os.AtomsProto.ForegroundServiceStateChanged;
-import com.android.os.AtomsProto.GpsScanStateChanged;
 import com.android.os.AtomsProto.LmkKillOccurred;
 import com.android.os.AtomsProto.MediaCodecStateChanged;
 import com.android.os.AtomsProto.OverlayStateChanged;
@@ -49,7 +47,9 @@ import com.android.os.AtomsProto.TestAtomReported;
 import com.android.os.AtomsProto.UiEventReported;
 import com.android.os.AtomsProto.VibratorStateChanged;
 import com.android.os.AtomsProto.WakelockStateChanged;
+import com.android.os.AttributionNode;
 import com.android.os.StatsLog.EventMetricData;
+import com.android.os.gps.GpsScanStateChanged;
 import com.android.tradefed.build.IBuildInfo;
 import com.android.tradefed.log.LogUtil;
 import com.android.tradefed.testtype.DeviceTestCase;
@@ -598,30 +598,25 @@ public class UidAtomTests extends DeviceTestCase implements IBuildReceiver {
 
         final int atomTag = Atom.SCREEN_BRIGHTNESS_CHANGED_FIELD_NUMBER;
 
-        Set<Integer> screenMin = new HashSet<>(Arrays.asList(47));
-        Set<Integer> screen100 = new HashSet<>(Arrays.asList(100));
-
-        // Add state sets to the list in order.
-        List<Set<Integer>> stateSet = Arrays.asList(screenMin, screen100);
-
         ConfigUtils.uploadConfigForPushedAtom(getDevice(), DeviceUtils.STATSD_ATOM_TEST_PKG,
                 atomTag);
         DeviceUtils.runDeviceTestsOnStatsdApp(getDevice(), ".AtomTests", "testScreenBrightness");
 
-        // Sorted list of events in order in which they occurred.
-        List<EventMetricData> data = ReportUtils.getEventMetricDataList(getDevice());
+        List<Integer> expectedValues = Arrays.asList(47, 100);
+
+        // Sorted list of brightness values in order in which they occurred, filtered to only
+        // contain expectedValues if they are present.
+        List<Integer> data = ReportUtils.getEventMetricDataList(getDevice())
+                                     .stream()
+                                     .map(e -> e.getAtom().getScreenBrightnessChanged().getLevel())
+                                     .filter(expectedValues::contains)
+                                     .collect(Collectors.toList());
 
         // Restore initial screen brightness
         setScreenBrightness(initialBrightness);
         setScreenBrightnessMode(isInitialManual);
 
-        AtomTestUtils.popUntilFind(data, screenMin,
-                atom -> atom.getScreenBrightnessChanged().getLevel());
-        AtomTestUtils.popUntilFindFromEnd(data, screen100,
-                atom -> atom.getScreenBrightnessChanged().getLevel());
-        // Assert that the events happened in the expected order.
-        AtomTestUtils.assertStatesOccurredInOrder(stateSet, data, AtomTestUtils.WAIT_TIME_SHORT,
-                atom -> atom.getScreenBrightnessChanged().getLevel());
+        assertThat(data).containsExactlyElementsIn(expectedValues).inOrder();
     }
 
     public void testSyncState() throws Exception {

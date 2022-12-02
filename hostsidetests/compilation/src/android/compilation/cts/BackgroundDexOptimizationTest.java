@@ -337,7 +337,7 @@ public final class BackgroundDexOptimizationTest extends BaseHostJUnit4Test {
         for (String line: getDexOptDumpForBgDexOpt()) {
             String[] vals = line.split(":");
             switch (vals[0]) {
-                case "mLastExecutionStartTimeMs":
+                case "mLastExecutionStartUptimeMs":
                     startTime = Long.parseLong(vals[1]);
                     break;
                 case "mLastExecutionDurationMs":
@@ -375,6 +375,9 @@ public final class BackgroundDexOptimizationTest extends BaseHostJUnit4Test {
         // This requires PackageManager to be alive. So run after reboot as the previous failure
         // may have device in booting state.
         assumeTrue(checkDexOptEnabled());
+
+        // Turn off the display to simulate the idle state in terms of power consumption.
+        toggleScreenOn(false);
     }
 
     private void ensurePostBootOptimizationCompleted() throws Exception {

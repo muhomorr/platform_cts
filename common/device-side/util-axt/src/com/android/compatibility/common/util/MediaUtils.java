@@ -1532,6 +1532,27 @@ public class MediaUtils {
         return false;
     }
 
+    /**
+     *  Function to identify if the device is a cuttlefish instance
+     */
+    public static boolean onCuttlefish() throws IOException {
+        String device = SystemProperties.get("ro.product.device", "");
+        String model = SystemProperties.get("ro.product.model", "");
+        String name = SystemProperties.get("ro.product.name", "");
+
+        // Return true for cuttlefish instances
+        if (!device.startsWith("vsoc_")) {
+            return false;
+        }
+        if (!model.startsWith("Cuttlefish ")) {
+            return false;
+        }
+        if (name.startsWith("cf_") || name.startsWith("aosp_cf_")) {
+            return true;
+        }
+        return false;
+    }
+
     /*
      *  -------------------------------------- END --------------------------------------
      */
